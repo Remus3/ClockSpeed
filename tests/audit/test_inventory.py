@@ -143,12 +143,14 @@ def world(
     *,
     by_record_index: Mapping[int, RecordProperties] | None = None,
     records: tuple[objects.ObjectRecord, ...] = (),
+    parents: Mapping[int, world_layer.ReferenceTarget] | None = None,
 ) -> WorldModel:
     """Build a synthetic world model holding exactly what a test needs.
 
     Args:
         by_record_index: The per-record properties, or None for none at all.
         records: The object records.
+        parents: The published component -> parent join, or None for none.
 
     Returns:
         The model.
@@ -172,6 +174,7 @@ def world(
         nodes=(),
         warnings=(),
         properties=WorldProperties(by_record_index=MappingProxyType(dict(by_record_index or {}))),
+        parents=world_layer.WorldParents(by_record_index=MappingProxyType(dict(parents or {}))),
     )
 
 
@@ -1004,9 +1007,9 @@ def test_a_building_reaches_each_carrier_once_and_sums_two_carriers() -> None:
 def partition_holds(result: inventory.WorldInventory) -> list[str]:
     """Which half of the ownership invariant fails, by name only.
 
-    The per-building sums plus the unattributed and conflict sums must equal the
-    world total EXACTLY, for stacks and for items alike - the merger's
-    acceptance for CS-400 S3.
+    The per-building sums plus the non-building-owned, unattributed and conflict
+    sums must equal the world total EXACTLY, for stacks and for items alike - the
+    merger's acceptance for CS-400 S3, widened by S2b.
 
     Args:
         result: The inventory model.
@@ -1018,12 +1021,18 @@ def partition_holds(result: inventory.WorldInventory) -> list[str]:
     building_items = sum(total.count for building in result.buildings for total in building.items)
     failing: list[str] = []
     if (
-        building_stacks + result.unattributed_stack_count + result.conflict_stack_count
+        building_stacks
+        + result.non_building_stack_count
+        + result.unattributed_stack_count
+        + result.conflict_stack_count
         != result.stack_count
     ):
         failing.append("stacks")
     if (
-        building_items + result.unattributed_item_count + result.conflict_item_count
+        building_items
+        + result.non_building_item_count
+        + result.unattributed_item_count
+        + result.conflict_item_count
         != result.total_count
     ):
         failing.append("items")
@@ -1248,3 +1257,291 @@ def test_two_runs_over_one_model_return_equal_models() -> None:
 
     assert first == second
     assert [item.item_key for item in first.items] == [item.item_key for item in second.items]
+
+
+# ---------------------------------------------------------------------------
+# CS-400 S2b - parent ownership beside the reference rule
+# ---------------------------------------------------------------------------
+#
+# MEASURED (counts only): a miner's, a water pump's and a truck station's
+# inventory carrier is named by none of its parent actor's top-level reference
+# tags, so the reference rule left it unattributed. The save layer now
+# publishes each component's parent as ``WorldModel.parents``; a carrier whose
+# parent is an ACTOR is owned by it, and that owner is a building or not by its
+# class name.
+
+PLAYER_CLASS_PATH = "/Game/Synthetic/Char_SyntheticPlayer.Char_SyntheticPlayer_C"
+POD_CLASS_PATH = "/Game/Synthetic/BP_SyntheticDropPod.BP_SyntheticDropPod_C"
+UPPER_BUILDING_CLASS_PATH = "/Game/Synthetic/BUILD_SyntheticPotty.BUILD_SyntheticPotty_C"
+UPPER_BUILDING_CLASS = "BUILD_SyntheticPotty_C"
+
+
+def unresolved_target() -> world_layer.ReferenceTarget:
+    """A path no record bears.
+
+    Returns:
+        The target.
+    """
+    return world_layer.ReferenceTarget(state=world_layer.TARGET_UNRESOLVED, record_indices=())
+
+
+def ambiguous_target(*indices: int) -> world_layer.ReferenceTarget:
+    """A path several records bear.
+
+    Args:
+        indices: The candidates.
+
+    Returns:
+        The target.
+    """
+    return world_layer.ReferenceTarget(state=world_layer.TARGET_AMBIGUOUS, record_indices=indices)
+
+
+def test_a_carrier_its_building_parent_owns_is_attributed_without_a_reference() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, ()),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 40), full("", 0))}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), component_record()),
+        parents={1: resolved(0)},
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_stacks = 2
+    assert [rows_of(building) for building in result.buildings] == [[(ORE_KEY, 40)]]
+    assert result.buildings[0].class_name == BUILDING_CLASS
+    assert result.buildings[0].stack_count == expected_stacks
+    assert result.unattributed_carrier_count == 0
+    assert result.conflict_carrier_count == 0
+    assert partition_holds(result) == []
+
+
+def test_a_reference_and_a_parent_naming_one_building_agree() -> None:
+    model = building_world(full(ORE_PATH, 3))
+    agreeing = world(
+        by_record_index=model.properties.by_record_index,
+        records=model.objects.records,
+        parents={1: resolved(0)},
+    )
+
+    result = inventory.inventory_of(agreeing)
+
+    assert [rows_of(building) for building in result.buildings] == [[(ORE_KEY, 3)]]
+    assert result.buildings[0].carriers_reached == 1
+    assert result.conflict_carrier_count == 0
+    assert partition_holds(result) == []
+
+
+def test_a_reference_and_a_parent_that_disagree_are_a_conflict() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(2),)),
+            1: joined({}, ()),
+            2: entry({"mInventoryStacks": container(full(ORE_PATH, 5))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            component_record(),
+        ),
+        parents={2: resolved(1)},
+    )
+
+    result = inventory.inventory_of(model)
+
+    assert result.buildings == ()
+    assert result.conflict_carrier_count == 1
+    assert result.conflict_item_count == 5  # noqa: PLR2004 - the planted count
+    assert result.unattributed_carrier_count == 0
+    assert partition_holds(result) == []
+
+
+def test_a_carrier_a_non_building_parent_owns_is_its_own_category() -> None:
+    # The player, a vehicle, a drop pod and a subsystem own carriers too; they
+    # are neither buildings nor unattributed.
+    model = world(
+        by_record_index={
+            0: joined({}, ()),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 7), full("", 0))}),
+            2: joined({}, ()),
+            3: entry({"mInventoryStacks": container(full(PLATE_PATH, 2))}),
+        },
+        records=(
+            actor_record(PLAYER_CLASS_PATH),
+            component_record(),
+            actor_record(POD_CLASS_PATH),
+            component_record(),
+        ),
+        parents={1: resolved(0), 3: resolved(2)},
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_carriers = 2
+    expected_stacks = 3
+    expected_items = 9
+    assert result.buildings == ()
+    assert result.non_building_carrier_count == expected_carriers
+    assert result.non_building_stack_count == expected_stacks
+    assert result.non_building_item_count == expected_items
+    assert result.unattributed_carrier_count == 0
+    assert partition_holds(result) == []
+
+
+def test_a_non_building_reference_claimant_is_not_a_building() -> None:
+    # MEASURED: before S2b the reference rule listed drop pods, the player and
+    # a tractor among the "buildings".
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(1),)),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 4))}),
+        },
+        records=(actor_record(POD_CLASS_PATH), component_record()),
+    )
+
+    result = inventory.inventory_of(model)
+
+    assert result.buildings == ()
+    assert result.non_building_carrier_count == 1
+    assert result.non_building_item_count == 4  # noqa: PLR2004 - the planted count
+    assert partition_holds(result) == []
+
+
+def test_the_building_prefix_is_matched_without_regard_to_case() -> None:
+    # MEASURED: one shipped buildable spells its prefix in capitals.
+    model = world(
+        by_record_index={
+            0: joined({}, ()),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 1))}),
+        },
+        records=(actor_record(UPPER_BUILDING_CLASS_PATH), component_record()),
+        parents={1: resolved(0)},
+    )
+
+    result = inventory.inventory_of(model)
+
+    assert [building.class_name for building in result.buildings] == [UPPER_BUILDING_CLASS]
+    assert result.non_building_carrier_count == 0
+
+
+def test_an_unresolved_ambiguous_or_component_parent_claims_nothing() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, ()),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 1))}),
+            2: entry({"mInventoryStacks": container(full(ORE_PATH, 2))}),
+            3: entry({"mInventoryStacks": container(full(ORE_PATH, 4))}),
+            4: entry({"mInventoryStacks": container(full(ORE_PATH, 8))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            component_record(),
+            component_record(),
+            component_record(),
+            component_record(),
+        ),
+        parents={
+            1: unresolved_target(),
+            2: ambiguous_target(0, 0),
+            3: resolved(1),
+            4: resolved(RECORD_INDEX_MARKER),
+        },
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_unattributed = 4
+    expected_items = 15
+    assert result.buildings == ()
+    assert result.unattributed_carrier_count == expected_unattributed
+    assert result.unattributed_item_count == expected_items
+    assert result.parent_unresolved_carrier_count == 1
+    assert result.parent_ambiguous_carrier_count == 1
+    assert partition_holds(result) == []
+
+
+def test_an_actor_holding_its_own_stacks_owns_them() -> None:
+    # MEASURED: an event subsystem ACTOR carries stacks in its own values and
+    # has no parent; it is their owner, so it lands in the non-building
+    # category rather than unattributed. A building doing the same gets a view.
+    model = world(
+        by_record_index={
+            0: entry({"mInventoryStacks": container(full(ORE_PATH, 6), full("", 0))}),
+            1: entry({"mInventoryStacks": container(full(PLATE_PATH, 3))}),
+        },
+        records=(actor_record(POD_CLASS_PATH), actor_record(BUILDING_CLASS_PATH)),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_stacks = 2
+    assert result.non_building_carrier_count == 1
+    assert result.non_building_stack_count == expected_stacks
+    assert result.non_building_item_count == 6  # noqa: PLR2004 - the planted count
+    assert [rows_of(building) for building in result.buildings] == [[(PLATE_KEY, 3)]]
+    assert result.unattributed_carrier_count == 0
+    assert partition_holds(result) == []
+
+
+def test_an_actor_carrier_another_actor_claims_is_a_conflict() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(1),)),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 2))}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), actor_record(BUILDING_CLASS_PATH)),
+    )
+
+    result = inventory.inventory_of(model)
+
+    assert result.buildings == ()
+    assert result.conflict_carrier_count == 1
+    assert partition_holds(result) == []
+
+
+def test_the_four_way_partition_holds_over_every_shape_at_once() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(5),)),
+            1: joined({}, ()),
+            2: joined({}, ()),
+            3: joined({}, (resolved(6),)),
+            4: joined({}, (resolved(6),)),
+            5: entry({"mInventoryStacks": container(full(ORE_PATH, 1), full("", 0))}),
+            6: entry({"mInventoryStacks": container(full(ORE_PATH, 2))}),
+            7: entry({"mInventoryStacks": container(full(PLATE_PATH, 4))}),
+            8: entry({"mInventoryStacks": container(full(PLATE_PATH, 8), save_stack(NumItems=1))}),
+            9: entry({"mInventoryStacks": container(full(ORE_PATH, 16))}),
+            10: entry({"mInventoryStacks": container(full(ORE_PATH, 32))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(PLAYER_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            *(component_record() for _ in range(6)),
+        ),
+        parents={
+            5: resolved(0),
+            6: resolved(3),
+            7: resolved(1),
+            8: resolved(2),
+            9: unresolved_target(),
+            10: resolved(1),
+        },
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_buildings = 2
+    expected_conflict_items = 2
+    expected_non_building_items = 8
+    expected_unattributed_items = 16
+    assert len(result.buildings) == expected_buildings
+    assert result.conflict_item_count == expected_conflict_items
+    assert result.non_building_item_count == expected_non_building_items
+    assert result.unattributed_item_count == expected_unattributed_items
+    assert partition_holds(result) == []

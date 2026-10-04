@@ -32,15 +32,44 @@ landed as ``RecordProperties.reference_targets`` (``clockspeed.save.world``
 reading that join and never by resolving a path itself - resolution is the save
 layer's, and running it here would reach past the neighbour.
 
-"BUILDING" IS NOT CLASSIFIED, AND A CARRIER HAS AT MOST ONE OWNER. A CARRIER is
-any walked record whose own published values hold at least one stack. It is
-ATTRIBUTED to the ACTOR records (``ObjectRecord.kind``, published on the model)
-whose resolved references name it, and to nothing else:
+A CARRIER HAS AT MOST ONE OWNER, CLAIMED BY THREE RULES. A CARRIER is any walked
+record whose own published values hold at least one stack. Its CLAIMANTS are:
 
-- exactly one claiming actor - the carrier is that building's;
+- the REFERENCE rule: every ACTOR record (``ObjectRecord.kind``, published on
+  the model) whose resolved references name it;
+- the PARENT rule - CS-400 S2b: the ACTOR its own parent path resolves to,
+  read off ``WorldModel.parents`` (``clockspeed.save.world.WorldParents``).
+  Path matching is the save layer's; this module reads a record index.
+- the SELF rule - CS-400 S2b: a carrier that is itself an ACTOR claims itself.
+  Measured: an event subsystem actor carries stacks in its own values and has
+  no parent, and was the only carrier left unattributed once the parent rule
+  landed.
+
+WHY THE SECOND RULE, MEASURED. Over the local library (counts only) the
+carriers the reference rule left unattributed were miners, truck stations and
+water pumps - in the newest save the pumps alone held almost all of the
+unattributed items - plus drop pods, the player, a tractor and an event
+subsystem. Each such carrier's parent actor resolved, and NONE of that actor's
+top-level reference tags named the carrier: the link lives in the actor head's
+component list, which the save layer's reference population steps over by
+design (CS-834). The actors' unresolved references were a recipe asset and, on a
+pump, a level object no record bears. It was never a resolution defect.
+
+Then, over the claimant set:
+
 - none - the carrier is UNATTRIBUTED, counted on the world model;
-- more than one - the carrier is a CONFLICT, counted on the world model and
-  left out of every per-building total rather than handed to one claimant.
+- more than one - the reference rule naming two actors, OR the rules
+  naming different actors - the carrier is a CONFLICT, counted on the world
+  model and left out of every view rather than handed to one claimant;
+- exactly one - the carrier is that owner's. A BUILDING owner gets it in its
+  per-building view; any other owner - the player, a vehicle, a drop pod, a
+  subsystem - gets it in the NON-BUILDING category, counted on the world model.
+
+"BUILDING" IS THE GAME'S OWN BUILDABLE CLASS PREFIX, matched without regard to
+case (:data:`_BUILDING_CLASS_PREFIX`) because one shipped buildable spells it in
+capitals. ``placement.py`` uses the same prefix only to COUNT; here it decides a
+CATEGORY, never whether a carrier is counted at all, so a misread prefix moves a
+carrier between two counted buckets and the invariant below still holds.
 
 WHY ACTORS ONLY, MEASURED RATHER THAN LISTED. A component record references
 inventories too - a factory connection names the inventory it feeds - and
@@ -54,13 +83,14 @@ name is hand-listed. The conflict count is what reports the day that stops
 holding.
 
 So the partition is exact by construction, and graded as an invariant: the
-per-building sums plus the unattributed and conflict sums equal the world
-total, for stacks and for items alike.
+per-building sums plus the non-building, unattributed and conflict sums equal
+the world total, for stacks and for items alike.
 
-An UNRESOLVED or AMBIGUOUS reference is never followed: ambiguity hands over
-several candidates, and taking one would be the confident wrong answer
-non-negotiable 7 forbids. Both are COUNTED on the world model, as is a resolved
-reference whose target has no published properties entry.
+An UNRESOLVED or AMBIGUOUS reference or parent is never followed: ambiguity
+hands over several candidates, and taking one would be the confident wrong
+answer non-negotiable 7 forbids. Both are COUNTED on the world model, as is a
+resolved reference whose target has no published properties entry. A parent
+that resolves to a COMPONENT or to an index outside the table claims nothing.
 
 THE WORLD TOTAL DOES NOT GO THROUGH THE JOIN. :attr:`WorldInventory.items` sums
 every stack in every walked record exactly once, whoever references it.
@@ -248,6 +278,20 @@ STACK_EXCLUSION_REASONS: Final = frozenset(
 _JOIN_UNJOINED: Final = "unjoined"
 _JOIN_UNWALKED: Final = "unwalked"
 
+#: The game's buildable class-name prefix, CASEFOLDED - a building owner is an
+#: actor whose reduced class name casefolds to a string starting with this. See
+#: the module docstring for why case is ignored and why a misread is safe.
+_BUILDING_CLASS_PREFIX: Final = "build_"
+
+#: Where one carrier lands once its claimants are known - private words, never
+#: published. Only a BUILDING owner gets a per-building view; the other three
+#: are counted on the world model.
+_OWNER_BUILDING: Final = "building"
+_OWNER_NON_BUILDING: Final = "non_building"
+_OWNER_NONE: Final = "unattributed"
+_OWNER_CONFLICT: Final = "conflict"
+_UNVIEWED_CATEGORIES: Final = (_OWNER_NON_BUILDING, _OWNER_NONE, _OWNER_CONFLICT)
+
 #: The two non-excluded outcomes of reading one stack.
 _OUTCOME_ROW: Final = "row"
 _OUTCOME_EMPTY: Final = "empty"
@@ -302,12 +346,13 @@ class ItemTotal:
 
 @dataclass(frozen=True)
 class BuildingInventory:
-    """What one actor holds through the inventory carriers it alone owns - CS-400.
+    """What one building holds through the inventory carriers it alone owns - CS-400.
 
-    ONE PER ACTOR, NEVER PER REFERENCE. An actor naming one carrier under two
-    tags owns it once; an actor owning two carriers sums both. A carrier another
-    actor also claims is a CONFLICT and is in neither actor's view - see the
-    module docstring.
+    ONE PER BUILDING ACTOR, NEVER PER REFERENCE. An actor naming one carrier
+    under two tags, or naming it and parenting it, owns it once; an actor owning
+    two carriers sums both. A carrier another actor also claims is a CONFLICT
+    and is in neither actor's view, and a carrier a NON-BUILDING actor owns is
+    in no view at all - see the module docstring.
 
     NO RECORD INDEX. The world model keys by one and this layer never hands it
     on (module docstring). The rows sit in record-table order on
@@ -383,8 +428,8 @@ class WorldInventory:
             carried verbatim from ``WorldProperties.unread_payload_count`` - the
             honest denominator its own docstring names.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
-        buildings: One :class:`BuildingInventory` per actor owning at least one
-            carrier alone, in record-table order.
+        buildings: One :class:`BuildingInventory` per BUILDING actor owning at
+            least one carrier alone, in record-table order.
         stack_count: Every stack the world walk reached, whatever its outcome.
         empty_slot_count: Stacks read as an empty slot.
         state_undecoded_count: Rows and empty slots whose state was left undecoded.
@@ -401,11 +446,20 @@ class WorldInventory:
         references_to_unwalked: Resolved references whose target record has no
             entry in ``WorldModel.properties`` - nothing there to walk, counted.
         carrier_count: Records whose own values hold at least one stack.
-        unattributed_carrier_count: Carriers no actor claims.
+        non_building_carrier_count: Carriers one NON-BUILDING actor alone owns -
+            the player, a vehicle, a drop pod, a subsystem. In no per-building
+            view, and not unattributed.
+        non_building_stack_count: Stacks in those carriers.
+        non_building_item_count: Item count summed over those carriers' rows.
+        parent_unresolved_carrier_count: Carriers whose published parent no
+            record bears. Counted whatever the reference rule then decided.
+        parent_ambiguous_carrier_count: Carriers whose published parent several
+            records bear - never followed, on the same terms.
+        unattributed_carrier_count: Carriers no actor claims by any rule.
         unattributed_stack_count: Stacks in those carriers, whatever the outcome.
         unattributed_item_count: Item count summed over those carriers' rows.
-        conflict_carrier_count: Carriers claimed by more than one actor - left
-            out of every per-building view.
+        conflict_carrier_count: Carriers claimed by more than one actor, or by
+            different actors under different rules - left out of every view.
         conflict_stack_count: Stacks in those carriers.
         conflict_item_count: Item count summed over those carriers' rows.
     """
@@ -427,6 +481,11 @@ class WorldInventory:
     references_unjoined: int = 0
     references_to_unwalked: int = 0
     carrier_count: int = 0
+    non_building_carrier_count: int = 0
+    non_building_stack_count: int = 0
+    non_building_item_count: int = 0
+    parent_unresolved_carrier_count: int = 0
+    parent_ambiguous_carrier_count: int = 0
     unattributed_carrier_count: int = 0
     unattributed_stack_count: int = 0
     unattributed_item_count: int = 0
@@ -475,6 +534,11 @@ class WorldInventory:
             f"references_unjoined={self.references_unjoined}, "
             f"references_to_unwalked={self.references_to_unwalked}, "
             f"carrier_count={self.carrier_count}, "
+            f"non_building_carrier_count={self.non_building_carrier_count}, "
+            f"non_building_stack_count={self.non_building_stack_count}, "
+            f"non_building_item_count={self.non_building_item_count}, "
+            f"parent_unresolved_carrier_count={self.parent_unresolved_carrier_count}, "
+            f"parent_ambiguous_carrier_count={self.parent_ambiguous_carrier_count}, "
             f"unattributed_carrier_count={self.unattributed_carrier_count}, "
             f"unattributed_stack_count={self.unattributed_stack_count}, "
             f"unattributed_item_count={self.unattributed_item_count}, "
@@ -764,6 +828,88 @@ def _claims(
     return claimants
 
 
+def _is_building(model: WorldModel, index: int) -> bool:
+    """Whether the record at this index is a BUILDING actor.
+
+    Args:
+        model: The world.
+        index: A record index.
+
+    Returns:
+        True for an actor whose class name carries the buildable prefix, in
+        any case; False otherwise, including for an index outside the table.
+    """
+    if not _is_actor(model, index):
+        return False
+    name = class_name_of_path(model.objects.records[index].type_path)
+    return name.casefold().startswith(_BUILDING_CLASS_PREFIX)
+
+
+def _parent_owner(model: WorldModel, carrier: int, parents: dict[str, int]) -> int | None:
+    """The actor a carrier's published parent resolves to, or None - CS-400 S2b.
+
+    Args:
+        model: The world.
+        carrier: The carrier's record index.
+        parents: Filled in place: unresolved and ambiguous parents, counted.
+
+    Returns:
+        The parent actor's index when the parent resolved to exactly one ACTOR;
+        None for no parent entry, an unresolved or ambiguous parent, a parent
+        that is a component, or an index outside the table.
+    """
+    target = model.parents.by_record_index.get(carrier)
+    if target is None:
+        return None
+    if target.state in (TARGET_UNRESOLVED, TARGET_AMBIGUOUS):
+        parents[target.state] += 1
+        return None
+    index = target.record_index
+    if target.state == TARGET_RESOLVED and index is not None and _is_actor(model, index):
+        return index
+    return None
+
+
+def _claimed_by(
+    model: WorldModel, carrier: int, referrers: list[int], parents: dict[str, int]
+) -> list[int]:
+    """Every distinct actor claiming one carrier under the three rules.
+
+    Args:
+        model: The world.
+        carrier: The carrier's record index.
+        referrers: The actors whose resolved references name it.
+        parents: Filled in place by :func:`_parent_owner`.
+
+    Returns:
+        The claimants: the referrers in record-table order, then the parent
+        actor, then the carrier itself when it is an actor - each once.
+    """
+    claimed = list(referrers)
+    parent = _parent_owner(model, carrier, parents)
+    for candidate in (parent, carrier if _is_actor(model, carrier) else None):
+        if candidate is not None and candidate not in claimed:
+            claimed.append(candidate)
+    return claimed
+
+
+def _category_of(model: WorldModel, claimed: list[int]) -> str:
+    """Which owner category a claimant set puts its carrier in.
+
+    Args:
+        model: The world.
+        claimed: The carrier's distinct claimants.
+
+    Returns:
+        One of the private ``_OWNER_*`` words.
+    """
+    if not claimed:
+        return _OWNER_NONE
+    if len(claimed) > 1:
+        return _OWNER_CONFLICT
+    return _OWNER_BUILDING if _is_building(model, claimed[0]) else _OWNER_NON_BUILDING
+
+
 def _item_count(tally: _Tally) -> int:
     """The item count a tally's rows sum to.
 
@@ -812,21 +958,21 @@ def inventory_of(model: WorldModel) -> WorldInventory:
         _JOIN_UNWALKED: 0,
     }
     claimants = _claims(model, carriers, joins)
+    parents = {TARGET_UNRESOLVED: 0, TARGET_AMBIGUOUS: 0}
     owned: dict[int, list[int]] = {}
-    unattributed = _Tally()
-    conflict = _Tally()
-    unattributed_carriers = 0
-    conflict_carriers = 0
+    buckets = {category: _Tally() for category in _UNVIEWED_CATEGORIES}
+    bucket_carriers = dict.fromkeys(_UNVIEWED_CATEGORIES, 0)
     for carrier in sorted(carriers):
-        claimed_by = claimants[carrier]
-        if not claimed_by:
-            unattributed_carriers += 1
-            _merge(unattributed, carriers[carrier])
-        elif len(claimed_by) > 1:
-            conflict_carriers += 1
-            _merge(conflict, carriers[carrier])
-        else:
+        claimed_by = _claimed_by(model, carrier, claimants[carrier], parents)
+        category = _category_of(model, claimed_by)
+        if category == _OWNER_BUILDING:
             owned.setdefault(claimed_by[0], []).append(carrier)
+        else:
+            bucket_carriers[category] += 1
+            _merge(buckets[category], carriers[carrier])
+    non_building = buckets[_OWNER_NON_BUILDING]
+    unattributed = buckets[_OWNER_NONE]
+    conflict = buckets[_OWNER_CONFLICT]
 
     records = model.objects.records
     buildings: list[BuildingInventory] = []
@@ -881,10 +1027,15 @@ def inventory_of(model: WorldModel) -> WorldInventory:
         references_unjoined=joins[_JOIN_UNJOINED],
         references_to_unwalked=joins[_JOIN_UNWALKED],
         carrier_count=len(carriers),
-        unattributed_carrier_count=unattributed_carriers,
+        non_building_carrier_count=bucket_carriers[_OWNER_NON_BUILDING],
+        non_building_stack_count=non_building.stacks,
+        non_building_item_count=_item_count(non_building),
+        parent_unresolved_carrier_count=parents[TARGET_UNRESOLVED],
+        parent_ambiguous_carrier_count=parents[TARGET_AMBIGUOUS],
+        unattributed_carrier_count=bucket_carriers[_OWNER_NONE],
         unattributed_stack_count=unattributed.stacks,
         unattributed_item_count=_item_count(unattributed),
-        conflict_carrier_count=conflict_carriers,
+        conflict_carrier_count=bucket_carriers[_OWNER_CONFLICT],
         conflict_stack_count=conflict.stacks,
         conflict_item_count=_item_count(conflict),
     )
