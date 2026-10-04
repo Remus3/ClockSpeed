@@ -172,7 +172,9 @@ GLOB_MARKERS: Final = ("*", "?", "[")
 WIDENING_PROBE: Final = ("ops/loop/*.py", "ops/**", "vendor[eo]d/slots.py")
 
 #: THE EXEMPTED RULE CODES, TYPED BY HAND FROM A MEASURED `ruff check .` RUN ON
-#: 2026-09-20 - nine codes, ten findings, N806 twice. Pinned as an exact tuple
+#: 2026-09-20 - nine codes, ten findings, N806 twice - plus D205 and D209,
+#: measured on the C4 bytes on 2026-10-03 at the new two-line ``is_stale``
+#: docstring and added with the C4 re-pin (CS-1216). Pinned as an exact tuple
 #: rather than a floor: a code added here is a rule this tree stopped applying
 #: to a file it ships, and that should take a reading of the file rather than a
 #: quiet append.
@@ -186,6 +188,8 @@ EXEMPTED_RULE_CODES: Final = (
     "SIM105",
     "PLR0913",
     "S311",
+    "D205",
+    "D209",
 )
 
 #: Every per-file-ignores key that legitimately covers the vendored file. The
@@ -200,7 +204,7 @@ EXPECTED_MYPY_RELAXATIONS: Final = [("warn_return_any", False)]
 
 #: The measured size, carried so a truncated or re-wrapped copy reports its
 #: shape rather than only a changed digest.
-EXPECTED_BYTES: Final = 9627
+EXPECTED_BYTES: Final = 11426
 
 
 def _gate_config() -> dict:
@@ -414,4 +418,11 @@ def test_the_type_gate_exemption_is_scoped_to_the_one_vendored_module() -> None:
 #: working tree was rewritten locally - check the CR and ASCII arms above first,
 #: they name that case - or a carrier re-pinned the protocol, which is a joint
 #: round with every carrier and not a local edit.
-SLOTS_DIGEST: Final = "71fa2a683f2eaa04dd61feb2bebc646b5f9086e692c5acc05a9239de49d07d1b"
+#:
+#: RE-PINNED 2026-10-04 TO C4, the joint round's landed candidate: rebuilt here
+#: from the two fenced diffs in the carriers' 2026-10-02 notes applied to the
+#: previous bytes ``71fa2a68...``, and equal to the digest and size two carriers
+#: stated from their own disks after landing it (11,426 B). The previous
+#: upstream digest survives as ``UPSTREAM_SLOTS_DIGEST`` in
+#: ``tests/test_lane_lock.py``, which records history and is never bumped.
+SLOTS_DIGEST: Final = "290cbf80ce6989e15ad778be9032503733c8820030bfa6a9b27439b29d70486e"

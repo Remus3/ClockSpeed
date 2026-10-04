@@ -304,9 +304,11 @@ ignore = [
 #   SIM105   try/except/pass around a losing unlink, which is the fail-open point
 #   PLR0913  hold() takes the protocol's 10 keyword parameters
 #   S311     random.random is backoff jitter, never a credential
+#   D205     C4's is_stale docstring runs its summary onto a second line
+#   D209     ... and closes its quotes on that same line (CS-1216, the C4 re-pin)
 "ops/loop/slots.py" = [
   "N818", "PLR0911", "PLC0415", "N806", "PLR2004", "PTH123", "SIM105",
-  "PLR0913", "S311",
+  "PLR0913", "S311", "D205", "D209",
 ]
 
 # ops/fleet_kit/fleet_headless.py IS VENDORED BYTE-IDENTICAL FROM MAIN (CS-1231,

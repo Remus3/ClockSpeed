@@ -291,6 +291,7 @@ tests/ops/test_queue_lane_relaunch.py	authored	CS-1000	first-add:CS-1000
 tests/ops/test_row_claim.py	authored	CS-991	first-add:CS-991
 tests/ops/test_scope_binding.py	authored	CS-1005	first-add:CS-1005
 tests/ops/test_shared_slots.py	authored	CS-946	first-add:CS-946
+tests/ops/test_shared_slots_staleness.py	authored	CS-1216	stamped
 tests/ops/test_suite_ration.py	authored	CS-993	first-add:CS-993
 tests/ops/test_usage_limit_refusal.py	authored	CS-1178	stamped
 tests/pathless_clone_guard.py	authored	CS-885	first-add:CS-885
