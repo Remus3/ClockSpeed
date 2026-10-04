@@ -2385,15 +2385,20 @@ def test_the_script_renders_the_blocking_item_id_as_text() -> None:
 
 
 def test_the_script_never_hardcodes_the_blocking_item_id() -> None:
-    """``CS-500`` is read off the wire, never typed into the page.
+    """Every blocking item id is read off the wire, never typed into the page.
 
     A hardcoded id renders the same characters whether or not the server agrees,
     which is a page that cannot go wrong and therefore cannot be right either.
     """
     script = read_asset(SCRIPT)
     markup = read_asset(INDEX)
-    assert pending.PENDING_BLOCKER not in script, "app.js hardcodes the blocking item id"
-    assert pending.PENDING_BLOCKER not in markup, "index.html hardcodes the blocking item id"
+    blockers = sorted(frozenset(pending.BLOCKERS.values()))
+    count = len(blockers)
+    assert count > 0, "no blocking item to look for, so the arm grades nothing"
+    in_script = sum(1 for blocker in blockers if blocker in script)
+    in_markup = sum(1 for blocker in blockers if blocker in markup)
+    assert in_script == 0, "app.js hardcodes a blocking item id"
+    assert in_markup == 0, "index.html hardcodes a blocking item id"
 
 
 def test_the_page_shows_the_two_version_facts_and_the_two_presence_badges() -> None:
@@ -2949,7 +2954,7 @@ def test_the_harness_publishes_five_not_implemented_bodies_naming_the_open_item(
         f"{template}: {response.http_status} {response.payload.get('blocked_by')!r}"
         for template, response in sorted(published.items())
         if response.http_status != contract.HTTP_NOT_IMPLEMENTED
-        or response.payload.get("blocked_by") != pending.PENDING_BLOCKER
+        or response.payload.get("blocked_by") != pending.BLOCKERS[template]
     )
     total = len(wrong)
     assert total == 0, f"{total} pending body(ies) are not a 501 naming the open item: {wrong}"

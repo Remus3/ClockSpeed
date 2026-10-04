@@ -1,26 +1,30 @@
-"""The five endpoints whose computing layer does not exist yet, answering so.
+"""The endpoints whose published body does not exist yet, answering so.
 
 Owns (BOOTSTRAP.md section 7.1): the wire behaviour of ``/api/advice``,
 ``/api/advice/<id>/derivation``, ``/api/advice/<id>/state``, ``/api/audit`` and
-``/api/plan`` until phase 5 builds what sits beneath them.
+``/api/plan`` until the items named in :data:`BLOCKERS` build what answers them.
 
-THESE ANSWER HONESTLY RATHER THAN PLAUSIBLY, WHICH IS THE WHOLE MODULE. There is
-no advisor, no whole-world audit and no progression router yet. An endpoint that
+THESE ANSWER HONESTLY RATHER THAN PLAUSIBLY, WHICH IS THE WHOLE MODULE. The
+advisor exists since CS-500 closed, but nothing yet builds its inputs from a
+world without the surface reaching past it into the audit layer (CS-1270), the
+state route has no defended write path (CS-1269), and the audit and plan bodies
+are unpublished (CS-1046). An endpoint that
 returned ``200`` with ``{"cards": []}`` would be indistinguishable - to a
 dashboard, to a client, to an operator reading a log - from a world that
 genuinely has no advice to give, and that is non-negotiable 7 at the surface:
 "unknown content is flagged and skipped, never fatal, NEVER SILENTLY WRONG". An
 empty success body is the silently-wrong branch of that sentence wearing a green
-status code. So each of the five returns 501 and NAMES the item that would build
-it, which is a machine-readable statement a client can branch on and an operator
-can act on.
+status code. So each returns 501 and NAMES the item that would build it, which
+is a machine-readable statement a client can branch on and an operator can act
+on.
 
-AND THE REFUSAL CANNOT OUTLIVE ITS REASON. :data:`PENDING_BLOCKER` is validated
-by ``contract.not_implemented`` against the closed set of items this surface
-still has open, and ``tests/surface/test_contract.py`` pins that set to the OPEN
-item lines of ``ROADMAP.md``. When phase 5 lands and CS-500 leaves the roadmap,
-that arm goes red - so these placeholders have to be revisited rather than
-quietly outliving the work they point at. The partition arm in
+AND THE REFUSAL CANNOT OUTLIVE ITS REASON. Every value in :data:`BLOCKERS` is
+validated by ``contract.not_implemented`` against the closed set of items this
+surface still has open, and ``tests/surface/test_contract.py`` pins that set to
+the OPEN item lines of ``ROADMAP.md``. When a named item leaves the roadmap that
+arm goes red - so these placeholders have to be revisited rather than quietly
+outliving the work they point at, which is exactly how CS-500 closing forced
+every blame here to be re-pointed. The partition arm in
 ``tests/surface/test_pending.py`` closes the other direction: a route here that
 becomes real must MOVE, because its 501 is asserted rather than merely
 tolerated.
@@ -37,7 +41,7 @@ answerable without a running listener and gradeable without one.
 
 THIS MODULE READS NOTHING AND COMPUTES NOTHING, and it needs no provider to say
 so. A refusal that had to consult a world before it could refuse would fail on a
-machine with no save, and would turn "phase 5 is unwritten" into "there is no
+machine with no save, and would turn "this layer is unwritten" into "there is no
 save here" - the 501-versus-503 collapse the envelope exists to prevent.
 """
 
@@ -49,12 +53,12 @@ save here" - the 501-versus-503 collapse the envelope exists to prevent.
 #
 # There is deliberately nothing below this module to consume. It imports the
 # response envelope and the standard library, and that is the complete list -
-# an import of clockspeed.advisor here would be an import of a package phase 5
-# has not written, and a stub of one would be the plausible answer this module
-# exists to refuse to give.
+# a stub of a layer here would be the plausible answer this module exists to
+# refuse to give.
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.surface.api import contract
@@ -66,11 +70,11 @@ __all__ = [
     "ADVICE_ENDPOINT",
     "ADVICE_STATE_ENDPOINT",
     "AUDIT_ENDPOINT",
+    "BLOCKERS",
     "DERIVATION_ENDPOINT",
     "METHOD_BOUNDARY",
     "METHOD_GET",
     "METHOD_POST",
-    "PENDING_BLOCKER",
     "PLAN_ENDPOINT",
     "UNBACKED",
     "method_boundary_routes",
@@ -84,11 +88,13 @@ __all__ = [
 # The route templates
 # ---------------------------------------------------------------------------
 
-#: Pillar 5. The ranked advice cards for the current world.
+#: Pillar 5. The ranked advice cards for the current world. Spelled to equal
+#: ``clockspeed/surface/api/advice.py``'s own constant, which answers it once
+#: CS-1270 lands; this module imports nothing but the envelope.
 ADVICE_ENDPOINT: Final = "/api/advice"
 
 #: Pillar 5, explain tier 3. Generated from the rule trace, never hand-written
-#: (non-negotiable 8) - which is one more reason there is nothing to stub here.
+#: (non-negotiable 8).
 DERIVATION_ENDPOINT: Final = "/api/advice/<id>/derivation"
 
 #: Pillar 5, persistence. Accept, dismiss, snooze or pin one card. MUTATING,
@@ -104,11 +110,25 @@ PLAN_ENDPOINT: Final = "/api/plan"
 METHOD_GET: Final = "GET"
 METHOD_POST: Final = "POST"
 
-#: The open item that would build every one of these. A single value rather than
-#: one per endpoint, because a single phase gate is what actually blocks them:
-#: naming a different item on each would imply five independent unlocks and
-#: would be four claims this repository cannot support.
-PENDING_BLOCKER: Final = "CS-500"
+#: The open item each unbacked template names. A BLAME PER TEMPLATE since CS-500
+#: closed: the single phase gate that blocked all of them is gone, and what is
+#: left is blocked by different items. The advice reads wait on CS-1270, which
+#: gives the advisor a function building its inputs from a world - the surface
+#: may not compose the audit models itself (CS-1189's machines seam). The state
+#: route waits on CS-1269, which records a card state behind a cross-origin
+#: refusal - a mutating route on a listener with no such refusal is a write any
+#: page in a browser could make. ``/api/audit`` and ``/api/plan`` wait on
+#: CS-1046, which publishes their bodies. A ``MappingProxyType`` so nothing
+#: holding it can rewrite a blame.
+BLOCKERS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        ADVICE_ENDPOINT: "CS-1270",
+        DERIVATION_ENDPOINT: "CS-1270",
+        ADVICE_STATE_ENDPOINT: "CS-1269",
+        AUDIT_ENDPOINT: "CS-1046",
+        PLAN_ENDPOINT: "CS-1046",
+    }
+)
 
 #: Every method-and-template pair with no layer beneath it. The order is the
 #: order routes are published in, and it is stable so two runs agree.
@@ -136,8 +156,8 @@ def not_implemented_handler(endpoint: str) -> contract.Handler:
     """A handler that refuses, names the blocking item, and reads nothing.
 
     A FACTORY RATHER THAN A LOOP BODY. Building these inside the comprehension
-    in :func:`routes` would capture the loop variable by reference, so all five
-    handlers would close over whichever template the loop finished on and every
+    in :func:`routes` would capture the loop variable by reference, so every
+    handler would close over whichever template the loop finished on and every
     refusal would name the same endpoint. Binding through a parameter is what
     makes each closure hold its own value.
 
@@ -149,9 +169,10 @@ def not_implemented_handler(endpoint: str) -> contract.Handler:
         would make an unwritten layer answerable, so reading one would only
         create a second way to fail and a place for a caller value to land.
     """
+    blocker = BLOCKERS[endpoint]
 
     def handler(_parameters: Mapping[str, str]) -> contract.Response:
-        return contract.not_implemented(endpoint, PENDING_BLOCKER)
+        return contract.not_implemented(endpoint, blocker)
 
     return handler
 
@@ -174,7 +195,7 @@ def method_refusal_handler(endpoint: str) -> contract.Handler:
 
 
 def routes() -> tuple[contract.Route, ...]:
-    """The five unbacked endpoints, one route each, ready to be registered.
+    """The unbacked endpoints, one route each, ready to be registered.
 
     Takes no provider, and that is the point rather than an omission - see the
     module docstring. A refusal that consulted a world first would fail
@@ -205,7 +226,7 @@ def routes() -> tuple[contract.Route, ...]:
     reappears in front of "templates" anywhere in this module.
 
     Returns:
-        The five routes, in a stable order, with pairwise distinct templates.
+        The routes, in a stable order, with pairwise distinct templates.
     """
     return tuple(
         contract.Route(method=method, template=template, handler=not_implemented_handler(template))

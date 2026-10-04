@@ -294,6 +294,7 @@ CS-1264 - the clocked draw never checks a production boost, so a boosted machine
 CS-1265 - the flow audit reads an untagged clock as unread while the balance prices it at the elided default - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1268 - the advice ledger never sets `completed` when advice stops firing: it cannot list a world's recorded cards - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1270 - the advisor has no function building its rule inputs from a world, so `/api/advice` still answers 501 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -343,6 +344,7 @@ CS-1259 - the dashboard is one self-contained page with no network fetch at runt
 CS-1260 - one design-token source consumed by both the dashboard and the companion - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1261 - local API hardening: loopback-only bind, header-only tokens, private refusals, per-install cert subject - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1269 - `/api/advice/<id>/state` records no card state: a mutating route needs a cross-origin refusal first - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 7 - public flip gate
 

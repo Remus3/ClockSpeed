@@ -75,6 +75,27 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1270 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1270 STAYS OPEN. The surface refusals no longer blame the closed CS-500, and the advice handlers are built but not yet routed
+Verification: `clockspeed/surface/api/pending.py::BLOCKERS`, `clockspeed/surface/api/contract.py::OPEN_BLOCKERS`,
+`::BLOCKER_PATTERN`, `::REASON_ADVICE_STORE_UNREADABLE`, `clockspeed/surface/api/advice.py::routes`;
+`tests/surface/test_contract.py::test_every_open_blocker_is_an_open_roadmap_item_line`,
+`::test_the_blocker_form_admits_three_and_four_digit_ids`,
+`tests/surface/test_pending.py::test_the_blocker_map_is_exactly_the_declared_one`,
+`tests/surface/test_advice.py::test_advice_answers_200_with_tier_one_and_two_per_card`,
+`::test_derivation_answers_tier_three_for_the_named_card`,
+`::test_the_world_token_never_reaches_the_wire`. The push was blocked because
+`contract.OPEN_BLOCKERS` still named CS-500 after CS-500 closed. The first attempt wired
+`/api/advice` to `advise()` and built the audit balance in `clockspeed/surface/providers.py`.
+That reddened the CS-1189 machines-seam guard. An adjudicator ruled that the guard stays and
+that the composition belongs to the advisor, so the reads stay 501 for now. The blocker
+pattern now admits four-digit ids, which CS-1046 asked for. The five 501s now blame
+CS-1270 for the advice reads, CS-1269 for the state write, which first needs a cross-origin
+refusal, and CS-1046 for audit and plan. The listing and derivation handlers are built and graded on stub
+sources. What remains for CS-1270 is the advisor function, the store-reading provider source
+(a draft was dropped because it entered the `tests/test_repr_rendering.py` population, a file
+outside this slice) and the route-table binding. NOT DONE HERE: the CS-1046 roadmap line and section
+still say its routes are blocked by CS-500, and that wording is outside this slice.
+
 ### 2026-10-04 - CS-700 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The S7a old-address confirmation residual is ACCEPTED
 Verification: `docs/item_notes/phase7.md` section CS-700, heading `6. THE OPERATOR DECISION
 ON COMMIT IDENTITY`, paragraph `RESIDUAL, ACCEPTED`. Decision: accept the residual. S7a hides

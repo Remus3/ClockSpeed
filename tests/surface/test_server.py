@@ -2434,7 +2434,7 @@ def test_both_path_parameter_endpoints_answer_over_a_real_request(
         )
         state_code, _sh, state_body = request(port, f"/api/advice/{CANARY}/state", cert)
     assert derivation_code == contract.HTTP_NOT_IMPLEMENTED
-    assert pending.PENDING_BLOCKER.encode("ascii") in derivation_body
+    assert pending.BLOCKERS[pending.DERIVATION_ENDPOINT].encode("ascii") in derivation_body
     assert state_code == contract.HTTP_METHOD_NOT_ALLOWED
     leaked = derivation_body.count(CANARY.encode("ascii")) + state_body.count(
         CANARY.encode("ascii")

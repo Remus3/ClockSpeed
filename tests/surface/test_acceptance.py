@@ -557,7 +557,7 @@ def bootstrap_endpoints(document: str) -> tuple[str, ...]:
     return tuple(found)
 
 
-_OPEN_ITEM: Final = re.compile(r"^(CS-\d{3}) - ", re.MULTILINE)
+_OPEN_ITEM: Final = re.compile(r"^(CS-(?:\d{3}|[1-9]\d{3})) - ", re.MULTILINE)
 
 
 def open_item_ids(roadmap: str) -> frozenset[str]:

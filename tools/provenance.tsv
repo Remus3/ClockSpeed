@@ -88,6 +88,7 @@ clockspeed/solve/relax.py	authored	CS-1237	stamped
 clockspeed/surface/__init__.py	authored	CS-1165	first-add:root
 clockspeed/surface/__main__.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/__init__.py	authored	CS-1165	first-add:root
+clockspeed/surface/api/advice.py	authored	CS-1270	stamped
 clockspeed/surface/api/contract.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/health.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/map.py	authored	CS-977	first-add:CS-977
@@ -368,6 +369,7 @@ tests/surface/__init__.py	authored	CS-601	first-add:CS-601
 tests/surface/audit_harness.py	authored	CS-601	first-add:CS-601
 tests/surface/panel_harness.py	authored	CS-962	first-add:CS-962
 tests/surface/test_acceptance.py	authored	CS-601	first-add:CS-601
+tests/surface/test_advice.py	authored	CS-1270	stamped
 tests/surface/test_aggregate_count_prose.py	authored	CS-929	first-add:CS-929
 tests/surface/test_config.py	authored	CS-601	first-add:CS-601
 tests/surface/test_contract.py	authored	CS-601	first-add:CS-601

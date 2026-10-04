@@ -469,7 +469,11 @@ def test_the_panel_never_types_the_blocking_item_id() -> None:
     this module on its own merits rather than by analogy.
     """
     source = (panel_harness.WEB_DIR / MODULE).read_text(encoding="ascii")
-    assert pending.PENDING_BLOCKER not in source, f"{MODULE} hardcodes the blocking item id"
+    blockers = sorted(frozenset(pending.BLOCKERS.values()))
+    count = len(blockers)
+    assert count > 0, "no blocking item to look for, so the arm grades nothing"
+    hardcoded = sum(1 for blocker in blockers if blocker in source)
+    assert hardcoded == 0, f"{MODULE} hardcodes a blocking item id"
     assert "blocked_by" in ENVELOPE_ONLY, "blocked_by is no longer refusal-only; revisit the panel"
     assert SEAM in _renders("blocked_by"), (
         f"{SEAM} no longer prints blocked_by, so the page may now hide the id entirely; "

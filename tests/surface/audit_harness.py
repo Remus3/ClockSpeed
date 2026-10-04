@@ -571,7 +571,7 @@ def _health_data() -> dict[str, object]:
 #: two; see the module docstring for why the stand-in still does not.
 PENDING_BODIES: Final[Mapping[str, contract.Response]] = MappingProxyType(
     {
-        template: contract.not_implemented(template, pending.PENDING_BLOCKER)
+        template: contract.not_implemented(template, pending.BLOCKERS[template])
         for _method, template in pending.UNBACKED
     }
 )

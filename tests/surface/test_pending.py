@@ -4,7 +4,9 @@ What is covered, and the authority for each arm:
 
 a. AN UNBACKED ENDPOINT ANSWERS HONESTLY RATHER THAN PLAUSIBLY. All five of
    ``/api/advice``, ``/api/advice/<id>/derivation``, ``/api/advice/<id>/state``,
-   ``/api/audit`` and ``/api/plan`` return 501 naming ``CS-500``. An endpoint
+   ``/api/audit`` and ``/api/plan`` return 501 naming the open item
+   :data:`EXPECTED_BLOCKERS` assigns it - since CS-500 closed, one blame per
+   template rather than one phase gate for all five. An endpoint
    answering ``200`` with an empty list instead is indistinguishable from a
    world that genuinely has no advice, which is non-negotiable 7 - "unknown
    content is flagged and skipped, never silently wrong" - violated at the
@@ -98,7 +100,7 @@ BACKED_ROUTES: Final = frozenset(
     }
 )
 
-#: Routes with NO layer beneath them yet. These answer 501 naming CS-500.
+#: Routes with NO published body yet. These answer 501 naming their blocker.
 PENDING_ROUTES: Final = frozenset(
     {
         ("GET", "/api/advice"),
@@ -113,6 +115,19 @@ PENDING_ROUTES: Final = frozenset(
 #: collapsing it into either of the other two loses exactly the distinction
 #: arm (b) is about.
 METHOD_BOUNDARY_ROUTES: Final = frozenset({("GET", "/api/advice/<id>/state")})
+
+#: Which open item each pending template blames, written out as DATA so the
+#: arm below grades ``pending.BLOCKERS`` rather than reading it back. CS-1270 is
+#: the advisor's input builder plus the wiring of
+#: ``clockspeed/surface/api/advice.py``; CS-1269 the defended state write;
+#: CS-1046 the audit and plan bodies.
+EXPECTED_BLOCKERS: Final[Mapping[str, str]] = {
+    "/api/advice": "CS-1270",
+    "/api/advice/<id>/derivation": "CS-1270",
+    "/api/advice/<id>/state": "CS-1269",
+    "/api/audit": "CS-1046",
+    "/api/plan": "CS-1046",
+}
 
 #: What the two modules publish between them today. Asserted BEFORE the sweep
 #: iterates: a sweep over an empty route table is green and proves nothing.
@@ -133,6 +148,12 @@ EXPECTED_STATE_ROUTE_METHODS: Final = 2
 #: names: this arm is about the honesty checker, not about the roadmap, and
 #: borrowing a real item would make the control read as a claim about that item.
 SECOND_VALID_BLOCKER: Final = "CS-996"
+
+#: A member of the shipped vocabulary, for the planted 501s that must CONFORM to
+#: the envelope so the honesty checker is the only thing that can object. Read
+#: from the set rather than spelled: a literal broke these arms when CS-500
+#: closed.
+OPEN_BLOCKER: Final = sorted(contract.OPEN_BLOCKERS)[0]
 
 #: The planted blocker and the one the five actually name are two things.
 #: Asserted as a SET SIZE rather than as ``a != b``: mypy's ``strict_equality``
@@ -201,7 +222,7 @@ def honesty_problems(
     if expected is PENDING_ROUTES:
         if response.http_status != contract.HTTP_NOT_IMPLEMENTED:
             found.append(PROBLEM_NOT_A_REFUSAL)
-        elif response.payload.get("blocked_by") != pending.PENDING_BLOCKER:
+        elif response.payload.get("blocked_by") != pending.BLOCKERS.get(route.template):
             found.append(PROBLEM_WRONG_BLOCKER)
     elif expected is METHOD_BOUNDARY_ROUTES:
         if response.http_status != contract.HTTP_METHOD_NOT_ALLOWED:
@@ -284,15 +305,22 @@ def test_that_check_would_catch_a_template_published_twice() -> None:
 
 
 @pytest.mark.parametrize("identity", sorted(PENDING_ROUTES))
-def test_a_pending_route_refuses_501_naming_cs_500(identity: tuple[str, str]) -> None:
+def test_a_pending_route_refuses_501_naming_its_blocker(identity: tuple[str, str]) -> None:
     route = pending_route(identity)
     response = route.handler({})
     status = response.http_status
     blocker = response.payload.get("blocked_by")
     reason = response.payload.get("reason")
     assert status == contract.HTTP_NOT_IMPLEMENTED
-    assert blocker == "CS-500"
+    assert blocker == EXPECTED_BLOCKERS[identity[1]]
     assert reason == contract.REASON_NOT_IMPLEMENTED
+
+
+def test_the_blocker_map_is_exactly_the_declared_one() -> None:
+    shipped = dict(pending.BLOCKERS)
+    count = len(shipped)
+    assert count == EXPECTED_PENDING_ROUTES
+    assert shipped == EXPECTED_BLOCKERS
 
 
 @pytest.mark.parametrize("identity", sorted(PENDING_ROUTES))
@@ -311,8 +339,11 @@ def test_a_pending_route_never_answers_with_an_empty_collection(identity: tuple[
     assert "data" not in keys
 
 
-def test_the_blocker_the_five_name_is_one_the_envelope_still_has_open() -> None:
-    assert pending.PENDING_BLOCKER in contract.OPEN_BLOCKERS
+def test_every_blocker_the_five_name_is_one_the_envelope_still_has_open() -> None:
+    named = frozenset(pending.BLOCKERS.values())
+    count = len(named)
+    assert count > 0
+    assert named <= contract.OPEN_BLOCKERS
 
 
 # ---------------------------------------------------------------------------
@@ -450,7 +481,7 @@ def test_the_honesty_checker_rejects_a_pending_route_naming_the_wrong_blocker(
     """
     monkeypatch.setattr(contract, "OPEN_BLOCKERS", contract.OPEN_BLOCKERS | {SECOND_VALID_BLOCKER})
     widened = SECOND_VALID_BLOCKER in contract.OPEN_BLOCKERS
-    distinct = len({SECOND_VALID_BLOCKER, pending.PENDING_BLOCKER})
+    distinct = len({SECOND_VALID_BLOCKER, pending.BLOCKERS["/api/advice"]})
     assert widened, "the vocabulary was not widened, so the refusal below cannot be built"
     assert distinct == TWO_DISTINCT_BLOCKERS, "the planted blocker IS the one the five name"
 
@@ -473,7 +504,7 @@ def test_the_honesty_checker_rejects_a_backed_route_reporting_itself_unwritten()
     planted = contract.Route(
         method="POST",
         template="/api/solve",
-        handler=lambda _params: contract.not_implemented("/api/solve", "CS-500"),
+        handler=lambda _params: contract.not_implemented("/api/solve", OPEN_BLOCKER),
     )
     problems = honesty_problems(BACKED_ROUTES, planted)
     count = len(problems)
@@ -485,7 +516,7 @@ def test_the_honesty_checker_rejects_a_method_boundary_route_answering_501() -> 
     planted = contract.Route(
         method="GET",
         template="/api/advice/<id>/state",
-        handler=lambda _params: contract.not_implemented("/api/advice/<id>/state", "CS-500"),
+        handler=lambda _params: contract.not_implemented("/api/advice/<id>/state", OPEN_BLOCKER),
     )
     problems = honesty_problems(METHOD_BOUNDARY_ROUTES, planted)
     count = len(problems)

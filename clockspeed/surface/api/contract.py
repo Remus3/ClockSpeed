@@ -31,7 +31,7 @@ beneath does not exist yet and is REQUIRED to name the open item that would
 build it; 503 says the layer exists and its input is absent here.
 
 A 501 REFUSAL CANNOT OUTLIVE ITS REASON. ``blocked_by`` is validated twice - the
-``CS-nnn`` form, and membership in :data:`OPEN_BLOCKERS`, the closed set this
+``CS-nnn`` or ``CS-nnnn`` form, and membership in :data:`OPEN_BLOCKERS`, the closed set this
 repository authored - and ``tests/surface/test_contract.py`` pins that set to
 the OPEN item lines of ``ROADMAP.md``. When the named item closes and leaves the
 roadmap, that arm goes red, so an honest refusal has to be revisited rather than
@@ -119,6 +119,7 @@ __all__ = [
     "PROBLEM_STATUS_MISMATCH",
     "PROBLEM_UNKNOWN_CODE",
     "REASONS",
+    "REASON_ADVICE_STORE_UNREADABLE",
     "REASON_BACKEND_UNAVAILABLE",
     "REASON_BYPRODUCT_POLICY_REQUIRED",
     "REASON_CHAIN_INFEASIBLE",
@@ -228,6 +229,7 @@ REASON_NO_GAME_INSTALL: Final = "no_game_install"
 REASON_NO_SAVE: Final = "no_save"
 REASON_SAVE_UNREADABLE: Final = "save_unreadable"
 REASON_BACKEND_UNAVAILABLE: Final = "backend_unavailable"
+REASON_ADVICE_STORE_UNREADABLE: Final = "advice_store_unreadable"
 
 REASON_CHAIN_UNSOLVABLE: Final = "chain_unsolvable"
 REASON_CHAIN_UNDERDETERMINED: Final = "chain_underdetermined"
@@ -299,6 +301,10 @@ REASONS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
         REASON_BACKEND_UNAVAILABLE: (
             STATUS_UNAVAILABLE,
             "The optimizer backend that was named is not present in this build.",
+        ),
+        REASON_ADVICE_STORE_UNREADABLE: (
+            STATUS_UNAVAILABLE,
+            "The advice ledger or the rule mute store could not be read, so no advice resolved.",
         ),
         REASON_CHAIN_UNSOLVABLE: (
             STATUS_ERROR,
@@ -394,10 +400,14 @@ SOLVER_REFUSALS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
 # What a 501 is allowed to blame
 # ---------------------------------------------------------------------------
 
-#: The ``CS-nnn`` form. Applied with ``fullmatch`` rather than with ``^...$``
-#: and ``match``: ``$`` also matches immediately before a trailing newline, so
-#: the anchored pattern accepts ``"CS-400\n"`` and ``fullmatch`` does not.
-BLOCKER_PATTERN: Final = re.compile(r"CS-\d{3}")
+#: The item-id form: ``CS-`` and three digits, or four with no leading zero -
+#: the spelling ``docs/LEDGER.md`` uses, zero-padded below 1000. FOUR DIGITS
+#: SINCE CS-1046 named it: the three-digit form could not name any item at
+#: CS-1000 or above, and every item filed since is one. Applied with
+#: ``fullmatch`` rather than with ``^...$`` and ``match``: ``$`` also matches
+#: immediately before a trailing newline, so the anchored pattern accepts
+#: ``"CS-400\n"`` and ``fullmatch`` does not.
+BLOCKER_PATTERN: Final = re.compile(r"CS-(?:\d{3}|[1-9]\d{3})")
 
 #: The only items a 501 may name. A CLOSED VOCABULARY AUTHORED HERE, not a
 #: roadmap read: this package opens no file, so the durability arms live in
@@ -411,10 +421,19 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-\d{3}")
 #: calling the handlers. The forward arm ALONE was green over a member that no
 #: endpoint anywhere cited.
 #:
-#:   CS-500  the phase 5 gate. The advisor, its cards and derivations, and
-#:           pillars 3 and 4 all land behind it. Named by the five routes in
-#:           ``clockspeed/surface/api/pending.py``, which holds the only
-#:           ``not_implemented`` call site in this package.
+#:   CS-1046  ``/api/audit`` and ``/api/plan``: the item that publishes their
+#:            bodies.
+#:   CS-1269  ``/api/advice/<id>/state``: recording a card state through the
+#:            ledger, behind a cross-origin refusal this server does not yet
+#:            make.
+#:   CS-1270  ``/api/advice`` and ``/api/advice/<id>/derivation``: an advisor
+#:            function building the rule inputs from a world, then the wiring
+#:            of ``clockspeed/surface/api/advice.py`` into the route table.
+#:
+#: All three are named through ``clockspeed/surface/api/pending.py``, which
+#: holds the only ``not_implemented`` call site in this package. CS-500 LEFT
+#: THIS SET WHEN IT CLOSED: the advisor exists, and what still blocks the advice
+#: reads is the composition the surface may not perform, not the advisor.
 #:
 #: THE STANDARD FOR MEMBERSHIP IS THE ONE THIS MODULE'S DOCSTRING STATES - "the
 #: layer beneath does not exist yet" - and it is NOT "the layer beneath is
@@ -432,7 +451,7 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-\d{3}")
 #: enumeration only, so it answers 200 or 503 and never 501. While it sat
 #: here it was a member no route named, under a comment that described a
 #: routing this package does not perform.
-OPEN_BLOCKERS: Final = frozenset({"CS-500"})
+OPEN_BLOCKERS: Final = frozenset({"CS-1046", "CS-1269", "CS-1270"})
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +478,9 @@ ENDPOINT_UNROUTED: Final = "/api/<unrouted>"
 #: The highest byte the wire admits (non-negotiable 4).
 MAX_ASCII_BYTE: Final = 0x7E
 
-BLOCKER_MALFORMED: Final = "a 501 blocked_by must be spelled CS- followed by exactly three digits"
+BLOCKER_MALFORMED: Final = (
+    "a 501 blocked_by must be spelled CS- and three digits, or four with no leading zero"
+)
 BLOCKER_NOT_OPEN: Final = "a 501 blocked_by must name an item this surface still has open"
 ENDPOINT_UNSPELLABLE: Final = "an endpoint must be a route template this repository authored"
 UNPUBLISHED_REASON: Final = "a refusal must name a reason from the published vocabulary"

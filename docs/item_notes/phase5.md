@@ -613,3 +613,37 @@ card the player set `dismissed`, `snoozed` or `pinned` keeps that state and is n
 ### Acceptance
 
 red first: a synthetic world where a card is recorded `accepted` or `new` and shown, then a reload in which its rule stops firing, leaves that card `completed` in the per-world ledger, read back from disk, and the transition is surfaced in the result; the ledger can list one world's recorded cards; a `completed` card whose rule fires again is surfaced as `new`; a `dismissed`, `snoozed` or `pinned` card whose rule stops firing keeps its state; two runs over the same inputs give the same states
+
+## CS-1270
+
+### Filed 2026-10-04 by CS-500's close
+
+CS-500 closed with `clockspeed/advisor/advise.py::advise` and `world_inputs(balance, unlocks)`,
+but nothing builds the `WorldBalance` that `world_inputs` takes from a `WorldModel` and a
+`Registry`. Doing it means calling `placement_of`, `machines_of`, `network_of` and `balance_of`
+from `clockspeed/audit`. The surface may not do that. `tests/surface/test_map_vocabulary.py::test_no_shipped_surface_module_reaches_the_machines_model`
+(CS-1189) refuses any surface module that reaches `clockspeed.audit.machines`, and an
+adjudicator ruled on 2026-10-04 that the guard stays as it is: composing the audit models is
+the advisor's job, because the advisor is the layer that consumes audit.
+
+The surface half is already built and waits for this item.
+`clockspeed/surface/api/advice.py` turns an `Advice` into the listing body (tiers 1 and 2,
+with state, `snoozed_until`, `muted` and `visible`) and the derivation body (tier 3). Its
+refusals are 503 `no_save`, `no_game_install` and `advice_store_unreadable`, and 400 for an
+unknown parameter or card. It is graded in `tests/surface/test_advice.py` on a stub source,
+and it is not in the route table yet, so both templates still answer 501 through
+`clockspeed/surface/api/pending.py`. The concrete source does not exist yet: a
+`clockspeed/surface/providers.py` class that reads both stores and takes an injected clock
+belongs to this item, because a new provider class also enters the
+`tests/test_repr_rendering.py` population and has to be recorded there.
+
+**WRITE-LIST:** `clockspeed/advisor/advise.py` (the input builder),
+`clockspeed/surface/api/routes.py`, `clockspeed/surface/api/pending.py`,
+`clockspeed/surface/api/contract.py` (`OPEN_BLOCKERS` drops CS-1270),
+`clockspeed/surface/providers.py` (the store-reading source), `tests/test_repr_rendering.py`
+(that class's population row and forced construction), `tests/surface/audit_harness.py`
+(a canned 200 for `/api/advice`), and the matching surface and advisor test modules.
+
+### Acceptance
+
+red first: an advisor function builds `WorldInputs` from one synthetic `WorldModel` and one synthetic `Registry` through the audit constructors, and no `clockspeed/surface` module imports `clockspeed.audit`; `routes.build_routes` publishes `advice.routes` bound to a provider source that reads the ledger and the mutes with an injected clock and uses that function, and the source answers None over a corrupt store; `GET /api/advice` answers 200 with the `advice.DATA_KEYS` body and `GET /api/advice/<id>/derivation` answers 200 with tier 3 for a listed card over the real route table; `pending.UNBACKED` and `pending.BLOCKERS` lose both templates and `contract.OPEN_BLOCKERS` loses CS-1270; the CS-1189 machines-seam guard stays unedited and green

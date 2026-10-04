@@ -98,7 +98,7 @@ MIN_ROADMAP_ITEM_LINES: Final = 50
 #: The ``ROADMAP.md`` item-line shape, from that file's own header: an ID, a
 #: space-hyphen-space, then the line. An ID mentioned in prose is deliberately
 #: NOT an item line - only a line that OPENS with the ID counts as open work.
-ROADMAP_ITEM_LINE: Final = re.compile(r"^(CS-\d{3}) - ")
+ROADMAP_ITEM_LINE: Final = re.compile(r"^(CS-(?:\d{3}|[1-9]\d{3})) - ")
 
 #: A well-formed CS id that appears nowhere in ``ROADMAP.md``. The negative half
 #: of the blocked_by arm: the form check passes and the membership check must
@@ -119,7 +119,8 @@ UNCITED_BLOCKER: Final = "CS-997"
 MALFORMED_BLOCKERS: Final = (
     "",
     "CS-4",
-    "CS-4000",
+    "CS-0400",
+    "CS-10460",
     "cs-400",
     "CS400",
     "CS-400 ",
@@ -527,6 +528,26 @@ def test_the_malformed_blocker_population_is_not_empty() -> None:
     count = len(MALFORMED_BLOCKERS)
 
     assert count > 0
+
+
+#: Ids the form check must ADMIT, on both sides of the four-digit boundary
+#: CS-1046 named: three digits zero-padded below 1000, four with no leading
+#: zero at and above it. The other direction is in :data:`MALFORMED_BLOCKERS`.
+WELL_FORMED_BLOCKERS: Final = ("CS-005", "CS-999", "CS-1000", "CS-1046", "CS-9999")
+
+
+@pytest.mark.parametrize("blocker", WELL_FORMED_BLOCKERS)
+def test_the_blocker_form_admits_three_and_four_digit_ids(blocker: str) -> None:
+    matched = contract.BLOCKER_PATTERN.fullmatch(blocker) is not None
+
+    assert matched
+
+
+@pytest.mark.parametrize("blocker", ["CS-0400", "CS-0999", "CS-10460", "CS-99999"])
+def test_the_blocker_form_refuses_past_the_four_digit_boundary(blocker: str) -> None:
+    matched = contract.BLOCKER_PATTERN.fullmatch(blocker) is not None
+
+    assert not matched
 
 
 def test_not_implemented_refuses_a_well_formed_blocker_that_is_not_open() -> None:
