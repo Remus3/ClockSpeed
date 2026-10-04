@@ -75,6 +75,26 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-03 - CS-815 - AMENDMENT TO THE FROZEN-FILE GRANT, NOT A COMPLETION RECORD, NOTHING CLOSED
+Verification: this record. Amends the 2026-10-03 CS-815 grant, which stands unedited except
+as stated here. Ruled by an adjudicator who authored none of the candidate.
+Defect: permission (1) as granted was DEFECTIVE. Folding a FIXED token and the 97 into one
+start lets a wrapper that never runs its program (`printf clockspeed-python-ok; exit 97`)
+pass; the split probe refused it because the token start had to exit 0. An adversary
+reproduced it: refused at fe482a8 in both stdin modes, accepted by the folded candidate.
+Permission (1) as written is WITHDRAWN and replaced: one interpreter start may answer both
+questions ONLY with a per-run expected output. The probe draws a nonce at runtime with POSIX
+sh tools (`od -An -N4 -tu4 /dev/urandom`), embeds it in the program text, and demands BOTH
+the decimal of the nonce plus a fixed non-zero offset, computed by the program, AND exit 97;
+the shell computes its expectation with `$(( ))`. Byte identity of the four copies holds.
+Nonce source FAILS CLOSED, no fallback: a failed draw, or an empty or non-digit result,
+refuses as an unrunnable candidate does (CS-703). Option (b2), two starts, was REJECTED.
+Added conditions, all four copies, honest-wrapper control green: refused - `printf
+clockspeed-python-ok; exit 97`; a replay printing an output observed from an earlier honest
+run, exiting 97; an argument-echoing wrapper; a PATH shim making `od` fail or print nothing.
+Killed - mutants dropping the nonce, the offset, or the 97 demand. Every condition and
+landing requirement of the original grant still applies, CI median under 1.0s included.
+
 ### 2026-10-03 - CS-815 - FROZEN-FILE GRANT, NOT A COMPLETION RECORD, NOTHING CLOSED
 Verification: this record. Granted by an adjudicator who authored none of the candidate,
 on tier2 run 37156039418 (windows guards shard: the wrapper added a 1.297s median over 20
