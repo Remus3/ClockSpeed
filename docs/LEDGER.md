@@ -74,6 +74,7 @@ machine-checked artifact that produces it.
 ---
 
 ## Entries
+
 ### 2026-10-04 - CS-1239 - a hand-derived golden corpus for ratio, clock and power math, and one half-even display-rounding policy
 Verification: `clockspeed/solve/exact.py::display_decimal` and `DISPLAY_ROUNDING`, tests
 `tests/solve/test_golden.py` over `tests/solve/golden/` and
@@ -106,7 +107,6 @@ pinned but not filed - and the merger filed it as CS-1263 in the same change; th
 findings were non-blocking. RESIDUAL, filed to `BACKLOG.md`: a lone-machine shortfall
 reddens but names the item rather than the recipe; repeated item keys within one recipe are
 unexercised.
-
 
 ### 2026-10-04 - CS-1228 - the tier2 full suite checks out full history and its windows legs finish inside their cutoffs
 Verification: `tests/test_full_history_checkouts.py`, which pins `fetch-depth: 0` on the

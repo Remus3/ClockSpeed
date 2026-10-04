@@ -49,9 +49,18 @@
         "CS-1046",
         "CS-1047",
         "CS-1051",
-        "CS-1065"
+        "CS-1065",
+        "CS-1255",
+        "CS-1256",
+        "CS-1257",
+        "CS-1258",
+        "CS-1259",
+        "CS-1260",
+        "CS-1261",
+        "CS-1262"
       ],
       "excluded": {
+        "CS-1254": "its required-parts columns come from milestone routing, which does not exist (CS-1043); no surface-only path",
         "CS-604": "a docs ownership defect about config/ports.json; touches no surface code",
         "CS-607": "a mypy-gate arm's flakiness; the surface is only where it happens to live",
         "CS-609": "a path-spelling helper defect, shared machinery rather than the surface",

@@ -5,7 +5,7 @@ place a Fraction becomes a rounded decimal is the presentation edge. That edge
 gets exactly one function, :func:`clockspeed.solve.exact.display_decimal`, and
 its mode is pinned here two ways:
 
-- **Parity.** Every case in ``golden/display.json`` is a hand-derived expected
+- **Parity.** Every case in ``tests/solve/golden/display.json`` is a hand-derived expected
   string, with every half-step boundary covered positive and negative.
 - **The mode is load-bearing.** The same cases are re-run with the module's
   mode flipped to ROUND_HALF_UP, and the specific tie cases the golden marks as
