@@ -1302,6 +1302,208 @@ def test_the_trailer_control_finds_a_planted_trailer(tmp_path: Path) -> None:
     assert flip.control_trailer(tmp_path)
 
 
+# --- the identity axis (CS-701, CS-700 S8) --------------------------------------
+
+#: A synthetic forge account, invented. Its noreply address is derived, never spelled.
+FORGE_USER: Final = {"id": 1, "login": "synthetic-forge"}
+
+#: The name the allowlisted arms commit under. Synthetic.
+ALLOWED_NAME: Final = "Synthetic Operator"
+
+#: The four identity fields of a commit, as the axis names them.
+IDENTITY_FIELDS: Final = ("author name", "author address", "committer name", "committer address")
+
+
+def allowed_address() -> str:
+    """The noreply address the synthetic forge account derives to."""
+    address = flip.forge_noreply(FORGE_USER)
+    assert isinstance(address, str)
+    return address
+
+
+def identity_repo(tmp_path: Path, **overrides: str) -> tuple[Any, str]:
+    """A repository whose one commit is on the allowlist except for ``overrides``.
+
+    ``overrides`` maps a git identity variable suffix - ``AUTHOR_NAME`` and the
+    like - to the value that one field carries instead.
+    """
+    repo = flip.ControlRepo(tmp_path / "identity")
+    for role in ("AUTHOR", "COMMITTER"):
+        repo.env[f"GIT_{role}_NAME"] = ALLOWED_NAME
+        repo.env[f"GIT_{role}_EMAIL"] = allowed_address()
+    for suffix, value in overrides.items():
+        repo.env[f"GIT_{suffix}"] = value
+    flip.git(repo.path, ["config", "user.name", ALLOWED_NAME], env=repo.env)
+    tip = repo.commit({"README.md": b"x\n"}, b"subject\n")
+    return repo, tip
+
+
+def allowlist_for(repo: Any) -> Any:
+    """The allowlist derived from ``repo``'s configured name and the synthetic forge user."""
+    return flip.derive_identity_allowlist(repo.path, forge_user=lambda: FORGE_USER)
+
+
+def test_the_forge_noreply_address_is_derived_from_id_and_login() -> None:
+    """The ruled address shape, and a malformed account answer derives nothing."""
+    derived = flip.forge_noreply(FORGE_USER)
+    shapes = (
+        derived == "1+synthetic-forge@users.noreply.github.com",
+        flip.forge_noreply({"login": "synthetic-forge"}) is None,
+        flip.forge_noreply({"id": 1, "login": "no spaces"}) is None,
+        flip.forge_noreply({"id": True, "login": "synthetic-forge"}) is None,
+        flip.forge_noreply(None) is None,
+    )
+    assert shapes == (True, True, True, True, True)
+
+
+def test_s8_passes_a_history_wholly_on_the_allowlist(tmp_path: Path) -> None:
+    """Control: author and committer, name and address, all on the derived allowlist."""
+    repo, tip = identity_repo(tmp_path)
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+
+    shape = (result.failures, result.skips, result.counts["off-allowlist fields"])
+    assert shape == ([], 0, 0)
+    assert result.counts["commits walked"] == 1
+
+
+@pytest.mark.parametrize(
+    "suffix", ["AUTHOR_NAME", "AUTHOR_EMAIL", "COMMITTER_NAME", "COMMITTER_EMAIL"]
+)
+def test_s8_fails_each_identity_field_off_the_allowlist(tmp_path: Path, suffix: str) -> None:
+    """Each of the four fields is graded on its own; one off is one too many."""
+    repo, tip = identity_repo(tmp_path, **{suffix: "stray@example.invalid"})
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+
+    shape = (
+        "an identity off the allowlist is reachable from REF" in result.failures,
+        result.counts["off-allowlist fields"],
+        result.shas == [tip],
+    )
+    assert shape == (True, 1, True)
+
+
+def test_s1_records_identities_off_the_allowlist_as_an_early_warning(tmp_path: Path) -> None:
+    """Before S7a the old identity IS the population the rewrite maps; S1 counts it."""
+    repo, tip = identity_repo(tmp_path, AUTHOR_EMAIL="stray@example.invalid")
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s1")
+
+    shape = (result.failures, result.counts["off-allowlist fields"], result.shas)
+    assert shape == ([], 1, [])
+
+
+def test_an_unresolved_name_fails_the_axis(tmp_path: Path) -> None:
+    """A repository with no configured name derives no name; that is a failure, not a pass."""
+    repo = flip.ControlRepo(tmp_path / "noname")
+    tip = repo.commit({"README.md": b"x\n"}, b"subject\n")
+
+    allowlist = flip.derive_identity_allowlist(repo.path, forge_user=lambda: FORGE_USER)
+    result = flip.identity_scan(repo.path, tip, allowlist, "s8")
+
+    assert "the configured author name did not resolve" in result.failures
+
+
+def test_an_unresolved_forge_address_fails_the_axis(tmp_path: Path) -> None:
+    """No forge answer derives no address; the allowlist is then not whole."""
+    repo, tip = identity_repo(tmp_path)
+
+    allowlist = flip.derive_identity_allowlist(repo.path, forge_user=lambda: None)
+    result = flip.identity_scan(repo.path, tip, allowlist, "s8")
+
+    assert "the forge noreply address did not resolve" in result.failures
+
+
+def test_an_empty_walk_fails_the_axis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A walk of zero commits measured nothing, so it cannot pass."""
+    repo, tip = identity_repo(tmp_path)
+    monkeypatch.setattr(flip, "commit_identities", lambda *_args: [])
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+
+    assert "the commit walk is empty" in result.failures
+
+
+def test_the_identity_control_flags_a_synthetic_commit(tmp_path: Path) -> None:
+    """The negative probe: a commit under the synthetic control identity must be flagged."""
+    repo, _tip = identity_repo(tmp_path)
+
+    found = flip.control_identity(tmp_path / "scratch", allowlist_for(repo))
+
+    assert found is True
+
+
+def test_the_identity_control_is_not_found_when_the_probe_is_allowlisted(tmp_path: Path) -> None:
+    """The control is a measurement: an allowlist admitting the probe identity finds nothing."""
+    admitting = flip.IdentityAllowlist(
+        names=frozenset({"flip-control"}), addresses=frozenset({"flip-control@example.invalid"})
+    )
+
+    found = flip.control_identity(tmp_path / "scratch", admitting)
+
+    assert found is False
+
+
+def test_no_identity_value_is_rendered_or_reprd(tmp_path: Path) -> None:
+    """Counts only: neither the allowlist nor a failing result names a value."""
+    repo, tip = identity_repo(tmp_path, AUTHOR_NAME="Stray Person")
+    allowlist = allowlist_for(repo)
+
+    rendered = "\n".join(flip.identity_scan(repo.path, tip, allowlist, "s8").render())
+    text = rendered + repr(allowlist)
+    leaked = sum(
+        value.casefold() in text.casefold()
+        for value in (ALLOWED_NAME, allowed_address(), "Stray Person", "synthetic-forge")
+    )
+    assert leaked == 0
+
+
+def test_run_all_counts_the_identity_axis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The gate's tally includes the identity axis, so a skipped one is visible.
+
+    Every body refuses and every control is absent, so ``flip_checks.measure`` builds each
+    result under the key ``run_all`` gave it - the keys read here are the real ones.
+    """
+
+    def refuse(*_args: object, **_kwargs: object) -> object:
+        raise flip.FlipError("stubbed")
+
+    for name in (
+        "control_secret",
+        "control_pii",
+        "control_licence",
+        "control_publisher",
+        "control_readme",
+        "control_doc_sweep",
+        "control_trailer",
+        "control_identity",
+    ):
+        monkeypatch.setattr(flip, name, lambda *_args, **_kwargs: False)
+    for name in (
+        "secret_scan",
+        "pii_scan",
+        "licence_audit",
+        "publisher_scan",
+        "readme_walk",
+        "doc_sweep",
+        "clean_checkout",
+        "trailer_axis",
+        "identity_scan",
+    ):
+        monkeypatch.setattr(flip, name, refuse)
+    monkeypatch.setattr(flip, "derive_needles", flip.NeedleSet)
+    monkeypatch.setattr(flip, "derive_identity_allowlist", lambda *_args: object())
+    monkeypatch.setattr(flip, "clone_at", lambda _repo, _sha, target: target)
+
+    results = flip.run_all(tmp_path, "0" * 40, "s8", tmp_path, None)
+    keys = [result.key for result in results]
+    last = flip.final_line(results)
+
+    assert keys == ["1", "2", "3", "4", "5", "6", "7", "T", "I"]
+    assert f"of {len(keys)} automated checks failed" in last
+
+
 # --- the result object --------------------------------------------------------
 
 

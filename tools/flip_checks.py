@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CS-1183 - the seven tier-3 flip checks and the trailer axis, against ONE named ref.
+"""CS-1183 - the seven tier-3 flip checks, the trailer and identity axes, against ONE ref.
 
 RUN BY HAND, ON THIS MACHINE, AND NOWHERE ELSE - ADR 0025 in ``docs/adr/``
 records why. No workflow, hook, scheduled task or lane invokes this file, and
@@ -77,6 +77,17 @@ same function that grades the named ref:
      strip would leave behind; at S8 any hit fails, and the pre-S7a baseline ref
      and its recorded count are required as the axis's second control - absent,
      they are a skip.
+  I. THE IDENTITY AXIS (CS-701, CS-700 S8). Every author and committer name and
+     address on every commit reachable from REF, read from the RAW commit object
+     - never a ``git log`` format, which a mailmap can rewrite - must be on an
+     allowlist DERIVED AT RUN TIME: exactly one name, ``git config user.name`` of
+     the repository, and exactly one address, the forge noreply address built from
+     ``gh api user``'s id and login. Neither value is written to disk, printed or
+     raised, and :class:`IdentityAllowlist` withholds both from ``repr``. A source
+     that does not resolve FAILS the axis, as does an empty walk. At S1, before
+     S7a maps identity, a field off the allowlist is an EARLY WARNING, counted and
+     not failed; at S8 one is a failure. The control is a negative probe: a
+     synthetic commit under the control identity must be flagged.
 
 NEEDLES (ADR 0025 decision item 3). Derived at run time from
 ``clockspeed/data/locate.py`` - the account directory names, the Windows account
@@ -113,6 +124,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import importlib.util
+import json
 import os
 import re
 import secrets
@@ -1593,6 +1605,209 @@ def _baseline_failures(repo: Path, baseline: tuple[str, int]) -> list[str]:
     return []
 
 
+# --- the identity axis --------------------------------------------------------
+
+#: The forge's noreply domain. The address is ``<id>+<login>@`` this.
+NOREPLY_DOMAIN: Final = "users.noreply.github.com"
+
+#: A forge login: letters, digits and single hyphens. Anything else derives nothing.
+_LOGIN_RE: Final = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")
+
+#: One identity header line of a raw commit object: role, name, address, date.
+_IDENT_RE: Final = re.compile(rb"^(author|committer) (.*) <([^<>]*)> -?\d+ [+-]\d{4}$")
+
+#: A commit carries exactly two identity lines, author then committer; any other
+#: count is a commit this axis cannot grade, and is counted as a skip.
+IDENT_FIELDS: Final = 2
+
+ForgeUser = Callable[[], "Mapping[str, object] | None"]
+
+
+class IdentityAllowlist:
+    """The S8 identity allowlist. EVERY VALUE IS WITHHELD FROM ``repr``.
+
+    Held in memory for one run and never written anywhere, as :class:`NeedleSet`.
+    """
+
+    def __init__(
+        self,
+        names: frozenset[str] = frozenset(),
+        addresses: frozenset[str] = frozenset(),
+        failures: Sequence[str] = (),
+    ) -> None:
+        """Keep the allowed names and addresses and any derivation failures."""
+        self._names = frozenset(name.encode("utf-8") for name in names)
+        self._addresses = frozenset(address.encode("utf-8") for address in addresses)
+        self.failures = list(failures)
+
+    def __repr__(self) -> str:
+        """Name the counts; withhold every value."""
+        return (
+            f"<IdentityAllowlist: {len(self._names)} names, "
+            f"{len(self._addresses)} addresses withheld>"
+        )
+
+    def counts(self) -> dict[str, int]:
+        """How many names and addresses are allowed, and nothing else."""
+        return {
+            "allowlisted names": len(self._names),
+            "allowlisted addresses": len(self._addresses),
+        }
+
+    def admits_name(self, name: bytes) -> bool:
+        """Whether ``name`` is on the allowlist, byte for byte."""
+        return name in self._names
+
+    def admits_address(self, address: bytes) -> bool:
+        """Whether ``address`` is on the allowlist, byte for byte."""
+        return address in self._addresses
+
+
+def forge_noreply(user: Mapping[str, object] | None) -> str | None:
+    """The forge noreply address for an account answer, or None when it is malformed."""
+    if not isinstance(user, Mapping):
+        return None
+    ident = user.get("id")
+    login = user.get("login")
+    if isinstance(ident, bool) or not isinstance(ident, int) or ident <= 0:
+        return None
+    if not isinstance(login, str) or not _LOGIN_RE.fullmatch(login):
+        return None
+    return f"{ident}+{login}@{NOREPLY_DOMAIN}"
+
+
+def gh_user() -> Mapping[str, object] | None:
+    """The authenticated forge account, from ``gh api user``; None on any failure.
+
+    The child's output is parsed here and never relayed; a failure is None, never
+    an exception carrying the child's text.
+    """
+    found = resolve_tool("gh")
+    if found is None:
+        return None
+    try:
+        completed = subprocess.run(
+            [found, "api", "user"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=PROBE_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    try:
+        answer = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    return answer if isinstance(answer, dict) else None
+
+
+def derive_identity_allowlist(repo: Path, forge_user: ForgeUser | None = None) -> IdentityAllowlist:
+    """Derive the identity allowlist at run time, in-process.
+
+    Args:
+        repo: The repository whose configured ``user.name`` is the one allowed name.
+        forge_user: What answers the forge account; :func:`gh_user` when None.
+            Injected by the tests, which never let a real account near the run.
+
+    Returns:
+        The allowlist. A source that does not resolve is recorded in ``failures``
+        as fixed text, never a value.
+    """
+    names: set[str] = set()
+    addresses: set[str] = set()
+    failures: list[str] = []
+    try:
+        name = git(repo, ["config", "--get", "user.name"]).decode("utf-8").strip()
+    except (FlipError, UnicodeDecodeError):
+        name = ""
+    if name:
+        names.add(name)
+    else:
+        failures.append("the configured author name did not resolve")
+    address = forge_noreply((forge_user or gh_user)())
+    if address:
+        addresses.add(address)
+    else:
+        failures.append("the forge noreply address did not resolve")
+    return IdentityAllowlist(frozenset(names), frozenset(addresses), failures)
+
+
+def commit_identities(repo: Path, sha: str) -> list[tuple[str, list[tuple[bytes, bytes]]]]:
+    """Every commit reachable from ``sha`` with its raw author and committer identities.
+
+    Returns:
+        ``(commit, [(name, address), ...])`` per commit, read from the raw object
+        header - author first, committer second.
+    """
+    walked = git(repo, ["rev-list", sha]).decode("ascii", errors="replace").split()
+    found: list[tuple[str, list[tuple[bytes, bytes]]]] = []
+    for commit_sha, raw in stream_objects(repo, walked):
+        head = raw.split(b"\n\n", 1)[0]
+        idents: list[tuple[bytes, bytes]] = []
+        for line in head.split(b"\n"):
+            matched = _IDENT_RE.match(line)
+            if matched:
+                idents.append((matched.group(2), matched.group(3)))
+        found.append((commit_sha, idents))
+    return found
+
+
+def identity_scan(repo: Path, sha: str, allowlist: IdentityAllowlist, stage: str) -> CheckResult:
+    """The identity axis: every author and committer field on the derived allowlist.
+
+    Args:
+        repo: The repository.
+        sha: The resolved commit.
+        allowlist: The run-time allowlist; never rendered.
+        stage: ``s1`` or ``s8``.
+
+    Returns:
+        Counts only. At S1 a field off the allowlist is an early warning; at S8 it
+        fails, and the off-allowlist commits' SHAs are recorded.
+    """
+    result = CheckResult("I", f"identity ({stage})")
+    walked = commit_identities(repo, sha)
+    names: set[bytes] = set()
+    addresses: set[bytes] = set()
+    off_fields = 0
+    off_commits: list[str] = []
+    malformed = 0
+    for commit_sha, idents in walked:
+        if len(idents) != IDENT_FIELDS:
+            malformed += 1
+        off_here = 0
+        for name, address in idents:
+            names.add(name)
+            addresses.add(address)
+            off_here += (not allowlist.admits_name(name)) + (not allowlist.admits_address(address))
+        off_fields += off_here
+        if off_here:
+            off_commits.append(commit_sha)
+    result.counts = {
+        "commits walked": len(walked),
+        **allowlist.counts(),
+        "distinct names": len(names),
+        "distinct addresses": len(addresses),
+        "off-allowlist fields": off_fields,
+        "commits off the allowlist": len(off_commits),
+    }
+    result.skips = malformed
+    result.failures.extend(allowlist.failures)
+    counted = allowlist.counts()
+    if counted["allowlisted names"] != 1 or counted["allowlisted addresses"] != 1:
+        result.failures.append("the allowlist is not exactly one name and one address")
+    if not walked:
+        result.failures.append("the commit walk is empty")
+    if stage != STAGE_S1:
+        result.shas = off_commits
+        if off_fields:
+            result.failures.append("an identity off the allowlist is reachable from REF")
+    return result
+
+
 # --- throwaway repositories for the positive controls --------------------------
 
 
@@ -1674,6 +1889,14 @@ def control_trailer(scratch: Path) -> bool:
     message = b"subject\n\nbody\n\nCo-authored-by: Synthetic <synthetic@example.invalid>\n"
     tip = repo.commit({"README.md": b"x\n"}, message)
     return any(entry.hit_lines for entry in trailer_census.walk(repo.path, tip))
+
+
+def control_identity(scratch: Path, allowlist: IdentityAllowlist) -> bool:
+    """The negative probe: a commit under the synthetic control identity must be flagged."""
+    repo = ControlRepo(scratch / "control-identity")
+    tip = repo.commit({"README.md": b"x\n"}, b"probe\n")
+    counts = identity_scan(repo.path, tip, allowlist, STAGE_S8).counts
+    return counts.get("off-allowlist fields", 0) > 0
 
 
 def control_licence(tree: Path, scratch: Path) -> bool:
@@ -1778,6 +2001,7 @@ def run_all(
 ) -> list[CheckResult]:
     """Run every automated half against ``sha``, each with its control."""
     needles = derive_needles()
+    allowlist = derive_identity_allowlist(repo)
     tree = clone_at(repo, sha, scratch / "tree")
     fresh = clone_at(repo, sha, scratch / "fresh")
     return [
@@ -1810,6 +2034,12 @@ def run_all(
             "trailer-axis",
             lambda: trailer_axis(repo, sha, stage, baseline),
             lambda: control_trailer(scratch),
+        ),
+        measure(
+            "I",
+            "identity",
+            lambda: identity_scan(repo, sha, allowlist, stage),
+            lambda: control_identity(scratch, allowlist),
         ),
     ]
 
