@@ -259,3 +259,22 @@ The declines themselves are recorded in `docs/LEDGER.md`. Nothing here is starte
   36269312405 says `ubuntu-latest` migrates from 2026-10-19; every ubuntu-only arm and the
   420/480 shard budgets were measured on the old image - TRIGGER: the first tier-1 run whose
   runner reports the new image, or a red on an ubuntu job after 2026-10-19.
+
+## Session 122 residuals - filed 2026-10-03 under product before process
+
+None blocks a product item or reddens a suite.
+
+- `tools/main_provenance.py::read_note` opens a note that was never placed with a plain
+  blocking open, so a FIFO outside the inbox would hang it on POSIX - predates CS-1232,
+  whose pin now refuses a non-regular file inside the inbox - TRIGGER: any POSIX consumer
+  that runs the tool over an untrusted path.
+- The CS-815 probe's nonce draw fails closed, but a failed `od` draw is reported as "no
+  usable python interpreter found" - diagnosis only, never fail-open - TRIGGER: a hook
+  refusal on a host where python is present.
+- CS-400 S2 join: the identity keying of record positions is unpinned by a test (a
+  value-equality mutant survives, equivalent while payload offsets are distinct);
+  `ReferenceTarget` has no state-against-indices check; the top-level placement of a
+  building's inventory references rests on the CS-830 measurement of 2026-08-23 - TRIGGER:
+  two records equal field for field, or a building whose inventory reference is nested.
+- Decode the InventoryItem state block, counted undecoded by CS-400 - TRIGGER: an advice
+  rule that needs item state.
