@@ -39,6 +39,9 @@ COMMUNITY_FILES: tuple[tuple[str, int], ...] = (
     ("CODE_OF_CONDUCT.md", 1),
     ("SECURITY.md", 2),
     ("PULL_REQUEST_TEMPLATE.md", 2),
+    # The legacy single-file template: the only shape that fills the profile API's
+    # files.issue_template row. Folder templates leave it null (CS-959).
+    ("ISSUE_TEMPLATE.md", 2),
 )
 
 FILE_NAMES: tuple[str, ...] = tuple(name for name, _ in COMMUNITY_FILES)

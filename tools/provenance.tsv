@@ -23,6 +23,7 @@
 .githooks/pre-push	authored	CS-1165	first-add:root
 .github/CODE_OF_CONDUCT.md	authored	CS-959	first-add:CS-959
 .github/CONTRIBUTING.md	authored	CS-959	first-add:CS-959
+.github/ISSUE_TEMPLATE.md	authored	CS-959	stamped
 .github/ISSUE_TEMPLATE/config.yml	authored	CS-922	first-add:CS-922
 .github/ISSUE_TEMPLATE/content-gap.yml	authored	CS-922	first-add:CS-922
 .github/PULL_REQUEST_TEMPLATE.md	authored	CS-959	first-add:CS-959

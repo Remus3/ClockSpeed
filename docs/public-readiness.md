@@ -183,7 +183,7 @@ them on the new repository after S10.
 | Secret scanning, push protection | Unavailable while private | Operator, after the flip (M2) |
 | Private vulnerability reporting | Unavailable while private | Operator, after the flip (M1) |
 | Branch protection | None on the old remote | CS-700 S11: deletion and non-fast-forward blocked on main only - no required reviews or checks, so the lane's fast-forward pushes land |
-| Community profile | 100 percent: README, LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, PR template | CS-959 |
+| Community profile | health_percentage 100, but the API row `files.issue_template` read null - the API counts only the legacy `.github/ISSUE_TEMPLATE.md`, now added; the row is re-read after the push | CS-959 |
 | Social preview image | Not set - the API cannot set it | Operator, manual |
 
 **Social preview.** A 1280x640 PNG is generated at `data/social-preview.png`, which is

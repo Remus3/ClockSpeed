@@ -1154,3 +1154,19 @@ the four files exist and GitHub's own community profile reports every row satisf
 
 GitHub's community-standards checklist for this repository is four of eight, and CS-700 flips it public, which turns every gap from something we can see into something a stranger sees first - MEASURED 2026-09-08 with `gh repo view`: description SET, topics SET at twenty which is GitHub's maximum, README, LICENSE and issue templates all present, and MISSING are `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md` and a pull request template - raised from a sibling's identical checklist rather than from a probe of this tree, and the same four rows were empty there
 
+### THE ISSUE_TEMPLATE ROW READS ONLY THE LEGACY FILE - MEASURED 2026-10-04
+
+The profile read 100 percent health with `files.issue_template` null. Measured with `gh api
+repos/<owner>/<repo>/community/profile`: `cli/cli` carries Markdown templates with front matter in
+`.github/ISSUE_TEMPLATE/` and its row is null; `rollup/rollup` carries the legacy single file
+`.github/ISSUE_TEMPLATE.md` and its row is set. Folder templates of either shape, Markdown or an
+issue form, never fill the row. Reported upstream, open, no staff reply:
+https://github.com/github/rest-api-description/issues/7187 and
+https://github.com/deftio/bitwrench/issues/111.
+
+Decision (merger ruling): add the legacy `.github/ISSUE_TEMPLATE.md`. It meets the acceptance's
+row literally and is inert in the chooser while the folder exists. Alternative rejected: closing on
+the 100 percent health figure, because the acceptance says every row, read from the profile.
+Reversed by: GitHub's API counting folder templates, at which point the legacy file can go.
+Guarded by `tests/test_community_health.py::COMMUNITY_FILES`. The row is re-read after the push;
+until that read it is NOT satisfied.

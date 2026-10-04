@@ -529,6 +529,7 @@ GUARDED_DOCS: Final = (
     # cites no path at all; it will become a carrier the moment it does, and
     # this guard is what will say so.
     ".github/CONTRIBUTING.md",
+    ".github/ISSUE_TEMPLATE.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/SECURITY.md",
     # CS-959 - the pre-public audit. Read by the operator at the flip, so every

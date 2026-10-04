@@ -75,6 +75,18 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-959 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-959 STAYS OPEN. The legacy issue template is added for the profile's null issue_template row
+Verification: `.github/ISSUE_TEMPLATE.md`; `tests/test_community_health.py::COMMUNITY_FILES`,
+`::test_community_health_file_exists`. The profile read health 100 with `files.issue_template`
+null, so `docs/public-readiness.md`'s "100 percent" row overstated it and is corrected. Measured
+with `gh api .../community/profile`: `cli/cli` (Markdown templates with front matter in the folder)
+reads null, `rollup/rollup` (legacy single file) reads set - the API counts only the legacy path.
+Upstream reports, open: https://github.com/github/rest-api-description/issues/7187,
+https://github.com/deftio/bitwrench/issues/111. Decision, merger ruling: add the legacy file, inert
+in the chooser while the folder exists; alternative of closing on health 100 rejected because the
+acceptance says every row. Reversed by: the API counting folder templates. Red first: the four
+`[ISSUE_TEMPLATE.md]` arms failed on the missing file. The row is re-read after the push.
+
 ### 2026-10-04 - CS-701 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-701 STAYS OPEN. The trailer census reads raw objects and refuses a cut history
 Verification: `tools/trailer_census.py::raw_object_env`, `::refuse_cut_history`, `::walk`;
 `tests/test_trailer_census.py::test_a_replace_ref_cannot_hide_a_trailer_commit_by_content`,
