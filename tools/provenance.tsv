@@ -311,6 +311,7 @@ tests/save/test_value_anchoring.py	authored	CS-421	first-add:CS-421
 tests/save/test_width_rule.py	authored	CS-422	first-add:CS-422
 tests/save/test_workdir.py	authored	CS-1165	first-add:root
 tests/save/test_world.py	authored	CS-1165	first-add:root
+tests/save/test_world_references.py	authored	CS-400	stamped
 tests/save/test_zero_remainder.py	authored	CS-828	first-add:CS-828
 tests/secret_sweep_guard.py	authored	CS-939	first-add:CS-939
 tests/shell/__init__.py	authored	CS-602	first-add:CS-602
