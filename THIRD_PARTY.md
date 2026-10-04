@@ -276,7 +276,7 @@ except Electron, whose verdict is ADR 0013's and is consumed here rather than re
 | `progress` | 2.0.3 | MIT, warranty clause intact / MIT | Copyright (c) 2017 TJ Holowaychuk - e-mail address omitted | **CLEARED** as a dependency | 2026-09-25 |
 | `semver` | 7.8.5 | ISC, warranty clause intact / ISC | Copyright (c) Isaac Z. Schlueter and Contributors | **CLEARED** as a dependency. `package.json` names GitHub Inc. as author, a second name beside the holder line - trap 2, benign | 2026-09-25 |
 | `sumchecker` | 3.0.1 | Apache-2.0 full text, warranty clause intact, appendix left as the unrendered how-to-apply template / Apache-2.0 | The licence file names no holder; the rendered line is the source header of `index.js`: Copyright 2016, 2017, 2019 Mark Lee and contributors | **CLEARED** as a dependency. Apache-2.0 places the notice in the source files, and there it is rendered; a lift would still owe section 4's notices | 2026-09-25 |
-| `undici` | 7.29.0 | MIT, warranty clause intact / MIT | Copyright (c) Matteo Collina and Undici contributors | **CLEARED** as a dependency | 2026-09-25 |
+| `undici` | 7.29.1 | MIT, warranty clause intact / MIT | Copyright (c) Matteo Collina and Undici contributors | **CLEARED** as a dependency | 2026-09-25 |
 | `undici-types` | 7.18.2 | MIT, warranty clause intact / MIT | Copyright (c) Matteo Collina and Undici contributors | **CLEARED** as a dependency | 2026-09-25 |
 
 ---
