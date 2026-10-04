@@ -378,8 +378,10 @@ from clockspeed.save.objects import (
     ObjectReference,
     ObjectTable,
     PropertyResult,
+    RecordIndex,
     StructValue,
     class_name_of,
+    index_records,
     parse_body,
     parse_object_headers,
     read_properties,
@@ -412,6 +414,10 @@ __all__ = [
     "STAGE_HEADER",
     "STAGE_OBJECTS",
     "STAGE_USMAP",
+    "TARGET_AMBIGUOUS",
+    "TARGET_RESOLVED",
+    "TARGET_STATES",
+    "TARGET_UNRESOLVED",
     "WARN_NODE_SEMANTICS_UNAVAILABLE",
     "WARN_NODE_TRANSFORM_ABSENT",
     "WARN_NO_PROPERTY_MAP",
@@ -419,6 +425,7 @@ __all__ = [
     "ContainerContents",
     "ContainerEntry",
     "RecordProperties",
+    "ReferenceTarget",
     "ResourceNode",
     "UnlockState",
     "WorldLoadError",
@@ -471,6 +478,17 @@ SOURCE_WORLD: Final = "world"
 #: count, and for the three neighbouring conditions that must NOT be added here.
 _DROPPED_SCHEMA_PREFIX: Final = "schema-"
 _STOPPED_SCHEMA_SECTION: Final = "schemas"
+
+#: Where one published reference landed - CS-400. THREE STATES, NEVER
+#: COLLAPSED: a path borne by exactly one record is RESOLVED to it, by none is
+#: UNRESOLVED, by more than one is AMBIGUOUS. See :class:`ReferenceTarget` for
+#: why ambiguous is its own state here when ``objects.ReferenceResolution``
+#: counts it inside resolved.
+TARGET_RESOLVED: Final = "resolved"
+TARGET_UNRESOLVED: Final = "unresolved"
+TARGET_AMBIGUOUS: Final = "ambiguous"
+
+TARGET_STATES: Final = (TARGET_RESOLVED, TARGET_UNRESOLVED, TARGET_AMBIGUOUS)
 
 WARN_NO_PROPERTY_MAP: Final = "no-property-map"
 WARN_UNLOCK_GRAMMAR_UNMEASURED: Final = "unlock-grammar-unmeasured"
@@ -909,6 +927,82 @@ class ContainerContents:
 
 
 @dataclass(frozen=True, repr=False)
+class ReferenceTarget:
+    """Where one published reference landed in the record table - CS-400.
+
+    THE JOIN, PUBLISHED AS A RECORD INDEX AND NEVER AS AN OFFSET. An index is
+    a position in :attr:`WorldModel.objects.records`, a collection every
+    consumer already holds, on the same terms :class:`WorldProperties` keys by
+    one. A consumer following a building to its inventory component reads this
+    and never calls into ``objects`` - which is the seam: the save layer owns
+    the path grammar and the resolution, and a higher layer that ran the
+    resolution itself would be reaching past its neighbour.
+
+    THE RESOLUTION IS ``objects``' OWN. The lookup is
+    ``objects.RecordIndex.records_for`` over the table
+    ``objects.index_records`` builds, the same pairing
+    ``objects.resolve_references`` counts with, so the published join and the
+    save layer's partition cannot disagree about which records a path names.
+
+    AMBIGUOUS IS ITS OWN STATE HERE, AND THAT IS A DIFFERENCE FROM
+    ``objects.ReferenceResolution`` RATHER THAN A CONTRADICTION. That type
+    counts an ambiguous reference INSIDE resolved, because its question is
+    whether a path is borne at all. This type answers a consumer about to take
+    ONE record, and handing it one of several as if it were the only one is
+    the confident wrong answer non-negotiable 7 forbids. So every candidate is
+    kept and none is claimed.
+
+    ``repr`` renders the state, which is closed vocabulary, and a count. The
+    indices are positions rather than world content, and are withheld anyway
+    so a later edit widening this type does not inherit a rendering habit.
+
+    Attributes:
+        state: One of :data:`TARGET_STATES`.
+        record_indices: Every record index bearing the reference's path, in
+            table order. EMPTY when unresolved, ONE when resolved, MORE THAN
+            ONE when ambiguous - the state is derived from this length and is
+            carried beside it so a consumer branches on a word, not a count.
+    """
+
+    state: str
+    record_indices: tuple[int, ...]
+
+    @property
+    def record_index(self) -> int | None:
+        """The one record this reference names, when there is exactly one.
+
+        Returns:
+            The index when resolved; None when unresolved or ambiguous. None
+            never distinguishes those two - :attr:`state` does.
+        """
+        return self.record_indices[0] if self.state == TARGET_RESOLVED else None
+
+    def __repr__(self) -> str:
+        """Render the state and the candidate count.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(state={self.state!r}, candidates={len(self.record_indices)})"
+
+
+def _reference_target(found: tuple[int, ...]) -> ReferenceTarget:
+    """Classify one lookup into the three published states.
+
+    Args:
+        found: Every record index bearing the reference's path.
+
+    Returns:
+        The target.
+    """
+    if not found:
+        return ReferenceTarget(state=TARGET_UNRESOLVED, record_indices=())
+    if len(found) == 1:
+        return ReferenceTarget(state=TARGET_RESOLVED, record_indices=found)
+    return ReferenceTarget(state=TARGET_AMBIGUOUS, record_indices=found)
+
+
+@dataclass(frozen=True, repr=False)
 class RecordProperties:
     """What one record's payload yielded, and what it did not.
 
@@ -1023,6 +1117,13 @@ class RecordProperties:
             here. Interiors belonging to a container's ELEMENTS already cross
             inside that container's own published entries; this field is the
             TOP-LEVEL tag population, which crossed nowhere before CS-1039.
+        reference_targets: Where each of ``references`` landed in the record
+            table, ONE PER REFERENCE AND IN THE SAME ORDER, so
+            ``reference_targets[i]`` is the target of ``references[i]`` -
+            CS-400. See :class:`ReferenceTarget` for the three states. EMPTY
+            on an entry built without the join, which only a caller
+            constructing this type by hand produces; every entry
+            :func:`load_world_from_bytes` publishes is aligned.
     """
 
     values: Mapping[str, object]
@@ -1034,6 +1135,7 @@ class RecordProperties:
     warning_codes: tuple[str, ...] = ()
     references: tuple[ObjectReference, ...] = ()
     struct_interiors: tuple[StructValue, ...] = ()
+    reference_targets: tuple[ReferenceTarget, ...] = ()
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1054,7 +1156,8 @@ class RecordProperties:
             f"disagreeing_value_count={self.disagreeing_value_count}, "
             f"warning_codes={len(self.warning_codes)}, "
             f"references={len(self.references)}, "
-            f"struct_interiors={len(self.struct_interiors)})"
+            f"struct_interiors={len(self.struct_interiors)}, "
+            f"reference_targets={len(self.reference_targets)})"
         )
 
 
@@ -1854,6 +1957,12 @@ def _decode_properties(
             overrun is fatal where an unreadable payload is flagged.
     """
     decoded: dict[int, RecordProperties] = {}
+    # THE JOIN IS BUILT ONCE PER TABLE, OFF THE SAVE LAYER'S OWN INDEX. Records
+    # are mapped to their positions BY IDENTITY: two records may compare equal
+    # field for field (an instance name is measured not to be unique), and an
+    # equality-keyed map would fold them into one index.
+    record_index = index_records(table)
+    positions = {id(record): position for position, record in enumerate(table.records)}
     try:
         for index, record in enumerate(table.records):
             decoded[index] = _record_properties(
@@ -1873,7 +1982,9 @@ def _decode_properties(
                     # SAVE_CROSS.
                     save_version=table.save_version,
                     header_version=table.header_version,
-                )
+                ),
+                record_index,
+                positions,
             )
     except BaseException:
         del payload, mapping
@@ -1953,7 +2064,9 @@ def _published_value(value: object) -> object:
     return value
 
 
-def _record_properties(result: PropertyResult) -> RecordProperties:
+def _record_properties(
+    result: PropertyResult, record_index: RecordIndex, positions: Mapping[int, int]
+) -> RecordProperties:
     """Narrow one reader result to what a higher layer is allowed to hold.
 
     THE NARROWING IS THE JOB. ``objects.PropertyResult`` carries reference
@@ -1982,8 +2095,15 @@ def _record_properties(result: PropertyResult) -> RecordProperties:
     extent to raises nothing and is True with an empty mapping, because there
     was no payload to fail on.
 
+    EACH REFERENCE IS FOLLOWED TO A RECORD INDEX HERE - CS-400. The lookup is
+    the save layer's own (``objects.RecordIndex.records_for``) and what crosses
+    is a :class:`ReferenceTarget` holding positions in the table, never a
+    record and never an offset.
+
     Args:
         result: One record's reader result.
+        record_index: The table arranged for reference lookup.
+        positions: Each record's position in the table, keyed by identity.
 
     Returns:
         The published entry.
@@ -2017,6 +2137,15 @@ def _record_properties(result: PropertyResult) -> RecordProperties:
         # exact defect this seam exists to remove.
         references=result.references,
         struct_interiors=tuple(_published_struct(interior) for interior in result.struct_interiors),
+        reference_targets=tuple(
+            _reference_target(
+                tuple(
+                    positions[id(found)]
+                    for found in record_index.records_for(reference.object_path)
+                )
+            )
+            for reference in result.references
+        ),
     )
 
 
