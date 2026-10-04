@@ -22,9 +22,13 @@ check its own preconditions:
   rule that swallows the exception gains nothing: any refusal drops the
   recommendation.
 - **Only immutable exact values cross.** Every value read is walked by an
-  ALLOWLIST (non-negotiable 6): ``Fraction``, ``int``, ``bool``, ``str``,
-  ``None``, enum members, tuples, ``MappingProxyType`` and FROZEN dataclasses,
-  recursively. A SET IS REFUSED, frozen or not: its iteration order and repr
+  ALLOWLIST (non-negotiable 6), by EXACT type - a subclass is refused, since
+  it can carry an instance ``__dict__``: ``Fraction``, ``int``, ``bool``,
+  ``str``, ``None``, ``tuple``, ``MappingProxyType`` and frozen dataclasses
+  declared with ``slots=True``, recursively. An enum member is refused (its
+  value is mutable); a rule needing one reads its name as a ``str``. The walk
+  is bounded by WORK as well as depth, so a shared-subtree value cannot make
+  a read exponential. A SET IS REFUSED, frozen or not: its iteration order and repr
   depend on ``PYTHONHASHSEED``, so a set value would make two runs on the same
   save render different traces. A float anywhere refuses the read, and so does a
   MUTABLE container - a dict, a list, a set, a non-frozen dataclass - even
@@ -53,6 +57,12 @@ world it captured from its own module scope bypasses all of this. Those are
 deliberate subversion, outside what a runtime check can stop; review and the
 per-rule synthetic fixture tests are the control for them.
 
+RESIDUALS, ACCEPTED BY ADJUDICATION. A ``BaseException`` that is not an
+``Exception`` - ``KeyboardInterrupt``, ``SystemExit`` - propagates by design
+and is never swallowed; and hostile rule code using private attributes,
+``__self__``, ``gc`` or ``ctypes`` is outside the threat model, because rules
+are authored in this repository and reviewed.
+
 DETERMINISM. Steps are appended in execution order; required unlocks are
 checked in their declared tuple order; :func:`run_rules` orders traces by rule
 id; an inexact value's reason is the lexically smallest over its parts; set
@@ -78,8 +88,23 @@ if TYPE_CHECKING:
 #: How deep the exactness walk descends before refusing a value as unbounded.
 MAX_EXACT_DEPTH: Final = 32
 
-#: Scalar types a rule input may hold. An ALLOWLIST: anything else is refused.
-_EXACT_SCALARS: Final = (Fraction, int, str)
+#: How many parts the exactness walk visits before refusing a value as too
+#: large. Bounds WORK, which the depth cap alone does not: a tuple whose two
+#: slots share one sub-tuple, nested 24 deep, is shallow and has 2**24 parts.
+MAX_EXACT_NODES: Final = 10000
+
+#: Scalar types a rule input may hold, matched EXACTLY - never a subclass.
+_EXACT_SCALARS: Final = (Fraction, int, bool, str)
+
+#: What a rule-error step names an exception whose type name is not a plain
+#: ASCII identifier - a dynamically built class could carry any text there.
+UNNAMED_EXCEPTION: Final = "unnamed-exception"
+
+#: An exception type name the trace may record.
+_EXCEPTION_NAME: Final = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+_TOO_DEEP: Final = "nested too deeply to prove exact"
+_TOO_LARGE: Final = "too many parts to prove exact"
 
 #: Rule ids, domains and input names: lower-case ASCII identifiers only, so a
 #: name interpolated into a message cannot carry world data in practice.
@@ -140,8 +165,16 @@ class WorldInputs:
     unlocks: frozenset[str]
 
     def __post_init__(self) -> None:
-        """Freeze the input mapping behind a read-only proxy."""
-        object.__setattr__(self, "values", MappingProxyType(dict(self.values)))
+        """Freeze the input mapping behind a read-only proxy.
+
+        Raises:
+            TypeError: an entry is not exactly an :class:`InputValue` - a
+                world-builder bug, refused here rather than charged to a rule.
+        """
+        frozen = dict(self.values)
+        if not all(type(offered) is InputValue for offered in frozen.values()):
+            raise TypeError("every world entry must be an InputValue")
+        object.__setattr__(self, "values", MappingProxyType(frozen))
 
     def __repr__(self) -> str:
         """Render counts only. Unlock keys embed save object paths."""
@@ -290,38 +323,54 @@ def _is_text(value: object) -> bool:
 
 def _children(value: object) -> tuple[object, ...] | None:
     """Return the parts of an allowlisted immutable container, or None otherwise."""
-    if isinstance(value, enum.Enum):
-        return (value.value,)
-    if isinstance(value, tuple):
-        return tuple(value)
-    if type(value) is MappingProxyType:
-        return tuple(part for pair in value.items() for part in pair)
+    kind = type(value)
+    if kind is tuple:
+        return value  # type: ignore[return-value]
+    if kind is MappingProxyType:
+        return tuple(part for pair in value.items() for part in pair)  # type: ignore[attr-defined]
     if (
         dataclasses.is_dataclass(value)
         and not isinstance(value, type)
-        and type(value).__dataclass_params__.frozen  # type: ignore[attr-defined]
+        and kind.__dataclass_params__.frozen  # type: ignore[attr-defined]
+        and "__slots__" in kind.__dict__
+        and not hasattr(value, "__dict__")
     ):
         return tuple(getattr(value, fld.name) for fld in dataclasses.fields(value))
     return None
 
 
-def _inexact_reason(value: object, depth: int = 0) -> str | None:
+def _inexact_reason(value: object) -> str | None:
     """Return why ``value`` is not immutable and exact, or None when it is.
 
-    An ALLOWLIST walk over :func:`_children`; anything it does not name - a
-    float, a Decimal, a dict, a list, a set or frozenset, a non-frozen
-    dataclass - is
+    An ALLOWLIST walk over :func:`_children`, by exact type; anything it does
+    not name - a float, a Decimal, a dict, a list, a set, an enum member, a
+    subclass of an allowed type, an unslotted or non-frozen dataclass - is
     refused, so a new inexact or mutable type cannot slip past by not being
-    named. When several parts fail, the lexically smallest reason is returned.
+    named. At most :data:`MAX_EXACT_NODES` parts are visited and at most
+    :data:`MAX_EXACT_DEPTH` levels descended. When several parts fail, the
+    lexically smallest reason is returned.
     """
+    return _walk(value, 0, [MAX_EXACT_NODES])
+
+
+def _walk(value: object, depth: int, budget: list[int]) -> str | None:
+    budget[0] -= 1
+    if budget[0] < 0:
+        return _TOO_LARGE
     if depth > MAX_EXACT_DEPTH:
-        return "nested too deeply to prove exact"
-    if value is None or isinstance(value, bool) or type(value) in _EXACT_SCALARS:
+        return _TOO_DEEP
+    if value is None or type(value) in _EXACT_SCALARS:
         return None
     children = _children(value)
     if children is None:
         return f"a {type(value).__name__} is not an exact type"
-    reasons = [r for r in (_inexact_reason(c, depth + 1) for c in children) if r is not None]
+    reasons: list[str] = []
+    for child in children:
+        reason = _walk(child, depth + 1, budget)
+        if reason == _TOO_LARGE:
+            return _TOO_LARGE
+        if reason is not None:
+            reasons.append(reason)
     return min(reasons) if reasons else None
 
 
@@ -362,8 +411,7 @@ class RuleContext:
         """Read one declared input that must be exactly a ``Fraction``."""
         value = self._read(name)
         if type(value) is not Fraction:
-            self._refuse_exact(name)
-            raise InputRefusedError(f"rule {self._rule_id}: input is not a Fraction")
+            raise self._refuse_exact(name)
         return value
 
     def compute(self, label: str, value: Fraction) -> Fraction:
@@ -400,7 +448,7 @@ def _recommendation_fault(proposed: object) -> str | None:
 class _Recorder:
     """Engine-held state for one rule run. Never handed to the rule itself."""
 
-    __slots__ = ("refused", "spec", "steps", "world")
+    __slots__ = ("issued", "refused", "spec", "steps", "world")
 
     def __init__(self, spec: RuleSpec, world: WorldInputs) -> None:
         """Start an empty record for one rule over one world."""
@@ -408,13 +456,18 @@ class _Recorder:
         self.world = world
         self.steps: list[TraceStep] = []
         self.refused: list[str] = []
+        self.issued: list[InputRefusedError] = []
 
     def refuse(self, kind: StepKind, subject: str, reason: str) -> InputRefusedError:
         self.refused.append(subject)
         self.steps.append(TraceStep(kind=kind, subject=subject, reason=reason))
-        return InputRefusedError(f"rule {self.spec.rule_id}: {reason}")
+        error = InputRefusedError(f"rule {self.spec.rule_id}: {reason}")
+        self.issued.append(error)
+        return error
 
-    def read(self, name: str) -> object:
+    def read(self, name: object) -> object:
+        if type(name) is not str or NAME_PATTERN.fullmatch(name) is None:
+            raise self.refuse(StepKind.RULE_ERROR, "read", "input name is not NAME_PATTERN text")
         if name not in self.spec.inputs:
             raise self.refuse(StepKind.INPUT_REFUSED, name, "undeclared input")
         offered = self.world.values.get(name)
@@ -433,11 +486,11 @@ class _Recorder:
         )
         return offered.value
 
-    def read_exact_refusal(self, name: str) -> None:
+    def read_exact_refusal(self, name: str) -> InputRefusedError:
         """Withdraw the provisional read of ``name`` and record its refusal."""
         if self.steps and self.steps[-1].kind is StepKind.INPUT_READ:
             self.steps.pop()
-        self.refuse(StepKind.INPUT_REFUSED, name, "input is not a Fraction")
+        return self.refuse(StepKind.INPUT_REFUSED, name, "input is not a Fraction")
 
     def compute(self, label: object, value: object) -> Fraction:
         if not _is_text(label):
@@ -459,6 +512,14 @@ class _Recorder:
         )
 
 
+def _exception_name(exc: Exception) -> str:
+    """The exception's type name if it is a plain ASCII identifier, else a fixed one."""
+    name = type(exc).__name__
+    if type(name) is str and name.isascii() and _EXCEPTION_NAME.fullmatch(name):
+        return name
+    return UNNAMED_EXCEPTION
+
+
 def run_rule(spec: RuleSpec, world: WorldInputs) -> Trace:
     """Run one rule against one world and return its complete trace.
 
@@ -475,13 +536,12 @@ def run_rule(spec: RuleSpec, world: WorldInputs) -> Trace:
     proposed: object = None
     try:
         proposed = spec.evaluate(RuleContext(recorder))
-    except InputRefusedError:
+    except InputRefusedError as refusal:
         proposed = None
+        if not any(refusal is issued for issued in recorder.issued):
+            recorder.refuse(StepKind.RULE_ERROR, "InputRefusedError", "rule raised a refusal")
     except Exception as exc:  # a rule bug is recorded, never fatal
-        recorder.steps.append(
-            TraceStep(kind=StepKind.RULE_ERROR, subject=type(exc).__name__, reason="rule raised")
-        )
-        recorder.refused.append(type(exc).__name__)
+        recorder.refuse(StepKind.RULE_ERROR, _exception_name(exc), "rule raised")
     steps = list(recorder.steps)
     if recorder.refused or proposed is None:
         return Trace(spec.rule_id, spec.domain, tuple(steps), None)

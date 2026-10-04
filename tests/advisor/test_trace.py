@@ -93,6 +93,7 @@ def test_an_undeclared_input_read_is_refused_and_recorded() -> None:
     trace = run_rule(_reads("a.declared", "b.undeclared"), world)
     assert trace.recommendation is None
     assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("b.undeclared",)
+    assert StepKind.RULE_ERROR not in _kinds(trace)
     assert _subjects_of(trace, StepKind.INPUT_READ) == ("a.declared",)
     assert StepKind.RULE_FIRED not in _kinds(trace)
 
@@ -213,7 +214,7 @@ def test_the_generated_rules_would_recommend_without_the_gate() -> None:
 # --- exactness ------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _Holder:
     rate: object
 
@@ -279,10 +280,20 @@ class _Colour(enum.Enum):
     RED = "red"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _Nested:
     inner: _Holder
     flags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _Unslotted:
+    rate: Fraction
+
+
+@dataclass(slots=True)
+class _SlottedMutable:
+    rate: Fraction
 
 
 @dataclass
@@ -294,7 +305,6 @@ def test_an_immutable_exact_value_is_accepted() -> None:
     goods = (
         True,
         None,
-        _Colour.RED,
         MappingProxyType({"k": Fraction(1, 3), "flag": False}),
         _Nested(inner=_Holder(rate=Fraction(2)), flags=("a",)),
         (Fraction(1), "x", 4),
@@ -313,6 +323,9 @@ def test_a_mutable_value_is_refused_even_when_every_part_is_exact() -> None:
         _Mutable(rate=Fraction(1)),
         (Fraction(1), [Fraction(2)]),
         _Holder(rate={"k": Fraction(1)}),
+        _Colour.RED,
+        _Unslotted(rate=Fraction(1)),
+        _SlottedMutable(rate=Fraction(1)),
     )
     for bad in bads:
         trace = run_rule(_reads("a.declared"), _world(a_declared=bad))
@@ -603,3 +616,134 @@ def test_rule_ids_and_input_names_must_match_the_strict_pattern() -> None:
         except ValueError:
             refused += 1
     assert refused == len(bads)
+
+
+# --- round 2: exact types, bounded work, names that cannot carry data -------
+
+
+class _Tuple(tuple):
+    pass
+
+
+class _Str(str):
+    __slots__ = ()
+
+
+class _Int(int):
+    __slots__ = ()
+
+
+class _Fraction(Fraction):
+    __slots__ = ()
+
+
+def test_a_subclass_of_an_exact_type_is_refused() -> None:
+    escaped = _Tuple((Fraction(1),))
+    escaped.extra = [0.5]  # type: ignore[attr-defined]
+    for bad in (escaped, _Str("text"), _Int(3), _Fraction(1, 2)):
+        trace = run_rule(_reads("a.declared"), _world(a_declared=bad))
+        assert trace.recommendation is None, type(bad).__name__
+        assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",)
+
+
+def test_an_unshaped_read_name_is_a_rule_error_that_never_records_the_name() -> None:
+    bad_names = (_Str("a.declared"), "Synthetic Bad Name", 7)
+    for bad in bad_names:
+
+        def evaluate(ctx: RuleContext, name: object = bad) -> Recommendation | None:
+            ctx.read(name)  # type: ignore[arg-type]
+            return _recommend()
+
+        spec = RuleSpec(
+            rule_id="synthetic.badname",
+            domain="power",
+            inputs=("a.declared",),
+            unlocks=(),
+            evaluate=evaluate,
+        )
+        trace = run_rule(spec, _world(a_declared=Fraction(1)))
+        assert trace.recommendation is None, type(bad).__name__
+        assert _subjects_of(trace, StepKind.RULE_ERROR) == ("read",)
+        assert _subjects_of(trace, StepKind.INPUT_READ) == ()
+        named = sum(1 for st in trace.steps if "Synthetic Bad Name" in (st.subject, st.reason))
+        assert named == 0
+
+
+def _raiser(exc_type: type[Exception]) -> RuleSpec:
+    def evaluate(_ctx: RuleContext) -> Recommendation | None:
+        raise exc_type
+
+    return RuleSpec(
+        rule_id="synthetic.raiser",
+        domain="power",
+        inputs=(),
+        unlocks=(),
+        evaluate=evaluate,
+    )
+
+
+def test_an_exception_type_name_is_recorded_only_when_it_is_an_identifier() -> None:
+    spaced = type("Synthetic Spaced Name", (Exception,), {})
+    accented = type("SyntheticErr" + chr(0xE9), (Exception,), {})
+    for exc_type in (spaced, accented):
+        trace = run_rule(_raiser(exc_type), _world())
+        assert trace.recommendation is None
+        assert _subjects_of(trace, StepKind.RULE_ERROR) == ("unnamed-exception",)
+    control = run_rule(_raiser(LookupError), _world())
+    assert _subjects_of(control, StepKind.RULE_ERROR) == ("LookupError",)
+
+
+def test_a_rule_raising_its_own_refusal_is_a_rule_error() -> None:
+    def evaluate(_ctx: RuleContext) -> Recommendation | None:
+        raise InputRefusedError
+
+    spec = RuleSpec(
+        rule_id="synthetic.self-refuser",
+        domain="power",
+        inputs=(),
+        unlocks=(),
+        evaluate=evaluate,
+    )
+    trace = run_rule(spec, _world())
+    assert trace.recommendation is None
+    assert _subjects_of(trace, StepKind.RULE_ERROR) == ("InputRefusedError",)
+
+
+def test_a_world_entry_that_is_not_an_input_value_is_refused_at_construction() -> None:
+    refused = 0
+    for bad in (Fraction(1), ("x", "synthetic.fixture"), None):
+        try:
+            WorldInputs(values={"a.declared": bad}, unlocks=frozenset())  # type: ignore[dict-item]
+        except TypeError:
+            refused += 1
+    assert refused == 3  # noqa: PLR2004 - one per bad entry above
+
+
+def _refusal_reasons(value: object) -> list[str]:
+    trace = run_rule(_reads("a.declared"), _world(a_declared=value))
+    return [st.reason for st in trace.steps if st.kind is StepKind.INPUT_REFUSED]
+
+
+def test_shared_subtree_nesting_is_bounded_by_work_not_depth() -> None:
+    value: object = Fraction(1)
+    for _ in range(24):
+        value = (value, value)
+    assert _refusal_reasons(value) == ["too many parts to prove exact"]
+
+
+def test_the_node_guard_refuses_a_wide_value_and_admits_one_under_the_cap() -> None:
+    assert _refusal_reasons(tuple(Fraction(i) for i in range(20000))) == [
+        "too many parts to prove exact"
+    ]
+    assert _refusal_reasons(tuple(Fraction(i) for i in range(9000))) == []
+
+
+def test_the_depth_guard_refuses_a_deep_narrow_value() -> None:
+    value: object = Fraction(1)
+    for _ in range(40):
+        value = (value,)
+    assert _refusal_reasons(value) == ["nested too deeply to prove exact"]
+    shallow: object = Fraction(1)
+    for _ in range(20):
+        shallow = (shallow,)
+    assert _refusal_reasons(shallow) == []
