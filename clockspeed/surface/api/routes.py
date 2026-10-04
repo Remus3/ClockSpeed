@@ -52,11 +52,16 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, solve, world
 from clockspeed.surface.api import map as map_endpoint
 from clockspeed.surface.api import power as power_endpoint
 from clockspeed.surface.api import registry as registry_endpoint
-from clockspeed.surface.providers import InstalledRegistryProvider, SaveWorldProvider
+from clockspeed.surface.providers import (
+    InstalledRegistryProvider,
+    SaveWorldProvider,
+    StoreAdviceSource,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -96,6 +101,8 @@ BACKED_TEMPLATES: Final = (
     solve.OPTIMIZE_ENDPOINT,
     map_endpoint.ENDPOINT,
     power_endpoint.ENDPOINT,
+    advice_endpoint.ENDPOINT,
+    advice_endpoint.DERIVATION_ENDPOINT,
 )
 
 #: What the server says about its own route table, in the two words
@@ -159,6 +166,7 @@ def _checked(routes: tuple[contract.Route, ...]) -> tuple[contract.Route, ...]:
 def build_routes(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
+    advice_source: advice_endpoint.AdviceSource | None = None,
 ) -> tuple[contract.Route, ...]:
     """Assemble one route per published template, with the providers bound in.
 
@@ -188,9 +196,16 @@ def build_routes(
     is lazy - it stores callables and reads nothing until asked - so binding them
     in costs nothing until a request arrives.
 
+    THE ADVICE SOURCE DEFAULTS TO THE STORE-READING ONE (CS-1270). None binds a
+    :class:`~clockspeed.surface.providers.StoreAdviceSource` over the advisor's
+    default store directory and the wall clock; it reads nothing until a
+    request arrives, so the default costs nothing at assembly either.
+
     Args:
         worlds: Whatever hands up the current world, or says there is not one.
         registries: Whatever hands up the registry, or says there is no install.
+        advice_source: Whatever runs the advisor and reads its stores, or None
+            for the store-reading default.
 
     Returns:
         One route per published template, in ``BOOTSTRAP.md`` section 7.1's order.
@@ -221,6 +236,14 @@ def build_routes(
         # Building, which the registry publishes; no save is involved, so this
         # door answers identically whether or not a world is loaded.
         *power_endpoint.routes(registries),
+        # THE ADVICE READS (CS-1270). The world and the registry go to the
+        # source, which hands both to the advisor's own entry point; this table
+        # and the endpoint only transcribe what comes back.
+        *advice_endpoint.routes(
+            worlds,
+            registries,
+            StoreAdviceSource() if advice_source is None else advice_source,
+        ),
         *pending.routes(),
     )
     order = health.ENDPOINT_TEMPLATES

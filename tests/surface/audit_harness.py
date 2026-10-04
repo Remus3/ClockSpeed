@@ -67,13 +67,14 @@ to make about being pinned was also wrong: the arm it named pins only the two
 ``<id>`` rows, and it was a DIFFERENT row gaining a probe path that falsified
 the sentence.
 
-AND AN INVENTED ID WOULD BE A NEW DIVERGENCE RATHER THAN A SMALLER ONE. Nothing
-hands this page a card identifier while ``/api/advice`` is itself unbacked, so
-the only concrete path available is one this file would make up - and
-:data:`CANNED` is keyed by exact path, so it would answer that single invented id
-and 404 every other, where production matches EVERY id against the template.
-Their 501 bodies are still built and published in :data:`PENDING_BODIES`, so the
-walking skeleton knows what blocks them even where nothing here asks.
+AND AN INVENTED ID WOULD BE A NEW DIVERGENCE RATHER THAN A SMALLER ONE. The
+page reads no card identifier out of ``/api/advice`` - no panel consumes that
+body yet, though CS-1270 made it live and it is canned below - so the only
+concrete path available is one this file would make up, and :data:`CANNED` is
+keyed by exact path, so it would answer that single invented id and 404 every
+other, where production matches EVERY id against the template. The state
+route's 501 body is still built and published in :data:`PENDING_BODIES`, so the
+walking skeleton knows what blocks it even where nothing here asks.
 
 RUNNING IT STANDALONE, which is how the merger drives the audit::
 
@@ -111,6 +112,7 @@ from clockspeed.save.world import (
 )
 from clockspeed.solve import power
 from clockspeed.surface import config, server
+from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, registry, solve
 from clockspeed.surface.api import map as map_endpoint
 from clockspeed.surface.api import power as power_endpoint
@@ -565,10 +567,10 @@ def _health_data() -> dict[str, object]:
 
 
 #: Every unbacked route's 501, keyed by TEMPLATE and built by the shipped
-#: constructor. All five are published, including the two carrying a path
+#: constructor. All are published, including the state route carrying a path
 #: parameter that this harness serves no concrete path for - the skeleton knows
-#: what blocks them even where nothing here asks. Production DOES route those
-#: two; see the module docstring for why the stand-in still does not.
+#: what blocks it even where nothing here asks. Production DOES route it; see
+#: the module docstring for why the stand-in still does not.
 PENDING_BODIES: Final[Mapping[str, contract.Response]] = MappingProxyType(
     {
         template: contract.not_implemented(template, pending.BLOCKERS[template])
@@ -889,6 +891,22 @@ def _assert_keys_match(what: str, section: object, key_tuple: tuple[str, ...]) -
         raise AssertionError(message)
 
 
+def _advice_data() -> dict[str, object]:
+    """One advice listing for a world with nothing to advise.
+
+    EMPTY ON PURPOSE, AND ONLY HERE. On a BACKED route an empty listing is a
+    true answer rather than the plausible lie ``pending.py`` refuses, and no
+    panel reads this body yet. A canned card would carry production's 64-hex
+    card id, which the personal-data sweep in ``test_web_assets.py`` reads as a
+    hex account id - widening that detector belongs to the item that first
+    renders a card, not to a stand-in nothing consumes.
+
+    Returns:
+        The data object, shaped as ``clockspeed/surface/api/advice.py`` shapes it.
+    """
+    return {"new_world": True, "cards": []}
+
+
 def _canned() -> dict[tuple[str, str], contract.Response]:
     """Build the whole routable answer table.
 
@@ -907,6 +925,8 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
         # required parameter and still answers GET, so it is the one row here
         # whose verb cannot be guessed from whether it takes one.
         ("GET", power_endpoint.ENDPOINT): contract.ok(power_endpoint.ENDPOINT, _power_data()),
+        # CS-1270: the advice listing is live, so the stand-in answers it.
+        ("GET", advice_endpoint.ENDPOINT): contract.ok(advice_endpoint.ENDPOINT, _advice_data()),
         ("POST", solve.SOLVE_ENDPOINT): contract.ok(solve.SOLVE_ENDPOINT, _plan_data()),
         ("POST", solve.OPTIMIZE_ENDPOINT): contract.ok(
             solve.OPTIMIZE_ENDPOINT,

@@ -75,6 +75,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1270 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1270 STAYS OPEN. Both advice reads are routed through the advisor's own input builder
+Verification: `clockspeed/advisor/advise.py::inputs_of`, `::advise_world`,
+`clockspeed/surface/providers.py::StoreAdviceSource`, `clockspeed/surface/api/routes.py::build_routes`;
+`tests/advisor/test_world_advice.py::test_inputs_of_is_the_audit_composition_over_one_world`,
+`tests/surface/test_advice_source.py::test_the_source_answers_none_over_a_corrupt_ledger`,
+`::test_the_derivation_answers_200_with_tier_three_over_the_real_route_table`,
+`::test_pending_publishes_neither_read_template`,
+`::test_only_the_map_endpoint_imports_the_audit_layer`. `GET /api/advice` and
+`GET /api/advice/<id>/derivation` answer 200 over the real table; the state POST stays 501 on
+CS-1269; `contract.OPEN_BLOCKERS` lost CS-1270. Why not closed: the acceptance clause "no
+`clockspeed/surface` module imports `clockspeed.audit`" was false before this item was filed -
+`clockspeed/surface/api/map.py` has imported the audit placement and inventory models since
+CS-977 - so it is pinned to that one module and routed to an adjudicator, per the CS-1270
+section of `docs/item_notes/phase5.md`. Also measured: the live personal-data sweep in
+`tests/surface/test_acceptance.py` flagged an exact megawatt fraction in the first real tier-2
+reason as a save identifier, since `/` is in the identifier alphabet; a fraction-shaped run is
+now exempt, with `::test_an_exact_fraction_of_token_length_is_not_a_save_identifier` as its
+lettered control. The CS-1046 line and section no longer say CS-500 blocks it.
+
 ### 2026-10-04 - CS-700 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The historical set is pinned by the gate after an adversary refuted the first cut
 Verification: `tools/sha_citation_gate.py::tamper_of`, `::repin_source`, `::emit_historical`,
 `::HISTORICAL_SHA256`; `tests/test_sha_citation_gate.py::test_a_token_smuggled_into_the_set_by_hand_is_refused`,

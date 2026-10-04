@@ -644,6 +644,21 @@ belongs to this item, because a new provider class also enters the
 (that class's population row and forced construction), `tests/surface/audit_harness.py`
 (a canned 200 for `/api/advice`), and the matching surface and advisor test modules.
 
+### Filed 2026-10-04 by the CS-1270 build - routed, one clause awaits a ruling
+
+`clockspeed/advisor/advise.py::inputs_of` composes placement, machines, network and the
+balance from a `WorldModel` and a `Registry`; `::advise_world` runs it through `advise()` with
+the model's own token. `clockspeed/surface/providers.py::StoreAdviceSource` reads both stores
+with an injected clock, writes neither, and answers None over a corrupt one.
+`routes.build_routes` binds it, both reads answer over the real table, and `pending` and
+`contract.OPEN_BLOCKERS` lost them. THE OPEN CLAUSE: "no `clockspeed/surface` module imports
+`clockspeed.audit`" was already false when this item was filed - `clockspeed/surface/api/map.py`
+has imported the audit placement and inventory models since CS-977. Graded instead by
+`tests/surface/test_advice_source.py::test_only_the_map_endpoint_imports_the_audit_layer`, which
+pins the importer set to `api/map.py` and keeps every advice-path module out of it. An
+adjudicator rules whether that discharges the clause (close) or `map.py` must move its
+composition into the audit or advisor layer first (a separate item).
+
 ### Acceptance
 
 red first: an advisor function builds `WorldInputs` from one synthetic `WorldModel` and one synthetic `Registry` through the audit constructors, and no `clockspeed/surface` module imports `clockspeed.audit`; `routes.build_routes` publishes `advice.routes` bound to a provider source that reads the ledger and the mutes with an injected clock and uses that function, and the source answers None over a corrupt store; `GET /api/advice` answers 200 with the `advice.DATA_KEYS` body and `GET /api/advice/<id>/derivation` answers 200 with tier 3 for a listed card over the real route table; `pending.UNBACKED` and `pending.BLOCKERS` lose both templates and `contract.OPEN_BLOCKERS` loses CS-1270; the CS-1189 machines-seam guard stays unedited and green

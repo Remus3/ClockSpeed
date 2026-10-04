@@ -56,6 +56,7 @@ from clockspeed.surface.providers import (
     InstalledRegistryProvider,
     SaveWorldProvider,
     StaticAssets,
+    StoreAdviceSource,
 )
 from tests.assertion_rendering_guard import declared_fields
 from tests.repr_rendering_guard import (
@@ -259,6 +260,7 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/surface/providers.py::InstalledRegistryProvider",
     "clockspeed/surface/providers.py::SaveWorldProvider",
     "clockspeed/surface/providers.py::StaticAssets",
+    "clockspeed/surface/providers.py::StoreAdviceSource",
     "clockspeed/surface/server.py::BindError",
     "clockspeed/surface/server.py::CertificateError",
     "clockspeed/surface/server.py::DashboardServer",
@@ -946,6 +948,11 @@ FORCED: Final[dict[str, object]] = {
     ),
     "clockspeed/surface/providers.py::StaticAssets": StaticAssets(
         Path(f"C:/Users/{MARKER}/web"), ("app.js",)
+    ),
+    # CS-1270: the advice source holds the store directory, a ``Path``. Not a
+    # dataclass, so it inherits ``object.__repr__`` and renders no attribute.
+    "clockspeed/surface/providers.py::StoreAdviceSource": StoreAdviceSource(
+        Path(f"C:/Users/{MARKER}/data")
     ),
     # CS-1024: the three surface models an adversary found rendering a planted
     # string once R1 reached the surface layer. Not carriers - each holds the

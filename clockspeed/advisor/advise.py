@@ -6,7 +6,9 @@ read - the header's world token and the rule inputs built from the audit and
 unlock models - and returns an :class:`Advice`: every rule's trace, every card
 a firing trace yields, and each card's resolution against BOTH persistence
 layers. :func:`world_inputs` is the adapter from the audit power balance and
-the unlock state to those inputs.
+the unlock state to those inputs, :func:`inputs_of` composes that balance
+from a world model and a registry through the audit constructors (CS-1270), and
+:func:`advise_world` is the one call a surface makes over a world it holds.
 
 THE TWO LAYERS, BOTH CONSULTED, NEVER MERGED (CLAUDE.md section 7).
 
@@ -38,9 +40,13 @@ not set automatically here: the ledger offers no listing of a world's
 recorded cards, so the advice that STOPPED firing cannot be found from this
 side yet.
 
-SEAMS. This module consumes the audit balance, the unlock state, the rule
+SEAMS. This module consumes the audit models, the unlock state, the rule
 registry and the stores. It opens no save, reads no docs file and renders
-nothing on a surface. NO CLOCK: ``now`` is injected. NO LANGUAGE MODEL: every
+nothing on a surface. COMPOSING THE AUDIT MODELS IS THIS LAYER'S JOB (CS-1270):
+the surface holds a parsed world model and a normalized registry and may not
+reach the audit machines model itself (CS-1189), so :func:`inputs_of` calls
+placement, machines, network and balance here, over the already-parsed model -
+never over save or docs bytes. NO CLOCK: ``now`` is injected. NO LANGUAGE MODEL: every
 word of every tier comes from :mod:`clockspeed.advisor.cards`.
 
 PRIVACY. The world token is personal data. It is handed to the ledger and
@@ -58,10 +64,15 @@ from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.power import balance_inputs
 from clockspeed.advisor.trace import RuleSpec, Trace, WorldInputs, run_rules, unlock_keys
+from clockspeed.audit.balance import balance_of
+from clockspeed.audit.machines import machines_of
+from clockspeed.audit.network import network_of
+from clockspeed.audit.placement import placement_of
 
 if TYPE_CHECKING:
     from clockspeed.audit.balance import WorldBalance
-    from clockspeed.save.world import UnlockState
+    from clockspeed.data.registry import Registry
+    from clockspeed.save.world import UnlockState, WorldModel
 
 #: The ledger state kinds under which an unmuted card is shown.
 VISIBLE_KINDS: Final = frozenset({"new", "accepted", "pinned"})
@@ -133,6 +144,27 @@ def world_inputs(balance: WorldBalance, unlocks: UnlockState) -> WorldInputs:
     return WorldInputs(values=balance_inputs(balance), unlocks=unlock_keys(unlocks))
 
 
+def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
+    """Build the rule inputs for one parsed world against one registry (CS-1270).
+
+    Composes the audit models the power balance needs - placement, machines
+    and network, each read off the model - prices them against the registry's
+    buildings, and hands the balance and the model's unlock state to
+    :func:`world_inputs`. Reads no file: both arguments are already parsed.
+
+    Args:
+        model: The world model the surface holds.
+        registry: The normalized registry.
+
+    Returns:
+        The rule inputs.
+    """
+    balance = balance_of(
+        placement_of(model), registry.buildings, machines_of(model), network_of(model)
+    )
+    return world_inputs(balance, model.unlocks)
+
+
 def advise(
     token: str,
     world: WorldInputs,
@@ -174,3 +206,32 @@ def advise(
         for card in cards_for(traces)
     )
     return Advice(traces=traces, cards=advised, new_world=new_world)
+
+
+def advise_world(
+    model: WorldModel,
+    registry: Registry,
+    *,
+    ledger: Ledger,
+    mutes: MuteStore,
+    now: int,
+) -> Advice:
+    """Advise over one parsed world: inputs, rules, cards and both stores.
+
+    The one advisor call a surface makes (CS-1270). The world token is the
+    model's own header token, handed to the ledger and nowhere else.
+
+    Args:
+        model: The world model the surface holds.
+        registry: The normalized registry.
+        ledger: The per-world ledger.
+        mutes: The global per-rule mute store.
+        now: The current instant, injected.
+
+    Returns:
+        The advice, as :func:`advise` returns it.
+
+    Raises:
+        clockspeed.advisor.ledger.StoreError: as :func:`advise` raises it.
+    """
+    return advise(model.token, inputs_of(model, registry), ledger=ledger, mutes=mutes, now=now)

@@ -1,12 +1,12 @@
 """The endpoints whose published body does not exist yet, answering so.
 
-Owns (BOOTSTRAP.md section 7.1): the wire behaviour of ``/api/advice``,
-``/api/advice/<id>/derivation``, ``/api/advice/<id>/state``, ``/api/audit`` and
-``/api/plan`` until the items named in :data:`BLOCKERS` build what answers them.
+Owns (BOOTSTRAP.md section 7.1): the wire behaviour of ``/api/advice/<id>/state``,
+``/api/audit`` and ``/api/plan`` until the items named in :data:`BLOCKERS` build
+what answers them. ``/api/advice`` and ``/api/advice/<id>/derivation`` left this
+module when CS-1270 gave the advisor a function building its inputs from a
+world; ``clockspeed/surface/api/advice.py`` answers both.
 
 THESE ANSWER HONESTLY RATHER THAN PLAUSIBLY, WHICH IS THE WHOLE MODULE. The
-advisor exists since CS-500 closed, but nothing yet builds its inputs from a
-world without the surface reaching past it into the audit layer (CS-1270), the
 state route has no defended write path (CS-1269), and the audit and plan bodies
 are unpublished (CS-1046). An endpoint that
 returned ``200`` with ``{"cards": []}`` would be indistinguishable - to a
@@ -67,11 +67,9 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 __all__ = [
-    "ADVICE_ENDPOINT",
     "ADVICE_STATE_ENDPOINT",
     "AUDIT_ENDPOINT",
     "BLOCKERS",
-    "DERIVATION_ENDPOINT",
     "METHOD_BOUNDARY",
     "METHOD_GET",
     "METHOD_POST",
@@ -88,15 +86,6 @@ __all__ = [
 # The route templates
 # ---------------------------------------------------------------------------
 
-#: Pillar 5. The ranked advice cards for the current world. Spelled to equal
-#: ``clockspeed/surface/api/advice.py``'s own constant, which answers it once
-#: CS-1270 lands; this module imports nothing but the envelope.
-ADVICE_ENDPOINT: Final = "/api/advice"
-
-#: Pillar 5, explain tier 3. Generated from the rule trace, never hand-written
-#: (non-negotiable 8).
-DERIVATION_ENDPOINT: Final = "/api/advice/<id>/derivation"
-
 #: Pillar 5, persistence. Accept, dismiss, snooze or pin one card. MUTATING,
 #: hence POST.
 ADVICE_STATE_ENDPOINT: Final = "/api/advice/<id>/state"
@@ -112,18 +101,14 @@ METHOD_POST: Final = "POST"
 
 #: The open item each unbacked template names. A BLAME PER TEMPLATE since CS-500
 #: closed: the single phase gate that blocked all of them is gone, and what is
-#: left is blocked by different items. The advice reads wait on CS-1270, which
-#: gives the advisor a function building its inputs from a world - the surface
-#: may not compose the audit models itself (CS-1189's machines seam). The state
-#: route waits on CS-1269, which records a card state behind a cross-origin
-#: refusal - a mutating route on a listener with no such refusal is a write any
-#: page in a browser could make. ``/api/audit`` and ``/api/plan`` wait on
+#: left is blocked by different items. The advice reads left this table when
+#: CS-1270 closed. The state route waits on CS-1269, which records a card state
+#: behind a cross-origin refusal - a mutating route on a listener with no such
+#: refusal is a write any page in a browser could make. ``/api/audit`` and ``/api/plan`` wait on
 #: CS-1046, which publishes their bodies. A ``MappingProxyType`` so nothing
 #: holding it can rewrite a blame.
 BLOCKERS: Final[Mapping[str, str]] = MappingProxyType(
     {
-        ADVICE_ENDPOINT: "CS-1270",
-        DERIVATION_ENDPOINT: "CS-1270",
         ADVICE_STATE_ENDPOINT: "CS-1269",
         AUDIT_ENDPOINT: "CS-1046",
         PLAN_ENDPOINT: "CS-1046",
@@ -133,8 +118,6 @@ BLOCKERS: Final[Mapping[str, str]] = MappingProxyType(
 #: Every method-and-template pair with no layer beneath it. The order is the
 #: order routes are published in, and it is stable so two runs agree.
 UNBACKED: Final[tuple[tuple[str, str], ...]] = (
-    (METHOD_GET, ADVICE_ENDPOINT),
-    (METHOD_GET, DERIVATION_ENDPOINT),
     (METHOD_POST, ADVICE_STATE_ENDPOINT),
     (METHOD_GET, AUDIT_ENDPOINT),
     (METHOD_GET, PLAN_ENDPOINT),

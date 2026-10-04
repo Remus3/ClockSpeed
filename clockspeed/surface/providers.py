@@ -2,8 +2,9 @@
 
 Owns (BOOTSTRAP.md section 7.1): the concrete :class:`~clockspeed.surface.api.
 contract.WorldProvider` and :class:`~clockspeed.surface.api.contract.
-RegistryProvider` the server binds into its handlers, plus the reader for the
-dashboard's own static assets.
+RegistryProvider` the server binds into its handlers, the concrete
+``advice.AdviceSource`` that reads the advisor's two stores (CS-1270), plus the
+reader for the dashboard's own static assets.
 
 WHY THIS MODULE EXISTS AT ALL. ``clockspeed/surface/api/__init__.py`` forbids an
 endpoint from opening a file - "an endpoint that reaches for the filesystem has
@@ -54,8 +55,11 @@ runtime arm that renders a provider AFTER a world is remembered is in
 from __future__ import annotations
 
 import threading
+import time
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.advisor.advise import advise_world
+from clockspeed.advisor.ledger import Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
 from clockspeed.data.docs_extract import DocsExtractError, load_document, read_docs_text
 from clockspeed.save import workdir
@@ -65,6 +69,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from pathlib import Path
 
+    from clockspeed.advisor.advise import Advice
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import WorldModel
 
@@ -73,6 +78,7 @@ __all__ = [
     "InstalledRegistryProvider",
     "SaveWorldProvider",
     "StaticAssets",
+    "StoreAdviceSource",
 ]
 
 #: Substrings that must never appear in an asset name. The name always arrives
@@ -236,6 +242,73 @@ class InstalledRegistryProvider:
         try:
             return registry.build_registry(load_document(text))
         except (registry.RegistryError, DocsExtractError, ValueError):
+            return None
+
+
+def _wall_clock_seconds() -> int:
+    """The current instant in whole seconds since the epoch - the default clock."""
+    return int(time.time())
+
+
+class StoreAdviceSource:
+    """Runs the advisor over one world, reading both advice stores (CS-1270).
+
+    Satisfies ``advice.AdviceSource`` structurally, in the same direction as
+    :class:`SaveWorldProvider`.
+
+    THE SURFACE DOES NOT COMPUTE HERE. :meth:`advice` hands the world and the
+    registry to :func:`clockspeed.advisor.advise.advise_world`, which composes
+    the audit models, runs the rules and resolves every card. No surface module
+    imports ``clockspeed.audit``; the advisor is the layer that consumes it.
+
+    READ-ONLY. The ledger and the mute store are only READ: each read takes the
+    whole file in one open, and every writer replaces the file atomically, so a
+    read never sees a half-written store. Nothing here records a state or a
+    mute - a GET never writes, and the state route waits on CS-1269.
+
+    THE CLOCK IS INJECTED and read once per call, only when advice is asked
+    for; the default is the wall clock in whole seconds.
+
+    NOT A DATACLASS, for the reason :class:`SaveWorldProvider` states: the store
+    directory is a ``Path`` and a generated ``__repr__`` would render it.
+    """
+
+    def __init__(
+        self,
+        directory: Path | None = None,
+        *,
+        clock: Callable[[], int] = _wall_clock_seconds,
+    ) -> None:
+        """Wire the source to one store directory and one clock.
+
+        Args:
+            directory: Where both stores live, or None for the advisor's own
+                default - the gitignored ``data/`` directory.
+            clock: Answers the current instant. Never read at construction.
+        """
+        self._directory = directory
+        self._clock = clock
+
+    def advice(self, world: WorldModel, registry: Registry) -> Advice | None:
+        """The advice for one world, or None when a store could not be read.
+
+        Args:
+            world: The world model the server holds.
+            registry: The normalized registry.
+
+        Returns:
+            The advice, or None when either store is corrupt or unreadable -
+            the endpoint answers that 503 rather than an empty listing.
+        """
+        try:
+            return advise_world(
+                world,
+                registry,
+                ledger=Ledger(self._directory),
+                mutes=MuteStore(self._directory),
+                now=self._clock(),
+            )
+        except StoreError:
             return None
 
 

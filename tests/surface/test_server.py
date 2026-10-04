@@ -75,6 +75,7 @@ from __future__ import annotations
 
 import ast
 import http.client
+import json
 import socket
 import ssl
 import subprocess
@@ -91,7 +92,7 @@ import pytest
 
 from clockspeed.data import locate
 from clockspeed.surface import config, providers, server
-from clockspeed.surface.api import contract, pending, routes
+from clockspeed.surface.api import contract, routes
 from tests import chained_cause_guard
 
 if TYPE_CHECKING:
@@ -2421,10 +2422,12 @@ def test_both_path_parameter_endpoints_answer_over_a_real_request(
 ) -> None:
     """The two endpoints that had no reachable URL, driven over TLS.
 
-    The derivation route is 501 and NAMES its blocking item. The state route
-    answers POST, so a GET on it is 405 and not 501 and not 404 - the resource
-    is real, the verb is not, and that distinction is the one
-    ``clockspeed/surface/api/pending.py`` is built around.
+    The derivation route is BACKED since CS-1270, so an invented card id is a
+    400 where this machine has a save and an install and a 503 where it has
+    neither - never a 501 and never a 404. The state route answers POST, so a
+    GET on it is 405 and not 501 and not 404 - the resource is real, the verb
+    is not, and that distinction is the one ``clockspeed/surface/api/pending.py``
+    is built around.
     """
     cert, _key = cert_pair
     with server.serve(cfg, routes.ROUTES) as running:
@@ -2433,8 +2436,9 @@ def test_both_path_parameter_endpoints_answer_over_a_real_request(
             port, f"/api/advice/{CANARY}/derivation", cert
         )
         state_code, _sh, state_body = request(port, f"/api/advice/{CANARY}/state", cert)
-    assert derivation_code == contract.HTTP_NOT_IMPLEMENTED
-    assert pending.BLOCKERS[pending.DERIVATION_ENDPOINT].encode("ascii") in derivation_body
+    assert derivation_code in {contract.HTTP_BAD_REQUEST, contract.HTTP_UNAVAILABLE}
+    blamed = json.loads(derivation_body).get("blocked_by")
+    assert blamed is None
     assert state_code == contract.HTTP_METHOD_NOT_ALLOWED
     leaked = derivation_body.count(CANARY.encode("ascii")) + state_body.count(
         CANARY.encode("ascii")

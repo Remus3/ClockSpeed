@@ -1,12 +1,13 @@
-"""CS-601 slice S4 - the five unbacked endpoints, and the honesty partition.
+"""CS-601 slice S4 - the unbacked endpoints, and the honesty partition.
 
 What is covered, and the authority for each arm:
 
-a. AN UNBACKED ENDPOINT ANSWERS HONESTLY RATHER THAN PLAUSIBLY. All five of
-   ``/api/advice``, ``/api/advice/<id>/derivation``, ``/api/advice/<id>/state``,
+a. AN UNBACKED ENDPOINT ANSWERS HONESTLY RATHER THAN PLAUSIBLY. Each of
+   ``/api/advice/<id>/state``,
    ``/api/audit`` and ``/api/plan`` return 501 naming the open item
    :data:`EXPECTED_BLOCKERS` assigns it - since CS-500 closed, one blame per
-   template rather than one phase gate for all five. An endpoint
+   template rather than one phase gate for all of them; the two advice reads
+   left this set when CS-1270 put them in the route table. An endpoint
    answering ``200`` with an empty list instead is indistinguishable from a
    world that genuinely has no advice, which is non-negotiable 7 - "unknown
    content is flagged and skipped, never silently wrong" - violated at the
@@ -31,8 +32,8 @@ d. THE SWEEP IS NOT VACUOUS. The published route count is bound to a scalar and
    problems" are otherwise the same output (CONVENTIONS.md section 7.2).
 e. THE WRONG-BLOCKER CONTROL WIDENS THE VOCABULARY FOR ITS OWN DURATION, and
    that is the arm rather than a shortcut around one. A valid-BUT-WRONG blocker
-   needs a member of ``contract.OPEN_BLOCKERS`` that is not the one the five
-   name, and nothing guarantees the shipped vocabulary has a spare - it is a
+   needs a member of ``contract.OPEN_BLOCKERS`` that is not the one the pending
+   routes name, and nothing guarantees the shipped vocabulary has a spare - it is a
    closed set that shrinks as phases land. Planting an id from OUTSIDE the
    vocabulary instead would grade a different thing: the envelope rejects that
    payload on its own, so the arm would pass with this module's checker
@@ -103,8 +104,6 @@ BACKED_ROUTES: Final = frozenset(
 #: Routes with NO published body yet. These answer 501 naming their blocker.
 PENDING_ROUTES: Final = frozenset(
     {
-        ("GET", "/api/advice"),
-        ("GET", "/api/advice/<id>/derivation"),
         ("POST", "/api/advice/<id>/state"),
         ("GET", "/api/audit"),
         ("GET", "/api/plan"),
@@ -117,13 +116,10 @@ PENDING_ROUTES: Final = frozenset(
 METHOD_BOUNDARY_ROUTES: Final = frozenset({("GET", "/api/advice/<id>/state")})
 
 #: Which open item each pending template blames, written out as DATA so the
-#: arm below grades ``pending.BLOCKERS`` rather than reading it back. CS-1270 is
-#: the advisor's input builder plus the wiring of
-#: ``clockspeed/surface/api/advice.py``; CS-1269 the defended state write;
-#: CS-1046 the audit and plan bodies.
+#: arm below grades ``pending.BLOCKERS`` rather than reading it back. CS-1269 is
+#: the defended state write; CS-1046 the audit and plan bodies. The two advice
+#: reads left with CS-1270 and are graded in ``test_advice_source.py``.
 EXPECTED_BLOCKERS: Final[Mapping[str, str]] = {
-    "/api/advice": "CS-1270",
-    "/api/advice/<id>/derivation": "CS-1270",
     "/api/advice/<id>/state": "CS-1269",
     "/api/audit": "CS-1046",
     "/api/plan": "CS-1046",
@@ -131,10 +127,10 @@ EXPECTED_BLOCKERS: Final[Mapping[str, str]] = {
 
 #: What the two modules publish between them today. Asserted BEFORE the sweep
 #: iterates: a sweep over an empty route table is green and proves nothing.
-EXPECTED_PUBLISHED_ROUTES: Final = 8
+EXPECTED_PUBLISHED_ROUTES: Final = 6
 
-#: Just the pending five, for the arm that grades them alone.
-EXPECTED_PENDING_ROUTES: Final = 5
+#: Just the pending set, for the arm that grades it alone.
+EXPECTED_PENDING_ROUTES: Final = 3
 
 #: GET and POST. The advice-state template is published twice - once to do the
 #: work phase 5 will build, once to say the other verb is wrong.
@@ -155,7 +151,7 @@ SECOND_VALID_BLOCKER: Final = "CS-996"
 #: closed.
 OPEN_BLOCKER: Final = sorted(contract.OPEN_BLOCKERS)[0]
 
-#: The planted blocker and the one the five actually name are two things.
+#: The planted blocker and the one the pending route names are two things.
 #: Asserted as a SET SIZE rather than as ``a != b``: mypy's ``strict_equality``
 #: resolves a ``Final`` string to its literal type and calls the direct
 #: comparison non-overlapping, so the honest arm has to be spelled in a form the
@@ -267,11 +263,11 @@ def published_routes(registry: Registry | None) -> tuple[contract.Route, ...]:
 
 
 # ---------------------------------------------------------------------------
-# (a) the five refuse honestly
+# (a) the pending routes refuse honestly
 # ---------------------------------------------------------------------------
 
 
-def test_the_pending_route_table_is_the_declared_five() -> None:
+def test_the_pending_route_table_is_the_declared_set() -> None:
     routes = pending.routes()
     published = frozenset((route.method, route.template) for route in routes)
     count = len(routes)
@@ -287,7 +283,7 @@ def test_the_method_boundary_is_published_through_its_own_accessor() -> None:
     assert published == METHOD_BOUNDARY_ROUTES
 
 
-def test_a_template_keyed_mapping_over_the_five_loses_nothing() -> None:
+def test_a_template_keyed_mapping_over_the_pending_set_loses_nothing() -> None:
     routes = pending.routes()
     count = len(routes)
     assert count == EXPECTED_PENDING_ROUTES
@@ -339,7 +335,7 @@ def test_a_pending_route_never_answers_with_an_empty_collection(identity: tuple[
     assert "data" not in keys
 
 
-def test_every_blocker_the_five_name_is_one_the_envelope_still_has_open() -> None:
+def test_every_blocker_the_pending_set_names_is_one_the_envelope_still_has_open() -> None:
     named = frozenset(pending.BLOCKERS.values())
     count = len(named)
     assert count > 0
@@ -446,8 +442,8 @@ def test_a_backed_route_answers_200_or_503_and_never_501(with_registry: bool) ->
 def test_the_honesty_checker_rejects_a_plausible_lie_on_a_pending_route() -> None:
     planted = contract.Route(
         method="GET",
-        template="/api/advice",
-        handler=lambda _params: contract.ok("/api/advice", {"cards": []}),
+        template="/api/audit",
+        handler=lambda _params: contract.ok("/api/audit", {"cards": []}),
     )
     problems = honesty_problems(PENDING_ROUTES, planted)
     count = len(problems)
@@ -481,14 +477,14 @@ def test_the_honesty_checker_rejects_a_pending_route_naming_the_wrong_blocker(
     """
     monkeypatch.setattr(contract, "OPEN_BLOCKERS", contract.OPEN_BLOCKERS | {SECOND_VALID_BLOCKER})
     widened = SECOND_VALID_BLOCKER in contract.OPEN_BLOCKERS
-    distinct = len({SECOND_VALID_BLOCKER, pending.BLOCKERS["/api/advice"]})
+    distinct = len({SECOND_VALID_BLOCKER, pending.BLOCKERS["/api/audit"]})
     assert widened, "the vocabulary was not widened, so the refusal below cannot be built"
-    assert distinct == TWO_DISTINCT_BLOCKERS, "the planted blocker IS the one the five name"
+    assert distinct == TWO_DISTINCT_BLOCKERS, "the planted blocker IS the one the route names"
 
     planted = contract.Route(
         method="GET",
-        template="/api/advice",
-        handler=lambda _params: contract.not_implemented("/api/advice", SECOND_VALID_BLOCKER),
+        template="/api/audit",
+        handler=lambda _params: contract.not_implemented("/api/audit", SECOND_VALID_BLOCKER),
     )
     problems = honesty_problems(PENDING_ROUTES, planted)
     count = len(problems)

@@ -954,10 +954,13 @@ an arm in `tests/surface/test_world.py` asserts the published value's type is th
 ### Filed 2026-09-13
 
 **TWO PUBLISHED DOORS THAT REFUSE, AND A PATTERN THAT CANNOT NAME A MODERN ITEM.**
-`/api/plan` and `/api/audit` are published in the endpoint table and answer 501 blocked by
-CS-500 while the layers beneath them now exist. Separately `contract.BLOCKER_PATTERN` admits
-`CS-` followed by exactly three digits, applied with `fullmatch`, so no item at CS-1000 or
-above could ever be named by a 501 even if one were needed.
+`/api/plan` and `/api/audit` are published in the endpoint table and answer 501. CS-500 closed
+on 2026-10-04 and stopped being their blocker: `clockspeed/surface/api/pending.py::BLOCKERS`
+now names CS-1046 itself for both, because what is missing is the published body this item
+writes. `/api/plan` additionally waits on CS-1043 - `clockspeed/progress/` still holds no code.
+Separately `contract.BLOCKER_PATTERN` admitted `CS-` followed by exactly three digits, applied
+with `fullmatch`; that half was widened to three or four digits on 2026-10-04 (the CS-1270
+progress record in `docs/LEDGER.md`), and the acceptance arm below is what still grades it.
 
 **WRITE-LIST:** `clockspeed/surface/api/contract.py`, `.../plan.py`, `.../audit.py`,
 `.../pending.py`, `.../routes.py`, `clockspeed/surface/providers.py`, and the six matching
@@ -990,7 +993,7 @@ an arm in `tests/surface/test_contract.py` asserts the blocker pattern's four-di
 
 ### Full headline
 
-`/api/plan` and `/api/audit` are published in the endpoint table and answer 501 blocked by CS-500 while the layers beneath them now exist, and `clockspeed/surface/api/contract.py`'s `BLOCKER_PATTERN` admits `CS-` followed by exactly three digits, so no item at CS-1000 or above could ever be named by a 501 even if one were needed
+`/api/plan` and `/api/audit` are published in the endpoint table and answer 501 naming CS-1046 because their bodies are unpublished, and `clockspeed/surface/api/contract.py`'s `BLOCKER_PATTERN` admitted `CS-` followed by exactly three digits until it was widened on 2026-10-04, while `/api/plan` also waits on CS-1043
 
 
 ## CS-1047

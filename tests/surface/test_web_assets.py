@@ -41,6 +41,7 @@ import pytest
 
 from clockspeed.save.header import MASK_DIGEST_CHARACTERS, MASK_PREFIX, masked_token
 from clockspeed.surface import config, server
+from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, solve, world
 from clockspeed.surface.api import power as power_endpoint
 from tests.surface import audit_harness
@@ -2264,7 +2265,7 @@ def test_the_script_names_every_published_route_template() -> None:
 def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
     """Every method the page prints is the one the endpoint module registers.
 
-    The five unbacked routes carry their verb in ``pending.UNBACKED``; the two
+    The unbacked routes carry their verb in ``pending.UNBACKED``; the two
     solver routes carry theirs in ``solve.METHOD_POST``. Both are read here.
     A page that printed GET beside ``/api/solve`` would be telling an operator
     to make a request the server refuses.
@@ -2284,6 +2285,9 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         # table that takes a required parameter and still answers GET, so a
         # literal here would be the easiest of the twelve to get wrong.
         power_endpoint.ENDPOINT: power_endpoint.METHOD_GET,
+        # CS-1270: both advice reads left ``pending.UNBACKED`` for their owner.
+        advice_endpoint.ENDPOINT: advice_endpoint.METHOD_GET,
+        advice_endpoint.DERIVATION_ENDPOINT: advice_endpoint.METHOD_GET,
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 

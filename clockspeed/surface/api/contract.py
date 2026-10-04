@@ -426,14 +426,11 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-(?:\d{3}|[1-9]\d{3})")
 #:   CS-1269  ``/api/advice/<id>/state``: recording a card state through the
 #:            ledger, behind a cross-origin refusal this server does not yet
 #:            make.
-#:   CS-1270  ``/api/advice`` and ``/api/advice/<id>/derivation``: an advisor
-#:            function building the rule inputs from a world, then the wiring
-#:            of ``clockspeed/surface/api/advice.py`` into the route table.
 #:
-#: All three are named through ``clockspeed/surface/api/pending.py``, which
+#: Both are named through ``clockspeed/surface/api/pending.py``, which
 #: holds the only ``not_implemented`` call site in this package. CS-500 LEFT
-#: THIS SET WHEN IT CLOSED: the advisor exists, and what still blocks the advice
-#: reads is the composition the surface may not perform, not the advisor.
+#: THIS SET WHEN IT CLOSED, and CS-1270 left it when the advisor gained
+#: ``advise_world`` and both advice reads moved into the route table.
 #:
 #: THE STANDARD FOR MEMBERSHIP IS THE ONE THIS MODULE'S DOCSTRING STATES - "the
 #: layer beneath does not exist yet" - and it is NOT "the layer beneath is
@@ -451,7 +448,7 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-(?:\d{3}|[1-9]\d{3})")
 #: enumeration only, so it answers 200 or 503 and never 501. While it sat
 #: here it was a member no route named, under a comment that described a
 #: routing this package does not perform.
-OPEN_BLOCKERS: Final = frozenset({"CS-1046", "CS-1269", "CS-1270"})
+OPEN_BLOCKERS: Final = frozenset({"CS-1046", "CS-1269"})
 
 
 # ---------------------------------------------------------------------------

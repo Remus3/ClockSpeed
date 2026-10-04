@@ -294,7 +294,7 @@ CS-1264 - the clocked draw never checks a production boost, so a boosted machine
 CS-1265 - the flow audit reads an untagged clock as unread while the balance prices it at the elided default - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1268 - the advice ledger never sets `completed` when advice stops firing: it cannot list a world's recorded cards - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1270 - the advisor has no function building its rule inputs from a world, so `/api/advice` still answers 501 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1270 - `/api/advice` and its derivation are live through `advise_world`; one acceptance clause awaits a ruling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -329,7 +329,7 @@ CS-916 - three separate features are gated on ONE unfiled prerequisite in the pu
 
 
 CS-988 - a value that decides what a POPULATION MEASURES is narrowable at its use site while the floor guarding it stays satisfied - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1046 - `/api/plan` and `/api/audit` are published in the endpoint table and answer 501 blocked by CS-500 while the layers beneath them now exist - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1046 - `/api/plan` and `/api/audit` are published in the endpoint table and answer 501 naming CS-1046 because their bodies are unpublished - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1047 - the map draws bare dots on no underlay with no category, no elevation ordering, no need-vibrance - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 CS-1051 - `tests/surface/audit_harness.py::SYNTHETIC_UNLOCKS` hand-builds the published world dict and hardcodes `current_game_phase` to the integer 2 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

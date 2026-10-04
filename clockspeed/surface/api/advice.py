@@ -28,13 +28,12 @@ does not carry is 400 ``invalid_parameter``. No 400 reflects what it refused.
 PRIVACY. The world token is handed to the source with the world and is not
 read here at all. No field below is the token, a save path or a world name.
 
-NOT YET IN THE ROUTE TABLE (CS-1270). ``clockspeed/surface/api/routes.py``
-still publishes both templates through ``clockspeed/surface/api/pending.py``,
-answering 501. The source bound in needs rule inputs built from a world, and
-building them means composing the audit models - which the advisor must own,
-because no surface module may reach the audit machines model (CS-1189). When
-the advisor publishes that function, CS-1270 writes the concrete source that
-reads the stores and binds :func:`routes` in.
+IN THE ROUTE TABLE SINCE CS-1270. ``clockspeed/surface/api/routes.py`` binds
+:func:`routes` to ``clockspeed/surface/providers.py``'s ``StoreAdviceSource``,
+which hands the world and the registry to the advisor's own
+``clockspeed.advisor.advise.advise_world``. Composing the audit models is the
+advisor's job: no surface module may reach the audit machines model (CS-1189),
+and none imports the audit layer at all.
 
 THE STATE ROUTE IS NOT HERE. ``/api/advice/<id>/state`` mutates the ledger and
 stays in ``clockspeed/surface/api/pending.py`` until CS-1269 lands.

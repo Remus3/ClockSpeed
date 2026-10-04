@@ -157,11 +157,16 @@ BACKED: Final = (
     # operands. It shipped BEFORE this route did and was reachable from none of
     # them, which is the fault this row closes.
     "/api/power",
+    # CS-1270. ``clockspeed/advisor/advise.py`` ships ``advise_world``, and the
+    # store-reading source in ``clockspeed/surface/providers.py`` binds it, so
+    # both advice reads answer rather than refuse.
+    "/api/advice",
+    "/api/advice/<id>/derivation",
 )
 
-#: A3, the other half. ``clockspeed/advisor/`` and ``clockspeed/progress/`` hold a
-#: package docstring and nothing else, so these five have no layer to serialize
-#: and must say so with a 501 that names its blocking item. WHEN ONE OF THEM
+#: A3, the other half. These have no published body yet and must say so with a
+#: 501 that names its blocking item: the state write waits on CS-1269, and the
+#: audit and plan bodies on CS-1046. WHEN ONE OF THEM
 #: BECOMES REAL THIS ARM GOES RED and the route has to be moved into
 #: :data:`BACKED` deliberately - which is what CS-978 and CS-977 just did for
 #: ``/api/map``. ``clockspeed/audit/`` is no longer empty and is deliberately no
@@ -169,12 +174,16 @@ BACKED: Final = (
 #: ``/api/audit`` stays here because PILLAR 3 - the findings-with-causes audit
 #: that route serializes - is still behind the phase 5 gate.
 UNBUILT: Final = (
-    "/api/advice",
-    "/api/advice/<id>/derivation",
     "/api/advice/<id>/state",
     "/api/audit",
     "/api/plan",
 )
+
+#: The unbuilt template the planted-answer controls lie on. A GET route, because
+#: those controls drive it with GET; since CS-1270 moved both advice reads into
+#: :data:`BACKED`, the first member of :data:`UNBUILT` is the POST-only state
+#: route, whose GET is a 405 the plant would never reach.
+PLANT_TEMPLATE: Final = "/api/audit"
 
 #: The one template ``BOOTSTRAP.md`` spells with a query string.
 PLAN_TEMPLATE: Final = "/api/plan"
@@ -286,6 +295,8 @@ PARAMETERLESS_BACKED: Final = (
     "/api/world",
     "/api/registry",
     "/api/map",
+    # CS-1270: no parameter, refuses one outright, 200 or 503 and nothing else.
+    "/api/advice",
 )
 PARAMETERLESS_CODES: Final = frozenset({contract.HTTP_OK, contract.HTTP_UNAVAILABLE})
 
@@ -338,6 +349,16 @@ _IDENTIFIER_RUN: Final = rf"[{_IDENTIFIER_CHARS}]{{{WORLD_TOKEN_LENGTH}}}"
 _SAVE_IDENTIFIER = re.compile(
     rf"(?<![{_IDENTIFIER_CHARS}]){_IDENTIFIER_RUN}(?![{_IDENTIFIER_CHARS}])"
 )
+
+#: An exact rational as the advisor's tier text spells it - digits, one slash,
+#: digits. MEASURED under CS-1270: the first real world served on ``/api/advice``
+#: carried a clocked-draw bound whose numerator and denominator together were
+#: exactly as long as a save identifier, and ``/`` is in the identifier
+#: alphabet, so the detector reported a megawatt figure as a leaked token. Only
+#: a run that is ENTIRELY such a fraction is exempt: a base64 identifier with no
+#: letter and exactly one slash is not a shape a world token takes, and the
+#: planted-token arm below still fires on every other run.
+_EXACT_FRACTION: Final = re.compile(r"[0-9]+/[0-9]+")
 
 
 def _known_safe_runs() -> frozenset[str]:
@@ -513,7 +534,10 @@ def _personal_data_classes(text: str) -> tuple[str, ...]:
         found.append(CLASS_ACCOUNT_ID)
 
     safe = KNOWN_SAFE_RUNS | game_content_runs()
-    if any(run not in safe for run in _SAVE_IDENTIFIER.findall(text)):
+    if any(
+        run not in safe and not _EXACT_FRACTION.fullmatch(run)
+        for run in _SAVE_IDENTIFIER.findall(text)
+    ):
         found.append(CLASS_SAVE_IDENTIFIER)
 
     return tuple(found)
@@ -1269,7 +1293,7 @@ def test_a_planted_answer_on_an_unbuilt_route_is_rejected_over_the_real_wire(
         tls_material: The certificate pair and the asset directory.
     """
     cert_path, key_path, web_dir = tls_material
-    template = UNBUILT[0]
+    template = PLANT_TEMPLATE
     planted = tuple(
         contract.Route(
             method=route.method,
@@ -1294,7 +1318,7 @@ def test_a_planted_answer_on_an_unbuilt_route_is_rejected_over_the_real_wire(
 
 
 def test_the_honesty_check_rejects_a_conforming_answer_on_an_unbuilt_route() -> None:
-    template = UNBUILT[0]
+    template = PLANT_TEMPLATE
     planted = contract.Route(
         method="GET",
         template=template,
@@ -1311,7 +1335,7 @@ def test_the_honesty_check_rejects_a_conforming_answer_on_an_unbuilt_route() -> 
 
 
 def test_the_honesty_check_rejects_a_raw_200_body_that_is_not_an_envelope() -> None:
-    template = UNBUILT[0]
+    template = PLANT_TEMPLATE
     planted = contract.Route(
         method="GET",
         template=template,
@@ -1335,7 +1359,7 @@ def test_the_honesty_check_rejects_a_raw_200_body_that_is_not_an_envelope() -> N
 
 
 def test_the_honesty_check_rejects_a_refusal_that_claims_to_be_ok() -> None:
-    template = UNBUILT[0]
+    template = PLANT_TEMPLATE
     answer = contract.Response(
         http_status=contract.HTTP_NOT_IMPLEMENTED,
         payload={
@@ -1353,7 +1377,7 @@ def test_the_honesty_check_rejects_a_refusal_that_claims_to_be_ok() -> None:
 
 
 def test_the_honesty_check_accepts_a_correct_refusal_so_it_is_not_a_reject_everything() -> None:
-    template = UNBUILT[0]
+    template = PLANT_TEMPLATE
     blocker = sorted(contract.OPEN_BLOCKERS)[0]
     answer = contract.not_implemented(template, blocker)
     faults = honesty_faults(observe_response(template, "GET", answer))
@@ -1489,6 +1513,21 @@ def test_the_registry_subtraction_does_not_swallow_a_planted_token() -> None:
 
     classes = _personal_data_classes(f" {plant} ")
     assert CLASS_SAVE_IDENTIFIER in classes, classes
+
+
+def test_an_exact_fraction_of_token_length_is_not_a_save_identifier() -> None:
+    """A megawatt bound spelled as an exact fraction is the advisor's, not the save's.
+
+    The control beside it: the same length with one letter in it still fires,
+    so the exemption is the fraction SHAPE and not the length.
+    """
+    fraction = "123456789012/123456789"
+    lettered = "123456789012/12345678Q"
+    lengths = {len(fraction), len(lettered)}
+    assert lengths == {WORLD_TOKEN_LENGTH}, lengths
+
+    assert CLASS_SAVE_IDENTIFIER not in _personal_data_classes(f" {fraction} ")
+    assert CLASS_SAVE_IDENTIFIER in _personal_data_classes(f" {lettered} ")
 
 
 def test_the_registry_subtraction_is_empty_without_a_game_installed() -> None:
