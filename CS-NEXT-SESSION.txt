@@ -174,8 +174,11 @@ Pre-push whole suite (hook, `pytest tests -n auto --dist loadfile`) on the lande
   on retry with no code change.
 Gates on the /done tree: drift_guard 0, doc_budget 0, `python -m mypy clockspeed` 0.
 CI at d1775ca: tier1 37178869813 success, tier2 37178877472 success (read, every job).
-CI at 2207428: tier1 37188737728 IN PROGRESS, tier2 37188746002 QUEUED when read -
-  UNVERIFIED. This report is committed in a follow-up commit whose own push re-runs the
+CI at 2207428: tier2 37188746002 SUCCESS; tier1 37188737728 FAILURE - ruff E501 at
+  clockspeed/surface/api/contract.py (a lost line break in the CS-400 comment edit; the
+  pre-push hook does not run whole-tree ruff). The OTHER WRITER in this tree fixed it in
+  518683c and also landed d475606 (CS-1231 lock-busy predicate); both ride this push.
+  Tier1 on the final tip is UNVERIFIED - READ IT FIRST. This report is committed in a follow-up commit whose own push re-runs the
   suite; confirm HEAD equals ls-remote.
 UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).
