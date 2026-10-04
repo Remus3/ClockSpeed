@@ -16,6 +16,7 @@ import json
 import sys
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
@@ -25,7 +26,7 @@ ROOT: Final = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ops.loop import headless_route, inbox_responder, winmutex  # noqa: E402
+from ops.loop import headless_route, inbox_responder, inbox_status, winmutex  # noqa: E402
 
 #: A marker planted in the routed env and in the worker's output. It must never
 #: reach the log line.
@@ -107,6 +108,7 @@ def _run(tree: Path, spy: SpawnSpy, **overrides: Any) -> int:
         "route": _routed,
         "spawn": spy,
         "resolve": lambda _name: "synthetic-claude",
+        "next_tick": lambda _now: None,
     }
     kwargs.update(overrides)
     return inbox_responder.run_once(**kwargs)
@@ -302,3 +304,180 @@ def test_the_worker_prompt_is_tracked_beside_the_queue_prompt() -> None:
     ascii_only = all(byte < 0x80 for byte in data)  # noqa: PLR2004 - 7-bit bound
     lf_only = b"\r" not in data
     assert (prompt.is_file(), ascii_only, lf_only) == (True, True, True)
+
+
+# --- CS-1234: the status file, the 120-per-24h cap, the loop damping -----------
+
+
+def _named(*names: str, more: int = 0) -> Callable[[Any], dict[str, Any]]:
+    def surface(root: Any) -> dict[str, Any]:
+        del root
+        return {"unread": len(names) + more, "names": list(names), "more": more, "reason": ""}
+
+    return surface
+
+
+def _status(tree: Path) -> dict[str, Any]:
+    path = tree / "control" / inbox_status.STATUS_NAME
+    if not path.is_file():
+        return {}
+    parsed: dict[str, Any] = json.loads(path.read_bytes().decode("ascii"))
+    return parsed
+
+
+def _fill_counter(tree: Path, starts: list[float]) -> None:
+    payload = json.dumps({"schema": 1, "starts": starts}).encode("ascii")
+    (tree / "control" / inbox_status.RUNS_NAME).write_bytes(payload)
+
+
+@pytest.mark.parametrize("sentinel", inbox_responder.STOP_RELPATHS)
+def test_the_halted_path_still_publishes_its_status(tree: Path, sentinel: str) -> None:
+    (tree / "control" / sentinel).write_bytes(b"")
+    spy = SpawnSpy()
+    code = _run(tree, spy)
+    status = _status(tree)
+    pair = (status.get("state"), status.get("task"))
+    sentinel_kept = (tree / "control" / sentinel).exists()
+    no_counter = not (tree / "control" / inbox_status.RUNS_NAME).exists()
+    assert (code, len(spy.calls), pair, sentinel_kept, no_counter, _log_records(tree)) == (
+        0,
+        0,
+        ("halted", "Halted"),
+        True,
+        True,
+        [],
+    )
+
+
+def test_a_quiet_channel_publishes_idle(tree: Path) -> None:
+    _run(tree, SpawnSpy(), surface=_surface(0))
+    status = _status(tree)
+    assert (status.get("state"), status.get("task"), status.get("runs_in_window")) == (
+        "idle",
+        "Idle",
+        0,
+    )
+
+
+def test_a_spawn_is_counted_and_published_while_it_runs(tree: Path) -> None:
+    seen: list[tuple[Any, Any]] = []
+
+    class Peeking(SpawnSpy):
+        def __call__(self, *args: Any, **kwargs: Any) -> tuple[int, str]:
+            during = _status(tree)
+            seen.append((during.get("state"), during.get("task")))
+            return super().__call__(*args, **kwargs)
+
+    clock = iter([T0 + step for step in range(20)])
+    code = _run(tree, Peeking(), now=lambda: next(clock, T0 + 40))
+    after = _status(tree)
+    counted = inbox_status.RunBudget(tree / "control").snapshot(T0 + 40).count
+    assert (code, seen, after.get("state"), after.get("runs_in_window"), counted) == (
+        0,
+        [("running", "Running Session")],
+        "idle",
+        1,
+        1,
+    )
+
+
+def test_at_the_cap_nothing_starts_and_the_limit_is_published(tree: Path) -> None:
+    starts = [T0 - 3600 + i for i in range(inbox_status.RUNS_CAP)]
+    _fill_counter(tree, starts)
+    spy = SpawnSpy()
+    code = _run(tree, spy)
+    status = _status(tree)
+    frees = datetime.fromisoformat(status["cap_frees_at"]).timestamp()
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    pair = (status.get("state"), status.get("task"), status.get("runs_in_window"))
+    assert (code, len(spy.calls), pair, frees, outcomes) == (
+        0,
+        0,
+        ("limit", "Turn Limit Reached", 120),
+        T0 - 3600 + 86400,
+        ["limit"],
+    )
+
+
+def test_an_unreadable_counter_refuses_the_start(tree: Path) -> None:
+    counter = tree / "control" / inbox_status.RUNS_NAME
+    counter.write_bytes(b"{garbled")
+    spy = SpawnSpy()
+    code = _run(tree, spy)
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (
+        code,
+        len(spy.calls),
+        _status(tree).get("state"),
+        outcomes,
+        counter.read_bytes(),
+    ) == (inbox_responder.EXIT_BUDGET_REFUSED, 0, "refused", ["budget_refused"], b"{garbled")
+
+
+def test_a_backoff_is_published(tree: Path) -> None:
+    _run(tree, SpawnSpy(returncode=1, output=USAGE_LIMIT_OUTPUT))
+    first = _status(tree)
+    _run(tree, SpawnSpy(), now=lambda: T0 + 60)
+    second = _status(tree)
+    assert ((first.get("state"), first.get("task")), second.get("state")) == (
+        ("backoff", "Backing Off"),
+        "backoff",
+    )
+
+
+def test_a_held_lock_refreshes_the_running_status(tree: Path) -> None:
+    window = inbox_status.Window(count=1, frees_at=T0 + 86400)
+    inbox_status.publish(
+        tree / "control",
+        now=T0,
+        state="running",
+        task="Running Session",
+        task_started=T0,
+        eta_s=None,
+        next_tick=None,
+        window=window,
+    )
+    _run(tree, SpawnSpy(), lock=_held_lock, now=lambda: T0 + 900)
+    status = _status(tree)
+    moved = datetime.fromisoformat(status["updated"]).timestamp() == T0 + 900
+    assert (moved, status.get("task")) == (True, "Running Session")
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ("2026-10-03-0935-from-CS-ANSWER-to-MAIN.md",),
+        ("2026-10-03-0708-from-LW-RESPONDER-ACK-TERMINAL-no-reply.md",),
+        ("2026-10-03-0708-from-RSC-auto-reply-is-noreply.md",),
+        ("2026-10-03-0708-from-LL-INFORMATION-done-No-Reply.md",),
+        ("2026-10-03-0935-from-CS-x.md", "2026-10-03-0708-from-LW-terminal.md"),
+    ],
+)
+def test_own_and_terminal_notes_never_spawn(tree: Path, names: tuple[str, ...]) -> None:
+    spy = SpawnSpy()
+    code = _run(tree, spy, surface=_named(*names))
+    assert (code, len(spy.calls), _status(tree).get("state")) == (0, 0, "idle")
+
+
+@pytest.mark.parametrize(
+    ("names", "more"),
+    [
+        (("2026-10-03-0855-from-MAIN-CORRECTION-never-spawn-on-TERMINAL-no-reply.md",), 0),
+        (("2026-10-03-0007-from-RSC-auto-reply-to-2026-10-03-0002-from-CS-ANSWER.md",), 0),
+        (("2026-10-03-0935-from-CS-x.md", "2026-10-03-0000-from-SS-INFORMATION.md"), 0),
+        (("2026-10-03-0935-from-CS-x.md",), 1),
+    ],
+)
+def test_live_mail_beside_damped_mail_still_spawns(
+    tree: Path, names: tuple[str, ...], more: int
+) -> None:
+    spy = SpawnSpy()
+    code = _run(tree, spy, surface=_named(*names, more=more))
+    assert (code, len(spy.calls)) == (0, 1)
+
+
+def test_the_status_file_carries_no_path_or_env_value(tree: Path) -> None:
+    _run(tree, SpawnSpy())
+    raw = (tree / "control" / inbox_status.STATUS_NAME).read_bytes().decode("ascii")
+    clean = (ENV_MARKER in raw, BODY_MARKER in raw, tree.name in raw, "\\" in raw, "/" in raw)
+    assert clean == (False, False, False, False, False)
