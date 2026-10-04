@@ -64,20 +64,30 @@ CS_HOOK_STDIN_HALF=run
 # the shell itself produce on an exec failure - so a candidate that never ran the
 # program cannot answer correctly by accident.
 #
-# CS-815: BOTH QUESTIONS ARE ASKED OF ONE START. The program prints the token
-# AND exits 97, and the probe demands both from that one run. Two starts
-# asked nothing more than one: a candidate that forwards stdout and drops the
-# status still answers 0, and one that cannot run the program still prints
-# no token. Folding them halved the probe's cost on every hook call.
+# CS-815: BOTH QUESTIONS ARE ASKED OF ONE START, AND THE ANSWER IS NEW EVERY
+# RUN. The program prints a computed answer AND exits 97, and the probe
+# demands both from that one run. The answer must NOT be fixed: a fixed
+# answer plus 97 is passed by a wrapper that never runs its program -
+# `printf <answer>; exit 97` - which a split probe refused only because its
+# answering start had to exit 0. So the probe draws a nonce per run, embeds
+# it in the program, and demands the nonce plus CS_PROBE_OFFSET as the
+# program computes it. A wrapper replaying an earlier answer, or echoing the
+# nonce back from its arguments, misses it.
 #
 # THAT ESCAPE WAS REACHABLE THROUGH THE `python` RUNG WITH NO ENVIRONMENT
 # VARIABLE SET AT ALL. It was never a CLOCKSPEED_PYTHON problem, and unsetting
 # that variable was never a mitigation for it.
 #
-# THE TOKEN IS ASSEMBLED FROM THREE PIECES at run time, so the string being
-# compared never appears literally in the program text the candidate is handed.
-# A candidate that merely echoes its arguments back cannot reproduce it by
-# accident, and `echo` is the live example of one that tries.
+# THE ANSWER IS COMPUTED BY THE PROGRAM, so the string being compared never
+# appears literally in the program text the candidate is handed - the nonce
+# does, the sum does not. A candidate that merely echoes its arguments back
+# cannot reproduce it, and `echo` is the live example of one that tries.
+#
+# THE NONCE FAILS CLOSED. It comes from `od` reading /dev/urandom, and a
+# draw that fails, is empty, is not all digits, or carries a leading zero
+# (which $(( )) would read as octal) refuses this candidate WITHOUT STARTING
+# IT, exactly as an unrunnable candidate is refused. There is no fallback
+# value: a fallback is a fixed answer, which is the escape above.
 #
 # THE COMPARISON IS EXACT RATHER THAN CONTAINMENT, deliberately. Exact equality
 # refuses a candidate whose stdout carries anything extra - a sitecustomize that
@@ -88,7 +98,7 @@ CS_HOOK_STDIN_HALF=run
 # message below fixes the first in a minute, and the second is the defect that
 # made this item exist.
 #
-# THE TOKEN CARRIES NO TRAILING NEWLINE, so the comparison never depends on how
+# THE ANSWER CARRIES NO TRAILING NEWLINE, so the comparison never depends on how
 # the interpreter and the shell each treat a line terminator. Measured here:
 # python writes CR LF to a pipe and this bash strips both, so the newline form
 # happens to compare equal on THIS toolchain - exactly the version-specific
@@ -97,11 +107,11 @@ CS_HOOK_STDIN_HALF=run
 #
 # THIS IS AN ACCIDENT DETECTOR, NOT A SECURITY BOUNDARY. It catches a
 # MISCONFIGURED interpreter, which is what CS-703 was. It stops nobody who means
-# to get past it: a program written on purpose to print the token and exit 97
+# to get past it: a program written on purpose to compute the answer and exit 97
 # passes both halves, and `git commit --no-verify` skips every hook here without
 # needing to. Never cite this probe as evidence that a commit was checked.
-CS_PROBE_PROGRAM='import sys; sys.stdout.write("clockspeed-" + "python-" + "ok"); sys.exit(97)'
-CS_PROBE_EXPECTED='clockspeed-python-ok'
+CS_PROBE_PROGRAM='import sys; sys.stdout.write(str(CS_NONCE + CS_OFFSET)); sys.exit(97)'
+CS_PROBE_OFFSET=7919
 CS_PROBE_EXIT_EXPECTED=97
 CS_PROBE_BOUND=10
 CS_PROBE_CAPTURE='cs_o=$("$@"); cs_r=$?; printf "%s" "$cs_o"; exit "$cs_r"'
@@ -115,6 +125,9 @@ cs_probe() {
     cs_probe_code="not reached"
     cs_probe_rc="not reached"
     cs_probe_bound_ok=""
+    cs_probe_nonce=""
+    cs_probe_expected=""
+    cs_probe_program=""
     # CS-816: EVERY HALF OF THIS PROBE RUNS UNDER A BOUND OF CS_PROBE_BOUND
     # SECONDS, AND A HALF THAT DOES NOT RETURN INSIDE IT REFUSES THE HOOK.
     # Three hang shapes were measured, none of them exotic. PYTHONINSPECT=1
@@ -166,6 +179,19 @@ cs_probe() {
             "Windows ships both in its own usr/bin directory." \
             "BLOCKED: an unbounded probe is not a passed probe."
     fi
+    # THE NONCE. Drawn per call, validated, and never defaulted: any doubt
+    # about it refuses this candidate before it is started.
+    cs_probe_nonce=$(od -An -N4 -tu4 /dev/urandom 2>/dev/null) || cs_probe_nonce=""
+    cs_probe_nonce=${cs_probe_nonce#"${cs_probe_nonce%%[! ]*}"}
+    case "$cs_probe_nonce" in
+        "" | *[!0-9]* | 0?*) return 1 ;;
+    esac
+    cs_probe_expected=$((cs_probe_nonce + CS_PROBE_OFFSET))
+    # The program is a static TEMPLATE, so tools and tests can read it as
+    # python; its two placeholders become the nonce and the offset here. A
+    # placeholder left unreplaced is a NameError, which refuses.
+    cs_probe_program=${CS_PROBE_PROGRAM%%CS_NONCE*}$cs_probe_nonce${CS_PROBE_PROGRAM#*CS_NONCE}
+    cs_probe_program=${cs_probe_program%%CS_OFFSET*}$CS_PROBE_OFFSET${cs_probe_program#*CS_OFFSET}
     # THE CAPTURE RUNS INSIDE THE BOUNDED PROCESS. CS_PROBE_CAPTURE is a small sh
     # program that takes the candidate's output itself and re-emits it, so the
     # only processes holding THIS substitution's pipe are ones the bound kills.
@@ -181,12 +207,12 @@ cs_probe() {
     #
     # ONE START ANSWERS BOTH QUESTIONS (CS-815). $? is captured IMMEDIATELY on
     # the next line, because any command in between - a `[` included -
-    # overwrites it. The status is RECORDED only when the token matched, so
+    # overwrites it. The status is RECORDED only when the answer matched, so
     # 'not reached' still means the output check failed or nothing ran.
     cs_probe_out=$(timeout -k 1 "$CS_PROBE_BOUND" sh -c "$CS_PROBE_CAPTURE" \
-        cs_probe "$@" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null)
+        cs_probe "$@" -c "$cs_probe_program" 2>/dev/null </dev/null)
     cs_probe_rc=$?
-    if [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ]; then
+    if [ "$cs_probe_out" = "$cs_probe_expected" ]; then
         cs_probe_code=$cs_probe_rc
         # THE STDIN HALF runs unless the CALLER declared CS_HOOK_STDIN_HALF as
         # 'skip' outside this probe. Every caller assigns it, so no inherited
@@ -198,7 +224,7 @@ cs_probe() {
             # bound. Its output and its status are deliberately not compared:
             # this half exists for the hang, and a stricter grade here would
             # refuse candidates that the two halves above already judge.
-            printf '%s' "$CS_PROBE_PROGRAM" | timeout -k 1 "$CS_PROBE_BOUND" \
+            printf '%s' "$cs_probe_program" | timeout -k 1 "$CS_PROBE_BOUND" \
                 sh -c "$CS_PROBE_CAPTURE" cs_probe "$@" - >/dev/null 2>&1
             cs_probe_rc=$?
         fi

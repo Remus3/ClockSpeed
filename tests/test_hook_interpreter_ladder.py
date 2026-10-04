@@ -1039,7 +1039,9 @@ LIAR_SHIM: Final = '#!/bin/sh\n"' + REAL_PYTHON_POSIX + '" "$@" | cat\n'
 # on one rung from being masked by a real interpreter on the next.
 LADDER_RUNGS: Final = ("python", "python3", "py")
 
-PROBE_ANSWER: Final = "clockspeed-python-ok"
+# CS-815: the answer is the decimal of a per-run 32-bit nonce plus the probe's
+# fixed offset, so only its LENGTH is known here - between these two bounds.
+PROBE_ANSWER_DIGITS: Final = range(4, 11)
 EXIT_STATUS_LABEL: Final = "Observed exit status"
 LADDER_EXHAUSTED: Final = "no usable python interpreter found"
 
@@ -1165,13 +1167,14 @@ def test_the_liar_is_refused_by_the_exit_code_half_and_not_the_stdout_half(
 ) -> None:
     """WHICH HALF REFUSED, asserted rather than assumed.
 
-    The liar's stdout is CORRECT - it forwards the real interpreter's, token and
+    The liar's stdout is CORRECT - it forwards the real interpreter's, answer and
     all - so a refusal that came from the stdout comparison would mean the probe
     is rejecting it for the wrong reason and would also reject every honest
     wrapper. The refusal must report the exit-status half as REACHED - the liar's
     dropped status, 0, rather than "not reached" - which is only possible if the
     stdout half PASSED. Since CS-814 the output itself is never rendered, so the
-    byte count standing in for it must equal the token's length.
+    byte count standing in for it must be an answer's length (CS-815: the answer
+    is a per-run nonce sum, so its length is bounded, not fixed).
     """
     box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
     liar = write_shim(box.hooks.parent / "shims", "liar.sh", LIAR_SHIM)
@@ -1187,8 +1190,8 @@ def test_the_liar_is_refused_by_the_exit_code_half_and_not_the_stdout_half(
     )
     counted = OBSERVED_COUNT.search(rendered)
     total = int(counted.group(1)) if counted else -1
-    assert total == len(PROBE_ANSWER), (
-        f"the refusal counted {total} bytes, not the answer's {len(PROBE_ANSWER)}"
+    assert total in PROBE_ANSWER_DIGITS, (
+        f"the refusal counted {total} bytes, not an answer's length"
     )
 
 
@@ -1313,7 +1316,7 @@ def test_output_that_merely_contains_the_answer_is_refused(
     rendered = "\n".join(outcome.hook_output)
     counted = OBSERVED_COUNT.search(rendered)
     total = int(counted.group(1)) if counted else -1
-    assert total == len(noise) + len(PROBE_ANSWER), (
+    assert total - len(noise) in PROBE_ANSWER_DIGITS, (
         f"the refusal counted {total} bytes, not the prefix plus the answer, so this arm is "
         "not measuring exactness at all"
     )

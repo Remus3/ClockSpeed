@@ -1,30 +1,37 @@
-"""CS-815 - the folded probe: one start answers the token AND the 97, run as a FILE.
+"""CS-815 - the folded probe: one start, a per-run nonce, the 97 - run as a FILE.
 
-THE GRANT. docs/LEDGER.md, "2026-10-03 - CS-815 - FROZEN-FILE GRANT". The
-wrapper's latency was almost all probe: a 0.2s expiry self-check plus three
-interpreter starts. The grant lets the probe (1) fold the token and the 97
-sentinel into ONE start and demand both, (2) shorten the expiry self-check to
-0.05s, never zero, and (3) skip the stdin half through ONE caller-declared
-variable set outside the identity region - except in commit-msg, which hands
-its checker on stdin.
+THE GRANT AND ITS AMENDMENT. docs/LEDGER.md, "2026-10-03 - CS-815 - FROZEN-FILE
+GRANT" and the "AMENDMENT TO THE FROZEN-FILE GRANT" above it. The wrapper's
+latency was almost all probe, so the grant let the probe fold its questions
+into ONE interpreter start, shorten the expiry self-check to 0.05s, and skip
+the stdin half through ONE caller-declared variable - except in commit-msg,
+which hands its checker on stdin.
 
-WHAT EACH ARM PROVES, against the grant's conditions:
+WHY A NONCE. Folding a FIXED token and the 97 into one start let a wrapper
+that never runs its program - ``printf clockspeed-python-ok; exit 97`` - pass,
+where the split probe refused it because its token start had to exit 0. The
+amendment replaced the fixed token: the probe draws a nonce at run time with
+``od``, embeds it in the program, and demands BOTH the decimal of the nonce
+plus a fixed non-zero offset, computed by the program, AND exit 97. A failed,
+empty or non-digit draw refuses: there is no fallback.
 
-    declaration  each of the four copies declares CS_HOOK_STDIN_HALF exactly
-                 once, outside the extracted probe, and only commit-msg runs it
-    starts       the probe, run as a FILE the way the hooks run it, starts the
-                 candidate once - and commit-msg once more, on stdin - and an
-                 inherited environment value cannot make commit-msg skip it
-    CS-703       every ARGUMENT_IGNORING_PROGRAMS entry, the ``| cat`` liar and
-                 the endlocal shape are refused by all four copies, and the
-                 honest wrapper is accepted by all four (the control)
-    mutant       a probe that drops the 97 demand accepts the liar, so the liar
-                 arms kill it; each mutation is asserted to have APPLIED
+WHAT EACH ARM PROVES, against the amended conditions, on all four copies:
+
+    declaration  CS_HOOK_STDIN_HALF declared once, outside the probe, and only
+                 commit-msg runs the stdin half
+    starts       one start answers the probe; commit-msg adds the stdin half,
+                 and an inherited value cannot make it skip
+    refused      the constant wrapper, a replay of an earlier honest run's
+                 output, an argument-echoing wrapper, every CS-703 shape, and
+                 a PATH ``od`` that fails, prints nothing or prints a non-digit
+    control      the honest wrapper is accepted
+    killed       mutants dropping the nonce, the offset or the 97 demand each
+                 accept a wrapper the pristine probe refuses; each mutation is
+                 asserted to have APPLIED
     expiry       the self-check bound is 0.05s, and non-zero
 
-RUN AS A FILE. The grant's recorded residual is that no probe test ran the
-probe as a FILE. Every arm here writes the copy's own probe bytes into a script
-and runs that script with sh, which is how pre-commit and the wrapper run it.
+RUN AS A FILE. Every arm writes the copy's own probe bytes into a script and
+runs it with sh, which is how pre-commit and the wrapper run it.
 
 MUTANTS ARE BUILT FROM TMP COPIES. No tracked file is ever modified here, so a
 killed run cannot leave a mutant on disk.
@@ -36,6 +43,7 @@ non-negotiables 3 and 12).
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -69,7 +77,7 @@ RUN_VALUE: Final = b"run"
 SKIP_VALUE: Final = b"skip"
 
 # The start order a correct probe produces, per carrier. ONE ``-c`` start
-# answers the token and the 97; commit-msg adds the stdin half.
+# answers the nonce and the 97; commit-msg adds the stdin half.
 FOLDED: Final = ("-c",)
 FOLDED_WITH_STDIN: Final = ("-c", "-")
 
@@ -86,20 +94,67 @@ REFUSED: Final = "1"
 # .cmd shim ending in ``endlocal``, which resets ERRORLEVEL. It forwards stdout.
 ENDLOCAL_SHIM: Final = '#!/bin/sh\n"' + REAL_PYTHON_POSIX + '" "$@"\nexit 0\n'
 
-# The CS-703 shapes a probe must refuse. Bare names run as the candidate
-# itself; shim bodies are written to a file first.
-SHIM_SHAPES: Final = {"pipe-cat": LIAR_SHIM, "endlocal": ENDLOCAL_SHIM}
+# The amendment's named escape: never runs its program, prints the old fixed
+# token and exits 97. The split probe refused it; a fixed-token fold did not.
+CONSTANT_SHIM: Final = "#!/bin/sh\nprintf clockspeed-python-ok\nexit 97\n"
+
+# Echoes every argument it was handed - the program text, nonce included -
+# and exits 97, so only the OFFSET stands between it and the answer.
+ARGUMENT_ECHO_SHIM: Final = "#!/bin/sh\nprintf '%s' \"$*\"\nexit 97\n"
+
+# Lifts the nonce out of the program text and prints it bare, exiting 97: the
+# wrapper that the offset alone defeats. Its non-vacuity is the offset mutant.
+PARROT_SHIM: Final = (
+    "#!/bin/sh\n"
+    'cs_p=""\n'
+    'for cs_a in "$@"; do case "$cs_a" in *"str("*) cs_p=$cs_a ;; esac; done\n'
+    "cs_n=${cs_p#*str(}\n"
+    "cs_n=${cs_n%%[!0-9]*}\n"
+    "printf '%s' \"$cs_n\"\n"
+    "exit 97\n"
+)
+
+# The CS-703 shapes and the amendment's wrappers a probe must refuse. Bare
+# names run as the candidate itself; shim bodies are written to a file first.
+SHIM_SHAPES: Final = {
+    "pipe-cat": LIAR_SHIM,
+    "endlocal": ENDLOCAL_SHIM,
+    "constant": CONSTANT_SHIM,
+    "argument-echo": ARGUMENT_ECHO_SHIM,
+    "parrot": PARROT_SHIM,
+}
 REFUSED_SHAPES: Final = tuple(ARGUMENT_IGNORING_PROGRAMS) + tuple(sorted(SHIM_SHAPES))
 
-# The final grade line every copy ends cs_probe with, and the two mutants that
-# drop the 97 demand. Each is (old, new) byte pairs that must ALL apply once.
+# PATH-first stand-ins for ``od``: the draw fails, says nothing, or says a
+# non-digit. Each must refuse BEFORE the candidate is ever started.
+OD_SHIMS: Final = {
+    "fails": "#!/bin/sh\nexit 1\n",
+    "prints-nothing": "#!/bin/sh\nexit 0\n",
+    "prints-a-non-digit": "#!/bin/sh\nprintf '  12x4\\n'\n",
+    "prints-a-leading-zero": "#!/bin/sh\nprintf '  0123\\n'\n",
+}
+
+# The mutants the amendment requires killed. Each is (old, new) byte pairs that
+# must ALL apply exactly once, and the name of the wrapper that kills it.
 FINAL_GRADE: Final = b'    [ "$cs_probe_code" = "$CS_PROBE_EXIT_EXPECTED" ]\n}'
+NONCE_DRAW: Final = (
+    b'    cs_probe_nonce=$(od -An -N4 -tu4 /dev/urandom 2>/dev/null) || cs_probe_nonce=""\n'
+)
+OFFSET_LINE: Final = re.compile(rb"\nCS_PROBE_OFFSET=([1-9][0-9]*)\n")
 MUTANTS: Final = {
-    "grade-on-token-only": ((FINAL_GRADE, b'    [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ]\n}'),),
-    "sentinel-made-zero": (
-        (b"; sys.exit(97)'\n", b"'\n"),
-        (b"\nCS_PROBE_EXIT_EXPECTED=97\n", b"\nCS_PROBE_EXIT_EXPECTED=0\n"),
+    "97-demand-dropped": (
+        ((FINAL_GRADE, b'    [ "$cs_probe_code" != "not reached" ]\n}'),),
+        "pipe-cat",
     ),
+    "sentinel-made-zero": (
+        (
+            (b"; sys.exit(97)'\n", b"'\n"),
+            (b"\nCS_PROBE_EXIT_EXPECTED=97\n", b"\nCS_PROBE_EXIT_EXPECTED=0\n"),
+        ),
+        "pipe-cat",
+    ),
+    "nonce-dropped": (((NONCE_DRAW, b"    cs_probe_nonce=12345\n"),), "replay"),
+    "offset-dropped": ((), "parrot"),
 }
 
 
@@ -121,6 +176,21 @@ def logging_shim(log: Path, target: str) -> str:
     )
 
 
+def recording_shim(capture: Path) -> str:
+    """An honest wrapper that also keeps what its ``-c`` start printed."""
+    real = '"' + REAL_PYTHON_POSIX + '"'
+    return (
+        "#!/bin/sh\n"
+        'if [ "$1" = -c ]; then\n'
+        "    cs_o=$(" + real + ' "$@"); cs_r=$?\n'
+        '    printf \'%s\' "$cs_o" >"' + capture.as_posix() + '"\n'
+        "    printf '%s' \"$cs_o\"\n"
+        '    exit "$cs_r"\n'
+        "fi\n"
+        "exec " + real + ' "$@"\n'
+    )
+
+
 def declaration_line(raw: bytes) -> bytes:
     """The copy's own stdin-half declaration line, or empty when it has none."""
     found = DECLARATION.search(raw)
@@ -133,16 +203,23 @@ def probe_file(raw: bytes) -> bytes:
 
 
 def run_probe(
-    tmp_path: Path, raw: bytes, candidate: str, extra_env: dict[str, str] | None = None
+    tmp_path: Path,
+    raw: bytes,
+    candidate: str,
+    extra_env: dict[str, str] | None = None,
+    path_first: Path | None = None,
 ) -> ProbeRun:
     """Run ``raw``'s probe as a FILE against ``candidate``, under the real timeout."""
     shell = require_posix_shell()
+    tmp_path.mkdir(parents=True, exist_ok=True)
     script = tmp_path / "probe-under-test.sh"
     script.write_bytes(probe_file(raw))
     env = shell_environment(shell)
     for name in ("CLOCKSPEED_PYTHON", "PYTHONINSPECT", STDIN_HALF_NAME):
         env.pop(name, None)
     env.update(extra_env or {})
+    if path_first is not None:
+        env["PATH"] = str(path_first) + os.pathsep + env["PATH"]
     log = tmp_path / "starts.log"
     log.write_bytes(b"")
     # A bare program name - ``:`` above all, a shell builtin - is handed to the
@@ -163,17 +240,44 @@ def run_probe(
     return ProbeRun("DIE: " in proc.stdout, rc_lines[0] if rc_lines else "", modes)
 
 
-def candidate_for(tmp_path: Path, shape: str) -> str:
-    """A bare program name as itself, or a shim body written out as a file."""
+def shim_path(tmp_path: Path, name: str, body: str) -> str:
+    """``body`` written as an executable shim, by its POSIX path."""
+    return Path(write_shim(tmp_path / "shapes", name + ".sh", body)).as_posix()
+
+
+def replay_of(tmp_path: Path, raw: bytes) -> str:
+    """A wrapper replaying what an EARLIER honest run of ``raw`` printed, exiting 97."""
+    capture = tmp_path / "honest-output.txt"
+    recorder = shim_path(tmp_path, "recorder", recording_shim(capture))
+    honest = run_probe(tmp_path, raw, recorder)
+    assert honest.rc == ACCEPTED, f"the recording run was refused with [{honest.rc}]"
+    seen = capture.read_text(encoding="ascii")
+    digits = seen.isdigit()
+    assert digits, "the recording run captured no decimal answer, so a replay means nothing"
+    return shim_path(tmp_path, "replay", "#!/bin/sh\nprintf '%s' '" + seen + "'\nexit 97\n")
+
+
+def candidate_for(tmp_path: Path, shape: str, raw: bytes) -> str:
+    """A bare program name as itself, the replay, or a shim body written out."""
+    if shape == "replay":
+        return replay_of(tmp_path, raw)
     if shape not in SHIM_SHAPES:
         return shape
-    return Path(write_shim(tmp_path / "shapes", shape + ".sh", SHIM_SHAPES[shape])).as_posix()
+    return shim_path(tmp_path, shape, SHIM_SHAPES[shape])
+
+
+def offset_pairs(raw: bytes) -> tuple[tuple[bytes, bytes], ...]:
+    """The offset mutant for ``raw``: its declared offset line made zero."""
+    found = OFFSET_LINE.search(raw)
+    assert found is not None, "the copy declares no non-zero CS_PROBE_OFFSET - nothing to drop"
+    return ((found.group(0), b"\nCS_PROBE_OFFSET=0\n"),)
 
 
 def mutated(raw: bytes, mutant: str) -> bytes:
     """``raw`` with every replacement of ``mutant`` applied, each asserted to apply once."""
+    pairs = MUTANTS[mutant][0] or offset_pairs(raw)
     out = raw
-    for old, new in MUTANTS[mutant]:
+    for old, new in pairs:
         hits = out.count(old)
         assert hits == 1, f"the {mutant} mutation matched {hits} times, not once - it never applied"
         out = out.replace(old, new)
@@ -221,56 +325,70 @@ def test_an_inherited_value_cannot_make_commit_msg_skip_the_stdin_half(tmp_path:
     assert run.modes == FOLDED_WITH_STDIN, f"commit-msg's probe started {run.modes}"
 
 
-# --- CS-703 -----------------------------------------------------------------
+# --- refused ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("shape", REFUSED_SHAPES)
+@pytest.mark.parametrize("shape", [*REFUSED_SHAPES, "replay"])
 @pytest.mark.parametrize("carrier", sorted(CARRIERS))
-def test_every_cs703_shape_is_refused_by_every_copy(
+def test_every_refused_shape_is_refused_by_every_copy(
     tmp_path: Path, carrier: str, shape: str
 ) -> None:
-    """true, ``:``, echo, the ``| cat`` liar and the endlocal shape: all refused, none died."""
-    candidate = candidate_for(tmp_path, shape)
-    run = run_probe(tmp_path, CARRIERS[carrier].read_bytes(), candidate)
+    """CS-703's shapes and the amendment's wrappers: each refused, none died."""
+    raw = CARRIERS[carrier].read_bytes()
+    candidate = candidate_for(tmp_path, shape, raw)
+    run = run_probe(tmp_path, raw, candidate)
     assert not run.died, f"{carrier}'s probe died on {shape} instead of refusing it"
     assert run.rc == REFUSED, f"{carrier}'s probe returned [{run.rc}] for {shape}"
 
 
+@pytest.mark.parametrize("od", sorted(OD_SHIMS))
 @pytest.mark.parametrize("carrier", sorted(CARRIERS))
-def test_cs703_control_an_honest_wrapper_is_accepted_by_every_copy(
+def test_a_failed_nonce_draw_refuses_before_any_start(
+    tmp_path: Path, carrier: str, od: str
+) -> None:
+    """The draw FAILS CLOSED: no fallback, and the candidate is never even started."""
+    fakes = tmp_path / "fake-od"
+    write_shim(fakes, "od", OD_SHIMS[od])
+    run = run_probe(tmp_path, CARRIERS[carrier].read_bytes(), REAL_PYTHON_POSIX, path_first=fakes)
+    assert not run.died, f"{carrier}'s probe died when od {od}"
+    assert run.rc == REFUSED, f"{carrier}'s probe returned [{run.rc}] when od {od}"
+    started = len(run.modes)
+    assert started == 0, f"{carrier}'s probe started the candidate {started} times when od {od}"
+
+
+@pytest.mark.parametrize("carrier", sorted(CARRIERS))
+def test_refusal_control_an_honest_wrapper_is_accepted_by_every_copy(
     tmp_path: Path, carrier: str
 ) -> None:
     """The non-vacuity control: a wrapper forwarding both channels passes."""
-    honest = Path(write_shim(tmp_path / "shapes", "honest.sh", HONEST_SHIM)).as_posix()
+    honest = shim_path(tmp_path, "honest", HONEST_SHIM)
     run = run_probe(tmp_path, CARRIERS[carrier].read_bytes(), honest)
     assert not run.died, f"{carrier}'s probe died on the honest wrapper"
     assert run.rc == ACCEPTED, f"{carrier}'s probe returned [{run.rc}] for the honest wrapper"
 
 
-# --- mutant -----------------------------------------------------------------
+# --- killed -----------------------------------------------------------------
 
 
 @pytest.mark.parametrize("mutant", sorted(MUTANTS))
 @pytest.mark.parametrize("carrier", sorted(CARRIERS))
-def test_a_mutant_dropping_the_97_demand_is_killed_by_the_liar(
-    tmp_path: Path, carrier: str, mutant: str
-) -> None:
-    """Pristine refuses the liar; the mutant still accepts honest AND now accepts the liar.
+def test_each_required_mutant_is_killed(tmp_path: Path, carrier: str, mutant: str) -> None:
+    """Pristine refuses the killer; the mutant still accepts honest AND now accepts the killer.
 
     The middle clause is what makes the kill meaningful: a mutant that refused
-    everything would also "differ" from pristine on the liar.
+    everything would also "differ" from pristine on the killer.
     """
     raw = CARRIERS[carrier].read_bytes()
-    liar = candidate_for(tmp_path, "pipe-cat")
-    pristine = run_probe(tmp_path, raw, liar)
-    assert pristine.rc == REFUSED, f"pristine {carrier} returned [{pristine.rc}] for the liar"
+    killer = MUTANTS[mutant][1]
+    pristine = run_probe(tmp_path, raw, candidate_for(tmp_path / "pristine", killer, raw))
+    assert pristine.rc == REFUSED, f"pristine {carrier} returned [{pristine.rc}] for {killer}"
     bad = mutated(raw, mutant)
     honest = run_probe(tmp_path, bad, REAL_PYTHON_POSIX)
     assert honest.rc == ACCEPTED, f"the {mutant} mutant of {carrier} refused a real interpreter"
-    escaped = run_probe(tmp_path, bad, liar)
+    escaped = run_probe(tmp_path, bad, candidate_for(tmp_path / "mutant", killer, bad))
     assert escaped.rc == ACCEPTED, (
-        f"the {mutant} mutant of {carrier} returned [{escaped.rc}] for the liar, so the liar "
-        "arms cannot tell it from the pristine probe"
+        f"the {mutant} mutant of {carrier} returned [{escaped.rc}] for {killer}, so the "
+        "refusal arms cannot tell it from the pristine probe"
     )
 
 
