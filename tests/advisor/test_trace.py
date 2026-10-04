@@ -16,8 +16,10 @@ Graded here, each against a control that shows the arm can see the defect:
 from __future__ import annotations
 
 import contextlib
+import enum
 from dataclasses import dataclass
 from fractions import Fraction
+from types import MappingProxyType
 
 from clockspeed.advisor.trace import (
     InputRefusedError,
@@ -27,6 +29,7 @@ from clockspeed.advisor.trace import (
     RuleSpec,
     StepKind,
     Trace,
+    TraceStep,
     WorldInputs,
     run_rule,
     run_rules,
@@ -256,9 +259,220 @@ def test_read_exact_refuses_a_non_fraction() -> None:
         evaluate=evaluate,
     )
     assert run_rule(spec, _world(a_declared=Fraction(7, 3))).recommendation is not None
-    trace = run_rule(spec, _world(a_declared="synthetic-text"))
+    for bad in ("synthetic-text", 3, True):
+        trace = run_rule(spec, _world(a_declared=bad))
+        assert trace.recommendation is None, type(bad).__name__
+        assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",)
+        # The provisional read step is withdrawn, never left beside the refusal.
+        assert _subjects_of(trace, StepKind.INPUT_READ) == (), type(bad).__name__
+
+
+def test_the_inexact_reason_is_deterministic_across_several_bad_parts() -> None:
+    """The smallest reason wins, never the first one iteration happens to reach."""
+    for bad in ((0.5, 1j), (1j, 0.5), (Fraction(1), (0.5,), 1j)):
+        trace = run_rule(_reads("a.declared"), _world(a_declared=bad))
+        reasons = [s.reason for s in trace.steps if s.kind is StepKind.INPUT_REFUSED]
+        assert reasons == ["a complex is not an exact type"], type(bad).__name__
+
+
+class _Colour(enum.Enum):
+    RED = "red"
+
+
+@dataclass(frozen=True)
+class _Nested:
+    inner: _Holder
+    flags: tuple[str, ...]
+
+
+@dataclass
+class _Mutable:
+    rate: Fraction
+
+
+def test_an_immutable_exact_value_is_accepted() -> None:
+    goods = (
+        True,
+        None,
+        _Colour.RED,
+        MappingProxyType({"k": Fraction(1, 3), "flag": False}),
+        _Nested(inner=_Holder(rate=Fraction(2)), flags=("a",)),
+        (Fraction(1), "x", 4),
+    )
+    for good in goods:
+        trace = run_rule(_reads("a.declared"), _world(a_declared=good))
+        assert trace.recommendation is not None, type(good).__name__
+        assert _subjects_of(trace, StepKind.INPUT_READ) == ("a.declared",)
+
+
+def test_a_mutable_value_is_refused_even_when_every_part_is_exact() -> None:
+    bads = (
+        {"k": Fraction(1)},
+        [Fraction(1)],
+        {Fraction(1)},
+        _Mutable(rate=Fraction(1)),
+        (Fraction(1), [Fraction(2)]),
+        _Holder(rate={"k": Fraction(1)}),
+    )
+    for bad in bads:
+        trace = run_rule(_reads("a.declared"), _world(a_declared=bad))
+        assert trace.recommendation is None, type(bad).__name__
+        assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",)
+
+
+def test_a_rule_mutating_what_it_read_alters_neither_the_trace_nor_the_next_rule() -> None:
+    def vandal(ctx: RuleContext) -> Recommendation | None:
+        value = ctx.read("a.declared")
+        value["k"] = 0.5  # type: ignore[index]
+        return _recommend()
+
+    vandal_spec = RuleSpec(
+        rule_id="synthetic.a-vandal",
+        domain="power",
+        inputs=("a.declared",),
+        unlocks=(),
+        evaluate=vandal,
+    )
+    world = _world(a_declared=MappingProxyType({"k": Fraction(1)}))
+    first, second = run_rules((vandal_spec, _reads("a.declared")), world)
+    assert first.recommendation is None
+    read_values = [s.value for s in first.steps if s.kind is StepKind.INPUT_READ]
+    assert read_values == [MappingProxyType({"k": Fraction(1)})]
+    assert second.recommendation is not None
+    assert _subjects_of(second, StepKind.INPUT_REFUSED) == ()
+    assert world.values["a.declared"].value == MappingProxyType({"k": Fraction(1)})
+
+
+# --- the context is the only door, as far as Python lets it be --------------
+
+
+def test_tampering_with_the_context_does_not_unrefuse() -> None:
+    seen: list[object] = []
+
+    def tamper(ctx: RuleContext) -> Recommendation | None:
+        with contextlib.suppress(InputRefusedError):
+            ctx.read("b.undeclared")
+        seen.append(getattr(ctx, "_world", None))
+        with contextlib.suppress(AttributeError):
+            ctx._refusals = 0  # type: ignore[attr-defined]  # noqa: SLF001 - the tamper under test
+        with contextlib.suppress(AttributeError):
+            ctx._steps.clear()  # type: ignore[attr-defined]  # noqa: SLF001 - the tamper under test
+        return _recommend()
+
+    spec = RuleSpec(
+        rule_id="synthetic.tamper",
+        domain="power",
+        inputs=("a.declared",),
+        unlocks=(),
+        evaluate=tamper,
+    )
+    trace = run_rule(spec, _world(b_undeclared=Fraction(2)))
     assert trace.recommendation is None
-    assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",)
+    assert trace.refused == ("b.undeclared",)
+    assert seen == [None], "the context must not hand the rule the world"
+
+
+# --- rule bugs are recorded, never raised -----------------------------------
+
+
+def _returning(rec: object) -> RuleSpec:
+    def evaluate(_ctx: RuleContext) -> Recommendation | None:
+        return rec  # type: ignore[return-value]
+
+    return RuleSpec(
+        rule_id="synthetic.returner",
+        domain="power",
+        inputs=(),
+        unlocks=(),
+        evaluate=evaluate,
+    )
+
+
+def test_recommendation_text_must_be_ascii_strings() -> None:
+    assert run_rule(_returning(_recommend()), _world()).recommendation is not None
+    bads = (
+        Recommendation(subject_key=1.5, action="Do", reason="r"),  # type: ignore[arg-type]
+        Recommendation(subject_key="s", action="Do", reason=0.25),  # type: ignore[arg-type]
+        Recommendation(subject_key="s", action="Do \u2014 now", reason="r"),
+        Recommendation(subject_key="s", action="Do", reason="at 0.5/min", target_milestone=0.5),  # type: ignore[arg-type]
+        Recommendation(subject_key="s", action="Do", reason="r", requires=("x", 1.5)),  # type: ignore[arg-type]
+        Recommendation(subject_key="s", action="Do", reason="r", requires=["x"]),  # type: ignore[arg-type]
+        Recommendation(subject_key="", action="Do", reason="r"),
+        "not a recommendation",
+    )
+    for bad in bads:
+        trace = run_rule(_returning(bad), _world())
+        assert trace.recommendation is None, type(bad).__name__
+        assert StepKind.RULE_ERROR in _kinds(trace), type(bad).__name__
+        assert StepKind.RULE_FIRED not in _kinds(trace)
+
+
+def test_rejected_alternative_text_must_be_ascii_strings() -> None:
+    for alternative, reason in ((0.25, "r"), ("alt", "costs \u2013 more"), ("alt", 1.5)):
+
+        def evaluate(
+            ctx: RuleContext, a: object = alternative, r: object = reason
+        ) -> Recommendation | None:
+            ctx.reject(a, r)  # type: ignore[arg-type]
+            return _recommend()
+
+        spec = RuleSpec(
+            rule_id="synthetic.rejecter",
+            domain="power",
+            inputs=(),
+            unlocks=(),
+            evaluate=evaluate,
+        )
+        trace = run_rule(spec, _world())
+        assert trace.recommendation is None, repr(reason)
+        assert StepKind.ALTERNATIVE_REJECTED not in _kinds(trace)
+        assert StepKind.RULE_ERROR in _kinds(trace)
+
+
+def test_a_rule_exception_is_recorded_by_type_and_never_raised() -> None:
+    def divide(ctx: RuleContext) -> Recommendation | None:
+        ctx.compute("ratio", Fraction(1) / ctx.read_exact("a.declared"))
+        return _recommend()
+
+    spec = RuleSpec(
+        rule_id="synthetic.divider",
+        domain="power",
+        inputs=("a.declared",),
+        unlocks=(),
+        evaluate=divide,
+    )
+    assert run_rule(spec, _world(a_declared=Fraction(2))).recommendation is not None
+    trace = run_rule(spec, _world(a_declared=Fraction(0)))
+    assert trace.recommendation is None
+    errors = [s for s in trace.steps if s.kind is StepKind.RULE_ERROR]
+    assert [s.subject for s in errors] == ["ZeroDivisionError"]
+    assert errors[0].value is None
+
+
+def test_duplicate_rule_ids_are_refused_identically_in_either_order() -> None:
+    first = RuleSpec(
+        rule_id="synthetic.twin",
+        domain="power",
+        inputs=(),
+        unlocks=(),
+        evaluate=lambda _ctx: _recommend("one"),
+    )
+    second = RuleSpec(
+        rule_id="synthetic.twin",
+        domain="nodes",
+        inputs=(),
+        unlocks=(),
+        evaluate=lambda _ctx: _recommend("two"),
+    )
+    other = _returning(_recommend())
+    forward = run_rules((first, second, other), _world())
+    backward = run_rules((other, second, first), _world())
+    assert forward == backward
+    by_id = {t.rule_id: t for t in forward}
+    assert [t.rule_id for t in forward] == ["synthetic.returner", "synthetic.twin"]
+    assert by_id["synthetic.twin"].recommendation is None
+    assert _subjects_of(by_id["synthetic.twin"], StepKind.RULE_ERROR) == ("synthetic.twin",)
+    assert by_id["synthetic.returner"].recommendation is not None
 
 
 # --- unknown content ------------------------------------------------------
@@ -324,3 +538,68 @@ def test_unlock_keys_prefixes_each_carrier() -> None:
             "feature:synthetic-overclock",
         }
     )
+
+
+# --- addendum: set ordering, redacted reprs, strict ids ---------------------
+
+
+def test_a_set_valued_input_is_refused_because_its_order_is_seed_dependent() -> None:
+    for bad in (frozenset({Fraction(1)}), (Fraction(1), frozenset({"a"}))):
+        trace = run_rule(_reads("a.declared"), _world(a_declared=bad))
+        assert trace.recommendation is None, type(bad).__name__
+        reasons = [s.reason for s in trace.steps if s.kind is StepKind.INPUT_REFUSED]
+        assert reasons == ["a frozenset is not an exact type"], type(bad).__name__
+
+
+_SENTINELS = ("synthetic-sentinel-subject", "synthetic-sentinel-source", "synthetic-sentinel-value")
+
+
+def test_the_reprs_render_types_never_values_subjects_or_sources() -> None:
+    subject, source, value = _SENTINELS
+    step = TraceStep(kind=StepKind.INPUT_READ, subject=subject, source=source, value=value)
+    offered = InputValue(value, source)
+    world = WorldInputs(values={"a.declared": offered}, unlocks=frozenset({subject}))
+    trace = Trace("synthetic.reader", "power", (step,), None)
+    rendered = [repr(step), repr(offered), repr(world), repr(trace)]
+    leaked = sum(1 for text in rendered for sentinel in _SENTINELS if sentinel in text)
+    assert leaked == 0
+    assert "input-read" in rendered[0]
+    assert "str" in rendered[1]
+
+
+def test_rule_ids_and_input_names_must_match_the_strict_pattern() -> None:
+    def evaluate(_ctx: RuleContext) -> Recommendation | None:
+        return None
+
+    good = RuleSpec(
+        rule_id="synthetic.ok_1:x-y",
+        domain="power",
+        inputs=("a.declared",),
+        unlocks=("recipe:/Synthetic/Recipe_AltPlate",),
+        evaluate=evaluate,
+    )
+    assert good.rule_id == "synthetic.ok_1:x-y"
+    bads = (
+        {"rule_id": "Synthetic World Name"},
+        {"rule_id": "synthetic.\u2014"},
+        {"rule_id": ""},
+        {"inputs": ("a declared",)},
+        {"inputs": ("A.Declared",)},
+        {"domain": "Power Domain"},
+        {"unlocks": ("recipe with space",)},
+    )
+    refused = 0
+    for override in bads:
+        fields: dict[str, object] = {
+            "rule_id": "synthetic.ok",
+            "domain": "power",
+            "inputs": ("a.declared",),
+            "unlocks": (),
+            "evaluate": evaluate,
+        }
+        fields.update(override)
+        try:
+            RuleSpec(**fields)  # type: ignore[arg-type]
+        except ValueError:
+            refused += 1
+    assert refused == len(bads)
