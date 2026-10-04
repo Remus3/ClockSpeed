@@ -75,6 +75,35 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-03 - CS-815 - FROZEN-FILE GRANT, NOT A COMPLETION RECORD, NOTHING CLOSED
+Verification: this record. Granted by an adjudicator who authored none of the candidate,
+on tier2 run 37156039418 (windows guards shard: the wrapper added a 1.297s median over 20
+calls with siblings quiet; the 1.0s budget is never raised). Option (a), a cheaper probe
+owned only by the wrapper with the carry-identity tests relaxed, was REJECTED: byte
+identity is condition 1 of the CS-815 settings grant and the CS-703 lesson. Option (c),
+caching the probe verdict, was REJECTED as the CS-703 fail-open shape.
+Scope: `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/pre-push`, and the
+copy carried in `tools/claude_hook.sh`.
+Permitted: (1) the `cs_probe` block may fold the token and the 97 sentinel into ONE
+interpreter start - print the computed token and exit 97, and demand both; (2) the
+expiry self-check bound goes from 0.2 to 0.05, with the 42 pass-through and the 124/137
+acceptance unchanged (the bound must stay non-zero - 0 disables `timeout`); (3) ONE
+caller-declared variable, set outside the identity region, skips the stdin half - only
+commit-msg, which hands its checker on stdin, must not skip it; (4) the pins on these
+exact strings in `tests/test_hook_interpreter_ladder.py` may follow.
+Byte-identical across all four copies: the probe, `CS_PROBE_BOUND`, the refusal block,
+the CS-818 ladder.
+Conditions: every `ARGUMENT_IGNORING_PROGRAMS` entry and the true, `:`, echo, `| cat`
+and endlocal shapes still refused in all four copies with the honest-wrapper control
+green; a mutant dropping the 97 demand is killed; a test shows commit-msg still runs the
+stdin half. Locating pythonw stays a separate wrapper-owned start.
+Blast radius: every commit, commit-msg and push in every worktree, and every Bash,
+PowerShell, Edit and Write hook call in Claude sessions here - a defect fails all three
+tier-0 gates open. Landing therefore requires a real-commit end-to-end check (a staged
+em-dash REFUSED, HEAD unchanged) and a CI median under 1.0s on the merged tip; over 1.0s
+returns to adjudication, never to a raised budget. Residual recorded: no probe test runs
+the probe as a FILE, the way pre-commit and the wrapper invoke it.
+
 ### 2026-10-03 - CS-1232 - a MAIN kit bundle file is verified at its bundle-relative path, placed by file identity
 Verification: `tools/main_provenance.py::verify_main_note`, tests
 `tests/test_main_provenance.py`. A file in the inbox is placed by its file identity
