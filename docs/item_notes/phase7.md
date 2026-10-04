@@ -901,6 +901,13 @@ checks, so the lane's fast-forward pushes still land. The same row is in
 `docs/public-readiness.md`. If the plan refuses branch protection on a private
 repository, this sub-step moves to just after S12; that is a PROBE OWED BEFORE S9, not
 measured here.
+**PROBE RESULT, measured 2026-10-04 by read-only GET against the current private
+remote:** protection available while private. The branch-protection read on `main`
+returned HTTP 404 "Branch not protected", not the 403 "Upgrade to GitHub Pro or make
+this repository public" a plan refusal returns; the rulesets read returned 200 with an
+empty list. S11's protection sub-step stays at S11. The plan name itself was not
+readable with the current token scope; the 404 shape is the evidence. Re-probe if the
+account's plan changes before S9.
 
 **S12 - Flip visibility. Last, and blocked by section 6.** The tip check above runs first.
 Covered by the confirmation taken before S9: `docs/GATED.md` CS-G03 (CS-1182).
