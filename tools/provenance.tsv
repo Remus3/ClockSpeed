@@ -44,7 +44,10 @@ THIRD_PARTY.md	authored	CS-1165	first-add:root
 WAKEUP_NOTES.md	authored	CS-1165	first-add:root
 clockspeed/__init__.py	authored	CS-1165	first-add:root
 clockspeed/advisor/__init__.py	authored	CS-1165	first-add:root
+clockspeed/advisor/cards.py	authored	CS-500	stamped
+clockspeed/advisor/ledger.py	authored	CS-500	stamped
 clockspeed/advisor/rules/__init__.py	authored	CS-1165	first-add:root
+clockspeed/advisor/trace.py	authored	CS-500	stamped
 clockspeed/audit/__init__.py	authored	CS-1165	first-add:root
 clockspeed/audit/balance.py	authored	CS-1045	first-add:CS-1045
 clockspeed/audit/collectibles.py	authored	CS-1042	first-add:CS-1042
@@ -225,6 +228,11 @@ shell/test/trust.test.js	authored	CS-602	first-add:CS-602
 shell/test/verdict.test.js	authored	CS-602	first-add:CS-602
 shell/test/window.test.js	authored	CS-602	first-add:CS-602
 tests/__init__.py	authored	CS-1165	first-add:root
+tests/advisor/__init__.py	authored	CS-500	stamped
+tests/advisor/test_cards.py	authored	CS-500	stamped
+tests/advisor/test_ledger.py	authored	CS-500	stamped
+tests/advisor/test_trace.py	authored	CS-500	stamped
+tests/advisor/worlds.py	authored	CS-500	stamped
 tests/archive_rot_guard.py	authored	CS-1165	first-add:root
 tests/assertion_rendering_guard.py	authored	CS-850	first-add:CS-850
 tests/audit/__init__.py	authored	CS-977	first-add:CS-977

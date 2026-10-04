@@ -352,3 +352,10 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   (MemoryError, xdist worker crash, fork exhaustion, timeouts) and passes on retry with no
   code change - TRIGGER: a third blocked push in one week traced to box load rather than a
   defect; candidates are a load check before the hook starts or a cap on concurrent suites.
+
+## Stale docstrings - filed 2026-10-04 by the CS-500 integration
+
+- `clockspeed/save/header.py` masked_token docstring says the ledger holds the real token -
+  stale since CS-500 S3 keys by sha256 digest - TRIGGER: that module is next touched.
+- `clockspeed/save/world.py:1333` says unlocks are empty on every path - stale since CS-1039
+  - TRIGGER: that module is next touched.

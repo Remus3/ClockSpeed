@@ -61,12 +61,36 @@ terminator-exact is the PROPERTY walk INSIDE a payload - the trailing run - whic
 different region, is not clause 2, and is filed as its own item.
 
 **ALSO CARRIES A CLAUSE MOVED HERE FROM CS-401**, which could not satisfy it in phase 4 because
-`clockspeed/advisor/ledger.py` <!-- absent: clockspeed/advisor/ledger.py --> does not exist yet: the ledger treats a world token it has never
+`clockspeed/advisor/ledger.py` did not exist yet (it landed under CS-500 on 2026-10-04): the ledger treats a world token it has never
 seen as a new world rather than failing.
 
 ### Acceptance
 
 every rule has a synthetic-fixture test, the unmet-precondition invariant holds under a property test over generated world states, a card id is stable across a save reload, and tier 3 is generated from the trace and cannot be authored by hand
+
+### Evidence measured 2026-10-04
+
+The engine, the card and the store landed (`clockspeed/advisor/trace.py`,
+`clockspeed/advisor/cards.py`, `clockspeed/advisor/ledger.py`). Clauses in order, A1 to A4
+from the acceptance line, A5 the clause moved here from CS-401:
+
+- A1, every rule has a synthetic-fixture test - OPEN. No rule exists yet; it rides the rule
+  slices (S4 onward).
+- A2, the unmet-precondition invariant under a property test - EVIDENCED by
+  `tests/advisor/test_trace.py::test_no_recommendation_has_an_unmet_precondition_over_generated_worlds`,
+  with its anti-vacuity control
+  `tests/advisor/test_trace.py::test_the_generated_rules_would_recommend_without_the_gate`.
+- A3, a card id stable across a save reload - ID HALF EVIDENCED by
+  `tests/advisor/test_cards.py::test_card_id_ignores_volatile_inputs` and
+  `tests/advisor/test_cards.py::test_card_id_is_sha256_over_canonical_ascii_of_the_identity_triple`.
+  The RELOAD half stays OPEN until slice S6 drives two loads of one save.
+- A4, tier 3 generated from the trace and not authorable - EVIDENCED by
+  `tests/advisor/test_cards.py::test_card_accepts_no_authored_tier_text` and
+  `tests/advisor/test_cards.py::test_tier3_changes_when_the_trace_changes`.
+- A5, an unseen world token is a new world - EVIDENCED by
+  `tests/advisor/test_ledger.py::test_an_unseen_world_token_is_a_new_world`.
+
+The item stays OPEN on A1 and the reload half of A3.
 
 ## Wave 2 - the pre-dispatch spec check, filed 2026-09-14
 
@@ -618,3 +642,7 @@ close this by making the audit read fractional machines - a world has whole mach
 ### Acceptance
 
 the audit's draw reads each machine's clock and publishes the clock-scaled draw as an exact value where the power law yields one and as a named bound where it does not, and the round-trip power arm compares like with like: the pinned divergence test is replaced by an equality or bound check that reddens when the clock is ignored
+
+### Evidence measured 2026-10-04
+
+EVIDENCED, not closed here. The clock-scaled draw is `clockspeed/audit/balance.py::clocked_draw_of`, carried as `WorldBalance.clocked_draw`: exact at the reference clock, at a whole exponent and at a zero clock (`tests/audit/test_balance.py::test_the_reference_clock_is_exact_under_any_exponent`, `tests/audit/test_balance.py::test_a_whole_exponent_away_from_the_reference_clock_is_exact`, `tests/audit/test_balance.py::test_a_zero_clock_is_exact_zero_under_a_positive_exponent`); a named bound otherwise (`tests/audit/test_balance.py::test_a_fractional_exponent_is_a_named_bound_bracketing_the_law`, `tests/audit/test_balance.py::test_the_bracket_contains_the_physical_draw`); an unread clock a named gap, never one (`tests/audit/test_balance.py::test_an_unread_clock_is_a_named_gap_never_one`); an elided clock tag priced at the default and counted (`tests/audit/test_balance.py::test_an_elided_clock_is_priced_exactly_at_the_default_and_counted`). The pinned divergence test is replaced by `tests/audit/test_round_trip.py::test_audit_draw_upper_bound_equals_solver_figure_on_fractional_plans`, `tests/audit/test_round_trip.py::test_audit_draw_is_exact_and_equals_solver_figure_on_integral_plans` and `tests/audit/test_round_trip.py::test_the_clocked_draw_reddens_when_the_clock_is_ignored`.

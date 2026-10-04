@@ -35,7 +35,10 @@ clockspeed/
     power.py
   audit/          pillar 3 whole-world audit - PLACEMENT AND INVENTORY ONLY
   progress/       pillar 4 milestone routing - NOT BUILT
-  advisor/        pillar 5 - NOT BUILT
+  advisor/        pillar 5 - trace, cards and ledger built; no rules yet
+    trace.py
+    cards.py
+    ledger.py
     rules/
   surface/
     server.py
@@ -71,6 +74,10 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/solve/power.py` | Power and clock mathematics, including the overclock scaling exponent taken from data rather than hardcoded. |
 | `clockspeed/audit/` | TWO MODULES, AND THE PILLAR ITSELF IS STILL UNBUILT. `clockspeed/audit/placement.py` turns one `WorldModel` into node and built placements with exact decimal-string coordinates, per-class counts and world bounds; `clockspeed/audit/inventory.py` aggregates container contents into per-item totals and carries its own denominators. Both are what the map surface consumes, and neither is the diff-against-intent the pillar is specified as in `BOOTSTRAP.md` section 4. |
 | `clockspeed/progress/` | NOTHING YET. The package is reserved for pillar 4 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` section 4. |
+| `clockspeed/audit/balance.py` | The clocked power draw: `clocked_draw_of` prices each machine at its own clock - exact where the power law allows, otherwise an exact named bracket - and names a gap for an unread clock rather than pricing it at the default. |
+| `clockspeed/advisor/trace.py` | The rule execution trace: declared inputs, the unlock gate, exact reads, and the one engine-held record every explain tier projects from. A faulting rule becomes a `rule-error` step, never a crash. |
+| `clockspeed/advisor/cards.py` | The advice card: a sha256 identity over rule, subject and target, and three read-only tiers projected from one trace. |
+| `clockspeed/advisor/ledger.py` | The per-world ledger, keyed by a digest of the world token, and the global per-rule mute store - two atomically written files. |
 | `clockspeed/advisor/rules/` | NOTHING YET. The package is reserved for pillar 5 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
 | `clockspeed/surface/server.py` | The local HTTPS listener and static serving. Port allocation is recorded in `config/ports.json`; see `docs/OPERATIONS.md`. |
 | `clockspeed/surface/api/` | JSON endpoints. Serialization only - no computation. |
@@ -166,7 +173,7 @@ matrix. That makes every one of the rules above mechanically checkable:
 3. **The suite runs with no game install and no save present.** `solve/` is tested
    entirely against small synthetic fixtures - `tests/solve/synthetic.py`. A hidden
    dependency on real save bytes or a real install fails immediately in that environment,
-   and in CI. `advisor/` has no tests, because it has no code to test.
+   and in CI. `advisor/` is tested the same way, against synthetic worlds in `tests/advisor/`.
 4. **`surface/` computing nothing is checkable by the same test suite**, because any
    computation it wanted to do would require importing `solve/` internals rather than
    calling a produced result.
@@ -180,7 +187,7 @@ entirely inside `data/`, and the seam is what confines it there.
 
 All five are in scope for v1. Pillars 1 and 2 are the engine and are built; pillar 3 is
 the world reader's consumer and pillars 4 and 5 are what the operator will actually look
-at, and those three are NOT BUILT. Each section below states which it is. A section that
+at, and none of those three is complete. Each section below states which it is. A section that
 names an implementing module is claiming shipped code, and
 `tests/test_architecture_attributions.py` reddens when a named module does not carry the
 capability the sentence attributes to it.
@@ -228,9 +235,9 @@ emitting a dependency-ordered plan rather than an unordered list of gaps.
 
 ### Pillar 5 - The advisor
 
-**Status:** NOT BUILT. Reserved for `advisor/`, which holds two package docstrings and no
-code. Specified in `BOOTSTRAP.md` sections 4 and 5. The five endpoints that would surface
-it answer 501 today - see `clockspeed/surface/api/pending.py`.
+**Status:** PARTLY BUILT. The trace engine, the card and the ledger ship in `advisor/`;
+no rule does yet. Specified in `BOOTSTRAP.md` sections 4 and 5. The five endpoints that
+would surface it answer 501 today - see `clockspeed/surface/api/pending.py`.
 
 Intent: the synthesizing layer that everything above feeds, running data-driven modular
 rules over the registry and the world model.
@@ -239,12 +246,11 @@ rules over the registry and the world model.
 
 ## 5. The advice card contract
 
-**Status:** NOT BUILT. Reserved for `advisor/`, which holds two package docstrings and no
-code. Specified in `BOOTSTRAP.md` sections 5.1, 5.2 and 5.4, which own the tier
-definitions, the card identity and the rule-engine constraints.
+**Status:** BUILT, NO RULES YET. `advisor/` ships the trace, the card and the ledger.
+Specified in `BOOTSTRAP.md` sections 5.1, 5.2 and 5.4, which own the tier definitions,
+the card identity and the rule-engine constraints.
 
-Intent, in one line each, so this file records the seams without claiming any of them
-exists yet: advice is a card with a stable identity and three rendering tiers; all three
+The contract, in one line each: advice is a card with a stable identity and three rendering tiers; all three
 tiers are projections of ONE rule execution trace rather than three hand-written
 renderings; the card carries a per-world state and a global per-rule mute, both durable
 across sessions, reloads and patches.
