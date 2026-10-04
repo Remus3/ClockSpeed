@@ -7,7 +7,7 @@ acceptance clauses is blocked on work that has not been done, and this module
 is written so that the blocked clause is visibly skipped rather than quietly
 absent. The status of each clause, as this module measures it:
 
-    CLAUSE 1  a real world parses ............................. PARTIAL
+    CLAUSE 1  a real world parses .. MET via the building path, test_inventory_library
     CLAUSE 2  a corrupted save produces a clean error ......... MET
     CLAUSE 3  a truncated save produces a clean error ......... MET
     CLAUSE 4  the save directory is never opened for write .... MET
