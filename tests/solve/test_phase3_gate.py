@@ -183,6 +183,7 @@ SOLVE_TEST_SOURCES: tuple[str, ...] = (
     "test_display_rounding.py",
     "test_exact.py",
     "test_exponent_owner.py",
+    "test_golden.py",
     "test_optimize.py",
     "test_power.py",
     "test_ratio.py",

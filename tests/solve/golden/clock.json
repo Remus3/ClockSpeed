@@ -1,0 +1,23 @@
+{
+  "about": "CS-1239 clock goldens over the synthetic solve corpus. Every synthetic building declares an un-sharded clock base of 1.000000 = 1 (tests/solve/synthetic.py UNSHARDED_CLOCK_BASE_TEXT). The clamp limits to that base only when the requested clock is strictly above it; the ceiling is never known and the shard slot count is unmeasured (null) in the version pin.",
+  "cases": [
+    {"name": "clamp_overclock_to_base", "kind": "clamp", "building": "Build_SolveSmelter_C", "clock": "3/2",
+     "expected": {"clock": "1", "base": "1", "clamped": true},
+     "why": "3/2 > 1, so the clock becomes the base 1 and the result says it clamped."},
+    {"name": "clamp_a_hair_above_base", "kind": "clamp", "building": "Build_SolveSmelter_C", "clock": "1000001/1000000",
+     "expected": {"clock": "1", "base": "1", "clamped": true},
+     "why": "1.000001 is strictly above 1; an exact comparison clamps it where a float epsilon might not."},
+    {"name": "clamp_at_base_is_not_clamped", "kind": "clamp", "building": "Build_SolveAssembler_C", "clock": "1",
+     "expected": {"clock": "1", "base": "1", "clamped": false},
+     "why": "1 is not above 1, so it passes through unclamped."},
+    {"name": "clamp_underclock_passes_through", "kind": "clamp", "building": "Build_SolveRefinery_C", "clock": "1/2",
+     "expected": {"clock": "1/2", "base": "1", "clamped": false},
+     "why": "1/2 is below the base and is returned unchanged."},
+    {"name": "clamp_zero_passes_through", "kind": "clamp", "building": "Build_SolveRefinery_C", "clock": "0",
+     "expected": {"clock": "0", "base": "1", "clamped": false},
+     "why": "0 is below the base; zero is a real clock and stays zero rather than absent."},
+    {"name": "ceiling_is_unknown", "kind": "ceiling", "building": "Build_SolveRefinery_C",
+     "expected": {"base": "1", "slots": null, "known": false},
+     "why": "The base is the declared 1; the slot count is unmeasured, so known is false and no ceiling number exists."}
+  ]
+}

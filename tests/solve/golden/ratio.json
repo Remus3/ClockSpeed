@@ -1,0 +1,120 @@
+{
+  "about": "CS-1239 ratio-solve goldens over the synthetic solve corpus (tests/solve/synthetic.py). Per-machine-per-minute rates are amount * 60 / duration; fluid amounts are litres in the document and cubic metres (litres / 1000) once the registry publishes them. steps are in REGISTRY order (Alt_Gadget, Std_Gadget, R_Plate, R_Rod, R_Fluid, R_Gadget, R_Recover, ...) filtered to the selected recipes. Every value is derived by hand in why.",
+  "cases": [
+    {
+      "name": "c1_rod_50",
+      "registry": "main", "direction": "targets", "policy": "balanced",
+      "targets": {"Desc_SolveRod_C": "50"},
+      "recipes": ["R_Plate", "R_Rod"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Plate", "5/3"], ["R_Rod", "10/3"]],
+        "targets": {"Desc_SolveRod_C": "50"},
+        "raw_inputs": {"Desc_SolveOre_C": "50"},
+        "byproducts": {}
+      },
+      "why": "R_Rod 1 Plate -> 1 Rod in 4 s = 15 Rod/machine/min, so 50/15 = 10/3 machines eating 10/3 * 15 = 50 Plate. R_Plate 1 Ore -> 1 Plate in 2 s = 30/machine/min, so 50/30 = 5/3 machines eating 5/3 * 30 = 50 Ore."
+    },
+    {
+      "name": "c1_rod_7",
+      "registry": "main", "direction": "targets", "policy": "balanced",
+      "targets": {"Desc_SolveRod_C": "7"},
+      "recipes": ["R_Plate", "R_Rod"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Plate", "7/30"], ["R_Rod", "7/15"]],
+        "targets": {"Desc_SolveRod_C": "7"},
+        "raw_inputs": {"Desc_SolveOre_C": "7"},
+        "byproducts": {}
+      },
+      "why": "Same chain at 7 Rod/min: 7/15 rod machines, 7 Plate/min, 7/30 plate machines, 7 Ore/min (the chain is one-for-one throughout)."
+    },
+    {
+      "name": "c2_fluid_40",
+      "registry": "main", "direction": "targets", "policy": "balanced",
+      "targets": {"Desc_SolveFluid_C": "40"},
+      "recipes": ["R_Fluid"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Fluid", "8/5"]],
+        "targets": {"Desc_SolveFluid_C": "40"},
+        "raw_inputs": {"Desc_SolveOre_C": "16"},
+        "byproducts": {}
+      },
+      "why": "R_Fluid 1 Ore -> 2500 L = 5/2 m3 in 6 s; 10 cycles/min = 25 m3/machine/min. 40/25 = 8/5 machines; ore 10 * 8/5 = 16. Dividing by 1000 a second time would give 1600 machines."
+    },
+    {
+      "name": "c3_gadget_20_balanced",
+      "registry": "main", "direction": "targets", "policy": "balanced",
+      "targets": {"Desc_SolveGadget_C": "20"},
+      "recipes": ["R_Gadget", "R_Recover", "R_Fluid", "R_Plate"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Plate", "4/3"], ["R_Fluid", "2"], ["R_Gadget", "2"], ["R_Recover", "2/3"]],
+        "targets": {"Desc_SolveGadget_C": "20"},
+        "raw_inputs": {"Desc_SolveOre_C": "60"},
+        "byproducts": {}
+      },
+      "why": "Per machine per min: R_Gadget Gadget +10, Plate -20, Fluid -30, Residue +10; R_Recover Residue -30, Fluid +15; R_Fluid Fluid +25, Ore -10; R_Plate Plate +30, Ore -30. Gadget 10a = 20 -> a = 2. Residue 10a - 30b = 0 -> b = 2/3. Fluid -60 + 10 + 25c = 0 -> c = 2. Plate -40 + 30d = 0 -> d = 4/3. Ore 10*2 + 30*4/3 = 60. Recipe order in the request is irrelevant; steps follow registry order."
+    },
+    {
+      "name": "c3_gadget_20_sinkable_no_recovery",
+      "registry": "main", "direction": "targets", "policy": "sinkable",
+      "targets": {"Desc_SolveGadget_C": "20"},
+      "recipes": ["R_Plate", "R_Fluid", "R_Gadget"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Plate", "4/3"], ["R_Fluid", "12/5"], ["R_Gadget", "2"]],
+        "targets": {"Desc_SolveGadget_C": "20"},
+        "raw_inputs": {"Desc_SolveOre_C": "64"},
+        "byproducts": {"Desc_SolveResidue_C": "20"}
+      },
+      "why": "Without R_Recover nothing consumes Residue, and sinkable lets it leave. a = 2 as before. Fluid 25c = 30*2 -> c = 12/5. Plate d = 4/3. Ore 10*12/5 + 30*4/3 = 24 + 40 = 64. Residue out 10 * 2 = 20 m3/min."
+    },
+    {
+      "name": "c3_gadget_20_balanced_no_recovery_is_unsolvable",
+      "registry": "main", "direction": "targets", "policy": "balanced",
+      "targets": {"Desc_SolveGadget_C": "20"},
+      "recipes": ["R_Plate", "R_Fluid", "R_Gadget"], "raw_items": ["Desc_SolveOre_C"],
+      "raises": {"type": "UnsolvableChain", "item": "Desc_SolveResidue_C"},
+      "why": "Balanced forces Residue net 10a = 0 while the target forces 10a = 20: no plan at any scale. Striking either the Residue row or the Gadget row makes it consistent; balance rows are built before target rows, so the named item is Residue."
+    },
+    {
+      "name": "c9_rich_recovery_runs_fluid_backwards",
+      "registry": "rich_recovery", "direction": "targets", "policy": "balanced",
+      "targets": {"Desc_SolveGadget_C": "20"},
+      "recipes": ["R_Plate", "R_Fluid", "R_Gadget", "R_RecoverRich"], "raw_items": ["Desc_SolveOre_C"],
+      "raises": {"type": "InfeasibleChain", "recipe": "R_Fluid", "machines": "-6/5"},
+      "why": "R_RecoverRich 2000 L Residue -> 9000 L Fluid in 4 s = Residue -30, Fluid +135 per machine per min. a = 2, b = 2/3 as in C3; Fluid -60 + 135*2/3 + 25c = 0 -> 30 + 25c = 0 -> c = -6/5. In variable (registry) order R_Plate is 4/3, so R_Fluid is the first negative count."
+    },
+    {
+      "name": "c4_supply_ore_45",
+      "registry": "main", "direction": "supply", "policy": "balanced",
+      "supply": {"Desc_SolveOre_C": "45"}, "target_item": "Desc_SolveGadget_C",
+      "recipes": ["R_Gadget", "R_Recover", "R_Fluid", "R_Plate"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Plate", "1"], ["R_Fluid", "3/2"], ["R_Gadget", "3/2"], ["R_Recover", "1/2"]],
+        "targets": {"Desc_SolveGadget_C": "15"},
+        "raw_inputs": {"Desc_SolveOre_C": "45"},
+        "byproducts": {}
+      },
+      "why": "C3 spends 60 Ore for 20 Gadget, so one Gadget costs 3 Ore and the cap buys 45/3 = 15 Gadget/min: every C3 count scaled by 3/4 -> d = 1, c = 3/2, a = 3/2, b = 1/2."
+    },
+    {
+      "name": "c2_supply_ore_7",
+      "registry": "main", "direction": "supply", "policy": "balanced",
+      "supply": {"Desc_SolveOre_C": "7"}, "target_item": "Desc_SolveFluid_C",
+      "recipes": ["R_Fluid"], "raw_items": ["Desc_SolveOre_C"],
+      "expected": {
+        "steps": [["R_Fluid", "7/10"]],
+        "targets": {"Desc_SolveFluid_C": "35/2"},
+        "raw_inputs": {"Desc_SolveOre_C": "7"},
+        "byproducts": {}
+      },
+      "why": "One machine turns 10 Ore into 25 m3 per min, so one m3 costs 2/5 Ore and 7 Ore buys 7 / (2/5) = 35/2 m3/min, from (35/2)/25 = 7/10 machines."
+    },
+    {
+      "name": "c3_supply_of_an_unconsumed_item_is_unbounded",
+      "registry": "main", "direction": "supply", "policy": "balanced",
+      "supply": {"Desc_SolveRare_C": "45"}, "target_item": "Desc_SolveGadget_C",
+      "recipes": ["R_Gadget", "R_Recover", "R_Fluid", "R_Plate"], "raw_items": ["Desc_SolveOre_C"],
+      "raises": {"type": "UnboundedSupply"},
+      "why": "No selected recipe consumes Rare, so the cap constrains nothing and every Gadget rate satisfies the request."
+    }
+  ]
+}
