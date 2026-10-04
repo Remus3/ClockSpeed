@@ -282,9 +282,19 @@ def test_the_scratch_directory_is_inside_the_git_directory_and_removed(tmp_path:
 
 
 def rendered_leak(text: str) -> bool:
-    """Whether ``text`` carries the home directory or the interpreter's path."""
-    folded = text.lower()
-    return str(Path.home()).lower() in folded or sys.executable.lower() in folded
+    """Whether ``text`` carries the home directory or the interpreter's path, in ANY spelling.
+
+    Both sides are folded the same way - every backslash to a forward slash, and
+    case-insensitive, which covers the drive letter - so a ``Path.as_posix()``
+    rendering of a home path is caught as surely as the native one (CS-1267
+    adversary: the native spelling alone let a forward-slash leak pass green).
+    """
+
+    def fold(value: str) -> str:
+        return value.replace("\\", "/").casefold()
+
+    folded = fold(text)
+    return any(fold(str(needle)) in folded for needle in (Path.home(), sys.executable))
 
 
 def test_a_child_that_will_not_die_exits_two_and_renders_no_path(
@@ -1034,10 +1044,15 @@ def test_a_genuine_cleanup_failure_fails_the_run_and_names_the_path(
     (scratch,) = seen
     named = f".git/flip-checks/{scratch.name}" in out
     leaked = rendered_leak(out)
+    marker = "could not be removed - "
+    rendered = [line.split(marker, 1)[1] for line in out.splitlines() if marker in line]
+    # Bound to a scalar, so a failing arm never renders the path it compared.
+    relative = rendered == [f".git/flip-checks/{scratch.name}"]
     assert code == flip.EXIT_FAIL
     assert scratch.exists()
     assert named
     assert not leaked
+    assert relative
 
 
 def test_the_doc_sweep_control_adds_a_finding(tmp_path: Path) -> None:
