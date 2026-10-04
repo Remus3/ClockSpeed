@@ -74,6 +74,39 @@ machine-checked artifact that produces it.
 ---
 
 ## Entries
+### 2026-10-04 - CS-1239 - a hand-derived golden corpus for ratio, clock and power math, and one half-even display-rounding policy
+Verification: `clockspeed/solve/exact.py::display_decimal` and `DISPLAY_ROUNDING`, tests
+`tests/solve/test_golden.py` over `tests/solve/golden/` and
+`tests/solve/test_display_rounding.py::test_flipping_the_mode_reddens_exactly_the_named_tie_cases`.
+Rounding is exact integer arithmetic, never float or Decimal, so a value just above a tie
+rounds up. Adversary pass NOT REFUTED (differential check against high-precision
+quantize, eight display mutants killed, goldens re-derived by hand). RESIDUAL, filed to
+`BACKLOG.md`: the plan-power goldens total in the test rather than through the optimizer's
+own total, and an unknown clock-case kind falls through to the ceiling check.
+
+### 2026-10-04 - CS-1237 - a fixed-order constraint-relaxation ladder over the optimizer, with a structured relaxation record
+Verification: `clockspeed/solve/relax.py::RELAXATION_LADDER` and
+`optimize_with_relaxation`, tests `tests/solve/test_relax.py::test_the_ladder_order_is_one_pinned_table`,
+`test_the_first_relaxed_constraint_is_the_first_rung_that_applies`,
+`test_a_feasible_request_produces_no_relaxation_record`, `test_two_runs_agree`,
+`test_every_numeric_leaf_is_an_exact_fraction`. Two rungs exist today - byproduct
+policy balanced to sinkable, then admitting locked candidates - applied cumulatively and
+stopping at the first feasible prefix; only `NoFeasibleSelectionError` is relaxed. Lands in
+`solve/` because `progress/` and `advisor/` hold no code; the record is what the advisor
+trace will project. Adversary pass NOT REFUTED. RESIDUAL, filed to `BACKLOG.md`: the narrow
+catch and a multi-recipe admit record are correct but unpinned by a test.
+
+### 2026-10-04 - CS-1235 - a nominal item-flow audit, and the round-trip proof that a solved plan audits clean
+Verification: `clockspeed/audit/flow.py::flow_of`, tests `tests/audit/test_flow.py` and
+`tests/audit/test_round_trip.py::test_a_solved_plan_audits_clean`,
+`test_dropping_one_machine_reddens_and_names_its_recipe`. The materialiser is the test
+helper `tests/audit/plan_world.py`, never product code, because a materialised world is
+invented rather than measured. Adversary pass REFUTED one clause - the power divergence was
+pinned but not filed - and the merger filed it as CS-1263 in the same change; the other
+findings were non-blocking. RESIDUAL, filed to `BACKLOG.md`: a lone-machine shortfall
+reddens but names the item rather than the recipe; repeated item keys within one recipe are
+unexercised.
+
 
 ### 2026-10-04 - CS-1228 - the tier2 full suite checks out full history and its windows legs finish inside their cutoffs
 Verification: `tests/test_full_history_checkouts.py`, which pins `fetch-depth: 0` on the

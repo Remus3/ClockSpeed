@@ -68,7 +68,6 @@ seen as a new world rather than failing.
 
 every rule has a synthetic-fixture test, the unmet-precondition invariant holds under a property test over generated world states, a card id is stable across a save reload, and tier 3 is generated from the trace and cannot be authored by hand
 
-
 ## Wave 2 - the pre-dispatch spec check, filed 2026-09-14
 
 **THESE FIVE WERE SPEC-CHECKED BEFORE DISPATCH AND THE CHECK FOUND REAL DEFECTS.** Sibling
@@ -190,7 +189,6 @@ a new arm module under `tests/audit/` builds a synthetic world of two machines j
 
 nothing can say which belt feeds which machine or which connections share a power circuit: CS-1041's line named both and its acceptance graded neither, and `clockspeed/audit/network.py` therefore hardcodes `belt_topology_available` and `circuit_topology_available` False, which CS-1045 then had to derive its own edge availability from - so two closed items both declare the same absence and no item owns it
 
-
 ## CS-1059
 
 ### Filed 2026-09-14
@@ -219,7 +217,6 @@ a new arm module under `tests/audit/` asserts generated power is the exact Fract
 ### Full headline
 
 the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field and no extractor for generated power anywhere, so it publishes `production_available` False with a warning rather than a zero, and the headline comparison the item promised has one side
-
 
 ## CS-1043
 
@@ -267,7 +264,6 @@ a new arm module under `tests/progress/` builds a synthetic schematic document a
 ### Full headline
 
 `clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all, so the project cannot name one milestone, its cost, its tier or a space elevator phase cost, which is the whole of the milestone requirements panel
-
 
 ## CS-1048
 
@@ -337,7 +333,6 @@ a new arm module under `tests/advisor/` asserts an annotated purity is never rep
 
 node purity is structurally absent from every save and the in-game map is rendered live rather than shipped, so the underlay and the purity variant have no derivation and the only dishonest move available is to invent one, and nothing records an operator's own knowledge of a node - THE FOG AND UNDERLAY HALF WAS SPLIT OUT TO CS-1061 IN SESSION 95 because its subject is absent from the code and its registration clause has nothing to register without it
 
-
 ## CS-1061
 
 ### Filed 2026-09-14, split out of CS-1048
@@ -399,7 +394,6 @@ the raster crosses the save seam by whichever route is adjudicated, a new arm mo
 
 the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square but has ZERO hits in any shipped module, it does not cross the save seam, and `clockspeed/save/world.py` fences every published world type off `bytes` and `Path` fields with a stated reason - a retained payload is the one thing no higher layer may hold - graded by `tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field`, so an arm over synthetic bytes injected past that seam would be a statement about the fixture and never about the save - THE SEAM QUESTION COMES FIRST AND IS A DESIGN DECISION FOR AN ADJUDICATOR, not an implementation: either the raster is carried by a published type that is not a world property value, or the fence is amended for this one carrier with a named reason and its arm updated in the same diff, and IT IS NEVER QUIETLY WIDENED
 
-
 ## CS-1064
 
 ### NOTE - filed 2026-09-14 under CS-301
@@ -425,16 +419,6 @@ the balance publishes a bounded total whose low and high ends are the exact Frac
 
 `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP, but CS-301 made both shapes BOUNDED, so the world consumption total drops three of the largest loads in the game while a narrower answer now exists
 
-## CS-1235
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: `clockspeed/audit/` has NO item-flow audit at HEAD - `balance.py` sums declared draw over built counts and is clock-blind - so this item builds the nominal item-flow audit the round trip needs. The materialiser lives outside `solve/` so `solve/` never imports `save/` or `audit/`.
-
-### Acceptance
-
-a nominal item-flow audit over built machines (recipe and exact clock) exists in `clockspeed/audit/`, flags and skips an unknown recipe or an unread clock with a named warning, and a parametrised test over the synthetic solve corpus materialises each solved plan and finds zero deficits with net rates equal to the plan's targets, raw inputs and byproducts; a planted one-machine shortfall reddens it and the finding names that recipe; the solver's power figure and the audit's draw are compared exactly, and any divergence is pinned by a test and filed rather than absorbed
-
 ## CS-1236
 
 ### Filed 2026-10-04 by the inspiration ingest
@@ -444,16 +428,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 an overlay of edits (add N machines of a recipe at a clock, swap a recipe, remove a group, raise a target) round-trips through the API; the same save plus the same overlay gives byte-identical output on two runs; a test asserts no file under the save or install directory changes mtime during an overlay evaluation; once CS-500's trace exists the tier-3 derivation names each overlay edit as a trace step
-
-## CS-1237
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: `clockspeed/progress/` holds no router (CS-1043) and the advisor holds no trace, so the ladder lands in `solve/` over the constraints `OptimizeRequest` carries today and returns a structured relaxation record that the advisor trace projects later. Power cap, node subset and clock ceiling rungs join when those constraints exist.
-
-### Acceptance
-
-an infeasible request produces a plan plus a record naming the first relaxed constraint; the ladder order is ONE data table pinned by a test that reddens on reorder; a feasible request produces no relaxation record; two runs agree; every numeric leaf is an exact Fraction
 
 ## CS-1238
 
@@ -465,15 +439,13 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 enumerating the audit warning codes yields a minimal synthetic fixture for every code in which that code fires, asserted; a code without one is a failing test, and removing one fixture reddens exactly one test that names the code; the same holds for every advisor rule id once CS-500's registry exists
 
-## CS-1239
+### Audit half measured 2026-10-04
 
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: no display-rounding function exists anywhere at HEAD; the wire carries exact rationals. Goldens are hand-derived, never pasted from a run.
-
-### Acceptance
-
-a synthetic JSON corpus of hand-derived cases for ratio solve, clock math and power math asserts exact Fraction outputs of type Fraction; one display-rounding function with one documented mode carries parity cases at every half-step boundary that fail when the mode is flipped
+The AUDIT HALF is met: `tests/audit/test_every_warning_fires.py` derives the audit warning
+set from the package and fires every code from a synthetic fixture, and dropping one entry
+reddens exactly the arm naming that code. It surfaced one code no test fired before,
+`WARN_FOOTPRINT_EXTENT_UNAVAILABLE`. The ADVISOR-RULE half stays OPEN until CS-500's rule
+registry exists; that is the only reason this item is not closed.
 
 ## CS-1240
 
@@ -614,3 +586,21 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
+
+## CS-1263
+
+### Filed 2026-10-04 by CS-1235's round trip
+
+`clockspeed/audit/balance.py::draw_of` prices each built class at its declared reference
+draw times the BUILT count and never reads a clock, while the solver prices a step at its
+fractional machine count. Over a materialised plan the audit exceeds the solver by exactly
+`sum(draw * (ceil(m) - m))` - 24 against 20 MW on the C1 chain at 50 per minute - and the two
+agree only on all-integral plans. Pinned, not repaired, at
+`tests/audit/test_round_trip.py`. NEITHER FIGURE IS PHYSICAL: an underclocked machine draws
+`draw * clock ** exponent`, which `clockspeed/solve/power.py::draw_at_clock` reports as
+deferred, so the honest answer is a bounded interval, which is CS-1064's territory. Do not
+close this by making the audit read fractional machines - a world has whole machines.
+
+### Acceptance
+
+the audit's draw reads each machine's clock and publishes the clock-scaled draw as an exact value where the power law yields one and as a named bound where it does not, and the round-trip power arm compares like with like: the pinned divergence test is replaced by an equality or bound check that reddens when the clock is ignored

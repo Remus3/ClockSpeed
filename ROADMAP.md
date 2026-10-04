@@ -276,11 +276,8 @@ CS-1059 - the power panel is production versus consumption and only consumption 
 CS-1048 - node purity is structurally absent from every save and the in-game map is rendered live rather than shipped - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1061 - the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1064 - `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1235 - plan round-trip proof: a solved plan, materialised as a synthetic world, must audit clean - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never written back - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1237 - a fixed-order constraint-relaxation ladder when the planner finds no feasible plan - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1238 - every check proves it can go red: a planted firing fixture per audit warning, and per advisor rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1239 - golden-case corpus for ratio, clock and power math, and one pinned display-rounding policy - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1240 - unknown content: stable-id keying, one normalised fallback, and an Unmodelled Content panel - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -295,6 +292,7 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1263 - the audit's world draw is clock-blind, so it disagrees with the solver's power figure on every fractional plan - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

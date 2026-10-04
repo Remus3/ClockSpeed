@@ -333,3 +333,12 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   trajectories, never one side; a retired route or surface is announced in
   `docs/OPERATIONS.md`; an API route census test; README states measured save sizes and
   target distances from the census.
+- Ingest residuals, adversary findings below blocking - TRIGGER: the owning module is next
+  touched: CS-1235 - a lone-machine shortfall names the item but not the recipe (the flow
+  audit could name candidate producers from the recipe mapping), and repeated item keys or
+  an item on both sides of one recipe are unexercised; CS-1237 - pin by test that caller
+  errors (ValueError, ObjectiveUndefinedError, PowerNotComparableError,
+  SearchSpaceTooLargeError) pass the ladder unrelaxed, and that a multi-recipe admit records
+  every admitted recipe in registry order; CS-1239 - grade the plan-power goldens through the
+  optimizer's own total, refuse an unknown clock-case kind, and add tie cases beyond three
+  places and just below a tie.
