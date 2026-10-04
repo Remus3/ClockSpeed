@@ -13,14 +13,13 @@ denominator is the defect this item exists to avoid rather than a lesser version
 of the fix.
 
 WHAT THIS MODULE DELIBERATELY DOES NOT ASSERT is that a real save yields a
-total. Measured and recorded in ``docs/LEDGER.md`` and ``docs/GATED.md``: no
-building record carries an ``InventoryStack`` - a building holds an
-``ObjectProperty`` REFERENCE to a separate record - and a ``StructProperty``
-element inside a container is bounded, typed and deliberately NOT decoded
-(``clockspeed/save/objects.py`` ``ContainerElement.value``). The recognition
-vocabulary this layer owns is therefore graded against synthetic containers of
-the shape it claims to read, and the warning that says a real world may yield
-nothing is graded too.
+total. That is the save layer's phase-4 depth gate's claim, not this layer's.
+Here a building is a synthetic record whose published reference target (CS-400,
+``clockspeed.save.world.ReferenceTarget``) names a synthetic carrier record
+holding ``InventoryStack`` interiors in the save's own spelling - ``Item`` as a
+decoded ``objects.InventoryItem`` and ``NumItems`` as an int - so the per-building
+view, the three ``Item`` states and every exclusion reason are graded on the
+shape the save layer publishes, with no save and no install.
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ from types import MappingProxyType
 
 from clockspeed.audit import inventory
 from clockspeed.save import objects
+from clockspeed.save import world as world_layer
 from clockspeed.save.header import SaveHeader
 from clockspeed.save.world import (
     EMPTY_UNLOCK_STATE,
@@ -308,22 +308,47 @@ def test_a_boolean_count_is_not_an_integer_count() -> None:
     assert inventory.WARN_INVENTORY_TOTAL_EMPTY in [warning.code for warning in result.warnings]
 
 
-def test_a_struct_missing_either_half_of_the_pair_contributes_nothing() -> None:
+def test_a_struct_missing_either_half_of_the_pair_is_excluded_by_reason() -> None:
+    # BOTH HALVES OR NEITHER, and the half that is missing is COUNTED: a count
+    # with no Item tag is the ADJ-G Q4 third state, and an Item with no count
+    # says nothing about how much. Neither contributes and neither vanishes.
     lonely_key = objects.StructValue(
         struct_word="SyntheticInventoryStack",
         form=objects.STRUCT_FORM_TAG_LIST,
-        properties=MappingProxyType({"ItemClass": "Desc_OreIron_C"}),
+        properties=MappingProxyType({"Item": item("/Game/Synthetic/Desc_OreIron.Desc_OreIron_C")}),
     )
     lonely_count = objects.StructValue(
         struct_word="SyntheticInventoryStack",
         form=objects.STRUCT_FORM_TAG_LIST,
-        properties=MappingProxyType({"Amount": 12}),
+        properties=MappingProxyType({"NumItems": 12}),
     )
     model = world(
         by_record_index={0: entry({"mSyntheticStacks": container(lonely_key, lonely_count)})}
     )
 
-    assert inventory.inventory_of(model).items == ()
+    result = inventory.inventory_of(model)
+
+    assert result.items == ()
+    assert result.excluded == (
+        (inventory.EXCLUDED_COUNT_UNREAD, 1),
+        (inventory.EXCLUDED_ITEM_ABSENT, 1),
+    )
+
+
+def test_the_docs_blob_spelling_is_not_read_as_a_save_stack() -> None:
+    # ItemClass / Amount is the SHIPPED DOCS BLOB's grammar, never measured in a
+    # save. A struct carrying only those names is not a stack at all here.
+    docs_shaped = objects.StructValue(
+        struct_word="SyntheticInventoryStack",
+        form=objects.STRUCT_FORM_TAG_LIST,
+        properties=MappingProxyType({"ItemClass": "Desc_OreIron_C", "Amount": 12}),
+    )
+    model = world(by_record_index={0: entry({"mSyntheticStacks": container(docs_shaped)})})
+
+    result = inventory.inventory_of(model)
+
+    assert result.items == ()
+    assert result.stack_count == 0
 
 
 def test_an_empty_item_key_is_refused_rather_than_totalled_under_a_blank() -> None:
@@ -331,11 +356,14 @@ def test_an_empty_item_key_is_refused_rather_than_totalled_under_a_blank() -> No
     # object path. Keying a total by "" would pool every unresolved reference in
     # the world into one row that looks like a real item.
     unresolved = objects.ObjectReference(
-        property_name="ItemClass", level_reference=PATH_MARKER, object_path=""
+        property_name="Item", level_reference=PATH_MARKER, object_path=""
     )
     model = world(by_record_index={0: entry({"mSyntheticStacks": container(stack(unresolved, 6))})})
 
-    assert inventory.inventory_of(model).items == ()
+    result = inventory.inventory_of(model)
+
+    assert result.items == ()
+    assert result.excluded == ((inventory.EXCLUDED_COUNT_DISAGREES, 1),)
 
 
 def test_the_unread_payload_count_travels_as_the_honest_denominator() -> None:
@@ -538,6 +566,515 @@ def test_the_recognition_vocabularies_are_closed_frozensets() -> None:
     assert type(inventory.ITEM_COUNT_PROPERTY_NAMES) is frozenset
     assert frozenset() != inventory.ITEM_KEY_PROPERTY_NAMES
     assert frozenset() != inventory.ITEM_COUNT_PROPERTY_NAMES
+
+
+# ---------------------------------------------------------------------------
+# CS-400 S3 - per-building inventory through the published join, save spelling
+# ---------------------------------------------------------------------------
+
+#: The save's own spelling, measured by CS-400 S0 over the local library: an
+#: ``InventoryStack`` interior carries ``Item`` (a native ``InventoryItem``) and
+#: ``NumItems`` (an int). Restated here as literals ON PURPOSE - an arm that read
+#: the names back off the module under test could not catch a wrong spelling.
+SAVE_ITEM_NAME = "Item"
+SAVE_COUNT_NAME = "NumItems"
+
+ORE_PATH = "/Game/Synthetic/Desc_SyntheticOre.Desc_SyntheticOre_C"
+ORE_KEY = "Desc_SyntheticOre_C"
+PLATE_PATH = "/Game/Synthetic/Desc_SyntheticPlate.Desc_SyntheticPlate_C"
+PLATE_KEY = "Desc_SyntheticPlate_C"
+
+BUILDING_CLASS_PATH = "/Game/Synthetic/Build_SyntheticStore.Build_SyntheticStore_C"
+BUILDING_CLASS = "Build_SyntheticStore_C"
+COMPONENT_CLASS_PATH = "/Script/Synthetic.SyntheticInventoryComponent"
+
+
+def item(class_path: str, *, state_undecoded: bool = False) -> objects.InventoryItem:
+    """Build one decoded native ``Item`` the way the save layer publishes it.
+
+    Args:
+        class_path: The item class path; empty for an empty slot.
+        state_undecoded: Whether item state was present and left undecoded.
+
+    Returns:
+        The item.
+    """
+    return objects.InventoryItem(
+        level_reference="", class_path=class_path, state_undecoded=state_undecoded
+    )
+
+
+def save_stack(**values: object) -> objects.StructValue:
+    """Build one ``InventoryStack`` interior holding exactly the given tags.
+
+    Args:
+        values: The interior's properties by name. A name left out is a tag the
+            save did not write, which is the item-absent state.
+
+    Returns:
+        The struct value.
+    """
+    return objects.StructValue(
+        struct_word="InventoryStack",
+        form=objects.STRUCT_FORM_TAG_LIST,
+        properties=MappingProxyType(dict(values)),
+        depth=1,
+    )
+
+
+def full(class_path: str, count: int, **kwargs: bool) -> objects.StructValue:
+    """One stack carrying a decoded item and a count.
+
+    Args:
+        class_path: The item class path.
+        count: ``NumItems``.
+        kwargs: Forwarded to :func:`item`.
+
+    Returns:
+        The struct value.
+    """
+    return save_stack(**{SAVE_ITEM_NAME: item(class_path, **kwargs), SAVE_COUNT_NAME: count})
+
+
+def actor_record(type_path: str) -> objects.ObjectRecord:
+    """Build one synthetic record of the given class.
+
+    Args:
+        type_path: The record's class path.
+
+    Returns:
+        The record.
+    """
+    return objects.ObjectRecord(
+        kind=objects.KIND_ACTOR,
+        type_path=type_path,
+        root_object="Persistent_Level",
+        instance_name="Persistent_Level:PersistentLevel.Synthetic_0",
+        transform=None,
+        parent=None,
+        object_type=1,
+        was_placed_in_level=0,
+        body_offset=0,
+        body_length=0,
+    )
+
+
+def joined(
+    values: Mapping[str, object], targets: tuple[world_layer.ReferenceTarget, ...]
+) -> RecordProperties:
+    """Build one actor's properties carrying one reference per target.
+
+    Args:
+        values: The decoded property values.
+        targets: Where each reference landed, in reference order.
+
+    Returns:
+        The properties, with ``references`` and ``reference_targets`` aligned.
+    """
+    references = tuple(
+        objects.ObjectReference(
+            property_name="mSyntheticInventory",
+            level_reference="Persistent_Level",
+            object_path="Persistent_Level:PersistentLevel.Synthetic_0.Inventory" + str(position),
+        )
+        for position in range(len(targets))
+    )
+    return RecordProperties(
+        values=MappingProxyType(dict(values)),
+        schema_name="SyntheticSchema",
+        resolved=None,
+        payload_read=True,
+        references=references,
+        reference_targets=targets,
+    )
+
+
+def resolved(index: int) -> world_layer.ReferenceTarget:
+    """A reference resolved to exactly one record.
+
+    Args:
+        index: The target record index.
+
+    Returns:
+        The target.
+    """
+    return world_layer.ReferenceTarget(state=world_layer.TARGET_RESOLVED, record_indices=(index,))
+
+
+def building_world(
+    *stacks: object, targets: tuple[world_layer.ReferenceTarget, ...] = ()
+) -> WorldModel:
+    """A building at index 0 whose reference resolves to a carrier at index 1.
+
+    Args:
+        stacks: The carrier's ``mInventoryStacks`` element values.
+        targets: The building's reference targets; one resolving to 1 when empty.
+
+    Returns:
+        The model.
+    """
+    return world(
+        by_record_index={
+            0: joined({}, targets or (resolved(1),)),
+            1: entry({"mInventoryStacks": container(*stacks)}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), actor_record(COMPONENT_CLASS_PATH)),
+    )
+
+
+def rows_of(building: inventory.BuildingInventory) -> list[tuple[str, int]]:
+    """One building's item rows as (key, count) pairs.
+
+    Args:
+        building: The per-building view.
+
+    Returns:
+        The rows.
+    """
+    return [(total.item_key, total.count) for total in building.items]
+
+
+def test_a_building_reaching_two_stacks_yields_two_item_rows() -> None:
+    model = building_world(full(ORE_PATH, 300), full(PLATE_PATH, 45))
+
+    result = inventory.inventory_of(model)
+
+    assert len(result.buildings) == 1
+    building = result.buildings[0]
+    assert building.class_name == BUILDING_CLASS
+    assert rows_of(building) == [(ORE_KEY, 300), (PLATE_KEY, 45)]
+    assert [(total.item_key, total.count) for total in result.items] == [
+        (ORE_KEY, 300),
+        (PLATE_KEY, 45),
+    ]
+    assert inventory.WARN_INVENTORY_TOTAL_EMPTY not in [warning.code for warning in result.warnings]
+
+
+def test_the_recognition_vocabulary_is_the_save_spelling() -> None:
+    # Pinned by LITERAL: CS-400 S0 measured Item / NumItems on every
+    # mInventoryStacks element, and the docs-blob seed ItemClass / Amount
+    # matched nothing in a save.
+    assert frozenset({SAVE_ITEM_NAME}) == inventory.ITEM_KEY_PROPERTY_NAMES
+    assert frozenset({SAVE_COUNT_NAME}) == inventory.ITEM_COUNT_PROPERTY_NAMES
+
+
+def test_an_empty_slot_is_reported_as_empty_and_never_as_an_item() -> None:
+    model = building_world(full(ORE_PATH, 3), full("", 0), full("", 0))
+
+    result = inventory.inventory_of(model)
+
+    expected_empty = 2
+    expected_stacks = 3
+    assert rows_of(result.buildings[0]) == [(ORE_KEY, 3)]
+    assert result.buildings[0].empty_slot_count == expected_empty
+    assert result.buildings[0].stack_count == expected_stacks
+    assert result.buildings[0].excluded == ()
+    assert result.empty_slot_count == expected_empty
+    assert result.excluded == ()
+    assert [(total.item_key, total.count) for total in result.items] == [(ORE_KEY, 3)]
+
+
+def test_a_world_of_only_empty_slots_is_flagged_as_an_empty_total() -> None:
+    result = inventory.inventory_of(building_world(full("", 0)))
+
+    assert result.items == ()
+    assert result.empty_slot_count == 1
+    assert inventory.WARN_INVENTORY_TOTAL_EMPTY in [warning.code for warning in result.warnings]
+    assert inventory.WARN_INVENTORY_STACK_EXCLUDED not in [
+        warning.code for warning in result.warnings
+    ]
+
+
+def test_an_absent_item_is_flagged_item_absent_and_never_an_empty_slot() -> None:
+    # ADJ-G Q4: the THIRD state. A stack whose Item tag is missing altogether is
+    # neither an empty slot nor an unknown item.
+    absent = save_stack(**{SAVE_COUNT_NAME: 0})
+    model = building_world(full(ORE_PATH, 2), absent)
+
+    result = inventory.inventory_of(model)
+
+    assert result.empty_slot_count == 0
+    assert result.excluded == ((inventory.EXCLUDED_ITEM_ABSENT, 1),)
+    assert result.buildings[0].excluded == ((inventory.EXCLUDED_ITEM_ABSENT, 1),)
+    assert result.buildings[0].empty_slot_count == 0
+    assert rows_of(result.buildings[0]) == [(ORE_KEY, 2)]
+    served = [
+        (warning.code, warning.count)
+        for warning in result.warnings
+        if warning.code == inventory.WARN_INVENTORY_STACK_EXCLUDED
+    ]
+    assert served == [(inventory.WARN_INVENTORY_STACK_EXCLUDED, 1)]
+
+
+def test_an_undecoded_item_state_is_counted_and_the_item_still_contributes() -> None:
+    model = building_world(
+        full(ORE_PATH, 5, state_undecoded=True),
+        full(PLATE_PATH, 7),
+        full("", 0, state_undecoded=True),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_undecoded = 2
+    assert result.state_undecoded_count == expected_undecoded
+    assert result.buildings[0].state_undecoded_count == expected_undecoded
+    assert rows_of(result.buildings[0]) == [(ORE_KEY, 5), (PLATE_KEY, 7)]
+
+
+def test_each_save_layer_refusal_is_counted_under_its_own_reason_and_excluded() -> None:
+    ambiguous = save_stack(
+        **{
+            SAVE_ITEM_NAME: objects.InventoryItemRefusal(reason=objects.ITEM_FORM_AMBIGUOUS),
+            SAVE_COUNT_NAME: 4,
+        }
+    )
+    unclosed = save_stack(
+        **{
+            SAVE_ITEM_NAME: objects.InventoryItemRefusal(reason=objects.ITEM_FORM_UNCLOSED),
+            SAVE_COUNT_NAME: 9,
+        }
+    )
+    model = building_world(full(ORE_PATH, 1), ambiguous, unclosed, unclosed)
+
+    result = inventory.inventory_of(model)
+
+    expected_unclosed = 2
+    expected_excluded = 3
+    assert result.excluded == (
+        (objects.ITEM_FORM_AMBIGUOUS, 1),
+        (objects.ITEM_FORM_UNCLOSED, expected_unclosed),
+    )
+    assert result.buildings[0].excluded == result.excluded
+    assert result.buildings[0].excluded_count == expected_excluded
+    assert [(total.item_key, total.count) for total in result.items] == [(ORE_KEY, 1)]
+    assert result.total_count == 1
+
+
+def test_a_refusal_reason_outside_the_save_vocabulary_is_unrecognised() -> None:
+    planted = save_stack(
+        **{
+            SAVE_ITEM_NAME: objects.InventoryItemRefusal(reason="synthetic_unknown_reason"),
+            SAVE_COUNT_NAME: 1,
+        }
+    )
+
+    result = inventory.inventory_of(building_world(planted))
+
+    assert result.excluded == ((inventory.EXCLUDED_ITEM_UNRECOGNISED, 1),)
+
+
+def test_a_class_and_count_that_contradict_each_other_are_excluded() -> None:
+    model = building_world(full(ORE_PATH, 0), full("", 5), full(PLATE_PATH, -2))
+
+    result = inventory.inventory_of(model)
+
+    expected_disagreeing = 3
+    assert result.items == ()
+    assert result.empty_slot_count == 0
+    assert result.excluded == ((inventory.EXCLUDED_COUNT_DISAGREES, expected_disagreeing),)
+
+
+def test_an_unread_or_boolean_count_and_an_unreadable_item_are_excluded() -> None:
+    model = building_world(
+        save_stack(**{SAVE_ITEM_NAME: item(ORE_PATH), SAVE_COUNT_NAME: True}),
+        save_stack(**{SAVE_ITEM_NAME: item(ORE_PATH), SAVE_COUNT_NAME: "3"}),
+        save_stack(**{SAVE_ITEM_NAME: 42, SAVE_COUNT_NAME: 3}),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_unread = 2
+    assert result.items == ()
+    assert result.excluded == (
+        (inventory.EXCLUDED_COUNT_UNREAD, expected_unread),
+        (inventory.EXCLUDED_ITEM_UNRECOGNISED, 1),
+    )
+
+
+def test_every_exclusion_reason_is_in_the_closed_vocabulary() -> None:
+    assert type(inventory.STACK_EXCLUSION_REASONS) is frozenset
+    assert objects.ITEM_REFUSAL_REASONS <= inventory.STACK_EXCLUSION_REASONS
+    assert {
+        inventory.EXCLUDED_ITEM_ABSENT,
+        inventory.EXCLUDED_COUNT_UNREAD,
+        inventory.EXCLUDED_ITEM_UNRECOGNISED,
+        inventory.EXCLUDED_COUNT_DISAGREES,
+    } <= inventory.STACK_EXCLUSION_REASONS
+
+
+def test_an_unresolved_or_ambiguous_reference_is_counted_and_never_followed() -> None:
+    unresolved = world_layer.ReferenceTarget(state=world_layer.TARGET_UNRESOLVED, record_indices=())
+    ambiguous = world_layer.ReferenceTarget(
+        state=world_layer.TARGET_AMBIGUOUS, record_indices=(1, 2)
+    )
+    model = world(
+        by_record_index={
+            0: joined({}, (unresolved, ambiguous)),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 8))}),
+            2: entry({"mInventoryStacks": container(full(PLATE_PATH, 9))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(COMPONENT_CLASS_PATH),
+            actor_record(COMPONENT_CLASS_PATH),
+        ),
+    )
+
+    result = inventory.inventory_of(model)
+
+    assert result.buildings == ()
+    assert result.references_unresolved == 1
+    assert result.references_ambiguous == 1
+    assert result.references_resolved == 0
+    # The carriers are still in the world total: it never goes through the join.
+    assert [(total.item_key, total.count) for total in result.items] == [
+        (ORE_KEY, 8),
+        (PLATE_KEY, 9),
+    ]
+
+
+def test_targets_misaligned_with_their_references_are_never_followed() -> None:
+    misaligned = RecordProperties(
+        values=MappingProxyType({}),
+        schema_name="SyntheticSchema",
+        resolved=None,
+        payload_read=True,
+        references=joined({}, (resolved(1), resolved(1))).references,
+        reference_targets=(resolved(1),),
+    )
+    model = world(
+        by_record_index={
+            0: misaligned,
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 8))}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), actor_record(COMPONENT_CLASS_PATH)),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_unjoined = 2
+    assert result.buildings == ()
+    assert result.references_unjoined == expected_unjoined
+    assert result.references_resolved == 0
+
+
+def test_an_unknown_target_state_is_counted_unjoined_and_never_followed() -> None:
+    planted = world_layer.ReferenceTarget(state="synthetic_state", record_indices=(1,))
+
+    result = inventory.inventory_of(building_world(full(ORE_PATH, 1), targets=(planted,)))
+
+    assert result.buildings == ()
+    assert result.references_unjoined == 1
+
+
+def test_a_building_reaches_each_carrier_once_and_sums_two_carriers() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(1), resolved(2), resolved(1))),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 10))}),
+            2: entry({"mInventoryStacks": container(full(ORE_PATH, 5), full(PLATE_PATH, 1))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(COMPONENT_CLASS_PATH),
+            actor_record(COMPONENT_CLASS_PATH),
+        ),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_carriers = 2
+    expected_resolved = 3
+    building = result.buildings[0]
+    assert building.carriers_reached == expected_carriers
+    assert rows_of(building) == [(ORE_KEY, 15), (PLATE_KEY, 1)]
+    assert result.references_resolved == expected_resolved
+
+
+def test_a_carrier_named_by_two_buildings_is_counted_once_in_the_world_total() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(2),)),
+            1: joined({}, (resolved(2),)),
+            2: entry({"mInventoryStacks": container(full(ORE_PATH, 10))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(COMPONENT_CLASS_PATH),
+        ),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_buildings = 2
+    assert len(result.buildings) == expected_buildings
+    assert [rows_of(building) for building in result.buildings] == [
+        [(ORE_KEY, 10)],
+        [(ORE_KEY, 10)],
+    ]
+    assert [(total.item_key, total.count) for total in result.items] == [(ORE_KEY, 10)]
+
+
+def test_a_resolved_target_holding_no_stack_makes_no_building() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(1), resolved(7))),
+            1: entry({"mSomethingElse": 3}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), actor_record(COMPONENT_CLASS_PATH)),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_resolved = 2
+    assert result.buildings == ()
+    assert result.references_resolved == expected_resolved
+
+
+def test_a_building_beyond_the_record_table_gets_an_empty_class_name() -> None:
+    model = world(
+        by_record_index={
+            5: joined({}, (resolved(1),)),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 1))}),
+        },
+    )
+
+    result = inventory.inventory_of(model)
+
+    assert [building.class_name for building in result.buildings] == [""]
+
+
+def test_no_item_class_path_reaches_any_repr() -> None:
+    # Q7: an item class path is WORLD CONTENT for echo purposes. Only the
+    # reduced key may be published, and no repr renders even that.
+    planted_path = "/Game/" + PATH_MARKER + "/Desc_SyntheticOre.Desc_SyntheticOre_C"
+    model = building_world(full(planted_path, 2))
+
+    result = inventory.inventory_of(model)
+    walked = reachable(result)
+    leaked = sum(1 for value in walked if isinstance(value, str) and PATH_MARKER in value)
+    rendered = repr(result) + repr(result.buildings)
+
+    assert leaked == 0
+    assert PATH_MARKER not in rendered
+    assert ORE_KEY not in rendered
+    assert BUILDING_CLASS not in rendered
+
+
+def test_no_record_index_reaches_the_per_building_view() -> None:
+    model = world(
+        by_record_index={
+            RECORD_INDEX_MARKER: joined({}, (resolved(1),)),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 1))}),
+        },
+    )
+
+    result = inventory.inventory_of(model)
+    positions = sum(1 for value in reachable(result) if value == RECORD_INDEX_MARKER)
+
+    assert len(result.buildings) == 1
+    assert positions == 0
 
 
 def test_two_runs_over_one_model_return_equal_models() -> None:
