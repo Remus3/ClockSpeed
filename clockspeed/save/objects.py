@@ -231,6 +231,11 @@ __all__ = [
     "EXTENT_WIDTHS",
     "FIELD_NAMES",
     "GUID_BYTES",
+    "INVENTORY_ITEM_STRUCT_WORD",
+    "ITEM_FORM_AMBIGUOUS",
+    "ITEM_FORM_UNCLOSED",
+    "ITEM_REFUSAL_REASONS",
+    "ITEM_STATE_UNDECODED",
     "KIND_ACTOR",
     "KIND_COMPONENT",
     "LEVEL_TAIL_NONE",
@@ -290,6 +295,8 @@ __all__ = [
     "Collectable",
     "ContainerElement",
     "ContainerValue",
+    "InventoryItem",
+    "InventoryItemRefusal",
     "ItemList",
     "ItemListEntry",
     "ObjectBudgetExceededError",
@@ -326,6 +333,7 @@ __all__ = [
     "parse_object_headers",
     "parse_properties",
     "read_buildable_group_list",
+    "read_inventory_item",
     "read_item_list",
     "read_properties",
     "read_reference_list",
@@ -4201,6 +4209,88 @@ class StructValue:
         )
 
 
+#: THE ONE STRUCT WORD WHOSE NATIVE INTERIOR THIS MODULE READS - CS-400. It is a
+#: DISPATCH KEY naming ONE measured grammar, not a struct vocabulary defining a
+#: population (the CS-829 fence; ADJ-G Q5). Provenance: the game's shipped
+#: headers declare ``FInventoryItem`` with ``TStructOpsTypeTraits`` carrying
+#: ``WithSerializer = true`` (``FGInventoryComponent.h``), so it is written by
+#: its own serializer rather than as a tag list; the two byte forms read by
+#: :func:`read_inventory_item` were measured over the local library and close
+#: exactly at the tag's declared size on every site. :data:`STRUCT_FORM_NATIVE`
+#: stays OUT of :data:`STRUCT_FORMS_READ`: every other native word is still
+#: decoded nowhere.
+INVENTORY_ITEM_STRUCT_WORD: Final = "InventoryItem"
+
+#: Why an ``InventoryItem`` interior was refused - a CLOSED vocabulary. Both
+#: forms closing is :data:`ITEM_FORM_AMBIGUOUS`; neither closing is
+#: :data:`ITEM_FORM_UNCLOSED`. Neither is fatal: the refusal is published in the
+#: item's place and the enclosing interior counts it unmeasured.
+ITEM_FORM_AMBIGUOUS: Final = "item_form_ambiguous"
+ITEM_FORM_UNCLOSED: Final = "item_form_unclosed"
+ITEM_REFUSAL_REASONS: Final = frozenset({ITEM_FORM_AMBIGUOUS, ITEM_FORM_UNCLOSED})
+
+#: The closed-vocabulary flag a consumer counts an item under when its state -
+#: a NEW-form state block or a non-empty OLD-form legacy state actor - was
+#: present and left UNDECODED. Class and count stay readable beside it.
+ITEM_STATE_UNDECODED: Final = "item_state_undecoded"
+
+#: The path lead a NEW-form state struct reference must carry. A grammar check
+#: that can fail, not a vocabulary: the state struct is a script struct.
+_SCRIPT_STRUCT_LEAD: Final = "/Script/"
+
+
+@dataclass(frozen=True, repr=False)
+class InventoryItem:
+    """One decoded ``InventoryItem`` native interior - CS-400.
+
+    NOT AN :class:`ObjectReference`, and that is the point (ADJ-G S0-a). An item
+    class is not an object in the world: published as a reference it would enter
+    :attr:`PropertyResult.references` and every resolution population as a
+    permanently unresolved entry. It carries no position field.
+
+    ``repr`` WITHHOLDS BOTH STRINGS. The class path names world content and a
+    test runner reprs a value before a human chooses what to print.
+
+    Attributes:
+        level_reference: The class reference's first string - empty on every
+            measured site, carried rather than interpreted.
+        class_path: The item class path, empty for an empty slot. WORLD CONTENT.
+        state_undecoded: Whether item state was present and left undecoded -
+            counted under :data:`ITEM_STATE_UNDECODED`.
+    """
+
+    level_reference: str
+    class_path: str
+    state_undecoded: bool
+
+    def __repr__(self) -> str:
+        """Render lengths and the flag only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(level_reference_len={len(self.level_reference)}, "
+            f"class_path_len={len(self.class_path)}, "
+            f"state_undecoded={self.state_undecoded})"
+        )
+
+
+@dataclass(frozen=True)
+class InventoryItemRefusal:
+    """An ``InventoryItem`` interior that was refused, and why - CS-400.
+
+    Published in the item's place so a consumer can count the refusal by its
+    reason rather than mistake an absent item for an empty slot. Carries only a
+    word from :data:`ITEM_REFUSAL_REASONS`, so the default ``repr`` is safe.
+
+    Attributes:
+        reason: A member of :data:`ITEM_REFUSAL_REASONS`.
+    """
+
+    reason: str
+
+
 #: The type words whose VALUE encoding is measured and is therefore decoded.
 #: EVERY OTHER TYPE IS FLAGGED AND SKIPPED - non-negotiable 7 - and the ones
 #: seen in the library are recorded in :data:`UNMEASURED_PAYLOAD_REGIONS`
@@ -6087,6 +6177,131 @@ def _decode_struct_interior(
     )
 
 
+def _read_item_old_form(body: bytes, at: int, end: int) -> InventoryItem | None:
+    """Read the OLD ``InventoryItem`` form, or refuse it.
+
+    Class reference, then the legacy state-actor reference, then EXACTLY the
+    declared end. Every width is a string prefix; nothing is fitted.
+
+    Args:
+        body: The decompressed body.
+        at: The interior's first byte.
+        end: The first byte past the interior.
+
+    Returns:
+        The item, or None when the form does not close exactly at ``end``.
+    """
+    strings: list[str] = []
+    cursor = at
+    for _ in range(4):
+        read = _payload_text(body, cursor, end)
+        if read is None:
+            return None
+        strings.append(read[0])
+        cursor = read[1]
+    if cursor != end:
+        return None
+    return InventoryItem(
+        level_reference=strings[0],
+        class_path=strings[1],
+        state_undecoded=bool(strings[2] or strings[3]),
+    )
+
+
+def _read_item_state(body: bytes, at: int, end: int) -> bool:
+    """Whether a NEW-form state block reads and closes exactly at ``end``.
+
+    The state struct reference must name a ``/Script/`` struct, and the state
+    size must take the reading EXACTLY to the tag's declared end, where the
+    state's own tag list ends in the terminator - two prefixes agreeing. The
+    state bytes are not otherwise interpreted.
+
+    Args:
+        body: The decompressed body.
+        at: Just past the has-state flag.
+        end: The first byte past the interior.
+
+    Returns:
+        Whether the block closes.
+    """
+    level = _payload_text(body, at, end)
+    path = None if level is None else _payload_text(body, level[1], end)
+    if path is None or not path[0].startswith(_SCRIPT_STRUCT_LEAD):
+        return False
+    size_at = path[1]
+    if size_at + INT32_SIZE > end:
+        return False
+    (size,) = struct.unpack_from("<i", body, size_at)
+    terminator = struct.pack("<i", len(_PAYLOAD_TERMINATOR) + 1) + _PAYLOAD_TERMINATOR.encode()
+    terminator += b"\x00"
+    state_at = size_at + INT32_SIZE
+    return (
+        size >= len(terminator)
+        and state_at + size == end
+        and body[end - len(terminator) : end] == terminator
+    )
+
+
+def _read_item_new_form(body: bytes, at: int, end: int) -> InventoryItem | None:
+    """Read the NEW ``InventoryItem`` form, or refuse it.
+
+    Class reference, an int32 has-state flag of 0 or 1, and when it is 1 a
+    state block :func:`_read_item_state` bounds; then EXACTLY the declared end.
+
+    Args:
+        body: The decompressed body.
+        at: The interior's first byte.
+        end: The first byte past the interior.
+
+    Returns:
+        The item, or None when the form does not close exactly at ``end``.
+    """
+    level = _payload_text(body, at, end)
+    path = None if level is None else _payload_text(body, level[1], end)
+    if level is None or path is None or path[1] + INT32_SIZE > end:
+        return None
+    (has_state,) = struct.unpack_from("<i", body, path[1])
+    after = path[1] + INT32_SIZE
+    if has_state == 0 and after == end:
+        state = False
+    elif has_state == 1 and _read_item_state(body, after, end):
+        state = True
+    else:
+        return None
+    return InventoryItem(level_reference=level[0], class_path=path[0], state_undecoded=state)
+
+
+def read_inventory_item(body: bytes, at: int, end: int) -> InventoryItem | InventoryItemRefusal:
+    """Read one ``InventoryItem`` native interior under exactly one form - CS-400.
+
+    BOTH FORMS ARE TRIED AND EXACTLY ONE MUST CLOSE (ADJ-G S0-b). The form is not
+    chosen from any field outside the item's bytes. Both closing is refused as
+    :data:`ITEM_FORM_AMBIGUOUS` rather than one being picked; neither closing as
+    :data:`ITEM_FORM_UNCLOSED`. Nothing here raises, and no refusal carries a
+    byte or a string of the item.
+
+    Args:
+        body: The decompressed body.
+        at: The interior's first byte.
+        end: The first byte past the interior, from the tag's declared size.
+
+    Returns:
+        The decoded item, or the refusal and its reason.
+    """
+    if at < 0 or at > end or end > len(body):
+        return InventoryItemRefusal(reason=ITEM_FORM_UNCLOSED)
+    readings = [
+        reading
+        for reading in (_read_item_old_form(body, at, end), _read_item_new_form(body, at, end))
+        if reading is not None
+    ]
+    if len(readings) > 1:
+        return InventoryItemRefusal(reason=ITEM_FORM_AMBIGUOUS)
+    if not readings:
+        return InventoryItemRefusal(reason=ITEM_FORM_UNCLOSED)
+    return readings[0]
+
+
 def _decode_interior_tag(
     body: bytes,
     header: tuple[str, int, int, int | None, tuple[str, ...], str | None, bool | None],
@@ -6139,6 +6354,11 @@ def _decode_interior_tag(
         nested = named_struct if type_tree else _struct_word_of_tag(body, name_at, end)
         if nested is None:
             return (None, ())
+        # THE ONE NATIVE WORD READ - CS-400. Only when the tag declared native
+        # serialization or its grammar cannot state it (None); a tag saying
+        # False stays on the tag-list path below, unmeasured, never guessed.
+        if nested == INVENTORY_ITEM_STRUCT_WORD and native is not False:
+            return (read_inventory_item(body, value_at, value_at + size), ())
         return (
             _decode_struct_interior(
                 body, nested, value_at, value_at + size, depth + 1, type_tree=type_tree
@@ -6209,7 +6429,13 @@ def _walk_struct_tags(
         value, element_words = _decode_interior_tag(
             body, header, name[1], end, depth, type_tree=type_tree
         )
-        if value is not None:
+        if isinstance(value, InventoryItemRefusal):
+            # PUBLISHED AND COUNTED BOTH - CS-400. The refusal stands in the
+            # item's place so a consumer can tell it from an empty slot, and it
+            # is still unmodelled content to this interior's own counter.
+            decoded[name[0]] = value
+            unmeasured += 1
+        elif value is not None:
             decoded[name[0]] = value
         elif _refusal_is_unmodelled_content(header[0], element_words, native_serialize=header[6]):
             unmeasured += 1
@@ -8857,7 +9083,12 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "ELEMENT_SHAPE_SOLVED_WIDTH",
         "ELEMENT_SHAPE_UNIFORM_WIDTH",
         "GUID_BYTES",
+        "INVENTORY_ITEM_STRUCT_WORD",
+        "ITEM_FORM_AMBIGUOUS",
+        "ITEM_FORM_UNCLOSED",
         "INT32_SIZE",
+        "InventoryItem",
+        "InventoryItemRefusal",
         "KIND_ACTOR",
         "MAX_OBJECTS",
         "MAX_STRING_BYTES",
@@ -8887,6 +9118,7 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_PAYLOAD_TERMINATOR",
         "_RAW_SHAPE_ELEMENT_WORDS",
         "_REFERENCE_PARTS",
+        "_SCRIPT_STRUCT_LEAD",
         "_SOFT_OBJECT_TAIL_BYTES",
         "_SOLVED_WIDTH_CAP",
         "_TAG_EXTRA_STRINGS",
@@ -8912,6 +9144,9 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_open_container",
         "_payload_text",
         "_read_array_struct_tag",
+        "_read_item_new_form",
+        "_read_item_old_form",
+        "_read_item_state",
         "_read_tag_and_words",
         "_read_tag_header",
         "_read_type_name",
@@ -8923,6 +9158,7 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_struct_word_of_tag",
         "_walk_elements",
         "_walk_struct_tags",
+        "read_inventory_item",
     }
 )
 
