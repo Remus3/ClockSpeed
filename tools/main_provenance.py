@@ -96,9 +96,16 @@ did, pinned by measured parity arms:
 THE BYTES HASHED ARE THE FILE PLACED. A placed note is read through the
 inbox entry it was placed as, by ONE open; the open file must carry the
 note's identity, and a fresh stat of the entry afterwards must still name
-the opened file - otherwise ``note-unreadable``. ACCEPTED RESIDUAL: a file
-deleted and a new one given the SAME identity within that window (an inode
-reused) is not seen - identity is all one open and two stats can compare.
+the opened file - otherwise ``note-unreadable``. Identity alone cannot see a
+file deleted and a new one given the SAME identity: off Windows a freed inode
+number is commonly reissued to the very next file created (measured on
+ubuntu CI, CS-1232). So off Windows the note is PINNED - held open from
+before its identity is taken until the bytes are compared - and an inode
+that is still open is never freed, so no replacement can carry its number;
+the pin must carry the note's identity, else ``note-unreadable``. Windows
+needs no pin and takes none: its file index carries a sequence number, so a
+reused record is a new identity, and an open handle there would block the
+delete instead of witnessing it.
 
 ACCEPTED RESIDUAL: a detached HEAD on a commit no branch reaches is accepted as
 "MAIN's history", because the check asks what HEAD names and not how it got
@@ -552,7 +559,7 @@ def verify_main_note(
     return Verdict(ok=ok, reason=reason, digest=digest if ok else "")
 
 
-def _check(note: Path, config_path: Path, inbox_dir: Path) -> tuple[str, str]:
+def _steps(note: Path, config_path: Path, inbox_dir: Path, pin: int | None) -> tuple[str, str]:
     """Run every step in order; return the first refusal, or VERIFIED and the digest."""
     resolved = _main_root(config_path)
     if isinstance(resolved, str):
@@ -568,7 +575,17 @@ def _check(note: Path, config_path: Path, inbox_dir: Path) -> tuple[str, str]:
     if isinstance(blob, str):
         return blob, ""
     target = note if entry is None else entry
-    return _compare(target, resolved / OUTBOX_DIR / rel, blob, identity)
+    return _compare(target, resolved / OUTBOX_DIR / rel, blob, identity, pin)
+
+
+def _check(note: Path, config_path: Path, inbox_dir: Path) -> tuple[str, str]:
+    """Run every step with the note pinned where a pin is needed; see the module docstring."""
+    pin = _pin(note)
+    try:
+        return _steps(note, config_path, inbox_dir, pin)
+    finally:
+        if pin is not None:
+            os.close(pin)
 
 
 def _repository(root: Path) -> str | None:
@@ -607,6 +624,38 @@ def _locate(root: Path, rel: str, bundle: str) -> str | None:
     return None
 
 
+#: Whether a placed note must be pinned open across the check: off Windows a
+#: freed inode number is reissued, so identity alone cannot see a replacement.
+_PIN_NEEDED: Final = os.name != "nt"
+
+
+def _pin(note: Path) -> int | None:
+    """Hold ``note`` open where :data:`_PIN_NEEDED`; None where unneeded or unopenable.
+
+    Non-blocking, so a FIFO cannot hang the check, and never a controlling
+    terminal. The bytes are never read through the pin.
+    """
+    if not _PIN_NEEDED:
+        return None
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOCTTY", 0)
+    try:
+        return os.open(note, flags)
+    except OSError:
+        return None
+
+
+def _pinned(pin: int | None, identity: Identity) -> bool:
+    """Whether the pin holds the placed identity, or no pin is needed."""
+    if not _PIN_NEEDED:
+        return True
+    if pin is None:
+        return False
+    try:
+        return _identity(os.fstat(pin)) == identity
+    except OSError:
+        return False
+
+
 def read_note(path: Path) -> tuple[bytes, os.stat_result] | None:
     """Read ``path`` through ONE open; return its bytes and the open file's stat."""
     try:
@@ -625,13 +674,13 @@ def _still(path: Path, opened: os.stat_result) -> bool:
 
 
 def _compare(
-    note: Path, outbox_file: Path, blob: bytes, identity: Identity | None
+    note: Path, outbox_file: Path, blob: bytes, identity: Identity | None, pin: int | None
 ) -> tuple[str, str]:
     """Compare the working-tree file with the blob, then the note with the blob.
 
     ``identity`` is the placed note's identity, or None for a note outside the
     inbox; when given, the file opened must carry it and still be the file at
-    ``note``.
+    ``note``, and where a pin is needed ``pin`` must hold it.
 
     Returns:
         The reason, and on VERIFIED the SHA-256 hex of the note bytes hashed.
@@ -645,7 +694,9 @@ def _compare(
     read = read_note(note)
     if read is None:
         return NOTE_UNREADABLE, ""
-    if identity is not None and (_identity(read[1]) != identity or not _still(note, read[1])):
+    if identity is not None and (
+        not _pinned(pin, identity) or _identity(read[1]) != identity or not _still(note, read[1])
+    ):
         return NOTE_UNREADABLE, ""
     note_bytes = read[0]
     note_digest = hashlib.sha256(note_bytes).hexdigest()

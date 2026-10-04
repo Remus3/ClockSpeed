@@ -1642,6 +1642,40 @@ def test_the_opened_file_must_be_the_identified_note(
     assert ok is False
 
 
+def test_a_pinned_note_still_verifies(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    # CS-1232 POSIX: off Windows a freed inode number is reissued, so the note
+    # is held open across the check. The pin is forced on here so the branch
+    # POSIX takes is exercised on every platform: an untouched note verifies.
+    monkeypatch.setattr(provenance, "_PIN_NEEDED", True)
+    ok, reason, _digest = _verify_in(world)
+    assert reason == "verified"
+    assert ok is True
+
+
+def test_a_placed_note_that_cannot_be_pinned_is_refused(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Where a pin is needed and cannot be taken, a placed identity proves
+    # nothing about the bytes read, so the note is refused, never verified.
+    monkeypatch.setattr(provenance, "_PIN_NEEDED", True)
+    monkeypatch.setattr(provenance, "_pin", lambda _note: None)
+    ok, reason, _digest = _verify_in(world)
+    assert reason == "note-unreadable"
+    assert ok is False
+
+
+def test_a_pin_on_another_file_is_refused(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The pin must hold the PLACED identity: a pin taken on a different file
+    # (the note replaced between the pin and the identifying stat) is refused.
+    other = world.base / "cs1232_other_pin"
+    other.write_bytes(NOTE_BYTES)
+    monkeypatch.setattr(provenance, "_PIN_NEEDED", True)
+    monkeypatch.setattr(provenance, "_pin", lambda _note: os.open(other, os.O_RDONLY))
+    ok, reason, _digest = _verify_in(world)
+    assert reason == "note-unreadable"
+    assert ok is False
+
+
 def test_a_note_hardlinked_at_two_inbox_places_is_refused(bundle_world: World) -> None:
     w = bundle_world
     twin = _inbox(w) / BUNDLE_FILE
