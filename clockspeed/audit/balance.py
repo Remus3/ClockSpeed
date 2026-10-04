@@ -20,6 +20,21 @@ results of clockspeed.solve." ``Building`` is imported for its TYPE ONLY, under
 touches the registry: a caller supplies the mapping, which keeps the runtime
 dependency exactly one layer deep.
 
+THE CLOCKED DRAW (CS-1263) - A BRACKET, NOT A GUESS
+-----------------------------------------------------
+:func:`draw_of` prices BUILT COUNTS at the reference clock. A world's machines
+run at their own clocks, so :func:`clocked_draw_of` reads every
+``MachineState.overclock`` and prices each machine at it. The power law is
+``draw * clock ** exponent`` and the shipped exponent is not whole, so away from
+the reference clock the draw has no exact rational value -
+``clockspeed/solve/power.py::draw_at_clock`` defers it. The answer here is the
+EXACT BRACKET the law takes at the two whole exponents either side of the
+declared one, published as a named bound beside the exact value wherever the law
+does yield one (the reference clock, a whole exponent, a zero clock). A clock
+this reader never read is a NAMED GAP and never priced at one - a confident one
+is the confident zero one field over. Nothing here reads a fractional machine
+count: a world has whole machines.
+
 THE CONFIDENT ZERO IS THE FAILURE MODE THIS MODULE IS BUILT AGAINST
 ---------------------------------------------------------------------
 Non-negotiable 7 says unknown content is flagged and skipped, never silently
@@ -127,17 +142,24 @@ byte offset and not a path, and it names nothing an operator built.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.save.world import WorldWarning
+from clockspeed.solve.exact import audit_exact
 from clockspeed.solve.power import (
+    OUTCOME_DEFERRED,
+    OUTCOME_NOT_SCALABLE,
+    OUTCOME_UNDEFINED,
+    REFERENCE_CLOCK,
     SHAPE_RANGE_ONLY,
     SHAPE_UNDECLARED,
     SHAPE_VARIABLE,
     declared_draw,
+    draw_at_clock,
 )
 
 if TYPE_CHECKING:
@@ -149,22 +171,36 @@ if TYPE_CHECKING:
     from clockspeed.data.registry import Building
 
 __all__ = [
+    "BOUND_EXACT",
+    "BOUND_EXPONENT_BRACKET",
+    "BOUND_KINDS",
+    "CLOCKED_GAP_KINDS",
+    "GAP_CLOCK_UNREAD",
     "GAP_DRAW_INEXACT",
     "GAP_KINDS",
+    "GAP_LAW_INEXACT",
     "GAP_NO_REGISTRY_ENTRY",
     "SOURCE_BALANCE",
+    "WARN_BALANCE_CLOCKED_DRAW_BOUNDED",
+    "WARN_BALANCE_CLOCKED_DRAW_UNMODELED",
+    "WARN_BALANCE_CLOCK_UNREAD",
     "WARN_BALANCE_DRAW_UNMODELED",
     "WARN_BALANCE_MACHINE_STATE_UNREAD",
     "WARN_BALANCE_NOTHING_BUILT",
+    "WARN_BALANCE_NO_MACHINES_CLOCKED",
     "WARN_BALANCE_PRODUCING_UNAVAILABLE",
     "WARN_BALANCE_PRODUCTION_UNMODELED",
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE",
+    "ClockedContribution",
+    "ClockedGap",
     "DrawContribution",
     "DrawGap",
     "WorldBalance",
+    "WorldClockedDraw",
     "WorldDraw",
     "WorldStarvation",
     "balance_of",
+    "clocked_draw_of",
     "draw_of",
     "starvation_of",
 ]
@@ -196,6 +232,36 @@ GAP_KINDS: Final = frozenset(
     }
 )
 
+#: CS-1263. A machine whose clock this reader never read - the tag was absent,
+#: or ``clockspeed/audit/machines.py`` refused its value. NEVER PRICED AT ONE:
+#: one is the reference clock, and a machine nobody measured is not at it.
+GAP_CLOCK_UNREAD: Final = "clock-unread"
+
+#: CS-1263. The clock or the declared exponent is not exactly a ``Fraction``,
+#: so the power law cannot be applied without a float, and is not applied.
+GAP_LAW_INEXACT: Final = "law-inexact"
+
+#: The closed vocabulary of gap kinds :func:`clocked_draw_of` can publish: every
+#: kind :func:`draw_of` can, the two above, and
+#: ``clockspeed/solve/power.py``'s own outcome words for an entry that is not
+#: clock-scalable and a clock that has no real draw, carried verbatim.
+CLOCKED_GAP_KINDS: Final = GAP_KINDS | frozenset(
+    {GAP_CLOCK_UNREAD, GAP_LAW_INEXACT, OUTCOME_NOT_SCALABLE, OUTCOME_UNDEFINED}
+)
+
+#: A clocked group whose draw the power law yields EXACTLY - the reference clock,
+#: a whole exponent, or a zero clock under a positive one. Its two ends are equal.
+BOUND_EXACT: Final = "exact"
+
+#: A clocked group whose draw has no exact rational value, published as the
+#: exact bracket the law takes at the two whole exponents either side of the
+#: declared one. ``clock ** e`` is monotone in ``e`` for any positive clock, so
+#: the bracket holds for every exponent and orientation - see :func:`_bracket`.
+BOUND_EXPONENT_BRACKET: Final = "exponent-bracket"
+
+#: The closed vocabulary of bound kinds, published so a consumer can branch on it.
+BOUND_KINDS: Final = frozenset({BOUND_EXACT, BOUND_EXPONENT_BRACKET})
+
 #: This many BUILT ACTORS - not classes - contributed no number to the world
 #: draw. The consumption total below them is a lower bound and nothing more.
 WARN_BALANCE_DRAW_UNMODELED: Final = "balance-draw-unmodeled"
@@ -223,6 +289,22 @@ WARN_BALANCE_PRODUCTION_UNMODELED: Final = "balance-production-unmodeled"
 #: Raised whenever the network model declares the edge set unavailable.
 WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE: Final = "balance-upstream-cause-unavailable"
 
+#: CS-1263. This many machines carried no readable clock and are named gaps in
+#: the clocked draw - never priced at the reference clock.
+WARN_BALANCE_CLOCK_UNREAD: Final = "balance-clock-unread"
+
+#: CS-1263. This many machines contributed no number to the clocked draw for any
+#: reason other than an unread clock. Both clocked ends are floors.
+WARN_BALANCE_CLOCKED_DRAW_UNMODELED: Final = "balance-clocked-draw-unmodeled"
+
+#: CS-1263. This many machines run where the power law has no exact rational
+#: value, so the clocked draw is an exact bracket and not one number.
+WARN_BALANCE_CLOCKED_DRAW_BOUNDED: Final = "balance-clocked-draw-bounded"
+
+#: CS-1263. The machines model carried no machine at all, so the clocked draw is
+#: zero because there was nothing to price, not because anything was measured.
+WARN_BALANCE_NO_MACHINES_CLOCKED: Final = "balance-no-machines-clocked"
+
 #: One fixed line per gap kind this module OWNS. The other three kinds carry
 #: ``clockspeed/solve/power.py``'s own reason verbatim instead, so no line is
 #: written twice anywhere.
@@ -239,7 +321,47 @@ _GAP_REASON: Final[Mapping[str, str]] = MappingProxyType(
             " the solve path is forbidden outright; the value is refused rather than"
             " converted, because a conversion here would be exact and wrong"
         ),
+        GAP_CLOCK_UNREAD: (
+            "this machine's clock was never read - the tag was absent or its value was"
+            " refused - so it is not priced at all; pricing it at the reference clock"
+            " would be a confident one, exactly as wrong as a confident zero"
+        ),
+        GAP_LAW_INEXACT: (
+            "the clock or the declared exponent is not exactly a Fraction, so the power"
+            " law cannot be applied without a float and is not applied"
+        ),
     }
+)
+
+#: Why a machine at the reference clock is exact under any exponent, or none.
+_REFERENCE_CLOCK_REASON: Final = (
+    "at the reference clock the draw is the declared scalar; one raised to any power is"
+    " one, so no exponent is asked for and the draw is exact"
+)
+
+#: Why a clocked group is exact under a whole exponent away from the reference.
+_WHOLE_EXPONENT_REASON: Final = (
+    "the declared exponent is a whole number, so the power law is a finite product of"
+    " exact factors and the clock-scaled draw is exact"
+)
+
+#: Why a zero clock is exact under a positive exponent.
+_ZERO_CLOCK_REASON: Final = (
+    "a clock of zero raised to a positive exponent is zero, so the clock-scaled draw is"
+    " exactly zero"
+)
+
+#: Why a zero clock under a non-positive exponent has no draw.
+_ZERO_CLOCK_UNDEFINED_REASON: Final = (
+    "a clock of zero raised to an exponent that is not positive has no real value, so"
+    " the clock-scaled draw is undefined"
+)
+
+#: Why a clocked group is a bracket rather than one number.
+_BRACKET_REASON: Final = (
+    "the declared exponent is not whole, so the power law has no exact rational value at"
+    " this clock; the draw is bracketed by the same law at the two whole exponents either"
+    " side of the declared one, and both ends are exact"
 )
 
 #: One fixed line per warning code raised here. Keyed rather than formatted, so
@@ -278,6 +400,24 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " upstream cause cannot be named and the finding is a symptom rather than"
             " a whole audit; no proximity fallback is used, because a nearest"
             " neighbour renders a wrong answer that reads like a right one"
+        ),
+        WARN_BALANCE_CLOCK_UNREAD: (
+            "this many machines carried no readable clock, so they are named gaps in the"
+            " clocked draw and were never priced at the reference clock; both clocked"
+            " ends are floors"
+        ),
+        WARN_BALANCE_CLOCKED_DRAW_UNMODELED: (
+            "this many machines contributed no number to the clocked draw - no entry, no"
+            " modeled draw, no scalable law or no real value at their clock - and each is"
+            " named in the gap list by kind; both clocked ends are floors"
+        ),
+        WARN_BALANCE_CLOCKED_DRAW_BOUNDED: (
+            "this many machines run where the power law has no exact rational value, so"
+            " the clocked draw is an exact bracket and not one number"
+        ),
+        WARN_BALANCE_NO_MACHINES_CLOCKED: (
+            "the machines model carried no machine at all, so the clocked draw is zero"
+            " because there was nothing to price and never because anything was measured"
         ),
     }
 )
@@ -449,7 +589,10 @@ class WorldBalance:
     """Both halves of the power balance over one world, with what is absent named.
 
     Attributes:
-        draw: The consumption half.
+        draw: The consumption half, at the reference clock over built counts.
+        clocked_draw: The consumption half with every machine's own clock
+            applied (CS-1263) - the figure that compares like with like against
+            a solver plan.
         starvation: The inefficiency half.
         production_available: ALWAYS FALSE TODAY, and a FIELD rather than an
             omission - see the module docstring. Nothing in this project models
@@ -465,6 +608,7 @@ class WorldBalance:
     """
 
     draw: WorldDraw
+    clocked_draw: WorldClockedDraw
     starvation: WorldStarvation
     production_available: bool
     connected_edges_available: bool
@@ -615,6 +759,380 @@ def draw_of(placement: WorldPlacement, buildings: Mapping[str, Building]) -> Wor
     )
 
 
+@dataclass(frozen=True, repr=False)
+class ClockedContribution:
+    """One built class at one clock, with the clock-scaled draw behind it.
+
+    ONE GROUP PER (CLASS, CLOCK), so every machine in it has the same draw and
+    the per-machine ends are meaningful. Both ends are always populated and both
+    are exact Fractions: equal when :attr:`bound` is :data:`BOUND_EXACT`, and a
+    true bracket around an irrational draw when it is
+    :data:`BOUND_EXPONENT_BRACKET`.
+
+    ``repr`` renders the numbers and the bound kind and never the class name:
+    the class here is read off ``MachineState.class_name``, which
+    ``clockspeed/audit/machines.py`` checks against no closed set.
+
+    Attributes:
+        class_name: The machine's built class, as ``MachineState`` carries it.
+        clock: The clock every machine in the group runs at, exact.
+        machine_count: How many machines run that class at that clock.
+        bound: One of :data:`BOUND_KINDS`.
+        reason: One line naming why the draw is exact or bracketed.
+        lower_each: The low end of one machine's draw.
+        upper_each: The high end of one machine's draw.
+        lower_total: ``lower_each * machine_count``, exactly.
+        upper_total: ``upper_each * machine_count``, exactly.
+    """
+
+    class_name: str
+    clock: Fraction
+    machine_count: int
+    bound: str
+    reason: str
+    lower_each: Fraction
+    upper_each: Fraction
+    lower_total: Fraction
+    upper_total: Fraction
+
+    def __repr__(self) -> str:
+        """Render the numbers and the bound kind, and never the class name.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(clock={self.clock}, "
+            f"machine_count={self.machine_count}, bound={self.bound}, "
+            f"lower_total={self.lower_total}, upper_total={self.upper_total})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class ClockedGap:
+    """Machines of one class that contributed NO NUMBER to the clocked draw, by kind.
+
+    **NO MEGAWATTS FIELD, AND NO CLOCK FIELD.** The first for the reason
+    :class:`DrawGap` gives; the second because a refused clock may be a float,
+    and a gap must not carry the value it refused.
+
+    Attributes:
+        class_name: The machine's built class, as ``MachineState`` carries it.
+        machine_count: How many machines of that class landed here by this kind.
+        kind: One of :data:`CLOCKED_GAP_KINDS`.
+        reason: One line naming why.
+    """
+
+    class_name: str
+    machine_count: int
+    kind: str
+    reason: str
+
+    def __repr__(self) -> str:
+        """Render the count and the kind, and never the class name.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(machine_count={self.machine_count}, kind={self.kind})"
+
+
+@dataclass(frozen=True, repr=False)
+class WorldClockedDraw:
+    """The whole-world draw with every machine's clock applied, as an exact bracket.
+
+    THE MACHINES PARTITION INTO GROUPS AND GAPS WITH CONSERVATION:
+    ``sum(machine_count)`` over both equals :attr:`machines_considered`.
+
+    Attributes:
+        contributions: One group per (class, clock), sorted so two runs agree.
+        gaps: One entry per (class, kind), sorted the same way.
+        lower_megawatts: The exact sum of every group's low end.
+        upper_megawatts: The exact sum of every group's high end. Both are over
+            the groups alone, so both are FLOORS of their own kind whenever
+            :attr:`gaps` is non-empty.
+        exact: Whether the two ends are one number: no group is bracketed and
+            no machine is a gap.
+        complete: Whether every machine landed in a group.
+        machines_considered: How many machines the input population held.
+        bounded_machine_count: How many machines sit in a bracketed group.
+        unread_clock_count: How many machines are :data:`GAP_CLOCK_UNREAD`.
+        unmodeled_machine_count: How many machines are any other gap kind.
+        warnings: Everything flagged, in the ``WorldWarning`` idiom.
+    """
+
+    contributions: tuple[ClockedContribution, ...]
+    gaps: tuple[ClockedGap, ...]
+    lower_megawatts: Fraction
+    upper_megawatts: Fraction
+    exact: bool
+    complete: bool
+    machines_considered: int
+    bounded_machine_count: int
+    unread_clock_count: int
+    unmodeled_machine_count: int
+    warnings: tuple[WorldWarning, ...]
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and nothing about any member.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(contributions={len(self.contributions)}, "
+            f"gaps={len(self.gaps)}, exact={self.exact}, complete={self.complete}, "
+            f"machines_considered={self.machines_considered}, "
+            f"bounded_machine_count={self.bounded_machine_count}, "
+            f"unread_clock_count={self.unread_clock_count}, "
+            f"unmodeled_machine_count={self.unmodeled_machine_count}, "
+            f"warnings={len(self.warnings)})"
+        )
+
+
+def _whole_power(base: Fraction, exponent: int) -> Fraction:
+    """Raise an exact base to a WHOLE exponent, exactly, without the ``**`` operator.
+
+    Square-and-multiply over the exponent's bits, so the work is logarithmic in
+    the exponent. ``Fraction ** Fraction`` returns a float for a non-whole
+    exponent (``clockspeed/solve/power.py`` records the measurement), and
+    keeping the operator out of this module entirely means no later edit can
+    hand one a Fraction exponent by accident.
+
+    Args:
+        base: The base. Must be non-zero when the exponent is negative; the one
+            caller guarantees it.
+        exponent: The whole exponent, of either sign.
+
+    Returns:
+        ``base`` raised to ``exponent``, exactly.
+    """
+    result = Fraction(1)
+    factor = base
+    remaining = abs(exponent)
+    while remaining:
+        if remaining & 1:
+            result *= factor
+        factor *= factor
+        remaining >>= 1
+    return result if exponent >= 0 else 1 / result
+
+
+def _bracket(clock: Fraction, exponent: Fraction) -> tuple[Fraction, Fraction]:
+    """The exact low and high ends of ``clock ** exponent`` for a positive clock.
+
+    ``clock ** x`` is monotone in ``x`` for every positive clock - falling for a
+    clock below one, rising above it - so its value at the declared exponent
+    lies between its values at the two whole exponents either side. Those two
+    are exact. Which is the low end flips at the reference clock, and taking the
+    minimum and maximum rather than assuming an order is what makes the overclock
+    case right.
+
+    Args:
+        clock: The clock, strictly positive and exact.
+        exponent: The declared exponent, exact and not whole.
+
+    Returns:
+        The low end and the high end, in that order.
+    """
+    below = _whole_power(clock, math.floor(exponent))
+    above = _whole_power(clock, math.ceil(exponent))
+    return min(below, above), max(below, above)
+
+
+#: One priced machine: ``(bound, reason, clock, lower_each, upper_each)``.
+_Priced = tuple[str, str, Fraction, Fraction, Fraction]
+
+#: One machine that is a gap: ``(kind, reason)``.
+_Refused = tuple[str, str]
+
+
+def _refusal(class_name: str, clock: object, entry: Building | None) -> _Refused | None:
+    """Name why one machine cannot be priced at its clock, or None when it can.
+
+    THE REGISTRY SIDE IS DECIDED FIRST, by :func:`_classify` - the same
+    function :func:`draw_of` uses - so the two draws can never disagree about
+    which entries are modeled. Only then is the clock read, and a clock never
+    read is a gap: it is not priced at the reference clock, which is the
+    confident one this module refuses for the same reason it refuses the
+    confident zero.
+
+    Args:
+        class_name: The machine's built class.
+        clock: The machine's clock as ``MachineState.overclock`` carries it.
+        entry: The registry entry, or None when the registry carries none.
+
+    Returns:
+        ``(kind, reason)`` for a gap, or None when :func:`_law` may price it.
+    """
+    bucket = _classify(class_name, 1, entry)
+    if isinstance(bucket, DrawGap):
+        return bucket.kind, bucket.reason
+    if clock is None:
+        return GAP_CLOCK_UNREAD, _GAP_REASON[GAP_CLOCK_UNREAD]
+    exponent = None if entry is None else entry.power_exponent
+    if type(clock) is not Fraction or (exponent is not None and type(exponent) is not Fraction):
+        return GAP_LAW_INEXACT, _GAP_REASON[GAP_LAW_INEXACT]
+    return None
+
+
+def _at_zero_clock(exponent: Fraction) -> _Priced | _Refused:
+    """Price a machine at a clock of exactly zero.
+
+    Args:
+        exponent: The declared exponent, exact.
+
+    Returns:
+        An exact zero under a positive exponent, and a named gap otherwise.
+    """
+    if exponent > 0:
+        return BOUND_EXACT, _ZERO_CLOCK_REASON, Fraction(0), Fraction(0), Fraction(0)
+    return OUTCOME_UNDEFINED, _ZERO_CLOCK_UNDEFINED_REASON
+
+
+def _law(entry: Building, clock: Fraction, each: Fraction) -> _Priced | _Refused:
+    """Apply the power law to one machine that :func:`_refusal` admitted.
+
+    Args:
+        entry: The registry entry, modeled and exact.
+        clock: The machine's clock, exact.
+        each: The entry's declared draw at the reference clock, exact.
+
+    Returns:
+        The exact value or the named bracket, or a gap carrying
+        ``clockspeed/solve/power.py``'s own outcome word and reason.
+    """
+    if clock == REFERENCE_CLOCK:
+        # Before the exponent is asked for: one raised to any power is one, so
+        # an entry that is not clock-scalable still has an exact draw here.
+        return BOUND_EXACT, _REFERENCE_CLOCK_REASON, clock, each, each
+
+    drawn = draw_at_clock(entry, clock)
+    exponent = entry.power_exponent
+    if drawn.outcome != OUTCOME_DEFERRED or exponent is None:
+        return drawn.outcome, drawn.reason
+    if clock == 0:
+        return _at_zero_clock(exponent)
+    if exponent.denominator == 1:
+        scaled = each * _whole_power(clock, exponent.numerator)
+        return BOUND_EXACT, _WHOLE_EXPONENT_REASON, clock, scaled, scaled
+    low, high = _bracket(clock, exponent)
+    ends = sorted((each * low, each * high))
+    return BOUND_EXPONENT_BRACKET, _BRACKET_REASON, clock, ends[0], ends[1]
+
+
+def _clocked_outcome(class_name: str, clock: object, entry: Building | None) -> _Priced | _Refused:
+    """Price one machine at its own clock, or name why it cannot be priced.
+
+    Args:
+        class_name: The machine's built class.
+        clock: The machine's clock as ``MachineState.overclock`` carries it.
+        entry: The registry entry, or None when the registry carries none.
+
+    Returns:
+        ``(bound, reason, clock, lower_each, upper_each)`` for a priced machine, or
+        ``(kind, reason)`` for a gap.
+    """
+    refused = _refusal(class_name, clock, entry)
+    # Past a None refusal the entry is present and the clock exact; the two
+    # clauses after the first only narrow the types for the checker.
+    if refused is not None or entry is None or type(clock) is not Fraction:
+        return refused or (GAP_NO_REGISTRY_ENTRY, _GAP_REASON[GAP_NO_REGISTRY_ENTRY])
+    each = declared_draw(entry).megawatts
+    if type(each) is not Fraction:
+        return GAP_DRAW_INEXACT, _GAP_REASON[GAP_DRAW_INEXACT]
+    return _law(entry, clock, each)
+
+
+def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) -> WorldClockedDraw:
+    """Compute the world power draw with every machine's own clock applied (CS-1263).
+
+    :func:`draw_of` prices BUILT COUNTS at the reference clock and never reads a
+    clock; it stays, because a built count is a fact the placement model owns.
+    This prices each MACHINE at the clock it actually runs at, which is the
+    figure that compares like with like against a solver plan of fractional
+    machine equivalents. A world has whole machines, so nothing here reads a
+    fractional machine count.
+
+    PURE, AND TOTAL, on the terms :func:`draw_of` states.
+
+    Args:
+        machines: The machines model, for each machine's class and clock.
+        buildings: The registry, keyed by bare class name.
+
+    Returns:
+        The clocked draw: an exact value per group where the power law yields
+        one, a named bracket where it does not, and a named gap where no number
+        exists at all.
+    """
+    priced: dict[tuple[str, Fraction], tuple[str, str, Fraction, Fraction, int]] = {}
+    gapped: dict[tuple[str, str], tuple[str, int]] = {}
+
+    for state in machines.machines:
+        entry = buildings.get(state.class_name)
+        outcome = _clocked_outcome(state.class_name, state.overclock, entry)
+        if len(outcome) == 2:  # noqa: PLR2004 - the gap shape is a pair
+            kind, reason = outcome
+            _held, count = gapped.get((state.class_name, kind), (reason, 0))
+            gapped[(state.class_name, kind)] = (reason, count + 1)
+            continue
+        bound, reason, clock, low, high = outcome
+        key = (state.class_name, clock)
+        prior = priced.get(key, (bound, reason, low, high, 0))
+        priced[key] = (bound, reason, low, high, prior[4] + 1)
+
+    contributions = tuple(
+        ClockedContribution(
+            class_name=class_name,
+            clock=clock,
+            machine_count=count,
+            bound=bound,
+            reason=reason,
+            lower_each=low,
+            upper_each=high,
+            lower_total=low * count,
+            upper_total=high * count,
+        )
+        for (class_name, clock), (bound, reason, low, high, count) in sorted(priced.items())
+    )
+    gaps = tuple(
+        ClockedGap(class_name=class_name, machine_count=count, kind=kind, reason=reason)
+        for (class_name, kind), (reason, count) in sorted(gapped.items())
+    )
+
+    bounded = sum(
+        group.machine_count for group in contributions if group.bound == BOUND_EXPONENT_BRACKET
+    )
+    unread = sum(gap.machine_count for gap in gaps if gap.kind == GAP_CLOCK_UNREAD)
+    unmodeled = sum(gap.machine_count for gap in gaps) - unread
+
+    warnings: list[WorldWarning] = []
+    if not machines.machines:
+        warnings.append(_warning(WARN_BALANCE_NO_MACHINES_CLOCKED))
+    if unread:
+        warnings.append(_warning(WARN_BALANCE_CLOCK_UNREAD, unread))
+    if unmodeled:
+        warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_UNMODELED, unmodeled))
+    if bounded:
+        warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_BOUNDED, bounded))
+
+    result = WorldClockedDraw(
+        contributions=contributions,
+        gaps=gaps,
+        lower_megawatts=sum((group.lower_total for group in contributions), Fraction(0)),
+        upper_megawatts=sum((group.upper_total for group in contributions), Fraction(0)),
+        exact=not bounded and not gaps,
+        complete=not gaps,
+        machines_considered=len(machines.machines),
+        bounded_machine_count=bounded,
+        unread_clock_count=unread,
+        unmodeled_machine_count=unmodeled,
+        warnings=tuple(warnings),
+    )
+    audit_exact(result, path="clocked_draw")
+    return result
+
+
 def starvation_of(machines: WorldMachines) -> WorldStarvation:
     """Flag every machine that carries a recipe and is not producing.
 
@@ -669,21 +1187,28 @@ def balance_of(
     Args:
         placement: The placement model, for the built counts.
         buildings: The registry, keyed by bare class name.
-        machines: The machines model, for the producing flag.
+        machines: The machines model, for the producing flag and the clocks.
         network: The network model, for whether an upstream cause can be named.
 
     Returns:
         The balance, carrying every sub-model's warnings plus this level's own.
     """
     draw = draw_of(placement, buildings)
+    clocked_draw = clocked_draw_of(machines, buildings)
     starvation = starvation_of(machines)
 
-    warnings = [*draw.warnings, *starvation.warnings, _warning(WARN_BALANCE_PRODUCTION_UNMODELED)]
+    warnings = [
+        *draw.warnings,
+        *clocked_draw.warnings,
+        *starvation.warnings,
+        _warning(WARN_BALANCE_PRODUCTION_UNMODELED),
+    ]
     if not network.belt_topology_available:
         warnings.append(_warning(WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE))
 
     return WorldBalance(
         draw=draw,
+        clocked_draw=clocked_draw,
         starvation=starvation,
         production_available=False,
         connected_edges_available=network.belt_topology_available,

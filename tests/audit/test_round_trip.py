@@ -16,14 +16,16 @@ recipe whose group was short. A predicate that could not go red would pass the
 clean arms for free, so the red arms are the half that gives the green ones
 meaning.
 
-THE POWER ARM PINS A DIVERGENCE RATHER THAN HIDING ONE. The solver prices a
-step at ``machines * draw`` - fractional machine EQUIVALENTS at the reference
-clock. ``balance.draw_of`` prices BUILT COUNTS at the reference clock and never
-reads a clock. The materialised world builds ``ceil(machines)`` machines, so
-the two figures agree exactly when every step is integral and differ by
-``draw * (ceil(m) - m)`` per step otherwise. Neither is the physical draw: an
-underclocked machine draws ``draw * clock ** exponent``, which
-``power.draw_at_clock`` defers because it has no exact rational value.
+THE POWER ARM COMPARES LIKE WITH LIKE (CS-1263). The solver prices a step at
+``machines * draw`` - fractional machine EQUIVALENTS at the reference clock. The
+materialised world builds ``ceil(machines)`` machines, each underclocked so the
+clocks sum to ``machines``, and ``balance.clocked_draw_of`` reads each clock.
+The physical draw of an underclocked machine is ``draw * clock ** exponent``,
+which ``power.draw_at_clock`` defers because it has no exact rational value, so
+the audit publishes an exact BRACKET around it whose upper end equals the
+solver's figure exactly and whose lower end is strictly below it on every
+fractional plan. An audit that ignores the clock prices ``ceil(machines)``
+whole machines and reddens the equality.
 """
 
 from __future__ import annotations
@@ -370,14 +372,20 @@ def test_both_planted_populations_are_populated() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The power arm: where solver and audit agree, and where they genuinely do not
+# The power arm: the audit reads the clocks, and compares like with like
 # ---------------------------------------------------------------------------
-
-#: What the materialised C1 world draws per ``balance.draw_of``: four rod and
-#: two plate smelters at the declared reference draw.
-_C1_AUDIT_MW: Final = Fraction(24)
-#: The same for C3: five refineries and two smelters.
-_C3_AUDIT_MW: Final = Fraction(158)
+#
+# CS-1263. The materialiser builds ``ceil(m)`` machines per step, each at clock
+# ``c = m / ceil(m) <= 1``. The physical draw of one is ``draw * c ** e`` with
+# the corpus exponent ``1 < e < 2``, which has no exact rational value, so the
+# audit publishes the bracket ``draw * c ** 2 <= true <= draw * c`` - both ends
+# exact. The clocks on a step sum to ``m``, so the UPPER end summed over a step
+# is ``draw * m``: exactly the solver's figure. The LOWER end is
+# ``draw * m ** 2 / ceil(m)``, strictly below wherever ``m`` is not whole.
+#
+# The arm therefore compares like with like - clock-scaled against clock-scaled
+# - and an audit that ignores the clock prices ``draw * ceil(m)``, which
+# exceeds the solver on every fractional step and reddens the equality.
 
 
 def _solver_mw(registry: Registry, plan: ratio.ProductionPlan) -> Fraction:
@@ -393,39 +401,82 @@ def _solver_mw(registry: Registry, plan: ratio.ProductionPlan) -> Fraction:
     return optimize.score_plan(registry, plan, optimize.weighted_objective(power=Fraction(1)))
 
 
-def _audit_mw(registry: Registry, plan: ratio.ProductionPlan) -> Fraction:
-    """The audit's power figure over the materialised world.
+def _clocked(registry: Registry, plan: ratio.ProductionPlan) -> balance.WorldClockedDraw:
+    """The audit's clock-reading draw over the materialised world.
 
     Args:
         registry: The corpus registry.
         plan: The plan.
 
     Returns:
-        ``balance.draw_of``'s consumption total, asserted complete.
+        ``balance.clocked_draw_of`` over the world's machines, asserted complete.
     """
     world = plan_world.materialise(registry, plan)
-    drawn = balance.draw_of(world.placement, registry.buildings)
-    assert drawn.consumption_complete
-    return drawn.consumption_megawatts
+    drawn = balance.clocked_draw_of(world.machines, registry.buildings)
+    assert drawn.complete
+    return drawn
 
 
-def _rounding_mw(registry: Registry, plan: ratio.ProductionPlan) -> Fraction:
-    """The draw of the machine fractions the materialiser rounds up.
+def _lower_oracle(registry: Registry, plan: ratio.ProductionPlan) -> Fraction:
+    """The lower end, derived from the plan alone: ``draw * m ** 2 / ceil(m)`` per step.
 
     Args:
         registry: The corpus registry.
         plan: The plan.
 
     Returns:
-        ``sum(draw * (ceil(m) - m))`` over the steps.
+        The sum over the steps that build anything.
     """
     total = Fraction(0)
     for step in plan.steps:
+        built = math.ceil(step.machines)
+        if built == 0:
+            continue
         building = registry.buildings[plan_world.building_of(registry, step.recipe_key)]
         declared = power.declared_draw(building).megawatts
         assert declared is not None
-        total += declared * (math.ceil(step.machines) - step.machines)
+        total += declared * step.machines * step.machines / built
     return total
+
+
+def _is_fractional(plan: ratio.ProductionPlan) -> bool:
+    """Whether any step's machine count is not whole.
+
+    Args:
+        plan: The plan.
+
+    Returns:
+        True when some step runs an underclocked machine.
+    """
+    return any(step.machines.denominator != 1 for step in plan.steps)
+
+
+def _power_cases(*, fractional: bool) -> list[object]:
+    """Every case whose plan has, or has not, a fractional step.
+
+    Args:
+        fractional: Which population to return.
+
+    Returns:
+        The pytest params.
+    """
+    registry = synthetic.solve_registry()
+    return [
+        pytest.param(chain, rate, id=f"{chain}@{rate}")
+        for chain, (builder, published) in _CHAINS.items()
+        for rate in (published, *_EXTRA_RATES)
+        if _is_fractional(builder(registry, rate)) == fractional
+    ]
+
+
+_FRACTIONAL_CASES: Final = _power_cases(fractional=True)
+_INTEGRAL_CASES: Final = _power_cases(fractional=False)
+
+
+def test_both_power_populations_are_populated() -> None:
+    assert _FRACTIONAL_CASES
+    assert _INTEGRAL_CASES
+    assert len(_FRACTIONAL_CASES) + len(_INTEGRAL_CASES) == len(_CASES)
 
 
 def test_the_corpus_base_is_the_reference_clock(registry: Registry) -> None:
@@ -437,60 +488,59 @@ def test_the_corpus_base_is_the_reference_clock(registry: Registry) -> None:
         )
 
 
-@pytest.mark.parametrize(("chain", "rate"), _CASES)
-def test_solver_and_audit_power_differ_by_exactly_the_rounded_up_fraction(
+def test_the_corpus_exponent_is_strictly_between_one_and_two(registry: Registry) -> None:
+    # The precondition for the bracket's orientation: below the reference
+    # clock, ``c ** 2 < c ** e < c`` holds only for ``1 < e < 2``.
+    for building in registry.buildings.values():
+        assert building.power_exponent is not None
+        assert 1 < building.power_exponent < 2  # noqa: PLR2004
+
+
+@pytest.mark.parametrize(("chain", "rate"), _FRACTIONAL_CASES)
+def test_audit_draw_upper_bound_equals_solver_figure_on_fractional_plans(
     registry: Registry, chain: str, rate: Fraction
 ) -> None:
     plan = _plan(registry, chain, rate)
-    assert _audit_mw(registry, plan) - _solver_mw(registry, plan) == _rounding_mw(registry, plan)
+    drawn = _clocked(registry, plan)
+    solver = _solver_mw(registry, plan)
+
+    assert drawn.upper_megawatts == solver
+    assert drawn.lower_megawatts == _lower_oracle(registry, plan)
+    assert drawn.lower_megawatts < drawn.upper_megawatts
+    assert drawn.exact is False
 
 
-@pytest.mark.parametrize(
-    ("chain", "rate"),
-    [("C5", synthetic.C5_TRINKET_TARGET), ("C2", Fraction(50)), ("C3-balanced", Fraction(30))],
-    ids=["C5@30-three-assemblers", "C2@50-two-refineries", "C3@30-all-integral"],
-)
-def test_solver_and_audit_power_agree_exactly_on_integral_plans(
+@pytest.mark.parametrize(("chain", "rate"), _INTEGRAL_CASES)
+def test_audit_draw_is_exact_and_equals_solver_figure_on_integral_plans(
     registry: Registry, chain: str, rate: Fraction
 ) -> None:
     plan = _plan(registry, chain, rate)
-    assert all(step.machines.denominator == 1 for step in plan.steps)
-    assert _audit_mw(registry, plan) == _solver_mw(registry, plan)
+    drawn = _clocked(registry, plan)
+
+    assert drawn.exact is True
+    assert drawn.lower_megawatts == drawn.upper_megawatts == _solver_mw(registry, plan)
 
 
-def test_the_power_divergence_on_c1_is_pinned(registry: Registry) -> None:
+def test_the_c1_figure_is_pinned_on_both_ends(registry: Registry) -> None:
     plan = _plan(registry, "C1", synthetic.C1_ROD_TARGET)
-    assert _solver_mw(registry, plan) == synthetic.C1_POWER_MW
-    assert _audit_mw(registry, plan) == _C1_AUDIT_MW
-    assert (
-        synthetic.SMELTER_POWER_MW
-        * (math.ceil(synthetic.C1_ROD_MACHINES) + math.ceil(synthetic.C1_PLATE_MACHINES))
-        == _C1_AUDIT_MW
+    drawn = _clocked(registry, plan)
+
+    assert drawn.upper_megawatts == synthetic.C1_POWER_MW
+    rods = synthetic.C1_ROD_MACHINES
+    plates = synthetic.C1_PLATE_MACHINES
+    assert drawn.lower_megawatts == synthetic.SMELTER_POWER_MW * (
+        rods * rods / math.ceil(rods) + plates * plates / math.ceil(plates)
     )
 
 
-def test_the_power_divergence_on_c3_is_pinned(registry: Registry) -> None:
-    plan = _plan(registry, "C3-balanced", synthetic.C3_GADGET_TARGET)
-    assert _solver_mw(registry, plan) == synthetic.C3_POWER_MW
-    assert _audit_mw(registry, plan) == _C3_AUDIT_MW
-    refineries = (
-        math.ceil(synthetic.C3_GADGET_MACHINES)
-        + math.ceil(synthetic.C3_RECOVER_MACHINES)
-        + math.ceil(synthetic.C3_FLUID_MACHINES)
-    )
-    smelters = math.ceil(synthetic.C3_PLATE_MACHINES)
-    assert (
-        synthetic.REFINERY_POWER_MW * refineries + synthetic.SMELTER_POWER_MW * smelters
-    ) == _C3_AUDIT_MW
-
-
-def test_the_audit_figure_is_clock_blind(registry: Registry) -> None:
-    # The same built counts at clock one and at the materialised clocks price
-    # identically: draw_of reads the placement and never the machines.
+def test_the_clocked_draw_reddens_when_the_clock_is_ignored(registry: Registry) -> None:
+    # The same machines at clock one price at the built-count figure, which is
+    # NOT the solver's - so an audit blind to the clock cannot pass the
+    # equality above. This is the control that the equality is about the clock.
     plan = _plan(registry, "C1", synthetic.C1_ROD_TARGET)
     world = plan_world.materialise(registry, plan)
     assert any(state.overclock != 1 for state in world.machines.machines)
-    at_reference = plan_world.placement_model(
+    at_reference = plan_world.machines_model(
         tuple(
             MachineState(
                 class_name=state.class_name,
@@ -501,17 +551,20 @@ def test_the_audit_figure_is_clock_blind(registry: Registry) -> None:
             for state in world.machines.machines
         )
     )
-    assert balance.draw_of(at_reference, registry.buildings) == balance.draw_of(
-        world.placement, registry.buildings
-    )
+    blind = balance.clocked_draw_of(at_reference, registry.buildings)
+    built_count_figure = balance.draw_of(world.placement, registry.buildings)
+
+    assert blind.upper_megawatts == built_count_figure.consumption_megawatts
+    assert blind.upper_megawatts != _solver_mw(registry, plan)
+    assert _clocked(registry, plan).upper_megawatts == _solver_mw(registry, plan)
 
 
-def test_neither_figure_is_the_physical_draw_of_an_underclocked_machine(
+def test_the_physical_draw_of_an_underclocked_machine_is_deferred_not_exact(
     registry: Registry,
 ) -> None:
     # C1's rod machines run at 5/6. The physical draw there is the power law,
-    # which has no exact rational value - so there is no third exact figure for
-    # either of the two above to be reconciled against.
+    # which has no exact rational value - which is why the audit publishes a
+    # bracket around it and never a single number.
     clock = synthetic.C1_ROD_MACHINES / math.ceil(synthetic.C1_ROD_MACHINES)
     assert clock == Fraction(5, 6)
     smelter = registry.buildings[synthetic.SOLVE_SMELTER_BUILDING]

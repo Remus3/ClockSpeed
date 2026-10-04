@@ -55,6 +55,7 @@ from clockspeed.audit import (
     overlay,
     placement,
 )
+from clockspeed.data.registry import Building
 from clockspeed.save import objects
 from clockspeed.save.world import WorldWarning
 from tests.audit import test_balance as balance_fx
@@ -163,6 +164,26 @@ def _balance_composite(*, belts: bool) -> tuple[WorldWarning, ...]:
     ).warnings
 
 
+def _clocked_draw(
+    clock: Fraction | None,
+    entries: Mapping[str, Building],
+    class_name: str = balance_fx.FIXED_WHOLE,
+) -> tuple[WorldWarning, ...]:
+    """The clocked draw over one machine of one class at one clock.
+
+    Args:
+        clock: The machine's clock, or None for one never read.
+        entries: The registry.
+        class_name: The machine's class.
+
+    Returns:
+        The warnings raised.
+    """
+    return balance.clocked_draw_of(
+        balance_fx.world_machines(balance_fx.clocked(class_name, clock)), entries
+    ).warnings
+
+
 def _collectibles(
     *records: objects.ObjectRecord,
     pairs: tuple[objects.Collectable, ...] = (),
@@ -230,6 +251,16 @@ FIXTURES: Final[Mapping[str, Firing]] = {
                 balance_fx.machine(None, balance_fx.RECIPE_CLASS),
             )
         ).warnings
+    ),
+    "WARN_BALANCE_CLOCK_UNREAD": lambda: _clocked_draw(None, balance_fx.modeled_registry()),
+    "WARN_BALANCE_CLOCKED_DRAW_UNMODELED": lambda: _clocked_draw(
+        Fraction(1), balance_fx.registry()
+    ),
+    "WARN_BALANCE_CLOCKED_DRAW_BOUNDED": lambda: _clocked_draw(
+        Fraction(1, 2), balance_fx.bracketed_registry(), balance_fx.FIXED_THIRD
+    ),
+    "WARN_BALANCE_NO_MACHINES_CLOCKED": lambda: (
+        balance.clocked_draw_of(balance_fx.world_machines(), balance_fx.modeled_registry()).warnings
     ),
     "WARN_BALANCE_PRODUCTION_UNMODELED": lambda: _balance_composite(belts=True),
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE": lambda: _balance_composite(belts=False),

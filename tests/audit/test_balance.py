@@ -149,6 +149,7 @@ def building(
     minimum: Fraction | None = None,
     maximum: Fraction | None = None,
     variable: bool = False,
+    exponent: Fraction | float | None = Fraction(1),
 ) -> Building:
     """Build one synthetic registry entry.
 
@@ -158,6 +159,9 @@ def building(
         minimum: The low end of a declared range.
         maximum: The high end of a declared range.
         variable: Whether the entry declares an estimated maximum above zero.
+        exponent: The declared clock exponent, or None for an entry that is not
+            clock-scalable. Whole by default, so the CS-1045 arms above price
+            nothing but the reference clock.
 
     Returns:
         The entry.
@@ -166,7 +170,7 @@ def building(
         key=key,
         display_name=f"Synthetic {key}",
         power_consumption=consumption,  # type: ignore[arg-type]
-        power_exponent=Fraction(1),
+        power_exponent=exponent,  # type: ignore[arg-type]
         estimated_min_power=minimum,
         estimated_max_power=maximum,
         is_variable_power=variable,
@@ -855,3 +859,280 @@ def test_no_balance_type_annotates_a_carrier_field() -> None:
         for field in fields(declared):
             assert "bytes" not in str(field.type)
             assert "Path" not in str(field.type)
+
+
+# ---------------------------------------------------------------------------
+# CS-1263: the clocked draw reads each machine's clock
+# ---------------------------------------------------------------------------
+#
+# THE SHIPPED EXPONENT IS NOT WHOLE, so the power law has no exact rational value
+# away from the reference clock and the answer there is a NAMED BOUND. A whole
+# exponent and the reference clock are the two places it does have one, and the
+# arms below grade both sides of that line separately, because an implementation
+# that bounds everything passes a bound-only arm and one that evaluates
+# everything exactly passes an exact-only arm.
+
+#: The shipped-shaped exponent, between one and two like the corpus's own.
+BRACKETED_EXPONENT = Fraction(1321929, 1000000)
+
+#: An underclock and an overclock, plus one no binary float holds.
+HALF_CLOCK = Fraction(1, 2)
+DOUBLE_CLOCK = Fraction(2)
+THIRD_CLOCK = Fraction(1, 3)
+
+#: How many machines the bracket arm builds per group.
+BRACKET_MACHINES = 2
+
+
+def clocked(class_name: str, clock: Fraction | float | None) -> machines.MachineState:
+    """Build one producing machine of a given class at a given clock.
+
+    Args:
+        class_name: The built class.
+        clock: The overclock as a potential, or None for a clock never read.
+
+    Returns:
+        The state.
+    """
+    return machines.MachineState(
+        class_name=class_name,
+        producing=True,
+        recipe_class_name=RECIPE_CLASS,
+        overclock=clock,  # type: ignore[arg-type]
+    )
+
+
+def bracketed_registry() -> Mapping[str, Building]:
+    """One entry whose exponent is not whole, beside one whose exponent is.
+
+    Returns:
+        The mapping.
+    """
+    return registry(
+        building(FIXED_WHOLE, consumption=WHOLE_MEGAWATTS),
+        building(FIXED_THIRD, consumption=THIRD_MEGAWATTS, exponent=BRACKETED_EXPONENT),
+    )
+
+
+def test_an_unread_clock_is_a_named_gap_never_one() -> None:
+    """A None clock beside a read one, alike in every other field.
+
+    TREATING NONE AS ONE prices both machines at the reference draw and puts no
+    gap in the answer, so this arm reddens on exactly that defect: the total is
+    one machine's draw and not two, and the second machine is a named gap.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_WHOLE, None), clocked(FIXED_WHOLE, Fraction(1))),
+        modeled_registry(),
+    )
+
+    assert [(gap.class_name, gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (FIXED_WHOLE, balance.GAP_CLOCK_UNREAD, 1)
+    ]
+    assert result.lower_megawatts == WHOLE_MEGAWATTS
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+    assert result.unread_clock_count == 1
+    assert result.complete is False
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCK_UNREAD) == 1
+
+
+def test_a_clocked_gap_has_no_megawatts_field_to_read_a_one_out_of() -> None:
+    declared = {field.name for field in fields(balance.ClockedGap)}
+
+    assert not [name for name in declared if "megawatt" in name or "power" in name]
+
+
+def test_the_reference_clock_is_exact_under_any_exponent() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_THIRD, Fraction(1)), clocked(FIXED_THIRD, Fraction(1))),
+        bracketed_registry(),
+    )
+
+    (group,) = result.contributions
+    assert group.bound == balance.BOUND_EXACT
+    assert group.lower_total == group.upper_total == THIRD_MEGAWATTS * BRACKET_MACHINES
+    assert result.exact is True
+
+
+def test_a_whole_exponent_away_from_the_reference_clock_is_exact() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_WHOLE, HALF_CLOCK)), modeled_registry()
+    )
+
+    (group,) = result.contributions
+    assert group.bound == balance.BOUND_EXACT
+    assert group.lower_each == group.upper_each == WHOLE_MEGAWATTS * HALF_CLOCK
+    assert result.exact is True
+
+
+@pytest.mark.parametrize(
+    ("clock", "lower_factor", "upper_factor"),
+    [
+        (HALF_CLOCK, HALF_CLOCK * HALF_CLOCK, HALF_CLOCK),
+        (THIRD_CLOCK, THIRD_CLOCK * THIRD_CLOCK, THIRD_CLOCK),
+        (DOUBLE_CLOCK, DOUBLE_CLOCK, DOUBLE_CLOCK * DOUBLE_CLOCK),
+    ],
+    ids=["underclock-half", "underclock-third", "overclock-double"],
+)
+def test_a_fractional_exponent_is_a_named_bound_bracketing_the_law(
+    clock: Fraction, lower_factor: Fraction, upper_factor: Fraction
+) -> None:
+    """Below the reference the square is the floor; above it the order flips."""
+    result = balance.clocked_draw_of(
+        world_machines(*(clocked(FIXED_THIRD, clock) for _ in range(BRACKET_MACHINES))),
+        bracketed_registry(),
+    )
+
+    (group,) = result.contributions
+    assert group.bound == balance.BOUND_EXPONENT_BRACKET
+    assert group.reason
+    assert group.clock == clock
+    assert group.machine_count == BRACKET_MACHINES
+    assert group.lower_each == THIRD_MEGAWATTS * lower_factor
+    assert group.upper_each == THIRD_MEGAWATTS * upper_factor
+    assert group.lower_total == group.lower_each * BRACKET_MACHINES
+    assert group.upper_total == group.upper_each * BRACKET_MACHINES
+    assert result.exact is False
+    assert result.complete is True
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_BOUNDED) == BRACKET_MACHINES
+
+
+def test_the_bracket_contains_the_physical_draw() -> None:
+    """The control that the bound is a bound: a float evaluation lands inside it.
+
+    The float is the TEST's oracle and never the module's - it is read here
+    only to show the two exact ends straddle the irrational value.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_THIRD, HALF_CLOCK)), bracketed_registry()
+    )
+    (group,) = result.contributions
+    physical = float(THIRD_MEGAWATTS) * float(HALF_CLOCK) ** float(BRACKETED_EXPONENT)
+    low = float(group.lower_each)
+    high = float(group.upper_each)
+
+    assert low < physical < high
+
+
+def test_a_zero_clock_is_exact_zero_under_a_positive_exponent() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_THIRD, Fraction(0))), bracketed_registry()
+    )
+
+    (group,) = result.contributions
+    assert group.bound == balance.BOUND_EXACT
+    assert group.upper_total == Fraction(0)
+
+
+@pytest.mark.parametrize(
+    ("entries", "clock", "expected_kind"),
+    [
+        (
+            registry(building(FIXED_WHOLE, consumption=WHOLE_MEGAWATTS, exponent=None)),
+            HALF_CLOCK,
+            power.OUTCOME_NOT_SCALABLE,
+        ),
+        (modeled_registry(), Fraction(-1), power.OUTCOME_UNDEFINED),
+        (modeled_registry(), 0.5, balance.GAP_LAW_INEXACT),
+        (
+            registry(building(FIXED_WHOLE, consumption=WHOLE_MEGAWATTS, exponent=1.5)),
+            HALF_CLOCK,
+            balance.GAP_LAW_INEXACT,
+        ),
+        (registry(), HALF_CLOCK, balance.GAP_NO_REGISTRY_ENTRY),
+        (
+            registry(building(FIXED_WHOLE, consumption=0.1)),
+            HALF_CLOCK,
+            balance.GAP_DRAW_INEXACT,
+        ),
+        (registry(building(FIXED_WHOLE)), HALF_CLOCK, power.SHAPE_UNDECLARED),
+    ],
+    ids=[
+        "not-scalable",
+        "negative-clock",
+        "float-clock",
+        "float-exponent",
+        "no-entry",
+        "inexact-draw",
+        "undeclared",
+    ],
+)
+def test_each_clocked_gap_kind_is_named_and_never_a_summand(
+    entries: Mapping[str, Building], clock: Fraction | float, expected_kind: str
+) -> None:
+    result = balance.clocked_draw_of(world_machines(clocked(FIXED_WHOLE, clock)), entries)
+
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [(expected_kind, 1)]
+    assert all(gap.reason for gap in result.gaps)
+    assert {gap.kind for gap in result.gaps} <= balance.CLOCKED_GAP_KINDS
+    assert result.contributions == ()
+    assert result.upper_megawatts == Fraction(0)
+    exact.audit_exact(result, path="clocked")
+
+
+def test_a_not_scalable_entry_is_still_exact_at_the_reference_clock() -> None:
+    entries = registry(building(FIXED_WHOLE, consumption=WHOLE_MEGAWATTS, exponent=None))
+    result = balance.clocked_draw_of(world_machines(clocked(FIXED_WHOLE, Fraction(1))), entries)
+
+    assert result.gaps == ()
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+
+
+def test_the_clocked_buckets_partition_the_machines_with_conservation() -> None:
+    population = world_machines(
+        clocked(FIXED_WHOLE, Fraction(1)),
+        clocked(FIXED_WHOLE, HALF_CLOCK),
+        clocked(FIXED_WHOLE, HALF_CLOCK),
+        clocked(FIXED_THIRD, HALF_CLOCK),
+        clocked(FIXED_THIRD, None),
+        clocked(NOT_IN_REGISTRY, Fraction(1)),
+    )
+    result = balance.clocked_draw_of(population, bracketed_registry())
+
+    placed = sum(group.machine_count for group in result.contributions)
+    gapped = sum(gap.machine_count for gap in result.gaps)
+    assert placed + gapped == result.machines_considered == len(population.machines)
+    assert result.unmodeled_machine_count + result.unread_clock_count == gapped
+    assert result.lower_megawatts < result.upper_megawatts
+    exact.audit_exact(result, path="clocked")
+
+
+def test_two_clocked_runs_over_one_input_return_equal_models() -> None:
+    population = world_machines(clocked(FIXED_THIRD, HALF_CLOCK), clocked(FIXED_WHOLE, None))
+    first = balance.clocked_draw_of(population, bracketed_registry())
+    second = balance.clocked_draw_of(population, bracketed_registry())
+
+    assert first == second
+
+
+def test_a_world_with_no_machines_says_so_rather_than_a_measured_zero() -> None:
+    result = balance.clocked_draw_of(world_machines(), modeled_registry())
+
+    assert result.upper_megawatts == Fraction(0)
+    assert balance.WARN_BALANCE_NO_MACHINES_CLOCKED in {warning.code for warning in result.warnings}
+
+
+def test_the_clocked_repr_names_no_built_class() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_THIRD, HALF_CLOCK), clocked(FIXED_WHOLE, None)),
+        bracketed_registry(),
+    )
+    rendered = " ".join(repr(value) for value in (result, *result.contributions, *result.gaps))
+    named = [name for name in (FIXED_THIRD, FIXED_WHOLE) if name in rendered]
+
+    assert not named
+
+
+def test_the_composite_carries_the_clocked_draw_and_its_warnings() -> None:
+    population = world_machines(clocked(FIXED_THIRD, HALF_CLOCK), clocked(FIXED_WHOLE, None))
+    result = balance.balance_of(
+        built(modeled_counts()), bracketed_registry(), population, world_network()
+    )
+    alone = balance.clocked_draw_of(population, bracketed_registry())
+
+    assert result.clocked_draw == alone
+    codes = {warning.code for warning in result.warnings}
+    assert balance.WARN_BALANCE_CLOCK_UNREAD in codes
+    assert balance.WARN_BALANCE_CLOCKED_DRAW_BOUNDED in codes
