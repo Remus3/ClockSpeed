@@ -35,10 +35,11 @@ check its own preconditions:
   when every part of it is exact, because a rule could write a float into it
   and reach the trace and every later rule through the shared reference.
   :meth:`RuleContext.compute` takes exactly a ``Fraction``.
-- **Text is ASCII strings only.** A recommendation's fields, a computed label
-  and a rejected alternative's text must be non-empty ASCII ``str``. Anything
-  else is a rule bug: recorded as a ``rule-error`` step, recommendation
-  dropped.
+- **Text is printable ASCII strings only.** A recommendation's fields, a
+  computed label and a rejected alternative's text must be ``str`` of
+  printable ASCII (0x20 to 0x7E - no tab, newline or other control character)
+  with at least one visible character. Anything else is a rule bug: recorded
+  as a ``rule-error`` step, recommendation dropped.
 - **Unknown content and rule bugs are flagged and skipped, never raised**
   (non-negotiable 7). A missing declared input is an ``input-missing`` step;
   an exception out of ``evaluate`` is a ``rule-error`` step naming the
@@ -185,8 +186,8 @@ class WorldInputs:
 class Recommendation:
     """What a rule proposes. Tiers 1 and 2 are projected from it plus the trace.
 
-    Every text field must be non-empty ASCII ``str``; the engine refuses
-    anything else as a rule bug.
+    Every text field must be printable ASCII ``str`` with a visible
+    character; the engine refuses anything else as a rule bug.
 
     Attributes:
         subject_key: The stable identity of the thing advised about. Feeds the
@@ -317,8 +318,12 @@ def _matches(pattern: re.Pattern[str], value: object) -> bool:
 
 
 def _is_text(value: object) -> bool:
-    """Whether ``value`` is non-empty ASCII text, exactly a ``str``."""
-    return type(value) is str and value != "" and value.isascii()
+    """Whether ``value`` is exactly a ``str`` of printable ASCII with a visible character.
+
+    Printable means 0x20 to 0x7E: a tab, newline, carriage return, NUL, DEL or
+    any other control character is refused, as is text that is only spaces.
+    """
+    return type(value) is str and value.strip(" ") != "" and all(" " <= ch <= "~" for ch in value)
 
 
 def _children(value: object) -> tuple[object, ...] | None:
@@ -437,11 +442,11 @@ def _recommendation_fault(proposed: object) -> str | None:
         return "evaluate returned a non-Recommendation"
     for name in ("subject_key", "action", "reason"):
         if not _is_text(getattr(proposed, name)):
-            return f"field {name} is not non-empty ASCII text"
+            return f"field {name} is not printable ASCII text"
     if proposed.target_milestone is not None and not _is_text(proposed.target_milestone):
-        return "field target_milestone is not non-empty ASCII text"
+        return "field target_milestone is not printable ASCII text"
     if type(proposed.requires) is not tuple or not all(_is_text(k) for k in proposed.requires):
-        return "field requires is not a tuple of non-empty ASCII text"
+        return "field requires is not a tuple of printable ASCII text"
     return None
 
 

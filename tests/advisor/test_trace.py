@@ -747,3 +747,63 @@ def test_the_depth_guard_refuses_a_deep_narrow_value() -> None:
     for _ in range(20):
         shallow = (shallow,)
     assert _refusal_reasons(shallow) == []
+
+
+# --- text must carry a visible character and no control character ----------
+
+#: Whitespace-only and control-bearing text, built with chr() so this source
+#: stays printable ASCII.
+_BAD_TEXT = (
+    "   ",
+    chr(9),
+    "Do" + chr(10) + "now",
+    "Do" + chr(13),
+    "Do" + chr(9) + "now",
+    "Do" + chr(0),
+    "Do" + chr(127),
+)
+
+
+def _rule(evaluate: object) -> RuleSpec:
+    return RuleSpec(
+        rule_id="synthetic.text",
+        domain="power",
+        inputs=(),
+        unlocks=(),
+        evaluate=evaluate,  # type: ignore[arg-type]
+    )
+
+
+def test_blank_or_control_text_is_a_rule_error_everywhere_text_is_taken() -> None:
+    control = Recommendation(subject_key="s", action="Do it now", reason="spare power")
+    assert run_rule(_returning(control), _world()).recommendation is not None
+
+    for bad in _BAD_TEXT:
+        recs = (
+            Recommendation(subject_key=bad, action="Do", reason="r"),
+            Recommendation(subject_key="s", action=bad, reason="r"),
+            Recommendation(subject_key="s", action="Do", reason=bad),
+            Recommendation(subject_key="s", action="Do", reason="r", target_milestone=bad),
+            Recommendation(subject_key="s", action="Do", reason="r", requires=(bad,)),
+        )
+        for rec in recs:
+            trace = run_rule(_returning(rec), _world())
+            assert trace.recommendation is None, len(bad)
+            assert StepKind.RULE_ERROR in _kinds(trace), len(bad)
+
+        def reject_alt(ctx: RuleContext, text: str = bad) -> Recommendation | None:
+            ctx.reject(text, "costs more")
+            return _recommend()
+
+        def reject_reason(ctx: RuleContext, text: str = bad) -> Recommendation | None:
+            ctx.reject("alt", text)
+            return _recommend()
+
+        def label(ctx: RuleContext, text: str = bad) -> Recommendation | None:
+            ctx.compute(text, Fraction(1))
+            return _recommend()
+
+        for evaluate in (reject_alt, reject_reason, label):
+            trace = run_rule(_rule(evaluate), _world())
+            assert trace.recommendation is None, len(bad)
+            assert _kinds(trace) == (StepKind.RULE_ERROR,), len(bad)
