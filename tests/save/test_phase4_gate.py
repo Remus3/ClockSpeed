@@ -2547,6 +2547,131 @@ def _child_pytest_args() -> list[str]:
     ]
 
 
+#: How many SEQUENTIAL child calls the nested run is split into.
+#:
+#: TIER 2 RUN 37193626407 IS WHY. Its windows-latest probe leg ran the whole of
+#: tests/save as ONE child call underneath a parent already running ``-n auto``
+#: on a four core runner, and that call crossed ``_CHILD_TIMEOUT_SECONDS``. The
+#: timeout is a runaway detector, so it is not raised; the work is split so
+#: that each call carries a fraction of it. The shards run one after another
+#: inside the one gate test, so the process count on the box is unchanged.
+#:
+#: The per-shard walls this split was sized from are in the ledger entry, not
+#: here, for the same reason ``_CHILD_WORKERS`` restates no lane duration.
+_CHILD_SHARD_COUNT: Final = 3
+
+#: The fewest shards that split anything. One IS the shape that timed out.
+_MIN_CHILD_SHARDS: Final = 2
+
+#: Files split into one unit per top-level test function or class rather than
+#: run whole. A file is the smallest unit ``--dist loadfile`` can schedule, so a
+#: file heavier than a shard's share would make that shard as slow as the file
+#: however the rest were dealt. These two carry most of the nested run's serial
+#: time, measured. A name here that no longer exists collects nothing and
+#: :func:`_shard_partition_faults` names it, so the pin cannot rot quietly.
+_CHILD_SPLIT_FILES: Final = ("test_absolute_claims.py", "test_reach_guard.py")
+
+
+def _child_units() -> list[str]:
+    """Every unit the nested run is dealt from, as a rootdir-relative node id prefix.
+
+    A unit is a test FILE, except in :data:`_CHILD_SPLIT_FILES`, where it is each
+    top-level ``test`` function or ``Test`` class. The derivation is not
+    trusted: :func:`test_the_shards_partition_the_whole_collection_exactly`
+    checks it against pytest's own collection of the whole command.
+
+    Returns:
+        The units, files in sorted order and functions in source order.
+    """
+    units: list[str] = []
+    for path in sorted(SAVE_TESTS.glob("test_*.py")):
+        if path.resolve() == THIS_MODULE:
+            continue
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        if path.name not in _CHILD_SPLIT_FILES:
+            units.append(relative)
+            continue
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                prefix = "test"
+            elif isinstance(node, ast.ClassDef):
+                prefix = "Test"
+            else:
+                continue
+            if node.name.startswith(prefix):
+                units.append(f"{relative}::{node.name}")
+    return units
+
+
+def _child_shards() -> list[tuple[str, ...]]:
+    """Deal the units round-robin into :data:`_CHILD_SHARD_COUNT` shards.
+
+    Round-robin in source order keeps a split file's heavy functions apart
+    rather than stacked in one shard, and needs no timing table to rot.
+
+    Returns:
+        One tuple of units per shard.
+    """
+    units = _child_units()
+    return [tuple(units[index::_CHILD_SHARD_COUNT]) for index in range(_CHILD_SHARD_COUNT)]
+
+
+def _child_shard_args(index: int) -> list[str]:
+    """The whole child command with its one target replaced by a shard's units.
+
+    Args:
+        index: Which shard, from zero.
+
+    Returns:
+        Arguments after the interpreter.
+    """
+    whole = _child_pytest_args()
+    at = whole.index(str(SAVE_TESTS))
+    return [*whole[:at], *_child_shards()[index], *whole[at + 1 :]]
+
+
+def _unit_covers(unit: str, node_id: str) -> bool:
+    """Whether running ``unit`` as a pytest target runs ``node_id``.
+
+    Args:
+        unit: A file, or a file plus one function or class name.
+        node_id: A collected node id.
+
+    Returns:
+        True when the node id is the unit or sits under it at a real boundary.
+    """
+    return node_id == unit or node_id.startswith((f"{unit}::", f"{unit}["))
+
+
+def _shard_partition_faults(shards: list[tuple[str, ...]], collected: list[str]) -> list[str]:
+    """Every way ``shards`` fails to run each of ``collected`` exactly once.
+
+    Separated from the arm that uses it so it can be graded by planted faults.
+
+    Args:
+        shards: The units of each shard.
+        collected: Node ids collected by the whole command.
+
+    Returns:
+        A sentence per fault, sorted.
+    """
+    found: list[str] = []
+    if len(shards) < _MIN_CHILD_SHARDS:
+        found.append(f"the run is {len(shards)} shard(s), which is one call over the whole")
+    found.extend(f"shard {index} is empty" for index, units in enumerate(shards) if not units)
+    every_unit = [unit for units in shards for unit in units]
+    for node_id in collected:
+        runs = sum(1 for unit in every_unit if _unit_covers(unit, node_id))
+        if runs != 1:
+            found.append(f"{node_id} is run {runs} times across the shards")
+    found.extend(
+        f"the unit {unit} collects nothing"
+        for unit in every_unit
+        if not any(_unit_covers(unit, node_id) for node_id in collected)
+    )
+    return sorted(found)
+
+
 def test_the_save_suite_passes_with_no_install_and_no_save() -> None:
     """PHASE INVARIANT. The whole save suite is green with all four overrides absent.
 
@@ -2558,19 +2683,26 @@ def test_the_save_suite_passes_with_no_install_and_no_save() -> None:
 
     A test that genuinely needs a save is not forbidden; it must skip with a
     reason, and a skip keeps the exit code at zero.
-    """
-    child = _run_child(_child_pytest_args())
-    exit_code = child.returncode
-    assert exit_code == 0, (
-        "the save-layer suite does not pass without an install or a save library.\n"
-        f"exit code: {exit_code}\n"
-        f"stdout:\n{child.stdout}\n"
-        f"stderr:\n{child.stderr}"
-    )
 
-    passed = re.search(r"(\d+) passed", child.stdout)
-    assert passed is not None, f"the child run reported no passing tests:\n{child.stdout}"
-    assert int(passed.group(1)) > 0
+    THE WHOLE IS RUN AS SEQUENTIAL SHARDS, each its own child call under its own
+    timeout - see :data:`_CHILD_SHARD_COUNT`. That they are together the whole,
+    each exactly once, is graded by
+    :func:`test_the_shards_partition_the_whole_collection_exactly`.
+    """
+    for index in range(len(_child_shards())):
+        child = _run_child(_child_shard_args(index))
+        exit_code = child.returncode
+        assert exit_code == 0, (
+            f"shard {index} of the save-layer suite does not pass without an install or "
+            "a save library.\n"
+            f"exit code: {exit_code}\n"
+            f"stdout:\n{child.stdout}\n"
+            f"stderr:\n{child.stderr}"
+        )
+
+        passed = re.search(r"(\d+) passed", child.stdout)
+        assert passed is not None, f"shard {index} reported no passing tests:\n{child.stdout}"
+        assert int(passed.group(1)) > 0
 
 
 def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None:
@@ -2861,6 +2993,131 @@ def test_the_child_run_asks_for_bounded_parallelism_rather_than_auto() -> None:
         "the child distributes by something other than loadfile, which is the only mode "
         "a lane has ever run tests/save under"
     )
+
+
+# --- the nested run is SHARDED, and the shards together are the whole ---------
+
+
+def test_the_nested_run_is_split_so_no_one_child_call_carries_the_whole_suite() -> None:
+    """Tier 2 run 37193626407 - one child call over the whole suite crossed its timeout.
+
+    The windows-latest probe leg ran the nested child as ONE call and it crossed
+    ``_CHILD_TIMEOUT_SECONDS`` under a parent running ``-n auto``. The timeout is
+    a runaway detector and is not raised; the run is split instead, so each call
+    carries a fraction of the work. Two is the floor because one IS the shape
+    that timed out.
+    """
+    shard_count = len(_child_shards())
+    assert shard_count >= _MIN_CHILD_SHARDS, (
+        f"the nested run is {shard_count} child call(s), and one call over the whole "
+        "save suite is the shape that crossed the timeout"
+    )
+    whole_target = str(SAVE_TESTS)
+    for index in range(shard_count):
+        targets = _child_targets(_child_shard_args(index))
+        target_count = len(targets)
+        assert target_count > 0, f"shard {index} names no target, so pytest walks rootdir"
+        assert whole_target not in targets, (
+            f"shard {index} targets the whole of tests/save, so the split splits nothing"
+        )
+
+
+def test_every_shard_command_is_the_whole_command_with_only_its_targets_swapped() -> None:
+    """A shard may differ from the graded whole command in its targets and nowhere else.
+
+    The narrowing, recursion and parallelism arms above all grade
+    ``_child_pytest_args``. They say something about what actually RUNS only
+    while every shard is that command with the one target replaced, so that is
+    pinned token for token rather than assumed.
+    """
+    whole = _child_pytest_args()
+    whole_target = str(SAVE_TESTS)
+    for index, units in enumerate(_child_shards()):
+        shard = _child_shard_args(index)
+        targets = _child_targets(shard)
+        assert targets == list(units), f"shard {index} runs targets other than its units"
+        rest = [token for token in shard if token not in targets]
+        expected_rest = [token for token in whole if token != whole_target]
+        assert rest == expected_rest, (
+            f"shard {index} carries a flag the graded whole command does not, or lacks one"
+        )
+
+
+def _collected_node_ids(stdout: str) -> list[str]:
+    """The node ids a ``-q --collect-only`` run printed, one per line.
+
+    Args:
+        stdout: The child's standard output.
+
+    Returns:
+        Every line that is a node id, in order.
+    """
+    return [line.strip() for line in stdout.splitlines() if "::" in line]
+
+
+def test_the_shards_partition_the_whole_collection_exactly() -> None:
+    """Every test the whole command collects is run by EXACTLY ONE shard.
+
+    The claim "the save suite passes with no install and no save" is now made by
+    several calls, so it is only as true as their union. The reference is
+    pytest's own collection of the whole command - the one the narrowing arm
+    grades - not this module's derivation of its units, which is the thing
+    being checked.
+    """
+    child = _run_child([*_child_pytest_args(), "--collect-only"])
+    exit_code = child.returncode
+    assert exit_code == 0, f"collection failed:\n{child.stdout}\n{child.stderr}"
+
+    collected = _collected_node_ids(child.stdout)
+    collected_count = len(collected)
+    assert collected_count > 0, "the whole command collected no node id to partition"
+
+    faults = _shard_partition_faults(_child_shards(), collected)
+    assert faults == [], f"{faults}. The shards must together run every collected test exactly once"
+
+
+def test_a_broken_partition_is_named_rather_than_walked_past() -> None:
+    """The partition detector is graded by planting each fault in turn.
+
+    The arm above passes identically over a correct split and over a detector
+    that reads nothing, so every plant is first checked to have landed and the
+    detector is then required to name it.
+    """
+    collected = [
+        "tests/save/test_a.py::test_one",
+        "tests/save/test_a.py::test_two[x]",
+        "tests/save/test_a.py::test_two[y]",
+        "tests/save/test_b.py::test_three",
+        "tests/save/test_b.py::TestGroup::test_four",
+    ]
+    good: list[tuple[str, ...]] = [
+        ("tests/save/test_a.py::test_one", "tests/save/test_b.py"),
+        ("tests/save/test_a.py::test_two",),
+    ]
+    assert _shard_partition_faults(good, collected) == [], (
+        "the control partition is already faulted, so a red below attributes to nothing"
+    )
+
+    plants: dict[str, list[tuple[str, ...]]] = {
+        "a unit dropped": [("tests/save/test_a.py::test_one",), good[1]],
+        "a unit in two shards": [good[0], (*good[1], "tests/save/test_b.py")],
+        "a file beside its own function": [good[0], (*good[1], "tests/save/test_a.py")],
+        "a unit naming nothing": [good[0], (*good[1], "tests/save/test_gone.py")],
+        "an empty shard": [*good, ()],
+        "one shard only": [(*good[0], *good[1])],
+        "a prefix that is not a boundary": [
+            ("tests/save/test_a.py::test_one", "tests/save/test_b.py"),
+            ("tests/save/test_a.py::test_tw",),
+        ],
+    }
+
+    escaped: list[str] = []
+    for case, planted in plants.items():
+        assert planted != good, f"{case}: the plant never landed, so it graded nothing"
+        if not _shard_partition_faults(planted, collected):
+            escaped.append(case)
+
+    assert escaped == [], f"{escaped} were planted and the partition detector named none"
 
 
 # --- the redactor is imported, never re-implemented -------------------------
@@ -3919,6 +4176,12 @@ _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
             "from the REPO_ROOT constant, and the redirected work root the "
             "isolated_work_root fixture placed under tmp_path. It counts the "
             "matches and binds no path, so no save name reaches a frame"
+        ),
+        "_child_units": (
+            "glob, resolve and read_text over SAVE_TESTS, this repo's own "
+            "tests/save directory built from the REPO_ROOT constant, listing "
+            "test modules and parsing their source. No discovery primitive "
+            "feeds it and it never sees a save directory"
         ),
     }
 )
