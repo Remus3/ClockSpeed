@@ -224,8 +224,8 @@ Worktree isolation blocks writes to the shared progress directory; agents write 
 SESSION 124 /done REPORT
 ================================================================================
 
-PUSH: <PENDING>
-CI: <PENDING>
+PUSH: 9e3d3b3..aa22bee pushed, exit 0; pre-push hook whole suite (pytest tests -n auto --dist loadfile): 14196 passed, 12 skipped, 0 failed in 21m25s; HEAD read back equal to ls-remote. aa22bee carries the /done docs (d19afed) plus the CS-700 citation-gate allow rows for the unpublished S7a rehearsal SHAs (tools/sha_citation_gate.py; 69 passed). This report rides one more commit; CONFIRM HEAD equals ls-remote.
+CI READ: tier1 37228777599 at 9e3d3b3 SUCCESS; tier1 37230704457 at aa22bee IN PROGRESS when read - RESULT NOT KNOWN, READ IT FIRST. Last tier2: 37225284192 at 69d44c5 SUCCESS (tier2 green twice this session: c30e347, 69d44c5). UNVERIFIED: the pre-S7a batch (CS-704/CS-701/CS-700 commits) had no adversary pass.
 Suite: pre-push hook whole suite at 9e3d3b3: 14177 passed, 12 skipped (read from the
   push log). The hook at the final push re-runs the whole suite; its result is the PUSH
   line above.
