@@ -1518,12 +1518,12 @@ SITE_SCOPED_MEMBERS: Final = {
         frozenset({"Path.resolve", "sys.path"}),
         "puts this directory on the import path so the gate imports",
     ),
-    ("claude_hook.sh#2", "<module>"): (
+    ("claude_hook.sh#1", "<module>"): (
         frozenset({"sys.executable"}),
         "names the pythonw beside the winning interpreter; the shell captures it to "
         "exec it, and it is never shown",
     ),
-    ("pre-push#2", "<module>"): (
+    ("pre-push#1", "<module>"): (
         frozenset(
             {
                 "site.getsitepackages",

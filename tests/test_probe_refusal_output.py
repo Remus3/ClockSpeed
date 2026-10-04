@@ -27,7 +27,7 @@ whose refusal re-renders the raw output and shows the SAME harness finding the
 canary - so a harness that never planted it, or never captured the hook's
 streams, cannot read as clean.
 
-CONDITION 3 - CS-1200. The bounding self-check runs ``timeout -k 1 0.2 sleep 5``.
+CONDITION 3 - CS-1200. The bounding self-check runs ``timeout -k 1 0.05 sleep 5``.
 A ``sleep`` that ignores TERM outlives the bound and is killed after the
 one-second grace, so the check returns 137 rather than 124 - the shape a loaded
 box produced in 2 of 12 runs. The arms put such a ``sleep`` first on PATH,
@@ -401,7 +401,7 @@ FOREIGN_TIMEOUT: Final = "#!/bin/sh\nexit 1\n"
 ALWAYS_KILLED_TIMEOUT: Final = "#!/bin/sh\nexit 137\n"
 BROKEN_TIMEOUTS: Final = {"foreign": FOREIGN_TIMEOUT, "always-137": ALWAYS_KILLED_TIMEOUT}
 
-SELF_CHECK: Final = 'timeout -k 1 0.2 sleep 5 </dev/null >/dev/null 2>&1; printf "%s" "$?"'
+SELF_CHECK: Final = 'timeout -k 1 0.05 sleep 5 </dev/null >/dev/null 2>&1; printf "%s" "$?"'
 KILLED: Final = "137"
 
 BLOCK_DIE: Final = b"die() { printf 'DIE: %s\\n' \"$1\"; exit 3; }\n"

@@ -143,8 +143,14 @@ CALL_LOG: Final = "calls.log"
 # TERM or KILL - so the call did not answer, whatever else the line says.
 KILLED_BY_SIGNAL: Final = 128
 
-# The probe's three halves, in the order every hook's cs_probe runs them.
-PROBE_HALVES: Final = ("-c", "-c", "-")
+# The probe's starts, per hook, in the order cs_probe runs them. CS-815: ONE
+# ``-c`` start answers both the token and the 97, and only commit-msg - which
+# hands its own checker on stdin - declares the stdin half run.
+PROBE_HALVES: Final = {
+    PRE_COMMIT: ("-c",),
+    COMMIT_MSG: ("-c", "-"),
+    PRE_PUSH: ("-c",),
+}
 
 # Fixed shim labels. A label is test vocabulary, never a path.
 HONEST: Final = "honest"
@@ -814,10 +820,14 @@ def assert_refused_inside_the_bound(
     )
 
 
-def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...]) -> None:
+def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...], hook: str) -> None:
     """The control's acceptance: the commit landed and no probe half met the bound.
 
-    CS-1201: the whole commit - git, the hook, three probe halves and the hook's
+    ``hook`` names whose probe starts open the log (CS-815). For commit-msg the
+    stdin half and the checker are both ``-``, so a probe that skipped the half
+    leaves one call too few, and the count after the probe is what reddens.
+
+    CS-1201: the whole commit - git, the hook, the probe halves and the hook's
     own program - was once graded against the PROBE bound, which no probe half
     need approach for the sum to exceed. Each probe half is graded instead: it
     ANSWERED (a start with no done, or a done by signal, is a half the bound cut
@@ -825,13 +835,14 @@ def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...]) -
     under the bound, so only they are timed against it.
     """
     bound = harness_bound()
+    expected = PROBE_HALVES[hook]
     assert outcome.accepted, f"an honest wrapper was refused:\n{outcome.report}"
-    modes = tuple(call.mode for call in calls[: len(PROBE_HALVES)])
-    assert modes == PROBE_HALVES, (
+    modes = tuple(call.mode for call in calls[: len(expected)])
+    assert modes == expected, (
         f"the log does not open with the probe's halves, so the shim was not the "
         f"interpreter - modes {modes}:\n{outcome.report}"
     )
-    assert len(calls) > len(PROBE_HALVES), (
+    assert len(calls) > len(expected), (
         f"only {len(calls)} calls: the hook's own program never reached the shim after "
         f"the probe:\n{outcome.report}"
     )
@@ -840,7 +851,7 @@ def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...]) -
         f"{unanswered} of {len(calls)} calls never answered - a probe half that timed "
         f"out and proceeded:\n{outcome.report}"
     )
-    halves = [call.duration for call in calls[: len(PROBE_HALVES)]]
+    halves = [call.duration for call in calls[: len(expected)]]
     slowest = max((took for took in halves if took is not None), default=0.0)
     assert slowest < bound, (
         f"a probe half took {slowest:.2f}s, which reached the bound of {bound}s:\n{outcome.report}"
@@ -889,7 +900,7 @@ def test_pythoninspect_control_the_same_harness_accepts_without_it(
 
 
 @pytest.mark.skipif(not NUL_STDIN_HANGS, reason=NUL_SKIP)
-@pytest.mark.parametrize("hook", COMMIT_HOOKS)
+@pytest.mark.parametrize("hook", [COMMIT_MSG])
 def test_a_dev_null_stdin_wrapper_is_refused_inside_the_bound(
     tmp_path: Path, isolated: Environment, hook: str
 ) -> None:
@@ -899,12 +910,39 @@ def test_a_dev_null_stdin_wrapper_is_refused_inside_the_bound(
     ``-c`` questions passed it; the hang arrived afterwards, outside any probe,
     on the heredoc. The probe now also hands the candidate a program on STDIN
     under the bound, which is the delivery shape commit-msg really uses.
+
+    CS-815 narrowed this to commit-msg: it is the only hook that hands a
+    program on stdin, so it is the only one whose probe runs the stdin half.
+    The arm below shows pre-commit ACCEPTING the same wrapper.
     """
     box = make_sandbox(tmp_path, isolated, hook)
     log = tmp_path / CALL_LOG
     shim = write_shim(tmp_path, "nul-stdin.sh", nul_stdin_shim(log))
     outcome = commit_attempt(box, child_env(box, interpreter=shim))
     assert_refused_inside_the_bound(outcome, read_calls(log), (NUL_STDIN, "-"))
+
+
+@pytest.mark.skipif(not NUL_STDIN_HANGS, reason=NUL_SKIP)
+def test_pre_commit_accepts_a_dev_null_stdin_wrapper_because_it_skips_the_stdin_half(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-815: pre-commit hands no program on stdin, so its probe skips that half.
+
+    The same wrapper commit-msg refuses above runs every program pre-commit
+    actually gives it - ``-c`` and a FILE - so the commit lands, and no call in
+    the log is a stdin start. Measured precondition shared with the arm above:
+    where this wrapper would not hang on stdin, neither arm runs.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    log = tmp_path / CALL_LOG
+    shim = write_shim(tmp_path, "nul-stdin.sh", nul_stdin_shim(log))
+    outcome = commit_attempt(box, child_env(box, interpreter=shim))
+    calls = read_calls(log)
+    assert_honest_wrapper_committed(outcome, calls, PRE_COMMIT)
+    stdin_starts = sum(1 for call in calls if call.mode == "-")
+    assert stdin_starts == 0, (
+        f"pre-commit started the candidate on stdin {stdin_starts} times:\n{outcome.report}"
+    )
 
 
 @pytest.mark.skipif(SHELL is None, reason=SHELL_SKIP)
@@ -962,7 +1000,7 @@ def test_wrapper_control_an_honest_wrapper_commits(
     log = tmp_path / CALL_LOG
     shim = write_shim(tmp_path, "honest.sh", honest_shim(log))
     outcome = commit_attempt(box, child_env(box, interpreter=shim))
-    assert_honest_wrapper_committed(outcome, read_calls(log))
+    assert_honest_wrapper_committed(outcome, read_calls(log), hook)
 
 
 @pytest.mark.skipif(SHELL is None, reason=SHELL_SKIP)
@@ -1021,11 +1059,10 @@ def call_log(*entries: tuple[str, str, float, float | None, int | None]) -> tupl
 
 
 def loaded_refusal() -> tuple[Attempt, tuple[Call, ...]]:
-    """The measured red: two answering halves ate most of the window, the third hung."""
+    """The measured red: the answering start ate most of the window, the stdin half hung."""
     bound = harness_bound()
     calls = call_log(
-        (NUL_STDIN, "-c", 6.0, 11.0, 0),
-        (NUL_STDIN, "-c", 15.0, 20.0, 97),
+        (NUL_STDIN, "-c", 6.0, 20.0, 97),
         (NUL_STDIN, "-", 22.3, None, None),
     )
     return synthetic(22.3 + bound + 0.2), calls
@@ -1040,16 +1077,35 @@ def test_grader_charges_the_bound_only_from_the_hanging_call() -> None:
 
 def test_grader_control_grades_each_probe_half_not_the_commit() -> None:
     """A correct control on a loaded box: every call answered well inside the bound."""
-    step = harness_bound() * 0.3
+    step = harness_bound() * 0.4
     calls = call_log(
-        (HONEST, "-c", 0.1, 0.1 + step, 0),
-        (HONEST, "-c", 0.2 + step, 0.2 + 2 * step, 97),
+        (HONEST, "-c", 0.1, 0.1 + step, 97),
+        (HONEST, "-", 0.2 + step, 0.2 + 2 * step, 0),
         (HONEST, "-", 0.3 + 2 * step, 0.3 + 3 * step, 0),
-        (HONEST, "other", 0.4 + 3 * step, 0.4 + 4 * step, 0),
     )
-    outcome = synthetic(0.5 + 4 * step, accepted=True)
+    outcome = synthetic(0.4 + 3 * step, accepted=True)
     assert outcome.elapsed >= harness_bound(), "the plant is not the loaded shape"
-    assert_honest_wrapper_committed(outcome, calls)
+    assert_honest_wrapper_committed(outcome, calls, COMMIT_MSG)
+
+
+def test_grader_control_refuses_a_commit_msg_log_without_the_stdin_half() -> None:
+    """CS-815: commit-msg must still run the stdin half; its checker alone is one call short."""
+    calls = call_log(
+        (HONEST, "-c", 0.1, 0.2, 97),
+        (HONEST, "-", 0.3, 0.4, 0),
+    )
+    assert len(calls) == len(PROBE_HALVES[COMMIT_MSG]), "the plant did not apply"
+    with pytest.raises(AssertionError, match="never reached the shim"):
+        assert_honest_wrapper_committed(synthetic(0.5, accepted=True), calls, COMMIT_MSG)
+
+
+def test_grader_control_accepts_a_pre_commit_log_with_one_probe_start() -> None:
+    """CS-815: pre-commit's probe is one start, then the gate runs as a file."""
+    calls = call_log(
+        (HONEST, "-c", 0.1, 0.2, 97),
+        (HONEST, "other", 0.3, 0.4, 0),
+    )
+    assert_honest_wrapper_committed(synthetic(0.5, accepted=True), calls, PRE_COMMIT)
 
 
 def test_grader_refuses_a_second_hanging_call() -> None:
@@ -1095,8 +1151,7 @@ def test_grader_refuses_a_tail_past_the_slack() -> None:
 def test_grader_refuses_a_refusal_before_the_bound() -> None:
     """An expiry cannot arrive early: a refusal sooner than the bound was not one."""
     calls = call_log(
-        (NUL_STDIN, "-c", 1.0, 1.5, 0),
-        (NUL_STDIN, "-c", 2.0, 2.5, 97),
+        (NUL_STDIN, "-c", 1.0, 2.5, 97),
         (NUL_STDIN, "-", 3.0, None, None),
     )
     # The measured early-expiry mutant: the stdin half bounded at half the bound.
@@ -1111,8 +1166,7 @@ def test_grader_lower_edge_tolerance_sits_between_its_two_plants() -> None:
     """A clock step or a quiet fast box inside the tolerance passes; one past it fails."""
     bound = harness_bound()
     calls = call_log(
-        (NUL_STDIN, "-c", 1.0, 1.5, 0),
-        (NUL_STDIN, "-c", 2.0, 2.5, 97),
+        (NUL_STDIN, "-c", 1.0, 2.5, 97),
         (NUL_STDIN, "-", 3.0, None, None),
     )
     inside = synthetic(2.5 + bound - 0.5)
@@ -1131,50 +1185,47 @@ def test_grader_refuses_an_empty_call_log() -> None:
 def test_control_refuses_an_unmatched_start() -> None:
     """A probe half that timed out and PROCEEDED leaves a start with no done."""
     calls = call_log(
-        (HONEST, "-c", 0.1, 0.2, 0),
-        (HONEST, "-c", 0.3, 0.4, 97),
+        (HONEST, "-c", 0.1, 0.4, 97),
         (HONEST, "-", 0.5, None, None),
-        (HONEST, "other", 0.8, 0.9, 0),
+        (HONEST, "-", 0.8, 0.9, 0),
     )
-    assert not calls[2].answered, "the plant did not apply"
+    assert not calls[1].answered, "the plant did not apply"
     with pytest.raises(AssertionError, match="never answered"):
-        assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls)
+        assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls, COMMIT_MSG)
 
 
 def test_control_refuses_a_call_ended_by_a_signal() -> None:
     """A done line carrying the bound's TERM status is not an answer."""
     calls = call_log(
-        (HONEST, "-c", 0.1, 0.2, 0),
-        (HONEST, "-c", 0.3, 0.4, 97),
+        (HONEST, "-c", 0.1, 0.4, 97),
         (HONEST, "-", 0.5, 0.6, KILLED_BY_SIGNAL + 15),
-        (HONEST, "other", 0.8, 0.9, 0),
+        (HONEST, "-", 0.8, 0.9, 0),
     )
-    assert calls[2].done is not None, "the plant did not apply"
+    assert calls[1].done is not None, "the plant did not apply"
     with pytest.raises(AssertionError, match="never answered"):
-        assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls)
+        assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls, COMMIT_MSG)
 
 
 def test_control_refuses_a_probe_half_at_the_bound() -> None:
     """A probe half that took the whole bound is a near-miss, and red."""
     bound = harness_bound()
     calls = call_log(
-        (HONEST, "-c", 0.1, 0.1 + bound, 0),
-        (HONEST, "-c", 0.2 + bound, 0.3 + bound, 97),
+        (HONEST, "-c", 0.1, 0.1 + bound, 97),
         (HONEST, "-", 0.4 + bound, 0.5 + bound, 0),
-        (HONEST, "other", 0.6 + bound, 0.7 + bound, 0),
+        (HONEST, "-", 0.6 + bound, 0.7 + bound, 0),
     )
     took = calls[0].duration
     assert took is not None, "the plant did not apply"
     assert took >= bound, "the plant did not apply"
     with pytest.raises(AssertionError, match="reached the bound"):
-        assert_honest_wrapper_committed(synthetic(0.8 + bound, accepted=True), calls)
+        assert_honest_wrapper_committed(synthetic(0.8 + bound, accepted=True), calls, COMMIT_MSG)
 
 
 def test_control_refuses_a_log_that_skipped_the_probe() -> None:
     """The shim must have BEEN the interpreter: the probe's halves come first."""
     calls = call_log((HONEST, "other", 0.1, 0.2, 0))
     with pytest.raises(AssertionError, match="probe"):
-        assert_honest_wrapper_committed(synthetic(0.3, accepted=True), calls)
+        assert_honest_wrapper_committed(synthetic(0.3, accepted=True), calls, PRE_COMMIT)
 
 
 def test_call_log_refuses_a_malformed_line() -> None:

@@ -56,6 +56,10 @@ fi
 
 CS_PY=""
 CS_PY_ARG=""
+# CS-815: whether cs_probe runs its stdin half. ASSIGNED here, outside the
+# byte-identical probe, never read from the environment -
+# this file hands no program on stdin, so the half is skipped.
+CS_HOOK_STDIN_HALF=skip
 
 # THE PROBE PROVES THE CANDIDATE BOTH RUNS A PROGRAM AND CAN REPORT ITS FAILURE.
 #
@@ -81,6 +85,12 @@ CS_PY_ARG=""
 # 1, 2 and 5, which are ordinary results, and 125, 126 and 127, which `env` and
 # the shell itself produce on an exec failure - so a candidate that never ran the
 # program cannot answer correctly by accident.
+#
+# CS-815: BOTH QUESTIONS ARE ASKED OF ONE START. The program prints the token
+# AND exits 97, and the probe demands both from that one run. Two starts
+# asked nothing more than one: a candidate that forwards stdout and drops the
+# status still answers 0, and one that cannot run the program still prints
+# no token. Folding them halved the probe's cost on every hook call.
 #
 # THAT ESCAPE WAS REACHABLE THROUGH THE `python` RUNG WITH NO ENVIRONMENT
 # VARIABLE SET AT ALL. It was never a CLOCKSPEED_PYTHON problem, and unsetting
@@ -112,9 +122,8 @@ CS_PY_ARG=""
 # to get past it: a program written on purpose to print the token and exit 97
 # passes both halves, and `git commit --no-verify` skips every hook here without
 # needing to. Never cite this probe as evidence that a commit was checked.
-CS_PROBE_PROGRAM='import sys; sys.stdout.write("clockspeed-" + "python-" + "ok")'
+CS_PROBE_PROGRAM='import sys; sys.stdout.write("clockspeed-" + "python-" + "ok"); sys.exit(97)'
 CS_PROBE_EXPECTED='clockspeed-python-ok'
-CS_PROBE_EXIT_PROGRAM='import sys; sys.exit(97)'
 CS_PROBE_EXIT_EXPECTED=97
 CS_PROBE_BOUND=10
 CS_PROBE_CAPTURE='cs_o=$("$@"); cs_r=$?; printf "%s" "$cs_o"; exit "$cs_r"'
@@ -163,7 +172,7 @@ cs_probe() {
     # that never expires still answers 0 here and still refuses.
     timeout -k 1 "$CS_PROBE_BOUND" sh -c 'exit 42' </dev/null >/dev/null 2>&1
     if [ "$?" = 42 ]; then
-        timeout -k 1 0.2 sleep 5 </dev/null >/dev/null 2>&1
+        timeout -k 1 0.05 sleep 5 </dev/null >/dev/null 2>&1
         case "$?" in
             124 | 137) cs_probe_bound_ok="yes" ;;
         esac
@@ -191,17 +200,22 @@ cs_probe() {
     # exact token. 124 is the bound expiring, 137 the KILL sent when a candidate
     # ignored TERM, and 143 a TERM from elsewhere. Each refuses, whatever the
     # capture holds.
+    #
+    # ONE START ANSWERS BOTH QUESTIONS (CS-815). $? is captured IMMEDIATELY on
+    # the next line, because any command in between - a `[` included -
+    # overwrites it. The status is RECORDED only when the token matched, so
+    # 'not reached' still means the output check failed or nothing ran.
     cs_probe_out=$(timeout -k 1 "$CS_PROBE_BOUND" sh -c "$CS_PROBE_CAPTURE" \
         cs_probe "$@" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null)
     cs_probe_rc=$?
-    if [ "$cs_probe_rc" = 0 ] && [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ]; then
-        # THE EXIT-STATUS HALF. $? is captured IMMEDIATELY on the next line,
-        # because any command in between - a `[` included - overwrites it.
-        timeout -k 1 "$CS_PROBE_BOUND" sh -c "$CS_PROBE_CAPTURE" \
-            cs_probe "$@" -c "$CS_PROBE_EXIT_PROGRAM" >/dev/null 2>&1 </dev/null
-        cs_probe_rc=$?
+    if [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ]; then
         cs_probe_code=$cs_probe_rc
-        if [ "$cs_probe_code" = "$CS_PROBE_EXIT_EXPECTED" ]; then
+        # THE STDIN HALF runs unless the CALLER declared CS_HOOK_STDIN_HALF as
+        # 'skip' outside this probe. Every caller assigns it, so no inherited
+        # value reaches here; unset - an extracted copy - runs it. Only
+        # commit-msg hands a program on stdin, and only it declares 'run'.
+        if [ "$cs_probe_code" = "$CS_PROBE_EXIT_EXPECTED" ] &&
+            [ "${CS_HOOK_STDIN_HALF:-run}" != skip ]; then
             # THE STDIN HALF grades only that the candidate RETURNS inside the
             # bound. Its output and its status are deliberately not compared:
             # this half exists for the hang, and a stricter grade here would
