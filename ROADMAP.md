@@ -268,7 +268,6 @@ CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on N
 
 ## Phase 5 - advisor and audit
 
-CS-500 - Phase 5 gate: trace engine first, then rules, cards, the ledger, then pillars 3 and 4 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1043 - `clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1058 - nothing can say which belt feeds which machine or which connections share a power circuit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1059 - the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

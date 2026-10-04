@@ -75,6 +75,27 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-500 - CLOSED: the Phase 5 advisor gate - trace engine, rules, cards, the per-world ledger and advise()
+Verification: `clockspeed/advisor/advise.py::advise`, over `clockspeed/advisor/trace.py`,
+`clockspeed/advisor/cards.py`, `clockspeed/advisor/ledger.py` and
+`clockspeed/advisor/rules/__init__.py::registered_rules`. Graded 2026-10-04 by a verifier against
+the acceptance in `docs/history_notes.md` under CS-500: CONFIRMED, every clause evidenced -
+A1 `tests/advisor/test_every_rule_fires.py::test_every_registered_rule_has_a_firing_fixture`,
+`::test_every_registered_rule_has_a_silent_fixture`; A2
+`tests/advisor/test_trace.py::test_no_recommendation_has_an_unmet_precondition_over_generated_worlds`;
+A3 `tests/advisor/test_advise.py::test_a_card_id_and_its_state_survive_two_loads_of_one_save`;
+A4 `tests/advisor/test_cards.py::test_card_accepts_no_authored_tier_text`,
+`::test_tier3_changes_when_the_trace_changes`; A5
+`tests/advisor/test_advise.py::test_an_unseen_world_token_is_a_new_world_never_a_failure`.
+The seam, zero-language-model, exact-Fraction and synthetic-fixture checks PASS. An adversary
+on slice S6 killed 21 of 22 mutants. RESIDUAL, recorded and not repaired by cost against risk:
+a clock read whose result is discarded (`time.time` bound under another name, called and
+dropped) survives the no-clock arm, which patches `time.time` after binding and checks only
+that attribute; it has no behavioural effect, and the mutant where the wall clock replaces
+`now` IS killed. Non-blocking caveats: only the D4 power family is registered; both power
+rules declare no unlocks; A2 is a seeded generator, not a hypothesis property test.
+`completed` is never set automatically - filed as its own item.
+
 ### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. Slice S6: advise() wires rules, cards, ledger and mutes, and the reload half of A3
 Verification: `clockspeed/advisor/advise.py::advise`, `::world_inputs`;
 `tests/advisor/test_advise.py::test_a_card_id_and_its_state_survive_two_loads_of_one_save`,

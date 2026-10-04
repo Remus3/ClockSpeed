@@ -24,6 +24,110 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-500 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-500
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+**UNBLOCKED 2026-08-23 BY AN OPERATOR RULING that supersedes their own ruling of 2026-08-15: PHASE 5 OPENS.** **DECODE CORRECTNESS IS NOT THEREBY SETTLED**, and reading this line as saying so is the error it is worded to prevent: it is tracked by CS-825, CS-826, CS-426, CS-432, CS-459 and CS-479, of which **CS-826 carries the population pillar 3 actually reads** - inventory counts and clock speeds. Detail, including the 2026-08-15 reason that still governs WHAT this gate needs and the clause moved here from CS-401, is in this file under **CS-500 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+**THE 2026-08-15 RULING AND WHY IT WAS SUPERSEDED.** The operator ruled on 2026-08-15 that phase
+5 does not open until a real record's properties can be READ. They can be, and have been since
+session 7. What had quietly become the blocker was decode CORRECTNESS, which is a different
+claim from readability, and the operator was asked to weigh that difference on 2026-08-23 and
+ruled that phase 5 opens now.
+
+**THE 2026-08-15 REASON STILL GOVERNS WHAT THIS GATE NEEDS, rather than when it starts.** Pillars
+3 and 4 are IN this gate, and pillar 3 needs inventory, clock speed and connection state, all
+three of which live in the payload CS-413 measured before it closed on 2026-08-23. A rule written against a field no reader
+populates is still the failure to avoid; what changed is that a reader populates them.
+
+**CORRECTION 2026-08-23, SAME DAY, TO THE SENTENCE THIS PARAGRAPH USED TO CARRY.** It said
+CS-413's second acceptance clause - the object data section walking to its exact final byte -
+was UNMET, and that the walk is terminator-exact rather than boundary-exact. **THAT IS FALSE
+AND THE BLAME FOR IT WAS ALSO MISPLACED, WHICH IS THE MORE USEFUL HALF.** A first version of
+this correction said the sentence came from an adversary report and was never checked. It came
+from THIS MODULE. `clockspeed/save/objects.py` SAID at the top of the file that the walk was
+terminator-exact and not boundary-exact, without saying WHICH walk, in a module containing
+two. The adversary quoted it accurately and the author then blamed the adversary. **THE ROOT
+CAUSE WAS THAT UNQUALIFIED SENTENCE**, which misled two independent readers before it was
+fixed. **IT IS FIXED NOW**, in the same change as this block - that module and
+`tests/save/test_properties.py` now name which walk at every site a sweep could find, so do
+not go looking for it. Measured:
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
+passes against the real library, and asserts in terms that every real save walks its framing
+to the final byte with nothing left over. **THE BODY WALK IS BOUNDARY-EXACT.** What IS
+terminator-exact is the PROPERTY walk INSIDE a payload - the trailing run - which is a
+different region, is not clause 2, and is filed as its own item.
+
+**ALSO CARRIES A CLAUSE MOVED HERE FROM CS-401**, which could not satisfy it in phase 4 because
+`clockspeed/advisor/ledger.py` did not exist yet (it landed under CS-500 on 2026-10-04): the ledger treats a world token it has never
+seen as a new world rather than failing.
+
+### Acceptance
+
+every rule has a synthetic-fixture test, the unmet-precondition invariant holds under a property test over generated world states, a card id is stable across a save reload, and tier 3 is generated from the trace and cannot be authored by hand
+
+### Evidence measured 2026-10-04
+
+The engine, the card and the store landed (`clockspeed/advisor/trace.py`,
+`clockspeed/advisor/cards.py`, `clockspeed/advisor/ledger.py`). Clauses in order, A1 to A4
+from the acceptance line, A5 the clause moved here from CS-401:
+
+- A1, every rule has a synthetic-fixture test - EVIDENCED FOR THE REGISTRY AS IT STANDS, and
+  enforced for every later family. Slice S5 derives the rule ids from
+  `clockspeed/advisor/rules/__init__.py::registered_rules` and holds a firing and a silent
+  synthetic world per id in `tests/advisor/test_every_rule_fires.py`:
+  `::test_every_registered_rule_has_a_firing_fixture` and
+  `::test_every_registered_rule_has_a_silent_fixture` redden by rule id the moment a family
+  joins `_FAMILIES` without fixtures; `::test_dropping_any_one_fixture_is_named_alone`
+  shows a removed fixture names its id alone; `::test_the_firing_fixture_fires_its_rule`
+  requires a fault-free firing that reads every declared input;
+  `::test_the_silent_fixture_keeps_its_rule_silent` requires silence by a recorded
+  rejection, never by a refused, missing, unmet or rule-error step; and
+  `::test_tier3_of_the_firing_card_is_generated_from_its_trace` ties each firing card's
+  derivation line-for-line to its trace. The D4 family's own behaviour stays graded in
+  `tests/advisor/rules/test_power.py`. This also meets the ADVISOR-RULE half of CS-1238;
+  closing CS-1238 is the merger's call, not this slice's.
+- A2, the unmet-precondition invariant under a property test - EVIDENCED by
+  `tests/advisor/test_trace.py::test_no_recommendation_has_an_unmet_precondition_over_generated_worlds`,
+  with its anti-vacuity control
+  `tests/advisor/test_trace.py::test_the_generated_rules_would_recommend_without_the_gate`.
+- A3, a card id stable across a save reload - ID HALF EVIDENCED by
+  `tests/advisor/test_cards.py::test_card_id_ignores_volatile_inputs` and
+  `tests/advisor/test_cards.py::test_card_id_is_sha256_over_canonical_ascii_of_the_identity_triple`.
+  RELOAD HALF EVIDENCED by slice S6, which wires `clockspeed/advisor/advise.py::advise` -
+  the registered rules over one world's inputs, cards from the traces, each resolved
+  against the per-world ledger and the global mute, both stores read from disk on every
+  call. `tests/advisor/test_advise.py::test_a_card_id_and_its_state_survive_two_loads_of_one_save`
+  drives two synthetic loads of one world - one world token, moved numbers, stores rebuilt
+  from the directory - and asserts the same card id and the recorded state; it asserts the
+  tier-3 text moved, so the second load is not the first replayed.
+  `::test_the_headroom_card_id_survives_a_moved_generation`,
+  `::test_a_dismissal_survives_a_reload_and_the_card_stays_hidden` and
+  `::test_a_mute_survives_a_reload` cover the other rule and the other store. A mutant that
+  folds tier 2 into the card id reddens the first two; a mutant that ignores the mute
+  reddens the three mute arms. NOT DONE HERE: `completed` is not set automatically when
+  advice stops firing - the ledger offers no listing of a world's recorded cards.
+- A4, tier 3 generated from the trace and not authorable - EVIDENCED by
+  `tests/advisor/test_cards.py::test_card_accepts_no_authored_tier_text` and
+  `tests/advisor/test_cards.py::test_tier3_changes_when_the_trace_changes`.
+- A5, an unseen world token is a new world - EVIDENCED by
+  `tests/advisor/test_ledger.py::test_an_unseen_world_token_is_a_new_world`, and through
+  the entry point by `tests/advisor/test_advise.py::test_an_unseen_world_token_is_a_new_world_never_a_failure`.
+
+Every clause now carries evidence. The item stays OPEN until a verifier and an adversary
+grade slice S6; closing it is the merger's call, not this slice's.
+
 ## CS-1216 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-04
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
