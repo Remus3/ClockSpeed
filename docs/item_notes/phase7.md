@@ -486,6 +486,113 @@ override, and any rebase, amend, cherry-pick or re-commit route. The rewrite is 
 history-rewriting pass that maps identity and message bytes only, and its tool and
 exact invocation are recorded before it runs.
 
+**THE S7a SCRIPT, RECORDED VERBATIM - filed 2026-10-04 by the CS-700 pre-S7a ruling.**
+S7a is RECORDED HERE, not shipped as a tool: no tracked file runs it and no test imports
+it. The tool is `git-filter-repo`, a run-once tool with its `CONVENTIONS.md` section 14
+verdict in `THIRD_PARTY.md` under Items considered. Copy the fenced block byte-for-byte
+into a file named `s7a_rewrite.py` OUTSIDE the tree (S5), as ASCII with LF line ends and
+one final LF, and assert its SHA-256 before running it:
+
+    SHA-256 of s7a_rewrite.py: 0625eab773323407ba7008a31b989eccf272d43fbe9696b728f1bd818a545a23
+
+The command line, run with the working directory at the fresh `git clone --no-local` of
+the primary tree that S7a rewrites - never the primary itself:
+
+    python <path-to>/s7a_rewrite.py <primary-tree>
+
+`<primary-tree>` is the repository root, `C:\Clockspeed` per `CLAUDE.md` section 2. The
+script derives the one name from that tree's `git config user.name` and the one address
+from `gh api user` at run time, aborts unless the tree's configured address equals the
+derived one, and prints counts only - no identity value, home path or account id is in
+its text. Measured on 2026-10-04: two fresh clones of `main` at `69d44c5`, the rehearsal
+and an independent re-run of THIS text, each printed `commits seen 1527; messages
+stripped 18`, passed every control below, and yielded the same output tip `389fe4a`, with
+`c6f3687` mapped to `b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec`. Those are the counts at
+that tip; S7a measures its own at run time. The rewrite writes its old-to-new commit map
+inside the clone's git directory; the map and every bundle are kept OUTSIDE the tree per
+S5 and never committed.
+
+```python
+"""CS-700 S7a rewrite. Run with cwd = the clone being rewritten; argv[1] = the primary tree.
+
+Identity: name = git config user.name of the PRIMARY tree (the single author name
+already on every main commit); email = <id>+<login>@users.noreply.github.com derived
+from `gh api user`, asserted equal to the primary config email. Values never printed.
+Strip: the one trailer-shaped census line (column zero, token before first colon,
+rstripped, casefold == co-authored-by) that is the final line, plus the blank line
+before it. Anything else shaped like a hit aborts.
+"""
+
+import json
+import subprocess
+import sys
+
+import git_filter_repo as fr
+
+if len(sys.argv) != 2:
+    sys.exit("usage: python s7a_rewrite.py PRIMARY_TREE  (cwd = the clone to rewrite)")
+PRIMARY = sys.argv[1]
+
+
+def _out(args):
+    return subprocess.run(args, capture_output=True, text=True, check=True).stdout.strip()
+
+
+user = json.loads(_out(["gh", "api", "user"]))
+NAME = _out(["git", "-C", PRIMARY, "config", "user.name"]).encode("utf-8")
+EMAIL = f"{user['id']}+{user['login']}@users.noreply.github.com".encode("utf-8")
+if _out(["git", "-C", PRIMARY, "config", "user.email"]).encode("utf-8") != EMAIL:
+    sys.exit("ABORT: primary config email is not the derived noreply address")
+
+
+def is_hit(line: bytes) -> bool:
+    if b":" not in line or line[:1] in (b" ", b"\t"):
+        return False
+    tok = line.split(b":", 1)[0].rstrip()
+    return tok.decode("utf-8", "replace").casefold() == "co-authored-by"
+
+
+STATS = {"stripped": 0, "commits": 0}
+
+
+def strip(msg: bytes) -> bytes:
+    lines = msg.splitlines(keepends=True)
+    hits = [i for i, ln in enumerate(lines) if is_hit(ln.rstrip(b"\n"))]
+    if not hits:
+        return msg
+    if len(hits) != 1 or hits[0] != len(lines) - 1 or hits[0] < 1 or lines[hits[0] - 1] != b"\n":
+        raise SystemExit("ABORT: a census hit the strip cannot remove cleanly")
+    STATS["stripped"] += 1
+    kept = lines[: hits[0] - 1]
+    if lines[hits[0]].endswith(b"\n"):
+        return b"".join(kept)
+    # trailer carried no final LF: removing the two lines leaves the body's own LF
+    return b"".join(kept)
+
+
+def commit_cb(commit, _metadata):
+    STATS["commits"] += 1
+    commit.author_name = NAME
+    commit.author_email = EMAIL
+    commit.committer_name = NAME
+    commit.committer_email = EMAIL
+    commit.message = strip(commit.message)
+
+
+args = fr.FilteringOptions.parse_args(
+    [
+        "--refs", "main",
+        "--preserve-commit-hashes",
+        "--preserve-commit-encoding",
+        "--prune-empty", "never",
+        "--prune-degenerate", "never",
+        "--quiet",
+    ]
+)
+fr.RepoFilter(args, commit_callback=commit_cb).run()
+print(f"s7a: commits seen {STATS['commits']}; messages stripped {STATS['stripped']}")
+```
+
 Controls, each pairing a commit of the pre-S7a bundle with its image on the
 rewritten `main` - by the rewrite tool's old-to-new commit map where it writes one,
 otherwise by position in `git rev-list --topo-order --reverse` of each tip; the
@@ -515,6 +622,11 @@ parent control below fails a wrong pairing closed:
   yields exactly one name and one address, both on the identity allowlist, in the
   author AND the committer fields, with a pre-rewrite control showing the bundle
   yielded two addresses.
+- CS-704 IMAGE: the commit-map entry for `c6f3687` must equal
+  `b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec`, or ABORT. That pair is the CS-704 accept
+  set the tier-1 trailer-census step pins (`.github/workflows/tier1.yml`, graded by
+  `tests/test_trailer_routes.py`); any other image leaves the published `main` with no
+  member of the set as an ancestor and every CI run red.
 - OUTPUT TIP: once every control above passes, S7a RECORDS the rewritten `main` tip
   SHA. S8 scans exactly that SHA.
 
@@ -540,7 +652,9 @@ This is the last check before anything irreversible. The re-run includes S1's
 seventh axis, the trailer-shaped census, which must return zero here, and it re-runs S7a's
 IDENTITY control against the identity allowlist: every author and committer address
 and every author and committer name reachable from the scanned SHA is on the identity
-allowlist. **S8 scans exactly S7a's recorded output tip, and first asserts that
+allowlist. That half is `tools/flip_checks.py`'s identity axis, check `I`, counted in
+the run's automated tally beside the seven checks and the trailer axis so a skip is
+visible; it derives the allowlist at run time and prints counts only. **S8 scans exactly S7a's recorded output tip, and first asserts that
 `main` still equals it** - a commit between S7a and S8 fails that assertion and
 falls under the late-commit rule above. **S8 records the one `main` SHA it scanned;
 S8a adjudicates exactly that SHA.** If `main` is not at that SHA when S8a freezes
@@ -715,7 +829,9 @@ path is not doing what S9b says it does.
 the S8a-adjudicated SHA itself - `git push origin <adjudicated-sha>:refs/heads/main`,
 never a branch name - after a pre-push assertion that the local `main` tip equals
 that SHA. If it does not, the late-commit rule in S7a applies and nothing is pushed,
-so no later commit can ride along. The tip check above runs first.
+so no later commit can ride along. The tip check above runs first. Exactly one ref is
+pushed, `refs/heads/main`, and nothing else - no tag, no other head, no `refs/wip`. The
+rewrite's commit map and every bundle stay outside the tree per S5.
 
 **S10b - CLOSE THE RECREATED REMOTE TO EVERY PUSH, filed 2026-09-25 by CS-1190.**
 Immediately after S10's push lands and before S11. It comes AFTER S10, never before,
@@ -779,6 +895,12 @@ came back: assert exactly one head, zero tags, zero wip, zero of every other
 namespace. Then set branch protection on `main`, which the old remote never had,
 turn on the security features that were all off, and re-enter by hand the 20
 topics, 10 labels, description and homepage that deletion discarded.
+**THE PROTECTION SHAPE, filed 2026-10-04 by the CS-700 pre-S7a ruling:** deletion and
+non-fast-forward are blocked on `main` only - no required reviews and no required
+checks, so the lane's fast-forward pushes still land. The same row is in
+`docs/public-readiness.md`. If the plan refuses branch protection on a private
+repository, this sub-step moves to just after S12; that is a PROBE OWED BEFORE S9, not
+measured here.
 
 **S12 - Flip visibility. Last, and blocked by section 6.** The tip check above runs first.
 Covered by the confirmation taken before S9: `docs/GATED.md` CS-G03 (CS-1182).

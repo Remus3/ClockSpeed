@@ -182,7 +182,7 @@ them on the new repository after S10.
 | Dependabot security update PRs | Disabled - history is linear and lands by cherry-pick, never by merge | Unchanged |
 | Secret scanning, push protection | Unavailable while private | Operator, after the flip (M2) |
 | Private vulnerability reporting | Unavailable while private | Operator, after the flip (M1) |
-| Branch protection | None - the headless lane pushes to `main` | Deliberately unchanged |
+| Branch protection | None on the old remote | CS-700 S11: deletion and non-fast-forward blocked on main only - no required reviews or checks, so the lane's fast-forward pushes land |
 | Community profile | 100 percent: README, LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, PR template | CS-959 |
 | Social preview image | Not set - the API cannot set it | Operator, manual |
 

@@ -75,6 +75,67 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-701 - ADJUDICATION RECORD. NOT A COMPLETION RECORD. The published identity is the configured author name plus the forge noreply address, and S8 grades it in the flip checks
+Verification: `tools/flip_checks.py::derive_identity_allowlist`, `::identity_scan`,
+`::control_identity`, `::run_all`; `tests/test_flip_checks.py::test_s8_passes_a_history_wholly_on_the_allowlist`,
+`::test_s8_fails_each_identity_field_off_the_allowlist`,
+`::test_s1_records_identities_off_the_allowlist_as_an_early_warning`,
+`::test_an_unresolved_name_fails_the_axis`, `::test_an_unresolved_forge_address_fails_the_axis`,
+`::test_an_empty_walk_fails_the_axis`, `::test_the_identity_control_flags_a_synthetic_commit`,
+`::test_the_identity_control_is_not_found_when_the_probe_is_allowlisted`,
+`::test_no_identity_value_is_rendered_or_reprd`, `::test_run_all_counts_the_identity_axis`.
+RULED (adjudicated 2026-10-04): the identity allowlist S7a writes and S8 grades is exactly one
+name, the primary tree's `git config user.name`, and exactly one address, the forge noreply
+address built from `gh api user`'s id and login - both DERIVED AT RUN TIME and never written into
+a tracked file, a log or this record. Alternatives declined: a pseudonymous name, which the
+2026-09-08 ruling in ADR 0018 did not ask for; and holding the name in a tracked allowlist, which
+CS-701's detail forbids. REVERSED ONLY BY the operator's own words in the main session. S8's half
+is the identity axis, check `I`, in `tools/flip_checks.py`: every author and committer name and
+address reachable from REF, read from the raw commit object, must be on that allowlist; at S1 an
+off-allowlist field is an early warning, at S8 a failure; an unresolved source and an empty walk
+fail; the control is a negative probe under the synthetic control identity; the axis is counted
+in the run's automated tally so a skip is visible. CS-701 stays OPEN until S8 runs.
+
+### 2026-10-04 - CS-700 - ADJUDICATION RECORD. NOT A COMPLETION RECORD. S7a recorded verbatim, S10 pushes main alone, S11's protection shape, and the 2026-08-13 fresh-history decision superseded
+Verification: `docs/item_notes/phase7.md` under CS-700, step S7a (THE S7a SCRIPT, RECORDED
+VERBATIM, and the CS-704 IMAGE control), S8, S10 and S11 (THE PROTECTION SHAPE);
+`docs/public-readiness.md` Branch protection row; `THIRD_PARTY.md` Items considered,
+`git-filter-repo` row. Four rulings, adjudicated 2026-10-04:
+(1) S7a's rewrite is RECORDED VERBATIM in the plan with its SHA-256 and its command line, NOT
+shipped as a tool - it runs once, and a tracked tool would invite a second run on rewritten
+history, which S7a's late-commit rule forbids. The recorded text was repaired to take the primary
+tree from argv instead of a hardcoded path, and re-run once on a fresh `git clone --no-local`
+outside the tree: same counts, every control passed, same output tip and the same `c6f3687`
+image as the rehearsal. Alternative declined: a `tools/` script with tests.
+(2) S10 pushes exactly `refs/heads/main`; the commit map and every bundle stay outside the tree.
+(3) S11 sets branch protection on `main` only - deletion and non-fast-forward blocked, no
+required reviews or checks, so the lane's fast-forward pushes land. Alternatives declined: none,
+which leaves force-push open on a public repository; required checks or reviews, which would
+refuse the lane. Whether the plan permits protection on a private repository is a probe owed
+before S9; if it does not, the sub-step moves to just after S12.
+(4) `docs/GATED.md`'s operator decision of 2026-08-13 - ship from a fresh, squashed or orphan
+history - is SUPERSEDED by ADR 0018 (2026-09-08), which keeps the commit graph and recreates the
+remote. That GATED.md text is not edited by this record; ADR 0018 governs.
+`git-filter-repo` passed the `CONVENTIONS.md` section 14 gate as a run-once tool: CLEARED TO RUN,
+DO-NOT-VENDOR, because its MIT text names no holder.
+
+### 2026-10-04 - CS-704 - ADJUDICATION RECORD. NOT A COMPLETION RECORD. The trailer-census baseline is a two-member accept set: c6f3687 and its S7a image
+Verification: `.github/workflows/tier1.yml` step "Trailer census since the baseline";
+`tests/test_trailer_routes.py::test_the_step_accepts_exactly_the_granted_pair`,
+`::test_the_image_passes_on_rewritten_history`, `::test_a_trailer_after_the_image_is_caught`,
+`::test_head_at_the_image_passes_by_name`,
+`::test_a_history_holding_neither_member_as_an_ancestor_fails`,
+`::test_a_baseline_absent_from_the_checkout_fails_and_names_why`,
+`::test_a_baseline_that_is_not_an_ancestor_fails_and_names_why`, and every route arm, each now
+run with the accept set substituted. RULED (adjudicated 2026-10-04): the step accepts EXACTLY
+`c6f36874194aeed450c6d75a93be883f72c8f45e` and `b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec`, the
+first's image under the recorded S7a rewrite; it passes when at least one is an ancestor of HEAD,
+censuses from the first that is, and fails closed naming each member as absent or not an ancestor
+when neither is - a shallow checkout still fails. Alternatives declined: re-pinning to the image
+alone in the S7a commit, which reddens every CI run between the rewrite and that commit; and
+dropping the ancestor check, which removes the shallow-checkout refusal. The image is guarded at
+S7a by its CS-704 IMAGE control in `docs/item_notes/phase7.md`.
+
 ### 2026-10-04 - CS-1231 - CORRECTION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1231 STAYS OPEN. Slice C's lock-busy route no longer renders the kit's refusal, and its pin grades the route's own predicate
 Verification: `ops/loop/inbox_responder.py::is_lock_busy`;
 `tests/test_exception_rendering.py::test_parameter_renders_are_only_the_recorded_residuals`;
