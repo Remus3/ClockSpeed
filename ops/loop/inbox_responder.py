@@ -532,9 +532,20 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
     return _finished(root, now, board, line, output, unread, started)
 
 
+def is_lock_busy(refused: Exception) -> bool:
+    """Whether the kit refused because its budget lock stayed busy.
+
+    Matched on the refusal's ARGS, never on a rendering of the exception
+    object (CS-205): the kit raises it with the one message word and no cause.
+    The kit-words pin in tests/ops/test_inbox_responder.py drives THIS
+    predicate against the vendored kit, so the pin and the route cannot part.
+    """
+    return refused.args == (KIT_LOCK_BUSY,)
+
+
 def _refused(root: Path, board: _Board, refused: Exception, unread: int, started: float) -> int:
     """The kit refused before anything started. Nothing ran, so no duration is recorded."""
-    if isinstance(refused, kit.BudgetUnreadable) or refused.args == (KIT_LOCK_BUSY,):
+    if isinstance(refused, kit.BudgetUnreadable) or is_lock_busy(refused):
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
         board.show("refused", "Halted")

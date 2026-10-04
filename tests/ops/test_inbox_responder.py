@@ -616,7 +616,7 @@ def test_the_lock_busy_words_are_the_vendored_kits_own(tmp_path: Path) -> None:
     path.with_name(path.name + ".lock").write_bytes(b"0")
     with pytest.raises(kit.Refused) as caught:
         kit.RunBudget(path, lock_wait=0.1).start()
-    matched = str(caught.value) == inbox_responder.KIT_LOCK_BUSY
+    matched = inbox_responder.is_lock_busy(caught.value)
     assert matched is True
 
 

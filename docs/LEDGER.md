@@ -75,6 +75,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1231 - CORRECTION: slice C's lock-busy route no longer renders the kit's refusal, and its pin grades the route's own predicate
+Verification: `ops/loop/inbox_responder.py::is_lock_busy`;
+`tests/test_exception_rendering.py::test_parameter_renders_are_only_the_recorded_residuals`;
+`tests/ops/test_inbox_responder.py::test_the_lock_busy_words_are_the_vendored_kits_own` and
+`::test_a_busy_budget_lock_refuses_as_a_counting_failure`. Slice C (c308581) matched the kit's
+lock-busy refusal with `str(refused) == KIT_LOCK_BUSY` on an exception PARAMETER, which the CS-205
+parameter sweep reddens; that red held the push of the CS-400 S1..S4, README and inspiration
+commits. Main's 2207428 moved the route to `refused.args == (KIT_LOCK_BUSY,)`; this record adds
+the named predicate and points the kit-words pin at it, because the pin still compared `str()`
+and so stayed GREEN under a mutant that breaks the route's predicate (measured: old pin 1
+passed, new pin 1 failed against the same mutant). The other reds reported against that push -
+`tests/save/test_struct_interior.py`, `tests/save/test_properties.py`,
+`tests/save/test_transform_list.py`, `tests/test_commit_msg_cleanup_matrix.py` - are NOT code
+defects: each passes run alone at this tip, and a whole-suite run taken while two other suites
+ran beside it failed 38 tests on `MemoryError`, a failed fork and an unbounded-timeout probe, the
+save sweeps over the real library first. The pre-push gate passed at 2207428 once the machine was
+quiet. Residual: the hook has no guard against a contended machine; that is a BACKLOG matter under
+the product-before-process freeze, not filed here.
+
 ### 2026-10-04 - CS-400 - CLOSED: a building's inventory is actually readable, per save and per version pair, through the published WorldModel
 Verification: clockspeed/save/objects.py, clockspeed/save/world.py, clockspeed/audit/inventory.py;
 tests/save/test_phase4_gate.py (clauses 2-4);
