@@ -91,6 +91,7 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from clockspeed.data import locate
+from clockspeed.save import workdir
 from clockspeed.surface import config, providers, server
 from clockspeed.surface.api import contract, routes
 from tests import chained_cause_guard
@@ -443,6 +444,34 @@ def cfg(cert_pair: tuple[Path, Path], tmp_path: Path) -> config.ServerConfig:
         key_path=key,
         web_dir=tmp_path / "web",
     )
+
+
+@pytest.fixture(autouse=True)
+def isolated_work_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Send workdir's copies under tmp_path for every arm in this module.
+
+    CS-1270 MADE THIS MODULE A WRITER. The derivation route is backed, so an arm
+    that drives ``routes.ROUTES`` over a real request reaches
+    ``providers.SaveWorldProvider``, which loads the newest real save - and
+    ``world.load_world`` copies its subject through ``workdir.copy_for_read``
+    into a work root that DEFAULTS TO ``<repo>/work``. One whole-suite run left
+    one real-save copy there and the CS-973 session sentinel in
+    ``tests/conftest.py`` failed every worker's teardown.
+
+    AUTOUSE AND FUNCTION SCOPE: every server in this module is built and torn
+    down inside one test, so a per-test redirect is in place before any write,
+    and no arm has to remember the save layer it never names.
+
+    Args:
+        tmp_path: The per-test sandbox.
+        monkeypatch: Restores the variable after the test.
+
+    Returns:
+        The redirected work root, outside the repo.
+    """
+    root = tmp_path / "work-root"
+    monkeypatch.setenv(workdir.ENV_WORK_ROOT, str(root))
+    return root
 
 
 def probe_route(seen: list[Mapping[str, str]] | None = None) -> contract.Route:

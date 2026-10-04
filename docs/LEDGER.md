@@ -75,6 +75,17 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1270 - PROGRESS RECORD. NOT A COMPLETION RECORD. The backed derivation route stopped leaving a real-save copy in the repo work root
+Verification: `tests/surface/test_server.py::isolated_work_root` redirects `workdir.ENV_WORK_ROOT`
+under `tmp_path` for every arm in the module. The writer was
+`tests/surface/test_server.py::test_both_path_parameter_endpoints_answer_over_a_real_request`:
+once CS-1270 backed the derivation route, `routes.ROUTES` reached `providers.SaveWorldProvider`,
+whose `world.load_world` copied the newest real save into `<repo>/work`, and the CS-973 session
+sentinel `tests/conftest.py::_the_live_copies_directory_is_left_as_it_was_found` failed every
+xdist worker's teardown at pre-push. Red first: that test alone raised the live copy count by
+one and the sentinel errored; green after the redirect with the count unchanged. The stray copy
+and the one the red run made were removed by plain unlink - a regenerable copy, not an original.
+
 ### 2026-10-04 - CS-1270 - CLOSED: /api/advice and its derivation answer 200 through the advisor's advise_world
 Verification: `clockspeed/advisor/advise.py::inputs_of` composes placement, machines, network
 and the balance from one `WorldModel` and one `Registry`, and `::advise_world` runs `advise()`
