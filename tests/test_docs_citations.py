@@ -531,6 +531,9 @@ GUARDED_DOCS: Final = (
     ".github/CONTRIBUTING.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/SECURITY.md",
+    # CS-959 - the pre-public audit. Read by the operator at the flip, so every
+    # path it names must resolve; guarded on arrival for the reason above.
+    "docs/public-readiness.md",
     # THE WHOLE ADR FAMILY, derived rather than listed - see _adr_docs.
     *ADR_DOCS,
     # Guarded on arrival: every arm it names resolves today, and it exists to be
