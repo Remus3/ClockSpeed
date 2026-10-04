@@ -429,8 +429,9 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-\d{3}")
 #: editing this literal. The phase 4 save layer ships and parses a real world;
 #: CS-400 closed 2026-10-04 on building inventory, clock speed was already
 #: decoded, and connection state is a BACKLOG line. ``/api/world`` serves
-#: enumeration only, so it answers 200 or 503 and never 501. While it sat here it was a member no route named, under a comment
-#: that described a routing this package does not perform.
+#: enumeration only, so it answers 200 or 503 and never 501. While it sat
+#: here it was a member no route named, under a comment that described a
+#: routing this package does not perform.
 OPEN_BLOCKERS: Final = frozenset({"CS-500"})
 
 

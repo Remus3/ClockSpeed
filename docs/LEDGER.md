@@ -75,7 +75,7 @@ machine-checked artifact that produces it.
 
 ## Entries
 
-### 2026-10-04 - CS-1231 - CORRECTION: slice C's lock-busy route no longer renders the kit's refusal, and its pin grades the route's own predicate
+### 2026-10-04 - CS-1231 - CORRECTION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1231 STAYS OPEN. Slice C's lock-busy route no longer renders the kit's refusal, and its pin grades the route's own predicate
 Verification: `ops/loop/inbox_responder.py::is_lock_busy`;
 `tests/test_exception_rendering.py::test_parameter_renders_are_only_the_recorded_residuals`;
 `tests/ops/test_inbox_responder.py::test_the_lock_busy_words_are_the_vendored_kits_own` and
