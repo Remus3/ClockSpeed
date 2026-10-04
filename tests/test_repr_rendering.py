@@ -159,9 +159,12 @@ UNGRADED_EXCEPTION_CHANNEL: tuple[str, ...] = (
 #: construct both with a planted marker, and removing either ``repr=False``
 #: brings the class back here as an arrival AND as a finding.
 RECORDED_POPULATION: tuple[str, ...] = (
+    "clockspeed/audit/balance.py::ClockedContribution",
+    "clockspeed/audit/balance.py::ClockedGap",
     "clockspeed/audit/balance.py::DrawContribution",
     "clockspeed/audit/balance.py::DrawGap",
     "clockspeed/audit/balance.py::WorldBalance",
+    "clockspeed/audit/balance.py::WorldClockedDraw",
     "clockspeed/audit/balance.py::WorldDraw",
     "clockspeed/audit/balance.py::WorldStarvation",
     "clockspeed/audit/collectibles.py::WorldCollectibles",
