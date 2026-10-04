@@ -252,6 +252,12 @@ FIXTURES: Final[Mapping[str, Firing]] = {
             )
         ).warnings
     ),
+    "WARN_BALANCE_CLOCK_ELIDED": lambda: (
+        balance.clocked_draw_of(
+            balance_fx.world_machines(balance_fx.elided(balance_fx.FIXED_WHOLE)),
+            balance_fx.modeled_registry(),
+        ).warnings
+    ),
     "WARN_BALANCE_CLOCK_UNREAD": lambda: _clocked_draw(None, balance_fx.modeled_registry()),
     "WARN_BALANCE_CLOCKED_DRAW_UNMODELED": lambda: _clocked_draw(
         Fraction(1), balance_fx.registry()

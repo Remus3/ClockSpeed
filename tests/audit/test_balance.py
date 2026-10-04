@@ -1136,3 +1136,115 @@ def test_the_composite_carries_the_clocked_draw_and_its_warnings() -> None:
     codes = {warning.code for warning in result.warnings}
     assert balance.WARN_BALANCE_CLOCK_UNREAD in codes
     assert balance.WARN_BALANCE_CLOCKED_DRAW_BOUNDED in codes
+
+
+# ---------------------------------------------------------------------------
+# CS-1263: an ELIDED clock is the measured default, an UNREADABLE one a gap
+# ---------------------------------------------------------------------------
+
+
+def elided(class_name: str) -> machines.MachineState:
+    """Build one producing machine whose clock tag the serializer elided.
+
+    Args:
+        class_name: The built class.
+
+    Returns:
+        The state, overclock None with the elision flag set.
+    """
+    return machines.MachineState(
+        class_name=class_name,
+        producing=True,
+        recipe_class_name=RECIPE_CLASS,
+        overclock=None,
+        overclock_elided=True,
+    )
+
+
+def test_an_elided_clock_is_priced_exactly_at_the_default_and_counted() -> None:
+    """Alike in every field but the flag, so only the flag decides.
+
+    The elided machine prices at the declared draw; the unread one beside it
+    stays a named gap, which is what keeps the default from becoming a guess.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(elided(FIXED_THIRD), clocked(FIXED_THIRD, None)), bracketed_registry()
+    )
+
+    (group,) = result.contributions
+    assert group.bound == balance.BOUND_EXACT
+    assert group.clock == balance.ELIDED_CLOCK_DEFAULT
+    assert group.clock_elided is True
+    assert group.upper_total == group.lower_total == THIRD_MEGAWATTS
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [(balance.GAP_CLOCK_UNREAD, 1)]
+    assert result.elided_clock_count == 1
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCK_ELIDED) == 1
+
+
+def test_an_elided_group_never_merges_with_a_read_clock_of_one() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(elided(FIXED_WHOLE), clocked(FIXED_WHOLE, Fraction(1))),
+        modeled_registry(),
+    )
+
+    assert sorted((group.clock_elided, group.machine_count) for group in result.contributions) == [
+        (False, 1),
+        (True, 1),
+    ]
+
+
+def test_the_elided_default_is_the_reference_clock() -> None:
+    assert balance.ELIDED_CLOCK_DEFAULT == power.REFERENCE_CLOCK
+
+
+# ---------------------------------------------------------------------------
+# CS-1263: the bracket reads the exponent's own floor and ceiling
+# ---------------------------------------------------------------------------
+#
+# An exponent between one and two lets an implementation that hardcodes the two
+# whole exponents to 1 and 2 pass every arm above. These sit elsewhere on the
+# line, including below zero, so floor and ceiling are both exercised.
+
+
+@pytest.mark.parametrize(
+    ("exponent", "clock", "lower_factor", "upper_factor"),
+    [
+        (Fraction(5, 2), HALF_CLOCK, Fraction(1, 8), Fraction(1, 4)),
+        (Fraction(5, 2), DOUBLE_CLOCK, Fraction(4), Fraction(8)),
+        (Fraction(1, 2), HALF_CLOCK, Fraction(1, 2), Fraction(1)),
+        (Fraction(1, 2), DOUBLE_CLOCK, Fraction(1), Fraction(2)),
+        (Fraction(-3, 2), HALF_CLOCK, Fraction(2), Fraction(4)),
+        (Fraction(-3, 2), DOUBLE_CLOCK, Fraction(1, 4), Fraction(1, 2)),
+    ],
+    ids=[
+        "five-halves-under",
+        "five-halves-over",
+        "one-half-under",
+        "one-half-over",
+        "minus-three-halves-under",
+        "minus-three-halves-over",
+    ],
+)
+def test_the_bracket_uses_the_exponents_own_floor_and_ceiling(
+    exponent: Fraction, clock: Fraction, lower_factor: Fraction, upper_factor: Fraction
+) -> None:
+    entries = registry(building(FIXED_THIRD, consumption=THIRD_MEGAWATTS, exponent=exponent))
+    result = balance.clocked_draw_of(world_machines(clocked(FIXED_THIRD, clock)), entries)
+
+    (group,) = result.contributions
+    assert group.bound == balance.BOUND_EXPONENT_BRACKET
+    assert group.lower_each == THIRD_MEGAWATTS * lower_factor
+    assert group.upper_each == THIRD_MEGAWATTS * upper_factor
+    physical = float(THIRD_MEGAWATTS) * float(clock) ** float(exponent)
+    low = float(group.lower_each)
+    high = float(group.upper_each)
+    assert low < physical < high
+
+
+def test_a_zero_clock_under_a_negative_exponent_is_a_named_gap() -> None:
+    entries = registry(building(FIXED_THIRD, consumption=THIRD_MEGAWATTS, exponent=Fraction(-3, 2)))
+    result = balance.clocked_draw_of(world_machines(clocked(FIXED_THIRD, Fraction(0))), entries)
+
+    assert [gap.kind for gap in result.gaps] == [power.OUTCOME_UNDEFINED]
+    assert result.contributions == ()

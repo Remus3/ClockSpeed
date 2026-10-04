@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import struct
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
 
@@ -498,3 +498,62 @@ def test_no_machines_type_annotates_a_carrier_field() -> None:
         for field in fields(declared):
             assert "bytes" not in str(field.type)
             assert "Path" not in str(field.type)
+
+
+# ---------------------------------------------------------------------------
+# CS-1263: an ELIDED clock is told apart from an UNREADABLE one
+# ---------------------------------------------------------------------------
+#
+# The serializer writes no ``mCurrentPotential`` tag for a machine at the class
+# default, so an absent tag on a cleanly read payload is a measured fact and not
+# an unknown. Every arm below keeps ``overclock`` None - CS-1041's clause above
+# stands - and grades only the flag that says WHY it is None.
+
+
+def test_an_absent_overclock_on_a_cleanly_read_payload_is_marked_elided() -> None:
+    result = machines.machines_of(world(entry({machines.PROPERTY_PRODUCING: True})))
+
+    assert result.machines[0].overclock is None
+    assert result.machines[0].overclock_elided is True
+
+
+def test_a_refused_overclock_is_not_marked_elided() -> None:
+    result = machines.machines_of(world(entry({machines.PROPERTY_OVERCLOCK: 0.1})))
+
+    assert result.machines[0].overclock is None
+    assert result.machines[0].overclock_elided is False
+
+
+def test_a_present_overclock_is_not_marked_elided() -> None:
+    result = machines.machines_of(
+        world(entry({machines.PROPERTY_OVERCLOCK: as_float32(AUTHORED_OVERCLOCK)}))
+    )
+
+    assert result.machines[0].overclock_elided is False
+
+
+def test_an_absent_overclock_on_an_unread_payload_is_not_marked_elided() -> None:
+    result = machines.machines_of(
+        world(entry({machines.PROPERTY_PRODUCING: True}, payload_read=False))
+    )
+
+    assert result.machines[0].overclock_elided is False
+
+
+def test_an_absent_overclock_beside_a_disagreeing_tag_is_not_marked_elided() -> None:
+    """A measured tag whose bytes disagreed may have been the clock itself."""
+    disagreeing = replace(entry({machines.PROPERTY_PRODUCING: True}), disagreeing_value_count=1)
+    result = machines.machines_of(world(disagreeing))
+
+    assert result.machines[0].overclock_elided is False
+
+
+def test_a_hand_built_state_never_claims_an_elided_clock() -> None:
+    state = machines.MachineState(
+        class_name="Build_SyntheticQx73_C",
+        producing=True,
+        recipe_class_name=None,
+        overclock=None,
+    )
+
+    assert state.overclock_elided is False

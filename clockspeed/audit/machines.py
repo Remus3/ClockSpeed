@@ -292,12 +292,24 @@ class MachineState:
             refused its value. NEVER 1 FOR AN ABSENT TAG, which is the whole of
             CS-1041's second acceptance clause -
             ``tests/audit/test_machines.py::test_an_absent_overclock_is_null_rather_than_one``.
+        overclock_elided: CS-1263. True ONLY when the payload read under the
+            measured grammar, no measured-type tag disagreed with its declared
+            size, and no ``mCurrentPotential`` tag was present at all - the
+            shape the save serializer writes for a value equal to the class
+            default, which it elides. MEASURED, not assumed: over the save
+            library for CS-1263, no present tag carried exactly one while most
+            machines carried no tag at all.
+            False for a refused value, an unread payload, a disagreeing tag, a
+            present tag, and by default for a hand-built state, so a consumer
+            that has not been told the tag was elided never assumes it. The
+            :attr:`overclock` field stays None either way - this flag says WHY.
     """
 
     class_name: str
     producing: bool | None
     recipe_class_name: str | None
     overclock: Fraction | None
+    overclock_elided: bool = False
 
 
 @dataclass(frozen=True, repr=False)
@@ -462,6 +474,11 @@ def machines_of(model: WorldModel) -> WorldMachines:
                 producing=producing,
                 recipe_class_name=recipe_class_name,
                 overclock=overclock,
+                overclock_elided=(
+                    PROPERTY_OVERCLOCK not in entry.values
+                    and entry.payload_read
+                    and not entry.disagreeing_value_count
+                ),
             )
         )
 

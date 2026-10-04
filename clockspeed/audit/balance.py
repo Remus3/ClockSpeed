@@ -175,6 +175,7 @@ __all__ = [
     "BOUND_EXPONENT_BRACKET",
     "BOUND_KINDS",
     "CLOCKED_GAP_KINDS",
+    "ELIDED_CLOCK_DEFAULT",
     "GAP_CLOCK_UNREAD",
     "GAP_DRAW_INEXACT",
     "GAP_KINDS",
@@ -183,6 +184,7 @@ __all__ = [
     "SOURCE_BALANCE",
     "WARN_BALANCE_CLOCKED_DRAW_BOUNDED",
     "WARN_BALANCE_CLOCKED_DRAW_UNMODELED",
+    "WARN_BALANCE_CLOCK_ELIDED",
     "WARN_BALANCE_CLOCK_UNREAD",
     "WARN_BALANCE_DRAW_UNMODELED",
     "WARN_BALANCE_MACHINE_STATE_UNREAD",
@@ -262,6 +264,17 @@ BOUND_EXPONENT_BRACKET: Final = "exponent-bracket"
 #: The closed vocabulary of bound kinds, published so a consumer can branch on it.
 BOUND_KINDS: Final = frozenset({BOUND_EXACT, BOUND_EXPONENT_BRACKET})
 
+#: The clock a machine runs at when its ``mCurrentPotential`` tag was ELIDED -
+#: ``MachineState.overclock_elided``. The save serializer writes no tag for a
+#: value equal to the class default, and the class default is the reference
+#: clock (``clockspeed/audit/machines.py`` module docstring; ADR 0005 records
+#: the property as ``SaveGame`` on ``FGBuildableFactory``). MEASURED for
+#: CS-1263 over the save library: no present tag carried exactly one, while
+#: most machines carried no tag at all. A clock that is absent for any OTHER
+#: reason - an unread payload, a disagreeing tag, a refused value - is still
+#: :data:`GAP_CLOCK_UNREAD` and never this.
+ELIDED_CLOCK_DEFAULT: Final = REFERENCE_CLOCK
+
 #: This many BUILT ACTORS - not classes - contributed no number to the world
 #: draw. The consumption total below them is a lower bound and nothing more.
 WARN_BALANCE_DRAW_UNMODELED: Final = "balance-draw-unmodeled"
@@ -305,6 +318,10 @@ WARN_BALANCE_CLOCKED_DRAW_BOUNDED: Final = "balance-clocked-draw-bounded"
 #: zero because there was nothing to price, not because anything was measured.
 WARN_BALANCE_NO_MACHINES_CLOCKED: Final = "balance-no-machines-clocked"
 
+#: CS-1263. This many machines were priced at :data:`ELIDED_CLOCK_DEFAULT`
+#: because their clock tag was elided. Counted so the default is never silent.
+WARN_BALANCE_CLOCK_ELIDED: Final = "balance-clock-elided"
+
 #: One fixed line per gap kind this module OWNS. The other three kinds carry
 #: ``clockspeed/solve/power.py``'s own reason verbatim instead, so no line is
 #: written twice anywhere.
@@ -337,6 +354,13 @@ _GAP_REASON: Final[Mapping[str, str]] = MappingProxyType(
 _REFERENCE_CLOCK_REASON: Final = (
     "at the reference clock the draw is the declared scalar; one raised to any power is"
     " one, so no exponent is asked for and the draw is exact"
+)
+
+#: Why a machine whose clock tag was elided is priced at the default.
+_ELIDED_CLOCK_REASON: Final = (
+    "the save carried no clock tag on a cleanly read payload, which is how it writes a"
+    " machine at the class default, so it is priced at the reference clock, where the"
+    " draw is the declared scalar"
 )
 
 #: Why a clocked group is exact under a whole exponent away from the reference.
@@ -414,6 +438,11 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_BALANCE_CLOCKED_DRAW_BOUNDED: (
             "this many machines run where the power law has no exact rational value, so"
             " the clocked draw is an exact bracket and not one number"
+        ),
+        WARN_BALANCE_CLOCK_ELIDED: (
+            "this many machines carried no clock tag on a cleanly read payload, which is how"
+            " the save writes a machine at the class default, so they were priced at the"
+            " reference clock; a clock absent for any other reason stays a named gap"
         ),
         WARN_BALANCE_NO_MACHINES_CLOCKED: (
             "the machines model carried no machine at all, so the clocked draw is zero"
@@ -776,6 +805,9 @@ class ClockedContribution:
     Attributes:
         class_name: The machine's built class, as ``MachineState`` carries it.
         clock: The clock every machine in the group runs at, exact.
+        clock_elided: Whether that clock is :data:`ELIDED_CLOCK_DEFAULT`
+            standing in for an elided tag rather than a value read. Part of the
+            group key, so an elided group never merges with a read one.
         machine_count: How many machines run that class at that clock.
         bound: One of :data:`BOUND_KINDS`.
         reason: One line naming why the draw is exact or bracketed.
@@ -787,6 +819,7 @@ class ClockedContribution:
 
     class_name: str
     clock: Fraction
+    clock_elided: bool
     machine_count: int
     bound: str
     reason: str
@@ -803,6 +836,7 @@ class ClockedContribution:
         """
         return (
             f"{type(self).__name__}(clock={self.clock}, "
+            f"clock_elided={self.clock_elided}, "
             f"machine_count={self.machine_count}, bound={self.bound}, "
             f"lower_total={self.lower_total}, upper_total={self.upper_total})"
         )
@@ -857,6 +891,8 @@ class WorldClockedDraw:
         machines_considered: How many machines the input population held.
         bounded_machine_count: How many machines sit in a bracketed group.
         unread_clock_count: How many machines are :data:`GAP_CLOCK_UNREAD`.
+        elided_clock_count: How many machines were priced at
+            :data:`ELIDED_CLOCK_DEFAULT` because their clock tag was elided.
         unmodeled_machine_count: How many machines are any other gap kind.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
     """
@@ -870,6 +906,7 @@ class WorldClockedDraw:
     machines_considered: int
     bounded_machine_count: int
     unread_clock_count: int
+    elided_clock_count: int
     unmodeled_machine_count: int
     warnings: tuple[WorldWarning, ...]
 
@@ -885,6 +922,7 @@ class WorldClockedDraw:
             f"machines_considered={self.machines_considered}, "
             f"bounded_machine_count={self.bounded_machine_count}, "
             f"unread_clock_count={self.unread_clock_count}, "
+            f"elided_clock_count={self.elided_clock_count}, "
             f"unmodeled_machine_count={self.unmodeled_machine_count}, "
             f"warnings={len(self.warnings)})"
         )
@@ -1065,19 +1103,23 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
         one, a named bracket where it does not, and a named gap where no number
         exists at all.
     """
-    priced: dict[tuple[str, Fraction], tuple[str, str, Fraction, Fraction, int]] = {}
+    priced: dict[tuple[str, Fraction, bool], tuple[str, str, Fraction, Fraction, int]] = {}
     gapped: dict[tuple[str, str], tuple[str, int]] = {}
 
     for state in machines.machines:
         entry = buildings.get(state.class_name)
-        outcome = _clocked_outcome(state.class_name, state.overclock, entry)
+        elided = state.overclock is None and state.overclock_elided
+        read = ELIDED_CLOCK_DEFAULT if elided else state.overclock
+        outcome = _clocked_outcome(state.class_name, read, entry)
         if len(outcome) == 2:  # noqa: PLR2004 - the gap shape is a pair
             kind, reason = outcome
             _held, count = gapped.get((state.class_name, kind), (reason, 0))
             gapped[(state.class_name, kind)] = (reason, count + 1)
             continue
         bound, reason, clock, low, high = outcome
-        key = (state.class_name, clock)
+        if elided:
+            reason = _ELIDED_CLOCK_REASON
+        key = (state.class_name, clock, elided)
         prior = priced.get(key, (bound, reason, low, high, 0))
         priced[key] = (bound, reason, low, high, prior[4] + 1)
 
@@ -1085,6 +1127,7 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
         ClockedContribution(
             class_name=class_name,
             clock=clock,
+            clock_elided=elided,
             machine_count=count,
             bound=bound,
             reason=reason,
@@ -1093,7 +1136,7 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
             lower_total=low * count,
             upper_total=high * count,
         )
-        for (class_name, clock), (bound, reason, low, high, count) in sorted(priced.items())
+        for (class_name, clock, elided), (bound, reason, low, high, count) in sorted(priced.items())
     )
     gaps = tuple(
         ClockedGap(class_name=class_name, machine_count=count, kind=kind, reason=reason)
@@ -1104,11 +1147,14 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
         group.machine_count for group in contributions if group.bound == BOUND_EXPONENT_BRACKET
     )
     unread = sum(gap.machine_count for gap in gaps if gap.kind == GAP_CLOCK_UNREAD)
+    defaulted = sum(group.machine_count for group in contributions if group.clock_elided)
     unmodeled = sum(gap.machine_count for gap in gaps) - unread
 
     warnings: list[WorldWarning] = []
     if not machines.machines:
         warnings.append(_warning(WARN_BALANCE_NO_MACHINES_CLOCKED))
+    if defaulted:
+        warnings.append(_warning(WARN_BALANCE_CLOCK_ELIDED, defaulted))
     if unread:
         warnings.append(_warning(WARN_BALANCE_CLOCK_UNREAD, unread))
     if unmodeled:
@@ -1126,6 +1172,7 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
         machines_considered=len(machines.machines),
         bounded_machine_count=bounded,
         unread_clock_count=unread,
+        elided_clock_count=defaulted,
         unmodeled_machine_count=unmodeled,
         warnings=tuple(warnings),
     )
