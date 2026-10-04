@@ -71,7 +71,16 @@
         "CS-914": "a save-layer workdir truncation race; phase 4 work filed under phase 6",
         "CS-915": "two guards reporting zero findings for the wrong reason",
         "CS-916": "an asset-extraction prerequisite in the published model",
-        "CS-988": "the population-floor defect class itself; a cross-cutting guard item"
+        "CS-988": "the population-floor defect class itself; a cross-cutting guard item",
+        "CS-1254": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1255": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1256": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1257": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1258": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1259": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1260": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1261": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
+        "CS-1262": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned"
       }
     }
   }
