@@ -1,99 +1,97 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 121, 2026-10-03. The operator starts with "continue".
+Written at the end of session 122, 2026-10-04. The operator starts with "continue".
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
 ================================================================================
 
-  CLAUDE.md                 rules - NOTE the new Settled entry "Product before process"
+  CLAUDE.md                 rules - section 7 "Product before process" governs
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only
-  WAKEUP_NOTES.md           sessions 121, 120, 119 at full fidelity
+  WAKEUP_NOTES.md           sessions 122, 121, 120 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
-  docs/item_notes/          per-item acceptance (CS-400 is in the phase 4 leaf)
+  docs/item_notes/          per-item acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
 
 Then run:  python tools/inbox_watch.py   (listing never acknowledges)
 
 ================================================================================
-OPERATOR DIRECTIVE THIS SESSION - PRODUCT BEFORE PROCESS
-================================================================================
-
-Measured 2026-09-19..10-03: 371 commits, 8 touched clockspeed/ or shell/ (403 product
-lines against 63,812 tooling and test lines). The operator ordered the recommendation:
-finish what is in flight, then FREEZE new tooling / guard / CI / citation / provenance
-items unless one blocks a product item or turns a suite red (those go to BACKLOG.md),
-and put the sessions on CS-400 (the Phase 4 save-reader gate) and then the Phase 5
-advisor (advice rules, whole-world audit, milestone planner, power planner). Stop a
-low-risk hardening adversary loop by cost against risk and record the residual.
-Owner: CLAUDE.md section 7, "Product before process".
-
-================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   see SESSION 121 /done REPORT below. Confirm `git rev-parse HEAD` equals
+HEAD / remote   2207428 pushed and read back equal to ls-remote. This hand-off is
+                committed in a follow-up commit; confirm `git rev-parse HEAD` equals
                 `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0.
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
-UNMERGED BRANCHES - DO NOT PRUNE:
-  CS-1234 WIP: `git log --all --oneline --grep "CS-1234 - WIP"` - status file writer and
-    120/24h start cap; its suite was NOT green (failures plus a hang, not yet named) when
-    the builder was stopped for /done. Files: ops/loop/inbox_status.py (new),
-    ops/loop/inbox_responder.py, tests/ops/test_inbox_status.py (new),
-    tests/ops/test_inbox_responder.py, tools/provenance.tsv.
-  CS-1207 branch (round-15 tip, rounds 4-16), untouched since session 117:
-    `git log --all --oneline --grep CS-1207`. Classify stale trees by CONTENT.
-  The two session-120 CS-1231 v3 slice commits are SUPERSEDED by the landed v4 commit;
-    their worktrees may be pruned once confirmed content-free against main.
+ANOTHER WRITER SHARES THIS TREE. During session 122 a separate session committed
+  CS-959 (README, docs/public-readiness.md) and CS-1235..CS-1262 (the inspiration
+  ingest) on main. ALLOCATE NEW IDS FROM CS-1263 UPWARD AND RE-CHECK THE MAX FIRST
+  (memory: two writers allocate the same item id).
+UNMERGED BRANCHES - DO NOT PRUNE: the CS-1207 branch (round-15 tip), untouched since
+  session 117: `git log --all --oneline --grep CS-1207`. Session 122 worktree branches
+  were all landed by cherry-pick; classify any leftover tree by CONTENT before pruning.
 LOCAL CONFIG    config/main_tree.local.json (gitignored) names MAIN's root.
-RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored). Pause it
-                before working in the main tree if ever resumed.
-PROVENANCE TOOL tools/main_provenance.py now needs THIS tree's inbox: run from the
-                primary checkout or pass --inbox; a worktree answers inbox-absent.
+RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored).
+DESKTOP FILE    INSPIRATION-DIRECTIVE.md on the Desktop (untracked, outside the repo):
+                41 directives for our own versions of ideas from an outside profile.
+                The other session has already filed CS-1235..1262 from it.
 
 ================================================================================
-CLOSED / LANDED IN SESSION 121 (detail in docs/LEDGER.md)
+CLOSED / LANDED IN SESSION 122 (detail in docs/LEDGER.md)
 ================================================================================
 
-CS-1232  CLOSED. MAIN bundle files verify at <bundle>/<file>, placed by FILE IDENTITY
-         (census of the inbox); census error -> census-failed; absent inbox ->
-         inbox-absent. The real v4 bundle verifies 6/6. Residual: POSIX untested.
-CS-1231  LANDED NOT CLOSED. Licence gate CLEARED and recorded before the lift; FLEET-KIT
-         v4 vendored at ops/fleet_kit/ with five THIRD_PARTY rows; CLAUDE.md keeps its FULL
-         text plus the block, a precedence paragraph (CLAUDE.md governs) and Reversed-by
-         clauses (operator's own words only). OPEN: slice C.
-CS-1233  LANDED NOT CLOSED. The CS-815 latency arm times only after xdist siblings go
-         quiet (tests/xdist_quiet.py); budget unchanged. Closes on a green windows tier2.
+CS-400   CLOSED (adjudicated). A building's inventory is actually readable per save and
+         per version pair through the published WorldModel: InventoryItem decoder
+         (try-both-forms, accept exactly one), reference join, parent-ownership join with
+         a non-building bucket, per-building inventory with an exact four-way partition,
+         depth gate, real-library building-path arm. Clean-clone independent byte counter
+         matched 40/40 saves.
+CS-1228, CS-1229, CS-1230, CS-1233  CLOSED on green tier1+tier2 at d1775ca.
+CS-1232  CORRECTION record: POSIX residual discharged (inode-reuse pin, regular file only).
+CS-815   LANDED NOT CLOSED: probe folded to one start with a per-run nonce under the
+         frozen-file grant plus its AMENDMENT (both in docs/LEDGER.md). Windows median
+         under 1.0s in CI. Open only on the operator's by-eye check (rulings below).
+CS-1234  LANDED NOT CLOSED: inbox status file + 120/24h cap; now one counter (the kit's).
+CS-1231  LANDED NOT CLOSED: slice C half - inbox_responder spawns via the kit.
+CS-1254..CS-1262 excluded from the dashboard lane scope until planned (lane_scope red).
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-Read tier1 and tier2 run 37156039418 at the pushed tip (report below) and read EVERY leg (the windows guards
-legs carry the CS-815 arm). On green: close CS-1228, CS-1229, CS-1230, CS-1233. Then
-finish the two in-flight items below and START CS-400.
+Read tier1 run 37188737728 and tier2 run 37188746002 at 2207428 - EVERY job, including
+the windows guards legs (CS-815 latency arm) and the ubuntu provenance arms. Then read
+CI for this hand-off's own push. Red is the top item. Green: start Phase 5 (item 3).
 
 ================================================================================
 OPEN ITEMS, PRIORITY ORDER
 ================================================================================
 
- 0 Push/CI per the report below. Tier2 green closes CS-1228/1229/1230/1233. After three
-   green tier2 runs: `python tools/tier2_headroom.py --refresh`, then remove
+ 1 CS-1234  close it: acceptance in its phase 7 section; it landed and is pushed - grade
+            it against acceptance with a verifier, then ledger-close.
+ 2 CS-1231 slice C, second half: route ops/loop/run_lane.ps1 through the kit. Blockers
+            measured: the kit has NO command-line entry (needs a new Python entry file),
+            its effort set lacks xhigh/max (the lane uses them), and four test files
+            drive the real script with a stub CLI (test_lane_runner_script,
+            test_lane_background_tasks, test_usage_limit_refusal, test_headless_route) -
+            through the kit they would read the real registry/proxy, and stubbing that
+            needs an env bypass FLEET item 10 forbids. Report the kit gaps to MAIN (kit
+            files are never edited locally). THEN send MAIN the v4 ANSWER: v4 adoption
+            commit, conformance [] read back, inbox_responder moved, run_lane.ps1 left out
+            and why, per-file provenance 6 of 6.
+ 3 PHASE 5 - THE PRODUCT FOCUS (CS-400 is closed): advice rules, whole-world audit,
+            milestone planner, power planner. Read ROADMAP phase 5 rows and the
+            CS-1235..1262 ingest rows; plan with a planner agent, slice, build.
+ 4 CS-828 / CS-829 stay open, scope unchanged by CS-400. New measurement for CS-828
+   (S0-d): on (13,42), (14,52), (14,60) every inventory component payload ends in an
+   8-byte trailing run, 4 bytes unread, int32 0 on every sampled save. CS-1151 owns the
+   stale (14,60) terminator sentence.
+ 5 After three green tier2 runs: `python tools/tier2_headroom.py --refresh`, then remove
    PENDING_FIRST_RECORD and its EXPECTED_PENDING pin in the same diff.
- 1 CS-1234  finish the WIP branch (name the failures and the hang first), land it. The
-            operator APPROVED MAIN 0915 section 1 and 0855 in session. RC's widget shows CS
-            "Sync: no signal" until it lands. The halted path must write the file.
- 2 CS-1231 slice C  route ops/loop/inbox_responder.py and ops/loop/run_lane.ps1 through
-            the kit's spawn with floors_in_hooks=True (MAIN 0912 overhead cut; CS floors
-            live in hooks, so bare=no); drop the two stated exceptions from CLAUDE.md's
-            precedence paragraph; keep tools/main_provenance.py. Then send MAIN the v4
-            ANSWER: v4 adoption commit, conformance [] read back, the spawn paths moved,
-            per-file provenance (6 of 6 verified this session).
- 3 CS-400   the Phase 4 gate - THE PRODUCT FOCUS. Then CS-828, CS-829, then Phase 5.
- 4 Everything else below is FROZEN by the directive unless it blocks product or reddens
-   a suite: CS-1207 (halted, ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204,
-   CS-1205, CS-1206, CS-1215, CS-1216, CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032,
-   CS-701, CS-953, CS-1186, and CS-700 (the flip, LAST; S9 onward needs the operator's
+ 6 FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
+   ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206, CS-1215,
+   CS-1216, CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-701, CS-953, CS-1186,
+   CS-959 follow-ups, and CS-700 (the flip, LAST; S9 onward needs the operator's
    own-words confirmation; CS-704's census baseline must be re-pinned after S7a).
 
 ================================================================================
@@ -103,81 +101,81 @@ OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
 CS-1207  repair loop HALTED by a safety classifier. Do NOT re-dispatch an escape hunt.
          Owed: run round 17 interactively or declare out of scope; or land LANDED-NOT-
          CLOSED with tests/test_hook_env_echo.py moved to the fill shard.
-CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line?
+CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line? This is the
+         ONLY remaining CS-815 check (phase7 section).
 
 ================================================================================
 DECISIONS - DO NOT RE-LITIGATE (each with what would reverse it)
 ================================================================================
 
+CS-815 PROBE: ONE START WITH A PER-RUN NONCE (od from /dev/urandom), FAILS CLOSED, NO
+  FALLBACK. The fixed-token fold was REFUTED (`printf token; exit 97` passed). Option
+  (b2) two starts and option (c) caching were REJECTED. Reversed by: a new adjudicated
+  amendment in docs/LEDGER.md. THE 1.0s BUDGET IS NEVER RAISED.
+CS-400 INVENTORY GRAMMAR: try both measured InventoryItem forms, accept exactly one;
+  ambiguity or no close is refused and counted; class on a new value type; item state
+  counted undecoded; attribution by actor reference, parent or self, with a
+  non-building bucket; "Build_" prefix (case-insensitive) holds for all 539 shipped
+  buildables. Reversed by: a measured save that breaks the partition or the prefix.
 PRODUCT BEFORE PROCESS (CLAUDE.md section 7). Reversed by: the operator's own words.
-CLAUDE.md IS NOT CONDENSED to fit FLEET-COMMON - full text plus block fits the budget;
-  condensing demoted binding rules once. Reversed by: a budget breach, then relocate per
-  section 4, never into a file that declares itself non-binding.
-CLAUDE.md GOVERNS WHERE IT DIFFERS FROM THE FLEET BLOCK (no-polling, the checklist
-  cadence, the repo-public floor). Reversed by: the operator's own words.
-PROVENANCE PLACEMENT IS BY FILE IDENTITY, NEVER BY PATH SPELLING. Reversed by: a
-  measured identity collision on this machine.
-AN ABSENT INBOX REFUSES (inbox-absent), it is never "no inbox". Reversed by: an
-  adjudicated item.
-THE CS-815 BUDGET STAYS 1.0s; contention is removed from the measurement, the ceiling
-  is never raised. Reversed by: a measured uncontended windows cost over 1.0s - then
-  CS-815 condition 4 is UNMET and the wrapper is the defect.
-MAIN PROVENANCE STAYS tools/main_provenance.py, never the kit's verify_main.
-DO NOT LAND A SLICE BY MERGE COMMIT (CS-1196). NEVER RAISE A TIER2 TIMEOUT TO FIT
-  GROWTH - SHARD. NEVER RAISE THE 420/480 TIER-1 PIN. NEVER RE-DISPATCH WORK A SAFETY
-  CLASSIFIER STOPPED. RULE 13 LIVES ONLY IN CLAUDE.md; an assert never renders an env
-  value. FROZEN-FILE EDITS need an adjudicator grant in docs/LEDGER.md BEFORE the edit.
-  THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
-NO SIBLING-TREE READS beyond MAIN's outbox and git history for provenance, except a
-  path the operator names in chat (one RC note in MAIN's inbox was read that way).
+CLAUDE.md IS NOT CONDENSED to fit FLEET-COMMON. Reversed by: a budget breach, then
+  relocate per section 4.
+CLAUDE.md GOVERNS WHERE IT DIFFERS FROM THE FLEET BLOCK. Reversed by: operator's words.
+PROVENANCE PLACEMENT IS BY FILE IDENTITY; off Windows the note is PINNED OPEN and must be
+  a regular file. Reversed by: a measured identity collision.
+AN ABSENT INBOX REFUSES (inbox-absent). MAIN PROVENANCE STAYS tools/main_provenance.py.
+DO NOT LAND A SLICE BY MERGE COMMIT. NEVER RAISE A TIER2 TIMEOUT - SHARD. NEVER RAISE THE
+  420/480 TIER-1 PIN. NEVER RE-DISPATCH WORK A SAFETY CLASSIFIER STOPPED. RULE 13 LIVES
+  ONLY IN CLAUDE.md. FROZEN-FILE EDITS need an adjudicator grant in docs/LEDGER.md BEFORE
+  the edit. THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER
+  REWRITTEN. NO SIBLING-TREE READS beyond MAIN's outbox and git history.
 
 ================================================================================
 THE CHANNEL
 ================================================================================
 
-OWED: the v4 ANSWER to MAIN (after slice C; see item 2). MAIN 0915 status file: owed
-via CS-1234. RC 1352 (to MAIN, read at the operator's pointer): RC's widget landed and
-reads CS as "no signal". Inbox: 50+ unread, NOT acknowledged this session.
+OWED: the v4 ANSWER to MAIN (item 2). MAIN 0915 status file: now published by CS-1234.
+Inbox: 50+ unread, NOT acknowledged in session 121 or 122.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CS-1207 and CS-815: operator rulings above. CS-G08: a disposable never-seen
-environment. FOUR DEAD-SECRET FILES still await an operator deletion call.
+CS-1207 and CS-815: operator rulings above. CS-G08: a disposable never-seen environment.
+FOUR DEAD-SECRET FILES still await an operator deletion call.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-Four builders plus adversaries on one box: a full suite took 54 min and a timing test
-  failed from load - run at most two suites at once.
-Agent ids in branch names trip the sha citation gate in tracked docs - cite a locator.
-A builder that stops "waiting on a suite" returns an interim notice; it is not done.
-Tier1 is ubuntu-only; only tier2 exercises windows.
+Five push attempts for one batch. TARGETED RUNS MISS THE CENSUS GUARDS: repr population
+  (a new class must be recorded; a generated repr rendering a str field fails), locals
+  rendering (never bind a withheld value to a local in an asserting scope - inline it),
+  REFERENCE_COUNT_COMMON_MODE closure (a new name the shared tag reader runs), exception
+  rendering (no str() of a received exception - compare .args), and the 72-char commit
+  subject. Add these to every builder brief.
+OTHER SESSIONS LOAD THE BOX. Pre-push failed three times on MemoryError, an xdist worker
+  crash and fork exhaustion inside a hook sandbox while 68-87 python/sh processes from
+  other sessions ran. The same tree passed on retry. Check load before pushing.
+An adversary pass caught a FAIL-OPEN in an adjudicator-granted design (the fixed-token
+  fold). A grant is not a review - always refute the candidate.
+Worktree isolation blocks writes to the shared progress directory; agents write their
+  progress file inside their own worktree.
 
 ================================================================================
-SESSION 121 /done REPORT
+SESSION 122 /done REPORT
 ================================================================================
 
-FIRST PUSH BLOCKED (read from the log, not the exit code): the pre-push hook's whole
-suite ran 2 failed, 9047 passed, 1 skipped in 15m05s; origin/main stayed 41f1835.
-  - tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits - an
-    agent id in WAKEUP_NOTES.md (already replaced by a locator before the commit).
-  - tests/test_toolpath.py::test_every_current_directory_arm_is_skipped_off_windows -
-    two CS-1232 junction arms skipped in-body; now `@pytest.mark.skipif(os.name != "nt")`.
-    Targeted re-run: test_toolpath -k current_directory 4 passed, PYTEST_EXIT 0;
-    test_main_provenance -k junction 2 passed, PYTEST_EXIT 0.
-Gates on the /done tree: drift_guard 0, doc_budget 0, sha_citation_gate 0.
-SECOND PUSH BLOCKED: whole suite 1 failed, 13165 passed, 12 skipped in 24m36s -
-  tests/test_citation_tables.py R2 declared-untracked: the CS-1234 filing cited the
-  gitignored status-file path in ROADMAP.md and the phase 7 leaf; reworded. Re-run:
-  test_citation_tables + test_item_notes_index 269 passed, PYTEST_EXIT 0; drift_guard 0.
-THIRD PUSH LANDED: whole suite 13189 passed, 12 skipped, 0 failed in 21m32s (hook,
-  `pytest tests -n auto --dist loadfile`); origin/main moved 41f1835..d7f583d, HEAD equal
-  to ls-remote, read back.
-CI at d7f583d: tier1 run 37156032109 IN PROGRESS when read - UNVERIFIED. tier2 dispatched
-  by hand, run 37156039418, QUEUED - read it first; on green close CS-1228, CS-1229,
-  CS-1230 and CS-1233. This report is committed in a follow-up commit; its own push
-  re-runs the suite - confirm HEAD equals ls-remote.
+Pre-push whole suite (hook, `pytest tests -n auto --dist loadfile`) on the landed tree:
+  13935 passed, 12 skipped, 0 failed in 21m29s; origin/main moved d1775ca..2207428,
+  HEAD equal to ls-remote, read back. Earlier attempts this /done: one refused on a
+  real defect (str() of a received exception in ops/loop/inbox_responder.py, fixed),
+  three refused on box load (MemoryError, fork exhaustion in a hook sandbox) and passed
+  on retry with no code change.
+Gates on the /done tree: drift_guard 0, doc_budget 0, `python -m mypy clockspeed` 0.
+CI at d1775ca: tier1 37178869813 success, tier2 37178877472 success (read, every job).
+CI at 2207428: tier1 37188737728 IN PROGRESS, tier2 37188746002 QUEUED when read -
+  UNVERIFIED. This report is committed in a follow-up commit whose own push re-runs the
+  suite; confirm HEAD equals ls-remote.
+UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).
