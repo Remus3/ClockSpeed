@@ -1574,34 +1574,3 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
-
-## CS-1267
-
-### Filed 2026-10-04 by the CS-700 pre-S7a batch run
-
-`tools/flip_checks.py::clone_at` makes a local `git clone --no-checkout`, which hard-links the
-source's object files, including `.git/objects/info/commit-graph`. A concurrent git process holds
-that file open, so removing the run's scratch directory fails and the whole run exits 1 even when
-every check passed - measured at S1 on the pre-S7a batch: 0 of 9 checks failed, exit 1 from
-cleanup alone. It blocks a clean S1 and S8 exit, so it blocks CS-700. A leftover scratch directory
-`.git/flip-checks/run-jwsav2xk` from that run is removed once nothing holds it. The fix clones with
-`--no-hardlinks`; it must not swallow a cleanup failure to get exit 0.
-
-### Acceptance
-
-the flip-checks clone shares no hard-linked object file with the source repository; an arm asserts the clone command carries `--no-hardlinks` (or that no object file of the clone shares an inode with the source); a run whose checks all pass exits 0 while another git process holds the source's commit-graph open; a genuine cleanup failure still fails the run and names the path
-
-### MEASURED 2026-10-04, the fix on its slice branch, not yet closed
-
-`clone_at` now passes `--no-hardlinks`, and a scratch tree that will not go is named relative to
-the repository in the run's output, never as an absolute path. The hold that blocks cleanup is a
-MAPPING, as git holds it: a plain open handle on the commit-graph does not stop the clone's link
-from being unlinked, so an arm that holds it with `open()` alone passes against the defect. The
-four arms in `tests/test_flip_checks.py`, each observed red before the fix:
-`test_the_clone_command_carries_no_hardlinks`,
-`test_no_clone_object_file_shares_an_inode_with_the_source`,
-`test_a_passing_run_exits_zero_while_the_commit_graph_is_held` (mmap hold, with a Windows control
-that the hold blocks unlinking a second name) and
-`test_a_genuine_cleanup_failure_fails_the_run_and_names_the_path`. Closing needs the `ROADMAP.md`
-line removed and a `docs/LEDGER.md` entry, plus removal of the leftover `run-jwsav2xk` scratch
-directory under the primary checkout's git directory.

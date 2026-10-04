@@ -75,6 +75,21 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1267 - CLOSED: the flip-checks scratch clone no longer hard-links object files
+Verification: `tools/flip_checks.py::clone_at` now clones with `--no-hardlinks`, so a concurrent
+git holding the source's commit-graph cannot make scratch removal fail; a genuine cleanup failure
+still exits 1 and names the leftover scratch path repo-relative. Arms in `tests/test_flip_checks.py`,
+each observed red before the fix: `::test_the_clone_command_carries_no_hardlinks`,
+`::test_no_clone_object_file_shares_an_inode_with_the_source`,
+`::test_a_passing_run_exits_zero_while_the_commit_graph_is_held` (mmap hold, with a control that
+the hold blocks unlinking) and `::test_a_genuine_cleanup_failure_fails_the_run_and_names_the_path`.
+Adversary pass: mutants M1-M6 and M8 KILLED; the `as_posix` leak mutant SURVIVED the first pass and
+is now killed by the repaired leak arm, which matches the home path in every spelling; a
+retry-count mutant is outside the claim's scope. The leftover `run-*` scratch directory under the
+primary checkout's git directory was removed and read back absent. NOT CHECKED: the held
+commit-graph arm on Linux - it is a Windows-only skip. Detail relocated to `docs/history_notes.md`
+under CS-1267.
+
 ### 2026-10-04 - CS-701 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-701 STAYS OPEN. The identity axis reads raw objects, refuses a cut history, and is graded on multi-commit histories
 Verification: `tools/flip_checks.py::raw_object_env`, `::refuse_cut_history`, `::commit_identities`,
 `::identity_scan`; `tests/test_flip_checks.py::test_s8_walks_past_the_tip_to_an_off_allowlist_root`,
