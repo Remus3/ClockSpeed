@@ -1053,6 +1053,23 @@ coincides with a 4-character world name on this machine, and that a
 world-name-keyed PII scan will therefore trip on every commit. **That item and
 this decision are the same surface and should be settled together.**
 
+**RESIDUAL, ACCEPTED - filed 2026-10-04 by the CS-700 confirmation-oracle ruling.**
+The S7a rewrite hides only the old author email. Name, trees, dates, timezones and
+messages are preserved and no commit is signed, so any single old commit SHA cited
+in a commit message or in tracked text lets someone holding a GUESSED old address
+recompute the old graph from the root and confirm the guess offline. The address
+itself is not disclosed; only a guess can be confirmed. Mitigation is impossible
+without a message rewrite or a squash: messages are byte-pinned by the MESSAGE
+control and ADR 0018, and a squash is fenced by the operator above. Scrubbing the
+tracked SHAs or shortening them to 7-hex is ineffective - one surviving citation in
+any message suffices, and a 7-hex prefix still confirms a recomputed graph.
+Adjudicated ACCEPT; the OPERATOR then confirmed in their own words in the main
+session on 2026-10-04: "the adjudicators finding is fine, im not worried about".
+**Do not re-pitch** a SHA scrub, a 7-hex shortening, a message rewrite or a squash
+for this residual. *Reversed by:* only the operator's own words that the old address
+must be unconfirmable, which reopens ADR 0018 and this section. Record:
+`docs/LEDGER.md`, 2026-10-04 CS-700 DECISION RECORD.
+
 #### 7. What this plan does NOT discharge
 
 **CS-953 stays open on its own terms.** A filename is not content. ADR 0018

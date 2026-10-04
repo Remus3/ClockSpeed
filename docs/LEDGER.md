@@ -75,6 +75,22 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-700 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The S7a old-address confirmation residual is ACCEPTED
+Verification: `docs/item_notes/phase7.md` section CS-700, heading `6. THE OPERATOR DECISION
+ON COMMIT IDENTITY`, paragraph `RESIDUAL, ACCEPTED`. Decision: accept the residual. S7a hides
+only the old author email; name, trees, dates, timezones and messages are preserved and no
+commit is signed, so one old SHA cited in a message or tracked text lets a holder of a GUESSED
+old address recompute the old graph from the root and confirm the guess offline. The address
+itself is not disclosed. Alternatives rejected: scrub the tracked SHAs - incomplete, since
+messages still cite them, and it breaks this file's append-only rule; shorten to 7-hex - no
+effect, a prefix still confirms a recomputed graph; a message rewrite or a squash - crosses the
+operator fence, messages being byte-pinned by the MESSAGE control and ADR 0018 and a squash
+declined in section 6. Why: no mitigation exists inside the fences, and the exposure is
+confirmation of a guess, not disclosure. Adjudicated ACCEPT; the OPERATOR confirmed in their own
+words in the main session on 2026-10-04: "the adjudicators finding is fine, im not worried
+about". Reversed by: only the operator's own words that the old address must be unconfirmable,
+which reopens ADR 0018 and section 6.
+
 ### 2026-10-04 - CS-1186 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1186 STAYS OPEN. README walk 1 performed and its README defects repaired
 Verification: `README.md` sections `Requirements` and `Install and run`;
 `docs/item_notes/phase7.md` section CS-1186, heading `FILED 2026-10-04, walk 1`;
