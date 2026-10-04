@@ -294,7 +294,6 @@ CS-1264 - the clocked draw never checks a production boost, so a boosted machine
 CS-1265 - the flow audit reads an untagged clock as unread while the balance prices it at the elided default - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1268 - the advice ledger never sets `completed` when advice stops firing: it cannot list a world's recorded cards - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1270 - `/api/advice` and its derivation are live through `advise_world`; one acceptance clause awaits a ruling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

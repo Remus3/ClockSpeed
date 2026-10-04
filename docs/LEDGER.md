@@ -75,6 +75,24 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1270 - CLOSED: /api/advice and its derivation answer 200 through the advisor's advise_world
+Verification: `clockspeed/advisor/advise.py::inputs_of` composes placement, machines, network
+and the balance from one `WorldModel` and one `Registry`, and `::advise_world` runs `advise()`
+over it; `clockspeed/surface/providers.py::StoreAdviceSource` reads the ledger and the mutes
+with an injected clock, writes neither, and answers None over a corrupt store;
+`clockspeed/surface/api/routes.py::build_routes` binds it. Arms:
+`tests/advisor/test_world_advice.py::test_inputs_of_is_the_audit_composition_over_one_world`,
+`tests/surface/test_advice_source.py::test_the_source_answers_none_over_a_corrupt_ledger`,
+`::test_the_derivation_answers_200_with_tier_three_over_the_real_route_table`,
+`::test_pending_publishes_neither_read_template`,
+`::test_only_the_map_endpoint_imports_the_audit_layer`. Closed on an adjudicator ruling that
+amended the import clause to the advice-path form: no advice-path surface module imports
+`clockspeed.audit`, and the importer set is exactly `api/map.py`, pre-existing since CS-977.
+Runner-up (stay open until `map.py` moves) rejected as out of scope under product before
+process; reversed by an advice-path module importing `clockspeed.audit`. The state POST stays
+501 on CS-1269. Residuals filed in `BACKLOG.md` under Session 125 residuals. Detail relocated
+to `docs/history_notes.md` under CS-1270.
+
 ### 2026-10-04 - CS-1270 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1270 STAYS OPEN. Both advice reads are routed through the advisor's own input builder
 Verification: `clockspeed/advisor/advise.py::inputs_of`, `::advise_world`,
 `clockspeed/surface/providers.py::StoreAdviceSource`, `clockspeed/surface/api/routes.py::build_routes`;

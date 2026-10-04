@@ -24,6 +24,71 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1270 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1270
+
+### Filed 2026-10-04 by CS-500's close
+
+CS-500 closed with `clockspeed/advisor/advise.py::advise` and `world_inputs(balance, unlocks)`,
+but nothing builds the `WorldBalance` that `world_inputs` takes from a `WorldModel` and a
+`Registry`. Doing it means calling `placement_of`, `machines_of`, `network_of` and `balance_of`
+from `clockspeed/audit`. The surface may not do that. `tests/surface/test_map_vocabulary.py::test_no_shipped_surface_module_reaches_the_machines_model`
+(CS-1189) refuses any surface module that reaches `clockspeed.audit.machines`, and an
+adjudicator ruled on 2026-10-04 that the guard stays as it is: composing the audit models is
+the advisor's job, because the advisor is the layer that consumes audit.
+
+The surface half is already built and waits for this item.
+`clockspeed/surface/api/advice.py` turns an `Advice` into the listing body (tiers 1 and 2,
+with state, `snoozed_until`, `muted` and `visible`) and the derivation body (tier 3). Its
+refusals are 503 `no_save`, `no_game_install` and `advice_store_unreadable`, and 400 for an
+unknown parameter or card. It is graded in `tests/surface/test_advice.py` on a stub source,
+and it is not in the route table yet, so both templates still answer 501 through
+`clockspeed/surface/api/pending.py`. The concrete source does not exist yet: a
+`clockspeed/surface/providers.py` class that reads both stores and takes an injected clock
+belongs to this item, because a new provider class also enters the
+`tests/test_repr_rendering.py` population and has to be recorded there.
+
+**WRITE-LIST:** `clockspeed/advisor/advise.py` (the input builder),
+`clockspeed/surface/api/routes.py`, `clockspeed/surface/api/pending.py`,
+`clockspeed/surface/api/contract.py` (`OPEN_BLOCKERS` drops CS-1270),
+`clockspeed/surface/providers.py` (the store-reading source), `tests/test_repr_rendering.py`
+(that class's population row and forced construction), `tests/surface/audit_harness.py`
+(a canned 200 for `/api/advice`), and the matching surface and advisor test modules.
+
+### Filed 2026-10-04 by the CS-1270 build - routed, one clause awaits a ruling
+
+`clockspeed/advisor/advise.py::inputs_of` composes placement, machines, network and the
+balance from a `WorldModel` and a `Registry`; `::advise_world` runs it through `advise()` with
+the model's own token. `clockspeed/surface/providers.py::StoreAdviceSource` reads both stores
+with an injected clock, writes neither, and answers None over a corrupt one.
+`routes.build_routes` binds it, both reads answer over the real table, and `pending` and
+`contract.OPEN_BLOCKERS` lost them. THE OPEN CLAUSE: "no `clockspeed/surface` module imports
+`clockspeed.audit`" was already false when this item was filed - `clockspeed/surface/api/map.py`
+has imported the audit placement and inventory models since CS-977. Graded instead by
+`tests/surface/test_advice_source.py::test_only_the_map_endpoint_imports_the_audit_layer`, which
+pins the importer set to `api/map.py` and keeps every advice-path module out of it. An
+adjudicator rules whether that discharges the clause (close) or `map.py` must move its
+composition into the audit or advisor layer first (a separate item).
+
+### Filed 2026-10-04 by the adjudicator ruling - CLOSE with the amended clause
+
+Decision: CLOSE. The acceptance clause "no `clockspeed/surface` module imports
+`clockspeed.audit`" is amended to the advice-path form under Acceptance below, because the
+original wording was false before this item was filed (`api/map.py`, since CS-977) and the
+advice path meets the amended form. Runner-up: keep CS-1270 open until `map.py` moves its
+composition behind the advisor/audit seam - REJECTED as out of this item's scope and against
+product before process; that move is a `BACKLOG.md` line under Session 125 residuals.
+Reversed by: any advice-path module (`api/advice.py`, `api/routes.py`, `providers.py`)
+importing `clockspeed.audit`.
+
+### Acceptance
+
+red first: an advisor function builds `WorldInputs` from one synthetic `WorldModel` and one synthetic `Registry` through the audit constructors, and no `clockspeed/surface` module on the advice path (`api/advice.py`, `api/routes.py`, `providers.py`) imports `clockspeed.audit`, and the set of surface modules that import it is exactly `{api/map.py}`, pre-existing since CS-977, pinned by `tests/surface/test_advice_source.py::test_only_the_map_endpoint_imports_the_audit_layer`; `routes.build_routes` publishes `advice.routes` bound to a provider source that reads the ledger and the mutes with an injected clock and uses that function, and the source answers None over a corrupt store; `GET /api/advice` answers 200 with the `advice.DATA_KEYS` body and `GET /api/advice/<id>/derivation` answers 200 with tier 3 for a listed card over the real route table; `pending.UNBACKED` and `pending.BLOCKERS` lose both templates and `contract.OPEN_BLOCKERS` loses CS-1270; the CS-1189 machines-seam guard stays unedited and green
+
 ## CS-1267 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-04
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

@@ -377,3 +377,8 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   `not resolved (tried env, ...)`, which suggests a fallback README says never happens; and
   the account-dir redaction over-matches a numeric non-account path segment as
   `<account-dir>` - TRIGGER: `scripts/verify_env.py` is next touched, or a README re-walk.
+- `clockspeed/surface/api/map.py` imports `clockspeed.audit` (since CS-977), the one surface
+  module that does; its composition could move behind the advisor/audit seam. And the
+  importer detector in `tests/surface/test_advice_source.py` misses a relative import
+  (`from ..audit import x`) - TRIGGER: `api/map.py` is next touched, or a surface module
+  gains a relative import.
