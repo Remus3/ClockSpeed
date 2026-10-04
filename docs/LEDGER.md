@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. Slice S6: advise() wires rules, cards, ledger and mutes, and the reload half of A3
+Verification: `clockspeed/advisor/advise.py::advise`, `::world_inputs`;
+`tests/advisor/test_advise.py::test_a_card_id_and_its_state_survive_two_loads_of_one_save`,
+`::test_the_headroom_card_id_survives_a_moved_generation`,
+`::test_a_dismissal_survives_a_reload_and_the_card_stays_hidden`, `::test_a_mute_survives_a_reload`,
+`::test_an_unseen_world_token_is_a_new_world_never_a_failure`,
+`::test_a_globally_muted_rule_shows_no_card_in_any_world`, `::test_advise_never_writes_either_store`.
+The reload half of acceptance clause A3 moves from OPEN to evidenced, per
+`docs/item_notes/phase5.md` under CS-500. Red first: the test module failed to import
+`clockspeed.advisor.advise`. Mutation-checked: a card id folding in tier 2 reddens the two
+reload-id arms; ignoring the mute reddens the three mute arms. `completed` is not set
+automatically yet. Not yet verifier- or adversary-checked.
+
 ### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. S5 repair: the tier-3 arm proves each line renders its own step
 Verification: `tests/advisor/test_every_rule_fires.py::test_each_tier3_line_carries_its_own_steps_content`.
 An adversary REFUTED the S5 record below on one arm: its drop-a-step tier-3 check was vacuous,

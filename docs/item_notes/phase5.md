@@ -96,14 +96,28 @@ from the acceptance line, A5 the clause moved here from CS-401:
 - A3, a card id stable across a save reload - ID HALF EVIDENCED by
   `tests/advisor/test_cards.py::test_card_id_ignores_volatile_inputs` and
   `tests/advisor/test_cards.py::test_card_id_is_sha256_over_canonical_ascii_of_the_identity_triple`.
-  The RELOAD half stays OPEN until slice S6 drives two loads of one save.
+  RELOAD HALF EVIDENCED by slice S6, which wires `clockspeed/advisor/advise.py::advise` -
+  the registered rules over one world's inputs, cards from the traces, each resolved
+  against the per-world ledger and the global mute, both stores read from disk on every
+  call. `tests/advisor/test_advise.py::test_a_card_id_and_its_state_survive_two_loads_of_one_save`
+  drives two synthetic loads of one world - one world token, moved numbers, stores rebuilt
+  from the directory - and asserts the same card id and the recorded state; it asserts the
+  tier-3 text moved, so the second load is not the first replayed.
+  `::test_the_headroom_card_id_survives_a_moved_generation`,
+  `::test_a_dismissal_survives_a_reload_and_the_card_stays_hidden` and
+  `::test_a_mute_survives_a_reload` cover the other rule and the other store. A mutant that
+  folds tier 2 into the card id reddens the first two; a mutant that ignores the mute
+  reddens the three mute arms. NOT DONE HERE: `completed` is not set automatically when
+  advice stops firing - the ledger offers no listing of a world's recorded cards.
 - A4, tier 3 generated from the trace and not authorable - EVIDENCED by
   `tests/advisor/test_cards.py::test_card_accepts_no_authored_tier_text` and
   `tests/advisor/test_cards.py::test_tier3_changes_when_the_trace_changes`.
 - A5, an unseen world token is a new world - EVIDENCED by
-  `tests/advisor/test_ledger.py::test_an_unseen_world_token_is_a_new_world`.
+  `tests/advisor/test_ledger.py::test_an_unseen_world_token_is_a_new_world`, and through
+  the entry point by `tests/advisor/test_advise.py::test_an_unseen_world_token_is_a_new_world_never_a_failure`.
 
-The item stays OPEN on the reload half of A3 (slice S6).
+Every clause now carries evidence. The item stays OPEN until a verifier and an adversary
+grade slice S6; closing it is the merger's call, not this slice's.
 
 ## Wave 2 - the pre-dispatch spec check, filed 2026-09-14
 
