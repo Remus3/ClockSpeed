@@ -382,3 +382,25 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   importer detector in `tests/surface/test_advice_source.py` misses a relative import
   (`from ..audit import x`) - TRIGGER: `api/map.py` is next touched, or a surface module
   gains a relative import.
+
+## Session 126 residuals - filed 2026-10-04 under product before process
+
+- `README.md` carries no clone command - TRIGGER: the CS-700 flip; add it then, with the
+  public address.
+- `README.md` is silent on the Python install manager, which refuses on Windows build 19041;
+  the fallback MSI worked in the Sandbox walk - TRIGGER: a README re-walk or a Python-floor
+  change.
+- `README.md`'s solve example `curl` lacks `-s`, so progress output mixes with the body -
+  TRIGGER: `README.md` is next touched.
+- PowerShell venv activation under the default execution policy was never exercised by a
+  walk - TRIGGER: a README re-walk.
+- A clone from the GitHub remote was never walked; both Sandbox walks used a bundle because
+  the remote is private - TRIGGER: the CS-700 flip makes the remote public.
+- A generator class a future build adds to the registry but not to
+  `clockspeed/audit/placement.py::BUILT_CLASS_ALLOWLIST` is dropped silently from the
+  production capacity - TRIGGER: a game build bump, or a new generator group in the docs file.
+- CS-1269's same-origin refusal was probed without TLS and without a real browser, and the
+  dashboard JS sending the proof header was not checked - TRIGGER: the dashboard gains a
+  control that records a card state.
+- `tests/test_probe_refusal_output.py` flaked twice under box load (exit 124 versus 137) -
+  WATCH ONLY, never raise the 1.0s budget - TRIGGER: a third flake, or one on an idle box.

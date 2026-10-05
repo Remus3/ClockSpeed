@@ -141,67 +141,6 @@ a new arm module under `tests/audit/` builds a synthetic world of two machines j
 
 nothing can say which belt feeds which machine or which connections share a power circuit: CS-1041's line named both and its acceptance graded neither, and `clockspeed/audit/network.py` therefore hardcodes `belt_topology_available` and `circuit_topology_available` False, which CS-1045 then had to derive its own edge availability from - so two closed items both declare the same absence and no item owns it
 
-## CS-1059
-
-### Filed 2026-09-14
-
-**THE PANEL IS A COMPARISON AND ONLY ONE SIDE EXISTS.** CS-1045 delivered the exact world
-DRAW as a Fraction sum over built counts. Generated power has no `Building` field and no
-extractor anywhere, so `production_available` is published False with a warning rather than
-a zero. The headline the item promised - production versus consumption - currently has one
-operand.
-
-**THE REFUSAL TO PUBLISH A ZERO IS THE PRECEDENT TO COPY.** `DrawGap` declares no megawatts
-field at all, so an unmodeled draw CANNOT be represented as zero; the impossibility is
-structural and is graded off the dataclass's own fields. Generated power must be built the
-same way. A zero that means "not modelled" is a number that looks like a measurement, which
-is non-negotiable 7.
-
-**THE FLAG IS PART OF THE ACCEPTANCE, NOT PLUMBING.** `production_available` must become True
-only when a production figure was actually computed, and an arm must redden if it is written
-as a literal. This is the same defect CS-1058 carries for the topology flags, and both were
-created by the same habit of declaring an absence with a constant.
-
-### Filed 2026-10-04 by a builder's read-only measurement
-
-**THE DATA EXISTS; ONLY THE EXTRACTOR IS MISSING.** A read-only probe of the shipped docs
-file found a scalar `mPowerProduction` on every class of the `FGBuildableGeneratorFuel` and
-`FGBuildableGeneratorNuclear` groups. "No extractor anywhere" was true of the code and is
-not a negative about the game: generated power IS derivable from the sanctioned source.
-
-**THE GEOTHERMAL TRAP IS THE VARIABLE-DRAW TRAP AGAIN.** The `FGBuildableGeneratorGeoThermal`
-class declares `mPowerProduction` as `'0.000000'` and carries its real output on
-`mVariablePowerProductionConstant`, `mVariablePowerProductionFactor` and a cycle length
-and offset - the same shape `clockspeed/data/registry.py` already documents for the
-variable-power consumers. Reading the scalar alone publishes a confident zero. Until the
-cycle is modelled exactly, that class must land as a NAMED gap. Every generator also
-declares `mPowerConsumption` as `'0.000000'`, so the existing draw partition must not
-start counting a generator as a zero-draw consumer when the extractor lands.
-
-**SEAM - THE WORK IS IN THREE LAYERS NO `save/` OR `solve/` SLICE OWNS.** The extractor
-belongs in `clockspeed/data/registry.py`, the sum and the computed flag in
-`clockspeed/audit/balance.py`, and the graded arm module under `tests/audit/`. The
-write-list was widened to those three and the work landed there.
-
-**WHAT REMAINS AT THE WIRING SITE.** `balance_of` computes production only when a
-caller passes the registry's generator namespace, so the flag stays False on every
-surface until `clockspeed/advisor/advise.py` passes it - a one-argument change in a
-layer this slice did not own. The figure is a NAMEPLATE capacity at the reference
-clock: a generator's clock law and fuel state are unmeasured, so it is never live
-output. An adversary found the placement allowlist in `clockspeed/audit/placement.py`
-dropped the fuel, nuclear and geothermal generators, so the capacity read complete
-without them; they are admitted now, and an arm runs the repro through `placement_of`.
-A generator class a FUTURE build adds to the registry but not to that allowlist would
-still be dropped there - the residual is recorded, not closed.
-
-### Acceptance
-
-a new arm module under `tests/audit/` asserts generated power is the exact Fraction sum over built generators, that a generator class the registry does not model contributes a NAMED gap rather than a zero exactly as `DrawGap` already refuses to carry one, and that the balance's own `production_available` flag becomes True only when a production figure was actually computed - reddening if it is written as a literal
-
-### Full headline
-
-the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field and no extractor for generated power anywhere, so it publishes `production_available` False with a warning rather than a zero, and the headline comparison the item promised has one side
-
 ## CS-1043
 
 ### Filed 2026-09-13
@@ -427,27 +366,6 @@ contract change, not a new route alone; (b) the tier-3 trace step and per-world 
 storage, which wait on CS-500. A clock above the un-sharded base is FLAGGED rather than
 refused because `clockspeed/solve/power.py::clock_ceiling` publishes no ceiling figure.
 
-## CS-1238
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: the advisor rule registry does not exist yet, so the rule half rides CS-500; the audit half fits today - every `WARN_*` code `clockspeed/audit/__init__.py` re-exports. This is a product test over the product's own checks, not a new guard tool.
-
-### Acceptance
-
-enumerating the audit warning codes yields a minimal synthetic fixture for every code in which that code fires, asserted; a code without one is a failing test, and removing one fixture reddens exactly one test that names the code; the same holds for every advisor rule id once CS-500's registry exists
-
-### Audit half measured 2026-10-04
-
-The AUDIT HALF is met: `tests/audit/test_every_warning_fires.py` derives the audit warning
-set from the package and fires every code from a synthetic fixture, and dropping one entry
-reddens exactly the arm naming that code. It surfaced one code no test fired before,
-`WARN_FOOTPRINT_EXTENT_UNAVAILABLE`. The ADVISOR-RULE half now has its registry:
-`tests/advisor/test_every_rule_fires.py` derives the rule ids from `registered_rules()` and
-holds a firing and a silent fixture per rule, and dropping any one of them reddens exactly
-the completeness arm naming that rule id - its drop arm's anti-vacuity guard grades the
-registry, not the table a drop shrinks.
-
 ## CS-1240
 
 ### Filed 2026-10-04 by the inspiration ingest
@@ -627,24 +545,25 @@ producing tag. Nothing cross-checks the considered population against what is ac
 
 the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed
 
-## CS-1268
+## CS-1271
 
-### Filed 2026-10-04 by CS-500's close
+### Filed 2026-10-04 by CS-1059's close
 
-`BOOTSTRAP.md` section 5.2 requires that `completed` is set automatically when the world state
-satisfies the advice, and calls that transition worth surfacing. It is never set:
-`clockspeed/advisor/ledger.py` offers no listing of a world's recorded cards, so
-`clockspeed/advisor/advise.py::advise` sees only the cards that fire now and cannot detect a
-recorded card that has vanished; and `advise` writes neither store by design
-(`tests/advisor/test_advise.py::test_advise_never_writes_either_store`), so the transition
-needs a stated write path. A Phase 5 product item, not tooling.
+**GENERATED POWER IS COMPUTED AND NOT LIVE.** CS-1059 closed with
+`clockspeed/data/registry.py::Registry.generators` and the `generators` keyword of
+`clockspeed/audit/balance.py::balance_of`, which computes the nameplate capacity at the
+reference clock and sets `production_available` True only when a figure was computed.
+`clockspeed/advisor/advise.py::inputs_of` calls `balance_of` WITHOUT that keyword, so on
+every surface the flag stays False and the power rules see no production figure. The
+repair is one argument, `generators=registry.generators`, in a layer CS-1059's write-list
+did not own. A Phase 5 product item, not tooling.
 
-`BOOTSTRAP.md` does NOT state what a completed card does when its rule fires again. Ruled here
-on the section's own wording - `completed` means the world satisfies the advice, so a firing
-rule means it no longer does: a completed card that fires again is surfaced as `new`, and a
-card the player set `dismissed`, `snoozed` or `pinned` keeps that state and is never marked
-`completed` over it. Recorded with this filing; an adjudicator may overrule it before build.
+**RELATED, AND NOT THIS ITEM'S ACCEPTANCE.** `clockspeed/advisor/advise.py::advise_and_record`
+(CS-1268) has no caller in `clockspeed/` or `shell/`: `GET /api/advice` runs the read-only
+`advise()` through `advise_world`, so the automatic `completed` transition never runs in
+the product either. Wiring it needs a stated write path; record the ruling before building
+it, here or in a new item.
 
 ### Acceptance
 
-red first: a synthetic world where a card is recorded `accepted` or `new` and shown, then a reload in which its rule stops firing, leaves that card `completed` in the per-world ledger, read back from disk, and the transition is surfaced in the result; the ledger can list one world's recorded cards; a `completed` card whose rule fires again is surfaced as `new`; a `dismissed`, `snoozed` or `pinned` card whose rule stops firing keeps its state; two runs over the same inputs give the same states
+red first: an arm over a synthetic world and registry holding a built fuel generator, driven through `clockspeed/advisor/advise.py::inputs_of`, sees the balance's `production_available` True and the same exact Fraction capacity `balance_of` computes when handed `registry.generators`, and reddens when `inputs_of` omits the generator namespace; a synthetic world with no built generator keeps `production_available` False

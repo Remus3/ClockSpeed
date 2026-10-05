@@ -24,6 +24,287 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1186 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1186
+
+### Acceptance
+
+an agent given only a fresh clone and README.md, on a machine with no game
+installed, reaches the stated first result using only the commands README gives;
+every deviation is recorded and fixed in README, and the walk is repeated clean.
+
+### Full headline
+
+README.md has never been walked from zero to a first result
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+Gate item 5. CS-700 S6 names it and no open item performs it.
+
+### FILED 2026-09-25, from the wave-2 adjudicator ruling (session 113)
+
+**THE NO-GAME HALF OF THIS ACCEPTANCE IS GATED UNDER CS-G08 IN `docs/GATED.md`. THE ITEM
+STAYS OPEN, AND THE CLAUSE ABOVE IS UNCHANGED.** "On a machine with no game installed" needs
+the same disposable environment CS-G08 waits for, and the true run happens there.
+
+The override approximation is ACCEPTED as the vehicle for walking and fixing README now,
+and it does NOT discharge the no-game clause, so this item does not close on it. Its
+conditions: point `CLOCKSPEED_GAME_DIR`, `CLOCKSPEED_SAVE_ROOT` and
+`CLOCKSPEED_ACCOUNT_DIR` at NONEXISTENT paths and `CLOCKSPEED_LOCAL_CONFIG` at a
+nonexistent file - never at empty directories, because `clockspeed/data/locate.py`
+resolves an existing empty directory as FOUND and `scripts/verify_env.py` then prints the
+game install as present, which is a hollow install rather than no game. Record a positive
+control as booleans and resolver labels only, never paths: without the overrides this box
+resolves a game; with them the verify_env game-install and save-root rows read
+not-resolved. The walk record labels the overrides as an approximation outside README,
+not a README step, and records that auto-detection's registry and Steam-library branches
+were never exercised in their no-game state.
+
+`docs/GATED.md` classifies this id MENTIONED, not BLOCKED, so the walk stays takeable.
+
+### FILED 2026-10-04, walk 1 and its README repair (session 125)
+
+**WALK 1 PERFORMED. THE ITEM STAYS OPEN.** A context-free agent given only README.md
+walked it literally in a `git clone --no-local` of main, in a fresh venv, with
+`CLOCKSPEED_GAME_DIR`, `CLOCKSPEED_SAVE_ROOT`, `CLOCKSPEED_ACCOUNT_DIR` and
+`CLOCKSPEED_LOCAL_CONFIG` aimed at NONEXISTENT paths, plus positive controls (overrides
+at existing empty folders, the local-config JSON, and the overrides unset) - the
+override approximation above, adjudicated as permitted for this walk. Every README step
+reached its promise, first result included. The "no game installed" clause is NOT
+discharged: it still needs the CS-G08 environment.
+
+Defects the walk recorded, numbered as in its log. Repaired in README.md: 1 no venv or
+install step (now a venv plus `pip install -e ".[dev]"`); 2 a circular Python floor (now
+pointed at `requires-python`, not restated); 3 two competing install orders (run-only
+versus commit-from clones); 4 no way to learn the port (verify_env prints it); 5
+`CLOCKSPEED_CERT_DIR` and `CLOCKSPEED_DASHBOARD_PORT` undocumented; 6 no example
+request for a solve route (one `/api/solve` curl, its shape checked against a live
+server); 7 no source for openssl; 9 no pointer to where an override is diagnosed; 11 a
+spaced health-JSON literal the compact body never matches. Defects 8 and 10 live in
+`scripts/verify_env.py` output and went to `BACKLOG.md` under Session 125 residuals.
+
+**THE VENV BLOCK CARRIES A NON-PYTHON LINE ON PURPOSE.** `tools/flip_checks.py` check 5
+runs every fenced block whose lines all start with `python`, under its own
+interpreter. The activation line keeps it from running `pip install -e` against the
+scratch tree into that interpreter. The curl block is skipped for the same reason.
+
+Remaining for closure: a clean repeat walk of the repaired README, and the true no-game
+run under CS-G08.
+
+CS-1186 walk 2, Windows Sandbox, 2026-10-04: FAIL - README defects 1 (openssl not on
+PATH from a default Git install, make_cert exit 1) and 2 (no Python or git install
+route, "Add python.exe to PATH" unticked by default); the no-game clause itself PASSED.
+The commit carrying this line fixes 1 and 2 in README.md; a clean repeat walk remains.
+
+CS-1187 walk 2 (its section lives in `docs/GATED.md` under CS-G08), same sandbox and
+date: FAIL - verify_env and the armed-hook probe PASSED, the tier-1 suite did not, on
+defects 3 (Node absent, panel tests fail rather than skip), 4 (Windows timeout shadows
+GNU timeout), 5 (long-path tmp names) and 6 (mypy-gate control, undiagnosed). This
+commit fixes 3 by README stating Node is required for the suite; 4, 5 and 6 stay open.
+
+### Closure note, filed 2026-10-04 at relocation (session 126)
+
+THE LAST TWO PARAGRAPHS ABOVE ARE SUPERSEDED. Their "walk 2" is the FIRST Windows Sandbox
+walk. Every defect it recorded was repaired before the item closed: 1 openssl on PATH and
+2 the Python and git install route in README.md (the Python step now defers to the official
+Windows guide after two adversary refutations), 3 Node stated as required for the suite,
+4 GNU timeout first on the child PATH (`tests/git_env.py::program_on_child_path`), 5 a
+short tmp root for MAX_PATH in `tests/test_inbox_watch.py`, and 6 the mypy-gate user-site
+control reporting NOT RUN inside a venv (CI runs it with no venv). "4, 5 and 6 stay open"
+is therefore false. The SECOND Sandbox walk, by a different context-free agent, met the
+acceptance; the closure record is in `docs/LEDGER.md` under CS-1186.
+
+
+## CS-G08 and CS-1187 - gate section, SATISFIED and relocated from `docs/GATED.md` 2026-10-04
+
+**Moved here from `docs/GATED.md` when the gate was satisfied and CS-1187 closed (session 126).**
+The records are in `docs/LEDGER.md` under CS-G08 and CS-1187.
+
+### CS-G08 - A disposable environment that has never seen the project
+
+**One line:** the clean-checkout probe (CS-1187) and the no-game half of the README walk (CS-1186) need an environment with no prior clone, no hooks path, no user-scope agent settings, no project cache and no game install, and this machine has none available.
+
+**Unblocked by:** Windows Sandbox (optional feature Containers-DisposableClientVM, measured disabled 2026-09-25, and needing a reboot) being enabled at a time the operator chooses, OR any other disposable VM or machine that has never held a clone of this repository. The condition is met when that environment launches. The protocol - the acceptance clause below, run as written - then runs, and a different agent repeats it clean.
+
+**Why no workaround:** a fresh local account on this machine is an accounts act and inherits machine-wide installs and the game's registration. The tier-2 `clean-checkout-probe` job says in its own comment that it is not a substitute. Blocks CS-G03 check 7 and the human half of check 5.
+
+**Filed 2026-09-25** by the wave-2 adjudicator ruling (session 113), which re-probed the feature's install state and found no sandbox executable. Enabling it takes a reboot, and a reboot takes down every concurrent session on the operator's machine - a destructive act no agent takes, and one no stand-in ruling can lift.
+
+**CS-1187 IS THIS GATE'S ITEM, AND ITS ID IS CLASSIFIED MENTIONED BY DESIGN.** Its `ROADMAP.md` line was removed when it was gated, so it is no longer a live row, and a BLOCKED line fences only a live row - `tests/ops/test_lane_scope.py` pins that. The item now lives here under CS-G08, and when the gate unblocks it moves to `ROADMAP.md` under CS-G08, as this file's header prescribes. **CS-1186 stays OPEN and takeable, and is MENTIONED too:** only its no-game half is gated here; the README walk on an override approximation is workable now, and it does not discharge the no-game clause. Its section in `docs/item_notes/phase7.md` records that.
+
+**CS-1187's item section, relocated VERBATIM from `docs/item_notes/phase7.md` 2026-09-25 when the item was gated.** The acceptance clause moved UNCHANGED and is what CS-G08's drain half must meet. The headings are re-nested one level to sit under this entry; their text and the body are byte-identical.
+
+#### Acceptance
+
+in a disposable environment with no prior clone, no hooks path, no user-scope agent
+settings and no project cache (e.g. Windows Sandbox), a fresh clone plus the
+docs/OPERATIONS.md bootstrap yields verify_env exit 0, armed hooks proven by a
+staged violation leaving HEAD unmoved, and a green tier-1 suite.
+
+#### Full headline
+
+the clean-checkout probe has never run on a machine that has never seen the project
+
+#### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+Gate item 7. CS-700 section 5 records that it FAILS today; CS-938 is one known
+cause, not the probe. The `clean-checkout-probe` job in
+`.github/workflows/tier2.yml` says in its own comment that it is NOT a substitute,
+because a runner is not a machine that has never seen the project.
+
+
+## CS-1269 - item section, CLOSED and relocated from `docs/item_notes/phase6.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase6.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1269
+
+### Filed 2026-10-04 by CS-500's close
+
+`/api/advice/<id>/state` is where a card is accepted, dismissed, snoozed or pinned, so it
+writes the per-world ledger through `clockspeed/advisor/ledger.py::Ledger.set_state` and
+`snooze`. The ledger is ready, but the route stays 501 because the listener is not ready for a
+write. `clockspeed/surface/server.py` checks no `Origin`, no `Sec-Fetch-Site` and no
+custom header, and the handler contract passes query parameters only. A cross-site page in
+the operator's own browser could therefore post a form to the loopback port and dismiss or
+snooze cards without being seen. CS-1261 hardens the read side. This item is the write side,
+and it lands after or together with the refusal it needs.
+
+Before CS-500 closed, this route blamed CS-500. It now blames this item through
+`clockspeed/surface/api/pending.py::BLOCKERS`.
+
+### Acceptance
+
+red first: a POST to `/api/advice/<id>/state` that carries no same-origin proof, such as a required custom request header that a cross-site form cannot send, is refused and the ledger file is unchanged byte for byte; a POST that carries the proof records `accepted`, `dismissed`, `pinned` or a `snoozed` state with a future `until` for a card the current advice lists, read back from disk; an unknown card or state kind is 400 and reflects nothing; a GET stays 405; `pending.BLOCKERS` and `contract.OPEN_BLOCKERS` lose CS-1269
+
+
+## CS-1268 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1268
+
+### Filed 2026-10-04 by CS-500's close
+
+`BOOTSTRAP.md` section 5.2 requires that `completed` is set automatically when the world state
+satisfies the advice, and calls that transition worth surfacing. It is never set:
+`clockspeed/advisor/ledger.py` offers no listing of a world's recorded cards, so
+`clockspeed/advisor/advise.py::advise` sees only the cards that fire now and cannot detect a
+recorded card that has vanished; and `advise` writes neither store by design
+(`tests/advisor/test_advise.py::test_advise_never_writes_either_store`), so the transition
+needs a stated write path. A Phase 5 product item, not tooling.
+
+`BOOTSTRAP.md` does NOT state what a completed card does when its rule fires again. Ruled here
+on the section's own wording - `completed` means the world satisfies the advice, so a firing
+rule means it no longer does: a completed card that fires again is surfaced as `new`, and a
+card the player set `dismissed`, `snoozed` or `pinned` keeps that state and is never marked
+`completed` over it. Recorded with this filing; an adjudicator may overrule it before build.
+
+### Acceptance
+
+red first: a synthetic world where a card is recorded `accepted` or `new` and shown, then a reload in which its rule stops firing, leaves that card `completed` in the per-world ledger, read back from disk, and the transition is surfaced in the result; the ledger can list one world's recorded cards; a `completed` card whose rule fires again is surfaced as `new`; a `dismissed`, `snoozed` or `pinned` card whose rule stops firing keeps its state; two runs over the same inputs give the same states
+
+
+## CS-1238 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1238
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: the advisor rule registry does not exist yet, so the rule half rides CS-500; the audit half fits today - every `WARN_*` code `clockspeed/audit/__init__.py` re-exports. This is a product test over the product's own checks, not a new guard tool.
+
+### Acceptance
+
+enumerating the audit warning codes yields a minimal synthetic fixture for every code in which that code fires, asserted; a code without one is a failing test, and removing one fixture reddens exactly one test that names the code; the same holds for every advisor rule id once CS-500's registry exists
+
+### Audit half measured 2026-10-04
+
+The AUDIT HALF is met: `tests/audit/test_every_warning_fires.py` derives the audit warning
+set from the package and fires every code from a synthetic fixture, and dropping one entry
+reddens exactly the arm naming that code. It surfaced one code no test fired before,
+`WARN_FOOTPRINT_EXTENT_UNAVAILABLE`. The ADVISOR-RULE half now has its registry:
+`tests/advisor/test_every_rule_fires.py` derives the rule ids from `registered_rules()` and
+holds a firing and a silent fixture per rule, and dropping any one of them reddens exactly
+the completeness arm naming that rule id - its drop arm's anti-vacuity guard grades the
+registry, not the table a drop shrinks.
+
+
+## CS-1059 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1059
+
+### Filed 2026-09-14
+
+**THE PANEL IS A COMPARISON AND ONLY ONE SIDE EXISTS.** CS-1045 delivered the exact world
+DRAW as a Fraction sum over built counts. Generated power has no `Building` field and no
+extractor anywhere, so `production_available` is published False with a warning rather than
+a zero. The headline the item promised - production versus consumption - currently has one
+operand.
+
+**THE REFUSAL TO PUBLISH A ZERO IS THE PRECEDENT TO COPY.** `DrawGap` declares no megawatts
+field at all, so an unmodeled draw CANNOT be represented as zero; the impossibility is
+structural and is graded off the dataclass's own fields. Generated power must be built the
+same way. A zero that means "not modelled" is a number that looks like a measurement, which
+is non-negotiable 7.
+
+**THE FLAG IS PART OF THE ACCEPTANCE, NOT PLUMBING.** `production_available` must become True
+only when a production figure was actually computed, and an arm must redden if it is written
+as a literal. This is the same defect CS-1058 carries for the topology flags, and both were
+created by the same habit of declaring an absence with a constant.
+
+### Filed 2026-10-04 by a builder's read-only measurement
+
+**THE DATA EXISTS; ONLY THE EXTRACTOR IS MISSING.** A read-only probe of the shipped docs
+file found a scalar `mPowerProduction` on every class of the `FGBuildableGeneratorFuel` and
+`FGBuildableGeneratorNuclear` groups. "No extractor anywhere" was true of the code and is
+not a negative about the game: generated power IS derivable from the sanctioned source.
+
+**THE GEOTHERMAL TRAP IS THE VARIABLE-DRAW TRAP AGAIN.** The `FGBuildableGeneratorGeoThermal`
+class declares `mPowerProduction` as `'0.000000'` and carries its real output on
+`mVariablePowerProductionConstant`, `mVariablePowerProductionFactor` and a cycle length
+and offset - the same shape `clockspeed/data/registry.py` already documents for the
+variable-power consumers. Reading the scalar alone publishes a confident zero. Until the
+cycle is modelled exactly, that class must land as a NAMED gap. Every generator also
+declares `mPowerConsumption` as `'0.000000'`, so the existing draw partition must not
+start counting a generator as a zero-draw consumer when the extractor lands.
+
+**SEAM - THE WORK IS IN THREE LAYERS NO `save/` OR `solve/` SLICE OWNS.** The extractor
+belongs in `clockspeed/data/registry.py`, the sum and the computed flag in
+`clockspeed/audit/balance.py`, and the graded arm module under `tests/audit/`. The
+write-list was widened to those three and the work landed there.
+
+**WHAT REMAINS AT THE WIRING SITE.** `balance_of` computes production only when a
+caller passes the registry's generator namespace, so the flag stays False on every
+surface until `clockspeed/advisor/advise.py` passes it - a one-argument change in a
+layer this slice did not own. The figure is a NAMEPLATE capacity at the reference
+clock: a generator's clock law and fuel state are unmeasured, so it is never live
+output. An adversary found the placement allowlist in `clockspeed/audit/placement.py`
+dropped the fuel, nuclear and geothermal generators, so the capacity read complete
+without them; they are admitted now, and an arm runs the repro through `placement_of`.
+A generator class a FUTURE build adds to the registry but not to that allowlist would
+still be dropped there - the residual is recorded, not closed.
+
+### Acceptance
+
+a new arm module under `tests/audit/` asserts generated power is the exact Fraction sum over built generators, that a generator class the registry does not model contributes a NAMED gap rather than a zero exactly as `DrawGap` already refuses to carry one, and that the balance's own `production_available` flag becomes True only when a production figure was actually computed - reddening if it is written as a literal
+
+### Full headline
+
+the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field and no extractor for generated power anywhere, so it publishes `production_available` False with a warning rather than a zero, and the headline comparison the item promised has one side
+
+
 ## CS-1270 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**
@@ -2322,6 +2603,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 123 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 123 - 2026-10-04 - the operator session (the other writer of session 122): inspiration ingest filed and partly built, public-readiness prepared, the flip procedure fixed
+
+- Shipped: nothing closed by this /done. The operator session filed the inspiration ingest as CS-1235..CS-1263; directives D1, D3 and D5 closed as CS-1235, CS-1237 and CS-1239 (ledger records 2026-10-04). D2 (CS-1236, what-if overlay) and D4 (CS-1238, every check proves it can go red) are PARTIAL - the rest of each waits on CS-500. CS-1263 filed: the audit's power figure ignores clocks.
+- In flight: the public flip (CS-700). Ruled: do NOT use the GitHub visibility switch. Order: tier1 green, run CS-700 (operator confirmation in own words before the remote recreate), re-apply settings from docs/public-readiness.md, enable secret scanning, push protection and private vulnerability reporting, upload the social preview from data/social-preview.png. A cloud-session kit exists OUTSIDE the repo (operator's Documents\cloud-session-kits\clockspeed-*); any cloud PR must merge before the CS-700 flip.
+- Decisions: the flip is a recreate under CS-700, never a visibility toggle. No ADR.
+- Surprises: tier2 schedule run 37193626407 at 07fcc61 is RED on one job - clean-checkout probe (windows-latest, save shard): tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save, nested suite TimeoutExpired at 300s (1 failed, 1934 passed, 125 skipped in 735.76s). Tier1 run 37191537735 at 07fcc61 is green.
+- Failed paths: push-gate suites fail when several run concurrently on this box (OOM, timeouts); filed to BACKLOG.md under Push gate.
+- Next action: repair the tier2 windows save-shard probe red without raising the 300s timeout (shard or trim), then the CS-700 flip sequence.
 
 ## Session 122 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
 

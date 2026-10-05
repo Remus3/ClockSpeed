@@ -270,12 +270,10 @@ CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on N
 
 CS-1043 - `clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1058 - nothing can say which belt feeds which machine or which connections share a power circuit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1059 - the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1048 - node purity is structurally absent from every save and the in-game map is rendered live rather than shipped - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1061 - the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1064 - `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never written back - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1238 - every check proves it can go red: a planted firing fixture per audit warning, and per advisor rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1240 - unknown content: stable-id keying, one normalised fallback, and an Unmodelled Content panel - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -293,7 +291,7 @@ CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse
 CS-1264 - the clocked draw never checks a production boost, so a boosted machine is priced as unboosted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1265 - the flow audit reads an untagged clock as unread while the balance prices it at the elided default - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1268 - the advice ledger never sets `completed` when advice stops firing: it cannot list a world's recorded cards - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1271 - generated power is computed but not live: `advise.py` never passes the registry's generators to `balance_of` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -343,7 +341,6 @@ CS-1259 - the dashboard is one self-contained page with no network fetch at runt
 CS-1260 - one design-token source consumed by both the dashboard and the companion - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1261 - local API hardening: loopback-only bind, header-only tokens, private refusals, per-install cert subject - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1269 - `/api/advice/<id>/state` records no card state: a mutating route needs a cross-origin refusal first - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 7 - public flip gate
 
@@ -352,7 +349,6 @@ CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - accep
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

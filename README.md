@@ -104,8 +104,8 @@ today", and this section is a summary of it.
   answers 501 today and names the work item that will build it.
 - **The advice card surface** reads live: `GET /api/advice` lists the current cards with
   their headline and one-line reason, and `GET /api/advice/<id>/derivation` returns one
-  card's full derivation. Recording a card's state through `POST /api/advice/<id>/state`
-  answers 501 today and names CS-1269, the item that will build it.
+  card's full derivation. `POST /api/advice/<id>/state` records a card's state, and refuses
+  with 403 any request that lacks the dashboard's same-origin header.
 
 ---
 

@@ -1167,23 +1167,3 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a fixture with planted personal strings produces an archive containing none of them; the header options string never appears
-
-## CS-1269
-
-### Filed 2026-10-04 by CS-500's close
-
-`/api/advice/<id>/state` is where a card is accepted, dismissed, snoozed or pinned, so it
-writes the per-world ledger through `clockspeed/advisor/ledger.py::Ledger.set_state` and
-`snooze`. The ledger is ready, but the route stays 501 because the listener is not ready for a
-write. `clockspeed/surface/server.py` checks no `Origin`, no `Sec-Fetch-Site` and no
-custom header, and the handler contract passes query parameters only. A cross-site page in
-the operator's own browser could therefore post a form to the loopback port and dismiss or
-snooze cards without being seen. CS-1261 hardens the read side. This item is the write side,
-and it lands after or together with the refusal it needs.
-
-Before CS-500 closed, this route blamed CS-500. It now blames this item through
-`clockspeed/surface/api/pending.py::BLOCKERS`.
-
-### Acceptance
-
-red first: a POST to `/api/advice/<id>/state` that carries no same-origin proof, such as a required custom request header that a cross-site form cannot send, is refused and the ledger file is unchanged byte for byte; a POST that carries the proof records `accepted`, `dismissed`, `pinned` or a `snoozed` state with a future `until` for a card the current advice lists, read back from disk; an unknown card or state kind is 400 and reflects nothing; a GET stays 405; `pending.BLOCKERS` and `contract.OPEN_BLOCKERS` lose CS-1269

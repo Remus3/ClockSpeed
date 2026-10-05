@@ -75,6 +75,108 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-G03 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. Check 7 and the human half of check 5 are SATISFIED
+Verification: `docs/GATED.md` CS-G03, heading `Filed 2026-10-04 (session 126): check 7 and the
+human half of check 5 are SATISFIED`; the CS-G08, CS-1187 and CS-1186 records below.
+Decision: the second Windows Sandbox walk at `5c315ff` satisfies gate check 7 (the
+clean-checkout probe on a machine that has never seen the project) and the human half of
+check 5 (README from zero to a first result with no game). Alternatives rejected: a blind
+re-walk from a GitHub clone (the remote is private, so it cannot be cloned anonymously
+before the flip - filed to `BACKLOG.md` under Session 126 residuals) and a re-walk at HEAD
+(measured: the commits from the walked SHA to `97c581e` touch no README, hook, script,
+`docs/OPERATIONS.md` or `pyproject.toml` path; this /done's README edit changes only the
+status sentence about the state route, not a walk step). Why: every acceptance clause has a log line the adjudicator read. The flip stays
+GATED on the remaining checks re-run at the final tip and on the operator's own-words S9
+confirmation.
+
+### 2026-10-04 - CS-G08 - CLOSED: a disposable environment that has never seen the project was found and used
+Verification: Windows Sandbox (optional feature Containers-DisposableClientVM) enabled by the
+operator's reboot, launched fresh with no Python, git, Node, game, save or `.claude`
+settings. External condition met: the environment launched, observed by the session that
+drove it through computer use. The protocol then ran twice by context-free agents; the
+second, by a different agent, PASSED and closed CS-1187 and CS-1186 (records below). The
+gate section is relocated verbatim to `docs/history_notes.md` under CS-G08 and CS-1187.
+
+### 2026-10-04 - CS-1187 - CLOSED: the clean-checkout probe passed on a machine that has never seen the project
+Verification: walked in the CS-G08 environment at `5c315ff` from a bundle clone (the remote
+is private) plus the `docs/OPERATIONS.md` bootstrap: `scripts/verify_env.py` exit 0; a real
+commit of a non-ASCII violation blocked by the pre-commit hook with HEAD unchanged, plus a
+clean-file control that committed; the full suite 14206 passed, 155 skipped, 0 failed, read
+from the walk log by the adjudicator. Closed by an adjudicator that did not walk. The FIRST
+Sandbox walk by another agent FAILED and its defects were fixed first, each with an arm:
+GNU timeout first on the child PATH (`tests/git_env.py::program_on_child_path`,
+`tests/test_git_env_scrub.py::test_system32_first_on_path_still_gives_the_hooks_a_gnu_timeout`),
+a short tmp root for MAX_PATH
+(`tests/test_inbox_watch.py::test_every_planted_note_fits_max_path_on_a_default_machine`),
+and the mypy-gate user-site control reporting NOT RUN inside a venv while CI, with no venv,
+still runs it (`tests/test_mypy_gate.py::test_a_planted_user_site_cannot_reach_the_exclusion_arm`).
+The item section moved from `docs/GATED.md` to `docs/history_notes.md`.
+
+### 2026-10-04 - CS-1186 - CLOSED: README.md walked from zero to a first result on a machine with no game, repeated clean
+Verification: `README.md` sections `Requirements` and `Install and run`; the same second
+Sandbox walk at `5c315ff` reached `/api/health` ok with the registry and world absent and
+the 503s README states, with no README deviation recorded. The first Sandbox walk FAILED on
+README defects - openssl not on PATH from a default Git install, no Python, git or Node
+install route, Node needed for the suite - all repaired in `README.md`; the Python step
+defers to the official Windows guide after two adversary refutations of a hand-written one.
+Residuals filed to `BACKLOG.md` under Session 126 residuals. Section relocated to
+`docs/history_notes.md` with a closure note superseding its stale "4, 5 and 6 stay open".
+
+### 2026-10-04 - CS-1269 - CLOSED: POST /api/advice/<id>/state records a card state behind a same-origin refusal
+Verification: `clockspeed/surface/server.py::MUTATION_PROOF_HEADER` and the mutating-route
+refusal; `tests/surface/test_server.py::test_a_state_post_without_same_origin_proof_is_403_and_changes_no_byte`,
+`::test_a_state_post_with_the_proof_records_the_state_read_back_from_disk`,
+`::test_an_unproven_post_never_reaches_its_handler`,
+`::test_a_get_on_the_state_route_stays_405_over_the_listener`;
+`tests/surface/test_advice_source.py::test_an_unknown_card_is_400_reflects_nothing_and_writes_nothing`,
+`::test_a_post_records_a_future_snooze_read_back_from_disk`,
+`::test_pending_and_the_open_blockers_lose_cs_1269`. Adversary (security lens) HELD.
+Residuals in `BACKLOG.md` under Session 126 residuals: probed without TLS and without a real
+browser, and the dashboard JS sending the proof header unchecked. The dashboard lane scope
+lost CS-1269 (`config/lane_scopes.json`, `tests/ops/test_lane_scope.py::DASHBOARD_MEMBERS`).
+
+### 2026-10-04 - CS-1059 - CLOSED: generated power is the exact Fraction capacity over built generators, with a named gap for the variable one
+Verification: `clockspeed/data/registry.py::Registry.generators` (scalar `mPowerProduction`
+as an exact Fraction); `clockspeed/audit/balance.py::production_of`, `::ProductionGap`
+(geothermal is a production-variable gap, never a zero) and `production_available` derived
+from the figure; `clockspeed/audit/placement.py::BUILT_CLASS_ALLOWLIST` admits the fuel,
+nuclear and geothermal generators. Arms:
+`tests/audit/test_production.py::test_the_capacity_is_the_exact_fraction_sum_over_built_generators`,
+`::test_a_production_gap_has_no_megawatts_field_to_read_a_zero_out_of`,
+`::test_the_flag_is_true_only_when_a_production_figure_was_computed`,
+`::test_every_fuel_and_nuclear_generator_survives_placement_into_the_capacity`,
+`::test_a_geothermal_generator_survives_placement_as_a_named_variable_gap`;
+`tests/data/test_generation_registry.py::test_a_scalar_production_is_read_as_an_exact_fraction`.
+An adversary refuted the first cut - a silent undercount, 75 MW against 2825 MW, because
+placement dropped the generators - repaired and graded end to end through `placement_of`;
+the loop then stopped by cost against risk. Residual in `BACKLOG.md`: a future generator
+class absent from the allowlist is dropped silently. NOT LIVE in the product: filed as
+CS-1271.
+
+### 2026-10-04 - CS-1268 - CLOSED: the ledger completes a shown card whose rule stops firing, and lists a world's cards
+Verification: `clockspeed/advisor/ledger.py::Ledger.recorded`, `::Ledger.reconcile`,
+`SCHEMA_VERSION` 2 with a version-1 load; `clockspeed/advisor/advise.py::advise_and_record`,
+`::settled_rules` over the `SETTLED_STEP_KINDS` allowlist. Arms:
+`tests/advisor/test_advise.py::test_a_shown_card_whose_rule_stops_firing_is_completed_on_disk`,
+`::test_a_completed_card_whose_rule_fires_again_is_surfaced_as_new`,
+`::test_the_ledger_lists_one_worlds_recorded_cards`,
+`::test_a_rule_without_a_definite_verdict_never_completes_its_card`,
+`::test_the_step_kinds_partition_into_settled_and_undecided`;
+`tests/advisor/test_ledger.py::test_a_version_one_ledger_still_loads_and_is_rewritten_as_two`.
+An adversary refuted it twice - a rule-error or input-missing trace completed accepted
+cards, then the denylist missed INPUT_REFUSED - repaired to an allowlist; 9 mutants killed.
+Residual: a card accepted under a version-1 ledger has no stored rule and never
+auto-completes until it fires again under `advise_and_record`. Nothing in `clockspeed/` or
+`shell/` calls `advise_and_record` yet - `GET /api/advice` runs the read-only `advise()`;
+recorded in the CS-1271 section.
+
+### 2026-10-04 - CS-1238 - CLOSED: every audit warning and every advisor rule proves it can go red
+Verification: `tests/audit/test_every_warning_fires.py::test_dropping_any_one_fixture_is_named_alone`
+and `tests/advisor/test_every_rule_fires.py::test_dropping_any_one_fixture_is_named_alone`:
+dropping any one fixture reddens exactly one test naming the code or rule, and the drop
+arm's anti-vacuity guard grades the full registry. Verifier MET. An adversary REFUTED the
+first advisor half (two reds per drop); the repair HELD under a second adversary.
+
 ### 2026-10-04 - CS-1270 - PROGRESS RECORD. NOT A COMPLETION RECORD. The backed derivation route stopped leaving a real-save copy in the repo work root
 Verification: `tests/surface/test_server.py::isolated_work_root` redirects `workdir.ENV_WORK_ROOT`
 under `tmp_path` for every arm in the module. The writer was

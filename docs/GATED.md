@@ -661,6 +661,20 @@ among them. This note cites those sentences and does not extend them. The sessio
 agent executes every step; the operator's hands are needed only for a credential
 or scope grant.
 
+#### Filed 2026-10-04 (session 126): check 7 and the human half of check 5 are SATISFIED
+
+**CS-G08 IS SATISFIED AND HAS LEFT THIS FILE.** Windows Sandbox launched fresh - no
+Python, git, Node, game, save or agent settings - and a second context-free agent walked
+README.md and the CS-1187 protocol there on a bundle clone (the remote is private). An
+adjudicator CLOSED CS-1186 and CS-1187 on that walk. So check 7 (the clean-checkout probe on
+a machine that has never seen the project) and the human half of check 5 (README taking an
+outsider from zero to a first result with no game) are SATISFIED. Records: `docs/LEDGER.md`
+under CS-G08, CS-1187, CS-1186 and the CS-G03 decision record.
+
+**THIS GATE STAYS GATED.** The flip still waits on the remaining checks re-run at the
+final tip (CS-700 S3 to S8a) and on the operator's own-words S9 confirmation - section
+(b) above. Nothing in this note is that confirmation.
+
 ### CS-G04 - Dedicated-server data lane
 
 **One line:** Read world state from the dedicated server API instead of, or in addition
@@ -995,38 +1009,6 @@ terminator. The observation that zero reached one "at every alignment tried"
 argues against a pure start-offset error, but the set of alignments tried was
 never recorded, so it does not settle it either. Do not close CS-G05 by
 resemblance to the three readable pairs - its own section forbids exactly that.
-
-### CS-G08 - A disposable environment that has never seen the project
-
-**One line:** the clean-checkout probe (CS-1187) and the no-game half of the README walk (CS-1186) need an environment with no prior clone, no hooks path, no user-scope agent settings, no project cache and no game install, and this machine has none available.
-
-**Unblocked by:** Windows Sandbox (optional feature Containers-DisposableClientVM, measured disabled 2026-09-25, and needing a reboot) being enabled at a time the operator chooses, OR any other disposable VM or machine that has never held a clone of this repository. The condition is met when that environment launches. The protocol - the acceptance clause below, run as written - then runs, and a different agent repeats it clean.
-
-**Why no workaround:** a fresh local account on this machine is an accounts act and inherits machine-wide installs and the game's registration. The tier-2 `clean-checkout-probe` job says in its own comment that it is not a substitute. Blocks CS-G03 check 7 and the human half of check 5.
-
-**Filed 2026-09-25** by the wave-2 adjudicator ruling (session 113), which re-probed the feature's install state and found no sandbox executable. Enabling it takes a reboot, and a reboot takes down every concurrent session on the operator's machine - a destructive act no agent takes, and one no stand-in ruling can lift.
-
-**CS-1187 IS THIS GATE'S ITEM, AND ITS ID IS CLASSIFIED MENTIONED BY DESIGN.** Its `ROADMAP.md` line was removed when it was gated, so it is no longer a live row, and a BLOCKED line fences only a live row - `tests/ops/test_lane_scope.py` pins that. The item now lives here under CS-G08, and when the gate unblocks it moves to `ROADMAP.md` under CS-G08, as this file's header prescribes. **CS-1186 stays OPEN and takeable, and is MENTIONED too:** only its no-game half is gated here; the README walk on an override approximation is workable now, and it does not discharge the no-game clause. Its section in `docs/item_notes/phase7.md` records that.
-
-**CS-1187's item section, relocated VERBATIM from `docs/item_notes/phase7.md` 2026-09-25 when the item was gated.** The acceptance clause moved UNCHANGED and is what CS-G08's drain half must meet. The headings are re-nested one level to sit under this entry; their text and the body are byte-identical.
-
-#### Acceptance
-
-in a disposable environment with no prior clone, no hooks path, no user-scope agent
-settings and no project cache (e.g. Windows Sandbox), a fresh clone plus the
-docs/OPERATIONS.md bootstrap yields verify_env exit 0, armed hooks proven by a
-staged violation leaving HEAD unmoved, and a green tier-1 suite.
-
-#### Full headline
-
-the clean-checkout probe has never run on a machine that has never seen the project
-
-#### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
-
-Gate item 7. CS-700 section 5 records that it FAILS today; CS-938 is one known
-cause, not the probe. The `clean-checkout-probe` job in
-`.github/workflows/tier2.yml` says in its own comment that it is NOT a substitute,
-because a runner is not a machine that has never seen the project.
 
 ---
 
