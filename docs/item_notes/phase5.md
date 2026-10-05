@@ -544,26 +544,3 @@ producing tag. Nothing cross-checks the considered population against what is ac
 ### Acceptance
 
 the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed
-
-## CS-1271
-
-### Filed 2026-10-04 by CS-1059's close
-
-**GENERATED POWER IS COMPUTED AND NOT LIVE.** CS-1059 closed with
-`clockspeed/data/registry.py::Registry.generators` and the `generators` keyword of
-`clockspeed/audit/balance.py::balance_of`, which computes the nameplate capacity at the
-reference clock and sets `production_available` True only when a figure was computed.
-`clockspeed/advisor/advise.py::inputs_of` calls `balance_of` WITHOUT that keyword, so on
-every surface the flag stays False and the power rules see no production figure. The
-repair is one argument, `generators=registry.generators`, in a layer CS-1059's write-list
-did not own. A Phase 5 product item, not tooling.
-
-**RELATED, AND NOT THIS ITEM'S ACCEPTANCE.** `clockspeed/advisor/advise.py::advise_and_record`
-(CS-1268) has no caller in `clockspeed/` or `shell/`: `GET /api/advice` runs the read-only
-`advise()` through `advise_world`, so the automatic `completed` transition never runs in
-the product either. Wiring it needs a stated write path; record the ruling before building
-it, here or in a new item.
-
-### Acceptance
-
-red first: an arm over a synthetic world and registry holding a built fuel generator, driven through `clockspeed/advisor/advise.py::inputs_of`, sees the balance's `production_available` True and the same exact Fraction capacity `balance_of` computes when handed `registry.generators`, and reddens when `inputs_of` omits the generator namespace; a synthetic world with no built generator, over a registry carrying generators, sees `production_available` True and `production.capacity_megawatts == Fraction(0)`; an empty generator namespace keeps it False

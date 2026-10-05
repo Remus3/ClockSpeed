@@ -593,6 +593,8 @@ GUARDED_DOCS: Final = (
     # same reason those three are guarded rather than recorded.
     "memory/a-guard-can-be-accepted-and-unscoped.md",
     "memory/full-authority-adjudicate-do-not-ask.md",
+    # MAIN 0905 (session 127): names scripts/verify_env.py, which is tracked.
+    "memory/bare-python3-is-the-store-stub.md",
     # The headless queue lane's worker prompt (CS-918). Guarded on arrival
     # rather than recorded, because every path in it resolves today AND because
     # of who reads it: an unattended worker, once per cycle, with nobody

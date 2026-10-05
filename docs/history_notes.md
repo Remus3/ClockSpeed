@@ -24,6 +24,34 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1271 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-05
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1271
+
+### Filed 2026-10-04 by CS-1059's close
+
+**GENERATED POWER IS COMPUTED AND NOT LIVE.** CS-1059 closed with
+`clockspeed/data/registry.py::Registry.generators` and the `generators` keyword of
+`clockspeed/audit/balance.py::balance_of`, which computes the nameplate capacity at the
+reference clock and sets `production_available` True only when a figure was computed.
+`clockspeed/advisor/advise.py::inputs_of` calls `balance_of` WITHOUT that keyword, so on
+every surface the flag stays False and the power rules see no production figure. The
+repair is one argument, `generators=registry.generators`, in a layer CS-1059's write-list
+did not own. A Phase 5 product item, not tooling.
+
+**RELATED, AND NOT THIS ITEM'S ACCEPTANCE.** `clockspeed/advisor/advise.py::advise_and_record`
+(CS-1268) has no caller in `clockspeed/` or `shell/`: `GET /api/advice` runs the read-only
+`advise()` through `advise_world`, so the automatic `completed` transition never runs in
+the product either. Wiring it needs a stated write path; record the ruling before building
+it, here or in a new item.
+
+### Acceptance
+
+red first: an arm over a synthetic world and registry holding a built fuel generator, driven through `clockspeed/advisor/advise.py::inputs_of`, sees the balance's `production_available` True and the same exact Fraction capacity `balance_of` computes when handed `registry.generators`, and reddens when `inputs_of` omits the generator namespace; a synthetic world with no built generator, over a registry carrying generators, sees `production_available` True and `production.capacity_megawatts == Fraction(0)`; an empty generator namespace keeps it False
+
 ## CS-1186 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-04
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
@@ -2603,6 +2631,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 124 - archived 2026-10-05 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 124 - 2026-10-04 - tier2 green again, CS-1263 closed, CS-500 built through S4 with the D4 power rules, slots C4 adopted, and the CS-700 flip rehearsed
+
+- Shipped: CS-1263 closed (the audit draw reads each machine's clock; an untagged clock is the elided default, measured over the 40-save library). Detail in docs/LEDGER.md. PROGRESS records, nothing closed: CS-400 tier2 repair (the phase 4 gate's nested save-suite run sharded in three, timeout not raised; tier2 green at c30e347 and at 69d44c5); CS-500 S1 trace engine, S2 cards, S3 ledger store, S4 rule registry plus the D4 power rules; CS-700 undici 7.29.1 (Dependabot open alerts read 0); CS-1216 slots C4 adopted, grade owed; CS-1234 graded KEEP OPEN (the kit writes task name "Refused"). Adjudication records, already in the ledger: CS-704 two-SHA accept set, CS-700 S7a/S10/S11, CS-701 identity axis. Filed CS-1264..CS-1267.
+- In flight: the CS-700 flip. Rehearsal S1..S8 all PASS (refs 71=71=71, bundle restorable, rewrite deterministic). Before S9: an adversary pass on the pre-S7a batch (accept set, identity axis, recorded S7a script), fix CS-1267 (flip_checks clone hard links), probe whether the plan allows branch protection on a private repo, then the operator's own-words confirmation. CS-500 next: S5 every-rule-fires, S6 advise() wiring and the reload half of A3, S9 overlay trace; S7/S8 blocked on CS-1043/CS-1048/CS-1058/CS-1243.
+- Decisions: CS-1263 elided clock priced at the default, reversed by a measured save where an untagged machine runs off-default. CS-700/CS-701/CS-704 rulings (ledger). The S1-S3 adversary loops stopped by cost against risk, residual in the trace.py docstring. No ADR.
+- Surprises: about 86 percent of library machines carry no clock tag - the save elides the default; the flow audit still reads that as unread (CS-1265). Tier2's clean-checkout probe crossed 300s because the nested child ran tests/save as one call.
+- Failed paths: none abandoned. The flip_checks S1 run exited 1 from scratch-dir cleanup alone (0 of 9 checks failed) - a hard-linked commit-graph held by concurrent git; filed as CS-1267, not worked around.
+- Next action: confirm tier1 on the pushed tip, then the pre-S7a adversary pass and CS-1267, then the protection probe, then the operator ask.
 
 ## Session 123 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
 

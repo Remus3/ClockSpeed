@@ -404,3 +404,14 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   control that records a card state.
 - `tests/test_probe_refusal_output.py` flaked twice under box load (exit 124 versus 137) -
   WATCH ONLY, never raise the 1.0s budget - TRIGGER: a third flake, or one on an idle box.
+
+## Session 127 residuals - filed 2026-10-05 under product before process
+
+- `tests/advisor/rules/test_power.py` names its CS-1271 arms "reject" for steps that now record
+  the verdict-indeterminate kind; node ids are never rewritten, so the fix is a docstring note,
+  not a rename - TRIGGER: that module is next touched.
+- An omitted clock is priced at the class default and counted complete inside
+  `clockspeed/advisor/rules/power.py::_evaluate_headroom`'s draw read - pre-existing, under the
+  CS-1263 ruling - TRIGGER: a measured save where an untagged machine runs off-default.
+- `clockspeed/advisor/advise.py::advise_and_record` still has no product caller; GET /api/advice
+  runs the read-only advise() - TRIGGER: an item or ruling that names its write path.

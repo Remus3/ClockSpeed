@@ -1607,3 +1607,31 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
+
+## CS-1272
+
+### Acceptance
+
+in ONE commit landed straight after CS-700 S12a: `ops/fleet_kit/` is vendored byte-for-byte to
+kit v7 and `ops/fleet_kit/MANIFEST.json` reads v7 with every file hash equal to the MAIN 0215
+bundle; the FLEET-COMMON block in `CLAUDE.md` is re-embedded byte-identical to v7 and the
+conformance test pinning the block hash to the manifest passes; `pyproject.toml` carries the
+entries for the four new kit modules; `fleet_lanes` is configured at three lanes with a worktree
+per lane; the item-13 checklist runs on the session-start and headless paths; `CLAUDE.md` stays
+under its hard budget with `python tools/doc_budget.py` exit 0.
+
+### Full headline
+
+adopt FLEET-KIT v7 fully in ONE commit straight after CS-700 S12a: vendor, block re-embed, kit
+modules in pyproject.toml, three lanes, item-13 checklist paths
+
+### Filed 2026-10-05 by the session 127 FLEET-KIT v7 decision
+
+Decision C (the FLEET-KIT v7 record in `docs/LEDGER.md`) landed the tree-local v7 items now and
+deferred the rest here, because `pyproject.toml` is in the CS-G03 walked set and the block cannot
+re-embed without vendoring. Estimated `CLAUDE.md` size after the v7 block is close to the hard
+budget - measure it before the commit and relocate per `CLAUDE.md` section 4 if it breaches.
+NOT part of this item: CS-1231 slice C, which still waits on CS's kit asks v7 does not carry
+(a command-line entry, the xhigh/max efforts, the "Refused" task-name wording).
+Reversed by: S12a aborting, a MAIN ruling that v7 precedes the flip, or the operator's own
+words - then adopt fully at once and re-walk CS-G03.

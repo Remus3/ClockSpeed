@@ -75,6 +75,39 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-05 - CS-1271 - generated power is live: inputs_of hands balance_of the registry generators, and a skip on an incomplete input is indeterminate, never settled
+Verification: `clockspeed/advisor/advise.py::inputs_of` (passes `generators=registry.generators`
+to `clockspeed/audit/balance.py::balance_of`) plus
+`tests/advisor/test_world_advice.py::test_inputs_of_makes_a_built_generators_capacity_live`,
+`tests/advisor/test_world_advice.py::test_a_world_with_no_built_generator_is_an_exact_zero_capacity`,
+`tests/advisor/test_world_advice.py::test_a_registry_with_no_generator_namespace_keeps_production_unavailable`
+and `tests/advisor/test_world_advice.py::test_a_built_generator_settles_the_headroom_rule_end_to_end`;
+`clockspeed/advisor/rules/power.py::balance_inputs` offers the audit generation figure and its
+completeness, plus `tests/advisor/rules/test_power.py::test_the_adapter_offers_generation_and_its_completeness`,
+`tests/advisor/rules/test_power.py::test_the_adapter_offers_no_generation_without_a_production_model`,
+`tests/advisor/rules/test_power.py::test_a_complete_production_figure_gives_a_definite_verdict` and
+`tests/advisor/rules/test_power.py::test_an_incomplete_production_figure_is_rejected_never_compared`;
+`clockspeed/advisor/trace.py::StepKind` gains the verdict-indeterminate kind, outside
+`clockspeed/advisor/advise.py::SETTLED_STEP_KINDS` and rendered by `clockspeed/advisor/cards.py`,
+recorded by `clockspeed/advisor/rules/power.py::_evaluate_headroom` for its three skips (incomplete
+production floor, incomplete draw floor, absent generation figure), plus
+`tests/advisor/rules/test_power.py::test_an_incomplete_production_reject_is_not_settled`,
+`tests/advisor/rules/test_power.py::test_an_incomplete_draw_reject_is_not_settled`,
+`tests/advisor/rules/test_power.py::test_an_unmodelled_generation_reject_is_not_settled` and
+`tests/advisor/rules/test_power.py::test_a_definite_reject_over_complete_inputs_is_still_settled`.
+Acceptance amended before close (the item section, relocated to `docs/history_notes.md`): a
+synthetic world with no built generator, over a registry carrying generators, sees
+`production_available` True and capacity exactly zero; an empty generator namespace keeps it False.
+Process: an adjudicator ruled REPAIR FIRST on the first cut - the headroom rule halted
+input-missing, a regression visible through GET /api/advice. An adversary REFUTED the second
+cut - a reject made only because a floor was incomplete counted as settled, so
+`clockspeed/advisor/ledger.py` reconcile could complete an "Add N MW" card while the shortfall was
+unknown; the same flaw existed before the session in the draw-incomplete reject; it also found a
+false docstring. A second adversary HELD the repair: moving the indeterminate kind into the
+settled set reddened 7 tests, and reverting each of the three sites reddened.
+Decision: no ledger schema version bump - trace step kinds are not persisted.
+Residuals: `BACKLOG.md` under Session 127 residuals.
+
 ### 2026-10-05 - FLEET-KIT v7 (MAIN 0215) - DECISION RECORD, NOTHING CLOSED. Decision C, partial adoption now; SUPERSEDES the FLEET-KIT v6 record below
 Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` and no vendored byte
 is edited; the MAIN 0215 bundle's eleven files hash equal to the note's section 1 values,
