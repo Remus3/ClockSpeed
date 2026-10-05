@@ -180,9 +180,16 @@ start counting a generator as a zero-draw consumer when the extractor lands.
 
 **SEAM - THE WORK IS IN THREE LAYERS NO `save/` OR `solve/` SLICE OWNS.** The extractor
 belongs in `clockspeed/data/registry.py`, the sum and the computed flag in
-`clockspeed/audit/balance.py`, and the graded arm module under `tests/audit/`. A builder
-held to `clockspeed/save/` and `clockspeed/solve/` cannot meet this acceptance; dispatch
-it with those three on the write-list.
+`clockspeed/audit/balance.py`, and the graded arm module under `tests/audit/`. The
+write-list was widened to those three and the work landed there.
+
+**WHAT REMAINS AT THE WIRING SITE.** `balance_of` computes production only when a
+caller passes the registry's generator namespace, so the flag stays False on every
+surface until `clockspeed/advisor/advise.py` passes it - a one-argument change in a
+layer this slice did not own. The figure is a NAMEPLATE capacity at the reference
+clock: a generator's clock law and fuel state are unmeasured, so it is never live
+output. The placement allowlist in `clockspeed/audit/placement.py` admits only some
+generator classes, so a world's other generators are not yet counted at all.
 
 ### Acceptance
 

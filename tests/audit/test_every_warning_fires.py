@@ -28,10 +28,10 @@ in this directory already authored (``tests/audit/__init__.py`` states the
 rules they follow) and the synthetic solver corpus in ``tests/solve``; nothing
 here reads a save, a docs file or a game install. Four codes are STANDING
 advisories that their function raises on every world by design - production
-unmodelled, absolute extent and water regions unavailable, belt and circuit
-topology unavailable - and their fixture is simply the smallest world the
-function accepts; that they fire unconditionally is graded by the owning
-module's own tests, not re-litigated here.
+unmodelled (on every balance given no generator model, CS-1059), absolute
+extent and water regions unavailable, belt and circuit topology unavailable -
+and their fixture is simply the smallest world the function accepts; when they
+fire is graded by the owning module's own tests, not re-litigated here.
 """
 
 from __future__ import annotations
@@ -65,6 +65,7 @@ from tests.audit import test_inventory as inventory_fx
 from tests.audit import test_machines as machines_fx
 from tests.audit import test_network as network_fx
 from tests.audit import test_placement as placement_fx
+from tests.audit import test_production as production_fx
 from tests.audit.test_package_exports import defining_modules
 from tests.solve import synthetic
 
@@ -269,6 +270,16 @@ FIXTURES: Final[Mapping[str, Firing]] = {
         balance.clocked_draw_of(balance_fx.world_machines(), balance_fx.modeled_registry()).warnings
     ),
     "WARN_BALANCE_PRODUCTION_UNMODELED": lambda: _balance_composite(belts=True),
+    "WARN_BALANCE_GENERATION_UNMODELED": lambda: (
+        production_fx.production(
+            production_fx.whole_world_counts(), production_fx.whole_world_generators()
+        ).warnings
+    ),
+    "WARN_BALANCE_PRODUCTION_NAMEPLATE": lambda: (
+        production_fx.production(
+            production_fx.modeled_world_counts(), production_fx.modeled_generators()
+        ).warnings
+    ),
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE": lambda: _balance_composite(belts=False),
     # collectibles.py
     "WARN_COLLECTED_STATE_UNAVAILABLE": lambda: _collectibles(

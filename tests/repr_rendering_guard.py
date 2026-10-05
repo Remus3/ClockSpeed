@@ -259,6 +259,18 @@ CLEARED_FIELDS: Final[Mapping[str, tuple[frozenset[str], str]]] = {
         "declared_draw; reason is _GAP_REASON or the fixed reason declared_draw "
         "returns from the solve layer's constant table. Nothing is read from a save.",
     ),
+    "clockspeed/audit/balance.py::ProductionContribution": (
+        frozenset({"class_name"}),
+        "CS-1059. MEASURED in _production_bucket, reached only from production_of "
+        "over the placement model's built_counts keys - the closed built allowlist "
+        "in placement.py. No name outside that closed set can reach the field.",
+    ),
+    "clockspeed/audit/balance.py::ProductionGap": (
+        frozenset({"class_name", "kind", "reason"}),
+        "CS-1059. class_name on the ProductionContribution terms, from "
+        "built_counts. kind is one of PRODUCTION_GAP_KINDS, module constants; "
+        "reason is the matching _GAP_REASON entry. Nothing is read from a save.",
+    ),
     "clockspeed/audit/footprint.py::Footprint": (
         frozenset({"class_name", "category", "x", "y", "z", "extent"}),
         "class_name is admitted only as a key of CATEGORY_OF_CLASS and category "

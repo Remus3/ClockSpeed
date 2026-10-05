@@ -85,16 +85,34 @@ power answer.
 
 WHAT IS DECLARED ABSENT RATHER THAN REPORTED AS ZERO
 -------------------------------------------------------
-**PRODUCTION IS NOT MODELLED ANYWHERE IN THIS PROJECT AT HEAD.**
-``clockspeed/data/registry.py`` ``Building`` carries ``power_consumption`` and
-no production field, and no extractor of one exists - a generator's output is
-not read out of the docs file by ``clockspeed/data/docs_extract.py``. So
-:attr:`WorldBalance.production_available` is False and
-:data:`WARN_BALANCE_PRODUCTION_UNMODELED` says why. Publishing a production
-total of zero beside a real consumption total would render every world in
-permanent brownout, which is the same confident zero one field over. Inventing a
-generator class list here would be worse still: a second list to keep current,
-and ``clockspeed/audit/machines.py`` records why this package refuses those.
+**PRODUCTION IS COMPUTED ONLY WHEN A GENERATOR NAMESPACE IS SUPPLIED** (CS-1059).
+``clockspeed/data/registry.py`` ``Registry.generators`` reads each generator's
+``mPowerProduction`` as an exact Fraction. :func:`production_of` sums it over the
+built counts into the same PARTITION the draw uses: :class:`ProductionContribution`
+for a generator with an exact scalar output, :class:`ProductionGap` - which, like
+:class:`DrawGap`, DECLARES NO MEGAWATTS FIELD - for a generator whose output is
+variable, undeclared or inexact, and for a built class neither namespace carries,
+since nothing can say it does not generate. The geothermal generator declares its
+scalar as zero and carries its output on the variable fields; summing that zero is
+the confident zero one field over, so it is a named gap.
+
+:attr:`WorldBalance.production_available` is DERIVED: it is whether a production
+model was computed, and nothing else. With no namespace, or an empty one, there is
+nothing to sum, the flag is False and :data:`WARN_BALANCE_PRODUCTION_UNMODELED`
+says why - a production total of zero beside a real consumption total would render
+every world in permanent brownout. No generator class list is invented here; the
+registry's own marker fields decide membership.
+
+THE FIGURE IS A NAMEPLATE CAPACITY at the reference clock over built counts, and
+:data:`WARN_BALANCE_PRODUCTION_NAMEPLATE` travels with every computed one. A
+generator's clock law and its fuel state are not modelled, so this is what the
+built generators are rated for and never what they are producing now.
+
+A GENERATOR IS NOT A CONSUMER. Every measured generator also declares a zero
+draw, so it lands in the consumer namespace too. Once the generator namespace is
+supplied, :func:`draw_of` and :func:`clocked_draw_of` take generator classes out of
+the draw partition and COUNT them apart, so none is lost and none is listed as a
+zero-draw consumer.
 
 **THE CONNECTED EDGE SET IS DERIVED, NOT ASSERTED.**
 :attr:`WorldBalance.connected_edges_available` is read off
@@ -168,7 +186,7 @@ if TYPE_CHECKING:
     from clockspeed.audit.machines import WorldMachines
     from clockspeed.audit.network import WorldNetwork
     from clockspeed.audit.placement import WorldPlacement
-    from clockspeed.data.registry import Building
+    from clockspeed.data.registry import Building, Generator
 
 __all__ = [
     "BOUND_EXACT",
@@ -181,29 +199,39 @@ __all__ = [
     "GAP_KINDS",
     "GAP_LAW_INEXACT",
     "GAP_NO_REGISTRY_ENTRY",
+    "GAP_PRODUCTION_INEXACT",
+    "GAP_PRODUCTION_UNDECLARED",
+    "GAP_PRODUCTION_VARIABLE",
+    "PRODUCTION_GAP_KINDS",
     "SOURCE_BALANCE",
     "WARN_BALANCE_CLOCKED_DRAW_BOUNDED",
     "WARN_BALANCE_CLOCKED_DRAW_UNMODELED",
     "WARN_BALANCE_CLOCK_ELIDED",
     "WARN_BALANCE_CLOCK_UNREAD",
     "WARN_BALANCE_DRAW_UNMODELED",
+    "WARN_BALANCE_GENERATION_UNMODELED",
     "WARN_BALANCE_MACHINE_STATE_UNREAD",
     "WARN_BALANCE_NOTHING_BUILT",
     "WARN_BALANCE_NO_MACHINES_CLOCKED",
     "WARN_BALANCE_PRODUCING_UNAVAILABLE",
+    "WARN_BALANCE_PRODUCTION_NAMEPLATE",
     "WARN_BALANCE_PRODUCTION_UNMODELED",
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE",
     "ClockedContribution",
     "ClockedGap",
     "DrawContribution",
     "DrawGap",
+    "ProductionContribution",
+    "ProductionGap",
     "WorldBalance",
     "WorldClockedDraw",
     "WorldDraw",
+    "WorldProduction",
     "WorldStarvation",
     "balance_of",
     "clocked_draw_of",
     "draw_of",
+    "production_of",
     "starvation_of",
 ]
 
@@ -231,6 +259,30 @@ GAP_KINDS: Final = frozenset(
         SHAPE_UNDECLARED,
         GAP_NO_REGISTRY_ENTRY,
         GAP_DRAW_INEXACT,
+    }
+)
+
+#: CS-1059. A generator whose output VARIES - it declares a variable production
+#: factor or constant above zero. Its declared scalar, measured as zero on the
+#: geothermal generator, is not its output and is never summed.
+GAP_PRODUCTION_VARIABLE: Final = "production-variable"
+
+#: CS-1059. A generator whose entry declares no readable scalar output.
+GAP_PRODUCTION_UNDECLARED: Final = "production-undeclared"
+
+#: CS-1059. A declared scalar output that is not exactly a ``Fraction``,
+#: refused on the terms :data:`GAP_DRAW_INEXACT` states.
+GAP_PRODUCTION_INEXACT: Final = "production-inexact"
+
+#: CS-1059. The closed vocabulary of production gap kinds: the three above,
+#: and :data:`GAP_NO_REGISTRY_ENTRY` for a built class neither namespace
+#: carries - it may generate, and nothing here can say it does not.
+PRODUCTION_GAP_KINDS: Final = frozenset(
+    {
+        GAP_PRODUCTION_VARIABLE,
+        GAP_PRODUCTION_UNDECLARED,
+        GAP_PRODUCTION_INEXACT,
+        GAP_NO_REGISTRY_ENTRY,
     }
 )
 
@@ -293,10 +345,18 @@ WARN_BALANCE_PRODUCING_UNAVAILABLE: Final = "balance-producing-unavailable"
 #: counted as running. The starved set is short by whatever they hold.
 WARN_BALANCE_MACHINE_STATE_UNREAD: Final = "balance-machine-state-unread"
 
-#: Power PRODUCTION is not modelled anywhere in this project - see the module
-#: docstring. Raised on every balance, because a consumption total with no
-#: production beside it is half a graph and must not read as a whole one.
+#: No production figure was computed - no generator namespace was supplied, or
+#: an empty one. Raised on every such balance, because a consumption total with
+#: no production beside it is half a graph and must not read as a whole one.
 WARN_BALANCE_PRODUCTION_UNMODELED: Final = "balance-production-unmodeled"
+
+#: CS-1059. This many BUILT ACTORS contributed no number to the production
+#: capacity. The capacity is a LOWER BOUND whenever it fires.
+WARN_BALANCE_GENERATION_UNMODELED: Final = "balance-generation-unmodeled"
+
+#: CS-1059. Standing on every computed production figure: it is a nameplate
+#: capacity at the reference clock over built counts, never live output.
+WARN_BALANCE_PRODUCTION_NAMEPLATE: Final = "balance-production-nameplate"
 
 #: No belt topology, so a starved machine's upstream cause cannot be named.
 #: Raised whenever the network model declares the edge set unavailable.
@@ -337,6 +397,20 @@ _GAP_REASON: Final[Mapping[str, str]] = MappingProxyType(
             "the entry declares a draw that is not exactly a Fraction, and a float in"
             " the solve path is forbidden outright; the value is refused rather than"
             " converted, because a conversion here would be exact and wrong"
+        ),
+        GAP_PRODUCTION_VARIABLE: (
+            "the generator declares a variable output, so its declared scalar is not"
+            " its output and is not summed; the cycle that carries the real output is"
+            " not modelled, so the class is named here rather than counted as zero"
+        ),
+        GAP_PRODUCTION_UNDECLARED: (
+            "the generator entry declares no readable scalar output, so nothing"
+            " states what it produces; it is named here rather than counted as zero"
+        ),
+        GAP_PRODUCTION_INEXACT: (
+            "the generator declares an output that is not exactly a Fraction, and a"
+            " float in the solve path is forbidden outright; the value is refused"
+            " rather than converted"
         ),
         GAP_CLOCK_UNREAD: (
             "this machine's clock was never read - the tag was absent or its value was"
@@ -415,9 +489,21 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " those machines hold"
         ),
         WARN_BALANCE_PRODUCTION_UNMODELED: (
-            "power production is not modelled anywhere in this project, so this"
-            " balance carries consumption alone; a production total of zero beside a"
-            " real consumption total would render every world in permanent brownout"
+            "no production figure was computed because no generator model was"
+            " supplied, so this balance carries consumption alone; a production total"
+            " of zero beside a real consumption total would render every world in"
+            " permanent brownout"
+        ),
+        WARN_BALANCE_GENERATION_UNMODELED: (
+            "this many built actors contributed no number to the production capacity"
+            " - a variable, undeclared or inexact output, or a class no registry entry"
+            " carries - so the capacity is a LOWER BOUND, and each is named in the"
+            " production gap list by kind"
+        ),
+        WARN_BALANCE_PRODUCTION_NAMEPLATE: (
+            "the production figure is the nameplate capacity of the built generators"
+            " at the reference clock; their clocks and fuel state are not modelled, so"
+            " it is what they are rated for and never what they produce now"
         ),
         WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE: (
             "the network model declares no belt topology, so a starved machine's"
@@ -535,6 +621,10 @@ class WorldDraw:
             one above it: they are different numbers and only one of them says
             how much of the factory is missing from the total.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
+        generator_class_count: CS-1059. How many built classes were taken out
+            of the partition because the supplied generator namespace carries
+            them. ``classes_considered + generator_class_count`` is every built
+            class, so none is lost. Zero when no namespace was supplied.
     """
 
     contributions: tuple[DrawContribution, ...]
@@ -542,6 +632,101 @@ class WorldDraw:
     consumption_megawatts: Fraction
     consumption_complete: bool
     classes_considered: int
+    unmodeled_class_count: int
+    unmodeled_contributor_count: int
+    warnings: tuple[WorldWarning, ...]
+    # Appended with a default, so every existing construction stays valid.
+    generator_class_count: int = 0
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and nothing about any member.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(contributions={len(self.contributions)}, "
+            f"gaps={len(self.gaps)}, "
+            f"consumption_complete={self.consumption_complete}, "
+            f"generator_class_count={self.generator_class_count}, "
+            f"classes_considered={self.classes_considered}, "
+            f"unmodeled_class_count={self.unmodeled_class_count}, "
+            f"unmodeled_contributor_count={self.unmodeled_contributor_count}, "
+            f"warnings={len(self.warnings)})"
+        )
+
+
+@dataclass(frozen=True)
+class ProductionContribution:
+    """One built generator class with an exact scalar output behind it (CS-1059).
+
+    The production twin of :class:`DrawContribution`, on its terms.
+
+    Attributes:
+        class_name: The built generator class.
+        built_count: How many of that class are built.
+        megawatts_each: The declared output of ONE, at the reference clock.
+        megawatts_total: ``megawatts_each * built_count``, exactly.
+    """
+
+    class_name: str
+    built_count: int
+    megawatts_each: Fraction
+    megawatts_total: Fraction
+
+
+@dataclass(frozen=True)
+class ProductionGap:
+    """One built class that contributed NO NUMBER to the production capacity.
+
+    **THERE IS DELIBERATELY NO MEGAWATTS FIELD ON THIS TYPE**, for the reason
+    :class:`DrawGap` gives. ``tests/audit/test_production.py`` grades that off the
+    declared fields.
+
+    Attributes:
+        class_name: The built class this gap is about.
+        built_count: How many of that class are built.
+        kind: One of :data:`PRODUCTION_GAP_KINDS`.
+        reason: One line naming why.
+    """
+
+    class_name: str
+    built_count: int
+    kind: str
+    reason: str
+
+
+@dataclass(frozen=True, repr=False)
+class WorldProduction:
+    """The whole-world generation capacity, partitioned into known and not (CS-1059).
+
+    THE BUILT CLASSES PARTITION THREE WAYS AND CONSERVE:
+    ``len(contributions) + len(gaps) + non_generator_class_count ==
+    classes_considered``, so a class this module dropped cannot be expressed.
+
+    Attributes:
+        contributions: One entry per built generator class with an exact
+            scalar output, in sorted class-name order.
+        gaps: One entry per built class that may generate and has no number,
+            in the same order.
+        capacity_megawatts: The exact Fraction sum over :attr:`contributions`,
+            at the reference clock. A LOWER BOUND whenever :attr:`gaps` is
+            non-empty.
+        production_complete: Whether no built class is a gap.
+        classes_considered: How many built classes were partitioned.
+        non_generator_class_count: Built classes the consumer namespace carries
+            and the generator namespace does not - known not to generate.
+        unmodeled_class_count: ``len(gaps)``.
+        unmodeled_contributor_count: The sum of :attr:`ProductionGap.built_count`.
+        warnings: Everything flagged, in the ``WorldWarning`` idiom.
+    """
+
+    contributions: tuple[ProductionContribution, ...]
+    gaps: tuple[ProductionGap, ...]
+    capacity_megawatts: Fraction
+    production_complete: bool
+    classes_considered: int
+    non_generator_class_count: int
     unmodeled_class_count: int
     unmodeled_contributor_count: int
     warnings: tuple[WorldWarning, ...]
@@ -555,9 +740,9 @@ class WorldDraw:
         return (
             f"{type(self).__name__}(contributions={len(self.contributions)}, "
             f"gaps={len(self.gaps)}, "
-            f"consumption_complete={self.consumption_complete}, "
+            f"production_complete={self.production_complete}, "
             f"classes_considered={self.classes_considered}, "
-            f"unmodeled_class_count={self.unmodeled_class_count}, "
+            f"non_generator_class_count={self.non_generator_class_count}, "
             f"unmodeled_contributor_count={self.unmodeled_contributor_count}, "
             f"warnings={len(self.warnings)})"
         )
@@ -623,10 +808,9 @@ class WorldBalance:
             applied (CS-1263) - the figure that compares like with like against
             a solver plan.
         starvation: The inefficiency half.
-        production_available: ALWAYS FALSE TODAY, and a FIELD rather than an
-            omission - see the module docstring. Nothing in this project models
-            a generator's output, so there is no production number to publish
-            and a zero would be a lie.
+        production_available: DERIVED - whether :attr:`production` was
+            computed, and nothing else (CS-1059). False when no generator
+            namespace was supplied, because a zero would be a lie.
         connected_edges_available: Whether a starved machine's upstream segment
             can be named. DERIVED from ``WorldNetwork.belt_topology_available``
             rather than asserted, so it answers True on its own the day belt
@@ -634,6 +818,9 @@ class WorldBalance:
         warnings: Every sub-model's warnings followed by this level's own, so a
             consumer holding this object never has to reach into a sub-model to
             find a flag.
+        production: CS-1059. The generation half, or None when none was
+            computed. Appended with a default so every existing construction
+            stays valid.
     """
 
     draw: WorldDraw
@@ -642,6 +829,7 @@ class WorldBalance:
     production_available: bool
     connected_edges_available: bool
     warnings: tuple[WorldWarning, ...]
+    production: WorldProduction | None = None
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -734,7 +922,12 @@ def _classify(class_name: str, count: int, entry: Building | None) -> DrawContri
     )
 
 
-def draw_of(placement: WorldPlacement, buildings: Mapping[str, Building]) -> WorldDraw:
+def draw_of(
+    placement: WorldPlacement,
+    buildings: Mapping[str, Building],
+    *,
+    generators: Mapping[str, Generator] | None = None,
+) -> WorldDraw:
     """Compute the world power draw as the exact sum over the built counts.
 
     PURE, AND TOTAL. Every input produces a model: an empty world, a registry
@@ -749,6 +942,9 @@ def draw_of(placement: WorldPlacement, buildings: Mapping[str, Building]) -> Wor
         buildings: The registry, keyed by the same bare class name the built
             counts are keyed by. Supplied by the caller - this module never
             builds one and never reads ``clockspeed/data/``.
+        generators: CS-1059. The generator namespace, or None. A built class
+            it carries is a generator, not a consumer, and is counted in
+            :attr:`WorldDraw.generator_class_count` instead of partitioned.
 
     Returns:
         The draw, partitioned. The consumption total is the exact Fraction sum
@@ -758,8 +954,13 @@ def draw_of(placement: WorldPlacement, buildings: Mapping[str, Building]) -> Wor
     contributions: list[DrawContribution] = []
     gaps: list[DrawGap] = []
     total = Fraction(0)
+    producers = generators or {}
+    excluded = 0
 
     for class_name in sorted(placement.built_counts):
+        if class_name in producers:
+            excluded += 1
+            continue
         count = placement.built_counts[class_name]
         bucket = _classify(class_name, count, buildings.get(class_name))
         if isinstance(bucket, DrawGap):
@@ -781,11 +982,117 @@ def draw_of(placement: WorldPlacement, buildings: Mapping[str, Building]) -> Wor
         gaps=tuple(gaps),
         consumption_megawatts=total,
         consumption_complete=not gaps,
+        classes_considered=len(placement.built_counts) - excluded,
+        unmodeled_class_count=len(gaps),
+        unmodeled_contributor_count=unmodeled_contributors,
+        warnings=tuple(warnings),
+        generator_class_count=excluded,
+    )
+
+
+def _production_bucket(
+    class_name: str, count: int, entry: Generator
+) -> ProductionContribution | ProductionGap:
+    """Put one built generator class in exactly one production bucket.
+
+    The variable test comes FIRST: a variable generator's declared scalar is a
+    real Fraction - zero on the measured geothermal entry - and would otherwise
+    pass every later check and be summed.
+
+    Args:
+        class_name: The built class.
+        count: How many of it are built.
+        entry: Its generator entry.
+
+    Returns:
+        A contribution for an exact scalar output, and a named gap otherwise.
+    """
+    output = entry.power_production
+    if entry.is_variable_production:
+        kind = GAP_PRODUCTION_VARIABLE
+    elif output is None:
+        kind = GAP_PRODUCTION_UNDECLARED
+    elif type(output) is not Fraction:
+        kind = GAP_PRODUCTION_INEXACT
+    else:
+        return ProductionContribution(
+            class_name=class_name,
+            built_count=count,
+            megawatts_each=output,
+            megawatts_total=output * count,
+        )
+    return ProductionGap(
+        class_name=class_name, built_count=count, kind=kind, reason=_GAP_REASON[kind]
+    )
+
+
+def production_of(
+    placement: WorldPlacement,
+    generators: Mapping[str, Generator],
+    buildings: Mapping[str, Building],
+) -> WorldProduction:
+    """Compute the world generation capacity as the exact sum over built generators.
+
+    CS-1059. PURE, AND TOTAL, on the terms :func:`draw_of` states.
+
+    Args:
+        placement: The placement model whose ``built_counts`` this sums over.
+        generators: The generator namespace, keyed by bare class name.
+        buildings: The consumer namespace. A built class it carries and the
+            generator namespace does not is KNOWN not to generate; a class
+            neither carries is a :data:`GAP_NO_REGISTRY_ENTRY` gap.
+
+    Returns:
+        The production model, partitioned with conservation. The capacity is
+        the nameplate output at the reference clock, and a LOWER BOUND whenever
+        any gap exists.
+    """
+    contributions: list[ProductionContribution] = []
+    gaps: list[ProductionGap] = []
+    non_generators = 0
+    total = Fraction(0)
+
+    for class_name in sorted(placement.built_counts):
+        count = placement.built_counts[class_name]
+        entry = generators.get(class_name)
+        if entry is None:
+            if class_name in buildings:
+                non_generators += 1
+                continue
+            gaps.append(
+                ProductionGap(
+                    class_name=class_name,
+                    built_count=count,
+                    kind=GAP_NO_REGISTRY_ENTRY,
+                    reason=_GAP_REASON[GAP_NO_REGISTRY_ENTRY],
+                )
+            )
+            continue
+        bucket = _production_bucket(class_name, count, entry)
+        if isinstance(bucket, ProductionGap):
+            gaps.append(bucket)
+            continue
+        contributions.append(bucket)
+        total += bucket.megawatts_total
+
+    unmodeled_contributors = sum(gap.built_count for gap in gaps)
+    warnings = [_warning(WARN_BALANCE_PRODUCTION_NAMEPLATE)]
+    if unmodeled_contributors:
+        warnings.append(_warning(WARN_BALANCE_GENERATION_UNMODELED, unmodeled_contributors))
+
+    result = WorldProduction(
+        contributions=tuple(contributions),
+        gaps=tuple(gaps),
+        capacity_megawatts=total,
+        production_complete=not gaps,
         classes_considered=len(placement.built_counts),
+        non_generator_class_count=non_generators,
         unmodeled_class_count=len(gaps),
         unmodeled_contributor_count=unmodeled_contributors,
         warnings=tuple(warnings),
     )
+    audit_exact(result, path="production")
+    return result
 
 
 @dataclass(frozen=True, repr=False)
@@ -895,6 +1202,9 @@ class WorldClockedDraw:
             :data:`ELIDED_CLOCK_DEFAULT` because their clock tag was elided.
         unmodeled_machine_count: How many machines are any other gap kind.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
+        generator_machine_count: CS-1059. How many machines were taken out of
+            the population because the supplied generator namespace carries
+            their class. Zero when no namespace was supplied.
     """
 
     contributions: tuple[ClockedContribution, ...]
@@ -909,6 +1219,8 @@ class WorldClockedDraw:
     elided_clock_count: int
     unmodeled_machine_count: int
     warnings: tuple[WorldWarning, ...]
+    # Appended with a default, so every existing construction stays valid.
+    generator_machine_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -924,6 +1236,7 @@ class WorldClockedDraw:
             f"unread_clock_count={self.unread_clock_count}, "
             f"elided_clock_count={self.elided_clock_count}, "
             f"unmodeled_machine_count={self.unmodeled_machine_count}, "
+            f"generator_machine_count={self.generator_machine_count}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -1082,7 +1395,12 @@ def _clocked_outcome(class_name: str, clock: object, entry: Building | None) -> 
     return _law(entry, clock, each)
 
 
-def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) -> WorldClockedDraw:
+def clocked_draw_of(
+    machines: WorldMachines,
+    buildings: Mapping[str, Building],
+    *,
+    generators: Mapping[str, Generator] | None = None,
+) -> WorldClockedDraw:
     """Compute the world power draw with every machine's own clock applied (CS-1263).
 
     :func:`draw_of` prices BUILT COUNTS at the reference clock and never reads a
@@ -1097,6 +1415,8 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
     Args:
         machines: The machines model, for each machine's class and clock.
         buildings: The registry, keyed by bare class name.
+        generators: CS-1059. The generator namespace, or None. A machine whose
+            class it carries is not a consumer and is counted apart.
 
     Returns:
         The clocked draw: an exact value per group where the power law yields
@@ -1105,8 +1425,13 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
     """
     priced: dict[tuple[str, Fraction, bool], tuple[str, str, Fraction, Fraction, int]] = {}
     gapped: dict[tuple[str, str], tuple[str, int]] = {}
+    producers = generators or {}
+    excluded = 0
 
     for state in machines.machines:
+        if state.class_name in producers:
+            excluded += 1
+            continue
         entry = buildings.get(state.class_name)
         elided = state.overclock is None and state.overclock_elided
         read = ELIDED_CLOCK_DEFAULT if elided else state.overclock
@@ -1169,12 +1494,13 @@ def clocked_draw_of(machines: WorldMachines, buildings: Mapping[str, Building]) 
         upper_megawatts=sum((group.upper_total for group in contributions), Fraction(0)),
         exact=not bounded and not gaps,
         complete=not gaps,
-        machines_considered=len(machines.machines),
+        machines_considered=len(machines.machines) - excluded,
         bounded_machine_count=bounded,
         unread_clock_count=unread,
         elided_clock_count=defaulted,
         unmodeled_machine_count=unmodeled,
         warnings=tuple(warnings),
+        generator_machine_count=excluded,
     )
     audit_exact(result, path="clocked_draw")
     return result
@@ -1228,6 +1554,8 @@ def balance_of(
     buildings: Mapping[str, Building],
     machines: WorldMachines,
     network: WorldNetwork,
+    *,
+    generators: Mapping[str, Generator] | None = None,
 ) -> WorldBalance:
     """Compute both halves of one world's power balance.
 
@@ -1236,20 +1564,23 @@ def balance_of(
         buildings: The registry, keyed by bare class name.
         machines: The machines model, for the producing flag and the clocks.
         network: The network model, for whether an upstream cause can be named.
+        generators: CS-1059. The generator namespace, or None. Production is
+            computed only over a non-empty one.
 
     Returns:
         The balance, carrying every sub-model's warnings plus this level's own.
     """
-    draw = draw_of(placement, buildings)
-    clocked_draw = clocked_draw_of(machines, buildings)
+    producers = generators or None
+    draw = draw_of(placement, buildings, generators=producers)
+    clocked_draw = clocked_draw_of(machines, buildings, generators=producers)
     starvation = starvation_of(machines)
+    production = None if producers is None else production_of(placement, producers, buildings)
 
-    warnings = [
-        *draw.warnings,
-        *clocked_draw.warnings,
-        *starvation.warnings,
-        _warning(WARN_BALANCE_PRODUCTION_UNMODELED),
-    ]
+    warnings = [*draw.warnings, *clocked_draw.warnings, *starvation.warnings]
+    if production is None:
+        warnings.append(_warning(WARN_BALANCE_PRODUCTION_UNMODELED))
+    else:
+        warnings.extend(production.warnings)
     if not network.belt_topology_available:
         warnings.append(_warning(WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE))
 
@@ -1257,7 +1588,8 @@ def balance_of(
         draw=draw,
         clocked_draw=clocked_draw,
         starvation=starvation,
-        production_available=False,
+        production_available=production is not None,
         connected_edges_available=network.belt_topology_available,
         warnings=tuple(warnings),
+        production=production,
     )

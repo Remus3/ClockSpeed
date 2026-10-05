@@ -231,6 +231,7 @@ __all__ = [
     "FORM_INVALID",
     "FORM_LIQUID",
     "FORM_SOLID",
+    "GENERATION_MARKER_KEYS",
     "ITEM_GROUP_SHORT_NAMES",
     "KEY_ALLOWED_RESOURCE_FORMS",
     "KEY_DISPLAY_NAME",
@@ -245,11 +246,14 @@ __all__ = [
     "KEY_MAX_POTENTIAL",
     "KEY_POWER_CONSUMPTION",
     "KEY_POWER_EXPONENT",
+    "KEY_POWER_PRODUCTION",
     "KEY_PRODUCED_IN",
     "KEY_PRODUCT",
     "KEY_SINK_POINTS",
     "KEY_VARIABLE_POWER_CONSTANT",
     "KEY_VARIABLE_POWER_FACTOR",
+    "KEY_VARIABLE_PRODUCTION_CONSTANT",
+    "KEY_VARIABLE_PRODUCTION_FACTOR",
     "LITRES_PER_CUBIC_METRE",
     "MAX_MALFORMED_BLOBS",
     "POWER_MARKER_KEYS",
@@ -265,6 +269,7 @@ __all__ = [
     "WARN_MISSING_EXTRACTION_RATE",
     "WARN_MISSING_FORM",
     "WARN_MISSING_POWER",
+    "WARN_MISSING_PRODUCTION",
     "WARN_NON_STRING_VALUE",
     "WARN_UNKNOWN_GROUP",
     "WARN_UNKNOWN_ITEM",
@@ -273,6 +278,7 @@ __all__ = [
     "WARN_UNRESOLVED_PRODUCED_IN",
     "Building",
     "Extractor",
+    "Generator",
     "Item",
     "Recipe",
     "RecipeIO",
@@ -311,6 +317,15 @@ KEY_ESTIMATED_MAX_POWER: Final = "mEstimatedMaximumPowerConsumption"
 
 KEY_VARIABLE_POWER_CONSTANT: Final = "mVariablePowerConsumptionConstant"
 KEY_VARIABLE_POWER_FACTOR: Final = "mVariablePowerConsumptionFactor"
+
+#: CS-1059. The generation fields, measured read-only on the pinned build. A
+#: fuel or nuclear generator carries a scalar mPowerProduction; the
+#: geothermal generator declares that scalar as '0.000000' and carries its
+#: real output on the two variable fields, the same trap the variable-power
+#: consumers set one field over. See :class:`Generator`.
+KEY_POWER_PRODUCTION: Final = "mPowerProduction"
+KEY_VARIABLE_PRODUCTION_CONSTANT: Final = "mVariablePowerProductionConstant"
+KEY_VARIABLE_PRODUCTION_FACTOR: Final = "mVariablePowerProductionFactor"
 
 #: The UN-SHARDED clock base, kept under the game's own spelling so the
 #: provenance stays greppable while the python name it feeds says what it
@@ -391,6 +406,17 @@ EXTRACTION_MARKER_KEYS: Final = (
     KEY_ALLOWED_RESOURCE_FORMS,
 )
 
+#: The fields whose presence makes an entry a power GENERATOR (CS-1059). Any
+#: ONE is enough, on the rule EXTRACTION_MARKER_KEYS states: an entry carrying
+#: only the variable factor is generation content whose scalar the document
+#: does not state, and requiring the scalar would drop it. No group floor,
+#: for the reason _is_building_entry gives.
+GENERATION_MARKER_KEYS: Final = (
+    KEY_POWER_PRODUCTION,
+    KEY_VARIABLE_PRODUCTION_CONSTANT,
+    KEY_VARIABLE_PRODUCTION_FACTOR,
+)
+
 #: The measured descriptor groups, kept ONLY as a floor beneath the mForm test.
 #: Their purpose is the entry that a future patch ships into one of them with
 #: no mForm at all: it is still a real item some recipe names, so it is kept
@@ -444,6 +470,7 @@ WARN_MISSING_DURATION: Final = "missing-duration"
 WARN_MISSING_EXTRACTION_RATE: Final = "missing-extraction-rate"
 WARN_MISSING_FORM: Final = "missing-form"
 WARN_MISSING_POWER: Final = "missing-power"
+WARN_MISSING_PRODUCTION: Final = "missing-production"
 WARN_NON_STRING_VALUE: Final = "non-string-value"
 WARN_UNKNOWN_GROUP: Final = "unknown-group"
 WARN_UNKNOWN_ITEM: Final = "unknown-item-reference"
@@ -650,6 +677,45 @@ class Extractor:
 
 
 @dataclass(frozen=True)
+class Generator:
+    """One buildable that GENERATES power (CS-1059).
+
+    A SEPARATE namespace from :class:`Building`, joined by key, on the terms
+    :attr:`Registry.extractors` states: every measured generator also declares
+    an ``mPowerConsumption`` of ``'0.000000'``, so the same ClassName lands in
+    both, and which role a caller wants is the caller's to pick by namespace.
+
+    THE DECLARED SCALAR IS NOT ALWAYS THE OUTPUT. The geothermal generator
+    declares ``mPowerProduction`` as ``'0.000000'`` and carries its real output
+    on the variable fields. That zero is kept VERBATIM here - this layer
+    reports the document and never rewrites it - and :attr:`is_variable_production`
+    is what tells a consumer not to sum it. Summing it is the confident zero
+    :attr:`Building.power_consumption` documents.
+
+    Attributes:
+        key: The entry's ClassName, the token a built count is keyed by.
+        display_name: The verbatim mDisplayName from the buildable entry.
+        power_production: mPowerProduction in megawatts as an exact Fraction,
+            or None when the entry declares none or declares something
+            unreadable. Never a defaulted zero.
+        variable_production_constant: mVariablePowerProductionConstant, or
+            None.
+        variable_production_factor: mVariablePowerProductionFactor, or None.
+        is_variable_production: True when either variable field is declared
+            ABOVE zero, which is the measured shape of a generator whose output
+            cycles rather than holds. A declared zero on both is not variable,
+            for the reason :attr:`Building.is_variable_power` gives.
+    """
+
+    key: str
+    display_name: str
+    power_production: Fraction | None
+    variable_production_constant: Fraction | None
+    variable_production_factor: Fraction | None
+    is_variable_production: bool
+
+
+@dataclass(frozen=True)
 class Recipe:
     """One production recipe, joined against items and buildings.
 
@@ -692,6 +758,9 @@ class Recipe:
 #: object rather than a fresh mutable dict.
 _NO_EXTRACTORS: Final[Mapping[str, Extractor]] = MappingProxyType({})
 
+#: The empty, read-only generator mapping, on the terms _NO_EXTRACTORS states.
+_NO_GENERATORS: Final[Mapping[str, Generator]] = MappingProxyType({})
+
 
 @dataclass(frozen=True)
 class Registry:
@@ -708,6 +777,9 @@ class Registry:
             the key. One measured extractor entry carries no power field at
             all, which is why membership in one cannot be derived from the
             other.
+        generators: Power generators by ClassName, read-only (CS-1059). A
+            separate namespace joined by key, for the reason ``extractors``
+            gives: every measured generator also declares a zero draw.
         warnings: Everything flagged and skipped, aggregated by subject and
             ordered deterministically so two builds of one document produce
             byte-identical output.
@@ -725,6 +797,7 @@ class Registry:
     # construction of a Registry at once. The default is an empty READ-ONLY
     # mapping, so a caller cannot mutate a shared default into existence.
     extractors: Mapping[str, Extractor] = _NO_EXTRACTORS
+    generators: Mapping[str, Generator] = _NO_GENERATORS
 
 
 class _WarningLog:
@@ -1087,6 +1160,43 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
         # flagged here exactly as they are everywhere else, rather than
         # collapsing into the "declared none" reading that None carries.
         unsharded_clock_base=_optional_fraction(entry, KEY_MAX_POTENTIAL, key, log),
+    )
+
+
+def _generator(
+    entry: Mapping[str, object], key: str, group_name: str, log: _WarningLog
+) -> Generator:
+    """Build one generator from its buildable entry (CS-1059).
+
+    Args:
+        entry: The entry mapping.
+        key: Its ClassName.
+        group_name: The group's short name.
+        log: The warning log.
+
+    Returns:
+        The generator. A scalar that is absent or unreadable is None and is
+        flagged unless the entry is variable, whose output the scalar never
+        carried anyway.
+    """
+    production = _optional_fraction(entry, KEY_POWER_PRODUCTION, key, log)
+    constant = _optional_fraction(entry, KEY_VARIABLE_PRODUCTION_CONSTANT, key, log)
+    factor = _optional_fraction(entry, KEY_VARIABLE_PRODUCTION_FACTOR, key, log)
+    variable = any(value is not None and value > 0 for value in (constant, factor))
+    if production is None and not variable:
+        log.add(
+            WARN_MISSING_PRODUCTION,
+            key,
+            f"no readable {KEY_POWER_PRODUCTION} and no variable production; "
+            "the output is published as unknown rather than as zero",
+        )
+    return Generator(
+        key=key,
+        display_name=_display_name(entry, group_name, log),
+        power_production=production,
+        variable_production_constant=constant,
+        variable_production_factor=factor,
+        is_variable_production=variable,
     )
 
 
@@ -1473,6 +1583,18 @@ def _is_extractor_entry(entry: Mapping[str, object]) -> bool:
     return any(marker in entry for marker in EXTRACTION_MARKER_KEYS)
 
 
+def _is_generator_entry(entry: Mapping[str, object]) -> bool:
+    """Decide whether one entry is a power generator (CS-1059).
+
+    Args:
+        entry: The entry mapping.
+
+    Returns:
+        True when the entry carries ANY of GENERATION_MARKER_KEYS.
+    """
+    return any(marker in entry for marker in GENERATION_MARKER_KEYS)
+
+
 def _build_items(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Item]:
     """Build every item, in document order.
 
@@ -1537,6 +1659,27 @@ def _build_extractors(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str
             if key is not None:
                 extractors[key] = _extractor(entry, key, group.short_name, log)
     return extractors
+
+
+def _build_generators(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Generator]:
+    """Build every power generator, in document order (CS-1059).
+
+    Args:
+        groups: The recognized groups.
+        log: The warning log.
+
+    Returns:
+        Generators by ClassName, in their own namespace.
+    """
+    generators: dict[str, Generator] = {}
+    for group in groups:
+        for entry in group.entries:
+            if not _is_generator_entry(entry):
+                continue
+            key = _entry_key(entry, group.short_name, generators, log)
+            if key is not None:
+                generators[key] = _generator(entry, key, group.short_name, log)
+    return generators
 
 
 def _build_recipes(
@@ -1679,6 +1822,7 @@ def build_registry(document: DocsDocument) -> Registry:
     items = _build_items(document.groups, log)
     buildings = _build_buildings(document.groups, log)
     extractors = _build_extractors(document.groups, log)
+    generators = _build_generators(document.groups, log)
     recipes = _build_recipes(document.groups, items, buildings, log)
     _assert_grammar_intact(_recipe_entry_count(document.groups), len(recipes), log)
     return Registry(
@@ -1688,6 +1832,7 @@ def build_registry(document: DocsDocument) -> Registry:
         warnings=log.emit(),
         unknown_groups=unknown,
         extractors=MappingProxyType(extractors),
+        generators=MappingProxyType(generators),
     )
 
 
