@@ -26,6 +26,10 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   hook silently does nothing; only an end-to-end block test counts.
 - [A guard can be accepted and unscoped](a-guard-can-be-accepted-and-unscoped.md) - a tool
   taking your key is not proof of where it applies; probe inside AND outside the scope.
+- [Concurrent agents share one scratchpad](concurrent-agents-share-one-scratchpad.md) -
+  siblings and other trees' sessions alike; private subfolder, never run a stranger's script.
+- [Bare python3 is the Store stub](bare-python3-is-the-store-stub.md) - hangs or does
+  nothing on this machine; call the recorded interpreter, never bare `python3`.
 
 ## Project invariants
 

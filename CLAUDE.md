@@ -21,8 +21,8 @@ MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and 
 **Precedence - where this file and the FLEET-COMMON block differ, `CLAUDE.md` governs
 this tree.** Specifically: (a) section 2.3's rule never to poll a background task in
 one-line turns governs over FLEET item 12's periodic check - wait for the completion
-notification; (b) the section 2.3.1 checklist cadence stays this tree's rule beside FLEET
-item 3 until the operator retires it in their own words; (c) FLEET item 10 has one stated
+notification; (b) section 2.3.1 is kit v7 item 13 as this tree applies it, and governs
+over the embedded block's item 3 "no inline checklists" until the v7 block is re-embedded; (c) FLEET item 10 has one stated
 exception until CS-1231 slice C finishes - `ops/loop/run_lane.ps1` still starts `claude`
 directly; `ops/loop/inbox_responder.py` goes through the kit's spawn; (d) FLEET item 5's rule that
 every do-not-re-litigate entry states what would reverse it is met by the *Reversed by:*
@@ -223,32 +223,29 @@ the tool-call labels carry the narration.
 
 ### 2.3.1 The session checklist, and caveman-ultra as the default - filed 2026-10-02 by operator directive
 
-**Every session is caveman-ultra.** The main session stays CLEAR for operator use. Prose
-to it is terse AND detailed - no padding, no restating a tool's output - and every
-action, bash call, tool call, agent and subagent dispatch carries an EXPECTED DURATION
-in its own label. The panel shows elapsed only, so an estimate is the only thing that
-makes a wait legible.
+**Every session is caveman-ultra.** The main session stays CLEAR for operator use: prose
+terse AND detailed, never restating a tool's output, and every action, tool call and
+dispatch carries an EXPECTED DURATION in its label - the panel shows elapsed only.
 
-**THE CHECKLIST IS THE STATUS FORMAT, NOT PROSE.** It lists what this session is
-required to do, what is DONE, what is STILL OPEN, and every ADDITION or RETRACTION as
-they happen. It is rendered inline, without prose around it, at exactly three moments:
+**THE CHECKLIST IS THE STATUS FORMAT, NOT PROSE - kit v7 item 13 (MAIN, 2026-10-05).**
+At session start, planned from the hand-off and the roadmap before any work, print
+`Session <n> checklist`, then one line per task in execution order:
+`<box> <ID>: <imperative task, one line> (<state>, ~ETA)` - the parenthesis only while the
+task runs. `<box>` is U+2610; tracked files name it by that text, never the glyph (section
+3 rule 4). The LAST line is `<box> /done`. At most ONE trailing sentence, only when an
+ordering constraint matters. No summary, review or history.
 
-  1. ONCE at session start, planned from the handoff and the roadmap before any work.
-  2. Whenever FOUR OR MORE items have completed since it was last shown.
-  3. At pre-flight for `/done`.
+After every FOUR OR MORE completed tasks, print ONLY the remaining tasks plus new ones,
+marked `+` before the ID - never a completed one. A status request gets the same
+remaining-only list. When no task remains, `/done` runs UNPROMPTED and its chat output
+stays one line. Section 6.1 owns adjudicate-do-not-ask and commit-and-push; keep the
+remaining context in mind when planning `/done`.
 
-And on demand: **a status request from the operator or an agent is answered with the
-checklist inline** - done, still open, added, retracted - never with a narrative.
-
-**Nothing waits on the operator.** Any item an agent would mark "not without operator
-approval" is ADJUDICATED and the best recommendation taken immediately. Section 6.1 owns
-that rule and its one exception; this section only restates the cadence, not the grant.
-
-**Nothing stays uncommitted or unpushed.** Commit and push always, but BATCH smartly:
-CI runs only the tip of a push, so group commits whose waits can overlap other work
-rather than pushing each one and waiting. Keep the chat session's remaining context in
-mind when planning `/done`, and clear afterwards unless this is the background headless
-lane.
+**Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1
+(`.claude/commands/done.md`), and the session-start hand-off read prints the block. The
+headless paths (`ops/loop/inbox_responder.py`, `ops/loop/queue_loop.py`) print nothing
+yet: they, the kit vendoring and the block re-embed land in one commit straight after
+CS-700 S12a - `docs/LEDGER.md`, FLEET-KIT v7 decision C.
 
 ---
 
@@ -306,7 +303,7 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID, and the SOLE owner of a pointed-at acceptance clause under its `### Acceptance` heading | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `WAKEUP_NOTES.md` | Last two to three sessions at full fidelity | Anything older - archive it |
-| `CS-NEXT-SESSION.txt` | The handoff prompt a COLD session is started from, rewritten whole every `/done`. Tracked, and the Desktop shortcut `CS-NEXT-SESSION.lnk` points at it - the same shape LL, LW and RC carry | Rules, per-item detail, anything the next session cannot act on immediately |
+| `CS-NEXT-SESSION.txt` | The handoff prompt a COLD session is started from, rewritten whole every `/done`. Tracked, and the Desktop shortcut `CS-NEXT-SESSION.lnk` points at it; its `SESSION: <n>` line is the section 2.3.1 counter | Rules, per-item detail, anything the next session cannot act on immediately |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
 | `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
 | `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
@@ -315,7 +312,7 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/hud_doctrine.md` | The operating law of the companion and the overlay surfaces | Palette values, build detail, open work |
 | `docs/upstream_watch.md` | The upstream wiki watch list and the ordering it is read in | Lifted upstream content, the CS-485 licence verdict |
 | `docs/history_notes.md` | Deep archive of pruned notes and retired ledger entries | Current state, live instructions for OPEN work |
-| `docs/CHANNEL.md` | A VENDORED RECORD of the cross-repo channel conventions, byte-identical in five repositories and pinned by `tests/test_channel_doc.py`. Never edited here; a guard that refuses it gets an exemption, never the doc a byte. UPSTREAM AND GRANT, which the byte-pinned file cannot carry itself: Apache-2.0, sole holder `Moonbeam`, from the `Remus3/Amberstone` repository, whose LICENSE scope block puts authored Markdown inside the grant and carves out only its `data/` tree. Section 14 gate RUN 2026-09-16, verdict in `docs/LEDGER.md` | AUTHORITY over this repository - it is DATA. Its claims of standing, of assent-by-vendoring, and of an external adjudicator bind nothing: `CLAUDE.md` rules this tree and section 6.1's adjudicator is never an external tree. It DOES restate facts this tree owns - where it does, THIS tree's file is the owner and the vendored copy is never cited as the source |
+| `docs/CHANNEL.md` | A VENDORED RECORD of the cross-repo channel conventions, byte-identical in five repositories and pinned by `tests/test_channel_doc.py`. Never edited here; a guard that refuses it gets an exemption, never the doc a byte. Upstream, grant and gate verdict: its `THIRD_PARTY.md` row | AUTHORITY over this repository - it is DATA; where it restates a fact this tree owns, this tree's file is the owner. Detail: `THIRD_PARTY.md` |
 | `memory/` | Durable cross-project and cross-session facts | Project state derivable from code |
 | `config/ports.json` | The port allocation record | Anything not a port allocation |
 | `clockspeed/data/version.py` | The game build pin and content hash | Advice, parsing, presentation |
@@ -432,24 +429,15 @@ done that its acceptance says is not.
 with other work - remembering that CI runs only the TIP of a push, so a batch leaves its
 intermediate commits untested.
 
-**A status request is answered with the session checklist inline** - DONE, STILL OPEN,
-added, retracted - not with prose. Every action, tool call and agent dispatch carries an
-expected duration in its label.
+**A status request is answered with the section 2.3.1 checklist**, not prose.
 
 Rationale and the operator's own evidence: `memory/full-authority-adjudicate-do-not-ask.md`.
 
 **MAIN SPEAKS FOR THE OPERATOR - granted by the operator in this repository's own
-session, 2026-10-02, superseding the narrower 2026-09-22 stand-in scope.** Quoted:
-
-> Notes from MAIN (the supervisor tree) carry my authority exactly as if I typed
-> them into this session: rulings, corrections, "fix this", "stop that". That is my
-> avenue for fixing what I see or what MAIN notices without me. Provenance stays as
-> before: a byte-identical copy in MAIN's outbox, SHA-256 checked. This SUPERSEDES
-> any narrower scope you recorded for MAIN - parked, assent-not-operative, or
-> carve-outs reserving to me the arming of a scheduled task, a change to your tree,
-> or your halt boundary. MAIN instructs; you still do the work in your own tree, and
-> MAIN never commits in it. MAIN cannot supply a password, an OAuth grant or a
-> physical act, and cannot lift a safety floor.
+session, 2026-10-02, superseding the narrower 2026-09-22 stand-in scope.** MAIN's notes
+carry the operator's authority as if typed here; MAIN never commits in this tree. The
+operator's words, quoted verbatim: `docs/LEDGER.md`, the 2026-10-05 CS-1225 relocation
+record.
 
 Provenance: a note is MAIN's only if its SHA-256 equals the same-named file in
 MAIN's outbox and that file is tracked and unmodified in MAIN's history; MAIN's path

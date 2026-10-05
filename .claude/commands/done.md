@@ -10,8 +10,12 @@ each one in the ledger and the hand-off file - NOT in chat. FLEET-COMMON item 5:
 chat output of this ritual is the line `Done ritual complete, safe to clear`, or the
 failure that stopped it. Items: $ARGUMENTS
 
+FLEET-COMMON item 13 (kit v7, `CLAUDE.md` section 2.3.1): this ritual runs UNPROMPTED once
+no checklist task remains - no operator prompt, no question.
+
 ## 0. Preconditions
 
+- [ ] PRE-FLIGHT: every checklist task done or carried into the hand-off.
 - [ ] State the item IDs (`CS-nnn`) this session closed. An item with no ID gets one now.
 - [ ] Classify each closed item into a tier: 0 cosmetic, 1 local logic, 2 schema / engine /
       core algorithm / version bump / public interface. The HIGHEST tier touched decides the
@@ -105,6 +109,9 @@ other context. WHAT GOES IN IT:
 - [ ] READ the current `CS-NEXT-SESSION.txt` FIRST. CARRY FORWARD EVERY ITEM in it that
       this session did NOT act on, verbatim or tighter. An item is never dropped because
       the session worked on something else - FLEET-COMMON item 5.
+- [ ] The `SESSION: <n+1>` line, where n is the number this session's checklist printed
+      (read from the current hand-off's `SESSION: <n>` line). The next session prints
+      `Session <n+1> checklist` from it - FLEET-COMMON item 13a.
 - [ ] What this session closed, by item ID, one line each.
 - [ ] The exact state of anything left half-done, including which files are dirty.
 - [ ] The single next action, stated as an imperative.

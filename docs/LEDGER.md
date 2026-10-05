@@ -75,6 +75,69 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-05 - FLEET-KIT v7 (MAIN 0215) - DECISION RECORD, NOTHING CLOSED. Decision C, partial adoption now; SUPERSEDES the FLEET-KIT v6 record below
+Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` and no vendored byte
+is edited; the MAIN 0215 bundle's eleven files hash equal to the note's section 1 values,
+read back by the session 127 inbox triage; `CLAUDE.md`
+section 2.3.1 and precedence clause (b); `.claude/commands/done.md` section 0 pre-flight
+line and section 8 `SESSION: <n+1>` line.
+Decision: C - partial adoption now: v7 items local to this tree touching nothing the CS-G03
+walk exercised; kit vendoring, block re-embed and headless/lane paths in one commit
+straight after CS-700 S12a; ANSWER supersedes the stale 0206 draft.
+Rejected: A (full now) - the four new kit modules need pyproject.toml entries, a CS-G03-walked
+file, and the block cannot re-embed without vendoring (conformance pins block hash to
+manifest); B (nothing now) - ignores the operator's 'do them'.
+Why: 0215 sets no deadline or ordering and is silent on deferral; operator words outrank
+the v6 deferral.
+Reversed by: S12a aborting, a MAIN ruling that v7 precedes the flip, or the operator's own
+words - then adopt fully and re-walk CS-G03.
+Landed now, all outside the CS-G03 walked set (README, hooks, scripts, `docs/OPERATIONS.md`,
+`pyproject.toml` - the CS-G03 decision record below): `CLAUDE.md` section 2.3.1 aligned to
+item 13 (remaining-only update after four completions, the `/done` box as the last line,
+one ordering sentence, `/done` runs itself, the glyph named as the text U+2610), clause (b)
+reworded, the tree-specific counter line; `.claude/commands/done.md` pre-flight and
+`SESSION: <n+1>`. The v6 record's deferral of vendoring to after S12a STANDS inside this
+decision; its decision B is superseded only where it held every v6/v7 item back.
+Adjudicated by a distinct adjudicator agent, session 127.
+
+### 2026-10-05 - CS-1225 - RELOCATION RECORD, NOTHING CLOSED. The operator's 2026-10-02 MAIN grant, verbatim, moved out of CLAUDE.md section 6.1
+Verification: `CLAUDE.md` section 6.1, the paragraph beginning "MAIN SPEAKS FOR THE
+OPERATOR", now points here; the 2026-10-02 CS-1225 OPERATOR RULINGS record below is
+unedited. Moved to free `CLAUDE.md` budget for the FLEET-KIT v7 block (relocate, never
+delete). The operator's words, as `CLAUDE.md` carried them:
+
+> Notes from MAIN (the supervisor tree) carry my authority exactly as if I typed
+> them into this session: rulings, corrections, "fix this", "stop that". That is my
+> avenue for fixing what I see or what MAIN notices without me. Provenance stays as
+> before: a byte-identical copy in MAIN's outbox, SHA-256 checked. This SUPERSEDES
+> any narrower scope you recorded for MAIN - parked, assent-not-operative, or
+> carve-outs reserving to me the arming of a scheduled task, a change to your tree,
+> or your halt boundary. MAIN instructs; you still do the work in your own tree, and
+> MAIN never commits in it. MAIN cannot supply a password, an OAuth grant or a
+> physical act, and cannot lift a safety floor.
+
+### 2026-10-05 - FLEET-KIT v6 (MAIN 2237) - DECISION RECORD, NOTHING CLOSED. v6 adoption DEFERRED to immediately after CS-700 S12a
+Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` (no vendored byte
+edited); the MAIN 2237 bundle's ten files hash equal to the ten SHA-256 values in the MAIN
+2237 ORDER note section 1, read back session 127; `ops/loop/control/lanes/` holds only
+INBOX_STOP and QUEUE_STOP.
+Decision: B - the flip's checks a-d proceed now; v6 is vendored in one commit right after
+S12a; MAIN is ANSWERED now with the deferral and its reason.
+Rejected: A (adopt before S7a) - the second Sandbox walk at `5c315ff` exercised
+`pyproject.toml` (`pip install -e ".[dev]"`, the ruff config via the pre-commit hook's
+clean-file control commit, the full suite), meeting the CS-G03 reversal clause; A forces a
+re-walk and puts a lane and governor rewrite ahead of the flip. Rejected: C (avoid
+`pyproject.toml`) - a noqa inside a vendored file breaks FLEET item 11 byte-for-byte; no
+exclude key exempts a file (the gate lints a temp copy); a new `ruff.toml` supersedes
+`[tool.ruff]` and changes the same walked config.
+Why: the 2237 note sets no deadline and does not forbid deferral; deferral edits no
+vendored byte, so FLEET item 11 holds; no lane is running (`ops/loop/control/lanes/` holds
+only INBOX_STOP and QUEUE_STOP); the S7q quiesce plus "a commit after S7a voids S7a..S8a"
+means no lane can commit before S12a anyway.
+Reversed by: S7a or S8a aborting, the S9 confirmation still absent at the next attended
+session, or a MAIN ruling that v6 precedes the flip - then adopt v6 and re-walk CS-G03.
+Adjudicated by a distinct adjudicator agent, session 127.
+
 ### 2026-10-04 - CS-G03 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. Check 7 and the human half of check 5 are SATISFIED
 Verification: `docs/GATED.md` CS-G03, heading `Filed 2026-10-04 (session 126): check 7 and the
 human half of check 5 are SATISFIED`; the CS-G08, CS-1187 and CS-1186 records below.
