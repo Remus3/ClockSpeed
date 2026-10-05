@@ -15,6 +15,14 @@ adapter that feeds them:
   may not exist, which is the confident zero ``clockspeed/audit/balance.py``
   is built against, one comparison later.
 
+INDETERMINATE IS NOT A VERDICT (CS-1271). Every comparison the headroom rule
+skips because an input is a floor or absent - an incomplete draw, no
+generation figure, an incomplete generation figure - is recorded through
+``RuleContext.indeterminate``, never ``reject``. Its step kind sits outside
+``clockspeed/advisor/advise.py::SETTLED_STEP_KINDS``, so such a run does not
+settle the rule and the ledger never completes an earlier headroom card on
+it. Only a comparison made over complete inputs is a ``reject``.
+
 WHICH DRAW. The headroom rule reads ``WorldBalance.clocked_draw`` - every
 machine priced at its own clock (CS-1263) - and never
 ``WorldBalance.draw.consumption_megawatts``, which prices built counts at the
@@ -28,11 +36,11 @@ balance carries a production model, :func:`balance_inputs` offers its exact
 ``production_complete`` flag under :data:`IN_PRODUCTION_COMPLETE`; with no
 model it offers neither, and ``production_available`` is False. The headroom
 rule reads ``production_available`` first and, when it is False, records the
-comparison as a rejected alternative and recommends nothing. It then reads
-the completeness flag: a capacity with a built generator the registry gives
-no output for is a LOWER BOUND, and a floor compared against the draw would
-overstate any shortfall, so an incomplete figure is likewise rejected and
-nothing is recommended.
+comparison as indeterminate and recommends nothing. It then reads the
+completeness flag: a capacity with a built generator the registry gives no
+output for is a LOWER BOUND, and a floor compared against the draw would
+overstate any shortfall, so an incomplete figure is likewise indeterminate
+and nothing is recommended.
 
 AN ELIDED CLOCK IS NAMED, NEVER HIDDEN. A machine whose save omits its clock
 tag is priced at ``ELIDED_CLOCK_DEFAULT`` by ``clockspeed/audit/balance.py`` and
@@ -169,17 +177,18 @@ def _elision(elided: int) -> str:
 def _generation_is_a_measurement(ctx: RuleContext) -> bool:
     """Whether a generation figure exists and counts every built generator.
 
-    Records the rejected comparison when it does not: no figure at all, or a
-    capacity with an unmodelled generator, which is a floor (CS-1271).
+    Records the comparison as indeterminate when it does not: no figure at
+    all, or a capacity with an unmodelled generator, which is a floor
+    (CS-1271).
     """
     if not _read_flag(ctx, IN_PRODUCTION_AVAILABLE):
-        ctx.reject(
+        ctx.indeterminate(
             "compare the draw against generation",
             "generated power is not modelled, so there is no generation figure (CS-1059)",
         )
         return False
     if not _read_flag(ctx, IN_PRODUCTION_COMPLETE):
-        ctx.reject(
+        ctx.indeterminate(
             "compare the draw against generation",
             "some built generators have no modelled output, so the capacity is a floor"
             " and not a measurement",
@@ -191,7 +200,7 @@ def _generation_is_a_measurement(ctx: RuleContext) -> bool:
 def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
     """Recommend generation when the clocked draw can exceed it."""
     if not _read_flag(ctx, IN_COMPLETE):
-        ctx.reject(
+        ctx.indeterminate(
             "compare the draw against generation",
             "the clocked draw is incomplete, so its total is a floor and not a measurement",
         )

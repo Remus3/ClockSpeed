@@ -222,6 +222,9 @@ _STEP_LINES: Final[dict[StepKind, Callable[[Trace, TraceStep], str]]] = {
     StepKind.ALTERNATIVE_REJECTED: lambda _t, s: (
         f"Rejected {_escape(s.subject)}: {_escape(s.reason)}"
     ),
+    StepKind.VERDICT_INDETERMINATE: lambda _t, s: (
+        f"Indeterminate {_escape(s.subject)}: {_escape(s.reason)}"
+    ),
     StepKind.PRECONDITION_UNMET: lambda _t, s: (
         f"Unmet precondition {_escape(s.subject)}: {_escape(s.reason)}"
     ),

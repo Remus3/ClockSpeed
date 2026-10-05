@@ -640,6 +640,7 @@ UNDECIDED_HOWS = {
     "undeclared": StepKind.INPUT_REFUSED,
     "inexact": StepKind.INPUT_REFUSED,
     "locked": StepKind.PRECONDITION_UNMET,
+    "indeterminate": StepKind.VERDICT_INDETERMINATE,
 }
 
 #: A world offering the read input as a float: present, but inexact.
@@ -649,11 +650,14 @@ INEXACT_WORLD = WorldInputs(
 
 
 def _undecided(rule_id: str, how: str) -> RuleSpec:
-    """A rule that reaches NO definite verdict: it raises, is refused an input, or is locked."""
+    """A rule that reaches NO definite verdict: it raises, is refused, is locked or undecided."""
 
     def _evaluate(ctx: RuleContext) -> Recommendation | None:
         if how == "raise":
             raise RuntimeError
+        if how == "indeterminate":
+            ctx.indeterminate("compare the thing", "an input is a floor")
+            return None
         ctx.read("synthetic.absent")
         return Recommendation(subject_key=f"{rule_id}-s", action="Do the thing", reason="because")
 

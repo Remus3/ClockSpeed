@@ -110,6 +110,7 @@ UNDECIDED_STEP_KINDS: Final = frozenset(
         StepKind.INPUT_MISSING,
         StepKind.INPUT_REFUSED,
         StepKind.PRECONDITION_UNMET,
+        StepKind.VERDICT_INDETERMINATE,
     }
 )
 
@@ -184,9 +185,8 @@ def world_inputs(balance: WorldBalance, unlocks: UnlockState) -> WorldInputs:
 
     Offers every input the D4 power family reads from the balance, each sourced
     to its audit field, and the unlock key set the engine checks declared
-    unlocks against. The balance's ``production_available`` flag is offered;
-    its generation figure is not, because the power adapter offers no
-    generation input yet.
+    unlocks against. When the balance carries a production model, its
+    capacity and completeness flag are offered too (CS-1271).
     """
     return WorldInputs(values=balance_inputs(balance), unlocks=unlock_keys(unlocks))
 
@@ -266,9 +266,10 @@ def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
 
     A rule is settled only when EVERY step of its trace is in the allowlist
     :data:`SETTLED_STEP_KINDS`. A ``rule-error``, ``input-missing``,
-    ``input-refused`` or ``precondition-unmet`` step - or any kind not yet
-    classified - means the rule raised, was refused an input, or was never
-    evaluated. Its silence says nothing about the world, so
+    ``input-refused``, ``precondition-unmet`` or ``verdict-indeterminate``
+    step - or any kind not yet classified - means the rule raised, was
+    refused an input, was never evaluated, or could not decide over an
+    incomplete input. Its silence says nothing about the world, so
     its cards may not be completed (CS-1268, CLAUDE.md non-negotiable 7).
     """
     return frozenset(

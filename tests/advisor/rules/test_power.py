@@ -23,6 +23,7 @@ from fractions import Fraction
 
 import pytest
 
+from clockspeed.advisor.advise import settled_rules
 from clockspeed.advisor.cards import Card, card_for
 from clockspeed.advisor.rules import build_registry, registered_rules
 from clockspeed.advisor.rules import power as power_rules
@@ -286,7 +287,7 @@ def test_an_incomplete_draw_is_named_never_advised_as_exact() -> None:
     )
     headroom = run_rule(HEADROOM_RULE, world)
     assert headroom.recommendation is None
-    assert [s.subject for s in headroom.steps if s.kind is StepKind.ALTERNATIVE_REJECTED] == [
+    assert [s.subject for s in headroom.steps if s.kind is StepKind.VERDICT_INDETERMINATE] == [
         "compare the draw against generation"
     ]
     gap_card = card_for(run_rule(GAP_RULE, world))
@@ -428,15 +429,89 @@ def test_an_incomplete_production_figure_is_rejected_never_compared() -> None:
     trace = run_rule(HEADROOM_RULE, _produced(Fraction(100), complete=False))
 
     missing = [s.subject for s in trace.steps if s.kind is StepKind.INPUT_MISSING]
-    rejected = [
-        (s.subject, s.reason) for s in trace.steps if s.kind is StepKind.ALTERNATIVE_REJECTED
+    undecided = [
+        (s.subject, s.reason) for s in trace.steps if s.kind is StepKind.VERDICT_INDETERMINATE
     ]
     assert missing == []
     assert trace.recommendation is None
-    assert rejected == [
+    assert undecided == [
         (
             "compare the draw against generation",
             "some built generators have no modelled output, so the capacity is a floor"
             " and not a measurement",
         )
     ]
+
+
+# CS-1271 refutation: a reject made only because an input is incomplete is NOT a
+# verdict, so settled_rules must not count it and the ledger may not complete an
+# earlier "Add N MW" card on it. A definite reject over complete inputs still is.
+
+
+def _headroom_trace(
+    *,
+    lower: Fraction,
+    upper: Fraction,
+    capacity: Fraction | None,
+    production_complete: bool = True,
+    draw_complete: bool = True,
+    unread: int = 0,
+) -> Trace:
+    """Run the headroom rule over one balance carrying an optional production model."""
+    base = _balance(
+        lower=lower,
+        upper=upper,
+        exact=lower == upper,
+        complete=draw_complete,
+        unread=unread,
+        production=capacity is not None,
+    )
+    if capacity is not None:
+        base = replace(base, production=_production(capacity, complete=production_complete))
+    world = WorldInputs(values=balance_inputs(base), unlocks=frozenset())
+    return run_rule(HEADROOM_RULE, world)
+
+
+def test_an_incomplete_production_reject_is_not_settled() -> None:
+    trace = _headroom_trace(
+        lower=Fraction(500), upper=Fraction(500), capacity=Fraction(75), production_complete=False
+    )
+
+    silent = trace.recommendation is None
+    settled = HEADROOM_RULE.rule_id in settled_rules((trace,))
+    assert silent
+    assert not settled, "a floor of generation settled the headroom rule"
+
+
+def test_an_incomplete_draw_reject_is_not_settled() -> None:
+    trace = _headroom_trace(
+        lower=Fraction(500),
+        upper=Fraction(500),
+        capacity=Fraction(75),
+        draw_complete=False,
+        unread=1,
+    )
+
+    silent = trace.recommendation is None
+    settled = HEADROOM_RULE.rule_id in settled_rules((trace,))
+    assert silent
+    assert not settled, "a floor of draw settled the headroom rule"
+
+
+def test_an_unmodelled_generation_reject_is_not_settled() -> None:
+    trace = _headroom_trace(lower=Fraction(500), upper=Fraction(500), capacity=None)
+
+    silent = trace.recommendation is None
+    settled = HEADROOM_RULE.rule_id in settled_rules((trace,))
+    assert silent
+    assert not settled, "an absent generation figure settled the headroom rule"
+
+
+def test_a_definite_reject_over_complete_inputs_is_still_settled() -> None:
+    """Anti-vacuity control: covered generation is a verdict and settles the rule."""
+    trace = _headroom_trace(lower=Fraction(120), upper=Fraction(130), capacity=Fraction(200))
+
+    silent = trace.recommendation is None
+    settled = HEADROOM_RULE.rule_id in settled_rules((trace,))
+    assert silent
+    assert settled

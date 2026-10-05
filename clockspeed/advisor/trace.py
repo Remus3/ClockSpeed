@@ -5,7 +5,8 @@ WHAT THIS MODULE OWNS (BOOTSTRAP.md sections 5.1 and 5.4). A rule is a
 REQUIRES, and a pure ``evaluate`` function. :func:`run_rule` runs one spec
 against one :class:`WorldInputs` and returns a :class:`Trace` - every input read
 with its source, every number computed, every alternative rejected with its
-reason, every unmet precondition, and the recommendation if one survived. Cards
+reason, every comparison left indeterminate by an incomplete input, every unmet
+precondition, and the recommendation if one survived. Cards
 consume the trace; nothing renders advice from anywhere else, which is why
 tier 3 cannot drift from tiers 1 and 2.
 
@@ -127,6 +128,9 @@ class StepKind(enum.Enum):
     INPUT_MISSING = "input-missing"
     COMPUTED = "computed"
     ALTERNATIVE_REJECTED = "alternative-rejected"
+    #: CS-1271: a comparison the rule could not make because an input is a
+    #: floor or absent. NOT a verdict - the world may still hold the problem.
+    VERDICT_INDETERMINATE = "verdict-indeterminate"
     PRECONDITION_UNMET = "precondition-unmet"
     RULE_FIRED = "rule-fired"
     RULE_ERROR = "rule-error"
@@ -382,12 +386,12 @@ def _walk(value: object, depth: int, budget: list[int]) -> str | None:
 class RuleContext:
     """The door a rule has onto the world. Every use is recorded engine-side.
 
-    Holds the rule id and four bound callables over state :func:`run_rule`
+    Holds the rule id and five bound callables over state :func:`run_rule`
     keeps; see the module docstring for exactly what that does and does not
     enforce. Only the engine constructs one.
     """
 
-    __slots__ = ("_compute", "_read", "_refuse_exact", "_reject", "_rule_id")
+    __slots__ = ("_compute", "_indeterminate", "_read", "_refuse_exact", "_reject", "_rule_id")
 
     def __init__(self, recorder: _Recorder) -> None:
         """Bind the engine's recorder through its methods only, never itself."""
@@ -395,6 +399,7 @@ class RuleContext:
         self._read = recorder.read
         self._compute = recorder.compute
         self._reject = recorder.reject
+        self._indeterminate = recorder.indeterminate
         self._refuse_exact = recorder.read_exact_refusal
 
     @property
@@ -426,6 +431,14 @@ class RuleContext:
     def reject(self, alternative: str, reason: str) -> None:
         """Record one alternative the rule considered and why it lost."""
         self._reject(alternative, reason)
+
+    def indeterminate(self, alternative: str, reason: str) -> None:
+        """Record one comparison an incomplete input left undecided, and why.
+
+        Unlike :meth:`reject`, this is not a verdict: a trace carrying it does
+        not settle its rule (CS-1271).
+        """
+        self._indeterminate(alternative, reason)
 
 
 def _unmet_steps(keys: tuple[str, ...], unlocks: frozenset[str]) -> list[TraceStep]:
@@ -511,6 +524,19 @@ class _Recorder:
         self.steps.append(
             TraceStep(
                 kind=StepKind.ALTERNATIVE_REJECTED,
+                subject=str(alternative),
+                reason=str(reason),
+            )
+        )
+
+    def indeterminate(self, alternative: object, reason: object) -> None:
+        if not (_is_text(alternative) and _is_text(reason)):
+            raise self.refuse(
+                StepKind.RULE_ERROR, "indeterminate", "alternative text is not ASCII text"
+            )
+        self.steps.append(
+            TraceStep(
+                kind=StepKind.VERDICT_INDETERMINATE,
                 subject=str(alternative),
                 reason=str(reason),
             )
