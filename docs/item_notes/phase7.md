@@ -1213,6 +1213,17 @@ scratch tree into that interpreter. The curl block is skipped for the same reaso
 Remaining for closure: a clean repeat walk of the repaired README, and the true no-game
 run under CS-G08.
 
+CS-1186 walk 2, Windows Sandbox, 2026-10-04: FAIL - README defects 1 (openssl not on
+PATH from a default Git install, make_cert exit 1) and 2 (no Python or git install
+route, "Add python.exe to PATH" unticked by default); the no-game clause itself PASSED.
+The commit carrying this line fixes 1 and 2 in README.md; a clean repeat walk remains.
+
+CS-1187 walk 2 (its section lives in `docs/GATED.md` under CS-G08), same sandbox and
+date: FAIL - verify_env and the armed-hook probe PASSED, the tier-1 suite did not, on
+defects 3 (Node absent, panel tests fail rather than skip), 4 (Windows timeout shadows
+GNU timeout), 5 (long-path tmp names) and 6 (mypy-gate control, undiagnosed). This
+commit fixes 3 by README stating Node is required for the suite; 4, 5 and 6 stay open.
+
 ## CS-1194
 
 ### Acceptance

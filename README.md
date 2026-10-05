@@ -163,9 +163,27 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 | **OS** | Windows |
 | **Game** | A local installation, kept current |
 | **Python** | The minimum declared by `requires-python` in [`pyproject.toml`](pyproject.toml); `scripts/verify_env.py` asserts it and prints the version it found |
-| **Also** | `git`, plus `openssl` for `scripts/make_cert.py` only - Git for Windows ships one, and `scripts/verify_env.py` reports it as SOFT |
+| **git** | Git for Windows |
+| **openssl** | For `scripts/make_cert.py` only. Git for Windows ships one, but not on PATH by default - see that step below. `scripts/verify_env.py` reports it as SOFT |
 | **Python packages** | The `dev` extra in `pyproject.toml`, installed below. Of it, `pytest` and `ruff` are the two `scripts/verify_env.py` counts as HARD |
-| **Node** | Only for the optional companion window, not for the core |
+| **Node** | For the optional companion window, and to run the full test suite - without Node the dashboard panel tests fail rather than skip. Running Clockspeed itself does not need it |
+
+### Installing the prerequisites
+
+On a machine that has none of them yet, install from the official sources:
+
+1. **Python** from [python.org](https://www.python.org/downloads/windows/), a release that
+   meets the `requires-python` floor in [`pyproject.toml`](pyproject.toml) - that file is
+   where the version is pinned. On the installer's first page tick **"Add python.exe to
+   PATH"**. It is unticked by default, and without it every `python` command below fails
+   with "not recognized".
+2. **Git** from [git-scm.com](https://git-scm.com/download/win). The installer defaults are
+   fine.
+3. **Node** from [nodejs.org](https://nodejs.org/), the LTS installer, only if you want the
+   companion window or will run the test suite.
+
+Open a new terminal afterwards, so it sees the updated PATH, and check that `python
+--version` and `git --version` both answer.
 
 ## Install and run
 
@@ -206,6 +224,18 @@ python scripts/verify_env.py
 Prints every dependency found and missing, split into HARD and SOFT. It exits non-zero
 only on a HARD one. A missing game or save is SOFT: it is reported and does not fail the
 check. Its `config/ports.json` row prints the dashboard's port.
+
+`scripts/make_cert.py` needs `openssl`. Git for Windows ships it in `<Git install>\usr\bin`,
+where `<Git install>` is the folder Git was installed into (`git --exec-path` prints a path
+that starts with it), but a default Git install does not put that folder on PATH, and the
+script then exits 1 saying openssl is not on PATH. Unless `openssl version` already
+answers, append the folder to PATH for this terminal first. In `cmd`:
+
+```
+set "PATH=%PATH%;<Git install>\usr\bin"
+```
+
+In PowerShell the same line is `$env:Path += ";<Git install>\usr\bin"`. Then:
 
 ```
 python scripts/make_cert.py
