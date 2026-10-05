@@ -162,6 +162,28 @@ only when a production figure was actually computed, and an arm must redden if i
 as a literal. This is the same defect CS-1058 carries for the topology flags, and both were
 created by the same habit of declaring an absence with a constant.
 
+### Filed 2026-10-04 by a builder's read-only measurement
+
+**THE DATA EXISTS; ONLY THE EXTRACTOR IS MISSING.** A read-only probe of the shipped docs
+file found a scalar `mPowerProduction` on every class of the `FGBuildableGeneratorFuel` and
+`FGBuildableGeneratorNuclear` groups. "No extractor anywhere" was true of the code and is
+not a negative about the game: generated power IS derivable from the sanctioned source.
+
+**THE GEOTHERMAL TRAP IS THE VARIABLE-DRAW TRAP AGAIN.** The `FGBuildableGeneratorGeoThermal`
+class declares `mPowerProduction` as `'0.000000'` and carries its real output on
+`mVariablePowerProductionConstant`, `mVariablePowerProductionFactor` and a cycle length
+and offset - the same shape `clockspeed/data/registry.py` already documents for the
+variable-power consumers. Reading the scalar alone publishes a confident zero. Until the
+cycle is modelled exactly, that class must land as a NAMED gap. Every generator also
+declares `mPowerConsumption` as `'0.000000'`, so the existing draw partition must not
+start counting a generator as a zero-draw consumer when the extractor lands.
+
+**SEAM - THE WORK IS IN THREE LAYERS NO `save/` OR `solve/` SLICE OWNS.** The extractor
+belongs in `clockspeed/data/registry.py`, the sum and the computed flag in
+`clockspeed/audit/balance.py`, and the graded arm module under `tests/audit/`. A builder
+held to `clockspeed/save/` and `clockspeed/solve/` cannot meet this acceptance; dispatch
+it with those three on the write-list.
+
 ### Acceptance
 
 a new arm module under `tests/audit/` asserts generated power is the exact Fraction sum over built generators, that a generator class the registry does not model contributes a NAMED gap rather than a zero exactly as `DrawGap` already refuses to carry one, and that the balance's own `production_available` flag becomes True only when a production figure was actually computed - reddening if it is written as a literal
