@@ -172,18 +172,31 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 
 On a machine that has none of them yet, install from the official sources:
 
-1. **Python** from [python.org](https://www.python.org/downloads/windows/), a release that
-   meets the `requires-python` floor in [`pyproject.toml`](pyproject.toml) - that file is
-   where the version is pinned. On the installer's first page tick **"Add python.exe to
-   PATH"**. It is unticked by default, and without it every `python` command below fails
-   with "not recognized".
+1. **Python** from [python.org](https://www.python.org/downloads/windows/), with whichever
+   installer it offers, in a release that meets the `requires-python` floor in
+   [`pyproject.toml`](pyproject.toml) - that file is where the version is pinned.
 2. **Git** from [git-scm.com](https://git-scm.com/download/win). The installer defaults are
    fine.
 3. **Node** from [nodejs.org](https://nodejs.org/), the LTS installer, only if you want the
    companion window or will run the test suite.
 
-Open a new terminal afterwards, so it sees the updated PATH, and check that `python
---version` and `git --version` both answer.
+Open a new terminal afterwards, so it sees the updated PATH, and check:
+
+```
+python --version
+git --version
+```
+
+`python --version` must print a version that meets `requires-python`. Either of two
+failures means Python is not on PATH:
+
+- `'python' is not recognized ...` - if you used the classic installer, rerun it, choose
+  **Modify**, and enable its option to add Python to the environment variables (on a
+  fresh install, its "Add python.exe to PATH" box).
+- `Python was not found; run without arguments to install from the Microsoft Store ...` -
+  Windows' own `python` shortcut is answering instead. Turn off the `python.exe` and
+  `python3.exe` entries on the "App execution aliases" page of Windows Settings (search
+  Settings for it), then open a new terminal.
 
 ## Install and run
 
