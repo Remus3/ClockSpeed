@@ -115,6 +115,9 @@ those nine turned out to be the only three that exist in the world this project
 develops against. A census of that world's own actor classes, read only and
 reported as class names and counts, supplied the rest: extraction, power,
 storage and the landmark buildings that are what make a plan view legible.
+CS-1059 added the fuel, nuclear and geothermal generators, measured as
+ClassName in the shipped docs, because the production capacity sums over
+these built counts and a generator dropped here would vanish from it.
 
 NO SPELLING HERE WAS INVENTED FROM MEMORY, and that rule is why the list grew by
 measurement rather than by recall. A name that does not exist ships a filter
@@ -239,9 +242,8 @@ WARN_PLACEMENT_BOUNDS_UNDEFINED: Final = "placement-bounds-undefined"
 WARN_PLACEMENT_ORIENTATION_NON_FINITE: Final = "placement-orientation-non-finite"
 
 #: The built classes this model MAY publish. See the module docstring for why
-#: this is an allowlist rather than a denylist, for where each of these nine
-#: spellings was measured, for why no generator spelling appears, and for what
-#: belongs here when somebody extends it.
+#: this is an allowlist rather than a denylist, for where each spelling was
+#: measured, and for what belongs here when somebody extends it.
 BUILT_CLASS_ALLOWLIST: Final = frozenset(
     {
         # Extraction.
@@ -260,6 +262,14 @@ BUILT_CLASS_ALLOWLIST: Final = frozenset(
         "Build_GeneratorCoal_C",
         "Build_GeneratorBiomass_Automated_C",
         "Build_GeneratorIntegratedBiomass_C",
+        # CS-1059. Measured as ClassName in the shipped docs, the generator
+        # namespace the registry builds. Without them a fuel, nuclear or
+        # geothermal generator was dropped here and the production capacity
+        # read complete without it - the silent undercount non-negotiable 7
+        # forbids.
+        "Build_GeneratorFuel_C",
+        "Build_GeneratorNuclear_C",
+        "Build_GeneratorGeoThermal_C",
         # Storage - where a reader looks for what is held.
         "Build_StorageContainerMk1_C",
         "Build_StorageIntegrated_C",

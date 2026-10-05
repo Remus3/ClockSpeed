@@ -31,7 +31,7 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
 
-from clockspeed.audit import balance, machines
+from clockspeed.audit import balance, machines, placement
 from clockspeed.data.registry import Building, Generator
 from tests.audit import test_balance as balance_fx
 
@@ -405,3 +405,84 @@ def test_the_composite_draw_excludes_generators_once_the_namespace_is_supplied()
 
     assert result.draw.generator_class_count == len(modeled_generators())
     assert result.draw.consumption_megawatts == balance_fx.EXPECTED_CONSUMPTION
+
+
+# ---------------------------------------------------------------------------
+# End to end through the REAL placement filter - the arms above write their own
+# built_counts and so never met placement's allowlist, which is how a dropped
+# generator class read as a complete capacity.
+# ---------------------------------------------------------------------------
+
+#: Real built-class spellings, measured as ClassName in the shipped docs.
+COAL: Final = "Build_GeneratorCoal_C"
+FUEL: Final = "Build_GeneratorFuel_C"
+NUCLEAR: Final = "Build_GeneratorNuclear_C"
+GEOTHERMAL: Final = "Build_GeneratorGeoThermal_C"
+
+COAL_MEGAWATTS: Final = Fraction(75)
+FUEL_MEGAWATTS: Final = Fraction(250)
+NUCLEAR_MEGAWATTS: Final = Fraction(2500)
+
+
+def real_generators() -> Mapping[str, Generator]:
+    """The four generator shapes under their real built-class spellings.
+
+    Returns:
+        The mapping.
+    """
+    return generators(
+        generator(COAL, production=COAL_MEGAWATTS),
+        generator(FUEL, production=FUEL_MEGAWATTS),
+        generator(NUCLEAR, production=NUCLEAR_MEGAWATTS),
+        generator(GEOTHERMAL, production=Fraction(0), variable=True),
+    )
+
+
+def real_consumers() -> Mapping[str, Building]:
+    """Every real generator at its declared zero draw, as the registry lands it.
+
+    Returns:
+        The mapping.
+    """
+    return MappingProxyType(
+        {key: balance_fx.building(key, consumption=Fraction(0)) for key in real_generators()}
+    )
+
+
+def through_placement(*class_names: str) -> balance.WorldBalance:
+    """Run a world of one record per class through placement_of, then balance_of.
+
+    Args:
+        class_names: The built class of each record.
+
+    Returns:
+        The balance.
+    """
+    placed = placement.placement_of(balance_fx.world_of(*class_names))
+    return balance.balance_of(
+        placed,
+        real_consumers(),
+        balance_fx.world_machines(),
+        balance_fx.world_network(),
+        generators=real_generators(),
+    )
+
+
+def test_every_fuel_and_nuclear_generator_survives_placement_into_the_capacity() -> None:
+    result = through_placement(COAL, FUEL, NUCLEAR)
+
+    assert result.production is not None
+    assert result.production.capacity_megawatts == (
+        COAL_MEGAWATTS + FUEL_MEGAWATTS + NUCLEAR_MEGAWATTS
+    )
+    assert result.production.production_complete is True
+
+
+def test_a_geothermal_generator_survives_placement_as_a_named_variable_gap() -> None:
+    result = through_placement(COAL, GEOTHERMAL)
+
+    assert result.production is not None
+    gaps = {gap.class_name: gap.kind for gap in result.production.gaps}
+    assert gaps == {GEOTHERMAL: balance.GAP_PRODUCTION_VARIABLE}
+    assert result.production.production_complete is False
+    assert result.production.capacity_megawatts == COAL_MEGAWATTS

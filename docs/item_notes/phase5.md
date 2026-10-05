@@ -188,8 +188,11 @@ caller passes the registry's generator namespace, so the flag stays False on eve
 surface until `clockspeed/advisor/advise.py` passes it - a one-argument change in a
 layer this slice did not own. The figure is a NAMEPLATE capacity at the reference
 clock: a generator's clock law and fuel state are unmeasured, so it is never live
-output. The placement allowlist in `clockspeed/audit/placement.py` admits only some
-generator classes, so a world's other generators are not yet counted at all.
+output. An adversary found the placement allowlist in `clockspeed/audit/placement.py`
+dropped the fuel, nuclear and geothermal generators, so the capacity read complete
+without them; they are admitted now, and an arm runs the repro through `placement_of`.
+A generator class a FUTURE build adds to the registry but not to that allowlist would
+still be dropped there - the residual is recorded, not closed.
 
 ### Acceptance
 
