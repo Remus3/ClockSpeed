@@ -281,9 +281,12 @@ Worktree isolation blocks writes to the shared progress directory; agents write 
 SESSION 126 /done REPORT
 ================================================================================
 
-PUSH: PENDING
-CI READ: PENDING
-SUITE: PENDING
+PUSH: bd7944a..c6b7ba4 pushed, PUSH_EXIT=0 read from the log; HEAD read back equal to ls-remote
+  (c6b7ba4). This report rides ONE MORE commit: CONFIRM HEAD equals ls-remote first.
+CI READ: tier1 37262760914 at c6b7ba4 QUEUED when read - RESULT NOT KNOWN, READ IT FIRST.
+  Prior: tier1 37247659465 at bd7944a SUCCESS. No tier2 run this session (still TWO green).
+SUITE: pre-push hook whole suite at c6b7ba4: 14471 passed, 12 skipped, 0 failed, 0 errors in
+  24m50s (read from the push log). The CS-1059/CS-1268/CS-1269 builders ran targeted+census only.
 GATES (doc-records commit, before push): drift_guard 0, doc_budget 0, memory_sync 0,
   sha_citation_gate 0; doc tests (-k doc/citation/drift/roadmap/ledger/gated/backlog/
   wakeup) 1452 passed; tests/surface + tests/ops/test_lane_scope.py 1771 passed.
