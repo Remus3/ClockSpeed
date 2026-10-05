@@ -90,8 +90,21 @@ if TYPE_CHECKING:
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import UnlockState, WorldModel
 
-#: The trace steps that mean a rule reached no verdict this run (CS-1268).
-_UNDECIDED_STEPS: Final = frozenset(
+#: The ALLOWLIST (CS-1268): the trace steps a definite verdict is made of. A
+#: rule whose trace holds ANY other kind reached no verdict, so a step kind
+#: added to the engine later counts as undecided until it is classified here.
+SETTLED_STEP_KINDS: Final = frozenset(
+    {
+        StepKind.INPUT_READ,
+        StepKind.COMPUTED,
+        StepKind.ALTERNATIVE_REJECTED,
+        StepKind.RULE_FIRED,
+    }
+)
+
+#: The step kinds that mean a rule reached no verdict. Documentation and the
+#: partition test only - :func:`settled_rules` reads the allowlist alone.
+UNDECIDED_STEP_KINDS: Final = frozenset(
     {
         StepKind.RULE_ERROR,
         StepKind.INPUT_MISSING,
@@ -244,15 +257,17 @@ def advise(
 def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
     """The rule ids that reached a DEFINITE verdict - fired, or ran clean to silence.
 
-    A trace carrying a ``rule-error``, ``input-missing``, ``input-refused`` or
-    ``precondition-unmet`` step reached no verdict: the rule raised, lacked an
-    input, or was never evaluated. Its silence says nothing about the world, so
+    A rule is settled only when EVERY step of its trace is in the allowlist
+    :data:`SETTLED_STEP_KINDS`. A ``rule-error``, ``input-missing``,
+    ``input-refused`` or ``precondition-unmet`` step - or any kind not yet
+    classified - means the rule raised, was refused an input, or was never
+    evaluated. Its silence says nothing about the world, so
     its cards may not be completed (CS-1268, CLAUDE.md non-negotiable 7).
     """
     return frozenset(
         trace.rule_id
         for trace in traces
-        if not any(step.kind in _UNDECIDED_STEPS for step in trace.steps)
+        if all(step.kind in SETTLED_STEP_KINDS for step in trace.steps)
     )
 
 

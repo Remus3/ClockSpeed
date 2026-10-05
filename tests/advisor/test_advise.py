@@ -28,7 +28,15 @@ from pathlib import Path
 import pytest
 
 from clockspeed.advisor import advise as advise_mod
-from clockspeed.advisor.advise import Advice, advise, advise_and_record, world_inputs
+from clockspeed.advisor.advise import (
+    SETTLED_STEP_KINDS,
+    UNDECIDED_STEP_KINDS,
+    Advice,
+    advise,
+    advise_and_record,
+    settled_rules,
+    world_inputs,
+)
 from clockspeed.advisor.cards import card_for
 from clockspeed.advisor.ledger import (
     LEDGER_FILENAME,
@@ -44,6 +52,7 @@ from clockspeed.advisor.trace import (
     Recommendation,
     RuleContext,
     RuleSpec,
+    StepKind,
     WorldInputs,
     run_rule,
 )
@@ -623,8 +632,23 @@ def test_the_advice_repr_renders_transition_counts_only(tmp_path: Path) -> None:
     assert leaked is False
 
 
+#: Each way a rule reaches no verdict, and the trace step that records it.
+UNDECIDED_HOWS = {
+    "raise": StepKind.RULE_ERROR,
+    "missing": StepKind.INPUT_MISSING,
+    "undeclared": StepKind.INPUT_REFUSED,
+    "inexact": StepKind.INPUT_REFUSED,
+    "locked": StepKind.PRECONDITION_UNMET,
+}
+
+#: A world offering the read input as a float: present, but inexact.
+INEXACT_WORLD = WorldInputs(
+    values={"synthetic.absent": InputValue(1.5, "synthetic.source")}, unlocks=frozenset()
+)
+
+
 def _undecided(rule_id: str, how: str) -> RuleSpec:
-    """A rule that reaches NO definite verdict: it raises, lacks input, or is locked."""
+    """A rule that reaches NO definite verdict: it raises, is refused an input, or is locked."""
 
     def _evaluate(ctx: RuleContext) -> Recommendation | None:
         if how == "raise":
@@ -632,14 +656,56 @@ def _undecided(rule_id: str, how: str) -> RuleSpec:
         ctx.read("synthetic.absent")
         return Recommendation(subject_key=f"{rule_id}-s", action="Do the thing", reason="because")
 
-    inputs = ("synthetic.absent",) if how == "missing" else ()
+    inputs = ("synthetic.absent",) if how in {"missing", "inexact"} else ()
     unlocks = ("schematic:/Synthetic/Schematic_Never",) if how == "locked" else ()
     return RuleSpec(
         rule_id=rule_id, domain="power", inputs=inputs, unlocks=unlocks, evaluate=_evaluate
     )
 
 
-@pytest.mark.parametrize("how", ["raise", "missing", "locked", "not-run"])
+def _world_for(how: str) -> WorldInputs:
+    return INEXACT_WORLD if how == "inexact" else WORLD
+
+
+@pytest.mark.parametrize("how", sorted(UNDECIDED_HOWS))
+def test_each_undecided_rule_records_the_step_it_is_named_for(how: str) -> None:
+    """Anti-vacuity: each arm below really ends in its own undecided step kind."""
+    trace = run_rule(_undecided(RULE, how), _world_for(how))
+    kinds = {step.kind for step in trace.steps}
+    named = UNDECIDED_HOWS[how] in kinds and trace.recommendation is None
+    assert named
+    unsettled = RULE not in settled_rules((trace,))
+    assert unsettled
+
+
+def test_the_step_kinds_partition_into_settled_and_undecided() -> None:
+    """Every StepKind is classified exactly once, so a new kind reds this test."""
+    settled = frozenset(SETTLED_STEP_KINDS)
+    undecided = frozenset(UNDECIDED_STEP_KINDS)
+    every = frozenset(StepKind)
+    partitioned = settled | undecided == every and not settled & undecided
+    assert partitioned
+    pinned = settled == {
+        StepKind.INPUT_READ,
+        StepKind.COMPUTED,
+        StepKind.ALTERNATIVE_REJECTED,
+        StepKind.RULE_FIRED,
+    }
+    assert pinned
+    reached = frozenset(UNDECIDED_HOWS.values()) == undecided
+    assert reached
+
+
+def test_a_trace_of_settled_steps_only_is_settled() -> None:
+    """Control: a clean silent run and a firing run are both definite verdicts."""
+    traces = (
+        run_rule(_spec(RULE, fires=False), WORLD),
+        run_rule(_spec(OTHER, fires=True), WORLD),
+    )
+    assert settled_rules(traces) == frozenset({RULE, OTHER})
+
+
+@pytest.mark.parametrize("how", [*sorted(UNDECIDED_HOWS), "not-run"])
 @pytest.mark.parametrize("recorded", ["accepted", "new"])
 def test_a_rule_without_a_definite_verdict_never_completes_its_card(
     tmp_path: Path, how: str, recorded: str
@@ -652,7 +718,12 @@ def test_a_rule_without_a_definite_verdict_never_completes_its_card(
     steady = _spec(OTHER, fires=True)
     rules = (steady,) if how == "not-run" else (_undecided(RULE, how), steady)
     second = advise_and_record(
-        TOKEN_A, WORLD, ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW, rules=rules
+        TOKEN_A,
+        _world_for(how),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
+        rules=rules,
     )
     assert _recorded(tmp_path)[card] == state
     none_completed = second.completed == ()
