@@ -33,9 +33,16 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from clockspeed.advisor import advise as advise_module
-from clockspeed.advisor.advise import advise, advise_world, inputs_of, world_inputs
+from clockspeed.advisor.advise import (
+    advise,
+    advise_world,
+    inputs_of,
+    settled_rules,
+    world_inputs,
+)
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import power
+from clockspeed.advisor.trace import StepKind
 from clockspeed.audit.balance import balance_of
 from clockspeed.audit.machines import PROPERTY_PRODUCING, machines_of
 from clockspeed.audit.network import network_of
@@ -277,3 +284,29 @@ def test_a_world_with_no_built_generator_is_an_exact_zero_capacity(
     complete = balance.production.production_complete
     assert capacity == Fraction(0)
     assert complete is True
+
+
+def test_a_built_generator_settles_the_headroom_rule_end_to_end(tmp_path: Path) -> None:
+    """The real path - inputs_of, then advise - reaches a definite headroom verdict.
+
+    A built fuel generator over a world with no priced draw: generation covers
+    the draw, so the rule runs clean to silence. Before CS-1271's repair it
+    stopped on a missing generation input and settled nothing.
+    """
+    model = balance_fixtures.world_of(production_fixtures.FUEL)
+
+    served = advise_world(
+        model,
+        generator_registry(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
+    )
+
+    headroom = next(t for t in served.traces if t.rule_id == power.HEADROOM_RULE.rule_id)
+    missing = [s.subject for s in headroom.steps if s.kind is StepKind.INPUT_MISSING]
+    settled = power.HEADROOM_RULE.rule_id in settled_rules(served.traces)
+    reasons = [s.reason for s in headroom.steps if s.kind is StepKind.ALTERNATIVE_REJECTED]
+    assert missing == []
+    assert settled
+    assert reasons == ["generation covers the upper bound of the clocked draw"]

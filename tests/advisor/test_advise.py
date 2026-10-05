@@ -160,6 +160,7 @@ def _headroom_world(generation: Fraction) -> WorldInputs:
     balance = _balance(lower=Fraction(120), upper=Fraction(120), complete=True)
     values = power.balance_inputs(balance)
     values[power.IN_PRODUCTION_AVAILABLE] = InputValue(True, "synthetic.production_available")
+    values[power.IN_PRODUCTION_COMPLETE] = InputValue(True, "synthetic.production_complete")
     values[power.IN_GENERATION] = InputValue(generation, "synthetic.generation")
     return WorldInputs(values=values, unlocks=frozenset())
 

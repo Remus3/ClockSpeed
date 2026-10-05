@@ -22,13 +22,17 @@ reference clock and so ignores every overclock and underclock in the world.
 :func:`balance_inputs` does not even offer the clock-blind figure, so no rule
 here can read it by mistake.
 
-GENERATION IS NOT MODELLED AT HEAD (CS-1059). ``WorldBalance`` publishes
-``production_available`` False and no production figure, so
-:func:`balance_inputs` offers the flag and never a generation number. The
-headroom rule reads the flag first and, when it is False, records the
-comparison as a rejected alternative and recommends nothing. The day a
-production figure lands, the adapter offers it under :data:`IN_GENERATION` and
-the rule starts firing without an edit.
+GENERATION IS THE AUDIT'S NAMEPLATE CAPACITY (CS-1059, CS-1271). When the
+balance carries a production model, :func:`balance_inputs` offers its exact
+``capacity_megawatts`` under :data:`IN_GENERATION` and its
+``production_complete`` flag under :data:`IN_PRODUCTION_COMPLETE`; with no
+model it offers neither, and ``production_available`` is False. The headroom
+rule reads ``production_available`` first and, when it is False, records the
+comparison as a rejected alternative and recommends nothing. It then reads
+the completeness flag: a capacity with a built generator the registry gives
+no output for is a LOWER BOUND, and a floor compared against the draw would
+overstate any shortfall, so an incomplete figure is likewise rejected and
+nothing is recommended.
 
 AN ELIDED CLOCK IS NAMED, NEVER HIDDEN. A machine whose save omits its clock
 tag is priced at ``ELIDED_CLOCK_DEFAULT`` by ``clockspeed/audit/balance.py`` and
@@ -77,8 +81,9 @@ if TYPE_CHECKING:
 #: The advice domain every rule here belongs to.
 DOMAIN: Final = "power"
 
-#: Input names. Each is offered by :func:`balance_inputs` except
-#: :data:`IN_GENERATION`, which no audit model publishes yet (CS-1059).
+#: Input names. Each is offered by :func:`balance_inputs`;
+#: :data:`IN_GENERATION` and :data:`IN_PRODUCTION_COMPLETE` only when the
+#: balance carries a production model (CS-1271).
 IN_COMPLETE: Final = "power.clocked_draw.complete"
 IN_EXACT: Final = "power.clocked_draw.exact"
 IN_LOWER: Final = "power.clocked_draw.lower_mw"
@@ -87,6 +92,7 @@ IN_CONSIDERED: Final = "power.clocked_draw.machines_considered"
 IN_UNREAD: Final = "power.clocked_draw.unread_clock_count"
 IN_UNMODELED: Final = "power.clocked_draw.unmodeled_machine_count"
 IN_PRODUCTION_AVAILABLE: Final = "power.production_available"
+IN_PRODUCTION_COMPLETE: Final = "power.production_complete"
 IN_GENERATION: Final = "power.generation_mw"
 IN_ELIDED: Final = "power.clocked_draw.elided_clock_count"
 
@@ -100,8 +106,9 @@ SUBJECT_GAP: Final = "power:clocked-draw-gaps"
 def balance_inputs(balance: WorldBalance) -> dict[str, InputValue]:
     """Offer one world's power balance as rule inputs, each sourced to its audit field.
 
-    Only the clock-correct draw is offered. A generation figure is not, because
-    the balance carries none (see the module docstring). The caller wraps the
+    Only the clock-correct draw is offered. The generation figure and its
+    completeness are offered only when the balance carries a production model
+    (see the module docstring). The caller wraps the
     result in a :class:`clockspeed.advisor.trace.WorldInputs` with its unlock
     set; a fresh dict is returned so a caller may add inputs from another layer.
     """
@@ -117,6 +124,17 @@ def balance_inputs(balance: WorldBalance) -> dict[str, InputValue]:
         (IN_ELIDED, "clocked_draw.elided_clock_count", clocked.elided_clock_count),
         (IN_PRODUCTION_AVAILABLE, "production_available", balance.production_available),
     )
+    production = balance.production
+    if production is not None:
+        fields = (
+            *fields,
+            (
+                IN_PRODUCTION_COMPLETE,
+                "production.production_complete",
+                production.production_complete,
+            ),
+            (IN_GENERATION, "production.capacity_megawatts", production.capacity_megawatts),
+        )
     return {name: InputValue(value, _SOURCE_PREFIX + field) for name, field, value in fields}
 
 
@@ -148,6 +166,28 @@ def _elision(elided: int) -> str:
     return f"; it assumes the default clock for {elided} {machines} whose save omits the clock tag"
 
 
+def _generation_is_a_measurement(ctx: RuleContext) -> bool:
+    """Whether a generation figure exists and counts every built generator.
+
+    Records the rejected comparison when it does not: no figure at all, or a
+    capacity with an unmodelled generator, which is a floor (CS-1271).
+    """
+    if not _read_flag(ctx, IN_PRODUCTION_AVAILABLE):
+        ctx.reject(
+            "compare the draw against generation",
+            "generated power is not modelled, so there is no generation figure (CS-1059)",
+        )
+        return False
+    if not _read_flag(ctx, IN_PRODUCTION_COMPLETE):
+        ctx.reject(
+            "compare the draw against generation",
+            "some built generators have no modelled output, so the capacity is a floor"
+            " and not a measurement",
+        )
+        return False
+    return True
+
+
 def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
     """Recommend generation when the clocked draw can exceed it."""
     if not _read_flag(ctx, IN_COMPLETE):
@@ -156,11 +196,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
             "the clocked draw is incomplete, so its total is a floor and not a measurement",
         )
         return None
-    if not _read_flag(ctx, IN_PRODUCTION_AVAILABLE):
-        ctx.reject(
-            "compare the draw against generation",
-            "generated power is not modelled, so there is no generation figure (CS-1059)",
-        )
+    if not _generation_is_a_measurement(ctx):
         return None
     lower = ctx.read_exact(IN_LOWER)
     upper = ctx.read_exact(IN_UPPER)
@@ -255,6 +291,7 @@ HEADROOM_RULE: Final = RuleSpec(
     inputs=(
         IN_COMPLETE,
         IN_PRODUCTION_AVAILABLE,
+        IN_PRODUCTION_COMPLETE,
         IN_LOWER,
         IN_UPPER,
         IN_EXACT,

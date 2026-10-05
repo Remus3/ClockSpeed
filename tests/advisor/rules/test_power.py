@@ -18,12 +18,14 @@ install, no registry slice: every number and every class name is invented.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from fractions import Fraction
 
 import pytest
 
 from clockspeed.advisor.cards import Card, card_for
 from clockspeed.advisor.rules import build_registry, registered_rules
+from clockspeed.advisor.rules import power as power_rules
 from clockspeed.advisor.rules.power import (
     GAP_RULE,
     HEADROOM_RULE,
@@ -35,7 +37,6 @@ from clockspeed.advisor.rules.power import (
     balance_inputs,
 )
 from clockspeed.advisor.trace import (
-    InputValue,
     RuleSpec,
     StepKind,
     Trace,
@@ -47,12 +48,9 @@ from clockspeed.audit.balance import (
     WorldBalance,
     WorldClockedDraw,
     WorldDraw,
+    WorldProduction,
     WorldStarvation,
 )
-
-#: The source a synthetic generation figure is offered under. Nothing in the
-#: audit layer publishes generated power yet (CS-1059), so a test supplies it.
-SYNTHETIC_GENERATION = "synthetic.generation"
 
 
 def _balance(  # noqa: PLR0913 - one keyword per field the rules read
@@ -113,10 +111,13 @@ def _balance(  # noqa: PLR0913 - one keyword per field the rules read
 
 
 def _world(balance: WorldBalance, generation: Fraction | None) -> WorldInputs:
-    values = balance_inputs(balance)
+    """Offer the balance through the adapter (CS-1271).
+
+    A complete production model of ``generation`` MW is attached when one is given.
+    """
     if generation is not None:
-        values[IN_GENERATION] = InputValue(generation, SYNTHETIC_GENERATION)
-    return WorldInputs(values=values, unlocks=frozenset())
+        balance = replace(balance, production=_production(generation, complete=True))
+    return WorldInputs(values=balance_inputs(balance), unlocks=frozenset())
 
 
 def _overdraw_world() -> WorldInputs:
@@ -332,21 +333,23 @@ EXPECTED_TIER3 = "\n".join(
         "Steps:",
         "  1. Read power.clocked_draw.complete = true from audit.balance.clocked_draw.complete",
         "  2. Read power.production_available = true from audit.balance.production_available",
-        "  3. Read power.clocked_draw.lower_mw = 120.00 from"
+        "  3. Read power.production_complete = true from"
+        " audit.balance.production.production_complete",
+        "  4. Read power.clocked_draw.lower_mw = 120.00 from"
         " audit.balance.clocked_draw.lower_megawatts",
-        "  4. Read power.clocked_draw.upper_mw = 130.00 from"
+        "  5. Read power.clocked_draw.upper_mw = 130.00 from"
         " audit.balance.clocked_draw.upper_megawatts",
-        "  5. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
-        "  6. Read power.clocked_draw.elided_clock_count = 0 from"
+        "  6. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
+        "  7. Read power.clocked_draw.elided_clock_count = 0 from"
         " audit.balance.clocked_draw.elided_clock_count",
-        "  7. Read power.generation_mw = 100.00 from synthetic.generation",
-        "  8. Computed shortfall at the lower draw bound in MW = 20.00",
-        "  9. Computed shortfall at the upper draw bound in MW = 30.00",
-        "  10. Rejected hold generation as built: the draw exceeds generation"
+        "  8. Read power.generation_mw = 100.00 from audit.balance.production.capacity_megawatts",
+        "  9. Computed shortfall at the lower draw bound in MW = 20.00",
+        "  10. Computed shortfall at the upper draw bound in MW = 30.00",
+        "  11. Rejected hold generation as built: the draw exceeds generation"
         " at both ends of the clock bracket",
-        "  11. Rejected quote one shortfall figure: the clock law brackets the draw,"
+        "  12. Rejected quote one shortfall figure: the clock law brackets the draw,"
         " so the shortfall is a range",
-        "  12. Rule power.headroom fired for power:generation-headroom",
+        "  13. Rule power.headroom fired for power:generation-headroom",
     ]
 )
 
@@ -355,3 +358,85 @@ def test_tier3_snapshot_shows_the_whole_derivation() -> None:
     trace: Trace = run_rule(HEADROOM_RULE, _overdraw_world())
     card = Card(trace)
     assert card.tier3 == EXPECTED_TIER3
+
+
+# CS-1271: the adapter offers the audit's own generation figure and its
+# completeness whenever a production model was computed, so the headroom rule
+# reaches a definite verdict over a real balance with no synthetic injection.
+
+AUDIT_CAPACITY_SOURCE = "audit.balance.production.capacity_megawatts"
+AUDIT_PRODUCTION_COMPLETE_SOURCE = "audit.balance.production.production_complete"
+
+
+def _production(capacity: Fraction, *, complete: bool) -> WorldProduction:
+    """Hand-build one production model. An incomplete one carries one gap's count."""
+    return WorldProduction(
+        contributions=(),
+        gaps=(),
+        capacity_megawatts=capacity,
+        production_complete=complete,
+        classes_considered=0,
+        non_generator_class_count=0,
+        unmodeled_class_count=0 if complete else 1,
+        unmodeled_contributor_count=0 if complete else 1,
+        warnings=(),
+    )
+
+
+def _produced(capacity: Fraction, *, complete: bool) -> WorldInputs:
+    """A complete 120-130 MW clocked draw over an audit-computed production model."""
+    base = _balance(lower=Fraction(120), upper=Fraction(130), exact=False)
+    balance = replace(base, production=_production(capacity, complete=complete))
+    return WorldInputs(values=balance_inputs(balance), unlocks=frozenset())
+
+
+def test_the_adapter_offers_generation_and_its_completeness() -> None:
+    values = _produced(Fraction(100), complete=False).values
+
+    offered = IN_GENERATION in values
+    assert offered, "the adapter offers no generation input"
+    generation = values[IN_GENERATION]
+    assert generation.value == Fraction(100)
+    assert type(generation.value) is Fraction
+    assert generation.source == AUDIT_CAPACITY_SOURCE
+    complete = values[power_rules.IN_PRODUCTION_COMPLETE]
+    assert complete.value is False
+    assert complete.source == AUDIT_PRODUCTION_COMPLETE_SOURCE
+
+
+def test_the_adapter_offers_no_generation_without_a_production_model() -> None:
+    values = balance_inputs(
+        _balance(lower=Fraction(1), upper=Fraction(1), exact=True, production=False)
+    )
+
+    offered = sorted({IN_GENERATION, power_rules.IN_PRODUCTION_COMPLETE} & set(values))
+    assert offered == []
+
+
+def test_a_complete_production_figure_gives_a_definite_verdict() -> None:
+    trace = run_rule(HEADROOM_RULE, _produced(Fraction(100), complete=True))
+
+    missing = [s.subject for s in trace.steps if s.kind is StepKind.INPUT_MISSING]
+    assert missing == []
+    assert trace.refused == ()
+    card = card_for(trace)
+    assert card is not None
+    assert card.tier1 == "Add between 20.00 and 30.00 MW of generation"
+
+
+def test_an_incomplete_production_figure_is_rejected_never_compared() -> None:
+    trace = run_rule(HEADROOM_RULE, _produced(Fraction(100), complete=False))
+
+    missing = [s.subject for s in trace.steps if s.kind is StepKind.INPUT_MISSING]
+    rejected = [
+        (s.subject, s.reason) for s in trace.steps if s.kind is StepKind.ALTERNATIVE_REJECTED
+    ]
+    assert missing == []
+    assert trace.recommendation is None
+    assert rejected == [
+        (
+            "compare the draw against generation",
+            "some built generators have no modelled output, so the capacity is a floor"
+            " and not a measurement",
+        )
+    ]

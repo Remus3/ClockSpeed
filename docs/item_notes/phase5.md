@@ -566,4 +566,4 @@ it, here or in a new item.
 
 ### Acceptance
 
-red first: an arm over a synthetic world and registry holding a built fuel generator, driven through `clockspeed/advisor/advise.py::inputs_of`, sees the balance's `production_available` True and the same exact Fraction capacity `balance_of` computes when handed `registry.generators`, and reddens when `inputs_of` omits the generator namespace; a synthetic world with no built generator keeps `production_available` False
+red first: an arm over a synthetic world and registry holding a built fuel generator, driven through `clockspeed/advisor/advise.py::inputs_of`, sees the balance's `production_available` True and the same exact Fraction capacity `balance_of` computes when handed `registry.generators`, and reddens when `inputs_of` omits the generator namespace; a synthetic world with no built generator, over a registry carrying generators, sees `production_available` True and `production.capacity_megawatts == Fraction(0)`; an empty generator namespace keeps it False
