@@ -42,6 +42,7 @@ TOKEN_A = "AAAAsyntheticTokenAAAA"  # noqa: S105 - a synthetic world token, not 
 TOKEN_B = "BBBBsyntheticTokenBBBB"  # noqa: S105 - a synthetic world token, not a secret
 TOKEN_LENGTH = 22
 SHA256_HEX_LENGTH = 64
+VERSION_TWO = 2  # CS-1268: stores a shown new card and its rule
 
 
 def _chain_hidden(exc: BaseException) -> bool:
@@ -95,7 +96,7 @@ def test_first_write_carries_schema_version(tmp_path: Path) -> None:
     for name in (LEDGER_FILENAME, MUTES_FILENAME):
         doc = json.loads((tmp_path / name).read_bytes())
         assert doc["schema_version"] == SCHEMA_VERSION
-    assert SCHEMA_VERSION == 1
+    assert SCHEMA_VERSION == VERSION_TWO  # CS-1268
 
 
 CORRUPT_PAYLOADS = [
@@ -718,3 +719,68 @@ def test_the_default_store_dir_uses_no_private_import() -> None:
     source = Path(ledger_mod.__file__).read_text(encoding="ascii")
     assert re.search(r"import\s+_\w+|import\s*\(?[^)\n]*\b_repo_root\b", source) is None
     assert "_repo_root" not in vars(ledger_mod)
+
+
+# --- CS-1268: schema version 2 stores a shown ``new`` card and its rule -----------
+
+
+def _v1(record: bytes) -> bytes:
+    return (
+        b'{"schema_version": 1, "worlds": {"' + DIGEST_A.encode() + b'": {"c": ' + record + b"}}}"
+    )
+
+
+def test_the_schema_is_version_two(tmp_path: Path) -> None:
+    Ledger(tmp_path).reconcile(TOKEN_A, firing={"c": "x.rule"}, settled=(), shown_new=("c",))
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert (SCHEMA_VERSION, doc["schema_version"]) == (2, 2)
+    assert doc["worlds"][world_key(TOKEN_A)]["c"] == {"state": "new", "rule": "x.rule"}
+
+
+def test_a_version_one_ledger_still_loads_and_is_rewritten_as_two(tmp_path: Path) -> None:
+    (tmp_path / LEDGER_FILENAME).write_bytes(
+        b'{"schema_version": 1, "worlds": {"'
+        + world_key(TOKEN_A).encode()
+        + b'": {"c": {"state": "accepted"}}}}'
+    )
+    assert Ledger(tmp_path).recorded(TOKEN_A) == (("c", CardState.accepted()),)
+    Ledger(tmp_path).set_state(TOKEN_A, "d", CardState.pinned())
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert doc["schema_version"] == VERSION_TWO
+    assert Ledger(tmp_path).recorded(TOKEN_A) == (
+        ("c", CardState.accepted()),
+        ("d", CardState.pinned()),
+    )
+
+
+def test_a_version_one_mute_store_still_loads(tmp_path: Path) -> None:
+    (tmp_path / MUTES_FILENAME).write_bytes(b'{"rules": ["x.rule"], "schema_version": 1}')
+    assert MuteStore(tmp_path).is_muted("x.rule")
+
+
+@pytest.mark.parametrize(
+    "record", [b'{"state": "new"}', b'{"state": "accepted", "rule": "x.rule"}']
+)
+def test_a_version_one_ledger_carrying_a_version_two_record_is_corrupt(
+    tmp_path: Path, record: bytes
+) -> None:
+    payload = _v1(record)
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).recorded(TOKEN_A)
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+
+
+@pytest.mark.parametrize("rule", [b'""', b"3", b"null", b"[]"])
+def test_a_malformed_rule_is_corrupt(tmp_path: Path, rule: bytes) -> None:
+    payload = (
+        b'{"schema_version": 2, "worlds": {"'
+        + DIGEST_A.encode()
+        + b'": {"c": {"state": "new", "rule": '
+        + rule
+        + b"}}}}"
+    )
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).recorded(TOKEN_A)
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload

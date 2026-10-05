@@ -38,9 +38,12 @@ READ-ONLY, AND THE ONE WRITE PATH. :func:`advise` never writes either store;
 recording a state or a mute is the caller's act through the store's own
 methods. ``completed`` (BOOTSTRAP.md section 5.2) is set by the stated write
 path, :func:`advise_and_record` (CS-1268): it runs :func:`advise`, then hands
-the ledger every firing card id and every card shown ``new`` through
+the ledger every firing card with its rule, the rules that reached a definite
+verdict (:func:`settled_rules`) and every card shown ``new`` through
 :meth:`clockspeed.advisor.ledger.Ledger.reconcile`. A recorded ``new`` or
-``accepted`` card whose rule no longer fires becomes ``completed``; a
+``accepted`` card whose rule ran to a definite verdict without it becomes
+``completed`` - a rule that raised, lacked input or was not run completes
+nothing; a
 ``completed`` card whose rule fires again is surfaced as ``new``; the player's
 ``dismissed``, ``snoozed`` and ``pinned`` are never changed. Both transitions
 are surfaced on :attr:`Advice.completed` and :attr:`Advice.reopened`. It never
@@ -69,7 +72,14 @@ from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.power import balance_inputs
-from clockspeed.advisor.trace import RuleSpec, Trace, WorldInputs, run_rules, unlock_keys
+from clockspeed.advisor.trace import (
+    RuleSpec,
+    StepKind,
+    Trace,
+    WorldInputs,
+    run_rules,
+    unlock_keys,
+)
 from clockspeed.audit.balance import balance_of
 from clockspeed.audit.machines import machines_of
 from clockspeed.audit.network import network_of
@@ -79,6 +89,16 @@ if TYPE_CHECKING:
     from clockspeed.audit.balance import WorldBalance
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import UnlockState, WorldModel
+
+#: The trace steps that mean a rule reached no verdict this run (CS-1268).
+_UNDECIDED_STEPS: Final = frozenset(
+    {
+        StepKind.RULE_ERROR,
+        StepKind.INPUT_MISSING,
+        StepKind.INPUT_REFUSED,
+        StepKind.PRECONDITION_UNMET,
+    }
+)
 
 #: The ledger state kinds under which an unmuted card is shown.
 VISIBLE_KINDS: Final = frozenset({"new", "accepted", "pinned"})
@@ -221,6 +241,21 @@ def advise(
     return Advice(traces=traces, cards=advised, new_world=new_world)
 
 
+def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
+    """The rule ids that reached a DEFINITE verdict - fired, or ran clean to silence.
+
+    A trace carrying a ``rule-error``, ``input-missing``, ``input-refused`` or
+    ``precondition-unmet`` step reached no verdict: the rule raised, lacked an
+    input, or was never evaluated. Its silence says nothing about the world, so
+    its cards may not be completed (CS-1268, CLAUDE.md non-negotiable 7).
+    """
+    return frozenset(
+        trace.rule_id
+        for trace in traces
+        if not any(step.kind in _UNDECIDED_STEPS for step in trace.steps)
+    )
+
+
 def advise_and_record(
     token: str,
     world: WorldInputs,
@@ -247,7 +282,8 @@ def advise_and_record(
     advice = advise(token, world, ledger=ledger, mutes=mutes, now=now, rules=rules)
     completed, reopened = ledger.reconcile(
         token,
-        firing=(advised.card.id for advised in advice.cards),
+        firing={advised.card.id: advised.card.rule_id for advised in advice.cards},
+        settled=settled_rules(advice.traces),
         shown_new=(advised.card.id for advised in advice.shown if advised.state.kind == "new"),
     )
     back = frozenset(reopened)

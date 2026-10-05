@@ -621,3 +621,50 @@ def test_the_advice_repr_renders_transition_counts_only(tmp_path: Path) -> None:
     rendered = repr(second)
     leaked = second.completed[0] in rendered or TOKEN_A in rendered
     assert leaked is False
+
+
+def _undecided(rule_id: str, how: str) -> RuleSpec:
+    """A rule that reaches NO definite verdict: it raises, lacks input, or is locked."""
+
+    def _evaluate(ctx: RuleContext) -> Recommendation | None:
+        if how == "raise":
+            raise RuntimeError
+        ctx.read("synthetic.absent")
+        return Recommendation(subject_key=f"{rule_id}-s", action="Do the thing", reason="because")
+
+    inputs = ("synthetic.absent",) if how == "missing" else ()
+    unlocks = ("schematic:/Synthetic/Schematic_Never",) if how == "locked" else ()
+    return RuleSpec(
+        rule_id=rule_id, domain="power", inputs=inputs, unlocks=unlocks, evaluate=_evaluate
+    )
+
+
+@pytest.mark.parametrize("how", ["raise", "missing", "locked", "not-run"])
+@pytest.mark.parametrize("recorded", ["accepted", "new"])
+def test_a_rule_without_a_definite_verdict_never_completes_its_card(
+    tmp_path: Path, how: str, recorded: str
+) -> None:
+    """Non-negotiable 7: an errored, input-less or unevaluated rule says nothing."""
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    state = CardState.accepted() if recorded == "accepted" else CardState.new()
+    if recorded == "accepted":
+        Ledger(tmp_path).set_state(TOKEN_A, card, state)
+    steady = _spec(OTHER, fires=True)
+    rules = (steady,) if how == "not-run" else (_undecided(RULE, how), steady)
+    second = advise_and_record(
+        TOKEN_A, WORLD, ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW, rules=rules
+    )
+    assert _recorded(tmp_path)[card] == state
+    none_completed = second.completed == ()
+    assert none_completed
+
+
+def test_an_accepted_card_keeps_its_rule_across_a_player_write(tmp_path: Path) -> None:
+    """The player's accept overwrites the state, never the card's recorded rule."""
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    Ledger(tmp_path).set_state(TOKEN_A, card, CardState.dismissed())
+    Ledger(tmp_path).set_state(TOKEN_A, card, CardState.accepted())
+    second = _record(tmp_path, fires=False)
+    assert _recorded(tmp_path)[card] == CardState.completed()
+    completed = second.completed == (card,)
+    assert completed

@@ -57,8 +57,10 @@ follow, exceeds :data:`MAX_STORE_BYTES`, repeats a key, or parses into anything
 other than the exact shape this version writes, is REFUSED with
 :class:`StoreCorruptError` and left byte-for-byte unchanged - a write never
 proceeds over a store it could not read. Every document carries
-``schema_version`` from its first write; only that field ships here, and
-migration between versions belongs to CS-1253.
+``schema_version`` from its first write. Version 2 (CS-1268) adds a stored
+``new`` card and each card's ``rule``; a version 1 document is still READ, and
+the next write rewrites it as version 2, so a version 1 reader refuses it
+visibly by its version. Wider migration belongs to CS-1253.
 
 ERRORS. Every error this module raises carries a fixed message and is raised
 outside any ``except`` block, so it has no ``__cause__`` and no
@@ -76,12 +78,22 @@ import re
 import secrets
 import threading
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Final
 
 #: The version every document this module writes carries from its first write.
-SCHEMA_VERSION: Final = 1
+#: Version 2 (CS-1268) stores a shown ``new`` card and the rule each card came from.
+SCHEMA_VERSION: Final = 2
+
+#: Every version this module reads. Version 1 lacks ``new`` records and ``rule``.
+_READABLE_VERSIONS: Final = frozenset({1, 2})
+
+#: The first version that stores a ``new`` card and a card's ``rule``.
+_RULE_VERSION: Final = 2
+
+#: One recorded card: its state and the rule id it came from, when known.
+_Entry = tuple["CardState", "str | None"]
 
 #: The six card states of BOOTSTRAP.md section 5.2.
 CARD_STATE_KINDS: Final = frozenset(
@@ -299,7 +311,8 @@ class CardState:
         # all - not even as null, which this version never writes.
         expected = {"state", "until"} if kind == "snoozed" else {"state"}
         # ``new`` IS stored once a card has been shown (CS-1268), so the card
-        # can be completed when its rule stops firing.
+        # can be completed when its rule stops firing. The ledger refuses it in
+        # a version 1 document, which never carried one.
         if set(doc) != expected or kind not in CARD_STATE_KINDS:
             raise StoreCorruptError(_MSG_CORRUPT)
         until = doc.get("until")
@@ -358,8 +371,32 @@ def _read_doc(target: Path, payload_key: str) -> dict[str, object] | None:
         raise StoreCorruptError(_MSG_CORRUPT)
     version = doc["schema_version"]
     # bool and float compare equal to 1 but are not a version this wrote.
-    if type(version) is not int or version != SCHEMA_VERSION:
+    if type(version) is not int or version not in _READABLE_VERSIONS:
         raise StoreCorruptError(_MSG_CORRUPT)
+    return doc
+
+
+def _entry_from_record(doc: object, version: int) -> _Entry:
+    """Rebuild one recorded card, refusing anything its version never wrote."""
+    if not isinstance(doc, dict):
+        raise StoreCorruptError(_MSG_CORRUPT)
+    rule: object = None
+    if "rule" in doc:
+        rule = doc["rule"]
+        if version < _RULE_VERSION or type(rule) is not str or not rule:
+            raise StoreCorruptError(_MSG_CORRUPT)
+        doc = {name: value for name, value in doc.items() if name != "rule"}
+    state = CardState.from_record(doc)
+    if version < _RULE_VERSION and state.kind == "new":
+        raise StoreCorruptError(_MSG_CORRUPT)
+    return state, rule if isinstance(rule, str) else None
+
+
+def _entry_record(entry: _Entry) -> dict[str, object]:
+    state, rule = entry
+    doc = state.as_record()
+    if rule is not None:
+        doc["rule"] = rule
     return doc
 
 
@@ -525,23 +562,32 @@ class Ledger(_Store):
     def _path(self) -> Path:
         return self._directory / LEDGER_FILENAME
 
-    def _worlds(self) -> dict[str, dict[str, CardState]]:
+    def _entries(self) -> dict[str, dict[str, _Entry]]:
         doc = _read_doc(self._path(), "worlds")
         if doc is None:
             return {}
         worlds = doc["worlds"]
-        if not isinstance(worlds, dict):
+        version = doc["schema_version"]
+        if not isinstance(worlds, dict) or not isinstance(version, int):
             raise StoreCorruptError(_MSG_CORRUPT)
-        out: dict[str, dict[str, CardState]] = {}
+        out: dict[str, dict[str, _Entry]] = {}
         for key, cards in worlds.items():
             if not isinstance(cards, dict) or not _WORLD_KEY_RE.fullmatch(key):
                 raise StoreCorruptError(_MSG_CORRUPT)
-            out[key] = {_check_stored_id(cid): CardState.from_record(s) for cid, s in cards.items()}
+            out[key] = {
+                _check_stored_id(cid): _entry_from_record(s, version) for cid, s in cards.items()
+            }
         return out
 
-    def _save(self, worlds: dict[str, dict[str, CardState]]) -> None:
+    def _worlds(self) -> dict[str, dict[str, CardState]]:
+        return {
+            key: {cid: entry[0] for cid, entry in cards.items()}
+            for key, cards in self._entries().items()
+        }
+
+    def _save(self, worlds: dict[str, dict[str, _Entry]]) -> None:
         payload = {
-            key: {cid: state.as_record() for cid, state in cards.items()}
+            key: {cid: _entry_record(entry) for cid, entry in cards.items()}
             for key, cards in worlds.items()
             if cards
         }
@@ -578,12 +624,14 @@ class Ledger(_Store):
         if not isinstance(state, CardState):
             raise TypeError(_MSG_BAD_KIND)
         with _locked(self._path()):
-            worlds = self._worlds()
+            worlds = self._entries()
             cards = worlds.setdefault(key, {})
             if state.kind == "new":
                 cards.pop(card_id, None)
             else:
-                cards[card_id] = state
+                # The card's rule is kept: a player write changes the state only.
+                known = cards.get(card_id)
+                cards[card_id] = (state, None if known is None else known[1])
             self._save(worlds)
 
     def recorded(self, token: str) -> tuple[tuple[str, CardState], ...]:
@@ -596,50 +644,71 @@ class Ledger(_Store):
         return tuple(sorted(cards.items()))
 
     def reconcile(
-        self, token: str, *, firing: Iterable[str], shown_new: Iterable[str]
+        self,
+        token: str,
+        *,
+        firing: Mapping[str, str],
+        settled: Iterable[str],
+        shown_new: Iterable[str],
     ) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """Record what one advice run implies for a world - the CS-1268 write path.
 
         Under one lock, over the world's recorded cards:
 
-        - a card recorded ``new`` or ``accepted`` whose id is not in ``firing``
-          becomes ``completed`` - the world now satisfies the advice;
-        - a card recorded ``completed`` whose id is in ``firing`` becomes
-          ``new`` - the world no longer satisfies it;
+        - a card recorded ``new`` or ``accepted`` that is not in ``firing``
+          becomes ``completed`` - the world now satisfies the advice - but ONLY
+          when its recorded rule is in ``settled``, a rule that reached a
+          definite verdict this run. A rule that raised, lacked an input, was
+          locked or was not run says nothing, and its cards are untouched
+          (CLAUDE.md non-negotiable 7). A card with no recorded rule is never
+          completed;
+        - a card recorded ``completed`` that is in ``firing`` becomes ``new`` -
+          the world no longer satisfies it;
         - a card in ``shown_new`` and ``firing`` with nothing recorded is
-          recorded ``new``, so it can be completed on a later run.
+          recorded ``new``, so it can be completed on a later run;
+        - every recorded card in ``firing`` records the rule it fired from.
 
         ``dismissed``, ``snoozed`` - lapsed or not - and ``pinned`` are the
-        player's own and are never changed here. The store is written only when
-        a state changed.
+        player's own and their state is never changed here. The store is written
+        only when something changed.
 
         Args:
             token: The world token.
-            firing: The ids of every card whose rule fires this run.
+            firing: Every card id that fires this run, mapped to its rule id.
+            settled: The rule ids that reached a definite verdict this run.
             shown_new: The ids of the cards shown in state ``new`` this run.
 
         Returns:
             The ids completed and the ids reopened, each sorted.
         """
         key = world_key(token)
-        live = frozenset(_check_id(cid) for cid in firing)
+        live = {_check_id(cid): _check_id(rule) for cid, rule in firing.items()}
+        decided = frozenset(_check_id(rule) for rule in settled)
         seen = frozenset(_check_id(cid) for cid in shown_new)
         with _locked(self._path()):
-            worlds = self._worlds()
+            worlds = self._entries()
             cards = worlds.setdefault(key, {})
             completed: list[str] = []
             reopened: list[str] = []
-            for cid, state in sorted(cards.items()):
-                if cid not in live and state.kind in _COMPLETABLE_KINDS:
-                    cards[cid] = CardState.completed()
+            changed = False
+            for cid, (state, rule) in sorted(cards.items()):
+                if cid in live:
+                    kind = "new" if state.kind == "completed" else state.kind
+                    if kind != state.kind:
+                        reopened.append(cid)
+                    entry = (CardState.new() if kind != state.kind else state, live[cid])
+                elif rule in decided and state.kind in _COMPLETABLE_KINDS:
                     completed.append(cid)
-                elif cid in live and state.kind == "completed":
-                    cards[cid] = CardState.new()
-                    reopened.append(cid)
-            added = sorted((seen & live) - set(cards))
-            for cid in added:
-                cards[cid] = CardState.new()
-            if completed or reopened or added:
+                    entry = (CardState.completed(), rule)
+                else:
+                    continue
+                if entry != (state, rule):
+                    cards[cid] = entry
+                    changed = True
+            for cid in sorted(seen & set(live) - set(cards)):
+                cards[cid] = (CardState.new(), live[cid])
+                changed = True
+            if changed:
                 self._save(worlds)
         return tuple(completed), tuple(reopened)
 
