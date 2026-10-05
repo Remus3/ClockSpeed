@@ -316,13 +316,16 @@ Worktree isolation blocks writes to the shared progress directory; agents write 
 SESSION 127 /done REPORT
 ================================================================================
 
-PUSH: <MAIN SESSION FILLS - range pushed, PUSH_EXIT read from the log, HEAD read back
-  against ls-remote>
-CI READ: <MAIN SESSION FILLS - tier1 run id, SHA and status as READ>. No tier2 run this
+PUSH: 5a7d151..f793d1f pushed, PUSH_EXIT=0 read from the log; HEAD read back equal to
+  ls-remote (f793d1f). This report rides ONE MORE commit: CONFIRM HEAD equals ls-remote.
+  MAIN ANSWER 0224 (v7/v6) DELIVERED via tools/outbound_send.py, gate CLEAN, 1/1 copy
+  re-hashed SHA-256 match.
+CI READ: tier1 37282708674 at f793d1f IN_PROGRESS when read - RESULT NOT KNOWN, READ IT FIRST. No tier2 run this
   session unless stated (still TWO green).
 PRIOR CI (session 126 open read, DONE): tier1 37262760914 at c6b7ba4 SUCCESS and tier1
   37264699918 at 5a7d151 SUCCESS, both read by the main session at session 127 start.
-SUITE: <MAIN SESSION FILLS - command, exit code, counts observed this run>
+SUITE: pre-push hook whole suite at f793d1f: 14491 passed, 12 skipped, 0 failed in 24m08s
+  (read from the push log). Builders ran targeted + census only.
 GATES (doc-records, before commit): drift_guard 0, doc_budget 0, memory_sync 0,
   sha_citation_gate 0;
   doc tests (-k doc/citation/drift/roadmap/ledger/gated/backlog/wakeup/claude) EXIT 1,
@@ -331,4 +334,6 @@ GATES (doc-records, before commit): drift_guard 0, doc_budget 0, memory_sync 0,
   tests/test_docs_citations.py GUARDED_DOCS, then test_docs_citations.py +
   test_citation_tables.py EXIT 0, 475 passed; tests/surface +
   tests/ops/test_lane_scope.py EXIT 0, 1771 passed.
-UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.
+VERIFIED: a verifier agent read the /done doc edits before commit (one drop found and
+  fixed: the prior CI read). UNVERIFIED: the doc -k set was not re-run whole after the
+  GUARDED_DOCS repair (only the two citation files); the pre-push suite covers it.
