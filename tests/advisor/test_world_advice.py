@@ -26,9 +26,13 @@ injected.
 from __future__ import annotations
 
 from dataclasses import replace
+from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+import pytest
+
+from clockspeed.advisor import advise as advise_module
 from clockspeed.advisor.advise import advise, advise_world, inputs_of, world_inputs
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import power
@@ -39,11 +43,14 @@ from clockspeed.audit.placement import placement_of
 from clockspeed.data.registry import Registry
 from clockspeed.save.world import RecordProperties, WorldModel, WorldProperties
 from tests.audit import test_balance as balance_fixtures
+from tests.audit import test_production as production_fixtures
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from clockspeed.advisor.trace import WorldInputs
+    from clockspeed.audit.balance import WorldBalance
+    from clockspeed.save.world import UnlockState
 
 #: The instant every resolution here reads. Injected, never a clock.
 NOW: Final = 1000
@@ -78,7 +85,11 @@ def gap_world() -> WorldModel:
 def by_hand(model: WorldModel, registry: Registry) -> WorldInputs:
     """The composition :func:`inputs_of` claims, spelled out through the audit."""
     balance = balance_of(
-        placement_of(model), registry.buildings, machines_of(model), network_of(model)
+        placement_of(model),
+        registry.buildings,
+        machines_of(model),
+        network_of(model),
+        generators=registry.generators,
     )
     return world_inputs(balance, model.unlocks)
 
@@ -164,3 +175,105 @@ def test_advise_world_writes_no_store(tmp_path: Path) -> None:
 
     created = len(list(tmp_path.iterdir()))
     assert created == 0
+
+
+# CS-1271: generated power is live through the advisor's own composition.
+#
+# THE CLAIM. :func:`inputs_of` hands ``balance_of`` the registry's generator
+# namespace, so a built generator reaches the balance the rules read. THE
+# ORACLE is ``balance_of`` called by hand WITH ``generators=registry.generators``
+# over the same world; the balance :func:`inputs_of` builds is captured by a
+# recording spy on :func:`world_inputs`, the one call it hands the balance to.
+# Red first: omitting the keyword leaves the flag False and no figure.
+
+
+def generator_registry() -> Registry:
+    """A registry carrying real generator spellings in both namespaces."""
+    return Registry(
+        items=MappingProxyType({}),
+        recipes=MappingProxyType({}),
+        buildings=production_fixtures.real_consumers(),
+        warnings=(),
+        unknown_groups=(),
+        generators=production_fixtures.real_generators(),
+    )
+
+
+def captured_balance(
+    model: WorldModel, registry: Registry, monkeypatch: pytest.MonkeyPatch
+) -> tuple[WorldInputs, WorldBalance]:
+    """Run :func:`inputs_of` and capture the balance it hands :func:`world_inputs`."""
+    seen: list[WorldBalance] = []
+
+    def spy(balance: WorldBalance, unlocks: UnlockState) -> WorldInputs:
+        seen.append(balance)
+        return world_inputs(balance, unlocks)
+
+    monkeypatch.setattr(advise_module, "world_inputs", spy)
+    built = inputs_of(model, registry)
+    calls = len(seen)
+    assert calls == 1
+    return built, seen[0]
+
+
+def test_inputs_of_makes_a_built_generators_capacity_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = balance_fixtures.world_of(production_fixtures.FUEL)
+    registry = generator_registry()
+    oracle = balance_of(
+        placement_of(model),
+        registry.buildings,
+        machines_of(model),
+        network_of(model),
+        generators=registry.generators,
+    )
+
+    built, balance = captured_balance(model, registry, monkeypatch)
+
+    offered = built.values[power.IN_PRODUCTION_AVAILABLE].value
+    available = balance.production_available
+    assert offered is True
+    assert available is True
+    assert balance.production is not None
+    assert oracle.production is not None
+    capacity = balance.production.capacity_megawatts
+    expected = oracle.production.capacity_megawatts
+    exact = type(capacity) is Fraction
+    assert exact
+    assert capacity == expected
+    assert capacity == production_fixtures.FUEL_MEGAWATTS
+
+
+def test_a_registry_with_no_generator_namespace_keeps_production_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = balance_fixtures.world_of(balance_fixtures.FIXED_WHOLE)
+
+    built, balance = captured_balance(model, synthetic_registry(), monkeypatch)
+
+    offered = built.values[power.IN_PRODUCTION_AVAILABLE].value
+    assert offered is False
+    assert balance.production is None
+
+
+def test_a_world_with_no_built_generator_is_an_exact_zero_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MEASURED balance_of contract (CS-1059): a non-empty namespace computes a figure.
+
+    With the registry's generator namespace supplied and no generator built,
+    ``balance_of`` computes a complete production model of exactly zero, so
+    the flag is True. Pinned so the behaviour is explicit, not assumed.
+    """
+    model = balance_fixtures.world_of()
+
+    built, balance = captured_balance(model, generator_registry(), monkeypatch)
+
+    offered = built.values[power.IN_PRODUCTION_AVAILABLE].value
+    assert offered is True
+    assert balance.production is not None
+    capacity = balance.production.capacity_megawatts
+    complete = balance.production.production_complete
+    assert capacity == Fraction(0)
+    assert complete is True

@@ -184,8 +184,9 @@ def world_inputs(balance: WorldBalance, unlocks: UnlockState) -> WorldInputs:
 
     Offers every input the D4 power family reads from the balance, each sourced
     to its audit field, and the unlock key set the engine checks declared
-    unlocks against. Generation is not offered: no audit model publishes it
-    yet (CS-1059).
+    unlocks against. The balance's ``production_available`` flag is offered;
+    its generation figure is not, because the power adapter offers no
+    generation input yet.
     """
     return WorldInputs(values=balance_inputs(balance), unlocks=unlock_keys(unlocks))
 
@@ -195,8 +196,10 @@ def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
 
     Composes the audit models the power balance needs - placement, machines
     and network, each read off the model - prices them against the registry's
-    buildings, and hands the balance and the model's unlock state to
-    :func:`world_inputs`. Reads no file: both arguments are already parsed.
+    buildings, hands it the registry's generator namespace so a built
+    generator's capacity is computed (CS-1271), and hands the balance and the
+    model's unlock state to :func:`world_inputs`. Reads no file: both
+    arguments are already parsed.
 
     Args:
         model: The world model the surface holds.
@@ -206,7 +209,11 @@ def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
         The rule inputs.
     """
     balance = balance_of(
-        placement_of(model), registry.buildings, machines_of(model), network_of(model)
+        placement_of(model),
+        registry.buildings,
+        machines_of(model),
+        network_of(model),
+        generators=registry.generators,
     )
     return world_inputs(balance, model.unlocks)
 
