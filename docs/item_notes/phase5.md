@@ -410,8 +410,11 @@ enumerating the audit warning codes yields a minimal synthetic fixture for every
 The AUDIT HALF is met: `tests/audit/test_every_warning_fires.py` derives the audit warning
 set from the package and fires every code from a synthetic fixture, and dropping one entry
 reddens exactly the arm naming that code. It surfaced one code no test fired before,
-`WARN_FOOTPRINT_EXTENT_UNAVAILABLE`. The ADVISOR-RULE half stays OPEN until CS-500's rule
-registry exists; that is the only reason this item is not closed.
+`WARN_FOOTPRINT_EXTENT_UNAVAILABLE`. The ADVISOR-RULE half now has its registry:
+`tests/advisor/test_every_rule_fires.py` derives the rule ids from `registered_rules()` and
+holds a firing and a silent fixture per rule, and dropping any one of them reddens exactly
+the completeness arm naming that rule id - its drop arm's anti-vacuity guard grades the
+registry, not the table a drop shrinks.
 
 ## CS-1240
 

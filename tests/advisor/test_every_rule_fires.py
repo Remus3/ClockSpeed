@@ -226,13 +226,19 @@ def test_dropping_any_one_fixture_is_named_alone(table_name: str) -> None:
 
     RELATIVE TO THE TABLE AS IT STANDS, so a real gap reddens the completeness
     arm alone and never this one beside it.
+
+    THE ANTI-VACUITY GUARD GRADES THE FULL REGISTERED SET, NEVER THE TABLE. A
+    guard on the table's own size reddened here too whenever one fixture of a
+    two-rule registry was dropped - a second failure that did not name the
+    rule. The registry is what the drop is measured against, so its size is
+    what must exceed one.
     """
     table = FIRING if table_name == "FIRING" else SILENT
     derived = _registry_ids()
     baseline = uncovered(table, derived)
     stale = orphaned(table, derived)
-    entries = len(table)
-    assert entries > 1, "a drop over a one-entry table proves nothing about the others"
+    registered = len(derived)
+    assert registered > 1, "a drop over a one-rule registry proves nothing about the others"
     for name in sorted(set(table) & set(derived)):
         remaining = [other for other in table if other != name]
         assert uncovered(remaining, derived) == sorted({*baseline, name}), name
