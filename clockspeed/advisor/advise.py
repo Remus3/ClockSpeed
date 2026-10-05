@@ -34,11 +34,17 @@ from the directory on every call, so the same advice on a later save of the
 same world - numbers moved, stores rebuilt from disk - meets the state
 recorded for it before.
 
-READ-ONLY. :func:`advise` never writes either store; recording a state or a
-mute is the caller's act through the store's own methods. ``completed`` is
-not set automatically here: the ledger offers no listing of a world's
-recorded cards, so the advice that STOPPED firing cannot be found from this
-side yet.
+READ-ONLY, AND THE ONE WRITE PATH. :func:`advise` never writes either store;
+recording a state or a mute is the caller's act through the store's own
+methods. ``completed`` (BOOTSTRAP.md section 5.2) is set by the stated write
+path, :func:`advise_and_record` (CS-1268): it runs :func:`advise`, then hands
+the ledger every firing card id and every card shown ``new`` through
+:meth:`clockspeed.advisor.ledger.Ledger.reconcile`. A recorded ``new`` or
+``accepted`` card whose rule no longer fires becomes ``completed``; a
+``completed`` card whose rule fires again is surfaced as ``new``; the player's
+``dismissed``, ``snoozed`` and ``pinned`` are never changed. Both transitions
+are surfaced on :attr:`Advice.completed` and :attr:`Advice.reopened`. It never
+writes the mute store.
 
 SEAMS. This module consumes the audit models, the unlock state, the rule
 registry and the stores. It opens no save, reads no docs file and renders
@@ -114,11 +120,17 @@ class Advice:
         cards: Every card a trace yielded, ordered by rule id then card id,
             each resolved against both persistence layers.
         new_world: Whether the ledger held nothing for this world token.
+        completed: The card ids this run recorded ``completed``, sorted -
+            always empty from the read-only :func:`advise`.
+        reopened: The card ids this run moved from ``completed`` back to
+            ``new``, sorted - always empty from the read-only :func:`advise`.
     """
 
     traces: tuple[Trace, ...]
     cards: tuple[AdvisedCard, ...]
     new_world: bool
+    completed: tuple[str, ...] = ()
+    reopened: tuple[str, ...] = ()
 
     @property
     def shown(self) -> tuple[AdvisedCard, ...]:
@@ -129,7 +141,8 @@ class Advice:
         """Render counts and the new-world flag only."""
         return (
             f"Advice(traces={len(self.traces)}, cards={len(self.cards)}, "
-            f"shown={len(self.shown)}, new_world={self.new_world})"
+            f"shown={len(self.shown)}, new_world={self.new_world}, "
+            f"completed={len(self.completed)}, reopened={len(self.reopened)})"
         )
 
 
@@ -206,6 +219,51 @@ def advise(
         for card in cards_for(traces)
     )
     return Advice(traces=traces, cards=advised, new_world=new_world)
+
+
+def advise_and_record(
+    token: str,
+    world: WorldInputs,
+    *,
+    ledger: Ledger,
+    mutes: MuteStore,
+    now: int,
+    rules: tuple[RuleSpec, ...] | None = None,
+) -> Advice:
+    """Advise over one world, then record what the run implies (CS-1268).
+
+    The one advisor call that writes the per-world ledger. It never writes the
+    mute store. Arguments are :func:`advise`'s.
+
+    Returns:
+        The advice, each reopened card resolved to ``new``, with the run's
+        transitions on :attr:`Advice.completed` and :attr:`Advice.reopened`.
+        ``new_world`` answers for the ledger as it stood BEFORE this run.
+
+    Raises:
+        clockspeed.advisor.ledger.StoreError: as :func:`advise` raises it, or
+            the ledger could not be written.
+    """
+    advice = advise(token, world, ledger=ledger, mutes=mutes, now=now, rules=rules)
+    completed, reopened = ledger.reconcile(
+        token,
+        firing=(advised.card.id for advised in advice.cards),
+        shown_new=(advised.card.id for advised in advice.shown if advised.state.kind == "new"),
+    )
+    back = frozenset(reopened)
+    cards = tuple(
+        AdvisedCard(card=advised.card, state=CardState.new(), muted=advised.muted)
+        if advised.card.id in back
+        else advised
+        for advised in advice.cards
+    )
+    return Advice(
+        traces=advice.traces,
+        cards=cards,
+        new_world=advice.new_world,
+        completed=completed,
+        reopened=reopened,
+    )
 
 
 def advise_world(

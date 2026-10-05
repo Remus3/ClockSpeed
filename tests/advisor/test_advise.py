@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 
 from clockspeed.advisor import advise as advise_mod
-from clockspeed.advisor.advise import Advice, advise, world_inputs
+from clockspeed.advisor.advise import Advice, advise, advise_and_record, world_inputs
 from clockspeed.advisor.cards import card_for
 from clockspeed.advisor.ledger import (
     LEDGER_FILENAME,
@@ -428,3 +428,196 @@ def test_the_headroom_card_id_survives_a_moved_generation(tmp_path: Path) -> Non
     assert count == (1, 1)
     assert head_a[0].id == head_b[0].id
     assert head_a[0].tier1 != head_b[0].tier1
+
+
+# --- CS-1268: completed when advice stops firing, and the world listing ------------
+#
+# BOOTSTRAP.md section 5.2: ``completed`` is set automatically when the world
+# state satisfies the advice, and the transition is surfaced. The read-only
+# advise() cannot find a card that STOPPED firing, so the write path is
+# advise_and_record(), over Ledger.reconcile() and the listing Ledger.recorded().
+# The ruling filed with CS-1268 (docs/item_notes/phase5.md): a completed card
+# whose rule fires again is surfaced as ``new``; a card the player set
+# ``dismissed``, ``snoozed`` or ``pinned`` keeps that state. A rule "stops
+# firing" when the same rule id returns no recommendation.
+
+RULE = "synthetic.completion"
+OTHER = "synthetic.steady"
+
+WORLD = WorldInputs(values={}, unlocks=frozenset())
+
+
+def _spec(rule_id: str, *, fires: bool) -> RuleSpec:
+    def _evaluate(_ctx: RuleContext) -> Recommendation | None:
+        if not fires:
+            return None
+        return Recommendation(subject_key=f"{rule_id}-s", action="Do the thing", reason="because")
+
+    return RuleSpec(rule_id=rule_id, domain="power", inputs=(), unlocks=(), evaluate=_evaluate)
+
+
+def _rules(*, fires: bool) -> tuple[RuleSpec, ...]:
+    return (_spec(RULE, fires=fires), _spec(OTHER, fires=True))
+
+
+def _record(directory: Path, *, fires: bool, token: str = TOKEN_A) -> Advice:
+    """One load: stores rebuilt from the directory, the write path run."""
+    return advise_and_record(
+        token,
+        WORLD,
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=NOW,
+        rules=_rules(fires=fires),
+    )
+
+
+def _card_id(advice: Advice, rule_id: str) -> str:
+    ids = [a.card.id for a in advice.cards if a.card.rule_id == rule_id]
+    count = len(ids)
+    assert count == 1
+    return ids[0]
+
+
+def _recorded(directory: Path, token: str = TOKEN_A) -> dict[str, CardState]:
+    return dict(Ledger(directory).recorded(token))
+
+
+# --- the listing ----------------------------------------------------------------
+
+
+def test_the_ledger_lists_one_worlds_recorded_cards(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    led.set_state(TOKEN_A, "c-2", CardState.pinned())
+    led.set_state(TOKEN_A, "c-1", CardState.accepted())
+    led.snooze(TOKEN_A, "c-3", until=NOW + 5, now=NOW)
+    led.set_state(TOKEN_B, "c-other", CardState.dismissed())
+    listed = Ledger(tmp_path).recorded(TOKEN_A)
+    assert listed == (
+        ("c-1", CardState.accepted()),
+        ("c-2", CardState.pinned()),
+        ("c-3", CardState.snoozed(NOW + 5)),
+    )
+
+
+def test_an_unseen_world_lists_nothing(tmp_path: Path) -> None:
+    assert Ledger(tmp_path).recorded(TOKEN_A) == ()
+
+
+# --- the completed transition ---------------------------------------------------
+
+
+@pytest.mark.parametrize("recorded", ["accepted", "new"])
+def test_a_shown_card_whose_rule_stops_firing_is_completed_on_disk(
+    tmp_path: Path, recorded: str
+) -> None:
+    first = _record(tmp_path, fires=True)
+    card = _card_id(first, RULE)
+    if recorded == "accepted":
+        Ledger(tmp_path).set_state(TOKEN_A, card, CardState.accepted())
+    shown = [a.card.id for a in first.shown]
+    assert card in shown
+
+    second = _record(tmp_path, fires=False)
+    assert _recorded(tmp_path)[card] == CardState.completed()
+    transitions = second.completed == (card,) and second.reopened == ()
+    assert transitions
+
+
+def test_the_steady_card_is_not_completed(tmp_path: Path) -> None:
+    first = _record(tmp_path, fires=True)
+    steady = _card_id(first, OTHER)
+    second = _record(tmp_path, fires=False)
+    assert _recorded(tmp_path)[steady] == CardState.new()
+    untouched = steady not in second.completed
+    assert untouched
+
+
+def test_a_completed_card_whose_rule_fires_again_is_surfaced_as_new(tmp_path: Path) -> None:
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    _record(tmp_path, fires=False)
+    again = _record(tmp_path, fires=True)
+    found = [(a.state, a.visible) for a in again.cards if a.card.id == card]
+    assert found == [(CardState.new(), True)]
+    transitions = again.reopened == (card,) and again.completed == ()
+    assert transitions
+    assert _recorded(tmp_path)[card] == CardState.new()
+
+
+@pytest.mark.parametrize(
+    "state",
+    [CardState.dismissed(), CardState.pinned(), CardState.snoozed(NOW + 1)],
+)
+def test_a_player_state_survives_its_rule_stopping(tmp_path: Path, state: CardState) -> None:
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    Ledger(tmp_path).set_state(TOKEN_A, card, state)
+    second = _record(tmp_path, fires=False)
+    assert _recorded(tmp_path)[card] == state
+    none_completed = second.completed == ()
+    assert none_completed
+
+
+def test_a_lapsed_snooze_whose_rule_stops_keeps_its_snooze(tmp_path: Path) -> None:
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    Ledger(tmp_path).snooze(TOKEN_A, card, until=NOW, now=NOW - 1)
+    _record(tmp_path, fires=False)
+    assert _recorded(tmp_path)[card] == CardState.snoozed(NOW)
+
+
+def test_a_muted_new_card_is_never_recorded_as_shown(tmp_path: Path) -> None:
+    MuteStore(tmp_path).mute(RULE)
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    second = _record(tmp_path, fires=False)
+    assert card not in _recorded(tmp_path)
+    none_completed = second.completed == ()
+    assert none_completed
+
+
+def test_completion_does_not_cross_worlds(tmp_path: Path) -> None:
+    card = _card_id(_record(tmp_path, fires=True), RULE)
+    _record(tmp_path, fires=False, token=TOKEN_B)
+    assert _recorded(tmp_path)[card] == CardState.new()
+    assert card not in _recorded(tmp_path, TOKEN_B)
+
+
+def test_two_runs_over_the_same_inputs_give_the_same_states(tmp_path: Path) -> None:
+    def _sequence(directory: Path) -> list[tuple[object, ...]]:
+        out: list[tuple[object, ...]] = []
+        for fires in (True, False, False, True, True):
+            advice = _record(directory, fires=fires)
+            out.append(
+                (
+                    tuple((a.card.id, a.state) for a in advice.cards),
+                    advice.completed,
+                    advice.reopened,
+                    Ledger(directory).recorded(TOKEN_A),
+                )
+            )
+        return out
+
+    left = _sequence(tmp_path / "left")
+    right = _sequence(tmp_path / "right")
+    assert left == right
+    same_bytes = (tmp_path / "left" / "ledger.json").read_bytes() == (
+        tmp_path / "right" / "ledger.json"
+    ).read_bytes()
+    assert same_bytes
+
+
+def test_the_read_only_advise_still_writes_nothing_and_reports_no_transition(
+    tmp_path: Path,
+) -> None:
+    led, mutes = Ledger(tmp_path), MuteStore(tmp_path)
+    advice = advise(TOKEN_A, WORLD, ledger=led, mutes=mutes, now=NOW, rules=_rules(fires=True))
+    no_transition = (advice.completed, advice.reopened) == ((), ())
+    assert no_transition
+    written = sorted(p.name for p in tmp_path.iterdir())
+    assert written == []
+
+
+def test_the_advice_repr_renders_transition_counts_only(tmp_path: Path) -> None:
+    _record(tmp_path, fires=True)
+    second = _record(tmp_path, fires=False)
+    rendered = repr(second)
+    leaked = second.completed[0] in rendered or TOKEN_A in rendered
+    assert leaked is False

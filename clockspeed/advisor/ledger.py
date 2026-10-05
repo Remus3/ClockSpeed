@@ -76,7 +76,7 @@ import re
 import secrets
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Final
 
@@ -87,6 +87,10 @@ SCHEMA_VERSION: Final = 1
 CARD_STATE_KINDS: Final = frozenset(
     {"new", "accepted", "dismissed", "snoozed", "pinned", "completed"}
 )
+
+#: The recorded kinds a run completes when their rule stops firing (CS-1268).
+#: The player's own ``dismissed``, ``snoozed`` and ``pinned`` are never in it.
+_COMPLETABLE_KINDS: Final = frozenset({"new", "accepted"})
 
 #: The per-world ledger's file name. Fixed, and never derived from a token.
 LEDGER_FILENAME: Final = "ledger.json"
@@ -294,7 +298,9 @@ class CardState:
         # A snooze carries an int until and nothing else carries the key at
         # all - not even as null, which this version never writes.
         expected = {"state", "until"} if kind == "snoozed" else {"state"}
-        if set(doc) != expected or kind not in CARD_STATE_KINDS or kind == "new":
+        # ``new`` IS stored once a card has been shown (CS-1268), so the card
+        # can be completed when its rule stops firing.
+        if set(doc) != expected or kind not in CARD_STATE_KINDS:
             raise StoreCorruptError(_MSG_CORRUPT)
         until = doc.get("until")
         if until is not None and type(until) is not int:
@@ -562,7 +568,11 @@ class Ledger(_Store):
         return found
 
     def set_state(self, token: str, card_id: str, state: CardState) -> None:
-        """Record a card's state in a world. Recording ``new`` forgets the card."""
+        """Record a card's state in a world. Recording ``new`` forgets the card.
+
+        Forgetting is the player's restore: the card reads ``new`` again, and
+        :meth:`reconcile` records it once more the next time it is shown.
+        """
         key = world_key(token)
         _check_id(card_id)
         if not isinstance(state, CardState):
@@ -575,6 +585,63 @@ class Ledger(_Store):
             else:
                 cards[card_id] = state
             self._save(worlds)
+
+    def recorded(self, token: str) -> tuple[tuple[str, CardState], ...]:
+        """List one world's recorded cards, ordered by card id (CS-1268).
+
+        Every state is as recorded - a snooze is NOT resolved against a clock
+        or an instant here. An unseen world lists nothing.
+        """
+        cards = self._worlds().get(world_key(token), {})
+        return tuple(sorted(cards.items()))
+
+    def reconcile(
+        self, token: str, *, firing: Iterable[str], shown_new: Iterable[str]
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Record what one advice run implies for a world - the CS-1268 write path.
+
+        Under one lock, over the world's recorded cards:
+
+        - a card recorded ``new`` or ``accepted`` whose id is not in ``firing``
+          becomes ``completed`` - the world now satisfies the advice;
+        - a card recorded ``completed`` whose id is in ``firing`` becomes
+          ``new`` - the world no longer satisfies it;
+        - a card in ``shown_new`` and ``firing`` with nothing recorded is
+          recorded ``new``, so it can be completed on a later run.
+
+        ``dismissed``, ``snoozed`` - lapsed or not - and ``pinned`` are the
+        player's own and are never changed here. The store is written only when
+        a state changed.
+
+        Args:
+            token: The world token.
+            firing: The ids of every card whose rule fires this run.
+            shown_new: The ids of the cards shown in state ``new`` this run.
+
+        Returns:
+            The ids completed and the ids reopened, each sorted.
+        """
+        key = world_key(token)
+        live = frozenset(_check_id(cid) for cid in firing)
+        seen = frozenset(_check_id(cid) for cid in shown_new)
+        with _locked(self._path()):
+            worlds = self._worlds()
+            cards = worlds.setdefault(key, {})
+            completed: list[str] = []
+            reopened: list[str] = []
+            for cid, state in sorted(cards.items()):
+                if cid not in live and state.kind in _COMPLETABLE_KINDS:
+                    cards[cid] = CardState.completed()
+                    completed.append(cid)
+                elif cid in live and state.kind == "completed":
+                    cards[cid] = CardState.new()
+                    reopened.append(cid)
+            added = sorted((seen & live) - set(cards))
+            for cid in added:
+                cards[cid] = CardState.new()
+            if completed or reopened or added:
+                self._save(worlds)
+        return tuple(completed), tuple(reopened)
 
     def snooze(self, token: str, card_id: str, *, until: int, now: int) -> None:
         """Snooze a card until ``until``, which must lie after the injected ``now``."""
