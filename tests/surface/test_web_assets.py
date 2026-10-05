@@ -2288,6 +2288,8 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         # CS-1270: both advice reads left ``pending.UNBACKED`` for their owner.
         advice_endpoint.ENDPOINT: advice_endpoint.METHOD_GET,
         advice_endpoint.DERIVATION_ENDPOINT: advice_endpoint.METHOD_GET,
+        # CS-1269: the state write left ``pending.UNBACKED`` for its owner too.
+        advice_endpoint.STATE_ENDPOINT: advice_endpoint.METHOD_POST,
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 

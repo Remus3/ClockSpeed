@@ -59,7 +59,7 @@ import time
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor.advise import advise_world
-from clockspeed.advisor.ledger import Ledger, MuteStore, StoreError
+from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
 from clockspeed.data.docs_extract import DocsExtractError, load_document, read_docs_text
 from clockspeed.save import workdir
@@ -261,10 +261,16 @@ class StoreAdviceSource:
     the audit models, runs the rules and resolves every card. No surface module
     imports ``clockspeed.audit``; the advisor is the layer that consumes it.
 
-    READ-ONLY. The ledger and the mute store are only READ: each read takes the
-    whole file in one open, and every writer replaces the file atomically, so a
-    read never sees a half-written store. Nothing here records a state or a
-    mute - a GET never writes, and the state route waits on CS-1269.
+    :meth:`advice` ONLY READS. The ledger and the mute store are read whole in
+    one open, and every writer replaces the file atomically, so a read never
+    sees a half-written store - a GET never writes.
+
+    :meth:`record` IS THE ONE WRITE (CS-1269), and it is the advisor's own
+    ``Ledger.set_state`` or ``Ledger.snooze``: the surface hands over the world
+    token, the card id and the kind, and the ledger decides whether a snooze
+    ends after now. It is reached only through ``POST /api/advice/<id>/state``,
+    which the server admits only with a same-origin proof. Mutes are not
+    recorded here.
 
     THE CLOCK IS INJECTED and read once per call, only when advice is asked
     for; the default is the wall clock in whole seconds.
@@ -310,6 +316,34 @@ class StoreAdviceSource:
             )
         except StoreError:
             return None
+
+    def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
+        """Record one card's state in the world's ledger.
+
+        Args:
+            world: The world the card was advised over. Its header token keys
+                the ledger and goes nowhere else.
+            card_id: A card id the current advice lists.
+            kind: A state kind the endpoint has already checked.
+            until: The snooze end instant for ``snoozed``, None otherwise.
+
+        Returns:
+            True when written; False when the ledger refused the value - a
+            snooze that does not end after now, or a kind it does not know; None
+            when the store could not be read or written, in which case it is
+            left byte-for-byte unchanged.
+        """
+        ledger = Ledger(self._directory)
+        try:
+            if until is None:
+                ledger.set_state(world.token, card_id, CardState(kind))
+            else:
+                ledger.snooze(world.token, card_id, until=until, now=self._clock())
+        except StoreError:
+            return None
+        except (ValueError, TypeError):
+            return False
+        return True
 
 
 class StaticAssets:

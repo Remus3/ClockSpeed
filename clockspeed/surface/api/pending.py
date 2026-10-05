@@ -1,14 +1,15 @@
 """The endpoints whose published body does not exist yet, answering so.
 
-Owns (BOOTSTRAP.md section 7.1): the wire behaviour of ``/api/advice/<id>/state``,
-``/api/audit`` and ``/api/plan`` until the items named in :data:`BLOCKERS` build
-what answers them. ``/api/advice`` and ``/api/advice/<id>/derivation`` left this
-module when CS-1270 gave the advisor a function building its inputs from a
-world; ``clockspeed/surface/api/advice.py`` answers both.
+Owns (BOOTSTRAP.md section 7.1): the wire behaviour of ``/api/audit`` and
+``/api/plan`` until the item named in :data:`BLOCKERS` builds what answers them.
+``/api/advice`` and ``/api/advice/<id>/derivation`` left this module when
+CS-1270 gave the advisor a function building its inputs from a world, and
+``/api/advice/<id>/state`` left it when CS-1269 put a same-origin refusal in
+front of every mutating request; ``clockspeed/surface/api/advice.py`` answers
+all three, and publishes the state route's 405 boundary beside them.
 
 THESE ANSWER HONESTLY RATHER THAN PLAUSIBLY, WHICH IS THE WHOLE MODULE. The
-state route has no defended write path (CS-1269), and the audit and plan bodies
-are unpublished (CS-1046). An endpoint that
+audit and plan bodies are unpublished (CS-1046). An endpoint that
 returned ``200`` with ``{"cards": []}`` would be indistinguishable - to a
 dashboard, to a client, to an operator reading a log - from a world that
 genuinely has no advice to give, and that is non-negotiable 7 at the surface:
@@ -28,16 +29,6 @@ every blame here to be re-pointed. The partition arm in
 ``tests/surface/test_pending.py`` closes the other direction: a route here that
 becomes real must MOVE, because its 501 is asserted rather than merely
 tolerated.
-
-WHY THE ADVICE-STATE ROUTE IS A POST, AND WHY A GET ON IT IS 405 RATHER THAN 501.
-``/api/advice/<id>/state`` is where a card is accepted, dismissed, snoozed or
-pinned, so it MUTATES the per-world advice ledger - a POST, not a GET. The
-distinction the 405 protects is real and is not pedantry: 501 says "the layer
-beneath this does not exist yet" and 405 says "this path is real, that verb is
-not". Answering 501 to a GET would report a route this repository has written as
-unwritten, which is the same misinformation as the empty success body, pointed
-the other way. The two are published as separate routes so the boundary is
-answerable without a running listener and gradeable without one.
 
 THIS MODULE READS NOTHING AND COMPUTES NOTHING, and it needs no provider to say
 so. A refusal that had to consult a world before it could refuse would fail on a
@@ -67,16 +58,11 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 __all__ = [
-    "ADVICE_STATE_ENDPOINT",
     "AUDIT_ENDPOINT",
     "BLOCKERS",
-    "METHOD_BOUNDARY",
     "METHOD_GET",
-    "METHOD_POST",
     "PLAN_ENDPOINT",
     "UNBACKED",
-    "method_boundary_routes",
-    "method_refusal_handler",
     "not_implemented_handler",
     "routes",
 ]
@@ -86,10 +72,6 @@ __all__ = [
 # The route templates
 # ---------------------------------------------------------------------------
 
-#: Pillar 5, persistence. Accept, dismiss, snooze or pin one card. MUTATING,
-#: hence POST.
-ADVICE_STATE_ENDPOINT: Final = "/api/advice/<id>/state"
-
 #: Pillar 3. The whole-world audit against what is actually built.
 AUDIT_ENDPOINT: Final = "/api/audit"
 
@@ -97,19 +79,14 @@ AUDIT_ENDPOINT: Final = "/api/audit"
 PLAN_ENDPOINT: Final = "/api/plan"
 
 METHOD_GET: Final = "GET"
-METHOD_POST: Final = "POST"
 
 #: The open item each unbacked template names. A BLAME PER TEMPLATE since CS-500
-#: closed: the single phase gate that blocked all of them is gone, and what is
-#: left is blocked by different items. The advice reads left this table when
-#: CS-1270 closed. The state route waits on CS-1269, which records a card state
-#: behind a cross-origin refusal - a mutating route on a listener with no such
-#: refusal is a write any page in a browser could make. ``/api/audit`` and ``/api/plan`` wait on
-#: CS-1046, which publishes their bodies. A ``MappingProxyType`` so nothing
-#: holding it can rewrite a blame.
+#: closed: the single phase gate that blocked all of them is gone. The advice
+#: reads left this table when CS-1270 closed, and the state route when CS-1269
+#: did. ``/api/audit`` and ``/api/plan`` wait on CS-1046, which publishes their
+#: bodies. A ``MappingProxyType`` so nothing holding it can rewrite a blame.
 BLOCKERS: Final[Mapping[str, str]] = MappingProxyType(
     {
-        ADVICE_STATE_ENDPOINT: "CS-1269",
         AUDIT_ENDPOINT: "CS-1046",
         PLAN_ENDPOINT: "CS-1046",
     }
@@ -118,16 +95,9 @@ BLOCKERS: Final[Mapping[str, str]] = MappingProxyType(
 #: Every method-and-template pair with no layer beneath it. The order is the
 #: order routes are published in, and it is stable so two runs agree.
 UNBACKED: Final[tuple[tuple[str, str], ...]] = (
-    (METHOD_POST, ADVICE_STATE_ENDPOINT),
     (METHOD_GET, AUDIT_ENDPOINT),
     (METHOD_GET, PLAN_ENDPOINT),
 )
-
-#: Method-and-template pairs that exist ONLY to say the verb is wrong. Published
-#: as routes rather than left to a router's fallback so the 405-versus-501
-#: boundary is answerable and gradeable without standing up a listener, and so
-#: the answer comes from the same constructor either way.
-METHOD_BOUNDARY: Final[tuple[tuple[str, str], ...]] = ((METHOD_GET, ADVICE_STATE_ENDPOINT),)
 
 
 # ---------------------------------------------------------------------------
@@ -160,23 +130,6 @@ def not_implemented_handler(endpoint: str) -> contract.Handler:
     return handler
 
 
-def method_refusal_handler(endpoint: str) -> contract.Handler:
-    """A handler that says the path is real and the verb is not.
-
-    Args:
-        endpoint: The route template that matched.
-
-    Returns:
-        The handler, answering 405. Deliberately NOT 501: the resource exists,
-        and only the method is wrong.
-    """
-
-    def handler(_parameters: Mapping[str, str]) -> contract.Response:
-        return contract.method_not_allowed(endpoint)
-
-    return handler
-
-
 def routes() -> tuple[contract.Route, ...]:
     """The unbacked endpoints, one route each, ready to be registered.
 
@@ -184,18 +137,14 @@ def routes() -> tuple[contract.Route, ...]:
     module docstring. A refusal that consulted a world first would fail
     differently on a machine with no save.
 
-    ONE ROUTE PER TEMPLATE, AND THE METHOD-BOUNDARY ROUTE IS PUBLISHED
-    SEPARATELY. That separation is a seam requirement rather than taste. The
-    aggregate route table this project assembles is keyed BY TEMPLATE where it
-    is read - ``{route.template: route.method for route in ROUTES}`` in
-    ``tests/surface/test_acceptance.py`` - and is asserted to hold exactly the
-    templates ``BOOTSTRAP.md`` section 7.1 names, counted before anything
-    iterates. A second entry under ``/api/advice/<id>/state`` would be silently
-    dropped by that mapping, and which of the two survived would depend on
-    iteration order: the aggregate would still hold one entry per published
-    template while answering one of them with the wrong verb. Publishing the two
-    sets through two accessors makes the assembler state which it wants instead
-    of guessing.
+    ONE ROUTE PER TEMPLATE. The aggregate route table this project assembles is
+    keyed BY TEMPLATE where it is read - ``{route.template: route.method for
+    route in ROUTES}`` in ``tests/surface/test_acceptance.py`` - so a second
+    entry under a template already present would be silently dropped by that
+    mapping. The
+    method-boundary route that answers 405 on the state template is published
+    apart, through ``clockspeed/surface/api/advice.py::method_boundary_routes``,
+    for that reason.
 
     HOW MANY TEMPLATES THAT IS, THIS MODULE DOES NOT SAY (CS-927). The sentence
     above spelled the number until CS-912 published ``/api/registry`` and moved
@@ -214,24 +163,4 @@ def routes() -> tuple[contract.Route, ...]:
     return tuple(
         contract.Route(method=method, template=template, handler=not_implemented_handler(template))
         for method, template in UNBACKED
-    )
-
-
-def method_boundary_routes() -> tuple[contract.Route, ...]:
-    """The routes that exist only to answer 405 rather than 404.
-
-    Published apart from :func:`routes` - see there for why. A server whose
-    router synthesises a 405 from a template match needs neither of these; one
-    that registers method-and-template pairs verbatim needs both, and gets the
-    same answer either way because both go through
-    ``contract.method_not_allowed``.
-
-    Returns:
-        The method-boundary routes, in a stable order. Every template here also
-        appears in :func:`routes` under a different method, which is what makes
-        405 rather than 404 the honest answer.
-    """
-    return tuple(
-        contract.Route(method=method, template=template, handler=method_refusal_handler(template))
-        for method, template in METHOD_BOUNDARY
     )

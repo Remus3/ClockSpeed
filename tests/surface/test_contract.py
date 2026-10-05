@@ -84,8 +84,9 @@ SOLVER_MODULES: Final = (ratio, optimize)
 #: a table that shrank the same way.
 EXPECTED_SOLVER_EXCEPTIONS: Final = 12
 
-#: HTTP codes the envelope admits: 200, 400, 404, 405, 501 and 503.
-EXPECTED_HTTP_CODES: Final = 6
+#: HTTP codes the envelope admits: 200, 400, 403, 404, 405, 501 and 503. 403
+#: joined for CS-1269's same-origin refusal.
+EXPECTED_HTTP_CODES: Final = 7
 
 #: Body status words: ok, not_implemented, unavailable, error.
 EXPECTED_STATUSES: Final = 4
@@ -696,6 +697,7 @@ def _conforming() -> tuple[contract.Response, ...]:
         contract.not_implemented(SAMPLE_TEMPLATE_WITH_PARAMETER, sorted(contract.OPEN_BLOCKERS)[0]),
         contract.unavailable(SAMPLE_ENDPOINT, contract.REASON_NO_SAVE),
         contract.bad_request(SAMPLE_ENDPOINT, contract.REASON_MISSING_PARAMETER),
+        contract.forbidden(SAMPLE_ENDPOINT, contract.REASON_CROSS_ORIGIN_REFUSED),
         contract.no_such_route(),
         contract.method_not_allowed(SAMPLE_ENDPOINT),
     )

@@ -46,8 +46,9 @@ e. THE CLAIM ``pending.py`` ACTUALLY MAKES IS GRADED, NOT MERELY ITS ARITHMETIC.
    does not collapse under that keying, AND folding the method-boundary routes
    back in DOES collapse it. The second half is the non-vacuity control - without
    it "does not collapse" would also pass over a table where collapse was
-   impossible, and the separation ``pending.routes`` and
-   ``pending.method_boundary_routes`` exist to maintain would be untested.
+   impossible, and the separation ``routes.ROUTES`` and
+   ``advice.method_boundary_routes`` exist to maintain would be untested. The
+   boundary accessor moved from ``pending`` to ``advice`` with CS-1269.
 
 WHAT THIS MODULE DOES NOT COVER, stated as a boundary rather than left implied.
 It grades ``pending.py`` ONLY. The same stale sentence lives in
@@ -252,9 +253,7 @@ def test_the_aggregate_table_names_exactly_the_published_templates() -> None:
 
 def test_every_pending_template_is_one_the_aggregate_publishes() -> None:
     published = frozenset(health.ENDPOINT_TEMPLATES)
-    claimed = frozenset(
-        template for _method, template in pending.UNBACKED + pending.METHOD_BOUNDARY
-    )
+    claimed = frozenset(template for _method, template in pending.UNBACKED)
     claimed_count = len(claimed)
     assert claimed_count > 0, "the pending template set is empty; this arm would prove nothing"
     stray = sorted(claimed - published)
@@ -284,7 +283,7 @@ def test_folding_the_method_boundary_routes_back_in_does_collapse() -> None:
 
     If no template could ever be claimed twice, "does not collapse" would pass on
     a table where the hazard did not exist, and the separation between
-    :func:`pending.routes` and :func:`pending.method_boundary_routes` would be
+    ``routes.ROUTES`` and ``advice.method_boundary_routes`` would be
     untested rather than upheld.
     """
     boundary_count = len(routes.METHOD_BOUNDARY_ROUTES)

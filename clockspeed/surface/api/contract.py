@@ -100,6 +100,7 @@ __all__ = [
     "ENDPOINT_UNSPELLABLE",
     "FLOAT_ON_THE_WIRE",
     "HTTP_BAD_REQUEST",
+    "HTTP_FORBIDDEN",
     "HTTP_METHOD_NOT_ALLOWED",
     "HTTP_NOT_FOUND",
     "HTTP_NOT_IMPLEMENTED",
@@ -120,11 +121,13 @@ __all__ = [
     "PROBLEM_UNKNOWN_CODE",
     "REASONS",
     "REASON_ADVICE_STORE_UNREADABLE",
+    "REASON_ADVICE_STORE_UNWRITABLE",
     "REASON_BACKEND_UNAVAILABLE",
     "REASON_BYPRODUCT_POLICY_REQUIRED",
     "REASON_CHAIN_INFEASIBLE",
     "REASON_CHAIN_UNDERDETERMINED",
     "REASON_CHAIN_UNSOLVABLE",
+    "REASON_CROSS_ORIGIN_REFUSED",
     "REASON_INVALID_PARAMETER",
     "REASON_MALFORMED_QUERY",
     "REASON_METHOD_NOT_ALLOWED",
@@ -158,6 +161,7 @@ __all__ = [
     "bad_request",
     "contract_problems",
     "encode",
+    "forbidden",
     "method_not_allowed",
     "no_such_route",
     "not_implemented",
@@ -189,6 +193,7 @@ STATUSES: Final = (STATUS_OK, STATUS_NOT_IMPLEMENTED, STATUS_UNAVAILABLE, STATUS
 
 HTTP_OK: Final = 200
 HTTP_BAD_REQUEST: Final = 400
+HTTP_FORBIDDEN: Final = 403
 HTTP_NOT_FOUND: Final = 404
 HTTP_METHOD_NOT_ALLOWED: Final = 405
 HTTP_NOT_IMPLEMENTED: Final = 501
@@ -197,13 +202,15 @@ HTTP_UNAVAILABLE: Final = 503
 #: The one binding between the transport code and the body word. A response
 #: whose code and body disagree is a response two readers describe differently -
 #: a proxy reads the code, a dashboard reads the body - so the disagreement is a
-#: contract violation rather than a cosmetic one. Three codes share
-#: :data:`STATUS_ERROR` on purpose: 400, 404 and 405 are all "the request did
-#: not satisfy the contract", and the REASON is what separates them.
+#: contract violation rather than a cosmetic one. Four codes share
+#: :data:`STATUS_ERROR` on purpose: 400, 403, 404 and 405 are all "the request
+#: did not satisfy the contract", and the REASON is what separates them. 403
+#: joined for CS-1269: a mutating request that carries no same-origin proof.
 STATUS_FOR_CODE: Final[Mapping[int, str]] = MappingProxyType(
     {
         HTTP_OK: STATUS_OK,
         HTTP_BAD_REQUEST: STATUS_ERROR,
+        HTTP_FORBIDDEN: STATUS_ERROR,
         HTTP_NOT_FOUND: STATUS_ERROR,
         HTTP_METHOD_NOT_ALLOWED: STATUS_ERROR,
         HTTP_NOT_IMPLEMENTED: STATUS_NOT_IMPLEMENTED,
@@ -224,12 +231,14 @@ REASON_MALFORMED_QUERY: Final = "malformed_query"
 REASON_MISSING_PARAMETER: Final = "missing_parameter"
 REASON_UNKNOWN_PARAMETER: Final = "unknown_parameter"
 REASON_INVALID_PARAMETER: Final = "invalid_parameter"
+REASON_CROSS_ORIGIN_REFUSED: Final = "cross_origin_refused"
 
 REASON_NO_GAME_INSTALL: Final = "no_game_install"
 REASON_NO_SAVE: Final = "no_save"
 REASON_SAVE_UNREADABLE: Final = "save_unreadable"
 REASON_BACKEND_UNAVAILABLE: Final = "backend_unavailable"
 REASON_ADVICE_STORE_UNREADABLE: Final = "advice_store_unreadable"
+REASON_ADVICE_STORE_UNWRITABLE: Final = "advice_store_unwritable"
 
 REASON_CHAIN_UNSOLVABLE: Final = "chain_unsolvable"
 REASON_CHAIN_UNDERDETERMINED: Final = "chain_underdetermined"
@@ -286,6 +295,10 @@ REASONS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
             STATUS_ERROR,
             "A request parameter carried a value this endpoint does not accept.",
         ),
+        REASON_CROSS_ORIGIN_REFUSED: (
+            STATUS_ERROR,
+            "A request that changes state did not prove it came from this dashboard.",
+        ),
         REASON_NO_GAME_INSTALL: (
             STATUS_UNAVAILABLE,
             "No game installation was found on this machine, so there is no registry to read.",
@@ -305,6 +318,10 @@ REASONS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
         REASON_ADVICE_STORE_UNREADABLE: (
             STATUS_UNAVAILABLE,
             "The advice ledger or the rule mute store could not be read, so no advice resolved.",
+        ),
+        REASON_ADVICE_STORE_UNWRITABLE: (
+            STATUS_UNAVAILABLE,
+            "The advice ledger could not be written, so the card state was not recorded.",
         ),
         REASON_CHAIN_UNSOLVABLE: (
             STATUS_ERROR,
@@ -423,14 +440,13 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-(?:\d{3}|[1-9]\d{3})")
 #:
 #:   CS-1046  ``/api/audit`` and ``/api/plan``: the item that publishes their
 #:            bodies.
-#:   CS-1269  ``/api/advice/<id>/state``: recording a card state through the
-#:            ledger, behind a cross-origin refusal this server does not yet
-#:            make.
 #:
-#: Both are named through ``clockspeed/surface/api/pending.py``, which
+#: It is named through ``clockspeed/surface/api/pending.py``, which
 #: holds the only ``not_implemented`` call site in this package. CS-500 LEFT
-#: THIS SET WHEN IT CLOSED, and CS-1270 left it when the advisor gained
-#: ``advise_world`` and both advice reads moved into the route table.
+#: THIS SET WHEN IT CLOSED, CS-1270 left it when the advisor gained
+#: ``advise_world`` and both advice reads moved into the route table, and
+#: CS-1269 left it when the state route began recording behind the server's
+#: same-origin refusal.
 #:
 #: THE STANDARD FOR MEMBERSHIP IS THE ONE THIS MODULE'S DOCSTRING STATES - "the
 #: layer beneath does not exist yet" - and it is NOT "the layer beneath is
@@ -448,7 +464,7 @@ BLOCKER_PATTERN: Final = re.compile(r"CS-(?:\d{3}|[1-9]\d{3})")
 #: enumeration only, so it answers 200 or 503 and never 501. While it sat
 #: here it was a member no route named, under a comment that described a
 #: routing this package does not perform.
-OPEN_BLOCKERS: Final = frozenset({"CS-1046", "CS-1269"})
+OPEN_BLOCKERS: Final = frozenset({"CS-1046"})
 
 
 # ---------------------------------------------------------------------------
@@ -578,11 +594,18 @@ class Route:
             REPR (CS-1024): a handler is a closure or a partial over whatever
             the server bound into it, and a partial renders its bound
             arguments in full.
+        mutates: Whether answering CHANGES STATE on this machine (CS-1269).
+            The server refuses a request to a mutating route that carries no
+            same-origin proof before the handler runs - see
+            ``clockspeed/surface/server.py``. A POST that only computes, such
+            as a solve, leaves it False: a cross-site page can send one but
+            cannot read the answer, and it writes nothing.
     """
 
     method: str
     template: str
     handler: Handler = field(repr=False)
+    mutates: bool = False
 
 
 @runtime_checkable
@@ -763,6 +786,30 @@ def bad_request(endpoint: str, reason: str) -> Response:
     """
     return Response(
         http_status=HTTP_BAD_REQUEST,
+        payload=_refusal(STATUS_ERROR, endpoint, reason, None),
+    )
+
+
+def forbidden(endpoint: str, reason: str) -> Response:
+    """The request reached a real route and is refused before its handler runs.
+
+    CS-1269. The one reason today is :data:`REASON_CROSS_ORIGIN_REFUSED`: a
+    mutating request that carries no same-origin proof. The server refuses it,
+    not the handler, because a handler sees query parameters only and cannot
+    tell the dashboard from a cross-site form.
+
+    Args:
+        endpoint: The route template that matched.
+        reason: A :data:`REASONS` key whose status is :data:`STATUS_ERROR`.
+
+    Returns:
+        The 403 response.
+
+    Raises:
+        ValueError: When the reason is unknown or belongs to another status.
+    """
+    return Response(
+        http_status=HTTP_FORBIDDEN,
         payload=_refusal(STATUS_ERROR, endpoint, reason, None),
     )
 

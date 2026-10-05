@@ -170,6 +170,9 @@ __all__ = [
     "EXIT_CERTIFICATE",
     "EXIT_OK",
     "KNOWN_METHODS",
+    "MUTATION_PROOF_HEADER",
+    "MUTATION_PROOF_VALUE",
+    "SAFE_METHODS",
     "SERVER_BANNER",
     "STATIC_ROUTES",
     "AssetProvider",
@@ -181,6 +184,7 @@ __all__ = [
     "cause_summary",
     "certificate_refusal",
     "match_route",
+    "mutating_routes",
     "routing",
     "run",
     "serve",
@@ -253,6 +257,57 @@ KNOWN_METHODS: Final = frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "
 #: What an unrecognised method is logged as. A literal, for the reason above.
 UNKNOWN_METHOD: Final = "-"
 
+
+# ---------------------------------------------------------------------------
+# The same-origin proof a mutating request must carry (CS-1269)
+# ---------------------------------------------------------------------------
+
+#: The methods that change nothing. A route declaring ``mutates`` may not answer
+#: one of these - :func:`routing` refuses it - because a GET is what a link, an
+#: image tag or a prefetch sends, and none of them can carry the proof below.
+#:
+#: THE PROOF IS REQUIRED PER ROUTE, NOT PER METHOD. ``/api/solve`` and
+#: ``/api/optimize`` are POSTs that only compute: a cross-site page can send
+#: one but cannot read the answer, and nothing is written. A route that
+#: CHANGES STATE says so through ``contract.Route.mutates``, and
+#: ``tests/surface/test_advice_source.py`` pins the set of non-safe routes that
+#: do not, so a new POST route has to decide which it is.
+SAFE_METHODS: Final = frozenset({"GET", "HEAD"})
+
+#: The custom request header the dashboard sends on every mutating request.
+#:
+#: WHY A CUSTOM HEADER IS PROOF. A cross-site page in the operator's own browser
+#: can submit a form to the loopback port, and a form can set neither a custom
+#: header nor this one. A cross-site ``fetch`` CAN ask to set one, but only
+#: after a CORS preflight - an OPTIONS request this server answers 405 with no
+#: ``Access-Control-Allow-*`` header - so the browser never sends the real
+#: request. A non-browser client on this machine can set any header it likes,
+#: and is not what this defends against: it could equally read the ledger file.
+MUTATION_PROOF_HEADER: Final = "X-Clockspeed-Request"
+
+#: The one value the proof header may carry, exactly once.
+MUTATION_PROOF_VALUE: Final = "1"
+
+#: The fetch-metadata header a browser sets on its own and a page cannot forge.
+#: Absent from an older browser and from a non-browser client, which the custom
+#: header already covers; when present it must name this origin or no site at
+#: all (a request the operator typed), so ``same-site`` - another port on
+#: loopback - is refused too.
+FETCH_SITE_HEADER: Final = "Sec-Fetch-Site"
+
+#: The ``Sec-Fetch-Site`` values a mutating request is admitted with.
+FETCH_SITES_ADMITTED: Final = frozenset({"same-origin", "none"})
+
+#: The largest request body drained off the socket, in bytes. No route reads a
+#: body; one is DISCARDED so it cannot be parsed as the next request on a
+#: kept-alive connection. A larger, unparsable or chunked body closes the
+#: connection instead of being read.
+MAX_DRAINED_BODY: Final = 65536
+
+#: The most digits a drained ``Content-Length`` may carry before it is refused
+#: unparsed - enough for :data:`MAX_DRAINED_BODY`, and a bound on the int parse.
+MAX_LENGTH_DIGITS: Final = 6
+
 #: What this server calls itself, in the Server header. The stdlib default is
 #: ``BaseHTTP/<n> Python/3.14.4``, which discloses the exact interpreter patch
 #: level to anything that connects, including the version of an unpatched
@@ -316,6 +371,7 @@ ROUTE_AMBIGUOUS: Final = (
 )
 ROUTE_METHOD_UNKNOWN: Final = "a route method must be an uppercase member of the known set"
 ROUTE_DUPLICATED: Final = "two routes claim the same method on the same template"
+ROUTE_SAFE_MUTATION: Final = "a route that mutates may not answer a safe method"
 CERTIFICATE_UNUSABLE: Final = (
     "the dashboard certificate and key could not be loaded. Mint them with "
     "scripts/make_cert.py, or point CLOCKSPEED_CERT_DIR at the pair"
@@ -560,6 +616,8 @@ def routing(routes: Sequence[contract.Route]) -> dict[str, dict[str, contract.Ha
             raise RouteError(ROUTE_NOT_A_TEMPLATE)
         if route.method not in KNOWN_METHODS:
             raise RouteError(ROUTE_METHOD_UNKNOWN)
+        if route.mutates and route.method in SAFE_METHODS:
+            raise RouteError(ROUTE_SAFE_MUTATION)
         shape = _shape(route.template)
         if shapes.setdefault(shape, route.template) != route.template:
             raise RouteError(ROUTE_AMBIGUOUS)
@@ -568,6 +626,18 @@ def routing(routes: Sequence[contract.Route]) -> dict[str, dict[str, contract.Ha
             raise RouteError(ROUTE_DUPLICATED)
         bucket[route.method] = route.handler
     return table
+
+
+def mutating_routes(routes: Sequence[contract.Route]) -> frozenset[tuple[str, str]]:
+    """The (method, template) pairs whose route declares that it mutates.
+
+    Args:
+        routes: The registered routes.
+
+    Returns:
+        Every pair a request must carry the same-origin proof to reach.
+    """
+    return frozenset((route.method, route.template) for route in routes if route.mutates)
 
 
 def _shape(template: str) -> tuple[str, ...]:
@@ -774,7 +844,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     # -- responses ---------------------------------------------------------
 
-    def _emit(self, code: int, body: bytes, content_type: str, *, csp: bool = False) -> None:
+    def _emit(
+        self, code: int, body: bytes, content_type: str, *, csp: bool = False, close: bool = False
+    ) -> None:
         """Write one complete response with the fixed header set.
 
         Args:
@@ -783,27 +855,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
             content_type: What the body is.
             csp: Whether to add the content security policy, which belongs on
                 the HTML document alone.
+            close: Whether to send ``Connection: close``. The stdlib's
+                ``send_header`` also ends the kept-alive connection when it
+                sees that header, so no handler state is set by hand.
         """
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         for name, value in FIXED_HEADERS:
             self.send_header(name, value)
+        if close:
+            self.send_header("Connection", "close")
         if csp:
             self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.end_headers()
         if self.command != "HEAD" and body:
             self.wfile.write(body)
 
-    def _respond(self, response: contract.Response, template: str) -> None:
+    def _respond(self, response: contract.Response, template: str, *, close: bool = False) -> None:
         """Encode and write one contract envelope.
 
         Args:
             response: What the route decided.
             template: What to log it under.
+            close: Whether the connection ends after this answer.
         """
         self._log(template, response.http_status)
-        self._emit(response.http_status, contract.encode(response.payload), CONTENT_TYPE_JSON)
+        self._emit(
+            response.http_status,
+            contract.encode(response.payload),
+            CONTENT_TYPE_JSON,
+            close=close,
+        )
 
     # -- dispatch ----------------------------------------------------------
 
@@ -849,8 +932,61 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._log(f"{STATIC_LABEL_PREFIX}{filename}", contract.HTTP_OK)
         self._emit(contract.HTTP_OK, body, content_type, csp=content_type.startswith("text/html"))
 
+    def _drain_body(self) -> bool:
+        """Discard any request body, and say whether that was possible.
+
+        No route reads a body. Left on the socket, one would be parsed as the
+        NEXT request on a kept-alive connection - a request this server never
+        saw arrive and whose headers were never checked.
+
+        Returns:
+            True when there was no body or it was read and discarded; False when
+            it is chunked, its length does not parse, or it exceeds
+            :data:`MAX_DRAINED_BODY`. Nothing is read in the False case, and the
+            caller answers as for a transport fault and closes the connection.
+        """
+        if self.headers.get("Transfer-Encoding") is not None:
+            return False
+        raw = self.headers.get("Content-Length")
+        if raw is None:
+            return True
+        if len(raw) > MAX_LENGTH_DIGITS or not (raw.isascii() and raw.isdigit()):
+            return False
+        length = int(raw)
+        if length > MAX_DRAINED_BODY:
+            return False
+        if length:
+            self.rfile.read(length)
+        return True
+
+    def _proves_same_origin(self) -> bool:
+        """Whether this request carries the same-origin proof a mutation needs.
+
+        Returns:
+            True only when :data:`MUTATION_PROOF_HEADER` appears exactly once
+            with :data:`MUTATION_PROOF_VALUE`, and any
+            :data:`FETCH_SITE_HEADER` appears once naming an admitted site.
+        """
+        proofs = self.headers.get_all(MUTATION_PROOF_HEADER)
+        if proofs != [MUTATION_PROOF_VALUE]:
+            return False
+        sites = self.headers.get_all(FETCH_SITE_HEADER)
+        if sites is None:
+            return True
+        return len(sites) == 1 and sites[0] in FETCH_SITES_ADMITTED
+
     def _dispatch(self) -> None:
         """Match the request against the two closed tables and answer it."""
+        if not self._drain_body():
+            # A TRANSPORT FAULT, answered the way :meth:`send_error` answers
+            # one - the published 404 envelope, echoing nothing - and the
+            # connection closes so the unread bytes are never parsed.
+            self._respond(contract.no_such_route(), contract.ENDPOINT_UNROUTED, close=True)
+            return
+        self._route()
+
+    def _route(self) -> None:
+        """Answer a request whose body, if it carried one, has been drained."""
         raw_path, _mark, raw_query = self.path.partition("?")
 
         static = STATIC_ROUTES.get(raw_path)
@@ -894,6 +1030,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
             handler = bucket.get("GET")
         if handler is None:
             self._respond(contract.method_not_allowed(template), template)
+            return
+
+        # THE SAME-ORIGIN REFUSAL (CS-1269) RUNS BEFORE THE QUERY IS PARSED AND
+        # BEFORE THE HANDLER, so an unproven mutation reaches no code that could
+        # write, and is told nothing about its parameters. A handler cannot make
+        # this check itself: it is handed query parameters only.
+        mutating: frozenset[tuple[str, str]] = self.server.mutating  # type: ignore[attr-defined]
+        if (self.command, template) in mutating and not self._proves_same_origin():
+            self._respond(
+                contract.forbidden(template, contract.REASON_CROSS_ORIGIN_REFUSED), template
+            )
             return
 
         params = self._query(raw_query)
@@ -961,10 +1108,11 @@ class DashboardServer(ThreadingHTTPServer):
         handler_class: type[BaseHTTPRequestHandler],
         table: Mapping[str, Mapping[str, contract.Handler]],
         assets: AssetProvider | None,
+        mutating: frozenset[tuple[str, str]] = frozenset(),
     ) -> None:
         """Wire the tables, then bind.
 
-        Both attributes are set BEFORE the bind, because the bind can raise and
+        Every attribute is set BEFORE the bind, because the bind can raise and
         a half-built server must not be reachable in that state.
 
         Args:
@@ -973,9 +1121,12 @@ class DashboardServer(ThreadingHTTPServer):
             handler_class: The request handler.
             table: The route table from :func:`routing`.
             assets: What supplies the static files, or None for none.
+            mutating: The (method, template) pairs from
+                :func:`mutating_routes` that need the same-origin proof.
         """
         self.routing_table = table
         self.assets = assets
+        self.mutating = mutating
         super().__init__(address, handler_class)
 
     def handle_error(self, request: object, client_address: object) -> None:
@@ -1069,7 +1220,13 @@ def build_server(
     table = routing(routes)
     context = _tls_context(config)
     try:
-        server = DashboardServer((config.host, config.port), DashboardHandler, table, providers)
+        server = DashboardServer(
+            (config.host, config.port),
+            DashboardHandler,
+            table,
+            providers,
+            mutating_routes(routes),
+        )
     except OSError as exc:
         # `from None`, for the reason `_tls_context` states above. MEASURED
         # here too: the constructor reaches socket(), bind() and listen(), none

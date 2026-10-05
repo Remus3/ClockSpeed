@@ -44,8 +44,9 @@ REFUSED to register a template carrying a path parameter, that dispatch matched 
 request path EXACTLY, and that therefore neither endpoint had a concrete path in
 production. ALL THREE ARE NOW FALSE. ``routing`` registers both, ``match_route``
 matches a concrete path against either and captures the segment, and both answer
-over the wire: MEASURED at 501 for ``GET .../derivation`` and ``POST .../state``,
-and 405 for ``GET .../state``. A stale justification is worse than a red test,
+over the wire: ``GET .../derivation`` since CS-1270, ``POST .../state`` since
+CS-1269 - 403 without the same-origin proof - and 405 for ``GET .../state``. A
+stale justification is worse than a red test,
 because an arm resting on it keeps passing and reads as verified.
 
 WHY THREE AND NOT FIVE, ON A REASON THAT IS TRUE TODAY. The audit grades ONE

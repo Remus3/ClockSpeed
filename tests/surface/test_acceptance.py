@@ -162,11 +162,15 @@ BACKED: Final = (
     # both advice reads answer rather than refuse.
     "/api/advice",
     "/api/advice/<id>/derivation",
+    # CS-1269. ``StoreAdviceSource.record`` writes through the advisor's own
+    # ledger, behind the server's same-origin refusal, so the state write
+    # answers rather than refuses.
+    "/api/advice/<id>/state",
 )
 
 #: A3, the other half. These have no published body yet and must say so with a
-#: 501 that names its blocking item: the state write waits on CS-1269, and the
-#: audit and plan bodies on CS-1046. WHEN ONE OF THEM
+#: 501 that names its blocking item: the audit and plan bodies wait on CS-1046.
+#: The state write left this half when CS-1269 closed. WHEN ONE OF THEM
 #: BECOMES REAL THIS ARM GOES RED and the route has to be moved into
 #: :data:`BACKED` deliberately - which is what CS-978 and CS-977 just did for
 #: ``/api/map``. ``clockspeed/audit/`` is no longer empty and is deliberately no
@@ -174,7 +178,6 @@ BACKED: Final = (
 #: ``/api/audit`` stays here because PILLAR 3 - the findings-with-causes audit
 #: that route serializes - is still behind the phase 5 gate.
 UNBUILT: Final = (
-    "/api/advice/<id>/state",
     "/api/audit",
     "/api/plan",
 )
@@ -279,8 +282,20 @@ WIRE_FAULTS: Final = frozenset({FAULT_UNPARSED, FAULT_NON_ASCII})
 #: take no parameters and wrong for the two that do, because a parameterless
 #: /api/solve has nothing to solve and saying so is correct behaviour rather than
 #: a defect. :data:`PARAMETERLESS_BACKED` carries the narrower rule.
+#:
+#: 403 JOINED FOR CS-1269. This sweep sends no same-origin proof, so the one
+#: mutating route - ``/api/advice/<id>/state`` - is refused by the server before
+#: its handler runs. That is the honest answer to an unproven write, and it also
+#: keeps this sweep from ever reaching the real advice store. The recorded state
+#: and the refusal are graded in ``tests/surface/test_advice_source.py`` and
+#: ``tests/surface/test_server.py``.
 BACKED_CODES: Final = frozenset(
-    {contract.HTTP_OK, contract.HTTP_BAD_REQUEST, contract.HTTP_UNAVAILABLE}
+    {
+        contract.HTTP_OK,
+        contract.HTTP_BAD_REQUEST,
+        contract.HTTP_FORBIDDEN,
+        contract.HTTP_UNAVAILABLE,
+    }
 )
 
 #: The backed routes that need no parameter, and therefore have no honest reason

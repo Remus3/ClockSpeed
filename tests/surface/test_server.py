@@ -90,11 +90,14 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from clockspeed.advisor.ledger import LEDGER_FILENAME, CardState, Ledger
 from clockspeed.data import locate
 from clockspeed.save import workdir
 from clockspeed.surface import config, providers, server
 from clockspeed.surface.api import contract, routes
 from tests import chained_cause_guard
+from tests.advisor import test_world_advice as world_fixtures
+from tests.surface import test_map as map_fixtures
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -497,6 +500,7 @@ def capture_route(
     *,
     method: str = "GET",
     template: str = CAPTURE_TEMPLATE,
+    mutates: bool = False,
 ) -> contract.Route:
     """A route on a template carrying a path parameter, recording what reached it.
 
@@ -505,6 +509,8 @@ def capture_route(
         method: The verb the route answers, so an arm can ask for one it does
             not answer and grade the 405.
         template: The template to register, so an arm can register two.
+        mutates: Whether the route declares that it changes state, so an arm
+            can grade the same-origin refusal (CS-1269).
 
     Returns:
         The route. The 200 body names the TEMPLATE, never a captured value -
@@ -517,7 +523,7 @@ def capture_route(
             seen.append(dict(parameters))
         return contract.ok(template, {"probe": True})
 
-    return contract.Route(method=method, template=template, handler=handler)
+    return contract.Route(method=method, template=template, handler=handler, mutates=mutates)
 
 
 # ---------------------------------------------------------------------------
@@ -3203,3 +3209,238 @@ def test_the_asset_reader_returns_the_bytes_of_a_name_it_was_told_about(
 def test_the_asset_reader_answers_none_for_a_missing_directory(tmp_path: Path) -> None:
     reader = providers.StaticAssets(tmp_path / "absent", server.ASSET_NAMES)
     assert reader.asset("app.js") is None
+
+
+# ---------------------------------------------------------------------------
+# CS-1269: a mutating route needs a same-origin proof before its handler runs.
+#
+# The handler contract carries query parameters only, so a handler cannot tell
+# the dashboard from a cross-site form posting to the loopback port. The server
+# can: no cross-site page can set a custom request header without a CORS
+# preflight, and this server grants no preflight. So every method that is not
+# GET or HEAD must carry ``server.MUTATION_PROOF_HEADER`` with
+# ``server.MUTATION_PROOF_VALUE`` - and a ``Sec-Fetch-Site`` naming another site
+# is refused even with it. The refusal is 403 ``cross_origin_refused``, the
+# handler never runs, and the ledger file is unchanged BYTE FOR BYTE.
+# ---------------------------------------------------------------------------
+
+#: The instant the advice source's injected clock answers.
+STATE_NOW: Final = 1000
+
+#: The proof the dashboard sends, spelled here rather than read from the module
+#: so a renamed header reddens the constants arm instead of passing silently.
+PROOF: Final = {"X-Clockspeed-Request": "1"}
+
+#: Each lacks a valid same-origin proof. The last two carry the right header but
+#: a fetch-metadata header naming another site, which a browser sets and a page
+#: cannot forge.
+UNPROVEN_HEADERS: Final[tuple[dict[str, str], ...]] = (
+    {},
+    {"X-Clockspeed-Request": "0"},
+    {"X-Clockspeed-Request": ""},
+    {"Content-Type": "application/x-www-form-urlencoded"},
+    {"X-Clockspeed-Request": "1", "Sec-Fetch-Site": "cross-site"},
+    {"X-Clockspeed-Request": "1", "Sec-Fetch-Site": "same-site"},
+)
+
+
+def _state_source(directory: Path) -> providers.StoreAdviceSource:
+    return providers.StoreAdviceSource(directory, clock=lambda: STATE_NOW)
+
+
+def _state_routes(directory: Path) -> tuple[contract.Route, ...]:
+    return (
+        *routes.build_routes(
+            map_fixtures._Worlds(world_fixtures.gap_world()),  # noqa: SLF001
+            map_fixtures._Registries(world_fixtures.synthetic_registry()),  # noqa: SLF001
+            _state_source(directory),
+        ),
+        *routes.METHOD_BOUNDARY_ROUTES,
+    )
+
+
+def _state_card_id(directory: Path) -> str:
+    found = _state_source(directory).advice(
+        world_fixtures.gap_world(), world_fixtures.synthetic_registry()
+    )
+    assert found is not None
+    ids = [advised.card.id for advised in found.cards]
+    count = len(ids)
+    assert count > 0
+    return ids[0]
+
+
+def _state_stored(directory: Path, card_id: str) -> str:
+    return Ledger(directory).state(world_fixtures.gap_world().token, card_id, now=STATE_NOW).kind
+
+
+def _seeded_store(directory: Path, card_id: str) -> bytes:
+    """Record one state so the ledger FILE exists, and return its bytes."""
+    Ledger(directory).set_state(world_fixtures.gap_world().token, card_id, CardState.pinned())
+    return (directory / LEDGER_FILENAME).read_bytes()
+
+
+def test_the_proof_header_constants_are_the_ones_these_arms_send() -> None:
+    assert server.MUTATION_PROOF_HEADER == "X-Clockspeed-Request"
+    assert server.MUTATION_PROOF_VALUE == "1"
+
+
+@pytest.mark.parametrize("headers", UNPROVEN_HEADERS)
+def test_a_state_post_without_same_origin_proof_is_403_and_changes_no_byte(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    tmp_path: Path,
+    headers: Mapping[str, str],
+) -> None:
+    cert, _key = cert_pair
+    store = tmp_path / "store"
+    store.mkdir()
+    card_id = _state_card_id(store)
+    before = _seeded_store(store, card_id)
+    with server.serve(cfg, _state_routes(store)) as running:
+        status, _headers, body = request(
+            running.server_address[1],
+            f"/api/advice/{card_id}/state?state=dismissed",
+            cert,
+            method="POST",
+            headers=headers,
+        )
+    assert status == contract.HTTP_FORBIDDEN
+    reason = json.loads(body)["reason"]
+    assert reason == contract.REASON_CROSS_ORIGIN_REFUSED
+    unchanged = (store / LEDGER_FILENAME).read_bytes() == before
+    assert unchanged
+    assert _state_stored(store, card_id) == "pinned"
+
+
+def test_a_state_post_with_the_proof_records_the_state_read_back_from_disk(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    tmp_path: Path,
+) -> None:
+    cert, _key = cert_pair
+    store = tmp_path / "store"
+    store.mkdir()
+    card_id = _state_card_id(store)
+    with server.serve(cfg, _state_routes(store)) as running:
+        status, _headers, _body = request(
+            running.server_address[1],
+            f"/api/advice/{card_id}/state?state=dismissed",
+            cert,
+            method="POST",
+            headers={**PROOF, "Sec-Fetch-Site": "same-origin"},
+        )
+    assert status == contract.HTTP_OK
+    assert _state_stored(store, card_id) == "dismissed"
+
+
+def test_a_get_on_the_state_route_stays_405_over_the_listener(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    tmp_path: Path,
+) -> None:
+    cert, _key = cert_pair
+    store = tmp_path / "store"
+    store.mkdir()
+    with server.serve(cfg, _state_routes(store)) as running:
+        status, _headers, _body = request(
+            running.server_address[1], f"/api/advice/{PLAIN_ID}/state", cert, headers=PROOF
+        )
+    assert status == contract.HTTP_METHOD_NOT_ALLOWED
+    created = len(list(store.iterdir()))
+    assert created == 0
+
+
+def test_a_get_needs_no_proof(cfg: config.ServerConfig, cert_pair: tuple[Path, Path]) -> None:
+    cert, _key = cert_pair
+    with server.serve(cfg, [probe_route()]) as running:
+        status, _headers, _body = request(running.server_address[1], PROBE_TEMPLATE, cert)
+    assert status == contract.HTTP_OK
+
+
+def test_an_unproven_post_never_reaches_its_handler(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen, method="POST", mutates=True)]) as running:
+        status, _headers, _body = request(
+            running.server_address[1], f"/api/advice/{PLAIN_ID}/state", cert, method="POST"
+        )
+    assert status == contract.HTTP_FORBIDDEN
+    calls = len(seen)
+    assert calls == 0
+
+
+def test_a_post_body_is_drained_so_the_connection_stays_usable(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """A body the server never reads must not be parsed as the next request."""
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    smuggled = b"POST /api/advice/smuggled/state HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    with server.serve(cfg, [capture_route(seen, method="POST"), probe_route()]) as running:
+        conn = http.client.HTTPSConnection(
+            config.LOOPBACK,
+            running.server_address[1],
+            context=client_context(cert),
+            timeout=CLIENT_TIMEOUT,
+        )
+        try:
+            conn.request("POST", f"/api/advice/{PLAIN_ID}/state", body=smuggled, headers=PROOF)
+            first = conn.getresponse()
+            first.read()
+            conn.request("GET", PROBE_TEMPLATE)
+            second = conn.getresponse()
+            second.read()
+        finally:
+            conn.close()
+    assert first.status == contract.HTTP_OK
+    assert second.status == contract.HTTP_OK
+    calls = len(seen)
+    assert calls == 1
+
+
+def test_a_post_to_a_route_that_does_not_mutate_needs_no_proof(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """The proof is per route: a computing POST such as a solve is not refused."""
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen, method="POST")]) as running:
+        status, _headers, _body = request(
+            running.server_address[1], f"/api/advice/{PLAIN_ID}/state", cert, method="POST"
+        )
+    assert status == contract.HTTP_OK
+    calls = len(seen)
+    assert calls == 1
+
+
+def test_a_mutating_route_on_a_safe_method_is_refused_at_registration() -> None:
+    with pytest.raises(server.RouteError) as caught:
+        server.routing([capture_route(method="GET", mutates=True)])
+    assert caught.value.args == (server.ROUTE_SAFE_MUTATION,)
+
+
+def test_the_mutating_set_is_read_off_the_routes() -> None:
+    pairs = server.mutating_routes([capture_route(method="POST", mutates=True), probe_route()])
+    assert pairs == frozenset({("POST", CAPTURE_TEMPLATE)})
+
+
+@pytest.mark.parametrize(
+    "framing",
+    ["Content-Length: 999999\r\n", "Content-Length: 1e3\r\n", "Transfer-Encoding: chunked\r\n"],
+)
+def test_a_body_too_large_or_unframed_closes_the_connection_unread(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], framing: str
+) -> None:
+    """A body the server will not drain is never read: the answer says close."""
+    cert, _key = cert_pair
+    payload = (f"POST {PROBE_TEMPLATE} HTTP/1.1\r\nHost: localhost\r\n{framing}\r\n").encode(
+        "ascii"
+    )
+    with server.serve(cfg, [probe_route()]) as running:
+        answer = raw_over_tls(running.server_address[1], cert, payload)
+    head = answer.split(b"\r\n\r\n", 1)[0].lower()
+    assert head.startswith(b"http/1.1 404")
+    assert b"\r\nconnection: close" in head

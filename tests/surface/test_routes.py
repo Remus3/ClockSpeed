@@ -48,6 +48,7 @@ import pytest
 
 from clockspeed.surface import __main__ as entry
 from clockspeed.surface import server
+from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending
 from clockspeed.surface.api.routes import (
     ENDPOINT_STATUS,
@@ -314,15 +315,16 @@ def test_the_serving_table_is_the_set_plus_the_boundary_and_nothing_else() -> No
 
 
 def test_the_advice_state_route_is_post_and_a_get_on_it_answers_405() -> None:
-    state = [route for route in ROUTES if route.template == pending.ADVICE_STATE_ENDPOINT]
+    state = [route for route in ROUTES if route.template == advice_endpoint.STATE_ENDPOINT]
     state_count = len(state)
     assert state_count == 1, "the advice-state template is not published exactly once"
-    assert state[0].method == pending.METHOD_POST, "the advice-state route is not a POST"
+    assert state[0].method == advice_endpoint.METHOD_POST, "the advice-state route is not a POST"
 
     boundary = [
         route
         for route in METHOD_BOUNDARY_ROUTES
-        if route.template == pending.ADVICE_STATE_ENDPOINT and route.method == pending.METHOD_GET
+        if route.template == advice_endpoint.STATE_ENDPOINT
+        and route.method == advice_endpoint.METHOD_GET
     ]
     boundary_count = len(boundary)
     assert boundary_count == 1, "a GET on the advice-state template is not published as a boundary"

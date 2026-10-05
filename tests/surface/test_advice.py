@@ -53,8 +53,9 @@ if TYPE_CHECKING:
 #: The instant every resolution here reads. Injected, never a clock.
 NOW: Final = 1000
 
-#: The listing and the derivation. The state write is not this module's.
-EXPECTED_READ_ROUTES: Final = 2
+#: The listing and the derivation, then the state write CS-1269 added - graded
+#: in ``tests/surface/test_advice_source.py``.
+EXPECTED_ROUTES: Final = 3
 
 #: A card id no advice here carries. Well formed, so only membership refuses it.
 UNKNOWN_CARD_ID: Final = "0" * 64
@@ -85,6 +86,15 @@ class _Source:
         del world, registry
         self.calls += 1
         return self._value
+
+    def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
+        """Refuse to record: no arm here drives the state write.
+
+        Returns:
+            None, as for an unwritable store.
+        """
+        del world, card_id, kind, until
+        return None
 
 
 def _advice_on(directory: Path) -> Advice:
@@ -148,7 +158,7 @@ def _cards(data: Mapping[str, object]) -> list[Mapping[str, object]]:
 # ---------------------------------------------------------------------------
 
 
-def test_the_module_publishes_the_two_read_routes_as_gets() -> None:
+def test_the_module_publishes_the_two_reads_as_gets_and_the_write_as_a_post() -> None:
     published = advice_endpoint.routes(
         map_fixtures._Worlds(None),  # noqa: SLF001
         map_fixtures._Registries(None),  # noqa: SLF001
@@ -156,10 +166,11 @@ def test_the_module_publishes_the_two_read_routes_as_gets() -> None:
     )
     identities = sorted((route.method, route.template) for route in published)
     count = len(identities)
-    assert count == EXPECTED_READ_ROUTES
+    assert count == EXPECTED_ROUTES
     assert identities == [
         ("GET", "/api/advice"),
         ("GET", "/api/advice/<id>/derivation"),
+        ("POST", "/api/advice/<id>/state"),
     ]
 
 

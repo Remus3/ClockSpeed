@@ -3,11 +3,11 @@
 What is covered, and the authority for each arm:
 
 a. AN UNBACKED ENDPOINT ANSWERS HONESTLY RATHER THAN PLAUSIBLY. Each of
-   ``/api/advice/<id>/state``,
    ``/api/audit`` and ``/api/plan`` return 501 naming the open item
    :data:`EXPECTED_BLOCKERS` assigns it - since CS-500 closed, one blame per
    template rather than one phase gate for all of them; the two advice reads
-   left this set when CS-1270 put them in the route table. An endpoint
+   left this set when CS-1270 put them in the route table, and the state write
+   when CS-1269 did. An endpoint
    answering ``200`` with an empty list instead is indistinguishable from a
    world that genuinely has no advice, which is non-negotiable 7 - "unknown
    content is flagged and skipped, never silently wrong" - violated at the
@@ -15,7 +15,9 @@ a. AN UNBACKED ENDPOINT ANSWERS HONESTLY RATHER THAN PLAUSIBLY. Each of
 b. THE RESOURCE EXISTS AND THE METHOD DOES NOT. ``/api/advice/<id>/state``
    mutates the advice ledger, so it is a POST. A GET on it is 405 and NOT 501:
    405 says "this path is real, that verb is not", and answering 501 there
-   would report a written route as unwritten.
+   would report a written route as unwritten. Since CS-1269 both halves are
+   published by ``clockspeed/surface/api/advice.py``; the POST itself is graded
+   in ``tests/surface/test_advice_source.py``.
 c. THE PARTITION IS EXACT, IN BOTH DIRECTIONS. The table below is DATA, keyed by
    route identity, and the sweep asserts every published route falls in exactly
    one class and answers the way its class requires. When a phase 5 endpoint
@@ -50,11 +52,15 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, pending, solve
+from clockspeed.surface.providers import StoreAdviceSource
 from tests.solve import synthetic
+from tests.surface import test_map as map_fixtures
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from pathlib import Path
 
     from clockspeed.data.registry import Registry
 
@@ -104,7 +110,6 @@ BACKED_ROUTES: Final = frozenset(
 #: Routes with NO published body yet. These answer 501 naming their blocker.
 PENDING_ROUTES: Final = frozenset(
     {
-        ("POST", "/api/advice/<id>/state"),
         ("GET", "/api/audit"),
         ("GET", "/api/plan"),
     }
@@ -116,24 +121,24 @@ PENDING_ROUTES: Final = frozenset(
 METHOD_BOUNDARY_ROUTES: Final = frozenset({("GET", "/api/advice/<id>/state")})
 
 #: Which open item each pending template blames, written out as DATA so the
-#: arm below grades ``pending.BLOCKERS`` rather than reading it back. CS-1269 is
-#: the defended state write; CS-1046 the audit and plan bodies. The two advice
-#: reads left with CS-1270 and are graded in ``test_advice_source.py``.
+#: arm below grades ``pending.BLOCKERS`` rather than reading it back. CS-1046 is
+#: the audit and plan bodies. The two advice reads left with CS-1270 and the
+#: state write with CS-1269; all three are graded in ``test_advice_source.py``.
 EXPECTED_BLOCKERS: Final[Mapping[str, str]] = {
-    "/api/advice/<id>/state": "CS-1269",
     "/api/audit": "CS-1046",
     "/api/plan": "CS-1046",
 }
 
-#: What the two modules publish between them today. Asserted BEFORE the sweep
-#: iterates: a sweep over an empty route table is green and proves nothing.
-EXPECTED_PUBLISHED_ROUTES: Final = 6
+#: What the solve, pending and method-boundary accessors publish between them
+#: today. Asserted BEFORE the sweep iterates: a sweep over an empty route table
+#: is green and proves nothing.
+EXPECTED_PUBLISHED_ROUTES: Final = 5
 
 #: Just the pending set, for the arm that grades it alone.
-EXPECTED_PENDING_ROUTES: Final = 3
+EXPECTED_PENDING_ROUTES: Final = 2
 
-#: GET and POST. The advice-state template is published twice - once to do the
-#: work phase 5 will build, once to say the other verb is wrong.
+#: GET and POST. The advice-state template is published twice - once to record
+#: a state, once to say the other verb is wrong.
 EXPECTED_STATE_ROUTE_METHODS: Final = 2
 
 #: A second member for ``contract.OPEN_BLOCKERS``, patched in for one arm and
@@ -242,8 +247,30 @@ def pending_route(identity: tuple[str, str]) -> contract.Route:
     Returns:
         The route.
     """
-    published = (*pending.routes(), *pending.method_boundary_routes())
+    published = (*pending.routes(), *advice_endpoint.method_boundary_routes())
     return next(route for route in published if (route.method, route.template) == identity)
+
+
+def advice_routes(directory: Path) -> tuple[contract.Route, ...]:
+    """The advice module's routes over NO world and NO registry, plus the boundary.
+
+    Every advice route refuses 503 before it reads a store, so the directory is
+    never touched; it is a temporary one regardless.
+
+    Args:
+        directory: Where the source would keep its stores.
+
+    Returns:
+        The advice routes, then the method-boundary route.
+    """
+    return (
+        *advice_endpoint.routes(
+            map_fixtures._Worlds(None),  # noqa: SLF001
+            map_fixtures._Registries(None),  # noqa: SLF001
+            StoreAdviceSource(directory, clock=lambda: 0),
+        ),
+        *advice_endpoint.method_boundary_routes(),
+    )
 
 
 def published_routes(registry: Registry | None) -> tuple[contract.Route, ...]:
@@ -258,7 +285,7 @@ def published_routes(registry: Registry | None) -> tuple[contract.Route, ...]:
     return (
         *solve.routes(_StubRegistryProvider(registry)),
         *pending.routes(),
-        *pending.method_boundary_routes(),
+        *advice_endpoint.method_boundary_routes(),
     )
 
 
@@ -276,7 +303,7 @@ def test_the_pending_route_table_is_the_declared_set() -> None:
 
 
 def test_the_method_boundary_is_published_through_its_own_accessor() -> None:
-    routes = pending.method_boundary_routes()
+    routes = advice_endpoint.method_boundary_routes()
     published = frozenset((route.method, route.template) for route in routes)
     count = len(routes)
     assert count == len(METHOD_BOUNDARY_ROUTES)
@@ -292,8 +319,8 @@ def test_a_template_keyed_mapping_over_the_pending_set_loses_nothing() -> None:
     assert kept == count
 
 
-def test_that_check_would_catch_a_template_published_twice() -> None:
-    combined = (*pending.routes(), *pending.method_boundary_routes())
+def test_that_check_would_catch_a_template_published_twice(tmp_path: Path) -> None:
+    combined = advice_routes(tmp_path)
     keyed = {route.template: route.method for route in combined}
     kept = len(keyed)
     total = len(combined)
@@ -347,8 +374,8 @@ def test_every_blocker_the_pending_set_names_is_one_the_envelope_still_has_open(
 # ---------------------------------------------------------------------------
 
 
-def test_advice_state_is_a_post_because_it_mutates_the_ledger() -> None:
-    published = (*pending.routes(), *pending.method_boundary_routes())
+def test_advice_state_is_a_post_because_it_mutates_the_ledger(tmp_path: Path) -> None:
+    published = advice_routes(tmp_path)
     state = [route for route in published if route.template == "/api/advice/<id>/state"]
     methods = sorted(route.method for route in state)
     count = len(state)
@@ -368,11 +395,18 @@ def test_get_on_advice_state_is_405_and_not_501() -> None:
     assert blocker is None
 
 
-def test_post_on_advice_state_is_501_and_not_405() -> None:
-    route = pending_route(("POST", "/api/advice/<id>/state"))
-    response = route.handler({})
+def test_post_on_advice_state_is_backed_and_neither_501_nor_405(tmp_path: Path) -> None:
+    route = next(
+        route
+        for route in advice_routes(tmp_path)
+        if (route.method, route.template) == ("POST", "/api/advice/<id>/state")
+    )
+    response = route.handler({"id": "probe", "state": "dismissed"})
     status = response.http_status
-    assert status == contract.HTTP_NOT_IMPLEMENTED
+    assert status == contract.HTTP_UNAVAILABLE
+    assert response.payload.get("reason") == contract.REASON_NO_SAVE
+    created = len(list(tmp_path.iterdir()))
+    assert created == 0
 
 
 # ---------------------------------------------------------------------------

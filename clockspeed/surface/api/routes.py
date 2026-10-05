@@ -103,6 +103,7 @@ BACKED_TEMPLATES: Final = (
     power_endpoint.ENDPOINT,
     advice_endpoint.ENDPOINT,
     advice_endpoint.DERIVATION_ENDPOINT,
+    advice_endpoint.STATE_ENDPOINT,
 )
 
 #: What the server says about its own route table, in the two words
@@ -166,7 +167,7 @@ def _checked(routes: tuple[contract.Route, ...]) -> tuple[contract.Route, ...]:
 def build_routes(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
-    advice_source: advice_endpoint.AdviceSource | None = None,
+    advice_source: advice_endpoint.AdviceStore | None = None,
 ) -> tuple[contract.Route, ...]:
     """Assemble one route per published template, with the providers bound in.
 
@@ -236,9 +237,10 @@ def build_routes(
         # Building, which the registry publishes; no save is involved, so this
         # door answers identically whether or not a world is loaded.
         *power_endpoint.routes(registries),
-        # THE ADVICE READS (CS-1270). The world and the registry go to the
-        # source, which hands both to the advisor's own entry point; this table
-        # and the endpoint only transcribe what comes back.
+        # THE ADVICE READS (CS-1270) AND THE STATE WRITE (CS-1269). The world
+        # and the registry go to the source, which hands both to the advisor's
+        # own entry point and records a state through the advisor's own ledger;
+        # this table and the endpoint only transcribe what comes back.
         *advice_endpoint.routes(
             worlds,
             registries,
@@ -257,7 +259,7 @@ ROUTES: Final = build_routes(SaveWorldProvider(), InstalledRegistryProvider())
 
 #: The routes that exist only to say the verb is wrong. Provider-free, so these
 #: are shared by every table rather than rebuilt per provider set.
-METHOD_BOUNDARY_ROUTES: Final = pending.method_boundary_routes()
+METHOD_BOUNDARY_ROUTES: Final = advice_endpoint.method_boundary_routes()
 
 #: What a server is handed: the published set first, in specification order, then
 #: the boundary. A server that synthesises 405 from a template match needs only
