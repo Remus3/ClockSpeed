@@ -21,8 +21,10 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
@@ -61,9 +63,20 @@ inbox_watch = _load_inbox_watch()
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    (tmp_path / INBOX_DIRNAME).mkdir()
-    return tmp_path
+def repo() -> Iterator[Path]:
+    """A throwaway root holding an empty inbox, at a SHORT path.
+
+    CS-1187: pytest's tmp_path nests the account name twice plus the test name,
+    which leaves too little of MAX_PATH for the long-named notes these arms
+    plant on a machine with long-path support off - the Windows default. A
+    bare temp directory leaves the headroom the MAX_PATH arm grades.
+    """
+    root = Path(tempfile.mkdtemp(prefix="iw"))
+    try:
+        (root / INBOX_DIRNAME).mkdir()
+        yield root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 # The module is loaded by path, so every attribute reads as Any. Each is
@@ -696,10 +709,16 @@ def test_a_non_ascii_name_cannot_break_the_banner(repo: Path) -> None:
     assert "caf?" in banner, "the non-ASCII character was not escaped"
 
 
+#: A name longer than the display cap. CS-1187: it was 227 characters, which
+#: no default Windows machine can create under a pytest tmp directory - long
+#: paths are off by default and MAX_PATH is 260 including the terminator.
+LONG_NAME: Final = "2026-01-01-0900-from-RC-" + ("x" * 110) + ".md"
+
+
 def test_a_very_long_name_is_capped(repo: Path) -> None:
     """A name is up to 255 characters of prose. The report caps it."""
-    long_name = "2026-01-01-0900-from-RC-" + ("x" * 200) + ".md"
-    note(repo, long_name)
+    assert len(LONG_NAME) > inbox_watch.MAX_DISPLAY_CHARS, "the fixture name is not long"
+    note(repo, LONG_NAME)
 
     (item,) = inbox_watch.deliverables(repo / INBOX_DIRNAME)
     assert len(item.display) == inbox_watch.MAX_DISPLAY_CHARS
@@ -1361,8 +1380,39 @@ def plant_over_cap(repo: Path) -> None:
     note, a re-dated one, a sibling with its own naming scheme.
     """
     for index in range(CAP_FIXTURE_ITEMS):
-        name = f"2026-01-01-{index:04d}-from-RC-" + ("y" * 90) + ".md"
-        note(repo, name, mtime=1_000_000_000 + (CAP_FIXTURE_ITEMS - 1 - index))
+        note(repo, cap_name(index), mtime=1_000_000_000 + (CAP_FIXTURE_ITEMS - 1 - index))
+
+
+def cap_name(index: int) -> str:
+    """One cap-fixture note name; the longest is what MAX_PATH must hold."""
+    return f"2026-01-01-{index:04d}-from-RC-" + ("y" * 90) + ".md"
+
+
+#: Windows MAX_PATH less its terminator: the longest path a default machine,
+#: with long-path support off, can create.
+MAX_PATH_CHARS: Final = 259
+
+#: Headroom over THIS machine's base for a longer account name or temp
+#: directory elsewhere. A Windows account name runs to 20 characters.
+MAX_PATH_HEADROOM: Final = 40
+
+
+def test_every_planted_note_fits_max_path_on_a_default_machine(repo: Path) -> None:
+    """CS-1187 D5: six arms died with FileNotFoundError in a never-seen sandbox.
+
+    The sandbox runs with long-path support at its Windows default (off), so a
+    note whose full path exceeds MAX_PATH cannot be created at all. Graded by
+    length rather than by creating the file, because a machine with long paths
+    ON - this one, CI - creates it happily and would never go red.
+    """
+    inbox = repo / INBOX_DIRNAME
+    longest = max(
+        len(str(inbox / LONG_NAME)),
+        len(str(inbox / cap_name(CAP_FIXTURE_ITEMS - 1))),
+        len(str(report_path(repo))),
+    )
+    budget = MAX_PATH_CHARS - MAX_PATH_HEADROOM
+    assert longest <= budget, f"a planted path is {longest} chars, over {budget}"
 
 
 def test_the_transcript_lists_ten_names_and_points_at_the_rest(repo: Path) -> None:

@@ -63,7 +63,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
-from tests.git_env import scrub
+from tests.git_env import gnu_timeout_first, program_on_child_path, scrub
 from tests.pre_push_floor import differs_only_on_floor_line, wired_hook_bytes
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
@@ -499,7 +499,8 @@ def isolated(tmp_path: Path) -> Environment:
     """
     # CS-968: scrubbed FIRST. A push from a worktree exports GIT_DIR, and a
     # sandbox that inherits it builds itself in the real repository.
-    env = scrub(dict(os.environ))
+    # CS-1187: Git's GNU timeout ahead of System32's, or every hook refuses.
+    env = gnu_timeout_first(scrub(dict(os.environ)))
     env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     env.pop(ENV_NAME, None)
@@ -3145,10 +3146,18 @@ def import_xdist_exit(box: Sandbox) -> int:
     ONLY THE INTEGER COMES BACK. The shim raises an ImportError that renders its
     own absolute path under the user profile, and nothing here may reach an
     assertion message (CLAUDE.md non-negotiable 3).
+
+    RESOLVED ON THE SANDBOX'S PATH, NOT BY CreateProcess. CS-1187, measured in
+    a never-seen sandbox: Windows resolves a bare program name in the PARENT's
+    application directory before any PATH, and a venv's ``python.exe`` is a
+    redirector whose running process is the BASE interpreter. So a bare
+    ``python`` from inside a venv ran the base install - no xdist there - and
+    the known-good half of the control failed. The hook's ``sh`` searches
+    PATH, so the control does too.
     """
     try:
         proc = subprocess.run(
-            ["python", "-c", "import " + XDIST_MODULE],
+            [program_on_child_path(box.env, "python"), "-c", "import " + XDIST_MODULE],
             cwd=str(box.work),
             capture_output=True,
             text=True,

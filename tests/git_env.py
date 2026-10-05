@@ -38,7 +38,11 @@ that RELOCATE a repository are removed.
 
 from __future__ import annotations
 
+import functools
 import os
+import shutil
+import subprocess
+from pathlib import Path
 from typing import Final
 
 #: Variables that point git at a repository, an index or an object store. Any
@@ -130,3 +134,73 @@ def scrubbed_env() -> dict[str, str]:
         directory it is pointed at rather than on an inherited repository.
     """
     return scrub(dict(os.environ))
+
+
+@functools.lru_cache(maxsize=1)
+def git_coreutils_dir() -> str | None:
+    """The directory holding Git for Windows' GNU ``timeout``, or None.
+
+    Derived from ``git --exec-path`` rather than from PATH, because a default
+    Git for Windows install puts only its ``cmd`` directory on PATH and the
+    coreutils directory is not on it at all. The exec path is
+    ``<root>/mingw64/libexec/git-core`` and the coreutils sit in
+    ``<root>/usr/bin``, so the ancestors are walked until one holds them.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "--exec-path"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    exec_path = proc.stdout.strip()
+    if proc.returncode != 0 or not exec_path:
+        return None
+    for root in Path(exec_path).parents:
+        candidate = root / "usr" / "bin"
+        if (candidate / "timeout.exe").is_file():
+            return str(candidate)
+    return None
+
+
+def program_on_child_path(env: dict[str, str], name: str) -> str:
+    """``name`` resolved on ``env``'s PATH, else ``name`` itself.
+
+    CS-1187: Windows resolves a bare program name in the PARENT's application
+    directory and PATH, never in the ``env`` handed to the child. Inside a
+    venv the running parent is the BASE interpreter, so a bare ``python``
+    runs the base install, and on a default Git for Windows install a bare
+    ``sh`` is not found at all. Resolving on the child's own PATH is what a
+    hook's ``sh`` does. Falls back to the bare name, so a miss fails the same
+    way it always did.
+    """
+    search = next((value for key, value in env.items() if key.upper() == "PATH"), None)
+    return shutil.which(name, path=search) or name
+
+
+def gnu_timeout_first(env: dict[str, str]) -> dict[str, str]:
+    """Return ``env`` with Git's GNU coreutils ahead of System32 on PATH.
+
+    CS-1187, MEASURED IN A NEVER-SEEN WINDOWS SANDBOX. The tracked hooks check
+    ``timeout`` BY BEHAVIOUR and refuse to run a probe without a working GNU
+    one. Windows ships its own ``timeout`` in System32, a pause command, and on
+    a machine whose PATH lists System32 before Git's coreutils it answers
+    first - so every hook arm refused with "no working GNU timeout was found".
+    The hooks are right to refuse; the fixture is what must hand them the
+    PATH a working Git for Windows hook run needs.
+
+    A no-op off Windows, where nothing shadows coreutils, and a no-op when no
+    Git coreutils directory is found. The mapping is mutated in place and also
+    returned, matching ``scrub``.
+    """
+    if os.name != "nt":
+        return env
+    coreutils = git_coreutils_dir()
+    if coreutils is None:
+        return env
+    path_key = next((key for key in env if key.upper() == "PATH"), "PATH")
+    env[path_key] = coreutils + os.pathsep + env.get(path_key, "")
+    return env

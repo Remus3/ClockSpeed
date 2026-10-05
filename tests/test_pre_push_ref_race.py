@@ -42,7 +42,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
-from tests.git_env import scrub
+from tests.git_env import gnu_timeout_first, program_on_child_path, scrub
 from tests.pre_push_floor import differs_only_on_floor_line, wired_hook_bytes
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
@@ -197,7 +197,8 @@ def isolated(tmp_path: Path) -> Environment:
     """
     # CS-968: scrubbed FIRST, for the same reason the sandbox cuts off global
     # config - an inherited GIT_DIR relocates every git call below.
-    env = scrub(dict(os.environ))
+    # CS-1187: Git's GNU timeout ahead of System32's, or the hook refuses.
+    env = gnu_timeout_first(scrub(dict(os.environ)))
     env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     env.pop("CLOCKSPEED_PYTHON", None)
@@ -374,7 +375,14 @@ def test_the_hook_does_not_block_when_stdin_is_closed(
     """
     box = make_sandbox(tmp_path, isolated, seconds=0.0)
     proc = subprocess.run(
-        ["sh", str(box.hooks / PRE_PUSH), "origin", str(box.remote)],
+        # CS-1187: a default Git for Windows install puts no sh on PATH; the
+        # fixture put Git's coreutils on the CHILD's PATH, so look there.
+        [
+            program_on_child_path(box.env, "sh"),
+            str(box.hooks / PRE_PUSH),
+            "origin",
+            str(box.remote),
+        ],
         cwd=str(box.work),
         capture_output=True,
         text=True,

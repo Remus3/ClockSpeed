@@ -1489,6 +1489,33 @@ def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
     config = _build_exclusion_project(project)
     home = _hostile_home(tmp_path)
     hostile = {**_controlled_environment(), **home}
+    enabled = {name: value for name, value in hostile.items() if name.upper() != "PYTHONNOUSERSITE"}
+
+    # CS-1187, measured in a never-seen sandbox: a default `python -m venv`
+    # interpreter switches the user site OFF in site.py itself, whatever the
+    # environment says. There the plant cannot reach mypy with or without the
+    # pin, the anti-vacuity half below cannot go red, and every half of this
+    # arm would be a measurement of nothing.
+    user_site_live = (
+        subprocess.run(
+            [sys.executable, "-c", "import site; print(site.ENABLE_USER_SITE)"],
+            env=enabled,
+            capture_output=True,
+            timeout=_MYPY_TIMEOUT_SECONDS,
+            check=True,
+        )
+        .stdout.decode("utf-8")
+        .strip()
+        == "True"
+    )
+    if not user_site_live:
+        pytest.skip(
+            "NOT RUN, NOT PASSED: this interpreter disables the per-user site itself "
+            "(a venv without system site packages), so no planted user site can reach "
+            "mypy and the anti-vacuity half cannot go red (CS-1187). Read the arm as "
+            "NOT RUN, never as covered."
+        )
+
     user_site = (
         subprocess.run(
             [sys.executable, "-c", "import site; print(site.getusersitepackages())"],
@@ -1504,7 +1531,6 @@ def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
     (Path(user_site) / "cs1125_plant.pth").write_text(f"{project / 'src'}\n", encoding="utf-8")
 
     # ANTI-VACUITY: with the user site enabled, the plant really breaks the arm.
-    enabled = {name: value for name, value in hostile.items() if name.upper() != "PYTHONNOUSERSITE"}
     with pytest.raises(AssertionError):
         _run_exclusion_arm(
             project, config, _seeded_cache(warm_mypy_cache, tmp_path / "enabled_cache"), env=enabled

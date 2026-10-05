@@ -35,12 +35,13 @@ than a test that merely calls ``scrub`` and checks its output.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from tests.git_env import REPO_LOCATING, scrub, scrubbed_env
+from tests.git_env import REPO_LOCATING, gnu_timeout_first, scrub, scrubbed_env
 
 GIT_TIMEOUT = 120
 
@@ -300,3 +301,58 @@ def test_the_scrub_removes_an_injected_config_override_in_every_spelling() -> No
         "GIT_CONFIG_SYSTEM": "keep",
         "PATH": "keep",
     }, f"the scrub left an injected override behind: {sorted(scrubbed)}"
+
+
+# --- CS-1187: Windows' own timeout must not answer for the hooks ------------
+
+#: GNU timeout's exit status when its bound expires; the hooks test for it.
+GNU_TIMEOUT_EXPIRED = 124
+
+
+def bound_expires(env: dict[str, str]) -> bool:
+    """Whether the first ``timeout`` on ``env``'s PATH returns 124 on expiry.
+
+    The same behavioural check the tracked hooks make before trusting the
+    binary: a GNU timeout returns 124 when a short bound runs out. Windows'
+    System32 ``timeout`` is a pause command and never does.
+    """
+    search = next(value for key, value in env.items() if key.upper() == "PATH")
+    found = shutil.which("timeout", path=search)
+    if found is None:
+        return False
+    proc = subprocess.run(
+        [found, "-k", "1", "0.05", "sleep", "5"],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=GIT_TIMEOUT,
+        check=False,
+    )
+    return proc.returncode == GNU_TIMEOUT_EXPIRED
+
+
+def shadowed_then_repaired() -> tuple[bool, bool]:
+    """Plant System32 first on PATH; grade it before and after the repair.
+
+    THE ENVIRONMENT NEVER REACHES THE ASSERTING FRAME. It is built and graded
+    here, and only two booleans go back, so no failure report can render a
+    variable's value (CLAUDE.md non-negotiable 13).
+    """
+    env = dict(os.environ)
+    path_key = next(key for key in env if key.upper() == "PATH")
+    system32 = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32"
+    env[path_key] = str(system32) + os.pathsep + env[path_key]
+    return bound_expires(env), bound_expires(gnu_timeout_first(env))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="System32 shadowing exists only on Windows")
+def test_system32_first_on_path_still_gives_the_hooks_a_gnu_timeout() -> None:
+    """CS-1187 D4: a never-seen machine put System32 ahead of Git's usr/bin.
+
+    The hooks then refused every probe ("no working GNU timeout was found") and
+    thirteen hook arms went red. The control proves the shadowing is real on
+    this machine before the repaired environment is graded.
+    """
+    shadowed, repaired = shadowed_then_repaired()
+    assert not shadowed, "control: System32 first on PATH did not shadow GNU timeout"
+    assert repaired, "gnu_timeout_first left no GNU timeout first on PATH"
