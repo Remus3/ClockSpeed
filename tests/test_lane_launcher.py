@@ -677,7 +677,7 @@ def test_cs1274_r2_an_interrupt_inside_the_liveness_wait_kills_the_runner(
     kill what it started before the interrupt goes on up.
     """
     runner = tmp_path / "run_lane.ps1"
-    runner.write_bytes(b"# a runner\n")
+    runner.write_bytes(b"# a lane script\n")
     killed: list[int] = []
 
     class _InterruptedProc:
