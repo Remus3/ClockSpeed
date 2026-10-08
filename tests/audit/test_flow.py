@@ -24,6 +24,13 @@ same ``MachineState.overclock_elided`` mark and flows such a machine at the same
 default, counted. :func:`test_the_flow_and_the_balance_classify_every_clock_alike`
 drives both audits over one synthetic world built through the real
 ``machines_of`` seam, so the mark is derived the way a save derives it.
+
+CS-1278: A PRODUCTION BOOST IS A NAMED FLOW GAP. A boost multiplies output on
+top of the clock, its saved value is unmeasured, and CS-1264 already names a
+boosted machine a gap in the balance - so the flow names it a gap too, by the
+tag's PRESENCE, whatever its clock reads and whether or not its value decoded.
+The agreement world carries boosted rows, so the both-audits arm reddens the
+moment the flow prices a machine the balance refuses.
 """
 
 from __future__ import annotations
@@ -43,6 +50,7 @@ from clockspeed.save.world import RecordProperties, WorldModel
 from clockspeed.solve import exact, power
 from tests.audit import test_balance as balance_fx
 from tests.audit import test_machines as machines_fx
+from tests.save import synthetic as save_synthetic
 from tests.solve import synthetic
 
 _SMELTER = synthetic.SOLVE_SMELTER_BUILDING
@@ -109,6 +117,19 @@ def _elided(recipe: str | None) -> MachineState:
         overclock=None,
         overclock_elided=True,
     )
+
+
+def _boosted(state: MachineState) -> MachineState:
+    """Mark one synthetic machine as carrying a production-boost tag.
+
+    Args:
+        state: The machine.
+
+    Returns:
+        The same machine with ``production_boost_tagged`` set, the shape
+        ``machines_of`` publishes for a payload carrying a boost tag.
+    """
+    return replace(state, production_boost_tagged=True)
 
 
 def _world(states: list[MachineState]) -> WorldMachines:
@@ -496,12 +517,13 @@ def test_the_buckets_partition_the_population_with_conservation(
         _machine(None),
         _machine(synthetic.ZERO_DURATION_RECIPE),
         _elided(synthetic.ROD_RECIPE),
+        _boosted(_machine(synthetic.PLATE_RECIPE)),
     ]
     result = flow.flow_of(states, recipes)
     flowing = sum(group.machine_count for group in result.groups)
     skipped = sum(gap.machine_count for gap in result.gaps)
     assert result.machines_considered == len(states)
-    assert (flowing, skipped) == (_FOUR, 5)
+    assert (flowing, skipped) == (_FOUR, 6)
     assert flowing + skipped == result.machines_considered
     assert result.skipped_count == skipped
     assert {gap.kind for gap in result.gaps} == set(flow.GAP_FLOW_KINDS)
@@ -525,6 +547,272 @@ def test_an_all_skipped_population_says_nothing_flowed(recipes: dict[str, Recipe
 def test_a_clean_population_raises_no_warning(recipes: dict[str, Recipe]) -> None:
     result = flow.flow_of([_machine(synthetic.PLATE_RECIPE)], recipes)
     assert result.warnings == ()
+    assert result.complete is True
+
+
+# ---------------------------------------------------------------------------
+# CS-1278: a production-boost tag is a named flow gap, never flowed at its clock
+# ---------------------------------------------------------------------------
+#
+# No save in the library carries a boost tag, so every arm here is synthetic.
+# THE TEST OWNS THE SPELLING of the one tag name it plants, and checks it
+# against the reader's vocabulary rather than reading it off the module.
+
+#: The live production boost, as the game spells it.
+_BOOST_TAG: Final = "mCurrentProductionBoost"
+
+
+@pytest.mark.parametrize(
+    "boosted",
+    [
+        _boosted(_machine(synthetic.PLATE_RECIPE)),
+        _boosted(_machine(synthetic.PLATE_RECIPE, Fraction(1, 2))),
+        _boosted(_elided(synthetic.PLATE_RECIPE)),
+        _boosted(_machine(synthetic.PLATE_RECIPE, None)),
+        _boosted(_machine(synthetic.PLATE_RECIPE, Fraction(-1, 2))),
+        _boosted(_machine(synthetic.PLATE_RECIPE, cast("Fraction", 0.5))),
+        _boosted(_machine(synthetic.PLATE_RECIPE, Fraction(5, 2))),
+        _boosted(_machine(synthetic.PLATE_RECIPE, Fraction(0))),
+        replace(_boosted(_machine(synthetic.PLATE_RECIPE)), producing=False),
+    ],
+    ids=[
+        "read-one",
+        "read-half",
+        "elided",
+        "unread",
+        "negative",
+        "float",
+        "overclocked",
+        "zero",
+        "stalled",
+    ],
+)
+def test_a_boosted_machine_is_a_named_gap_whatever_its_clock(
+    recipes: dict[str, Recipe], boosted: MachineState
+) -> None:
+    """The boost is decided BEFORE the clock, so no clock reading moves the gap kind.
+
+    An unboosted machine at clock one sits beside it on the same recipe, so the
+    plate net is exactly one machine's rate: flowing the boosted machine at its
+    clock or at the elided default moves the net, and a clock gap in its place
+    names the wrong fault. A boosted machine at clock zero would move no net
+    if flowed, so the gap and the group's machine count are what grade it.
+
+    The flow is NOMINAL and never reads the producing flag, so a STALLED
+    boosted machine is a boost gap too: a check that skipped the boost on a
+    stalled machine would flow it at its clock.
+    """
+    result = flow.flow_of([boosted, _machine(synthetic.PLATE_RECIPE)], recipes)
+
+    assert result.items[_PLATE].net == _PLATE_RATE
+    assert [(g.kind, g.recipe_class_name, g.machine_count) for g in result.gaps] == [
+        (flow.GAP_FLOW_BOOST_UNMODELED, synthetic.PLATE_RECIPE, 1)
+    ]
+    assert _codes(result) == {flow.WARN_FLOW_BOOST_UNMODELED: 1}
+    assert [(group.machine_count, group.elided_machine_count) for group in result.groups] == [
+        (1, 0)
+    ]
+    assert result.elided_clock_count == 0
+    assert result.complete is False
+
+
+def test_a_boosted_elided_machine_is_not_counted_beside_an_unboosted_one(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Both carry the elision mark on one recipe; only the unboosted one flows and counts.
+
+    A count that reads the mark before the boost - or that counts every
+    marked machine on a flowing recipe - reports two here, and one is right.
+    """
+    result = flow.flow_of(
+        [_boosted(_elided(synthetic.PLATE_RECIPE)), _elided(synthetic.PLATE_RECIPE)], recipes
+    )
+
+    assert [
+        (group.machine_count, group.elided_machine_count, group.machine_equivalents)
+        for group in result.groups
+    ] == [(1, 1, balance.ELIDED_CLOCK_DEFAULT)]
+    assert result.elided_clock_count == 1
+    assert [(g.kind, g.machine_count) for g in result.gaps] == [(flow.GAP_FLOW_BOOST_UNMODELED, 1)]
+
+
+def test_a_recipe_side_gap_outranks_the_boost(recipes: dict[str, Recipe]) -> None:
+    """The recipe side runs first, as the balance's registry side does.
+
+    A machine with no recipe, or one the mapping cannot rate, moves nothing in
+    this flow whether or not it is boosted, and that is the fault named.
+    """
+    result = flow.flow_of(
+        [
+            _boosted(_machine(None)),
+            _boosted(_machine(_UNKNOWN_RECIPE)),
+            _boosted(_elided(synthetic.ZERO_DURATION_RECIPE)),
+        ],
+        recipes,
+    )
+
+    assert [gap.kind for gap in result.gaps] == [
+        flow.GAP_FLOW_NO_RECIPE,
+        flow.GAP_FLOW_RECIPE_UNKNOWN,
+        flow.GAP_FLOW_RATE_UNDEFINED,
+    ]
+    assert flow.WARN_FLOW_BOOST_UNMODELED not in _codes(result)
+    assert result.elided_clock_count == 0
+
+
+def test_the_boost_gap_ranks_after_the_recipe_side_and_before_the_clock(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Gaps publish in kind order, and the boost sits where the balance decides it."""
+    result = flow.flow_of(
+        [
+            _machine(synthetic.PLATE_RECIPE, None),
+            _boosted(_machine(synthetic.PLATE_RECIPE)),
+            _machine(synthetic.ZERO_DURATION_RECIPE),
+        ],
+        recipes,
+    )
+
+    assert [gap.kind for gap in result.gaps] == [
+        flow.GAP_FLOW_RATE_UNDEFINED,
+        flow.GAP_FLOW_BOOST_UNMODELED,
+        flow.GAP_FLOW_CLOCK_UNREAD,
+    ]
+    assert [warning.code for warning in result.warnings] == [
+        flow.WARN_FLOW_RATE_UNDEFINED,
+        flow.WARN_FLOW_BOOST_UNMODELED,
+        flow.WARN_FLOW_CLOCK_UNREAD,
+        flow.WARN_FLOW_NOTHING_FLOWING,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("state", "flow_kind", "balance_kind"),
+    [
+        (
+            _boosted(_machine(_UNKNOWN_RECIPE)),
+            flow.GAP_FLOW_RECIPE_UNKNOWN,
+            balance.GAP_BOOST_UNMODELED,
+        ),
+        (_boosted(_machine(None)), flow.GAP_FLOW_NO_RECIPE, balance.GAP_BOOST_UNMODELED),
+        (
+            _boosted(_elided(synthetic.ZERO_DURATION_RECIPE)),
+            flow.GAP_FLOW_RATE_UNDEFINED,
+            balance.GAP_BOOST_UNMODELED,
+        ),
+        (
+            replace(_boosted(_machine(synthetic.PLATE_RECIPE)), class_name=_UNMODELED_CLASS),
+            flow.GAP_FLOW_BOOST_UNMODELED,
+            balance.GAP_NO_REGISTRY_ENTRY,
+        ),
+    ],
+    ids=["recipe-unknown", "no-recipe", "rate-undefined", "class-unmodeled"],
+)
+def test_both_audits_name_a_boosted_machine_a_gap_when_an_earlier_fault_wins(
+    recipes: dict[str, Recipe], state: MachineState, flow_kind: str, balance_kind: str
+) -> None:
+    """Some gap in both audits, never a number - but not always the same NAME.
+
+    Each audit decides the boost after its own earlier checks: the flow after
+    the recipe side, which the balance never reads, and the balance after its
+    registry side, which the flow never reads. So where an earlier fault wins
+    in either audit the two name different gaps for one boosted machine, and
+    the claim that holds - the one ``clockspeed/audit/flow.py`` states - is that
+    neither audit prices or flows it.
+    """
+    flowed = flow.flow_of([state], recipes)
+    drawn = balance.clocked_draw_of(
+        _world([state]),
+        balance_fx.registry(balance_fx.building(_SMELTER, consumption=balance_fx.THIRD_MEGAWATTS)),
+    )
+
+    assert flowed.groups == ()
+    assert flowed.items == {}
+    assert drawn.contributions == ()
+    assert [(gap.kind, gap.machine_count) for gap in flowed.gaps] == [(flow_kind, 1)]
+    assert [(gap.kind, gap.machine_count) for gap in drawn.gaps] == [(balance_kind, 1)]
+    assert (flowed.complete, drawn.complete) == (False, False)
+    assert flowed.elided_clock_count == drawn.elided_clock_count == 0
+
+
+#: The recipe class the decoder arms' recipe reference reduces to.
+_DECODED_RECIPE: Final = balance_fx.RECIPE_ASSET.rpartition(".")[2]
+
+
+def _decoded_recipe_tag() -> bytes:
+    """A current-recipe reference whose two strings fill its declared size.
+
+    Returns:
+        The encoded tag, the untorn sibling of ``balance_fx.torn_recipe_tag``.
+    """
+    pair = save_synthetic.fstring(save_synthetic.MAP_NAME) + save_synthetic.fstring(
+        balance_fx.RECIPE_ASSET
+    )
+    return save_synthetic.property_tag(machines.PROPERTY_RECIPE, "ObjectProperty", pair)
+
+
+def _decoded_population(*extra: bytes) -> WorldMachines:
+    """One actor at a read clock of one on a decoded recipe, through the REAL loader.
+
+    Args:
+        extra: Further encoded tags, appended after the machine's own.
+
+    Returns:
+        The machines model ``machines_of`` publishes.
+    """
+    return machines.machines_of(
+        balance_fx.decoded_world(
+            balance_fx.float_tag(machines.PROPERTY_OVERCLOCK, 1.0),
+            balance_fx.producing_tag(),
+            _decoded_recipe_tag(),
+            *extra,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "boost_tag",
+    [
+        balance_fx.torn_float_tag(_BOOST_TAG),
+        save_synthetic.legacy_struct_tag(_BOOST_TAG, balance_fx.BOOST_STRUCT_WORD, bytes(8)),
+    ],
+    ids=["torn-float", "struct-typed"],
+)
+def test_a_boost_tag_whose_value_never_decoded_is_still_a_flow_gap(
+    recipes: dict[str, Recipe], boost_tag: bytes
+) -> None:
+    """Presence is the fact read, never the value - a boost the decoder dropped is a boost.
+
+    THE PREMISE IS ASSERTED FIRST: the reader's vocabulary carries the planted
+    name, and the real decoder dropped its value, so no boost name reaches the
+    values. A read clock of one sits beside it, so ignoring the boost flows the
+    machine at one and reports the flow complete.
+    """
+    assert _BOOST_TAG in machines.PRODUCTION_BOOST_PROPERTY_NAMES
+    population = _decoded_population(boost_tag)
+    assert [
+        (state.recipe_class_name, state.overclock, state.production_boost_tagged)
+        for state in population.machines
+    ] == [(_DECODED_RECIPE, Fraction(1), True)]
+
+    result = flow.flow_of(population, {_DECODED_RECIPE: recipes[synthetic.PLATE_RECIPE]})
+
+    assert result.items == {}
+    assert [(g.kind, g.recipe_class_name, g.machine_count) for g in result.gaps] == [
+        (flow.GAP_FLOW_BOOST_UNMODELED, _DECODED_RECIPE, 1)
+    ]
+    assert result.complete is False
+
+
+def test_a_decoded_payload_with_no_boost_tag_flows(recipes: dict[str, Recipe]) -> None:
+    """The control for the arm above: the same loader, no boost tag, a flow at one."""
+    population = _decoded_population()
+    assert [state.production_boost_tagged for state in population.machines] == [False]
+
+    result = flow.flow_of(population, {_DECODED_RECIPE: recipes[synthetic.PLATE_RECIPE]})
+
+    assert result.items[_PLATE].net == _PLATE_RATE
+    assert result.gaps == ()
     assert result.complete is True
 
 
@@ -573,10 +861,17 @@ def test_the_repr_renders_counts_and_no_recipe_or_item_name(
 # machine per row, each with its OWN class and its OWN recipe, so the balance's
 # per-class groups and the flow's per-recipe groups each hold exactly one machine
 # and every machine's classification can be read back out of both audits.
-# Every class is modeled and every recipe has a rate, so the clock is the only
-# thing either audit is asked about.
+# Every class is modeled and every recipe has a rate, so the clock - and, for
+# the CS-1278 rows, the production boost - is the only thing either audit is
+# asked about.
 
-#: One row per way a clock reaches both audits, in record order.
+#: One row per way a clock reaches both audits, in record order. The
+#: ``Boosted`` rows carry a production-boost tag beside a clock each audit
+#: would otherwise price - read at one, elided, overclocked above one, at zero,
+#: or read at one on a STALLED machine - or refuse (``BoostedNegative``,
+#: ``BoostedUndecoded``), so a boost decided after the clock, not at all, or
+#: only on some clocks or some producing states, disagrees with the balance on
+#: at least one of them.
 _AGREEMENT_ROWS: Final = (
     "Read",
     "ReadOne",
@@ -586,10 +881,27 @@ _AGREEMENT_ROWS: Final = (
     "Negative",
     "Unread",
     "Disagreeing",
+    "BoostedRead",
+    "BoostedElided",
+    "BoostedNegative",
+    "BoostedUndecoded",
+    "BoostedOverclocked",
+    "BoostedZero",
+    "BoostedStalled",
 )
 
+#: The rows whose payload carries a production-boost tag.
+_BOOSTED_ROWS: Final = frozenset(label for label in _AGREEMENT_ROWS if label.startswith("Boosted"))
+
+#: The rows whose clock tag the serializer elided.
+_ELIDED_ROWS: Final = frozenset({"Elided", "BoostedElided"})
+
+#: A decoded boost value. Never read by either audit; any float32 serves.
+_BOOST_VALUE: Final = machines_fx.as_float32("2")
+
 #: Each row's decoded values. A cleanly read payload with no clock tag is the
-#: elided shape; ``Unread`` and ``Disagreeing`` reuse it and are spoiled below.
+#: elided shape; ``Unread``, ``Disagreeing`` and ``BoostedUndecoded`` reuse it
+#: and are spoiled below.
 _AGREEMENT_VALUES: Final[Mapping[str, Mapping[str, object]]] = MappingProxyType(
     {
         "Read": {
@@ -602,6 +914,21 @@ _AGREEMENT_VALUES: Final[Mapping[str, Mapping[str, object]]] = MappingProxyType(
         "Negative": {machines.PROPERTY_OVERCLOCK: -0.5},
         "Unread": {machines.PROPERTY_PRODUCING: True},
         "Disagreeing": {machines.PROPERTY_PRODUCING: True},
+        "BoostedRead": {machines.PROPERTY_OVERCLOCK: 1.0, _BOOST_TAG: _BOOST_VALUE},
+        "BoostedElided": {machines.PROPERTY_PRODUCING: True, _BOOST_TAG: _BOOST_VALUE},
+        "BoostedNegative": {machines.PROPERTY_OVERCLOCK: -0.5, _BOOST_TAG: _BOOST_VALUE},
+        "BoostedUndecoded": {machines.PROPERTY_PRODUCING: True},
+        "BoostedOverclocked": {
+            machines.PROPERTY_OVERCLOCK: 2.5,
+            machines.PROPERTY_PRODUCING: True,
+            _BOOST_TAG: _BOOST_VALUE,
+        },
+        "BoostedZero": {machines.PROPERTY_OVERCLOCK: 0.0, _BOOST_TAG: _BOOST_VALUE},
+        "BoostedStalled": {
+            machines.PROPERTY_OVERCLOCK: 1.0,
+            machines.PROPERTY_PRODUCING: False,
+            _BOOST_TAG: _BOOST_VALUE,
+        },
     }
 )
 
@@ -609,19 +936,26 @@ _AGREEMENT_VALUES: Final[Mapping[str, Mapping[str, object]]] = MappingProxyType(
 _PRICED: Final = "priced"
 _UNREAD: Final = "unread"
 _REFUSED: Final = "refused"
+_BOOSTED: Final = "boosted"
 
-#: The flow's clock-gap kinds, in the shared vocabulary.
+#: The flow's clock and boost gap kinds, in the shared vocabulary.
 _FLOW_CLOCK_GAP: Final[Mapping[str, str]] = MappingProxyType(
-    {flow.GAP_FLOW_CLOCK_UNREAD: _UNREAD, flow.GAP_FLOW_CLOCK_REFUSED: _REFUSED}
+    {
+        flow.GAP_FLOW_CLOCK_UNREAD: _UNREAD,
+        flow.GAP_FLOW_CLOCK_REFUSED: _REFUSED,
+        flow.GAP_FLOW_BOOST_UNMODELED: _BOOSTED,
+    }
 )
 
-#: The balance's clock-gap kinds, in the shared vocabulary. A negative clock has
-#: no real draw there and no flow here: a named gap in both, priced in neither.
+#: The balance's clock and boost gap kinds, in the shared vocabulary. A negative
+#: clock has no real draw there and no flow here: a named gap in both, priced in
+#: neither.
 _BALANCE_CLOCK_GAP: Final[Mapping[str, str]] = MappingProxyType(
     {
         balance.GAP_CLOCK_UNREAD: _UNREAD,
         balance.GAP_LAW_INEXACT: _REFUSED,
         power.OUTCOME_UNDEFINED: _REFUSED,
+        balance.GAP_BOOST_UNMODELED: _BOOSTED,
     }
 )
 
@@ -667,6 +1001,10 @@ def _agreement_entry(label: str) -> RecordProperties:
         f"/Game/FactoryGame/Synthetic/{recipe.removesuffix('_C')}.{recipe}"
     )
     built = machines_fx.entry(_AGREEMENT_VALUES[label], reference, payload_read=label != "Unread")
+    if label == "BoostedUndecoded":
+        # A torn boost tag, as the real decoder publishes one: its value dropped,
+        # a disagreement counted, and its NAME carried so presence still reads.
+        return replace(built, disagreeing_value_count=1, undecoded_names=frozenset({_BOOST_TAG}))
     return replace(built, disagreeing_value_count=1) if label == "Disagreeing" else built
 
 
@@ -805,16 +1143,38 @@ def _agreement_expected() -> dict[str, _Classified]:
         "Negative": (_REFUSED, None),
         "Unread": (_UNREAD, None),
         "Disagreeing": (_UNREAD, None),
+        "BoostedRead": (_BOOSTED, None),
+        "BoostedElided": (_BOOSTED, None),
+        "BoostedNegative": (_BOOSTED, None),
+        "BoostedUndecoded": (_BOOSTED, None),
+        "BoostedOverclocked": (_BOOSTED, None),
+        "BoostedZero": (_BOOSTED, None),
+        "BoostedStalled": (_BOOSTED, None),
     }
 
 
 def test_the_agreement_world_carries_the_mark_only_where_the_payload_earns_it() -> None:
-    """The precondition: without it the arm below would be about nothing."""
+    """The precondition: without it the arm below would be about nothing.
+
+    CS-1278: every boosted row reaches the model boosted, including the one
+    whose boost value never decoded, and the boosted rows still carry the
+    clock and producing flag each would be priced at without the boost - one
+    elided, the rest read at one, above one and at zero, one of them stalled.
+    """
     model = machines.machines_of(_agreement_world())
 
     assert [state.overclock_elided for state in model.machines] == [
-        label == "Elided" for label in _AGREEMENT_ROWS
+        label in _ELIDED_ROWS for label in _AGREEMENT_ROWS
     ]
+    assert [state.production_boost_tagged for state in model.machines] == [
+        label in _BOOSTED_ROWS for label in _AGREEMENT_ROWS
+    ]
+    by_label = dict(zip(_AGREEMENT_ROWS, model.machines, strict=True))
+    assert [
+        (by_label[label].overclock, by_label[label].producing)
+        for label in ("BoostedRead", "BoostedOverclocked", "BoostedZero", "BoostedStalled")
+    ] == [(Fraction(1), None), (Fraction(5, 2), True), (Fraction(0), None), (Fraction(1), False)]
+    assert _BOOST_TAG in machines.PRODUCTION_BOOST_PROPERTY_NAMES
     assert sum(state.recipe_class_name is not None for state in model.machines) == len(
         _AGREEMENT_ROWS
     )
@@ -828,6 +1188,11 @@ def test_the_flow_and_the_balance_classify_every_clock_alike(
     A row the flow reads as unread while the balance prices it at the default
     is the disagreement; a row either audit prices that the other names a gap
     is the same fault the other way round.
+
+    CS-1278 extends it to the boost: a boosted row the flow flows, or names
+    by its clock, while the balance names it boost-unmodeled is the same
+    two-audits-one-machine disagreement, and the boosted elided row stays out
+    of both elided counts.
     """
     model = machines.machines_of(_agreement_world())
     flowed = flow.flow_of(model, _agreement_recipes(recipes))

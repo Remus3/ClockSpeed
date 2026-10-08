@@ -32,8 +32,9 @@ so the rate this module computes cannot drift from the one the solver solved.
 FLAG AND SKIP, NEVER A CONFIDENT ZERO (NON-NEGOTIABLE 7)
 ---------------------------------------------------------
 Every machine lands in EXACTLY ONE bucket. Either it flows - it carries a recipe
-the mapping knows, whose rate is defined, and a clock that is an exact
-non-negative ``Fraction`` - and is summed into a :class:`RecipeGroup`; or it is
+the mapping knows, whose rate is defined, no production-boost tag, and a clock
+that is an exact non-negative ``Fraction`` - and is summed into a
+:class:`RecipeGroup`; or it is
 skipped into a :class:`FlowGap` of a NAMED kind, counted, and reported under a
 ``WARN_FLOW_*`` code. ``FlowGap`` has no rate field at all, for the reason
 ``balance.py`` ``DrawGap`` has no megawatts field: a skipped machine has no
@@ -43,8 +44,36 @@ number, and a zero would read as a measurement. The buckets conserve -
 THE CHECKS RUN IN A FIXED ORDER, so a machine wrong in two ways is reported
 under the first: no recipe, then a recipe the mapping does not carry, then a
 recipe with no defined rate (a zero duration, or an amount that is not exactly a
-Fraction), then an unread clock, then a refused clock. Recipe-side faults come
-first because they hold for every machine on that recipe whatever its clock.
+Fraction), then a production boost, then an unread clock, then a refused clock.
+Recipe-side faults come first because they hold for every machine on that recipe
+whatever its clock or its boost. The boost comes next and BEFORE the clock - the
+order ``clockspeed/audit/balance.py`` decides it in, after its registry side -
+because no clock reading can rate a boosted machine.
+
+A PRODUCTION BOOST IS A NAMED GAP, NEVER A CLOCK-ONLY RATE (CS-1278, on
+CS-1264's terms). A boost multiplies output on top of the clock, and its saved
+value is unmeasured - no save in the library carries the tag - so a machine whose
+``MachineState.production_boost_tagged`` is set, by the tag's PRESENCE and
+whether or not its value decoded, is :data:`GAP_FLOW_BOOST_UNMODELED` unless a
+recipe-side fault wins first. The boost's value is never read, and neither are
+the clock and the producing flag beside it: a read clock and the elided default
+are equally the wrong rate, so a boosted machine never flows and never enters
+the elided count.
+
+WHAT THE TWO AUDITS AGREE ON IS NARROWER THAN ONE NAME. Neither audit ever
+prices or flows a boosted machine - each names it a gap, or for a generator
+class the balance counts it apart - so neither publishes a number for it. The
+NAMES agree, boost-unmodeled in both, only where no earlier fault wins in either
+audit's documented order. Each decides the boost after its own earlier side,
+and neither reads the other's: a machine with no recipe, an unknown one or one
+with no defined rate is a recipe-side gap here while the balance, which reads no
+recipe, names the boost; a machine whose class the balance's registry does not
+model is a registry gap there while this audit, which reads no registry, names
+the boost.
+``tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike``
+holds the names to agree where no earlier fault exists, and
+``tests/audit/test_flow.py::test_both_audits_name_a_boosted_machine_a_gap_when_an_earlier_fault_wins``
+pins the disagreement on names where one does, and that both are gaps.
 
 AN UNREAD CLOCK IS NEVER READ AS ONE. ``MachineState.overclock`` is None when
 the reader saw no tag, and the game's default clock IS one - so substituting one
@@ -96,6 +125,7 @@ if TYPE_CHECKING:
     from clockspeed.data.registry import Recipe
 
 __all__ = [
+    "GAP_FLOW_BOOST_UNMODELED",
     "GAP_FLOW_CLOCK_REFUSED",
     "GAP_FLOW_CLOCK_UNREAD",
     "GAP_FLOW_KINDS",
@@ -103,6 +133,7 @@ __all__ = [
     "GAP_FLOW_RATE_UNDEFINED",
     "GAP_FLOW_RECIPE_UNKNOWN",
     "SOURCE_FLOW",
+    "WARN_FLOW_BOOST_UNMODELED",
     "WARN_FLOW_CLOCK_REFUSED",
     "WARN_FLOW_CLOCK_UNREAD",
     "WARN_FLOW_NOTHING_FLOWING",
@@ -131,6 +162,15 @@ GAP_FLOW_RECIPE_UNKNOWN: Final = "recipe-unknown"
 #: duration, or an amount or duration that is not exactly a Fraction.
 GAP_FLOW_RATE_UNDEFINED: Final = "rate-undefined"
 
+#: CS-1278. A machine whose payload carried a production-boost tag -
+#: ``MachineState.production_boost_tagged``, decoded or not. NEVER FLOWED AT
+#: ITS CLOCK ALONE: a boost multiplies output on top of the clock, and its saved
+#: value is unmeasured, so neither a read clock nor the elided default is its
+#: rate. The word is ``clockspeed/audit/balance.py`` ``GAP_BOOST_UNMODELED``'s
+#: own; the two audits name one machine alike only where no earlier fault wins
+#: in either, as the module docstring states.
+GAP_FLOW_BOOST_UNMODELED: Final = "boost-unmodeled"
+
 #: A machine whose clock never read - refused, or absent for any reason other
 #: than the elided class default. Never substituted with one.
 GAP_FLOW_CLOCK_UNREAD: Final = "clock-unread"
@@ -144,6 +184,7 @@ GAP_FLOW_KINDS: Final = (
     GAP_FLOW_NO_RECIPE,
     GAP_FLOW_RECIPE_UNKNOWN,
     GAP_FLOW_RATE_UNDEFINED,
+    GAP_FLOW_BOOST_UNMODELED,
     GAP_FLOW_CLOCK_UNREAD,
     GAP_FLOW_CLOCK_REFUSED,
 )
@@ -156,6 +197,10 @@ WARN_FLOW_RECIPE_UNKNOWN: Final = "flow-recipe-unknown"
 
 #: This many machines ran a recipe with no defined per-minute rate.
 WARN_FLOW_RATE_UNDEFINED: Final = "flow-rate-undefined"
+
+#: CS-1278. This many machines carried a production-boost tag, whose effect on
+#: output is not modelled.
+WARN_FLOW_BOOST_UNMODELED: Final = "flow-boost-unmodeled"
 
 #: This many machines carried no readable clock.
 WARN_FLOW_CLOCK_UNREAD: Final = "flow-clock-unread"
@@ -173,6 +218,7 @@ _WARNING_OF_GAP: Final[Mapping[str, str]] = MappingProxyType(
         GAP_FLOW_NO_RECIPE: WARN_FLOW_NO_RECIPE,
         GAP_FLOW_RECIPE_UNKNOWN: WARN_FLOW_RECIPE_UNKNOWN,
         GAP_FLOW_RATE_UNDEFINED: WARN_FLOW_RATE_UNDEFINED,
+        GAP_FLOW_BOOST_UNMODELED: WARN_FLOW_BOOST_UNMODELED,
         GAP_FLOW_CLOCK_UNREAD: WARN_FLOW_CLOCK_UNREAD,
         GAP_FLOW_CLOCK_REFUSED: WARN_FLOW_CLOCK_REFUSED,
     }
@@ -194,6 +240,12 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_FLOW_RATE_UNDEFINED: (
             "this many machines run a recipe with no defined per-minute rate - a zero"
             " duration or an inexact amount - so they contributed nothing"
+        ),
+        WARN_FLOW_BOOST_UNMODELED: (
+            "this many machines carry a production-boost tag, which multiplies output"
+            " on top of the clock and whose value is not modelled, so they contributed"
+            " nothing; flowing one at its clock alone, or at the elided default, would"
+            " flow a boosted machine as unboosted"
         ),
         WARN_FLOW_CLOCK_UNREAD: (
             "this many machines carry no readable clock, so they contributed nothing;"
@@ -365,7 +417,8 @@ class WorldFlow:
             exactly a Fraction, which it names law-inexact), is the reverse. The
             two agree machine by machine wherever the flow flows the machine AND
             the balance prices it - ``tests/audit/test_flow.py`` grades both
-            halves.
+            halves. CS-1278: neither audit prices or flows a boosted machine,
+            so it is counted in neither, elided or not.
     """
 
     groups: tuple[RecipeGroup, ...]
@@ -456,7 +509,7 @@ def _clock_of(state: MachineState) -> tuple[Fraction | None, bool]:
     return state.overclock, False
 
 
-def _gap_kind(
+def _gap_kind(  # noqa: PLR0911 - one return per gap kind, in the fixed order, is the clearest surface
     state: MachineState,
     clock: Fraction | None,
     recipes: Mapping[str, Recipe],
@@ -481,6 +534,8 @@ def _gap_kind(
         return GAP_FLOW_RECIPE_UNKNOWN
     if rates[recipe] is None:
         return GAP_FLOW_RATE_UNDEFINED
+    if state.production_boost_tagged:
+        return GAP_FLOW_BOOST_UNMODELED
     if clock is None:
         return GAP_FLOW_CLOCK_UNREAD
     if type(clock) is not Fraction or clock < 0:

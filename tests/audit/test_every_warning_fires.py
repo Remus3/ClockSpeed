@@ -98,12 +98,15 @@ def _flow(*states: machines.MachineState) -> tuple[WorldWarning, ...]:
     return flow.flow_of(list(states), dict(synthetic.solve_registry().recipes)).warnings
 
 
-def _smelter(recipe: str | None, clock: Fraction | None = Fraction(1)) -> machines.MachineState:
+def _smelter(
+    recipe: str | None, clock: Fraction | None = Fraction(1), *, boosted: bool = False
+) -> machines.MachineState:
     """One synthetic smelter, producing, so only the recipe and the clock decide the flow.
 
     Args:
         recipe: The recipe class name, or None for an unconfigured machine.
         clock: The overclock, or None for an unread one.
+        boosted: CS-1278. Whether it carries a production-boost tag.
 
     Returns:
         The state.
@@ -113,6 +116,7 @@ def _smelter(recipe: str | None, clock: Fraction | None = Fraction(1)) -> machin
         producing=True,
         recipe_class_name=recipe,
         overclock=clock,
+        production_boost_tagged=boosted,
     )
 
 
@@ -303,6 +307,7 @@ FIXTURES: Final[Mapping[str, Firing]] = {
     "WARN_FLOW_NO_RECIPE": lambda: _flow(_smelter(None)),
     "WARN_FLOW_RECIPE_UNKNOWN": lambda: _flow(_smelter(_UNKNOWN_RECIPE)),
     "WARN_FLOW_RATE_UNDEFINED": lambda: _flow(_smelter(synthetic.ZERO_DURATION_RECIPE)),
+    "WARN_FLOW_BOOST_UNMODELED": lambda: _flow(_smelter(synthetic.PLATE_RECIPE, boosted=True)),
     "WARN_FLOW_CLOCK_UNREAD": lambda: _flow(_smelter(synthetic.PLATE_RECIPE, None)),
     "WARN_FLOW_CLOCK_REFUSED": lambda: _flow(_smelter(synthetic.PLATE_RECIPE, Fraction(-1, 2))),
     "WARN_FLOW_NOTHING_FLOWING": _flow,
