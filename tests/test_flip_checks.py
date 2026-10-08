@@ -1006,16 +1006,50 @@ def test_a_passing_run_exits_zero_while_the_commit_graph_is_held(
         if sys.platform == "win32":
             # Control: the hold really does block removing a SECOND name of the file,
             # which is exactly what a hard-linked clone's cleanup would have to do.
+            # Where it does not block (CS-1273: the windows-2025 runner image), the
+            # arm cannot tell a hard-linked clone from a copied one, so it says so.
             twin = tmp_path / "twin-commit-graph"
             twin.hardlink_to(graph)
             twin.chmod(0o600)
-            with pytest.raises(PermissionError):
+            try:
                 twin.unlink()
+                held = False
+            except PermissionError:
+                held = True
+            if not held:
+                pytest.skip(HOLD_DID_NOT_TAKE)
         code = flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=cloning_runner)
 
     (scratch,) = seen
     assert code == flip.EXIT_PASS
     assert not scratch.exists()
+
+
+#: What the held-graph arm reports where its Windows control does not take (CS-1273).
+HOLD_DID_NOT_TAKE: Final = (
+    "the commit-graph hold did not take on this image - its hard-link twin unlinked"
+)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the hold's control runs on Windows only")
+def test_a_commit_graph_hold_that_does_not_take_is_named_not_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1273: where a mapped graph does not block its twin, the held arm skips by name."""
+    real_unlink = Path.unlink
+
+    def image_unlink(self: Path, missing_ok: bool = False) -> None:
+        # The windows-2025 runner image: removing the twin raises no PermissionError.
+        if self.name != "twin-commit-graph":
+            real_unlink(self, missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", image_unlink)
+
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        test_a_passing_run_exits_zero_while_the_commit_graph_is_held(tmp_path, monkeypatch)
+
+    named = skipped.value.args == (HOLD_DID_NOT_TAKE,)
+    assert named
 
 
 def test_a_genuine_cleanup_failure_fails_the_run_and_names_the_path(
