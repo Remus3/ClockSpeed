@@ -75,6 +75,24 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1282 - FROZEN-FILE GRANT, NOT A COMPLETION RECORD, NOTHING CLOSED
+Granted by an adjudicator agent BEFORE the edit (`CLAUDE.md` section 6): `.claude/settings.json`
+gains ONE PreToolUse entry appended after the existing one, every other byte unchanged - matcher
+`Bash|PowerShell|Read|Edit|Write|Grep|Glob|NotebookEdit|MultiEdit`, one command hook, command
+`python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_subagent_first.py" || true`, timeout 10.
+Conditions: the same commit as the vendored v10 kit; the tests updated first, the insertion
+pinned whole; the gate entry stays first; FLEET_SUBAGENT_FIRST=off in the lane worker env
+before a lane runs this commit (no mode file in a worktree means deny); deny is written only
+once the jsonl shows rows, sub rows included, from 3 sessions.
+Rejected: MAIN's literal `python ops/fleet_kit/fleet_subagent_first.py` - from a foreign cwd it
+exits 2, a harness DENY of every guarded call in main and sub-agents (CS-1159, measured), and it
+reddens `tests/test_pretooluse_gate.py::test_no_python_hook_command_anywhere_is_cwd_relative`.
+Dropping `|| true` - an unset anchor also exits 2.
+Why: the anchor is the order's own "relative to the project dir"; it matches the CS-1272
+Stop-hook grant; the kit never fails closed. Reported in the ONE ANSWER to MAIN.
+Reversed by: a MAIN kit that denies by exit status (`|| true` would disarm it) or changes the
+hook's wiring contract.
+
 ### 2026-10-08 - CS-700 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The flip block's order, its two mains and the S7q responder check are RULED
 Verification: `docs/item_notes/phase7.md` section CS-700, heading `Filed 2026-10-08 (session
 131): the flip block's order, two mains and the S7q responder check`. Ruled in session 131 by a
