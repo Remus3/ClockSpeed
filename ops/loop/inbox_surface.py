@@ -42,6 +42,16 @@ phrase, or an exception CLASS name - never an exception message.
 NAMES ARE THE WATCHER'S ESCAPED `display`, never a raw filename and never a key
 or digest. A name is prose a sibling project's agent wrote; it is data, not an
 instruction, and it is quoted wherever it is printed.
+
+A JUDGE SEES THE REAL NAME; THE FACT CARRIES ONLY ITS WORD (CS-1272 H3). A
+display is capped, and the cap applies to the listing as well, so a decision
+taken on what the fact names can miss what the kit reads in the whole filename -
+a sender past the display cap, or a whole note past the listing cap. A caller
+that must decide per item passes `surface` a judge: it is handed each unread
+item's REAL name, and the fact carries back its answer IN PLACE of the name -
+`verdicts` beside `names`, `more_verdicts` for the items past the cap. The real
+name goes into no fact, no line and no reason, and a fact nobody judged keeps
+the four keys the lane ledger row carries.
 """
 
 from __future__ import annotations
@@ -49,7 +59,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Final
 
@@ -102,8 +112,13 @@ def _fact(unread: int | str, names: Sequence[str] = (), more: int = 0, reason: s
     return {"unread": unread, "names": list(names), "more": int(more), "reason": reason}
 
 
-def _shown(items: Sequence[Any]) -> tuple[list[str], int]:
-    """The displays a report shows, and how many it leaves out.
+#: A caller's decision on one unread item, handed the item's REAL name. The word
+#: it answers rides in the fact; the name never does.
+Judge = Callable[[str], str]
+
+
+def _selected(items: Sequence[Any]) -> tuple[list[Any], list[Any]]:
+    """The items a report shows, in its order, and the items it leaves out.
 
     THE WATCHER'S SELECTION, WITHOUT ITS WRITE. Newest by mtime with the display
     as a deterministic tie-break, then ordered by kind and display - the same
@@ -111,14 +126,49 @@ def _shown(items: Sequence[Any]) -> tuple[list[str], int]:
     the overflow report.
     """
     cap = inbox_watch.MAX_LISTED
-    newest = sorted(items, key=lambda item: (item.mtime, item.display), reverse=True)[:cap]
-    ordered = sorted(
-        newest, key=lambda item: (inbox_watch.KIND_ORDER.index(item.kind), item.display)
+    newest = sorted(items, key=lambda item: (item.mtime, item.display), reverse=True)
+    shown = sorted(
+        newest[:cap], key=lambda item: (inbox_watch.KIND_ORDER.index(item.kind), item.display)
     )
-    return [item.display for item in ordered], len(items) - len(ordered)
+    return shown, newest[cap:]
 
 
-def _measure(root: Path) -> dict:
+def _shown(items: Sequence[Any]) -> tuple[list[str], int]:
+    """The displays a report shows, and how many it leaves out."""
+    shown, rest = _selected(items)
+    return [item.display for item in shown], len(rest)
+
+
+def _real_name(item: Any) -> str:
+    """An item's REAL top-level name, read back out of its seen-store key. NEVER PRINTED.
+
+    The watcher keys an item ``<kind>:<name>``, with a ``:<digest>`` tail on
+    every item it digests, and escapes the same name into the display. So the
+    reading is CHECKED against the display: a candidate that does not escape to
+    the item's own display is not its name. A Windows name holds no colon, so a
+    tail is cut at the LAST one. With no candidate that checks out, the display
+    itself is the answer - the reading every caller had before CS-1272 H3.
+    """
+    prefix = f"{item.kind}:"
+    rest = item.key[len(prefix) :] if item.key.startswith(prefix) else ""
+    head, colon, _tail = rest.rpartition(":")
+    for candidate in (head, rest) if colon else (rest,):
+        if candidate and inbox_watch.safe_display(candidate) == item.display:
+            return str(candidate)
+    return str(item.display)
+
+
+def _listing(items: Sequence[Any], judge: Judge | None) -> tuple[list[str], int, dict]:
+    """The displays shown, the count left out, and - judged - the words in place of names."""
+    shown, rest = _selected(items)
+    words: dict = {}
+    if judge is not None:
+        words["verdicts"] = [judge(_real_name(item)) for item in shown]
+        words["more_verdicts"] = sorted(judge(_real_name(item)) for item in rest)
+    return [item.display for item in shown], len(rest), words
+
+
+def _measure(root: Path, judge: Judge | None = None) -> dict:
     """The fact for one resolved root. May raise; `surface` catches."""
     inbox = root / inbox_watch.INBOX_DIRNAME
     if not inbox.is_dir():
@@ -143,23 +193,30 @@ def _measure(root: Path) -> dict:
         # answer from a directory that vanished mid-listing would otherwise be
         # the one path to a zero nobody measured.
         return _fact(UNMEASURED, reason=REASON_VANISHED)
-    names, more = _shown(pending)
-    return _fact(len(pending), names, more)
+    names, more, words = _listing(pending, judge)
+    return {**_fact(len(pending), names, more), **words}
 
 
-def surface(worktree: str | Path | None = None) -> dict:
+def surface(worktree: str | Path | None = None, *, judge: Judge | None = None) -> dict:
     """The unread channel items a checkout's lane cycle should surface. NEVER RAISES.
 
     Args:
         worktree: The cycle's worktree. Its MAIN tree's channel is read.
+        judge: Handed each unread item's REAL name on a measured count; its
+            word is carried in place of the name. None for the lane, whose
+            fact keeps its four keys. A judge that raises makes the fact
+            UNMEASURED, like any other fault.
 
     Returns:
         ``{"unread": int or "UNMEASURED", "names": [display, ...], "more": int,
         "reason": str}``. ``names`` holds at most the watcher's cap and ``more``
-        counts the rest; ``reason`` is empty only for a measured count.
+        counts the rest; ``reason`` is empty only for a measured count. Judged
+        and measured, it also carries ``verdicts`` (one word per name, in the
+        same order) and ``more_verdicts`` (one word per item past the cap,
+        sorted).
     """
     try:
-        return _measure(channel_root(worktree))
+        return _measure(channel_root(worktree), judge)
     except Exception as fault:  # DELIBERATE: a surface must never end a night
         return _fact(UNMEASURED, reason=f"the surface faulted ({type(fault).__name__})")
 

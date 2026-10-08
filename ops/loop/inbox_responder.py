@@ -33,6 +33,10 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      Who a note is FROM is the kit's own `note_sender` (CS-1272 H2), never a
      local pattern. A pass that listed a retired sibling's note logs a NAMED
      skip ("retired_skip", the sibling's code from the table) every time it does.
+     CS-1272 H3: every per-note decision reads the REAL filename the kit reads,
+     never the watcher's capped display - the surface hands `verdict` each
+     unread item's real name, past the listing cap too, and carries back only
+     the closed-vocabulary word (`VERDICTS`), never the name.
   4. A back-off file written after a usage-limit refusal holds every run for
      `BACKOFF_S`, so the account's "no" is not hammered every fifteen minutes.
   5. CS-1231 SLICE C - THE WORKER STARTS ONLY THROUGH THE FLEET KIT'S SPAWN
@@ -174,6 +178,24 @@ _EXEMPT_SENDER: Final = "MAIN"
 # module may not read that table; tests/ops/test_inbox_responder.py pins this
 # set to that table's values, so the two cannot part.
 RETIRED_SENDERS: Final = frozenset({"LL"})
+
+#: CS-1272 H3 - THE VERDICT on one unread item, decided by `verdict` on the
+#: item's REAL name and carried back by the surface IN PLACE of that name. A
+#: closed vocabulary: the only per-item words that leave the judge, so no byte
+#: a sender wrote rides with them. Damped words start nothing; live words start
+#: a run and weigh it.
+VERDICT_OWN: Final = "own"
+VERDICT_TERMINAL: Final = "terminal"
+VERDICT_LIVE: Final = "live"
+VERDICT_ACK: Final = "live-ack"
+VERDICT_HEAVY: Final = "live-heavy"
+#: An item past the cap that no judge saw, or a word outside the vocabulary:
+#: live, and assumed heavy rather than guessed light.
+VERDICT_UNSEEN: Final = "unseen"
+#: One damped word per retired code, spelled from the table, never from a name.
+RETIRED_VERDICTS: Final = {code: f"retired:{code}" for code in sorted(RETIRED_SENDERS)}
+DAMPED_VERDICTS: Final = frozenset({VERDICT_OWN, VERDICT_TERMINAL, *RETIRED_VERDICTS.values()})
+VERDICTS: Final = DAMPED_VERDICTS | {VERDICT_LIVE, VERDICT_ACK, VERDICT_HEAVY}
 
 #: The run kinds the kit's usage line carries (FLEET-KIT v8/v9 `kind`).
 KIND_INBOX: Final = "inbox"
@@ -367,15 +389,19 @@ def _kit_sender(name: str) -> str | None:
 def retired_sender(name: str) -> str | None:
     """The retired sibling's code (from `RETIRED_SENDERS`) a note is FROM, or None.
 
-    Every name the kit attributes to a retired sibling is retired (CS-1272 H2).
-    The name is ALSO read upper-cased, so a lower-case code is retired too - a
-    skip may be wider than the kit's attribution, never narrower. The code
-    returned is the table's own spelling, so nothing the sender wrote reaches a
-    log line.
+    THE KIT DECIDES (CS-1272 H2, H3): every name the kit attributes to a
+    retired sibling is retired, and a name the kit attributes to anyone else is
+    THEIRS - an upper-cased reading never overrides it, so a lower-case code
+    ahead of MAIN's never drops MAIN's ORDER. The kit reads a sender code
+    upper-case only, so ONLY where it attributes the name to nobody at all is
+    the name read again upper-cased, and a lower-case retired code is retired
+    there. The code returned is the table's own spelling, so nothing the
+    sender wrote reaches a log line.
     """
-    readings = {_kit_sender(name), _kit_sender(name.upper())}
-    folded = {found.casefold() for found in readings if found is not None}
-    return next((code for code in sorted(RETIRED_SENDERS) if code.casefold() in folded), None)
+    found = _kit_sender(name)
+    if found is None:
+        found = _kit_sender(name.upper())
+    return next((code for code in sorted(RETIRED_SENDERS) if code == found), None)
 
 
 def is_damped(name: str) -> bool:
@@ -402,38 +428,101 @@ def is_damped(name: str) -> bool:
     return _TERMINAL_RE.search(name) is not None
 
 
+def verdict(name: str) -> str:
+    """The `VERDICTS` word for one unread item, decided on its REAL name (CS-1272 H3).
+
+    The surface's judge: it is handed the whole filename the kit reads, never
+    the capped display, and answers one closed-vocabulary word - the damping
+    rule of `is_damped`, the retired code from the table, and for a live note
+    the weight the kit reads (an ORDER, FIX or RULING is heavy; an
+    acknowledgement is effort low). Nothing of the name is returned.
+    """
+    if _kit_sender(name) == inbox_status.CODE:
+        return VERDICT_OWN
+    retired = retired_sender(name)
+    if retired is not None:
+        return RETIRED_VERDICTS[retired]
+    if is_damped(name):
+        return VERDICT_TERMINAL
+    if str(kit.note_class(name)) in kit.NEVER_DAMP:
+        return VERDICT_HEAVY
+    return VERDICT_ACK if kit.pick_effort(name) == "low" else VERDICT_LIVE
+
+
+def judged_surface(root: Any) -> Mapping[str, Any]:
+    """The production surface: the watcher's listing, every unread item judged by `verdict`."""
+    return inbox_surface.surface(root, judge=verdict)
+
+
 def _listed(fact: Mapping[str, Any]) -> list[str]:
     names = fact.get("names")
     return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
 
 
+def _words(raw: Any, count: int) -> list[str] | None:
+    """``raw`` as ``count`` verdict words, an unknown word read as unseen; else None."""
+    if not isinstance(raw, list) or len(raw) != count or not all(isinstance(w, str) for w in raw):
+        return None
+    return [word if word in VERDICTS else VERDICT_UNSEEN for word in raw]
+
+
+def _judged(fact: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """``(display, verdict)`` per listed item, in the listing's own order.
+
+    The surface's words when it judged the listing. A fact nobody judged - an
+    injected one - has its names judged as they stand.
+    """
+    listed = _listed(fact)
+    words = _words(fact.get("verdicts"), len(listed))
+    picked = [verdict(name) for name in listed] if words is None else words
+    return list(zip(listed, picked, strict=True))
+
+
+def _past(fact: Mapping[str, Any], unread: int) -> list[str]:
+    """One verdict per item past the listing cap. Unjudged, each is `VERDICT_UNSEEN`."""
+    count = max(0, unread - len(_listed(fact)))
+    words = _words(fact.get("more_verdicts"), count)
+    return [VERDICT_UNSEEN] * count if words is None else words
+
+
+def _retired(fact: Mapping[str, Any], unread: int) -> list[str]:
+    """The retired codes, from the table, of every unread item - listed or past the cap."""
+    found = {word for _name, word in _judged(fact)} | set(_past(fact, unread))
+    return [code for code, word in RETIRED_VERDICTS.items() if word in found]
+
+
 def _worthy(fact: Mapping[str, Any], unread: int) -> int:
-    """Unread items that may start a run. An item past the listing cap counts as live."""
-    return max(0, unread - sum(1 for name in _listed(fact) if is_damped(name)))
+    """Unread items that may start a run, listed or past the cap, each on its verdict."""
+    words = [word for _name, word in _judged(fact)] + _past(fact, unread)
+    return sum(1 for word in words if word not in DAMPED_VERDICTS)
+
+
+def _past_live(fact: Mapping[str, Any], unread: int) -> int:
+    """The live items past the listing cap, which no row can name."""
+    return sum(1 for word in _past(fact, unread) if word not in DAMPED_VERDICTS)
 
 
 def _kit_inputs(fact: Mapping[str, Any], unread: int) -> tuple[bool, str]:
-    """``(writes_code, effort)`` for the kit, from the live note NAMES only.
+    """``(writes_code, effort)`` for the kit, from the live notes' verdicts only.
 
     MAIN 0855: sonnet unless the work writes code, effort low for
     acknowledgements. One pass answers every live note, so the pass takes the
     heaviest: the code model when any live note is an ORDER, FIX or RULING (the
     classes the kit never damps), and effort low only when the kit reads every
-    live note as an acknowledgement. A note past the listing cap is unseen, so
-    it is assumed heavy rather than guessed light.
+    live note as an acknowledgement. A live note past the listing cap is
+    unseen by the worker's listing, so it is assumed heavy rather than guessed
+    light; a damped one past the cap weighs nothing (CS-1272 H3).
     """
-    listed = _listed(fact)
-    live = _live(fact)
-    unseen = unread > len(listed)
-    writes_code = unseen or any(str(kit.note_class(name)) in kit.NEVER_DAMP for name in live)
-    efforts = {str(kit.pick_effort(name)) for name in live}
-    effort = "low" if live and not unseen and efforts == {"low"} else "medium"
+    live = [word for _name, word in _judged(fact) if word not in DAMPED_VERDICTS]
+    unseen = _past_live(fact, unread) > 0
+    writes_code = unseen or any(word in {VERDICT_HEAVY, VERDICT_UNSEEN} for word in live)
+    effort = "low" if live and not unseen and set(live) == {VERDICT_ACK} else "medium"
     return writes_code, effort
 
 
 def _live(fact: Mapping[str, Any]) -> list[str]:
-    """The listed names that may start a run, in the listing's own order."""
-    return [name for name in _listed(fact) if not is_damped(name)]
+    """The listed displays that may start a run, in the listing's own order."""
+    return [name for name, word in _judged(fact) if word not in DAMPED_VERDICTS]
 
 
 def run_label(fact: Mapping[str, Any]) -> str:
@@ -477,7 +566,7 @@ def checklist_rows(
         )
         for index, name in enumerate(_live(fact), start=1)
     ]
-    past = unread - len(_listed(fact))
+    past = _past_live(fact, unread)
     if past > 0:
         noun = "item" if past == 1 else "items"
         task = f"Handle {past} unread {noun} past the listing cap"
@@ -607,7 +696,8 @@ def run_once(
         root: The main tree root, or None to resolve it from this checkout.
         control_dir: The sentinel directory, or None for ``ops/loop/control``.
         now: The wall clock.
-        surface: The channel lister, or None for ``inbox_surface.surface``.
+        surface: The channel lister, or None for `judged_surface` - the
+            watcher's listing with every unread item judged on its real name.
         lock: A zero-argument context-manager factory, or None for the mutex.
         spawn: The kit spawn, or None for `kit_spawn`.
         kit_seams: Passed to the kit's ``spawn`` untouched - its proxy, probe,
@@ -634,7 +724,7 @@ def run_once(
             return _locked_pass(
                 main_root,
                 now,
-                inbox_surface.surface if surface is None else surface,
+                judged_surface if surface is None else surface,
                 kit_spawn if spawn is None else spawn,
                 dict(kit_seams or {}),
                 board,
@@ -665,7 +755,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         _log(root, now(), "unmeasured", EXIT_UNMEASURED)
         board.show("refused", "Halted")
         return EXIT_UNMEASURED
-    retired = sorted({found for found in map(retired_sender, _listed(fact)) if found})
+    retired = _retired(fact, unread)
     if retired:
         # THE NAMED SKIP (MAIN 0230 item 4). The retired sibling's notes start
         # nothing; the line names the sibling from the table, never the note.

@@ -37,7 +37,13 @@ if str(ROOT) not in sys.path:
 
 from ops.fleet_kit import fleet_checklist  # noqa: E402
 from ops.fleet_kit import fleet_headless as kit  # noqa: E402
-from ops.loop import inbox_responder, inbox_status, winmutex  # noqa: E402
+from ops.loop import inbox_responder, inbox_status, inbox_surface, winmutex  # noqa: E402
+
+TOOLS_DIR: Final = ROOT / "tools"
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+import inbox_watch  # noqa: E402
 
 #: A marker planted in the proxy URL and in the worker's output. It must never
 #: reach the log line or the status file.
@@ -1049,3 +1055,188 @@ def test_the_progress_file_carries_no_path_env_value_or_body(tree: Path) -> None
     raw = files[0].read_bytes().decode("ascii") if files else ""
     clean = (ENV_MARKER in raw, BODY_MARKER in raw, tree.name in raw, "\\" in raw, "/" in raw)
     assert (len(files), clean) == (1, (False, False, False, False, False))
+
+
+# --- CS-1272 H3: every decision reads the REAL name, past both caps -------------
+
+#: A topic long enough to push the sender past the watcher's display cap
+#: (`inbox_watch.MAX_DISPLAY_CHARS`), so the DISPLAY loses what the kit reads.
+LONG_TOPIC: Final = "a" * 110
+LONG_RETIRED: Final = f"2026-10-05-0230-{LONG_TOPIC}-from-LL-x.md"
+LONG_OWN: Final = f"2026-10-05-0230-{LONG_TOPIC}-from-CS-x.md"
+LONG_TERMINAL: Final = f"2026-10-05-0230-from-LW-question-{LONG_TOPIC}-TERMINAL.md"
+LONG_ORDER: Final = f"2026-10-05-0230-{LONG_TOPIC}-from-MAIN-ORDER-x.md"
+
+#: The kit reads its sender code upper-case only, so a lower-case code BEFORE
+#: MAIN's is nobody's to the kit, and the note is MAIN's ORDER. Spelled with
+#: ``from-ll-0-`` so this source carries no lower-case sibling marker
+#: (tests/test_unregistered_lift.py).
+LOWER_BEFORE_MAIN: Final = "2026-10-05-0230-x-from-ll-0-from-MAIN-ORDER-from-LL-z.md"
+
+#: One more than the watcher lists by name, so exactly one item sits past the cap.
+CAP_PLUS_ONE: Final = inbox_watch.MAX_LISTED + 1
+
+
+def _channel(tree: Path, *names: str) -> None:
+    """Plant ``names`` as unread notes in the tree's channel, the FIRST the newest."""
+    inbox = tree / inbox_watch.INBOX_DIRNAME
+    inbox.mkdir(exist_ok=True)
+    for age, name in enumerate(names, start=1):
+        note = inbox / name
+        note.write_bytes(b"a synthetic note\n")
+        stamp = T0 - 60.0 * age
+        os.utime(note, (stamp, stamp))
+
+
+def _stamped_names(shape: str, count: int) -> list[str]:
+    """``count`` distinct canonical names in ``shape``, one stamp each."""
+    return [shape.format(stamp=f"2026-10-05-02{minute:02d}") for minute in range(count)]
+
+
+def _tree_bytes(tree: Path) -> bytes:
+    """Every byte the pass wrote: the logs, the status, the progress and usage files."""
+    written = [path for path in tree.rglob("*") if path.is_file()]
+    channel = tree / inbox_watch.INBOX_DIRNAME
+    return b"".join(path.read_bytes() for path in written if channel not in path.parents)
+
+
+@pytest.mark.parametrize(
+    ("name", "sender"),
+    [(LONG_RETIRED, "LL"), (LONG_OWN, "CS"), (LONG_TERMINAL, "LW")],
+    ids=["retired", "own", "terminal"],
+)
+def test_a_damped_note_named_past_the_display_cap_never_spawns(
+    tree: Path, name: str, sender: str
+) -> None:
+    """FIX 1: the decision reads the REAL name the kit reads, never the capped display.
+
+    Anti-vacuity: the display the surface lists reads as LIVE, so a decision
+    taken on it is a run the kit would start on a damped note.
+    """
+    _channel(tree, name)
+    spy = RunSpy()
+    code = _run(tree, spy, surface=None)
+    shown = inbox_surface.surface(tree)["names"]
+    display_reads_live = [inbox_responder.is_damped(str(n)) for n in shown] == [False]
+    decided = (kit.note_sender(name), inbox_responder.is_damped(name), display_reads_live)
+    assert (decided, code, len(spy.calls), _status(tree).get("state")) == (
+        (sender, True, True),
+        0,
+        0,
+        "idle",
+    )
+
+
+def test_a_retired_note_named_past_the_display_cap_is_skipped_by_name(tree: Path) -> None:
+    """FIX 1: the named skip fires on the REAL name, and names the table's code only."""
+    _channel(tree, LONG_RETIRED)
+    _run(tree, RunSpy(), surface=None)
+    named = [(r.get("outcome"), r.get("reason")) for r in _log_records(tree)]
+    assert named == [("retired_skip", "retired sibling LL")]
+
+
+def test_a_live_note_named_past_the_display_cap_is_weighed_by_its_real_name(tree: Path) -> None:
+    """FIX 1 sibling: MAIN's ORDER past the display cap runs on the code model.
+
+    The label stays the escaped display, and nothing past it - the part of the
+    name only the decision read - reaches any file the pass wrote.
+    """
+    _channel(tree, LONG_ORDER)
+    spy = RunSpy()
+    code = _run(tree, spy, surface=None)
+    argv = spy.calls[0]["argv"] if spy.calls else []
+    picked = [(line.get("note"), line.get("kind")) for line in _usage_lines(tree)]
+    leaked = b"from-MAIN-ORDER" in _tree_bytes(tree)
+    assert (code, len(spy.calls), _flag_value(argv, "--model"), picked, leaked) == (
+        0,
+        1,
+        "opus",
+        [(inbox_watch.safe_display(LONG_ORDER), "inbox")],
+        False,
+    )
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "{stamp}-from-LL-ANSWER-x.md",
+        "{stamp}-from-CS-ANSWER-x.md",
+        "{stamp}-from-LW-ACK-TERMINAL-x.md",
+    ],
+    ids=["retired", "own", "terminal"],
+)
+def test_damped_notes_past_the_listing_cap_never_spawn(tree: Path, shape: str) -> None:
+    """FIX 2: an item past the listing cap is judged on its real name, not counted live.
+
+    Anti-vacuity: the surface really leaves exactly one item unnamed.
+    """
+    _channel(tree, *_stamped_names(shape, CAP_PLUS_ONE))
+    spy = RunSpy()
+    code = _run(tree, spy, surface=None)
+    fact = inbox_surface.surface(tree)
+    assert ((fact["unread"], fact["more"]), code, len(spy.calls), _status(tree).get("state")) == (
+        (CAP_PLUS_ONE, 1),
+        0,
+        0,
+        "idle",
+    )
+
+
+def test_a_live_note_past_the_listing_cap_still_runs_and_only_it_is_counted(tree: Path) -> None:
+    """FIX 2 control: past the cap, the live note still starts a run, and alone fills MORE.
+
+    Ten retired notes take every listed slot; one more retired note and one
+    live note sit past the cap. The live one starts the run under the authored
+    label, and the MORE row counts it alone.
+    """
+    _channel(tree, *_stamped_names("{stamp}-from-LL-ANSWER-x.md", CAP_PLUS_ONE), LIVE_NOTE)
+    peek = _ProgressPeek(tree)
+    code = _run(tree, peek, surface=None)
+    seen = peek.during[0] if peek.during else {}
+    picked = [(line.get("note"), line.get("kind")) for line in _usage_lines(tree)]
+    assert (code, len(peek.calls), picked, seen.get("checklist")) == (
+        0,
+        1,
+        [(inbox_responder.UNLISTED_LABEL, "inbox")],
+        [_row("MORE", "Handle 1 unread item past the listing cap", "running")],
+    )
+
+
+def test_main_wins_where_a_lower_case_code_sits_before_its_sender(tree: Path) -> None:
+    """FIX 3: the kit names MAIN, so the responder never skips the ORDER as retired."""
+    _channel(tree, LOWER_BEFORE_MAIN)
+    spy = RunSpy()
+    code = _run(tree, spy, surface=None)
+    decided = (
+        kit.note_sender(LOWER_BEFORE_MAIN),
+        inbox_responder.retired_sender(LOWER_BEFORE_MAIN),
+        inbox_responder.is_damped(LOWER_BEFORE_MAIN),
+    )
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (decided, code, len(spy.calls), outcomes) == (("MAIN", None, False), 0, 1, ["ok"])
+
+
+def test_the_judged_fact_carries_verdicts_never_names_and_the_lane_fact_is_unchanged(
+    tree: Path,
+) -> None:
+    """The surface hands the responder one closed-vocabulary word per item, never a name.
+
+    The lane's own fact - the one its ledger row carries - keeps its four keys.
+    """
+    _channel(tree, LONG_RETIRED, *_stamped_names("{stamp}-from-LW-question-x.md", CAP_PLUS_ONE))
+    lane = inbox_surface.surface(tree)
+    judged = inbox_responder.judged_surface(tree)
+    words = [*judged.get("verdicts", []), *judged.get("more_verdicts", [])]
+    assert (
+        sorted(lane),
+        sorted(judged),
+        len(words),
+        set(words) <= inbox_responder.VERDICTS,
+        LONG_TOPIC in json.dumps(judged["verdicts"] + judged["more_verdicts"]),
+    ) == (
+        ["more", "names", "reason", "unread"],
+        ["more", "more_verdicts", "names", "reason", "unread", "verdicts"],
+        CAP_PLUS_ONE + 1,
+        True,
+        False,
+    )
