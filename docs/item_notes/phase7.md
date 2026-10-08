@@ -1148,6 +1148,42 @@ re-run as Part 2 ALONE (a fresh long-paths-off sandbox, a fresh bundle clone, th
 whenever `git diff --name-only 457d2b9 <S7a tip>` lists anything under `tests/`, `clockspeed/`,
 `ops/` or `tools/`. S7a's identity rewrite changes no files, so it spends nothing.
 
+#### Filed 2026-10-08 (session 131): the flip block's order, two mains and the S7q responder check
+
+Ruled in session 131 by a distinct adjudicator; the decision record, with the alternatives
+rejected and what reverses each ruling, is the 2026-10-08 CS-700 decision record in
+`docs/LEDGER.md`. Five rulings bind the flip block:
+
+1. ORDER (Q1). The citation-set regeneration - `--emit-historical`, its commit, its push and
+   its tier1 read - runs BEFORE S3 and S7q. From it until S12a's closing commit, no commit of
+   any kind lands on the main tree's `main`. `--flip-readiness` re-runs read-only at the S7a
+   baseline, and any non-zero exit aborts. Before emitting, assert that the local tags equal
+   the `git ls-remote` tags by name and SHA, and that HEAD equals `origin/main`. A `/done`
+   between the regeneration and S7a re-stales the set, so none may fall there.
+2. PART 2 (Q2). A commit changing only `tools/sha_citation_historical.json` and the gate's pin
+   line IS a suite-path change, so Part 2 runs once, at the regeneration tip, which is the S7a
+   tip: `tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits` reads
+   the clone's published refs.
+3. SHAPE (Q3). Interactive sessions only, and the block is the session's last work. The next
+   hand-off is committed in the records commit just before the regeneration, with a recovery
+   rule. At step e the session WAITS and never runs `/done` on its own. If the operator ends
+   the session without the S9 own-words line: unarchive the remote and read it back, remove
+   `STOP` and INBOX_STOP, treat S7a to S8a as void and keep the bundles, and run a `/done`
+   that adds no SHA and touches no Part 2 or CS-G03-reversal path. A headless session never
+   starts the block.
+4. TWO MAINS (Q4). For S8, S8a and S10 to S12, "local main" is `main` in the S7a rewrite clone
+   outside the tree; S10 pushes from it by SHA to an explicit forge URL. The late-commit check
+   is that the main tree's `main` still equals the S7a baseline SHA. The main tree is reset
+   onto the adjudicated SHA only after S12a's post-flip reads pass, and the closing ledger
+   commit is made there.
+5. S7q PART 2 (Q5). The process check adds `ops/loop/inbox_responder.py` and every kit-spawned
+   headless worker - a command line it cannot read counts as a hit, and the positive control
+   carries the new strings - and reads the inbox status file idle. INBOX_STOP is written
+   before the regeneration commit.
+
+The `gh` token lacks the `delete_repo` scope S9a needs: an operator OAuth act, batched into the
+S9 ask. Session 131 did not start the block - the operator ended the session before it.
+
 ### Acceptance
 
 every item on that checklist passes, including the full-history secret scan, the PII scan across tracked files and commit messages, the third-party license audit, and the clean-checkout probe on a machine that has never seen the project

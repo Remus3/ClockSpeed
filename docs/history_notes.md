@@ -24,6 +24,63 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1266 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1266
+
+### Filed 2026-10-04 by CS-500's S4 adversary pass
+
+`power.draw_incomplete` scopes "complete" to the audit's considered population, but the clocked
+draw can report complete while omitting a built power consumer that has no clock, no recipe and no
+producing tag. Nothing cross-checks the considered population against what is actually built.
+
+### Acceptance
+
+the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed
+
+
+## CS-1278 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1278
+
+### Filed 2026-10-08 by CS-1265's adversary pass
+
+`clockspeed/audit/flow.py` prices a machine's output by its clock alone, but a production boost
+also multiplies output. Once CS-1264 lands, the balance names a boosted machine a
+boost-unmodeled gap while the flow audit flows it - at the elided default when it carries no
+clock tag - so two audits over one world disagree about one machine, the CS-1265 defect one
+axis over. Waits on CS-1264.
+
+### Acceptance
+
+a machine carrying a production-boost tag, decoded or not (CS-1264's `MachineState.production_boost_tagged`), is a named flow gap, never flowed at its clock alone, and is excluded from the elided count; the both-audits arm, `tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`, gains a boosted row and still asserts the two audits classify every machine alike; an arm reddens when the flow ignores the boost
+
+
+## CS-1264 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1264
+
+### Filed 2026-10-04 by CS-1263's adversary pass
+
+`clockspeed/audit/balance.py::clocked_draw_of` prices an elided or tagged machine by its clock
+alone and never checks a production boost, so the balance reason line is false for a boosted
+machine. The 40-save library carries no boost tag, so no real save exercises it yet; the fix must
+not invent a boost reading, it must refuse or name what it cannot read.
+
+### Acceptance
+
+a machine carrying a production-boost tag is either priced by the boosted power law or published as a named gap, never priced as unboosted; an arm with a synthetic boosted machine reddens when the boost is ignored; the elided-default count excludes a boosted machine
+
+
 ## CS-1279 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
@@ -2933,6 +2990,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 128 - archived 2026-10-08 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 128 - 2026-10-07 - MAIN 1927 and MAIN 0310 answered in one note with v8 provenance verified 14 of 14, the v6/v7 vendoring deferral reversed by its own clause, and tier2 red read and filed
+
+- Shipped: no item closed and no code changed. One ANSWER (HOP 2) to MAIN 1927 FIX and MAIN 0310 FLEET-KIT v8 ORDER, sent through tools/outbound_send.py: gate CLEAN, 1/1 reached, destination copy re-hashed equal. Provenance before answering: the 1927 note, the 0310 note and all 12 v8 bundle files hash-equal to MAIN's outbox copies and tracked clean in MAIN's git, 14 of 14. Decision record FLEET-KIT v8 (docs/LEDGER.md). CS-1272 re-worded to v8 now; CS-1273 filed (tier2 red); MAIN 0300 filed as one BACKLOG.md line.
+- In flight: CS-1272 v8 vendoring, due 2026-10-08 (session 129), then the v8 adoption ANSWER. RESPONDER still paused by INBOX_STOP; MAIN 0830 and FLEET-1 close only when the unattended responder replies after the v8 commit. 72 inbox notes were UNREAD at session start and were not triaged (none acknowledged). The CS-700 flip steps a-d were not run.
+- Decisions: the v6 record's reversal clause (the S9 confirmation still absent at the next attended session) fired, so v8 (carrying v6 and v7) is vendored now in one commit with a CS-G03 re-walk; fence - never re-defer to after S12a without the operator's words or a MAIN ruling. MAIN 0300 supply chain stays in BACKLOG.md under CLAUDE.md section 7, which a MAIN note does not reverse. No ADR.
+- Surprises: tier2 failed its three scheduled runs on ef45ed0 (10-05, 10-06, 10-07) on one test, test_flip_checks.py's commit-graph hold control raising no PermissionError on the windows-latest image - the test landed with CS-1267 after the last green tier2 run, so it was never green there. The responder's spawn() passes no note label and no kind, so its usage line would be unattributed. The usage log has never been written: no kit spawn has run since INBOX_STOP.
+- Failed paths: none.
+- Next action: read tier2 CS-1273 and fix it test-first, then land CS-1272 (v8 vendoring) in one commit, then send the v8 adoption ANSWER to MAIN.
 
 ## Session 127 - archived 2026-10-08 from `WAKEUP_NOTES.md`, verbatim
 

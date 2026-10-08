@@ -75,6 +75,126 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-700 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The flip block's order, its two mains and the S7q responder check are RULED
+Verification: `docs/item_notes/phase7.md` section CS-700, heading `Filed 2026-10-08 (session
+131): the flip block's order, two mains and the S7q responder check`. Ruled in session 131 by a
+distinct adjudicator, five questions.
+Q1, ORDER. Decision: the citation-set regeneration - `--emit-historical`, its commit, its push
+and its tier1 read - runs BEFORE S3 and S7q, and from it until S12a's closing commit no commit
+of any kind lands on the main tree's `main`. `--flip-readiness` re-runs read-only at the S7a
+baseline, and any non-zero exit aborts. Before emitting, the local tags must equal the
+`git ls-remote` tags by name and SHA, and HEAD must equal `origin/main`. A `/done` between the
+regeneration and S7a re-stales the set, so none may fall there. Alternatives rejected: (1) the
+literal order - the regeneration commit could not be pushed or tier1-graded with the remote
+archived, and a red Part 2 would force an unarchive; (2) regenerate now and then `/done` - the
+`/done` commit re-stales the set. Reversed by: `--flip-readiness` failing at the baseline under
+this order.
+Q2, PART 2. Decision: a commit changing only `tools/sha_citation_historical.json` and the
+gate's pin line IS a suite-path change, so Part 2 runs once, at the regeneration tip, which is
+the S7a tip - `tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits`
+reads the clone's published refs.
+Q3, SHAPE. Decision: interactive sessions only, and the block is the session's last work. The
+next hand-off is committed in the records commit just before the regeneration, with a recovery
+rule. At step e the session WAITS and never runs `/done` on its own. If the operator ends the
+session without the S9 own-words line: unarchive the remote and read it back, remove `STOP` and
+INBOX_STOP, treat S7a to S8a as void and keep the bundles, and run a `/done` that adds no SHA
+and touches no Part 2 or CS-G03-reversal path. A headless session never starts the block.
+Session 131 did not start the block: the operator ended the session before it. Alternatives
+rejected: (1) abandoning the block at a brief absence; (2) deferring it on a promise of
+presence.
+Q4, TWO MAINS. Decision: for S8, S8a and S10 to S12, "local main" is `main` in the S7a rewrite
+clone outside the tree, and S10 pushes from it by SHA to an explicit forge URL. The late-commit
+check is that the main tree's `main` still equals the S7a baseline SHA. The main tree is reset
+onto the adjudicated SHA only after S12a's post-flip reads pass, and the closing ledger commit
+is made there.
+Q5, S7q PART 2. Decision: the process check adds `ops/loop/inbox_responder.py` and every
+kit-spawned headless worker - a command line it cannot read counts as a hit, and the positive
+control carries the new strings - and reads the inbox status file idle; INBOX_STOP is written
+before the regeneration commit.
+Also recorded: the `gh` token lacks the `delete_repo` scope S9a needs - an operator OAuth act,
+batched into the S9 ask.
+
+### 2026-10-08 - CS-1266 - CLOSED: the clocked draw is cross-checked against the built power consumers, like for like, and every consumer it omits is named
+Verification: `clockspeed/audit/balance.py::WorldClockedDraw`, which publishes
+`built_consumer_count`, `considered_consumer_count`, `omitted_consumer_count` and `omissions`,
+each omission's kind one of `clockspeed/audit/balance.py::OMISSION_KINDS`;
+`clockspeed/audit/machines.py`; `clockspeed/save/world.py::RecordProperties`, whose
+`payload_present` the save layer now publishes; `clockspeed/advisor/rules/power.py`, whose gap
+rule counts an omitted consumer as unpriced and names it; plus
+`tests/audit/test_balance.py::test_each_count_is_of_records_never_of_classes`,
+`tests/audit/test_balance.py::test_omissions_count_every_class_and_kind_in_their_sorted_order`
+and `tests/audit/test_extent_seam.py::test_no_audit_module_reads_a_record_extent`.
+Landed in `d1911cb`, with the extent-seam test's provenance row in `87214e9`.
+Decision: the built, considered and omitted counts compare like for like under ONE consumer
+rule - a registry consumer, not a generator, with a declared draw rather than a fixed zero. An
+omission is named by kind, `no-machine-state` or `payload-unread`; any omission makes the draw
+incomplete; and the advisor's gap rule counts omitted consumers as unpriced and names them.
+Folded in: a payload that was never read is a named `payload-unread` omission.
+SEAM RULING, the merger's: the audit never reads `ObjectRecord.body_offset` or
+`ObjectRecord.body_length`, which `clockspeed/save/world.py` publishes to no consumer; the save
+layer publishes `RecordProperties.payload_present` instead. Rejected: keeping the audit's read
+of the extent - it weakens a stated seam; re-meaning `payload_read`.
+Process: adversary round 1 REFUTED on arm bite - the counts held on the library, recounted
+independently; repaired, and the merger re-killed the `len(omissions)` mutant.
+Measured over the save library: built 3005, considered 2524, omitted 481, all
+`no-machine-state` - filed as CS-1280. The `BACKLOG.md` Session 124 elided-count line folded
+into this slice was NOT done here, because the registry reads no clock-capability field - filed
+as CS-1281. The item section is relocated to `docs/history_notes.md`.
+Suite: this record states no whole-suite count for this item - none was read back by the
+session that wrote it.
+
+### 2026-10-08 - CS-1278 - CLOSED: a production-boost tag is a named gap in the flow, so the flow and the balance name a boosted machine alike
+Verification: `clockspeed/audit/flow.py::GAP_FLOW_BOOST_UNMODELED` and
+`clockspeed/audit/flow.py::WARN_FLOW_BOOST_UNMODELED`, both exported from
+`clockspeed/audit/__init__.py`, plus
+`tests/audit/test_flow.py::test_a_boosted_machine_is_a_named_gap_whatever_its_clock`,
+`tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`,
+`tests/audit/test_flow.py::test_both_audits_name_a_boosted_machine_a_gap_when_an_earlier_fault_wins`
+and `tests/audit/test_every_warning_fires.py`.
+Landed in `1032a4d`: a machine whose `MachineState.production_boost_tagged` is set is the named
+gap `GAP_FLOW_BOOST_UNMODELED`, never flowed and never counted elided, whatever its clock.
+Decision: the flow's gap order is no recipe, then unknown recipe, then undefined rate, then
+boost, then unread clock, then refused clock, matching the balance; the two audits' gap NAMES
+agree only where no earlier fault wins.
+Process: adversary round 1 REFUTED on arm bite - the stalled, clock-above-1 and clock-0
+boost-ignoring mutants survived the arms while the code held; repaired, and the merger
+re-killed the stalled mutant. The loop STOPPED BY COST AGAINST RISK (`CLAUDE.md` section 7).
+The item section is relocated to `docs/history_notes.md`.
+Suite: this record states no whole-suite count for this item - none was read back by the
+session that wrote it.
+
+### 2026-10-08 - CS-1264 - CLOSED: a production-boost tag is a named gap in the clocked draw, read by its presence and never by its value
+Verification: `clockspeed/audit/balance.py::GAP_BOOST_UNMODELED`, returned for a machine whose
+`MachineState.production_boost_tagged` is set; `clockspeed/audit/machines.py`, which sets that
+flag and reads machine membership and the elided mark from decoded values AND from
+`undecoded_names`; `clockspeed/save/objects.py::PropertyResult` and
+`clockspeed/save/world.py::RecordProperties`, which carry `undecoded_names` from the payload
+walk; plus
+`tests/audit/test_balance.py::test_a_boosted_machine_reddens_the_arm_when_the_boost_is_ignored`,
+`tests/audit/test_balance.py::test_a_boost_tag_whose_value_never_decoded_still_marks_the_machine`,
+`tests/audit/test_balance.py::test_a_machine_whose_only_machine_tag_was_dropped_is_still_a_machine`,
+`tests/audit/test_balance.py::test_a_decodable_boost_of_exactly_one_still_marks_the_machine`,
+`tests/audit/test_balance.py::test_a_clock_tag_whose_value_never_decoded_is_not_an_elided_clock`
+and
+`tests/save/test_properties.py::test_the_payload_walk_repr_renders_a_count_and_never_a_dropped_name`.
+Landed in `746d4c8`, with two pre-push repairs: `20d6a4a` drops an unused type ignore the bare
+mypy gate refuses, and `9d8444b` qualifies a Sphinx role the tests-module census refuses.
+Decision: the named-gap route, `GAP_BOOST_UNMODELED`, read by the tag's PRESENCE only, never by
+its value. The usmap declares `mCurrentProductionBoost` and `mPendingProductionBoost` on
+`FGBuildableFactory` with the clock's type, and no library save carries either. Rejected:
+pricing a boosted machine by the docs exponent; refusing only a non-unit boost value.
+Process: adversary round 1 REFUTED on synthetic payloads - a torn or unmeasured boost tag was
+dropped by the decoder and so invisible; round 2 REFUTED - machine membership read decoded
+values only. Repaired with `undecoded_names` on the payload walk, `PropertyResult` and
+`RecordProperties`, whose reprs render a count and never a name, read by machine membership,
+the boost flag and the elided mark. Sibling repair: a clock tag that did not decode is no
+longer an elided clock (CS-1263). The loop STOPPED BY COST AGAINST RISK (`CLAUDE.md` section 7)
+after round 2, the membership mutant independently re-killed by the merger. The save library
+is unchanged by the repair: 3818 machines before and after.
+The item section is relocated to `docs/history_notes.md`.
+Suite: this record states no whole-suite count for this item - none was read back by the
+session that wrote it.
+
 ### 2026-10-08 - CS-G03 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. Check 7 and the human half of check 5 are SATISFIED again by walk 2
 Verification: `docs/GATED.md` CS-G03, heading `Filed 2026-10-08 (session 131): the second walk
 PASSED; check 7 and the human half of check 5 are SATISFIED again`; `docs/item_notes/phase7.md`

@@ -366,7 +366,8 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   is untested; equivalent on real input (CS-1263 adversary) - TRIGGER: that line is next touched.
 - The elided-clock count includes non-clockable classes (storage, trading post, space elevator),
   inflating it - TRIGGER: a surface displays the elided count, or CS-1264/CS-1265 touches it -
-  TRIGGER FIRED 2026-10-08; folded into CS-1266's slice.
+  TRIGGER FIRED 2026-10-08; NOT done in CS-1266, which had no registry field to read - now
+  CS-1281.
 - The CS-400 phase 4 gate shards: per-shard CI time unmeasured, round-robin deal uneven about
   1.8x - TRIGGER: a shard nears `_CHILD_TIMEOUT_SECONDS` in a tier2 log.
 - The advisor ledger lock is exercised across threads only, never across processes - TRIGGER: a
@@ -511,3 +512,15 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - No walk has exercised a real browser's certificate warning, Python at the requires-python
   floor, or Windows 11; all four used `curl.exe -k`, the newest Python and Windows 10 build
   19041 - TRIGGER: the post-flip public-clone walk.
+- A property-body walk that stops with bytes left over drops records from the object table
+  entirely, so the clocked draw can still read complete - TRIGGER: a library save logs that
+  warning.
+- The registry lists `Equip_HoverPack_C` as a 100 MW consumer, so an equipped hover pack may
+  count as a built power consumer - TRIGGER: a save carrying an equipped one, or CS-1280's
+  ruling.
+- `clockspeed/audit/flow.py` and `clockspeed/audit/balance.py::starvation_of` judge
+  completeness over the machines population only, the blind spot CS-1266 closed for the clocked
+  draw - TRIGGER: CS-1280 lands, or a surface reads flow completeness.
+- The adversaries' save-library sweeps copied real saves into the session scratchpad, recycled
+  by the merger; an adversary brief must keep save copies under the gitignored `work/`
+  directory - TRIGGER: the next adversary brief that sweeps the library.

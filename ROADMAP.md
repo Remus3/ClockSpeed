@@ -288,9 +288,8 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1264 - the clocked draw never checks a production boost, so a boosted machine is priced as unboosted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1278 - the flow audit prices a boosted machine by its clock alone while the balance names it a gap - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1280 - the clocked draw omits built consumers whose payloads read cleanly but carry no machine tag - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1281 - the registry does not read the clock-capability field, so the elided-clock count includes classes that cannot be clocked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

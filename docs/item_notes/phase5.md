@@ -506,41 +506,32 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1264
+## CS-1280
 
-### Filed 2026-10-04 by CS-1263's adversary pass
+### Filed 2026-10-08 by CS-1266's builder
 
-`clockspeed/audit/balance.py::clocked_draw_of` prices an elided or tagged machine by its clock
-alone and never checks a production boost, so the balance reason line is false for a boosted
-machine. The 40-save library carries no boost tag, so no real save exercises it yet; the fix must
-not invent a boost reading, it must refuse or name what it cannot read.
-
-### Acceptance
-
-a machine carrying a production-boost tag is either priced by the boosted power law or published as a named gap, never priced as unboosted; an arm with a synthetic boosted machine reddens when the boost is ignored; the elided-default count excludes a boosted machine
-
-## CS-1266
-
-### Filed 2026-10-04 by CS-500's S4 adversary pass
-
-`power.draw_incomplete` scopes "complete" to the audit's considered population, but the clocked
-draw can report complete while omitting a built power consumer that has no clock, no recipe and no
-producing tag. Nothing cross-checks the considered population against what is actually built.
+`clockspeed/audit/balance.py::clocked_draw_of` now counts the built power consumers against the
+ones it considered (CS-1266). On the save library 481 of 3005 built consumers - miners,
+constructors, street and ceiling lights, truck stations, resource sinks, water and oil pumps -
+read cleanly with no clock, recipe or producing tag, so CS-1266 names each one an omission and
+every non-empty save's draw reads incomplete. Many are plausibly at the class default, by
+CS-1263's elided-clock reasoning, but a machine with no recipe may be idle and draw nothing, so
+neither pricing is taken without a measurement.
 
 ### Acceptance
 
-the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed
+an adjudicated ruling (decision, alternatives, why) on how a tagless consumer is priced - at its class default in its own counted group, at zero as idle, or kept as a named omission - grounded in a measurement over the save library; then the draw implements the ruling with an arm per class family that reddens when the ruling is ignored, and the library's omitted count is re-published
 
-## CS-1278
+## CS-1281
 
-### Filed 2026-10-08 by CS-1265's adversary pass
+### Filed 2026-10-08 by CS-1266's builder
 
-`clockspeed/audit/flow.py` prices a machine's output by its clock alone, but a production boost
-also multiplies output. Once CS-1264 lands, the balance names a boosted machine a
-boost-unmodeled gap while the flow audit flows it - at the elided default when it carries no
-clock tag - so two audits over one world disagree about one machine, the CS-1265 defect one
-axis over. Waits on CS-1264.
+The shipped docs carry `mCanChangePotential` - of 68 registry buildings, 24 True, 38 False, and
+6 omit it - but `clockspeed/data/registry.py` does not read it, so the balance's elided-clock
+count includes classes that cannot be clocked: up to 46 of 128 elided machines per world are
+non-clockable classes. The `BACKLOG.md` Session 124 elided-count line was folded into CS-1266's
+slice, but with no registry field to read it was not done there.
 
 ### Acceptance
 
-a machine carrying a production-boost tag, decoded or not (CS-1264's `MachineState.production_boost_tagged`), is a named flow gap, never flowed at its clock alone, and is excluded from the elided count; the both-audits arm, `tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`, gains a boosted row and still asserts the two audits classify every machine alike; an arm reddens when the flow ignores the boost
+the registry reads the field, and an unknown or absent value stays a named unknown, never defaulted; the balance's elided count excludes a class that cannot be clocked; an arm with a synthetic non-clockable class reddens when it is counted elided; the `BACKLOG.md` Session 124 elided-count line is relocated as discharged
