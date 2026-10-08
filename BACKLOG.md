@@ -439,7 +439,8 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   caught SlotTimeout whole and `ops/fleet_kit/fleet_watch.py` a caught OSError whole
   (`tests/test_exception_rendering.py` VENDORED_RENDER_RESIDUALS); `fleet_watch.py`
   `_first_line(exc)` carries a whole exception's first line, possibly a path, into the
-  `alert()` payload - TRIGGER: MAIN ships kit v10; delete each row its bytes repair.
+  `alert()` payload; `ops/fleet_kit/fleet_lanes.py` `_release` does not clear `holder_pid`
+  (CS-1274 adversary round) - TRIGGER: MAIN ships kit v10; delete each row its bytes repair.
 - `tests/ops/test_headless_spawn_paths.py` `direct_starts()` misses
   `npx @anthropic-ai/claude-code`, `cmd /c claude`, `Start-Process -FilePath claude`, nohup and
   timeout prefixes, `start /b` and aliases, and never scans `.ts`, `.yml`, `.vbs` or
@@ -454,3 +455,36 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - `ops/loop/inbox_responder.py` logs a `retired_skip` line on every pass while a retired
   sibling's note stays unread - TRIGGER: that log grows enough to matter, or the note's owner
   is ruled to acknowledge it.
+- CS-1274 lane residual: `ops/loop/claims.py` and `ops/loop/ration.py` delete their lock files
+  in one attempt with no retry - TRIGGER: a lock file measured left behind, or either module
+  next touched.
+- CS-1274 lane residual, pre-existing: an interrupt while the driver waits on a live worker
+  releases the lane in the `finally` of `ops/loop/queue_loop.py` `run_cycle`, though
+  `holder_pid` now makes holding it safe - TRIGGER: a lane measured FREE behind a live worker,
+  or that release next touched.
+- CS-1274 lane residual: an undeletable pid-0 lock on a lane's home index refuses the claim as
+  `lane_held` although other indexes are free, where the kit's acquirer skips to the next
+  index - TRIGGER: such a refusal measured with an index free, or the acquirer next touched.
+- CS-1274 lane residual: a lock held open in read-only sharing makes the in-place neutralise
+  fail too, leaving the lane RUNNING for the driver's life; the kit shares the gap - TRIGGER:
+  a lane measured stuck RUNNING behind a dead worker, or kit v10 changes `_release`.
+- CS-1274 lane residual, older than CS-1274: `tests/ops/test_driver_module_binding.py` writes
+  its probe file into `ops/loop` while the a6 walk in `tests/ops/test_lane_inbox_surface.py`
+  reads that directory - a parallel race failing 22-24 of 25 isolated three-test runs at both
+  the pre-CS-1274 base and the CS-1274 tip, while `tests/ops -n 3` was green 10 of 10 -
+  TRIGGER: the race reddens a real suite run, or either module next touched.
+- CS-1272 responder residual, round 3 - the adversary loop stopped by cost against risk, 0 of
+  511 live names affected: `ops/loop/inbox_responder.py` `is_damped` matches "terminal" and
+  "noreply" as a substring and damps a MAIN ORDER or FIX whose name carries either, while the
+  kit never skips an ORDER, FIX or RULING - TRIGGER: a live MAIN note so named, or `is_damped`
+  next touched.
+- CS-1272 responder residual, round 3: the kit's `note_sender` in
+  `ops/fleet_kit/fleet_headless.py` also reads a title line (`# From LL - ORDER`) when the
+  filename names no sender; the responder judges the filename only - TRIGGER: a live note
+  whose sender only its title line names.
+- CS-1272 responder residual, round 3: a judge word outside the vocabulary is treated as live
+  (fail open; unreachable with the real verdict, and pinned by no arm) - TRIGGER: the verdict
+  vocabulary changes, or the responder's judge next touched.
+- CS-1272 responder residual, round 3: a sender-leading MAIN ORDER name gets sonnet, not the
+  code model, because the kit finds no ORDER class there - TRIGGER: a live MAIN ORDER so
+  named, or the responder's model choice next touched.

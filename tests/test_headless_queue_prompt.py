@@ -207,6 +207,18 @@ SURFACE_NEVER_REPLY: Final = (
     ("out of scope for a lane cycle", r"out\s+of\s+scope\s+for\s+a\s+lane\s+cycle"),
 )
 
+#: CS-1274. The worker runs in the KIT'S per-index worktree, which the launcher
+#: hands it clean and DETACHED - so the prompt must not tell it to expect a lane
+#: branch, and must say how a detached HEAD reaches `main`. Pinned as the four
+#: facts a worker acts on: where its tree is, that there is one per lane index,
+#: that HEAD is detached, and the refspec that pushes a detached HEAD to main.
+KIT_WORKTREE: Final = (
+    ("the kit's worktree directory", r"cs-worktrees"),
+    ("one worktree per lane index", r"lane-<i>"),
+    ("the head is detached", r"\bdetached\b"),
+    ("a detached head pushes by refspec", r"HEAD:main"),
+)
+
 #: EVERY RULE, NAMED ONCE. Both parametrized arms read this rather than each
 #: spelling its own list: a rule present in one decorator and absent from the
 #: other would be a live arm with no control, or a control grading nothing, and
@@ -220,6 +232,7 @@ RULES: Final = (
     ("one row per cycle", ONE_ROW_PER_CYCLE),
     ("the drained sentinel", DRAINED),
     ("the channel is surfaced, never answered", SURFACE_NEVER_REPLY),
+    ("the lane runs in the kit's worktree", KIT_WORKTREE),
 )
 
 #: THE LABEL SET OF EVERY RULE, PINNED IN BOTH DIRECTIONS. Without this the
@@ -273,6 +286,14 @@ RULE_LABELS: Final = {
             "surfacing never acknowledges",
             "composing a note is excluded",
             "out of scope for a lane cycle",
+        }
+    ),
+    "the lane runs in the kit's worktree": frozenset(
+        {
+            "the kit's worktree directory",
+            "one worktree per lane index",
+            "the head is detached",
+            "a detached head pushes by refspec",
         }
     ),
 }
@@ -741,3 +762,18 @@ def test_every_channel_token_matches_its_witness() -> None:
     dead = [t for t in CHANNEL_VOCABULARY if not re.search(t, CHANNEL_WITNESSES[t], re.IGNORECASE)]
 
     assert dead == [], f"channel tokens that match nothing: {dead}"
+
+
+#: CS-1274. The instruction the kit's detached worktree makes false: a worker
+#: told its toplevel "must print your lane branch" would read the correct,
+#: detached state as a fault and stop - or create a branch to satisfy the
+#: sentence. So the old wording is pinned ABSENT, not merely outvoted.
+STALE_BRANCH_RULE: Final = re.compile(r"must\s+print\s+your\s+lane\s+branch", re.IGNORECASE)
+
+
+def test_cs1274_the_prompt_no_longer_asks_for_a_lane_branch(prompt_text: str) -> None:
+    """The old pre-flight demanded a branch the kit's worktree never has."""
+    stale = STALE_BRANCH_RULE.findall(prompt_text)
+    old_wording = "and `git branch --show-current` must print your lane branch."
+    control = STALE_BRANCH_RULE.findall(old_wording)
+    assert (stale, len(control)) == ([], 1)

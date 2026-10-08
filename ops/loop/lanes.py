@@ -28,34 +28,47 @@ other repositories, made unilaterally, which is exactly the silent divergence
 their byte-identity pin exists to prevent. So the DEFAULT_ROOT here is inside
 this repository, the two primitives are local, and no upstream file is read,
 imported or edited. See ``ops/loop/winmutex.py`` for the other half of the
-ruling, which came out the other way and is a declared FORK.
+ruling, which came out the other way and is a declared FORK. CS-1274 imports
+the kit's LANE module, ``ops/fleet_kit/fleet_lanes.py``, for its lane model
+only: nothing here takes a governor slot, and that bucket stays untouched.
 
-ONE SLOT PER LANE, AND THE SLOT IS DERIVED FROM THE ROSTER. ``lock_name`` places
-a lane at ``<slot>.lock`` by its position in ``LANES``, so widening the roster
-widens the bucket with it and no second constant has to be remembered. THE
-SHARED-SLOT SHAPE IS THE DEFECT THIS REPLACES: a guard taken per lane over ONE
-shared lock file is worse than either half by itself, because the guards wave
-every lane through while the file quietly serialises them, and each holder
-believes it owns something another holder also believes it owns. A lane off the
-roster gets no slot at all rather than the default one - handing a typo the
-first lane's lock would claim a running worker's slot.
+THE KIT'S LANE MODEL, CS-1274. The vendored kit (v9) owns three facts this
+module now defers to rather than restates: the lane CAP, validated by
+``fleet_lanes.lane_cap`` against the kit's own ceiling; the lock LAYOUT, an
+``<i>.lock`` per index under ``ops/loop/control/lanes`` with the lane NAME a
+payload field and never a file name; and the WORKTREE an index runs in,
+``fleet_lanes.worktree_path``, DERIVED from the main tree so that no base path
+is written anywhere in this repository. Locks written here are on-disk
+compatible with the kit's: its lane widget reads them, its acquirer and this
+one serialise on its one acquire mutex, and a lane either of them claims is
+visible to both. The cap is ``LANE_CAP`` and is DECOUPLED from the roster (MAIN
+2237 section 4a) - the roster says which lanes exist, the cap how many hold a
+slot at once.
 
-THE SLOT INDEX IS POSITIONAL, AND POSITION IS NOT THE KEY THE DECISION RESTS ON.
-That distinction is the whole of this paragraph and it was measured rather than
-imagined. Inserting a lane at the FRONT of the roster re-points every slot
-under it: the lane that used to be slot 0 reads slot 1, finds nothing, reports
-FREE - and the live worker still holding slot 0 is invisible. A second worker
-then enters a worktree that already has one, which is the concurrent-index
-corruption class the worktree rule exists to prevent. TWO THINGS ANSWER IT, and
-neither is enough alone:
+A HOME INDEX FIRST, THEN ANY INDEX. A lane is tried first at its roster
+position, its HOME, so in the ordinary case it keeps one worktree across
+cycles and the driver's before-and-after HEAD reads look at the tree its
+worker used. When the home slot is held - by another lane, or by a claim the
+kit's own acquirer made under a name this roster does not carry - the lane
+takes the lowest free index instead, which is the kit's rule that any roster
+lane runs at any index. A full bucket refuses with the kit's own word. THE
+SHARED-SLOT SHAPE STAYS THE DEFECT THIS REPLACED: a guard taken per lane over
+ONE shared lock file is worse than either half by itself, because the guards
+wave every lane through while the file quietly serialises them. A lane off the
+roster gets no slot at all rather than a default one.
 
-  * ``tests/test_lane_lock.py`` PINS THE ROSTER'S ORDER by literal equality, so a
-    reorder or an insertion is red rather than silent. A pin is a tripwire.
-  * ``lock_for_lane`` makes the RECORDED LANE authoritative and the slot index
-    merely where a NEW claim is written. Every reader resolves a lane to the lock
-    that says it holds that lane, wherever in the bucket it sits, so a re-pointed
-    index cannot hide a live holder even from somebody who edited past the pin.
-    That is the structural half, and it is what makes the tripwire survivable.
+THE RECORDED LANE IS AUTHORITATIVE, THE SLOT INDEX IS NOT. That was measured
+rather than imagined: inserting a lane at the FRONT of a positional roster
+re-pointed every slot under it, so a reader looking at the wrong file reported
+FREE over a live worker and the next claim double-booked its worktree. TWO
+THINGS ANSWER IT, and neither is enough alone:
+
+  * ``tests/test_lane_lock.py`` PINS THE ROSTER'S ORDER by literal equality,
+    because the order decides each lane's home. A pin is a tripwire.
+  * ``lock_for_lane`` resolves a lane to the lock that NAMES it, wherever in the
+    bucket it sits, and prefers a live holder over a stale record of the same
+    name - so neither a re-pointed home nor a crashed fallback claim can hide a
+    live holder from anybody who edited past the pin.
 
 WHY THREE STATES AND NOT TWO. A lock file whose pid is DEAD is indistinguishable
 from a live holder by file inspection alone: it has the same name, the same
@@ -93,19 +106,107 @@ re-point every record the moment a row above it closed.
 NOTHING HERE STARTS A PROCESS. This module is pure state management: it decides
 who may run, it does not run anything, and it is therefore testable without
 spawning. ``pid`` in the payload is the pid of whatever CLAIMED the lane;
-``ops/loop/lane_launcher.py`` re-points it at the worker it spawns.
+``ops/loop/lane_launcher.py`` re-points it at the worker it spawns, keeping the
+claimer as ``holder_pid`` so the lane stays held until the claimer releases it
+(CS-1274 r2), and it is the launcher that hands the claimed worktree to the kit
+to prepare.
+
+A RELEASE IS THE KIT'S RELEASE (CS-1274 r2): retried, then neutralised in place
+when the operating system still refuses the unlink - see ``release_lane``.
 """
 
 from __future__ import annotations
 
 import contextlib
+import functools
+import importlib
+import importlib.util
 import json
 import os
+import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 _HERE = Path(__file__).resolve().parent
+
+#: The kit module's canonical dotted name, and the private name a file-path load
+#: registers it under when no ``ops`` package is importable - the detached
+#: driver is started as ``pythonw <repo>/ops/loop/queue_loop.py`` and carries no
+#: repository root on ``sys.path`` (CS-1000). HYPHENATED, and the spelling is
+#: load-bearing: ``tests/ops/test_lane_refusal_contract.py`` reads every
+#: snake-case literal in this file as a possible refusal word, so a private name
+#: spelled in snake case would be a stray word that contract cannot vouch for.
+_KIT_LANES_DOTTED = "ops.fleet_kit.fleet_lanes"
+_KIT_LANES_PRIVATE = "cs-kit-fleet-lanes"
+#: The vendored file, as ONE relative spelling for the same reason.
+_KIT_LANES_FILE = "fleet_kit/fleet_lanes.py"
+
+
+def _load_kit_lanes() -> Any:
+    """Bind the vendored ``fleet_lanes`` - the package route first, the file second.
+
+    The kit module is READ, never edited (FLEET item 11), and it holds no
+    process-global state of its own, so the two-copies hazard ``_OWNED`` carries
+    here cannot arise in it. A file-path load is published under the dotted name
+    all the same - ``setdefault``, never an assignment - so every later importer
+    gets the one object.
+
+    Returns:
+        The kit's lane module.
+
+    Raises:
+        ImportError: The vendored file could not be turned into a module.
+        OSError: The vendored file is not on disk.
+    """
+    with contextlib.suppress(ImportError):
+        return importlib.import_module(_KIT_LANES_DOTTED)
+    existing = sys.modules.get(_KIT_LANES_PRIVATE)
+    if existing is not None:
+        return existing
+    source = _HERE.parent / _KIT_LANES_FILE
+    spec = importlib.util.spec_from_file_location(_KIT_LANES_PRIVATE, source)
+    if spec is None or spec.loader is None:
+        message = "could not load the vendored fleet_lanes module"
+        raise ImportError(message)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_KIT_LANES_PRIVATE] = module
+    spec.loader.exec_module(module)
+    sys.modules.setdefault(_KIT_LANES_DOTTED, module)
+    return module
+
+
+@functools.cache
+def kit_lanes() -> Any:
+    """The vendored kit's lane module, bound on FIRST USE (FLEET item 11 - called, never edited).
+
+    LAZY, and that is the same ruling ``ops/loop/queue_loop.py`` makes for its
+    own binds: importing a module to read lane STATE must not require the rest
+    of the lane on disk. ``ops/loop/claims.py`` imports this file from inside a
+    worker's own checkout to answer exactly that question, and reading a lock
+    needs nothing from the kit. Placing a claim and deriving a worktree do, and
+    both reach the kit through here - so a checkout without the kit can READ
+    lanes and cannot CLAIM one, which fails loudly rather than quietly placing
+    a claim no kit acquirer serialises against.
+
+    VALIDATES THE CAP on the way in: the kit's ``lane_cap`` is the one place the
+    1..LANE_CAP_MAX bound is written, and a cap it would change is refused.
+
+    Returns:
+        The kit's lane module.
+
+    Raises:
+        ImportError: The vendored module could not be bound.
+        OSError: The vendored file is not on disk.
+        ValueError: ``LANE_CAP`` is outside the kit's bound.
+    """
+    module = _load_kit_lanes()
+    if module.lane_cap(LANE_CAP) != LANE_CAP:
+        message = f"lane cap {LANE_CAP} is not one the kit accepts as given"
+        raise ValueError(message)
+    return module
+
 
 #: The pointer a git worktree's ``.git`` FILE carries, and the directory name
 #: git puts its per-worktree administrative area under.
@@ -158,8 +259,31 @@ def _main_tree_root(root: Path | None = None) -> Path:
 #: import so every caller shares one answer.
 REPO_ROOT = _main_tree_root()
 
-#: The roster. Its size is not written anywhere but here.
-LANES = ("queue", "queue-b")
+#: The roster. Its size is not written anywhere but here. CS-1274 widened it to
+#: the kit's cap: a lane NAME is exclusive, so a roster narrower than the cap
+#: could never fill the cap with this tree's own lanes.
+LANES = ("queue", "queue-b", "queue-c")
+
+#: The kit repo code this tree's lane worktrees are named by -
+#: ``<parent of the main tree>/cs-worktrees/lane-<i>``. Alphanumeric, as
+#: ``fleet_lanes.worktree_path`` requires.
+LANE_CODE = "CS"
+
+#: CS-1274 - THE WIDTH IS THE KIT'S LANE CAP, NOT THE ROSTER'S LENGTH (MAIN 2237
+#: section 4a). The value is the kit's ceiling and the cap MAIN 2237 section 3
+#: item 2 sets for every tree without a measured reason for less; this tree has
+#: none recorded. Validated against the kit's own ``lane_cap`` the first time
+#: the kit is bound - see ``kit_lanes`` - so the bound is written in one place.
+LANE_CAP = 3
+MAX_SLOTS: int = LANE_CAP
+
+#: How long an acquire waits on the kit's per-repo acquire mutex before it
+#: refuses. Scan, reclaim and create run under THAT mutex - the kit's own, by
+#: the kit's own name - so a kit acquirer and this one can never both take one
+#: index, and, now that a lane may land at any index, two acquirers of one lane
+#: NAME can never land at two. The kit's default wait; a module attribute so an
+#: arm can make the refusal immediate.
+ACQUIRE_WAIT_S = 5.0
 
 #: Where a lane is POINTED AT A SUBJECT. ``CLOCKSPEED_LANE_SCOPE_QUEUE=dashboard``
 #: narrows the queue lane to the scope of that name in ``config/lane_scopes.json``
@@ -183,7 +307,7 @@ DEFAULT_LANE_SCOPES: dict[str, str] = {}
 
 
 def slot_index(lane: Any) -> int:
-    """The slot a lane owns, DERIVED from its position on the roster.
+    """A lane's position on the roster - its HOME index - and the roster check.
 
     A ROSTER MEMBER IS NOT A DEFAULT. An unrecognised lane raises rather than
     answering slot 0: a typo handed the first lane's own lock would claim a
@@ -194,7 +318,7 @@ def slot_index(lane: Any) -> int:
         lane: The lane to place.
 
     Returns:
-        Its slot index.
+        Its roster position.
 
     Raises:
         ValueError: The lane is not on the roster.
@@ -206,30 +330,93 @@ def slot_index(lane: Any) -> int:
         raise ValueError(message) from None
 
 
-def lock_name(lane: Any) -> str:
-    """The lock file one lane holds. The upstream bucket names slot i ``<i>.lock``.
+def home_index(lane: Any) -> int | None:
+    """The index a lane is tried at first, or None when it has no home under the cap.
 
-    ONE FILE PER LANE IS THE WHOLE MUTEX. A per-lane guard layered over a
-    SHARED slot file is worse than either half alone: the guards wave both
-    lanes through while the file serialises them, so each lane believes it
-    holds something the other also believes it holds.
+    A roster wider than the cap leaves its later lanes without a home; they
+    take whichever index is free, which is the kit's any-index rule and needs
+    no home at all.
 
     Args:
         lane: The lane.
 
     Returns:
-        The lock's file name.
+        Its home index, or None.
+
+    Raises:
+        ValueError: The lane is not on the roster.
+    """
+    position = slot_index(lane)
+    return position if position < MAX_SLOTS else None
+
+
+def lane_worktree(index: Any) -> Path:
+    """The worktree lane index ``index`` runs in - the KIT'S derivation, never a base.
+
+    ``fleet_lanes.worktree_path`` builds ``<parent>/cs-worktrees/lane-<i>``
+    from the MAIN tree, so moving the repository moves every lane worktree with
+    it and no path is written down anywhere. Read at call time, so a caller
+    that names a different main tree gets that tree's layout.
+
+    This is also the DERIVATION ``try_acquire_lane`` accepts in place of a
+    path: a lane does not know its index until the claim chooses one.
+
+    Args:
+        index: A lane index inside the cap.
+
+    Returns:
+        The worktree path for that index.
+
+    Raises:
+        ValueError: The index is not an integer inside the cap.
+    """
+    number = None if isinstance(index, bool) else int_or_none(index)
+    if number is None or not 0 <= number < MAX_SLOTS:
+        message = f"lane index {index!r} outside 0..{MAX_SLOTS - 1}"
+        raise ValueError(message)
+    return Path(kit_lanes().worktree_path(REPO_ROOT, LANE_CODE, number))
+
+
+def home_worktree(lane: Any) -> Path:
+    """The worktree a lane runs in when it holds its HOME index.
+
+    Args:
+        lane: The lane.
+
+    Returns:
+        The home index's worktree.
+
+    Raises:
+        ValueError: The lane is not on the roster, or has no home under the cap.
+    """
+    home = home_index(lane)
+    if home is None:
+        message = f"lane {lane!r} has no home index under the cap of {MAX_SLOTS}"
+        raise ValueError(message)
+    return lane_worktree(home)
+
+
+def lock_name(lane: Any) -> str:
+    """The lock file at a lane's HOME index. The kit names index i ``<i>.lock``.
+
+    ONE FILE PER INDEX IS THE WHOLE MUTEX. A per-lane guard layered over a
+    SHARED slot file is worse than either half alone: the guards wave both
+    lanes through while the file serialises them, so each lane believes it
+    holds something the other also believes it holds. This is where a claim is
+    TRIED first; where a lane actually holds its lock is ``lock_for_lane``'s
+    answer.
+
+    Args:
+        lane: The lane.
+
+    Returns:
+        The home lock's file name.
 
     Raises:
         ValueError: The lane is not on the roster.
     """
     return f"{slot_index(lane)}.lock"
 
-
-#: One holder per lane, so the width IS the roster's. DERIVED rather than
-#: restated: a number written beside the tuple it counts is a number that drifts
-#: the moment the tuple changes (CLAUDE.md section 4).
-MAX_SLOTS = len(LANES)
 
 #: THE LANE A CALLER THAT NAMES NONE GETS, and it is stated rather than implied.
 #: The poll path predates the roster's widening and a required argument here
@@ -266,6 +453,17 @@ _PID_IDENTITY_EPS_S = 1.0
 #: ``scripts/make_cert.py``.
 _RENAME_ATTEMPTS = 5
 _RENAME_PAUSE_SECONDS = 0.05
+
+#: CS-1274 r2 - THE KIT'S RELEASE RETRY, MIRRORED: ``fleet_lanes.RETRIES``
+#: unlinks, ``fleet_lanes.RETRY_SLEEP`` apart, before a lock is NEUTRALISED in
+#: place. Windows refuses to unlink a file another process holds open - the
+#: kit's lane widget, another lane's scan, a scanner - and the refuted CS-1274 first cut
+#: tried once, so the lock kept naming the live driver and every later claim of
+#: the lane was refused until that driver exited. Written here rather than read
+#: off the kit because a release runs in a ``finally`` and must never raise,
+#: binding the kit can; ``tests/test_lane_lock.py`` pins both equal to the kit's.
+_RELEASE_ATTEMPTS = 12
+_RELEASE_PAUSE_SECONDS = 0.025
 
 #: OpenProcess flags and exit codes, named so no bare integer stands in a
 #: comparison. ERROR_INVALID_PARAMETER is what Windows reports when there is no
@@ -532,20 +730,96 @@ def _lock_files(root: Any) -> list[Path]:
         return []
 
 
+def _index_lock(directory: Path, index: int) -> Path:
+    """The lock file at one index - the kit's ``<i>.lock``."""
+    return directory / f"{index}.lock"
+
+
+def _holding_lock(directory: Path, wanted: str) -> Path | None:
+    """The lock that NAMES this lane, a live one first, or None when none does.
+
+    THE RECORDED LANE IS AUTHORITATIVE, THE SLOT INDEX IS NOT. Every lock in the
+    root is read, wherever it sits, so a lane placed off its home - or a lock an
+    older build wrote at a slot the current roster would not derive - is still
+    found by its name.
+
+    A LIVE HOLDER WINS OVER A STALE RECORD OF THE SAME NAME. A lane that crashed
+    at a fallback index leaves a RECLAIMABLE lock naming it there, and its next
+    claim lands at its home: two locks then name one lane, and a reader that
+    took the first in file order would report the dead one over the live worker.
+
+    THE ONE UNNAMED LOCK IT ATTRIBUTES is at the lane's own home slot: a lock
+    with no readable payload names nobody, so it is left to whichever lane's
+    home it occupies - the write-grace window in ``lane_state`` is the answer
+    to it - rather than claimed by the first reader that stumbles on it.
+
+    Args:
+        directory: The lock root.
+        wanted: The lane, already checked against the roster.
+
+    Returns:
+        The lock holding the lane, or None.
+    """
+    named = [
+        candidate
+        for candidate in _lock_files(directory)
+        if str_or_none(read_payload(candidate).get("lane")) == wanted
+    ]
+    live = [candidate for candidate in named if _reading(candidate, None)["state"] == RUNNING]
+    if live or named:
+        return (live or named)[0]
+    home = _index_lock(directory, slot_index(wanted))
+    if home.exists() and str_or_none(read_payload(home).get("lane")) is None:
+        return home
+    return None
+
+
+def _free_index(directory: Path, lane: Any) -> int | None:
+    """The index a new claim for this lane takes: its home if free, else the lowest free.
+
+    FREE or RECLAIMABLE both count - a reclaimable lock is cleared by the claim
+    that chooses it, and only then. READS ONLY, so the refusal it lets a caller
+    make before taking the mutex touches nothing.
+
+    Args:
+        directory: The lock root.
+        lane: The lane, already checked against the roster.
+
+    Returns:
+        The chosen index, or None when every index inside the cap is held.
+    """
+    home = home_index(lane)
+    order = list(range(MAX_SLOTS))
+    if home is not None:
+        order.remove(home)
+        order.insert(0, home)
+    for index in order:
+        lock = _index_lock(directory, index)
+        if not lock.exists() or _reading(lock, None)["state"] != RUNNING:
+            return index
+    return None
+
+
+def _holders(directory: Path) -> list[str | None]:
+    """The lane named by every RUNNING lock inside the cap - who a full bucket waits on."""
+    found: list[str | None] = []
+    for index in range(MAX_SLOTS):
+        lock = _index_lock(directory, index)
+        if lock.exists():
+            reading = _reading(lock, None)
+            if reading["state"] == RUNNING:
+                found.append(reading["lane"])
+    return found
+
+
 def lock_for_lane(root: Any = None, lane: Any = None) -> Path:
     """The lock that HOLDS this lane, or the slot a new claim would be written to.
 
-    THE RECORDED LANE IS AUTHORITATIVE, THE SLOT INDEX IS NOT. ``lock_path`` is
-    positional and a roster edit re-points it; a reader that trusted position
-    alone would report FREE over a live holder sitting at the old index, and the
-    next claim would double-book a running worker. So the derived slot is tried
-    first - it is right in every ordinary case and costs one stat - and only when
-    nothing is there does this look for a lock that NAMES this lane.
-
-    WHAT IT DELIBERATELY DOES NOT DO: attribute an unparseable lock. A lock with
-    no readable payload names no lane, so it is left to whichever lane keyed it
-    rather than being claimed by the first reader that stumbles on it - the
-    write-grace window in ``lane_state`` is the answer to that one.
+    The holding lock is resolved by NAME - see ``_holding_lock``. When nothing
+    names the lane the answer is where a claim would go now: the home slot if
+    free, else the lowest free index, and the home slot when the bucket is full
+    and nothing is free to name. Readers asking "is this lane running" should
+    ask ``lane_state``, which does not rely on this fallback path.
 
     Args:
         root: The lock root, or None for the default.
@@ -558,13 +832,13 @@ def lock_for_lane(root: Any = None, lane: Any = None) -> Path:
         ValueError: The lane is not on the roster.
     """
     wanted = str(DEFAULT_LANE if lane is None else lane)
-    slot = lock_path(root, wanted)
-    if slot.exists():
-        return slot
-    for candidate in _lock_files(_resolve_root(root)):
-        if str_or_none(read_payload(candidate).get("lane")) == wanted:
-            return candidate
-    return slot
+    home = lock_path(root, wanted)
+    directory = _resolve_root(root)
+    held = _holding_lock(directory, wanted)
+    if held is not None:
+        return held
+    index = _free_index(directory, wanted)
+    return home if index is None else _index_lock(directory, index)
 
 
 def read_payload(lock: Path) -> dict[str, Any]:
@@ -616,9 +890,34 @@ def lane_state(root: Any = None, now: Any = None, lane: Any = None) -> dict[str,
     Raises:
         ValueError: The lane is not on the roster.
     """
-    lock = lock_for_lane(root, lane)
+    wanted = str(DEFAULT_LANE if lane is None else lane)
+    slot_index(wanted)  # ROSTER CHECK, raising the one message for an unknown lane
+    lock = _holding_lock(_resolve_root(root), wanted)
+    return _reading(lock, now)
+
+
+def _reading(lock: Path | None, now: Any) -> dict[str, Any]:
+    """FREE, RUNNING or RECLAIMABLE for ONE lock file. NEVER mutates anything.
+
+    The per-file half of ``lane_state``, so placement can weigh an index by the
+    same rule a reader weighs a lane by - two rules would be two answers.
+
+    KIT-COMPATIBLE ON A RE-POINTED CLAIM. The kit's ``repoint_lane_pid`` keeps
+    the CLAIMER alive as ``holder_pid`` beside the worker's ``pid``, and so,
+    since CS-1274 r2, does this module's - and the kit reads such a lock
+    RUNNING while either lives. This reads it the same way, or a claim whose
+    worker had exited would read RECLAIMABLE here and be reclaimed from under
+    the claimer still finishing behind it.
+
+    Args:
+        lock: The lock file, or None for no lock at all.
+        now: The wall clock reading to age the lock against, or None.
+
+    Returns:
+        The state, the holder it read, and the lock's age in seconds.
+    """
     reading = time.time() if now is None else float(now)
-    if not lock.exists():
+    if lock is None or not lock.exists():
         return {
             "state": FREE,
             "lane": None,
@@ -648,13 +947,19 @@ def lane_state(root: Any = None, now: Any = None, lane: Any = None) -> dict[str,
         # No readable holder at all - see WRITE_GRACE_S.
         if answer["age_s"] is not None and answer["age_s"] > WRITE_GRACE_S:
             answer["state"] = RECLAIMABLE
-    elif not pid_alive(pid):
-        answer["state"] = RECLAIMABLE
-    elif holder_is_a_stranger(pid, record.get("pid_started")):
-        # Alive, but not the same process: the holder died and the operating
-        # system reissued its pid. Without this the lane reads RUNNING forever.
+    elif not _is_live(pid, record.get("pid_started")) and not _is_live(
+        int_or_none(record.get("holder_pid")), record.get("holder_started")
+    ):
+        # Dead, or alive but not the same process: the holder died and the
+        # operating system reissued its pid. Without the second half the lane
+        # reads RUNNING forever.
         answer["state"] = RECLAIMABLE
     return answer
+
+
+def _is_live(pid: int | None, started: Any) -> bool:
+    """True when ``pid`` is alive AND is provably-or-plausibly the recorded process."""
+    return pid is not None and pid_alive(pid) and not holder_is_a_stranger(pid, started)
 
 
 def lane_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]:
@@ -793,25 +1098,130 @@ def _atomic_write(target: Path, data: bytes) -> bool:
     return False
 
 
-def _reclaim(root: Path, lane: Any) -> bool:
-    """Clear a lock whose holder is provably gone. Never touches a live one.
+def _reclaim(lock: Path) -> bool:
+    """Clear ONE index's lock whose holder is provably gone. Never touches a live one.
+
+    The bytes judged are the bytes deleted: the file is re-read after the
+    verdict and left alone if it changed in between - the kit's own rule for
+    every delete it makes. Called only under the acquire mutex, by the claim
+    that chose this index. The unlink is the kit's RETRIED one (CS-1274 r2): a
+    single attempt turned a crashed lane's lock that a reader held open for a
+    moment into a ``lane_held`` refusal naming a lane nobody runs.
 
     Args:
-        root: The lock root.
-        lane: The lane whose slot is being reclaimed. THE SLOT IS PART OF THE
-            DECISION: reclaiming by root alone would clear the default lane's
-            lock whichever lane asked, which is a live worker's lock.
+        lock: The lock at the chosen index.
 
     Returns:
-        True when the lane is free afterwards.
+        True when the index is free afterwards.
     """
-    lock = lock_for_lane(root, lane)
-    if not lock.exists():
-        return True
-    if lane_state(root, None, lane)["state"] != RECLAIMABLE:
+    judged = _bytes_or_none(lock)
+    if judged is None:
+        return not lock.exists()
+    if _reading(lock, None)["state"] != RECLAIMABLE or _bytes_or_none(lock) != judged:
         return False
-    remove_quietly(lock)
-    return not lock.exists()
+    return _unlink_judged(lock, judged)
+
+
+def _bytes_or_none(path: Path) -> bytes | None:
+    """A file's bytes, or None when it is missing or cannot be read."""
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def _decoded(raw: bytes) -> dict[str, Any]:
+    """The JSON object in ``raw``, or {} when it is empty, half-written or not an object."""
+    if not raw.strip():
+        return {}
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except ValueError:
+        return {}
+    return record if isinstance(record, dict) else {}
+
+
+def _unlink_judged(lock: Path, judged: bytes) -> bool:
+    """Unlink ``lock`` while its bytes are still ``judged`` - the kit's ``_unlink_if_raw``.
+
+    MIRRORED, NOT CALLED: ``fleet_lanes._unlink_if_raw`` is private to the kit
+    and the vendored file is never edited (FLEET item 11). The same shape: up to
+    ``_RELEASE_ATTEMPTS`` tries ``_RELEASE_PAUSE_SECONDS`` apart, each re-reading
+    the bytes first, so a lock somebody rewrote between the verdict and the
+    unlink is LEFT ALONE - the ABA guard holds on every attempt, not only the
+    first. Never raises.
+
+    Args:
+        lock: The lock file.
+        judged: The bytes the caller judged ours, or reclaimable.
+
+    Returns:
+        True when the lock is gone.
+    """
+    for attempt in range(_RELEASE_ATTEMPTS):
+        now = _bytes_or_none(lock)
+        if now is None:
+            return not lock.exists()
+        if now != judged:
+            return False
+        try:
+            lock.unlink()
+        except FileNotFoundError:
+            return True
+        except OSError:
+            if attempt + 1 < _RELEASE_ATTEMPTS and _RELEASE_PAUSE_SECONDS:
+                time.sleep(_RELEASE_PAUSE_SECONDS)
+            continue
+        return True
+    return False
+
+
+def _neutralise(lock: Path, judged: bytes, record: dict[str, Any]) -> bool:
+    """Make an undeletable lock of OURS read RECLAIMABLE at once - the kit's neutralise.
+
+    ``fleet_lanes._release``'s fallback, mirrored: re-check the bytes are still
+    the ones judged ours, then write the same record back with ``pid`` 0 and
+    ``ts`` 0 and ``orphaned`` set, so the next claim - the kit's or this
+    module's - reclaims it the moment the handle closes. The lane name and run
+    id stay, so a reader still sees whose it was.
+
+    ONE FIELD FURTHER THAN THE KIT, deliberately: ``holder_pid`` is zeroed too.
+    A re-pointed lock names its claimer there (see ``repoint_lane_pid``), and the
+    claimer is the very process releasing - alive. Zeroing ``pid`` alone would
+    leave the lane RUNNING behind it until it exited, which is the wedge this
+    exists to remove. The kit's own neutralise has that gap for a
+    ``keep_claimer`` claim, and it is reported upstream rather than edited here.
+
+    IN PLACE, NOT tmp-plus-replace, as the kit does it and for the reason this
+    runs at all: a replace onto a file another process holds open is refused by
+    Windows exactly as the unlink was. A reader catching it mid-write sees an
+    unparseable lock, which the write-grace window already answers. Never raises.
+
+    Args:
+        lock: The lock file.
+        judged: The bytes the release judged ours.
+        record: Those bytes, decoded.
+
+    Returns:
+        True when the neutralised record was written.
+    """
+    if _bytes_or_none(lock) != judged:
+        return False
+    # A copy and then field by field, never a ``**`` unpack or a ``dict()`` call:
+    # the refusal-word contract in tests/ops/test_lane_refusal_contract.py cannot
+    # read past either, and it fails closed on what it cannot read.
+    orphan = record.copy()
+    orphan["pid"] = 0
+    orphan["ts"] = 0.0
+    orphan["orphaned"] = True
+    if orphan.get("holder_pid") is not None:
+        orphan["holder_pid"] = 0
+    try:
+        with lock.open("w", encoding="ascii") as stream:
+            json.dump(orphan, stream)
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def same_tree(left: Any, right: Any) -> bool:
@@ -896,51 +1306,178 @@ def _worktree_occupant(root: Path, lane: Any, target: Path) -> dict[str, Any] | 
     return None
 
 
+def _full_refusal(directory: Path) -> dict[str, Any]:
+    """The answer a lane gets when every index inside the cap is held. Writes nothing.
+
+    THE KIT'S OWN WORD, and its own reason string rather than ``lane_held``:
+    that one names a HOLDER of this lane, and a full bucket has none - it
+    names the lanes it is waiting on instead.
+    """
+    return {
+        "ok": False,
+        "refused": "lanes_full",
+        "holder": None,
+        "pid": None,
+        "holders": _holders(directory),
+    }
+
+
+def _busy_refusal() -> dict[str, Any]:
+    """The answer a lane gets when another acquirer holds the kit's acquire mutex.
+
+    Transient, and its own word: a scan and a create are a few milliseconds
+    under the mutex, so a refusal here means a holder is wedged or mid-claim,
+    not that a lane is running.
+    """
+    return {"ok": False, "refused": "acquire_busy", "holder": None, "pid": None}
+
+
 def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None) -> dict[str, Any]:
-    """Claim the lane lock, or refuse.
+    """Claim a lane lock at the lane's home index or any free one, or refuse.
 
     A holder whose pid is dead is reclaimed rather than respected: a crashed
     lane must never deadlock the next fire. A holder that is genuinely live is
     refused, and the refusal touches nothing on disk - the state is read BEFORE
-    any mkdir or scratch write for exactly that reason.
+    any mkdir or scratch write for exactly that reason, and again under the
+    kit's acquire mutex before anything is written.
 
     A WORKTREE ANOTHER LIVE LANE RECORDS IS REFUSED TOO, and for a reason that
     belongs to a different module - see :func:`_worktree_occupant`. Two lanes in
     one tree was measured to let one delete the other's live row claim.
 
+    THE WORKTREE IS A PATH OR THE KIT'S DERIVATION. A path is recorded as given.
+    ``lane_worktree`` - or any callable taking the claimed index - is the
+    kit's per-index tree, resolved only once the index is chosen, which is the
+    only moment it can be: under the any-index rule a lane does not know where
+    it will land until it has landed.
+
     Args:
         lane: The lane to claim. Must be in ``LANES``.
         run_id: The caller's identifier for this run.
-        worktree: The working directory the lane will run in. Mandatory.
+        worktree: The working directory the lane will run in, or a callable
+            deriving it from the claimed index. Mandatory either way.
         root: The lock root, or None for the default.
 
     Returns:
-        ``{"ok": True, "lane", "run_id", "worktree", "token"}`` on success -
-        ``token`` is the lock path and is what ``release_lane`` wants back - or
-        ``{"ok": False, "refused": "lane_held", "holder", "pid"}`` when the lane
-        is busy, or ``{"ok": False, "refused": "worktree_in_use", "holder",
-        "pid", "worktree"}`` when another live lane is already in that tree.
-        Both refusals are normal answers rather than errors.
+        ``{"ok": True, "lane", "run_id", "worktree", "token", "index"}`` on
+        success - ``token`` is the lock path and is what ``release_lane`` wants
+        back - or a refusal: ``lane_held`` when this lane is running,
+        ``worktree_in_use`` when another live lane is already in that tree,
+        ``lanes_full`` when every index is held, ``acquire_busy`` when the
+        acquire mutex is. Every refusal is a normal answer rather than an error.
 
     Raises:
         ValueError: The lane is unknown, or the worktree is absent or the main
             tree.
     """
     slot_index(lane)  # ROSTER CHECK, raising the one message for an unknown lane
-    target = require_worktree(worktree)
+    explicit, resolve = _resolver(worktree)
     directory = _resolve_root(root)
 
+    # READ-ONLY PASS FIRST, so the refusals a held lane, an occupied tree and a
+    # full bucket get touch nothing on disk - not even the mutex file.
+    early = _refusal_before_writing(directory, lane, explicit)
+    if early is not None:
+        return early
+    kit = kit_lanes()
+    try:
+        # SLF001: the KIT'S acquire mutex, deliberately - see ACQUIRE_WAIT_S. A
+        # mutex of this module's own would serialise nothing against the kit.
+        with kit._acquire_mutex(directory, wait=ACQUIRE_WAIT_S):  # noqa: SLF001
+            return _claim_under_mutex(directory, lane, run_id, explicit, resolve)
+    except kit.LaneRefused:
+        return _busy_refusal()
+
+
+def _resolver(worktree: Any) -> tuple[Path | None, Callable[[int], Path]]:
+    """The named worktree (or None) and the function that answers it for an index.
+
+    Args:
+        worktree: A path, or a callable deriving one from the claimed index.
+
+    Returns:
+        ``(explicit, resolve)``: the checked path when one was named, and the
+        resolver a claim calls once it has chosen its index.
+
+    Raises:
+        ValueError: A named worktree is absent or the main tree.
+    """
+    if callable(worktree):
+        return None, functools.partial(_derived_tree, worktree)
+    fixed = require_worktree(worktree)
+    return fixed, functools.partial(_fixed_tree, fixed)
+
+
+def _derived_tree(derive: Callable[[int], Any], index: int) -> Path:
+    """A derived worktree, held to the same main-tree guard as a named one."""
+    return require_worktree(derive(index))
+
+
+def _fixed_tree(fixed: Path, _index: int) -> Path:
+    """A named worktree, the same whichever index the claim lands on."""
+    return fixed
+
+
+def _refusal_before_writing(
+    directory: Path, lane: str, explicit: Path | None
+) -> dict[str, Any] | None:
+    """The refusal this claim gets on the state as read, or None. Reads only.
+
+    Args:
+        directory: The lock root.
+        lane: The lane asking.
+        explicit: The worktree it named, or None when it asked for a derivation.
+
+    Returns:
+        A refusal, or None when a claim may proceed.
+    """
     state = lane_state(directory, None, lane)
     if state["state"] == RUNNING:
         return _refusal(state)
-    # BEFORE THE RECLAIM, so a refusal still touches nothing on disk. Clearing
-    # this lane's stale lock and then refusing would leave the roster changed by
-    # a call that answered no.
+    if explicit is not None:
+        occupant = _worktree_occupant(directory, lane, explicit)
+        if occupant is not None:
+            return _worktree_refusal(occupant)
+    if _free_index(directory, lane) is None:
+        return _full_refusal(directory)
+    return None
+
+
+def _claim_under_mutex(
+    directory: Path,
+    lane: str,
+    run_id: Any,
+    explicit: Path | None,
+    resolve: Callable[[int], Path],
+) -> dict[str, Any]:
+    """Re-read, choose an index, reclaim it if stale, and write the claim.
+
+    Everything is re-decided here because the read-only pass above ran before
+    the mutex was held. Only this function writes, and only under the mutex.
+
+    Args:
+        directory: The lock root.
+        lane: The lane claiming.
+        run_id: The caller's identifier for this run.
+        explicit: The worktree it named, or None when it asked for a derivation.
+        resolve: Answers the worktree for the chosen index.
+
+    Returns:
+        The claim, or a refusal.
+    """
+    early = _refusal_before_writing(directory, lane, explicit)
+    if early is not None:
+        return early
+    index = _free_index(directory, lane)
+    if index is None:
+        return _full_refusal(directory)
+    target = resolve(index)
     occupant = _worktree_occupant(directory, lane, target)
     if occupant is not None:
         return _worktree_refusal(occupant)
-    if state["state"] == RECLAIMABLE:
-        _reclaim(directory, lane)
+    lock = _index_lock(directory, index)
+    if lock.exists() and not _reclaim(lock):
+        return _refusal(lane_state(directory, None, lane))
 
     payload: dict[str, Any] = {
         "pid": os.getpid(),
@@ -954,10 +1491,14 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
         # after the claim, so comparing a start time against ts needs a
         # tolerance and is wrong in both directions.
         "pid_started": proc_started(os.getpid()),
+        # The kit's payload field, so its lane widget and this module agree on
+        # which index a claim holds without parsing a file name.
+        "index": index,
     }
-    token = _exclusive_create(directory, lane, payload)
+    token = exclusive_create(lock, payload)
     if token is None:
-        # Lost a race between the read above and the exclusive create.
+        # Lost a race the mutex should have made impossible - an acquirer that
+        # does not take it. Refused as held, never forced.
         return _refusal(lane_state(directory, None, lane))
     _OWNED[path_key(token)] = (payload["run_id"], payload["ts"], payload["pid"])
     return {
@@ -966,6 +1507,7 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
         "run_id": payload["run_id"],
         "worktree": payload["worktree"],
         "token": str(token),
+        "index": index,
     }
 
 
@@ -1023,17 +1565,26 @@ def _is_ours(lock: Path, record: dict[str, Any]) -> bool:
 def repoint_lane_pid(token: Any, pid: Any, root: Any = None) -> bool:
     """Re-point a held lock at the process that ACTUALLY runs the lane.
 
-    ``try_acquire_lane`` records the pid of whatever CLAIMED the lane, which for
-    a driver-owned loop is a process that outlives every worker. Left that way,
-    ``lane_state`` probes a pid that is always alive and the lane reads RUNNING
-    forever after its worker died - the stale-lock failure the three states
-    exist to prevent. The launcher re-points the lock the moment it has a worker
-    pid.
+    ``try_acquire_lane`` records the pid of whatever CLAIMED the lane. The
+    launcher re-points the lock the moment it has a worker pid, so a reader
+    probes the process doing the work - and a driver that dies with its worker
+    still up leaves a lock that stays RUNNING exactly as long as that worker.
 
-    The claimer's start time is REPLACED rather than left behind. A driver's
-    start time can be hours old, so a stale value here would make every
-    re-pointed lock - which is every real lane fire - read as a pid reuse and
-    free itself under a live worker.
+    THE CLAIMER STAYS THE HOLDER - CS-1274 r2, the kit's ``keep_claimer``,
+    which the kit FORCES for a claim whose claimer releases it. The claimer is
+    recorded as ``holder_pid`` (with its start time as ``holder_started``) and
+    the lock reads RUNNING while EITHER lives. The driver is still finishing
+    the cycle after its worker exits - it ends ``progress/lane-<i>.json`` and
+    then releases - and the refuted CS-1274 first cut, which wrote no holder, read
+    RECLAIMABLE in that window: another lane took the index while this one's
+    progress file was still being finished. The lane is no longer "free the
+    instant the worker dies"; it is free when the claimer releases it, or when
+    worker and claimer are both gone. A SECOND re-point keeps the original
+    claimer as the holder - the holder is whoever releases.
+
+    The claimer's start time is REPLACED as ``pid_started`` rather than left
+    behind. A driver's start time can be hours old, so a stale value there
+    would make every re-pointed lock read as a pid reuse of its WORKER.
 
     ``_OWNED`` is updated in the same breath, or the ABA guard in
     ``release_lane`` would refuse to release a lock this process owns.
@@ -1060,8 +1611,12 @@ def repoint_lane_pid(token: Any, pid: Any, root: Any = None) -> bool:
     key = path_key(lock)
     owned = _OWNED.get(key)
     run_id, stamp, claimer = _identity(record)
+    if int_or_none(record.get("holder_pid")) is None:
+        # The FIRST re-point: the claimer becomes the holder, as the kit does it.
+        record["holder_pid"] = claimer
+        record["holder_started"] = record.get("pid_started")
+        record["claimed_by_pid"] = claimer
     record["pid"] = worker
-    record["claimed_by_pid"] = claimer
     record["pid_started"] = proc_started(worker)
     if not _atomic_write(lock, json.dumps(record).encode("utf-8")):
         return False
@@ -1076,6 +1631,13 @@ def release_lane(token: Any, root: Any = None) -> bool:
     to remove. NEVER raises - a release runs in a finally, and a release that
     can throw turns one failure into two.
 
+    THE KIT'S RELEASE SEMANTICS - CS-1274 r2. The unlink is RETRIED
+    (``_unlink_judged``), and a lock of ours that still cannot be removed is
+    NEUTRALISED in place (``_neutralise``) so it reads RECLAIMABLE and the next
+    claim takes it the moment the other handle closes. That answers False - the
+    file is still there - but the lane is free. The refuted CS-1274 first cut unlinked
+    once and returned, leaving a lock that named the live driver.
+
     Args:
         token: What ``try_acquire_lane`` handed back.
         root: The lock root, used only when the token is a bare name.
@@ -1087,16 +1649,19 @@ def release_lane(token: Any, root: Any = None) -> bool:
     if lock is None:
         return False
     key = path_key(lock)
-    if not lock.exists():
-        _OWNED.pop(key, None)
+    judged = _bytes_or_none(lock)
+    if judged is None:
+        if not lock.exists():
+            _OWNED.pop(key, None)
         return False
-    record = read_payload(lock)
+    record = _decoded(judged)
     if not record or not _is_ours(lock, record):
         # Half-written, corrupt, or somebody else's now - not provably ours.
         return False
-    try:
-        lock.unlink()
-    except OSError:
-        return False
-    _OWNED.pop(key, None)
-    return True
+    if _unlink_judged(lock, judged):
+        _OWNED.pop(key, None)
+        return True
+    if _neutralise(lock, judged, record):
+        # No longer ours on disk - pid 0 is nobody's identity.
+        _OWNED.pop(key, None)
+    return False

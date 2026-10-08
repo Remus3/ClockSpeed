@@ -1232,8 +1232,15 @@ def test_a_genuinely_dead_cycle_returns_its_row(tmp_path: Path) -> None:
 
     The record here names THIS process, which is alive, so the pid anchor alone
     would report the row held forever. What decides it is the cycle: the lane
-    lock is present but names a reaped pid, so the cycle is provably over and the
-    row goes back on the queue.
+    lock is present but names a reaped worker AND a reaped holder, so the cycle
+    is provably over and the row goes back on the queue.
+
+    CS-1274 r2: a re-point keeps the claiming driver as the lock's
+    ``holder_pid`` (the kit's ``keep_claimer``), and the lane stays RUNNING
+    while EITHER lives - the driver is still finishing the cycle after its
+    worker exits. A dead cycle is therefore a dead worker under a driver that
+    died without releasing, and the lock is rewritten to say so: the arm's own
+    process claimed it and is alive.
 
     The edit that reddens this: making the lane-lock branch answer HELD whenever
     a lock file EXISTS, rather than when ``lanes.lane_state`` reports RUNNING.
@@ -1247,6 +1254,11 @@ def test_a_genuinely_dead_cycle_returns_its_row(tmp_path: Path) -> None:
     assert cycle_is_dead, "the reaped pid was reissued before the arm could read it"
 
     with _cycle_on_lane(lock_root, LANE_A, "cycle-dead", _worktree(tmp_path, "wt-cycle"), pid=dead):
+        lock = lanes.lock_for_lane(str(lock_root), LANE_A)
+        record = json.loads(lock.read_text(encoding="utf-8"))
+        record["holder_pid"] = dead
+        record["holder_started"] = None
+        lock.write_bytes(json.dumps(record).encode("utf-8"))
         _plant(root, ROW_A, pid=os.getpid(), lane=LANE_A, lane_run_id="cycle-dead")
         state = str(claims.claim_state(ROW_A, root=root)["state"])
         assert state == claims.RECLAIMABLE, f"a dead cycle's row reads {state}"

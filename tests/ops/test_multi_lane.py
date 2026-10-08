@@ -61,7 +61,9 @@ print a temporary directory into the failure report.
 from __future__ import annotations
 
 import itertools
+import json
 import os
+import subprocess
 import sys
 import threading
 import uuid
@@ -80,6 +82,7 @@ if str(ROOT) not in sys.path:
 # A PLAIN IMPORT, never importorskip: a missing driver must be a COLLECTION
 # error rather than a quiet skip, and the package route is the one production
 # uses, so this suite holds the same module objects the driver does.
+from ops.fleet_kit import fleet_lanes  # noqa: E402
 from ops.loop import lane_launcher, lanes, queue_loop, winmutex  # noqa: E402
 
 #: The real exception the driver catches, taken from the module the driver
@@ -663,3 +666,460 @@ def test_a_claimed_but_unwired_lane_is_released_rather_than_wedged(tmp_path: Pat
         lanes.lane_state(root, None, lane)["state"],
     )
     assert verdict == (True, lane_launcher.REASON_LANE_NOT_WIRED, [], lanes.FREE)
+
+
+# ===========================================================================
+# k. CS-1274 - kit v9 fleet_lanes at the kit's cap, one worktree per lane index
+# ===========================================================================
+
+#: The lane cap MAIN 2237 section 3 item 2 sets for every tree that has no
+#: measured reason for less, and the kit's own ceiling. Written as a literal so
+#: a cap that drifts down to the roster's width, or up past the kit, is red.
+KIT_CAP: Final = 3
+
+#: A roster wider than the cap, so the cap - and not the roster - is what a
+#: fourth claim runs into. Every name is hyphenated, never folded.
+WIDE_ROSTER: Final = ("queue", "queue-b", "queue-c", "queue-d")
+
+
+def _main_checkout(tmp_path: Path) -> Path:
+    """A stand-in MAIN checkout whose ``.git`` is a directory, as git lays it out.
+
+    Resolved, so the kit's own ``resolve()`` in ``main_tree`` and this arm agree
+    on one spelling of the directory - a short 8.3 component on one side only
+    would make two names for one tree.
+    """
+    main = (tmp_path / "parent" / "Clockspeed").resolve()
+    (main / ".git").mkdir(parents=True)
+    return main
+
+
+def _kit_lock_root(main: Path) -> Path:
+    """The lane lock root the kit itself reads for a checkout."""
+    return main / fleet_lanes.LANES_REL
+
+
+def _relative_tree(tree: Any, main: Path) -> str:
+    """A claimed worktree spelled relative to the checkout's parent - a scalar."""
+    return Path(str(tree)).resolve().relative_to(main.parent).as_posix()
+
+
+def _release_all(claims: list[dict[str, Any]], root: Path) -> list[bool]:
+    """Release every successful claim, reporting what each release answered."""
+    return [lanes.release_lane(c["token"], root=root) for c in claims if c.get("ok")]
+
+
+def test_cs1274_the_cap_is_the_kits_and_is_decoupled_from_the_roster() -> None:
+    """MAIN 2237 section 4a: DECOUPLE MAX_SLOTS FROM len(LANES).
+
+    The cap is validated through the kit's own ``lane_cap`` - the one place the
+    1..LANE_CAP_MAX bound is written - and the module carries no arithmetic over
+    the roster that could re-couple them.
+    """
+    source = (ROOT / "ops" / "loop" / "lanes.py").read_text(encoding="utf-8")
+    recoupled = "MAX_SLOTS = len(LANES)" in source
+    pinned = (lanes.LANE_CAP, lanes.MAX_SLOTS, fleet_lanes.lane_cap(lanes.LANE_CAP))
+    assert (pinned, fleet_lanes.LANE_CAP_MAX, recoupled) == ((KIT_CAP,) * 3, KIT_CAP, False)
+
+
+def test_cs1274_the_lane_worktree_root_is_derived_from_the_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The kit's layout, <parent>/cs-worktrees/lane-<i>, read off the main tree.
+
+    Measured by MOVING the repository root and watching every lane worktree
+    move with it - a hardcoded base would stay put. An index outside the cap
+    has no worktree at all rather than a fabricated one.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    here = [_relative_tree(lanes.lane_worktree(i), main) for i in range(lanes.MAX_SLOTS)]
+    kit = [_relative_tree(fleet_lanes.worktree_path(main, "CS", i), main) for i in range(KIT_CAP)]
+    moved = _main_checkout(tmp_path / "elsewhere")
+    monkeypatch.setattr(lanes, "REPO_ROOT", moved)
+    after = _relative_tree(lanes.lane_worktree(0), moved)
+    with pytest.raises(ValueError, match="lane index"):
+        lanes.lane_worktree(lanes.MAX_SLOTS)
+    expected = ["cs-worktrees/lane-0", "cs-worktrees/lane-1", "cs-worktrees/lane-2"]
+    assert (here, kit, after) == (expected, expected, "cs-worktrees/lane-0")
+
+
+def test_cs1274_three_lanes_hold_three_indices_and_three_worktrees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE ACCEPTANCE: three lanes at once, a worktree per lane, none shared.
+
+    Each lane asks for the kit's derivation rather than naming a tree, and each
+    lands at its HOME index with that index's own worktree. Released, the lock
+    root carries no lane lock - the lifetime half of the same claim.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    root = _kit_lock_root(main)
+    claims = [
+        lanes.try_acquire_lane(lane, run_id=f"{RUN_ID}{i}", worktree=lanes.lane_worktree, root=root)
+        for i, lane in enumerate(LANE_LIST)
+    ]
+    try:
+        indices = [c.get("index") for c in claims]
+        trees = [_relative_tree(c.get("worktree"), main) for c in claims]
+        recorded = [lanes.read_payload(Path(c["token"])).get("index") for c in claims]
+    finally:
+        released = _release_all(claims, root)
+    left = sorted(path.name for path in root.iterdir() if path.suffix == ".lock")
+    expected_trees = [f"cs-worktrees/lane-{i}" for i in range(KIT_CAP)]
+    verdict = (indices, recorded, trees, released, left)
+    assert verdict == ([0, 1, 2], [0, 1, 2], expected_trees, [True] * KIT_CAP, [])
+
+
+def test_cs1274_the_kits_lane_widget_reads_a_clockspeed_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ON-DISK COMPATIBILITY with the kit: one file per index, the name a field.
+
+    ``fleet_lanes.repo_lane_state`` is the lane widget's contract - exactly
+    these files, no directory walk. A claim made here must read RUNNING there,
+    under the lane name, at the index it took; the rest read FREE.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    root = _kit_lock_root(main)
+    claim = lanes.try_acquire_lane(
+        "queue-b", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root
+    )
+    try:
+        rows = fleet_lanes.repo_lane_state(main, lanes.LANE_CAP)
+        seen = [(row["index"], row["state"], row["lane"]) for row in rows]
+        widget_tree = _relative_tree(rows[1]["worktree"], main)
+    finally:
+        _release_all([claim], root)
+    after = [row["state"] for row in fleet_lanes.repo_lane_state(main, lanes.LANE_CAP)]
+    expected = [
+        (0, fleet_lanes.FREE, None),
+        (1, fleet_lanes.RUNNING, "queue-b"),
+        (2, fleet_lanes.FREE, None),
+    ]
+    verdict = (seen, widget_tree, after)
+    assert verdict == (expected, "cs-worktrees/lane-1", [fleet_lanes.FREE] * KIT_CAP)
+
+
+def test_cs1274_a_lane_whose_home_is_held_runs_at_another_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ANY ROSTER LANE RUNS AT ANY INDEX - the kit's model, MAIN 2237 section 2.
+
+    The kit's own acquirer takes the lowest free index for a lane CS never
+    named. The queue lane's home is then held, so it lands on the next free
+    index and that index's worktree, and every reader still finds it by name.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    root = _kit_lock_root(main)
+    foreign = fleet_lanes.try_acquire_lane(main, "CS", "foreign", "kit-run", KIT_CAP)
+    claim = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root)
+    try:
+        index = claim.get("index")
+        tree = _relative_tree(claim.get("worktree"), main)
+        state = lanes.lane_state(root, None, "queue")
+        found = lanes.lock_for_lane(root, "queue").name
+    finally:
+        _release_all([claim], root)
+        fleet_lanes.release_lane(foreign)
+    verdict = (foreign.get("index"), index, tree, state["state"], found)
+    assert verdict == (0, 1, "cs-worktrees/lane-1", lanes.RUNNING, "1.lock")
+
+
+def test_cs1274_a_fourth_lane_is_refused_by_the_cap_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CAP refuses, not the roster: a roster wider than the cap still holds the cap.
+
+    The refusal is the kit's word, ``lanes_full``, and like every refusal it
+    touches no lock - the lock files are byte-identical before and after. Once
+    a slot frees, the lane with no home index takes it: any lane, any index.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    monkeypatch.setattr(lanes, "LANES", WIDE_ROSTER)
+    root = _kit_lock_root(main)
+    claims = [
+        lanes.try_acquire_lane(lane, run_id=f"{RUN_ID}{i}", worktree=lanes.lane_worktree, root=root)
+        for i, lane in enumerate(WIDE_ROSTER[:KIT_CAP])
+    ]
+    try:
+        before = {p.name: p.read_bytes() for p in root.iterdir() if p.suffix == ".lock"}
+        fourth = lanes.try_acquire_lane(
+            WIDE_ROSTER[-1], run_id="fourth", worktree=lanes.lane_worktree, root=root
+        )
+        after = {p.name: p.read_bytes() for p in root.iterdir() if p.suffix == ".lock"}
+        unchanged = before == after
+        holders = sorted(fourth.get("holders") or [])
+        lanes.release_lane(claims[1]["token"], root=root)
+        late = lanes.try_acquire_lane(
+            WIDE_ROSTER[-1], run_id="late", worktree=lanes.lane_worktree, root=root
+        )
+        late_at = (late.get("ok"), late.get("index"), _relative_tree(late.get("worktree"), main))
+        _release_all([late], root)
+    finally:
+        _release_all([claims[0], claims[2]], root)
+    verdict = (fourth.get("ok"), fourth.get("refused"), unchanged, holders, late_at)
+    expected_holders = sorted(WIDE_ROSTER[:KIT_CAP])
+    assert verdict == (
+        False,
+        "lanes_full",
+        True,
+        expected_holders,
+        (True, 1, "cs-worktrees/lane-1"),
+    )
+
+
+def test_cs1274_the_kits_acquire_mutex_is_the_one_both_acquirers_take(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ONE MUTEX, so a kit acquirer and this one can never both take an index.
+
+    Placement at ANY index needs a scan and a create under one lock, or two
+    acquirers of one lane name could land at two indices. The kit already holds
+    that lock; a second, Clockspeed-only one would serialise nothing against it.
+    Held here by the kit's own context manager, the acquire refuses with its
+    own word and writes no lock.
+    """
+    root = tmp_path / "locks"
+    root.mkdir()
+    monkeypatch.setattr(lanes, "ACQUIRE_WAIT_S", 0.0)
+    # SLF001: the kit's acquire mutex IS the subject - reaching it any other way
+    # would grade a re-implementation of the object both acquirers must share.
+    with fleet_lanes._acquire_mutex(root, wait=0.0):  # noqa: SLF001
+        answer = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=tmp_path / "wt", root=root)
+    locks = sorted(path.name for path in root.iterdir() if path.suffix == ".lock")
+    after = lanes.try_acquire_lane(
+        "queue", run_id=OTHER_RUN_ID, worktree=tmp_path / "wt", root=root
+    )
+    _release_all([after], root)
+    mutex_left = (root / fleet_lanes.ACQUIRE_MUTEX).exists()
+    verdict = (answer.get("ok"), answer.get("refused"), locks, bool(after.get("ok")), mutex_left)
+    assert verdict == (False, "acquire_busy", [], True, False)
+
+
+def test_cs1274_a_kit_claim_whose_claimer_still_lives_is_never_reclaimed_here(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The kit keeps a claim RUNNING while its CLAIMER lives, after its worker dies.
+
+    ``fleet_lanes.repoint_lane_pid(..., keep_claimer=True)`` records the
+    claimer as ``holder_pid`` beside the worker's ``pid``. With the worker gone
+    the kit still reads the index RUNNING - the claimer merges behind it - so
+    this module must too, or its next acquire would reclaim the index from
+    under a live kit claim and hand the same worktree to a second writer.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    root = _kit_lock_root(main)
+    dead = next(pid for pid in range(30000, 60000, 4) if not lanes.pid_alive(pid))
+    kit_claim = fleet_lanes.try_acquire_lane(main, "CS", "queue", "kit-run", KIT_CAP)
+    repointed = fleet_lanes.repoint_lane_pid(kit_claim, dead, keep_claimer=True)
+    try:
+        kit_says = fleet_lanes.repo_lane_state(main, KIT_CAP)[0]["state"]
+        here = lanes.lane_state(root, None, "queue")["state"]
+        again = lanes.try_acquire_lane(
+            "queue", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root
+        )
+    finally:
+        fleet_lanes.release_lane(kit_claim)
+    verdict = (repointed, kit_says, here, again.get("refused"))
+    assert verdict == (True, fleet_lanes.RUNNING, lanes.RUNNING, "lane_held")
+
+
+#: Run in a CHILD inside a checkout that carries ``lanes.py`` and no kit - the
+#: shape ``ops/loop/claims.py`` imports it in from a worker's own tree. Prints
+#: what reading a lane and claiming one each did, by state word and type name.
+_KITLESS_PROBE: Final = """
+import json
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from ops.loop import lanes
+
+answer = {"state": lanes.lane_state(sys.argv[2], None, "queue")["state"]}
+try:
+    lanes.try_acquire_lane("queue", run_id="kitless", worktree=sys.argv[3], root=sys.argv[2])
+    answer["claim"] = "claimed"
+except Exception as exc:
+    answer["claim"] = type(exc).__name__
+print(json.dumps(answer))
+"""
+
+
+def test_cs1274_a_checkout_without_the_kit_reads_lanes_and_cannot_claim_one(
+    tmp_path: Path,
+) -> None:
+    """The kit is bound on FIRST USE: reading needs none of it, claiming needs all of it.
+
+    ``ops/loop/claims.py`` imports this module inside a worker's checkout only
+    to read lane STATE, so that import must not require the kit. A CLAIM must:
+    without the kit's acquire mutex there is nothing a kit acquirer would
+    serialise against, so the claim fails LOUDLY and writes no lock - it never
+    quietly proceeds unserialised.
+    """
+    checkout = tmp_path / "kitless"
+    for relative in ("ops/__init__.py", "ops/loop/__init__.py", "ops/loop/lanes.py"):
+        target = checkout / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    (checkout / ".git").mkdir()
+    locks = tmp_path / "locks"
+    script = tmp_path / "kitless_probe.py"
+    script.write_text(_KITLESS_PROBE, encoding="utf-8")
+    argv = [sys.executable, str(script), str(checkout), str(locks), str(tmp_path / "wt")]
+    done = subprocess.run(argv, capture_output=True, text=True, timeout=120, check=False)
+    ran = done.returncode == 0
+    answer = json.loads(done.stdout.strip().splitlines()[-1]) if ran else {}
+    written = sorted(p.name for p in locks.iterdir()) if locks.exists() else []
+    verdict = (ran, answer.get("state"), answer.get("claim"), written)
+    assert verdict == (True, lanes.FREE, "FileNotFoundError", [])
+
+
+def test_cs1274_a_stale_lock_of_the_same_lane_never_hides_its_live_one(tmp_path: Path) -> None:
+    """Two locks can name one lane: a crashed fallback claim and a live home one.
+
+    Readers must answer the LIVE one. A reader that took the first match by
+    file order would report RECLAIMABLE over a running worker - and the next
+    acquire would double-book it.
+    """
+    root = tmp_path / "locks"
+    root.mkdir()
+    dead = next(pid for pid in range(30000, 60000, 4) if not lanes.pid_alive(pid))
+    stale = {"pid": dead, "lane": "queue", "run_id": "crashed", "worktree": "w", "ts": 1.0}
+    (root / "2.lock").write_bytes(json.dumps(stale).encode("utf-8"))
+    claim = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=tmp_path / "wt", root=root)
+    try:
+        state = lanes.lane_state(root, None, "queue")["state"]
+        found = lanes.lock_for_lane(root, "queue").name
+        again = lanes.try_acquire_lane(
+            "queue", run_id="again", worktree=tmp_path / "wt2", root=root
+        )
+    finally:
+        _release_all([claim], root)
+    verdict = (claim.get("index"), state, found, again.get("refused"))
+    assert verdict == (0, lanes.RUNNING, "0.lock", "lane_held")
+
+
+# ===========================================================================
+# l. CS-1274 r2 - the driver HOLDS its index until it releases, as the kit does
+# ===========================================================================
+
+
+def _foreign_lock(root: Path, index: int) -> None:
+    """A live kit claim at ``index`` under a name this roster does not carry.
+
+    The holder is THIS process, which is alive for the whole arm - the kit's
+    acquirer names lanes CS never lists, and any lane may hold any index.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    record = {
+        "pid": os.getpid(),
+        "lane": f"foreign-{index}",
+        "run_id": "kit-run",
+        "worktree": f"t{index}",
+        "ts": 1.0,
+        "index": index,
+    }
+    (root / f"{index}.lock").write_bytes(json.dumps(record).encode("utf-8"))
+
+
+def test_cs1274_r2_a_lane_whose_worker_exited_stays_held_until_its_driver_releases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE PROBE'S SHAPE: no other lane may claim an index its driver is still finishing.
+
+    The driver claims, re-points at its worker, and the worker exits. Until the
+    driver has ended ``lane-<i>.json`` and released, the index is the DRIVER'S:
+    the kit forces ``holder_pid`` for exactly this (``keep_claimer``), and both
+    readers - the kit's widget and this module - must say RUNNING. The refuted
+    CS-1274 first cut read RECLAIMABLE there, and a second lane took index 0 mid-finish.
+    With the other two indices held, the second lane is refused ``lanes_full``;
+    once the driver releases, the index is free and the lock is gone.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    root = _kit_lock_root(main)
+    for index in (1, 2):
+        _foreign_lock(root, index)
+    dead = next(pid for pid in range(30000, 60000, 4) if not lanes.pid_alive(pid))
+    driver = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root)
+    repointed = lanes.repoint_lane_pid(driver["token"], dead, root=root)
+    held = lanes.lane_state(root, None, "queue")["state"]
+    widget = fleet_lanes.repo_lane_state(main, KIT_CAP)[0]["state"]
+    second = lanes.try_acquire_lane(
+        "queue-b", run_id=OTHER_RUN_ID, worktree=lanes.lane_worktree, root=root
+    )
+    if second.get("ok"):
+        lanes.release_lane(second["token"], root=root)
+    released = lanes.release_lane(driver["token"], root=root)
+    left = sorted(path.name for path in root.iterdir() if path.suffix == ".lock")
+    verdict = (
+        driver.get("index"),
+        repointed,
+        held,
+        widget,
+        second.get("ok"),
+        second.get("refused"),
+        released,
+        left,
+    )
+    assert verdict == (
+        0,
+        True,
+        lanes.RUNNING,
+        fleet_lanes.RUNNING,
+        False,
+        "lanes_full",
+        True,
+        ["1.lock", "2.lock"],
+    )
+
+
+def test_cs1274_r2_the_runbook_names_the_per_index_worktrees_and_not_the_old_one() -> None:
+    """``docs/OPERATIONS.md`` sends an operator to the tree a lane ACTUALLY runs in.
+
+    The refuted CS-1274 first cut moved every lane to the kit's ``cs-worktrees/lane-<i>``
+    and left the runbook pointing at the retired single-lane tree, so the
+    ``git status`` an operator is told to run read a directory no lane writes.
+    The layout is named relative to the main checkout's parent, as the code
+    derives it - never as a drive-rooted path.
+    """
+    runbook = (ROOT / "docs" / "OPERATIONS.md").read_text(encoding="utf-8")
+    retired = "cs-lane-queue" in runbook
+    names_layout = "cs-worktrees/lane-<i>" in runbook
+    drive_rooted = "C:\\cs-worktrees" in runbook
+    assert (retired, names_layout, drive_rooted) == (False, True, False)
+
+
+def test_cs1274_r2_a_lane_whose_driver_also_died_is_reclaimable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE CONTROL: the holder keeps a lane only while the HOLDER lives.
+
+    Worker and driver both gone is a crashed cycle, and it must never wedge
+    the index - the kit's reader and this one both read RECLAIMABLE, and the
+    next claim takes it.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    root = _kit_lock_root(main)
+    dead = next(pid for pid in range(30000, 60000, 4) if not lanes.pid_alive(pid))
+    driver = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root)
+    lanes.repoint_lane_pid(driver["token"], dead, root=root)
+    lock = Path(driver["token"])
+    record = json.loads(lock.read_text(encoding="utf-8"))
+    record.update({"holder_pid": dead, "holder_started": None})
+    lock.write_bytes(json.dumps(record).encode("utf-8"))
+    here = lanes.lane_state(root, None, "queue")["state"]
+    widget = fleet_lanes.repo_lane_state(main, KIT_CAP)[0]["state"]
+    again = lanes.try_acquire_lane(
+        "queue", run_id=OTHER_RUN_ID, worktree=lanes.lane_worktree, root=root
+    )
+    if again.get("ok"):
+        lanes.release_lane(again["token"], root=root)
+    verdict = (here, widget, again.get("ok"), again.get("index"))
+    assert verdict == (lanes.RECLAIMABLE, fleet_lanes.RECLAIMABLE, True, 0)

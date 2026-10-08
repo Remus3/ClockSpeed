@@ -142,7 +142,9 @@ def _load(name: str, source: Path) -> ModuleType:
 # "the launcher binds the same lanes module this suite holds" passed while the
 # DRIVER held a third. The lock was never released on a real run. A test that
 # reaches its subject by a route production does not use is a test that agrees
-# with itself.
+# with itself. The vendored kit beside it is read for the release retry this
+# module mirrors - never edited (FLEET item 11).
+from ops.fleet_kit import fleet_lanes  # noqa: E402
 from ops.loop import lanes  # noqa: E402
 
 winmutex = _load(WINMUTEX_MODULE_NAME, WINMUTEX_SOURCE)
@@ -216,6 +218,40 @@ def _acquire(root: Path, worktree: Path, run_id: str = RUN_ID) -> dict[str, Any]
     return answer
 
 
+def _dead_pid() -> int:
+    """A pid no live process holds right now - the worker that already exited."""
+    return next(pid for pid in range(30000, 60000, 4) if not lanes.pid_alive(pid))
+
+
+def _refuse_unlink(
+    monkeypatch: pytest.MonkeyPatch, target: Path, times: int | None = None
+) -> dict[str, int]:
+    """Make Windows' sharing violation reproducible on every platform.
+
+    ``Path.unlink`` of ``target`` raises ``PermissionError`` - every time, or the
+    first ``times`` times - which is what Windows answers while another process
+    (a scanner, a lane widget, another lane's scan) holds the file open. Any
+    other path unlinks normally. The release pause is zeroed so no arm sleeps.
+
+    Returns:
+        A counter of the unlinks attempted on ``target``.
+    """
+    tries = {"n": 0}
+    real = Path.unlink
+
+    def refusing(self: Path, missing_ok: bool = False) -> None:
+        if self == target:
+            tries["n"] += 1
+            if times is None or tries["n"] <= times:
+                message = "the file is in use by another process"
+                raise PermissionError(message)
+        real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", refusing)
+    monkeypatch.setattr(lanes, "_RELEASE_PAUSE_SECONDS", 0.0, raising=False)
+    return tries
+
+
 # ===========================================================================
 # a. The roster, and the count deliberately absent from the prose
 # ===========================================================================
@@ -239,14 +275,17 @@ def test_the_roster_and_the_slot_it_maps_each_lane_to_are_pinned() -> None:
     roster edit made anyway cannot hide a LIVE holder, because ``lock_for_lane``
     resolves by the recorded lane rather than by position.
     """
-    pinned = (lanes.LANES, lanes.DEFAULT_LANE, lanes.lock_name("queue"), lanes.lock_name("queue-b"))
-    assert pinned == (("queue", "queue-b"), "queue", "0.lock", "1.lock")
-    # The width and the bucket are DERIVED from the roster above rather than
-    # restated beside it, and the second enumeration is the set of names
-    # ``lock_name`` actually produces - the mechanism, not the arithmetic.
+    homes = tuple(lanes.lock_name(lane) for lane in lanes.LANES)
+    pinned = (lanes.LANES, lanes.DEFAULT_LANE, homes)
+    assert pinned == (("queue", "queue-b", "queue-c"), "queue", ("0.lock", "1.lock", "2.lock"))
+    # CS-1274 - THE WIDTH IS THE KIT'S LANE CAP, NOT THE ROSTER'S LENGTH. MAIN
+    # 2237 section 4a orders the two decoupled: the roster names which lanes
+    # exist, the cap bounds how many hold a slot at once, and a name is a payload
+    # field rather than a file name. The roster position is only a lane's HOME
+    # index - where it is placed when that slot is free.
     slots = {lanes.lock_name(lane) for lane in lanes.LANES}
-    counted = (lanes.MAX_SLOTS, len(slots), lanes.LOCK_NAME)
-    assert counted == (len(lanes.LANES), len(lanes.LANES), lanes.lock_name("queue"))
+    counted = (lanes.MAX_SLOTS, lanes.LANE_CAP, len(slots), lanes.LOCK_NAME)
+    assert counted == (lanes.kit_lanes().LANE_CAP_MAX, 3, len(lanes.LANES), "0.lock")
 
 
 def test_a_lock_is_resolved_by_the_lane_it_records_not_by_its_slot(tmp_path: Path) -> None:
@@ -640,9 +679,33 @@ def test_an_unknown_lane_is_a_hard_error(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("worktree", [None, "", "   "])
 def test_an_absent_worktree_is_a_hard_error(tmp_path: Path, worktree: str | None) -> None:
-    """Worktree-mandatory. An absent worktree is an error, never a default."""
+    """Worktree-mandatory. An absent worktree is an error, never a default.
+
+    CS-1274 keeps this exactly as it was. The kit's per-index worktree is asked
+    for EXPLICITLY, by handing the derivation ``lanes.lane_worktree`` itself -
+    never by leaving the argument out, which stays a hard error.
+    """
     with pytest.raises(ValueError, match="worktree is mandatory"):
         lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=worktree, root=tmp_path)
+    leftover = sorted(path.name for path in tmp_path.iterdir())
+    assert leftover == [], "a refused acquire wrote into the lock root"
+
+
+def test_a_derived_worktree_is_still_refused_when_it_names_the_main_tree(
+    tmp_path: Path,
+) -> None:
+    """The derivation is graded by the same guard as an explicit path.
+
+    A derivation that answered the main tree - a broken repo-root resolution -
+    must be refused like any explicit main-tree path, and refused before a lock
+    is written.
+    """
+    with pytest.raises(ValueError, match="main tree"):
+        lanes.try_acquire_lane(
+            "queue", run_id=RUN_ID, worktree=lambda _index: lanes.REPO_ROOT, root=tmp_path
+        )
+    locks = sorted(path.name for path in tmp_path.iterdir() if path.suffix == ".lock")
+    assert locks == [], "a refused derivation left a lane lock behind"
 
 
 def test_the_main_tree_may_never_be_a_lane_worktree(tmp_path: Path) -> None:
@@ -759,6 +822,38 @@ def test_a_repoint_whose_rename_never_lands_returns_false_and_leaves_no_scratch(
     assert residue == [lanes.LOCK_NAME]
 
 
+def test_cs1274_r2_a_repoint_keeps_the_claimer_as_the_holder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE KIT'S ``keep_claimer``: the claimer stays the HOLDER beside the worker.
+
+    The driver that claimed the lane still finishes the cycle after its worker
+    exits - it ends the progress file and releases. Without ``holder_pid`` the
+    lock read RECLAIMABLE in that window and another lane could claim the index
+    while ``lane-<i>.json`` was still being finished (the refuted CS-1274 first cut). A
+    SECOND re-point keeps the ORIGINAL claimer: the holder is whoever releases.
+    """
+    root = tmp_path / "lanes"
+    answer = _acquire(root, tmp_path / "wt")
+    lock = Path(answer["token"])
+    claimer_started = json.loads(lock.read_text(encoding="utf-8")).get("pid_started")
+    monkeypatch.setattr(lanes, "proc_started", _started(STARTED_ELSEWHEN))
+    lanes.repoint_lane_pid(answer["token"], OTHER_PID, root=root)
+    first = json.loads(lock.read_text(encoding="utf-8"))
+    lanes.repoint_lane_pid(answer["token"], LATER_PID, root=root)
+    second = json.loads(lock.read_text(encoding="utf-8"))
+    monkeypatch.undo()
+    lanes.release_lane(answer["token"], root=root)
+    verdict = (
+        first.get("holder_pid") == os.getpid(),
+        first.get("holder_started") == claimer_started,
+        first.get("pid"),
+        second.get("holder_pid") == os.getpid(),
+        second.get("pid"),
+    )
+    assert verdict == (True, True, OTHER_PID, True, LATER_PID)
+
+
 # ===========================================================================
 # g. Release, and the ABA guard
 # ===========================================================================
@@ -817,6 +912,145 @@ def test_a_lock_neither_ours_nor_recorded_is_not_released(tmp_path: Path) -> Non
     lock = _write_lock(root, _payload(pid=OTHER_PID))
     released = lanes.release_lane(str(lock), root=root)
     assert released is False
+
+
+# ---------------------------------------------------------------------------
+# g2. CS-1274 r2 - a release the operating system refuses still frees the lane.
+#
+# Windows refuses to unlink a file another process holds open. The kit's own
+# release (``fleet_lanes._release``) retries, then NEUTRALISES the lock - pid 0,
+# ts 0 - so the next reap takes it at once. The refuted CS-1274 first cut unlinked ONCE
+# and gave up, leaving the lock naming the live driver: every later claim of
+# that lane was refused ``lane_held`` until the driver exited.
+# ---------------------------------------------------------------------------
+
+
+def test_cs1274_r2_the_release_retry_is_the_kits_own() -> None:
+    """The mirrored retry is the kit's, attempt for attempt and pause for pause."""
+    pinned = (
+        getattr(lanes, "_RELEASE_ATTEMPTS", None),
+        getattr(lanes, "_RELEASE_PAUSE_SECONDS", None),
+    )
+    assert pinned == (fleet_lanes.RETRIES, fleet_lanes.RETRY_SLEEP)
+
+
+def test_cs1274_r2_a_release_an_open_reader_blocks_still_frees_the_lane(tmp_path: Path) -> None:
+    """THE PROBE'S SHAPE, with a REAL open handle - red on Windows before the fix.
+
+    Another process reading the lock at the moment of release - the kit's lane
+    widget, another lane's scan, a scanner - stands in as a handle this process
+    opens itself. After the handle closes the lane must not read RUNNING behind
+    this process, and the next cycle's claim must land. On a platform that
+    unlinks an open file the release simply succeeds and the arm still holds.
+    """
+    root = tmp_path / "lanes"
+    answer = _acquire(root, tmp_path / "wt")
+    reader = Path(answer["token"]).open("rb")  # noqa: SIM115 - held ACROSS the release
+    try:
+        lanes.release_lane(answer["token"], root=root)
+    finally:
+        reader.close()
+    state = lanes.lane_state(root, None, "queue")
+    behind_us = state["pid"] == os.getpid()
+    again = _acquire(root, tmp_path / "wt", run_id="next-cycle")
+    lanes.release_lane(again.get("token"), root=root)
+    verdict = (state["state"] == lanes.RUNNING, behind_us, again.get("ok"))
+    assert verdict == (False, False, True)
+
+
+def test_cs1274_r2_an_undeletable_lock_is_neutralised_the_way_the_kit_does_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retried the kit's number of times, then pid 0 and ts 0, and it reads RECLAIMABLE.
+
+    The lane name and run id stay, so an operator reading the file still sees
+    whose it was; ``orphaned`` says why it is still there.
+    """
+    root = tmp_path / "lanes"
+    answer = _acquire(root, tmp_path / "wt")
+    lock = Path(answer["token"])
+    tries = _refuse_unlink(monkeypatch, lock)
+    released = lanes.release_lane(answer["token"], root=root)
+    monkeypatch.undo()
+    record = json.loads(lock.read_text(encoding="utf-8"))
+    kept = (record.get("pid"), record.get("ts"), record.get("orphaned"), record.get("lane"))
+    state = lanes.lane_state(root, None, "queue")["state"]
+    verdict = (released, tries["n"], kept, record.get("run_id"), state)
+    expected_kept = (0, 0.0, True, "queue")
+    assert verdict == (False, fleet_lanes.RETRIES, expected_kept, RUN_ID, lanes.RECLAIMABLE)
+
+
+def test_cs1274_r2_a_neutralised_lock_frees_a_lane_whose_driver_still_lives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The DRIVER'S path: re-pointed, so the claimer is the holder - and it lives.
+
+    A neutralise that zeroed only ``pid`` would leave ``holder_pid`` naming this
+    live process, and the lane would read RUNNING until the driver exited - the
+    probe's wedge again, one field over. The kit's own neutralise has that gap
+    for a ``keep_claimer`` claim; this one closes it.
+    """
+    root = tmp_path / "lanes"
+    answer = _acquire(root, tmp_path / "wt")
+    lanes.repoint_lane_pid(answer["token"], _dead_pid(), root=root)
+    lock = Path(answer["token"])
+    _refuse_unlink(monkeypatch, lock)
+    lanes.release_lane(answer["token"], root=root)
+    monkeypatch.undo()
+    record = json.loads(lock.read_text(encoding="utf-8"))
+    state = lanes.lane_state(root, None, "queue")["state"]
+    again = _acquire(root, tmp_path / "wt", run_id="next-cycle")
+    lanes.release_lane(again.get("token"), root=root)
+    verdict = (record.get("pid"), record.get("holder_pid"), state, again.get("ok"))
+    assert verdict == (0, 0, lanes.RECLAIMABLE, True)
+
+
+def test_cs1274_r2_a_lock_that_changed_under_a_failed_release_is_never_neutralised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ABA guard holds on the neutralise too: it re-checks the bytes it judged.
+
+    A reclaimer rewrote the lock between this release's judgement and its
+    unlink. A neutralise that did not re-check would zero the RECLAIMER'S live
+    claim and hand its worktree to a second writer. A safety pin over the new
+    branch: the code before the fix never wrote at all, so it holds there too.
+    """
+    root = tmp_path / "lanes"
+    answer = _acquire(root, tmp_path / "wt")
+    lock = Path(answer["token"])
+    reclaimer = json.dumps(_payload(run_id="the-reclaimer", pid=OTHER_PID)).encode("utf-8")
+    real = Path.unlink
+
+    def swapped(self: Path, missing_ok: bool = False) -> None:
+        if self == lock:
+            lock.write_bytes(reclaimer)
+            message = "the file is in use by another process"
+            raise PermissionError(message)
+        real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", swapped)
+    monkeypatch.setattr(lanes, "_RELEASE_PAUSE_SECONDS", 0.0, raising=False)
+    released = lanes.release_lane(answer["token"], root=root)
+    monkeypatch.undo()
+    untouched = lock.read_bytes() == reclaimer
+    assert (released, untouched) == (False, True)
+
+
+def test_cs1274_r2_a_reclaim_the_os_refuses_twice_is_retried_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE SIBLING: reclaiming a dead holder's lock is the same single unlink.
+
+    A crashed lane's lock that a reader holds open for a moment must not turn
+    the next claim into a ``lane_held`` refusal naming a lane nobody runs.
+    """
+    root = tmp_path / "lanes"
+    lock = _write_lock(root, _payload(pid=_dead_pid(), run_id="crashed"))
+    tries = _refuse_unlink(monkeypatch, lock, times=TWO)
+    answer = _acquire(root, tmp_path / "wt")
+    monkeypatch.undo()
+    lanes.release_lane(answer.get("token"), root=root)
+    assert (answer.get("ok"), tries["n"]) == (True, THREE)
 
 
 # ===========================================================================

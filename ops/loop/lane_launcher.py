@@ -14,13 +14,16 @@ at different moments and a path can be handed in between them. Two writers in
 one working directory is the concurrent-index corruption class, and it is not
 recoverable by retrying.
 
-THE PID IN THE LOCK IS THE WORKER'S, NOT THE CLAIMER'S. A driver claims the lane
-from a process that outlives every worker it starts. If the lock kept that pid,
-``lane_state`` would probe a process that is always alive and the lane would
-read RUNNING forever after its worker died. ``launch_lane`` re-points the lock
-through ``lanes.repoint_lane_pid`` as soon as it has a real pid, and RELEASES
-the lane if anything in the spawn path fails - a lock with no process behind it
-is strictly worse than no lock at all.
+THE PID IN THE LOCK IS THE WORKER'S, AND THE CLAIMER IS ITS HOLDER. A driver
+claims the lane from a process that outlives every worker it starts.
+``launch_lane`` re-points the lock through ``lanes.repoint_lane_pid`` as soon as
+it has a real pid, which keeps the claiming driver as ``holder_pid`` - the kit's
+``keep_claimer`` (CS-1274 r2) - so the lane stays held while the driver finishes
+the cycle and is free once the driver releases it, or once worker and driver
+are both gone. The launch RELEASES the lane if anything in the spawn path fails
+- a lock with no process behind it is strictly worse than no lock at all - and
+KILLS a worker it started but could not get the lock to name, interrupts
+included: a worker no lock names is invisible to every reader.
 
 DETACHED_PROCESS (0x8) IS BANNED, AND THAT IS A MEASUREMENT RATHER THAN A STYLE
 CALL. Three spawns of one script differing only in creation flags:
@@ -45,6 +48,19 @@ way every other spawn in this repository is bounded, and it is honest about its
 reach - it catches the immediate-exit class only. A worker that dies a minute
 later is caught by the pid probe in ``lanes.lane_state``, which is what that
 probe is for.
+
+THE CLAIM NAMES THE WORKTREE, AND THE KIT PREPARES IT - CS-1274. The worker runs
+in the tree the lane CLAIM records, read back off the lock, never in one this
+module derives a second time: the lock is what ``ops/loop/claims.py`` and the
+kit's lane widget read, so a launcher that chose its own directory would run a
+worker somewhere every reader thinks it is not. A claim that asked for the
+kit's per-index tree (``<parent>/cs-worktrees/lane-<i>``, derived from the main
+tree by ``fleet_lanes.worktree_path``) is handed to the KIT'S
+``ensure_worktree``, unedited and called: it adds a missing tree DETACHED at
+``LANE_BASE``, refuses a dirty one rather than cleaning it, and saves unmerged
+commits under ``refs/fleet-lanes/`` before it moves a clean one. A tree a
+caller named instead is the caller's - run in as it stands, never created or
+moved here. No worktree base is written anywhere in this file.
 """
 
 from __future__ import annotations
@@ -185,14 +201,13 @@ REPO_ROOT = lanes.REPO_ROOT
 RUNNER = _HERE / "run_lane.ps1"
 LOG_DIR = _HERE / "reports"
 
-#: Worktrees live OUTSIDE the repository. Inside it they would land in the very
-#: tree a lane is forbidden to touch, and every repository-wide guard would then
-#: scan them. Drive-rooted and outside any user profile, because an absolute
-#: path under a home directory in a tracked file is forbidden outright
-#: (CLAUDE.md non-negotiable 3). Overridable by environment for a box that
-#: keeps its checkouts elsewhere.
-DEFAULT_WORKTREE_BASE = r"C:\cs-worktrees"
-WORKTREE_BASE = Path(os.environ.get("CS_LANE_WORKTREE_BASE", DEFAULT_WORKTREE_BASE))
+#: CS-1274 - THE COMMIT A KIT LANE WORKTREE IS PREPARED AT, resolved in the main
+#: tree. ``origin/main`` and not the main tree's ``HEAD``: the operator's own
+#: checkout may carry commits it has not published, and a lane built on them
+#: would push them to ``main`` as part of its own push. The worker fetches first
+#: anyway (``tools/headless-queue.md`` section 4b), so a stale remote-tracking
+#: ref costs a fast-forward, never a wrong base.
+LANE_BASE = "origin/main"
 
 #: Lane -> the command doc fed to the worker as its prompt. TRACKED paths only
 #: (tools/*.md), never a gitignored command mirror: a worktree is a fresh
@@ -201,10 +216,6 @@ WORKTREE_BASE = Path(os.environ.get("CS_LANE_WORKTREE_BASE", DEFAULT_WORKTREE_BA
 #: git hooks are not wired yet - the file that makes it work is exactly the file
 #: a new checkout does not have.
 LANE_COMMANDS = {"queue": "tools/headless-queue.md"}
-
-#: Branch per lane, stable across fires so a lane resumes its own history rather
-#: than sprouting a branch per launch.
-BRANCH_PREFIX = "lane"
 
 #: CREATE_NO_WINDOW, and nothing else. See the DETACHED_PROCESS measurement in
 #: the module docstring - this is the whole of the creation-flag policy, and
@@ -258,7 +269,16 @@ REASON_LANE_NOT_WIRED = "lane_not_wired"
 REASON_COMMAND_DOC_MISSING = "command_doc_missing"
 REASON_GIT_NOT_FOUND = "git_not_found"
 REASON_MAIN_TREE_REFUSED = "main_tree_refused"
-REASON_WORKTREE_CREATE_FAILED = "worktree_create_failed"
+#: CS-1274. The lock behind the token could not be read, so there is no
+#: recorded worktree to run the worker in - and no other source for one.
+REASON_CLAIM_UNREADABLE = "claim_unreadable"
+#: CS-1274. The kit's ``ensure_worktree`` refused the lane's own worktree:
+#: dirty (a crashed run's work, resolved by hand and never cleaned here), not a
+#: linked worktree of this repository, or its base would not resolve.
+REASON_WORKTREE_REFUSED = "worktree_refused"
+#: CS-1274. A tree the claim NAMED, rather than the kit's derived one, is not a
+#: checkout - and this module creates only the kit's layout.
+REASON_WORKTREE_MISSING = "worktree_missing"
 REASON_RUNNER_MISSING = "runner_missing"
 REASON_SHELL_NOT_FOUND = "shell_not_found"
 REASON_SPAWN_FAILED = "spawn_failed"
@@ -281,7 +301,9 @@ LAUNCH_REASONS = (
     REASON_COMMAND_DOC_MISSING,
     REASON_GIT_NOT_FOUND,
     REASON_MAIN_TREE_REFUSED,
-    REASON_WORKTREE_CREATE_FAILED,
+    REASON_CLAIM_UNREADABLE,
+    REASON_WORKTREE_REFUSED,
+    REASON_WORKTREE_MISSING,
     REASON_RUNNER_MISSING,
     REASON_SHELL_NOT_FOUND,
     REASON_SPAWN_FAILED,
@@ -393,29 +415,25 @@ class LaneLaunchError(RuntimeError):
         self.waited_s = waited_s
 
 
-def worktree_path(lane: str, base: Any = None) -> Path:
-    """Where the lane's long-lived checkout lives.
+def worktree_path(lane: str) -> Path:
+    """The worktree a lane runs in when it holds its HOME index - CS-1274.
 
-    Args:
-        lane: The lane name.
-        base: The directory worktrees are kept under, or None for the default.
-
-    Returns:
-        The worktree path.
-    """
-    return (WORKTREE_BASE if base is None else Path(base)) / f"cs-lane-{lane}"
-
-
-def branch_name(lane: str) -> str:
-    """The lane's branch, stable across fires.
+    ``ops/loop/lanes.py`` owns the derivation, and it is the KIT'S:
+    ``<parent of the main tree>/cs-worktrees/lane-<home index>``. This is the
+    tree the driver reads a lane's HEAD in and keys its box-wide guard on; the
+    tree a given cycle ACTUALLY runs in is the one its claim records, which is
+    this one whenever the lane landed at home.
 
     Args:
         lane: The lane name.
 
     Returns:
-        The branch name.
+        The lane's home worktree.
+
+    Raises:
+        ValueError: The lane is not on the roster, or has no home index.
     """
-    return f"{BRANCH_PREFIX}/{lane}"
+    return Path(lanes.home_worktree(lane))
 
 
 def command_path(lane: str, root: Any = None) -> Path:
@@ -467,7 +485,15 @@ def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any
     """Run one git command and hand back the completed process.
 
     The module attribute is the seam a test rebinds, so no arm here ever starts
-    a real git.
+    a real git - and since CS-1274 that holds for the kit's git calls too,
+    because ``_kit_git`` hands the kit THIS function rather than letting it
+    start its own.
+
+    THE CHILD GETS NO ``GIT_*`` VARIABLE, as the kit's own runner does. A git
+    started from inside a hook inherits ``GIT_DIR`` and ``GIT_INDEX_FILE``, and
+    every ``-C`` below would then act on the repository the HOOK was running in.
+    Only names are filtered; no value is read or rendered (CLAUDE.md
+    non-negotiable 13).
 
     Args:
         args: The arguments after ``git``.
@@ -482,16 +508,36 @@ def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any
         # A lane that cannot find git cannot make its worktree, and a worktree
         # is mandatory. Refusing loudly beats spawning into the wrong tree.
         raise LaneLaunchError("git could not be resolved from PATH", reason=REASON_GIT_NOT_FOUND)
+    env = {name: value for name, value in os.environ.items() if not name.upper().startswith("GIT_")}
     return subprocess.run(
         [exe, *args],
         # tracked file is forbidden by CLAUDE.md non-negotiable 3
         cwd=str(cwd) if cwd else None,
+        env=env,
         capture_output=True,
         text=True,
         timeout=timeout,
         check=False,
         creationflags=_NO_WINDOW,
     )
+
+
+def _kit_git(*args: str) -> Any:
+    """The kit's ``run`` seam, answered by ``_git`` - so git is still resolved from PATH.
+
+    ``fleet_lanes.ensure_worktree`` takes a ``run(*args)`` and calls it with
+    ``-C <repo>`` in front of every command. Routing it through ``_git`` keeps
+    CS-910's rule - the program is RESOLVED FROM PATH, never named, so a
+    ``git.exe`` planted in a working directory is never the one that runs -
+    and keeps the arms' single git seam covering the kit's calls too.
+
+    Args:
+        *args: The arguments after ``git``, exactly as the kit passes them.
+
+    Returns:
+        The completed process.
+    """
+    return _git(list(args))
 
 
 def _refuse_main_tree(worktree: Any, repo: Any, lane: str) -> None:
@@ -514,44 +560,120 @@ def _refuse_main_tree(worktree: Any, repo: Any, lane: str) -> None:
         raise LaneLaunchError(message, reason=REASON_MAIN_TREE_REFUSED)
 
 
-def ensure_worktree(lane: str, base: Any = None, root: Any = None) -> Path:
-    """Create the lane's worktree if absent, reuse it if present.
+def claimed_worktree(token: Any) -> tuple[Path, int | None]:
+    """The worktree and index the lane CLAIM recorded - the only source of either.
 
-    Reuse is deliberate. A worktree per fire would leave a directory and a
-    branch behind on every launch, and ``git worktree add`` on an existing
-    branch fails anyway - so the lane keeps one long-lived checkout it resumes.
+    Read off the lock the token names. A lock written before CS-1274 carries
+    no index, which reads as None and makes the tree a caller-named one.
 
     Args:
-        lane: The lane name.
-        base: The directory worktrees are kept under, or None for the default.
-        root: The repository root, or None for the main tree.
+        token: What ``lanes.try_acquire_lane`` handed back.
 
     Returns:
-        The worktree path.
+        The recorded worktree and the recorded index.
 
     Raises:
-        LaneLaunchError: The worktree is a main tree, or git could not make it.
+        LaneLaunchError: No readable lock, or one that names no worktree.
+    """
+    record = lanes.read_payload(Path(str(token))) if token else {}
+    recorded = lanes.str_or_none(record.get("worktree"))
+    if recorded is None or not recorded.strip():
+        message = "the lane claim could not be read, so it names no worktree to run in"
+        raise LaneLaunchError(message, reason=REASON_CLAIM_UNREADABLE)
+    index = record.get("index")
+    return Path(recorded), index if type(index) is int else None
+
+
+def _is_kit_tree(worktree: Path, index: int | None) -> bool:
+    """True when the claim's tree IS the kit's derivation for the claim's index.
+
+    Args:
+        worktree: The recorded worktree.
+        index: The recorded index, or None.
+
+    Returns:
+        True only for the kit's own per-index tree.
+    """
+    if index is None:
+        return False
+    try:
+        derived = lanes.lane_worktree(index)
+    except ValueError:
+        return False
+    return bool(lanes.same_tree(worktree, derived))
+
+
+def prepare_worktree(worktree: Path, index: int | None, root: Any = None) -> Path:
+    """Make the claimed tree ready to run in - through the KIT for the kit's own tree.
+
+    THE KIT'S TREE IS THE KIT'S TO PREPARE. ``fleet_lanes.ensure_worktree`` is
+    called, never re-implemented: a missing tree is added detached at
+    ``LANE_BASE``; a present one must be a clean linked worktree of this
+    repository, its unmerged commits saved under ``refs/fleet-lanes/`` before it
+    moves to the base. A dirty one is REFUSED and never cleaned - it is a
+    crashed run's work, and that is the kit's ruling.
+
+    A CALLER-NAMED TREE IS THE CALLER'S. It is run in as it stands, and it must
+    already be a checkout; this module creates only the kit's layout.
+
+    NOTHING THE KIT SAYS IS RENDERED. Its refusal text carries the worktree
+    path and git's own stderr, so the message raised here is fixed text and the
+    kit's exception rides only as the chained cause.
+
+    Args:
+        worktree: The claimed tree.
+        index: The claimed index, or None.
+        root: The repository root git runs in, or None for the main tree.
+
+    Returns:
+        The tree, ready.
+
+    Raises:
+        LaneLaunchError: The kit refused the tree, or a caller-named tree is
+            not a checkout.
     """
     repo = REPO_ROOT if root is None else Path(root)
-    worktree = worktree_path(lane, base)
-    _refuse_main_tree(worktree, repo, lane)
-    if (worktree / ".git").exists():
+    if _is_kit_tree(worktree, index):
+        kit = lanes.kit_lanes()
+        try:
+            kit.ensure_worktree(repo, worktree, base=LANE_BASE, run=_kit_git)
+        except kit.LaneRefused as exc:
+            message = (
+                "the kit refused this lane's worktree - a dirty tree is resolved by "
+                "hand and never cleaned; see the kit's ensure_worktree"
+            )
+            raise LaneLaunchError(message, reason=REASON_WORKTREE_REFUSED) from exc
         return worktree
-
-    worktree.parent.mkdir(parents=True, exist_ok=True)
-    branch = branch_name(lane)
-    existing = _git(["rev-parse", "--verify", "--quiet", branch], cwd=repo)
-    args = (
-        ["worktree", "add", str(worktree), branch]
-        if existing.returncode == 0
-        else ["worktree", "add", str(worktree), "-b", branch]
-    )
-    made = _git(args, cwd=repo)
-    if made.returncode != 0 or not (worktree / ".git").exists():
-        detail = (made.stderr or made.stdout or "").strip()[:300]
-        message = f"git worktree add failed for {lane!r}: {detail}"
-        raise LaneLaunchError(message, reason=REASON_WORKTREE_CREATE_FAILED)
+    if not (worktree / ".git").exists():
+        message = "the worktree this claim names is not a checkout, and only the kit's are made"
+        raise LaneLaunchError(message, reason=REASON_WORKTREE_MISSING)
     return worktree
+
+
+def ensure_worktree(lane: str, *, token: Any, root: Any = None) -> Path:
+    """The ONE worktree step of a launch: read the claim, guard it, prepare it.
+
+    The name is kept from before CS-1274 because it is the seam the launch
+    arms substitute; what it does changed - it no longer derives a path from
+    the lane, it runs the worker where the CLAIM says.
+
+    Args:
+        lane: The lane name, for the main-tree refusal's message.
+        token: What ``lanes.try_acquire_lane`` handed back.
+        root: The repository root git runs in, or None for the main tree.
+
+    Returns:
+        The worktree, ready to run in.
+
+    Raises:
+        LaneLaunchError: The claim is unreadable, names a main tree, or names a
+            tree that cannot be made ready.
+    """
+    claimed, index = claimed_worktree(token)
+    # BEFORE the kit is asked to touch it: a main tree is refused before any
+    # git runs in or against it.
+    _refuse_main_tree(claimed, REPO_ROOT if root is None else Path(root), lane)
+    return prepare_worktree(claimed, index, root=root)
 
 
 def _log_path(lane: str, run_id: Any, log_dir: Any = None) -> Path:
@@ -662,6 +784,13 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
     except subprocess.TimeoutExpired:
         setattr(proc, _WAITED_ATTR, round(_monotonic() - wait_began, 3))
         return proc
+    except BaseException:
+        # CS-1274 r2 - INTERRUPTED INSIDE THE GRACE. The runner exists and no
+        # caller holds its pid yet, so this is the only party that can stop it
+        # before the interrupt goes on up; left alone it is a worker no lock
+        # names. The interrupt itself is re-raised whole.
+        _kill(proc.pid)
+        raise
     waited = round(_monotonic() - wait_began, 3)
     message = (
         f"the runner exited {code} within {_SPAWN_LIVENESS_GRACE_S}s of starting,"
@@ -671,12 +800,19 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
 
 
 def _kill_argv(pid: Any) -> list[str] | None:
-    """The argv that kills one process, or None when taskkill cannot be found.
+    """The argv that kills a process tree, or None when taskkill cannot be found.
 
     taskkill, never the PowerShell cmdlet - Stop-Process has hung the tooling
-    pipe on this machine. No ``/T``: this kills the one pid this module spawned
-    and could not track. Killing a whole lane tree is the driver's job and the
-    driver's flag.
+    pipe on this machine.
+
+    ``/T`` IS REQUIRED, the same flag for the same reason as the driver's
+    ``queue_loop._taskkill`` (CS-1274 r3). The pid this module spawned is the
+    PowerShell WRAPPER ``run_lane.ps1`` runs in, and ``claude`` is its child:
+    killing only the wrapper leaves a live writer in the lane worktree while the
+    lane is released and reads FREE behind it. The two killers are mirrors
+    rather than one shared function - the launcher importing the driver would
+    invert the seam - and ``tests/test_lane_launcher.py`` pins their argv to
+    agree. Neither has a POSIX branch: the runner is a PowerShell script.
 
     THE PROGRAM IS RESOLVED FROM PATH, NEVER NAMED (CS-910). Windows searches
     the current directory before PATH, and this spawn happens with the LANE
@@ -694,11 +830,11 @@ def _kill_argv(pid: Any) -> list[str] | None:
         into a stop.
     """
     killer = resolve_tool("taskkill")
-    return None if killer is None else [killer, "/F", "/PID", str(pid)]
+    return None if killer is None else [killer, "/F", "/T", "/PID", str(pid)]
 
 
 def _kill(pid: Any) -> None:
-    """Kill one process, reporting nothing.
+    """Kill one process and its whole tree, reporting nothing.
 
     Args:
         pid: The process id.
@@ -715,6 +851,22 @@ def _kill(pid: Any) -> None:
             check=False,
             creationflags=_NO_WINDOW,
         )
+
+
+def _kill_untracked(pid: Any, *, tracked: bool) -> None:
+    """Kill a spawned worker no lock names yet; a tracked or absent one is left alone.
+
+    A TRACKED worker is the lock's: the lane reads RUNNING behind it for as long
+    as it lives, which is the honest answer. An UNTRACKED one is invisible to
+    every reader, so once the lane is released its worktree would be handed to
+    a second writer.
+
+    Args:
+        pid: The worker's pid, or None when no worker was started.
+        tracked: True once the lock was re-pointed at it.
+    """
+    if pid and not tracked:
+        _kill(pid)
 
 
 def launch_lane(
@@ -738,8 +890,12 @@ def launch_lane(
     Args:
         lane: The lane to start.
         run_id: The caller's run identifier.
-        token: What ``lanes.try_acquire_lane`` handed back.
-        base: The directory worktrees are kept under, or None for the default.
+        token: What ``lanes.try_acquire_lane`` handed back. The worktree is the
+            one its lock records - see ``claimed_worktree``.
+        base: ACCEPTED AND IGNORED since CS-1274, so an older caller does not
+            raise. It used to name a directory worktrees were derived under; the
+            claim names the worktree now, and a second derivation here could
+            only ever disagree with the one every reader of the lock trusts.
         root: The repository root, or None for the main tree.
         log_dir: The log directory, or None for the default.
         spawn: The injection seam. The DEFAULT REALLY STARTS A PROCESS and no
@@ -755,16 +911,26 @@ def launch_lane(
     Raises:
         LaneLaunchError: Anything at all went wrong. The lane is released first.
     """
+    del base  # see Args - superseded by the claim's own worktree
     starter = _spawn if spawn is None else spawn
+    repo = REPO_ROOT if root is None else Path(root)
     # BOUND BEFORE THE TRY, so the refusal handlers can reach it whether or not
     # the launch got as far as choosing one. A refusal ahead of ``_log_path``
     # leaves it None, which ``note_worker_abort`` reads as "there is no log to
     # complete" rather than inventing a path.
     log: Path | None = None
+    # CS-1274 r2 - THE SPAWN-TO-RE-POINT WINDOW. ``pid`` is bound the moment a
+    # worker exists and ``tracked`` once the lock names it; a fault or an
+    # interrupt between the two leaves a worker NO lock names, so every handler
+    # below kills it before the lane is released.
+    pid: Any = None
+    tracked = False
     try:
         prompt = command_path(lane, root=root)
-        worktree = ensure_worktree(lane, base=base, root=root)
-        _refuse_main_tree(worktree, REPO_ROOT if root is None else Path(root), lane)
+        worktree = ensure_worktree(lane, token=token, root=root)
+        # AGAIN after the worktree step: the two checks happen at different
+        # moments, and a path can be handed in between.
+        _refuse_main_tree(worktree, repo, lane)
         log = _log_path(lane, run_id, log_dir=log_dir)
         proc = starter(RUNNER, prompt, worktree, log)
         pid = getattr(proc, "pid", None)
@@ -778,6 +944,7 @@ def launch_lane(
             _kill(pid)
             message = "could not re-point the lane lock at the worker"
             raise LaneLaunchError(message, reason=REASON_REPOINT_REFUSED, waited_s=waited)
+        tracked = True
     except LaneLaunchError as exc:
         lanes.release_lane(token)
         # AFTER the release, never before. The lane is the thing another cycle
@@ -786,6 +953,9 @@ def launch_lane(
         note_worker_abort(log, exc.reason)
         raise
     except Exception as exc:  # ANY fault at all must free the lane, not only ours
+        # BEFORE the release: a worker no lock names must not outlive the lane
+        # it was started for, or the next claim hands its worktree to a second.
+        _kill_untracked(pid, tracked=tracked)
         lanes.release_lane(token)
         note_worker_abort(log, REASON_UNEXPECTED_FAULT)
         # The TYPE only. This handler catches anything at all, so there is no
@@ -794,6 +964,16 @@ def launch_lane(
         # entitled to it (CLAUDE.md non-negotiable 12).
         message = f"launch failed: {type(exc).__name__}"
         raise LaneLaunchError(message, reason=REASON_UNEXPECTED_FAULT) from exc
+    except BaseException:
+        # CS-1274 r2 - AN INTERRUPT IS NOT AN ``Exception``. KeyboardInterrupt
+        # or SystemExit between the spawn and the re-point used to skip both
+        # handlers above and leave the worker running untracked. The same
+        # clean-up, then the interrupt re-raised WHOLE - converting it into a
+        # launch refusal would let a driver's own catch-all swallow a stop.
+        _kill_untracked(pid, tracked=tracked)
+        lanes.release_lane(token)
+        note_worker_abort(log, REASON_UNEXPECTED_FAULT)
+        raise
     return {
         "lane": lane,
         "run_id": str(run_id),

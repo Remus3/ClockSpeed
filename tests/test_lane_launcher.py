@@ -7,13 +7,18 @@ what lets the lock be graded without spawning, and it is only worth anything if
 the launcher half is graded without spawning too.
 
 NO ARM HERE SPAWNS A PROCESS, SLEEPS, SHELLS OUT TO GIT OR TAKES A REAL OS
-MUTEX. ``spawn`` is a parameter with a real default, and every arm passes its
-own; the git call is a module attribute every arm rebinds; the kill is split
-into a pure argv builder and the call that runs it, so the argv can be asserted
-without a child. Two properties that cannot be reached by calling anything - the
-DETACHED_PROCESS ban and the taskkill rule - are graded by walking the module's
-own syntax tree, because the defect they describe is a flag that is passed, and
-a flag that is never passed in a test is a flag no test can see.
+MUTEX - with ONE named exception. ``spawn`` is a parameter with a real default,
+and every arm passes its own; the git call is a module attribute every arm
+rebinds; the kill is split into a pure argv builder and the call that runs it,
+so the argv can be asserted without a child. The exception is CS-1274 r3's
+Windows-only arm, which starts a STUB process tree (two sleeping interpreters,
+never a real worker) because the defect it grades - a kill that leaves the
+wrapper's child alive - is a property of the operating system's process tree
+that no argv assertion can observe. Two properties that cannot be reached by
+calling anything - the DETACHED_PROCESS ban and the taskkill rule - are graded
+by walking the module's own syntax tree, because the defect they describe is a
+flag that is passed, and a flag that is never passed in a test is a flag no
+test can see.
 
 ASSERTIONS ARE MADE ON SCALARS BOUND FIRST. Everything here works under
 ``tmp_path``, and pytest renders the sub-expressions of a failing assert with
@@ -24,10 +29,13 @@ temporary directory out of the failure report.
 from __future__ import annotations
 
 import ast
+import contextlib
 import importlib.util
 import os
 import re
+import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -64,8 +72,13 @@ ONE = 1
 
 #: How many ``raise LaneLaunchError(...)`` sites the launcher holds. Named
 #: rather than inline so the structural sweep below states the population it
-#: grades: a sweep that finds nothing passes for the wrong reason.
-RAISE_SITES: Final = 12
+#: grades: a sweep that finds nothing passes for the wrong reason. CS-1274 moved
+#: it: the one ``git worktree add`` site became three - an unreadable claim, a
+#: worktree the kit refused, and a caller-named tree that is not a checkout.
+RAISE_SITES: Final = 14
+
+#: A full-length object id the git seam answers ``rev-parse`` with.
+SHA: Final = "a" * 40
 
 #: The last code point 7-bit ASCII covers. A .ps1 byte above it is the
 #: PowerShell 5.1 ANSI-decode hazard, so this is a byte-level bound rather than
@@ -108,7 +121,7 @@ def _load(name: str, source: Path) -> ModuleType:
 # reaches its subject by a route production does not use is a test that agrees
 # with itself.
 from ops.loop import lane_launcher as launcher  # noqa: E402
-from ops.loop import lanes  # noqa: E402
+from ops.loop import lanes, queue_loop  # noqa: E402
 
 
 @dataclass
@@ -137,7 +150,7 @@ class _Spawn:
 
 @dataclass
 class _GitResult:
-    """The shape ``ensure_worktree`` reads back from the git seam."""
+    """The shape the kit's ``ensure_worktree`` reads back from the git seam."""
 
     returncode: int = 0
     stdout: str = ""
@@ -146,19 +159,25 @@ class _GitResult:
 
 @dataclass
 class _Git:
-    """A git seam that records argv and never starts a process."""
+    """A git seam that records argv and never starts a process.
 
-    make: Path | None = None
+    It stands in for EVERY git call the launcher makes, including the ones the
+    kit's ``ensure_worktree`` makes through the launcher's adapter - so an arm
+    can read the kit's whole conversation with git without a real repository.
+    """
+
     returncode: int = 0
+    status: str = ""
     calls: list[list[str]] = field(default_factory=list)
 
     def __call__(self, args: list[str], cwd: Any = None, timeout: Any = None) -> _GitResult:
-        """Record the argv, optionally plant the worktree, and answer."""
+        """Record the argv and answer like a repository whose base resolves."""
         del cwd, timeout
         self.calls.append(list(args))
-        if self.make is not None and "add" in args:
-            (self.make / ".git").parent.mkdir(parents=True, exist_ok=True)
-            (self.make / ".git").write_bytes(b"gitdir: planted\n")
+        if "rev-parse" in args:
+            return _GitResult(returncode=self.returncode, stdout=SHA + "\n")
+        if "status" in args:
+            return _GitResult(returncode=self.returncode, stdout=self.status)
         return _GitResult(returncode=self.returncode)
 
 
@@ -171,13 +190,37 @@ def _repo(tmp_path: Path) -> Path:
     return root
 
 
-def _acquire(tmp_path: Path) -> tuple[Path, dict[str, Any]]:
-    """Claim the lane in a tmp_path lock root and hand back the token."""
+def _planted_tree(tmp_path: Path, name: str = "caller-named") -> Path:
+    """A CALLER-NAMED checkout: a tree the claim names and the kit did not derive."""
+    tree = tmp_path / "wts" / name
+    tree.mkdir(parents=True, exist_ok=True)
+    (tree / ".git").write_bytes(b"gitdir: planted\n")
+    return tree
+
+
+def _acquire(tmp_path: Path, worktree: Any = None) -> tuple[Path, dict[str, Any]]:
+    """Claim the lane in a tmp_path lock root and hand back the token.
+
+    The claim names the planted checkout unless told otherwise - since CS-1274
+    the launcher runs the worker in the tree the CLAIM records, so the claim and
+    the launch can no longer name two different directories.
+    """
     root = tmp_path / "lock"
+    tree = _planted_tree(tmp_path) if worktree is None else worktree
     answer: dict[str, Any] = lanes.try_acquire_lane(
-        "queue", run_id=RUN_ID, worktree=tmp_path / "wt", root=root
+        "queue", run_id=RUN_ID, worktree=tree, root=root
     )
     return root, answer
+
+
+def _main_checkout(tmp_path: Path) -> Path:
+    """A stand-in MAIN checkout, resolved, with the command doc a lane needs."""
+    main = (tmp_path / "parent" / "Clockspeed").resolve()
+    (main / ".git").mkdir(parents=True)
+    doc = main / launcher.LANE_COMMANDS["queue"]
+    doc.parent.mkdir(parents=True, exist_ok=True)
+    doc.write_bytes(b"# the worker prompt\n")
+    return main
 
 
 def _held(root: Path) -> bool:
@@ -213,32 +256,42 @@ def test_the_launcher_and_the_lock_agree_on_the_repository_root() -> None:
 # ===========================================================================
 
 
-def test_the_worktree_is_named_for_the_lane(tmp_path: Path) -> None:
-    named = launcher.worktree_path("queue", tmp_path).name
-    assert named == "cs-lane-queue"
+def test_a_lanes_home_worktree_is_the_kits_derivation_from_the_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1274 - the kit's ``<parent>/cs-worktrees/lane-<i>``, i the HOME index.
 
-
-def test_the_branch_is_stable_across_fires() -> None:
-    """One branch per lane, so a lane resumes its own history.
-
-    A branch per fire would sprout a branch and a directory on every launch.
+    Measured against the module that owns the derivation, after MOVING the
+    repository root, so a base hardcoded anywhere in the launcher stays put and
+    reddens this. A lane off the roster has no home and no worktree.
     """
-    branch = launcher.branch_name("queue")
-    assert branch == "lane/queue"
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    homes = [
+        Path(launcher.worktree_path(lane)).resolve().relative_to(main.parent).as_posix()
+        for lane in lanes.LANES
+    ]
+    same_owner = [launcher.worktree_path(lane) == lanes.home_worktree(lane) for lane in lanes.LANES]
+    with pytest.raises(ValueError, match="unknown lane"):
+        launcher.worktree_path("not-a-lane")
+    expected = [f"cs-worktrees/lane-{index}" for index in range(len(lanes.LANES))]
+    assert (homes, same_owner) == (expected, [True] * len(lanes.LANES))
 
 
-def test_the_default_worktree_base_is_outside_the_repository_and_any_home() -> None:
-    """Worktrees live OUTSIDE the repository, and never under a user profile.
+def test_the_launcher_carries_no_hardcoded_worktree_base() -> None:
+    """The C: worktree base MAIN 2155's inventory named is gone, not re-spelled.
 
-    Inside the repository they would land in the very tree the lane is forbidden
-    to touch, and every repository-wide guard would then scan them. Under a home
-    directory they would be an absolute personal path in a tracked file, which
-    CLAUDE.md non-negotiable 3 forbids outright.
+    A drive-rooted literal anywhere in the module is red - the base is DERIVED
+    from the repository root by the kit, so a move of the root moves the lane
+    worktrees with it and leaves nothing behind to edit. The two names that
+    carried the old base are gone with it.
     """
-    default = str(launcher.DEFAULT_WORKTREE_BASE).replace("/", "\\").lower()
-    under_home = "\\users\\" in default or default.startswith("~")
-    inside_repo = default.startswith(str(REPO_ROOT).lower())
-    assert (under_home, inside_repo) == (False, False)
+    source = LAUNCHER_SOURCE.read_text(encoding="utf-8")
+    drive_rooted = re.findall(r"\b[A-Za-z]:\\", source)
+    leftovers = [
+        name for name in ("DEFAULT_WORKTREE_BASE", "WORKTREE_BASE") if hasattr(launcher, name)
+    ]
+    assert (drive_rooted, leftovers) == ([], [])
 
 
 def test_the_command_doc_is_a_tracked_path_and_not_the_gitignored_mirror() -> None:
@@ -279,42 +332,120 @@ def test_a_command_doc_present_on_disk_is_returned(tmp_path: Path) -> None:
 # ===========================================================================
 
 
-def test_an_existing_worktree_is_reused_without_calling_git(
+def test_a_caller_named_checkout_is_reused_without_git_or_the_kit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Reuse is deliberate - a worktree per fire leaves a directory behind."""
-    base = tmp_path / "wts"
-    (base / "cs-lane-queue").mkdir(parents=True)
-    (base / "cs-lane-queue" / ".git").write_bytes(b"gitdir: already here\n")
+    """A tree the CLAIM names and the kit did not derive is the caller's to keep.
+
+    The launcher only ever MANAGES the kit's own per-index worktrees. A tree a
+    caller named, already a checkout, is run in as it stands - no git, and no
+    kit re-base underneath a directory somebody else chose.
+    """
     git = _Git()
     monkeypatch.setattr(launcher, "_git", git)
-    found = launcher.ensure_worktree("queue", base=base, root=_repo(tmp_path))
-    reused = found.name == "cs-lane-queue"
-    assert reused
+    _, claim = _acquire(tmp_path)
+    spawn = _Spawn()
+    _launch(tmp_path, spawn, claim["token"])
+    ran_in = spawn.calls[0][2].name
     called = len(git.calls)
-    assert called == ZERO
+    assert (ran_in, called) == ("caller-named", ZERO)
 
 
-def test_a_missing_worktree_is_created_on_the_lanes_own_branch(
+def test_a_caller_named_tree_that_is_not_a_checkout_is_refused_and_released(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    base = tmp_path / "wts"
-    git = _Git(make=base / "cs-lane-queue")
+    """The launcher CREATES only the kit's layout; any other tree must exist.
+
+    Refused with its own word before any spawn, and the lane is released.
+    """
+    monkeypatch.setattr(launcher, "_git", _Git())
+    bare = tmp_path / "not-a-checkout"
+    bare.mkdir()
+    root, claim = _acquire(tmp_path, worktree=bare)
+    spawn = _Spawn()
+    with pytest.raises(launcher.LaneLaunchError) as caught:
+        _launch(tmp_path, spawn, claim["token"])
+    verdict = (caught.value.reason, len(spawn.calls), _held(root))
+    assert verdict == (launcher.REASON_WORKTREE_MISSING, ZERO, False)
+
+
+def test_the_kit_makes_a_missing_lane_worktree_detached_at_the_lane_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE KIT'S ensure_worktree, called - never a second implementation of it.
+
+    A claim that asked for the kit's derivation is the kit's to prepare: the
+    base is resolved in the main tree, and a missing worktree is added DETACHED
+    at that commit. The base is ``origin/main``, so a lane never builds on - and
+    never pushes - a commit the operator's own checkout has not published.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    git = _Git()
     monkeypatch.setattr(launcher, "_git", git)
-    launcher.ensure_worktree("queue", base=base, root=_repo(tmp_path))
-    added = [args for args in git.calls if args[:2] == ["worktree", "add"]]
-    made_one = len(added) == ONE
-    assert made_one, "a missing worktree was not created exactly once"
-    on_branch = "lane/queue" in added[0]
-    assert on_branch, "the worktree was not put on the lane's own branch"
+    root = main / lanes.kit_lanes().LANES_REL
+    claim = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root)
+    spawn = _Spawn()
+    logs = tmp_path / "logs"
+    try:
+        launcher.launch_lane(
+            "queue", run_id=RUN_ID, token=claim["token"], root=main, log_dir=logs, spawn=spawn
+        )
+    finally:
+        lanes.release_lane(claim["token"], root=root)
+    tree = str(lanes.lane_worktree(0))
+    asked_base = ["-C", str(main), "rev-parse", "--verify", "origin/main^{commit}"] in git.calls
+    added = ["-C", str(main), "worktree", "add", "--detach", tree, SHA] in git.calls
+    ran_in = Path(spawn.calls[0][2]).resolve().relative_to(main.parent).as_posix()
+    verdict = (launcher.LANE_BASE, asked_base, added, ran_in)
+    assert verdict == ("origin/main", True, True, "cs-worktrees/lane-0")
 
 
-def test_a_worktree_git_could_not_create_is_a_launch_error(
+def test_a_dirty_kit_worktree_is_refused_never_cleaned_and_released(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(launcher, "_git", _Git(returncode=ONE))
-    with pytest.raises(launcher.LaneLaunchError, match="worktree add"):
-        launcher.ensure_worktree("queue", base=tmp_path / "wts", root=_repo(tmp_path))
+    """A dirty lane worktree is a crashed run's work: the kit refuses it.
+
+    The launcher turns the kit's refusal into its OWN word and its OWN fixed
+    message - the kit's text carries the path, so it is never rendered - and
+    nothing that could discard work (a checkout, a reset, a clean) is issued.
+    """
+    main = _main_checkout(tmp_path)
+    monkeypatch.setattr(lanes, "REPO_ROOT", main)
+    tree = lanes.lane_worktree(0)
+    tree.mkdir(parents=True)
+    linked = main / ".git" / "worktrees" / "lane-0"
+    linked.mkdir(parents=True)
+    (tree / ".git").write_text(f"gitdir: {linked}\n", encoding="utf-8")
+    git = _Git(status=" M work-in-flight.py\n")
+    monkeypatch.setattr(launcher, "_git", git)
+    root = main / lanes.kit_lanes().LANES_REL
+    claim = lanes.try_acquire_lane("queue", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root)
+    spawn = _Spawn()
+    logs = tmp_path / "logs"
+    with pytest.raises(launcher.LaneLaunchError) as caught:
+        launcher.launch_lane(
+            "queue", run_id=RUN_ID, token=claim["token"], root=main, log_dir=logs, spawn=spawn
+        )
+    destructive = [args for args in git.calls if {"checkout", "reset", "clean"} & set(args)]
+    rendered = str(caught.value)
+    leaks = str(tmp_path) in rendered or str(tree) in rendered
+    verdict = (caught.value.reason, destructive, len(spawn.calls), _held(root), leaks)
+    assert verdict == (launcher.REASON_WORKTREE_REFUSED, [], ZERO, False, False)
+
+
+def test_a_claim_the_launcher_cannot_read_is_refused_by_its_own_word(tmp_path: Path) -> None:
+    """The claim is the ONE source of the worktree; without it nothing runs.
+
+    A token naming no readable lock cannot say where the worker belongs, so the
+    launch is refused before anything is prepared or spawned.
+    """
+    missing = tmp_path / "lock" / "0.lock"
+    spawn = _Spawn()
+    with pytest.raises(launcher.LaneLaunchError) as caught:
+        _launch(tmp_path, spawn, str(missing))
+    verdict = (caught.value.reason, len(spawn.calls))
+    assert verdict == (launcher.REASON_CLAIM_UNREADABLE, ZERO)
 
 
 def test_the_main_tree_is_refused_as_a_worktree_here_too(tmp_path: Path) -> None:
@@ -324,10 +455,10 @@ def test_the_main_tree_is_refused_as_a_worktree_here_too(tmp_path: Path) -> None
     between the two. Two writers in one working directory is the
     concurrent-index corruption class, and it is not recoverable by retrying.
     """
-    root = tmp_path / "cs-lane-queue"
+    root = tmp_path / "a-checkout"
     root.mkdir()
     with pytest.raises(launcher.LaneLaunchError, match="main tree"):
-        launcher.ensure_worktree("queue", base=tmp_path, root=root)
+        launcher._refuse_main_tree(root, root, "queue")  # noqa: SLF001 - the site under test
 
 
 def test_the_repository_main_tree_is_refused_whatever_root_was_passed() -> None:
@@ -348,15 +479,15 @@ def test_the_repository_main_tree_is_refused_whatever_root_was_passed() -> None:
 
 
 def _launch(tmp_path: Path, spawn: _Spawn, token: Any) -> dict[str, Any]:
-    """Run one launch against planted paths, with git and the spawn injected."""
-    base = tmp_path / "wts"
-    (base / "cs-lane-queue").mkdir(parents=True)
-    (base / "cs-lane-queue" / ".git").write_bytes(b"gitdir: planted\n")
+    """Run one launch against planted paths, with the spawn injected.
+
+    The worktree is whatever the claim behind ``token`` recorded - see
+    ``_acquire``. No base is passed: since CS-1274 the claim names the tree.
+    """
     answer: dict[str, Any] = launcher.launch_lane(
         "queue",
         run_id=RUN_ID,
         token=token,
-        base=base,
         root=_repo(tmp_path),
         log_dir=tmp_path / "logs",
         spawn=spawn,
@@ -383,7 +514,7 @@ def test_a_launch_runs_the_worker_in_the_worktree_and_not_the_main_tree(
     _launch(tmp_path, spawn, claim["token"])
     runner, prompt, cwd, log = spawn.calls[0]
     handed = (runner.name, prompt.name, cwd.name, log.suffix)
-    assert handed == ("run_lane.ps1", "headless-queue.md", "cs-lane-queue", ".log")
+    assert handed == ("run_lane.ps1", "headless-queue.md", "caller-named", ".log")
 
 
 def test_a_launch_repoints_the_lock_at_the_worker(tmp_path: Path) -> None:
@@ -423,7 +554,6 @@ def test_a_missing_command_doc_releases_the_lane(tmp_path: Path) -> None:
             "queue",
             run_id=RUN_ID,
             token=claim["token"],
-            base=tmp_path / "wts",
             root=tmp_path / "empty",
             log_dir=tmp_path / "logs",
             spawn=_Spawn(),
@@ -468,6 +598,103 @@ def test_a_lock_that_cannot_be_repointed_kills_the_worker_and_releases(
     assert killed == [WORKER_PID]
     released = not _held(root)
     assert released
+
+
+def test_cs1274_r2_an_interrupt_between_spawn_and_repoint_kills_and_releases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An INTERRUPT is not an ``Exception``, and the window is the same window.
+
+    A ``KeyboardInterrupt`` (or ``SystemExit``) landing after the spawn and
+    before the re-point used to skip both handlers: the worker kept running
+    untracked behind a lock that still named the claimer. Now the worker is
+    killed, the lane released, the abort recorded - and the interrupt itself
+    re-raised unchanged, never converted into a launch refusal.
+    """
+    root, claim = _acquire(tmp_path)
+    killed: list[int] = []
+
+    def interrupted(*_args: Any, **_kwargs: Any) -> bool:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(launcher, "_kill", killed.append)
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        _launch(tmp_path, _Spawn(), claim["token"])
+    monkeypatch.undo()
+    logs = sorted((tmp_path / "logs").glob("*.log"))
+    noted = bool(logs) and "reason=unexpected_fault" in logs[0].read_text(encoding="ascii")
+    assert (killed, _held(root), noted) == ([WORKER_PID], False, True)
+
+
+def test_cs1274_r2_a_fault_after_the_spawn_kills_the_untracked_worker_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE SIBLING: an ordinary fault in the same window, not only an interrupt.
+
+    The catch-all released the lane and converted the fault, but left the
+    worker it had just started running behind no lock - so the next claim
+    handed that worktree to a second writer.
+    """
+    root, claim = _acquire(tmp_path)
+    killed: list[int] = []
+
+    def faulted(*_args: Any, **_kwargs: Any) -> bool:
+        message = "a re-point nobody planned for"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(launcher, "_kill", killed.append)
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", faulted)
+    with pytest.raises(launcher.LaneLaunchError) as caught:
+        _launch(tmp_path, _Spawn(), claim["token"])
+    monkeypatch.undo()
+    verdict = (killed, _held(root), caught.value.reason)
+    assert verdict == ([WORKER_PID], False, launcher.REASON_UNEXPECTED_FAULT)
+
+
+def test_cs1274_r2_a_tracked_worker_is_never_killed_by_the_clean_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE CONTROL: once the lock names the worker, the clean-up leaves it alone.
+
+    A launch that succeeded kills nothing - the kill is for a worker no lock
+    names, and a tracked one is the lock's to answer for.
+    """
+    _, claim = _acquire(tmp_path)
+    killed: list[int] = []
+    monkeypatch.setattr(launcher, "_kill", killed.append)
+    answer = _launch(tmp_path, _Spawn(), claim["token"])
+    monkeypatch.undo()
+    assert (answer["pid"], killed) == (WORKER_PID, [])
+
+
+def test_cs1274_r2_an_interrupt_inside_the_liveness_wait_kills_the_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half of the window: the runner exists, ``_spawn`` has not returned it.
+
+    No caller holds a pid yet, so ``_spawn`` itself is the only party that can
+    kill what it started before the interrupt goes on up.
+    """
+    runner = tmp_path / "run_lane.ps1"
+    runner.write_bytes(b"# a runner\n")
+    killed: list[int] = []
+
+    class _InterruptedProc:
+        pid = WORKER_PID
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(launcher.subprocess, "Popen", lambda *_a, **_k: _InterruptedProc())
+    monkeypatch.setattr(launcher, "resolve_tool", lambda _name: "synthetic-shell")
+    monkeypatch.setattr(launcher.headless_route, "child_env", lambda base, **_k: dict(base))
+    monkeypatch.setattr(launcher, "_kill", killed.append)
+    with pytest.raises(KeyboardInterrupt):
+        launcher._spawn(runner, runner, tmp_path, tmp_path / "w.log")  # noqa: SLF001 - the seam
+    monkeypatch.undo()
+    assert killed == [WORKER_PID]
 
 
 def test_a_log_name_carries_the_lane_and_a_sanitised_run_id(tmp_path: Path) -> None:
@@ -572,9 +799,11 @@ def _executable_strings(source: Path) -> list[str]:
 def test_a_kill_is_taskkill_and_never_the_powershell_cmdlet() -> None:
     """Stop-Process has hung the tooling pipe here before; taskkill has not.
 
-    ``/T`` is deliberately NOT this function's business: the launcher kills the
-    one pid it spawned and failed to track. The driver, which kills a whole lane
-    tree, is where the tree flag belongs.
+    ``/T`` IS this function's business - CS-1274 r3 corrected the earlier
+    reading that it was only the driver's. The pid the launcher kills is the
+    PowerShell WRAPPER ``run_lane.ps1`` runs in, and ``claude`` is its child;
+    without the tree flag the wrapper dies, the child keeps writing in the lane
+    worktree, and the lane reads FREE behind it.
     """
     argv = launcher._kill_argv(WORKER_PID)  # noqa: SLF001 - the site under test
     # THE PROGRAM IS AN ABSOLUTE PATH, and asserting on it verbatim would pin
@@ -587,13 +816,143 @@ def test_a_kill_is_taskkill_and_never_the_powershell_cmdlet() -> None:
     # worker itself wrote.
     assert argv is not None, "taskkill did not resolve on this machine"
     program, *flags = argv
-    assert flags == ["/F", "/PID", str(WORKER_PID)]
+    assert flags == ["/F", "/T", "/PID", str(WORKER_PID)]
     assert Path(program).name.lower().startswith("taskkill")
     assert Path(program).is_absolute(), (
         f"the killer is not rooted, so the cwd could supply it: {program!r}"
     )
     cmdlet = [text for text in _executable_strings(LAUNCHER_SOURCE) if "Stop-Process" in text]
     assert cmdlet == []
+
+
+def test_cs1274_r3_the_launcher_and_the_driver_kill_with_the_same_argv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """THE TWO KILLERS ARE MIRRORS, PINNED TO AGREE - not one shared function.
+
+    The driver's ``_taskkill`` is not reused: the launcher importing the driver
+    would invert the seam (the driver consumes the launcher), and the driver's
+    copy reports an unresolvable killer on its own output channel. So each
+    keeps its own and this arm runs BOTH against one synthetic killer and one
+    recorder, on every platform. A flag dropped from either side - the CS-1274
+    r3 finding was ``/T`` missing from the launcher's - is red here.
+    """
+    ran: list[list[str]] = []
+
+    def record(argv: list[str], **_kwargs: Any) -> None:
+        ran.append(list(argv))
+
+    monkeypatch.setattr(launcher, "resolve_tool", lambda _name: "synthetic-taskkill")
+    monkeypatch.setattr(queue_loop, "resolve_tool", lambda _name: "synthetic-taskkill")
+    monkeypatch.setattr(subprocess, "run", record)
+    launcher._kill(WORKER_PID)  # noqa: SLF001 - the site under test
+    queue_loop._taskkill(WORKER_PID)  # noqa: SLF001 - the mirror it must agree with
+    monkeypatch.undo()
+    expected = ["synthetic-taskkill", "/F", "/T", "/PID", str(WORKER_PID)]
+    assert ran == [expected, expected]
+
+
+#: The stand-in for ``run_lane.ps1`` starting ``claude``: a wrapper interpreter
+#: that starts ONE child, records both pids atomically, then sleeps. Never a
+#: real worker. Both sleeps are bounded so a leak from a red run expires alone.
+_STUB_WRAPPER: Final = (
+    "import os, subprocess, sys, time\n"
+    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+    "out = sys.argv[1]\n"
+    "with open(out + '.tmp', 'w') as handle:\n"
+    "    handle.write(f'{os.getpid()} {child.pid}')\n"
+    "os.replace(out + '.tmp', out)\n"
+    "time.sleep(60)\n"
+)
+
+#: How long the stub gets to record its child, and how long a killed process
+#: gets to read dead. Generous on purpose: a slow box must not turn a kill that
+#: took into a red arm.
+_STUB_DEADLINE_S: Final = 15.0
+_POLL_S: Final = 0.05
+
+
+def _gone(pid: int) -> bool:
+    """True once ``pid`` reads dead, polled up to the stub deadline."""
+    deadline = time.monotonic() + _STUB_DEADLINE_S
+    while lanes.pid_alive(pid):
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(_POLL_S)
+    return True
+
+
+def _reap_stub_tree(pids: list[int]) -> None:
+    """Best-effort clean-up of every stub pid, so a red run leaks nothing long."""
+    killer = launcher.resolve_tool("taskkill")
+    for pid in pids:
+        if killer is not None:
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                subprocess.run(
+                    [killer, "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    timeout=_STUB_DEADLINE_S,
+                    check=False,
+                    creationflags=CREATE_NO_WINDOW,
+                )
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason=(
+        "the launcher's kill is taskkill, a Windows binary; on POSIX this arm would"
+        " grade nothing. Read it as NOT RUN here, never as covered."
+    ),
+)
+def test_cs1274_r3_an_untracked_kill_takes_the_wrappers_child_with_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The adversary's probe, as an arm: an interrupt between spawn and re-point.
+
+    A REAL stub tree - a wrapper interpreter and its one child - stands in for
+    PowerShell running ``claude``. The re-point is interrupted, so the launcher's
+    clean-up kills the untracked wrapper and releases the lane. Before r3 the
+    kill carried no ``/T``: the wrapper died, the child lived on, and the lane
+    read FREE behind a live writer. Every kill site in the launcher reaches the
+    same ``_kill``, so this one path grades the argv all four of them run.
+    """
+    root, claim = _acquire(tmp_path)
+    record = tmp_path / "stub.pids"
+    started: list[subprocess.Popen[bytes]] = []
+
+    def spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> subprocess.Popen[bytes]:
+        del runner, prompt, cwd, log
+        proc = subprocess.Popen(
+            [sys.executable, "-c", _STUB_WRAPPER, str(record)],
+            creationflags=CREATE_NO_WINDOW,
+        )
+        started.append(proc)
+        deadline = time.monotonic() + _STUB_DEADLINE_S
+        while not record.exists() and time.monotonic() < deadline:
+            time.sleep(_POLL_S)
+        return proc
+
+    def interrupted(*_args: Any, **_kwargs: Any) -> bool:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", interrupted)
+    stub_pids: list[int] = []
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            _launch(tmp_path, spawn, claim["token"])  # type: ignore[arg-type]
+        monkeypatch.undo()
+        if not record.exists():
+            pytest.fail("the stub wrapper never recorded its pids")
+        stub_pids = [int(word) for word in record.read_text(encoding="ascii").split()]
+        wrapper_gone = _gone(stub_pids[0])
+        child_gone = _gone(stub_pids[1])
+    finally:
+        _reap_stub_tree(stub_pids + [proc.pid for proc in started])
+        for proc in started:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=_STUB_DEADLINE_S)
+    released = not _held(root)
+    assert (wrapper_gone, child_gone, released) == (True, True, True)
 
 
 # ===========================================================================
@@ -925,7 +1284,9 @@ SITE_REASONS: Final = {
     ("command_path", 1): "REASON_COMMAND_DOC_MISSING",
     ("_git", 0): "REASON_GIT_NOT_FOUND",
     ("_refuse_main_tree", 0): "REASON_MAIN_TREE_REFUSED",
-    ("ensure_worktree", 0): "REASON_WORKTREE_CREATE_FAILED",
+    ("claimed_worktree", 0): "REASON_CLAIM_UNREADABLE",
+    ("prepare_worktree", 0): "REASON_WORKTREE_REFUSED",
+    ("prepare_worktree", 1): "REASON_WORKTREE_MISSING",
     ("_spawn", 0): "REASON_RUNNER_MISSING",
     ("_spawn", 1): "REASON_SHELL_NOT_FOUND",
     ("_spawn", 2): "REASON_SPAWN_FAILED",
@@ -1192,7 +1553,7 @@ def test_an_abort_note_that_cannot_be_written_is_swallowed(tmp_path: Path) -> No
 def test_an_abort_note_with_no_log_at_all_is_a_no_op() -> None:
     """A launch can refuse BEFORE it has decided where the log goes.
 
-    ``command_path`` and ``ensure_worktree`` both run ahead of ``_log_path``, so
+    ``command_path`` and ``prepare_worktree`` both run ahead of ``_log_path``, so
     the refusal handler is reached with no log path at all and must not invent
     one.
     """

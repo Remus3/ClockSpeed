@@ -620,8 +620,14 @@ changing anything here - it carries the measurements the design is built on.
 | detached launcher | `ops/loop/launch_queue_loop.ps1` | Starts the driver hidden, for a night |
 | worker prompt | `tools/headless-queue.md` | What the worker is told to do. TRACKED - a worktree is a fresh checkout and carries no gitignored file |
 
-The lane runs in `C:\cs-worktrees\cs-lane-queue` on branch `lane/queue`.
-**It may NEVER run against `C:\Clockspeed` itself** - two writers in one working directory
+A lane runs in the fleet kit's per-index worktree `cs-worktrees/lane-<i>`, a directory
+beside the main checkout - under the main checkout's PARENT, derived from the repo root by
+`fleet_lanes.worktree_path` and written down nowhere. `<i>` is the index its claim took,
+the same `<i>` as its lock `ops/loop/control/lanes/<i>.lock`; a lane tries its roster
+position first and takes any free index when that one is held. The kit prepares the tree
+DETACHED at `origin/main`, so the worker pushes `HEAD:main` and falls back to a fresh
+`lane/<lane>-<short sha>` branch (`tools/headless-queue.md`).
+**It may NEVER run against the main checkout itself** - two writers in one working directory
 is index corruption that retrying does not fix. That is enforced three times: in the lock,
 again in the launcher, and again at spawn time.
 
@@ -682,7 +688,9 @@ cycles while they exist.
 
 ### 10.5 Stop it
 
-Three files, checked before EVERY cycle including the first:
+Three files, checked before EVERY cycle including the first, and again before EVERY claim
+attempt inside a cycle - a stop dropped while a claim waits to retry ends the night there,
+with nothing claimed and no row written:
 
 | File | Stops |
 |---|---|
@@ -706,7 +714,7 @@ child, so killing only the wrapper orphans a live worker inside the lane worktre
 | Code | Meaning | What to do |
 |---|---|---|
 | 0 | Cycles ran, or the queue drained mid-run | Nothing. Read the ledger |
-| 2 | A stop sentinel was ALREADY there - zero cycles ran | Delete the file the message names |
+| 2 | A stop sentinel was there before any cycle claimed a lane - zero cycles ran | Delete the file the message names |
 | 3 | Another driver holds the mutex | Stop that one first. Two drivers interleave rows into one ledger |
 | 4 | A worker OUTLIVED its kill | **Act on this one.** Treat the lane worktree as having a possible live writer and check by hand before firing again |
 | 5 | The same fault repeated until the loop gave up | Read the last rows; whatever broke cycle 3 will break cycle 4 |
@@ -735,18 +743,21 @@ stated rather than left as an omission.
 
    - the worker's process tree - `claude.exe` accumulating CPU and holding a few
      hundred MB is work; a bare `powershell.exe` with nothing under it is not;
-   - `git -C C:\cs-worktrees\cs-lane-queue status --short` - a worker doing a row
-     changes files in its worktree long before it writes a word to the log.
+   - `git -C ../cs-worktrees/lane-<i> status --short`, run from the main checkout with
+     `<i>` read off the lane's lock (its `index` field, or the `<i>` of `<i>.lock`) - a
+     worker doing a row changes files in its worktree long before it writes a word to
+     the log.
 
    The log's LAST line is the one that matters when it ends: `lane exit ... code=N`
    is written by the runner, so a log without it belonged to a worker that was
    killed rather than one that finished.
-3. **The lock re-points at the WORKER.** While a cycle is running, read
-   `ops/loop/control/lanes/0.lock` and confirm its `pid` is the powershell wrapper's, not
-   the driver's. If it stays the driver's, the lane reads RUNNING forever after the worker
-   dies.
-4. **The lane worktree is the worktree.** Confirm the worker's commits land on
-   `lane/queue` and that `C:\Clockspeed` is untouched while a cycle runs.
+3. **The lock re-points at the WORKER and keeps the DRIVER as its holder.** While a cycle
+   is running, read the lane's `ops/loop/control/lanes/<i>.lock` and confirm its `pid` is
+   the powershell wrapper's and its `holder_pid` the driver's. The lane stays RUNNING
+   until the driver releases it, and reads RECLAIMABLE only once both are gone.
+4. **The lane worktree is the worktree.** Confirm the worker's commits reach `main` (or a
+   `lane/<lane>-<short sha>` fallback branch) from `../cs-worktrees/lane-<i>`, and that
+   the main checkout is untouched while a cycle runs.
 
 ## 11. A row that will not come back
 

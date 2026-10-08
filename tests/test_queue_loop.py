@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import io
 import json
 import os
 import re
@@ -31,6 +32,7 @@ if str(ROOT) not in sys.path:
 # A PLAIN IMPORT, never importorskip. A missing driver must be a COLLECTION
 # ERROR, not a skip: CONVENTIONS.md section 7.2 - "the unrun gate is where the
 # bug hides. A skipped suite is not a passing suite."
+from ops.fleet_kit import fleet_lanes  # noqa: E402
 from ops.loop import lane_launcher, lanes, queue_loop  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -3851,3 +3853,424 @@ def test_a_channel_name_cannot_forge_a_driver_line(tmp_path):
     assert len(_cycle_lines(said)) == 1, f"a channel name forged a cycle line: {said}"
     broken = [line for line in said if "\n" in line or "\r" in line]
     assert broken == [], f"an emitted line carries a line break a name put there: {broken}"
+
+
+# ===========================================================================
+# CS-1274 - kit v9 lanes: the cap's own refusal words, the lane's item-12
+# progress file carrying its item-13 checklist, and the stop sentinel read
+# before any claim. Every lock here sits under tmp_path; nothing reaches the
+# real control plane, whose QUEUE_STOP holds the live lane.
+# ===========================================================================
+
+
+def _kit_checkout(tmp_path):
+    """A stand-in MAIN checkout, resolved, whose lane locks sit where the kit reads them."""
+    main = (tmp_path / "main").resolve()
+    (main / ".git").mkdir(parents=True)
+    return main, main / fleet_lanes.LANES_REL
+
+
+def _progress_of(main, index):
+    """The decoded ``progress/lane-<index>.json`` of a checkout, or None."""
+    path = main / "ops" / "loop" / "control" / "progress" / f"lane-{index}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
+def _real_lock(root):
+    """The REAL acquire and release, rooted at a tmp lock root."""
+    return {
+        "acquire": lambda lane, **kw: lanes.try_acquire_lane(lane, root=root, **kw),
+        "release": lambda token, **_kw: lanes.release_lane(token, root=root),
+    }
+
+
+@pytest.mark.parametrize(
+    ("word", "outcome"),
+    [
+        ("lanes_full", "OUTCOME_LANES_FULL"),
+        ("acquire_busy", "OUTCOME_ACQUIRE_BUSY"),
+    ],
+)
+def test_cs1274_each_new_refusal_word_reaches_the_row_as_its_own_outcome(word, outcome):
+    """A full bucket and a busy mutex are not a held lane, and say so.
+
+    ``lane_held`` names a HOLDER of this lane; neither of these has one. Folding
+    them into it would name a lane that holds nothing - the CS-1011 shape.
+    """
+
+    def refuses(_lane, **_kw):
+        return {"ok": False, "refused": word, "holder": None, "pid": None}
+
+    got = queue_loop.run_cycle(1, **cycle_seams(FakeClock(), acquire=refuses, acquire_retries=1))
+    named_a_holder = "held by" in got["detail"]
+    verdict = (got["outcome"], got["worker_ok"], named_a_holder, got["lane_index"])
+    assert verdict == (getattr(queue_loop, outcome), False, False, None)
+
+
+def test_cs1274_progress_lands_only_beside_a_lock_in_a_checkouts_control_plane(tmp_path):
+    """FLEET item 13 d: the MAIN checkout's ``progress/``, never anywhere else.
+
+    The root is read off the LOCK the lane holds - the kit keeps lane locks and
+    progress files side by side in one control plane - so a lock anywhere but
+    ``ops/loop/control/lanes`` of a checkout, or a token that is not a lock
+    path at all, writes nothing. That is what keeps every fake token in this
+    suite from writing into the working directory.
+    """
+    main, root = _kit_checkout(tmp_path)
+    cases = [str(root / "0.lock"), str(tmp_path / "locks" / "0.lock"), "T", "", None, 7]
+    answers = [queue_loop.lane_progress_root(token) for token in cases]
+    first = answers[0] is not None and answers[0] == main
+    assert (first, answers[1:]) == (True, [None] * (len(cases) - 1))
+
+
+def test_cs1274_a_fired_lane_writes_its_progress_file_in_the_main_checkout(tmp_path):
+    """THE ACCEPTANCE'S CHECKLIST: lane-<i>.json, the claim's index, remaining tasks only.
+
+    Read WHILE the worker runs - through the liveness seam - and again after
+    the cycle: running with this cycle's row in progress, then done with
+    nothing remaining. The lane's worktree gets no control plane of its own.
+    """
+    main, root = _kit_checkout(tmp_path)
+    tree = tmp_path / "lane-tree"
+    mid: list = []
+    answers = iter([True, False])
+
+    def alive(_pid):
+        mid.append(_progress_of(main, 0))
+        return next(answers, False)
+
+    got = queue_loop.run_cycle(
+        3, **cycle_seams(FakeClock(), worktree=str(tree), alive=alive, **_real_lock(root))
+    )
+    running = mid[0] or {}
+    ended = _progress_of(main, 0) or {}
+    first = (running.get("checklist") or [{}])[0]
+    in_worktree = (tree / "ops").exists()
+    verdict = (
+        got["outcome"],
+        got["lane_index"],
+        running.get("task"),
+        running.get("status"),
+        first.get("id"),
+        first.get("state"),
+        ended.get("status"),
+        ended.get("checklist"),
+        in_worktree,
+    )
+    expected = (queue_loop.OUTCOME_COMPLETED, 0, "lane-0", "running", "C3", "worker running")
+    assert verdict == (*expected, "done", [], False)
+
+
+def test_cs1274_a_failed_launch_ends_the_progress_file_failed_and_keeps_its_row(tmp_path):
+    """A failed fire keeps the row it did not finish, marked with its outcome."""
+    main, root = _kit_checkout(tmp_path)
+
+    def fails(_lane, **_kw):
+        raise lane_launcher.LaneLaunchError("refused", reason=lane_launcher.REASON_SPAWN_FAILED)
+
+    got = queue_loop.run_cycle(
+        1,
+        **cycle_seams(FakeClock(), worktree=str(tmp_path / "t"), launch=fails, **_real_lock(root)),
+    )
+    ended = _progress_of(main, 0) or {}
+    rows = ended.get("checklist") or [{}]
+    lock_left = sorted(path.name for path in root.iterdir() if path.suffix == ".lock")
+    ids = [r.get("id") for r in rows]
+    verdict = (got["outcome"], ended.get("status"), ids, rows[0].get("state"))
+    expected = (queue_loop.OUTCOME_LAUNCH_FAILED, "failed", ["C1"], "launch_failed")
+    assert (verdict, lock_left) == (expected, [])
+
+
+def test_cs1274_a_refused_claim_writes_no_lane_progress_file(tmp_path):
+    """No lane fired, so no lane file - not even a FREE one."""
+    main, root = _kit_checkout(tmp_path)
+    blocker = lanes.try_acquire_lane("queue", run_id="holder", worktree=tmp_path / "a", root=root)
+    try:
+        got = queue_loop.run_cycle(
+            1,
+            **cycle_seams(
+                FakeClock(), worktree=str(tmp_path / "b"), acquire_retries=1, **_real_lock(root)
+            ),
+        )
+    finally:
+        lanes.release_lane(blocker["token"], root=root)
+    made = (main / "ops" / "loop" / "control" / "progress").exists()
+    assert (got["outcome"], made) == (queue_loop.OUTCOME_LANE_HELD, False)
+
+
+def test_cs1274_a_token_that_is_not_a_lane_lock_writes_no_progress_anywhere(tmp_path, monkeypatch):
+    """Every fake token in this suite is a bare word; none may write a file."""
+    monkeypatch.chdir(tmp_path)
+    got = queue_loop.run_cycle(1, **cycle_seams(FakeClock()))
+    made = sorted(path.name for path in tmp_path.iterdir())
+    assert (got["outcome"], made) == (queue_loop.OUTCOME_COMPLETED, [])
+
+
+def test_cs1274_each_fire_lists_only_the_remaining_cycles_and_ends_with_done(tmp_path):
+    """FLEET item 13 a, b and d across a night: remaining tasks only, then /done.
+
+    Every fire prints the ``Session <n> checklist`` block - n is the run count -
+    and writes the same rows into the lane file. A completed cycle never
+    reappears; the last line of each printed block is the /done line.
+    """
+    main, root = _kit_checkout(tmp_path)
+    snapshots: list = []
+
+    def alive(_pid):
+        snapshots.append(_progress_of(main, 0) or {})
+        return False
+
+    said: list[str] = []
+    queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            max_cycles=3,
+            ci_gate=False,
+            alive=alive,
+            worktree=str(tmp_path / "t"),
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+            emit=said.append,
+            **_real_lock(root),
+        )
+    )
+    ids = [[row["id"] for row in snap.get("checklist") or []] for snap in snapshots]
+    headers = [line for line in said if line.startswith("Session ")]
+    done_lines = [line for line in said if line.endswith(" /done")]
+    expected_ids = [["C1", "C2", "C3"], ["C2", "C3"], ["C3"]]
+    expected_headers = [f"Session {n} checklist" for n in (1, 2, 3)]
+    assert (ids, headers, len(done_lines)) == (expected_ids, expected_headers, 3)
+
+
+def test_cs1274_queue_stop_is_read_before_any_claim_and_no_lane_file_is_written(tmp_path):
+    """QUEUE_STOP HOLDS THE LANE: zero claims, zero lane files, its own stop word.
+
+    The acquire seam is the REAL lock under tmp_path, counted, so a driver that
+    claimed first and checked the sentinel after would show a claim here even
+    though it never launched.
+    """
+    main, root = _kit_checkout(tmp_path)
+    control = tmp_path / "control"
+    (control / "lanes").mkdir(parents=True)
+    (control / "lanes" / "QUEUE_STOP").write_text("held", encoding="utf-8")
+    asked: list[str] = []
+    real = _real_lock(root)
+
+    def counted(lane, **kw):
+        asked.append(lane)
+        return real["acquire"](lane, **kw)
+
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            max_cycles=3,
+            acquire=counted,
+            release=real["release"],
+            control_dir=control,
+            cycle_log=tmp_path / "l.jsonl",
+            hold=NullHold(),
+        )
+    )
+    files = (main / "ops" / "loop" / "control").exists()
+    verdict = (summary["cycles_run"], summary["stopped_by"], asked, files)
+    assert verdict == (0, "QUEUE_STOP", [], False)
+
+
+@pytest.mark.parametrize(("index", "counted"), [(0, True), (1, False)])
+def test_cs1274_a_cycle_away_from_its_home_index_never_counts_a_commit(tmp_path, index, counted):
+    """The driver reads the lane HEAD in the lane's HOME worktree.
+
+    A cycle the cap pushed onto another index ran in another worktree, so the
+    home tree's before and after say nothing about it. Such a cycle is recorded
+    as UNREADABLE, never as a commit - and the home-index control proves the
+    same seams do count a commit when the cycle ran where the reads look.
+    """
+
+    def acquire(lane, **_kw):
+        return {"ok": True, "token": "T", "lane": lane, "index": index, "worktree": "W"}
+
+    seams = loop_seams(
+        FakeClock(),
+        ci_gate=False,
+        acquire=acquire,
+        cycle_log=tmp_path / "l.jsonl",
+        control_dir=tmp_path / "control",
+        hold=NullHold(),
+    )
+    seams.pop("worktree")
+    summary = queue_loop.run_loop(**seams)
+    commit = summary["records"][0]["commit"]
+    names_home = "home" in commit["detail"]
+    assert (commit["advanced"], names_home) == (counted, not counted)
+
+
+# ===========================================================================
+# CS-1274 r2 - the lane stays the driver's until it releases, and QUEUE_STOP is
+# read again before every claim attempt, not only once per cycle.
+# ===========================================================================
+
+
+def test_cs1274_r2_no_other_lane_claims_the_index_between_worker_exit_and_release(tmp_path):
+    """THE WINDOW the refuted CS-1274 first cut left open, measured inside a real cycle.
+
+    The worker exits; the driver has not yet ended ``lane-<i>.json`` or
+    released. ``observe`` runs exactly there - once more after the wait - so a
+    claim attempted from it is a second lane firing in that window. The other
+    two indices are held, so the only index it could take is the one this
+    cycle is still finishing: it must be refused, and the progress file must
+    end as THIS lane's.
+    """
+    main, root = _kit_checkout(tmp_path)
+    for index in (1, 2):
+        root.mkdir(parents=True, exist_ok=True)
+        foreign = {"pid": os.getpid(), "lane": f"foreign-{index}", "run_id": "k", "ts": 1.0}
+        (root / f"{index}.lock").write_bytes(json.dumps(foreign).encode("utf-8"))
+    dead = next(pid for pid in range(30000, 60000, 4) if not lanes.pid_alive(pid))
+    attempts: list = []
+
+    def launch(_lane, *, token, **_kw):
+        lanes.repoint_lane_pid(token, dead, root=root)
+        return {"pid": dead, "log": None}
+
+    def observe():
+        other = lanes.try_acquire_lane("queue-b", run_id="b", worktree=tmp_path / "b", root=root)
+        attempts.append((other.get("ok"), other.get("refused"), other.get("index")))
+        if other.get("ok"):
+            lanes.release_lane(other["token"], root=root)
+
+    got = queue_loop.run_cycle(
+        1,
+        **cycle_seams(FakeClock(), worktree=str(tmp_path / "a"), launch=launch, **_real_lock(root)),
+        observe=observe,
+    )
+    ended = _progress_of(main, 0) or {}
+    left = sorted(path.name for path in root.iterdir() if path.suffix == ".lock")
+    verdict = (got["outcome"], got["lane_index"], attempts, ended.get("step"), left)
+    expected_step = "lane queue cycle 1: completed"
+    assert verdict == (
+        queue_loop.OUTCOME_COMPLETED,
+        0,
+        [(False, "lanes_full", None)],
+        expected_step,
+        ["1.lock", "2.lock"],
+    )
+
+
+def test_cs1274_r2_queue_stop_dropped_mid_retry_is_read_before_the_next_claim(tmp_path):
+    """THE PROBE'S SHAPE: the stop lands DURING the acquire retries.
+
+    The cycle-top read sees no sentinel; the first claim is refused
+    ``lanes_full``; the operator drops ``QUEUE_STOP`` while the driver waits to
+    retry. The next attempt must read it and claim NOTHING - no second claim,
+    no launch, no row - and the night stops on the sentinel's own word, exactly
+    as a sentinel read at the top of a cycle does.
+    """
+    control = tmp_path / "control"
+    (control / "lanes").mkdir(parents=True)
+    asked: list = []
+    launched: list = []
+
+    def acquire(lane, **_kw):
+        asked.append(lane)
+        if len(asked) == 1:
+            return {"ok": False, "refused": "lanes_full", "holder": None, "pid": None}
+        return {"ok": True, "token": "T", "index": 0, "worktree": "W"}
+
+    def drop_the_stop(_seconds):
+        (control / "lanes" / "QUEUE_STOP").write_text("held", encoding="utf-8")
+
+    def launch(_lane, **_kw):
+        launched.append(queue_loop.stop_reason(control))
+        return {"pid": WORKER_PID, "log": "l"}
+
+    ledger = tmp_path / "l.jsonl"
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            acquire=acquire,
+            launch=launch,
+            sleep=drop_the_stop,
+            acquire_retries=3,
+            acquire_wait_s=0,
+            ci_gate=False,
+            control_dir=control,
+            cycle_log=ledger,
+            hold=NullHold(),
+        )
+    )
+    rows = ledger.read_text(encoding="utf-8").splitlines() if ledger.exists() else []
+    verdict = (len(asked), launched, summary["stopped_by"], summary["cycles_run"], rows)
+    assert verdict == (1, [], "QUEUE_STOP", 0, [])
+
+
+def test_cs1274_r2_the_stop_is_read_before_every_claim_attempt():
+    """Before EVERY attempt, the first included - one read per claim, no fewer.
+
+    A lane refused all night reads the sentinel as often as it asks for the
+    lane, so a stop is never more than one retry wait late.
+    """
+    reads: list = []
+    claims: list = []
+
+    def stopped():
+        reads.append(len(claims))
+
+    def acquire(lane, **_kw):
+        claims.append(lane)
+        return {"ok": False, "refused": "lanes_full", "holder": None, "pid": None}
+
+    got = queue_loop.run_cycle(
+        1, **cycle_seams(FakeClock(), acquire=acquire, acquire_retries=3), stopped=stopped
+    )
+    assert (got["outcome"], reads, len(claims)) == (queue_loop.OUTCOME_LANES_FULL, [0, 1, 2], 3)
+
+
+def test_cs1274_r2_a_stop_read_before_a_claim_ends_the_cycle_claiming_nothing(tmp_path):
+    """The cycle-level half: a stop seen before the claim raises the driver's own type.
+
+    Nothing was claimed, so nothing is released and no progress file is
+    written; the sentinel's NAME rides on the exception as one of this module's
+    own words, never as text read off the disk.
+    """
+    main, root = _kit_checkout(tmp_path)
+    asked: list = []
+    released: list = []
+
+    def acquire(lane, **_kw):
+        asked.append(lane)
+        return {"ok": True, "token": "T"}
+
+    with pytest.raises(queue_loop.StopSentinelError) as caught:
+        queue_loop.run_cycle(
+            1,
+            **cycle_seams(
+                FakeClock(),
+                acquire=acquire,
+                release=lambda token, **_kw: released.append(token),
+            ),
+            stopped=lambda: "QUEUE_STOP",
+        )
+    made = (main / "ops" / "loop" / "control" / "progress").exists()
+    verdict = (caught.value.sentinel, asked, released, made, root.exists())
+    assert verdict == ("QUEUE_STOP", [], [], False, False)
+
+
+def test_cs1274_the_driver_log_survives_a_console_that_cannot_encode_the_box(
+    monkeypatch,
+):
+    """The item-13 block carries U+2610, and a detached driver's stdout is a file.
+
+    Under pythonw the redirected stdout takes the locale code page, which has
+    no box glyph; a print that raised there would end the night on a status
+    line. The line is written escaped instead, and nothing raises.
+    """
+    raw = io.BytesIO()
+    console = io.TextIOWrapper(raw, encoding="cp1252", errors="strict", newline="\n")
+    monkeypatch.setattr(sys, "stdout", console)
+    # The glyph is BUILT, never spelled: this file is 7-bit ASCII.
+    box = chr(0x2610)
+    queue_loop._emit(box + " C1: a task")  # noqa: SLF001 - the sink under test
+    console.flush()
+    written = raw.getvalue().decode("ascii")
+    assert written == "\\u2610 C1: a task\n"

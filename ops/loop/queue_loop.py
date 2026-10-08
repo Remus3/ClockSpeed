@@ -68,11 +68,12 @@ one that was not.
 
 WHY THE LANE LOCK IS TAKEN PER CYCLE, NOT HELD ACROSS THE LOOP. `lane_state`
 decides FREE / RUNNING / RECLAIMABLE by PROBING the recorded pid, and
-`launch_lane` re-points the lock at the WORKER. Across a whole loop the lock
-would name a worker that exits after row one while the driver keeps running, so
-the lane would read RECLAIMABLE under a live driver - the exact ambiguity the
-three states exist to remove. Per-cycle acquire plus a `finally` release keeps
-the lock's meaning honest: held means a worker is up right now.
+`launch_lane` re-points the lock at the WORKER and keeps this driver as its
+HOLDER (CS-1274 r2, the kit's `keep_claimer`). Held across a whole loop, the
+lock would read RUNNING behind a driver that is merely waiting between cycles.
+Per-cycle acquire plus a `finally` release keeps the lock's meaning honest:
+held means a cycle is running right now - its worker, or this driver finishing
+it - and a cycle whose worker and driver are both gone reads RECLAIMABLE.
 
 WHY A REFUSED ACQUIRE IS NOT AN ERROR. `try_acquire_lane` answers
 `{"ok": False, "refused": "lane_held"}` and writes nothing when the lane is
@@ -159,10 +160,13 @@ is a machine-wide object and this box runs sibling projects.
 AND THE NARROWING IS PAID FOR BY A SECOND, BOX-WIDE GUARD. Scoping the driver
 mutex per lane AND per checkout opened a hole the old constant had closed by
 accident: two clones at different paths derive different names and keep disjoint
-lock roots, while `lane_launcher.WORKTREE_BASE` resolves both to ONE
-`cs-lane-<lane>` checkout - two workers in one working directory. So
-`_driver_singleton` takes `worktree_mutex` as well, keyed on the working
-directory and on nothing else, and a refusal on either guard refuses the run.
+lock roots, while the kit derives BOTH clones' lane worktrees from the parent
+they share - `<parent>/cs-worktrees/lane-<i>` (CS-1274) - so two clones beside
+each other resolve one lane's home to ONE checkout: two workers in one working
+directory. So `_driver_singleton` takes `worktree_mutex` as well, keyed on the
+working directory and on nothing else, and a refusal on either guard refuses
+the run. The kit's own `ensure_worktree` is the second net under it: it refuses
+a lane worktree that is not a linked worktree of the repository asking.
 
 STOP IS THREE FILES, CHECKED BEFORE EVERY CYCLE INCLUDING THE FIRST. A driver
 that only checks between cycles fires one unwanted worker on every start, and
@@ -312,7 +316,9 @@ _LAUNCH_REASONS = (
     "command_doc_missing",
     "git_not_found",
     "main_tree_refused",
-    "worktree_create_failed",
+    "claim_unreadable",
+    "worktree_refused",
+    "worktree_missing",
     "runner_missing",
     "shell_not_found",
     "spawn_failed",
@@ -588,6 +594,15 @@ OUTCOME_LANE_HELD = "lane_held"
 #: `lane_held` also named the occupying lane as the HOLDER of a lock it does not
 #: hold, which sends whoever reads the row to the wrong lane.
 OUTCOME_WORKTREE_IN_USE = "worktree_in_use"
+#: CS-1274 - THE KIT'S CAP, NOT A HOLDER. Every lane index is held, by lanes
+#: other than this one: there is no holder of THIS lane to name, so writing the
+#: row as `lane_held` would name a lane that holds nothing - the CS-1011 shape.
+#: Waited out like a held lane; unproductive like every refusal.
+OUTCOME_LANES_FULL = "lanes_full"
+#: CS-1274 - the kit's acquire mutex was held for the whole wait. A claim is a
+#: few milliseconds under it, so this is a wedged or racing acquirer, not a
+#: running lane, and it says so rather than borrowing a lane's word.
+OUTCOME_ACQUIRE_BUSY = "acquire_busy"
 OUTCOME_LAUNCH_FAILED = "launch_failed"
 #: The kill was issued and the worker OUTLIVED it. Distinct from
 #: OUTCOME_TIMEOUT because the two demand opposite responses: a killed worker
@@ -673,6 +688,15 @@ EXIT_USAGE_LIMIT = 11  # the account refused every run until the back-off gave u
 #: nothing from a driver that could not look, and those send an operator to
 #: two different files at 3am.
 _UNREADABLE_HEAD = "the lane worktree HEAD could not be read - "
+
+#: CS-1274 - the wording for a cycle the cap placed OFF its lane's home index.
+#: The HEAD reads look in the home worktree, which that cycle never touched, so
+#: their before and after say nothing about it - recorded as unreadable, never
+#: as a commit and never as "the worker committed nothing".
+_AWAY_FROM_HOME = (
+    "the cycle ran at a lane index other than this lane's home, and the HEAD "
+    "reads look in the home worktree - "
+)
 
 
 def _is_progress(record) -> bool:
@@ -796,6 +820,19 @@ _LAZY = {
     # `moon_sync_inbox/`, carried into every cycle row as `inbox`. It never
     # acknowledges and never replies - see `_surface_inbox`.
     "inbox_surface": ("ops.loop.inbox_surface", "cs_loop_inbox_surface", "inbox_surface.py"),
+    # CS-1274. The vendored kit's item-12 progress writer and item-13 checklist,
+    # CALLED and never edited (FLEET item 11). Their files sit one directory up,
+    # beside the kit's MANIFEST, and neither holds process-global state.
+    "fleet_headless": (
+        "ops.fleet_kit.fleet_headless",
+        "cs_kit_fleet_headless",
+        "../fleet_kit/fleet_headless.py",
+    ),
+    "fleet_checklist": (
+        "ops.fleet_kit.fleet_checklist",
+        "cs_kit_fleet_checklist",
+        "../fleet_kit/fleet_checklist.py",
+    ),
 }
 
 
@@ -1041,8 +1078,13 @@ def _launch_waited(value: object) -> float | None:
 #: and the value written is this module's own literal at that index. A word this
 #: driver does not hold - a `lanes.py` running ahead of it, an injected fake -
 #: is DISCARDED and the row degrades to the generic refusal it already had.
-_ACQUIRE_REFUSALS = ("lane_held", "worktree_in_use")
-_REFUSAL_OUTCOMES = (OUTCOME_LANE_HELD, OUTCOME_WORKTREE_IN_USE)
+_ACQUIRE_REFUSALS = ("lane_held", "worktree_in_use", "lanes_full", "acquire_busy")
+_REFUSAL_OUTCOMES = (
+    OUTCOME_LANE_HELD,
+    OUTCOME_WORKTREE_IN_USE,
+    OUTCOME_LANES_FULL,
+    OUTCOME_ACQUIRE_BUSY,
+)
 
 #: What a holder outside the lane roster is called. A refusal's `holder` is read
 #: off a LOCK FILE this driver did not write, so it is not this module's string.
@@ -1125,8 +1167,18 @@ def _emit(line: str) -> None:
     opened one (see `night_log`), there prefixed with its UTC time. The
     redirected stdout is a copy the launcher owns and is left exactly as it
     was; the night log is the copy the driver owns, and it is never truncated.
+
+    CS-1274 - A LINE THE CONSOLE CANNOT ENCODE IS ESCAPED, NEVER FATAL. The
+    item-13 checklist carries the box glyph U+2610, and under `pythonw` the
+    redirected stdout takes the locale code page, which has none: a print that
+    raised there would end a night on a status line. The stdout copy is
+    written backslash-escaped instead; the night log is UTF-8 and keeps the
+    glyph.
     """
-    print(line, flush=True)
+    try:
+        print(line, flush=True)
+    except UnicodeEncodeError:
+        print(line.encode("ascii", "backslashreplace").decode("ascii"), flush=True)
     _night_write(line)
 
 
@@ -1390,11 +1442,12 @@ def worktree_mutex(worktree) -> str:
     THIS IS THE HALF THAT MUST NOT BE NARROWED, and it exists because narrowing
     the driver mutex per checkout opened a hole the old box-wide constant had
     closed by accident. Measured: two clones of this repository at different
-    paths derive DIFFERENT driver mutexes and keep DISJOINT lock roots, while
-    `lane_launcher.WORKTREE_BASE` resolves both to the SAME
-    `cs-lane-<lane>` checkout on the same branch. Two workers in one working
-    directory is the concurrent-index corruption class, and it is not
-    recoverable by retrying.
+    paths derive DIFFERENT driver mutexes and keep DISJOINT lock roots, while a
+    single shared worktree base resolved both to the SAME checkout - and since
+    CS-1274 the kit derives the lane worktrees from the clones' shared PARENT,
+    so two clones side by side still resolve one lane's home to one directory.
+    Two workers in one working directory is the concurrent-index corruption
+    class, and it is not recoverable by retrying.
 
     So the name is keyed on the WORKING DIRECTORY and on nothing else - no repo
     token, no lane. Whoever is about to write in that directory takes this,
@@ -1968,6 +2021,68 @@ def stop_reason(control_dir=None) -> str | None:
     return None
 
 
+class StopSentinelError(Exception):
+    """A stop sentinel was read before a claim, so the cycle claimed NOTHING - CS-1274 r2.
+
+    RAISED BY `run_cycle`, NOT RETURNED AS A ROW. A cycle stopped before its
+    claim is the same event as a sentinel read at the top of a cycle, and that
+    one writes no row either: `run_loop` catches this and ends the night on the
+    sentinel's own word, so the exit code is the one an operator already reads
+    for "a stop file was there". Nothing was claimed, so nothing is released.
+
+    `sentinel` is always a member of `STOP_NAMES` - a literal this module holds,
+    looked up by index from whatever the stop seam answered - never text read
+    off the disk and never the caller's object.
+    """
+
+    def __init__(self, sentinel: str) -> None:
+        """Record which sentinel stopped the cycle."""
+        super().__init__(sentinel)
+        self.sentinel = sentinel
+
+
+def _stop_before_claim(stopped) -> None:
+    """Raise `StopSentinelError` when the stop seam names a sentinel. CS-1274 r2.
+
+    THE SEAM IS READ BEFORE EVERY CLAIM ATTEMPT. `run_loop` reads the sentinels
+    once at the top of a cycle, but the claim behind it retries up to
+    `ACQUIRE_RETRIES` times, `ACQUIRE_WAIT_S` apart, and the kit's
+    `lanes_full` and `acquire_busy` refusals now send a cycle round that loop
+    routinely. A `QUEUE_STOP` dropped during it used to be read only
+    after the cycle had claimed and launched anyway.
+
+    EXACT `str` AND AN INDEX LOOKUP, as `_refusal_outcome` does it: the value
+    raised is this module's own literal, and an answer that is not one of its
+    sentinel names - an injected fake, a subclass - stops the cycle under the
+    first name rather than carrying the caller's object into a row or a line.
+
+    Args:
+        stopped: A zero-argument callable answering a sentinel name or None,
+            or None for a caller that asked for no check.
+    """
+    if stopped is None:
+        return
+    reason = stopped()
+    if not reason:
+        return
+    raise StopSentinelError(_sentinel_word(reason))
+
+
+def _sentinel_word(value: object) -> str:
+    """One of `STOP_NAMES`, looked up by index - never the object it was asked about.
+
+    Args:
+        value: A sentinel name, or anything else.
+
+    Returns:
+        The matching member of `STOP_NAMES`, or its first - the global halt -
+        for a value that is not exactly one of them.
+    """
+    if type(value) is not str or value not in STOP_NAMES:
+        return STOP_NAMES[0]
+    return STOP_NAMES[STOP_NAMES.index(value)]
+
+
 # ---------------------------------------------------------------------------
 # The ledger.
 # ---------------------------------------------------------------------------
@@ -2070,9 +2185,9 @@ def remote_head_sha(ref: str = CI_REF) -> str | None:
     r"""The sha `origin/<ref>` points at right now, or None. Never raises.
 
     `git ls-remote`, not `git rev-parse`, for two independent reasons. The
-    driver runs in the MAIN tree while the worker commits and pushes from
-    `C:\cs-worktrees\cs-lane-queue`, so this tree's own HEAD is not what was
-    pushed; and a local `origin/main` ref is only as fresh as the last fetch,
+    driver runs in the MAIN tree while the worker commits and pushes from its
+    kit lane worktree, `<parent>/cs-worktrees/lane-<i>`, so this tree's own HEAD
+    is not what was pushed; and a local `origin/main` ref is only as fresh as the last fetch,
     which nothing in this loop performs. `ls-remote` asks the remote and mutates
     NOTHING - no fetch, no index, no reflog - which matters because the driver
     must never write into a tree a worker may be using.
@@ -2813,6 +2928,172 @@ def _surface_inbox(cycle, worktree, *, surface=None, emit=_emit) -> dict:
     return fact
 
 
+# ---------------------------------------------------------------------------
+# CS-1274 - FLEET item 13: the lane's item-12 progress file and its checklist.
+# ---------------------------------------------------------------------------
+
+#: The state the fired cycle's checklist row carries while its worker runs.
+STATE_WORKER_RUNNING = "worker running"
+
+#: The kit's checklist index range for a progress-file name, `lane-<i>.json`.
+_LANE_TASK_INDICES = range(10)
+
+
+def lane_progress_root(token) -> Path | None:
+    """The checkout whose control plane holds this lane lock, or None. Never raises.
+
+    FLEET item 13 d: a lane writes `progress/lane-<i>.json` in the MAIN
+    checkout, never in its worktree. The kit keeps lane locks and progress files
+    side by side in one control plane (`ops/loop/control/lanes` and
+    `ops/loop/control/progress`), so the checkout is read off the LOCK the lane
+    holds. Anything else - a lock root that is not a checkout's control plane,
+    a relative path, a token that is not a path at all - answers None and
+    writes nothing, which is what keeps every injected fake token from writing
+    into whatever directory a run happens to start in.
+
+    Args:
+        token: What the acquire handed back. Any object.
+
+    Returns:
+        The checkout root, or None.
+    """
+    if type(token) is not str or not token.strip():
+        return None
+    lock = Path(token)
+    if not lock.is_absolute() or lock.suffix != ".lock":
+        return None
+    try:
+        rel = Path(_mod("lanes").kit_lanes().LANES_REL)
+    except (ImportError, OSError, ValueError):
+        # No kit, no kit layout to recognise - and a display never ends a night.
+        return None
+    depth = len(rel.parts)
+    if len(lock.parents) <= depth:
+        return None
+    tail = tuple(part.lower() for part in lock.parent.parts[-depth:])
+    if tail != tuple(part.lower() for part in rel.parts):
+        return None
+    return lock.parents[depth]
+
+
+def cycle_checklist(lane: str, cycle: int, total: int, eta_s) -> list:
+    """The lane's remaining tasks as at a fire: this cycle, then each one after it.
+
+    FLEET item 13 b - REMAINING ONLY. A completed cycle is never listed again;
+    the fired cycle carries its state and ETA, the later ones none. Every row is
+    built by the kit's own `fleet_checklist.item`, so a row the kit would refuse
+    is refused here first - and a refusal shortens the list rather than ending
+    the night, because a checklist is a display.
+
+    Args:
+        lane: The lane being driven.
+        cycle: The cycle being fired, counting from one.
+        total: The night's cycle budget.
+        eta_s: The fired cycle's budget in seconds.
+
+    Returns:
+        The rows, at most the kit's cap.
+    """
+    kit = _mod("fleet_checklist")
+    rows: list = []
+    last = min(int(total), int(cycle) + kit.ROWS_MAX - 1)
+    with contextlib.suppress(ValueError, TypeError):
+        rows.append(
+            kit.item(
+                f"C{cycle}",
+                f"Work one ROADMAP row end to end on lane {lane}",
+                STATE_WORKER_RUNNING,
+                eta_s,
+            )
+        )
+        rows.extend(
+            kit.item(f"C{later}", f"Fire cycle {later} of {total} on lane {lane}")
+            for later in range(int(cycle) + 1, last + 1)
+        )
+    return rows[: kit.ROWS_MAX]
+
+
+def _claim_index(claim) -> int | None:
+    """The lane index a claim reports, when it is honestly one, else None."""
+    index = claim.get("index") if isinstance(claim, dict) else None
+    return index if type(index) is int and index in _LANE_TASK_INDICES else None
+
+
+def _claim_tree(claim) -> str | None:
+    """The worktree a claim recorded, when it is honestly a string, else None."""
+    tree = claim.get("worktree") if isinstance(claim, dict) else None
+    return tree if type(tree) is str and tree.strip() else None
+
+
+class LaneProgress:
+    """One fire's item-12 progress file, carrying its item-13 checklist. NEVER RAISES.
+
+    Inert unless the claim is a real lane lock in a checkout's control plane -
+    see `lane_progress_root`. Written through the kit's own `write_progress`
+    (FLEET item 12), at the kit's file name for the claim's index
+    (`fleet_checklist.lane_task`), so the lane widget reads one named file per
+    live lane. A display: every fault is swallowed, because a status file must
+    never end a night or keep a lane from being released.
+    """
+
+    def __init__(self, token, index, *, lane: str, cycle: int, rows: list, clock) -> None:
+        """Bind the claim this file describes."""
+        self.root = None if index is None else lane_progress_root(token)
+        self.index = index
+        self.lane = lane
+        self.cycle = cycle
+        self.rows = list(rows)
+        self.clock = clock
+
+    def _write(self, pct: int, step: str, eta_s, status: str, rows: list) -> None:
+        """One write through the kit. Swallows every fault - see the class."""
+        if self.root is None:
+            return
+        with contextlib.suppress(OSError, ValueError, TypeError):
+            task = _mod("fleet_checklist").lane_task(self.index)
+            _mod("fleet_headless").write_progress(
+                self.root, task, pct, step, eta_s, status, clock=self.clock, checklist=rows
+            )
+
+    def fired(self, eta_s, emit) -> None:
+        """The lane fired: print the item-13 block (a) and write the file running (d).
+
+        The block is emitted ONE LINE PER CALL - an emitted line never carries a
+        line break, because a log tailer reads one line as one event.
+        """
+        with contextlib.suppress(ValueError, TypeError):
+            for line in _mod("fleet_checklist").render(self.cycle, self.rows).splitlines():
+                emit(line)
+        step = f"lane {self.lane} cycle {self.cycle}: {STATE_WORKER_RUNNING}"
+        self._write(0, step, eta_s, "running", self.rows)
+
+    def ended(self, outcome: str) -> None:
+        """The fire ended, BEFORE its lane is released, while this index is still ours.
+
+        Done leaves nothing remaining. Anything else keeps the fired cycle's row,
+        its state the outcome - one of this module's own words, never text a
+        worker wrote.
+        """
+        step = f"lane {self.lane} cycle {self.cycle}: {outcome}"
+        if outcome == OUTCOME_COMPLETED:
+            self._write(100, step, 0, "done", [])
+            return
+        kept = [{**self.rows[0], "state": outcome, "eta_s": None}] if self.rows else []
+        self._write(0, step, None, "failed", kept)
+
+
+def _ran_away(record: dict, lane: str) -> bool:
+    """True when a cycle claimed an index other than its lane's home. Never raises."""
+    index = record.get("lane_index")
+    if type(index) is not int:
+        return False
+    try:
+        home = _mod("lanes").home_index(lane)
+    except ValueError:
+        return False
+    return bool(index != home)
+
+
 def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     cycle: int,
     *,
@@ -2833,7 +3114,9 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     stranger=None,
     kill=_taskkill,
     observe=_noop,
+    stopped=None,
     surface=None,
+    checklist=None,
     result_of=_worker_result,
     emit=_emit,
     sleep=time.sleep,
@@ -2850,6 +3133,20 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     Every dependency is a keyword seam. A `None` seam is resolved from `lanes`
     or `lane_launcher` at CALL time, which keeps this module importable without
     them while still making a substitution a deliberate act by the caller.
+
+    CS-1274. With no `worktree` named, the claim asks for the KIT'S per-index
+    tree (`lanes.lane_worktree`) and the cycle runs wherever the claim lands;
+    the row carries that index as `lane_index`. A fired lane writes its item-12
+    progress file, with the item-13 `checklist` rows, beside its lock in the
+    main checkout - see `LaneProgress` - and ends it BEFORE the lane is
+    released, so a later claim of the same index can never be overwritten.
+
+    CS-1274 r2. `stopped` - a zero-argument callable answering a stop
+    sentinel's name or None - is read before EVERY claim attempt, and a name
+    raises `StopSentinelError` with nothing claimed; `run_loop` always passes
+    it. None, the default, asks for no check: a direct caller that wants one
+    says so, rather than this function reading the real control plane behind a
+    test's back.
     """
     # Resolved INSIDE the guard rather than through a conditional expression, so
     # the module object is never typed as "maybe None" - a shape that reads as a
@@ -2862,25 +3159,21 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         proc_started = lanes_mod.proc_started if proc_started is None else proc_started
         stranger = lanes_mod.holder_is_a_stranger if stranger is None else stranger
     # The launcher module is resolved ONLY when it is actually needed - when no
-    # launcher was injected, or when no worktree was named. A caller that
-    # supplies both has substituted the whole dependency, and requiring the
-    # module anyway would make the seam a fiction: the file would have to exist
-    # for a call that never touches it.
-    if launch is None or worktree is None:
-        launcher = _mod("lane_launcher")
-        if launch is None:
-            real_launch = launcher.launch_lane
+    # launcher was injected. A caller that supplies one has substituted the
+    # whole dependency, and requiring the module anyway would make the seam a
+    # fiction: the file would have to exist for a call that never touches it.
+    if launch is None:
+        real_launch = _mod("lane_launcher").launch_lane
 
-            def launch(lane_name, **kw):
-                """Bind `repo_root` into the launcher's own `root` argument."""
-                return real_launch(lane_name, root=repo_root, **kw)
-
-        if worktree is None:
-            worktree = launcher.worktree_path(lane)
+        def launch(lane_name, **kw):
+            """Bind `repo_root` into the launcher's own `root` argument."""
+            return real_launch(lane_name, root=repo_root, **kw)
 
     # Worktree-mandatory (enforced again in the lock and a third time in the
-    # launcher). When it is not named it is resolved from the launcher above
-    # rather than hardcoded here, so a lane relocation moves one definition.
+    # launcher). When it is not named, the claim is asked for the KIT'S
+    # per-index tree and records which one it chose - CS-1274. The derivation
+    # lives in `lanes.py` alone, so a lane relocation moves one definition.
+    asked = _mod("lanes").lane_worktree if worktree is None else str(worktree)
     run_id = uuid.uuid4().hex[:8] if run_id is None else str(run_id)
     started_at = clock()
     # CS-1017 - ON EVERY ROW, so no row is ambiguous about whether the field
@@ -2888,6 +3181,9 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     # launcher measures and reports the wait; None everywhere else.
     launch_reason: str | None = None
     launch_waited: float | None = None
+    # CS-1274 - ON EVERY ROW too: the lane index the claim took, or None for a
+    # cycle that claimed nothing.
+    lane_index: int | None = None
 
     def _record(outcome, ok, pid, ended_at, detail="") -> dict:
         return {
@@ -2908,6 +3204,9 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # after a refused re-point.
             "launch_reason": launch_reason,
             "launch_waited_s": launch_waited,
+            # CS-1274. Which kit lane index this cycle held - so a cycle placed
+            # off its lane's home is visible in the ledger, not only inferred.
+            "lane_index": lane_index,
             # CS-1104. Taken when the row is built, on EVERY outcome, so a
             # refused or failed cycle still says what was waiting in the channel.
             #
@@ -2927,7 +3226,12 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     claim = None
     attempts = max(1, int(acquire_retries))
     for attempt in range(1, attempts + 1):
-        claim = acquire(lane, run_id=run_id, worktree=str(worktree))
+        # CS-1274 r2 - THE STOP SENTINELS, AGAIN, BEFORE EVERY ATTEMPT. A claim
+        # refused `lanes_full` waits `acquire_wait_s` and asks again, and an
+        # operator's QUEUE_STOP dropped during that wait must be honoured by the
+        # next attempt - not after a claim and a launch it was meant to prevent.
+        _stop_before_claim(stopped)
+        claim = acquire(lane, run_id=run_id, worktree=asked)
         if claim.get("ok"):
             break
         # A refusal writes nothing on disk, so retrying is free and safe. No
@@ -2956,13 +3260,33 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 f"waiting will not free it, one of the two lanes must be "
                 f"re-pointed"
             )
+        elif refusal == OUTCOME_LANES_FULL:
+            # No holder of THIS lane exists to name - see OUTCOME_LANES_FULL.
+            detail = f"every lane index under the kit's cap was held after {attempts} attempts"
+        elif refusal == OUTCOME_ACQUIRE_BUSY:
+            detail = f"the kit's lane acquire mutex was held after {attempts} attempts"
         else:
             detail = f"lane held by {holder!r} (pid {pid}) after {attempts} attempts"
         return _record(refusal, False, None, clock(), detail)
 
     token = claim.get("token")
+    # CS-1274. Read through validators, like every other field copied off the
+    # claim: an index is an honest small int or nothing, a worktree an honest
+    # string or nothing.
+    lane_index = _claim_index(claim)
+    if worktree is None:
+        worktree = _claim_tree(claim)
+    board = None
     outcome, detail, pid = OUTCOME_COMPLETED, "", None
+    finished = False
     try:
+        # INSIDE the try, so nothing between the claim and the `finally` that
+        # releases it can leave the lock behind.
+        rows = checklist
+        if rows is None:
+            rows = cycle_checklist(lane, cycle, cycle, cycle_timeout_s)
+        board = LaneProgress(token, lane_index, lane=lane, cycle=cycle, rows=rows, clock=clock)
+        board.fired(cycle_timeout_s, emit)
         try:
             run = launch(lane, run_id=run_id, token=token)
         except Exception as exc:
@@ -3044,11 +3368,20 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 # never the result it was read off.
                 if outcome == OUTCOME_COMPLETED and _is_usage_refusal(result_of(run.get("log"))):
                     outcome, detail = OUTCOME_USAGE_REFUSED, _USAGE_REFUSED_DETAIL
+        finished = True
     finally:
         # Every path, including an exception nobody predicted. The release runs
         # BEFORE that exception escapes, because a driver that dies holding the
         # only lane slot wedges the lane until someone reclaims it by hand.
-        release(token)
+        #
+        # CS-1274 - THE PROGRESS FILE ENDS FIRST, while this index is still
+        # ours, and the release is in a `finally` of its own: a display that
+        # faulted must never be what keeps a lane from being released.
+        try:
+            if board is not None:
+                board.ended(outcome if finished else OUTCOME_ERROR)
+        finally:
+            release(token)
 
     return _record(outcome, outcome == OUTCOME_COMPLETED, pid, clock(), detail)
 
@@ -3111,7 +3444,10 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
 
     The sentinel check is at the TOP of the iteration, which is what makes a
     QUEUE_DRAINED written by the worker mid-cycle stop the NEXT cycle rather
-    than retroactively discard the one that wrote it. The hard stops are checked
+    than retroactively discard the one that wrote it. CS-1274 r2: the same
+    sentinels are read again before EVERY claim attempt inside the cycle, so a
+    stop dropped while a claim waits to retry ends the night there, claiming
+    nothing and writing no row - see `StopSentinelError`. The hard stops are checked
     at the BOTTOM, after the offending record is appended and emitted - the
     evidence of why the night ended has to reach the ledger.
 
@@ -3221,12 +3557,28 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     stranger=stranger,
                     kill=kill,
                     observe=watch.sample,
+                    # CS-1274 r2 - the SAME sentinels the top of this loop
+                    # reads, re-read before every claim attempt in the cycle.
+                    stopped=functools.partial(stop_reason, control_dir),
                     surface=surface,
+                    # CS-1274 - FLEET item 13: the night's REMAINING cycles as
+                    # at this fire, so the lane file never lists a done one.
+                    checklist=cycle_checklist(lane, cycle, total, cycle_timeout_s),
                     emit=emit,
                     sleep=sleep,
                     clock=clock,
                     monotonic=monotonic,
                 )
+        except StopSentinelError as stop:
+            # CS-1274 r2 - A SENTINEL READ BEFORE A CLAIM, mid-cycle. Nothing was
+            # claimed, launched or written, so this is the top-of-loop stop
+            # arriving late: no row, the sentinel's own word, the same line.
+            stopped_by = _sentinel_word(stop.sentinel)
+            emit(
+                f"queue-loop stop: {stopped_by} present before the claim - "
+                f"{len(records)} cycle(s) run"
+            )
+            break
         except Exception as exc:  # DELIBERATE catch-all - see the comment below
             # A night that ends at cycle 3 on ONE unexpected fault is the defect
             # this closes, and the SILENT half was worse: `append_record` is only
@@ -3287,6 +3639,13 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 else _UNREADABLE_HEAD + (pre_why or post_why or "git gave no answer")
             ),
         }
+        # CS-1274 - A CYCLE THE CAP PLACED OFF ITS HOME ran in another index's
+        # worktree, and both reads above looked at the home one. Only when the
+        # driver resolved the tree itself: a caller that named a worktree named
+        # the tree both reads looked at.
+        if worktree is None and _ran_away(record, lane):
+            record["commit"]["advanced"] = False
+            record["commit"]["detail"] = _AWAY_FROM_HOME + "nothing about it is counted"
         # ON THE CONSOLE LINE TOO, because without it a lane-branch night
         # and a dead night are the same five hundred characters: both read
         # `ci=no-push`, and only one of them is fine. The operator tailing

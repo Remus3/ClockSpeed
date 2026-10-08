@@ -124,14 +124,24 @@ its siblings is not a root-cause fix.
 ## 4. Pre-flight, every cycle
 
 **4a. Confirm the worktree, not the main tree.** `git rev-parse --show-toplevel` must print
-your lane worktree and `git branch --show-current` must print your lane branch. **If the
-toplevel is the main checkout, STOP and report; do not edit.** Two writers in one working
-directory is the concurrent-index corruption class and it is not recoverable by retrying. A
-live interactive session may own the main tree at any moment.
+your lane worktree: a `lane-<i>` directory inside the `cs-worktrees` directory that sits
+beside the main checkout, one worktree per lane index, made and handed to you by the fleet
+kit. It arrives CLEAN and with HEAD DETACHED at `origin/main`, so `git branch
+--show-current` prints nothing - that is the correct state, not a fault, and you do not
+create a branch to change it. **If the toplevel is the main checkout, STOP and report; do
+not edit.** Two writers in one working directory is the concurrent-index corruption class
+and it is not recoverable by retrying. A live interactive session may own the main tree at
+any moment.
+
+**Leave the lane worktree clean when you exit.** The kit REFUSES a dirty lane worktree on the
+next fire rather than cleaning it - a dirty tree is read as a crashed run's work - so an
+untracked scratch file left behind costs the next cycle its launch. Scratch belongs in the
+scratchpad, never in the tree.
 
 **4b. Fetch first, then derive anything.** `git fetch origin` and confirm you are not behind
-`origin/main`. Every id, every count and every citation you derive from a stale tree is a
-statement about a tree that no longer exists.
+`origin/main`; if you are, `git checkout --detach origin/main` before you touch anything.
+Every id, every count and every citation you derive from a stale tree is a statement about a
+tree that no longer exists.
 
 **4c. Read, do not re-derive.** `CLAUDE.md` in full - especially "Non-negotiables", "Frozen
 files", "Session shape" and the whole "Settled - decided, do not re-litigate" block. Then
@@ -668,9 +678,13 @@ engine change is substantive; a five-file rename is not.
 8. **Never `--no-verify`. Never skip a hook. Never `push --force`.** Fetch and rebase, then
    re-run the tier's tests on the rebased tree - a rebase can land your change on top of
    someone else's, and a suite that passed pre-rebase proves nothing about the merged result.
-9. If the push is rejected, re-fetch and rebase ONCE more. If it is still rejected, push the
-   lane branch instead, say so plainly with the reason, and continue. Do not loop on a
-   contested ref.
+9. **Your HEAD is detached, so push by refspec:** `git push origin HEAD:main`. If the push is
+   rejected, re-fetch and rebase ONCE more onto `origin/main`. If it is still rejected, push
+   your commit to a lane branch of its own instead - `git push origin
+   HEAD:refs/heads/lane/<your lane>-<short sha>`, a fresh name every time so it never needs
+   forcing - say so plainly with the reason, and continue. Do not loop on a contested ref.
+   Commits that reach neither are not lost: the kit saves unmerged commits on a clean lane
+   worktree under `refs/fleet-lanes/` before it moves that worktree for the next fire.
 
 ---
 
@@ -783,7 +797,7 @@ Print this, filled in, as the last thing you do:
 
 ```
 CLOCKSPEED QUEUE CYCLE WRAP
-  worktree: <toplevel> (<branch>)
+  worktree: <toplevel> (detached at <short-sha of the base>)
   row: CS-<id> - <one-line title>   (why it was first: <reason>)
   HEAD: <short-sha> pushed to <main | lane branch> (<reason if not main>)
   tier: <0 | 1 | 2> (<why>)
