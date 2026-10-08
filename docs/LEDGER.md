@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-G03 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. Check 7 and the human half of check 5 are SATISFIED again by walk 2
+Verification: `docs/GATED.md` CS-G03, heading `Filed 2026-10-08 (session 131): the second walk
+PASSED; check 7 and the human half of check 5 are SATISFIED again`; `docs/item_notes/phase7.md`
+section CS-700, heading `Filed 2026-10-08 (session 131): the Part 2 re-run before S7a`; the
+CS-1279 record below, which owns walk 2's verdict lines and counts.
+Decision: walk 2 at `457d2b9` - a different context-free agent in a fresh Windows Sandbox with
+long paths off - re-satisfies gate check 7 (the CS-1187 clean-checkout probe) and the human half
+of check 5 (README from zero to a first result with no game), closes CS-1279, and discharges the
+Q2 precondition of CS-700 step a; the discharge is still valid at `ac128e9`, whose commits since
+`457d2b9` are records only. README defects R2 and R3 and the `docs/OPERATIONS.md` observation O1
+go to `BACKLOG.md` as residuals; no third walk. The suite clause is re-run as Part 2 ALONE (a
+fresh long-paths-off sandbox, a fresh bundle clone, the `docs/OPERATIONS.md` bootstrap, the hook
+proof, the full suite - no README walk) before S7a whenever
+`git diff --name-only 457d2b9 <S7a tip>` lists anything under `tests/`, `clockspeed/`, `ops/` or
+`tools/`.
+Alternatives rejected: (1) repair R2 and R3 and walk a third time - the README edit spends the
+walk it repairs, R1 makes a zero-defect walk impossible before the flip, and neither defect
+blocked or misled the walker; (2) keep the 2026-10-04 path list alone for the suite clause -
+commit `82149cc` touched only `ops/loop` and `tests/ops` and caused walk 1's six MAX_PATH
+failures, so a path list misses suite breakage; (3) re-walk the README after every product
+commit - cost without matching risk.
+Why: every clause has a raw log line the adjudicator read; the first result was reached with no
+game; the only defects are non-blocking ambiguities resolved from adjacent README text or tool
+output; session 126's CS-1186 close already carried R1 as a filed residual, so the bar was never
+zero defects. Ruled by an adjudicator that did not walk and read the raw channel logs; the walk
+logs live outside the repo.
+Reversed by: a commit before the flip touching `README.md`, `docs/OPERATIONS.md`, `.githooks/*`,
+`tools/precommit_gate.py`, `scripts/*`, `tools/memory_sync.py`, `pyproject.toml` or
+`config/ports.json`; a suite-path commit (`tests/`, `clockspeed/`, `ops/`, `tools/`) without a
+Part 2 re-run before S7a; or the post-flip public-clone walk recording a blocking README defect.
+Common-mode risk, noted by the adjudicator: all four walks - two in session 126, two in session
+131 - cloned from a session-made bundle, used the same command-channel harness, `curl.exe -k`
+rather than a browser, one Windows 10 build and the newest Python (what no walk exercised is
+filed to `BACKLOG.md` under Session 131 residuals); "different context-free agent" rests on
+the dispatcher's word, consistent with but not proven by the logs.
+The flip stays GATED on CS-700 S3 to S8a at the final tip, the conditional Part 2 re-run, and
+the operator's own-words S9 confirmation.
+
+### 2026-10-08 - CS-1279 - CLOSED: the second clean-machine walk ran the suite green on a fresh Windows machine with long paths off
+Verification: `tests/ops/test_inbox_responder.py::test_every_planted_note_fits_max_path_on_a_default_machine`,
+which grades the short planted paths that end walk 1's six MAX_PATH failures; `README.md`,
+repaired for walk 1's D2 to D6, and `docs/OPERATIONS.md` sections 1.1 (the git identity step)
+and 2 (Git's `usr\bin` APPENDED to PATH for the suite), all in `457d2b9`. Walk 2, by a
+different context-free agent in a fresh Windows Sandbox with long paths off, read from its raw
+log by the adjudicator: a fresh bundle clone at `457d2b9` (the remote is private);
+`scripts/verify_env.py` exit 0; the non-ASCII violation blocked with HEAD unchanged,
+and the ASCII control committed; the full suite run as documented, Git's `usr\bin` appended on
+its own line - 14580 passed, 155 skipped, 0 failed, 0 errors, exit 0; the README first result
+reached with no game - `/api/health` 200 ok, the registry and world absent. Closed by an
+adjudicator that did not walk: every acceptance clause has a raw log line it read. The walk
+logs live outside the repo.
+Walk 1, at `ed0b03f`, stays FAILED - a repair is not a pass; its counts stay in the relocated
+item section. D1 (no clone command) stays deferred to the CS-700 flip. Walk 2's README defects
+R2 and R3 and the `docs/OPERATIONS.md` observation O1 are filed to `BACKLOG.md` under Session
+131 residuals; the ruling is the CS-G03 decision record above. The item section is relocated to
+`docs/history_notes.md`.
+
 ### 2026-10-08 - CS-1265 - CLOSED: the flow audit reads an elided clock at the class default, counted, so the flow and the balance classify every machine's clock alike
 Verification: `clockspeed/audit/flow.py`, which reads `MachineState.overclock_elided` with the
 balance's own predicate and flows an elided machine at

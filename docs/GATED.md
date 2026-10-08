@@ -710,6 +710,27 @@ BLOCKED: this gate waits on that walk, never the walk on this gate. The repairs 
 CS-1279 commit, and a second walk by a different context-free agent is running at a tip at or
 after it. It stays a hard precondition of CS-700 step a. THIS GATE STAYS GATED.
 
+#### Filed 2026-10-08 (session 131): the second walk PASSED; check 7 and the human half of check 5 are SATISFIED again
+
+**THE SECOND WALK PASSED, AND THIS NOTE SUPERSEDES THE ONE ABOVE**, which says a second walk
+"is running": it ran. A different context-free agent walked at `457d2b9`, the CS-1279 repair
+commit, in a fresh Windows Sandbox with long paths off. Its verdict lines: a fresh bundle clone
+(the remote is private); `scripts/verify_env.py` exit 0; the non-ASCII violation blocked with
+HEAD unchanged, and the ASCII control committed; the full suite, run as documented, GREEN; the
+README first result reached with no game. The counts are recorded once, in `docs/LEDGER.md`
+under CS-1279; walk 1's counts moved with CS-1279's section to `docs/history_notes.md`. An
+adjudicator that did not walk CLOSED CS-1279 on that log, so check 7 (the clean-checkout probe
+on a machine that has never seen the project) and the human half of check 5 (README taking an
+outsider from zero to a first result with no game) are SATISFIED again, and the Q2
+precondition of CS-700 step a is DISCHARGED. README defects R2 and R3 and the
+`docs/OPERATIONS.md` observation O1 are residuals in `BACKLOG.md`; there is no third walk.
+Record, with its reversal clause: `docs/LEDGER.md`, the 2026-10-08 CS-G03 decision record.
+
+**THIS GATE STAYS GATED.** The flip still waits on the remaining checks re-run at the final
+tip (CS-700 S3 to S8a), on the conditional Part 2 re-run of the suite clause before S7a (the
+condition is held in CS-700's section in `docs/item_notes/phase7.md`), and on the operator's
+own-words S9 confirmation - section (b) above. Nothing in this note is that confirmation.
+
 ### CS-G04 - Dedicated-server data lane
 
 **One line:** Read world state from the dedicated server API instead of, or in addition

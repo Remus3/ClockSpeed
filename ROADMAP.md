@@ -346,7 +346,6 @@ CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writ
 CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1279 - the session 131 clean-machine walk found the suite red on a fresh Windows machine and six README defects - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

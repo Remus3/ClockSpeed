@@ -1139,6 +1139,15 @@ The CS-G03 clean-machine re-walk is a hard precondition of flip step a, per the 
 scope ruling (`docs/LEDGER.md`, the FLEET-KIT v9 decision record): one walk at a tip at or after
 the CS-1275 move commit, before S7a.
 
+### Filed 2026-10-08 (session 131): the Part 2 re-run before S7a
+
+The Q2 precondition above is DISCHARGED by walk 2 at `457d2b9` (`docs/LEDGER.md`, the
+2026-10-08 CS-G03 decision record). One condition carries forward to S7a: the suite clause is
+re-run as Part 2 ALONE (a fresh long-paths-off sandbox, a fresh bundle clone, the
+`docs/OPERATIONS.md` bootstrap, the hook proof, the full suite - no README walk) before S7a
+whenever `git diff --name-only 457d2b9 <S7a tip>` lists anything under `tests/`, `clockspeed/`,
+`ops/` or `tools/`. S7a's identity rewrite changes no files, so it spends nothing.
+
 ### Acceptance
 
 every item on that checklist passes, including the full-history secret scan, the PII scan across tracked files and commit messages, the third-party license audit, and the clean-checkout probe on a machine that has never seen the project
@@ -1621,30 +1630,3 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
-
-## CS-1279
-
-### Filed 2026-10-08 by the session 131 CS-G03 walk
-
-The CS-G03 clean-machine re-walk ran at `ed0b03f` in a fresh Windows Sandbox, walked by a
-context-free agent. It reached the README first result; `scripts/verify_env.py` exited 0; the
-hooks were armed - a staged violation was refused with HEAD unchanged, and a control commit was
-committed. But the full suite, run as the docs then stated, was RED: 14383 passed, 302 skipped,
-24 failed, 17 errors. 35 of the 41 needed Git for Windows' `usr\bin` on PATH (`openssl`,
-`bash`), which no doc required for the suite; the other 6, in
-`tests/ops/test_inbox_responder.py`, built paths over MAX_PATH with Windows long paths off, the
-Windows default. The walk also found six README defects: D1, no clone command; D2, the Python
-PATH option; D3, PowerShell venv activation; D4, the `curl` alias in PowerShell; D5, a stale
-Status section; D6, the suite's prerequisites - plus no git identity step in any newcomer doc.
-
-The repairs landed in the CS-1279 commit "walk repairs: short responder paths, README,
-OPERATIONS" (`457d2b9`): D2 to D6 in `README.md`; the suite's `usr\bin` need and the git
-identity step in `docs/OPERATIONS.md`; short planted paths in
-`tests/ops/test_inbox_responder.py`, graded by
-`tests/ops/test_inbox_responder.py::test_every_planted_note_fits_max_path_on_a_default_machine`.
-D1 is deferred to the CS-700 flip, when the public address exists. A repair is not a pass: walk
-1 stands FAILED, and this item closes only on the second walk its acceptance names.
-
-### Acceptance
-
-a second walk by a different context-free agent in a fresh Windows Sandbox with long paths off, at a tip at or after the CS-1279 repair commit, follows `README.md` and the `docs/OPERATIONS.md` bootstrap as written and records `scripts/verify_env.py` exit 0, the hook violation refused with HEAD unchanged plus a committed control, and the full suite run as documented with 0 failed and 0 errors; an adjudicator that did not walk grades the log. Walk logs live outside the repo.

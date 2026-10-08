@@ -494,3 +494,20 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   is - and printing the U+2610 box to a redirected cp1252 stdout can raise an encode error -
   TRIGGER: the headless path is ordered to print it (a kit v10 or a MAIN note), or the
   responder's output is next touched.
+
+## Session 131 residuals - filed 2026-10-08 under product before process
+
+- README says verify_env's `config/ports.json` row prints the dashboard's port and calls
+  `<port>` "that `allocations` entry"; the row prints only base and band, and the port table
+  names the dashboard (walk 2, R2) - TRIGGER: the R1 clone-command edit after the CS-700 flip,
+  or `README.md` or `scripts/verify_env.py` next touched.
+- README's openssl hint "`git --exec-path` prints a path that starts with it" is ambiguous: Git
+  prints `<Git install>/ucrt64/libexec/git-core`, two leading folders qualify, and only the
+  outer one has `usr\bin` (walk 2, R3) - TRIGGER: the R1 edit after the flip, or `README.md` next
+  touched.
+- `docs/OPERATIONS.md` section 1 has no venv or pip step, so a reader arriving from
+  `.github/CONTRIBUTING.md` runs the bootstrap under the base interpreter and verify_env fails
+  loudly (walk 2, O1) - TRIGGER: the R1 edit after the flip, or either file next touched.
+- No walk has exercised a real browser's certificate warning, Python at the requires-python
+  floor, or Windows 11; all four used `curl.exe -k`, the newest Python and Windows 10 build
+  19041 - TRIGGER: the post-flip public-clone walk.
