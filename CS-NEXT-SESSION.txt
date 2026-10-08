@@ -373,4 +373,34 @@ Worktree isolation blocks writes to the shared progress directory; agents write 
 SESSION 128 /done REPORT
 ================================================================================
 
-PENDING - filled in after the push.
+TIER: 0 - no code changed; doc records only (LEDGER, ROADMAP, phase7.md, BACKLOG,
+  WAKEUP_NOTES, history_notes, this file).
+SUITE: the pre-push hook's whole suite (pytest over tests/) at fe474db: 14491 passed,
+  12 skipped, 0 failed in 1195.51s, read from the push log. Skips are the platform and
+  no-game skips the hook prints (chmod not honoured, empty mypy gap record, git for
+  Windows PATH prefix).
+DOC TESTS (before commit): python -m pytest tests/test_docs_citations.py
+  tests/test_citation_tables.py tests/test_ledger_entry_shape.py
+  tests/test_dated_headings.py tests/data/test_item_notes_index.py
+  tests/test_doc_budget.py tests/test_doc_sweep.py tests/test_pointer_claims.py
+  tests/test_archive_rot.py tests/data/test_drift_guard_data.py
+  tests/ops/test_lane_scope.py tests/test_measurement_record.py tests/test_scaffold.py
+  tests/test_bare_path_citations.py -q -n 3: EXIT 0, 1475 passed.
+GATES (final doc state, before commit): drift_guard 0 (11 PASS, 0 FAIL), doc_budget 0
+  (0 over budget), memory_sync 0 (no memory/ source changed), sha_citation_gate 0 (it
+  first FAILED on manifest/hash prefixes cited as hex - repaired by rewording, no SHA-like
+  file hash cited), precommit_gate --staged 0 (7 checked, 0 blocking).
+PUSH: ef45ed0..fe474db pushed, PUSH_EXIT=0 read from the log; HEAD read back equal to
+  ls-remote (fe474db). This report rides ONE MORE commit: CONFIRM HEAD equals ls-remote.
+CI READ: tier1 37717575780 at fe474db SUCCESS (read by this ritual). The tier1 run for
+  the report commit was NOT read here - READ IT FIRST. tier2: no run this session; its
+  last three scheduled runs on ef45ed0 are RED (CS-1273), still TWO green for headroom.
+PRIOR CI (session 127 open read, DONE): tier1 37282708674 at f793d1f SUCCESS and tier1
+  37285333569 at ef45ed0 SUCCESS, both read in session 128.
+CHANNEL: the session 128 ANSWER to MAIN 1927/0310 was delivered BEFORE this ritual
+  (1/1, re-hash match, gate CLEAN), as the dispatching session reported it; this ritual
+  read the outbox copy but did not re-hash MAIN's destination copy - UNVERIFIED here.
+SHORTCUT: Desktop CS-NEXT-SESSION.lnk read back targeting C:\Clockspeed\CS-NEXT-SESSION.txt.
+UNVERIFIED: the 72-unread inbox count at session start (reported by the dispatching
+  session, not re-counted); MAIN 1927's provenance figures (14 of 14) were measured by the
+  dispatching session, not re-run in this ritual.
