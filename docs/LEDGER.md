@@ -75,6 +75,44 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1275 - the root moved to E: under ADR 0026 on the operator's own words, the root text and the hardcoded C: paths with it
+Verification: `docs/adr/0026-the-root-moves-to-e.md`, indexed in `docs/adr/README.md`; the root
+text in `CLAUDE.md` sections 2 and 7 and in `BOOTSTRAP.md`; the `.claude/commands/done.md`
+shortcut check; the S7a primary-tree prose in `docs/item_notes/phase7.md`; the comments in
+`ops/loop/inbox_responder.py` and `ops/loop/launch_queue_loop.ps1`; the ADR's row in
+`tools/provenance.tsv`. Graded by
+`tests/data/test_drift_guard_data.py::test_the_walk_reaches_every_tracked_file_in_this_repository`,
+`tests/test_provenance_manifest.py::test_every_tracked_path_has_a_manifest_row`,
+`python tools/drift_guard.py` exit 0, and `tests/test_doc_budget.py` with
+`python tools/doc_budget.py` exit 0 (`CLAUDE.md` under its 40960-byte hard budget).
+Authority: the operator's own words in this repository's main session - session 129, "yes I
+want to do the move to E:", and session 130, "do the move to E:" - meet the reversal clause of
+the ROOT half of the `CLAUDE.md` section 7 settled entry "Name is Clockspeed, root is ...".
+The name and the folder name are unchanged.
+Landed, each step named by what was read back after it: INBOX_STOP restored and the inbox
+status read back idle before any file moved (the Q4 scope ruling); robocopy of the whole root
+to `E:\Clockspeed`, 32813 files, 2.514 GB, 0 failed (rc 1, copied); the cs-g06 worktree copied
+to `E:\Clockspeed-wt`; `scripts/install_hooks.py` re-run, `core.hooksPath` read back
+`.githooks`; `git worktree repair` over 36 worktree paths, 37 worktree lines read back, all on
+E:; the old cs-lane-queue lane worktree classified NOT NEEDED by content (clean, its tip an
+ancestor of `main`, ignored caches only, superseded by the CS-1274 lane-<i> layout), then
+`C:\cs-worktrees` and `C:\Clockspeed-wt` sent to the Recycle Bin and `git worktree prune`; the
+external pointers re-pointed and read back on E: - the inbox responder's scheduled task
+arguments, the three Desktop shortcuts, Claude Code's trust entry and per-path memory store,
+and the E: local settings. The move commit `c97772c` was pushed; the pre-push whole suite at
+it, read by the main session from the push log: 14711 passed, 15 skipped, 0 failed. The 15
+skips are the 12 of session 129 plus 3 `tests/test_posttooluse_census.py` arms that skip until
+a Claude Code session has run with its working directory inside the E: checkout.
+Decision: moved WITHOUT MAIN's runbook, which never arrived (MAIN 2155 ordered an inventory
+only), on the operator's order; a directory junction at the old C: path pointing at E:, the
+sibling trees' pattern, laid by a cutover task once the moving session exits;
+`C:\cs-flip-backup` stays on C: - irreplaceable, and already outside the root. Alternatives and
+why each was rejected: the ADR. Reversed by: the operator's own words (ADR 0026).
+ADR: `docs/adr/0026-the-root-moves-to-e.md`
+Not in this item: the CS-G03 clean-machine re-walk, now due at a tip at or after the move
+commit and a hard precondition of CS-700 step a (`docs/GATED.md`, CS-G03); the C: cutover,
+which runs after this session exits and is read back by the next one.
+
 ### 2026-10-08 - CS-1274 - three queue lanes on the kit v9 lane mutex, one worktree per lane index derived from the repo root
 Verification: `ops/loop/lanes.py`, `ops/loop/lane_launcher.py` and `ops/loop/queue_loop.py`, plus
 `tests/ops/test_multi_lane.py::test_cs1274_three_lanes_hold_three_indices_and_three_worktrees`,

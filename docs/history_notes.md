@@ -24,6 +24,48 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1275 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1275
+
+### Acceptance
+
+the root moves to E: per MAIN's runbook, which has not arrived (MAIN 2155 orders the inventory
+only, no change yet), and the move commit carries: an ADR in `docs/adr/`, indexed in
+`docs/adr/README.md`, recording the operator's 2026-10-08 words "yes I want to do the move to
+E:" as the reversal of the ROOT half of the `CLAUDE.md` section 7 settled entry "Name is
+Clockspeed, root is C:\Clockspeed" (the name is unchanged; the move keeps the folder name); the
+`CLAUDE.md` section 2 and section 7 root text; and the hardcoded C: paths of the MAIN 2155
+inventory - the `.claude/commands/done.md` shortcut check, and the `ops/loop/lane_launcher.py`
+worktree root unless CS-1274 has removed it - applied per that runbook. Before the move,
+INBOX_STOP is restored and the inbox status is read back idle (the Q4 scope ruling).
+
+### Full headline
+
+move the root to E: per MAIN's runbook, with its ADR, the CLAUDE.md root text and the MAIN 2155
+hardcoded C: paths
+
+### Filed 2026-10-08 by the session 129 E: move decision
+
+The operator's words in this repository's own main session meet the reversal clause of the
+root half of that settled entry, and the clause requires an ADR (`docs/LEDGER.md`, the
+FLEET-KIT v9 decision record, part 4). Order, per the 2026-10-08 scope rulings: CS-1272, then
+CS-1274, then this move commit; the CS-G03 clean-machine re-walk follows at a tip at or after
+it, before CS-700 step a.
+
+### Recorded 2026-10-08 by the session 129 /done
+
+CS-1274 has landed, so the `ops/loop/lane_launcher.py` worktree root is already derived from
+the repo root and leaves this item's list of hardcoded paths. The other two MAIN 2155 HARDCODED
+rows stand: the `.claude/commands/done.md` shortcut check, which the move changes, and the
+fleet-shared ProgramData path in `ops/loop/slots.py`, which it does not. The old cs-lane-queue
+worktree in the C: cs-worktrees directory is superseded by the lane-<i> layout - classify it
+by content at the move, never delete it unread. MAIN's runbook has still not arrived.
+
+
 ## CS-1274 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
@@ -2825,6 +2867,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 127 - archived 2026-10-08 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 127 - 2026-10-05 - CS-1271 closed through an adjudicator and two adversaries, FLEET-KIT v6/v7 provenance verified with a partial v7 adoption, and the inbox triaged
+
+- Shipped: CS-1271 closed (generated power is live in the product; a skip on an incomplete input records verdict-indeterminate, outside SETTLED_STEP_KINDS). Detail in docs/LEDGER.md. Decision records, nothing closed: FLEET-KIT v7 decision C and the CS-1225 relocation of the 6.1 MAIN grant quote (both in docs/LEDGER.md, committed in d5f05de). Filed CS-1272 (v7 full adoption straight after CS-700 S12a). MAIN 0905: two memory facts added (memory/concurrent-agents-share-one-scratchpad.md, memory/bare-python3-is-the-store-stub.md). MAIN 0020: no action.
+- In flight: session 126's open CI read is DONE - tier1 37262760914 at c6b7ba4 and tier1 37264699918 at 5a7d151 both SUCCESS, read at session start. The CS-700 flip - steps a-d were NOT run; the operator ordered inbox work plus /done, and any commit to main after S7a voids it. Inbox: 63 unread at triage, all classified in the gitignored ops/loop/control/progress/inbox-triage-127.md, NOT acknowledged. MAIN 0830: the unattended reply is STILL OWED while INBOX_STOP holds. The ANSWER to MAIN 0215/2237 is written in the gitignored outbox and is delivered after the push.
+- Decisions: FLEET-KIT v7 decision C (partial adoption now; vendoring, block re-embed and headless/lane paths in one commit after S12a; reversed by S12a aborting, a MAIN ruling, or the operator's words). CS-1271: no ledger schema bump, because step kinds are not persisted. No ADR.
+- Surprises: a reject made only because a floor was incomplete was counted as settled, so the ledger could complete an "Add N MW" card while the shortfall was unknown - the draw-incomplete reject carried the same flaw before the session. The first CS-1271 cut halted the headroom rule input-missing, visible through GET /api/advice.
+- Failed paths: the first CS-1271 cut (adjudicator: REPAIR FIRST) and the second (adversary: REFUTED, plus a false docstring). The repair HELD a second adversary with mutants killed.
+- Next action: run CS-700 flip steps a-d, stop at step e and present the S9 own-words line.
 
 ## Session 126 - archived 2026-10-08 from `WAKEUP_NOTES.md`, verbatim
 

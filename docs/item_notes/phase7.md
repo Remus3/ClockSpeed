@@ -1621,39 +1621,3 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
-
-## CS-1275
-
-### Acceptance
-
-the root moves to E: per MAIN's runbook, which has not arrived (MAIN 2155 orders the inventory
-only, no change yet), and the move commit carries: an ADR in `docs/adr/`, indexed in
-`docs/adr/README.md`, recording the operator's 2026-10-08 words "yes I want to do the move to
-E:" as the reversal of the ROOT half of the `CLAUDE.md` section 7 settled entry "Name is
-Clockspeed, root is C:\Clockspeed" (the name is unchanged; the move keeps the folder name); the
-`CLAUDE.md` section 2 and section 7 root text; and the hardcoded C: paths of the MAIN 2155
-inventory - the `.claude/commands/done.md` shortcut check, and the `ops/loop/lane_launcher.py`
-worktree root unless CS-1274 has removed it - applied per that runbook. Before the move,
-INBOX_STOP is restored and the inbox status is read back idle (the Q4 scope ruling).
-
-### Full headline
-
-move the root to E: per MAIN's runbook, with its ADR, the CLAUDE.md root text and the MAIN 2155
-hardcoded C: paths
-
-### Filed 2026-10-08 by the session 129 E: move decision
-
-The operator's words in this repository's own main session meet the reversal clause of the
-root half of that settled entry, and the clause requires an ADR (`docs/LEDGER.md`, the
-FLEET-KIT v9 decision record, part 4). Order, per the 2026-10-08 scope rulings: CS-1272, then
-CS-1274, then this move commit; the CS-G03 clean-machine re-walk follows at a tip at or after
-it, before CS-700 step a.
-
-### Recorded 2026-10-08 by the session 129 /done
-
-CS-1274 has landed, so the `ops/loop/lane_launcher.py` worktree root is already derived from
-the repo root and leaves this item's list of hardcoded paths. The other two MAIN 2155 HARDCODED
-rows stand: the `.claude/commands/done.md` shortcut check, which the move changes, and the
-fleet-shared ProgramData path in `ops/loop/slots.py`, which it does not. The old cs-lane-queue
-worktree in the C: cs-worktrees directory is superseded by the lane-<i> layout - classify it
-by content at the move, never delete it unread. MAIN's runbook has still not arrived.

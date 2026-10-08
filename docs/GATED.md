@@ -689,6 +689,13 @@ after the CS-1275 move commit settles both, and it is a hard precondition of CS-
 CS-1272, CS-1274 and CS-1275 are MENTIONED in the classification block, not BLOCKED: the
 re-walk waits on the move, never the move on this gate. THIS GATE STAYS GATED.
 
+#### Filed 2026-10-08 (session 130): the CS-1275 move commit landed, so the re-walk is due
+
+**THE MOVE COMMIT LANDED** in session 130 (`docs/LEDGER.md` under CS-1275, and
+`docs/adr/0026-the-root-moves-to-e.md`). The one clean-machine re-walk the note above names
+is now DUE, at a tip at or after that commit, and it stays a hard precondition of CS-700
+step a (the Q2 scope ruling). THIS GATE STAYS GATED.
+
 ### CS-G04 - Dedicated-server data lane
 
 **One line:** Read world state from the dedicated server API instead of, or in addition
