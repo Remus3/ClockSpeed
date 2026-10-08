@@ -24,6 +24,153 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1274 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1274
+
+### Acceptance
+
+kit v9 `fleet_lanes` configured at three lanes with a worktree per lane; the lane worktree root
+derived from the repo root, so no hardcoded C: path is left in `ops/loop/lane_launcher.py`; the
+queue lane's item-13 checklist; QUEUE_STOP respected; landed as a commit separate from and after
+the CS-1272 commit, and before the CS-1275 move commit.
+
+### Full headline
+
+kit v9 fleet_lanes at three lanes with a worktree per lane, the lane worktree root derived from
+the repo root
+
+### Filed 2026-10-08 by the session 129 scope rulings
+
+The Q1 ruling (`docs/LEDGER.md`, the FLEET-KIT v9 decision record): MAIN 2237 section 3 reads
+"one adoption commit, plus the lane change", so the lane change is its own commit after the
+CS-1272 v9 commit reads green. Fence: before the E: move commit, never inside it - deriving the
+lane worktree root from the repo root removes a hardcoded C: path the move would otherwise have
+to carry. Reversed by: a MAIN ruling putting the lanes into the move runbook.
+
+
+## CS-1273 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1273
+
+### Acceptance
+
+tier2 reads green on both windows-latest fast-shard jobs (full suite and clean-checkout probe)
+for the pushed tip, and `tests/test_flip_checks.py::test_a_passing_run_exits_zero_while_the_commit_graph_is_held`
+no longer fails on a runner image where its Windows control does not take - the control asserts
+that a mapped commit-graph blocks removing a hard-link twin of it, and on that image the removal
+raised no PermissionError. Where the control does not take, the arm says so by name rather than
+failing (the suite's existing pattern for an icacls deny or a chmod that did not take); where
+it does take, the arm still proves the CS-1267 cleanup. A reverted CS-1267 fix still reddens
+the arm on a platform where the control takes. The failing reproduction comes first.
+
+### Full headline
+
+tier2 red: the CS-1267 commit-graph hold control raises no PermissionError on the windows-latest
+image, failing both windows fast-shard jobs
+
+### Filed 2026-10-07 by the session 128 /done, from the tier2 red read
+
+Measured with `gh run view --log-failed`: the scheduled tier2 runs of 2026-10-05, 10-06 and
+10-07, all on the same tip, each fail exactly one test in the windows-latest fast shard of
+both the full suite and the clean-checkout probe, at the control's `pytest.raises(PermissionError)`
+("DID NOT RAISE"); runner image windows-2025-vs2026, Python 3.14. The test landed with CS-1267
+after the last green tier2 run, so tier2 has never run it green. Every other tier2 job on those
+runs passed, and tier1 on the same tip passed. This red holds the tier2 headroom count at two
+green runs.
+
+
+## CS-1272 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1272
+
+### Acceptance
+
+in ONE commit, due 2026-10-08, CS session 129 - FLEET-KIT v9, which supersedes v8 (MAIN 2354:
+"do not vendor v8 first"; the FLEET-KIT v9 decision record in `docs/LEDGER.md`). The ONE commit
+carries all of: `ops/fleet_kit/` vendored byte-for-byte to kit v9, all 16 kit files hash equal
+to the MAIN 2354 bundle and `ops/fleet_kit/MANIFEST.json` byte-equal to the bundle's; the v9
+FLEET-COMMON block re-embedded in `CLAUDE.md` byte-identical between its markers, with the
+conformance test pinning the block hash to the manifest passing; `pyproject.toml` entries for
+the six new kit Python modules (fleet_checklist, fleet_done, fleet_inbox, fleet_lanes,
+fleet_secrets, fleet_watch), with fleet_headless's ruff ignores re-measured on the v9 bytes -
+the kit's JS, JSON and CSS files get no `pyproject.toml` entry; `THIRD_PARTY.md` rows for the
+new kit files, a re-read of `ops/fleet_kit/NOTICE`, and `tools/provenance.tsv` stamps; about
+1 KB or more relocated out of `CLAUDE.md` per its section 4, never condensed (38294 bytes
+today, plus the 9273-byte v9 block, less the about 5650 bytes embedded today, projects about
+41.9 KB against the 40960-byte hard budget), with precedence clause (b) and the stale section
+2.3.1 sentence landing the vendoring "straight after" S12a retired; `.claude/commands/done.md`
+ending in the act `python ops/fleet_kit/fleet_done.py mark --session <n> --status done`, with a
+`--status failed --reason "<step>"` variant; the project Stop hook in `.claude/settings.json`
+exactly as the 2026-10-08 frozen-file grant in `docs/LEDGER.md` states it; `.gitignore` lines
+for the session-done files ops/loop/control/session_done.json and
+ops/loop/control/session_done.seen; zero display keys in `.claude/settings.json` and the
+gitignored .claude/settings.local.json; the inbox responder's
+`fleet_headless.spawn` call carrying a non-empty note label and a kind (inbox or triage), and
+its item-13 checklist; a grep-level test that every tracked path starting a headless `claude`
+calls `fleet_headless.spawn`, naming `ops/loop/run_lane.ps1` as the one disabled path (held by
+QUEUE_STOP; the `CLAUDE.md` precedence clause (c) exception); the MAIN 0230 roster change (LL
+retired, EW added) in `tests/ops/test_shared_slots.py`, in `tools/outbound_send.py` (a refusal
+for an LL destination), in `.claude/commands/done.md` (its section 8 line naming LL as a
+hand-off carrier), in the `config/ports.json` notes and in `.claude/commands/drift-guard.md`
+(LL marked retired, EW 8940-8959 added) - `tests/test_channel_doc.py` is NOT-APPLICABLE pending
+adjudication, because it pins the vendored `docs/CHANNEL.md`; and `CLAUDE.md` under its hard
+budget with `python tools/doc_budget.py` exit 0. AFTER the commit: INBOX_STOP is lifted so the
+unattended responder goes live and its own reply quotes the SHA-256 it computes (closing MAIN
+0830 and FLEET-1), and the first usage-log line is read back with its ts, kind and label; then
+ONE ANSWER goes to MAIN with the vendoring commit, the conformance read on v9, that usage line
+and the MAIN 0300 position (`BACKLOG.md`, under `CLAUDE.md` section 7). NOT in this item:
+`fleet_lanes` (CS-1274) and the CS-G03 clean-machine re-walk (a hard precondition of CS-700
+step a, per the 2026-10-08 Q2 scope ruling).
+
+### Full headline
+
+adopt FLEET-KIT v9 fully in ONE commit (v9 supersedes v8, session 129): vendor, block re-embed,
+kit modules in pyproject.toml, Stop hook, spawn label, roster, responder live
+
+### Recorded 2026-10-08 by the session 129 FLEET-KIT v9 decision
+
+The operator said "update to v8" and then "rather v9" in session 129's main session, and MAIN
+2354 orders v9 as superseding v8 with no v8 vendoring first, so this item vendors v9: 16 kit
+files where v8 had 12, with a sixth new kit Python module, fleet_done, which brings the
+`.claude/commands/done.md` mark act, the project Stop hook (a frozen-file grant, recorded
+before the edit) and the two `.gitignore` lines. The v9 block is larger, so the `CLAUDE.md`
+relocation grows from about 0.4 KB to about 1 KB or more. Two parts left this item by the
+2026-10-08 scope rulings: `fleet_lanes` lands as CS-1274, a second commit after this one and
+before the CS-1275 move commit, and the CS-G03 re-walk becomes one walk at a tip at or after
+the move commit, a hard precondition of CS-700 step a. Fence: do not vendor v8 first. Reversed
+by: the operator's own words or a MAIN kit v10.
+
+### Recorded 2026-10-07 by the session 128 FLEET-KIT v8 decision
+
+The v6 record's reversal clause - the S9 confirmation still absent at the next attended
+session - fired in session 128, and MAIN 1927 section 1 orders v8 now when S12a is not imminent. v8
+carries v6 and v7, so this item now lands all three. The `.claude/commands/*.md` edits above are
+part of this slice. NOT part of this acceptance, named not done in the session 128 ANSWER: the
+item 14a fold of inbox handling into a loop tick, and the outbound cap. Fence: do not re-defer
+to after S12a. Reversed by: the operator's own words or a MAIN ruling that v8 must wait.
+
+### Filed 2026-10-05 by the session 127 FLEET-KIT v7 decision
+
+Decision C (the FLEET-KIT v7 record in `docs/LEDGER.md`) landed the tree-local v7 items now and
+deferred the rest here, because `pyproject.toml` is in the CS-G03 walked set and the block cannot
+re-embed without vendoring. Estimated `CLAUDE.md` size after the v7 block is close to the hard
+budget - measure it before the commit and relocate per `CLAUDE.md` section 4 if it breaches.
+NOT part of this item: CS-1231 slice C, which still waits on CS's kit asks v7 does not carry
+(a command-line entry, the xhigh/max efforts, the "Refused" task-name wording).
+Reversed by: S12a aborting, a MAIN ruling that v7 precedes the flip, or the operator's own
+words - then adopt fully at once and re-walk CS-G03.
+
+
 ## CS-1272 - prose the v9 block replaced, relocated from `CLAUDE.md` 2026-10-08
 
 **SUPERSEDED BY THE FLEET-KIT v9 BLOCK, NOT CURRENT.** CS-1272 re-embedded the v9
@@ -2678,6 +2825,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 126 - archived 2026-10-08 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 126 - 2026-10-04 - CS-G08 satisfied in Windows Sandbox, CS-1186 and CS-1187 closed by a never-seen walk, and four product items closed through adversaries
+
+- Shipped: CS-1238, CS-1268, CS-1059, CS-1269, CS-1186, CS-1187 and CS-G08 closed. Detail in docs/LEDGER.md. CS-G03: check 7 and the human half of check 5 SATISFIED, recorded as a decision; the flip stays GATED. Filed CS-1271 (advise.py must pass generators= to balance_of - production is not live in the product until it does).
+- In flight: the CS-700 flip, unblocked on its CS-G08 precondition: final-tip S3/S4/S5 bundle and S7q, S7a baseline and control, S8/S8a, then the operator's S9 own-words line. `advise_and_record` (CS-1268) has no caller in clockspeed/ or shell/ - GET /api/advice runs the read-only advise(). NO LANE WAS LOCKED OR ARMED at /done and INBOX_STOP stays in place; the operator ordered the next session headless-driven and away overnight.
+- Decisions: CS-G03 partial satisfaction on the second Sandbox walk (rejected: a blind GitHub-clone re-walk, a re-walk at HEAD; why: every clause has a log line the adjudicator read). CS-1268 completes a card only on its rule's definite verdict, graded by the SETTLED_STEP_KINDS allowlist after a denylist missed INPUT_REFUSED. CS-1059 adversary loop stopped by cost against risk. No ADR.
+- Surprises: the first Sandbox walk (logged as "walk 2" in the CS-1186 section) FAILED on six defects the override approximation never saw - openssl not on PATH, no Python/git/Node route, Windows timeout shadowing GNU timeout, MAX_PATH tmp names, the mypy-gate user-site control inside a venv. CS-1059's first cut read 75 MW against 2825 MW because placement's allowlist dropped fuel, nuclear and geothermal generators. CS-1238's first advisor drop arm reddened twice per drop.
+- Failed paths: README's Python step was written and refuted twice; it now defers to the official Windows guide. An untracked progress file in a worktree ROOT reddened the drift walk, provenance and manifest arms - progress files belong in gitignored ops/loop/control/progress/. Four concurrent whole-suite runs lost xdist workers. A builder write-list without registry/audit/placement blocked CS-1059 until widened.
+- Next action: headless: run CS-700 flip steps a-d, stop at step e and record the S9 ask for the operator; in parallel build CS-1271.
 
 ## Session 125 - archived 2026-10-07 from `WAKEUP_NOTES.md`, verbatim
 

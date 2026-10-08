@@ -114,6 +114,9 @@ gate: CS-1048 MENTIONED
 gate: CS-1157 MENTIONED
 gate: CS-1186 MENTIONED
 gate: CS-1187 MENTIONED
+gate: CS-1272 MENTIONED
+gate: CS-1274 MENTIONED
+gate: CS-1275 MENTIONED
 CLOCKSPEED-GATE-CLASSIFICATION END
 ```
 
@@ -674,6 +677,17 @@ under CS-G08, CS-1187, CS-1186 and the CS-G03 decision record.
 **THIS GATE STAYS GATED.** The flip still waits on the remaining checks re-run at the
 final tip (CS-700 S3 to S8a) and on the operator's own-words S9 confirmation - section
 (b) above. Nothing in this note is that confirmation.
+
+#### Filed 2026-10-08 (session 129): the session 126 satisfaction is spent, and one re-walk follows the CS-1275 move
+
+**THE CS-G03 DECISION RECORD'S REVERSAL CLAUSE FIRED.** Its record in `docs/LEDGER.md`
+(2026-10-04) holds the satisfaction only until a commit before the flip touches a path a walk
+step exercises. CS-1272 edited `pyproject.toml` and CS-1274 edited `docs/OPERATIONS.md`, so
+check 7 and the human half of check 5 are OWED again. Per the 2026-10-08 Q2 scope ruling
+(`docs/LEDGER.md`, the FLEET-KIT v9 decision record), ONE clean-machine walk at a tip at or
+after the CS-1275 move commit settles both, and it is a hard precondition of CS-700 step a.
+CS-1272, CS-1274 and CS-1275 are MENTIONED in the classification block, not BLOCKED: the
+re-walk waits on the move, never the move on this gate. THIS GATE STAYS GATED.
 
 ### CS-G04 - Dedicated-server data lane
 

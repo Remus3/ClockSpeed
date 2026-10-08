@@ -365,7 +365,4 @@ CS-1207 - the hook environment allowlist lists known readers, so an unlisted rea
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1272 - adopt FLEET-KIT v9 fully in ONE commit (v9 supersedes v8, session 129): vendor, block re-embed, kit modules in pyproject.toml, Stop hook, spawn label, roster, responder live - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1273 - tier2 red: the CS-1267 commit-graph hold control raises no PermissionError on the windows-latest image, failing both windows fast-shard jobs - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1274 - kit v9 fleet_lanes at three lanes with a worktree per lane, the lane worktree root derived from the repo root - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1275 - move the root to E: per MAIN's runbook, with its ADR, the CLAUDE.md root text and the MAIN 2155 hardcoded C: paths - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

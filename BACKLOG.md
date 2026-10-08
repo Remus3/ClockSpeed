@@ -488,3 +488,15 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - CS-1272 responder residual, round 3: a sender-leading MAIN ORDER name gets sonnet, not the
   code model, because the kit finds no ORDER class there - TRIGGER: a live MAIN ORDER so
   named, or the responder's model choice next touched.
+- The `docs/ARCHITECTURE.md` row of the `CLAUDE.md` section 4 table, and its copies in
+  `.claude/agents/doc-sync.md`, `.claude/commands/sync-docs.md` and `CONVENTIONS.md`, still read
+  "Module map, data flow, seams, ownership" and do not name the tooling map CS-1272 moved to
+  that file's section 6, which its own header already claims - TRIGGER: the next edit to any of
+  those rows, or a doc-sync run that routes a tooling fact by the table.
+- `tests/test_subprocess_timeouts.py` keeps its own uncached `scan_repository()`, called about
+  six times per run - the per-file floor CS-1277 cached away in `tests/toolpath_guard.py` -
+  TRIGGER: the hook shard nears its tier-1 budget, or that module is next touched.
+- The responder's item 13a printed checklist is not wired - only the progress-file checklist
+  is - and printing the U+2610 box to a redirected cp1252 stdout can raise an encode error -
+  TRIGGER: the headless path is ordered to print it (a kit v10 or a MAIN note), or the
+  responder's output is next touched.

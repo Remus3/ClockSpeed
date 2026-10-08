@@ -75,6 +75,144 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1274 - three queue lanes on the kit v9 lane mutex, one worktree per lane index derived from the repo root
+Verification: `ops/loop/lanes.py`, `ops/loop/lane_launcher.py` and `ops/loop/queue_loop.py`, plus
+`tests/ops/test_multi_lane.py::test_cs1274_three_lanes_hold_three_indices_and_three_worktrees`,
+`tests/ops/test_multi_lane.py::test_cs1274_the_lane_worktree_root_is_derived_from_the_repo_root`,
+`tests/ops/test_multi_lane.py::test_cs1274_the_kits_acquire_mutex_is_the_one_both_acquirers_take`,
+`tests/ops/test_multi_lane.py::test_cs1274_a_fourth_lane_is_refused_by_the_cap_and_writes_nothing`,
+`tests/ops/test_multi_lane.py::test_cs1274_r2_the_runbook_names_the_per_index_worktrees_and_not_the_old_one`,
+`tests/test_lane_launcher.py::test_the_launcher_carries_no_hardcoded_worktree_base`,
+`tests/test_lane_launcher.py::test_a_lanes_home_worktree_is_the_kits_derivation_from_the_repo_root`,
+`tests/test_lane_launcher.py::test_cs1274_r2_an_interrupt_between_spawn_and_repoint_kills_and_releases`,
+`tests/test_lane_launcher.py::test_cs1274_r3_an_untracked_kill_takes_the_wrappers_child_with_it`,
+`tests/test_lane_lock.py::test_cs1274_r2_a_repoint_keeps_the_claimer_as_the_holder`,
+`tests/test_lane_lock.py::test_cs1274_r2_a_release_an_open_reader_blocks_still_frees_the_lane`,
+`tests/test_queue_loop.py::test_cs1274_each_fire_lists_only_the_remaining_cycles_and_ends_with_done`
+and `tests/test_queue_loop.py::test_cs1274_r2_the_stop_is_read_before_every_claim_attempt`.
+Landed: three lanes - queue, queue-b and queue-c - each claimed through the kit's acquire mutex
+on its own index lock (0, 1, 2) in the gitignored lanes control directory; each lane's worktree
+is the kit's `ensure_worktree` derivation, cs-worktrees/lane-<i> beside the main checkout, so
+the hardcoded C: worktree root in `ops/loop/lane_launcher.py` is gone; each fire writes a
+lane-<i> progress file carrying the item-13 checklist; QUEUE_STOP is re-read before every
+claim; a release retries, then neutralises the lock in place; a re-point writes `holder_pid`;
+an interrupt between spawn and re-point kills the worker tree with taskkill /T;
+`docs/OPERATIONS.md` names the lane-<i> layout. Fix-forward in this item: a stub literal in
+`tests/test_lane_launcher.py` spelled the CI host's account name, so
+`tests/test_assertion_rendering.py::test_no_shipped_function_echoes_personal_data_through_its_own_source`
+failed on CI only (tier1 37754942380); respelled in `5369791`.
+Process: adversary round 1 REFUTED on four points, all repaired; round 2 REFUTED only the
+missing /T, repaired; the loop STOPPED BY COST AGAINST RISK (`CLAUDE.md` section 7) with the
+queue lane still held by QUEUE_STOP. Residuals: `BACKLOG.md` under Session 129 residuals.
+Not in this item: MAIN 2237 section 3 item 4, one governor slot per worker run - the lane
+still starts through `ops/loop/run_lane.ps1`, the `CLAUDE.md` precedence clause (c) exception.
+Suite: this record states no whole-suite count for this item's pushes - none was read back by
+the ritual that wrote it; the tier1 read for the tip carrying this record is in the session 129
+/done report in `CS-NEXT-SESSION.txt`.
+
+### 2026-10-08 - CS-1277 - tier1 back under its ceiling: the catch-all head rebalanced and the real-tree toolpath scan walked once per session
+Verification: the shard lists in `.github/workflows/tier1.yml` and `.github/workflows/tier2.yml`,
+pinned by `tests/test_tier1_budget.py::test_the_catch_alls_rebalanced_head_runs_last_in_the_hook_shard_and_nowhere_else`
+(`HOOK_FROM_CATCH_ALL`, `FILL_FROM_CATCH_ALL_REBALANCE`); `tests/toolpath_guard.py` caches the
+real-tree scan, plus `tests/test_toolpath.py::test_the_real_tree_is_walked_once_per_session`.
+ID: allocated by the session 129 /done for work that landed without one; CS-1275 was the max.
+What: tier1 37744423735 at `72205f5` FAILED its budget check - "tier 1 took 482s - OVER THE
+CEILING (budget 420s, ceiling 480s)" in the save shard (job 486s; the gates job 478s). Five
+files left the catch-all head: `tests/test_exception_rendering.py`,
+`tests/test_subprocess_timeouts.py`, `tests/solve/test_ceiling_fence.py` and
+`tests/test_canary_population.py` to the hook shard, `tests/test_secret_sweep.py` to the fill
+shard; the CS-1274 r3 stub's Popen in `tests/test_lane_launcher.py` was bounded, because
+`tests/test_subprocess_timeouts.py` blocked the push. The cache took `tests/test_toolpath.py`
+from 134.61s to 10.72s serial; the save shard was dominated by that one uncached repository
+scan, not by its file count, and CS-1272 added no per-scan cost. tier1 37754942380 at
+`0ab541c`: save 193s, gates 413s, fill 367s, guard 363s, hook 226s - all under the ceiling,
+gates and fill near the budget; it failed one guard test on the CS-1274 literal, repaired under
+CS-1274 above.
+Decision: the 420/480 pin was NOT raised. Residual: `tests/test_subprocess_timeouts.py` keeps
+its own uncached `scan_repository()` - `BACKLOG.md` under Session 129 residuals.
+
+### 2026-10-08 - CS-1276 - the tier2 headroom record retaken over three green runs per leg, the pending table and its pin retired
+Verification: `tools/tier2_durations.json`, retaken by `python tools/tier2_headroom.py --refresh --runs 6`;
+`tools/tier2_headroom.py`, plus
+`tests/test_tier2_headroom.py::test_the_shipped_record_grades_clean_against_the_shipped_workflow`
+and `tests/test_tier2_headroom.py::test_the_shipped_record_covers_every_job_the_workflow_expands_to`.
+ID: allocated by the session 129 /done; the work was the hand-off's open item 6, which carried
+none.
+What: the record holds tier2 37220097152 at `c30e347`, 37225284192 at `69d44c5` and 37733300151
+at `df62fd8`, every job green, plus the three red scheduled runs at `ef45ed0` (CS-1273). Every
+leg holds three green runs and sits under 4/5 of its own timeout; the worst is the windows
+fast-shard probe at 999s of 1440s. `PENDING_FIRST_RECORD`, its `EXPECTED_PENDING` pin, the
+pending grade path and the arms that tested only that table are gone.
+Decision: `--runs 6` over the default five, adjudicated, so `c30e347` is inside the window past
+the three red runs and no leg's run floor rests on a red run.
+
+### 2026-10-08 - CS-1272 - FLEET-KIT v9 adopted in one commit, the responder live with a labelled spawn, MAIN 0830 and FLEET-1 closed
+Verification: `ops/fleet_kit/MANIFEST.json` reads version 9, plus
+`tests/test_fleet_kit.py::test_fleet_kit_conformance` (conformance() empty, KIT_VERSION 9),
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest` and
+`tests/test_fleet_kit.py::test_every_kit_file_on_disk_is_named_by_the_manifest`; the v9
+FLEET-COMMON block byte-identical between the `CLAUDE.md` markers, with `python tools/doc_budget.py`
+exit 0; `tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_stop_hook` and
+`tests/test_claude_hook.py::test_settings_moved_no_byte_but_the_two_command_values`;
+`tests/ops/test_headless_spawn_paths.py::test_every_direct_start_is_the_kit_or_the_one_named_exception`
+and `tests/ops/test_headless_spawn_paths.py::test_the_exception_is_the_one_claude_md_names`;
+`tests/ops/test_inbox_responder.py::test_the_usage_line_carries_ts_kind_and_label`,
+`tests/ops/test_inbox_responder.py::test_a_fire_writes_its_item_13_checklist_while_the_worker_runs`,
+`tests/ops/test_inbox_responder.py::test_a_note_from_the_retired_sibling_never_spawns_and_is_skipped_by_name`
+and `tests/ops/test_inbox_responder.py::test_a_live_note_past_the_listing_cap_still_runs_and_only_it_is_counted`;
+`tests/test_outbound_send.py::test_a_retired_sibling_named_by_to_refuses_the_whole_send`;
+`tests/test_toolpath.py::test_every_vendored_exemption_names_a_kit_file_at_its_manifest_pin`.
+Landed, per the amended v9 acceptance (relocated to `docs/history_notes.md` under CS-1272): all
+16 kit files hash equal to the MAIN 2354 bundle, the manifest's SHA-256 the one the FLEET-KIT v9
+decision record below states; `CLAUDE.md` under its 40960-byte hard budget after the section 2.2
+tooling-map rows moved to `docs/ARCHITECTURE.md` section 6 and the superseded section 2.3.1 prose
+to `docs/history_notes.md`, precedence clause (b) retired; `pyproject.toml` entries for the six
+new kit Python modules; `THIRD_PARTY.md` rows and their register test; `tools/provenance.tsv`
+rows; the project Stop hook in `.claude/settings.json` under the 2026-10-08 grant below, timeout
+45; `.claude/commands/done.md` ending in the `fleet_done.py mark` act; `.gitignore` lines for the
+session-done files; zero display keys; hash-pinned vendored-kit exemptions in
+`tests/toolpath_guard.py`, `tests/test_exception_rendering.py` and `tests/ops/test_shared_slots.py`;
+the responder's spawn note label and kind (inbox or triage), its item-13 checklist in its
+progress file, and a named skip for the retired sibling; the MAIN 0230 roster in
+`tests/ops/test_shared_slots.py`, `tools/outbound_send.py` (an LL destination refused),
+`.claude/commands/done.md`, `config/ports.json` and `.claude/commands/drift-guard.md`;
+`tests/test_channel_doc.py` NOT-APPLICABLE, because it pins the vendored `docs/CHANNEL.md`.
+Fix-forward H3 in `ops/loop/inbox_responder.py` and `ops/loop/inbox_surface.py`: the responder
+judges full filenames past the listing cap, the kit's `note_sender` final.
+Suite: the pre-push whole suite at `91666ba`: 14635 passed, 12 skipped, 0 failed; tier1
+37739057161 at `91666ba` SUCCESS.
+After the commit: INBOX_STOP was lifted 2026-10-08 01:47, to the Recycle Bin; the responder's
+first usage line read back - ts 2026-10-08T01:57:17-05:00, kind inbox, label the MAIN 0830
+note's name, kit 9, model opus, rc 0; its own reply,
+2026-10-08-0157-from-CS-ANSWER-MAIN-0830-unattended-responder-SHA-256-MATCH.md, was delivered
+1/1 with the destination copy re-hashed equal, which CLOSES MAIN 0830 and FLEET-1.
+Channel: ONE ANSWER to MAIN 2354, 2155 and 1927,
+2026-10-08-0230-from-CS-ANSWER-MAIN-2354-2155-1927-kit-v9-ADOPTED-91666ba-prune-77-to-29-C-path-inventory.md,
+through `tools/outbound_send.py`: gate CLEAN 6/6 MEASURED, 1/1 reached, re-hash equal. It
+carried MAIN 2354 item 5 (MIG-1: `git worktree list` 77 lines to 29, 48 NOT NEEDED worktrees
+to the Recycle Bin then `git worktree prune`, 0 skipped, branch refs 219 = 219) and the MAIN
+2155 path inventory (HARDCODED 3, EXTERNAL 22 rows covering 164 paths, DOC 62, FIXTURE 37). It
+reported CS-1274 as BUILT NOT LANDED; CS-1274 landed afterwards, owed to MAIN in the next
+batched note.
+Process: the first squash was REFUTED twice - a fixture spelled a sibling marker, and the
+retired-sibling skip failed open on non-canonical names - both repaired as H2; H2 was REFUTED
+on names over 120 characters, notes past the listing cap and a fail-closed kit disagreement,
+repaired as H3; round 3 UPHELD every H3 repair and REFUTED only the pre-existing `is_damped`
+substring match, which touches 0 of 511 live names; the loop STOPPED BY COST AGAINST RISK
+(`CLAUDE.md` section 7). Residuals: `BACKLOG.md` under Session 129 residuals.
+Not in this item, as its acceptance said: the lanes (CS-1274, above) and the CS-G03 re-walk -
+one walk at a tip at or after the CS-1275 move commit, a hard precondition of CS-700 step a.
+
+### 2026-10-08 - CS-1273 - tier2 green again: the held commit-graph arm skips by name where its Windows hold does not take
+Verification: `tests/test_flip_checks.py::test_a_passing_run_exits_zero_while_the_commit_graph_is_held`,
+which skips with `tests/test_flip_checks.py::HOLD_DID_NOT_TAKE` where the mapped commit-graph
+hold does not take, plus
+`tests/test_flip_checks.py::test_a_commit_graph_hold_that_does_not_take_is_named_not_failed`;
+tier2 37733300151 at `df62fd8` SUCCESS on all 23 jobs, both windows fast-shard jobs included.
+Red first: the DID NOT RAISE failure was reproduced before the repair. Where the hold takes -
+this box - reverting the CS-1267 --no-hardlinks fix still reddens the held arm. An adversary
+graded the close NOT REFUTED, 6 of 6 claims upheld.
+
 ### 2026-10-08 - FLEET-KIT v9 (MAIN 2354) - DECISION RECORD, NOTHING CLOSED. FLEET-KIT v9 decision and scope rulings: CS-1272 vendors v9 directly, the Stop-hook grant, CS-1274 and CS-1275 filed
 Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` and no vendored byte
 is edited by this record; the MAIN 2354 ORDER note, all 16 files of its v9 bundle and the
