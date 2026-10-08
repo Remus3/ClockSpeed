@@ -71,7 +71,7 @@ resolved at arm time (`(Get-Command pythonw).Source`); no interpreter path is
 written into a tracked file:
 
   schtasks /Create /F /SC MINUTE /MO 15 /TN "Clockspeed inbox responder"
-    /TR "\"<pythonw>\" \"C:\Clockspeed\ops\loop\inbox_responder.py\" --once"
+    /TR "\"<pythonw>\" \"E:\Clockspeed\ops\loop\inbox_responder.py\" --once"
 
 It must run as the operator's own account, so the user environment store the
 route reads is the right one.

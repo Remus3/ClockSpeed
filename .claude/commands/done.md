@@ -144,7 +144,7 @@ opens it without finding the session it came from.
 - [ ] Emphasise with CAPS, not `**`. It is read as plain text in Notepad, where `**` is two
       literal asterisks.
 - [ ] CONFIRM the Desktop shortcut still resolves: `CS-NEXT-SESSION.lnk` must target
-      `C:\Clockspeed\CS-NEXT-SESSION.txt`. A shortcut that lost its target is a handoff that
+      `E:\Clockspeed\CS-NEXT-SESSION.txt`. A shortcut that lost its target is a handoff that
       silently stopped being delivered, and nothing else in the ritual would notice.
 - [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file and
       its shortcut are the mechanism; the operator starts the next session with "continue".

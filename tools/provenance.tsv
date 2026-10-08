@@ -145,6 +145,7 @@ docs/adr/0022-acceptance-lives-in-the-item-note.md	authored	CS-971	first-add:CS-
 docs/adr/0023-whether-a-filename-is-personal-data.md	authored	CS-1158	stamped
 docs/adr/0024-the-credential-scan-population-boundary.md	authored	CS-1168	stamped
 docs/adr/0025-the-tier-3-flip-checks-run-locally.md	authored	CS-1183	stamped
+docs/adr/0026-the-root-moves-to-e.md	authored	CS-1275	stamped
 docs/adr/README.md	authored	CS-1165	first-add:root
 docs/history_notes.md	authored	CS-1165	first-add:root
 docs/hud_doctrine.md	authored	CS-1165	first-add:root

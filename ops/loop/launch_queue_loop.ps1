@@ -160,7 +160,7 @@ $errLog = "$Log.err"
 # half - "can't open file 'C:\Riot': [Errno 2] No such file or directory". The
 # failure is silent in the shape that matters: Start-Process still issued a real
 # pid and the script still printed "driver started", so the whole night would
-# have produced nothing. C:\Clockspeed has no space in it TODAY, which makes
+# have produced nothing. E:\Clockspeed has no space in it TODAY, which makes
 # this latent rather than absent - and a latent version of a measured failure is
 # still that failure.
 $argList = @("`"$driver`"", "--cycles", $Cycles, "--settle", $Settle)
