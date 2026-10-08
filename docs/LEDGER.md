@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-G03 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. The walk 2 ruling's reversal clause FIRED by its own text: a commit after the walk tip touched `pyproject.toml`
+Verification: `git diff --name-only 457d2b9 HEAD -- pyproject.toml` lists `pyproject.toml`, read
+by the session 132 /done; the touching commit is CS-1282's adoption, `7ab46df`, which re-measured
+the ruff per-file-ignores and the mypy overrides on the vendored FLEET-KIT v10 bytes. The CS-G03
+walk 2 decision record below names, among its reversals, "a commit before the flip touching
+... `pyproject.toml`", so by that text the walk 2 ruling no longer holds and a FULL clean-machine
+re-walk, not Part 2 alone, is owed before CS-700's S7a. Nobody noticed when the commit landed:
+the session 131 hand-off listed only `ops/` and `CLAUDE.md` as what kit v10 would touch.
+Not ruled here: whether a lint-and-type configuration change for vendored files warrants the
+full walk or a narrower one. That goes to an adjudicator that walked nothing, FIRST on the flip
+track, and any narrowing is recorded with its measured reason; until then the full re-walk
+stands.
+
 ### 2026-10-08 - CS-1282 - ADDENDUM. NOT A COMPLETION RECORD. CS-1282 STAYS CLOSED. The lint follow-up, the ONE ANSWER to MAIN 0839, the hook's first log rows and the responder's refusals, read back by the session 132 /done
 Verification: `tests/test_claude_hook.py`, whose `ops.fleet_kit` import now sits in the
 third-party block, graded by the tier1 workflow's `Lint (ruff check)` step
