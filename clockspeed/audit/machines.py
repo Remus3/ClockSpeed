@@ -103,6 +103,7 @@ if TYPE_CHECKING:  # pragma: no cover - import-time typing only
 
 __all__ = [
     "MACHINE_PROPERTY_NAMES",
+    "PRODUCTION_BOOST_PROPERTY_NAMES",
     "PROPERTY_OVERCLOCK",
     "PROPERTY_PRODUCING",
     "PROPERTY_RECIPE",
@@ -134,6 +135,24 @@ PROPERTY_RECIPE: Final = "mCurrentRecipe"
 #: THE SIBLING IS NOT READ HERE: no acceptance clause grades it, and a field
 #: nothing grades is a field nothing measures.
 PROPERTY_OVERCLOCK: Final = "mCurrentPotential"
+
+#: CS-1264. The production-boost tag names: the live boost and its pending
+#: sibling, mirroring the clock's own pair above. THE SPELLING IS MEASURED, THE
+#: WRITING IS NOT. Measured for CS-1264: both names sit on ``FGBuildableFactory``
+#: in the shipped property mapping, exactly as spelled, with the same type id as
+#: ``mCurrentPotential``. Whether the game ever WRITES either to a save is
+#: unmeasured - no save in the library carries the string ``ProductionBoost``.
+#: Only PRESENCE is read, never the value - and presence counts the dropped-tag
+#: names beside the decoded values, so a boost whose value did not decode is
+#: still a boost. The value's saved encoding is unmeasured, so a reading of it
+#: would be invented, and a consumer told only that a boost exists can refuse to
+#: price the machine, which is the one thing it may safely do. Both names are
+#: read because a presence read only ever refuses, so a wider net costs
+#: completeness and never correctness. NOT a machine-membership tag:
+#: :data:`MACHINE_PROPERTY_NAMES` is unchanged.
+PRODUCTION_BOOST_PROPERTY_NAMES: Final = frozenset(
+    {"mCurrentProductionBoost", "mPendingProductionBoost"}
+)
 
 #: The closed vocabulary that decides whether a record is a MACHINE at all.
 #:
@@ -294,7 +313,9 @@ class MachineState:
             ``tests/audit/test_machines.py::test_an_absent_overclock_is_null_rather_than_one``.
         overclock_elided: CS-1263. True ONLY when the payload read under the
             measured grammar, no measured-type tag disagreed with its declared
-            size, and no ``mCurrentPotential`` tag was present at all - the
+            size, and no ``mCurrentPotential`` tag was present at all -
+            neither decoded nor among the dropped-tag names (CS-1264: a tag
+            of an unmeasured type was WRITTEN, so it was not elided) - the
             shape the save serializer writes for a value equal to the class
             default, which it elides. MEASURED, not assumed: over the save
             library for CS-1263, no present tag carried exactly one while most
@@ -303,6 +324,16 @@ class MachineState:
             present tag, and by default for a hand-built state, so a consumer
             that has not been told the tag was elided never assumes it. The
             :attr:`overclock` field stays None either way - this flag says WHY.
+        production_boost_tagged: CS-1264. True when the payload carried any
+            tag on :data:`PRODUCTION_BOOST_PROPERTY_NAMES`, WHATEVER ITS VALUE
+            and whether that value decoded: the name is looked for in
+            ``RecordProperties.values`` AND ``RecordProperties.undecoded_names``,
+            so a torn or unmeasured boost tag counts, and so does one beside a
+            disagreeing neighbour. The value is not published - see that
+            constant for why. False when no such tag was seen, and by default
+            for a hand-built state. Independent of :attr:`overclock_elided`: a
+            boosted machine's clock may well be at the class default, and the
+            boost is what makes that default the wrong price.
     """
 
     class_name: str
@@ -310,6 +341,7 @@ class MachineState:
     recipe_class_name: str | None
     overclock: Fraction | None
     overclock_elided: bool = False
+    production_boost_tagged: bool = False
 
 
 @dataclass(frozen=True, repr=False)
@@ -416,13 +448,21 @@ def _recipe_tag(references: tuple[ObjectReference, ...]) -> ObjectReference | No
 def _is_machine(entry: RecordProperties) -> bool:
     """Whether one record carries any measured machine property.
 
+    A TAG IS PRESENT WHETHER OR NOT ITS VALUE DECODED - CS-1264. The
+    dropped-tag names are read beside the values: a record whose every machine
+    tag was torn or of an unmeasured type is still a machine, and dropping it
+    here would take it out of every count below without a trace - the draw
+    would price its neighbours and call itself complete.
+
     Args:
         entry: The record's published properties.
 
     Returns:
-        True when a measured tag appears in either population.
+        True when a measured tag appears in any of the three populations.
     """
     if not MACHINE_PROPERTY_NAMES.isdisjoint(entry.values):
+        return True
+    if not MACHINE_PROPERTY_NAMES.isdisjoint(entry.undecoded_names):
         return True
     return _recipe_tag(entry.references) is not None
 
@@ -474,10 +514,19 @@ def machines_of(model: WorldModel) -> WorldMachines:
                 producing=producing,
                 recipe_class_name=recipe_class_name,
                 overclock=overclock,
+                # A TAG IS PRESENT WHETHER OR NOT ITS VALUE DECODED - CS-1264.
+                # Both flags read the dropped-tag names beside the values: a
+                # clock tag that was written is not elided, and a boost tag is
+                # a boost whatever became of its value.
                 overclock_elided=(
                     PROPERTY_OVERCLOCK not in entry.values
+                    and PROPERTY_OVERCLOCK not in entry.undecoded_names
                     and entry.payload_read
                     and not entry.disagreeing_value_count
+                ),
+                production_boost_tagged=not (
+                    PRODUCTION_BOOST_PROPERTY_NAMES.isdisjoint(entry.values)
+                    and PRODUCTION_BOOST_PROPERTY_NAMES.isdisjoint(entry.undecoded_names)
                 ),
             )
         )

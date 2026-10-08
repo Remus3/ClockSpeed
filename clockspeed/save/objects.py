@@ -1411,6 +1411,17 @@ class PropertyResult:
             WORLD CONTENT: three integers off the framing, carrying no string
             and no decoded value, which is why it is rendered in ``repr``
             below rather than withheld the way ``properties`` is.
+        undecoded_names: The NAME of every tag counted in
+            ``unmeasured_value_count`` or ``disagreeing_value_count`` - CS-1264.
+            A DROPPED VALUE IS NOT A DROPPED TAG: without this a consumer asking
+            whether a tag was PRESENT reads a torn or unmeasured tag exactly as
+            an absent one, which is the silently-wrong half of non-negotiable
+            7. NAMES ONLY - the value never decoded, so any reading of it would
+            be invented. A set, because the question is presence by name and
+            the two counts already carry how many. Empty on a walk that never
+            reached its terminator, where no tag is known at all. Defaulted for
+            the reason the counts are. WORLD CONTENT on the terms
+            ``properties`` states: ``repr`` renders a count.
     """
 
     properties: Mapping[str, object]
@@ -1425,6 +1436,7 @@ class PropertyResult:
     struct_interiors: tuple[StructValue, ...] = ()
     struct_tag_count: int = 0
     trailing_run: TrailingRun | None = None
+    undecoded_names: frozenset[str] = frozenset()
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1443,7 +1455,8 @@ class PropertyResult:
             f"undecoded_reference_count={self.undecoded_reference_count}, "
             f"struct_interiors={len(self.struct_interiors)}, "
             f"struct_tag_count={self.struct_tag_count}, "
-            f"trailing_run={self.trailing_run})"
+            f"trailing_run={self.trailing_run}, "
+            f"undecoded_names={len(self.undecoded_names)})"
         )
 
 
@@ -7796,6 +7809,8 @@ class _PayloadWalk:
             walk that TERMINATED, because a walk that broke never found the
             terminator the run is measured from, and inventing one from the
             declared end would report a region nobody located.
+        undecoded_names: The name of every tag counted in ``unmeasured`` or
+            ``disagreed`` - CS-1264. See ``PropertyResult.undecoded_names``.
     """
 
     properties: dict[str, object]
@@ -7808,6 +7823,7 @@ class _PayloadWalk:
     struct_interiors: tuple[StructValue, ...] = ()
     struct_tags: int = 0
     trailing_run: TrailingRun | None = None
+    undecoded_names: frozenset[str] = frozenset()
 
     def __repr__(self) -> str:
         """Render counts only, and withhold every string.
@@ -7822,7 +7838,8 @@ class _PayloadWalk:
             f"reference_tags={self.reference_tags}, "
             f"undecoded_references={self.undecoded_references}, "
             f"struct_interiors={len(self.struct_interiors)}, "
-            f"struct_tags={self.struct_tags})"
+            f"struct_tags={self.struct_tags}, "
+            f"undecoded_names={len(self.undecoded_names)})"
         )
 
 
@@ -7949,6 +7966,7 @@ def _walk_payload(
     decoded: dict[str, object] = {}
     references: list[ObjectReference] = []
     struct_interiors: list[StructValue] = []
+    undecoded: set[str] = set()
     unmeasured = 0
     disagreed = 0
     reference_tags = 0
@@ -7976,6 +7994,7 @@ def _walk_payload(
                 struct_interiors=tuple(struct_interiors),
                 struct_tags=struct_tags,
                 trailing_run=read_trailing_run(body, name[1], end),
+                undecoded_names=frozenset(undecoded),
             )
         # BOTH GRAMMARS' TAG HEADERS COME BACK THROUGH ONE CALL - CS-G05.
         # :func:`_read_tag_and_words` says why the divergence lives there and
@@ -8028,12 +8047,17 @@ def _walk_payload(
                 undecoded_references += 1
             else:
                 references.append(reference)
+        # A DROPPED VALUE IS NOT A DROPPED TAG - CS-1264. Both refusals keep
+        # the tag's NAME, never its value, so a consumer asking whether a tag
+        # was present gets an answer when the value did not decode.
         if value is not None:
             decoded[name[0]] = value
         elif _refusal_is_unmodelled_content(type_word, element_words, native_serialize=native):
             unmeasured += 1
+            undecoded.add(name[0])
         else:
             disagreed += 1
+            undecoded.add(name[0])
         at = value_start + size
     return None
 
@@ -9036,6 +9060,7 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
         ),
         struct_interiors=walked.struct_interiors,
         struct_tag_count=walked.struct_tags,
+        undecoded_names=walked.undecoded_names,
     )
 
 

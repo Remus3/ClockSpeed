@@ -2533,6 +2533,84 @@ def _rendering_channels(value: object) -> tuple[str, ...]:
     return (*test_properties._renderings(value), saferepr(value))  # noqa: SLF001
 
 
+#: CS-1264. A torn tag's name, carrying the payload marker so the repr arm
+#: below can sweep for it. A FloatProperty declaring eight value bytes.
+_TORN_MARKED_NAME: Final = f"m{_PAYLOAD_MARKER}Torn"
+
+
+def _torn_tag_blob() -> bytes:
+    """A LEVELLED save of one actor whose payload carries one torn tag and one int.
+
+    Composed from the public synthetic primitives for the reason
+    :func:`_planted_payload_parts` gives.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, save_version = _decodable_pair()
+    payload = synthetic.tagged_property_payload(
+        (
+            synthetic.property_tag(
+                synthetic.DECODABLE_INT_NAME,
+                synthetic.DECODABLE_INT_TYPE_WORD,
+                struct.pack("<i", synthetic.DECODABLE_INT_VALUE),
+            ),
+            synthetic.property_tag(_TORN_MARKED_NAME, "FloatProperty", struct.pack("<d", 2.0)),
+        ),
+        head=synthetic.actor_payload_head(synthetic.MAP_NAME, synthetic.DECODABLE_ROOT, ()),
+        trailing=synthetic.DECODABLE_TRAILING_RUN,
+    )
+    body = synthetic.build_levelled_body(
+        (
+            synthetic.SyntheticLevel(
+                name=_PLANTED_PAYLOAD_LEVEL,
+                objects=(
+                    synthetic.SyntheticObject(
+                        synthetic.DECODABLE_CLASS_PATH,
+                        synthetic.DECODABLE_ROOT,
+                        synthetic.DECODABLE_INSTANCE,
+                    ),
+                ),
+                payloads=(payload,),
+            ),
+        ),
+        synthetic.SyntheticLevel(name=None),
+        header_version=header_version,
+        save_version=save_version,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+    prefixed = synthetic.body_with_prefix(body, header_version)
+    return synthetic.build_header(
+        header_version=header_version, save_version=save_version
+    ) + synthetic.build_chunks(prefixed, framing=synthetic.default_framing(header_version))
+
+
+def test_a_dropped_tags_name_reaches_the_published_entry() -> None:
+    """CS-1264. The reader keeps a dropped tag's NAME; the narrowing must carry it up.
+
+    THE PREMISE IS ASSERTED FIRST: the torn value was dropped and counted, so the
+    values cannot be where its presence is learned.
+    """
+    model = world.load_world_from_bytes(_torn_tag_blob())
+    entry = model.properties.by_record_index[_index_of(model, synthetic.DECODABLE_INSTANCE)]
+
+    assert _TORN_MARKED_NAME not in entry.values
+    assert entry.disagreeing_value_count == 1
+    assert entry.values[synthetic.DECODABLE_INT_NAME] == synthetic.DECODABLE_INT_VALUE
+    assert entry.undecoded_names == frozenset({_TORN_MARKED_NAME})
+
+
+def test_a_dropped_tags_name_never_renders() -> None:
+    """The name is read out of the save's own bytes: every rendering carries a count only."""
+    model = world.load_world_from_bytes(_torn_tag_blob())
+    entry = model.properties.by_record_index[_index_of(model, synthetic.DECODABLE_INSTANCE)]
+
+    assert _TORN_MARKED_NAME in entry.undecoded_names
+    for rendering in _rendering_channels(entry):
+        assert _PAYLOAD_MARKER not in rendering
+    assert "undecoded_names=1" in repr(entry)
+
+
 def test_no_body_byte_reaches_any_echo_path() -> None:
     """CS-961's second acceptance. Six channels, and a control in front of each sweep.
 

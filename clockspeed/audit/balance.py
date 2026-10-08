@@ -35,6 +35,17 @@ this reader never read is a NAMED GAP and never priced at one - a confident one
 is the confident zero one field over. Nothing here reads a fractional machine
 count: a world has whole machines.
 
+A PRODUCTION BOOST IS A NAMED GAP, NEVER A CLOCK-ONLY PRICE (CS-1264). The
+clock law above is the whole of what this module models, and a boost scales
+the draw on top of it. The boosted law is not modelled - the registry reads no
+boost exponent, and no save in the library carries the tag, so its saved value
+is unmeasured - so a machine whose ``MachineState.production_boost_tagged`` is
+set (by the tag's PRESENCE, decoded or not) is :data:`GAP_BOOST_UNMODELED` and
+is never priced, whatever its clock says. It
+is decided after the registry side and BEFORE the clock: an elided default and
+a perfectly read clock are equally the wrong price for it, so it never enters
+the elided-default count either.
+
 THE CONFIDENT ZERO IS THE FAILURE MODE THIS MODULE IS BUILT AGAINST
 ---------------------------------------------------------------------
 Non-negotiable 7 says unknown content is flagged and skipped, never silently
@@ -194,6 +205,7 @@ __all__ = [
     "BOUND_KINDS",
     "CLOCKED_GAP_KINDS",
     "ELIDED_CLOCK_DEFAULT",
+    "GAP_BOOST_UNMODELED",
     "GAP_CLOCK_UNREAD",
     "GAP_DRAW_INEXACT",
     "GAP_KINDS",
@@ -295,12 +307,26 @@ GAP_CLOCK_UNREAD: Final = "clock-unread"
 #: so the power law cannot be applied without a float, and is not applied.
 GAP_LAW_INEXACT: Final = "law-inexact"
 
+#: CS-1264. A machine whose payload carried a production-boost tag -
+#: ``MachineState.production_boost_tagged``. NEVER PRICED BY ITS CLOCK ALONE:
+#: the boost scales the draw on top of the clock, and the boosted power law is
+#: not modelled here - the registry reads no boost exponent, and no save in the
+#: library carries the tag, so its value is unmeasured. A gap is a floor; a
+#: boosted machine priced as unboosted is a confident under-count.
+GAP_BOOST_UNMODELED: Final = "boost-unmodeled"
+
 #: The closed vocabulary of gap kinds :func:`clocked_draw_of` can publish: every
-#: kind :func:`draw_of` can, the two above, and
+#: kind :func:`draw_of` can, the three above, and
 #: ``clockspeed/solve/power.py``'s own outcome words for an entry that is not
 #: clock-scalable and a clock that has no real draw, carried verbatim.
 CLOCKED_GAP_KINDS: Final = GAP_KINDS | frozenset(
-    {GAP_CLOCK_UNREAD, GAP_LAW_INEXACT, OUTCOME_NOT_SCALABLE, OUTCOME_UNDEFINED}
+    {
+        GAP_CLOCK_UNREAD,
+        GAP_LAW_INEXACT,
+        GAP_BOOST_UNMODELED,
+        OUTCOME_NOT_SCALABLE,
+        OUTCOME_UNDEFINED,
+    }
 )
 
 #: A clocked group whose draw the power law yields EXACTLY - the reference clock,
@@ -421,6 +447,12 @@ _GAP_REASON: Final[Mapping[str, str]] = MappingProxyType(
             "the clock or the declared exponent is not exactly a Fraction, so the power"
             " law cannot be applied without a float and is not applied"
         ),
+        GAP_BOOST_UNMODELED: (
+            "this machine carries a production-boost tag, and the boosted power law is"
+            " not modelled - no boost exponent is read and the tag's value is"
+            " unmeasured - so it is not priced at all; pricing it by its clock alone"
+            " would price a boosted machine as unboosted"
+        ),
     }
 )
 
@@ -518,8 +550,9 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         ),
         WARN_BALANCE_CLOCKED_DRAW_UNMODELED: (
             "this many machines contributed no number to the clocked draw - no entry, no"
-            " modeled draw, no scalable law or no real value at their clock - and each is"
-            " named in the gap list by kind; both clocked ends are floors"
+            " modeled draw, no scalable law, no real value at their clock, or a"
+            " production boost whose power law is not modelled - and each is named in"
+            " the gap list by kind; both clocked ends are floors"
         ),
         WARN_BALANCE_CLOCKED_DRAW_BOUNDED: (
             "this many machines run where the power law has no exact rational value, so"
@@ -1298,20 +1331,25 @@ _Priced = tuple[str, str, Fraction, Fraction, Fraction]
 _Refused = tuple[str, str]
 
 
-def _refusal(class_name: str, clock: object, entry: Building | None) -> _Refused | None:
+def _refusal(
+    class_name: str, clock: object, entry: Building | None, *, boosted: bool = False
+) -> _Refused | None:
     """Name why one machine cannot be priced at its clock, or None when it can.
 
     THE REGISTRY SIDE IS DECIDED FIRST, by :func:`_classify` - the same
     function :func:`draw_of` uses - so the two draws can never disagree about
-    which entries are modeled. Only then is the clock read, and a clock never
-    read is a gap: it is not priced at the reference clock, which is the
-    confident one this module refuses for the same reason it refuses the
-    confident zero.
+    which entries are modeled. The production boost is decided NEXT (CS-1264),
+    before the clock, because no clock reading can price a boosted machine: an
+    elided default and a perfectly read clock are equally the wrong price for
+    it. Only then is the clock read, and a clock never read is a gap: it is not
+    priced at the reference clock, which is the confident one this module
+    refuses for the same reason it refuses the confident zero.
 
     Args:
         class_name: The machine's built class.
         clock: The machine's clock as ``MachineState.overclock`` carries it.
         entry: The registry entry, or None when the registry carries none.
+        boosted: ``MachineState.production_boost_tagged``.
 
     Returns:
         ``(kind, reason)`` for a gap, or None when :func:`_law` may price it.
@@ -1319,6 +1357,8 @@ def _refusal(class_name: str, clock: object, entry: Building | None) -> _Refused
     bucket = _classify(class_name, 1, entry)
     if isinstance(bucket, DrawGap):
         return bucket.kind, bucket.reason
+    if boosted:
+        return GAP_BOOST_UNMODELED, _GAP_REASON[GAP_BOOST_UNMODELED]
     if clock is None:
         return GAP_CLOCK_UNREAD, _GAP_REASON[GAP_CLOCK_UNREAD]
     exponent = None if entry is None else entry.power_exponent
@@ -1372,19 +1412,22 @@ def _law(entry: Building, clock: Fraction, each: Fraction) -> _Priced | _Refused
     return BOUND_EXPONENT_BRACKET, _BRACKET_REASON, clock, ends[0], ends[1]
 
 
-def _clocked_outcome(class_name: str, clock: object, entry: Building | None) -> _Priced | _Refused:
+def _clocked_outcome(
+    class_name: str, clock: object, entry: Building | None, *, boosted: bool = False
+) -> _Priced | _Refused:
     """Price one machine at its own clock, or name why it cannot be priced.
 
     Args:
         class_name: The machine's built class.
         clock: The machine's clock as ``MachineState.overclock`` carries it.
         entry: The registry entry, or None when the registry carries none.
+        boosted: ``MachineState.production_boost_tagged`` (CS-1264).
 
     Returns:
         ``(bound, reason, clock, lower_each, upper_each)`` for a priced machine, or
         ``(kind, reason)`` for a gap.
     """
-    refused = _refusal(class_name, clock, entry)
+    refused = _refusal(class_name, clock, entry, boosted=boosted)
     # Past a None refusal the entry is present and the clock exact; the two
     # clauses after the first only narrow the types for the checker.
     if refused is not None or entry is None or type(clock) is not Fraction:
@@ -1435,7 +1478,9 @@ def clocked_draw_of(
         entry = buildings.get(state.class_name)
         elided = state.overclock is None and state.overclock_elided
         read = ELIDED_CLOCK_DEFAULT if elided else state.overclock
-        outcome = _clocked_outcome(state.class_name, read, entry)
+        outcome = _clocked_outcome(
+            state.class_name, read, entry, boosted=state.production_boost_tagged
+        )
         if len(outcome) == 2:  # noqa: PLR2004 - the gap shape is a pair
             kind, reason = outcome
             _held, count = gapped.get((state.class_name, kind), (reason, 0))

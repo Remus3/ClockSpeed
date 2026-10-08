@@ -1126,6 +1126,13 @@ class RecordProperties:
             on an entry built without the join, which only a caller
             constructing this type by hand produces; every entry
             :func:`load_world_from_bytes` publishes is aligned.
+        undecoded_names: The name of every tag counted in
+            ``unmeasured_value_count`` or ``disagreeing_value_count``, carried
+            verbatim from ``objects.PropertyResult.undecoded_names`` - CS-1264.
+            So "is a tag of this name present" has an answer when its value was
+            dropped: a name absent from BOTH this and :attr:`values` was not on
+            a payload that read. Names only, never a value. WORLD CONTENT on
+            the terms :attr:`values` states, so ``repr`` renders a count.
     """
 
     values: Mapping[str, object]
@@ -1138,6 +1145,7 @@ class RecordProperties:
     references: tuple[ObjectReference, ...] = ()
     struct_interiors: tuple[StructValue, ...] = ()
     reference_targets: tuple[ReferenceTarget, ...] = ()
+    undecoded_names: frozenset[str] = frozenset()
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1159,7 +1167,8 @@ class RecordProperties:
             f"warning_codes={len(self.warning_codes)}, "
             f"references={len(self.references)}, "
             f"struct_interiors={len(self.struct_interiors)}, "
-            f"reference_targets={len(self.reference_targets)})"
+            f"reference_targets={len(self.reference_targets)}, "
+            f"undecoded_names={len(self.undecoded_names)})"
         )
 
 
@@ -2229,6 +2238,8 @@ def _record_properties(
             )
             for reference in result.references
         ),
+        # CS-1264. Names only, so there is nothing to narrow: carried verbatim.
+        undecoded_names=result.undecoded_names,
     )
 
 

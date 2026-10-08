@@ -44,6 +44,7 @@ construction rather than by hope.
 
 from __future__ import annotations
 
+import struct
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from fractions import Fraction
@@ -53,7 +54,7 @@ import pytest
 
 from clockspeed.audit import balance, machines, network, placement
 from clockspeed.data.registry import Building
-from clockspeed.save import objects
+from clockspeed.save import objects, world
 from clockspeed.save.header import SaveHeader
 from clockspeed.save.world import (
     EMPTY_UNLOCK_STATE,
@@ -62,6 +63,8 @@ from clockspeed.save.world import (
     WorldProperties,
 )
 from clockspeed.solve import exact, power
+from tests.audit import test_machines as machines_fx
+from tests.save import synthetic as save_synthetic
 
 # An invented 22-character base64url literal. Never a real world token.
 SYNTHETIC_TOKEN = "ClockspeedBalanceTok1"  # noqa: S105 - an invented marker, not a secret
@@ -1248,3 +1251,557 @@ def test_a_zero_clock_under_a_negative_exponent_is_a_named_gap() -> None:
 
     assert [gap.kind for gap in result.gaps] == [power.OUTCOME_UNDEFINED]
     assert result.contributions == ()
+
+
+# ---------------------------------------------------------------------------
+# CS-1264: a production-boost tag is a named gap, never priced as unboosted
+# ---------------------------------------------------------------------------
+#
+# No save in the library carries a boost tag, so every arm here is synthetic.
+# THE TEST OWNS THE SPELLING: the two tag names are written out below rather
+# than read back off the module, so an implementation that drifts a spelling
+# reddens here instead of agreeing with itself.
+
+#: The live production boost and its pending sibling, as the game spells them.
+BOOST_TAGS = ("mCurrentProductionBoost", "mPendingProductionBoost")
+
+
+def test_the_boost_tag_vocabulary_is_the_two_seeded_names() -> None:
+    assert frozenset(BOOST_TAGS) == machines.PRODUCTION_BOOST_PROPERTY_NAMES
+
+
+@pytest.mark.parametrize("tag", BOOST_TAGS)
+def test_a_boost_tag_on_the_payload_reaches_the_machine_state(tag: str) -> None:
+    """The clock tag is absent, so the clock is elided AND the machine is boosted.
+
+    The two flags are independent facts and both are published: the clock really
+    is at the class default, and the boost is what makes that default the wrong
+    price. Which one wins is the balance's decision, graded further down.
+    """
+    model = machines_fx.world(
+        machines_fx.entry({machines.PROPERTY_PRODUCING: True, tag: machines_fx.as_float32("2")})
+    )
+
+    (state,) = machines.machines_of(model).machines
+    assert state.production_boost_tagged is True
+    assert state.overclock_elided is True
+
+
+#: The level the decoder arms' one actor hangs from. Synthetic, no marker.
+BOOST_LEVEL = "Persistent_Level:SyntheticBoostCellQx73_0"
+
+#: A tag the decoder arms tear, so a payload carries a disagreement that is
+#: NOT the boost tag. Invented.
+TORN_NEIGHBOUR = "mSyntheticTornQx73"
+
+#: The struct word an unmeasured boost tag is written under. Invented.
+BOOST_STRUCT_WORD = "SyntheticBoostStructQx73"
+
+
+def float_tag(name: str, value: float) -> bytes:
+    """One FloatProperty tag whose four value bytes match its declared size.
+
+    Args:
+        name: The property name.
+        value: The value, exactly representable in float32.
+
+    Returns:
+        The encoded tag.
+    """
+    return save_synthetic.property_tag(name, "FloatProperty", struct.pack("<f", value))
+
+
+def torn_float_tag(name: str) -> bytes:
+    """One FloatProperty tag declaring EIGHT value bytes, which the decoder refuses.
+
+    Args:
+        name: The property name.
+
+    Returns:
+        The encoded tag, counted as a disagreement and dropped from the values.
+    """
+    return save_synthetic.property_tag(name, "FloatProperty", struct.pack("<d", 2.0))
+
+
+def producing_tag() -> bytes:
+    """The producing flag, set, as a BoolProperty carries it in its tag data.
+
+    Returns:
+        The encoded tag.
+    """
+    return save_synthetic.property_tag(
+        machines.PROPERTY_PRODUCING, "BoolProperty", b"", tag_extra=b"\x01"
+    )
+
+
+def decoded_world(*tags: bytes) -> WorldModel:
+    """A whole synthetic save of one actor carrying these tags, through the REAL loader.
+
+    THE DECODER DECIDES WHAT REACHES THE VALUES, not this fixture. A hand-built
+    value map can hold shapes the decoder never produces for a dropped tag, and
+    an arm over one grades nothing about the drop - which is how an earlier arm
+    here planted an int and passed.
+
+    Args:
+        tags: The encoded tags, in file order.
+
+    Returns:
+        The world model ``load_world_from_bytes`` publishes.
+    """
+    return decoded_actors(tags)
+
+
+def decoded_actors(*actors: tuple[bytes, ...]) -> WorldModel:
+    """A whole synthetic save of one actor per tag tuple, through the REAL loader.
+
+    Args:
+        actors: One tuple of encoded tags per actor, in record order.
+
+    Returns:
+        The world model ``load_world_from_bytes`` publishes.
+    """
+    fixture = save_synthetic.SAVE_LEVELLED_DECODABLE
+    head_bytes = save_synthetic.actor_payload_head(
+        save_synthetic.MAP_NAME, save_synthetic.DECODABLE_ROOT, ()
+    )
+    body = save_synthetic.build_levelled_body(
+        (
+            save_synthetic.SyntheticLevel(
+                name=BOOST_LEVEL,
+                objects=tuple(
+                    save_synthetic.SyntheticObject(
+                        save_synthetic.DECODABLE_CLASS_PATH,
+                        save_synthetic.DECODABLE_ROOT,
+                        f"{save_synthetic.DECODABLE_INSTANCE}{position}",
+                    )
+                    for position in range(len(actors))
+                ),
+                payloads=tuple(
+                    save_synthetic.tagged_property_payload(
+                        tags, head=head_bytes, trailing=save_synthetic.DECODABLE_TRAILING_RUN
+                    )
+                    for tags in actors
+                ),
+            ),
+        ),
+        save_synthetic.SyntheticLevel(name=None),
+        header_version=fixture.header_version,
+        save_version=fixture.save_version,
+        grids=save_synthetic.LEVELLED_GRIDS,
+    )
+    head = save_synthetic.build_header(
+        header_version=fixture.header_version, save_version=fixture.save_version
+    )
+    prefixed = save_synthetic.body_with_prefix(body, fixture.header_version)
+    framed = save_synthetic.build_chunks(
+        prefixed, framing=save_synthetic.default_framing(fixture.header_version)
+    )
+    return world.load_world_from_bytes(head + framed)
+
+
+def decoded_registry() -> Mapping[str, Building]:
+    """The decoder arms' one class, modeled at :data:`WHOLE_MEGAWATTS`.
+
+    Returns:
+        The mapping.
+    """
+    return registry(
+        building(
+            objects.class_name_of(save_synthetic.DECODABLE_CLASS_PATH), consumption=WHOLE_MEGAWATTS
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("boost_tag", "dropped_as"),
+    [
+        (torn_float_tag(BOOST_TAGS[0]), "disagreeing"),
+        (
+            save_synthetic.legacy_struct_tag(BOOST_TAGS[0], BOOST_STRUCT_WORD, bytes(8)),
+            "unmeasured",
+        ),
+    ],
+    ids=["torn-float", "struct-typed"],
+)
+def test_a_boost_tag_whose_value_never_decoded_still_marks_the_machine(
+    boost_tag: bytes, dropped_as: str
+) -> None:
+    """Presence is the fact read, never the value - a boost the decoder dropped is a boost.
+
+    THE PREMISE IS ASSERTED FIRST: the real decoder dropped the boost value and
+    counted it, so the values carry no boost name at all. A read clock of one
+    sits beside it, so ignoring the boost prices the machine at the reference
+    draw and reports the draw complete.
+    """
+    model = decoded_world(float_tag(machines.PROPERTY_OVERCLOCK, 1.0), producing_tag(), boost_tag)
+    (entry,) = model.properties.by_record_index.values()
+    assert BOOST_TAGS[0] not in entry.values
+    assert (entry.disagreeing_value_count, entry.unmeasured_value_count) == (
+        (1, 0) if dropped_as == "disagreeing" else (0, 1)
+    )
+
+    population = machines.machines_of(model)
+    assert [state.production_boost_tagged for state in population.machines] == [True]
+    result = balance.clocked_draw_of(population, decoded_registry())
+    assert result.upper_megawatts == Fraction(0)
+    assert result.complete is False
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (balance.GAP_BOOST_UNMODELED, 1)
+    ]
+
+
+def test_a_boost_tag_beside_a_disagreeing_neighbour_still_marks_the_machine() -> None:
+    """A payload carrying SOME disagreement is not a payload whose boost may be ignored.
+
+    The boost itself decodes; a different tag is torn. A flag set only on a
+    cleanly read payload would miss exactly this machine.
+    """
+    model = decoded_world(
+        float_tag(machines.PROPERTY_OVERCLOCK, 1.0),
+        producing_tag(),
+        torn_float_tag(TORN_NEIGHBOUR),
+        float_tag(BOOST_TAGS[0], 2.0),
+    )
+    (entry,) = model.properties.by_record_index.values()
+    assert entry.disagreeing_value_count == 1
+    assert BOOST_TAGS[0] in entry.values
+
+    population = machines.machines_of(model)
+    assert [state.production_boost_tagged for state in population.machines] == [True]
+    result = balance.clocked_draw_of(population, decoded_registry())
+    assert result.upper_megawatts == Fraction(0)
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (balance.GAP_BOOST_UNMODELED, 1)
+    ]
+
+
+def test_a_decodable_boost_of_exactly_one_still_marks_the_machine() -> None:
+    """The VALUE is never read, so a boost of one is a boost tag like any other.
+
+    One is the docs' own base boost, and reading it as "no boost" is a reading
+    of a value whose saved encoding no save in the library has shown. The clock
+    tag is absent, so the machine would otherwise land in the elided default.
+    """
+    model = decoded_world(producing_tag(), float_tag(BOOST_TAGS[0], 1.0))
+    (entry,) = model.properties.by_record_index.values()
+    assert entry.values[BOOST_TAGS[0]] == 1.0
+
+    population = machines.machines_of(model)
+    assert [state.production_boost_tagged for state in population.machines] == [True]
+    result = balance.clocked_draw_of(population, decoded_registry())
+    assert result.elided_clock_count == 0
+    assert result.upper_megawatts == Fraction(0)
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (balance.GAP_BOOST_UNMODELED, 1)
+    ]
+
+
+def test_a_clock_tag_whose_value_never_decoded_is_not_an_elided_clock() -> None:
+    """The sibling of the boost arms, one tag over: absent from the values is not absent.
+
+    A clock tag of an unmeasured type is dropped and counted as unmeasured,
+    which - unlike a disagreement - does not by itself distrust the payload. The
+    tag WAS written, so the serializer did not elide it, and pricing the machine
+    at the default would be the confident one CS-1263 refuses.
+    """
+    model = decoded_world(
+        save_synthetic.legacy_struct_tag(machines.PROPERTY_OVERCLOCK, BOOST_STRUCT_WORD, bytes(8)),
+        producing_tag(),
+    )
+    (entry,) = model.properties.by_record_index.values()
+    assert machines.PROPERTY_OVERCLOCK not in entry.values
+    assert (entry.disagreeing_value_count, entry.unmeasured_value_count) == (0, 1)
+
+    population = machines.machines_of(model)
+    assert [state.overclock_elided for state in population.machines] == [False]
+    result = balance.clocked_draw_of(population, decoded_registry())
+    assert result.elided_clock_count == 0
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [(balance.GAP_CLOCK_UNREAD, 1)]
+
+
+def torn_recipe_tag() -> bytes:
+    """A recipe reference whose two strings do not account for its declared size.
+
+    Returns:
+        The encoded tag, counted as a disagreement and dropped from the values
+        and from the reference population alike.
+    """
+    pair = save_synthetic.fstring(save_synthetic.MAP_NAME) + save_synthetic.fstring(RECIPE_ASSET)
+    return save_synthetic.property_tag(machines.PROPERTY_RECIPE, "ObjectProperty", pair + b"\0")
+
+
+@pytest.mark.parametrize(
+    ("dropped", "expected_kind"),
+    [
+        (
+            (torn_float_tag(machines.PROPERTY_OVERCLOCK), float_tag(BOOST_TAGS[0], 2.0)),
+            balance.GAP_BOOST_UNMODELED,
+        ),
+        (
+            (
+                save_synthetic.legacy_struct_tag(
+                    machines.PROPERTY_OVERCLOCK, BOOST_STRUCT_WORD, bytes(8)
+                ),
+                save_synthetic.legacy_struct_tag(BOOST_TAGS[0], BOOST_STRUCT_WORD, bytes(8)),
+            ),
+            balance.GAP_BOOST_UNMODELED,
+        ),
+        (
+            (torn_float_tag(machines.PROPERTY_OVERCLOCK), torn_float_tag(BOOST_TAGS[0])),
+            balance.GAP_BOOST_UNMODELED,
+        ),
+        ((torn_float_tag(machines.PROPERTY_OVERCLOCK),), balance.GAP_CLOCK_UNREAD),
+        ((torn_recipe_tag(),), balance.GAP_CLOCK_UNREAD),
+    ],
+    ids=[
+        "torn-clock-decoded-boost",
+        "struct-clock-struct-boost",
+        "torn-clock-torn-boost",
+        "torn-clock-alone",
+        "torn-recipe-alone",
+    ],
+)
+def test_a_machine_whose_only_machine_tag_was_dropped_is_still_a_machine(
+    dropped: tuple[bytes, ...], expected_kind: str
+) -> None:
+    """Membership is the third read of presence, and it reads the dropped names too.
+
+    THE FIRST ACTOR'S EVERY MACHINE TAG WAS DROPPED by the real decoder; the
+    second is an ordinary machine at the reference clock. Deciding membership off
+    the decoded values alone publishes the second machine only, prices it, and
+    calls the draw complete - with nothing anywhere naming the first.
+    """
+    model = decoded_actors(dropped, (float_tag(machines.PROPERTY_OVERCLOCK, 1.0), producing_tag()))
+    assert [
+        (entry.payload_read, bool(machines.MACHINE_PROPERTY_NAMES & set(entry.values)))
+        for entry in model.properties.by_record_index.values()
+    ] == [(True, False), (True, True)]
+
+    population = machines.machines_of(model)
+    assert len(population.machines) == len(model.properties.by_record_index)
+    result = balance.clocked_draw_of(population, decoded_registry())
+    assert result.complete is False
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [(expected_kind, 1)]
+
+
+def test_a_decoded_payload_with_no_boost_tag_is_priced() -> None:
+    """The control for the three arms above: the same loader, no boost, a price."""
+    model = decoded_world(float_tag(machines.PROPERTY_OVERCLOCK, 1.0), producing_tag())
+
+    population = machines.machines_of(model)
+    assert [state.production_boost_tagged for state in population.machines] == [False]
+    result = balance.clocked_draw_of(population, decoded_registry())
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+    assert result.gaps == ()
+
+
+def test_a_payload_with_no_boost_tag_is_not_marked_boosted() -> None:
+    model = machines_fx.world(machines_fx.entry({machines.PROPERTY_PRODUCING: True}))
+
+    (state,) = machines.machines_of(model).machines
+    assert state.production_boost_tagged is False
+
+
+def test_a_hand_built_state_never_claims_a_boost() -> None:
+    assert clocked(FIXED_WHOLE, Fraction(1)).production_boost_tagged is False
+
+
+def test_no_boost_value_reaches_the_machine_model_as_a_float() -> None:
+    model = machines_fx.world(
+        machines_fx.entry({machines.PROPERTY_PRODUCING: True, BOOST_TAGS[0]: 2.5})
+    )
+    result = machines.machines_of(model)
+
+    control = [value for value in machines_fx.reachable(model) if type(value) is float]
+    assert control, "the walk cannot see a float in the INPUT, so its absence proves nothing"
+    assert not [value for value in machines_fx.reachable(result) if type(value) is float]
+
+
+def boosted(
+    class_name: str, clock: Fraction | None, *, clock_elided: bool = False
+) -> machines.MachineState:
+    """Build one producing machine carrying a production-boost tag.
+
+    Args:
+        class_name: The built class.
+        clock: The overclock, or None for a clock tag that was absent.
+        clock_elided: Whether that absent clock tag was elided.
+
+    Returns:
+        The state.
+    """
+    return machines.MachineState(
+        class_name=class_name,
+        producing=True,
+        recipe_class_name=RECIPE_CLASS,
+        overclock=clock,
+        overclock_elided=clock_elided,
+        production_boost_tagged=True,
+    )
+
+
+def test_a_boosted_machine_reddens_the_arm_when_the_boost_is_ignored() -> None:
+    """Alike in every field but the boost tag, so only the boost decides.
+
+    IGNORING THE BOOST prices both machines at the elided default: the upper end
+    is two machines' declared draw and the elided count is two. The boosted one
+    must instead be a named gap, leaving one machine priced and one counted.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(elided(FIXED_WHOLE), boosted(FIXED_WHOLE, None, clock_elided=True)),
+        modeled_registry(),
+    )
+
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+    assert result.lower_megawatts == WHOLE_MEGAWATTS
+    assert result.elided_clock_count == 1
+    assert [(gap.class_name, gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (FIXED_WHOLE, balance.GAP_BOOST_UNMODELED, 1)
+    ]
+    assert result.complete is False
+    assert result.exact is False
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCK_ELIDED) == 1
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == 1
+
+
+@pytest.mark.parametrize(
+    ("class_name", "clock"),
+    [
+        (FIXED_WHOLE, HALF_CLOCK),
+        (FIXED_WHOLE, Fraction(1)),
+        (FIXED_THIRD, HALF_CLOCK),
+        (FIXED_THIRD, Fraction(1)),
+    ],
+    ids=[
+        "whole-exponent-half",
+        "whole-exponent-reference",
+        "bracketed-half",
+        "bracketed-reference",
+    ],
+)
+def test_a_read_clock_never_prices_a_boosted_machine(class_name: str, clock: Fraction) -> None:
+    """Every pricing path the clock law has - exact, reference and bracket - is refused.
+
+    The reference clock is the masked case: the law returns early there before
+    any exponent is asked for, so a boost check placed after that return would
+    pass the half-clock rows and price this one.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(boosted(class_name, clock)), bracketed_registry()
+    )
+
+    assert result.contributions == ()
+    assert result.upper_megawatts == Fraction(0)
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (balance.GAP_BOOST_UNMODELED, 1)
+    ]
+    assert result.bounded_machine_count == 0
+
+
+@pytest.mark.parametrize(
+    ("clock", "clock_elided"),
+    [(None, False), (0.5, False)],
+    ids=["unread-clock", "float-clock"],
+)
+def test_the_boost_is_named_before_the_clock_is_read(
+    clock: Fraction | None, clock_elided: bool
+) -> None:
+    """No clock reading can price a boosted machine, so the boost is the gap it lands in.
+
+    Each machine lands in exactly one bucket, so the unread-clock count does not
+    also carry it.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(boosted(FIXED_WHOLE, clock, clock_elided=clock_elided)),  # type: ignore[arg-type]
+        modeled_registry(),
+    )
+
+    assert [gap.kind for gap in result.gaps] == [balance.GAP_BOOST_UNMODELED]
+    assert result.unread_clock_count == 0
+    assert result.unmodeled_machine_count == 1
+
+
+def test_the_registry_side_is_named_before_the_boost() -> None:
+    """The same order :func:`draw_of` decides in: with no entry there is nothing to ask."""
+    result = balance.clocked_draw_of(
+        world_machines(boosted(NOT_IN_REGISTRY, None, clock_elided=True)), modeled_registry()
+    )
+
+    assert [gap.kind for gap in result.gaps] == [balance.GAP_NO_REGISTRY_ENTRY]
+
+
+def test_the_boost_gap_kind_is_clocked_only() -> None:
+    assert balance.GAP_BOOST_UNMODELED in balance.CLOCKED_GAP_KINDS
+    assert balance.GAP_BOOST_UNMODELED not in balance.GAP_KINDS
+
+
+def test_boosted_machines_group_per_class_and_conserve() -> None:
+    population = world_machines(
+        boosted(FIXED_WHOLE, None, clock_elided=True),
+        boosted(FIXED_WHOLE, HALF_CLOCK),
+        boosted(FIXED_THIRD, Fraction(1)),
+        elided(FIXED_WHOLE),
+        clocked(FIXED_THIRD, HALF_CLOCK),
+        clocked(FIXED_THIRD, None),
+    )
+    result = balance.clocked_draw_of(population, bracketed_registry())
+
+    assert [(gap.class_name, gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (FIXED_THIRD, balance.GAP_BOOST_UNMODELED, 1),
+        (FIXED_THIRD, balance.GAP_CLOCK_UNREAD, 1),
+        (FIXED_WHOLE, balance.GAP_BOOST_UNMODELED, 2),
+    ]
+    placed = sum(group.machine_count for group in result.contributions)
+    gapped = sum(gap.machine_count for gap in result.gaps)
+    assert placed + gapped == result.machines_considered == len(population.machines)
+    assert result.unmodeled_machine_count + result.unread_clock_count == gapped
+    assert result.elided_clock_count == 1
+    exact.audit_exact(result, path="clocked")
+
+
+def test_a_boost_tag_on_a_real_payload_reaches_the_gap_and_not_the_elided_count() -> None:
+    """End to end over the seam: a world model, the machines read, the clocked draw.
+
+    The payload carries the boost tag and NO clock tag, so the machines layer
+    marks the clock elided; the balance must still refuse it rather than count
+    it at the default.
+    """
+    model = machines_fx.world(
+        machines_fx.entry({machines.PROPERTY_PRODUCING: True, BOOST_TAGS[0]: 2.0}),
+        machines_fx.entry({machines.PROPERTY_PRODUCING: True}),
+    )
+    entries = registry(building(machines_fx.MACHINE_CLASS, consumption=WHOLE_MEGAWATTS))
+    result = balance.clocked_draw_of(machines.machines_of(model), entries)
+
+    assert result.elided_clock_count == 1
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (balance.GAP_BOOST_UNMODELED, 1)
+    ]
+
+
+def test_the_composite_carries_a_boosted_machine_as_an_incomplete_draw() -> None:
+    """The power rule reads ``complete``; a boosted machine must make it False."""
+    population = world_machines(
+        boosted(FIXED_WHOLE, Fraction(1)), clocked(FIXED_WHOLE, Fraction(1))
+    )
+    result = balance.balance_of(
+        built(modeled_counts()), modeled_registry(), population, world_network()
+    )
+
+    assert result.clocked_draw.complete is False
+    assert result.clocked_draw.upper_megawatts == WHOLE_MEGAWATTS
+    assert balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED in {
+        warning.code for warning in result.warnings
+    }
+
+
+def test_a_boosted_gap_repr_names_no_built_class() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(boosted(FIXED_WHOLE, Fraction(1))), modeled_registry()
+    )
+
+    assert result.gaps
+    assert FIXED_WHOLE not in " ".join(repr(gap) for gap in result.gaps)

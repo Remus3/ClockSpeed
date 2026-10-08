@@ -3032,6 +3032,81 @@ def test_a_measured_value_that_disagrees_is_reported_apart_from_unknown_content(
     assert result.properties["mSyntheticInt"] == _SYNTHETIC_INT
 
 
+def test_every_tag_whose_value_was_dropped_is_still_named() -> None:
+    """CS-1264. A dropped VALUE is not a dropped TAG, and the name says which tag it was.
+
+    A consumer asking whether a tag was PRESENT - a production boost - must get
+    an answer when that tag's value did not decode, or a torn or unmeasured tag
+    reads exactly like an absent one. The same fixture as the arm above, so the
+    two counts it grades and the names graded here describe one payload: the
+    torn value and the unmeasured struct are named, the decoded int is not.
+    """
+    payload = _disagreement_payload()
+
+    result = objects.read_properties(
+        _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
+    )
+
+    assert result.undecoded_names == frozenset({"mSyntheticTornStr", "mSyntheticStruct"})
+    assert result.properties["mSyntheticInt"] == _SYNTHETIC_INT
+
+
+def test_a_payload_that_decodes_whole_names_no_dropped_tag() -> None:
+    """The control: a payload whose every value decoded names nothing as dropped."""
+    payload = (
+        _actor_head(())
+        + _scalar_tag("mSyntheticInt", "IntProperty", struct.pack("<i", _SYNTHETIC_INT))
+        + _fstring("None")
+        + _TRAILING_RUN
+    )
+
+    result = objects.read_properties(
+        _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
+    )
+
+    assert result.properties["mSyntheticInt"] == _SYNTHETIC_INT
+    assert result.undecoded_names == frozenset()
+
+
+def test_the_dropped_tag_names_are_withheld_from_the_result_repr() -> None:
+    """A name read out of the save's own bytes is world content: a count renders, never a name."""
+    payload = _disagreement_payload()
+
+    result = objects.read_properties(
+        _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
+    )
+
+    assert "mSyntheticTornStr" in result.undecoded_names
+    assert "mSyntheticTornStr" not in repr(result)
+    assert "mSyntheticStruct" not in repr(result)
+    assert "undecoded_names=2" in repr(result)
+
+
+def test_the_payload_walk_repr_renders_a_count_and_never_a_dropped_name() -> None:
+    """The walk's own record is the third type holding the names, and it renders a count.
+
+    Built directly, so the arm grades what the repr PRINTS rather than which
+    class the census lists: a repr rendering the names, sorted or not, is red
+    here whatever the walk would have produced.
+    """
+    rendering = repr(
+        objects._PayloadWalk(  # noqa: SLF001 - the private record is the subject
+            properties={},
+            unmeasured=1,
+            disagreed=1,
+            terminated=True,
+            references=(),
+            reference_tags=0,
+            undecoded_references=0,
+            undecoded_names=frozenset({"mSyntheticTornStr", "mSyntheticStruct"}),
+        )
+    )
+
+    assert "mSyntheticTornStr" not in rendering
+    assert "mSyntheticStruct" not in rendering
+    assert "undecoded_names=2" in rendering
+
+
 def test_an_unmeasured_type_alone_raises_no_disagreement_report() -> None:
     """The negative control - without it the split could be a second name for one thing.
 
