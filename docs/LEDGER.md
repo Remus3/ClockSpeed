@@ -75,6 +75,36 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-07 - FLEET-KIT v8 (MAIN 0310, MAIN 1927) - DECISION RECORD, NOTHING CLOSED. The v6/v7 vendoring deferral is REVERSED by its own clause; CS-1272 vendors v8 NOW
+Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` and no vendored byte
+is edited; the MAIN 1927 FIX note, the MAIN 0310 ORDER note and all twelve files of the
+MAIN 0310 v8 bundle hash equal (SHA-256) to the same-named copies in MAIN's outbox, each
+tracked and clean in MAIN's git - 14 of 14, read back in session 128 by
+`tools/main_provenance.py` plus an independent re-hash; the `ROADMAP.md` CS-1272 line and
+the `docs/item_notes/phase7.md` CS-1272 `### Acceptance`, re-worded by this record.
+Decision: the FLEET-KIT v6 record's reversal clause below - "the S9 confirmation still
+absent at the next attended session" - is MET in session 128: no flip step has run and S9
+waits on the operator's own words with no date. MAIN 1927 section 1 orders v8 landed right
+after S12a, or now if S12a is not imminent - and it is not. CS-1272 therefore vendors
+FLEET-KIT v8, which carries v6 and v7, NOW, in ONE commit, with the CS-G03 clean-machine
+re-walk the v6 and v7 records already priced; the date given to MAIN is 2026-10-08, CS
+session 129. The vendoring half of the v7 decision C deferral is superseded; its landed
+partial adoption stands.
+Rejected: holding the deferral to straight after S12a - S12a follows S9, which waits on a
+floor neither MAIN nor an adjudicator lifts, so the deferral carried no date, and MAIN's
+drift read named CS the only tree still off v8.
+Why: the deferral's own recorded clause fired on a measured state rather than a judgement;
+MAIN 1927 carries the operator's authority (`CLAUDE.md` section 6.1); no lane is running
+and no flip step has run, so a commit to main voids no S7a..S8a result.
+Fence: do not re-defer v8 to after S12a. Reversed by: the operator's own words or a MAIN
+ruling that v8 must wait for the flip.
+Channel: the session 128 ANSWER to MAIN 1927 and MAIN 0310 (HOP 2) was sent through
+`tools/outbound_send.py --to MAIN --send`: gate CLEAN, 1/1 reached, the destination copy
+re-hashed equal to the source. MAIN 0300's supply-chain items are filed as one `BACKLOG.md`
+line under `CLAUDE.md` section 7 "Product before process", whose reversal no MAIN note
+supplies; the v8 adoption ANSWER gives MAIN that position. Recorded by the session 128
+/done.
+
 ### 2026-10-05 - CS-1271 - generated power is live: inputs_of hands balance_of the registry generators, and a skip on an incomplete input is indeterminate, never settled
 Verification: `clockspeed/advisor/advise.py::inputs_of` (passes `generators=registry.generators`
 to `clockspeed/audit/balance.py::balance_of`) plus

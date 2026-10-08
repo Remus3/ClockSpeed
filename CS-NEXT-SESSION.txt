@@ -1,16 +1,17 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 127, 2026-10-05. The operator starts with "continue".
+Written at the end of session 128, 2026-10-07. The operator starts with "continue".
 
-SESSION: 128
+SESSION: 129
 
 ================================================================================
 LANE AND RESPONDER STATE
 ================================================================================
 
-INBOX_STOP (ops/loop/control/lanes/INBOX_STOP, gitignored) IS STILL IN PLACE. No lane
-start was recorded in sessions 126 or 127. DO NOT TREAT THAT AS A REASON TO WAIT: the
-session decides lane start itself. The session 126 order (headless-driven, operator away
-overnight) was overtaken in session 127 by the operator's own order: inbox work plus /done.
+INBOX_STOP (ops/loop/control/lanes/INBOX_STOP, gitignored) IS STILL IN PLACE, and
+QUEUE_STOP holds the queue lane. CS-1272 LIFTS INBOX_STOP once the v8 commit has landed
+and the responder's spawn carries a note label and a kind - the unattended responder goes
+live 2026-10-08. No lane start was recorded in sessions 126 through 128. DO NOT TREAT THAT
+AS A REASON TO WAIT: the session decides lane start itself.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -19,12 +20,14 @@ READ THESE FIRST, IN THIS ORDER
   CLAUDE.md                 rules - section 7 "Product before process" governs
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only
-  WAKEUP_NOTES.md           sessions 127, 126, 125 at full fidelity
+  WAKEUP_NOTES.md           sessions 128, 127, 126 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
-  docs/item_notes/          per-item acceptance (phase7.md CS-700 holds the flip plan,
-                            S7a script recorded verbatim, S8/S10/S11 shapes, section 6
-                            the accepted identity-oracle residual; phase7.md CS-1272
-                            the v7 full adoption)
+  docs/item_notes/          per-item acceptance (phase7.md CS-1273 the tier2 red;
+                            phase7.md CS-1272 the v8 adoption, re-worded session 128;
+                            phase7.md CS-700 the flip plan, S7a script recorded
+                            verbatim, S8/S10/S11 shapes, section 6 the accepted
+                            identity-oracle residual)
+  docs/LEDGER.md            the 2026-10-07 FLEET-KIT v8 decision record (top entry)
   docs/GATED.md             CS-G03 (the flip gate) - its session 126 note
   docs/public-readiness.md  the settings to re-apply after the CS-700 flip
 
@@ -38,13 +41,18 @@ HEAD / remote   see the /done REPORT at the bottom. Confirm `git rev-parse HEAD`
                 `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0.
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
 ANOTHER WRITER MAY SHARE THIS TREE. Never touch another session's uncommitted work.
-  ALLOCATE NEW IDS FROM CS-1273 UPWARD AND RE-CHECK THE MAX FIRST (CS-1272 is the max,
-  filed session 127; memory: two writers allocate the same item id).
+  ALLOCATE NEW IDS FROM CS-1274 UPWARD AND RE-CHECK THE MAX FIRST (CS-1273 is the max,
+  filed session 128; memory: two writers allocate the same item id).
 UNMERGED BRANCHES - DO NOT PRUNE: the CS-1207 branch (round-15 tip), untouched since
   session 117: `git log --all --oneline --grep CS-1207`. Classify any leftover worktree
   branch by CONTENT before pruning.
 LOCAL CONFIG    config/main_tree.local.json (gitignored) names MAIN's root.
-RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored).
+RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored). Its
+                fleet_headless.spawn call passes NO note label and NO kind (measured
+                session 128) - fix it in CS-1272 BEFORE lifting INBOX_STOP.
+USAGE LOG       ops/loop/control/headless_usage.jsonl DOES NOT EXIST - no kit spawn has
+                run since INBOX_STOP. The first line's ts/kind/label goes in the v8
+                adoption ANSWER.
 DESKTOP FILE    INSPIRATION-DIRECTIVE.md on the Desktop (untracked, outside the repo):
                 41 directives; ingested as CS-1235..CS-1263.
 CLOUD KIT       a cloud-session kit exists OUTSIDE the repo, in the operator's
@@ -52,44 +60,73 @@ CLOUD KIT       a cloud-session kit exists OUTSIDE the repo, in the operator's
                 ANY CLOUD PR MUST MERGE BEFORE THE CS-700 FLIP. Check
                 `gh pr list --state open` before S9.
 SANDBOX         Windows Sandbox is ENABLED and launches (CS-G08 satisfied session 126).
-FLEET KIT       ops/fleet_kit/MANIFEST.json still reads version 4. v7 is PARTIALLY
-                adopted (decision C); the rest is CS-1272, straight after S12a.
+FLEET KIT       ops/fleet_kit/MANIFEST.json STILL READS VERSION 4. The v8 bundle (MAIN
+                0310) is VERIFIED 12/12 against MAIN's outbox (session
+                128). v7 is PARTIALLY adopted (decision C). VENDORING v8 IS NOW DUE
+                2026-10-08 (CS-1272) - the deferral to after S12a was REVERSED session 128.
 REPO VISIBILITY PRIVATE.
 
 ================================================================================
-CLOSED / LANDED - SESSION 127 (detail in docs/LEDGER.md)
+CLOSED / LANDED - SESSION 128 (detail in docs/LEDGER.md)
 ================================================================================
 
-CS-1271  CLOSED. inputs_of passes generators=registry.generators to balance_of;
-         power.balance_inputs offers the generation figure and its completeness;
-         power.headroom records VERDICT_INDETERMINATE (outside SETTLED_STEP_KINDS) for
-         three skips - incomplete production floor, incomplete draw floor, absent
-         generation figure; cards.py renders it. Acceptance amended (no built generator
-         over a registry with generators = available True, capacity 0; empty namespace
-         = False). Adjudicator REPAIR FIRST on cut 1 (headroom halted input-missing via
-         GET /api/advice); adversary REFUTED cut 2 (incomplete-floor reject counted as
-         settled - pre-existing in the draw-incomplete reject too - plus a false
-         docstring); second adversary HELD the repair (7 tests reddened when the kind
-         moved into the settled set; each site's revert reddened). No ledger schema bump.
-FLEET    MAIN 2237 (v6) and MAIN 0215 (v7) provenance verified, bundles 10/10 and 11/11.
-         Decision C landed in d5f05de: CLAUDE.md 2.3.1 aligned to item 13, CHANNEL.md
-         grant prose relocated to THIRD_PARTY.md, the 6.1 MAIN grant quote relocated to
-         docs/LEDGER.md, done.md pre-flight plus the SESSION line.
-MEMORY   MAIN 0905: memory/concurrent-agents-share-one-scratchpad.md and
-         memory/bare-python3-is-the-store-stub.md added. MAIN 0020: no action.
-FILED    CS-1272 - adopt FLEET-KIT v7 fully in ONE commit straight after S12a
-         (acceptance in docs/item_notes/phase7.md).
-BACKLOG  "Session 127 residuals": test_power.py "reject" names on indeterminate steps
-         (node ids never rewritten - docstring note only), the omitted clock priced at
-         the default and counted complete in _evaluate_headroom (CS-1263 ruling),
-         advise_and_record still has no product caller.
+NOTHING CLOSED, NO CODE CHANGED. The session's only work was the channel answer below.
+ANSWER   ONE ANSWER (HOP 2) to MAIN 1927 FIX and MAIN 0310 FLEET-KIT v8 ORDER, in the
+         gitignored outbox as 2026-10-07-2049-from-CS-ANSWER-MAIN-1927-0310-v8-...;
+         sent via `tools/outbound_send.py --to MAIN --send`: gate CLEAN (6/6 classes
+         MEASURED), 1/1 reached, MAIN's destination copy re-hashed SHA-256
+         equal to the source. It gave MAIN: v8 date 2026-10-08 (session 129); usage log
+         absent; 0915 DONE; 0830, 0230 roster and 0300 supply chain NOT DONE; FLEET-1 not
+         closed (attended writer). Provenance first: the 1927 note, the 0310 note and all
+         12 v8 bundle files hash-equal to MAIN's outbox copies, tracked and clean in
+         MAIN's git, 14 of 14 (tools/main_provenance.py plus an independent re-hash);
+         1927 note SHA-256 cd57650cb0e14fd74af085c2e1ba4c8c5cdd5ed5d09dd04aae493608a3a2cee3.
+DECISION FLEET-KIT v8 decision record (docs/LEDGER.md, 2026-10-07): the v6 deferral's own
+         reversal clause fired; CS-1272 vendors v8 NOW (fence below).
+FILED    CS-1273 - tier2 red (acceptance in docs/item_notes/phase7.md).
+REWORDED CS-1272 line and acceptance to the v8-now form.
+BACKLOG  "Session 128 residuals": MAIN 0300 supply-chain items, one line, held by CLAUDE.md
+         section 7 "Product before process" (a MAIN note does not reverse it).
 
 ================================================================================
-THE SINGLE NEXT ACTION
+THE SINGLE NEXT ACTION - IN THIS ORDER
 ================================================================================
 
-RUN THE CS-700 FLIP STEPS a-d, THEN STOP AT e (NOT RUN IN SESSION 127 - the operator
-ordered inbox work plus /done):
+1. CS-1273 - TIER2 IS RED (top item). tier2 failed its three scheduled runs on ef45ed0
+   (2026-10-05, 10-06, 10-07; runs 37297615633, 37449993093, 37606971404), each on ONE
+   test in the windows-latest fast shard of BOTH the full suite and the clean-checkout
+   probe: tests/test_flip_checks.py::test_a_passing_run_exits_zero_while_the_commit_graph_is_held
+   - its Windows control `pytest.raises(PermissionError)` ("DID NOT RAISE": a mapped
+   commit-graph did not block removing a hard-link twin on image windows-2025-vs2026,
+   Python 3.14). It landed with CS-1267 after the last green tier2 run, so tier2 never ran
+   it green. Fix TEST-FIRST (/tdd): failing reproduction, then the control reports "did not
+   take" by name instead of failing; a reverted CS-1267 fix must still redden it where the
+   control takes. Then dispatch tier2 on the pushed tip and READ it.
+2. CS-1272 - ADOPT FLEET-KIT v8 IN ONE COMMIT, DUE 2026-10-08 (acceptance in
+   docs/item_notes/phase7.md): relocate ~0.4 KB out of CLAUDE.md FIRST (v8 block 8738 B;
+   projected ~41.4 KB vs the 40 KB hard budget - MEASURE, relocate, never condense);
+   vendor all 12 kit files byte-identical to the MAIN 0310 MANIFEST; re-embed the v8
+   FLEET-COMMON block between the markers; pyproject.toml entries for the five new kit
+   modules, THEN the CS-G03 clean-machine re-walk; fleet_lanes at three lanes with a
+   worktree per lane and the item-13 checklist on the session-start and headless paths;
+   responder spawn carries a non-empty note label and kind (inbox / triage); a grep-level
+   test that every headless path calls fleet_headless.spawn, naming
+   ops/loop/run_lane.ps1 as the disabled path (QUEUE_STOP); the MAIN 0230 roster files
+   (tests/ops/test_shared_slots.py, tools/outbound_send.py LL refusal,
+   .claude/commands/done.md section 8 LL line, config/ports.json notes,
+   .claude/commands/drift-guard.md: LL retired mark, EW 8940-8959 added;
+   tests/test_channel_doc.py NOT-APPLICABLE pending adjudication). The
+   .claude/commands/*.md edits are part of this slice. THEN lift INBOX_STOP so the
+   unattended responder goes live and quotes its own SHA-256 (closes MAIN 0830 and
+   FLEET-1).
+3. SEND THE v8 ADOPTION ANSWER TO MAIN: the vendoring commit, conformance read on v8, the
+   first headless_usage.jsonl line's ts/kind/label, the 0230 roster per-file DONE /
+   NOT-APPLICABLE with the commit, and the MAIN 0300 POSITION - its items are filed in
+   BACKLOG.md under CLAUDE.md section 7, whose reversal is the operator's own words only;
+   the date answer for 0300 is "not scheduled: held by product before process".
+   Delivery = destination copies re-hashed, N/M reached-count.
+THEN (CARRIED, NOT RUN IN SESSIONS 127 OR 128) - CS-700 FLIP STEPS a-d, STOP AT e. The v8
+  commit and the CS-G03 re-walk land BEFORE S7a - A COMMIT TO MAIN AFTER S7a VOIDS S7a..S8a.
   a. Final-tip S3/S4/S5 bundle, S7q quiesce.
   b. S7a baseline: `python tools/sha_citation_gate.py --emit-historical`, then
      `--flip-readiness` MUST exit 0.
@@ -102,7 +139,7 @@ ordered inbox work plus /done):
      Operator-only acts in the same ask: upload the social preview
      (data/social-preview.png); security settings only if the admin scope is missing.
   THE S9 LINE CANNOT BE SUPPLIED HEADLESS. A HEADLESS SESSION STOPS AT e AND RECORDS THE
-  ASK in this file and the ledger. A COMMIT TO MAIN AFTER S7a VOIDS S7a..S8a.
+  ASK in this file and the ledger.
 IN PARALLEL (product, disjoint files, landed BEFORE S7a or held until after S12a): the
   next Phase 5 item - CS-1264, CS-1265, CS-1266 or the D4 fuel rule. Wire
   advise_and_record into a write path ONLY if an item or ruling says so - none does yet.
@@ -110,40 +147,41 @@ POST-CONFIRMATION: S9a/b/c, S10 push by SHA, S10b rulesets, S11 protection minim
   + settings table, S12 flip, S12a closing commit (ledger + CS-G03 clearance; drop
   c6f3687 from the CS-704 accept set in tier1.yml and tests/test_trailer_routes.py;
   delete the pre-publication-dead URL pin per ADR 0025 10b; retire the image and
-  389fe4a allow rows), THEN CS-1272 (v7 full adoption, ONE commit), enable PVR + secret
-  scanning + push protection, social preview, re-read the community profile
-  issue_template row (CS-959 close), add the README clone command (BACKLOG), re-cut
-  lane worktrees, lift S7q, tier1 green on the published SHA.
+  389fe4a allow rows), enable PVR + secret scanning + push protection, social preview,
+  re-read the community profile issue_template row (CS-959 close), add the README clone
+  command (BACKLOG), re-cut lane worktrees, lift S7q, tier1 green on the published SHA.
+  (CS-1272 is NO LONGER here - it lands before the flip.)
 
 ================================================================================
 OPEN ITEMS, PRIORITY ORDER
 ================================================================================
 
- 1 PUBLIC FLIP - CS-700 (the next action). DO NOT USE THE GITHUB VISIBILITY SWITCH.
+ 0 CS-1273 - tier2 red on the CS-1267 control (the next action, step 1).
+ 1 CS-1272 - FLEET-KIT v8 full adoption NOW, ONE commit, due 2026-10-08 (step 2).
+     CLAUDE.md is about 38.3 KB today with the v4 block; the v8 block is 8738 bytes
+     against about 5.7 KB embedded - MEASURE before committing.
+ 2 PUBLIC FLIP - CS-700. DO NOT USE THE GITHUB VISIBILITY SWITCH.
      Re-apply settings from docs/public-readiness.md (fix its Branch protection row line
      and phase7.md's matching lines to the CS-700 S11 shape). git-filter-repo
      THIRD_PARTY row is a residual before S7a. CS-959 closes only when the profile
      issue_template row re-reads non-null after the flip push (PVR endpoint 404, enable
      post-flip). tools/flip_checks.py still labels checks 5 and 7 "gated under CS-G08" -
      stale text now; the human halves stay NOT-RUN-HERE by design.
- 2 CS-1272 - FLEET-KIT v7 full adoption straight after S12a, ONE commit: vendor
-     ops/fleet_kit to v7, re-embed the FLEET block byte-identical, pyproject.toml
-     entries for the 4 new kit modules, fleet_lanes at 3 lanes with a worktree per lane,
-     the item-13 checklist on the session-start and headless paths. CLAUDE.md headroom
-     is about 40064 bytes after the block against 40960 - MEASURE before committing.
  3 PHASE 5 / ADVISOR PRODUCT: D4 fuel rule (none yet), CS-1264, CS-1265, CS-1266.
      CS-500's S9 overlay trace and S7/S8 (blocked on CS-1043, CS-1048, CS-1058,
      CS-1243) as filed.
  4 CS-1234 waits on a MAIN kit that writes only basic-set task names.
    CS-1231 slice C second half: route ops/loop/run_lane.ps1 through the kit. WAITS on
-     a MAIN kit with a command-line entry and the xhigh/max efforts - v7 STILL DOES NOT
-     CARRY THEM (nor the "Refused" wording). Four test files drive the real script with
-     a stub CLI (test_lane_runner_script, test_lane_background_tasks,
-     test_usage_limit_refusal, test_headless_route).
+     a MAIN kit with a command-line entry and the xhigh/max efforts - v8 STILL DOES NOT
+     CARRY THEM (nor the "Refused" wording); MAIN 1927 section 4 logged all three in its
+     kit v9 backlog - DO NOT RE-RAISE. Four test files drive the real script with a stub
+     CLI (test_lane_runner_script, test_lane_background_tasks, test_usage_limit_refusal,
+     test_headless_route).
  5 CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
      (14,60) every inventory component payload ends in an 8-byte trailing run, 4 bytes
      unread, int32 0 on every sampled save. CS-1151 owns the stale (14,60) sentence.
- 6 TIER2 HEADROOM: after THREE green tier2 runs (TWO so far: c30e347, 69d44c5) run
+ 6 TIER2 HEADROOM: after THREE green tier2 runs (TWO so far: c30e347, 69d44c5; the
+     three ef45ed0 scheduled runs are RED - CS-1273) run
      `python tools/tier2_headroom.py --refresh`, then remove PENDING_FIRST_RECORD and
      its EXPECTED_PENDING pin in the same diff.
  7 BACKLOG CANDIDATE (BACKLOG.md "Push gate"): push-gate tests fail when several suites
@@ -152,6 +190,8 @@ OPEN ITEMS, PRIORITY ORDER
      ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206,
      CS-1215, CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-953. (CS-700, CS-701,
      CS-704, CS-959 are on the flip track.)
+ 9 MAIN 0300 SUPPLY CHAIN: BACKLOG.md "Session 128 residuals" - NOT worked unless its
+     trigger fires (blocks product, reddens a suite, or the operator's own words).
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -168,19 +208,26 @@ CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line? This 
 DECISIONS - DO NOT RE-LITIGATE (each with what would reverse it)
 ================================================================================
 
-FLEET-KIT v7 DECISION C (session 127): partial adoption now (tree-local items touching
-  nothing the CS-G03 walk exercised); vendoring, block re-embed and headless/lane paths
-  in ONE commit straight after S12a (CS-1272), because pyproject.toml is in the CS-G03
-  walked set. Rejected: A (full now), B (nothing now). Reversed by: S12a aborting, a
-  MAIN ruling that v7 precedes the flip, or the operator's words - then adopt fully and
-  re-walk CS-G03.
+FLEET-KIT v8 DECISION (session 128, docs/LEDGER.md 2026-10-07): the v6 deferral's own
+  reversal clause ("the S9 confirmation still absent at the next attended session") is
+  MET - no flip step has run and S9 waits on the operator's own words with no date - and
+  MAIN 1927 section 1 orders v8 now when S12a is not imminent. CS-1272 vendors v8 (it
+  carries v6 and v7) NOW, ONE commit, CS-G03 re-walked; date given to MAIN 2026-10-08.
+  FENCE: do not re-defer to after S12a. Reversed by: the operator's own words or a MAIN
+  ruling that v8 must wait for the flip.
+MAIN 0300 SUPPLY CHAIN STAYS IN BACKLOG.md under CLAUDE.md section 7 "Product before
+  process"; a MAIN note does not stand in for its reversal. Reversed by: the operator's
+  own words, or an item that blocks product or reddens a suite.
+FLEET-KIT v7 DECISION C (session 127): partial adoption landed (tree-local items). Its
+  VENDORING HALF IS SUPERSEDED by the v8 decision above; the partial adoption stands.
 CS-1271 AN INCOMPLETE-INPUT SKIP IS VERDICT_INDETERMINATE, NEVER SETTLED; no ledger
   schema bump because trace step kinds are not persisted. Reversed by: step kinds
   becoming persisted - then bump the schema.
 CS-G03 PARTIAL SATISFACTION (session 126): check 7 and check 5's human half SATISFIED on
   the second Sandbox walk at 5c315ff. Rejected: blind GitHub-clone re-walk, re-walk at
   HEAD. Reversed by: a commit touching README, a hook, a script, docs/OPERATIONS.md or
-  pyproject.toml before the flip that a walk step exercises - then re-walk.
+  pyproject.toml before the flip that a walk step exercises - then re-walk. CS-1272's
+  pyproject.toml edit FIRES THIS CLAUSE BY DESIGN: re-walk after the v8 commit.
 CS-1268 SETTLED RULES ARE AN ALLOWLIST (SETTLED_STEP_KINDS); a card completes only on its
   rule's definite verdict. Reversed by: a new trace step kind - classify it, never
   default it to settled (VERDICT_INDETERMINATE was classified NOT settled, session 127).
@@ -249,16 +296,17 @@ FROZEN FILES (CLAUDE.md section 6): .githooks/*, scripts/install_hooks.py,
 THE CHANNEL
 ================================================================================
 
-DONE: the slots C4 reply (6/6 hash-matched, outbox gitignored); the v4 ANSWER to MAIN.
-WRITTEN, NOT YET DELIVERED: the ANSWER to MAIN 0215 and 2237 in the gitignored outbox
-  (2026-10-05-0224). It SUPERSEDES the stale 0206 v6 deferral draft - never deliver
-  0206. Delivery after the push: destination copies re-hashed, N/M reached-count.
-  CONFIRM IN THE REPORT BELOW WHETHER IT WAS DELIVERED; if not, deliver it first.
-OWED: MAIN 0830 - the UNATTENDED responder SHA-256 reply. STILL OWED while INBOX_STOP
-  holds; it needs the responder resumed, not a hand-written note.
-Inbox: 63 unread at the session 127 triage, all classified in the gitignored
-  ops/loop/control/progress/inbox-triage-127.md; 65 read at /done (2 arrived after the
-  triage - read them). NOT acknowledged in sessions 121 through 127.
+DONE: the slots C4 reply (6/6 hash-matched, outbox gitignored); the v4 ANSWER to MAIN;
+  the 0224 ANSWER to MAIN 0215/2237 (delivered session 127); the session 128 ANSWER to
+  MAIN 1927 and 0310 (2026-10-07-2049, delivered 1/1, re-hash match). Never deliver the
+  stale 0206 v6 deferral draft.
+OWED: the v8 adoption ANSWER (next action step 3). MAIN 0830 and FLEET-1 - the
+  UNATTENDED responder's reply quoting the SHA-256 it computes; it needs the responder
+  live after CS-1272, not a hand-written note.
+Inbox: 72 notes UNREAD at session 128 start, NOT triaged in session 128 (only MAIN 1927
+  and 0310 were acted on); 63 were classified at the session 127 triage in the gitignored
+  ops/loop/control/progress/inbox-triage-127.md. NOT acknowledged in sessions 121 through
+  128. Triage the rest after the next action.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
@@ -266,14 +314,22 @@ EXTERNAL CONDITIONS BEING WAITED ON
 
 CS-700 S9 onward: the operator's own-words confirmation; social preview and any
 admin-scope settings are operator or OAuth acts. Any open cloud-session PR. CS-1234 and
-CS-1231 slice C: a new MAIN kit version carrying CS's asks (v7 does not). CS-1207 and
-CS-815: operator rulings above. FOUR DEAD-SECRET FILES still await an operator deletion
-call.
+CS-1231 slice C: MAIN kit v9 carrying CS's asks (logged in MAIN's v9 backlog; v8 does
+not carry them). CS-1207 and CS-815: operator rulings above. FOUR DEAD-SECRET FILES
+still await an operator deletion call.
 
 ================================================================================
-TRAPS PAID FOR (carried, plus session 127)
+TRAPS PAID FOR (carried, plus session 128)
 ================================================================================
 
+A WINDOWS CONTROL THAT HOLDS ON THIS BOX DID NOT HOLD ON THE CI IMAGE: CS-1267's
+  mapped-file hold blocks removing a hard-link twin on this Windows 10 box (the pre-push
+  suite passed) but not on windows-latest (windows-2025-vs2026), and only tier2 runs
+  Windows - so the red surfaced only on the nightly, three days running. A platform
+  control that does not take must say so by name, never fail (session 128).
+A DEFERRAL WITHOUT A DATE IS NOT A DEFERRAL: the v6/v7 vendoring wait hung on S9, which
+  waits on the operator's own words; MAIN read CS as the only tree off v8. Give every
+  deferral a date or a measurable trigger (session 128).
 A REJECT ON AN INCOMPLETE FLOOR WAS BEING COUNTED AS SETTLED, so ledger.reconcile could
   complete an "Add N MW" card while the shortfall was unknown - and the same flaw sat in
   the pre-existing draw-incomplete reject. AUDIT EVERY RULE'S INCOMPLETENESS PATH: a
@@ -281,8 +337,9 @@ A REJECT ON AN INCOMPLETE FLOOR WAS BEING COUNTED AS SETTLED, so ledger.reconcil
 A WIRING CHANGE CAN HALT A RULE THAT WAS SILENT BEFORE: CS-1271's first cut made the
   headroom rule halt input-missing on the live surface. Drive GET /api/advice end to end
   after any advisor input change (session 127).
-CLAUDE.md BUDGET IS THE v7 BINDING CONSTRAINT: about 40064 bytes after the v7 block
-  against the 40960 hard fail. Relocate before the re-embed, never condense (session 127).
+CLAUDE.md BUDGET IS THE v8 BINDING CONSTRAINT: about 41.4 KB projected after the v8 block
+  against the 40 KB hard budget. Relocate before the re-embed, never condense (sessions
+  127, 128).
 AN UNTRACKED PROGRESS FILE IN A WORKTREE ROOT REDDENS the drift walk, provenance and
   manifest arms. Progress files go in gitignored ops/loop/control/progress/ (session 126).
 FOUR CONCURRENT WHOLE-SUITE RUNS LOST XDIST WORKERS. Builders run targeted + census
@@ -313,27 +370,7 @@ Worktree isolation blocks writes to the shared progress directory; agents write 
   progress file inside their own worktree - in a gitignored path, never the root.
 
 ================================================================================
-SESSION 127 /done REPORT
+SESSION 128 /done REPORT
 ================================================================================
 
-PUSH: 5a7d151..f793d1f pushed, PUSH_EXIT=0 read from the log; HEAD read back equal to
-  ls-remote (f793d1f). This report rides ONE MORE commit: CONFIRM HEAD equals ls-remote.
-  MAIN ANSWER 0224 (v7/v6) DELIVERED via tools/outbound_send.py, gate CLEAN, 1/1 copy
-  re-hashed SHA-256 match.
-CI READ: tier1 37282708674 at f793d1f IN_PROGRESS when read - RESULT NOT KNOWN, READ IT FIRST. No tier2 run this
-  session unless stated (still TWO green).
-PRIOR CI (session 126 open read, DONE): tier1 37262760914 at c6b7ba4 SUCCESS and tier1
-  37264699918 at 5a7d151 SUCCESS, both read by the main session at session 127 start.
-SUITE: pre-push hook whole suite at f793d1f: 14491 passed, 12 skipped, 0 failed in 24m08s
-  (read from the push log). Builders ran targeted + census only.
-GATES (doc-records, before commit): drift_guard 0, doc_budget 0, memory_sync 0,
-  sha_citation_gate 0;
-  doc tests (-k doc/citation/drift/roadmap/ledger/gated/backlog/wakeup/claude) EXIT 1,
-  2 failed 1521 passed - both on memory/bare-python3-is-the-store-stub.md (committed in
-  d5f05de, a bare-path carrier nothing guarded); repaired by guarding it in
-  tests/test_docs_citations.py GUARDED_DOCS, then test_docs_citations.py +
-  test_citation_tables.py EXIT 0, 475 passed; tests/surface +
-  tests/ops/test_lane_scope.py EXIT 0, 1771 passed.
-VERIFIED: a verifier agent read the /done doc edits before commit (one drop found and
-  fixed: the prior CI read). UNVERIFIED: the doc -k set was not re-run whole after the
-  GUARDED_DOCS repair (only the two citation files); the pre-push suite covers it.
+PENDING - filled in after the push.

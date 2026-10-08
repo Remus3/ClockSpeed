@@ -415,3 +415,13 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   CS-1263 ruling - TRIGGER: a measured save where an untagged machine runs off-default.
 - `clockspeed/advisor/advise.py::advise_and_record` still has no product caller; GET /api/advice
   runs the read-only advise() - TRIGGER: an item or ruling that names its write path.
+
+## Session 128 residuals - filed 2026-10-07 under product before process
+
+- MAIN 2026-10-05 0300 supply-chain ORDER, measured NOT DONE in session 128: no
+  `dependabot.yml`, 0 of 19 workflow `uses:` lines SHA-pinned, unhashed `pip install` lines and
+  no CI requirements file, no `codeql.yml`, no fuzzing ruled-out record, `SECURITY.md` without
+  the advisories-page link, and no Scorecard before/after ever run (token permissions already
+  met) - held here by `CLAUDE.md` section 7 "Product before process", which no MAIN note
+  reverses - TRIGGER: one of them blocks a product item or turns a suite red, or the
+  operator's own words.

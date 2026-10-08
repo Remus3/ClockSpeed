@@ -1612,18 +1612,48 @@ RC's lane widget reads every tree's status file and showed CS as "Sync: no signa
 
 ### Acceptance
 
-in ONE commit landed straight after CS-700 S12a: `ops/fleet_kit/` is vendored byte-for-byte to
-kit v7 and `ops/fleet_kit/MANIFEST.json` reads v7 with every file hash equal to the MAIN 0215
-bundle; the FLEET-COMMON block in `CLAUDE.md` is re-embedded byte-identical to v7 and the
-conformance test pinning the block hash to the manifest passes; `pyproject.toml` carries the
-entries for the four new kit modules; `fleet_lanes` is configured at three lanes with a worktree
-per lane; the item-13 checklist runs on the session-start and headless paths; `CLAUDE.md` stays
-under its hard budget with `python tools/doc_budget.py` exit 0.
+in ONE commit, landed NOW and due 2026-10-08, CS session 129 - the deferral to straight after
+CS-700 S12a was reversed in session 128 (the FLEET-KIT v8 decision record in `docs/LEDGER.md`).
+FIRST, about 0.4 KB is relocated out of `CLAUDE.md` per its section 4, never condensed (the v8
+block is 8738 bytes against about 5.7 KB embedded today, projecting about 41.4 KB against the
+40 KB hard budget). Then the ONE commit carries all of: `ops/fleet_kit/` vendored byte-for-byte
+to kit v8, all 12 kit files hash equal to the MAIN 0310 bundle and `ops/fleet_kit/MANIFEST.json`
+byte-equal to the bundle's (the MANIFEST.json SHA-256 in MAIN 0310 section 2); the v8
+FLEET-COMMON block re-embedded in
+`CLAUDE.md` byte-identical between its markers, with the conformance test pinning the block hash
+to the manifest passing; `pyproject.toml` entries for the five new kit modules (fleet_checklist,
+fleet_inbox, fleet_lanes, fleet_secrets, fleet_watch), and because `pyproject.toml` is in the
+CS-G03 walked set, the CS-G03 clean-machine re-walk run and its result recorded; `fleet_lanes`
+configured at three lanes with a worktree per lane, and the item-13 checklist running on the
+session-start and headless paths; the inbox responder's `fleet_headless.spawn` call carrying a
+non-empty note label and a kind (inbox or triage); a grep-level test that every tracked path
+starting a headless `claude` calls `fleet_headless.spawn`, naming `ops/loop/run_lane.ps1` as
+the one disabled path (held by QUEUE_STOP; the `CLAUDE.md` precedence clause (c) exception); the
+MAIN 0230 roster change (LL retired, EW added) in `tests/ops/test_shared_slots.py`, in
+`tools/outbound_send.py` (a refusal for an LL destination), in `.claude/commands/done.md` (its
+section 8 line naming LL as a hand-off carrier), in the `config/ports.json` notes and in
+`.claude/commands/drift-guard.md` (LL marked retired, EW 8940-8959 added) -
+`tests/test_channel_doc.py` is NOT-APPLICABLE pending adjudication, because it pins the
+vendored `docs/CHANNEL.md`; and `CLAUDE.md` under its hard budget with
+`python tools/doc_budget.py` exit 0. AFTER the commit: INBOX_STOP is lifted so the unattended
+responder goes live on 2026-10-08 and its own reply quotes the SHA-256 it computes (closing
+MAIN 0830 and FLEET-1); then the v8 adoption ANSWER goes to MAIN with the vendoring commit, the
+conformance read on v8, the first usage-log line's ts, kind and label, and the MAIN 0300
+position (`BACKLOG.md`, under `CLAUDE.md` section 7).
 
 ### Full headline
 
-adopt FLEET-KIT v7 fully in ONE commit straight after CS-700 S12a: vendor, block re-embed, kit
-modules in pyproject.toml, three lanes, item-13 checklist paths
+adopt FLEET-KIT v8 fully in ONE commit NOW (deferral reversed session 128): vendor, block
+re-embed, kit modules in pyproject.toml, CS-G03 re-walk, spawn label, roster, responder live
+
+### Recorded 2026-10-07 by the session 128 FLEET-KIT v8 decision
+
+The v6 record's reversal clause - the S9 confirmation still absent at the next attended
+session - fired in session 128, and MAIN 1927 section 1 orders v8 now when S12a is not imminent. v8
+carries v6 and v7, so this item now lands all three. The `.claude/commands/*.md` edits above are
+part of this slice. NOT part of this acceptance, named not done in the session 128 ANSWER: the
+item 14a fold of inbox handling into a loop tick, and the outbound cap. Fence: do not re-defer
+to after S12a. Reversed by: the operator's own words or a MAIN ruling that v8 must wait.
 
 ### Filed 2026-10-05 by the session 127 FLEET-KIT v7 decision
 
@@ -1635,3 +1665,31 @@ NOT part of this item: CS-1231 slice C, which still waits on CS's kit asks v7 do
 (a command-line entry, the xhigh/max efforts, the "Refused" task-name wording).
 Reversed by: S12a aborting, a MAIN ruling that v7 precedes the flip, or the operator's own
 words - then adopt fully at once and re-walk CS-G03.
+
+## CS-1273
+
+### Acceptance
+
+tier2 reads green on both windows-latest fast-shard jobs (full suite and clean-checkout probe)
+for the pushed tip, and `tests/test_flip_checks.py::test_a_passing_run_exits_zero_while_the_commit_graph_is_held`
+no longer fails on a runner image where its Windows control does not take - the control asserts
+that a mapped commit-graph blocks removing a hard-link twin of it, and on that image the removal
+raised no PermissionError. Where the control does not take, the arm says so by name rather than
+failing (the suite's existing pattern for an icacls deny or a chmod that did not take); where
+it does take, the arm still proves the CS-1267 cleanup. A reverted CS-1267 fix still reddens
+the arm on a platform where the control takes. The failing reproduction comes first.
+
+### Full headline
+
+tier2 red: the CS-1267 commit-graph hold control raises no PermissionError on the windows-latest
+image, failing both windows fast-shard jobs
+
+### Filed 2026-10-07 by the session 128 /done, from the tier2 red read
+
+Measured with `gh run view --log-failed`: the scheduled tier2 runs of 2026-10-05, 10-06 and
+10-07, all on the same tip, each fail exactly one test in the windows-latest fast shard of
+both the full suite and the clean-checkout probe, at the control's `pytest.raises(PermissionError)`
+("DID NOT RAISE"); runner image windows-2025-vs2026, Python 3.14. The test landed with CS-1267
+after the last green tier2 run, so tier2 has never run it green. Every other tier2 job on those
+runs passed, and tier1 on the same tip passed. This red holds the tier2 headroom count at two
+green runs.
