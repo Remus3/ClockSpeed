@@ -22,7 +22,8 @@ Build a second smelter line on the north iron node
 
 One line of instruction. One line of reason. The complete chain of reasoning one keystroke
 away, generated from the rule trace rather than written by hand. The card above shows the
-intended format; the advice surface that renders it is still being built - see Status.
+intended format; `/api/advice` serves cards in it today, and the dashboard does not draw
+them yet - see Status.
 
 ---
 
@@ -86,14 +87,21 @@ today", and this section is a summary of it.
   facts, world inventory counts and the normalized item and recipe registry.
 - **A map of what you have built** (`/api/map`). Placements with exact translation,
   rotation and scale, read straight from the save file.
+- **Advice cards** (`/api/advice`). `GET /api/advice` lists the current cards for your
+  world with their headline and one-line reason, and `GET /api/advice/<id>/derivation`
+  returns one card's full derivation. `POST /api/advice/<id>/state` records a card's state
+  for that world, and refuses with 403 any request that lacks the dashboard's same-origin
+  header. The rules written so far cover power headroom, and the dashboard does not draw
+  the cards yet. Without a save or without a game install the route answers 503.
 
 **Built, not yet wired to the dashboard**
 
 - **Whole-world audit.** Idle and starved machines with the upstream cause named, overclock
   waste, belt and pipe throughput saturation with the binding segment identified, power
   headroom and brownout risk, under-extracted resource nodes and extractor tier
-  mismatches. The computation is written and tested; `/api/audit` answers a documented 501
-  until the advisor layer above it exists.
+  mismatches. The computation is written and tested, and the advice cards already read its
+  power balance; `/api/audit` itself answers a documented 501 naming the open work item
+  that will publish its body.
 
 **Next**
 
@@ -102,10 +110,8 @@ today", and this section is a summary of it.
   a dependency-ordered plan: what to add, what to upgrade, what to redesign, what to tear
   down, with "replace this" called out separately from "build more of this". `/api/plan`
   answers 501 today and names the work item that will build it.
-- **The advice card surface** reads live: `GET /api/advice` lists the current cards with
-  their headline and one-line reason, and `GET /api/advice/<id>/derivation` returns one
-  card's full derivation. `POST /api/advice/<id>/state` records a card's state, and refuses
-  with 403 any request that lacks the dashboard's same-origin header.
+- **Advice rules for the other domains** - node siting and claim order, onsite processing
+  versus transport, and the milestone gap - are not yet written.
 
 ---
 
@@ -164,7 +170,7 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 | **Game** | A local installation, kept current |
 | **Python** | The minimum declared by `requires-python` in [`pyproject.toml`](pyproject.toml); `scripts/verify_env.py` asserts it and prints the version it found |
 | **git** | Git for Windows |
-| **openssl** | For `scripts/make_cert.py` only. Git for Windows ships one, but not on PATH by default - see that step below. `scripts/verify_env.py` reports it as SOFT |
+| **openssl** | For `scripts/make_cert.py`, and for the test suite. Git for Windows ships one, but not on PATH by default - see that step below; the suite needs more of Git's tools on PATH, as [`docs/OPERATIONS.md`](docs/OPERATIONS.md) section 2 states. `scripts/verify_env.py` reports it as SOFT |
 | **Python packages** | The `dev` extra in `pyproject.toml`, installed below. Of it, `pytest` and `ruff` are the two `scripts/verify_env.py` counts as HARD |
 | **Node** | For the optional companion window, and to run the full test suite - without Node the dashboard panel tests fail rather than skip. Running Clockspeed itself does not need it |
 
@@ -174,7 +180,14 @@ On a machine that has none of them yet, install from the official sources:
 
 1. **Python** from [python.org](https://www.python.org/downloads/windows/), in a release
    that meets the `requires-python` floor in [`pyproject.toml`](pyproject.toml) - that
-   file is where the version is pinned.
+   file is where the version is pinned. That page lists the Python install manager first
+   and the releases below it. Take a release's "Windows installer (64-bit)" rather than
+   the install manager: the install manager refused to install on Windows 10 build 19041,
+   where the installer worked. On the installer page that carries **Install Now**, tick
+   **Add python.exe to PATH** before you click it - the box is unticked by default, and
+   without it the `python --version` check below fails.
+   [python.org's Windows guide](https://docs.python.org/3/using/windows.html) marks that
+   installer deprecated from 3.14 and says it will not be produced for 3.16 or later.
 2. **Git** from [git-scm.com](https://git-scm.com/download/win). The installer defaults are
    fine.
 3. **Node** from [nodejs.org](https://nodejs.org/), the LTS installer, only if you want the
@@ -210,9 +223,19 @@ python -m venv .venv
 python -m pip install -e ".[dev]"
 ```
 
-The activation line is the Windows `cmd` and PowerShell form; in Git Bash it is
-`source .venv/Scripts/activate`. `.venv/` is gitignored. The core itself has no runtime
-dependencies; the `dev` extra is the toolchain the next steps check for.
+The activation line is the Windows `cmd` form; in Git Bash it is
+`source .venv/Scripts/activate`. A stock Windows PowerShell refuses it - running scripts
+is disabled under its default execution policy, and `python` then stays the base
+interpreter, so the install lands outside the virtual environment. In PowerShell, run this
+before the activation line; it lasts only for that terminal and changes no machine
+setting:
+
+```
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+```
+
+`.venv/` is gitignored. The core itself has no runtime dependencies; the `dev` extra is
+the toolchain the next steps check for.
 
 Then:
 
@@ -280,11 +303,15 @@ If the port is taken the process exits and names it. No second port is ever trie
 
 **A first ratio.** With a game installed, ask the solver for 30 Iron Ingot per minute
 from iron ore. The parameters travel in the query string of a POST; `-k` accepts the
-self-signed certificate:
+self-signed certificate and `-s` keeps curl's progress output out of the answer:
 
 ```
-curl -k -X POST "https://localhost:<port>/api/solve?targets=Desc_IronIngot_C=30&recipes=Recipe_IngotIron_C&raw_items=Desc_OreIron_C&byproduct_policy=balanced"
+curl.exe -s -k -X POST "https://localhost:<port>/api/solve?targets=Desc_IronIngot_C=30&recipes=Recipe_IngotIron_C&raw_items=Desc_OreIron_C&byproduct_policy=balanced"
 ```
+
+Type `curl.exe`, not `curl`: in Windows PowerShell `curl` is an alias for
+`Invoke-WebRequest`, which refuses `-k`. `curl.exe` is the curl Windows ships, and the
+line runs unchanged in `cmd`.
 
 The answer lists each recipe with its exact machine count and the raw input per minute,
 every rate as a `{"num", "den"}` pair. `/api/registry` lists the item and recipe

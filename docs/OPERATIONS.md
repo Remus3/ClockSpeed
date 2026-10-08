@@ -48,7 +48,10 @@ The order is not arbitrary:
 
 ### 1.1 Prove the hooks fire - presence is not firing
 
-Installation is not proof. The only valid test is end to end:
+Installation is not proof. The only valid test is end to end. It makes a real commit, and
+on a machine with no git identity `git commit` stops at "Author identity unknown" before
+any hook runs, which proves nothing - so if `git config user.email` prints nothing, run
+`git config user.name "<name>"` and `git config user.email "<email>"` in the clone first.
 
 ```
 stage a file containing a banned character
@@ -137,6 +140,16 @@ only for a file you authored; on anything else it is a false declaration on the 
 **Never run a bare recursive test invocation from the repo root.** Always name the target
 directory explicitly. A bare sweep from the root can walk runtime state directories and
 destroy live locks or data.
+
+**The test suite needs Git for Windows' `usr\bin` on PATH.** It runs `openssl`, `bash`,
+`sh` and other tools that Git for Windows ships in `<Git install>\usr\bin` - the folder
+`git --exec-path` starts with - and a default Git install leaves that folder off PATH,
+so part of the suite then fails rather than skips. APPEND it, never prepend it, so the
+Windows tools that share a name with one there (`find`, `sort`, `timeout`) keep
+precedence: `set "PATH=%PATH%;<Git install>\usr\bin"` in `cmd`,
+`$env:Path += ";<Git install>\usr\bin"` in PowerShell. Type it on its own line: chained
+after the activation line with `&&`, `cmd` expands `%PATH%` before the activation runs,
+and the suite then runs under the base interpreter.
 
 ---
 

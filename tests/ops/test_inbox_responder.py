@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -146,12 +148,23 @@ def _control(tree: Path) -> Path:
 
 
 @pytest.fixture
-def tree(tmp_path: Path) -> Path:
-    """A synthetic main tree: the worker prompt, a control dir, no data yet."""
-    (tmp_path / "tools").mkdir()
-    (tmp_path / "tools" / "headless-inbox.md").write_bytes(b"# synthetic worker prompt\n")
-    (_control(tmp_path) / "lanes").mkdir(parents=True)
-    return tmp_path
+def tree() -> Iterator[Path]:
+    """A synthetic main tree: the worker prompt, a control dir, no data yet - at a SHORT path.
+
+    CS-1279: pytest's tmp_path nests the account name twice plus the test name,
+    which leaves too little of MAX_PATH for the long-named notes the CS-1272 H3
+    arms plant on a machine with long-path support off - the Windows default. A
+    bare temp directory leaves the headroom the MAX_PATH arm grades, as the
+    tests/test_inbox_watch.py `repo` fixture does for CS-1187.
+    """
+    root = Path(tempfile.mkdtemp(prefix="ir"))
+    try:
+        (root / "tools").mkdir()
+        (root / "tools" / "headless-inbox.md").write_bytes(b"# synthetic worker prompt\n")
+        (_control(root) / "lanes").mkdir(parents=True)
+        yield root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def _run(tree: Path, spy: RunSpy, *, seams: dict[str, Any] | None = None, **overrides: Any) -> int:
@@ -1061,10 +1074,14 @@ def test_the_progress_file_carries_no_path_env_value_or_body(tree: Path) -> None
 
 #: A topic long enough to push the sender past the watcher's display cap
 #: (`inbox_watch.MAX_DISPLAY_CHARS`), so the DISPLAY loses what the kit reads.
-LONG_TOPIC: Final = "a" * 110
+#: CS-1279: and no longer. After the 16-character stamp the sender starts
+#: wholly past the cap itself, not only past its cut, and every name below
+#: keeps the MAX_PATH headroom the planted-path arm grades. The TERMINAL name
+#: carries no class word, so its marker also sits past the cap at that length.
+LONG_TOPIC: Final = "a" * 104
 LONG_RETIRED: Final = f"2026-10-05-0230-{LONG_TOPIC}-from-LL-x.md"
 LONG_OWN: Final = f"2026-10-05-0230-{LONG_TOPIC}-from-CS-x.md"
-LONG_TERMINAL: Final = f"2026-10-05-0230-from-LW-question-{LONG_TOPIC}-TERMINAL.md"
+LONG_TERMINAL: Final = f"2026-10-05-0230-from-LW-{LONG_TOPIC}-TERMINAL.md"
 LONG_ORDER: Final = f"2026-10-05-0230-{LONG_TOPIC}-from-MAIN-ORDER-x.md"
 
 #: The kit reads its sender code upper-case only, so a lower-case code BEFORE
@@ -1098,6 +1115,50 @@ def _tree_bytes(tree: Path) -> bytes:
     written = [path for path in tree.rglob("*") if path.is_file()]
     channel = tree / inbox_watch.INBOX_DIRNAME
     return b"".join(path.read_bytes() for path in written if channel not in path.parents)
+
+
+#: Windows MAX_PATH less its terminator: the longest path a default machine,
+#: with long-path support off, can create. The tests/test_inbox_watch.py
+#: precedent (CS-1187) grades its own planted notes against the same budget.
+MAX_PATH_CHARS: Final = 259
+
+#: Headroom over THIS machine's base for a longer account name or temp
+#: directory elsewhere. A Windows account name runs to 20 characters.
+MAX_PATH_HEADROOM: Final = 40
+
+#: Every stamped shape an arm in this file plants through `_channel`.
+PLANTED_SHAPES: Final = (
+    "{stamp}-from-LL-ANSWER-x.md",
+    "{stamp}-from-CS-ANSWER-x.md",
+    "{stamp}-from-LW-ACK-TERMINAL-x.md",
+    "{stamp}-from-LW-question-x.md",
+)
+
+
+def _planted_names() -> list[str]:
+    """Every name an arm in this file plants in the channel through `_channel`."""
+    stamped = [name for shape in PLANTED_SHAPES for name in _stamped_names(shape, CAP_PLUS_ONE)]
+    named = [LONG_RETIRED, LONG_OWN, LONG_TERMINAL, LONG_ORDER, LOWER_BEFORE_MAIN, LIVE_NOTE]
+    return [*named, *stamped]
+
+
+def _longest_planted_path(tree: Path) -> int:
+    """The character count of the longest full path `_channel` would create."""
+    inbox = tree / inbox_watch.INBOX_DIRNAME
+    return max(len(str(inbox / name)) for name in _planted_names())
+
+
+def test_every_planted_note_fits_max_path_on_a_default_machine(tree: Path) -> None:
+    """CS-1279: six arms died with FileNotFoundError on a clean-machine sandbox walk.
+
+    The sandbox runs with long-path support at its Windows default (off), so a
+    note whose full path exceeds MAX_PATH cannot be created at all. Graded by
+    length rather than by creating the file, because a machine with long paths
+    ON - the development box, CI - creates it happily and would never go red.
+    """
+    longest = _longest_planted_path(tree)
+    budget = MAX_PATH_CHARS - MAX_PATH_HEADROOM
+    assert longest <= budget, f"a planted path is {longest} chars, over {budget}"
 
 
 @pytest.mark.parametrize(
