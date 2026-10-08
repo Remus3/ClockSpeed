@@ -1714,7 +1714,7 @@ def test_the_boost_is_named_before_the_clock_is_read(
     also carry it.
     """
     result = balance.clocked_draw_of(
-        world_machines(boosted(FIXED_WHOLE, clock, clock_elided=clock_elided)),  # type: ignore[arg-type]
+        world_machines(boosted(FIXED_WHOLE, clock, clock_elided=clock_elided)),
         modeled_registry(),
     )
 
