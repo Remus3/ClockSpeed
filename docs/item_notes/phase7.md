@@ -1621,3 +1621,30 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
+
+## CS-1279
+
+### Filed 2026-10-08 by the session 131 CS-G03 walk
+
+The CS-G03 clean-machine re-walk ran at `ed0b03f` in a fresh Windows Sandbox, walked by a
+context-free agent. It reached the README first result; `scripts/verify_env.py` exited 0; the
+hooks were armed - a staged violation was refused with HEAD unchanged, and a control commit was
+committed. But the full suite, run as the docs then stated, was RED: 14383 passed, 302 skipped,
+24 failed, 17 errors. 35 of the 41 needed Git for Windows' `usr\bin` on PATH (`openssl`,
+`bash`), which no doc required for the suite; the other 6, in
+`tests/ops/test_inbox_responder.py`, built paths over MAX_PATH with Windows long paths off, the
+Windows default. The walk also found six README defects: D1, no clone command; D2, the Python
+PATH option; D3, PowerShell venv activation; D4, the `curl` alias in PowerShell; D5, a stale
+Status section; D6, the suite's prerequisites - plus no git identity step in any newcomer doc.
+
+The repairs landed in the CS-1279 commit "walk repairs: short responder paths, README,
+OPERATIONS" (`457d2b9`): D2 to D6 in `README.md`; the suite's `usr\bin` need and the git
+identity step in `docs/OPERATIONS.md`; short planted paths in
+`tests/ops/test_inbox_responder.py`, graded by
+`tests/ops/test_inbox_responder.py::test_every_planted_note_fits_max_path_on_a_default_machine`.
+D1 is deferred to the CS-700 flip, when the public address exists. A repair is not a pass: walk
+1 stands FAILED, and this item closes only on the second walk its acceptance names.
+
+### Acceptance
+
+a second walk by a different context-free agent in a fresh Windows Sandbox with long paths off, at a tip at or after the CS-1279 repair commit, follows `README.md` and the `docs/OPERATIONS.md` bootstrap as written and records `scripts/verify_env.py` exit 0, the hook violation refused with HEAD unchanged plus a committed control, and the full suite run as documented with 0 failed and 0 errors; an adjudicator that did not walk grades the log. Walk logs live outside the repo.

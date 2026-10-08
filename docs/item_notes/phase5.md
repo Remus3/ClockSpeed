@@ -519,20 +519,6 @@ not invent a boost reading, it must refuse or name what it cannot read.
 
 a machine carrying a production-boost tag is either priced by the boosted power law or published as a named gap, never priced as unboosted; an arm with a synthetic boosted machine reddens when the boost is ignored; the elided-default count excludes a boosted machine
 
-## CS-1265
-
-### Filed 2026-10-04 by CS-1263's adversary pass
-
-`clockspeed/audit/flow.py` returns `GAP_FLOW_CLOCK_UNREAD` for a machine with no clock tag, which
-is most of the library, while `clockspeed/audit/balance.py` prices the same machine at the elided
-default under CS-1263's ruling. Two audits over one world disagree about one fact. The CS-1263
-decision governs: an untagged machine on a cleanly read payload is at the class default unless a
-measured save shows otherwise.
-
-### Acceptance
-
-the flow audit reads the same `overclock_elided` mark the balance reads and treats an elided machine as at the class default, counted, while a refused or unread clock stays a named gap; one arm drives both audits over one synthetic world and asserts they classify every machine's clock the same way
-
 ## CS-1266
 
 ### Filed 2026-10-04 by CS-500's S4 adversary pass
@@ -544,3 +530,17 @@ producing tag. Nothing cross-checks the considered population against what is ac
 ### Acceptance
 
 the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed
+
+## CS-1278
+
+### Filed 2026-10-08 by CS-1265's adversary pass
+
+`clockspeed/audit/flow.py` prices a machine's output by its clock alone, but a production boost
+also multiplies output. Once CS-1264 lands, the balance names a boosted machine a
+boost-unmodeled gap while the flow audit flows it - at the elided default when it carries no
+clock tag - so two audits over one world disagree about one machine, the CS-1265 defect one
+axis over. Waits on CS-1264.
+
+### Acceptance
+
+a machine carrying a production-boost tag, decoded or not (CS-1264's `MachineState.production_boost_tagged`), is a named flow gap, never flowed at its clock alone, and is excluded from the elided count; the both-audits arm, `tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`, gains a boosted row and still asserts the two audits classify every machine alike; an arm reddens when the flow ignores the boost

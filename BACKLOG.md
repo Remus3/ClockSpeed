@@ -365,7 +365,8 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - `clockspeed/audit/balance.py::clocked_draw_of` - the overclock-is-None guard on the elided line
   is untested; equivalent on real input (CS-1263 adversary) - TRIGGER: that line is next touched.
 - The elided-clock count includes non-clockable classes (storage, trading post, space elevator),
-  inflating it - TRIGGER: a surface displays the elided count, or CS-1264/CS-1265 touches it.
+  inflating it - TRIGGER: a surface displays the elided count, or CS-1264/CS-1265 touches it -
+  TRIGGER FIRED 2026-10-08; folded into CS-1266's slice.
 - The CS-400 phase 4 gate shards: per-shard CI time unmeasured, round-robin deal uneven about
   1.8x - TRIGGER: a shard nears `_CHILD_TIMEOUT_SECONDS` in a tier2 log.
 - The advisor ledger lock is exercised across threads only, never across processes - TRIGGER: a
@@ -387,13 +388,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 
 - `README.md` carries no clone command - TRIGGER: the CS-700 flip; add it then, with the
   public address.
-- `README.md` is silent on the Python install manager, which refuses on Windows build 19041;
-  the fallback MSI worked in the Sandbox walk - TRIGGER: a README re-walk or a Python-floor
-  change.
-- `README.md`'s solve example `curl` lacks `-s`, so progress output mixes with the body -
-  TRIGGER: `README.md` is next touched.
-- PowerShell venv activation under the default execution policy was never exercised by a
-  walk - TRIGGER: a README re-walk.
 - A clone from the GitHub remote was never walked; both Sandbox walks used a bundle because
   the remote is private - TRIGGER: the CS-700 flip makes the remote public.
 - A generator class a future build adds to the registry but not to

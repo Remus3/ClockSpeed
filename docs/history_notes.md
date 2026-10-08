@@ -24,6 +24,39 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1265 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-08
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1265
+
+### Filed 2026-10-04 by CS-1263's adversary pass
+
+`clockspeed/audit/flow.py` returns `GAP_FLOW_CLOCK_UNREAD` for a machine with no clock tag, which
+is most of the library, while `clockspeed/audit/balance.py` prices the same machine at the elided
+default under CS-1263's ruling. Two audits over one world disagree about one fact. The CS-1263
+decision governs: an untagged machine on a cleanly read payload is at the class default unless a
+measured save shows otherwise.
+
+### Acceptance
+
+the flow audit reads the same `overclock_elided` mark the balance reads and treats an elided machine as at the class default, counted, while a refused or unread clock stays a named gap; one arm drives both audits over one synthetic world and asserts they classify every machine's clock the same way
+
+
+## Session 126 residuals - three lines relocated from `BACKLOG.md` 2026-10-08
+
+**Discharged by CS-1279:** the session 131 walk and the CS-1279 commit fired each trigger, and that commit repaired `README.md` for each.
+
+- `README.md` is silent on the Python install manager, which refuses on Windows build 19041;
+  the fallback MSI worked in the Sandbox walk - TRIGGER: a README re-walk or a Python-floor
+  change.
+- `README.md`'s solve example `curl` lacks `-s`, so progress output mixes with the body -
+  TRIGGER: `README.md` is next touched.
+- PowerShell venv activation under the default execution policy was never exercised by a
+  walk - TRIGGER: a README re-walk.
+
+
 ## CS-1275 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-08
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

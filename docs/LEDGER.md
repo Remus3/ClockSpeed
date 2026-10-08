@@ -75,6 +75,37 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1265 - CLOSED: the flow audit reads an elided clock at the class default, counted, so the flow and the balance classify every machine's clock alike
+Verification: `clockspeed/audit/flow.py`, which reads `MachineState.overclock_elided` with the
+balance's own predicate and flows an elided machine at
+`clockspeed/audit/balance.py::ELIDED_CLOCK_DEFAULT`, counted per recipe
+(`RecipeGroup.elided_machine_count`) and for the world (`WorldFlow.elided_clock_count`), plus
+`tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`,
+`tests/audit/test_flow.py::test_an_elided_clock_flows_at_the_class_default_and_is_counted`,
+`tests/audit/test_flow.py::test_the_elided_counts_sum_within_a_recipe_and_across_recipes`,
+`tests/audit/test_flow.py::test_the_elided_count_survives_an_interleaved_recipe_order` and
+`tests/audit/test_flow.py::test_the_elided_counts_are_scoped_to_each_audits_own_population`.
+Landed in `d37377d`: a machine with no clock tag on a cleanly read payload flows at the class
+default, imported from the balance so the value keeps one owner; a refused value, an unread
+payload, a disagreeing tag or an unmarked None stays the named `GAP_FLOW_CLOCK_UNREAD`; each
+audit's count covers only its own population, so the flow counts an elided machine only when
+its recipe flows.
+Decision, the merger's ruling: CS-1263's "own counted group" governs balance pricing; for the
+flow, "counted" is met by the per-recipe sub-count plus the world count. Rejected: a separate
+elided RecipeGroup - it changes the group identity flow consumers key on; a
+WARN_FLOW_CLOCK_ELIDED code - outside the acceptance.
+Process: adversary round 1 REFUTED - the count mutants max-for-sum and boolean-per-group
+survived, and the docstring overclaimed parity with the balance; repaired. Round 2 REFUTED - a
+count restarting on an interleaved recipe survived, and a parity sentence was false for an
+inexact exponent, a case unreachable from the registry builder; repaired. The loop STOPPED BY
+COST AGAINST RISK (`CLAUDE.md` section 7) after round 2, the interleaved mutant independently
+re-killed by the merger. The code was correct from round 1.
+Residual: a boosted elided machine is flowed at the class default, but will be a named gap in
+the balance once CS-1264 lands - filed as CS-1278. The item section is relocated to
+`docs/history_notes.md`.
+Suite: this record states no whole-suite count for this item - none was read back by the
+session that wrote it.
+
 ### 2026-10-08 - CS-1275 - the root moved to E: under ADR 0026 on the operator's own words, the root text and the hardcoded C: paths with it
 Verification: `docs/adr/0026-the-root-moves-to-e.md`, indexed in `docs/adr/README.md`; the root
 text in `CLAUDE.md` sections 2 and 7 and in `BOOTSTRAP.md`; the `.claude/commands/done.md`

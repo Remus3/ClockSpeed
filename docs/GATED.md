@@ -117,6 +117,7 @@ gate: CS-1187 MENTIONED
 gate: CS-1272 MENTIONED
 gate: CS-1274 MENTIONED
 gate: CS-1275 MENTIONED
+gate: CS-1279 MENTIONED
 CLOCKSPEED-GATE-CLASSIFICATION END
 ```
 
@@ -695,6 +696,19 @@ re-walk waits on the move, never the move on this gate. THIS GATE STAYS GATED.
 `docs/adr/0026-the-root-moves-to-e.md`). The one clean-machine re-walk the note above names
 is now DUE, at a tip at or after that commit, and it stays a hard precondition of CS-700
 step a (the Q2 scope ruling). THIS GATE STAYS GATED.
+
+#### Filed 2026-10-08 (session 131): the first re-walk FAILED; repairs landed; a second walk is running
+
+**THE FIRST RE-WALK FAILED.** It ran at `ed0b03f`, a tip after the CS-1275 move commit, in a
+fresh Windows Sandbox. Its verdict lines: the README first result reached; `scripts/verify_env.py`
+exit 0; the hook violation refused with HEAD unchanged, and the control committed; the full
+suite RED, with failures and errors; six README defects. The counts are recorded once, in
+CS-1279's section in `docs/item_notes/phase7.md`. So check 7 and
+the human half of check 5 are NOT satisfied by it. The causes, the repairs and the second walk's
+acceptance are CS-1279 (`ROADMAP.md`, Phase 7), MENTIONED in the classification block, not
+BLOCKED: this gate waits on that walk, never the walk on this gate. The repairs landed in the
+CS-1279 commit, and a second walk by a different context-free agent is running at a tip at or
+after it. It stays a hard precondition of CS-700 step a. THIS GATE STAYS GATED.
 
 ### CS-G04 - Dedicated-server data lane
 
