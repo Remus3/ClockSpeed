@@ -567,3 +567,17 @@ In order, each on the stated model of the one before it:
 ### Acceptance
 
 A registered rule power.fuel_supply in its own family module declares every input it reads and no unlock. Generator gains an appended, defaulted field read from mFuel: accepted fuel keys in document order, or None when absent or unreadable, never an empty tuple, and an unreadable value is a named warning. Per built fuel generator class, demand is the exact Fraction sum over built instances of nameplate MW times clock; a fluid's energy value is per litre and is converted to MJ per cubic metre through LITRES_PER_CUBIC_METRE; a class with no fuel (geothermal) is out of scope. Supply is aggregated per fuel. The rule fires only when the pooled energy of all accepted fuels (supply times energy over 60, in MW) falls short of the class's demand, with the exact shortfall; it rejects only when that pooled energy covers demand over a complete flow. A fuel accepted by two built classes makes both indeterminate; an incomplete flow, an unknown energy value, unreadable fuels, an unread generator clock or a production gap is indeterminate, never a verdict. Tier 3 converts the shortfall into a rate for every accepted fuel; the headline fuel is chosen in mFuel order; tiers 1 and 2 name fuel, figure and generator count; tier 3 is generated from the trace. Over an incomplete flow, a companion demand card states each class's nameplate burn per accepted fuel, claims nothing about supply, and never fires where power.fuel_supply decides. Supplemental resources (water) and byproducts (nuclear waste) are out of scope and named as such on tier 3. GET /api/advice carries the fuel trace.
+
+## CS-1286
+
+### Filed 2026-10-08 by the session 133 CS-1280 measurement
+
+Over the 41-save library, a producing machine at the default clock records its class default as
+`mTargetConsumption` in 515 of 519 cases. The 4 exceptions are all `Build_MinerMk2_C`, recording
+12 MW against the class's declared 15 MW. A possible cause is a stale value written under an
+older build - an unchecked guess, not a measured cause. The pricing ruling this measurement
+grounds is the 2026-10-08 CS-1280 decision record in `docs/LEDGER.md`.
+
+### Acceptance
+
+The four records are re-measured read-only from save copies, reporting each one's save build, mCurrentPotential, mPendingPotential and recorded mTargetConsumption, with no personal data in any output; the cause is named and recorded in docs/LEDGER.md; if it shows the class default is not the nameplate draw for that class on the pinned build, CS-1263's reversal clause is evaluated by an adjudicator and the ruling recorded; otherwise the item closes with the measured cause.

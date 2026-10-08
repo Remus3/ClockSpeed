@@ -75,6 +75,48 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1280 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1280 STAYS OPEN. The tagless-consumer pricing is RULED: option A with a carve-out - priced at its class default in its own counted group only when its payload read clean
+Verification: `docs/item_notes/phase5.md` section CS-1280, heading `Filed 2026-10-08 by
+CS-1266's builder`, whose `### Acceptance` clause names option A first and is unchanged by this
+ruling. Adjudicated in session 133, grounded in the session 133 CS-1280 measurement.
+DECISION: option A with a carve-out. A tagless consumer is priced at its class default, in its
+own counted group with its own warning, only when its payload read clean: no `mCurrentPotential`
+or `mPendingPotential` tag, no production-boost tag decoded or undecoded
+(`clockspeed/audit/machines.py::PRODUCTION_BOOST_PROPERTY_NAMES`), and no disagreeing value -
+the clean-payload test the elided clock uses (`clockspeed/audit/machines.py::MachineState`,
+field `overclock_elided`, as `clockspeed/audit/machines.py::machines_of` computes it), which
+reads `mCurrentPotential` decoded or undecoded, the payload read and the disagreeing-value
+count; `mPendingPotential` is read by neither that test nor the module
+(`clockspeed/audit/machines.py::PROPERTY_OVERCLOCK`), so the carve-out adds it, and the boost
+tags the elided clock meets as its own refusal (`MachineState` field `production_boost_tagged`).
+Anything else stays a `no-machine-state` omission
+(`clockspeed/audit/balance.py::GAP_NO_MACHINE_STATE`): the 10 MinerMk1 and 2 WaterPump tagless
+records carry `mPendingPotential` and stay omitted.
+WHY: the balance draw is nameplate at clock. `clockspeed/audit/balance.py::clocked_draw_of`
+prices every admitted machine at its own clock through
+`clockspeed/audit/balance.py::_clocked_outcome`, from `clockspeed/solve/power.py::declared_draw`,
+and never consults the producing flag, `MachineState` field `producing`; CS-1263 ruled the same
+for the elided clock (its 2026-10-04 record below). 1772 admitted idle machines record 1/10 MW
+yet are priced at the class default, so pricing only the tagless ones at 1/10 would mix two
+questions in one sum.
+ALTERNATIVES, ranked: (D, runner-up) the recorded `mTargetConsumption` - exact and from the save
+itself, joinable through `clockspeed/save/world.py::RecordProperties`, field
+`reference_targets`, and `clockspeed/save/world.py::WorldParents`; lost because it answers an
+instantaneous-draw question the balance does not ask - a live-draw figure would be its own item.
+(C) the named omission, the status quo - leaves every non-empty save's draw incomplete. (B) zero
+as idle - the confident zero the module is built against (`clockspeed/audit/balance.py`, module
+docstring); refuted by the data: lights record their full default, and an idle record reads
+1/10 MW, not 0.
+Measurement read back by the session 133 CS-1280 measurement, read-only from save copies, counts
+only: 41 saves, 3005 built consumers, 2524 considered, 481 omitted, all tagless, across 9
+classes, matching CS-1266; library totals 4475 MW at class default against 1271/10 MW recorded.
+Acceptance: unchanged - A is the option the CS-1280 `### Acceptance` clause names first.
+COMMON-MODE RISK: the measurement and CS-1266 share
+`clockspeed/audit/balance.py::_is_power_consumer` and the admission rule,
+`clockspeed/audit/machines.py::_is_machine`, so their agreement is not independent.
+RESIDUAL: the measured omitted count is re-published once CS-1280 lands; the MinerMk2 draw
+anomaly - 4 records reading 12 MW against a declared 15 MW - is filed as CS-1286.
+
 ### 2026-10-08 - CS-1285 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1285 STAYS OPEN. The D4 fuel rule's design is RULED: accepted fuels on the registry generator, pooled per-class demand against per-fuel supply, and a companion demand card
 Verification: `docs/item_notes/phase5.md` section CS-1285, heading `Filed 2026-10-08 by the
 session 133 planner`, whose `### Acceptance` clause carries all three rulings. Adjudicated in

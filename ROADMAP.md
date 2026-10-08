@@ -291,6 +291,7 @@ CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse
 CS-1280 - the clocked draw omits built consumers whose payloads read cleanly but carry no machine tag - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1281 - the registry does not read the clock-capability field, so the elided-clock count includes classes that cannot be clocked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1285 - the D4 fuel half has no rule, so no card sizes a built generator's fuel burn against the fuel the world makes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1286 - four MinerMk2 records read 12 MW recorded draw against a declared 15 MW at default clock, unexplained - measure their build and pending clock and decide whether CS-1263's reversal clause fires - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
