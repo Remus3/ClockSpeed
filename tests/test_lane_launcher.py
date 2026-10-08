@@ -927,9 +927,18 @@ def test_cs1274_r3_an_untracked_kill_takes_the_wrappers_child_with_it(
             creationflags=CREATE_NO_WINDOW,
         )
         started.append(proc)
+        # The poll IS the bound: a wait on the wrapper's own handle, so a wrapper
+        # that dies before recording ends the wait at once instead of idling out
+        # the whole deadline, and the guard in tests/test_subprocess_timeouts.py
+        # finds the Popen bounded where it was started. Timing out is the normal
+        # case here - the wrapper is meant to be alive when it is handed back.
         deadline = time.monotonic() + _STUB_DEADLINE_S
         while not record.exists() and time.monotonic() < deadline:
-            time.sleep(_POLL_S)
+            try:
+                proc.wait(timeout=_POLL_S)
+            except subprocess.TimeoutExpired:
+                continue
+            break
         return proc
 
     def interrupted(*_args: Any, **_kwargs: Any) -> bool:

@@ -2778,8 +2778,36 @@ FILL_FROM_GUARDS = (
     "tests/test_probe_refusal_output.py",
 )
 
+#: The tier1 shard rebalance's one arrival here, from the catch-all. The catch-all
+#: read over its budget on slow runners while this shard and the hook shard had
+#: room, so the catch-all's measured CPU-bound head moved out - this file here, the
+#: rest to the hook shard (:data:`HOOK_FROM_CATCH_ALL`). This shard took one file
+#: only, because its own slow readings left room for no more. Its blob walk is
+#: cheap on the shallow checkout every non-save job makes; the save shard's
+#: full-history checkout would make it the opposite, so it must never go there.
+FILL_FROM_CATCH_ALL_REBALANCE = ("tests/test_secret_sweep.py",)
+
 #: The fill shard's whole membership, exactly.
-FILL_SHARD_FILES = (*FILL_FROM_HOOK, *FILL_FROM_CATCH_ALL, *FILL_FROM_GUARDS)
+FILL_SHARD_FILES = (
+    *FILL_FROM_HOOK,
+    *FILL_FROM_CATCH_ALL,
+    *FILL_FROM_GUARDS,
+    *FILL_FROM_CATCH_ALL_REBALANCE,
+)
+
+#: The tier1 shard rebalance's arrivals in the hook shard, from the catch-all, in
+#: command order. HERE FOR ROOM, NOT FOR KINSHIP: none of them drives a shipped
+#: hook, so none belongs in :data:`HOOK_DRIVING_FILES`, and the CS-1193 rule that
+#: names that set by what each file exercises is untouched. Appended AFTER every
+#: earlier hook-shard file and largest first, because this job dispatches in
+#: command order (:data:`HOOK_NO_REORDER`): the probe-bound file and the canary
+#: still start at t=0, and the smallest arrival forms the tail.
+HOOK_FROM_CATCH_ALL = (
+    "tests/test_exception_rendering.py",
+    "tests/test_subprocess_timeouts.py",
+    "tests/solve/test_ceiling_fence.py",
+    "tests/test_canary_population.py",
+)
 
 #: The flag that makes the hook shard dispatch its files in COMMAND ORDER.
 #: pytest-xdist 3.8 reorders the loadfile queue by test count, descending, by
@@ -2820,8 +2848,8 @@ def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -
     )
     fill_targets = shard_targets(shards[FILL_JOB_ID])
     assert sorted(fill_targets) == sorted(FILL_SHARD_FILES), (
-        f"the {FILL_JOB_ID!r} shard names {fill_targets}; CS-1198 and CS-1214 gave it exactly"
-        f" {list(FILL_SHARD_FILES)}"
+        f"the {FILL_JOB_ID!r} shard names {fill_targets}; CS-1198, CS-1214 and the tier1"
+        f" shard rebalance gave it exactly {list(FILL_SHARD_FILES)}"
     )
     claims = {
         path: sorted(
@@ -2841,6 +2869,58 @@ def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -
     miscounted = {
         path: catch_all_ignores.count(IGNORE_PREFIX + path)
         for path in FILL_SHARD_FILES
+        if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
+    }
+    assert miscounted == {}, (
+        f"the {JOB_ID!r} shard ignores these moved files the wrong number of times"
+        f" {miscounted}; each needs exactly one {IGNORE_PREFIX!r}"
+    )
+
+
+def test_the_catch_alls_rebalanced_head_runs_last_in_the_hook_shard_and_nowhere_else() -> None:
+    """The tier1 shard rebalance - the catch-all's CPU-bound head went to the hook shard.
+
+    The catch-all job read over its budget on slow runners while the hook shard,
+    since CS-1198 took its CPU-bound fill out, had the most room of any leg. So
+    the catch-all's heaviest movable files moved there, chosen from CI's own
+    durations and a local profile, never by name; the readings and the projection
+    live in tier1.yml, the one owner of this lane's numbers.
+
+    No level moved and no test was dropped: the partition arm proves every file
+    runs in exactly one leg, and this arm pins WHICH leg, that the catch-all
+    ignores each moved file exactly once, that none of them is mistaken for a
+    hook-driving file, and that they form the hook shard's TAIL in the recorded
+    order - so the CS-1198 dispatch pins at the head are untouched.
+    """
+    shards = suite_shards()
+    for job_id in (JOB_ID, HOOK_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    kin = [path for path in HOOK_FROM_CATCH_ALL if path in (*HOOK_DRIVING_FILES, *HOOK_SHARD_FILL)]
+    assert kin == [], f"{kin} are recorded as both rebalance room and hook-shard kin"
+    hook_targets = shard_targets(shards[HOOK_JOB_ID])
+    tail = hook_targets[-len(HOOK_FROM_CATCH_ALL) :]
+    assert tail == list(HOOK_FROM_CATCH_ALL), (
+        f"the {HOOK_JOB_ID!r} shard must end with {list(HOOK_FROM_CATCH_ALL)}, after every"
+        f" earlier file and largest first; it names {hook_targets}"
+    )
+    claims = {
+        path: sorted(
+            job_id
+            for job_id, tokens in shards.items()
+            for target in shard_targets(tokens)
+            if target == path
+        )
+        for path in HOOK_FROM_CATCH_ALL
+    }
+    wrong = {path: owners for path, owners in claims.items() if owners != [HOOK_JOB_ID]}
+    assert wrong == {}, (
+        f"{wrong}; each moved file must be claimed by the {HOOK_JOB_ID!r} shard alone,"
+        " or it runs twice or in the wrong leg"
+    )
+    catch_all_ignores = shard_ignores(shards[JOB_ID])
+    miscounted = {
+        path: catch_all_ignores.count(IGNORE_PREFIX + path)
+        for path in HOOK_FROM_CATCH_ALL
         if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
     }
     assert miscounted == {}, (

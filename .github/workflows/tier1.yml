@@ -396,6 +396,10 @@ jobs:
       # ignore without its target runs nowhere. The `--ignore=` spelling is the
       # only one those arms accept - the space form would make the path that
       # follows it indistinguishable from a target.
+      #
+      # THE LAST FIVE IGNORES ARE THE TIER1 SHARD REBALANCE, which moved this job's
+      # measured CPU-bound head out to the hook and fill shards. The readings, the
+      # pick and the projection are at those two jobs below.
       - name: Unit tests
         run: >-
           python -m pytest tests
@@ -438,6 +442,11 @@ jobs:
           --ignore=tests/test_claude_hook.py
           --ignore=tests/test_hook_env_echo.py
           --ignore=tests/test_probe_refusal_output.py
+          --ignore=tests/test_exception_rendering.py
+          --ignore=tests/test_subprocess_timeouts.py
+          --ignore=tests/solve/test_ceiling_fence.py
+          --ignore=tests/test_canary_population.py
+          --ignore=tests/test_secret_sweep.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -748,6 +757,15 @@ jobs:
       # ignore on both OSes on every lane row (CS-1229). Neither is narrowed here. What this deletion drops is a
       # subprocess that re-proved, inside an ubuntu runner already running with no
       # install and no save, exactly what this job demonstrates simultaneously.
+      #
+      # THE TIER1 SHARD REBALANCE MOVED NOTHING OUT OF THIS JOB, BECAUSE A MOVE
+      # CANNOT REPAIR IT. Its 482s on run 37744423735 is projected to be one file:
+      # tests/test_toolpath.py calls the uncached whole-repository census in about
+      # two dozen arms, and under loadfile every arm runs on ONE worker. Each read
+      # 19s to 23s in CI's --durations on that run and on 37739057161, and the
+      # last 90s of the step logged under forty results - one worker grinding,
+      # the other idle. Whichever shard holds the file inherits that floor, so the
+      # repair belongs in the file, not in these lists.
       - name: Unit tests
         run: >-
           python -m pytest tests/test_toolpath.py tests/test_trailer_routes.py
@@ -1115,6 +1133,24 @@ jobs:
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
       # The reorder flag is on THIS job alone, by the CS-1198 ruling; the other
       # shards keep xdist's default schedule, which is what they were measured on.
+      #
+      # THE LAST FOUR ARRIVED FROM THE CATCH-ALL IN THE TIER1 SHARD REBALANCE, FOR
+      # ROOM AND NOT FOR KINSHIP: none of them drives a shipped hook. MEASURED from
+      # the jobs API over twelve runs, 37125732357 to 37744423735: the catch-all
+      # job read 478s, 457s and 456s on slow runners, its pytest step up to 424s
+      # of that and the gates around it 34s to 60s, while this job's worst was
+      # 311s and the fill shard's 371s. The pick is the catch-all's CPU-bound
+      # head, read from CI's own --durations on run 37744423735 (a slow runner)
+      # where it printed and from a local profile where it did not: about 68s of
+      # serial worker time for tests/test_exception_rendering.py (30.3s of it
+      # printed), 45s for tests/test_subprocess_timeouts.py (40.3s printed), 26s
+      # for tests/solve/test_ceiling_fence.py (projected, each arm under the
+      # 9.77s floor of that run's top fifteen) and 18s for
+      # tests/test_canary_population.py (9.24s printed on run 37739057161).
+      # Two workers split it, so the projected slow-runner worsts are this job
+      # about 390s and the catch-all about 386s. They are appended largest first,
+      # after every earlier file, so the CS-1198 dispatch head is untouched and
+      # the tail under command order is the smallest arrival.
       - name: Unit tests
         run: >-
           python -m pytest
@@ -1130,6 +1166,10 @@ jobs:
           tests/test_commit_msg_control_bytes.py
           tests/test_pre_push_suite_floor.py
           tests/test_precommit_index_race.py
+          tests/test_exception_rendering.py
+          tests/test_subprocess_timeouts.py
+          tests/solve/test_ceiling_fence.py
+          tests/test_canary_population.py
           -q -n auto --dist loadfile --no-loadscope-reorder
           --durations=15 --durations-min=5.0
 
@@ -1288,6 +1328,15 @@ jobs:
       # ORDER IS NOT DISPATCH ORDER HERE. xdist 3.8 sorts the loadfile queue by test
       # count, descending, and only the hook job turns that off, so appending these
       # three at the end changes no schedule. Do not reorder them for speed.
+      #
+      # tests/test_secret_sweep.py ARRIVED FROM THE CATCH-ALL IN THE TIER1 SHARD
+      # REBALANCE, and only it. Over the twelve runs the hook shard's note names,
+      # this job's worst was 371s on a slow runner, so it had room for one small
+      # CPU-bound file and no more: about 26s of serial worker time, 21.1s of it
+      # printed by CI's --durations on run 37744423735, for a projected worst of
+      # about 384s. Its blob walk is cheap here because this checkout is shallow,
+      # which is why it never looked heavy in CI; it must never move to the save
+      # shard, whose full-history checkout would make that walk the opposite.
       - name: Unit tests
         run: >-
           python -m pytest
@@ -1305,6 +1354,7 @@ jobs:
           tests/test_liveness.py
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
+          tests/test_secret_sweep.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
