@@ -55,8 +55,8 @@ from pathlib import Path
 from typing import Final, NamedTuple
 
 import pytest
-
 from ops.fleet_kit import fleet_subagent_first as subagent_first_kit
+
 from tests.test_hook_interpreter_ladder import (
     ARGUMENT_IGNORING_PROGRAMS,
     DRIVE_PATH,
