@@ -16,19 +16,33 @@ item - and an implementation that read the absent clock as one, or dropped the
 unknown machine without trace, would publish a flow that looks measured and is
 not. Each such machine lands in a NAMED gap with a count and a WARN code, and
 the buckets conserve against the population.
+
+CS-1265: AN ELIDED CLOCK IS NOT AN UNREAD ONE. A clock tag absent from a cleanly
+read payload is how the save writes a machine at the class default, and
+``clockspeed/audit/balance.py`` prices it there under CS-1263. The flow reads the
+same ``MachineState.overclock_elided`` mark and flows such a machine at the same
+default, counted. :func:`test_the_flow_and_the_balance_classify_every_clock_alike`
+drives both audits over one synthetic world built through the real
+``machines_of`` seam, so the mark is derived the way a save derives it.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import replace
 from fractions import Fraction
-from typing import cast
+from types import MappingProxyType
+from typing import Final, cast
 
 import pytest
 
-from clockspeed.audit import flow
+from clockspeed.audit import balance, flow, machines
 from clockspeed.audit.machines import MachineState, WorldMachines
-from clockspeed.data.registry import Recipe
-from clockspeed.solve import exact
+from clockspeed.data.registry import Building, Recipe
+from clockspeed.save.world import RecordProperties, WorldModel
+from clockspeed.solve import exact, power
+from tests.audit import test_balance as balance_fx
+from tests.audit import test_machines as machines_fx
 from tests.solve import synthetic
 
 _SMELTER = synthetic.SOLVE_SMELTER_BUILDING
@@ -47,6 +61,7 @@ _ZERO = Fraction(0)
 
 #: Machine counts used by more than one arm.
 _FOUR = 4
+_THREE = 3
 _TWO = 2
 
 
@@ -74,6 +89,25 @@ def _machine(recipe: str | None, clock: Fraction | None = Fraction(1)) -> Machin
     """
     return MachineState(
         class_name=_SMELTER, producing=True, recipe_class_name=recipe, overclock=clock
+    )
+
+
+def _elided(recipe: str | None) -> MachineState:
+    """Build one synthetic machine whose clock tag the serializer elided.
+
+    Args:
+        recipe: The recipe class name, or None for an unconfigured machine.
+
+    Returns:
+        The state: overclock None with the CS-1263 elision mark set, the shape
+        ``machines_of`` publishes for a cleanly read payload with no clock tag.
+    """
+    return MachineState(
+        class_name=_SMELTER,
+        producing=True,
+        recipe_class_name=recipe,
+        overclock=None,
+        overclock_elided=True,
     )
 
 
@@ -265,6 +299,155 @@ def test_an_absent_clock_is_skipped_rather_than_read_as_one(
     assert result.complete is False
 
 
+# ---------------------------------------------------------------------------
+# CS-1265: an ELIDED clock flows at the class default, counted
+# ---------------------------------------------------------------------------
+
+
+def test_an_elided_clock_flows_at_the_class_default_and_is_counted(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Alike in every field but the clock, so only the elision mark decides.
+
+    The balance prices this machine at ``ELIDED_CLOCK_DEFAULT``; reading it as
+    unread here is the two-audits-one-fact disagreement CS-1265 names.
+    """
+    result = flow.flow_of(
+        [_elided(synthetic.PLATE_RECIPE), _machine(synthetic.PLATE_RECIPE)], recipes
+    )
+
+    assert result.gaps == ()
+    assert result.items[_PLATE].net == _PLATE_RATE * (balance.ELIDED_CLOCK_DEFAULT + 1)
+    assert [
+        (group.machine_count, group.elided_machine_count, group.machine_equivalents)
+        for group in result.groups
+    ] == [(_TWO, 1, balance.ELIDED_CLOCK_DEFAULT + 1)]
+    assert type(result.groups[0].machine_equivalents) is Fraction
+    assert result.elided_clock_count == 1
+    assert flow.WARN_FLOW_CLOCK_UNREAD not in _codes(result)
+    assert result.complete is True
+
+
+def test_a_read_clock_outranks_an_elided_mark(recipes: dict[str, Recipe]) -> None:
+    """A present clock is a measurement; the mark only says why a None is None.
+
+    ``balance.clocked_draw_of`` admits the default only when the clock is None
+    AND the mark is set, so the flow must not price this machine at one.
+    """
+    stale = replace(_machine(synthetic.PLATE_RECIPE, Fraction(1, 2)), overclock_elided=True)
+    result = flow.flow_of([stale], recipes)
+
+    assert result.items[_PLATE].net == _PLATE_RATE / _TWO
+    assert result.elided_clock_count == 0
+    assert [group.elided_machine_count for group in result.groups] == [0]
+
+
+def test_an_elided_clock_never_rescues_a_recipe_side_gap(recipes: dict[str, Recipe]) -> None:
+    """The recipe-side checks still run first, so the mark moves no gap kind."""
+    result = flow.flow_of(
+        [_elided(None), _elided(_UNKNOWN_RECIPE), _elided(synthetic.ZERO_DURATION_RECIPE)],
+        recipes,
+    )
+
+    assert [gap.kind for gap in result.gaps] == [
+        flow.GAP_FLOW_NO_RECIPE,
+        flow.GAP_FLOW_RECIPE_UNKNOWN,
+        flow.GAP_FLOW_RATE_UNDEFINED,
+    ]
+    assert result.groups == ()
+    assert result.elided_clock_count == 0
+
+
+def test_the_elided_counts_sum_within_a_recipe_and_across_recipes(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Two elided on one recipe, one on another: the counts are SUMS, not flags.
+
+    Every other arm holds at most one elided machine per recipe and one elided
+    recipe per world, so a per-group flag or a world maximum passes all of them.
+    Here the per-group counts are two and one and the world count is three, and
+    each group's machine count is distinct, so no assertion leans on group order.
+    """
+    states = [
+        _elided(synthetic.PLATE_RECIPE),
+        _elided(synthetic.PLATE_RECIPE),
+        _machine(synthetic.PLATE_RECIPE),
+        _elided(synthetic.ROD_RECIPE),
+        _machine(synthetic.ROD_RECIPE, Fraction(1, 2)),
+    ]
+    result = flow.flow_of(states, recipes)
+
+    assert sorted(
+        (group.machine_count, group.elided_machine_count, group.machine_equivalents)
+        for group in result.groups
+    ) == [(_TWO, 1, Fraction(3, 2)), (_THREE, _TWO, Fraction(_THREE))]
+    assert result.elided_clock_count == _THREE
+    assert result.gaps == ()
+
+
+def test_the_elided_count_survives_an_interleaved_recipe_order(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Two elided machines on one recipe, another recipe between them.
+
+    A save walks machines in record order, not recipe order, so a count that
+    restarts whenever the recipe changes - the unsorted ``groupby`` shape - is
+    right on every arm that places a recipe's machines together and wrong here:
+    it would report one elided plate machine where there are two.
+    """
+    states = [
+        _elided(synthetic.PLATE_RECIPE),
+        _machine(synthetic.ROD_RECIPE),
+        _elided(synthetic.PLATE_RECIPE),
+        _machine(synthetic.PLATE_RECIPE),
+    ]
+    result = flow.flow_of(states, recipes)
+
+    assert sorted(
+        (group.machine_count, group.elided_machine_count, group.machine_equivalents)
+        for group in result.groups
+    ) == [(1, 0, Fraction(1)), (_THREE, _TWO, Fraction(_THREE))]
+    assert result.elided_clock_count == _TWO
+    assert result.gaps == ()
+
+
+#: A built class the balance registry below does not model.
+_UNMODELED_CLASS: Final = "Build_SyntheticUnmodeledQx65_C"
+
+
+def test_the_elided_counts_are_scoped_to_each_audits_own_population(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Pins the scope ``WorldFlow.elided_clock_count`` documents, both ways round.
+
+    Two elided machines carry no recipe: a recipe-side gap in the flow, never
+    counted there, yet priced and counted by the balance, which reads no recipe.
+    One elided machine flows on a known recipe but is of a class the balance does
+    not model: counted by the flow, a registry gap in the balance. So the flow
+    counts one and the balance two - the counts are each audit's own, and a doc
+    that called them the same figure would be refuted by this world.
+    """
+    states = [
+        _elided(None),
+        _elided(None),
+        replace(_elided(synthetic.PLATE_RECIPE), class_name=_UNMODELED_CLASS),
+    ]
+    flowed = flow.flow_of(states, recipes)
+    drawn = balance.clocked_draw_of(
+        _world(states),
+        balance_fx.registry(balance_fx.building(_SMELTER, consumption=balance_fx.THIRD_MEGAWATTS)),
+    )
+
+    assert [(gap.kind, gap.machine_count) for gap in flowed.gaps] == [
+        (flow.GAP_FLOW_NO_RECIPE, _TWO)
+    ]
+    assert flowed.elided_clock_count == 1
+    assert [(gap.kind, gap.machine_count) for gap in drawn.gaps] == [
+        (balance.GAP_NO_REGISTRY_ENTRY, 1)
+    ]
+    assert drawn.elided_clock_count == _TWO
+
+
 @pytest.mark.parametrize(
     "clock",
     [cast("Fraction", 0.5), cast("Fraction", 1), Fraction(-1, 2)],
@@ -312,15 +495,19 @@ def test_the_buckets_partition_the_population_with_conservation(
         _machine(synthetic.ROD_RECIPE, cast("Fraction", 0.25)),
         _machine(None),
         _machine(synthetic.ZERO_DURATION_RECIPE),
+        _elided(synthetic.ROD_RECIPE),
     ]
     result = flow.flow_of(states, recipes)
     flowing = sum(group.machine_count for group in result.groups)
     skipped = sum(gap.machine_count for gap in result.gaps)
     assert result.machines_considered == len(states)
-    assert (flowing, skipped) == (3, 5)
+    assert (flowing, skipped) == (_FOUR, 5)
     assert flowing + skipped == result.machines_considered
     assert result.skipped_count == skipped
     assert {gap.kind for gap in result.gaps} == set(flow.GAP_FLOW_KINDS)
+    # CS-1265: the elided machine flows, and the count it raises is inside the groups.
+    assert sum(group.elided_machine_count for group in result.groups) == 1
+    assert result.elided_clock_count == 1
 
 
 def test_an_empty_population_says_nothing_flowed(recipes: dict[str, Recipe]) -> None:
@@ -375,3 +562,287 @@ def test_the_repr_renders_counts_and_no_recipe_or_item_name(
     for text in rendered:
         for name in (synthetic.PLATE_RECIPE, _UNKNOWN_RECIPE, _PLATE, _ORE):
             assert name not in text
+
+
+# ---------------------------------------------------------------------------
+# CS-1265: the flow and the balance classify every machine's clock alike
+# ---------------------------------------------------------------------------
+#
+# ONE SYNTHETIC WORLD, BUILT THROUGH ``machines_of``, so the elision mark is
+# derived from a payload the way a save derives it rather than set by hand. One
+# machine per row, each with its OWN class and its OWN recipe, so the balance's
+# per-class groups and the flow's per-recipe groups each hold exactly one machine
+# and every machine's classification can be read back out of both audits.
+# Every class is modeled and every recipe has a rate, so the clock is the only
+# thing either audit is asked about.
+
+#: One row per way a clock reaches both audits, in record order.
+_AGREEMENT_ROWS: Final = (
+    "Read",
+    "ReadOne",
+    "Zero",
+    "Elided",
+    "Refused",
+    "Negative",
+    "Unread",
+    "Disagreeing",
+)
+
+#: Each row's decoded values. A cleanly read payload with no clock tag is the
+#: elided shape; ``Unread`` and ``Disagreeing`` reuse it and are spoiled below.
+_AGREEMENT_VALUES: Final[Mapping[str, Mapping[str, object]]] = MappingProxyType(
+    {
+        "Read": {
+            machines.PROPERTY_OVERCLOCK: machines_fx.as_float32(machines_fx.AUTHORED_OVERCLOCK)
+        },
+        "ReadOne": {machines.PROPERTY_OVERCLOCK: 1.0},
+        "Zero": {machines.PROPERTY_OVERCLOCK: 0.0},
+        "Elided": {machines.PROPERTY_PRODUCING: True},
+        "Refused": {machines.PROPERTY_OVERCLOCK: 0.1},
+        "Negative": {machines.PROPERTY_OVERCLOCK: -0.5},
+        "Unread": {machines.PROPERTY_PRODUCING: True},
+        "Disagreeing": {machines.PROPERTY_PRODUCING: True},
+    }
+)
+
+#: The shared vocabulary both audits' answers are read into.
+_PRICED: Final = "priced"
+_UNREAD: Final = "unread"
+_REFUSED: Final = "refused"
+
+#: The flow's clock-gap kinds, in the shared vocabulary.
+_FLOW_CLOCK_GAP: Final[Mapping[str, str]] = MappingProxyType(
+    {flow.GAP_FLOW_CLOCK_UNREAD: _UNREAD, flow.GAP_FLOW_CLOCK_REFUSED: _REFUSED}
+)
+
+#: The balance's clock-gap kinds, in the shared vocabulary. A negative clock has
+#: no real draw there and no flow here: a named gap in both, priced in neither.
+_BALANCE_CLOCK_GAP: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        balance.GAP_CLOCK_UNREAD: _UNREAD,
+        balance.GAP_LAW_INEXACT: _REFUSED,
+        power.OUTCOME_UNDEFINED: _REFUSED,
+    }
+)
+
+#: One row as an audit classified it: ``(class, clock)``.
+_Classified = tuple[str, Fraction | None]
+
+
+def _agreement_class(label: str) -> str:
+    """The built class of one row.
+
+    Args:
+        label: The row.
+
+    Returns:
+        A synthetic class name no other module authors.
+    """
+    return f"Build_SyntheticClockAgree{label}Qx65_C"
+
+
+def _agreement_recipe(label: str) -> str:
+    """The recipe class of one row, as ``machines_of`` reduces its asset path.
+
+    Args:
+        label: The row.
+
+    Returns:
+        A synthetic recipe class name no other module authors.
+    """
+    return f"Recipe_ClockAgree{label}Qx65_C"
+
+
+def _agreement_entry(label: str) -> RecordProperties:
+    """One row's published properties, carrying a permitted recipe reference.
+
+    Args:
+        label: The row.
+
+    Returns:
+        The properties.
+    """
+    recipe = _agreement_recipe(label)
+    reference = machines_fx.recipe_reference(
+        f"/Game/FactoryGame/Synthetic/{recipe.removesuffix('_C')}.{recipe}"
+    )
+    built = machines_fx.entry(_AGREEMENT_VALUES[label], reference, payload_read=label != "Unread")
+    return replace(built, disagreeing_value_count=1) if label == "Disagreeing" else built
+
+
+def _agreement_world() -> WorldModel:
+    """The one world both audits read: one record per row, each its own class.
+
+    Returns:
+        The model.
+    """
+    base = machines_fx.world(*(_agreement_entry(label) for label in _AGREEMENT_ROWS))
+    records = tuple(
+        replace(
+            record,
+            type_path=(
+                f"/Game/FactoryGame/Buildable/{_agreement_class(label)}.{_agreement_class(label)}"
+            ),
+        )
+        for record, label in zip(base.objects.records, _AGREEMENT_ROWS, strict=True)
+    )
+    return replace(base, objects=replace(base.objects, records=records))
+
+
+def _agreement_recipes(recipes: Mapping[str, Recipe]) -> dict[str, Recipe]:
+    """Every row's recipe, each the corpus plate recipe under the row's own name.
+
+    Args:
+        recipes: The corpus recipes.
+
+    Returns:
+        Row recipe class name to recipe.
+    """
+    return {_agreement_recipe(label): recipes[synthetic.PLATE_RECIPE] for label in _AGREEMENT_ROWS}
+
+
+def _agreement_buildings() -> Mapping[str, Building]:
+    """Every row's class, modeled at an exact draw under a whole exponent.
+
+    Returns:
+        Class name to registry entry.
+    """
+    return balance_fx.registry(
+        *(
+            balance_fx.building(_agreement_class(label), consumption=balance_fx.THIRD_MEGAWATTS)
+            for label in _AGREEMENT_ROWS
+        )
+    )
+
+
+def _flow_clocks(result: flow.WorldFlow) -> dict[str, _Classified]:
+    """Each row's clock as the flow classified it.
+
+    Args:
+        result: The flow over the agreement world.
+
+    Returns:
+        Row to ``(class, clock)``: a priced row carries the clock it flowed at,
+        a gap row carries None.
+    """
+    label_of = {_agreement_recipe(label): label for label in _AGREEMENT_ROWS}
+    view: dict[str, _Classified] = {
+        label_of[group.recipe_class_name]: (
+            _PRICED,
+            group.machine_equivalents / group.machine_count,
+        )
+        for group in result.groups
+    }
+    for gap in result.gaps:
+        view[label_of.get(gap.recipe_class_name or "", "")] = (
+            _FLOW_CLOCK_GAP.get(gap.kind, gap.kind),
+            None,
+        )
+    return view
+
+
+def _balance_clocks(result: balance.WorldClockedDraw) -> dict[str, _Classified]:
+    """Each row's clock as the balance classified it.
+
+    Args:
+        result: The clocked draw over the agreement world.
+
+    Returns:
+        Row to ``(class, clock)``, on the terms of :func:`_flow_clocks`.
+    """
+    label_of = {_agreement_class(label): label for label in _AGREEMENT_ROWS}
+    view: dict[str, _Classified] = {
+        label_of[group.class_name]: (_PRICED, group.clock) for group in result.contributions
+    }
+    for gap in result.gaps:
+        view[label_of.get(gap.class_name, "")] = (_BALANCE_CLOCK_GAP.get(gap.kind, gap.kind), None)
+    return view
+
+
+def _flow_elided(result: flow.WorldFlow) -> dict[str, int]:
+    """Each priced row's elided count as the flow published it.
+
+    Args:
+        result: The flow over the agreement world.
+
+    Returns:
+        Row to how many of its machines flowed at the elided default.
+    """
+    label_of = {_agreement_recipe(label): label for label in _AGREEMENT_ROWS}
+    return {
+        label_of[group.recipe_class_name]: group.elided_machine_count for group in result.groups
+    }
+
+
+def _balance_elided(result: balance.WorldClockedDraw) -> dict[str, int]:
+    """Each priced row's elided count as the balance published it.
+
+    Args:
+        result: The clocked draw over the agreement world.
+
+    Returns:
+        Row to how many of its machines were priced at the elided default.
+    """
+    label_of = {_agreement_class(label): label for label in _AGREEMENT_ROWS}
+    return {
+        label_of[group.class_name]: group.machine_count if group.clock_elided else 0
+        for group in result.contributions
+    }
+
+
+def _agreement_expected() -> dict[str, _Classified]:
+    """What both audits must say about each row, authored from the rows alone.
+
+    Returns:
+        Row to ``(class, clock)``.
+    """
+    return {
+        "Read": (_PRICED, Fraction(machines_fx.AUTHORED_OVERCLOCK)),
+        "ReadOne": (_PRICED, Fraction(1)),
+        "Zero": (_PRICED, Fraction(0)),
+        "Elided": (_PRICED, balance.ELIDED_CLOCK_DEFAULT),
+        "Refused": (_UNREAD, None),
+        "Negative": (_REFUSED, None),
+        "Unread": (_UNREAD, None),
+        "Disagreeing": (_UNREAD, None),
+    }
+
+
+def test_the_agreement_world_carries_the_mark_only_where_the_payload_earns_it() -> None:
+    """The precondition: without it the arm below would be about nothing."""
+    model = machines.machines_of(_agreement_world())
+
+    assert [state.overclock_elided for state in model.machines] == [
+        label == "Elided" for label in _AGREEMENT_ROWS
+    ]
+    assert sum(state.recipe_class_name is not None for state in model.machines) == len(
+        _AGREEMENT_ROWS
+    )
+
+
+def test_the_flow_and_the_balance_classify_every_clock_alike(
+    recipes: dict[str, Recipe],
+) -> None:
+    """CS-1265's acceptance arm: one world, both audits, every machine's clock.
+
+    A row the flow reads as unread while the balance prices it at the default
+    is the disagreement; a row either audit prices that the other names a gap
+    is the same fault the other way round.
+    """
+    model = machines.machines_of(_agreement_world())
+    flowed = flow.flow_of(model, _agreement_recipes(recipes))
+    drawn = balance.clocked_draw_of(model, _agreement_buildings())
+
+    assert _flow_clocks(flowed) == _balance_clocks(drawn) == _agreement_expected()
+    assert (
+        _flow_elided(flowed)
+        == _balance_elided(drawn)
+        == {
+            "Read": 0,
+            "ReadOne": 0,
+            "Zero": 0,
+            "Elided": 1,
+        }
+    )
+    assert flowed.elided_clock_count == drawn.elided_clock_count == 1
+    assert flowed.machines_considered == drawn.machines_considered == len(_AGREEMENT_ROWS)

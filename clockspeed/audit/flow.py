@@ -46,10 +46,26 @@ recipe with no defined rate (a zero duration, or an amount that is not exactly a
 Fraction), then an unread clock, then a refused clock. Recipe-side faults come
 first because they hold for every machine on that recipe whatever its clock.
 
-AN ABSENT CLOCK IS NEVER READ AS ONE. ``MachineState.overclock`` is None when
+AN UNREAD CLOCK IS NEVER READ AS ONE. ``MachineState.overclock`` is None when
 the reader saw no tag, and the game's default clock IS one - so substituting one
 is right on every machine nobody overclocked and wrong on exactly the ones
 somebody did. ``clockspeed/audit/machines.py`` states the same fence.
+
+AN ELIDED CLOCK IS THE CLASS DEFAULT, COUNTED (CS-1265, under CS-1263's ruling).
+The save serializer writes no clock tag for a machine at the class default, so
+a None clock that ``MachineState.overclock_elided`` marks - a cleanly read
+payload, no disagreeing tag, no clock tag at all - is a measured fact and not an
+unknown. Such a machine flows at ``clockspeed/audit/balance.py``
+``ELIDED_CLOCK_DEFAULT``, the one owner of that value, and is counted on its
+:class:`RecipeGroup` and on :class:`WorldFlow`, so the default is never silent.
+The predicate is the balance's own - the clock is None AND the mark is set - so
+the two audits cannot disagree about the clock of a machine both of them price;
+``tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike``
+holds them to it. Their elided COUNTS are scoped to their own populations and
+differ where one audit gaps a machine before its clock is read -
+:attr:`WorldFlow.elided_clock_count` states the scope. A clock absent for ANY
+other reason - refused, an unread payload, a disagreeing tag, or a hand-built
+state nobody marked - stays :data:`GAP_FLOW_CLOCK_UNREAD`.
 
 WHAT A DEFICIT IS
 -------------------
@@ -69,6 +85,7 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.audit.balance import ELIDED_CLOCK_DEFAULT
 from clockspeed.audit.machines import MachineState, WorldMachines
 from clockspeed.save.world import WorldWarning
 from clockspeed.solve.exact import ExactArithmeticError, audit_exact, per_minute
@@ -114,7 +131,8 @@ GAP_FLOW_RECIPE_UNKNOWN: Final = "recipe-unknown"
 #: duration, or an amount or duration that is not exactly a Fraction.
 GAP_FLOW_RATE_UNDEFINED: Final = "rate-undefined"
 
-#: A machine whose clock never read. Never substituted with one.
+#: A machine whose clock never read - refused, or absent for any reason other
+#: than the elided class default. Never substituted with one.
 GAP_FLOW_CLOCK_UNREAD: Final = "clock-unread"
 
 #: A machine whose clock is not exactly a non-negative Fraction. Refused rather
@@ -179,8 +197,9 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         ),
         WARN_FLOW_CLOCK_UNREAD: (
             "this many machines carry no readable clock, so they contributed nothing;"
-            " an absent clock is never read as one, because one is right exactly where"
-            " nobody overclocked and wrong everywhere else"
+            " a clock absent for any reason other than the elided class default is"
+            " never read as one, because one is right exactly where nobody overclocked"
+            " and wrong everywhere else"
         ),
         WARN_FLOW_CLOCK_REFUSED: (
             "this many machines carry a clock that is not an exact non-negative"
@@ -206,11 +225,15 @@ class RecipeGroup:
         machine_equivalents: The exact sum of their clocks - the number of
             reference-clock machines that would move the same flow. This is the
             figure a solver's ``PlanStep.machines`` is comparable to.
+        elided_machine_count: CS-1265. How many of :attr:`machine_count` flowed
+            at ``ELIDED_CLOCK_DEFAULT`` because their clock tag was elided,
+            rather than at a clock read from the save.
     """
 
     recipe_class_name: str
     machine_count: int
     machine_equivalents: Fraction
+    elided_machine_count: int
 
     def __repr__(self) -> str:
         """Render counts only.
@@ -220,7 +243,8 @@ class RecipeGroup:
         """
         return (
             f"{type(self).__name__}(machine_count={self.machine_count}, "
-            f"machine_equivalents={self.machine_equivalents})"
+            f"machine_equivalents={self.machine_equivalents}, "
+            f"elided_machine_count={self.elided_machine_count})"
         )
 
 
@@ -328,6 +352,20 @@ class WorldFlow:
         complete: Whether every machine flowed. False means every item total
             is short by whatever the skipped machines move.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
+        elided_clock_count: CS-1265. How many FLOWING machines ran at
+            ``ELIDED_CLOCK_DEFAULT`` because their clock tag was elided - the
+            sum of every group's ``elided_machine_count``. SCOPED TO THIS
+            AUDIT'S POPULATION, and NOT the figure
+            ``clockspeed/audit/balance.py`` ``WorldClockedDraw.elided_clock_count``
+            publishes: an elided machine is counted here only when its recipe
+            flows, and there only when the balance prices its class. A machine
+            with no recipe or an unknown one is a recipe-side gap here and still
+            counted there; a machine whose class the balance does not model, or
+            cannot price at the elided default (a power exponent that is not
+            exactly a Fraction, which it names law-inexact), is the reverse. The
+            two agree machine by machine wherever the flow flows the machine AND
+            the balance prices it - ``tests/audit/test_flow.py`` grades both
+            halves.
     """
 
     groups: tuple[RecipeGroup, ...]
@@ -340,6 +378,7 @@ class WorldFlow:
     skipped_count: int
     complete: bool
     warnings: tuple[WorldWarning, ...]
+    elided_clock_count: int
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -353,6 +392,7 @@ class WorldFlow:
             f"surpluses={len(self.surpluses)}, "
             f"machines_considered={self.machines_considered}, "
             f"skipped_count={self.skipped_count}, complete={self.complete}, "
+            f"elided_clock_count={self.elided_clock_count}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -396,8 +436,29 @@ def _rates(recipe: Recipe) -> tuple[dict[str, Fraction], dict[str, Fraction]] | 
     return consumed, produced
 
 
+def _clock_of(state: MachineState) -> tuple[Fraction | None, bool]:
+    """The clock one machine flows at, and whether it is the elided default.
+
+    THE BALANCE'S OWN PREDICATE, written to match
+    ``clockspeed/audit/balance.py`` ``clocked_draw_of``: the default stands in
+    only when the clock is None AND the elision mark is set, so a present clock
+    is never overridden by the mark and an unmarked None is never priced.
+
+    Args:
+        state: The machine.
+
+    Returns:
+        ``(clock, elided)``: the default and True for an elided tag, otherwise
+        the clock as read and False.
+    """
+    if state.overclock is None and state.overclock_elided:
+        return ELIDED_CLOCK_DEFAULT, True
+    return state.overclock, False
+
+
 def _gap_kind(
     state: MachineState,
+    clock: Fraction | None,
     recipes: Mapping[str, Recipe],
     rates: Mapping[str, tuple[dict[str, Fraction], dict[str, Fraction]] | None],
 ) -> str | None:
@@ -405,6 +466,7 @@ def _gap_kind(
 
     Args:
         state: The machine.
+        clock: The clock :func:`_clock_of` read for it.
         recipes: The supplied recipes.
         rates: The per-recipe rate cache, filled for every known recipe.
 
@@ -419,12 +481,47 @@ def _gap_kind(
         return GAP_FLOW_RECIPE_UNKNOWN
     if rates[recipe] is None:
         return GAP_FLOW_RATE_UNDEFINED
-    clock = state.overclock
     if clock is None:
         return GAP_FLOW_CLOCK_UNREAD
     if type(clock) is not Fraction or clock < 0:
         return GAP_FLOW_CLOCK_REFUSED
     return None
+
+
+def _partition(
+    population: Sequence[MachineState],
+    recipes: Mapping[str, Recipe],
+    rates: Mapping[str, tuple[dict[str, Fraction], dict[str, Fraction]] | None],
+) -> tuple[dict[str, int], dict[str, Fraction], dict[str, int], dict[tuple[str, str | None], int]]:
+    """Put every machine in exactly one bucket: a recipe group or a named gap.
+
+    Args:
+        population: The machines.
+        recipes: The supplied recipes.
+        rates: The per-recipe rate cache, filled for every known recipe.
+
+    Returns:
+        Per flowing recipe its machine count, its clock sum and how many of its
+        machines flowed at the elided default; and per ``(kind, recipe)`` gap
+        its machine count.
+    """
+    counts: dict[str, int] = {}
+    clocks: dict[str, Fraction] = {}
+    elided_counts: dict[str, int] = {}
+    gaps: dict[tuple[str, str | None], int] = {}
+    for state in population:
+        clock, elided = _clock_of(state)
+        kind = _gap_kind(state, clock, recipes, rates)
+        recipe = state.recipe_class_name
+        if kind is not None:
+            gaps[kind, recipe] = gaps.get((kind, recipe), 0) + 1
+            continue
+        if recipe is None or clock is None:  # pragma: no cover - _gap_kind's guard
+            continue
+        counts[recipe] = counts.get(recipe, 0) + 1
+        clocks[recipe] = clocks.get(recipe, Fraction(0)) + clock
+        elided_counts[recipe] = elided_counts.get(recipe, 0) + int(elided)
+    return counts, clocks, elided_counts, gaps
 
 
 def flow_of(
@@ -462,19 +559,7 @@ def flow_of(
 
     rates = {key: _rates(recipe) for key, recipe in recipes.items()}
 
-    group_counts: dict[str, int] = {}
-    group_clocks: dict[str, Fraction] = {}
-    gap_counts: dict[tuple[str, str | None], int] = {}
-    for state in population:
-        kind = _gap_kind(state, recipes, rates)
-        recipe = state.recipe_class_name
-        if kind is not None:
-            gap_counts[kind, recipe] = gap_counts.get((kind, recipe), 0) + 1
-            continue
-        if recipe is None or state.overclock is None:  # pragma: no cover - _gap_kind's guard
-            continue
-        group_counts[recipe] = group_counts.get(recipe, 0) + 1
-        group_clocks[recipe] = group_clocks.get(recipe, Fraction(0)) + state.overclock
+    group_counts, group_clocks, group_elided, gap_counts = _partition(population, recipes, rates)
 
     produced: dict[str, Fraction] = {}
     consumed: dict[str, Fraction] = {}
@@ -536,6 +621,7 @@ def flow_of(
                 recipe_class_name=recipe,
                 machine_count=group_counts[recipe],
                 machine_equivalents=group_clocks[recipe],
+                elided_machine_count=group_elided[recipe],
             )
             for recipe in sorted(group_counts)
         ),
@@ -548,6 +634,7 @@ def flow_of(
         skipped_count=skipped,
         complete=skipped == 0 and bool(group_counts),
         warnings=tuple(warnings),
+        elided_clock_count=sum(group_elided.values()),
     )
     audit_exact(result, path="flow")
     return result
