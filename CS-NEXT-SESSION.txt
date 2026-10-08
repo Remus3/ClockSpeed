@@ -360,9 +360,9 @@ SENT, AWAIT KIT v10 - DO NOT RE-SEND: the kit v10 asks (fleet_watch.py's whole-O
   SlotTimeout render; fleet_done.py's bare-name git and its three-call worst case past
   the 45s Stop timeout; fleet_lanes _release not clearing holder_pid).
 OWED (next batched note): CS-1274 LANDED (the 0230 ANSWER said BUILT NOT LANDED) and the
-  CS-1277 tier1 repair. The MAIN 0300 position (BACKLOG.md, product before process): the
-  session 128 plan put it in the adoption ANSWER - whether the 0230 ANSWER carried it is
-  UNVERIFIED here; read the gitignored outbox copy and add it if absent.
+  CS-1277 tier1 repair. The MAIN 0300 position WAS carried by the 0230 ANSWER (read back
+  from the gitignored outbox copy at /done: "0300 supply chain: NOT SCHEDULED - held in
+  CS's BACKLOG.md ..."); nothing owed on 0300.
 Inbox: 75 acknowledged in session 129 (--ack-keys, source session-129-triage); 0 unread
   after the responder's run. The responder now answers new mail unattended - a session
   reads its usage log and progress file rather than re-answering.
@@ -467,10 +467,23 @@ GATES (final doc state, before commit): drift_guard 0 (11 PASS, 0 WARN, 0 FAIL),
   doc_budget 0 (0 over budget), sha_citation_gate 0 (PASS), precommit_gate --staged
   0 (8 checked, 1 skipped - the account-id PII arm, whose discovered value is a generic
   word - 0 blocking). memory_sync NOT RUN - no memory/ source changed.
-PUSH: PENDING - written by the ritual's second commit
-CI READ: PENDING - written by the ritual's second commit
-SHORTCUT: not checked by the ritual that wrote this file - the main session confirms
-  Desktop CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt.
-UNVERIFIED: every count and run status above came from the dispatching session and was
-  not re-read here; whether the 0230 ANSWER carried the MAIN 0300 position; the 75
-  acknowledged and 0 unread inbox counts; the about-20 builder worktree count.
+SUITE (tier 2, read by the main session from each push log): pre-push whole suite
+  (pytest over tests/) at df62fd8 14492 passed, 12 skipped, 0 failed; at 91666ba 14635
+  passed, 12 skipped; at 72205f5 first BLOCKED by
+  tests/test_probe_refusal_output.py::test_the_stubborn_sleep_makes_the_self_check_return_137
+  (124 not 137 under builder load; passed alone), retry 14638 passed, 12 skipped; at
+  96a272a BLOCKED by tests/test_subprocess_timeouts.py (unbounded stub Popen, fixed by
+  9e08f83); at 0ab541c 14709 passed, 12 skipped; at 57c1078 14709 passed, 12 skipped,
+  0 failed in 1007.94s. python -m mypy clockspeed: EXIT 0, no issues in 58 source files.
+PUSH: 0ab541c..57c1078 pushed, PUSH_EXIT=0 read from the log; HEAD read back equal to
+  ls-remote (57c1078). This report rides ONE MORE commit: CONFIRM HEAD equals ls-remote.
+CI READ: tier1 37759747585 at 57c1078 SUCCESS (gates 412s, hook 367s, fill 334s, save
+  246s, guard 231s - all under the 480 ceiling, gates near the 420 budget). The tier1 run
+  for the report commit was NOT read here - READ IT FIRST. tier2: last run 37733300151 at
+  df62fd8 SUCCESS; the next scheduled tier2 covers the kit v9 and lane changes - READ IT.
+SHORTCUT: Desktop CS-NEXT-SESSION.lnk read back targeting C:\Clockspeed\CS-NEXT-SESSION.txt.
+INBOX AT /done: 0 unread (re-counted with tools/inbox_watch.py --keys). WORKTREES AT
+  /done: git worktree list 38 lines, 35 under .claude/worktrees (this session's builder
+  worktrees are among them - classify and prune next session per MIG-1 rules).
+UNVERIFIED: the per-run CI job durations and adversary verdicts were read from the agent
+  and gh outputs this session, not re-derived by this ritual.
