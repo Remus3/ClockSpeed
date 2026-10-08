@@ -1724,7 +1724,10 @@ def test_the_boost_is_named_before_the_clock_is_read(
 
 
 def test_the_registry_side_is_named_before_the_boost() -> None:
-    """The same order :func:`draw_of` decides in: with no entry there is nothing to ask."""
+    """The same order :func:`clockspeed.audit.balance.draw_of` decides in.
+
+    With no entry there is nothing to ask.
+    """
     result = balance.clocked_draw_of(
         world_machines(boosted(NOT_IN_REGISTRY, None, clock_elided=True)), modeled_registry()
     )
