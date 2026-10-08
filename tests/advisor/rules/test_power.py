@@ -64,6 +64,7 @@ def _balance(  # noqa: PLR0913 - one keyword per field the rules read
     unread: int = 0,
     unmodeled: int = 0,
     elided: int = 0,
+    omitted: int = 0,
     blind: Fraction = Fraction(1),
     production: bool = True,
 ) -> WorldBalance:
@@ -91,6 +92,7 @@ def _balance(  # noqa: PLR0913 - one keyword per field the rules read
         elided_clock_count=elided,
         unmodeled_machine_count=unmodeled,
         warnings=(),
+        omitted_consumer_count=omitted,
     )
     starvation = WorldStarvation(
         starved_indices=(),
@@ -299,6 +301,70 @@ def test_an_incomplete_draw_is_named_never_advised_as_exact() -> None:
     )
     headline_and_reason = f"{gap_card.tier1} {gap_card.tier2}".lower()
     assert "exact" not in headline_and_reason
+
+
+@pytest.mark.parametrize(
+    ("unread", "unmodeled", "omitted", "headline", "reason_tail"),
+    [
+        (
+            2,
+            1,
+            3,
+            "Resolve 6 unpriced machines before planning power",
+            "2 clocks unread and 1 machine unmodeled, of 10;"
+            " 3 built power consumers were never considered",
+        ),
+        (
+            0,
+            0,
+            1,
+            "Resolve 1 unpriced machine before planning power",
+            "0 clocks unread and 0 machines unmodeled, of 10;"
+            " 1 built power consumer was never considered",
+        ),
+    ],
+    ids=["beside-gaps", "omission-alone"],
+)
+def test_an_omitted_consumer_is_counted_and_named_in_the_gap_card(
+    unread: int, unmodeled: int, omitted: int, headline: str, reason_tail: str
+) -> None:
+    """CS-1266: a built consumer the draw never considered is unpriced and is said so.
+
+    The draw is incomplete BY THE OMISSION ALONE in the second row, so a gap
+    card that counted only unread clocks and unmodeled machines would tell the
+    operator to resolve nothing.
+    """
+    world = _world(
+        _balance(
+            lower=Fraction(120),
+            upper=Fraction(130),
+            exact=False,
+            complete=False,
+            considered=10,
+            unread=unread,
+            unmodeled=unmodeled,
+            omitted=omitted,
+        ),
+        Fraction(100),
+    )
+    trace = run_rule(GAP_RULE, world)
+    card = card_for(trace)
+    assert card is not None
+    assert card.tier1 == headline
+    assert card.tier2 == f"The clocked draw is a floor of 120.00 to 130.00 MW: {reason_tail}"
+    computed = {s.subject: s.value for s in trace.steps if s.kind is StepKind.COMPUTED}
+    unpriced = unread + unmodeled + omitted
+    assert computed == {
+        "unpriced machines": Fraction(unpriced),
+        "priced share of machines": Fraction(10 + omitted - unpriced, 10 + omitted),
+    }
+    omitted_line = (
+        f"Read {power_rules.IN_OMITTED} = {omitted} from"
+        " audit.balance.clocked_draw.omitted_consumer_count"
+    )
+    assert omitted_line in card.tier3
+    headroom = run_rule(HEADROOM_RULE, world)
+    assert headroom.recommendation is None
 
 
 def test_the_gap_rule_is_silent_on_a_complete_draw() -> None:

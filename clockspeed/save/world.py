@@ -78,6 +78,10 @@ matter of review:
   ``WorldModel.objects.records`` is a position in a collection the consumer
   already holds. ``ObjectRecord.body_offset`` and ``body_length`` STAY WHERE
   THEY ARE - they are diagnostics this package reads and publishes to nobody.
+  The one FACT a higher layer needs from them - whether the walk paired a
+  record with any payload at all - crosses as
+  :attr:`RecordProperties.payload_present`, a boolean, never as the length
+  (CS-1266).
 
   **THAT RULE IS ABOUT EVERY REACHABLE VALUE, NOT ONLY THE KEY**, and the first
   version of this module obeyed it at the key and broke it three levels down.
@@ -1067,7 +1071,8 @@ class RecordProperties:
             payload to fail on. False is the flagged case and always arrives
             with ``objects.WARN_UNPARSED_PROPERTY_PAYLOAD`` in
             ``warning_codes``, because it is derived from that code rather
-            than tracked beside it.
+            than tracked beside it. Whether there WAS a payload is
+            :attr:`payload_present`, which this field does not answer.
         unmeasured_value_count: How many tags carried a type whose value
             encoding is unmeasured, from the reader.
         disagreeing_value_count: How many tags carried a MEASURED type whose
@@ -1133,6 +1138,16 @@ class RecordProperties:
             dropped: a name absent from BOTH this and :attr:`values` was not on
             a payload that read. Names only, never a value. WORLD CONTENT on
             the terms :attr:`values` states, so ``repr`` renders a count.
+        payload_present: CS-1266. Whether the object walk paired this record
+            with ANY payload. False for every record of the flat walk and for
+            every record of a level whose record and payload counts disagree
+            (``objects.WARN_PAYLOAD_COUNT_DISAGREEMENT``) - the reader hands
+            back a read, empty entry for such a record without reading a byte,
+            so :attr:`payload_read` True with no values is a payload that held
+            nothing only when this is True. Derived here, inside the save
+            package, from the record's extent; the extent itself is a position
+            and is never published. A flag, so ``repr`` renders it. True by
+            default, for an entry built by hand.
     """
 
     values: Mapping[str, object]
@@ -1146,6 +1161,7 @@ class RecordProperties:
     struct_interiors: tuple[StructValue, ...] = ()
     reference_targets: tuple[ReferenceTarget, ...] = ()
     undecoded_names: frozenset[str] = frozenset()
+    payload_present: bool = True
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1168,7 +1184,8 @@ class RecordProperties:
             f"references={len(self.references)}, "
             f"struct_interiors={len(self.struct_interiors)}, "
             f"reference_targets={len(self.reference_targets)}, "
-            f"undecoded_names={len(self.undecoded_names)})"
+            f"undecoded_names={len(self.undecoded_names)}, "
+            f"payload_present={self.payload_present})"
         )
 
 
@@ -2077,6 +2094,9 @@ def _decode_properties(
                 ),
                 record_index,
                 positions,
+                # CS-1266. The FACT the extent carries, read here where the
+                # extent may be read, so no layer above ever needs the length.
+                payload_present=record.body_length > 0,
             )
     except BaseException:
         del payload, mapping
@@ -2157,7 +2177,11 @@ def _published_value(value: object) -> object:
 
 
 def _record_properties(
-    result: PropertyResult, record_index: RecordIndex, positions: Mapping[int, int]
+    result: PropertyResult,
+    record_index: RecordIndex,
+    positions: Mapping[int, int],
+    *,
+    payload_present: bool = True,
 ) -> RecordProperties:
     """Narrow one reader result to what a higher layer is allowed to hold.
 
@@ -2196,6 +2220,9 @@ def _record_properties(
         result: One record's reader result.
         record_index: The table arranged for reference lookup.
         positions: Each record's position in the table, keyed by identity.
+        payload_present: Whether the walk paired the record with any payload
+            - see :attr:`RecordProperties.payload_present`. The caller derives
+            it from the record's extent, which never crosses this function.
 
     Returns:
         The published entry.
@@ -2240,6 +2267,7 @@ def _record_properties(
         ),
         # CS-1264. Names only, so there is nothing to narrow: carried verbatim.
         undecoded_names=result.undecoded_names,
+        payload_present=payload_present,
     )
 
 

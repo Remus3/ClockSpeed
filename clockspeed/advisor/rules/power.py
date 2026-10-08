@@ -49,17 +49,16 @@ so lands in the priced population, not in a gap. Both rules read
 step, and when it is above zero the one-line reason says the figure assumes
 the default clock for that many machines.
 
-WHAT "COMPLETE" COVERS, AND THE CROSS-CHECK THIS MODULE DOES NOT MAKE.
-``WorldClockedDraw.complete`` means every machine the audit CONSIDERED - the
-``WorldMachines`` population, records carrying a measured machine property -
-has a priced draw. It says nothing about built actors that never entered that
-population. ``WorldBalance.draw`` carries per-class built counts, but over a
-DIFFERENT population: the placement allowlist, which holds storage, generators
-and landmarks beside machines. Comparing ``machines_considered`` against that
-total would flag a difference on every world for reasons that are not a
-missing machine, so no rule here compares them; a like-for-like cross-check
-needs an audit-side figure and is the coordinator's to file as an audit item.
-The texts below claim only what ``complete`` means.
+WHAT "COMPLETE" COVERS, AND WHERE THE CROSS-CHECK LIVES (CS-1266).
+``WorldClockedDraw.complete`` means every machine the audit CONSIDERED has a
+priced draw AND every built power consumer was considered. The cross-check is
+the audit's, like for like - ``clockspeed/audit/balance.py`` counts built power
+consumers and considered ones over one predicate and names each omission - so
+no rule here compares two populations itself. ``WorldBalance.draw``'s built
+counts are still never compared: they cover the placement allowlist, a
+different population. The gap rule reads :data:`IN_OMITTED` and counts every
+omitted consumer as unpriced, so a draw incomplete by omission alone never
+tells the operator to resolve nothing.
 
 UNLOCKS. Neither rule declares an unlock key. "Add generation" names no
 building and no recipe, and the first generator is available before any
@@ -103,6 +102,7 @@ IN_PRODUCTION_AVAILABLE: Final = "power.production_available"
 IN_PRODUCTION_COMPLETE: Final = "power.production_complete"
 IN_GENERATION: Final = "power.generation_mw"
 IN_ELIDED: Final = "power.clocked_draw.elided_clock_count"
+IN_OMITTED: Final = "power.clocked_draw.omitted_consumer_count"
 
 _SOURCE_PREFIX: Final = "audit.balance."
 
@@ -130,6 +130,7 @@ def balance_inputs(balance: WorldBalance) -> dict[str, InputValue]:
         (IN_UNREAD, "clocked_draw.unread_clock_count", clocked.unread_clock_count),
         (IN_UNMODELED, "clocked_draw.unmodeled_machine_count", clocked.unmodeled_machine_count),
         (IN_ELIDED, "clocked_draw.elided_clock_count", clocked.elided_clock_count),
+        (IN_OMITTED, "clocked_draw.omitted_consumer_count", clocked.omitted_consumer_count),
         (IN_PRODUCTION_AVAILABLE, "production_available", balance.production_available),
     )
     production = balance.production
@@ -261,6 +262,14 @@ def _plural(count: int, singular: str, plural: str) -> str:
     return f"{count} {singular if count == 1 else plural}"
 
 
+def _omission(omitted: int) -> str:
+    """The reason suffix naming built consumers the draw never considered, or nothing."""
+    if omitted == 0:
+        return ""
+    consumers = _plural(omitted, "built power consumer was", "built power consumers were")
+    return f"; {consumers} never considered"
+
+
 def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
     """Name an incomplete clocked draw and say its total is a floor."""
     if _read_flag(ctx, IN_COMPLETE):
@@ -269,13 +278,17 @@ def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
     considered = _read_count(ctx, IN_CONSIDERED)
     unread = _read_count(ctx, IN_UNREAD)
     unmodeled = _read_count(ctx, IN_UNMODELED)
+    omitted = _read_count(ctx, IN_OMITTED)
     elided = _elision(_read_count(ctx, IN_ELIDED))
     lower = ctx.read_exact(IN_LOWER)
     upper = ctx.read_exact(IN_UPPER)
-    unpriced = unread + unmodeled
+    # CS-1266. An omitted consumer is unpriced, and it sits outside the
+    # considered population, so it joins the share's denominator too.
+    unpriced = unread + unmodeled + omitted
+    population = considered + omitted
     ctx.compute("unpriced machines", Fraction(unpriced))
-    if considered > 0:
-        ctx.compute("priced share of machines", Fraction(considered - unpriced, considered))
+    if population > 0:
+        ctx.compute("priced share of machines", Fraction(population - unpriced, population))
     ctx.reject(
         "advise on the draw total as a measurement",
         "unpriced machines draw power the total does not count, so it is a floor",
@@ -289,7 +302,8 @@ def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
         reason=(
             f"The clocked draw is a floor of {_mw(lower)} to {_mw(upper)} MW: "
             f"{_plural(unread, 'clock', 'clocks')} unread and "
-            f"{_plural(unmodeled, 'machine', 'machines')} unmodeled, of {considered}{elided}"
+            f"{_plural(unmodeled, 'machine', 'machines')} unmodeled, of {considered}"
+            f"{_omission(omitted)}{elided}"
         ),
     )
 
@@ -314,7 +328,16 @@ HEADROOM_RULE: Final = RuleSpec(
 GAP_RULE: Final = RuleSpec(
     rule_id="power.draw_incomplete",
     domain=DOMAIN,
-    inputs=(IN_COMPLETE, IN_CONSIDERED, IN_UNREAD, IN_UNMODELED, IN_ELIDED, IN_LOWER, IN_UPPER),
+    inputs=(
+        IN_COMPLETE,
+        IN_CONSIDERED,
+        IN_UNREAD,
+        IN_UNMODELED,
+        IN_OMITTED,
+        IN_ELIDED,
+        IN_LOWER,
+        IN_UPPER,
+    ),
     unlocks=(),
     evaluate=_evaluate_gap,
 )

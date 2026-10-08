@@ -46,6 +46,25 @@ is decided after the registry side and BEFORE the clock: an elided default and
 a perfectly read clock are equally the wrong price for it, so it never enters
 the elided-default count either.
 
+THE CONSIDERED POPULATION IS CROSS-CHECKED AGAINST WHAT IS BUILT (CS-1266).
+"Complete" over the machines population alone says nothing about a built power
+consumer that never entered it - a record whose payload never read, or one that
+read and carried no clock, recipe or producing tag - and the draw used to call
+itself complete while pricing around it. So :func:`clocked_draw_of` reads the
+records ``WorldMachines`` did not admit, per class, and publishes LIKE FOR
+LIKE: :attr:`WorldClockedDraw.built_consumer_count` and
+:attr:`WorldClockedDraw.considered_consumer_count`, both over ONE predicate - a
+class the consumer namespace carries, the generator namespace does not, whose
+entry does not declare a FIXED draw of exactly zero. That last clause is read
+off the same :func:`_classify` both draws use, never off a class list: a fixed
+zero draws nothing at any clock, so leaving one out cannot make a total a
+floor, while a variable entry's declared zero is not its draw and counts. Every
+consumer the draw omits is NAMED in :attr:`WorldClockedDraw.omissions` by class
+and kind - :data:`GAP_PAYLOAD_UNREAD` or :data:`GAP_NO_MACHINE_STATE` - and
+makes the draw incomplete. A record of a class the registry does not carry is
+not counted: nothing declares that it draws power, and naming every belt and
+foundation would bury the consumers this check exists for.
+
 THE CONFIDENT ZERO IS THE FAILURE MODE THIS MODULE IS BUILT AGAINST
 ---------------------------------------------------------------------
 Non-negotiable 7 says unknown content is flagged and skipped, never silently
@@ -210,10 +229,13 @@ __all__ = [
     "GAP_DRAW_INEXACT",
     "GAP_KINDS",
     "GAP_LAW_INEXACT",
+    "GAP_NO_MACHINE_STATE",
     "GAP_NO_REGISTRY_ENTRY",
+    "GAP_PAYLOAD_UNREAD",
     "GAP_PRODUCTION_INEXACT",
     "GAP_PRODUCTION_UNDECLARED",
     "GAP_PRODUCTION_VARIABLE",
+    "OMISSION_KINDS",
     "PRODUCTION_GAP_KINDS",
     "SOURCE_BALANCE",
     "WARN_BALANCE_CLOCKED_DRAW_BOUNDED",
@@ -329,6 +351,24 @@ CLOCKED_GAP_KINDS: Final = GAP_KINDS | frozenset(
     }
 )
 
+#: CS-1266. A built power consumer no payload of which was read - the walk
+#: aborted on it, the object walk paired it with no payload, or no property pass
+#: reached it - so ``WorldMachines`` never admitted it. A fact about this
+#: reader: what the record holds is unknown, so it is named and never priced.
+GAP_PAYLOAD_UNREAD: Final = "payload-unread"
+
+#: CS-1266. A built power consumer whose payload read and carried no clock, no
+#: recipe and no producing tag, so ``WorldMachines`` never admitted it and the
+#: clocked draw never priced it.
+GAP_NO_MACHINE_STATE: Final = "no-machine-state"
+
+#: CS-1266. The closed vocabulary of omission kinds: built power consumers the
+#: clocked draw never considered, published in
+#: :attr:`WorldClockedDraw.omissions` and never in its gap list - a gap is a
+#: considered machine with no number, an omission is a built one never
+#: considered at all - so the two vocabularies are disjoint.
+OMISSION_KINDS: Final = frozenset({GAP_PAYLOAD_UNREAD, GAP_NO_MACHINE_STATE})
+
 #: A clocked group whose draw the power law yields EXACTLY - the reference clock,
 #: a whole exponent, or a zero clock under a positive one. Its two ends are equal.
 BOUND_EXACT: Final = "exact"
@@ -393,7 +433,10 @@ WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE: Final = "balance-upstream-cause-unavail
 WARN_BALANCE_CLOCK_UNREAD: Final = "balance-clock-unread"
 
 #: CS-1263. This many machines contributed no number to the clocked draw for any
-#: reason other than an unread clock. Both clocked ends are floors.
+#: reason other than an unread clock. Both clocked ends are floors. CS-1266:
+#: the count also carries every built power consumer the draw omitted, each
+#: named in :attr:`WorldClockedDraw.omissions` - one code rather than a second,
+#: because the fact is the same one: built, drawing, and in no number.
 WARN_BALANCE_CLOCKED_DRAW_UNMODELED: Final = "balance-clocked-draw-unmodeled"
 
 #: CS-1263. This many machines run where the power law has no exact rational
@@ -452,6 +495,18 @@ _GAP_REASON: Final[Mapping[str, str]] = MappingProxyType(
             " not modelled - no boost exponent is read and the tag's value is"
             " unmeasured - so it is not priced at all; pricing it by its clock alone"
             " would price a boosted machine as unboosted"
+        ),
+        GAP_PAYLOAD_UNREAD: (
+            "no save payload of this built power consumer was read - the walk aborted"
+            " on it, paired it with no payload, or never reached it - so whether it is"
+            " a machine, what clock it runs at and what it draws are all unknown; it is"
+            " named here rather than left out of a total that would then read complete"
+        ),
+        GAP_NO_MACHINE_STATE: (
+            "this built power consumer's payload read and carried no clock, no recipe"
+            " and no producing tag, so it never entered the machines the draw prices;"
+            " it is named here rather than left out of a total that would then read"
+            " complete"
         ),
     }
 )
@@ -552,7 +607,9 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "this many machines contributed no number to the clocked draw - no entry, no"
             " modeled draw, no scalable law, no real value at their clock, or a"
             " production boost whose power law is not modelled - and each is named in"
-            " the gap list by kind; both clocked ends are floors"
+            " the gap list by kind; built power consumers the draw never considered are"
+            " counted here too and named in the omission list; both clocked ends are"
+            " floors"
         ),
         WARN_BALANCE_CLOCKED_DRAW_BOUNDED: (
             "this many machines run where the power law has no exact rational value, so"
@@ -1190,10 +1247,16 @@ class ClockedGap:
     :class:`DrawGap` gives; the second because a refused clock may be a float,
     and a gap must not carry the value it refused.
 
+    THE SAME TYPE CARRIES AN OMISSION (CS-1266): a built power consumer the
+    draw never considered, in :attr:`WorldClockedDraw.omissions`. Its kind is
+    then one of :data:`OMISSION_KINDS`, its count is of built records, and its
+    class name is a key of the supplied consumer namespace.
+
     Attributes:
         class_name: The machine's built class, as ``MachineState`` carries it.
         machine_count: How many machines of that class landed here by this kind.
-        kind: One of :data:`CLOCKED_GAP_KINDS`.
+        kind: One of :data:`CLOCKED_GAP_KINDS`, or of :data:`OMISSION_KINDS`
+            for an omission.
         reason: One line naming why.
     """
 
@@ -1225,9 +1288,10 @@ class WorldClockedDraw:
         upper_megawatts: The exact sum of every group's high end. Both are over
             the groups alone, so both are FLOORS of their own kind whenever
             :attr:`gaps` is non-empty.
-        exact: Whether the two ends are one number: no group is bracketed and
-            no machine is a gap.
-        complete: Whether every machine landed in a group.
+        exact: Whether the two ends are one number: no group is bracketed, no
+            machine is a gap and no built consumer was omitted.
+        complete: Whether every machine landed in a group AND every built power
+            consumer was considered (CS-1266).
         machines_considered: How many machines the input population held.
         bounded_machine_count: How many machines sit in a bracketed group.
         unread_clock_count: How many machines are :data:`GAP_CLOCK_UNREAD`.
@@ -1238,6 +1302,16 @@ class WorldClockedDraw:
         generator_machine_count: CS-1059. How many machines were taken out of
             the population because the supplied generator namespace carries
             their class. Zero when no namespace was supplied.
+        omissions: CS-1266. One entry per (class, kind) for the built power
+            consumers the draw never considered, sorted like :attr:`gaps`. Its
+            own list, so the conservation above is untouched.
+        built_consumer_count: CS-1266. How many BUILT records are power
+            consumers - see the module docstring for the one predicate.
+        considered_consumer_count: CS-1266. How many of the machines this draw
+            considered pass that same predicate, so the two counts compare like
+            for like. ``built_consumer_count - considered_consumer_count`` is
+            :attr:`omitted_consumer_count`.
+        omitted_consumer_count: CS-1266. The sum of the omissions' counts.
     """
 
     contributions: tuple[ClockedContribution, ...]
@@ -1252,8 +1326,12 @@ class WorldClockedDraw:
     elided_clock_count: int
     unmodeled_machine_count: int
     warnings: tuple[WorldWarning, ...]
-    # Appended with a default, so every existing construction stays valid.
+    # Appended with defaults, so every existing construction stays valid.
     generator_machine_count: int = 0
+    omissions: tuple[ClockedGap, ...] = ()
+    built_consumer_count: int = 0
+    considered_consumer_count: int = 0
+    omitted_consumer_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -1270,6 +1348,10 @@ class WorldClockedDraw:
             f"elided_clock_count={self.elided_clock_count}, "
             f"unmodeled_machine_count={self.unmodeled_machine_count}, "
             f"generator_machine_count={self.generator_machine_count}, "
+            f"omissions={len(self.omissions)}, "
+            f"built_consumer_count={self.built_consumer_count}, "
+            f"considered_consumer_count={self.considered_consumer_count}, "
+            f"omitted_consumer_count={self.omitted_consumer_count}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -1438,6 +1520,65 @@ def _clocked_outcome(
     return _law(entry, clock, each)
 
 
+def _is_power_consumer(
+    class_name: str, buildings: Mapping[str, Building], producers: Mapping[str, Generator]
+) -> bool:
+    """Whether one built class draws power, by the one predicate both counts read.
+
+    CS-1266. The consumer namespace must carry the class and the generator
+    namespace must not. Its entry must then not declare a FIXED draw of exactly
+    zero, decided by :func:`_classify` - the function both draws already use -
+    so a variable entry, whose declared scalar is zero and is not its draw, is
+    a consumer, and an entry with no modeled draw at all is one too: nothing
+    says it draws nothing.
+
+    Args:
+        class_name: The built class.
+        buildings: The consumer namespace.
+        producers: The generator namespace, possibly empty.
+
+    Returns:
+        True when a record of this class left out of the draw makes it a floor.
+    """
+    if class_name in producers:
+        return False
+    entry = buildings.get(class_name)
+    if entry is None:
+        return False
+    bucket = _classify(class_name, 1, entry)
+    return isinstance(bucket, DrawGap) or bucket.megawatts_each != 0
+
+
+def _omissions_of(
+    machines: WorldMachines,
+    buildings: Mapping[str, Building],
+    producers: Mapping[str, Generator],
+) -> tuple[ClockedGap, ...]:
+    """Name every built power consumer ``WorldMachines`` never admitted (CS-1266).
+
+    Args:
+        machines: The machines model, for its per-class census of what it did
+            not admit.
+        buildings: The consumer namespace.
+        producers: The generator namespace, possibly empty.
+
+    Returns:
+        One entry per (class, kind), sorted, each counting built records.
+    """
+    named: dict[tuple[str, str], int] = {}
+    for kind, census in (
+        (GAP_PAYLOAD_UNREAD, machines.unadmitted_unread_counts),
+        (GAP_NO_MACHINE_STATE, machines.unadmitted_read_counts),
+    ):
+        for class_name, count in census:
+            if count and _is_power_consumer(class_name, buildings, producers):
+                named[(class_name, kind)] = count
+    return tuple(
+        ClockedGap(class_name=class_name, machine_count=count, kind=kind, reason=_GAP_REASON[kind])
+        for (class_name, kind), count in sorted(named.items())
+    )
+
+
 def clocked_draw_of(
     machines: WorldMachines,
     buildings: Mapping[str, Building],
@@ -1463,8 +1604,9 @@ def clocked_draw_of(
 
     Returns:
         The clocked draw: an exact value per group where the power law yields
-        one, a named bracket where it does not, and a named gap where no number
-        exists at all.
+        one, a named bracket where it does not, a named gap where no number
+        exists at all, and a named omission for every built power consumer the
+        population never held (CS-1266).
     """
     priced: dict[tuple[str, Fraction, bool], tuple[str, str, Fraction, Fraction, int]] = {}
     gapped: dict[tuple[str, str], tuple[str, int]] = {}
@@ -1519,6 +1661,14 @@ def clocked_draw_of(
     unread = sum(gap.machine_count for gap in gaps if gap.kind == GAP_CLOCK_UNREAD)
     defaulted = sum(group.machine_count for group in contributions if group.clock_elided)
     unmodeled = sum(gap.machine_count for gap in gaps) - unread
+    # CS-1266. Both counts read ONE predicate, so they compare like for like.
+    considered_consumers = sum(
+        1
+        for state in machines.machines
+        if _is_power_consumer(state.class_name, buildings, producers)
+    )
+    omissions = _omissions_of(machines, buildings, producers)
+    omitted = sum(item.machine_count for item in omissions)
 
     warnings: list[WorldWarning] = []
     if not machines.machines:
@@ -1527,8 +1677,8 @@ def clocked_draw_of(
         warnings.append(_warning(WARN_BALANCE_CLOCK_ELIDED, defaulted))
     if unread:
         warnings.append(_warning(WARN_BALANCE_CLOCK_UNREAD, unread))
-    if unmodeled:
-        warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_UNMODELED, unmodeled))
+    if unmodeled or omitted:
+        warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_UNMODELED, unmodeled + omitted))
     if bounded:
         warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_BOUNDED, bounded))
 
@@ -1537,8 +1687,8 @@ def clocked_draw_of(
         gaps=gaps,
         lower_megawatts=sum((group.lower_total for group in contributions), Fraction(0)),
         upper_megawatts=sum((group.upper_total for group in contributions), Fraction(0)),
-        exact=not bounded and not gaps,
-        complete=not gaps,
+        exact=not bounded and not gaps and not omissions,
+        complete=not gaps and not omissions,
         machines_considered=len(machines.machines) - excluded,
         bounded_machine_count=bounded,
         unread_clock_count=unread,
@@ -1546,6 +1696,10 @@ def clocked_draw_of(
         unmodeled_machine_count=unmodeled,
         warnings=tuple(warnings),
         generator_machine_count=excluded,
+        omissions=omissions,
+        built_consumer_count=considered_consumers + omitted,
+        considered_consumer_count=considered_consumers,
+        omitted_consumer_count=omitted,
     )
     audit_exact(result, path="clocked_draw")
     return result

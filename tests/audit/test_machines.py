@@ -30,6 +30,7 @@ entry HOLDS is another.
 
 from __future__ import annotations
 
+import copy
 import struct
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass, replace
@@ -557,3 +558,103 @@ def test_a_hand_built_state_never_claims_an_elided_clock() -> None:
     )
 
     assert state.overclock_elided is False
+
+
+# ---------------------------------------------------------------------------
+# CS-1266: every walked record lands in exactly one population
+# ---------------------------------------------------------------------------
+#
+# The clocked draw cross-checks the machines it considered against what is
+# built, and it can only do that if the records this module did NOT admit are
+# counted rather than dropped. They are counted per class, split by whether the
+# payload read: a read payload with no machine tag is a fact about the record,
+# an unread one is a fact about this reader.
+
+#: An invented property no machine reader knows.
+UNRELATED_PROPERTY = "mSyntheticUnrelatedQx72"
+
+
+def test_every_walked_record_lands_in_exactly_one_population() -> None:
+    model = world(
+        entry({machines.PROPERTY_PRODUCING: True}),
+        entry({UNRELATED_PROPERTY: 7}),
+        entry({}),
+        entry({}, payload_read=False),
+    )
+    result = machines.machines_of(model)
+
+    assert len(result.machines) == 1
+    assert dict(result.unadmitted_read_counts) == {MACHINE_CLASS: 2}
+    assert dict(result.unadmitted_unread_counts) == {MACHINE_CLASS: 1}
+    unadmitted = sum(count for _, count in result.unadmitted_read_counts) + sum(
+        count for _, count in result.unadmitted_unread_counts
+    )
+    assert len(result.machines) + unadmitted == len(model.objects.records)
+
+
+def test_an_unread_payload_that_still_carries_a_machine_tag_is_admitted_not_counted() -> None:
+    """Admission is decided first: a machine is never also an unadmitted record."""
+    result = machines.machines_of(
+        world(entry({machines.PROPERTY_PRODUCING: True}, payload_read=False))
+    )
+
+    assert len(result.machines) == 1
+    assert dict(result.unadmitted_unread_counts) == {}
+
+
+def test_a_record_no_property_pass_reached_is_counted_unread() -> None:
+    """A table with no property entry at all was never read, so its records are unread."""
+    model = replace(
+        world(entry({machines.PROPERTY_PRODUCING: True}), entry({})),
+        properties=WorldProperties(by_record_index=MappingProxyType({})),
+    )
+    result = machines.machines_of(model)
+
+    assert result.machines == ()
+    assert dict(result.unadmitted_unread_counts) == {MACHINE_CLASS: 2}
+    assert dict(result.unadmitted_read_counts) == {}
+
+
+def test_a_hand_built_model_has_nothing_unadmitted() -> None:
+    result = machines.WorldMachines(
+        machines=(),
+        producing_available=False,
+        recipe_available=False,
+        overclock_available=False,
+        records_considered=0,
+        unread_payload_count=0,
+        refused_overclock_count=0,
+        refused_recipe_count=0,
+        warnings=(),
+    )
+
+    assert dict(result.unadmitted_read_counts) == {}
+    assert dict(result.unadmitted_unread_counts) == {}
+
+
+def test_the_machines_repr_names_no_unadmitted_class() -> None:
+    result = machines.machines_of(world(entry({}), entry({}, payload_read=False)))
+
+    assert MACHINE_CLASS not in repr(result)
+
+
+def test_a_model_carrying_a_census_deep_copies_equal() -> None:
+    """A caller snapshots this model to prove nothing mutated it, so it must copy."""
+    result = machines.machines_of(world(entry({}), entry({}, payload_read=False)))
+
+    assert copy.deepcopy(result) == result
+
+
+def test_a_record_paired_with_no_payload_is_unread_whatever_its_entry_says() -> None:
+    """No payload means none was read, so "read and untagged" would be false.
+
+    The property reader returns a read, empty entry for a record the walk paired
+    with no payload without reading a byte - the flat walk's every record, and a
+    levelled record whose level declared fewer payloads than records - and the
+    save layer says so in ``payload_present``. The entry beside it is alike in
+    every other field, so only that flag decides between the two buckets.
+    """
+    result = machines.machines_of(world(replace(entry({}), payload_present=False), entry({})))
+
+    assert result.unadmitted_unread_counts == ((MACHINE_CLASS, 1),)
+    assert result.unadmitted_read_counts == ((MACHINE_CLASS, 1),)

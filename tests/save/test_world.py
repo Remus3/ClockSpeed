@@ -151,7 +151,7 @@ from clockspeed.surface.api import world as world_api
 # site says out loud where the value came from.
 from tests.assertion_rendering_guard import annotation_names, declared_fields
 from tests.repr_rendering_guard import CARRIER_TYPES
-from tests.save import reach_guard, synthetic, test_properties, test_usmap
+from tests.save import reach_guard, synthetic, test_objects, test_properties, test_usmap
 
 # ---------------------------------------------------------------------------
 # Local constants, so no assertion compares against a bare literal
@@ -5571,3 +5571,82 @@ def test_an_unclassified_reference_field_fails_closed() -> None:
         "an unclassified field published its value, so the guard fails OPEN: "
         "a name joining the reference set reaches the wire unreviewed"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1266: whether a record had a payload at all is published as a FACT
+# ---------------------------------------------------------------------------
+#
+# The reader returns an entry marked read with no values, without reading a
+# byte, for a record the object walk paired with no payload - every record of
+# the flat walk, and every record of a level whose record and payload counts
+# disagree. Nothing in ``payload_read`` or ``values`` tells that entry from a
+# payload that was read and held nothing, and the record's extent that does is
+# a position this layer publishes to nobody. So the entry carries the fact.
+
+
+def _mismatched_world() -> world.WorldModel:
+    """The objects suite's one-record, zero-payload level, loaded whole.
+
+    Returns:
+        The world model.
+    """
+    head = synthetic.build_header(
+        header_version=test_objects._HEADER_10,  # noqa: SLF001
+        save_version=test_objects._SAVE_36,  # noqa: SLF001
+    )
+    framed = synthetic.build_chunks(
+        test_objects._mismatched_entry_count_body(),  # noqa: SLF001
+        framing=synthetic.default_framing(test_objects._HEADER_10),  # noqa: SLF001
+    )
+    return world.load_world_from_bytes(head + framed)
+
+
+def test_a_record_the_walk_paired_with_no_payload_publishes_that_fact() -> None:
+    """Red before CS-1266's seam repair: no field said it, and a consumer guessed.
+
+    THE PREMISE IS THE AMBIGUITY: the entry is marked read and holds nothing,
+    exactly as a payload that read and held no property would be.
+    """
+    model = _mismatched_world()
+    (entry,) = model.properties.by_record_index.values()
+    assert objects.WARN_PAYLOAD_COUNT_DISAGREEMENT in {w.code for w in model.objects.warnings}
+    assert (entry.payload_read, len(entry.values)) == (True, 0)
+
+    assert entry.payload_present is False
+    assert "payload_present=False" in repr(entry)
+
+
+def test_every_record_of_the_flat_walk_publishes_no_payload() -> None:
+    """The sibling: the flat walk pairs no record with a payload at all."""
+    blob = synthetic.build_save(
+        objects=(
+            synthetic.SyntheticObject(
+                synthetic.DECODABLE_CLASS_PATH,
+                synthetic.DECODABLE_ROOT,
+                synthetic.DECODABLE_INSTANCE,
+            ),
+        )
+    )
+    model = world.load_world_from_bytes(blob, body_layout=world.BODY_LAYOUT_FLAT)
+
+    flags = [entry.payload_present for entry in model.properties.by_record_index.values()]
+    assert flags == [False]
+
+
+def test_a_record_paired_with_a_payload_publishes_one_present() -> None:
+    """The control: every record of the decodable levelled save had a payload."""
+    model = world.load_world_from_bytes(synthetic.SAVE_LEVELLED_DECODABLE.blob)
+
+    flags = {entry.payload_present for entry in model.properties.by_record_index.values()}
+    assert flags == {True}
+    entry = model.properties.by_record_index[_index_of(model, synthetic.DECODABLE_INSTANCE)]
+    assert "payload_present=True" in repr(entry)
+
+
+def test_a_hand_built_entry_claims_a_payload_by_default() -> None:
+    entry = world.RecordProperties(
+        values=MappingProxyType({}), schema_name="Synthetic", resolved=None, payload_read=True
+    )
+
+    assert entry.payload_present is True

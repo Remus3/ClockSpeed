@@ -669,3 +669,34 @@ def test_every_non_safe_published_route_has_decided_whether_it_mutates() -> None
 def test_the_state_route_is_the_one_the_server_guards() -> None:
     guarded = server.mutating_routes(routes.SERVING_ROUTES)
     assert guarded == frozenset({(advice_endpoint.METHOD_POST, advice_endpoint.STATE_ENDPOINT)})
+
+
+# ---------------------------------------------------------------------------
+# CS-1266: GET /api/advice names a built consumer the clocked draw never considered
+# ---------------------------------------------------------------------------
+#
+# ``world_fixtures.gap_world`` builds one record of a modeled consumer class that
+# carries no machine tag at all, beside the producing machine no registry entry
+# prices. The consumer never enters the machines population, so before CS-1266
+# the served gap card counted the one unmodeled machine and said nothing of it.
+
+#: What the served reason must carry for the one omitted consumer.
+OMISSION_WORDS: Final = "1 built power consumer was never considered"
+
+
+def test_the_listing_names_an_omitted_consumer_over_the_real_route_table(
+    tmp_path: Path,
+) -> None:
+    table = _table(tmp_path)
+
+    data = _data(table["GET", advice_endpoint.ENDPOINT]({}))
+
+    cards = data["cards"]
+    assert isinstance(cards, list)
+    served = [card for card in cards if card["rule_id"] == power.GAP_RULE.rule_id]
+    count = len(served)
+    assert count == 1
+    assert served[0]["headline"] == "Resolve 2 unpriced machines before planning power"
+    reason = served[0]["reason"]
+    assert isinstance(reason, str)
+    assert OMISSION_WORDS in reason

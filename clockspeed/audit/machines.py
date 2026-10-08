@@ -80,6 +80,32 @@ holds is REFUSED rather than approximated: it did not come from a
 ``FloatProperty``, so guessing which decimal it meant would be an invention.
 ``DoubleProperty`` is a different width and would need its own bridge; this one
 claims nothing about it.
+
+WHAT IS NOT ADMITTED IS COUNTED, PER CLASS (CS-1266)
+------------------------------------------------------
+Membership is property-driven, so a built record carrying no machine tag - or
+one whose payload never read, and so carries nothing at all - is not a machine
+here. That is the right answer for a foundation and the wrong SILENCE for a
+power consumer: the clocked draw in ``clockspeed/audit/balance.py`` priced the
+population it was handed and could not see what was left out of it. So every
+walked record that is not admitted is COUNTED by class, split by whether its
+payload read: :attr:`WorldMachines.unadmitted_read_counts` and
+:attr:`WorldMachines.unadmitted_unread_counts`. With the population they
+partition the record table. This module never reads the registry, so it never
+decides which of those classes draw power; the balance does, one layer up.
+
+"READ" NEEDS A PAYLOAD THAT WAS READ, NOT AN ENTRY THAT SAYS SO. The property
+reader hands back an entry marked read with nothing in it for a record the
+object walk attributed NO payload extent to - every record of the flat walk,
+and every record of a level whose record and payload counts disagree, where the
+pairing is undefined and ``objects.WARN_PAYLOAD_COUNT_DISAGREEMENT`` is raised.
+Nothing in ``payload_read`` or ``values`` tells it from a payload that was
+read and held nothing, so the save layer publishes the FACT:
+``RecordProperties.payload_present`` is False for such a record, and the tally
+routes it to UNREAD. This module never reads a record's extent - an offset or a
+length is a position the save layer publishes to nobody, and
+``tests/audit/test_extent_seam.py::test_no_audit_module_reads_a_record_extent``
+pins that over the whole package.
 """
 
 from __future__ import annotations
@@ -374,6 +400,22 @@ class WorldMachines:
         refused_recipe_count: How many recipe references were refused by
             :func:`_permitted_recipe_path`, on identical terms.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
+        unadmitted_read_counts: CS-1266. Per class, how many records READ
+            cleanly enough to be walked and carried no machine tag, so were not
+            admitted - ``(class name, count)`` pairs in class order, the class
+            reduced exactly as :attr:`MachineState.class_name` is. PAIRS AND NOT
+            A MAPPING PROXY, because a proxy cannot be deep-copied and a caller
+            that snapshots this model to prove nothing mutated it must be able
+            to. Empty by default, for a hand-built model with no record table
+            behind it.
+        unadmitted_unread_counts: CS-1266. Per class, how many records were
+            not admitted because no payload of theirs was read - the walk
+            aborted on it, the object walk paired it with no payload
+            (``RecordProperties.payload_present`` False), or no property pass
+            reached the record at all. Nothing was read to
+            admit such a record on, so this is a fact about this reader and
+            never about the record. With :attr:`machines` and the field above
+            it partitions the record table.
     """
 
     machines: tuple[MachineState, ...]
@@ -385,6 +427,9 @@ class WorldMachines:
     refused_overclock_count: int
     refused_recipe_count: int
     warnings: tuple[WorldWarning, ...]
+    # Appended with defaults, so every existing construction stays valid.
+    unadmitted_read_counts: tuple[tuple[str, int], ...] = ()
+    unadmitted_unread_counts: tuple[tuple[str, int], ...] = ()
 
     def __repr__(self) -> str:
         """Render counts and flags, and none that a member could make raise.
@@ -401,6 +446,8 @@ class WorldMachines:
             f"unread_payload_count={self.unread_payload_count}, "
             f"refused_overclock_count={self.refused_overclock_count}, "
             f"refused_recipe_count={self.refused_recipe_count}, "
+            f"unadmitted_read={sum(count for _, count in self.unadmitted_read_counts)}, "
+            f"unadmitted_unread={sum(count for _, count in self.unadmitted_unread_counts)}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -467,6 +514,54 @@ def _is_machine(entry: RecordProperties) -> bool:
     return _recipe_tag(entry.references) is not None
 
 
+def _counted(tally: dict[str, int]) -> tuple[tuple[str, int], ...]:
+    """Freeze one per-class tally in class order, so two runs agree.
+
+    Args:
+        tally: Class name to count.
+
+    Returns:
+        ``(class name, count)`` pairs.
+    """
+    return tuple(sorted(tally.items()))
+
+
+def _payload_was_read(entry: RecordProperties) -> bool:
+    """Whether a payload of this record was actually read, as opposed to reported read.
+
+    CS-1266. ``RecordProperties.payload_read`` is True for a record the object
+    walk paired with NO payload - the reader returns an empty, read entry
+    without reading a byte - so it cannot by itself support the claim "read and
+    carried no machine tag". ``RecordProperties.payload_present`` can: the save
+    layer publishes it from the extent it alone reads.
+
+    Args:
+        entry: The record's published properties.
+
+    Returns:
+        True only when a payload was paired with the record AND it read.
+    """
+    return entry.payload_present and entry.payload_read
+
+
+def _count_never_walked(model: WorldModel, tally: dict[str, int]) -> None:
+    """Count, as unread, every record no property pass reached (CS-1266).
+
+    The property mapping is total over the table whenever a pass ran; a model
+    built without one carries an empty mapping, and its records are UNREAD
+    rather than absent - nothing was read to admit them on.
+
+    Args:
+        model: The world model.
+        tally: The per-class unread tally, added to in place.
+    """
+    walked = model.properties.by_record_index
+    for index, record in enumerate(model.objects.records):
+        if index not in walked:
+            class_name = class_name_of_path(record.type_path)
+            tally[class_name] = tally.get(class_name, 0) + 1
+
+
 def machines_of(model: WorldModel) -> WorldMachines:
     """Read every walked record's machine state out of the world model.
 
@@ -475,17 +570,28 @@ def machines_of(model: WorldModel) -> WorldMachines:
 
     Returns:
         One :class:`MachineState` per record carrying a measured machine
-        property, with the per-field availability flags, the denominators and
-        the counts of what was refused.
+        property, with the per-field availability flags, the denominators, the
+        counts of what was refused, and - per class - every record that was not
+        admitted (CS-1266).
     """
     records = model.objects.records
+    walked = model.properties.by_record_index
     states: list[MachineState] = []
     refused_overclock = 0
     refused_recipe = 0
+    unadmitted_read: dict[str, int] = {}
+    unadmitted_unread: dict[str, int] = {}
 
-    for index in sorted(model.properties.by_record_index):
-        entry = model.properties.by_record_index[index]
+    for index in sorted(walked):
+        entry = walked[index]
         if not _is_machine(entry):
+            # COUNTED, NEVER DROPPED - CS-1266. One bucket per record: one of
+            # these two tallies here, or a machine further down.
+            class_name = (
+                class_name_of_path(records[index].type_path) if index < len(records) else ""
+            )
+            tally = unadmitted_read if _payload_was_read(entry) else unadmitted_unread
+            tally[class_name] = tally.get(class_name, 0) + 1
             continue
 
         raw_producing = entry.values.get(PROPERTY_PRODUCING)
@@ -531,6 +637,8 @@ def machines_of(model: WorldModel) -> WorldMachines:
             )
         )
 
+    _count_never_walked(model, unadmitted_unread)
+
     machines = tuple(states)
     unread = model.properties.unread_payload_count
 
@@ -554,4 +662,6 @@ def machines_of(model: WorldModel) -> WorldMachines:
         refused_overclock_count=refused_overclock,
         refused_recipe_count=refused_recipe,
         warnings=tuple(warnings),
+        unadmitted_read_counts=_counted(unadmitted_read),
+        unadmitted_unread_counts=_counted(unadmitted_unread),
     )

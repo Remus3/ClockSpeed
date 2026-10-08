@@ -46,14 +46,14 @@ from __future__ import annotations
 
 import struct
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
 
 import pytest
 
 from clockspeed.audit import balance, machines, network, placement
-from clockspeed.data.registry import Building
+from clockspeed.data.registry import Building, Generator
 from clockspeed.save import objects, world
 from clockspeed.save.header import SaveHeader
 from clockspeed.save.world import (
@@ -65,6 +65,7 @@ from clockspeed.save.world import (
 from clockspeed.solve import exact, power
 from tests.audit import test_machines as machines_fx
 from tests.save import synthetic as save_synthetic
+from tests.save import test_objects as objects_fx
 
 # An invented 22-character base64url literal. Never a real world token.
 SYNTHETIC_TOKEN = "ClockspeedBalanceTok1"  # noqa: S105 - an invented marker, not a secret
@@ -1808,3 +1809,448 @@ def test_a_boosted_gap_repr_names_no_built_class() -> None:
 
     assert result.gaps
     assert FIXED_WHOLE not in " ".join(repr(gap) for gap in result.gaps)
+
+
+# ---------------------------------------------------------------------------
+# CS-1266: the considered population is cross-checked against what is built
+# ---------------------------------------------------------------------------
+#
+# A built record of a power-consuming class that never entered the machines
+# population - its payload never read, or it read and carried no clock, recipe
+# or producing tag - contributed nothing to the clocked draw, and before this
+# item nothing said so: the draw called itself complete over the population it
+# was handed. Every arm here builds the world model and reads it through the
+# REAL ``machines_of``, so the population and the census come from one walk.
+
+#: The decoded values of a machine priced exactly: a clock of one, producing.
+TAGGED: Mapping[str, object] = MappingProxyType(
+    {machines.PROPERTY_OVERCLOCK: 1.0, machines.PROPERTY_PRODUCING: True}
+)
+
+#: An invented class whose entry declares a FIXED draw of exactly zero - the
+#: shape every storage container and pipeline junction ships with.
+ZERO_DRAW = "Build_SyntheticZeroDrawQx73_C"
+
+#: An invented generator class. Its CONSUMER entry declares a positive draw on
+#: purpose, so only the generator namespace can keep it out of the count.
+GENERATOR_CLASS = "Build_SyntheticGeneratorQx73_C"
+
+#: A declared size no synthetic payload is long enough to hold.
+OVERRUN_SIZE = 1 << 20
+
+#: How many consumer records the acceptance arm leaves out of the population.
+ACCEPTANCE_OMITTED = 2
+
+#: How many machines the like-for-like arm's population holds once its one
+#: generator is set apart: a consumer, a fixed-zero machine and a stranger.
+LIKE_FOR_LIKE_CONSIDERED = 3
+
+#: The like-for-like arm's machines in no number: one stranger, two omissions.
+LIKE_FOR_LIKE_UNPRICED = 3
+
+#: The (header, save) version pair the save suite's mismatched body is written
+#: in, read off that suite rather than restated.
+MISMATCHED_PAIR = (objects_fx._HEADER_10, objects_fx._SAVE_36)  # noqa: SLF001
+
+#: The record-count arm: two priced machines of one class, three untagged
+#: records of another, so a count of classes and a count of records differ.
+PRICED_MACHINES = 2
+UNTAGGED_RECORDS = 3
+
+
+def census_world(
+    *rows: tuple[str, Mapping[str, object]], unread: tuple[str, ...] = ()
+) -> WorldModel:
+    """One built record per row on a read payload, then one unread record per class.
+
+    EVERY ENTRY HAD A PAYLOAD - ``payload_present`` keeps its default - as every
+    record a real levelled walk pairs does: a record the walk paired with no
+    payload never had one read, whatever else its entry says, and is graded
+    apart below.
+
+    Args:
+        rows: ``(class name, decoded values)`` per record, in file order.
+        unread: The class of each trailing record whose payload never read.
+
+    Returns:
+        The model.
+    """
+    base = world_of(*(name for name, _ in rows), *unread)
+    entries = dict(base.properties.by_record_index)
+    for index, (_name, values) in enumerate(rows):
+        entries[index] = replace(entries[index], values=MappingProxyType(dict(values)))
+    for index in range(len(rows), len(rows) + len(unread)):
+        entries[index] = replace(
+            entries[index],
+            payload_read=False,
+            warning_codes=(objects.WARN_UNPARSED_PROPERTY_PAYLOAD,),
+        )
+    return replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+
+
+def omitted_rows(result: balance.WorldClockedDraw) -> list[tuple[str, str, int]]:
+    """Each named omission as ``(class, kind, count)``, in published order.
+
+    Args:
+        result: The clocked draw.
+
+    Returns:
+        The rows.
+    """
+    return [(item.class_name, item.kind, item.machine_count) for item in result.omissions]
+
+
+def consumer_counts(result: balance.WorldClockedDraw) -> tuple[int, int, int]:
+    """The three like-for-like counts, built then considered then omitted.
+
+    Args:
+        result: The clocked draw.
+
+    Returns:
+        The counts.
+    """
+    return (
+        result.built_consumer_count,
+        result.considered_consumer_count,
+        result.omitted_consumer_count,
+    )
+
+
+def test_a_built_consumer_the_draw_never_considered_is_named() -> None:
+    """CS-1266's acceptance arm: two built consumers carry no machine tag at all.
+
+    ONE MACHINE IS PRICED AND TWO RECORDS OF CONSUMER CLASSES ARE NOT IN THE
+    POPULATION. Without the cross-check the draw prices the one, carries no gap
+    and calls itself complete; with it, both records are named by class and
+    kind, the like-for-like counts disagree by exactly them, and the total is a
+    floor.
+    """
+    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_WHOLE, {}), (FIXED_THIRD, {}))
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert result.complete is False
+    assert omitted_rows(result) == [
+        (FIXED_THIRD, balance.GAP_NO_MACHINE_STATE, 1),
+        (FIXED_WHOLE, balance.GAP_NO_MACHINE_STATE, 1),
+    ]
+    assert consumer_counts(result) == (3, 1, 2)
+    assert result.gaps == ()
+    assert result.upper_megawatts == result.lower_megawatts == WHOLE_MEGAWATTS
+    assert result.exact is False
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == ACCEPTANCE_OMITTED
+
+
+def like_for_like_registry() -> Mapping[str, Building]:
+    """The modeled pair, a fixed-zero class, a variable class and the generator.
+
+    Returns:
+        The mapping.
+    """
+    return registry(
+        building(FIXED_WHOLE, consumption=WHOLE_MEGAWATTS),
+        building(FIXED_THIRD, consumption=THIRD_MEGAWATTS),
+        building(ZERO_DRAW, consumption=Fraction(0)),
+        building(
+            DECLARED_VARIABLE,
+            consumption=Fraction(0),
+            minimum=Fraction(0),
+            maximum=Fraction(100),
+            variable=True,
+        ),
+        building(GENERATOR_CLASS, consumption=WHOLE_MEGAWATTS),
+    )
+
+
+def like_for_like_generators() -> Mapping[str, Generator]:
+    """The one generator, with an exact scalar output.
+
+    Returns:
+        The mapping.
+    """
+    return MappingProxyType(
+        {
+            GENERATOR_CLASS: Generator(
+                key=GENERATOR_CLASS,
+                display_name=f"Synthetic {GENERATOR_CLASS}",
+                power_production=Fraction(30),
+                variable_production_constant=None,
+                variable_production_factor=None,
+                is_variable_production=False,
+            )
+        }
+    )
+
+
+def test_both_consumer_counts_read_one_predicate() -> None:
+    """Like for like: a registry consumer, no generator, and not a fixed zero draw.
+
+    EACH EXCLUSION HAS ITS OWN ROW ON EACH SIDE. In the population, a fixed-zero
+    machine is priced and not counted, a no-entry machine is a gap and not
+    counted, and a generator is set apart. Among the records that never entered
+    it, the same three are not counted - while a VARIABLE class, whose declared
+    scalar is also zero, is counted and named, and so is a modeled class whose
+    payload never read. A predicate reading the scalar alone drops the variable
+    row; one that skips the generator namespace counts the generator row.
+    """
+    model = census_world(
+        (FIXED_WHOLE, TAGGED),
+        (ZERO_DRAW, TAGGED),
+        (NOT_IN_REGISTRY, TAGGED),
+        (GENERATOR_CLASS, TAGGED),
+        (ZERO_DRAW, {}),
+        (NOT_IN_REGISTRY, {}),
+        (GENERATOR_CLASS, {}),
+        (DECLARED_VARIABLE, {}),
+        unread=(FIXED_THIRD, ZERO_DRAW, NOT_IN_REGISTRY),
+    )
+    result = balance.clocked_draw_of(
+        machines.machines_of(model),
+        like_for_like_registry(),
+        generators=like_for_like_generators(),
+    )
+
+    assert omitted_rows(result) == [
+        (FIXED_THIRD, balance.GAP_PAYLOAD_UNREAD, 1),
+        (DECLARED_VARIABLE, balance.GAP_NO_MACHINE_STATE, 1),
+    ]
+    assert consumer_counts(result) == (3, 1, 2)
+    assert result.machines_considered == LIKE_FOR_LIKE_CONSIDERED
+    assert result.generator_machine_count == 1
+    assert [(gap.class_name, gap.kind) for gap in result.gaps] == [
+        (NOT_IN_REGISTRY, balance.GAP_NO_REGISTRY_ENTRY)
+    ]
+    # One unmodeled machine BESIDE two omissions, so the warning's count is
+    # graded as their sum and not as whichever of the two is non-zero.
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == LIKE_FOR_LIKE_UNPRICED
+    exact.audit_exact(result, path="clocked")
+
+
+def overrun_tag(name: str) -> bytes:
+    """One IntProperty tag whose declared size runs past the end of its payload.
+
+    THE REAL DECODER ABORTS THE WALK on it: the record's payload is unread and
+    every value decoded before the tag is discarded with it.
+
+    Args:
+        name: The property name.
+
+    Returns:
+        The encoded tag.
+    """
+    word = "IntProperty"
+    tag = save_synthetic.property_tag(name, word, struct.pack("<i", 7))
+    at = len(save_synthetic.fstring(name)) + len(save_synthetic.fstring(word))
+    return tag[:at] + struct.pack("<i", OVERRUN_SIZE) + tag[at + 4 :]
+
+
+def test_a_built_consumer_whose_payload_never_read_is_a_named_omission() -> None:
+    """CS-1264's round-2 residual, through the REAL loader.
+
+    THE PREMISE IS ASSERTED FIRST: the first actor's producing tag sits ahead
+    of a tag whose size runs past the end, so the walk aborts, its values are
+    discarded and the machine never reaches ``machines_of``. The second actor is
+    an ordinary machine at the reference clock. Before CS-1266 the draw priced
+    the second, named nothing and called itself complete; only
+    ``WorldMachines.unread_payload_count`` recorded the first, and nothing read it.
+    """
+    model = decoded_actors(
+        (producing_tag(), overrun_tag(TORN_NEIGHBOUR)),
+        (float_tag(machines.PROPERTY_OVERCLOCK, 1.0), producing_tag()),
+    )
+    assert [
+        (entry.payload_read, len(entry.values))
+        for entry in model.properties.by_record_index.values()
+    ] == [(False, 0), (True, 2)]
+
+    population = machines.machines_of(model)
+    assert len(population.machines) == 1
+    result = balance.clocked_draw_of(population, decoded_registry())
+
+    assert result.complete is False
+    assert omitted_rows(result) == [
+        (
+            objects.class_name_of(save_synthetic.DECODABLE_CLASS_PATH),
+            balance.GAP_PAYLOAD_UNREAD,
+            1,
+        )
+    ]
+    assert consumer_counts(result) == (2, 1, 1)
+    assert result.upper_megawatts == WHOLE_MEGAWATTS
+
+
+def test_a_population_with_every_consumer_considered_stays_complete() -> None:
+    """The control: the same loader and walk, every built consumer in the population."""
+    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_THIRD, TAGGED), (ZERO_DRAW, {}))
+    result = balance.clocked_draw_of(machines.machines_of(model), like_for_like_registry())
+
+    assert result.complete is True
+    assert result.omissions == ()
+    assert consumer_counts(result) == (2, 2, 0)
+
+
+def test_a_hand_built_population_carries_no_census_and_omits_nothing() -> None:
+    """A population with no record table behind it has nothing unadmitted to name."""
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_WHOLE, Fraction(1))), modeled_registry()
+    )
+
+    assert result.omissions == ()
+    assert consumer_counts(result) == (1, 1, 0)
+    assert result.complete is True
+
+
+def test_the_omission_kinds_are_their_own_closed_vocabulary() -> None:
+    expected = {balance.GAP_PAYLOAD_UNREAD, balance.GAP_NO_MACHINE_STATE}
+    assert expected == balance.OMISSION_KINDS
+    assert not balance.OMISSION_KINDS & balance.CLOCKED_GAP_KINDS
+
+
+def test_every_omission_carries_a_reason_and_its_repr_names_no_class() -> None:
+    model = census_world((FIXED_WHOLE, {}), unread=(FIXED_THIRD,))
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert {item.kind for item in result.omissions} == balance.OMISSION_KINDS
+    assert all(item.reason for item in result.omissions)
+    rendered = " ".join(repr(value) for value in (result, *result.omissions))
+    named = [name for name in (FIXED_WHOLE, FIXED_THIRD) if name in rendered]
+    assert not named
+
+
+def test_the_composite_carries_an_omitted_consumer_as_an_incomplete_draw() -> None:
+    """The power rule reads ``complete``; an omitted consumer must make it False."""
+    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_THIRD, {}))
+    result = balance.balance_of(
+        built(modeled_counts()),
+        modeled_registry(),
+        machines.machines_of(model),
+        world_network(),
+    )
+
+    assert result.clocked_draw.complete is False
+    assert result.clocked_draw.omitted_consumer_count == 1
+    assert balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED in {
+        warning.code for warning in result.warnings
+    }
+
+
+def test_each_count_is_of_records_never_of_classes() -> None:
+    """Two priced machines of one class, three untagged records of another.
+
+    EVERY OTHER ARM HOLDS ONE RECORD PER (CLASS, KIND), so a count of classes
+    and a count of records agree there and grade nothing between them. Here
+    they differ on every count: considered is 2 and not 1, the one omission
+    counts 3 and not 1, omitted is 3 and not 1, and built is 5.
+    """
+    model = census_world(
+        *((FIXED_WHOLE, TAGGED) for _ in range(PRICED_MACHINES)),
+        *((FIXED_THIRD, {}) for _ in range(UNTAGGED_RECORDS)),
+    )
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert consumer_counts(result) == (
+        PRICED_MACHINES + UNTAGGED_RECORDS,
+        PRICED_MACHINES,
+        UNTAGGED_RECORDS,
+    )
+    assert omitted_rows(result) == [(FIXED_THIRD, balance.GAP_NO_MACHINE_STATE, UNTAGGED_RECORDS)]
+    assert result.upper_megawatts == WHOLE_MEGAWATTS * PRICED_MACHINES
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == UNTAGGED_RECORDS
+
+
+def test_omissions_count_every_class_and_kind_in_their_sorted_order() -> None:
+    """Two classes by two kinds, each with its own count, in (class, kind) order.
+
+    THE CENSUS IS READ KIND BY KIND, unread first, so an omission list that
+    is not sorted comes out with both unread rows ahead of both untagged ones;
+    sorted, each class's two rows sit together, ``no-machine-state`` before
+    ``payload-unread``. Every count is distinct, so a swap between rows shows.
+    """
+    model = census_world(
+        *((FIXED_WHOLE, TAGGED) for _ in range(PRICED_MACHINES)),
+        *((FIXED_THIRD, {}) for _ in range(UNTAGGED_RECORDS)),
+        (FIXED_WHOLE, {}),
+        unread=(FIXED_WHOLE, FIXED_WHOLE, FIXED_THIRD),
+    )
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    expected = [
+        (FIXED_THIRD, balance.GAP_NO_MACHINE_STATE, UNTAGGED_RECORDS),
+        (FIXED_THIRD, balance.GAP_PAYLOAD_UNREAD, 1),
+        (FIXED_WHOLE, balance.GAP_NO_MACHINE_STATE, 1),
+        (FIXED_WHOLE, balance.GAP_PAYLOAD_UNREAD, 2),
+    ]
+    assert omitted_rows(result) == expected
+    omitted = sum(count for _, _, count in expected)
+    assert consumer_counts(result) == (PRICED_MACHINES + omitted, PRICED_MACHINES, omitted)
+
+
+def test_a_record_the_walk_paired_with_no_payload_is_an_unread_omission() -> None:
+    """A level whose record and payload counts disagree, through the REAL loader.
+
+    THE SAVE LAYER ATTRIBUTES NOTHING in such a level - the pairing is
+    undefined - so its record arrives with an entry marked read and no values:
+    the property reader returns that shape for a record of no extent without
+    reading a byte. Labelling it "payload read and carried no clock" would be a
+    claim about a payload nobody read. The premise is asserted first.
+    """
+    model = mismatched_world()
+    (record,) = model.objects.records
+    (entry,) = model.properties.by_record_index.values()
+    assert objects.WARN_PAYLOAD_COUNT_DISAGREEMENT in {w.code for w in model.objects.warnings}
+    assert (entry.payload_read, len(entry.values), entry.payload_present) == (True, 0, False)
+
+    class_name = objects.class_name_of(record.type_path)
+    entries = registry(building(class_name, consumption=WHOLE_MEGAWATTS))
+    result = balance.clocked_draw_of(machines.machines_of(model), entries)
+
+    assert omitted_rows(result) == [(class_name, balance.GAP_PAYLOAD_UNREAD, 1)]
+    assert result.complete is False
+
+
+def mismatched_world() -> WorldModel:
+    """The save-layer suite's one-record, zero-payload level, loaded whole.
+
+    Returns:
+        The world model ``load_world_from_bytes`` publishes.
+    """
+    header_version, save_version = MISMATCHED_PAIR
+    head = save_synthetic.build_header(header_version=header_version, save_version=save_version)
+    framed = save_synthetic.build_chunks(
+        objects_fx._mismatched_entry_count_body(),  # noqa: SLF001
+        framing=save_synthetic.default_framing(header_version),
+    )
+    return world.load_world_from_bytes(head + framed)
+
+
+def test_every_record_of_a_flat_walk_is_an_unread_omission() -> None:
+    """The sibling of the arm above: the flat walk attributes no payload to any record.
+
+    Its every record arrives marked read with no values, through the same
+    reader branch, so a consumer in a flat-walked world is unread, never
+    "read and untagged".
+    """
+    blob = save_synthetic.build_save(
+        objects=(
+            save_synthetic.SyntheticObject(
+                save_synthetic.DECODABLE_CLASS_PATH,
+                save_synthetic.DECODABLE_ROOT,
+                save_synthetic.DECODABLE_INSTANCE,
+            ),
+        )
+    )
+    model = world.load_world_from_bytes(blob, body_layout=world.BODY_LAYOUT_FLAT)
+    (entry,) = model.properties.by_record_index.values()
+    assert (entry.payload_read, len(entry.values), entry.payload_present) == (True, 0, False)
+
+    result = balance.clocked_draw_of(machines.machines_of(model), decoded_registry())
+
+    assert omitted_rows(result) == [
+        (
+            objects.class_name_of(save_synthetic.DECODABLE_CLASS_PATH),
+            balance.GAP_PAYLOAD_UNREAD,
+            1,
+        )
+    ]

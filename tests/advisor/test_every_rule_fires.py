@@ -119,6 +119,7 @@ def _power(
             power.IN_UNREAD: unread,
             power.IN_UNMODELED: unmodeled,
             power.IN_ELIDED: 0,
+            power.IN_OMITTED: 0,
             power.IN_PRODUCTION_AVAILABLE: True,
             power.IN_PRODUCTION_COMPLETE: True,
             power.IN_GENERATION: generation,
