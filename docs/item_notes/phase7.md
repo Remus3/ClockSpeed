@@ -1133,6 +1133,12 @@ by a flag a stale checkout could carry, it fails closed in every state it cannot
 it keeps an unlisted old sha red. The set file is excluded from the gate's code sweep, and
 every token in it is judged by the PRE and POST arms instead.
 
+### Recorded 2026-10-08 by the session 129 Q2 scope ruling
+
+The CS-G03 clean-machine re-walk is a hard precondition of flip step a, per the 2026-10-08 Q2
+scope ruling (`docs/LEDGER.md`, the FLEET-KIT v9 decision record): one walk at a tip at or after
+the CS-1275 move commit, before S7a.
+
 ### Acceptance
 
 every item on that checklist passes, including the full-history secret scan, the PII scan across tracked files and commit messages, the third-party license audit, and the clean-checkout probe on a machine that has never seen the project
@@ -1612,39 +1618,60 @@ RC's lane widget reads every tree's status file and showed CS as "Sync: no signa
 
 ### Acceptance
 
-in ONE commit, landed NOW and due 2026-10-08, CS session 129 - the deferral to straight after
-CS-700 S12a was reversed in session 128 (the FLEET-KIT v8 decision record in `docs/LEDGER.md`).
-FIRST, about 0.4 KB is relocated out of `CLAUDE.md` per its section 4, never condensed (the v8
-block is 8738 bytes against about 5.7 KB embedded today, projecting about 41.4 KB against the
-40 KB hard budget). Then the ONE commit carries all of: `ops/fleet_kit/` vendored byte-for-byte
-to kit v8, all 12 kit files hash equal to the MAIN 0310 bundle and `ops/fleet_kit/MANIFEST.json`
-byte-equal to the bundle's (the MANIFEST.json SHA-256 in MAIN 0310 section 2); the v8
-FLEET-COMMON block re-embedded in
-`CLAUDE.md` byte-identical between its markers, with the conformance test pinning the block hash
-to the manifest passing; `pyproject.toml` entries for the five new kit modules (fleet_checklist,
-fleet_inbox, fleet_lanes, fleet_secrets, fleet_watch), and because `pyproject.toml` is in the
-CS-G03 walked set, the CS-G03 clean-machine re-walk run and its result recorded; `fleet_lanes`
-configured at three lanes with a worktree per lane, and the item-13 checklist running on the
-session-start and headless paths; the inbox responder's `fleet_headless.spawn` call carrying a
-non-empty note label and a kind (inbox or triage); a grep-level test that every tracked path
-starting a headless `claude` calls `fleet_headless.spawn`, naming `ops/loop/run_lane.ps1` as
-the one disabled path (held by QUEUE_STOP; the `CLAUDE.md` precedence clause (c) exception); the
-MAIN 0230 roster change (LL retired, EW added) in `tests/ops/test_shared_slots.py`, in
-`tools/outbound_send.py` (a refusal for an LL destination), in `.claude/commands/done.md` (its
-section 8 line naming LL as a hand-off carrier), in the `config/ports.json` notes and in
-`.claude/commands/drift-guard.md` (LL marked retired, EW 8940-8959 added) -
-`tests/test_channel_doc.py` is NOT-APPLICABLE pending adjudication, because it pins the
-vendored `docs/CHANNEL.md`; and `CLAUDE.md` under its hard budget with
-`python tools/doc_budget.py` exit 0. AFTER the commit: INBOX_STOP is lifted so the unattended
-responder goes live on 2026-10-08 and its own reply quotes the SHA-256 it computes (closing
-MAIN 0830 and FLEET-1); then the v8 adoption ANSWER goes to MAIN with the vendoring commit, the
-conformance read on v8, the first usage-log line's ts, kind and label, and the MAIN 0300
-position (`BACKLOG.md`, under `CLAUDE.md` section 7).
+in ONE commit, due 2026-10-08, CS session 129 - FLEET-KIT v9, which supersedes v8 (MAIN 2354:
+"do not vendor v8 first"; the FLEET-KIT v9 decision record in `docs/LEDGER.md`). The ONE commit
+carries all of: `ops/fleet_kit/` vendored byte-for-byte to kit v9, all 16 kit files hash equal
+to the MAIN 2354 bundle and `ops/fleet_kit/MANIFEST.json` byte-equal to the bundle's; the v9
+FLEET-COMMON block re-embedded in `CLAUDE.md` byte-identical between its markers, with the
+conformance test pinning the block hash to the manifest passing; `pyproject.toml` entries for
+the six new kit Python modules (fleet_checklist, fleet_done, fleet_inbox, fleet_lanes,
+fleet_secrets, fleet_watch), with fleet_headless's ruff ignores re-measured on the v9 bytes -
+the kit's JS, JSON and CSS files get no `pyproject.toml` entry; `THIRD_PARTY.md` rows for the
+new kit files, a re-read of `ops/fleet_kit/NOTICE`, and `tools/provenance.tsv` stamps; about
+1 KB or more relocated out of `CLAUDE.md` per its section 4, never condensed (38294 bytes
+today, plus the 9273-byte v9 block, less the about 5650 bytes embedded today, projects about
+41.9 KB against the 40960-byte hard budget), with precedence clause (b) and the stale section
+2.3.1 sentence landing the vendoring "straight after" S12a retired; `.claude/commands/done.md`
+ending in the act `python ops/fleet_kit/fleet_done.py mark --session <n> --status done`, with a
+`--status failed --reason "<step>"` variant; the project Stop hook in `.claude/settings.json`
+exactly as the 2026-10-08 frozen-file grant in `docs/LEDGER.md` states it; `.gitignore` lines
+for the session-done files ops/loop/control/session_done.json and
+ops/loop/control/session_done.seen; zero display keys in `.claude/settings.json` and the
+gitignored .claude/settings.local.json; the inbox responder's
+`fleet_headless.spawn` call carrying a non-empty note label and a kind (inbox or triage), and
+its item-13 checklist; a grep-level test that every tracked path starting a headless `claude`
+calls `fleet_headless.spawn`, naming `ops/loop/run_lane.ps1` as the one disabled path (held by
+QUEUE_STOP; the `CLAUDE.md` precedence clause (c) exception); the MAIN 0230 roster change (LL
+retired, EW added) in `tests/ops/test_shared_slots.py`, in `tools/outbound_send.py` (a refusal
+for an LL destination), in `.claude/commands/done.md` (its section 8 line naming LL as a
+hand-off carrier), in the `config/ports.json` notes and in `.claude/commands/drift-guard.md`
+(LL marked retired, EW 8940-8959 added) - `tests/test_channel_doc.py` is NOT-APPLICABLE pending
+adjudication, because it pins the vendored `docs/CHANNEL.md`; and `CLAUDE.md` under its hard
+budget with `python tools/doc_budget.py` exit 0. AFTER the commit: INBOX_STOP is lifted so the
+unattended responder goes live and its own reply quotes the SHA-256 it computes (closing MAIN
+0830 and FLEET-1), and the first usage-log line is read back with its ts, kind and label; then
+ONE ANSWER goes to MAIN with the vendoring commit, the conformance read on v9, that usage line
+and the MAIN 0300 position (`BACKLOG.md`, under `CLAUDE.md` section 7). NOT in this item:
+`fleet_lanes` (CS-1274) and the CS-G03 clean-machine re-walk (a hard precondition of CS-700
+step a, per the 2026-10-08 Q2 scope ruling).
 
 ### Full headline
 
-adopt FLEET-KIT v8 fully in ONE commit NOW (deferral reversed session 128): vendor, block
-re-embed, kit modules in pyproject.toml, CS-G03 re-walk, spawn label, roster, responder live
+adopt FLEET-KIT v9 fully in ONE commit (v9 supersedes v8, session 129): vendor, block re-embed,
+kit modules in pyproject.toml, Stop hook, spawn label, roster, responder live
+
+### Recorded 2026-10-08 by the session 129 FLEET-KIT v9 decision
+
+The operator said "update to v8" and then "rather v9" in session 129's main session, and MAIN
+2354 orders v9 as superseding v8 with no v8 vendoring first, so this item vendors v9: 16 kit
+files where v8 had 12, with a sixth new kit Python module, fleet_done, which brings the
+`.claude/commands/done.md` mark act, the project Stop hook (a frozen-file grant, recorded
+before the edit) and the two `.gitignore` lines. The v9 block is larger, so the `CLAUDE.md`
+relocation grows from about 0.4 KB to about 1 KB or more. Two parts left this item by the
+2026-10-08 scope rulings: `fleet_lanes` lands as CS-1274, a second commit after this one and
+before the CS-1275 move commit, and the CS-G03 re-walk becomes one walk at a tip at or after
+the move commit, a hard precondition of CS-700 step a. Fence: do not vendor v8 first. Reversed
+by: the operator's own words or a MAIN kit v10.
 
 ### Recorded 2026-10-07 by the session 128 FLEET-KIT v8 decision
 
@@ -1693,3 +1720,52 @@ both the full suite and the clean-checkout probe, at the control's `pytest.raise
 after the last green tier2 run, so tier2 has never run it green. Every other tier2 job on those
 runs passed, and tier1 on the same tip passed. This red holds the tier2 headroom count at two
 green runs.
+
+## CS-1274
+
+### Acceptance
+
+kit v9 `fleet_lanes` configured at three lanes with a worktree per lane; the lane worktree root
+derived from the repo root, so no hardcoded C: path is left in `ops/loop/lane_launcher.py`; the
+queue lane's item-13 checklist; QUEUE_STOP respected; landed as a commit separate from and after
+the CS-1272 commit, and before the CS-1275 move commit.
+
+### Full headline
+
+kit v9 fleet_lanes at three lanes with a worktree per lane, the lane worktree root derived from
+the repo root
+
+### Filed 2026-10-08 by the session 129 scope rulings
+
+The Q1 ruling (`docs/LEDGER.md`, the FLEET-KIT v9 decision record): MAIN 2237 section 3 reads
+"one adoption commit, plus the lane change", so the lane change is its own commit after the
+CS-1272 v9 commit reads green. Fence: before the E: move commit, never inside it - deriving the
+lane worktree root from the repo root removes a hardcoded C: path the move would otherwise have
+to carry. Reversed by: a MAIN ruling putting the lanes into the move runbook.
+
+## CS-1275
+
+### Acceptance
+
+the root moves to E: per MAIN's runbook, which has not arrived (MAIN 2155 orders the inventory
+only, no change yet), and the move commit carries: an ADR in `docs/adr/`, indexed in
+`docs/adr/README.md`, recording the operator's 2026-10-08 words "yes I want to do the move to
+E:" as the reversal of the ROOT half of the `CLAUDE.md` section 7 settled entry "Name is
+Clockspeed, root is C:\Clockspeed" (the name is unchanged; the move keeps the folder name); the
+`CLAUDE.md` section 2 and section 7 root text; and the hardcoded C: paths of the MAIN 2155
+inventory - the `.claude/commands/done.md` shortcut check, and the `ops/loop/lane_launcher.py`
+worktree root unless CS-1274 has removed it - applied per that runbook. Before the move,
+INBOX_STOP is restored and the inbox status is read back idle (the Q4 scope ruling).
+
+### Full headline
+
+move the root to E: per MAIN's runbook, with its ADR, the CLAUDE.md root text and the MAIN 2155
+hardcoded C: paths
+
+### Filed 2026-10-08 by the session 129 E: move decision
+
+The operator's words in this repository's own main session meet the reversal clause of the
+root half of that settled entry, and the clause requires an ADR (`docs/LEDGER.md`, the
+FLEET-KIT v9 decision record, part 4). Order, per the 2026-10-08 scope rulings: CS-1272, then
+CS-1274, then this move commit; the CS-G03 clean-machine re-walk follows at a tip at or after
+it, before CS-700 step a.

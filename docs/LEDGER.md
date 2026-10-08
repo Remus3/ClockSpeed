@@ -75,6 +75,69 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - FLEET-KIT v9 (MAIN 2354) - DECISION RECORD, NOTHING CLOSED. FLEET-KIT v9 decision and scope rulings: CS-1272 vendors v9 directly, the Stop-hook grant, CS-1274 and CS-1275 filed
+Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` and no vendored byte
+is edited by this record; the MAIN 2354 ORDER note, all 16 files of its v9 bundle and the
+MAIN 2155 note hash equal (SHA-256) to the same-named copies in MAIN's outbox, each tracked
+and clean in MAIN's git - 18 of 18, read back in session 129 by `tools/main_provenance.py`;
+the v9 bundle's MANIFEST.json SHA-256 is
+cbc8b7dea0aa153833ec4a4540a0938d44bc1e04e9cde4cb9175f1182321919f; the `ROADMAP.md` CS-1272,
+CS-1274 and CS-1275 lines and their `docs/item_notes/phase7.md` sections, written with this
+record, and the CS-700 section there naming the CS-G03 re-walk a precondition of step a.
+1. Operator words, verbatim, typed in this repository's own main session on 2026-10-08:
+first "continue ; and update to v8", then "rather v9".
+Decision: CS-1272 vendors FLEET-KIT v9 directly, in ONE commit. MAIN 2354 (ORDER,
+2026-10-07) says v9 supersedes v8 and "do not vendor v8 first". This SUPERSEDES the v8
+vendoring dated in the 2026-10-07 FLEET-KIT v8 record below; that record's reversal of the
+S12a deferral stands.
+Rejected: vendoring v8 first - MAIN 2354 forbids it.
+Reversed by: the operator's own words or a MAIN kit v10.
+2. Frozen-file grant (`CLAUDE.md` section 6), recorded BEFORE the edit: an adjudicator agent
+GRANTED editing `.claude/settings.json` to add exactly one "Stop" array after "PostToolUse"
+inside "hooks": one command hook, command
+`python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_done.py" stop-hook || true`, timeout 20 to
+45 seconds - a planner measured that the hook may make two git calls of up to 15 s each and
+suggested about 45; the final value is chosen, with its measurement, by the session 129
+slice that makes the edit.
+Conditions: the same commit as the vendored `fleet_done.py`; `|| true` and the
+`$CLAUDE_PROJECT_DIR` prefix kept;
+`tests/test_claude_hook.py::test_settings_moved_no_byte_but_the_two_command_values` updated
+first, in the same commit; zero display keys measured in both `.claude/settings.json` and
+the gitignored .claude/settings.local.json.
+Rejected: routing the hook through `tools/claude_hook.sh` - its leg check refuses an unknown
+leg, so every Stop would exit 1 with an error notice.
+Residual, owed to `BACKLOG.md` under `CLAUDE.md` section 7 "Product before process":
+`tests/test_hook_env_echo.py` scans only `tools/`, so `fleet_done.py` sits outside it; the
+cwd-independence arms of `tests/test_pretooluse_gate.py` cover only PreToolUse and
+PostToolUse.
+Reversed by: a MAIN kit changing the stop-hook contract, or `fleet_done.py` exiting non-zero
+in stop-hook mode.
+3. Scope rulings, by a distinct adjudicator agent, 2026-10-08.
+Q1: the lane change (`fleet_lanes` at three lanes, a worktree per lane) lands as a SECOND
+commit after the v9 commit reads green, filed as NEW item CS-1274. Fence: before the E: move
+commit, never inside it - MAIN 2237 section 3 reads "one adoption commit, plus the lane
+change", and `fleet_lanes` derives the lane worktree root from the repo root, which removes
+the hardcoded C: worktree root in `ops/loop/lane_launcher.py` before the move. Reversed by: a
+MAIN ruling putting the lanes into the move runbook.
+Q2: the CS-G03 clean-machine re-walk is DEFERRED to one walk at a tip at or after the E: move
+commit. Trigger: that commit read back, or CS-700 step a starting, whichever comes first; the
+walk is a hard precondition of CS-700 step a, so it lands before S7a. Rejected: walking now -
+the move commit would void it, because `docs/OPERATIONS.md` carries C: lane paths and is in
+the walked set. Reversed by: the operator's S9 confirmation arriving before the move - then
+walk before step a.
+Q4: the responder's spawn label and kind ride the v9 commit; INBOX_STOP is lifted once the
+first usage line is read back; the move first restores INBOX_STOP and reads the inbox status
+idle. Reversed by: MAIN's runbook arriving before the commit.
+4. Operator words on the E: move, verbatim, typed in this repository's own main session on
+2026-10-08: "yes I want to do the move to E:". This satisfies the reversal clause of the
+`CLAUDE.md` section 7 settled entry "Name is Clockspeed, root is C:\Clockspeed" for its ROOT
+half only; the name is unchanged, and MAIN's move keeps the folder name. The ADR that clause
+requires is owed with the move commit, filed as NEW item CS-1275: the ADR in `docs/adr/`, the
+`CLAUDE.md` section 2 and section 7 root text, and the hardcoded C: paths of the MAIN 2155
+inventory - the `.claude/commands/done.md` shortcut check, and the `ops/loop/lane_launcher.py`
+worktree root unless CS-1274 has removed it - applied per MAIN's runbook. That runbook has not
+arrived; MAIN 2155 orders the inventory only, no change yet. Recorded in session 129.
+
 ### 2026-10-07 - FLEET-KIT v8 (MAIN 0310, MAIN 1927) - DECISION RECORD, NOTHING CLOSED. The v6/v7 vendoring deferral is REVERSED by its own clause; CS-1272 vendors v8 NOW
 Verification: `ops/fleet_kit/MANIFEST.json` still reads `"version": 4` and no vendored byte
 is edited; the MAIN 1927 FIX note, the MAIN 0310 ORDER note and all twelve files of the
