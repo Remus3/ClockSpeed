@@ -267,6 +267,13 @@ shell/NVIDIA Corporation/
 # the same reason as the lines above.
 /ops/loop/control/session_done.json
 /ops/loop/control/session_done.seen
+# FLEET-KIT v10's SUBAGENT-FIRST hook (ops/fleet_kit/fleet_subagent_first.py,
+# CS-1282): its mode file (off, log or deny - absent means deny) and its JSONL
+# decision log, one row per guarded call. Machine-local runtime state that the
+# v10 ORDER says to gitignore; covered by the directory line too, named for the
+# same reason as the lines above.
+/ops/loop/control/subagent_first.mode
+/ops/loop/control/subagent_first.jsonl
 
 # The lane's model config, read by ops/loop/run_lane.ps1 via $PSScriptRoot with
 # a known-good fallback so a lane never fails to spawn over a config read.

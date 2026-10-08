@@ -572,6 +572,68 @@ def test_the_halted_path_still_publishes_its_status(tree: Path, sentinel: str) -
     )
 
 
+class _Unstartable(RunSpy):
+    """A runner whose child never starts - the executable vanished under the kit."""
+
+    def __call__(self, argv: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+        """Fail the way a missing executable fails at process creation."""
+        del argv, kw
+        raise FileNotFoundError
+
+
+def _refusing_pass(tree: Path, path: str) -> int:
+    """Drive one pass down the named refused-start path. Nothing runs on any of them."""
+    spy = _Unstartable() if path == "unstartable" else RunSpy()
+    if path == "unmeasured":
+        return _run(tree, spy, surface=_surface("UNMEASURED"))
+    if path == "prompt-unreadable":
+        (tree / inbox_responder.PROMPT_RELPATH).unlink()
+        return _run(tree, spy)
+    if path == "proxy-refused":
+        return _run(tree, spy, seams=_seams(spy, url_source=lambda: None))
+    if path == "budget-unreadable":
+        _budget_file(tree).write_bytes(b"{garbled")
+        return _run(tree, spy)
+    return _run(tree, spy)
+
+
+@pytest.mark.parametrize(
+    ("path", "outcome"),
+    [
+        ("unmeasured", "unmeasured"),
+        ("prompt-unreadable", "spawn_failed"),
+        ("proxy-refused", "kit_refused"),
+        ("budget-unreadable", "budget_refused"),
+        ("unstartable", "spawn_failed"),
+    ],
+)
+def test_a_refused_start_reads_the_kits_refused_task_never_halted(
+    tree: Path, path: str, outcome: str
+) -> None:
+    """CS-1282 - FLEET-KIT v10's rule: a refused start reads task Idle, state refused.
+
+    Only a halt reads Halted. The kit writes the same status file on its own
+    refusal, so a board that published Halted here contradicted the kit's own
+    write a moment earlier. The task is read from the kit, never respelled.
+    """
+    _refusing_pass(tree, path)
+    status = _status(tree)
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    pair = (status.get("state"), status.get("task"))
+    assert (pair, outcomes) == (("refused", kit.REFUSED_TASK), [outcome])
+
+
+def test_the_kits_refused_task_is_a_basic_task_and_refused_is_not_one() -> None:
+    """CS-1282 - v10 names a refused start's task Idle; no task is named Refused."""
+    vocabulary = (
+        kit.REFUSED_TASK,
+        "Refused" in kit.TASKS,
+        kit.REFUSED_TASK in inbox_status.TASKS,
+        set(kit.TASKS) == set(inbox_status.TASKS),
+    )
+    assert vocabulary == ("Idle", False, True, True)
+
+
 def test_a_quiet_channel_publishes_idle(tree: Path) -> None:
     _run(tree, RunSpy(), surface=_surface(0))
     status = _status(tree)
@@ -661,10 +723,15 @@ def test_a_busy_budget_lock_refuses_as_a_counting_failure(tree: Path) -> None:
 
 
 def test_the_lock_busy_words_are_the_vendored_kits_own(tmp_path: Path) -> None:
-    """The responder matches the kit's refusal by its words; this reads them from the kit."""
+    """The responder matches the kit's refusal by its words; this reads them from the kit.
+
+    CS-1282: from FLEET-KIT v10 the budget lock is an OS byte-range lock on a
+    file that is never unlinked, so a lock FILE alone no longer holds it. The
+    lock is held for real by one budget while a second asks.
+    """
     path = tmp_path / "budget.json"
-    path.with_name(path.name + ".lock").write_bytes(b"0")
-    with pytest.raises(kit.Refused) as caught:
+    holder = kit.RunBudget(path)
+    with holder._lock(), pytest.raises(kit.Refused) as caught:  # noqa: SLF001 - hold it
         kit.RunBudget(path, lock_wait=0.1).start()
     matched = inbox_responder.is_lock_busy(caught.value)
     assert matched is True

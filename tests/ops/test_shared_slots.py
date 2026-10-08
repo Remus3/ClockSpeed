@@ -368,10 +368,11 @@ def test_no_other_lint_exemption_reaches_the_vendored_file() -> None:
 
 
 #: The vendored fleet kit modules the formatter is excluded from, for the same
-#: byte-pin reason as this file: CS-1231 (fleet_headless.py) and CS-1272 (the
-#: six FLEET-KIT version 9 added, each MEASURED "Would reformat"). FLEET item
-#: 11 - a kit file is never edited locally. Exact paths, in pyproject order,
-#: typed by hand rather than derived, so a new entry is a diff to argue with.
+#: byte-pin reason as this file: CS-1231 (fleet_headless.py), CS-1272 (the six
+#: FLEET-KIT version 9 added) and CS-1282 (the one version 10 added), each
+#: MEASURED "Would reformat". FLEET item 11 - a kit file is never edited
+#: locally. Exact paths, in pyproject order, typed by hand rather than derived,
+#: so a new entry is a diff to argue with.
 KIT_FORMAT_EXCLUSIONS: Final = [
     "ops/fleet_kit/fleet_headless.py",
     "ops/fleet_kit/fleet_checklist.py",
@@ -380,6 +381,7 @@ KIT_FORMAT_EXCLUSIONS: Final = [
     "ops/fleet_kit/fleet_lanes.py",
     "ops/fleet_kit/fleet_secrets.py",
     "ops/fleet_kit/fleet_watch.py",
+    "ops/fleet_kit/fleet_subagent_first.py",
 ]
 
 #: The kit's own pin, which names every file it vendors.

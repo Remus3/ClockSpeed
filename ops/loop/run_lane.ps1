@@ -76,6 +76,16 @@ $env:CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "1"
 $env:BASH_MAX_TIMEOUT_MS = "2400000"
 $env:BASH_DEFAULT_TIMEOUT_MS = "2400000"
 
+# CS-1282 - THE KIT'S SUB-AGENT-FIRST HOOK IS OFF FOR A LANE WORKER. FLEET-KIT
+# v10 wires a PreToolUse hook that denies every guarded tool in a thread with no
+# agent id, and it DEFAULTS TO DENY when its mode file is absent - a gitignored
+# file a lane worktree never carries. A headless worker has no operator and no
+# main pane to keep clear, so the kit's own spawn turns the hook off in every
+# child it starts; this runner still starts the CLI directly until CS-1231 slice
+# C moves it onto the kit, so it does the same here. Set in this process, which
+# the CLI child inherits. tests/ops/test_headless_route.py reads it by value.
+$env:FLEET_SUBAGENT_FIRST = "off"
+
 # THE MODEL COMES FROM ops/loop/config.json, READ VIA $PSScriptRoot AND NOT THE
 # WORKING DIRECTORY. This runner always lives in the MAIN tree, while $Cwd is a
 # fresh worktree checkout that does not carry a gitignored config - reading it

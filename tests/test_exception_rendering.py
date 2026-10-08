@@ -298,29 +298,48 @@ PARAMETER_RENDER_RESIDUALS = {
 }
 
 # Caught-exception renders inside VENDORED fleet kit files (CS-1272), each
-# keyed by (path, shape) and each answering EXACTLY one live site, so a second
-# render in the same file is still a finding - never a blanket file waiver.
+# keyed by (path, shape, line) and each answering EXACTLY one live site, so a
+# second render in the same file is still a finding - never a blanket file
+# waiver. The LINE is a stable key here and nowhere else: a row holds ONLY
+# while its file is the kit's pinned bytes, so the line cannot move without
+# the pin reddening first (CS-1282 added the line when kit version 10 put a
+# second render of the same shape into each of the two files).
 # FLEET item 11: a kit file is MAIN's bytes and is never edited here, so the
-# repair is a kit version rather than a local edit; both sites are owed to
-# MAIN as a kit version 10 report (BACKLOG.md). RECORDED RATHER THAN EXEMPTED for the
+# repair is a kit version rather than a local edit; every site is owed to
+# MAIN as a kit report (BACKLOG.md). RECORDED RATHER THAN EXEMPTED for the
 # reason PARAMETER_RENDER_RESIDUALS gives: the site stays VISIBLE on a green
-# run. And a row holds ONLY while its file is the kit's pinned bytes - the
-# moment a local byte moves, test_every_vendored_render_residual_is_at_its_kit_pin
-# reddens, so a row can never cover a render this tree wrote.
+# run. And the moment a local byte moves,
+# test_every_vendored_render_residual_is_at_its_kit_pin reddens, so a row can
+# never cover a render this tree wrote.
 VENDORED_RENDER_RESIDUALS = {
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)"): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 944): (
         "CS-1272, FLEET item 11 - spawn()'s governor-slot handler renders a "
         "SlotTimeout whole into Refused. The type is the kit's own (fleet_lanes."
         "py), and its one raise builds the text from a timeout and a width, so "
         "the leak is latent rather than live; it is still the shape this sweep "
-        "refuses, so it is held visible here and owed to MAIN as a report."
+        "refuses, so it is held visible here and owed to MAIN as a report. "
+        "Reported to MAIN under CS-1272; NOT FIXED in kit version 10 (CS-1282)."
     ),
-    ("ops/fleet_kit/fleet_watch.py", "f-string {exc}"): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1069): (
+        "CS-1282, FLEET item 11 - kit version 10's command-line entry, main(), "
+        "renders a Refused whole into its one JSON stdout line. Every Refused "
+        "the kit raises is built from its own fixed words and a class name, "
+        "never a path or an env value, so the leak is latent rather than live; "
+        "held visible here, owed to MAIN as a report."
+    ),
+    ("ops/fleet_kit/fleet_watch.py", "f-string {exc}", 86): (
         "CS-1272, FLEET item 11 - WatchState.__init__ renders an OSError or "
         "ValueError whole into WatchStateCorrupt. str() on an OSError appends "
         "the path it failed on, which can sit under the operator's profile "
-        "(non-negotiable 12). A live defect in MAIN's bytes: owed to MAIN as a "
-        "kit version 10 report rather than patched locally."
+        "(non-negotiable 12). A live defect in MAIN's bytes: reported to MAIN "
+        "under CS-1272 and NOT FIXED in kit version 10 (CS-1282)."
+    ),
+    ("ops/fleet_kit/fleet_watch.py", "f-string {exc}", 141): (
+        "CS-1282, FLEET item 11 - kit version 10's FlatSeenState repeats the "
+        "WatchState render: an OSError or ValueError rendered whole into "
+        "WatchStateCorrupt, the path an OSError carries included "
+        "(non-negotiable 12). A live defect in MAIN's bytes, owed to MAIN as a "
+        "report rather than patched locally."
     ),
 }
 
@@ -741,7 +760,7 @@ def test_no_tracked_module_renders_a_caught_exception_object():
         finding
         for finding in found
         if finding.path not in WAIVED_FILES
-        and (finding.path, finding.shape) not in VENDORED_RENDER_RESIDUALS
+        and (finding.path, finding.shape, finding.lineno) not in VENDORED_RENDER_RESIDUALS
     ]
     assert not leaks, (
         f"{len(leaks)} site(s) render a caught exception OBJECT into a message. "
@@ -1129,7 +1148,7 @@ def test_every_vendored_render_residual_answers_exactly_one_live_site():
     # row matching two sites would cover one nobody argued for.
     found, _ = scan_repo()
     counts = {
-        key: sum(1 for finding in found if (finding.path, finding.shape) == key)
+        key: sum(1 for finding in found if (finding.path, finding.shape, finding.lineno) == key)
         for key in VENDORED_RENDER_RESIDUALS
     }
     wrong = {key: count for key, count in counts.items() if count != 1}
@@ -1140,7 +1159,7 @@ def test_every_vendored_render_residual_is_at_its_kit_pin():
     # CS-1272, FLEET item 11: the row is excused only while the file is MAIN's
     # bytes, checked against ops/fleet_kit/MANIFEST.json by the same oracle the
     # CS-910 census uses for its VENDORED exemption kind.
-    paths = [path for (path, _shape) in VENDORED_RENDER_RESIDUALS]
+    paths = sorted({path for (path, _shape, _line) in VENDORED_RENDER_RESIDUALS})
     problems = kit_pin_problems(paths)
     assert (len(paths) > 0, problems) == (True, []), "\n".join(problems)
 

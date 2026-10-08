@@ -5,6 +5,22 @@ argument-hint: [item ids, e.g. CS-041 CS-042]
 
 # /done - end-of-session ritual
 
+## WHO RUNS THIS - ONE SUB-AGENT, NEVER THE MAIN SESSION
+
+FLEET-KIT v10 (MAIN's 2026-10-08 08:39 ORDER, item 4; the FLEET-COMMON banner; CS-1282):
+the main session does NOT run these steps. It dispatches the WHOLE of this command -
+every step below, with this file's text and the arguments as the prompt - to ONE
+sub-agent (the Agent tool, in the background by default), waits for that sub-agent's
+completion notification, and relays ONLY its final line - `Done ritual complete, safe
+to clear`, or the failure that stopped it - to chat. The sub-agent runs every step
+itself and never re-dispatches the whole command. The kit's PreToolUse hook
+`ops/fleet_kit/fleet_subagent_first.py` denies Bash, PowerShell, Read, Edit, Write, Grep,
+Glob and NotebookEdit in the main thread once its mode is deny, so a step run there
+stops at its first tool call.
+
+The ritual's LAST act, step 10's `fleet_done.py mark`, stays inside the sub-agent's
+run, after its own read-back - the main session runs nothing after the relay.
+
 Run EVERY step. Do not skip a step because it "looks clean". Record the observed result of
 each one in the ledger and the hand-off file - NOT in chat. FLEET-COMMON item 5: the ONLY
 chat output of this ritual is the line `Done ritual complete, safe to clear`, or the

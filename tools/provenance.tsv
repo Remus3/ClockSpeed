@@ -201,6 +201,7 @@ ops/fleet_kit/fleet_inbox.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_lanes.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_secrets.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_statusline.js	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_subagent_first.py	vendored	CS-1282	stamped
 ops/fleet_kit/fleet_subagent_status.js	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_watch.py	vendored	CS-1272	stamped
 ops/fleet_kit/tokens.css	vendored	CS-1272	stamped

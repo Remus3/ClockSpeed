@@ -65,6 +65,10 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      (schema 1, MAIN 0915) through `ops/loop/inbox_status.py`. The kit writes the
      same file on its own transitions; the responder writes after each of them,
      so the published task, ETA and window are always the responder's.
+     CS-1282 (FLEET-KIT v10): a start that never ran - refused by the kit, an
+     unmeasured channel, an unreadable prompt, a worker that could not start -
+     reads state "refused" with the kit's own `REFUSED_TASK` ("Idle"); only a
+     halt reads "Halted", so the board never contradicts the kit's own write.
 
 THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` is
 resolved at arm time (`(Get-Command pythonw).Source`); no interpreter path is
@@ -753,7 +757,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
     unread = fact.get("unread")
     if type(unread) is not int:
         _log(root, now(), "unmeasured", EXIT_UNMEASURED)
-        board.show("refused", "Halted")
+        board.show("refused", kit.REFUSED_TASK)
         return EXIT_UNMEASURED
     retired = _retired(fact, unread)
     if retired:
@@ -774,7 +778,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         prompt = (root / PROMPT_RELPATH).read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError):
         _log(root, started, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
-        board.show("refused", "Halted")
+        board.show("refused", kit.REFUSED_TASK)
         return EXIT_SPAWN_FAILED
     writes_code, effort = _kit_inputs(fact, unread)
     progress = _Progress(root, lambda state, eta: checklist_rows(fact, unread, state, eta))
@@ -801,7 +805,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         board.ended(finished, finished - started)
         _log(root, finished, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
         progress.ended("spawn_failed")
-        board.show("refused", "Halted")
+        board.show("refused", kit.REFUSED_TASK)
         return EXIT_SPAWN_FAILED
     code, outcome = _finished(root, now, board, line, output, unread, started)
     progress.ended(outcome)
@@ -824,7 +828,7 @@ def _refused(root: Path, board: _Board, refused: Exception, unread: int, started
     if isinstance(refused, kit.BudgetUnreadable) or is_lock_busy(refused):
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
-        board.show("refused", "Halted")
+        board.show("refused", kit.REFUSED_TASK)
         return EXIT_BUDGET_REFUSED
     window = board.window(started)
     if window.count >= board.budget.cap:
@@ -834,7 +838,7 @@ def _refused(root: Path, board: _Board, refused: Exception, unread: int, started
     # The proxy, the door or the executable. The kit's words are not logged:
     # the outcome word is the closed vocabulary, and the reason stays authored.
     _log(root, started, "kit_refused", EXIT_ROUTE_REFUSED, unread=unread, reason="kit")
-    board.show("refused", "Halted")
+    board.show("refused", kit.REFUSED_TASK)
     return EXIT_ROUTE_REFUSED
 
 

@@ -14,9 +14,12 @@ under "2026-09-25 - CS-815 - FROZEN-FILE GRANT":
                  to .githooks/pre-commit, and the wrapper names no absolute path
     settings     the two command values are the only bytes that moved, beside
                  the one Stop array CS-1272's grant adds (docs/LEDGER.md,
-                 "2026-10-08 - FLEET-KIT v9", part 2), pinned whole; no
+                 "2026-10-08 - FLEET-KIT v9", part 2) and the one PreToolUse
+                 SUBAGENT-FIRST entry CS-1282's grant adds after the gate's
+                 (docs/LEDGER.md, "2026-10-08 - CS-1282"), each pinned whole; no
                  settings file carries a display key; .gitignore ignores the
-                 /done marker and its seen file
+                 /done marker and its seen file, and the SUBAGENT-FIRST hook's
+                 mode file and decision log
     pass-through condition 2 - stdin byte-identical, exit status, stdout and
                  stderr identical to the DIRECT invocation, a deny still denies,
                  and the PreToolUse leg runs pythonw beside the winner
@@ -53,6 +56,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from ops.fleet_kit import fleet_subagent_first as subagent_first_kit
 from tests.test_hook_interpreter_ladder import (
     ARGUMENT_IGNORING_PROGRAMS,
     DRIVE_PATH,
@@ -137,6 +141,34 @@ STOP_INSERTION: Final = (
 ).encode("ascii")
 HOOK_EVENT_ORDER: Final = ["PreToolUse", "PostToolUse", "Stop"]
 
+# CS-1282 - THE THIRD GRANT, docs/LEDGER.md "2026-10-08 - CS-1282 - FROZEN-FILE
+# GRANT": ONE PreToolUse entry appended AFTER the gate entry, holding one command
+# hook that runs FLEET-KIT v10's SUBAGENT-FIRST hook. Anchored at the project
+# dir and closed by `|| true`, both conditions of the grant: MAIN's literal
+# relative command exits 2 from a foreign cwd, a harness deny of every guarded
+# call. The kit hook denies by the JSON it prints, never by its exit status.
+GATE_MATCHER: Final = "Bash|PowerShell"
+SUBAGENT_FIRST_MATCHER: Final = "Bash|PowerShell|Read|Edit|Write|Grep|Glob|NotebookEdit|MultiEdit"
+SUBAGENT_FIRST_COMMAND: Final = (
+    'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_subagent_first.py" || true'
+)
+SUBAGENT_FIRST_TIMEOUT: Final = 10
+SUBAGENT_FIRST_KIT_FILE: Final = REPO_ROOT / "ops" / "fleet_kit" / "fleet_subagent_first.py"
+# The inserted bytes, whole, removed by the settings arm exactly as the Stop
+# array is, so the one base digest still pins every byte outside the grants.
+SUBAGENT_FIRST_INSERTION: Final = (
+    ",\n      {\n"
+    f'        "matcher": {json.dumps(SUBAGENT_FIRST_MATCHER)},\n'
+    '        "hooks": [\n          {\n'
+    '            "type": "command",\n'
+    f'            "command": {json.dumps(SUBAGENT_FIRST_COMMAND)},\n'
+    f'            "timeout": {SUBAGENT_FIRST_TIMEOUT}\n'
+    "          }\n        ]\n      }"
+).encode("ascii")
+# The wrapper-routed entry of each event, selected by its matcher: PreToolUse
+# carries two entries from CS-1282 on, and the CS-815 arms grade the gate's.
+WRAPPED_MATCHERS: Final = {"PreToolUse": GATE_MATCHER, "PostToolUse": "Edit|Write|MultiEdit"}
+
 # Claude Code DISPLAY keys. FLEET item 15 (kit v9): display keys live only in
 # the two account settings, from `ops/fleet_kit/cli_display.json`, and "a tree
 # sets none" - so no settings file here may set one, top level or nested.
@@ -158,6 +190,13 @@ DISPLAY_KEYS: Final = frozenset(
 DONE_MARKER_IGNORES: Final = (
     "/ops/loop/control/session_done.json",
     "/ops/loop/control/session_done.seen",
+)
+
+# CS-1282 - the SUBAGENT-FIRST hook's mode file and decision log, read from the
+# vendored kit's own MODE_REL and LOG_REL so the ignore lines cannot drift from
+# the paths the hook writes. Runtime state, LOCAL-ONLY, named explicitly.
+SUBAGENT_FIRST_IGNORES: Final = tuple(
+    "/" + rel.as_posix() for rel in (subagent_first_kit.MODE_REL, subagent_first_kit.LOG_REL)
 )
 
 # The wrapper's one report line. Its fixed prefix, and the shape every refusal
@@ -410,9 +449,24 @@ def test_every_refusal_class_names_a_headline_the_carried_text_still_says() -> N
 # --- settings: the grant's scope --------------------------------------------
 
 
+def wrapped_entries(config: dict, event: str) -> list[dict]:
+    """The entries of one event the wrapper arms grade, selected by matcher.
+
+    An event with no matcher on record (Stop) keeps every entry it has.
+    """
+    matcher = WRAPPED_MATCHERS.get(event)
+    return [
+        entry
+        for entry in config["hooks"][event]
+        if matcher is None or entry.get("matcher") == matcher
+    ]
+
+
 def hook_command(config: dict, event: str) -> str:
-    """The single command wired under one hook event."""
-    commands = [hook["command"] for entry in config["hooks"][event] for hook in entry["hooks"]]
+    """The single command wired under one hook event's wrapper-routed entry."""
+    commands = [
+        hook["command"] for entry in wrapped_entries(config, event) for hook in entry["hooks"]
+    ]
     assert len(commands) == 1, f"{event} carries {len(commands)} commands, not one"
     return str(commands[0])
 
@@ -434,6 +488,10 @@ def test_settings_moved_no_byte_but_the_two_command_values() -> None:
     raw = SETTINGS.read_bytes()
     assert raw.count(STOP_INSERTION) == 1, "the granted Stop array is not present exactly once"
     raw = raw.replace(STOP_INSERTION, b"")
+    assert raw.count(SUBAGENT_FIRST_INSERTION) == 1, (
+        "the granted SUBAGENT-FIRST entry is not present exactly once"
+    )
+    raw = raw.replace(SUBAGENT_FIRST_INSERTION, b"")
     for new in (NEW_PRE_COMMAND, NEW_POST_COMMAND):
         encoded = json.dumps(new).encode("ascii")
         assert raw.count(encoded) == 1, "a new command value is not present exactly once"
@@ -468,6 +526,31 @@ def test_settings_wires_exactly_the_granted_stop_hook() -> None:
     assert isinstance(timeout, int), "the Stop timeout is not an integer"
     assert STOP_TIMEOUT_FLOOR <= timeout <= STOP_TIMEOUT_CEILING, "outside the granted 20..45 s"
     assert timeout == settings_timeout("Stop") == STOP_TIMEOUT
+
+
+def test_settings_wires_exactly_the_granted_subagent_first_hook() -> None:
+    """CS-1282: the gate entry first, then ONE SUBAGENT-FIRST entry in the granted shape."""
+    config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
+    entries = config["hooks"]["PreToolUse"]
+    matchers = [entry.get("matcher") for entry in entries]
+    assert matchers == [GATE_MATCHER, SUBAGENT_FIRST_MATCHER], "not the gate, then SUBAGENT-FIRST"
+    entry = entries[1]
+    assert sorted(entry) == ["hooks", "matcher"], "the entry carries a key beyond the grant"
+    hooks = entry["hooks"]
+    assert [sorted(hook) for hook in hooks] == [["command", "timeout", "type"]], (
+        "the entry does not hold exactly one hook of type, command and timeout"
+    )
+    hook = hooks[0]
+    assert hook["type"] == "command"
+    assert hook["command"] == SUBAGENT_FIRST_COMMAND, "the command is not the granted string"
+    assert hook["command"].startswith('python "$CLAUDE_PROJECT_DIR/'), "the anchor was dropped"
+    assert hook["command"].endswith(" || true"), "the grant's || true was dropped"
+    timeout = hook["timeout"]
+    assert isinstance(timeout, int), "the SUBAGENT-FIRST timeout is not an integer"
+    assert timeout == SUBAGENT_FIRST_TIMEOUT
+    named = hook["command"].split('"')[1].replace("$CLAUDE_PROJECT_DIR/", "")
+    assert (REPO_ROOT / named).resolve() == SUBAGENT_FIRST_KIT_FILE.resolve()
+    assert SUBAGENT_FIRST_KIT_FILE.is_file(), "the vendored kit hook is missing"
 
 
 def display_key_paths(node: object, where: str = "") -> list[str]:
@@ -509,9 +592,22 @@ def test_gitignore_carries_the_done_marker_and_its_seen_file() -> None:
     assert missing == [], f".gitignore does not carry exactly once: {missing}"
 
 
+def test_gitignore_carries_the_subagent_first_mode_file_and_its_log() -> None:
+    """CS-1282: the hook's mode file and decision log are LOCAL-ONLY runtime state."""
+    lines = GITIGNORE.read_bytes().decode("ascii").splitlines()
+    named = SUBAGENT_FIRST_IGNORES == (
+        "/ops/loop/control/subagent_first.mode",
+        "/ops/loop/control/subagent_first.jsonl",
+    )
+    missing = [entry for entry in SUBAGENT_FIRST_IGNORES if lines.count(entry) != 1]
+    assert (named, missing) == (True, []), f".gitignore does not carry exactly once: {missing}"
+
+
 def settings_timeout(event: str) -> int:
     config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
-    timeouts = [hook["timeout"] for entry in config["hooks"][event] for hook in entry["hooks"]]
+    timeouts = [
+        hook["timeout"] for entry in wrapped_entries(config, event) for hook in entry["hooks"]
+    ]
     assert len(timeouts) == 1
     return int(timeouts[0])
 

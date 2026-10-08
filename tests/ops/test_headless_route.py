@@ -16,6 +16,7 @@ sub-expressions of an asserted comparison whatever message it carries.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -30,6 +31,8 @@ ROOT: Final = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from ops.fleet_kit import fleet_headless as kit  # noqa: E402
+from ops.fleet_kit import fleet_subagent_first as subagent_first  # noqa: E402
 from ops.loop import headless_route  # noqa: E402
 
 #: The source variable, spelled once here so a rename reddens every arm.
@@ -434,7 +437,17 @@ _REFUSED_EXIT: Final = 3
 _RUNNER_GOOD: Final = "http://localhost:3456/synthetic/route"
 
 
-def _run_runner(tmp_path: Path, *, value: str | None) -> tuple[int, bool, list[str]]:
+#: The default shim: it leaves one marker file behind and exits 0.
+_SHIM_RAN: Final = b'@echo ran> "%~dp0ran.txt"\r\n@exit /b 0\r\n'
+
+
+def _run_runner(
+    tmp_path: Path,
+    *,
+    value: str | None,
+    shim: bytes = _SHIM_RAN,
+    extra_env: dict[str, str] | None = None,
+) -> tuple[int, bool, list[str]]:
     """Run the real runner over a shim CLI; return exit code, whether the shim ran, log lines."""
     shell = shutil.which("powershell")
     if shell is None:
@@ -442,7 +455,7 @@ def _run_runner(tmp_path: Path, *, value: str | None) -> tuple[int, bool, list[s
     shim_dir = tmp_path / "shim"
     shim_dir.mkdir()
     marker = shim_dir / "ran.txt"
-    (shim_dir / "claude.cmd").write_bytes(b'@echo ran> "%~dp0ran.txt"\r\n@exit /b 0\r\n')
+    (shim_dir / "claude.cmd").write_bytes(shim)
     prompt = tmp_path / "prompt.md"
     prompt.write_bytes(b"# synthetic\n")
     tree = tmp_path / "tree"
@@ -454,6 +467,7 @@ def _run_runner(tmp_path: Path, *, value: str | None) -> tuple[int, bool, list[s
     env["PATH"] = f"{shim_dir}{os.pathsep}{system}"
     if value is not None:
         env[TARGET] = value
+    env.update(extra_env or {})
     argv = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(RUNNER)]
     argv += ["-PromptFile", str(prompt), "-Cwd", str(tree), "-Log", str(log)]
     done = subprocess.run(
@@ -503,6 +517,57 @@ def test_the_runner_refuses_a_value_outside_the_allowlist(tmp_path: Path, plante
     refused = any(line.startswith("lane refused") and TARGET in line for line in lines)
     leaked = any("evil" in line or "pw" in line for line in lines)
     assert (code, ran, refused, leaked) == (_REFUSED_EXIT, False, True, False)
+
+
+# ---------------------------------------------------------------------------
+# CS-1282 - the lane worker runs with the kit's SUBAGENT-FIRST hook OFF.
+# ---------------------------------------------------------------------------
+# FLEET-KIT v10's PreToolUse hook denies every guarded tool in a thread with no
+# agent id, and DEFAULTS TO DENY when its mode file is absent. That file is
+# gitignored, so a lane worktree never has one, and run_lane.ps1 starts the CLI
+# directly rather than through the kit's spawn (whose child env already turns
+# the hook off) until CS-1231 slice C moves it. A headless lane worker has no
+# operator and no main pane, so the grant (docs/LEDGER.md, "2026-10-08 -
+# CS-1282") conditions the hook's wiring on the runner setting it off.
+
+#: The one accepted spelling: a literal, double-quoted assignment at script scope.
+_SUBAGENT_FIRST_OFF: Final = f'$env:{subagent_first.ENV_MODE} = "off"'
+#: The runner's single CLI invocation, the call operator on the resolved path.
+_INVOCATION: Final = re.compile(r"&\s*\$claude\b", re.IGNORECASE)
+#: A shim that records the mode it was handed. "echo mode=" and never a bare
+#: echo, because a batch "echo off" toggles echoing instead of printing.
+_SHIM_MODE: Final = b'@echo mode=%FLEET_SUBAGENT_FIRST%> "%~dp0ran.txt"\r\n@exit /b 0\r\n'
+
+
+def test_the_lane_runner_turns_the_subagent_first_hook_off_before_the_cli() -> None:
+    """STATIC, so it runs everywhere: one assignment, the kit's own off, before the invocation."""
+    lines = RUNNER.read_bytes().decode("ascii").split("\n")
+    mentions = [i for i, line in enumerate(lines) if subagent_first.ENV_MODE in line]
+    assigned = [i for i in mentions if lines[i] == _SUBAGENT_FIRST_OFF]
+    invoked = [i for i, line in enumerate(lines) if _INVOCATION.search(line)]
+    before = len(assigned) == 1 and len(invoked) == 1 and assigned[0] < invoked[0]
+    off_is_a_kit_mode = "off" in subagent_first.MODES
+    kit_spawn_agrees = kit.child_env(_url(1), parent={}).get(subagent_first.ENV_MODE) == "off"
+    assert (len(assigned), mentions == assigned, before, off_is_a_kit_mode, kit_spawn_agrees) == (
+        1,
+        True,
+        True,
+        True,
+        True,
+    )
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
+def test_the_lane_worker_receives_the_subagent_first_hook_off(tmp_path: Path) -> None:
+    """RUNTIME: the runner's own env is POISONED with deny; the child must see off."""
+    code, ran, _ = _run_runner(
+        tmp_path,
+        value=_RUNNER_GOOD,
+        shim=_SHIM_MODE,
+        extra_env={subagent_first.ENV_MODE: "deny"},
+    )
+    said = (tmp_path / "shim" / "ran.txt").read_bytes().decode("ascii", "replace").strip()
+    assert (code, ran, said) == (0, True, "mode=off")
 
 
 @pytest.mark.parametrize(

@@ -5,6 +5,18 @@ argument-hint: [--fix to apply safe auto-corrections]
 
 # /drift-guard
 
+## WHO RUNS THIS - ONE SUB-AGENT, NEVER THE MAIN SESSION
+
+FLEET-KIT v10 (MAIN's 2026-10-08 08:39 ORDER, item 4; the FLEET-COMMON banner; CS-1282):
+the main session does NOT run these steps. It dispatches the WHOLE of this command -
+every step below, with this file's text and the arguments as the prompt - to ONE
+sub-agent (the Agent tool, in the background by default), waits for that sub-agent's
+completion notification, and relays ONLY its final line, the command's one-line result,
+to chat. The sub-agent runs every step itself and never re-dispatches the whole command.
+The kit's PreToolUse hook `ops/fleet_kit/fleet_subagent_first.py` denies Bash,
+PowerShell, Read, Edit, Write, Grep, Glob and NotebookEdit in the main thread once its
+mode is deny, so a step run there stops at its first tool call.
+
 Args: $ARGUMENTS
 
 Run this at EVERY `/done`, no exceptions. Thirty seconds each time beats a cleanup session

@@ -102,7 +102,8 @@ DISCOVERY_FLOOR = (
     "ops/loop/slots.py",
     "ops/loop/winmutex.py",
     # CS-1231 - the fleet kit, first vendored at version 4; CS-1272 re-vendored
-    # it at version 9, all sixteen files pinned by tests/test_fleet_kit.py.
+    # it at version 9 and CS-1282 at version 10, all seventeen files pinned by
+    # tests/test_fleet_kit.py.
     "ops/fleet_kit/FLEET-COMMON.md",
     "ops/fleet_kit/LICENSE",
     "ops/fleet_kit/MANIFEST.json",
@@ -115,6 +116,7 @@ DISCOVERY_FLOOR = (
     "ops/fleet_kit/fleet_lanes.py",
     "ops/fleet_kit/fleet_secrets.py",
     "ops/fleet_kit/fleet_statusline.js",
+    "ops/fleet_kit/fleet_subagent_first.py",
     "ops/fleet_kit/fleet_subagent_status.js",
     "ops/fleet_kit/fleet_watch.py",
     "ops/fleet_kit/tokens.css",
@@ -177,12 +179,14 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
     # recorded AS READ in the kit's NOTICE - a role, never a name inferred from
     # elsewhere - and the kit has no public upstream repository to cite. Two rows
     # quote NOTICE's whole holder line, so their fact is that line verbatim.
-    # CS-1272 re-vendored all five at version 9, so each row now names both.
+    # CS-1272 re-vendored all five at version 9 and CS-1282 at version 10, so
+    # each row now names all three items.
     "ops/fleet_kit/fleet_headless.py": (
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1231",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/FLEET-COMMON.md": (
@@ -190,6 +194,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "`the operator`",
         "CS-1231",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/MANIFEST.json": (
@@ -197,6 +202,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "`the operator`",
         "CS-1231",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/LICENSE": (
@@ -204,6 +210,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "`the operator`",
         "CS-1231",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/NOTICE": (
@@ -211,19 +218,22 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1231",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
-    # CS-1272 - the eleven files version 9 added. Two facts beyond the grant,
-    # holder, item and pin are stated where they hold, because a reader of the
-    # bytes alone would get them wrong: the three data files carry NO SPDX header
-    # (JSON cannot, and tokens.css is generated without one), and NOTICE's scope
-    # paragraph LISTS only eight files while its governing clause - quoted
-    # verbatim - covers every file MANIFEST.json names, which reaches the other
-    # seven. A row that dropped either sentence would misstate the grant's reach.
+    # CS-1272 - the eleven files version 9 added, re-read at version 10 under
+    # CS-1282. Two facts beyond the grant, holder, item and pin are stated where
+    # they hold, because a reader of the bytes alone would get them wrong: the
+    # three data files carry NO SPDX header (JSON cannot, and tokens.css is
+    # generated without one), and NOTICE's governing clause - quoted verbatim -
+    # covers every file MANIFEST.json names, which at version 9 was the ONLY
+    # route for the seven files its scope list omitted. Version 10's list names
+    # them all; the rows keep the clause, the grant that reaches a later file too.
     "ops/fleet_kit/cli_display.json": (
         "Apache-2.0",
         "`the operator`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "no SPDX header",
         "`every file named in this kit's MANIFEST.json`",
@@ -232,6 +242,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -239,6 +250,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -246,6 +258,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -253,6 +266,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -260,12 +274,22 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/fleet_statusline.js": (
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
+    ),
+    # CS-1282 - the one file version 10 added: the SUBAGENT-FIRST hook.
+    "ops/fleet_kit/fleet_subagent_first.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -273,6 +297,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -280,12 +305,14 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/tokens.css": (
         "Apache-2.0",
         "`the operator`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "no SPDX header",
     ),
@@ -293,6 +320,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "Apache-2.0",
         "`the operator`",
         "CS-1272",
+        "CS-1282",
         "`tests/test_fleet_kit.py`",
         "no SPDX header",
     ),

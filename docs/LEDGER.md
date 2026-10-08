@@ -75,6 +75,51 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1282 - CLOSED: FLEET-KIT v10 adopted in one commit - vendored, block re-embedded, SUBAGENT-FIRST hook wired, lane workers exempted
+Verification: `ops/fleet_kit/MANIFEST.json` reads version 10, plus
+`tests/test_fleet_kit.py::test_fleet_kit_conformance` (conformance() empty, KIT_VERSION 10),
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest` and
+`tests/test_fleet_kit.py::test_every_kit_file_on_disk_is_named_by_the_manifest`; the v10
+FLEET-COMMON block byte-identical between the `CLAUDE.md` markers, with `python tools/doc_budget.py`
+exit 0; the hook by `tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_subagent_first_hook`
+and `tests/test_claude_hook.py::test_settings_moved_no_byte_but_the_two_command_values`, its
+runtime files by `tests/test_claude_hook.py::test_gitignore_carries_the_subagent_first_mode_file_and_its_log`;
+the lane exemption by
+`tests/ops/test_headless_route.py::test_the_lane_runner_turns_the_subagent_first_hook_off_before_the_cli`
+and `tests/ops/test_headless_route.py::test_the_lane_worker_receives_the_subagent_first_hook_off`;
+the responder by
+`tests/ops/test_inbox_responder.py::test_a_refused_start_reads_the_kits_refused_task_never_halted`,
+`tests/ops/test_inbox_responder.py::test_the_kits_refused_task_is_a_basic_task_and_refused_is_not_one`
+and `tests/ops/test_inbox_responder.py::test_the_lock_busy_words_are_the_vendored_kits_own`; the
+register by `tests/test_third_party_register.py::test_each_vendored_row_carries_its_upstream_and_its_grant`;
+the render residuals by
+`tests/test_exception_rendering.py::test_every_vendored_render_residual_answers_exactly_one_live_site`.
+Landed, per MAIN's 2026-10-08 08:39 ORDER: all 17 kit files hash equal to that note's bundle,
+one new (`ops/fleet_kit/fleet_subagent_first.py`); the block re-embedded with precedence clause
+(c) unchanged, because `ops/loop/run_lane.ps1` still starts `claude` directly until CS-1231 slice
+C; `.claude/settings.json` gains the one PreToolUse entry the grant record below scopes, the gate
+entry still first; `ops/loop/run_lane.ps1` sets the hook off for its worker, the grant's lane
+condition, as the kit's own spawn does for every child it starts; `.gitignore` names the mode
+file and its JSONL log; all nine `.claude/commands/*.md` open with the ORDER item 4 rule - the
+main session dispatches the whole command to ONE sub-agent and relays only its final line, and
+/done's `fleet_done.py mark` stays the sub-agent's last act; `THIRD_PARTY.md` rows re-read for
+v10 plus a row for the new file, `tools/provenance.tsv` its row, and `pyproject.toml` ruff and
+mypy entries re-measured on the v10 bytes.
+Decision, ORDER section 2 "a refused start reads task Idle with state refused; a halt reads
+Halted": `ops/loop/inbox_responder.py` published task Halted on every refused start, contradicting
+the kit's own write to the same status file a moment earlier, so it now publishes the kit's
+`REFUSED_TASK`; only a stop sentinel reads Halted.
+Decision, ORDER item 5's `fleet_checklist.emit()`: NOT applied to the one tree path that prints
+the item-13 block, `ops/loop/queue_loop.py::_emit`. That sink already never raises on a cp1252
+console or under pythonw, and it flushes every line, which emit() does not - the measured reason
+a detached driver's log once stayed empty - and it tees each line to the night log. Routed to the
+merger for a ruling rather than changed here.
+Read on the v10 bytes: none of the four kit defects this tree reported is repaired, and v10 adds
+two siblings of the render shape; `BACKLOG.md` holds them as owed to MAIN for kit v11.
+Owed, not done here: `log` written into the main checkout's
+`ops/loop/control/subagent_first.mode` BEFORE this commit's settings reach it (absent means
+deny); `deny` only after three interactive sessions of rows; the ONE ANSWER to MAIN 0839.
+
 ### 2026-10-08 - CS-1282 - FROZEN-FILE GRANT, NOT A COMPLETION RECORD, NOTHING CLOSED
 Granted by an adjudicator agent BEFORE the edit (`CLAUDE.md` section 6): `.claude/settings.json`
 gains ONE PreToolUse entry appended after the existing one, every other byte unchanged - matcher
