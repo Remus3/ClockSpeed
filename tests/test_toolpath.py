@@ -53,6 +53,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 import toolpath  # noqa: E402
 
+from tests import toolpath_guard  # noqa: E402
 from tests.toolpath_guard import (  # noqa: E402
     ALL_EXEMPTIONS,
     BARE_NAME,
@@ -502,6 +503,43 @@ def test_the_census_reaches_a_plausible_share_of_the_tree() -> None:
 
     assert len(files) >= FILE_FLOOR
     assert len(sites) >= SITE_FLOOR
+
+
+def test_the_real_tree_is_walked_once_per_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The whole-repository walk runs ONCE per session and every real-tree arm shares it.
+
+    MEASURED: about two dozen arms in this module each re-ran the full walk
+    uncached - roughly 20 s apiece on a slow runner - which made this one file
+    most of its tier-1 shard. Sharing is sound because the real tree does not
+    move under a session: no arm here writes into it, and every plant is made in
+    memory through scan_source or under tmp_path, then scanned uncached.
+
+    The census is taken UNPATCHED first, so the shared answer is never computed
+    under the counting stub. Re-walks after it are then counted on the
+    enumeration every real walk starts from, and must be zero. The shared answer
+    must not alias either: each caller gets a list of its own, so an arm that
+    mutates what it was handed cannot change what the next arm reads.
+    """
+    taken = scan_repository()
+    walks: list[int] = []
+    enumerate_files = toolpath_guard.graded_python_files
+
+    def counting(*args: Path) -> list[str]:
+        walks.append(1)
+        return enumerate_files(*args)
+
+    monkeypatch.setattr(toolpath_guard, "graded_python_files", counting)
+    mutated = scan_repository()
+    mutated.clear()
+    again = scan_repository()
+
+    assert len(walks) == 0, f"two census calls re-walked the real tree {len(walks)} time(s)"
+    shared = (again == taken, again is not taken, len(again) >= SITE_FLOOR)
+    assert shared == (True, True, True), (
+        "the shared census aliased, or a caller mutating its copy changed another's"
+    )
+    misses = toolpath_guard.scan_tree.cache_info().misses
+    assert misses == 1, f"the real tree was walked {misses} time(s) this session, not once"
 
 
 @pytest.mark.parametrize("root", SPAWN_ROOTS)

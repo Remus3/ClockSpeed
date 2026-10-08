@@ -100,6 +100,7 @@ import subprocess
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from functools import cache
 from pathlib import Path
 from typing import Final
 
@@ -936,13 +937,16 @@ def scan_source(path: str, source: str) -> list[ProgramSite]:
     return numbered
 
 
-def graded_python_files() -> list[str]:
+def graded_python_files(root: Path = REPO_ROOT) -> list[str]:
     """Every ``*.py`` path in this repository that git can see.
 
     ``--cached`` is the committed set; ``--others --exclude-standard`` adds what
     is written but not yet committed, minus anything gitignored. Both halves are
     needed - an untracked new file is invisible to a cached-only enumeration, and
     a census that cannot see a file cannot grade it.
+
+    Args:
+        root: The checkout to enumerate; this one when omitted.
 
     Returns:
         Repo-relative posix paths, sorted.
@@ -956,7 +960,7 @@ def graded_python_files() -> list[str]:
         raise RuntimeError("git could not be resolved from PATH, so no file set could be read")
     completed = subprocess.run(
         [git, "ls-files", "--cached", "--others", "--exclude-standard", "*.py"],
-        cwd=str(REPO_ROOT),
+        cwd=str(root),
         capture_output=True,
         text=True,
         check=True,
@@ -968,15 +972,45 @@ def graded_python_files() -> list[str]:
     return sorted(seen)
 
 
-def scan_repository() -> list[ProgramSite]:
-    """Every program site across every file git can see."""
+@cache
+def scan_tree(root: Path) -> tuple[ProgramSite, ...]:
+    """Every program site across every file git can see under ``root``, walked ONCE.
+
+    MEMOISED PER ROOT FOR THE SESSION, AND WHY THAT IS SOUND. About two dozen
+    arms in tests/test_toolpath.py read the real tree, and each used to re-run
+    this whole walk - roughly 20 s apiece on a slow runner, serialized on one
+    worker, which made that one file most of its tier-1 shard. The real tree
+    does not move under a session: no arm writes into it, and every plant is
+    made in memory through :func:`scan_source` or under a tmp_path, then scanned
+    on its own input uncached. So one walk answers every reader.
+
+    THE ANSWER IS IMMUTABLE so the cache cannot be poisoned: a tuple of frozen
+    sites. :func:`scan_repository` hands each caller a list of its own. A walk
+    that RAISES is not cached - functools retries it - so a failed enumeration
+    stays loud on every call rather than once.
+
+    Args:
+        root: The checkout to walk.
+
+    Returns:
+        The sites, file by file in enumeration order.
+    """
     sites: list[ProgramSite] = []
-    for relative in graded_python_files():
-        target = REPO_ROOT / relative
+    for relative in graded_python_files(root):
+        target = root / relative
         if not target.is_file():
             continue
         sites.extend(scan_source(relative, target.read_text(encoding="utf-8")))
-    return sites
+    return tuple(sites)
+
+
+def scan_repository() -> list[ProgramSite]:
+    """Every program site across every file git can see in this checkout.
+
+    The walk is :func:`scan_tree`'s, shared for the session; the list is a fresh
+    copy per call, so mutating it changes nothing another caller reads.
+    """
+    return list(scan_tree(REPO_ROOT))
 
 
 def findings(sites: list[ProgramSite]) -> list[ProgramSite]:
