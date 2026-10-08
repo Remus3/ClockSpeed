@@ -290,6 +290,7 @@ CS-1252 - a freshness stamp and a stale marker on every card, API response and c
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1280 - the clocked draw omits built consumers whose payloads read cleanly but carry no machine tag - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1281 - the registry does not read the clock-capability field, so the elided-clock count includes classes that cannot be clocked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1285 - the D4 fuel half has no rule, so no card sizes a built generator's fuel burn against the fuel the world makes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

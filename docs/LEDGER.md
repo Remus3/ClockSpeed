@@ -75,6 +75,65 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1285 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1285 STAYS OPEN. The D4 fuel rule's design is RULED: accepted fuels on the registry generator, pooled per-class demand against per-fuel supply, and a companion demand card
+Verification: `docs/item_notes/phase5.md` section CS-1285, heading `Filed 2026-10-08 by the
+session 133 planner`, whose `### Acceptance` clause carries all three rulings. Adjudicated in
+session 133, three questions.
+Q1, WHERE THE FUELS LIVE. Decision: the accepted fuels are an appended, defaulted field on
+`clockspeed/data/registry.py::Generator`, read from `mFuel`. Alternative rejected: a new fuels
+module in `clockspeed/data/` - lost because file size is not a seam, and the surface loads the
+registry alone: `clockspeed/surface/providers.py::InstalledRegistryProvider` builds it and
+`clockspeed/surface/providers.py::StoreAdviceSource` hands the advisor the world and the
+registry and nothing else, so a second data module needs a second load path through the surface.
+Q2, WHAT SUFFICES. Decision: per built fuel generator class, demand is pooled against the supply
+of every fuel it accepts, aggregated per fuel; the rule fires only when the pooled energy falls
+short of the class's demand, and a fuel two built classes accept makes both indeterminate.
+Alternatives rejected: (1) any single accepted fuel covering demand - it falsely fires under
+split supply, where no one fuel covers but the fuels together do, and falsely rejects under
+shared supply, where one fuel's supply is counted whole for two classes; (2) indeterminate on
+any multi-fuel class - lost because every fuel class on the pinned build accepts several (biomass
+6, coal 3, fuel 5, nuclear 3), so the rule would never decide.
+Q3, OVER AN INCOMPLETE FLOW. Decision: a companion demand card states each class's nameplate
+burn per accepted fuel, claims nothing about supply, and never fires where `power.fuel_supply`
+decides. Alternative rejected: accept a mostly-indeterminate rule - lost because node purity is
+never in a save (CS-1048), so miners never flow and real worlds read incomplete flows, while the
+settled four-domain rule (`CLAUDE.md` section 7) needs fuel chain sizing shipped in v1.
+Measurement read back by the session 133 doc filer from the shipped docs on the pinned build,
+read-only: `mFuel` is a list of objects with exactly four fields - `mFuelClass`,
+`mSupplementalResourceClass`, `mByproduct`, `mByproductAmount` - and no wildcard value, with the
+per-class counts above; a fluid's `mEnergyValue` is MJ per litre - the packaging recipe of each
+of the five fluids the fuel generator accepts balances under that reading, as do crude oil's and
+heavy oil residue's; no generator carries a production exponent, the only exponent keys present
+being the two power-consumption ones; the geothermal generator has no `mFuel`.
+
+### 2026-10-08 - CS-G03 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. The re-walk scope after the walk 2 reversal is RULED: a delta re-walk, Part 2 alone, recorded before CS-700 step a
+Verification: the session 132 CS-G03 record below ("The walk 2 ruling's reversal clause FIRED"),
+which hands any narrowing to an adjudicator that walked nothing; the `Reversed by:` clause of
+the 2026-10-08 CS-G03 walk 2 DECISION RECORD below, which is the reversal list;
+`git diff 457d2b9 HEAD -- pyproject.toml`; `tools/precommit_gate.py::ruff_config_args`;
+`tests/test_mypy_gate.py`. Recorded before CS-700 step a, as the reversal record requires.
+Decision: a DELTA re-walk - Part 2 alone, exactly as `CS-NEXT-SESSION.txt` states it (a fresh
+long-paths-off Sandbox, a fresh bundle clone, the `docs/OPERATIONS.md` bootstrap, the hook
+proof, the full suite, walked by a context-free agent and graded by an adjudicator that did not
+walk). The README half is not re-walked.
+Why: `pyproject.toml` changed only in the ruff per-file-ignores, the ruff format exclude list and
+the mypy overrides, each for a vendored `ops/fleet_kit/` file (CS-1282); its `[project]` and
+`[build-system]` tables hash identical at `457d2b9` and HEAD, as do `[tool.pytest]` and
+`[tool.setuptools]`. Ruff reads the file through `tools/precommit_gate.py::ruff_config_args`,
+which the hook proof exercises, and mypy through `tests/test_mypy_gate.py`, which the full suite
+runs - both readers of the changed tables are already in Part 2.
+Alternatives rejected: (1) a full re-walk, the runner-up, because the reversal text names
+`pyproject.toml` as a full-walk trigger - lost because the reversal record hands narrowing to
+the adjudicator, and nothing in the README half reads the changed tables; (2) defer the ruling -
+no saving, since step a cannot start without it.
+Pin: the S7a tip, witnessed with `tools/freeze_witness.py` before the walk is dispatched.
+Escalates to a full re-walk if `git diff --name-only 457d2b9 <pinned tip>` lists any reversal
+path other than `pyproject.toml`, or if the hash of `pyproject.toml` outside its ruff and mypy
+tables differs at the pinned tip. Read back at ruling time: at HEAD that diff lists
+`pyproject.toml` as its one reversal path.
+Common-mode risk: the reversal list's own completeness is untested - a path that changes what a
+clean machine sees but is not on the list escapes both this ruling and its escalation.
+
 ### 2026-10-08 - CS-G03 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. The walk 2 ruling's reversal clause FIRED by its own text: a commit after the walk tip touched `pyproject.toml`
 Verification: `git diff --name-only 457d2b9 HEAD -- pyproject.toml` lists `pyproject.toml`, read
 by the session 132 /done; the touching commit is CS-1282's adoption, `7ab46df`, which re-measured

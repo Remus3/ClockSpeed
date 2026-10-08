@@ -535,3 +535,35 @@ slice, but with no registry field to read it was not done there.
 ### Acceptance
 
 the registry reads the field, and an unknown or absent value stays a named unknown, never defaulted; the balance's elided count excludes a class that cannot be clocked; an arm with a synthetic non-clockable class reddens when it is counted elided; the `BACKLOG.md` Session 124 elided-count line is relocated as discharged
+
+## CS-1285
+
+### Filed 2026-10-08 by the session 133 planner
+
+`BOOTSTRAP.md:564-567` names fuel chain sizing as half of D4, power and fuel planning, but the
+power family registers only `power.headroom` and `power.draw_incomplete`
+(`clockspeed/advisor/rules/power.py::RULES`), and the 2026-10-04 CS-500 progress record in
+`docs/LEDGER.md` lists the D4 fuel half as having no rule. Nothing below the advisor could feed
+one: `clockspeed/data/registry.py::Generator` carries no fuel field - only its key, display name,
+power production and the variable-production pair with its flag - so no layer knows which fuels
+a built generator burns. The shipped docs carry them as `mFuel`; the measured shape and the three
+design rulings are the 2026-10-08 CS-1285 decision record in `docs/LEDGER.md`.
+
+### Slice plan
+
+In order, each on the stated model of the one before it:
+
+- A, registry field: the appended, defaulted accepted-fuels field on `Generator`, read from
+  `mFuel`. Lands only after CS-1281, which is editing `clockspeed/data/registry.py` now, and
+  also corrects the stale `mFuel` sentence in that module's docstring (the "Every scalar is a
+  string" bullet).
+- B, computation: a new `fuel` module in `clockspeed/audit/` - per-class demand, per-fuel
+  supply, pooled energy, the exact shortfall and every indeterminate cause.
+- C, advisor rules: `power.fuel_supply` and the companion demand card, in their own family
+  module in `clockspeed/advisor/rules/`.
+- D, wiring: `clockspeed/advisor/advise.py` composes the new family, so GET /api/advice carries
+  the fuel trace.
+
+### Acceptance
+
+A registered rule power.fuel_supply in its own family module declares every input it reads and no unlock. Generator gains an appended, defaulted field read from mFuel: accepted fuel keys in document order, or None when absent or unreadable, never an empty tuple, and an unreadable value is a named warning. Per built fuel generator class, demand is the exact Fraction sum over built instances of nameplate MW times clock; a fluid's energy value is per litre and is converted to MJ per cubic metre through LITRES_PER_CUBIC_METRE; a class with no fuel (geothermal) is out of scope. Supply is aggregated per fuel. The rule fires only when the pooled energy of all accepted fuels (supply times energy over 60, in MW) falls short of the class's demand, with the exact shortfall; it rejects only when that pooled energy covers demand over a complete flow. A fuel accepted by two built classes makes both indeterminate; an incomplete flow, an unknown energy value, unreadable fuels, an unread generator clock or a production gap is indeterminate, never a verdict. Tier 3 converts the shortfall into a rate for every accepted fuel; the headline fuel is chosen in mFuel order; tiers 1 and 2 name fuel, figure and generator count; tier 3 is generated from the trace. Over an incomplete flow, a companion demand card states each class's nameplate burn per accepted fuel, claims nothing about supply, and never fires where power.fuel_supply decides. Supplemental resources (water) and byproducts (nuclear waste) are out of scope and named as such on tier 3. GET /api/advice carries the fuel trace.
