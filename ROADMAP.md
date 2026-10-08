@@ -364,3 +364,5 @@ CS-1207 - the hook environment allowlist lists known readers, so an unlisted rea
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1283 - rule whether the lane driver's checklist printer moves onto the kit's `fleet_checklist.emit()` (FLEET-KIT v10 ORDER item 5) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1284 - switch the SUBAGENT-FIRST hook from log to deny after three interactive sessions of rows, on or after 2026-10-10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

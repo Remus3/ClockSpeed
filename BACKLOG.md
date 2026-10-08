@@ -532,3 +532,14 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - The adversaries' save-library sweeps copied real saves into the session scratchpad, recycled
   by the merger; an adversary brief must keep save copies under the gitignored `work/`
   directory - TRIGGER: the next adversary brief that sweeps the library.
+
+## Session 132 residuals - filed 2026-10-08 under product before process
+
+- The pre-push hook runs no ruff, while tier1's `Lint (ruff check)` step runs
+  `python -m ruff check .` over the whole tree, so a lint fault the push passes reddens tier1:
+  CS-1282's adoption pushed an I001 import order in `tests/test_claude_hook.py`, repaired by a
+  second commit. Builder briefs now name the command - TRIGGER: a second tier1 red on lint
+  alone, or the frozen pre-push hook next touched under a grant.
+- Two stubbed diagnostic responder passes wrote zero-duration inbox lines into the gitignored
+  headless usage log, which the weekly build-versus-inbox split reads - TRIGGER: that split is
+  next computed, or a diagnostic pass is next run against the live log.

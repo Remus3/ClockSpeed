@@ -75,6 +75,44 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1282 - ADDENDUM. NOT A COMPLETION RECORD. CS-1282 STAYS CLOSED. The lint follow-up, the ONE ANSWER to MAIN 0839, the hook's first log rows and the responder's refusals, read back by the session 132 /done
+Verification: `tests/test_claude_hook.py`, whose `ops.fleet_kit` import now sits in the
+third-party block, graded by the tier1 workflow's `Lint (ruff check)` step
+(`python -m ruff check .`); `tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_subagent_first_hook`
+for the wiring the rows below come from.
+LINT FOLLOW-UP: tier1 37842247583 at `7ab46df` FAILED on its lint step alone - ruff I001 in
+`tests/test_claude_hook.py`, because ruff's known-first-party names only `clockspeed`, so
+`ops` sorts as third-party; its four test shards were green. `b504a45` applied the I001 autofix
+only, leaving the ruff configuration unchanged (adding `ops` to known-first-party would re-sort
+imports across many files). tier1 37845559520 at `b504a45` read SUCCESS on all five jobs by
+this /done. The pre-push hook runs no ruff, so the push passed a lint fault tier1 refuses;
+every builder brief now names `python -m ruff check .` beside the session 131 census guards.
+CHANNEL: ONE ANSWER (HOP 2) to MAIN 0839, the tree's 2026-10-08 16:23 note - delivered 1/1,
+destination copy re-hashed equal, outbound leak gate clean. It carries the vendoring commit,
+the vendored manifest's sha256, conformance() empty, the hook wired in log mode with the deny
+switch on or after 2026-10-10, the anchored-command departure from MAIN's literal command, and
+the CS-1231 slice C block below. Outbound count 2026-10-08: 4 of 6. Inbox acknowledged:
+`python tools/inbox_watch.py` read no unread item at this /done.
+SLICE C BLOCKED: v10's `spawn` command line passes no extra flag through, so the lane's
+permission flag cannot ride it; MAIN was asked for a kit v11 pass-through or a ruling to call
+`launch()` or `spawn(extra=...)` from Python. CS-1231 stays open; ORDER item 5's `emit()`
+ruling is filed as CS-1283 and rides with it; the deny switch is filed as CS-1284.
+HOOK ROWS, measured by this /done from the wiring (15:31) to 16:25: every row in
+`ops/loop/control/subagent_first.jsonl` is a sub-agent row, decision allow, mode log, so the
+kit's agent_id detection is MEASURED for sub-agents; there is NO main-thread row, would-deny or
+otherwise, and no positive control has yet shown a main-thread guarded call logged, so zero main
+rows does not yet distinguish an idle main thread from an unlogged one. Session 132 counts as
+interactive session 1 of the 3 the grant requires, from the wiring only.
+RESPONDER: the CS-InboxResponder task logged `kit_refused` (exit 3) on every tick from 08:41 to
+14:11. Root cause measured: the headless proxy listener the kit requires was not running until
+14:21:46, after the last refusal, so each refusal was the kit's fail-closed preflight by design;
+every preflight passed after it, interactively and inside a temporary scheduled task (removed),
+and the inbox status file read state idle at the 14:26 tick and again at this /done. Two
+stubbed diagnostic passes wrote two zero-duration inbox usage lines at 14:24 into
+`ops/loop/control/headless_usage.jsonl`; they are diagnostics, not runs. QUEUE_STOP still holds
+the lanes; INBOX_STOP is absent.
+Decision: none new; the grant record below governs the hook's command.
+
 ### 2026-10-08 - CS-1282 - CLOSED: FLEET-KIT v10 adopted in one commit - vendored, block re-embedded, SUBAGENT-FIRST hook wired, lane workers exempted
 Verification: `ops/fleet_kit/MANIFEST.json` reads version 10, plus
 `tests/test_fleet_kit.py::test_fleet_kit_conformance` (conformance() empty, KIT_VERSION 10),

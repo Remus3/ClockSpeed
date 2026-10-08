@@ -1647,6 +1647,18 @@ second half - routing `ops/loop/run_lane.ps1` through the kit - still waits on a
 carries them. The inbox responder half already starts through the kit's spawn, as the
 `CLAUDE.md` precedence clause (c) states.
 
+### Recorded 2026-10-08 by the session 132 /done
+
+FLEET-KIT v10 landed under CS-1282. It adds a `spawn` command line and the kit's
+`REFUSED_TASK` wording, which the inbox responder now publishes on a refused start, so the
+wording half of the wait is discharged. Slice C's second half - routing
+`ops/loop/run_lane.ps1` through the kit - is still BLOCKED: the v10 `spawn` command line
+passes no extra flag through, so the lane's permission flag cannot ride it. MAIN was asked,
+in this tree's ONE ANSWER to MAIN 0839, for a kit v11 pass-through or a ruling to call
+`launch()` or `spawn(extra=...)` from Python. Until one arrives the lane runner keeps
+starting `claude` directly under precedence clause (c), and sets the SUBAGENT-FIRST hook
+off for its worker. CS-1283 (ORDER item 5's `emit()` ruling) rides with this slice.
+
 ## CS-1234
 
 ### Acceptance
@@ -1666,3 +1678,46 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
+
+## CS-1283
+
+### Acceptance
+
+An adjudicator that built none of it rules, with the alternatives and the reason recorded
+in `docs/LEDGER.md`, whether `ops/loop/queue_loop.py::_emit` keeps its own sink or calls
+the vendored `ops/fleet_kit/fleet_checklist.py` `emit()`. If it calls `emit()`, every line
+is still flushed as it is written and still teed to the night log, and a test pins both;
+the ruling reaches MAIN in this tree's next batched note to MAIN. A MAIN kit whose `emit()`
+flushes and tees discharges the item by adoption.
+
+### Filed 2026-10-08 by the session 132 /done
+
+ORDER item 5 of MAIN's 2026-10-08 08:39 FLEET-KIT v10 note asks every tree to print its
+item-13 block through the kit's `fleet_checklist.emit()`. CS-1282 did not apply it to the
+one tree path that prints the block. `ops/loop/queue_loop.py::_emit` already never raises
+on a cp1252 console or under `pythonw`, and it flushes every line - the measured reason a
+detached driver's log once stayed empty (CS-1018) - and tees each line to the night log;
+the kit's `emit()` writes without a flush and tees nothing. The builder routed it for a
+ruling rather than change a working sink. It rides with CS-1231 slice C, which touches the
+same lane path.
+
+## CS-1284
+
+### Acceptance
+
+The main checkout's gitignored `ops/loop/control/subagent_first.mode` reads `deny`,
+written on or after 2026-10-10 and only after `ops/loop/control/subagent_first.jsonl`
+holds rows from three interactive sessions, counted from the session 132 wiring, that
+include sub-agent rows and no main-thread would-deny row for work that could not have been
+dispatched. Before the switch a positive control shows one main-thread guarded call logged
+as would-deny, so an empty main-thread population means an idle main thread rather than an
+unlogged one; the lane exemption in `ops/loop/run_lane.ps1` is re-read; the per-session
+row counts and the switch are recorded in `docs/LEDGER.md`.
+
+### Filed 2026-10-08 by the session 132 /done
+
+The CS-1282 grant (`docs/LEDGER.md`) wired the hook in log mode and allows deny only once
+the log shows rows, sub-agent rows included, from three sessions. Session 132 is session 1
+of 3 from its wiring at 15:31: every row it logged by 16:25 is a sub-agent row, decision
+allow, and no main-thread row exists at all, so the main-thread half is still unmeasured.
+An absent mode file means deny, so a fresh worktree denies until a mode is written.
