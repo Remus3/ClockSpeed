@@ -261,6 +261,12 @@ shell/NVIDIA Corporation/
 /ops/loop/control/headless_budget.json
 /ops/loop/control/headless_usage.jsonl
 /ops/loop/control/progress/
+# FLEET-KIT v9's /done marker (ops/fleet_kit/fleet_done.py, CS-1272): the
+# marker carries a session id, a commit and a hand-off digest, and the seen
+# file is its Stop-hook dedupe. Covered by the directory line too; named for
+# the same reason as the lines above.
+/ops/loop/control/session_done.json
+/ops/loop/control/session_done.seen
 
 # The lane's model config, read by ops/loop/run_lane.ps1 via $PSScriptRoot with
 # a known-good fallback so a lane never fails to spawn over a config read.

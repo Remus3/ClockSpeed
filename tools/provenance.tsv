@@ -192,7 +192,18 @@ ops/fleet_kit/FLEET-COMMON.md	vendored	CS-1231	stamped
 ops/fleet_kit/LICENSE	vendored	CS-1231	stamped
 ops/fleet_kit/MANIFEST.json	vendored	CS-1231	stamped
 ops/fleet_kit/NOTICE	vendored	CS-1231	stamped
+ops/fleet_kit/cli_display.json	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_checklist.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_done.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_headless.py	vendored	CS-1231	stamped
+ops/fleet_kit/fleet_inbox.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_lanes.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_secrets.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_statusline.js	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_subagent_status.js	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_watch.py	vendored	CS-1272	stamped
+ops/fleet_kit/tokens.css	vendored	CS-1272	stamped
+ops/fleet_kit/tokens.json	vendored	CS-1272	stamped
 ops/loop/__init__.py	authored	CS-918	first-add:CS-918
 ops/loop/claims.py	authored	CS-991	first-add:CS-991
 ops/loop/headless_route.py	authored	CS-1225	stamped
@@ -290,6 +301,7 @@ tests/ops/__init__.py	authored	CS-1000	first-add:CS-1000
 tests/ops/test_driver_log_per_night.py	authored	CS-1018	stamped
 tests/ops/test_driver_module_binding.py	authored	CS-1165	first-add:root
 tests/ops/test_headless_route.py	authored	CS-1225	stamped
+tests/ops/test_headless_spawn_paths.py	authored	CS-1272	stamped
 tests/ops/test_inbox_responder.py	authored	CS-1226	stamped
 tests/ops/test_inbox_status.py	authored	CS-1234	stamped
 tests/ops/test_lane_background_tasks.py	authored	CS-1108	first-add:CS-1108

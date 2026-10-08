@@ -1,7 +1,7 @@
 # Clockspeed - Architecture
 
-**Owner file for:** the module map, the data flow, the seams, and which package owns
-what.
+**Owner file for:** the module map, the tooling map, the data flow, the seams, and which
+package owns what.
 
 **This file never contains:** commands, restart procedure or runbooks (those are
 `docs/OPERATIONS.md`), decisions and their fences (those are `docs/adr/`), or any
@@ -260,6 +260,31 @@ tier renderer, no identity hash and no ledger store. The three files an earlier 
 of this section named as their owners have never existed on disk, which is the defect
 CS-928 records; the detail they described lives in `BOOTSTRAP.md` and is reproduced here
 only when there is code to attribute it to.
+
+---
+
+## 6. Tooling map
+
+The gates, guards, probes and lane drivers beside the product packages. Relocated from
+`CLAUDE.md` section 2.2 under its section 4 relocate-do-not-delete rule by CS-1272; the
+`tools/inbox_watch.py` row and the `.githooks/` row stay in `CLAUDE.md`, where tests and
+gates cite them.
+
+| Path | Does |
+|---|---|
+| `scripts/install_hooks.py` | Sets `core.hooksPath`, installs `.githooks/`. Idempotent. Fails loudly if it cannot set the path |
+| `scripts/verify_env.py` | Asserts interpreter, toolchain, paths and ports. Prints found/missing, exits non-zero on a missing hard dependency |
+| `tools/precommit_gate.py` | Character-set gate, secret scan, staged-line lint, syntax check |
+| `tools/edit_lint_check.py` | `PostToolUse` syntax and lint check on an edited file |
+| `tools/drift_guard.py` | Doc and pin drift detection |
+| `tools/doc_budget.py` | File-size budget enforcement |
+| `tools/facts_probe.py` | Live-state fact set. Run BY HAND from `/drift-guard` and `/sync-docs`; NOT a hook |
+| `tools/memory_sync.py` | Mirrors markdown memory into the recall store, idempotent |
+| `tools/provenance_stamp.py` | Stamps each new tracked file into `tools/provenance.tsv`; the manifest arm reddens any file it lacks - CS-1165 |
+| `tools/dashboard_probe.py` | The SCRIPTED answer to "does the dashboard run". Launch, poll, assert a JSON key and a DOM node, one screenshot, exit code decides |
+| `tools/headless-queue.md` | The `queue` lane worker's prompt. TRACKED, because a worktree is a fresh checkout and carries no gitignored file |
+| `ops/loop/queue_loop.py` | The lane driver. Repeats the one-row worker AND owns every wait, so nothing can cancel a run mid-grade |
+| `ops/loop/launch_queue_loop.ps1` | Starts the driver detached. Refuses over a stop sentinel and prints no banner over a no-op |
 
 ---
 

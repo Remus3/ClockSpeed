@@ -24,6 +24,53 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1272 - prose the v9 block replaced, relocated from `CLAUDE.md` 2026-10-08
+
+**SUPERSEDED BY THE FLEET-KIT v9 BLOCK, NOT CURRENT.** CS-1272 re-embedded the v9
+FLEET-COMMON block in `CLAUDE.md` and, under that file's section 4 relocate-do-not-delete
+rule, removed or rewrote the prose below. It is recorded byte for byte, in file order:
+precedence clause (b), two section 2.3.1 paragraphs and its "Here:" paragraph, and the
+section 3 rule-4 mechanism paragraph. Where each now lives: FLEET item 13 in the embedded
+block states the checklist rules, and `CLAUDE.md` section 2.3.1 keeps only what this tree
+adds; clause (b) is retired; the vendoring the "Here:" paragraph deferred landed with
+CS-1272; the rule-4 mechanism is owned by `CONVENTIONS.md` section 10. The tooling-map
+rows CS-1272 moved are not here - they are live, in `docs/ARCHITECTURE.md` section 6.
+
+```text
+notification; (b) section 2.3.1 is kit v7 item 13 as this tree applies it, and governs
+over the embedded block's item 3 "no inline checklists" until the v7 block is re-embedded; (c) FLEET item 10 has one stated
+```
+
+```text
+**THE CHECKLIST IS THE STATUS FORMAT, NOT PROSE - kit v7 item 13 (MAIN, 2026-10-05).**
+At session start, planned from the hand-off and the roadmap before any work, print
+`Session <n> checklist`, then one line per task in execution order:
+`<box> <ID>: <imperative task, one line> (<state>, ~ETA)` - the parenthesis only while the
+task runs. `<box>` is U+2610; tracked files name it by that text, never the glyph (section
+3 rule 4). The LAST line is `<box> /done`. At most ONE trailing sentence, only when an
+ordering constraint matters. No summary, review or history.
+
+After every FOUR OR MORE completed tasks, print ONLY the remaining tasks plus new ones,
+marked `+` before the ID - never a completed one. A status request gets the same
+remaining-only list. When no task remains, `/done` runs UNPROMPTED and its chat output
+stays one line. Section 6.1 owns adjudicate-do-not-ask and commit-and-push; keep the
+remaining context in mind when planning `/done`.
+
+**Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1
+(`.claude/commands/done.md`), and the session-start hand-off read prints the block. The
+headless paths (`ops/loop/inbox_responder.py`, `ops/loop/queue_loop.py`) print nothing
+yet: they, the kit vendoring and the block re-embed land in one commit straight after
+CS-700 S12a - `docs/LEDGER.md`, FLEET-KIT v7 decision C.
+```
+
+```text
+Rule 4 has a mechanism, not just a preference behind it: Windows PowerShell 5.1
+ANSI-decodes a `.ps1` with no BOM, and a UTF-8 em-dash inside a double-quoted string
+becomes a character the tokenizer treats as a string terminator. One incident made it
+permanent. Use a spaced hyphen ` - ` for a clause break.
+```
+
+
 ## CS-1271 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-05
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

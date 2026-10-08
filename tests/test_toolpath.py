@@ -54,6 +54,7 @@ if str(_TOOLS_DIR) not in sys.path:
 import toolpath  # noqa: E402
 
 from tests.toolpath_guard import (  # noqa: E402
+    ALL_EXEMPTIONS,
     BARE_NAME,
     CURDIR_RESOLVER,
     EXEMPTION_BUDGET,
@@ -67,6 +68,7 @@ from tests.toolpath_guard import (  # noqa: E402
     SITE_FLOOR,
     SPAWN_ROOTS,
     SPELLED_PATH,
+    VENDORED_EXEMPTIONS,
     VERDICTS,
     ProgramSite,
     describe,
@@ -75,6 +77,7 @@ from tests.toolpath_guard import (  # noqa: E402
     frozen_files,
     graded_python_files,
     is_frozen,
+    kit_pin_problems,
     scan_repository,
     scan_source,
     stale_exemptions,
@@ -517,10 +520,54 @@ def test_every_spawn_root_is_reached_by_the_walk(root: str) -> None:
 
 
 def test_the_exemption_budget_holds_in_both_directions() -> None:
-    """A ceiling checked only from below is met forever by a table that shrinks."""
-    problems = exemption_budget_problems(EXEMPTIONS, EXEMPTION_BUDGET)
+    """A ceiling checked only from below is met forever by a table that shrinks.
+
+    Both kinds count against the one budget - the FROZEN rows and, since
+    CS-1272, the VENDORED rows - so a vendored row is not free room.
+    """
+    problems = exemption_budget_problems(ALL_EXEMPTIONS, EXEMPTION_BUDGET)
 
     assert problems == [], "\n".join(problems)
+
+
+def test_the_two_exemption_kinds_are_disjoint_and_both_counted() -> None:
+    """A key in both tables would collapse in the union and be counted once."""
+    shared = sorted(set(EXEMPTIONS) & set(VENDORED_EXEMPTIONS))
+    total = len(EXEMPTIONS) + len(VENDORED_EXEMPTIONS)
+
+    assert (shared, len(ALL_EXEMPTIONS)) == ([], total), shared
+
+
+def test_every_vendored_exemption_names_a_kit_file_at_its_manifest_pin() -> None:
+    """CS-1272, FLEET item 11: a VENDORED row is excused only while the file is the kit's bytes.
+
+    The kit is not frozen under CLAUDE.md section 6, so these rows cannot sit in
+    the frozen table. What justifies them instead is that the file is MAIN's,
+    byte for byte - so the moment a local edit moves one byte, the pin breaks
+    and this arm reddens, and the row can never excuse a site this tree wrote.
+    """
+    paths = [path for (path, _f, _c, _p, _o) in VENDORED_EXEMPTIONS]
+    problems = kit_pin_problems(paths)
+
+    assert (len(paths) > 0, problems) == (True, []), "\n".join(problems)
+
+
+def test_the_kit_pin_check_refuses_an_unpinned_file_and_a_moved_byte() -> None:
+    """THE META-TEST ON THE PIN ORACLE, both failure directions plus the control."""
+    vendored = "ops/fleet_kit/fleet_done.py"
+    unpinned = "tools/drift_guard.py"
+    wrong = {vendored: "0" * 64}
+
+    verdicts = (
+        len(kit_pin_problems([vendored])),
+        len(kit_pin_problems([unpinned])),
+        len(kit_pin_problems([vendored], pins=wrong)),
+    )
+
+    assert verdicts == (0, 1, 1), (
+        "expected the pinned kit file to pass, a tree-owned file to be refused as"
+        f" unpinned and a digest mismatch to be refused; got {verdicts}"
+    )
 
 
 def test_every_exemption_states_a_reason_rather_than_a_word() -> None:
@@ -531,7 +578,7 @@ def test_every_exemption_states_a_reason_rather_than_a_word() -> None:
     """
     thin = sorted(
         f"{path} {callee} program={program} #{ordinal} in {function}()"
-        for (path, function, callee, program, ordinal), reason in EXEMPTIONS.items()
+        for (path, function, callee, program, ordinal), reason in ALL_EXEMPTIONS.items()
         if len(reason) < EXEMPTION_REASON_MINIMUM
     )
 
@@ -816,11 +863,11 @@ def test_a_program_swapped_in_place_at_an_exempted_site_reddens() -> None:
     assert (live, stale) == (["curl"], 1), describe(findings(census))
 
 
-@pytest.mark.parametrize("row", sorted(EXEMPTIONS), ids=lambda row: f"{row[1]}-{row[2]}")
+@pytest.mark.parametrize("row", sorted(ALL_EXEMPTIONS), ids=lambda row: f"{row[1]}-{row[2]}")
 def test_a_comment_block_above_every_exempted_site_moves_no_arm(
     row: tuple[str, str, str, str, int],
 ) -> None:
-    """The first half of CS-1102 for all four rows, not only the one the plants favour."""
+    """The first half of CS-1102 for every row of both kinds, not only the one the plants favour."""
     path, function, callee = row[0], row[1], row[2]
     pristine = (REPO_ROOT / path).read_text(encoding="utf-8")
     statement = _spawn_statement(pristine, function, callee)
@@ -840,7 +887,7 @@ def test_an_unresolved_program_is_a_key_no_row_can_carry() -> None:
     )
     keys = [site.key for site in sites if site.finding]
     carried = [key[3] for key in keys]
-    rows = [row[3] for row in EXEMPTIONS]
+    rows = [row[3] for row in ALL_EXEMPTIONS]
 
     assert carried == [None], f"an unresolved program keyed as {carried}"
     assert all(isinstance(program, str) and program for program in rows), rows

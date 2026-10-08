@@ -24,7 +24,12 @@ remember:
      that name, and it creates it under pytest's ``tmp_path``.
   3. Every destination name used here carries the ``958`` suffix and is created
      by the test that uses it, so a run that somehow escaped the channel root
-     would find no destination and refuse rather than deliver.
+     would find no destination and refuse rather than deliver. ONE EXCEPTION,
+     :data:`DEST_RETIRED` (CS-1272 R): the refusal under test is keyed on the
+     retired sibling's real project name, so a synthetic name would grade
+     nothing. It keeps this mechanism's property through its OUTCOME instead of
+     its spelling - no arm expects a delivery to it - and mechanisms 1, 2 and 4
+     still confine every run that names it.
   4. The delivery record is redirected into ``tmp_path`` through
      :data:`ENV_RECORD`, so no arm appends to the repository's own record.
 
@@ -160,6 +165,17 @@ OUTSIDE_DIR = "outside958"
 # POSIX fixture reproduces the Windows situation rather than inventing another.
 DEST_A_UPPER = DEST_A.upper()
 DEST_A_DOTTED = DEST_A + "."
+
+# THE RETIRED SIBLING (CS-1272 R, MAIN 0230: LL retired, EW joins). Spelled as
+# the real project directory is spelled - mixed case - so every arm that uses it
+# also proves the match folds case. TYPED BY HAND, never read from the sender:
+# a table compared against itself is green through any edit. The phrase and
+# the code are what a NAMED refusal must carry, so an operator reading stderr
+# learns why the send stopped without being shown any path.
+DEST_RETIRED = "Lanternlight"
+RETIRED_CODE = "LL"
+RETIRED_PHRASE = "retired sibling"
+EXPECTED_RETIRED_SIBLINGS = {"lanternlight": RETIRED_CODE}
 
 NOTE_NAME = "note958-first.md"
 SECOND_NOTE_NAME = "note958-second.md"
@@ -3704,3 +3720,106 @@ def test_a_raise_after_a_delivery_is_incomplete_and_not_refused(
     assert control == EXIT_REFUSED, (
         f"a raise before anything was delivered returned {control}; that run wrote nothing"
     )
+
+
+def test_the_retired_roster_is_exactly_the_one_retired_sibling() -> None:
+    """CS-1272 R - the sender's retired table is LL and nothing else.
+
+    AN EXACT MAPPING, NOT A MEMBERSHIP CHECK. MAIN 0230 retires LL and ADDS EW
+    in the same order, so the one table this tool consults has two ways to be
+    wrong: LL missing, which delivers to a retired tree, and the newcomer - or
+    any live sibling - present, which refuses mail that should go. A
+    membership assertion catches only the first.
+    """
+    sender = load_sender()
+    retired = dict(sender.RETIRED_SIBLINGS)
+    assert retired == EXPECTED_RETIRED_SIBLINGS
+
+
+def test_a_retired_sibling_named_by_to_refuses_the_whole_send(tmp_path: Path) -> None:
+    """CS-1272 R - a `--to` at the retired sibling is refused, by name, in every spelling.
+
+    MAIN 0230 item 4: stop addressing notes to LL. Its inbox stays on disk -
+    item 5, delete nothing - so the containment checks alone would deliver to
+    it exactly as before. Measured red on the unrepaired tool: exit 0 and the
+    note in the retired inbox.
+
+    A REFUSAL, NOT A SKIP, FOR A TYPED DESTINATION. The operator asked for that
+    delivery by name; delivering to the others and saying nothing would report
+    success over a send that did not do what was typed. WHOLE-SEND, like every
+    other destination fault here, so the clean sibling typed beside it receives
+    nothing either.
+
+    EVERY SPELLING OF ONE DIRECTORY - :func:`spellings_of_one_directory` -
+    because the match must be on the RESOLVED directory's own name. A match on
+    the typed string lets the upper-case and trailing-dot spellings through on
+    Windows, where all three are the retired directory.
+
+    THE DRY RUN TOO, because the refusal has to come before the DRY RUN line or
+    an operator rehearsing a send learns nothing until the real one. And NAMED:
+    the refusal carries the phrase, the channel code and the ordinal, so it
+    says what stopped the send and which typed name did it.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_RETIRED))
+    spellings = spellings_of_one_directory(channel, DEST_RETIRED)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    outcomes: list[tuple[int, bool, bool]] = []
+    for spelling in spellings:
+        for mode in (("--send",), ()):
+            code, out, err = run_send(
+                "--note",
+                str(note),
+                "--to",
+                DEST_A,
+                "--to",
+                spelling,
+                *mode,
+                "--allow-unmeasured",
+                channel=channel,
+                env=env,
+            )
+            words = (RETIRED_PHRASE, RETIRED_CODE, "destination 2")
+            named = all(word in text(err) for word in words)
+            rehearsed = "DRY RUN" in text(out)
+            outcomes.append((code, named, rehearsed))
+    changed = changed_paths(before, tree_snapshot(channel))
+    recorded = len(record_entries(env))
+
+    expected = [(EXIT_REFUSED, True, False)] * (len(spellings) * 2)
+    assert outcomes == expected
+    assert changed == [], f"a send to a retired sibling still wrote {changed}"
+    assert recorded == 0, "a refused send to a retired sibling wrote a record entry"
+
+
+def test_all_leaves_a_retired_sibling_out_and_still_delivers(tmp_path: Path) -> None:
+    """CS-1272 R - the broadcast does not discover the retired sibling.
+
+    MAIN 0230 item 4: remove LL from any automatic send. `--all` is this tool's
+    automatic send, and LL's inbox stays on disk (item 5), so discovery would
+    keep finding it. Refusing there instead would refuse EVERY broadcast for as
+    long as that directory exists. So discovery leaves it out, as it leaves
+    this repository out, and the live siblings still receive the note.
+
+    THE TREE DIFF IS THE ASSERTION, as in the discovery arm above, so a
+    delivery anywhere unexpected is a finding rather than an omission; the
+    clean siblings landing is the positive control that a discovery which
+    returned nothing cannot satisfy.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B, DEST_RETIRED))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note", str(note), "--all", "--send", "--allow-unmeasured", channel=channel, env=env
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    expected = sorted(f"{name}/{INBOX}/{NOTE_NAME}" for name in (DEST_A, DEST_B))
+    recorded = len(record_entries(env))
+
+    assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == expected, f"--all changed {changed}"
+    assert recorded == len(expected), "the record does not match what was delivered"

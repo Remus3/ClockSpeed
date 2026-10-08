@@ -136,6 +136,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from tests.toolpath_guard import kit_pin_problems
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER_RELATIVE = ("scripts", "install_hooks.py")
 GATE = REPO_ROOT / "tools" / "precommit_gate.py"
@@ -292,6 +294,33 @@ PARAMETER_RENDER_RESIDUALS = {
         "rewrites a path under a HOME directory and leaves an absolute path "
         "that is not under one untouched. Bounded, deliberate and documented "
         "at the site - so it is held visible here rather than exempted."
+    ),
+}
+
+# Caught-exception renders inside VENDORED fleet kit files (CS-1272), each
+# keyed by (path, shape) and each answering EXACTLY one live site, so a second
+# render in the same file is still a finding - never a blanket file waiver.
+# FLEET item 11: a kit file is MAIN's bytes and is never edited here, so the
+# repair is a kit version rather than a local edit; both sites are owed to
+# MAIN as a kit version 10 report (BACKLOG.md). RECORDED RATHER THAN EXEMPTED for the
+# reason PARAMETER_RENDER_RESIDUALS gives: the site stays VISIBLE on a green
+# run. And a row holds ONLY while its file is the kit's pinned bytes - the
+# moment a local byte moves, test_every_vendored_render_residual_is_at_its_kit_pin
+# reddens, so a row can never cover a render this tree wrote.
+VENDORED_RENDER_RESIDUALS = {
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)"): (
+        "CS-1272, FLEET item 11 - spawn()'s governor-slot handler renders a "
+        "SlotTimeout whole into Refused. The type is the kit's own (fleet_lanes."
+        "py), and its one raise builds the text from a timeout and a width, so "
+        "the leak is latent rather than live; it is still the shape this sweep "
+        "refuses, so it is held visible here and owed to MAIN as a report."
+    ),
+    ("ops/fleet_kit/fleet_watch.py", "f-string {exc}"): (
+        "CS-1272, FLEET item 11 - WatchState.__init__ renders an OSError or "
+        "ValueError whole into WatchStateCorrupt. str() on an OSError appends "
+        "the path it failed on, which can sit under the operator's profile "
+        "(non-negotiable 12). A live defect in MAIN's bytes: owed to MAIN as a "
+        "kit version 10 report rather than patched locally."
     ),
 }
 
@@ -708,7 +737,12 @@ def guarded_import_probes(source: str) -> set[str]:
 
 def test_no_tracked_module_renders_a_caught_exception_object():
     found, _ = scan_repo()
-    leaks = [finding for finding in found if finding.path not in WAIVED_FILES]
+    leaks = [
+        finding
+        for finding in found
+        if finding.path not in WAIVED_FILES
+        and (finding.path, finding.shape) not in VENDORED_RENDER_RESIDUALS
+    ]
     assert not leaks, (
         f"{len(leaks)} site(s) render a caught exception OBJECT into a message. "
         "str() on an OSError appends the path it failed on, which carries the "
@@ -1088,6 +1122,27 @@ def test_parameter_renders_are_only_the_recorded_residuals():
 # ---------------------------------------------------------------------------
 # The waiver, and the residual the sweep does not assert on
 # ---------------------------------------------------------------------------
+
+
+def test_every_vendored_render_residual_answers_exactly_one_live_site():
+    # Non-vacuous AND not a blanket: a row whose site has gone is stale, and a
+    # row matching two sites would cover one nobody argued for.
+    found, _ = scan_repo()
+    counts = {
+        key: sum(1 for finding in found if (finding.path, finding.shape) == key)
+        for key in VENDORED_RENDER_RESIDUALS
+    }
+    wrong = {key: count for key, count in counts.items() if count != 1}
+    assert not wrong, f"vendored render residuals not matching exactly one site: {wrong}"
+
+
+def test_every_vendored_render_residual_is_at_its_kit_pin():
+    # CS-1272, FLEET item 11: the row is excused only while the file is MAIN's
+    # bytes, checked against ops/fleet_kit/MANIFEST.json by the same oracle the
+    # CS-910 census uses for its VENDORED exemption kind.
+    paths = [path for (path, _shape) in VENDORED_RENDER_RESIDUALS]
+    problems = kit_pin_problems(paths)
+    assert (len(paths) > 0, problems) == (True, []), "\n".join(problems)
 
 
 def test_every_waiver_is_still_live():

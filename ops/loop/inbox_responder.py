@@ -27,8 +27,12 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      API and nothing else. Zero unread ends the run quietly - no log line, so
      a quiet channel costs 96 no-ops a day and zero bytes. An UNMEASURED count
      never spawns: a run that could not look must not guess.
-     LOOP DAMPING (`is_damped`): our OWN notes and notes marked TERMINAL or
+     LOOP DAMPING (`is_damped`): our OWN notes, notes FROM a retired sibling
+     (`RETIRED_SENDERS`, MAIN 0230 item 4) and notes marked TERMINAL or
      no-reply never start a run; with nothing else unread the pass is idle.
+     Who a note is FROM is the kit's own `note_sender` (CS-1272 H2), never a
+     local pattern. A pass that listed a retired sibling's note logs a NAMED
+     skip ("retired_skip", the sibling's code from the table) every time it does.
   4. A back-off file written after a usage-limit refusal holds every run for
      `BACKOFF_S`, so the account's "no" is not hammered every fifteen minutes.
   5. CS-1231 SLICE C - THE WORKER STARTS ONLY THROUGH THE FLEET KIT'S SPAWN
@@ -44,6 +48,11 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      root, `--dangerously-skip-permissions` the one extra flag. Sonnet unless a
      live note is an ORDER, FIX or RULING or sits past the listing cap; effort
      low only when every live note is an acknowledgement (`_kit_inputs`).
+     CS-1272 H: the spawn carries a NON-EMPTY label (`run_label`, the first
+     live note's basename) and a kind (`run_kind`: "triage" on the kit's
+     triage shape, sonnet at effort low, else "inbox"), so the kit's usage
+     line under `ops/loop/control/` attributes the run. While the worker runs,
+     the fire's progress file carries its item-13 checklist (`_Progress`).
   7. The exit is classified and one JSON line is appended to a gitignored log
      under `data/`. The line holds outcome words, counts and durations ONLY -
      no path, no env value, no message body, no worker output (CLAUDE.md rules
@@ -82,7 +91,9 @@ _REPO_ROOT = _HERE.parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from ops.fleet_kit import fleet_checklist  # noqa: E402
 from ops.fleet_kit import fleet_headless as kit  # noqa: E402
+from ops.fleet_kit import fleet_inbox as inbox_kit  # noqa: E402
 from ops.loop import headless_route, inbox_status, inbox_surface, winmutex  # noqa: E402
 
 #: The control directory and the sentinels that stop this responder.
@@ -142,10 +153,44 @@ LOG_KEYS: Final = frozenset(
     {"ts", "outcome", "exit", "unread", "returncode", "duration_s", "reason"}
 )
 
-#: The sender position in a channel note's name, and the damping markers.
-_SENDER_RE: Final = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}-from-([A-Za-z0-9]+)-")
+#: The CANONICAL sender position - the first ``-from-<CODE>-`` straight after
+#: the timestamp - and the damping markers. CS-1272 H2: this shape is read for
+#: ONE rule only, MAIN's exemption from the terminal rule, because an exemption
+#: is a reason TO start a run and so is read narrowly. Every reason NOT to start
+#: one (our own note, a retired sibling) reads the sender exactly as the kit
+#: does (`kit.note_sender`), which also finds a date-only, a sender-leading and
+#: an upper-cased ``FROM`` name - shapes this anchored pattern never matched.
+_CANONICAL_SENDER_RE: Final = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}-from-([A-Za-z0-9]+)-")
 _TERMINAL_RE: Final = re.compile(r"terminal|no-?reply", re.IGNORECASE)
 _EXEMPT_SENDER: Final = "MAIN"
+
+#: RETIRED SIBLINGS by channel code (CS-1272 H, MAIN 0230 item 4: "Never spawn
+#: a headless run for LL"). A note FROM one never starts a run, and a pass that
+#: listed one records a named skip.
+# MIRRORED, NOT IMPORTED, from the RETIRED_SIBLINGS table of the outbound
+# sender in tools/ (slice R). The A6 reach fence in
+# tests/ops/test_lane_inbox_surface.py reddens on any lane module that reaches
+# the sender, by import or even by spelling its name in a string, so this
+# module may not read that table; tests/ops/test_inbox_responder.py pins this
+# set to that table's values, so the two cannot part.
+RETIRED_SENDERS: Final = frozenset({"LL"})
+
+#: The run kinds the kit's usage line carries (FLEET-KIT v8/v9 `kind`).
+KIND_INBOX: Final = "inbox"
+KIND_TRIAGE: Final = "triage"
+
+#: The spawn label when no live note is NAMED - every live item sits past the
+#: listing cap, so no basename can be given. Authored, never empty, and not in
+#: the channel-note shape, so it can never pass for a note's name.
+UNLISTED_LABEL: Final = "inbox-unlisted-past-cap"
+
+#: The fire's progress file stem: `ops/loop/control/progress/<stem>.json`
+#: (FLEET item 12), written through the kit's `write_progress`, carrying the
+#: fire's item-13 checklist (FLEET item 13 d) built by the kit's checklist.
+PROGRESS_TASK: Final = "inbox-responder"
+
+#: The checklist row id of the items past the listing cap, which have no name.
+MORE_ROW_ID: Final = "MORE"
 
 _RENAME_ATTEMPTS: Final = 5
 _RENAME_PAUSE_S: Final = 0.2
@@ -181,6 +226,8 @@ def kit_spawn(
     *,
     writes_code: bool,
     effort: str,
+    note: str,
+    kind: str,
     before_start: Callable[[], None],
     **seams: Any,
 ) -> tuple[dict[str, Any], str]:
@@ -195,6 +242,8 @@ def kit_spawn(
         prompt: The worker prompt, sent on stdin.
         writes_code: Whether the kit picks the code model.
         effort: The kit effort word.
+        note: The run's label in the kit's usage line (`run_label`), never empty.
+        kind: The run's kind in the kit's usage line (`run_kind`).
         before_start: Called once, just before the process starts.
         **seams: Passed to ``kit.spawn`` untouched. ``run`` is wrapped, not
             replaced, so the worker's own output can be classified.
@@ -220,6 +269,8 @@ def kit_spawn(
             root,
             inbox_status.CODE,
             prompt,
+            note=note,
+            kind=kind,
             writes_code=writes_code,
             effort=effort,
             bare=False,
@@ -296,23 +347,57 @@ def _halted_since(control: Path, fallback: float) -> float:
     return min(stamps) if stamps else fallback
 
 
+def _canonical_sender(name: str) -> str | None:
+    """The canonical sender position: the first ``-from-<CODE>-`` after the timestamp."""
+    match = _CANONICAL_SENDER_RE.match(name)
+    return match.group(1) if match else None
+
+
+def _kit_sender(name: str) -> str | None:
+    """Who a note is FROM, decided by the kit's own `note_sender` on the name, or None.
+
+    The one sender rule the kit applies to every spawn (CS-1272 H2): the first
+    ``from-<CODE>-`` anywhere in the basename, ``from`` in any case, the code
+    upper-case. Never reimplemented here, so the two cannot part.
+    """
+    found = kit.note_sender(name)
+    return found if isinstance(found, str) else None
+
+
+def retired_sender(name: str) -> str | None:
+    """The retired sibling's code (from `RETIRED_SENDERS`) a note is FROM, or None.
+
+    Every name the kit attributes to a retired sibling is retired (CS-1272 H2).
+    The name is ALSO read upper-cased, so a lower-case code is retired too - a
+    skip may be wider than the kit's attribution, never narrower. The code
+    returned is the table's own spelling, so nothing the sender wrote reaches a
+    log line.
+    """
+    readings = {_kit_sender(name), _kit_sender(name.upper())}
+    folded = {found.casefold() for found in readings if found is not None}
+    return next((code for code in sorted(RETIRED_SENDERS) if code.casefold() in folded), None)
+
+
 def is_damped(name: str) -> bool:
     """Loop damping (MAIN 0845 section 3, kept by 0855): a note that never starts a run.
 
-    Two rules, read from the NAME only - a body scan damps the very orders that
+    Three rules, read from the NAME only - a body scan damps the very orders that
     quote the rule (LL 0958 measured it on MAIN 0845 and 0855):
 
-      1. OUR OWN note: the sender position, the first ``-from-<CODE>-`` after
-         the timestamp, is this tree's code. A later ``-from-CS-`` quoted inside
+      1. OUR OWN note: the sender the kit reads (`_kit_sender`, the first
+         ``from-<CODE>-`` in the name) is this tree's code - the note the kit's
+         own `should_skip` calls "self". A later ``-from-CS-`` quoted inside
          another sender's name is not ours.
-      2. A note marked TERMINAL or no-reply, case-insensitive. MAIN's notes are
-         exempt, because an order needs acting on whether or not it wants a reply.
+      2. A note FROM a retired sibling (`RETIRED_SENDERS`, MAIN 0230 item 4),
+         whatever its class - a retired tree's ORDER or FIX buys no run either.
+      3. A note marked TERMINAL or no-reply, case-insensitive. MAIN's notes are
+         exempt, because an order needs acting on whether or not it wants a
+         reply - read from the CANONICAL sender position only, so a departure
+         from the kit's damping is never wider than the canonical shape.
     """
-    match = _SENDER_RE.match(name)
-    sender = match.group(1) if match else None
-    if sender == inbox_status.CODE:
+    if _kit_sender(name) == inbox_status.CODE or retired_sender(name) is not None:
         return True
-    if sender == _EXEMPT_SENDER:
+    if _canonical_sender(name) == _EXEMPT_SENDER:
         return False
     return _TERMINAL_RE.search(name) is not None
 
@@ -338,12 +423,100 @@ def _kit_inputs(fact: Mapping[str, Any], unread: int) -> tuple[bool, str]:
     it is assumed heavy rather than guessed light.
     """
     listed = _listed(fact)
-    live = [name for name in listed if not is_damped(name)]
+    live = _live(fact)
     unseen = unread > len(listed)
     writes_code = unseen or any(str(kit.note_class(name)) in kit.NEVER_DAMP for name in live)
     efforts = {str(kit.pick_effort(name)) for name in live}
     effort = "low" if live and not unseen and efforts == {"low"} else "medium"
     return writes_code, effort
+
+
+def _live(fact: Mapping[str, Any]) -> list[str]:
+    """The listed names that may start a run, in the listing's own order."""
+    return [name for name in _listed(fact) if not is_damped(name)]
+
+
+def run_label(fact: Mapping[str, Any]) -> str:
+    """The kit's ``note`` label for a pass: the first live note's basename. Never empty.
+
+    The basename is taken the way the kit takes it (``Path(name).name``). With
+    every live item past the listing cap no name is known, so the label is
+    `UNLISTED_LABEL`.
+    """
+    for name in _live(fact):
+        base = Path(name).name
+        if base.strip():
+            return base
+    return UNLISTED_LABEL
+
+
+def run_kind(writes_code: bool, effort: str) -> str:
+    """The kit's ``kind`` for a pass: triage on the kit's triage shape, else inbox.
+
+    "triage" exactly when the pass runs on the model and effort the kit's inbox
+    module names for a triage look (`TRIAGE_SPAWN`: sonnet, effort low) - a
+    pass over acknowledgements only. Every other pass, an ORDER, a question or
+    an item past the cap, is an ordinary "inbox" run.
+    """
+    triage = (inbox_kit.TRIAGE_SPAWN["model"], inbox_kit.TRIAGE_SPAWN["effort"])
+    return KIND_TRIAGE if (kit.pick_model(writes_code), effort) == triage else KIND_INBOX
+
+
+def checklist_rows(
+    fact: Mapping[str, Any], unread: int, state: str, eta_s: int | None = None
+) -> list[dict[str, Any]]:
+    """The fire's item-13 checklist: one row per live note, then one for the unnamed rest.
+
+    Every row is built by the kit's own `fleet_checklist.item`, so a row the kit
+    would refuse is refused here first. A display is capped at the kit's task
+    length already; the "Handle " prefix is cut back to fit, never wrapped.
+    """
+    rows = [
+        fleet_checklist.item(
+            f"N{index}", f"Handle {Path(name).name}"[: fleet_checklist.TASK_MAX], state, eta_s
+        )
+        for index, name in enumerate(_live(fact), start=1)
+    ]
+    past = unread - len(_listed(fact))
+    if past > 0:
+        noun = "item" if past == 1 else "items"
+        task = f"Handle {past} unread {noun} past the listing cap"
+        rows.append(fleet_checklist.item(MORE_ROW_ID, task, state, eta_s))
+    return rows[: fleet_checklist.ROWS_MAX]
+
+
+class _Progress:
+    """The fire's item-12 progress file with its item-13 checklist. Display only; never raises.
+
+    Written only once a worker is about to start: a pass that starts nothing
+    leaves no progress file, as a quiet channel leaves no log line. A finished
+    fire has no remaining task; a failed one keeps its rows, marked failed.
+    """
+
+    def __init__(self, root: Path, rows: Callable[[str, int | None], list[dict[str, Any]]]) -> None:
+        self.root = root
+        self.rows = rows
+        self.fired = False
+
+    def _write(
+        self, pct: int, step: str, eta_s: int | None, status: str, rows: list[dict[str, Any]]
+    ) -> None:
+        with contextlib.suppress(OSError, ValueError):
+            kit.write_progress(self.root, PROGRESS_TASK, pct, step, eta_s, status, checklist=rows)
+
+    def running(self, eta_s: int | None) -> None:
+        self.fired = True
+        with contextlib.suppress(ValueError):
+            self._write(0, "Running Session", eta_s, "running", self.rows("running", eta_s))
+
+    def ended(self, outcome: str) -> None:
+        if not self.fired:
+            return
+        if outcome == headless_route.OUTCOME_OK:
+            self._write(100, outcome, 0, "done", [])
+            return
+        with contextlib.suppress(ValueError):
+            self._write(0, outcome, 0, "failed", self.rows("failed", None))
 
 
 class _Board:
@@ -492,6 +665,12 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         _log(root, now(), "unmeasured", EXIT_UNMEASURED)
         board.show("refused", "Halted")
         return EXIT_UNMEASURED
+    retired = sorted({found for found in map(retired_sender, _listed(fact)) if found})
+    if retired:
+        # THE NAMED SKIP (MAIN 0230 item 4). The retired sibling's notes start
+        # nothing; the line names the sibling from the table, never the note.
+        reason = "retired sibling " + ",".join(retired)
+        _log(root, now(), "retired_skip", EXIT_OK, unread=unread, reason=reason)
     if _worthy(fact, unread) == 0:
         board.idle()
         return EXIT_OK
@@ -508,9 +687,11 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         board.show("refused", "Halted")
         return EXIT_SPAWN_FAILED
     writes_code, effort = _kit_inputs(fact, unread)
+    progress = _Progress(root, lambda state, eta: checklist_rows(fact, unread, state, eta))
 
     def before_start() -> None:
         board.show("running", "Running Session", started=started)
+        progress.running(board.clock.eta("Running Session"))
 
     try:
         line, output = spawn(
@@ -518,6 +699,8 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
             prompt,
             writes_code=writes_code,
             effort=effort,
+            note=run_label(fact),
+            kind=run_kind(writes_code, effort),
             before_start=before_start,
             **seams,
         )
@@ -527,9 +710,12 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         finished = now()
         board.ended(finished, finished - started)
         _log(root, finished, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
+        progress.ended("spawn_failed")
         board.show("refused", "Halted")
         return EXIT_SPAWN_FAILED
-    return _finished(root, now, board, line, output, unread, started)
+    code, outcome = _finished(root, now, board, line, output, unread, started)
+    progress.ended(outcome)
+    return code
 
 
 def is_lock_busy(refused: Exception) -> bool:
@@ -570,14 +756,14 @@ def _finished(
     output: str,
     unread: int,
     started: float,
-) -> int:
-    """Classify the finished run, publish and log it."""
+) -> tuple[int, str]:
+    """Classify the finished run, publish and log it. Returns the exit code and outcome word."""
     finished = now()
     board.ended(finished, finished - started)
     if line.get("error") == "timeout":
         _log(root, finished, "timeout", EXIT_TIMEOUT, unread=unread)
         board.idle()
-        return EXIT_TIMEOUT
+        return EXIT_TIMEOUT, "timeout"
     rc = line.get("rc")
     returncode = rc if type(rc) is int else None
     outcome = headless_route.classify_exit(returncode, output)
@@ -597,7 +783,7 @@ def _finished(
         board.show("backoff", "Backing Off", started=finished)
     else:
         board.idle()
-    return code
+    return code, outcome
 
 
 def main(argv: Sequence[str] | None = None) -> int:

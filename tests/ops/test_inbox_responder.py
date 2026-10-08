@@ -35,6 +35,7 @@ ROOT: Final = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from ops.fleet_kit import fleet_checklist  # noqa: E402
 from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from ops.loop import inbox_responder, inbox_status, winmutex  # noqa: E402
 
@@ -54,6 +55,29 @@ USAGE_LIMIT_OUTPUT: Final = (
     f'"total_cost_usd":0,"result":"{BODY_MARKER}"}}'
 )
 OK_OUTPUT: Final = f'{{"type":"result","is_error":false,"result":"{BODY_MARKER}"}}'
+
+#: Channel-note names in the channel's own shape. LW and EW are live sibling
+#: codes; LL is the sibling MAIN 0230 retired; none is a world name.
+LIVE_NOTE: Final = "2026-10-03-0708-from-LW-question-x.md"
+ACK_NOTE: Final = "2026-10-03-0708-from-LW-INFORMATION-ACK-x.md"
+ORDER_NOTE: Final = "2026-10-03-0915-from-MAIN-ORDER-x.md"
+OWN_NOTE: Final = "2026-10-03-0935-from-CS-x.md"
+RETIRED_NOTE: Final = "2026-10-05-0100-from-LL-question-x.md"
+RETIRED_FIX: Final = "2026-10-05-0100-from-LL-FIX-x.md"
+
+#: CS-1272 H2: the name shapes the kit's `note_sender` attributes to a sender
+#: although they are not the canonical ``<stamp>-from-<CODE>-`` shape - a date
+#: with no time, the sender leading the name, and an upper-cased ``FROM``. All
+#: three were measured among the live LL notes, and the last one started a run.
+#: The leading shape is assembled from ``SHAPE_STAMP`` so this source never
+#: spells a sibling code glued to a dated name (tests/test_unregistered_lift.py).
+SHAPE_STAMP: Final = "2026-09-07-2035"
+RETIRED_DATE_ONLY: Final = "2026-09-12-from-LL-x.md"
+RETIRED_LEADING: Final = f"from-LL-{SHAPE_STAMP}-x.md"
+RETIRED_UPPER_FROM: Final = "2026-10-05-0230-FROM-LL-ORDER-x.md"
+OWN_DATE_ONLY: Final = "2026-09-12-from-CS-x.md"
+OWN_LEADING: Final = f"from-CS-{SHAPE_STAMP}-x.md"
+OWN_UPPER_FROM: Final = "2026-10-05-0230-FROM-CS-ANSWER-x.md"
 
 
 class RunSpy:
@@ -308,11 +332,18 @@ def test_the_default_spawn_declares_floors_in_hooks_and_never_bare(
         return real(*args, **kwargs)
 
     monkeypatch.setattr(kit, "spawn", recording)
-    _run(tree, RunSpy())
+    _run(tree, RunSpy(), surface=_named(LIVE_NOTE))
     picked = [
-        (k.get("floors_in_hooks"), k.get("bare"), k.get("stdin"), k.get("note", "")) for k in seen
+        (
+            k.get("floors_in_hooks"),
+            k.get("bare"),
+            k.get("stdin"),
+            k.get("note", ""),
+            k.get("kind"),
+        )
+        for k in seen
     ]
-    assert picked == [(True, False, True, "")]
+    assert picked == [(True, False, True, LIVE_NOTE, "inbox")]
 
 
 def test_the_kit_refuses_bare_when_floors_live_in_hooks() -> None:
@@ -328,7 +359,7 @@ def test_the_kit_refuses_bare_when_floors_live_in_hooks() -> None:
         (("2026-10-03-0708-from-LW-question-x.md",), 0, "sonnet", "medium"),
         (("2026-10-03-0915-from-MAIN-ORDER-x.md",), 0, "opus", "medium"),
         (
-            ("2026-10-03-0915-from-LL-FIX-x.md", "2026-10-03-0708-from-LW-ACK-x.md"),
+            ("2026-10-03-0915-from-EW-FIX-x.md", "2026-10-03-0708-from-LW-ACK-x.md"),
             0,
             "opus",
             "medium",
@@ -687,3 +718,334 @@ def test_the_status_file_carries_no_path_or_env_value(tree: Path) -> None:
     raw = (_control(tree) / inbox_status.STATUS_NAME).read_bytes().decode("ascii")
     clean = (ENV_MARKER in raw, BODY_MARKER in raw, tree.name in raw, "\\" in raw, "/" in raw)
     assert clean == (False, False, False, False, False)
+
+
+# --- CS-1272 H: the spawn's label and kind, and the retired sibling -------------
+
+
+def _usage_lines(tree: Path) -> list[dict[str, Any]]:
+    """The kit's own usage log under the synthetic tree, one dict per line."""
+    path = tree / kit.USAGE_REL
+    if not path.is_file():
+        return []
+    text = path.read_bytes().decode("ascii")
+    return [json.loads(line) for line in text.splitlines() if line]
+
+
+def _stamped(line: dict[str, Any]) -> bool:
+    """Whether the line carries an ISO timestamp the kit wrote."""
+    ts = line.get("ts")
+    if not isinstance(ts, str):
+        return False
+    try:
+        datetime.fromisoformat(ts)
+    except ValueError:
+        return False
+    return True
+
+
+@pytest.mark.parametrize(
+    ("names", "more", "label", "kind"),
+    [
+        ((LIVE_NOTE,), 0, LIVE_NOTE, "inbox"),
+        ((ACK_NOTE,), 0, ACK_NOTE, "triage"),
+        ((ORDER_NOTE, ACK_NOTE), 0, ORDER_NOTE, "inbox"),
+        ((OWN_NOTE, ACK_NOTE), 0, ACK_NOTE, "triage"),
+        ((ACK_NOTE,), 1, ACK_NOTE, "inbox"),
+    ],
+    ids=["question", "ack-only", "order-first", "own-note-never-labels", "past-the-cap"],
+)
+def test_the_usage_line_carries_ts_kind_and_label(
+    tree: Path, names: tuple[str, ...], more: int, label: str, kind: str
+) -> None:
+    """FLEET-KIT v9: the kit's usage line names the note and the kind of the run.
+
+    The CLI is the stub runner; nothing starts. The kind is "triage" exactly
+    when the pass runs on the kit's triage shape (sonnet, effort low), and
+    "inbox" for every other pass.
+    """
+    _run(tree, RunSpy(), surface=_named(*names, more=more))
+    lines = _usage_lines(tree)
+    picked = [(line.get("note"), line.get("kind")) for line in lines]
+    assert (picked, [_stamped(line) for line in lines]) == ([(label, kind)], [True])
+
+
+def test_a_pass_with_no_listed_live_note_still_carries_a_label(tree: Path) -> None:
+    """Every unread item past the listing cap: unnamed, so the label is authored, never empty."""
+    _run(tree, RunSpy(), surface=_surface(2))
+    lines = _usage_lines(tree)
+    note = lines[0].get("note") if lines else None
+    labelled = isinstance(note, str) and bool(note.strip())
+    not_a_note = labelled and "-from-" not in str(note)
+    kinds = [line.get("kind") for line in lines]
+    assert (len(lines), labelled, not_a_note, kinds) == (1, True, True, ["inbox"])
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        (RETIRED_NOTE,),
+        (RETIRED_FIX,),
+        ("2026-10-05-0100-from-ll-0-question-x.md",),
+        (RETIRED_NOTE, OWN_NOTE),
+        (RETIRED_DATE_ONLY,),
+        (RETIRED_LEADING,),
+        (RETIRED_UPPER_FROM,),
+    ],
+    ids=[
+        "question",
+        "fix",
+        "lower-case-code",
+        "beside-own-note",
+        "date-only",
+        "sender-leading",
+        "upper-case-from",
+    ],
+)
+def test_a_note_from_the_retired_sibling_never_spawns_and_is_skipped_by_name(
+    tree: Path, names: tuple[str, ...]
+) -> None:
+    """MAIN 0230 item 4: never spawn a headless run for LL. The skip is recorded BY NAME."""
+    spy = RunSpy()
+    code = _run(tree, spy, surface=_named(*names))
+    named = [(r.get("outcome"), r.get("reason")) for r in _log_records(tree)]
+    assert (code, len(spy.calls), named, _status(tree).get("state")) == (
+        0,
+        0,
+        [("retired_skip", "retired sibling LL")],
+        "idle",
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [RETIRED_NOTE, RETIRED_FIX, RETIRED_DATE_ONLY, RETIRED_LEADING, RETIRED_UPPER_FROM],
+    ids=["question", "fix", "date-only", "sender-leading", "upper-case-from"],
+)
+def test_every_name_the_kit_attributes_to_the_retired_sibling_is_retired(name: str) -> None:
+    """CS-1272 H2: the responder decides the sender the SAME way the kit does.
+
+    The kit's `note_sender` is the anti-vacuity half: each shape IS a note the
+    kit says LL wrote, so a skip that misses it is a run the kit starts on LL.
+    """
+    decided = (
+        kit.note_sender(name),
+        inbox_responder.retired_sender(name),
+        inbox_responder.is_damped(name),
+    )
+    assert decided == ("LL", "LL", True)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [OWN_NOTE, OWN_DATE_ONLY, OWN_LEADING, OWN_UPPER_FROM],
+    ids=["canonical", "date-only", "sender-leading", "upper-case-from"],
+)
+def test_every_name_the_kit_calls_our_own_never_spawns(tree: Path, name: str) -> None:
+    """CS-1272 H2 sibling: own-note detection shared the anchored sender read.
+
+    The kit's `should_skip` answers "self" for each shape, so the responder
+    damps each one as its own and starts nothing.
+    """
+    spy = RunSpy()
+    code = _run(tree, spy, surface=_named(name))
+    decided = (kit.should_skip(name, inbox_status.CODE), inbox_responder.is_damped(name))
+    assert (decided, code, len(spy.calls)) == (("self", True), 0, 0)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["2026-10-05-0230-from-LW-re-from-LL-x.md", "2026-10-05-0230-from-LW-re-from-CS-x.md"],
+    ids=["retired-quoted", "own-quoted"],
+)
+def test_a_code_quoted_after_the_sender_is_not_the_sender(name: str) -> None:
+    """The FIRST sender position decides, for the kit and the responder alike."""
+    decided = (
+        kit.note_sender(name),
+        inbox_responder.retired_sender(name),
+        inbox_responder.is_damped(name),
+    )
+    assert decided == ("LW", None, False)
+
+
+@pytest.mark.parametrize(
+    ("name", "damped"),
+    [
+        ("2026-10-03-0855-from-MAIN-CORRECTION-TERMINAL-x.md", False),
+        ("2026-09-12-from-MAIN-CORRECTION-TERMINAL-x.md", True),
+        (f"from-MAIN-{SHAPE_STAMP}-TERMINAL-x.md", True),
+    ],
+    ids=["canonical", "date-only", "sender-leading"],
+)
+def test_the_main_exemption_reads_the_canonical_shape_only(name: str, damped: bool) -> None:
+    """CS-1272 H2 sibling, kept narrow on purpose: an exemption is a reason TO spawn.
+
+    The kit attributes all three to MAIN and damps all three as terminal. The
+    responder departs from the kit for MAIN's canonical names only; a damping
+    reason reads the kit's wide attribution, an exemption from damping the
+    narrow canonical one, so both directions fail closed.
+    """
+    decided = (kit.note_sender(name), kit.should_skip(name, inbox_status.CODE))
+    assert (decided, inbox_responder.is_damped(name)) == (("MAIN", "terminal"), damped)
+
+
+def test_a_retired_note_beside_live_mail_neither_labels_nor_weighs_the_run(tree: Path) -> None:
+    """The live note starts the run; the retired FIX names it no label and buys it no model."""
+    spy = RunSpy()
+    code = _run(tree, spy, surface=_named(RETIRED_FIX, ACK_NOTE))
+    argv = spy.calls[0]["argv"] if spy.calls else []
+    picked = [(line.get("note"), line.get("kind")) for line in _usage_lines(tree)]
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (
+        code,
+        len(spy.calls),
+        _flag_value(argv, "--model"),
+        _flag_value(argv, "--effort"),
+        picked,
+        outcomes,
+    ) == (0, 1, "sonnet", "low", [(ACK_NOTE, "triage")], ["retired_skip", "ok"])
+
+
+def prompt_fences(text: str) -> tuple[bool, bool, bool]:
+    """The CS-1272 H fences in the worker prompt's text, each read to a bool."""
+    retired = "retired sibling" in text and "LL" in text and "Delete nothing of it" in text
+    kit_named = "ops/fleet_kit/fleet_headless.py" in text
+    stale_route = "except through `ops/loop/headless_route.py`" in text
+    return retired, kit_named, stale_route
+
+
+def test_the_worker_prompt_carries_the_retired_sibling_and_kit_fences() -> None:
+    """The worker skips the retired sibling by name, and names the kit as the one start path."""
+    text = (ROOT / inbox_responder.PROMPT_RELPATH).read_bytes().decode("ascii")
+    assert prompt_fences(text) == (True, True, False)
+
+
+def test_the_retired_senders_mirror_the_outbound_senders_table() -> None:
+    """The responder's mirror and the sender's table cannot part.
+
+    MIRRORED, not imported: the A6 reach fence in
+    tests/ops/test_lane_inbox_surface.py reddens on any lane module that
+    reaches the sender, even by naming it. So this arm reads the sender's table
+    as a literal from its source, and pins the mirror to its values.
+    """
+    import ast  # noqa: PLC0415 - this arm only
+
+    source = (ROOT / "tools" / "outbound_send.py").read_bytes().decode("ascii")
+    tables = [
+        ast.literal_eval(node.value)
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "RETIRED_SIBLINGS"
+        and node.value is not None
+    ]
+    codes = [frozenset(table.values()) for table in tables]
+    assert codes == [inbox_responder.RETIRED_SENDERS]
+
+
+# --- CS-1272 H: the item-13 checklist on the headless path ---------------------
+
+
+def _progress_files(tree: Path) -> list[Path]:
+    return sorted((tree / kit.PROGRESS_REL).glob("*.json"))
+
+
+def _progress(tree: Path) -> dict[str, Any]:
+    files = _progress_files(tree)
+    if len(files) != 1:
+        return {"files": len(files)}
+    parsed: dict[str, Any] = json.loads(files[0].read_bytes().decode("ascii"))
+    return parsed
+
+
+def _row(row_id: str, task: str, state: str | None) -> dict[str, Any]:
+    """One checklist row as the kit's own validator shapes it."""
+    shaped: dict[str, Any] = fleet_checklist.item(row_id, task, state)
+    return shaped
+
+
+class _ProgressPeek(RunSpy):
+    """The runner, reading the progress file at the moment the worker would start."""
+
+    def __init__(self, tree: Path, returncode: int = 0, output: str = OK_OUTPUT) -> None:
+        """Peek into ``tree``; answer like `RunSpy`."""
+        super().__init__(returncode, output)
+        self.tree = tree
+        self.during: list[dict[str, Any]] = []
+
+    def __call__(self, argv: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+        """Record the progress file, then answer the canned exit."""
+        self.during.append(_progress(self.tree))
+        return super().__call__(argv, **kw)
+
+
+def test_a_fire_writes_its_item_13_checklist_while_the_worker_runs(tree: Path) -> None:
+    """FLEET items 12 and 13: the fire's progress file carries the remaining tasks."""
+    peek = _ProgressPeek(tree)
+    _run(tree, peek, surface=_named(OWN_NOTE, LIVE_NOTE, ORDER_NOTE, more=1))
+    seen = peek.during[0] if peek.during else {}
+    assert (len(peek.during), seen.get("status"), seen.get("checklist")) == (
+        1,
+        "running",
+        [
+            _row("N1", f"Handle {LIVE_NOTE}", "running"),
+            _row("N2", f"Handle {ORDER_NOTE}", "running"),
+            _row("MORE", "Handle 1 unread item past the listing cap", "running"),
+        ],
+    )
+
+
+def test_a_finished_fire_leaves_no_remaining_task(tree: Path) -> None:
+    _run(tree, RunSpy(), surface=_named(LIVE_NOTE))
+    progress = _progress(tree)
+    assert (progress.get("status"), progress.get("pct"), progress.get("checklist")) == (
+        "done",
+        100,
+        [],
+    )
+
+
+def test_a_failed_fire_keeps_its_tasks_marked_failed(tree: Path) -> None:
+    _run(tree, RunSpy(returncode=1, output="crash"), surface=_named(LIVE_NOTE))
+    progress = _progress(tree)
+    assert (progress.get("status"), progress.get("checklist")) == (
+        "failed",
+        [_row("N1", f"Handle {LIVE_NOTE}", "failed")],
+    )
+
+
+@pytest.mark.parametrize(
+    ("names", "seams"),
+    [
+        ((), {}),
+        ((RETIRED_NOTE,), {}),
+        ((LIVE_NOTE,), {"url_source": lambda: None}),
+    ],
+    ids=["quiet", "retired-only", "kit-refused"],
+)
+def test_a_pass_that_starts_nothing_writes_no_checklist(
+    tree: Path, names: tuple[str, ...], seams: dict[str, Any]
+) -> None:
+    spy = RunSpy()
+    _run(tree, spy, surface=_named(*names), seams=_seams(spy, **seams))
+    assert (len(spy.calls), _progress_files(tree)) == (0, [])
+
+
+def test_a_note_name_at_the_display_cap_still_makes_a_one_line_task(tree: Path) -> None:
+    """A display is capped at 120 chars, and so is the kit's task, so the row is cut to fit."""
+    long_name = "2026-10-03-0708-from-LW-" + "x" * 93 + ".md"
+    peek = _ProgressPeek(tree)
+    _run(tree, peek, surface=_named(long_name))
+    rows = peek.during[0].get("checklist", []) if peek.during else []
+    tasks = [str(row.get("task")) for row in rows]
+    fits = [len(task) <= fleet_checklist.TASK_MAX and task.startswith("Handle ") for task in tasks]
+    assert (len(long_name), fits) == (120, [True])
+
+
+def test_the_progress_file_carries_no_path_env_value_or_body(tree: Path) -> None:
+    _run(tree, RunSpy(), surface=_named(LIVE_NOTE))
+    _run(tree, RunSpy(returncode=1, output=BODY_MARKER), surface=_named(LIVE_NOTE))
+    files = _progress_files(tree)
+    raw = files[0].read_bytes().decode("ascii") if files else ""
+    clean = (ENV_MARKER in raw, BODY_MARKER in raw, tree.name in raw, "\\" in raw, "/" in raw)
+    assert (len(files), clean) == (1, (False, False, False, False, False))

@@ -93,9 +93,12 @@ rule cannot catch by itself.
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final
@@ -356,10 +359,46 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
     ),
 }
 
+# VENDORED_EXEMPTIONS - the SECOND exemption kind (CS-1272, FLEET item 11).
+#
+# A file vendored byte-for-byte from MAIN's fleet kit is not this tree's to edit:
+# FLEET-COMMON item 11 says a defect is reported to MAIN, which ships a new kit
+# version to every tree at once. The kit is NOT frozen under CLAUDE.md section
+# 6, so unfrozen_exemptions() rightly refuses such a row in EXEMPTIONS above, and
+# its row lives here instead. What justifies it is that the bytes are MAIN's, so
+# the row is excused ONLY while the file's sha256 equals its pin in
+# ops/fleet_kit/MANIFEST.json - kit_pin_problems() below, asserted per row by
+# tests/test_toolpath.py. A local edit moves the digest and reddens that arm, so
+# a row here can never excuse a site this tree wrote. Same key shape, the same
+# EXACTLY-one-live-site rule in stale_exemptions(), the same reason minimum, and
+# counted against the same hand-typed budget below.
+VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
+    ("ops/fleet_kit/fleet_done.py", "_git", "subprocess.run", "git", 1): (
+        "VENDORED byte-for-byte under FLEET item 11 (CS-1272) - ops/fleet_kit/fleet_done.py"
+        " is FLEET-KIT version 9's /done marker and the project Stop hook, pinned by"
+        " sha256 in ops/fleet_kit/MANIFEST.json and never edited here. The defect is"
+        " present and unrepaired: _git() spawns git by bare name, so the git the Stop"
+        " hook runs can be supplied by the directory it stands in. Owed to MAIN as a"
+        " kit version 10 report - BACKLOG.md carries the line."
+    ),
+}
+
+#: Both kinds, as the census consults them. A key in both would collapse here
+#: and be counted once - tests/test_toolpath.py asserts the two are disjoint.
+ALL_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
+    **EXEMPTIONS,
+    **VENDORED_EXEMPTIONS,
+}
+
+#: Where the kit is vendored, and the kit's own pin of every file it ships.
+KIT_DIR: Final = "ops/fleet_kit/"
+KIT_MANIFEST: Final = REPO_ROOT / "ops" / "fleet_kit" / "MANIFEST.json"
+
 # THE BUDGET, TYPED BY HAND. Never len(EXEMPTIONS) - that tautology is satisfied
 # in both directions by construction, spends nothing, and leaves no number in a
-# diff to argue with.
-EXEMPTION_BUDGET: Final = 4
+# diff to argue with. It counts BOTH kinds: the four FROZEN rows plus, since
+# CS-1272, the one VENDORED row.
+EXEMPTION_BUDGET: Final = 5
 
 
 @dataclass(frozen=True)
@@ -942,7 +981,9 @@ def scan_repository() -> list[ProgramSite]:
 
 def findings(sites: list[ProgramSite]) -> list[ProgramSite]:
     """The graded findings that no exemption excuses."""
-    return [site for site in sites if site.graded and site.finding and site.key not in EXEMPTIONS]
+    return [
+        site for site in sites if site.graded and site.finding and site.key not in ALL_EXEMPTIONS
+    ]
 
 
 def ungraded(sites: list[ProgramSite]) -> list[ProgramSite]:
@@ -978,7 +1019,7 @@ def stale_exemptions(sites: list[ProgramSite]) -> list[str]:
         if site.finding:
             live.setdefault(site.key, []).append(site)
     problems: list[str] = []
-    for key in sorted(EXEMPTIONS):
+    for key in sorted(ALL_EXEMPTIONS):
         path, function, callee, program, ordinal = key
         matched = live.get(key, [])
         if not matched:
@@ -1086,6 +1127,43 @@ def unfrozen_exemptions(pinned: dict[tuple[str, str, str, str, int], str]) -> li
         for path in sorted({path for (path, _f, _c, _p, _o) in pinned})
         if not is_frozen(path, entries)
     ]
+
+
+def kit_pins() -> dict[str, str]:
+    """The kit MANIFEST's sha256 pins, keyed by repo-relative posix path."""
+    files = json.loads(KIT_MANIFEST.read_bytes().decode("ascii"))["files"]
+    return {KIT_DIR + name: digest for name, digest in files.items()}
+
+
+def kit_pin_problems(paths: Iterable[str], pins: dict[str, str] | None = None) -> list[str]:
+    """Paths excused as VENDORED that are not the kit's bytes.
+
+    The VENDORED justification, checked against the kit's own pin rather than
+    asserted in prose - the same move unfrozen_exemptions() makes for FROZEN.
+    Working-tree bytes are hashed, as the kit's own conformance check does.
+
+    Args:
+        paths: Repo-relative posix paths excused as vendored kit files.
+        pins: The pins to check against; the kit MANIFEST's when omitted.
+
+    Returns:
+        One line per path the MANIFEST does not pin, or whose bytes differ.
+    """
+    pinned = kit_pins() if pins is None else pins
+    problems: list[str] = []
+    for path in sorted(set(paths)):
+        want = pinned.get(path)
+        if want is None:
+            problems.append(f"{path} is excused as VENDORED and the kit MANIFEST does not pin it")
+            continue
+        target = REPO_ROOT / path
+        have = hashlib.sha256(target.read_bytes()).hexdigest() if target.is_file() else None
+        if have != want:
+            problems.append(
+                f"{path} is excused as VENDORED and its bytes no longer equal the kit"
+                " MANIFEST pin - a local edit voids the exemption (FLEET item 11)"
+            )
+    return problems
 
 
 def exemption_budget_problems(

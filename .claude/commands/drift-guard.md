@@ -53,8 +53,9 @@ a guard you did not run.
       interpreter is invoked as `python`, NEVER `py -3` (BOOTSTRAP.md section 2.5).
 - [ ] **Port allocation.** `config/ports.json` matches the reserved band 8920-8939 with base
       port 8920, and the docs agree with the config rather than restating it. The band must
-      stay disjoint from every neighbour: RM 8770-8789, LL 8810-8819, DS 8860-8879,
-      RC 8888-8895 plus 2999, LW 8900-8919. Check that against their registries in SOURCE,
+      stay disjoint from every neighbour: RM 8770-8789, RSC 8790-8809, LL 8810-8819
+      (RETIRED - still reserved, never freed or reallocated), DS 8860-8879, RC 8888-8895
+      plus 2999, LW 8900-8919, EW 8940-8959. Check that against their registries in SOURCE,
       never by probing - an idle GUI makes its own block read as free.
 - [ ] **Cross-references.** Every doc link resolves; no orphaned markdown.
 - [ ] **Recall coverage.** `embedded == active` in the semantic store. A "healthy" status is

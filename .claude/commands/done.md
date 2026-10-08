@@ -10,7 +10,7 @@ each one in the ledger and the hand-off file - NOT in chat. FLEET-COMMON item 5:
 chat output of this ritual is the line `Done ritual complete, safe to clear`, or the
 failure that stopped it. Items: $ARGUMENTS
 
-FLEET-COMMON item 13 (kit v7, `CLAUDE.md` section 2.3.1): this ritual runs UNPROMPTED once
+FLEET-COMMON item 13 (kit v9, `CLAUDE.md` section 2.3.1): this ritual runs UNPROMPTED once
 no checklist task remains - no operator prompt, no question.
 
 ## 0. Preconditions
@@ -123,11 +123,12 @@ other context. WHAT GOES IN IT:
       `ROADMAP.md`, `WAKEUP_NOTES.md`, `docs/ARCHITECTURE.md`.
 - [ ] Any external condition being waited on.
 
-**HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. LL, LW and
-RC each carry `<CODE>-NEXT-SESSION.txt` at their repo root with a Desktop shortcut pointing
-at it, and this repository was the one that did not. A fence in a transcript is gone the
-moment the session is cleared; a file survives, and the shortcut means the operator opens
-it without finding the session it came from.
+**HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. LL (retired
+since MAIN 0230), LW and RC each carried `<CODE>-NEXT-SESSION.txt` at their repo root with a
+Desktop shortcut pointing at it, and this repository was the one that did not; the fleet kit
+now requires one in every tree, EW included (FLEET item 5). A fence in a transcript is gone
+the moment the session is cleared; a file survives, and the shortcut means the operator
+opens it without finding the session it came from.
 
 - [ ] WRITE the whole prompt to `CS-NEXT-SESSION.txt` at the REPO ROOT, overwriting it.
       Whole file, every time - never appended to, never patched. It is a snapshot of one
@@ -153,7 +154,23 @@ it without finding the session it came from.
 Write into `CS-NEXT-SESSION.txt`: the suite command and exit code, the counts observed this
 run, the commit SHA, the push result, the drift guard exit codes, the CI status you READ,
 and anything you could not verify - labelled unverified rather than rounded up to done.
-Then commit it, and print exactly one chat line and nothing else:
+Then commit it, and READ BACK the commit (HEAD and a clean `git status`) and the hand-off
+file on disk.
+
+## 10. The /done marker - the LAST act (FLEET-COMMON item 15, kit v9)
+
+- [ ] Only after the commit and the hand-off are READ BACK, run
+      `python ops/fleet_kit/fleet_done.py mark --session <n> --status done`, where `<n>` is
+      THIS session's number - the one its checklist printed, not the `n+1` the new
+      hand-off carries. The kit reads HEAD and hashes the hand-off itself and writes the
+      gitignored `ops/loop/control/session_done.json`; its Stop hook then titles the tab.
+      Nothing is committed after it - a later commit or hand-off edit voids the marker.
+- [ ] If a step failed and stopped the ritual, still call it, naming that step:
+      `python ops/fleet_kit/fleet_done.py mark --session <n> --status failed --reason "<step>"`
+- [ ] A mark that exits non-zero or prints `failed` after a `done` call is itself the
+      failure that stopped the ritual.
+
+Then print exactly one chat line and nothing else:
 
     Done ritual complete, safe to clear
 

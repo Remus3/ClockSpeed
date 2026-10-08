@@ -425,3 +425,32 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   met) - held here by `CLAUDE.md` section 7 "Product before process", which no MAIN note
   reverses - TRIGGER: one of them blocks a product item or turns a suite red, or the
   operator's own words.
+
+## Session 129 residuals - filed 2026-10-08 under product before process
+
+- The CS-1272 project Stop hook runs `ops/fleet_kit/fleet_done.py`, which
+  `tests/test_hook_env_echo.py` never scans - its hook population roots at `tools/` only - and
+  the cwd-independence arms of `tests/test_pretooluse_gate.py` cover PreToolUse and PostToolUse,
+  not the Stop command - the residual the 2026-10-08 FLEET-KIT v9 grant in `docs/LEDGER.md`
+  owes here - TRIGGER: the Stop command or `fleet_done.py` changes, or either guard goes red.
+- Vendored FLEET-KIT v9 sites excused under CS-1272 rather than patched (FLEET item 11), owed
+  to MAIN as a kit v10 report: `ops/fleet_kit/fleet_done.py` `_git()` spawns git by bare name
+  (`tests/toolpath_guard.py` VENDORED_EXEMPTIONS); `ops/fleet_kit/fleet_headless.py` renders a
+  caught SlotTimeout whole and `ops/fleet_kit/fleet_watch.py` a caught OSError whole
+  (`tests/test_exception_rendering.py` VENDORED_RENDER_RESIDUALS); `fleet_watch.py`
+  `_first_line(exc)` carries a whole exception's first line, possibly a path, into the
+  `alert()` payload - TRIGGER: MAIN ships kit v10; delete each row its bytes repair.
+- `tests/ops/test_headless_spawn_paths.py` `direct_starts()` misses
+  `npx @anthropic-ai/claude-code`, `cmd /c claude`, `Start-Process -FilePath claude`, nohup and
+  timeout prefixes, `start /b` and aliases, and never scans `.ts`, `.yml`, `.vbs` or
+  `package.json` - no such start exists today - TRIGGER: a start path in one of those shapes
+  or file types lands, or that scan is next touched.
+- `tests/ops/test_shared_slots.py`'s formatter-exclusion check matches a kit entry to the kit
+  MANIFEST by file NAME only, never by full path or hash - TRIGGER: two kit files share a
+  basename, or a tree-owned module takes a vendored file's name.
+- The CS-1272 Stop hook's worst case - three 15 s git calls in `ops/fleet_kit/fleet_done.py` -
+  just exceeds its 45 s timeout, so the harness kills it non-blocking and nothing is written -
+  TRIGGER: a Stop run measured killed, or kit v10 changes `fleet_done.py`.
+- `ops/loop/inbox_responder.py` logs a `retired_skip` line on every pass while a retired
+  sibling's note stays unread - TRIGGER: that log grows enough to matter, or the note's owner
+  is ruled to acknowledge it.

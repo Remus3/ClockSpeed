@@ -283,6 +283,16 @@ EXIT_INCOMPLETE = 4
 #: The inbox directory name every participant on this channel uses.
 INBOX = "moon_sync_inbox"
 
+#: RETIRED SIBLINGS, keyed by the casefolded project directory name and mapped
+#: to the channel code a refusal names (CS-1272 R, MAIN 0230: LL retired, EW
+#: joins). A retired sibling's tree and inbox STAY on disk - delete nothing - so
+#: containment alone would keep delivering to it. A `--to` at one is REFUSED by
+#: name; `--all` never discovers one. Matched on the RESOLVED directory's own
+#: name, never on the typed spelling, so case, a trailing dot or a link at
+#: another name cannot route around it. A MARK, not a removal: nothing here
+#: frees the retired tree's port block or forgets its history.
+RETIRED_SIBLINGS: dict[str, str] = {"lanternlight": "LL"}
+
 #: Where the delivery record lives by default. Under `data/`, which is
 #: gitignored, because it is a generated runtime artifact and not a tracked
 #: fact. The environment override exists so a test can redirect it out of the
@@ -432,6 +442,11 @@ def inbox_holders(root: Path) -> list[str]:
     back by this repository's own watcher as inbound mail from itself - unread
     count up by one, sender ourselves, and nothing on the channel to show for
     it.
+
+    A RETIRED SIBLING IS EXCLUDED TOO (CS-1272 R). Its inbox stays on disk, so
+    discovery would keep finding it; refusing it in :func:`resolve_targets`
+    instead would refuse every broadcast for as long as that directory exists.
+    Keyed on the RESOLVED name, so a link at another name is left out as well.
     """
     if not root.is_dir():
         return []
@@ -440,7 +455,10 @@ def inbox_holders(root: Path) -> list[str]:
         found.extend(
             entry.name
             for entry in sorted(root.iterdir())
-            if entry.is_dir() and (entry / INBOX).is_dir() and entry.resolve() != REPO_ROOT
+            if entry.is_dir()
+            and (entry / INBOX).is_dir()
+            and entry.resolve() != REPO_ROOT
+            and entry.resolve().name.casefold() not in RETIRED_SIBLINGS
         )
     return found
 
@@ -1109,6 +1127,16 @@ def resolve_targets(
             problems.append(
                 "%s does not resolve to a project directly inside the "
                 "channel root, or resolves to this repository itself%s" % (which, locate)
+            )
+            continue
+        retired_code = RETIRED_SIBLINGS.get(project.name.casefold())
+        if retired_code is not None:
+            # CS-1272 R - NAMED BY ITS CHANNEL CODE AND THE ORDINAL, never by
+            # the spelling typed or the path it resolved to. The resolved name
+            # is not graded yet, and the code says everything the operator needs.
+            problems.append(
+                "%s is a retired sibling (%s) - notes are no longer addressed to it%s"
+                % (which, retired_code, locate)
             )
             continue
         if inbox in claimed:

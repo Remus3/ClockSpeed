@@ -12,7 +12,11 @@ under "2026-09-25 - CS-815 - FROZEN-FILE GRANT":
 
     carriage     condition 1 - the probe and the marked ladder are byte-identical
                  to .githooks/pre-commit, and the wrapper names no absolute path
-    settings     the two command values are the only bytes that moved
+    settings     the two command values are the only bytes that moved, beside
+                 the one Stop array CS-1272's grant adds (docs/LEDGER.md,
+                 "2026-10-08 - FLEET-KIT v9", part 2), pinned whole; no
+                 settings file carries a display key; .gitignore ignores the
+                 /done marker and its seen file
     pass-through condition 2 - stdin byte-identical, exit status, stdout and
                  stderr identical to the DIRECT invocation, a deny still denies,
                  and the PreToolUse leg runs pythonw beside the winner
@@ -79,6 +83,8 @@ PRE_COMMIT: Final = REPO_ROOT / ".githooks" / "pre-commit"
 GATE: Final = REPO_ROOT / "tools" / "pretooluse_gate.py"
 LINT: Final = REPO_ROOT / "tools" / "edit_lint_check.py"
 SETTINGS: Final = REPO_ROOT / ".claude" / "settings.json"
+LOCAL_SETTINGS: Final = REPO_ROOT / ".claude" / "settings.local.json"
+GITIGNORE: Final = REPO_ROOT / ".gitignore"
 
 PRE: Final = "pretooluse"
 POST: Final = "posttooluse"
@@ -106,6 +112,52 @@ NEW_PRE_COMMAND: Final = (
 NEW_POST_COMMAND: Final = (
     'sh "$CLAUDE_PROJECT_DIR/tools/claude_hook.sh" posttooluse'
     ' "$CLAUDE_PROJECT_DIR/tools/edit_lint_check.py" --files "$CLAUDE_FILE_PATHS"'
+)
+
+# CS-1272 - THE SECOND GRANT, docs/LEDGER.md "2026-10-08 - FLEET-KIT v9", part 2:
+# exactly one "Stop" array after "PostToolUse" inside "hooks", holding one
+# command hook that runs the vendored kit's stop-hook. NOT routed through
+# tools/claude_hook.sh - its leg check refuses an unknown leg, so every Stop
+# would exit 1. `|| true` and the anchor are conditions of the grant.
+STOP_COMMAND: Final = 'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_done.py" stop-hook || true'
+# The grant bounds the timeout to 20..45 s. 45 is chosen: fleet_done.py's git
+# calls carry a 15 s timeout each, two on the marker-present path (30 s plus
+# interpreter start), and the commit body records the measurement.
+STOP_TIMEOUT_FLOOR: Final = 20
+STOP_TIMEOUT_CEILING: Final = 45
+STOP_TIMEOUT: Final = 45
+# The inserted bytes, whole. The settings arm REMOVES them before taking the
+# base digest, so that one digest still pins every byte outside the grant.
+STOP_INSERTION: Final = (
+    ',\n    "Stop": [\n      {\n        "hooks": [\n          {\n'
+    '            "type": "command",\n'
+    f'            "command": {json.dumps(STOP_COMMAND)},\n'
+    f'            "timeout": {STOP_TIMEOUT}\n'
+    "          }\n        ]\n      }\n    ]"
+).encode("ascii")
+HOOK_EVENT_ORDER: Final = ["PreToolUse", "PostToolUse", "Stop"]
+
+# Claude Code DISPLAY keys. FLEET item 15 (kit v9): display keys live only in
+# the two account settings, from `ops/fleet_kit/cli_display.json`, and "a tree
+# sets none" - so no settings file here may set one, top level or nested.
+DISPLAY_KEYS: Final = frozenset(
+    {
+        "statusLine",
+        "subagentStatusLine",
+        "theme",
+        "spinnerVerbs",
+        "spinnerTipsEnabled",
+        "prefersReducedMotion",
+        "outputStyle",
+        "showTurnDuration",
+    }
+)
+
+# The kit's /done marker and its Stop-hook dedupe file (fleet_done.py
+# MARKER_REL and SEEN_REL). Runtime state, LOCAL-ONLY, named explicitly.
+DONE_MARKER_IGNORES: Final = (
+    "/ops/loop/control/session_done.json",
+    "/ops/loop/control/session_done.seen",
 )
 
 # The wrapper's one report line. Its fixed prefix, and the shape every refusal
@@ -373,8 +425,15 @@ def test_settings_routes_both_hooks_through_the_wrapper() -> None:
 
 
 def test_settings_moved_no_byte_but_the_two_command_values() -> None:
-    """Swap the two values back and the file is the grant's base, by digest."""
+    """Remove the Stop array, swap the two values back: the grant's base, by digest.
+
+    CS-1272's grant adds one Stop array. Its bytes are pinned WHOLE by
+    STOP_INSERTION and removed here, so the CS-815 base digest still pins every
+    byte outside the two grants; where the array sits is the order arm's.
+    """
     raw = SETTINGS.read_bytes()
+    assert raw.count(STOP_INSERTION) == 1, "the granted Stop array is not present exactly once"
+    raw = raw.replace(STOP_INSERTION, b"")
     for new in (NEW_PRE_COMMAND, NEW_POST_COMMAND):
         encoded = json.dumps(new).encode("ascii")
         assert raw.count(encoded) == 1, "a new command value is not present exactly once"
@@ -385,9 +444,69 @@ def test_settings_moved_no_byte_but_the_two_command_values() -> None:
     )
     digest = hashlib.sha256(restored).hexdigest()
     assert digest == BASE_SETTINGS_SHA256, (
-        "a byte outside the two command values moved - the schema key, attribution, "
-        "includeCoAuthoredBy, env, permissions, a matcher or a timeout"
+        "a byte outside the two command values and the Stop array moved - the schema "
+        "key, attribution, includeCoAuthoredBy, env, permissions, a matcher or a timeout"
     )
+
+
+def test_settings_wires_exactly_the_granted_stop_hook() -> None:
+    """CS-1272: one Stop entry after PostToolUse, one command hook, the granted shape."""
+    config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
+    assert list(config["hooks"]) == HOOK_EVENT_ORDER, "the hook events are not in grant order"
+    entries = config["hooks"]["Stop"]
+    assert [sorted(entry) for entry in entries] == [["hooks"]], "Stop is not one matcher-less entry"
+    hooks = entries[0]["hooks"]
+    assert [sorted(hook) for hook in hooks] == [["command", "timeout", "type"]], (
+        "the Stop entry does not hold exactly one hook of type, command and timeout"
+    )
+    hook = hooks[0]
+    assert hook["type"] == "command"
+    assert hook["command"] == STOP_COMMAND, "the Stop command is not the granted string"
+    assert hook["command"].startswith('python "$CLAUDE_PROJECT_DIR/'), "the anchor was dropped"
+    assert hook["command"].endswith(" || true"), "the grant's || true was dropped"
+    timeout = hook["timeout"]
+    assert isinstance(timeout, int), "the Stop timeout is not an integer"
+    assert STOP_TIMEOUT_FLOOR <= timeout <= STOP_TIMEOUT_CEILING, "outside the granted 20..45 s"
+    assert timeout == settings_timeout("Stop") == STOP_TIMEOUT
+
+
+def display_key_paths(node: object, where: str = "") -> list[str]:
+    """Every display key at any depth, as a key path. Never a value (rule 13)."""
+    found: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            here = f"{where}/{key}"
+            if key in DISPLAY_KEYS:
+                found.append(here)
+            found.extend(display_key_paths(value, here))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            found.extend(display_key_paths(value, f"{where}[{index}]"))
+    return found
+
+
+def test_the_display_key_walk_finds_a_top_level_and_a_nested_key() -> None:
+    """The positive control: a walk that saw nothing would pass the arm below vacuously."""
+    planted = {"theme": 1, "hooks": {"Stop": [{"hooks": [{"statusLine": {}}]}]}}
+    assert display_key_paths(planted) == ["/theme", "/hooks/Stop[0]/hooks[0]/statusLine"]
+
+
+def test_no_settings_file_carries_a_display_key() -> None:
+    """Both settings files, the gitignored local one whenever it is present."""
+    assert SETTINGS.is_file(), "the tracked settings file is missing"
+    present = [path for path in (SETTINGS, LOCAL_SETTINGS) if path.is_file()]
+    found = {
+        path.name: display_key_paths(json.loads(path.read_bytes().decode("utf-8")))
+        for path in present
+    }
+    assert all(paths == [] for paths in found.values()), f"display keys set: {found}"
+
+
+def test_gitignore_carries_the_done_marker_and_its_seen_file() -> None:
+    """The kit's /done marker and its dedupe file are LOCAL-ONLY runtime state."""
+    lines = GITIGNORE.read_bytes().decode("ascii").splitlines()
+    missing = [entry for entry in DONE_MARKER_IGNORES if lines.count(entry) != 1]
+    assert missing == [], f".gitignore does not carry exactly once: {missing}"
 
 
 def settings_timeout(event: str) -> int:

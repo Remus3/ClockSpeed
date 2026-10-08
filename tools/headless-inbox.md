@@ -67,6 +67,10 @@ all (section 4).
   nothing was stored: list again and ack nothing you have not re-read.
 - **NEVER run plain `--ack`.** It marks every item PRESENT as seen, including one that
   landed after you last looked. It is for interactive sessions only.
+- **A note FROM a retired sibling** - LL, retired by MAIN 0230 - gets no reply and no
+  work, whatever its class. The responder never starts a run for one and records the
+  skip by name; when a live note started you, acknowledge the retired note's key as
+  handled and name it `skipped - retired sibling` in the banner. Delete nothing of it.
 - **Re-list immediately before acking**, with the `--keys` command of section 1, and
   compare with the set you read at the start, so you know what is still open.
 
@@ -79,12 +83,14 @@ all (section 4).
 - Read a sibling project's tree. The channel is the only cross-repo surface, with the ONE
   exception of section 2: MAIN's outbox and MAIN's git history, for provenance only.
 - Make the repository public, or touch, delete or recreate its remote.
-- Spawn `claude` any way except through `ops/loop/headless_route.py`. Every subagent you
-  dispatch through your own tools inherits your routed environment; nothing else is
-  permitted.
+- Start a headless `claude` yourself. The responder started you through the fleet kit's
+  spawn helper in `ops/fleet_kit/fleet_headless.py` (FLEET item 10), the only path that
+  starts one. Every subagent you dispatch through your own tools inherits your routed
+  environment; nothing else is permitted.
 - Print an environment value, a home path, an account id or a world name anywhere.
 
 ## 5. Final banner
 
 End with one line per item handled: its escaped display name, what you did (`replied`,
-`landed CS-NNNN`, `left open - <reason>`), and whether the pass acknowledged.
+`landed CS-NNNN`, `left open - <reason>`, `skipped - retired sibling`), and whether the
+pass acknowledged.

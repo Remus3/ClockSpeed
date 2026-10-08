@@ -21,10 +21,10 @@ MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and 
 **Precedence - where this file and the FLEET-COMMON block differ, `CLAUDE.md` governs
 this tree.** Specifically: (a) section 2.3's rule never to poll a background task in
 one-line turns governs over FLEET item 12's periodic check - wait for the completion
-notification; (b) section 2.3.1 is kit v7 item 13 as this tree applies it, and governs
-over the embedded block's item 3 "no inline checklists" until the v7 block is re-embedded; (c) FLEET item 10 has one stated
-exception until CS-1231 slice C finishes - `ops/loop/run_lane.ps1` still starts `claude`
-directly; `ops/loop/inbox_responder.py` goes through the kit's spawn; (d) FLEET item 5's rule that
+notification; (b) retired at kit v9, whose item 13 carries the checklist section 2.3.1
+applies; (c) FLEET item 10 has one stated exception until CS-1231 slice C finishes -
+`ops/loop/run_lane.ps1` still starts `claude` directly; `ops/loop/inbox_responder.py`
+goes through the kit's spawn; (d) FLEET item 5's rule that
 every do-not-re-litigate entry states what would reverse it is met by the *Reversed by:*
 clause on each section 7 entry. Section 6.1's repository-public/remote safety floor holds
 whatever FLEET item 1 says.
@@ -51,16 +51,18 @@ edit. Tree-specific rules go BELOW this block, never inside it.
    passwords and OAuth grants wait for the operator, batched into one ask.
 2. CHAT IS THE OPERATOR'S CONSOLE - QUIET. Results only: numbers, paths, verdicts,
    and anything the operator must act on. No narration, no plans, no recaps, no
-   session reviews. Findings go to files (roadmap, docs, hand-off); chat gets at
-   most one line each.
+   session reviews; the item-13 checklist is the one sanctioned task list.
+   Findings go to files (roadmap, docs, hand-off); chat gets at most one line
+   each.
 3. AT-A-GLANCE STATUS COMES FROM BACKGROUND WORK, NOT FROM CHAT. Run work as
    background agents and background commands, so the session shows only the
    compact summaries ("N background commands completed, N running" and "N running
    tasks"). Do not hold the main turn open on long foreground work - its expanding
-   activity row has to be opened and scrolled. No inline checklists, step lists or
-   task-list dumps. When the operator asks for status: done, left, +added,
-   -retracted, one short line each. Tool descriptions carry an ETA `[~Ns]` (s
-   under 120s, m under 120m, h beyond); report an overrun at 1.5x, kill at 3x.
+   activity row has to be opened and scrolled. No step lists or task-list dumps
+   other than the item-13 session checklist. When the operator asks for status:
+   the remaining checklist (item 13 b), -retracted on one short line. Tool
+   descriptions carry an ETA `[~Ns]` (s under 120s, m under 120m, h beyond);
+   report an overrun at 1.5x, kill at 3x.
 4. COMMIT everything, batched and coherent. Push per this repo's own policy. Never
    commit in another repo's tree. No suggested-task chips: do it or file it.
 5. HAND-OFF: `<CODE>-NEXT-SESSION.txt` at the repo root (with its Desktop
@@ -69,7 +71,8 @@ edit. Tree-specific rules go BELOW this block, never inside it.
    first. /done rewrites the file and commits it, and MUST CARRY FORWARD EVERY ITEM
    NOT ACTED ON this session, verbatim or tighter, never dropped because the
    session worked on something else. Never print the hand-off or a next-session
-   prompt into chat. /done's ONLY chat output is the line
+   prompt into chat. /done runs UNPROMPTED once no checklist task remains
+   (item 13 c). /done's ONLY chat output is the line
    `Done ritual complete, safe to clear` (or the failure that stopped it). The
    operator types only "continue", "/done" or "/clear" between sessions. A recorded
    act names what was READ BACK after it, never what was run. Every
@@ -106,6 +109,54 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     so the main session can see percent, time to completion and status mid-run
     instead of waiting for 0-to-100 at the end. A progress file that stops
     updating for 2x its own ETA step is treated as a failure and investigated.
+13. SESSION CHECKLIST (operator order 2026-10-05; it supersedes item 3's
+    no-checklist rule for this one purpose). Every session kind: interactive,
+    headless lane, loop tick, inbox responder. Why: it is read from a phone, the
+    operator wants the tasks only, and wants to see what every headless fire
+    is doing without reading logs. Kit helper: `fleet_checklist.py`.
+    a. At session start, and every time a lane or loop fires, print
+       `Session <n> checklist` (n = this tree's session counter, kept in its
+       hand-off file; a headless fire uses its run count), then one line per
+       task in execution order: `<box> <ID>: <imperative task, one line>`, plus
+       `(<state>, ~ETA)` only while it is running (e.g. `builder running,
+       ~4m`). <box> is U+2610. The last line is `<box> /done`. At most ONE
+       trailing sentence, and only for an ordering constraint ("X waits until
+       Y lands because ..."). NO summary, review, what-went-wrong or history.
+    b. After every 4 or more completed tasks, print the REMAINING tasks only,
+       newly added ones marked `+` before the ID. Never list completed ones.
+    c. When no task remains, run /done automatically, without a prompt.
+    d. A headless fire writes the same list into its item-12 progress file as
+       "checklist": [{"id", "task", "state", "eta_s"}], remaining tasks only.
+       A lane writes `progress/lane-<i>.json` (i = its lane-lock index) in the
+       MAIN checkout, never in its worktree, so the lane widget reads one named
+       file per live lane and shows the lane name, then its remaining items.
+14. INBOX COST (operator order 2026-10-05). It changes COST, never AUTONOMY: the
+    inbox is read and acted on AUTOMATICALLY every tick, unattended, with no
+    operator prompt, ever. Why: about 60 percent of second-account spend was
+    inbox chatter between trees, not build work. Kit helper: `fleet_inbox.py`.
+    a. Inbox handling folds into this tree's existing lane / loop tick, which
+       reads the inbox on every fire. No separate high-frequency responder
+       where a lane loop exists; a tree without one keeps one responder.
+    b. Triage first: `fleet_inbox.classify()` (free), then one sonnet run at
+       effort low only for what it cannot classify. ACK / INFORMATION /
+       TERMINAL / ANSWER notes get a mechanical ack (a ledger line, no note) or
+       no reply. Only ORDER / FIX / RULING escalate to a real work lane.
+    c. At most 6 outbound notes per tree per local day (ORDER / FIX / RULING
+       exempt), counted by `OutboundCap`. Several answers go in ONE note.
+    d. Never answer an answer. No note chain past 2 hops (`HOP: <n>`) without
+       new work.
+    e. Every headless run logs a usage line to
+       `ops/loop/control/headless_usage.jsonl` via the kit, with `kind`
+       build / inbox / triage and a non-empty note label. MAIN reports the
+       weekly build-vs-inbox split in its insights report.
+15. CLI DISPLAY (kit v9; the fleet UI/UX standard ruled 2026-10-07). Display
+    keys live only in the two account settings, from the kit's
+    cli_display.json; a tree sets none. Status surfaces use the kit state
+    vocabulary (tokens.json states). Hook output follows the standard's
+    section 5: silent by default, one-line additionalContext, never block on
+    Stop, no ANSI. /done's last act is `fleet_done.py mark`; its Stop hook is
+    the kit's `fleet_done.py stop-hook`. Kit helpers: fleet_statusline.js,
+    fleet_done.py.
 <!-- FLEET-COMMON END -->
 
 ---
@@ -181,22 +232,12 @@ computes. A layer that reaches past its neighbor is a design bug.
 
 ### 2.2 Tooling map
 
+Every other row lives in `docs/ARCHITECTURE.md` section 6; these two stay because tests
+and gates cite them here.
+
 | Path | Does |
 |---|---|
-| `scripts/install_hooks.py` | Sets `core.hooksPath`, installs `.githooks/`. Idempotent. Fails loudly if it cannot set the path |
-| `scripts/verify_env.py` | Asserts interpreter, toolchain, paths and ports. Prints found/missing, exits non-zero on a missing hard dependency |
-| `tools/precommit_gate.py` | Character-set gate, secret scan, staged-line lint, syntax check |
-| `tools/edit_lint_check.py` | `PostToolUse` syntax and lint check on an edited file |
-| `tools/drift_guard.py` | Doc and pin drift detection |
-| `tools/doc_budget.py` | File-size budget enforcement |
-| `tools/facts_probe.py` | Live-state fact set. Run BY HAND from `/drift-guard` and `/sync-docs`; NOT a hook |
 | `tools/inbox_watch.py` | Unread `moon_sync_inbox/` items, payloads included. Listing never acknowledges. Wired ONLY in gitignored local settings, so a fresh clone and every worktree run NO watcher - CS-952 |
-| `tools/memory_sync.py` | Mirrors markdown memory into the recall store, idempotent |
-| `tools/provenance_stamp.py` | Stamps each new tracked file into `tools/provenance.tsv`; the manifest arm reddens any file it lacks - CS-1165 |
-| `tools/dashboard_probe.py` | The SCRIPTED answer to "does the dashboard run". Launch, poll, assert a JSON key and a DOM node, one screenshot, exit code decides |
-| `tools/headless-queue.md` | The `queue` lane worker's prompt. TRACKED, because a worktree is a fresh checkout and carries no gitignored file |
-| `ops/loop/queue_loop.py` | The lane driver. Repeats the one-row worker AND owns every wait, so nothing can cancel a run mid-grade |
-| `ops/loop/launch_queue_loop.ps1` | Starts the driver detached. Refuses over a stop sentinel and prints no banner over a no-op |
 | `.githooks/pre-commit`, `commit-msg`, `pre-push` | Tier-0 blocking gates. Authoritative; the Claude hooks are a convenience layer |
 
 **A fresh clone runs zero protection until someone wires it.** The bootstrap order lives in
@@ -227,25 +268,16 @@ the tool-call labels carry the narration.
 terse AND detailed, never restating a tool's output, and every action, tool call and
 dispatch carries an EXPECTED DURATION in its label - the panel shows elapsed only.
 
-**THE CHECKLIST IS THE STATUS FORMAT, NOT PROSE - kit v7 item 13 (MAIN, 2026-10-05).**
-At session start, planned from the hand-off and the roadmap before any work, print
-`Session <n> checklist`, then one line per task in execution order:
-`<box> <ID>: <imperative task, one line> (<state>, ~ETA)` - the parenthesis only while the
-task runs. `<box>` is U+2610; tracked files name it by that text, never the glyph (section
-3 rule 4). The LAST line is `<box> /done`. At most ONE trailing sentence, only when an
-ordering constraint matters. No summary, review or history.
+**THE CHECKLIST IS THE STATUS FORMAT, NOT PROSE - FLEET item 13 states it whole.** This
+tree adds: plan it from the hand-off and the roadmap before any work; `<box>` is U+2610,
+and tracked files name it by that text, never the glyph (section 3 rule 4). Section 6.1
+owns adjudicate-do-not-ask and commit-and-push; keep the remaining context in mind when
+planning `/done`.
 
-After every FOUR OR MORE completed tasks, print ONLY the remaining tasks plus new ones,
-marked `+` before the ID - never a completed one. A status request gets the same
-remaining-only list. When no task remains, `/done` runs UNPROMPTED and its chat output
-stays one line. Section 6.1 owns adjudicate-do-not-ask and commit-and-push; keep the
-remaining context in mind when planning `/done`.
-
-**Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1
-(`.claude/commands/done.md`), and the session-start hand-off read prints the block. The
-headless paths (`ops/loop/inbox_responder.py`, `ops/loop/queue_loop.py`) print nothing
-yet: they, the kit vendoring and the block re-embed land in one commit straight after
-CS-700 S12a - `docs/LEDGER.md`, FLEET-KIT v7 decision C.
+**Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1 and
+its last act is `python ops/fleet_kit/fleet_done.py mark` (`.claude/commands/done.md`);
+the session-start hand-off read prints the block. Kit helper:
+`ops/fleet_kit/fleet_checklist.py`.
 
 ---
 
@@ -282,10 +314,7 @@ domain over:
     environment value - name a variable, never its value. Debug dumps, `env` and
     `set -x` traces, exception context and assertion rendering all count as echo paths.
 
-Rule 4 has a mechanism, not just a preference behind it: Windows PowerShell 5.1
-ANSI-decodes a `.ps1` with no BOM, and a UTF-8 em-dash inside a double-quoted string
-becomes a character the tokenizer treats as a string terminator. One incident made it
-permanent. Use a spaced hyphen ` - ` for a clause break.
+Rule 4 has a mechanism, not just a preference behind it: `CONVENTIONS.md` section 10.
 
 ---
 

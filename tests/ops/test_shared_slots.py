@@ -76,6 +76,7 @@ exemption, never the file a byte), non-negotiables 4 and 9.
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 import tomllib
@@ -105,6 +106,10 @@ BUCKET_RELPATH: Final = ("lw-loop", "slots")
 #: case-insensitively over the whole file. A plain substring would be useless
 #: for the short codes - "ll" occurs inside "will" and "cs" inside "docs" - so
 #: the codes are matched at word boundaries and the names are not.
+#:
+#: ROSTER CHANGE (CS-1272 R, MAIN 0230): "ebonwake" / "ew" JOINED, and
+#: "lanternlight" / "ll" are RETIRED - kept, never removed, because a retired
+#: sibling's name re-entering a file this tree ships is still a leak.
 CARRIER_NAMES: Final = (
     "legion",
     "wallpaper",
@@ -113,21 +118,24 @@ CARRIER_NAMES: Final = (
     "riot",
     "commander",
     "substrate",
-    "lanternlight",
+    "lanternlight",  # retired (MAIN 0230) - kept as a needle
     "clockspeed",
     "ghost toolbox",
     "monster",
     "replaybook",
     "moonbeam",
+    "ebonwake",
 )
-CARRIER_CODES: Final = ("lw", "rsc", "rc", "ss", "ll", "cs")
+CARRIER_CODES: Final = ("lw", "rsc", "rc", "ss", "ll", "cs", "ew")
 
 #: THE CENSUS, MEASURED 2026-09-20 ON ALL FOUR CARRIER DISKS AND TYPED BY HAND.
 #: One permitted hit: the short code "lw" inside ``lw-loop``, the shared bucket
 #: directory name in ``DEFAULT_ROOT``. Every other token is expected to be
 #: absent, and an ABSENT token is recorded as a zero rather than omitted, so
 #: this mapping is an exact statement about the whole vocabulary instead of a
-#: floor over the part of it somebody remembered to list.
+#: floor over the part of it somebody remembered to list. The two EW keys were
+#: measured zero on the C4 bytes on 2026-10-08 (CS-1272 R) and the retired LL
+#: keys stay pinned at zero.
 EXPECTED_NAME_CENSUS: Final = {
     "legion": 0,
     "wallpaper": 0,
@@ -142,12 +150,14 @@ EXPECTED_NAME_CENSUS: Final = {
     "monster": 0,
     "replaybook": 0,
     "moonbeam": 0,
+    "ebonwake": 0,
     "code:lw": 1,
     "code:rsc": 0,
     "code:rc": 0,
     "code:ss": 0,
     "code:ll": 0,
     "code:cs": 0,
+    "code:ew": 0,
 }
 
 #: The first byte value that is NOT 7-bit ASCII. Named rather than written
@@ -357,13 +367,37 @@ def test_no_other_lint_exemption_reaches_the_vendored_file() -> None:
     assert covering == EXPECTED_COVERING_KEYS
 
 
+#: The vendored fleet kit modules the formatter is excluded from, for the same
+#: byte-pin reason as this file: CS-1231 (fleet_headless.py) and CS-1272 (the
+#: six FLEET-KIT version 9 added, each MEASURED "Would reformat"). FLEET item
+#: 11 - a kit file is never edited locally. Exact paths, in pyproject order,
+#: typed by hand rather than derived, so a new entry is a diff to argue with.
+KIT_FORMAT_EXCLUSIONS: Final = [
+    "ops/fleet_kit/fleet_headless.py",
+    "ops/fleet_kit/fleet_checklist.py",
+    "ops/fleet_kit/fleet_done.py",
+    "ops/fleet_kit/fleet_inbox.py",
+    "ops/fleet_kit/fleet_lanes.py",
+    "ops/fleet_kit/fleet_secrets.py",
+    "ops/fleet_kit/fleet_watch.py",
+]
+
+#: The kit's own pin, which names every file it vendors.
+KIT_MANIFEST: Final = REPO_ROOT / "ops" / "fleet_kit" / "MANIFEST.json"
+
+
 def test_the_formatter_exclusion_is_scoped_to_the_one_vendored_path() -> None:
     config = _gate_config()
     excluded = list(config["tool"]["ruff"]["format"].get("exclude", []))
     literal = all(_is_literal_path(key) for key in excluded)
-    # CS-1231 - the one other entry is the vendored fleet kit module, an exact
-    # path excluded for the same byte-pin reason. Exact list, never a pattern.
-    assert (excluded, literal) == ([RELATIVE, "ops/fleet_kit/fleet_headless.py"], True)
+    # The other entries are the vendored fleet kit modules, exact paths
+    # excluded for the same byte-pin reason. Exact list, never a pattern.
+    assert (excluded, literal) == ([RELATIVE, *KIT_FORMAT_EXCLUSIONS], True)
+    # And each kit entry names a file the kit's MANIFEST pins, so the list can
+    # never carry a tree-owned module under the vendored reason.
+    pinned = json.loads(KIT_MANIFEST.read_bytes().decode("ascii"))["files"]
+    unpinned = [path for path in KIT_FORMAT_EXCLUSIONS if path.rsplit("/", 1)[1] not in pinned]
+    assert unpinned == [], f"formatter exclusions the kit MANIFEST does not pin: {unpinned}"
 
 
 def test_the_formatter_exclusion_survives_being_handed_the_path_explicitly() -> None:
