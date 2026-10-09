@@ -312,16 +312,18 @@ ignore = [
 ]
 
 # ops/fleet_kit/fleet_headless.py IS VENDORED BYTE-IDENTICAL FROM MAIN (CS-1231 at
-# FLEET-KIT version 4, CS-1272 at version 9, CS-1282 at version 10) and pinned by
+# FLEET-KIT version 4, CS-1272 at version 9, CS-1282 at version 10, CS-1287 at
+# version 11) and pinned by
 # ops/fleet_kit/MANIFEST.json, which the kit's own conformance() and
 # tests/test_fleet_kit.py both check. Same rule as slots.py above: the guard
 # takes the exemption, never the file. One path, never a glob. MAIN's v4 ORDER
 # note itself says to keep this exclusion.
 #
-# EVERY CODE BELOW WAS MEASURED ON THE VERSION 10 BYTES (`ruff check` of this file
-# with this entry removed, 79 findings), each a property of upstream's code.
+# EVERY CODE BELOW WAS MEASURED ON THE VERSION 11 BYTES (`ruff check` of this file
+# with this entry removed, 81 findings), each a property of upstream's code.
 # Against version 4, D403 arrived at version 9; at version 10 PLR0912 and
-# PLR0915 arrived (_spawn_slotted gained its on_start and stdin_data branches):
+# PLR0915 arrived (_spawn_slotted gained its on_start and stdin_data branches);
+# version 11 (CS-1287) added findings but no new code:
 #   A002     _run takes an `input` keyword, mirroring subprocess.run's own
 #   D102 D103 D107 D205 D209 D403 D415   upstream's docstring layout and coverage
 #   N818     Refused is the kit's exception name and every carrier catches it
@@ -340,7 +342,8 @@ ignore = [
 # THE SIX PYTHON MODULES FLEET-KIT VERSION 9 ADDED (CS-1272), vendored and pinned
 # exactly as fleet_headless.py above is, so the same rule holds: one exact path
 # per entry, never a glob, and every code MEASURED by `ruff check` of the version
-# 10 bytes (CS-1282) under this file's selection, never predicted. Version 10
+# 11 bytes (CS-1287) under this file's selection, never predicted; version 11
+# changed four of the six and added no code to any. Version 10
 # added: PLC0415 to fleet_checklist.py (emit's local `import sys`) and
 # fleet_inbox.py, UP032 to fleet_done.py (its printf-style formatting became
 # .format calls), and ARG002 and PLR0913 to fleet_watch.py (FlatSeenState keeps
@@ -383,7 +386,8 @@ ignore = [
 
 # THE ONE PYTHON MODULE FLEET-KIT VERSION 10 ADDED (CS-1282), the SUBAGENT-FIRST
 # PreToolUse hook, vendored and pinned exactly as the modules above are. MEASURED
-# by `ruff check` of the version 10 bytes under this file's selection, 7 findings:
+# by `ruff check` of the version 11 bytes (CS-1287) under this file's selection,
+# 7 findings, the same as at version 10:
 #   D103     its five public functions carry no docstring of their own
 #   PTH109   project_root's os.getcwd(), upstream's spelling
 #   PTH123   log()'s builtin open() in append mode
@@ -423,7 +427,8 @@ quote-style = "double"
 # FLEET-KIT version 9 added take it too (CS-1272), each MEASURED "Would
 # reformat" on the version 9 bytes, and so does the one version 10 added
 # (CS-1282, fleet_subagent_first.py, MEASURED "Would reformat" on its version 10
-# bytes) - one exact path per entry, never a pattern.
+# bytes) - one exact path per entry, never a pattern. Version 11 (CS-1287) keeps
+# the same eight entries.
 exclude = [
   "ops/loop/slots.py",
   "ops/fleet_kit/fleet_headless.py",
@@ -708,25 +713,27 @@ warn_return_any = false
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_headless.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
-# (CS-1231 at version 4, CS-1272 at version 9, CS-1282 at version 10) and pinned
-# by tests/test_fleet_kit.py. A block of its own for the reason the slots.py
+# (CS-1231 at version 4, CS-1272 at version 9, CS-1282 at version 10, CS-1287 at
+# version 11) and pinned by tests/test_fleet_kit.py. A block of its own for the
+# reason the slots.py
 # block above states about itself.
 #
 # MEASURED on the version 9 bytes, two shapes, all upstream's, both still
-# present at version 10 (the line numbers below are version 10's):
-#   union-attr  fleet_headless.py:666-669 `u.get(...)` in usage_line - `u` is
+# present at version 11 (the line numbers below are version 11's, CS-1287):
+#   union-attr  fleet_headless.py:674-677 `u.get(...)` in usage_line - `u` is
 #               bound by `r.get("usage") if isinstance(r.get("usage"), dict)
 #               else {}`, a dict on every path, but mypy does not narrow a
 #               repeated call so it reads the type as `Any | dict | None` and
 #               reports union-attr on each `.get` (535-538 at version 4).
-#   arg-type    fleet_headless.py:859 `module_from_spec(spec)` - the spec from
+#   arg-type    fleet_headless.py:867 `module_from_spec(spec)` - the spec from
 #               spec_from_file_location is typed `ModuleSpec | None`, and the
 #               helper that loads the sibling fleet_lanes.py does not narrow it;
 #               the same un-narrowed spec is ALSO behind two more union-attr
-#               errors at 861 `spec.loader.exec_module(mod)`, measured at
+#               errors at 869 `spec.loader.exec_module(mod)`, measured at
 #               version 9 by running this module with union-attr re-enabled.
 # MEASURED on the version 10 bytes (CS-1282, bare `python -m mypy`), one more:
-#   assignment  fleet_headless.py:976 and 980 `marked["ok"] = False` / `True` -
+#   assignment  fleet_headless.py:992 and 996 (version 11's lines)
+#               `marked["ok"] = False` / `True` -
 #               `marked = {"ok": None}` is inferred as a dict of None, so a
 #               bool assigned into it contradicts that inference.
 # The bytes are the protocol every fleet tree shares and may not be edited here.
@@ -738,10 +745,11 @@ disable_error_code = ["union-attr", "arg-type", "assignment"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_inbox.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
-# version 9 (CS-1272), re-vendored at version 10 (CS-1282), pinned by
-# tests/test_fleet_kit.py. A block of its own, for the reason the slots.py block
-# states. MEASURED, three errors, one line pair (version 10 adds none):
-#   fleet_inbox.py:451-452 `out["total_usd"] = round(total, 2)` and the
+# version 9 (CS-1272), re-vendored at version 10 (CS-1282) and 11 (CS-1287),
+# pinned by tests/test_fleet_kit.py. A block of its own, for the reason the
+# slots.py block states. MEASURED, three errors, one line pair (versions 10 and
+# 11 add none; the line numbers are version 11's):
+#   fleet_inbox.py:470-471 `out["total_usd"] = round(total, 2)` and the
 #   inbox_share line beside it - `out` is inferred as a dict of per-kind dicts,
 #   so assigning a rounded float (arg-type) or an optional one (assignment)
 #   into it contradicts that inference. Upstream's shape, not a defect here.
@@ -751,13 +759,14 @@ disable_error_code = ["arg-type", "assignment"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_lanes.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
-# version 9 (CS-1272), re-vendored at version 10 (CS-1282, which adds no error),
-# pinned by tests/test_fleet_kit.py. MEASURED at version 9, four errors:
+# version 9 (CS-1272), re-vendored at version 10 (CS-1282) and 11 (CS-1287),
+# neither adding an error, pinned by tests/test_fleet_kit.py. MEASURED at
+# version 9, four errors (the line numbers are version 11's):
 #   unreachable    fleet_lanes.py:142 - proc_started's psutil fallback after a
 #                  win32 branch that returns on every path; mypy judges it on
 #                  this platform's sys.platform, so a Linux run would differ
-#   var-annotated  fleet_lanes.py:364 `counts = {}` and 388 `out = []`
-#   operator       fleet_lanes.py:562 `row["age_s"] > WRITE_GRACE_S` - `row` is
+#   var-annotated  fleet_lanes.py:367 `counts = {}` and 391 `out = []`
+#   operator       fleet_lanes.py:565 `row["age_s"] > WRITE_GRACE_S` - `row` is
 #                  a dict of mixed values, so its age reads as `object`
 # ONLY these three codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_lanes"]
@@ -765,19 +774,19 @@ disable_error_code = ["unreachable", "var-annotated", "operator"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_watch.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
-# version 9 (CS-1272), re-vendored at version 10 (CS-1282), pinned by
-# tests/test_fleet_kit.py. MEASURED at version 9, two errors (line numbers are
-# version 10's):
-#   attr-defined  fleet_watch.py:93 `self._data["sources"].setdefault(...)` -
+# version 9 (CS-1272), re-vendored at version 10 (CS-1282) and 11 (CS-1287),
+# pinned by tests/test_fleet_kit.py. MEASURED at version 9, two errors (line
+# numbers are version 11's):
+#   attr-defined  fleet_watch.py:120 `self._data["sources"].setdefault(...)` -
 #                 `_data` is a dict of mixed values, so its entry reads as
 #                 `object`, which has no setdefault
-#   unreachable   default_pid_alive's POSIX signal-0 tail (fleet_watch.py:206)
+#   unreachable   default_pid_alive's POSIX signal-0 tail (fleet_watch.py:232)
 #                 after a win32 branch that returns on every path
 # MEASURED on the version 10 bytes (CS-1282, bare `python -m mypy`), two more,
 # both in FlatSeenState, whose `_rec` is a dict of mixed values:
-#   call-overload fleet_watch.py:151 `list(self._rec["seen"])` - the entry
+#   call-overload fleet_watch.py:178 `list(self._rec["seen"])` - the entry
 #                 reads as `object`, which no overload of list() accepts
-#   operator      fleet_watch.py:157 `self._rec["seen"] + list(ids)` - the same
+#   operator      fleet_watch.py:184 `self._rec["seen"] + list(ids)` - the same
 #                 `object` as the left operand of +
 # ONLY these four codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_watch"]

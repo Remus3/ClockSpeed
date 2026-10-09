@@ -373,16 +373,7 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
 # a row here can never excuse a site this tree wrote. Same key shape, the same
 # EXACTLY-one-live-site rule in stale_exemptions(), the same reason minimum, and
 # counted against the same hand-typed budget below.
-VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
-    ("ops/fleet_kit/fleet_done.py", "_git", "subprocess.run", "git", 1): (
-        "VENDORED byte-for-byte under FLEET item 11 (CS-1272) - ops/fleet_kit/fleet_done.py"
-        " is FLEET-KIT version 9's /done marker and the project Stop hook, pinned by"
-        " sha256 in ops/fleet_kit/MANIFEST.json and never edited here. The defect is"
-        " present and unrepaired: _git() spawns git by bare name, so the git the Stop"
-        " hook runs can be supplied by the directory it stands in. Owed to MAIN as a"
-        " kit version 10 report - BACKLOG.md carries the line."
-    ),
-}
+VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {}
 
 #: Both kinds, as the census consults them. A key in both would collapse here
 #: and be counted once - tests/test_toolpath.py asserts the two are disjoint.
@@ -397,9 +388,9 @@ KIT_MANIFEST: Final = REPO_ROOT / "ops" / "fleet_kit" / "MANIFEST.json"
 
 # THE BUDGET, TYPED BY HAND. Never len(EXEMPTIONS) - that tautology is satisfied
 # in both directions by construction, spends nothing, and leaves no number in a
-# diff to argue with. It counts BOTH kinds: the four FROZEN rows plus, since
-# CS-1272, the one VENDORED row.
-EXEMPTION_BUDGET: Final = 5
+# diff to argue with. It counts BOTH kinds: the four FROZEN rows; the one
+# VENDORED row CS-1272 added went with kit version 11 under CS-1287.
+EXEMPTION_BUDGET: Final = 4
 
 
 @dataclass(frozen=True)

@@ -431,18 +431,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   sits outside the same env-echo population; it renders only its closed mode word, never an
   env value - TRIGGER: the Stop or SUBAGENT-FIRST command or either kit file changes, or either
   guard goes red.
-- Vendored FLEET-KIT sites excused under CS-1272 rather than patched (FLEET item 11), reported
-  to MAIN for kit v10, which CS-1282 vendored with NONE of them repaired, so they are owed again
-  as a kit v11 report: `ops/fleet_kit/fleet_done.py` `_git()` spawns git by bare name
-  (`tests/toolpath_guard.py` VENDORED_EXEMPTIONS); `ops/fleet_kit/fleet_headless.py` renders a
-  caught SlotTimeout whole and `ops/fleet_kit/fleet_watch.py` a caught OSError whole
-  (`tests/test_exception_rendering.py` VENDORED_RENDER_RESIDUALS); `fleet_watch.py`
-  `_first_line(exc)` carries a whole exception's first line, possibly a path, into the
-  `alert()` payload; `ops/fleet_kit/fleet_lanes.py` `_release` does not clear `holder_pid`
-  (CS-1274 adversary round). Kit v10 adds two siblings of the render shape, held in the same
-  table under CS-1282: `fleet_watch.py` FlatSeenState renders a caught OSError whole, and
-  `fleet_headless.py` main() renders a Refused whole into its JSON line - TRIGGER: MAIN ships
-  kit v11; delete each row its bytes repair.
 - `tests/ops/test_headless_spawn_paths.py` `direct_starts()` misses
   `npx @anthropic-ai/claude-code`, `cmd /c claude`, `Start-Process -FilePath claude`, nohup and
   timeout prefixes, `start /b` and aliases, and never scans `.ts`, `.yml`, `.vbs` or
@@ -451,10 +439,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - `tests/ops/test_shared_slots.py`'s formatter-exclusion check matches a kit entry to the kit
   MANIFEST by file NAME only, never by full path or hash - TRIGGER: two kit files share a
   basename, or a tree-owned module takes a vendored file's name.
-- The CS-1272 Stop hook's worst case - three 15 s git calls in `ops/fleet_kit/fleet_done.py` -
-  just exceeds its 45 s timeout, so the harness kills it non-blocking and nothing is written.
-  Kit v10 changed `fleet_done.py` (CS-1282) but not its git calls or their 15 s timeout, so the
-  worst case stands - TRIGGER: a Stop run measured killed, or a kit version changes those calls.
 - `ops/loop/inbox_responder.py` logs a `retired_skip` line on every pass while a retired
   sibling's note stays unread - TRIGGER: that log grows enough to matter, or the note's owner
   is ruled to acknowledge it.

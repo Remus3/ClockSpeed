@@ -303,7 +303,8 @@ PARAMETER_RENDER_RESIDUALS = {
 # waiver. The LINE is a stable key here and nowhere else: a row holds ONLY
 # while its file is the kit's pinned bytes, so the line cannot move without
 # the pin reddening first (CS-1282 added the line when kit version 10 put a
-# second render of the same shape into each of the two files).
+# second render of the same shape into each of the two files; kit version
+# 11 repaired every row but one under CS-1287).
 # FLEET item 11: a kit file is MAIN's bytes and is never edited here, so the
 # repair is a kit version rather than a local edit; every site is owed to
 # MAIN as a kit report (BACKLOG.md). RECORDED RATHER THAN EXEMPTED for the
@@ -312,34 +313,15 @@ PARAMETER_RENDER_RESIDUALS = {
 # test_every_vendored_render_residual_is_at_its_kit_pin reddens, so a row can
 # never cover a render this tree wrote.
 VENDORED_RENDER_RESIDUALS = {
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 944): (
-        "CS-1272, FLEET item 11 - spawn()'s governor-slot handler renders a "
-        "SlotTimeout whole into Refused. The type is the kit's own (fleet_lanes."
-        "py), and its one raise builds the text from a timeout and a width, so "
-        "the leak is latent rather than live; it is still the shape this sweep "
-        "refuses, so it is held visible here and owed to MAIN as a report. "
-        "Reported to MAIN under CS-1272; NOT FIXED in kit version 10 (CS-1282)."
-    ),
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1069): (
-        "CS-1282, FLEET item 11 - kit version 10's command-line entry, main(), "
-        "renders a Refused whole into its one JSON stdout line. Every Refused "
-        "the kit raises is built from its own fixed words and a class name, "
-        "never a path or an env value, so the leak is latent rather than live; "
-        "held visible here, owed to MAIN as a report."
-    ),
-    ("ops/fleet_kit/fleet_watch.py", "f-string {exc}", 86): (
-        "CS-1272, FLEET item 11 - WatchState.__init__ renders an OSError or "
-        "ValueError whole into WatchStateCorrupt. str() on an OSError appends "
-        "the path it failed on, which can sit under the operator's profile "
-        "(non-negotiable 12). A live defect in MAIN's bytes: reported to MAIN "
-        "under CS-1272 and NOT FIXED in kit version 10 (CS-1282)."
-    ),
-    ("ops/fleet_kit/fleet_watch.py", "f-string {exc}", 141): (
-        "CS-1282, FLEET item 11 - kit version 10's FlatSeenState repeats the "
-        "WatchState render: an OSError or ValueError rendered whole into "
-        "WatchStateCorrupt, the path an OSError carries included "
-        "(non-negotiable 12). A live defect in MAIN's bytes, owed to MAIN as a "
-        "report rather than patched locally."
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1089): (
+        "CS-1282, FLEET item 11 - the kit's command-line entry, main(), renders "
+        "a Refused whole into its one JSON stdout line. Reported to MAIN as kit "
+        "defect 5 and REJECTED in kit version 11's ORDER (CS-1287): with the "
+        "SlotTimeout render fixed, every Refused the kit raises is a kit "
+        "literal, a class name, a number or the caller's own argument echoed "
+        "to that caller, and the reason line is the command line's exit-3 "
+        "contract. Reversed if any Refused message is found rendering text the "
+        "caller did not supply. The line moved 1069 -> 1089 on the v11 bytes."
     ),
 }
 

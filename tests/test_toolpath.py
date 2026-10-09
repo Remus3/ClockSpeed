@@ -583,11 +583,15 @@ def test_every_vendored_exemption_names_a_kit_file_at_its_manifest_pin() -> None
     the frozen table. What justifies them instead is that the file is MAIN's,
     byte for byte - so the moment a local edit moves one byte, the pin breaks
     and this arm reddens, and the row can never excuse a site this tree wrote.
+
+    CS-1287: kit version 11 repaired the one site this table held, so it may be
+    EMPTY - an empty table excuses nothing. The oracle itself stays graded
+    non-vacuously by the meta-test below, in both failure directions.
     """
     paths = [path for (path, _f, _c, _p, _o) in VENDORED_EXEMPTIONS]
     problems = kit_pin_problems(paths)
 
-    assert (len(paths) > 0, problems) == (True, []), "\n".join(problems)
+    assert problems == [], "\n".join(problems)
 
 
 def test_the_kit_pin_check_refuses_an_unpinned_file_and_a_moved_byte() -> None:
