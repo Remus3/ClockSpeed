@@ -143,8 +143,9 @@ HOOK_EVENT_ORDER: Final = ["PreToolUse", "PostToolUse", "Stop"]
 
 # CS-1282 - THE THIRD GRANT, docs/LEDGER.md "2026-10-08 - CS-1282 - FROZEN-FILE
 # GRANT": ONE PreToolUse entry appended AFTER the gate entry, holding one command
-# hook that runs FLEET-KIT v10's SUBAGENT-FIRST hook. Anchored at the project
-# dir and closed by `|| true`, both conditions of the grant: MAIN's literal
+# hook that runs the fleet kit's SUBAGENT-FIRST hook (v10, carried at v11 by
+# CS-1287, whose ORDER rules this anchored `|| true` form conformant). Anchored
+# at the project dir and closed by `|| true`, both conditions of the grant: MAIN's literal
 # relative command exits 2 from a foreign cwd, a harness deny of every guarded
 # call. The kit hook denies by the JSON it prints, never by its exit status.
 GATE_MATCHER: Final = "Bash|PowerShell"

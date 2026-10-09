@@ -267,8 +267,8 @@ shell/NVIDIA Corporation/
 # the same reason as the lines above.
 /ops/loop/control/session_done.json
 /ops/loop/control/session_done.seen
-# FLEET-KIT v10's SUBAGENT-FIRST hook (ops/fleet_kit/fleet_subagent_first.py,
-# CS-1282): its mode file (off, log or deny - absent means deny) and its JSONL
+# The fleet kit's SUBAGENT-FIRST hook (ops/fleet_kit/fleet_subagent_first.py,
+# added at v10 under CS-1282, carried at v11 under CS-1287): its mode file (off, log or deny - absent means deny) and its JSONL
 # decision log, one row per guarded call. Machine-local runtime state that the
 # v10 ORDER says to gitignore; covered by the directory line too, named for the
 # same reason as the lines above.

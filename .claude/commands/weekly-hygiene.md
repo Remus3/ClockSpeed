@@ -7,7 +7,7 @@ argument-hint: [scope, e.g. notes | memory | anomalies | all]
 
 ## WHO RUNS THIS - ONE SUB-AGENT, NEVER THE MAIN SESSION
 
-FLEET-KIT v10 (MAIN's 2026-10-08 08:39 ORDER, item 4; the FLEET-COMMON banner; CS-1282):
+FLEET-KIT v10, carried at v11 (MAIN's 2026-10-08 08:39 ORDER, item 4; the FLEET-COMMON banner; CS-1282, CS-1287):
 the main session does NOT run these steps. It dispatches the WHOLE of this command -
 every step below, with this file's text and the arguments as the prompt - to ONE
 sub-agent (the Agent tool, in the background by default), waits for that sub-agent's

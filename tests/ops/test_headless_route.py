@@ -522,8 +522,8 @@ def test_the_runner_refuses_a_value_outside_the_allowlist(tmp_path: Path, plante
 # ---------------------------------------------------------------------------
 # CS-1282 - the lane worker runs with the kit's SUBAGENT-FIRST hook OFF.
 # ---------------------------------------------------------------------------
-# FLEET-KIT v10's PreToolUse hook denies every guarded tool in a thread with no
-# agent id, and DEFAULTS TO DENY when its mode file is absent. That file is
+# The fleet kit's PreToolUse hook (v10, carried at v11) denies every guarded
+# tool in a thread with no agent id, and DEFAULTS TO DENY when its mode file is absent. That file is
 # gitignored, so a lane worktree never has one, and run_lane.ps1 starts the CLI
 # directly rather than through the kit's spawn (whose child env already turns
 # the hook off) until CS-1231 slice C moves it. A headless lane worker has no

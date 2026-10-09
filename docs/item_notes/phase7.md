@@ -1659,6 +1659,18 @@ in this tree's ONE ANSWER to MAIN 0839, for a kit v11 pass-through or a ruling t
 starting `claude` directly under precedence clause (c), and sets the SUBAGENT-FIRST hook
 off for its worker. CS-1283 (ORDER item 5's `emit()` ruling) rides with this slice.
 
+### Recorded 2026-10-08 by CS-1287
+
+FLEET-KIT v11 (MAIN 2026-10-08 18:40 ORDER, ruling R2) landed under CS-1287 and UNHOLDS
+slice C: the kit's `spawn` command line now passes ONE enumerated flag through,
+`--permission-mode MODE` (MODE in `PERMISSION_MODES`). The target lane start line is
+`python ops/fleet_kit/fleet_headless.py spawn ... --permission-mode bypassPermissions`, in
+place of the direct start with `--dangerously-skip-permissions`. CS-1287 did NOT move
+`ops/loop/run_lane.ps1`, by ruling: the kit's command line prints its own usage line, not
+the CLI's `type: result` object that `ops/loop/queue_loop.py` parses, and its proxy and
+budget checks collide with the lane's own loopback check and budget, so the move needs its
+own slice. Precedence clause (c) of `CLAUDE.md` stands until that slice lands.
+
 ## CS-1234
 
 ### Acceptance

@@ -75,6 +75,60 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1287 - CLOSED: FLEET-KIT v11 adopted, superseding v10 - vendored, triage on the kit's own spawn keywords, six repaired kit exemptions removed
+Verification: `ops/fleet_kit/MANIFEST.json` reads version 11, plus
+`tests/test_fleet_kit.py::test_fleet_kit_conformance` (conformance() empty, KIT_VERSION 11),
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest` (MANIFEST.json sha256 and the
+sixteen digests MAIN's 2026-10-08 18:40 ORDER names) and
+`tests/test_fleet_kit.py::test_every_kit_file_on_disk_is_named_by_the_manifest`; the FLEET-COMMON
+block unchanged from v10 and still byte-identical between the `CLAUDE.md` markers; the triage
+spawn by
+`tests/ops/test_inbox_responder.py::test_the_triage_spawn_takes_the_kits_triage_kwargs_whole_and_never_bare`;
+the exemptions by
+`tests/test_exception_rendering.py::test_every_vendored_render_residual_answers_exactly_one_live_site`,
+`tests/test_toolpath.py::test_the_exemption_budget_holds_in_both_directions` and
+`tests/test_toolpath.py::test_every_vendored_exemption_names_a_kit_file_at_its_manifest_pin`; the
+register by `tests/test_third_party_register.py::test_each_vendored_row_carries_its_upstream_and_its_grant`.
+Landed: all 17 kit files copied byte-for-byte from the provenance-verified bundle and each
+re-hashed equal to its MANIFEST.json digest (six changed: `fleet_done.py`, `fleet_headless.py`,
+`fleet_inbox.py`, `fleet_lanes.py`, `fleet_subagent_first.py`, `fleet_watch.py`; no file added);
+`ops/loop/inbox_responder.py` gains `FLOORS_IN_HOOKS` and a triage pass spawns with
+`fleet_inbox.triage_spawn_kwargs(FLOORS_IN_HOOKS)` splatted whole, every other pass with
+`bare=not FLOORS_IN_HOOKS`, `floors_in_hooks=FLOORS_IN_HOOKS` and `WORKER_TIMEOUT_S`, and
+`run_kind` reads its triage shape from the same call; `THIRD_PARTY.md` kit rows re-read for v11
+(no licence term, LICENSE or NOTICE byte changed, SPDX and holder lines present in all six
+changed modules); `pyproject.toml` ruff and mypy comments re-measured on the v11 bytes (same
+codes, new line numbers, fleet_headless.py 81 findings with its entry removed); the nine
+`.claude/commands/*.md`, `.gitignore`, `tests/test_claude_hook.py` and
+`tests/ops/test_headless_route.py` name the hook as carried at v11.
+Decision, triage timeout: a triage pass now runs under the kit's own triage timeout from
+`TRIAGE_SPAWN`, not `WORKER_TIMEOUT_S`. Alternatives: splat the kit keywords but keep the local
+three-hour ceiling by overriding `timeout`. Why: ORDER item 3 says the kit keywords go in
+"in place of any local override", and a triage pass is acknowledgements only, so it never runs
+the suite that the three-hour ceiling exists for.
+Decision, exemptions: the rows for kit defects 1-4, 6 and 7 are removed, MEASURED on the v11
+bytes rather than taken from the ORDER's list. `tests/test_exception_rendering.py`
+VENDORED_RENDER_RESIDUALS keeps ONE row, `fleet_headless.py` main()'s `str(exc)`, re-keyed by
+line to the v11 bytes - defect 5, which the ORDER REJECTED with a stated reversal: any Refused
+message found rendering text the caller did not supply; the rows for the governor-slot render
+and both `fleet_watch.py` state-file renders found no live site and went, and `_first_line` is
+not flagged at all on v11. `tests/toolpath_guard.py` VENDORED_EXEMPTIONS is now EMPTY, its
+`fleet_done.py` `_git` row stale on v11's absolute git, and EXEMPTION_BUDGET drops 5 to 4;
+`tests/test_toolpath.py`'s non-empty requirement on that table is relaxed to the pin check alone,
+the oracle still graded both ways by its meta-test. Alternatives: keep the rows as historical
+markers. Why: each guard fails a row that answers no live site, so a kept row is a red suite.
+`BACKLOG.md` loses the vendored-sites line and the 45 s Stop-hook line (v11's 10 s git calls
+make the worst case 30 s).
+Decision, `ops/loop/run_lane.ps1`: NOT moved onto `fleet_headless.py spawn ...
+--permission-mode bypassPermissions` here, though v11's ruling R2 unholds CS-1231 slice C.
+Alternatives: move it in this commit as the ORDER's section 5 asks. Why: the kit command line
+prints its own usage line, not the CLI's `type: result` object `ops/loop/queue_loop.py` parses,
+and its proxy and budget checks collide with the lane's own loopback check and budget; that is
+slice C's work, recorded in `docs/item_notes/phase7.md` under CS-1231, and `CLAUDE.md`
+precedence clause (c) stays as it stands.
+Not done here: `.claude/settings.json` untouched - the wired command is the anchored form plus
+` || true`, which ORDER ruling R3 calls conformant; the ONE ANSWER (HOP 2) to MAIN.
+
 ### 2026-10-08 - CS-1286 - CLOSED: the four 12 MW MinerMk2 records are one miner's first saves, written on older builds whose Mk2 nameplate was 12 MW
 Verification: measurement only, no code, so no test name exists - the recorded procedure below IS
 the verification, and it is reproducible from its own description. Measured in session 133,
