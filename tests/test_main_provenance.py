@@ -2114,6 +2114,16 @@ _EVERYONE: Final = "*S-1-1-0"
 #: leftover check cannot drift apart.
 _LOCKED_NAME: Final = "cs1232_locked"
 
+#: The arm's skip when icacls could not set the deny (a volume with no ACLs).
+_SKIP_DENY_FAILED: Final = "icacls could not set the deny ACE on this volume"
+
+#: The arm's skip when the deny ACE IS set and the directory still lists: a
+#: token holding an ENABLED backup privilege reads through the DACL.
+_SKIP_LISTED_THROUGH: Final = (
+    "the deny ACE is set, but this token lists through it - "
+    "an enabled backup privilege bypasses the DACL"
+)
+
 
 def _listable(path: Path) -> bool:
     """Whether ``path`` can be listed - the control a deny ACE must defeat."""
@@ -2125,33 +2135,63 @@ def _listable(path: Path) -> bool:
     return True
 
 
+def _undo_deny(icacls: str, locked: Path) -> bool:
+    """Remove the deny ACE from ``locked``; True once an attempt exits 0.
+
+    The undo removes Everyone's deny entries. When it times out or exits
+    non-zero, ONE fallback resets the directory's ACL to what it inherits.
+    Both name this exact path and neither recurses: the deny is set on this
+    directory alone, and its inherited copies go with it - measured with the
+    backup privilege disabled, for both commands (CS-1294).
+    """
+    attempts = (
+        [icacls, str(locked), "/remove:d", _EVERYONE],
+        [icacls, str(locked), "/reset"],
+    )
+    for cmd in attempts:
+        try:
+            done = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, check=False)
+        except subprocess.TimeoutExpired:
+            continue
+        if done.returncode == 0:
+            return True
+    return False
+
+
 @contextlib.contextmanager
-def _listing_denied(icacls: str, locked: Path) -> Iterator[None]:
+def _listing_denied(icacls: str, locked: Path, root: Path) -> Iterator[bool]:
     """Deny Everyone the listing of ``locked`` for the body, then remove both.
 
-    CS-1294: the deny runs INSIDE the try, so a deny that times out after its
-    ACE took is still undone. The finally removes the ACE BEFORE it deletes
-    the directory - a directory under a deny ACE cannot be listed, so it
-    cannot be deleted - and still attempts the delete when the undo itself
-    raises. Every exit takes that path: a pass, a failed assert, a skip, a
-    timeout.
+    Yields whether icacls set the deny. CS-1294: the deny runs INSIDE the
+    try, so a deny that times out after its ACE took is still undone. The
+    finally removes the ACE BEFORE it deletes the directory - a directory
+    under a deny ACE cannot be listed, so it cannot be deleted - with a
+    checked undo and one fallback, then proves the directory gone. When it
+    is not, the arm FAILS naming the leftover under ``root`` - never a
+    silent leftover. Every exit takes that path: a pass, a failed assert, a
+    skip, a timeout.
     """
     deny = [icacls, str(locked), "/deny", _EVERYONE + ":(OI)(CI)(RD)"]
-    undo = [icacls, str(locked), "/remove:d", _EVERYONE]
     try:
-        subprocess.run(deny, capture_output=True, timeout=TIMEOUT, check=False)
-        yield
+        done = subprocess.run(deny, capture_output=True, timeout=TIMEOUT, check=False)
+        yield done.returncode == 0
     finally:
-        try:
-            subprocess.run(undo, capture_output=True, timeout=TIMEOUT, check=False)
-        finally:
+        undone = _undo_deny(icacls, locked)
+        with contextlib.suppress(OSError):
             shutil.rmtree(locked)
+        if locked.exists():
+            where = "tmp_path/" + locked.relative_to(root).as_posix()
+            pytest.fail(
+                f"CS-1294 leftover: {where} survived the arm (deny removed: {undone}); "
+                "remove its deny ACE with icacls /remove:d, then the directory",
+                pytrace=False,
+            )
 
 
 def test_an_unreadable_inbox_subdirectory_refuses(world: World) -> None:
     # The h7 lens: a subdirectory the census cannot list. An icacls deny on
     # Everyone makes it unlistable; the arm skips only when a CONTROL shows the
-    # deny did not take. CS-1294: no exit leaves the ACE or the directory.
+    # directory still lists. CS-1294: no exit leaves the ACE or the directory.
     if sys.platform != "win32":
         pytest.skip("icacls is a Windows tool")
     icacls = shutil.which("icacls")
@@ -2161,9 +2201,11 @@ def test_an_unreadable_inbox_subdirectory_refuses(world: World) -> None:
     locked = _inbox(w) / _LOCKED_NAME
     locked.mkdir()
     (locked / "inner.md").write_bytes(b"x\n")
-    with _listing_denied(icacls, locked):
+    with _listing_denied(icacls, locked, w.base) as deny_set:
+        if not deny_set:
+            pytest.skip(_SKIP_DENY_FAILED)
         if _listable(locked):
-            pytest.skip("the icacls deny did not take on this volume")
+            pytest.skip(_SKIP_LISTED_THROUGH)
         ok, reason, _digest = _verify_in(w)
     left = locked.exists()
     assert left is False
@@ -2173,15 +2215,62 @@ def test_an_unreadable_inbox_subdirectory_refuses(world: World) -> None:
 
 # CS-1294 - the deny-ACE arm leaves nothing behind, on every exit.
 
-#: Each way out of the deny-ACE arm, mapped to what it must raise: the deny
-#: times out AFTER its ACE took, the census raises mid-arm, the undo times out
-#: after it took, the deny does not take (the arm skips), and a clean pass.
+
+@dataclass(frozen=True)
+class _DenyExit:
+    """One way out of the deny-ACE arm: what it raises and what it leaves."""
+
+    raises: type[BaseException] | None
+    events: tuple[str, ...]
+    leftover: bool = False
+    skip_reason: str | None = None
+
+
+#: The icacls verbs, then the delete, of an arm whose first undo answered.
+_UNDONE: Final = ("deny", "undo", "rmtree")
+
+#: The same, when the first undo timed out or failed and the fallback ran.
+_RETRIED: Final = ("deny", "undo", "reset", "rmtree")
+
+#: Each way out of the deny-ACE arm. An undo timeout is split by whether the
+#: ACE was already gone when it fired; only a failed undo AND a failed
+#: fallback may leave the directory, and then the arm must fail naming it.
 _DENY_EXITS: Final = {
-    "deny-times-out": subprocess.TimeoutExpired,
-    "census-raises": RuntimeError,
-    "undo-times-out": subprocess.TimeoutExpired,
-    "deny-not-taken": pytest.skip.Exception,
-    "clean-pass": None,
+    "clean-pass": _DenyExit(None, _UNDONE),
+    "census-raises": _DenyExit(RuntimeError, _UNDONE),
+    "deny-times-out": _DenyExit(subprocess.TimeoutExpired, _UNDONE),
+    "deny-fails": _DenyExit(pytest.skip.Exception, _UNDONE, skip_reason=_SKIP_DENY_FAILED),
+    "deny-listed-through": _DenyExit(
+        pytest.skip.Exception, _UNDONE, skip_reason=_SKIP_LISTED_THROUGH
+    ),
+    "undo-times-out-after-it-took": _DenyExit(None, _RETRIED),
+    "undo-times-out-before-it-took": _DenyExit(None, _RETRIED),
+    "undo-exits-nonzero": _DenyExit(None, _RETRIED),
+    "undo-and-reset-fail": _DenyExit(pytest.fail.Exception, _RETRIED, leftover=True),
+}
+
+#: The icacls commands the arm may run, by their arguments after the path -
+#: exact SID and rights, so an undo of the wrong SID is a "stray".
+_ICACLS_VERBS: Final = {
+    ("/deny", _EVERYONE + ":(OI)(CI)(RD)"): "deny",
+    ("/remove:d", _EVERYONE): "undo",
+    ("/reset",): "reset",
+}
+
+#: Per exit, the verbs whose modeled icacls call times out, keyed to whether
+#: the ACE state changed before the timeout fired.
+_TIMES_OUT: Final = {
+    "deny-times-out": {"deny": True},
+    "undo-times-out-after-it-took": {"undo": True},
+    "undo-times-out-before-it-took": {"undo": False},
+    "undo-and-reset-fail": {"undo": False},
+}
+
+#: Per exit, the verbs whose modeled icacls call exits 1 and changes nothing.
+_EXITS_NONZERO: Final = {
+    "deny-fails": {"deny"},
+    "undo-exits-nonzero": {"undo"},
+    "undo-and-reset-fail": {"reset"},
 }
 
 
@@ -2201,10 +2290,12 @@ class _DenyModel:
     """A deny ACE on one directory, MODELED rather than set.
 
     While the modeled deny stands, listing or deleting the directory raises
-    PermissionError - what the real ACE does. It is a model because the real
-    deny cannot be relied on to take: a token holding an ENABLED backup
-    privilege lists straight through it, and the real arm then skips before
-    its body - measured on this tree's own sessions (CS-1294).
+    PermissionError - what the real ACE does, measured with the backup
+    privilege disabled. It is a model because the real arm cannot reach its
+    body on a token holding an ENABLED backup privilege, which lists through
+    the ACE - this tree's own sessions hold one (CS-1294). An icacls command
+    is matched on its path, SID and rights; any other is a "stray" that
+    changes nothing, as icacls changes nothing for an ACE it does not find.
     """
 
     def __init__(self, locked: Path, exit_kind: str) -> None:
@@ -2216,22 +2307,33 @@ class _DenyModel:
         self.real_scandir = os.scandir
         self.real_rmtree = shutil.rmtree
 
+    def _verb(self, cmd: list[str]) -> str:
+        """Name an icacls command, or "stray" when any argument is off."""
+        target = cmd[1] if cmd[1:] else None
+        if not _names(target, self.locked):
+            return "stray"
+        return _ICACLS_VERBS.get(tuple(cmd[2:]), "stray")
+
+    def _apply(self, verb: str) -> int:
+        """Apply ``verb`` to the modeled ACE; its exit code, or a timeout."""
+        if verb == "stray" or verb in _EXITS_NONZERO.get(self.exit_kind, set()):
+            return 0 if verb == "stray" else 1
+        timeout = _TIMES_OUT.get(self.exit_kind, {})
+        if timeout.get(verb, True):
+            listed_through = self.exit_kind == "deny-listed-through"
+            self.denied = verb == "deny" and not listed_through
+        if verb in timeout:
+            raise subprocess.TimeoutExpired("icacls", TIMEOUT)
+        return 0
+
     def run(self, args: Any, *a: Any, **kw: Any) -> Any:
         """``subprocess.run`` - icacls is modeled, every other command is real."""
         cmd = [str(part) for part in args] if isinstance(args, list) else []
-        if "/deny" in cmd:
-            self.events.append("deny")
-            self.denied = self.exit_kind != "deny-not-taken"
-            if self.exit_kind == "deny-times-out":
-                raise subprocess.TimeoutExpired("icacls", TIMEOUT)
-        elif "/remove:d" in cmd:
-            self.events.append("undo")
-            self.denied = False
-            if self.exit_kind == "undo-times-out":
-                raise subprocess.TimeoutExpired("icacls", TIMEOUT)
-        else:
+        if not cmd or Path(cmd[0]).stem.lower() != "icacls":
             return self.real_run(args, *a, **kw)
-        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+        verb = self._verb(cmd)
+        self.events.append(verb)
+        return subprocess.CompletedProcess(cmd, self._apply(verb), b"", b"")
 
     def scandir(self, path: Any = ".") -> Any:
         """``os.scandir`` - refused on the locked directory while denied."""
@@ -2240,10 +2342,16 @@ class _DenyModel:
         return self.real_scandir(path)
 
     def rmtree(self, path: Any, *a: Any, **kw: Any) -> None:
-        """``shutil.rmtree`` - refused on the locked directory while denied."""
+        """``shutil.rmtree`` - refused on the locked directory while denied.
+
+        ``ignore_errors`` is honoured as the real one honours it: the refusal
+        is swallowed and the directory stays.
+        """
         if _names(path, self.locked):
             self.events.append("rmtree")
             if self.denied:
+                if kw.get("ignore_errors"):
+                    return
                 raise PermissionError(13, "modeled deny ACE")
         self.real_rmtree(path, *a, **kw)
 
@@ -2253,34 +2361,51 @@ def test_the_deny_ace_arm_leaves_no_directory_behind(
     world: World, monkeypatch: pytest.MonkeyPatch, exit_kind: str
 ) -> None:
     # Repro CS-1294: the deny ran BEFORE the try, so a deny that timed out
-    # after its ACE took skipped the undo, and no exit removed the directory.
-    # Every exit must remove the ACE FIRST, then the directory.
+    # after its ACE took skipped the undo; then an undo that timed out or
+    # failed BEFORE it took left the ACE, and the delete failed under it.
+    # Every exit removes the ACE first, then the directory - or fails loudly
+    # naming what it left.
     if sys.platform != "win32":
         pytest.skip("icacls is a Windows tool")
     if shutil.which("icacls") is None:
         pytest.skip("icacls is not on PATH")
     w = world
     locked = _inbox(w) / _LOCKED_NAME
+    expected = _DENY_EXITS[exit_kind]
     model = _DenyModel(locked, exit_kind)
     monkeypatch.setattr(subprocess, "run", model.run)
     monkeypatch.setattr(os, "scandir", model.scandir)
     monkeypatch.setattr(shutil, "rmtree", model.rmtree)
     if exit_kind == "census-raises":
         monkeypatch.setattr(sys.modules[__name__], "_verify_in", _census_raises)
+    outcomes = (
+        subprocess.TimeoutExpired,
+        RuntimeError,
+        OSError,
+        pytest.skip.Exception,
+        pytest.fail.Exception,
+    )
     raised: type[BaseException] | None = None
+    message = ""
     try:
         test_an_unreadable_inbox_subdirectory_refuses(w)
-    except (subprocess.TimeoutExpired, RuntimeError, OSError, pytest.skip.Exception) as exc:
+    except outcomes as exc:
         raised = type(exc)
+        message = str(exc)
     finally:
         monkeypatch.undo()
         ace_left = model.denied
         dir_left = locked.exists()
         if dir_left:
             shutil.rmtree(locked)
-    undone_then_removed = model.events == ["deny", "undo", "rmtree"]
-    raised_as_expected = raised is _DENY_EXITS[exit_kind]
-    assert ace_left is False
-    assert dir_left is False
-    assert undone_then_removed is True
+    events_as_expected = tuple(model.events) == expected.events
+    raised_as_expected = raised is expected.raises
+    skip_as_expected = expected.skip_reason in {None, message}
+    named = "leftover" in message and _LOCKED_NAME in message
+    named_as_expected = named is expected.leftover
+    assert ace_left is expected.leftover
+    assert dir_left is expected.leftover
+    assert events_as_expected is True
     assert raised_as_expected is True
+    assert skip_as_expected is True
+    assert named_as_expected is True
