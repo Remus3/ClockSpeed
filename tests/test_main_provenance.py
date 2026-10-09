@@ -2389,6 +2389,10 @@ def test_the_deny_ace_arm_leaves_no_directory_behind(
     message = ""
     try:
         test_an_unreadable_inbox_subdirectory_refuses(w)
+        # Graded where it is known: an arm that RETURNED must be an exit that
+        # expects no exception. The finally still cleans up when this fails.
+        returned_as_expected = expected.raises is None
+        assert returned_as_expected is True
     except outcomes as exc:
         raised = type(exc)
         message = str(exc)
