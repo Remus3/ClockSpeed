@@ -35,6 +35,13 @@ this reader never read is a NAMED GAP and never priced at one - a confident one
 is the confident zero one field over. Nothing here reads a fractional machine
 count: a world has whole machines.
 
+A CLASS THAT CANNOT BE CLOCKED HAS NO CLOCK TO ELIDE (CS-1281). An untagged
+machine whose registry entry declares ``Building.clockable`` False is priced at
+the reference clock - its only clock - and is never counted in
+:attr:`WorldClockedDraw.elided_clock_count`, which counts defaults and nothing
+else. Only a declared False does this: the registry's None is a named unknown,
+so such a machine stays an elided one.
+
 A PRODUCTION BOOST IS A NAMED GAP, NEVER A CLOCK-ONLY PRICE (CS-1264). The
 clock law above is the whole of what this module models, and a boost scales
 the draw on top of it. The boosted law is not modelled - the registry reads no
@@ -522,6 +529,14 @@ _ELIDED_CLOCK_REASON: Final = (
     "the save carried no clock tag on a cleanly read payload, which is how it writes a"
     " machine at the class default, so it is priced at the reference clock, where the"
     " draw is the declared scalar"
+)
+
+#: CS-1281. Why a machine of a class that cannot be clocked is priced at the
+#: reference clock WITHOUT being counted elided: there was no clock to elide.
+_FIXED_CLOCK_REASON: Final = (
+    "the registry declares this class cannot be clocked, so it runs at the reference"
+    " clock by construction and its draw is the declared scalar; no clock tag was"
+    " elided, because the class has none to write"
 )
 
 #: Why a clocked group is exact under a whole exponent away from the reference.
@@ -1297,6 +1312,10 @@ class WorldClockedDraw:
         unread_clock_count: How many machines are :data:`GAP_CLOCK_UNREAD`.
         elided_clock_count: How many machines were priced at
             :data:`ELIDED_CLOCK_DEFAULT` because their clock tag was elided.
+            CS-1281: never a machine whose registry entry declares its class
+            cannot be clocked - it has no clock to elide, and is priced at the
+            reference clock outside this count. An entry that does not say
+            stays counted here.
         unmodeled_machine_count: How many machines are any other gap kind.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
         generator_machine_count: CS-1059. How many machines were taken out of
@@ -1618,8 +1637,14 @@ def clocked_draw_of(
             excluded += 1
             continue
         entry = buildings.get(state.class_name)
-        elided = state.overclock is None and state.overclock_elided
-        read = ELIDED_CLOCK_DEFAULT if elided else state.overclock
+        untagged = state.overclock is None and state.overclock_elided
+        # CS-1281. A class the registry declares CANNOT be clocked wrote no tag
+        # because it has no clock, so it is priced at the reference clock and
+        # never counted elided. Only a declared False: None is the registry's
+        # named unknown and stays elided.
+        fixed = untagged and entry is not None and entry.clockable is False
+        elided = untagged and not fixed
+        read = ELIDED_CLOCK_DEFAULT if elided else REFERENCE_CLOCK if fixed else state.overclock
         outcome = _clocked_outcome(
             state.class_name, read, entry, boosted=state.production_boost_tagged
         )
@@ -1631,6 +1656,8 @@ def clocked_draw_of(
         bound, reason, clock, low, high = outcome
         if elided:
             reason = _ELIDED_CLOCK_REASON
+        elif fixed:
+            reason = _FIXED_CLOCK_REASON
         key = (state.class_name, clock, elided)
         prior = priced.get(key, (bound, reason, low, high, 0))
         priced[key] = (bound, reason, low, high, prior[4] + 1)

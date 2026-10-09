@@ -2254,3 +2254,127 @@ def test_every_record_of_a_flat_walk_is_an_unread_omission() -> None:
             1,
         )
     ]
+
+
+# ---------------------------------------------------------------------------
+# CS-1281: a class that cannot be clocked has no clock to elide
+# ---------------------------------------------------------------------------
+#
+# The elided count says how many machines were priced at the class default
+# BECAUSE their clock tag was elided. A class whose entry declares it cannot be
+# clocked writes no tag because it has no clock, so counting it there inflates
+# the count with machines whose price was never a default. It is still priced
+# at the reference clock - the only clock it has - and exactly; it is simply not
+# an elided one. A class whose capability is UNKNOWN stays elided: excluding it
+# would read the registry's None as False.
+
+#: An invented built class whose entry declares its clock cannot be changed.
+#: Its exponent is NOT whole, so a price taken anywhere but the reference clock
+#: would be a bracket and show.
+FIXED_CLOCK_CLASS = "Build_SyntheticFixedClockQx73_C"
+
+#: An invented built class whose entry declares nothing about its clock.
+UNKNOWN_CLOCK_CLASS = "Build_SyntheticUnknownClockQx73_C"
+
+#: How many machines of :data:`FIXED_CLOCK_CLASS` the reddening arm builds.
+FIXED_CLOCK_MACHINES = 2
+
+
+def clockability_registry() -> Mapping[str, Building]:
+    """One clockable entry, one that cannot be clocked, one that does not say.
+
+    Returns:
+        The mapping.
+    """
+    return registry(
+        replace(building(FIXED_WHOLE, consumption=WHOLE_MEGAWATTS), clockable=True),
+        replace(
+            building(FIXED_CLOCK_CLASS, consumption=THIRD_MEGAWATTS, exponent=BRACKETED_EXPONENT),
+            clockable=False,
+        ),
+        building(UNKNOWN_CLOCK_CLASS, consumption=WHOLE_MEGAWATTS),
+    )
+
+
+def test_a_class_that_cannot_be_clocked_reddens_the_arm_when_counted_elided() -> None:
+    """Alike in every machine field, so only the registry's capability decides.
+
+    COUNTING THE NON-CLOCKABLE CLASS ELIDED makes the count three and the
+    warning three, and marks its group elided; the clockable machine beside it
+    is the control that the elided path still runs.
+    """
+    population = world_machines(
+        *(elided(FIXED_CLOCK_CLASS) for _ in range(FIXED_CLOCK_MACHINES)), elided(FIXED_WHOLE)
+    )
+    result = balance.clocked_draw_of(population, clockability_registry())
+
+    assert result.elided_clock_count == 1
+    raised = {warning.code: warning.count for warning in result.warnings}
+    assert raised.get(balance.WARN_BALANCE_CLOCK_ELIDED) == 1
+    groups = {group.class_name: group for group in result.contributions}
+    fixed = groups[FIXED_CLOCK_CLASS]
+    assert fixed.clock_elided is False
+    assert fixed.clock == power.REFERENCE_CLOCK
+    assert fixed.bound == balance.BOUND_EXACT
+    assert fixed.machine_count == FIXED_CLOCK_MACHINES
+    assert fixed.lower_total == fixed.upper_total == THIRD_MEGAWATTS * FIXED_CLOCK_MACHINES
+    assert groups[FIXED_WHOLE].clock_elided is True
+    # The reason names a fixed clock, never the elided default's.
+    assert fixed.reason
+    assert fixed.reason != groups[FIXED_WHOLE].reason
+    assert result.complete is True
+    assert result.exact is True
+    assert sum(group.machine_count for group in result.contributions) == len(population.machines)
+
+
+def test_a_class_whose_clock_capability_is_unknown_stays_an_elided_clock() -> None:
+    """The registry's None is a named unknown, so it is never read as False."""
+    result = balance.clocked_draw_of(
+        world_machines(elided(UNKNOWN_CLOCK_CLASS)), clockability_registry()
+    )
+
+    (group,) = result.contributions
+    assert group.clock_elided is True
+    assert result.elided_clock_count == 1
+
+
+def test_a_class_that_cannot_be_clocked_keeps_an_unread_clock_a_named_gap() -> None:
+    """Scope: only the elision mark is re-read; an unread clock is not a fixed one.
+
+    An unread payload or a refused tag is a fact about this reader, and a class
+    whose clock is fixed does not make that fact go away.
+    """
+    result = balance.clocked_draw_of(
+        world_machines(clocked(FIXED_CLOCK_CLASS, None)), clockability_registry()
+    )
+
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [(balance.GAP_CLOCK_UNREAD, 1)]
+    assert result.contributions == ()
+
+
+def test_a_boosted_machine_of_a_class_that_cannot_be_clocked_is_still_a_boost_gap() -> None:
+    result = balance.clocked_draw_of(
+        world_machines(boosted(FIXED_CLOCK_CLASS, None, clock_elided=True)),
+        clockability_registry(),
+    )
+
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (balance.GAP_BOOST_UNMODELED, 1)
+    ]
+    assert result.elided_clock_count == 0
+
+
+@pytest.mark.parametrize("class_name", [FIXED_WHOLE, FIXED_CLOCK_CLASS])
+def test_a_present_clock_is_never_overridden_by_the_elision_mark(class_name: str) -> None:
+    """The Session 124 residual: the overclock-is-None guard on the elided line.
+
+    A hand-built state can carry a read clock AND the mark, which no reader
+    produces. Dropping the guard prices it at the default and counts it elided.
+    """
+    state = replace(clocked(class_name, DOUBLE_CLOCK), overclock_elided=True)
+    result = balance.clocked_draw_of(world_machines(state), clockability_registry())
+
+    (group,) = result.contributions
+    assert group.clock == DOUBLE_CLOCK
+    assert group.clock_elided is False
+    assert result.elided_clock_count == 0

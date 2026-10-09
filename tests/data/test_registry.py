@@ -308,6 +308,8 @@ def test_every_document_key_the_registry_reads_matches_the_corpus_spelling() -> 
     # This test's name is a claim about EVERY key the registry reads, so a key
     # left out of it turns the name into a lie.
     assert registry_module.KEY_MAX_POTENTIAL == synthetic.KEY_MAX_POTENTIAL
+    # CS-1281, for the same reason: the clock capability became a read field.
+    assert registry_module.KEY_CAN_CHANGE_POTENTIAL == synthetic.KEY_CAN_CHANGE_POTENTIAL
 
 
 # ---------------------------------------------------------------------------
@@ -846,6 +848,91 @@ def test_no_published_field_names_itself_a_ceiling_and_the_base_field_is_present
     }
     assert "unsharded_clock_base" in field_names
     assert [name for name in field_names if ceiling_flavoured(name)] == []
+
+
+# ---------------------------------------------------------------------------
+# CS-1281 - mCanChangePotential is read, and its absence is a named unknown
+# ---------------------------------------------------------------------------
+#
+# The audit balance prices a machine whose clock tag was elided at the class
+# default and COUNTS it, so the default is never silent. A class whose clock
+# cannot be changed has no clock to elide, and counting it inflates that count.
+# The field that says so is on the document; these arms hold the registry to
+# reading it, both values, and to publishing an absence as unknown rather than
+# as either value.
+
+#: Spellings that are NOT the document's two. An allowlist is what refuses
+#: them; a case-folding or truthiness reader admits every one.
+UNRECOGNIZED_FLAG_SPELLINGS = ("true", "FALSE", "1", "0", "", " True", "Yes")
+
+
+def test_the_clock_capability_is_read_per_building_in_both_values(registry: Registry) -> None:
+    assert registry.buildings[BLENDER_BUILDING].clockable is True
+    assert registry.buildings[GENERATOR_BUILDING].clockable is False
+
+
+def test_an_absent_clock_capability_is_a_named_unknown_never_defaulted(
+    registry: Registry,
+) -> None:
+    # The floodlight carries no field at all, as the shipped lights do. Either
+    # bool is a claim the document never made: True would count a light as an
+    # elided clock, False would assert it cannot be clocked.
+    assert registry.buildings[FLOODLIGHT_BUILDING].clockable is None
+    assert FLOODLIGHT_BUILDING not in warned_subjects(
+        registry, registry_module.WARN_UNPARSABLE_FLAG
+    )
+
+
+def test_the_clock_capability_comes_from_the_data_not_from_a_folded_constant() -> None:
+    # Flipping each value in the corpus must flip the model, and removing it
+    # must yield None - which a `.get(key, "True")` default would not.
+    flipped_on = registry_with_building_key(
+        GENERATOR_BUILDING, synthetic.KEY_CAN_CHANGE_POTENTIAL, "True"
+    )
+    assert flipped_on.buildings[GENERATOR_BUILDING].clockable is True
+    flipped_off = registry_with_building_key(
+        BLENDER_BUILDING, synthetic.KEY_CAN_CHANGE_POTENTIAL, "False"
+    )
+    assert flipped_off.buildings[BLENDER_BUILDING].clockable is False
+    removed = registry_with_building_key(BLENDER_BUILDING, synthetic.KEY_CAN_CHANGE_POTENTIAL, None)
+    assert removed.buildings[BLENDER_BUILDING].clockable is None
+
+
+@pytest.mark.parametrize("spelling", UNRECOGNIZED_FLAG_SPELLINGS)
+def test_an_unrecognized_clock_capability_is_flagged_and_stays_unknown(spelling: str) -> None:
+    patched = registry_with_building_key(
+        BLENDER_BUILDING, synthetic.KEY_CAN_CHANGE_POTENTIAL, spelling
+    )
+    assert patched.buildings[BLENDER_BUILDING].clockable is None
+    assert BLENDER_BUILDING in warned_subjects(patched, registry_module.WARN_UNPARSABLE_FLAG)
+
+
+def test_a_non_string_clock_capability_is_flagged_as_non_string_and_stays_unknown() -> None:
+    # A JSON true is present-but-not-a-string, the 1152-value case the module
+    # docstring measures; it is unreadable, never a quietly admitted bool.
+    groups = synthetic.docs_json()
+    patched_entries = 0
+    for group in groups:
+        classes = group.get(synthetic.KEY_CLASSES)
+        if not isinstance(classes, list):
+            continue  # the corpus' deliberately malformed group
+        for entry in classes:
+            if entry.get(synthetic.KEY_CLASS_NAME) == BLENDER_BUILDING:
+                entry[synthetic.KEY_CAN_CHANGE_POTENTIAL] = True
+                patched_entries += 1
+    assert patched_entries == 1
+    patched = build_registry(synthetic.document_from(groups))
+
+    assert patched.buildings[BLENDER_BUILDING].clockable is None
+    assert BLENDER_BUILDING in warned_subjects(patched, WARN_NON_STRING_VALUE)
+
+
+def test_the_clock_capability_field_is_not_ceiling_flavoured() -> None:
+    # The ADR 0005 name fence above forbids 'potential' in a published field
+    # name, so the game's own spelling cannot be the python name.
+    names = {item.name for item in dataclasses.fields(Building)}
+    assert "clockable" in names
+    assert not ceiling_flavoured("clockable")
 
 
 # ---------------------------------------------------------------------------

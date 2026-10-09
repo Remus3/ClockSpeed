@@ -127,6 +127,13 @@ KEY_VARIABLE_POWER_FACTOR: Final = "mVariablePowerConsumptionFactor"
 #: reads it as one can be caught doing so.
 KEY_MAX_POTENTIAL: Final = "mMaxPotential"
 
+#: CS-1281. Whether a building's clock can be changed at all, spelled 'True' or
+#: 'False'. Measured on the pinned build: every published building carrying it
+#: carries exactly one of the two, and the ones omitting it are the ones with
+#: no exponent. In the corpus with BOTH values and an absence, so a registry
+#: that folds it to a constant or defaults the absence is caught.
+KEY_CAN_CHANGE_POTENTIAL: Final = "mCanChangePotential"
+
 # ---------------------------------------------------------------------------
 # Group short names
 # ---------------------------------------------------------------------------
@@ -614,6 +621,7 @@ _MANUFACTURER_ENTRIES: Final[list[dict[str, Any]]] = [
         KEY_POWER_CONSUMPTION: "75.000000",
         KEY_POWER_EXPONENT: "1.321929",
         KEY_MAX_POTENTIAL: "1.000000",
+        KEY_CAN_CHANGE_POTENTIAL: "True",
     },
     {
         # An exponent and NO mPowerConsumption at all. Absent is not zero: a
@@ -649,6 +657,8 @@ _GENERATOR_ENTRIES: Final = [
         KEY_ESTIMATED_MAX_POWER: "0.000000",
         KEY_POWER_EXPONENT: SECOND_EXPONENT,
         KEY_MAX_POTENTIAL: "1.000000",
+        # CS-1281. The one corpus building that CANNOT be clocked.
+        KEY_CAN_CHANGE_POTENTIAL: "False",
     },
     {
         # An exponent that is not a number. Treating it as absent without

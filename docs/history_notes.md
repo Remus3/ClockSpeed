@@ -24,6 +24,24 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## Session 124 residuals - two lines relocated from `BACKLOG.md` 2026-10-09
+
+**Discharged by CS-1281:** the registry reads `mCanChangePotential` into
+`Building.clockable`, and `clockspeed/audit/balance.py::clocked_draw_of` prices an untagged
+machine of a class declared non-clockable at the reference clock outside the elided count -
+`tests/audit/test_balance.py::test_a_class_that_cannot_be_clocked_reddens_the_arm_when_counted_elided`.
+The overclock-is-None guard is held by
+`tests/audit/test_balance.py::test_a_present_clock_is_never_overridden_by_the_elision_mark`,
+which reddens when the guard is dropped.
+
+- `clockspeed/audit/balance.py::clocked_draw_of` - the overclock-is-None guard on the elided line
+  is untested; equivalent on real input (CS-1263 adversary) - TRIGGER: that line is next touched.
+- The elided-clock count includes non-clockable classes (storage, trading post, space elevator),
+  inflating it - TRIGGER: a surface displays the elided count, or CS-1264/CS-1265 touches it -
+  TRIGGER FIRED 2026-10-08; NOT done in CS-1266, which had no registry field to read - now
+  CS-1281.
+
+
 ## CS-1290 - prose relocated from `CLAUDE.md` 2026-10-09 to fit the v13 block
 
 **Moved here from `CLAUDE.md` when the kit v13 FLEET-COMMON block took it over its

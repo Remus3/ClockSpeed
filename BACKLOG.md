@@ -367,12 +367,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 
 ## Session 124 residuals - filed 2026-10-04 under product before process
 
-- `clockspeed/audit/balance.py::clocked_draw_of` - the overclock-is-None guard on the elided line
-  is untested; equivalent on real input (CS-1263 adversary) - TRIGGER: that line is next touched.
-- The elided-clock count includes non-clockable classes (storage, trading post, space elevator),
-  inflating it - TRIGGER: a surface displays the elided count, or CS-1264/CS-1265 touches it -
-  TRIGGER FIRED 2026-10-08; NOT done in CS-1266, which had no registry field to read - now
-  CS-1281.
 - The CS-400 phase 4 gate shards: per-shard CI time unmeasured, round-robin deal uneven about
   1.8x - TRIGGER: a shard nears `_CHILD_TIMEOUT_SECONDS` in a tier2 log.
 - The advisor ledger lock is exercised across threads only, never across processes - TRIGGER: a

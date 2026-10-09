@@ -532,6 +532,15 @@ count includes classes that cannot be clocked: up to 46 of 128 elided machines p
 non-clockable classes. The `BACKLOG.md` Session 124 elided-count line was folded into CS-1266's
 slice, but with no registry field to read it was not done there.
 
+### Measured 2026-10-09 by CS-1281's builder
+
+One sibling of the same root cause sits outside the slice and is NOT changed by it:
+`clockspeed/audit/flow.py::_clock_of` counts an untagged flowing machine elided with no
+registry input at all, so `WorldFlow.elided_clock_count` would still count a non-clockable
+class that runs a recipe. Whether any such class runs a recipe was not measured. The
+CS-1265 agreement arm, `tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`,
+stays green only because its synthetic buildings leave `clockable` None.
+
 ### Acceptance
 
 the registry reads the field, and an unknown or absent value stays a named unknown, never defaulted; the balance's elided count excludes a class that cannot be clocked; an arm with a synthetic non-clockable class reddens when it is counted elided; the `BACKLOG.md` Session 124 elided-count line is relocated as discharged

@@ -846,6 +846,9 @@ WITHHELD_FIELDS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             "estimated_max_power",
             "is_variable_power",
             "unsharded_clock_base",
+            # CS-1281. Read for the audit balance's elided-clock count; no
+            # surface consumer asks for it, so it is withheld until one does.
+            "clockable",
         ),
         "RegistryWarning": (),
     }

@@ -234,6 +234,7 @@ __all__ = [
     "GENERATION_MARKER_KEYS",
     "ITEM_GROUP_SHORT_NAMES",
     "KEY_ALLOWED_RESOURCE_FORMS",
+    "KEY_CAN_CHANGE_POTENTIAL",
     "KEY_DISPLAY_NAME",
     "KEY_DURATION",
     "KEY_ENERGY_VALUE",
@@ -274,6 +275,7 @@ __all__ = [
     "WARN_UNKNOWN_GROUP",
     "WARN_UNKNOWN_ITEM",
     "WARN_UNKNOWN_RESOURCE_FORM",
+    "WARN_UNPARSABLE_FLAG",
     "WARN_UNPARSABLE_NUMBER",
     "WARN_UNRESOLVED_PRODUCED_IN",
     "Building",
@@ -333,6 +335,20 @@ KEY_VARIABLE_PRODUCTION_FACTOR: Final = "mVariablePowerProductionFactor"
 #: and ADR 0005 - and the other operands of the ceiling equation are
 #: deliberately absent from this file.
 KEY_MAX_POTENTIAL: Final = "mMaxPotential"
+
+#: CS-1281. Whether the player can change this building's clock AT ALL, read
+#: into :attr:`Building.clockable`. MEASURED on the pinned build before this was
+#: written: every published building that carries it carries exactly ``'True'``
+#: or ``'False'``, and the ones that omit it are exactly the ones with no
+#: exponent. Not an operand of the ADR 0005 ceiling - it says whether a clock
+#: exists, never how high one goes - and its python name avoids the game's
+#: spelling because the ceiling fence forbids that word in a field name.
+KEY_CAN_CHANGE_POTENTIAL: Final = "mCanChangePotential"
+
+#: The document's two boolean spellings, and ONLY these - an allowlist, on the
+#: rule RESOURCE_FORMS states. A case-folding or truthiness reader would admit
+#: the next differently spelled value as a confident bool; this one flags it.
+_FLAG_SPELLINGS: Final[Mapping[str, bool]] = MappingProxyType({"True": True, "False": False})
 
 #: The three extraction fields, measured on the pinned build before any of
 #: this was written. mItemsPerCycle and mExtractCycleTime sit on 6 entries
@@ -477,6 +493,8 @@ WARN_UNKNOWN_ITEM: Final = "unknown-item-reference"
 WARN_UNKNOWN_RESOURCE_FORM: Final = "unknown-resource-form"
 WARN_UNPARSABLE_NUMBER: Final = "unparsable-number"
 WARN_UNRESOLVED_PRODUCED_IN: Final = "unresolved-produced-in"
+#: CS-1281. A boolean field present as a string that is neither spelling.
+WARN_UNPARSABLE_FLAG: Final = "unparsable-flag"
 
 
 class RegistryError(Exception):
@@ -596,6 +614,15 @@ class Building:
             un-sharded base and has to say so rather than report it as the
             ceiling. Absent is None and is never defaulted to 1, for the same
             reason a missing exponent is not defaulted.
+        clockable: CS-1281. mCanChangePotential - True when the player can
+            change this building's clock, False when the class has no clock to
+            change, and None when the entry declares neither: the key absent,
+            a non-string value, or a string outside the document's two
+            spellings (the last two flagged). NONE IS A NAMED UNKNOWN AND IS
+            NEVER DEFAULTED to either bool. True would count a class with no
+            clock as one whose clock tag was elided; False would assert a
+            class cannot be clocked on no evidence. A consumer that needs a
+            bool decides what None means itself, and says so.
     """
 
     key: str
@@ -608,6 +635,9 @@ class Building:
     # Appended, and with a default, deliberately: a required field inserted
     # mid-class breaks every positional construction of a Building at once.
     unsharded_clock_base: Fraction | None = None
+    # CS-1281. Appended with a default for the same reason. None is the
+    # unknown, so the default asserts nothing about a hand-built entry.
+    clockable: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -927,6 +957,39 @@ def _optional_fraction(
     return value
 
 
+def _optional_flag(
+    entry: Mapping[str, object],
+    key: str,
+    subject: str,
+    log: _WarningLog,
+) -> bool | None:
+    """Read an optional boolean field against the document's two spellings (CS-1281).
+
+    Args:
+        entry: The entry mapping.
+        key: The field name.
+        subject: The owning ClassName, for the warning.
+        log: The warning log.
+
+    Returns:
+        True or False for exactly ``'True'`` or ``'False'``, and None
+        otherwise. An absent key is silent, on the rule
+        :func:`_optional_fraction` states; a present non-string is flagged by
+        :func:`_text`, and any other string is flagged here. Never a default.
+    """
+    text = _text(entry, key, subject, log)
+    if text is None:
+        return None
+    value = _FLAG_SPELLINGS.get(text)
+    if value is None:
+        log.add(
+            WARN_UNPARSABLE_FLAG,
+            subject,
+            f"{key} is neither True nor False; treated as unknown, never as either",
+        )
+    return value
+
+
 def _sink_points(entry: Mapping[str, object], subject: str, log: _WarningLog) -> int | None:
     """Read mResourceSinkPoints, distinguishing absent from zero.
 
@@ -1160,6 +1223,7 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
         # flagged here exactly as they are everywhere else, rather than
         # collapsing into the "declared none" reading that None carries.
         unsharded_clock_base=_optional_fraction(entry, KEY_MAX_POTENTIAL, key, log),
+        clockable=_optional_flag(entry, KEY_CAN_CHANGE_POTENTIAL, key, log),
     )
 
 
