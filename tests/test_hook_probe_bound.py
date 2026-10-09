@@ -252,7 +252,7 @@ def ladder_shim(log: Path, rung: str) -> str:
     # CS-1290: pre-push runs the kit's identity line (grant C.1) on plain `python`
     # BEFORE the ladder. Answered as passed and NOT logged, so the call log still
     # opens with the probe and the PYTHONINSPECT arm reaches the bound it names;
-    # the identity refusal itself is graded in test_pre_push_suite_floor.py.
+    # the identity refusal itself is graded in test_identity_hooks.py.
     identity = 'case "$1" in *fleet_identity.py) exit 0 ;; esac\n'
     return (
         "#!/bin/sh\n"

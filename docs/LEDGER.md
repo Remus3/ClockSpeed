@@ -75,6 +75,48 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1290 - CLOSED: FLEET-KIT v13 adopted (folds v12) - vendored, race guards and identity hooks wired
+
+Verification: `ops/fleet_kit/MANIFEST.json` sha256
+1311801a0f5c5ee17150d56b438fb0038a92efeb2b8e13ba02c79da2457f74e0 and FLEET-COMMON block hash
+fb6c129a...f02b, pinned by `tests/test_fleet_kit.py::test_fleet_kit_conformance`
+(conformance() == []), `tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest` and
+`tests/test_fleet_kit.py::test_every_kit_file_on_disk_is_named_by_the_manifest`; the hook wiring
+by `tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_claims_hooks` and
+`tests/test_claude_hook.py::test_gitignore_carries_the_race_guard_and_identity_runtime_state`;
+the identity hooks by `tests/test_identity_hooks.py::test_commit_msg_strips_a_session_trailer_and_a_generated_line`,
+`tests/test_identity_hooks.py::test_commit_msg_leaves_an_ordinary_message_byte_for_byte`,
+`tests/test_identity_hooks.py::test_pre_push_refuses_when_no_operator_identity_is_set`,
+`tests/test_identity_hooks.py::test_pre_push_refuses_a_non_operator_author`,
+`tests/test_identity_hooks.py::test_pre_push_refuses_an_ai_attribution_line` (each refusal arm
+now also asserts the kit's `IDENTITY:` stderr line) and
+`tests/test_identity_hooks.py::test_the_sandbox_helper_copies_each_hook_kit_file_byte_for_byte`;
+the vendored rows by `tests/test_third_party_register.py`, `tests/test_subprocess_timeouts.py`
+and `tests/test_liveness.py::test_every_vendored_finding_is_live_once_and_at_its_kit_pin`.
+Landed: commits 222be67 (vendor v13: the kit files, race guards `fleet_claims.py`,
+`fleet_gitlock.py`, `fleet_test_guard.py`, `fleet_suite_gate.py`, identity hooks
+`fleet_identity.py`, `fleet_rewrite.py`, the frozen-file wiring under the grant entry below),
+8f80ae9 (undo the shared monkeypatch before the stamp-basis check), 1a8610b (probe-refusal
+sandbox and three vendored timeout rows) and the `CS-1290 - adversary fixes and close record`
+commit holding this entry. CS-1291..CS-1296 were filed from MAIN's 2246 review by 95dcf2b.
+Gated whole-suite run on the FROZEN candidate b38c1cf, through `fleet_suite_gate`: 14865 passed,
+12 skipped, 0 failed, exit 0.
+Adversaries (two, distinct lenses, on the frozen candidate): the frozen-file edits CONFIRMED as
+within the grant entry below. Three defects found and fixed in the close commit: `CLAUDE.md`
+section 2.3 lost its "operator watches several project sessions" passage to
+`docs/history_notes.md` with no pointer (pointer added); `tests/conftest.py` ENV_ROOTS omitted
+`CLOCKSPEED_DESKTOP_DIR`, which `scripts/make_shortcut.py` writes through (declared);
+`tests/test_hook_env_echo.py` and `tests/test_hook_probe_bound.py` cited
+`tests/test_pre_push_suite_floor.py` for the identity refusal that lives in
+`tests/test_identity_hooks.py` (corrected).
+Decision, message rewrite: the two UNPUSHED session-133 commits were message-rewritten to drop
+their `Claude-Session:` line only, trees identical - 0197452 became fd5a83a and de4574e became
+4c9c75f; `CS-NEXT-SESSION.txt` now cites the new short SHAs. Alternatives: exempt the two
+commits in the identity hook - rejected, the kit file is pinned by MANIFEST.json and never
+edited locally; push without the hook - rejected, it is a safety floor. Why: v13 FLEET-COMMON
+item 17 and MAIN's 2026-10-08 ruling - no commit reachable from the default branch carries such
+a line; neither commit was ever pushed, so no force push was needed.
+
 ### 2026-10-09 - CS-1290 - frozen-file GRANT: kit v13 wiring (settings.json, commit-msg, pre-push)
 
 Authority: MAIN ORDERs 2026-10-08-2031 (v12 s3) and 2026-10-08-2246 (v13 s1),

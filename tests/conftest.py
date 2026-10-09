@@ -1574,7 +1574,8 @@ RUN_GIT_TIMEOUT_SECONDS: float = 120
 # ENV_ROOTS - every variable the code reads to locate a place it WRITES
 # runtime state: the save work copies (clockspeed/save/workdir.py), the suite
 # ration state (ops/loop/ration.py), the outbound send record
-# (tools/outbound_send.py) and the certificate pair (scripts/make_cert.py).
+# (tools/outbound_send.py), the certificate pair (scripts/make_cert.py) and
+# the Desktop shortcut (scripts/make_shortcut.py).
 # Variables that locate an INPUT - the save root, the game install, the
 # account directory, the local config - are deliberately not declared: they are
 # read-only, and pointing them at an empty tmp directory would change what the
@@ -1607,6 +1608,7 @@ ENV_ROOTS: Mapping[str, str] = MappingProxyType(
         "CLOCKSPEED_SUITE_RATION_ROOT": "ration",
         "CLOCKSPEED_OUTBOUND_RECORD": "outbound_record.jsonl",
         "CLOCKSPEED_CERT_DIR": "cert",
+        "CLOCKSPEED_DESKTOP_DIR": "desktop",
     }
 )
 GUARD_IGNORE: tuple[str, ...] = (

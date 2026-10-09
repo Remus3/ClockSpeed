@@ -209,7 +209,7 @@ CHATTY_CANDIDATE: Final = b"#!/bin/sh\nprintf 'an argument-ignoring candidate\\n
 # `python`, so a stand-in that failed it too would refuse the push there and the
 # ladder's own refusal - the path these arms name - would never be reached. The
 # stand-in answers that one call as passed and fails every other, ladder probes
-# included; the identity refusal itself is graded in test_pre_push_suite_floor.py.
+# included; the identity refusal itself is graded in test_identity_hooks.py.
 FAILING_RUNG: Final = b'#!/bin/sh\ncase "$1" in *fleet_identity.py) exit 0 ;; esac\nexit 1\n'
 LADDER_RUNGS: Final = ("python", "python3", "py")
 

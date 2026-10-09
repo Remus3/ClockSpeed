@@ -43,7 +43,6 @@ from tests.test_pre_push_suite_floor import (
     Environment,
     git,
     make_sandbox,
-    push,
     suite_of,
     tip,
 )
@@ -78,6 +77,13 @@ GENERATED_LINE: Final = "Generated with Claude Code"
 SUBJECT: Final = "CS-1290: an ordinary subject that says what changed"
 #: A synthetic NON-operator identity: neither the sandbox committer nor a bot.
 OUTSIDER: Final = "CS-1290 Outsider <cs1290-outsider@example.invalid>"
+
+
+def identity_refused(stderr: str) -> bool:
+    """True when the kit's identity line printed a refusal, not its clean line."""
+    return any(
+        line.strip().startswith("IDENTITY:") and "clean" not in line for line in stderr.splitlines()
+    )
 
 
 def stored_message(box: CommitSandbox) -> str:
@@ -123,10 +129,16 @@ def test_pre_push_refuses_when_no_operator_identity_is_set(
     box = make_sandbox(tmp_path, push_env, tests=suite_of(PASSING_TEST, 3))
     unset = git(box, "config", "--unset-all", OPERATOR_IDENT_KEY)
     assert unset.returncode == 0, "the operator identity could not be unset"
-    result = push(box)
-    assert result.unmoved, f"a push with no operator identity moved the remote:\n{result.report}"
-    refused = result.returncode != 0
-    assert refused, "the push exited 0"
+    seeded = tip(box, remote=True)
+    made = git(box, "commit", "-q", "--allow-empty", "-m", SUBJECT)
+    assert made.returncode == 0, "the offered commit could not be made"
+    # Bound to scalars first: an asserted CompletedProcess renders its output,
+    # which names the sandbox path.
+    proc = git(box, "push", "origin", BRANCH)
+    pushed, said = proc.returncode, identity_refused(proc.stderr)
+    assert pushed != 0, "the push exited 0"
+    assert said, "no IDENTITY: refusal line on stderr"
+    assert tip(box, remote=True) == seeded, "the remote moved"
 
 
 def test_pre_push_refuses_a_non_operator_author(tmp_path: Path, push_env: Environment) -> None:
@@ -137,7 +149,9 @@ def test_pre_push_refuses_a_non_operator_author(tmp_path: Path, push_env: Enviro
     assert made.returncode == 0, "the outsider commit could not be made"
     # Bound to a scalar first: an asserted CompletedProcess renders its output,
     # which names the sandbox path.
-    pushed = git(box, "push", "origin", BRANCH).returncode
+    proc = git(box, "push", "origin", BRANCH)
+    pushed, said = proc.returncode, identity_refused(proc.stderr)
+    assert said, "no IDENTITY: refusal line on stderr"
     assert pushed != 0, "a non-operator author was pushed"
     assert tip(box, remote=True) == seeded, "the remote moved"
 
@@ -151,7 +165,9 @@ def test_pre_push_refuses_an_ai_attribution_line(tmp_path: Path, push_env: Envir
     assert made.returncode == 0, "the trailer commit could not be made"
     # Bound to a scalar first: an asserted CompletedProcess renders its output,
     # which names the sandbox path.
-    pushed = git(box, "push", "origin", BRANCH).returncode
+    proc = git(box, "push", "origin", BRANCH)
+    pushed, said = proc.returncode, identity_refused(proc.stderr)
+    assert said, "no IDENTITY: refusal line on stderr"
     assert pushed != 0, "an AI attribution line was pushed"
     assert tip(box, remote=True) == seeded, "the remote moved"
 

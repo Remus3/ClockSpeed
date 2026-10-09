@@ -291,6 +291,8 @@ or write verbose output to a file. Operator directive, 2026-09-06.
 - **Do NOT poll a background task in a loop of one-line turns.** Each poll is a whole turn.
   Wait for the completion notification.
 
+Why: `docs/history_notes.md`, "From section 2.3".
+
 ### 2.3.1 The session checklist, and caveman-ultra as the default - filed 2026-10-02 by operator directive
 
 **Every session is caveman-ultra.** The main session stays CLEAR for operator use: prose

@@ -11,7 +11,7 @@ DO THIS BEFORE ANY PRODUCT WORK. MAIN reports "Fleet replies: no sibling has ans
 yet. CS and EW still owe v11 answers, and EW still owes its v10 answer" - and the fleet kit
 is now at v13. CS owes MAIN its v11 answer and is behind on v12 and v13.
  (0) BEFORE (1): `git ls-remote origin main` against `git rev-parse HEAD`. THE SESSION 133
-     /done LEFT TWO DOC-ONLY COMMITS UNPUSHED (0197452 and its hand-off commit) after two
+     /done LEFT TWO DOC-ONLY COMMITS UNPUSHED (fd5a83a and its hand-off commit) after two
      pre-push suites were blocked by box load; the push was handed to the responder's
      CS-1289 push through the v12 suite gate. If origin/main still lacks them, PUSH main
      first and read the output (REPORT at the bottom).
@@ -691,7 +691,7 @@ DOC SET, AFTER THE RECORDS EDIT: `python -m pytest` over tests/data/test_drift_g
   tests/test_pointer_claims.py, tests/test_provenance_manifest.py, tests/test_scaffold.py,
   tests/test_sha_citation_gate.py, tests/test_tier1_budget.py and tests/surface, -q -n 2
   -p no:cacheprovider: EXIT 0, 3736 passed in 194.81s.
-WHOLE SUITE, THROUGH THE PRE-PUSH HOOK OF THE RECORDS COMMIT 0197452 (`pytest tests -q -x -n
+WHOLE SUITE, THROUGH THE PRE-PUSH HOOK OF THE RECORDS COMMIT fd5a83a (`pytest tests -q -x -n
   auto --dist loadfile`), observed by this /done, TWICE, BOTH BLOCKED BY BOX LOAD:
   attempt 1, 21:27-21:33: 1 failed, 7051 passed, 1 skipped, 6 warnings in 345.92s, stopped
   by -x at tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary
@@ -700,7 +700,7 @@ WHOLE SUITE, THROUGH THE PRE-PUSH HOOK OF THE RECORDS COMMIT 0197452 (`pytest te
   passed, 12 skipped, 8 warnings in 2103.06s, stopped by -x at tests/test_claude_hook.py::
   test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeouts ("the
   wrapper adds 1.630s per call", limit 1.0 - a timing arm). Both printed "clockspeed
-  pre-push: BLOCKED (pytest exit 2). Nothing was pushed."; HEAD stayed 0197452 through
+  pre-push: BLOCKED (pytest exit 2). Nothing was pushed."; HEAD stayed fd5a83a through
   both. The box read 100 percent CPU with up to 10 pytest processes from OTHER trees (MAIN,
   an Ebonwake lane, another tree's responder - several through a machine-wide
   fleet_suite_gate.py from kit v12, which this tree's hook does not take yet). The code is
@@ -720,7 +720,7 @@ PUSH - NOT DONE, BY ADJUDICATOR RULING (an adjudicator that produced none of thi
   tree's control; (3) a third push now - the runner-up, on CLAUDE.md 6.1's "nothing stays
   unpushed" - lost because the box was in the state that blocked twice and it would hold
   the responder's gated suite about 35 minutes more. --no-verify is forbidden.
-  UNPUSHED AT THIS /done: 0197452 (the records commit) and THIS HAND-OFF COMMIT;
+  UNPUSHED AT THIS /done: fd5a83a (the records commit) and THIS HAND-OFF COMMIT;
   `git ls-remote origin main` read 3949816. THE PUSH IS HANDED TO the responder's CS-1289
   push of main through the v12 suite gate, which carries both; IF origin/main STILL LACKS
   THEM, PUSHING main IS THE NEXT SESSION'S FIRST ACT - read `git ls-remote origin main`.
@@ -734,7 +734,7 @@ CI READ BY THIS /done: tier1 37873139385 at 3949816 (the responder's v11 push) S
   tier1 37852195056 at b79531d (the session 132 hand-off tip) SUCCESS. tier2: latest
   37765254002 at 9512051 SUCCESS - BEFORE c97772c; none has run at a tip at or after
   c97772c; the next nightly is the 2026-10-09 03:17 UTC cron ('17 3 * * *'). NO CI RUN
-  EXISTS FOR 0197452 OR THIS HAND-OFF COMMIT - they were not pushed by this /done.
+  EXISTS FOR fd5a83a OR THIS HAND-OFF COMMIT - they were not pushed by this /done.
 RESPONDER CONCURRENCY, OBSERVED: at the /done's start (20:38) inbox_status.json read
   "running" since 18:41 and its v11 commits were already on main; its pass sat at "wait for
   quiet box". The /done waited 30 minutes (20:38:42-21:08:42) for the state to leave
@@ -751,7 +751,7 @@ HOUSEKEEPING READ BACK: work/cs1280/saves gone (41 files to the Recycle Bin by
   scripts, logs and the three measure JSONs present; ins-d1, ins-d4, ins-d5 and
   main-2155-inventory progress files read status "failed", step "stale - no owning process,
   found session 133", their original updated times kept as evidence.
-COMMITS BY THIS /done: 0197452 (records), then the hand-off commit holding this file and
+COMMITS BY THIS /done: fd5a83a (records), then the hand-off commit holding this file and
   the BACKLOG.md Push gate note (its SHA is not recorded here - `git log -1`).
 SHORTCUT: the Desktop CS-NEXT-SESSION.lnk was MISSING at this /done - no tree's
   NEXT-SESSION shortcut was on the Desktop, after a fleet reorganisation at about 21:16
