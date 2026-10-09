@@ -46,6 +46,7 @@ import pytest
 import clockspeed.audit as audit_package
 from clockspeed.audit import (
     balance,
+    build,
     collectibles,
     flow,
     footprint,
@@ -59,6 +60,7 @@ from clockspeed.data.registry import Building
 from clockspeed.save import objects
 from clockspeed.save.world import WorldWarning
 from tests.audit import test_balance as balance_fx
+from tests.audit import test_build as build_fx
 from tests.audit import test_collectibles as collectibles_fx
 from tests.audit import test_footprint as footprint_fx
 from tests.audit import test_inventory as inventory_fx
@@ -285,6 +287,15 @@ FIXTURES: Final[Mapping[str, Firing]] = {
         ).warnings
     ),
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE": lambda: _balance_composite(belts=False),
+    # build.py
+    "WARN_BUILD_MISMATCH": lambda: (
+        build.build_check_of(
+            build_fx.world(build_fx.SAVE_BUILD), pinned_changelist=build_fx.OTHER_BUILD
+        ).warnings
+    ),
+    "WARN_BUILD_UNCOMPARED": lambda: (
+        build.build_check_of(build_fx.world(), pinned_changelist=None).warnings
+    ),
     # collectibles.py
     "WARN_COLLECTED_STATE_UNAVAILABLE": lambda: _collectibles(
         collectibles_fx.actor(collectibles_fx.CRYSTAL_CLASS, (1.0, 2.0, 3.0)), level_count=0

@@ -54,6 +54,13 @@ from clockspeed.audit.balance import (
     WARN_BALANCE_PRODUCTION_UNMODELED,
     WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE,
 )
+from clockspeed.audit.build import (
+    SOURCE_BUILD,
+    WARN_BUILD_MISMATCH,
+    WARN_BUILD_UNCOMPARED,
+    BuildCheck,
+    build_check_of,
+)
 from clockspeed.audit.collectibles import (
     WARN_COLLECTED_ENTRY_UNJOINABLE,
     WARN_COLLECTED_STATE_UNAVAILABLE,
@@ -205,6 +212,7 @@ __all__ = [
     "REFUSED_SWAP_TO_SELF",
     "REFUSED_TOO_FEW_MACHINES",
     "SKIPPED_RECIPE_UNKNOWN",
+    "SOURCE_BUILD",
     "SOURCE_FLOW",
     "SOURCE_INVENTORY",
     "SOURCE_OVERLAY",
@@ -223,6 +231,8 @@ __all__ = [
     "WARN_BALANCE_PRODUCTION_NAMEPLATE",
     "WARN_BALANCE_PRODUCTION_UNMODELED",
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE",
+    "WARN_BUILD_MISMATCH",
+    "WARN_BUILD_UNCOMPARED",
     "WARN_BUILT_CLASS_NOT_PLOTTED",
     "WARN_BUILT_TRANSFORM_ABSENT",
     "WARN_COLLECTED_ENTRY_UNJOINABLE",
@@ -267,6 +277,7 @@ __all__ = [
     "WARN_PLACEMENT_ORIENTATION_NON_FINITE",
     "AddMachines",
     "AxisBounds",
+    "BuildCheck",
     "BuildingInventory",
     "EditRecord",
     "FlowGap",
@@ -287,6 +298,7 @@ __all__ = [
     "WorldInventory",
     "WorldPlacement",
     "apply_overlay",
+    "build_check_of",
     "class_name_of_path",
     "decimal_string",
     "evaluate_overlay",

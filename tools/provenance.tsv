@@ -53,6 +53,7 @@ clockspeed/advisor/rules/power.py	authored	CS-500	stamped
 clockspeed/advisor/trace.py	authored	CS-500	stamped
 clockspeed/audit/__init__.py	authored	CS-1165	first-add:root
 clockspeed/audit/balance.py	authored	CS-1045	first-add:CS-1045
+clockspeed/audit/build.py	authored	CS-1288	stamped
 clockspeed/audit/collectibles.py	authored	CS-1042	first-add:CS-1042
 clockspeed/audit/flow.py	authored	CS-1235	stamped
 clockspeed/audit/footprint.py	authored	CS-1044	first-add:CS-1044
@@ -268,6 +269,7 @@ tests/assertion_rendering_guard.py	authored	CS-850	first-add:CS-850
 tests/audit/__init__.py	authored	CS-977	first-add:CS-977
 tests/audit/plan_world.py	authored	CS-1235	stamped
 tests/audit/test_balance.py	authored	CS-1045	first-add:CS-1045
+tests/audit/test_build.py	authored	CS-1288	stamped
 tests/audit/test_collectibles.py	authored	CS-1042	first-add:CS-1042
 tests/audit/test_every_warning_fires.py	authored	CS-1238	stamped
 tests/audit/test_extent_seam.py	authored	CS-1266	stamped
