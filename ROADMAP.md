@@ -371,3 +371,6 @@ CS-1284 - switch the SUBAGENT-FIRST hook from log to deny after three interactiv
 CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1292 - README-AUDIT: a short README with an image and install detail in one linked doc before the CS-700 flip (MAIN 2246 section 3) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1300 - the nested CS-1233 run in `tests/test_claude_hook.py` fails its collection with an os.lstat FileNotFoundError about 1 run in 10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1301 - two canary arms read "the leaky control did not fail: exit 2" under box load, pass alone, and redden the pre-push suite - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1302 - mypy is pinned only by a floor, so CI and this box run different releases that emit different error codes - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

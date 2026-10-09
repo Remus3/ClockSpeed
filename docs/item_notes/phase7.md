@@ -1813,3 +1813,60 @@ go in this tree's next ANSWER to MAIN.
 Queued after section 1 (CS-1290) per the note's order of work. It needs a session that may
 spawn headless runs: a sub-agent slice cannot start it, so the main session or the lane
 queues it.
+
+## CS-1300
+
+### Acceptance
+
+`tests/test_claude_hook.py::test_the_measurement_starts_only_after_every_sibling_worker_finished`,
+both its `[quiet]` and `[control]` cases, runs 30 consecutive times under `-n 2 --dist
+loadfile` with no `os.lstat` FileNotFoundError in its nested run's collection; the fix names
+the measured cause, and no budget is raised and no case is skipped to get there.
+
+### Filed 2026-10-09 by the session 134 /done
+
+Measured during session 134's TIER2-RED work: about 1 run in 10 of `tests/test_claude_hook.py`
+fails in the nested CS-1233 run's collection with an `os.lstat` FileNotFoundError, at the same
+rate on base `94b9318` and on the TIER2-RED fix candidate (the branch whose tip subject is
+"CS-815 - the quiet barrier keeps its file, bounds its wait, fails loud"), so that fix neither
+causes nor cures it. A collection error reddens any suite that runs the file, so it is filed
+under the `CLAUDE.md` section 7 suite-red exception. The cause is unmeasured.
+
+## CS-1301
+
+### Acceptance
+
+`tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary` and
+`tests/test_cs1175_rule_narrowing.py::test_showlocals_forced_red_output_renders_no_canary`
+pass under the pre-push invocation on a loaded box, or fail naming the inner run's own
+failure - never a bare "the leaky control did not fail: exit 2"; the inner run's exit 2
+under load is traced to its cause and fixed there; neither leaky control is weakened and no
+budget is raised.
+
+### Filed 2026-10-09 by the session 134 /done
+
+Each arm drives a child pytest as a leaky control that must fail on its canary. Under box
+load the child exits 2 - a usage or collection error, not the expected test failure - so
+the arm reports that the control "did not fail: exit 2" and goes red. Each passes alone (the
+session 133 /done re-ran the first alone: exit 0). Both have stopped a `-x` pre-push whole
+suite under load, so the class is filed under the `CLAUDE.md` section 7 suite-red exception.
+
+## CS-1302
+
+### Acceptance
+
+The mypy release CI installs and the one a local gate runs are the same, pinned in one place
+both read, and bare `python -m mypy` exits 0 under that release locally and in tier1. A pin
+placed in `pyproject.toml` outside its lint tables first re-reads the escalation clause of
+the CS-G03 decision records in `docs/LEDGER.md`.
+
+### Filed 2026-10-09 by the session 134 /done
+
+`pyproject.toml`'s `dev` extra sets only the floor `mypy>=1.11`, and tier1's install step
+names that extra as the one owner of the tool versions. Tier1 run 37958927844 at `476ca8f`
+went red: CI installed mypy 2.4.0 while this box runs 2.1.0, and the two report a positional
+call to a keyword-only parameter under different error codes, so an ignore right for one is
+wrong for the other. `b64b41a` repaired that one site (the test calls through an Any-typed
+name, with no ignore) and tier1 37971510248 at `319cd8a` read green; the skew remains. Filed
+under the `CLAUDE.md` section 7 suite-red exception. ruff and pytest-xdist in the same extra
+already carry upper bounds, for the same lesson; pytest floats like mypy.

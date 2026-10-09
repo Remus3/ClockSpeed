@@ -526,3 +526,12 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - Two stubbed diagnostic responder passes wrote zero-duration inbox lines into the gitignored
   headless usage log, which the weekly build-versus-inbox split reads - TRIGGER: that split is
   next computed, or a diagnostic pass is next run against the live log.
+
+## Session 134 residuals - filed 2026-10-09 under product before process
+
+- `ops/fleet_kit/fleet_gitlock.py` breaks a lock holder older than its 15-minute stale limit,
+  shorter than a pre-push whole suite on this box (about 22 minutes): other owners broke
+  session 134's push lock twice (11:53 and 12:24) while its push ran, and two suites then ran
+  side by side. A vendored kit file is never edited here (FLEET-COMMON 11); the report is ONE
+  note to MAIN, owed by the next session - TRIGGER: a kit lands whose stale limit outlasts a
+  pre-push suite, or MAIN rules the limit stands; close this line then.

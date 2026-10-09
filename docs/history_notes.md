@@ -3128,6 +3128,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 131 - archived 2026-10-09 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 131 - 2026-10-08 - the C: cutover read back, the CS-G03 walk failed then passed on repair, four Phase 5 items and the walk repair closed, and the CS-700 flip block's order ruled but not started
+
+- Shipped: CS-1265, CS-1279, CS-1264, CS-1266 and CS-1278 closed. Detail in docs/LEDGER.md. The C: cutover completed: the C:\Clockspeed junction read back to E:\Clockspeed, and the cutover task lifted INBOX_STOP. 29 stale worktrees recycled. CS-G03 re-walk: walk 1 FAILED at ed0b03f; CS-1279 repaired it at 457d2b9; walk 2 PASSED at 457d2b9 and was adjudicated - check 7 and the human half of check 5 satisfied again, a Part 2 re-run owed before S7a (CS-G03 decision record). Filed CS-1278 (closed the same session), CS-1279 (closed), CS-1280 and CS-1281.
+- In flight: the CS-700 flip block - NOT started; the operator left before it, so no regeneration commit, no S3, S7q or S7a ran. MAIN 0839 ORDER FLEET-KIT v10 is unread-acted: it arrived 08:39 and the responder's state read refused/Halted.
+- Decisions: the walk 2 ruling (CS-G03 decision record); the CS-700 flip-block rulings Q1 to Q5 - order, Part 2, shape, two mains, the S7q responder check (CS-700 decision record; docs/item_notes/phase7.md CS-700); the CS-1265 counted-group ruling; the CS-1266 seam ruling (the audit never reads a record extent; the save layer publishes payload_present). Adversary loops on CS-1264, CS-1265, CS-1266 and CS-1278 stopped by cost against risk. No ADR.
+- Surprises: walk 1's suite was red from setup - Git's usr\bin was not on PATH, and paths broke MAX_PATH with Windows long paths off. The clocked draw omits 481 of 3005 built consumers on the save library (CS-1280). The adversaries' save-library sweeps left real-save copies in the session scratchpad; the merger recycled them (BACKLOG.md Session 131 residuals).
+- Failed paths: three pushes BLOCKED by pre-push census guards the builder briefs did not list - the bare python -m mypy gate over tests, tests/test_sphinx_roles.py, and tests/test_provenance_manifest.py for a new file. Builder briefs must list all three.
+- Next action: adopt FLEET-KIT v10 per MAIN 0839 (the frozen .claude/settings.json needs an adjudicator grant first); then, interactive with the operator present, the CS-700 flip block in the adjudicated order.
+
 ## Session 130 - archived 2026-10-08 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 130 - 2026-10-08 - the root moved to E: on the operator's own words without MAIN's runbook, ADR 0026 accepted, and a C: cutover task queued for after the session exits

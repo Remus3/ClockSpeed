@@ -75,6 +75,39 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-G03 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. The delta re-walk ruling's escalation FIRES: FLEET-KIT v13's frozen-file wiring changed two `.githooks` files after the walk tip
+Verification: `git diff --name-only 457d2b9 HEAD` over the reversal paths, read by the session
+134 /done at `319cd8a`, against the escalation clause of the session 133 CS-G03 DECISION
+RECORD below.
+Read back: of the reversal paths that record lists (`README.md`, `docs/OPERATIONS.md`,
+`.githooks/*`, `tools/precommit_gate.py`, `scripts/*`, `tools/memory_sync.py`, `pyproject.toml`,
+`config/ports.json`) the diff lists `.githooks/commit-msg`, `.githooks/pre-push` and
+`pyproject.toml`. The two hook files changed under the CS-1290 frozen-file GRANT recorded
+below (the identity check and the suite gate). A `tomllib` compare of `pyproject.toml` at
+`457d2b9` and at HEAD reads every key equal outside `tool.ruff.lint.per-file-ignores`,
+`tool.ruff.format.exclude` and `tool.mypy.overrides`.
+Verdict: the escalation TRIGGERS by the ruling's own text - the diff lists a reversal path
+other than `pyproject.toml` - so a FULL clean-machine re-walk, not Part 2 alone, is owed
+before CS-700 step S7a. Narrowing it again needs a new adjudication recorded here. CS-1292,
+ordered before the flip, edits `README.md`, itself a reversal path, so the full walk is
+dispatched after CS-1292 lands, pinned and witnessed as the ruling states.
+
+### 2026-10-09 - CS-1284 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1284 STAYS OPEN. Session 3 of 3 of SUBAGENT-FIRST log rows
+Verification: the gitignored `ops/loop/control/subagent_first.jsonl` and
+`ops/loop/control/subagent_first.mode`, read by the session 134 /done; the wiring by
+`tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_subagent_first_hook`.
+Read back by this /done: session 134's rows run from its first at 07:45:16 local on
+2026-10-09 to 13:36:58 the same day: 1523 rows, every one thread `sub`, decision `allow`,
+mode `log` (by agent type: builder 769, general-purpose 308, adversary 269, adjudicator 89,
+planner 86, untyped 2). No main-thread row: the main session only dispatched, and Agent and
+SendMessage are not guarded tools; the session 133 record below already holds the positive
+control, a main-thread guarded call logged as would-deny. The mode file reads `log`. The 4
+rows at 22:34 on 2026-10-08 are the session 133 /done's tail, not counted here.
+A row still carries only `agent_type`, `at`, `decision`, `mode`, `thread` and `tool`.
+Not done here: the switch. Rows now exist from three interactive sessions counted from the
+session 132 wiring (132, 133, 134); the acceptance allows the switch on or after 2026-10-10,
+after the lane exemption in `ops/loop/run_lane.ps1` is re-read.
+
 ### 2026-10-09 - CS-1299 - vendor FLEET-KIT v14
 
 Source: MAIN ORDER note 2026-10-09-0930 (FLEET-KIT v14), provenance verified. Vendored
