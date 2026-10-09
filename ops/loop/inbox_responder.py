@@ -46,8 +46,11 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      against its tree-wide budget of 120 per rolling 24 hours under a lock,
      refusing every start on an unreadable budget and never resetting it
      (CS-1234, MAIN 0855); keeps the CLI off the working directory; and kills
-     the whole tree on a timeout. `floors_in_hooks=True`, because this tree's
-     floors live in hooks and `--bare` skips them, so the kit refuses a bare run.
+     the whole tree on a timeout. `floors_in_hooks=True` (`FLOORS_IN_HOOKS`),
+     because this tree's floors live in hooks and `--bare` skips them, so the
+     kit refuses a bare run. A triage pass spawns with the kit's
+     `fleet_inbox.triage_spawn_kwargs(FLOORS_IN_HOOKS)` whole, its timeout
+     included (FLEET-KIT v11, CS-1287); every other pass with `WORKER_TIMEOUT_S`.
   6. Strict MCP and project settings, the prompt on stdin, cwd the main tree
      root, `--dangerously-skip-permissions` the one extra flag. Sonnet unless a
      live note is an ORDER, FIX or RULING or sits past the listing cap; effort
@@ -125,6 +128,13 @@ BACKOFF_S: Final = 3600.0
 #: suite in the pre-push hook; three hours bounds a wedged worker without
 #: killing an honest one.
 WORKER_TIMEOUT_S: Final = 3 * 3600.0
+
+#: This tree's floors live in hooks, and ``--bare`` skips hooks, so the kit is
+#: told so on every spawn and refuses a bare run. FLEET-KIT v11 ORDER item 3
+#: (CS-1287): a triage spawn takes ``fleet_inbox.triage_spawn_kwargs`` of this
+#: flag WHOLE - model, effort and the kit's own triage timeout included - in
+#: place of any local override.
+FLOORS_IN_HOOKS: Final = True
 
 #: The one flag the kit's argv does not carry. The worker runs unattended, so a
 #: permission prompt would wait forever; the kit refuses only fallback and bare
@@ -290,6 +300,16 @@ def kit_spawn(
         captured.append(out if isinstance(out, str) else "")
         return proc
 
+    shape: dict[str, Any]
+    if kind == KIND_TRIAGE:
+        shape = inbox_kit.triage_spawn_kwargs(FLOORS_IN_HOOKS)
+    else:
+        shape = {
+            "effort": effort,
+            "bare": not FLOORS_IN_HOOKS,
+            "floors_in_hooks": FLOORS_IN_HOOKS,
+            "timeout": WORKER_TIMEOUT_S,
+        }
     with _worker_env():
         line = kit.spawn(
             root,
@@ -298,14 +318,11 @@ def kit_spawn(
             note=note,
             kind=kind,
             writes_code=writes_code,
-            effort=effort,
-            bare=False,
-            floors_in_hooks=True,
             stdin=True,
             cwd=root,
-            timeout=WORKER_TIMEOUT_S,
             extra=KIT_EXTRA,
             run=run,
+            **shape,
             **seams,
         )
     usage: dict[str, Any] = dict(line) if isinstance(line, dict) else {}
@@ -547,11 +564,12 @@ def run_kind(writes_code: bool, effort: str) -> str:
     """The kit's ``kind`` for a pass: triage on the kit's triage shape, else inbox.
 
     "triage" exactly when the pass runs on the model and effort the kit's inbox
-    module names for a triage look (`TRIAGE_SPAWN`: sonnet, effort low) - a
-    pass over acknowledgements only. Every other pass, an ORDER, a question or
-    an item past the cap, is an ordinary "inbox" run.
+    module names for a triage look (`triage_spawn_kwargs`: sonnet, effort low) -
+    a pass over acknowledgements only. Every other pass, an ORDER, a question
+    or an item past the cap, is an ordinary "inbox" run.
     """
-    triage = (inbox_kit.TRIAGE_SPAWN["model"], inbox_kit.TRIAGE_SPAWN["effort"])
+    shape = inbox_kit.triage_spawn_kwargs(FLOORS_IN_HOOKS)
+    triage = (shape["model"], shape["effort"])
     return KIND_TRIAGE if (kit.pick_model(writes_code), effort) == triage else KIND_INBOX
 
 

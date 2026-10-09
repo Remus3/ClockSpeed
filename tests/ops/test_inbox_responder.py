@@ -39,6 +39,7 @@ if str(ROOT) not in sys.path:
 
 from ops.fleet_kit import fleet_checklist  # noqa: E402
 from ops.fleet_kit import fleet_headless as kit  # noqa: E402
+from ops.fleet_kit import fleet_inbox as inbox_kit  # noqa: E402
 from ops.loop import inbox_responder, inbox_status, inbox_surface, winmutex  # noqa: E402
 
 TOOLS_DIR: Final = ROOT / "tools"
@@ -369,6 +370,40 @@ def test_the_kit_refuses_bare_when_floors_live_in_hooks() -> None:
     """The door the responder relies on, read back from the vendored kit itself."""
     with pytest.raises(kit.Refused):
         kit.check_door(bare=True, floors_in_hooks=True)
+
+
+def test_the_triage_spawn_takes_the_kits_triage_kwargs_whole_and_never_bare(
+    tree: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1287, FLEET-KIT v11 ORDER item 3: every triage spawn splats the kit's own keywords.
+
+    The keywords the kit names for a triage run on a floors-in-hooks tree reach
+    ``kit.spawn`` unchanged - model, effort, the kit's own timeout, ``bare`` and
+    ``floors_in_hooks`` - so no local override sits beside them, and the run
+    the CLI is handed is never ``--bare``.
+    """
+    seen: list[dict[str, Any]] = []
+    real = kit.spawn
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        seen.append(dict(kwargs))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(kit, "spawn", recording)
+    spy = RunSpy()
+    _run(tree, spy, surface=_named(ACK_NOTE))
+    want = inbox_kit.triage_spawn_kwargs(True)
+    picked = [{key: k.get(key) for key in want} for k in seen]
+    kinds = [k.get("kind") for k in seen]
+    bare_argv = ["--bare" in call["argv"] for call in spy.calls]
+    timeouts = [call["timeout"] for call in spy.calls]
+    assert (picked, kinds, bare_argv, timeouts, want["bare"]) == (
+        [want],
+        ["triage"],
+        [False],
+        [want["timeout"]],
+        False,
+    )
 
 
 @pytest.mark.parametrize(
