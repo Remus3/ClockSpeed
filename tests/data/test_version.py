@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -266,10 +267,14 @@ def test_pin_returns_a_copy_so_a_caller_cannot_corrupt_module_state() -> None:
 # case below runs on a synthetic build string.
 
 
+#: The synthetic branch every hand-built parse case hangs its suffix on.
+_BRANCH = "++SyntheticGame+rel-test"
+
+
 def test_the_pinned_changelist_is_read_out_of_the_pinned_build() -> None:
     build = version_module.GAME_BUILD
-    head, sep, digits = build.rpartition("CL-")
-    assert sep, "the tracked build carries no CL- suffix - this test would compare nothing"
+    head, sep, digits = build.rpartition("-CL-")
+    assert sep, "the tracked build carries no -CL- suffix - this test would compare nothing"
     assert head, "the tracked build is a bare suffix - not a build string"
     assert digits.isascii(), "the tracked build's suffix is not ASCII"
     assert digits.isdigit(), "the tracked build's suffix is not digits"
@@ -278,7 +283,54 @@ def test_the_pinned_changelist_is_read_out_of_the_pinned_build() -> None:
 
     assert type(changelist) is int
     assert changelist == int(digits)
-    assert build.endswith(f"CL-{changelist}")
+    assert build.endswith(f"-CL-{changelist}")
+
+
+def test_changelist_of_reads_the_widest_changelist_it_admits() -> None:
+    widest = 10**version_module.CHANGELIST_MAX_DIGITS - 1
+    assert version_module.changelist_of(f"{_BRANCH}-CL-{widest}") == widest
+
+
+def test_the_changelist_width_is_the_widest_that_always_fits_a_signed_64_bit_integer() -> None:
+    width = version_module.CHANGELIST_MAX_DIGITS
+    int64_max = 2**63 - 1
+    assert 10**width - 1 <= int64_max
+    assert 10 ** (width + 1) - 1 > int64_max
+    # Far below the lowest value Python lets the int-string limit be set to, so
+    # int() over an admitted suffix can never raise under any configured limit.
+    assert width < sys.int_info.str_digits_check_threshold
+
+
+def test_changelist_of_a_changelist_one_digit_too_wide_is_none() -> None:
+    too_wide = "9" * (version_module.CHANGELIST_MAX_DIGITS + 1)
+    assert version_module.changelist_of(f"{_BRANCH}-CL-{too_wide}") is None
+
+
+def test_changelist_of_a_changelist_past_the_int_string_limit_is_none() -> None:
+    # int() over this many digits raises ValueError under the default limit; a
+    # corrupt pin carrying it must read as None, never raise.
+    overlong = "9" * (sys.int_info.default_max_str_digits + 1)
+    assert version_module.changelist_of(f"{_BRANCH}-CL-{overlong}") is None
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        # Canonical positive decimal only: a submitted changelist is never 0, 0
+        # is the stand-in a harness here already uses for "no changelist", and a
+        # leading zero breaks the round trip build.endswith(f"-CL-{n}").
+        pytest.param(f"{_BRANCH}-CL-0", id="zero"),
+        pytest.param(f"{_BRANCH}-CL-007", id="leading-zeros"),
+        # -CL- exactly: a CL- glued to anything but a hyphen is not the token.
+        pytest.param(f"{_BRANCH}-CL-5CL-7", id="glued-to-a-digit"),
+        pytest.param(f"{_BRANCH}_CL-7", id="underscore-separator"),
+        pytest.param(f"{_BRANCH}+CL-7", id="plus-separator"),
+        pytest.param(f"{_BRANCH}" + chr(0x00E9) + "CL-7", id="non-ascii-letter-separator"),
+        pytest.param("CL-7", id="no-branch"),
+    ],
+)
+def test_changelist_of_a_noncanonical_changelist_token_is_none(build: str) -> None:
+    assert version_module.changelist_of(build) is None
 
 
 def test_changelist_of_reads_the_trailing_changelist_of_a_synthetic_build() -> None:
@@ -314,6 +366,7 @@ def test_changelist_of_a_build_with_no_changelist_suffix_is_none(build: str) -> 
         "++SyntheticGame+rel-test-CL-7 ",
         "++SyntheticGame+rel-test-CL-7\n",
         "++SyntheticGame+rel-test-CL-" + chr(0x0661) + chr(0x0662),
+        "++SyntheticGame+rel-test-CL-1" + chr(0x0662),
         "++SyntheticGame+rel-test-CL-7-hotfix",
         "++SyntheticGame+rel-test-xCL-7",
     ],
@@ -603,20 +656,54 @@ def test_a_module_with_an_unparseable_pin_still_imports(tmp_path: Path) -> None:
     broken = source.replace(anchor, anchor + ",", 1)
     assert broken != source, "the mutation did not apply - a failed mutation looks GREEN"
 
-    target = tmp_path / "broken_version.py"
-    target.write_text(broken, encoding="utf-8", newline="\n")
-    spec = importlib.util.spec_from_file_location("clockspeed_broken_version", target)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-
-    spec.loader.exec_module(module)
+    module = _import_source_copy(tmp_path, broken, "clockspeed_broken_version")
 
     assert module.pin() == {}
     assert validate_pin(module.pin()) != []
     # No build, so no changelist - and never a default number standing in.
     assert module.GAME_BUILD == ""
     assert module.GAME_CHANGELIST is None
+
+
+def test_a_module_whose_pinned_build_has_an_overlong_changelist_still_imports(
+    tmp_path: Path,
+) -> None:
+    # GAME_CHANGELIST is computed at import, so a changelist int() refuses to
+    # convert would make a corrupt pin take the whole module down. It must read
+    # as None and leave the corruption for validate_pin to report.
+    source = VERSION_SOURCE.read_text(encoding="utf-8")
+    anchor = f'"game_build": {json.dumps(version_module.GAME_BUILD)}'
+    assert anchor in source, "the anchor moved - this test would mutate nothing"
+    overlong = "9" * (sys.int_info.default_max_str_digits + 1)
+    broken = source.replace(anchor, anchor[:-1] + overlong + '"', 1)
+    assert broken != source, "the mutation did not apply - a failed mutation looks GREEN"
+
+    module = _import_source_copy(tmp_path, broken, "clockspeed_overlong_changelist_version")
+
+    assert module.GAME_BUILD.endswith(overlong)
+    assert module.GAME_CHANGELIST is None
+    assert validate_pin(module.pin()) != []
+
+
+def _import_source_copy(tmp_path: Path, source: str, name: str) -> Any:
+    """Import a mutated copy of version.py as a module of its own.
+
+    Args:
+        tmp_path: Where the copy is written.
+        source: The mutated module source.
+        name: The module name, also the copy's file stem.
+
+    Returns:
+        The executed module.
+    """
+    target = tmp_path / f"{name}.py"
+    target.write_text(source, encoding="utf-8", newline="\n")
+    spec = importlib.util.spec_from_file_location(name, target)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_rewrite_pin_source_replaces_only_the_generated_block(

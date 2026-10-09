@@ -65,6 +65,7 @@ from clockspeed.data.docs_extract import (
 )
 
 __all__ = [
+    "CHANGELIST_MAX_DIGITS",
     "DOCS_RELATIVE",
     "DOCS_RELATIVE_PARTS",
     "GAME_CHANGELIST",
@@ -470,15 +471,31 @@ GAME_BUILD: Final[str] = str(_PIN.get("game_build", ""))
 DOCS_SHA256: Final[str] = str(_PIN.get("docs_sha256", ""))
 DOCS_BYTES: Final[int] = int(_PIN.get("docs_bytes", 0) or 0)
 
-#: A build string's trailing changelist: ``CL-`` then ASCII digits, ending the
-#: string. ``[0-9]`` rather than ``\d``, which would admit non-ASCII digits, and
-#: ``\Z`` rather than ``$``, which would admit a trailing newline. The
-#: look-behind keeps ``CL-`` a token of its own, not the tail of a longer word.
-_CHANGELIST_SUFFIX: Final = re.compile(r"(?<![A-Za-z0-9])CL-([0-9]+)\Z")
+#: The widest changelist read, in digits: the widest decimal whose every value
+#: fits a signed 64-bit integer. It also keeps int() far below Python's
+#: int-string limit, so an overlong suffix in a corrupt pin reads as None
+#: instead of raising at import and taking this module down with it.
+CHANGELIST_MAX_DIGITS: Final = 18
+
+#: A build string's trailing changelist, in the spelling Unreal gives a build
+#: version - ``<branch>-CL-<changelist>`` - and nothing looser:
+#:
+#: - ``-CL-`` exactly. A ``CL-`` glued to anything but a hyphen - a letter, a
+#:   digit, ``_``, ``+``, or nothing at all - is not the changelist token. One
+#:   admitted separator, because a blacklist of characters is a set somebody
+#:   has to keep complete.
+#: - Canonical positive decimal: ASCII ``[0-9]`` (``\d`` admits non-ASCII
+#:   digits) with no leading zero, so ``CL-0`` and ``CL-007`` read as None. A
+#:   submitted changelist is never 0, 0 is the stand-in a harness here already
+#:   uses for "no changelist", and only a canonical spelling round-trips:
+#:   ``build.endswith(f"-CL-{changelist_of(build)}")`` holds for every hit.
+#: - At most CHANGELIST_MAX_DIGITS digits, then ``\Z`` - not ``$``, which
+#:   admits a trailing newline.
+_CHANGELIST_SUFFIX: Final = re.compile(rf"-CL-([1-9][0-9]{{0,{CHANGELIST_MAX_DIGITS - 1}}})\Z")
 
 
 def changelist_of(build: str) -> int | None:
-    """Read the changelist a build string names in its trailing ``CL-<digits>``.
+    """Read the changelist a build string names in its trailing ``-CL-<digits>``.
 
     The changelist is DERIVED from the build string, never stored beside it: a
     number written down twice is a number that drifts (`CLAUDE.md` section 4).
@@ -488,8 +505,10 @@ def changelist_of(build: str) -> int | None:
 
     Returns:
         The changelist, or None when the build carries no well-formed trailing
-        changelist - including an empty build. Never a default
-        number: a stand-in would be indistinguishable from a measured value.
+        changelist - including an empty build, a non-canonical spelling and a
+        changelist too wide to read. Never a default number: a stand-in would
+        be indistinguishable from a measured value. Never raises on a string,
+        because GAME_CHANGELIST runs this at import.
     """
     match = _CHANGELIST_SUFFIX.search(build)
     return int(match.group(1)) if match else None
