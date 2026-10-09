@@ -19,7 +19,9 @@ WHY IT CANNOT DEADLOCK. The waiting worker holds no lock another worker wants,
 and xdist's scheduler hands the remaining queue to the other workers and shuts
 each down once the queue is empty - independently of the waiting one. Every
 worker is configured and locked before any test runs, because the scheduler
-starts no test until every worker has reported its collection.
+starts no test until every worker has reported its collection. A worker gives
+up its own lock while it waits, so two workers waiting at once never count
+each other live.
 
 Outside xdist there are no workers, so nothing is waited for. Standard library
 plus pytest only, like tests/conftest.py, which registers the two hooks below.
@@ -174,13 +176,26 @@ def await_quiet_siblings(config: pytest.Config) -> float:
 
     No bound of its own: a sibling that never finishes is a hung suite, which
     the job's own timeout already ends, and a sibling that dies frees its lock.
+
+    A WAITING WORKER IS NOT LIVE. Its own lock is released for the length of the
+    wait and taken again after it. Several arms wait, and a scheduler other than
+    ``--dist loadfile`` can put two of them on two workers at once: a waiter that
+    stayed live would count the other as busy, and each would wait for ever.
     """
     identity = _worker_identity(config)
     if identity is None:
         return 0.0
+    held = config.stash.get(_HELD, None)
+    if held is not None:
+        del config.stash[_HELD]
+        release_liveness_lock(held)
     started = time.perf_counter()
-    while live_sibling_count(*identity):
-        time.sleep(POLL_SECONDS)
+    try:
+        while live_sibling_count(*identity):
+            time.sleep(POLL_SECONDS)
+    finally:
+        if held is not None:
+            config.stash[_HELD] = hold_liveness_lock(*identity)
     return time.perf_counter() - started
 
 

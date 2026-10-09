@@ -41,6 +41,7 @@ non-negotiables 3 and 12).
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -48,15 +49,19 @@ import re
 import statistics
 import subprocess
 import sys
+import threading
 import time
+import uuid
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
-from typing import Final, NamedTuple
+from types import SimpleNamespace
+from typing import Final, NamedTuple, cast
 
 import pytest
 from ops.fleet_kit import fleet_subagent_first as subagent_first_kit
 
+from tests import xdist_quiet
 from tests.test_hook_interpreter_ladder import (
     ARGUMENT_IGNORING_PROGRAMS,
     DRIVE_PATH,
@@ -373,9 +378,26 @@ def harness(isolated: Environment) -> Environment:  # noqa: F811 - the imported 
 
 
 @pytest.fixture
-def pinned(harness: Environment) -> Environment:
-    """The harness environment with the ladder pinned at the running interpreter."""
-    return extended(harness, **{ENV_NAME: sys.executable})
+def alone(harness: Environment, request: pytest.FixtureRequest) -> Environment:
+    """The harness environment, handed over only once every sibling worker has finished.
+
+    THE WRAPPER BOUNDS ITS WHOLE LADDER BY ONE CS_PROBE_BOUND, and an arm that
+    grades a pass-through, a deny or a NAMED refusal grades a verdict that exists
+    only if that ladder FINISHES inside it. Each rung is about ten process starts,
+    and beside CPU-bound sibling workers those starts slowed past the bound: tier2
+    run 37919155122 read "the interpreter ladder did not finish inside its bound"
+    from the liar arm, three rungs, on the windows guard shard. The same arm is
+    green alone and red beside a CPU-bound sibling worker, so the number graded
+    was the sibling load. CS-1233's barrier removes it; the bound does not move.
+    """
+    await_quiet_siblings(request.config)
+    return harness
+
+
+@pytest.fixture
+def pinned(alone: Environment) -> Environment:
+    """The quiet harness environment with the ladder pinned at the running interpreter."""
+    return extended(alone, **{ENV_NAME: sys.executable})
 
 
 def report_line(result: Run) -> str:
@@ -711,7 +733,7 @@ def settings_timeout(event: str) -> int:
 
 def test_the_settings_commands_run_under_a_shell_like_the_harness(
     tmp_path: Path,
-    harness: Environment,
+    alone: Environment,
 ) -> None:
     """The command STRINGS, handed to a shell with the anchor in its environment.
 
@@ -720,7 +742,7 @@ def test_the_settings_commands_run_under_a_shell_like_the_harness(
     gate's own words, and the PostToolUse leg lints a clean file.
     """
     config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
-    env = extended(harness, CLAUDE_PROJECT_DIR=str(REPO_ROOT))
+    env = extended(alone, CLAUDE_PROJECT_DIR=str(REPO_ROOT))
     pre = hook_command(config, "PreToolUse")
 
     benign = run(
@@ -791,14 +813,14 @@ def test_stdin_argv_streams_and_status_pass_through_unchanged(
 
 def test_the_pretooluse_leg_runs_pythonw_beside_the_winner(
     tmp_path: Path,
-    harness: Environment,
+    alone: Environment,
 ) -> None:
     """With the ladder left to itself, the windowed leg runs pythonw and the other does not."""
     stub = tmp_path / "cs815_stub.py"
     stub.write_bytes(STUB_SOURCE.encode("ascii"))
     names = {}
     for leg in (PRE, POST):
-        result = via_wrapper(leg, [str(stub)], b"", harness, tmp_path)
+        result = via_wrapper(leg, [str(stub)], b"", alone, tmp_path)
         assert result.returncode == 0, f"{leg} did not run the stub:\n{shown(result.stderr)}"
         names[leg] = result.stdout.rsplit(b"\n", 1)[-1].decode("ascii")
     if os.name == "nt":
@@ -831,12 +853,12 @@ def test_a_known_deny_still_denies_through_the_wrapper_as_it_does_directly(
 @pytest.mark.parametrize("program", ARGUMENT_IGNORING_PROGRAMS)
 def test_an_argument_ignoring_interpreter_is_loudly_reported(
     tmp_path: Path,
-    harness: Environment,
+    alone: Environment,
     program: str,
     leg: str,
 ) -> None:
     """Each program the ladder test names, pointed at through the variable."""
-    env = extended(harness, **{ENV_NAME: program})
+    env = extended(alone, **{ENV_NAME: program})
     tool = [str(GATE)] if leg == PRE else [str(LINT), "--files", str(tmp_path / "x.py")]
     payload = json.dumps(envelope("echo " + EM_DASH)).encode("utf-8")
     result = via_wrapper(leg, tool, payload, env, tmp_path)
@@ -846,13 +868,17 @@ def test_an_argument_ignoring_interpreter_is_loudly_reported(
 
 def test_a_liar_on_every_rung_is_loudly_reported(
     tmp_path: Path,
-    harness: Environment,
+    alone: Environment,
 ) -> None:
-    """No variable set: every ladder rung on PATH forwards output and drops the status."""
+    """No variable set: every ladder rung on PATH forwards output and drops the status.
+
+    Three rungs run inside the wrapper's one bound - the most process starts of
+    any arm - so this is the arm sibling load pushed past it first (``alone``).
+    """
     shadow = tmp_path / "allrungs"
     for rung in LADDER_RUNGS:
         write_shim(shadow, rung, LIAR_SHIM)
-    env = path_first(harness, shadow)
+    env = path_first(alone, shadow)
     payload = json.dumps(envelope("echo " + EM_DASH)).encode("utf-8")
     result = via_wrapper(PRE, [str(GATE)], payload, env, tmp_path)
     line = assert_loud(result, env)
@@ -884,11 +910,15 @@ def test_an_unnamed_leg_is_loudly_reported(
 
 def test_a_hanging_candidate_is_bounded_and_loudly_reported(
     tmp_path: Path,
-    harness: Environment,
+    alone: Environment,
 ) -> None:
-    """A candidate that never answers costs at most the bound plus the grace."""
+    """A candidate that never answers costs at most the bound plus the grace.
+
+    The slack past the bound is the wrapper's own process starts, and beside a
+    CPU-bound sibling worker those outgrew it - so this arm waits too (``alone``).
+    """
     hang = write_shim(tmp_path / "hang", "hang.sh", "#!/bin/sh\nsleep 60\n")
-    env = extended(harness, **{ENV_NAME: hang.as_posix()})
+    env = extended(alone, **{ENV_NAME: hang.as_posix()})
     result = via_wrapper(PRE, [str(GATE)], b"{}", env, tmp_path)
     assert_loud(result, env)
     bound, grace = wrapper_bound()
@@ -1090,3 +1120,157 @@ def test_a_released_sibling_lock_is_not_live_and_outside_xdist_nothing_waits(
     if getattr(request.config, "workerinput", None) is None:
         waited = await_quiet_siblings(request.config)
         assert waited == 0.0, "a run with no workers waited"
+
+
+# ---------------------------------------------------------------------------
+# Tier2 run 37919155122 - an arm whose verdict needs the ladder to FINISH runs alone.
+# ---------------------------------------------------------------------------
+
+# The wrapper bounds its WHOLE ladder by one CS_PROBE_BOUND. These arms reach the
+# wrapper's environment but grade nothing that depends on wall time - no ladder
+# runs in either - so they may share the box with sibling workers. Every OTHER arm
+# that reaches `harness` must request `alone`, directly or through `pinned`, or
+# wait itself. The hanging-candidate arm is NOT here: the slack it grades past the
+# bound is process starts, and beside a CPU-bound sibling it overran.
+LOAD_TOLERANT_ARMS: Final = {
+    "test_a_foreign_bounding_program_is_loudly_reported": "the outer timeout is the foreign one",
+    "test_an_unnamed_leg_is_loudly_reported": "refused before any ladder runs",
+}
+QUIET_FIXTURE: Final = "alone"
+HARNESS_FIXTURE: Final = "harness"
+QUIET_CALL: Final = "await_quiet_siblings"
+
+# How long two waiting workers get to both come back before the arm calls it a
+# deadlock. A sound barrier returns within a few polls of POLL_SECONDS each.
+DEADLOCK_SECONDS: Final = 10.0
+
+
+class ModuleArms(NamedTuple):
+    """This module's own functions, read from its source, never from a collection."""
+
+    functions: dict[str, ast.FunctionDef]
+    fixtures: frozenset[str]
+
+
+def is_fixture_decorator(node: ast.expr) -> bool:
+    """``@pytest.fixture`` bare or called."""
+    target = node.func if isinstance(node, ast.Call) else node
+    return (
+        isinstance(target, ast.Attribute)
+        and target.attr == "fixture"
+        and isinstance(target.value, ast.Name)
+        and target.value.id == "pytest"
+    )
+
+
+def module_arms() -> ModuleArms:
+    """Every top-level function of this file, and which of them are fixtures."""
+    tree = ast.parse(Path(__file__).read_bytes().decode("utf-8"))
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    fixtures = frozenset(
+        name
+        for name, node in functions.items()
+        if any(is_fixture_decorator(decorator) for decorator in node.decorator_list)
+    )
+    return ModuleArms(functions, fixtures)
+
+
+def fixture_closure(arms: ModuleArms, name: str) -> frozenset[str]:
+    """The fixtures a function requests, followed through every fixture defined here."""
+    seen: set[str] = set()
+    pending = [arg.arg for arg in arms.functions[name].args.args]
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        if current in arms.fixtures:
+            pending.extend(arg.arg for arg in arms.functions[current].args.args)
+    return frozenset(seen)
+
+
+def waits_itself(node: ast.FunctionDef) -> bool:
+    """Whether a function's own body calls the barrier."""
+    return any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == QUIET_CALL
+        for call in ast.walk(node)
+    )
+
+
+def waiting_arms(arms: ModuleArms) -> dict[str, bool]:
+    """Every test that reaches the harness, mapped to whether it waits for quiet siblings."""
+    return {
+        name: QUIET_FIXTURE in closure or waits_itself(node)
+        for name, node in arms.functions.items()
+        if name.startswith("test_")
+        for closure in [fixture_closure(arms, name)]
+        if HARNESS_FIXTURE in closure
+    }
+
+
+def test_every_arm_whose_verdict_needs_the_ladder_to_finish_runs_alone() -> None:
+    """Every harness arm waits for quiet siblings, or is a named load-tolerant one.
+
+    The liar arm read "the interpreter ladder did not finish inside its bound" on
+    the windows guard shard: three rungs of process starts, slowed past the one
+    bound by CPU-bound sibling workers. Every arm that grades a pass-through, a
+    deny or a NAMED refusal needs that same ladder to finish, so each waits.
+    """
+    arms = module_arms()
+    reached = waiting_arms(arms)
+    walked = "test_a_liar_on_every_rung_is_loudly_reported" in reached
+    assert walked, "the walk found no harness arm, so it proves nothing"
+    stale = sorted(set(LOAD_TOLERANT_ARMS) - set(reached))
+    assert stale == [], f"a load-tolerant entry names no harness arm here: {stale}"
+    unguarded = sorted(
+        name for name, waits in reached.items() if not waits and name not in LOAD_TOLERANT_ARMS
+    )
+    assert unguarded == [], f"these arms need the ladder to finish, beside siblings: {unguarded}"
+    tolerant_but_waiting = sorted(name for name in LOAD_TOLERANT_ARMS if reached[name])
+    assert tolerant_but_waiting == [], f"a load-tolerant arm waits anyway: {tolerant_but_waiting}"
+    defined = QUIET_FIXTURE in arms.fixtures
+    assert defined, f"no {QUIET_FIXTURE!r} fixture is defined here"
+
+
+def fake_worker(run_id: str, worker: str) -> SimpleNamespace:
+    """The two attributes of an xdist worker's config the barrier reads."""
+    return SimpleNamespace(
+        workerinput={"testrunuid": run_id, "workerid": worker}, stash=pytest.Stash()
+    )
+
+
+def test_two_waiting_workers_never_wait_on_each_other() -> None:
+    """Two arms that wait, on two workers, both come back - neither waits on the other.
+
+    A scheduler other than --dist loadfile splits one file's arms across workers,
+    so two waiters can be live at once. A waiter that stayed live while it waited
+    would see the other as busy, and each would wait for the other for ever.
+    """
+    run_id = "cs815-two-waiters-" + uuid.uuid4().hex
+    workers = {name: fake_worker(run_id, name) for name in ("gw0", "gw1")}
+    sessions = {name: SimpleNamespace(config=worker) for name, worker in workers.items()}
+    for session in sessions.values():
+        xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    returned: dict[str, float] = {}
+
+    def worker_run(name: str) -> None:
+        returned[name] = await_quiet_siblings(cast(pytest.Config, workers[name]))
+        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, sessions[name]))
+
+    threads = [threading.Thread(target=worker_run, args=(name,), daemon=True) for name in workers]
+    try:
+        for thread in threads:
+            thread.start()
+        deadline = time.monotonic() + DEADLOCK_SECONDS
+        for thread in threads:
+            thread.join(max(0.0, deadline - time.monotonic()))
+        stuck = sorted(name for name in workers if name not in returned)
+    finally:
+        # A stuck waiter is freed by ending both sessions, so no thread outlives the arm.
+        for session in sessions.values():
+            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+        for thread in threads:
+            thread.join(DEADLOCK_SECONDS)
+    assert stuck == [], f"two waiting workers waited on each other: {stuck} never came back"
