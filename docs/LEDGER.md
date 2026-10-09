@@ -79,7 +79,7 @@ machine-checked artifact that produces it.
 
 Verification: `ops/fleet_kit/MANIFEST.json` sha256
 1311801a0f5c5ee17150d56b438fb0038a92efeb2b8e13ba02c79da2457f74e0 and FLEET-COMMON block hash
-fb6c129a...f02b, pinned by `tests/test_fleet_kit.py::test_fleet_kit_conformance`
+fb6c129a73d1e1d8bee60367b4f4f74d39bb4051bdef0f56afd24d88e9a6f02b, pinned by `tests/test_fleet_kit.py::test_fleet_kit_conformance`
 (conformance() == []), `tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest` and
 `tests/test_fleet_kit.py::test_every_kit_file_on_disk_is_named_by_the_manifest`; the hook wiring
 by `tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_claims_hooks` and
@@ -99,7 +99,8 @@ Landed: commits 222be67 (vendor v13: the kit files, race guards `fleet_claims.py
 8f80ae9 (undo the shared monkeypatch before the stamp-basis check), 1a8610b (probe-refusal
 sandbox and three vendored timeout rows) and the `CS-1290 - adversary fixes and close record`
 commit holding this entry. CS-1291..CS-1296 were filed from MAIN's 2246 review by 95dcf2b.
-Gated whole-suite run on the FROZEN candidate b38c1cf, through `fleet_suite_gate`: 14865 passed,
+Gated whole-suite run on the FROZEN worktree candidate (never published; its three
+CS-1290 commits were cherry-picked to main unchanged), through `fleet_suite_gate`: 14865 passed,
 12 skipped, 0 failed, exit 0.
 Adversaries (two, distinct lenses, on the frozen candidate): the frozen-file edits CONFIRMED as
 within the grant entry below. Three defects found and fixed in the close commit: `CLAUDE.md`
@@ -110,8 +111,8 @@ section 2.3 lost its "operator watches several project sessions" passage to
 `tests/test_pre_push_suite_floor.py` for the identity refusal that lives in
 `tests/test_identity_hooks.py` (corrected).
 Decision, message rewrite: the two UNPUSHED session-133 commits were message-rewritten to drop
-their `Claude-Session:` line only, trees identical - 0197452 became fd5a83a and de4574e became
-4c9c75f; `CS-NEXT-SESSION.txt` now cites the new short SHAs. Alternatives: exempt the two
+their `Claude-Session:` line only, trees identical - the records commit became fd5a83a and the hand-off commit
+became 4c9c75f; `CS-NEXT-SESSION.txt` now cites the new short SHAs. Alternatives: exempt the two
 commits in the identity hook - rejected, the kit file is pinned by MANIFEST.json and never
 edited locally; push without the hook - rejected, it is a safety floor. Why: v13 FLEET-COMMON
 item 17 and MAIN's 2026-10-08 ruling - no commit reachable from the default branch carries such
