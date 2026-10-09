@@ -352,6 +352,11 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   (MemoryError, xdist worker crash, fork exhaustion, timeouts) and passes on retry with no
   code change - TRIGGER: a third blocked push in one week traced to box load rather than a
   defect; candidates are a load check before the hook starts or a cap on concurrent suites.
+  TRIGGER FIRED 3/3 at the session 133 /done (session 129 once, then two blocked pushes of
+  the /done records commit - a canary child pytest exit 2 and a 1.0 s timing arm, the box at
+  100 percent CPU from other trees' suites); no new item, by adjudicator ruling: the remedy
+  "a cap on concurrent suites" is FLEET-KIT v12's machine-wide suite gate, in flight as
+  CS-1289 - close this line when that gate runs this tree's pre-push suite, else file it.
 
 ## Stale docstrings - filed 2026-10-04 by the CS-500 integration
 
