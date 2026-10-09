@@ -301,6 +301,13 @@ def child_env(
         env.pop(name)
     env.update(zip(CANARY_NAMES, MARKERS, strict=True))
     env.update(suite_dir_env(root))
+    # CS-1297: the nested pytest names its base temp `pytest-of-<account>`, and
+    # the account here may be a canary marker - aim TMPDIR (read first by
+    # tempfile and by the hook's mktemp) under this arm's own root, outside the
+    # work tree, so no marker-named root is ever left at the top of temp.
+    scratch = root / "tmpdir"
+    scratch.mkdir(parents=True, exist_ok=True)
+    env["TMPDIR"] = str(scratch)
     env.update(extra or {})
     if path_first is not None:
         env["PATH"] = str(path_first) + os.pathsep + env.get("PATH", "")

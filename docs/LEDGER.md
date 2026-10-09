@@ -75,6 +75,10 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1297 - canary inner pytest roots stay under the outer tmp_path
+
+Verification: `tests/test_canary_temp_roots.py::test_the_inner_pytest_temp_root_stays_under_tmp_path`; `child_env` in `tests/test_hook_env_echo.py` and `tests/test_probe_refusal_output.py` sets TMPDIR under the arm root. Source: MAIN FIX note 2026-10-09-0805 (TEMP-1), provenance verified. Adversary NOT REFUTED: pre-fix control leaked 1 `pytest-of-cs814canary*` root per run, post-fix 0 new.
+
 ### 2026-10-09 - CS-1290 - CLOSED: FLEET-KIT v13 adopted (folds v12) - vendored, race guards and identity hooks wired
 
 Verification: `ops/fleet_kit/MANIFEST.json` sha256
