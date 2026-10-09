@@ -51,7 +51,15 @@ def _read(control: Path) -> dict[str, Any]:
 
 
 def test_the_constants_match_the_order() -> None:
-    states = inbox_status.STATES == ("idle", "running", "limit", "backoff", "halted", "refused")
+    states = inbox_status.STATES == (
+        "idle",
+        "running",
+        "limit",
+        "backoff",
+        "halted",
+        "refused",
+        "blocked",
+    )
     tasks = set(inbox_status.TASKS) == {
         "Idle",
         "Checking Inbox",
@@ -232,6 +240,21 @@ def test_the_published_cap_and_window_are_the_kits() -> None:
     """One budget: the numbers this schema publishes are the kit's, never a second pair."""
     numbers = (inbox_status.RUNS_CAP, inbox_status.WINDOW_S, set(inbox_status.STATES))
     assert numbers == (kit.RUNS_CAP, kit.WINDOW_S, set(kit.STATES))
+
+
+def test_publish_accepts_the_kits_blocked_state(tmp_path: Path) -> None:
+    """FLEET-KIT v14 (CS-1299) adds "blocked" to the kit's STATES; the schema publishes it."""
+    inbox_status.publish(
+        tmp_path,
+        now=T0,
+        state="blocked",
+        task="Halted",
+        task_started=T0 - 5,
+        eta_s=None,
+        next_tick=None,
+        window=inbox_status.Window(count=0, frees_at=None),
+    )
+    assert _read(tmp_path)["state"] == "blocked"
 
 
 def test_the_retired_counter_is_gone() -> None:

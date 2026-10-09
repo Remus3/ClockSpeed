@@ -313,7 +313,7 @@ PARAMETER_RENDER_RESIDUALS = {
 # test_every_vendored_render_residual_is_at_its_kit_pin reddens, so a row can
 # never cover a render this tree wrote.
 VENDORED_RENDER_RESIDUALS = {
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1169): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1220): (
         "CS-1282, FLEET item 11 - the kit's command-line entry, main(), renders "
         "a Refused whole into its one JSON stdout line. Reported to MAIN as kit "
         "defect 5 and REJECTED in kit version 11's ORDER (CS-1287): with the "
@@ -322,11 +322,12 @@ VENDORED_RENDER_RESIDUALS = {
         "to that caller, and the reason line is the command line's exit-3 "
         "contract. Reversed if any Refused message is found rendering text the "
         "caller did not supply. The line moved 1069 -> 1089 on the v11 bytes "
-        "and 1089 -> 1169 on the v13 bytes (CS-1290)."
+        "1089 -> 1169 on the v13 bytes (CS-1290) and 1169 -> 1220 on "
+        "the v14 bytes (CS-1299)."
     ),
-    ("ops/fleet_kit/fleet_gitlock.py", "str(exc)", 445): (
+    ("ops/fleet_kit/fleet_gitlock.py", "str(exc)", 494): (
         "CS-1290, FLEET item 11 - the git lock's command-line entry, main(), "
-        "writes a LockRefused whole to stderr before exit 3. MEASURED on the v13 "
+        "writes a LockRefused whole to stderr before exit 3. MEASURED on the v13 and v14 "
         "bytes: every LockRefused it raises is a kit literal, an integer (a "
         "timeout, an age, a holder pid), the caller's own option echoed back, "
         "the literal word author or committer, or a staged path made "
@@ -335,9 +336,9 @@ VENDORED_RENDER_RESIDUALS = {
         "if a LockRefused is found rendering an absolute path or text the "
         "caller did not supply."
     ),
-    ("ops/fleet_kit/fleet_suite_gate.py", "str(exc)", 332): (
+    ("ops/fleet_kit/fleet_suite_gate.py", "str(exc)", 381): (
         "CS-1290, FLEET item 11 - the suite gate's command-line entry, main(), "
-        "writes a GateRefused whole to stderr before exit 3. MEASURED on the v13 "
+        "writes a GateRefused whole to stderr before exit 3. MEASURED on the v13 and v14 "
         "bytes: every GateRefused it raises is a kit literal, an integer (a "
         "timeout, a slot count), the caller's own option echoed back, or a "
         "dirty path made TREE-RELATIVE by fleet_claims.rel_in - the dirty paths "
@@ -345,10 +346,10 @@ VENDORED_RENDER_RESIDUALS = {
         "GateRefused is found rendering an absolute path or text the caller did "
         "not supply."
     ),
-    ("ops/fleet_kit/fleet_rewrite.py", "str(exc)", 457): (
+    ("ops/fleet_kit/fleet_rewrite.py", "str(exc)", 497): (
         "CS-1290, FLEET item 11 - the rewrite helper's command-line entry, "
         "main(), writes a Refused whole to stderr before exit 3. MEASURED on the "
-        "v13 bytes: every Refused it raises is a kit literal, an integer (an "
+        "v13 and v14 bytes: every Refused it raises is a kit literal, an integer (an "
         "exit status, an age bound, the minimum kit version), a git verb the "
         "kit itself passed, or the config key name - no path, value or "
         "identity. Nothing in this tree runs the helper; CS-700 S7a may. "

@@ -1623,3 +1623,18 @@ fleet_test_guard.install(
     env_roots=dict(ENV_ROOTS),
     ignore=GUARD_IGNORE,
 )
+
+
+# ---------------------------------------------------------------------------
+# CS-1299 - FLEET-KIT v14 order step 3.4: the lane worktree root is pinned
+#
+# v14's fleet_lanes.worktree_path() relocates every lane worktree under the
+# user variable FLEET_SIDECAR_ROOT (process environment first, then HKCU
+# Environment) when it is set. This suite calls worktree_path() directly
+# (tests/ops/test_multi_lane.py) and through ops/loop/lanes.py, so an EMPTY
+# value is pinned for the whole run - empty disables the sidecar in the kit -
+# and the suite never depends on whether MAIN has set the machine variable.
+# Done at import, before collection, for the same reason as the scrub above.
+# Appended at the foot for the line-number reason above.
+# ---------------------------------------------------------------------------
+os.environ["FLEET_SIDECAR_ROOT"] = ""

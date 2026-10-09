@@ -51,6 +51,14 @@ KIT: Final = "ops/fleet_kit/fleet_headless.py"
 RUN_LANE: Final = "ops/loop/run_lane.ps1"
 DIRECT_START_EXCEPTIONS: Final = frozenset({RUN_LANE})
 
+#: Probe-only hits: a string the scanner reads as a start but that only names
+#: the CLI to recognise a running Claude Code session (an image-name check, no
+#: spawn). Keyed by path to the exact source fragment; any OTHER hit in the
+#: same file still counts. CS-1299: kit v14 claims session_process().
+PROBE_ONLY: Final = {
+    "ops/fleet_kit/fleet_claims.py": 'prow[1].startswith("claude")',
+}
+
 #: The one tracked module that starts its worker through the kit today.
 RESPONDER: Final = "ops/loop/inbox_responder.py"
 
@@ -373,8 +381,35 @@ def test_every_direct_start_is_the_kit_or_the_one_named_exception() -> None:
     expected set holds run_lane.ps1, so the day it stops starting `claude` this
     arm reddens until the exception is retired.
     """
-    direct = sorted(set(walk(ROOT)) - {KIT})
+    direct = sorted(set(_without_probes(ROOT, walk(ROOT))) - {KIT})
     assert direct == sorted(DIRECT_START_EXCEPTIONS)
+
+
+def _without_probes(root: Path, found: dict[str, list[int]]) -> dict[str, list[int]]:
+    """Drop only the lines holding a PROBE_ONLY fragment; other hits stay."""
+    kept: dict[str, list[int]] = {}
+    for rel, hits in found.items():
+        lines = hits
+        fragment = PROBE_ONLY.get(rel)
+        if fragment is not None:
+            source = (root / rel).read_bytes().decode("utf-8", "replace").splitlines()
+            lines = [n for n in hits if fragment not in source[n - 1]]
+        if lines:
+            kept[rel] = lines
+    return kept
+
+
+def test_every_probe_only_exemption_still_matches_a_hit() -> None:
+    """Non-vacuity: each PROBE_ONLY fragment sits on a line the walk reports.
+
+    When the site moves or stops matching, this reddens so the exemption is
+    retired instead of silently widening.
+    """
+    found = walk(ROOT)
+    for rel, fragment in PROBE_ONLY.items():
+        source = (ROOT / rel).read_bytes().decode("utf-8", "replace").splitlines()
+        hits = [n for n in found.get(rel, []) if fragment in source[n - 1]]
+        assert len(hits) == 1, rel
 
 
 def test_the_exception_is_the_one_claude_md_names() -> None:

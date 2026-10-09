@@ -1,4 +1,4 @@
-"""CS-1290 - the vendored FLEET-KIT version 13, byte-pinned and conformance-checked.
+"""CS-1299 - the vendored FLEET-KIT version 14, byte-pinned and conformance-checked.
 
 ``ops/fleet_kit/`` is VENDORED from MAIN, not authored here: the same
 twenty-three files sit at the same path in every fleet repository and only a MAIN
@@ -7,9 +7,10 @@ guard that refuses a kit file gets an EXEMPTION in the guard, never a byte of
 the kit. The kit is Apache-2.0; its LICENSE and NOTICE ship beside it and its
 register rows live in ``THIRD_PARTY.md``. Version 4 landed under CS-1231,
 version 9 under CS-1272, version 10 under CS-1282 (it added
-``fleet_subagent_first.py``), version 11 under CS-1287, and version 13
-supersedes it under CS-1290, as MAIN's v13 ORDER note (2026-10-08 22:46) says;
-v13 carries the whole v12 ORDER, so v12 was never vendored here.
+``fleet_subagent_first.py``), version 11 under CS-1287, version 13 under
+CS-1290 (it carried the whole v12 ORDER, so v12 was never vendored here), and
+version 14 supersedes it under CS-1299, as MAIN's v14 ORDER note
+(2026-10-09 09:30) says.
 
 Two arms:
 
@@ -57,10 +58,10 @@ KIT_WATCH = KIT_DIR / "fleet_watch.py"
 KIT_TOKENS_CSS = KIT_DIR / "tokens.css"
 KIT_TOKENS_JSON = KIT_DIR / "tokens.json"
 
-# The kit version MAIN's 2026-10-08 22:46 ORDER note names.
-KIT_VERSION = 13
+# The kit version MAIN's 2026-10-09 09:30 ORDER note names.
+KIT_VERSION = 14
 # The MANIFEST.json digest named in that note.
-MANIFEST_SHA256 = "1311801a0f5c5ee17150d56b438fb0038a92efeb2b8e13ba02c79da2457f74e0"
+MANIFEST_SHA256 = "d045d4ba6f7f397fa6d14a934362ec6ddf2b2f4738c3b0dbfdf2c5ad19acbb78"
 # The twenty-two listed kit file digests named in the same note. Spelled as named
 # constants rather than as a JSON-shaped mapping so this pin does not reproduce
 # MANIFEST.json's own lines - the provenance near-duplicate metric
@@ -68,25 +69,25 @@ MANIFEST_SHA256 = "1311801a0f5c5ee17150d56b438fb0038a92efeb2b8e13ba02c79da2457f7
 COMMON_SHA256 = "fb6c129a73d1e1d8bee60367b4f4f74d39bb4051bdef0f56afd24d88e9a6f02b"
 LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
 NOTICE_SHA256 = "de5b5481280bb522ec154c1f3300813aa028aa0e9614ecad9bc5cf30e3c1ddcf"
-MODULE_SHA256 = "9c9e1fa995978f6a5472003334cb27bc354e910992255a85b24b4876f177cbdb"
+MODULE_SHA256 = "6534794185f1515d40f1776bb7b4ddc8bc8f50b12f5a8d7228287496f82d1f70"
 CLI_DISPLAY_SHA256 = "fcd92544574eb2e646c9eed62218e4852a570818a7e3de455151aa27c8c7d4d3"
 CHECKLIST_SHA256 = "954a95ce9d95e996764fd756c02b37d3f0e7a0ace9246e123c5df479479b6f35"
-CLAIMS_SHA256 = "ed42c394d3ad3e510ee698268d1de5903e955267934b8f9f2765dad7882f7e00"
+CLAIMS_SHA256 = "12530e9de104c630bc1921e316d70317ce92cf11cef751ac0747429578080483"
 DONE_SHA256 = "5267b215e14bbbcd46ae6d9c6ab4d3182fd48dbec8748313498e54f523473d62"
-GITLOCK_SHA256 = "aa92d343439ac2c2d18c516ffa56d3d324ab35ec9ee0ccf14acf654f4df55e03"
-IDENTITY_SHA256 = "a0dd0e8bcd75aa5a4973823ae5e81718ba14bf0a0476496de06a964f08286a0d"
-INBOX_SHA256 = "dbedd53fa545578fbd536bf8003b6f7bbebf1a98b83a178058db4bd1ea08334f"
-LANES_SHA256 = "bcc2817bddb6be13231f071bd4d81f6f7b803877ee423817eb426cd1ec29d99c"
-REWRITE_SHA256 = "59578b5469434817b01eb9423d8597d449a3af38a952b2a56f83debac775c365"
+GITLOCK_SHA256 = "a4269f860840643be5943fafd0c94dd7ec781916c5d0f07bacd8af1211cd5061"
+IDENTITY_SHA256 = "20c31463e56736a2706b6ff3f40ee31e6d03b99134b945a5f9d200b7badeff69"
+INBOX_SHA256 = "b43c671c113a698312e108839c5659862001aeb305f1096a570731299f678ac8"
+LANES_SHA256 = "68aeffb4fcce18b21e7d893f28a2ad356f60e876581e1f48a4c13501de6bde79"
+REWRITE_SHA256 = "c40bfcacbf08a3b9be4a4d2de971cd39f0cbbb772d76ba68e962d8c9adf7e97d"
 SECRETS_SHA256 = "4e112c1f22c448fe773155b753fce5c678a09afc878cdf31b258eac5b3f0cf38"
-STATUSLINE_SHA256 = "cc3795d6cfd6eecc32d836532d71056709db3ee0b110b5ecec6c2c1f59b1e4cb"
+STATUSLINE_SHA256 = "ce97e180f9d53aee7206e8ebc1c6c75db5a24f3cc10f189e0fe862e9238940ea"
 SUBAGENT_FIRST_SHA256 = "e0a7509186824249d1131f59bfa94207c32717cd62bbde3e0f6a8e5a13cf047f"
 SUBAGENT_STATUS_SHA256 = "a618096df9d72cf2ebefde4177f00b7cfe377c16c99eadaf30549aad596cb0fd"
-SUITE_GATE_SHA256 = "a4592d846ba24d25e0ad39e30c4078df137db672cb0bc3d65b04cbd6ea33308e"
-TEST_GUARD_SHA256 = "66811e3668ceb17d52472dfdcf56f0d08beb0de5cc2cb3bb76b0654605c91656"
+SUITE_GATE_SHA256 = "38ac56ebf5f0eb005204c0f81ffdaf9d113b1192d1abaf3a940c7eb55ce0955a"
+TEST_GUARD_SHA256 = "bddec6ded7d6a8eddf8c0148684d469e03fd50c5ad6a481a67396c293b6764b5"
 WATCH_SHA256 = "5685ed7a4abaf0d755c4dd728b7a0dd9e9bb3e6e8ab3c223f99042601d05eb57"
 TOKENS_CSS_SHA256 = "120cc31990110049e405fb15020e12646089f210a02becda6bb08d795b0a33a7"
-TOKENS_JSON_SHA256 = "965ed8aa3d9be380d863c000d18143155e71d81ad02f988050d5cfef5d09a0bd"
+TOKENS_JSON_SHA256 = "dc683b08c2ad601f72722f339fc42806e46394a05b868616243162e98d7f2b16"
 NOTE_FILE_SHA256 = {
     KIT_COMMON.name: COMMON_SHA256,
     KIT_LICENSE.name: LICENSE_SHA256,

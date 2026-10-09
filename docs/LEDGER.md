@@ -75,6 +75,35 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1299 - vendor FLEET-KIT v14
+
+Source: MAIN ORDER note 2026-10-09-0930 (FLEET-KIT v14), provenance verified. Vendored
+byte-for-byte into `ops/fleet_kit/`: 22 files plus `MANIFEST.json` sha256
+d045d4ba6f7f397fa6d14a934362ec6ddf2b2f4738c3b0dbfdf2c5ad19acbb78, every file re-hashed equal
+to its manifest digest; FLEET-COMMON block unchanged; `fleet_headless.conformance()` returns
+[] with `KIT_VERSION` 14. Step 3.4 APPLIED: `tests/conftest.py` pins `FLEET_SIDECAR_ROOT` to
+the empty string, because `tests/ops/test_multi_lane.py` and `ops/loop/lanes.py` reach
+`fleet_lanes.worktree_path`. Step 3.5 NONE: the refusal strings are matched only inside the
+kit. Write-list extension decided by the inbox responder: adaptation repins, the same shape
+as CS-1287 and CS-1290 - `ops/loop/inbox_status.py` publishes the kit's new `blocked` state;
+the vendored exemption rows in `tests/test_subprocess_timeouts.py` and
+`tests/test_exception_rendering.py` re-pointed to the v14 lines, their refusal-text claims
+re-measured unchanged; both `git_alive` rows in `tests/toolpath_guard.py` retired (v14 spawns
+through an injectable runner the census grades INDIRECT), budget 6 -> 4; `pyproject.toml`
+ruff codes D301, D403, PLC0415, PLR0911 and mypy var-annotated for fleet_inbox and
+fleet_identity, each MEASURED on the v14 bytes. `fleet_claims.session_process` names
+`claude` only to MATCH a parent process image name - a probe, no spawn.
+
+Verification: `tests/test_fleet_kit.py::test_fleet_kit_conformance`,
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest`,
+`tests/ops/test_inbox_status.py::test_publish_accepts_the_kits_blocked_state`,
+`tests/ops/test_inbox_status.py::test_the_published_cap_and_window_are_the_kits`,
+`tests/test_subprocess_timeouts.py::test_no_exemption_names_a_site_that_no_longer_exists`,
+`tests/test_exception_rendering.py::test_every_vendored_render_residual_answers_exactly_one_live_site`,
+`tests/test_toolpath.py::test_every_exemption_names_a_site_that_is_still_a_finding`,
+`tests/test_toolpath.py::test_the_exemption_budget_holds_in_both_directions` and
+`tests/test_third_party_register.py`.
+
 ### 2026-10-09 - CS-1281 - the registry reads clock capability; a class that cannot be clocked is never counted elided
 
 Verification: `clockspeed/data/registry.py::Building` field `clockable`, read from

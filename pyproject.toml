@@ -313,7 +313,7 @@ ignore = [
 
 # ops/fleet_kit/fleet_headless.py IS VENDORED BYTE-IDENTICAL FROM MAIN (CS-1231 at
 # FLEET-KIT version 4, CS-1272 at version 9, CS-1282 at version 10, CS-1287 at
-# version 11, CS-1290 at version 13) and pinned by
+# version 11, CS-1290 at version 13, CS-1299 at version 14) and pinned by
 # ops/fleet_kit/MANIFEST.json, which the kit's own conformance() and
 # tests/test_fleet_kit.py both check. Same rule as slots.py above: the guard
 # takes the exemption, never the file. One path, never a glob. MAIN's v4 ORDER
@@ -398,7 +398,12 @@ ignore = [
 # THE SIX PYTHON MODULES FLEET-KIT VERSIONS 12 AND 13 ADDED (CS-1290), vendored
 # here at version 13 and pinned exactly as the modules above are: one exact
 # path per entry, never a glob, every code MEASURED by `ruff check` of the
-# version 13 bytes under this file's selection, never predicted.
+# version 13 bytes under this file's selection, never predicted. Version 14
+# (CS-1299, re-measured on its bytes with these entries removed) adds four:
+#   D301     fleet_identity.py's module docstring carries a backslash
+#   D403     fleet_gitlock.py's quiet_inherit() docstring opens lower-case
+#   PLC0415  fleet_claims.py's ctypes imports inside its Windows process probes
+#   PLR0911  fleet_claims.py's session_alive() return ladder
 # fleet_test_guard.py MEASURED 0 findings and takes no entry. Codes beyond the
 # ones named above:
 #   B905     fleet_identity.py's zip() without strict=
@@ -411,15 +416,15 @@ ignore = [
 #   SLF001   fleet_gitlock.py and fleet_rewrite.py reach a sibling's private helper
 #   UP032    .format() calls
 "ops/fleet_kit/fleet_claims.py" = [
-  "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF401", "PLR2004",
-  "PTH100", "PTH109", "PTH111", "PTH123", "UP032",
+  "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF401", "PLC0415",
+  "PLR0911", "PLR2004", "PTH100", "PTH109", "PTH111", "PTH123", "UP032",
 ]
 "ops/fleet_kit/fleet_gitlock.py" = [
-  "D103", "D205", "D209", "E501", "N818", "PLC0415", "PLR0911", "PLR0913", "PLR2004",
+  "D103", "D205", "D209", "D403", "E501", "N818", "PLC0415", "PLR0911", "PLR0913", "PLR2004",
   "PLW1510", "PTH109", "PTH123", "RUF059", "SLF001", "UP032",
 ]
 "ops/fleet_kit/fleet_identity.py" = [
-  "B905", "D103", "D205", "D209", "D403", "FURB167", "PERF401", "PLR2004", "PLW1510",
+  "B905", "D103", "D205", "D209", "D301", "D403", "FURB167", "PERF401", "PLR2004", "PLW1510",
   "PLW2901", "PTH109", "PTH123", "UP032",
 ]
 "ops/fleet_kit/fleet_rewrite.py" = [
@@ -466,7 +471,8 @@ quote-style = "double"
 # (CS-1282, fleet_subagent_first.py, MEASURED "Would reformat" on its version 10
 # bytes) - one exact path per entry, never a pattern. Version 11 (CS-1287) keeps
 # the same eight entries; version 13 (CS-1290) adds the six modules versions 12
-# and 13 added, each MEASURED "Would reformat" on its version 13 bytes.
+# and 13 added, each MEASURED "Would reformat" on its version 13 bytes; version
+# 14 (CS-1299) adds no module and keeps the same fourteen entries.
 exclude = [
   "ops/loop/slots.py",
   "ops/fleet_kit/fleet_headless.py",
@@ -797,9 +803,11 @@ disable_error_code = ["union-attr", "arg-type", "assignment"]
 #   inbox_share line beside it - `out` is inferred as a dict of per-kind dicts,
 #   so assigning a rounded float (arg-type) or an optional one (assignment)
 #   into it contradicts that inference. Upstream's shape, not a defect here.
-# ONLY arg-type and assignment ARE DISABLED, and only for this module.
+# MEASURED on the version 14 bytes (CS-1299), one more:
+#   var-annotated  fleet_inbox.py:323 `out = {}` built up later
+# ONLY these three codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_inbox"]
-disable_error_code = ["arg-type", "assignment"]
+disable_error_code = ["arg-type", "assignment", "var-annotated"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_lanes.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
@@ -871,6 +879,16 @@ disable_error_code = ["arg-type", "union-attr", "var-annotated"]
 # ops/fleet_kit/fleet_suite_gate.py - see the fleet_gitlock.py block above (CS-1290).
 module = ["ops.fleet_kit.fleet_suite_gate"]
 disable_error_code = ["arg-type", "union-attr"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_identity.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
+# and pinned by tests/test_fleet_kit.py; MEASURED clean at version 13, it takes a
+# block at version 14 (CS-1299, bare `python -m mypy` on its bytes), one error:
+#   var-annotated  fleet_identity.py:368 `classes, depth, flagged, trig = {},
+#                  {}, set(), set()` - the history survey's tallies, built later
+# ONLY var-annotated IS DISABLED, and only for this module.
+module = ["ops.fleet_kit.fleet_identity"]
+disable_error_code = ["var-annotated"]
 
 [[tool.mypy.overrides]]
 # Phase 2 rung. The data layer is the seam every other layer consumes, so an

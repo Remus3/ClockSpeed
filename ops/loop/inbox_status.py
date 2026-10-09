@@ -51,8 +51,9 @@ from toolpath import resolve_tool  # noqa: E402
 SCHEMA: Final = 1
 CODE: Final = "CS"
 
-#: The schema's states, in the kit's spelling.
-STATES: Final = ("idle", "running", "limit", "backoff", "halted", "refused")
+#: The schema's states, in the kit's spelling. FLEET-KIT v14 added "blocked"
+#: (CS-1299); pinned equal to the kit's `STATES` set by the tests.
+STATES: Final = ("idle", "running", "limit", "backoff", "halted", "refused", "blocked")
 
 #: The BASIC task names (MAIN 0915). Nothing finer is ever published.
 TASKS: Final = (
