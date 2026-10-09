@@ -115,6 +115,14 @@ never read, so a failed undo left the real ACE and the directory); fixed; all 12
 caught; the review loop stopped by cost against risk; residual none known. Read back by the
 session 134 merger at the merged tip: `tests/test_main_provenance.py` exit 0, the real arm
 skipping by its named reason (this token's enabled backup privilege lists through the deny).
+The merged whole suite then refused the arm twice:
+`tests/test_liveness.py::test_every_member_credited_to_the_try_generosity_really_carries_a_try`
+(its try graded nothing a syntactic read can see) and
+`tests/test_exception_rendering.py::test_no_tracked_module_renders_a_caught_exception_object`
+(`str(exc)` in its handler). Two fix-ups landed before the push: the try now asserts that an
+arm that returned is an exit expecting no exception, and the handler renders only the `msg`
+field of a skip or a fail. Read back by the merger after them: `tests/test_liveness.py`,
+`tests/test_exception_rendering.py` and `tests/test_main_provenance.py` run together exit 0.
 
 ### 2026-10-09 - CS-1296 - the flip-check human halves point at CS-G03, not the closed CS-G08
 
