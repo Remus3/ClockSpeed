@@ -568,16 +568,19 @@ In order, each on the stated model of the one before it:
 
 A registered rule power.fuel_supply in its own family module declares every input it reads and no unlock. Generator gains an appended, defaulted field read from mFuel: accepted fuel keys in document order, or None when absent or unreadable, never an empty tuple, and an unreadable value is a named warning. Per built fuel generator class, demand is the exact Fraction sum over built instances of nameplate MW times clock; a fluid's energy value is per litre and is converted to MJ per cubic metre through LITRES_PER_CUBIC_METRE; a class with no fuel (geothermal) is out of scope. Supply is aggregated per fuel. The rule fires only when the pooled energy of all accepted fuels (supply times energy over 60, in MW) falls short of the class's demand, with the exact shortfall; it rejects only when that pooled energy covers demand over a complete flow. A fuel accepted by two built classes makes both indeterminate; an incomplete flow, an unknown energy value, unreadable fuels, an unread generator clock or a production gap is indeterminate, never a verdict. Tier 3 converts the shortfall into a rate for every accepted fuel; the headline fuel is chosen in mFuel order; tiers 1 and 2 name fuel, figure and generator count; tier 3 is generated from the trace. Over an incomplete flow, a companion demand card states each class's nameplate burn per accepted fuel, claims nothing about supply, and never fires where power.fuel_supply decides. Supplemental resources (water) and byproducts (nuclear waste) are out of scope and named as such on tier 3. GET /api/advice carries the fuel trace.
 
-## CS-1286
+## CS-1288
 
-### Filed 2026-10-08 by the session 133 CS-1280 measurement
+### Filed 2026-10-08 by the session 133 CS-1286 adversary
 
-Over the 41-save library, a producing machine at the default clock records its class default as
-`mTargetConsumption` in 515 of 519 cases. The 4 exceptions are all `Build_MinerMk2_C`, recording
-12 MW against the class's declared 15 MW. A possible cause is a stale value written under an
-older build - an unchecked guess, not a measured cause. The pricing ruling this measurement
-grounds is the 2026-10-08 CS-1280 decision record in `docs/LEDGER.md`.
+`clockspeed/save/header.py::SaveHeader` carries each save's `build_changelist`, but the build is
+only displayed: `clockspeed/surface/api/world.py::_body` puts it in GET /api/world's body, and
+nothing compares it with the pin. `clockspeed/audit/balance.py::clocked_draw_of` prices every
+admitted machine at the pinned registry's nameplate. The save library holds saves on CL 211839,
+273254 and 463028 besides the pinned build (`clockspeed/data/version.py::GAME_BUILD`). On the two
+older builds the Mk2 miner's nameplate was 12 MW, so a 12 MW-era Mk2 is priced at the pinned
+15 MW, and 4 `Build_ConstructorMk1_C` records on those builds at clock 1/3 record an unscaled
+4.0 MW. The measurement is the 2026-10-08 CS-1286 closure record in `docs/LEDGER.md`.
 
 ### Acceptance
 
-The four records are re-measured read-only from save copies, reporting each one's save build, mCurrentPotential, mPendingPotential and recorded mTargetConsumption, with no personal data in any output; the cause is named and recorded in docs/LEDGER.md; if it shows the class default is not the nameplate draw for that class on the pinned build, CS-1263's reversal clause is evaluated by an adjudicator and the ruling recorded; otherwise the item closes with the measured cause.
+When the loaded save's build changelist differs from the pinned build in clockspeed/data/version.py, the audit and every advice card computed from it carry a named build-mismatch warning that states both builds, a figure that depends on a nameplate is marked as priced at the pinned build, and no figure is silently presented as the save build's own; the warning fires from a synthetic fixture whose header build differs from the pin, is absent when they match, and is listed in the warning census; nothing infers an older build's nameplate.

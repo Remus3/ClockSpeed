@@ -75,6 +75,44 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1286 - CLOSED: the four 12 MW MinerMk2 records are one miner's first saves, written on older builds whose Mk2 nameplate was 12 MW
+Verification: measurement only, no code, so no test name exists - the recorded procedure below IS
+the verification, and it is reproducible from its own description. Measured in session 133,
+read-only from save copies; the scratch instrument is not tracked, so none of it is copied here,
+and this record carries counts, build integers and clocks only.
+CAUSE, measured: the 4 records are ONE `Build_MinerMk2_C` instance on one node in one world -
+that world's first 4 saves in time order - written on older builds, CL 211839 (3 saves) and
+CL 273254 (1 save), on which the Mk2 miner's nameplate was 12 MW. Each records 12 MW as
+`mTargetConsumption`, and neither `mCurrentPotential` nor `mPendingPotential` is present on any of
+the 4, so the pending-clock cause is REFUTED. The same miner reads idle, 1/10 MW, in its 5th save,
+written on CL 463028.
+Read back: the header build int32 matched the parsed `build_changelist`
+(`clockspeed/save/header.py::SaveHeader`) in 41 of 41 saves; all 18 clock-set Mk2 miners on
+CL 211839 and 273254 match float32(12 x c^1.321929) at 0 ulp, at clocks 3/2, 2 and 5/2; all 5 on
+CL 463028 match a 15 MW base at 0 ulp.
+Verdict: the pinned build (`clockspeed/data/version.py::GAME_BUILD`) has 0 Mk2 records in the
+library, so nothing shows the class default differing from the nameplate draw for that class on
+the pinned build. The acceptance's adjudicator branch does not open, CS-1263's reversal clause
+(its 2026-10-04 record below) does not fire, and the item closes with the measured cause.
+Process: a does-it-reproduce adversary re-ran the scripts and reproduced every key figure; it
+REFUTED one supporting clause - that every other class fits its registry nameplate on every
+build: 4 `Build_ConstructorMk1_C` records on CL 211839 and 273254 at clock 1/3 record an unscaled
+4.0 MW.
+RESIDUAL: a save written on a build other than the pinned one is priced at the pinned nameplate
+with no warning (`clockspeed/audit/balance.py::clocked_draw_of`) - filed as CS-1288.
+This entry is the item's only record: its `ROADMAP.md` line and its `docs/item_notes/phase5.md`
+section are removed rather than copied elsewhere, under the `docs/item_notes.md` rule that a
+section whose closure record carries everything it said is deleted. Filed by the session 133
+CS-1280 measurement: over the 41-save library a producing machine at the default clock recorded
+its class default as `mTargetConsumption` in 515 of 519 cases, the 4 exceptions all
+`Build_MinerMk2_C` at 12 MW against the class's declared 15 MW, with a stale older-build value
+named only as an unchecked guess. Acceptance, quoted verbatim: "The four records are re-measured
+read-only from save copies, reporting each one's save build, mCurrentPotential, mPendingPotential
+and recorded mTargetConsumption, with no personal data in any output; the cause is named and
+recorded in docs/LEDGER.md; if it shows the class default is not the nameplate draw for that
+class on the pinned build, CS-1263's reversal clause is evaluated by an adjudicator and the
+ruling recorded; otherwise the item closes with the measured cause."
+
 ### 2026-10-08 - CS-1280 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1280 STAYS OPEN. The tagless-consumer pricing is RULED: option A with a carve-out - priced at its class default in its own counted group only when its payload read clean
 Verification: `docs/item_notes/phase5.md` section CS-1280, heading `Filed 2026-10-08 by
 CS-1266's builder`, whose `### Acceptance` clause names option A first and is unchanged by this
