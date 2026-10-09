@@ -1184,6 +1184,17 @@ rejected and what reverses each ruling, is the 2026-10-08 CS-700 decision record
 The `gh` token lacks the `delete_repo` scope S9a needs: an operator OAuth act, batched into the
 S9 ask. Session 131 did not start the block - the operator ended the session before it.
 
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, sections 3 and 4
+
+The operator APPROVED the history rewrite and the force push on 2026-10-08 (MAIN session
+16), relayed by MAIN 2246 section 4: the 18 Claude co-author trailers stay folded into S7a
+(strip) and S8 (prove zero), with no separate GH-HYGIENE rewrite; `fleet_rewrite.py` may be
+used inside S7a. Dependabot local-landing rule, binding from now: never merge a Dependabot
+PR with the merge button or `gh pr merge`; apply it locally as an operator commit
+(cherry-pick `--reset-author`) and push. README-AUDIT item 1 joins this block: after the
+flip, read back private vulnerability reporting and the social preview, the upload riding
+the single operator ask; README items 2-7 are CS-1292, before the flip.
+
 ### Acceptance
 
 every item on that checklist passes, including the full-history secret scan, the PII scan across tracked files and commit messages, the third-party license audit, and the clean-checkout probe on a machine that has never seen the project
@@ -1733,3 +1744,123 @@ the log shows rows, sub-agent rows included, from three sessions. Session 132 is
 of 3 from its wiring at 15:31: every row it logged by 16:25 is a sub-agent row, decision
 allow, and no main-thread row exists at all, so the main-thread half is still unmeasured.
 An absent mode file means deny, so a fresh worktree denies until a mode is written.
+
+## CS-1291
+
+### Acceptance
+
+Each of MAIN 2246 section 2 items 1-3 and 5-10 is DONE or carries a recorded reason it is
+not, in `docs/LEDGER.md`: (1) pre-push tiered by the pushed diff - a doc or hand-off-only
+range runs gates only, a code range runs `-m "not slow"` plus the mapped modules, the pass
+floor scales to the subset, the full suite stays with tier1 CI - landed on a section 6
+adjudicator grant recorded in `docs/LEDGER.md` before the edit, because `.githooks/pre-push`
+is frozen; (2) a preflight of about 10 s (provenance manifest, sphinx roles, mypy on
+changed files, ruff) runs first in pre-push; (3) `--durations=25` locally, every test over
+about 2 s and every subprocess hook test marked `slow`, `tests/test_tier1_budget.py` fails
+on an unmarked slow test, its stale header numbers updated; (5) tier1.yml `paths-ignore`
+for docs, markdown and the hand-off, one shared budget script in place of the five copies,
+and tier2 skipped when HEAD equals the last green tier2 SHA; (6) inbox runs classify first
+then sonnet/low, one fire per note per tick, a 0-second Stop writes failed; (7) the
+0-ahead agent worktrees and the old slice worktree Recycle-Binned after a consumer check
+and merged `worktree-agent-*` branches pruned; (8) verifiers read the frozen-SHA run's
+junit and exit code rather than re-running the whole suite; (9) progress files get status
+failed on agent exit and a schema check on write, done files older than 7 days archived;
+(10) is CS-1284, discharged there.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 2
+
+MAIN's read-only perf audit, ranked; the measured numbers are in the note and are not
+restated here. Item 4 (no suite gate) is section 1's kit v13 work, CS-1290. Item 10 is
+already open as CS-1284. The note says fix inline; each numbered part may land as its own
+slice. The section 8 review driver (CS-1295) folds this list in as known findings.
+
+## CS-1292
+
+### Acceptance
+
+MAIN 2246 section 3 items 2-7 land before the CS-700 flip, quoting the note: "README under
+~220 lines with an image, install detail in one linked doc, both flags read back after the
+flip." Concretely: a Quickstart of about 10 lines with the remaining install detail moved
+verbatim to one linked doc (env-var table included); `data/social-preview.png` as a banner
+plus one dashboard screenshot on synthetic data under `docs/assets/`; "no language model"
+kept only in At a glance and the description; the Python version stated once, in
+Requirements; one LICENSE holder string matching `CITATION.cff` (adjudicator if contested);
+the absolute checkout path in `docs/LEDGER.md` and `docs/history_notes.md` replaced with
+`<repo>`. Item 1 (the two post-flip flag read-backs) is CS-700's, not this item's.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 3
+
+MAIN's read-only README audit. The note orders items 2-5 done before the flip so the first
+public README is the short one; item 1 stays inside the CS-700 flip block.
+
+## CS-1293
+
+### Acceptance
+
+Every live-doc line MAIN 2246 section 5 lists as naming an old sidecar folder names its
+current home under the single CS sidecar folder: `CS-NEXT-SESSION.txt` (at its next
+`/done`), the worktree-classification note in the gitignored scratch folder, and
+`docs/adr/0026-the-root-moves-to-e.md`. `docs/LEDGER.md` and `docs/history_notes.md` may
+stay as history. No behaviour line changes - MAIN measured none.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 5
+
+MAIN moved every sidecar folder off the drive roots on 2026-10-08. The note's line numbers
+were read at its own stamp and are re-read before the edit. Kit v14 will move kit lane
+worktrees beside them.
+
+## CS-1294
+
+### Acceptance
+
+Quoting the note: "ACCEPT: commit hash; no leftover after a run." The fixture that sets an
+explicit deny ACE removes it before deleting its directory, in a `finally` or a fixture
+finaliser so a failing arm also cleans up, and a test asserts the directory is gone after
+the run.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 7B
+
+A 2026-09-07 ADVSEC-940 run left a locked-payload directory with an explicit deny ACE in a
+Claude temp scratchpad, and MAIN's temp-hygiene sweep failed on it every run until MAIN
+removed it on 2026-10-08. Read at filing: the one tracked deny-ACE site,
+`tests/test_main_provenance.py::test_an_unreadable_inbox_subdirectory_refuses`, already
+runs `icacls /remove:d` in a `finally` but asserts nothing about the directory afterwards,
+and no tracked file names ADVSEC-940 - the builder first finds which fixture made the
+leftover (a scratch adversary script is a candidate) before repairing.
+
+## CS-1295
+
+### Acceptance
+
+Quoting the note: "plan file + a findings file covering every top-level folder, each
+finding DONE / FILED (row id) / NOT-APPLICABLE, and a file count reviewed equal to the
+count on disk." The driver is ONE headless run started through the kit spawn path only
+(FLEET-COMMON 10; kind build, a non-empty note label) and writes the item-12 progress file
+named repo-review.json, with a checklist. It plans first, then reviews
+100 percent of the files on disk - tracked, untracked and ignored - over the topics MAIN
+2246 section 8 lists, folding in sections 2, 3, 5 and 6 as known findings (CS-1291,
+CS-1292, CS-1293). Fixes land in slices through the git lock and the suite gate; anything
+irreversible or operator-gated is listed, not done. The run label and progress file name
+go in this tree's next ANSWER to MAIN.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 8
+
+Queued after section 1 (CS-1290) per the note's order of work. It needs a session that may
+spawn headless runs: a sub-agent slice cannot start it, so the main session or the lane
+queues it.
+
+## CS-1296
+
+### Acceptance
+
+`tools/flip_checks.py` (its module docstring for checks 5 and 7 and the `HUMAN_HALVES`
+strings) and `docs/public-readiness.md`'s method step 1 no longer call the human halves
+"gated under CS-G08", and the replacement states their current standing as the CS-G03
+re-walk ruling leaves it; `tests/test_flip_checks.py` stays green.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 7A
+
+CS-G08 closed 2026-10-04 (`docs/GATED.md` records it satisfied, CS-1186 and CS-1187 closed
+on that walk). Not repaired inline by the filing slice: the stale text is five lines in two
+files, one of them rendered report output, and the true replacement depends on the open
+CS-G03 ruling on the re-walk scope after the walk-2 reversal fired in session 132.

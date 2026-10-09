@@ -368,3 +368,9 @@ CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAU
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1283 - rule whether the lane driver's checklist printer moves onto the kit's `fleet_checklist.emit()` (FLEET-KIT v10 ORDER item 5) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1284 - switch the SUBAGENT-FIRST hook from log to deny after three interactive sessions of rows, on or after 2026-10-10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1292 - README-AUDIT: a short README with an image and install detail in one linked doc before the CS-700 flip (MAIN 2246 section 3) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1293 - SIDECAR-1: live-doc lines still name the sidecar folders MAIN moved under the single CS sidecar folder (MAIN 2246 section 5) - acceptance: in detail - tier: 0 - detail: `docs/item_notes.md`
+CS-1294 - OPS-3: the ADVSEC-940 deny-ACE fixture must remove its deny before deleting, also on failure, and prove the directory gone (MAIN 2246 section 7B) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1296 - `tools/flip_checks.py` and `docs/public-readiness.md` still say checks 5 and 7 are gated under the closed CS-G08 (MAIN 2246 section 7A) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
