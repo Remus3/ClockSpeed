@@ -37,9 +37,11 @@ and none of them can be withdrawn afterwards, because anyone can clone in the me
 1. `python tools/flip_checks.py HEAD --stage s1` - the seven tier-3 flip checks plus the
    trailer axis, run by hand on this machine as ADR 0025 requires. Automated verdict PASS,
    0 of 8 automated checks failed; the two human halves are NOT-RUN-HERE (CS-1186 and
-   CS-1187, gated under CS-G08). Its secret scan covered every blob and every commit
-   message reachable from `main`; its PII scan used needles derived in-process from this
-   machine's account directory, Windows account, home paths and save header.
+   CS-1187). Their standing, as the CS-G03 re-walk ruling leaves it, is owned by CS-G03
+   in `docs/GATED.md` and is not restated here. Its secret scan covered every blob and
+   every commit message reachable from `main`; its PII scan used needles derived
+   in-process from this machine's account directory, Windows account, home paths and save
+   header.
 2. A second, independent regex sweep over every blob reachable from ANY ref the remote
    serves (not only `main`): provider key shapes (Anthropic, OpenAI, GitHub, AWS, Google,
    Slack), private-key headers, the operator's personal email, a Windows home path and

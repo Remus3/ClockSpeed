@@ -62,8 +62,9 @@ same function that grades the named ref:
      aimed at NONEXISTENT relative paths and the dashboard port at a free one.
      That is an APPROXIMATION outside README, not a README step. A command
      passes by exiting 0 or by binding the port; one still running at its bound
-     that never bound FAILS. The human half is NOT-RUN-HERE - CS-1186, whose
-     no-game half is gated under CS-G08.
+     that never bound FAILS. The human half is NOT-RUN-HERE - CS-1186's no-game
+     walk. Its standing, as the CS-G03 re-walk ruling leaves it, is owned by
+     CS-G03 in ``docs/GATED.md`` and is never restated here.
   6. DOC SWEEP - ``tools/doc_sweep.py``'s own sweep with URLs fetched, run
      in-process over the REF tree, under ADR 0025 point 10: two exact URL pins,
      matched by URL, each reported by its own count - see :func:`doc_sweep`.
@@ -71,7 +72,8 @@ same function that grades the named ref:
      block of ``docs/OPERATIONS.md``, and a staged non-ASCII violation that must
      leave HEAD unmoved. Its control commits the same violation with no hook
      and must see HEAD move. The human half - a machine that has never seen the
-     project - is NOT-RUN-HERE, CS-1187 under CS-G08.
+     project - is NOT-RUN-HERE, CS-1187's walk, its standing owned the same way
+     by CS-G03 in ``docs/GATED.md``.
   T. THE TRAILER AXIS (CS-1180) through ``tools/trailer_census.py``. At S1 a hit
      is an EARLY WARNING and the axis fails on zero hits or on any hit S7a's
      strip would leave behind; at S8 any hit fails, and the pre-S7a baseline ref
@@ -174,10 +176,11 @@ PHASE: list[str] = ["setup"]
 STAGE_S1: Final = "s1"
 STAGE_S8: Final = "s8"
 
-#: The human halves this tool never runs, and the items that own them.
+#: The human halves this tool never runs: the item that walked each, and the gate
+#: whose record in ``docs/GATED.md`` owns its standing - pointed at, never restated.
 HUMAN_HALVES: Final = (
-    ("5", "CS-1186, gated under CS-G08"),
-    ("7", "CS-1187, gated under CS-G08"),
+    ("5", "CS-1186; standing owned by CS-G03"),
+    ("7", "CS-1187; standing owned by CS-G03"),
 )
 
 #: Seconds one git call may take. The object walk reads every reachable object.

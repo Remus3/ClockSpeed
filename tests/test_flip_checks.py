@@ -223,6 +223,37 @@ def test_the_sha_prints_first_and_the_final_line_is_never_a_bare_pass(
     assert sum(1 for line in lines if "human half: NOT-RUN-HERE" in line) == len(flip.HUMAN_HALVES)
 
 
+#: The gate the two human halves were held under until it closed (``docs/GATED.md``,
+#: CS-G03). No flip-check string names it any more (CS-1296).
+CLOSED_GATE: Final = "CS-G08"
+
+#: The gate whose record owns the human halves' standing. Pointed at, never restated.
+STANDING_OWNER: Final = "CS-G03"
+
+
+def test_no_flip_check_string_names_the_closed_cs_g08_gate() -> None:
+    """CS-1296: each human half points at CS-G03 for its standing, never at closed CS-G08."""
+    owners = [owner for _key, owner in flip.HUMAN_HALVES]
+    stale = [owner for owner in owners if CLOSED_GATE in owner]
+    unpointed = [owner for owner in owners if STANDING_OWNER not in owner]
+    docstring_stale = CLOSED_GATE in (flip.__doc__ or "")
+
+    assert stale == []
+    assert unpointed == []
+    assert not docstring_stale
+
+
+def test_the_readiness_audit_method_does_not_gate_the_human_halves_under_cs_g08() -> None:
+    """CS-1296 sibling: the audit's method step that quotes the tool points at CS-G03 too."""
+    text = (REPO_ROOT / "docs" / "public-readiness.md").read_text(encoding="utf-8")
+    method = text.split("\n## Method\n", 1)[1].split("\n## ", 1)[0]
+    stale = CLOSED_GATE in method
+    pointed = STANDING_OWNER in method
+
+    assert not stale
+    assert pointed
+
+
 @pytest.mark.parametrize(
     "broken",
     [
