@@ -56,6 +56,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
 from tests.git_env import scrub
 from tests.test_pretooluse_gate import envelope, require_posix_shell
 
@@ -166,6 +167,7 @@ def child_env(root: Path, extra: dict[str, str] | None = None) -> dict[str, str]
     ]:
         env.pop(name)
     env.update(zip(CANARY_NAMES, MARKERS, strict=True))
+    env.update(suite_dir_env(root))
     env.update(extra or {})
     return env
 
@@ -229,8 +231,12 @@ def make_repo(root: Path, hooks: dict[str, bytes], *, remote: bool = False) -> P
         ("user.email", FIXTURE_EMAIL),
         ("commit.gpgsign", "false"),
         ("core.hooksPath", str(hooks_dir)),
+        (OPERATOR_IDENT_KEY, FIXTURE_EMAIL),
     ):
         assert git_ok(work, root, "config", key, value), "a sandbox config key did not write"
+    # CS-1290: the kit files the wired identity and suite-gate lines run,
+    # UNTRACKED like the gate below - the hooks run them from the working tree.
+    install_hook_kit(work)
     (work / "tools").mkdir()
     shutil.copy2(GATE, work / "tools" / "precommit_gate.py")
     (work / "tests").mkdir()

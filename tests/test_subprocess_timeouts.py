@@ -301,13 +301,36 @@ EXEMPTION_REASON_MINIMUM: Final = 40
 # exemption written for a site that does not need one is a hole that outlives
 # the reason for it, so none were written. The mechanism is proved to work in
 # both directions by the synthetic-source arms below.
-EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {}
+#
+# CS-1290 - THREE ROWS, all in VENDORED fleet kit v13 files (FLEET item 11: the
+# bytes are MAIN's, pinned by ops/fleet_kit/MANIFEST.json and tests/test_fleet_kit.py,
+# so a line that moves reddens both this table and that pin). Each is the ONE
+# call where a kit wrapper hands over to the command it exists to wrap, and that
+# command's duration is the caller's to bound, never the wrapper's.
+EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
+    ("ops/fleet_kit/fleet_gitlock.py", "run", "subprocess.run", 425): (
+        "VENDORED kit v13 git lock: runs the caller's git commit or git push"
+        " inside the lock, and a push runs this tree's pre-push whole suite for"
+        " tens of minutes; a wrapper timeout would kill a healthy push mid-hook."
+    ),
+    ("ops/fleet_kit/fleet_suite_gate.py", "run", "subprocess.run", 316): (
+        "VENDORED kit v13 suite gate: runs the caller's WHOLE test suite inside a"
+        " machine-wide slot; the suite's own length is the caller's to bound, and"
+        " the gate's own wait for a slot is already bounded (exit 3)."
+    ),
+    ("ops/fleet_kit/fleet_rewrite.py", "run", "subprocess.run", 400): (
+        "VENDORED kit v13 rewrite helper: runs git filter-repo over the whole"
+        " history on the operator's explicit confirm; nothing in this tree runs"
+        " it, and killing a rewrite mid-way is the damage the bundle guards."
+    ),
+}
 
 # THE BUDGET, TYPED BY HAND. Never `len(EXEMPTIONS)` - that tautology satisfies
 # both directions by construction, spends nothing, and leaves no number in the
 # diff to query. `test_the_budget_is_not_derived_from_the_table_it_bounds` is
 # what keeps this a literal.
-EXEMPTION_BUDGET: Final = 0
+# CS-1290: 0 -> 3, the three vendored kit v13 rows above.
+EXEMPTION_BUDGET: Final = 3
 
 
 @dataclass(frozen=True)
