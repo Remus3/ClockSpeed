@@ -75,6 +75,39 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-08 - CS-1284 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1284 STAYS OPEN. Session 2 of 3 of SUBAGENT-FIRST log rows, with the positive control the session 132 rows lacked
+Verification: the gitignored `ops/loop/control/subagent_first.jsonl` and
+`ops/loop/control/subagent_first.mode`, read by the session 133 /done; the wiring by
+`tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_subagent_first_hook`.
+Read back by this /done: 818 rows, the first at 15:31:43 and the last at 20:39:32 local on
+2026-10-08, mode `log` on every row and in the mode file. 817 rows read thread `sub`, decision
+`allow`; ONE row reads thread `main`, decision `would-deny`, tool Glob, at 18:27:56 - the POSITIVE
+CONTROL CS-1284's acceptance requires before the switch: a main-thread guarded call is logged
+as would-deny, so the main-thread half is now MEASURED and an empty main-thread population
+would mean an idle main thread, not an unlogged one. Session 133's own rows, from its start at
+18:26:05: 666 - 665 sub allow and the one main would-deny. Earlier in session 133 the main
+session read 333 rows, 332 sub allow and the same main would-deny.
+A row carries only `agent_type`, `at`, `decision`, `mode`, `thread` and `tool` - never the tool
+input - so the log holds no path, no argument and no environment value.
+Not done here: the switch. The acceptance holds log mode until on or after 2026-10-10 and three
+interactive sessions of rows counted from the session 132 wiring; session 132 was 1 of 3 and
+session 133 is 2 of 3. The lane exemption in `ops/loop/run_lane.ps1` is re-read at the switch.
+
+### 2026-10-08 - CS-G03 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. The delta re-walk ruling's escalation re-checked after FLEET-KIT v11 touched `pyproject.toml` again: it does not trigger
+Verification: `git diff --name-only 457d2b9 HEAD` and `git diff 457d2b9 HEAD -- pyproject.toml`,
+read by the session 133 /done at the CS-1287 close commit `3949816`, against the escalation
+clause of the session 133 CS-G03 DECISION RECORD below.
+Read back: of the reversal paths that record lists (`README.md`, `docs/OPERATIONS.md`,
+`.githooks/*`, `tools/precommit_gate.py`, `scripts/*`, `tools/memory_sync.py`, `pyproject.toml`,
+`config/ports.json`) the diff lists `pyproject.toml` alone. CS-1287's vendoring commit `71c4141`
+changed `pyproject.toml` again after the ruling, only in the ruff per-file-ignores, the ruff
+format exclude list and the mypy overrides, for the vendored `ops/fleet_kit/` files. A `tomllib`
+compare of the file at `457d2b9` and at HEAD reads `[project]` and `[build-system]` equal, and
+every key equal outside `tool.ruff.lint.per-file-ignores`, `tool.ruff.format.exclude` and
+`tool.mypy.overrides`.
+Verdict: the escalation to a full re-walk does NOT trigger at this HEAD. The ruling pins the S7a
+tip, so the same check is owed again at that tip, before the walk is dispatched.
+
 ### 2026-10-08 - CS-1287 - CLOSED: FLEET-KIT v11 adopted, superseding v10 - vendored, triage on the kit's own spawn keywords, six repaired kit exemptions removed
 Verification: `ops/fleet_kit/MANIFEST.json` reads version 11, plus
 `tests/test_fleet_kit.py::test_fleet_kit_conformance` (conformance() empty, KIT_VERSION 11),
