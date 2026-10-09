@@ -171,6 +171,7 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/audit/balance.py::WorldDraw",
     "clockspeed/audit/balance.py::WorldProduction",
     "clockspeed/audit/balance.py::WorldStarvation",
+    "clockspeed/audit/build.py::BuildCheck",
     "clockspeed/audit/collectibles.py::WorldCollectibles",
     "clockspeed/audit/flow.py::FlowGap",
     "clockspeed/audit/flow.py::ItemFlow",
