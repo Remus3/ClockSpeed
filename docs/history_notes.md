@@ -24,6 +24,27 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1290 - prose relocated from `CLAUDE.md` 2026-10-09 to fit the v13 block
+
+**Moved here from `CLAUDE.md` when the kit v13 FLEET-COMMON block took it over its
+40 KB budget.** Section 5's supporting-facts list now points at its owner,
+`CONVENTIONS.md` sections 5.1 to 5.3, which carries every bullet. The two passages below
+had no other owner and are kept verbatim.
+
+From section 5, Self-adjudicating:
+
+A tree that edits itself mid-verdict makes the ruling a statement about no state at all,
+and any finding repaired while the adjudicator writes is one it cannot see it discharged.
+Measured in session 45: the tree moved under an adjudicator four times, and three
+whole-suite runs were spent proving that a run straddling an edit says nothing.
+
+From section 2.3, Output constraints:
+
+The operator watches several project sessions side by side, so prose in the main transcript
+costs tokens on both ends AND buries the thing being decided. A quiet session is one where
+the tool-call labels carry the narration.
+
+
 ## CS-1266 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-08
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

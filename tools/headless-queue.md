@@ -668,6 +668,11 @@ engine change is substantive; a five-file rename is not.
    policy, and its absence is not a defect to file.
 4. Write the message with a file (`git commit -F`) or a single-quoted here-string. Never a
    double-quoted here-string and never a piped string - same root cause as the em-dash rule.
+   **Every commit and push runs through the kit's git lock** (FLEET-COMMON 16a):
+   `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git ...`,
+   and a whole suite through `python ops/fleet_kit/fleet_suite_gate.py run --owner
+   <session_id>.<agent_id> -- <suite cmd>` (16c). The claims hook denies the bare forms
+   and its deny reason names the owner id to pass.
 5. **Every path you added, renamed or deleted is stamped (step 7f.1) in the SAME COMMIT**,
    and `python tools/provenance_stamp.py check` exits 0 before the push. After a rebase, a
    conflict in `tools/provenance.tsv` is resolved by taking the other side and re-running

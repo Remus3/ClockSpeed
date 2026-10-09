@@ -382,6 +382,13 @@ KIT_FORMAT_EXCLUSIONS: Final = [
     "ops/fleet_kit/fleet_secrets.py",
     "ops/fleet_kit/fleet_watch.py",
     "ops/fleet_kit/fleet_subagent_first.py",
+    # CS-1290 - the six modules kit versions 12 and 13 added.
+    "ops/fleet_kit/fleet_claims.py",
+    "ops/fleet_kit/fleet_gitlock.py",
+    "ops/fleet_kit/fleet_identity.py",
+    "ops/fleet_kit/fleet_rewrite.py",
+    "ops/fleet_kit/fleet_suite_gate.py",
+    "ops/fleet_kit/fleet_test_guard.py",
 ]
 
 #: The kit's own pin, which names every file it vendors.

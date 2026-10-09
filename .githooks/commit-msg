@@ -593,4 +593,9 @@ if [ "$cs_msg_out" != "clockspeed-commit-msg-ran" ]; then
         "The commit is BLOCKED: an unrun check is not a passed check."
 fi
 
+# FLEET-COMMON 17 (kit v13, CS-1290 grant B): strip AI or bot co-author and
+# sign-off trailers last, after every check above has had its chance to
+# reject, so the CS-702 gate still refuses what it must. Never rejects.
+python "ops/fleet_kit/fleet_identity.py" commit-msg "$1" || true
+
 exit 0

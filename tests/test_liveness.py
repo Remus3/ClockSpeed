@@ -114,6 +114,7 @@ import pytest
 
 from tests import liveness
 from tests.save.reach_guard import _assert_no_test_is_gutted
+from tests.toolpath_guard import kit_pin_problems
 
 #: Wall-clock bound for the git plumbing below (CS-896). An unbounded child
 #: cannot fail the test that owns it - it burns the CI job's whole budget until
@@ -135,6 +136,20 @@ OPT_IN_HELPER: Final = "_assert_no_test_is_gutted"
 
 #: This module and its helper.
 OWN_MODULES: Final = ("tests/liveness.py", "tests/test_liveness.py")
+
+#: CS-1290 - findings the rule raises in a VENDORED fleet kit file, keyed
+#: (module, member, kind) and never by line. FLEET item 11: the kit's bytes are
+#: MAIN's and pinned by its MANIFEST, so a finding there is excused by the pin,
+#: not repaired here - and the arm below reddens the moment a byte moves, so a
+#: row can never excuse a member this tree wrote.
+VENDORED_FINDINGS: Final = {
+    ("ops/fleet_kit/fleet_test_guard.py", "_fleet_live_state_guard", "return"): (
+        "Kit v13's session guard yields and returns WITHOUT grading when the "
+        "operator sets FLEET_TEST_GUARD=off - the documented kill switch, which "
+        "FLEET-COMMON 16d says is never set in a gate run. Owed to MAIN as a kit "
+        "report (a skip would make the switch visible), not repaired here."
+    ),
+}
 
 #: THE GRADING VOCABULARY, TRANSCRIBED AS LITERALS. This is the one deliberate
 #: transcription in the file and it exists for the reason
@@ -1026,7 +1041,11 @@ def test_no_shipped_control_or_grader_can_exit_without_grading(
 ) -> None:
     """THE RULE. Every member grades before every way out of it."""
     population = len(surveyed.members)
-    rendered = [finding.rendered() for finding in surveyed.findings]
+    rendered = [
+        finding.rendered()
+        for finding in surveyed.findings
+        if (finding.module, finding.name, finding.kind) not in VENDORED_FINDINGS
+    ]
     count = len(rendered)
     assert population > 1, (
         f"the derived population holds {population} member(s), so a clean result below "
@@ -1036,6 +1055,17 @@ def test_no_shipped_control_or_grader_can_exit_without_grading(
         f"{count} shipped control(s) or grader(s) can stop grading without anything "
         f"noticing: {rendered[:20]}"
     )
+
+
+def test_every_vendored_finding_is_live_once_and_at_its_kit_pin(
+    surveyed: liveness.Survey,
+) -> None:
+    """CS-1290: each excused row answers exactly one live finding in a pinned kit file."""
+    keys = [(finding.module, finding.name, finding.kind) for finding in surveyed.findings]
+    counts = {row: keys.count(row) for row in VENDORED_FINDINGS}
+    wrong = {row: count for row, count in counts.items() if count != 1}
+    problems = kit_pin_problems(row[0] for row in VENDORED_FINDINGS)
+    assert (wrong, problems) == ({}, []), f"stale or unpinned rows: {wrong} {problems}"
 
 
 def test_no_grading_statement_in_the_repository_is_unreachable(

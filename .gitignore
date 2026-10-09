@@ -274,6 +274,16 @@ shell/NVIDIA Corporation/
 # same reason as the lines above.
 /ops/loop/control/subagent_first.mode
 /ops/loop/control/subagent_first.jsonl
+# FLEET-KIT v13 race guards and identity hook (CS-1290): the claims registry,
+# its log and mode file, the lock directory and its break log, and the
+# commit-msg strip log. Machine-local runtime state the v12 and v13 ORDERs say
+# to ignore; covered by the directory line too, named for the same reason.
+/ops/loop/control/claims/
+/ops/loop/control/locks/
+/ops/loop/control/claims.jsonl
+/ops/loop/control/claims.mode
+/ops/loop/control/gitlock.jsonl
+/ops/loop/control/identity.jsonl
 
 # The lane's model config, read by ops/loop/run_lane.ps1 via $PSScriptRoot with
 # a known-good fallback so a lane never fails to spawn over a config read.

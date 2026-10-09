@@ -750,7 +750,9 @@ def _exempted_sites(source: str) -> list[ProgramSite]:
     ]
 
 
-def _spawn_statement(source: str, function: str, callee: str) -> ast.stmt:
+def _spawn_statement(
+    source: str, function: str, callee: str, program: str | None = None
+) -> ast.stmt:
     """The simple statement holding one exempted site, located by AST and never by line.
 
     Args:
@@ -759,6 +761,10 @@ def _spawn_statement(source: str, function: str, callee: str) -> ast.stmt:
         callee: The callee the exemption names. Matched on its last dotted
             segment as well, because ``from shutil import which`` is spelled
             ``which`` at the call and recorded ``which`` by the census.
+        program: When given, only a statement carrying this program as a string
+            constant is kept. CS-1290: kit v13's ``git_alive`` makes two
+            ``subprocess.run`` calls in one function, one row per program, so the
+            function and callee alone no longer name a single statement.
 
     Returns:
         The one Assign or Expr inside ``function`` whose expression calls ``callee``.
@@ -778,6 +784,12 @@ def _spawn_statement(source: str, function: str, callee: str) -> ast.stmt:
         and any(
             isinstance(call, ast.Call) and ast.unparse(call.func) in spellings
             for call in ast.walk(node)
+        )
+        and (
+            program is None
+            or any(
+                isinstance(leaf, ast.Constant) and leaf.value == program for leaf in ast.walk(node)
+            )
         )
     ]
     assert len(statements) == 1, (
@@ -910,9 +922,9 @@ def test_a_comment_block_above_every_exempted_site_moves_no_arm(
     row: tuple[str, str, str, str, int],
 ) -> None:
     """The first half of CS-1102 for every row of both kinds, not only the one the plants favour."""
-    path, function, callee = row[0], row[1], row[2]
+    path, function, callee, program = row[0], row[1], row[2], row[3]
     pristine = (REPO_ROOT / path).read_text(encoding="utf-8")
-    statement = _spawn_statement(pristine, function, callee)
+    statement = _spawn_statement(pristine, function, callee, program)
     planted = _insert_lines(pristine, statement.lineno, COMMENT_BLOCK, statement.col_offset)
     assert planted != pristine, "the plant did not land"
 

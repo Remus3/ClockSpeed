@@ -44,6 +44,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
 from tests.git_env import scrub
 from tests.pre_push_floor import (
     FLOOR_LINE,
@@ -248,6 +249,7 @@ def isolated(tmp_path: Path) -> Environment:
     reports = tmp_path / REPORT_PARENT
     reports.mkdir()
     env["TMPDIR"] = str(reports)
+    env.update(suite_dir_env(tmp_path))
     return Environment(env)
 
 
@@ -289,6 +291,7 @@ def make_sandbox(
         ("user.email", FIXTURE_EMAIL),
         ("commit.gpgsign", "false"),
         ("core.hooksPath", str(hooks)),
+        (OPERATOR_IDENT_KEY, FIXTURE_EMAIL),
     ):
         assert git(box, "config", key, value).returncode == 0, f"{key} did not write"
     readback = git(box, "config", "--get", "core.hooksPath")
@@ -304,6 +307,8 @@ def make_sandbox(
         (work / name).write_bytes(raw)
     # Pins pytest's rootdir at the sandbox, so it never walks up into the temp root.
     (work / "pytest.ini").write_bytes(b"[pytest]\n")
+    # CS-1290: the kit files the wired identity and suite-gate lines run.
+    install_hook_kit(work)
 
     assert git(box, "init", "-q", "--bare", str(remote)).returncode == 0, "no bare remote"
     assert git(box, "remote", "add", "origin", str(remote)).returncode == 0, "no origin"

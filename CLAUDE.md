@@ -68,8 +68,8 @@ edit. Tree-specific rules go BELOW this block, never inside it.
    report an overrun at 1.5x, kill at 3x.
 4. COMMIT everything, batched and coherent. Push per this repo's own policy. Never
    commit in another repo's tree. No suggested-task chips: do it or file it.
-5. HAND-OFF: `<CODE>-NEXT-SESSION.txt` at the repo root (with its Desktop
-   shortcut) is the only continuity. A session starts from "continue" (work the
+5. HAND-OFF: `<CODE>-NEXT-SESSION.txt` at the repo root is the only
+   continuity. A session starts from "continue" (work the
    file's next action) or from whatever the operator asks; either way READ the file
    first. /done rewrites the file and commits it, and MUST CARRY FORWARD EVERY ITEM
    NOT ACTED ON this session, verbatim or tighter, never dropped because the
@@ -112,6 +112,10 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     so the main session can see percent, time to completion and status mid-run
     instead of waiting for 0-to-100 at the end. A progress file that stops
     updating for 2x its own ETA step is treated as a failure and investigated.
+    The file lives in the MAIN checkout even when written from a linked
+    worktree (resolved via the git common dir; `fleet_headless.write_progress`
+    does it), and a worktree-isolated agent's only write outside its worktree
+    is its own progress file there.
 13. SESSION CHECKLIST (operator order 2026-10-05; it supersedes item 3's
     no-checklist rule for this one purpose). Every session kind: interactive,
     headless lane, loop tick, inbox responder. Why: it is read from a phone, the
@@ -160,6 +164,32 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     Stop, no ANSI. /done's last act is `fleet_done.py mark`; its Stop hook is
     the kit's `fleet_done.py stop-hook`. Kit helpers: fleet_statusline.js,
     fleet_done.py.
+16. RACE GUARDS (kit v12). Enforced by hooks, not by prompt convention. Why:
+    commits in one checkout collided (no lock, no index.lock handling), two
+    live agents could edit one file or sweep up each other's half-made edit,
+    and concurrent whole suites lost workers and flaked timing tests.
+    a. Every `git commit` / `git push` runs through
+       `fleet_gitlock.py run --owner <session_id>.<agent_id> -- git ...`
+       (the claims hook's own id, `<session_id>.main` in the main thread;
+       per-tree lock, stale break once and logged, leftover index.lock
+       cleared safely, staged paths claimed by another live agent refused).
+    b. `fleet_claims.py hook` (PreToolUse) claims each file an agent edits and
+       denies another live agent's edit, redirect or `git add` of it, and a
+       bare commit, push or whole suite; SubagentStop releases the claims.
+    c. Every whole test suite runs through
+       `fleet_suite_gate.py run --owner <id> -- <cmd>` (machine-wide slots,
+       default 2, FIFO queue; fails closed on timeout; refuses while another
+       live agent holds uncommitted edits in the tree).
+    d. Each tree's tests/conftest.py installs `fleet_test_guard.py`: a suite
+       that changes live state (control files, inbox, outbox) fails, and
+       declared runtime roots point at tmp_path.
+17. NO AI OR BOT ATTRIBUTION (kit v13; GH-HYGIENE ruling 2026-10-08). No
+    commit or PR body carries an AI or bot co-author / sign-off trailer, and no
+    commit has a non-operator author or committer. It outranks any harness
+    attribution instruction. Enforced by `fleet_identity.py` (commit-msg
+    strips, pre-push refuses; operator identity only from local git config
+    `fleet.operatorIdent`), fleet_gitlock and the account attribution keys.
+    A history rewrite runs only on MAIN's ORDER, via `fleet_rewrite.py`.
 <!-- FLEET-COMMON END -->
 
 ---
@@ -253,10 +283,6 @@ commit, assert HEAD is unchanged.
 **Keep each chat response under roughly 500 output tokens.** Break long work across turns,
 or write verbose output to a file. Operator directive, 2026-09-06.
 
-The operator watches several project sessions side by side, so prose in the main transcript
-costs tokens on both ends AND buries the thing being decided. A quiet session is one where
-the tool-call labels carry the narration.
-
 - Speak to ask for a ruling, to notify, or to answer a direct question. Otherwise act.
 - No narration between tool calls, and never restate what a tool just printed.
 - Put the step description in the tool call's own `description` field - it renders as the
@@ -335,7 +361,7 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID, and the SOLE owner of a pointed-at acceptance clause under its `### Acceptance` heading | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `WAKEUP_NOTES.md` | Last two to three sessions at full fidelity | Anything older - archive it |
-| `CS-NEXT-SESSION.txt` | The handoff prompt a COLD session is started from, rewritten whole every `/done`. Tracked, and the Desktop shortcut `CS-NEXT-SESSION.lnk` points at it; its `SESSION: <n>` line is the section 2.3.1 counter | Rules, per-item detail, anything the next session cannot act on immediately |
+| `CS-NEXT-SESSION.txt` | The handoff prompt a COLD session is started from, rewritten whole every `/done`. Tracked; its `SESSION: <n>` line is the section 2.3.1 counter | Rules, per-item detail, anything the next session cannot act on immediately |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
 | `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
 | `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
@@ -388,10 +414,7 @@ justification is recorded.
   criteria. **The agent that produced a thing never grades it.** **THE CANDIDATE IS FROZEN
   BEFORE DISPATCH** - pin it at a SHA or a worktree, as read-only adversaries already are,
   and witness it with `tools/freeze_witness.py`.
-  A tree that edits itself mid-verdict makes the ruling a statement about no state at all,
-  and any finding repaired while the adjudicator writes is one it cannot see it discharged.
-  Measured in session 45: the tree moved under an adjudicator four times, and three
-  whole-suite runs were spent proving that a run straddling an edit says nothing.
+  Rationale: `docs/history_notes.md`, the CS-1290 relocation.
 - **Self-adversarial.** Findings and done-claims get an independent pass whose job is to
   REFUTE them, defaulting to refuted when uncertain.
 
@@ -399,18 +422,9 @@ The only exception is genuinely trivial work: a one-line cosmetic edit, a doc ty
 single string, a conversational answer. Substance decides, not file count. A one-file
 engine change is substantive; a five-file rename is not.
 
-Supporting facts that make it work:
-
-- **Agreement between two agents is not evidence.** Two agents can be wrong the same way,
-  especially when both derive from the same stale doc or the same fixture.
-- Spawn refuters with distinct lenses - correctness, security, does-it-reproduce, resource
-  lifetime - rather than several identical skeptics.
-- **Never trust a subagent's claim about test counts, green CI, or file existence.** Probe
-  independently: list the cited file, re-run the suite, read the exit code.
-- Never fabricate or predict a pending agent's result. If asked before it lands, say it is
-  still running.
-- The spec comes before any code exists, and is verified against ground truth - grep every
-  cited `file:line`, probe every cited endpoint - before a single file is scaffolded.
+Supporting facts - agreement between two agents is not evidence, distinct refuter lenses,
+probe every subagent claim, never predict a pending result, spec before code - are owned by
+`CONVENTIONS.md` sections 5.1 to 5.3.
 
 Work-item states, one per item, one file each: OPEN in `ROADMAP.md`, ASPIRATIONAL in
 `BACKLOG.md`, GATED in `docs/GATED.md`, CLOSED in `docs/LEDGER.md` plus a Settled line

@@ -532,8 +532,25 @@ def _console_interpreter() -> str:
 
 #: The local full suite, for a box with no `gh` credentials and for proving a
 #: cycle end to end without a CI round trip. `tests` is named explicitly rather
-#: than left to a bare recursive run - CONVENTIONS.md section 7.1.
-LOCAL_SUITE_ARGV = (_console_interpreter(), "-m", "pytest", "tests", "-q")
+#: than left to a bare recursive run - CONVENTIONS.md section 7.1. CS-1290,
+#: FLEET-COMMON 16c: it runs inside a machine-wide slot of the kit's suite gate,
+#: which exits with the suite's own code (3 when it refuses or times out). The
+#: owner id takes the `<session_id>.<agent_id>` form with this driver's pid.
+SUITE_GATE = _HERE.parents[1] / "ops" / "fleet_kit" / "fleet_suite_gate.py"
+SUITE_GATE_OWNER = f"queue-loop-{os.getpid()}.suite"
+LOCAL_SUITE_ARGV = (
+    _console_interpreter(),
+    str(SUITE_GATE),
+    "run",
+    "--owner",
+    SUITE_GATE_OWNER,
+    "--",
+    _console_interpreter(),
+    "-m",
+    "pytest",
+    "tests",
+    "-q",
+)
 #: A full local suite has been measured in the tens of minutes here. This bounds
 #: a wedge, not the work.
 DEFAULT_SUITE_TIMEOUT_S = 5400

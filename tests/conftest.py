@@ -1562,7 +1562,62 @@ RUN_GIT_TIMEOUT_SECONDS: float = 120
 # what registers them. Appended at the foot for the line-number reason above.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# CS-1290 - FLEET-COMMON 16d: the kit's test guard (ops/fleet_kit/fleet_test_guard.py)
+#
+# A session guard FAILS the run when a test changed live tree state (the
+# control plane, the inbox, the outbox), and an autouse fixture points every
+# runtime root this code locates from the environment at tmp_path. Appended at
+# the foot for the line-number reason above. The module is loaded by file path
+# so sys.path is not widened for the whole suite.
+#
+# ENV_ROOTS - every variable the code reads to locate a place it WRITES
+# runtime state: the save work copies (clockspeed/save/workdir.py), the suite
+# ration state (ops/loop/ration.py), the outbound send record
+# (tools/outbound_send.py) and the certificate pair (scripts/make_cert.py).
+# Variables that locate an INPUT - the save root, the game install, the
+# account directory, the local config - are deliberately not declared: they are
+# read-only, and pointing them at an empty tmp directory would change what the
+# auto-detection tests grade.
+#
+# GUARD_IGNORE - the kit defaults plus the files a SCHEDULED TICK rewrites while
+# a suite runs, one name at a time and never a glob over ops/loop/control
+# (that would re-admit the whole class the guard exists to catch): the
+# responder's run budget and its lock (fleet_headless.RunBudget) and the inbox
+# task list (ops/loop/inbox_status.py). Trap (a) in SS's 2026-10-08 kit-v12
+# answer.
+# ---------------------------------------------------------------------------
+import importlib.util as _cs1290_importlib_util  # noqa: E402 - appended at the foot
+
 from tests.xdist_quiet import (  # noqa: E402 - appended at the foot, see above
     pytest_sessionfinish,  # noqa: F401 - a hook, registered by its name
     pytest_sessionstart,  # noqa: F401 - a hook, registered by its name
+)
+
+_GUARD_PATH = Path(__file__).resolve().parents[1] / "ops" / "fleet_kit" / "fleet_test_guard.py"
+_guard_spec = _cs1290_importlib_util.spec_from_file_location("fleet_test_guard", _GUARD_PATH)
+if _guard_spec is None or _guard_spec.loader is None:
+    raise ImportError("the fleet kit test guard could not be loaded")
+fleet_test_guard = _cs1290_importlib_util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(fleet_test_guard)
+
+ENV_ROOTS: Mapping[str, str] = MappingProxyType(
+    {
+        "CLOCKSPEED_WORK_ROOT": "work",
+        "CLOCKSPEED_SUITE_RATION_ROOT": "ration",
+        "CLOCKSPEED_OUTBOUND_RECORD": "outbound_record.jsonl",
+        "CLOCKSPEED_CERT_DIR": "cert",
+    }
+)
+GUARD_IGNORE: tuple[str, ...] = (
+    *fleet_test_guard.IGNORE,
+    "ops/loop/control/headless_budget.json",
+    "ops/loop/control/headless_budget.json.lock",
+    "ops/loop/control/inbox_status_tasks.json",
+)
+fleet_test_guard.install(
+    globals(),
+    root=Path(__file__).resolve().parents[1],
+    env_roots=dict(ENV_ROOTS),
+    ignore=GUARD_IGNORE,
 )

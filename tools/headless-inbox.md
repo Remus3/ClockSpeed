@@ -57,8 +57,12 @@ all (section 4).
   lands on the main tree by `git cherry-pick` ONLY when the main tree is clean and no
   other push is running - never by merge, never over someone else's uncommitted work.
 - **Commit and push** per `CLAUDE.md` sections 2.3.1 and 6.1. Commit subjects start with a
-  `CS-` id; no co-author trailer. The pre-push hook runs the whole suite; run it in the
-  foreground and read the log, never the notice's exit code.
+  `CS-` id; no co-author trailer. Every commit and push runs through `python
+  ops/fleet_kit/fleet_gitlock.py run --owner headless.<run id> -- git ...` and any whole
+  suite through `python ops/fleet_kit/fleet_suite_gate.py run --owner headless.<run id>
+  -- <suite cmd>` (FLEET-COMMON 16a, 16c): this spawn fires no Claude hook, so this line
+  is the only thing that routes them. The pre-push hook runs the whole suite through the
+  gate; run it in the foreground and read the log, never the notice's exit code.
 - **Acknowledge ONLY the keys you fully handled**: write them, one per line, to a
   scratch file outside the repository and run `python tools/inbox_watch.py --ack-keys
   <file> --source inbox-responder --session-id headless`. Items you did not list stay

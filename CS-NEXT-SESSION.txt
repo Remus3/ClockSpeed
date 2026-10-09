@@ -661,8 +661,8 @@ OTHER SESSIONS LOAD THE BOX. Check load before pushing; hold a push while a Sand
   suite runs (a timing arm in the walk would fail on load).
 A LOCAL CLONE HARD-LINKS OBJECT FILES (CS-1267).
 A GRANT IS NOT A REVIEW - always refute the candidate.
-Worktree isolation blocks writes to the shared progress directory; agents write their
-  progress file inside their own worktree, in a gitignored path.
+Progress files from a worktree go to the MAIN checkout's ops/loop/control/progress/ via
+  fleet_headless.write_progress (FLEET-COMMON 12, 13d; ruling 2026-10-08).
 
 ================================================================================
 SESSION 133 /done REPORT
@@ -757,7 +757,7 @@ SHORTCUT: the Desktop CS-NEXT-SESSION.lnk was MISSING at this /done - no tree's
   NEXT-SESSION shortcut was on the Desktop, after a fleet reorganisation at about 21:16
   that also moved cs-g06 and cs-walk-131 under E:\Sidecars\CS. This /done RECREATED it
   (WScript.Shell) and read it back: it targets E:\Clockspeed\CS-NEXT-SESSION.txt, which
-  exists. If kit v12 or v13 relocates hand-off shortcuts, follow the kit.
+  exists. Kit v13 dropped the shortcut from FLEET item 5; /done no longer checks it (CS-1290).
 INBOX AT /done: 2 unread of 517 - the v12 ORDER and its payload. WORKTREES AT /done:
   `git worktree list` 12 lines; branch refs 280.
 MARK: `fleet_done.py mark --session 133 --status failed`, naming step 2 (the push), by the

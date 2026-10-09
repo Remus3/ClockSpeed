@@ -124,6 +124,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
 from tests.git_env import scrub
 from tests.pre_push_floor import with_test_floor
 from tests.test_pretooluse_gate import EM_DASH, PEM_HEADER, envelope, require_posix_shell
@@ -154,6 +155,8 @@ SUITE_SUPPORT: Final = (
     "clockspeed/data/locate.py",
     "clockspeed/save/__init__.py",
     "clockspeed/save/workdir.py",
+    # CS-1290: tests/conftest.py installs the kit's test guard from this path.
+    "ops/fleet_kit/fleet_test_guard.py",
 )
 
 PRE: Final = "pretooluse"
@@ -202,7 +205,12 @@ PINNED_BY_THE_PROBE: Final = frozenset(
 )
 
 CHATTY_CANDIDATE: Final = b"#!/bin/sh\nprintf 'an argument-ignoring candidate\\n'\nexit 0\n"
-FAILING_RUNG: Final = b"#!/bin/sh\nexit 1\n"
+# CS-1290: the kit's identity line (grant C.1) runs BEFORE the ladder, on plain
+# `python`, so a stand-in that failed it too would refuse the push there and the
+# ladder's own refusal - the path these arms name - would never be reached. The
+# stand-in answers that one call as passed and fails every other, ladder probes
+# included; the identity refusal itself is graded in test_pre_push_suite_floor.py.
+FAILING_RUNG: Final = b'#!/bin/sh\ncase "$1" in *fleet_identity.py) exit 0 ;; esac\nexit 1\n'
 LADDER_RUNGS: Final = ("python", "python3", "py")
 
 CRASHING_SITECUSTOMIZE: Final = (
@@ -292,6 +300,7 @@ def child_env(
     for name in [key for key in env if key.upper() in PINNED_BY_THE_PROBE]:
         env.pop(name)
     env.update(zip(CANARY_NAMES, MARKERS, strict=True))
+    env.update(suite_dir_env(root))
     env.update(extra or {})
     if path_first is not None:
         env["PATH"] = str(path_first) + os.pathsep + env.get("PATH", "")
@@ -404,8 +413,12 @@ def make_repo(
         ("user.email", FIXTURE_EMAIL),
         ("commit.gpgsign", "false"),
         ("core.hooksPath", str(hooks_dir)),
+        (OPERATOR_IDENT_KEY, FIXTURE_EMAIL),
     ):
         assert git_ok(work, root, "config", key, value), "a sandbox config key did not write"
+    # CS-1290: the kit files the wired identity and suite-gate lines run,
+    # UNTRACKED like the gate below - the hooks run them from the working tree.
+    install_hook_kit(work)
     # UNTRACKED ON PURPOSE: the hook loads the gate from the working tree.
     (work / "tools").mkdir()
     if gate is None:

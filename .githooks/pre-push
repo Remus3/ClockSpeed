@@ -81,6 +81,11 @@ else
     CS_REFS=$(cat)
 fi
 
+# FLEET-COMMON 17 (kit v13, CS-1290 grant C.1): refuse a pushed range holding a
+# non-operator author or committer, or an AI or bot trailer. Run first, fed the
+# captured ref list - the capture above stays the only reader of stdin.
+printf '%s\n' "$CS_REFS" | python "ops/fleet_kit/fleet_identity.py" pre-push "$@" || exit 1
+
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || ROOT=""
 if [ -z "$ROOT" ]; then
     die "not inside a git work tree; refusing to run."
@@ -634,7 +639,10 @@ sys.stdout.write("%d %d" % (executed, passed))
 
 # Unquoted on purpose: the empty case must expand to NO argument, and sh has
 # no arrays. The variable is initialised above, so `set -u` is satisfied.
-cs_python -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
+# FLEET-COMMON 16c (kit v13, CS-1290 grant C.2): the whole suite runs inside a
+# machine-wide slot of the kit's suite gate, which exits with the suite's own
+# code, or 3 when it refuses or times out without running the suite.
+cs_python -P "$ROOT/ops/fleet_kit/fleet_suite_gate.py" run --owner "${FLEET_CLAIM_OWNER:-pre-push}" -- "$CS_PY" ${CS_PY_ARG:+"$CS_PY_ARG"} -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
 STATUS=$?
 
 if [ "$STATUS" -eq 5 ]; then
@@ -708,6 +716,9 @@ fi
 if [ "$STATUS" -ne 0 ]; then
     printf 'clockspeed pre-push: BLOCKED (pytest exit %s). Nothing was pushed.\n' \
         "$STATUS" >&2
+fi
+if [ "$STATUS" -eq 3 ]; then
+    printf '  exit 3 may be the fleet suite gate refusing or timing out, not pytest.\n' >&2
 fi
 
 # CS-954: THE REF MUST STILL BE WHAT THE SUITE GRADED.

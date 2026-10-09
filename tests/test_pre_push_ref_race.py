@@ -42,6 +42,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
 from tests.git_env import gnu_timeout_first, program_on_child_path, scrub
 from tests.pre_push_floor import differs_only_on_floor_line, wired_hook_bytes
 
@@ -204,6 +205,7 @@ def isolated(tmp_path: Path) -> Environment:
     env.pop("CLOCKSPEED_PYTHON", None)
     for leaked in [name for name in env if name.startswith("PYTEST_")]:
         env.pop(leaked, None)
+    env.update(suite_dir_env(tmp_path))
     return Environment(env)
 
 
@@ -234,6 +236,7 @@ def make_sandbox(tmp_path: Path, isolated: Environment, *, seconds: float) -> Sa
         ("user.email", FIXTURE_EMAIL),
         ("commit.gpgsign", "false"),
         ("core.hooksPath", str(hooks)),
+        (OPERATOR_IDENT_KEY, FIXTURE_EMAIL),
     ):
         written = run_git(box, "config", key, value)
         assert written.returncode == 0, f"{key} could not be written in the sandbox"
@@ -264,6 +267,8 @@ def make_sandbox(tmp_path: Path, isolated: Environment, *, seconds: float) -> Sa
     # PINS PYTEST'S ROOTDIR AT THE SANDBOX. Without an ini file pytest walks
     # upward looking for one and reaches the system temp directory.
     (work / "pytest.ini").write_bytes(b"[pytest]\n")
+    # CS-1290: the kit files the wired identity and suite-gate lines run.
+    install_hook_kit(work)
 
     initialised = run_git(box, "init", "-q", "--bare", str(remote))
     assert initialised.returncode == 0, "the bare remote could not be initialised"

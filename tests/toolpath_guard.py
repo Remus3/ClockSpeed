@@ -373,7 +373,26 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
 # a row here can never excuse a site this tree wrote. Same key shape, the same
 # EXACTLY-one-live-site rule in stale_exemptions(), the same reason minimum, and
 # counted against the same hand-typed budget below.
-VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {}
+VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
+    ("ops/fleet_kit/fleet_gitlock.py", "git_alive", "subprocess.run", "tasklist", 1): (
+        "VENDORED byte-for-byte under FLEET item 11 (CS-1290) - ops/fleet_kit/fleet_gitlock.py"
+        " is FLEET-KIT version 13's per-tree git lock, pinned by sha256 in"
+        " ops/fleet_kit/MANIFEST.json and never edited here. git_alive() spawns tasklist by"
+        " bare name to ask whether a git process is running before it clears a"
+        " leftover index.lock; a planted tasklist can only answer that question wrongly, and"
+        " the kit fails CLOSED (True, keep the lock) on any spawn error. Owed to MAIN as"
+        " a kit report, not repaired here."
+    ),
+    ("ops/fleet_kit/fleet_gitlock.py", "git_alive", "subprocess.run", "pgrep", 1): (
+        "VENDORED byte-for-byte under FLEET item 11 (CS-1290) - ops/fleet_kit/fleet_gitlock.py"
+        " is FLEET-KIT version 13's per-tree git lock, pinned by sha256 in"
+        " ops/fleet_kit/MANIFEST.json and never edited here. git_alive() spawns pgrep by"
+        " bare name to ask whether a git process is running before it clears a"
+        " leftover index.lock; a planted pgrep can only answer that question wrongly, and"
+        " the kit fails CLOSED (True, keep the lock) on any spawn error. Owed to MAIN as"
+        " a kit report, not repaired here."
+    ),
+}
 
 #: Both kinds, as the census consults them. A key in both would collapse here
 #: and be counted once - tests/test_toolpath.py asserts the two are disjoint.
@@ -389,8 +408,9 @@ KIT_MANIFEST: Final = REPO_ROOT / "ops" / "fleet_kit" / "MANIFEST.json"
 # THE BUDGET, TYPED BY HAND. Never len(EXEMPTIONS) - that tautology is satisfied
 # in both directions by construction, spends nothing, and leaves no number in a
 # diff to argue with. It counts BOTH kinds: the four FROZEN rows; the one
-# VENDORED row CS-1272 added went with kit version 11 under CS-1287.
-EXEMPTION_BUDGET: Final = 4
+# VENDORED row CS-1272 added went with kit version 11 under CS-1287, and kit
+# version 13 brought two under CS-1290 - fleet_gitlock.py's git_alive() probes.
+EXEMPTION_BUDGET: Final = 6
 
 
 @dataclass(frozen=True)

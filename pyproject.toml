@@ -313,7 +313,7 @@ ignore = [
 
 # ops/fleet_kit/fleet_headless.py IS VENDORED BYTE-IDENTICAL FROM MAIN (CS-1231 at
 # FLEET-KIT version 4, CS-1272 at version 9, CS-1282 at version 10, CS-1287 at
-# version 11) and pinned by
+# version 11, CS-1290 at version 13) and pinned by
 # ops/fleet_kit/MANIFEST.json, which the kit's own conformance() and
 # tests/test_fleet_kit.py both check. Same rule as slots.py above: the guard
 # takes the exemption, never the file. One path, never a glob. MAIN's v4 ORDER
@@ -323,20 +323,22 @@ ignore = [
 # with this entry removed, 81 findings), each a property of upstream's code.
 # Against version 4, D403 arrived at version 9; at version 10 PLR0912 and
 # PLR0915 arrived (_spawn_slotted gained its on_start and stdin_data branches);
-# version 11 (CS-1287) added findings but no new code:
+# version 11 (CS-1287) added findings but no new code; version 13 (CS-1290,
+# 88 findings MEASURED on its bytes) added PLR0911 (main()'s return ladder):
 #   A002     _run takes an `input` keyword, mirroring subprocess.run's own
 #   D102 D103 D107 D205 D209 D403 D415   upstream's docstring layout and coverage
 #   N818     Refused is the kit's exception name and every carrier catches it
 #   PLC0415  `import winreg` sits inside _registry_value so POSIX imports work,
 #            and `import importlib.util` sits inside the helper that loads the
 #            sibling fleet_lanes.py by path
+#   PLR0911  main()'s one return per exit class (version 13)
 #   PLR0912 PLR0915   _spawn_slotted's branch and statement counts (version 10)
 #   PLR0913  write_status, spawn and two helpers take the kit's keyword parameters
 #   PLR2004  literal 2 and 65536 in pin parsing and the git index check
 #   PLW1510  _kill_tree's best-effort taskkill run has no check= argument
 "ops/fleet_kit/fleet_headless.py" = [
   "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "N818",
-  "PLC0415", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510",
+  "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510",
 ]
 
 # THE SIX PYTHON MODULES FLEET-KIT VERSION 9 ADDED (CS-1272), vendored and pinned
@@ -393,6 +395,41 @@ ignore = [
 #   PTH123   log()'s builtin open() in append mode
 "ops/fleet_kit/fleet_subagent_first.py" = ["D103", "PTH109", "PTH123"]
 
+# THE SIX PYTHON MODULES FLEET-KIT VERSIONS 12 AND 13 ADDED (CS-1290), vendored
+# here at version 13 and pinned exactly as the modules above are: one exact
+# path per entry, never a glob, every code MEASURED by `ruff check` of the
+# version 13 bytes under this file's selection, never predicted.
+# fleet_test_guard.py MEASURED 0 findings and takes no entry. Codes beyond the
+# ones named above:
+#   B905     fleet_identity.py's zip() without strict=
+#   E501     long lines in upstream's messages
+#   FURB167 FURB188   re.M spelling and a manual suffix strip
+#   PERF401  loop appends
+#   PLW2901  fleet_identity.py rebinds its loop variable
+#   PTH100 PTH111 PTH123   os.path.abspath, os.path.expanduser and builtin open()
+#   RUF059   an unpacked value left unused
+#   SLF001   fleet_gitlock.py and fleet_rewrite.py reach a sibling's private helper
+#   UP032    .format() calls
+"ops/fleet_kit/fleet_claims.py" = [
+  "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF401", "PLR2004",
+  "PTH100", "PTH109", "PTH111", "PTH123", "UP032",
+]
+"ops/fleet_kit/fleet_gitlock.py" = [
+  "D103", "D205", "D209", "E501", "N818", "PLC0415", "PLR0911", "PLR0913", "PLR2004",
+  "PLW1510", "PTH109", "PTH123", "RUF059", "SLF001", "UP032",
+]
+"ops/fleet_kit/fleet_identity.py" = [
+  "B905", "D103", "D205", "D209", "D403", "FURB167", "PERF401", "PLR2004", "PLW1510",
+  "PLW2901", "PTH109", "PTH123", "UP032",
+]
+"ops/fleet_kit/fleet_rewrite.py" = [
+  "D103", "D205", "D209", "D403", "E501", "FURB188", "N818", "PLR0912", "PLW1510",
+  "PTH123", "RUF059", "SLF001", "UP032",
+]
+"ops/fleet_kit/fleet_suite_gate.py" = [
+  "D103", "D205", "D209", "E501", "N818", "PLR2004", "PLW1510", "PTH109", "UP032",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["clockspeed"]
 
@@ -428,7 +465,8 @@ quote-style = "double"
 # reformat" on the version 9 bytes, and so does the one version 10 added
 # (CS-1282, fleet_subagent_first.py, MEASURED "Would reformat" on its version 10
 # bytes) - one exact path per entry, never a pattern. Version 11 (CS-1287) keeps
-# the same eight entries.
+# the same eight entries; version 13 (CS-1290) adds the six modules versions 12
+# and 13 added, each MEASURED "Would reformat" on its version 13 bytes.
 exclude = [
   "ops/loop/slots.py",
   "ops/fleet_kit/fleet_headless.py",
@@ -439,6 +477,12 @@ exclude = [
   "ops/fleet_kit/fleet_secrets.py",
   "ops/fleet_kit/fleet_watch.py",
   "ops/fleet_kit/fleet_subagent_first.py",
+  "ops/fleet_kit/fleet_claims.py",
+  "ops/fleet_kit/fleet_gitlock.py",
+  "ops/fleet_kit/fleet_identity.py",
+  "ops/fleet_kit/fleet_rewrite.py",
+  "ops/fleet_kit/fleet_suite_gate.py",
+  "ops/fleet_kit/fleet_test_guard.py",
 ]
 # LF, matching .gitattributes. Content hashes are load-bearing in this project
 # (the game data version pin, BOOTSTRAP.md section 8.1) and a file whose line
@@ -791,6 +835,42 @@ disable_error_code = ["unreachable", "var-annotated", "operator"]
 # ONLY these four codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_watch"]
 disable_error_code = ["attr-defined", "unreachable", "call-overload", "operator"]
+
+[[tool.mypy.overrides]]
+# THE FOUR PYTHON MODULES FLEET-KIT VERSIONS 12 AND 13 ADDED THAT MYPY FLAGS
+# (CS-1290), VENDORED BYTE-IDENTICAL from MAIN's fleet kit version 13 and pinned
+# by tests/test_fleet_kit.py. One block per module, for the reason the slots.py
+# block states. MEASURED by a bare `python -m mypy` on the version 13 bytes, 14
+# errors in four files, every one upstream's shape (fleet_identity.py and
+# fleet_test_guard.py MEASURED clean and take no block):
+#   arg-type union-attr   the sibling loader's `module_from_spec(spec)` and
+#                         `spec.loader.exec_module(mod)` - the spec from
+#                         spec_from_file_location is typed `ModuleSpec | None`
+#                         and is not narrowed (fleet_gitlock.py:82-84,
+#                         fleet_rewrite.py:79-81, fleet_suite_gate.py:65-67)
+#   var-annotated         `out = []`, `by_main = {}` and `classes = {}` built up
+#                         later (fleet_claims.py:231 and 320, fleet_rewrite.py:167
+#                         and 212)
+#   unreachable           git_alive's POSIX pgrep tail on a win32 check
+#                         (fleet_gitlock.py:171)
+# ONLY the codes each module raised ARE DISABLED, and only for that module.
+module = ["ops.fleet_kit.fleet_gitlock"]
+disable_error_code = ["arg-type", "union-attr", "unreachable"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_claims.py - see the fleet_gitlock.py block above (CS-1290).
+module = ["ops.fleet_kit.fleet_claims"]
+disable_error_code = ["var-annotated"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_rewrite.py - see the fleet_gitlock.py block above (CS-1290).
+module = ["ops.fleet_kit.fleet_rewrite"]
+disable_error_code = ["arg-type", "union-attr", "var-annotated"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_suite_gate.py - see the fleet_gitlock.py block above (CS-1290).
+module = ["ops.fleet_kit.fleet_suite_gate"]
+disable_error_code = ["arg-type", "union-attr"]
 
 [[tool.mypy.overrides]]
 # Phase 2 rung. The data layer is the seam every other layer consumes, so an

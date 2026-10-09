@@ -612,7 +612,12 @@ def test_a_cycle_that_runs_no_driver_suite_still_records_what_the_ration_covered
     )
 
 
-def test_the_default_slot_root_is_box_wide_and_not_checkout_local(tmp_path: Path) -> None:
+def test_the_default_slot_root_is_box_wide_and_not_checkout_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # THE DEFAULT IS WHAT THIS GRADES, so the override is unset first: since
+    # CS-1290 the kit's test guard points ROOT_ENV at tmp_path in every test.
+    monkeypatch.delenv(ration.ROOT_ENV, raising=False)
     # TWO CHECKOUTS, SPELLED AS TWO COPIES OF THE MODULE AT TWO PATHS. That is
     # the shape the finding names: two clones of this repository whose roots
     # must agree. Importing both under distinct names is what lets one process

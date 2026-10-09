@@ -139,7 +139,7 @@ STOP_INSERTION: Final = (
     f'            "timeout": {STOP_TIMEOUT}\n'
     "          }\n        ]\n      }\n    ]"
 ).encode("ascii")
-HOOK_EVENT_ORDER: Final = ["PreToolUse", "PostToolUse", "Stop"]
+HOOK_EVENT_ORDER: Final = ["PreToolUse", "PostToolUse", "SubagentStop", "Stop"]
 
 # CS-1282 - THE THIRD GRANT, docs/LEDGER.md "2026-10-08 - CS-1282 - FROZEN-FILE
 # GRANT": ONE PreToolUse entry appended AFTER the gate entry, holding one command
@@ -166,6 +166,42 @@ SUBAGENT_FIRST_INSERTION: Final = (
     f'            "timeout": {SUBAGENT_FIRST_TIMEOUT}\n'
     "          }\n        ]\n      }"
 ).encode("ascii")
+# CS-1290 - THE FOURTH GRANT, docs/LEDGER.md "2026-10-09 - CS-1290 - frozen-file
+# GRANT": kit v13 carries the v12 RACE GUARDS hooks. Part A: ONE PreToolUse entry
+# appended AFTER the SUBAGENT-FIRST entry running the claims hook, and ONE
+# SubagentStop array between PostToolUse and Stop running its release-hook - both
+# command strings EXACTLY as the v12 ORDER section 3 spells them, timeout 10 -
+# and the top-level attribution and includeCoAuthoredBy keys REMOVED: v13 makes
+# both tree_forbidden (FLEET-COMMON 17), and the account settings carry them.
+CLAIMS_MATCHER: Final = "Edit|Write|NotebookEdit|MultiEdit|Bash|PowerShell"
+CLAIMS_COMMAND: Final = 'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py" hook'
+RELEASE_COMMAND: Final = 'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py" release-hook'
+CLAIMS_TIMEOUT: Final = 10
+CLAIMS_KIT_FILE: Final = REPO_ROOT / "ops" / "fleet_kit" / "fleet_claims.py"
+CLAIMS_INSERTION: Final = (
+    ",\n      {\n"
+    f'        "matcher": {json.dumps(CLAIMS_MATCHER)},\n'
+    '        "hooks": [\n          {\n'
+    '            "type": "command",\n'
+    f'            "command": {json.dumps(CLAIMS_COMMAND)},\n'
+    f'            "timeout": {CLAIMS_TIMEOUT}\n'
+    "          }\n        ]\n      }"
+).encode("ascii")
+SUBAGENT_STOP_INSERTION: Final = (
+    ',\n    "SubagentStop": [\n      {\n        "hooks": [\n          {\n'
+    '            "type": "command",\n'
+    f'            "command": {json.dumps(RELEASE_COMMAND)},\n'
+    f'            "timeout": {CLAIMS_TIMEOUT}\n'
+    "          }\n        ]\n      }\n    ]"
+).encode("ascii")
+# The two top-level lines the grant REMOVED, and the line they followed. The
+# settings arm puts them back before taking the base digest.
+SCHEMA_LINE: Final = b'  "$schema": "https://json.schemastore.org/claude-code-settings.json",\n'
+ATTRIBUTION_REMOVAL: Final = (
+    b'  "attribution": { "commit": "", "pr": "" },\n  "includeCoAuthoredBy": false,\n'
+)
+# The keys v13's cli_display.json lists as tree_forbidden beyond DISPLAY_KEYS.
+ATTRIBUTION_KEYS: Final = ("attribution", "includeCoAuthoredBy")
 # The wrapper-routed entry of each event, selected by its matcher: PreToolUse
 # carries two entries from CS-1282 on, and the CS-815 arms grade the gate's.
 WRAPPED_MATCHERS: Final = {"PreToolUse": GATE_MATCHER, "PostToolUse": "Edit|Write|MultiEdit"}
@@ -480,11 +516,13 @@ def test_settings_routes_both_hooks_through_the_wrapper() -> None:
 
 
 def test_settings_moved_no_byte_but_the_two_command_values() -> None:
-    """Remove the Stop array, swap the two values back: the grant's base, by digest.
+    """Undo every later grant, swap the two values back: the grant's base, by digest.
 
-    CS-1272's grant adds one Stop array. Its bytes are pinned WHOLE by
-    STOP_INSERTION and removed here, so the CS-815 base digest still pins every
-    byte outside the two grants; where the array sits is the order arm's.
+    CS-1272's grant adds one Stop array, CS-1282's one PreToolUse entry, and
+    CS-1290's one more PreToolUse entry and one SubagentStop array while removing
+    the two attribution lines. Each insertion is pinned WHOLE and removed here and
+    the removed lines are put back, so the CS-815 base digest still pins every
+    byte outside the grants; where each sits is the order arms'.
     """
     raw = SETTINGS.read_bytes()
     assert raw.count(STOP_INSERTION) == 1, "the granted Stop array is not present exactly once"
@@ -493,6 +531,15 @@ def test_settings_moved_no_byte_but_the_two_command_values() -> None:
         "the granted SUBAGENT-FIRST entry is not present exactly once"
     )
     raw = raw.replace(SUBAGENT_FIRST_INSERTION, b"")
+    assert raw.count(CLAIMS_INSERTION) == 1, "the granted claims entry is not present exactly once"
+    raw = raw.replace(CLAIMS_INSERTION, b"")
+    assert raw.count(SUBAGENT_STOP_INSERTION) == 1, (
+        "the granted SubagentStop array is not present exactly once"
+    )
+    raw = raw.replace(SUBAGENT_STOP_INSERTION, b"")
+    assert raw.count(ATTRIBUTION_REMOVAL) == 0, "the removed attribution keys are back"
+    assert raw.count(SCHEMA_LINE) == 1, "the schema line is not present exactly once"
+    raw = raw.replace(SCHEMA_LINE, SCHEMA_LINE + ATTRIBUTION_REMOVAL)
     for new in (NEW_PRE_COMMAND, NEW_POST_COMMAND):
         encoded = json.dumps(new).encode("ascii")
         assert raw.count(encoded) == 1, "a new command value is not present exactly once"
@@ -534,7 +581,9 @@ def test_settings_wires_exactly_the_granted_subagent_first_hook() -> None:
     config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
     entries = config["hooks"]["PreToolUse"]
     matchers = [entry.get("matcher") for entry in entries]
-    assert matchers == [GATE_MATCHER, SUBAGENT_FIRST_MATCHER], "not the gate, then SUBAGENT-FIRST"
+    assert matchers == [GATE_MATCHER, SUBAGENT_FIRST_MATCHER, CLAIMS_MATCHER], (
+        "not the gate, then SUBAGENT-FIRST, then the claims hook"
+    )
     entry = entries[1]
     assert sorted(entry) == ["hooks", "matcher"], "the entry carries a key beyond the grant"
     hooks = entry["hooks"]
@@ -552,6 +601,38 @@ def test_settings_wires_exactly_the_granted_subagent_first_hook() -> None:
     named = hook["command"].split('"')[1].replace("$CLAUDE_PROJECT_DIR/", "")
     assert (REPO_ROOT / named).resolve() == SUBAGENT_FIRST_KIT_FILE.resolve()
     assert SUBAGENT_FIRST_KIT_FILE.is_file(), "the vendored kit hook is missing"
+
+
+def test_settings_wires_exactly_the_granted_claims_hooks() -> None:
+    """CS-1290 grant A: the claims hook and its release-hook, the v12 strings exactly."""
+    config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
+    claims = config["hooks"]["PreToolUse"][2]
+    release = config["hooks"]["SubagentStop"]
+    assert sorted(claims) == ["hooks", "matcher"], "the claims entry carries a key beyond the grant"
+    assert claims["matcher"] == CLAIMS_MATCHER
+    assert [sorted(entry) for entry in release] == [["hooks"]], "SubagentStop is not one entry"
+    for entry, command in ((claims, CLAIMS_COMMAND), (release[0], RELEASE_COMMAND)):
+        hooks = entry["hooks"]
+        assert [sorted(hook) for hook in hooks] == [["command", "timeout", "type"]]
+        hook = hooks[0]
+        assert hook["type"] == "command"
+        assert hook["command"] == command, "the command is not the granted string"
+        assert hook["timeout"] == CLAIMS_TIMEOUT
+        named = hook["command"].split('"')[1].replace("$CLAUDE_PROJECT_DIR/", "")
+        assert (REPO_ROOT / named).resolve() == CLAIMS_KIT_FILE.resolve()
+    assert CLAIMS_KIT_FILE.is_file(), "the vendored claims hook is missing"
+
+
+def test_no_settings_file_sets_an_attribution_key() -> None:
+    """CS-1290, FLEET-COMMON 17: v13 makes both attribution keys tree_forbidden."""
+    kit = json.loads((REPO_ROOT / "ops" / "fleet_kit" / "cli_display.json").read_bytes())
+    assert set(ATTRIBUTION_KEYS) <= set(kit["tree_forbidden"]), "the kit no longer forbids them"
+    present = [path for path in (SETTINGS, LOCAL_SETTINGS) if path.is_file()]
+    found = {
+        path.name: sorted(set(ATTRIBUTION_KEYS) & set(json.loads(path.read_bytes())))
+        for path in present
+    }
+    assert all(keys == [] for keys in found.values()), f"attribution keys set: {found}"
 
 
 def display_key_paths(node: object, where: str = "") -> list[str]:
@@ -590,6 +671,21 @@ def test_gitignore_carries_the_done_marker_and_its_seen_file() -> None:
     """The kit's /done marker and its dedupe file are LOCAL-ONLY runtime state."""
     lines = GITIGNORE.read_bytes().decode("ascii").splitlines()
     missing = [entry for entry in DONE_MARKER_IGNORES if lines.count(entry) != 1]
+    assert missing == [], f".gitignore does not carry exactly once: {missing}"
+
+
+def test_gitignore_carries_the_race_guard_and_identity_runtime_state() -> None:
+    """CS-1290: the v12 and v13 ORDERs' runtime paths are LOCAL-ONLY, each named once."""
+    lines = GITIGNORE.read_bytes().decode("ascii").splitlines()
+    wanted = (
+        "/ops/loop/control/claims/",
+        "/ops/loop/control/locks/",
+        "/ops/loop/control/claims.jsonl",
+        "/ops/loop/control/claims.mode",
+        "/ops/loop/control/gitlock.jsonl",
+        "/ops/loop/control/identity.jsonl",
+    )
+    missing = [entry for entry in wanted if lines.count(entry) != 1]
     assert missing == [], f".gitignore does not carry exactly once: {missing}"
 
 

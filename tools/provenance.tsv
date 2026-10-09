@@ -195,14 +195,20 @@ ops/fleet_kit/MANIFEST.json	vendored	CS-1231	stamped
 ops/fleet_kit/NOTICE	vendored	CS-1231	stamped
 ops/fleet_kit/cli_display.json	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_checklist.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_claims.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_done.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_gitlock.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_headless.py	vendored	CS-1231	stamped
+ops/fleet_kit/fleet_identity.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_inbox.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_lanes.py	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_rewrite.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_secrets.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_statusline.js	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_subagent_first.py	vendored	CS-1282	stamped
 ops/fleet_kit/fleet_subagent_status.js	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_suite_gate.py	vendored	CS-1290	stamped
+ops/fleet_kit/fleet_test_guard.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_watch.py	vendored	CS-1272	stamped
 ops/fleet_kit/tokens.css	vendored	CS-1272	stamped
 ops/fleet_kit/tokens.json	vendored	CS-1272	stamped
@@ -297,6 +303,7 @@ tests/data/test_phase2_gate.py	authored	CS-1165	first-add:root
 tests/data/test_registry.py	authored	CS-1165	first-add:root
 tests/data/test_version.py	authored	CS-1165	first-add:root
 tests/exception_message_guard.py	authored	CS-852	first-add:CS-852
+tests/fleet_hook_kit.py	authored	CS-1290	stamped
 tests/git_env.py	authored	CS-968	first-add:CS-968
 tests/liveness.py	authored	CS-846	first-add:CS-846
 tests/locals_rendering_guard.py	authored	CS-1165	first-add:root
@@ -471,6 +478,7 @@ tests/test_hook_interpreter_ladder.py	authored	CS-703	first-add:CS-703
 tests/test_hook_probe_bound.py	authored	CS-816	stamped
 tests/test_hook_probe_fold.py	authored	CS-815	stamped
 tests/test_hook_toolchain.py	authored	CS-817	stamped
+tests/test_identity_hooks.py	authored	CS-1290	stamped
 tests/test_inbox_watch.py	authored	CS-926	first-add:CS-926
 tests/test_install_hooks.py	authored	CS-925	first-add:CS-925
 tests/test_lane_launcher.py	authored	CS-918	first-add:CS-918

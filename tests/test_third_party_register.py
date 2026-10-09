@@ -102,8 +102,8 @@ DISCOVERY_FLOOR = (
     "ops/loop/slots.py",
     "ops/loop/winmutex.py",
     # CS-1231 - the fleet kit, first vendored at version 4; CS-1272 re-vendored
-    # it at version 9, CS-1282 at version 10 and CS-1287 at version 11, all
-    # seventeen files pinned by tests/test_fleet_kit.py.
+    # it at version 9, CS-1282 at version 10, CS-1287 at version 11 and CS-1290
+    # at version 13, all twenty-three files pinned by tests/test_fleet_kit.py.
     "ops/fleet_kit/FLEET-COMMON.md",
     "ops/fleet_kit/LICENSE",
     "ops/fleet_kit/MANIFEST.json",
@@ -121,6 +121,12 @@ DISCOVERY_FLOOR = (
     "ops/fleet_kit/fleet_watch.py",
     "ops/fleet_kit/tokens.css",
     "ops/fleet_kit/tokens.json",
+    "ops/fleet_kit/fleet_claims.py",
+    "ops/fleet_kit/fleet_gitlock.py",
+    "ops/fleet_kit/fleet_identity.py",
+    "ops/fleet_kit/fleet_rewrite.py",
+    "ops/fleet_kit/fleet_suite_gate.py",
+    "ops/fleet_kit/fleet_test_guard.py",
 )
 
 #: A backticked token, which is how every path in this tree's docs is spelled.
@@ -188,6 +194,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/FLEET-COMMON.md": (
@@ -197,6 +204,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/MANIFEST.json": (
@@ -206,6 +214,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/LICENSE": (
@@ -215,6 +224,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/NOTICE": (
@@ -224,6 +234,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     # CS-1272 - the eleven files version 9 added, re-read at version 10 under
@@ -241,6 +252,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "no SPDX header",
         "`every file named in this kit's MANIFEST.json`",
@@ -251,6 +263,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -260,6 +273,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -269,6 +283,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -278,6 +293,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -287,6 +303,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/fleet_statusline.js": (
@@ -295,6 +312,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -305,6 +323,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "`the operator - the kit's owner and sole copyright holder`",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -314,6 +333,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "`every file named in this kit's MANIFEST.json`",
     ),
@@ -323,6 +343,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
     ),
     "ops/fleet_kit/tokens.css": (
@@ -331,6 +352,7 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "no SPDX header",
     ),
@@ -340,8 +362,52 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "CS-1272",
         "CS-1282",
         "CS-1287",
+        "CS-1290",
         "`tests/test_fleet_kit.py`",
         "no SPDX header",
+    ),
+    # CS-1290 - the six files versions 12 and 13 added, vendored here at version 13.
+    "ops/fleet_kit/fleet_claims.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1290",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
+    ),
+    "ops/fleet_kit/fleet_gitlock.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1290",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
+    ),
+    "ops/fleet_kit/fleet_identity.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1290",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
+    ),
+    "ops/fleet_kit/fleet_rewrite.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1290",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
+    ),
+    "ops/fleet_kit/fleet_suite_gate.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1290",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
+    ),
+    "ops/fleet_kit/fleet_test_guard.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1290",
+        "`tests/test_fleet_kit.py`",
+        "`every file named in this kit's MANIFEST.json`",
     ),
 }
 

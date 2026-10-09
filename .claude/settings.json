@@ -1,7 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "attribution": { "commit": "", "pr": "" },
-  "includeCoAuthoredBy": false,
   "env": {
     "PYTHONUTF8": "1",
     "PYTHONIOENCODING": "utf-8"
@@ -31,6 +29,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit|MultiEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py\" hook",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -41,6 +49,17 @@
             "type": "command",
             "command": "sh \"$CLAUDE_PROJECT_DIR/tools/claude_hook.sh\" posttooluse \"$CLAUDE_PROJECT_DIR/tools/edit_lint_check.py\" --files \"$CLAUDE_FILE_PATHS\"",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py\" release-hook",
+            "timeout": 10
           }
         ]
       }

@@ -69,6 +69,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
 from tests.git_env import scrub
 from tests.pre_push_floor import wired_hook_bytes
 
@@ -248,7 +249,20 @@ def ladder_shim(log: Path, rung: str) -> str:
     reject, so that one flag is dropped before the exec.
     """
     drop = 'if [ "$1" = "-3" ]; then shift; fi\n' if rung == "py" else ""
-    return "#!/bin/sh\n" + log_start(log, rung) + drop + 'exec "' + REAL_PYTHON_POSIX + '" "$@"\n'
+    # CS-1290: pre-push runs the kit's identity line (grant C.1) on plain `python`
+    # BEFORE the ladder. Answered as passed and NOT logged, so the call log still
+    # opens with the probe and the PYTHONINSPECT arm reaches the bound it names;
+    # the identity refusal itself is graded in test_pre_push_suite_floor.py.
+    identity = 'case "$1" in *fleet_identity.py) exit 0 ;; esac\n'
+    return (
+        "#!/bin/sh\n"
+        + identity
+        + log_start(log, rung)
+        + drop
+        + 'exec "'
+        + REAL_PYTHON_POSIX
+        + '" "$@"\n'
+    )
 
 
 class Call(NamedTuple):
@@ -588,6 +602,7 @@ def isolated(tmp_path: Path) -> Environment:
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     for name in (ENV_NAME, INSPECT_NAME):
         env.pop(name, None)
+    env.update(suite_dir_env(tmp_path))
     return Environment(env)
 
 
@@ -612,8 +627,12 @@ def make_sandbox(tmp_path: Path, isolated: Environment, hook: str) -> Sandbox:
         ("user.name", FIXTURE_NAME),
         ("user.email", FIXTURE_EMAIL),
         ("core.hooksPath", str(hooks)),
+        (OPERATOR_IDENT_KEY, FIXTURE_EMAIL),
     ):
         assert run_git(box, "config", key, value) == 0, f"{key} could not be written"
+    # CS-1290: the kit files the wired identity and suite-gate lines run,
+    # UNTRACKED in the sandbox - the hooks run them from the working tree.
+    install_hook_kit(work)
 
     if hook == PRE_COMMIT:
         (work / "tools").mkdir()

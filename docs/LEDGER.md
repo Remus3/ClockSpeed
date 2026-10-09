@@ -75,6 +75,47 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1290 - frozen-file GRANT: kit v13 wiring (settings.json, commit-msg, pre-push)
+
+Authority: MAIN ORDERs 2026-10-08-2031 (v12 s3) and 2026-10-08-2246 (v13 s1),
+provenance-verified; distinct adjudicator, read-only. Recorded before the edit.
+
+A. .claude/settings.json - GRANT. Add PreToolUse group (matcher
+Edit|Write|NotebookEdit|MultiEdit|Bash|PowerShell, timeout 10,
+python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py" hook) and SubagentStop
+(timeout 10, ... release-hook), strings exact. Keep subagent-first and the done
+stop-hook. Remove top-level attribution and includeCoAuthoredBy; account settings
+were read back carrying both. Nothing else in the file changes.
+
+B. .githooks/commit-msg - GRANT, POSITION CHANGED. "First action" DENIED: it would
+strip what the CS-702 gate must refuse. Insert
+python "ops/fleet_kit/fleet_identity.py" commit-msg "$1" || true
+immediately before the final `exit 0`, after the CS-819 sentinel check. No existing
+check is moved or weakened.
+
+C. .githooks/pre-push - GRANT with conditions.
+ 1. The identity check runs right after the CS_REFS capture and before ROOT and the
+    interpreter ladder, fed the captured list, never live stdin:
+    printf '%s\n' "$CS_REFS" | python "ops/fleet_kit/fleet_identity.py" pre-push "$@" || exit 1
+    The capture block stays the only reader of stdin.
+ 2. Suite: cs_python -P "$ROOT/ops/fleet_kit/fleet_suite_gate.py" run
+    --owner "${FLEET_CLAIM_OWNER:-pre-push}" -- "$CS_PY" ${CS_PY_ARG:+"$CS_PY_ARG"}
+    -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
+    STATUS, the report checks, CS_PASS_FLOOR, CS-954 and CS-989 stay byte-unchanged.
+    One added message line naming gate exit 3 is allowed.
+ 3. Tests that drive the real hook set FLEET_SUITE_DIR to tmp_path, copy the kit
+    files they need and set fleet.operatorIdent in the sandbox. No assertion is
+    weakened.
+ 4. fleet.operatorIdent goes in LOCAL config only, set before the first push and
+    read back after it.
+ Perf tiering is NOT granted.
+
+D. scripts/install_hooks.py, tools/precommit_gate.py - DENY. Neither pins hook bytes.
+A test that demands an edit comes back here.
+
+All: one commit, LF, ASCII, full gated suite green, conformance() == [].
+Alternatives: strip-first (rejected, CS-702); separate stdin reads (rejected, CS-954).
+
 ### 2026-10-08 - CS-1284 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1284 STAYS OPEN. Session 2 of 3 of SUBAGENT-FIRST log rows, with the positive control the session 132 rows lacked
 Verification: the gitignored `ops/loop/control/subagent_first.jsonl` and
 `ops/loop/control/subagent_first.mode`, read by the session 133 /done; the wiring by

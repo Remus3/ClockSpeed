@@ -63,6 +63,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
 from tests.git_env import gnu_timeout_first, program_on_child_path, scrub
 from tests.pre_push_floor import differs_only_on_floor_line, wired_hook_bytes
 
@@ -504,6 +505,7 @@ def isolated(tmp_path: Path) -> Environment:
     env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     env.pop(ENV_NAME, None)
+    env.update(suite_dir_env(tmp_path))
     return Environment(env)
 
 
@@ -539,9 +541,13 @@ def make_sandbox(
         ("user.name", FIXTURE_NAME),
         ("user.email", FIXTURE_EMAIL),
         ("core.hooksPath", str(hooks)),
+        (OPERATOR_IDENT_KEY, FIXTURE_EMAIL),
     ):
         written = run_git(box, "config", key, value)
         assert written.returncode == 0, f"{key} could not be written in the sandbox"
+    # CS-1290: the kit files the wired identity and suite-gate lines run.
+    # UNTRACKED in the sandbox: the hooks run them from the working tree.
+    install_hook_kit(work)
 
     # Setting a value is not evidence the value took - scripts/install_hooks.py
     # reads its own write back for exactly this reason.

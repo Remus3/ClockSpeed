@@ -428,6 +428,31 @@ def test_the_local_suite_runner_reports_the_command_it_ran():
     assert got["argv"], "an empty argv would make the verdict unreproducible"
 
 
+def test_the_local_suite_runs_through_the_fleet_suite_gate():
+    """CS-1290, FLEET-COMMON 16c: a lane's whole suite holds a machine-wide slot.
+
+    Two lanes' whole suites on one box lost xdist workers and flaked timing
+    tests; the kit's gate serialises them. The argv the driver runs must be the
+    gate's own `run --owner <id> --` form wrapped round the pytest command, so a
+    lane cannot start a whole suite outside a slot.
+    """
+    seen: list = []
+
+    def runner(argv, _cwd=None):
+        seen.append(list(argv))
+        return 0, "9 passed in 1.00s\n"
+
+    queue_loop.run_local_suite(runner=runner, monotonic=FakeClock().monotonic)
+    argv = seen[0]
+    assert Path(argv[1]).name == "fleet_suite_gate.py"
+    assert Path(argv[1]).is_file(), "the gate the argv names must exist"
+    assert argv[2] == "run"
+    assert argv[3] == "--owner"
+    assert argv[4].count(".") >= 1, "the owner is <session_id>.<agent_id>"
+    sep = argv.index("--")
+    assert argv[sep + 1 :] == [argv[0], "-m", "pytest", "tests", "-q"]
+
+
 def test_the_local_suite_runner_never_raises_on_a_broken_runner():
     """A missing interpreter ends one cycle's verdict, never the night."""
 

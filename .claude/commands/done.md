@@ -46,8 +46,10 @@ no checklist task remains - no operator prompt, no question.
       locks or data.
       - tier 0: syntax check plus `python -m ruff check <changed paths>` only.
       - tier 1: `python -m pytest tests/<module> -q`
-      - tier 2: `python -m pytest tests -q` plus `python -m mypy clockspeed` plus any service
-        restart and mirror sync.
+      - tier 2: the WHOLE suite through the kit's suite gate (FLEET-COMMON 16c):
+        `python ops/fleet_kit/fleet_suite_gate.py run --owner <session_id>.<agent_id> --
+        python -m pytest tests -q`, plus `python -m mypy` plus any service restart and
+        mirror sync. The owner is the claims hook's own id; its deny reason names it.
 - [ ] Record the exact command, its EXIT CODE, and the pass / fail / skipped counts.
 - [ ] **Report only counts observed THIS run. NEVER carry forward a prior count or a
       subagent-reported count.** A filed count is a hypothesis, not a fact.
@@ -63,7 +65,11 @@ no checklist task remains - no operator prompt, no question.
 - [ ] Commit message: 7-bit ASCII, imperative, cites the item ID. For any message with
       special characters, write it to a temp file and use `git commit -F <file>`, or a
       SINGLE-quoted here-string. Never a double-quoted here-string and never a piped string.
-- [ ] `git push`. Read the output - a push that printed an error is not a push.
+- [ ] Every `git commit` and `git push` runs through the kit's git lock (FLEET-COMMON
+      16a): `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> --
+      git commit -F <file>`, then the same prefix before `git push`. A bare commit or push
+      is denied by the claims hook.
+- [ ] Push. Read the output - a push that printed an error is not a push.
 - [ ] Record the resulting commit SHA, but remember: the LEDGER cites the item ID, the merged
       file and the test name, NOT the slice SHA. Worktree-agent commits often do not survive
       cherry-pick.
@@ -139,12 +145,9 @@ other context. WHAT GOES IN IT:
       `ROADMAP.md`, `WAKEUP_NOTES.md`, `docs/ARCHITECTURE.md`.
 - [ ] Any external condition being waited on.
 
-**HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. LL (retired
-since MAIN 0230), LW and RC each carried `<CODE>-NEXT-SESSION.txt` at their repo root with a
-Desktop shortcut pointing at it, and this repository was the one that did not; the fleet kit
-now requires one in every tree, EW included (FLEET item 5). A fence in a transcript is gone
-the moment the session is cleared; a file survives, and the shortcut means the operator
-opens it without finding the session it came from.
+**HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. The fleet
+kit requires `<CODE>-NEXT-SESSION.txt` at the repo root in every tree (FLEET item 5). A
+fence in a transcript is gone the moment the session is cleared; a file survives.
 
 - [ ] WRITE the whole prompt to `CS-NEXT-SESSION.txt` at the REPO ROOT, overwriting it.
       Whole file, every time - never appended to, never patched. It is a snapshot of one
@@ -159,11 +162,8 @@ opens it without finding the session it came from.
       how one enters a file in the first place.
 - [ ] Emphasise with CAPS, not `**`. It is read as plain text in Notepad, where `**` is two
       literal asterisks.
-- [ ] CONFIRM the Desktop shortcut still resolves: `CS-NEXT-SESSION.lnk` must target
-      `E:\Clockspeed\CS-NEXT-SESSION.txt`. A shortcut that lost its target is a handoff that
-      silently stopped being delivered, and nothing else in the ritual would notice.
-- [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file and
-      its shortcut are the mechanism; the operator starts the next session with "continue".
+- [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file is
+      the mechanism; the operator starts the next session with "continue".
 
 ## 9. Final report - in the hand-off file, never in chat
 
