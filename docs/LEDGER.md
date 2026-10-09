@@ -75,6 +75,68 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1281 - the registry reads clock capability; a class that cannot be clocked is never counted elided
+
+Verification: `clockspeed/data/registry.py::Building` field `clockable`, read from
+`mCanChangePotential` - absent stays None, an unrecognized or non-string value is flagged and
+stays None, never defaulted - by `tests/data/test_registry.py::test_the_clock_capability_is_read_per_building_in_both_values`,
+`tests/data/test_registry.py::test_an_absent_clock_capability_is_a_named_unknown_never_defaulted`,
+`tests/data/test_registry.py::test_an_unrecognized_clock_capability_is_flagged_and_stays_unknown`
+and `tests/data/test_registry.py::test_a_non_string_clock_capability_is_flagged_as_non_string_and_stays_unknown`;
+`clockspeed/audit/balance.py::clocked_draw_of` prices an untagged machine of a class declared
+non-clockable at the reference clock under its own reason, outside `elided_clock_count`, by
+`tests/audit/test_balance.py::test_a_class_that_cannot_be_clocked_reddens_the_arm_when_counted_elided`,
+`tests/audit/test_balance.py::test_a_class_whose_clock_capability_is_unknown_stays_an_elided_clock`
+and `tests/audit/test_balance.py::test_a_fixed_clock_never_merges_with_a_read_reference_clock_in_either_order`;
+the overclock-is-None guard by `tests/audit/test_balance.py::test_a_present_clock_is_never_overridden_by_the_elision_mark`.
+The `BACKLOG.md` Session 124 elided-count line is relocated to `docs/history_notes.md` as
+discharged. Adversary SURVIVED; both residuals are closed in the merged tree: mutant M8 (the
+fixed-reason branch deleted stayed green) is caught by the exact-reason assertion, and the
+order dependence (a fixed and a read reference clock sharing one group key) is closed by
+`clock_fixed` on `ClockedContribution`, part of the group key. Read back by the session 134
+merger at the merged tip: the proving files above, run together with the CS-1294, CS-1296 and
+CS-1288 ones, exit 0; `BACKLOG.md` no longer carries the line. The out-of-slice sibling in
+`clockspeed/audit/flow.py::_clock_of` is filed as CS-1298.
+
+### 2026-10-09 - CS-1294 - the deny-ACE arm undoes its ACE, then deletes and proves its directory gone, on every exit
+
+Verification: `tests/test_main_provenance.py::test_an_unreadable_inbox_subdirectory_refuses`,
+whose deny now lives inside the try of the `_listing_denied` context manager; its finally
+runs `_undo_deny` - the undo's exit is checked, and a timeout or non-zero exit retries ONCE
+with `icacls /reset`, both on the exact path, never `/T` - then deletes the directory and
+fails naming the leftover relative to tmp_path when it is not gone.
+`tests/test_main_provenance.py::test_the_deny_ace_arm_leaves_no_directory_behind` drives
+every exit against a modeled ACE: the deny times out, the census raises, the undo times out,
+the deny is not taken, a clean pass, the undo times out before it took, exits non-zero, or
+fails with its fallback. Origin: no tracked file sets a deny ACE besides this arm; the
+2026-09-07 leftover traces to the CS-940 adversary run's untracked scratch script, not
+repairable from the tree. Adversary REFUTED the first fix once (the undo's exit code was
+never read, so a failed undo left the real ACE and the directory); fixed; all 12 mutants
+caught; the review loop stopped by cost against risk; residual none known. Read back by the
+session 134 merger at the merged tip: `tests/test_main_provenance.py` exit 0, the real arm
+skipping by its named reason (this token's enabled backup privilege lists through the deny).
+
+### 2026-10-09 - CS-1296 - the flip-check human halves point at CS-G03, not the closed CS-G08
+
+Verification: `tests/test_flip_checks.py::test_no_flip_check_string_names_the_closed_cs_g08_gate`
+and `tests/test_flip_checks.py::test_the_readiness_audit_method_does_not_gate_the_human_halves_under_cs_g08`;
+`tools/flip_checks.py` (`HUMAN_HALVES` and the module docstring for checks 5 and 7) and
+`docs/public-readiness.md` method step 1 name CS-G03 in `docs/GATED.md` as the owner of the
+human halves' standing, without restating it. No adversary pass: a string change, guarded
+by the two tests. Read back by the session 134 merger at the merged tip: a search for CS-G08
+over both files finds nothing; `tests/test_flip_checks.py` exit 0.
+
+### 2026-10-09 - CS-1293 - ADR 0026 names the sidecar folders' current home
+
+Verification: `docs/adr/0026-the-root-moves-to-e.md` - the rejected-alternative bullet and
+move step f no longer name the retired folders, and each carries an AMENDED note naming its
+current home under the single CS sidecar folder; the decision and every behaviour line are
+unchanged. Trivial: no adversary pass. Read back by the session 134 merger: both homes the
+notes name exist on disk, and the retired C: and E: folders are absent. The
+`CS-NEXT-SESSION.txt` part of the acceptance is fixed at the session 134 /done, which
+rewrites that file whole; no worktree-classification note was found in the CS sidecar
+scratch folder at close.
+
 ### 2026-10-09 - CS-1297 - canary inner pytest roots stay under the outer tmp_path
 
 Verification: `tests/test_canary_temp_roots.py::test_the_inner_pytest_temp_root_stays_under_tmp_path`; `child_env` in `tests/test_hook_env_echo.py` and `tests/test_probe_refusal_output.py` sets TMPDIR under the arm root. Source: MAIN FIX note 2026-10-09-0805 (TEMP-1), provenance verified. Adversary NOT REFUTED: pre-fix control leaked 1 `pytest-of-cs814canary*` root per run, post-fix 0 new.

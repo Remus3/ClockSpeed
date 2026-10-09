@@ -522,29 +522,6 @@ neither pricing is taken without a measurement.
 
 an adjudicated ruling (decision, alternatives, why) on how a tagless consumer is priced - at its class default in its own counted group, at zero as idle, or kept as a named omission - grounded in a measurement over the save library; then the draw implements the ruling with an arm per class family that reddens when the ruling is ignored, and the library's omitted count is re-published
 
-## CS-1281
-
-### Filed 2026-10-08 by CS-1266's builder
-
-The shipped docs carry `mCanChangePotential` - of 68 registry buildings, 24 True, 38 False, and
-6 omit it - but `clockspeed/data/registry.py` does not read it, so the balance's elided-clock
-count includes classes that cannot be clocked: up to 46 of 128 elided machines per world are
-non-clockable classes. The `BACKLOG.md` Session 124 elided-count line was folded into CS-1266's
-slice, but with no registry field to read it was not done there.
-
-### Measured 2026-10-09 by CS-1281's builder
-
-One sibling of the same root cause sits outside the slice and is NOT changed by it:
-`clockspeed/audit/flow.py::_clock_of` counts an untagged flowing machine elided with no
-registry input at all, so `WorldFlow.elided_clock_count` would still count a non-clockable
-class that runs a recipe. Whether any such class runs a recipe was not measured. The
-CS-1265 agreement arm, `tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`,
-stays green only because its synthetic buildings leave `clockable` None.
-
-### Acceptance
-
-the registry reads the field, and an unknown or absent value stays a named unknown, never defaulted; the balance's elided count excludes a class that cannot be clocked; an arm with a synthetic non-clockable class reddens when it is counted elided; the `BACKLOG.md` Session 124 elided-count line is relocated as discharged
-
 ## CS-1285
 
 ### Filed 2026-10-08 by the session 133 planner
@@ -563,15 +540,88 @@ design rulings are the 2026-10-08 CS-1285 decision record in `docs/LEDGER.md`.
 In order, each on the stated model of the one before it:
 
 - A, registry field: the appended, defaulted accepted-fuels field on `Generator`, read from
-  `mFuel`. Lands only after CS-1281, which is editing `clockspeed/data/registry.py` now, and
-  also corrects the stale `mFuel` sentence in that module's docstring (the "Every scalar is a
-  string" bullet).
+  `mFuel`, plus the two fields ruling (d) below names. Lands only after CS-1281, merged in
+  session 134, and also corrects the stale `mFuel` sentence in that module's docstring
+  (the "Every scalar is a string" bullet).
 - B, computation: a new `fuel` module in `clockspeed/audit/` - per-class demand, per-fuel
-  supply, pooled energy, the exact shortfall and every indeterminate cause.
+  supply, pooled energy, the exact shortfall and every indeterminate cause. Its verdicts
+  decide fluid fuels only, per the ruling below.
 - C, advisor rules: `power.fuel_supply` and the companion demand card, in their own family
   module in `clockspeed/advisor/rules/`.
 - D, wiring: `clockspeed/advisor/advise.py` composes the new family, so GET /api/advice carries
   the fuel trace.
+
+### RULING - filed 2026-10-09 (session 134) by a distinct adjudicator: slice B v2, narrowed
+
+Binding on slices A, B and C. It replaces any slice A or slice B text above that it
+contradicts. The slice B candidate - its tip the commit "CS-1285 - slice B fix 3: an
+unregistered class is never assumed inert", on an unpublished worktree branch - is NOT
+merged: it was refuted four times, and v2 rebuilds on it next session.
+
+DECISION: binding v2, narrowed - verdicts decide fluid fuels only.
+
+(a) A record no flow rates unmeasures a fuel when its class produces a registry recipe
+naming that fuel as input OR output, or when the class can extract it. An undeclared class,
+or one whose relation is unknown, unmeasures every fuel. A generator's own `mFuel` counts as
+demand, never as relation. Solid fuels are never measured, under a new reason
+`solid-supply-unmodelled`, because players, vehicles, sinks and stations move solids and
+every real save holds a player.
+
+(b) The `fuel` module filters; `clockspeed/audit/machines.py` is unchanged (it is on
+CS-1280's write-list). Per unrated class:
+
+- unregistered: an unreadable name, an untabled undeclared `Build_` class, or an admitted
+  machine of an undeclared class;
+- judged by (a): a declared class;
+- holds no fluid, counted on `WorldFuel`: a tabled class or any other census class.
+
+Rejected: a record kind in `clockspeed/audit/machines.py` (collides with CS-1280); a closed
+allowlist of 97 classes (goes stale).
+
+(c) A frozenset in the `fuel` module: the 9 undeclared build classes (the HUB built-in
+parts, path nodes, the flow indicator, the potty) plus `Build_GeneratorIntegratedBiomass_C`,
+a solid burner the solid reason covers. `BP_Tractor_C` needs no row; (b) covers it. The
+builder takes the names from a fresh read-only probe (class names only) and records them in
+`docs/LEDGER.md`.
+
+(d) Slice A appends two defaulted fields to `clockspeed/data/registry.py`:
+
+- `Extractor.allowed_resources`, from `mAllowedResources` when
+  `mOnlyAllowCertainResources` reads `'True'`, else None;
+- `Registry.declared_classes`, every ClassName of a recognized group.
+
+Extractable = `allowed_resources`, else the items of `allowed_forms`. The oil pump yields
+crude only. Order: CS-1281, then CS-1285 A, then CS-1285 B.
+
+(e) A clock-0 maker firing stands: it is the nominal answer, and
+`clockspeed/audit/flow.py` owns the clock domain.
+
+(f) No new slice, and nothing moves to D. The signature becomes
+`fuel_supply_of(machines, registry, *, raw_items=())`; the caller-supplied mappings go.
+Binding on slice C: the demand card fires on every indeterminate class.
+
+Write-list A: `clockspeed/data/registry.py`, `tests/data/test_registry.py`,
+`tests/data/synthetic.py`, `tests/surface/test_registry.py`.
+Write-list B: the `fuel` module in `clockspeed/audit/` and its `test_fuel` module in
+`tests/audit/` (the COAL verdict tests move to FUEL).
+
+Red first - each arm's name is the `test_` prefix plus the stem listed here, the prefix left
+off so no doc cites an arm before it exists: allowed_resources_only_when_restricted,
+unknown_group_classes_are_undeclared, a_recipe_less_eater_unmeasures_its_fluid_fuel,
+a_recipe_less_generator_a_fuel_recipe_names_unmeasures_it, a_solid_fuel_is_never_measured,
+a_non_buildable_census_record_never_blocks_a_fluid_verdict,
+an_untabled_undeclared_buildable_is_unregistered,
+an_oil_extractor_leaves_liquid_fuel_measured, the_audit_takes_only_machines_and_registry.
+Pinned green on arrival: a_clock_zero_maker_fires.
+
+Runner-up: solids measured unless a non-buildable record exists. It lost because every real
+save holds a player.
+
+Common-mode risk: the undeclared-class list comes from one save, and "Build_ means
+buildable" is a convention.
+
+Residual check before close: re-run the real-save probe on v2. `Desc_LiquidFuel_C` must
+carry no unmeasured or unregistered reason.
 
 ### Acceptance
 
@@ -590,6 +640,50 @@ older builds the Mk2 miner's nameplate was 12 MW, so a 12 MW-era Mk2 is priced a
 15 MW, and 4 `Build_ConstructorMk1_C` records on those builds at clock 1/3 record an unscaled
 4.0 MW. The measurement is the 2026-10-08 CS-1286 closure record in `docs/LEDGER.md`.
 
+### Partial ship recorded 2026-10-09 (session 134) - slices A and B merged, slice C remains
+
+Slice A: `clockspeed/data/version.py::changelist_of` and
+`clockspeed/data/version.py::GAME_CHANGELIST`, derived from the `GAME_BUILD` pin. The parse
+admits the `-CL-` separator only and at most 18 digits; `CL-0` and a leading zero give None.
+Held by `tests/data/test_version.py`.
+
+Slice B: a standalone `clockspeed/audit/build.py::BuildCheck` from
+`clockspeed/audit/build.py::build_check_of`, raising `WARN_BUILD_MISMATCH` when the save's
+header changelist differs from the pin and `WARN_BUILD_UNCOMPARED` when no pinned changelist
+is available; builds compare by value. Held by `tests/audit/test_build.py`, and listed in the
+warning census by `tests/audit/test_every_warning_fires.py`.
+
+Adjudicated design: a standalone BuildCheck, not a field of another audit; test fixtures set
+the header changelist to the pin as parsed at test time, never a typed literal. A real-save
+probe found all 29 saves of the pinned world EQUAL to the pin.
+
+Slice C remains: the advisor wiring through one shared path, so every advice card computed
+from the audit carries the warning; tier 2 states both builds; tier 3 is generated from the
+trace. Slice C also switches `tests/surface/audit_harness.py::_build_changelist` (its own
+`CL-` regex, `_CHANGELIST_IN_PIN`) to `GAME_CHANGELIST`.
+
 ### Acceptance
 
 When the loaded save's build changelist differs from the pinned build in clockspeed/data/version.py, the audit and every advice card computed from it carry a named build-mismatch warning that states both builds, a figure that depends on a nameplate is marked as priced at the pinned build, and no figure is silently presented as the save build's own; the warning fires from a synthetic fixture whose header build differs from the pin, is absent when they match, and is listed in the warning census; nothing infers an older build's nameplate.
+
+## CS-1298
+
+### Filed 2026-10-09 by the session 134 merger
+
+The sibling CS-1281's builder measured outside its slice, now an item of its own.
+`clockspeed/audit/flow.py::_clock_of` reads no registry input, so an untagged flowing machine
+of a class that cannot be clocked is still counted elided on its `RecipeGroup` and in
+`WorldFlow.elided_clock_count`, while since CS-1281
+`clockspeed/audit/balance.py::clocked_draw_of` prices that machine at the reference clock
+outside its own elided count. Two flow docstrings therefore claim falsely that the flow uses
+the balance's own elided test: the module docstring's "AN ELIDED CLOCK IS THE CLASS DEFAULT"
+paragraph ("The predicate is the balance's own") and `_clock_of`'s ("THE BALANCE'S OWN
+PREDICATE"). Repro: giving one synthetic building a non-clockable class in
+`tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike` fails
+with `{'Elided': 1} != {'Elided': 0}`; the arm is green today only because its synthetic
+buildings leave `clockable` None. It never triggers on real data today: 0 of 291
+recipe-building references name a class that cannot be clocked.
+
+### Acceptance
+
+the flow never counts a machine of a class declared non-clockable as an elided clock, on its recipe group or in `WorldFlow.elided_clock_count`, while an unknown clock capability stays elided exactly as in the balance; the flow and balance agreement arm gains a synthetic non-clockable class and reddens when the flow counts it elided; every flow docstring that claims the balance's own elided test is true of the code

@@ -289,9 +289,9 @@ CS-1251 - a save-settle grace period: parse only the newest save whose size and 
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1280 - the clocked draw omits built consumers whose payloads read cleanly but carry no machine tag - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1281 - the registry does not read the clock-capability field, so the elided-clock count includes classes that cannot be clocked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1285 - the D4 fuel half has no rule, so no card sizes a built generator's fuel burn against the fuel the world makes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1288 - a save written on a build other than the pinned one is priced at the pinned nameplate with no warning - 12 MW-era Mk2 miners are overstated 25 percent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1298 - the flow still counts a class that cannot be clocked as an elided clock, and two flow docstrings claim the balance's own elided test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -370,7 +370,4 @@ CS-1283 - rule whether the lane driver's checklist printer moves onto the kit's 
 CS-1284 - switch the SUBAGENT-FIRST hook from log to deny after three interactive sessions of rows, on or after 2026-10-10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1292 - README-AUDIT: a short README with an image and install detail in one linked doc before the CS-700 flip (MAIN 2246 section 3) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1293 - SIDECAR-1: live-doc lines still name the sidecar folders MAIN moved under the single CS sidecar folder (MAIN 2246 section 5) - acceptance: in detail - tier: 0 - detail: `docs/item_notes.md`
-CS-1294 - OPS-3: the ADVSEC-940 deny-ACE fixture must remove its deny before deleting, also on failure, and prove the directory gone (MAIN 2246 section 7B) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1296 - `tools/flip_checks.py` and `docs/public-readiness.md` still say checks 5 and 7 are gated under the closed CS-G08 (MAIN 2246 section 7A) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

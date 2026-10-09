@@ -1793,41 +1793,6 @@ the absolute checkout path in `docs/LEDGER.md` and `docs/history_notes.md` repla
 MAIN's read-only README audit. The note orders items 2-5 done before the flip so the first
 public README is the short one; item 1 stays inside the CS-700 flip block.
 
-## CS-1293
-
-### Acceptance
-
-Every live-doc line MAIN 2246 section 5 lists as naming an old sidecar folder names its
-current home under the single CS sidecar folder: `CS-NEXT-SESSION.txt` (at its next
-`/done`), the worktree-classification note in the gitignored scratch folder, and
-`docs/adr/0026-the-root-moves-to-e.md`. `docs/LEDGER.md` and `docs/history_notes.md` may
-stay as history. No behaviour line changes - MAIN measured none.
-
-### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 5
-
-MAIN moved every sidecar folder off the drive roots on 2026-10-08. The note's line numbers
-were read at its own stamp and are re-read before the edit. Kit v14 will move kit lane
-worktrees beside them.
-
-## CS-1294
-
-### Acceptance
-
-Quoting the note: "ACCEPT: commit hash; no leftover after a run." The fixture that sets an
-explicit deny ACE removes it before deleting its directory, in a `finally` or a fixture
-finaliser so a failing arm also cleans up, and a test asserts the directory is gone after
-the run.
-
-### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 7B
-
-A 2026-09-07 ADVSEC-940 run left a locked-payload directory with an explicit deny ACE in a
-Claude temp scratchpad, and MAIN's temp-hygiene sweep failed on it every run until MAIN
-removed it on 2026-10-08. Read at filing: the one tracked deny-ACE site,
-`tests/test_main_provenance.py::test_an_unreadable_inbox_subdirectory_refuses`, already
-runs `icacls /remove:d` in a `finally` but asserts nothing about the directory afterwards,
-and no tracked file names ADVSEC-940 - the builder first finds which fixture made the
-leftover (a scratch adversary script is a candidate) before repairing.
-
 ## CS-1295
 
 ### Acceptance
@@ -1848,19 +1813,3 @@ go in this tree's next ANSWER to MAIN.
 Queued after section 1 (CS-1290) per the note's order of work. It needs a session that may
 spawn headless runs: a sub-agent slice cannot start it, so the main session or the lane
 queues it.
-
-## CS-1296
-
-### Acceptance
-
-`tools/flip_checks.py` (its module docstring for checks 5 and 7 and the `HUMAN_HALVES`
-strings) and `docs/public-readiness.md`'s method step 1 no longer call the human halves
-"gated under CS-G08", and the replacement states their current standing as the CS-G03
-re-walk ruling leaves it; `tests/test_flip_checks.py` stays green.
-
-### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 7A
-
-CS-G08 closed 2026-10-04 (`docs/GATED.md` records it satisfied, CS-1186 and CS-1187 closed
-on that walk). Not repaired inline by the filing slice: the stale text is five lines in two
-files, one of them rendered report output, and the true replacement depends on the open
-CS-G03 ruling on the re-walk scope after the walk-2 reversal fired in session 132.
