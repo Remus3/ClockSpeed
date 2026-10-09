@@ -8,12 +8,14 @@ THE SINGLE NEXT ACTION
 ================================================================================
 
 VERIFY THE TIER2-RED FIX, THEN REFUTE IT, THEN MERGE IT. Before it, two reads:
- (0) `git rev-parse HEAD` against `git ls-remote origin main`. THE SESSION 134 /done
-     COMMIT WAS PUSHED AFTER THIS FILE WAS WRITTEN, so its push result is NOT in this file;
-     if origin/main lacks it, PUSH main first through the git lock and read the output.
- (1) READ CI: tier1 at the /done commit, and the 2026-10-10 03:17 UTC tier2 nightly - the
-     FIRST tier2 at or after 319cd8a (the latest, 37919155122 at 94b9318, went green only
-     on its rerun; see TIER2-RED). A red run becomes the top item. NEVER RAISE A BUDGET.
+ (0) `git rev-parse HEAD` against `git ls-remote origin main`. The /done records commit
+     16b4ce4 IS PUSHED (read back, REPORT). This file's own amendment commit, which changes
+     only this file, was pushed AFTER it was written, so that push result is NOT in this
+     file: if origin/main lacks it, PUSH main first through the git lock, read the output.
+ (1) READ CI: tier1 at the amendment commit (tier1 at 16b4ce4 read SUCCESS), and the
+     2026-10-10 03:17 UTC tier2 nightly - the FIRST tier2 at or after 319cd8a (the latest,
+     37919155122 at 94b9318, went green only on its rerun; see TIER2-RED). A red run
+     becomes the top item. NEVER RAISE A BUDGET.
 THEN TIER2-RED (state under STATE OF THE TREE): on its locked branch, run
   (a) the 30x loop of tests/test_claude_hook.py under `-n 2 --dist loadfile`;
   (b) 5x runs of every CS-1233 sibling user of tests/xdist_quiet.py;
@@ -90,10 +92,11 @@ STATE OF THE TREE
 ================================================================================
 
 ROOT            E:\Clockspeed (ADR 0026). C:\Clockspeed IS A JUNCTION to it.
-HEAD / remote   at this /done's start HEAD == origin/main == 319cd8a (ls-remote read).
-                The /done commit follows it; see (0) above. A BLOCKED PUSH CAN REPORT
+HEAD / remote   at this /done's start HEAD == origin/main == 319cd8a; the /done pushed
+                319cd8a..16b4ce4 (ls-remote read 16b4ce4); this file's amendment commit
+                follows it, see (0) above. A BLOCKED PUSH CAN REPORT
                 EXIT 0 FROM A WRAPPER - READ THE LOG LINE "clockspeed pre-push: BLOCKED".
-DIRTY FILES     none at the /done (git status clean after the /done commit).
+DIRTY FILES     none at the /done (git status clean after each /done commit).
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
 ANOTHER WRITER SHARES THIS TREE - the responder (above). ALLOCATE NEW IDS FROM CS-1303
   UPWARD AND RE-CHECK THE MAX FIRST (`git grep` and `git log --all` for the next id; the
@@ -128,8 +131,9 @@ WORKTREES       `git worktree list` 25 lines at this /done: main; cs-g06 at
                 cherry-pick (their ahead counts are pre-cherry-pick copies - the CS-1281,
                 CS-1288 A and B, CS-1290, CS-1293, CS-1294, CS-1296, CS-1297, CS-1299 and
                 CS-1287 builders and the CS-1291 filing); the superseded CS-1289 v12
-                worktree (v12 folded into CS-1290), two CS-1231 kit-v3 / CLAUDE.md-condensing REVIEW
-                worktrees, and four older REVIEW worktrees holding uncommitted content.
+                worktree (v12 folded into CS-1290); two CS-1231 REVIEW worktrees (kit v3,
+                and a CLAUDE.md condensing); and four older REVIEW worktrees holding
+                uncommitted content.
                 PRUNE ONLY under CS-1291 part 7: consumer check, classify by content,
                 Recycle Bin, `git worktree prune`; never one a live agent uses. Branch
                 refs: 293.
@@ -636,8 +640,12 @@ WHOLE SUITE, RUN BY THIS /done AT 319cd8a (tree clean), 13:21 to 13:35:
     CS-815 timing arm (the session 133 /done hit it at 1.630s; tier2 37919155122 attempt 1
     failed a CS-815 ladder arm of the same file, the TIER2-RED class). Re-run ALONE: EXIT 0,
     1 passed in 7.84s.
-  NOT CALLED GREEN. The whole-suite verdict at the /done tip is the /done commit's own
-  pre-push suite (not in this file). Log: the gitignored work/done134_suite.log.
+  NOT CALLED GREEN. Log: the gitignored work/done134_suite.log.
+WHOLE SUITE, THROUGH THE PRE-PUSH HOOK OF THE /done RECORDS COMMIT 16b4ce4 (`pytest tests -q
+  -x -n auto --dist loadfile` behind fleet_suite_gate.py), 13:45 to 14:03: 14942 passed, 12
+  skipped, 0 failed, 8 warnings in 1074.41s - GREEN, the WHOLE population (no -x stop). The
+  push printed "319cd8a..16b4ce4  main -> main", no BLOCKED line; the wrapper exit 0;
+  `git ls-remote origin main` then read 16b4ce4 == HEAD. Log: work/done134_push.log.
 MYPY: bare `python -m mypy` (mypy 2.1.0) EXIT 0 - "Success: no issues found in 403 source
   files".
 DOC RITUAL, after the records edit: python tools/drift_guard.py EXIT 0 (11 guards PASS,
@@ -655,11 +663,14 @@ CI READ BY THIS /done: tier1 37971510248 at 319cd8a SUCCESS, all 5 jobs (guard, 
   mypy skew, CS-1302); tier2 37919155122 at 94b9318 attempt 1 FAILURE (windows guards
   shard: "REFUSED (CS-815) - the interpreter ladder did not finish inside its bound"),
   attempt 2 SUCCESS, every job. No tier2 has run at 319cd8a; the next nightly is the
-  2026-10-10 03:17 UTC cron. NO CI RUN EXISTS FOR THE /done COMMIT at this writing.
+  2026-10-10 03:17 UTC cron. tier1 37977633884 at 16b4ce4 (the /done records commit):
+  SUCCESS, all 5 jobs. No CI run exists for this file's amendment commit at this writing.
 COMMIT AND PUSH: step 2 found nothing to commit - HEAD == origin/main == 319cd8a
-  (`git ls-remote origin main` read). ONE /done commit holds the records and this file; its
-  SHA is not in this file (`git log -1`). It is pushed through the git lock AFTER this file
-  was written, so the push result is NOT here - next action (0).
+  (`git ls-remote origin main` read). The /done records commit 16b4ce4 holds the records and
+  this file's first version; committed through the git lock (pre-commit gate PASS, 7
+  checked; the kit cleared a leftover 0-byte .git/index.lock from 13:26 that no live git
+  process held) and pushed (above). This file was then amended with the push and CI
+  results in ONE hand-off-only commit, pushed after it was written - next action (0).
 CS-1284 ROWS: session 3 of 3 recorded - 1523 rows, all sub allow, mode log (LEDGER).
 CS-G03 ESCALATION RE-CHECK at 319cd8a: FIRES - a FULL re-walk is owed (LEDGER).
 RESPONDER: inbox_status.json read state idle, task Idle (13:27:25) before the main-tree
@@ -668,8 +679,7 @@ INBOX AT /done: 1 unread of 527. OUTBOX 2026-10-09: 0305 and 1315. WORKTREES: 25
   BRANCH REFS: 293. CLAUDE.md 40790 bytes.
 MARK: `fleet_done.py mark --session 134` after the read-back of the commit, the push and
   this file.
-UNVERIFIED: a green whole suite at any session 134 tip ON THIS BOX (this /done's run was red
-  on two load flakes and truncated by -x); the TIER2-RED fix's three checks; the delivery of
-  the 1315 note to MAIN and the completeness of the CS-1299 v14 adoption (the lane's);
-  every builder-reported figure for the CS-1285 slice B candidate; the /done commit's push
-  result and CI.
+UNVERIFIED: the TIER2-RED fix's three checks; the delivery of the 1315 note to MAIN and the
+  completeness of the CS-1299 v14 adoption (the lane's); every builder-reported figure for
+  the CS-1285 slice B candidate; the amendment commit's push result and CI. Who left the
+  13:26 .git/index.lock is unknown (the responder ticked at 13:26).
