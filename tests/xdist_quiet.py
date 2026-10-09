@@ -19,9 +19,10 @@ WHY IT CANNOT DEADLOCK. The waiting worker holds no lock another worker wants,
 and xdist's scheduler hands the remaining queue to the other workers and shuts
 each down once the queue is empty - independently of the waiting one. Every
 worker is configured and locked before any test runs, because the scheduler
-starts no test until every worker has reported its collection. A worker gives
-up its own lock while it waits, so two workers waiting at once never count
-each other live.
+starts no test until every worker has reported its collection. A worker
+unlocks its own byte while it waits, keeping its file, so two workers waiting
+at once never count each other live and the run directory never empties under
+a waiter. The wait is bounded and LOUD at the bound, naming the live sibling.
 
 Outside xdist there are no workers, so nothing is waited for. Standard library
 plus pytest only, like tests/conftest.py, which registers the two hooks below.
@@ -50,6 +51,18 @@ LIVE_ROOT_NAME: Final = "clockspeed-xdist-live"
 
 #: Seconds between two polls of the sibling locks.
 POLL_SECONDS: Final = 0.25
+
+#: The longest a worker waits for quiet siblings before it fails LOUD. It sits
+#: under the tightest CI job cutoff that runs a waiting arm - tier 1's ten
+#: minutes, with the job's setup steps ahead of pytest - so a hung sibling is
+#: named by this module rather than lost in a cancellation that says nothing, and
+#: above every sibling wait measured so far, which ended well inside it.
+QUIET_BOUND_SECONDS: Final = 400.0
+
+#: How long a worker retries taking its own lock back after a wait. A sibling's
+#: probe holds it for the instant between its own lock and unlock calls.
+RELOCK_SECONDS: Final = 5.0
+RELOCK_POLL_SECONDS: Final = 0.01
 
 LOCK_SUFFIX: Final = ".lock"
 
@@ -127,18 +140,18 @@ def release_liveness_lock(held: HeldLock) -> None:
         held.path.parent.rmdir()
 
 
-def live_sibling_count(directory: Path, own: str) -> int:
-    """How many workers other than ``own`` still hold their lock in ``directory``.
+def live_sibling_names(directory: Path, own: str) -> list[str]:
+    """The ids of the workers other than ``own`` that still hold their lock in ``directory``.
 
     A file is probed by opening it WITHOUT creating it and trying the lock: a
     file that vanished, or whose lock can be taken, belongs to a worker that has
-    finished or died.
+    finished, died, or is itself waiting.
     """
     if not directory.is_dir():
-        return 0
+        return []
     own_name = (UNSAFE_NAME.sub("", own) or "worker") + LOCK_SUFFIX
-    live = 0
-    for path in directory.glob("*" + LOCK_SUFFIX):
+    live: list[str] = []
+    for path in sorted(directory.glob("*" + LOCK_SUFFIX)):
         if path.name == own_name:
             continue
         try:
@@ -149,10 +162,28 @@ def live_sibling_count(directory: Path, own: str) -> int:
             if _try_lock(fd):
                 _unlock(fd)
             else:
-                live += 1
+                live.append(path.name.removesuffix(LOCK_SUFFIX))
         finally:
             os.close(fd)
     return live
+
+
+def live_sibling_count(directory: Path, own: str) -> int:
+    """How many workers other than ``own`` still hold their lock in ``directory``."""
+    return len(live_sibling_names(directory, own))
+
+
+class QuietWaitTimeoutError(RuntimeError):
+    """A sibling worker stayed live past QUIET_BOUND_SECONDS."""
+
+
+def _relock(held: HeldLock) -> None:
+    """Take a waiting worker's own lock back, retrying past a sibling's probe."""
+    deadline = time.perf_counter() + RELOCK_SECONDS
+    while not _try_lock(held.fd):
+        if time.perf_counter() >= deadline:
+            raise RuntimeError("a waiting worker could not take its own liveness lock back")
+        time.sleep(RELOCK_POLL_SECONDS)
 
 
 def _worker_identity(config: pytest.Config) -> tuple[Path, str] | None:
@@ -174,28 +205,40 @@ def live_siblings_now(config: pytest.Config) -> int:
 def await_quiet_siblings(config: pytest.Config) -> float:
     """Block until no other worker of this run is live; return the seconds waited.
 
-    No bound of its own: a sibling that never finishes is a hung suite, which
-    the job's own timeout already ends, and a sibling that dies frees its lock.
+    BOUNDED, AND LOUD AT THE BOUND. A sibling still live after
+    QUIET_BOUND_SECONDS raises QuietWaitTimeoutError naming its worker id, so a
+    hung sibling is reported here and never passes in silence.
 
-    A WAITING WORKER IS NOT LIVE. Its own lock is released for the length of the
-    wait and taken again after it. Several arms wait, and a scheduler other than
-    ``--dist loadfile`` can put two of them on two workers at once: a waiter that
-    stayed live would count the other as busy, and each would wait for ever.
+    A WAITING WORKER IS NOT LIVE. It UNLOCKS its byte for the length of the wait
+    and locks it again after, keeping its file and descriptor throughout. Several
+    arms wait, and a scheduler other than ``--dist loadfile`` can put two of them
+    on two workers at once: a waiter that stayed live would count the other as
+    busy, and each would wait for ever. The file stays, so the shared run
+    directory is never empty while a waiter needs it, and a sibling's release
+    can never remove it from under the relock.
+
+    Raises:
+        QuietWaitTimeoutError: When a sibling is still live at the bound.
     """
     identity = _worker_identity(config)
     if identity is None:
         return 0.0
     held = config.stash.get(_HELD, None)
     if held is not None:
-        del config.stash[_HELD]
-        release_liveness_lock(held)
+        _unlock(held.fd)
     started = time.perf_counter()
     try:
-        while live_sibling_count(*identity):
+        while live := live_sibling_names(*identity):
+            waited = time.perf_counter() - started
+            if waited >= QUIET_BOUND_SECONDS:
+                raise QuietWaitTimeoutError(
+                    f"CS-1233: sibling worker(s) {live} still live after {waited:.0f}s - "
+                    "the arm that needs a quiet box did not run"
+                )
             time.sleep(POLL_SECONDS)
     finally:
         if held is not None:
-            config.stash[_HELD] = hold_liveness_lock(*identity)
+            _relock(held)
     return time.perf_counter() - started
 
 

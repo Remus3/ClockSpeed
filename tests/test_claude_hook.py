@@ -1254,10 +1254,15 @@ def test_two_waiting_workers_never_wait_on_each_other() -> None:
     for session in sessions.values():
         xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
     returned: dict[str, float] = {}
+    crashed: dict[str, str] = {}
 
     def worker_run(name: str) -> None:
-        returned[name] = await_quiet_siblings(cast(pytest.Config, workers[name]))
-        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, sessions[name]))
+        try:
+            returned[name] = await_quiet_siblings(cast(pytest.Config, workers[name]))
+        except Exception as exc:  # surfaced by the assert below, never swallowed
+            crashed[name] = error_shape(exc)
+        finally:
+            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, sessions[name]))
 
     threads = [threading.Thread(target=worker_run, args=(name,), daemon=True) for name in workers]
     try:
@@ -1266,11 +1271,189 @@ def test_two_waiting_workers_never_wait_on_each_other() -> None:
         deadline = time.monotonic() + DEADLOCK_SECONDS
         for thread in threads:
             thread.join(max(0.0, deadline - time.monotonic()))
-        stuck = sorted(name for name in workers if name not in returned)
+        stuck = sorted(name for name in workers if name not in returned and name not in crashed)
     finally:
         # A stuck waiter is freed by ending both sessions, so no thread outlives the arm.
         for session in sessions.values():
             xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
         for thread in threads:
             thread.join(DEADLOCK_SECONDS)
+    assert crashed == {}, f"a waiting worker CRASHED, which is not a deadlock: {crashed}"
     assert stuck == [], f"two waiting workers waited on each other: {stuck} never came back"
+
+
+def error_shape(exc: BaseException) -> str:
+    """An exception as its type and errno only - its text can carry a temp path."""
+    return f"{type(exc).__name__} errno={getattr(exc, 'errno', None)}"
+
+
+class SimulatedClock:
+    """A stand-in for the barrier module's ``time``: sleeping advances it, nothing waits."""
+
+    def __init__(
+        self, on_sleep: Callable[[float], None] | None = None, stride: float = 0.0
+    ) -> None:
+        """Start at zero; ``on_sleep`` runs inside every sleep, before the clock moves.
+
+        A non-zero ``stride`` advances by that much per sleep instead of the
+        requested seconds, so a long simulated wait takes few polls.
+        """
+        self.now = 0.0
+        self.sleeps = 0
+        self.on_sleep = on_sleep
+        self.stride = stride
+
+    def perf_counter(self) -> float:
+        """The simulated time."""
+        return self.now
+
+    def monotonic(self) -> float:
+        """The simulated time."""
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        """Advance the simulated time, after the hook has run."""
+        self.sleeps += 1
+        if self.on_sleep is not None:
+            self.on_sleep(seconds)
+        self.now += self.stride or seconds
+
+
+# A simulated hour: a wait still polling past it has no bound worth the name.
+UNBOUNDED_SECONDS: Final = 3600.0
+# The simulated step of the bound arm, so an hour is a hundred and twenty polls.
+BOUND_STRIDE_SECONDS: Final = 30.0
+
+
+class NeverGaveUpError(Exception):
+    """Raised by the simulated clock when a wait outlives any plausible bound."""
+
+
+def test_a_sibling_ending_mid_wait_never_strands_the_waiters_relock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The directory race, injected rather than waited for.
+
+    The sibling's release is split at its first step: on the waiter's first poll
+    the sibling's lock is let go, so the waiter stops waiting; and at the instant
+    the waiter would re-create its own liveness file, the sibling's release
+    finishes - its file unlinked, the now-empty run directory removed. A waiter
+    that gave its file up to wait is left with no directory to re-lock in.
+    """
+    run_id = "cs1233-race-" + uuid.uuid4().hex
+    directory = xdist_quiet.live_directory(run_id)
+    waiter = fake_worker(run_id, "gw0")
+    session = SimpleNamespace(config=waiter)
+    xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    sibling = hold_liveness_lock(directory, "gw1")
+    waiter_file = directory / ("gw0" + xdist_quiet.LOCK_SUFFIX)
+    steps: list[str] = []
+    real_open = os.open
+
+    def sibling_unlocks(_seconds: float) -> None:
+        if "unlocked" not in steps:
+            steps.append("unlocked")
+            xdist_quiet._unlock(sibling.fd)  # noqa: SLF001 - the release's own first step
+
+    def open_while_the_sibling_finishes(path: str, flags: int, *rest: int) -> int:
+        if Path(path) == waiter_file and flags & os.O_CREAT and "released" not in steps:
+            steps.append("released")
+            release_liveness_lock(sibling)
+        return real_open(path, flags, *rest)
+
+    monkeypatch.setattr(xdist_quiet, "time", SimulatedClock(on_sleep=sibling_unlocks))
+    monkeypatch.setattr(os, "open", open_while_the_sibling_finishes)
+    try:
+        try:
+            await_quiet_siblings(cast(pytest.Config, waiter))
+            failure = ""
+        except OSError as exc:
+            failure = error_shape(exc)
+        monkeypatch.undo()
+        if "released" not in steps:
+            release_liveness_lock(sibling)
+        assert failure == "", f"the waiter could not re-lock after its sibling ended: {failure}"
+        relive = live_sibling_count(directory, "gw9")
+        assert relive == 1, "the waiter came back from its wait without its liveness lock"
+    finally:
+        monkeypatch.undo()
+        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+
+
+def test_a_wait_that_outlives_its_bound_fails_loud_naming_the_sibling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sibling that never finishes ends the wait LOUD at the bound, by worker id."""
+    run_id = "cs1233-bound-" + uuid.uuid4().hex
+    directory = xdist_quiet.live_directory(run_id)
+    waiter = fake_worker(run_id, "gw0")
+    session = SimpleNamespace(config=waiter)
+    xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    sibling = hold_liveness_lock(directory, "gw3")
+    clock = SimulatedClock(stride=BOUND_STRIDE_SECONDS)
+
+    def give_up_at_a_day(_seconds: float) -> None:
+        if clock.now >= UNBOUNDED_SECONDS:
+            raise NeverGaveUpError
+
+    clock.on_sleep = give_up_at_a_day
+    monkeypatch.setattr(xdist_quiet, "time", clock)
+    try:
+        try:
+            await_quiet_siblings(cast(pytest.Config, waiter))
+            outcome = "returned"
+        except NeverGaveUpError:
+            outcome = "never gave up"
+        except RuntimeError as exc:
+            outcome = str(exc)
+        waited = clock.now
+        monkeypatch.undo()
+        assert outcome not in ("returned", "never gave up"), f"the wait {outcome} - no bound"
+        assert "gw3" in outcome, f"the loud failure does not name the live sibling: {outcome}"
+        bound = xdist_quiet.QUIET_BOUND_SECONDS
+        fired = bound <= waited <= bound + BOUND_STRIDE_SECONDS
+        assert fired, f"the bound fired at {waited:.2f}s, not at {bound}s"
+    finally:
+        monkeypatch.undo()
+        release_liveness_lock(sibling)
+        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+
+
+def test_a_probe_holding_the_waiters_lock_only_delays_its_relock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sibling's probe can hold the waiter's byte for an instant; the relock retries."""
+    run_id = "cs1233-relock-" + uuid.uuid4().hex
+    directory = xdist_quiet.live_directory(run_id)
+    waiter = fake_worker(run_id, "gw0")
+    session = SimpleNamespace(config=waiter)
+    xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    waiter_file = directory / ("gw0" + xdist_quiet.LOCK_SUFFIX)
+    probe_fd: list[int] = []
+    real_names = xdist_quiet.live_sibling_names
+
+    def probe_in_flight(where: Path, own: str) -> list[str]:
+        names = real_names(where, own)
+        if not probe_fd:
+            fd = os.open(waiter_file, os.O_RDWR)
+            probe_fd.append(fd)
+            took = xdist_quiet._try_lock(fd)  # noqa: SLF001 - a sibling's probe, mid-flight
+            assert took, "the waiter's byte was not free while it waited"
+        return names
+
+    def probe_lets_go(_seconds: float) -> None:
+        if probe_fd:
+            xdist_quiet._unlock(probe_fd[0])  # noqa: SLF001 - the probe's own second step
+
+    monkeypatch.setattr(xdist_quiet, "live_sibling_names", probe_in_flight)
+    monkeypatch.setattr(xdist_quiet, "time", SimulatedClock(on_sleep=probe_lets_go))
+    try:
+        await_quiet_siblings(cast(pytest.Config, waiter))
+        monkeypatch.undo()
+        relive = live_sibling_count(directory, "gw9")
+        assert relive == 1, "the waiter came back from its wait without its liveness lock"
+    finally:
+        monkeypatch.undo()
+        for fd in probe_fd:
+            os.close(fd)
+        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
