@@ -125,6 +125,23 @@ def test_matching_builds_raise_nothing() -> None:
     assert check.matches is True
 
 
+def test_equal_builds_held_in_distinct_objects_raise_nothing() -> None:
+    """Equality is by VALUE, never by identity.
+
+    The arm above passes one int object as both the header's build and the
+    pin, so an identity comparison (``is not`` for ``!=``, ``is`` for ``==``)
+    survives it. Here the two are built separately at run time, outside the
+    small-int cache, and the first assertion is the discrimination control
+    that they really are two objects.
+    """
+    save_build = int("1000000007")
+    pinned = int("1000000007")
+    assert save_build is not pinned, "the fixture no longer holds two distinct objects"
+    check = build.build_check_of(world(save_build), pinned_changelist=pinned)
+    assert check.warnings == ()
+    assert check.matches is True
+
+
 def test_an_unparsed_pin_is_uncompared() -> None:
     check = build.build_check_of(world(SAVE_BUILD), pinned_changelist=None)
     assert codes(check) == [build.WARN_BUILD_UNCOMPARED]
