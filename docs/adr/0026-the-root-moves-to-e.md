@@ -32,10 +32,12 @@ path pointing to its E: path.
 - **Move with no junction at C:.** Rejected. A C: reference the inventory missed - a
   scheduled task's command line, a shortcut, MAIN's delivery path into this tree - would
   break silently instead of keeping working.
-- **Move `C:\cs-flip-backup` too.** Rejected. It holds the sole copy of the pre-rewrite
+- **Move the flip-backup folder too.** Rejected. It holds the sole copy of the pre-rewrite
   graph bundle, which is irreplaceable; it already sits outside the root, as the CS-700
   plan's S5 asks, and nothing gains from moving it. A copy step is risk to the only copy
-  for no benefit.
+  for no benefit. AMENDED 2026-10-09 by CS-1293: the folder then sat on C:; MAIN's
+  2026-10-08 sidecar move put it at `E:\Sidecars\CS\Scratch\cs-flip-backup`, its current
+  home under the single CS sidecar folder.
 
 The fleet-shared slot root under ProgramData that `ops/loop/slots.py` names is not this
 tree's and does not move.
@@ -53,9 +55,11 @@ tree's and does not move.
    e. The old cs-lane-queue lane worktree classified by content - clean, its tip an
       ancestor of `main`, ignored caches only, superseded by the CS-1274 `lane-<i>` layout
       - as NOT NEEDED, sent to the Recycle Bin, then `git worktree prune`.
-   f. The one remaining worktree of `C:\Clockspeed-wt` (cs-g06, REVIEW, one unique
-      commit, clean) copied to `E:\Clockspeed-wt`, and the C: folder sent to the Recycle
-      Bin.
+   f. The one remaining worktree of the old C: slice-worktree folder (cs-g06, REVIEW, one
+      unique commit, clean) copied to a slice-worktree folder on E:, and the C: folder
+      sent to the Recycle Bin. AMENDED 2026-10-09 by CS-1293: MAIN's 2026-10-08 sidecar
+      move put cs-g06 at `E:\Sidecars\CS\Worktree\cs-g06`, its current home under the
+      single CS sidecar folder; the E: folder this step copied it to no longer exists.
    g. The external pointers re-pointed and read back on E:: the inbox responder's
       scheduled task arguments, the three Desktop shortcuts, Claude Code's trust entry
       and per-path memory store for the E: path.
