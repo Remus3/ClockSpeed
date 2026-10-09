@@ -49,6 +49,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import time
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -66,6 +67,7 @@ from clockspeed.data.docs_extract import (
 __all__ = [
     "DOCS_RELATIVE",
     "DOCS_RELATIVE_PARTS",
+    "GAME_CHANGELIST",
     "OVERCLOCK_POTENTIAL_SHARD_SLOTS",
     "PIN_BEGIN_MARKER",
     "PIN_END_MARKER",
@@ -74,6 +76,7 @@ __all__ = [
     "PinFormatError",
     "build_pin",
     "census",
+    "changelist_of",
     "compare",
     "extract_pin_block",
     "integrity_digest",
@@ -466,6 +469,35 @@ GAME_BUILD: Final[str] = str(_PIN.get("game_build", ""))
 #: The pinned docs content hash and size.
 DOCS_SHA256: Final[str] = str(_PIN.get("docs_sha256", ""))
 DOCS_BYTES: Final[int] = int(_PIN.get("docs_bytes", 0) or 0)
+
+#: A build string's trailing changelist: ``CL-`` then ASCII digits, ending the
+#: string. ``[0-9]`` rather than ``\d``, which would admit non-ASCII digits, and
+#: ``\Z`` rather than ``$``, which would admit a trailing newline. The
+#: look-behind keeps ``CL-`` a token of its own, not the tail of a longer word.
+_CHANGELIST_SUFFIX: Final = re.compile(r"(?<![A-Za-z0-9])CL-([0-9]+)\Z")
+
+
+def changelist_of(build: str) -> int | None:
+    """Read the changelist a build string names in its trailing ``CL-<digits>``.
+
+    The changelist is DERIVED from the build string, never stored beside it: a
+    number written down twice is a number that drifts (`CLAUDE.md` section 4).
+
+    Args:
+        build: A build string such as ``GAME_BUILD``.
+
+    Returns:
+        The changelist, or None when the build carries no well-formed trailing
+        changelist - including an empty build. Never a default
+        number: a stand-in would be indistinguishable from a measured value.
+    """
+    match = _CHANGELIST_SUFFIX.search(build)
+    return int(match.group(1)) if match else None
+
+
+#: The pinned build's changelist, read out of GAME_BUILD. None when the pin is
+#: corrupt or its build string carries no changelist.
+GAME_CHANGELIST: Final[int | None] = changelist_of(GAME_BUILD)
 
 
 def pin() -> dict[str, Any]:

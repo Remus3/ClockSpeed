@@ -34,6 +34,7 @@ from typing import Any
 
 import pytest
 
+import clockspeed.data.version as version_module
 from clockspeed.data.version import (
     CENSUS_KEY_BUILDING_FIELD_PRESENCE,
     DOCS_RELATIVE,
@@ -254,6 +255,71 @@ def test_pin_returns_a_copy_so_a_caller_cannot_corrupt_module_state() -> None:
     original = payload["census"]["entry_count"]
     payload["census"]["entry_count"] = -1
     assert pin()["census"]["entry_count"] == original
+
+
+# ---------------------------------------------------------------------------
+# The changelist - DERIVED from the build pin, never typed (CS-1288)
+# ---------------------------------------------------------------------------
+#
+# No changelist number is written into this file. The tracked one is read back
+# out of GAME_BUILD by an independent spelling of the rule, and every parse
+# case below runs on a synthetic build string.
+
+
+def test_the_pinned_changelist_is_read_out_of_the_pinned_build() -> None:
+    build = version_module.GAME_BUILD
+    head, sep, digits = build.rpartition("CL-")
+    assert sep, "the tracked build carries no CL- suffix - this test would compare nothing"
+    assert head, "the tracked build is a bare suffix - not a build string"
+    assert digits.isascii(), "the tracked build's suffix is not ASCII"
+    assert digits.isdigit(), "the tracked build's suffix is not digits"
+
+    changelist = version_module.GAME_CHANGELIST
+
+    assert type(changelist) is int
+    assert changelist == int(digits)
+    assert build.endswith(f"CL-{changelist}")
+
+
+def test_changelist_of_reads_the_trailing_changelist_of_a_synthetic_build() -> None:
+    synthetic_changelist = 42
+    assert version_module.changelist_of(SYNTHETIC_BUILD) == 1
+    assert (
+        version_module.changelist_of(f"++SyntheticGame+rel-other-CL-{synthetic_changelist}")
+        == synthetic_changelist
+    )
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        "",
+        "++SyntheticGame+rel-test",
+        "++SyntheticGame+rel-test-CL",
+        "++SyntheticGame+rel-test-CL-",
+    ],
+)
+def test_changelist_of_a_build_with_no_changelist_suffix_is_none(build: str) -> None:
+    assert version_module.changelist_of(build) is None
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        "++SyntheticGame+rel-test-CL-12x",
+        "++SyntheticGame+rel-test-CL-1.5",
+        "++SyntheticGame+rel-test-CL--7",
+        "++SyntheticGame+rel-test-CL-+7",
+        "++SyntheticGame+rel-test-CL- 7",
+        "++SyntheticGame+rel-test-CL-7 ",
+        "++SyntheticGame+rel-test-CL-7\n",
+        "++SyntheticGame+rel-test-CL-" + chr(0x0661) + chr(0x0662),
+        "++SyntheticGame+rel-test-CL-7-hotfix",
+        "++SyntheticGame+rel-test-xCL-7",
+    ],
+)
+def test_changelist_of_a_build_with_malformed_changelist_digits_is_none(build: str) -> None:
+    assert version_module.changelist_of(build) is None
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +614,9 @@ def test_a_module_with_an_unparseable_pin_still_imports(tmp_path: Path) -> None:
 
     assert module.pin() == {}
     assert validate_pin(module.pin()) != []
+    # No build, so no changelist - and never a default number standing in.
+    assert module.GAME_BUILD == ""
+    assert module.GAME_CHANGELIST is None
 
 
 def test_rewrite_pin_source_replaces_only_the_generated_block(
