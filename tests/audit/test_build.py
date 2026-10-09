@@ -22,7 +22,7 @@ the detail text.
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Any, Final
 
 import pytest
 
@@ -171,8 +171,12 @@ def test_the_warning_is_sourced_here_and_its_detail_carries_no_build(
 
 
 def test_the_pin_is_keyword_only() -> None:
+    # Called through a name typed Any, so no type-ignore code is needed: mypy
+    # versions disagree on which code a positional call to a keyword-only
+    # parameter carries, and an ignore with the wrong one is itself an error.
+    call: Any = build.build_check_of
     with pytest.raises(TypeError):
-        build.build_check_of(world(), OTHER_BUILD)  # type: ignore[misc]
+        call(world(), OTHER_BUILD)
 
 
 @pytest.mark.parametrize("pinned", [str(SAVE_BUILD), True, 1.0], ids=["str", "bool", "float"])
