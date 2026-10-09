@@ -2395,7 +2395,10 @@ def test_the_deny_ace_arm_leaves_no_directory_behind(
         assert returned_as_expected is True
     except outcomes as exc:
         raised = type(exc)
-        message = str(exc)
+        # The named msg FIELD of a skip or a fail, never the object: str() on
+        # an OSError appends the path it failed on (non-negotiable 12).
+        if isinstance(exc, pytest.skip.Exception | pytest.fail.Exception):
+            message = exc.msg or ""
     finally:
         monkeypatch.undo()
         ace_left = model.denied
