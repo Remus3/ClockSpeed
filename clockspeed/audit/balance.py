@@ -1227,6 +1227,13 @@ class ClockedContribution:
         upper_each: The high end of one machine's draw.
         lower_total: ``lower_each * machine_count``, exactly.
         upper_total: ``upper_each * machine_count``, exactly.
+        clock_fixed: CS-1281. Whether that clock is the reference clock of a
+            class the registry declares cannot be clocked, standing in for a
+            tag the class has no clock to write. Part of the group key for the
+            reason :attr:`clock_elided` is: merged with a machine of the same
+            class TAGGED at the reference clock, the group's reason would be
+            whichever came first, so the draw would depend on input order.
+            Appended with a default, so no positional construction moves.
     """
 
     class_name: str
@@ -1239,6 +1246,7 @@ class ClockedContribution:
     upper_each: Fraction
     lower_total: Fraction
     upper_total: Fraction
+    clock_fixed: bool = False
 
     def __repr__(self) -> str:
         """Render the numbers and the bound kind, and never the class name.
@@ -1248,7 +1256,7 @@ class ClockedContribution:
         """
         return (
             f"{type(self).__name__}(clock={self.clock}, "
-            f"clock_elided={self.clock_elided}, "
+            f"clock_elided={self.clock_elided}, clock_fixed={self.clock_fixed}, "
             f"machine_count={self.machine_count}, bound={self.bound}, "
             f"lower_total={self.lower_total}, upper_total={self.upper_total})"
         )
@@ -1627,7 +1635,7 @@ def clocked_draw_of(
         exists at all, and a named omission for every built power consumer the
         population never held (CS-1266).
     """
-    priced: dict[tuple[str, Fraction, bool], tuple[str, str, Fraction, Fraction, int]] = {}
+    priced: dict[tuple[str, Fraction, bool, bool], tuple[str, str, Fraction, Fraction, int]] = {}
     gapped: dict[tuple[str, str], tuple[str, int]] = {}
     producers = generators or {}
     excluded = 0
@@ -1658,7 +1666,10 @@ def clocked_draw_of(
             reason = _ELIDED_CLOCK_REASON
         elif fixed:
             reason = _FIXED_CLOCK_REASON
-        key = (state.class_name, clock, elided)
+        # CS-1281. ``fixed`` is in the key, as ``elided`` is: a fixed clock and a
+        # tag read at the same clock carry different reasons, and one group
+        # holding both would keep whichever reason came first.
+        key = (state.class_name, clock, elided, fixed)
         prior = priced.get(key, (bound, reason, low, high, 0))
         priced[key] = (bound, reason, low, high, prior[4] + 1)
 
@@ -1674,8 +1685,11 @@ def clocked_draw_of(
             upper_each=high,
             lower_total=low * count,
             upper_total=high * count,
+            clock_fixed=fixed,
         )
-        for (class_name, clock, elided), (bound, reason, low, high, count) in sorted(priced.items())
+        for (class_name, clock, elided, fixed), (bound, reason, low, high, count) in sorted(
+            priced.items()
+        )
     )
     gaps = tuple(
         ClockedGap(class_name=class_name, machine_count=count, kind=kind, reason=reason)

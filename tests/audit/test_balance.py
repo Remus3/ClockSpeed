@@ -2319,12 +2319,39 @@ def test_a_class_that_cannot_be_clocked_reddens_the_arm_when_counted_elided() ->
     assert fixed.machine_count == FIXED_CLOCK_MACHINES
     assert fixed.lower_total == fixed.upper_total == THIRD_MEGAWATTS * FIXED_CLOCK_MACHINES
     assert groups[FIXED_WHOLE].clock_elided is True
-    # The reason names a fixed clock, never the elided default's.
-    assert fixed.reason
+    # The reason names a fixed clock, never the elided default's. EXACTLY that
+    # reason: an arm that only asserts it differs stays green when the fixed
+    # branch is deleted and the power-law reason stands in (adversary mutant M8).
+    assert fixed.reason == balance._FIXED_CLOCK_REASON  # noqa: SLF001
     assert fixed.reason != groups[FIXED_WHOLE].reason
     assert result.complete is True
     assert result.exact is True
     assert sum(group.machine_count for group in result.contributions) == len(population.machines)
+
+
+def test_a_fixed_clock_never_merges_with_a_read_reference_clock_in_either_order() -> None:
+    """The draw is a function of the population, never of its order.
+
+    An untagged machine of a class that cannot be clocked and a machine of the
+    same class TAGGED at the reference clock land on the same class and clock.
+    Grouped together, the group's reason is whichever machine came first, so
+    the two orders disagree. Kept apart, as an elided group is kept apart from
+    a read one, each carries its own reason and the orders agree.
+    """
+    untagged = elided(FIXED_CLOCK_CLASS)
+    tagged = clocked(FIXED_CLOCK_CLASS, power.REFERENCE_CLOCK)
+    forward = balance.clocked_draw_of(world_machines(untagged, tagged), clockability_registry())
+    backward = balance.clocked_draw_of(world_machines(tagged, untagged), clockability_registry())
+
+    assert forward == backward
+    assert forward.contributions == backward.contributions
+    by_fixed = {group.clock_fixed: group for group in forward.contributions}
+    assert sorted(by_fixed) == [False, True]
+    assert by_fixed[True].reason == balance._FIXED_CLOCK_REASON  # noqa: SLF001
+    assert by_fixed[False].reason != balance._FIXED_CLOCK_REASON  # noqa: SLF001
+    assert all(group.machine_count == 1 for group in forward.contributions)
+    assert all(group.clock_elided is False for group in forward.contributions)
+    assert forward.elided_clock_count == 0
 
 
 def test_a_class_whose_clock_capability_is_unknown_stays_an_elided_clock() -> None:
