@@ -364,13 +364,23 @@ def test_cs1179_mutant_a_history_blind_to_bytes_forgives_f1(
 
 
 @pytest.fixture(autouse=True)
-def _restore_stamp_constant() -> Iterator[None]:
+def _restore_stamp_constant(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Assert no test leaves the shared tool module's stamp basis mutated.
+
+    CS-1290: the kit's test guard (tests/conftest.py) requests ``monkeypatch``
+    from a conftest autouse fixture, so the one shared instance is set up BEFORE
+    this fixture and torn down AFTER it. The test's own patches are undone here
+    first, so what the check grades is what a raw assignment - the leak it
+    exists for - would leave behind.
+
+    Args:
+        monkeypatch: The test's shared monkeypatch instance.
 
     Yields:
         Nothing; the check runs after the test.
     """
     yield
+    monkeypatch.undo()
     assert _stamp_tool().STAMPED == "stamped", "a mutant of the stamp basis leaked"
 
 
