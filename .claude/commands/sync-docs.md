@@ -36,20 +36,8 @@ restated fact is a fact that will drift.**
 For every fact found in every markdown file, record: the fact, the file it is in, and the
 file that OWNS it.
 
-| Owner | Owns | Never contains |
-|---|---|---|
-| `CLAUDE.md` | Rules, hard constraints, frozen list, `Settled`, paths, topology | Per-item history, counts, ledger entries |
-| `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
-| `ROADMAP.md` | OPEN work only, with IDs and acceptance criteria | Completed work, aspirational ideas |
-| `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything being worked |
-| `docs/LEDGER.md` | Append-only, newest-first completion record | Rules, open work |
-| `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
-| `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
-| `docs/adr/` | One decision per file, indexed in `docs/adr/README.md` | Anything not a decision |
-| `docs/GATED.md` | Items blocked OUTSIDE the repo, plus the exact unblocking condition | Items merely unstarted |
-| `WAKEUP_NOTES.md` | Last 2-3 sessions at full fidelity | Anything older |
-| `docs/history_notes.md` | Deep archive of pruned notes and old ledger items | Current state |
-| `memory/` | Durable cross-session facts | State derivable from code |
+The owner of each fact is the ownership table in `CLAUDE.md` section 4. Read it there;
+this command restates no row of it, so the two cannot drift apart.
 
 ## 3. Fix the drift
 

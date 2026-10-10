@@ -193,7 +193,7 @@ them on the new repository after S10.
 rendered from synthetic content, PNG text chunks stripped, and each pinned by path and
 SHA-256 in `tools/sha_citation_binaries.json`. The CLEAR rows above were measured before
 they were added. Upload `docs/assets/social-preview.png` at Settings > General > Social
-preview; the gitignored `data/social-preview.png` is a byte copy of it.
+preview; it is the only upload source.
 
 ---
 

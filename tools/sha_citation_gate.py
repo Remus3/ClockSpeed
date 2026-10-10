@@ -38,8 +38,15 @@ COULD NOT JUDGE - a file dropping out is never a pass - unless an unpublished
 finding makes it FAIL, which outranks it and prints both. The one exception is a
 not-read file whose path AND SHA-256 match a row of :data:`KNOWN_BINARY_FILE`: it
 is counted known-binary and named instead (CS-1292). Either way a not-read file's
-raw bytes are still graded as latin-1, so a citation hidden behind a NUL is found
-and fails the run. A BOM-marked file is
+raw bytes are still graded as latin-1, as stored and again with every NUL removed,
+so UTF-16 text without a byte-order mark and a run split by NULs are joined and
+seen. A COMPRESSED citation is no hex run in either view and is not seen; the pin
+row's review is the only control for it. Every path is read from the work tree
+AND from each of its index and ``HEAD`` blobs that differs (:func:`_versions`), the
+runs being the union, and a pin admits the path only when every unread version
+matches it - a staged or committed blob, a case-variant path a case-insensitive
+disk opens as its sibling, or a symlink entry's link text is judged by its own
+bytes, never by what the path opens on disk. A BOM-marked file is
 decoded STRICTLY (a failure is NOT READ, never replacement) and is always also
 scanned as raw latin-1 bytes, the runs being the union, because
 8-bit text behind a stray mark decodes as CJK with every hex run gone. All three
@@ -245,7 +252,9 @@ INCLUSION_RULE: Final = (
     "because hex literals that name nothing (test vectors, digests, ids) outnumber code "
     "citations there. Every run of 5 or 6 hex characters of any case, joined to anything, "
     "in any tracked file, is resolved the same way too, and one that more than one commit "
-    "answers is red when any candidate is unpublished. A tracked file is read as UTF-32 or "
+    "answers is red when any candidate is unpublished. Each tracked path is read from the "
+    "work tree and from every index and HEAD blob of it that differs, the union judged. "
+    "A tracked file is read as UTF-32 or "
     "UTF-16 behind a byte-order mark, STRICTLY - scanned both decoded and as raw bytes, "
     "the union of the two, and NOT READ when the strict decode fails, though its raw "
     "bytes are still graded - else as UTF-8 with replacement; one absent or carrying a "
@@ -292,8 +301,9 @@ _NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
 
 #: CS-1224 - the reason printed beside the not-read count on every run.
 NOT_READ_REASON: Final = (
-    "tracked files absent from the work tree, failing a strict decode behind a UTF-32 or "
-    "UTF-16 byte-order mark, or carrying a NUL once decoded (else UTF-8 with "
+    "tracked files absent from the work tree, or whose work-tree bytes or any differing "
+    "index and HEAD blob fail a strict decode behind a UTF-32 or "
+    "UTF-16 byte-order mark, or carry a NUL once decoded (else UTF-8 with "
     "replacement), are binary or "
     "missing to this reader; any such file makes the run COULD NOT JUDGE, never a pass, "
     "unless an unpublished finding makes it FAIL"
@@ -314,8 +324,11 @@ _PIN_DIGEST: Final = re.compile(r"[0-9a-f]{64}")
 #: CS-1292 - the reason printed beside the known-binary count on every run.
 KNOWN_BINARY_REASON: Final = (
     f"tracked files the reader could not read whose path AND SHA-256 match a row of "
-    f"{KNOWN_BINARY_FILE} - reviewed binaries - so they are counted and named, never "
-    "COULD NOT JUDGE, their raw bytes still graded; any other unreadable file stays not-read"
+    f"{KNOWN_BINARY_FILE} - reviewed binaries - in the work tree and in every differing "
+    "index and HEAD blob, so they are counted and named, never COULD NOT JUDGE; their raw "
+    "bytes are still graded, as stored and with every NUL removed, but a compressed "
+    "citation inside one is not seen, and the pin row's review is the only control for "
+    "it; any other unreadable file stays not-read"
 )
 
 #: The byte-order marks that make a tracked file read as UTF-32, tested first.
@@ -665,13 +678,110 @@ def _grade_unread(
 
     A file the decoder refused with no view at all is graded as its raw bytes
     read as latin-1, resolved-only like code, pinned or not - a citation hidden
-    behind a NUL still fails the run.
+    behind a NUL still fails the run. Bytes carrying a NUL are graded once more
+    with every NUL removed, so UTF-16 text without a byte-order mark, or a run
+    split by NULs, is joined and seen. A compressed run is not.
     """
     known = raw is not None and is_known_binary(name, raw, pins)
-    if raw is None or views:
+    if raw is None:
         return known, [], []
-    raw_view = raw.decode("latin-1")
-    return known, scan_code(raw_view, name), scan_short(raw_view, name)
+    graded = [] if views else [raw.decode("latin-1")]
+    if b"\0" in raw:
+        graded.append(raw.replace(b"\0", b"").decode("latin-1"))
+    return (
+        known,
+        _union(scan_code(view, name) for view in graded),
+        _union(scan_short(view, name) for view in graded),
+    )
+
+
+#: The metadata fields of one ``ls-files -s`` entry (mode, id, stage), of one
+#: ``ls-tree`` entry (mode, type, id) and of one ``cat-file --batch`` header
+#: (id, type, size).
+_ENTRY_FIELDS: Final = 3
+
+
+def _blob_ids(repo: Path) -> dict[str, list[str]]:
+    """Each tracked path's blob ids in the index, every stage, then at ``HEAD`` - CS-1292.
+
+    A gitlink (mode 160000) names a commit, not content, and is left out.
+    """
+    found: dict[str, list[str]] = {}
+
+    def add(name: bytes, oid: bytes) -> None:
+        ids = found.setdefault(name.decode("utf-8"), [])
+        if oid.decode("ascii") not in ids:
+            ids.append(oid.decode("ascii"))
+
+    for entry in _git_out(repo, ["ls-files", "-s", "-z"]).split(b"\0"):
+        meta, _, name = entry.partition(b"\t")
+        fields = meta.split()
+        if name and len(fields) == _ENTRY_FIELDS and fields[0] != b"160000":
+            add(name, fields[1])
+    if _git(repo, ["rev-parse", "--verify", "-q", "HEAD"]).returncode != 0:
+        return found
+    for entry in _git_out(repo, ["ls-tree", "-r", "-z", "--full-tree", "HEAD"]).split(b"\0"):
+        meta, _, name = entry.partition(b"\t")
+        fields = meta.split()
+        if name and len(fields) == _ENTRY_FIELDS and fields[1] == b"blob":
+            add(name, fields[2])
+    return found
+
+
+def _blob_id(raw: bytes) -> str:
+    """The sha1 object name git gives ``raw`` as a blob."""
+    return hashlib.sha1(b"blob %d\0" % len(raw) + raw, usedforsecurity=False).hexdigest()
+
+
+def _read_blobs(repo: Path, oids: Sequence[str]) -> dict[str, bytes]:
+    """Every blob in ``oids`` by its id, in ONE ``git cat-file --batch`` call - CS-1292.
+
+    Raises:
+        GateError: When git fails, or answers anything but each blob whole.
+    """
+    if not oids:
+        return {}
+    done = _git(repo, ["cat-file", "--batch"], "".join(f"{oid}\n" for oid in oids).encode())
+    if done.returncode != 0:
+        raise GateError(f"git cat-file exited {done.returncode}")
+    out, at, blobs = done.stdout, 0, {}
+    for oid in oids:
+        end = out.find(b"\n", at)
+        fields = out[at:end].split() if end >= 0 else []
+        if len(fields) != _ENTRY_FIELDS or fields[0].decode("ascii") != oid or fields[1] != b"blob":
+            raise GateError("git cat-file did not answer a blob for a tracked path")
+        size = int(fields[2])
+        blobs[oid] = out[end + 1 : end + 1 + size]
+        at = end + 2 + size
+    return blobs
+
+
+def _versions(repo: Path, names: Sequence[str]) -> dict[str, list[bytes | None]]:
+    """Each path's distinct bytes: the work tree's, then each differing blob - CS-1292.
+
+    The work tree's bytes come first (None when absent), then each blob of the
+    path's index entries and of ``HEAD`` that differs from them. The work tree
+    alone is not what git publishes: a staged or committed blob, a case-variant
+    path a case-insensitive disk opens as its sibling, or a symlink entry whose
+    blob is its link text all differ from what the path opens on disk.
+    """
+    ids = _blob_ids(repo)
+    raws = {name: (repo / name).read_bytes() if (repo / name).is_file() else None for name in names}
+    wanted: dict[str, None] = {}
+    for name in names:
+        raw = raws[name]
+        own = None if raw is None else _blob_id(raw)
+        wanted.update(dict.fromkeys(oid for oid in ids.get(name, []) if oid != own))
+    blobs = _read_blobs(repo, list(wanted))
+    versions: dict[str, list[bytes | None]] = {}
+    for name in names:
+        found: list[bytes | None] = [raws[name]]
+        for oid in ids.get(name, []):
+            body = blobs.get(oid)
+            if body is not None and body not in found:
+                found.append(body)
+        versions[name] = found
+    return versions
 
 
 def decode_tracked(raw: bytes) -> str | None:
@@ -1089,15 +1199,20 @@ def sweep(
     not_read: list[str] = []
     known_binary: list[str] = []
     pins = load_known_binaries(repo)
-    for name in [*paths, *code_paths]:
-        target = repo / name
-        raw = target.read_bytes() if target.is_file() else None
-        views, read = tracked_views(raw) if raw is not None else ([], False)
-        if not read:
-            known, raw_code, raw_short = _grade_unread(name, raw, views, pins)
-            (known_binary if known else not_read).append(name)
-            code_runs += raw_code
-            short_runs += raw_short
+    names = [*paths, *code_paths]
+    for name, contents in _versions(repo, names).items():
+        views: list[str] = []
+        unread: list[bool] = []
+        for raw in contents:
+            seen, read = tracked_views(raw) if raw is not None else ([], False)
+            if not read:
+                known, raw_code, raw_short = _grade_unread(name, raw, seen, pins)
+                unread.append(known)
+                code_runs += raw_code
+                short_runs += raw_short
+            views += [text for text in seen if text not in views]
+        if unread:
+            (known_binary if all(unread) else not_read).append(name)
         if name in code_set:
             code_runs += _union(scan_code(text, name) for text in views)
         else:

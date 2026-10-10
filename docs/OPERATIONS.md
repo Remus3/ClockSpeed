@@ -184,11 +184,8 @@ and keeps the terminal until you stop it.
 Its options, all optional, are the flag table in section 7.2
 (`python -m clockspeed.surface --help` lists them).
 
-**First result.** Open `https://localhost:<port>/`, where `<port>` is that
-`allocations` entry. The certificate is self-signed and your system does not trust it,
-so the browser shows a certificate warning to accept before the page titled "Clockspeed
-dashboard" loads. `https://localhost:<port>/api/health` answers a compact JSON object
-whose top-level `status` field is `ok`.
+**First result.** What a working start shows is the README's
+[First result](../README.md#first-result).
 
 A machine with no save and no game still starts and still binds; the absence is reported
 as a status, not an error - `/api/health` reports the registry and the world as `absent`.

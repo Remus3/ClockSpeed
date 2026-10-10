@@ -67,14 +67,14 @@ A restated fact is a fact that will drift.
 | File | Owns | Never contains |
 |---|---|---|
 | `CLAUDE.md` | Rules, hard constraints, frozen list, settled decisions, paths, topology | Per-item history, counts, ledger entries |
-| `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
+| `README.md` | Outsiders: what it is, quickstart, first result | Internal process, roadmap, session notes |
 | `ROADMAP.md` | OPEN work only - the item LINE alone: its ID, a short headline, the acceptance POINTER and the tier | Completed work, aspirational ideas, NOTE bodies, any PART of an acceptance clause |
 | `docs/item_notes.md` | The INDEX over `docs/item_notes/` - the leaf membership rule plus the rules every leaf obeys | Any item body, item lines, a per-item routing row, completion records, history |
 | `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID, and the SOLE owner of a pointed-at acceptance clause under its `### Acceptance` heading | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
 | `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
-| `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
+| `docs/OPERATIONS.md` | Full install, commands, restart, schedules, runbooks | Architecture, rationale |
 | `docs/adr/` | One file per architectural decision, indexed in `docs/adr/README.md` | Anything not a decision |
 | `docs/GATED.md` | Items blocked on something outside the repo | Items merely unstarted |
 | `docs/upstream_watch.md` | The upstream wiki watch list and the ordering it is read in | Lifted upstream content, the CS-485 licence verdict |

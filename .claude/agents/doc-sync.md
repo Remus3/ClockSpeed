@@ -45,20 +45,8 @@ and you do not restate measured numbers.
 
 ## Ownership map - every fact has exactly ONE owner file
 
-| File | Owns | Never contains |
-|---|---|---|
-| `CLAUDE.md` | Rules, hard constraints, frozen list, settled decisions, paths, topology | Per-item history, counts, ledger entries |
-| `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
-| `ROADMAP.md` | OPEN work only, with IDs and acceptance criteria | Completed work, aspirational ideas |
-| `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything being worked |
-| `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
-| `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
-| `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
-| `docs/adr/` | One file per architectural decision, indexed in `docs/adr/README.md` | Anything not a decision |
-| `docs/GATED.md` | Items blocked on something OUTSIDE the repo | Items merely unstarted |
-| `WAKEUP_NOTES.md` | Last 2-3 sessions at full fidelity | Anything older - archive it |
-| `docs/history_notes.md` | Deep archive of pruned notes and old ledger items | Current state |
-| `memory/` | Durable cross-session facts | Project state derivable from code |
+The map is the ownership table in `CLAUDE.md` section 4. Read it there; this file
+restates no row of it, so the two cannot drift apart.
 
 ## Procedure
 

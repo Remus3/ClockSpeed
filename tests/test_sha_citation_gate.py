@@ -878,6 +878,133 @@ def test_a_png_named_text_file_is_still_read_and_judged(code_repo: Repo) -> None
     assert _not_read(done.stdout) == 0
 
 
+# --- CS-1292: the bytes git would publish, not only the work tree's ------------
+
+
+def _stage_blob(repo: Repo, scratch: Path, name: str, body: bytes, mode: str = "100644") -> None:
+    """Put ``body`` in the index at ``name`` and leave the work tree untouched."""
+    source = scratch / "blob.bin"
+    source.write_bytes(body)
+    blob = repo.git("hash-object", "-w", "--no-filters", str(source))
+    repo.git("update-index", "--add", "--cacheinfo", f"{mode},{blob},{name}")
+
+
+def _unpublished(repo: Repo) -> str:
+    """A 7-character abbreviation of a side-branch commit HEAD cannot reach."""
+    return commit_where(repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")[:7]
+
+
+def test_a_smuggle_staged_behind_a_clean_pinned_work_tree_fails_the_run(
+    code_repo: Repo, tmp_path: Path
+) -> None:
+    """The index blob is judged: a clean pinned file on disk hides no staged smuggle."""
+    token = _unpublished(code_repo)
+    clean = _png()
+    _track(code_repo, KNOWN_PNG, clean)
+    _pin_binaries(code_repo, {KNOWN_PNG: clean})
+    _stage_blob(code_repo, tmp_path, KNOWN_PNG, clean + _smuggle(token))
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {KNOWN_PNG}:" in done.stdout
+    assert f" {token} " in done.stdout
+    assert f"not-read-file {KNOWN_PNG}" in done.stdout
+
+
+def test_a_smuggle_committed_at_head_behind_a_clean_index_fails_the_run(code_repo: Repo) -> None:
+    """HEAD's blob is judged: restoring the index and the work tree hides no commit."""
+    token = _unpublished(code_repo)
+    clean = _png()
+    _track(code_repo, KNOWN_PNG, clean + _smuggle(token))
+    _pin_binaries(code_repo, {KNOWN_PNG: clean})
+    code_repo.git("commit", "-q", "-m", "smuggle")
+    _track(code_repo, KNOWN_PNG, clean)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {KNOWN_PNG}:" in done.stdout
+    assert f" {token} " in done.stdout
+
+
+def test_a_case_variant_pin_never_admits_a_smuggled_blob(code_repo: Repo, tmp_path: Path) -> None:
+    """A case-variant path opens the clean file on a case-insensitive disk; its blob is judged.
+
+    The variant is pinned with the clean file's reviewed hash, as the leak adversary
+    did, so only the blob's own bytes can tell the two apart.
+    """
+    code_repo.git("config", "core.ignorecase", "false")
+    token = _unpublished(code_repo)
+    clean = _png()
+    variant = "docs/assets/Known.png"
+    _track(code_repo, KNOWN_PNG, clean)
+    _stage_blob(code_repo, tmp_path, variant, clean + _smuggle(token))
+    _pin_binaries(code_repo, {KNOWN_PNG: clean, variant: clean})
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {variant}:" in done.stdout
+    assert f" {token} " in done.stdout
+    assert f"not-read-file {variant}" in done.stdout
+
+
+def test_an_index_only_case_variant_of_a_doc_is_judged_by_its_blob(
+    code_repo: Repo, tmp_path: Path
+) -> None:
+    """``CLAUDE.MD`` staged beside ``CLAUDE.md``: the variant's own blob is read and judged."""
+    code_repo.git("config", "core.ignorecase", "false")
+    token = _unpublished(code_repo)
+    variant = GUARDED_DOC.upper()
+    assert variant != GUARDED_DOC, "control: the variant must differ in case"
+    _stage_blob(code_repo, tmp_path, variant, f"Landed as `{token}`.\n".encode("ascii"))
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {variant}:1 {token} " in done.stdout
+
+
+def test_a_symlink_entry_is_judged_by_its_blob(code_repo: Repo, tmp_path: Path) -> None:
+    """A mode-120000 entry's blob is its link text; a citation in it fails the run."""
+    token = _unpublished(code_repo)
+    clean = _png()
+    _track(code_repo, KNOWN_PNG, clean)
+    _pin_binaries(code_repo, {KNOWN_PNG: clean})
+    _stage_blob(code_repo, tmp_path, KNOWN_PNG, f"../{token}/target".encode("ascii"), "120000")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {KNOWN_PNG}:1 {token} " in done.stdout
+
+
+def _nul_hidden(text: str, shape: str) -> bytes:
+    """``text`` in a shape whose raw bytes carry no plain hex run - NULs between its pieces."""
+    if shape == "utf16le-no-bom":
+        return text.encode("utf-16-le")
+    if shape == "utf16be-no-bom":
+        return text.encode("utf-16-be")
+    return b"\x00".join(text[i : i + 4].encode("ascii") for i in range(0, len(text), 4))
+
+
+@pytest.mark.parametrize("shape", ["utf16le-no-bom", "utf16be-no-bom", "nul-split"])
+def test_a_citation_hidden_by_nuls_in_a_pinned_binary_fails_the_run(
+    code_repo: Repo, shape: str
+) -> None:
+    """A not-read file's bytes are also graded with every NUL removed - exit 1, pinned or not."""
+    token = _unpublished(code_repo)
+    hidden = _nul_hidden(f"\n# RED at {token}: the push landed.\n", shape)
+    assert token.encode("ascii") not in hidden, "control: no plain hex run in the raw bytes"
+    body = _png() + hidden
+    _track(code_repo, KNOWN_PNG, body)
+    _pin_binaries(code_repo, {KNOWN_PNG: body})
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {KNOWN_PNG}:" in done.stdout
+    assert f" {token} " in done.stdout
+
+
+def test_every_run_states_what_the_byte_grade_cannot_see() -> None:
+    """A compressed citation is invisible to the byte grade; the run says so, every run."""
+    reason = gate.KNOWN_BINARY_REASON
+    assert "NUL removed" in reason
+    assert "compressed" in reason
+    assert "pin" in reason
+    assert "index and HEAD" in gate.NOT_READ_REASON
+
+
 def test_a_utf32_file_with_a_bom_is_decoded_and_judged(code_repo: Repo) -> None:
     """A UTF-32 BOM opens with the UTF-16 one; it is told apart, decoded and judged."""
     side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
@@ -1052,14 +1179,19 @@ def test_a_bom_file_whose_bytes_carry_an_ascii_citation_is_judged(
 def test_a_utf16_file_carrying_u0000_is_never_a_pass(
     code_repo: Repo, lead: str, mark: bytes
 ) -> None:
-    """U+0000 first opens UTF-16LE with the UTF-32LE mark; later, it is a NUL: exit 2 both."""
+    """U+0000 first opens UTF-16LE with the UTF-32LE mark; later, it is a NUL: exit 1 both.
+
+    Either way the file is not read, and its citation - joined once its NULs are
+    removed (CS-1292) - fails the run, never a pass.
+    """
     side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
     text = (REPO_ROOT / CODE_FILE).read_bytes().decode("utf-8")
     body = (lead + text + f"\n# RED at {side[:7]}: the push landed.\n").encode("utf-16")
     assert body.startswith(mark)
     (code_repo.path / CODE_FILE).write_bytes(body)
     done = cli(code_repo)
-    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f" {side[:7]} " in done.stdout
     assert _not_read(done.stdout) == 1
     assert f"not-read-file {CODE_FILE}" in done.stdout
 

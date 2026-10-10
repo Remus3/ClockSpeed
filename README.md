@@ -178,8 +178,15 @@ python scripts/make_cert.py
 python -m clockspeed.surface
 ```
 
-Open `https://localhost:<port>/` (the port `verify_env.py` prints) past the certificate warning.
 Full procedure: [`docs/OPERATIONS.md` 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch).
+
+## First result
+
+Open `https://localhost:<port>/`, where `<port>` is the `allocations` entry in
+`config/ports.json` that `scripts/verify_env.py` prints. The certificate is self-signed and
+your system does not trust it, so the browser shows a certificate warning to accept before
+the page titled "Clockspeed dashboard" loads. `https://localhost:<port>/api/health` answers
+a compact JSON object whose top-level `status` field is `ok`.
 
 ## How it is built
 
