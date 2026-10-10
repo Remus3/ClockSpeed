@@ -535,3 +535,16 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   side by side. A vendored kit file is never edited here (FLEET-COMMON 11); the report is ONE
   note to MAIN, owed by the next session - TRIGGER: a kit lands whose stale limit outlasts a
   pre-push suite, or MAIN rules the limit stands; close this line then.
+
+## Session 135 residuals - filed 2026-10-09 under product before process
+
+- CS-1305 - `child_failure` in `tests/test_cs1172_branch_canaries.py` and
+  `tests/test_cs1175_rule_narrowing.py` joins its redaction pattern from the canaries in
+  their own order, not longest-first, so where one canary is a prefix (2 pairs) or a
+  substring (5 pairs) of another a shorter match can win and leave a tail unredacted;
+  unreachable today (CS-1301 adversary pass) - TRIGGER: a canary added, or `child_failure`
+  rendering more than identifiers.
+- CS-1306 - literal checkout roots remain in `tests/ops/test_driver_module_binding.py`,
+  `tests/ops/test_row_claim.py`, `tests/test_queue_loop.py` and `ops/loop/inbox_responder.py`
+  (the last in its scheduled-task command line) - TRIGGER: a checkout at another root, or
+  any of the four next touched.

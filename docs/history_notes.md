@@ -24,6 +24,31 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1301 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-09
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1301
+
+### Acceptance
+
+`tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary` and
+`tests/test_cs1175_rule_narrowing.py::test_showlocals_forced_red_output_renders_no_canary`
+pass under the pre-push invocation on a loaded box, or fail naming the inner run's own
+failure - never a bare "the leaky control did not fail: exit 2"; the inner run's exit 2
+under load is traced to its cause and fixed there; neither leaky control is weakened and no
+budget is raised.
+
+### Filed 2026-10-09 by the session 134 /done
+
+Each arm drives a child pytest as a leaky control that must fail on its canary. Under box
+load the child exits 2 - a usage or collection error, not the expected test failure - so
+the arm reports that the control "did not fail: exit 2" and goes red. Each passes alone (the
+session 133 /done re-ran the first alone: exit 0). Both have stopped a `-x` pre-push whole
+suite under load, so the class is filed under the `CLAUDE.md` section 7 suite-red exception.
+
+
 ## CS-959 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-10-09
 
 **Moved here from `docs/item_notes/phase4-followups-900.md` when the item closed.**

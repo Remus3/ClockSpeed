@@ -1832,25 +1832,6 @@ rate on base `94b9318` and on the TIER2-RED fix candidate (the branch whose tip 
 causes nor cures it. A collection error reddens any suite that runs the file, so it is filed
 under the `CLAUDE.md` section 7 suite-red exception. The cause is unmeasured.
 
-## CS-1301
-
-### Acceptance
-
-`tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary` and
-`tests/test_cs1175_rule_narrowing.py::test_showlocals_forced_red_output_renders_no_canary`
-pass under the pre-push invocation on a loaded box, or fail naming the inner run's own
-failure - never a bare "the leaky control did not fail: exit 2"; the inner run's exit 2
-under load is traced to its cause and fixed there; neither leaky control is weakened and no
-budget is raised.
-
-### Filed 2026-10-09 by the session 134 /done
-
-Each arm drives a child pytest as a leaky control that must fail on its canary. Under box
-load the child exits 2 - a usage or collection error, not the expected test failure - so
-the arm reports that the control "did not fail: exit 2" and goes red. Each passes alone (the
-session 133 /done re-ran the first alone: exit 0). Both have stopped a `-x` pre-push whole
-suite under load, so the class is filed under the `CLAUDE.md` section 7 suite-red exception.
-
 ## CS-1302
 
 ### Acceptance
@@ -1870,3 +1851,28 @@ wrong for the other. `b64b41a` repaired that one site (the test calls through an
 name, with no ignore) and tier1 37971510248 at `319cd8a` read green; the skew remains. Filed
 under the `CLAUDE.md` section 7 suite-red exception. ruff and pytest-xdist in the same extra
 already carry upper bounds, for the same lesson; pytest floats like mypy.
+
+## CS-1304
+
+### Acceptance
+
+The forced run's exit 2 under load in the forced-red arms of
+`tests/test_cs1172_branch_canaries.py` and `tests/test_cs1175_rule_narrowing.py` is traced
+to its cause, read from the run's own `child_failure` report, and fixed there; both files
+then run 30 consecutive times under `-n 2 --dist loadfile` with no forced or control child
+exit 2. A child that dies of a Windows status past 255 (shown in hex) is a box-resource
+death, recorded with its reading and not counted as this defect. No leaky control is
+weakened, no budget is raised and no case is skipped.
+
+### Filed 2026-10-09 by the CS-1301 merge
+
+CS-1301's builder recorded in its second commit ("CS-1301 - the forced runs name their own
+failure, statuses in hex") that its first 30x loop under `-n 2 --dist loadfile`, on a box at
+its commit limit, read a control child exit 3221225773 (0xC000012D, the paging file too
+small) and a forced run that "did not fail: exit 2". That forced-run message was still bare,
+so its cause was not recorded; both forced-run code assertions now report through
+`child_failure`, so the next reading names the child's error types and frames. CS-1301 traced
+the leaky control's exit 2 to a cross-drive collection walk and cut it with `--confcutdir`;
+the forced run's paths are in the repo, so that cut does not reach it, and whether it shares
+the cause is unmeasured. An exit 2 there reddens any suite that runs the files, so it is
+filed under the `CLAUDE.md` section 7 suite-red exception.

@@ -75,6 +75,40 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1301 - CLOSED: the canary arms' leaky controls cut collection at their own tmp dir, and every child failure names itself
+
+Cause traced: each forced-red arm's leaky control ran a child pytest from the repo on one
+drive against a path under the temp root on another; with no common ancestor the child's
+confcutdir stayed at the repo, so its collection walked every ancestor of the temp path and
+lstat'ed each sibling, and a sibling a concurrent run's temp cleanup removed mid-walk gave
+exit 2 (FileNotFoundError in lstat). Fixed there: `control_pytest` passes
+`--confcutdir=<tmp_path>` on the leaky-control child calls only - the forced runs' paths are
+in the repo and keep `child_pytest` unchanged; neither leaky control is weakened and no
+budget is raised. A non-1 control exit and a forced run that does not fail both report
+through `child_failure` - error types and frames only, canary values redacted, an exit past
+255 shown in hex as the Windows status it is. New arms in both files load a `-p` plugin that
+rmdirs a sibling of `tmp_path` during collection: red before the cut (exit 2, FileNotFoundError
+in lstat), green after. Adversary pass (lenses scope, leak, red-for-right-reason): NOT
+REFUTED. Landed by cherry-pick with the builder's two commit messages; read back on main: both
+files byte-equal to the candidate tip, `python -m pytest tests/test_cs1172_branch_canaries.py
+tests/test_cs1175_rule_narrowing.py -q -n 2 --dist loadfile` exit 0, `python
+tools/drift_guard.py` CLEAN exit 0. Residual filed: the builder's first 30x loop, on a box at
+its commit limit, read a forced run "did not fail: exit 2" with its message still bare -
+CS-1304. Ruling (adjudicator) on a sibling the brief named,
+`tests/save/test_synthetic.py::test_a_failing_builder_call_renders_its_arguments`: FILE
+NOTHING. Its `_probe_sandbox` plants a `pytest.ini`, so pytest roots the child and defaults
+its confcutdir at the sandbox and neither upward walk runs - measured, a child started from
+the repo against a temp sandbox reports both at the sandbox -
+and `test_the_probe_sandbox_pins_the_child_rootdir_at_itself` already reddens if the pin goes.
+Alternatives rejected: a ROADMAP item (premise refuted, blocks no product item, no suite red)
+and a BACKLOG line (its trigger would surface as a red suite anyway). Section relocated to
+`docs/history_notes.md`.
+
+Verification: `tests/test_cs1172_branch_canaries.py::test_a_reaped_sibling_leaves_the_control_red_forced_red_output`,
+`tests/test_cs1175_rule_narrowing.py::test_a_reaped_sibling_leaves_the_control_red_forced_red_output`,
+`tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary` and
+`tests/test_cs1175_rule_narrowing.py::test_showlocals_forced_red_output_renders_no_canary`.
+
 ### 2026-10-09 - CS-1303 - vendor FLEET-KIT v15
 
 Source: MAIN ORDER note 2026-10-09-2055 (FLEET-KIT v15), provenance verified - note sha256
