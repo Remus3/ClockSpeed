@@ -571,6 +571,7 @@ tools/precommit_gate.py	authored	CS-1165	first-add:root
 tools/pretooluse_gate.py	authored	CS-425	first-add:CS-425
 tools/provenance.tsv	authored	CS-1165	stamped
 tools/provenance_stamp.py	authored	CS-1165	first-add:CS-1165
+tools/sha_citation_binaries.json	authored	CS-1292	stamped
 tools/sha_citation_gate.py	authored	CS-1222	stamped
 tools/sha_citation_historical.json	authored	CS-700	stamped
 tools/tier1_concentration.json	authored	CS-900	first-add:CS-900

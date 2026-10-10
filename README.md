@@ -178,10 +178,8 @@ python scripts/make_cert.py
 python -m clockspeed.surface
 ```
 
-Open `https://localhost:<port>/`, with the port `scripts/verify_env.py` prints, and accept
-the self-signed certificate. The full procedure - prerequisites, PowerShell, `openssl` on
-PATH, a first ratio and the environment variables that point it at your game - is
-[`docs/OPERATIONS.md` section 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch).
+Open `https://localhost:<port>/` (the port `verify_env.py` prints) past the certificate warning.
+Full procedure: [`docs/OPERATIONS.md` 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch).
 
 ## How it is built
 

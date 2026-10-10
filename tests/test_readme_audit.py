@@ -18,14 +18,21 @@ from __future__ import annotations
 
 import re
 import struct
+import sys
 import tomllib
-from typing import TYPE_CHECKING, Final
+from pathlib import Path
+from typing import Final
+
+import pytest
 
 from clockspeed.data import locate
 from clockspeed.surface import config
 
-if TYPE_CHECKING:
-    from pathlib import Path
+_TOOLS_DIR: Final = Path(__file__).resolve().parents[1] / "tools"
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+import doc_sweep  # noqa: E402
 
 #: MAIN's stated budget: "README under ~220 lines".
 README_LINE_BUDGET: Final = 220
@@ -35,7 +42,40 @@ ASSET_IMAGES: Final = 2
 
 #: "a Quickstart of about 10 lines" - prose and command lines; fences and a
 #: thematic break are layout, not lines of the Quickstart.
-QUICKSTART_LINE_BUDGET: Final = 12
+QUICKSTART_LINE_BUDGET: Final = 10
+
+#: The banner: the README's FIRST image, above its first section.
+BANNER: Final = "docs/assets/social-preview.png"
+
+#: Every fenced command line the README's install section carried before CS-1292
+#: moved it, each of which docs/OPERATIONS.md section 1.2 must still hold.
+MOVED_COMMANDS: Final = (
+    "python --version",
+    "git --version",
+    "python -m venv .venv",
+    ".venv\\Scripts\\activate",
+    'python -m pip install -e ".[dev]"',
+    "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force",
+    "python scripts/install_hooks.py",
+    "python scripts/verify_env.py",
+    'set "PATH=%PATH%;<Git install>\\usr\\bin"',
+    "python scripts/make_cert.py",
+    "python -m clockspeed.surface",
+    'curl.exe -s -k -X POST "https://localhost:<port>/api/solve?targets=Desc_IronIngot_C=30'
+    '&recipes=Recipe_IngotIron_C&raw_items=Desc_OreIron_C&byproduct_policy=balanced"',
+)
+
+#: The inline commands that install section spelled in prose.
+MOVED_INLINE: Final = (
+    "`source .venv/Scripts/activate`",
+    '`$env:Path += ";<Git install>\\usr\\bin"`',
+    "`git --exec-path`",
+    "`openssl version`",
+    "`python -m clockspeed.surface --help`",
+)
+
+#: The dashboard flags its option table named; section 7.2's flag table owns them now.
+MOVED_FLAGS: Final = ("`--port", "`--cert-dir", "`--no-world`")
 
 #: The PNG chunk types an image may carry. Everything else - tEXt, zTXt, iTXt,
 #: eXIf, tIME and any private chunk - can hold text a renderer stamped in, so it
@@ -46,14 +86,18 @@ PNG_ALLOWED_CHUNKS: Final = frozenset(
 
 PNG_SIGNATURE: Final = b"\x89PNG\r\n\x1a\n"
 
-#: A drive-rooted spelling of the project folder, either slash, any case.
-ABSOLUTE_CHECKOUT_RE: Final = re.compile(r"[A-Za-z]:[\\/]+Clockspeed", re.IGNORECASE)
+#: A drive-rooted spelling of the project folder, any case: ``X:\Clockspeed`` or
+#: ``X:/Clockspeed``, and Git Bash's ``/x/Clockspeed`` for any drive letter.
+ABSOLUTE_CHECKOUT_RE: Final = re.compile(
+    r"(?:[A-Za-z]:[\\/]+|(?<![\w.~/-])/[A-Za-z]/)Clockspeed", re.IGNORECASE
+)
 
 #: The two docs the acceptance names, plus the two this item rewrote.
 AUDITED_DOCS: Final = ("docs/LEDGER.md", "docs/history_notes.md", "README.md", "docs/OPERATIONS.md")
 
-#: A Python-version-shaped token: 3.N or 3.NN not inside a longer number.
-PY_VERSION_RE: Final = re.compile(r"(?<![\d.])3\.\d{1,2}(?![\d.])")
+#: A Python-version-shaped token, whole: 3.N or 3.NN plus any further ``.N`` parts,
+#: so ``3.13.0`` is one token and never equals the floor ``3.13``.
+PY_VERSION_RE: Final = re.compile(r"(?<![\d.])3\.\d{1,2}(?:\.\d+)*(?![\d.])")
 
 IMAGE_RE: Final = re.compile(r"!\[[^\]]*\]\((?P<target>[^)\s]+)\)")
 
@@ -70,6 +114,22 @@ ENV_OVERRIDES: Final = (
 
 def _readme(repo_root: Path) -> str:
     return (repo_root / "README.md").read_text(encoding="ascii")
+
+
+def _operations(repo_root: Path) -> str:
+    return (repo_root / "docs" / "OPERATIONS.md").read_text(encoding="ascii")
+
+
+def _subsection(markdown: str, prefix: str) -> str:
+    """The lines from the heading starting ``prefix`` to the next ``##`` or ``###`` heading."""
+    lines = markdown.splitlines()
+    starts = [n for n, line in enumerate(lines) if line.startswith(prefix)]
+    assert len(starts) == 1, f"{len(starts)} heading(s) start {prefix!r}"
+    end = next(
+        (n for n in range(starts[0] + 1, len(lines)) if re.match(r"#{2,3} ", lines[n])),
+        len(lines),
+    )
+    return "\n".join(lines[starts[0] : end])
 
 
 def _sections(markdown: str) -> dict[str, str]:
@@ -108,9 +168,10 @@ def test_readme_shows_a_banner_and_a_dashboard_screenshot(repo_root: Path) -> No
     assert len(assets) >= ASSET_IMAGES, f"README.md shows {len(assets)} docs/assets PNG(s)"
     for target in assets:
         assert (repo_root / target).is_file(), f"README image {target} does not exist"
-    banner = IMAGE_RE.search(text)
-    assert banner is not None, "README.md shows no image"
-    assert banner.start() < text.find("\n## "), "no banner above the first section"
+    first = IMAGE_RE.search(text)
+    assert first is not None, "README.md shows no image"
+    assert first.group("target") == BANNER, f"the first image is {first.group('target')}"
+    assert first.start() < text.find("\n## "), "the banner is not above the first section"
 
 
 def test_asset_pngs_carry_no_text_metadata(repo_root: Path) -> None:
@@ -160,16 +221,48 @@ def test_quickstart_is_short_and_links_the_install_doc(repo_root: Path) -> None:
         if line.strip() and not line.startswith("```") and line.strip() != "---"
     ]
     assert len(body) <= QUICKSTART_LINE_BUDGET, f"Quickstart has {len(body)} lines"
-    assert "](docs/OPERATIONS.md#" in sections["Quickstart"], "Quickstart links no install doc"
+
+
+def test_the_quickstart_link_lands_on_a_real_install_heading(repo_root: Path) -> None:
+    """Every README fragment into docs/OPERATIONS.md resolves there, GitHub's rule.
+
+    The Quickstart must carry one; the Requirements table's openssl row carries
+    another, and both are resolved against the target's real headings.
+    """
+    link = re.compile(r"\]\(docs/OPERATIONS\.md#([^)\s]+)\)")
+    quickstart = _sections(_readme(repo_root)).get("Quickstart", "")
+    assert link.search(quickstart), "Quickstart links no heading of docs/OPERATIONS.md"
+    landed = doc_sweep.anchors(_operations(repo_root))
+    fragments = link.findall(_readme(repo_root))
+    missing = [fragment for fragment in fragments if fragment not in landed]
+    assert not missing, f"README fragment(s) {missing} name no heading"
+
+
+def test_section_1_2_holds_every_moved_command(repo_root: Path) -> None:
+    """Nothing the README's install section spelled was dropped on the way to section 1.2."""
+    operations = _operations(repo_root)
+    section = _subsection(operations, "### 1.2 ")
+    fenced = {
+        line.strip()
+        for block in re.findall(r"^```[^\n]*\n(.*?)^```", section, re.MULTILINE | re.DOTALL)
+        for line in block.splitlines()
+    }
+    missing = [command for command in MOVED_COMMANDS if command not in fenced]
+    assert not missing, f"section 1.2 lacks fenced command(s) {missing}"
+    absent = [inline for inline in MOVED_INLINE if inline not in section]
+    assert not absent, f"section 1.2 lacks inline command(s) {absent}"
+    flags = _subsection(operations, "### 7.2 ")
+    unowned = [flag for flag in MOVED_FLAGS if f"| {flag}" not in flags]
+    assert not unowned, f"section 7.2 owns no row for {unowned}"
 
 
 def test_env_var_table_lives_in_the_install_doc(repo_root: Path) -> None:
     readme = _readme(repo_root)
-    operations = (repo_root / "docs" / "OPERATIONS.md").read_text(encoding="ascii")
+    section = _subsection(_operations(repo_root), "### 1.2 ")
     for name in ENV_OVERRIDES:
         row = f"| `{name}` |"
         assert row not in readme, f"README.md still carries the {name} row"
-        assert row in operations, f"docs/OPERATIONS.md has no {name} row"
+        assert row in section, f"docs/OPERATIONS.md section 1.2 has no {name} row"
 
 
 def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
@@ -182,6 +275,24 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
     assert block is not None, "CITATION.cff has no authors block"
     names = re.findall(r"^\s*-?\s*name:\s*(.+?)\s*$", block.group(1), re.MULTILINE)
     assert names == [holder], f"CITATION.cff authors {names} != LICENSE holder [{holder!r}]"
+
+
+@pytest.mark.parametrize(
+    ("text", "hit"),
+    [
+        ("root is C:\\Clockspeed now", True),
+        ("`e:/clockspeed/tools/x.py`", True),
+        ("`cd /c/Clockspeed && <cmd>`", True),
+        ("under /E/CLOCKSPEED/.git", True),
+        ("root is `<repo>` on E:", False),
+        ("https://github.com/Remus3/Clockspeed", False),
+        ("/srv/work/Clockspeed/Clockspeed", False),
+    ],
+    ids=["drive-backslash", "drive-slash", "git-bash", "git-bash-upper", "scrubbed", "url", "ci"],
+)
+def test_the_checkout_path_pattern_catches_every_spelling(text: str, *, hit: bool) -> None:
+    """The guard's own mutation arm: each spelling of the checkout path is caught."""
+    assert bool(ABSOLUTE_CHECKOUT_RE.search(text)) is hit
 
 
 def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:

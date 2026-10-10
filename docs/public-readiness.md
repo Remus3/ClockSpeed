@@ -188,9 +188,12 @@ them on the new repository after S10.
 | Community profile | All rows set, re-read while private | CS-959 |
 | Social preview image | Not set - the API cannot set it | Operator, manual |
 
-**Social preview.** A 1280x640 PNG is generated at `data/social-preview.png`, which is
-gitignored, so no binary enters history. Upload it at Settings > General > Social
-preview.
+**Social preview.** The 1280x640 card is tracked at `docs/assets/social-preview.png`
+(CS-1292), beside the README's dashboard screenshot. They are the tree's only binaries:
+rendered from synthetic content, PNG text chunks stripped, and each pinned by path and
+SHA-256 in `tools/sha_citation_binaries.json`. The CLEAR rows above were measured before
+they were added. Upload `docs/assets/social-preview.png` at Settings > General > Social
+preview; the gitignored `data/social-preview.png` is a byte copy of it.
 
 ---
 
@@ -202,4 +205,4 @@ preview.
 2. After publication: enable private vulnerability reporting, secret scanning and push
    protection.
 3. Re-apply the settings table above on the recreated repository.
-4. Upload `data/social-preview.png` as the social preview.
+4. Upload `docs/assets/social-preview.png` as the social preview.

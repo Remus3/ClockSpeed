@@ -1,7 +1,8 @@
 # Clockspeed - Operations
 
-**Owner file for:** commands, the fresh-clone bootstrap, verification policy in operator
-terms, ports, MCP re-wire, and runbooks.
+**Owner file for:** the full install procedure (section 1.2; `README.md` keeps only the
+quickstart and first result), commands, the fresh-clone bootstrap, verification policy in
+operator terms, ports, MCP re-wire, and runbooks.
 
 **This file never contains:** architecture or rationale (those are
 `docs/ARCHITECTURE.md` and `docs/adr/`), and never restates a measured value that a

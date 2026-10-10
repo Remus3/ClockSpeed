@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import os
 import shutil
 import struct
@@ -771,6 +772,17 @@ def _track(repo: Repo, name: str, body: bytes) -> None:
     repo.git("add", "--", name)
 
 
+def _pin_binaries(repo: Repo, rows: dict[str, bytes]) -> None:
+    """Track a hash-pin file naming each path with the SHA-256 of ``rows[path]``."""
+    pins = {name: hashlib.sha256(body).hexdigest() for name, body in rows.items()}
+    _track(repo, gate.KNOWN_BINARY_FILE, (json.dumps(pins, indent=2) + "\n").encode("ascii"))
+
+
+def _smuggle(token: str) -> bytes:
+    """PNG magic, a NUL, then plain text citing ``token`` - binary to the decoder."""
+    return PNG_MAGIC + b"\x00" + f"\n# RED at {token}: the push landed.\n".encode("ascii")
+
+
 def _known_binary(stdout: str) -> int:
     """The known-binary count a run printed."""
     for line in stdout.splitlines():
@@ -781,13 +793,12 @@ def _known_binary(stdout: str) -> int:
     raise AssertionError(message)
 
 
-def test_a_tracked_png_is_skipped_as_known_binary_and_never_left_unread(
-    code_repo: Repo,
-) -> None:
-    """A listed extension whose bytes open with its magic is counted, named, and not read."""
+def test_a_pinned_png_is_counted_known_binary_and_never_left_unread(code_repo: Repo) -> None:
+    """A binary whose path AND SHA-256 match a pin is counted and named, never not-read."""
     body = _png()
     assert b"\0" in body, "control: these bytes must be binary to the reader"
     _track(code_repo, KNOWN_PNG, body)
+    _pin_binaries(code_repo, {KNOWN_PNG: body})
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
     assert _not_read(done.stdout) == 0
@@ -797,17 +808,21 @@ def test_a_tracked_png_is_skipped_as_known_binary_and_never_left_unread(
 
 
 @pytest.mark.parametrize(
-    ("name", "body"),
+    ("name", "body", "pinned"),
     [
-        ("docs/assets/unlisted.bin", _png()),
-        ("docs/assets/unlisted.jpg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00"),
-        ("docs/assets/forged.png", b"\x00\x01not a png at all\xff\xfe\x00"),
+        (KNOWN_PNG, _png(), b""),
+        ("docs/assets/unlisted.jpg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00", b""),
+        (KNOWN_PNG, _png(), _png() + b"\x00"),
     ],
-    ids=["unlisted-extension", "unlisted-image-format", "listed-extension-wrong-magic"],
+    ids=["png-with-no-pin", "unlisted-image-format", "pinned-path-other-bytes"],
 )
-def test_an_unlisted_binary_is_still_not_read(code_repo: Repo, name: str, body: bytes) -> None:
-    """The exemption fails closed: anything short of extension AND magic stays not-read."""
+def test_an_unpinned_binary_is_still_not_read(
+    code_repo: Repo, name: str, body: bytes, pinned: bytes
+) -> None:
+    """The pin fails closed: a binary off the list, or off its pinned hash, stays not-read."""
     _track(code_repo, name, body)
+    if pinned:
+        _pin_binaries(code_repo, {name: pinned})
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
     assert _not_read(done.stdout) == 1
@@ -815,8 +830,44 @@ def test_an_unlisted_binary_is_still_not_read(code_repo: Repo, name: str, body: 
     assert _known_binary(done.stdout) == 0
 
 
+@pytest.mark.parametrize("pinned", [False, True], ids=["unpinned", "pinned-to-itself"])
+def test_a_citation_smuggled_behind_png_magic_fails_the_run(code_repo: Repo, pinned: bool) -> None:
+    """PNG magic, a NUL, then an unpublished citation: its raw bytes are graded - exit 1.
+
+    A pin admits a file to known-binary; it never stops its bytes being graded, so
+    pinning the smuggle file's own hash still fails the run.
+    """
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    name = "docs/assets/smuggle.png"
+    body = _smuggle(side[:7])
+    _track(code_repo, name, body)
+    if pinned:
+        _pin_binaries(code_repo, {name: body})
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:" in done.stdout
+    assert f" {side[:7]} " in done.stdout
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"not json\n",
+        b'{"docs/assets/known.png": "beef"}\n',
+        b'{"../outside.png": "' + b"a" * 64 + b'"}\n',
+    ],
+    ids=["not-json", "short-digest", "path-outside-the-tree"],
+)
+def test_a_malformed_pin_file_could_not_judge(code_repo: Repo, body: bytes) -> None:
+    """A pin file the gate cannot trust is refused, exit 2 - never read as an empty list."""
+    _track(code_repo, gate.KNOWN_BINARY_FILE, body)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert "COULD NOT JUDGE" in done.stderr
+
+
 def test_a_png_named_text_file_is_still_read_and_judged(code_repo: Repo) -> None:
-    """The exemption never hides text: a decodable .png is scanned like any code file."""
+    """The pin never hides text: a decodable .png is scanned like any code file."""
     side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
     name = "docs/assets/text.png"
     _track(code_repo, name, f"# RED at {side[:7]}: the push landed.\n".encode("ascii"))

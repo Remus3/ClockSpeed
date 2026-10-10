@@ -3195,7 +3195,7 @@ dispatched subagents was DENIED before executing, with `can't open file
 cwd, so the blast radius is not the session that moved. The four each lost their shell for
 their whole run and returned explicit UNVERIFIABLE verdicts: between them not one sha256,
 byte count, mtime, `git worktree list`, `git log -S` or `git check-ignore` exit code was
-obtainable. A bare `pwd` was refused, and `cd /c/Clockspeed && <cmd>` was refused too,
+obtainable. A bare `pwd` was refused, and `cd <repo> && <cmd>` was refused too,
 because the hook fires BEFORE the command - so the shell cannot recover itself and
 recovery took a non-shell tool.
 

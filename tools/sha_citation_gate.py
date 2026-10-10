@@ -36,8 +36,10 @@ UTF-8 with replacement; one that is absent or carries a NUL is NOT READ, every
 run prints that count and each such path, and any such file makes the run
 COULD NOT JUDGE - a file dropping out is never a pass - unless an unpublished
 finding makes it FAIL, which outranks it and prints both. The one exception is a
-not-read file of a listed binary format (:data:`KNOWN_BINARY`, extension AND
-magic): it is counted known-binary and named instead (CS-1292). A BOM-marked file is
+not-read file whose path AND SHA-256 match a row of :data:`KNOWN_BINARY_FILE`: it
+is counted known-binary and named instead (CS-1292). Either way a not-read file's
+raw bytes are still graded as latin-1, so a citation hidden behind a NUL is found
+and fails the run. A BOM-marked file is
 decoded STRICTLY (a failure is NOT READ, never replacement) and is always also
 scanned as raw latin-1 bytes, the runs being the union, because
 8-bit text behind a stray mark decodes as CJK with every hex run gone. All three
@@ -297,21 +299,23 @@ NOT_READ_REASON: Final = (
     "unless an unpublished finding makes it FAIL"
 )
 
-#: CS-1292 - the CLOSED set of binary formats a not-read tracked file may be and
-#: still leave the run judged: extension (lower-cased) -> the magic its bytes
-#: must open with. Such a file holds pixels, not text, so no citation can live in
-#: it; it is counted KNOWN BINARY and named on every run. Anything short of BOTH
-#: - an unlisted extension, or a listed one whose bytes lack the magic - stays
-#: NOT READ and the run stays COULD NOT JUDGE. A listed file that DOES decode is
-#: read and judged like any other; the set only ever admits a file the reader
-#: could not read.
-KNOWN_BINARY: Final[Mapping[str, bytes]] = {".png": b"\x89PNG\r\n\x1a\n"}
+#: CS-1292 - the HASH-PINNED allowlist of tracked binaries, repository-relative:
+#: a JSON object mapping each reviewed binary's path to the SHA-256 of its exact
+#: bytes. A not-read file whose path AND hash match a row is counted KNOWN BINARY
+#: and named on every run; a binary off the list, or whose bytes have drifted from
+#: its pin, stays NOT READ and the run stays COULD NOT JUDGE. A pin never stops a
+#: file's raw bytes being graded. An extension-and-magic test was refuted: PNG
+#: magic, a NUL, then text citing an unpublished commit, passed it with exit 0.
+KNOWN_BINARY_FILE: Final = "tools/sha_citation_binaries.json"
+
+#: One pinned digest: 64 lower-case hex characters.
+_PIN_DIGEST: Final = re.compile(r"[0-9a-f]{64}")
 
 #: CS-1292 - the reason printed beside the known-binary count on every run.
 KNOWN_BINARY_REASON: Final = (
-    "tracked files the reader could not read whose extension AND opening bytes match a "
-    "listed binary format (.png) - image data, no text to cite in - so they are skipped, "
-    "counted and named, never COULD NOT JUDGE; any other unreadable file stays not-read"
+    f"tracked files the reader could not read whose path AND SHA-256 match a row of "
+    f"{KNOWN_BINARY_FILE} - reviewed binaries - so they are counted and named, never "
+    "COULD NOT JUDGE, their raw bytes still graded; any other unreadable file stays not-read"
 )
 
 #: The byte-order marks that make a tracked file read as UTF-32, tested first.
@@ -621,14 +625,53 @@ def _union(found: Iterable[list[Occurrence]]) -> list[Occurrence]:
     return list(merged.values())
 
 
-def is_known_binary(name: str, raw: bytes) -> bool:
-    """Whether a NOT-READ tracked file is a :data:`KNOWN_BINARY` format - CS-1292.
+def load_known_binaries(repo: Path) -> dict[str, str]:
+    """The tree's binary pins, ``path -> sha256``; empty when :data:`KNOWN_BINARY_FILE` is absent.
 
-    Both halves are required: the extension names the format and the bytes must
-    open with its magic, so a renamed unknown binary still fails closed.
+    Raises:
+        GateError: When the file is not a JSON object of plain repository-relative
+            POSIX paths to 64-character lower-case hex digests - a pin file the
+            gate cannot trust is never read as an empty list.
     """
-    magic = KNOWN_BINARY.get(Path(name).suffix.lower())
-    return magic is not None and raw.startswith(magic)
+    target = repo / KNOWN_BINARY_FILE
+    if not target.is_file():
+        return {}
+    try:
+        data = json.loads(target.read_bytes().decode("ascii"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise GateError("the binary pin file is not ASCII JSON") from exc
+    if not isinstance(data, dict):
+        raise GateError("the binary pin file is not a JSON object")
+    for name, digest in data.items():
+        parts = name.split("/")
+        plain = name and not name.startswith("/") and ":" not in name and "\\" not in name
+        if not plain or any(part in ("", ".", "..") for part in parts):
+            raise GateError("a binary pin names a path that is not plain repository-relative")
+        if not isinstance(digest, str) or not _PIN_DIGEST.fullmatch(digest):
+            raise GateError("a binary pin carries a digest that is not 64 lower-case hex")
+    return dict(data)
+
+
+def is_known_binary(name: str, raw: bytes, pins: Mapping[str, str]) -> bool:
+    """Whether a NOT-READ tracked file's path AND exact bytes match a pin - CS-1292."""
+    pinned = pins.get(name)
+    return pinned is not None and hashlib.sha256(raw).hexdigest() == pinned
+
+
+def _grade_unread(
+    name: str, raw: bytes | None, views: list[str], pins: Mapping[str, str]
+) -> tuple[bool, list[Occurrence], list[Occurrence]]:
+    """A NOT-READ file: whether a pin admits it, and its raw bytes' runs - CS-1292.
+
+    A file the decoder refused with no view at all is graded as its raw bytes
+    read as latin-1, resolved-only like code, pinned or not - a citation hidden
+    behind a NUL still fails the run.
+    """
+    known = raw is not None and is_known_binary(name, raw, pins)
+    if raw is None or views:
+        return known, [], []
+    raw_view = raw.decode("latin-1")
+    return known, scan_code(raw_view, name), scan_short(raw_view, name)
 
 
 def decode_tracked(raw: bytes) -> str | None:
@@ -930,8 +973,9 @@ class SweepReport:
         not_judged: Each :data:`NOT_JUDGED` class mapped to its run count.
         not_read: Tracked files :func:`decode_tracked` could not judge - any
             one makes the run COULD NOT JUDGE.
-        known_binary: Unreadable tracked files :func:`is_known_binary` admits -
-            counted and named, never COULD NOT JUDGE (CS-1292).
+        known_binary: Unreadable tracked files whose path and SHA-256 match a
+            :data:`KNOWN_BINARY_FILE` pin - counted and named, never COULD NOT
+            JUDGE, their raw bytes still graded (CS-1292).
         ambiguous: Resolved-only runs more than one commit answers.
         ambiguous_unpublished: Those of them with an unpublished candidate - red.
 
@@ -1044,15 +1088,16 @@ def sweep(
     not_judged = dict.fromkeys(NOT_JUDGED, 0)
     not_read: list[str] = []
     known_binary: list[str] = []
+    pins = load_known_binaries(repo)
     for name in [*paths, *code_paths]:
         target = repo / name
         raw = target.read_bytes() if target.is_file() else None
         views, read = tracked_views(raw) if raw is not None else ([], False)
         if not read:
-            if raw is not None and is_known_binary(name, raw):
-                known_binary.append(name)
-            else:
-                not_read.append(name)
+            known, raw_code, raw_short = _grade_unread(name, raw, views, pins)
+            (known_binary if known else not_read).append(name)
+            code_runs += raw_code
+            short_runs += raw_short
         if name in code_set:
             code_runs += _union(scan_code(text, name) for text in views)
         else:
