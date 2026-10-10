@@ -1360,6 +1360,22 @@ def test_every_env_echo_arm_that_drives_the_wrapper_runs_alone() -> None:
     assert missing == [], f"the walk missed these wrapper arms, so it proves nothing: {missing}"
     unguarded = sorted(name for name, waits in reached.items() if not waits)
     assert unguarded == [], f"these arms drive the wrapper beside busy siblings: {unguarded}"
+    assert env_echo_tests_after_the_first_wait(arms) == [], (
+        "these tests follow a waiting arm, so they run alone for no reason: "
+        f"{env_echo_tests_after_the_first_wait(arms)}"
+    )
+
+
+def env_echo_tests_after_the_first_wait(arms: ModuleArms) -> list[str]:
+    """The tests that do not wait but sit below the module's first test that does.
+
+    A worker past its first wait runs on alone, so each such test is serialised
+    behind every sibling for nothing: the waiting arms belong at the foot.
+    """
+    tests = [name for name in arms.functions if name.startswith("test_")]
+    waiting = [waits_through_a_fixture(arms, name) for name in tests]
+    first = waiting.index(True) if True in waiting else len(tests)
+    return [name for name, waits in zip(tests[first:], waiting[first:], strict=True) if not waits]
 
 
 def fake_worker(run_id: str, worker: str) -> SimpleNamespace:
