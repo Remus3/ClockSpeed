@@ -26,7 +26,9 @@ every store lives in a temporary directory.
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 import pytest
@@ -39,17 +41,20 @@ from clockspeed.advisor.ledger import (
     MuteStore,
 )
 from clockspeed.advisor.rules import power
+from clockspeed.save.world import WorldProperties
 from clockspeed.surface import server
 from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, routes
 from clockspeed.surface.providers import StoreAdviceSource
 from tests.advisor import test_world_advice as world_fixtures
+from tests.audit import test_balance as balance_fixtures
 from tests.surface import test_map as map_fixtures
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from clockspeed.advisor.advise import Advice
+    from clockspeed.save.world import WorldModel
 
 #: The instant the injected clock answers.
 NOW: Final = 1000
@@ -90,9 +95,11 @@ def _gap_id(found: Advice) -> str:
     return ids[0]
 
 
-def _table(directory: Path) -> Mapping[tuple[str, str], contract.Handler]:
+def _table(
+    directory: Path, world: WorldModel | None = None
+) -> Mapping[tuple[str, str], contract.Handler]:
     built = routes.build_routes(
-        map_fixtures._Worlds(world_fixtures.gap_world()),  # noqa: SLF001
+        map_fixtures._Worlds(world_fixtures.gap_world() if world is None else world),  # noqa: SLF001
         map_fixtures._Registries(world_fixtures.synthetic_registry()),  # noqa: SLF001
         _source(directory),
     )
@@ -679,24 +686,62 @@ def test_the_state_route_is_the_one_the_server_guards() -> None:
 # carries no machine tag at all, beside the producing machine no registry entry
 # prices. The consumer never enters the machines population, so before CS-1266
 # the served gap card counted the one unmodeled machine and said nothing of it.
+#
+# CS-1280 then ruled such a consumer PRICED at its class default when its payload
+# read clean (the 2026-10-08 CS-1280 decision record in docs/LEDGER.md), and
+# gap_world's consumer reads clean, so it is no omission any more. The ruling's
+# carve-out keeps a consumer carrying a pending clock tag a no-machine-state
+# omission, so the CS-1266 arm builds its omission out of that tag - as the audit
+# arms do, from ``tests.audit.test_balance.PENDING`` - and a second arm pins the
+# clean consumer priced over the same route table.
 
 #: What the served reason must carry for the one omitted consumer.
 OMISSION_WORDS: Final = "1 built power consumer was never considered"
 
+#: The words the served reason carries only when some consumer was omitted.
+NEVER_CONSIDERED: Final = "never considered"
 
-def test_the_listing_names_an_omitted_consumer_over_the_real_route_table(
-    tmp_path: Path,
-) -> None:
-    table = _table(tmp_path)
+#: The record index of gap_world's tagless consumer.
+CONSUMER_INDEX: Final = 0
 
-    data = _data(table["GET", advice_endpoint.ENDPOINT]({}))
 
+def _omission_world() -> WorldModel:
+    """gap_world with its tagless consumer carrying a pending clock tag and nothing else."""
+    base = world_fixtures.gap_world()
+    entries = dict(base.properties.by_record_index)
+    entries[CONSUMER_INDEX] = replace(entries[CONSUMER_INDEX], values=balance_fixtures.PENDING)
+    return replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+
+
+def _served_gap(world: WorldModel, directory: Path) -> Mapping[str, object]:
+    """The one gap card GET /api/advice serves for ``world`` over the real route table."""
+    data = _data(_table(directory, world)["GET", advice_endpoint.ENDPOINT]({}))
     cards = data["cards"]
     assert isinstance(cards, list)
     served = [card for card in cards if card["rule_id"] == power.GAP_RULE.rule_id]
     count = len(served)
     assert count == 1
-    assert served[0]["headline"] == "Resolve 2 unpriced machines before planning power"
-    reason = served[0]["reason"]
+    card = served[0]
+    assert isinstance(card, dict)
+    return card
+
+
+def test_the_listing_names_an_omitted_consumer_over_the_real_route_table(
+    tmp_path: Path,
+) -> None:
+    served = _served_gap(_omission_world(), tmp_path)
+
+    assert served["headline"] == "Resolve 2 unpriced machines before planning power"
+    reason = served["reason"]
     assert isinstance(reason, str)
     assert OMISSION_WORDS in reason
+
+
+def test_a_clean_tagless_consumer_is_priced_over_the_real_route_table(tmp_path: Path) -> None:
+    """CS-1280: only the unregistered machine stays unpriced; nothing is named omitted."""
+    served = _served_gap(world_fixtures.gap_world(), tmp_path)
+
+    assert served["headline"] == "Resolve 1 unpriced machine before planning power"
+    reason = served["reason"]
+    assert isinstance(reason, str)
+    assert NEVER_CONSIDERED not in reason
