@@ -41,7 +41,12 @@ from typing import Any
 import pytest
 
 from clockspeed.data import registry as registry_module
-from clockspeed.data.blobs import BlobParseError, marker_count, parse_item_amounts
+from clockspeed.data.blobs import (
+    BlobParseError,
+    marker_count,
+    parse_class_paths,
+    parse_item_amounts,
+)
 from clockspeed.data.docs_extract import REASON_CLASSES_NOT_A_LIST
 from clockspeed.data.registry import (
     FORM_GAS,
@@ -1529,6 +1534,24 @@ def test_the_resource_restriction_comes_from_the_flag_not_a_folded_constant() ->
     assert removed.extractors[synthetic.CRUDE_PUMP].allowed_resources is None
 
 
+#: A path in the measured grammar whose class token is EMPTY: nothing follows
+#: its final ".", so it names no resource although the blob parses whole.
+_BLANK_CLASS_PATH = "/Script/Engine.BlueprintGeneratedClass'/Game/Synth/Desc_SynthCrude.'"
+
+#: The two blobs that parse whole but carry an empty class token. The rule
+#: is all-or-nothing: one unreadable entry makes the whole list unknown, so a
+#: list that silently dropped the bad entry would under-report the extractor.
+_GRAMMATICAL_BUT_UNREADABLE: dict[str, str] = {
+    "an empty class token": synthetic.class_path_blob([_BLANK_CLASS_PATH]),
+    "one bad entry among good ones": synthetic.class_path_blob(
+        [
+            synthetic.item_path(synthetic.CRUDE_RESOURCE),
+            _BLANK_CLASS_PATH,
+            synthetic.item_path(synthetic.MIST_RESOURCE),
+        ]
+    ),
+}
+
 #: Every mAllowedResources value a RESTRICTED extractor cannot be read from.
 #: Each is None and a named warning: an empty tuple would claim the extractor
 #: yields nothing, and the forms are the caller's fallback, never this layer's.
@@ -1538,7 +1561,20 @@ UNREADABLE_RESOURCES: dict[str, Any] = {
     "a non-string": 7,
     "not the class-path grammar": "Desc_SynthCrude_C",
     "an unterminated entry": '("/Game/Synth/Desc_SynthCrude.Desc_SynthCrude_C)',
+    **_GRAMMATICAL_BUT_UNREADABLE,
 }
+
+
+def test_the_empty_token_shapes_fail_on_the_token_not_the_grammar() -> None:
+    # Without this control the two shapes could be None for the grammar's
+    # reason, and a rule that dropped or kept an empty token would go unseen.
+    for shape, blob in _GRAMMATICAL_BUT_UNREADABLE.items():
+        assert _BLANK_CLASS_PATH in parse_class_paths(blob), shape
+    # The good entries alone read whole, in source order.
+    good = synthetic.resource_blob([synthetic.CRUDE_RESOURCE, synthetic.MIST_RESOURCE])
+    patched = fuel_registry_with(synthetic.CRUDE_PUMP, synthetic.KEY_ALLOWED_RESOURCES, good)
+    allowed = patched.extractors[synthetic.CRUDE_PUMP].allowed_resources
+    assert allowed == (synthetic.CRUDE_RESOURCE, synthetic.MIST_RESOURCE)
 
 
 @pytest.mark.parametrize("shape", sorted(UNREADABLE_RESOURCES))
@@ -1632,8 +1668,34 @@ def test_declared_classes_cover_recognized_entries_no_namespace_models(
         assert name in declared, name
     assert SCHEMATIC not in registry.items
     assert NO_DURATION_RECIPE not in registry.recipes
-    # The entry with no ClassName declares nothing.
+    # The entry with no ClassName declares nothing. The corpus has no EMPTY
+    # ClassName, so the empty-string case is pinned by the test below.
     assert "" not in declared
+
+
+def test_an_empty_class_name_declares_nothing() -> None:
+    # A ClassName present but empty is as unusable as an absent one: the
+    # namespace pass flags it, and declaring "" would vouch for a class the
+    # document never names.
+    groups = synthetic.docs_json()
+    patched = 0
+    for group in groups:
+        classes = group.get(synthetic.KEY_CLASSES)
+        if not isinstance(classes, list):
+            continue  # the corpus' deliberately malformed group
+        if group[synthetic.KEY_NATIVE_CLASS].endswith(f".{synthetic.ITEM_GROUP}'"):
+            classes.append(
+                {
+                    synthetic.KEY_CLASS_NAME: "",
+                    synthetic.KEY_DISPLAY_NAME: "Blank",
+                    synthetic.KEY_FORM: "RF_SOLID",
+                }
+            )
+            patched += 1
+    assert patched == 1
+    blank = build_registry(synthetic.document_from(groups))
+    assert "" not in blank.declared_classes
+    assert blank.declared_classes == _recognized_class_names(groups, synthetic.UNKNOWN_GROUP)
 
 
 def test_the_slice_a_fields_are_appended_with_defaults() -> None:
