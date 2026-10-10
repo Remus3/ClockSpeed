@@ -8,15 +8,15 @@ THE SINGLE NEXT ACTION
 ================================================================================
 
 FINISH THE THREE UNMERGED BRANCHES, THEN LAND THEM IN ONE BATCH WITH ONE PUSH. First, reads:
- (0) `git rev-parse HEAD` against `git ls-remote origin main`. This /done's records commit
-     (subject "Session 135 /done - records, hand-off, file CS-1307") was pushed AFTER this
-     file was written, so its push result is NOT in this file: if origin/main lacks it,
-     PUSH main through the git lock and read the output (a wrapper exit 0 can hide
-     "clockspeed pre-push: BLOCKED").
- (1) READ CI: tier1 at that records commit; and the FIRST tier2 at or after 319cd8a - the
-     2026-10-10 03:17 UTC cron had NOT started at 05:18 UTC (the 2026-10-09 one started
-     10:41 UTC, attempt 2 green). Read EVERY attempt. A red run becomes the top item.
-     NEVER RAISE A BUDGET.
+ (0) `git rev-parse HEAD` against `git ls-remote origin main`. The /done records commit
+     eba066d IS PUSHED (read back, REPORT). This file's own amendment commit, which changes
+     only this file, was pushed AFTER it was written, so that push result is NOT in this
+     file: if origin/main lacks it, PUSH main through the git lock and read the output (a
+     wrapper exit 0 can hide "clockspeed pre-push: BLOCKED").
+ (1) READ CI: tier1 at the amendment commit (tier1 at eba066d read SUCCESS); and the FIRST
+     tier2 at or after 319cd8a - the 2026-10-10 03:17 UTC cron had NOT started at 06:37
+     UTC (the 2026-10-09 one started 10:41 UTC, attempt 2 green). Read EVERY attempt. A
+     red run becomes the top item. NEVER RAISE A BUDGET.
 THEN THE BRANCHES (STATE OF THE TREE names each by tip subject; never merge one that has not
 survived its adversary pass):
   A. TIER2-RED + CS-1300: read the concurrency/deadlock/timing adversary's verdict (it was
@@ -128,7 +128,8 @@ STATE OF THE TREE
 
 ROOT            E:\Clockspeed (ADR 0026). C:\Clockspeed IS A JUNCTION to it.
 HEAD / remote   at this /done's start HEAD == origin/main == 032fa77 (`git ls-remote
-                origin main` read); the /done's records commit follows it - see (0).
+                origin main` read); the /done pushed 032fa77..eba066d (ls-remote read
+                eba066d); this file's amendment commit follows it, see (0).
                 A BLOCKED PUSH CAN REPORT EXIT 0 FROM A WRAPPER - READ THE LOG LINE
                 "clockspeed pre-push: BLOCKED".
 DIRTY FILES     none in the main checkout after the /done commit. The half-done work is in
@@ -770,13 +771,19 @@ CI READ BY THIS /done: tier1 38024985748 at 032fa77 SUCCESS, all 5 jobs (save, h
   and fill shards; gates, lint, types, tests); tier1 38022781875 at 09683e3 SUCCESS, all 5
   jobs. tier2: NO run at or after 319cd8a yet - the newest is 37919155122 at 94b9318
   (attempt 2 success); the 2026-10-10 03:17 UTC cron had not started at 05:18 UTC (the
-  previous one started 10:41 UTC). No CI run exists for this /done's records commit at
-  this writing.
+  previous one started 10:41 UTC); still not started at 06:37 UTC. tier1 38031174423 at
+  eba066d (the /done records commit): SUCCESS, all 5 jobs. No CI run exists for this
+  file's amendment commit at this writing.
 COMMIT AND PUSH: step 2 found nothing to commit - HEAD == origin/main == 032fa77 (`git
   ls-remote origin main` read), git status clean. The /done records commit (subject
-  "Session 135 /done - records, hand-off, file CS-1307") holds the records and this file;
-  it is committed through the git lock and pushed AFTER this file is written - its push
-  result is NOT in this file; next action (0) re-reads it.
+  "Session 135 /done - records, hand-off, file CS-1307") eba066d holds the records and
+  this file's first version; committed through the git lock (pre-commit gate PASS, 6
+  checked, 1 skipped, 0 blocking) and pushed through it: the pre-push hook's gated whole
+  suite read 14946 passed, 12 skipped, 0 failed, 8 warnings in 1082.03s after a gate wait
+  of about 480 s; the push printed "032fa77..eba066d  main -> main", no BLOCKED line,
+  wrapper exit 0; `git ls-remote origin main` then read eba066d == HEAD. Log:
+  work/done135_push.log. This file was then amended with the push and CI results in ONE
+  hand-off-only commit, pushed after it was written - next action (0).
 RESPONDER: inbox_status.json read state idle, task Idle (updated 00:11) before the main-tree
   edits; re-read before the commit.
 INBOX AT /done: 0 unread of 530. OUTBOX 2026-10-09: 0305, 1315, 2304. WORKTREES: 30 lines.
@@ -786,4 +793,4 @@ MARK: `fleet_done.py mark --session 135` after the read-back of the commit, the 
 UNVERIFIED: the TIER2-RED concurrency adversary's verdict and the 28-of-30 loop's two lost
   runs; every builder-reported figure for the CS-1292 tip (six fixes, 97/97, 14982
   passed) and the CS-1302 tip; the delivery of the 2304 and 1315 notes in MAIN's inbox;
-  this file's records commit push result and its CI.
+  this file's amendment commit's push result and its CI.
