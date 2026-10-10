@@ -1393,6 +1393,21 @@ def fuel_registry_with(class_name: str, key: str, value: Any) -> Registry:
         A registry built from the patched copy, through the real docs_extract
         seam.
     """
+    return fuel_registry_with_fields(class_name, {key: value})
+
+
+def fuel_registry_with_fields(class_name: str, fields: Mapping[str, Any]) -> Registry:
+    """Rebuild the fuel corpus with several fields of one entry set or removed.
+
+    Args:
+        class_name: The ClassName of the entry to patch; it must appear once.
+        fields: Each document key to its new value, on the terms
+            :func:`fuel_registry_with` states for one.
+
+    Returns:
+        A registry built from the patched copy, through the real docs_extract
+        seam.
+    """
     groups = synthetic.fuel_groups()
     patched = 0
     for group in groups:
@@ -1400,12 +1415,26 @@ def fuel_registry_with(class_name: str, key: str, value: Any) -> Registry:
             if entry.get(synthetic.KEY_CLASS_NAME) != class_name:
                 continue
             patched += 1
-            if value is _REMOVE:
-                entry.pop(key, None)
-            else:
-                entry[key] = value
+            for key, value in fields.items():
+                if value is _REMOVE:
+                    entry.pop(key, None)
+                else:
+                    entry[key] = value
     assert patched == 1, f"{class_name} appears {patched} times in the fuel corpus, not once"
     return build_registry(synthetic.document_from(groups))
+
+
+def warning_rows(registry: Registry) -> set[tuple[str, str, int]]:
+    """Reduce a registry's warnings to comparable rows.
+
+    Args:
+        registry: The built registry.
+
+    Returns:
+        Every warning as ``(code, subject, count)`` - the detail is left out,
+        since it is prose and an arm pins which findings exist, not wording.
+    """
+    return {(warning.code, warning.subject, warning.count) for warning in registry.warnings}
 
 
 def test_the_fuel_corpus_builds_with_no_warning_but_its_unknown_group(
@@ -1599,6 +1628,52 @@ def test_an_unrecognized_restriction_flag_is_flagged_and_leaves_resources_unknow
     assert synthetic.CRUDE_PUMP in warned_subjects(patched, registry_module.WARN_UNPARSABLE_FLAG)
 
 
+#: Every string flag reading that leaves an extractor UNRESTRICTED. Only the
+#: unrecognized spelling warns, and only about the flag. A non-string flag is
+#: left out: it raises the very non-string warning the arm below must not see.
+_UNRESTRICTED_FLAGS: dict[str, Any] = {
+    "False": synthetic.FLAG_FALSE,
+    "absent": _REMOVE,
+    "an unrecognized spelling": UNRECOGNIZED_FLAG_SPELLINGS[0],
+}
+
+
+@pytest.mark.parametrize("flag", sorted(_UNRESTRICTED_FLAGS))
+def test_an_unrestricted_extractors_list_is_never_read_so_never_flagged(
+    flag: str, fuel_registry: Registry
+) -> None:
+    # The flag gates the list, so the flag is read FIRST: a list read before
+    # the gate would raise a non-string warning for a field this build then
+    # ignores, a finding about nothing. A non-string is the one list value
+    # whose mere reading warns, which is what makes the order observable.
+    patched = fuel_registry_with_fields(
+        synthetic.CRUDE_PUMP,
+        {
+            synthetic.KEY_ONLY_ALLOW_CERTAIN_RESOURCES: _UNRESTRICTED_FLAGS[flag],
+            synthetic.KEY_ALLOWED_RESOURCES: 7,
+        },
+    )
+    assert patched.extractors[synthetic.CRUDE_PUMP].allowed_resources is None
+    assert synthetic.CRUDE_PUMP not in warned_subjects(patched, WARN_NON_STRING_VALUE)
+    extra = warning_rows(patched) - warning_rows(fuel_registry)
+    if flag == "an unrecognized spelling":
+        assert extra == {(registry_module.WARN_UNPARSABLE_FLAG, synthetic.CRUDE_PUMP, 1)}
+    else:
+        assert extra == set()
+
+
+def test_a_restricted_extractors_non_string_list_is_flagged_as_non_string(
+    fuel_registry: Registry,
+) -> None:
+    # The positive control for the arm above: the same 7 under a 'True' flag IS
+    # read, so its silence there is the gate's doing, not a list never read.
+    patched = fuel_registry_with(synthetic.CRUDE_PUMP, synthetic.KEY_ALLOWED_RESOURCES, 7)
+    assert warning_rows(patched) - warning_rows(fuel_registry) == {
+        (WARN_NON_STRING_VALUE, synthetic.CRUDE_PUMP, 1),
+        (registry_module.WARN_UNREADABLE_ALLOWED_RESOURCES, synthetic.CRUDE_PUMP, 1),
+    }
+
+
 def test_an_allowed_resource_naming_no_descriptor_is_kept_and_flagged() -> None:
     blob = synthetic.resource_blob([synthetic.CRUDE_RESOURCE, NO_SUCH_ITEM])
     patched = fuel_registry_with(synthetic.CRUDE_PUMP, synthetic.KEY_ALLOWED_RESOURCES, blob)
@@ -1696,6 +1771,62 @@ def test_an_empty_class_name_declares_nothing() -> None:
     blank = build_registry(synthetic.document_from(groups))
     assert "" not in blank.declared_classes
     assert blank.declared_classes == _recognized_class_names(groups, synthetic.UNKNOWN_GROUP)
+
+
+#: Every ClassName that is present, truthy and not a string - each a value JSON
+#: carries. The scalars are hashable and would land in the set as a class; the
+#: list and the object are not, so admitting them would RAISE out of the build
+#: rather than flag and skip the entry (non-negotiable 7). Truthy on purpose: an
+#: empty one is refused by the emptiness test alone and proves nothing here.
+NON_STRING_CLASS_NAMES: dict[str, Any] = {
+    "an integer": 7,
+    "a boolean": True,
+    "a list": [synthetic.PELLET_FUEL],
+    "an object": {synthetic.KEY_CLASS_NAME: synthetic.PELLET_FUEL},
+}
+
+
+@pytest.mark.parametrize("shape", sorted(NON_STRING_CLASS_NAMES))
+def test_a_non_string_class_name_declares_nothing_and_never_raises(
+    shape: str, fuel_registry: Registry
+) -> None:
+    value = NON_STRING_CLASS_NAMES[shape]
+    groups = synthetic.fuel_groups()
+    suffix = f".{synthetic.ITEM_GROUP}'"
+    items = [group for group in groups if group[synthetic.KEY_NATIVE_CLASS].endswith(suffix)]
+    assert len(items) == 1
+    # One in a MODELED namespace, whose keying pass reads the ClassName and
+    # flags it; one in a recognized group no namespace models, which nothing
+    # but the declared-classes pass ever reads.
+    items[0][synthetic.KEY_CLASSES].append(
+        {
+            synthetic.KEY_CLASS_NAME: value,
+            synthetic.KEY_DISPLAY_NAME: "Odd",
+            synthetic.KEY_FORM: "RF_SOLID",
+        }
+    )
+    groups.append(
+        {
+            synthetic.KEY_NATIVE_CLASS: (
+                f"/Script/CoreUObject.Class'/Script/FactoryGame.{SCHEMATIC_GROUP}'"
+            ),
+            synthetic.KEY_CLASSES: [{synthetic.KEY_CLASS_NAME: value}],
+        }
+    )
+    odd = build_registry(synthetic.document_from(groups))
+    assert SCHEMATIC_GROUP not in odd.unknown_groups
+    declared = odd.declared_classes
+    strays = sorted(repr(name) for name in declared if not isinstance(name, str))
+    assert not strays, strays
+    assert declared == _recognized_class_names(groups, synthetic.UNKNOWN_GROUP)
+    assert declared == fuel_registry.declared_classes
+    # Flagged where it is flagged today: the item pass's two findings, one
+    # each, and nothing else - the unmodeled group's entry is never read.
+    assert warning_rows(odd) - warning_rows(fuel_registry) == {
+        (WARN_NON_STRING_VALUE, synthetic.ITEM_GROUP, 1),
+        (WARN_MISSING_CLASS_NAME, synthetic.ITEM_GROUP, 1),
+    }
+    assert warning_rows(fuel_registry) <= warning_rows(odd)
 
 
 def test_the_slice_a_fields_are_appended_with_defaults() -> None:
