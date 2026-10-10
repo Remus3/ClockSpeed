@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-959 - CLOSED: GitHub's community profile reports every row set while the repository is still private
+Verification: `.github/ISSUE_TEMPLATE.md` plus `tests/test_community_health.py::test_community_health_file_exists`.
+Read back by the closing agent: the profile API reads health_percentage 100 with all 7 `files`
+rows non-null, `issue_template` included, and the repository reads `private` true.
+Ruling (adjudicator): CLOSE-NOW, before the flip. Alternative rejected: HOLD until the recreated
+remote is re-read, because the profile is computed from tracked files that carry to any recreated
+remote and the acceptance asks for it satisfied while PRIVATE, which holds. The re-read on the
+recreated repository is a CS-700 S12a check, not a close. Section relocated to `docs/history_notes.md`.
+
 ### 2026-10-09 - CS-G03 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-G03 STAYS GATED. The delta re-walk ruling's escalation FIRES: FLEET-KIT v13's frozen-file wiring changed two `.githooks` files after the walk tip
 Verification: `git diff --name-only 457d2b9 HEAD` over the reversal paths, read by the session
 134 /done at `319cd8a`, against the escalation clause of the session 133 CS-G03 DECISION

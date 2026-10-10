@@ -1142,31 +1142,3 @@ one tool is the only way a note leaves this machine, it grades the payload with 
 ### Full headline
 
 the outbound gate graded nothing because nothing called it, and the channel had no sender at all: every delivery this project has ever made was a hand-run script, including the 2026-09-08 correction to four repositories whose only record is a paragraph a human typed
-
-
-## CS-959
-
-### Acceptance
-
-the four files exist and GitHub's own community profile reports every row satisfied while the repository is still PRIVATE, verified by re-reading that profile rather than by listing the files; `SECURITY.md` routes reports through GitHub private vulnerability reporting and carries NO email address, because the operator's address is this repository's commit identity and a sibling has already published it once by accident; `CONTRIBUTING.md` states the non-negotiables a drive-by change would otherwise break - 7-bit ASCII, no lifted datasets from any wiki, never write to the game install or a save, the failing test first - and points at the hook bootstrap in `docs/OPERATIONS.md`, because a fresh clone runs zero protection until someone wires it
-
-### Full headline
-
-GitHub's community-standards checklist for this repository is four of eight, and CS-700 flips it public, which turns every gap from something we can see into something a stranger sees first - MEASURED 2026-09-08 with `gh repo view`: description SET, topics SET at twenty which is GitHub's maximum, README, LICENSE and issue templates all present, and MISSING are `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md` and a pull request template - raised from a sibling's identical checklist rather than from a probe of this tree, and the same four rows were empty there
-
-### THE ISSUE_TEMPLATE ROW READS ONLY THE LEGACY FILE - MEASURED 2026-10-04
-
-The profile read 100 percent health with `files.issue_template` null. Measured with `gh api
-repos/<owner>/<repo>/community/profile`: `cli/cli` carries Markdown templates with front matter in
-`.github/ISSUE_TEMPLATE/` and its row is null; `rollup/rollup` carries the legacy single file
-`.github/ISSUE_TEMPLATE.md` and its row is set. Folder templates of either shape, Markdown or an
-issue form, never fill the row. Reported upstream, open, no staff reply:
-https://github.com/github/rest-api-description/issues/7187 and
-https://github.com/deftio/bitwrench/issues/111.
-
-Decision (merger ruling): add the legacy `.github/ISSUE_TEMPLATE.md`. It meets the acceptance's
-row literally and is inert in the chooser while the folder exists. Alternative rejected: closing on
-the 100 percent health figure, because the acceptance says every row, read from the profile.
-Reversed by: GitHub's API counting folder templates, at which point the legacy file can go.
-Guarded by `tests/test_community_health.py::COMMUNITY_FILES`. The row is re-read after the push;
-until that read it is NOT satisfied.

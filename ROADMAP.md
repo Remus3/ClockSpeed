@@ -154,7 +154,6 @@ CS-1144 - `docs/LEDGER.md` cites `.github/workflows/tier1.yml` by a line the wor
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-958 - the outbound gate graded nothing because nothing called it, and the channel had no sender at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-959 - GitHub's community-standards checklist for this repository is four of eight, and CS-700 flips it public - acceptance: in detail - tier: 2 - NOT a CS-700 step, but a precondition of its irreversible one - detail: `docs/item_notes.md`
 CS-951 - nobody watches their own OUTBOUND withdrawals, so a drop this repo pulls from a sibling's inbox is invisible to every watcher on the channel including this one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-877 - no arm enumerates the shell's `insertCSS` call sites, so a second injection is invisible - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-876 - no caller reads the independent oracle's final offset, so a stale reading passes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

@@ -253,9 +253,8 @@ OPEN ITEMS, PRIORITY ORDER
 14 CS-700 - THE FLIP, INTERACTIVE, WITH THE OPERATOR PRESENT, AS A SESSION'S LAST WORK. It
      needs CS-1292 landed (CS-1296 is done) and THE FULL CS-G03 RE-WALK (below). CS-500's
      S9 overlay trace and S7/S8 (blocked on CS-1043, CS-1048, CS-1058, CS-1243) as filed;
-     land all product BEFORE the flip block. CS-959 closes only when the profile
-     issue_template row re-reads non-null after the flip push (PVR endpoint 404, enable
-     post-flip).
+     land all product BEFORE the flip block. CS-959 (closed): re-read the profile on the
+     recreated repo - a CS-700 S12a check, not a close (PVR endpoint 404, enable post-flip).
 15 /done.
 CARRIED, NOT IN THE ORDER ABOVE:
  - CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
@@ -267,8 +266,8 @@ CARRIED, NOT IN THE ORDER ABOVE:
    the budget; NEVER raise the pin.
  - FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
    ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206, CS-1215,
-   CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-953. (CS-700, CS-701, CS-704,
-   CS-959 are on the flip track.)
+   CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-953. (CS-700, CS-701, CS-704
+   are on the flip track.)
  - MAIN 0300 SUPPLY CHAIN: BACKLOG.md "Session 128 residuals" - NOT worked unless its
    trigger fires. SESSION 129, 131, 132 AND 134 RESIDUALS (BACKLOG.md) - the same.
 EVERY BUILDER BRIEF NAMES: TARGETED TESTS ONLY - NEVER A WHOLE SUITE (ruling below); bare
@@ -332,7 +331,7 @@ POST-CONFIRMATION (unchanged): S9a/b/c, S10 push by SHA from the S7a clone to an
   CS-G03 clearance; drop c6f3687 from the CS-704 accept set in tier1.yml and
   tests/test_trailer_routes.py; delete the pre-publication-dead URL pin per ADR 0025 10b;
   retire the image and 389fe4a allow rows), enable PVR + secret scanning + push
-  protection, social preview, re-read the community profile issue_template row (CS-959
+  protection, social preview, re-read the community profile (a CS-700 S12a check, not a
   close), add the README clone command (BACKLOG; also the session 131 README residuals
   R2/R3/O1), re-cut lane worktrees, lift S7q, tier1 green on the published SHA, then the
   post-flip public-clone walk (BACKLOG session 126/131 residuals).
