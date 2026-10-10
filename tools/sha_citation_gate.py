@@ -35,7 +35,9 @@ a byte-order mark (UTF-32 first, since its mark opens with UTF-16's), else as
 UTF-8 with replacement; one that is absent or carries a NUL is NOT READ, every
 run prints that count and each such path, and any such file makes the run
 COULD NOT JUDGE - a file dropping out is never a pass - unless an unpublished
-finding makes it FAIL, which outranks it and prints both. A BOM-marked file is
+finding makes it FAIL, which outranks it and prints both. The one exception is a
+not-read file of a listed binary format (:data:`KNOWN_BINARY`, extension AND
+magic): it is counted known-binary and named instead (CS-1292). A BOM-marked file is
 decoded STRICTLY (a failure is NOT READ, never replacement) and is always also
 scanned as raw latin-1 bytes, the runs being the union, because
 8-bit text behind a stray mark decodes as CJK with every hex run gone. All three
@@ -293,6 +295,23 @@ NOT_READ_REASON: Final = (
     "replacement), are binary or "
     "missing to this reader; any such file makes the run COULD NOT JUDGE, never a pass, "
     "unless an unpublished finding makes it FAIL"
+)
+
+#: CS-1292 - the CLOSED set of binary formats a not-read tracked file may be and
+#: still leave the run judged: extension (lower-cased) -> the magic its bytes
+#: must open with. Such a file holds pixels, not text, so no citation can live in
+#: it; it is counted KNOWN BINARY and named on every run. Anything short of BOTH
+#: - an unlisted extension, or a listed one whose bytes lack the magic - stays
+#: NOT READ and the run stays COULD NOT JUDGE. A listed file that DOES decode is
+#: read and judged like any other; the set only ever admits a file the reader
+#: could not read.
+KNOWN_BINARY: Final[Mapping[str, bytes]] = {".png": b"\x89PNG\r\n\x1a\n"}
+
+#: CS-1292 - the reason printed beside the known-binary count on every run.
+KNOWN_BINARY_REASON: Final = (
+    "tracked files the reader could not read whose extension AND opening bytes match a "
+    "listed binary format (.png) - image data, no text to cite in - so they are skipped, "
+    "counted and named, never COULD NOT JUDGE; any other unreadable file stays not-read"
 )
 
 #: The byte-order marks that make a tracked file read as UTF-32, tested first.
@@ -602,6 +621,16 @@ def _union(found: Iterable[list[Occurrence]]) -> list[Occurrence]:
     return list(merged.values())
 
 
+def is_known_binary(name: str, raw: bytes) -> bool:
+    """Whether a NOT-READ tracked file is a :data:`KNOWN_BINARY` format - CS-1292.
+
+    Both halves are required: the extension names the format and the bytes must
+    open with its magic, so a renamed unknown binary still fails closed.
+    """
+    magic = KNOWN_BINARY.get(Path(name).suffix.lower())
+    return magic is not None and raw.startswith(magic)
+
+
 def decode_tracked(raw: bytes) -> str | None:
     """A non-BOM tracked file's UTF-8 text, or None when it carries a NUL."""
     try:
@@ -901,6 +930,8 @@ class SweepReport:
         not_judged: Each :data:`NOT_JUDGED` class mapped to its run count.
         not_read: Tracked files :func:`decode_tracked` could not judge - any
             one makes the run COULD NOT JUDGE.
+        known_binary: Unreadable tracked files :func:`is_known_binary` admits -
+            counted and named, never COULD NOT JUDGE (CS-1292).
         ambiguous: Resolved-only runs more than one commit answers.
         ambiguous_unpublished: Those of them with an unpublished candidate - red.
 
@@ -923,6 +954,7 @@ class SweepReport:
     short_runs: list[Occurrence] = field(default_factory=list)
     not_judged: dict[str, int] = field(default_factory=lambda: dict.fromkeys(NOT_JUDGED, 0))
     not_read: list[str] = field(default_factory=list)
+    known_binary: list[str] = field(default_factory=list)
     ambiguous: list[Occurrence] = field(default_factory=list)
     ambiguous_unpublished: list[Occurrence] = field(default_factory=list)
     historical: Historical | None = None
@@ -1011,11 +1043,16 @@ def sweep(
     short_runs: list[Occurrence] = []
     not_judged = dict.fromkeys(NOT_JUDGED, 0)
     not_read: list[str] = []
+    known_binary: list[str] = []
     for name in [*paths, *code_paths]:
         target = repo / name
-        views, read = tracked_views(target.read_bytes()) if target.is_file() else ([], False)
+        raw = target.read_bytes() if target.is_file() else None
+        views, read = tracked_views(raw) if raw is not None else ([], False)
         if not read:
-            not_read.append(name)
+            if raw is not None and is_known_binary(name, raw):
+                known_binary.append(name)
+            else:
+                not_read.append(name)
         if name in code_set:
             code_runs += _union(scan_code(text, name) for text in views)
         else:
@@ -1033,6 +1070,7 @@ def sweep(
     report.short_runs = short_runs
     report.not_judged = not_judged
     report.not_read = not_read
+    report.known_binary = known_binary
     if historical is None:
         report.historical = load_historical(repo)
         if report.historical is not None:
@@ -1157,6 +1195,8 @@ def render(report: SweepReport) -> list[str]:
         f"answers; red when any candidate is unpublished: {len(report.ambiguous_unpublished)}"
     )
     out += [f"not-read-file {name}" for name in report.not_read]
+    out.append(f"known-binary {len(report.known_binary)} - {KNOWN_BINARY_REASON}")
+    out += [f"known-binary-file {name}" for name in report.known_binary]
     for name, sentence in CLASSES.items():
         count = sum(1 for entry in report.occurrences if entry.rule == name)
         out.append(f"excluded-count {name} {count} - {sentence}")

@@ -59,8 +59,10 @@ import hashlib
 import importlib.util
 import os
 import shutil
+import struct
 import subprocess
 import sys
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -740,6 +742,89 @@ def test_a_not_read_tracked_file_makes_the_run_could_not_judge(
     assert _not_read(done.stdout) == 1
     assert f"not-read-file {CODE_FILE}" in done.stdout
     assert "COULD NOT JUDGE - 1 tracked file not read" in done.stdout
+
+
+#: CS-1292 - the README's images are this tree's first tracked binaries.
+KNOWN_PNG: Final = "docs/assets/known.png"
+
+#: The eight bytes every PNG opens with.
+PNG_MAGIC: Final = b"\x89PNG\r\n\x1a\n"
+
+
+def _png() -> bytes:
+    """A real one-pixel PNG, built here, never read from the tree."""
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        crc = zlib.crc32(kind + body) & 0xFFFFFFFF
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", crc)
+
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    pixels = zlib.compress(b"\x00\x00\x00\x00")
+    return PNG_MAGIC + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
+
+
+def _track(repo: Repo, name: str, body: bytes) -> None:
+    """Write ``body`` at ``name`` and stage it, so the sweep's ``ls-files`` lists it."""
+    target = repo.path / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(body)
+    repo.git("add", "--", name)
+
+
+def _known_binary(stdout: str) -> int:
+    """The known-binary count a run printed."""
+    for line in stdout.splitlines():
+        fields = line.split()
+        if fields[:1] == ["known-binary"]:
+            return int(fields[1])
+    message = "no known-binary line"
+    raise AssertionError(message)
+
+
+def test_a_tracked_png_is_skipped_as_known_binary_and_never_left_unread(
+    code_repo: Repo,
+) -> None:
+    """A listed extension whose bytes open with its magic is counted, named, and not read."""
+    body = _png()
+    assert b"\0" in body, "control: these bytes must be binary to the reader"
+    _track(code_repo, KNOWN_PNG, body)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert _not_read(done.stdout) == 0
+    assert f"not-read-file {KNOWN_PNG}" not in done.stdout
+    assert _known_binary(done.stdout) == 1
+    assert f"known-binary-file {KNOWN_PNG}" in done.stdout
+
+
+@pytest.mark.parametrize(
+    ("name", "body"),
+    [
+        ("docs/assets/unlisted.bin", _png()),
+        ("docs/assets/unlisted.jpg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00"),
+        ("docs/assets/forged.png", b"\x00\x01not a png at all\xff\xfe\x00"),
+    ],
+    ids=["unlisted-extension", "unlisted-image-format", "listed-extension-wrong-magic"],
+)
+def test_an_unlisted_binary_is_still_not_read(code_repo: Repo, name: str, body: bytes) -> None:
+    """The exemption fails closed: anything short of extension AND magic stays not-read."""
+    _track(code_repo, name, body)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert _not_read(done.stdout) == 1
+    assert f"not-read-file {name}" in done.stdout
+    assert _known_binary(done.stdout) == 0
+
+
+def test_a_png_named_text_file_is_still_read_and_judged(code_repo: Repo) -> None:
+    """The exemption never hides text: a decodable .png is scanned like any code file."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    name = "docs/assets/text.png"
+    _track(code_repo, name, f"# RED at {side[:7]}: the push landed.\n".encode("ascii"))
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:1 {side[:7]} " in done.stdout
+    assert _known_binary(done.stdout) == 0
+    assert _not_read(done.stdout) == 0
 
 
 def test_a_utf32_file_with_a_bom_is_decoded_and_judged(code_repo: Repo) -> None:
