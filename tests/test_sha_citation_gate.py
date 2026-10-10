@@ -1116,7 +1116,9 @@ def _replace_clean(repo: Repo, scratch: Path, name: str, target: str) -> None:
         blob = repo.git("hash-object", "-w", "--no-filters", str(clean))
         cited = repo.git("rev-parse", f"HEAD:{name}")
         repo.git("replace", cited, blob)
-        assert "RED at" not in repo.git("cat-file", "blob", cited), "control: the view is live"
+        # Bound first: rendered inline, the call would repr ``repo`` and its env.
+        shown = repo.git("cat-file", "blob", cited)
+        assert "RED at" not in shown, "control: the view is live"
         return
     suffix = "^{tree}" if target == "tree" else ""
     old, new = (repo.git("rev-parse", f"{rev}{suffix}") for rev in ("HEAD", "HEAD~1"))
