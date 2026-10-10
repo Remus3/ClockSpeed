@@ -1097,6 +1097,97 @@ def test_a_citation_in_a_tracked_file_name_fails_the_run(code_repo: Repo, where:
     assert f"unpublished-not-admitted {name}:0 {token} " in done.stdout
 
 
+# --- CS-1292 round 4: git's local views of history are never honoured ----------
+
+#: The objects a replace ref can stand a clean one in for, so the cited bytes are
+#: never read: the cited blob, HEAD's tree, or HEAD itself.
+REPLACED: Final = ("blob", "tree", "commit")
+
+#: The two local views that give a commit parents a push never sends: a replace
+#: ref written by ``git replace --graft`` and the deprecated ``info/grafts`` file.
+GRAFTS: Final = ("replace-graft", "grafts-file")
+
+
+def _replace_clean(repo: Repo, scratch: Path, name: str, target: str) -> None:
+    """Stand a clean object in for the one carrying ``name``'s citation - a local view only."""
+    if target == "blob":
+        clean = scratch / "clean.txt"
+        clean.write_bytes(b"# clean\n")
+        blob = repo.git("hash-object", "-w", "--no-filters", str(clean))
+        cited = repo.git("rev-parse", f"HEAD:{name}")
+        repo.git("replace", cited, blob)
+        assert "RED at" not in repo.git("cat-file", "blob", cited), "control: the view is live"
+        return
+    suffix = "^{tree}" if target == "tree" else ""
+    old, new = (repo.git("rev-parse", f"{rev}{suffix}") for rev in ("HEAD", "HEAD~1"))
+    repo.git("replace", old, new)
+    listed = repo.git("ls-tree", "-r", "--name-only", "HEAD").split("\n")
+    assert name not in listed, "control: the view must hide the cited path"
+
+
+def _graft(repo: Repo, how: str, parent: str) -> None:
+    """Give HEAD ``parent`` as a second parent in git's local view only.
+
+    ``how`` names the view (:data:`GRAFTS`). A push sends HEAD's own parents, so
+    ``parent`` stays unpublished whatever the view says.
+    """
+    head, first = repo.git("rev-parse", "HEAD"), repo.git("rev-parse", "HEAD~1")
+    if how == "replace-graft":
+        repo.git("replace", "--graft", head, first, parent)
+    else:
+        grafts = repo.path / repo.git("rev-parse", "--git-path", "info/grafts")
+        grafts.parent.mkdir(parents=True, exist_ok=True)
+        grafts.write_bytes(f"{head} {first} {parent}\n".encode("ascii"))
+    reach = repo.git("rev-list", "HEAD").split()
+    assert parent in reach, "control: the view must make the parent look reachable"
+
+
+@pytest.mark.parametrize("target", REPLACED)
+def test_a_citation_hidden_by_a_replace_ref_fails_the_run(
+    code_repo: Repo, tmp_path: Path, target: str
+) -> None:
+    """A replace ref swaps what git READS for an object, never what a push SENDS - exit 1.
+
+    The citation is committed and ``git rm``'d, then the blob, HEAD's tree or HEAD
+    itself is replaced by a clean one, so only the published object carries it.
+    """
+    token = _unpublished(code_repo)
+    name = DROPPED[0]
+    _commit_citing(code_repo, name, token)
+    code_repo.git("rm", "-q", "--", name)
+    _replace_clean(code_repo, tmp_path, name, target)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f" {name}:1 {token} " in done.stdout
+
+
+@pytest.mark.parametrize("how", GRAFTS)
+def test_a_gitlink_to_a_commit_grafted_under_head_fails_the_run(code_repo: Repo, how: str) -> None:
+    """A graft makes an unpublished gitlink commit LOOK reachable; a push never sends it."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    name = "vendor/linked"
+    _gitlink_where(code_repo, name, side, "committed")
+    _graft(code_repo, how, side)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:0 {side} " in done.stdout
+
+
+@pytest.mark.parametrize("how", GRAFTS)
+def test_a_file_name_citing_a_commit_grafted_under_head_fails_the_run(
+    code_repo: Repo, how: str
+) -> None:
+    """The same graft behind a citation in a committed file name - exit 1."""
+    token = _unpublished(code_repo)
+    name = f"docs/notes-{token}.md"
+    _track(code_repo, name, b"clean\n")
+    code_repo.git("commit", "-q", "-m", "carry")
+    _graft(code_repo, how, code_repo.git("rev-parse", "refs/heads/side"))
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:0 {token} " in done.stdout
+
+
 def _nul_hidden(text: str, shape: str) -> bytes:
     """``text`` in a shape whose raw bytes carry no plain hex run - NULs between its pieces."""
     if shape == "utf16le-no-bom":

@@ -65,7 +65,9 @@ cat-file --batch-check`` call - the object-name resolution ``git rev-parse
 single-token reference the arms compare against), answered for the whole tree
 in one process instead of one per token: an unknown or ambiguous name answers
 ``missing`` or ``ambiguous`` there exactly as it fails ``--verify`` there.
-Reachability is ONE ``git rev-list`` into a set. The commit a token names counts
+Reachability is ONE ``git rev-list`` into a set. Every git call runs with git's
+local views of history OFF (:func:`_env`): no replace ref and no grafts file is
+honoured, because a push sends neither (CS-1292). The commit a token names counts
 ONLY when it is
 PUBLISHED - reachable from ``HEAD``, from ``refs/remotes/origin/main`` or from
 a tag, and nothing else. ``HEAD`` counts because it is the commit whose tree is
@@ -923,9 +925,22 @@ class GateError(Exception):
 
 
 def _env() -> dict[str, str]:
+    """The environment of EVERY git call the gate makes - :func:`_git` is the only caller.
+
+    Beside dropping :data:`_GIT_REDIRECTS`, it turns off git's two LOCAL views of
+    history - CS-1292 round 4. A replace ref swaps the bytes git reads for a blob,
+    a tree or a commit, and a replace graft or an ``info/grafts`` line gives a
+    commit parents it does not have; a push sends neither view, so honouring one
+    hides a cited blob or makes an unpublished commit look reachable from
+    ``HEAD``. ``GIT_NO_REPLACE_OBJECTS`` turns replace refs off and no config can
+    turn them back on; it leaves the grafts file read, so ``GIT_GRAFT_FILE`` points
+    at the null device, an empty grafts file.
+    """
     env = dict(os.environ)
     for name in _GIT_REDIRECTS:
         env.pop(name, None)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_GRAFT_FILE"] = os.devnull
     return env
 
 
