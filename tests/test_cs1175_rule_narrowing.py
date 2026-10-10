@@ -547,6 +547,100 @@ def child_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:
     return proc.returncode, output
 
 
+def control_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:
+    """A leaky control's child run, its collection cut at `tmp_path`.
+
+    CS-1301: the control's only path lives under the temp root, on another
+    drive from the repo the child runs in. pytest then finds no common
+    ancestor, keeps the confcutdir at the repo, and walks EVERY ancestor of
+    the temp path from the drive root down, listing and lstat'ing each
+    sibling; one removed mid-walk by a concurrent run's temp cleanup made the
+    control exit 2 under load. Not in `child_pytest`: the forced run's paths
+    are in the repo, where this cut would walk the repo's drive instead.
+    """
+    return child_pytest(tmp_path, ["--confcutdir=%s" % tmp_path, *args])
+
+
+def child_failure(code: int, output: str) -> str:
+    """The child's exit and the error it raised, named by identifiers only.
+
+    CS-1301: the error types its report printed and the frames they were
+    raised in - never the report's text, where a path carries the home
+    directory and an E line can carry a canary - and any canary value among
+    those identifiers is redacted. Built in one expression, so no value is
+    bound to a name of this frame (CS-1177).
+    """
+    return re.sub(
+        "|".join(
+            map(
+                re.escape,
+                chain(
+                    OUTBOUND.CREDENTIAL_CANARIES.values(),
+                    chain.from_iterable(
+                        map(
+                            operator.methodcaller("values"),
+                            OUTBOUND.CREDENTIAL_BRANCH_CANARIES.values(),
+                        )
+                    ),
+                ),
+            )
+        ),
+        "<redacted>",
+        "exit %d; raised %s; in %s"
+        % (
+            code,
+            ", ".join(
+                dict.fromkeys(
+                    re.findall(
+                        r"^E\s+((?:\w+\.)*\w*(?:Error|Exception|Exit|Interrupt))\b",
+                        output,
+                        re.MULTILINE,
+                    )
+                )
+            )
+            or "nothing",
+            ", ".join(dict.fromkeys(re.findall(r":\d+: in (\w+)\s*$", output, re.MULTILINE)))
+            or "no frame",
+        ),
+    )
+
+
+#: CS-1301: loaded by a control child as a `-p` plugin. It removes a SIBLING
+#: of the control's directory while pytest lists that directory's parent, the
+#: way a concurrent run's temp cleanup does under load.
+REAPER = """
+from pathlib import Path
+
+SIBLING = Path(%r)
+
+
+def pytest_collect_directory(path, parent):
+    if path == SIBLING:
+        path.rmdir()
+"""
+
+
+@pytest.mark.parametrize("flags", [[], ["--showlocals"]], ids=["plain", "showlocals"])
+def test_a_reaped_sibling_leaves_the_control_red_forced_red_output(
+    flags: list[str], tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Each leaky control fails on its canary even as a sibling vanishes.
+
+    CS-1301: the control's collection never lists above its own directory,
+    so a temp directory removed beside it cannot turn its exit 1 into 2. The
+    name carries `forced_red_output`, so a forced child never recurses here.
+    """
+    sibling = tmp_path_factory.mktemp("cs1301_sibling")
+    assert sibling.parent == tmp_path.parent, "the sibling is not beside the control"
+    (tmp_path / "cs1301_reaper.py").write_text(REAPER % str(sibling), encoding="ascii")
+    leaky = tmp_path / "cs1175_leaky_check.py"
+    leaky.write_text(LEAKY % str(OUTBOUND_PATH), encoding="ascii")
+
+    failure = child_failure(*control_pytest(tmp_path, [*flags, "-p", "cs1301_reaper", str(leaky)]))
+    assert failure.startswith("exit 1;"), "the leaky control did not fail: " + failure
+    assert sibling.is_dir(), "the control's collection listed above its own directory"
+
+
 def test_showlocals_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     """Every canary arm forced red under `--showlocals` prints no canary value.
 
@@ -558,14 +652,16 @@ def test_showlocals_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     leaky = tmp_path / "cs1175_leaky_check.py"
     leaky.write_text(LEAKY % str(OUTBOUND_PATH), encoding="ascii")
 
-    code, output = child_pytest(tmp_path, [str(leaky)])
+    code, output = control_pytest(tmp_path, [str(leaky)])
     plain = canaries_in(output)
-    assert code == 1, "the leaky control did not fail: exit %d" % code
+    assert code == 1, "the leaky control did not fail: " + child_failure(code, output)
     assert plain == 0, "the control renders a canary even without --showlocals"
 
-    code, output = child_pytest(tmp_path, ["--showlocals", str(leaky)])
+    code, output = control_pytest(tmp_path, ["--showlocals", str(leaky)])
     shown = canaries_in(output)
-    assert code == 1, "the leaky control did not fail under --showlocals: exit %d" % code
+    assert code == 1, "the leaky control did not fail under --showlocals: " + child_failure(
+        code, output
+    )
     assert shown > 0, "the capture cannot see a canary rendered by --showlocals"
 
     args = ["--showlocals", "-p", "cs1175_forcer", "-k", "not forced_red_output"]
