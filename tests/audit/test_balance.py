@@ -2698,6 +2698,8 @@ def test_tagless_actors_through_the_real_loader_split_on_the_clean_test() -> Non
     assert omitted_rows(result) == [(class_name, balance.GAP_NO_MACHINE_STATE, 3)]
     assert result.upper_megawatts == result.lower_megawatts == WHOLE_MEGAWATTS
     assert consumer_counts(result) == (4, 1, 3)
+    # No machine was admitted, yet one was priced: the draw is no empty zero.
+    assert balance.WARN_BALANCE_NO_MACHINES_CLOCKED not in raised_counts(result)
 
 
 def test_a_tagless_group_never_merges_with_an_elided_one_in_either_order() -> None:
@@ -2789,3 +2791,125 @@ def test_a_tagless_group_and_the_draw_render_counts_and_never_a_class() -> None:
     assert FIXED_THIRD not in rendered
     assert "tagless_default_count=1" in repr(result)
     assert "tagless=True" in repr(result.contributions[0])
+
+
+# ---------------------------------------------------------------------------
+# CS-1280 round 2: the refuted candidate's defect and its surviving mutants
+# ---------------------------------------------------------------------------
+
+#: The decoded values of an ADMITTED machine whose clock tag was elided: the
+#: producing tag admits it, and no clock tag rides on its clean payload.
+PRODUCING_ONLY: Mapping[str, object] = MappingProxyType({machines.PROPERTY_PRODUCING: True})
+
+#: The records each two-record arm below considers: one of each kind it pairs.
+PAIRED_RECORDS = 2
+
+
+def test_a_priced_tagless_consumer_with_no_admitted_machine_is_no_empty_zero() -> None:
+    """No machine admitted, one clean tagless consumer priced at its class default.
+
+    ``balance-no-machines-clocked`` says the draw is zero because there was
+    nothing to price. Here the draw is the consumer's own declared third of a
+    megawatt, so reading only the admitted population raises a warning whose
+    every clause is false.
+    """
+    population = machines.machines_of(census_world((FIXED_THIRD, {})))
+    assert population.machines == ()
+    result = balance.clocked_draw_of(population, modeled_registry())
+
+    assert result.upper_megawatts == result.lower_megawatts == THIRD_MEGAWATTS
+    assert tagless_groups(result) == [(FIXED_THIRD, 1)]
+    assert balance.WARN_BALANCE_NO_MACHINES_CLOCKED not in raised_counts(result)
+
+
+def test_a_tagless_gap_with_no_admitted_machine_is_no_empty_zero() -> None:
+    """The sibling: a clean tagless consumer whose entry yields no number.
+
+    The draw IS zero, but because a considered consumer has no number - its
+    named gap says so - and never because there was nothing to price.
+    """
+    entry, kind = GAP_FAMILIES["undeclared"]
+    population = machines.machines_of(census_world((FAMILY_CLASS, {})))
+    assert population.machines == ()
+    result = balance.clocked_draw_of(population, registry(entry))
+
+    assert [(gap.kind, gap.machine_count) for gap in result.gaps] == [(kind, 1)]
+    assert result.machines_considered == 1
+    assert balance.WARN_BALANCE_NO_MACHINES_CLOCKED not in raised_counts(result)
+
+
+def test_a_clean_tagless_record_of_no_consumer_leaves_the_model_empty() -> None:
+    """The control: a clean tagless record of a fixed-zero class is never considered.
+
+    Nothing was priced and nothing was considered, so the empty-model warning
+    still fires - the fix reads the tagless records the draw TOOK, not every
+    clean record the census holds.
+    """
+    population = machines.machines_of(census_world((ZERO_DRAW, {})))
+    assert population.unadmitted_clean_counts == ((ZERO_DRAW, 1),)
+    result = balance.clocked_draw_of(population, like_for_like_registry())
+
+    assert result.machines_considered == 0
+    assert balance.WARN_BALANCE_NO_MACHINES_CLOCKED in raised_counts(result)
+
+
+def test_an_unread_payload_omission_keeps_its_count_beside_a_tagless_record_of_its_class() -> None:
+    """One class: a clean tagless record, and a record whose payload never read.
+
+    The tagless record is taken from the READ census alone, so only the
+    no-machine-state omissions lose it. Subtracting it from the unread census
+    too erases the unread record's omission and calls the draw complete.
+    """
+    model = census_world((FIXED_THIRD, {}), unread=(FIXED_THIRD,))
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert tagless_groups(result) == [(FIXED_THIRD, 1)]
+    assert omitted_rows(result) == [(FIXED_THIRD, balance.GAP_PAYLOAD_UNREAD, 1)]
+    assert consumer_counts(result) == (2, 1, 1)
+    assert result.complete is False
+    assert raised_counts(result).get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == 1
+
+
+@pytest.mark.parametrize("family", sorted(GAP_FAMILIES))
+def test_a_tagless_gap_adds_to_the_gap_an_admitted_machine_of_its_class_opened(
+    family: str,
+) -> None:
+    """An admitted machine and a clean tagless record of one gap-family class.
+
+    Both are priced at the class default, so both land in the SAME gap; the
+    tagless record adds to the count the admitted one opened. Overwriting the
+    prior count drops the admitted machine, so the groups and gaps no longer
+    sum to the considered population.
+    """
+    entry, kind = GAP_FAMILIES[family]
+    model = census_world((FAMILY_CLASS, PRODUCING_ONLY), (FAMILY_CLASS, {}))
+    population = machines.machines_of(model)
+    assert len(population.machines) == 1
+    result = balance.clocked_draw_of(population, registry(entry))
+
+    assert [(gap.class_name, gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (FAMILY_CLASS, kind, PAIRED_RECORDS)
+    ]
+    assert result.machines_considered == PAIRED_RECORDS
+    assert conserves(result)
+    raised = raised_counts(result)
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == PAIRED_RECORDS
+
+
+@pytest.mark.parametrize("family", sorted(GAP_FAMILIES))
+def test_the_tagless_warning_counts_priced_records_and_never_a_tagless_gap(family: str) -> None:
+    """One clean tagless record priced, one of a gap-family class with no number.
+
+    The warning says each counted record was priced at its class default, so
+    it counts the priced one alone; the gapped one is the unmodeled warning's.
+    """
+    entry, _kind = GAP_FAMILIES[family]
+    model = census_world((FIXED_THIRD, {}), (FAMILY_CLASS, {}))
+    result = balance.clocked_draw_of(
+        machines.machines_of(model), registry(*modeled_registry().values(), entry)
+    )
+
+    raised = raised_counts(result)
+    assert raised.get(balance.WARN_BALANCE_TAGLESS_DEFAULT) == result.tagless_default_count == 1
+    assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == 1
+    assert result.machines_considered == PAIRED_RECORDS

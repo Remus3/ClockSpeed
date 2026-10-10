@@ -1723,12 +1723,13 @@ def _clocked_warnings(
     """The clocked draw's warnings, in the order the counts are given.
 
     One warning per nonzero count, so no default, unread clock, gap or bracket
-    is silent, after the empty-model warning when the model held no machine.
+    is silent, after the empty-model warning when there was nothing to price.
     Split out of :func:`clocked_draw_of` when CS-1280 added the tagless count,
     so the draw stays one readable pass.
 
     Args:
-        empty: Whether the machines model carried no machine at all.
+        empty: Whether the draw had nothing to price: the machines model
+            admitted no machine and the draw took no tagless record.
         counts: ``(code, count)`` per counted warning, in publication order.
 
     Returns:
@@ -1891,7 +1892,9 @@ def clocked_draw_of(
     omitted = sum(item.machine_count for item in omissions)
 
     warnings = _clocked_warnings(
-        empty=not machines.machines,
+        # CS-1280. A tagless record the draw took was something to price, so a
+        # model with no admitted machine is empty only when it took none.
+        empty=not machines.machines and not tagless,
         counts=(
             (WARN_BALANCE_CLOCK_ELIDED, defaulted),
             (WARN_BALANCE_TAGLESS_DEFAULT, tagless_defaulted),
