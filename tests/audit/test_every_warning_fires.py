@@ -275,6 +275,13 @@ FIXTURES: Final[Mapping[str, Firing]] = {
     "WARN_BALANCE_NO_MACHINES_CLOCKED": lambda: (
         balance.clocked_draw_of(balance_fx.world_machines(), balance_fx.modeled_registry()).warnings
     ),
+    # CS-1280: one consumer record with no machine tag on a clean payload.
+    "WARN_BALANCE_TAGLESS_DEFAULT": lambda: (
+        balance.clocked_draw_of(
+            machines.machines_of(balance_fx.census_world((balance_fx.FIXED_THIRD, {}))),
+            balance_fx.modeled_registry(),
+        ).warnings
+    ),
     "WARN_BALANCE_PRODUCTION_UNMODELED": lambda: _balance_composite(belts=True),
     "WARN_BALANCE_GENERATION_UNMODELED": lambda: (
         production_fx.production(

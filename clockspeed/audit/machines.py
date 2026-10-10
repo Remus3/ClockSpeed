@@ -106,6 +106,21 @@ routes it to UNREAD. This module never reads a record's extent - an offset or a
 length is a position the save layer publishes to nobody, and
 ``tests/audit/test_extent_seam.py::test_no_audit_module_reads_a_record_extent``
 pins that over the whole package.
+
+WHICH OF THEM READ CLEAN (CS-1280)
+------------------------------------
+The CS-1280 ruling prices a tagless power consumer at its class default ONLY
+when its payload read clean, and this module is the one that holds the
+payload. So it publishes, per class, how many READ and unadmitted records also
+read CLEAN - :attr:`WorldMachines.unadmitted_clean_counts`: a payload paired
+and read, no value that disagreed with its declared size, and no tag on
+:data:`CLEAN_PAYLOAD_REFUSING_NAMES` among the decoded values or the dropped-tag
+names. That is the clean-payload test the elided clock uses
+(:attr:`MachineState.overclock_elided`), plus the pending clock tag and the
+boost tags the ruling's carve-out adds. A SUBSET of
+:attr:`WorldMachines.unadmitted_read_counts`, never a third bucket, so the
+partition above is untouched; which of those classes draw power is still the
+balance's question, one layer up.
 """
 
 from __future__ import annotations
@@ -128,9 +143,11 @@ if TYPE_CHECKING:  # pragma: no cover - import-time typing only
     from clockspeed.save.world import RecordProperties, WorldModel
 
 __all__ = [
+    "CLEAN_PAYLOAD_REFUSING_NAMES",
     "MACHINE_PROPERTY_NAMES",
     "PRODUCTION_BOOST_PROPERTY_NAMES",
     "PROPERTY_OVERCLOCK",
+    "PROPERTY_PENDING_OVERCLOCK",
     "PROPERTY_PRODUCING",
     "PROPERTY_RECIPE",
     "RECIPE_ASSET_ROOTS",
@@ -158,9 +175,19 @@ PROPERTY_RECIPE: Final = "mCurrentRecipe"
 #: The live overclock's tag name. A ``FloatProperty``.
 #: ``docs/adr/0005-overclock-ceiling-source.md`` measured it at five records
 #: across three worlds, and records that ``mPendingPotential`` is its sibling.
-#: THE SIBLING IS NOT READ HERE: no acceptance clause grades it, and a field
-#: nothing grades is a field nothing measures.
+#: THE SIBLING'S VALUE IS NOT READ HERE: no acceptance clause grades it, and a
+#: field nothing grades is a field nothing measures. Its PRESENCE is read, for
+#: CS-1280 alone - see :data:`PROPERTY_PENDING_OVERCLOCK`.
 PROPERTY_OVERCLOCK: Final = "mCurrentPotential"
+
+#: CS-1280. The pending overclock's tag name, the sibling ADR 0005 records.
+#: ONLY ITS PRESENCE IS READ, decoded or not, and only to decide whether a
+#: record carrying no machine tag read clean: the session 133 CS-1280
+#: measurement found tagless miner and water-pump records carrying it, and the
+#: ruling keeps such a record unpriced. NOT a machine-membership tag - a record
+#: admitted on it alone would be an elided clock, priced at the default by
+#: CS-1263, which is the price the carve-out refuses it.
+PROPERTY_PENDING_OVERCLOCK: Final = "mPendingPotential"
 
 #: CS-1264. The production-boost tag names: the live boost and its pending
 #: sibling, mirroring the clock's own pair above. THE SPELLING IS MEASURED, THE
@@ -190,6 +217,14 @@ PRODUCTION_BOOST_PROPERTY_NAMES: Final = frozenset(
 #: machine tag IS a machine, whatever its class, and a modded or unmodelled
 #: building is admitted on the same terms as a shipped one.
 MACHINE_PROPERTY_NAMES: Final = frozenset({PROPERTY_PRODUCING, PROPERTY_RECIPE, PROPERTY_OVERCLOCK})
+
+#: CS-1280. The tag names whose PRESENCE, decoded or not, keeps a record from
+#: reading clean: both clock tags and both production-boost tags. The current
+#: clock is here although it already admits a record, so the clean test states
+#: the ruling whole rather than leaning on the admission rule above it.
+CLEAN_PAYLOAD_REFUSING_NAMES: Final = (
+    frozenset({PROPERTY_OVERCLOCK, PROPERTY_PENDING_OVERCLOCK}) | PRODUCTION_BOOST_PROPERTY_NAMES
+)
 
 #: Which asset roots a recipe reference MAY be published from. An ALLOWLIST and
 #: never a denylist, on the terms ``clockspeed/save/world.py``
@@ -416,6 +451,12 @@ class WorldMachines:
             admit such a record on, so this is a fact about this reader and
             never about the record. With :attr:`machines` and the field above
             it partitions the record table.
+        unadmitted_clean_counts: CS-1280. Per class, how many of the records
+            counted in :attr:`unadmitted_read_counts` also read CLEAN - see
+            :func:`_reads_clean` - in the same pair shape and class order. A
+            SUBSET of that census and never a third bucket: no class carries
+            more here than there. Empty by default, so a hand-built model
+            claims no clean record and a consumer prices none.
     """
 
     machines: tuple[MachineState, ...]
@@ -430,6 +471,7 @@ class WorldMachines:
     # Appended with defaults, so every existing construction stays valid.
     unadmitted_read_counts: tuple[tuple[str, int], ...] = ()
     unadmitted_unread_counts: tuple[tuple[str, int], ...] = ()
+    unadmitted_clean_counts: tuple[tuple[str, int], ...] = ()
 
     def __repr__(self) -> str:
         """Render counts and flags, and none that a member could make raise.
@@ -448,6 +490,7 @@ class WorldMachines:
             f"refused_recipe_count={self.refused_recipe_count}, "
             f"unadmitted_read={sum(count for _, count in self.unadmitted_read_counts)}, "
             f"unadmitted_unread={sum(count for _, count in self.unadmitted_unread_counts)}, "
+            f"unadmitted_clean={sum(count for _, count in self.unadmitted_clean_counts)}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -544,6 +587,29 @@ def _payload_was_read(entry: RecordProperties) -> bool:
     return entry.payload_present and entry.payload_read
 
 
+def _reads_clean(entry: RecordProperties) -> bool:
+    """Whether a read payload is clean enough to price its record at the default (CS-1280).
+
+    THE CLEAN-PAYLOAD TEST THE ELIDED CLOCK USES, PLUS THE CARVE-OUT. A payload
+    paired and read (:func:`_payload_was_read`), no value that disagreed with
+    its declared size - such a tag may have been the clock itself - and no tag
+    on :data:`CLEAN_PAYLOAD_REFUSING_NAMES` among the values or the dropped-tag
+    names, because a tag whose value never decoded was still written.
+
+    Args:
+        entry: The record's published properties.
+
+    Returns:
+        True only when every clause holds.
+    """
+    return (
+        _payload_was_read(entry)
+        and not entry.disagreeing_value_count
+        and CLEAN_PAYLOAD_REFUSING_NAMES.isdisjoint(entry.values)
+        and CLEAN_PAYLOAD_REFUSING_NAMES.isdisjoint(entry.undecoded_names)
+    )
+
+
 def _count_never_walked(model: WorldModel, tally: dict[str, int]) -> None:
     """Count, as unread, every record no property pass reached (CS-1266).
 
@@ -581,6 +647,7 @@ def machines_of(model: WorldModel) -> WorldMachines:
     refused_recipe = 0
     unadmitted_read: dict[str, int] = {}
     unadmitted_unread: dict[str, int] = {}
+    unadmitted_clean: dict[str, int] = {}
 
     for index in sorted(walked):
         entry = walked[index]
@@ -592,6 +659,9 @@ def machines_of(model: WorldModel) -> WorldMachines:
             )
             tally = unadmitted_read if _payload_was_read(entry) else unadmitted_unread
             tally[class_name] = tally.get(class_name, 0) + 1
+            # CS-1280. A MARK on a read record, never a third bucket.
+            if _reads_clean(entry):
+                unadmitted_clean[class_name] = unadmitted_clean.get(class_name, 0) + 1
             continue
 
         raw_producing = entry.values.get(PROPERTY_PRODUCING)
@@ -664,4 +734,5 @@ def machines_of(model: WorldModel) -> WorldMachines:
         warnings=tuple(warnings),
         unadmitted_read_counts=_counted(unadmitted_read),
         unadmitted_unread_counts=_counted(unadmitted_unread),
+        unadmitted_clean_counts=_counted(unadmitted_clean),
     )

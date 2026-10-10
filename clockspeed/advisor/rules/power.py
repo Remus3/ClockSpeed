@@ -60,6 +60,18 @@ different population. The gap rule reads :data:`IN_OMITTED` and counts every
 omitted consumer as unpriced, so a draw incomplete by omission alone never
 tells the operator to resolve nothing.
 
+A TAGLESS CONSUMER IS CONSIDERED, NOT OMITTED (CS-1280). A built power
+consumer that carried no machine tag on a cleanly read payload is priced by
+``clockspeed/audit/balance.py`` at its class default, in a group of its own,
+and counted in ``WorldClockedDraw.machines_considered`` - so
+:data:`IN_CONSIDERED` holds it, :data:`IN_UNMODELED` holds it when its entry
+has no number, and the gap rule's priced share stays a share of one
+population with no rule-side change. Its own count,
+``WorldClockedDraw.tagless_default_count``, is named by the audit's own
+``WARN_BALANCE_TAGLESS_DEFAULT`` and is NOT offered here as a rule input, so
+neither card's reason names it the way :data:`IN_ELIDED` names an elided
+clock.
+
 UNLOCKS. Neither rule declares an unlock key. "Add generation" names no
 building and no recipe, and the first generator is available before any
 schematic is bought, so any key declared here would be invented rather than

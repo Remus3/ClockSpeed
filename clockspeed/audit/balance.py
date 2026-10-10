@@ -72,6 +72,26 @@ makes the draw incomplete. A record of a class the registry does not carry is
 not counted: nothing declares that it draws power, and naming every belt and
 foundation would bury the consumers this check exists for.
 
+A TAGLESS CONSUMER ON A CLEAN PAYLOAD IS PRICED AT ITS CLASS DEFAULT (CS-1280).
+The ruling - option A with a carve-out, the 2026-10-08 CS-1280 decision record
+in ``docs/LEDGER.md`` - takes a built power consumer that carried no machine
+tag and prices it at :data:`ELIDED_CLOCK_DEFAULT` through the same
+:func:`_clocked_outcome` every machine goes through, ONLY when
+``WorldMachines.unadmitted_clean_counts`` marks its payload clean: read, no
+clock tag current or pending, no production-boost tag decoded or not, and no
+disagreeing value. Such a record is CONSIDERED: it joins
+:attr:`WorldClockedDraw.machines_considered` and the considered consumers, in a
+group of its own (:attr:`ClockedContribution.tagless`) that never merges with
+an elided clock, counted in :attr:`WorldClockedDraw.tagless_default_count` and
+warned by :data:`WARN_BALANCE_TAGLESS_DEFAULT`. Its entry decides the rest
+exactly as it does for an elided clock of its class - an entry with no number
+is that entry's named gap, never an omission blaming the payload. Every other
+read, tagless consumer stays :data:`GAP_NO_MACHINE_STATE`. The balance draw is
+nameplate at clock and never reads the producing flag, so a tagless machine
+that may be idle is priced as every admitted idle machine already is; the
+recorded instantaneous draw (option D) and zero as idle (option B) were
+rejected.
+
 THE CONFIDENT ZERO IS THE FAILURE MODE THIS MODULE IS BUILT AGAINST
 ---------------------------------------------------------------------
 Non-negotiable 7 says unknown content is flagged and skipped, never silently
@@ -257,6 +277,7 @@ __all__ = [
     "WARN_BALANCE_PRODUCING_UNAVAILABLE",
     "WARN_BALANCE_PRODUCTION_NAMEPLATE",
     "WARN_BALANCE_PRODUCTION_UNMODELED",
+    "WARN_BALANCE_TAGLESS_DEFAULT",
     "WARN_BALANCE_UPSTREAM_CAUSE_UNAVAILABLE",
     "ClockedContribution",
     "ClockedGap",
@@ -366,7 +387,9 @@ GAP_PAYLOAD_UNREAD: Final = "payload-unread"
 
 #: CS-1266. A built power consumer whose payload read and carried no clock, no
 #: recipe and no producing tag, so ``WorldMachines`` never admitted it and the
-#: clocked draw never priced it.
+#: clocked draw never priced it. CS-1280: only one whose payload did NOT read
+#: clean - a pending clock tag, a production-boost tag or a disagreeing value -
+#: since a clean one is priced at its class default instead.
 GAP_NO_MACHINE_STATE: Final = "no-machine-state"
 
 #: CS-1266. The closed vocabulary of omission kinds: built power consumers the
@@ -458,6 +481,12 @@ WARN_BALANCE_NO_MACHINES_CLOCKED: Final = "balance-no-machines-clocked"
 #: because their clock tag was elided. Counted so the default is never silent.
 WARN_BALANCE_CLOCK_ELIDED: Final = "balance-clock-elided"
 
+#: CS-1280. This many built power consumers carried no machine tag at all on a
+#: cleanly read payload and were priced at their class default, in groups of
+#: their own. Counted apart from the elided clocks, so neither default is
+#: silent and neither hides inside the other.
+WARN_BALANCE_TAGLESS_DEFAULT: Final = "balance-tagless-default"
+
 #: One fixed line per gap kind this module OWNS. The other three kinds carry
 #: ``clockspeed/solve/power.py``'s own reason verbatim instead, so no line is
 #: written twice anywhere.
@@ -511,9 +540,11 @@ _GAP_REASON: Final[Mapping[str, str]] = MappingProxyType(
         ),
         GAP_NO_MACHINE_STATE: (
             "this built power consumer's payload read and carried no clock, no recipe"
-            " and no producing tag, so it never entered the machines the draw prices;"
-            " it is named here rather than left out of a total that would then read"
-            " complete"
+            " and no producing tag, and did not read clean - it carried a pending clock"
+            " tag, a production-boost tag or a value that disagreed with its declared"
+            " size - so it is neither a machine the draw prices nor one priced at its"
+            " class default; it is named here rather than left out of a total that"
+            " would then read complete"
         ),
     }
 )
@@ -529,6 +560,15 @@ _ELIDED_CLOCK_REASON: Final = (
     "the save carried no clock tag on a cleanly read payload, which is how it writes a"
     " machine at the class default, so it is priced at the reference clock, where the"
     " draw is the declared scalar"
+)
+
+#: CS-1280. Why a built consumer that carried no machine tag is priced at the
+#: class default.
+_TAGLESS_DEFAULT_REASON: Final = (
+    "this built power consumer's payload read clean and carried no machine tag at"
+    " all - no clock, recipe, producing, pending clock or production-boost tag - so"
+    " it is priced at its class default, the reference clock, where the draw is the"
+    " declared scalar; it is counted apart from the elided clocks"
 )
 
 #: CS-1281. Why a machine of a class that cannot be clocked is priced at the
@@ -638,6 +678,12 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_BALANCE_NO_MACHINES_CLOCKED: (
             "the machines model carried no machine at all, so the clocked draw is zero"
             " because there was nothing to price and never because anything was measured"
+        ),
+        WARN_BALANCE_TAGLESS_DEFAULT: (
+            "this many built power consumers carried no machine tag at all on a cleanly"
+            " read payload, so they were priced at their class default, the reference"
+            " clock, in groups of their own; one whose payload carried a pending clock"
+            " tag, a production-boost tag or a disagreeing value stays a named omission"
         ),
     }
 )
@@ -1234,6 +1280,13 @@ class ClockedContribution:
             class TAGGED at the reference clock, the group's reason would be
             whichever came first, so the draw would depend on input order.
             Appended with a default, so no positional construction moves.
+        tagless: CS-1280. Whether the group holds built consumers that carried
+            no machine tag on a clean payload, priced at
+            :data:`ELIDED_CLOCK_DEFAULT` as their class default. Part of the
+            group key for the reason :attr:`clock_fixed` is, so such a group
+            never merges with an elided or a read clock of its class. Its count
+            is :attr:`WorldClockedDraw.tagless_default_count`, never the elided
+            one. Appended with a default, so no construction moves.
     """
 
     class_name: str
@@ -1247,6 +1300,7 @@ class ClockedContribution:
     lower_total: Fraction
     upper_total: Fraction
     clock_fixed: bool = False
+    tagless: bool = False
 
     def __repr__(self) -> str:
         """Render the numbers and the bound kind, and never the class name.
@@ -1257,6 +1311,7 @@ class ClockedContribution:
         return (
             f"{type(self).__name__}(clock={self.clock}, "
             f"clock_elided={self.clock_elided}, clock_fixed={self.clock_fixed}, "
+            f"tagless={self.tagless}, "
             f"machine_count={self.machine_count}, bound={self.bound}, "
             f"lower_total={self.lower_total}, upper_total={self.upper_total})"
         )
@@ -1303,6 +1358,8 @@ class WorldClockedDraw:
 
     THE MACHINES PARTITION INTO GROUPS AND GAPS WITH CONSERVATION:
     ``sum(machine_count)`` over both equals :attr:`machines_considered`.
+    CS-1280: a tagless consumer on a clean payload is considered too, so it is
+    in that sum and in that count.
 
     Attributes:
         contributions: One group per (class, clock), sorted so two runs agree.
@@ -1315,7 +1372,9 @@ class WorldClockedDraw:
             machine is a gap and no built consumer was omitted.
         complete: Whether every machine landed in a group AND every built power
             consumer was considered (CS-1266).
-        machines_considered: How many machines the input population held.
+        machines_considered: How many machines the input population held,
+            less the generators, plus every tagless consumer on a clean
+            payload this draw considered (CS-1280) - priced or a registry gap.
         bounded_machine_count: How many machines sit in a bracketed group.
         unread_clock_count: How many machines are :data:`GAP_CLOCK_UNREAD`.
         elided_clock_count: How many machines were priced at
@@ -1339,6 +1398,12 @@ class WorldClockedDraw:
             for like. ``built_consumer_count - considered_consumer_count`` is
             :attr:`omitted_consumer_count`.
         omitted_consumer_count: CS-1266. The sum of the omissions' counts.
+        tagless_default_count: CS-1280. How many built power consumers that
+            carried no machine tag on a clean payload were PRICED at
+            :data:`ELIDED_CLOCK_DEFAULT` - the machine count of every
+            :attr:`ClockedContribution.tagless` group. Never in
+            :attr:`elided_clock_count`, and never one whose entry had no number:
+            that one is its entry's gap.
     """
 
     contributions: tuple[ClockedContribution, ...]
@@ -1359,6 +1424,7 @@ class WorldClockedDraw:
     built_consumer_count: int = 0
     considered_consumer_count: int = 0
     omitted_consumer_count: int = 0
+    tagless_default_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -1379,6 +1445,7 @@ class WorldClockedDraw:
             f"built_consumer_count={self.built_consumer_count}, "
             f"considered_consumer_count={self.considered_consumer_count}, "
             f"omitted_consumer_count={self.omitted_consumer_count}, "
+            f"tagless_default_count={self.tagless_default_count}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -1576,10 +1643,107 @@ def _is_power_consumer(
     return isinstance(bucket, DrawGap) or bucket.megawatts_each != 0
 
 
+def _tagless_census(
+    machines: WorldMachines,
+    buildings: Mapping[str, Building],
+    producers: Mapping[str, Generator],
+) -> dict[str, int]:
+    """Per consumer class, how many tagless records read clean (CS-1280).
+
+    THE READ CENSUS IS THE POPULATION, THE CLEAN CENSUS ONLY MARKS MEMBERS OF
+    IT. ``WorldMachines`` publishes the second as a subset of the first; a
+    hand-built model that breaks that is clamped to the read count, so no
+    record the read census does not hold is ever priced, and none it does hold
+    is both priced and omitted.
+
+    Args:
+        machines: The machines model, for its two per-class censuses.
+        buildings: The consumer namespace.
+        producers: The generator namespace, possibly empty.
+
+    Returns:
+        Class name to the count priced at the class default, consumers only.
+    """
+    read = dict(machines.unadmitted_read_counts)
+    census: dict[str, int] = {}
+    for class_name, clean in machines.unadmitted_clean_counts:
+        count = min(clean, read.get(class_name, 0))
+        if count > 0 and _is_power_consumer(class_name, buildings, producers):
+            census[class_name] = count
+    return census
+
+
+#: One priced group's key: ``(class, clock, elided, fixed, tagless)``.
+_GroupKey = tuple[str, Fraction, bool, bool, bool]
+
+#: One priced group's value: ``(bound, reason, lower_each, upper_each, count)``.
+_GroupValue = tuple[str, str, Fraction, Fraction, int]
+
+
+def _price_tagless(
+    tagless: Mapping[str, int],
+    buildings: Mapping[str, Building],
+    priced: dict[_GroupKey, _GroupValue],
+    gapped: dict[tuple[str, str], tuple[str, int]],
+) -> None:
+    """Price every tagless consumer :func:`_tagless_census` took, in place (CS-1280).
+
+    THE SAME OUTCOME AN ELIDED CLOCK OF ITS CLASS GETS, from
+    :func:`_clocked_outcome` at :data:`ELIDED_CLOCK_DEFAULT`, so its entry
+    decides it alike: a number lands in a group whose key carries ``tagless``,
+    so it merges with no elided, fixed or read group; no number lands in the
+    entry's own gap, beside any machine of the same class and kind.
+
+    Args:
+        tagless: Class name to the count taken for the class default.
+        buildings: The consumer namespace.
+        priced: The priced groups, added to in place.
+        gapped: The gaps, added to in place.
+    """
+    for class_name, count in sorted(tagless.items()):
+        outcome = _clocked_outcome(class_name, ELIDED_CLOCK_DEFAULT, buildings.get(class_name))
+        if len(outcome) == 2:  # noqa: PLR2004 - the gap shape is a pair
+            kind, reason = outcome
+            _held, prior = gapped.get((class_name, kind), (reason, 0))
+            gapped[(class_name, kind)] = (reason, prior + count)
+            continue
+        bound, _law_reason, clock, low, high = outcome
+        priced[(class_name, clock, False, False, True)] = (
+            bound,
+            _TAGLESS_DEFAULT_REASON,
+            low,
+            high,
+            count,
+        )
+
+
+def _clocked_warnings(
+    *, empty: bool, counts: tuple[tuple[str, int], ...]
+) -> tuple[WorldWarning, ...]:
+    """The clocked draw's warnings, in the order the counts are given.
+
+    One warning per nonzero count, so no default, unread clock, gap or bracket
+    is silent, after the empty-model warning when the model held no machine.
+    Split out of :func:`clocked_draw_of` when CS-1280 added the tagless count,
+    so the draw stays one readable pass.
+
+    Args:
+        empty: Whether the machines model carried no machine at all.
+        counts: ``(code, count)`` per counted warning, in publication order.
+
+    Returns:
+        The warnings.
+    """
+    warnings = [_warning(WARN_BALANCE_NO_MACHINES_CLOCKED)] if empty else []
+    warnings.extend(_warning(code, count) for code, count in counts if count)
+    return tuple(warnings)
+
+
 def _omissions_of(
     machines: WorldMachines,
     buildings: Mapping[str, Building],
     producers: Mapping[str, Generator],
+    tagless: Mapping[str, int],
 ) -> tuple[ClockedGap, ...]:
     """Name every built power consumer ``WorldMachines`` never admitted (CS-1266).
 
@@ -1588,6 +1752,8 @@ def _omissions_of(
             not admit.
         buildings: The consumer namespace.
         producers: The generator namespace, possibly empty.
+        tagless: CS-1280. Per class, the read records :func:`_tagless_census`
+            took for the class default; they are considered, never omitted.
 
     Returns:
         One entry per (class, kind), sorted, each counting built records.
@@ -1597,8 +1763,9 @@ def _omissions_of(
         (GAP_PAYLOAD_UNREAD, machines.unadmitted_unread_counts),
         (GAP_NO_MACHINE_STATE, machines.unadmitted_read_counts),
     ):
-        for class_name, count in census:
-            if count and _is_power_consumer(class_name, buildings, producers):
+        for class_name, total in census:
+            count = total - tagless.get(class_name, 0) if kind == GAP_NO_MACHINE_STATE else total
+            if count > 0 and _is_power_consumer(class_name, buildings, producers):
                 named[(class_name, kind)] = count
     return tuple(
         ClockedGap(class_name=class_name, machine_count=count, kind=kind, reason=_GAP_REASON[kind])
@@ -1633,9 +1800,10 @@ def clocked_draw_of(
         The clocked draw: an exact value per group where the power law yields
         one, a named bracket where it does not, a named gap where no number
         exists at all, and a named omission for every built power consumer the
-        population never held (CS-1266).
+        population never held (CS-1266) - save a tagless one on a clean
+        payload, priced at its class default in a group of its own (CS-1280).
     """
-    priced: dict[tuple[str, Fraction, bool, bool], tuple[str, str, Fraction, Fraction, int]] = {}
+    priced: dict[_GroupKey, _GroupValue] = {}
     gapped: dict[tuple[str, str], tuple[str, int]] = {}
     producers = generators or {}
     excluded = 0
@@ -1669,9 +1837,12 @@ def clocked_draw_of(
         # CS-1281. ``fixed`` is in the key, as ``elided`` is: a fixed clock and a
         # tag read at the same clock carry different reasons, and one group
         # holding both would keep whichever reason came first.
-        key = (state.class_name, clock, elided, fixed)
+        key = (state.class_name, clock, elided, fixed, False)
         prior = priced.get(key, (bound, reason, low, high, 0))
         priced[key] = (bound, reason, low, high, prior[4] + 1)
+
+    tagless = _tagless_census(machines, buildings, producers)
+    _price_tagless(tagless, buildings, priced, gapped)
 
     contributions = tuple(
         ClockedContribution(
@@ -1686,10 +1857,15 @@ def clocked_draw_of(
             lower_total=low * count,
             upper_total=high * count,
             clock_fixed=fixed,
+            tagless=is_tagless,
         )
-        for (class_name, clock, elided, fixed), (bound, reason, low, high, count) in sorted(
-            priced.items()
-        )
+        for (class_name, clock, elided, fixed, is_tagless), (
+            bound,
+            reason,
+            low,
+            high,
+            count,
+        ) in sorted(priced.items())
     )
     gaps = tuple(
         ClockedGap(class_name=class_name, machine_count=count, kind=kind, reason=reason)
@@ -1701,27 +1877,29 @@ def clocked_draw_of(
     )
     unread = sum(gap.machine_count for gap in gaps if gap.kind == GAP_CLOCK_UNREAD)
     defaulted = sum(group.machine_count for group in contributions if group.clock_elided)
+    tagless_defaulted = sum(group.machine_count for group in contributions if group.tagless)
+    tagless_considered = sum(tagless.values())
     unmodeled = sum(gap.machine_count for gap in gaps) - unread
     # CS-1266. Both counts read ONE predicate, so they compare like for like.
-    considered_consumers = sum(
+    # CS-1280: the census above admitted consumers alone, so its records join.
+    considered_consumers = tagless_considered + sum(
         1
         for state in machines.machines
         if _is_power_consumer(state.class_name, buildings, producers)
     )
-    omissions = _omissions_of(machines, buildings, producers)
+    omissions = _omissions_of(machines, buildings, producers, tagless)
     omitted = sum(item.machine_count for item in omissions)
 
-    warnings: list[WorldWarning] = []
-    if not machines.machines:
-        warnings.append(_warning(WARN_BALANCE_NO_MACHINES_CLOCKED))
-    if defaulted:
-        warnings.append(_warning(WARN_BALANCE_CLOCK_ELIDED, defaulted))
-    if unread:
-        warnings.append(_warning(WARN_BALANCE_CLOCK_UNREAD, unread))
-    if unmodeled or omitted:
-        warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_UNMODELED, unmodeled + omitted))
-    if bounded:
-        warnings.append(_warning(WARN_BALANCE_CLOCKED_DRAW_BOUNDED, bounded))
+    warnings = _clocked_warnings(
+        empty=not machines.machines,
+        counts=(
+            (WARN_BALANCE_CLOCK_ELIDED, defaulted),
+            (WARN_BALANCE_TAGLESS_DEFAULT, tagless_defaulted),
+            (WARN_BALANCE_CLOCK_UNREAD, unread),
+            (WARN_BALANCE_CLOCKED_DRAW_UNMODELED, unmodeled + omitted),
+            (WARN_BALANCE_CLOCKED_DRAW_BOUNDED, bounded),
+        ),
+    )
 
     result = WorldClockedDraw(
         contributions=contributions,
@@ -1730,17 +1908,18 @@ def clocked_draw_of(
         upper_megawatts=sum((group.upper_total for group in contributions), Fraction(0)),
         exact=not bounded and not gaps and not omissions,
         complete=not gaps and not omissions,
-        machines_considered=len(machines.machines) - excluded,
+        machines_considered=len(machines.machines) - excluded + tagless_considered,
         bounded_machine_count=bounded,
         unread_clock_count=unread,
         elided_clock_count=defaulted,
         unmodeled_machine_count=unmodeled,
-        warnings=tuple(warnings),
+        warnings=warnings,
         generator_machine_count=excluded,
         omissions=omissions,
         built_consumer_count=considered_consumers + omitted,
         considered_consumer_count=considered_consumers,
         omitted_consumer_count=omitted,
+        tagless_default_count=tagless_defaulted,
     )
     audit_exact(result, path="clocked_draw")
     return result

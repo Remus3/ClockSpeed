@@ -37,6 +37,8 @@ from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
 
+import pytest
+
 from clockspeed.audit import machines
 from clockspeed.save import objects
 from clockspeed.save.header import SaveHeader
@@ -658,3 +660,141 @@ def test_a_record_paired_with_no_payload_is_unread_whatever_its_entry_says() -> 
 
     assert result.unadmitted_unread_counts == ((MACHINE_CLASS, 1),)
     assert result.unadmitted_read_counts == ((MACHINE_CLASS, 1),)
+
+
+# ---------------------------------------------------------------------------
+# CS-1280: which unadmitted records read CLEAN
+# ---------------------------------------------------------------------------
+#
+# The ruling prices a tagless power consumer at its class default ONLY when its
+# payload read clean: no ``mCurrentPotential`` or ``mPendingPotential`` tag, no
+# production-boost tag, decoded or not, and no disagreeing value. This module
+# never decides which classes draw power, so it publishes the fact the balance
+# needs - per class, how many of the read-and-unadmitted records read clean - as
+# a SUBSET of that census, so the CS-1266 partition above is untouched.
+
+#: The pending clock tag, spelled here rather than read off the module, so an
+#: arm still collects when the constant is missing and fails on the assertion.
+PENDING_TAG = "mPendingPotential"
+
+#: The two production-boost tags, spelled here for the same reason.
+BOOST_TAGS = ("mCurrentProductionBoost", "mPendingProductionBoost")
+
+
+def test_the_pending_clock_tag_is_read_for_cleanliness_and_never_admits() -> None:
+    """The ruling's carve-out names the sibling tag; admitting on it would bypass it.
+
+    A record admitted on its pending tag alone is an elided machine, priced at
+    the default by CS-1263 - the exact price the carve-out refuses it.
+    """
+    assert machines.PROPERTY_PENDING_OVERCLOCK == PENDING_TAG
+    assert PENDING_TAG not in machines.MACHINE_PROPERTY_NAMES
+    assert {PENDING_TAG, machines.PROPERTY_OVERCLOCK, *BOOST_TAGS} == set(
+        machines.CLEAN_PAYLOAD_REFUSING_NAMES
+    )
+
+
+def test_a_tagless_record_on_a_clean_payload_is_counted_clean() -> None:
+    """An empty payload and one holding an unrelated tag both read clean."""
+    result = machines.machines_of(world(entry({}), entry({UNRELATED_PROPERTY: 7})))
+
+    assert result.machines == ()
+    assert result.unadmitted_read_counts == ((MACHINE_CLASS, 2),)
+    assert result.unadmitted_clean_counts == ((MACHINE_CLASS, 2),)
+
+
+#: Which tag name each unclean kind carries, and whether its value decoded.
+_UNCLEAN_TAG: Mapping[str, tuple[str, bool]] = MappingProxyType(
+    {
+        "pending-decoded": (PENDING_TAG, True),
+        "pending-undecoded": (PENDING_TAG, False),
+        "current-boost-decoded": (BOOST_TAGS[0], True),
+        "pending-boost-decoded": (BOOST_TAGS[1], True),
+        "current-boost-undecoded": (BOOST_TAGS[0], False),
+        "pending-boost-undecoded": (BOOST_TAGS[1], False),
+    }
+)
+
+#: Every way a read, tagless record fails the clean test, one reason each.
+UNCLEAN_KINDS = (*_UNCLEAN_TAG, "disagreeing-neighbour")
+
+
+def unclean(kind: str) -> RecordProperties:
+    """One tagless entry that read, carrying exactly one reason it is not clean.
+
+    Args:
+        kind: One of :data:`UNCLEAN_KINDS`.
+
+    Returns:
+        The entry.
+    """
+    if kind not in _UNCLEAN_TAG:
+        return replace(
+            entry({}), disagreeing_value_count=1, undecoded_names=frozenset({UNRELATED_PROPERTY})
+        )
+    name, decoded = _UNCLEAN_TAG[kind]
+    if decoded:
+        return entry({name: 1.0})
+    # Unmeasured rather than disagreeing, so only the NAME decides.
+    return replace(entry({}), undecoded_names=frozenset({name}), unmeasured_value_count=1)
+
+
+@pytest.mark.parametrize("kind", UNCLEAN_KINDS)
+def test_a_tagless_record_that_did_not_read_clean_is_read_but_never_clean(kind: str) -> None:
+    """Each refusal on its own, beside a clean control of the same class."""
+    result = machines.machines_of(world(unclean(kind), entry({})))
+
+    assert result.machines == ()
+    assert result.unadmitted_read_counts == ((MACHINE_CLASS, 2),)
+    assert result.unadmitted_clean_counts == ((MACHINE_CLASS, 1),)
+
+
+def test_an_unread_or_unpaired_record_is_never_clean() -> None:
+    """No payload read means nothing was read clean, whatever the entry says."""
+    result = machines.machines_of(
+        world(entry({}, payload_read=False), replace(entry({}), payload_present=False))
+    )
+
+    assert result.unadmitted_unread_counts == ((MACHINE_CLASS, 2),)
+    assert result.unadmitted_clean_counts == ()
+
+
+def test_the_clean_census_marks_members_of_the_read_census_and_moves_nothing() -> None:
+    """The CS-1266 partition holds, and clean never exceeds read for any class."""
+    model = world(
+        entry({machines.PROPERTY_PRODUCING: True}),
+        entry({}),
+        unclean("pending-decoded"),
+        entry({}, payload_read=False),
+    )
+    result = machines.machines_of(model)
+
+    read = dict(result.unadmitted_read_counts)
+    clean = dict(result.unadmitted_clean_counts)
+    assert (read, clean) == ({MACHINE_CLASS: 2}, {MACHINE_CLASS: 1})
+    unread = sum(count for _, count in result.unadmitted_unread_counts)
+    assert len(result.machines) + sum(read.values()) + unread == len(model.objects.records)
+
+
+def test_a_hand_built_model_has_nothing_clean() -> None:
+    result = machines.WorldMachines(
+        machines=(),
+        producing_available=False,
+        recipe_available=False,
+        overclock_available=False,
+        records_considered=0,
+        unread_payload_count=0,
+        refused_overclock_count=0,
+        refused_recipe_count=0,
+        warnings=(),
+    )
+
+    assert result.unadmitted_clean_counts == ()
+
+
+def test_the_clean_census_renders_a_count_and_never_a_class() -> None:
+    result = machines.machines_of(world(entry({}), entry({})))
+
+    assert "unadmitted_clean=2" in repr(result)
+    assert MACHINE_CLASS not in repr(result)
+    assert copy.deepcopy(result) == result

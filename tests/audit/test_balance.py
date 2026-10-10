@@ -1827,6 +1827,17 @@ TAGGED: Mapping[str, object] = MappingProxyType(
     {machines.PROPERTY_OVERCLOCK: 1.0, machines.PROPERTY_PRODUCING: True}
 )
 
+#: CS-1280. The pending clock tag, spelled here rather than read off the module
+#: so every arm still collects when the constant is missing.
+PENDING_TAG = "mPendingPotential"
+
+#: CS-1280. The decoded values of a record carrying no machine tag on a payload
+#: that did NOT read clean - a pending clock tag and nothing else. The ruling
+#: keeps such a record a no-machine-state omission, so the CS-1266 arms below
+#: build their omissions out of it: a record with NO tag at all now reads clean
+#: and is priced at its class default instead.
+PENDING: Mapping[str, object] = MappingProxyType({PENDING_TAG: 1.0})
+
 #: An invented class whose entry declares a FIXED draw of exactly zero - the
 #: shape every storage container and pipeline junction ships with.
 ZERO_DRAW = "Build_SyntheticZeroDrawQx73_C"
@@ -1923,9 +1934,10 @@ def test_a_built_consumer_the_draw_never_considered_is_named() -> None:
     POPULATION. Without the cross-check the draw prices the one, carries no gap
     and calls itself complete; with it, both records are named by class and
     kind, the like-for-like counts disagree by exactly them, and the total is a
-    floor.
+    floor. CS-1280: each carries a pending clock tag, so neither read clean and
+    the ruling keeps both omitted rather than priced at the class default.
     """
-    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_WHOLE, {}), (FIXED_THIRD, {}))
+    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_WHOLE, PENDING), (FIXED_THIRD, PENDING))
     result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
 
     assert result.complete is False
@@ -1992,6 +2004,9 @@ def test_both_consumer_counts_read_one_predicate() -> None:
     scalar is also zero, is counted and named, and so is a modeled class whose
     payload never read. A predicate reading the scalar alone drops the variable
     row; one that skips the generator namespace counts the generator row.
+    CS-1280: the three excluded records read clean and are still not counted -
+    the ruling prices a CONSUMER - while the variable one carries a pending
+    clock tag, so it stays an omission.
     """
     model = census_world(
         (FIXED_WHOLE, TAGGED),
@@ -2001,7 +2016,7 @@ def test_both_consumer_counts_read_one_predicate() -> None:
         (ZERO_DRAW, {}),
         (NOT_IN_REGISTRY, {}),
         (GENERATOR_CLASS, {}),
-        (DECLARED_VARIABLE, {}),
+        (DECLARED_VARIABLE, PENDING),
         unread=(FIXED_THIRD, ZERO_DRAW, NOT_IN_REGISTRY),
     )
     result = balance.clocked_draw_of(
@@ -2108,7 +2123,7 @@ def test_the_omission_kinds_are_their_own_closed_vocabulary() -> None:
 
 
 def test_every_omission_carries_a_reason_and_its_repr_names_no_class() -> None:
-    model = census_world((FIXED_WHOLE, {}), unread=(FIXED_THIRD,))
+    model = census_world((FIXED_WHOLE, PENDING), unread=(FIXED_THIRD,))
     result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
 
     assert {item.kind for item in result.omissions} == balance.OMISSION_KINDS
@@ -2120,7 +2135,7 @@ def test_every_omission_carries_a_reason_and_its_repr_names_no_class() -> None:
 
 def test_the_composite_carries_an_omitted_consumer_as_an_incomplete_draw() -> None:
     """The power rule reads ``complete``; an omitted consumer must make it False."""
-    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_THIRD, {}))
+    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_THIRD, PENDING))
     result = balance.balance_of(
         built(modeled_counts()),
         modeled_registry(),
@@ -2145,7 +2160,7 @@ def test_each_count_is_of_records_never_of_classes() -> None:
     """
     model = census_world(
         *((FIXED_WHOLE, TAGGED) for _ in range(PRICED_MACHINES)),
-        *((FIXED_THIRD, {}) for _ in range(UNTAGGED_RECORDS)),
+        *((FIXED_THIRD, PENDING) for _ in range(UNTAGGED_RECORDS)),
     )
     result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
 
@@ -2170,8 +2185,8 @@ def test_omissions_count_every_class_and_kind_in_their_sorted_order() -> None:
     """
     model = census_world(
         *((FIXED_WHOLE, TAGGED) for _ in range(PRICED_MACHINES)),
-        *((FIXED_THIRD, {}) for _ in range(UNTAGGED_RECORDS)),
-        (FIXED_WHOLE, {}),
+        *((FIXED_THIRD, PENDING) for _ in range(UNTAGGED_RECORDS)),
+        (FIXED_WHOLE, PENDING),
         unread=(FIXED_WHOLE, FIXED_WHOLE, FIXED_THIRD),
     )
     result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
@@ -2405,3 +2420,372 @@ def test_a_present_clock_is_never_overridden_by_the_elision_mark(class_name: str
     assert group.clock == DOUBLE_CLOCK
     assert group.clock_elided is False
     assert result.elided_clock_count == 0
+
+
+# ---------------------------------------------------------------------------
+# CS-1280: a tagless consumer on a CLEAN payload is priced at its class default
+# ---------------------------------------------------------------------------
+#
+# The ruling (option A with a carve-out, the 2026-10-08 CS-1280 decision
+# record): a built power consumer whose payload read and carried no machine tag
+# is priced at its class default, in its own counted group with its own
+# warning, ONLY when the payload read clean - no clock tag, current or pending,
+# no production-boost tag decoded or not, and no disagreeing value. Anything
+# else stays a no-machine-state omission. Every arm reads the census through
+# the REAL ``machines_of``.
+
+#: The production-boost tags, spelled here for the reason :data:`PENDING_TAG` is.
+CLEAN_REFUSING_BOOSTS = ("mCurrentProductionBoost", "mPendingProductionBoost")
+
+#: How many tagless records the acceptance arm prices.
+TAGLESS_RECORDS = 2
+
+#: An invented consumer class; each class-family arm builds one record of it.
+FAMILY_CLASS = "Build_SyntheticFamilyQx80_C"
+
+#: The class families whose entry yields a number at the class default. The
+#: draw prices a record by its registry entry and nothing else, so these - and
+#: the gap families below - are every way two built classes can be priced
+#: differently. Each family's draw differs from the next, so a swap shows.
+PRICED_FAMILIES: Mapping[str, Building] = MappingProxyType(
+    {
+        "clockable": replace(building(FAMILY_CLASS, consumption=WHOLE_MEGAWATTS), clockable=True),
+        "cannot-be-clocked": replace(
+            building(FAMILY_CLASS, consumption=THIRD_MEGAWATTS, exponent=BRACKETED_EXPONENT),
+            clockable=False,
+        ),
+        "clock-capability-unknown": building(FAMILY_CLASS, consumption=Fraction(7)),
+        "fractional-exponent": building(
+            FAMILY_CLASS, consumption=Fraction(11, 2), exponent=BRACKETED_EXPONENT
+        ),
+        "not-clock-scalable": building(FAMILY_CLASS, consumption=Fraction(13), exponent=None),
+    }
+)
+
+#: The class families whose entry yields NO number at the class default, and the
+#: gap kind an elided clock of the same class is named by.
+GAP_FAMILIES: Mapping[str, tuple[Building, str]] = MappingProxyType(
+    {
+        "variable-draw": (
+            building(
+                FAMILY_CLASS,
+                consumption=Fraction(0),
+                minimum=Fraction(0),
+                maximum=Fraction(100),
+                variable=True,
+            ),
+            power.SHAPE_VARIABLE,
+        ),
+        "range-only": (
+            building(FAMILY_CLASS, minimum=Fraction(0), maximum=Fraction(50), variable=True),
+            power.SHAPE_RANGE_ONLY,
+        ),
+        "undeclared": (building(FAMILY_CLASS), power.SHAPE_UNDECLARED),
+        "inexact-draw": (building(FAMILY_CLASS, consumption=0.1), balance.GAP_DRAW_INEXACT),
+        "inexact-exponent": (
+            building(FAMILY_CLASS, consumption=WHOLE_MEGAWATTS, exponent=1.5),
+            balance.GAP_LAW_INEXACT,
+        ),
+    }
+)
+
+
+def tagless_groups(result: balance.WorldClockedDraw) -> list[tuple[str, int]]:
+    """Each group priced at the class default for a tagless record, as ``(class, count)``.
+
+    Args:
+        result: The clocked draw.
+
+    Returns:
+        The rows, in published order.
+    """
+    return [
+        (group.class_name, group.machine_count)
+        for group in result.contributions
+        if getattr(group, "tagless", False)
+    ]
+
+
+def raised_counts(result: balance.WorldClockedDraw) -> dict[str, int]:
+    """Each raised warning code with its count.
+
+    Args:
+        result: The clocked draw.
+
+    Returns:
+        The mapping.
+    """
+    return {warning.code: warning.count for warning in result.warnings}
+
+
+def conserves(result: balance.WorldClockedDraw) -> bool:
+    """Whether the groups and gaps sum to the considered population.
+
+    Args:
+        result: The clocked draw.
+
+    Returns:
+        True when nothing considered was dropped or invented.
+    """
+    held = sum(group.machine_count for group in result.contributions)
+    held += sum(gap.machine_count for gap in result.gaps)
+    return held == result.machines_considered
+
+
+def test_a_tagless_consumer_on_a_clean_payload_is_priced_at_its_class_default() -> None:
+    """CS-1280's acceptance arm: the ruling, and the arm that reddens when it is ignored.
+
+    One machine is priced on its own clock; two records of a consumer class
+    read clean and carry no machine tag at all. IGNORING THE RULING names both
+    as no-machine-state omissions and calls the draw a floor. With it, both are
+    priced at the class default in ONE group of their own, counted and warned
+    apart from the elided clocks, and the draw is complete and exact.
+    """
+    model = census_world(
+        (FIXED_WHOLE, TAGGED), *((FIXED_THIRD, {}) for _ in range(TAGLESS_RECORDS))
+    )
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert result.omissions == ()
+    assert result.complete is True
+    assert result.exact is True
+    assert tagless_groups(result) == [(FIXED_THIRD, TAGLESS_RECORDS)]
+    (group,) = [group for group in result.contributions if group.class_name == FIXED_THIRD]
+    assert group.clock == balance.ELIDED_CLOCK_DEFAULT == power.REFERENCE_CLOCK
+    assert (group.clock_elided, group.clock_fixed, group.bound) == (
+        False,
+        False,
+        balance.BOUND_EXACT,
+    )
+    assert group.lower_total == group.upper_total == THIRD_MEGAWATTS * TAGLESS_RECORDS
+    assert group.reason == balance._TAGLESS_DEFAULT_REASON  # noqa: SLF001
+    assert result.upper_megawatts == WHOLE_MEGAWATTS + THIRD_MEGAWATTS * TAGLESS_RECORDS
+    assert result.tagless_default_count == TAGLESS_RECORDS
+    assert result.elided_clock_count == 0
+    assert consumer_counts(result) == (1 + TAGLESS_RECORDS, 1 + TAGLESS_RECORDS, 0)
+    assert result.machines_considered == 1 + TAGLESS_RECORDS
+    assert conserves(result)
+    raised = raised_counts(result)
+    assert raised.get(balance.WARN_BALANCE_TAGLESS_DEFAULT) == TAGLESS_RECORDS
+    assert balance.WARN_BALANCE_CLOCK_ELIDED not in raised
+    assert balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED not in raised
+
+
+@pytest.mark.parametrize("family", sorted(PRICED_FAMILIES))
+def test_a_clean_tagless_consumer_of_each_priced_family_is_its_declared_draw(family: str) -> None:
+    """One arm per class family whose default has a number: priced, never omitted.
+
+    Ignoring the ruling omits the record; pricing it anywhere but the class
+    default turns the fractional-exponent families into a bracket; counting it
+    elided or fixed puts it in the wrong group.
+    """
+    entry = PRICED_FAMILIES[family]
+    result = balance.clocked_draw_of(
+        machines.machines_of(census_world((FAMILY_CLASS, {}))), registry(entry)
+    )
+
+    assert result.omissions == ()
+    assert result.complete is True
+    assert tagless_groups(result) == [(FAMILY_CLASS, 1)]
+    assert result.lower_megawatts == result.upper_megawatts == entry.power_consumption
+    assert (result.elided_clock_count, result.tagless_default_count) == (0, 1)
+    assert [group.clock_fixed for group in result.contributions] == [False]
+    assert consumer_counts(result) == (1, 1, 0)
+    assert conserves(result)
+
+
+@pytest.mark.parametrize("family", sorted(GAP_FAMILIES))
+def test_a_clean_tagless_consumer_of_each_gap_family_is_its_registry_gap(family: str) -> None:
+    """One arm per class family whose default has NO number: considered, named by its entry.
+
+    It is priced exactly as an elided clock of its class is, so it lands in the
+    gap the registry earns and never in an omission that blames its payload.
+    """
+    entry, kind = GAP_FAMILIES[family]
+    result = balance.clocked_draw_of(
+        machines.machines_of(census_world((FAMILY_CLASS, {}))), registry(entry)
+    )
+    elided_twin = balance.clocked_draw_of(world_machines(elided(FAMILY_CLASS)), registry(entry))
+
+    assert result.omissions == ()
+    assert [(gap.class_name, gap.kind, gap.machine_count) for gap in result.gaps] == [
+        (FAMILY_CLASS, kind, 1)
+    ]
+    assert [(gap.kind, gap.reason) for gap in result.gaps] == [
+        (gap.kind, gap.reason) for gap in elided_twin.gaps
+    ]
+    assert result.complete is False
+    assert result.contributions == ()
+    assert result.tagless_default_count == 0
+    assert result.unmodeled_machine_count == 1
+    assert consumer_counts(result) == (1, 1, 0)
+    assert conserves(result)
+    assert raised_counts(result).get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == 1
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        PENDING,
+        MappingProxyType({CLEAN_REFUSING_BOOSTS[0]: 1.0}),
+        MappingProxyType({CLEAN_REFUSING_BOOSTS[1]: 1.0}),
+    ],
+    ids=["pending-clock", "current-boost", "pending-boost"],
+)
+def test_a_tagless_consumer_that_did_not_read_clean_stays_omitted(
+    values: Mapping[str, object],
+) -> None:
+    """The carve-out, beside a clean control of the SAME class.
+
+    Pricing every read tagless record ignores the carve-out and empties the
+    omission list; ignoring the ruling omits the control too.
+    """
+    model = census_world((FIXED_THIRD, values), (FIXED_THIRD, {}))
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert omitted_rows(result) == [(FIXED_THIRD, balance.GAP_NO_MACHINE_STATE, 1)]
+    assert tagless_groups(result) == [(FIXED_THIRD, 1)]
+    assert result.complete is False
+    assert consumer_counts(result) == (2, 1, 1)
+    assert conserves(result)
+
+
+def test_an_undecoded_or_disagreeing_tagless_payload_stays_omitted() -> None:
+    """The siblings no value map can show: a dropped tag's NAME, and a torn neighbour.
+
+    Two records whose values are empty, alike in every field the clean test
+    does not read - one named a pending clock tag the decoder dropped, one
+    carried a value that disagreed with its declared size - beside a clean one.
+    """
+    model = census_world((FIXED_THIRD, {}), (FIXED_THIRD, {}), (FIXED_THIRD, {}))
+    entries = dict(model.properties.by_record_index)
+    entries[0] = replace(
+        entries[0], undecoded_names=frozenset({PENDING_TAG}), unmeasured_value_count=1
+    )
+    entries[1] = replace(
+        entries[1], undecoded_names=frozenset({TORN_NEIGHBOUR}), disagreeing_value_count=1
+    )
+    model = replace(model, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    assert omitted_rows(result) == [(FIXED_THIRD, balance.GAP_NO_MACHINE_STATE, 2)]
+    assert tagless_groups(result) == [(FIXED_THIRD, 1)]
+
+
+def test_tagless_actors_through_the_real_loader_split_on_the_clean_test() -> None:
+    """Four tagless actors through ``load_world_from_bytes``: one clean, three not.
+
+    THE PREMISE IS ASSERTED FIRST: every payload read and was paired, none
+    carries a machine tag, and only the torn one disagrees. The pending clock,
+    the boost and the torn neighbour each keep their record omitted.
+    """
+    model = decoded_actors(
+        (),
+        (float_tag(PENDING_TAG, 0.5),),
+        (float_tag(CLEAN_REFUSING_BOOSTS[0], 1.0),),
+        (torn_float_tag(TORN_NEIGHBOUR),),
+    )
+    walked = list(model.properties.by_record_index.values())
+    assert [(e.payload_read, e.payload_present) for e in walked] == [(True, True)] * 4
+    assert [e.disagreeing_value_count for e in walked] == [0, 0, 0, 1]
+
+    population = machines.machines_of(model)
+    assert population.machines == ()
+    result = balance.clocked_draw_of(population, decoded_registry())
+    class_name = objects.class_name_of(save_synthetic.DECODABLE_CLASS_PATH)
+
+    assert tagless_groups(result) == [(class_name, 1)]
+    assert omitted_rows(result) == [(class_name, balance.GAP_NO_MACHINE_STATE, 3)]
+    assert result.upper_megawatts == result.lower_megawatts == WHOLE_MEGAWATTS
+    assert consumer_counts(result) == (4, 1, 3)
+
+
+def test_a_tagless_group_never_merges_with_an_elided_one_in_either_order() -> None:
+    """Same class, same clock: an admitted machine whose clock tag was elided, and a tagless record.
+
+    Each has its own group, its own count and its own warning, in either
+    record order.
+    """
+    producing = MappingProxyType({machines.PROPERTY_PRODUCING: True})
+    forward = balance.clocked_draw_of(
+        machines.machines_of(census_world((FIXED_THIRD, producing), (FIXED_THIRD, {}))),
+        modeled_registry(),
+    )
+    backward = balance.clocked_draw_of(
+        machines.machines_of(census_world((FIXED_THIRD, {}), (FIXED_THIRD, producing))),
+        modeled_registry(),
+    )
+
+    assert forward == backward
+    flags = sorted((group.clock_elided, group.tagless) for group in forward.contributions)
+    assert flags == [(False, True), (True, False)]
+    assert (forward.elided_clock_count, forward.tagless_default_count) == (1, 1)
+    raised = raised_counts(forward)
+    assert (
+        raised.get(balance.WARN_BALANCE_CLOCK_ELIDED),
+        raised.get(balance.WARN_BALANCE_TAGLESS_DEFAULT),
+    ) == (1, 1)
+    reasons = {group.tagless: group.reason for group in forward.contributions}
+    assert reasons[True] == balance._TAGLESS_DEFAULT_REASON  # noqa: SLF001
+    assert reasons[False] == balance._ELIDED_CLOCK_REASON  # noqa: SLF001
+    assert forward.complete is True
+
+
+def test_a_clean_tagless_record_of_a_class_that_is_not_a_consumer_is_never_priced() -> None:
+    """Fixed zero, no entry and a generator: the ruling prices CONSUMERS only."""
+    model = census_world((ZERO_DRAW, {}), (NOT_IN_REGISTRY, {}), (GENERATOR_CLASS, {}))
+    result = balance.clocked_draw_of(
+        machines.machines_of(model), like_for_like_registry(), generators=like_for_like_generators()
+    )
+
+    assert result.contributions == ()
+    assert result.gaps == ()
+    assert result.omissions == ()
+    assert result.tagless_default_count == 0
+    assert result.machines_considered == 0
+    assert consumer_counts(result) == (0, 0, 0)
+    assert balance.WARN_BALANCE_TAGLESS_DEFAULT not in raised_counts(result)
+
+
+def test_a_clean_census_above_its_read_census_prices_only_what_was_read() -> None:
+    """A hand-built census claiming more clean records than read ones prices the read ones.
+
+    The read census is the population and the clean census only marks members
+    of it, so a class with clean records and no read ones prices nothing.
+    """
+    population = replace(
+        world_machines(),
+        unadmitted_read_counts=((FIXED_THIRD, 1),),
+        unadmitted_clean_counts=((FIXED_THIRD, 3), (FIXED_WHOLE, 2)),
+    )
+    result = balance.clocked_draw_of(population, modeled_registry())
+
+    assert tagless_groups(result) == [(FIXED_THIRD, 1)]
+    assert result.omissions == ()
+    assert consumer_counts(result) == (1, 1, 0)
+    assert conserves(result)
+
+
+def test_the_composite_carries_a_tagless_consumer_as_a_complete_draw() -> None:
+    """The power rule reads ``complete``; a clean tagless consumer must leave it True."""
+    model = census_world((FIXED_WHOLE, TAGGED), (FIXED_THIRD, {}))
+    result = balance.balance_of(
+        built(modeled_counts()),
+        modeled_registry(),
+        machines.machines_of(model),
+        world_network(),
+    )
+
+    assert result.clocked_draw.complete is True
+    assert result.clocked_draw.tagless_default_count == 1
+    assert balance.WARN_BALANCE_TAGLESS_DEFAULT in {warning.code for warning in result.warnings}
+
+
+def test_a_tagless_group_and_the_draw_render_counts_and_never_a_class() -> None:
+    model = census_world((FIXED_THIRD, {}))
+    result = balance.clocked_draw_of(machines.machines_of(model), modeled_registry())
+
+    rendered = " ".join(repr(value) for value in (result, *result.contributions))
+    assert FIXED_THIRD not in rendered
+    assert "tagless_default_count=1" in repr(result)
+    assert "tagless=True" in repr(result.contributions[0])
