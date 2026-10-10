@@ -15,14 +15,17 @@ adversary in session 136; its integration suite read RED for two environmental c
      log line). READ CI for anything pushed after f8e30bf. `python tools/inbox_watch.py`. Read
      ops/loop/control/inbox_status.json first - the responder commits and pushes on main.
  (1) FINISH `s136-savefallback` (CS-1309, acceptance in docs/item_notes/phase4-followups-1000.md).
-     Read ops/loop/control/progress/s136-savefallback.json. At the /done its builder was
-     running (85 percent, "write-scanner fix; rerunning world/phase4/workdir") with its work
-     UNCOMMITTED in its worktree (`git worktree list`, branch s136-savefallback, based on the
-     CS-1292 "leak lens round 4" commit): clockspeed/save/workdir.py, clockspeed/save/world.py,
+     Read ops/loop/control/progress/s136-savefallback.json. At the /done's end its builder had
+     COMMITTED two commits on branch s136-savefallback (based on the CS-1292 "leak lens round
+     4" commit; `git worktree list`): "s136 - fall back past a save the reader refuses, and
+     flag it" and "s136 - a refused save whose time will not render is still skipped" - 9
+     files: clockspeed/save/workdir.py, clockspeed/save/world.py,
      clockspeed/surface/providers.py, tests/assertion_rendering_guard.py,
-     tests/save/reach_guard.py, tests/save/test_workdir.py modified; tests/save/
-     test_newest_world.py and tests/surface/test_world_provider_fallback.py new. If its builder
-     is gone, send ONE builder to that branch to finish it, targeted tests only. Its builder
+     tests/save/reach_guard.py, tests/save/test_workdir.py, and new tests/save/
+     test_newest_world.py and tests/surface/test_world_provider_fallback.py - and was
+     re-running the previously red save tests (95 percent). NEITHER SUBJECT CITES CS-1309:
+     re-message both on the cherry-pick. If its builder is gone with work left, send ONE
+     builder to that branch to finish it, targeted tests only. Its builder
      found the red save tests are LIBRARY SWEEPS, not the newest-save pick alone; the acceptance
      sends the sweep question to an adjudicator. Then a DISTINCT adversary (leak lens included:
      no save path, world name or header byte in the flag, a message, a log or an exception -
@@ -54,8 +57,10 @@ adversary in session 136; its integration suite read RED for two environmental c
 s136-land's slices (name by tip subject; never spell an unpublished SHA in a tracked file):
   TIER2-RED + CS-1300 - "CS-815 - wrapper arms needing a finished ladder wait for quiet
     siblings" through "CS-815 CS-1300 - one-shot check sees past a probe, waiters stop first":
-    fixes b, c, d, e, g; the concurrency/deadlock/timing adversary NOT REFUTED on the repaired
-    tip (verdict: gitignored ops/loop/control/progress/s136r-a1-verdict.md). Residual (BACKLOG):
+    the first concurrency/deadlock/timing pass, on the session 135 repair, REFUTED it on minor
+    points only - the token, deadlock and CS-1300 claims survived (gitignored
+    ops/loop/control/progress/s136r-a1-verdict.md); fixes b, c, d, e, g followed and a second
+    adversary pass on the repaired tip read NOT REFUTED (agent-reported). Residual (BACKLOG):
     the 5 s live-sibling retry.
   CS-1302 - "CS-1302 - the dev extra pins mypy to the one release this box runs".
   CS-1280 - "CS-1280 - price a clean tagless consumer at its class default", "... a priced
@@ -184,8 +189,8 @@ HEAD / remote   at the session 136 /done's start HEAD == origin/main == f8e30bf 
                 "clockspeed pre-push: BLOCKED".
 DIRTY FILES     none in the main checkout after the /done commits (read back in the REPORT).
                 The half-done work is on branches: s136-land (committed, clean) and
-                s136-savefallback (8 paths UNCOMMITTED in its worktree, listed in the next
-                action).
+                s136-savefallback (two commits at the /done's end, its builder still
+                re-running tests - the next action).
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
 ANOTHER WRITER SHARES THIS TREE - the responder (above). ALLOCATE NEW IDS FROM CS-1310
   UPWARD AND RE-CHECK THE MAX FIRST (`git grep` and `git log --all` for the next id; CS-1309
@@ -195,7 +200,7 @@ UNMERGED BRANCHES - KEEP, DO NOT PRUNE; name each by branch or tip subject (neve
   `git log --all --oneline --grep "<subject>"` and `git worktree list`:
   s136-land - THE ONE TO LAND (next action), tip subject "CS-1292 - the replace-ref control
     binds the blob before asserting on it", 19 commits on f8e30bf, worktree clean.
-  s136-savefallback - CS-1309, in flight, uncommitted (next action (1)).
+  s136-savefallback - CS-1309, in flight, two commits (next action (1)).
   s136r-cs1300, s136r-cs1280-fix, s136r-cs1285a-fix, s136r-cs1285a-fix2, s136r-cs1292-fix3,
     s136r-cs1292-fix4 - the session 136 slice branches whose content was cherry-picked into
     s136-land; keep until s136-land lands, then classify by content.
@@ -842,7 +847,9 @@ THE LANDING SUITE figures above are AGENT-REPORTED, not observed by this /done.
 DOC RITUAL after the edits: python tools/drift_guard.py EXIT 0 (11 guards PASS, CLEAN); python
   tools/doc_budget.py EXIT 0 (PASS, 0 over budget); python tools/memory_sync.py EXIT 0 (23
   leaves valid; no recall mirror is configured); python tools/sha_citation_gate.py EXIT 0
-  (PASS). python tools/precommit_gate.py --staged: run on the staged records set before the records commit; its result is in the amendment commit that follows.
+  (PASS). python tools/precommit_gate.py --staged: before staging EXIT 0 (PASS, 0 checked);
+  on the staged 8 files EXIT 0 (PASS - 8 checked, 1 skipped, 0 blocking); the commit hook
+  re-ran it: PASS, 8 checked.
 CI READ BY THIS /done (`gh run list`): tier1 38032690909 at f8e30bf SUCCESS; tier2 38043220320
   at f8e30bf (schedule, attempt 1) SUCCESS - the first tier2 after 319cd8a.
 CS-1284 PROCESS: acceptance adversary REFUTED (the record absent, two session counts, the NUL
@@ -851,7 +858,21 @@ CS-1284 PROCESS: acceptance adversary REFUTED (the record absent, two session co
 RESPONDER: inbox_status.json read idle, Idle (updated 14:56) before the commit.
 INBOX: 0 unread of 530 (read). OUTBOX 2026-10-10: 1 note (0718). WORKTREES: 42 lines. BRANCH
   REFS: 316. CLAUDE.md: 40790 bytes.
-COMMIT AND PUSH: this file's first version rides in the /done records commit; the commit SHA, the push result and the CI read for it are recorded by the hand-off-only amendment commit that follows it (`git log -2`).
+COMMIT AND PUSH: the /done records commit (subject "Session 136 /done - close CS-1284, file
+  CS-1308 and CS-1309") was committed through the git lock (pre-commit gate PASS, 8 checked;
+  wrapper exit 0; git status clean after it). ITS PUSH WAS BLOCKED: through the git lock,
+  owner set, the pre-push hook's gated whole suite (-x) stopped at 1 failed, 4197 passed, 6
+  warnings in 91.22 s - tests/save/test_phase4_gate.py::test_a_real_world_parses_end_to_end,
+  "a real save of a measured pair did not load: WorldLoadError", the live re-encoded save's
+  failure class (CS-1309; the operator's move is BATCHED ASK item 1) - and printed
+  "clockspeed pre-push: BLOCKED (pytest exit 2). Nothing was pushed."; git printed "failed to
+  push some refs"; wrapper exit 1. `git ls-remote origin main` then read f8e30bf. THE RECORDS
+  COMMIT AND THIS HAND-OFF-ONLY AMENDMENT ARE LOCAL ON main, UNPUSHED - never spell their SHAs
+  in a tracked file until published. They push with s136-land once its suite is green (next
+  action (3) cherry-picks s136-land onto this main). No second push was attempted for the
+  amendment: the same red blocks it, and a bypass is never taken. The responder's next push on
+  main would carry both and meet the same red. No CI run exists for either commit. Log:
+  work/done136_push.log.
 UNVERIFIED: every landing-branch figure (agent-reported); the CS-1280 measurement (verifier
   and builder agree, not re-measured here); the 0718, 1315 and 2304 deliveries (agent-
   reported); s136-savefallback's state beyond its progress file and `git status` of its
