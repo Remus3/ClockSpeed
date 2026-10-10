@@ -45,6 +45,7 @@ from clockspeed.data.blobs import BlobParseError, marker_count, parse_item_amoun
 from clockspeed.data.docs_extract import REASON_CLASSES_NOT_A_LIST
 from clockspeed.data.registry import (
     FORM_GAS,
+    FORM_LIQUID,
     FORM_SOLID,
     MAX_MALFORMED_BLOBS,
     WARN_DUPLICATE_CLASS_NAME,
@@ -61,6 +62,8 @@ from clockspeed.data.registry import (
     WARN_UNPARSABLE_NUMBER,
     WARN_UNRESOLVED_PRODUCED_IN,
     Building,
+    Extractor,
+    Generator,
     Item,
     Recipe,
     RecipeIO,
@@ -310,6 +313,15 @@ def test_every_document_key_the_registry_reads_matches_the_corpus_spelling() -> 
     assert registry_module.KEY_MAX_POTENTIAL == synthetic.KEY_MAX_POTENTIAL
     # CS-1281, for the same reason: the clock capability became a read field.
     assert registry_module.KEY_CAN_CHANGE_POTENTIAL == synthetic.KEY_CAN_CHANGE_POTENTIAL
+    # CS-1285 slice A, for the same reason: the accepted fuels and the
+    # extractor's resource restriction became read fields.
+    assert registry_module.KEY_FUEL == synthetic.KEY_FUEL
+    assert registry_module.KEY_FUEL_CLASS == synthetic.KEY_FUEL_CLASS
+    assert (
+        registry_module.KEY_ONLY_ALLOW_CERTAIN_RESOURCES
+        == synthetic.KEY_ONLY_ALLOW_CERTAIN_RESOURCES
+    )
+    assert registry_module.KEY_ALLOWED_RESOURCES == synthetic.KEY_ALLOWED_RESOURCES
 
 
 # ---------------------------------------------------------------------------
@@ -1333,6 +1345,313 @@ def test_known_but_deliberately_unmodeled_groups_are_not_reported_as_unknown(
     assert CUSTOMIZATION_GROUP not in registry.unknown_groups
     assert SCHEMATIC not in registry.items
     assert SCHEMATIC not in registry.buildings
+
+
+# ---------------------------------------------------------------------------
+# CS-1285 slice A - accepted fuels, restricted extractors, declared classes
+# ---------------------------------------------------------------------------
+#
+# The D4 fuel audit needs three facts no registry field carried: which fuels a
+# generator burns, which resources a restricted extractor can yield, and which
+# classes the document declares at all. Every arm below runs on the fuel corpus
+# in tests/data/synthetic.py or on the main corpus, and compares against the
+# corpus constants, never against the implementation's own literals.
+
+#: Tells fuel_registry_with to REMOVE a key, distinct from every JSON value -
+#: None included, since a key present as JSON null is not an absent key.
+_REMOVE: Any = object()
+
+#: A ClassName the fuel corpus gives no descriptor anywhere.
+NO_SUCH_ITEM = "Desc_SynthNoSuchThing_C"
+
+
+@pytest.fixture(scope="module")
+def fuel_registry() -> Registry:
+    """The registry built once from the fuel corpus.
+
+    Returns:
+        The built registry.
+    """
+    return build_registry(synthetic.fuel_document())
+
+
+def fuel_registry_with(class_name: str, key: str, value: Any) -> Registry:
+    """Rebuild the fuel corpus with one field of one entry set or removed.
+
+    Args:
+        class_name: The ClassName of the entry to patch; it must appear once.
+        key: The document key to set or remove.
+        value: The value to set - any JSON value, a non-string included - or
+            ``_REMOVE`` to remove the key entirely.
+
+    Returns:
+        A registry built from the patched copy, through the real docs_extract
+        seam.
+    """
+    groups = synthetic.fuel_groups()
+    patched = 0
+    for group in groups:
+        for entry in group[synthetic.KEY_CLASSES]:
+            if entry.get(synthetic.KEY_CLASS_NAME) != class_name:
+                continue
+            patched += 1
+            if value is _REMOVE:
+                entry.pop(key, None)
+            else:
+                entry[key] = value
+    assert patched == 1, f"{class_name} appears {patched} times in the fuel corpus, not once"
+    return build_registry(synthetic.document_from(groups))
+
+
+def test_the_fuel_corpus_builds_with_no_warning_but_its_unknown_group(
+    fuel_registry: Registry,
+) -> None:
+    # The baseline every arm below attributes its own warning against: a warning
+    # an arm sees that this corpus already raised would prove nothing.
+    codes = [warning.code for warning in fuel_registry.warnings]
+    assert codes == [WARN_UNKNOWN_GROUP], codes
+
+
+def test_accepted_fuels_are_read_from_mfuel_in_document_order(fuel_registry: Registry) -> None:
+    burner = fuel_registry.generators[synthetic.BURNER_GENERATOR]
+    assert burner.accepted_fuels == synthetic.BURNER_FUELS
+    # The corpus order is deliberately unsorted, so a reader that sorts or
+    # collects into a set cannot pass the arm above by coincidence.
+    assert list(synthetic.BURNER_FUELS) != sorted(synthetic.BURNER_FUELS)
+
+
+def test_mfuel_is_read_on_both_measured_generator_groups(fuel_registry: Registry) -> None:
+    # The nuclear group is the second group mFuel is measured on. Its object
+    # carries a supplemental resource and a byproduct; only the fuel is read.
+    reactor = fuel_registry.generators[synthetic.REACTOR_GENERATOR]
+    assert reactor.accepted_fuels == synthetic.REACTOR_FUELS
+
+
+def test_a_generator_with_no_mfuel_has_no_accepted_fuels_and_no_warning(
+    fuel_registry: Registry,
+) -> None:
+    # The geothermal shape. Absent is silent: the generator declares no fuel.
+    assert fuel_registry.generators[synthetic.VENT_GENERATOR].accepted_fuels is None
+    assert not warnings_with(fuel_registry, registry_module.WARN_UNREADABLE_FUELS)
+
+
+def test_mfuel_is_read_as_a_list_and_never_flagged_as_a_non_string(
+    fuel_registry: Registry,
+) -> None:
+    # A list IS mFuel's measured shape, so the present-but-not-a-string flag
+    # every scalar field raises would be a false alarm here.
+    assert fuel_registry.generators[synthetic.BURNER_GENERATOR].accepted_fuels
+    assert synthetic.BURNER_GENERATOR not in warned_subjects(fuel_registry, WARN_NON_STRING_VALUE)
+
+
+def test_an_absent_mfuel_on_a_fixed_output_generator_is_none_and_silent() -> None:
+    patched = fuel_registry_with(synthetic.BURNER_GENERATOR, synthetic.KEY_FUEL, _REMOVE)
+    assert patched.generators[synthetic.BURNER_GENERATOR].accepted_fuels is None
+    assert not warnings_with(patched, registry_module.WARN_UNREADABLE_FUELS)
+
+
+#: Every mFuel value that is present and cannot be read whole. Each yields
+#: None and a named warning - never an empty tuple, and never the readable
+#: subset, because a fuel dropped silently is supply the audit never counts.
+UNREADABLE_FUELS: dict[str, Any] = {
+    "a JSON null": None,
+    "a string": synthetic.PELLET_FUEL,
+    "an empty list": [],
+    "an object rather than a list": synthetic.fuel_object(synthetic.PELLET_FUEL),
+    "a list holding a bare string": [synthetic.PELLET_FUEL],
+    "an object with no fuel class": [{synthetic.KEY_SUPPLEMENTAL_RESOURCE_CLASS: ""}],
+    "a non-string fuel class": [{synthetic.KEY_FUEL_CLASS: 7}],
+    "an empty fuel class": [synthetic.fuel_object("")],
+    "one bad object among good ones": [
+        synthetic.fuel_object(synthetic.PELLET_FUEL),
+        {synthetic.KEY_FUEL_CLASS: None},
+        synthetic.fuel_object(synthetic.NAPHTHA_FUEL),
+    ],
+}
+
+
+@pytest.mark.parametrize("shape", sorted(UNREADABLE_FUELS))
+def test_an_unreadable_mfuel_is_none_and_a_named_warning(shape: str) -> None:
+    patched = fuel_registry_with(
+        synthetic.BURNER_GENERATOR, synthetic.KEY_FUEL, UNREADABLE_FUELS[shape]
+    )
+    assert patched.generators[synthetic.BURNER_GENERATOR].accepted_fuels is None
+    assert synthetic.BURNER_GENERATOR in warned_subjects(
+        patched, registry_module.WARN_UNREADABLE_FUELS
+    )
+
+
+def test_a_fuel_naming_no_descriptor_is_kept_and_flagged() -> None:
+    fuels = [synthetic.fuel_object(synthetic.PELLET_FUEL), synthetic.fuel_object(NO_SUCH_ITEM)]
+    patched = fuel_registry_with(synthetic.BURNER_GENERATOR, synthetic.KEY_FUEL, fuels)
+    accepted = patched.generators[synthetic.BURNER_GENERATOR].accepted_fuels
+    assert accepted == (synthetic.PELLET_FUEL, NO_SUCH_ITEM)
+    assert NO_SUCH_ITEM in warned_subjects(patched, WARN_UNKNOWN_ITEM)
+
+
+def test_a_repeated_fuel_is_listed_once_at_its_first_position() -> None:
+    fuels = [
+        synthetic.fuel_object(synthetic.NAPHTHA_FUEL),
+        synthetic.fuel_object(synthetic.PELLET_FUEL),
+        synthetic.fuel_object(synthetic.NAPHTHA_FUEL),
+    ]
+    patched = fuel_registry_with(synthetic.BURNER_GENERATOR, synthetic.KEY_FUEL, fuels)
+    accepted = patched.generators[synthetic.BURNER_GENERATOR].accepted_fuels
+    assert accepted == (synthetic.NAPHTHA_FUEL, synthetic.PELLET_FUEL)
+
+
+def test_allowed_resources_only_when_restricted(fuel_registry: Registry) -> None:
+    extractors = fuel_registry.extractors
+    assert extractors[synthetic.CRUDE_PUMP].allowed_resources == synthetic.CRUDE_PUMP_RESOURCES
+    fracker = extractors[synthetic.WELL_FRACKER]
+    assert fracker.allowed_resources == synthetic.WELL_FRACKER_RESOURCES
+    assert list(synthetic.WELL_FRACKER_RESOURCES) != sorted(synthetic.WELL_FRACKER_RESOURCES)
+    # Unrestricted: the miners' empty list, a NON-EMPTY list the flag does not
+    # enable, and the portable miner's absent pair are all None.
+    assert extractors[synthetic.STONE_DRILL].allowed_resources is None
+    assert extractors[synthetic.OPEN_PUMP].allowed_resources is None
+    assert extractors[synthetic.HAND_DRILL].allowed_resources is None
+    # The pump yields crude only, although its forms admit every liquid in
+    # the corpus - the list is narrower than the forms, which is its point.
+    pump = extractors[synthetic.CRUDE_PUMP]
+    assert FORM_LIQUID in pump.allowed_forms
+    assert fuel_registry.items[synthetic.BRINE_RESOURCE].form == FORM_LIQUID
+    assert synthetic.BRINE_RESOURCE not in synthetic.CRUDE_PUMP_RESOURCES
+
+
+def test_the_resource_restriction_comes_from_the_flag_not_a_folded_constant() -> None:
+    flag = synthetic.KEY_ONLY_ALLOW_CERTAIN_RESOURCES
+    enabled = fuel_registry_with(synthetic.OPEN_PUMP, flag, synthetic.FLAG_TRUE)
+    assert enabled.extractors[synthetic.OPEN_PUMP].allowed_resources == (synthetic.BRINE_RESOURCE,)
+    disabled = fuel_registry_with(synthetic.CRUDE_PUMP, flag, synthetic.FLAG_FALSE)
+    assert disabled.extractors[synthetic.CRUDE_PUMP].allowed_resources is None
+    removed = fuel_registry_with(synthetic.CRUDE_PUMP, flag, _REMOVE)
+    assert removed.extractors[synthetic.CRUDE_PUMP].allowed_resources is None
+
+
+#: Every mAllowedResources value a RESTRICTED extractor cannot be read from.
+#: Each is None and a named warning: an empty tuple would claim the extractor
+#: yields nothing, and the forms are the caller's fallback, never this layer's.
+UNREADABLE_RESOURCES: dict[str, Any] = {
+    "absent": _REMOVE,
+    "the empty string": "",
+    "a non-string": 7,
+    "not the class-path grammar": "Desc_SynthCrude_C",
+    "an unterminated entry": '("/Game/Synth/Desc_SynthCrude.Desc_SynthCrude_C)',
+}
+
+
+@pytest.mark.parametrize("shape", sorted(UNREADABLE_RESOURCES))
+def test_a_restricted_extractor_with_an_unreadable_list_is_none_and_flagged(shape: str) -> None:
+    patched = fuel_registry_with(
+        synthetic.CRUDE_PUMP, synthetic.KEY_ALLOWED_RESOURCES, UNREADABLE_RESOURCES[shape]
+    )
+    assert patched.extractors[synthetic.CRUDE_PUMP].allowed_resources is None
+    assert synthetic.CRUDE_PUMP in warned_subjects(
+        patched, registry_module.WARN_UNREADABLE_ALLOWED_RESOURCES
+    )
+
+
+@pytest.mark.parametrize("spelling", UNRECOGNIZED_FLAG_SPELLINGS)
+def test_an_unrecognized_restriction_flag_is_flagged_and_leaves_resources_unknown(
+    spelling: str,
+) -> None:
+    patched = fuel_registry_with(
+        synthetic.CRUDE_PUMP, synthetic.KEY_ONLY_ALLOW_CERTAIN_RESOURCES, spelling
+    )
+    assert patched.extractors[synthetic.CRUDE_PUMP].allowed_resources is None
+    assert synthetic.CRUDE_PUMP in warned_subjects(patched, registry_module.WARN_UNPARSABLE_FLAG)
+
+
+def test_an_allowed_resource_naming_no_descriptor_is_kept_and_flagged() -> None:
+    blob = synthetic.resource_blob([synthetic.CRUDE_RESOURCE, NO_SUCH_ITEM])
+    patched = fuel_registry_with(synthetic.CRUDE_PUMP, synthetic.KEY_ALLOWED_RESOURCES, blob)
+    allowed = patched.extractors[synthetic.CRUDE_PUMP].allowed_resources
+    assert allowed == (synthetic.CRUDE_RESOURCE, NO_SUCH_ITEM)
+    assert NO_SUCH_ITEM in warned_subjects(patched, WARN_UNKNOWN_ITEM)
+
+
+def test_a_repeated_allowed_resource_is_listed_once_at_its_first_position() -> None:
+    blob = synthetic.resource_blob(
+        [synthetic.MIST_RESOURCE, synthetic.CRUDE_RESOURCE, synthetic.MIST_RESOURCE]
+    )
+    patched = fuel_registry_with(synthetic.CRUDE_PUMP, synthetic.KEY_ALLOWED_RESOURCES, blob)
+    allowed = patched.extractors[synthetic.CRUDE_PUMP].allowed_resources
+    assert allowed == (synthetic.MIST_RESOURCE, synthetic.CRUDE_RESOURCE)
+
+
+def _recognized_class_names(groups: list[Any], unknown: str) -> set[str]:
+    """Walk the RAW corpus JSON for every ClassName outside one unknown group.
+
+    Independent of the loader on purpose: it reads the JSON the corpus wrote,
+    not what docs_extract made of it.
+
+    Args:
+        groups: The top-level group list.
+        unknown: The unknown group's short name.
+
+    Returns:
+        Every non-empty string ClassName in a group that is not ``unknown`` and
+        whose Classes value is a list.
+    """
+    names: set[str] = set()
+    for group in groups:
+        classes = group.get(synthetic.KEY_CLASSES)
+        if not isinstance(classes, list):
+            continue
+        if group[synthetic.KEY_NATIVE_CLASS].endswith(f".{unknown}'"):
+            continue
+        for entry in classes:
+            name = entry.get(synthetic.KEY_CLASS_NAME)
+            if isinstance(name, str) and name:
+                names.add(name)
+    return names
+
+
+def test_unknown_group_classes_are_undeclared(registry: Registry, fuel_registry: Registry) -> None:
+    # Each unknown group carries an entry with the markers a modeled namespace
+    # dispatches on; neither is modeled, and neither is declared.
+    assert synthetic.FUTURE_ITEM not in registry.declared_classes
+    assert synthetic.MOD_GENERATOR not in fuel_registry.declared_classes
+    assert synthetic.MOD_GENERATOR not in fuel_registry.generators
+    # The positive half, pinned as the whole SET against the raw corpus.
+    main = _recognized_class_names(synthetic.docs_json(), synthetic.UNKNOWN_GROUP)
+    assert registry.declared_classes == main
+    fuel = _recognized_class_names(synthetic.fuel_groups(), synthetic.UNKNOWN_GROUP)
+    assert fuel_registry.declared_classes == fuel
+
+
+def test_declared_classes_cover_recognized_entries_no_namespace_models(
+    registry: Registry,
+) -> None:
+    declared = registry.declared_classes
+    assert isinstance(declared, frozenset)
+    # A deliberately unmodeled group, a recipe the build skipped, and a
+    # customization recipe are all classes the document declares.
+    for name in (SCHEMATIC, NO_DURATION_RECIPE, MALFORMED_BLOB_RECIPE, CUSTOMIZATION_RECIPE):
+        assert name in declared, name
+    assert SCHEMATIC not in registry.items
+    assert NO_DURATION_RECIPE not in registry.recipes
+    # The entry with no ClassName declares nothing.
+    assert "" not in declared
+
+
+def test_the_slice_a_fields_are_appended_with_defaults() -> None:
+    # Appended and defaulted, for the reason Building.unsharded_clock_base
+    # gives: a required field mid-class breaks every positional construction.
+    for klass, name in (
+        (Generator, "accepted_fuels"),
+        (Extractor, "allowed_resources"),
+        (Registry, "declared_classes"),
+    ):
+        fields = dataclasses.fields(klass)
+        assert fields[-1].name == name, klass.__name__
+    bare = Registry(items={}, recipes={}, buildings={}, warnings=(), unknown_groups=())
+    assert bare.declared_classes == frozenset()
+    generator = Generator("Build_X_C", "X", Fraction(1), None, None, False)
+    assert generator.accepted_fuels is None
+    extractor = Extractor("Build_Y_C", "Y", None, None, frozenset())
+    assert extractor.allowed_resources is None
 
 
 # ---------------------------------------------------------------------------

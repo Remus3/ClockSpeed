@@ -56,11 +56,16 @@ passes its own tests, so each is handled explicitly and each has a named test.
 
 - **"Every scalar is a string" is FALSE, and a non-string is not an absent
   one.** 1152 measured values are not strings - two ``FGSchematic`` list fields
-  and ``mFuel`` on two generator groups, one of which is a modeled group.
-  Absence is this model's load-bearing signal for "not clock-scalable" and for
-  "no sink value", so routing a present-but-wrong-type value to absent would
-  collapse "the game shipped something new here" into "the game shipped nothing
-  here". Present-but-wrong-type gets its own warning code.
+  and ``mFuel`` on both generator groups that carry it, the fuel and the
+  nuclear group, each of which yields :class:`Generator` entries. Absence is
+  this model's load-bearing signal for "not clock-scalable" and for "no sink
+  value", so routing a present-but-wrong-type value to absent would collapse
+  "the game shipped something new here" into "the game shipped nothing here".
+  Present-but-wrong-type gets its own warning code. ``mFuel`` is the one
+  non-string this module READS: its measured shape is a list of objects, so a
+  list there is the expected type rather than a flag, and anything else
+  present is an unreadable value with a warning code of its own - see
+  :attr:`Generator.accepted_fuels`.
 
 - **``mPowerConsumption`` has THREE shapes, not two.** A decimal string, an
   absent key, and - on one measured entry - a STRUCT string,
@@ -233,6 +238,7 @@ __all__ = [
     "FORM_SOLID",
     "GENERATION_MARKER_KEYS",
     "ITEM_GROUP_SHORT_NAMES",
+    "KEY_ALLOWED_RESOURCES",
     "KEY_ALLOWED_RESOURCE_FORMS",
     "KEY_CAN_CHANGE_POTENTIAL",
     "KEY_DISPLAY_NAME",
@@ -242,9 +248,12 @@ __all__ = [
     "KEY_ESTIMATED_MIN_POWER",
     "KEY_EXTRACT_CYCLE_TIME",
     "KEY_FORM",
+    "KEY_FUEL",
+    "KEY_FUEL_CLASS",
     "KEY_INGREDIENTS",
     "KEY_ITEMS_PER_CYCLE",
     "KEY_MAX_POTENTIAL",
+    "KEY_ONLY_ALLOW_CERTAIN_RESOURCES",
     "KEY_POWER_CONSUMPTION",
     "KEY_POWER_EXPONENT",
     "KEY_POWER_PRODUCTION",
@@ -277,6 +286,8 @@ __all__ = [
     "WARN_UNKNOWN_RESOURCE_FORM",
     "WARN_UNPARSABLE_FLAG",
     "WARN_UNPARSABLE_NUMBER",
+    "WARN_UNREADABLE_ALLOWED_RESOURCES",
+    "WARN_UNREADABLE_FUELS",
     "WARN_UNRESOLVED_PRODUCED_IN",
     "Building",
     "Extractor",
@@ -359,6 +370,25 @@ _FLAG_SPELLINGS: Final[Mapping[str, bool]] = MappingProxyType({"True": True, "Fa
 KEY_ITEMS_PER_CYCLE: Final = "mItemsPerCycle"
 KEY_EXTRACT_CYCLE_TIME: Final = "mExtractCycleTime"
 KEY_ALLOWED_RESOURCE_FORMS: Final = "mAllowedResourceForms"
+
+#: CS-1285 slice A. An extractor's resource restriction, measured read-only on
+#: the pinned build: every measured extractor that carries the flag carries
+#: 'True' or 'False', the restricted ones carry their resources as a
+#: class-path list in the mProducedIn grammar, each quoted entry wrapped in a
+#: Type'Path' pair, and the unrestricted miners carry the empty string. The
+#: list is read ONLY when the flag reads 'True' - see
+#: :attr:`Extractor.allowed_resources`.
+KEY_ONLY_ALLOW_CERTAIN_RESOURCES: Final = "mOnlyAllowCertainResources"
+KEY_ALLOWED_RESOURCES: Final = "mAllowedResources"
+
+#: CS-1285 slice A. A generator's accepted fuels, measured read-only on the
+#: pinned build as a JSON ARRAY of objects - never a string - on the fuel and
+#: the nuclear generator groups, and absent on the geothermal one. Each object
+#: carries exactly four keys; only the fuel's ClassName is read. The
+#: supplemental resource and the byproduct are out of scope, so their keys are
+#: deliberately not named here.
+KEY_FUEL: Final = "mFuel"
+KEY_FUEL_CLASS: Final = "mFuelClass"
 
 # ---------------------------------------------------------------------------
 # Forms and units
@@ -495,6 +525,15 @@ WARN_UNPARSABLE_NUMBER: Final = "unparsable-number"
 WARN_UNRESOLVED_PRODUCED_IN: Final = "unresolved-produced-in"
 #: CS-1281. A boolean field present as a string that is neither spelling.
 WARN_UNPARSABLE_FLAG: Final = "unparsable-flag"
+#: CS-1285 slice A. mFuel is present and cannot be read WHOLE. Its subject is
+#: the generator's ClassName, and it is the only thing that tells such a
+#: generator's None apart from the None of one that declares no fuel at all.
+WARN_UNREADABLE_FUELS: Final = "unreadable-fuels"
+#: CS-1285 slice A. A restricted extractor whose resource list cannot be read,
+#: subject its ClassName. Distinct from WARN_MALFORMED_BLOB on purpose: that
+#: code is counted toward the recipe grammar canary, and this one is not a
+#: recipe.
+WARN_UNREADABLE_ALLOWED_RESOURCES: Final = "unreadable-allowed-resources"
 
 
 class RegistryError(Exception):
@@ -696,6 +735,19 @@ class Extractor:
             treating the two as the same would invent a form the document never
             named, and dropping the token would erase the evidence that it was
             ever there (non-negotiable 7).
+        allowed_resources: CS-1285. The resource ClassNames from
+            ``mAllowedResources``, in source order and deduplicated, read ONLY
+            when ``mOnlyAllowCertainResources`` reads exactly ``'True'``; None
+            otherwise. NONE MEANS UNRESTRICTED OR UNKNOWN, never "extracts
+            nothing", and this field is never an empty tuple: the measured oil
+            pump is restricted to crude alone while its forms admit every
+            liquid, so a caller resolving what an extractor can yield takes
+            this list when it is present and falls back to the items of
+            :attr:`allowed_forms` when it is None. A flag that is neither
+            spelling is flagged as unparsable; a restricted entry whose list is
+            absent, empty, not a string or not the class-path grammar is
+            flagged as unreadable. A token naming no item descriptor is kept
+            verbatim and flagged as an unknown item.
     """
 
     key: str
@@ -704,6 +756,9 @@ class Extractor:
     extract_cycle_time: Fraction | None
     allowed_forms: frozenset[str]
     unrecognized_forms: tuple[str, ...] = ()
+    # CS-1285. Appended with a default, for the reason
+    # Building.unsharded_clock_base states; None asserts no restriction.
+    allowed_resources: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -735,6 +790,18 @@ class Generator:
             ABOVE zero, which is the measured shape of a generator whose output
             cycles rather than holds. A declared zero on both is not variable,
             for the reason :attr:`Building.is_variable_power` gives.
+        accepted_fuels: CS-1285. The fuel ClassNames from ``mFuel``, in
+            document order and deduplicated, or None - NEVER an empty tuple.
+            None covers two different facts: an ABSENT ``mFuel``, which is
+            silent and is the geothermal shape, and a present value that
+            cannot be read WHOLE - not a list, an empty list, or any object
+            whose fuel class is not a non-empty string - which is flagged
+            ``WARN_UNREADABLE_FUELS`` under this generator's key. All or
+            nothing, because a fuel dropped from a partly read list is supply
+            a fuel audit never counts. A fuel naming no item descriptor is kept
+            verbatim and flagged as an unknown item. The supplemental resource
+            and the byproduct each object also carries are out of scope and
+            are not read.
     """
 
     key: str
@@ -743,6 +810,9 @@ class Generator:
     variable_production_constant: Fraction | None
     variable_production_factor: Fraction | None
     is_variable_production: bool
+    # CS-1285. Appended with a default, for the reason
+    # Building.unsharded_clock_base states; None asserts no fuel.
+    accepted_fuels: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -815,6 +885,15 @@ class Registry:
             byte-identical output.
         unknown_groups: Short names of groups this build did not recognize.
             Deliberately excluded groups are NOT listed here.
+        declared_classes: CS-1285. Every non-empty ClassName an entry of a
+            RECOGNIZED group carries, whether or not any namespace models it -
+            a schematic, a skipped recipe and a belt are declared too. An
+            unknown group's entries are NOT declared: that group is flagged
+            and skipped, and declaring its classes would vouch for content no
+            probe has seen. A class outside this set is one the pinned docs
+            do not know, which is the test a save-side consumer needs; the
+            registry models only the classes that draw power, extract,
+            generate, or are items or recipes.
     """
 
     items: Mapping[str, Item]
@@ -828,6 +907,9 @@ class Registry:
     # mapping, so a caller cannot mutate a shared default into existence.
     extractors: Mapping[str, Extractor] = _NO_EXTRACTORS
     generators: Mapping[str, Generator] = _NO_GENERATORS
+    # CS-1285. Appended with a default on the same terms; a frozenset is
+    # immutable, so one shared default is safe.
+    declared_classes: frozenset[str] = frozenset()
 
 
 class _WarningLog:
@@ -1227,8 +1309,103 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
     )
 
 
+def _flag_unknown_items(
+    keys: Sequence[str],
+    items: Mapping[str, Item],
+    field: str,
+    log: _WarningLog,
+) -> None:
+    """Flag every key that names no item descriptor (CS-1285).
+
+    The same code a recipe side raises for the same gap, aggregated by the
+    item's key, so one missing descriptor reads as one finding wherever it is
+    referenced.
+
+    Args:
+        keys: Item ClassNames a field referenced.
+        items: The items built so far.
+        field: The referencing document key, for the detail.
+        log: The warning log.
+    """
+    for key in keys:
+        if key not in items:
+            log.add(
+                WARN_UNKNOWN_ITEM,
+                key,
+                f"no descriptor for this item; {field} keeps it verbatim with no knowable form",
+            )
+
+
+def _fuel_classes(value: object) -> tuple[str, ...] | None:
+    """Read one mFuel value whole, or not at all (CS-1285).
+
+    Args:
+        value: The value exactly as the document carried it.
+
+    Returns:
+        The fuel ClassNames in document order, deduplicated, when ``value`` is
+        a non-empty list of objects each carrying a non-empty string fuel
+        class; None for every other shape. A partly readable list is None, not
+        its readable subset.
+    """
+    if not isinstance(value, list | tuple) or not value:
+        return None
+    names: list[str] = []
+    for fuel in value:
+        if not isinstance(fuel, Mapping):
+            return None
+        name = fuel.get(KEY_FUEL_CLASS)
+        if not isinstance(name, str) or not name:
+            return None
+        if name not in names:
+            names.append(name)
+    return tuple(names)
+
+
+def _accepted_fuels(
+    entry: Mapping[str, object],
+    key: str,
+    items: Mapping[str, Item],
+    log: _WarningLog,
+) -> tuple[str, ...] | None:
+    """Read a generator's accepted fuels out of mFuel (CS-1285).
+
+    Not read through :func:`_text`: a list is mFuel's measured shape, so the
+    present-but-not-a-string flag every scalar field raises would be a false
+    alarm here. Presence is tested on the KEY, so a value present as JSON null
+    is unreadable rather than absent.
+
+    Args:
+        entry: The entry mapping.
+        key: The generator's ClassName, the warning subject.
+        items: The items built so far, for the unknown-item flag.
+        log: The warning log.
+
+    Returns:
+        The fuels, or None when mFuel is absent (silent) or unreadable
+        (flagged). Never an empty tuple.
+    """
+    if KEY_FUEL not in entry:
+        return None
+    fuels = _fuel_classes(entry[KEY_FUEL])
+    if fuels is None:
+        log.add(
+            WARN_UNREADABLE_FUELS,
+            key,
+            f"{KEY_FUEL} is present but is not a non-empty list of objects each naming a "
+            f"{KEY_FUEL_CLASS}; the accepted fuels are published as unknown, never as none",
+        )
+        return None
+    _flag_unknown_items(fuels, items, KEY_FUEL, log)
+    return fuels
+
+
 def _generator(
-    entry: Mapping[str, object], key: str, group_name: str, log: _WarningLog
+    entry: Mapping[str, object],
+    key: str,
+    group_name: str,
+    items: Mapping[str, Item],
+    log: _WarningLog,
 ) -> Generator:
     """Build one generator from its buildable entry (CS-1059).
 
@@ -1236,12 +1413,14 @@ def _generator(
         entry: The entry mapping.
         key: Its ClassName.
         group_name: The group's short name.
+        items: The items built so far, for the accepted fuels' join.
         log: The warning log.
 
     Returns:
         The generator. A scalar that is absent or unreadable is None and is
         flagged unless the entry is variable, whose output the scalar never
-        carried anyway.
+        carried anyway. Its accepted fuels are read on the terms
+        :attr:`Generator.accepted_fuels` states.
     """
     production = _optional_fraction(entry, KEY_POWER_PRODUCTION, key, log)
     constant = _optional_fraction(entry, KEY_VARIABLE_PRODUCTION_CONSTANT, key, log)
@@ -1261,6 +1440,7 @@ def _generator(
         variable_production_constant=constant,
         variable_production_factor=factor,
         is_variable_production=variable,
+        accepted_fuels=_accepted_fuels(entry, key, items, log),
     )
 
 
@@ -1375,10 +1555,57 @@ def _resource_forms(
     return frozenset(recognized), tuple(unrecognized)
 
 
+def _allowed_resources(
+    entry: Mapping[str, object],
+    key: str,
+    items: Mapping[str, Item],
+    log: _WarningLog,
+) -> tuple[str, ...] | None:
+    """Read a restricted extractor's resource list (CS-1285).
+
+    Args:
+        entry: The entry mapping.
+        key: The extractor's ClassName, the warning subject.
+        items: The items built so far, for the unknown-item flag.
+        log: The warning log.
+
+    Returns:
+        The resource ClassNames in source order, deduplicated, when the flag
+        reads exactly 'True' and the list reads whole; None otherwise. The flag
+        gates the list: an unrestricted extractor's list is not read at all,
+        so a non-empty one beside a 'False' asserts nothing. A restricted entry
+        whose list is absent, empty, not a string, outside the class-path
+        grammar or carrying an empty token is flagged and is None - never an
+        empty tuple, which would claim the extractor yields nothing. The
+        parse error's text is not echoed: it quotes document content.
+    """
+    if _optional_flag(entry, KEY_ONLY_ALLOW_CERTAIN_RESOURCES, key, log) is not True:
+        return None
+    text = _text(entry, KEY_ALLOWED_RESOURCES, key, log)
+    try:
+        paths = parse_class_paths(text) if text else ()
+    except BlobParseError:
+        paths = ()
+    tokens = [_class_name_from_path(path) for path in paths]
+    if not tokens or not all(tokens):
+        log.add(
+            WARN_UNREADABLE_ALLOWED_RESOURCES,
+            key,
+            f"{KEY_ONLY_ALLOW_CERTAIN_RESOURCES} restricts this extractor but "
+            f"{KEY_ALLOWED_RESOURCES} names no readable resource list; the restriction is "
+            "published as unknown, never as none",
+        )
+        return None
+    resources = tuple(dict.fromkeys(tokens))
+    _flag_unknown_items(resources, items, KEY_ALLOWED_RESOURCES, log)
+    return resources
+
+
 def _extractor(
     entry: Mapping[str, object],
     key: str,
     group_name: str,
+    items: Mapping[str, Item],
     log: _WarningLog,
 ) -> Extractor:
     """Build one extractor from its buildable entry.
@@ -1387,6 +1614,7 @@ def _extractor(
         entry: The entry mapping.
         key: Its ClassName.
         group_name: The group's short name.
+        items: The items built so far, for the resource list's join.
         log: The warning log.
 
     Returns:
@@ -1395,7 +1623,8 @@ def _extractor(
         because a rate of zero is a throughput claim the document did not make.
         Both operands are needed for a throughput, so either one missing is
         flagged, which is the same shape as WARN_MISSING_POWER firing alongside
-        the unparsable-number flag that explains it.
+        the unparsable-number flag that explains it. Its resource restriction
+        is read on the terms :attr:`Extractor.allowed_resources` states.
     """
     items_per_cycle = _optional_fraction(entry, KEY_ITEMS_PER_CYCLE, key, log)
     cycle_time = _optional_fraction(entry, KEY_EXTRACT_CYCLE_TIME, key, log)
@@ -1414,6 +1643,7 @@ def _extractor(
         extract_cycle_time=cycle_time,
         allowed_forms=allowed,
         unrecognized_forms=unrecognized,
+        allowed_resources=_allowed_resources(entry, key, items, log),
     )
 
 
@@ -1701,11 +1931,16 @@ def _build_buildings(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str,
     return buildings
 
 
-def _build_extractors(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Extractor]:
+def _build_extractors(
+    groups: Sequence[DocsGroup],
+    items: Mapping[str, Item],
+    log: _WarningLog,
+) -> dict[str, Extractor]:
     """Build every resource extractor, in document order.
 
     Args:
         groups: The recognized groups.
+        items: The built items, for the resource lists' join.
         log: The warning log.
 
     Returns:
@@ -1721,15 +1956,20 @@ def _build_extractors(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str
                 continue
             key = _entry_key(entry, group.short_name, extractors, log)
             if key is not None:
-                extractors[key] = _extractor(entry, key, group.short_name, log)
+                extractors[key] = _extractor(entry, key, group.short_name, items, log)
     return extractors
 
 
-def _build_generators(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Generator]:
+def _build_generators(
+    groups: Sequence[DocsGroup],
+    items: Mapping[str, Item],
+    log: _WarningLog,
+) -> dict[str, Generator]:
     """Build every power generator, in document order (CS-1059).
 
     Args:
         groups: The recognized groups.
+        items: The built items, for the accepted fuels' join.
         log: The warning log.
 
     Returns:
@@ -1742,8 +1982,30 @@ def _build_generators(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str
                 continue
             key = _entry_key(entry, group.short_name, generators, log)
             if key is not None:
-                generators[key] = _generator(entry, key, group.short_name, log)
+                generators[key] = _generator(entry, key, group.short_name, items, log)
     return generators
+
+
+def _declared_classes(groups: Sequence[DocsGroup]) -> frozenset[str]:
+    """Collect every ClassName the recognized groups declare (CS-1285).
+
+    No warning is raised here: an entry with no usable ClassName is flagged by
+    the namespace pass that would have keyed it, and this pass adds no second
+    count of the same entry.
+
+    Args:
+        groups: The recognized groups ONLY - the unknown ones are flagged and
+            skipped, and declaring their classes would vouch for them.
+
+    Returns:
+        Every non-empty string ClassName, modeled by a namespace or not.
+    """
+    return frozenset(
+        name
+        for group in groups
+        for entry in group.entries
+        if isinstance(name := entry.get(KEY_CLASS_NAME), str) and name
+    )
 
 
 def _build_recipes(
@@ -1885,8 +2147,8 @@ def build_registry(document: DocsDocument) -> Registry:
     unknown = _unknown_groups(document, log)
     items = _build_items(document.groups, log)
     buildings = _build_buildings(document.groups, log)
-    extractors = _build_extractors(document.groups, log)
-    generators = _build_generators(document.groups, log)
+    extractors = _build_extractors(document.groups, items, log)
+    generators = _build_generators(document.groups, items, log)
     recipes = _build_recipes(document.groups, items, buildings, log)
     _assert_grammar_intact(_recipe_entry_count(document.groups), len(recipes), log)
     return Registry(
@@ -1897,6 +2159,7 @@ def build_registry(document: DocsDocument) -> Registry:
         unknown_groups=unknown,
         extractors=MappingProxyType(extractors),
         generators=MappingProxyType(generators),
+        declared_classes=_declared_classes(document.groups),
     )
 
 

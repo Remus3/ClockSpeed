@@ -134,6 +134,30 @@ KEY_MAX_POTENTIAL: Final = "mMaxPotential"
 #: that folds it to a constant or defaults the absence is caught.
 KEY_CAN_CHANGE_POTENTIAL: Final = "mCanChangePotential"
 
+#: CS-1285 slice A. A generator's accepted fuels: a JSON ARRAY of objects, NOT a
+#: string - measured on the pinned build with exactly four keys per object, the
+#: fuel's ClassName under the second key below and the other three out of scope.
+KEY_FUEL: Final = "mFuel"
+KEY_FUEL_CLASS: Final = "mFuelClass"
+KEY_SUPPLEMENTAL_RESOURCE_CLASS: Final = "mSupplementalResourceClass"
+KEY_BYPRODUCT: Final = "mByproduct"
+KEY_BYPRODUCT_AMOUNT: Final = "mByproductAmount"
+
+#: CS-1285 slice A. An extractor's resource restriction: the flag, spelled
+#: 'True' or 'False', and the list it gates, in the mProducedIn class-path
+#: grammar with the Type'Path' wrapper inside each quoted entry.
+KEY_ONLY_ALLOW_CERTAIN_RESOURCES: Final = "mOnlyAllowCertainResources"
+KEY_ALLOWED_RESOURCES: Final = "mAllowedResources"
+
+# The generation and extraction keys the fuel corpus below needs. The other
+# modules that grade those namespaces keep their own literals; these are the
+# same spellings, restated here on the rule the module docstring gives.
+KEY_POWER_PRODUCTION: Final = "mPowerProduction"
+KEY_VARIABLE_PRODUCTION_FACTOR: Final = "mVariablePowerProductionFactor"
+KEY_ITEMS_PER_CYCLE: Final = "mItemsPerCycle"
+KEY_EXTRACT_CYCLE_TIME: Final = "mExtractCycleTime"
+KEY_ALLOWED_RESOURCE_FORMS: Final = "mAllowedResourceForms"
+
 # ---------------------------------------------------------------------------
 # Group short names
 # ---------------------------------------------------------------------------
@@ -167,6 +191,15 @@ MALFORMED_GROUP: Final = "FGBuildableStorage"
 #: Outside the docs_extract whitelist entirely - game content this build has
 #: never seen, standing in for a patch or a mod.
 UNKNOWN_GROUP: Final = "FGSynthNewContent"
+
+#: CS-1285 slice A. The stock groups the fuel corpus places its generators and
+#: extractors in - real short names, for the reason the module docstring gives.
+#: mFuel is measured on BOTH of the first two, and both are modeled.
+FUEL_GENERATOR_GROUP: Final = "FGBuildableGeneratorFuel"
+GEOTHERMAL_GROUP: Final = "FGBuildableGeneratorGeoThermal"
+EXTRACTOR_GROUP: Final = "FGBuildableResourceExtractor"
+FRACKING_GROUP: Final = "FGBuildableFrackingExtractor"
+PORTABLE_MINER_GROUP: Final = "FGPortableMinerDispenser"
 
 # ---------------------------------------------------------------------------
 # Class names
@@ -1052,3 +1085,290 @@ def marker_mismatch_document() -> DocsDocument:
             )
         ]
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1285 slice A - the fuel corpus: accepted fuels and restricted extractors
+# ---------------------------------------------------------------------------
+#
+# A SEPARATE document rather than more entries in the main corpus above, on
+# purpose: the main corpus's building, item and warning sets are pinned whole
+# by suites in other packages, and a generator or extractor entry added there
+# moves those pins for a reason none of them grade. Every ClassName, path and
+# number below is invented; the shapes are the measured ones, recorded in the
+# CS-1285 decision record in docs/LEDGER.md.
+
+#: A solid fuel.
+PELLET_FUEL: Final = "Desc_SynthPellet_C"
+#: A liquid fuel.
+NAPHTHA_FUEL: Final = "Desc_SynthNaphtha_C"
+#: The reactor's fuel, and the byproduct it leaves.
+ROD_FUEL: Final = "Desc_SynthRod_C"
+SPENT_ROD_ITEM: Final = "Desc_SynthSpentRod_C"
+
+#: Raw resources: two liquids, a gas and a solid, so a resource list can be
+#: told from the items its extractor's forms would admit.
+CRUDE_RESOURCE: Final = "Desc_SynthCrude_C"
+BRINE_RESOURCE: Final = "Desc_SynthBrine_C"
+MIST_RESOURCE: Final = "Desc_SynthMist_C"
+STONE_RESOURCE: Final = "Desc_SynthStone_C"
+
+#: In FUEL_GENERATOR_GROUP, accepting three fuels in an order that is NOT
+#: sorted, so a reader that sorts or collects into a set is caught.
+BURNER_GENERATOR: Final = "Build_SynthBurner_C"
+BURNER_FUELS: Final = (PELLET_FUEL, CRUDE_RESOURCE, NAPHTHA_FUEL)
+
+#: In the nuclear group - the second group mFuel is measured on - with a
+#: supplemental resource and a byproduct, both out of scope and neither read.
+REACTOR_GENERATOR: Final = "Build_SynthReactor_C"
+REACTOR_FUELS: Final = (ROD_FUEL,)
+
+#: The geothermal shape: variable production and NO mFuel key at all.
+VENT_GENERATOR: Final = "Build_SynthVent_C"
+
+#: Restricted to ONE liquid while its forms admit every liquid - the measured
+#: oil pump shape, which yields crude only.
+CRUDE_PUMP: Final = "Build_SynthCrudePump_C"
+CRUDE_PUMP_RESOURCES: Final = (CRUDE_RESOURCE,)
+
+#: Restricted to three resources across two forms, in an unsorted order.
+WELL_FRACKER: Final = "Build_SynthFracker_C"
+WELL_FRACKER_RESOURCES: Final = (MIST_RESOURCE, CRUDE_RESOURCE, BRINE_RESOURCE)
+
+#: Unrestricted, with the empty list the measured miners carry.
+STONE_DRILL: Final = "Build_SynthDrill_C"
+
+#: Unrestricted by its flag while a NON-EMPTY list sits beside it, so a reader
+#: that consults the list without the flag is caught.
+OPEN_PUMP: Final = "Build_SynthOpenPump_C"
+
+#: No restriction flag and no list at all - the measured portable-miner shape.
+HAND_DRILL: Final = "Equip_SynthHandDrill_C"
+
+#: Generator-shaped AND extractor-shaped, in UNKNOWN_GROUP. A registry that
+#: declared or modeled it would be publishing a class no probe has seen.
+MOD_GENERATOR: Final = "Build_SynthFromAMod_C"
+
+#: The resource-restriction flag's two document spellings.
+FLAG_TRUE: Final = "True"
+FLAG_FALSE: Final = "False"
+
+
+def fuel_object(
+    fuel: str,
+    supplemental: str = "",
+    byproduct: str = "",
+    byproduct_amount: str = "",
+) -> dict[str, str]:
+    """Build one mFuel object in its measured four-key shape.
+
+    Args:
+        fuel: The fuel's ClassName, bare - the measured shape carries no path.
+        supplemental: The supplemental resource's ClassName, or empty for none.
+        byproduct: The byproduct's ClassName, or empty for none.
+        byproduct_amount: The byproduct amount as a decimal-integer string, or
+            empty for none.
+
+    Returns:
+        The object, every value a string, empty meaning none.
+    """
+    return {
+        KEY_FUEL_CLASS: fuel,
+        KEY_SUPPLEMENTAL_RESOURCE_CLASS: supplemental,
+        KEY_BYPRODUCT: byproduct,
+        KEY_BYPRODUCT_AMOUNT: byproduct_amount,
+    }
+
+
+def resource_blob(class_names: Sequence[str]) -> str:
+    """Build an mAllowedResources value in its measured shape.
+
+    The mProducedIn class-path grammar, each quoted entry carrying the same
+    Type'Path' wrapper an item-amount blob does.
+
+    Args:
+        class_names: Resource ClassNames, in source order.
+
+    Returns:
+        The blob, or the empty string for none - the measured miners' value.
+    """
+    return class_path_blob([item_path(name) for name in class_names])
+
+
+def _descriptor(class_name: str, display_name: str, form: str) -> dict[str, str]:
+    """Build one item descriptor for the fuel corpus.
+
+    Args:
+        class_name: The ClassName.
+        display_name: The mDisplayName.
+        form: The mForm.
+
+    Returns:
+        The entry.
+    """
+    return {KEY_CLASS_NAME: class_name, KEY_DISPLAY_NAME: display_name, KEY_FORM: form}
+
+
+def _extractor_entry(
+    class_name: str,
+    display_name: str,
+    forms: str,
+    restriction: tuple[str, str] | None,
+) -> dict[str, str]:
+    """Build one extractor entry with a readable rate.
+
+    Args:
+        class_name: The ClassName.
+        display_name: The mDisplayName.
+        forms: The mAllowedResourceForms value.
+        restriction: The (flag, resource list) pair, or None to omit BOTH keys.
+
+    Returns:
+        The entry. The rate is readable so the corpus raises no rate warning.
+    """
+    entry = {
+        KEY_CLASS_NAME: class_name,
+        KEY_DISPLAY_NAME: display_name,
+        KEY_ITEMS_PER_CYCLE: "1",
+        KEY_EXTRACT_CYCLE_TIME: "1.000000",
+        KEY_ALLOWED_RESOURCE_FORMS: forms,
+    }
+    if restriction is not None:
+        entry[KEY_ONLY_ALLOW_CERTAIN_RESOURCES], entry[KEY_ALLOWED_RESOURCES] = restriction
+    return entry
+
+
+def _fuel_corpus() -> list[dict[str, Any]]:
+    """Assemble the fuel corpus.
+
+    Returns:
+        The top-level group list. It builds with no warning but the unknown
+        group's, so an arm can attribute any other warning to its own patch.
+    """
+    return [
+        _group(
+            ITEM_GROUP,
+            [
+                _descriptor(PELLET_FUEL, "Synth Pellet", "RF_SOLID"),
+                _descriptor(NAPHTHA_FUEL, "Synth Naphtha", "RF_LIQUID"),
+                _descriptor(ROD_FUEL, "Synth Rod", "RF_SOLID"),
+                _descriptor(SPENT_ROD_ITEM, "Synth Spent Rod", "RF_SOLID"),
+            ],
+        ),
+        _group(
+            RESOURCE_GROUP,
+            [
+                _descriptor(CRUDE_RESOURCE, "Synth Crude", "RF_LIQUID"),
+                _descriptor(BRINE_RESOURCE, "Synth Brine", "RF_LIQUID"),
+                _descriptor(MIST_RESOURCE, "Synth Mist", "RF_GAS"),
+                _descriptor(STONE_RESOURCE, "Synth Stone", "RF_SOLID"),
+            ],
+        ),
+        _group(
+            FUEL_GENERATOR_GROUP,
+            [
+                {
+                    KEY_CLASS_NAME: BURNER_GENERATOR,
+                    KEY_DISPLAY_NAME: "Synth Burner",
+                    KEY_POWER_PRODUCTION: "150.000000",
+                    KEY_FUEL: [
+                        fuel_object(PELLET_FUEL, supplemental=BRINE_RESOURCE),
+                        fuel_object(CRUDE_RESOURCE),
+                        fuel_object(NAPHTHA_FUEL),
+                    ],
+                },
+            ],
+        ),
+        _group(
+            GENERATOR_GROUP,
+            [
+                {
+                    KEY_CLASS_NAME: REACTOR_GENERATOR,
+                    KEY_DISPLAY_NAME: "Synth Reactor",
+                    KEY_POWER_PRODUCTION: "2500.000000",
+                    KEY_FUEL: [fuel_object(ROD_FUEL, BRINE_RESOURCE, SPENT_ROD_ITEM, "50")],
+                },
+            ],
+        ),
+        _group(
+            GEOTHERMAL_GROUP,
+            [
+                {
+                    KEY_CLASS_NAME: VENT_GENERATOR,
+                    KEY_DISPLAY_NAME: "Synth Vent",
+                    KEY_POWER_PRODUCTION: "0.000000",
+                    KEY_VARIABLE_PRODUCTION_FACTOR: "100.000000",
+                },
+            ],
+        ),
+        _group(
+            EXTRACTOR_GROUP,
+            [
+                _extractor_entry(
+                    CRUDE_PUMP,
+                    "Synth Crude Pump",
+                    "(RF_LIQUID)",
+                    (FLAG_TRUE, resource_blob(CRUDE_PUMP_RESOURCES)),
+                ),
+                _extractor_entry(STONE_DRILL, "Synth Drill", "(RF_SOLID)", (FLAG_FALSE, "")),
+                _extractor_entry(
+                    OPEN_PUMP,
+                    "Synth Open Pump",
+                    "(RF_LIQUID)",
+                    (FLAG_FALSE, resource_blob([BRINE_RESOURCE])),
+                ),
+            ],
+        ),
+        _group(
+            FRACKING_GROUP,
+            [
+                _extractor_entry(
+                    WELL_FRACKER,
+                    "Synth Fracker",
+                    "(RF_LIQUID,RF_GAS)",
+                    (FLAG_TRUE, resource_blob(WELL_FRACKER_RESOURCES)),
+                ),
+            ],
+        ),
+        _group(
+            PORTABLE_MINER_GROUP,
+            [_extractor_entry(HAND_DRILL, "Synth Hand Drill", "(RF_SOLID)", None)],
+        ),
+        _group(
+            UNKNOWN_GROUP,
+            [
+                {
+                    KEY_CLASS_NAME: MOD_GENERATOR,
+                    KEY_DISPLAY_NAME: "Synth From A Mod",
+                    KEY_POWER_PRODUCTION: "75.000000",
+                    KEY_FUEL: [fuel_object(PELLET_FUEL)],
+                    KEY_ALLOWED_RESOURCE_FORMS: "(RF_SOLID)",
+                    KEY_ONLY_ALLOW_CERTAIN_RESOURCES: FLAG_TRUE,
+                    KEY_ALLOWED_RESOURCES: resource_blob([STONE_RESOURCE]),
+                },
+            ],
+        ),
+    ]
+
+
+def fuel_groups() -> list[dict[str, Any]]:
+    """Return a fresh mutable copy of the fuel corpus.
+
+    For an arm that patches one entry, without disturbing any other arm.
+
+    Returns:
+        A newly parsed copy of the top-level group list.
+    """
+    parsed = json.loads(json.dumps(_fuel_corpus()))
+    if not isinstance(parsed, list):
+        raise TypeError("the fuel corpus is not a JSON list")
+    return parsed
+
+
+def fuel_document() -> DocsDocument:
+    """Load the fuel corpus through the real docs_extract seam.
+
+    Returns:
+        The loaded document, its unknown group included.
+    """
+    return document_from(fuel_groups())
