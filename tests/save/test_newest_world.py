@@ -235,6 +235,28 @@ def test_an_unreadable_modification_time_is_flagged_as_unknown(tmp_path: Path) -
     assert subjects == ["objects.ObjectFormatError.mtime-unknown"]
 
 
+@pytest.mark.parametrize("failure", [OverflowError, OSError, ValueError])
+def test_a_modification_time_the_clock_cannot_render_is_flagged_as_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[Exception]
+) -> None:
+    """Windows ``gmtime`` refuses a year past 3000; the flag must not become the failure.
+
+    A time that stats but will not render is still a refused save to skip, so
+    the walk must reach the older save rather than unwind on the stamp.
+    """
+    newest = plant(tmp_path / "Refused.sav", b"re-encoded", BASE_SECONDS + 60)
+    older = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
+
+    def refusing_clock(_seconds: float) -> object:
+        raise failure
+
+    monkeypatch.setattr(world.time, "gmtime", refusing_clock)
+    model = walked((newest, older), load=Recorder({newest.name: objects_refusal()}))
+
+    subjects = refused_subjects(model)
+    assert subjects == ["objects.ObjectFormatError.mtime-unknown"]
+
+
 # ---------------------------------------------------------------------------
 # b. nothing readable keeps today's typed failure
 # ---------------------------------------------------------------------------

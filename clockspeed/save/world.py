@@ -2615,12 +2615,15 @@ def _refusal_subject(refusal: WorldLoadError, path: Path) -> str:
         ``<stage>.<cause type>.mtime-<YYYY-MM-DDTHH-MM-SSZ>``, or
         ``...mtime-unknown`` when the time cannot be read.
     """
+    # The RENDER is inside the guard as well as the stat: Windows ``gmtime``
+    # refuses a year past 3000 with OSError, and a platform's C ``time_t`` can
+    # overflow. A time that will not render is still a refused save to skip, so
+    # it is spelled unknown rather than allowed to become the failure.
     try:
         seconds = path.stat().st_mtime_ns // 1_000_000_000
-    except OSError:
-        stamp = _MTIME_UNKNOWN
-    else:
         stamp = "mtime-" + time.strftime("%Y-%m-%dT%H-%M-%SZ", time.gmtime(seconds))
+    except (OSError, OverflowError, ValueError):
+        stamp = _MTIME_UNKNOWN
     return f"{refusal.stage}.{refusal.cause_type}.{stamp}"
 
 
