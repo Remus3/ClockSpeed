@@ -1876,3 +1876,33 @@ the leaky control's exit 2 to a cross-drive collection walk and cut it with `--c
 the forced run's paths are in the repo, so that cut does not reach it, and whether it shares
 the cause is unmeasured. An exit 2 there reddens any suite that runs the files, so it is
 filed under the `CLAUDE.md` section 7 suite-red exception.
+
+### Session 135 ruling, recorded 2026-10-10
+
+Retry-once is DENIED as masking. The narrowed alternative A governs: `child_failure` names the
+withheld exception type, the failure stays red, and the fix waits for a measured reading. The
+item may wait past the CS-700 flip unless a deciding suite before CS-700 step a shows this
+failure class - then it blocks the flip block. Decision, alternatives, the unmeasured planner
+spec and the reversal: `docs/LEDGER.md`, the 2026-10-09 CS-1304 DECISION RECORD.
+
+## CS-1307
+
+### Acceptance
+
+Every git-hook arm in `tests/test_hook_env_echo.py` that drives the CS-815 interpreter ladder
+either waits at the quiet barrier the TIER2-RED repair gives that module's wrapper arms, or is
+shown by a measured run beside a CPU-bound sibling not to need it; the file then runs 30
+consecutive times under `-n 2 --dist loadfile` with no "did not finish inside its bound"
+refusal, and the guard shard's duration is re-read after the change. No budget or bound is
+raised and no case is skipped.
+
+### Filed 2026-10-10 by the session 135 /done
+
+The TIER2-RED repair (the unmerged branch whose commit "CS-815 CS-1300 - one quiet waiter at a
+time, a bound from evidence" states the residual in its body) gave the env-echo WRAPPER arms
+the barrier and left the git-hook arms of the same module running the same probe ladder under
+the same bound without waiting: making them wait serialises most of that file behind every
+sibling, a guard-shard duration risk. The session 135 leak and vacuity adversary named it. A
+ladder that cannot finish inside its bound under sibling load is the TIER2-RED failure class,
+which reddens a suite, so it is filed under the `CLAUDE.md` section 7 suite-red exception. It
+may land with the TIER2-RED merge or after it.

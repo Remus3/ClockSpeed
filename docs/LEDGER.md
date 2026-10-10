@@ -75,6 +75,110 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-815 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-815 AND CS-1300 STAY OPEN. The TIER2-RED quiet barrier's wait bound is RULED 2520 s, and the repaired candidate stays unmerged
+Verification: `docs/item_notes/phase7.md` sections CS-815 and CS-1300, and the unmerged branch
+whose tip subject is "CS-815 - the env-echo wrapper arms wait at the foot of their module"; its
+parent, "CS-815 CS-1300 - one quiet waiter at a time, a bound from evidence", carries this
+ruling in its body. Ruled in session 135.
+DECISION: the quiet barrier's wait bound on that branch moves from 400 s to 2520 s - twice the
+longest measured whole suite (1251.555 s, a 2026-10-09 junit record) rounded up to a whole
+minute. The same record read a median-arm wait of 804.014 s, so the 400 s bound, which claimed
+to exceed every measured sibling wait, was false.
+ALTERNATIVES: keep 400 s - fails a sound local whole suite loud; one bound for CI and another
+locally - reads the environment to change a test's behaviour and keeps two numbers; a heartbeat
+that resets the clock when a sibling finishes a test - needs a third session hook registered by
+`tests/conftest.py`, off the slice's write-list.
+WHY: a false red blocks a push, while a late report of a hung sibling costs minutes. Cost,
+stated: the bound no longer sits under a CI job cutoff, so a hung sibling in CI is ended by the
+job's cutoff, loud but unnamed.
+NOT A BUDGET: the CS-815 1.0 s latency budget, the hooks' probe bound and the tier1 levels are
+unchanged, and the 420/480 pin with them.
+STATE AT THE SESSION 135 /done: the first candidate (tip subject "CS-815 - the quiet barrier
+keeps its file, bounds its wait, fails loud") was REFUTED four ways - its bound arm rendered
+`str(exc)`, the false 400 s bound, a double release of two waiters that found the box quiet
+together, and env-echo sibling arms that drive the same ladder with no barrier. The repair's
+leak and vacuity adversary REFUTED it on minor points only: (a) the env-echo git-hook arms in
+`tests/test_hook_env_echo.py` still run the interpreter ladder without the barrier, a residual
+stated only in the parent commit's body - filed as CS-1307; (b) a comment in that branch's
+`tests/test_claude_hook.py` says "exit 2" where the repro exits 1; (c) the CS-1300 red test can
+fail only on Windows (the lstat path inside pytest's own collection) - a skipif or a stated
+reason is owed. That adversary's 30x loop read 28 of 30 (runs 5 and 6 failed amid
+process-start failures under memory load, their output lost, unconfirmed); the builder's own
+loop read 30 of 30 (builder-reported). A concurrency, deadlock and timing adversary was still
+running at the /done: verdict UNKNOWN.
+Reversed by: a recorded whole suite longer than 1260 s (the bound is then re-derived as twice
+it), or a wait measured past 2520 s on a quiet box.
+
+### 2026-10-09 - CS-1302 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1302 STAYS OPEN. mypy is pinned to 2.1.0, the release this box runs, and the item closes only on a green tier1
+Verification: `docs/item_notes/phase7.md` section CS-1302, its `### Acceptance` clause, and the
+unmerged branch whose tip subject is "CS-1302 - the dev extra pins mypy to the one release this
+box runs" - the `pyproject.toml` dev extra reads `mypy==2.1.0`, and `tests/test_mypy_gate.py`
+gains two tests, each red first. Adjudicated in session 135.
+DECISION: pin `mypy==2.1.0` in the dev extra.
+ALTERNATIVES: 2.4.0, the release CI resolved - rejected: it forces a pip install into the shared
+system interpreter that three other manifests use; a range or `~=` - either still lets the two
+installs resolve different releases.
+WHY: 2.1.0 is the installed release, a bare `python -m mypy` exits 0 under it on this tree, and
+every tier1 and tier2 install step reads the same dev extra with no separate mypy pin.
+CS-G03: the pin sits outside the lint tables, a second trigger of the session 133 escalation
+clause; the 2026-10-09 CS-G03 record below already reads that clause FIRED, so a full
+clean-machine re-walk is owed either way and no outcome moves.
+ADVERSARY: the code SURVIVED - every pin mutation reddened, no other mypy pin exists in the
+tree, and the branch fast-forwards clean - but the done-claim is REFUTED on acceptance: bare
+`python -m mypy` exiting 0 in tier1 is unmet until the pin is pushed, and CI installed librt
+0.16.0 and pytest 9.1.1 where this box runs 0.11.0 and 9.0.3. Minor: the version test reads the
+release in-process with the user site on the path.
+NEXT: merge in the batch push, read tier1, close only on green.
+Reversed by: tier1 failing under 2.1.0, or mypy moving to a per-repo venv.
+
+### 2026-10-09 - CS-1304 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1304 STAYS OPEN. A retry-once of the forced run is DENIED as masking; the failure stays red and names its withheld exception type
+Verification: `docs/item_notes/phase7.md` section CS-1304, whose `### Acceptance` clause records
+a child that dies of a Windows status past 255 and does not count it - it never retries it;
+`tests/conftest.py::_REDACTION_FAILED` and
+`tests/test_cs1172_branch_canaries.py::child_failure`. Adjudicated in session 135.
+DECISION: DENY retry-once. Alternative A, narrowed: `child_failure` names the withheld
+exception type, the failure stays red, and the fix waits for a measured reading.
+WHY: the acceptance records box-resource deaths without counting them and never retries them,
+and the withheld-report marker fires on ANY redactor exception, so a retry could hide a
+redactor fault - a non-negotiable 12 leak path.
+DEFERRAL: CS-1304 may wait past the CS-700 flip.
+PLANNER SPEC, UNMEASURED: commit-memory exhaustion during the forced child's collection gives
+pytest exit 2; `_REDACTION_FAILED` then makes `child_failure` read "raised nothing"; the
+write-list is the two canary test files.
+Reversed by: any deciding suite before CS-700 step a - the re-walk included - showing this
+failure class; CS-1304 then blocks the flip block, and a rerun never turns that red green.
+
+### 2026-10-09 - CS-1292 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1292 STAYS OPEN. The holder string, the install detail's owner and the SHA gate's binary admission are RULED; the first candidate was refuted and is being repaired
+Verification: `docs/item_notes/phase7.md` section CS-1292, its `### Acceptance` clause, and the
+unmerged branch whose tip subject at the session 135 /done is "CS-1292 - hash-pinned binaries,
+full path scrub, live tests". Ruled in session 135.
+DECISION 1, the holder string: `LICENSE` is frozen (`CLAUDE.md` section 6), so `CITATION.cff`
+names "Clockspeed contributors", the LICENSE holder. Rejected: editing LICENSE to a handle.
+Reversed by: an adjudicator grant to edit LICENSE, recorded in this file before the edit.
+DECISION 2, the install detail: it moves into `docs/OPERATIONS.md` section 1.2 - no new owner
+file. README owns the quickstart and the first result, OPERATIONS the full install: a
+`CLAUDE.md` topology row change with a net byte change at or below 0. Rejected: a new install
+doc, which needs a new `CLAUDE.md` row on a file near its byte budget. Reversed by:
+`docs/OPERATIONS.md` breaching its doc budget - then relocate per `CLAUDE.md` section 4.
+DECISION 3, the SHA citation gate's binary admission: a hash-pinned allowlist, path to
+SHA-256. Rejected: extension plus magic - REFUTED by a leak adversary: a .png holding PNG magic,
+a NUL and text citing an unpublished commit passed the gate, exit 0; a full PNG chunk walk -
+more code that still admits crafted chunks. Reversed by: a binary admission design that
+survives the smuggle control and a leak adversary, recorded as a new adjudication.
+STATE AT THE /done: the first candidate was REFUTED by two adversaries. Leak lens: the gate
+smuggle, and the Git Bash drive spelling of the checkout path left in two docs where the
+guard's regex could not see it. Acceptance lens: `docs/public-readiness.md` still said no
+binary enters history and to upload the old card; the `CLAUDE.md` ownership row; four vacuous
+tests (the banner position, the Quickstart anchor, section 1.2's completeness, the version's
+exactness); and a 12-line Quickstart against about 10. The builder reports all six fixed on
+the tip named above, rebased onto `032fa77`, and a gated whole suite of 14982 passed and 11
+skipped after a first attempt crashed on low memory - builder-reported, not yet re-refuted.
+NEXT: re-run both adversary lenses (leak; acceptance and topology) on that tip, then merge in
+the batch. The acceptance lens also checks the ownership rows restated in `CONVENTIONS.md`,
+`.claude/agents/doc-sync.md` and `.claude/commands/sync-docs.md` against the one-owner rule of
+`CLAUDE.md` section 4. After the merge the social preview upload source is the branch's
+docs/assets/social-preview.png, which its `docs/public-readiness.md` edit names.
+
 ### 2026-10-09 - CS-1301 - CLOSED: the canary arms' leaky controls cut collection at their own tmp dir, and every child failure names itself
 
 Cause traced: each forced-red arm's leaky control ran a child pytest from the repo on one

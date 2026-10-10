@@ -373,3 +373,4 @@ CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the ki
 CS-1300 - the nested CS-1233 run in `tests/test_claude_hook.py` fails its collection with an os.lstat FileNotFoundError about 1 run in 10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1302 - mypy is pinned only by a floor, so CI and this box run different releases that emit different error codes - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1307 - the env-echo git-hook arms in `tests/test_hook_env_echo.py` run the interpreter ladder under its bound without the quiet barrier - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

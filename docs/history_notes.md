@@ -3186,6 +3186,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 132 - archived 2026-10-10 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 132 - 2026-10-08 - FLEET-KIT v10 adopted with the SUBAGENT-FIRST hook in log mode, MAIN 0839 answered, the responder's refusals traced to a proxy listener that was down, and no product or flip work started
+
+- Shipped: CS-1282 closed - FLEET-KIT v10 vendored 17 of 17 hash-equal to MAIN's bundle, the FLEET-COMMON block re-embedded, the SUBAGENT-FIRST PreToolUse hook wired under an adjudicator grant in log mode, lane workers exempted, the responder publishing the kit's REFUSED_TASK. Detail in docs/LEDGER.md (the CS-1282 grant, closure and addendum records). The operator's instruction: "sync inbox and reply and arm". Channel: ONE ANSWER to MAIN 0839, the 2026-10-08 16:23 note, delivered 1/1, re-hash equal, leak gate clean; inbox acknowledged, 0 unread. Filed CS-1283 (ORDER item 5 emit() ruling) and CS-1284 (the deny switch).
+- In flight: CS-1231 slice C BLOCKED - v10's spawn command line passes no extra flag, so the lane's permission flag cannot ride it; MAIN asked for v11 or a ruling to call launch() or spawn(extra=) from Python; CS-1283 rides with it. CS-1284: the hook stays in log mode until on or after 2026-10-10 and three interactive sessions of rows; session 132 is session 1. The six session 131 builder worktrees and the CS-1282 one are unpruned. QUEUE_STOP holds the lanes; INBOX_STOP is absent. The CS-700 flip block was not started; no Phase 5 product item was started.
+- Decisions: the CS-1282 frozen-file grant - the hook command anchored at the project dir with || true, timeout 10, the second PreToolUse entry, MAIN's literal cwd-relative command rejected; a refused responder start publishes the kit's REFUSED_TASK, never Halted; ORDER item 5 not applied to queue_loop._emit, routed for a ruling (CS-1283). No ADR.
+- Surprises: tier1 at 7ab46df went red on lint alone - a ruff I001 in tests/test_claude_hook.py that the pre-push hook cannot catch, because it runs no ruff; b504a45 repaired it and tier1 read green. The responder logged kit_refused on every tick from 08:41 to 14:11 because the headless proxy listener was not running until 14:21; the refusals were fail-closed by design and every kit preflight passed after it. The hook's log holds sub-agent rows only - no main-thread row at all, so the main-thread half is unmeasured. v10 repaired none of the four kit defects this tree reported and added two render siblings (BACKLOG.md). The /done found that CS-1282's adoption touched pyproject.toml after the walk 2 tip 457d2b9, which fires the CS-G03 walk 2 ruling's own reversal clause: a FULL clean-machine re-walk, not Part 2 alone, is owed before S7a unless an adjudicator narrows it (docs/LEDGER.md CS-G03 record).
+- Failed paths: none.
+- Next action: read tier1 for the /done tip and the next tier2 nightly; then prune the session 131 and CS-1282 builder worktrees; then product CS-1281 and CS-1280; the CS-700 flip block last, interactive, with the operator present, its first act the CS-G03 re-walk ruling.
+
 ## Session 131 - archived 2026-10-09 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 131 - 2026-10-08 - the C: cutover read back, the CS-G03 walk failed then passed on repair, four Phase 5 items and the walk repair closed, and the CS-700 flip block's order ruled but not started
