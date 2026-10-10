@@ -42,6 +42,7 @@ non-negotiables 3 and 12).
 from __future__ import annotations
 
 import ast
+import errno
 import hashlib
 import json
 import os
@@ -52,7 +53,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -1101,8 +1102,15 @@ DOOM_PLUGIN_SOURCE: Final = (
     "    if path.name == " + repr(DOOMED_SIBLING) + ":\n"
     "        shutil.rmtree(path, ignore_errors=True)\n"
 )
+# Off Windows the arm could only ever pass: the lstat is pytest's own fallback
+# for path matching on win32 alone (_pytest/main.py, the samefile_nofollow call
+# under `sys.platform == "win32"`), and elsewhere a path is matched by equality.
+LSTAT_FALLBACK_IS_WINDOWS_ONLY: Final = (
+    "pytest lstats a collected sibling only in its win32 path-match fallback"
+)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason=LSTAT_FALLBACK_IS_WINDOWS_ONLY)
 def test_a_sibling_deleted_mid_collection_never_reaches_the_nested_run(tmp_path: Path) -> None:
     """The nested run never reads a sibling of the directory it collects.
 
@@ -1111,8 +1119,9 @@ def test_a_sibling_deleted_mid_collection_never_reaches_the_nested_run(tmp_path:
     cut at the repository and collected EVERY ancestor of the temp path - and on
     Windows lstat'ed each sibling at each level while matching the path. A
     sibling another process deleted between the listing and the lstat ended
-    the run at exit 2 with an os.lstat FileNotFoundError, about one run in ten.
-    Here a plugin deletes one at that instant, every time.
+    the run at a non-zero exit - exit 1 under ``-n 2``, measured - with an
+    os.lstat FileNotFoundError, about one run in ten. Here a plugin deletes one
+    at that instant, every time.
     """
     (tmp_path / DOOMED_SIBLING).mkdir()
     plugin = tmp_path / "plugins" / "cs1300_doom.py"
@@ -1385,7 +1394,81 @@ def fake_worker(run_id: str, worker: str) -> SimpleNamespace:
     )
 
 
-def test_two_waiting_workers_never_wait_on_each_other() -> None:
+class WaitStoppedError(Exception):
+    """Raised inside a waiting thread's sleep once its arm has stopped it."""
+
+
+class StoppableClock:
+    """The barrier module's ``time`` for a threaded arm: real time, but a stopped sleep raises.
+
+    A waiter sleeps between polls and inside its relock, so setting ``stop``
+    brings every waiting thread back at its next sleep, without waiting a poll.
+    """
+
+    def __init__(self) -> None:
+        """Running, and no thread has slept yet."""
+        self.stop = threading.Event()
+        self.slept = threading.Event()
+
+    def perf_counter(self) -> float:
+        """The real time."""
+        return time.perf_counter()
+
+    def monotonic(self) -> float:
+        """The real time."""
+        return time.monotonic()
+
+    def sleep(self, seconds: float) -> None:
+        """Sleep for real, or raise WaitStoppedError as soon as the arm stops."""
+        self.slept.set()
+        if self.stop.is_set() or self.stop.wait(seconds):
+            raise WaitStoppedError
+
+
+@pytest.fixture
+def stoppable(monkeypatch: pytest.MonkeyPatch) -> StoppableClock:
+    """A StoppableClock installed as the barrier module's ``time`` for this arm."""
+    clock = StoppableClock()
+    monkeypatch.setattr(xdist_quiet, "time", clock)
+    return clock
+
+
+def waiter_threads(target: Callable[[str], None], names: list[str]) -> dict[str, threading.Thread]:
+    """One daemon thread per worker name, running ``target`` on that name; not yet started."""
+    return {name: threading.Thread(target=target, args=(name,), daemon=True) for name in names}
+
+
+def start_and_join(threads: dict[str, threading.Thread], seconds: float) -> None:
+    """Start every thread, then join them all against one deadline ``seconds`` away."""
+    for thread in threads.values():
+        thread.start()
+    deadline = time.monotonic() + seconds
+    for thread in threads.values():
+        thread.join(max(0.0, deadline - time.monotonic()))
+
+
+def end_waiters(
+    clock: StoppableClock, threads: Mapping[str, threading.Thread], sessions: Mapping[str, object]
+) -> list[str]:
+    """Stop every waiter, join it, and only then end the sessions whose thread is gone.
+
+    A session's descriptors close only once no thread can still be inside a wait
+    on them: a closed number is reused by the next open, and a waiter still
+    polling it would lock an unrelated file. A thread that outlives the stop
+    keeps its descriptors - left open, never closed under it - and is named.
+    """
+    clock.stop.set()
+    for thread in threads.values():
+        if thread.ident is not None:
+            thread.join(DEADLOCK_SECONDS)
+    outlived = sorted(name for name, thread in threads.items() if thread.is_alive())
+    for name, session in sessions.items():
+        if name not in outlived:
+            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+    return outlived
+
+
+def test_two_waiting_workers_never_wait_on_each_other(stoppable: StoppableClock) -> None:
     """Two arms that wait, on two workers, both come back - neither waits on the other.
 
     A scheduler other than --dist loadfile splits one file's arms across workers,
@@ -1403,27 +1486,24 @@ def test_two_waiting_workers_never_wait_on_each_other() -> None:
     def worker_run(name: str) -> None:
         try:
             returned[name] = await_quiet_siblings(cast(pytest.Config, workers[name]))
+        except WaitStoppedError:
+            pass  # stopped by end_waiters below, so counted stuck there
         except Exception as exc:  # surfaced by the assert below, never swallowed
             crashed[name] = error_shape(exc)
         finally:
             xdist_quiet.pytest_sessionfinish(cast(pytest.Session, sessions[name]))
 
-    threads = [threading.Thread(target=worker_run, args=(name,), daemon=True) for name in workers]
+    threads = waiter_threads(worker_run, list(workers))
+    stuck = sorted(workers)
     try:
-        for thread in threads:
-            thread.start()
-        deadline = time.monotonic() + DEADLOCK_SECONDS
-        for thread in threads:
-            thread.join(max(0.0, deadline - time.monotonic()))
+        start_and_join(threads, DEADLOCK_SECONDS)
         stuck = sorted(name for name in workers if name not in returned and name not in crashed)
     finally:
-        # A stuck waiter is freed by ending both sessions, so no thread outlives the arm.
-        for session in sessions.values():
-            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
-        for thread in threads:
-            thread.join(DEADLOCK_SECONDS)
+        # A stuck waiter is STOPPED and joined before any descriptor closes.
+        outlived = end_waiters(stoppable, threads, sessions)
     assert crashed == {}, f"a waiting worker CRASHED, which is not a deadlock: {crashed}"
     assert stuck == [], f"two waiting workers waited on each other: {stuck} never came back"
+    assert outlived == [], f"{outlived} outlived the stop; their descriptors were left open"
 
 
 # How long each released waiter holds the box in the arm below - several polls,
@@ -1432,7 +1512,7 @@ QUIET_ARM_SECONDS: Final = 1.0
 
 
 def test_two_waiters_that_find_the_box_quiet_together_are_let_go_one_at_a_time(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, stoppable: StoppableClock
 ) -> None:
     """Two waiters probing at the same instant never BOTH run their quiet arm.
 
@@ -1477,28 +1557,25 @@ def test_two_waiters_that_find_the_box_quiet_together_are_let_go_one_at_a_time(
             with guard:
                 holding.remove(name)
             finished.add(name)
+        except WaitStoppedError:
+            pass  # stopped by end_waiters below, so missing from finished
         except Exception as exc:  # surfaced by the assert below, never swallowed
             crashed[name] = error_shape(exc)
         finally:
             xdist_quiet.pytest_sessionfinish(cast(pytest.Session, sessions[name]))
 
     monkeypatch.setattr(xdist_quiet, "live_sibling_names", probe_in_step)
-    threads = [threading.Thread(target=worker_run, args=(name,), daemon=True) for name in workers]
+    threads = waiter_threads(worker_run, list(workers))
     try:
-        for thread in threads:
-            thread.start()
-        deadline = time.monotonic() + 2 * DEADLOCK_SECONDS
-        for thread in threads:
-            thread.join(max(0.0, deadline - time.monotonic()))
+        start_and_join(threads, 2 * DEADLOCK_SECONDS)
     finally:
-        for session in sessions.values():
-            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
-        for thread in threads:
-            thread.join(DEADLOCK_SECONDS)
+        # A stuck waiter is STOPPED and joined before any descriptor closes.
+        outlived = end_waiters(stoppable, threads, sessions)
     together = peak[0]
     assert crashed == {}, f"a waiting worker CRASHED: {crashed}"
     assert finished == set(workers), f"only {sorted(finished)} came back from the wait"
     assert together == 1, f"{together} waiters ran their quiet arm at the same time"
+    assert outlived == [], f"{outlived} outlived the stop; their descriptors were left open"
 
 
 def error_shape(exc: BaseException) -> str:
@@ -1708,3 +1785,137 @@ def test_a_probe_holding_the_waiters_lock_only_delays_its_relock(
         for fd in probe_fd:
             os.close(fd)
         xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+
+
+def test_a_probe_passing_through_a_waiting_siblings_file_never_reads_as_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one-shot check sees past another waiter's probe of a waiting sibling's byte.
+
+    A waiting worker frees its byte, but a third worker's probe holds it for the
+    instant between its own lock and unlock calls - the hold the relock already
+    retries past. A check that counted every held byte as live read that instant
+    as a live sibling, so the latency arm's single post-check could go red with
+    nothing live: measured 5e-6 to 7e-5 per check. Here the probe holds the byte
+    when the check starts and lets go at the check's first retry.
+    """
+    run_id = "cs1233-transient-" + uuid.uuid4().hex
+    directory = xdist_quiet.live_directory(run_id)
+    checker = fake_worker(run_id, "gw0")
+    session = SimpleNamespace(config=checker)
+    xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    waiting = hold_liveness_lock(directory, "gw1")
+    xdist_quiet._unlock(waiting.fd)  # noqa: SLF001 - a waiter frees its byte for the wait
+    probe = os.open(waiting.path, os.O_RDWR)
+    took = xdist_quiet._try_lock(probe)  # noqa: SLF001 - another waiter's probe, mid-flight
+    let_go: list[bool] = []
+
+    def probe_lets_go(_seconds: float) -> None:
+        if not let_go:
+            let_go.append(True)
+            xdist_quiet._unlock(probe)  # noqa: SLF001 - the probe's own second step
+
+    monkeypatch.setattr(xdist_quiet, "time", SimulatedClock(on_sleep=probe_lets_go))
+    try:
+        assert took, "the waiting sibling's byte was not free for the probe"
+        live = live_siblings_now(cast(pytest.Config, checker))
+        monkeypatch.undo()
+        assert live == 0, "another waiter's probe of a waiting sibling read as a live sibling"
+    finally:
+        monkeypatch.undo()
+        if took and not let_go:
+            xdist_quiet._unlock(probe)  # noqa: SLF001 - the probe's own second step
+        os.close(probe)
+        release_liveness_lock(waiting)
+        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+
+
+def test_a_sibling_held_through_the_whole_retry_is_still_live_and_the_retry_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The retry never blinds the check: a byte held throughout is a live sibling.
+
+    The check retries for the relock's window and no longer, so a truly live
+    sibling is counted after a bounded wait and never waited for without end.
+    """
+    run_id = "cs1233-held-" + uuid.uuid4().hex
+    directory = xdist_quiet.live_directory(run_id)
+    checker = fake_worker(run_id, "gw0")
+    session = SimpleNamespace(config=checker)
+    xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    sibling = hold_liveness_lock(directory, "gw2")
+    clock = SimulatedClock()
+    monkeypatch.setattr(xdist_quiet, "time", clock)
+    try:
+        live = live_siblings_now(cast(pytest.Config, checker))
+        retried = clock.now
+        monkeypatch.undo()
+        assert live == 1, "a sibling that held its byte throughout was not counted live"
+        window = xdist_quiet.RELOCK_SECONDS
+        step = xdist_quiet.RELOCK_POLL_SECONDS
+        bounded = window <= retried <= window + 2 * step
+        assert bounded, f"the check retried for {retried:.2f}s, not for the {window}s window"
+    finally:
+        monkeypatch.undo()
+        release_liveness_lock(sibling)
+        xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+
+
+def test_a_lock_try_on_a_closed_descriptor_raises_rather_than_reading_as_held(
+    tmp_path: Path,
+) -> None:
+    """A closed descriptor is a caller's bug, never a lock another worker holds.
+
+    Read as held, it kept a waiter whose session had ended under it polling to
+    the 2520 s bound, and once the number was reused the waiter locked an
+    unrelated file. A held byte still reads False: the arms above pin that.
+    """
+    fd = os.open(tmp_path / "closed.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    os.close(fd)
+    try:
+        outcome = f"returned {xdist_quiet._try_lock(fd)}"  # noqa: SLF001 - the primitive itself
+    except OSError as exc:
+        outcome = f"raised errno {exc.errno}"
+    expected = f"raised errno {errno.EBADF}"
+    assert outcome == expected, f"a lock try on a closed descriptor {outcome}, not EBADF"
+
+
+def test_a_waiter_still_waiting_when_its_arm_ends_is_stopped_before_its_files_close(
+    stoppable: StoppableClock,
+) -> None:
+    """Ending a threaded arm stops and joins each waiter BEFORE any of its descriptors close.
+
+    A waiter kept waiting by a live sibling is still inside its wait when the arm
+    ends. Closing its token and liveness descriptors under it left it polling on
+    closed numbers that the next open reuses; here it is stopped at its next
+    sleep, comes back, and only a thread that has ended has its session ended.
+    """
+    run_id = "cs1233-stop-" + uuid.uuid4().hex
+    directory = xdist_quiet.live_directory(run_id)
+    waiter = fake_worker(run_id, "gw0")
+    session = SimpleNamespace(config=waiter)
+    xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    sibling = hold_liveness_lock(directory, "gw1")
+    outcome: dict[str, str] = {}
+
+    def wait() -> None:
+        try:
+            await_quiet_siblings(cast(pytest.Config, waiter))
+            outcome["gw0"] = "returned"
+        except WaitStoppedError:
+            outcome["gw0"] = "stopped"
+        except Exception as exc:  # surfaced by the assert below, never swallowed
+            outcome["gw0"] = error_shape(exc)
+
+    thread = threading.Thread(target=wait, daemon=True)
+    try:
+        thread.start()
+        waiting = stoppable.slept.wait(DEADLOCK_SECONDS)
+        outlived = end_waiters(stoppable, {"gw0": thread}, {"gw0": session})
+    finally:
+        release_liveness_lock(sibling)
+    assert waiting, "the waiter never reached its wait"
+    assert outlived == [], f"{outlived} outlived the stop; their descriptors were left open"
+    assert outcome == {"gw0": "stopped"}, f"the waiter ended as {outcome}, not stopped"
+    ended = xdist_quiet._HELD not in waiter.stash  # noqa: SLF001 - the session's own record
+    assert ended, "the stopped waiter's session was not ended after its thread came back"

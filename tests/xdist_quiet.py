@@ -1,4 +1,8 @@
-"""CS-1233 - a test that measures wall time can wait until it is alone on the box.
+"""CS-1233 - a test that measures wall time can wait until no other worker of its run is live.
+
+ITS OWN RUN ONLY. Each run locks under its own directory, so another whole
+suite on the same box - the fleet suite gate admits two at once by default -
+is never waited for; that load is a residual this barrier does not remove.
 
 THE DEFECT. tests/test_claude_hook.py holds the CS-815 wrapper's added latency
 under a second, measured as the median of twenty wrapped-minus-direct pairs.
@@ -38,6 +42,7 @@ plus pytest only, like tests/conftest.py, which registers the two hooks below.
 from __future__ import annotations
 
 import contextlib
+import errno
 import os
 import re
 import sys
@@ -82,6 +87,11 @@ QUIET_FILE_NAME: Final = "quiet.token"
 RELOCK_SECONDS: Final = 5.0
 RELOCK_POLL_SECONDS: Final = 0.01
 
+#: The errors a non-blocking lock raises when another descriptor holds the
+#: byte: EACCES from msvcrt (measured here), EWOULDBLOCK from flock (EAGAIN
+#: on Linux and macOS alike). Only these read as held.
+HELD_ERRNOS: Final = frozenset({errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK})
+
 LOCK_SUFFIX: Final = ".lock"
 
 # A run id or worker id is used as a path component, so anything but these
@@ -97,15 +107,26 @@ class HeldLock(NamedTuple):
 
 
 def _try_lock(fd: int) -> bool:
-    """Take an exclusive, non-blocking lock on byte 0 of ``fd``; report success."""
+    """Take an exclusive, non-blocking lock on byte 0 of ``fd``; report success.
+
+    False means another descriptor holds the byte, and nothing else does. Any
+    other error is raised: read as held, a descriptor closed under a waiter
+    kept it polling to the bound, and once the number was reused it locked an
+    unrelated file.
+
+    Raises:
+        OSError: For any error but a held byte - EBADF on a closed descriptor.
+    """
     try:
         if sys.platform == "win32":
             os.lseek(fd, 0, os.SEEK_SET)
             msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
         else:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        return False
+    except OSError as exc:
+        if exc.errno in HELD_ERRNOS:
+            return False
+        raise
     return True
 
 
@@ -164,12 +185,27 @@ def release_liveness_lock(held: HeldLock) -> None:
         directory.rmdir()
 
 
-def live_sibling_names(directory: Path, own: str) -> list[str]:
+def _held_elsewhere(fd: int, settle_seconds: float) -> bool:
+    """Whether another descriptor holds ``fd``'s byte, retried for ``settle_seconds``.
+
+    Zero tries once, as a poll that comes round again does.
+    """
+    deadline = time.perf_counter() + settle_seconds
+    while not _try_lock(fd):
+        if time.perf_counter() >= deadline:
+            return True
+        time.sleep(RELOCK_POLL_SECONDS)
+    _unlock(fd)
+    return False
+
+
+def live_sibling_names(directory: Path, own: str, settle_seconds: float = 0.0) -> list[str]:
     """The ids of the workers other than ``own`` that still hold their lock in ``directory``.
 
     A file is probed by opening it WITHOUT creating it and trying the lock: a
     file that vanished, or whose lock can be taken, belongs to a worker that has
-    finished, died, or is itself waiting.
+    finished, died, or is itself waiting. A held lock is retried for
+    ``settle_seconds`` before it counts; see :func:`live_siblings_now`.
     """
     if not directory.is_dir():
         return []
@@ -183,18 +219,16 @@ def live_sibling_names(directory: Path, own: str) -> list[str]:
         except OSError:
             continue
         try:
-            if _try_lock(fd):
-                _unlock(fd)
-            else:
+            if _held_elsewhere(fd, settle_seconds):
                 live.append(path.name.removesuffix(LOCK_SUFFIX))
         finally:
             os.close(fd)
     return live
 
 
-def live_sibling_count(directory: Path, own: str) -> int:
+def live_sibling_count(directory: Path, own: str, settle_seconds: float = 0.0) -> int:
     """How many workers other than ``own`` still hold their lock in ``directory``."""
-    return len(live_sibling_names(directory, own))
+    return len(live_sibling_names(directory, own, settle_seconds))
 
 
 class QuietWaitTimeoutError(RuntimeError):
@@ -257,11 +291,19 @@ def _worker_identity(config: pytest.Config) -> tuple[Path, str] | None:
 
 
 def live_siblings_now(config: pytest.Config) -> int:
-    """How many other workers of this run are live now; zero outside xdist."""
+    """How many other workers of this run are live now; zero outside xdist.
+
+    ONE SHOT, SO IT RETRIES. Another waiter's probe holds a waiting sibling's
+    byte, or a stale file's, for the instant between its own lock and unlock
+    calls - the hold :func:`_relock` retries past. A waiter just polls again,
+    but a single check would read that instant as a live sibling. So a held
+    byte counts only if it stays held for RELOCK_SECONDS; a live sibling holds
+    it throughout and is still counted, after that bounded retry.
+    """
     identity = _worker_identity(config)
     if identity is None:
         return 0
-    return live_sibling_count(*identity)
+    return live_sibling_count(*identity, settle_seconds=RELOCK_SECONDS)
 
 
 def await_quiet_siblings(config: pytest.Config) -> float:
