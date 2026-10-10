@@ -75,6 +75,59 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-10 - CS-1284 - CLOSED: the SUBAGENT-FIRST hook denies - its mode switched from log to deny after three interactive sessions of rows
+Verification: the gitignored `ops/loop/control/subagent_first.mode` and
+`ops/loop/control/subagent_first.jsonl`, read by the session 136 /done; the hook
+`ops/fleet_kit/fleet_subagent_first.py` wired by
+`tests/test_claude_hook.py::test_settings_wires_exactly_the_granted_subagent_first_hook`; the
+lane exemption in `ops/loop/run_lane.ps1`.
+THE SWITCH: the mode file reads `deny`, written 2026-10-10 07:19:27 local by session 136 - on
+or after 2026-10-10 as the acceptance requires. Read back by this /done. The first deny-mode
+row is 07:19:30; at 07:19:42 a main-thread Glob was DENIED, so deny mode blocks in the main
+thread, not only in the log.
+ROWS PER SESSION, counted by this /done from the session 132 wiring (local time):
+session 132, 2026-10-08 15:31:43 to 17:14:43: 153 rows, all sub, allow, mode log (the CS-1282
+addendum recorded no number; 78 of them by 16:25:55).
+session 133, 18:26:24 to 22:34:41: 775 rows - 665 up to 20:39:32 (664 sub allow and the one
+main-thread would-deny Glob at 18:27:56, the POSITIVE CONTROL), then 110 sub allow during its
+/done. CORRECTION: the 2026-10-08 CS-1284 record below reads 666 for its 18:26:05 to 20:39:32
+window; the log holds 665 there. Its cumulative 818 is right, so session 132's share is 153,
+not 152.
+session 134, 2026-10-09 07:45:16 to 14:31:18: 1566 rows, all sub allow - the 1523 its record
+counted to 13:36:58, then 10 to 13:38:37 and 33 from 13:43:32 during its /done.
+session 135, 2026-10-09 21:17:34 to 2026-10-10 01:57:10: 1387 rows, all sub allow, mode log.
+session 136 before the switch, 07:09:23 to 07:19:27: 269 rows, all sub allow, mode log; after
+it, 07:19:30 to 14:59:00: 1996 rows - 1995 sub allow and the one main-thread deny above. The
+after-switch figures are LOWER BOUNDS: the file holds 395 NUL bytes at byte offset 594342,
+between rows at 09:54:42 and 10:05:26 (the 10:02 reboot), one unparseable line; nothing before
+the switch is damaged.
+No main-thread would-deny row exists in any log-mode window except the positive control: the
+main sessions only dispatched, and Agent and SendMessage are not guarded tools.
+THE LANE EXEMPTION, RE-READ AFTER THE SWITCH, NOT BEFORE: `ops/loop/run_lane.ps1` sets
+`$env:FLEET_SUBAGENT_FIRST = "off"` and `ops/fleet_kit/fleet_headless.py` sets the same; the
+lane script's last commit is 2026-10-08 15:30:31 and it carries no local edit. No pre-switch
+read can be shown: a log row carries no path. RULING (adjudicator, session 136): A - a re-read
+after the switch meets the clause. The acceptance puts "Before the switch" on the positive
+control alone; the semicolon list cannot be pre-switch, since recording the switch follows
+it; the hook reads the environment before the mode file, so a lane worker's exemption never
+depended on the main checkout's mode; the bytes read now are the bytes at 07:19:27, and
+nothing ran in between - QUEUE_STOP has been present since 2026-09-19 and the headless usage
+log holds no row after the switch. REJECTED: B, revert to log, re-read and switch again - a
+staged sequence that satisfies wording only, a synthetic close, and it would overwrite the
+switch's own timestamp; C, stay open - no future event is left for a pre-switch read to
+precede, so it could never close. Reversed by: proof that the lane script or the kit held
+other bytes at 07:19:27, a headless or lane run between the switch and the re-read, a kit that
+reads the mode file before the environment variable, or an operator or MAIN ruling that
+"Before the switch" covers the re-read clause.
+ADVERSARY: a first acceptance pass REFUTED the done-claim on the record's absence, the session
+132 and 133 counts, the NUL span and the re-read order; this record answers each and carries
+the ruling. RE-REFUTE: a second acceptance pass on this record REFUTED it on two session windows only -
+session 133 and session 134 ran on through their /done ritual - and confirmed every other
+figure, the NUL span, the mode file and the re-read wording; the two counts above are its
+prescribed corrections, and by its own words the pass/fail condition is unaffected, since every
+added row is a sub-agent allow. The loop stopped there by cost against risk: the residual is a
+miscount in this record, not a reachable fault.
+
 ### 2026-10-09 - CS-815 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-815 AND CS-1300 STAY OPEN. The TIER2-RED quiet barrier's wait bound is RULED 2520 s, and the repaired candidate stays unmerged
 Verification: `docs/item_notes/phase7.md` sections CS-815 and CS-1300, and the unmerged branch
 whose tip subject is "CS-815 - the env-echo wrapper arms wait at the foot of their module"; its

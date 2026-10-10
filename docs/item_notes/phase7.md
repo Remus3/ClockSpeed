@@ -1724,27 +1724,6 @@ the kit's `emit()` writes without a flush and tees nothing. The builder routed i
 ruling rather than change a working sink. It rides with CS-1231 slice C, which touches the
 same lane path.
 
-## CS-1284
-
-### Acceptance
-
-The main checkout's gitignored `ops/loop/control/subagent_first.mode` reads `deny`,
-written on or after 2026-10-10 and only after `ops/loop/control/subagent_first.jsonl`
-holds rows from three interactive sessions, counted from the session 132 wiring, that
-include sub-agent rows and no main-thread would-deny row for work that could not have been
-dispatched. Before the switch a positive control shows one main-thread guarded call logged
-as would-deny, so an empty main-thread population means an idle main thread rather than an
-unlogged one; the lane exemption in `ops/loop/run_lane.ps1` is re-read; the per-session
-row counts and the switch are recorded in `docs/LEDGER.md`.
-
-### Filed 2026-10-08 by the session 132 /done
-
-The CS-1282 grant (`docs/LEDGER.md`) wired the hook in log mode and allows deny only once
-the log shows rows, sub-agent rows included, from three sessions. Session 132 is session 1
-of 3 from its wiring at 15:31: every row it logged by 16:25 is a sub-agent row, decision
-allow, and no main-thread row exists at all, so the main-thread half is still unmeasured.
-An absent mode file means deny, so a fresh worktree denies until a mode is written.
-
 ## CS-1291
 
 ### Acceptance
@@ -1906,3 +1885,34 @@ sibling, a guard-shard duration risk. The session 135 leak and vacuity adversary
 ladder that cannot finish inside its bound under sibling load is the TIER2-RED failure class,
 which reddens a suite, so it is filed under the `CLAUDE.md` section 7 suite-red exception. It
 may land with the TIER2-RED merge or after it.
+
+## CS-1308
+
+### Acceptance
+
+An adjudicator first rules which tracked files may keep a spelling of the checkout root:
+`CLAUDE.md` sections 2 and 7, `docs/adr/0026-the-root-moves-to-e.md` and `BOOTSTRAP.md` name
+it under a settled decision, so each kept file is ruled one by one, with its reason recorded
+in `docs/LEDGER.md` before any edit. Then, on the tip that carries CS-1292,
+`git grep -il -E '[A-Za-z]:[\/]+Clockspeed'` and the Git Bash form `/<drive>/Clockspeed`
+list only the files that ruling kept and the CS-1292 path guard's own test patterns. Every
+other spelling is replaced by a root-relative path or a runtime lookup (`git rev-parse
+--show-toplevel`, the test's `tmp_path`), the touched tests stay green, and the CS-1292 path
+guard - the README-audit test CS-1292 adds - is widened or pinned so a new spelling outside
+the kept set fails it. No settled decision is reopened: the root does not move.
+
+### Filed 2026-10-10 by the session 136 /done
+
+CS-1292 scrubbed the checkout path from the files its acceptance names, and its leak lens then
+found the same spelling in tracked files outside that acceptance. Measured by the session 136
+/done on the CS-1292 landing tip: the drive-letter pattern above listed 14 files - BOOTSTRAP.md,
+CLAUDE.md, CS-NEXT-SESSION.txt, docs/_archive/spike-report-s1-s2-s3-s7.md,
+docs/adr/0026-the-root-moves-to-e.md, docs/item_notes/phase4-followups-900.md,
+docs/item_notes/phase4.md, docs/item_notes/phase7.md, ops/loop/inbox_responder.py,
+ops/loop/launch_queue_loop.ps1, tests/ops/test_driver_module_binding.py,
+tests/ops/test_row_claim.py, tests/test_queue_loop.py and CS-1292's own README-audit test. The
+session 136 hand-off was rewritten without the spelling, so 13 remain. The four files of
+BACKLOG CS-1306 are inside this scope; CS-1306 was relocated to `docs/history_notes.md` as
+superseded by this item. It is a public-flip blocker: the CS-700 recreate publishes every
+tracked file, so it is filed in ROADMAP under the `CLAUDE.md` section 7 product-before-process
+rule's blocking exception, and it lands before the CS-G03 re-walk's pinned tip.

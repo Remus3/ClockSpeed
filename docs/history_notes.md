@@ -24,6 +24,61 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1284 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-10
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1284
+
+### Acceptance
+
+The main checkout's gitignored `ops/loop/control/subagent_first.mode` reads `deny`,
+written on or after 2026-10-10 and only after `ops/loop/control/subagent_first.jsonl`
+holds rows from three interactive sessions, counted from the session 132 wiring, that
+include sub-agent rows and no main-thread would-deny row for work that could not have been
+dispatched. Before the switch a positive control shows one main-thread guarded call logged
+as would-deny, so an empty main-thread population means an idle main thread rather than an
+unlogged one; the lane exemption in `ops/loop/run_lane.ps1` is re-read; the per-session
+row counts and the switch are recorded in `docs/LEDGER.md`.
+
+### Filed 2026-10-08 by the session 132 /done
+
+The CS-1282 grant (`docs/LEDGER.md`) wired the hook in log mode and allows deny only once
+the log shows rows, sub-agent rows included, from three sessions. Session 132 is session 1
+of 3 from its wiring at 15:31: every row it logged by 16:25 is a sub-agent row, decision
+allow, and no main-thread row exists at all, so the main-thread half is still unmeasured.
+An absent mode file means deny, so a fresh worktree denies until a mode is written.
+
+
+## Push gate and Session 135 residuals - two lines relocated from `BACKLOG.md` 2026-10-10
+
+**Push gate, discharged:** its own close condition - "close this line when that gate runs
+this tree's pre-push suite" - is met: `.githooks/pre-push` runs its suite through
+`ops/fleet_kit/fleet_suite_gate.py run`, re-read by the session 136 /done. **CS-1306,
+superseded:** its four files are inside CS-1292's follow-up CS-1308 (ROADMAP, Phase 7),
+filed by the session 136 /done.
+
+## Push gate - filed 2026-10-04 by the session 123 /done
+
+- The pre-push whole suite fails when several suites run concurrently on this box
+  (MemoryError, xdist worker crash, fork exhaustion, timeouts) and passes on retry with no
+  code change - TRIGGER: a third blocked push in one week traced to box load rather than a
+  defect; candidates are a load check before the hook starts or a cap on concurrent suites.
+  TRIGGER FIRED 3/3 at the session 133 /done (session 129 once, then two blocked pushes of
+  the /done records commit - a canary child pytest exit 2 and a 1.0 s timing arm, the box at
+  100 percent CPU from other trees' suites); no new item, by adjudicator ruling: the remedy
+  "a cap on concurrent suites" is FLEET-KIT v12's machine-wide suite gate, in flight as
+  CS-1289 - close this line when that gate runs this tree's pre-push suite, else file it.
+
+## Session 135 residuals - filed 2026-10-09 under product before process (one line)
+
+- CS-1306 - literal checkout roots remain in `tests/ops/test_driver_module_binding.py`,
+  `tests/ops/test_row_claim.py`, `tests/test_queue_loop.py` and `ops/loop/inbox_responder.py`
+  (the last in its scheduled-task command line) - TRIGGER: a checkout at another root, or
+  any of the four next touched.
+
+
 ## CS-1301 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-09
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
@@ -3185,6 +3240,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 133 - archived 2026-10-10 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 133 - 2026-10-08 - three Phase 5 and flip-track rulings recorded, CS-1286 closed on its measured cause, two product builds left unmerged before their adversary pass, and FLEET-KIT v11 adopted by the unattended responder
+
+- Shipped: CS-1286 closed - measurement only: the four 12 MW MinerMk2 records are one miner's first saves, written on older builds whose Mk2 nameplate was 12 MW. Detail in docs/LEDGER.md. DECISION RECORDS, nothing closed: CS-1280 (a tagless consumer is priced at its class default in its own counted group only when its payload read clean), CS-1285 (the D4 fuel rule's design, Q1 to Q3), CS-G03 (the re-walk scope: a delta re-walk, Part 2 alone, with an escalation clause). Filed CS-1285, CS-1286 and CS-1288. The unattended responder adopted FLEET-KIT v11 as CS-1287 in its own run under its own gates - three commits on main, its closure record in docs/LEDGER.md. CS-1284 rows: 2 of 3 sessions, with the positive control (docs/LEDGER.md CS-1284 record). Housekeeping: 7 landed builder worktrees recycled (CS-1264, CS-1265, CS-1266 with its 41 real-save copies, CS-1278, two CS-1279, CS-1282), branches kept; the CS-1280 measurement's 41 save copies under the gitignored work/cs1280/saves recycled by the /done and read back gone, its scripts and measure JSONs kept; four stale "running" progress files with no owning process (ins-d1, ins-d4, ins-d5, main-2155-inventory) set failed.
+- In flight: CS-1281 is BUILT on its branch (tip subject "CS-1281 - read clock capability; non-clockable is never elided"), NOT merged: its full suite stopped at 46 percent with one known failure, tests/surface/test_registry.py::test_every_upstream_field_is_either_published_or_withheld_on_the_record - add "clockable" to WITHHELD_FIELDS["Building"] there; the two discharged Session 124 lines in BACKLOG.md still go to docs/history_notes.md. CS-1285 slice B is BUILT on its branch (tip subject "CS-1285 - slice B: the fuel supply audit, per built fuel generator class"), NOT merged: its full suite stopped at 8784 of 14904 with 0 failures, and an adjudicator still rules on its extra indeterminate reasons and on supply as flow net floored at zero. Neither has had the section 5 adversary pass, and every gate figure for both is builder-reported, unverified by the merger. CS-1280's build waits on CS-1281. MAIN's 2031 ORDER, FLEET-KIT v12, arrived unread; the responder handles an ORDER on its own tick. The CS-700 flip block did not start - it is interactive only.
+- Decisions: the CS-1280, CS-1285 and CS-G03 rulings above, and CS-1287's three (the triage timeout, the removed exemptions, run_lane.ps1 left for CS-1231 slice C) - all in docs/LEDGER.md. No ADR.
+- Surprises: CS-1286's cause was an older build's nameplate, not a pending clock, which exposed CS-1288 - a save from a build other than the pinned one is priced at the pinned nameplate with no warning. v11's ruling R2 UNHOLDS CS-1231 slice C, but CS-1287 left run_lane.ps1 unmoved: the kit command line prints its own usage line, not the result object queue_loop.py parses. The /done re-checked the CS-G03 escalation after v11 touched pyproject.toml again: it does not trigger (docs/LEDGER.md).
+- Failed paths: two builders' full suites collided on ONE shared scratchpad full.log - one `>` truncated the other's log. Never run concurrent full suites; give each builder a unique gitignored log path. The inbox responder's `pytest -n auto` saturated the machine and builder full suites ran past 80 minutes - brief every builder for a loaded box.
+- Next action: read CI and the inbox (the v12 ORDER); then land CS-1281 - the WITHHELD_FIELDS fix, the BACKLOG relocation, one full suite alone with a unique log, an adversary pass, merge.
 
 ## Session 132 - archived 2026-10-10 from `WAKEUP_NOTES.md`, verbatim
 

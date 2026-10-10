@@ -263,6 +263,7 @@ CS-1148 - CS-1119's filed headline calls the trailing run's second remainder sha
 CS-1149 - the trailing run's residual population is recorded as ONE shape and is measured to be at least five - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1150 - one residual carrier class's trailing run carries platform account strings in plaintext, so any reader of that region is an echo path - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on NO payload and the walk reaches one on six figures of them - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1309 - the save layer refuses a whole world when the newest save in its directory is one the parser refuses - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit
@@ -366,7 +367,6 @@ CS-1208 - a personal value the hook allowlist lets a program read can still reac
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1283 - rule whether the lane driver's checklist printer moves onto the kit's `fleet_checklist.emit()` (FLEET-KIT v10 ORDER item 5) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1284 - switch the SUBAGENT-FIRST hook from log to deny after three interactive sessions of rows, on or after 2026-10-10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1292 - README-AUDIT: a short README with an image and install detail in one linked doc before the CS-700 flip (MAIN 2246 section 3) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -374,3 +374,4 @@ CS-1300 - the nested CS-1233 run in `tests/test_claude_hook.py` fails its collec
 CS-1302 - mypy is pinned only by a floor, so CI and this box run different releases that emit different error codes - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1307 - the env-echo git-hook arms in `tests/test_hook_env_echo.py` run the interpreter ladder under its bound without the quiet barrier - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1308 - tracked files outside CS-1292's scrub still spell the checkout root, a public-flip leak - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

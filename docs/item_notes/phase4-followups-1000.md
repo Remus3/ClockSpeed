@@ -1306,3 +1306,32 @@ therefore stronger evidence than a CLEAR, which cuts in this row's favour.
 ### Acceptance
 
 the mechanism by which `tests/save/test_absolute_claims.py::test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it` costs its share is NAMED in this repository rather than the share restated, the naming cites what the test actually does rather than its duration, and either that cost is reduced with a before-and-after runner profile reporting the save shard's share both times or the concentration is ruled irreducible with that mechanism as the reason - and no level is moved and no test is marked `slow` to reach either outcome
+
+## CS-1309
+
+### Acceptance
+
+With a parser-refused file as the newest save of a world - a synthetic fixture only, never a
+real save - the world is read from the newest save the parser accepts, and the result carries
+a flag that a newer save was skipped, its reason given by exception type alone: no file name,
+world name, path or header byte reaches the flag, a message, a log or an exception
+(`CLAUDE.md` non-negotiables 3 and 12). With no readable save the world is refused exactly as
+today. Nothing is ever written to the save directory. The library-sweep tests that went red on
+the live library are either made to count and flag a parser-refused file instead of failing,
+or ruled by an adjudicator to be the correct alarm, with the ruling recorded in
+`docs/LEDGER.md`. The tests are red first for the right reason, a distinct adversary refutes the
+slice with a leak lens included, and the merger's one integration suite runs green with Git's
+usr/bin on PATH.
+
+### Filed 2026-10-10 by the session 136 /done
+
+Found by the session 136 landing suite and traced by a diagnosis agent: the newest file in the
+live save directory is a third-party re-encoded save - not written by the game, its header
+save time float-truncated, its body 11,081 bytes shorter than the game's - and the parser
+correctly refuses it with ObjectFormatError, so the newest-save selection in
+`clockspeed/save/workdir.py` refuses the whole world and 31 save tests read red on main as well
+as on the landing branch. Non-negotiable 7 says unknown content is flagged and skipped, never
+fatal. A builder on the branch `s136-savefallback` started the fallback, TDD, and found that
+the red tests are library sweeps rather than the newest-save selection alone; its work was
+uncommitted in its worktree at the session 136 /done. The file itself is the operator's to
+move out of the save directory; Clockspeed never writes there.

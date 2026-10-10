@@ -346,18 +346,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   CS-400 by its grammar ruling - TRIGGER: an audit or advice rule that needs throughput between
   buildings rather than what each one holds.
 
-## Push gate - filed 2026-10-04 by the session 123 /done
-
-- The pre-push whole suite fails when several suites run concurrently on this box
-  (MemoryError, xdist worker crash, fork exhaustion, timeouts) and passes on retry with no
-  code change - TRIGGER: a third blocked push in one week traced to box load rather than a
-  defect; candidates are a load check before the hook starts or a cap on concurrent suites.
-  TRIGGER FIRED 3/3 at the session 133 /done (session 129 once, then two blocked pushes of
-  the /done records commit - a canary child pytest exit 2 and a 1.0 s timing arm, the box at
-  100 percent CPU from other trees' suites); no new item, by adjudicator ruling: the remedy
-  "a cap on concurrent suites" is FLEET-KIT v12's machine-wide suite gate, in flight as
-  CS-1289 - close this line when that gate runs this tree's pre-push suite, else file it.
-
 ## Stale docstrings - filed 2026-10-04 by the CS-500 integration
 
 - `clockspeed/save/header.py` masked_token docstring says the ledger holds the real token -
@@ -534,7 +522,8 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   session 134's push lock twice (11:53 and 12:24) while its push ran, and two suites then ran
   side by side. A vendored kit file is never edited here (FLEET-COMMON 11); the report is ONE
   note to MAIN, owed by the next session - TRIGGER: a kit lands whose stale limit outlasts a
-  pre-push suite, or MAIN rules the limit stands; close this line then.
+  pre-push suite, or MAIN rules the limit stands; close this line then. The note was sent in
+  session 136: the outbox's 2026-10-10-0718 REVIEW note, delivered 1/1 (agent-reported).
 
 ## Session 135 residuals - filed 2026-10-09 under product before process
 
@@ -544,7 +533,33 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   substring (5 pairs) of another a shorter match can win and leave a tail unredacted;
   unreachable today (CS-1301 adversary pass) - TRIGGER: a canary added, or `child_failure`
   rendering more than identifiers.
-- CS-1306 - literal checkout roots remain in `tests/ops/test_driver_module_binding.py`,
-  `tests/ops/test_row_claim.py`, `tests/test_queue_loop.py` and `ops/loop/inbox_responder.py`
-  (the last in its scheduled-task command line) - TRIGGER: a checkout at another root, or
-  any of the four next touched.
+
+## Session 136 residuals - filed 2026-10-10 under product before process
+
+The first five are residuals an adversary or MAIN named against slices of the unpushed
+landing branch `s136-land`; the last is a process finding. None blocks a product item or
+reddens a suite.
+
+- From the TIER2-RED and CS-1300 concurrency adversary: the 5 s live-sibling retry in the quiet barrier can hide a sibling
+  that stops inside it; it cannot turn a failing run green - TRIGGER: a tier2 or pre-push red
+  traced to a sibling the barrier did not wait for.
+- From the CS-1280 adversary: the end-to-end arm in `tests/surface/test_advice_source.py` does not check the
+  4.00 MW figure in the card's reason (`tests/audit/test_balance.py` does) - TRIGGER: the
+  reason text of that card next changes.
+- From the CS-1285 slice A rounds: the A11 detail text can name the wrong field (cosmetic); a non-string
+  ClassName in an unmodeled group is not flagged - TRIGGER: a registry with a non-string
+  ClassName, or slice B v2 reading that detail.
+- From the CS-1292 lenses: the SHA citation gate does not see a citation added and removed in a commit behind
+  HEAD, a `..` spelling of the checkout path, or a forged commit-graph; only git 2.53 was
+  tested; the docs tests match exact strings, so a rewording passes them; the banner text
+  reads "no LLM in the advice path" - TRIGGER: the CS-700 S7a history rewrite, a git upgrade,
+  or the README or banner next edited.
+- MAIN's note that the repository description is about 300 characters, where GitHub shows
+  about 160, is unaddressed - TRIGGER: the CS-700 S12a settings re-apply.
+- 67 tests fail rather than skip when the shell's PATH lacks Git's usr/bin (openssl, sh): the
+  session 136 landing suite, run from an agent shell, read them red; they pass with it -
+  TRIGGER: a clean-machine walk or CI image without Git's usr/bin, or a third such red.
+- Process: agents of one session shared the session scratchpad and overwrote each other's
+  `prog.py`, `msg.txt` and possibly `freeze.json` - the session 135 shared-helper trap one
+  level wider. Every agent brief names unique scratch file names - TRIGGER: a progress file,
+  commit message or freeze witness read back with another agent's content.
