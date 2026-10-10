@@ -1027,30 +1027,53 @@ QUIET_MEASURE_SOURCE: Final = (
 )
 
 
-def quiet_run(tmp_path: Path, *, wait: bool) -> dict[str, str]:
-    """Run the synthetic pair on two xdist workers and return what each recorded."""
+class QuietChild(NamedTuple):
+    """One nested run of the synthetic pair: its status, its output, and its record directory."""
+
+    status: int
+    output: bytes
+    out: Path
+
+
+def quiet_child(tmp_path: Path, *, wait: bool, plugin: Path | None = None) -> QuietChild:
+    """Run the synthetic pair on two xdist workers, adding ``plugin`` (a module file) if given."""
     tests_dir = tmp_path / "pair"
     out = tmp_path / "out"
     tests_dir.mkdir()
     out.mkdir()
     (tests_dir / "test_busy.py").write_text(QUIET_BUSY_SOURCE, encoding="ascii")
     (tests_dir / "test_measure.py").write_text(QUIET_MEASURE_SOURCE, encoding="ascii")
+    search = [str(REPO_ROOT)] + ([str(plugin.parent)] if plugin is not None else [])
     env = {
         **os.environ,
         "CS1233_OUT": str(out),
         "CS1233_WAIT": "1" if wait else "0",
-        "PYTHONPATH": str(REPO_ROOT),
+        "PYTHONPATH": os.pathsep.join(search),
     }
     env.pop("PYTEST_XDIST_WORKER", None)
     env.pop("PYTEST_ADDOPTS", None)
     argv = [sys.executable, "-m", "pytest", "-p", "tests.xdist_quiet", "-p", "no:cacheprovider"]
-    argv += ["-n", "2", "--dist", "loadfile", "-q", str(tests_dir)]
+    if plugin is not None:
+        argv += ["-p", plugin.stem]
+    # CS-1300: the conftest cut at the collected directory itself. Launched from
+    # the repository's drive, the run found no common ancestor with the temp
+    # path, so its cut stayed at the repository and pytest collected EVERY
+    # ancestor of the temp path, lstat-ing each sibling there - and a sibling
+    # another process deleted mid-collection ended the run at an os.lstat
+    # FileNotFoundError. Cut here, no ancestor and no sibling is ever read.
+    argv += ["-n", "2", "--dist", "loadfile", "-q", f"--confcutdir={tests_dir}", str(tests_dir)]
     proc = subprocess.run(
         argv, capture_output=True, env=env, cwd=str(REPO_ROOT), timeout=CALL_TIMEOUT, check=False
     )
-    status = proc.returncode
-    assert status == 0, shown(proc.stdout + proc.stderr)
-    return {path.name: path.read_text(encoding="ascii") for path in out.iterdir()}
+    return QuietChild(proc.returncode, proc.stdout + proc.stderr, out)
+
+
+def quiet_run(tmp_path: Path, *, wait: bool) -> dict[str, str]:
+    """Run the synthetic pair on two xdist workers and return what each recorded."""
+    child = quiet_child(tmp_path, wait=wait)
+    status = child.status
+    assert status == 0, shown(child.output)
+    return {path.name: path.read_text(encoding="ascii") for path in child.out.iterdir()}
 
 
 @pytest.mark.parametrize("wait", [True, False], ids=["quiet", "control"])
@@ -1068,6 +1091,37 @@ def test_the_measurement_starts_only_after_every_sibling_worker_finished(
     assert distinct, "the pair shared a worker, so the arm proves nothing"
     started_after_end = float(seen["measure_start"]) >= float(seen["busy_end"])
     assert started_after_end is wait, "the measurement did not wait for its sibling"
+
+
+# CS-1300 - a sibling of the collected directory, deleted while collection runs.
+DOOMED_SIBLING: Final = "cs1300_doomed"
+DOOM_PLUGIN_SOURCE: Final = (
+    "import shutil\n"
+    "def pytest_collect_directory(path, parent):\n"
+    "    if path.name == " + repr(DOOMED_SIBLING) + ":\n"
+    "        shutil.rmtree(path, ignore_errors=True)\n"
+)
+
+
+def test_a_sibling_deleted_mid_collection_never_reaches_the_nested_run(tmp_path: Path) -> None:
+    """The nested run never reads a sibling of the directory it collects.
+
+    CS-1300. The nested run starts from the repository's drive and collects a
+    temp path on another, so pytest found no common ancestor, kept its conftest
+    cut at the repository and collected EVERY ancestor of the temp path - and on
+    Windows lstat'ed each sibling at each level while matching the path. A
+    sibling another process deleted between the listing and the lstat ended
+    the run at exit 2 with an os.lstat FileNotFoundError, about one run in ten.
+    Here a plugin deletes one at that instant, every time.
+    """
+    (tmp_path / DOOMED_SIBLING).mkdir()
+    plugin = tmp_path / "plugins" / "cs1300_doom.py"
+    plugin.parent.mkdir()
+    plugin.write_text(DOOM_PLUGIN_SOURCE, encoding="ascii")
+    child = quiet_child(tmp_path, wait=False, plugin=plugin)
+    status = child.status
+    named = b"lstat" in child.output
+    assert status == 0, f"the nested run failed: exit {status}, lstat named: {named}"
 
 
 def test_a_sibling_holding_its_lock_is_live_until_its_process_dies(tmp_path: Path) -> None:
@@ -1163,9 +1217,9 @@ def is_fixture_decorator(node: ast.expr) -> bool:
     )
 
 
-def module_arms() -> ModuleArms:
-    """Every top-level function of this file, and which of them are fixtures."""
-    tree = ast.parse(Path(__file__).read_bytes().decode("utf-8"))
+def module_arms(source: Path | None = None) -> ModuleArms:
+    """Every top-level function of ``source`` (this file by default), and its fixtures."""
+    tree = ast.parse((source or Path(__file__)).read_bytes().decode("utf-8"))
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     fixtures = frozenset(
         name
@@ -1175,17 +1229,34 @@ def module_arms() -> ModuleArms:
     return ModuleArms(functions, fixtures)
 
 
+def requested_fixtures(node: ast.FunctionDef) -> list[str]:
+    """What a function asks for by name: its arguments, and each ``usefixtures`` mark."""
+    names = [arg.arg for arg in node.args.args]
+    for decorator in node.decorator_list:
+        if (
+            isinstance(decorator, ast.Call)
+            and isinstance(decorator.func, ast.Attribute)
+            and decorator.func.attr == "usefixtures"
+        ):
+            names.extend(
+                arg.value
+                for arg in decorator.args
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+            )
+    return names
+
+
 def fixture_closure(arms: ModuleArms, name: str) -> frozenset[str]:
     """The fixtures a function requests, followed through every fixture defined here."""
     seen: set[str] = set()
-    pending = [arg.arg for arg in arms.functions[name].args.args]
+    pending = requested_fixtures(arms.functions[name])
     while pending:
         current = pending.pop()
         if current in seen:
             continue
         seen.add(current)
         if current in arms.fixtures:
-            pending.extend(arg.arg for arg in arms.functions[current].args.args)
+            pending.extend(requested_fixtures(arms.functions[current]))
     return frozenset(seen)
 
 
@@ -1234,6 +1305,63 @@ def test_every_arm_whose_verdict_needs_the_ladder_to_finish_runs_alone() -> None
     assert defined, f"no {QUIET_FIXTURE!r} fixture is defined here"
 
 
+# CS-814's wrapper arms drive the SAME ladder through tools/claude_hook.sh, from
+# their own module and with no `harness` fixture: they reach it through that
+# module's `run_wrapper`. The walk above reads only this file, so it never saw
+# them; this one reads theirs.
+ENV_ECHO_MODULE: Final = REPO_ROOT / "tests" / "test_hook_env_echo.py"
+WRAPPER_DRIVER: Final = "run_wrapper"
+ENV_ECHO_WRAPPER_ARMS: Final = (
+    "test_no_claude_hook_path_echoes_a_canary",
+    "test_a_wrapper_copy_that_dumps_the_environment_is_caught",
+)
+
+
+def call_closure(arms: ModuleArms, name: str) -> frozenset[str]:
+    """The module functions ``name`` calls by name, followed through each of them."""
+    seen: set[str] = set()
+    pending = [name]
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        pending.extend(
+            node.func.id
+            for node in ast.walk(arms.functions[current])
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in arms.functions
+        )
+    return frozenset(seen)
+
+
+def waits_through_a_fixture(arms: ModuleArms, name: str) -> bool:
+    """Whether a test waits itself, or requests a fixture defined beside it that waits."""
+    requested = fixture_closure(arms, name) & arms.fixtures
+    own = waits_itself(arms.functions[name])
+    return own or any(waits_itself(arms.functions[fixture]) for fixture in requested)
+
+
+def test_every_env_echo_arm_that_drives_the_wrapper_runs_alone() -> None:
+    """Every test of tests/test_hook_env_echo.py that drives the wrapper waits too.
+
+    Its wrapper arms run the whole interpreter ladder inside the one bound - an
+    allow, a deny, a lint pass and a named refusal are each a verdict only once
+    the ladder FINISHES - beside the same CPU-bound siblings.
+    """
+    arms = module_arms(ENV_ECHO_MODULE)
+    reached = {
+        name: waits_through_a_fixture(arms, name)
+        for name in arms.functions
+        if name.startswith("test_") and WRAPPER_DRIVER in call_closure(arms, name)
+    }
+    missing = sorted(set(ENV_ECHO_WRAPPER_ARMS) - set(reached))
+    assert missing == [], f"the walk missed these wrapper arms, so it proves nothing: {missing}"
+    unguarded = sorted(name for name, waits in reached.items() if not waits)
+    assert unguarded == [], f"these arms drive the wrapper beside busy siblings: {unguarded}"
+
+
 def fake_worker(run_id: str, worker: str) -> SimpleNamespace:
     """The two attributes of an xdist worker's config the barrier reads."""
     return SimpleNamespace(
@@ -1280,6 +1408,81 @@ def test_two_waiting_workers_never_wait_on_each_other() -> None:
             thread.join(DEADLOCK_SECONDS)
     assert crashed == {}, f"a waiting worker CRASHED, which is not a deadlock: {crashed}"
     assert stuck == [], f"two waiting workers waited on each other: {stuck} never came back"
+
+
+# How long each released waiter holds the box in the arm below - several polls,
+# so a second waiter let go beside it is certain to be counted.
+QUIET_ARM_SECONDS: Final = 1.0
+
+
+def test_two_waiters_that_find_the_box_quiet_together_are_let_go_one_at_a_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two waiters probing at the same instant never BOTH run their quiet arm.
+
+    A waiting worker unlocks its byte, so two waiters see no live sibling at once.
+    Here both have unlocked before either probes, and both have probed before
+    either acts on it - the interleaving that let both go together, about one
+    run in six measured. Under --dist loadfile it needs two FILES that wait, and
+    tests/test_hook_env_echo.py's wrapper arms now wait beside this file's.
+    """
+    run_id = "cs1233-overlap-" + uuid.uuid4().hex
+    workers = {name: fake_worker(run_id, name) for name in ("gw0", "gw1")}
+    sessions = {name: SimpleNamespace(config=worker) for name, worker in workers.items()}
+    for session in sessions.values():
+        xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
+    both_unlocked = threading.Barrier(len(workers), timeout=DEADLOCK_SECONDS)
+    both_probed = threading.Barrier(len(workers), timeout=DEADLOCK_SECONDS)
+    first_probe_done: set[str] = set()
+    real_names = xdist_quiet.live_sibling_names
+
+    def probe_in_step(where: Path, own: str) -> list[str]:
+        if own in first_probe_done:
+            return real_names(where, own)
+        first_probe_done.add(own)
+        both_unlocked.wait()
+        names = real_names(where, own)
+        both_probed.wait()
+        return names
+
+    guard = threading.Lock()
+    holding: list[str] = []
+    peak: list[int] = [0]
+    finished: set[str] = set()
+    crashed: dict[str, str] = {}
+
+    def worker_run(name: str) -> None:
+        try:
+            await_quiet_siblings(cast(pytest.Config, workers[name]))
+            with guard:
+                holding.append(name)
+                peak[0] = max(peak[0], len(holding))
+            time.sleep(QUIET_ARM_SECONDS)
+            with guard:
+                holding.remove(name)
+            finished.add(name)
+        except Exception as exc:  # surfaced by the assert below, never swallowed
+            crashed[name] = error_shape(exc)
+        finally:
+            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, sessions[name]))
+
+    monkeypatch.setattr(xdist_quiet, "live_sibling_names", probe_in_step)
+    threads = [threading.Thread(target=worker_run, args=(name,), daemon=True) for name in workers]
+    try:
+        for thread in threads:
+            thread.start()
+        deadline = time.monotonic() + 2 * DEADLOCK_SECONDS
+        for thread in threads:
+            thread.join(max(0.0, deadline - time.monotonic()))
+    finally:
+        for session in sessions.values():
+            xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+        for thread in threads:
+            thread.join(DEADLOCK_SECONDS)
+    together = peak[0]
+    assert crashed == {}, f"a waiting worker CRASHED: {crashed}"
+    assert finished == set(workers), f"only {sorted(finished)} came back from the wait"
+    assert together == 1, f"{together} waiters ran their quiet arm at the same time"
 
 
 def error_shape(exc: BaseException) -> str:
@@ -1398,18 +1601,24 @@ def test_a_wait_that_outlives_its_bound_fails_loud_naming_the_sibling(
 
     clock.on_sleep = give_up_at_a_day
     monkeypatch.setattr(xdist_quiet, "time", clock)
+    named: tuple[str, ...] = ()
     try:
         try:
             await_quiet_siblings(cast(pytest.Config, waiter))
             outcome = "returned"
         except NeverGaveUpError:
             outcome = "never gave up"
+        except xdist_quiet.QuietWaitTimeoutError as exc:
+            # The named FIELD, never the object: an exception's text is an echo
+            # path (non-negotiable 12, tests/test_exception_rendering.py).
+            outcome = "timed out"
+            named = exc.siblings
         except RuntimeError as exc:
-            outcome = str(exc)
+            outcome = type(exc).__name__
         waited = clock.now
         monkeypatch.undo()
-        assert outcome not in ("returned", "never gave up"), f"the wait {outcome} - no bound"
-        assert "gw3" in outcome, f"the loud failure does not name the live sibling: {outcome}"
+        assert outcome == "timed out", f"the wait ended as {outcome!r}, not at a loud bound"
+        assert named == ("gw3",), f"the loud failure names {named}, not the live sibling"
         bound = xdist_quiet.QUIET_BOUND_SECONDS
         fired = bound <= waited <= bound + BOUND_STRIDE_SECONDS
         assert fired, f"the bound fired at {waited:.2f}s, not at {bound}s"
@@ -1417,6 +1626,32 @@ def test_a_wait_that_outlives_its_bound_fails_loud_naming_the_sibling(
         monkeypatch.undo()
         release_liveness_lock(sibling)
         xdist_quiet.pytest_sessionfinish(cast(pytest.Session, session))
+
+
+# THE WAITS THIS BOX HAS MEASURED, and the whole suites they sat inside, from the
+# whole-suite records of 2026-10-09: a junit record whose median arm waited
+# 804.014 s (its `cs815_quiet_wait_seconds` property) inside a 1251.555 s suite,
+# and the session 134 pre-push whole suite at 1074.41 s. A wait never outlasts
+# the run it sits inside, so the suite walls bound it from above.
+MEASURED_QUIET_WAIT_SECONDS: Final = (804.014,)
+MEASURED_SUITE_WALL_SECONDS: Final = (1074.41, 1251.555)
+
+
+def test_the_quiet_bound_outlasts_every_measured_wait_and_whole_suite() -> None:
+    """The bound sits clear of every wait measured here, not under it.
+
+    The first `alone` arm now waits for every sibling to drain the queue, so on a
+    local whole suite it waits about as long as the median arm used to - which
+    was measured at over 800 s. A bound under that fails a sound run LOUD.
+    """
+    bound = xdist_quiet.QUIET_BOUND_SECONDS
+    longest_wait = max(MEASURED_QUIET_WAIT_SECONDS)
+    longest_suite = max(MEASURED_SUITE_WALL_SECONDS)
+    nested = longest_wait < longest_suite
+    assert nested, "a recorded wait outlasts every recorded suite, so the records disagree"
+    assert bound >= 2 * longest_suite, (
+        f"the bound {bound}s is not twice the longest measured whole suite {longest_suite}s"
+    )
 
 
 def test_a_probe_holding_the_waiters_lock_only_delays_its_relock(

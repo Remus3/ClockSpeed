@@ -24,6 +24,13 @@ unlocks its own byte while it waits, keeping its file, so two workers waiting
 at once never count each other live and the run directory never empties under
 a waiter. The wait is bounded and LOUD at the bound, naming the live sibling.
 
+ONE WAITER AT A TIME. Two waiters that unlock and probe at the same instant
+each see no live sibling, and both would run their quiet arm side by side.
+So a waiter that finds the box quiet runs only once it also holds the run's
+token lock, which it keeps until it waits again or its session ends; a
+second waiter sees the first live again, or finds the token taken, and waits
+on. The token is a lock like the liveness files, so a dead holder frees it.
+
 Outside xdist there are no workers, so nothing is waited for. Standard library
 plus pytest only, like tests/conftest.py, which registers the two hooks below.
 """
@@ -52,12 +59,23 @@ LIVE_ROOT_NAME: Final = "clockspeed-xdist-live"
 #: Seconds between two polls of the sibling locks.
 POLL_SECONDS: Final = 0.25
 
-#: The longest a worker waits for quiet siblings before it fails LOUD. It sits
-#: under the tightest CI job cutoff that runs a waiting arm - tier 1's ten
-#: minutes, with the job's setup steps ahead of pytest - so a hung sibling is
-#: named by this module rather than lost in a cancellation that says nothing, and
-#: above every sibling wait measured so far, which ended well inside it.
-QUIET_BOUND_SECONDS: Final = 400.0
+#: The longest a worker waits for quiet siblings before it fails LOUD: twice the
+#: longest whole suite measured on this box, rounded up to a whole minute. A wait
+#: sits inside the run it belongs to and never outlasts it, and the first waiting
+#: arm waits for every sibling to drain the whole remaining queue - on a local
+#: whole suite, for most of the run. The measurements, and the pin that holds
+#: this bound above them, are in tests/test_claude_hook.py
+#: (test_the_quiet_bound_outlasts_every_measured_wait_and_whole_suite).
+#: IT IS NOT UNDER A CI JOB CUTOFF. A bound under the shortest one sat below the
+#: waits measured locally and failed a sound whole suite. In CI every shard's
+#: pytest step ends inside its duration level, far under this, so no sound wait
+#: there comes near it; a hung sibling there is ended by the job's own cutoff -
+#: loud, though it names no worker. Locally nothing else ends it, and this does.
+QUIET_BOUND_SECONDS: Final = 2520.0
+
+#: The file every waiter of a run competes for; see ONE WAITER AT A TIME above.
+#: Not a liveness file, so no probe counts it.
+QUIET_FILE_NAME: Final = "quiet.token"
 
 #: How long a worker retries taking its own lock back after a wait. A sibling's
 #: probe holds it for the instant between its own lock and unlock calls.
@@ -136,8 +154,14 @@ def release_liveness_lock(held: HeldLock) -> None:
     # Windows; the file is then left unlocked, and an unlocked file is not live.
     with contextlib.suppress(OSError):
         held.path.unlink()
+    directory = held.path.parent
+    # The last worker out removes the token. No waiter is left to want it: a
+    # waiter keeps its own liveness file until its session ends.
     with contextlib.suppress(OSError):
-        held.path.parent.rmdir()
+        if not any(directory.glob("*" + LOCK_SUFFIX)):
+            (directory / QUIET_FILE_NAME).unlink()
+    with contextlib.suppress(OSError):
+        directory.rmdir()
 
 
 def live_sibling_names(directory: Path, own: str) -> list[str]:
@@ -174,7 +198,45 @@ def live_sibling_count(directory: Path, own: str) -> int:
 
 
 class QuietWaitTimeoutError(RuntimeError):
-    """A sibling worker stayed live past QUIET_BOUND_SECONDS."""
+    """A sibling worker stayed live, or another waiter kept the token, past QUIET_BOUND_SECONDS.
+
+    The live worker ids are a named field, so a caller reads them without ever
+    rendering the exception object.
+    """
+
+    def __init__(self, siblings: tuple[str, ...], waited: float) -> None:
+        """Keep the live sibling ids and the seconds waited, and say both."""
+        self.siblings = siblings
+        self.waited = waited
+        holder = (
+            f"sibling worker(s) {list(siblings)} still live"
+            if siblings
+            else "the quiet token still held by another waiter"
+        )
+        super().__init__(
+            f"CS-1233: {holder} after {waited:.0f}s - the arm that needs a quiet box did not run"
+        )
+
+
+class QuietToken:
+    """One worker's descriptor on the run's token file, and whether it holds the lock now."""
+
+    def __init__(self, fd: int) -> None:
+        """Open, not yet held."""
+        self.fd = fd
+        self.held = False
+
+    def take(self) -> bool:
+        """Try the token's lock once; report whether this worker holds it now."""
+        if not self.held:
+            self.held = _try_lock(self.fd)
+        return self.held
+
+    def give_back(self) -> None:
+        """Let the token go if this worker holds it."""
+        if self.held:
+            self.held = False
+            _unlock(self.fd)
 
 
 def _relock(held: HeldLock) -> None:
@@ -210,31 +272,37 @@ def await_quiet_siblings(config: pytest.Config) -> float:
     hung sibling is reported here and never passes in silence.
 
     A WAITING WORKER IS NOT LIVE. It UNLOCKS its byte for the length of the wait
-    and locks it again after, keeping its file and descriptor throughout. Several
-    arms wait, and a scheduler other than ``--dist loadfile`` can put two of them
-    on two workers at once: a waiter that stayed live would count the other as
-    busy, and each would wait for ever. The file stays, so the shared run
-    directory is never empty while a waiter needs it, and a sibling's release
-    can never remove it from under the relock.
+    and locks it again after, keeping its file and descriptor throughout. Arms in
+    two files wait, so even ``--dist loadfile`` puts two waiters on two workers
+    at once: a waiter that stayed live would count the other as busy, and each
+    would wait for ever. The file stays, so the shared run directory is never
+    empty while a waiter needs it, and a sibling's release can never remove it
+    from under the relock.
+
+    ONE WAITER AT A TIME. Quiet is not enough: the waiter also takes the run's
+    token, keeping it until it next waits or its session ends, and gives it
+    back on entry here so another waiter can have the box in between. Two
+    waiters that find the box quiet together are let go one after the other.
 
     Raises:
-        QuietWaitTimeoutError: When a sibling is still live at the bound.
+        QuietWaitTimeoutError: When a sibling is still live, or another waiter
+            still holds the token, at the bound.
     """
     identity = _worker_identity(config)
     if identity is None:
         return 0.0
+    directory, worker = identity
     held = config.stash.get(_HELD, None)
+    token = _quiet_token(config, directory)
+    started = time.perf_counter()
+    token.give_back()
     if held is not None:
         _unlock(held.fd)
-    started = time.perf_counter()
     try:
-        while live := live_sibling_names(*identity):
+        while (live := live_sibling_names(directory, worker)) or not token.take():
             waited = time.perf_counter() - started
             if waited >= QUIET_BOUND_SECONDS:
-                raise QuietWaitTimeoutError(
-                    f"CS-1233: sibling worker(s) {live} still live after {waited:.0f}s - "
-                    "the arm that needs a quiet box did not run"
-                )
+                raise QuietWaitTimeoutError(tuple(live), waited)
             time.sleep(POLL_SECONDS)
     finally:
         if held is not None:
@@ -242,7 +310,19 @@ def await_quiet_siblings(config: pytest.Config) -> float:
     return time.perf_counter() - started
 
 
+def _quiet_token(config: pytest.Config, directory: Path) -> QuietToken:
+    """This worker's descriptor on the run's token file, opened on its first wait."""
+    token = config.stash.get(_TOKEN, None)
+    if token is None:
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / QUIET_FILE_NAME
+        token = QuietToken(os.open(path, os.O_RDWR | os.O_CREAT, 0o600))
+        config.stash[_TOKEN] = token
+    return token
+
+
 _HELD: Final = pytest.StashKey[HeldLock]()
+_TOKEN: Final = pytest.StashKey[QuietToken]()
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -254,7 +334,15 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionfinish(session: pytest.Session) -> None:
-    """In an xdist worker, release the liveness lock as soon as its tests are done."""
+    """In an xdist worker, release the token and the liveness lock once its tests are done."""
+    token = session.config.stash.get(_TOKEN, None)
+    if token is not None:
+        del session.config.stash[_TOKEN]
+        # Unlocked before the close: Windows frees a lock left on a closed
+        # handle only when it gets round to it.
+        with contextlib.suppress(OSError):
+            token.give_back()
+        os.close(token.fd)
     held = session.config.stash.get(_HELD, None)
     if held is not None:
         del session.config.stash[_HELD]

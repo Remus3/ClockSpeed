@@ -128,6 +128,7 @@ from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir
 from tests.git_env import scrub
 from tests.pre_push_floor import with_test_floor
 from tests.test_pretooluse_gate import EM_DASH, PEM_HEADER, envelope, require_posix_shell
+from tests.xdist_quiet import await_quiet_siblings
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 HOOKS_DIR: Final = REPO_ROOT / ".githooks"
@@ -774,7 +775,22 @@ WRAPPER_ARMS: Final = (
 )
 
 
+@pytest.fixture
+def alone(request: pytest.FixtureRequest) -> None:
+    """Hand over only once every sibling xdist worker has finished (CS-1233's barrier).
+
+    The wrapper bounds its WHOLE interpreter ladder by one CS_PROBE_BOUND, and an
+    allow, a deny, a lint pass or a named refusal is a verdict only once that
+    ladder FINISHES inside it. Beside CPU-bound sibling workers its process
+    starts slowed past the bound - tests/test_claude_hook.py's liar arm read it
+    on the windows guard shard - so each wrapper arm here waits as those do.
+    tests/test_claude_hook.py pins that every arm driving the wrapper asks.
+    """
+    await_quiet_siblings(request.config)
+
+
 @pytest.mark.parametrize("arm", WRAPPER_ARMS)
+@pytest.mark.usefixtures("alone")
 def test_no_claude_hook_path_echoes_a_canary(tmp_path: Path, arm: str) -> None:
     """Each leg of the wrapper and the tool it runs, reached, renders no canary."""
     result = drive_wrapper(arm, tmp_path)
@@ -805,6 +821,7 @@ def test_a_pre_commit_copy_that_dumps_the_environment_is_caught(tmp_path: Path) 
     )
 
 
+@pytest.mark.usefixtures("alone")
 def test_a_wrapper_copy_that_dumps_the_environment_is_caught(tmp_path: Path) -> None:
     """THE CONTROL for the wrapper harness: every canary IS found."""
     dumped = write_executable(
