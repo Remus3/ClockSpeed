@@ -970,6 +970,133 @@ def test_a_symlink_entry_is_judged_by_its_blob(code_repo: Repo, tmp_path: Path) 
     assert f"unpublished-not-admitted {KNOWN_PNG}:1 {token} " in done.stdout
 
 
+# --- CS-1292 round 3: HEAD's tree is judged whatever the index says ------------
+
+#: A code path and a doc path, each committed carrying a citation and then dropped
+#: from the index - the rename source of a ``git mv`` is the same dropped path.
+DROPPED: Final = ("tools/smuggle.py", "docs/smuggle.md")
+
+
+def _commit_citing(repo: Repo, name: str, token: str) -> None:
+    """Commit ``name`` citing ``token``, so HEAD's tree carries the citation."""
+    _track(repo, name, f"# RED at {token}: the push landed.\n".encode("ascii"))
+    repo.git("commit", "-q", "-m", "carry")
+
+
+@pytest.mark.parametrize("name", DROPPED)
+@pytest.mark.parametrize("cached", [False, True], ids=["rm", "rm-cached"])
+def test_a_citation_committed_at_head_then_removed_from_the_index_fails_the_run(
+    code_repo: Repo, name: str, cached: bool
+) -> None:
+    """``git rm`` empties the index, not HEAD: the committed blob is still judged - exit 1."""
+    token = _unpublished(code_repo)
+    _commit_citing(code_repo, name, token)
+    code_repo.git("rm", "-q", *(["--cached"] if cached else []), "--", name)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f" {name}:1 {token} " in done.stdout
+
+
+@pytest.mark.parametrize("name", DROPPED)
+def test_a_citation_committed_at_head_then_renamed_and_cleaned_fails_the_run(
+    code_repo: Repo, name: str
+) -> None:
+    """``git mv`` then a clean rewrite: the rename SOURCE in HEAD is still judged - exit 1."""
+    token = _unpublished(code_repo)
+    _commit_citing(code_repo, name, token)
+    moved = name.replace("smuggle", "renamed")
+    code_repo.git("mv", "--", name, moved)
+    _track(code_repo, moved, b"# clean\n")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f" {name}:1 {token} " in done.stdout
+
+
+@pytest.mark.parametrize("name", DROPPED)
+def test_a_clean_file_removed_from_the_index_is_judged_and_never_not_read(
+    code_repo: Repo, name: str
+) -> None:
+    """Control: a staged deletion of a clean file passes - its absence is never NOT READ."""
+    _track(code_repo, name, b"# clean\n")
+    code_repo.git("commit", "-q", "-m", "carry")
+    code_repo.git("rm", "-q", "--", name)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert _not_read(done.stdout) == 0
+
+
+def _stage_gitlink(repo: Repo, name: str, commit: str) -> None:
+    """Put a gitlink (mode 160000) naming ``commit`` in the index at ``name``."""
+    repo.git("update-index", "--add", "--cacheinfo", f"160000,{commit},{name}")
+
+
+def _gitlink_where(repo: Repo, name: str, commit: str, where: str) -> None:
+    """A gitlink at ``name``: staged, committed, or committed then dropped from the index."""
+    _stage_gitlink(repo, name, commit)
+    if where != "staged":
+        repo.git("commit", "-q", "-m", "gitlink")
+    if where == "head-only":
+        repo.git("rm", "-q", "--cached", "--", name)
+
+
+GITLINK_STATES: Final = ("staged", "committed", "head-only")
+
+
+@pytest.mark.parametrize("where", GITLINK_STATES)
+def test_a_gitlink_path_holding_a_plain_file_is_scanned_as_one(code_repo: Repo, where: str) -> None:
+    """A gitlink's path holding a plain file on disk is read as that file - exit 1."""
+    token = _unpublished(code_repo)
+    name = "tools/linked.py"
+    _gitlink_where(code_repo, name, code_repo.git("rev-parse", "HEAD"), where)
+    (code_repo.path / name).write_bytes(f"# RED at {token}: the push landed.\n".encode("ascii"))
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:1 {token} " in done.stdout
+
+
+@pytest.mark.parametrize("where", GITLINK_STATES)
+def test_a_gitlink_naming_an_unpublished_commit_fails_the_run(code_repo: Repo, where: str) -> None:
+    """A gitlink's own commit is graded like a code run: an unpublished one is red - exit 1.
+
+    Line 0 names the tree entry itself, never a line of its bytes.
+    """
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    name = "vendor/linked"
+    _gitlink_where(code_repo, name, side, where)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:0 {side} " in done.stdout
+
+
+@pytest.mark.parametrize("where", GITLINK_STATES)
+def test_a_gitlink_with_no_file_on_disk_is_judged_by_its_commit_and_never_not_read(
+    code_repo: Repo, where: str
+) -> None:
+    """Control: a gitlink naming a published commit, nothing on disk, passes - exit 0.
+
+    Its content is the commit it names, which is judged; an empty or absent
+    submodule folder is a gitlink's normal state, never a file dropping out.
+    """
+    _gitlink_where(code_repo, "vendor/linked", code_repo.git("rev-parse", "HEAD"), where)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert _not_read(done.stdout) == 0
+
+
+@pytest.mark.parametrize("where", ["staged", "head-only"])
+def test_a_citation_in_a_tracked_file_name_fails_the_run(code_repo: Repo, where: str) -> None:
+    """A path is graded like a code run too, in the index and in HEAD's tree - exit 1."""
+    token = _unpublished(code_repo)
+    name = f"docs/notes-{token}.md"
+    _track(code_repo, name, b"clean\n")
+    if where == "head-only":
+        code_repo.git("commit", "-q", "-m", "carry")
+        code_repo.git("rm", "-q", "--", name)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {name}:0 {token} " in done.stdout
+
+
 def _nul_hidden(text: str, shape: str) -> bytes:
     """``text`` in a shape whose raw bytes carry no plain hex run - NULs between its pieces."""
     if shape == "utf16le-no-bom":

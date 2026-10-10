@@ -41,12 +41,18 @@ is counted known-binary and named instead (CS-1292). Either way a not-read file'
 raw bytes are still graded as latin-1, as stored and again with every NUL removed,
 so UTF-16 text without a byte-order mark and a run split by NULs are joined and
 seen. A COMPRESSED citation is no hex run in either view and is not seen; the pin
-row's review is the only control for it. Every path is read from the work tree
+row's review is the only control for it. Every path the index OR ``HEAD``'s tree
+holds is listed (:func:`_tracked`) - a committed path ``git rm`` or ``git mv`` dropped
+from the index is still published by ``HEAD`` - and is read from the work tree
 AND from each of its index and ``HEAD`` blobs that differs (:func:`_versions`), the
 runs being the union, and a pin admits the path only when every unread version
 matches it - a staged or committed blob, a case-variant path a case-insensitive
 disk opens as its sibling, or a symlink entry's link text is judged by its own
-bytes, never by what the path opens on disk. A BOM-marked file is
+bytes, never by what the path opens on disk. A gitlink's path holding a plain file
+on disk is read as that file, and each path itself and each commit a gitlink names
+is graded like a code run, at line 0 (:func:`scan_entry`). Only ``HEAD``'s tree is
+read: a citation committed and removed again in a commit BEHIND ``HEAD`` is published
+by the push and not seen here - a stated residual. A BOM-marked file is
 decoded STRICTLY (a failure is NOT READ, never replacement) and is always also
 scanned as raw latin-1 bytes, the runs being the union, because
 8-bit text behind a stray mark decodes as CJK with every hex run gone. All three
@@ -164,7 +170,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Final
 
@@ -252,8 +258,10 @@ INCLUSION_RULE: Final = (
     "because hex literals that name nothing (test vectors, digests, ids) outnumber code "
     "citations there. Every run of 5 or 6 hex characters of any case, joined to anything, "
     "in any tracked file, is resolved the same way too, and one that more than one commit "
-    "answers is red when any candidate is unpublished. Each tracked path is read from the "
-    "work tree and from every index and HEAD blob of it that differs, the union judged. "
+    "answers is red when any candidate is unpublished. Each path the index or HEAD's tree "
+    "holds - one git rm or git mv dropped from the index included - is read from the "
+    "work tree and from every index and HEAD blob of it that differs, the union judged; "
+    "the path itself, and the commit a gitlink there names, is resolved like a code run. "
     "A tracked file is read as UTF-32 or "
     "UTF-16 behind a byte-order mark, STRICTLY - scanned both decoded and as raw bytes, "
     "the union of the two, and NOT READ when the strict decode fails, though its raw "
@@ -301,7 +309,8 @@ _NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
 
 #: CS-1224 - the reason printed beside the not-read count on every run.
 NOT_READ_REASON: Final = (
-    "tracked files absent from the work tree, or whose work-tree bytes or any differing "
+    "tracked files the index holds as a blob but absent from the work tree, or whose "
+    "work-tree bytes or any differing "
     "index and HEAD blob fail a strict decode behind a UTF-32 or "
     "UTF-16 byte-order mark, or carry a NUL once decoded (else UTF-8 with "
     "replacement), are binary or "
@@ -700,32 +709,74 @@ def _grade_unread(
 #: (id, type, size).
 _ENTRY_FIELDS: Final = 3
 
+#: The index mode of a gitlink - a tree entry naming a commit, not content.
+_GITLINK_MODE: Final = b"160000"
 
-def _blob_ids(repo: Path) -> dict[str, list[str]]:
-    """Each tracked path's blob ids in the index, every stage, then at ``HEAD`` - CS-1292.
 
-    A gitlink (mode 160000) names a commit, not content, and is left out.
+@dataclass(frozen=True)
+class _Entries:
+    """What the index and ``HEAD``'s tree hold, per path - CS-1292.
+
+    Attributes:
+        blobs: Each path's blob ids, the index's every stage first, then ``HEAD``'s.
+        gitlinks: Each path's gitlink commits, the index's first, then ``HEAD``'s.
+        indexed: Every path the index holds as a blob - the only paths whose
+            absence from the work tree is a file dropping out, so NOT READ.
     """
-    found: dict[str, list[str]] = {}
 
-    def add(name: bytes, oid: bytes) -> None:
-        ids = found.setdefault(name.decode("utf-8"), [])
+    blobs: dict[str, list[str]]
+    gitlinks: dict[str, list[str]]
+    indexed: frozenset[str]
+
+
+def _entries(repo: Path, head: bool) -> _Entries:
+    """Each path's index entries, every stage, then its ``HEAD`` entry when ``head`` - CS-1292.
+
+    A gitlink (mode 160000) names a commit, not content: its id is kept apart,
+    to be graded as the run it is, never read as a blob.
+    """
+    blobs: dict[str, list[str]] = {}
+    gitlinks: dict[str, list[str]] = {}
+    indexed: set[str] = set()
+
+    def add(into: dict[str, list[str]], name: bytes, oid: bytes) -> None:
+        ids = into.setdefault(name.decode("utf-8"), [])
         if oid.decode("ascii") not in ids:
             ids.append(oid.decode("ascii"))
 
     for entry in _git_out(repo, ["ls-files", "-s", "-z"]).split(b"\0"):
         meta, _, name = entry.partition(b"\t")
         fields = meta.split()
-        if name and len(fields) == _ENTRY_FIELDS and fields[0] != b"160000":
-            add(name, fields[1])
-    if _git(repo, ["rev-parse", "--verify", "-q", "HEAD"]).returncode != 0:
-        return found
-    for entry in _git_out(repo, ["ls-tree", "-r", "-z", "--full-tree", "HEAD"]).split(b"\0"):
-        meta, _, name = entry.partition(b"\t")
-        fields = meta.split()
-        if name and len(fields) == _ENTRY_FIELDS and fields[1] == b"blob":
-            add(name, fields[2])
-    return found
+        if not name or len(fields) != _ENTRY_FIELDS:
+            continue
+        if fields[0] == _GITLINK_MODE:
+            add(gitlinks, name, fields[1])
+        else:
+            indexed.add(name.decode("utf-8"))
+            add(blobs, name, fields[1])
+    if head:
+        for entry in _git_out(repo, ["ls-tree", "-r", "-z", "--full-tree", "HEAD"]).split(b"\0"):
+            meta, _, name = entry.partition(b"\t")
+            fields = meta.split()
+            if name and len(fields) == _ENTRY_FIELDS and fields[1] in (b"blob", b"commit"):
+                add(blobs if fields[1] == b"blob" else gitlinks, name, fields[2])
+    return _Entries(blobs, gitlinks, frozenset(indexed))
+
+
+def scan_entry(name: str, commits: Sequence[str] = ()) -> tuple[list[Occurrence], list[Occurrence]]:
+    """A tree entry's own runs - its path, and each commit a gitlink there names - CS-1292.
+
+    Both are published with the tree beside its bytes: a path is text every tree
+    object carries, and a gitlink is a bare commit name. Each is graded like a
+    code run, resolved-only, and carries line 0 - the entry itself, never a
+    line of its bytes.
+
+    Returns:
+        The 7-to-40 runs, then the 5-or-6 runs, each at line 0.
+    """
+    code = [[replace(run, line=0) for run in scan_code(text, name)] for text in (name, *commits)]
+    short = [[replace(run, line=0) for run in scan_short(name, name)]]
+    return _union(code), _union(short)
 
 
 def _blob_id(raw: bytes) -> str:
@@ -756,16 +807,18 @@ def _read_blobs(repo: Path, oids: Sequence[str]) -> dict[str, bytes]:
     return blobs
 
 
-def _versions(repo: Path, names: Sequence[str]) -> dict[str, list[bytes | None]]:
+def _versions(repo: Path, names: Sequence[str], entries: _Entries) -> dict[str, list[bytes | None]]:
     """Each path's distinct bytes: the work tree's, then each differing blob - CS-1292.
 
-    The work tree's bytes come first (None when absent), then each blob of the
-    path's index entries and of ``HEAD`` that differs from them. The work tree
-    alone is not what git publishes: a staged or committed blob, a case-variant
-    path a case-insensitive disk opens as its sibling, or a symlink entry whose
-    blob is its link text all differ from what the path opens on disk.
+    The work tree's bytes come first, then each blob of the path's index entries
+    and of ``HEAD`` that differs from them. The work tree alone is not what git
+    publishes: a staged or committed blob, a case-variant path a case-insensitive
+    disk opens as its sibling, or a symlink entry whose blob is its link text all
+    differ from what the path opens on disk. An absent work-tree file is listed
+    as None - NOT READ - only for a path the index holds as a blob: a staged
+    deletion, a rename source or a gitlink is judged by its entries alone.
     """
-    ids = _blob_ids(repo)
+    ids = entries.blobs
     raws = {name: (repo / name).read_bytes() if (repo / name).is_file() else None for name in names}
     wanted: dict[str, None] = {}
     for name in names:
@@ -775,7 +828,8 @@ def _versions(repo: Path, names: Sequence[str]) -> dict[str, list[bytes | None]]
     blobs = _read_blobs(repo, list(wanted))
     versions: dict[str, list[bytes | None]] = {}
     for name in names:
-        found: list[bytes | None] = [raws[name]]
+        raw = raws[name]
+        found: list[bytes | None] = [raw] if raw is not None or name in entries.indexed else []
         for oid in ids.get(name, []):
             body = blobs.get(oid)
             if body is not None and body not in found:
@@ -919,9 +973,16 @@ def _published(repo: Path) -> tuple[int, set[str]]:
     return len(refs), set(done.stdout.decode("ascii").split())
 
 
-def _tracked(repo: Path, pathspecs: Sequence[str]) -> list[str]:
-    listed = _git_out(repo, ["ls-files", "-z", "--", *pathspecs]).decode("utf-8")
-    return sorted(name for name in listed.split("\0") if name)
+def _tracked(repo: Path, pathspecs: Sequence[str], head: bool) -> list[str]:
+    """Every path the index holds, plus ``HEAD``'s the index dropped when ``head`` - CS-1292.
+
+    ``--with-tree=HEAD`` overlays HEAD's tree on the index, so a path committed
+    and then ``git rm``'d, or the source of a ``git mv``, is still listed: HEAD
+    is what a push publishes, whatever the index says. Git matches the pathspecs.
+    """
+    overlay = ["--with-tree=HEAD"] if head else []
+    listed = _git_out(repo, ["ls-files", "-z", *overlay, "--", *pathspecs]).decode("utf-8")
+    return sorted({name for name in listed.split("\0") if name})
 
 
 def _commit_map(repo: Path) -> list[str] | None:
@@ -1166,6 +1227,30 @@ def _state(report: SweepReport, token: str, commit: str | None) -> str:
     return "never-resolved"
 
 
+def _read_versions(
+    name: str, contents: Sequence[bytes | None], pins: Mapping[str, str]
+) -> tuple[list[str], list[bool], list[Occurrence], list[Occurrence]]:
+    """One path's versions read - its views, its unread verdicts and their raw runs.
+
+    Returns:
+        Its decoded views, each NOT-READ version's pin verdict, then those
+        versions' raw 7-to-40 runs and 5-or-6 runs (:func:`_grade_unread`).
+    """
+    views: list[str] = []
+    unread: list[bool] = []
+    code: list[Occurrence] = []
+    short: list[Occurrence] = []
+    for raw in contents:
+        seen, read = tracked_views(raw) if raw is not None else ([], False)
+        if not read:
+            known, raw_code, raw_short = _grade_unread(name, raw, seen, pins)
+            unread.append(known)
+            code += raw_code
+            short += raw_short
+        views += [text for text in seen if text not in views]
+    return views, unread, code, short
+
+
 def sweep(
     repo: Path,
     allowlist: Mapping[str, str] | None = None,
@@ -1188,8 +1273,9 @@ def sweep(
     """
     table = allowlist_map() if allowlist is None else allowlist
     shallow = _git_out(repo, ["rev-parse", "--is-shallow-repository"]).strip() != b"false"
-    paths = _tracked(repo, DOC_PATHSPECS)
-    code_paths = _tracked(repo, CODE_PATHSPECS)
+    head = _git(repo, ["rev-parse", "--verify", "-q", "HEAD"]).returncode == 0
+    paths = _tracked(repo, DOC_PATHSPECS, head)
+    code_paths = _tracked(repo, CODE_PATHSPECS, head)
     code_set = set(code_paths)
     occurrences: list[Occurrence] = []
     not_admitted: list[Occurrence] = []
@@ -1200,17 +1286,12 @@ def sweep(
     known_binary: list[str] = []
     pins = load_known_binaries(repo)
     names = [*paths, *code_paths]
-    for name, contents in _versions(repo, names).items():
-        views: list[str] = []
-        unread: list[bool] = []
-        for raw in contents:
-            seen, read = tracked_views(raw) if raw is not None else ([], False)
-            if not read:
-                known, raw_code, raw_short = _grade_unread(name, raw, seen, pins)
-                unread.append(known)
-                code_runs += raw_code
-                short_runs += raw_short
-            views += [text for text in seen if text not in views]
+    entries = _entries(repo, head)
+    for name, contents in _versions(repo, names, entries).items():
+        views, unread, raw_code, raw_short = _read_versions(name, contents, pins)
+        entry_code, entry_short = scan_entry(name, entries.gitlinks.get(name, []))
+        code_runs += raw_code + entry_code
+        short_runs += raw_short + entry_short
         if unread:
             (known_binary if all(unread) else not_read).append(name)
         if name in code_set:

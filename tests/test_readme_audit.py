@@ -97,14 +97,34 @@ PNG_ALLOWED_CHUNKS: Final = frozenset(
 
 PNG_SIGNATURE: Final = b"\x89PNG\r\n\x1a\n"
 
+#: One path separator - a slash or a backslash - raw, URL-encoded or as an HTML
+#: entity (``%5C``, ``%2F``, ``&#92;``, ``&#x5C;``, ``&bsol;``, ``&sol;``).
+_SEP: Final = r"(?:[\\/]|%5c|%2f|&#0*92;|&#0*47;|&#x0*5c;|&#x0*2f;|&bsol;|&sol;)"
+
+#: A drive colon, raw, URL-encoded or as an HTML entity.
+_COLON: Final = r"(?::|%3a|&#0*58;|&#x0*3a;|&colon;)"
+
+#: An admin share's dollar sign, raw, URL-encoded or as an HTML entity.
+_DOLLAR: Final = r"(?:\$|%24|&#0*36;|&#x0*24;|&dollar;)"
+
+#: A short name's tilde, raw, URL-encoded or as an HTML entity.
+_TILDE: Final = r"(?:~|%7e|&#0*126;|&#x0*7e;)"
+
+#: One or more separators, each optionally after a ``.`` or ``..`` segment.
+_DOTTED: Final = rf"(?:\.{{0,2}}{_SEP})+"
+
 #: A drive-rooted spelling of the project folder, any case, for any drive letter:
-#: ``X:\Clockspeed`` or ``X:/Clockspeed``, drive-relative ``X:Clockspeed``, Git
-#: Bash's ``/x/Clockspeed``, WSL's ``/mnt/x/`` and Cygwin's ``/cygdrive/x/``, an
-#: admin share ``\\host\x$\Clockspeed`` with either slash, and the folder's 8.3
-#: short name ``CLOCKS~<n>``.
+#: ``X:\Clockspeed`` or ``X:/Clockspeed``, with ``.`` and ``..`` segments
+#: (``X:.\``, ``X:\.\``), drive-relative ``X:Clockspeed``, Git Bash's
+#: ``/x/Clockspeed``, WSL's ``/mnt/x/`` and Cygwin's ``/cygdrive/x/``, an admin share
+#: ``x$`` behind any prefix (``\\host\``, ``\\?\UNC\host\``, ``\\.\UNC\host\``), a
+#: ``\\?\Volume{<guid>}\`` path, and the folder's 8.3 short name ``CLOCKS~<n>`` -
+#: every separator, colon, dollar and tilde also URL-encoded or as an HTML entity.
 ABSOLUTE_CHECKOUT_RE: Final = re.compile(
-    r"(?:[A-Za-z]:[\\/]+|(?<!\w)[A-Za-z]:|(?<![\w.~/-])/[A-Za-z]/|/(?:mnt|cygdrive)/[A-Za-z]/"
-    r"|[\\/]{2}[^\\/\s]+[\\/][A-Za-z]\$[\\/]+)Clockspeed|\bCLOCKS~\d",
+    rf"(?:[A-Za-z]{_COLON}{_DOTTED}|(?<!\w)[A-Za-z]{_COLON}"
+    rf"|(?<![\w.~/-]){_SEP}[A-Za-z]{_SEP}|{_SEP}(?:mnt|cygdrive){_SEP}[A-Za-z]{_SEP}"
+    rf"|{_SEP}[A-Za-z]{_DOLLAR}{_DOTTED}|{_SEP}Volume\{{[0-9A-Fa-f-]+\}}{_DOTTED})"
+    rf"Clockspeed|\bCLOCKS{_TILDE}\d",
     re.IGNORECASE,
 )
 
@@ -594,10 +614,29 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("CLOCKS~2", True),
         ("\\\\localhost\\e$\\Clockspeed\\docs", True),
         ("//localhost/E$/Clockspeed/docs", True),
+        ("\\\\?\\UNC\\host\\d$\\Clockspeed\\docs", True),
+        ("\\\\.\\UNC\\host\\d$\\Clockspeed", True),
+        ("\\\\?\\Volume{00000000-0000-0000-0000-000000000000}\\Clockspeed", True),
+        ("drive-relative D:.\\Clockspeed\\docs", True),
+        ("D:..\\Clockspeed", True),
+        ("D:\\.\\Clockspeed", True),
+        ("D:&#92;Clockspeed&#92;docs", True),
+        ("D:&bsol;Clockspeed", True),
+        ("D:&#x5C;Clockspeed", True),
+        ("&#92;&#92;host&#92;d$&#92;Clockspeed", True),
+        ("D%3A%5CClockspeed%5Cdocs", True),
+        ("D:%5CClockspeed", True),
+        ("file:///D%3A/Clockspeed/docs", True),
+        ("D%3A%2FClockspeed", True),
+        ("\\\\host\\d%24\\Clockspeed", True),
+        ("CLOCKS%7E1", True),
         ("root is `<repo>` on E:", False),
         ("https://github.com/Remus3/Clockspeed", False),
         ("/srv/work/Clockspeed/Clockspeed", False),
         ("Project:Clockspeed", False),
+        ("Project&colon;Clockspeed", False),
+        ("Project%3AClockspeed", False),
+        ("https://example.invalid/a%2FClockspeed", False),
         ("`git show HEAD~1`", False),
     ],
     ids=[
@@ -612,10 +651,29 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "short-name-bare",
         "unc-admin-share",
         "unc-forward-slashes",
+        "unc-long-path",
+        "unc-device-path",
+        "volume-guid",
+        "drive-dot-relative",
+        "drive-dotdot-relative",
+        "drive-dot-segment",
+        "html-decimal-backslash",
+        "html-named-backslash",
+        "html-hex-backslash",
+        "html-unc",
+        "url-colon-backslash",
+        "url-backslash",
+        "url-colon",
+        "url-colon-slash",
+        "url-dollar",
+        "url-short-name",
         "scrubbed",
         "url",
         "ci",
         "label-colon",
+        "label-colon-entity",
+        "label-colon-url",
+        "url-path-segment",
         "git-ancestry",
     ],
 )
