@@ -376,13 +376,27 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
 # CS-1299: kit version 14's git_alive() takes an injectable runner, so its two
 # probes reach subprocess.run through a parameter the census grades INDIRECT and
 # neither is a finding; both CS-1290 rows retired with it and the table is empty.
-VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {}
+# CS-1303: kit version 15's resolve_exe() hands shutil.which a NAME, so its key
+# folds to no literal and carries None. Adjudicated (option A): a VENDORED row
+# alone may carry None, because kit_pin_problems() still holds it to MAIN's
+# bytes and stale_exemptions() to exactly one live site; the FROZEN table keeps
+# the rule that no row carries an unresolved program.
+VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str | None, int], str]] = {
+    ("ops/fleet_kit/fleet_suite_gate.py", "resolve_exe", "shutil.which", None, 1): (
+        "VENDORED byte-for-byte under FLEET item 11 (CS-1303) -"
+        " ops/fleet_kit/fleet_suite_gate.py is FLEET-KIT version 15's suite gate, pinned"
+        " by sha256 in ops/fleet_kit/MANIFEST.json and never edited here. resolve_exe()"
+        " asks shutil.which for a BARE suite command word to find a .cmd/.bat shim on"
+        " Windows, where which() searches the current directory before PATH, so a"
+        " planted npm.cmd in the working directory could be chosen. Owed to MAIN as a"
+        " kit report, not repaired here."
+    ),
+}
 
 #: Both kinds, as the census consults them. A key in both would collapse here
 #: and be counted once - tests/test_toolpath.py asserts the two are disjoint.
-ALL_EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
-    **EXEMPTIONS,
-    **VENDORED_EXEMPTIONS,
+ALL_EXEMPTIONS: Final[dict[tuple[str, str, str, str | None, int], str]] = {
+    key: reason for table in (EXEMPTIONS, VENDORED_EXEMPTIONS) for key, reason in table.items()
 }
 
 #: Where the kit is vendored, and the kit's own pin of every file it ships.
@@ -394,8 +408,9 @@ KIT_MANIFEST: Final = REPO_ROOT / "ops" / "fleet_kit" / "MANIFEST.json"
 # diff to argue with. It counts BOTH kinds: the four FROZEN rows; the one
 # VENDORED row CS-1272 added went with kit version 11 under CS-1287, and kit
 # version 13 brought two under CS-1290 - fleet_gitlock.py's git_alive() probes -
-# and kit version 14 retired both under CS-1299.
-EXEMPTION_BUDGET: Final = 4
+# and kit version 14 retired both under CS-1299; kit version 15 brought one under
+# CS-1303 - fleet_suite_gate.py's resolve_exe() which() lookup.
+EXEMPTION_BUDGET: Final = 5
 
 
 @dataclass(frozen=True)
@@ -1197,7 +1212,7 @@ def kit_pin_problems(paths: Iterable[str], pins: dict[str, str] | None = None) -
 
 
 def exemption_budget_problems(
-    pinned: dict[tuple[str, str, str, str, int], str], ceiling: int
+    pinned: dict[tuple[str, str, str, str | None, int], str], ceiling: int
 ) -> list[str]:
     """The exemption ratchet, checked in BOTH directions.
 

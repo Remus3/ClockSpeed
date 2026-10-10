@@ -919,7 +919,7 @@ def test_a_program_swapped_in_place_at_an_exempted_site_reddens() -> None:
 
 @pytest.mark.parametrize("row", sorted(ALL_EXEMPTIONS), ids=lambda row: f"{row[1]}-{row[2]}")
 def test_a_comment_block_above_every_exempted_site_moves_no_arm(
-    row: tuple[str, str, str, str, int],
+    row: tuple[str, str, str, str | None, int],
 ) -> None:
     """The first half of CS-1102 for every row of both kinds, not only the one the plants favour."""
     path, function, callee, program = row[0], row[1], row[2], row[3]
@@ -941,10 +941,13 @@ def test_an_unresolved_program_is_a_key_no_row_can_carry() -> None:
     )
     keys = [site.key for site in sites if site.finding]
     carried = [key[3] for key in keys]
-    rows = [row[3] for row in ALL_EXEMPTIONS]
+    rows = [row[3] for row in EXEMPTIONS]
+    # CS-1303: a VENDORED row may carry None, and only while its file is the kit's.
+    unresolved = [row[0] for row in VENDORED_EXEMPTIONS if row[3] is None]
 
     assert carried == [None], f"an unresolved program keyed as {carried}"
     assert all(isinstance(program, str) and program for program in rows), rows
+    assert kit_pin_problems(unresolved) == [], unresolved
 
 
 # ---------------------------------------------------------------------------

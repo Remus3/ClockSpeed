@@ -75,6 +75,41 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-09 - CS-1303 - vendor FLEET-KIT v15
+
+Source: MAIN ORDER note 2026-10-09-2055 (FLEET-KIT v15), provenance verified - note sha256
+0697acccadb2840592bb75b7588d3a07dd41aee96acfdab82499e3094cdba076. Vendored byte-for-byte into
+`ops/fleet_kit/`: 22 files plus `MANIFEST.json` sha256
+8b20a75b6952356145a22f240db1399b70e6c16cccdcc333fc50bb8a2b3f463c, every file re-hashed equal
+to its manifest digest; five files changed (fleet_claims, fleet_headless, fleet_identity,
+fleet_lanes, fleet_suite_gate); FLEET-COMMON block unchanged; `fleet_headless.conformance()`
+returns [] with `KIT_VERSION` 15. Step 3 (drift g): 0 stray `fleet_suite_gate.py` copies
+outside `ops/fleet_kit/`, tracked, untracked or ignored - the moon_sync kit directories are
+exempt. Step 4 NONE: no test asserts the exact kit `child_env()` dict; the one kit call,
+in `tests/ops/test_headless_route.py`, reads a single key. Step 5 NONE: `tests/conftest.py`
+still pins `FLEET_SIDECAR_ROOT` to the empty string. Adaptation repins, the same shape as
+CS-1299: the vendored `fleet_suite_gate.py` run() row in `tests/test_subprocess_timeouts.py`
+re-pointed 364 -> 513; the render residuals in `tests/test_exception_rendering.py`
+re-pointed (fleet_headless 1220 -> 1238, fleet_suite_gate 381 -> 544), their refusal-text
+claims re-measured unchanged (v15 adds no Refused raise); `pyproject.toml` ruff codes
+PLR0913, PTH100, PTH123 and RET504 for fleet_suite_gate, MEASURED on the v15 bytes. One
+NEW census finding, adjudicated by a distinct adjudicator (option A over excluding the kit
+from the census, or a red suite): v15's `resolve_exe()` hands `shutil.which` a name, so on
+Windows a `.cmd` shim in the working directory can be chosen. It is a VENDORED row in
+`tests/toolpath_guard.py` keyed with program None - only vendored rows may carry None, and
+only while the file is at its manifest pin - and the budget moves 4 -> 5. Owed to MAIN as a
+kit report. Gated whole suite through `fleet_suite_gate` (the pre-push command): 14943
+passed, 12 skipped, 0 failed, exit 0.
+
+Verification: `tests/test_fleet_kit.py::test_fleet_kit_conformance`,
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest`,
+`tests/test_subprocess_timeouts.py::test_every_subprocess_call_in_this_repository_is_bounded_by_a_timeout`,
+`tests/test_exception_rendering.py::test_every_vendored_render_residual_answers_exactly_one_live_site`,
+`tests/test_toolpath.py::test_no_program_in_the_spawn_roots_can_be_supplied_by_the_working_directory`,
+`tests/test_toolpath.py::test_an_unresolved_program_is_a_key_no_row_can_carry`,
+`tests/test_toolpath.py::test_the_exemption_budget_holds_in_both_directions` and
+`tests/test_third_party_register.py`.
+
 ### 2026-10-09 - CS-959 - CLOSED: GitHub's community profile reports every row set while the repository is still private
 Verification: `.github/ISSUE_TEMPLATE.md` plus `tests/test_community_health.py::test_community_health_file_exists`.
 Read back by the closing agent: the profile API reads health_percentage 100 with all 7 `files`

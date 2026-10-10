@@ -404,6 +404,9 @@ ignore = [
 #   D403     fleet_gitlock.py's quiet_inherit() docstring opens lower-case
 #   PLC0415  fleet_claims.py's ctypes imports inside its Windows process probes
 #   PLR0911  fleet_claims.py's session_alive() return ladder
+# Version 15 (CS-1303, measured the same way on its bytes) adds four, all to
+# fleet_suite_gate.py: PLR0913 (acquire()'s lane keyword), PTH100 and PTH123
+# (its tree label and durations.jsonl reader) and RET504 (run()'s rc).
 # fleet_test_guard.py MEASURED 0 findings and takes no entry. Codes beyond the
 # ones named above:
 #   B905     fleet_identity.py's zip() without strict=
@@ -432,7 +435,8 @@ ignore = [
   "PTH123", "RUF059", "SLF001", "UP032",
 ]
 "ops/fleet_kit/fleet_suite_gate.py" = [
-  "D103", "D205", "D209", "E501", "N818", "PLR2004", "PLW1510", "PTH109", "UP032",
+  "D103", "D205", "D209", "E501", "N818", "PLR0913", "PLR2004", "PLW1510", "PTH100",
+  "PTH109", "PTH123", "RET504", "UP032",
 ]
 
 [tool.ruff.lint.isort]

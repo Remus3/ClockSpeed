@@ -303,7 +303,8 @@ EXEMPTION_REASON_MINIMUM: Final = 40
 # both directions by the synthetic-source arms below.
 #
 # CS-1290 - THREE ROWS, all in VENDORED fleet kit files (v13; lines re-pointed
-# to the v14 bytes under CS-1299) (FLEET item 11: the
+# to the v14 bytes under CS-1299, and fleet_suite_gate.py's to v15 under CS-1303)
+# (FLEET item 11: the
 # bytes are MAIN's, pinned by ops/fleet_kit/MANIFEST.json and tests/test_fleet_kit.py,
 # so a line that moves reddens both this table and that pin). Each is the ONE
 # call where a kit wrapper hands over to the command it exists to wrap, and that
@@ -314,8 +315,8 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
         " inside the lock, and a push runs this tree's pre-push whole suite for"
         " tens of minutes; a wrapper timeout would kill a healthy push mid-hook."
     ),
-    ("ops/fleet_kit/fleet_suite_gate.py", "run", "subprocess.run", 364): (
-        "VENDORED kit v13-v14 suite gate: runs the caller's WHOLE test suite inside a"
+    ("ops/fleet_kit/fleet_suite_gate.py", "run", "subprocess.run", 513): (
+        "VENDORED kit v13-v15 suite gate: runs the caller's WHOLE test suite inside a"
         " machine-wide slot; the suite's own length is the caller's to bound, and"
         " the gate's own wait for a slot is already bounded (exit 3)."
     ),
