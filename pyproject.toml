@@ -68,7 +68,20 @@ classifiers = [
 # extra must produce a working advisor, because the advice path is
 # dependency-free by decision.
 dev = [
-  "mypy>=1.11",
+  # AN EXACT PIN, NOT A FLOOR, AND IT IS THE ONE PLACE THE RELEASE IS NAMED
+  # (CS-1302). tier1 installs its toolchain from this extra, so a bare floor let
+  # CI resolve the newest mypy while this machine ran an older one - and the two
+  # reported one positional call to a keyword-only parameter under DIFFERENT
+  # ERROR CODES (tier1 run 37958927844), so an ignore right for one release was
+  # wrong for the other. A type gate's verdict is its error codes, so unlike the
+  # ruff and pytest-xdist ranges below this is `==`.
+  #
+  # tests/test_mypy_gate.py holds both halves: this line is `mypy==<version>`,
+  # and it equals the mypy the running interpreter has installed, so a local
+  # bare `python -m mypy` is evidence about the release CI runs. MOVE IT
+  # DELIBERATELY: install the new release, run a bare `python -m mypy` to exit
+  # 0 under it, then change this line - in one commit.
+  "mypy==2.1.0",
   "pytest>=8.0",
   # THE WORKFLOW GUARD PARSES YAML RATHER THAN GREPPING IT (CS-896), and that
   # is the whole reason this line exists. `.github/workflows/tier1.yml`

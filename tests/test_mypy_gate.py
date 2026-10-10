@@ -76,6 +76,7 @@ that really does contain a gap - with a true record and with a false one.
 from __future__ import annotations
 
 import contextlib
+import importlib.metadata
 import io
 import os
 import re
@@ -1035,6 +1036,82 @@ def test_the_config_these_tests_read_is_the_config_mypy_reads() -> None:
     # itself and would follow the config move. This was a hole in the CONFIG
     # assertions only, and it is closed by asking mypy the same way.
     assert _discovered_config_file() == (REPO_ROOT / "pyproject.toml").resolve()
+
+
+# ---------------------------------------------------------------------------
+# The release the gate runs (CS-1302)
+# ---------------------------------------------------------------------------
+#
+# WHICH MYPY, NOT ONLY WHICH CONFIG. Every test above pins what the bare
+# invocation reads and covers; none pinned which RELEASE runs it. tier1 installs
+# its toolchain from pyproject.toml's `dev` extra and nowhere else, and that
+# extra once carried only a floor, so CI resolved whatever mypy was newest on the
+# day while this machine ran the release it had. MEASURED (tier1 run
+# 37958927844): CI installed a later mypy than this box ran, and the two reported
+# one positional call to a keyword-only parameter under different error codes, so
+# an ignore right for one was wrong for the other. A green bare run here was
+# evidence about one release. The pin makes it evidence about the release CI runs.
+
+_REQUIREMENT_NAME = re.compile(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+_EXACT_MYPY_PIN = re.compile(r"mypy==(\d+(?:\.\d+)*)")
+
+
+def _dev_mypy_requirements(root: Path = REPO_ROOT) -> list[str]:
+    """Every `dev` extra requirement naming mypy itself, PARSED rather than grepped.
+
+    The name is the requirement's leading token, normalised the PEP 503 way, so a
+    neighbour such as ``mypy-extensions`` is never mistaken for the pin, and a
+    comment in pyproject.toml that spells a requirement is never read as one.
+
+    Args:
+        root: The directory holding the pyproject.toml to read.
+
+    Returns:
+        The matching requirement strings, stripped, in file order.
+    """
+    parsed = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    listed = parsed["project"]["optional-dependencies"]["dev"]
+    found: list[str] = []
+    for item in listed:
+        match = _REQUIREMENT_NAME.match(str(item))
+        if match and re.sub(r"[-_.]+", "-", match.group(1)).lower() == "mypy":
+            found.append(str(item).strip())
+    return found
+
+
+def test_the_dev_extra_pins_mypy_to_one_exact_release() -> None:
+    # A floor, a range or a compatible-release clause each still lets CI and
+    # this machine resolve different releases, and different releases emit
+    # different error codes. Only `==` names one release both installs read.
+    requirements = _dev_mypy_requirements()
+
+    assert len(requirements) == 1, (
+        f"expected exactly one mypy requirement in the dev extra, found {requirements}"
+    )
+    assert _EXACT_MYPY_PIN.fullmatch(requirements[0]), (
+        f"the dev extra pins mypy as {requirements[0]!r}, which is not one exact release. "
+        "tier1 installs from this extra, so anything but `mypy==<version>` lets CI run a "
+        "release this machine never ran"
+    )
+
+
+def test_the_pinned_mypy_is_the_release_this_interpreter_runs() -> None:
+    # The pin is half the contract; the other half is that the local gate runs
+    # it. _run_mypy invokes `sys.executable -m mypy`, so the distribution
+    # installed in THIS interpreter is the release a local bare run uses.
+    pinned = [
+        match.group(1)
+        for requirement in _dev_mypy_requirements()
+        if (match := _EXACT_MYPY_PIN.fullmatch(requirement))
+    ]
+    installed = importlib.metadata.version("mypy")
+
+    assert pinned == [installed], (
+        f"the dev extra pins mypy {pinned or 'to no exact release'} but this interpreter "
+        f'runs mypy {installed}. Install the pin (`python -m pip install -e ".[dev]"`) '
+        "or move the pin deliberately, in one change, after a bare `python -m mypy` "
+        "exits 0 under the new release"
+    )
 
 
 @pytest.mark.slow
