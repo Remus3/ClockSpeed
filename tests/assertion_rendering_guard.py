@@ -352,7 +352,13 @@ REACH_DECLARATION: Final = "_GRADED_LIBRARY_REACH"
 #: whole tree's guard does not depend on the save package importing cleanly;
 #: ``test_the_locator_seeds_match_the_reach_guard`` asserts the two agree.
 LIBRARY_LOCATORS: Final = frozenset(
-    {"resolve_save_root", "resolve_account_dir", "latest_save", "_library_save_paths"}
+    {
+        "resolve_save_root",
+        "resolve_account_dir",
+        "latest_save",
+        "ranked_saves",
+        "_library_save_paths",
+    }
 )
 
 #: The filesystem primitives through which real data can enter a module,

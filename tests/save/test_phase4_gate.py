@@ -372,8 +372,18 @@ def _real_save_or_skip() -> Path:
     return source
 
 
-def _real_save_of_a_measured_pair_or_skip() -> Path:
-    """Return the newest real save whose BODY LAYOUT this project has measured.
+def _newest_real_saves_of_a_measured_pair_or_skip() -> tuple[Path, ...]:
+    """Return the newest real saves whose BODY LAYOUT this project has measured.
+
+    NEWEST FIRST, TIES BY NAME, AND AT MOST ``workdir.MAX_RANKED_SAVES`` OF
+    THEM - the ranking ``workdir.ranked_saves`` hands the companion, restricted
+    to measured pairs. It used to return the single newest one, and the newest
+    file in the operator's library became a save re-encoded by a third-party
+    tool, which the object reader refuses correctly. Clause 1 then graded a
+    file the game never wrote. The caller walks these through
+    ``world.load_newest_world``, exactly as the companion does, so the clause
+    grades the world the product would actually read - and still fails when
+    every save it may fall back to is refused.
 
     ``latest_save`` alone is not enough and using it here would be a bug rather
     than a simplification: it returns the newest file, and on a library whose
@@ -393,13 +403,14 @@ def _real_save_of_a_measured_pair_or_skip() -> Path:
     absolute path under a home directory on the way out.
 
     Returns:
-        The save path. NEVER rendered into an assertion message - it sits under
-        a home directory and carries both the account id and the world name.
+        The save paths. NEVER rendered into an assertion message - each sits
+        under a home directory and carries both the account id and the world
+        name.
     """
     saves = test_properties._library_save_paths()  # noqa: SLF001
     if not saves:
         pytest.skip("no save library on this machine - clause 1 is not gradeable here")
-    candidates: list[tuple[float, Path]] = []
+    candidates: list[tuple[int, str, Path]] = []
     for path in saves:
         try:
             parsed = header.read_header(path)
@@ -418,7 +429,7 @@ def _real_save_of_a_measured_pair_or_skip() -> Path:
         # the glob and the stat fails with the path in the frame.
         try:
             if (parsed.header_version, parsed.save_version) in objects.MEASURED_BODY_LAYOUTS:
-                candidates.append((path.stat().st_mtime, path))
+                candidates.append((-path.stat().st_mtime_ns, path.name, path))
         except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
             continue
     if not candidates:
@@ -426,7 +437,8 @@ def _real_save_of_a_measured_pair_or_skip() -> Path:
             "no save of a MEASURED body-layout pair on this machine, so clause 1 is not "
             "gradeable here"
         )
-    return max(candidates)[1]
+    ranked = sorted(candidates, key=lambda entry: (entry[0], entry[1]))
+    return tuple(entry[2] for entry in ranked[: workdir.MAX_RANKED_SAVES])
 
 
 @dataclass(frozen=True)
@@ -453,7 +465,12 @@ class _MeasuredPairScalars:
 
 
 def _measured_pair_scalars_or_skip() -> _MeasuredPairScalars:
-    """Load one real save of a measured pair and reduce it to scalars.
+    """Load the newest loadable real save of a measured pair and reduce it to scalars.
+
+    THROUGH ``world.load_newest_world``, the companion's own walk: a newer save
+    the reader refuses is skipped and flagged rather than graded as the world.
+    ``load`` is passed as ``world.load_world`` looked up at CALL time, so a
+    grader that patches the module attribute reaches the walk.
 
     ``world.load_world(source)`` takes the save path as its ARGUMENT, and the
     catch around it named ``world.WorldLoadError`` alone - the narrowest of the
@@ -468,9 +485,11 @@ def _measured_pair_scalars_or_skip() -> _MeasuredPairScalars:
     Returns:
         The scalars. Never a path, a token or a decoded string.
     """
-    source = _real_save_of_a_measured_pair_or_skip()
+    sources = _newest_real_saves_of_a_measured_pair_or_skip()
     try:
-        model = world.load_world(source)
+        model = world.load_newest_world(sources, load=world.load_world)
+        if model is None:
+            raise LookupError
         return _MeasuredPairScalars(
             record_count=len(model.objects.records),
             token_length=len(model.token),
@@ -4125,10 +4144,14 @@ def test_the_redactor_call_finder_separates_calls_from_prose() -> None:
 _GRADED_LIBRARY_REACH: Final = MappingProxyType(
     {
         "_real_save_or_skip": "wraps workdir.latest_save",
-        "_real_save_of_a_measured_pair_or_skip": "reads the header of every save in the library",
+        "_newest_real_saves_of_a_measured_pair_or_skip": (
+            "reads the header of every save in the library"
+        ),
         "_load_every_real_save": "loads every save in the library",
         "_body_partial_scalars_or_skip": "reads the newest save whole",
-        "_measured_pair_scalars_or_skip": "loads a real save through world.load_world",
+        "_measured_pair_scalars_or_skip": (
+            "loads the newest loadable real save through world.load_newest_world"
+        ),
     }
 )
 
@@ -4237,7 +4260,7 @@ def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
 
     The splice is this module's OWN pre-repair shape - the locators and the glob
     outside every ``try``, under a catch naming two families - wired in exactly
-    as ``_real_save_of_a_measured_pair_or_skip`` carried it. Run against a COPY
+    as ``_newest_real_saves_of_a_measured_pair_or_skip`` carried it. Run against a COPY
     in ``tmp_path``, so nothing tracked is mutated and no restore is needed.
     """
     spliced = tmp_path / "spliced.py"
@@ -4305,7 +4328,7 @@ def test_a_failing_save_root_lookup_does_not_unwind_through_either_library_walk(
     _assert_contained_outcome(
         "measured-pair finder",
         pytest.skip.Exception.__name__,
-        _real_save_of_a_measured_pair_or_skip,
+        _newest_real_saves_of_a_measured_pair_or_skip,
     )
     test_properties._assert_sweep_declines("library sweep", _load_every_real_save)  # noqa: SLF001
 
@@ -4324,7 +4347,7 @@ def test_a_failing_account_directory_lookup_does_not_unwind_through_either_libra
     _assert_contained_outcome(
         "measured-pair finder",
         pytest.skip.Exception.__name__,
-        _real_save_of_a_measured_pair_or_skip,
+        _newest_real_saves_of_a_measured_pair_or_skip,
     )
     test_properties._assert_sweep_declines("library sweep", _load_every_real_save)  # noqa: SLF001
 
@@ -4346,7 +4369,7 @@ def test_a_failing_save_glob_does_not_unwind_through_either_library_walk(
     _assert_contained_outcome(
         "measured-pair finder",
         pytest.skip.Exception.__name__,
-        _real_save_of_a_measured_pair_or_skip,
+        _newest_real_saves_of_a_measured_pair_or_skip,
     )
     test_properties._assert_sweep_declines("library sweep", _load_every_real_save)  # noqa: SLF001
 
@@ -4378,7 +4401,7 @@ def test_an_unexpected_header_read_failure_does_not_unwind_through_the_measured_
     _assert_contained_outcome(
         "measured-pair finder",
         pytest.skip.Exception.__name__,
-        _real_save_of_a_measured_pair_or_skip,
+        _newest_real_saves_of_a_measured_pair_or_skip,
     )
 
 
@@ -4461,8 +4484,8 @@ def test_an_unexpected_load_failure_does_not_unwind_through_the_measured_pair_lo
     directory the moment pytest unwinds the call.
     """
     monkeypatch.setattr(
-        "tests.save.test_phase4_gate._real_save_of_a_measured_pair_or_skip",
-        lambda: test_properties._SYNTHETIC_SAVE,  # noqa: SLF001
+        "tests.save.test_phase4_gate._newest_real_saves_of_a_measured_pair_or_skip",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
     )
     monkeypatch.setattr(world, "load_world", raiser)
     escaped, value = test_properties._contained_call(_measured_pair_scalars_or_skip)  # noqa: SLF001

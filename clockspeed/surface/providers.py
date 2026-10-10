@@ -63,10 +63,10 @@ from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
 from clockspeed.data.docs_extract import DocsExtractError, load_document, read_docs_text
 from clockspeed.save import workdir
-from clockspeed.save.world import WorldLoadError, load_world
+from clockspeed.save.world import STAGE_COPY, WorldLoadError, load_newest_world, load_world
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Sequence
     from pathlib import Path
 
     from clockspeed.advisor.advise import Advice
@@ -107,18 +107,29 @@ class SaveWorldProvider:
     identity afresh. When that parse succeeded and the identity is unchanged,
     the caller is handed the remembered world rather than starting a second
     parse of the same bytes; when it was refused, the caller tries again.
+
+    A SAVE THE READER REFUSES IS SKIPPED, NOT FATAL. The newest file is not
+    always one the game wrote - a save re-encoded by a third-party tool is
+    refused by the object reader - so the provider walks the bounded,
+    newest-first ranking through ``world.load_newest_world``, which flags every
+    newer save it skipped on the world it hands up. A PARSER refusal is
+    remembered by the same identity a world is, because the same bytes draw
+    the same verdict: an unchanged refused save is not copied and parsed again
+    on every probe, and a rewritten one is tried afresh. Only the refusals of
+    the current ranking are kept, so the memory is bounded by it.
     """
 
     def __init__(
         self,
         account_dir: Path | None = None,
         *,
-        find_save: Callable[[Path | None], Path | None] = workdir.latest_save,
+        find_save: Callable[[Path | None], Path | None] | None = None,
+        find_saves: Callable[[Path | None], Sequence[Path]] | None = None,
         load: Callable[[Path], WorldModel] = load_world,
     ) -> None:
         """Wire the provider, defaulting to the real save resolution.
 
-        The two seams are injectable so the suite can exercise every branch on a
+        The seams are injectable so the suite can exercise every branch on a
         machine with NO GAME INSTALLED, which BOOTSTRAP.md section 8.1 requires
         of the whole rule suite. The defaults are what production runs.
 
@@ -126,50 +137,128 @@ class SaveWorldProvider:
             account_dir: The directory to search, or None to resolve it from the
                 environment, ``config/local.json`` and auto-detection. The value
                 is a platform account directory and is never rendered.
-            find_save: Picks the newest save, or None when there is not one.
+            find_save: Picks ONE save, or None when there is not one - a ranking
+                of at most one, so nothing is fallen back to. Kept for callers
+                that pin the save; mutually exclusive with ``find_saves``.
+            find_saves: Ranks the saves to try, newest first. Defaults to
+                ``workdir.ranked_saves`` when neither seam is given.
             load: Copies a save out of harm's way and parses it.
+
+        Raises:
+            ValueError: Both ``find_save`` and ``find_saves`` were given.
         """
+        if find_save is not None and find_saves is not None:
+            raise ValueError("pass find_save or find_saves, not both")
+        if find_saves is None:
+            find_saves = workdir.ranked_saves if find_save is None else _at_most_one(find_save)
         self._account_dir = account_dir
-        self._find_save = find_save
+        self._find_saves = find_saves
         self._load = load
         self._lock = threading.Lock()
         self._remembered: tuple[tuple[Path, int, int], WorldModel] | None = None
+        self._refused: dict[tuple[Path, int, int], tuple[str, str]] = {}
 
     def world(self) -> WorldModel | None:
         """The current world, or None when this machine has no save to read.
 
         Returns:
             The world model, or None. None covers all three of "no save
-            directory", "an empty save directory" and "a save that would not
+            directory", "an empty save directory" and "no save that would
             parse" - the endpoint tells the first two from the third through the
-            reason it picks, not through an exception it has to catch.
+            reason it picks, not through an exception it has to catch. A world
+            read from an older save past a refused newer one carries a
+            ``WARN_NEWER_SAVE_REFUSED`` flag per save skipped.
 
         A save whose identity - path, size, modification time - matches the
         last successful load is handed up without being copied or parsed
-        again. A refused load is never remembered, so the next call retries
-        it; a save whose identity cannot be read is loaded per call, exactly
-        as before this provider remembered anything.
+        again, and one matching a remembered PARSER refusal is skipped without
+        being copied or parsed again. Any other failed load is never
+        remembered, so the next call retries it; a save whose identity cannot
+        be read is loaded per call, exactly as before this provider remembered
+        anything.
         """
         with self._lock:
             try:
-                path = self._find_save(self._account_dir)
+                candidates = tuple(self._find_saves(self._account_dir))
             except OSError:
                 return None
-            if path is None:
+            if not candidates:
+                self._remembered = None
+                self._refused = {}
+                return None
+            refused: dict[tuple[Path, int, int], tuple[str, str]] = {}
+            try:
+                return load_newest_world(
+                    candidates, load=lambda path: self._remembering_load(path, refused)
+                )
+            except (WorldLoadError, OSError, ValueError):
+                # Nothing in the ranking loaded, so nothing remembered is
+                # current - release it rather than hold a world no call serves.
                 self._remembered = None
                 return None
-            identity = _identity(path)
+            finally:
+                self._refused = refused
+
+    def _remembering_load(
+        self, path: Path, refused: dict[tuple[Path, int, int], tuple[str, str]]
+    ) -> WorldModel:
+        """Load one candidate, answering from memory when its identity allows.
+
+        Called with the lock held, once per candidate the walk tries.
+
+        Args:
+            path: The candidate.
+            refused: This call's parser refusals by identity, filled in here and
+                kept for the next call - only the current ranking's.
+
+        Returns:
+            The remembered or freshly loaded world.
+
+        Raises:
+            WorldLoadError: The reader refused the save, now or - for an
+                unchanged identity - on an earlier call.
+        """
+        identity = _identity(path)
+        if identity is not None:
+            verdict = self._refused.get(identity)
+            if verdict is not None:
+                refused[identity] = verdict
+                raise WorldLoadError(*verdict)
             remembered = self._remembered
-            if identity is not None and remembered is not None and remembered[0] == identity:
+            if remembered is not None and remembered[0] == identity:
                 return remembered[1]
-            self._remembered = None
-            try:
-                world = self._load(path)
-            except (WorldLoadError, OSError, ValueError):
-                return None
-            if identity is not None:
-                self._remembered = (identity, world)
-            return world
+        # The remembered world is NOT dropped before this load: when the
+        # candidate is a newer save the reader refuses, the remembered world
+        # is the fallback the walk reaches next, and dropping it here cost a
+        # second parse of a world already in memory. Serving it stays keyed on
+        # an exact identity match, so a stale world is never handed up.
+        try:
+            world = self._load(path)
+        except WorldLoadError as refusal:
+            if identity is not None and refusal.stage != STAGE_COPY:
+                refused[identity] = (refusal.stage, refusal.cause_type)
+            raise
+        self._remembered = None if identity is None else (identity, world)
+        return world
+
+
+def _at_most_one(
+    find_save: Callable[[Path | None], Path | None],
+) -> Callable[[Path | None], tuple[Path, ...]]:
+    """Adapt a one-save finder to the ranking the provider walks.
+
+    Args:
+        find_save: Picks one save or None.
+
+    Returns:
+        A ranking of that one save, or of none.
+    """
+
+    def ranked(account_dir: Path | None) -> tuple[Path, ...]:
+        path = find_save(account_dir)
+        return () if path is None else (path,)
+
+    return ranked
 
 
 def _identity(path: Path) -> tuple[Path, int, int] | None:

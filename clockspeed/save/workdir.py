@@ -118,6 +118,13 @@ PARTIAL_SUFFIX = ".partial"
 
 SAVE_SUFFIX = ".sav"
 
+#: The most saves :func:`ranked_saves` hands back unless asked for fewer. Small
+#: on purpose: the ranking feeds a fallback past a save the reader refuses, and
+#: each candidate it hands over may cost a copy and a parse. Three covers one
+#: refused file plus a second one with margin, while a directory full of
+#: refused files still costs a bounded walk rather than a parse of every save.
+MAX_RANKED_SAVES: Final = 3
+
 # Streamed rather than read whole. A save is small today and the operator's
 # world only grows; a read_bytes() of an arbitrarily large file is the one
 # unbounded allocation this module could contain.
@@ -732,16 +739,71 @@ def _save_files(directory: Path) -> SaveListing:
     return SaveListing(tuple(found), tuple(problems))
 
 
-def latest_save(
-    account_dir: Path | None = None, *, problems: list[ListingProblem] | None = None
-) -> Path | None:
-    """Return the most-recently-modified save, across manual saves and autosaves.
+def ranked_saves(
+    account_dir: Path | None = None,
+    *,
+    limit: int = MAX_RANKED_SAVES,
+    problems: list[ListingProblem] | None = None,
+) -> tuple[Path, ...]:
+    """Return up to ``limit`` saves, newest first, across manual saves and autosaves.
 
     Ordering is by modification time descending with the FILENAME as a
     tiebreak, so two runs over the same directory return the same answer. An
     advisor that disagrees with itself between runs is a bug (CLAUDE.md
     section 1), and a tie broken by whatever order the filesystem listed things
-    in is precisely how that happens.
+    in is precisely how that happens. :func:`latest_save` is the head of this
+    ranking and nothing else, so the two cannot disagree.
+
+    WHY MORE THAN THE HEAD. The newest file is not always one the reader
+    accepts: a save re-encoded by a third-party tool is refused, correctly, by
+    the object reader. ``world.load_newest_world`` walks this ranking past such
+    a refusal and flags it. This module does not parse and does not decide what
+    is readable - it hands over the order, BOUNDED, so a library of many
+    refused files costs a few refusals and never a walk of the whole directory.
+
+    Args:
+        account_dir: The directory to search. Resolved from the environment,
+            config/local.json and auto-detection when omitted.
+        limit: The most saves to return. At least 1.
+        problems: A list to extend with whatever the scan could not read, or
+            None to discard it - see :func:`latest_save`.
+
+    Returns:
+        The saves, newest first, at most ``limit`` of them. Empty when the
+        directory is absent, empty, or nothing resolves - never an exception
+        for any of those.
+
+    Raises:
+        ValueError: ``limit`` is below 1. A ranking of nothing is a caller's
+            bug rather than a request this function can honour.
+    """
+    if limit < 1:
+        raise ValueError(f"limit must be at least 1, got {limit}")
+    directory = account_dir
+    if directory is None:
+        directory = locate.resolve_account_dir(locate.resolve_save_root())
+    if directory is None:
+        return ()
+    listing = _save_files(directory)
+    if problems is not None:
+        problems.extend(listing.problems)
+    ranked = sorted(listing.saves, key=lambda path: (-_mtime_ns(path), path.name))
+    return tuple(ranked[:limit])
+
+
+def latest_save(
+    account_dir: Path | None = None, *, problems: list[ListingProblem] | None = None
+) -> Path | None:
+    """Return the most-recently-modified save, across manual saves and autosaves.
+
+    The head of :func:`ranked_saves`, which owns the ordering: modification
+    time descending with the FILENAME as a tiebreak, so two runs over the same
+    directory return the same answer.
+
+    THIS IS THE NEWEST FILE, NOT THE NEWEST READABLE ONE. A caller that is
+    about to parse what it gets should go through ``world.load_newest_world``
+    over :func:`ranked_saves`, which falls back past a save the reader refuses
+    and flags it.
 
     Args:
         account_dir: The directory to search. Resolved from the environment,
@@ -757,18 +819,8 @@ def latest_save(
         nothing resolves. Never raises for any of those - a machine with no
         game installed is a supported state, not an error.
     """
-    directory = account_dir
-    if directory is None:
-        directory = locate.resolve_account_dir(locate.resolve_save_root())
-    if directory is None:
-        return None
-    listing = _save_files(directory)
-    if problems is not None:
-        problems.extend(listing.problems)
-    if not listing.saves:
-        return None
-    ranked = sorted(listing.saves, key=lambda path: (-_mtime_ns(path), path.name))
-    return ranked[0]
+    ranked = ranked_saves(account_dir, limit=1, problems=problems)
+    return ranked[0] if ranked else None
 
 
 def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:

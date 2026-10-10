@@ -126,9 +126,17 @@ _NOT_LIBRARY_REACH: Final = MappingProxyType(
 
 #: Discovery entry points, which are not filesystem primitives but yield a real
 #: save path directly. Kept separate because they are project names rather than
-#: vocabulary, and only the vocabulary needs a partition.
+#: vocabulary, and only the vocabulary needs a partition. ``ranked_saves`` is the
+#: bounded newest-first ranking ``latest_save`` is the head of, and yields real
+#: save paths exactly as that does.
 _LIBRARY_LOCATORS: Final = frozenset(
-    ("resolve_save_root", "resolve_account_dir", "latest_save", "_library_save_paths")
+    (
+        "resolve_save_root",
+        "resolve_account_dir",
+        "latest_save",
+        "ranked_saves",
+        "_library_save_paths",
+    )
 )
 
 

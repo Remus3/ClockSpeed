@@ -781,6 +781,96 @@ def test_latest_save_is_stable_across_two_runs(
 
 
 # ===========================================================================
+# 4a. ranked_saves - the bounded, newest-first candidates a fallback walks
+# ===========================================================================
+#
+# WHY A RANKING AND NOT ONLY THE HEAD. A save the reader refuses - a file the
+# game did not write, re-encoded by a third-party tool - used to sit at the
+# head of ``latest_save`` and take the whole world down with it. The fallback
+# that skips it lives in ``world.py``, because this module never parses; what
+# it needs from here is the SAME ordering ``latest_save`` uses, bounded, so the
+# head of the ranking and ``latest_save`` can never disagree.
+
+
+def test_ranked_saves_orders_newest_first_and_stops_at_the_limit(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """Newest first, across both kinds, and never more than the limit asked for."""
+    base = 1_600_000_000_000_000_000
+    oldest = write_with_mtime(pretend_account_dir / "World_010101-000000.sav", save_bytes, base)
+    middle = write_with_mtime(
+        pretend_account_dir / "World_autosave_0.sav", save_bytes, base + 5_000
+    )
+    newest = write_with_mtime(
+        pretend_account_dir / "World_autosave_1.sav", save_bytes, base + 9_000
+    )
+    write_with_mtime(pretend_account_dir / "notes.txt", b"not a save", base + 99_000)
+
+    assert workdir.ranked_saves(pretend_account_dir, limit=2) == (newest, middle)
+    assert workdir.ranked_saves(pretend_account_dir, limit=9) == (newest, middle, oldest)
+
+
+def test_ranked_saves_breaks_a_modification_time_tie_by_name(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """A tie is broken by name, so a fallback walks the same order on every run."""
+    base = 1_600_000_000_000_000_000
+    for name in ("Bravo.sav", "Alpha.sav", "Charlie.sav"):
+        write_with_mtime(pretend_account_dir / name, save_bytes, base)
+
+    names = [path.name for path in workdir.ranked_saves(pretend_account_dir, limit=3)]
+    assert names == ["Alpha.sav", "Bravo.sav", "Charlie.sav"]
+
+
+def test_the_head_of_the_ranking_is_latest_save(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """One ordering, two views of it. They cannot drift apart."""
+    base = 1_600_000_000_000_000_000
+    write_with_mtime(pretend_account_dir / "Older.sav", save_bytes, base)
+    write_with_mtime(pretend_account_dir / "Newer.sav", save_bytes, base + 1_000)
+
+    ranked = workdir.ranked_saves(pretend_account_dir)
+    assert ranked
+    assert ranked[0] == workdir.latest_save(pretend_account_dir)
+
+
+def test_ranked_saves_is_bounded_by_default(pretend_account_dir: Path, save_bytes: bytes) -> None:
+    """A library of many saves hands back at most MAX_RANKED_SAVES of them."""
+    base = 1_600_000_000_000_000_000
+    for index in range(workdir.MAX_RANKED_SAVES + 2):
+        write_with_mtime(
+            pretend_account_dir / f"World_{index}.sav", save_bytes, base + index * 1_000
+        )
+
+    assert len(workdir.ranked_saves(pretend_account_dir)) == workdir.MAX_RANKED_SAVES
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_ranked_saves_refuses_a_limit_below_one(pretend_account_dir: Path, limit: int) -> None:
+    """A limit that could rank nothing is a caller's bug, refused rather than obeyed."""
+    with pytest.raises(ValueError, match="limit"):
+        workdir.ranked_saves(pretend_account_dir, limit=limit)
+
+
+def test_ranked_saves_is_empty_when_nothing_resolves() -> None:
+    """The same supported state as ``latest_save``: no game, no saves, no exception."""
+    assert workdir.ranked_saves() == ()
+
+
+def test_ranked_saves_hands_the_listing_problems_to_a_caller_that_asks(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """The same report ``latest_save`` gives, through the same sink."""
+    not_a_directory = pretend_account_dir / "World.sav"
+    not_a_directory.write_bytes(save_bytes)
+    problems: list[workdir.ListingProblem] = []
+
+    assert workdir.ranked_saves(not_a_directory, problems=problems) == ()
+    assert [problem.code for problem in problems] == [workdir.LISTING_DIRECTORY_ABSENT]
+
+
+# ===========================================================================
 # 4b. The listing REPORTS what it could not read (CS-438)
 # ===========================================================================
 #
@@ -2092,6 +2182,36 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
         ),
         "test_latest_save_tells_a_directory_that_is_not_there_from_one_that_refused": (
             "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_ranked_saves_breaks_a_modification_time_tie_by_name": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_ranked_saves_hands_the_listing_problems_to_a_caller_that_asks": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_ranked_saves_is_bounded_by_default": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_ranked_saves_is_empty_when_nothing_resolves": (
+            "passes NO path at all, as test_latest_save_returns_none_when_"
+            "nothing_resolves does, and is contained the same way: the autouse "
+            "fixture in this module points the CLOCKSPEED environment variables "
+            "at a directory under the repo that does not exist "
+        ),
+        "test_ranked_saves_orders_newest_first_and_stops_at_the_limit": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_ranked_saves_refuses_a_limit_below_one": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one, and is refused before any listing "
+        ),
+        "test_the_head_of_the_ranking_is_latest_save": (
+            "applies both locators to a pytest tmp_path standing in for a "
             "save root, never to the real one "
         ),
         "test_stat_reports_the_broken_symlink_fault_that_is_file_hides": (
