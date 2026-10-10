@@ -7,7 +7,7 @@ message: >-
   different derivation rather than a confirmation of the same one.
 type: software
 authors:
-  - name: Moonbeam
+  - name: Clockspeed contributors
 repository-code: https://github.com/Remus3/Clockspeed
 license: MIT
 abstract: >-
@@ -21,8 +21,8 @@ abstract: >-
   exist. It carries no dataset of its own: item, recipe and building facts are
   extracted from the install at runtime, so the answer always matches the build
   actually being played rather than whatever version a hand-maintained table
-  was last updated against. And the advice path contains no language model, no
-  cloud service and no API key at any point, so every recommendation is
+  was last updated against. And the advice path is deterministic end to end,
+  with no cloud service and no API key at any point, so every recommendation is
   reproducible from the same inputs and two runs that disagree are a bug rather
   than sampling.
 

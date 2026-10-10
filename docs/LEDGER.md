@@ -1128,12 +1128,12 @@ the ROOT half of the `CLAUDE.md` section 7 settled entry "Name is Clockspeed, ro
 The name and the folder name are unchanged.
 Landed, each step named by what was read back after it: INBOX_STOP restored and the inbox
 status read back idle before any file moved (the Q4 scope ruling); robocopy of the whole root
-to `E:\Clockspeed`, 32813 files, 2.514 GB, 0 failed (rc 1, copied); the cs-g06 worktree copied
-to `E:\Clockspeed-wt`; `scripts/install_hooks.py` re-run, `core.hooksPath` read back
+to `<repo>` on E:, 32813 files, 2.514 GB, 0 failed (rc 1, copied); the cs-g06 worktree copied
+to `<repo>-wt` on E:; `scripts/install_hooks.py` re-run, `core.hooksPath` read back
 `.githooks`; `git worktree repair` over 36 worktree paths, 37 worktree lines read back, all on
 E:; the old cs-lane-queue lane worktree classified NOT NEEDED by content (clean, its tip an
 ancestor of `main`, ignored caches only, superseded by the CS-1274 lane-<i> layout), then
-`C:\cs-worktrees` and `C:\Clockspeed-wt` sent to the Recycle Bin and `git worktree prune`; the
+`C:\cs-worktrees` and the C: `<repo>-wt` sent to the Recycle Bin and `git worktree prune`; the
 external pointers re-pointed and read back on E: - the inbox responder's scheduled task
 arguments, the three Desktop shortcuts, Claude Code's trust entry and per-path memory store,
 and the E: local settings. The move commit `c97772c` was pushed; the pre-push whole suite at
@@ -1343,7 +1343,7 @@ first usage line is read back; the move first restores INBOX_STOP and reads the 
 idle. Reversed by: MAIN's runbook arriving before the commit.
 4. Operator words on the E: move, verbatim, typed in this repository's own main session on
 2026-10-08: "yes I want to do the move to E:". This satisfies the reversal clause of the
-`CLAUDE.md` section 7 settled entry "Name is Clockspeed, root is C:\Clockspeed" for its ROOT
+`CLAUDE.md` section 7 settled entry "Name is Clockspeed, root is `<repo>`" (then on C:) for its ROOT
 half only; the name is unchanged, and MAIN's move keeps the folder name. The ADR that clause
 requires is owed with the move commit, filed as NEW item CS-1275: the ADR in `docs/adr/`, the
 `CLAUDE.md` section 2 and section 7 root text, and the hardcoded C: paths of the MAIN 2155
@@ -2970,7 +2970,7 @@ Verification: the grant is this record; the repair closes under its own later en
 
 SCOPE. Two command strings and nothing else: `hooks.PreToolUse[0].hooks[0].command` (line 20) and `hooks.PostToolUse[0].hooks[0].command` (line 32). `matcher`, `timeout`, key order and every other key stay byte-identical. The interpreter token stays FIRST and UNQUOTED, because `_settings_interpreter()` at `tests/test_pretooluse_gate.py:599` takes `commands[0].split()[0]` and feeds it to `shutil.which` - quoting the interpreter reddens `test_the_configured_interpreter_can_actually_be_resolved`.
 
-THE DEFECT, MEASURED 2026-09-20. Both commands wire their script by a path resolved RELATIVE TO CWD. After the session working directory moved to `C:\Clockspeed\moon_sync_inbox`, every Bash and PowerShell call in the main session AND in four separately dispatched subagents was DENIED at the hook before executing, with `can't open file 'C:\Clockspeed\moon_sync_inbox\tools\pretooluse_gate.py'`. The four subagents each lost their entire shell for their whole run and returned explicit UNVERIFIABLE verdicts: between them not one sha256, byte count, mtime, `git worktree list`, `git log -S` or `git check-ignore` exit code was obtainable. A bare `pwd` was refused. `cd /c/Clockspeed && <cmd>` was refused too, because the hook fires BEFORE the command, so the shell cannot recover itself; recovery took a non-shell tool.
+THE DEFECT, MEASURED 2026-09-20. Both commands wire their script by a path resolved RELATIVE TO CWD. After the session working directory moved to `<repo>\moon_sync_inbox`, every Bash and PowerShell call in the main session AND in four separately dispatched subagents was DENIED at the hook before executing, with `can't open file '<repo>\moon_sync_inbox\tools\pretooluse_gate.py'`. The four subagents each lost their entire shell for their whole run and returned explicit UNVERIFIABLE verdicts: between them not one sha256, byte count, mtime, `git worktree list`, `git log -S` or `git check-ignore` exit code was obtainable. A bare `pwd` was refused. `cd /c/Clockspeed && <cmd>` was refused too, because the hook fires BEFORE the command, so the shell cannot recover itself; recovery took a non-shell tool.
 
 IT DEFEATS THE WRAPPER'S OWN WRITTEN CONTRACT. `tools/pretooluse_gate.py:29-46` promises exit 0 on the wrapper's own error, on the stated grounds that "a convenience layer that bricks every shell call is far worse than one that misses, and the commit path is protected by .githooks regardless". That fail-open branch is UNREACHABLE when the script is never entered: CPython's own exit 2 for a missing file reaches the harness first, and the harness reads hook exit 2 as DENY. So the docstring is false in exactly this state, and fail-closed here buys zero commit-path safety - `.githooks/*` and `tools/precommit_gate.py` are the authoritative Tier-0 gates and are untouched either way. That is why the risk of this edit is LOW rather than high.
 
@@ -11648,7 +11648,7 @@ are indistinguishable from a summary line, and the save layer this row never tou
 exactly where a wrong attribution would have sent the next cycle.
 
 **THE PUSH OF THIS COMMIT DID NOT LAND ON THE FIRST ATTEMPT, AND THE REASON IS OUTSIDE
-THIS REPOSITORY.** While the cycle wrapped, `C:\Clockspeed\.git\config` - the config the
+THIS REPOSITORY.** While the cycle wrapped, `<repo>\.git\config` - the config the
 main checkout and every worktree share - was repeatedly rewritten with `bare = true`,
 which makes every worktree git command fail with `fatal: this operation must be run in a
 work tree` and leaves a push with no working tree to run its hook against. It was
@@ -22863,7 +22863,7 @@ THE REMEDY MAY NOT IMPORT FROM `clockspeed`, under any fallback - no `try/except
 installer is the first thing a fresh clone runs and its own sandbox tests require exit 0 with
 `clockspeed/` absent OR syntactically broken; a test already forbids a non-stdlib import
 outright; and `redact()` would not work here anyway - executed by the merger, it maps
-`C:\Clockspeed` to `C:/Clockspeed`, UNCHANGED, because the pinned root is not under a home
+`<repo>` to the same path with forward slashes, UNCHANGED, because the pinned root is not under a home
 directory while the test oracle's absolute-path regex still matches. A `redact()`-based remedy
 passes on a clone under a home directory and silently fails the stated acceptance on the
 operator's own machine. No new import is needed: `os` and `traceback` are already imported.
@@ -23058,7 +23058,7 @@ The installer stays DEPENDENCY-FREE by duplication rather than import, proven by
 run it with `clockspeed/` and `tools/` absent AND syntactically broken - it is the first thing
 a fresh clone runs. Idempotence held: two real runs, exit 0 both, stdout byte-identical at
 1080 bytes. The builder captured and restored the machine's real `core.hooksPath`, which the
-installer rewrites; the merger verified it afterwards as `C:\Clockspeed\.githooks` with
+installer rewrites; the merger verified it afterwards as `<repo>\.githooks` with
 `verify_env.py` reporting FOUND and VERDICT PASS.
 GRANT B implemented as ruled: the crash traceback is SUPPRESSED BY DEFAULT behind
 `CLOCKSPEED_CRASH_TRACEBACK=1`, the exit code stays 1 on both paths, and the crash is provoked

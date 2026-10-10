@@ -65,6 +65,173 @@ path is enough), an untrusted workspace silently discarding the permission allow
 per-path-string config keying (`C:\X`, `C:/X` and `C:/x` are three different keys, and
 each worktree path is its own key), and the general case that presence is not firing.
 
+### 1.2 Install and run from scratch
+
+The full procedure behind the README's Quickstart, for a machine that has never run
+Clockspeed. What it needs is the Requirements table in
+[`README.md`](../README.md#requirements).
+
+#### Installing the prerequisites
+
+On a machine that has none of them yet, install from the official sources:
+
+1. **Python** from [python.org](https://www.python.org/downloads/windows/), in a release
+   that meets the `requires-python` floor in [`pyproject.toml`](../pyproject.toml) - that
+   file is where the version is pinned. That page lists the Python install manager first
+   and the releases below it. Take a release's "Windows installer (64-bit)" rather than
+   the install manager: the install manager refused to install on Windows 10 build 19041,
+   where the installer worked. On the installer page that carries **Install Now**, tick
+   **Add python.exe to PATH** before you click it - the box is unticked by default, and
+   without it the `python --version` check below fails.
+   [python.org's Windows guide](https://docs.python.org/3/using/windows.html) marks that
+   installer deprecated from 3.14 and says it will not be produced for 3.16 or later.
+2. **Git** from [git-scm.com](https://git-scm.com/download/win). The installer defaults are
+   fine.
+3. **Node** from [nodejs.org](https://nodejs.org/), the LTS installer, only if you want the
+   companion window or will run the test suite.
+
+Open a new terminal afterwards and check:
+
+```
+python --version
+git --version
+```
+
+`python --version` must print a version that meets `requires-python`. If it does not,
+`python` is not reaching a suitable install - follow python.org's official Windows guide,
+<https://docs.python.org/3/using/windows.html>, then re-run the check.
+
+#### Install and run
+
+Run every command below from the root of the clone, in the order given.
+
+**Two kinds of clone, two starting points.** If you only want to run Clockspeed, this
+section is the whole procedure and you can skip the rest of this file. If you will commit
+from the clone, do the virtual-environment step below, then run the bootstrap in
+section 1 above - it runs the same hook and environment
+commands as the next two steps here, plus the contributor tooling - and continue here at
+`python scripts/make_cert.py`.
+
+Create a virtual environment, activate it, and install the project with its `dev` extra:
+
+```
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -e ".[dev]"
+```
+
+The activation line is the Windows `cmd` form; in Git Bash it is
+`source .venv/Scripts/activate`. A stock Windows PowerShell refuses it - running scripts
+is disabled under its default execution policy, and `python` then stays the base
+interpreter, so the install lands outside the virtual environment. In PowerShell, run this
+before the activation line; it lasts only for that terminal and changes no machine
+setting:
+
+```
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+```
+
+`.venv/` is gitignored. The core itself has no runtime dependencies; the `dev` extra is
+the toolchain the next steps check for.
+
+Then:
+
+```
+python scripts/install_hooks.py
+```
+
+Points this clone's `core.hooksPath` at the tracked `.githooks/`. The next command counts
+that setting as a HARD dependency, so in a fresh clone it fails until this has run.
+
+```
+python scripts/verify_env.py
+```
+
+Prints every dependency found and missing, split into HARD and SOFT. It exits non-zero
+only on a HARD one. A missing game or save is SOFT: it is reported and does not fail the
+check. Its `config/ports.json` row prints the dashboard's port.
+
+`scripts/make_cert.py` needs `openssl`. Git for Windows ships it in `<Git install>\usr\bin`,
+where `<Git install>` is the folder Git was installed into (`git --exec-path` prints a path
+that starts with it), but a default Git install does not put that folder on PATH, and the
+script then exits 1 saying openssl is not on PATH. Unless `openssl version` already
+answers, append the folder to PATH for this terminal first. In `cmd`:
+
+```
+set "PATH=%PATH%;<Git install>\usr\bin"
+```
+
+In PowerShell the same line is `$env:Path += ";<Git install>\usr\bin"`. Then:
+
+```
+python scripts/make_cert.py
+```
+
+The dashboard is HTTPS only and will not start without a certificate pair. The pair is
+gitignored, so every fresh clone needs this once. Skip it and the next command exits 3 and
+says why.
+
+```
+python -m clockspeed.surface
+```
+
+Starts the dashboard on the port recorded in `config/ports.json` - the entry under
+`allocations`, which `scripts/verify_env.py` also prints - bound to this machine only. With no arguments it finds the newest save on
+this machine and serves it. It prints nothing on startup, then logs one line per request,
+and keeps the terminal until you stop it.
+
+Its options, all optional, are the flag table in section 7.2
+(`python -m clockspeed.surface --help` lists them).
+
+**First result.** Open `https://localhost:<port>/`, where `<port>` is that
+`allocations` entry. The certificate is self-signed and your system does not trust it,
+so the browser shows a certificate warning to accept before the page titled "Clockspeed
+dashboard" loads. `https://localhost:<port>/api/health` answers a compact JSON object
+whose top-level `status` field is `ok`.
+
+A machine with no save and no game still starts and still binds; the absence is reported
+as a status, not an error - `/api/health` reports the registry and the world as `absent`.
+If the port is taken the process exits and names it. No second port is ever tried.
+
+**A first ratio.** With a game installed, ask the solver for 30 Iron Ingot per minute
+from iron ore. The parameters travel in the query string of a POST; `-k` accepts the
+self-signed certificate and `-s` keeps curl's progress output out of the answer:
+
+```
+curl.exe -s -k -X POST "https://localhost:<port>/api/solve?targets=Desc_IronIngot_C=30&recipes=Recipe_IngotIron_C&raw_items=Desc_OreIron_C&byproduct_policy=balanced"
+```
+
+Type `curl.exe`, not `curl`: in Windows PowerShell `curl` is an alias for
+`Invoke-WebRequest`, which refuses `-k`. `curl.exe` is the curl Windows ships, and the
+line runs unchanged in `cmd`.
+
+The answer lists each recipe with its exact machine count and the raw input per minute,
+every rate as a `{"num", "den"}` pair. `/api/registry` lists the item and recipe
+identifiers to ask about. Without a game there is no registry, and the route answers 503.
+
+#### Pointing it at your game and saves
+
+The install, the save folder and the account folder beneath it are found automatically.
+To point Clockspeed somewhere else, set any of these environment variables before running
+the commands above:
+
+| Variable | Points at |
+|---|---|
+| `CLOCKSPEED_GAME_DIR` | The game install folder, such as `<your game folder>` |
+| `CLOCKSPEED_SAVE_ROOT` | The folder holding the account folders, such as `<your SaveGames folder>` |
+| `CLOCKSPEED_ACCOUNT_DIR` | The one account folder to read - a full path, or a folder name inside the save root |
+| `CLOCKSPEED_LOCAL_CONFIG` | A JSON file whose `game_dir`, `save_root` and `account_dir` keys are read when the matching variable is unset |
+| `CLOCKSPEED_CERT_DIR` | The folder holding the dashboard's certificate pair, instead of `certs/` in the clone. `scripts/make_cert.py` writes there and the dashboard reads there; `--cert-dir` beats it |
+| `CLOCKSPEED_DASHBOARD_PORT` | The port the dashboard binds, instead of the recorded one; `--port` beats it |
+
+A variable naming a folder that does not exist is reported as not found; it does not fall
+back to automatic detection.
+
+To check that an override resolved, run `python scripts/verify_env.py`: each location row
+names the source it was resolved by, or reports it not found. The dashboard cannot tell
+you - an override pointing at an empty folder and no game at all both show there as no
+game installation found.
+
 ---
 
 ## 2. Command table

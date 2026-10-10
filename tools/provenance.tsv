@@ -148,6 +148,8 @@ docs/adr/0024-the-credential-scan-population-boundary.md	authored	CS-1168	stampe
 docs/adr/0025-the-tier-3-flip-checks-run-locally.md	authored	CS-1183	stamped
 docs/adr/0026-the-root-moves-to-e.md	authored	CS-1275	stamped
 docs/adr/README.md	authored	CS-1165	first-add:root
+docs/assets/dashboard.png	authored	CS-1292	stamped
+docs/assets/social-preview.png	authored	CS-1292	stamped
 docs/history_notes.md	authored	CS-1165	first-add:root
 docs/hud_doctrine.md	authored	CS-1165	first-add:root
 docs/item_notes.md	authored	CS-1165	first-add:root
@@ -515,6 +517,7 @@ tests/test_provenance_manifest.py	authored	CS-1165	first-add:CS-1165
 tests/test_provenance_stamp.py	authored	CS-1165	first-add:CS-1165
 tests/test_queue_loop.py	authored	CS-918	first-add:CS-918
 tests/test_queue_loop_ci_specs.py	authored	CS-918	first-add:CS-918
+tests/test_readme_audit.py	authored	CS-1292	stamped
 tests/test_redaction_scope.py	authored	CS-454	first-add:CS-454
 tests/test_repo_config_hygiene.py	authored	CS-968	first-add:CS-968
 tests/test_report_redaction_classes.py	authored	CS-860	first-add:CS-860
