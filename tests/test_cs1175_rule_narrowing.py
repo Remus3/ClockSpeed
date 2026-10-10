@@ -56,6 +56,10 @@ OUTBOUND_MODULE_NAME = "clockspeed_outbound_gate_for_cs1175"
 
 TIMEOUT = 300
 
+#: CS-1301: the largest exit a process reports for itself; past it, the
+#: number is a Windows status the child died with.
+LAST_REPORTED_EXIT = 255
+
 _QUOTED = "credential assigned a quoted literal of 16 or more characters"
 _ENTROPY = "credential assigned a bare high-entropy literal"
 
@@ -567,8 +571,10 @@ def child_failure(code: int, output: str) -> str:
     CS-1301: the error types its report printed and the frames they were
     raised in - never the report's text, where a path carries the home
     directory and an E line can carry a canary - and any canary value among
-    those identifiers is redacted. Built in one expression, so no value is
-    bound to a name of this frame (CS-1177).
+    those identifiers is redacted. An exit past 255 is a Windows status the
+    child died with before it could report, so it is shown in hex too.
+    Built in one expression, so no value is bound to a name of this frame
+    (CS-1177).
     """
     return re.sub(
         "|".join(
@@ -586,9 +592,11 @@ def child_failure(code: int, output: str) -> str:
             )
         ),
         "<redacted>",
-        "exit %d; raised %s; in %s"
+        "exit %s; raised %s; in %s"
         % (
-            code,
+            str(code)
+            if 0 <= code <= LAST_REPORTED_EXIT
+            else "%d (0x%08X)" % (code, code & 0xFFFFFFFF),
             ", ".join(
                 dict.fromkeys(
                     re.findall(
@@ -676,7 +684,7 @@ def test_showlocals_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
         if any("::" + arm + " " in line for arm in DERIVATION_ARMS)
         and re.search(r" (PASSED|FAILED|ERROR)\b", line)
     )
-    assert code == 1, "the forced run did not fail: exit %d" % code
+    assert code == 1, "the forced run did not fail: " + child_failure(code, output)
     assert failures >= len(GATE.SECRET_PATTERNS), "too few arms went red: %d" % failures
     assert shows_locals > 0, "the forced run rendered no locals at all"
     assert leaked == 0, "the forced-red output rendered %d canary value(s)" % leaked

@@ -41,6 +41,10 @@ OUTBOUND_MODULE_NAME = "clockspeed_outbound_gate_for_cs1172"
 
 TIMEOUT = 300
 
+#: CS-1301: the largest exit a process reports for itself; past it, the
+#: number is a Windows status the child died with.
+LAST_REPORTED_EXIT = 255
+
 #: The acceptance's own floor: mutation on at least three rules with branches.
 MIN_RULES_WITH_BRANCHES = 3
 
@@ -458,15 +462,19 @@ def child_failure(code: int, output: str) -> str:
     CS-1301: the error types its report printed and the frames they were
     raised in - never the report's text, where a path carries the home
     directory and an E line can carry a canary - and any canary value among
-    those identifiers is redacted. Built in one expression, so no value is
-    bound to a name of this frame (CS-1177).
+    those identifiers is redacted. An exit past 255 is a Windows status the
+    child died with before it could report, so it is shown in hex too.
+    Built in one expression, so no value is bound to a name of this frame
+    (CS-1177).
     """
     return re.sub(
         "|".join(map(re.escape, every_canary())),
         "<redacted>",
-        "exit %d; raised %s; in %s"
+        "exit %s; raised %s; in %s"
         % (
-            code,
+            str(code)
+            if 0 <= code <= LAST_REPORTED_EXIT
+            else "%d (0x%08X)" % (code, code & 0xFFFFFFFF),
             ", ".join(
                 dict.fromkeys(
                     re.findall(
@@ -548,6 +556,6 @@ def test_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     failed = re.search(r"(\d+) failed", output)
     failures = int(failed.group(1)) if failed else 0
     leaked = canaries_in(output)
-    assert code == 1, "the forced run did not fail: exit %d" % code
+    assert code == 1, "the forced run did not fail: " + child_failure(code, output)
     assert failures >= len(GATE.SECRET_PATTERNS), "too few arms went red: %d" % failures
     assert leaked == 0, "the forced-red output rendered %d canary value(s)" % leaked
