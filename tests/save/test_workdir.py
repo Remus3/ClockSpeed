@@ -781,21 +781,26 @@ def test_latest_save_is_stable_across_two_runs(
 
 
 # ===========================================================================
-# 4a. ranked_saves - the bounded, newest-first candidates a fallback walks
+# 4a. ranked_saves - every save, newest first, for a fallback to walk
 # ===========================================================================
 #
 # WHY A RANKING AND NOT ONLY THE HEAD. A save the reader refuses - a file the
 # game did not write, re-encoded by a third-party tool - used to sit at the
 # head of ``latest_save`` and take the whole world down with it. The fallback
 # that skips it lives in ``world.py``, because this module never parses; what
-# it needs from here is the SAME ordering ``latest_save`` uses, bounded, so the
-# head of the ranking and ``latest_save`` can never disagree.
+# it needs from here is the SAME ordering ``latest_save`` uses, so the head of
+# the ranking and ``latest_save`` can never disagree.
+#
+# AND NO CAP. The first cut handed back at most three, and with three refused
+# newest saves the companion served no world while readable ones remained -
+# the defect again, one level down. The walk stops at the first save that
+# loads, so the whole ranking costs nothing it does not need.
 
 
-def test_ranked_saves_orders_newest_first_and_stops_at_the_limit(
+def test_ranked_saves_orders_newest_first_across_both_kinds(
     pretend_account_dir: Path, save_bytes: bytes
 ) -> None:
-    """Newest first, across both kinds, and never more than the limit asked for."""
+    """Newest first, manual saves and autosaves together, and nothing but saves."""
     base = 1_600_000_000_000_000_000
     oldest = write_with_mtime(pretend_account_dir / "World_010101-000000.sav", save_bytes, base)
     middle = write_with_mtime(
@@ -806,8 +811,7 @@ def test_ranked_saves_orders_newest_first_and_stops_at_the_limit(
     )
     write_with_mtime(pretend_account_dir / "notes.txt", b"not a save", base + 99_000)
 
-    assert workdir.ranked_saves(pretend_account_dir, limit=2) == (newest, middle)
-    assert workdir.ranked_saves(pretend_account_dir, limit=9) == (newest, middle, oldest)
+    assert workdir.ranked_saves(pretend_account_dir) == (newest, middle, oldest)
 
 
 def test_ranked_saves_breaks_a_modification_time_tie_by_name(
@@ -818,7 +822,7 @@ def test_ranked_saves_breaks_a_modification_time_tie_by_name(
     for name in ("Bravo.sav", "Alpha.sav", "Charlie.sav"):
         write_with_mtime(pretend_account_dir / name, save_bytes, base)
 
-    names = [path.name for path in workdir.ranked_saves(pretend_account_dir, limit=3)]
+    names = [path.name for path in workdir.ranked_saves(pretend_account_dir)]
     assert names == ["Alpha.sav", "Bravo.sav", "Charlie.sav"]
 
 
@@ -835,22 +839,22 @@ def test_the_head_of_the_ranking_is_latest_save(
     assert ranked[0] == workdir.latest_save(pretend_account_dir)
 
 
-def test_ranked_saves_is_bounded_by_default(pretend_account_dir: Path, save_bytes: bytes) -> None:
-    """A library of many saves hands back at most MAX_RANKED_SAVES of them."""
+def test_ranked_saves_hands_back_every_save(pretend_account_dir: Path, save_bytes: bytes) -> None:
+    """THE REPLACEMENT FOR THE CAP: a library of many saves is ranked whole.
+
+    Twelve is past the three the first cut capped at, so a cap of any size
+    below the library reddens here.
+    """
     base = 1_600_000_000_000_000_000
-    for index in range(workdir.MAX_RANKED_SAVES + 2):
+    many = 12
+    for index in range(many):
         write_with_mtime(
             pretend_account_dir / f"World_{index}.sav", save_bytes, base + index * 1_000
         )
 
-    assert len(workdir.ranked_saves(pretend_account_dir)) == workdir.MAX_RANKED_SAVES
-
-
-@pytest.mark.parametrize("limit", [0, -1])
-def test_ranked_saves_refuses_a_limit_below_one(pretend_account_dir: Path, limit: int) -> None:
-    """A limit that could rank nothing is a caller's bug, refused rather than obeyed."""
-    with pytest.raises(ValueError, match="limit"):
-        workdir.ranked_saves(pretend_account_dir, limit=limit)
+    ranked = workdir.ranked_saves(pretend_account_dir)
+    assert len(ranked) == many
+    assert ranked[0].name == f"World_{many - 1}.sav"
 
 
 def test_ranked_saves_is_empty_when_nothing_resolves() -> None:
@@ -2192,7 +2196,7 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
             "applies the locator to a pytest tmp_path standing in for a "
             "save root, never to the real one "
         ),
-        "test_ranked_saves_is_bounded_by_default": (
+        "test_ranked_saves_hands_back_every_save": (
             "applies the locator to a pytest tmp_path standing in for a "
             "save root, never to the real one "
         ),
@@ -2202,13 +2206,9 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
             "fixture in this module points the CLOCKSPEED environment variables "
             "at a directory under the repo that does not exist "
         ),
-        "test_ranked_saves_orders_newest_first_and_stops_at_the_limit": (
+        "test_ranked_saves_orders_newest_first_across_both_kinds": (
             "applies the locator to a pytest tmp_path standing in for a "
             "save root, never to the real one "
-        ),
-        "test_ranked_saves_refuses_a_limit_below_one": (
-            "applies the locator to a pytest tmp_path standing in for a "
-            "save root, never to the real one, and is refused before any listing "
         ),
         "test_the_head_of_the_ranking_is_latest_save": (
             "applies both locators to a pytest tmp_path standing in for a "

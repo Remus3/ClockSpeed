@@ -8,15 +8,21 @@ unknown content is flagged and skipped, never fatal and never silently wrong.
 
 WHAT IS GRADED, all on synthetic bytes in ``tmp_path`` - never a real save:
 
-a. A refused newest save falls back to the next one, and the world carries one
-   ``WARN_NEWER_SAVE_REFUSED`` per skipped save, naming the refusing stage, the
-   cause and the skipped save's modification time - never its file name.
+a. A refused newest save falls back to the next one, and the world carries a
+   ``WARN_NEWER_SAVE_REFUSED`` flag whose subject is the refusing stage and the
+   cause type and NOTHING ELSE - no file name, no time, no digit. Skipped saves
+   refused the same way are one flag counting them.
 b. Every candidate refused raises the NEWEST refusal, typed, exactly as a
-   single load did before.
-c. A copy failure is not a parser refusal and does not fall back.
-d. The walk is bounded.
+   single load did before - and so does a walk that a LATER candidate stops for
+   a reason that is no verdict on its bytes.
+c. Only a verdict on the save's own bytes falls back. The stages partition
+   into those verdicts and the rest, exhaustively, and a copy or usmap failure
+   of the newest propagates.
+d. No cap: the walk goes on while a candidate remains.
 e. A newest save that loads is handed up untouched, with no flag.
 f. A failure that is not a ``WorldLoadError`` propagates unchanged.
+g. The subject builder reads the refusal's two closed-vocabulary fields and
+   nothing else - judged on the shipped syntax tree, with planted positives.
 
 EVERY ASSERTION IS ON A SCALAR BOUND TO A LOCAL. A ``tmp_path`` lives under a
 home directory, so no assertion here renders a path.
@@ -24,8 +30,11 @@ home directory, so no assertion here renders a path.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import os
 import re
+import textwrap
 from typing import TYPE_CHECKING, Final
 
 import pytest
@@ -40,18 +49,18 @@ if TYPE_CHECKING:
 #: A walk that tried two saves, or a save loaded twice.
 TWO_LOADS: Final = 2
 
-#: 2020-09-13T12:26:40Z, a whole second so the rendered time is exact.
+#: 2020-09-13T12:26:40Z, a whole second.
 BASE_SECONDS: Final = 1_600_000_000
 
-#: One minute after :data:`BASE_SECONDS`, as the subject spells it.
-NEWER_STAMP: Final = "mtime-2020-09-13T12-27-40Z"
+#: What the panel accepts as a subject: a structural token, no path separator,
+#: and no digit - a time, a size or an index would be one.
+TOKEN_SHAPE: Final = re.compile(r"[A-Za-z_.]+")
 
-#: What the panel accepts as a subject: a structural token, no path separator.
-TOKEN_SHAPE: Final = re.compile(r"[A-Za-z0-9_.-]+")
+#: More refused saves than the cap of three the first cut carried.
+MANY_REFUSED: Final = 10
 
-#: A digit run this long is what the dashboard sink withholds as identifier
-#: shaped, so a subject must never carry one.
-OPAQUE_DIGIT_RUN: Final = re.compile(r"\d{12}")
+#: The two fields of a refusal the subject may read. Both closed vocabulary.
+SUBJECT_FIELDS: Final = frozenset({"stage", "cause_type"})
 
 
 @pytest.fixture(autouse=True)
@@ -60,6 +69,12 @@ def isolated_work_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     root = tmp_path / "work-root"
     monkeypatch.setenv(workdir.ENV_WORK_ROOT, str(root))
     return root
+
+
+@pytest.fixture(autouse=True)
+def no_installed_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The loader finds no property map, so no arm reads this machine's install."""
+    monkeypatch.setattr(world, "cached_usmap", lambda: None)
 
 
 def plant(path: Path, payload: bytes, seconds: int) -> Path:
@@ -101,10 +116,10 @@ def walked(
     return model
 
 
-def refused_subjects(model: world.WorldModel) -> list[str]:
-    """The subject of every fallback flag the model carries, in order."""
+def refused_flags(model: world.WorldModel) -> list[tuple[str, int]]:
+    """Each fallback flag the model carries as (subject, count), in order."""
     return [
-        warning.subject or ""
+        (warning.subject or "", warning.count)
         for warning in model.warnings
         if warning.code == world.WARN_NEWER_SAVE_REFUSED
     ]
@@ -159,6 +174,11 @@ def objects_refusal() -> world.WorldLoadError:
     return world.WorldLoadError(world.STAGE_OBJECTS, "ObjectFormatError")
 
 
+def refusal_at(stage: str, cause: str) -> world.WorldLoadError:
+    """A refusal at ``stage`` with ``cause`` as its type name."""
+    return world.WorldLoadError(stage, cause)
+
+
 # ---------------------------------------------------------------------------
 # a. fall back, and flag it
 # ---------------------------------------------------------------------------
@@ -172,19 +192,17 @@ def test_a_newest_save_the_reader_refuses_falls_back_to_the_next_one(tmp_path: P
     older = plant(tmp_path / "Readable_autosave_1.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     with pytest.raises(world.WorldLoadError) as direct:
         load_flat(newest)
-    expected = f"{direct.value.stage}.{direct.value.cause_type}.{NEWER_STAMP}"
+    expected = f"{direct.value.stage}.{direct.value.cause_type}"
 
     model = walked((newest, older), load=load_flat)
 
     same_world = model.token == load_flat(older).token
     assert same_world, "the walk did not hand up the older save's world"
-    subjects = refused_subjects(model)
-    assert subjects == [expected]
+    flags = refused_flags(model)
+    assert flags == [(expected, 1)]
 
 
-def test_the_flag_names_the_stage_the_cause_and_the_mtime_and_never_the_file(
-    tmp_path: Path,
-) -> None:
+def test_the_flag_names_the_stage_and_the_cause_and_never_the_file(tmp_path: Path) -> None:
     """The real defect's shape: an objects-stage refusal of the newest file."""
     newest = plant(tmp_path / "Refused_autosave_0.sav", b"re-encoded", BASE_SECONDS + 60)
     older = plant(tmp_path / "Readable_autosave_1.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
@@ -194,10 +212,8 @@ def test_the_flag_names_the_stage_the_cause_and_the_mtime_and_never_the_file(
 
     # NO WARNING IS BOUND TO A LOCAL: each read is reduced to a scalar inline,
     # so nothing the warning's own repr withholds is in this frame at an assert.
-    count = sum(1 for w in model.warnings if w.code == world.WARN_NEWER_SAVE_REFUSED)
-    assert count == 1
-    named = refused_subjects(model) == [f"objects.ObjectFormatError.{NEWER_STAMP}"]
-    assert named, "the flag did not name the stage, the cause and the time"
+    named = refused_flags(model) == [("objects.ObjectFormatError", 1)]
+    assert named, "the flag did not name exactly the stage and the cause"
     from_world = all(
         w.source == world.SOURCE_WORLD
         for w in model.warnings
@@ -210,76 +226,60 @@ def test_the_flag_names_the_stage_the_cause_and_the_mtime_and_never_the_file(
     assert name_free, "the flag rendered the file name or its directory"
 
 
-def test_the_subject_is_a_token_the_dashboard_sink_will_show(tmp_path: Path) -> None:
-    """No separator a path needs, and no digit run the sink withholds as an id."""
+def test_the_subject_and_detail_carry_no_digit(tmp_path: Path) -> None:
+    """No separator a path needs, and no digit: a time or a size would carry one."""
     newest = plant(tmp_path / "Refused.sav", b"re-encoded", BASE_SECONDS + 60)
     older = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     model = walked((newest, older), load=Recorder({newest.name: objects_refusal()}))
 
-    (subject,) = refused_subjects(model)
-    token_shaped = TOKEN_SHAPE.fullmatch(subject) is not None
+    token_shaped = all(
+        TOKEN_SHAPE.fullmatch(w.subject or "") is not None and not re.search(r"\d", w.detail)
+        for w in model.warnings
+        if w.code == world.WARN_NEWER_SAVE_REFUSED
+    )
     assert token_shaped
-    opaque = OPAQUE_DIGIT_RUN.search(subject) is not None
-    assert not opaque
 
 
-def test_two_refused_saves_are_flagged_newest_first(tmp_path: Path) -> None:
-    """Each skipped save is its own flag, in the order the walk met them."""
+def test_two_refusals_are_flagged_newest_first(tmp_path: Path) -> None:
+    """Different refusals are different flags, in the order the walk met them."""
     newest = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
     middle = plant(tmp_path / "B.sav", b"re-encoded", BASE_SECONDS + 30)
     oldest = plant(tmp_path / "C.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     load = Recorder(
         {
             newest.name: objects_refusal(),
-            middle.name: world.WorldLoadError(world.STAGE_HEADER, "HeaderTruncatedError"),
+            middle.name: refusal_at(world.STAGE_HEADER, "HeaderTruncatedError"),
         }
     )
 
     model = walked((newest, middle, oldest), load=load)
 
-    subjects = refused_subjects(model)
-    assert subjects == [
-        f"objects.ObjectFormatError.{NEWER_STAMP}",
-        "header.HeaderTruncatedError.mtime-2020-09-13T12-27-10Z",
-    ]
+    flags = refused_flags(model)
+    assert flags == [("objects.ObjectFormatError", 1), ("header.HeaderTruncatedError", 1)]
 
 
-def test_an_unreadable_modification_time_is_flagged_as_unknown(tmp_path: Path) -> None:
-    """A refused save that vanished before its time was read still gets a flag."""
-    vanished = tmp_path / "Vanished.sav"
-    older = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
-    load = Recorder({vanished.name: objects_refusal()})
+def test_saves_refused_alike_are_one_flag_counting_them(tmp_path: Path) -> None:
+    """Identical subjects aggregate, so a run of refused files is one line on the panel."""
+    first = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
+    second = plant(tmp_path / "B.sav", b"re-encoded", BASE_SECONDS + 50)
+    third = plant(tmp_path / "C.sav", b"re-encoded", BASE_SECONDS + 40)
+    readable = plant(tmp_path / "D.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
+    load = Recorder(
+        {
+            first.name: objects_refusal(),
+            second.name: refusal_at(world.STAGE_HEADER, "HeaderTruncatedError"),
+            third.name: objects_refusal(),
+        }
+    )
 
-    model = walked((vanished, older), load=load)
+    model = walked((first, second, third, readable), load=load)
 
-    subjects = refused_subjects(model)
-    assert subjects == ["objects.ObjectFormatError.mtime-unknown"]
-
-
-@pytest.mark.parametrize("failure", [OverflowError, OSError, ValueError])
-def test_a_modification_time_the_clock_cannot_render_is_flagged_as_unknown(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[Exception]
-) -> None:
-    """Windows ``gmtime`` refuses a year past 3000; the flag must not become the failure.
-
-    A time that stats but will not render is still a refused save to skip, so
-    the walk must reach the older save rather than unwind on the stamp.
-    """
-    newest = plant(tmp_path / "Refused.sav", b"re-encoded", BASE_SECONDS + 60)
-    older = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
-
-    def refusing_clock(_seconds: float) -> object:
-        raise failure
-
-    monkeypatch.setattr(world.time, "gmtime", refusing_clock)
-    model = walked((newest, older), load=Recorder({newest.name: objects_refusal()}))
-
-    subjects = refused_subjects(model)
-    assert subjects == ["objects.ObjectFormatError.mtime-unknown"]
+    flags = refused_flags(model)
+    assert flags == [("objects.ObjectFormatError", 2), ("header.HeaderTruncatedError", 1)]
 
 
 # ---------------------------------------------------------------------------
-# b. nothing readable keeps today's typed failure
+# b. nothing readable keeps today's typed failure - the NEWEST refusal
 # ---------------------------------------------------------------------------
 
 
@@ -290,7 +290,7 @@ def test_every_candidate_refused_raises_the_newest_refusal(tmp_path: Path) -> No
     load = Recorder(
         {
             newest.name: objects_refusal(),
-            older.name: world.WorldLoadError(world.STAGE_HEADER, "HeaderTruncatedError"),
+            older.name: refusal_at(world.STAGE_HEADER, "HeaderTruncatedError"),
         }
     )
 
@@ -303,6 +303,35 @@ def test_every_candidate_refused_raises_the_newest_refusal(tmp_path: Path) -> No
     assert calls == TWO_LOADS
 
 
+@pytest.mark.parametrize(
+    ("stage", "cause"),
+    [
+        (world.STAGE_COPY, "SourceUnreadableError"),
+        (world.STAGE_USMAP, "UsmapFormatError"),
+    ],
+)
+def test_a_newest_refusal_is_re_raised_past_a_later_failure_that_is_no_verdict(
+    tmp_path: Path, stage: str, cause: str
+) -> None:
+    """A later save that is busy, or a mapping that will not read, stops the walk.
+
+    It does not replace the newest save's refusal with its own: the newest
+    refusal is what a caller is told, exactly as when every candidate refused.
+    """
+    newest = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
+    busy = plant(tmp_path / "B.sav", synthetic.SAVE_V60.blob, BASE_SECONDS + 30)
+    oldest = plant(tmp_path / "C.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
+    load = Recorder({newest.name: objects_refusal(), busy.name: refusal_at(stage, cause)})
+
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.load_newest_world((newest, busy, oldest), load=load)
+
+    raised = (caught.value.stage, caught.value.cause_type)
+    assert raised == (world.STAGE_OBJECTS, "ObjectFormatError")
+    calls = load.calls
+    assert calls == TWO_LOADS, "the walk went on past a save that was no verdict"
+
+
 def test_no_candidate_answers_none_without_loading() -> None:
     """No save at all is a supported state, not a refusal."""
     load = Recorder({})
@@ -313,68 +342,74 @@ def test_no_candidate_answers_none_without_loading() -> None:
 
 
 # ---------------------------------------------------------------------------
-# c. a copy failure is not a parser refusal
+# c. only a verdict on the save's own bytes falls back
 # ---------------------------------------------------------------------------
 
 
-def test_a_copy_failure_does_not_fall_back(tmp_path: Path) -> None:
-    """A save the game is still writing is not a save the reader refused.
+def test_the_stages_partition_into_verdicts_on_the_bytes_and_the_rest() -> None:
+    """Every stage is classified, so a new stage cannot fall back by omission."""
+    verdicts = set(world.SAVE_VERDICT_STAGES)
+    rest = {world.STAGE_COPY, world.STAGE_USMAP}
+    partition = (verdicts | rest == set(world.STAGES), verdicts & rest == set())
+    assert partition == (True, True)
+    named = sorted(verdicts)
+    assert named == sorted((world.STAGE_HEADER, world.STAGE_CHUNKS, world.STAGE_OBJECTS))
+
+
+@pytest.mark.parametrize(
+    ("stage", "cause"),
+    [
+        (world.STAGE_COPY, "SourceUnreadableError"),
+        (world.STAGE_USMAP, "UsmapFormatError"),
+    ],
+)
+def test_a_newest_failure_that_is_no_verdict_does_not_fall_back(
+    tmp_path: Path, stage: str, cause: str
+) -> None:
+    """A busy save, or the install's mapping failing to read, says nothing about the bytes.
 
     Falling back past it would serve an older world while the newest one is
-    merely busy, so the copy-stage failure propagates and nothing older loads.
+    readable, so the failure propagates and nothing older loads.
     """
     newest = plant(tmp_path / "A.sav", b"busy", BASE_SECONDS + 60)
     older = plant(tmp_path / "B.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
-    load = Recorder({newest.name: world.WorldLoadError(world.STAGE_COPY, "SourceUnreadableError")})
+    load = Recorder({newest.name: refusal_at(stage, cause)})
 
     with pytest.raises(world.WorldLoadError) as caught:
         world.load_newest_world((newest, older), load=load)
 
-    stage = caught.value.stage
-    assert stage == world.STAGE_COPY
+    raised = caught.value.stage
+    assert raised == stage
     calls = load.calls
     assert calls == 1
 
 
 # ---------------------------------------------------------------------------
-# d. bounded
+# d. no cap
 # ---------------------------------------------------------------------------
 
 
-def test_the_walk_is_bounded_by_default(tmp_path: Path) -> None:
-    """A directory of refused files costs MAX_RANKED_SAVES loads, not one per file."""
-    names = [f"S{index}.sav" for index in range(workdir.MAX_RANKED_SAVES + 3)]
-    paths = [
-        plant(tmp_path / name, b"re-encoded", BASE_SECONDS - index)
+def test_the_walk_goes_on_while_a_candidate_remains(tmp_path: Path) -> None:
+    """THE REPLACEMENT FOR THE CAP OF THREE: ten refused saves, then a readable one.
+
+    The acceptance reads "the newest save the parser accepts", so no cap may
+    leave the world unread while a readable save remains. Each candidate is
+    loaded exactly once.
+    """
+    names = [f"S{index:02d}.sav" for index in range(MANY_REFUSED)]
+    refused = [
+        plant(tmp_path / name, b"re-encoded", BASE_SECONDS + 600 - index)
         for index, name in enumerate(names)
     ]
+    readable = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     load = Recorder({name: objects_refusal() for name in names})
 
-    with pytest.raises(world.WorldLoadError):
-        world.load_newest_world(paths, load=load)
+    model = walked((*refused, readable), load=load)
 
     calls = load.calls
-    assert calls == workdir.MAX_RANKED_SAVES
-
-
-def test_the_walk_honours_a_smaller_limit(tmp_path: Path) -> None:
-    """The bound is the caller's to tighten."""
-    newest = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
-    older = plant(tmp_path / "B.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
-    load = Recorder({newest.name: objects_refusal()})
-
-    with pytest.raises(world.WorldLoadError):
-        world.load_newest_world((newest, older), load=load, limit=1)
-
-    calls = load.calls
-    assert calls == 1
-
-
-@pytest.mark.parametrize("limit", [0, -1])
-def test_a_limit_below_one_is_refused(limit: int) -> None:
-    """A walk of nothing is a caller's bug, refused rather than obeyed."""
-    with pytest.raises(ValueError, match="limit"):
-        world.load_newest_world((), load=Recorder({}), limit=limit)
+    assert calls == MANY_REFUSED + 1
+    flags = refused_flags(model)
+    assert flags == [("objects.ObjectFormatError", MANY_REFUSED)]
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +434,7 @@ def test_a_newest_save_that_loads_is_handed_up_untouched(tmp_path: Path) -> None
     assert same
     count = calls[0]
     assert count == 1
-    flagged = refused_subjects(model)
+    flagged = refused_flags(model)
     assert flagged == []
 
 
@@ -414,3 +449,109 @@ def test_a_failure_that_is_not_a_world_load_error_propagates(tmp_path: Path) -> 
 
     calls = load.calls
     assert calls == 1
+
+
+# ---------------------------------------------------------------------------
+# g. the subject builder, judged on the shipped syntax tree
+# ---------------------------------------------------------------------------
+
+#: The first cut's subject builder, verbatim in substance: it stat-ed the
+#: refused save and rendered its write time into the subject. The planted
+#: positive the detector below must catch.
+PLANTED_MTIME_BUILDER: Final = """
+def _refusal_subject(refusal, path):
+    try:
+        seconds = path.stat().st_mtime_ns // 1_000_000_000
+        stamp = "mtime-" + time.strftime("%Y-%m-%dT%H-%M-%SZ", time.gmtime(seconds))
+    except (OSError, OverflowError, ValueError):
+        stamp = "mtime-unknown"
+    return f"{refusal.stage}.{refusal.cause_type}.{stamp}"
+"""
+
+#: A one-parameter builder that reaches the filesystem through the refusal's
+#: own traceback - the shape a builder keeping one parameter could still grow.
+PLANTED_REACHING_BUILDER: Final = """
+def _refusal_subject(refusal):
+    return f"{refusal.stage}.{refusal.__traceback__.tb_frame.f_locals}"
+"""
+
+#: A one-parameter builder that appends a size it read off a global.
+PLANTED_GLOBAL_BUILDER: Final = """
+def _refusal_subject(refusal):
+    return f"{refusal.stage}.{refusal.cause_type}.{LAST_SIZE}"
+"""
+
+
+def subject_builder_faults(source: str) -> list[str]:
+    """What a subject builder reads beyond the refusal's two vocabulary fields.
+
+    The builder must take ONE parameter, call nothing, name nothing but that
+    parameter, and read no attribute of it but ``stage`` and ``cause_type``.
+    Anything else - a ``stat``, a clock, a global, a second parameter - is a
+    route for a filesystem-derived value into a subject the endpoint serves.
+
+    Args:
+        source: The builder's source.
+
+    Returns:
+        One short label per fault - node kinds and field names, never values.
+    """
+    tree = ast.parse(textwrap.dedent(source))
+    (function,) = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
+    faults: list[str] = []
+    parameters = [argument.arg for argument in function.args.args]
+    if len(parameters) != 1:
+        faults.append("parameters")
+    allowed = set(parameters[:1])
+    # The BODY only: the annotations name types, which carry no value.
+    body = [node for statement in function.body for node in ast.walk(statement)]
+    for node in body:
+        if isinstance(node, ast.Call):
+            faults.append("call")
+        elif isinstance(node, ast.Attribute):
+            on_parameter = isinstance(node.value, ast.Name) and node.value.id in allowed
+            if not on_parameter or node.attr not in SUBJECT_FIELDS:
+                faults.append(f"attribute {node.attr}")
+        elif isinstance(node, ast.Name) and node.id not in allowed:
+            faults.append(f"name {node.id}")
+        elif isinstance(node, ast.Try | ast.With | ast.Assign | ast.AugAssign | ast.NamedExpr):
+            faults.append(type(node).__name__)
+    return faults
+
+
+def test_the_flag_subject_is_built_from_the_refusal_vocabulary_alone() -> None:
+    """The shipped builder reads stage and cause type and nothing filesystem-derived."""
+    faults = subject_builder_faults(inspect.getsource(world._refusal_subject))  # noqa: SLF001
+    assert faults == []
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [PLANTED_MTIME_BUILDER, PLANTED_REACHING_BUILDER, PLANTED_GLOBAL_BUILDER],
+    ids=["mtime", "traceback", "global"],
+)
+def test_the_subject_detector_sees_a_planted_reach(planted: str) -> None:
+    """The control: each planted builder is caught, so a clean result means something."""
+    caught = len(subject_builder_faults(planted)) > 0
+    assert caught
+
+
+def test_the_walk_builds_every_subject_through_the_builder() -> None:
+    """No subject reaches a flag except through the builder the arm above grades."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(world.load_newest_world)))
+    built = sum(
+        1
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_refusal_subject"
+    )
+    assert built == 1
+    constructions = sum(
+        1
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "WorldWarning"
+    )
+    assert constructions == 0, "the walk builds a warning itself instead of through the flags"

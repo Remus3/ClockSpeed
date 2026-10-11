@@ -63,7 +63,12 @@ from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
 from clockspeed.data.docs_extract import DocsExtractError, load_document, read_docs_text
 from clockspeed.save import workdir
-from clockspeed.save.world import STAGE_COPY, WorldLoadError, load_newest_world, load_world
+from clockspeed.save.world import (
+    SAVE_VERDICT_STAGES,
+    WorldLoadError,
+    load_newest_world,
+    load_world,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
@@ -106,17 +111,32 @@ class SaveWorldProvider:
     a caller arriving while a parse is in flight waits for it, then reads the
     identity afresh. When that parse succeeded and the identity is unchanged,
     the caller is handed the remembered world rather than starting a second
-    parse of the same bytes; when it was refused, the caller tries again.
+    parse of the same bytes; when it was refused, what the caller does next is
+    the next paragraph's.
 
     A SAVE THE READER REFUSES IS SKIPPED, NOT FATAL. The newest file is not
     always one the game wrote - a save re-encoded by a third-party tool is
-    refused by the object reader - so the provider walks the bounded,
-    newest-first ranking through ``world.load_newest_world``, which flags every
-    newer save it skipped on the world it hands up. A PARSER refusal is
-    remembered by the same identity a world is, because the same bytes draw
-    the same verdict: an unchanged refused save is not copied and parsed again
-    on every probe, and a rewritten one is tried afresh. Only the refusals of
-    the current ranking are kept, so the memory is bounded by it.
+    refused by the object reader - so the provider walks the whole
+    newest-first ranking through ``world.load_newest_world``, which flags the
+    newer saves it skipped on the world it hands up.
+
+    ONLY A VERDICT ON THE SAVE'S OWN BYTES IS REMEMBERED. A refusal at a stage
+    in ``world.SAVE_VERDICT_STAGES`` is kept by the same identity a world is,
+    because the same bytes draw the same verdict: an unchanged refused save is
+    not copied and parsed again on every probe, and a rewritten one is tried
+    afresh. A failure at any other stage - the copy, which is the environment,
+    and the property map, which is the install - is NEVER remembered and never
+    falls back, so the next call tries the newest save again exactly as it did
+    before this provider remembered anything. Only the refusals the current
+    walk met are kept, so the memory is bounded by the ranking.
+
+    WHAT IS KEPT IS THE REFUSAL ITSELF, WITH EVERY TRACEBACK DROPPED. The
+    walk re-raises a remembered refusal rather than building a new one, so no
+    ``WorldLoadError`` is ever constructed here from remembered strings - the
+    message channel ``tests/test_exception_messages.py`` grades stays proven at
+    the save layer's own sites. Its tracebacks, and its causes', are cleared
+    after every walk: a traceback holds the reader's frames, and a frame can
+    hold the decompressed body, which a memo must not keep alive.
     """
 
     def __init__(
@@ -156,7 +176,7 @@ class SaveWorldProvider:
         self._load = load
         self._lock = threading.Lock()
         self._remembered: tuple[tuple[Path, int, int], WorldModel] | None = None
-        self._refused: dict[tuple[Path, int, int], tuple[str, str]] = {}
+        self._refused: dict[tuple[Path, int, int], WorldLoadError] = {}
 
     def world(self) -> WorldModel | None:
         """The current world, or None when this machine has no save to read.
@@ -167,12 +187,12 @@ class SaveWorldProvider:
             parse" - the endpoint tells the first two from the third through the
             reason it picks, not through an exception it has to catch. A world
             read from an older save past a refused newer one carries a
-            ``WARN_NEWER_SAVE_REFUSED`` flag per save skipped.
+            ``WARN_NEWER_SAVE_REFUSED`` flag for what was skipped.
 
         A save whose identity - path, size, modification time - matches the
         last successful load is handed up without being copied or parsed
-        again, and one matching a remembered PARSER refusal is skipped without
-        being copied or parsed again. Any other failed load is never
+        again, and one matching a remembered verdict on its bytes is skipped
+        without being copied or parsed again. Any other failed load is never
         remembered, so the next call retries it; a save whose identity cannot
         be read is loaded per call, exactly as before this provider remembered
         anything.
@@ -186,7 +206,7 @@ class SaveWorldProvider:
                 self._remembered = None
                 self._refused = {}
                 return None
-            refused: dict[tuple[Path, int, int], tuple[str, str]] = {}
+            refused: dict[tuple[Path, int, int], WorldLoadError] = {}
             try:
                 return load_newest_world(
                     candidates, load=lambda path: self._remembering_load(path, refused)
@@ -197,10 +217,12 @@ class SaveWorldProvider:
                 self._remembered = None
                 return None
             finally:
+                for verdict in refused.values():
+                    _drop_tracebacks(verdict)
                 self._refused = refused
 
     def _remembering_load(
-        self, path: Path, refused: dict[tuple[Path, int, int], tuple[str, str]]
+        self, path: Path, refused: dict[tuple[Path, int, int], WorldLoadError]
     ) -> WorldModel:
         """Load one candidate, answering from memory when its identity allows.
 
@@ -208,22 +230,24 @@ class SaveWorldProvider:
 
         Args:
             path: The candidate.
-            refused: This call's parser refusals by identity, filled in here and
-                kept for the next call - only the current ranking's.
+            refused: This call's verdicts on save bytes by identity, filled in
+                here and kept for the next call - only the current walk's.
 
         Returns:
             The remembered or freshly loaded world.
 
         Raises:
             WorldLoadError: The reader refused the save, now or - for an
-                unchanged identity - on an earlier call.
+                unchanged identity - on an earlier call, re-raised as the very
+                refusal it was; or the load failed for a reason that is no
+                verdict on the bytes, which is never remembered.
         """
         identity = _identity(path)
         if identity is not None:
             verdict = self._refused.get(identity)
             if verdict is not None:
                 refused[identity] = verdict
-                raise WorldLoadError(*verdict)
+                raise verdict
             remembered = self._remembered
             if remembered is not None and remembered[0] == identity:
                 return remembered[1]
@@ -235,11 +259,37 @@ class SaveWorldProvider:
         try:
             world = self._load(path)
         except WorldLoadError as refusal:
-            if identity is not None and refusal.stage != STAGE_COPY:
-                refused[identity] = (refusal.stage, refusal.cause_type)
+            if identity is not None and refusal.stage in SAVE_VERDICT_STAGES:
+                refused[identity] = refusal
             raise
         self._remembered = None if identity is None else (identity, world)
         return world
+
+
+def _drop_tracebacks(refusal: BaseException) -> None:
+    """Clear the traceback of a remembered refusal and of every exception it chains.
+
+    A traceback holds the frames it unwound through, and a reader frame can
+    hold the decompressed body; a memo that kept them would keep a whole save's
+    body alive for as long as the file is unchanged. Re-raising a remembered
+    refusal also APPENDS to its traceback, so clearing after every walk keeps
+    it from growing call by call. The refusal's type, stage and cause type -
+    all a remembered verdict is consulted for - are untouched.
+
+    Args:
+        refusal: The remembered refusal.
+    """
+    pending: list[BaseException] = [refusal]
+    seen: set[int] = set()
+    while pending:
+        link = pending.pop()
+        if id(link) in seen:
+            continue
+        seen.add(id(link))
+        link.__traceback__ = None
+        pending.extend(
+            chained for chained in (link.__cause__, link.__context__) if chained is not None
+        )
 
 
 def _at_most_one(

@@ -365,10 +365,8 @@ one of these.
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, fields
-from itertools import islice
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -400,7 +398,7 @@ from clockspeed.save.usmap import (
     UsmapWarning,
     cached_usmap,
 )
-from clockspeed.save.workdir import MAX_RANKED_SAVES, WorkDirError, copy_for_read
+from clockspeed.save.workdir import WorkDirError, copy_for_read
 
 __all__ = [
     "BODY_LAYOUTS",
@@ -410,6 +408,7 @@ __all__ = [
     "EMPTY_WORLD_PARENTS",
     "EMPTY_WORLD_PROPERTIES",
     "NODE_CLASS_NAMES",
+    "SAVE_VERDICT_STAGES",
     "SOURCE_CHUNKS",
     "SOURCE_HEADER",
     "SOURCE_OBJECTS",
@@ -461,6 +460,33 @@ STAGE_OBJECTS: Final = "objects"
 
 STAGES: Final = (STAGE_COPY, STAGE_HEADER, STAGE_CHUNKS, STAGE_USMAP, STAGE_OBJECTS)
 
+#: The stages whose refusal is a VERDICT ON THE SAVE'S OWN BYTES - the same
+#: bytes draw the same refusal on every read, so a caller may skip the save and
+#: may remember the refusal for as long as the file is unchanged.
+#:
+#: - :data:`STAGE_HEADER` parses the header out of the bytes alone.
+#: - :data:`STAGE_CHUNKS` inflates the body out of the bytes alone.
+#: - :data:`STAGE_OBJECTS` walks the inflated body. The installed property map
+#:   is handed in, but it drives the resolution report and never the decode,
+#:   and an unknown class is flagged rather than refused - see
+#:   :func:`_decode_properties` and the module docstring - so the refusal is
+#:   still the bytes' alone.
+#:
+#: THE REST ARE NOT, AND THE PARTITION IS EXHAUSTIVE.
+#:
+#: - :data:`STAGE_COPY` is the ENVIRONMENT: the game holding the file
+#:   mid-autosave, a file that vanished, a work root that will not take the
+#:   copy. The same bytes read a moment later may load.
+#: - :data:`STAGE_USMAP` is the INSTALL: the game's property-map file failing
+#:   to read, whatever the save holds. One transient failure there says nothing
+#:   about any save, and remembering it against one pins the failure on a save
+#:   that is fine.
+#:
+#: ``tests/save/test_newest_world.py`` asserts the partition covers
+#: :data:`STAGES` with no overlap, so a stage added later is classified by a
+#: decision rather than by omission.
+SAVE_VERDICT_STAGES: Final = (STAGE_HEADER, STAGE_CHUNKS, STAGE_OBJECTS)
+
 #: Which body reader a load uses. See the module docstring for why this is the
 #: caller's explicit choice rather than a probe of the bytes.
 #:
@@ -506,13 +532,13 @@ WARN_NODE_SEMANTICS_UNAVAILABLE: Final = "node-semantics-unavailable"
 WARN_NODE_TRANSFORM_ABSENT: Final = "node-transform-absent"
 
 #: A newer save was refused by the reader and skipped - :func:`load_newest_world`.
-#: The SUBJECT names which one without naming it: the refusing stage, the cause
-#: type and the skipped save's modification time, never its file name, which
-#: carries the world name (non-negotiables 3 and 12).
+#: The SUBJECT is WHY, never WHICH: the refusing stage and the cause type, both
+#: closed vocabulary, and nothing about the file - not its name, which carries
+#: the world name, and not its size or write time, which say when the operator
+#: last played and single the file out of a listing (non-negotiables 3 and 12;
+#: ``clockspeed/surface/api/world.py`` withholds the header's own times for the
+#: same reason). The COUNT is how many skipped saves were refused that way.
 WARN_NEWER_SAVE_REFUSED: Final = "newer-save-refused"
-
-#: The subject's spelling of a modification time that could not be read.
-_MTIME_UNKNOWN: Final = "mtime-unknown"
 
 #: The ``objects`` warning codes that report SCHEMA RESOLUTION rather than
 #: anything about the payload, and which :class:`RecordProperties` therefore
@@ -561,7 +587,7 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_NEWER_SAVE_REFUSED: (
             "a newer save was refused by the reader and skipped, so this world is read"
             " from an older save and may be behind the game; the subject names the stage"
-            " that refused it, the cause and when that save was written"
+            " that refused it and the cause, and the count how many saves were skipped so"
         ),
     }
 )
@@ -1382,10 +1408,13 @@ class WorldModel:
             index. DECODED WORLD CONTENT in both halves of every entry - see
             :class:`RecordProperties`. DEFAULTED to
             :data:`EMPTY_WORLD_PROPERTIES` rather than required, which is what
-            keeps :func:`load_world_from_bytes` the only construction site of
-            this class in the tree: a field with no default would have to be
-            supplied at every future one, and the first thing a caller with no
-            payload in scope would reach for is a mapping it invented.
+            keeps :func:`load_world_from_bytes` the only place in the tree
+            that BUILDS this class out of a save: a field with no default would
+            have to be supplied at every future site, and the first thing a
+            caller with no payload in scope would reach for is a mapping it
+            invented. The one other construction site, :func:`_with_flags`,
+            builds nothing - it COPIES a world ``load_world_from_bytes`` built,
+            every field carried by enumeration, and only appends warnings.
             NOT ON THE WIRE. ``clockspeed/surface/api/world.py`` serializes a
             fixed key set and this field has not joined it, asserted by
             ``tests/save/test_world.py::test_no_body_byte_reaches_any_echo_path``.
@@ -2596,35 +2625,52 @@ def load_world(
         raise
 
 
-def _refusal_subject(refusal: WorldLoadError, path: Path) -> str:
-    """Name a refused save by WHY and WHEN, never by WHAT it is called.
+def _refusal_subject(refusal: WorldLoadError) -> str:
+    """Name a refused save by WHY it was refused, never by anything about the file.
 
     The file name is ``<world>_<...>.sav`` and its directory is the platform
-    account id, so neither is a subject (non-negotiables 3 and 12). What tells
-    the operator which save was skipped is its modification time, rendered in
-    UTC to the second with ``-`` for ``:`` so the subject stays inside the
-    structural-token shape the dashboard's warning sink accepts, and no digit
-    run in it is long enough to read as an identifier there.
+    account id; its size and its write time say when the operator last played
+    and single one file out of a listing. None of them is a subject
+    (non-negotiables 3 and 12). The two fields read here are both closed
+    vocabulary - a stage constant and an exception class name - and
+    ``tests/save/test_newest_world.py`` grades this function's syntax tree for
+    reading anything else.
 
     Args:
-        refusal: The typed refusal. Both fields are closed vocabulary - a
-            stage constant and an exception class name.
-        path: The refused save, stat-ed for its time and never rendered.
+        refusal: The typed refusal.
 
     Returns:
-        ``<stage>.<cause type>.mtime-<YYYY-MM-DDTHH-MM-SSZ>``, or
-        ``...mtime-unknown`` when the time cannot be read.
+        ``<stage>.<cause type>``.
     """
-    # The RENDER is inside the guard as well as the stat: Windows ``gmtime``
-    # refuses a year past 3000 with OSError, and a platform's C ``time_t`` can
-    # overflow. A time that will not render is still a refused save to skip, so
-    # it is spelled unknown rather than allowed to become the failure.
-    try:
-        seconds = path.stat().st_mtime_ns // 1_000_000_000
-        stamp = "mtime-" + time.strftime("%Y-%m-%dT%H-%M-%SZ", time.gmtime(seconds))
-    except (OSError, OverflowError, ValueError):
-        stamp = _MTIME_UNKNOWN
-    return f"{refusal.stage}.{refusal.cause_type}.{stamp}"
+    return f"{refusal.stage}.{refusal.cause_type}"
+
+
+def _refusal_flags(subjects: Iterable[str]) -> tuple[WorldWarning, ...]:
+    """One :data:`WARN_NEWER_SAVE_REFUSED` per distinct subject, counting its saves.
+
+    A run of saves refused the same way is ONE line on the panel carrying how
+    many, not one identical line per file - the subject no longer tells them
+    apart, by design, so repeating it would add rows and no information.
+
+    Args:
+        subjects: One subject per skipped save, newest first.
+
+    Returns:
+        The flags, in the order each subject was first met.
+    """
+    counted: dict[str, int] = {}
+    for subject in subjects:
+        counted[subject] = counted.get(subject, 0) + 1
+    return tuple(
+        WorldWarning(
+            source=SOURCE_WORLD,
+            code=WARN_NEWER_SAVE_REFUSED,
+            detail=_WARNING_DETAIL[WARN_NEWER_SAVE_REFUSED],
+            subject=subject,
+            count=count,
+        )
+        for subject, count in counted.items()
+    )
 
 
 def _with_flags(model: WorldModel, flags: tuple[WorldWarning, ...]) -> WorldModel:
@@ -2653,7 +2699,6 @@ def load_newest_world(
     candidates: Iterable[Path],
     *,
     load: Callable[[Path], WorldModel] = load_world,
-    limit: int = MAX_RANKED_SAVES,
 ) -> WorldModel | None:
     """Load the newest save the reader accepts, flagging every newer one it refused.
 
@@ -2663,24 +2708,32 @@ def load_newest_world(
     stopping there turned that one refusal into no world at all. Non-negotiable
     7: unknown content is flagged and skipped, never fatal, never silently
     wrong - so the walk moves to the next candidate and the world it returns
-    carries one :data:`WARN_NEWER_SAVE_REFUSED` per save it skipped.
+    carries a :data:`WARN_NEWER_SAVE_REFUSED` for what it skipped.
 
-    ONLY A PARSER REFUSAL FALLS BACK. A :class:`WorldLoadError` from any stage
-    but :data:`STAGE_COPY` is the reader's verdict on the bytes, and the same
-    bytes draw the same verdict. A copy-stage failure is not: it is the game
-    holding the file mid-autosave, and serving an older world past a newest one
-    that is merely busy would be silently wrong. It propagates, as does every
-    exception that is not a ``WorldLoadError``.
+    ONLY A VERDICT ON THE BYTES FALLS BACK. A :class:`WorldLoadError` whose
+    stage is in :data:`SAVE_VERDICT_STAGES` is skipped. Any other stage - the
+    copy, which is the environment, and the property map, which is the install
+    - says nothing about the save, and falling back past it would serve an
+    older world while the newer one is readable. Such a failure STOPS the walk:
+    from the newest candidate it propagates; from a later one, the newest
+    refusal already met is raised instead, because that is what a caller is
+    told whenever the walk ends without a world. Every exception that is not a
+    ``WorldLoadError`` propagates unchanged.
 
-    BOUNDED AND DETERMINISTIC. At most ``limit`` candidates are tried, in the
-    order given - ``workdir.ranked_saves`` hands them over newest first with
-    ties broken by name - so a directory of refused files costs a bounded walk
-    and two runs over one directory skip the same saves.
+    NO CAP. The walk goes on while a candidate remains, because "the newest
+    save the reader accepts" is the contract and a cap that hands back no world
+    while a readable save remains is the defect again. It stops at the first
+    save that loads, and a caller that walks repeatedly - the dashboard's
+    provider - remembers the verdicts by file identity, so a long run of
+    refused files costs one parse each, once.
+
+    DETERMINISTIC. Candidates are tried in the order given -
+    ``workdir.ranked_saves`` hands them over newest first with ties broken by
+    name - so two runs over one directory skip the same saves.
 
     Args:
         candidates: Saves to try, newest first.
         load: Loads one save. Injectable so the walk is graded without a game.
-        limit: The most candidates to try. At least 1.
 
     Returns:
         The first world that loads - the loader's own object when nothing was
@@ -2688,35 +2741,28 @@ def load_newest_world(
         or None when there is no candidate at all.
 
     Raises:
-        WorldLoadError: Every candidate tried was refused - the NEWEST
-            refusal, exactly what a single load of the newest raised before -
-            or the newest failed at the copy stage.
-        ValueError: ``limit`` is below 1.
+        WorldLoadError: The NEWEST refusal - exactly what a single load of the
+            newest raised before - when every candidate was refused, or when a
+            later candidate failed at a stage that is no verdict on its bytes;
+            or the newest candidate's own failure at such a stage.
     """
-    if limit < 1:
-        raise ValueError(f"limit must be at least 1, got {limit}")
-    flags: list[WorldWarning] = []
-    first_refusal: WorldLoadError | None = None
-    for path in islice(candidates, limit):
+    subjects: list[str] = []
+    newest_refusal: WorldLoadError | None = None
+    for path in candidates:
         try:
             model = load(path)
         except WorldLoadError as refusal:
-            if refusal.stage == STAGE_COPY:
-                raise
-            if first_refusal is None:
-                first_refusal = refusal
-            flags.append(
-                WorldWarning(
-                    source=SOURCE_WORLD,
-                    code=WARN_NEWER_SAVE_REFUSED,
-                    detail=_WARNING_DETAIL[WARN_NEWER_SAVE_REFUSED],
-                    subject=_refusal_subject(refusal, path),
-                )
-            )
+            if refusal.stage not in SAVE_VERDICT_STAGES:
+                if newest_refusal is None:
+                    raise
+                break
+            if newest_refusal is None:
+                newest_refusal = refusal
+            subjects.append(_refusal_subject(refusal))
             continue
-        if not flags:
+        if not subjects:
             return model
-        return _with_flags(model, tuple(flags))
-    if first_refusal is not None:
-        raise first_refusal
+        return _with_flags(model, _refusal_flags(subjects))
+    if newest_refusal is not None:
+        raise newest_refusal
     return None

@@ -375,8 +375,8 @@ def _real_save_or_skip() -> Path:
 def _newest_real_saves_of_a_measured_pair_or_skip() -> tuple[Path, ...]:
     """Return the newest real saves whose BODY LAYOUT this project has measured.
 
-    NEWEST FIRST, TIES BY NAME, AND AT MOST ``workdir.MAX_RANKED_SAVES`` OF
-    THEM - the ranking ``workdir.ranked_saves`` hands the companion, restricted
+    NEWEST FIRST, TIES BY NAME, AND ALL OF THEM - the ranking
+    ``workdir.ranked_saves`` hands the companion, restricted
     to measured pairs. It used to return the single newest one, and the newest
     file in the operator's library became a save re-encoded by a third-party
     tool, which the object reader refuses correctly. Clause 1 then graded a
@@ -438,7 +438,7 @@ def _newest_real_saves_of_a_measured_pair_or_skip() -> tuple[Path, ...]:
             "gradeable here"
         )
     ranked = sorted(candidates, key=lambda entry: (entry[0], entry[1]))
-    return tuple(entry[2] for entry in ranked[: workdir.MAX_RANKED_SAVES])
+    return tuple(entry[2] for entry in ranked)
 
 
 @dataclass(frozen=True)

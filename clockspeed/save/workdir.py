@@ -118,13 +118,6 @@ PARTIAL_SUFFIX = ".partial"
 
 SAVE_SUFFIX = ".sav"
 
-#: The most saves :func:`ranked_saves` hands back unless asked for fewer. Small
-#: on purpose: the ranking feeds a fallback past a save the reader refuses, and
-#: each candidate it hands over may cost a copy and a parse. Three covers one
-#: refused file plus a second one with margin, while a directory full of
-#: refused files still costs a bounded walk rather than a parse of every save.
-MAX_RANKED_SAVES: Final = 3
-
 # Streamed rather than read whole. A save is small today and the operator's
 # world only grows; a read_bytes() of an arbitrarily large file is the one
 # unbounded allocation this module could contain.
@@ -742,10 +735,9 @@ def _save_files(directory: Path) -> SaveListing:
 def ranked_saves(
     account_dir: Path | None = None,
     *,
-    limit: int = MAX_RANKED_SAVES,
     problems: list[ListingProblem] | None = None,
 ) -> tuple[Path, ...]:
-    """Return up to ``limit`` saves, newest first, across manual saves and autosaves.
+    """Return every save, newest first, across manual saves and autosaves.
 
     Ordering is by modification time descending with the FILENAME as a
     tiebreak, so two runs over the same directory return the same answer. An
@@ -758,27 +750,26 @@ def ranked_saves(
     accepts: a save re-encoded by a third-party tool is refused, correctly, by
     the object reader. ``world.load_newest_world`` walks this ranking past such
     a refusal and flags it. This module does not parse and does not decide what
-    is readable - it hands over the order, BOUNDED, so a library of many
-    refused files costs a few refusals and never a walk of the whole directory.
+    is readable - it hands over the order.
+
+    THE WHOLE ORDER, WITH NO CAP. The first cut handed back three, and three
+    refused newest saves then left the companion with no world while readable
+    ones remained - the defect again, one level down. Handing over the whole
+    ranking costs a stat per save, which this function already paid to sort;
+    the walk stops at the first save that loads, and the dashboard's provider
+    remembers every refusal by file identity, so a long run of refused files
+    is parsed once each and never again.
 
     Args:
         account_dir: The directory to search. Resolved from the environment,
             config/local.json and auto-detection when omitted.
-        limit: The most saves to return. At least 1.
         problems: A list to extend with whatever the scan could not read, or
             None to discard it - see :func:`latest_save`.
 
     Returns:
-        The saves, newest first, at most ``limit`` of them. Empty when the
-        directory is absent, empty, or nothing resolves - never an exception
-        for any of those.
-
-    Raises:
-        ValueError: ``limit`` is below 1. A ranking of nothing is a caller's
-            bug rather than a request this function can honour.
+        Every save, newest first. Empty when the directory is absent, empty,
+        or nothing resolves - never an exception for any of those.
     """
-    if limit < 1:
-        raise ValueError(f"limit must be at least 1, got {limit}")
     directory = account_dir
     if directory is None:
         directory = locate.resolve_account_dir(locate.resolve_save_root())
@@ -788,7 +779,7 @@ def ranked_saves(
     if problems is not None:
         problems.extend(listing.problems)
     ranked = sorted(listing.saves, key=lambda path: (-_mtime_ns(path), path.name))
-    return tuple(ranked[:limit])
+    return tuple(ranked)
 
 
 def latest_save(
@@ -819,7 +810,7 @@ def latest_save(
         nothing resolves. Never raises for any of those - a machine with no
         game installed is a supported state, not an error.
     """
-    ranked = ranked_saves(account_dir, limit=1, problems=problems)
+    ranked = ranked_saves(account_dir, problems=problems)
     return ranked[0] if ranked else None
 
 
