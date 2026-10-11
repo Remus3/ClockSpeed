@@ -2628,23 +2628,25 @@ _SEED_CHILD: Final = (
 def test_the_result_is_identical_under_every_hash_seed() -> None:
     # One process building the result twice shares one hash seed, so it can
     # never see set-order drift. Each child interpreter runs under its own.
+    # Run one after another, each bounded by its own timeout: a child that hangs
+    # fails this test instead of burning the CI lane (CS-896).
     root = Path(__file__).absolute().parents[2]
-    children = [
-        subprocess.Popen(
+    outputs = []
+    for seed in _HASH_SEEDS:
+        child = subprocess.run(
             [sys.executable, "-B", "-c", _SEED_CHILD],
             cwd=root,
             env={**os.environ, "PYTHONHASHSEED": str(seed)},
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
+            timeout=120,
+            check=False,
         )
-        for seed in _HASH_SEEDS
-    ]
-    outputs = []
-    for child in children:
-        out, _ = child.communicate(timeout=120)
-        assert child.returncode == 0
-        outputs.append(out)
+        # Bound to a plain int, so a failure renders the code and not the
+        # CompletedProcess, whose repr carries the interpreter path and stderr.
+        code = child.returncode
+        assert code == 0, f"the PYTHONHASHSEED={seed} child exited {code}"
+        outputs.append(child.stdout)
     assert outputs[0] == json.dumps(_canonical(_busy_world_result())) + "\n"
     assert len(set(outputs)) == 1
 

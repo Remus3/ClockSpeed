@@ -361,13 +361,33 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: over the fix. That is the stated exemption, not a hole in it. The guarded leaf
 #: was green while the sections lived there because each rename landed with its
 #: close and the relocation carried the sentence out in the same change.
+#: `_ROT_EMPTY` 2 TO 3 AND `_ROT_FORM` 16 TO 15, 2026-10-11 BY CS-1309, AND IT
+#: IS ONE POINTER RATHER THAN TWO FINDINGS - the CS-898 shape again. A CS-442
+#: census table in the archive names a line of `tests/save/test_workdir.py`
+#: meaning the `def` of the non-digit account-directory refusal-message test.
+#: CS-1309 added ONE import line near the top of that module, so every line
+#: below shifted by one and the pointer stopped landing on that `def` line and
+#: started landing on the blank line above it. NO NEW ROT ARRIVED, nothing in
+#: the archive was edited, and the total across the two arms is unmoved at
+#: eighteen. The landing branch's other archive edits added no line pointer:
+#: the archive spells the same pointer multiset before and after, which was
+#: checked rather than assumed.
+#:
+#: THE RECORDED REASON COVERS THIS SITE, on the same check the bumps above
+#: applied. The archive declares `Section status: HISTORICAL` and that it holds
+#: nothing current, so the citation was RIGHT WHEN WRITTEN and the module moved
+#: underneath it - rot by construction, which is the stated exemption.
+#: Re-pointing it would edit a record of what a past session measured, and
+#: moving the import out of its sorted place would let the deep archive dictate
+#: the shape of shipped code. NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per
+#: the note above.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 9,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 2,
+    _ROT_EMPTY: 3,
     _ROT_NAME: 3,
     _ROT_PATH: 6,
-    _ROT_FORM: 16,
+    _ROT_FORM: 15,
 }
 
 

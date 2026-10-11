@@ -1636,7 +1636,7 @@ target reaching nothing is false whatever its prose claims.
   vocabulary because `Path.resolve` is a primitive. This is the value-agnostic bare-name class,
   the one measured irreducible above.
 - TWO trip on `citations.resolve()` at `test_absolute_claims.py` lines 656 and 717 - an ATTRIBUTE
-  callee. `_callee_resolves` (`tests/save/reach_guard.py:1504`) answers the `Attribute` arm with
+  callee. `_callee_resolves` (`tests/save/reach_guard.py:1512`) answers the `Attribute` arm with
   `func.attr in effective or func.attr in attributes` and DISCARDS the receiver. The receiver is
   `citations`, bound at `test_absolute_claims.py:192` by
   `from tests.save import test_oracle_citations as citations` - a module alias resolvable from the
