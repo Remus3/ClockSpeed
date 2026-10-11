@@ -57,6 +57,7 @@ clockspeed/audit/build.py	authored	CS-1288	stamped
 clockspeed/audit/collectibles.py	authored	CS-1042	first-add:CS-1042
 clockspeed/audit/flow.py	authored	CS-1235	stamped
 clockspeed/audit/footprint.py	authored	CS-1044	first-add:CS-1044
+clockspeed/audit/fuel.py	authored	CS-1285	stamped
 clockspeed/audit/inventory.py	authored	CS-977	first-add:CS-977
 clockspeed/audit/machines.py	authored	CS-1041	first-add:CS-1041
 clockspeed/audit/network.py	authored	CS-1041	first-add:CS-1041
@@ -277,6 +278,7 @@ tests/audit/test_every_warning_fires.py	authored	CS-1238	stamped
 tests/audit/test_extent_seam.py	authored	CS-1266	stamped
 tests/audit/test_flow.py	authored	CS-1235	stamped
 tests/audit/test_footprint.py	authored	CS-1044	first-add:CS-1044
+tests/audit/test_fuel.py	authored	CS-1285	stamped
 tests/audit/test_inventory.py	authored	CS-977	first-add:CS-977
 tests/audit/test_inventory_library.py	authored	CS-400	stamped
 tests/audit/test_machines.py	authored	CS-1041	first-add:CS-1041
