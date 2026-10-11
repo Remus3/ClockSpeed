@@ -473,12 +473,15 @@ _BUILDABLE_PREFIX: Final = "build_"
 #: code ``clockspeed/data/registry.py`` logs where its recipe pass drops an
 #: entry - no class name, a repeated one, no duration, a malformed blob - and
 #: the malformed group ``build_registry`` skips whole. Derived from the
-#: registry's own drop sites by
+#: registry's own source by
 #: ``tests/audit/test_fuel.py::test_the_lost_recipe_codes_are_the_registry_drop_sites``,
-#: so a drop site added there fails that test until it is counted here. A
-#: missing or repeated class name is counted whatever namespace raised it: the
-#: warning's subject does not say which pass dropped the entry, and counting
-#: one a non-recipe pass raised fails closed.
+#: which reads ``_build_recipes`` and every module function it reaches by
+#: name, at any depth, for a code logged in the same block as a ``return
+#: None``, a bare ``return``, a ``continue`` or a ``break``; so a drop site of
+#: that shape added anywhere in the recipe pass fails that test until it is
+#: counted here. A missing or repeated class name is counted whatever
+#: namespace raised it: the warning's subject does not say which pass dropped
+#: the entry, and counting one a non-recipe pass raised fails closed.
 _RECIPE_LOSS_CODES: Final = frozenset(
     {
         WARN_MISSING_CLASS_NAME,
@@ -1110,6 +1113,17 @@ def _uncovered_inputs(flow: WorldFlow, fuel: str) -> tuple[str, ...]:
     and adds, repeatedly, every flowed recipe that makes an input of a recipe
     already in it. A seen set ends the walk on a cycle. A recipe's inputs are
     read off the flow itself: an item's ``consumers`` are the recipes eating it.
+
+    INPUTS ONLY. Only a chain recipe's inputs are scanned, never its outputs:
+    a byproduct eaten faster elsewhere starves its eater, not its maker, so an
+    output's deficit never holds the fuel back - the session 137 ruling's brief
+    walks the inputs of each chain recipe.
+
+    RESIDUAL, recorded and not fixed: a census record of a declared class whose
+    recipes eat an upstream intermediate of the chain, but not the fuel, is in
+    no flow and relates to no fuel, so it can starve the chain unseen and the
+    verdict can still reject. The session 137 adjudication records that the
+    shipped registry cannot produce this shape.
 
     Args:
         flow: The world's own flow.

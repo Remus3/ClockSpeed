@@ -70,6 +70,7 @@ from clockspeed.audit.balance import (
     GAP_PRODUCTION_UNDECLARED,
     GAP_PRODUCTION_VARIABLE,
 )
+from clockspeed.audit.flow import flow_of
 from clockspeed.audit.machines import MachineState, WorldMachines
 from clockspeed.data import registry as registry_module
 from clockspeed.data.docs_extract import load_document
@@ -222,6 +223,10 @@ R_SEED: Final = "Recipe_SyntheticSeedQx85_C"
 R_RESIN: Final = "Recipe_SyntheticResinQx85_C"
 R_LOOP: Final = "Recipe_SyntheticLoopQx85_C"
 R_PRESS: Final = "Recipe_SyntheticPressQx85_C"
+R_SPROUT: Final = "Recipe_SyntheticSproutQx85_C"
+R_MANIFOLD: Final = "Recipe_SyntheticManifoldQx85_C"
+R_SPLIT: Final = "Recipe_SyntheticSplitQx85_C"
+R_GLUE: Final = "Recipe_SyntheticGlueQx85_C"
 
 #: Per-minute rate of one recipe machine at clock one, re-derived: 60 / duration.
 FUEL_M3_PER_REFINERY: Final = Fraction(60, 6)
@@ -371,6 +376,21 @@ CHAIN_RECIPES: Final[Mapping[str, Recipe]] = MappingProxyType(
         R_LOOP: _recipe(R_LOOP, 6, ((FUEL, _ONE),), ((RESIN, _ONE),)),
         # A solid fuel pressed from a seed nobody makes.
         R_PRESS: _recipe(R_PRESS, 6, ((SEED, _ONE),), ((COKE, _ONE),)),
+        # The seed sprouted from ash, one recipe above the two-level chain.
+        R_SPROUT: _recipe(R_SPROUT, 6, ((ASH, _ONE),), ((SEED, _ONE),)),
+        # The liquid fuel made from five inputs at once, declared out of key
+        # order so that no order an arm asserts is the declaration's.
+        R_MANIFOLD: _recipe(
+            R_MANIFOLD,
+            6,
+            ((SEED, _ONE), (EMPTY, _ONE), (ASH, _ONE), (RESIN, _ONE), (CRUDE, _ONE)),
+            ((FUEL, _ONE),),
+            REFINERY,
+        ),
+        # Crude split into the liquid fuel plus a resin byproduct, and a glue
+        # that eats resin and is in no fuel's chain.
+        R_SPLIT: _recipe(R_SPLIT, 6, ((CRUDE, _ONE),), ((FUEL, _ONE), (RESIN, _ONE)), REFINERY),
+        R_GLUE: _recipe(R_GLUE, 6, ((RESIN, _ONE),), ((ASH, _ONE),)),
     }
 )
 
@@ -571,6 +591,13 @@ def _input_nets(verdict: fuel.FuelVerdict) -> dict[str, Fraction]:
     return nets
 
 
+def _input_net_steps(verdict: fuel.FuelVerdict) -> list[tuple[str, Fraction]]:
+    """Every uncovered chain input's net, in the order the trace records them."""
+    return [
+        (step.subject, step.value) for step in verdict.trace if step.label == fuel.LABEL_INPUT_NET
+    ]
+
+
 def _covered_fuel_world(
     *extra: MachineState, **census: tuple[tuple[str, int], ...]
 ) -> WorldMachines:
@@ -687,6 +714,29 @@ def test_fires_with_exact_shortfall_on_complete_flow() -> None:
     assert line.shortfall_per_minute == shortfall * SIXTY / FUEL_MJ_PER_M3 == Fraction(50, 3)
     assert line.reasons == ()
     assert verdict.headline_fuel == FUEL
+
+
+def test_a_shortfall_below_float_resolution_still_fires() -> None:
+    # Two refineries a hair under clock one supply 250 * clock MW, short of
+    # 250 by 250 / 10**17 - far below what a float can resolve at 250, so a
+    # verdict decided in floats would read the two as equal and reject. The
+    # exact verdict fires, carrying the exact shortfall. This arm is the
+    # behavioural guard against a float decision that keeps every published
+    # figure a Fraction, which no static scan of ``/`` can tell from exact
+    # Fraction division (``tests/solve/test_phase3_gate.py`` says why).
+    clock = 1 - Fraction(1, 10**17)
+    verdict = _verdict(_audit(_world([_gen(GEN_FUEL), *[_maker(R_FUEL, clock)] * 2])), GEN_FUEL)
+    pooled = 2 * FUEL_M3_PER_REFINERY * clock * FUEL_MJ_PER_M3 / SIXTY
+    shortfall = FUEL_GEN_MW - pooled
+    assert shortfall == Fraction(1, 400000000000000)
+    assert verdict.verdict == fuel.VERDICT_FIRE
+    assert verdict.reasons == ()
+    assert verdict.pooled_megawatts == pooled
+    assert type(verdict.shortfall_megawatts) is Fraction
+    assert verdict.shortfall_megawatts == shortfall
+    assert {step.label: step.value for step in verdict.trace}[fuel.LABEL_SHORTFALL] == shortfall
+    # The control: in floats the supply and the demand are the same number.
+    assert pooled.numerator / pooled.denominator == FUEL_GEN_MW.numerator / FUEL_GEN_MW.denominator
 
 
 def test_a_covering_supply_floor_rejects() -> None:
@@ -1676,12 +1726,54 @@ def test_a_recipe_the_registry_dropped_leaves_every_relation_unknown(
     assert _verdict(_audit(world, clean), GEN_FUEL).verdict == fuel.VERDICT_REJECT
 
 
+def _drops(statement: ast.stmt) -> bool:
+    """Whether one statement leaves its block having kept nothing.
+
+    A ``return None`` or a bare ``return`` refuses what a helper was building;
+    a ``continue`` or a ``break`` skips what a loop was reading.
+
+    Args:
+        statement: A statement directly in a block.
+
+    Returns:
+        True for a drop.
+    """
+    if isinstance(statement, ast.Continue | ast.Break):
+        return True
+    return isinstance(statement, ast.Return) and (
+        statement.value is None
+        or (isinstance(statement.value, ast.Constant) and statement.value.value is None)
+    )
+
+
+def _logged_code(statement: ast.stmt) -> str | None:
+    """The WARN_* name one ``log.add`` statement hands over, by position or keyword.
+
+    Args:
+        statement: A statement directly in a block.
+
+    Returns:
+        The constant name, or None for any other statement.
+    """
+    call = statement.value if isinstance(statement, ast.Expr) else None
+    if not (
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "add"
+    ):
+        return None
+    candidates = [*call.args[:1], *(k.value for k in call.keywords if k.arg == "code")]
+    names = [node.id for node in candidates if isinstance(node, ast.Name)]
+    return names[0] if names else None
+
+
 def _logged_codes(function: ast.FunctionDef, *, dropping: bool) -> set[str]:
-    """The WARN_* names ``function`` hands ``log.add``.
+    """The WARN_* names ``function`` hands ``log.add``, nested functions included.
 
     Args:
         function: A function in the registry module.
-        dropping: Keep only a call in a block that also returns None - a drop.
+        dropping: Keep only a call in a block that also drops - see
+            :func:`_drops`.
 
     Returns:
         The constant names.
@@ -1689,53 +1781,123 @@ def _logged_codes(function: ast.FunctionDef, *, dropping: bool) -> set[str]:
     found: set[str] = set()
     for node in ast.walk(function):
         blocks: list[list[ast.stmt]] = []
-        if isinstance(node, ast.If | ast.For | ast.While | ast.With | ast.ExceptHandler):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             blocks.append(node.body)
-        if isinstance(node, ast.If | ast.For | ast.While):
+        if isinstance(
+            node, ast.If | ast.For | ast.AsyncFor | ast.While | ast.With | ast.ExceptHandler
+        ):
+            blocks.append(node.body)
+        if isinstance(node, ast.If | ast.For | ast.AsyncFor | ast.While | ast.Try):
             blocks.append(node.orelse)
+        if isinstance(node, ast.Try):
+            blocks += [node.body, node.finalbody]
+        if isinstance(node, ast.Match):
+            blocks += [case.body for case in node.cases]
         for block in blocks:
-            drops = any(
-                isinstance(statement, ast.Return)
-                and (statement.value is None or getattr(statement.value, "value", 0) is None)
-                for statement in block
-            )
-            if dropping and not drops:
+            if dropping and not any(_drops(statement) for statement in block):
                 continue
-            for statement in block:
-                call = statement.value if isinstance(statement, ast.Expr) else None
-                if (
-                    isinstance(call, ast.Call)
-                    and isinstance(call.func, ast.Attribute)
-                    and call.func.attr == "add"
-                    and call.args
-                    and isinstance(call.args[0], ast.Name)
-                ):
-                    found.add(call.args[0].id)
+            found |= {code for code in map(_logged_code, block) if code is not None}
     return found
+
+
+def _reachable(functions: Mapping[str, ast.FunctionDef], root: str) -> set[str]:
+    """Every module function ``root`` reaches, at any depth, ``root`` included.
+
+    An edge is any reference by name - a call, or a function handed on as a
+    value - so a drop moved into a helper, or a helper's helper, stays seen.
+
+    Args:
+        functions: The module's top-level functions by name.
+        root: Where the walk starts.
+
+    Returns:
+        The names reached.
+    """
+    reached: set[str] = set()
+    frontier = [root]
+    while frontier:
+        name = frontier.pop()
+        if name in reached:
+            continue
+        reached.add(name)
+        frontier += [
+            node.id
+            for node in ast.walk(functions[name])
+            if isinstance(node, ast.Name) and node.id in functions
+        ]
+    return reached
+
+
+def _recipe_drop_codes(source: str) -> set[str]:
+    """Derive the codes a registry source logs where its recipe pass drops an entry.
+
+    Args:
+        source: The registry module's source text.
+
+    Returns:
+        Every code logged beside a drop in ``_build_recipes`` or any module
+        function it reaches, plus every code ``build_registry`` logs - the
+        groups it flags and skips whole.
+    """
+    tree = ast.parse(source)
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    derived: set[str] = set()
+    for name in sorted(_reachable(functions, "_build_recipes")):
+        derived |= _logged_codes(functions[name], dropping=True)
+    return derived | _logged_codes(functions["build_registry"], dropping=False)
 
 
 def test_the_lost_recipe_codes_are_the_registry_drop_sites() -> None:
     # Derived from the registry's own source, so a drop site it adds fails
-    # here until the audit counts it: every code a function the recipe pass
-    # calls logs beside a ``return None``, plus the groups build_registry
-    # flags and skips whole.
-    tree = ast.parse(Path(registry_module.__file__).read_text(encoding="utf-8"))
+    # here until the audit counts it: every code logged beside a drop in the
+    # recipe pass or any function it reaches, at any depth, plus the groups
+    # build_registry flags and skips whole.
+    source = Path(registry_module.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
-    callees = {
-        node.func.id
-        for node in ast.walk(functions["_build_recipes"])
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-    names = {"_entry_key", "_recipe"} & callees
-    assert names == {"_entry_key", "_recipe"}
-    derived: set[str] = set()
-    for callee in sorted(callees & set(functions)):
-        derived |= _logged_codes(functions[callee], dropping=True)
-    derived |= _logged_codes(functions["build_registry"], dropping=False)
-    # The control: the derivation sees the two drops the module documents.
+    # The control: the walk reaches the recipe pass's helpers and THEIR
+    # helpers, not only the functions the pass calls itself.
+    assert {"_build_recipes", "_entry_key", "_recipe", "_recipe_side", "_produced_in"} <= (
+        _reachable(functions, "_build_recipes")
+    )
+    derived = _recipe_drop_codes(source)
+    # The control: the derivation sees the drops the module documents.
     assert {"WARN_MISSING_DURATION", "WARN_MALFORMED_BLOB", "WARN_MALFORMED_GROUP"} <= derived
     codes = {getattr(registry_module, name) for name in derived}
     assert codes == fuel._RECIPE_LOSS_CODES  # noqa: SLF001 - the set under test
+
+
+_PLANTED_DROP: Final = (
+    "if KEY_PRODUCED_IN not in entry:\n"
+    "{indent}    log.add(WARN_MISSING_PRODUCTION, key, 'no producer; skipped')\n"
+    "{indent}    {exit}\n"
+    "{indent}"
+)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "exit_statement"),
+    [
+        ("recipe = _recipe(entry, key, items, buildings, log)", "continue"),
+        ("for path in parse_class_paths(", "return None"),
+    ],
+    ids=["in-the-recipe-pass", "in-a-helper-of-a-helper"],
+)
+def test_a_drop_planted_anywhere_the_recipe_pass_reaches_is_derived(
+    anchor: str, exit_statement: str
+) -> None:
+    # A missing-production drop planted in the recipe pass's own loop, and in
+    # a helper only the recipe builder calls, each reaches the derivation - so
+    # the drop-site test above fails until the audit counts the new code.
+    source = Path(registry_module.__file__).read_text(encoding="utf-8")
+    assert source.count(anchor) == 1
+    line = next(text for text in source.splitlines() if anchor in text)
+    indent = line[: len(line) - len(line.lstrip())]
+    planted = source.replace(
+        anchor, _PLANTED_DROP.format(indent=indent, exit=exit_statement) + anchor
+    )
+    assert "WARN_MISSING_PRODUCTION" not in _recipe_drop_codes(source)
+    assert "WARN_MISSING_PRODUCTION" in _recipe_drop_codes(planted)
 
 
 def _docs_registry(*, garbled_recipe: bool) -> Registry:
@@ -1918,15 +2080,20 @@ def test_an_extracted_chain_input_stays_uncovered() -> None:
 
 
 def test_a_raw_chain_input_stays_uncovered() -> None:
-    # Declaring the crude raw says it comes from outside; it does not say how
-    # much. The fuel itself is not raw, so its line carries no raw reason.
-    registry = _chain_registry(R_CRACK)
-    world = _world([_gen(GEN_FUEL), _maker(R_CRACK), _maker(R_CRACK)])
+    # A drill makes half the crude two refineries crack. Declaring the crude
+    # raw says the rest comes from outside; it does not say how much. The fuel
+    # itself is not raw, so its line carries no raw reason. The trace names
+    # the NET - 10 made less 20 eaten - never the gross 20 eaten.
+    registry = _chain_registry(R_CRACK, R_DRILL)
+    world = _world([_gen(GEN_FUEL), _maker(R_CRACK), _maker(R_CRACK), _maker(R_DRILL)])
     verdict = _verdict(_audit(world, registry, raw=(CRUDE,)), GEN_FUEL)
     assert verdict.verdict == fuel.VERDICT_INDETERMINATE
     assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
     assert fuel.REASON_SUPPLY_RAW not in _line(verdict, FUEL).reasons
-    assert _input_nets(verdict) == {CRUDE: -2 * CHAIN_PER_MACHINE}
+    made, eaten = CHAIN_PER_MACHINE, 2 * CHAIN_PER_MACHINE
+    assert _input_nets(verdict) == {CRUDE: made - eaten}
+    # The control: this arm tells the net from the gross consumption.
+    assert made - eaten != -eaten
 
 
 def test_a_consumer_starved_of_its_other_input_blocks_a_fire() -> None:
@@ -1942,17 +2109,108 @@ def test_a_consumer_starved_of_its_other_input_blocks_a_fire() -> None:
     assert _input_nets(verdict) == {EMPTY: -CHAIN_PER_MACHINE}
 
 
-def test_a_chain_input_two_levels_up_is_found() -> None:
-    # Seed makes resin makes fuel. The resin balances; the seed is uncovered
-    # two recipes up, and only it is named.
-    registry = _chain_registry(R_SEED, R_RESIN)
+def test_a_chain_input_three_recipes_up_is_found() -> None:
+    # Ash sprouts seed, seed makes resin, resin makes fuel, two machines each.
+    # The resin and the seed balance; the ash is uncovered three recipes up -
+    # an input of a recipe the walk reaches only on its SECOND hop from the
+    # fuel's maker - and only it is named. A walk that stops after one hop
+    # never reaches the sprouting recipe and would reject 250 MW against 250.
+    registry = _chain_registry(R_SPROUT, R_SEED, R_RESIN)
     world = _world(
-        [_gen(GEN_FUEL), _maker(R_RESIN), _maker(R_RESIN), _maker(R_SEED), _maker(R_SEED)]
+        [
+            _gen(GEN_FUEL),
+            *[_maker(R_RESIN)] * 2,
+            *[_maker(R_SEED)] * 2,
+            *[_maker(R_SPROUT)] * 2,
+        ]
     )
     verdict = _verdict(_audit(world, registry), GEN_FUEL)
     assert verdict.verdict == fuel.VERDICT_INDETERMINATE
     assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
-    assert _input_nets(verdict) == {SEED: -2 * CHAIN_PER_MACHINE}
+    assert _input_nets(verdict) == {ASH: -2 * CHAIN_PER_MACHINE}
+    # The control: with the ash's sprouting recipe gone, the seed it made is
+    # the uncovered input, one hop up - so the arm above rests on the second.
+    shallow = _world([_gen(GEN_FUEL), *[_maker(R_RESIN)] * 2, *[_maker(R_SEED)] * 2])
+    assert _input_nets(_verdict(_audit(shallow, registry), GEN_FUEL)) == {
+        SEED: -2 * CHAIN_PER_MACHINE
+    }
+
+
+def test_an_input_made_too_slowly_is_still_uncovered() -> None:
+    # One drill feeds two refineries cracking crude: the crude IS made, at 10
+    # a minute, and eaten at 20. Made is not covered - the net decides - and
+    # the trace names that net, never the gross consumption.
+    registry = _chain_registry(R_CRACK, R_DRILL)
+    world = _world([_gen(GEN_FUEL), _maker(R_CRACK), _maker(R_CRACK), _maker(R_DRILL)])
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert _line(verdict, FUEL).supply_per_minute is None
+    assert verdict.pooled_megawatts is None
+    made, eaten = CHAIN_PER_MACHINE, 2 * CHAIN_PER_MACHINE
+    assert _input_net_steps(verdict) == [(CRUDE, made - eaten)]
+    # The control: this arm tells the net from the gross consumption.
+    assert made - eaten != -eaten
+
+
+def test_every_uncovered_input_is_traced_in_key_order() -> None:
+    # Two refineries run the five-input recipe, eating 20 a minute of each
+    # input. A drill makes 10 crude; a seed press eats 10 more seed and makes
+    # 10 resin. So every input is uncovered, each by its own net - two of them
+    # made, too slowly - and every one is traced, in key order, never in the
+    # recipe's declaration order and never only the first.
+    registry = _chain_registry(R_MANIFOLD, R_DRILL, R_SEED)
+    world = _world(
+        [
+            _gen(GEN_FUEL),
+            *[_maker(R_MANIFOLD)] * 2,
+            _maker(R_DRILL),
+            _maker(R_SEED),
+        ]
+    )
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    eaten = 2 * CHAIN_PER_MACHINE
+    assert _input_net_steps(verdict) == [
+        (ASH, -eaten),
+        (CRUDE, CHAIN_PER_MACHINE - eaten),
+        (EMPTY, -eaten),
+        (RESIN, CHAIN_PER_MACHINE - eaten),
+        (SEED, -eaten - CHAIN_PER_MACHINE),
+    ]
+    # The control: the keys asserted above are in key order.
+    keys = [ASH, CRUDE, EMPTY, RESIN, SEED]
+    assert sorted(keys) == keys
+
+
+def test_a_byproduct_eaten_elsewhere_never_blocks_the_verdict() -> None:
+    # Two refineries split crude two drills cover exactly into 20 m3 of fuel -
+    # 250 MW, the demand - and 20 resin as a byproduct, which three glue
+    # machines eat at 30. The resin's net is below zero, but a byproduct
+    # nobody keeps up with starves its EATER, never its maker: only a chain
+    # recipe's INPUTS can hold the fuel back, so the fuel still decides.
+    registry = _chain_registry(R_SPLIT, R_DRILL, R_GLUE)
+    world = _world(
+        [
+            _gen(GEN_FUEL),
+            *[_maker(R_SPLIT)] * 2,
+            *[_maker(R_DRILL)] * 2,
+            *[_maker(R_GLUE)] * 3,
+        ]
+    )
+    result = _audit(world, registry)
+    verdict = _verdict(result, GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_REJECT
+    assert verdict.reasons == ()
+    assert _line(verdict, FUEL).reasons == ()
+    assert verdict.pooled_megawatts == FUEL_GEN_MW
+    assert _input_net_steps(verdict) == []
+    # The control: in this world's own flow the byproduct really is net short
+    # and the chain's one input is exactly covered.
+    flow = flow_of(world.machines[1:], registry.recipes)
+    assert flow.items[RESIN].net == 2 * CHAIN_PER_MACHINE - 3 * CHAIN_PER_MACHINE
+    assert flow.items[CRUDE].net == 0
 
 
 #: Every label a decided verdict's trace may carry - no chain input among them.
@@ -2262,7 +2520,9 @@ def _busy_world_result() -> fuel.WorldFuel:
     """One world in which a single class collects ten reasons at once.
 
     Ten strings in a set iterate in an order the hash seed decides, so any
-    reason tuple built from set order differs between interpreters.
+    reason tuple built from set order differs between interpreters. The same
+    holds for the five uncovered inputs the five-input recipe leaves in the
+    liquid fuel's chain, so their trace order is graded across seeds too.
     """
     world = _world(
         [
@@ -2274,13 +2534,14 @@ def _busy_world_result() -> fuel.WorldFuel:
             _gen(GEN_SHARE),
             _gen(GEN_GARBLED),
             _maker(R_CRACK),
+            _maker(R_MANIFOLD),
             _maker(R_TURBO),
             _maker(R_UNKNOWN),
         ],
         unadmitted_read=((PACKAGER, 1), (PLAYER, 2)),
         unadmitted_unread=((GEN_FUEL, 1), (MOD_BUILD, 1)),
     )
-    return _audit(world, _chain_registry(R_CRACK), raw=(FUEL,))
+    return _audit(world, _chain_registry(R_CRACK, R_MANIFOLD), raw=(FUEL,))
 
 
 def _canonical(value: object) -> object:
@@ -2335,6 +2596,23 @@ def test_every_reason_tuple_is_in_its_canonical_order() -> None:
         "boost-unmodeled",
         "clock-unread",
     )
+
+
+def test_the_busy_world_traces_its_uncovered_inputs_in_key_order() -> None:
+    # The five-input recipe and the cracker each eat 10 a minute; nothing in
+    # the busy world makes any input. Literal key order, so a set-ordered
+    # trace fails here in one interpreter as well as across the seeds below.
+    eaten = CHAIN_PER_MACHINE
+    expected = [
+        ("Desc_SyntheticAshQx85_C", -eaten),
+        ("Desc_SyntheticCrudeQx85_C", -2 * eaten),
+        ("Desc_SyntheticEmptyQx85_C", -eaten),
+        ("Desc_SyntheticResinQx85_C", -eaten),
+        ("Desc_SyntheticSeedQx85_C", -eaten),
+    ]
+    result = _busy_world_result()
+    assert _input_net_steps(_verdict(result, GEN_FUEL)) == expected
+    assert _input_net_steps(_verdict(result, GEN_MIXED)) == expected
 
 
 #: The hash seeds the cross-interpreter comparison runs under.
