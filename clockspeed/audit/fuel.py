@@ -60,18 +60,27 @@ manufacturer, or any generator - and a record the census counts but
   yield it: its ``allowed_resources`` when it carries them, else every item of
   its ``allowed_forms`` (ruling (d)). A generator's own fuel list is its
   DEMAND, never such a relation. When a judged class's relation is not knowable
-  it unmeasures EVERY fuel: an unrestricted extractor carrying a form token the
-  registry did not recognize, or a registry that lost recipes - one it flagged
-  and skipped (``WARN_MISSING_DURATION`` or ``WARN_MALFORMED_BLOB``), a
+  it unmeasures EVERY fuel - an unknown relation is never read as none: an
+  unrestricted extractor whose forms are unknown (a form token the registry
+  did not recognize, or no form on an entry it flagged with a value present
+  but not a string - the forms field reads as empty then), or a registry that
+  lost recipes - one its recipe pass dropped (each code it logs where it drops
+  one: no class name, a repeated one, no duration, a malformed blob), one it
+  kept but whose producers, ingredients or products it could not read, a
   malformed docs group, or a group it did not recognize. And a recipe one of
   whose producer tokens names no declared class may be produced in any class
   of that native parent, so the items it names are unmeasured beside any
   judged record.
 - HOLDS NO FLUID, COUNTED on :attr:`WorldFuel.no_fluid_record_count`: a class
   on :data:`NO_FLUID_UNDECLARED_CLASSES`, or any other undeclared census class
-  - a player, a vehicle, a subsystem actor. An undeclared class a registry
-  recipe or extractor nevertheless names is judged instead: the registry's own
-  evidence outranks the table.
+  - a player, a vehicle, a subsystem actor, the build gun. The count is ruling
+  (b)'s bin, by class alone. An undeclared class a registry recipe or
+  extractor nevertheless names is ALSO judged by that evidence - ruling (a)'s
+  first sentence, read as outranking the bin, so the verdict fails closed. In a
+  registry ``build_registry`` produces, that evidence is only ever an
+  undeclared producer token, whose items the orphaned-recipe rule above
+  already unmeasures; it differs only over a hand-built registry carrying a
+  model it does not declare.
 
 An unmeasured fuel's supply is None - never the flow's figure, never a zero.
 
@@ -96,6 +105,14 @@ THE ARITHMETIC, ALL OF IT EXACT ``Fraction``
   zero: what the recipe machines make less what they eat, which is what is left
   for a generator, and never a debt. A fluid no recipe in a complete flow
   touches supplies a measured zero. Its energy rate is ``supply * E / 60`` MW.
+- THE CHAIN. A nominal net is only as good as the inputs behind it (the session
+  137 upstream-shortfall ruling). A fluid's chain is every flowed recipe that
+  makes or eats it, plus, repeatedly, every flowed recipe making an input of
+  one already in it. When any input of a chain recipe other than the fuel
+  itself has a net below zero - declared raw or not, made by an extractor no
+  save rates, handed in by a player, or by nothing - the line is
+  :data:`REASON_SUPPLY_INPUT_UNCOVERED`, its supply None, and each such input's
+  net is in the trace. No derated figure is estimated.
 - POOLING. A class's pooled MW is the sum over every accepted fuel of its
   supply in MW, so two fuels short alone may cover together.
 
@@ -114,7 +131,8 @@ production boost, an unread clock or a refused clock; an accepted fuel's energy
 value is unknown; the flow is incomplete; an accepted fuel is solid; one is
 declared raw, so the flow does not measure its supply; a judged record
 unmeasures one - or, for a class whose fuels are unreadable, any fluid; an
-unregistered record exists; it shares an accepted fuel with another built fuel
+accepted fluid's chain holds an uncovered input; an unregistered record
+exists; it shares an accepted fuel with another built fuel
 generator class, which competes for the same supply (both are indeterminate);
 or another built class's fuels are unreadable, so no supply can be proven this
 class's own. Every figure that could still be computed is published - a floor
@@ -171,9 +189,12 @@ from clockspeed.data.registry import (
     FLUID_FORMS,
     FORM_SOLID,
     LITRES_PER_CUBIC_METRE,
+    WARN_DUPLICATE_CLASS_NAME,
     WARN_MALFORMED_BLOB,
     WARN_MALFORMED_GROUP,
+    WARN_MISSING_CLASS_NAME,
     WARN_MISSING_DURATION,
+    WARN_NON_STRING_VALUE,
     WARN_UNREADABLE_FUELS,
 )
 from clockspeed.solve.exact import SECONDS_PER_MINUTE, audit_exact
@@ -197,6 +218,7 @@ __all__ = [
     "LABEL_DEMAND",
     "LABEL_ENERGY_VALUE",
     "LABEL_HEADROOM",
+    "LABEL_INPUT_NET",
     "LABEL_INSTANCES",
     "LABEL_MEGAJOULES_PER_UNIT",
     "LABEL_NAMEPLATE",
@@ -220,6 +242,7 @@ __all__ = [
     "REASON_INSTANCES_OMITTED",
     "REASON_PRODUCTION_GAP",
     "REASON_SOLID_SUPPLY_UNMODELLED",
+    "REASON_SUPPLY_INPUT_UNCOVERED",
     "REASON_SUPPLY_RAW",
     "REASON_SUPPLY_UNMEASURED",
     "STEP_COMPUTED",
@@ -302,6 +325,13 @@ REASON_SUPPLY_RAW: Final = "supply-raw"
 #: not this world's supply.
 REASON_SUPPLY_UNMEASURED: Final = "supply-unmeasured"
 
+#: An input somewhere in an accepted fluid's production chain has a net below
+#: zero - declared raw or not - so the flow's nominal output of the fuel is not
+#: established (the session 137 upstream-shortfall ruling). "Uncovered", not
+#: "short": ``clockspeed/audit/flow.py`` calls an item short only when it is
+#: not raw. No derated figure is estimated.
+REASON_SUPPLY_INPUT_UNCOVERED: Final = "supply-input-uncovered"
+
 #: A record no flow rates is unregistered - an unreadable class name, an
 #: untabled undeclared buildable, or an admitted machine of an undeclared
 #: class - so it may make or eat any fuel.
@@ -331,6 +361,7 @@ SUPPLY_REASONS: Final = (
     REASON_SOLID_SUPPLY_UNMODELLED,
     REASON_SUPPLY_RAW,
     REASON_SUPPLY_UNMEASURED,
+    REASON_SUPPLY_INPUT_UNCOVERED,
     REASON_CLASS_UNREGISTERED,
 )
 
@@ -386,6 +417,12 @@ REASON_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " recipe, such as an extractor, or a record never read as a machine - may"
             " make or eat an accepted fuel, so the flow's figure is not this world's supply"
         ),
+        REASON_SUPPLY_INPUT_UNCOVERED: (
+            "an input in this fuel's production chain is consumed faster than the"
+            " production flow makes it - supplied from outside, by an extractor whose rate"
+            " is unknown, by hand, or not at all - so the fuel's nameplate output is not"
+            " established, and no derated figure is estimated"
+        ),
         REASON_CLASS_UNREGISTERED: (
             "a machine in this world that no production flow can measure is of a class"
             " the game data does not declare, so it may make or eat any fuel and no"
@@ -409,8 +446,10 @@ REASON_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
 #: pinned build: these are ALL the undeclared ``Build_`` classes (case folded)
 #: it found, admitted or in the census. A class absent here and undeclared is
 #: unregistered when it is a buildable or an admitted machine, so a build that
-#: adds one fails closed rather than open. ``BP_Tractor_C`` needs no row:
-#: ruling (b) covers a non-buildable census class.
+#: adds one fails closed rather than open - as does another world holding an
+#: undeclared buildable this probe never met: its saves report every fluid
+#: unregistered, by design, until a probe tables the class. ``BP_Tractor_C``
+#: needs no row: ruling (b) covers a non-buildable census class.
 NO_FLUID_UNDECLARED_CLASSES: Final = frozenset(
     {
         "BUILD_Potty_mk1_C",
@@ -430,9 +469,24 @@ NO_FLUID_UNDECLARED_CLASSES: Final = frozenset(
 _BUILDABLE_PREFIX: Final = "build_"
 
 #: The registry warnings that mean a recipe, or a whole group, never reached
-#: the recipe namespace, so no class's recipe relations are complete.
+#: the recipe namespace, so no class's recipe relations are complete: every
+#: code ``clockspeed/data/registry.py`` logs where its recipe pass drops an
+#: entry - no class name, a repeated one, no duration, a malformed blob - and
+#: the malformed group ``build_registry`` skips whole. Derived from the
+#: registry's own drop sites by
+#: ``tests/audit/test_fuel.py::test_the_lost_recipe_codes_are_the_registry_drop_sites``,
+#: so a drop site added there fails that test until it is counted here. A
+#: missing or repeated class name is counted whatever namespace raised it: the
+#: warning's subject does not say which pass dropped the entry, and counting
+#: one a non-recipe pass raised fails closed.
 _RECIPE_LOSS_CODES: Final = frozenset(
-    {WARN_MISSING_DURATION, WARN_MALFORMED_BLOB, WARN_MALFORMED_GROUP}
+    {
+        WARN_MISSING_CLASS_NAME,
+        WARN_DUPLICATE_CLASS_NAME,
+        WARN_MISSING_DURATION,
+        WARN_MALFORMED_BLOB,
+        WARN_MALFORMED_GROUP,
+    }
 )
 
 #: Supplemental resources - the water a generator also consumes - are not
@@ -471,6 +525,7 @@ LABEL_BURN: Final = "burn per minute, the demand times sixty over the megajoules
 LABEL_NET_FLOW: Final = "net nominal flow per minute"
 LABEL_SUPPLY: Final = "supply per minute, the net flow floored at zero"
 LABEL_SUPPLY_MEGAWATTS: Final = "supply megawatts, the supply times the megajoules over sixty"
+LABEL_INPUT_NET: Final = "net nominal flow per minute of an uncovered input in the fuel's chain"
 LABEL_POOLED: Final = "pooled supply megawatts over every accepted fuel"
 LABEL_SHORTFALL: Final = "shortfall megawatts, the demand less the pooled supply"
 LABEL_HEADROOM: Final = "headroom megawatts, the pooled supply less the demand"
@@ -599,9 +654,15 @@ class FuelLine:
             unknown.
         shortfall_per_minute: On :data:`VERDICT_FIRE` only, the class's
             shortfall as a rate of this fuel alone; otherwise None.
-        reasons: The :data:`SUPPLY_REASONS` that keep this fuel's supply
-            unmeasured, in that order; empty when it was measured or is not a
-            known fluid (whose energy reason the class carries).
+        reasons: The :data:`SUPPLY_REASONS` that apply to this fuel, in that
+            order. A solid carries :data:`REASON_SOLID_SUPPLY_UNMODELLED`
+            alone. Any other fuel carries each of the rest that applies - a
+            fuel whose item or form is unknown included, so an item the
+            registry lacks can carry ``('class-unregistered',)`` or
+            ``('supply-raw',)``, though its supply is None regardless, under
+            the class's :data:`REASON_ENERGY_UNKNOWN`. Only a known fluid is
+            walked for :data:`REASON_SUPPLY_INPUT_UNCOVERED`. Empty when none
+            applies.
     """
 
     item_key: str
@@ -694,10 +755,12 @@ class WorldFuel:
         out_of_scope: Built generator classes that burn nothing, sorted.
         exclusions: :data:`EXCLUSIONS`, on every result.
         flow_complete: Whether the world's own flow was complete.
-        no_fluid_record_count: Records no flow rates whose class holds no
-            fluid by ruling (b) - a class on
-            :data:`NO_FLUID_UNDECLARED_CLASSES` or another undeclared census
-            class - admitted machines and census records together.
+        no_fluid_record_count: Records no flow rates that ruling (b) bins as
+            holding no fluid, by class alone - a class on
+            :data:`NO_FLUID_UNDECLARED_CLASSES`, admitted or in the census, or
+            any other undeclared census class that is not a buildable. A
+            record so binned whose class the registry nevertheless names is
+            counted here AND judged by that evidence.
         unregistered_record_count: Records no flow rates that are
             unregistered; any one makes every fuel
             :data:`REASON_CLASS_UNREGISTERED`.
@@ -764,7 +827,8 @@ class _Unrated:
         every_item: Whether some judged record's relation is unknown, so it
             relates to every item.
         unregistered_records: How many records are unregistered.
-        no_fluid_records: How many records hold no fluid.
+        no_fluid_records: How many records ruling (b) bins as holding no
+            fluid, by class alone.
     """
 
     related: frozenset[str]
@@ -1038,17 +1102,67 @@ def _demand_of(basis: _Basis) -> FuelDemand:
     )
 
 
-def _supply_reasons_of(energy: _Energy, raw: frozenset[str], unrated: _Unrated) -> tuple[str, ...]:
+def _uncovered_inputs(flow: WorldFlow, fuel: str) -> tuple[str, ...]:
+    """The inputs in one fuel's production chain that the flow does not cover.
+
+    THE CHAIN starts from every flowed recipe that makes OR eats the fuel - an
+    eater starved of another input eats less, so the fuel's net moves too -
+    and adds, repeatedly, every flowed recipe that makes an input of a recipe
+    already in it. A seen set ends the walk on a cycle. A recipe's inputs are
+    read off the flow itself: an item's ``consumers`` are the recipes eating it.
+
+    Args:
+        flow: The world's own flow.
+        fuel: The accepted fuel.
+
+    Returns:
+        Sorted, every input of a chain recipe whose net is below zero, declared
+        raw or not - a raw item's net is what the world must bring in, and the
+        flow cannot say whether it does - except the fuel itself, whose own net
+        is its supply's business.
+    """
+    start = flow.items.get(fuel)
+    if start is None:
+        return ()
+    inputs_of: dict[str, set[str]] = {}
+    for item_key, entry in flow.items.items():
+        for recipe in entry.consumers:
+            inputs_of.setdefault(recipe, set()).add(item_key)
+    chain: set[str] = set()
+    frontier = [*start.producers, *start.consumers]
+    while frontier:
+        recipe = frontier.pop()
+        if recipe in chain:
+            continue
+        chain.add(recipe)
+        for item_key in inputs_of.get(recipe, ()):
+            frontier.extend(flow.items[item_key].producers)
+    uncovered = {
+        item_key
+        for recipe in chain
+        for item_key in inputs_of.get(recipe, ())
+        if item_key != fuel and flow.items[item_key].net < 0
+    }
+    return tuple(sorted(uncovered))
+
+
+def _supply_reasons_of(
+    energy: _Energy, raw: frozenset[str], unrated: _Unrated, uncovered: tuple[str, ...]
+) -> tuple[str, ...]:
     """The :data:`SUPPLY_REASONS` that keep one accepted fuel unmeasured.
 
     Args:
         energy: The fuel.
         raw: The items the flow was told are raw.
         unrated: What the records no flow rates do to the supply.
+        uncovered: The fuel's uncovered chain inputs, empty unless it is a
+            known fluid.
 
     Returns:
         The reasons in :data:`SUPPLY_REASONS` order. A solid carries the solid
-        reason alone: it is never measured, whatever else holds.
+        reason alone: it is never measured, whatever else holds. Any other fuel
+        - a known fluid, or one whose item or form is unknown - carries each of
+        the others that applies.
     """
     if energy.solid:
         return (REASON_SOLID_SUPPLY_UNMODELLED,)
@@ -1057,6 +1171,8 @@ def _supply_reasons_of(energy: _Energy, raw: frozenset[str], unrated: _Unrated) 
         reasons.add(REASON_SUPPLY_RAW)
     if unrated.every_item or energy.item_key in unrated.related:
         reasons.add(REASON_SUPPLY_UNMEASURED)
+    if uncovered:
+        reasons.add(REASON_SUPPLY_INPUT_UNCOVERED)
     if unrated.unregistered_records:
         reasons.add(REASON_CLASS_UNREGISTERED)
     return _ordered(reasons, SUPPLY_REASONS)
@@ -1080,12 +1196,16 @@ def _supplies_of(
         Per accepted fuel in ``mFuel`` order, its energy, its supply per minute
         (None unless it is a known fluid that no supply reason touches), its
         supply in MW (None when either is unknown), and its supply reasons.
+        A known fluid's uncovered chain inputs are each traced with their net.
     """
     raw = frozenset(flow.raw_items)
     supplies: list[tuple[_Energy, Fraction | None, Fraction | None, tuple[str, ...]]] = []
     for energy in basis.energies:
         steps += _energy_steps(energy)
-        line_reasons = _supply_reasons_of(energy, raw, unrated)
+        uncovered = _uncovered_inputs(flow, energy.item_key) if energy.fluid else ()
+        for item_key in uncovered:
+            steps.append(_read(LABEL_INPUT_NET, item_key, flow.items[item_key].net))
+        line_reasons = _supply_reasons_of(energy, raw, unrated, uncovered)
         supply: Fraction | None = None
         if energy.fluid and not line_reasons:
             entry = flow.items.get(energy.item_key)
@@ -1224,49 +1344,71 @@ def _verdict_of(
     )
 
 
-def _extractable_by(extractor: Extractor, items: Mapping[str, Item]) -> frozenset[str] | None:
+def _extractable_by(
+    extractor: Extractor, items: Mapping[str, Item], garbled: frozenset[str]
+) -> frozenset[str] | None:
     """What one extractor can yield, by ruling (d), or None when unknowable.
 
     Args:
         extractor: The registry entry.
         items: The item namespace.
+        garbled: Every subject the registry flagged with a value present but
+            not a string.
 
     Returns:
         Its ``allowed_resources`` when that is a non-empty tuple of names; else
         every item whose form is one of its ``allowed_forms``; or None when it
-        carries no restriction and a form token the registry did not
-        recognize, which may admit anything.
+        carries no restriction and its forms are unknown - a form token the
+        registry did not recognize, which may admit anything, or no form at all
+        on an entry the registry flagged, whose forms field may be the value it
+        could not read, which reads as empty. An entry that declares no form
+        and is not flagged yields nothing; a flag on an entry whose forms WERE
+        read is another field's.
     """
     resources = extractor.allowed_resources
     if type(resources) is tuple and resources and all(type(name) is str for name in resources):
         return frozenset(resources)
     if extractor.unrecognized_forms:
         return None
+    if not extractor.allowed_forms and extractor.key in garbled:
+        return None
     return frozenset(key for key, item in items.items() if item.form in extractor.allowed_forms)
 
 
-def _recipe_relations(registry: Registry) -> tuple[dict[str, set[str]], frozenset[str]]:
+def _recipe_relations(
+    registry: Registry, garbled: frozenset[str]
+) -> tuple[dict[str, set[str]], frozenset[str], bool]:
     """Per producer class, every item its registry recipes name, in or out.
 
     Args:
         registry: The registry.
+        garbled: Every subject the registry flagged with a value present but
+            not a string.
 
     Returns:
         Class to the items its recipes name - by a resolved building or an
-        unresolved token of that name - and the items of every recipe one of
-        whose producer tokens names no declared class.
+        unresolved token of that name - the items of every recipe one of whose
+        producer tokens names no declared class, and whether some recipe the
+        registry kept has a relation it could not read: flagged, and with no
+        producer, no input or no output, the side a field present but not a
+        string reads as. Such a recipe may be run by any class or name any
+        item, so it counts as a lost one. A flagged recipe whose every side was
+        read carries another field's flag; an unflagged empty side is genuine.
     """
     declared = registry.declared_classes
     by_class: dict[str, set[str]] = {}
     orphaned: set[str] = set()
-    for recipe in registry.recipes.values():
+    unreadable = False
+    for key, recipe in registry.recipes.items():
         named = {side.item_key for side in (*recipe.inputs, *recipe.outputs)}
         producers = (*recipe.produced_in, *recipe.unresolved_produced_in)
         for producer in producers:
             by_class.setdefault(producer, set()).update(named)
         if any(producer not in declared for producer in producers):
             orphaned |= named
-    return by_class, frozenset(orphaned)
+        if key in garbled and not (producers and recipe.inputs and recipe.outputs):
+            unreadable = True
+    return by_class, frozenset(orphaned), unreadable
 
 
 def _record_counts(machines: WorldMachines) -> tuple[dict[object, int], dict[object, int]]:
@@ -1305,7 +1447,10 @@ def _unrated_of(machines: WorldMachines, registry: Registry) -> _Unrated:
         unknown, and the unregistered and no-fluid record counts.
     """
     declared = registry.declared_classes
-    by_class, orphaned = _recipe_relations(registry)
+    garbled = frozenset(
+        warning.subject for warning in registry.warnings if warning.code == WARN_NON_STRING_VALUE
+    )
+    by_class, orphaned, unreadable = _recipe_relations(registry, garbled)
     extractors = registry.extractors
     admitted, census = _record_counts(machines)
     related: set[str] = set()
@@ -1324,21 +1469,25 @@ def _unrated_of(machines: WorldMachines, registry: Registry) -> _Unrated:
                 if class_name not in NO_FLUID_UNDECLARED_CLASSES and (is_admitted or buildable):
                     unregistered += records
                     continue
+                # Ruling (b)'s bin, by class alone: counted whatever the
+                # registry says of it. Its evidence still judges it, below.
+                no_fluid += records
                 if not evidence:
-                    no_fluid += records
                     continue
             judged = True
             related |= by_class.get(class_name, set())
             if class_name in extractors:
-                yields = _extractable_by(extractors[class_name], registry.items)
+                yields = _extractable_by(extractors[class_name], registry.items, garbled)
                 if yields is None:
                     every_item = True
                 else:
                     related |= yields
     if judged:
         related |= orphaned
-        lost = registry.unknown_groups or any(
-            warning.code in _RECIPE_LOSS_CODES for warning in registry.warnings
+        lost = (
+            unreadable
+            or registry.unknown_groups
+            or any(warning.code in _RECIPE_LOSS_CODES for warning in registry.warnings)
         )
         every_item = every_item or bool(lost)
     return _Unrated(

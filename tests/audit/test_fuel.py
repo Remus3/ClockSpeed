@@ -35,7 +35,10 @@ session 134 ruling) is what the arms below grade:
   undeclared buildable, or an admitted machine of an undeclared class is
   UNREGISTERED and blocks every fuel. A declared class is judged by its
   relation. A tabled class, or any other census class, holds no fluid and is
-  counted.
+  counted. A relation the registry could not read is never read as none.
+- A FLUID'S CHAIN MUST BE COVERED (the session 137 upstream-shortfall ruling).
+  An input of any recipe in a fluid's production chain with a net below zero
+  makes that line ``supply-input-uncovered``, raw or extracted or not.
 
 THE FOUR REFUTATIONS OF THE CANDIDATE each have a regression arm here, named in
 the section that grades it: a caller flow that dropped the miners, census
@@ -45,10 +48,16 @@ recipe-less generator a fuel recipe names.
 
 from __future__ import annotations
 
+import ast
 import inspect
+import json
+import os
+import subprocess
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
 from fractions import Fraction
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -62,14 +71,19 @@ from clockspeed.audit.balance import (
     GAP_PRODUCTION_VARIABLE,
 )
 from clockspeed.audit.machines import MachineState, WorldMachines
+from clockspeed.data import registry as registry_module
+from clockspeed.data.docs_extract import load_document
 from clockspeed.data.registry import (
     FORM_GAS,
     FORM_LIQUID,
     FORM_SOLID,
     LITRES_PER_CUBIC_METRE,
+    WARN_DUPLICATE_CLASS_NAME,
     WARN_MALFORMED_BLOB,
     WARN_MALFORMED_GROUP,
+    WARN_MISSING_CLASS_NAME,
     WARN_MISSING_DURATION,
+    WARN_NON_STRING_VALUE,
     WARN_UNREADABLE_FUELS,
     Extractor,
     Generator,
@@ -78,6 +92,7 @@ from clockspeed.data.registry import (
     RecipeIO,
     Registry,
     RegistryWarning,
+    build_registry,
 )
 
 # ---------------------------------------------------------------------------
@@ -93,6 +108,12 @@ GAS: Final = "Desc_SyntheticGasQx85_C"
 DUD: Final = "Desc_SyntheticDudQx85_C"
 #: A liquid no generator burns, the only resource the oil pump yields.
 CRUDE: Final = "Desc_SyntheticCrudeQx85_C"
+
+#: Solids no generator burns, met as inputs in a fuel's production chain: a
+#: seed, the resin made from it, and the empty canister a filler also eats.
+SEED: Final = "Desc_SyntheticSeedQx85_C"
+RESIN: Final = "Desc_SyntheticResinQx85_C"
+EMPTY: Final = "Desc_SyntheticEmptyQx85_C"
 
 FUEL_MJ_PER_LITRE: Final = Fraction(3, 4)
 TURBO_MJ_PER_LITRE: Final = Fraction(2)
@@ -170,6 +191,12 @@ TRACTOR: Final = "BP_SyntheticTractorQx85_C"
 MOD_BUILD: Final = "Build_SyntheticModQx85_C"
 MOD_BUILD_SHOUTED: Final = "BUILD_SyntheticModQx85_C"
 MOD_ACTOR: Final = "BP_SyntheticModQx85_C"
+#: An undeclared, non-buildable producer token - the build gun's shape.
+BENCH_CLASS: Final = "BP_SyntheticBenchQx85_C"
+#: An extractor class a hand-built registry carries but does not declare.
+DISPENSER: Final = "Equip_SyntheticDispenserQx85_C"
+#: An unrestricted extractor whose forms field the registry could not read.
+GARBLED_WELL: Final = "Build_SyntheticGarbledWellQx85_C"
 
 R_FUEL: Final = "Recipe_SyntheticFuelQx85_C"
 R_TURBO: Final = "Recipe_SyntheticTurboQx85_C"
@@ -180,17 +207,35 @@ R_COKE: Final = "Recipe_SyntheticCokeQx85_C"
 R_PACK: Final = "Recipe_SyntheticPackQx85_C"
 R_BURN: Final = "Recipe_SyntheticBurnQx85_C"
 R_UNKNOWN: Final = "Recipe_SyntheticNeverAuthoredQx85_C"
+#: A recipe whose relation the registry could not read in full.
+R_GARBLED: Final = "Recipe_SyntheticGarbledQx85_C"
+
+#: Chain recipes, kept OUT of RECIPES so every arm that does not name one reads
+#: the registry it always did; an arm adds the ones it runs with
+#: ``_chain_registry``. Each makes one unit per six-second cycle.
+R_CRACK: Final = "Recipe_SyntheticCrackQx85_C"
+R_DRILL: Final = "Recipe_SyntheticDrillQx85_C"
+R_BLEND: Final = "Recipe_SyntheticBlendQx85_C"
+R_UNPACK: Final = "Recipe_SyntheticUnpackQx85_C"
+R_FILL: Final = "Recipe_SyntheticFillQx85_C"
+R_SEED: Final = "Recipe_SyntheticSeedQx85_C"
+R_RESIN: Final = "Recipe_SyntheticResinQx85_C"
+R_LOOP: Final = "Recipe_SyntheticLoopQx85_C"
+R_PRESS: Final = "Recipe_SyntheticPressQx85_C"
 
 #: Per-minute rate of one recipe machine at clock one, re-derived: 60 / duration.
 FUEL_M3_PER_REFINERY: Final = Fraction(60, 6)
 TURBO_M3_PER_MAKER: Final = Fraction(60, 2)
 BIO_M3_PER_MAKER: Final = Fraction(60, 2)
 FUEL_M3_EATEN_PER_PACKAGER: Final = Fraction(60, 6)
+#: Every chain recipe at clock one moves 60 / 6 units a minute of each item.
+CHAIN_PER_MACHINE: Final = Fraction(60, 6)
 
 SIXTY: Final = Fraction(60)
 
 #: Ruling (c): how many undeclared build classes the session 137 probe found
-#: over the pinned development world - eight plus the HUB's biomass burner.
+#: over the pinned development world, the HUB's biomass burner AMONG them - the
+#: ruling's "plus" the burner was a miscount, re-probed and confirmed.
 PROBED_UNDECLARED_CLASS_COUNT: Final = 9
 
 
@@ -262,6 +307,9 @@ ITEMS: Final[Mapping[str, Item]] = MappingProxyType(
         COKE: _item(COKE, FORM_SOLID, COKE_MJ),
         CAN: _item(CAN, FORM_SOLID, None),
         ASH: _item(ASH, FORM_SOLID, None),
+        SEED: _item(SEED, FORM_SOLID, None),
+        RESIN: _item(RESIN, FORM_SOLID, None),
+        EMPTY: _item(EMPTY, FORM_SOLID, None),
     }
 )
 
@@ -302,6 +350,27 @@ RECIPES: Final[Mapping[str, Recipe]] = MappingProxyType(
         R_PACK: _recipe(R_PACK, 6, ((FUEL, Fraction(1)),), ((CAN, Fraction(1)),), PACKAGER),
         # A recipe produced in a GENERATOR class, naming the liquid fuel.
         R_BURN: _recipe(R_BURN, 6, ((FUEL, Fraction(1)),), ((ASH, Fraction(1)),), GEN_BURNER),
+    }
+)
+
+_ONE: Final = Fraction(1)
+
+CHAIN_RECIPES: Final[Mapping[str, Recipe]] = MappingProxyType(
+    {
+        # Crude cracked into the liquid fuel, and crude made by a recipe.
+        R_CRACK: _recipe(R_CRACK, 6, ((CRUDE, _ONE),), ((FUEL, _ONE),), REFINERY),
+        R_DRILL: _recipe(R_DRILL, 6, (), ((CRUDE, _ONE),)),
+        # One accepted fuel made from another.
+        R_BLEND: _recipe(R_BLEND, 6, ((TURBO, _ONE),), ((BIO, _ONE),)),
+        # The liquid fuel unpacked from the packaged solid, and filled into it.
+        R_UNPACK: _recipe(R_UNPACK, 6, ((CAN, _ONE),), ((FUEL, _ONE),), PACKAGER),
+        R_FILL: _recipe(R_FILL, 6, ((FUEL, _ONE), (EMPTY, _ONE)), ((CAN, _ONE),), PACKAGER),
+        # A two-level chain, seed to resin to fuel, and a recipe closing a cycle.
+        R_SEED: _recipe(R_SEED, 6, ((SEED, _ONE),), ((RESIN, _ONE),)),
+        R_RESIN: _recipe(R_RESIN, 6, ((RESIN, _ONE),), ((FUEL, _ONE),), REFINERY),
+        R_LOOP: _recipe(R_LOOP, 6, ((FUEL, _ONE),), ((RESIN, _ONE),)),
+        # A solid fuel pressed from a seed nobody makes.
+        R_PRESS: _recipe(R_PRESS, 6, ((SEED, _ONE),), ((COKE, _ONE),)),
     }
 )
 
@@ -369,11 +438,11 @@ def _gen(
     )
 
 
-def _maker(recipe: str, clock: Fraction = Fraction(1)) -> MachineState:
-    known = RECIPES.get(recipe)
+def _maker(recipe: str, clock: Fraction = Fraction(1), *, producing: bool = True) -> MachineState:
+    known = RECIPES.get(recipe) or CHAIN_RECIPES.get(recipe)
     class_name = known.produced_in[0] if known is not None else MAKER
     return MachineState(
-        class_name=class_name, producing=True, recipe_class_name=recipe, overclock=clock
+        class_name=class_name, producing=producing, recipe_class_name=recipe, overclock=clock
     )
 
 
@@ -412,6 +481,19 @@ def _with_generator(class_name: str, fuels: object) -> Registry:
     generators = dict(GENERATORS)
     generators[class_name] = replace(GENERATORS[class_name], accepted_fuels=fuels)  # type: ignore[arg-type]
     return _registry(generators=MappingProxyType(generators))
+
+
+def _chain_registry(*keys: str, **changes: object) -> Registry:
+    recipes = {**RECIPES, **{key: CHAIN_RECIPES[key] for key in keys}}
+    return _registry(recipes=MappingProxyType(recipes), **changes)
+
+
+def _with_recipe(recipe: Recipe, **changes: object) -> Registry:
+    return _registry(recipes=MappingProxyType({**RECIPES, recipe.key: recipe}), **changes)
+
+
+def _garbled(subject: str) -> RegistryWarning:
+    return RegistryWarning(code=WARN_NON_STRING_VALUE, subject=subject, detail="synthetic")
 
 
 @dataclass(frozen=True)
@@ -478,6 +560,15 @@ def _burn(demand: fuel.FuelDemand, item_key: str) -> fuel.FuelBurn:
     matches = [entry for entry in demand.burns if entry.item_key == item_key]
     assert len(matches) == 1
     return matches[0]
+
+
+def _input_nets(verdict: fuel.FuelVerdict) -> dict[str, Fraction]:
+    """Every uncovered chain input's net, as the trace records it."""
+    steps = [step for step in verdict.trace if step.label == fuel.LABEL_INPUT_NET]
+    assert all(step.kind == fuel.STEP_READ for step in steps)
+    nets = {step.subject: step.value for step in steps}
+    assert len(nets) == len(steps)
+    return nets
 
 
 def _covered_fuel_world(
@@ -1296,6 +1387,17 @@ def test_unreadable_fuels_name_an_unmeasured_supply_too() -> None:
     assert _verdict(_audit(world), GEN_GARBLED).reasons == (fuel.REASON_FUELS_UNREAD,)
 
 
+def test_unreadable_fuels_beside_an_unknown_relation_name_an_unmeasured_supply() -> None:
+    # An extractor of an unrecognized form relates to no item it can name and
+    # to every item it might yield, so a class that may burn any fluid is
+    # unmeasured too - whatever the related set holds.
+    world = _world([_gen(GEN_GARBLED), _recipe_less(ODD_EXTRACTOR), _maker(R_FUEL)])
+    assert _verdict(_audit(world), GEN_GARBLED).reasons == (
+        fuel.REASON_FUELS_UNREAD,
+        fuel.REASON_SUPPLY_UNMEASURED,
+    )
+
+
 def test_the_worlds_own_flow_rates_an_elided_clock_and_gaps_the_rest() -> None:
     elided = MachineState(
         class_name=REFINERY,
@@ -1334,6 +1436,584 @@ def test_the_world_counts_its_unrated_records() -> None:
     # unregistered.
     assert result.no_fluid_record_count == 1 + players_read + players_unread
     assert result.unregistered_record_count == mods
+
+
+def test_a_zero_census_count_names_no_record() -> None:
+    # A packager eats the liquid fuel, so one packager record would unmeasure
+    # it; a zero count is no record at all. A generator class counted zero in
+    # the census is not built.
+    result = _audit(_covered_fuel_world(unadmitted_read=((PACKAGER, 0), (GEN_TWIN, 0))))
+    verdict = _verdict(result, GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_REJECT
+    assert verdict.reasons == ()
+    assert tuple(entry.class_name for entry in result.verdicts) == (GEN_FUEL,)
+
+
+@pytest.mark.parametrize("count", [None, "2", 2.0, True])
+def test_a_census_count_that_is_not_an_int_is_one_record(count: object) -> None:
+    # An unreadable count is one record, never none: a packager so counted
+    # still unmeasures the fuel it eats, and a mod buildable still blocks.
+    world = _covered_fuel_world(unadmitted_unread=((PACKAGER, count),))  # type: ignore[arg-type]
+    verdict = _verdict(_audit(world), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+    mods = _audit(_covered_fuel_world(unadmitted_read=((MOD_BUILD, count),)))  # type: ignore[arg-type]
+    assert mods.unregistered_record_count == 1
+    players = _audit(_covered_fuel_world(unadmitted_read=((PLAYER, count),)))  # type: ignore[arg-type]
+    assert players.no_fluid_record_count == 1
+
+
+def test_a_standby_generator_still_demands_its_nameplate() -> None:
+    # The acceptance clause (docs/item_notes/phase5.md section CS-1285):
+    # demand is "the exact Fraction sum over built instances of nameplate MW
+    # times clock". A generator not producing is still built - and a starved
+    # one is exactly what this rule exists to see - so two built generators
+    # demand 500 MW against the 250 two refineries make.
+    standby = replace(_gen(GEN_FUEL), producing=False)
+    verdict = _verdict(_audit(_covered_fuel_world(standby)), GEN_FUEL)
+    built = 2
+    assert verdict.instance_count == built
+    assert verdict.demand_megawatts == built * FUEL_GEN_MW
+    assert verdict.verdict == fuel.VERDICT_FIRE
+    assert verdict.shortfall_megawatts == FUEL_GEN_MW
+
+
+def test_a_standby_maker_still_supplies_its_nominal_rate() -> None:
+    # Ruling (e): the verdict stands on the NOMINAL answer, and
+    # clockspeed/audit/flow.py, which owns it, "does not consult the producing
+    # flag". A refinery not producing - its output backed up, which is what a
+    # covered generator does to it - still supplies its nominal 10 m3.
+    standby = _maker(R_FUEL, producing=False)
+    verdict = _verdict(_audit(_world([_gen(GEN_FUEL), _maker(R_FUEL), standby])), GEN_FUEL)
+    assert _line(verdict, FUEL).supply_per_minute == 2 * FUEL_M3_PER_REFINERY
+    assert verdict.verdict == fuel.VERDICT_REJECT
+
+
+def _table_variants(name: str) -> tuple[str, ...]:
+    """Names a case-folded or substring table lookup would wrongly admit."""
+    return (name.swapcase(), f"{name}_ModQx85", name.removesuffix("_C"))
+
+
+@pytest.mark.parametrize("where", ["machine", "census"])
+def test_the_no_fluid_table_matches_a_class_name_exactly(where: str) -> None:
+    # The table vouches for the exact names the probe read. A name differing in
+    # case, or one that merely contains or is contained in a tabled name, is an
+    # untabled undeclared buildable, so it is unregistered.
+    for tabled in sorted(fuel.NO_FLUID_UNDECLARED_CLASSES):
+        for variant in _table_variants(tabled):
+            assert variant not in fuel.NO_FLUID_UNDECLARED_CLASSES
+            assert variant.lower().startswith("build_")
+            if where == "machine":
+                world = _covered_fuel_world(_recipe_less(variant))
+            else:
+                world = _covered_fuel_world(unadmitted_read=((variant, 1),))
+            result = _audit(world)
+            verdict = _verdict(result, GEN_FUEL)
+            assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+            assert verdict.reasons == (fuel.REASON_CLASS_UNREGISTERED,)
+            assert result.unregistered_record_count == 1
+            assert result.no_fluid_record_count == 0
+
+
+def test_an_undeclared_census_class_is_counted_by_its_class_and_judged_by_its_evidence() -> None:
+    # Ruling (b) bins a census class that is undeclared and no buildable as
+    # holding no fluid, and the count follows that bin. The build gun is the
+    # real shape: an undeclared producer token of solid-only recipes. Its
+    # records are counted, and the liquid fuel still decides.
+    recipes = {
+        **RECIPES,
+        R_GARBLED: replace(
+            _recipe(R_GARBLED, 6, ((COAL, _ONE),), ((ASH, _ONE),)),
+            produced_in=(),
+            unresolved_produced_in=(BENCH_CLASS,),
+        ),
+    }
+    registry = _registry(recipes=MappingProxyType(recipes))
+    records = 3
+    result = _audit(_covered_fuel_world(unadmitted_read=((BENCH_CLASS, records),)), registry)
+    assert result.no_fluid_record_count == records
+    assert result.unregistered_record_count == 0
+    assert _verdict(result, GEN_FUEL).verdict == fuel.VERDICT_REJECT
+    # A tabled class named by a producer token is counted on the same terms.
+    tabled = sorted(fuel.NO_FLUID_UNDECLARED_CLASSES)[0]
+    tokened = {**RECIPES, R_PACK: replace(RECIPES[R_PACK], unresolved_produced_in=(tabled,))}
+    result = _audit(
+        _covered_fuel_world(unadmitted_read=((tabled, 1),)),
+        _registry(recipes=MappingProxyType(tokened)),
+    )
+    assert result.no_fluid_record_count == 1
+
+
+def test_registry_evidence_still_judges_an_undeclared_census_class() -> None:
+    # Counted by its class, the record is still JUDGED by the registry's own
+    # evidence (ruling (a)'s first sentence, read as outranking the bin - the
+    # verdict the session 137 fix round kept). A hand-built registry carrying
+    # an extractor it does not declare, restricted to the liquid fuel, leaves
+    # that fuel unmeasured beside a record of it.
+    extractors = {**EXTRACTORS, DISPENSER: _extractor(DISPENSER, frozenset({FORM_LIQUID}), (FUEL,))}
+    registry = _registry(extractors=MappingProxyType(extractors))
+    assert DISPENSER not in registry.declared_classes
+    result = _audit(_covered_fuel_world(unadmitted_read=((DISPENSER, 1),)), registry)
+    verdict = _verdict(result, GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+    assert result.no_fluid_record_count == 1
+
+
+# ---------------------------------------------------------------------------
+# An unknown relation unmeasures every fuel (ruling (a))
+# ---------------------------------------------------------------------------
+
+
+def _garbled_well_registry(
+    forms: frozenset[str], resources: tuple[str, ...] | None, *, flagged: bool
+) -> Registry:
+    extractors = {**EXTRACTORS, GARBLED_WELL: _extractor(GARBLED_WELL, forms, resources)}
+    warnings = (GARBLED_WARNING, _garbled(GARBLED_WELL)) if flagged else (GARBLED_WARNING,)
+    return _registry(
+        extractors=MappingProxyType(extractors),
+        declared_classes=DECLARED | {GARBLED_WELL},
+        warnings=warnings,
+    )
+
+
+def test_an_extractor_whose_forms_the_registry_could_not_read_relates_to_every_fluid() -> None:
+    # The registry reads a forms field that is present but not a string as no
+    # form, and flags the entry. With no restriction to fall back on, what the
+    # extractor yields is unknown - never "nothing".
+    world = _covered_fuel_world(_recipe_less(GARBLED_WELL))
+    garbled = _audit(world, _garbled_well_registry(frozenset(), None, flagged=True))
+    verdict = _verdict(garbled, GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+    assert _line(verdict, FUEL).supply_per_minute is None
+
+
+@pytest.mark.parametrize(
+    ("forms", "resources", "flagged"),
+    [
+        (frozenset(), None, False),
+        (frozenset({FORM_SOLID}), None, True),
+        (frozenset(), (CRUDE,), True),
+    ],
+    ids=["declares-no-form", "forms-read-flag-elsewhere", "restriction-read"],
+)
+def test_an_extractor_whose_yield_is_read_still_decides(
+    forms: frozenset[str], resources: tuple[str, ...] | None, flagged: bool
+) -> None:
+    # The controls: an entry that declares no form yields nothing; a flag on
+    # an entry whose forms WERE read is another field's; a readable
+    # restriction decides whatever the forms say.
+    world = _covered_fuel_world(_recipe_less(GARBLED_WELL))
+    result = _audit(world, _garbled_well_registry(forms, resources, flagged=flagged))
+    assert _verdict(result, GEN_FUEL).verdict == fuel.VERDICT_REJECT
+
+
+def _eater(lost: str) -> Recipe:
+    """A packager recipe eating the liquid fuel, with one relation side lost."""
+    whole = _recipe(R_GARBLED, 6, ((FUEL, _ONE),), ((CAN, _ONE),), PACKAGER)
+    if lost == "producers":
+        return replace(whole, produced_in=())
+    if lost == "inputs":
+        return replace(whole, inputs=())
+    if lost == "outputs":
+        return replace(whole, outputs=())
+    return whole
+
+
+@pytest.mark.parametrize("lost", ["producers", "inputs", "outputs"])
+def test_a_recipe_whose_relation_the_registry_could_not_read_leaves_every_relation_unknown(
+    lost: str,
+) -> None:
+    # The registry keeps a recipe whose producers, ingredients or products are
+    # present but not a string, reading the field as empty and flagging the
+    # recipe. Which class runs it, or what it names, is then unknown, so - on
+    # the terms a lost recipe sets - every judged relation is unknown, and the
+    # generator's own record is judged.
+    registry = _with_recipe(_eater(lost), warnings=(GARBLED_WARNING, _garbled(R_GARBLED)))
+    idle_lamp = _covered_fuel_world(unadmitted_read=((LAMP, 1),))
+    verdict = _verdict(_audit(idle_lamp, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+    # The controls: the same recipe unflagged - a genuinely empty side - and a
+    # flag on a recipe whose every side was read both leave the fuel decided.
+    unflagged = _with_recipe(_eater(lost))
+    assert _verdict(_audit(idle_lamp, unflagged), GEN_FUEL).verdict == fuel.VERDICT_REJECT
+    whole = _with_recipe(_eater("none"), warnings=(GARBLED_WARNING, _garbled(R_GARBLED)))
+    assert _verdict(_audit(idle_lamp, whole), GEN_FUEL).verdict == fuel.VERDICT_REJECT
+
+
+@pytest.mark.parametrize(
+    "warning",
+    [
+        RegistryWarning(code=WARN_MISSING_CLASS_NAME, subject="FGRecipe", detail="x"),
+        RegistryWarning(code=WARN_DUPLICATE_CLASS_NAME, subject=R_PACK, detail="x"),
+        RegistryWarning(code=WARN_MISSING_DURATION, subject=R_PACK, detail="x"),
+        RegistryWarning(code=WARN_MALFORMED_BLOB, subject=R_PACK, detail="x"),
+        RegistryWarning(code=WARN_MALFORMED_GROUP, subject="7", detail="x"),
+    ],
+    ids=[
+        "missing-class-name",
+        "duplicate-class-name",
+        "missing-duration",
+        "malformed-blob",
+        "group",
+    ],
+)
+def test_a_recipe_the_registry_dropped_leaves_every_relation_unknown(
+    warning: RegistryWarning,
+) -> None:
+    # The packaging recipe dropped, as every drop site of the registry's
+    # recipe pass drops one, and a packager record in the census: the record
+    # may be running the lost recipe, so the fuel is unmeasured.
+    recipes = {key: recipe for key, recipe in RECIPES.items() if key != R_PACK}
+    registry = _registry(recipes=MappingProxyType(recipes), warnings=(GARBLED_WARNING, warning))
+    world = _covered_fuel_world(unadmitted_read=((PACKAGER, 1),))
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+    clean = _registry(recipes=MappingProxyType(recipes))
+    assert _verdict(_audit(world, clean), GEN_FUEL).verdict == fuel.VERDICT_REJECT
+
+
+def _logged_codes(function: ast.FunctionDef, *, dropping: bool) -> set[str]:
+    """The WARN_* names ``function`` hands ``log.add``.
+
+    Args:
+        function: A function in the registry module.
+        dropping: Keep only a call in a block that also returns None - a drop.
+
+    Returns:
+        The constant names.
+    """
+    found: set[str] = set()
+    for node in ast.walk(function):
+        blocks: list[list[ast.stmt]] = []
+        if isinstance(node, ast.If | ast.For | ast.While | ast.With | ast.ExceptHandler):
+            blocks.append(node.body)
+        if isinstance(node, ast.If | ast.For | ast.While):
+            blocks.append(node.orelse)
+        for block in blocks:
+            drops = any(
+                isinstance(statement, ast.Return)
+                and (statement.value is None or getattr(statement.value, "value", 0) is None)
+                for statement in block
+            )
+            if dropping and not drops:
+                continue
+            for statement in block:
+                call = statement.value if isinstance(statement, ast.Expr) else None
+                if (
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Attribute)
+                    and call.func.attr == "add"
+                    and call.args
+                    and isinstance(call.args[0], ast.Name)
+                ):
+                    found.add(call.args[0].id)
+    return found
+
+
+def test_the_lost_recipe_codes_are_the_registry_drop_sites() -> None:
+    # Derived from the registry's own source, so a drop site it adds fails
+    # here until the audit counts it: every code a function the recipe pass
+    # calls logs beside a ``return None``, plus the groups build_registry
+    # flags and skips whole.
+    tree = ast.parse(Path(registry_module.__file__).read_text(encoding="utf-8"))
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    callees = {
+        node.func.id
+        for node in ast.walk(functions["_build_recipes"])
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    names = {"_entry_key", "_recipe"} & callees
+    assert names == {"_entry_key", "_recipe"}
+    derived: set[str] = set()
+    for callee in sorted(callees & set(functions)):
+        derived |= _logged_codes(functions[callee], dropping=True)
+    derived |= _logged_codes(functions["build_registry"], dropping=False)
+    # The control: the derivation sees the two drops the module documents.
+    assert {"WARN_MISSING_DURATION", "WARN_MALFORMED_BLOB", "WARN_MALFORMED_GROUP"} <= derived
+    codes = {getattr(registry_module, name) for name in derived}
+    assert codes == fuel._RECIPE_LOSS_CODES  # noqa: SLF001 - the set under test
+
+
+def _docs_registry(*, garbled_recipe: bool) -> Registry:
+    """Build a registry through the real loader, from a synthetic docs list."""
+
+    def path(class_name: str) -> str:
+        stem = class_name.removesuffix("_C")
+        return f"/Script/Engine.BlueprintGeneratedClass'/Game/Synth/{stem}.{class_name}'"
+
+    def group(short_name: str, entries: list[dict[str, object]]) -> dict[str, object]:
+        native = f"/Script/CoreUObject.Class'/Script/FactoryGame.{short_name}'"
+        return {"NativeClass": native, "Classes": entries}
+
+    refinery = f'("/Game/Synth/{REFINERY.removesuffix("_C")}.{REFINERY}")'
+    recipes: list[dict[str, object]] = [
+        {
+            "ClassName": R_FUEL,
+            "mDisplayName": "Synth Fuel",
+            "mIngredients": "",
+            "mProduct": f'((ItemClass="{path(FUEL)}",Amount=1000))',
+            "mProducedIn": refinery,
+            "mManufactoringDuration": "6.000000",
+        }
+    ]
+    if garbled_recipe:
+        recipes.append(
+            {
+                "ClassName": R_GARBLED,
+                "mDisplayName": "Synth Eater",
+                "mIngredients": f'((ItemClass="{path(FUEL)}",Amount=1000))',
+                "mProduct": f'((ItemClass="{path(CAN)}",Amount=1))',
+                "mProducedIn": [refinery],
+                "mManufactoringDuration": "6.000000",
+            }
+        )
+    fuel_object = {
+        "mFuelClass": FUEL,
+        "mSupplementalResourceClass": "",
+        "mByproduct": "",
+        "mByproductAmount": "",
+    }
+    groups = [
+        group(
+            "FGItemDescriptor",
+            [
+                {
+                    "ClassName": FUEL,
+                    "mDisplayName": "F",
+                    "mForm": "RF_LIQUID",
+                    "mEnergyValue": "0.750000",
+                },
+                {
+                    "ClassName": CAN,
+                    "mDisplayName": "C",
+                    "mForm": "RF_SOLID",
+                    "mEnergyValue": "0.000000",
+                },
+            ],
+        ),
+        group(
+            "FGBuildableGeneratorFuel",
+            [
+                {
+                    "ClassName": GEN_FUEL,
+                    "mDisplayName": "G",
+                    "mPowerProduction": "250.000000",
+                    "mFuel": [fuel_object],
+                }
+            ],
+        ),
+        group(
+            "FGBuildableManufacturer",
+            [{"ClassName": REFINERY, "mDisplayName": "R", "mPowerConsumption": "30.000000"}],
+        ),
+        group(
+            "FGBuildableResourceExtractor",
+            [
+                {
+                    "ClassName": GARBLED_WELL,
+                    "mDisplayName": "W",
+                    "mItemsPerCycle": "1",
+                    "mExtractCycleTime": "1.000000",
+                    "mAllowedResourceForms": ["RF_LIQUID"],
+                }
+            ],
+        ),
+        group("FGRecipe", recipes),
+    ]
+    return build_registry(load_document(json.dumps(groups)))
+
+
+def test_the_registry_unreadable_fields_reach_the_audit_as_unknown_relations() -> None:
+    # End to end through the shipped loader and registry, so the audit's
+    # reading of the registry's flags cannot drift from what the registry
+    # actually publishes for a field present but not a string.
+    plain = _docs_registry(garbled_recipe=False)
+    assert plain.extractors[GARBLED_WELL].allowed_forms == frozenset()
+    assert (WARN_NON_STRING_VALUE, GARBLED_WELL) in {(w.code, w.subject) for w in plain.warnings}
+    covered = _world([_gen(GEN_FUEL), _maker(R_FUEL), _maker(R_FUEL)])
+    assert _verdict(_audit(covered, plain), GEN_FUEL).verdict == fuel.VERDICT_REJECT
+    with_well = _world([*covered.machines, _recipe_less(GARBLED_WELL)])
+    verdict = _verdict(_audit(with_well, plain), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+
+    garbled = _docs_registry(garbled_recipe=True)
+    assert garbled.recipes[R_GARBLED].produced_in == ()
+    assert (WARN_NON_STRING_VALUE, R_GARBLED) in {(w.code, w.subject) for w in garbled.warnings}
+    verdict = _verdict(_audit(covered, garbled), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_UNMEASURED,)
+
+
+# ---------------------------------------------------------------------------
+# A fluid's production chain (the session 137 upstream-shortfall ruling)
+# ---------------------------------------------------------------------------
+
+
+def test_a_producer_starved_of_its_input_never_rejects() -> None:
+    # S0. Two refineries crack crude into 20 m3 of fuel a minute - 250 MW, the
+    # demand exactly - but nothing in the world makes crude, so the nominal
+    # output is not established.
+    registry = _chain_registry(R_CRACK)
+    result = _audit(_world([_gen(GEN_FUEL), _maker(R_CRACK), _maker(R_CRACK)]), registry)
+    assert result.flow_complete is True
+    verdict = _verdict(result, GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    line = _line(verdict, FUEL)
+    assert line.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert line.supply_per_minute is None
+    assert line.supply_megawatts is None
+    assert verdict.pooled_megawatts is None
+    assert _input_nets(verdict) == {CRUDE: -2 * CHAIN_PER_MACHINE}
+    # The demand rests on nothing the flow measures, so it is still published.
+    assert verdict.demand_megawatts == FUEL_GEN_MW
+
+
+def test_an_accepted_fuel_short_upstream_of_another_blocks_the_verdict() -> None:
+    # S1. The twin's bio is blended from its turbo, and nothing makes turbo:
+    # 10 m3 of bio is 250 MW against 150, but its input is uncovered. The turbo
+    # line itself is a measured zero - its own net is its supply's business.
+    registry = _chain_registry(R_BLEND)
+    verdict = _verdict(_audit(_world([_gen(GEN_TWIN), _maker(R_BLEND)]), registry), GEN_TWIN)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert _line(verdict, BIO).reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert _line(verdict, BIO).supply_per_minute is None
+    assert _line(verdict, TURBO).reasons == ()
+    assert _line(verdict, TURBO).supply_per_minute == Fraction(0)
+    assert _input_nets(verdict) == {TURBO: -CHAIN_PER_MACHINE}
+
+
+def test_a_fluid_unpacked_from_a_hand_fed_solid_is_indeterminate() -> None:
+    # U1. Two packagers unpack the packaged fuel nobody makes - a player hands
+    # it in. The fluid line carries the chain reason, never the solid one.
+    registry = _chain_registry(R_UNPACK)
+    verdict = _verdict(
+        _audit(_world([_gen(GEN_FUEL), _maker(R_UNPACK), _maker(R_UNPACK)]), registry), GEN_FUEL
+    )
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    line = _line(verdict, FUEL)
+    assert line.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert fuel.REASON_SOLID_SUPPLY_UNMODELLED not in line.reasons
+    assert _input_nets(verdict) == {CAN: -2 * CHAIN_PER_MACHINE}
+
+
+def test_an_extracted_chain_input_stays_uncovered() -> None:
+    # An oil pump yields crude at a rate no save records. It relates to crude
+    # alone, so the fuel line is not unmeasured - its chain input is uncovered.
+    registry = _chain_registry(R_CRACK)
+    world = _world([_gen(GEN_FUEL), _maker(R_CRACK), _maker(R_CRACK), _recipe_less(OIL_PUMP)])
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert _line(verdict, FUEL).reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert fuel.REASON_SUPPLY_UNMEASURED not in _line(verdict, FUEL).reasons
+    assert _input_nets(verdict) == {CRUDE: -2 * CHAIN_PER_MACHINE}
+
+
+def test_a_raw_chain_input_stays_uncovered() -> None:
+    # Declaring the crude raw says it comes from outside; it does not say how
+    # much. The fuel itself is not raw, so its line carries no raw reason.
+    registry = _chain_registry(R_CRACK)
+    world = _world([_gen(GEN_FUEL), _maker(R_CRACK), _maker(R_CRACK)])
+    verdict = _verdict(_audit(world, registry, raw=(CRUDE,)), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert fuel.REASON_SUPPLY_RAW not in _line(verdict, FUEL).reasons
+    assert _input_nets(verdict) == {CRUDE: -2 * CHAIN_PER_MACHINE}
+
+
+def test_a_consumer_starved_of_its_other_input_blocks_a_fire() -> None:
+    # Two refineries make 20 m3; a filler eats 10 m3 of it with an empty
+    # canister nobody makes. On the nominal net that FIRES at 125 MW - but a
+    # filler starved of canisters eats no fuel, so the net is not established.
+    registry = _chain_registry(R_FILL)
+    world = _world([_gen(GEN_FUEL), _maker(R_FUEL), _maker(R_FUEL), _maker(R_FILL)])
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert verdict.shortfall_megawatts is None
+    assert _input_nets(verdict) == {EMPTY: -CHAIN_PER_MACHINE}
+
+
+def test_a_chain_input_two_levels_up_is_found() -> None:
+    # Seed makes resin makes fuel. The resin balances; the seed is uncovered
+    # two recipes up, and only it is named.
+    registry = _chain_registry(R_SEED, R_RESIN)
+    world = _world(
+        [_gen(GEN_FUEL), _maker(R_RESIN), _maker(R_RESIN), _maker(R_SEED), _maker(R_SEED)]
+    )
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_INDETERMINATE
+    assert verdict.reasons == (fuel.REASON_SUPPLY_INPUT_UNCOVERED,)
+    assert _input_nets(verdict) == {SEED: -2 * CHAIN_PER_MACHINE}
+
+
+#: Every label a decided verdict's trace may carry - no chain input among them.
+DECISION_LABELS: Final = frozenset(
+    {
+        fuel.LABEL_NAMEPLATE,
+        fuel.LABEL_INSTANCES,
+        fuel.LABEL_CLOCK_SUM,
+        fuel.LABEL_DEMAND,
+        fuel.LABEL_ENERGY_VALUE,
+        fuel.LABEL_MEGAJOULES_PER_UNIT,
+        fuel.LABEL_NET_FLOW,
+        fuel.LABEL_SUPPLY,
+        fuel.LABEL_SUPPLY_MEGAWATTS,
+        fuel.LABEL_POOLED,
+        fuel.LABEL_SHORTFALL,
+        fuel.LABEL_HEADROOM,
+        fuel.LABEL_SHORTFALL_RATE,
+    }
+)
+
+
+@pytest.mark.parametrize(
+    ("clock", "expected"),
+    [(Fraction(1), fuel.VERDICT_REJECT), (Fraction(1, 2), fuel.VERDICT_FIRE)],
+)
+def test_a_chain_the_flow_covers_still_decides(clock: Fraction, expected: str) -> None:
+    # Crude made in the world as fast as the refineries crack it: every chain
+    # input is covered, so the fuel decides on its nominal net.
+    registry = _chain_registry(R_CRACK, R_DRILL)
+    makers = [_maker(R_CRACK, clock), _maker(R_CRACK, clock)]
+    drills = [_maker(R_DRILL, clock), _maker(R_DRILL, clock)]
+    verdict = _verdict(_audit(_world([_gen(GEN_FUEL), *makers, *drills]), registry), GEN_FUEL)
+    supply_mw = 2 * clock * CHAIN_PER_MACHINE * FUEL_MJ_PER_M3 / SIXTY
+    assert verdict.verdict == expected
+    assert verdict.reasons == ()
+    assert verdict.pooled_megawatts == supply_mw
+    assert {step.label for step in verdict.trace} <= DECISION_LABELS
+    if expected == fuel.VERDICT_FIRE:
+        assert verdict.shortfall_megawatts == FUEL_GEN_MW - supply_mw
+
+
+def test_a_solid_fuel_chain_is_never_walked() -> None:
+    # Only a known fluid's chain is walked: a solid is never measured, so its
+    # line names the solid reason alone and its uncovered seed is not traced.
+    registry = _chain_registry(R_PRESS)
+    verdict = _verdict(_audit(_world([_gen(GEN_COAL), _maker(R_PRESS)]), registry), GEN_COAL)
+    assert _line(verdict, COKE).reasons == ("solid-supply-unmodelled",)
+    assert verdict.reasons == ("solid-supply-unmodelled",)
+    assert {step.label for step in verdict.trace} <= DECISION_LABELS
+
+
+def test_a_recipe_cycle_in_the_chain_terminates() -> None:
+    # Fuel makes resin makes fuel, beside three refineries: the walk meets
+    # every recipe once, the resin balances, and the fuel decides.
+    registry = _chain_registry(R_RESIN, R_LOOP)
+    world = _world([_gen(GEN_FUEL), *[_maker(R_FUEL)] * 3, _maker(R_LOOP), _maker(R_RESIN)])
+    verdict = _verdict(_audit(world, registry), GEN_FUEL)
+    assert verdict.verdict == fuel.VERDICT_REJECT
+    assert _line(verdict, FUEL).supply_per_minute == 3 * FUEL_M3_PER_REFINERY
+    assert {step.label for step in verdict.trace} <= DECISION_LABELS
 
 
 # ---------------------------------------------------------------------------
@@ -1414,6 +2094,96 @@ def test_every_reason_is_closed_vocabulary_with_a_detail_line() -> None:
         assert detail.strip()
 
 
+#: The reporting order slice C renders, spelled out so that a reordered or
+#: renamed vocabulary fails here rather than reading back its own constants.
+SUPPLY_ORDER: Final = (
+    "solid-supply-unmodelled",
+    "supply-raw",
+    "supply-unmeasured",
+    "supply-input-uncovered",
+    "class-unregistered",
+)
+DEMAND_ORDER: Final = (
+    "fuels-unread",
+    "production-gap",
+    "instances-omitted",
+    "boost-unmodeled",
+    "clock-unread",
+    "clock-refused",
+    "energy-unknown",
+)
+INDETERMINATE_ORDER: Final = (
+    *DEMAND_ORDER,
+    "flow-incomplete",
+    *SUPPLY_ORDER,
+    "fuel-shared",
+    "fuel-sharing-unknown",
+)
+
+
+def test_the_reason_vocabularies_are_in_their_fixed_order() -> None:
+    assert fuel.SUPPLY_REASONS == SUPPLY_ORDER
+    assert fuel.DEMAND_REASONS == DEMAND_ORDER
+    assert fuel.INDETERMINATE_REASONS == INDETERMINATE_ORDER
+    # The upstream-shortfall ruling's detail line, verbatim.
+    assert fuel.REASON_DETAIL[fuel.REASON_SUPPLY_INPUT_UNCOVERED] == (
+        "an input in this fuel's production chain is consumed faster than the production"
+        " flow makes it - supplied from outside, by an extractor whose rate is unknown, by"
+        " hand, or not at all - so the fuel's nameplate output is not established, and no"
+        " derated figure is estimated"
+    )
+
+
+def test_a_fluid_line_carries_every_supply_reason_that_applies_in_order() -> None:
+    # The liquid fuel declared raw, eaten by a packager in the census, cracked
+    # from crude nobody makes, beside a mod buildable: all four non-solid
+    # supply reasons, on the line and on the class, in SUPPLY_ORDER.
+    registry = _chain_registry(R_CRACK)
+    world = _world(
+        [_gen(GEN_FUEL), _maker(R_CRACK)],
+        unadmitted_read=((PACKAGER, 1), (MOD_BUILD, 1)),
+    )
+    verdict = _verdict(_audit(world, registry, raw=(FUEL,)), GEN_FUEL)
+    expected = SUPPLY_ORDER[1:]
+    assert _line(verdict, FUEL).reasons == expected
+    assert verdict.reasons == expected
+
+
+def test_flow_incomplete_is_reported_before_the_supply_reasons() -> None:
+    world = _covered_fuel_world(_maker(R_UNKNOWN), unadmitted_read=((PACKAGER, 1),))
+    verdict = _verdict(_audit(world), GEN_FUEL)
+    assert verdict.reasons == ("flow-incomplete", "supply-unmeasured")
+
+
+def test_an_item_the_registry_lacks_carries_its_supply_reasons() -> None:
+    # A fuel the registry never described is no known fluid, so its supply is
+    # None under the class's energy reason - and the supply reasons that apply
+    # to it still ride on its line.
+    unknown = "Desc_SyntheticNeverAuthoredQx85_C"
+    registry = _with_generator(GEN_FUEL, (unknown,))
+    blocked = _audit(_covered_fuel_world(unadmitted_read=((MOD_BUILD, 1),)), registry)
+    verdict = _verdict(blocked, GEN_FUEL)
+    assert verdict.fuels[0].reasons == ("class-unregistered",)
+    assert verdict.fuels[0].supply_per_minute is None
+    assert verdict.reasons == ("energy-unknown", "class-unregistered")
+    raw = _verdict(_audit(_covered_fuel_world(), registry, raw=(unknown,)), GEN_FUEL)
+    assert raw.fuels[0].reasons == ("supply-raw",)
+    assert raw.reasons == ("energy-unknown", "supply-raw")
+
+
+def test_a_solid_line_carries_the_solid_reason_alone() -> None:
+    # Declared raw, beside a mod buildable and a miner that yields it: a solid
+    # line still names only that no flow measures solids.
+    world = _world(
+        [_gen(GEN_COAL), _maker(R_COAL), _recipe_less(MINER)],
+        unadmitted_read=((MOD_BUILD, 1),),
+    )
+    verdict = _verdict(_audit(world, raw=(COAL,)), GEN_COAL)
+    for line in verdict.fuels:
+        assert line.reasons == ("solid-supply-unmodelled",)
+    assert verdict.reasons == ("solid-supply-unmodelled",)
+
+
 # ---------------------------------------------------------------------------
 # The demand-only result
 # ---------------------------------------------------------------------------
@@ -1488,15 +2258,117 @@ def test_a_solid_fuel_puts_no_supply_figure_in_the_trace() -> None:
     assert fuel.LABEL_DEMAND in labels
 
 
-def test_the_trace_is_deterministic() -> None:
-    def build() -> fuel.WorldFuel:
-        return _supply(
-            [_gen(GEN_TWIN), _gen(GEN_FUEL, Fraction(1, 2)), _gen(GEN_COAL)],
-            _flow(_maker(R_TURBO), _maker(R_FUEL)),
-            unadmitted_read=((PLAYER, 1), (REFINERY, 1)),
-        )
+def _busy_world_result() -> fuel.WorldFuel:
+    """One world in which a single class collects ten reasons at once.
 
-    assert build() == build()
+    Ten strings in a set iterate in an order the hash seed decides, so any
+    reason tuple built from set order differs between interpreters.
+    """
+    world = _world(
+        [
+            _gen(GEN_FUEL),
+            _gen(GEN_FUEL, None),
+            _gen(GEN_FUEL, boosted=True),
+            _gen(GEN_MIXED),
+            _gen(GEN_TWIN),
+            _gen(GEN_SHARE),
+            _gen(GEN_GARBLED),
+            _maker(R_CRACK),
+            _maker(R_TURBO),
+            _maker(R_UNKNOWN),
+        ],
+        unadmitted_read=((PACKAGER, 1), (PLAYER, 2)),
+        unadmitted_unread=((GEN_FUEL, 1), (MOD_BUILD, 1)),
+    )
+    return _audit(world, _chain_registry(R_CRACK), raw=(FUEL,))
+
+
+def _canonical(value: object) -> object:
+    """Render a result whole and in its own order, every Fraction exactly."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return {field.name: _canonical(getattr(value, field.name)) for field in fields(value)}
+    if type(value) is Fraction:
+        return f"{value.numerator}/{value.denominator}"
+    if isinstance(value, Mapping):
+        return [[_canonical(key), _canonical(member)] for key, member in value.items()]
+    if isinstance(value, tuple | list):
+        return [_canonical(member) for member in value]
+    return value
+
+
+def test_every_reason_tuple_is_in_its_canonical_order() -> None:
+    result = _busy_world_result()
+    verdict = _verdict(result, GEN_FUEL)
+    assert verdict.reasons == (
+        "instances-omitted",
+        "boost-unmodeled",
+        "clock-unread",
+        "flow-incomplete",
+        "supply-raw",
+        "supply-unmeasured",
+        "supply-input-uncovered",
+        "class-unregistered",
+        "fuel-shared",
+        "fuel-sharing-unknown",
+    )
+    assert _line(verdict, FUEL).reasons == SUPPLY_ORDER[1:]
+    assert verdict.shared_with == (GEN_MIXED,)
+    mixed = _verdict(result, GEN_MIXED)
+    assert mixed.reasons == (
+        "flow-incomplete",
+        "solid-supply-unmodelled",
+        "supply-raw",
+        "supply-unmeasured",
+        "supply-input-uncovered",
+        "class-unregistered",
+        "fuel-shared",
+        "fuel-sharing-unknown",
+    )
+    assert _verdict(result, GEN_GARBLED).reasons == (
+        "fuels-unread",
+        "flow-incomplete",
+        "supply-unmeasured",
+        "class-unregistered",
+    )
+    assert _demand(result.demands, GEN_FUEL).reasons == (
+        "instances-omitted",
+        "boost-unmodeled",
+        "clock-unread",
+    )
+
+
+#: The hash seeds the cross-interpreter comparison runs under.
+_HASH_SEEDS: Final = (0, 1, 2, 3, 4, 5)
+
+_SEED_CHILD: Final = (
+    "import json\n"
+    "from tests.audit import test_fuel as module\n"
+    "print(json.dumps(module._canonical(module._busy_world_result())))\n"
+)
+
+
+def test_the_result_is_identical_under_every_hash_seed() -> None:
+    # One process building the result twice shares one hash seed, so it can
+    # never see set-order drift. Each child interpreter runs under its own.
+    root = Path(__file__).absolute().parents[2]
+    children = [
+        subprocess.Popen(
+            [sys.executable, "-B", "-c", _SEED_CHILD],
+            cwd=root,
+            env={**os.environ, "PYTHONHASHSEED": str(seed)},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for seed in _HASH_SEEDS
+    ]
+    outputs = []
+    for child in children:
+        out, _ = child.communicate(timeout=120)
+        assert child.returncode == 0
+        outputs.append(out)
+    assert outputs[0] == json.dumps(_canonical(_busy_world_result())) + "\n"
+    assert len(set(outputs)) == 1
 
 
 def _floats(value: object, path: str = "result") -> list[str]:
