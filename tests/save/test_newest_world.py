@@ -110,6 +110,25 @@ def refused_subjects(model: world.WorldModel) -> list[str]:
     ]
 
 
+def flags_render_none_of(model: world.WorldModel, fragments: Iterable[str]) -> bool:
+    """Whether no fallback flag's repr carries any of ``fragments``.
+
+    A helper rather than inline so the rendered text lives in THIS frame, which
+    holds no assertion, and never in a test's frame at an assert.
+
+    Args:
+        model: The world the walk handed up.
+        fragments: Text that must not appear - file names and their directory.
+
+    Returns:
+        True when no flag renders any fragment.
+    """
+    rendered = "".join(
+        repr(warning) for warning in model.warnings if warning.code == world.WARN_NEWER_SAVE_REFUSED
+    )
+    return all(fragment not in rendered for fragment in fragments)
+
+
 class Recorder:
     """A fake ``load`` that refuses the planted names it is told to, else loads.
 
@@ -173,18 +192,20 @@ def test_the_flag_names_the_stage_the_cause_and_the_mtime_and_never_the_file(
 
     model = walked((newest, older), load=load)
 
-    flags = [w for w in model.warnings if w.code == world.WARN_NEWER_SAVE_REFUSED]
-    count = len(flags)
+    # NO WARNING IS BOUND TO A LOCAL: each read is reduced to a scalar inline,
+    # so nothing the warning's own repr withholds is in this frame at an assert.
+    count = sum(1 for w in model.warnings if w.code == world.WARN_NEWER_SAVE_REFUSED)
     assert count == 1
-    flag = flags[0]
-    named = (flag.subject or "") == f"objects.ObjectFormatError.{NEWER_STAMP}"
+    named = refused_subjects(model) == [f"objects.ObjectFormatError.{NEWER_STAMP}"]
     assert named, "the flag did not name the stage, the cause and the time"
-    from_world = flag.source == world.SOURCE_WORLD
+    from_world = all(
+        w.source == world.SOURCE_WORLD
+        for w in model.warnings
+        if w.code == world.WARN_NEWER_SAVE_REFUSED
+    )
     assert from_world
-    rendered = repr(flag)
-    name_free = all(
-        fragment not in rendered
-        for fragment in ("Refused", "Readable", "autosave", tmp_path.name, str(tmp_path))
+    name_free = flags_render_none_of(
+        model, ("Refused", "Readable", "autosave", tmp_path.name, str(tmp_path))
     )
     assert name_free, "the flag rendered the file name or its directory"
 
