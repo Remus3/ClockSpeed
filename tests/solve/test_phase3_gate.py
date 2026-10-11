@@ -14,7 +14,9 @@ Six sections, each a separate block below:
 a. No ``*.py`` under ``clockspeed/solve/`` contains a float or complex literal,
    a reference to ``float`` or ``complex``, an exponentiation operator, a call
    to ``pow``/``round``/``divmod``, or an import of ``math``, ``cmath``,
-   ``statistics``, ``decimal``, ``random``, ``numpy`` or ``scipy``.
+   ``statistics``, ``decimal``, ``random``, ``numpy`` or ``scipy``. The same
+   predicates hold over the pinned audit modules that decide on exact figures
+   (``EXACT_AUDIT_SOURCES``, CS-1285).
 b. Every one of those predicates is fed a synthetic source string containing
    exactly the construct it forbids, and asserted to flag it.
 c. Importing any solve module pulls in no layer it may not reach, measured in a
@@ -92,7 +94,8 @@ Section (b) needs synthetic source strings that CONTAIN the banned constructs,
 and section (e) needs the banned tolerance words as data in order to hunt them.
 Both are ordinary ``ast.Constant`` values and identifiers in THIS file. So:
 
-- The section (a) scan is scoped to ``clockspeed/solve/`` and does not walk
+- The section (a) scan is scoped to ``clockspeed/solve/`` plus the pinned
+  ``EXACT_AUDIT_SOURCES`` under ``clockspeed/audit/``, and does not walk
   ``tests/``. If it were ever extended to cover the test tree it would flag this
   module, and the correct response would be to exclude this file explicitly, not
   to soften the predicates.
@@ -515,6 +518,43 @@ def test_the_scan_ignores_the_docstring_that_quotes_the_banned_measurement(relat
         f"clockspeed/solve/{relative} scans dirty, and the only banned spelling in it is "
         "inside a docstring - the scan has regressed to reading text"
     )
+
+
+# The scan's scope extended past the package (CS-1285): an audit module that
+# DECIDES by comparing exact Fractions is held to the same predicates. The
+# runtime audit_exact walk on its results cannot see a float that is used and
+# discarded - ``float(pooled) < float(demand)`` flips a verdict and leaves every
+# published figure a Fraction - which is the case only a static scan reaches.
+AUDIT_PACKAGE = REPO_ROOT / "clockspeed" / "audit"
+EXACT_AUDIT_SOURCES: tuple[str, ...] = ("fuel.py",)
+
+
+@pytest.mark.parametrize("relative", EXACT_AUDIT_SOURCES)
+def test_no_exact_audit_module_contains_inexact_arithmetic(relative: str) -> None:
+    """Non-negotiable 6 over the audit modules that decide on exact figures."""
+    violations = inexact_violations((AUDIT_PACKAGE / relative).read_text(encoding="utf-8"))
+    listed = "\n  ".join(violations)
+    assert not violations, f"inexact arithmetic in clockspeed/audit/{relative}:\n  {listed}"
+
+
+@pytest.mark.parametrize(
+    ("anchor", "spliced"),
+    [
+        ("if pooled < demand:", "if float(pooled) < float(demand):"),
+        ("supply = max(net, Fraction(0))", "supply = max(net, 0.0)"),
+        ("from fractions import Fraction", "from fractions import Fraction\nimport math"),
+    ],
+    ids=["float-comparison", "float-literal", "math-import"],
+)
+def test_the_scan_sees_a_float_spliced_into_the_real_fuel_audit(anchor: str, spliced: str) -> None:
+    """The extended scope is live: the real module, one construct spliced in, scans dirty.
+
+    Asserted against the REAL file, so a scan that stopped reading it - or an
+    anchor that drifted out of it - fails here instead of passing vacuously.
+    """
+    source = (AUDIT_PACKAGE / "fuel.py").read_text(encoding="utf-8")
+    assert source.count(anchor) == 1, f"the anchor {anchor!r} is no longer unique in fuel.py"
+    assert inexact_violations(source.replace(anchor, spliced))
 
 
 # ===========================================================================
