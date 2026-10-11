@@ -125,6 +125,13 @@ _TILDE: Final = r"(?:~|%7e|&#0*126;|&#x0*7e;)"
 #: One or more separators, each optionally after a ``.`` or ``..`` segment.
 _DOTTED: Final = rf"(?:\.{{0,2}}{_SEP})+"
 
+#: The left edge of a drive-relative spelling: no ASCII letter or digit before it, so an
+#: underscore or other punctuation glued in front does not block a match (CS-1308).
+_EDGE: Final = r"(?<![A-Za-z0-9])"
+
+#: A single-letter option glued in front - ``-C``, ``-e``, ``-I`` - itself at an edge.
+_GLUED: Final = rf"(?<={_EDGE}-[A-Za-z])"
+
 #: A drive-rooted spelling of the project folder, any case, for any drive letter:
 #: ``X:\Clockspeed`` or ``X:/Clockspeed``, with ``.`` and ``..`` segments
 #: (``X:.\``, ``X:\.\``), drive-relative ``X:Clockspeed``, Git Bash's
@@ -132,14 +139,17 @@ _DOTTED: Final = rf"(?:\.{{0,2}}{_SEP})+"
 #: ``x$`` behind any prefix (``\\host\``, ``\\?\UNC\host\``, ``\\.\UNC\host\``), a
 #: ``\\?\Volume{<guid>}\`` path, and the folder's 8.3 short name ``CLOCKS~<n>`` -
 #: every separator, colon, dollar and tilde also URL-encoded or as an HTML entity.
-#: CS-1308: Git Bash's form also glued to a ``-C`` option or JSON-escaped, and the short
-#: name glued to any prefix.
+#: CS-1308: Git Bash's form also JSON-escaped; Git Bash, WSL and Cygwin forms with
+#: repeated separators and ``.`` or ``..`` segments, as the drive form takes them; a
+#: drive-relative or Git Bash form behind an underscore or a glued single-letter option;
+#: and the short name behind anything but a letter, so ``-CLOCKS~1`` is read and
+#: ``overclocks~150%`` is not.
 ABSOLUTE_CHECKOUT_RE: Final = re.compile(
-    rf"(?:[A-Za-z]{_COLON}{_DOTTED}|(?<!\w)[A-Za-z]{_COLON}"
-    rf"|(?:(?<![\w.~/\\-])|(?<=-C)){_SEP}[A-Za-z]{_SEP}"
-    rf"|{_SEP}(?:mnt|cygdrive){_SEP}[A-Za-z]{_SEP}"
+    rf"(?:[A-Za-z]{_COLON}{_DOTTED}|(?:{_EDGE}|{_GLUED})[A-Za-z]{_COLON}"
+    rf"|(?:(?<![A-Za-z0-9.~/\\-])|{_GLUED}){_SEP}[A-Za-z]{_DOTTED}"
+    rf"|{_SEP}(?:mnt|cygdrive){_DOTTED}[A-Za-z]{_DOTTED}"
     rf"|{_SEP}[A-Za-z]{_DOLLAR}{_DOTTED}|{_SEP}Volume\{{[0-9A-Fa-f-]+\}}{_DOTTED})"
-    rf"Clockspeed|CLOCKS{_TILDE}\d",
+    rf"Clockspeed|(?<![A-Za-z])CLOCKS{_TILDE}\d",
     re.IGNORECASE,
 )
 
@@ -653,6 +663,15 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("E:\\u005cClockspeed", True),
         ("E\\x3a\\x5cClockspeed", True),
         ("\\u002fe\\u002fClockspeed", True),
+        ("cd /d//Clockspeed", True),
+        ("cd /d/./Clockspeed", True),
+        ("/mnt/d//Clockspeed", True),
+        ("cd /mnt/./d/Clockspeed", True),
+        ("gcc -e/d/Clockspeed", True),
+        ("cc -I/d/Clockspeed/include", True),
+        ("_/d/Clockspeed_", True),
+        ("x_E:Clockspeed", True),
+        ("-CLOCKS~1", True),
         ("root is `<repo>` on E:", False),
         ("https://github.com/Remus3/Clockspeed", False),
         ("/srv/work/Clockspeed/Clockspeed", False),
@@ -663,6 +682,8 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("`git show HEAD~1`", False),
         ('"x\\/b\\/Clockspeed"', False),
         ("Clockspeed~1", False),
+        ("overclocks~150%", False),
+        ("a-b/d/Clockspeed", False),
     ],
     ids=[
         "drive-backslash",
@@ -700,6 +721,15 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "unicode-escape-backslash",
         "hex-escape-colon-backslash",
         "unicode-escape-git-bash",
+        "git-bash-doubled-separator",
+        "git-bash-dot-segment",
+        "wsl-doubled-separator",
+        "wsl-dot-segment",
+        "glued-option-e",
+        "glued-option-i",
+        "underscore-git-bash",
+        "underscore-drive-relative",
+        "short-name-after-dash",
         "scrubbed",
         "url",
         "ci",
@@ -710,6 +740,8 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "git-ancestry",
         "json-escaped-relative",
         "long-name-tilde",
+        "overclock-percent",
+        "hyphenated-relative",
     ],
 )
 def test_the_checkout_path_pattern_catches_every_spelling(text: str, *, hit: bool) -> None:
@@ -727,91 +759,128 @@ def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:
 
 
 #: CS-1308 - the ruled kept set, pinned by line CONTENT; the session 137 decision record
-#: in ``docs/LEDGER.md`` gives each line's reason. Per path, one (SHA-256 of the line's
-#: full text with only its newline stripped, that line's match count) pair for every line
-#: that spells the checkout root. An added, changed, moved or doubled spelling changes the
+#: in ``docs/LEDGER.md`` gives each line's reason. Per path, the SHA-256 of the full text,
+#: newline stripped, of every line that spells the checkout root - the text fixes how
+#: many spellings the line holds. An added, changed, moved or doubled spelling changes the
 #: multiset; an edit that only shifts line numbers does not. The root is the operator's
 #: chosen location, not personal data: these lines state it where the topology
 #: (``CLAUDE.md`` section 2, ``BOOTSTRAP.md`` section 2), a settled entry (``CLAUDE.md``
 #: section 7, ``BOOTSTRAP.md`` section 11) or the move's own record (ADR 0026) must, and
 #: anywhere else a spelling is written ``<repo>`` in CS-1292's style. This file's own
 #: pattern lines - the comment above the pattern, the mutation arm's cases and the planted
-#: spellings - are kept the same way, line by line; the file itself is never exempt. A pair
-#: that moves is a reviewed change to this table.
-KEPT_CHECKOUT_LINES: Final[dict[str, tuple[tuple[str, int], ...]]] = {
+#: spellings - are kept the same way, line by line; the file itself is never exempt. A
+#: digest that moves is a reviewed change to this table.
+KEPT_CHECKOUT_LINES: Final[dict[str, tuple[str, ...]]] = {
     "BOOTSTRAP.md": (
         # section 2, the project-root row
-        ("653272d5dc9af6e07a1f4fa63c1b4bfe773dd3a6b98c181b3a03267711edfc8f", 1),
+        "653272d5dc9af6e07a1f4fa63c1b4bfe773dd3a6b98c181b3a03267711edfc8f",
         # section 11, the settled entry
-        ("bfc227c2eae7f1069667af8c8fef47ac0ba4ef324e178667614c68ae60626f04", 1),
+        "bfc227c2eae7f1069667af8c8fef47ac0ba4ef324e178667614c68ae60626f04",
     ),
     "CLAUDE.md": (
         # section 2, the project-root line
-        ("42d5f6fc7e66bb738c3166f9f03e47f132628b5c39d61f9a5651f24d3e04c461", 1),
+        "42d5f6fc7e66bb738c3166f9f03e47f132628b5c39d61f9a5651f24d3e04c461",
         # section 7, the settled entry
-        ("19bd7c89374e3465c9eda1818a13682aeac972fc4ea549e97356a9ecc2df8481", 1),
+        "19bd7c89374e3465c9eda1818a13682aeac972fc4ea549e97356a9ecc2df8481",
     ),
     "docs/adr/0026-the-root-moves-to-e.md": (
         # the old root and its reversal clause
-        ("0cd8b055635bf2706992c7f7f0ce8d125753f15723528d6870fa7639ca7cf898", 1),
+        "0cd8b055635bf2706992c7f7f0ce8d125753f15723528d6870fa7639ca7cf898",
         # decision 1, the root
-        ("3c8dd2d49dcd4efb65532581dadf559f248cb953653f57b0fa228358de8358f1", 1),
+        "3c8dd2d49dcd4efb65532581dadf559f248cb953653f57b0fa228358de8358f1",
         # the copy of the whole root
-        ("a5f62a17c27c29afb62136200cd9c7876d208ea1e27ba9436d56effd9df4a744", 1),
+        "a5f62a17c27c29afb62136200cd9c7876d208ea1e27ba9436d56effd9df4a744",
         # the old root held as a working directory
-        ("0ce9f2ed438915a402c460efbd806474a42f9a4a79428e21a93708af92322a16", 1),
+        "0ce9f2ed438915a402c460efbd806474a42f9a4a79428e21a93708af92322a16",
         # the old root recycled, the junction from it
-        ("abbe0f35037dbe1c1d3062ec0c10b5d4bd8ba9183731676b1f267d3221f5eb35", 2),
+        "abbe0f35037dbe1c1d3062ec0c10b5d4bd8ba9183731676b1f267d3221f5eb35",
         # the junction's target
-        ("8de51609b17b8d3424d990775a134e49fec3f061cc334c5e311aca929697a338", 1),
+        "8de51609b17b8d3424d990775a134e49fec3f061cc334c5e311aca929697a338",
         # where the lanes now land
-        ("526845ad38b6d39ef3b5d9c041a872dfa07207816fea80f793880b4af2061bc5", 1),
+        "526845ad38b6d39ef3b5d9c041a872dfa07207816fea80f793880b4af2061bc5",
     ),
     "tests/test_readme_audit.py": (
         # in file order: the pattern comment above ABSOLUTE_CHECKOUT_RE, every case of
         # the mutation arm that spells the root, then _PLANTED and _PLANTED_WSL
-        ("36155fe426789ec47d1b9f35957783384babb31373a83800fdccd500751495e4", 2),
-        ("3c4e047afba7b7d6871cefd3b98103814891c1b859049b6a526d8883e92dcfe9", 1),
-        ("ff6bd9dbb3aa0112afcaddac669eee1498db0a095ba96a6e3843d2fb2aee6505", 1),
-        ("c3dce4344007a7401292c713bac4b598553e89e2709960cdfe2b1c1e39257c94", 1),
-        ("c85d103fc7fea652f89d57761bf62a19b0cb5de95c393d48b41552abb13e57ee", 1),
-        ("e3275333f39fbfacbbfe1f3a013b61e371560d6a87c889618ee0e54e68dcd48f", 1),
-        ("a765c10c2d3fe215a5624582cf6c49027a1da7c28847249e426c621ee845203a", 1),
-        ("3e0b154fa853df327a6662daa98b4252a43658a4c4ff4387e093734b8c681e2c", 1),
-        ("ae1b511a5406fd92194c1ad8fe9947213623936d0bb5d26f1a2373f2186456e3", 1),
-        ("c5517dab387bfb7e9e1714fd5fe1e2b5a301d6e3cc143e78aa6f1345ba1b2943", 1),
-        ("1064a3e15e34d629a0cb7d7714351e4e645725ed533671ebdd327cedb92c87cb", 1),
-        ("d37e812dba81f09ba1018aff47b2eb26cc93cec76da6e53ee4154d377f2c0b14", 1),
-        ("c8299ae6526a47e90a044063a4a65947278f8ebb1282655f9f6091c77188e1a8", 1),
-        ("d03e485d9eb7e0e40f8dadc91d7533133ff8764b151fda642798ec6a864b3d4c", 1),
-        ("4cf2e60fbfce1afe19dd340939cca050fc18b1c9a361e81f5ea92b44e1b7845e", 1),
-        ("d993bcb2967ce7921faeadfdf800e5a4e0ccbdb5c501593b9ad3d61bc329761f", 1),
-        ("f1960f6edc47b637c7184a22a9c5615f0b4dbfa40272fe8b8bcadc9eb4245103", 1),
-        ("563986b106d28e14346c0e2b99e4ba8d8ea40a8a4d72666edbdd20a58aadb493", 1),
-        ("ce93bb55a41b008346b1e709b891039e3dfb9683f57c42a4907bb59c4371de0f", 1),
-        ("dcfbc7420da02c15dd9e9cdd1a68c37c652c9d183b6f2df4517d207a0ad911e6", 1),
-        ("e718d3809f82495366d21ec589a50cf451a156965c31492faa7489e63a21032d", 1),
-        ("9827f915757023e1fb3981cbc9165883dd2925217179f40521a6bdbe5309946e", 1),
-        ("5710baac94e64651d087815eb814740126fd853c4488822027a88eb812e52cf8", 1),
-        ("1805554f8ff4669176fe037fa988151d6b59d8f2efc37e1324f47a68e79c01fc", 1),
-        ("ff7a95b1d8816a3abc3c763058841c5c902f91fabda4cc200afc17fe245c7ca0", 1),
-        ("dd23da1b500a423d7e4b72387ac987885b59be297334e4ce53eece540a17bc8c", 1),
-        ("b640e050a9176547cd20c2b50f59838db6f66b25f7d952c8ed03961cd86636c4", 1),
-        ("464b9845899f3316f8e134489a5055ce340c8c442cf9de8fd12d4420856eb87d", 1),
-        ("29a59663ecf73094df403d6eaf8a3f475b76bb9f82efeeae62a983c1edb601e1", 1),
-        ("d781a501c2268385caa7e6823ce2f7bbf533d9e2574fda2cef651e96fba72a27", 1),
-        ("8b494077970b22dba858319aea1b99e74dc208ce1d82cc262e3b7df952f6f455", 1),
-        ("ea8cf6d31d4be854fb5dd00340ae6d0cab3a6d1f5a0f041c4bcea18becb8cedd", 1),
-        ("9d9c18b5329f7acddba7f953793e50cbe1db87aef551167489fe659df404b647", 1),
-        ("298a07aa90bbff722c3f9d650a5fbafd15f7c2dee5f3587cb512bff6ece58797", 1),
-        ("d52d748fd02207812d8d0560f386ff2adc92114a43e658aa60384ea21f7521c6", 1),
-        ("58c6c0b3d1aac22db6de9d6c0278b65c16864b9ff485d3bbb55483d90c5fdeb2", 1),
-        ("60f66fa99149fe09fe3bd3d2c04e814f98d207163e377d8752e753d2513db538", 1),
-        ("42bbaec604fb6810af26cc6019caad5a54e1596b38370ded4c0ee3b9a472d7da", 1),
-        ("918f5d4c66a6e4ff427f8769be9fc80e5fb70e3b1829e24b8db3efe0b4888c7b", 1),
-        ("d34ba214fd2a6d3219adad39a5dc60fb2bcbcfc212f5a2d4080ecaf59d43210a", 1),
+        "36155fe426789ec47d1b9f35957783384babb31373a83800fdccd500751495e4",
+        "3c4e047afba7b7d6871cefd3b98103814891c1b859049b6a526d8883e92dcfe9",
+        "ff6bd9dbb3aa0112afcaddac669eee1498db0a095ba96a6e3843d2fb2aee6505",
+        "008ecd403dca3db9a10cc94fb69a2dc4c314c66687174d562fcaae8620106714",
+        "c3dce4344007a7401292c713bac4b598553e89e2709960cdfe2b1c1e39257c94",
+        "c85d103fc7fea652f89d57761bf62a19b0cb5de95c393d48b41552abb13e57ee",
+        "e3275333f39fbfacbbfe1f3a013b61e371560d6a87c889618ee0e54e68dcd48f",
+        "a765c10c2d3fe215a5624582cf6c49027a1da7c28847249e426c621ee845203a",
+        "3e0b154fa853df327a6662daa98b4252a43658a4c4ff4387e093734b8c681e2c",
+        "ae1b511a5406fd92194c1ad8fe9947213623936d0bb5d26f1a2373f2186456e3",
+        "c5517dab387bfb7e9e1714fd5fe1e2b5a301d6e3cc143e78aa6f1345ba1b2943",
+        "1064a3e15e34d629a0cb7d7714351e4e645725ed533671ebdd327cedb92c87cb",
+        "d37e812dba81f09ba1018aff47b2eb26cc93cec76da6e53ee4154d377f2c0b14",
+        "c8299ae6526a47e90a044063a4a65947278f8ebb1282655f9f6091c77188e1a8",
+        "d03e485d9eb7e0e40f8dadc91d7533133ff8764b151fda642798ec6a864b3d4c",
+        "4cf2e60fbfce1afe19dd340939cca050fc18b1c9a361e81f5ea92b44e1b7845e",
+        "d993bcb2967ce7921faeadfdf800e5a4e0ccbdb5c501593b9ad3d61bc329761f",
+        "f1960f6edc47b637c7184a22a9c5615f0b4dbfa40272fe8b8bcadc9eb4245103",
+        "563986b106d28e14346c0e2b99e4ba8d8ea40a8a4d72666edbdd20a58aadb493",
+        "ce93bb55a41b008346b1e709b891039e3dfb9683f57c42a4907bb59c4371de0f",
+        "dcfbc7420da02c15dd9e9cdd1a68c37c652c9d183b6f2df4517d207a0ad911e6",
+        "e718d3809f82495366d21ec589a50cf451a156965c31492faa7489e63a21032d",
+        "9827f915757023e1fb3981cbc9165883dd2925217179f40521a6bdbe5309946e",
+        "5710baac94e64651d087815eb814740126fd853c4488822027a88eb812e52cf8",
+        "1805554f8ff4669176fe037fa988151d6b59d8f2efc37e1324f47a68e79c01fc",
+        "ff7a95b1d8816a3abc3c763058841c5c902f91fabda4cc200afc17fe245c7ca0",
+        "dd23da1b500a423d7e4b72387ac987885b59be297334e4ce53eece540a17bc8c",
+        "b640e050a9176547cd20c2b50f59838db6f66b25f7d952c8ed03961cd86636c4",
+        "464b9845899f3316f8e134489a5055ce340c8c442cf9de8fd12d4420856eb87d",
+        "29a59663ecf73094df403d6eaf8a3f475b76bb9f82efeeae62a983c1edb601e1",
+        "d781a501c2268385caa7e6823ce2f7bbf533d9e2574fda2cef651e96fba72a27",
+        "8b494077970b22dba858319aea1b99e74dc208ce1d82cc262e3b7df952f6f455",
+        "ea8cf6d31d4be854fb5dd00340ae6d0cab3a6d1f5a0f041c4bcea18becb8cedd",
+        "9d9c18b5329f7acddba7f953793e50cbe1db87aef551167489fe659df404b647",
+        "298a07aa90bbff722c3f9d650a5fbafd15f7c2dee5f3587cb512bff6ece58797",
+        "d52d748fd02207812d8d0560f386ff2adc92114a43e658aa60384ea21f7521c6",
+        "58c6c0b3d1aac22db6de9d6c0278b65c16864b9ff485d3bbb55483d90c5fdeb2",
+        "60f66fa99149fe09fe3bd3d2c04e814f98d207163e377d8752e753d2513db538",
+        "42bbaec604fb6810af26cc6019caad5a54e1596b38370ded4c0ee3b9a472d7da",
+        "3d49b9659220e62d9b2c3fca517187b54d167b12e059f5cd778dbd1f6ed6b0ed",
+        "bfb8bce76f3bc1dd563a3de14fb258771fd0496c41194a7fb8ed159a75d8f74c",
+        "086bfb644abf96cc2763e85999fb67b2ee0d1145e0b50caf6276e497fb099ad8",
+        "dac85b8d7186b7ef84b529276ad04805e8662057735630e0fc7e73febef709fe",
+        "bb14c777623a1b22ecb345ea4a25c40df324ff2313600729118920f0a2bce9db",
+        "cc010aa5383b83a6ab19dcb3e2051366335d5765887bb28f4204d41cca6a20fd",
+        "a6b9ac6679369a07d99d815db788789ce41929b51163a78fcc1ae7a893d7a159",
+        "5acb9f670c3ce5c9a0d34da320fbbe3c652f7d3308ebdbb326c160861c4e53a5",
+        "8674602e485565d1b36140bb71e7775cb1c2c501a8208508b9e5b4488fd81165",
+        "918f5d4c66a6e4ff427f8769be9fc80e5fb70e3b1829e24b8db3efe0b4888c7b",
+        "d34ba214fd2a6d3219adad39a5dc60fb2bcbcfc212f5a2d4080ecaf59d43210a",
     ),
 }
+
+#: Git variables that would point a child process at another repository's state.
+_GIT_REDIRECTS: Final = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+)
+
+#: The index mode of a symlink: its blob is the link's text, which git publishes.
+_SYMLINK_MODE: Final = "120000"
+
+#: The index mode of a gitlink: it names a commit of another repository, and a commit id
+#: is hexadecimal, which cannot spell the root.
+_GITLINK_MODE: Final = "160000"
+
+#: The fields of one ``git ls-files -s`` entry before its tab: mode, blob id, stage.
+_INDEX_FIELDS: Final = 3
+
+
+def _git_env() -> dict[str, str]:
+    """This process's environment without the variables that redirect git elsewhere."""
+    return {name: value for name, value in os.environ.items() if name not in _GIT_REDIRECTS}
+
 
 #: The byte-order marks that make the path guard also read a file as UTF-16 and UTF-32.
 _WIDE_BOMS: Final = (
@@ -825,35 +894,56 @@ _WIDE_BOMS: Final = (
 _WIDE_CODECS: Final = (("utf-16-le", 2), ("utf-16-be", 2), ("utf-32-le", 4), ("utf-32-be", 4))
 
 
-def _decodings(data: bytes) -> list[str] | None:
-    """Every view of a tracked file the path guard reads, or None when nothing decodes it.
+def _wide_reads(data: bytes, errors: str) -> list[str]:
+    """``data`` read as UTF-16 and UTF-32, both byte orders, at every alignment.
 
-    Strict UTF-8 first. A file carrying a NUL or a UTF-16 or UTF-32 byte-order mark is
-    also read strictly as UTF-16 and UTF-32 in both byte orders at every alignment, so a
-    wide re-encoding cannot hide a spelling; a view that does not decode is dropped. A file
-    strict UTF-8 refuses is also read byte for byte as latin-1, which finds an ASCII
-    spelling inside binary or 8-bit text - but that view alone never makes a file
-    scannable, because latin-1 decodes anything.
+    Under ``errors="strict"`` a read that does not decode is dropped; under ``"replace"``
+    every read decodes, each undecodable code unit becoming U+FFFD.
     """
-    views: list[str] = []
+    reads: list[str] = []
+    for codec, width in _WIDE_CODECS:
+        for offset in range(width):
+            body = data[offset:]
+            try:
+                reads.append(body[: len(body) - len(body) % width].decode(codec, errors))
+            except UnicodeDecodeError:
+                continue
+    return reads
+
+
+def _decodings(data: bytes) -> list[str] | None:
+    """Every view of one body the path guard reads, or None when the body is unscannable.
+
+    A body is SCANNABLE when strict UTF-8 decodes it or, if it carries a NUL or a UTF-16
+    or UTF-32 byte-order mark, when a strict UTF-16 or UTF-32 read does in either byte
+    order at some alignment. Only that judgment is strict; a scannable body is read as:
+
+    - its strict UTF-8 text, or its bytes as latin-1 when strict UTF-8 refuses them;
+    - if it carries a NUL or a wide byte-order mark, also its bytes with every NUL
+      removed, as latin-1 - the view the SHA citation gate's unread-file grade takes,
+      repeated here because that grade is private to the gate and scans for its own
+      pattern - and a lenient (``errors="replace"``) UTF-16 and UTF-32 read in both byte
+      orders at every alignment.
+
+    What that guarantees, and no more: an ASCII spelling whose characters are separated
+    only by NULs is read joined, and a spelling written in UTF-16 or UTF-32 code units is
+    read at its own alignment even inside bytes no strict wide read decodes. Removing the
+    NULs also joins the spelling's neighbours, so a letter separated from its left edge
+    only by NULs blocks the pattern's edge checks as if written glued. An encoding none of
+    these views names - compression, base64, an octal escape - is not read at all.
+    """
     try:
-        views.append(data.decode("utf-8"))
+        views = [data.decode("utf-8")]
     except UnicodeDecodeError:
-        refused = True
-    else:
-        refused = False
-    if b"\0" in data or data.startswith(_WIDE_BOMS):
-        for codec, width in _WIDE_CODECS:
-            for offset in range(width):
-                body = data[offset:]
-                try:
-                    views.append(body[: len(body) - len(body) % width].decode(codec))
-                except UnicodeDecodeError:
-                    continue
-    if not views:
+        views = []
+    wide = b"\0" in data or data.startswith(_WIDE_BOMS)
+    if not views and not (wide and _wide_reads(data, "strict")):
         return None
-    if refused:
+    if not views:
         views.append(data.decode("latin-1"))
+    if wide:
+        views.append(data.replace(b"\0", b"").decode("latin-1"))
+        views.extend(_wide_reads(data, "replace"))
     return views
 
 
@@ -862,44 +952,114 @@ def _line_digest(line: str) -> str:
     return hashlib.sha256(line.encode("utf-8", "surrogatepass")).hexdigest()
 
 
-def _checkout_path_hits(repo_root: Path) -> tuple[dict[str, Counter[tuple[str, int]]], list[str]]:
-    """Each tracked file's multiset of (line digest, match count), and the files nothing reads.
+def _index_entries(repo_root: Path) -> dict[str, list[tuple[str, str]]]:
+    """Each tracked path's index entries as (mode, blob id), every stage, in index order."""
+    listed = subprocess.run(
+        ["git", "-C", str(repo_root), "ls-files", "-s", "-z"],
+        env=_git_env(),
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+    entries: dict[str, list[tuple[str, str]]] = {}
+    for record in listed.stdout.split(b"\0"):
+        meta, _, name = record.partition(b"\t")
+        fields = meta.decode("ascii").split()
+        if name and len(fields) == _INDEX_FIELDS:
+            path = name.decode("utf-8", "replace")
+            entries.setdefault(path, []).append((fields[0], fields[1]))
+    return entries
 
-    Only a binary whose path AND bytes match a CS-1292 pin in
+
+def _index_blob(repo_root: Path, oid: str) -> bytes | None:
+    """One blob's bytes from the object store, or None when git does not answer them."""
+    shown = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "blob", oid],
+        env=_git_env(),
+        check=False,
+        capture_output=True,
+        timeout=120,
+    )
+    return shown.stdout if shown.returncode == 0 else None
+
+
+def _tracked_bodies(
+    repo_root: Path, relative: str, entries: list[tuple[str, str]]
+) -> list[bytes] | None:
+    """Every distinct body of one tracked path, or None when one of them cannot be read.
+
+    A symlink entry's body is its blob - the link text git publishes - and the link is
+    never followed, whether or not anything sits at the path. A gitlink has no body. Any
+    other entry is read from the work tree, or from its index blob when the work tree
+    has no file there; any other read error leaves the path unscannable, never skipped.
+    A path the index does not list is unscannable too.
+    """
+    if not entries:
+        return None
+    bodies: list[bytes] = []
+    for mode, oid in entries:
+        if mode == _GITLINK_MODE:
+            continue
+        body: bytes | None
+        if mode == _SYMLINK_MODE:
+            body = _index_blob(repo_root, oid)
+        else:
+            try:
+                body = (repo_root / relative).read_bytes()
+            except FileNotFoundError:
+                body = _index_blob(repo_root, oid)
+            except OSError:
+                body = None
+        if body is None:
+            return None
+        if body not in bodies:
+            bodies.append(body)
+    return bodies
+
+
+def _body_hits(relative: str, bodies: list[bytes], pins: dict[str, str]) -> Counter[str] | None:
+    """One path's multiset of matching-line digests, or None when a body is unscannable.
+
+    The multiset is the elementwise maximum over the bodies and their views, so a line
+    two views both carry counts once and a line one view carries twice counts twice. A
+    body whose path AND bytes match a CS-1292 pin is skipped.
+    """
+    hits: Counter[str] = Counter()
+    for body in bodies:
+        if sha_citation_gate.is_known_binary(relative, body, pins):
+            continue
+        views = _decodings(body)
+        if views is None:
+            return None
+        for view in views:
+            lines = view.splitlines()
+            hits |= Counter(_line_digest(x) for x in lines if ABSOLUTE_CHECKOUT_RE.search(x))
+    return hits
+
+
+def _checkout_path_hits(repo_root: Path) -> tuple[dict[str, Counter[str]], list[str]]:
+    """Each tracked path's multiset of matching-line digests, and the paths nothing reads.
+
+    Only a body whose path AND bytes match a CS-1292 pin in
     ``tools/sha_citation_binaries.json`` is skipped, read through the SHA citation gate's
-    own loader rather than a copy of it. A tracked file deleted from the work tree has
-    nothing to scan. The text lives only in this frame, so a failing assertion's locals
-    never carry a matched line.
+    own loader rather than a copy of it. The text lives only in this frame and the two
+    helpers, so a failing assertion's locals never carry a matched line.
     """
     pins = sha_citation_gate.load_known_binaries(repo_root)
-    found: dict[str, Counter[tuple[str, int]]] = {}
+    index = _index_entries(repo_root)
+    found: dict[str, Counter[str]] = {}
     unscannable: list[str] = []
     for relative in doc_sweep.tracked_files(repo_root):
-        try:
-            data = (repo_root / relative).read_bytes()
-        except FileNotFoundError:
-            continue
-        except OSError:
+        bodies = _tracked_bodies(repo_root, relative, index.get(relative, []))
+        hits = None if bodies is None else _body_hits(relative, bodies, pins)
+        if hits is None:
             unscannable.append(relative)
-            continue
-        if sha_citation_gate.is_known_binary(relative, data, pins):
-            continue
-        views = _decodings(data)
-        if views is None:
-            unscannable.append(relative)
-            continue
-        hits: Counter[tuple[str, int]] = Counter()
-        for view in views:
-            for line in view.splitlines():
-                count = sum(1 for _ in ABSOLUTE_CHECKOUT_RE.finditer(line))
-                if count:
-                    hits[(_line_digest(line), count)] += 1
-        if hits:
+        elif hits:
             found[relative] = hits
     return found, unscannable
 
 
-def _kept_set_problems(found: dict[str, Counter[tuple[str, int]]]) -> list[str]:
+def _kept_set_problems(found: dict[str, Counter[str]]) -> list[str]:
     """One ``<path>: <n> unexpected, <n> missing`` line per path off the kept table."""
     problems: list[str] = []
     for relative in sorted(set(found) | set(KEPT_CHECKOUT_LINES)):
@@ -915,12 +1075,15 @@ def _kept_set_problems(found: dict[str, Counter[tuple[str, int]]]) -> list[str]:
 def test_no_absolute_checkout_path_in_any_tracked_text_file(repo_root: Path) -> None:
     """CS-1308 - the CS-1292 path guard over every tracked file, against the kept table.
 
-    Every tracked file is read, this one included; only the hash-pinned binaries are not.
-    A file no decoding reads fails as unscannable. The messages name paths and counts of
-    line digests only, never a matched line, because the matched text is what is scrubbed.
+    Every tracked path is read, this file included; only the hash-pinned binaries are
+    not. A path that cannot be read or decoded fails as unscannable. The messages name
+    paths and counts of line digests only, never a matched line, because the matched
+    text is what is scrubbed.
     """
     found, unscannable = _checkout_path_hits(repo_root)
-    assert not unscannable, f"tracked files no decoding reads (unscannable): {unscannable}"
+    assert not unscannable, (
+        f"tracked paths the guard cannot read or decode (unscannable): {unscannable}"
+    )
     problems = _kept_set_problems(found)
     assert not problems, (
         "the checkout root is spelled off the kept table (path: line digests): "
@@ -951,20 +1114,19 @@ _PLANTED: Final = "D:\\Clockspeed"
 #: The WSL form the moved-spelling arm writes - one of the guard's own pattern lines.
 _PLANTED_WSL: Final = "/mnt/d/Clockspeed"
 
-#: Git variables that would point a child process at another repository's state.
-_GIT_REDIRECTS: Final = (
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_COMMON_DIR",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_NAMESPACE",
-)
 
+def _planted_tree(
+    repo_root: Path,
+    tmp_path: Path,
+    files: dict[str, bytes],
+    index_only: dict[str, tuple[str, bytes]] | None = None,
+) -> Path:
+    """A synthetic work tree tracking byte-copies of the kept files, then ``files`` over them.
 
-def _planted_tree(repo_root: Path, tmp_path: Path, files: dict[str, bytes]) -> Path:
-    """A synthetic work tree tracking byte-copies of the kept files, then ``files`` over them."""
+    Each ``index_only`` entry - path to (index mode, blob bytes) - is then written into
+    the index alone, over any entry ``files`` gave that path, with no work-tree change:
+    a symlink entry git records on a checkout that writes no link, for one.
+    """
     root = tmp_path / "planted"
     for relative in _PLANTED_FROM:
         target = root / relative
@@ -974,12 +1136,31 @@ def _planted_tree(repo_root: Path, tmp_path: Path, files: dict[str, bytes]) -> P
         target = root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
-    env = {name: value for name, value in os.environ.items() if name not in _GIT_REDIRECTS}
+    env = _git_env()
     env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     for args in (("init", "-q"), ("add", "-A")):
         subprocess.run(
             ["git", *args], cwd=root, env=env, check=True, capture_output=True, timeout=60
+        )
+    for relative, (mode, data) in (index_only or {}).items():
+        stored = subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=root,
+            env=env,
+            input=data,
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        oid = stored.stdout.decode("ascii").strip()
+        subprocess.run(
+            ["git", "update-index", "--add", "--cacheinfo", f"{mode},{oid},{relative}"],
+            cwd=root,
+            env=env,
+            check=True,
+            capture_output=True,
+            timeout=60,
         )
     return root
 
@@ -1082,6 +1263,86 @@ def test_an_unpinned_binary_is_scanned(repo_root: Path, tmp_path: Path) -> None:
     relative = "docs/assets/planted.png"
     data = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR" + f"tEXt\0root={_PLANTED}\n".encode()
     assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+# --- CS-1308 fix round 2 ---------------------------------------------------------
+
+
+def test_a_kept_line_removed_fails_as_missing(repo_root: Path, tmp_path: Path) -> None:
+    """Mutant M6: a kept line scrubbed with nothing added elsewhere fails as missing."""
+    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines[index] = ABSOLUTE_CHECKOUT_RE.sub("<repo>", lines[index])
+    data = "\n".join(lines).encode()
+    message = _guard_failure(_planted_tree(repo_root, tmp_path, {"CLAUDE.md": data}))
+    assert "CLAUDE.md: 0 unexpected, 1 missing" in message
+
+
+def test_a_nul_inside_the_spelling_does_not_hide_it(repo_root: Path, tmp_path: Path) -> None:
+    """R3: a NUL between the drive colon and the separator does not split the spelling."""
+    relative = "docs/ARCHITECTURE.md"
+    spelled = _PLANTED.replace(":", ":\0").encode()
+    data = b"# Architecture\n\nThe root is " + spelled + b".\n"
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+def test_interleaved_nuls_do_not_hide_a_spelling(repo_root: Path, tmp_path: Path) -> None:
+    """R3: two NULs after every character match no wide code unit, and still are read."""
+    relative = "docs/ARCHITECTURE.md"
+    spelled = b"".join(char.encode() + b"\0\0" for char in _PLANTED)
+    data = b"# Architecture\n\n" + spelled + b"\n"
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+@pytest.mark.parametrize("before", ["", "\u4100"], ids=["plain", "letter-shadow"])
+def test_a_wide_spelling_inside_utf8_text_does_not_hide(
+    repo_root: Path, tmp_path: Path, before: str
+) -> None:
+    """R3: valid UTF-8 text, one U+0600, then a UTF-16-LE spelling.
+
+    The U+0600's UTF-8 bytes sit where a strict UTF-16 read aligned on the spelling
+    meets an unpaired surrogate, so no strict wide view holds it. In ``letter-shadow``
+    a U+4100 stands before the spelling: its UTF-16-LE bytes are a NUL and an ``A``,
+    so with every NUL removed a letter sits glued in front of the Git Bash form, and
+    only a lenient wide read sees the spelling as written.
+    """
+    relative = "docs/GATED.md"
+    git_bash = _PLANTED_WSL.removeprefix("/mnt")
+    data = "# Gated\n\u0600\n".encode() + f"{before}{git_bash}\n".encode("utf-16-le")
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+@pytest.mark.parametrize("resolving", [False, True], ids=["dangling", "resolving"])
+def test_a_symlink_entry_is_scanned_by_its_link_text(
+    repo_root: Path, tmp_path: Path, *, resolving: bool
+) -> None:
+    """R4: a symlink's index blob - the link text git publishes - is read, never followed.
+
+    ``dangling`` has nothing in the work tree at the path; ``resolving`` has a clean file
+    there, standing for the target a followed link would open.
+    """
+    relative = "docs/link.md"
+    files = {relative: b"# A clean target\n"} if resolving else {}
+    entry = {relative: (_SYMLINK_MODE, _PLANTED.encode())}
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, files, entry))
+
+
+def test_a_tracked_file_missing_from_the_work_tree_is_read_from_the_index(
+    repo_root: Path, tmp_path: Path
+) -> None:
+    """R4: a tracked file absent from the work tree is read from its index blob, not skipped."""
+    relative = "docs/gone.md"
+    entry = {relative: ("100644", f"The root is {_PLANTED}.\n".encode())}
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {}, entry))
+
+
+def test_an_unreadable_tracked_path_fails_as_unscannable(repo_root: Path, tmp_path: Path) -> None:
+    """Mutant M17: a read error other than a missing file fails by path, never skips."""
+    relative = "docs/folder.md"
+    root = _planted_tree(repo_root, tmp_path, {}, {relative: ("100644", b"clean\n")})
+    (root / relative).mkdir(parents=True)
+    message = _guard_failure(root)
+    assert "unscannable" in message
+    assert relative in message
 
 
 #: CS-1308 F5 - a quoted drive root and the quoted folder name on one line: the root
