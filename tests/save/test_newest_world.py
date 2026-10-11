@@ -1200,3 +1200,32 @@ def test_a_cause_outside_the_vocabulary_is_rendered_by_no_frame(
     assert refused, "a cause outside the vocabulary did not fail closed"
     hits = every_frame_rendered(error).count(CANARY_CAUSE)
     assert hits == 0, "a frame of the failure renders the refused cause"
+
+
+#: An invented session name planted in the oversize header, past the prefix's
+#: reach only in part, so a frame holding the whole copy renders it.
+CANARY_SESSION: Final = "QzxCanaryLongHeaderSession"
+
+
+def test_a_whole_copy_read_past_the_prefix_is_scrubbed_from_the_frame(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The past-the-prefix read holds the whole copy; a failure it does not expect keeps none.
+
+    The header strings sit at the front of the copy, so a frame still holding
+    it renders them to a locals-showing renderer (CS-963). The stand-in parser
+    is a C-level callable that refuses bytes, so no Python frame of the
+    stand-in holds them either and only the reader's own frame is graded.
+    """
+    header, body = flat_parts(synthetic.SYNTHETIC_WORLD_TOKEN, oversize=True)
+    planted = header.replace(b"x" * len(CANARY_SESSION), CANARY_SESSION.encode("ascii"), 1)
+    assert CANARY_SESSION.encode("ascii") in planted, "nothing was planted, so this grades nothing"
+    save = plant(tmp_path / "A.sav", planted + body[:CHUNK_STUB], BASE_SECONDS)
+    monkeypatch.setattr(world, "parse_header", str.casefold)
+
+    error = raised_by(lambda: world.read_world_digest(save))
+
+    unexpected = isinstance(error, TypeError)
+    assert unexpected, "the stand-in parser was never reached"
+    hits = every_frame_rendered(error).count(CANARY_SESSION)
+    assert hits == 0, "a frame of the failure renders the copy"
