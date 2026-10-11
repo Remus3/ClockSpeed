@@ -17,6 +17,9 @@ b. The refusal is remembered by identity, so a refused save is not copied and
 c. Nothing readable still answers None.
 d. The default wiring ranks the account directory through ``workdir`` and
    loads through the real reader.
+e. The real defect's shape end to end - a header the reader accepts over a
+   body the OBJECT reader refuses - falls back through the default wiring,
+   and the save directory is left exactly as it was found (CS-1309).
 
 EVERY ASSERTION IS ON A SCALAR BOUND TO A LOCAL. A ``tmp_path`` lives under a
 home directory, so no assertion renders a path.
@@ -24,6 +27,7 @@ home directory, so no assertion renders a path.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from typing import TYPE_CHECKING, Final
 
@@ -255,3 +259,138 @@ def test_the_default_wiring_ranks_through_workdir_and_falls_back(tmp_path: Path)
     assert flagged == 1
     header_refusal = subjects[0].startswith(world.STAGE_HEADER + ".")
     assert header_refusal
+
+
+# ---------------------------------------------------------------------------
+# e. the real defect's shape end to end, and the save directory untouched
+# ---------------------------------------------------------------------------
+
+#: How many body bytes the synthetic re-encoded save is short of the body its
+#: header describes. The real file's body was shorter than the game's; any
+#: shortfall the object reader cannot walk draws the same refusal.
+BODY_SHORTFALL: Final = 16
+
+
+def reencoded_levelled_save() -> bytes:
+    """A synthetic save whose header reads and whose body the object reader refuses.
+
+    The real defect's SHAPE on synthetic bytes: the levelled corpus fixture's
+    own header over its body cut short, so the refusal comes from the OBJECTS
+    stage as the real one did, not from a header that never parsed. Built
+    from the corpus fixture, never from a real save.
+
+    Returns:
+        The save bytes.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V36
+    body = fixture.body[: len(fixture.body) - BODY_SHORTFALL]
+    framed = synthetic.build_chunks(body, framing=fixture.framing)
+    return fixture.blob[: fixture.chunk_offset] + framed
+
+
+def directory_state(directory: Path) -> tuple[tuple[str, int, int, str], ...]:
+    """Every entry under ``directory`` by relative name, size, mtime and digest.
+
+    Compared whole and never rendered: the names are synthetic, but the
+    directory sits under a home directory.
+
+    Args:
+        directory: The pretend account directory.
+
+    Returns:
+        One row per entry, sorted, a directory carrying no size or digest.
+    """
+    rows: list[tuple[str, int, int, str]] = []
+    for entry in directory.rglob("*"):
+        name, stat = entry.relative_to(directory).as_posix(), entry.stat()
+        if entry.is_file():
+            digest = hashlib.sha256(entry.read_bytes()).hexdigest()
+            rows.append((name, stat.st_size, stat.st_mtime_ns, digest))
+        else:
+            rows.append((name, 0, stat.st_mtime_ns, ""))
+    return tuple(sorted(rows))
+
+
+def warnings_render_none_of(model: world.WorldModel | None, fragments: tuple[str, ...]) -> bool:
+    """Whether no warning the model carries renders any of ``fragments``.
+
+    A helper so the rendered text lives in THIS frame, which holds no
+    assertion, and never in a test's frame at an assert.
+
+    Args:
+        model: The world handed up, or None.
+        fragments: Text that must not appear - file names and their directory.
+
+    Returns:
+        True when no warning renders any fragment.
+    """
+    rendered = "" if model is None else "".join(repr(warning) for warning in model.warnings)
+    return all(fragment not in rendered for fragment in fragments)
+
+
+def plant_the_defect(account: Path) -> tuple[Path, Path]:
+    """Plant a re-encoded newest save over a readable older one.
+
+    Args:
+        account: The pretend account directory, under tmp_path.
+
+    Returns:
+        The newest and the older save.
+    """
+    newest = plant(account / "Newest.sav", reencoded_levelled_save(), BASE_SECONDS + 60)
+    older = plant(account / "Older.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
+    return newest, older
+
+
+def test_an_objects_stage_refusal_by_the_real_reader_falls_back(tmp_path: Path) -> None:
+    """No injected seam and no fake refusal: the object reader itself refuses the newest."""
+    newest, older = plant_the_defect(tmp_path / "pretend-account")
+    with pytest.raises(world.WorldLoadError) as direct:
+        world.load_world(newest)
+    refusal = (direct.value.stage, direct.value.cause_type)
+    assert refusal == (world.STAGE_OBJECTS, "ObjectFormatError")
+    older_records = len(world.load_world(older).objects.records)
+
+    model = providers.SaveWorldProvider(tmp_path / "pretend-account").world()
+
+    present = model is not None
+    assert present, "the default wiring did not fall back past an objects-stage refusal"
+    records = 0 if model is None else len(model.objects.records)
+    assert records == older_records
+    subjects = subjects_of(model)
+    assert subjects == [NEWER_OBJECTS_SUBJECT]
+    name_free = warnings_render_none_of(
+        model, ("Newest", "Older", "pretend-account", tmp_path.name, str(tmp_path))
+    )
+    assert name_free, "a warning rendered a save name or its directory"
+
+
+def test_the_fallback_writes_nothing_into_the_save_directory(tmp_path: Path) -> None:
+    """Never write to a save directory - not a copy, a marker, a rename or a touch."""
+    account = tmp_path / "pretend-account"
+    plant_the_defect(account)
+    before = directory_state(account)
+
+    answers = [providers.SaveWorldProvider(account).world() for _ in range(CALLS)]
+
+    served = all(answer is not None for answer in answers)
+    assert served, "the walk never got past the refusal, so it graded nothing"
+    unchanged = directory_state(account) == before
+    assert unchanged, "the fallback walk changed the save directory"
+
+
+def test_the_directory_probe_sees_a_write(tmp_path: Path) -> None:
+    """The control: the probe the no-write test trusts does see each kind of write."""
+    account = tmp_path / "pretend-account"
+    newest, _older = plant_the_defect(account)
+    before = directory_state(account)
+
+    plant(account / "Marker.tmp", b"", BASE_SECONDS)
+    added = directory_state(account) != before
+    (account / "Marker.tmp").unlink()
+    plant(newest, newest.read_bytes(), BASE_SECONDS + 61)
+    touched = directory_state(account) != before
+    plant(newest, reencoded_levelled_save()[:-1], BASE_SECONDS + 60)
+    rewritten = directory_state(account) != before
+
+    assert (added, touched, rewritten) == (True, True, True)
