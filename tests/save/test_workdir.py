@@ -1687,6 +1687,42 @@ def test_purge_of_an_absent_work_root_is_zero_not_an_error(tmp_path: Path) -> No
     assert not absent.exists(), "purge created the work root it was asked to empty"
 
 
+def test_discard_removes_the_one_copy_it_is_handed(pretend_source: Path, work: Path) -> None:
+    """A copy whose verdict is settled goes; the save it was copied from stays (CS-1309)."""
+    copy = workdir.copy_for_read(pretend_source, work_root=work)
+
+    removed = workdir.discard_copy(copy, work_root=work)
+
+    assert removed, "discard did not report the copy it removed"
+    assert not copy.exists(), "discard left the copy behind"
+    assert pretend_source.is_file(), "discard touched the save it was copied from"
+
+
+def test_discard_refuses_anything_that_is_not_one_of_its_copies(
+    pretend_source: Path, pretend_account_dir: Path, work: Path
+) -> None:
+    """Both of purge's conditions, per file: the copies directory AND the copy suffix.
+
+    The save itself, a copy-suffixed file planted IN THE SAVE DIRECTORY, a
+    neighbour without the suffix and a suffixed file outside the copies
+    directory are each refused and each left exactly where they are.
+    """
+    copy = workdir.copy_for_read(pretend_source, work_root=work)
+    planted = pretend_account_dir / ("Planted" + workdir.COPY_SUFFIX)
+    planted.write_bytes(b"suffix, but in the save directory")
+    neighbour = copy.parent / "operator-notes.txt"
+    neighbour.write_bytes(b"not ours")
+    stray = work / copy.name
+    stray.write_bytes(b"suffix, wrong directory")
+    others = (pretend_source, planted, neighbour, stray)
+
+    refused = [workdir.discard_copy(path, work_root=work) for path in others]
+
+    assert refused == [False] * len(others)
+    kept = [path.is_file() for path in (*others, copy)]
+    assert kept == [True] * (len(others) + 1)
+
+
 # ===========================================================================
 # work_root itself
 # ===========================================================================

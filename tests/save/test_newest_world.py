@@ -23,6 +23,16 @@ e. A newest save that loads is handed up untouched, with no flag.
 f. A failure that is not a ``WorldLoadError`` propagates unchanged.
 g. The subject builder reads the refusal's two closed-vocabulary fields and
    nothing else - judged on the shipped syntax tree, with planted positives.
+h. When the refused newest save's world is known the walk falls back only to
+   that world, and to nothing when none of it is readable; when it is not
+   known, the newest readable save is served under a distinct code.
+i. The detail agrees with the count, and spells no number.
+j. A subject outside the closed vocabulary fails closed, and the memo's
+   re-raise is a fresh refusal that takes nothing else.
+k. The objects stage is a verdict on the bytes: one corrupt save, two
+   mappings, one verdict.
+l. The world token is read from the header alone, and neither that read nor a
+   refused load leaves a work copy behind.
 
 EVERY ASSERTION IS ON A SCALAR BOUND TO A LOCAL. A ``tmp_path`` lives under a
 home directory, so no assertion here renders a path.
@@ -39,7 +49,10 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
-from clockspeed.save import workdir, world
+from clockspeed.save import usmap, workdir, world
+from clockspeed.save.chunks import ChunkError
+from clockspeed.save.header import HeaderError
+from clockspeed.save.objects import ObjectError
 from tests.save import synthetic
 
 if TYPE_CHECKING:
@@ -61,6 +74,19 @@ MANY_REFUSED: Final = 10
 
 #: The two fields of a refusal the subject may read. Both closed vocabulary.
 SUBJECT_FIELDS: Final = frozenset({"stage", "cause_type"})
+
+#: The bytes every planted refused save carries: a readable save of the
+#: fixture world, so its header names the same world as the save the walk
+#: falls back to. The FAKE loader refuses it by name; the real ``identify``
+#: reads its header.
+SAME_WORLD: Final = synthetic.SAVE_V60.blob
+
+#: The code of a world served past a newest save whose world is unknown,
+#: spelled as the wire spells it.
+UNIDENTIFIED: Final = "newest-save-unidentified"
+
+#: How many body bytes the corrupt levelled save is cut short by.
+REENCODED_SHORTFALL: Final = 16
 
 
 @pytest.fixture(autouse=True)
@@ -185,7 +211,11 @@ def refusal_at(stage: str, cause: str) -> world.WorldLoadError:
 
 
 def test_a_newest_save_the_reader_refuses_falls_back_to_the_next_one(tmp_path: Path) -> None:
-    """End to end through the real reader: garbage newest, synthetic older."""
+    """End to end through the real reader: garbage newest, synthetic older.
+
+    Garbage is refused at the HEADER, so the newest save's world is never read
+    and the flag is the distinct one saying the world may be another.
+    """
     newest = plant(
         tmp_path / "Refused_autosave_0.sav", b"not a save the game wrote", BASE_SECONDS + 60
     )
@@ -198,13 +228,16 @@ def test_a_newest_save_the_reader_refuses_falls_back_to_the_next_one(tmp_path: P
 
     same_world = model.token == load_flat(older).token
     assert same_world, "the walk did not hand up the older save's world"
-    flags = refused_flags(model)
-    assert flags == [(expected, 1)]
+    # NO WARNING IS BOUND TO A LOCAL: the read is reduced to a scalar inline.
+    distinct = [(w.code, w.subject, w.count) for w in model.warnings if w.code == UNIDENTIFIED] == [
+        (UNIDENTIFIED, expected, 1)
+    ]
+    assert distinct, "the walk did not flag the unidentified newest save exactly once"
 
 
 def test_the_flag_names_the_stage_and_the_cause_and_never_the_file(tmp_path: Path) -> None:
     """The real defect's shape: an objects-stage refusal of the newest file."""
-    newest = plant(tmp_path / "Refused_autosave_0.sav", b"re-encoded", BASE_SECONDS + 60)
+    newest = plant(tmp_path / "Refused_autosave_0.sav", SAME_WORLD, BASE_SECONDS + 60)
     older = plant(tmp_path / "Readable_autosave_1.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     load = Recorder({newest.name: objects_refusal()})
 
@@ -228,7 +261,7 @@ def test_the_flag_names_the_stage_and_the_cause_and_never_the_file(tmp_path: Pat
 
 def test_the_subject_and_detail_carry_no_digit(tmp_path: Path) -> None:
     """No separator a path needs, and no digit: a time or a size would carry one."""
-    newest = plant(tmp_path / "Refused.sav", b"re-encoded", BASE_SECONDS + 60)
+    newest = plant(tmp_path / "Refused.sav", SAME_WORLD, BASE_SECONDS + 60)
     older = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     model = walked((newest, older), load=Recorder({newest.name: objects_refusal()}))
 
@@ -242,8 +275,8 @@ def test_the_subject_and_detail_carry_no_digit(tmp_path: Path) -> None:
 
 def test_two_refusals_are_flagged_newest_first(tmp_path: Path) -> None:
     """Different refusals are different flags, in the order the walk met them."""
-    newest = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
-    middle = plant(tmp_path / "B.sav", b"re-encoded", BASE_SECONDS + 30)
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    middle = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS + 30)
     oldest = plant(tmp_path / "C.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     load = Recorder(
         {
@@ -260,9 +293,9 @@ def test_two_refusals_are_flagged_newest_first(tmp_path: Path) -> None:
 
 def test_saves_refused_alike_are_one_flag_counting_them(tmp_path: Path) -> None:
     """Identical subjects aggregate, so a run of refused files is one line on the panel."""
-    first = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
-    second = plant(tmp_path / "B.sav", b"re-encoded", BASE_SECONDS + 50)
-    third = plant(tmp_path / "C.sav", b"re-encoded", BASE_SECONDS + 40)
+    first = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    second = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS + 50)
+    third = plant(tmp_path / "C.sav", SAME_WORLD, BASE_SECONDS + 40)
     readable = plant(tmp_path / "D.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     load = Recorder(
         {
@@ -285,7 +318,7 @@ def test_saves_refused_alike_are_one_flag_counting_them(tmp_path: Path) -> None:
 
 def test_every_candidate_refused_raises_the_newest_refusal(tmp_path: Path) -> None:
     """The typed failure a single load raised before, from the newest save."""
-    newest = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
     older = plant(tmp_path / "B.sav", b"also refused", BASE_SECONDS)
     load = Recorder(
         {
@@ -318,7 +351,7 @@ def test_a_newest_refusal_is_re_raised_past_a_later_failure_that_is_no_verdict(
     It does not replace the newest save's refusal with its own: the newest
     refusal is what a caller is told, exactly as when every candidate refused.
     """
-    newest = plant(tmp_path / "A.sav", b"re-encoded", BASE_SECONDS + 60)
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
     busy = plant(tmp_path / "B.sav", synthetic.SAVE_V60.blob, BASE_SECONDS + 30)
     oldest = plant(tmp_path / "C.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
     load = Recorder({newest.name: objects_refusal(), busy.name: refusal_at(stage, cause)})
@@ -398,7 +431,7 @@ def test_the_walk_goes_on_while_a_candidate_remains(tmp_path: Path) -> None:
     """
     names = [f"S{index:02d}.sav" for index in range(MANY_REFUSED)]
     refused = [
-        plant(tmp_path / name, b"re-encoded", BASE_SECONDS + 600 - index)
+        plant(tmp_path / name, SAME_WORLD, BASE_SECONDS + 600 - index)
         for index, name in enumerate(names)
     ]
     readable = plant(tmp_path / "Readable.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
@@ -555,3 +588,314 @@ def test_the_walk_builds_every_subject_through_the_builder() -> None:
         and node.func.id == "WorldWarning"
     )
     assert constructions == 0, "the walk builds a warning itself instead of through the flags"
+
+
+# ---------------------------------------------------------------------------
+# h. the refused newest save's own world, or the distinct flag (CS-1309 F2)
+# ---------------------------------------------------------------------------
+
+
+class TokenBook:
+    """A fake ``identify``: file name to the world token its header carries.
+
+    Attributes:
+        asked: The file names it was asked about, in order.
+    """
+
+    def __init__(self, tokens: dict[str, str | None]) -> None:
+        """Remember each file's token; a name not listed reads as unidentifiable.
+
+        Args:
+            tokens: File name to its token, or None for a header that will not read.
+        """
+        self.asked: list[str] = []
+        self._tokens = tokens
+
+    def __call__(self, path: Path) -> str | None:
+        """The planted token for ``path``."""
+        self.asked.append(path.name)
+        return self._tokens.get(path.name)
+
+
+def test_the_walk_skips_another_worlds_save_without_loading_it(tmp_path: Path) -> None:
+    """Known newest world: another world's save is skipped unread, its own world's is served."""
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    other = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS + 30)
+    own = plant(tmp_path / "C.sav", SAME_WORLD, BASE_SECONDS)
+    fixture_world = synthetic.SYNTHETIC_WORLD_TOKEN
+    book = TokenBook({newest.name: fixture_world, other.name: "X", own.name: fixture_world})
+    loaded: list[str] = []
+
+    def load(path: Path) -> world.WorldModel:
+        loaded.append(path.name)
+        if path.name == newest.name:
+            raise objects_refusal()
+        return load_flat(path)
+
+    model = world.load_newest_world((newest, other, own), load=load, identify=book)
+
+    order = loaded == [newest.name, own.name]
+    assert order, "another world's save was loaded"
+    flags = refused_flags(model) if model is not None else []
+    assert flags == [("objects.ObjectFormatError", 1)]
+
+
+def test_a_known_world_with_no_readable_save_raises_the_newest_refusal(tmp_path: Path) -> None:
+    """Never another world in its place: the walk ends as if every candidate refused."""
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    other = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS)
+    book = TokenBook({newest.name: synthetic.SYNTHETIC_WORLD_TOKEN, other.name: "X"})
+    load = Recorder({newest.name: objects_refusal()})
+
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.load_newest_world((newest, other), load=load, identify=book)
+
+    raised = (caught.value.stage, caught.value.cause_type)
+    assert raised == (world.STAGE_OBJECTS, "ObjectFormatError")
+    calls = load.calls
+    assert calls == 1, "another world's save was loaded"
+
+
+def test_a_loaded_save_of_another_world_is_not_served(tmp_path: Path) -> None:
+    """The token is checked on the loaded world too, so a save rewritten mid-walk is caught.
+
+    The fake ``identify`` answers None for the middle file - a header it could
+    not read - so the walk loads it, and the world it loads is another one.
+    """
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    middle = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS)
+    book = TokenBook({newest.name: "not-the-fixture-world"})
+    load = Recorder({newest.name: objects_refusal()})
+
+    with pytest.raises(world.WorldLoadError):
+        world.load_newest_world((newest, middle), load=load, identify=book)
+
+    calls = load.calls
+    assert calls == TWO_LOADS
+
+
+def test_a_world_that_cannot_be_recovered_after_the_header_stops_the_walk(
+    tmp_path: Path,
+) -> None:
+    """The header WAS read, so the world is known: failing to recover it serves nothing.
+
+    Treating it as unknown would serve another world under the distinct flag
+    on a transient copy failure; the walk instead ends exactly as when every
+    candidate refused, and the provider tries again next call.
+    """
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    older = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS)
+    load = Recorder({newest.name: objects_refusal()})
+
+    with pytest.raises(world.WorldLoadError):
+        world.load_newest_world((newest, older), load=load, identify=TokenBook({}))
+
+    calls = load.calls
+    assert calls == 1
+
+
+def test_a_header_refusal_serves_the_newest_readable_save_under_the_distinct_code(
+    tmp_path: Path,
+) -> None:
+    """Unknown newest world: the newest readable save is served, whatever its world, and flagged."""
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    other = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS)
+    book = TokenBook({other.name: "X"})
+    load = Recorder({newest.name: refusal_at(world.STAGE_HEADER, "HeaderFormatError")})
+
+    model = walked_with((newest, other), load=load, identify=book)
+
+    distinct = [
+        (w.code, w.subject, w.count)
+        for w in model.warnings
+        if w.code in (world.WARN_NEWER_SAVE_REFUSED, UNIDENTIFIED)
+    ] == [(UNIDENTIFIED, "header.HeaderFormatError", 1)]
+    assert distinct, "the fallback flags are not exactly the one distinct flag"
+    asked = book.asked
+    assert asked == [], "an unknown world was looked up, so a token was compared"
+
+
+def walked_with(
+    candidates: Iterable[Path],
+    *,
+    load: Callable[[Path], world.WorldModel],
+    identify: Callable[[Path], str | None],
+) -> world.WorldModel:
+    """Run the walk with an explicit ``identify`` and insist it handed up a world.
+
+    Args:
+        candidates: Saves to try, newest first.
+        load: The loader under test.
+        identify: The world-token reader under test.
+
+    Returns:
+        The world the walk handed up.
+    """
+    model = world.load_newest_world(candidates, load=load, identify=identify)
+    assert model is not None, "the walk handed up no world"
+    return model
+
+
+# ---------------------------------------------------------------------------
+# i. the detail agrees with the count (CS-1309 F3)
+# ---------------------------------------------------------------------------
+
+
+def test_the_detail_agrees_with_the_count(tmp_path: Path) -> None:
+    """One save is "a newer save"; several are "newer saves" - and no count is spelled."""
+    first = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    second = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS + 50)
+    third = plant(tmp_path / "C.sav", SAME_WORLD, BASE_SECONDS + 40)
+    readable = plant(tmp_path / "D.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
+    load = Recorder(
+        {
+            first.name: objects_refusal(),
+            second.name: refusal_at(world.STAGE_HEADER, "HeaderTruncatedError"),
+            third.name: objects_refusal(),
+        }
+    )
+
+    model = walked((first, second, third, readable), load=load)
+
+    agreeing = [
+        (w.count, w.detail.split(" refused")[0], re.search(r"\d", w.detail) is None)
+        for w in model.warnings
+        if w.code == world.WARN_NEWER_SAVE_REFUSED
+    ] == [(2, "newer saves were", True), (1, "a newer save was", True)]
+    assert agreeing, "a detail disagrees with its count or spells a number"
+
+
+# ---------------------------------------------------------------------------
+# j. a subject is the closed vocabulary or nothing (CS-1309 F-C)
+# ---------------------------------------------------------------------------
+
+
+def reader_refusal_names() -> set[str]:
+    """Every class name the three readers' refusal taxonomies define, bases included."""
+    names: set[str] = set()
+    pending: list[type[BaseException]] = [HeaderError, ChunkError, ObjectError]
+    while pending:
+        cls = pending.pop()
+        names.add(cls.__name__)
+        pending.extend(cls.__subclasses__())
+    return names
+
+
+def test_the_reader_vocabulary_is_exactly_the_readers_refusal_classes() -> None:
+    """The closed set is the readers' own taxonomies - a class added there reddens here."""
+    listed = set(world.READER_REFUSAL_TYPES)
+    assert listed == reader_refusal_names()
+
+
+def test_a_subject_outside_the_closed_vocabulary_fails_closed(tmp_path: Path) -> None:
+    """A cause rewritten anywhere between reader and flag is refused, never rendered."""
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    older = plant(tmp_path / "B.sav", synthetic.SAVE_V60.blob, BASE_SECONDS)
+    load = Recorder({newest.name: refusal_at(world.STAGE_OBJECTS, "bgaaaaaaaa")})
+
+    with pytest.raises(ValueError, match="closed vocabulary"):
+        world.load_newest_world((newest, older), load=load)
+
+
+def test_a_rebuilt_refusal_is_fresh_and_takes_only_the_closed_vocabulary() -> None:
+    """The memo's re-raise: a new refusal with no chain, and nothing outside the two sets."""
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.refuse_again(world.STAGE_OBJECTS, "ObjectFormatError")
+    rebuilt = (
+        caught.value.stage,
+        caught.value.cause_type,
+        caught.value.__cause__ is None,
+        caught.value.__context__ is None,
+        caught.value.__suppress_context__,
+    )
+    assert rebuilt == (world.STAGE_OBJECTS, "ObjectFormatError", True, True, True)
+    with pytest.raises(ValueError, match="closed vocabulary"):
+        world.refuse_again(world.STAGE_COPY, "ObjectFormatError")
+    with pytest.raises(ValueError, match="closed vocabulary"):
+        world.refuse_again(world.STAGE_OBJECTS, "bgaaaaaaaa")
+
+
+# ---------------------------------------------------------------------------
+# k. the objects stage is a verdict on the bytes alone (CS-1309 F5)
+# ---------------------------------------------------------------------------
+
+
+def mapping_of(*class_names: str) -> usmap.PropertyMap:
+    """A minimal parsed mapping modelling exactly the named classes."""
+    return usmap.PropertyMap(
+        names=class_names,
+        enums={},
+        schemas={
+            name: usmap.Schema(name=name, super_name=None, properties=()) for name in class_names
+        },
+        warnings=(),
+        container=usmap.UsmapContainer(
+            magic=usmap.USMAP_MAGIC,
+            version=0,
+            compression_method=usmap.COMPRESSION_NONE,
+            compressed_size=0,
+            decompressed_size=0,
+            header_size=0,
+        ),
+        body_consumed=0,
+    )
+
+
+def test_the_objects_verdict_is_the_same_under_two_mappings() -> None:
+    """The same corrupt bytes draw the same refusal with no mapping and with one.
+
+    That is what entitles the provider to remember an objects-stage refusal
+    against the file: the installed mapping drives resolution, never the
+    decode. The control proves the mapping is really in effect on the intact
+    bytes, so the equality is not two loads that never read it.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V36
+    cut = fixture.body[: len(fixture.body) - REENCODED_SHORTFALL]
+    corrupt = fixture.blob[: fixture.chunk_offset] + synthetic.build_chunks(
+        cut, framing=fixture.framing
+    )
+    modelled = mapping_of(*(obj.class_path.rsplit(".", 1)[-1] for obj in fixture.objects))
+    verdicts = []
+    for mapping in (None, modelled):
+        with pytest.raises(world.WorldLoadError) as caught:
+            world.load_world_from_bytes(corrupt, property_map=mapping)
+        verdicts.append((caught.value.stage, caught.value.cause_type))
+    assert verdicts == [(world.STAGE_OBJECTS, "ObjectFormatError")] * 2
+    unmapped = world.WARN_NO_PROPERTY_MAP in {
+        w.code for w in world.load_world_from_bytes(fixture.blob, property_map=None).warnings
+    }
+    mapped = world.WARN_NO_PROPERTY_MAP in {
+        w.code for w in world.load_world_from_bytes(fixture.blob, property_map=modelled).warnings
+    }
+    assert (unmapped, mapped) == (True, False), "the mapping was never in effect"
+
+
+# ---------------------------------------------------------------------------
+# l. reading a save's world token, and the work copies it leaves (CS-1309 F2, F4)
+# ---------------------------------------------------------------------------
+
+
+def test_the_world_token_is_read_from_the_header_alone(tmp_path: Path) -> None:
+    """A save whose body the reader refuses still names its world; no save names none."""
+    corrupt = plant(tmp_path / "A.sav", SAME_WORLD[: len(SAME_WORLD) - 8], BASE_SECONDS)
+    garbage = plant(tmp_path / "B.sav", b"not a save the game wrote", BASE_SECONDS)
+
+    named = world.read_world_token(corrupt) == synthetic.SYNTHETIC_WORLD_TOKEN
+    assert named
+    unnamed = world.read_world_token(garbage) is None
+    assert unnamed
+
+
+def test_reading_and_refusing_leave_no_work_copy(tmp_path: Path, isolated_work_root: Path) -> None:
+    """Neither the token read nor a refused load leaves a copy in the work root."""
+    corrupt = plant(tmp_path / "A.sav", SAME_WORLD[: len(SAME_WORLD) - 8], BASE_SECONDS)
+    world.read_world_token(corrupt)
+    with pytest.raises(world.WorldLoadError):
+        load_flat(corrupt)
+
+    # Counted through the work directory's own purge, which removes and counts
+    # only the copies it made - so this module reaches no listing primitive.
+    left = workdir.purge_work_dir(work_root=isolated_work_root)
+    assert left == 0, "a work copy of a refused save was left behind"
+    kept = corrupt.is_file()
+    assert kept, "the save itself was touched"

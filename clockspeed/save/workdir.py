@@ -916,6 +916,46 @@ def _is_module_copy(path: Path) -> bool:
         return False
 
 
+def discard_copy(copy: Path, *, work_root: Path | None = None) -> bool:
+    """Delete ONE copy this module made, once its caller is done with it.
+
+    WHY ONE COPY AND NOT A PURGE (CS-1309). A copy is kept after a load so a
+    later reader of the same bytes can find it, but a copy whose save the
+    reader REFUSED has no later reader: the refusal is the whole answer, and
+    the dashboard's provider remembers it rather than copying again. Each
+    refused save the fallback walk met used to stay in the work root for good
+    - a real library left dozens of full-size copies there.
+
+    The SAME TWO CONDITIONS AS :func:`purge_work_dir`, applied to the one path
+    handed in: it sits in this module's copies directory under the work root
+    AND carries this module's suffix. A path failing either - the save itself,
+    a suffixed file in the save directory, a neighbour in the copies
+    directory - is refused and left exactly where it is. A copies directory
+    inside a forbidden root refuses too, so this can never remove anything in
+    the save directory or the install. Uses the one remove call this module
+    has; it adds no write surface.
+
+    Args:
+        copy: The copy, as :func:`copy_for_read` returned it.
+        work_root: The work root it was made under. Defaults to
+            :func:`work_root`.
+
+    Returns:
+        True when the copy was removed; False when it was refused, absent or
+        would not remove - never an exception.
+    """
+    copies = _copies_dir(_resolve_work_root(work_root))
+    try:
+        _refuse_if_forbidden(copies)
+    except WorkDirError:
+        return False
+    home = _resolved(copies)
+    parent = _resolved(Path(copy).parent)
+    if home is None or parent is None or parent != home:
+        return False
+    return _is_module_copy(Path(copy)) and _remove_quietly(Path(copy))
+
+
 def purge_work_dir(*, work_root: Path | None = None) -> int:
     """Delete the save copies this module made and report how many went.
 

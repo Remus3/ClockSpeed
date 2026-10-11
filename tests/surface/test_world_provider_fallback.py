@@ -27,8 +27,23 @@ g. No cap: however many newer saves are refused, the newest readable one is
    served, and each file is parsed at most once per identity.
 h. A flagged world is the loaded world with its own warnings first, the flag
    last, and every other field carried.
-i. ``GET /api/world`` serves the flag with no time, no digit and no
-   filesystem-derived value in it.
+i. ``GET /api/world`` serves the flag with no time and no digit in its subject
+   or detail, and its whole body is byte-identical whatever the refused save
+   is called and whenever it was written - recent times included, so a
+   mutant that fires only on a fresh file is measured too.
+j. A failure that is no verdict MERGES into the memo rather than replacing it:
+   every remembered verdict on a file still ranked with an unchanged identity
+   survives, a file gone from the ranking is dropped, and nothing the
+   provider holds outgrows the ranking.
+k. Only the refused newest save's OWN world is fallen back to when its world
+   token is known; with no readable save of that world the world is refused.
+   A newest save refused before its world could be read serves the newest
+   readable save under a DISTINCT flag saying the world may be another one,
+   and no world token and no world name reaches a flag, a message or the wire.
+l. A refused save leaves no work copy behind in the work root.
+m. The memo holds no exception the reader raised, and a remembered verdict is
+   raised again with no cause and no context - nothing save-derived rides
+   along in either chain.
 
 THE BEHAVIOURAL ARMS DRIVE ONLY ENTRY POINTS THAT EXISTED BEFORE THE FALLBACK -
 ``SaveWorldProvider(account_dir, load=...)``, ``world.load_world`` and the route
@@ -47,19 +62,21 @@ import os
 import re
 import time
 import weakref
-from dataclasses import fields
-from typing import TYPE_CHECKING, Final
+from dataclasses import fields, is_dataclass
+from types import MappingProxyType, ModuleType
+from typing import TYPE_CHECKING, Any, Final
 
 import pytest
 
 from clockspeed.save import usmap, workdir, world
+from clockspeed.save.header import masked_token
 from clockspeed.surface import providers, server
 from clockspeed.surface.api import contract, routes
 from clockspeed.surface.api import world as endpoint
 from tests.save import synthetic
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
 
 #: The served warning code, spelled as the wire spells it.
@@ -85,13 +102,32 @@ CALLS: Final = 3
 #: than the cap of three the first cut carried, so a cap reddens them.
 MANY_REFUSED: Final = 10
 
-#: How many body bytes the synthetic re-encoded save is short of the body its
-#: header describes. The real file's body was shorter than the game's; any
-#: shortfall the object reader cannot walk draws the same refusal.
+#: How many body bytes the synthetic re-encoded save is short of the intact
+#: levelled body. INCIDENTAL TO THE VERDICT - see
+#: :func:`reencoded_levelled_save` for what the reader actually refuses.
 BODY_SHORTFALL: Final = 16
 
 #: The planted modification time of the arm (i) canary, 2033-05-18T03:33:20Z.
 CANARY_SECONDS: Final = 2_000_000_000
+
+#: The served code of a world read past a newest save whose world is unknown,
+#: spelled as the wire spells it.
+NEWEST_UNIDENTIFIED: Final = "newest-save-unidentified"
+
+#: The subject of the default wiring's refusal of a few bytes that are no save.
+HEADER_SUBJECT: Final = "header.UnsupportedHeaderVersionError"
+
+#: A second invented world, so two worlds can share one account directory.
+OTHER_WORLD: Final = synthetic.SYNTHETIC_WORLD_TOKEN_B
+
+#: Invented 22-character world tokens and world names for the arm (k) and (m)
+#: canaries. None of them can appear anywhere the walk renders.
+CANARY_TOKEN_REFUSED: Final = "ClockspeedCanaryQzxRfZ"  # noqa: S105
+CANARY_TOKEN_OTHER: Final = "ClockspeedCanaryQzxOtW"  # noqa: S105
+CANARY_SESSIONS: Final = ("CanaryRefusedQzx", "CanaryOtherQzx", "CanaryServedQzx")
+
+#: A day, in seconds - the arm (i) recent-time pair sits inside one month.
+DAY_SECONDS: Final = 86_400
 
 
 @pytest.fixture(autouse=True)
@@ -126,13 +162,24 @@ def plant(path: Path, payload: bytes, seconds: int) -> Path:
     return path
 
 
-def reencoded_levelled_save() -> bytes:
+def reencoded_levelled_save(token: str = synthetic.SYNTHETIC_WORLD_TOKEN, **header: str) -> bytes:
     """A synthetic save whose header reads and whose body the object reader refuses.
 
-    The real defect's SHAPE on synthetic bytes: the levelled corpus fixture's
-    own header over its body cut short, so the refusal comes from the OBJECTS
-    stage as the real one did, not from a header that never parsed. Built
-    from the corpus fixture, never from a real save.
+    The real defect's STAGE on synthetic bytes: a header that parses over a
+    body the object reader refuses with ``ObjectFormatError``, the refusal the
+    real file drew - not a header that never parsed. Built from the corpus
+    fixture, never from a real save.
+
+    WHAT THE READER REFUSES IS THE MISSING LENGTH PREFIX, NOT THE SHORTFALL.
+    The body is framed WITHOUT the length prefix its header version carries,
+    so the reader takes the body's first word for that prefix and refuses the
+    walk. The :data:`BODY_SHORTFALL` cut is incidental: MEASURED, the same cut
+    with the prefix restored draws ``ObjectTruncatedError`` instead, so the
+    cut alone is not what any arm here observes.
+
+    Args:
+        token: The invented world token the header carries.
+        header: Further header overrides - a session name, for a canary.
 
     Returns:
         The save bytes.
@@ -140,7 +187,56 @@ def reencoded_levelled_save() -> bytes:
     fixture = synthetic.SAVE_LEVELLED_V36
     body = fixture.body[: len(fixture.body) - BODY_SHORTFALL]
     framed = synthetic.build_chunks(body, framing=fixture.framing)
-    return fixture.blob[: fixture.chunk_offset] + framed
+    return relabelled_header(fixture, token, **header) + framed
+
+
+def relabelled_header(fixture: synthetic.SyntheticSave, token: str, **header: str) -> bytes:
+    """The fixture's header rebuilt to carry ``token`` and any header overrides.
+
+    Args:
+        fixture: The corpus fixture whose versions the header keeps.
+        token: The invented world token.
+        header: Further header overrides.
+
+    Returns:
+        The header bytes, ending before the chunk magic.
+    """
+    return synthetic.build_header(
+        header_version=fixture.header_version,
+        save_version=fixture.save_version,
+        world_token=token,
+        **header,  # type: ignore[arg-type]
+    )
+
+
+def relabelled(fixture: synthetic.SyntheticSave, token: str, **header: str) -> bytes:
+    """The whole fixture, readable, as a save of the world ``token`` names.
+
+    Args:
+        fixture: The corpus fixture.
+        token: The invented world token.
+        header: Further header overrides.
+
+    Returns:
+        The save bytes.
+    """
+    return relabelled_header(fixture, token, **header) + fixture.blob[fixture.chunk_offset :]
+
+
+def fallback_flags(model: world.WorldModel | None) -> list[tuple[str, str, int]]:
+    """Every flag of either fallback code as (code, subject, count), in order."""
+    if model is None:
+        return []
+    return [
+        (warning.code, warning.subject or "", warning.count)
+        for warning in model.warnings
+        if warning.code in (NEWER_SAVE_REFUSED, NEWEST_UNIDENTIFIED)
+    ]
+
+
+def is_world(model: world.WorldModel | None, token: str) -> bool:
+    """Whether the world handed up is the one ``token`` names."""
+    return model is not None and model.token == token
 
 
 def flags_of(model: world.WorldModel | None) -> list[tuple[str, int]]:
@@ -219,7 +315,7 @@ def objects_refusal() -> world.WorldLoadError:
 
 def test_a_refused_newest_save_falls_back_and_is_flagged(tmp_path: Path) -> None:
     account = tmp_path / "pretend-account"
-    newest, _older = plant_pair(account, newest=b"re-encoded")
+    newest, _older = plant_pair(account, newest=reencoded_levelled_save())
     load = CountingLoad({newest.name: objects_refusal()})
 
     model = providers.SaveWorldProvider(account, load=load).world()
@@ -237,7 +333,7 @@ def test_a_refused_newest_save_falls_back_and_is_flagged(tmp_path: Path) -> None
 
 def test_a_refused_save_is_not_parsed_again_on_every_call(tmp_path: Path) -> None:
     account = tmp_path / "pretend-account"
-    newest, older = plant_pair(account, newest=b"re-encoded")
+    newest, older = plant_pair(account, newest=reencoded_levelled_save())
     load = CountingLoad({newest.name: objects_refusal()})
     provider = providers.SaveWorldProvider(account, load=load)
 
@@ -261,7 +357,7 @@ def test_a_refused_save_arriving_does_not_re_parse_the_remembered_world(
     provider = providers.SaveWorldProvider(account, load=load)
     provider.world()
 
-    plant(account / "Newest.sav", b"re-encoded", BASE_SECONDS + 60)
+    plant(account / "Newest.sav", reencoded_levelled_save(), BASE_SECONDS + 60)
     model = provider.world()
 
     fallback_loads = load.calls.get(older.name, 0)
@@ -272,12 +368,12 @@ def test_a_refused_save_arriving_does_not_re_parse_the_remembered_world(
 
 def test_a_rewritten_refused_save_is_tried_again(tmp_path: Path) -> None:
     account = tmp_path / "pretend-account"
-    newest, _older = plant_pair(account, newest=b"re-encoded")
+    newest, _older = plant_pair(account, newest=reencoded_levelled_save())
     load = CountingLoad({newest.name: objects_refusal()})
     provider = providers.SaveWorldProvider(account, load=load)
     provider.world()
 
-    plant(newest, b"re-encoded, and longer", BASE_SECONDS + 90)
+    plant(newest, reencoded_levelled_save() + b"longer", BASE_SECONDS + 90)
     provider.world()
 
     refused_loads = load.calls.get(newest.name, 0)
@@ -287,7 +383,7 @@ def test_a_rewritten_refused_save_is_tried_again(tmp_path: Path) -> None:
 def test_a_refused_save_the_game_has_replaced_is_read(tmp_path: Path) -> None:
     """The flag goes when its cause goes: a newest save that now loads wins."""
     account = tmp_path / "pretend-account"
-    newest, _older = plant_pair(account, newest=b"re-encoded")
+    newest, _older = plant_pair(account, newest=reencoded_levelled_save())
     load = CountingLoad({newest.name: objects_refusal()})
     provider = providers.SaveWorldProvider(account, load=load)
     provider.world()
@@ -311,7 +407,7 @@ def test_a_refused_save_the_game_has_replaced_is_read(tmp_path: Path) -> None:
 
 def test_every_save_refused_answers_none(tmp_path: Path) -> None:
     account = tmp_path / "pretend-account"
-    newest, older = plant_pair(account, newest=b"re-encoded")
+    newest, older = plant_pair(account, newest=reencoded_levelled_save())
     load = CountingLoad({newest.name: objects_refusal(), older.name: objects_refusal()})
 
     absent = providers.SaveWorldProvider(account, load=load).world() is None
@@ -331,7 +427,11 @@ def test_find_save_and_find_saves_together_are_refused() -> None:
 
 
 def test_the_default_wiring_ranks_through_workdir_and_falls_back(tmp_path: Path) -> None:
-    """No injected seam: workdir ranks the directory and the real reader refuses."""
+    """No injected seam: workdir ranks the directory and the real reader refuses.
+
+    The newest file is refused at the HEADER, so its world is never read and
+    the world served past it is flagged as possibly another one - arm (k).
+    """
     account = tmp_path / "pretend-account"
     plant_pair(account, newest=b"not a save the game wrote")
 
@@ -339,8 +439,8 @@ def test_the_default_wiring_ranks_through_workdir_and_falls_back(tmp_path: Path)
 
     served = version_of(model)
     assert served == OLDER_VERSION, "the default wiring did not fall back"
-    flags = flags_of(model)
-    assert flags == [("header.UnsupportedHeaderVersionError", 1)]
+    flags = fallback_flags(model)
+    assert flags == [(NEWEST_UNIDENTIFIED, HEADER_SUBJECT, 1)]
 
 
 # ---------------------------------------------------------------------------
@@ -564,6 +664,29 @@ def test_a_copy_failure_is_retried_rather_than_remembered(tmp_path: Path) -> Non
     assert older_loads == 0, "the walk fell back past a save that was merely busy"
 
 
+@pytest.mark.parametrize("stage", [world.STAGE_COPY, world.STAGE_USMAP])
+def test_a_failure_that_is_no_verdict_is_never_remembered_whatever_its_cause_names(
+    tmp_path: Path, stage: str
+) -> None:
+    """The STAGE decides alone: a reader's class name on a copy or usmap failure changes nothing.
+
+    The cause-type check would refuse a copy or mapping class name anyway, so
+    this pins the stage gate by itself - a failure of the environment or the
+    install is retried, never held against the save, whatever its cause says.
+    """
+    account = tmp_path / "pretend-account"
+    newest, _older = plant_pair(account, newest=synthetic.SAVE_LEVELLED_V60.blob)
+    load = CountingLoad({newest.name: world.WorldLoadError(stage, "ObjectFormatError")})
+    provider = providers.SaveWorldProvider(account, load=load)
+
+    first = version_of(provider.world())
+    load.refusals.clear()
+    second = version_of(provider.world())
+
+    served = [first, second]
+    assert served == [None, NEWEST_VERSION], "a failure that is no verdict was remembered"
+
+
 # ---------------------------------------------------------------------------
 # g. no cap, and each file parsed at most once per identity
 # ---------------------------------------------------------------------------
@@ -687,7 +810,7 @@ def test_a_remembered_refusal_keeps_no_reader_frame_alive(tmp_path: Path) -> Non
     once the call returns, while the refusal itself is still remembered.
     """
     account = tmp_path / "pretend-account"
-    newest, _older = plant_pair(account, newest=b"re-encoded")
+    newest, _older = plant_pair(account, newest=reencoded_levelled_save())
     held: list[weakref.ref[_ReaderLocal]] = []
     calls = {"refused": 0}
 
@@ -700,7 +823,7 @@ def test_a_remembered_refusal_keeps_no_reader_frame_alive(tmp_path: Path) -> Non
         try:
             raise ValueError
         except ValueError as exc:
-            raise world.WorldLoadError(world.STAGE_OBJECTS, type(exc).__name__) from exc
+            raise world.WorldLoadError(world.STAGE_OBJECTS, "ObjectFormatError") from exc
 
     provider = providers.SaveWorldProvider(account, load=load)
     first = version_of(provider.world())
@@ -775,7 +898,11 @@ def test_get_api_world_serves_the_flag_with_no_time_and_no_digit(tmp_path: Path)
 
     A save's write time is when the operator last played - behavioural data the
     endpoint withholds from the header for exactly that reason - and a time to
-    the second singles one file out of a listing.
+    the second singles one file out of a listing. WHAT THIS ARM MEASURES: the
+    served subject is exactly the stage and the cause, the subject and the
+    detail carry no digit, and no spelling of the planted time is anywhere in
+    the body. The whole-body claim - nothing derived from the refused file's
+    name or write time, in any field - is the next arm's, by difference.
     """
     account = tmp_path / "pretend-account"
     plant(account / "Older.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
@@ -796,3 +923,508 @@ def test_get_api_world_serves_the_flag_with_no_time_and_no_digit(tmp_path: Path)
     assert digit_free, "a served flag carries a digit"
     canaries = sum(1 for fragment in canary_fragments(CANARY_SECONDS) if fragment in wire)
     assert canaries == 0, "the body carries a spelling of the refused save's write time"
+
+
+def get_api_world(account: Path) -> tuple[int, bytes]:
+    """One ``GET /api/world`` against a fresh provider over ``account``.
+
+    Args:
+        account: The pretend account directory.
+
+    Returns:
+        The HTTP status and the encoded body.
+    """
+    provider = providers.SaveWorldProvider(account)
+    table = server.routing(routes.build_routes(provider, _NoRegistry()))
+    response = table[endpoint.ENDPOINT][routes.METHOD_GET]({})
+    return response.http_status, contract.encode(response.payload)
+
+
+def test_the_served_body_is_the_same_whatever_the_refused_save_is_called_or_when_written(
+    tmp_path: Path,
+) -> None:
+    """Two directories holding the same bytes under other names and other RECENT times.
+
+    BY DIFFERENCE, SO NO SPELLING HAS TO BE GUESSED. A value derived from a
+    file's name or write time - in any field, spelled in digits, letters or
+    anything else - makes the two bodies differ. Both directories' times sit
+    within the last month, so a derivation that fires only for a fresh file
+    fires on both sides here, where the 2020 and 2033 fixtures above never
+    trigger it.
+    """
+    now = int(time.time())
+    first = tmp_path / "first-account"
+    plant(first / "Older.sav", synthetic.SAVE_LEVELLED_V36.blob, now - 2 * DAY_SECONDS)
+    plant(first / "Newest.sav", reencoded_levelled_save(), now - 1)
+    second = tmp_path / "second-account"
+    plant(
+        second / "Archive_autosave_2.sav",
+        synthetic.SAVE_LEVELLED_V36.blob,
+        now - 25 * DAY_SECONDS,
+    )
+    plant(second / "Fresh_autosave_0.sav", reencoded_levelled_save(), now - 20 * DAY_SECONDS)
+
+    first_status, first_body = get_api_world(first)
+    second_status, second_body = get_api_world(second)
+
+    statuses = (first_status, second_status)
+    assert statuses == (contract.HTTP_OK, contract.HTTP_OK), "no world was served past the refusal"
+    same = first_body == second_body
+    assert same, "the served body depends on a refused save's name or write time"
+    wire = first_body.decode("ascii")
+    canaries = sum(1 for fragment in canary_fragments(now - 1) if fragment in wire)
+    assert canaries == 0, "the body carries a spelling of the refused save's write time"
+
+
+# ---------------------------------------------------------------------------
+# j. a failure that is no verdict merges into the memo, never replaces it
+# ---------------------------------------------------------------------------
+
+
+def test_a_transient_failure_keeps_every_remembered_verdict(tmp_path: Path) -> None:
+    """One copy failure on a NEW newest save costs one load, never a re-parse of the rest.
+
+    The four calls of the refuting repro: the first walks every save, the
+    second walks none, the third meets a new newest save a writer holds open,
+    and the fourth - the writer gone, the reader refusing the new file - pays
+    for the new file alone. A memo REPLACED by the third call's walk, which
+    met no verdict, re-parsed every unchanged file on the fourth.
+    """
+    account = tmp_path / "pretend-account"
+    plant_many_refused(account, MANY_REFUSED)
+    load = CountingLoad()
+    provider = providers.SaveWorldProvider(account, load=load)
+
+    provider.world()
+    after_first = load.total
+    provider.world()
+    after_second = load.total
+    fresh = plant(account / "Fresh.sav", reencoded_levelled_save(), BASE_SECONDS + 900)
+    load.refusals[fresh.name] = world.WorldLoadError(world.STAGE_COPY, "SourceUnreadableError")
+    third = version_of(provider.world())
+    after_third = load.total
+    del load.refusals[fresh.name]
+    fourth_model = provider.world()
+    after_fourth = load.total
+
+    per_call = [
+        after_first,
+        after_second - after_first,
+        after_third - after_second,
+        after_fourth - after_third,
+    ]
+    assert per_call == [MANY_REFUSED + 1, 0, 1, 1], "an unchanged save was parsed again"
+    assert third is None, "a newest save held open was skipped"
+    fourth = version_of(fourth_model)
+    assert fourth == OLDER_VERSION
+    flags = flags_of(fourth_model)
+    assert flags == [(OBJECTS_SUBJECT, MANY_REFUSED + 1)]
+
+
+def test_a_save_gone_from_the_ranking_is_dropped_from_the_memo(tmp_path: Path) -> None:
+    """Merging is bounded: a refused file that leaves the ranking leaves the memo.
+
+    The file comes back byte for byte with its modification time restored -
+    the SAME identity - so only a memo that kept the departed file's verdict
+    can skip parsing it again.
+    """
+    account = tmp_path / "pretend-account"
+    newest, _older = plant_pair(account, newest=reencoded_levelled_save())
+    original = newest.read_bytes()
+    load = CountingLoad()
+    provider = providers.SaveWorldProvider(account, load=load)
+
+    provider.world()
+    newest.unlink()
+    provider.world()
+    plant(newest, original, BASE_SECONDS + 60)
+    model = provider.world()
+
+    refused_loads = load.calls.get(newest.name, 0)
+    assert refused_loads == TWO_LOADS, "a verdict on a file no longer ranked was kept"
+    flags = flags_of(model)
+    assert flags == [(OBJECTS_SUBJECT, 1)]
+
+
+def collection_sizes(holder: object) -> list[int]:
+    """The size of every collection the provider holds as an attribute."""
+    return [
+        len(value)
+        for value in vars(holder).values()
+        if isinstance(value, dict | list | set | frozenset)
+    ]
+
+
+def test_the_memo_is_bounded_by_the_ranking(tmp_path: Path) -> None:
+    """Whatever the provider remembers, it remembers per ranked file at most."""
+    account = tmp_path / "pretend-account"
+    refused = plant_many_refused(account, MANY_REFUSED)
+    provider = providers.SaveWorldProvider(account)
+    provider.world()
+    for path in refused[1:]:
+        path.unlink()
+
+    provider.world()
+
+    ranked = len(workdir.ranked_saves(account))
+    largest = max(collection_sizes(provider), default=0)
+    assert largest <= ranked, "the provider holds more entries than the ranking has files"
+
+
+# ---------------------------------------------------------------------------
+# k. the refused newest save's own world, or a flag saying it may be another
+# ---------------------------------------------------------------------------
+
+
+def test_a_refused_newest_save_falls_back_only_to_its_own_world(tmp_path: Path) -> None:
+    """The newest save is world B, refused after its header was read: B is served, never A.
+
+    A save of another world sits between them in the ranking. Serving it under
+    a flag reading "read from an older save and may be behind the game" is
+    false advice about a different world - non-negotiable 7, never silently
+    wrong - and it is never even parsed.
+    """
+    account = tmp_path / "pretend-account"
+    plant(
+        account / "OlderB.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, OTHER_WORLD),
+        BASE_SECONDS,
+    )
+    other = plant(account / "OtherA.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS + 30)
+    plant(account / "NewestB.sav", reencoded_levelled_save(OTHER_WORLD), BASE_SECONDS + 60)
+    load = CountingLoad()
+
+    model = providers.SaveWorldProvider(account, load=load).world()
+
+    own_world = is_world(model, OTHER_WORLD)
+    assert own_world, "a refused newest save fell back to another world"
+    other_loads = load.calls.get(other.name, 0)
+    assert other_loads == 0, "another world's save was parsed during the walk"
+    flags = fallback_flags(model)
+    assert flags == [(NEWER_SAVE_REFUSED, OBJECTS_SUBJECT, 1)]
+
+
+def test_no_readable_save_of_the_refused_newest_world_answers_none(tmp_path: Path) -> None:
+    """With nothing of world B readable, world A is never served in its place."""
+    account = tmp_path / "pretend-account"
+    plant(account / "OtherA.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
+    plant(account / "NewestB.sav", reencoded_levelled_save(OTHER_WORLD), BASE_SECONDS + 60)
+    provider = providers.SaveWorldProvider(account)
+
+    answers = [provider.world() for _ in range(CALLS)]
+
+    absent = [answer is None for answer in answers]
+    assert absent == [True] * CALLS, "another world was served in place of the refused one"
+
+
+def test_a_header_refusal_serves_the_newest_readable_save_under_the_distinct_flag(
+    tmp_path: Path,
+) -> None:
+    """The newest save's world is unknown, so the newest readable save is served - and says so.
+
+    Refusing outright would leave a dead dashboard after any header-format
+    game update; serving silently, or under the "behind the game" flag, would
+    claim a world the walk never identified. The world served here IS another
+    one, which is exactly the case the flag exists to say may be true.
+    """
+    account = tmp_path / "pretend-account"
+    plant(account / "OlderA.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
+    plant(
+        account / "OtherB.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, OTHER_WORLD),
+        BASE_SECONDS + 30,
+    )
+    plant(account / "Newest.sav", b"not a save the game wrote", BASE_SECONDS + 60)
+
+    model = providers.SaveWorldProvider(account).world()
+
+    newest_readable = is_world(model, OTHER_WORLD)
+    assert newest_readable, "the newest readable save was not the one served"
+    flags = fallback_flags(model)
+    assert flags == [(NEWEST_UNIDENTIFIED, HEADER_SUBJECT, 1)]
+    says_so = all(
+        "could not be identified" in w.detail and "a different one" in w.detail
+        for w in (model.warnings if model is not None else ())
+        if w.code == NEWEST_UNIDENTIFIED
+    )
+    assert says_so, "the distinct flag does not say the world may be another one"
+
+
+def canary_hits(texts: list[str]) -> int:
+    """How many canary spellings appear across ``texts``.
+
+    A helper so the rendered text lives in THIS frame, never in a test's frame
+    at an assert.
+
+    Args:
+        texts: Everything rendered - flag reprs, messages, encoded bodies.
+
+    Returns:
+        The number of (text, canary) pairs that matched.
+    """
+    canaries = (
+        CANARY_TOKEN_REFUSED,
+        CANARY_TOKEN_OTHER,
+        masked_token(CANARY_TOKEN_OTHER),
+        *CANARY_SESSIONS,
+    )
+    return sum(1 for text in texts for canary in canaries if canary in text)
+
+
+def flag_reprs(model: world.WorldModel | None) -> list[str]:
+    """The repr of every warning the model carries."""
+    return [] if model is None else [repr(warning) for warning in model.warnings]
+
+
+def test_no_world_token_or_world_name_reaches_a_flag_a_message_or_the_wire(
+    tmp_path: Path,
+) -> None:
+    """Three walks - fallen back, refused, unidentified - and not one canary rendered.
+
+    The refused newest save and another world's save carry canary tokens and
+    canary world names; the save served carries a canary world name too, which
+    the wire never serves. The served world's own MASKED token is the one
+    token-derived value the wire carries by design, so it is not a canary -
+    which is why the unidentified walk serves that same world rather than the
+    other one, whose masked token IS a canary in the fallen-back walk.
+    """
+    refused_name, other_name, served_name = CANARY_SESSIONS
+    fallen = tmp_path / "fallen-back"
+    served = plant(
+        fallen / "Served.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, CANARY_TOKEN_REFUSED, session_name=served_name),
+        BASE_SECONDS,
+    )
+    other = plant(
+        fallen / "Other.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, CANARY_TOKEN_OTHER, session_name=other_name),
+        BASE_SECONDS + 30,
+    )
+    newest = plant(
+        fallen / "Newest.sav",
+        reencoded_levelled_save(CANARY_TOKEN_REFUSED, session_name=refused_name),
+        BASE_SECONDS + 60,
+    )
+    refused_dir = tmp_path / "refused"
+    plant(refused_dir / "Other.sav", other.read_bytes(), BASE_SECONDS)
+    plant(refused_dir / "Newest.sav", newest.read_bytes(), BASE_SECONDS + 60)
+    unknown = tmp_path / "unidentified"
+    plant(unknown / "Served.sav", served.read_bytes(), BASE_SECONDS)
+    unreadable = synthetic.build_header(
+        header_version=synthetic.UNSUPPORTED_HEADER_VERSION,
+        world_token=CANARY_TOKEN_REFUSED,
+        session_name=refused_name,
+    )
+    plant(unknown / "Newest.sav", unreadable, BASE_SECONDS + 60)
+    planted = CANARY_TOKEN_REFUSED.encode("ascii") in newest.read_bytes()
+    assert planted, "the canary token was never planted, so this grades nothing"
+
+    texts = [
+        *flag_reprs(providers.SaveWorldProvider(fallen).world()),
+        *flag_reprs(providers.SaveWorldProvider(unknown).world()),
+    ]
+    statuses: list[int] = []
+    for account in (fallen, refused_dir, unknown):
+        status, body = get_api_world(account)
+        statuses.append(status)
+        texts.append(body.decode("ascii"))
+    with pytest.raises(world.WorldLoadError) as walked:
+        world.load_newest_world(workdir.ranked_saves(refused_dir))
+    texts.extend((str(walked.value), repr(walked.value)))
+
+    assert statuses == [contract.HTTP_OK, contract.HTTP_UNAVAILABLE, contract.HTTP_OK]
+    hits = canary_hits(texts)
+    assert hits == 0, "a world token or a world name was rendered"
+
+
+# ---------------------------------------------------------------------------
+# l. a refused save leaves no work copy behind
+# ---------------------------------------------------------------------------
+
+
+def copies_in(work_root: Path) -> list[str]:
+    """The names of the save copies under ``work_root`` - synthetic, never rendered."""
+    copies = work_root / workdir.COPIES_DIR_NAME
+    if not copies.is_dir():
+        return []
+    return sorted(entry.name for entry in copies.iterdir())
+
+
+def test_a_refused_save_leaves_no_work_copy(tmp_path: Path, isolated_work_root: Path) -> None:
+    """The walk's copies of refused saves are removed; the served save's own copy may stay.
+
+    Each refused save the walk met used to leave a full copy in the work root
+    for good - a real library left dozens. The save directory is untouched
+    either way, which arm (e) owns.
+    """
+    account = tmp_path / "pretend-account"
+    plant_many_refused(account, MANY_REFUSED)
+
+    model = providers.SaveWorldProvider(account).world()
+
+    served = version_of(model)
+    assert served == OLDER_VERSION
+    left = copies_in(isolated_work_root)
+    refused_copies = sum(1 for name in left if name.startswith("Refused"))
+    assert refused_copies == 0, "a refused save's work copy was left in the work root"
+    total = len(left)
+    assert total <= 1, "more copies remain than the one save served"
+
+
+# ---------------------------------------------------------------------------
+# m. the memo holds no reader exception, and a re-raise carries no chain
+# ---------------------------------------------------------------------------
+
+#: The canary each planted refusal leaves in a string the reader failed to
+#: decode - a world token in the header, a level name in the body.
+HEADER_CANARY: Final = b"CanaryQzx"
+BODY_CANARY: Final = b"CanaryLevelQzx"
+
+
+def header_canary_save() -> bytes:
+    """A save whose world token holds one byte that is no UTF-8 - a HEADER refusal."""
+    blob = relabelled(synthetic.SAVE_LEVELLED_V36, CANARY_TOKEN_REFUSED)
+    return blob.replace(b"QzxRfZ", b"QzxRf\xff")
+
+
+def body_canary_save() -> bytes:
+    """A save whose body holds a level name with one byte that is no UTF-8 - an OBJECTS refusal."""
+    fixture = synthetic.SAVE_LEVELLED_V36
+    named = (
+        synthetic.SyntheticLevel(name="Persistent_Level:CanaryLevelQzxZ"),
+        *synthetic.LEVELLED_NAMED[1:],
+    )
+    body = synthetic.build_levelled_body(
+        named,
+        synthetic.LEVELLED_PERSISTENT,
+        header_version=fixture.header_version,
+        save_version=fixture.save_version,
+    ).replace(b"CanaryLevelQzxZ", b"CanaryLevelQzx\xff")
+    payload = synthetic.body_with_prefix(body, fixture.header_version)
+    framed = synthetic.build_chunks(payload, framing=fixture.framing)
+    return fixture.blob[: fixture.chunk_offset] + framed
+
+
+def _children(item: object) -> list[object]:
+    """What one reachable object holds, for the canary walk."""
+    if isinstance(item, BaseException):
+        return [item.__cause__, item.__context__, *item.args, *vars(item).values()]
+    if isinstance(item, dict | MappingProxyType):
+        return [*item.keys(), *item.values()]
+    if isinstance(item, list | tuple | set | frozenset):
+        return list(item)
+    if is_dataclass(item) and not isinstance(item, type):
+        return [getattr(item, field.name) for field in fields(item)]
+    opaque = callable(item) or isinstance(
+        item, str | bytes | bytearray | int | float | bool | type | ModuleType
+    )
+    return [] if opaque else list(getattr(item, "__dict__", {}).values())
+
+
+def reachable_faults(root: object, canary: bytes) -> tuple[int, int]:
+    """Exceptions held, and canary hits, across everything reachable from ``root``.
+
+    Walks containers, dataclass fields, plain attributes and - for an
+    exception - its args, attributes, cause and context, so a byte string
+    hidden in a suppressed context is reached as surely as one in a field.
+    Every string reached and every exception's repr is searched for the canary.
+
+    Args:
+        root: Where to start.
+        canary: The save-derived bytes no reachable value may hold.
+
+    Returns:
+        (exceptions reached, values or reprs holding the canary).
+    """
+    text = canary.decode("ascii")
+    exceptions = hits = 0
+    seen: set[int] = set()
+    pending: list[object] = [root]
+    while pending:
+        item = pending.pop()
+        if item is None or id(item) in seen:
+            continue
+        seen.add(id(item))
+        if isinstance(item, BaseException):
+            exceptions += 1
+            hits += text in repr(item)
+        if isinstance(item, bytes | bytearray):
+            hits += canary in item
+        elif isinstance(item, str):
+            hits += text in item
+        pending.extend(_children(item))
+    return exceptions, hits
+
+
+@pytest.mark.parametrize(
+    ("payload", "canary"),
+    [(header_canary_save, HEADER_CANARY), (body_canary_save, BODY_CANARY)],
+    ids=["header", "objects"],
+)
+def test_the_memo_holds_no_reader_exception_and_a_re_raise_carries_no_chain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: Callable[[], bytes],
+    canary: bytes,
+) -> None:
+    """A refusal's suppressed context holds the undecodable bytes; none of it may be kept.
+
+    ``raise ... from None`` hides a ``UnicodeDecodeError`` from a printed
+    traceback and keeps it on ``__context__``, its ``object`` holding the
+    string that failed - here the canary. The memo may keep only the stage and
+    the cause type, and the refusal it raises again on a later call is a fresh
+    one with no cause and no context at all.
+    """
+    account = tmp_path / "pretend-account"
+    newest, _older = plant_pair(account, newest=payload())
+    with pytest.raises(world.WorldLoadError) as direct:
+        world.load_world(newest)
+    original_hits = reachable_faults(direct.value, canary)[1]
+    assert original_hits > 0, "the reader's own refusal holds no canary, so this grades nothing"
+    load = CountingLoad()
+    provider = providers.SaveWorldProvider(account, load=load)
+    provider.world()
+    raised: list[BaseException] = []
+    walk = world.load_newest_world
+
+    def spying_walk(candidates: Iterable[Path], **seams: Any) -> world.WorldModel | None:
+        inner: Callable[[Path], world.WorldModel] = seams["load"]
+
+        def recording(path: Path) -> world.WorldModel:
+            try:
+                return inner(path)
+            except world.WorldLoadError as exc:
+                raised.append(exc)
+                raise
+
+        return walk(candidates, **{**seams, "load": recording})
+
+    monkeypatch.setattr(providers, "load_newest_world", spying_walk)
+    provider.world()
+
+    refused_loads = load.calls.get(newest.name, 0)
+    assert refused_loads == 1, "the verdict was not remembered, so this grades nothing"
+    re_raised = len(raised)
+    assert re_raised >= 1, "no remembered verdict was raised again, so this grades nothing"
+    memo = reachable_faults(provider, canary)
+    assert memo == (0, 0), "the memo holds a reader exception or a save-derived string"
+    chains = [reachable_faults(exc, canary) for exc in raised]
+    assert chains == [(1, 0)] * re_raised, "a re-raised verdict carries a chain or a canary"
+    bare = [exc.__cause__ is None and exc.__context__ is None for exc in raised]
+    assert bare == [True] * re_raised
+
+
+def test_a_cause_type_outside_the_reader_vocabulary_is_never_served(tmp_path: Path) -> None:
+    """Fail closed: a subject built from anything but the closed vocabulary serves no world.
+
+    The cause here is a write time spelled in letters - the shape a rewrite of
+    ``cause_type`` anywhere between the reader and the flag would take.
+    """
+    account = tmp_path / "pretend-account"
+    newest, _older = plant_pair(account, newest=reencoded_levelled_save())
+    load = CountingLoad({newest.name: world.WorldLoadError(world.STAGE_OBJECTS, "bgaaaaaaaa")})
+
+    model = providers.SaveWorldProvider(account, load=load).world()
+
+    refused = model is None
+    assert refused, "a subject outside the closed vocabulary was served"
