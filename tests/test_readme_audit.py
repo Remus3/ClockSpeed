@@ -139,14 +139,17 @@ _GLUED: Final = rf"(?<={_EDGE}-[A-Za-z])"
 #: ``x$`` behind any prefix (``\\host\``, ``\\?\UNC\host\``, ``\\.\UNC\host\``), a
 #: ``\\?\Volume{<guid>}\`` path, and the folder's 8.3 short name ``CLOCKS~<n>`` -
 #: every separator, colon, dollar and tilde also URL-encoded or as an HTML entity.
-#: CS-1308: Git Bash's form also JSON-escaped; Git Bash, WSL and Cygwin forms with
-#: repeated separators and ``.`` or ``..`` segments, as the drive form takes them; a
-#: drive-relative or Git Bash form behind an underscore or a glued single-letter option;
-#: and the short name behind anything but a letter, so ``-CLOCKS~1`` is read and
+#: CS-1308: Git Bash's form also JSON-escaped; a Git Bash, WSL or Cygwin form with
+#: repeated separators and ``.`` or ``..`` segments after its drive letter, as the drive
+#: form takes them, and a WSL or Cygwin form with them before it too; a drive-relative
+#: or Git Bash form behind an underscore or a glued single-letter option; a Git Bash form
+#: behind a hyphen, as bash's ``${X-...}`` and ``${X:-...}`` defaults write it, or led by
+#: two or three separators, as MSYS's double slash and a file URI's empty authority write
+#: it; and the short name behind anything but a letter, so ``-CLOCKS~1`` is read and
 #: ``overclocks~150%`` is not.
 ABSOLUTE_CHECKOUT_RE: Final = re.compile(
     rf"(?:[A-Za-z]{_COLON}{_DOTTED}|(?:{_EDGE}|{_GLUED})[A-Za-z]{_COLON}"
-    rf"|(?:(?<![A-Za-z0-9.~/\\-])|{_GLUED}){_SEP}[A-Za-z]{_DOTTED}"
+    rf"|(?:(?<![A-Za-z0-9.~/\\])|{_GLUED}){_SEP}{{1,3}}[A-Za-z]{_DOTTED}"
     rf"|{_SEP}(?:mnt|cygdrive){_DOTTED}[A-Za-z]{_DOTTED}"
     rf"|{_SEP}[A-Za-z]{_DOLLAR}{_DOTTED}|{_SEP}Volume\{{[0-9A-Fa-f-]+\}}{_DOTTED})"
     rf"Clockspeed|(?<![A-Za-z])CLOCKS{_TILDE}\d",
@@ -672,6 +675,13 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("_/d/Clockspeed_", True),
         ("x_E:Clockspeed", True),
         ("-CLOCKS~1", True),
+        ('"${CLOCKSPEED_ROOT:-/e/Clockspeed}"', True),
+        ("${X-/e/Clockspeed}", True),
+        ("file:///e/Clockspeed", True),
+        ("docker run -v //e/Clockspeed:/work", True),
+        ("git -C//e/Clockspeed status", True),
+        ("9CLOCKS~1", True),
+        ("git -CE:Clockspeed status", True),
         ("root is `<repo>` on E:", False),
         ("https://github.com/Remus3/Clockspeed", False),
         ("/srv/work/Clockspeed/Clockspeed", False),
@@ -684,6 +694,11 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("Clockspeed~1", False),
         ("overclocks~150%", False),
         ("a-b/d/Clockspeed", False),
+        ("https://example.com/e/Clockspeed-docs", False),
+        ("a-b//d/Clockspeed", False),
+        ("cd ./e/Clockspeed", False),
+        ("cd ~/e/Clockspeed", False),
+        ("cd v2/e/Clockspeed", False),
     ],
     ids=[
         "drive-backslash",
@@ -730,6 +745,13 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "underscore-git-bash",
         "underscore-drive-relative",
         "short-name-after-dash",
+        "bash-default-colon",
+        "bash-default",
+        "file-uri-git-bash",
+        "msys-double-slash",
+        "glued-option-double-slash",
+        "short-name-after-digit",
+        "glued-drive-relative",
         "scrubbed",
         "url",
         "ci",
@@ -742,6 +764,11 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "long-name-tilde",
         "overclock-percent",
         "hyphenated-relative",
+        "url-single-letter-segment",
+        "hyphenated-relative-double-slash",
+        "dot-relative",
+        "home-relative",
+        "digit-segment",
     ],
 )
 def test_the_checkout_path_pattern_catches_every_spelling(text: str, *, hit: bool) -> None:
@@ -805,7 +832,7 @@ KEPT_CHECKOUT_LINES: Final[dict[str, tuple[str, ...]]] = {
         "36155fe426789ec47d1b9f35957783384babb31373a83800fdccd500751495e4",
         "3c4e047afba7b7d6871cefd3b98103814891c1b859049b6a526d8883e92dcfe9",
         "ff6bd9dbb3aa0112afcaddac669eee1498db0a095ba96a6e3843d2fb2aee6505",
-        "008ecd403dca3db9a10cc94fb69a2dc4c314c66687174d562fcaae8620106714",
+        "f2fb79c2ecd2c4abb381fef9f1ad273925bfbf05e373484c21eb8e5b0f545ecf",
         "c3dce4344007a7401292c713bac4b598553e89e2709960cdfe2b1c1e39257c94",
         "c85d103fc7fea652f89d57761bf62a19b0cb5de95c393d48b41552abb13e57ee",
         "e3275333f39fbfacbbfe1f3a013b61e371560d6a87c889618ee0e54e68dcd48f",
@@ -850,6 +877,13 @@ KEPT_CHECKOUT_LINES: Final[dict[str, tuple[str, ...]]] = {
         "a6b9ac6679369a07d99d815db788789ce41929b51163a78fcc1ae7a893d7a159",
         "5acb9f670c3ce5c9a0d34da320fbbe3c652f7d3308ebdbb326c160861c4e53a5",
         "8674602e485565d1b36140bb71e7775cb1c2c501a8208508b9e5b4488fd81165",
+        "2e2017689751b56205872f7540b3dbcb8c8659980c984354cfa89fa2907b25be",
+        "0b7c9d18dbda419dbf4c50ec8ba2529a164b5858c0e8d1e5cebf5f1496250402",
+        "95b35543fd6f41acb481d69c318d5316f22c68cd5d72d8705940e9733075d4a6",
+        "c039a28e95cd731434b1d9f3a7ad4037d2f418350f08db26195bec94e8225945",
+        "8da99a651634e608d3622a594dbd87cffe39226da6c84952821f3b15efa0fef9",
+        "784f1bda615899afb126837776908f751e0ac1f7d7d15c82dd6ceaea510e96ee",
+        "0b65029b0c925c77a89fb71f5e03e13a42e4f9eaf70b30603941b647a23f01db",
         "918f5d4c66a6e4ff427f8769be9fc80e5fb70e3b1829e24b8db3efe0b4888c7b",
         "d34ba214fd2a6d3219adad39a5dc60fb2bcbcfc212f5a2d4080ecaf59d43210a",
     ),
@@ -1318,21 +1352,31 @@ def test_a_symlink_entry_is_scanned_by_its_link_text(
     """R4: a symlink's index blob - the link text git publishes - is read, never followed.
 
     ``dangling`` has nothing in the work tree at the path; ``resolving`` has a clean file
-    there, standing for the target a followed link would open.
+    there, standing for the target a followed link would open. The link text's line is
+    counted as one unexpected spelling, so a guard that failed the link as unscannable
+    instead of reading it (mutant M1) fails this arm.
     """
     relative = "docs/link.md"
     files = {relative: b"# A clean target\n"} if resolving else {}
     entry = {relative: (_SYMLINK_MODE, _PLANTED.encode())}
-    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, files, entry))
+    message = _guard_failure(_planted_tree(repo_root, tmp_path, files, entry))
+    assert f"{relative}: 1 unexpected, 0 missing" in message
+    assert "unscannable" not in message
 
 
 def test_a_tracked_file_missing_from_the_work_tree_is_read_from_the_index(
     repo_root: Path, tmp_path: Path
 ) -> None:
-    """R4: a tracked file absent from the work tree is read from its index blob, not skipped."""
+    """R4: a tracked file absent from the work tree is read from its index blob, not skipped.
+
+    The blob's line is counted as one unexpected spelling, so a guard that failed the
+    path as unscannable instead of reading its blob (mutant M2) fails this arm.
+    """
     relative = "docs/gone.md"
     entry = {relative: ("100644", f"The root is {_PLANTED}.\n".encode())}
-    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {}, entry))
+    message = _guard_failure(_planted_tree(repo_root, tmp_path, {}, entry))
+    assert f"{relative}: 1 unexpected, 0 missing" in message
+    assert "unscannable" not in message
 
 
 def test_an_unreadable_tracked_path_fails_as_unscannable(repo_root: Path, tmp_path: Path) -> None:

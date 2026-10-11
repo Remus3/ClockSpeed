@@ -91,7 +91,7 @@ was then rebuilt with this record first in its history and that candidate re-app
 it, so no commit of the history this branch lands edits a file before this record exists.
 The re-applied scrub commit keeps the author date it was first written under, which is
 earlier than this record's. This record's first text described a guard that no commit held
-yet; a later commit revised it to describe the guard as it ships after two fix rounds.
+yet; later commits revised it to describe the guard as it ships after three fix rounds.
 DECISION: the checkout root - its drive-letter spelling and the old junction spelling on the
 system drive - is NOT personal data. It is not a home path, an account id, a machine name or
 a personal identifier (`CLAUDE.md` section 2, `CONVENTIONS.md` section 17). The scrub is for
@@ -129,26 +129,34 @@ hand-off, which carries no spelling, wins at landing. Under the same
 rule, the two-part junction spelling on line 761 of `docs/item_notes/phase4-followups-900.md`,
 which the single-token pattern does not see, is rewritten in the `<repo>` style, and a
 markdown-only arm for a quoted drive root beside the quoted folder name pins it.
-THE GUARD, as it ships after two fix rounds: CS-1292's path guard is widened from four docs
+THE GUARD, as it ships after three fix rounds: CS-1292's path guard is widened from four docs
 to every tracked path, against a kept table pinned by line CONTENT - per path, the digests of
 the lines that spell the root, each line's text fixing how many spellings it holds - so an
 added, changed, moved, doubled or removed spelling fails and an edit that only shifts line
 numbers does not. The guard's own file is scanned like any other, its pattern lines kept one
 by one. Each path is read by its index mode: a symlink as its blob, the link text git
 publishes, never followed; a gitlink not at all, its commit id being hexadecimal; any other
-entry from the work tree, or from its index blob when the work tree has no file there. Any
-other read error fails the path as unscannable. Only the hash-pinned binaries CS-1292
+entry from the work tree, or from its index blob when the work tree has no file there. A
+link's text and a missing file's blob are counted line by line like any other body, never
+failed as unscannable. Any other read error fails the path as unscannable. Only the hash-pinned binaries CS-1292
 admitted for the SHA citation gate are skipped, by path and bytes through that gate's own
 loader. Each body is read as strict UTF-8, or byte for byte when strict UTF-8 refuses it; a
 body carrying a NUL or a wide byte-order mark is also read with every NUL removed and as
 lenient UTF-16 and UTF-32 at every alignment; a body that neither strict UTF-8 nor a strict
-wide read decodes fails as unscannable. The pattern also reads Git Bash's form JSON-escaped
-or behind a glued single-letter option; the Git Bash, WSL and Cygwin forms with repeated
-separators and dot segments; a drive-relative or Git Bash form behind an underscore; the 8.3
-short name behind anything but a letter; and backslash-u and backslash-x escapes of a
-separator or the colon. Measured at fix round 2 against fix round 1's pattern: the widening
-adds no hit on main or on s136-land, and on the branch only the guard's own new pattern
-cases. This widens an existing test; it is not a new guard. It blocks the public flip because
+wide read decodes fails as unscannable. The pattern also reads Git Bash's form JSON-escaped;
+a Git Bash form with a doubled separator or a dot segment after its drive letter; a WSL form,
+whose branch Cygwin's shares, with a doubled separator after its drive letter or a dot
+segment before it; a drive-relative or Git Bash form behind an underscore or a glued
+single-letter option; a Git Bash form behind a hyphen, as bash's default-value expansion
+writes it with or without the colon, or led by two or three separators, as MSYS's double
+slash and a file URI's empty authority write it, a glued option included; the 8.3 short name
+behind anything but a letter, a digit included; and backslash-u and backslash-x escapes of a
+separator or the colon. It does not read a hyphenated relative segment before a one-letter
+segment, with one separator between them or two; a dot, a home tilde or a segment ending in
+a digit before one; or a one-letter segment of a URL behind its host. Measured at fix round 2 against fix
+round 1's pattern, and again at fix round 3 against fix round 2's: the widening adds no hit
+on main or on s136-land, and on the branch only the guard's own new pattern cases. This
+widens an existing test; it is not a new guard. It blocks the public flip because
 the acceptance needs it and CS-1292's four-file audit missed 13 files.
 ALTERNATIVES: scrub everything, the kept lines included - lost, because it rewrites a settled
 entry and an accepted ADR. Scrub nothing and drop the blocker status - lost to MAIN's
@@ -168,8 +176,14 @@ base64, a drive named through an environment variable such as `%SystemDrive%`, a
 escaped as `E\:`, a doubly URL-encoded separator or colon, and the like). Removing NULs joins
 a spelling's neighbours too, so a letter set against its left edge only through NULs blocks
 the pattern as if written glued. A staged blob that differs from the work tree is not read,
-nor is the text of a link the work tree holds where the index records a plain file. The fix
-loop ends at round 2 by cost against risk, the root being ruled not personal data. One
+nor is the text of a link the work tree holds where the index records a plain file. Read but
+pinned by no case, either way: admitting a hyphen also reads a relative segment ending in a
+hyphen before the Git Bash form, and two leading separators read a URL or a UNC path whose
+host is one letter; none occurs on main or on s136-land. Four or more leading separators
+are not read, and a file URI that names a host, `localhost` included, hides a Git Bash form
+behind it. The fix loop is held to cost against
+risk, the root being ruled not personal data; round 3 closed three plain Git Bash forms the
+final adversary planted and found green. One
 assembled spelling of the junction root stands, unruled: a negative sample in
 `tests/test_scaffold.py::test_home_path_detector_actually_detects`, built from fragments on
 purpose; it needs a slice that owns that file. 39 commits on s136-land touch a root spelling
