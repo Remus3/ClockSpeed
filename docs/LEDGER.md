@@ -75,6 +75,377 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-11 - CS-1311 - MOVED TO BACKLOG. NOT A COMPLETION RECORD. NOTHING CLOSED AND NOTHING BUILT. Ruling 4's reversal clause fired: the refused library save left the library before the content pin was built, and the pin's precondition evidence is kept here
+Verification: the CS-1311 line in `BACKLOG.md`, under its session 137 heading; the item's section,
+relocated verbatim to `docs/history_notes.md`, which keeps the pin design (its acceptance (b) to
+(h)); the CS-1309 DECISION RECORD below, whose Ruling 4 reversal clause this applies. Recorded in
+session 137.
+WHAT HAPPENED: the builder dispatched for this item stopped at its step 1 and built nothing. The
+refused file had gone to the Recycle Bin about 2 to 3 minutes before its first probe, and the
+account directory's modification time agrees. That followed the session 137 operator ask, to
+which the operator replied "ok". No agent was briefed to move it, and every agent with save
+access was read-only.
+THE LIBRARY AFTER IT: 41 saves, every one of which parses. The 42 library sweep tests read GREEN
+with no pin: 42 passed, exit 0, 649.91 s, through the suite gate (the session 137 sweep log in
+the gitignored work folder).
+THE PRECONDITION, acceptance (a), gathered read-only from the recycled copy, as booleans and
+counts - PRESENT AND UNAMBIGUOUS:
+- a game-written counterpart sharing the world token, play duration, header, save and editor
+  versions, build, map, modded flag and the byte after the save time, and older by modification
+  time: present, exactly 1;
+- the refused file's save time exactly representable as a float64: true, with 7 trailing zero
+  bits; game-written saves sharing that property: 1 of 41;
+- the counterpart's save time rounds through float64 to the refused file's: true, a 48-tick
+  difference;
+- the counterpart's body longer: true, by 11,081 bytes; chunk framing, chunk count, chunk size
+  and zlib level identical: true.
+The probes and their logs are gitignored, beside the sweep log.
+TRIGGER, now carried by `BACKLOG.md`: a refused library save reddens the sweeps again. The pin
+design then dispatches as filed, against this evidence or a fresh probe of the new file.
+
+### 2026-10-11 - CS-1309 - DECISION RECORD (adjudicated session 137, Ruling 4). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1309 STAYS OPEN. Its library-sweep clause is met by ruling: the sweeps are the correct alarm, with no count or stage tolerance
+Verification: `docs/item_notes/phase4-followups-1000.md` section CS-1309, whose `### Acceptance`
+clause lets the library-sweep tests be "ruled by an adjudicator to be the correct alarm, with the
+ruling recorded" here. This record meets that one clause. The item's fix rounds are still
+running; its other clauses, their verdicts and its close are not recorded here.
+DECISION (D): for CS-1309 the library sweeps are THE CORRECT ALARM (route A). There is no
+count-based or stage-based tolerance. A separate item, CS-1311, would give one diagnosed file an
+exact content pin - size AND SHA-256 - in a strict expected-refusal control, and any unpinned
+refused save stays red.
+ALTERNATIVES: B, a bounded tolerance - lost: the regression the sweeps exist to catch is one
+game-written save, usually the newest, refused by the objects walk, which looks exactly like the
+present case, so any K of 1 or more hides it; a "stated class" bound fails too, because the
+float-truncation signature also fits 1 of the 41 game-written saves. C, exclusion at the header
+or objects stage - lost: it has the same masking flaw, and its single-helper premise is false,
+since there are 7 copies of `_library_save_paths`. A alone - lost: it leaves adversary-cleared
+items hostage to an operator act, and nothing checks that the parser keeps refusing a re-encoded
+body. An interim mirror through the CLOCKSPEED_ACCOUNT_DIR override for the push - DENIED, as an
+unrecorded bypass of the gate.
+REVERSED BY: a second distinct third-party file (then a provenance-signature item, only with a
+zero-false-positive signature); evidence the file is game-written (unpin it and file a parser
+item); the operator moving the file before CS-1311 is dispatched (then that item goes to
+`BACKLOG.md` with the trigger "a refused library save reddens the sweeps again" - this one
+FIRED, the CS-1311 record above); or the operator's own words.
+
+### 2026-10-11 - CS-1285 - LANDED, NOT CLOSED, AND DECISION RECORD (adjudicated session 137, Ruling 5). NOTHING CLOSED. CS-1285 STAYS OPEN for slices C and D. Slice B v2: fluid-only fuel verdicts over machines and the registry, and a fluid line whose chain holds an uncovered input is indeterminate
+Verification: `clockspeed/audit/fuel.py` - `clockspeed/audit/fuel.py::fuel_supply_of`,
+`clockspeed/audit/fuel.py::fuel_demand_of`, `clockspeed/audit/fuel.py::FuelLine`,
+`clockspeed/audit/fuel.py::WorldFuel`, `clockspeed/audit/fuel.py::REASON_SUPPLY_INPUT_UNCOVERED`,
+`clockspeed/audit/fuel.py::NO_FLUID_UNDECLARED_CLASSES` and
+`clockspeed/audit/fuel.py::_uncovered_inputs`; `tests/audit/test_fuel.py`, every slice B arm the
+session 134 v2 ruling names by its stem among them, from
+`tests/audit/test_fuel.py::test_a_recipe_less_eater_unmeasures_its_fluid_fuel`,
+`::test_a_recipe_less_generator_a_fuel_recipe_names_unmeasures_it`,
+`::test_a_solid_fuel_is_never_measured`,
+`::test_a_non_buildable_census_record_never_blocks_a_fluid_verdict`,
+`::test_an_untabled_undeclared_buildable_is_unregistered`,
+`::test_an_oil_extractor_leaves_liquid_fuel_measured` and
+`::test_the_audit_takes_only_machines_and_registry` to the pinned
+`::test_a_clock_zero_maker_fires`; the phase 3 float scan widened to the fuel audit,
+`tests/solve/test_phase3_gate.py::EXACT_AUDIT_SOURCES`,
+`tests/solve/test_phase3_gate.py::test_no_exact_audit_module_contains_inexact_arithmetic` and
+`tests/solve/test_phase3_gate.py::test_the_scan_sees_a_float_spliced_into_the_real_fuel_audit`;
+the fuel classes in `tests/test_repr_rendering.py::RECORDED_POPULATION`; two provenance rows in
+`tools/provenance.tsv`. The binding session 134 v2 ruling is in `docs/item_notes/phase5.md`
+section CS-1285.
+ADVERSARY ROUNDS: two lenses, the ruling lens and the vacuity lens, REFUTED the first v2
+candidate; fix round 1 was re-refuted on test strength only; fix round 2 read VERIFIER CONFIRMED
+WITH CORRECTIONS. The slices' commits are named by subject, "CS-1285 - slice B v2: port the
+fix-3 candidate onto slice A" through "CS-1285 - slice B v2: the float scan flags int division
+and truediv".
+(1) RULING 5, THE UPSTREAM SHORTFALL. DECISION (E): option B, sharpened. A fluid fuel line
+carries the new reason `supply-input-uncovered` when any item in its chain closure has net below
+zero, whether or not the item is declared raw; the fuel's own net is excluded. The closure starts
+from the flowed recipes that produce or consume the fuel and repeatedly adds the producers of
+every input of a recipe already in it. With the reason present the line's supply is None and the
+class verdict is INDETERMINATE. No derated figure is estimated. Option D is folded in: the new
+reason covers U1, and `solid-supply-unmodelled` is never put on a fluid line. Option C,
+derating, is DEFERRED to a `BACKLOG.md` line triggered by a measured extractor-rate source
+(CS-1048), since a derating solver belongs in `clockspeed/solve/`.
+WHY: the flow the audit builds itself shows the input missing, so nameplate output is refuted
+by its own model. No rule anywhere read flow deficits, so the shortfall reached no card. Unknown
+means indeterminate, per v2. The rule reads only the flow model's items - net, producers and
+consumers; `clockspeed/audit/flow.py` is untouched; Fractions only. Slice C needs nothing new,
+because the demand card already fires on every indeterminate class (ruling (f)).
+ALTERNATIVES: A, the status quo - lost: CS-1263 and the CS-1280 ruling price one machine's
+uncontradicted draw, while here the model contradicts it. B as first written - lost on two gaps:
+declared-raw inputs could bring S0 back, and starved consumers make a FIRE false. C, derating -
+lost: allocation follows pipe and belt layout the model does not carry, and extractor rates are
+unknown, so the figure would be a guess (non-negotiable 7). D, `solid-supply-unmodelled` on
+fluid lines - lost: that reason means the fuel itself is solid, so on a fluid line it would give
+slice C the wrong text.
+REVERSED BY: a measured extractor-rate source plus an adjudicated derating item (C replaces this
+indeterminate wherever every chain leaf is rated), or the operator ruling that the fuel audit
+answers the nameplate question, with deficits given their own card.
+EVIDENCE, read on the first v2 candidate: S0 (4 fuel generators plus 4 refineries, no crude)
+REJECTed 2000 against 1000; S1 (a rocket blender, turbofuel unmade) REJECTed 6000 against 5000;
+U1 (hand-fed packaged fuel unpacked) REJECTed 1500 against 1000. Each shape is now an arm:
+`tests/audit/test_fuel.py::test_a_producer_starved_of_its_input_never_rejects`,
+`tests/audit/test_fuel.py::test_an_accepted_fuel_short_upstream_of_another_blocks_the_verdict`
+and `tests/audit/test_fuel.py::test_a_fluid_unpacked_from_a_hand_fed_solid_is_indeterminate`.
+The fixture recipe R_FUEL has no inputs, a common-mode blind spot.
+(2) INPUTS-ONLY IS THE GOVERNING READING of Ruling 5's "any item in its chain closure": the
+adjudicator's builder brief walked recipe inputs, and a byproduct deficit does not impede
+production. Pinned by
+`tests/audit/test_fuel.py::test_a_byproduct_eaten_elsewhere_never_blocks_the_verdict`; a sentence
+in `clockspeed/audit/fuel.py::_uncovered_inputs` states it and why.
+(3) THE BUILDER'S TWO READING CALLS, both UPHELD by the re-refute. Clause (b)'s count bins: the
+`WorldFuel` field `no_fluid_record_count` is (b)'s bin by class alone, so an undeclared
+non-buildable census class with registry evidence is counted, while (a)'s first sentence
+outranks the bin, so evidence still judges the record and no verdict changes
+(`tests/audit/test_fuel.py::test_an_undeclared_census_class_is_counted_by_its_class_and_judged_by_its_evidence`).
+M15, nominal makers: a standby maker still supplies its nominal rate - ruling (e) stands on the
+nominal answer, and `clockspeed/audit/flow.py`, which owns it, does not consult the producing
+flag (`tests/audit/test_fuel.py::test_a_standby_maker_still_supplies_its_nominal_rate`).
+(4) THE UNDECLARED CLASSES, ruling (c)'s record, class names only. A read-only re-probe
+CONFIRMED 9 undeclared build classes over the 29 saves of the pinned development world - the
+session 134 ruling's "9 plus biomass" was a miscount, the HUB's integrated biomass burner being
+one of the 9: BUILD_Potty_mk1_C, Build_GeneratorIntegratedBiomass_C, Build_HubTerminal_C,
+Build_PipelineFlowIndicator_C, Build_StorageBlueprint_C, Build_StorageIntegrated_C,
+Build_VehiclePathNode_Default_C, Build_VehiclePathNode_DockingStation_C and
+Build_WorkBenchIntegrated_C. `clockspeed/audit/fuel.py::NO_FLUID_UNDECLARED_CLASSES` owns the set.
+The library's third world holds 3 classes off the table - Build_GeneratorBiomass_C,
+Build_SM_RailingRamp_8x2_01_C and Build_SignPole_C - so 5 of the 12 saves outside the pinned
+world report unregistered fuels, failing closed by design.
+(5) RESIDUAL, the float scan's gaps: minus one over two; a negated numerator over a
+denominator; an absolute value divided; a numerator times one over a denominator; an in-place
+true division; operator.itruediv; the in-place true-division dunder; and a getattr fetch of the
+float dunder. The behavioural arm
+`tests/audit/test_fuel.py::test_a_shortfall_below_float_resolution_still_fires` is the backstop.
+(6) RESIDUAL: a census record of a declared class whose recipe eats an upstream intermediate,
+not the fuel, can still allow a REJECT. The real registry cannot produce it. It is stated in
+`clockspeed/audit/fuel.py::_uncovered_inputs` and not fixed.
+(7) Option C's line is in `BACKLOG.md`, under the session 137 heading.
+NOT YET RECORDED, AND FLAGGED RATHER THAN RECONCILED: Ruling 5 asks for the real-save probe
+re-run with its count per reason, and the session 134 ruling's residual check asks that
+Desc_LiquidFuel_C carry no unmeasured or unregistered reason. Two readings exist and neither is
+that count: the builder's read-only probe of the newest pinned-world save found two fuel
+classes, both solid burners, indeterminate on solid-supply-unmodelled alone, and no fluid fuel
+class built, so the liquid-fuel check has no line to read; the slice B v2 adversary record reads
+that no library save holds a fuel generator and that all 55 verdicts are indeterminate. Whether
+"fuel generator" there excludes the solid burners is not established here. Both checks are owed
+before the item closes.
+
+### 2026-10-11 - CS-1308 - CLOSED: the checkout root is spelled only on the ruled kept lines, and the CS-1292 path guard reads every tracked path against a kept table pinned by line content
+Verification: `tests/test_readme_audit.py::test_no_absolute_checkout_path_in_any_tracked_text_file`,
+reading `tests/test_readme_audit.py::ABSOLUTE_CHECKOUT_RE` against
+`tests/test_readme_audit.py::KEPT_CHECKOUT_LINES`;
+`tests/test_readme_audit.py::test_the_checkout_path_pattern_catches_every_spelling`;
+`tests/test_readme_audit.py::test_the_checkout_path_pattern_cannot_backtrack_catastrophically`;
+the planted-tree arms from `tests/test_readme_audit.py::test_a_planted_tree_of_the_kept_files_alone_is_green`
+to `tests/test_readme_audit.py::test_an_unreadable_tracked_path_fails_as_unscannable`; and
+`tests/test_readme_audit.py::test_no_tracked_markdown_spells_the_root_in_two_quoted_parts`. The
+kept set and why each line stays, the scrubbed rows, the guard as it ships, the alternatives,
+the reversals and the residuals are the 2026-10-11 CS-1308 DECISION RECORD below; this record
+adds the close and one residual. Merged: `tests/test_readme_audit.py`, the scrubbed files that
+record names, and that record itself. The commits are named by subject, "CS-1308 - record the
+kept-set ruling before any edit" through "CS-1308 - the separator token cannot backtrack
+exponentially".
+THE ACCEPTANCE, clause by clause: the adjudicator ruled the kept files one by one, each reason
+recorded here before any edit in the history this branch lands, with the timeline the decision
+record states. On the tip that carries CS-1292 - the landing branch this record is written on -
+the acceptance's drive-letter grep, re-run by this record, lists exactly BOOTSTRAP.md, CLAUDE.md,
+`docs/adr/0026-the-root-moves-to-e.md` and `tests/test_readme_audit.py`, and its Git Bash form
+lists `tests/test_readme_audit.py` alone: the kept files and the guard's own test patterns.
+Every other spelling is written in CS-1292's `<repo>` style or in plain words, and the one real
+test value is built under `tmp_path`. The verifier's landing simulation read 743 passed
+(agent-reported). The guard is widened so a new spelling outside the kept set fails it. No
+settled decision is reopened: the root does not move.
+ADVERSARY LOOP: round 0 REFUTED, round 1 REFUTED, round 2 REFUTED (three plain Git Bash forms),
+then rounds 3 and 4 fixed the forms and the backtracking, and a VERIFIER CONFIRMED every claim at
+the final tip. The loop was stopped by cost against risk, because the root is ruled not personal
+data (Ruling 3, the decision record below).
+RESIDUAL, ADDED BY THIS CLOSE: search time on a long run of PLAIN backslashes grows
+quadratically - 1000 take 42 ms, 2000 take 0.17 s and 4000 take 0.56 s - and the timing arm
+covers escaped slashes, dot segments and mixed runs only.
+
+### 2026-10-11 - CS-953 - CLOSED: MOOT, NOT SATISFIED. The phase-7 scrub its acceptance tests does not exist and cannot, and the trap it guards is enforced and tested by the flip checks' history path walk
+Verification: `docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`, amended
+2026-10-11 by this close with its decision unchanged; CS-700 step S7a's TREE check in
+`docs/item_notes/phase7.md`; `tools/flip_checks.py::history_paths`;
+`tests/test_flip_checks.py::test_the_pii_control_finds_a_synthetic_needle_in_every_channel` and
+`tests/test_flip_checks.py::test_a_blob_stored_at_two_paths_is_seen_at_both`. The item's section
+is relocated verbatim to `docs/history_notes.md`. Adjudicated in session 137 (Ruling 2).
+ADR: `docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`
+DECISION: CLOSED AS MOOT. The acceptance tests "the phase-7 scrub", and no such scrub exists or
+can exist: ADR 0018 rejects rewriting history for content, and S7a's TREE check, filed
+2026-09-24, aborts if any paired commit's tree differs. The trap the item guards - a path that
+existed only before a move, unseen by a check of the paths at HEAD - is covered by
+`tools/flip_checks.py::history_paths`, filed 2026-09-25, which reads every path any reachable
+commit ever held and feeds both the personal-data scan and the publisher-assets scan. Both facts
+postdate the 2026-09-08 sentence in ADR 0018 that kept the item open.
+EVIDENCE: a rename probe found 1 hit with the real code, 0 with a current-paths-only variant and
+0 with a one-path-per-content variant. Each way the check could break is caught by an existing
+test: the personal-data control test and the two-paths test above. The CS-1292 and CS-1308
+slices rename no files.
+ALTERNATIVES: keep it frozen - lost, since it could never close. Move it onto the flip track -
+lost: the property is already enforced and tested, and product before process applies. Close it
+as satisfied - lost: `CLAUDE.md` section 6.1 forbids calling done what its acceptance says is
+not.
+REVERSED BY, each filing a NEW item that cites this one: a path change in published history (a
+filename callback in S7a, a relaxed TREE check, ADR 0018 revisited toward a path rewrite, or a
+wip or salvage ref scrubbed before a re-push), or `history_paths` replaced by a current-paths-only
+or one-path-per-content listing.
+COMMON-MODE RISK: `history_paths` flags only names on the needle list; that list's completeness
+is CS-700's job under ADR 0018.
+Private vulnerability reporting, secret scanning and push protection, carried beside this
+ruling by the session 136 hand-off, are the CS-700 DECISION RECORD below.
+
+### 2026-10-11 - CS-700 - DECISION RECORD (adjudicated session 137, Ruling 1). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. Private vulnerability reporting, secret scanning and push protection are turned on by the flip session through the API, as a fourth S12a act
+Verification: `docs/item_notes/phase7.md` section CS-700, its S11 and S12a steps and the heading
+`Session 137 ruling, recorded 2026-10-11`; `docs/public-readiness.md` findings M1 and M2, its
+settings table and its operator steps, all edited by the commit carrying this record.
+DECISION: the flip session turns the three on through `gh api` with the existing token. The
+repo scope suffices: the private-vulnerability-reporting endpoint's accepted-scopes header names
+repo, and its 404 comes from the repository being private. It is a NEW act inside S12a, after
+act (ii) - the post-S12 ledger commit read back pushed - and before the S7q lift, which was act
+(iii) and is now act (iv); "three acts" becomes "four". Order: private vulnerability reporting,
+then secret scanning, then push protection, each read back. Repeating it is harmless. If the API
+refuses, the refusal is recorded in the note and the sequence carries on. One conditional line
+joins the step-e ask: "(4) if I report that any of the three did not turn on through the API,
+switch it on at Settings > Code security."
+ALTERNATIVES: the operator by browser, as findings M1 and M2 had it - lost to FLEET item 1,
+because it is a reversible change the token can make. At S11 - lost: it reads 404 and null while
+the repository is private. After the hold is lifted - lost: the resume table reads that state as
+complete, so a halt there would drop the settings. Before acts (i) and (ii) - lost: push
+protection would scan the closing ledger push, and a block there would need a bypass that no
+halt rule covers.
+REVERSED BY: the calls refused on the public repository (the conditional line fires); GitHub
+requiring a scope other than repo (it joins the step-e `gh auth refresh -s` line); or the
+operator's own words, or a MAIN ruling, that these are set by hand.
+MEASURED by the adjudication, read-only (agent-reported, not re-run by this record): token
+scopes gist, read:org, repo and workflow; the private-vulnerability-reporting GET answers 404;
+the repository reads private; secret scanning and push protection read null; four targeted tests
+in `tests/test_flip_checks.py` passed.
+DOC EDITS in this commit: S11 is limited to what works while private, Dependabot alerts; S12a
+gains the act; the S12a halt rule names it among the acts safe to repeat, with its read-back;
+the dated ruling heading; M1, M2, both settings-table "Done by" cells and operator step 2. The
+hand-off edits are the /done's.
+
+### 2026-10-11 - CS-1292 - CLOSED: the README is short, shows a banner and a synthetic dashboard screenshot, and its install detail lives in one linked doc, before the CS-700 flip
+Verification: `tests/test_readme_audit.py` - `tests/test_readme_audit.py::test_readme_is_under_the_line_budget`,
+`::test_readme_shows_a_banner_and_a_dashboard_screenshot`,
+`::test_asset_pngs_carry_no_text_metadata`, `::test_quickstart_is_short_and_links_the_install_doc`,
+`::test_the_quickstart_link_lands_on_a_real_install_heading`,
+`::test_section_1_2_holds_every_moved_command`, `::test_section_1_2_holds_every_moved_paragraph`,
+`::test_env_var_table_lives_in_the_install_doc`, `::test_language_model_is_named_only_in_at_a_glance`,
+`::test_citation_leaves_the_language_model_claim_to_the_readme`,
+`::test_python_version_is_stated_once_in_requirements`,
+`::test_license_holder_matches_citation_authors` and
+`::test_no_absolute_checkout_path_in_the_audited_docs`; the SHA citation gate's hash-pinned binary
+admission, `tools/sha_citation_binaries.json`, held by
+`tests/test_sha_citation_gate.py::test_a_pinned_png_is_counted_known_binary_and_never_left_unread`,
+`tests/test_sha_citation_gate.py::test_a_citation_smuggled_behind_png_magic_fails_the_run` and
+`tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits`. Merged in
+README.md, CITATION.cff, `docs/OPERATIONS.md` (section 1.2, the install detail and the env-var
+table), `docs/assets/social-preview.png`, `docs/assets/dashboard.png`, `docs/public-readiness.md`,
+CONVENTIONS.md, CLAUDE.md, `docs/LEDGER.md`, `docs/history_notes.md`,
+`.claude/agents/doc-sync.md`, `.claude/commands/sync-docs.md`, `tools/sha_citation_gate.py`,
+`tools/sha_citation_binaries.json`, `tools/provenance.tsv`, `tests/test_readme_audit.py` and
+`tests/test_sha_citation_gate.py`. The commits are named by subject, "CS-1292 - README audit:
+short README, two images, install doc" through "CS-1292 - the replace-ref control binds the blob
+before asserting on it". The rulings - the holder string, the install detail's owner and the
+binary admission - are the 2026-10-09 CS-1292 DECISION RECORD below.
+THE ACCEPTANCE, items 2 to 7 of MAIN's 2246 section 3: a Quickstart of about 10 lines with the
+rest of the install detail moved verbatim to `docs/OPERATIONS.md` section 1.2, env-var table
+included; the banner and one dashboard screenshot on synthetic data under `docs/assets/`; "no
+language model" kept only in At a glance and the description; the Python version stated once,
+in Requirements; one licence holder string matching `CITATION.cff`, adjudicated; the absolute
+checkout path in `docs/LEDGER.md` and `docs/history_notes.md` written as `<repo>`. Item 1, the
+two post-flip flag read-backs, is CS-700's.
+ADVERSARY: four fix rounds; the acceptance lens and the leak lens each read NOT REFUTED on the
+final slice, and the env-echo landing fix read NOT REFUTED (agent-reported, the session 136
+hand-off). Residuals: `BACKLOG.md`, "Session 136 residuals".
+
+### 2026-10-11 - CS-1285 - LANDED, NOT CLOSED. NOTHING CLOSED. CS-1285 STAYS OPEN. Slice A: the registry reads accepted fuels, the extractor resource restriction and the declared classes
+Verification: `clockspeed/data/registry.py` - the appended, defaulted fields
+`clockspeed/data/registry.py::Generator` field `accepted_fuels` (from `mFuel`, in document order,
+deduplicated, None and never an empty tuple; an unreadable value is None plus
+`clockspeed/data/registry.py::WARN_UNREADABLE_FUELS`), `clockspeed/data/registry.py::Extractor`
+field `allowed_resources` (read only when `mOnlyAllowCertainResources` reads exactly 'True') and
+`clockspeed/data/registry.py::Registry` field `declared_classes`; the separate synthetic fuel
+corpus in `tests/data/synthetic.py`;
+`tests/data/test_registry.py::test_accepted_fuels_are_read_from_mfuel_in_document_order`,
+`::test_an_unreadable_mfuel_is_none_and_a_named_warning`,
+`::test_allowed_resources_only_when_restricted`,
+`::test_an_unrestricted_extractors_list_is_never_read_so_never_flagged`,
+`::test_unknown_group_classes_are_undeclared`, `::test_an_empty_class_name_declares_nothing` and
+`::test_a_non_string_class_name_declares_nothing_and_never_raises`. Per ruling (d) of the
+session 134 v2 ruling in `docs/item_notes/phase5.md` section CS-1285; the commits are named by
+subject, "CS-1285 - slice A: fuels, extractor restriction, declared classes" through "CS-1285 -
+slice A round 2: kill the ClassName and flag-order mutants". Three adversary rounds, the last
+NOT REFUTED; a verifier CONFIRMED with corrections (agent-reported, the session 136 hand-off).
+Residuals, A11's detail text and a non-string ClassName in an unmodeled group: `BACKLOG.md`,
+"Session 136 residuals". Slice B v2 is the record above; slices C and D remain.
+
+### 2026-10-11 - CS-1280 - CLOSED: a built consumer carrying no machine tag on a clean payload is priced at its class default in its own counted group, and the library's omitted count is re-published
+Verification: the ruling is the 2026-10-08 CS-1280 DECISION RECORD below, option A with a
+carve-out. Merged in `clockspeed/audit/machines.py` (`clockspeed/audit/machines.py::WorldMachines`
+field `unadmitted_clean_counts`, `clockspeed/audit/machines.py::CLEAN_PAYLOAD_REFUSING_NAMES`,
+`clockspeed/audit/machines.py::PROPERTY_PENDING_OVERCLOCK`), `clockspeed/audit/balance.py`
+(`clockspeed/audit/balance.py::clocked_draw_of` prices those consumers at
+`clockspeed/audit/balance.py::ELIDED_CLOCK_DEFAULT` in groups of their own,
+`clockspeed/audit/balance.py::WorldClockedDraw` field `tagless_default_count`, the warning
+`clockspeed/audit/balance.py::WARN_BALANCE_TAGLESS_DEFAULT`), `clockspeed/audit/__init__.py` and
+the docstring of `clockspeed/advisor/rules/power.py`. The commits are named by subject, "CS-1280 -
+price a clean tagless consumer at its class default", "CS-1280 - a priced tagless consumer is
+never an empty-model zero" and the landing fix "CS-1280 - the route omission arm takes its
+omission from a pending tag".
+AN ARM PER CLASS FAMILY THAT REDDENS WHEN THE RULING IS IGNORED:
+`tests/audit/test_balance.py::test_a_tagless_consumer_on_a_clean_payload_is_priced_at_its_class_default`,
+`::test_a_clean_tagless_consumer_of_each_priced_family_is_its_declared_draw` and
+`::test_a_clean_tagless_consumer_of_each_gap_family_is_its_registry_gap`; the carve-out by
+`::test_a_tagless_consumer_that_did_not_read_clean_stays_omitted` and
+`::test_an_undecoded_or_disagreeing_tagless_payload_stays_omitted`; the real loader by
+`::test_tagless_actors_through_the_real_loader_split_on_the_clean_test`; the round 2 defect by
+`::test_a_priced_tagless_consumer_with_no_admitted_machine_is_no_empty_zero`; the census by
+`tests/audit/test_machines.py::test_a_tagless_record_on_a_clean_payload_is_counted_clean` and
+`::test_the_pending_clock_tag_is_read_for_cleanliness_and_never_admits`; the warning census by
+`tests/audit/test_every_warning_fires.py`; the route by
+`tests/surface/test_advice_source.py::test_a_clean_tagless_consumer_is_priced_over_the_real_route_table`
+and `::test_the_listing_names_an_omitted_consumer_over_the_real_route_table`, whose omission now
+comes from a pending clock tag.
+THE OMITTED COUNT, RE-PUBLISHED as the acceptance requires. Measured read-only on the landing
+branch over the save library, counts only, the verifier and the builder agreeing: 41 saves
+read, 3005 built consumers, 2993 considered, 469 priced at class default and 12 omitted - 10
+MinerMk1 and 2 WaterPump, the tagless records carrying `mPendingPotential` that the carve-out
+keeps omitted - against the parent's 2524 considered and 481 omitted, the session 133
+measurement in the decision record below.
+ADVERSARY: a verifier CONFIRMED; an adversary REFUTED the no-machines-clocked path with a tagless
+consumer, the round 2 fix answered it with 3 mutants killed, and a narrow re-refute read NOT
+REFUTED; the landing fix to the route arm read NOT REFUTED (agent-reported, the session 136
+hand-off). Residual: `BACKLOG.md`, "Session 136 residuals". Two older `BACKLOG.md` lines name
+this item's ruling or landing as their trigger - the hover pack counted as a consumer, and flow
+completeness judged over machines only - and both fire with this close; they are named here
+and not acted on.
+
+### 2026-10-11 - CS-1300 - CLOSED: the nested CS-1233 run cuts its conftest walk at the collected directory, so a sibling deleted mid-collection never fails it
+Verification: `tests/test_claude_hook.py::quiet_child`, which passes `--confcutdir` at the
+collected directory and names the cause in a comment beside the cut;
+`tests/test_claude_hook.py::test_a_sibling_deleted_mid_collection_never_reaches_the_nested_run`,
+red first with the os.lstat FileNotFoundError; the acceptance arm
+`tests/test_claude_hook.py::test_the_measurement_starts_only_after_every_sibling_worker_finished`,
+both its cases. Merged in `tests/test_claude_hook.py` and `tests/xdist_quiet.py` with the
+TIER2-RED slice, the commits named by subject "CS-815 - wrapper arms needing a finished ladder
+wait for quiet siblings" through "CS-815 CS-1300 - one-shot check sees past a probe, waiters
+stop first".
+THE CAUSE, MEASURED: the nested run collected a temp path from the repository's drive with no
+common ancestor, so its conftest cut stayed at the repository and pytest collected every ancestor
+of the temp path, lstat-ing each sibling while matching; a sibling deleted between the listing
+and the lstat failed collection. The red arm runs on Windows only, because the lstat is pytest's
+Windows-only path-match fallback; elsewhere a path matches by equality, so it could not be red
+there. No budget was raised and the acceptance arm skips no case.
+THE ACCEPTANCE LOOP: the session 136 concurrency-lens adversary, in its own pass on the TIER2-RED
+candidate, read the acceptance arm, both cases, 30 consecutive times under
+`-n 2 --dist loadfile`: 30 of 30 exit 0, with no lstat or FileNotFoundError in any log. It reproduced the
+cause: the red arm's nested run without the cut exits 1 naming lstat and FileNotFoundError, 2
+of 2, and exits 0 with it, 2 of 2. Its minor findings b, c, d, e and g were then fixed, and a
+second adversary pass read the repaired tip NOT REFUTED (agent-reported, the session 136
+hand-off). Not re-run by this record.
+LEFT OPEN: CS-815, for its operator check; CS-1307, the git-hook arms of the same ladder, whose
+verifier verdict and smallest remaining slice are in its section in `docs/item_notes/phase7.md`.
+Residual: the 5 s live-sibling retry, `BACKLOG.md`, "Session 136 residuals".
+
 ### 2026-10-11 - CS-1308 - DECISION RECORD (adjudicated session 137). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1308 STAYS OPEN. The checkout root is not personal data, and the lines that keep its spelling are ruled one by one before any edit
 Verification: `docs/item_notes/phase7.md` section CS-1308 and its `### Acceptance` clause, the
 CS-1292 path guard in `tests/test_readme_audit.py` that this item widens, and the unmerged

@@ -85,39 +85,6 @@ The wrapper and the two command values landed; see the CS-815 LANDED record in
 desktop app shows the `REFUSED (CS-815)` hook-error line for a failed probe. If it
 does, CS-815 closes; if not, rebuild the report on the exit-0 JSON systemMessage route.
 
-## CS-953
-
-### FILED 2026-09-07 (session 73), from a sibling's measured failure
-
-RC ran a history rewrite with a rename table keyed on each file's path AS IT
-EXISTS AT HEAD. The filter callback receives the path belonging to whichever
-COMMIT it is filtering, so every file that had ever been MOVED went unrenamed at
-each of its earlier paths. Result: 2195 vendor-name hits in the rewritten
-history, **none of them in a blob** - all in tree objects, which is where
-filenames live. A content scrub can be complete and still publish the names.
-
-THE PREVIOUS PASS HAD VERIFIED "ALL PURGED PATHS ZERO" AND THAT WAS TRUE AND
-USELESS. It checked eleven named path patterns and no vendor name was among
-them. The check confirmed the absence of things already known to be absent.
-Widening it also surfaced 27 scraped images and two scraped JSON files that
-appeared in no plan - dropped rather than renamed, because renaming scraped
-third-party data keeps the data and hides only whose it is.
-
-**THIS BITES CS SPECIFICALLY** because CS-700's phase-7 gate is a going-public
-checklist and this project is going public. Two further surfaces from the same
-report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
-other ref), and deleting a repository deletes its LFS store. The git object
-store is not the whole surface.
-
-### Acceptance
-
-the phase-7 scrub verifies the whole path list against the whole name list rather than a list of paths already known to worry about, proven by a probe over a synthetic history containing a renamed file that goes RED when only HEAD paths are checked
-
-### Full headline
-
-a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed, because the filter callback receives each commit's own paths
-
-
 ## CS-700
 
 ### FILED 2026-09-07 (session 73), queueing the plan session
@@ -177,6 +144,8 @@ is not a verification step.**
 **(c) A content scrub can be COMPLETE and still publish the names, because a
 filename is not content.** Filed separately as CS-953 and it is the trap aimed
 at this project. Do not treat CS-953 as satisfied by anything in this item.
+**REPOINTED, filed 2026-10-11:** CS-953 closed as MOOT, not satisfied - `docs/LEDGER.md`, the
+2026-10-11 CS-953 record; the trap is covered by `tools/flip_checks.py::history_paths`.
 
 **(d) Deleting a repository deletes its LFS store.** The plan enumerates what
 the forge holds besides the object store - pull refs, LFS, releases, Actions
@@ -913,8 +882,11 @@ pattern against - so the first draft's read-back was trap (b) relocated, not
 removed. Clone the recreated remote `--mirror` into scratch and enumerate what
 came back: assert exactly one head, zero tags, zero wip, zero of every other
 namespace. Then set branch protection on `main`, which the old remote never had,
-turn on the security features that were all off, and re-enter by hand the 20
-topics, 10 labels, description and homepage that deletion discarded.
+turn on the security features that work while the repository is private, and re-enter by
+hand the 20 topics, 10 labels, description and homepage that deletion discarded.
+**NARROWED, filed 2026-10-11 by the session 137 ruling below:** at S11 that security feature is
+Dependabot alerts alone. Private vulnerability reporting, secret scanning and push protection
+read 404 and null while private, so they are S12a's act (iii), after the flip.
 **THE PROTECTION SHAPE, filed 2026-10-04 by the CS-700 pre-S7a ruling:** deletion and
 non-fast-forward are blocked on `main` only - no required reviews and no required
 checks, so the lane's fast-forward pushes still land. The same row is in
@@ -940,10 +912,15 @@ flip that TOOK would read as the PUBLIC STATE and the plan would delete its own
 intended result. Immediately AFTER the call: S9c's anonymous read, same request and
 same positive control, now returns 200; a fresh mirror clone runs S11's enumeration
 in full; S10b's rulesets read back as S10b left them. A pass starts the CLOSING
-SEQUENCE, three acts in order, each recorded in the note before it is issued:
+SEQUENCE, four acts in order, each recorded in the note before it is issued:
 (i) S10b's rulesets are removed and read back gone; (ii) the post-S12 ledger commit,
 whose SHA and whose single parent - the adjudicated SHA - are recorded first, is
-pushed to `main`; (iii) S7q lifts. The EXPECTED HEAD is the adjudicated SHA until
+pushed to `main`; (iii) once (ii) is read back landed, private vulnerability reporting,
+then secret scanning, then push protection are turned on through `gh api` with the
+existing token, each read back - a refusal is recorded in the note and the sequence
+carries on, and the step-e ask's conditional line (4) hands it to the operator;
+(iv) S7q lifts. Act (iii) was added by the session 137 ruling below, which is why the
+S7q lift, act (iii) before it, is act (iv). The EXPECTED HEAD is the adjudicated SHA until
 act (ii) is recorded issued, and from then on either the adjudicated SHA or the
 recorded ledger commit - both are legitimate until (ii) is read back landed.
 
@@ -953,9 +930,11 @@ published, and the resume is S12's tip check under a new confirmation. HALT AT
 S12a, INSIDE THE CLOSING SEQUENCE: the repository is public, holds exactly the
 expected head and nothing else, and the note shows which acts were issued. The
 reads settle each issued act - rulesets present or gone, `main` at the adjudicated
-SHA or at the recorded ledger commit - and the resume is the FIRST act they do not
-show done; act (i) and act (ii) are each idempotent against those reads, so
-re-issuing one that took is never needed. HALT AT S12a, STRAY REF: any ref beside
+SHA or at the recorded ledger commit, each of the three security settings read on or
+off - and the resume is the FIRST act they do not show done; act (i), act (ii) and
+act (iii) are each idempotent against those reads, so re-issuing one that took is
+never needed, and act (iii) is safe to repeat: its read-back is each setting's own
+read, and a refusal is recorded again and carried on. HALT AT S12a, STRAY REF: any ref beside
 the expected head is PUBLISHED - including one that landed after act (i) removed
 the rulesets. It is a POST-PUBLICATION EVENT, never a silent pass: record it and its
 window in the note, fetch it into an evidence bundle, scan its reachable history on
@@ -1078,8 +1057,10 @@ must be unconfirmable, which reopens ADR 0018 and this section. Record:
 
 #### 7. What this plan does NOT discharge
 
-**CS-953 stays open on its own terms.** A filename is not content. ADR 0018
+**CS-953 is not discharged by this plan.** A filename is not content. ADR 0018
 removes the NEED for a scrub rather than proving one correct.
+**REPOINTED, filed 2026-10-11:** CS-953 then closed as MOOT, not satisfied - `docs/LEDGER.md`,
+the 2026-10-11 CS-953 record, and the dated amendment at the foot of ADR 0018.
 
 **CS-954 stays TIER 1 and outranks this item.** A push that can ship an ungraded
 ref is a defect in the mechanism S10 depends on.
@@ -1194,6 +1175,20 @@ PR with the merge button or `gh pr merge`; apply it locally as an operator commi
 (cherry-pick `--reset-author`) and push. README-AUDIT item 1 joins this block: after the
 flip, read back private vulnerability reporting and the social preview, the upload riding
 the single operator ask; README items 2-7 are CS-1292, before the flip.
+
+### Session 137 ruling, recorded 2026-10-11: the three security settings at S12a
+
+Ruled in session 137 by a distinct adjudicator (Ruling 1). Private vulnerability reporting,
+secret scanning and push protection are turned on by the flip session through `gh api` with the
+existing token - the repo scope suffices - as S12a's act (iii): after act (ii) is read back
+landed and before the S7q lift, now act (iv). Order: private vulnerability reporting, then
+secret scanning, then push protection, each read back. Repeating it is harmless, and an API
+refusal is recorded in the note while the sequence carries on. S11 keeps only what works while
+private, Dependabot alerts. The step-e ask gains one conditional line: "(4) if I report that any
+of the three did not turn on through the API, switch it on at Settings > Code security." The
+decision, the alternatives rejected and what reverses it are the 2026-10-11 CS-700 DECISION
+RECORD in `docs/LEDGER.md`; `docs/public-readiness.md` findings M1 and M2 and its settings table
+say the same.
 
 ### Acceptance
 
@@ -1753,25 +1748,6 @@ restated here. Item 4 (no suite gate) is section 1's kit v13 work, CS-1290. Item
 already open as CS-1284. The note says fix inline; each numbered part may land as its own
 slice. The section 8 review driver (CS-1295) folds this list in as known findings.
 
-## CS-1292
-
-### Acceptance
-
-MAIN 2246 section 3 items 2-7 land before the CS-700 flip, quoting the note: "README under
-~220 lines with an image, install detail in one linked doc, both flags read back after the
-flip." Concretely: a Quickstart of about 10 lines with the remaining install detail moved
-verbatim to one linked doc (env-var table included); `data/social-preview.png` as a banner
-plus one dashboard screenshot on synthetic data under `docs/assets/`; "no language model"
-kept only in At a glance and the description; the Python version stated once, in
-Requirements; one LICENSE holder string matching `CITATION.cff` (adjudicator if contested);
-the absolute checkout path in `docs/LEDGER.md` and `docs/history_notes.md` replaced with
-`<repo>`. Item 1 (the two post-flip flag read-backs) is CS-700's, not this item's.
-
-### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 3
-
-MAIN's read-only README audit. The note orders items 2-5 done before the flip so the first
-public README is the short one; item 1 stays inside the CS-700 flip block.
-
 ## CS-1295
 
 ### Acceptance
@@ -1792,24 +1768,6 @@ go in this tree's next ANSWER to MAIN.
 Queued after section 1 (CS-1290) per the note's order of work. It needs a session that may
 spawn headless runs: a sub-agent slice cannot start it, so the main session or the lane
 queues it.
-
-## CS-1300
-
-### Acceptance
-
-`tests/test_claude_hook.py::test_the_measurement_starts_only_after_every_sibling_worker_finished`,
-both its `[quiet]` and `[control]` cases, runs 30 consecutive times under `-n 2 --dist
-loadfile` with no `os.lstat` FileNotFoundError in its nested run's collection; the fix names
-the measured cause, and no budget is raised and no case is skipped to get there.
-
-### Filed 2026-10-09 by the session 134 /done
-
-Measured during session 134's TIER2-RED work: about 1 run in 10 of `tests/test_claude_hook.py`
-fails in the nested CS-1233 run's collection with an `os.lstat` FileNotFoundError, at the same
-rate on base `94b9318` and on the TIER2-RED fix candidate (the branch whose tip subject is
-"CS-815 - the quiet barrier keeps its file, bounds its wait, fails loud"), so that fix neither
-causes nor cures it. A collection error reddens any suite that runs the file, so it is filed
-under the `CLAUDE.md` section 7 suite-red exception. The cause is unmeasured.
 
 ## CS-1302
 
@@ -1886,33 +1844,44 @@ ladder that cannot finish inside its bound under sibling load is the TIER2-RED f
 which reddens a suite, so it is filed under the `CLAUDE.md` section 7 suite-red exception. It
 may land with the TIER2-RED merge or after it.
 
-## CS-1308
+### Verifier verdict recorded 2026-10-11 (session 137): REFUTED, the item stays open
 
-### Acceptance
+The TIER2-RED slice's commit "CS-815 CS-1300 - one-shot check sees past a probe, waiters stop
+first" states that this item is not in scope and is untouched. A session 137 verifier read the
+acceptance against the landing branch:
 
-An adjudicator first rules which tracked files may keep a spelling of the checkout root:
-`CLAUDE.md` sections 2 and 7, `docs/adr/0026-the-root-moves-to-e.md` and `BOOTSTRAP.md` name
-it under a settled decision, so each kept file is ruled one by one, with its reason recorded
-in `docs/LEDGER.md` before any edit. Then, on the tip that carries CS-1292,
-`git grep -il -E '[A-Za-z]:[\/]+Clockspeed'` and the Git Bash form `/<drive>/Clockspeed`
-list only the files that ruling kept and the CS-1292 path guard's own test patterns. Every
-other spelling is replaced by a root-relative path or a runtime lookup (`git rev-parse
---show-toplevel`, the test's `tmp_path`), the touched tests stay green, and the CS-1292 path
-guard - the README-audit test CS-1292 adds - is widened or pinned so a new spelling outside
-the kept set fails it. No settled decision is reopened: the root does not move.
+- Clause 1 UNMET: 7 git-hook-driving arms in `tests/test_hook_env_echo.py` run without waiting
+  at the quiet barrier -
+  `tests/test_hook_env_echo.py::test_no_pre_commit_path_echoes_a_canary`,
+  `::test_no_commit_msg_path_echoes_a_canary`, `::test_no_push_hook_path_echoes_a_canary`,
+  `::test_a_pre_commit_copy_that_dumps_the_environment_is_caught`,
+  `::test_no_account_name_skip_renders_the_name`,
+  `::test_the_skip_arm_separates_a_carried_token_from_a_rendered_one` and
+  `::test_a_gate_copy_whose_skip_renders_the_name_is_caught`. They run git commit or git push
+  through `tests/test_hook_env_echo.py::commit_through` and
+  `tests/test_hook_env_echo.py::push_through`, and the hooks run the ladder. The guard,
+  `tests/test_claude_hook.py::test_every_env_echo_arm_that_drives_the_wrapper_runs_alone`, scans
+  only the callers of `tests/test_hook_env_echo.py::run_wrapper`. No measurement of the git-hook
+  arms exists.
+- Clause 2 (the 30 runs) and clause 3 (the guard shard re-read) UNMET: there is no change to
+  measure. Clauses 4 and 5 are MET only because nothing changed.
 
-### Filed 2026-10-10 by the session 136 /done
+**Acceptance wording faults**, recorded beside the clause and not amending it:
 
-CS-1292 scrubbed the checkout path from the files its acceptance names, and its leak lens then
-found the same spelling in tracked files outside that acceptance. Measured by the session 136
-/done on the CS-1292 landing tip: the drive-letter pattern above listed 14 files - BOOTSTRAP.md,
-CLAUDE.md, CS-NEXT-SESSION.txt, docs/_archive/spike-report-s1-s2-s3-s7.md,
-docs/adr/0026-the-root-moves-to-e.md, docs/item_notes/phase4-followups-900.md,
-docs/item_notes/phase4.md, docs/item_notes/phase7.md, ops/loop/inbox_responder.py,
-ops/loop/launch_queue_loop.ps1, tests/ops/test_driver_module_binding.py,
-tests/ops/test_row_claim.py, tests/test_queue_loop.py and CS-1292's own README-audit test. The
-session 136 hand-off was rewritten without the spelling, so 13 remain. The four files of
-BACKLOG CS-1306 are inside this scope; CS-1306 was relocated to `docs/history_notes.md` as
-superseded by this item. It is a public-flip blocker: the CS-700 recreate publishes every
-tracked file, so it is filed in ROADMAP under the `CLAUDE.md` section 7 product-before-process
-rule's blocking exception, and it lands before the CS-G03 re-walk's pinned tip.
+- The "did not finish inside its bound" text is printed only by `tools/claude_hook.sh`. The git
+  hooks time each probe step for 10 s and print "the interpreter probe did not answer within",
+  which is also the expected output of the pre-commit-under-pythoninspect arm. Grade the 30 runs
+  on failures, not on text.
+- A single file under `--dist loadfile` runs on one worker, so the 30 runs never have a busy
+  sibling. The measured-beside-a-sibling run is the only evidence of load.
+
+**Smallest remaining slice**, in order:
+
+1. Measure each of the 7 git-hook arms beside a CPU-bound sibling worker, as the liar-arm
+   measurement did (`tests/test_claude_hook.py::test_a_liar_on_every_rung_is_loudly_reported`).
+2. Arms that stay inside the bound go into a named load-tolerant set citing the measurement;
+   arms that overrun move to the file foot with the `alone` fixture.
+3. Widen the `tests/test_claude_hook.py` guard to also scan the callers of `commit_through` and
+   `push_through`, failing any arm that neither waits nor sits in the set.
+4. Run the file 30 times, graded on failures.
+5. Re-read the guard shard duration from tier1.

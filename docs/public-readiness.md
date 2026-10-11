@@ -102,9 +102,11 @@ deliberately carries no email address. The setting cannot be enabled while the
 repository is private (the API answers 404), so on the day of the flip the security
 policy would point at a disabled channel.
 
-**Fix (operator, immediately after the flip):** Settings > Code security > Private
-vulnerability reporting > Enable, or
-`gh api -X PUT repos/Remus3/Clockspeed/private-vulnerability-reporting`.
+**Fix (the flip session, CS-700 S12a, repo scope; operator only if the API refuses):**
+`gh api -X PUT repos/Remus3/Clockspeed/private-vulnerability-reporting`, read back, as S12a's
+act (iii) right after the flip; if the API refuses, the operator enables it at Settings > Code
+security > Private vulnerability reporting. The session 137 ruling is the 2026-10-11 CS-700
+DECISION RECORD in `docs/LEDGER.md`.
 
 ### M2 - Secret scanning and push protection are unavailable while private
 
@@ -112,8 +114,10 @@ The API refuses to enable secret scanning on this private repository on the curr
 plan. Both are free on a public repository. The tier-0 commit gate already scans for
 secrets locally, so this is a second layer, not the only one.
 
-**Fix (operator, immediately after the flip):** Settings > Code security > enable Secret
-scanning and Push protection.
+**Fix (the flip session, CS-700 S12a, repo scope; operator only if the API refuses):** secret
+scanning, then push protection, each turned on through `gh api` and read back in S12a's act
+(iii), after private vulnerability reporting; if the API refuses either, the operator enables it
+at Settings > Code security.
 
 ---
 
@@ -182,8 +186,8 @@ them on the new repository after S10.
 | Issues | Enabled, with an issue form and a config pointing at `/api/health` and the ADRs | Unchanged |
 | Dependabot alerts | Enabled | This audit |
 | Dependabot security update PRs | Disabled - history is linear and lands by cherry-pick, never by merge | Unchanged |
-| Secret scanning, push protection | Unavailable while private | Operator, after the flip (M2) |
-| Private vulnerability reporting | Unavailable while private | Operator, after the flip (M1) |
+| Secret scanning, push protection | Unavailable while private | The flip session, CS-700 S12a, repo scope; operator only if the API refuses (M2) |
+| Private vulnerability reporting | Unavailable while private | The flip session, CS-700 S12a, repo scope; operator only if the API refuses (M1) |
 | Branch protection | None on the old remote | CS-700 S11: deletion and non-fast-forward blocked on main only - no required reviews or checks, so the lane's fast-forward pushes land |
 | Community profile | All rows set, re-read while private | CS-959 |
 | Social preview image | Not set - the API cannot set it | Operator, manual |
@@ -202,7 +206,8 @@ preview; it is the only upload source.
 1. Do not toggle visibility on the current remote. Run CS-700 (S7a rewrite, S8 re-scan,
    S9 recreate, S10 push `main` only, S12 publish), which needs your own-words
    confirmation before S9.
-2. After publication: enable private vulnerability reporting, secret scanning and push
-   protection.
+2. Only if the flip session reports that private vulnerability reporting, secret scanning or
+   push protection did not turn on through the API at CS-700 S12a: switch it on at Settings >
+   Code security.
 3. Re-apply the settings table above on the recreated repository.
 4. Upload `docs/assets/social-preview.png` as the social preview.

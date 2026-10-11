@@ -506,22 +506,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1280
-
-### Filed 2026-10-08 by CS-1266's builder
-
-`clockspeed/audit/balance.py::clocked_draw_of` now counts the built power consumers against the
-ones it considered (CS-1266). On the save library 481 of 3005 built consumers - miners,
-constructors, street and ceiling lights, truck stations, resource sinks, water and oil pumps -
-read cleanly with no clock, recipe or producing tag, so CS-1266 names each one an omission and
-every non-empty save's draw reads incomplete. Many are plausibly at the class default, by
-CS-1263's elided-clock reasoning, but a machine with no recipe may be idle and draw nothing, so
-neither pricing is taken without a measurement.
-
-### Acceptance
-
-an adjudicated ruling (decision, alternatives, why) on how a tagless consumer is priced - at its class default in its own counted group, at zero as idle, or kept as a named omission - grounded in a measurement over the save library; then the draw implements the ruling with an arm per class family that reddens when the ruling is ignored, and the library's omitted count is re-published
-
 ## CS-1285
 
 ### Filed 2026-10-08 by the session 133 planner
@@ -622,6 +606,16 @@ buildable" is a convention.
 
 Residual check before close: re-run the real-save probe on v2. `Desc_LiquidFuel_C` must
 carry no unmeasured or unregistered reason.
+
+### Partial ship recorded 2026-10-11 (session 137) - slices A and B v2 landed, slices C and D remain
+
+Slices A and B v2 landed with the session 137 landing branch. Their records - the merged files,
+the test names, slice B v2's upstream-shortfall ruling (Ruling 5) and its close notes - are the
+two 2026-10-11 CS-1285 records in `docs/LEDGER.md`. Ruling 5 adds nothing slice C must build:
+a fluid line whose chain holds an uncovered input is indeterminate, and the demand card already
+fires on every indeterminate class (ruling (f)). Option C, derating, is a `BACKLOG.md` line.
+Still owed before close: the real-save probe re-run with its count per reason, and the residual
+check above.
 
 ### Acceptance
 

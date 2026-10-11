@@ -165,3 +165,12 @@ carried into the CS-700 plan as work items, not discharged here.
 CS-953 is NOT discharged by this decision. It stays open on its own terms: a
 filename is not content, and this ADR removes the need for a scrub rather than
 proving a scrub correct.
+
+AMENDED 2026-10-11 by CS-953's close: CS-953 is CLOSED AS MOOT, not satisfied (`docs/LEDGER.md`,
+the 2026-10-11 CS-953 record). The phase-7 scrub its acceptance tested does not exist and
+cannot: this ADR rejects a rewrite on content grounds, and CS-700 step S7a's TREE check aborts if
+any paired commit's tree differs. The trap it guarded - a pre-move path unseen by a check of the
+paths at HEAD - is covered by `tools/flip_checks.py::history_paths`, which reads every path any
+reachable commit ever held. The decision of this ADR is unchanged, and the paragraph above that
+kept CS-953 open is left as written. A path change in published history, or a history walk
+narrowed to current paths, files a new item citing CS-953.

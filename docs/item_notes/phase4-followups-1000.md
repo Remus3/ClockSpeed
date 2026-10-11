@@ -1335,35 +1335,3 @@ fatal. A builder on the branch `s136-savefallback` started the fallback, TDD, an
 the red tests are library sweeps rather than the newest-save selection alone; its work was
 uncommitted in its worktree at the session 136 /done. The file itself is the operator's to
 move out of the save directory; Clockspeed never writes there.
-
-## CS-1311
-
-### Filed 2026-10-11 (session 137) by an adjudicator ruling on CS-1309's sweep clause
-
-The ruling: the library sweeps stay the correct alarm, with no count tolerance and no stage
-tolerance. A content pin moves one diagnosed third-party re-encoded file out of the sweeps and
-into a strict expected-refusal control, so every other refused file still reads red.
-
-### Acceptance
-
-- (a) Precondition: independent evidence, as booleans and counts, that the pinned file was not
-  written by the game. Without it, no pin.
-- (b) One contained library walk, tests/save/library.py, which the 7 `_library_save_paths`
-  copies delegate to; the first commit is a pure move.
-- (c) The pin file is the gitignored config/save_pins.local.json, written atomically. Each
-  entry carries sha256, size, stage, refusal, reason (`third-party-reencoded` only) and item;
-  an unknown key is refused; no name, path, mtime or token field exists.
-- (d) A file is excluded only on size AND SHA-256. A pinned file that is present must still be
-  refused at its recorded stage with its recorded exception type. More than 3 pins is red; an
-  unmatched pin is counted, not red.
-- (e) Tests: the red-first population count, the no-masking control, one-byte-off,
-  pinned-parses-red, other-stage-or-type-red, fourth-pin-red, a name or path field refused, a
-  counts-only report, and a live check that skips with no library.
-- (f) The report is exactly `library pins: <p> present, <s> unmatched, <u> unpinned refusals`,
-  never `str(exc)`, and the canaries are absent from it.
-- (g) A distinct adversary refutes the slice through three lenses: masking, leak, and red for
-  the right reason.
-- (h) Reversed by: a second distinct third-party file (then a provenance-signature item, but
-  only with a zero-false-positive signature); evidence the file is game-written (unpin it and
-  file a parser item); the operator moving the file before dispatch (then `BACKLOG.md`); or
-  the operator's own words.

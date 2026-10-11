@@ -563,3 +563,18 @@ reddens a suite.
   `prog.py`, `msg.txt` and possibly `freeze.json` - the session 135 shared-helper trap one
   level wider. Every agent brief names unique scratch file names - TRIGGER: a progress file,
   commit message or freeze witness read back with another agent's content.
+
+## Session 137 - filed 2026-10-11 under product before process
+
+Two conditional items from the session 137 rulings. Neither blocks a product item or reddens a
+suite.
+
+- CS-1311 - pin one diagnosed third-party save out of the library sweeps by content, size AND
+  SHA-256, in a strict expected-refusal control; moved here under Ruling 4's reversal clause when
+  the refused file left the library before the pin was built - TRIGGER: a refused library save
+  reddens the sweeps again. The pin design and its precondition evidence: `docs/LEDGER.md`, the
+  2026-10-11 CS-1311 record.
+- Fuel derating, CS-1285's option C, deferred by Ruling 5: a derated fluid supply in place of the
+  `supply-input-uncovered` indeterminate wherever every chain leaf is rated, its solver in
+  `clockspeed/solve/` - TRIGGER: a measured source for extractor rates (CS-1048). The ruling:
+  `docs/LEDGER.md`, the 2026-10-11 CS-1285 slice B v2 record.

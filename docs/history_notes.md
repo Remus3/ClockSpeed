@@ -24,6 +24,190 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1311 - item section, moved to `BACKLOG.md` and relocated from `docs/item_notes/phase4-followups-1000.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase4-followups-1000.md` when the item went to `BACKLOG.md` under Ruling 4's reversal
+clause, with nothing built.** The record, with the pin's precondition evidence, is in `docs/LEDGER.md`.
+
+## CS-1311
+
+### Filed 2026-10-11 (session 137) by an adjudicator ruling on CS-1309's sweep clause
+
+The ruling: the library sweeps stay the correct alarm, with no count tolerance and no stage
+tolerance. A content pin moves one diagnosed third-party re-encoded file out of the sweeps and
+into a strict expected-refusal control, so every other refused file still reads red.
+
+### Acceptance
+
+- (a) Precondition: independent evidence, as booleans and counts, that the pinned file was not
+  written by the game. Without it, no pin.
+- (b) One contained library walk, tests/save/library.py, which the 7 `_library_save_paths`
+  copies delegate to; the first commit is a pure move.
+- (c) The pin file is the gitignored config/save_pins.local.json, written atomically. Each
+  entry carries sha256, size, stage, refusal, reason (`third-party-reencoded` only) and item;
+  an unknown key is refused; no name, path, mtime or token field exists.
+- (d) A file is excluded only on size AND SHA-256. A pinned file that is present must still be
+  refused at its recorded stage with its recorded exception type. More than 3 pins is red; an
+  unmatched pin is counted, not red.
+- (e) Tests: the red-first population count, the no-masking control, one-byte-off,
+  pinned-parses-red, other-stage-or-type-red, fourth-pin-red, a name or path field refused, a
+  counts-only report, and a live check that skips with no library.
+- (f) The report is exactly `library pins: <p> present, <s> unmatched, <u> unpinned refusals`,
+  never `str(exc)`, and the canaries are absent from it.
+- (g) A distinct adversary refutes the slice through three lenses: masking, leak, and red for
+  the right reason.
+- (h) Reversed by: a second distinct third-party file (then a provenance-signature item, but
+  only with a zero-false-positive signature); evidence the file is game-written (unpin it and
+  file a parser item); the operator moving the file before dispatch (then `BACKLOG.md`); or
+  the operator's own words.
+
+
+## CS-953 - item section, CLOSED AS MOOT and relocated from `docs/item_notes/phase7.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed as moot, not satisfied.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-953
+
+### FILED 2026-09-07 (session 73), from a sibling's measured failure
+
+RC ran a history rewrite with a rename table keyed on each file's path AS IT
+EXISTS AT HEAD. The filter callback receives the path belonging to whichever
+COMMIT it is filtering, so every file that had ever been MOVED went unrenamed at
+each of its earlier paths. Result: 2195 vendor-name hits in the rewritten
+history, **none of them in a blob** - all in tree objects, which is where
+filenames live. A content scrub can be complete and still publish the names.
+
+THE PREVIOUS PASS HAD VERIFIED "ALL PURGED PATHS ZERO" AND THAT WAS TRUE AND
+USELESS. It checked eleven named path patterns and no vendor name was among
+them. The check confirmed the absence of things already known to be absent.
+Widening it also surfaced 27 scraped images and two scraped JSON files that
+appeared in no plan - dropped rather than renamed, because renaming scraped
+third-party data keeps the data and hides only whose it is.
+
+**THIS BITES CS SPECIFICALLY** because CS-700's phase-7 gate is a going-public
+checklist and this project is going public. Two further surfaces from the same
+report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
+other ref), and deleting a repository deletes its LFS store. The git object
+store is not the whole surface.
+
+### Acceptance
+
+the phase-7 scrub verifies the whole path list against the whole name list rather than a list of paths already known to worry about, proven by a probe over a synthetic history containing a renamed file that goes RED when only HEAD paths are checked
+
+### Full headline
+
+a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed, because the filter callback receives each commit's own paths
+
+
+## CS-1308 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1308
+
+### Acceptance
+
+An adjudicator first rules which tracked files may keep a spelling of the checkout root:
+`CLAUDE.md` sections 2 and 7, `docs/adr/0026-the-root-moves-to-e.md` and `BOOTSTRAP.md` name
+it under a settled decision, so each kept file is ruled one by one, with its reason recorded
+in `docs/LEDGER.md` before any edit. Then, on the tip that carries CS-1292,
+`git grep -il -E '[A-Za-z]:[\/]+Clockspeed'` and the Git Bash form `/<drive>/Clockspeed`
+list only the files that ruling kept and the CS-1292 path guard's own test patterns. Every
+other spelling is replaced by a root-relative path or a runtime lookup (`git rev-parse
+--show-toplevel`, the test's `tmp_path`), the touched tests stay green, and the CS-1292 path
+guard - the README-audit test CS-1292 adds - is widened or pinned so a new spelling outside
+the kept set fails it. No settled decision is reopened: the root does not move.
+
+### Filed 2026-10-10 by the session 136 /done
+
+CS-1292 scrubbed the checkout path from the files its acceptance names, and its leak lens then
+found the same spelling in tracked files outside that acceptance. Measured by the session 136
+/done on the CS-1292 landing tip: the drive-letter pattern above listed 14 files - BOOTSTRAP.md,
+CLAUDE.md, CS-NEXT-SESSION.txt, docs/_archive/spike-report-s1-s2-s3-s7.md,
+docs/adr/0026-the-root-moves-to-e.md, docs/item_notes/phase4-followups-900.md,
+docs/item_notes/phase4.md, docs/item_notes/phase7.md, ops/loop/inbox_responder.py,
+ops/loop/launch_queue_loop.ps1, tests/ops/test_driver_module_binding.py,
+tests/ops/test_row_claim.py, tests/test_queue_loop.py and CS-1292's own README-audit test. The
+session 136 hand-off was rewritten without the spelling, so 13 remain. The four files of
+BACKLOG CS-1306 are inside this scope; CS-1306 was relocated to `docs/history_notes.md` as
+superseded by this item. It is a public-flip blocker: the CS-700 recreate publishes every
+tracked file, so it is filed in ROADMAP under the `CLAUDE.md` section 7 product-before-process
+rule's blocking exception, and it lands before the CS-G03 re-walk's pinned tip.
+
+
+## CS-1292 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1292
+
+### Acceptance
+
+MAIN 2246 section 3 items 2-7 land before the CS-700 flip, quoting the note: "README under
+~220 lines with an image, install detail in one linked doc, both flags read back after the
+flip." Concretely: a Quickstart of about 10 lines with the remaining install detail moved
+verbatim to one linked doc (env-var table included); `data/social-preview.png` as a banner
+plus one dashboard screenshot on synthetic data under `docs/assets/`; "no language model"
+kept only in At a glance and the description; the Python version stated once, in
+Requirements; one LICENSE holder string matching `CITATION.cff` (adjudicator if contested);
+the absolute checkout path in `docs/LEDGER.md` and `docs/history_notes.md` replaced with
+`<repo>`. Item 1 (the two post-flip flag read-backs) is CS-700's, not this item's.
+
+### Filed 2026-10-09 from MAIN's 2026-10-08 22:46 ORDER, section 3
+
+MAIN's read-only README audit. The note orders items 2-5 done before the flip so the first
+public README is the short one; item 1 stays inside the CS-700 flip block.
+
+
+## CS-1280 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1280
+
+### Filed 2026-10-08 by CS-1266's builder
+
+`clockspeed/audit/balance.py::clocked_draw_of` now counts the built power consumers against the
+ones it considered (CS-1266). On the save library 481 of 3005 built consumers - miners,
+constructors, street and ceiling lights, truck stations, resource sinks, water and oil pumps -
+read cleanly with no clock, recipe or producing tag, so CS-1266 names each one an omission and
+every non-empty save's draw reads incomplete. Many are plausibly at the class default, by
+CS-1263's elided-clock reasoning, but a machine with no recipe may be idle and draw nothing, so
+neither pricing is taken without a measurement.
+
+### Acceptance
+
+an adjudicated ruling (decision, alternatives, why) on how a tagless consumer is priced - at its class default in its own counted group, at zero as idle, or kept as a named omission - grounded in a measurement over the save library; then the draw implements the ruling with an arm per class family that reddens when the ruling is ignored, and the library's omitted count is re-published
+
+
+## CS-1300 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1300
+
+### Acceptance
+
+`tests/test_claude_hook.py::test_the_measurement_starts_only_after_every_sibling_worker_finished`,
+both its `[quiet]` and `[control]` cases, runs 30 consecutive times under `-n 2 --dist
+loadfile` with no `os.lstat` FileNotFoundError in its nested run's collection; the fix names
+the measured cause, and no budget is raised and no case is skipped to get there.
+
+### Filed 2026-10-09 by the session 134 /done
+
+Measured during session 134's TIER2-RED work: about 1 run in 10 of `tests/test_claude_hook.py`
+fails in the nested CS-1233 run's collection with an `os.lstat` FileNotFoundError, at the same
+rate on base `94b9318` and on the TIER2-RED fix candidate (the branch whose tip subject is
+"CS-815 - the quiet barrier keeps its file, bounds its wait, fails loud"), so that fix neither
+causes nor cures it. A collection error reddens any suite that runs the file, so it is filed
+under the `CLAUDE.md` section 7 suite-red exception. The cause is unmeasured.
+
+
 ## CS-1284 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-10
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

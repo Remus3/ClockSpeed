@@ -264,7 +264,6 @@ CS-1149 - the trailing run's residual population is recorded as ONE shape and is
 CS-1150 - one residual carrier class's trailing run carries platform account strings in plaintext, so any reader of that region is an echo path - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on NO payload and the walk reaches one on six figures of them - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1309 - the save layer refuses a whole world when the newest save in its directory is one the parser refuses - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1311 - a diagnosed third-party save is pinned out of the library sweeps by content - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit
@@ -289,7 +288,6 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1280 - the clocked draw omits built consumers whose payloads read cleanly but carry no machine tag - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1285 - the D4 fuel half has no rule, so no card sizes a built generator's fuel burn against the fuel the world makes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1288 - a save written on a build other than the pinned one is priced at the pinned nameplate with no warning - 12 MW-era Mk2 miners are overstated 25 percent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1298 - the flow still counts a class that cannot be clocked as an elided clock, and two flow docstrings claim the balance's own elided test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -348,7 +346,6 @@ CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writ
 CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -369,10 +366,7 @@ CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAU
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1283 - rule whether the lane driver's checklist printer moves onto the kit's `fleet_checklist.emit()` (FLEET-KIT v10 ORDER item 5) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1292 - README-AUDIT: a short README with an image and install detail in one linked doc before the CS-700 flip (MAIN 2246 section 3) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1300 - the nested CS-1233 run in `tests/test_claude_hook.py` fails its collection with an os.lstat FileNotFoundError about 1 run in 10 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1302 - mypy is pinned only by a floor, so CI and this box run different releases that emit different error codes - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1307 - the env-echo git-hook arms in `tests/test_hook_env_echo.py` run the interpreter ladder under its bound without the quiet barrier - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1308 - tracked files outside CS-1292's scrub still spell the checkout root, a public-flip leak - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
