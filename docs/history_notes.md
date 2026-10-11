@@ -24,7 +24,7 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
-## CS-453 - item section, SUPERSEDED by CS-1312 and relocated from `docs/item_notes/phase4.md` 2026-10-11
+## CS-453 - item section, relocated from `docs/item_notes/phase4.md` 2026-10-11 on its supersession by CS-1312
 
 **Moved here from `docs/item_notes/phase4.md` when CS-1312 superseded the item.**
 The supersession record is in `docs/LEDGER.md`.
