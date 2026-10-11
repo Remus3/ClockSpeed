@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -1721,6 +1722,129 @@ def test_discard_refuses_anything_that_is_not_one_of_its_copies(
     assert refused == [False] * len(others)
     kept = [path.is_file() for path in (*others, copy)]
     assert kept == [True] * (len(others) + 1)
+
+
+def make_junction(link: Path, target: Path) -> None:
+    """Make ``link`` a directory junction to ``target``, or skip where there are none.
+
+    Through ``_winapi.CreateJunction``, looked up at run time so this module
+    imports and type-checks on a platform without it. A skip keeps the exit
+    code at zero and stays visible in the ``-ra`` summary.
+
+    Args:
+        link: The junction to create. Must not exist.
+        target: The directory it points at.
+    """
+    try:
+        winapi = importlib.import_module("_winapi")
+    except ImportError:
+        pytest.skip("this platform has no directory junctions")
+    create = getattr(winapi, "CreateJunction", None)
+    if create is None:
+        pytest.skip("this platform has no directory junctions")
+    try:
+        create(str(target), str(link))
+    except OSError as exc:
+        pytest.skip(f"this filesystem will not create a junction here: {type(exc).__name__}")
+
+
+def make_directory_symlink(link: Path, target: Path) -> None:
+    """Make ``link`` a directory symlink to ``target``, or skip where that is not permitted.
+
+    Windows needs Developer Mode or an elevated process, the same reason
+    ``test_a_destination_reaching_the_save_root_by_symlink_is_refused`` skips.
+
+    Args:
+        link: The symlink to create. Must not exist.
+        target: The directory it points at.
+    """
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"this platform will not create a directory symlink here: {type(exc).__name__}")
+
+
+def plant_save_directory(account: Path) -> tuple[Path, ...]:
+    """A save and a copy-suffixed file in the pretend save directory, both invented bytes."""
+    victim = account / ("Victim" + workdir.COPY_SUFFIX)
+    victim.write_bytes(b"a copy-suffixed file in the save directory")
+    save = account / "World.sav"
+    save.write_bytes(b"a save, invented")
+    return victim, save
+
+
+def hashes_of(paths: tuple[Path, ...]) -> list[str]:
+    """Each file's sha256, or the empty string for one that is gone."""
+    return [sha256_of(path) if path.is_file() else "" for path in paths]
+
+
+@pytest.mark.parametrize("redirect", ["junction", "symlink"])
+def test_discard_through_a_copies_directory_redirected_into_the_save_directory_refuses(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    redirect: str,
+) -> None:
+    """The copies directory IS a junction - or a symlink - into the save directory.
+
+    The parent check alone passes: the copy's parent and the copies directory
+    resolve to the same place, the save directory, and the file carries the
+    copy suffix. Only the forbidden-root check stands between this call and a
+    delete in the save directory, and the save directory is byte-identical
+    afterwards (CS-1309, the adversary's J1).
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    planted = plant_save_directory(pretend_account_dir)
+    before = hashes_of(planted)
+    work_root = tmp_path / "redirected-work"
+    work_root.mkdir()
+    copies = work_root / workdir.COPIES_DIR_NAME
+    if redirect == "junction":
+        make_junction(copies, pretend_account_dir)
+    else:
+        make_directory_symlink(copies, pretend_account_dir)
+
+    removed = workdir.discard_copy(copies / planted[0].name, work_root=work_root)
+
+    assert removed is False, "discard removed a file through a redirect into the save directory"
+    after = hashes_of(planted)
+    assert after == before, "the save directory changed"
+
+
+def test_discard_refuses_a_junction_inside_the_copies_directory(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A junction subdirectory, and a copy-suffixed junction entry, each into the save directory.
+
+    The adversary's J2 and J3: the first fails the parent check, the second is
+    no file, and the save directory is byte-identical afterwards.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    planted = plant_save_directory(pretend_account_dir)
+    before = hashes_of(planted)
+    work_root = tmp_path / "work-with-junctions"
+    copies = work_root / workdir.COPIES_DIR_NAME
+    copies.mkdir(parents=True)
+    make_junction(copies / "inner", pretend_account_dir)
+    entry = copies / ("Entry" + workdir.COPY_SUFFIX)
+    make_junction(entry, pretend_account_dir)
+
+    refused = [
+        workdir.discard_copy(copies / "inner" / planted[0].name, work_root=work_root),
+        workdir.discard_copy(entry, work_root=work_root),
+    ]
+
+    assert refused == [False, False]
+    after = hashes_of(planted)
+    assert after == before, "the save directory changed"
+    kept = entry.exists()
+    assert kept, "the junction entry itself was removed"
 
 
 # ===========================================================================

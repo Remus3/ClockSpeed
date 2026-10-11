@@ -935,6 +935,21 @@ def discard_copy(copy: Path, *, work_root: Path | None = None) -> bool:
     the save directory or the install. Uses the one remove call this module
     has; it adds no write surface.
 
+    THE FORBIDDEN-ROOT CHECK IS LOAD-BEARING, NOT A DUPLICATE. A copies
+    directory that is itself a junction or a symlink into the save directory
+    passes the parent check - the copy's parent and the copies directory
+    resolve to the same place - and only the forbidden-root check refuses it.
+    ``tests/save/test_workdir.py`` plants both shapes over a pretend save
+    directory and finds it byte-identical afterwards.
+
+    THE RESIDUAL, NAMED (CS-1309 r3, the adversary's J9): the checks and the
+    unlink are separate system calls, so a hostile local process that swaps
+    the copies directory for a junction between them can turn the unlink into
+    a delete in the save directory. It needs a process already running as the
+    operator with write access to the work root; :func:`purge_work_dir` has
+    the same window, and closing it takes handle-relative deletion this
+    module does not do.
+
     Args:
         copy: The copy, as :func:`copy_for_read` returned it.
         work_root: The work root it was made under. Defaults to
