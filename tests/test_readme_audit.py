@@ -107,10 +107,14 @@ PNG_SIGNATURE: Final = b"\x89PNG\r\n\x1a\n"
 #: One path separator - a slash or a backslash - raw, URL-encoded or as an HTML
 #: entity (``%5C``, ``%2F``, ``&#92;``, ``&#x5C;``, ``&bsol;``, ``&sol;``), a JSON-escaped
 #: slash, or a ``\u`` or ``\x`` escape of either (CS-1308) - an escape's backslash also
-#: doubled, as a string literal in code writes it.
+#: doubled, as a string literal in code writes it. The group is atomic (CS-1308 fix round
+#: 4): it keeps the first alternative that matches and never splits that text again, so a
+#: JSON-escaped slash is one separator, never a backslash and then a slash, and a run of
+#: them cannot backtrack exponentially. So the escapes come first, then the JSON-escaped
+#: slash, then the bare backslash.
 _SEP: Final = (
-    r"(?:\\*/|\\|%5c|%2f|&#0*92;|&#0*47;|&#x0*5c;|&#x0*2f;|&bsol;|&sol;"
-    r"|\\+u005c|\\+x5c|\\+u002f|\\+x2f)"
+    r"(?>\\+u005c|\\+x5c|\\+u002f|\\+x2f|\\*/|\\|%5c|%2f|&#0*92;|&#0*47;|&#x0*5c;"
+    r"|&#x0*2f;|&bsol;|&sol;)"
 )
 
 #: A drive colon, raw, URL-encoded, as an HTML entity, or as a ``\u`` or ``\x`` escape.
@@ -682,6 +686,7 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("git -C//e/Clockspeed status", True),
         ("9CLOCKS~1", True),
         ("git -CE:Clockspeed status", True),
+        ("-v \\/\\/e\\/Clockspeed:/work", True),
         ("root is `<repo>` on E:", False),
         ("https://github.com/Remus3/Clockspeed", False),
         ("/srv/work/Clockspeed/Clockspeed", False),
@@ -752,6 +757,7 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "glued-option-double-slash",
         "short-name-after-digit",
         "glued-drive-relative",
+        "json-escaped-double-slash",
         "scrubbed",
         "url",
         "ci",
@@ -774,6 +780,70 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
 def test_the_checkout_path_pattern_catches_every_spelling(text: str, *, hit: bool) -> None:
     """The guard's own mutation arm: each spelling of the checkout path is caught."""
     assert bool(ABSOLUTE_CHECKOUT_RE.search(text)) is hit
+
+
+#: CS-1308 fix round 4 - the time one line of separators may take to search. The guard
+#: reads every tracked line on every suite and CI run, so a pattern whose separator tokens
+#: can split one text two ways - backtracking exponentially in the run's length - is a hang.
+_BACKTRACK_BUDGET_S: Final = 0.25
+
+#: The bound on the child that times the search: a pattern that backtracks without end is
+#: killed there, and the arm fails, instead of the suite hanging.
+_BACKTRACK_TIMEOUT_S: Final = 10
+
+#: The runs the timing arm builds, 40 units each - JSON-escaped slashes, ``.`` segments and
+#: the two interleaved - each then followed by a tail that completes no spelling.
+_BACKTRACK_RUNS: Final = {
+    "escaped-slashes": "\\/" * 40,
+    "dot-segments": "/." * 40 + "/",
+    "mixed": "\\/./" * 40,
+}
+
+#: The prefixes that lead a run into the drive, Git Bash and WSL branches of the pattern.
+_BACKTRACK_PREFIXES: Final = ("E:", "/e", "/mnt")
+
+#: The timing child: compiles the pattern it is sent and times one search per line.
+_TIMING_CHILD: Final = """
+import json, re, sys, time
+spec = json.load(sys.stdin)
+pattern = re.compile(spec["pattern"], spec["flags"])
+rows = []
+for line in spec["lines"]:
+    start = time.perf_counter()
+    hit = pattern.search(line) is not None
+    rows.append([time.perf_counter() - start, hit])
+print(json.dumps(rows))
+"""
+
+
+@pytest.mark.parametrize("kind", sorted(_BACKTRACK_RUNS))
+def test_the_checkout_path_pattern_cannot_backtrack_catastrophically(kind: str) -> None:
+    """Fix round 4: a 40-unit separator run and a tail that completes nothing search fast.
+
+    Each line is searched in a child process killed after ``_BACKTRACK_TIMEOUT_S``, so a
+    pattern that backtracks exponentially fails this arm rather than hanging the suite.
+    """
+    lines = [f"{prefix}{_BACKTRACK_RUNS[kind]}x" for prefix in _BACKTRACK_PREFIXES]
+    spec = {
+        "pattern": ABSOLUTE_CHECKOUT_RE.pattern,
+        "flags": int(ABSOLUTE_CHECKOUT_RE.flags),
+        "lines": lines,
+    }
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", _TIMING_CHILD],
+            input=json.dumps(spec),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_BACKTRACK_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"{kind}: the search did not finish within {_BACKTRACK_TIMEOUT_S} s")
+    rows = json.loads(done.stdout)
+    assert not any(hit for _, hit in rows), f"{kind}: a timing line matched, so it times nothing"
+    slow = [round(seconds, 3) for seconds, _ in rows if seconds >= _BACKTRACK_BUDGET_S]
+    assert not slow, f"{kind}: searches took {slow} s, over the {_BACKTRACK_BUDGET_S} s budget"
 
 
 def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:
@@ -884,6 +954,7 @@ KEPT_CHECKOUT_LINES: Final[dict[str, tuple[str, ...]]] = {
         "8da99a651634e608d3622a594dbd87cffe39226da6c84952821f3b15efa0fef9",
         "784f1bda615899afb126837776908f751e0ac1f7d7d15c82dd6ceaea510e96ee",
         "0b65029b0c925c77a89fb71f5e03e13a42e4f9eaf70b30603941b647a23f01db",
+        "d0d4438f007929c56ed1de3602e186f3a51f5057c1b3c21a9d99a1951c8cefc5",
         "918f5d4c66a6e4ff427f8769be9fc80e5fb70e3b1829e24b8db3efe0b4888c7b",
         "d34ba214fd2a6d3219adad39a5dc60fb2bcbcfc212f5a2d4080ecaf59d43210a",
     ),

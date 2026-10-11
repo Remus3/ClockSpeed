@@ -91,7 +91,7 @@ was then rebuilt with this record first in its history and that candidate re-app
 it, so no commit of the history this branch lands edits a file before this record exists.
 The re-applied scrub commit keeps the author date it was first written under, which is
 earlier than this record's. This record's first text described a guard that no commit held
-yet; later commits revised it to describe the guard as it ships after three fix rounds.
+yet; later commits revised it to describe the guard as it ships after four fix rounds.
 DECISION: the checkout root - its drive-letter spelling and the old junction spelling on the
 system drive - is NOT personal data. It is not a home path, an account id, a machine name or
 a personal identifier (`CLAUDE.md` section 2, `CONVENTIONS.md` section 17). The scrub is for
@@ -129,7 +129,7 @@ hand-off, which carries no spelling, wins at landing. Under the same
 rule, the two-part junction spelling on line 761 of `docs/item_notes/phase4-followups-900.md`,
 which the single-token pattern does not see, is rewritten in the `<repo>` style, and a
 markdown-only arm for a quoted drive root beside the quoted folder name pins it.
-THE GUARD, as it ships after three fix rounds: CS-1292's path guard is widened from four docs
+THE GUARD, as it ships after four fix rounds: CS-1292's path guard is widened from four docs
 to every tracked path, against a kept table pinned by line CONTENT - per path, the digests of
 the lines that spell the root, each line's text fixing how many spellings it holds - so an
 added, changed, moved, doubled or removed spelling fails and an edit that only shifts line
@@ -153,10 +153,14 @@ slash and a file URI's empty authority write it, a glued option included; the 8.
 behind anything but a letter, a digit included; and backslash-u and backslash-x escapes of a
 separator or the colon. It does not read a hyphenated relative segment before a one-letter
 segment, with one separator between them or two; a dot, a home tilde or a segment ending in
-a digit before one; or a one-letter segment of a URL behind its host. Measured at fix round 2 against fix
-round 1's pattern, and again at fix round 3 against fix round 2's: the widening adds no hit
-on main or on s136-land, and on the branch only the guard's own new pattern cases. This
-widens an existing test; it is not a new guard. It blocks the public flip because
+a digit before one; or a one-letter segment of a URL behind its host. Measured at fix round
+2 against fix round 1's pattern, and again at fix round 3 against fix round 2's: the
+widening adds no hit on main or on s136-land, and on the branch only the guard's own new
+pattern cases. Fix round 4 makes each separator token an atomic group, its escapes tried
+before the bare backslash, so a run of separators cannot backtrack exponentially; a test
+times three 40-unit runs in a child killed after 10 seconds against a quarter-second budget,
+and the change moves no hit on main, on s136-land or on the branch. This widens an existing
+test; it is not a new guard. It blocks the public flip because
 the acceptance needs it and CS-1292's four-file audit missed 13 files.
 ALTERNATIVES: scrub everything, the kept lines included - lost, because it rewrites a settled
 entry and an accepted ADR. Scrub nothing and drop the blocker status - lost to MAIN's
