@@ -566,8 +566,8 @@ reddens a suite.
 
 ## Session 137 - filed 2026-10-11 under product before process
 
-Two conditional items from the session 137 rulings. Neither blocks a product item or reddens a
-suite.
+Three conditional items from session 137: two from its rulings and one CS-1309 residual. None
+blocks a product item or reddens a suite.
 
 - CS-1311 - pin one diagnosed third-party save out of the library sweeps by content, size AND
   SHA-256, in a strict expected-refusal control; moved here under Ruling 4's reversal clause when
@@ -578,3 +578,9 @@ suite.
   `supply-input-uncovered` indeterminate wherever every chain leaf is rated, its solver in
   `clockspeed/solve/` - TRIGGER: a measured source for extractor rates (CS-1048). The ruling:
   `docs/LEDGER.md`, the 2026-10-11 CS-1285 slice B v2 record.
+- CS-1309 residual (a): save file paths, which can carry a world name, sit in the world
+  provider's memo keys and in the fallback walk's frame locals. They are reachable only through
+  a repr of the provider's attribute dict or a traceback rendered with its locals, and nothing
+  renders either today; the base held one such path, the slice one per refused or identified
+  save - TRIGGER: a locals- or vars-rendering path reaches a log, report or response. The
+  close: `docs/LEDGER.md`, the 2026-10-11 CS-1309 CLOSED record.

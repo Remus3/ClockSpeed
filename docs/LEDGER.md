@@ -75,6 +75,55 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-11 - CS-1309 - CLOSED: a newest save the parser refuses no longer takes the world down; the newest readable save of the same world is served, flagged by refusal stage and exception type alone
+Verification: `clockspeed/save/world.py::load_newest_world`,
+`clockspeed/save/world.py::READER_REFUSAL_TYPES`, `clockspeed/save/world.py::WARN_NEWER_SAVE_REFUSED`
+and `clockspeed/save/world.py::WARN_NEWEST_SAVE_UNIDENTIFIED`;
+`clockspeed/save/workdir.py::ranked_saves` and `clockspeed/save/workdir.py::discard_copy`;
+`clockspeed/surface/providers.py::SaveWorldProvider`. The tests, from
+`tests/save/test_newest_world.py::test_a_newest_save_the_reader_refuses_falls_back_to_the_next_one`,
+`::test_the_flag_names_the_stage_and_the_cause_and_never_the_file`,
+`::test_every_candidate_refused_raises_the_newest_refusal`,
+`::test_a_loaded_save_of_another_world_is_not_served` and
+`::test_reading_and_refusing_leave_no_work_copy`; through
+`tests/surface/test_world_provider_fallback.py::test_a_refused_newest_save_falls_back_and_is_flagged`,
+`::test_an_objects_stage_refusal_by_the_real_reader_falls_back`,
+`::test_a_refused_newest_save_falls_back_only_to_its_own_world`,
+`::test_every_save_refused_answers_none`,
+`::test_the_fallback_writes_nothing_into_the_save_directory`,
+`::test_no_world_token_or_world_name_reaches_a_flag_a_message_or_the_wire` and
+`::test_get_api_world_serves_the_flag_with_no_time_and_no_digit`; to
+`tests/save/test_workdir.py::test_ranked_saves_orders_newest_first_across_both_kinds`,
+`::test_the_head_of_the_ranking_is_latest_save`,
+`::test_discard_through_a_copies_directory_redirected_into_the_save_directory_refuses` and
+`::test_discard_refuses_a_junction_inside_the_copies_directory`. The item's section is relocated
+verbatim to `docs/history_notes.md`.
+THE LIBRARY-SWEEP CLAUSE is met by ruling: the CS-1309 DECISION RECORD below (Ruling 4) keeps the
+sweeps the correct alarm with no count or stage tolerance. The verifier's note sharpens why that
+matters: clause 1 falls back without asserting the flag, which leaves the library sweep as the
+sole strict alarm for a refused save.
+PROCESS: two adversary lenses, correctness and leak, each REFUTED rounds 0, 1 and 2; fix round 3
+read VERIFIER CONFIRMED WITH CORRECTIONS; the loop was then STOPPED BY COST AGAINST RISK, with the
+residuals below recorded rather than fixed. Red first is the builder's report and was not
+re-observed at close. The commits are named by subject, "CS-1309 - fall back past a save the
+reader refuses, and flag it" through "CS-1309 - pin the whole-copy scrub in the long-header read".
+THE INTEGRATION SUITE, with Git's usr/bin on PATH, on the landing tip before the landing fixes:
+15570 passed, 12 skipped, 5 failed. None of the five is a CS-1309 test - three doc-pin arms, the
+subprocess-bound arm and the archive-rot arm - and "Session 137 - landing fixes: shifted pins,
+bounded subprocess, rot" repairs all five, each re-run green by its node id.
+RESIDUALS, recorded and not fixed:
+(a) save file paths, which can carry a world name, sit in the provider's memo keys and in the
+fallback walk's frame locals. They are reachable only through a repr of the provider's attribute
+dict or a traceback rendered with its locals, and nothing renders either today. The base held one
+such path; the slice holds one per refused or identified save. Carried by a `BACKLOG.md` line
+under its session 137 heading.
+(b) J9: the copies directory swapped for a junction between the check in
+`clockspeed/save/workdir.py::discard_copy` and its unlink. It needs a hostile local process.
+(c) a refused save rewritten with the same size and the same nanosecond modification time keeps
+its stale refusal until restart.
+FILED: CS-1312, `purge_work_dir` deletes through a junction into the save directory, found by the
+same verifier's probe on head and on base alike, so it is not a regression of this item.
+
 ### 2026-10-11 - CS-1311 - MOVED TO BACKLOG. NOT A COMPLETION RECORD. NOTHING CLOSED AND NOTHING BUILT. Ruling 4's reversal clause fired: the refused library save left the library before the content pin was built, and the pin's precondition evidence is kept here
 Verification: the CS-1311 line in `BACKLOG.md`, under its session 137 heading; the item's section,
 relocated verbatim to `docs/history_notes.md`, which keeps the pin design (its acceptance (b) to
@@ -216,15 +265,17 @@ float dunder. The behavioural arm
 not the fuel, can still allow a REJECT. The real registry cannot produce it. It is stated in
 `clockspeed/audit/fuel.py::_uncovered_inputs` and not fixed.
 (7) Option C's line is in `BACKLOG.md`, under the session 137 heading.
-NOT YET RECORDED, AND FLAGGED RATHER THAN RECONCILED: Ruling 5 asks for the real-save probe
-re-run with its count per reason, and the session 134 ruling's residual check asks that
-Desc_LiquidFuel_C carry no unmeasured or unregistered reason. Two readings exist and neither is
-that count: the builder's read-only probe of the newest pinned-world save found two fuel
-classes, both solid burners, indeterminate on solid-supply-unmodelled alone, and no fluid fuel
-class built, so the liquid-fuel check has no line to read; the slice B v2 adversary record reads
-that no library save holds a fuel generator and that all 55 verdicts are indeterminate. Whether
-"fuel generator" there excludes the solid burners is not established here. Both checks are owed
-before the item closes.
+(8) THE REAL-SAVE PROBE AND THE LIQUID-FUEL CHECK, RECONCILED. Ruling 5 asks for the real-save
+probe re-run with its count per reason, and the session 134 ruling's residual check asks that
+Desc_LiquidFuel_C carry no unmeasured or unregistered reason. The two readings first set against
+each other do not conflict: "fuel generator" in the slice B v2 adversary record, which reads that
+no library save holds one and that all 55 verdicts are indeterminate, means the liquid-fuel
+generator class, while the builder's two fuel generator classes were the solid biomass and coal
+burners. THE COUNT PER REASON, from the fix round 1 read-only probe of the newest pinned-world
+save: two generator classes, biomass and coal, both indeterminate on solid-supply-unmodelled
+alone; every other reason, supply-input-uncovered included, counts 0; 0 unregistered records;
+6564 no-fluid records. THE Desc_LiquidFuel_C RESIDUAL CHECK IS NOT RUNNABLE, because no library
+save builds a liquid-fuel generator, so it has no line to read: it is unmeasured, not passed.
 
 ### 2026-10-11 - CS-1308 - CLOSED: the checkout root is spelled only on the ruled kept lines, and the CS-1292 path guard reads every tracked path against a kept table pinned by line content
 Verification: `tests/test_readme_audit.py::test_no_absolute_checkout_path_in_any_tracked_text_file`,

@@ -263,7 +263,7 @@ CS-1148 - CS-1119's filed headline calls the trailing run's second remainder sha
 CS-1149 - the trailing run's residual population is recorded as ONE shape and is measured to be at least five - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1150 - one residual carrier class's trailing run carries platform account strings in plaintext, so any reader of that region is an echo path - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on NO payload and the walk reaches one on six figures of them - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1309 - the save layer refuses a whole world when the newest save in its directory is one the parser refuses - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1312 - `purge_work_dir` deletes through a junction into the save directory - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit
