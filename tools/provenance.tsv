@@ -352,6 +352,7 @@ tests/save/test_independent_table.py	authored	CS-829	first-add:CS-829
 tests/save/test_inventory_item.py	authored	CS-400	stamped
 tests/save/test_inventory_potential.py	authored	CS-405	first-add:CS-405
 tests/save/test_item_list.py	authored	CS-1068	first-add:CS-1068
+tests/save/test_newest_world.py	authored	CS-1309	stamped
 tests/save/test_node_orientation_carry.py	authored	CS-1019	stamped
 tests/save/test_objects.py	authored	CS-1165	first-add:root
 tests/save/test_oracle_citations.py	authored	CS-420	first-add:CS-420
@@ -431,6 +432,7 @@ tests/surface/test_server.py	authored	CS-601	first-add:CS-601
 tests/surface/test_solve.py	authored	CS-601	first-add:CS-601
 tests/surface/test_web_assets.py	authored	CS-601	first-add:CS-601
 tests/surface/test_world.py	authored	CS-601	first-add:CS-601
+tests/surface/test_world_provider_fallback.py	authored	CS-1309	stamped
 tests/surface/test_world_provider_memo.py	authored	CS-1203	stamped
 tests/test_action_runtimes.py	authored	CS-990	first-add:CS-990
 tests/test_architecture_attributions.py	authored	CS-928	first-add:CS-928
