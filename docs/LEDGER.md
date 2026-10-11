@@ -75,6 +75,79 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-11 - CS-1308 - DECISION RECORD (adjudicated session 137). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1308 STAYS OPEN. The checkout root is not personal data, and the lines that keep its spelling are ruled one by one before any edit
+Verification: `docs/item_notes/phase7.md` section CS-1308 and its `### Acceptance` clause, the
+CS-1292 path guard in `tests/test_readme_audit.py` that this item widens, and the unmerged
+branch whose subjects start "CS-1308 - ". Adjudicated in session 137 and recorded here before
+any edit the ruling permits. Every kept line is cited by path and line and none is quoted,
+because the widened guard reads this file too. A kept line in a file under a directory is
+cited by its path and its line numbers in words, because the line-pointer residual pin of
+the citation guard admits no new `path:line` form there.
+DECISION: the checkout root - its drive-letter spelling and the old junction spelling on the
+system drive - is NOT personal data. It is not a home path, an account id, a machine name or
+a personal identifier (`CLAUDE.md` section 2, `CONVENTIONS.md` section 17). The scrub is for
+portability and consistency, in CS-1292's `<repo>` style. A line that states the settled
+decision itself is KEPT; every other spelling is scrubbed. The vendored files
+(`docs/CHANNEL.md` and `ops/fleet_kit/`) carry none.
+KEPT, each line and why:
+- CLAUDE.md:222 - section 2 owns paths and topology, and this is its project-root line.
+- CLAUDE.md:518 - the section 7 settled entry on the name and the root; rewording it would
+  rewrite a settled decision.
+- BOOTSTRAP.md:58 - section 2's ground-truth table row for the project root.
+- BOOTSTRAP.md:833 - section 11's copy of the same settled entry.
+- `docs/adr/0026-the-root-moves-to-e.md` lines 16, 47, 52, 67, 68, 69 and 80 - the accepted
+  ADR's own record of the move: the old root, the decision, the copy, the junction left behind
+  and where the lanes now land. An accepted ADR is not rewritten.
+- the guard's own pattern lines in `tests/test_readme_audit.py` - the comment above
+  `ABSOLUTE_CHECKOUT_RE` and the cases of
+  `tests/test_readme_audit.py::test_the_checkout_path_pattern_catches_every_spelling`, which
+  must spell each form to prove the pattern catches it. They are kept by line content, never
+  by file: the guard file is scanned like every other tracked file.
+SCRUBBED (12 rows, 10 files): BOOTSTRAP.md:590, `docs/_archive/spike-report-s1-s2-s3-s7.md`
+line 541, `docs/item_notes/phase4-followups-900.md` lines 762 and 774 (the second is the
+folder's 8.3 short name), `docs/item_notes/phase4.md` line 214, `docs/item_notes/phase7.md`
+line 523, one line each in `ops/loop/inbox_responder.py`, `ops/loop/launch_queue_loop.ps1`,
+`tests/ops/test_driver_module_binding.py` and `tests/ops/test_row_claim.py`, the real test
+value in `tests/test_queue_loop.py` (now built under `tmp_path`), and the hand-off's line 129
+on the s136-land branch only (main's rewritten hand-off wins at landing). Under the same
+rule, the two-part junction spelling on line 761 of `docs/item_notes/phase4-followups-900.md`,
+which the single-token pattern does not see, is rewritten in the `<repo>` style, and a
+markdown-only arm for a quoted drive root beside the quoted folder name pins it.
+THE GUARD: CS-1292's path guard is widened from four docs to every tracked file, against a
+kept table pinned by line CONTENT - per path, the digests of the matching lines with each
+line's match count - so an added, changed, moved or doubled spelling fails and an edit that
+only shifts line numbers does not. The guard's own file is scanned like any other, its pattern
+lines kept one by one. Only the hash-pinned binaries CS-1292 admitted for the SHA citation
+gate are skipped, by path and bytes through that gate's own loader. A NUL-bearing or
+byte-order-marked file is also read as UTF-16 and UTF-32, a file strict UTF-8 refuses is
+also read byte for byte, and a file no decoding reads fails as unscannable. The pattern also
+reads Git Bash's form glued to a `-C` option or JSON-escaped, the 8.3 short name glued to a
+prefix, and backslash-u and backslash-x escapes of a separator or the colon; widening it
+added no hit on the branch, on main or on s136-land. This widens an existing test; it is not
+a new guard. It blocks
+the public flip because the acceptance needs it and CS-1292's four-file audit missed 13
+files.
+ALTERNATIVES: scrub everything, the kept lines included - lost, because it rewrites a settled
+entry and an accepted ADR. Scrub nothing and drop the blocker status - lost to MAIN's
+`<repo>` rule and to wrong paths in an outsider's clone. Exempt whole kept files - lost,
+because a new spelling inside one would slip through. A blanket vendored exemption - lost,
+because those files carry none. Runner-up: also keep BOOTSTRAP.md:590, which ADR 0026
+decision 4 calls live root text - lost, because that decision records what the move touched,
+not a spelling to keep forever.
+REVERSED BY: the root moving under a home directory (non-negotiable 3 then covers every
+spelling), the operator's own words changing the section 7 entry, or a new ADR moving the
+root.
+COMMON-MODE RISK: every check here is a text regex run on one tip, by agents reading the same
+pattern. Re-grep the LANDED tip, not the branch.
+RESIDUAL: a spelling split across lines or assembled by string concatenation is invisible to
+any line regex, and so is one in an encoding the pattern does not name (an octal escape,
+base64 and the like). One such assembled spelling of the junction root stands, unruled: a
+negative sample in `tests/test_scaffold.py::test_home_path_detector_actually_detects`, built
+from fragments on purpose; it needs a slice that owns that file. 39 commits on s136-land touch a root spelling in history; CS-700 should
+state its handling, though no safety floor applies. The sidecar root is outside this item
+(ADR 0026 lines 39 and 61 stay under CS-1293). The fragment of another tree that
+`ops/loop/launch_queue_loop.ps1` quotes a few lines above its scrubbed line is unruled.
+
 ### 2026-10-11 - CS-1310 - vendor FLEET-KIT v17
 
 Source: MAIN FIX note 2026-10-10-1312 (FLEET-KIT v17, GITLOCK-SWEEP), provenance verified
