@@ -64,7 +64,8 @@ covering more than it does. Every construct below is invisible here:
   the whole expression. ``/`` and ``*`` therefore CANNOT be banned - they are
   the arithmetic this layer exists to perform - so a float that reaches an
   operand poisons every value derived from it while every token in sight stays
-  legal.
+  legal. Only a ``/`` whose two operands are ints by their spelling is banned
+  (section (a)'s table says which spellings); a ``/`` over names is invisible.
 
 WHICH INDEPENDENT SIGNAL COVERS EACH GAP
 ----------------------------------------
@@ -312,12 +313,37 @@ def test_the_dotted_module_names_derive_from_the_pinned_file_set() -> None:
 #   numpy, scipy            float64 arrays, and also a dependency this project
 #                           has decided it does not have (BOOTSTRAP.md 11).
 
+#   int / int               Fraction(5, 2).numerator / Fraction(5, 2).denominator
+#                           returns the float 2.5, and so does len(x) / int(y) -
+#                           measured. Python 3's true division of two ints is a
+#                           float, so a "/" whose BOTH operands are ints by their
+#                           spelling - an int literal, .numerator, .denominator,
+#                           int(...) or len(...) - is banned. A "/" over names
+#                           is NOT: Fraction / Fraction is exact and is the
+#                           arithmetic itself, and an operand's type is not in
+#                           the tree. Banning "/" wherever neither operand is a
+#                           Fraction(...) construction was measured against
+#                           clockspeed/audit/fuel.py: it flags all three of the
+#                           module's divisions, every one exact, so it is not
+#                           used - the behavioural arm
+#                           tests/audit/test_fuel.py::
+#                           test_a_shortfall_below_float_resolution_still_fires
+#                           guards a float decision there instead.
+#   truediv, __truediv__,   operator.truediv(5, 2), (5).__truediv__(2) and
+#   __rtruediv__, __float__ Fraction(5, 2).__float__() each return a float -
+#                           measured: the same divisions and conversion spelled
+#                           so that neither the "/" rule nor the float rule sees
+#                           them.
+
 _BANNED_CONSTANT_TYPES: tuple[type, ...] = (float, complex)
 _BANNED_NUMERIC_NAMES = frozenset({"complex", "float"})
 _BANNED_CALL_NAMES = frozenset({"divmod", "pow", "round"})
 _BANNED_MODULE_ROOTS = frozenset(
     {"cmath", "decimal", "math", "numpy", "random", "scipy", "statistics"}
 )
+_BANNED_DIVISION_NAMES = frozenset({"__float__", "__rtruediv__", "__truediv__", "truediv"})
+_INT_ATTRIBUTES = frozenset({"denominator", "numerator"})
+_INT_CALL_NAMES = frozenset({"int", "len"})
 
 
 def _identifier_of(node: ast.AST) -> str | None:
@@ -447,12 +473,74 @@ def _flag_inexact_import(node: ast.AST) -> str | None:
     return None
 
 
+def _is_int_spelled(node: ast.AST) -> bool:
+    """Whether a node is an int by its spelling alone, whatever the names hold.
+
+    Args:
+        node: Any AST node.
+
+    Returns:
+        True for an int literal (never a bool), a ``.numerator`` or
+        ``.denominator`` read, or a call to ``int`` or ``len``.
+    """
+    if isinstance(node, ast.Constant):
+        return type(node.value) is int
+    if isinstance(node, ast.Attribute):
+        return node.attr in _INT_ATTRIBUTES
+    if isinstance(node, ast.Call):
+        return _identifier_of(node.func) in _INT_CALL_NAMES
+    return False
+
+
+def _flag_int_true_division(node: ast.AST) -> str | None:
+    """Flag ``/`` whose two operands are both ints by their spelling.
+
+    Args:
+        node: Any AST node.
+
+    Returns:
+        A description, or None.
+    """
+    if (
+        isinstance(node, ast.BinOp)
+        and isinstance(node.op, ast.Div)
+        and _is_int_spelled(node.left)
+        and _is_int_spelled(node.right)
+    ):
+        return "true division of two ints"
+    return None
+
+
+def _flag_division_spelling(node: ast.AST) -> str | None:
+    """Flag ``truediv``, ``__truediv__``, ``__rtruediv__`` and ``__float__``.
+
+    Any position counts - a call, an attribute read, a bare reference or a
+    ``from operator import`` - since each spells a float division or
+    conversion that neither the ``/`` rule nor the float rule sees.
+
+    Args:
+        node: Any AST node.
+
+    Returns:
+        A description, or None.
+    """
+    identifiers = [_identifier_of(node)]
+    if isinstance(node, ast.ImportFrom):
+        identifiers += [alias.name for alias in node.names]
+    for identifier in identifiers:
+        if identifier in _BANNED_DIVISION_NAMES:
+            return f"reference to '{identifier}'"
+    return None
+
+
 _INEXACT_CHECKS = (
     _flag_inexact_literal,
     _flag_inexact_name,
     _flag_exponentiation,
     _flag_inexact_call,
     _flag_inexact_import,
+    _flag_int_true_division,
+    _flag_division_spelling,
 )
 
 
@@ -543,8 +631,24 @@ def test_no_exact_audit_module_contains_inexact_arithmetic(relative: str) -> Non
         ("if pooled < demand:", "if float(pooled) < float(demand):"),
         ("supply = max(net, Fraction(0))", "supply = max(net, 0.0)"),
         ("from fractions import Fraction", "from fractions import Fraction\nimport math"),
+        (
+            "if pooled < demand:",
+            "if pooled.numerator / pooled.denominator < demand.numerator / demand.denominator:",
+        ),
+        ("if pooled < demand:", "if pooled.__float__() < demand.__float__():"),
+        (
+            "if pooled < demand:",
+            "if operator.truediv(pooled.numerator, pooled.denominator) < demand:",
+        ),
     ],
-    ids=["float-comparison", "float-literal", "math-import"],
+    ids=[
+        "float-comparison",
+        "float-literal",
+        "math-import",
+        "int-division",
+        "dunder-float",
+        "truediv",
+    ],
 )
 def test_the_scan_sees_a_float_spliced_into_the_real_fuel_audit(anchor: str, spliced: str) -> None:
     """The extended scope is live: the real module, one construct spliced in, scans dirty.
@@ -621,6 +725,26 @@ _DETECTOR_POSITIVES: tuple[tuple[str, str, str], ...] = (
     ("import random", "import random\n", "import of 'random'"),
     ("import numpy aliased", "import numpy as np\n", "import of 'numpy'"),
     ("import scipy submodule", "from scipy import optimize\n", "import of 'scipy'"),
+    (
+        "numerator over denominator",
+        "flag = value.numerator / value.denominator < limit\n",
+        "true division of two ints",
+    ),
+    ("int literal over int literal", "half = 1 / 2\n", "true division of two ints"),
+    ("len over int call", "share = len(parts) / int(total)\n", "true division of two ints"),
+    (
+        "operator.truediv",
+        "import operator\n\nrate = operator.truediv(left, right)\n",
+        "reference to 'truediv'",
+    ),
+    (
+        "truediv imported by name",
+        "from operator import truediv\n",
+        "reference to 'truediv'",
+    ),
+    ("dunder truediv", "rate = left.__truediv__(right)\n", "reference to '__truediv__'"),
+    ("dunder rtruediv", "rate = right.__rtruediv__(left)\n", "reference to '__rtruediv__'"),
+    ("dunder float", "rate = value.__float__()\n", "reference to '__float__'"),
 )
 
 _DETECTOR_NEGATIVES: tuple[tuple[str, str], ...] = (
@@ -630,6 +754,16 @@ _DETECTOR_NEGATIVES: tuple[tuple[str, str], ...] = (
     ),
     ("integer, bool and None literals", "count = 5\nflag = True\nnothing = None\n"),
     ("division and multiplication, which ARE the arithmetic", "rate = numerator / denominator\n"),
+    ("a Fraction divided by an int literal", "rate = total / 2\n"),
+    (
+        "a Fraction built from two ints",
+        "from fractions import Fraction\n\nrate = Fraction(value.numerator, value.denominator)\n",
+    ),
+    (
+        "floor division of two ints, which is exact",
+        "whole = value.numerator // value.denominator\n",
+    ),
+    ("a Fraction over a name scaled by sixty", "supply_mw = supply * energy / SIXTY\n"),
     ("a string that merely spells a banned name", "label = 'float'\n"),
     ("docstring quoting every banned spelling", _DOCSTRING_EVIDENCE),
     (
