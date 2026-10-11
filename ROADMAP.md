@@ -206,7 +206,6 @@ CS-450 - Decide whether a named FIELD of a caught exception is a rendering - acc
 CS-451 - Bring `tools/drift_guard.py`'s exception rendering under the same rule as the rest of the tree - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-452 - Give `locate`'s resolvers one return shape instead of two - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
-CS-453 - Apply the refuse list to the DELETE path, not only the write path - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-454 - Close the account-directory redaction hole, which is live on `main` today - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 CS-455 - Close the fixed-width fabrication blind spot - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-11 - CS-453 - SUPERSEDED by CS-1312 (session 137)
+Verification: the CS-1312 line in `ROADMAP.md` and its section in
+`docs/item_notes/phase4-followups-1000.md`, which absorbs this item; this item's section,
+relocated verbatim to `docs/history_notes.md`; this item's line, removed from `ROADMAP.md`.
+NOTHING BUILT AND NOTHING FIXED: the delete-path gap in
+`clockspeed/save/workdir.py::purge_work_dir` stays OPEN under CS-1312, at tier 1.
+WHY: both items name one gap - the purge deletes with no forbidden-root check. CS-453 was filed
+at tier 2 on the ground that the copies-directory and suffix conditions bound a purge to files
+this module made. A session 137 junction probe disproved that ground: the purge deleted
+copy-suffixed files through a pre-planted junction or symlink into a fake save directory, on head
+and on base alike. CS-1312's guard route meets CS-453's guard branch, and CS-453's exemption
+branch has no true bound left to assert. CS-453's id is retired and never reused.
+
 ### 2026-10-11 - CS-1309 - CLOSED: a newest save the parser refuses no longer takes the world down; the newest readable save of the same world is served, flagged by refusal stage and exception type alone
 Verification: `clockspeed/save/world.py::load_newest_world`,
 `clockspeed/save/world.py::READER_REFUSAL_TYPES`, `clockspeed/save/world.py::WARN_NEWER_SAVE_REFUSED`

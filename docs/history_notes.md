@@ -24,6 +24,28 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-453 - item section, SUPERSEDED by CS-1312 and relocated from `docs/item_notes/phase4.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase4.md` when CS-1312 superseded the item.**
+The supersession record is in `docs/LEDGER.md`.
+
+## CS-453
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+**NOTE RELOCATED for budget, never deleted: read this file under **CS-453 - detail** BEFORE TAKING THIS ITEM.**
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 27) for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`. This block is a LIVE instruction, not history.
+
+NOTE: filed 2026-08-16 by the CS-444 security adversary, and **DELIBERATELY FILED AT TIER 2 RATHER THAN TIER 1 BECAUSE THE ADVERSARY'S FRAMING WAS WIDER THAN THE CODE.** Verified by the merger at `clockspeed/save/workdir.py::purge_work_dir`: it deletes through `_remove_quietly` with no refuse-list consultation, so a work root pointed inside the save tree is not refused on the way out the way it is on the way in. **WHAT BOUNDS IT, and this is why it is not tier 1:** `_is_module_copy` requires the entry to sit in this module's own copies directory AND carry this module's suffix, so it removes only files this module made; and `copy_save` refusing to write inside a forbidden root means such files should not exist there to begin with. The real defect is the ASYMMETRY and the fact that nothing states it - the write path is guarded, the delete path is not, and the module's own docstring explains the two naming conditions without ever saying the refuse list is skipped. Non-negotiable 1 covers writes to the save directory, and a delete is a write.
+
+### Acceptance
+
+`purge_work_dir` consults `_refuse_if_forbidden` before removing anything, or the asymmetry is recorded as a deliberate exemption with a test asserting its bound
+
+
 ## CS-1309 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-1000.md` 2026-10-11
 
 **Moved here from `docs/item_notes/phase4-followups-1000.md` when the item closed.**

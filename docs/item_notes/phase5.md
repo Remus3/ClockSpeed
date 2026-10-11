@@ -614,8 +614,8 @@ the test names, slice B v2's upstream-shortfall ruling (Ruling 5) and its close 
 two 2026-10-11 CS-1285 records in `docs/LEDGER.md`. Ruling 5 adds nothing slice C must build:
 a fluid line whose chain holds an uncovered input is indeterminate, and the demand card already
 fires on every indeterminate class (ruling (f)). Option C, derating, is a `BACKLOG.md` line.
-Still owed before close: the real-save probe re-run with its count per reason, and the residual
-check above.
+The real-save probe re-run, its count per reason and the residual check above are recorded under
+(8) in the 2026-10-11 CS-1285 slice B v2 record in `docs/LEDGER.md`.
 
 ### Acceptance
 

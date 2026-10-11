@@ -4504,7 +4504,7 @@ def test_an_unexpected_load_failure_does_not_unwind_through_the_measured_pair_lo
 #
 # AT THE FOOT, AND THE PLACEMENT IS THE POINT. This module's Clause 1 section
 # is where these two read, and putting them there is what the first attempt
-# did - which moved `WRITER_WRITE_SURFACE` off line 2089 and broke the archive
+# did - which moved `WRITER_WRITE_SURFACE` off line 2108 and broke the archive
 # pin in `docs/item_notes/phase4.md` that anchors it. A block appended below
 # every existing line moves none of them. Fixtures and tests are collected by
 # name, so position costs nothing but the reading order.

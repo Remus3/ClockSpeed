@@ -1334,3 +1334,7 @@ filed at tier 2 on the ground that the copies-directory and suffix conditions bo
 can remove. This probe measured that bound false through a junction or a symlink. A slice that
 closes CS-1312 by the guard route meets CS-453's first acceptance branch as well, and CS-453's
 exemption branch no longer has a true bound to assert.
+
+SUPERSESSION, session 137: CS-1312 absorbs CS-453, whose line is removed from `ROADMAP.md`,
+whose section is relocated verbatim to `docs/history_notes.md` and whose record is in
+`docs/LEDGER.md`, so this item alone carries the delete-path gap both named.
