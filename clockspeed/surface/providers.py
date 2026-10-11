@@ -70,8 +70,9 @@ from clockspeed.save.world import (
     WorldLoadError,
     load_newest_world,
     load_world,
-    read_world_token,
+    read_world_digest,
     refuse_again,
+    world_digest,
 )
 
 if TYPE_CHECKING:
@@ -138,23 +139,27 @@ class SaveWorldProvider:
     which is the install - is never remembered and never falls back, so the
     next call tries the newest save again.
 
-    WHAT ``identify`` READ IS REMEMBERED THE SAME WAY. The world token a
-    save's header names is kept by identity, so the walk's same-world check
-    copies a save's header at most once per identity. It is compared, never
-    rendered, and it is the value a remembered world already holds.
+    WHAT ``identify`` READ IS REMEMBERED THE SAME WAY, AS A DIGEST. Which
+    world a save's header names is kept by identity, so the walk's same-world
+    check copies a save's header at most once per identity. What is kept is
+    ``world.world_digest`` of the token - the ledger's own key - NEVER the
+    token (CS-1309 r3): a memo of raw tokens rendered one per identified save
+    through ``vars``, and a digest answers "the same world?" exactly as well.
+    The remembered world still holds its token, as every world does; its own
+    ``repr`` masks it.
 
     MERGED, NEVER REPLACED; BOUNDED BY THE RANKING (CS-1309 F1). Every walk
     adds to the memory and then prunes it to the files in the CURRENT ranking
-    whose identity is unchanged - verdicts, tokens and the remembered world
+    whose identity is unchanged - verdicts, digests and the remembered world
     alike. A walk that ends early, on a busy save or an unreadable mapping,
     therefore keeps every verdict it never reached, and a file gone from the
     ranking is forgotten, so the memory never outgrows the ranking.
 
     THE RESIDUAL, NAMED: a rewrite that keeps the same path, the same size and
-    the same nanosecond modification time keeps the identity, so a refusal -
-    like a world - is served from memory until the file changes again or the
-    process restarts. An ordinary write moves the modification time on NTFS;
-    reaching this takes a deliberate restore.
+    the same nanosecond modification time keeps the identity, so a refusal or
+    a world digest - like a world - is served from memory until the file
+    changes again or the process restarts. An ordinary write moves the
+    modification time on NTFS; reaching this takes a deliberate restore.
 
     THE FRAME HOLDS SAVE PATHS, AS IT ALWAYS HAS. :meth:`world` holds the
     ranking in a local for the walk and the prune, as the single-save version
@@ -171,7 +176,7 @@ class SaveWorldProvider:
         find_save: Callable[[Path | None], Path | None] | None = None,
         find_saves: Callable[[Path | None], Sequence[Path]] | None = None,
         load: Callable[[Path], WorldModel] = load_world,
-        identify: Callable[[Path], str | None] = read_world_token,
+        identify: Callable[[Path], str | None] = read_world_digest,
     ) -> None:
         """Wire the provider, defaulting to the real save resolution.
 
@@ -189,7 +194,9 @@ class SaveWorldProvider:
             find_saves: Ranks the saves to try, newest first. Defaults to
                 ``workdir.ranked_saves`` when neither seam is given.
             load: Copies a save out of harm's way and parses it.
-            identify: Reads the world token a save's header names, or None.
+            identify: Answers which world a save's header names, as
+                ``world.read_world_digest`` does - a digest, ``world.NO_WORLD``
+                or None when unread.
 
         Raises:
             ValueError: Both ``find_save`` and ``find_saves`` were given.
@@ -205,7 +212,7 @@ class SaveWorldProvider:
         self._lock = threading.Lock()
         self._remembered: tuple[tuple[Path, int, int], WorldModel] | None = None
         self._verdicts: dict[tuple[Path, int, int], tuple[str, str]] = {}
-        self._tokens: dict[tuple[Path, int, int], str] = {}
+        self._digests: dict[tuple[Path, int, int], str] = {}
 
     def world(self) -> WorldModel | None:
         """The current world, or None when this machine has no save to read.
@@ -287,32 +294,36 @@ class SaveWorldProvider:
         return world
 
     def _remembering_identify(self, path: Path) -> str | None:
-        """The world token a candidate's header names, from memory when its identity allows.
+        """Which world a candidate's header names, from memory when its identity allows.
 
         Called with the lock held, by the walk only once the newest save was
-        refused after its header.
+        refused after its header. Three shortcuts, each saving a copy of the
+        save: a digest already read, a remembered verdict AT the header (that
+        header will not read, so nothing is copied to learn so again), and
+        the remembered world, which names its own world.
 
         Args:
             path: The candidate.
 
         Returns:
-            The token, or None when the header names none.
+            The world's digest, ``world.NO_WORLD`` for a header naming none,
+            or None when the header was not read.
         """
         identity = _identity(path)
         if identity is not None:
-            token = self._tokens.get(identity)
-            if token is not None:
-                return token
+            digest = self._digests.get(identity)
+            if digest is not None:
+                return digest
             verdict = self._verdicts.get(identity)
             if verdict is not None and verdict[0] == STAGE_HEADER:
                 return None
             remembered = self._remembered
             if remembered is not None and remembered[0] == identity:
-                return remembered[1].token
-        token = self._identify(path)
-        if identity is not None and token is not None:
-            self._tokens[identity] = token
-        return token
+                return world_digest(remembered[1].token)
+        digest = self._identify(path)
+        if identity is not None and digest is not None:
+            self._digests[identity] = digest
+        return digest
 
     def _keep_ranked(self, candidates: Sequence[Path]) -> None:
         """Forget everything not about a ranked file with an unchanged identity.
@@ -322,7 +333,7 @@ class SaveWorldProvider:
         """
         current = {identity for identity in map(_identity, candidates) if identity is not None}
         self._verdicts = {key: words for key, words in self._verdicts.items() if key in current}
-        self._tokens = {key: token for key, token in self._tokens.items() if key in current}
+        self._digests = {key: digest for key, digest in self._digests.items() if key in current}
         if self._remembered is not None and self._remembered[0] not in current:
             self._remembered = None
 

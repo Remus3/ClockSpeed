@@ -365,15 +365,18 @@ one of these.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, NoReturn
+from typing import Final, NoReturn, TypeIs
 
 from clockspeed.save.chunks import ChunkError, DecompressedBody, decompress_body
 from clockspeed.save.header import (
+    MAX_HEADER_BYTES,
     HeaderError,
+    HeaderTruncatedError,
     SaveHeader,
     masked_token,
     parse_header,
@@ -414,6 +417,7 @@ __all__ = [
     "EMPTY_WORLD_PARENTS",
     "EMPTY_WORLD_PROPERTIES",
     "NODE_CLASS_NAMES",
+    "NO_WORLD",
     "READER_REFUSAL_TYPES",
     "SAVE_VERDICT_STAGES",
     "SOURCE_CHUNKS",
@@ -448,11 +452,13 @@ __all__ = [
     "WorldParents",
     "WorldProperties",
     "WorldWarning",
+    "is_world_token",
     "load_newest_world",
     "load_world",
     "load_world_from_bytes",
-    "read_world_token",
+    "read_world_digest",
     "refuse_again",
+    "world_digest",
 ]
 
 # ---------------------------------------------------------------------------
@@ -2816,8 +2822,18 @@ def refuse_again(stage: str, cause_type: str) -> NoReturn:
     and the cause type and calls this to raise the verdict again.
 
     Both words are checked before anything is built, and the refusal is raised
-    ``from None`` OUTSIDE any handler, so it carries no cause and no context:
-    nothing but the two words, which the message renders.
+    ``from None``, so it carries no cause: nothing but the two words, which the
+    message renders.
+
+    NO CONTEXT, WHOEVER THE CALLER (CS-1309 r3). Python attaches the exception
+    being handled as ``__context__`` to anything raised while it is handled,
+    so "no context" used to depend on the caller: called inside an ``except``,
+    or in a ``finally`` an exception reached, the fresh refusal carried that
+    exception and everything it held. The context is cleared as the refusal
+    leaves this frame, whatever its caller is doing - and every shipped call
+    site sits outside any handler besides, which
+    ``tests/surface/test_world_provider_fallback.py`` grades on the syntax
+    tree.
 
     Args:
         stage: One of :data:`SAVE_VERDICT_STAGES`.
@@ -2832,70 +2848,201 @@ def refuse_again(stage: str, cause_type: str) -> NoReturn:
         raise ValueError("a remembered stage outside the closed vocabulary was refused")
     if cause_type not in READER_REFUSAL_TYPES:
         raise ValueError("a remembered cause type outside the closed vocabulary was refused")
-    raise WorldLoadError(stage, cause_type) from None
+    refusal = WorldLoadError(stage, cause_type)
+    try:
+        raise refusal from None
+    finally:
+        refusal.__context__ = None
 
 
-def read_world_token(path: Path | str) -> str | None:
-    """The world token a save's header names, or None when it names none.
+#: What :func:`read_world_digest` answers for a header it READ that names no
+#: world the advice ledger would key - an empty identifier, or one that is not
+#: ASCII. The empty string, which no digest is: a digest is 64 hex characters.
+NO_WORLD: Final = ""
+
+
+def is_world_token(value: object) -> TypeIs[str]:
+    """Whether ``value`` names a world: a non-empty ASCII ``str``.
+
+    THE LEDGER'S RULE, NOT A SECOND ONE (CS-1309 r3). ``ledger.world_key`` in
+    ``clockspeed/advisor/ledger.py`` refuses every other value as a world key,
+    and two worlds whose headers carry one refused value are NOT one known
+    world - an empty identifier names nothing at all. The rule is spelled here
+    rather than imported because this layer may not import the advisor
+    (CLAUDE.md section 2.1, seam discipline), and
+    ``tests/save/test_newest_world.py`` pins the two equal.
+
+    Args:
+        value: What a header carried, or anything else.
+
+    Returns:
+        True only for a non-empty ASCII ``str``.
+    """
+    return isinstance(value, str) and bool(value) and value.isascii()
+
+
+def world_digest(token: object) -> str:
+    """A world's pseudonym - the ledger's own key - or :data:`NO_WORLD`.
+
+    WHY A DIGEST AND NOT THE TOKEN (CS-1309 r3). The walk compares worlds and
+    the dashboard's provider remembers what it compared. Both used to hold the
+    raw token: the walk's frame rode out on every refusal it raised, where a
+    locals-showing renderer printed it, and the provider's memo held one per
+    save it identified - an echo path either way (non-negotiable 12; CS-851,
+    CS-963). A full SHA-256 of the token's ASCII bytes answers "the same
+    world?" exactly as the token does, with no reachable collision, and renders
+    nothing of it. It is the digest ``ledger.world_key`` keys a world by,
+    pinned equal beside :func:`is_world_token`.
+
+    Args:
+        token: A header's identifier, as read.
+
+    Returns:
+        The 64-character hex digest, or :data:`NO_WORLD` when ``token`` names no
+        world under :func:`is_world_token`.
+    """
+    if is_world_token(token):
+        return hashlib.sha256(token.encode("ascii")).hexdigest()
+    return NO_WORLD
+
+
+def _header_of(copy: Path) -> SaveHeader:
+    """A copy's header, read past the bounded prefix when the prefix alone cut it short.
+
+    A HEADER LONGER THAN THE PREFIX IS STILL A HEADER (CS-1309 r3).
+    ``read_header`` reads :data:`~clockspeed.save.header.MAX_HEADER_BYTES` and
+    no more, while a full load parses the header out of the whole file, so a
+    save whose strings together outran the prefix LOADED and could not be
+    identified: every walk past it as a refused newest save ended with no world
+    while a readable save of the same world remained. A truncation in a file
+    LONGER than the prefix can only be the prefix's, so then - and only then -
+    the header is parsed out of the whole copy.
+
+    - DECISION. Read the whole copy, once, for exactly that case.
+    - ALTERNATIVE REJECTED. Counting such a save as an unknown world costs no
+      read, but serves the newest readable save, whatever its world, under the
+      "may be a different one" flag where the world is knowable.
+    - WHY. The read is paid only for a header no measured save comes near, and
+      the dashboard's provider remembers the answer by file identity, so it is
+      paid once per file; the dashboard stays alive and right.
+
+    The whole copy is scrubbed from this frame on a refusal, as ``read_header``
+    scrubs its prefix (CS-963): the header strings are at its front.
+
+    Args:
+        copy: A copy of a save, never the save in place.
+
+    Returns:
+        The parsed header.
+
+    Raises:
+        HeaderError: The header does not parse, from the prefix or the copy.
+        OSError: The copy could not be measured or read.
+    """
+    try:
+        return read_header(copy)
+    except HeaderTruncatedError:
+        if copy.stat().st_size <= MAX_HEADER_BYTES:
+            raise
+    with copy.open("rb") as handle:
+        data = handle.read()
+    try:
+        return parse_header(data)
+    except BaseException:
+        del data
+        raise
+
+
+def read_world_digest(path: Path | str) -> str | None:
+    """Which world a save's header names, as :func:`world_digest`, or None when unread.
 
     The walk's way to ask WHICH WORLD a save belongs to without parsing its
-    body (CS-1309 F2): a copy, as every read of a save is, then the header's
-    bounded prefix, then the copy is discarded - the token is the whole answer
-    and the copy has no later reader. A save whose body the reader refuses
-    still names its world here, because only its header is read.
+    body (CS-1309 F2): a copy, as every read of a save is, then its header,
+    then the copy is discarded - the answer is the whole of it and the copy has
+    no later reader. A save whose body the reader refuses still names its
+    world here, because only its header is read.
 
-    THE TOKEN IS RETURNED AND GOES NOWHERE ELSE. The walk compares it for
-    equality and never renders it; no flag, message or log built from it
-    exists. It is the same value :attr:`WorldModel.token` already holds.
+    THREE ANSWERS, AND THE WALK TELLS THEM APART. A digest: the header names a
+    world. :data:`NO_WORLD`: the header was read and names no world the ledger
+    would key, so two such saves are not one world (CS-1309 r3). None: the
+    header was not read - a file the game holds, a file that vanished, a
+    header the reader refuses.
+
+    THE TOKEN IS DIGESTED WHERE IT IS READ and is held by no frame of this
+    module past that call - see :func:`world_digest`.
 
     Args:
         path: The save. Copied first; never read in place.
 
     Returns:
-        The token, or None when the copy or the header read failed for any
-        reason - a header the reader refuses, a file the game holds, a file
-        that vanished.
+        The digest, :data:`NO_WORLD`, or None.
     """
     try:
         copy = copy_for_read(Path(path))
     except WorkDirError:
         return None
     try:
-        return read_header(copy).world_token
-    except HeaderError:
+        return world_digest(_header_of(copy).world_token)
+    except (HeaderError, OSError):
         return None
     finally:
         discard_copy(copy)
 
 
 def _of_another_world(
-    path: Path, world_token: str | None, identify: Callable[[Path], str | None]
+    path: Path, newest_world: str | None, identify: Callable[[Path], str | None]
 ) -> bool:
-    """Whether ``path`` is KNOWN to be a save of a world other than ``world_token``.
+    """Whether ``path`` is KNOWN to be a save of a world other than ``newest_world``.
 
-    A save whose header names no world is not known to be another one, so the
-    walk loads it - and the loaded world's own token is checked again, which
-    is what keeps a save rewritten between the two reads from being served.
+    A save whose header could not be read is not known to be another one, so
+    the walk loads it - and the loaded world's own digest is checked again,
+    which is what keeps a save rewritten between the two reads from being
+    served. A save whose header names no world (:data:`NO_WORLD`) is known not
+    to be ``newest_world``, which always names one, so it is skipped unread.
 
     Args:
         path: The candidate.
-        world_token: The refused newest save's world, or None when unknown.
-        identify: Reads the world token a save's header names, or None.
+        newest_world: The refused newest save's world digest, or None when
+            unknown.
+        identify: :func:`read_world_digest`, or a stand-in answering alike.
 
     Returns:
-        True only when both worlds are known and differ.
+        True only when ``newest_world`` is known and the candidate is known to
+        differ from it.
     """
-    if world_token is None:
+    if newest_world is None:
         return False
     seen = identify(path)
-    return seen is not None and seen != world_token
+    return seen is not None and seen != newest_world
+
+
+def _end_unserved(newest_refusal: WorldLoadError | None, *, outside: bool) -> None:
+    """End a walk that served no world: fail closed, or raise the newest refusal.
+
+    Only words of the closed vocabulary reach this frame - a cause outside it
+    was refused on meeting and never kept - so whatever it raises carries no
+    value the walk refused.
+
+    Args:
+        newest_refusal: The newest refusal the walk met, or None when it met
+            no candidate at all.
+        outside: Whether the walk stopped on a cause outside the vocabulary.
+
+    Raises:
+        ValueError: ``outside`` - the message names no value.
+        WorldLoadError: The newest refusal, when there was one.
+    """
+    if outside:
+        raise ValueError("a refusal subject outside the closed vocabulary was refused")
+    if newest_refusal is not None:
+        raise newest_refusal
 
 
 def load_newest_world(
     candidates: Iterable[Path],
     *,
     load: Callable[[Path], WorldModel] = load_world,
-    identify: Callable[[Path], str | None] = read_world_token,
+    identify: Callable[[Path], str | None] = read_world_digest,
 ) -> WorldModel | None:
     """Load the newest save the reader accepts, flagging every newer one it refused.
 
@@ -2913,15 +3060,15 @@ def load_newest_world(
     same world.
 
     - DECISION. When the newest save is refused at a stage AFTER its header -
-      chunks or objects - its world token was readable, so it is read again
-      through ``identify`` and the walk falls back ONLY to saves of that world:
+      chunks or objects - its world was readable, so it is read again through
+      ``identify`` and the walk falls back ONLY to saves of that world:
       another world's save is skipped unread, and a loaded save of another
       world is not served. With no readable save of that world the walk ends
-      exactly as when every candidate refused - no world. A token that was
-      readable but cannot be recovered now (``identify`` answers None) ends
-      the walk the same way, so a transient failure never serves another
-      world. When the newest save is refused AT the header, its world is
-      unknown: the newest readable save is served, whatever its world, under
+      exactly as when every candidate refused - no world. A world that was
+      readable but cannot be read now (``identify`` answers None) ends the
+      walk the same way, so a transient failure never serves another world.
+      When the newest save is refused AT the header, its world is unknown: the
+      newest readable save is served, whatever its world, under
       :data:`WARN_NEWEST_SAVE_UNIDENTIFIED`, whose detail says the world shown
       may be a different one. A known-world fallback carries
       :data:`WARN_NEWER_SAVE_REFUSED`. No flag names either world.
@@ -2933,6 +3080,30 @@ def load_newest_world(
     - WHY. Never silently wrong (non-negotiable 7) where the walk knows enough
       to be right, and honestly flagged where it cannot.
 
+    AN IDENTIFIER NO LEDGER KEYS NAMES NO WORLD (CS-1309 r3). A newest save
+    whose header was read and names :data:`NO_WORLD` - an empty identifier,
+    or one that is not ASCII - is an UNKNOWN world, exactly as one refused at
+    its header: two worlds carrying the same empty identifier are not one
+    known world, and serving the second under "a newer save of this world" was
+    a claim about a world nothing identified.
+
+    WORLDS ARE COMPARED BY DIGEST (CS-1309 r3). ``identify`` answers
+    :func:`world_digest`, and a loaded world is checked by the digest of its
+    own token, so no frame of this walk holds a world token - its frame rides
+    out on every refusal it raises, where a locals-showing renderer prints
+    every local.
+
+    WHAT IS COUNTED, AND UNDER WHICH CODE. Every save the walk skipped for a
+    verdict on its bytes is counted, under the ONE code the newest refusal
+    decided. Only the newest refusal is identified - the walk never
+    re-identifies past it. So under a known world, a later save whose own
+    header would not read is LOADED (it is not known to be another world's),
+    refused and counted under :data:`WARN_NEWER_SAVE_REFUSED` with the rest:
+    it may be a newer save of the served world, which is what "may be behind
+    the game" warns of, while :data:`WARN_NEWEST_SAVE_UNIDENTIFIED` would be
+    false - its detail is about the NEWEST save, which was identified. A save
+    known to be another world's is skipped unread and counted nowhere.
+
     ONLY A VERDICT ON THE BYTES FALLS BACK. A :class:`WorldLoadError` whose
     stage is in :data:`SAVE_VERDICT_STAGES` is skipped. Any other stage - the
     copy, which is the environment, and the property map, which is the install
@@ -2943,11 +3114,18 @@ def load_newest_world(
     told whenever the walk ends without a world. Every exception that is not a
     ``WorldLoadError`` propagates unchanged.
 
+    A CAUSE OUTSIDE THE VOCABULARY STOPS THE WALK WHERE IT IS MET (CS-1309
+    r3). A verdict whose cause type is no reader's refusal class refuses the
+    whole walk with a ``ValueError`` - and it is refused on meeting, before it
+    is kept anywhere, so the failure leaves no frame holding the value it
+    refused. :func:`_refusal_flags` checks every subject again where the flag
+    is built.
+
     NO CAP. The walk goes on while a candidate remains, because "the newest
     save the reader accepts" is the contract and a cap that hands back no world
     while a readable save remains is the defect again. It stops at the first
     save that loads, and a caller that walks repeatedly - the dashboard's
-    provider - remembers the verdicts and the world tokens by file identity,
+    provider - remembers the verdicts and the world digests by file identity,
     so a long run of refused files costs one parse each, once.
 
     DETERMINISTIC. Candidates are tried in the order given -
@@ -2957,9 +3135,11 @@ def load_newest_world(
     Args:
         candidates: Saves to try, newest first.
         load: Loads one save. Injectable so the walk is graded without a game.
-        identify: Reads the world token a save's header names, or None.
-            Injectable for the same reason; consulted only once the newest
-            save was refused after its header, and only for equality.
+        identify: Answers which world a save's header names, as
+            :func:`read_world_digest` does - a digest, :data:`NO_WORLD`, or
+            None when unread. Injectable for the same reason; consulted only
+            once the newest save was refused after its header, and only for
+            equality.
 
     Returns:
         The first world that loads and qualifies - the loader's own object
@@ -2971,14 +3151,15 @@ def load_newest_world(
             newest raised before - when no candidate qualifies, or when a later
             candidate failed at a stage that is no verdict on its bytes; or the
             newest candidate's own failure at such a stage.
-        ValueError: A refusal outside the closed vocabulary - see
-            :func:`_refusal_flags`.
+        ValueError: A refusal outside the closed vocabulary. The message names
+            no value.
     """
     subjects: list[str] = []
     newest_refusal: WorldLoadError | None = None
-    world_token: str | None = None
+    newest_world: str | None = None
+    outside = False
     for path in candidates:
-        if _of_another_world(path, world_token, identify):
+        if _of_another_world(path, newest_world, identify):
             continue
         try:
             model = load(path)
@@ -2987,23 +3168,27 @@ def load_newest_world(
                 if newest_refusal is None:
                     raise
                 break
+            if refusal.cause_type not in READER_REFUSAL_TYPES:
+                outside = True
+                break
             subjects.append(_refusal_subject(refusal))
             if newest_refusal is not None:
                 continue
             newest_refusal = refusal
         else:
-            if world_token is not None and model.token != world_token:
+            if newest_world is not None and world_digest(model.token) != newest_world:
                 continue
             if not subjects:
                 return model
-            code = WARN_NEWEST_SAVE_UNIDENTIFIED if world_token is None else WARN_NEWER_SAVE_REFUSED
+            known = newest_world is not None
+            code = WARN_NEWER_SAVE_REFUSED if known else WARN_NEWEST_SAVE_UNIDENTIFIED
             return _with_flags(model, _refusal_flags(subjects, code))
         # Reached only for the newest refusal, and outside its handler, so the
         # read below runs with no exception in flight.
         if newest_refusal.stage != STAGE_HEADER:
-            world_token = identify(path)
-            if world_token is None:
+            seen = identify(path)
+            if seen is None:
                 break
-    if newest_refusal is not None:
-        raise newest_refusal
+            newest_world = None if seen == NO_WORLD else seen
+    _end_unserved(newest_refusal, outside=outside)
     return None

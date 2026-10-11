@@ -44,6 +44,12 @@ l. A refused save leaves no work copy behind in the work root.
 m. The memo holds no exception the reader raised, and a remembered verdict is
    raised again with no cause and no context - nothing save-derived rides
    along in either chain.
+n. No frame of a refused walk and nothing the provider remembers renders a
+   world token - worlds are compared and remembered by digest; every shipped
+   call of ``refuse_again`` sits outside any handler; and what each memo
+   shortcut saves is measured: a settled header is not copied again to
+   identify it, the remembered world names its own world, and a remembered
+   world is released once its save leaves the ranking.
 
 THE BEHAVIOURAL ARMS DRIVE ONLY ENTRY POINTS THAT EXISTED BEFORE THE FALLBACK -
 ``SaveWorldProvider(account_dir, load=...)``, ``world.load_world`` and the route
@@ -56,13 +62,17 @@ home directory, so no assertion renders a path.
 
 from __future__ import annotations
 
+import ast
 import gc
 import hashlib
+import inspect
 import os
 import re
 import time
+import traceback
 import weakref
 from dataclasses import fields, is_dataclass
+from pathlib import Path
 from types import MappingProxyType, ModuleType
 from typing import TYPE_CHECKING, Any, Final
 
@@ -77,7 +87,6 @@ from tests.save import synthetic
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
-    from pathlib import Path
 
 #: The served warning code, spelled as the wire spells it.
 NEWER_SAVE_REFUSED: Final = "newer-save-refused"
@@ -1428,3 +1437,297 @@ def test_a_cause_type_outside_the_reader_vocabulary_is_never_served(tmp_path: Pa
 
     refused = model is None
     assert refused, "a subject outside the closed vocabulary was served"
+
+
+# ---------------------------------------------------------------------------
+# n. no frame and no memo holds a world token; every re-raise sits outside a
+#    handler; and what each memo shortcut saves is measured (CS-1309 r3)
+# ---------------------------------------------------------------------------
+
+#: What production wires as ``identify``, read off the constructor, so the
+#: counting arms below count calls against whatever the shipped default is.
+DEFAULT_IDENTIFY: Final = (
+    inspect.signature(providers.SaveWorldProvider).parameters["identify"].default
+)
+
+
+class CountingIdentify:
+    """The shipped ``identify``, recording each file name it is asked about.
+
+    Attributes:
+        asked: The file names, in order.
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing asked."""
+        self.asked: list[str] = []
+
+    def __call__(self, path: Path) -> str | None:
+        """Ask the shipped reader, and record the name."""
+        self.asked.append(path.name)
+        answer: str | None = DEFAULT_IDENTIFY(path)
+        return answer
+
+
+def every_frame_rendered(error: BaseException) -> str:
+    """Every exception reachable by cause or context, each frame's locals rendered.
+
+    The shape a locals-showing renderer prints - ``capture_locals`` - with the
+    suppressed context walked too, because it is still on the object.
+
+    Args:
+        error: Where the chain starts.
+
+    Returns:
+        The whole rendering.
+    """
+    parts: list[str] = []
+    seen: set[int] = set()
+    pending: list[BaseException | None] = [error]
+    while pending:
+        item = pending.pop()
+        if item is None or id(item) in seen:
+            continue
+        seen.add(id(item))
+        rendering = traceback.TracebackException.from_exception(item, capture_locals=True)
+        parts.extend(rendering.format())
+        pending.extend((item.__cause__, item.__context__))
+    return "".join(parts)
+
+
+def raised_by(walk: Callable[[], object]) -> BaseException:
+    """What ``walk`` raised. A helper, so the catching frame holds no canary.
+
+    Args:
+        walk: The walk to run.
+
+    Returns:
+        The exception it raised.
+
+    Raises:
+        AssertionError: It raised nothing.
+    """
+    try:
+        walk()
+    except BaseException as error:
+        return error
+    raise AssertionError("the walk raised nothing")
+
+
+@pytest.mark.parametrize("remembered", [False, True], ids=["read", "remembered"])
+def test_no_frame_of_a_refused_walk_renders_a_world_token(tmp_path: Path, remembered: bool) -> None:
+    """The walk compares worlds by digest, so its frame holds no token to render.
+
+    The newest save is refused after its header and another world's save is
+    skipped unread, so the walk ends raising the newest refusal - read from the
+    reader, or rebuilt from a remembered verdict - and that refusal carries the
+    walk's frame. A locals-showing renderer prints every local of it
+    (non-negotiable 12; CS-851, CS-963).
+    """
+    account = tmp_path / "pretend-account"
+    plant(
+        account / "Other.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, CANARY_TOKEN_OTHER),
+        BASE_SECONDS,
+    )
+    refused_name = plant(
+        account / "Newest.sav", reencoded_levelled_save(CANARY_TOKEN_REFUSED), BASE_SECONDS + 60
+    ).name
+
+    def load(path: Path) -> world.WorldModel:
+        if remembered and path.name == refused_name:
+            world.refuse_again(world.STAGE_OBJECTS, "ObjectFormatError")
+        return world.load_world(path)
+
+    error = raised_by(lambda: world.load_newest_world(workdir.ranked_saves(account), load=load))
+
+    refused = isinstance(error, world.WorldLoadError)
+    assert refused, "the walk did not end on the newest refusal"
+    hits = canary_hits([every_frame_rendered(error)])
+    assert hits == 0, "a frame the refusal carries renders a world token"
+
+
+def memo_reprs(provider: providers.SaveWorldProvider) -> list[str]:
+    """The repr of the provider's attributes, and of every key and value its memos hold."""
+    held = vars(provider)
+    texts = [repr(held)]
+    for value in held.values():
+        if isinstance(value, dict):
+            texts.extend(repr(item) for pair in value.items() for item in pair)
+        elif isinstance(value, tuple):
+            texts.extend(repr(item) for item in value)
+    return texts
+
+
+def test_the_provider_remembers_no_world_token(tmp_path: Path) -> None:
+    """What the same-world check remembers is a digest, never the token itself.
+
+    The newest save is refused after its header, so every save the walk meets
+    is identified and remembered by identity; the remembered world's own repr
+    masks its token, and nothing else the provider holds may carry one.
+    """
+    account = tmp_path / "pretend-account"
+    plant(
+        account / "Older.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, CANARY_TOKEN_REFUSED),
+        BASE_SECONDS,
+    )
+    plant(
+        account / "Other.sav",
+        relabelled(synthetic.SAVE_LEVELLED_V36, CANARY_TOKEN_OTHER),
+        BASE_SECONDS + 30,
+    )
+    plant(account / "Newest.sav", reencoded_levelled_save(CANARY_TOKEN_REFUSED), BASE_SECONDS + 60)
+    provider = providers.SaveWorldProvider(account)
+
+    served = is_world(provider.world(), CANARY_TOKEN_REFUSED)
+
+    assert served, "the refused newest save's own world was not served, so this grades nothing"
+    hits = canary_hits(memo_reprs(provider))
+    assert hits == 0, "the provider holds a world token"
+
+
+def refuse_again_sites(source: str) -> tuple[int, int]:
+    """(calls of ``refuse_again``, those inside an except handler or a finally body).
+
+    Python attaches the exception being handled as ``__context__`` to anything
+    raised while it is handled - in an ``except`` body and in a ``finally``
+    reached by an exception alike - so a call there would carry one.
+
+    Args:
+        source: A module's source.
+
+    Returns:
+        The two counts.
+    """
+    tree = ast.parse(source)
+
+    def is_call(node: ast.AST) -> bool:
+        if not isinstance(node, ast.Call):
+            return False
+        func = node.func
+        named = isinstance(func, ast.Name) and func.id == "refuse_again"
+        return named or (isinstance(func, ast.Attribute) and func.attr == "refuse_again")
+
+    handled: set[int] = set()
+    for node in ast.walk(tree):
+        bodies: list[ast.stmt] = []
+        if isinstance(node, ast.ExceptHandler):
+            bodies = node.body
+        elif isinstance(node, ast.Try | ast.TryStar):
+            bodies = node.finalbody
+        for statement in bodies:
+            handled.update(id(inner) for inner in ast.walk(statement) if is_call(inner))
+    calls = sum(1 for node in ast.walk(tree) if is_call(node))
+    return calls, len(handled)
+
+
+#: A call of ``refuse_again`` inside an except handler - the detector's control.
+PLANTED_HANDLER_CALL: Final = """
+def remembered(verdict):
+    try:
+        raise KeyError(verdict)
+    except KeyError:
+        refuse_again(*verdict)
+"""
+
+#: A call inside a finally body - the detector's second control.
+PLANTED_FINALLY_CALL: Final = """
+def remembered(verdict):
+    try:
+        pass
+    finally:
+        world.refuse_again(*verdict)
+"""
+
+
+def test_every_call_of_refuse_again_sits_outside_any_handler() -> None:
+    """Every shipped call site raises with no exception being handled, so with no context."""
+    package = Path(world.__file__).resolve().parent.parent
+    sites = [refuse_again_sites(path.read_text(encoding="utf-8")) for path in package.rglob("*.py")]
+
+    calls = sum(count for count, _ in sites)
+    assert calls >= 1, "no call site was found, so this grades nothing"
+    handled = sum(inside for _, inside in sites)
+    assert handled == 0, "refuse_again is called while an exception is being handled"
+
+
+@pytest.mark.parametrize(
+    "planted", [PLANTED_HANDLER_CALL, PLANTED_FINALLY_CALL], ids=["except", "finally"]
+)
+def test_the_handler_detector_sees_a_planted_call(planted: str) -> None:
+    """The control: a call in a handler or a finally body is caught."""
+    sites = refuse_again_sites(planted)
+    assert sites == (1, 1)
+
+
+def test_a_save_whose_header_was_refused_is_not_copied_again_to_identify_it(
+    tmp_path: Path,
+) -> None:
+    """A remembered header verdict answers the same-world check, with no copy and no read.
+
+    The newest save is refused after its header, so its world is known; next
+    is a save whose header will not read, then a readable save of the newest
+    save's world. The second walk identifies nothing: the header-refused
+    save's remembered verdict already says its world cannot be read.
+    """
+    account = tmp_path / "pretend-account"
+    plant(account / "Older.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
+    unknown = plant(account / "Unknown.sav", b"not a save the game wrote", BASE_SECONDS + 30)
+    plant(account / "Newest.sav", reencoded_levelled_save(), BASE_SECONDS + 60)
+    identify = CountingIdentify()
+    provider = providers.SaveWorldProvider(account, identify=identify)
+    provider.world()
+    asked_first = unknown.name in identify.asked
+    identify.asked.clear()
+
+    model = provider.world()
+
+    assert asked_first, "the first walk never asked about that save, so this grades nothing"
+    asked_again = list(identify.asked)
+    assert asked_again == [], "a save was copied again to read a world already settled"
+    flags = fallback_flags(model)
+    assert flags == [
+        (NEWER_SAVE_REFUSED, OBJECTS_SUBJECT, 1),
+        (NEWER_SAVE_REFUSED, HEADER_SUBJECT, 1),
+    ]
+
+
+def test_the_remembered_world_answers_the_same_world_check_without_a_copy(
+    tmp_path: Path,
+) -> None:
+    """The world already in memory names its own world: its save is not copied to ask."""
+    account = tmp_path / "pretend-account"
+    plant(account / "Older.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
+    identify = CountingIdentify()
+    provider = providers.SaveWorldProvider(account, identify=identify)
+    provider.world()
+    newest = plant(account / "Newest.sav", reencoded_levelled_save(), BASE_SECONDS + 60)
+    identify.asked.clear()
+
+    model = provider.world()
+
+    asked = identify.asked == [newest.name]
+    assert asked, "the remembered world's save was copied again to read its world"
+    flags = fallback_flags(model)
+    assert flags == [(NEWER_SAVE_REFUSED, OBJECTS_SUBJECT, 1)]
+
+
+def test_a_remembered_world_is_released_once_its_save_leaves_the_ranking(
+    tmp_path: Path,
+) -> None:
+    """The memory is bounded by the ranking: a world whose save is gone is not kept alive."""
+    account = tmp_path / "pretend-account"
+    older = plant(account / "Older.sav", synthetic.SAVE_LEVELLED_V36.blob, BASE_SECONDS)
+    provider = providers.SaveWorldProvider(account)
+    model = provider.world()
+    held = None if model is None else weakref.ref(model)
+    del model
+    older.unlink()
+
+    gone = provider.world() is None
+    gc.collect()
+
+    assert held is not None, "no world was served, so this grades nothing"
+    released = held() is None
+    assert (gone, released) == (True, True), "a world whose save left the ranking is still held"

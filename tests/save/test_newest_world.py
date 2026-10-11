@@ -31,8 +31,14 @@ j. A subject outside the closed vocabulary fails closed, and the memo's
    re-raise is a fresh refusal that takes nothing else.
 k. The objects stage is a verdict on the bytes: one corrupt save, two
    mappings, one verdict.
-l. The world token is read from the header alone, and neither that read nor a
-   refused load leaves a work copy behind.
+l. A save's world is read from the header alone, answered as a digest, and
+   neither that read nor a refused load leaves a work copy behind.
+m. An identifier no ledger keys names no known world, and the rule is the
+   ledger's own; a header longer than the bounded prefix still names its
+   world; a save of unknown world met past a known one is counted under the
+   known world's code while that world is served; a rebuilt refusal carries
+   no context even inside a handler; and a cause outside the vocabulary fails
+   closed with no frame rendering it.
 
 EVERY ASSERTION IS ON A SCALAR BOUND TO A LOCAL. A ``tmp_path`` lives under a
 home directory, so no assertion here renders a path.
@@ -45,13 +51,15 @@ import inspect
 import os
 import re
 import textwrap
+import traceback
 from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from clockspeed.advisor import ledger
 from clockspeed.save import usmap, workdir, world
 from clockspeed.save.chunks import ChunkError
-from clockspeed.save.header import HeaderError
+from clockspeed.save.header import MAX_HEADER_BYTES, HeaderError
 from clockspeed.save.objects import ObjectError
 from tests.save import synthetic
 
@@ -596,7 +604,7 @@ def test_the_walk_builds_every_subject_through_the_builder() -> None:
 
 
 class TokenBook:
-    """A fake ``identify``: file name to the world token its header carries.
+    """A fake ``identify``: file name to the world its header names, answered as a digest.
 
     Attributes:
         asked: The file names it was asked about, in order.
@@ -612,9 +620,10 @@ class TokenBook:
         self._tokens = tokens
 
     def __call__(self, path: Path) -> str | None:
-        """The planted token for ``path``."""
+        """The digest of the planted token for ``path``, as the shipped reader answers."""
         self.asked.append(path.name)
-        return self._tokens.get(path.name)
+        token = self._tokens.get(path.name)
+        return None if token is None else world.world_digest(token)
 
 
 def test_the_walk_skips_another_worlds_save_without_loading_it(tmp_path: Path) -> None:
@@ -871,25 +880,33 @@ def test_the_objects_verdict_is_the_same_under_two_mappings() -> None:
 
 
 # ---------------------------------------------------------------------------
-# l. reading a save's world token, and the work copies it leaves (CS-1309 F2, F4)
+# l. reading which world a save names, and the work copies it leaves (CS-1309 F2, F4)
 # ---------------------------------------------------------------------------
 
 
-def test_the_world_token_is_read_from_the_header_alone(tmp_path: Path) -> None:
-    """A save whose body the reader refuses still names its world; no save names none."""
+def test_the_world_is_read_from_the_header_alone(tmp_path: Path) -> None:
+    """A refused body still names its world; an empty identifier names none; no save is unread.
+
+    Answered as a digest, never as the token, and a header longer than the
+    bounded prefix is read in full rather than taken for an unread one.
+    """
     corrupt = plant(tmp_path / "A.sav", SAME_WORLD[: len(SAME_WORLD) - 8], BASE_SECONDS)
     garbage = plant(tmp_path / "B.sav", b"not a save the game wrote", BASE_SECONDS)
+    empty_header, body = flat_parts("")
+    empty = plant(tmp_path / "C.sav", empty_header + body, BASE_SECONDS)
+    long_header, _ = flat_parts(synthetic.SYNTHETIC_WORLD_TOKEN, oversize=True)
+    oversize = plant(tmp_path / "D.sav", long_header + body[:CHUNK_STUB], BASE_SECONDS)
+    fixture_world = world.world_digest(synthetic.SYNTHETIC_WORLD_TOKEN)
 
-    named = world.read_world_token(corrupt) == synthetic.SYNTHETIC_WORLD_TOKEN
-    assert named
-    unnamed = world.read_world_token(garbage) is None
-    assert unnamed
+    answers = [world.read_world_digest(path) for path in (corrupt, garbage, empty, oversize)]
+
+    assert answers == [fixture_world, None, world.NO_WORLD, fixture_world]
 
 
 def test_reading_and_refusing_leave_no_work_copy(tmp_path: Path, isolated_work_root: Path) -> None:
     """Neither the token read nor a refused load leaves a copy in the work root."""
     corrupt = plant(tmp_path / "A.sav", SAME_WORLD[: len(SAME_WORLD) - 8], BASE_SECONDS)
-    world.read_world_token(corrupt)
+    world.read_world_digest(corrupt)
     with pytest.raises(world.WorldLoadError):
         load_flat(corrupt)
 
@@ -899,3 +916,287 @@ def test_reading_and_refusing_leave_no_work_copy(tmp_path: Path, isolated_work_r
     assert left == 0, "a work copy of a refused save was left behind"
     kept = corrupt.is_file()
     assert kept, "the save itself was touched"
+
+
+# ---------------------------------------------------------------------------
+# m. an identifier no ledger keys, a header past the prefix, a save of unknown
+#    world met past a known one, and frames that render nothing (CS-1309 r3)
+# ---------------------------------------------------------------------------
+
+#: Two identifiers ``clockspeed/advisor/ledger.py`` refuses as a world key:
+#: empty, and not ASCII. Invented.
+LEDGER_REFUSED_TOKENS: Final = ("", "W\u00f6rldTokenNotAsciiQzx")
+
+#: Values the save-side world rule and the ledger must judge alike.
+LEDGER_SAMPLES: Final = (
+    "",
+    "a",
+    synthetic.SYNTHETIC_WORLD_TOKEN,
+    "W\u00f6rldTokenNotAsciiQzx",
+    "tab\tand space",
+    7,
+    None,
+    b"ClockspeedSynthToken00",
+)
+
+#: How many body bytes a save cut short at its chunks keeps - the chunk
+#: reader refuses it with ``ChunkTruncatedError``, measured.
+CHUNK_STUB: Final = 20
+
+#: How many bytes a save whose header will not read keeps - the header reader
+#: refuses it with ``HeaderTruncatedError``, measured.
+HEADER_STUB: Final = 12
+
+#: Each header string's length in the oversize header: under the reader's own
+#: per-string cap, and four of them carry the header past the identify prefix.
+OVERSIZE_STRING: Final = 16_300
+
+#: What the oversize header's map name carries past the measured one, so the
+#: five strings together clear the prefix.
+OVERSIZE_MAP_TAIL: Final = 2_000
+
+#: Two play durations that tell two worlds' saves apart without naming either.
+ALPHA_PLAY: Final = 11
+BETA_PLAY: Final = 22
+
+#: A cause no reader class is called. Letters only, so it has a subject's shape.
+CANARY_CAUSE: Final = "QzxCanaryCauseNotAType"
+
+#: The served code of a known-world fallback, as the wire spells it.
+NEWER: Final = "newer-save-refused"
+
+
+def flat_parts(
+    token: str, *, play_duration: int = 0, oversize: bool = False
+) -> tuple[bytes, bytes]:
+    """A flat-bodied synthetic save of the world ``token`` names, as (header, body).
+
+    Args:
+        token: The invented identifier the header carries.
+        play_duration: Tells two worlds' saves apart.
+        oversize: Make the header longer than the identify prefix, each
+            string under the reader's per-string cap.
+
+    Returns:
+        The header bytes and the chunked body bytes.
+    """
+    fixture = synthetic.SAVE_V60
+    filler = "x" * OVERSIZE_STRING
+    strings = (
+        {
+            "save_name": filler,
+            "options": "?" + filler[:-1],
+            "session_name": filler,
+            "mod_metadata": filler,
+            "map_name": synthetic.MAP_NAME + "y" * OVERSIZE_MAP_TAIL,
+        }
+        if oversize
+        else {}
+    )
+    header = synthetic.build_header(
+        header_version=fixture.header_version,
+        save_version=fixture.save_version,
+        world_token=token,
+        play_duration=play_duration,
+        **strings,  # type: ignore[arg-type]
+    )
+    return header, fixture.blob[fixture.chunk_offset :]
+
+
+def all_fallback_flags(model: world.WorldModel | None) -> list[tuple[str, str, int]]:
+    """Every flag of either fallback code as (code, subject, count), in order."""
+    if model is None:
+        return []
+    return [
+        (w.code, w.subject or "", w.count)
+        for w in model.warnings
+        if w.code in (world.WARN_NEWER_SAVE_REFUSED, UNIDENTIFIED)
+    ]
+
+
+@pytest.mark.parametrize("token", LEDGER_REFUSED_TOKENS, ids=["empty", "not-ascii"])
+def test_an_identifier_no_ledger_keys_names_no_known_world(tmp_path: Path, token: str) -> None:
+    """Two worlds sharing an identifier the ledger refuses are not one known world.
+
+    Alpha's newest save is cut short at its chunks and Beta's save is
+    readable; both headers carry the same refused identifier. Taking it for a
+    KNOWN world served Beta under "a newer save of this world was refused" - a
+    claim about a world the walk never identified. It names no world, so Beta
+    is served under the distinct flag.
+    """
+    alpha_header, body = flat_parts(token, play_duration=ALPHA_PLAY)
+    beta_header, _ = flat_parts(token, play_duration=BETA_PLAY)
+    alpha = plant(tmp_path / "Alpha.sav", alpha_header + body[:CHUNK_STUB], BASE_SECONDS + 60)
+    beta = plant(tmp_path / "Beta.sav", beta_header + body, BASE_SECONDS)
+
+    model = world.load_newest_world((alpha, beta), load=load_flat)
+
+    served = model is not None and model.header.play_duration == BETA_PLAY
+    assert served, "the newest readable save was not the one served"
+    flags = all_fallback_flags(model)
+    assert flags == [(UNIDENTIFIED, "chunks.ChunkTruncatedError", 1)]
+
+
+def ledger_accepts(value: object) -> bool:
+    """Whether the advice ledger keys a world by ``value``."""
+    try:
+        ledger.world_key(value)  # type: ignore[arg-type]
+    except ledger.WorldTokenError:
+        return False
+    return True
+
+
+def test_the_save_side_world_rule_is_the_ledgers() -> None:
+    """One rule in two layers, pinned equal, because save/ may not import advisor/.
+
+    The walk's rule for "names a world" and the ledger's rule for "keys a
+    world" are the same predicate, and the walk's digest is the ledger's key,
+    so the world the walk compares is the world the ledger stores.
+    """
+    rule = [world.is_world_token(value) for value in LEDGER_SAMPLES]
+    keyed = [ledger_accepts(value) for value in LEDGER_SAMPLES]
+    assert rule == keyed
+    digests = [
+        world.world_digest(value) == (ledger.world_key(value) if ok else world.NO_WORLD)  # type: ignore[arg-type]
+        for value, ok in zip(LEDGER_SAMPLES, keyed, strict=True)
+    ]
+    assert digests == [True] * len(LEDGER_SAMPLES)
+
+
+def test_a_save_of_unknown_world_met_past_a_known_one_is_counted_and_the_world_served(
+    tmp_path: Path,
+) -> None:
+    """Newest A refused at its chunks, then a save whose header will not read, then a readable A.
+
+    THE RULE PINNED. Only the NEWEST refusal is identified: the walk does not
+    re-identify past it, so the world stays A and A is served. The middle
+    save's world cannot be read, so it is not known to be another world's: it
+    is loaded, refused, and COUNTED under the known world's code - it may be a
+    newer save of A, which is what "may be behind the game" warns of - and not
+    under the unidentified code, whose detail is about the NEWEST save, which
+    was identified.
+    """
+    cut = synthetic.SAVE_V60.chunk_offset + CHUNK_STUB
+    newest = plant(tmp_path / "A.sav", SAME_WORLD[:cut], BASE_SECONDS + 60)
+    unknown = plant(tmp_path / "H.sav", SAME_WORLD[:HEADER_STUB], BASE_SECONDS + 30)
+    readable = plant(tmp_path / "C.sav", SAME_WORLD, BASE_SECONDS)
+
+    model = world.load_newest_world((newest, unknown, readable), load=load_flat)
+
+    served = model is not None and model.token == synthetic.SYNTHETIC_WORLD_TOKEN
+    assert served, "a readable save of the refused newest world was not served"
+    flags = all_fallback_flags(model)
+    assert flags == [
+        (NEWER, "chunks.ChunkTruncatedError", 1),
+        (NEWER, "header.HeaderTruncatedError", 1),
+    ]
+
+
+def test_a_header_longer_than_the_identify_prefix_still_names_its_world(tmp_path: Path) -> None:
+    """A header the full load reads but the bounded prefix cuts short is not an unknown world.
+
+    Every walk past such a refused newest save ended with no world while a
+    readable save of the same world sat next in the ranking.
+    """
+    header, body = flat_parts(synthetic.SYNTHETIC_WORLD_TOKEN, oversize=True)
+    oversize = len(header) > MAX_HEADER_BYTES
+    assert oversize, "the header fits the prefix, so this grades nothing"
+    newest = plant(tmp_path / "A.sav", header + body[:CHUNK_STUB], BASE_SECONDS + 60)
+    readable = plant(tmp_path / "C.sav", SAME_WORLD, BASE_SECONDS)
+
+    model = world.load_newest_world((newest, readable), load=load_flat)
+
+    flags = all_fallback_flags(model)
+    assert flags == [(NEWER, "chunks.ChunkTruncatedError", 1)]
+
+
+def test_a_rebuilt_refusal_raised_inside_a_handler_carries_no_context() -> None:
+    """Called while an exception is being handled, the rebuilt refusal still has no context."""
+
+    def inside_a_handler() -> None:
+        try:
+            raise KeyError(CANARY_CAUSE)
+        except KeyError:
+            world.refuse_again(world.STAGE_OBJECTS, "ObjectFormatError")
+
+    with pytest.raises(world.WorldLoadError) as caught:
+        inside_a_handler()
+
+    bare = (
+        caught.value.__context__ is None,
+        caught.value.__cause__ is None,
+        caught.value.__suppress_context__,
+    )
+    assert bare == (True, True, True)
+
+
+def every_frame_rendered(error: BaseException) -> str:
+    """Every exception reachable by cause or context, each frame's locals rendered.
+
+    The shape a locals-showing renderer prints - ``capture_locals`` - with the
+    suppressed context walked too, because it is still on the object.
+
+    Args:
+        error: Where the chain starts.
+
+    Returns:
+        The whole rendering.
+    """
+    parts: list[str] = []
+    seen: set[int] = set()
+    pending: list[BaseException | None] = [error]
+    while pending:
+        item = pending.pop()
+        if item is None or id(item) in seen:
+            continue
+        seen.add(id(item))
+        rendering = traceback.TracebackException.from_exception(item, capture_locals=True)
+        parts.extend(rendering.format())
+        pending.extend((item.__cause__, item.__context__))
+    return "".join(parts)
+
+
+def raised_by(walk: Callable[[], object]) -> BaseException:
+    """What ``walk`` raised. A helper, so the catching frame holds no canary.
+
+    Args:
+        walk: The walk to run.
+
+    Returns:
+        The exception it raised.
+
+    Raises:
+        AssertionError: It raised nothing.
+    """
+    try:
+        walk()
+    except BaseException as error:
+        return error
+    raise AssertionError("the walk raised nothing")
+
+
+@pytest.mark.parametrize("readable_older", [True, False], ids=["older-readable", "all-refused"])
+def test_a_cause_outside_the_vocabulary_is_rendered_by_no_frame(
+    tmp_path: Path, readable_older: bool
+) -> None:
+    """Fail closed, and keep the refused value out of every frame the failure carries.
+
+    The vocabulary check exists because a cause can be rewritten between the
+    reader and the flag; the value it refuses is exactly what must not reach a
+    log, and a locals-showing renderer is one (non-negotiable 12).
+    """
+    newest = plant(tmp_path / "A.sav", SAME_WORLD, BASE_SECONDS + 60)
+    older = plant(tmp_path / "B.sav", SAME_WORLD, BASE_SECONDS)
+    refusals: dict[str, BaseException] = {
+        newest.name: refusal_at(world.STAGE_OBJECTS, CANARY_CAUSE)
+    }
+    if not readable_older:
+        refusals[older.name] = objects_refusal()
+    load = Recorder(refusals)
+
+    error = raised_by(lambda: world.load_newest_world((newest, older), load=load))
+
+    refused = isinstance(error, ValueError)
+    assert refused, "a cause outside the vocabulary did not fail closed"
+    hits = every_frame_rendered(error).count(CANARY_CAUSE)
+    assert hits == 0, "a frame of the failure renders the refused cause"
