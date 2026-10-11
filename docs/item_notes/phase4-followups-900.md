@@ -759,7 +759,7 @@ it was, which is the frozen gate doing its job and is not to be excluded around.
 REPOSITORY'S OWN INBOX.** The self-exclusion lives inside `inbox_holders`,
 which only `--all` calls; `resolve_targets` never consults it. Merger-confirmed
 with its own positive control: `resolve_targets(Path("C:/"), ["Clockspeed"])`
-resolves to `C:\Clockspeed\moon_sync_inbox\...` with zero problems, while
+resolves to `<repo>\moon_sync_inbox\...` with zero problems, while
 `inbox_holders(Path("C:/"))` excludes it on the same run. The property the item
 cares about is "a note never lands in our own inbox"; the code guards only the
 discovery path, and the only arm covering it guards the same half.
@@ -771,7 +771,7 @@ against a synthetic root: `mklink /J <root>\escape_hatch <outside>` then
 `--to escape_hatch --send` reported `DELIVERED ... [gate CLEAN]` exit 0 with the
 note written outside the root. `--all` follows it too. The record holds no path
 by design, so it cannot distinguish a contained delivery from an escaped one.
-`NUL`, `CON`, `COM1`, `CLOCKS~1`, a fullwidth solidus and a trailing dot are all
+`NUL`, `CON`, `COM1`, an 8.3 short name (`<NAME>~1`), a fullwidth solidus and a trailing dot are all
 ACCEPTED by the shape check and refused later only by `is_dir` - contained by
 accident, not by the guard.
 

@@ -13,7 +13,7 @@ raises ``ModuleNotFoundError: No module named 'ops'``.
 MEASURED, not predicted. One real detached cycle was run to prove the launch
 path end to end and never reached a cycle at all::
 
-    File "C:\\Clockspeed\\ops\\loop\\scope.py", line 93, in <module>
+    File "<repo>\\ops\\loop\\scope.py", line 93, in <module>
         from ops.loop import lanes
     ModuleNotFoundError: No module named 'ops'
 

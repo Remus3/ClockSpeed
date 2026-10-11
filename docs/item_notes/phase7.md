@@ -520,7 +520,7 @@ the primary tree that S7a rewrites - never the primary itself:
 
     python <path-to>/s7a_rewrite.py <primary-tree>
 
-`<primary-tree>` is the repository root, `E:\Clockspeed` per `CLAUDE.md` section 2. The
+`<primary-tree>` is the repository root, whose path `CLAUDE.md` section 2 owns. The
 script derives the one name from that tree's `git config user.name` and the one address
 from `gh api user` at run time, aborts unless the tree's configured address equals the
 derived one, and prints counts only - no identity value, home path or account id is in

@@ -538,7 +538,7 @@ secondary parse), and the top-level `{NativeClass, Classes[]}` array shape of S2
 ## Probe provenance
 
 Probe scripts were written to and run from a session scratch directory outside the
-repository, not from `C:\Clockspeed`. They are throwaway; nothing in the data layer
+repository, not from the repository checkout. They are throwaway; nothing in the data layer
 depends on them. Every probe opened game files in binary or text READ mode only. The game
 install was not modified. No game data file, slice, sample or fixture was copied into this
 repository.

@@ -2317,7 +2317,7 @@ def test_no_synthetic_checkout_resolves_its_store_inside_the_real_repository(
 
     WHAT WAS MEASURED. Two `.claim` records were found sitting in this
     repository's own `ops/loop/control/claims/` directory, naming rows ROW-0001
-    and ROW-0002, carrying `"repo": "C:\Clockspeed"` and worktree fields
+    and ROW-0002, carrying `"repo": "<repo>"` and worktree fields
     pointing into a `pytest-of-*` temporary directory. A suite run had claimed
     rows in the LIVE control plane, and the dead pids it left behind sat there
     until somebody noticed. A test that writes into the directory a headless

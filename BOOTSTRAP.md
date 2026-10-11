@@ -587,7 +587,7 @@ transition rather than merely available.
 ## 6. Architecture
 
 ```
-E:\Clockspeed\
+<repo>/
   clockspeed/
     data/           game data extraction and normalization
       locate.py       find install, saves, account dir - all auto-detected

@@ -73,12 +73,12 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      reads state "refused" with the kit's own `REFUSED_TASK` ("Idle"); only a
      halt reads "Halted", so the board never contradicts the kit's own write.
 
-THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` is
-resolved at arm time (`(Get-Command pythonw).Source`); no interpreter path is
-written into a tracked file:
+THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` and
+`<repo>` are resolved at arm time (`(Get-Command pythonw).Source`, the checkout
+root); no interpreter or checkout path is written into a tracked file:
 
   schtasks /Create /F /SC MINUTE /MO 15 /TN "Clockspeed inbox responder"
-    /TR "\"<pythonw>\" \"E:\Clockspeed\ops\loop\inbox_responder.py\" --once"
+    /TR "\"<pythonw>\" \"<repo>\ops\loop\inbox_responder.py\" --once"
 
 It must run as the operator's own account, so the user environment store the
 route reads is the right one.

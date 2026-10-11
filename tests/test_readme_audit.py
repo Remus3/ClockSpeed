@@ -689,3 +689,57 @@ def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:
             n for n, line in enumerate(text.splitlines(), 1) if ABSOLUTE_CHECKOUT_RE.search(line)
         ]
         assert not lines, f"{relative} spells an absolute checkout path on line(s) {lines}"
+
+
+#: CS-1308 - every tracked file that may still spell the checkout root, with its
+#: exact count of matching lines. The root is the operator's chosen location, not
+#: personal data; these lines state it where the topology (``CLAUDE.md`` section 2,
+#: ``BOOTSTRAP.md``) or the move's own record (ADR 0026) must. Anywhere else a
+#: spelling is a portability fault, written ``<repo>`` in CS-1292's style instead.
+#: A count that moves either way is a reviewed change to this table.
+KEPT_CHECKOUT_PATHS: Final = {
+    "BOOTSTRAP.md": 2,
+    "CLAUDE.md": 2,
+    "docs/adr/0026-the-root-moves-to-e.md": 7,
+}
+
+#: This file: its pattern comment and its mutation arm spell the root on purpose.
+GUARD_SELF: Final = "tests/test_readme_audit.py"
+
+
+def _checkout_path_counts(repo_root: Path) -> dict[str, int]:
+    """Map each tracked text file to its count of lines spelling the checkout root.
+
+    A file with a NUL byte is binary and skipped. The text lives only in this
+    frame, so a failing assertion's locals never carry a matched line.
+    """
+    found: dict[str, int] = {}
+    for relative in doc_sweep.tracked_files(repo_root):
+        if relative == GUARD_SELF:
+            continue
+        try:
+            data = (repo_root / relative).read_bytes()
+        except OSError:
+            continue
+        if b"\0" in data:
+            continue
+        text = data.decode("utf-8", errors="replace")
+        count = sum(1 for line in text.splitlines() if ABSOLUTE_CHECKOUT_RE.search(line))
+        if count:
+            found[relative] = count
+    return found
+
+
+def test_no_absolute_checkout_path_in_any_tracked_text_file(repo_root: Path) -> None:
+    """CS-1308 - the CS-1292 path guard over the whole tracked tree, not four docs.
+
+    The message names paths and counts only and never a matched line, because the
+    matched text is what is being scrubbed.
+    """
+    found = _checkout_path_counts(repo_root)
+    unexpected = {name: n for name, n in found.items() if KEPT_CHECKOUT_PATHS.get(name) != n}
+    absent = sorted(set(KEPT_CHECKOUT_PATHS) - set(found))
+    assert not unexpected, (
+        f"tracked files spell the checkout root outside the kept set (path: lines): {unexpected}"
+    )
+    assert not absent, f"kept-set entries no longer spell the root; update the table: {absent}"

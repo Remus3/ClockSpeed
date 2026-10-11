@@ -995,7 +995,7 @@ def cycle_seams(fake, **over):
     return seams
 
 
-def test_the_repo_root_is_forwarded_to_the_launcher():
+def test_the_repo_root_is_forwarded_to_the_launcher(tmp_path):
     """The lane reads its PROMPT from a tree, and which tree is a real choice.
 
     By default it is the main checkout, which is right in steady state. But
@@ -1022,7 +1022,7 @@ def test_the_repo_root_is_forwarded_to_the_launcher():
     seams = cycle_seams(clock)
     seams.pop("launch")
     seams.pop("worktree")
-    branch_tree = r"C:\Clockspeed\.claude\worktrees\some-branch"
+    branch_tree = str(tmp_path / ".claude" / "worktrees" / "some-branch")
     queue_loop.lane_launcher = Launcher  # the lazily-bound module object
     try:
         queue_loop.run_cycle(1, repo_root=branch_tree, **seams)
