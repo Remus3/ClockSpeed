@@ -407,6 +407,10 @@ ignore = [
 # Version 15 (CS-1303, measured the same way on its bytes) adds four, all to
 # fleet_suite_gate.py: PLR0913 (acquire()'s lane keyword), PTH100 and PTH123
 # (its tree label and durations.jsonl reader) and RET504 (run()'s rc).
+# Version 17 (CS-1310, measured the same way on its bytes; v16 was never
+# vendored here) adds four, all to fleet_claims.py's new shell-edit claims:
+# PLR0912 and SIM114 (its write-target parser's branch ladder), B007 and
+# PERF102 (a loop over by_main.items() that reads only the values).
 # fleet_test_guard.py MEASURED 0 findings and takes no entry. Codes beyond the
 # ones named above:
 #   B905     fleet_identity.py's zip() without strict=
@@ -419,8 +423,9 @@ ignore = [
 #   SLF001   fleet_gitlock.py and fleet_rewrite.py reach a sibling's private helper
 #   UP032    .format() calls
 "ops/fleet_kit/fleet_claims.py" = [
-  "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF401", "PLC0415",
-  "PLR0911", "PLR2004", "PTH100", "PTH109", "PTH111", "PTH123", "UP032",
+  "B007", "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF102",
+  "PERF401", "PLC0415", "PLR0911", "PLR0912", "PLR2004", "PTH100", "PTH109", "PTH111",
+  "PTH123", "SIM114", "UP032",
 ]
 "ops/fleet_kit/fleet_gitlock.py" = [
   "D103", "D205", "D209", "D403", "E501", "N818", "PLC0415", "PLR0911", "PLR0913", "PLR2004",

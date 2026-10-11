@@ -325,16 +325,18 @@ VENDORED_RENDER_RESIDUALS = {
         "1089 -> 1169 on the v13 bytes (CS-1290), 1169 -> 1220 on "
         "the v14 bytes (CS-1299) and 1220 -> 1238 on the v15 bytes (CS-1303)."
     ),
-    ("ops/fleet_kit/fleet_gitlock.py", "str(exc)", 494): (
+    ("ops/fleet_kit/fleet_gitlock.py", "str(exc)", 549): (
         "CS-1290, FLEET item 11 - the git lock's command-line entry, main(), "
-        "writes a LockRefused whole to stderr before exit 3. MEASURED on the v13 and v14 "
-        "bytes: every LockRefused it raises is a kit literal, an integer (a "
+        "writes a LockRefused whole to stderr before exit 3. MEASURED on the v13, v14 "
+        "and v17 bytes: every LockRefused it raises is a kit literal, an integer (a "
         "timeout, an age, a holder pid), the caller's own option echoed back, "
         "the literal word author or committer, or a staged path made "
         "TREE-RELATIVE by fleet_claims.rel_in against the tree top - staged "
-        "paths sit inside that top, so no home path reaches the line. Reversed "
+        "paths sit inside that top, so no home path reaches the line; v17's "
+        "merge-sweep refusal renders its path through the same rel_in. Reversed "
         "if a LockRefused is found rendering an absolute path or text the "
-        "caller did not supply."
+        "caller did not supply. The line moved 494 -> 549 on the v17 bytes "
+        "(CS-1310)."
     ),
     ("ops/fleet_kit/fleet_suite_gate.py", "str(exc)", 544): (
         "CS-1290, FLEET item 11 - the suite gate's command-line entry, main(), "

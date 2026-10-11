@@ -75,6 +75,40 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-11 - CS-1310 - vendor FLEET-KIT v17
+
+Source: MAIN FIX note 2026-10-10-1312 (FLEET-KIT v17, GITLOCK-SWEEP), provenance verified
+- note sha256
+4dae4dc708169f4c2672d9515150af5838b2f76fe7b1dba12ea76bef33711f9b. v17 supersedes and carries v16 (gitlock live-holder ceiling
+STALE_MIN 120 min), so v16 was never vendored here. Vendored byte-for-byte into
+`ops/fleet_kit/`: 22 files plus `MANIFEST.json` sha256
+6a02c0582f2326036b1a95e19202003be399d79b73fc407791e17cdc145a42fe, every file re-hashed equal
+to its manifest digest and to the note's list; three files changed against v15
+(fleet_claims - an allowed Bash / PowerShell call now claims its parsed write targets and
+its `git add` paths; fleet_gitlock - check_merge_sweep refuses a merge-concluding commit
+recording a path neither in the merge diff nor claimed by --owner; fleet_headless -
+KIT_VERSION only); FLEET-COMMON block unchanged; `fleet_headless.conformance()` returns []
+with `KIT_VERSION` 17. Note step 3 NONE: no test here asserts that a shell command claims
+nothing, STALE_MIN 15, the holder-older-than reason text or the old holder-pid refusal
+text. Adaptation repins, the same shape as CS-1303: the vendored `fleet_gitlock.py` run()
+row in `tests/test_subprocess_timeouts.py` re-pointed 474 -> 529; its render residual in
+`tests/test_exception_rendering.py` re-pointed 494 -> 549, its refusal-text claim
+re-measured - the new merge-sweep LockRefused renders its path through fleet_claims.rel_in,
+tree-relative; `pyproject.toml` ruff codes B007, PERF102, PLR0912 and SIM114 for
+fleet_claims, MEASURED on the v17 bytes. Gated whole suite through `fleet_suite_gate`:
+14902 passed, 13 skipped, 43 failed, exit 1 - every failure a real-save library read
+raising ObjectFormatError or WorldLoadError under `tests/save/` and
+`tests/audit/test_inventory_library.py`, the third-party re-encoded save in the live save
+directory that CS-1309 tracks; this change touches no save-path code. NOT independently
+re-run on a clean base clone.
+
+Verification: `tests/test_fleet_kit.py::test_fleet_kit_conformance`,
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest`,
+`tests/test_subprocess_timeouts.py::test_every_subprocess_call_in_this_repository_is_bounded_by_a_timeout`,
+`tests/test_subprocess_timeouts.py::test_no_exemption_names_a_site_that_no_longer_exists`,
+`tests/test_exception_rendering.py::test_every_vendored_render_residual_answers_exactly_one_live_site`
+and `tests/test_third_party_register.py`.
+
 ### 2026-10-10 - CS-1284 - CLOSED: the SUBAGENT-FIRST hook denies - its mode switched from log to deny after three interactive sessions of rows
 Verification: the gitignored `ops/loop/control/subagent_first.mode` and
 `ops/loop/control/subagent_first.jsonl`, read by the session 136 /done; the hook

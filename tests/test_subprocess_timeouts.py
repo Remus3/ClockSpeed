@@ -303,15 +303,16 @@ EXEMPTION_REASON_MINIMUM: Final = 40
 # both directions by the synthetic-source arms below.
 #
 # CS-1290 - THREE ROWS, all in VENDORED fleet kit files (v13; lines re-pointed
-# to the v14 bytes under CS-1299, and fleet_suite_gate.py's to v15 under CS-1303)
+# to the v14 bytes under CS-1299, fleet_suite_gate.py's to v15 under CS-1303,
+# and fleet_gitlock.py's to v17 under CS-1310)
 # (FLEET item 11: the
 # bytes are MAIN's, pinned by ops/fleet_kit/MANIFEST.json and tests/test_fleet_kit.py,
 # so a line that moves reddens both this table and that pin). Each is the ONE
 # call where a kit wrapper hands over to the command it exists to wrap, and that
 # command's duration is the caller's to bound, never the wrapper's.
 EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
-    ("ops/fleet_kit/fleet_gitlock.py", "run", "subprocess.run", 474): (
-        "VENDORED kit v13-v14 git lock: runs the caller's git commit or git push"
+    ("ops/fleet_kit/fleet_gitlock.py", "run", "subprocess.run", 529): (
+        "VENDORED kit v13-v17 git lock: runs the caller's git commit or git push"
         " inside the lock, and a push runs this tree's pre-push whole suite for"
         " tens of minutes; a wrapper timeout would kill a healthy push mid-hook."
     ),

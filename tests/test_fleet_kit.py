@@ -1,4 +1,4 @@
-"""CS-1303 - the vendored FLEET-KIT version 15, byte-pinned and conformance-checked.
+"""CS-1310 - the vendored FLEET-KIT version 17, byte-pinned and conformance-checked.
 
 ``ops/fleet_kit/`` is VENDORED from MAIN, not authored here: the same
 twenty-three files sit at the same path in every fleet repository and only a MAIN
@@ -9,8 +9,9 @@ register rows live in ``THIRD_PARTY.md``. Version 4 landed under CS-1231,
 version 9 under CS-1272, version 10 under CS-1282 (it added
 ``fleet_subagent_first.py``), version 11 under CS-1287, version 13 under
 CS-1290 (it carried the whole v12 ORDER, so v12 was never vendored here),
-version 14 under CS-1299, and version 15 supersedes it under CS-1303, as
-MAIN's v15 ORDER note (2026-10-09 20:55) says.
+version 14 under CS-1299, version 15 under CS-1303, and version 17
+supersedes it under CS-1310 (it carries the whole v16 FIX, so v16 was never
+vendored here), as MAIN's v17 FIX note (2026-10-10 13:12) says.
 
 Two arms:
 
@@ -58,10 +59,10 @@ KIT_WATCH = KIT_DIR / "fleet_watch.py"
 KIT_TOKENS_CSS = KIT_DIR / "tokens.css"
 KIT_TOKENS_JSON = KIT_DIR / "tokens.json"
 
-# The kit version MAIN's 2026-10-09 20:55 ORDER note names.
-KIT_VERSION = 15
+# The kit version MAIN's 2026-10-10 13:12 FIX note names.
+KIT_VERSION = 17
 # The MANIFEST.json digest named in that note.
-MANIFEST_SHA256 = "8b20a75b6952356145a22f240db1399b70e6c16cccdcc333fc50bb8a2b3f463c"
+MANIFEST_SHA256 = "6a02c0582f2326036b1a95e19202003be399d79b73fc407791e17cdc145a42fe"
 # The twenty-two listed kit file digests named in the same note. Spelled as named
 # constants rather than as a JSON-shaped mapping so this pin does not reproduce
 # MANIFEST.json's own lines - the provenance near-duplicate metric
@@ -69,12 +70,12 @@ MANIFEST_SHA256 = "8b20a75b6952356145a22f240db1399b70e6c16cccdcc333fc50bb8a2b3f4
 COMMON_SHA256 = "fb6c129a73d1e1d8bee60367b4f4f74d39bb4051bdef0f56afd24d88e9a6f02b"
 LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
 NOTICE_SHA256 = "de5b5481280bb522ec154c1f3300813aa028aa0e9614ecad9bc5cf30e3c1ddcf"
-MODULE_SHA256 = "adb2b1dd24d168396c48b1dc54cde966798528d6ff3fb501c1769d56c3a0557e"
+MODULE_SHA256 = "1b6caa2a15db3c5badcc86606b770a49b94e8c92f8c123abed4dd7dd45b44ce3"
 CLI_DISPLAY_SHA256 = "fcd92544574eb2e646c9eed62218e4852a570818a7e3de455151aa27c8c7d4d3"
 CHECKLIST_SHA256 = "954a95ce9d95e996764fd756c02b37d3f0e7a0ace9246e123c5df479479b6f35"
-CLAIMS_SHA256 = "bbc83220300232501acd002c014f9016e7cc7f72b61722c9c54a28295e8aee6d"
+CLAIMS_SHA256 = "a42511757501a84b0867a97a82c04594ef8048b72066175f93163513c47e3846"
 DONE_SHA256 = "5267b215e14bbbcd46ae6d9c6ab4d3182fd48dbec8748313498e54f523473d62"
-GITLOCK_SHA256 = "a4269f860840643be5943fafd0c94dd7ec781916c5d0f07bacd8af1211cd5061"
+GITLOCK_SHA256 = "0fd3e23294d0c8dbc684dd7e2614b587f0c1efe66d17f86035743a7cb09a2d37"
 IDENTITY_SHA256 = "c49942e5c8bd2a125a0b9fad2c899171fe17ec216bdfd8f842f27501dfb6562a"
 INBOX_SHA256 = "b43c671c113a698312e108839c5659862001aeb305f1096a570731299f678ac8"
 LANES_SHA256 = "86a5a9fc54119e8834c411ad6acccee48c376c51199a7d8aea28045452e4de13"
