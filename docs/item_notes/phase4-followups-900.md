@@ -758,9 +758,9 @@ it was, which is the frozen gate doing its job and is not to be excluded around.
 **F2 - `--to <this repository's own directory name>` DELIVERS INTO THIS
 REPOSITORY'S OWN INBOX.** The self-exclusion lives inside `inbox_holders`,
 which only `--all` calls; `resolve_targets` never consults it. Merger-confirmed
-with its own positive control: `resolve_targets(Path("C:/"), ["Clockspeed"])`
+with its own positive control: `resolve_targets(<parent of repo>, [<repo name>])`
 resolves to `<repo>\moon_sync_inbox\...` with zero problems, while
-`inbox_holders(Path("C:/"))` excludes it on the same run. The property the item
+`inbox_holders(<parent of repo>)` excludes it on the same run. The property the item
 cares about is "a note never lands in our own inbox"; the code guards only the
 discovery path, and the only arm covering it guards the same half.
 

@@ -16,11 +16,17 @@ under a home directory would otherwise echo that home path.
 
 from __future__ import annotations
 
+import codecs
+import hashlib
 import json
+import os
 import re
+import shutil
 import struct
+import subprocess
 import sys
 import tomllib
+from collections import Counter
 from pathlib import Path
 from typing import Final
 
@@ -34,6 +40,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 import doc_sweep  # noqa: E402
+import sha_citation_gate  # noqa: E402
 
 #: MAIN's stated budget: "README under ~220 lines".
 README_LINE_BUDGET: Final = 220
@@ -98,11 +105,16 @@ PNG_ALLOWED_CHUNKS: Final = frozenset(
 PNG_SIGNATURE: Final = b"\x89PNG\r\n\x1a\n"
 
 #: One path separator - a slash or a backslash - raw, URL-encoded or as an HTML
-#: entity (``%5C``, ``%2F``, ``&#92;``, ``&#x5C;``, ``&bsol;``, ``&sol;``).
-_SEP: Final = r"(?:[\\/]|%5c|%2f|&#0*92;|&#0*47;|&#x0*5c;|&#x0*2f;|&bsol;|&sol;)"
+#: entity (``%5C``, ``%2F``, ``&#92;``, ``&#x5C;``, ``&bsol;``, ``&sol;``), a JSON-escaped
+#: slash, or a ``\u`` or ``\x`` escape of either (CS-1308) - an escape's backslash also
+#: doubled, as a string literal in code writes it.
+_SEP: Final = (
+    r"(?:\\*/|\\|%5c|%2f|&#0*92;|&#0*47;|&#x0*5c;|&#x0*2f;|&bsol;|&sol;"
+    r"|\\+u005c|\\+x5c|\\+u002f|\\+x2f)"
+)
 
-#: A drive colon, raw, URL-encoded or as an HTML entity.
-_COLON: Final = r"(?::|%3a|&#0*58;|&#x0*3a;|&colon;)"
+#: A drive colon, raw, URL-encoded, as an HTML entity, or as a ``\u`` or ``\x`` escape.
+_COLON: Final = r"(?::|%3a|&#0*58;|&#x0*3a;|&colon;|\\+u003a|\\+x3a)"
 
 #: An admin share's dollar sign, raw, URL-encoded or as an HTML entity.
 _DOLLAR: Final = r"(?:\$|%24|&#0*36;|&#x0*24;|&dollar;)"
@@ -120,11 +132,14 @@ _DOTTED: Final = rf"(?:\.{{0,2}}{_SEP})+"
 #: ``x$`` behind any prefix (``\\host\``, ``\\?\UNC\host\``, ``\\.\UNC\host\``), a
 #: ``\\?\Volume{<guid>}\`` path, and the folder's 8.3 short name ``CLOCKS~<n>`` -
 #: every separator, colon, dollar and tilde also URL-encoded or as an HTML entity.
+#: CS-1308: Git Bash's form also glued to a ``-C`` option or JSON-escaped, and the short
+#: name glued to any prefix.
 ABSOLUTE_CHECKOUT_RE: Final = re.compile(
     rf"(?:[A-Za-z]{_COLON}{_DOTTED}|(?<!\w)[A-Za-z]{_COLON}"
-    rf"|(?<![\w.~/-]){_SEP}[A-Za-z]{_SEP}|{_SEP}(?:mnt|cygdrive){_SEP}[A-Za-z]{_SEP}"
+    rf"|(?:(?<![\w.~/\\-])|(?<=-C)){_SEP}[A-Za-z]{_SEP}"
+    rf"|{_SEP}(?:mnt|cygdrive){_SEP}[A-Za-z]{_SEP}"
     rf"|{_SEP}[A-Za-z]{_DOLLAR}{_DOTTED}|{_SEP}Volume\{{[0-9A-Fa-f-]+\}}{_DOTTED})"
-    rf"Clockspeed|\bCLOCKS{_TILDE}\d",
+    rf"Clockspeed|CLOCKS{_TILDE}\d",
     re.IGNORECASE,
 )
 
@@ -630,6 +645,14 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("D%3A%2FClockspeed", True),
         ("\\\\host\\d%24\\Clockspeed", True),
         ("CLOCKS%7E1", True),
+        ('{"root": "\\/e\\/Clockspeed"}', True),
+        ('"\\/mnt\\/e\\/Clockspeed"', True),
+        ("git -C/e/Clockspeed status", True),
+        ("git -C\\/e\\/Clockspeed status", True),
+        ("x_CLOCKS~1", True),
+        ("E:\\u005cClockspeed", True),
+        ("E\\x3a\\x5cClockspeed", True),
+        ("\\u002fe\\u002fClockspeed", True),
         ("root is `<repo>` on E:", False),
         ("https://github.com/Remus3/Clockspeed", False),
         ("/srv/work/Clockspeed/Clockspeed", False),
@@ -638,6 +661,8 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         ("Project%3AClockspeed", False),
         ("https://example.invalid/a%2FClockspeed", False),
         ("`git show HEAD~1`", False),
+        ('"x\\/b\\/Clockspeed"', False),
+        ("Clockspeed~1", False),
     ],
     ids=[
         "drive-backslash",
@@ -667,6 +692,14 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "url-colon-slash",
         "url-dollar",
         "url-short-name",
+        "json-escaped-git-bash",
+        "json-escaped-wsl",
+        "git-bash-glued-option",
+        "json-escaped-glued-option",
+        "short-name-glued",
+        "unicode-escape-backslash",
+        "hex-escape-colon-backslash",
+        "unicode-escape-git-bash",
         "scrubbed",
         "url",
         "ci",
@@ -675,6 +708,8 @@ def test_license_holder_matches_citation_authors(repo_root: Path) -> None:
         "label-colon-url",
         "url-path-segment",
         "git-ancestry",
+        "json-escaped-relative",
+        "long-name-tilde",
     ],
 )
 def test_the_checkout_path_pattern_catches_every_spelling(text: str, *, hit: bool) -> None:
@@ -691,55 +726,386 @@ def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:
         assert not lines, f"{relative} spells an absolute checkout path on line(s) {lines}"
 
 
-#: CS-1308 - every tracked file that may still spell the checkout root, with its
-#: exact count of matching lines. The root is the operator's chosen location, not
-#: personal data; these lines state it where the topology (``CLAUDE.md`` section 2,
-#: ``BOOTSTRAP.md``) or the move's own record (ADR 0026) must. Anywhere else a
-#: spelling is a portability fault, written ``<repo>`` in CS-1292's style instead.
-#: A count that moves either way is a reviewed change to this table.
-KEPT_CHECKOUT_PATHS: Final = {
-    "BOOTSTRAP.md": 2,
-    "CLAUDE.md": 2,
-    "docs/adr/0026-the-root-moves-to-e.md": 7,
+#: CS-1308 - the ruled kept set, pinned by line CONTENT; the session 137 decision record
+#: in ``docs/LEDGER.md`` gives each line's reason. Per path, one (SHA-256 of the line's
+#: full text with only its newline stripped, that line's match count) pair for every line
+#: that spells the checkout root. An added, changed, moved or doubled spelling changes the
+#: multiset; an edit that only shifts line numbers does not. The root is the operator's
+#: chosen location, not personal data: these lines state it where the topology
+#: (``CLAUDE.md`` section 2, ``BOOTSTRAP.md`` section 2), a settled entry (``CLAUDE.md``
+#: section 7, ``BOOTSTRAP.md`` section 11) or the move's own record (ADR 0026) must, and
+#: anywhere else a spelling is written ``<repo>`` in CS-1292's style. This file's own
+#: pattern lines - the comment above the pattern, the mutation arm's cases and the planted
+#: spellings - are kept the same way, line by line; the file itself is never exempt. A pair
+#: that moves is a reviewed change to this table.
+KEPT_CHECKOUT_LINES: Final[dict[str, tuple[tuple[str, int], ...]]] = {
+    "BOOTSTRAP.md": (
+        # section 2, the project-root row
+        ("653272d5dc9af6e07a1f4fa63c1b4bfe773dd3a6b98c181b3a03267711edfc8f", 1),
+        # section 11, the settled entry
+        ("bfc227c2eae7f1069667af8c8fef47ac0ba4ef324e178667614c68ae60626f04", 1),
+    ),
+    "CLAUDE.md": (
+        # section 2, the project-root line
+        ("42d5f6fc7e66bb738c3166f9f03e47f132628b5c39d61f9a5651f24d3e04c461", 1),
+        # section 7, the settled entry
+        ("19bd7c89374e3465c9eda1818a13682aeac972fc4ea549e97356a9ecc2df8481", 1),
+    ),
+    "docs/adr/0026-the-root-moves-to-e.md": (
+        # the old root and its reversal clause
+        ("0cd8b055635bf2706992c7f7f0ce8d125753f15723528d6870fa7639ca7cf898", 1),
+        # decision 1, the root
+        ("3c8dd2d49dcd4efb65532581dadf559f248cb953653f57b0fa228358de8358f1", 1),
+        # the copy of the whole root
+        ("a5f62a17c27c29afb62136200cd9c7876d208ea1e27ba9436d56effd9df4a744", 1),
+        # the old root held as a working directory
+        ("0ce9f2ed438915a402c460efbd806474a42f9a4a79428e21a93708af92322a16", 1),
+        # the old root recycled, the junction from it
+        ("abbe0f35037dbe1c1d3062ec0c10b5d4bd8ba9183731676b1f267d3221f5eb35", 2),
+        # the junction's target
+        ("8de51609b17b8d3424d990775a134e49fec3f061cc334c5e311aca929697a338", 1),
+        # where the lanes now land
+        ("526845ad38b6d39ef3b5d9c041a872dfa07207816fea80f793880b4af2061bc5", 1),
+    ),
+    "tests/test_readme_audit.py": (
+        # in file order: the pattern comment above ABSOLUTE_CHECKOUT_RE, every case of
+        # the mutation arm that spells the root, then _PLANTED and _PLANTED_WSL
+        ("36155fe426789ec47d1b9f35957783384babb31373a83800fdccd500751495e4", 2),
+        ("3c4e047afba7b7d6871cefd3b98103814891c1b859049b6a526d8883e92dcfe9", 1),
+        ("ff6bd9dbb3aa0112afcaddac669eee1498db0a095ba96a6e3843d2fb2aee6505", 1),
+        ("c3dce4344007a7401292c713bac4b598553e89e2709960cdfe2b1c1e39257c94", 1),
+        ("c85d103fc7fea652f89d57761bf62a19b0cb5de95c393d48b41552abb13e57ee", 1),
+        ("e3275333f39fbfacbbfe1f3a013b61e371560d6a87c889618ee0e54e68dcd48f", 1),
+        ("a765c10c2d3fe215a5624582cf6c49027a1da7c28847249e426c621ee845203a", 1),
+        ("3e0b154fa853df327a6662daa98b4252a43658a4c4ff4387e093734b8c681e2c", 1),
+        ("ae1b511a5406fd92194c1ad8fe9947213623936d0bb5d26f1a2373f2186456e3", 1),
+        ("c5517dab387bfb7e9e1714fd5fe1e2b5a301d6e3cc143e78aa6f1345ba1b2943", 1),
+        ("1064a3e15e34d629a0cb7d7714351e4e645725ed533671ebdd327cedb92c87cb", 1),
+        ("d37e812dba81f09ba1018aff47b2eb26cc93cec76da6e53ee4154d377f2c0b14", 1),
+        ("c8299ae6526a47e90a044063a4a65947278f8ebb1282655f9f6091c77188e1a8", 1),
+        ("d03e485d9eb7e0e40f8dadc91d7533133ff8764b151fda642798ec6a864b3d4c", 1),
+        ("4cf2e60fbfce1afe19dd340939cca050fc18b1c9a361e81f5ea92b44e1b7845e", 1),
+        ("d993bcb2967ce7921faeadfdf800e5a4e0ccbdb5c501593b9ad3d61bc329761f", 1),
+        ("f1960f6edc47b637c7184a22a9c5615f0b4dbfa40272fe8b8bcadc9eb4245103", 1),
+        ("563986b106d28e14346c0e2b99e4ba8d8ea40a8a4d72666edbdd20a58aadb493", 1),
+        ("ce93bb55a41b008346b1e709b891039e3dfb9683f57c42a4907bb59c4371de0f", 1),
+        ("dcfbc7420da02c15dd9e9cdd1a68c37c652c9d183b6f2df4517d207a0ad911e6", 1),
+        ("e718d3809f82495366d21ec589a50cf451a156965c31492faa7489e63a21032d", 1),
+        ("9827f915757023e1fb3981cbc9165883dd2925217179f40521a6bdbe5309946e", 1),
+        ("5710baac94e64651d087815eb814740126fd853c4488822027a88eb812e52cf8", 1),
+        ("1805554f8ff4669176fe037fa988151d6b59d8f2efc37e1324f47a68e79c01fc", 1),
+        ("ff7a95b1d8816a3abc3c763058841c5c902f91fabda4cc200afc17fe245c7ca0", 1),
+        ("dd23da1b500a423d7e4b72387ac987885b59be297334e4ce53eece540a17bc8c", 1),
+        ("b640e050a9176547cd20c2b50f59838db6f66b25f7d952c8ed03961cd86636c4", 1),
+        ("464b9845899f3316f8e134489a5055ce340c8c442cf9de8fd12d4420856eb87d", 1),
+        ("29a59663ecf73094df403d6eaf8a3f475b76bb9f82efeeae62a983c1edb601e1", 1),
+        ("d781a501c2268385caa7e6823ce2f7bbf533d9e2574fda2cef651e96fba72a27", 1),
+        ("8b494077970b22dba858319aea1b99e74dc208ce1d82cc262e3b7df952f6f455", 1),
+        ("ea8cf6d31d4be854fb5dd00340ae6d0cab3a6d1f5a0f041c4bcea18becb8cedd", 1),
+        ("9d9c18b5329f7acddba7f953793e50cbe1db87aef551167489fe659df404b647", 1),
+        ("298a07aa90bbff722c3f9d650a5fbafd15f7c2dee5f3587cb512bff6ece58797", 1),
+        ("d52d748fd02207812d8d0560f386ff2adc92114a43e658aa60384ea21f7521c6", 1),
+        ("58c6c0b3d1aac22db6de9d6c0278b65c16864b9ff485d3bbb55483d90c5fdeb2", 1),
+        ("60f66fa99149fe09fe3bd3d2c04e814f98d207163e377d8752e753d2513db538", 1),
+        ("42bbaec604fb6810af26cc6019caad5a54e1596b38370ded4c0ee3b9a472d7da", 1),
+        ("918f5d4c66a6e4ff427f8769be9fc80e5fb70e3b1829e24b8db3efe0b4888c7b", 1),
+        ("d34ba214fd2a6d3219adad39a5dc60fb2bcbcfc212f5a2d4080ecaf59d43210a", 1),
+    ),
 }
 
-#: This file: its pattern comment and its mutation arm spell the root on purpose.
-GUARD_SELF: Final = "tests/test_readme_audit.py"
+#: The byte-order marks that make the path guard also read a file as UTF-16 and UTF-32.
+_WIDE_BOMS: Final = (
+    codecs.BOM_UTF32_LE,
+    codecs.BOM_UTF32_BE,
+    codecs.BOM_UTF16_LE,
+    codecs.BOM_UTF16_BE,
+)
+
+#: The wide codecs a NUL-bearing or BOM-marked file is also read as, with each code unit.
+_WIDE_CODECS: Final = (("utf-16-le", 2), ("utf-16-be", 2), ("utf-32-le", 4), ("utf-32-be", 4))
 
 
-def _checkout_path_counts(repo_root: Path) -> dict[str, int]:
-    """Map each tracked text file to its count of lines spelling the checkout root.
+def _decodings(data: bytes) -> list[str] | None:
+    """Every view of a tracked file the path guard reads, or None when nothing decodes it.
 
-    A file with a NUL byte is binary and skipped. The text lives only in this
-    frame, so a failing assertion's locals never carry a matched line.
+    Strict UTF-8 first. A file carrying a NUL or a UTF-16 or UTF-32 byte-order mark is
+    also read strictly as UTF-16 and UTF-32 in both byte orders at every alignment, so a
+    wide re-encoding cannot hide a spelling; a view that does not decode is dropped. A file
+    strict UTF-8 refuses is also read byte for byte as latin-1, which finds an ASCII
+    spelling inside binary or 8-bit text - but that view alone never makes a file
+    scannable, because latin-1 decodes anything.
     """
-    found: dict[str, int] = {}
+    views: list[str] = []
+    try:
+        views.append(data.decode("utf-8"))
+    except UnicodeDecodeError:
+        refused = True
+    else:
+        refused = False
+    if b"\0" in data or data.startswith(_WIDE_BOMS):
+        for codec, width in _WIDE_CODECS:
+            for offset in range(width):
+                body = data[offset:]
+                try:
+                    views.append(body[: len(body) - len(body) % width].decode(codec))
+                except UnicodeDecodeError:
+                    continue
+    if not views:
+        return None
+    if refused:
+        views.append(data.decode("latin-1"))
+    return views
+
+
+def _line_digest(line: str) -> str:
+    """The SHA-256 of one line's full text, the kept table's key."""
+    return hashlib.sha256(line.encode("utf-8", "surrogatepass")).hexdigest()
+
+
+def _checkout_path_hits(repo_root: Path) -> tuple[dict[str, Counter[tuple[str, int]]], list[str]]:
+    """Each tracked file's multiset of (line digest, match count), and the files nothing reads.
+
+    Only a binary whose path AND bytes match a CS-1292 pin in
+    ``tools/sha_citation_binaries.json`` is skipped, read through the SHA citation gate's
+    own loader rather than a copy of it. A tracked file deleted from the work tree has
+    nothing to scan. The text lives only in this frame, so a failing assertion's locals
+    never carry a matched line.
+    """
+    pins = sha_citation_gate.load_known_binaries(repo_root)
+    found: dict[str, Counter[tuple[str, int]]] = {}
+    unscannable: list[str] = []
     for relative in doc_sweep.tracked_files(repo_root):
-        if relative == GUARD_SELF:
-            continue
         try:
             data = (repo_root / relative).read_bytes()
+        except FileNotFoundError:
+            continue
         except OSError:
+            unscannable.append(relative)
             continue
-        if b"\0" in data:
+        if sha_citation_gate.is_known_binary(relative, data, pins):
             continue
-        text = data.decode("utf-8", errors="replace")
-        count = sum(1 for line in text.splitlines() if ABSOLUTE_CHECKOUT_RE.search(line))
-        if count:
-            found[relative] = count
-    return found
+        views = _decodings(data)
+        if views is None:
+            unscannable.append(relative)
+            continue
+        hits: Counter[tuple[str, int]] = Counter()
+        for view in views:
+            for line in view.splitlines():
+                count = sum(1 for _ in ABSOLUTE_CHECKOUT_RE.finditer(line))
+                if count:
+                    hits[(_line_digest(line), count)] += 1
+        if hits:
+            found[relative] = hits
+    return found, unscannable
+
+
+def _kept_set_problems(found: dict[str, Counter[tuple[str, int]]]) -> list[str]:
+    """One ``<path>: <n> unexpected, <n> missing`` line per path off the kept table."""
+    problems: list[str] = []
+    for relative in sorted(set(found) | set(KEPT_CHECKOUT_LINES)):
+        have = found.get(relative, Counter())
+        want = Counter(KEPT_CHECKOUT_LINES.get(relative, ()))
+        unexpected = sum((have - want).values())
+        missing = sum((want - have).values())
+        if unexpected or missing:
+            problems.append(f"{relative}: {unexpected} unexpected, {missing} missing")
+    return problems
 
 
 def test_no_absolute_checkout_path_in_any_tracked_text_file(repo_root: Path) -> None:
-    """CS-1308 - the CS-1292 path guard over the whole tracked tree, not four docs.
+    """CS-1308 - the CS-1292 path guard over every tracked file, against the kept table.
 
-    The message names paths and counts only and never a matched line, because the
-    matched text is what is being scrubbed.
+    Every tracked file is read, this one included; only the hash-pinned binaries are not.
+    A file no decoding reads fails as unscannable. The messages name paths and counts of
+    line digests only, never a matched line, because the matched text is what is scrubbed.
     """
-    found = _checkout_path_counts(repo_root)
-    unexpected = {name: n for name, n in found.items() if KEPT_CHECKOUT_PATHS.get(name) != n}
-    absent = sorted(set(KEPT_CHECKOUT_PATHS) - set(found))
-    assert not unexpected, (
-        f"tracked files spell the checkout root outside the kept set (path: lines): {unexpected}"
+    found, unscannable = _checkout_path_hits(repo_root)
+    assert not unscannable, f"tracked files no decoding reads (unscannable): {unscannable}"
+    problems = _kept_set_problems(found)
+    assert not problems, (
+        "the checkout root is spelled off the kept table (path: line digests): "
+        + "; ".join(problems)
     )
-    assert not absent, f"kept-set entries no longer spell the root; update the table: {absent}"
+
+
+# --- CS-1308 fix round 1: the whole-tree guard, mutated in a planted tree ---------
+#
+# Each arm below plants one mutation the session 137 acceptance adversary showed
+# surviving, in a synthetic work tree that tracks byte-copies of the ruled kept files,
+# and calls the whole-tree guard on it. A planted tree that is the kept files alone is
+# green, so a red arm is red for its one mutation; each arm also checks the failure
+# names the mutated path.
+
+#: The files a planted tree copies byte for byte from the real one: every file the
+#: ruled kept set touches, so the kept table holds there exactly as it does here.
+_PLANTED_FROM: Final = (
+    "BOOTSTRAP.md",
+    "CLAUDE.md",
+    "docs/adr/0026-the-root-moves-to-e.md",
+    "tests/test_readme_audit.py",
+)
+
+#: The spelling a planted arm writes - one of the guard's own pattern lines.
+_PLANTED: Final = "D:\\Clockspeed"
+
+#: The WSL form the moved-spelling arm writes - one of the guard's own pattern lines.
+_PLANTED_WSL: Final = "/mnt/d/Clockspeed"
+
+#: Git variables that would point a child process at another repository's state.
+_GIT_REDIRECTS: Final = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+)
+
+
+def _planted_tree(repo_root: Path, tmp_path: Path, files: dict[str, bytes]) -> Path:
+    """A synthetic work tree tracking byte-copies of the kept files, then ``files`` over them."""
+    root = tmp_path / "planted"
+    for relative in _PLANTED_FROM:
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(repo_root / relative, target)
+    for relative, data in files.items():
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    env = {name: value for name, value in os.environ.items() if name not in _GIT_REDIRECTS}
+    env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
+    env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
+    for args in (("init", "-q"), ("add", "-A")):
+        subprocess.run(
+            ["git", *args], cwd=root, env=env, check=True, capture_output=True, timeout=60
+        )
+    return root
+
+
+def _kept_lines(repo_root: Path, relative: str) -> tuple[list[str], int]:
+    """A kept file's lines, and the index of its first line that spells the root."""
+    lines = (repo_root / relative).read_bytes().decode("utf-8").split("\n")
+    index = next(n for n, line in enumerate(lines) if ABSOLUTE_CHECKOUT_RE.search(line))
+    return lines, index
+
+
+def _guard_failure(root: Path) -> str:
+    """The whole-tree guard's failure message on ``root``; the arm fails if it passes."""
+    with pytest.raises(AssertionError) as caught:
+        test_no_absolute_checkout_path_in_any_tracked_text_file(root)
+    return str(caught.value)
+
+
+def test_a_planted_tree_of_the_kept_files_alone_is_green(repo_root: Path, tmp_path: Path) -> None:
+    """The control every arm below leans on: no mutation, no failure."""
+    test_no_absolute_checkout_path_in_any_tracked_text_file(_planted_tree(repo_root, tmp_path, {}))
+
+
+def test_the_guard_file_is_scanned_like_any_other(repo_root: Path, tmp_path: Path) -> None:
+    """F1, mutant ``self``: a root constant appended to the guard file's own foot fails."""
+    relative = "tests/test_readme_audit.py"
+    data = (repo_root / relative).read_bytes() + f'ROOT = "{_PLANTED}"\n'.encode()
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+def test_a_second_spelling_on_a_kept_line_fails(repo_root: Path, tmp_path: Path) -> None:
+    """F2, mutant ``kept_same_line``: the line count holds, the line's content does not."""
+    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines[index] += f" and `{_PLANTED}`"
+    data = "\n".join(lines).encode()
+    assert "CLAUDE.md" in _guard_failure(_planted_tree(repo_root, tmp_path, {"CLAUDE.md": data}))
+
+
+def test_a_kept_spelling_moved_to_a_new_line_fails(repo_root: Path, tmp_path: Path) -> None:
+    """F2, mutant ``kept_move``: one kept line scrubbed, one new spelling added elsewhere."""
+    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines[index] = ABSOLUTE_CHECKOUT_RE.sub("<repo>", lines[index])
+    lines.insert(len(lines) - 1, f"See `{_PLANTED_WSL}`.")
+    data = "\n".join(lines).encode()
+    assert "CLAUDE.md" in _guard_failure(_planted_tree(repo_root, tmp_path, {"CLAUDE.md": data}))
+
+
+def test_a_line_shift_above_a_kept_line_stays_green(repo_root: Path, tmp_path: Path) -> None:
+    """F2's control: an edit and an insertion above a kept line move it, and that is green."""
+    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    assert index > 1, "the control needs a line above the first kept line"
+    lines[0] += " (edited)"
+    lines.insert(1, "A line inserted above every kept line.")
+    data = "\n".join(lines).encode()
+    test_no_absolute_checkout_path_in_any_tracked_text_file(
+        _planted_tree(repo_root, tmp_path, {"CLAUDE.md": data})
+    )
+
+
+def test_a_nul_byte_does_not_hide_a_spelling(repo_root: Path, tmp_path: Path) -> None:
+    """F3, mutant ``nul``: one NUL no longer makes a text file binary and skipped."""
+    relative = "docs/ARCHITECTURE.md"
+    data = f"# Architecture\n\0\nThe root is {_PLANTED}.\n".encode()
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+@pytest.mark.parametrize("codec", ["utf-16", "utf-16-le", "utf-16-be", "utf-32-le"])
+def test_a_wide_encoding_does_not_hide_a_spelling(
+    repo_root: Path, tmp_path: Path, codec: str
+) -> None:
+    """F3, mutant ``utf16``: a wide re-encoding, with a byte-order mark or none, is read."""
+    relative = "docs/GATED.md"
+    data = f"# Gated\n\nThe root is {_PLANTED}.\n".encode(codec)
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+def test_an_undecodable_file_fails_as_unscannable(repo_root: Path, tmp_path: Path) -> None:
+    """F3: a file no decoding reads fails by name, never passes as clean."""
+    relative = "docs/notes.txt"
+    message = _guard_failure(_planted_tree(repo_root, tmp_path, {relative: b"caf\xe9 au lait\n"}))
+    assert "unscannable" in message
+    assert relative in message
+
+
+def test_only_a_hash_pinned_binary_is_skipped(repo_root: Path, tmp_path: Path) -> None:
+    """F3: a pinned image is skipped by path AND bytes, so changed bytes are scanned."""
+    pins = "tools/sha_citation_binaries.json"
+    image = "docs/assets/dashboard.png"
+    real = {pins: (repo_root / pins).read_bytes(), image: (repo_root / image).read_bytes()}
+    test_no_absolute_checkout_path_in_any_tracked_text_file(
+        _planted_tree(repo_root, tmp_path / "clean", real)
+    )
+    smuggled = dict(real)
+    smuggled[image] = real[image] + f"tEXt\0root={_PLANTED}\n".encode()
+    assert image in _guard_failure(_planted_tree(repo_root, tmp_path / "smuggled", smuggled))
+
+
+def test_an_unpinned_binary_is_scanned(repo_root: Path, tmp_path: Path) -> None:
+    """F3: a NUL-bearing file outside the pins is read, not waved through as binary."""
+    relative = "docs/assets/planted.png"
+    data = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR" + f"tEXt\0root={_PLANTED}\n".encode()
+    assert relative in _guard_failure(_planted_tree(repo_root, tmp_path, {relative: data}))
+
+
+#: CS-1308 F5 - a quoted drive root and the quoted folder name on one line: the root
+#: spelled in two parts, which the single-token pattern above cannot see.
+TWO_PART_CHECKOUT_RE: Final = re.compile(
+    r"""(?=.*["'][A-Za-z]:[\\/]*["'])(?=.*["']Clockspeed["'])""", re.IGNORECASE
+)
+
+
+def test_no_tracked_markdown_spells_the_root_in_two_quoted_parts(repo_root: Path) -> None:
+    """F5. In prose a quoted drive root beside the quoted folder name is the root spelled.
+
+    Markdown only: in code, a spelling assembled from fragments is the recorded residual
+    of the CS-1308 decision record in ``docs/LEDGER.md``, which no line pattern closes.
+    It reads each file through the whole-tree guard's views, which fails a file none of
+    them decodes. The message names paths and counts only.
+    """
+    found: dict[str, int] = {}
+    for relative in doc_sweep.tracked_files(repo_root):
+        path = repo_root / relative
+        if relative.endswith(".md") and path.is_file():
+            views = _decodings(path.read_bytes()) or []
+            lines = [line for view in views for line in view.splitlines()]
+            count = sum(1 for line in lines if TWO_PART_CHECKOUT_RE.match(line))
+            if count:
+                found[relative] = count
+    assert not found, f"markdown spells the root in two quoted parts (path: lines): {found}"
