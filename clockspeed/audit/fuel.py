@@ -2,81 +2,83 @@
 
 WHAT THIS MODULE OWNS
 -----------------------
-Two pure functions over stated models, the computation behind the D4 fuel rule
-(``power.fuel_supply``, BOOTSTRAP.md section 5.3):
+Two pure functions over two stated models, the computation behind the D4 fuel
+rule (``power.fuel_supply``, BOOTSTRAP.md section 5.3):
 
 - :func:`fuel_supply_of` decides, per built fuel generator class, whether the
   world's own nominal flow - which it builds - supplies the fuel its built
-  instances burn. Each class gets one
-  :class:`FuelVerdict` - :data:`VERDICT_FIRE` with the exact shortfall,
-  :data:`VERDICT_REJECT` when the supply covers the demand, or
-  :data:`VERDICT_INDETERMINATE` with every named reason that kept a verdict out
-  of reach.
+  instances burn. Each class gets one :class:`FuelVerdict` -
+  :data:`VERDICT_FIRE` with the exact shortfall, :data:`VERDICT_REJECT` when
+  the supply covers the demand, or :data:`VERDICT_INDETERMINATE` with every
+  named reason that kept a verdict out of reach.
 - :func:`fuel_demand_of` states, per class, what its built instances burn per
   minute of each accepted fuel at their clocks - a :class:`FuelDemand` that
   claims NOTHING about supply, so a companion card can carry it over a flow too
   incomplete for a verdict. It declares no supply or shortfall field at all.
 
+THE BINDING RULING. ``docs/item_notes/phase5.md`` section CS-1285, the session
+134 ruling "slice B v2, narrowed", decides everything below that is not
+arithmetic; its clauses are cited by letter.
+
 SEAM DISCIPLINE. Nothing here opens a save or the raw docs file, and nothing
-builds a registry. The caller supplies every model: ``WorldMachines`` for the
-built machines and their clocks; the generator, item and recipe namespaces of a
-registry by mapping; the ACCEPTED FUELS as an explicit mapping of generator
-class to its ``mFuel`` list in source order - an input of its own because the
-generator entry does not carry it; the EXTRACTABLE input, per item every
-extractor class that can extract it - an input of its own because no registry
-entry says which resource an extractor yields; and the REGISTERED input, every
-class the caller's registry declares - an input of its own because the
-registry models only the classes that draw power, extract or generate, not a
-belt or a foundation. The flow is NOT an input: it is
-built here, by ``clockspeed/audit/flow.py`` :func:`flow_of` - the one owner of
-that arithmetic, one audit consuming its neighbour - over the world's own
-machines, so no flow over some other population can ever be handed in. The two
-registry constants imported at run time - the fluid scale and the form tokens -
-are imported from their one owner rather than restated, so a fluid's unit here
-cannot drift from the unit the registry normalized its recipe amounts to.
+builds a registry. The inputs are ``WorldMachines`` - the built machines, their
+clocks and the census of records never admitted - and the ``Registry``, plus
+the items the caller declares raw (ruling (f)): the accepted fuels, what each
+extractor can yield and which classes exist are all read off the registry, so
+no caller-supplied mapping can disagree with it. The flow is NOT an input: it
+is built here, by ``clockspeed/audit/flow.py`` :func:`flow_of` - the one owner
+of that arithmetic - over the world's own machines that name a recipe, so no
+flow over some other population can ever be handed in. A machine the flow
+cannot rate (an unread clock, a boost, an unknown recipe) is the flow's own
+named gap, :data:`REASON_FLOW_INCOMPLETE`; a world with no recipe machine has
+a flow that moves nothing, which the flow model names incomplete too.
 
-THE FLOW IS THE WORLD'S OWN, BUILT HERE. :func:`fuel_supply_of` builds it over
-EVERY admitted machine that names a recipe - a generator-class machine naming
-one included, since its recipe moves items like any other - so every machine a
-flow can rate is in it, and a machine it cannot rate (an unread clock, a boost,
-an unknown recipe) is the flow's own named gap: the flow is then incomplete,
-:data:`REASON_FLOW_INCOMPLETE`. A world with no recipe machine has a flow that
-moves nothing, which the flow model names incomplete too, so it reaches no
-verdict.
+VERDICTS DECIDE FLUID FUELS ONLY (ruling (a)). A solid fuel is never measured:
+players, vehicles, sinks and stations move solids that no nominal flow sees,
+and every real save holds a player. Every solid accepted fuel is
+:data:`REASON_SOLID_SUPPLY_UNMODELLED` with its supply None, so a class burning
+one is never decided. A fuel whose item or form is unknown is not known to be a
+fluid, so its supply is None too, under the class's
+:data:`REASON_ENERGY_UNKNOWN`.
 
-A MACHINE NO FLOW CAN MEASURE IS JUDGED BY WHAT ITS CLASS COULD MAKE. Two kinds
-of machine carry no recipe a flow could rate: an admitted non-generator machine
-naming no recipe - an extractor, whose node and so whose resource the save
-never records (CS-1048) - and a record the machines census counts but never
-admitted. Neither is left out silently, and neither blocks every fuel: each
-makes an accepted fuel :data:`REASON_SUPPLY_UNMEASURED` exactly when its class
-COULD make that fuel - a recipe producing it is produced in that class, or the
-extractable input names that class as its extractor - or when nobody stated
-every class that makes it: the extractable input does not list the fuel, or a
-recipe producing it names a producing building that never resolved. A
-REGISTERED class that makes no fuel - a lamp, a belt, a foundation, a sink, a
-container - never makes one unmeasured, so a census of such records blocks
-nothing. An unmeasured fuel's supply is None - never the flow's figure, never
-a zero. So a mined fuel is indeterminate wherever an extractor that could mine
-it is built - the 2026-10-08 CS-1285 decision record in ``docs/LEDGER.md``,
-Q3, accepts exactly that - while a fuel only recipes make still decides beside
-it.
+A RECORD NO FLOW RATES IS JUDGED BY ITS CLASS (ruling (a)). Two kinds of record
+carry no recipe a flow could rate: an admitted machine naming none - an
+extractor, whose node the save never records (CS-1048), an idle or unreadable
+manufacturer, or any generator - and a record the census counts but
+``WorldMachines`` never admitted. The module FILTERS them (ruling (b)),
+``clockspeed/audit/machines.py`` being unchanged:
 
-AN UNREGISTERED CLASS IS NEVER ASSUMED INERT (non-negotiable 7). A class is
-REGISTERED when the registered input, the generator or accepted-fuel
-namespaces, a recipe's producing classes or the extractable input names it. A
-machine no flow can measure whose class is none of these - or whose class name
-is unreadable - may make or eat any fuel, so EVERY accepted fuel of every
-class is :data:`REASON_CLASS_UNREGISTERED`, with its supply None.
+- UNREGISTERED: an unreadable class name, an undeclared class whose name starts
+  ``Build_`` (case folded) and is not on :data:`NO_FLUID_UNDECLARED_CLASSES`,
+  or an admitted machine of an undeclared class not on it. Such a record may
+  make or eat any fuel, so EVERY non-solid fuel of every class is
+  :data:`REASON_CLASS_UNREGISTERED`, its supply None (non-negotiable 7).
+- JUDGED: a class ``Registry.declared_classes`` declares. It makes a fluid
+  fuel :data:`REASON_SUPPLY_UNMEASURED` when a registry recipe produced in it -
+  by a resolved building or by an unresolved producer token of the same name -
+  names that fuel as an input OR an output, or when it is an extractor that can
+  yield it: its ``allowed_resources`` when it carries them, else every item of
+  its ``allowed_forms`` (ruling (d)). A generator's own fuel list is its
+  DEMAND, never such a relation. When a judged class's relation is not knowable
+  it unmeasures EVERY fuel: an unrestricted extractor carrying a form token the
+  registry did not recognize, or a registry that lost recipes - one it flagged
+  and skipped (``WARN_MISSING_DURATION`` or ``WARN_MALFORMED_BLOB``), a
+  malformed docs group, or a group it did not recognize. And a recipe one of
+  whose producer tokens names no declared class may be produced in any class
+  of that native parent, so the items it names are unmeasured beside any
+  judged record.
+- HOLDS NO FLUID, COUNTED on :attr:`WorldFuel.no_fluid_record_count`: a class
+  on :data:`NO_FLUID_UNDECLARED_CLASSES`, or any other undeclared census class
+  - a player, a vehicle, a subsystem actor. An undeclared class a registry
+  recipe or extractor nevertheless names is judged instead: the registry's own
+  evidence outranks the table.
 
-WHAT A REGISTERED RECIPE-LESS MACHINE EATS IS NOT MODELLED. A recipe-less
-machine moves items only by extraction - which the rules above judge - or by
-burning or sinking them. A generator's burn is this module's demand; a
-registered sink's intake is whatever a belt feeds it, which no nominal flow
-models (``clockspeed/audit/flow.py`` states the same scope). A registered
-class is taken to make no fuel, by the closed-world reading of the recipes and
-the extractable input, and its intake is the one supply-side effect the
-verdict does not see.
+An unmeasured fuel's supply is None - never the flow's figure, never a zero.
+
+WHAT A JUDGED RECORD MOVES BEYOND ITS RELATIONS IS NOT MODELLED. A pipe, a
+buffer or a fluid freight station holds fluid but neither makes nor eats it in
+the steady state a nominal flow describes; ruling (a) judges by recipes and
+extraction alone, and so does this module.
 
 THE ARITHMETIC, ALL OF IT EXACT ``Fraction``
 ----------------------------------------------
@@ -90,10 +92,10 @@ THE ARITHMETIC, ALL OF IT EXACT ``Fraction``
   the cubic metre because the flow's fluid rates already are.
 - BURN. Units per minute at a demand of ``D`` MW, for a fuel of ``E`` MJ per
   unit: ``D * 60 / E``.
-- SUPPLY. Per fuel, the flow's NET nominal rate per minute floored at zero:
-  what the recipe machines make less what they eat, which is what is left for
-  a generator, and never a debt. A fuel no recipe in a complete flow touches
-  supplies a measured zero. Its energy rate is ``supply * E / 60`` MW.
+- SUPPLY. Per measured fluid, the flow's NET nominal rate per minute floored at
+  zero: what the recipe machines make less what they eat, which is what is left
+  for a generator, and never a debt. A fluid no recipe in a complete flow
+  touches supplies a measured zero. Its energy rate is ``supply * E / 60`` MW.
 - POOLING. A class's pooled MW is the sum over every accepted fuel of its
   supply in MW, so two fuels short alone may cover together.
 
@@ -101,41 +103,43 @@ THE VERDICT. FIRE when the pooled MW falls below the demand, carrying the exact
 shortfall in MW and, per accepted fuel, that shortfall as a per-minute rate of
 that fuel alone (``shortfall * 60 / E``); the headline fuel is the first
 accepted fuel in ``mFuel`` order. REJECT when the pooled MW meets or exceeds the
-demand. Only a class with no named reason reaches either.
+demand. Only a class with no named reason reaches either. A maker at clock zero
+makes nothing, and the verdict it leads to stands (ruling (e)).
 
 INDETERMINATE IS NOT A VERDICT (CS-1271's terms). A class is indeterminate,
 with every reason named in :data:`INDETERMINATE_REASONS` order, when: its
 accepted fuels are unreadable; its nameplate is a production gap; a built
 instance was never admitted to ``WorldMachines``; an instance carries a
 production boost, an unread clock or a refused clock; an accepted fuel's energy
-value is unknown; the flow is incomplete; an accepted fuel is declared raw, so
-the flow does not measure its supply; a machine no flow can measure could make
-an accepted fuel (above) - or, for a class whose fuels are unreadable, any
-item; a machine no flow can measure is of a class nobody registered; it shares
-an accepted fuel with another
-built fuel generator class, which competes for the same supply (both are
-indeterminate); or another built class's fuels are unreadable, so no supply can
-be proven this class's own. Every figure that could still be computed is
-published - a floor is labelled one by its reason - and every figure that could
-not is None, NEVER a zero (non-negotiable 7).
+value is unknown; the flow is incomplete; an accepted fuel is solid; one is
+declared raw, so the flow does not measure its supply; a judged record
+unmeasures one - or, for a class whose fuels are unreadable, any fluid; an
+unregistered record exists; it shares an accepted fuel with another built fuel
+generator class, which competes for the same supply (both are indeterminate);
+or another built class's fuels are unreadable, so no supply can be proven this
+class's own. Every figure that could still be computed is published - a floor
+is labelled one by its reason - and every figure that could not is None, NEVER
+a zero (non-negotiable 7). Each accepted fuel's own supply-side reasons ride on
+its :class:`FuelLine`, in :data:`SUPPLY_REASONS` order.
 
 AN ELIDED CLOCK IS THE CLASS DEFAULT, COUNTED, by the predicate
 ``clockspeed/audit/balance.py`` and ``clockspeed/audit/flow.py`` share: a None
 clock with ``MachineState.overclock_elided`` set runs at
 ``ELIDED_CLOCK_DEFAULT`` and is counted on the result; any other None is unread.
 
-OUT OF SCOPE. A built generator class that burns nothing - one ABSENT from the
-accepted-fuel input, so declaring no fuel, on an entry that is variable
-production or declares exactly zero output, the geothermal shape (which has no
-``mFuel``) - is named in :attr:`WorldFuel.out_of_scope` and gets no verdict and
-no demand. ABSENT AND UNREADABLE ARE DIFFERENT INPUTS. A class the input maps
-to None, or to anything but a non-empty tuple of names, declares fuels nobody
-could read: it is in scope and :data:`REASON_FUELS_UNREAD` whatever its
-entry's shape, and every other class is :data:`REASON_FUEL_SHARING_UNKNOWN`,
-since it may burn their fuel. The wiring therefore leaves a generator with no
-``mFuel`` out of the mapping and maps one whose ``mFuel`` did not read to None.
-Supplemental resources (water) and byproducts are not
-modelled; :data:`EXCLUSIONS` names both on every result so tier 3 can say so.
+OUT OF SCOPE. A built generator class that burns nothing - its registry entry
+carries no fuel list and the registry raised no unreadable-fuels warning for
+it, on an entry that is variable production or declares exactly zero output,
+the geothermal shape (which has no ``mFuel``) - is named in
+:attr:`WorldFuel.out_of_scope` and gets no verdict and no demand. ABSENT AND
+UNREADABLE ARE DIFFERENT INPUTS, told apart by that warning: a flagged list, or
+any value but a non-empty tuple of names, declares fuels nobody could read, so
+the class is in scope and :data:`REASON_FUELS_UNREAD` whatever its entry's
+shape, and every other class is :data:`REASON_FUEL_SHARING_UNKNOWN`. A
+fixed-output generator with no list at all generates and must burn something,
+so it is :data:`REASON_FUELS_UNREAD` too. Supplemental resources (water) and
+byproducts are not modelled; :data:`EXCLUSIONS` names both on every result so
+tier 3 can say so.
 
 THE TRACE. Every verdict and demand carries an ordered tuple of
 :class:`FuelStep` - each figure read or computed, with a fixed label, the class
@@ -158,13 +162,20 @@ from typing import TYPE_CHECKING, Final
 
 from clockspeed.audit.balance import (
     ELIDED_CLOCK_DEFAULT,
-    GAP_NO_REGISTRY_ENTRY,
     GAP_PRODUCTION_INEXACT,
     GAP_PRODUCTION_UNDECLARED,
     GAP_PRODUCTION_VARIABLE,
 )
 from clockspeed.audit.flow import flow_of
-from clockspeed.data.registry import FLUID_FORMS, FORM_SOLID, LITRES_PER_CUBIC_METRE
+from clockspeed.data.registry import (
+    FLUID_FORMS,
+    FORM_SOLID,
+    LITRES_PER_CUBIC_METRE,
+    WARN_MALFORMED_BLOB,
+    WARN_MALFORMED_GROUP,
+    WARN_MISSING_DURATION,
+    WARN_UNREADABLE_FUELS,
+)
 from clockspeed.solve.exact import SECONDS_PER_MINUTE, audit_exact
 
 if TYPE_CHECKING:
@@ -172,7 +183,7 @@ if TYPE_CHECKING:
 
     from clockspeed.audit.flow import WorldFlow
     from clockspeed.audit.machines import MachineState, WorldMachines
-    from clockspeed.data.registry import Generator, Item, Recipe
+    from clockspeed.data.registry import Extractor, Generator, Item, Registry
 
 __all__ = [
     "DEMAND_REASONS",
@@ -195,6 +206,7 @@ __all__ = [
     "LABEL_SHORTFALL_RATE",
     "LABEL_SUPPLY",
     "LABEL_SUPPLY_MEGAWATTS",
+    "NO_FLUID_UNDECLARED_CLASSES",
     "REASON_BOOST_UNMODELED",
     "REASON_CLASS_UNREGISTERED",
     "REASON_CLOCK_REFUSED",
@@ -207,10 +219,12 @@ __all__ = [
     "REASON_FUEL_SHARING_UNKNOWN",
     "REASON_INSTANCES_OMITTED",
     "REASON_PRODUCTION_GAP",
+    "REASON_SOLID_SUPPLY_UNMODELLED",
     "REASON_SUPPLY_RAW",
     "REASON_SUPPLY_UNMEASURED",
     "STEP_COMPUTED",
     "STEP_READ",
+    "SUPPLY_REASONS",
     "UNIT_CUBIC_METRE",
     "UNIT_ITEM",
     "VERDICTS",
@@ -230,7 +244,7 @@ __all__ = [
 #: Seconds per minute, as the Fraction every rate here is scaled by.
 _SIXTY: Final = Fraction(SECONDS_PER_MINUTE)
 
-#: The unit a solid fuel is burned and supplied in.
+#: The unit a solid fuel is burned in.
 UNIT_ITEM: Final = "item"
 
 #: The unit a fluid fuel is burned and supplied in - the flow's fluid unit.
@@ -248,13 +262,13 @@ VERDICT_INDETERMINATE: Final = "indeterminate"
 #: The closed vocabulary of verdicts.
 VERDICTS: Final = (VERDICT_FIRE, VERDICT_REJECT, VERDICT_INDETERMINATE)
 
-#: The accepted-fuel list is unreadable - mapped to None or to anything but a
-#: non-empty tuple of names, or absent from the mapping on a generator that is
-#: not the geothermal shape, so generates and must burn something.
+#: The accepted-fuel list is unreadable - flagged by the registry, anything but
+#: a non-empty tuple of names, or absent on a generator that is not the
+#: geothermal shape, so generates and must burn something.
 REASON_FUELS_UNREAD: Final = "fuels-unread"
 
-#: The nameplate output is a production gap: no generator entry, a variable
-#: output, no declared output, or one that is not exactly a Fraction.
+#: The nameplate output is a production gap: a variable output, no declared
+#: output, or one that is not exactly a Fraction.
 REASON_PRODUCTION_GAP: Final = "production-gap"
 
 #: A built instance of the class was never admitted to ``WorldMachines``.
@@ -275,17 +289,22 @@ REASON_ENERGY_UNKNOWN: Final = "energy-unknown"
 #: The flow is incomplete, so every supply figure is a floor.
 REASON_FLOW_INCOMPLETE: Final = "flow-incomplete"
 
+#: An accepted fuel is a solid, whose supply no nominal flow measures (ruling
+#: (a)): players, vehicles, sinks and stations move solids.
+REASON_SOLID_SUPPLY_UNMODELLED: Final = "solid-supply-unmodelled"
+
 #: An accepted fuel is declared raw - supplied from outside the flow - so the
 #: flow does not measure its supply.
 REASON_SUPPLY_RAW: Final = "supply-raw"
 
-#: A machine no flow can measure - a recipe-less non-generator machine, such as
-#: an extractor, or a census record never admitted - could make an accepted
-#: fuel, so the flow's figure for that fuel is not this world's supply.
+#: A record no flow rates is of a declared class that relates to an accepted
+#: fuel - or whose relation is unknown - so the flow's figure for that fuel is
+#: not this world's supply.
 REASON_SUPPLY_UNMEASURED: Final = "supply-unmeasured"
 
-#: A machine no flow can measure is of a class no input registers, or its class
-#: name is unreadable, so it may make or eat any fuel.
+#: A record no flow rates is unregistered - an unreadable class name, an
+#: untabled undeclared buildable, or an admitted machine of an undeclared
+#: class - so it may make or eat any fuel.
 REASON_CLASS_UNREGISTERED: Final = "class-unregistered"
 
 #: The class shares an accepted fuel with another built fuel generator class.
@@ -306,13 +325,20 @@ DEMAND_REASONS: Final = (
     REASON_ENERGY_UNKNOWN,
 )
 
+#: The reasons ONE accepted fuel's supply can be missing, in reporting order -
+#: what :attr:`FuelLine.reasons` carries.
+SUPPLY_REASONS: Final = (
+    REASON_SOLID_SUPPLY_UNMODELLED,
+    REASON_SUPPLY_RAW,
+    REASON_SUPPLY_UNMEASURED,
+    REASON_CLASS_UNREGISTERED,
+)
+
 #: Every reason a class can be indeterminate, in reporting order.
 INDETERMINATE_REASONS: Final = (
     *DEMAND_REASONS,
     REASON_FLOW_INCOMPLETE,
-    REASON_SUPPLY_RAW,
-    REASON_SUPPLY_UNMEASURED,
-    REASON_CLASS_UNREGISTERED,
+    *SUPPLY_REASONS,
     REASON_FUEL_SHARED,
     REASON_FUEL_SHARING_UNKNOWN,
 )
@@ -341,11 +367,15 @@ REASON_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "a generator's clock is not an exact non-negative value, so it was refused"
         ),
         REASON_ENERGY_UNKNOWN: (
-            "an accepted fuel has no known energy value, so its burn and supply in"
-            " megawatts are unknown, never zero"
+            "an accepted fuel has no known energy value or form, so its burn and supply"
+            " in megawatts are unknown, never zero"
         ),
         REASON_FLOW_INCOMPLETE: (
             "the production flow is incomplete, so the fuel supply is a floor and not a measurement"
+        ),
+        REASON_SOLID_SUPPLY_UNMODELLED: (
+            "an accepted fuel is a solid, and players, vehicles, sinks and stations move"
+            " solids that no production flow measures"
         ),
         REASON_SUPPLY_RAW: (
             "an accepted fuel is supplied from outside the production flow, which does"
@@ -353,12 +383,13 @@ REASON_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         ),
         REASON_SUPPLY_UNMEASURED: (
             "a machine in this world that no production flow can measure - one with no"
-            " recipe, such as an extractor, or a record never read as a machine - could make"
-            " an accepted fuel, so the flow's figure is not this world's supply"
+            " recipe, such as an extractor, or a record never read as a machine - may"
+            " make or eat an accepted fuel, so the flow's figure is not this world's supply"
         ),
         REASON_CLASS_UNREGISTERED: (
             "a machine in this world that no production flow can measure is of a class"
-            " nobody registered, so it may make or eat any fuel and no supply is measured"
+            " the game data does not declare, so it may make or eat any fuel and no"
+            " supply is measured"
         ),
         REASON_FUEL_SHARED: (
             "another built generator class burns the same fuel, so the supply cannot"
@@ -368,6 +399,40 @@ REASON_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "another built generator class has unreadable fuels and may burn this class's fuel"
         ),
     }
+)
+
+#: Ruling (c): the undeclared build classes measured to hold no fluid - the
+#: HUB's built-in parts, the vehicle path nodes, the pipeline flow indicator,
+#: the potty, a blueprint storage and the HUB's own solid biomass burner, which
+#: the solid reason covers. Class names only, read in session 137 by a
+#: read-only probe over every save of the pinned development world on the
+#: pinned build: these are ALL the undeclared ``Build_`` classes (case folded)
+#: it found, admitted or in the census. A class absent here and undeclared is
+#: unregistered when it is a buildable or an admitted machine, so a build that
+#: adds one fails closed rather than open. ``BP_Tractor_C`` needs no row:
+#: ruling (b) covers a non-buildable census class.
+NO_FLUID_UNDECLARED_CLASSES: Final = frozenset(
+    {
+        "BUILD_Potty_mk1_C",
+        "Build_GeneratorIntegratedBiomass_C",
+        "Build_HubTerminal_C",
+        "Build_PipelineFlowIndicator_C",
+        "Build_StorageBlueprint_C",
+        "Build_StorageIntegrated_C",
+        "Build_VehiclePathNode_Default_C",
+        "Build_VehiclePathNode_DockingStation_C",
+        "Build_WorkBenchIntegrated_C",
+    }
+)
+
+#: The buildable class-name prefix, compared case folded. A convention, not a
+#: guarantee - the ruling records it as a common-mode risk.
+_BUILDABLE_PREFIX: Final = "build_"
+
+#: The registry warnings that mean a recipe, or a whole group, never reached
+#: the recipe namespace, so no class's recipe relations are complete.
+_RECIPE_LOSS_CODES: Final = frozenset(
+    {WARN_MISSING_DURATION, WARN_MALFORMED_BLOB, WARN_MALFORMED_GROUP}
 )
 
 #: Supplemental resources - the water a generator also consumes - are not
@@ -529,12 +594,14 @@ class FuelLine:
         unit: :data:`UNIT_ITEM` or :data:`UNIT_CUBIC_METRE`, or None when unknown.
         megajoules_per_unit: The energy per unit, or None when unknown.
         supply_per_minute: The flow's net rate floored at zero, or None when the
-            fuel is declared raw or the flow does not measure this world's
-            supply of it (:data:`REASON_SUPPLY_UNMEASURED`).
+            fuel is not a known fluid or any of :attr:`reasons` applies.
         supply_megawatts: ``supply * megajoules / 60``, or None when either is
             unknown.
         shortfall_per_minute: On :data:`VERDICT_FIRE` only, the class's
             shortfall as a rate of this fuel alone; otherwise None.
+        reasons: The :data:`SUPPLY_REASONS` that keep this fuel's supply
+            unmeasured, in that order; empty when it was measured or is not a
+            known fluid (whose energy reason the class carries).
     """
 
     item_key: str
@@ -543,9 +610,10 @@ class FuelLine:
     supply_per_minute: Fraction | None
     supply_megawatts: Fraction | None
     shortfall_per_minute: Fraction | None
+    reasons: tuple[str, ...]
 
     def __repr__(self) -> str:
-        """Render the unit and which figures are known, and no name.
+        """Render the unit, which figures are known and the reasons, and no name.
 
         Returns:
             The safe rendering.
@@ -553,7 +621,7 @@ class FuelLine:
         return (
             f"{type(self).__name__}(unit={self.unit!r}, "
             f"supply_known={self.supply_megawatts is not None}, "
-            f"short={self.shortfall_per_minute is not None})"
+            f"short={self.shortfall_per_minute is not None}, reasons={self.reasons!r})"
         )
 
 
@@ -625,7 +693,14 @@ class WorldFuel:
         demands: The same classes' demand-only results, in the same order.
         out_of_scope: Built generator classes that burn nothing, sorted.
         exclusions: :data:`EXCLUSIONS`, on every result.
-        flow_complete: Whether the supplied flow was complete.
+        flow_complete: Whether the world's own flow was complete.
+        no_fluid_record_count: Records no flow rates whose class holds no
+            fluid by ruling (b) - a class on
+            :data:`NO_FLUID_UNDECLARED_CLASSES` or another undeclared census
+            class - admitted machines and census records together.
+        unregistered_record_count: Records no flow rates that are
+            unregistered; any one makes every fuel
+            :data:`REASON_CLASS_UNREGISTERED`.
     """
 
     verdicts: tuple[FuelVerdict, ...]
@@ -633,6 +708,8 @@ class WorldFuel:
     out_of_scope: tuple[str, ...]
     exclusions: tuple[str, ...]
     flow_complete: bool
+    no_fluid_record_count: int
+    unregistered_record_count: int
 
     def __repr__(self) -> str:
         """Render counts and flags, and no name.
@@ -642,21 +719,25 @@ class WorldFuel:
         """
         return (
             f"{type(self).__name__}(verdicts={len(self.verdicts)}, "
-            f"out_of_scope={len(self.out_of_scope)}, flow_complete={self.flow_complete})"
+            f"out_of_scope={len(self.out_of_scope)}, flow_complete={self.flow_complete}, "
+            f"no_fluid={self.no_fluid_record_count}, "
+            f"unregistered={self.unregistered_record_count})"
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class _Energy:
-    """One accepted fuel's energy, as :func:`_energy_of` read it."""
+    """One accepted fuel's energy and form, as :func:`_energy_of` read it."""
 
     item_key: str
     unit: str | None
     declared: Fraction | None
     megajoules_per_unit: Fraction | None
+    solid: bool
+    fluid: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class _Basis:
     """Everything one class's demand rests on, shared by both results."""
 
@@ -672,6 +753,24 @@ class _Basis:
     energies: tuple[_Energy, ...]
     reasons: frozenset[str]
     steps: tuple[FuelStep, ...]
+
+
+@dataclass(frozen=True, repr=False)
+class _Unrated:
+    """What the records no flow rates do to the supply, by ruling (b).
+
+    Attributes:
+        related: Every item a judged record's class relates to.
+        every_item: Whether some judged record's relation is unknown, so it
+            relates to every item.
+        unregistered_records: How many records are unregistered.
+        no_fluid_records: How many records hold no fluid.
+    """
+
+    related: frozenset[str]
+    every_item: bool
+    unregistered_records: int
+    no_fluid_records: int
 
 
 def _read(label: str, subject: str, value: Fraction) -> FuelStep:
@@ -690,11 +789,11 @@ def _readable_fuels(value: object) -> tuple[str, ...] | None:
     """The accepted fuels as a non-empty tuple of names in order, or None.
 
     Args:
-        value: The caller's entry for one class.
+        value: The registry entry's accepted-fuels field.
 
     Returns:
         The names, de-duplicated in order so no fuel pools twice; or None when
-        the entry is not a non-empty tuple of strings.
+        the value is not a non-empty tuple of strings.
     """
     if type(value) is not tuple or not value:
         return None
@@ -703,54 +802,54 @@ def _readable_fuels(value: object) -> tuple[str, ...] | None:
     return tuple(dict.fromkeys(value))
 
 
-def _burns_nothing(
-    class_name: str,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-) -> bool:
-    """Whether a generator class is out of scope: no fuel declared, and no fixed output.
+def _declared_fuels(
+    class_name: str, entry: Generator, flagged: frozenset[str]
+) -> tuple[tuple[str, ...] | None, bool]:
+    """A generator's accepted fuels, and whether it declares none at all.
 
     Args:
         class_name: The class.
-        generators: The generator namespace.
-        accepted_fuels: The accepted-fuel input.
+        entry: Its registry entry.
+        flagged: Every class the registry flagged with an unreadable fuel list.
 
     Returns:
-        True when the class is ABSENT from the accepted-fuel input AND its
-        entry is variable production or declares exactly zero output - the
-        geothermal shape. A class mapped to anything, even None or a
-        malformed list, declared fuels: unreadable ones are a named reason,
-        never "burns nothing".
+        ``(fuels, absent)``: the readable fuels or None, and True only when the
+        entry carries no fuel list and the registry raised no unreadable-fuels
+        warning for it - the one shape that can be out of scope.
     """
-    if class_name in accepted_fuels:
-        return False
-    entry = generators.get(class_name)
-    if entry is None:
-        return False
+    value = entry.accepted_fuels
+    if value is None:
+        return None, class_name not in flagged
+    return _readable_fuels(value), False
+
+
+def _burns_nothing(entry: Generator) -> bool:
+    """Whether a generator that declares no fuel is the geothermal shape.
+
+    Args:
+        entry: Its registry entry.
+
+    Returns:
+        True for variable production or an exactly zero declared output.
+    """
     if entry.is_variable_production:
         return True
     output = entry.power_production
     return type(output) is Fraction and output == 0
 
 
-def _nameplate_of(
-    class_name: str, generators: Mapping[str, Generator]
-) -> tuple[Fraction | None, str | None]:
+def _nameplate_of(entry: Generator) -> tuple[Fraction | None, str | None]:
     """One generator's nameplate output, or the production gap kind.
 
     The checks run in ``clockspeed/audit/balance.py`` ``_production_bucket``'s
     order, variable first, and publish its gap kinds verbatim.
 
     Args:
-        class_name: The class.
-        generators: The generator namespace.
+        entry: The registry entry.
 
     Returns:
         ``(output, None)`` or ``(None, kind)``.
     """
-    entry = generators.get(class_name)
-    if entry is None:
-        return None, GAP_NO_REGISTRY_ENTRY
     output = entry.power_production
     if entry.is_variable_production:
         return None, GAP_PRODUCTION_VARIABLE
@@ -796,58 +895,58 @@ def _clocks_of(states: Sequence[MachineState]) -> tuple[Fraction | None, int, se
 
 
 def _energy_of(item_key: str, items: Mapping[str, Item]) -> _Energy:
-    """One fuel's energy per unit burned.
+    """One fuel's form and energy per unit burned.
 
     Args:
         item_key: The fuel.
         items: The item namespace.
 
     Returns:
-        The unit from the item's form, and its energy per unit - a solid's
-        declared value, a fluid's times ``LITRES_PER_CUBIC_METRE`` - or None
-        for an unknown item, form or value, or a value not above zero.
+        The unit from the item's form, whether it is a known solid or a known
+        fluid, and its energy per unit - a solid's declared value, a fluid's
+        times ``LITRES_PER_CUBIC_METRE`` - or None for an unknown item, form or
+        value, or a value not above zero.
     """
     item = items.get(item_key)
     if item is None:
-        return _Energy(item_key, None, None, None)
+        return _Energy(item_key, None, None, None, solid=False, fluid=False)
     if item.is_fluid and item.form in FLUID_FORMS:
-        unit, scale = UNIT_CUBIC_METRE, LITRES_PER_CUBIC_METRE
+        unit, scale, solid, fluid = UNIT_CUBIC_METRE, LITRES_PER_CUBIC_METRE, False, True
     elif not item.is_fluid and item.form == FORM_SOLID:
-        unit, scale = UNIT_ITEM, 1
+        unit, scale, solid, fluid = UNIT_ITEM, 1, True, False
     else:
-        return _Energy(item_key, None, None, None)
+        return _Energy(item_key, None, None, None, solid=False, fluid=False)
     value = item.energy_value
     if type(value) is not Fraction or value <= 0:
-        return _Energy(item_key, unit, None, None)
-    return _Energy(item_key, unit, value, value * scale)
+        return _Energy(item_key, unit, None, None, solid=solid, fluid=fluid)
+    return _Energy(item_key, unit, value, value * scale, solid=solid, fluid=fluid)
 
 
 def _basis_of(
     class_name: str,
+    fuels: tuple[str, ...] | None,
+    entry: Generator,
     states: Sequence[MachineState],
     omitted: int,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
     items: Mapping[str, Item],
 ) -> _Basis:
     """Compute what one class's demand rests on.
 
     Args:
         class_name: The class.
+        fuels: Its readable accepted fuels, or None.
+        entry: Its registry entry.
         states: Its admitted instances.
         omitted: Its built instances never admitted.
-        generators: The generator namespace.
-        accepted_fuels: The accepted-fuel input.
         items: The item namespace.
 
     Returns:
         The basis, with its demand steps.
     """
-    fuels = _readable_fuels(accepted_fuels.get(class_name))
     reasons: set[str] = set()
     if fuels is None:
         reasons.add(REASON_FUELS_UNREAD)
-    nameplate, gap_kind = _nameplate_of(class_name, generators)
+    nameplate, gap_kind = _nameplate_of(entry)
     if gap_kind is not None:
         reasons.add(REASON_PRODUCTION_GAP)
     if omitted:
@@ -939,47 +1038,56 @@ def _demand_of(basis: _Basis) -> FuelDemand:
     )
 
 
+def _supply_reasons_of(energy: _Energy, raw: frozenset[str], unrated: _Unrated) -> tuple[str, ...]:
+    """The :data:`SUPPLY_REASONS` that keep one accepted fuel unmeasured.
+
+    Args:
+        energy: The fuel.
+        raw: The items the flow was told are raw.
+        unrated: What the records no flow rates do to the supply.
+
+    Returns:
+        The reasons in :data:`SUPPLY_REASONS` order. A solid carries the solid
+        reason alone: it is never measured, whatever else holds.
+    """
+    if energy.solid:
+        return (REASON_SOLID_SUPPLY_UNMODELLED,)
+    reasons: set[str] = set()
+    if energy.item_key in raw:
+        reasons.add(REASON_SUPPLY_RAW)
+    if unrated.every_item or energy.item_key in unrated.related:
+        reasons.add(REASON_SUPPLY_UNMEASURED)
+    if unrated.unregistered_records:
+        reasons.add(REASON_CLASS_UNREGISTERED)
+    return _ordered(reasons, SUPPLY_REASONS)
+
+
 def _supplies_of(
     basis: _Basis,
     flow: WorldFlow,
-    unmeasured: frozenset[str],
-    unregistered: bool,
-    reasons: set[str],
+    unrated: _Unrated,
     steps: list[FuelStep],
-) -> list[tuple[_Energy, Fraction | None, Fraction | None]]:
+) -> list[tuple[_Energy, Fraction | None, Fraction | None, tuple[str, ...]]]:
     """Read each accepted fuel's supply off the flow, recording each step.
 
     Args:
         basis: The class's basis.
-        flow: The supplied flow.
-        unmeasured: The items a machine no flow can measure could make.
-        unregistered: Whether such a machine is of an unregistered class.
-        reasons: The class's reasons; a raw fuel adds :data:`REASON_SUPPLY_RAW`,
-            an unmeasured one :data:`REASON_SUPPLY_UNMEASURED`, and every fuel
-            :data:`REASON_CLASS_UNREGISTERED` when ``unregistered``.
+        flow: The world's own flow.
+        unrated: What the records no flow rates do to the supply.
         steps: The class's trace so far, appended to in order.
 
     Returns:
         Per accepted fuel in ``mFuel`` order, its energy, its supply per minute
-        (None when raw or unmeasured) and its supply in MW (None when either
-        is unknown).
+        (None unless it is a known fluid that no supply reason touches), its
+        supply in MW (None when either is unknown), and its supply reasons.
     """
-    raw = set(flow.raw_items)
-    supplies: list[tuple[_Energy, Fraction | None, Fraction | None]] = []
+    raw = frozenset(flow.raw_items)
+    supplies: list[tuple[_Energy, Fraction | None, Fraction | None, tuple[str, ...]]] = []
     for energy in basis.energies:
         steps += _energy_steps(energy)
+        line_reasons = _supply_reasons_of(energy, raw, unrated)
         supply: Fraction | None = None
-        measured = True
-        if energy.item_key in raw:
-            reasons.add(REASON_SUPPLY_RAW)
-            measured = False
-        if energy.item_key in unmeasured:
-            reasons.add(REASON_SUPPLY_UNMEASURED)
-            measured = False
-        if unregistered:
-            reasons.add(REASON_CLASS_UNREGISTERED)
-            measured = False
-        if measured:
+        if energy.fluid and not line_reasons:
             entry = flow.items.get(energy.item_key)
             net = entry.net if entry is not None else Fraction(0)
             supply = max(net, Fraction(0))
@@ -989,48 +1097,75 @@ def _supplies_of(
         if supply is not None and energy.megajoules_per_unit is not None:
             supply_mw = supply * energy.megajoules_per_unit / _SIXTY
             steps.append(_computed(LABEL_SUPPLY_MEGAWATTS, energy.item_key, supply_mw))
-        supplies.append((energy, supply, supply_mw))
+        supplies.append((energy, supply, supply_mw, line_reasons))
     return supplies
+
+
+def _class_reasons(
+    basis: _Basis,
+    flow: WorldFlow,
+    unrated: _Unrated,
+    fluids: frozenset[str],
+    shared_with: tuple[str, ...],
+    sharing_unknown: bool,
+) -> set[str]:
+    """The reasons one class has before any of its fuels is read.
+
+    Args:
+        basis: The class's basis.
+        flow: The world's own flow.
+        unrated: What the records no flow rates do to the supply.
+        fluids: Every item the registry knows as a fluid.
+        shared_with: The other built classes sharing one of its fuels.
+        sharing_unknown: Whether another built class's fuels are unreadable.
+
+    Returns:
+        The demand reasons plus the world's: an incomplete flow, the sharing
+        reasons, and - for a class whose fuels nobody could read, which may
+        burn any fluid - an unmeasured or unregistered supply.
+    """
+    reasons = set(basis.reasons)
+    if not flow.complete:
+        reasons.add(REASON_FLOW_INCOMPLETE)
+    if basis.fuels is None:
+        if unrated.every_item or unrated.related & fluids:
+            reasons.add(REASON_SUPPLY_UNMEASURED)
+        if unrated.unregistered_records:
+            reasons.add(REASON_CLASS_UNREGISTERED)
+    if shared_with:
+        reasons.add(REASON_FUEL_SHARED)
+    if sharing_unknown:
+        reasons.add(REASON_FUEL_SHARING_UNKNOWN)
+    return reasons
 
 
 def _verdict_of(
     basis: _Basis,
     flow: WorldFlow,
-    unmeasured: frozenset[str],
-    unregistered: bool,
+    unrated: _Unrated,
+    fluids: frozenset[str],
     shared_with: tuple[str, ...],
     sharing_unknown: bool,
 ) -> FuelVerdict:
-    """Decide one class's supply verdict over the flow.
+    """Decide one class's supply verdict over the world's own flow.
 
     Args:
         basis: The class's basis.
-        flow: The supplied flow.
-        unmeasured: The items a machine no flow can measure could make.
-        unregistered: Whether such a machine is of an unregistered class.
+        flow: The world's own flow.
+        unrated: What the records no flow rates do to the supply.
+        fluids: Every item the registry knows as a fluid.
         shared_with: The other built classes sharing one of its fuels.
         sharing_unknown: Whether another built class's fuels are unreadable.
 
     Returns:
         The verdict.
     """
-    reasons = set(basis.reasons)
-    if not flow.complete:
-        reasons.add(REASON_FLOW_INCOMPLETE)
-    if basis.fuels is None and unmeasured:
-        # Fuels nobody could read may be any item the flow does not measure.
-        reasons.add(REASON_SUPPLY_UNMEASURED)
-    if basis.fuels is None and unregistered:
-        reasons.add(REASON_CLASS_UNREGISTERED)
-    if shared_with:
-        reasons.add(REASON_FUEL_SHARED)
-    if sharing_unknown:
-        reasons.add(REASON_FUEL_SHARING_UNKNOWN)
-
+    reasons = _class_reasons(basis, flow, unrated, fluids, shared_with, sharing_unknown)
     steps = list(basis.steps)
-    supplies = _supplies_of(basis, flow, unmeasured, unregistered, reasons, steps)
+    supplies = _supplies_of(basis, flow, unrated, steps)
     pooled: Fraction | None = None if basis.fuels is None else Fraction(0)
-    for _energy, _supply, supply_mw in supplies:
+    for _energy, _supply, supply_mw, line_reasons in supplies:
+        reasons.update(line_reasons)
         pooled = pooled + supply_mw if pooled is not None and supply_mw is not None else None
     if pooled is not None:
         steps.append(_computed(LABEL_POOLED, basis.class_name, pooled))
@@ -1051,7 +1186,7 @@ def _verdict_of(
             steps.append(_computed(LABEL_HEADROOM, basis.class_name, pooled - demand))
 
     lines: list[FuelLine] = []
-    for energy, supply, supply_mw in supplies:
+    for energy, supply, supply_mw, line_reasons in supplies:
         rate = None
         if shortfall is not None and energy.megajoules_per_unit is not None:
             rate = shortfall * _SIXTY / energy.megajoules_per_unit
@@ -1064,6 +1199,7 @@ def _verdict_of(
                 supply_per_minute=supply,
                 supply_megawatts=supply_mw,
                 shortfall_per_minute=rate,
+                reasons=line_reasons,
             )
         )
 
@@ -1088,205 +1224,198 @@ def _verdict_of(
     )
 
 
-def _is_generator(
-    class_name: str,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-) -> bool:
-    """Whether a class is a generator class: either namespace carries it."""
-    return class_name in generators or class_name in accepted_fuels
-
-
-def _makers_of(
-    recipes: Mapping[str, Recipe],
-    extractable: Mapping[str, frozenset[str] | None],
-    candidates: Iterable[str],
-) -> dict[str, frozenset[str] | None]:
-    """Per candidate item, every machine class that could make it.
+def _extractable_by(extractor: Extractor, items: Mapping[str, Item]) -> frozenset[str] | None:
+    """What one extractor can yield, by ruling (d), or None when unknowable.
 
     Args:
-        recipes: The recipe namespace - each recipe's outputs and the classes
-            it is produced in.
-        extractable: Item to every extractor class that can extract it.
-        candidates: The items asked about.
+        extractor: The registry entry.
+        items: The item namespace.
 
     Returns:
-        Per item, the classes a recipe producing it is produced in plus its
-        declared extractors; or None when that set is unknown - the item is not
-        in the extractable input, its entry there is not a frozenset, or a
-        recipe producing it names a producing building that never resolved.
+        Its ``allowed_resources`` when that is a non-empty tuple of names; else
+        every item whose form is one of its ``allowed_forms``; or None when it
+        carries no restriction and a form token the registry did not
+        recognize, which may admit anything.
     """
-    recipe_makers: dict[str, set[str]] = {}
-    unresolved: set[str] = set()
-    for recipe in recipes.values():
-        for output in recipe.outputs:
-            recipe_makers.setdefault(output.item_key, set()).update(recipe.produced_in)
-            if recipe.unresolved_produced_in:
-                unresolved.add(output.item_key)
-    makers: dict[str, frozenset[str] | None] = {}
-    for item_key in candidates:
-        extractors = extractable.get(item_key)
-        if not isinstance(extractors, frozenset) or item_key in unresolved:
-            makers[item_key] = None
-            continue
-        makers[item_key] = frozenset(recipe_makers.get(item_key, ())) | extractors
-    return makers
+    resources = extractor.allowed_resources
+    if type(resources) is tuple and resources and all(type(name) is str for name in resources):
+        return frozenset(resources)
+    if extractor.unrecognized_forms:
+        return None
+    return frozenset(key for key, item in items.items() if item.form in extractor.allowed_forms)
 
 
-def _unmeasurable_classes(
-    machines: WorldMachines,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-) -> frozenset[str]:
-    """The classes of every machine no flow can measure.
+def _recipe_relations(registry: Registry) -> tuple[dict[str, set[str]], frozenset[str]]:
+    """Per producer class, every item its registry recipes name, in or out.
 
     Args:
-        machines: The machines model - the world.
-        generators: The generator namespace.
-        accepted_fuels: The accepted-fuel input.
+        registry: The registry.
 
     Returns:
-        The class of every admitted non-generator machine naming no recipe,
-        and of every record the census counts; an unreadable class is the
-        empty string.
+        Class to the items its recipes name - by a resolved building or an
+        unresolved token of that name - and the items of every recipe one of
+        whose producer tokens names no declared class.
     """
-    classes = {
-        state.class_name
-        for state in machines.machines
-        if state.recipe_class_name is None
-        and not _is_generator(state.class_name, generators, accepted_fuels)
-    }
-    for census in (machines.unadmitted_read_counts, machines.unadmitted_unread_counts):
-        classes.update(class_name for class_name, count in census if count)
-    return frozenset(classes)
+    declared = registry.declared_classes
+    by_class: dict[str, set[str]] = {}
+    orphaned: set[str] = set()
+    for recipe in registry.recipes.values():
+        named = {side.item_key for side in (*recipe.inputs, *recipe.outputs)}
+        producers = (*recipe.produced_in, *recipe.unresolved_produced_in)
+        for producer in producers:
+            by_class.setdefault(producer, set()).update(named)
+        if any(producer not in declared for producer in producers):
+            orphaned |= named
+    return by_class, frozenset(orphaned)
 
 
-def _known_classes(
-    registered: frozenset[str],
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-    recipes: Mapping[str, Recipe],
-    extractable: Mapping[str, frozenset[str] | None],
-) -> frozenset[str]:
-    """Every class some input registers.
-
-    Args:
-        registered: The registered input; anything but a frozenset registers
-            nothing.
-        generators: The generator namespace.
-        accepted_fuels: The accepted-fuel input.
-        recipes: The recipe namespace - each recipe's producing classes.
-        extractable: The extraction input - each item's extractor classes.
-
-    Returns:
-        The union of every class those inputs name.
-    """
-    known: set[str] = set(registered) if isinstance(registered, frozenset) else set()
-    known.update(generators)
-    known.update(accepted_fuels)
-    for recipe in recipes.values():
-        known.update(recipe.produced_in)
-    for extractors in extractable.values():
-        if isinstance(extractors, frozenset):
-            known.update(extractors)
-    return frozenset(known)
-
-
-def _unmeasured_items(
-    classes: frozenset[str],
-    makers: Mapping[str, frozenset[str] | None],
-) -> frozenset[str]:
-    """The items a machine no flow can measure could make.
-
-    Args:
-        classes: The classes of the machines no flow can measure.
-        makers: Per candidate item, the classes that could make it, or None.
-
-    Returns:
-        Every item whose makers are unknown, when any such machine exists, and
-        every item one of those classes could make.
-    """
-    unmeasured: set[str] = set()
-    for item_key, could in makers.items():
-        # Unknown makers: any machine no flow can measure may make the item.
-        hit = bool(classes) if could is None else any(name in could for name in classes)
-        if hit:
-            unmeasured.add(item_key)
-    return frozenset(unmeasured)
-
-
-def _bases_of(
-    machines: WorldMachines,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-    items: Mapping[str, Item],
-) -> tuple[tuple[_Basis, ...], tuple[str, ...]]:
-    """Partition the built generator classes into in scope and out of scope.
-
-    A class is a GENERATOR class when either the generator namespace or the
-    accepted-fuel input carries it; it is BUILT when ``WorldMachines`` admitted
-    an instance of it or its census of unadmitted records counts one.
+def _record_counts(machines: WorldMachines) -> tuple[dict[object, int], dict[object, int]]:
+    """Count the records no flow rates, by class: admitted, then census.
 
     Args:
         machines: The machines model.
-        generators: The generator namespace.
-        accepted_fuels: The accepted-fuel input.
-        items: The item namespace.
+
+    Returns:
+        The admitted machines naming no recipe - generators included - and the
+        census records, each per class. A census count that is not an int is
+        one record, never none; a count not above zero names no record.
+    """
+    admitted: dict[object, int] = {}
+    for state in machines.machines:
+        if state.recipe_class_name is None:
+            admitted[state.class_name] = admitted.get(state.class_name, 0) + 1
+    census: dict[object, int] = {}
+    for pairs in (machines.unadmitted_read_counts, machines.unadmitted_unread_counts):
+        for class_name, count in pairs:
+            records = count if type(count) is int else 1
+            if records > 0:
+                census[class_name] = census.get(class_name, 0) + records
+    return admitted, census
+
+
+def _unrated_of(machines: WorldMachines, registry: Registry) -> _Unrated:
+    """Filter the records no flow rates, by ruling (b), and judge each by (a).
+
+    Args:
+        machines: The machines model.
+        registry: The registry.
+
+    Returns:
+        The items the judged records relate to, whether any relation is
+        unknown, and the unregistered and no-fluid record counts.
+    """
+    declared = registry.declared_classes
+    by_class, orphaned = _recipe_relations(registry)
+    extractors = registry.extractors
+    admitted, census = _record_counts(machines)
+    related: set[str] = set()
+    every_item = False
+    judged = False
+    unregistered = 0
+    no_fluid = 0
+    for population, is_admitted in ((admitted, True), (census, False)):
+        for class_name, records in population.items():
+            if type(class_name) is not str or not class_name:
+                unregistered += records
+                continue
+            evidence = class_name in by_class or class_name in extractors
+            if class_name not in declared:
+                buildable = class_name.lower().startswith(_BUILDABLE_PREFIX)
+                if class_name not in NO_FLUID_UNDECLARED_CLASSES and (is_admitted or buildable):
+                    unregistered += records
+                    continue
+                if not evidence:
+                    no_fluid += records
+                    continue
+            judged = True
+            related |= by_class.get(class_name, set())
+            if class_name in extractors:
+                yields = _extractable_by(extractors[class_name], registry.items)
+                if yields is None:
+                    every_item = True
+                else:
+                    related |= yields
+    if judged:
+        related |= orphaned
+        lost = registry.unknown_groups or any(
+            warning.code in _RECIPE_LOSS_CODES for warning in registry.warnings
+        )
+        every_item = every_item or bool(lost)
+    return _Unrated(
+        related=frozenset(related),
+        every_item=every_item,
+        unregistered_records=unregistered,
+        no_fluid_records=no_fluid,
+    )
+
+
+def _bases_of(
+    machines: WorldMachines, registry: Registry
+) -> tuple[tuple[_Basis, ...], tuple[str, ...]]:
+    """Partition the built generator classes into in scope and out of scope.
+
+    A class is a GENERATOR class when the registry's generator namespace
+    carries it; it is BUILT when ``WorldMachines`` admitted an instance of it or
+    its census of unadmitted records counts one.
+
+    Args:
+        machines: The machines model.
+        registry: The registry.
 
     Returns:
         The in-scope bases sorted by class name, and the out-of-scope classes.
     """
+    generators = registry.generators
+    flagged = frozenset(
+        warning.subject for warning in registry.warnings if warning.code == WARN_UNREADABLE_FUELS
+    )
     admitted: dict[str, list[MachineState]] = {}
     for state in machines.machines:
-        if _is_generator(state.class_name, generators, accepted_fuels):
+        if state.class_name in generators:
             admitted.setdefault(state.class_name, []).append(state)
-    omitted: dict[str, int] = {}
-    for census in (machines.unadmitted_read_counts, machines.unadmitted_unread_counts):
-        for class_name, count in census:
-            if count and _is_generator(class_name, generators, accepted_fuels):
-                omitted[class_name] = omitted.get(class_name, 0) + count
+    _, census = _record_counts(machines)
+    omitted = {
+        class_name: records
+        for class_name, records in census.items()
+        if type(class_name) is str and class_name in generators
+    }
 
     bases: list[_Basis] = []
     out_of_scope: list[str] = []
     for class_name in sorted(set(admitted) | set(omitted)):
-        if _burns_nothing(class_name, generators, accepted_fuels):
+        entry = generators[class_name]
+        fuels, absent = _declared_fuels(class_name, entry, flagged)
+        if absent and _burns_nothing(entry):
             out_of_scope.append(class_name)
             continue
         bases.append(
             _basis_of(
                 class_name,
+                fuels,
+                entry,
                 admitted.get(class_name, []),
                 omitted.get(class_name, 0),
-                generators,
-                accepted_fuels,
-                items,
+                registry.items,
             )
         )
     return tuple(bases), tuple(out_of_scope)
 
 
-def fuel_demand_of(
-    machines: WorldMachines,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-    items: Mapping[str, Item],
-) -> tuple[FuelDemand, ...]:
+def fuel_demand_of(machines: WorldMachines, registry: Registry) -> tuple[FuelDemand, ...]:
     """State what every built fuel generator class burns, claiming nothing about supply.
 
     PURE, AND TOTAL: unknown content is a named reason, never an exception.
 
     Args:
         machines: The machines model - the generators' instances and clocks.
-        generators: The generator namespace, keyed by class name.
-        accepted_fuels: Generator class to its accepted fuels in ``mFuel``
-            order, or None when unreadable.
-        items: The item namespace, for each fuel's energy value and form.
+        registry: The registry - each generator's nameplate and accepted fuels,
+            and each fuel's energy value and form.
 
     Returns:
         One demand per built in-scope class, sorted by class name, audited
         exact on the way out.
     """
-    bases, _ = _bases_of(machines, generators, accepted_fuels, items)
+    bases, _ = _bases_of(machines, registry)
     result = tuple(_demand_of(basis) for basis in bases)
     audit_exact(result, path="fuel_demand")
     return result
@@ -1294,13 +1423,8 @@ def fuel_demand_of(
 
 def fuel_supply_of(
     machines: WorldMachines,
-    generators: Mapping[str, Generator],
-    accepted_fuels: Mapping[str, tuple[str, ...] | None],
-    items: Mapping[str, Item],
-    recipes: Mapping[str, Recipe],
+    registry: Registry,
     *,
-    extractable: Mapping[str, frozenset[str] | None],
-    registered: frozenset[str],
     raw_items: Iterable[str] = (),
 ) -> WorldFuel:
     """Decide, per built fuel generator class, whether the world's own flow supplies its fuel.
@@ -1312,19 +1436,8 @@ def fuel_supply_of(
     Args:
         machines: The machines model - the whole world: generators, recipe
             machines, recipe-less machines and the census.
-        generators: The generator namespace, keyed by class name.
-        accepted_fuels: Generator class to its accepted fuels in ``mFuel``
-            order, or None when unreadable; absent declares no fuel.
-        items: The item namespace, for each fuel's energy value and form.
-        recipes: The recipe namespace, keyed by class name - the flow's rates,
-            and which classes each item's recipes are produced in.
-        extractable: Item to every extractor class that can extract it, as a
-            frozenset - empty when no extractor can. An item absent, or mapped
-            to anything else, has unknown makers.
-        registered: Every class the caller's registry declares, as a
-            frozenset - classes the other inputs name need not repeat. A
-            machine no flow can measure of any other class, or of an
-            unreadable one, is :data:`REASON_CLASS_UNREGISTERED`.
+        registry: The registry - generators, items, recipes, extractors, the
+            declared classes and the warnings that say what it could not read.
         raw_items: Items declared supplied from outside the world's machines,
             handed to the flow; an accepted fuel among them is
             :data:`REASON_SUPPLY_RAW`.
@@ -1334,15 +1447,14 @@ def fuel_supply_of(
     """
     flow = flow_of(
         tuple(state for state in machines.machines if state.recipe_class_name is not None),
-        recipes,
+        registry.recipes,
         raw_items=raw_items,
     )
-    bases, out_of_scope = _bases_of(machines, generators, accepted_fuels, items)
-    candidates = set(items) | {key for basis in bases for key in basis.fuels or ()}
-    classes = _unmeasurable_classes(machines, generators, accepted_fuels)
-    known = _known_classes(registered, generators, accepted_fuels, recipes, extractable)
-    unregistered = any(not class_name or class_name not in known for class_name in classes)
-    unmeasured = _unmeasured_items(classes, _makers_of(recipes, extractable, candidates))
+    bases, out_of_scope = _bases_of(machines, registry)
+    unrated = _unrated_of(machines, registry)
+    fluids = frozenset(
+        key for key, item in registry.items.items() if item.is_fluid and item.form in FLUID_FORMS
+    )
     readable = {basis.class_name: set(basis.fuels) for basis in bases if basis.fuels is not None}
     unread = {basis.class_name for basis in bases if basis.fuels is None}
     verdicts: list[FuelVerdict] = []
@@ -1356,13 +1468,15 @@ def fuel_supply_of(
             )
         )
         sharing_unknown = any(other != basis.class_name for other in unread)
-        verdicts.append(_verdict_of(basis, flow, unmeasured, unregistered, shared, sharing_unknown))
+        verdicts.append(_verdict_of(basis, flow, unrated, fluids, shared, sharing_unknown))
     result = WorldFuel(
         verdicts=tuple(verdicts),
         demands=tuple(_demand_of(basis) for basis in bases),
         out_of_scope=out_of_scope,
         exclusions=EXCLUSIONS,
         flow_complete=flow.complete,
+        no_fluid_record_count=unrated.no_fluid_records,
+        unregistered_record_count=unrated.unregistered_records,
     )
     audit_exact(result, path="fuel")
     return result
