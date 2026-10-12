@@ -46,6 +46,7 @@ WAKEUP_NOTES.md	authored	CS-1165	first-add:root
 clockspeed/__init__.py	authored	CS-1165	first-add:root
 clockspeed/advisor/__init__.py	authored	CS-1165	first-add:root
 clockspeed/advisor/advise.py	authored	CS-500	stamped
+clockspeed/advisor/build.py	authored	CS-1288	stamped
 clockspeed/advisor/cards.py	authored	CS-500	stamped
 clockspeed/advisor/ledger.py	authored	CS-500	stamped
 clockspeed/advisor/rules/__init__.py	authored	CS-1165	first-add:root
@@ -259,10 +260,12 @@ shell/test/verdict.test.js	authored	CS-602	first-add:CS-602
 shell/test/window.test.js	authored	CS-602	first-add:CS-602
 tests/__init__.py	authored	CS-1165	first-add:root
 tests/advisor/__init__.py	authored	CS-500	stamped
+tests/advisor/build_fixtures.py	authored	CS-1288	stamped
 tests/advisor/rules/__init__.py	authored	CS-500	stamped
 tests/advisor/rules/test_fuel.py	authored	CS-1285	stamped
 tests/advisor/rules/test_power.py	authored	CS-500	stamped
 tests/advisor/test_advise.py	authored	CS-500	stamped
+tests/advisor/test_build.py	authored	CS-1288	stamped
 tests/advisor/test_cards.py	authored	CS-500	stamped
 tests/advisor/test_every_rule_fires.py	authored	CS-500	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped

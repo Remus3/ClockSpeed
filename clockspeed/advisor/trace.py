@@ -5,7 +5,8 @@ WHAT THIS MODULE OWNS (BOOTSTRAP.md sections 5.1 and 5.4). A rule is a
 REQUIRES, and a pure ``evaluate`` function. :func:`run_rule` runs one spec
 against one :class:`WorldInputs` and returns a :class:`Trace` - every input read
 with its source, every number computed, every alternative rejected with its
-reason, every comparison left indeterminate by an incomplete input, every unmet
+reason, every comparison left indeterminate - by an incomplete input, or by a
+figure priced at a build other than the save's own - every unmet
 precondition, and the recommendation if one survived. Cards
 consume the trace; nothing renders advice from anywhere else, which is why
 tier 3 cannot drift from tiers 1 and 2.
@@ -129,7 +130,10 @@ class StepKind(enum.Enum):
     COMPUTED = "computed"
     ALTERNATIVE_REJECTED = "alternative-rejected"
     #: CS-1271: a comparison the rule could not make because an input is a
-    #: floor or absent. NOT a verdict - the world may still hold the problem.
+    #: floor or absent - or, since CS-1288, because a figure is priced at the
+    #: pinned build rather than the save build's own (see
+    #: ``clockspeed/advisor/build.py``). NOT a verdict - the world may still
+    #: hold the problem.
     VERDICT_INDETERMINATE = "verdict-indeterminate"
     PRECONDITION_UNMET = "precondition-unmet"
     RULE_FIRED = "rule-fired"
@@ -433,10 +437,12 @@ class RuleContext:
         self._reject(alternative, reason)
 
     def indeterminate(self, alternative: str, reason: str) -> None:
-        """Record one comparison an incomplete input left undecided, and why.
+        """Record one comparison the inputs left undecided, and why.
 
-        Unlike :meth:`reject`, this is not a verdict: a trace carrying it does
-        not settle its rule (CS-1271).
+        Either an input is incomplete - a floor or absent (CS-1271) - or a
+        figure is priced at a build other than the save's own (CS-1288, through
+        ``clockspeed/advisor/build.py::build_caveat``). Unlike :meth:`reject`,
+        this is not a verdict: a trace carrying it does not settle its rule.
         """
         self._indeterminate(alternative, reason)
 
