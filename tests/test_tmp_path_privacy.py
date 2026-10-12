@@ -311,10 +311,24 @@ def _run_sandbox(root: Path, label: str, *args: str) -> SandboxRun:
     ``PYTEST_ADDOPTS`` is stripped from the child environment on purpose: it
     would silently add flags from the parent session, and "under DEFAULT pytest
     flags" is the literal wording of this item's acceptance.
+
+    ``PYTEST_DEBUG_TEMPROOT`` is then SET, to a scratch root beside the sandbox,
+    rather than inherited or left unset (CS-1320). The leak shape under test is
+    pytest's DEFAULT per-user layout, ``<root>/pytest-of-<user>/pytest-<N>``,
+    which carries the account name on every platform. Unset, the guarded
+    sandbox would run the shipped conftest's own temp-root claim and get a
+    base temp with no ``pytest-of-<user>`` segment, so the account name would
+    reach the report only if some ancestor directory happened to carry it and
+    the redaction arms would go vacuous. A named root makes that claim stand
+    aside, so every arm - control and guarded alike - renders the same
+    default layout whatever the outer suite's own temp layout is.
     """
     env = dict(os.environ)
     for name in ("PYTEST_ADDOPTS", "PYTEST_CURRENT_TEST", "PYTEST_DEBUG_TEMPROOT", "PYTHONPATH"):
         env.pop(name, None)
+    temp_root = root.with_name(root.name + "_temproot")
+    temp_root.mkdir(parents=True, exist_ok=True)
+    env["PYTEST_DEBUG_TEMPROOT"] = str(temp_root)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     completed = subprocess.run(
         [sys.executable, "-m", "pytest", SANDBOX_TEST_FILENAME, *args],
