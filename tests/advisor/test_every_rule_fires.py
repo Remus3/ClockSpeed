@@ -49,23 +49,44 @@ directly because no audit model publishes it yet (CS-1059). The fuel family's
 worlds (CS-1285) are one invented burner class burning one invented liquid,
 every figure the rules recompute worked by hand in :func:`_fuel` so the
 recomputation agrees with it; a fixture that disagreed would end in a
-``rule-error``, which the firing and silent arms both refuse.
+``rule-error``, which the firing and silent arms both refuse. Beside them every
+world offers the three build inputs of a save the pinned build wrote, built by
+the audit's own build check over a synthetic header and sourced to its fields
+(:mod:`tests.advisor.build_fixtures`), the pin read at test time.
+
+EVERY CARD STATES AN OFF-PIN BUILD, WITH NO EXEMPTION (CS-1288, the session
+138 ruling F7). Arm 1: every registered rule declares
+:data:`clockspeed.advisor.build.BUILD_INPUTS`, derived from the registry, so a
+rule added without them reddens by name. Arm 2: for EVERY ``Recommendation``
+return site in every rules module a fixture swapped to a save of the build
+after the pin fires a card whose tier 2 names the mismatch code and both
+builds, and whose rule does not settle; the number of ``Recommendation`` calls
+in each module is pinned to its fixture count, and each fixture is shown to
+reach its own call, so a new return site reddens until a fixture covers it.
+Every firing fixture swapped off the pin still fires and names both builds,
+and every silent fixture swapped off the pin no longer settles its rule.
 """
 
 from __future__ import annotations
 
+import ast
 import dataclasses
+import inspect
 from collections.abc import Callable, Iterable, Mapping
 from fractions import Fraction
-from types import MappingProxyType
+from types import MappingProxyType, ModuleType
 from typing import Any, Final
 
 import pytest
 
+from clockspeed.advisor.advise import settled_rules
+from clockspeed.advisor.build import BUILD_INPUTS, IN_PINNED_CHANGELIST, IN_SAVE_CHANGELIST
 from clockspeed.advisor.cards import Card, card_for
 from clockspeed.advisor.rules import fuel, power, registered_rules
 from clockspeed.advisor.trace import (
     InputValue,
+    Recommendation,
+    RuleContext,
     RuleSpec,
     StepKind,
     Trace,
@@ -73,6 +94,7 @@ from clockspeed.advisor.trace import (
     WorldInputs,
     run_rule,
 )
+from clockspeed.audit.build import WARN_BUILD_MISMATCH
 from clockspeed.audit.fuel import (
     REASON_FLOW_INCOMPLETE,
     UNIT_CUBIC_METRE,
@@ -80,6 +102,7 @@ from clockspeed.audit.fuel import (
     VERDICT_INDETERMINATE,
     VERDICT_REJECT,
 )
+from tests.advisor.build_fixtures import game_pin, off_pin_build_inputs, pinned_build_inputs
 
 #: One zero-argument builder per rule id: the synthetic world to run it on.
 WorldBuilder = Callable[[], WorldInputs]
@@ -104,9 +127,24 @@ _VALUE_MARKER: Final = 918273645
 
 
 def _world(values: Mapping[str, object], unlocks: Iterable[str] = ()) -> WorldInputs:
-    """Wrap invented values as a world, each under a ``synthetic.`` source."""
+    """Wrap invented values as a world, each under a ``synthetic.`` source.
+
+    Beside them the world offers the build inputs of a save the pinned build
+    wrote (CS-1288), the pin read at test time and each sourced to its audit
+    field. A name both offer is refused, never overwritten.
+    """
     offered = {name: InputValue(value, "synthetic." + name) for name, value in values.items()}
-    return WorldInputs(values=offered, unlocks=frozenset(unlocks))
+    build = pinned_build_inputs(game_pin())
+    clash = sorted(set(offered) & set(build))
+    assert clash == []
+    return WorldInputs(values={**offered, **build}, unlocks=frozenset(unlocks))
+
+
+def _off_pin(world: WorldInputs) -> WorldInputs:
+    """The same world, its build inputs swapped for a save of the build after the pin."""
+    return WorldInputs(
+        values={**world.values, **off_pin_build_inputs(game_pin())}, unlocks=world.unlocks
+    )
 
 
 def _power(
@@ -448,3 +486,226 @@ def test_each_tier3_line_carries_its_own_steps_content(rule_id: str) -> None:
             plants += 1
     steps = len(trace.steps)
     assert plants > steps, f"{rule_id}: {plants} plants over {steps} steps grades only subjects"
+
+
+# ---------------------------------------------------------------------------
+# CS-1288 ruling F7, arm 1: every registered rule declares the build inputs
+# ---------------------------------------------------------------------------
+
+
+def lacking_build_inputs(specs: Iterable[RuleSpec]) -> list[str]:
+    """The rule ids of the specs that do not declare every build input, sorted."""
+    return sorted(spec.rule_id for spec in specs if not set(BUILD_INPUTS) <= set(spec.inputs))
+
+
+def test_every_registered_rule_declares_the_build_inputs() -> None:
+    lacking = lacking_build_inputs(registered_rules())
+    assert lacking == [], "no build inputs declared: " + ", ".join(lacking)
+
+
+def _never(ctx: RuleContext) -> Recommendation | None:
+    del ctx
+    return None
+
+
+def test_a_rule_added_without_the_build_inputs_is_named_by_the_census() -> None:
+    planted = RuleSpec(
+        rule_id="synthetic.unbuilt", domain="synthetic", inputs=(), unlocks=(), evaluate=_never
+    )
+    before = lacking_build_inputs(registered_rules())
+    after = lacking_build_inputs((*registered_rules(), planted))
+    named = after == sorted({*before, planted.rule_id})
+    assert named
+
+
+@pytest.mark.parametrize("table_name", ["FIRING", "SILENT"])
+def test_every_fixture_world_offers_the_pinned_build(table_name: str) -> None:
+    pin = game_pin()
+    table = FIRING if table_name == "FIRING" else SILENT
+    for rule_id, make in sorted(table.items()):
+        world = make()
+        on_pin = (
+            world.values[IN_SAVE_CHANGELIST].value,
+            world.values[IN_PINNED_CHANGELIST].value,
+        ) == (pin, pin)
+        assert on_pin, rule_id
+
+
+# ---------------------------------------------------------------------------
+# CS-1288 ruling F7, arm 2: every Recommendation return site, off the pin
+# ---------------------------------------------------------------------------
+
+#: The rules modules arm 2 covers, by short name.
+RULE_MODULES: Final[dict[str, ModuleType]] = {"fuel": fuel, "power": power}
+
+#: One firing world per ``Recommendation`` return site, by rules module: the
+#: rule it fires, its builder, and the words only that site's headline opens
+#: with.
+RETURN_SITES: Final[dict[str, dict[str, tuple[str, WorldBuilder, str]]]] = {
+    "fuel": {
+        "demand": (fuel.DEMAND_RULE.rule_id, _fuel_undecided, "Plan 20.00 m3"),
+        "supply": (fuel.SUPPLY_RULE.rule_id, _fuel_short, "Supply 10.00 m3"),
+    },
+    "power": {
+        "draw-incomplete": (
+            power.GAP_RULE.rule_id,
+            FIRING[power.GAP_RULE.rule_id],
+            "Resolve 3 unpriced machines",
+        ),
+        "headroom-brownout": (
+            power.HEADROOM_RULE.rule_id,
+            lambda: _power(
+                complete=True,
+                lower=Fraction(90),
+                upper=Fraction(110),
+                exact=False,
+                generation=Fraction(100),
+            ),
+            "Add up to 10.00 MW",
+        ),
+        "headroom-exact": (
+            power.HEADROOM_RULE.rule_id,
+            FIRING[power.HEADROOM_RULE.rule_id],
+            "Add 20.00 MW",
+        ),
+        "headroom-bracket": (
+            power.HEADROOM_RULE.rule_id,
+            lambda: _power(
+                complete=True,
+                lower=Fraction(120),
+                upper=Fraction(130),
+                exact=False,
+                generation=Fraction(100),
+            ),
+            "Add between 20.00 and 30.00 MW",
+        ),
+    },
+}
+
+_SITES: Final = [(module, site) for module in sorted(RETURN_SITES) for site in RETURN_SITES[module]]
+
+
+def _callee(func: ast.expr) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def recommendation_calls(module: ModuleType) -> list[tuple[int, int]]:
+    """The first and last line of every ``Recommendation(...)`` call in a module, sorted."""
+    tree = ast.parse(inspect.getsource(module))
+    return sorted(
+        (node.lineno, node.end_lineno or node.lineno)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _callee(node.func) == "Recommendation"
+    )
+
+
+def test_every_registered_rule_lives_in_a_covered_module() -> None:
+    covered = sorted(module.__name__ for module in RULE_MODULES.values())
+    registered = sorted({spec.evaluate.__module__ for spec in registered_rules()})
+    assert registered == covered
+
+
+@pytest.mark.parametrize("module_name", sorted(RULE_MODULES))
+def test_the_recommendation_calls_are_pinned_to_the_fixture_count(module_name: str) -> None:
+    calls = len(recommendation_calls(RULE_MODULES[module_name]))
+    fixtures = len(RETURN_SITES[module_name])
+    assert calls == fixtures, f"{module_name}: {calls} return sites, {fixtures} fixtures"
+
+
+@pytest.mark.parametrize("module_name", sorted(RULE_MODULES))
+def test_each_return_site_fixture_reaches_its_own_call(
+    module_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each fixture builds its card through a different ``Recommendation`` call."""
+    module = RULE_MODULES[module_name]
+    spans = recommendation_calls(module)
+    reached: list[int] = []
+
+    def recording(**fields: Any) -> Recommendation:
+        frame = inspect.currentframe()
+        caller = None if frame is None else frame.f_back
+        reached.append(-1 if caller is None else caller.f_lineno)
+        return Recommendation(**fields)
+
+    monkeypatch.setattr(module, "Recommendation", recording)
+    hit: list[tuple[int, int]] = []
+    for site, (rule_id, make, _headline) in sorted(RETURN_SITES[module_name].items()):
+        reached.clear()
+        fired = run_rule(_spec(rule_id), make()).recommendation is not None
+        assert fired, site
+        calls = len(reached)
+        assert calls == 1, site
+        within = [span for span in spans if span[0] <= reached[0] <= span[1]]
+        count = len(within)
+        assert count == 1, site
+        hit.append(within[0])
+    every = sorted(hit) == spans
+    assert every, f"{module_name}: a return site no fixture reaches"
+
+
+@pytest.mark.parametrize(("module_name", "site"), _SITES, ids=[f"{m}:{s}" for m, s in _SITES])
+def test_every_return_site_names_both_builds_off_the_pin(module_name: str, site: str) -> None:
+    pin = game_pin()
+    rule_id, make, headline = RETURN_SITES[module_name][site]
+    spec = _spec(rule_id)
+    on = run_rule(spec, make())
+    off = run_rule(spec, _off_pin(make()))
+    on_card = card_for(on)
+    off_card = card_for(off)
+    assert on_card is not None, site
+    assert off_card is not None, site
+
+    reached = on_card.tier1.startswith(headline)
+    assert reached, f"{site} does not reach its own return site"
+    clean = "build-" not in on_card.tier2
+    assert clean, f"{site} names a build on the pin"
+    named = all(
+        words in off_card.tier2
+        for words in (WARN_BUILD_MISMATCH, f"pinned build {pin},", f"save build {pin + 1}")
+    )
+    assert named, f"{site} does not name the code and both builds off the pin"
+    same_headline = off_card.tier1 == on_card.tier1
+    assert same_headline, site
+    settled_on = rule_id in settled_rules((on,))
+    settled_off = rule_id in settled_rules((off,))
+    assert settled_on, f"{site} does not settle on the pin"
+    assert not settled_off, f"{site} settles off the pin"
+
+
+def _mismatch(pin: int) -> str:
+    """The tier 2 suffix of a save written by the build after the pin."""
+    return (
+        f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin}, not the save build {pin + 1}"
+    )
+
+
+@pytest.mark.parametrize("rule_id", sorted(FIRING), ids=sorted(FIRING))
+def test_the_firing_fixture_off_the_pin_still_fires_and_names_both_builds(rule_id: str) -> None:
+    trace = run_rule(_spec(rule_id), _off_pin(FIRING[rule_id]()))
+    card = card_for(trace)
+    assert card is not None, f"{rule_id} did not fire off the pin"
+    faults = _fault_count(trace)
+    assert faults == 0, rule_id
+    named = card.tier2.endswith(_mismatch(game_pin()))
+    assert named, f"{rule_id} does not name both builds off the pin"
+    settled = rule_id in settled_rules((trace,))
+    assert not settled, f"{rule_id} settles off the pin"
+
+
+@pytest.mark.parametrize("rule_id", sorted(SILENT), ids=sorted(SILENT))
+def test_the_silent_fixture_off_the_pin_is_not_settled(rule_id: str) -> None:
+    spec = _spec(rule_id)
+    on = run_rule(spec, SILENT[rule_id]())
+    off = run_rule(spec, _off_pin(SILENT[rule_id]()))
+    silent = off.recommendation is None and card_for(off) is None
+    assert silent, f"{rule_id} recommended off the pin"
+    faults = _fault_count(off)
+    assert faults == 0, rule_id
+    settled_on = rule_id in settled_rules((on,))
+    settled_off = rule_id in settled_rules((off,))
+    assert settled_on, f"{rule_id} does not settle on the pin"
+    assert not settled_off, f"{rule_id} settles off the pin"

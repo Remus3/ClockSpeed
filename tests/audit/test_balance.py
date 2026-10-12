@@ -53,6 +53,7 @@ from types import MappingProxyType
 import pytest
 
 from clockspeed.audit import balance, machines, network, placement
+from clockspeed.data import version
 from clockspeed.data.registry import Building, Generator
 from clockspeed.save import objects, world
 from clockspeed.save.header import SaveHeader
@@ -351,13 +352,19 @@ def world_network(*, belts: bool = False) -> network.WorldNetwork:
 def header() -> SaveHeader:
     """Build a synthetic header carrying no operator-authored string at all.
 
+    THE BUILD IS THE PIN, read when this is called (CS-1288, the session 134
+    ruling and the session 138 ruling F8): every world built here is the
+    pinned build's own, never a typed changelist.
+
     Returns:
         The header.
     """
+    pin = version.GAME_CHANGELIST
+    assert pin is not None, "the pinned build did not parse"
     return SaveHeader(
         header_version=14,
         save_version=52,
-        build_changelist=0,
+        build_changelist=pin,
         map_name="SyntheticMap",
         world_token=SYNTHETIC_TOKEN,
         play_duration=0,
@@ -368,6 +375,19 @@ def header() -> SaveHeader:
         body_offset=0,
         warnings=(),
     )
+
+
+def test_the_shared_header_declares_the_pinned_build() -> None:
+    """CS-1288 ruling F8: every world built over this header is the pinned build's own.
+
+    The advisor prices every world it is handed against the pin, so a shared
+    builder declaring any other build would put a build-mismatch caveat on
+    every card of every suite that borrows it.
+    """
+    pin = version.GAME_CHANGELIST
+    assert pin is not None, "the pinned build did not parse"
+    declared = header().build_changelist
+    assert declared == pin
 
 
 def record(class_name: str, index: int) -> objects.ObjectRecord:

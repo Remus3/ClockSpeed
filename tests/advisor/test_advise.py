@@ -11,7 +11,8 @@ is a new world - every card ``new`` - and never a failure.
 
 TWO LOADS OF ONE SAVE, SYNTHETICALLY. No save is read. A "load" is what the
 layers below hand the advisor after reading one: the header's world token plus
-the audit power balance plus the unlock state. The second load reuses the token
+the audit power balance plus the unlock state, beside the build inputs of a
+save the pinned build wrote (CS-1288). The second load reuses the token
 and moves the numbers, which is what a later save of the same world looks like
 to this layer; the stores are rebuilt from the directory alone, which is what a
 process restart looks like.
@@ -22,6 +23,8 @@ Assertions that grade a token's absence bind the verdict to a scalar first.
 
 from __future__ import annotations
 
+import ast
+import inspect
 from fractions import Fraction
 from pathlib import Path
 
@@ -63,6 +66,7 @@ from clockspeed.audit.balance import (
     WorldStarvation,
 )
 from clockspeed.save.world import UnlockState
+from tests.advisor.build_fixtures import game_pin, pinned_build_inputs
 
 TOKEN_A = "AAAAsyntheticTokenAAAA"  # noqa: S105 - a synthetic world token, not a secret
 TOKEN_B = "BBBBsyntheticTokenBBBB"  # noqa: S105 - a synthetic world token, not a secret
@@ -134,12 +138,24 @@ def _unlocks(*schematics: str) -> UnlockState:
     )
 
 
+def _pinned(world: WorldInputs) -> WorldInputs:
+    """The world beside the build inputs of a save the pinned build wrote (CS-1288).
+
+    Every registered rule reads the three build inputs first, so a world
+    offering none would stop every rule on ``input-missing``. The pin is read
+    at test time, and :func:`advise_mod.merged_inputs` refuses a name both
+    groups offer.
+    """
+    values = advise_mod.merged_inputs(world.values, pinned_build_inputs(game_pin()))
+    return WorldInputs(values=values, unlocks=world.unlocks)
+
+
 def _first_load() -> WorldInputs:
     """A world whose clocked draw has three unpriced machines: the gap rule fires."""
     balance = _balance(
         lower=Fraction(50), upper=Fraction(60), complete=False, unread=2, unmodeled=1
     )
-    return world_inputs(balance, _unlocks())
+    return _pinned(world_inputs(balance, _unlocks()))
 
 
 def _second_load() -> WorldInputs:
@@ -152,7 +168,7 @@ def _second_load() -> WorldInputs:
         unmodeled=2,
         considered=17,
     )
-    return world_inputs(balance, _unlocks())
+    return _pinned(world_inputs(balance, _unlocks()))
 
 
 def _headroom_world(generation: Fraction) -> WorldInputs:
@@ -162,7 +178,7 @@ def _headroom_world(generation: Fraction) -> WorldInputs:
     values[power.IN_PRODUCTION_AVAILABLE] = InputValue(True, "synthetic.production_available")
     values[power.IN_PRODUCTION_COMPLETE] = InputValue(True, "synthetic.production_complete")
     values[power.IN_GENERATION] = InputValue(generation, "synthetic.generation")
-    return WorldInputs(values=values, unlocks=frozenset())
+    return _pinned(WorldInputs(values=values, unlocks=frozenset()))
 
 
 def _stores(directory: Path) -> tuple[Ledger, MuteStore]:
@@ -336,6 +352,31 @@ def test_the_world_inputs_adapter_offers_the_balance_and_the_unlock_keys() -> No
     assert offers_balance
     offers_keys = world.unlocks == frozenset({"schematic:/Synthetic/Schematic_TierTwo"})
     assert offers_keys
+
+
+@pytest.mark.parametrize("function", ["inputs_of", "advise_world"])
+def test_the_pin_is_a_required_keyword_of_every_world_entry_point(function: str) -> None:
+    """CS-1288 ruling F2: the caller names the pin; the advisor never imports it.
+
+    No default, so a surface that forgets the pin fails to call rather than
+    pricing every world as uncompared; keyword-only, so it is named at every
+    call. The module never imports the pin's owner, ``clockspeed.data.version``.
+    """
+    parameter = inspect.signature(getattr(advise_mod, function)).parameters.get("pinned_changelist")
+    assert parameter is not None, function
+    keyword_only = parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    required = parameter.default is inspect.Parameter.empty
+    assert keyword_only, function
+    assert required, function
+    tree = ast.parse(Path(inspect.getfile(advise_mod)).read_bytes().decode("ascii"))
+    imported = [
+        f"{node.module}.{alias.name}" if isinstance(node, ast.ImportFrom) else alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import | ast.ImportFrom)
+        for alias in node.names
+    ]
+    pin_owner = sorted(name for name in imported if name.startswith("clockspeed.data.version"))
+    assert pin_owner == []
 
 
 def test_advise_never_writes_either_store(tmp_path: Path) -> None:

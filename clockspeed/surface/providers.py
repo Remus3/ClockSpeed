@@ -467,6 +467,9 @@ class StoreAdviceSource:
     registry to :func:`clockspeed.advisor.advise.advise_world`, which composes
     the audit models, runs the rules and resolves every card. No surface module
     imports ``clockspeed.audit``; the advisor is the layer that consumes it.
+    The one thing handed over beside them is the pin,
+    ``clockspeed.data.version.GAME_CHANGELIST`` as it reads at call time, so
+    every card on a save another build wrote names both builds (CS-1288).
 
     :meth:`advice` ONLY READS. The ledger and the mute store are read whole in
     one open, and every writer replaces the file atomically, so a read never
@@ -517,6 +520,7 @@ class StoreAdviceSource:
             return advise_world(
                 world,
                 registry,
+                pinned_changelist=version.GAME_CHANGELIST,
                 ledger=Ledger(self._directory),
                 mutes=MuteStore(self._directory),
                 now=self._clock(),

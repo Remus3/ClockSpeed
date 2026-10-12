@@ -70,6 +70,7 @@ import pytest
 
 from clockspeed.audit import inventory as inventory_model
 from clockspeed.audit import placement as placement_model
+from clockspeed.data import version
 from clockspeed.data.registry import Extractor, Item, Registry
 from clockspeed.save import usmap, world
 from clockspeed.save.header import masked_token
@@ -377,14 +378,34 @@ def canary_world() -> world.WorldModel:
 def empty_world() -> world.WorldModel:
     """Drive a record-free synthetic save through the REAL loader.
 
+    THE BUILD IS THE PIN, read when this is called (CS-1288, the session 134
+    ruling and the session 138 ruling F8), so advice served over this world
+    is priced at its own build. ``tests/save/synthetic.py``'s default is left
+    alone.
+
     Returns:
         The loaded world, which carries no placement at all.
     """
+    pin = version.GAME_CHANGELIST
+    assert pin is not None, "the pinned build did not parse"
     return world.load_world_from_bytes(
-        synthetic.build_save(objects=()),
+        synthetic.build_save(header_kwargs={"build_changelist": pin}, objects=()),
         property_map=empty_property_map(),
         body_layout=world.BODY_LAYOUT_FLAT,
     )
+
+
+def test_the_empty_world_declares_the_pinned_build() -> None:
+    """CS-1288 ruling F8: the shared empty world is the pinned build's own.
+
+    The advice surface prices a served world against the pin, so a shared
+    builder declaring any other build would put a build-mismatch caveat on
+    every card served over it.
+    """
+    pin = version.GAME_CHANGELIST
+    assert pin is not None, "the pinned build did not parse"
+    declared = empty_world().header.build_changelist
+    assert declared == pin
 
 
 def miner_extractor(

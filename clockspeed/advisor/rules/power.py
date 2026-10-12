@@ -72,6 +72,17 @@ population with no rule-side change. Its own count,
 neither card's reason names it the way :data:`IN_ELIDED` names an elided
 clock.
 
+EVERY FIGURE IS PRICED AT THE PINNED BUILD (CS-1288). The clocked draw and
+the generation capacity are both priced from registry nameplates, and the
+registry is the PINNED build's. So each rule declares
+:data:`clockspeed.advisor.build.BUILD_INPUTS` ahead of its own inputs and
+calls :func:`clockspeed.advisor.build.build_caveat` FIRST, before any other
+read, on every path: tier 3 opens with the three build reads, and off the pin
+one indeterminate step follows them, so no off-pin run - firing or silent -
+settles its rule (the session 138 ruling F1). EVERY recommendation appends the
+returned caveat to its reason, so an off-pin card names both builds on tier 2
+(ruling F7); the headline is left alone (ruling F5), and no figure changes.
+
 UNLOCKS. Neither rule declares an unlock key. "Add generation" names no
 building and no recipe, and the first generator is available before any
 schematic is bought, so any key declared here would be invented rather than
@@ -91,6 +102,7 @@ from __future__ import annotations
 from fractions import Fraction
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.advisor.build import BUILD_INPUTS, build_caveat
 from clockspeed.advisor.cards import render_value
 from clockspeed.advisor.trace import InputValue, Recommendation, RuleContext, RuleSpec
 
@@ -212,6 +224,7 @@ def _generation_is_a_measurement(ctx: RuleContext) -> bool:
 
 def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
     """Recommend generation when the clocked draw can exceed it."""
+    caveat = build_caveat(ctx)
     if not _read_flag(ctx, IN_COMPLETE):
         ctx.indeterminate(
             "compare the draw against generation",
@@ -240,7 +253,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
             action=f"Add up to {_mw(short_upper)} MW of generation",
             reason=(
                 f"Generation of {_mw(generation)} MW sits inside the clocked draw of "
-                f"{_mw(lower)} to {_mw(upper)} MW, a brownout risk{elided}"
+                f"{_mw(lower)} to {_mw(upper)} MW, a brownout risk{elided}{caveat}"
             ),
         )
     ctx.reject(
@@ -253,7 +266,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
             action=f"Add {_mw(short_upper)} MW of generation",
             reason=(
                 f"Clocked draw of {_mw(upper)} MW exceeds "
-                f"{_mw(generation)} MW of generation{elided}"
+                f"{_mw(generation)} MW of generation{elided}{caveat}"
             ),
         )
     ctx.reject(
@@ -265,7 +278,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
         action=f"Add between {_mw(short_lower)} and {_mw(short_upper)} MW of generation",
         reason=(
             f"Clocked draw of {_mw(lower)} to {_mw(upper)} MW exceeds "
-            f"{_mw(generation)} MW of generation{elided}"
+            f"{_mw(generation)} MW of generation{elided}{caveat}"
         ),
     )
 
@@ -284,6 +297,7 @@ def _omission(omitted: int) -> str:
 
 def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
     """Name an incomplete clocked draw and say its total is a floor."""
+    caveat = build_caveat(ctx)
     if _read_flag(ctx, IN_COMPLETE):
         ctx.reject("name unpriced machines", "every machine the audit considered has a priced draw")
         return None
@@ -315,7 +329,7 @@ def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
             f"The clocked draw is a floor of {_mw(lower)} to {_mw(upper)} MW: "
             f"{_plural(unread, 'clock', 'clocks')} unread and "
             f"{_plural(unmodeled, 'machine', 'machines')} unmodeled, of {considered}"
-            f"{_omission(omitted)}{elided}"
+            f"{_omission(omitted)}{elided}{caveat}"
         ),
     )
 
@@ -324,6 +338,7 @@ HEADROOM_RULE: Final = RuleSpec(
     rule_id="power.headroom",
     domain=DOMAIN,
     inputs=(
+        *BUILD_INPUTS,
         IN_COMPLETE,
         IN_PRODUCTION_AVAILABLE,
         IN_PRODUCTION_COMPLETE,
@@ -341,6 +356,7 @@ GAP_RULE: Final = RuleSpec(
     rule_id="power.draw_incomplete",
     domain=DOMAIN,
     inputs=(
+        *BUILD_INPUTS,
         IN_COMPLETE,
         IN_CONSIDERED,
         IN_UNREAD,

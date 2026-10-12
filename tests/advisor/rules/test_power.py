@@ -10,20 +10,29 @@ Graded here (BOOTSTRAP.md sections 5.3 and 5.4, CS-500 acceptance):
   if its total were a measurement;
 - every rule declares every input it reads, and reads every input it declares;
 - the registry is sorted by rule id and refuses a duplicated id;
-- tier 3 of a fired card is the whole derivation, snapshot-checked.
+- tier 3 of a fired card is the whole derivation, snapshot-checked;
+- CS-1288: every rule declares the three build inputs and reads them first,
+  and off the pin every card names both builds on tier 2 while its headline
+  and every computed figure stay the on-pin run's own, and no run - firing or
+  silent - settles its rule.
 
 Every balance here is hand-built from the audit dataclasses. No save, no game
 install, no registry slice: every number and every class name is invented.
+The build inputs are the audit's own over a synthetic header whose build is
+the pin read at test time, or the pin plus one off it - never a typed
+changelist (the session 134 ruling, and the session 138 ruling F8).
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from fractions import Fraction
 
 import pytest
 
 from clockspeed.advisor.advise import settled_rules
+from clockspeed.advisor.build import BUILD_INPUTS
 from clockspeed.advisor.cards import Card, card_for
 from clockspeed.advisor.rules import build_registry, registered_rules
 from clockspeed.advisor.rules import power as power_rules
@@ -38,6 +47,7 @@ from clockspeed.advisor.rules.power import (
     balance_inputs,
 )
 from clockspeed.advisor.trace import (
+    InputValue,
     RuleSpec,
     StepKind,
     Trace,
@@ -52,6 +62,17 @@ from clockspeed.audit.balance import (
     WorldProduction,
     WorldStarvation,
 )
+from clockspeed.audit.build import WARN_BUILD_MISMATCH, WARN_BUILD_UNCOMPARED
+from tests.advisor.build_fixtures import (
+    build_check,
+    game_pin,
+    off_pin_build_inputs,
+    pinned_build_inputs,
+    uncompared_build_inputs,
+)
+
+#: One save's build inputs, as :mod:`tests.advisor.build_fixtures` builds them.
+BuildInputs = dict[str, InputValue]
 
 
 def _balance(  # noqa: PLR0913 - one keyword per field the rules read
@@ -113,14 +134,31 @@ def _balance(  # noqa: PLR0913 - one keyword per field the rules read
     )
 
 
-def _world(balance: WorldBalance, generation: Fraction | None) -> WorldInputs:
-    """Offer the balance through the adapter (CS-1271).
+def _offered(balance: WorldBalance, build: BuildInputs | None = None) -> WorldInputs:
+    """Offer the balance through the adapter beside one save's build inputs (CS-1288).
+
+    ``build`` defaults to a save written by the pinned build itself, the pin
+    read at test time. The two name sets are asserted disjoint, so the build
+    inputs never overwrite a balance input.
+    """
+    values = balance_inputs(balance)
+    offered = pinned_build_inputs(game_pin()) if build is None else build
+    overlap = sorted(set(values) & set(offered))
+    assert overlap == []
+    values.update(offered)
+    return WorldInputs(values=values, unlocks=frozenset())
+
+
+def _world(
+    balance: WorldBalance, generation: Fraction | None, build: BuildInputs | None = None
+) -> WorldInputs:
+    """Offer the balance through the adapter (CS-1271), beside the build inputs.
 
     A complete production model of ``generation`` MW is attached when one is given.
     """
     if generation is not None:
         balance = replace(balance, production=_production(generation, complete=True))
-    return WorldInputs(values=balance_inputs(balance), unlocks=frozenset())
+    return _offered(balance, build)
 
 
 def _overdraw_world() -> WorldInputs:
@@ -391,40 +429,46 @@ def test_registry_runs_through_the_engine_in_rule_id_order() -> None:
     assert [trace.rule_id for trace in traces] == sorted(t.rule_id for t in traces)
 
 
-EXPECTED_TIER3 = "\n".join(
-    [
-        "Derivation of rule power.headroom (domain power)",
-        "Advice: Add between 20.00 and 30.00 MW of generation",
-        "Because: Clocked draw of 120.00 to 130.00 MW exceeds 100.00 MW of generation",
-        "Target milestone: none",
-        "Steps:",
-        "  1. Read power.clocked_draw.complete = true from audit.balance.clocked_draw.complete",
-        "  2. Read power.production_available = true from audit.balance.production_available",
-        "  3. Read power.production_complete = true from"
-        " audit.balance.production.production_complete",
-        "  4. Read power.clocked_draw.lower_mw = 120.00 from"
-        " audit.balance.clocked_draw.lower_megawatts",
-        "  5. Read power.clocked_draw.upper_mw = 130.00 from"
-        " audit.balance.clocked_draw.upper_megawatts",
-        "  6. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
-        "  7. Read power.clocked_draw.elided_clock_count = 0 from"
-        " audit.balance.clocked_draw.elided_clock_count",
-        "  8. Read power.generation_mw = 100.00 from audit.balance.production.capacity_megawatts",
-        "  9. Computed shortfall at the lower draw bound in MW = 20.00",
-        "  10. Computed shortfall at the upper draw bound in MW = 30.00",
-        "  11. Rejected hold generation as built: the draw exceeds generation"
-        " at both ends of the clock bracket",
-        "  12. Rejected quote one shortfall figure: the clock law brackets the draw,"
-        " so the shortfall is a range",
-        "  13. Rule power.headroom fired for power:generation-headroom",
-    ]
-)
+def expected_tier3(pin: int) -> str:
+    """The whole on-pin derivation of the overdraw card, the pin read at test time."""
+    return "\n".join(
+        [
+            "Derivation of rule power.headroom (domain power)",
+            "Advice: Add between 20.00 and 30.00 MW of generation",
+            "Because: Clocked draw of 120.00 to 130.00 MW exceeds 100.00 MW of generation",
+            "Target milestone: none",
+            "Steps:",
+            f"  1. Read build.save_changelist = {pin} from audit.build.save_changelist",
+            f"  2. Read build.pinned_changelist = {pin} from audit.build.pinned_changelist",
+            "  3. Read build.warnings = {} from audit.build.warnings",
+            "  4. Read power.clocked_draw.complete = true from audit.balance.clocked_draw.complete",
+            "  5. Read power.production_available = true from audit.balance.production_available",
+            "  6. Read power.production_complete = true from"
+            " audit.balance.production.production_complete",
+            "  7. Read power.clocked_draw.lower_mw = 120.00 from"
+            " audit.balance.clocked_draw.lower_megawatts",
+            "  8. Read power.clocked_draw.upper_mw = 130.00 from"
+            " audit.balance.clocked_draw.upper_megawatts",
+            "  9. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
+            "  10. Read power.clocked_draw.elided_clock_count = 0 from"
+            " audit.balance.clocked_draw.elided_clock_count",
+            "  11. Read power.generation_mw = 100.00 from"
+            " audit.balance.production.capacity_megawatts",
+            "  12. Computed shortfall at the lower draw bound in MW = 20.00",
+            "  13. Computed shortfall at the upper draw bound in MW = 30.00",
+            "  14. Rejected hold generation as built: the draw exceeds generation"
+            " at both ends of the clock bracket",
+            "  15. Rejected quote one shortfall figure: the clock law brackets the draw,"
+            " so the shortfall is a range",
+            "  16. Rule power.headroom fired for power:generation-headroom",
+        ]
+    )
 
 
 def test_tier3_snapshot_shows_the_whole_derivation() -> None:
     trace: Trace = run_rule(HEADROOM_RULE, _overdraw_world())
     card = Card(trace)
-    assert card.tier3 == EXPECTED_TIER3
+    assert card.tier3 == expected_tier3(game_pin())
 
 
 # CS-1271: the adapter offers the audit's own generation figure and its
@@ -454,7 +498,7 @@ def _produced(capacity: Fraction, *, complete: bool) -> WorldInputs:
     """A complete 120-130 MW clocked draw over an audit-computed production model."""
     base = _balance(lower=Fraction(120), upper=Fraction(130), exact=False)
     balance = replace(base, production=_production(capacity, complete=complete))
-    return WorldInputs(values=balance_inputs(balance), unlocks=frozenset())
+    return _offered(balance)
 
 
 def test_the_adapter_offers_generation_and_its_completeness() -> None:
@@ -522,6 +566,7 @@ def _headroom_trace(
     production_complete: bool = True,
     draw_complete: bool = True,
     unread: int = 0,
+    build: BuildInputs | None = None,
 ) -> Trace:
     """Run the headroom rule over one balance carrying an optional production model."""
     base = _balance(
@@ -534,8 +579,7 @@ def _headroom_trace(
     )
     if capacity is not None:
         base = replace(base, production=_production(capacity, complete=production_complete))
-    world = WorldInputs(values=balance_inputs(base), unlocks=frozenset())
-    return run_rule(HEADROOM_RULE, world)
+    return run_rule(HEADROOM_RULE, _offered(base, build))
 
 
 def test_an_incomplete_production_reject_is_not_settled() -> None:
@@ -581,3 +625,217 @@ def test_a_definite_reject_over_complete_inputs_is_still_settled() -> None:
     settled = HEADROOM_RULE.rule_id in settled_rules((trace,))
     assert silent
     assert settled
+
+
+# CS-1288: every power card states an off-pin build (the session 138 rulings
+# F1, F5 and F7). Every figure these rules state is priced from a registry
+# nameplate - the clocked draw and the generation capacity both - so a save
+# written by another build is priced at the pinned build's nameplate. Off the
+# pin, tier 2 says so and names both builds, tier 1 and every computed figure
+# stay exactly the on-pin run's, and the run - firing or silent - records one
+# indeterminate step right after the three build reads, so it never settles
+# its rule and the ledger never completes a card on it.
+
+#: The alternative an off-pin run records as indeterminate, spelled here
+#: independently of ``clockspeed/advisor/build.py``.
+NAMEPLATE_ALTERNATIVE = "present a nameplate figure as the save build's own"
+
+
+def _mismatch(pin: int) -> str:
+    """The tier 2 suffix of a save written by the build after the pin."""
+    return (
+        f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin}, not the save build {pin + 1}"
+    )
+
+
+def _detail(save: int, pin: int | None) -> str:
+    """The audit's own fixed detail line for the one warning a check raises."""
+    warnings = build_check(save, pin).warnings
+    count = len(warnings)
+    assert count == 1
+    return warnings[0].detail
+
+
+def _computed_steps(trace: Trace) -> list[tuple[str, object]]:
+    return [(s.subject, s.value) for s in trace.steps if s.kind is StepKind.COMPUTED]
+
+
+#: One world per ``Recommendation`` return site in ``power.py``, with the
+#: headline words only that site writes, so each row provably reaches its own.
+POWER_SITES: dict[str, tuple[RuleSpec, Callable[[BuildInputs], WorldInputs], str]] = {
+    "headroom-brownout": (
+        HEADROOM_RULE,
+        lambda build: _world(
+            _balance(lower=Fraction(90), upper=Fraction(110), exact=False), Fraction(100), build
+        ),
+        "Add up to 10.00 MW",
+    ),
+    "headroom-exact": (
+        HEADROOM_RULE,
+        lambda build: _world(
+            _balance(lower=Fraction(120), upper=Fraction(120), exact=True), Fraction(100), build
+        ),
+        "Add 20.00 MW",
+    ),
+    "headroom-bracket": (
+        HEADROOM_RULE,
+        lambda build: _world(
+            _balance(lower=Fraction(120), upper=Fraction(130), exact=False), Fraction(100), build
+        ),
+        "Add between 20.00 and 30.00 MW",
+    ),
+    "draw-incomplete": (
+        GAP_RULE,
+        lambda build: _world(
+            _balance(
+                lower=Fraction(120),
+                upper=Fraction(130),
+                exact=False,
+                complete=False,
+                unread=2,
+                unmodeled=1,
+            ),
+            Fraction(100),
+            build,
+        ),
+        "Resolve 3 unpriced machines",
+    ),
+}
+
+#: One world per power rule in which it declines over complete inputs - a
+#: definite verdict on the pin.
+POWER_SILENT: dict[str, tuple[RuleSpec, Callable[[BuildInputs], WorldInputs]]] = {
+    "headroom-covered": (
+        HEADROOM_RULE,
+        lambda build: _world(
+            _balance(lower=Fraction(80), upper=Fraction(90), exact=False), Fraction(100), build
+        ),
+    ),
+    "draw-complete": (
+        GAP_RULE,
+        lambda build: _world(
+            _balance(lower=Fraction(120), upper=Fraction(130), exact=False), Fraction(100), build
+        ),
+    ),
+}
+
+
+@pytest.mark.parametrize("spec", RULES, ids=lambda spec: spec.rule_id)
+def test_every_power_rule_declares_the_build_inputs_first(spec: RuleSpec) -> None:
+    leading = spec.inputs[: len(BUILD_INPUTS)]
+    assert leading == BUILD_INPUTS
+    repeated = len(spec.inputs) != len(set(spec.inputs))
+    assert not repeated
+
+
+@pytest.mark.parametrize("site", sorted(POWER_SITES))
+def test_an_off_pin_card_names_both_builds_and_moves_nothing_else(site: str) -> None:
+    pin = game_pin()
+    spec, make, headline = POWER_SITES[site]
+    on = run_rule(spec, make(pinned_build_inputs(pin)))
+    off = run_rule(spec, make(off_pin_build_inputs(pin)))
+    on_card = card_for(on)
+    off_card = card_for(off)
+    assert on_card is not None
+    assert off_card is not None
+
+    assert on_card.tier1.startswith(headline)
+    assert "build-" not in on_card.tier2
+    assert off_card.tier1 == on_card.tier1
+    assert off_card.tier2 == on_card.tier2 + _mismatch(pin)
+    assert off_card.id == on_card.id
+    assert _computed_steps(off) == _computed_steps(on)
+    assert spec.rule_id in settled_rules((on,))
+    assert spec.rule_id not in settled_rules((off,))
+
+
+@pytest.mark.parametrize("site", sorted(POWER_SITES))
+def test_the_off_pin_indeterminate_step_follows_the_three_build_reads(site: str) -> None:
+    pin = game_pin()
+    spec, make, _headline = POWER_SITES[site]
+    trace = run_rule(spec, make(off_pin_build_inputs(pin)))
+
+    kinds = [s.kind for s in trace.steps[:4]]
+    assert kinds == [*[StepKind.INPUT_READ] * 3, StepKind.VERDICT_INDETERMINATE]
+    assert tuple(s.subject for s in trace.steps[:3]) == BUILD_INPUTS
+    build_steps = [
+        (s.subject, s.reason)
+        for s in trace.steps
+        if s.kind is StepKind.VERDICT_INDETERMINATE and s.subject == NAMEPLATE_ALTERNATIVE
+    ]
+    assert build_steps == [(NAMEPLATE_ALTERNATIVE, _detail(pin + 1, pin))]
+
+
+@pytest.mark.parametrize("site", sorted(POWER_SILENT))
+def test_an_off_pin_silent_rule_is_not_settled(site: str) -> None:
+    pin = game_pin()
+    spec, make = POWER_SILENT[site]
+    on = run_rule(spec, make(pinned_build_inputs(pin)))
+    off = run_rule(spec, make(off_pin_build_inputs(pin)))
+
+    assert on.recommendation is None
+    assert off.recommendation is None
+    rejected_on = [s.subject for s in on.steps if s.kind is StepKind.ALTERNATIVE_REJECTED]
+    rejected_off = [s.subject for s in off.steps if s.kind is StepKind.ALTERNATIVE_REJECTED]
+    assert rejected_off == rejected_on
+    assert rejected_on != []
+    assert spec.rule_id in settled_rules((on,))
+    assert spec.rule_id not in settled_rules((off,))
+
+
+def test_an_off_pin_silent_headroom_over_a_floor_records_both_reasons() -> None:
+    """The draw floor's own indeterminate step survives beside the build's."""
+    pin = game_pin()
+    trace = _headroom_trace(
+        lower=Fraction(500),
+        upper=Fraction(500),
+        capacity=Fraction(75),
+        draw_complete=False,
+        unread=1,
+        build=off_pin_build_inputs(pin),
+    )
+
+    undecided = [s.subject for s in trace.steps if s.kind is StepKind.VERDICT_INDETERMINATE]
+    assert trace.recommendation is None
+    assert undecided == [NAMEPLATE_ALTERNATIVE, "compare the draw against generation"]
+    assert HEADROOM_RULE.rule_id not in settled_rules((trace,))
+
+
+@pytest.mark.parametrize("site", sorted(POWER_SITES))
+def test_with_no_pin_a_card_names_the_uncompared_build_never_a_mismatch(site: str) -> None:
+    pin = game_pin()
+    spec, make, _headline = POWER_SITES[site]
+    on_card = card_for(run_rule(spec, make(pinned_build_inputs(pin))))
+    trace = run_rule(spec, make(uncompared_build_inputs(pin)))
+    card = card_for(trace)
+    assert on_card is not None
+    assert card is not None
+
+    expected = (
+        f"; {WARN_BUILD_UNCOMPARED}: the save build {pin} was never compared,"
+        " as no pinned build exists"
+    )
+    assert card.tier2 == on_card.tier2 + expected
+    assert WARN_BUILD_MISMATCH not in card.tier2
+    assert spec.rule_id not in settled_rules((trace,))
+
+
+def test_an_off_pin_tier3_shows_both_builds_and_the_indeterminate_step() -> None:
+    pin = game_pin()
+    on = Card(run_rule(HEADROOM_RULE, _overdraw_world()))
+    off_world = _world(
+        _balance(lower=Fraction(120), upper=Fraction(130), exact=False),
+        Fraction(100),
+        off_pin_build_inputs(pin),
+    )
+    lines = Card(run_rule(HEADROOM_RULE, off_world)).tier3.splitlines()
+
+    save_line = f"  1. Read build.save_changelist = {pin + 1} from audit.build.save_changelist"
+    pin_line = f"  2. Read build.pinned_changelist = {pin} from audit.build.pinned_changelist"
+    assert len(lines) == len(on.tier3.splitlines()) + 1
+    assert lines[2] == f"Because: {on.tier2}{_mismatch(pin)}"
+    assert lines[5] == save_line
+    assert lines[6] == pin_line
+    assert lines[7].startswith(f'  3. Read build.warnings = {{"{WARN_BUILD_MISMATCH}": ')
+    assert lines[7].endswith(" from audit.build.warnings")
+    assert lines[8] == f"  4. Indeterminate {NAMEPLATE_ALTERNATIVE}: {_detail(pin + 1, pin)}"

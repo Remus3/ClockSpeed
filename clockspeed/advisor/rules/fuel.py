@@ -86,6 +86,18 @@ modelled; a firing card's tier 3 reads the audit's exclusion lines and records
 them as out of scope. A firing card offered no exclusion line is a
 ``rule-error``: the out-of-scope statement is part of the advice.
 
+EVERY FIGURE IS PRICED AT THE PINNED BUILD (CS-1288). Each nameplate, so
+each demand, burn, shortfall and rate, is the PINNED build's. So each spec
+declares :data:`clockspeed.advisor.build.BUILD_INPUTS` ahead of its own
+:data:`SUPPLY_INPUTS` or :data:`DEMAND_INPUTS` - the read-all helper reads
+only the rule's own tuple, so no name is read twice - and each rule calls
+:func:`clockspeed.advisor.build.build_caveat` FIRST, on every path: tier 3
+opens with the three build reads, and off the pin one indeterminate step
+follows them, so no off-pin run - firing or silent - settles its rule (the
+session 138 ruling F1). EVERY recommendation appends the returned caveat to
+its reason, so an off-pin card names both builds on tier 2 (ruling F7); the
+headline is left alone (ruling F5), and no figure changes.
+
 UNLOCKS. Neither rule declares an unlock key, on the grounds
 ``clockspeed/advisor/rules/power.py`` states for the headroom rule: the advice
 names no building or recipe to unlock, so a declared key would be invented.
@@ -105,6 +117,7 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.advisor.build import BUILD_INPUTS, build_caveat
 from clockspeed.advisor.cards import render_value
 from clockspeed.advisor.trace import InputValue, Recommendation, RuleContext, RuleSpec
 from clockspeed.audit.fuel import (
@@ -157,7 +170,8 @@ _AUDIT_PREFIX: Final = "audit.fuel."
 _CLASS_NAME_SOURCE: Final = "registry.generators.display_name"
 _FUEL_NAME_SOURCE: Final = "registry.items.display_name"
 
-#: Every input the supply rule declares, in the order it reads them.
+#: The supply rule's own inputs, in the order it reads them - after the three
+#: build inputs its spec declares ahead of them (CS-1288).
 SUPPLY_INPUTS: Final = (
     IN_CLASSES,
     IN_VERDICTS,
@@ -182,8 +196,9 @@ SUPPLY_INPUTS: Final = (
     IN_FUEL_NAMES,
 )
 
-#: Every input the demand rule declares, in the order it reads them. No
-#: supply, pooled, shortfall or headroom figure is among them.
+#: The demand rule's own inputs, in the order it reads them - after the three
+#: build inputs its spec declares ahead of them (CS-1288). No supply, pooled,
+#: shortfall or headroom figure is among them.
 DEMAND_INPUTS: Final = (
     IN_CLASSES,
     IN_VERDICTS,
@@ -602,6 +617,7 @@ def _reject(ctx: RuleContext, values: Mapping[str, object], key: str) -> None:
 
 def _evaluate_supply(ctx: RuleContext) -> Recommendation | None:
     """Recommend more fuel for every class whose pooled supply falls short of its demand."""
+    caveat = build_caveat(ctx)
     values = _read_all(ctx, SUPPLY_INPUTS)
     classes = _classes(values)
     if not classes:
@@ -638,7 +654,7 @@ def _evaluate_supply(ctx: RuleContext) -> Recommendation | None:
             f"{generators} demand {demand} MW but the pooled supply of every accepted fuel"
             f" yields {pooled} MW: {render_value(shortfalls[key])} MW short, which is"
             f" {rate} {unit} of {fuel_name} per minute alone"
-            f"{_others(len(fired) - 1, 'short')}{_elision(values, fired)}"
+            f"{_others(len(fired) - 1, 'short')}{_elision(values, fired)}{caveat}"
         ),
     )
 
@@ -675,6 +691,7 @@ def _burns(ctx: RuleContext, values: Mapping[str, object], key: str) -> list[tup
 
 def _evaluate_demand(ctx: RuleContext) -> Recommendation | None:
     """State the nameplate burn of every class whose supply has no verdict."""
+    caveat = build_caveat(ctx)
     values = _read_all(ctx, DEMAND_INPUTS)
     classes = _classes(values)
     if not classes:
@@ -715,14 +732,14 @@ def _evaluate_demand(ctx: RuleContext) -> Recommendation | None:
         )
     _exclusions(ctx, values)
     return Recommendation(
-        subject_key=_subject(SUBJECT_DEMAND_PREFIX, fired), action=action, reason=reason
+        subject_key=_subject(SUBJECT_DEMAND_PREFIX, fired), action=action, reason=reason + caveat
     )
 
 
 SUPPLY_RULE: Final = RuleSpec(
     rule_id="power.fuel_supply",
     domain=DOMAIN,
-    inputs=SUPPLY_INPUTS,
+    inputs=(*BUILD_INPUTS, *SUPPLY_INPUTS),
     unlocks=(),
     evaluate=_evaluate_supply,
 )
@@ -730,7 +747,7 @@ SUPPLY_RULE: Final = RuleSpec(
 DEMAND_RULE: Final = RuleSpec(
     rule_id="power.fuel_demand",
     domain=DOMAIN,
-    inputs=DEMAND_INPUTS,
+    inputs=(*BUILD_INPUTS, *DEMAND_INPUTS),
     unlocks=(),
     evaluate=_evaluate_demand,
 )

@@ -9,8 +9,18 @@ layers. :func:`world_inputs` is the adapter from the audit power balance and
 the unlock state to those inputs, :func:`inputs_of` composes that balance
 from a world model and a registry through the audit constructors (CS-1270),
 adds the fuel audit's inputs over the same machines model (CS-1285 slice D)
-through :func:`merged_inputs`, and :func:`advise_world` is the one call a
-surface makes over a world it holds.
+and the build check's (CS-1288) through :func:`merged_inputs`, and
+:func:`advise_world` is the one call a surface makes over a world it holds.
+
+THE PIN IS A PARAMETER, NEVER AN IMPORT (CS-1288, the session 138 ruling F2).
+Every figure a rule prices from a nameplate is the PINNED build's, so
+:func:`inputs_of` hands the audit's build check the pin and offers its three
+inputs (:func:`clockspeed.advisor.build.build_inputs`); every rule reads them
+first and, off the pin, names both builds on its card and settles nothing.
+The pin is a REQUIRED keyword of :func:`inputs_of` and :func:`advise_world`
+with no default: this module never imports the pin's owner,
+``clockspeed.data.version``, and a caller that forgets the pin fails to call
+rather than pricing silently.
 
 THE TWO LAYERS, BOTH CONSULTED, NEVER MERGED (CLAUDE.md section 7).
 
@@ -70,6 +80,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.advisor.build import build_inputs
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import registered_rules
@@ -85,6 +96,7 @@ from clockspeed.advisor.trace import (
     unlock_keys,
 )
 from clockspeed.audit.balance import balance_of
+from clockspeed.audit.build import build_check_of
 from clockspeed.audit.fuel import fuel_supply_of
 from clockspeed.audit.machines import machines_of
 from clockspeed.audit.network import network_of
@@ -222,7 +234,9 @@ def merged_inputs(*groups: Mapping[str, InputValue]) -> dict[str, InputValue]:
     return merged
 
 
-def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
+def inputs_of(
+    model: WorldModel, registry: Registry, *, pinned_changelist: int | None
+) -> WorldInputs:
     """Build the rule inputs for one parsed world against one registry (CS-1270).
 
     Composes the audit models the power balance needs - placement, machines
@@ -239,15 +253,21 @@ def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
     none: a world model declares no item supplied from outside its machines,
     and inventing one would mark a fuel unmeasured that the flow measures.
 
+    THE BUILD CHECK (CS-1288) holds the model's header build beside the pin it
+    is handed, and its three inputs are merged beside the other two groups
+    the same way. Every registered rule reads them first.
+
     Args:
         model: The world model the surface holds.
         registry: The normalized registry.
+        pinned_changelist: The pinned build's changelist, or None when the pin
+            did not parse - never imported here (ruling F2).
 
     Returns:
         The rule inputs.
 
     Raises:
-        ValueError: the balance and the fuel adapter offer one input name.
+        ValueError: two adapters offer one input name.
     """
     machines = machines_of(model)
     balance = balance_of(
@@ -259,7 +279,8 @@ def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
     )
     balanced = world_inputs(balance, model.unlocks)
     fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
-    return WorldInputs(values=merged_inputs(balanced.values, fuel), unlocks=balanced.unlocks)
+    build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
+    return WorldInputs(values=merged_inputs(balanced.values, fuel, build), unlocks=balanced.unlocks)
 
 
 def advise(
@@ -313,8 +334,11 @@ def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
     ``input-refused``, ``precondition-unmet`` or ``verdict-indeterminate``
     step - or any kind not yet classified - means the rule raised, was
     refused an input, was never evaluated, or could not decide over an
-    incomplete input. Its silence says nothing about the world, so
-    its cards may not be completed (CS-1268, CLAUDE.md non-negotiable 7).
+    incomplete input or over a figure priced at a build other than the
+    save's own (CS-1288: an off-pin or uncompared build records one
+    ``verdict-indeterminate`` step, ``clockspeed/advisor/build.py``). Its
+    silence says nothing about the world, so its cards may not be completed
+    (CS-1268, CLAUDE.md non-negotiable 7).
     """
     return frozenset(
         trace.rule_id
@@ -373,6 +397,7 @@ def advise_world(
     model: WorldModel,
     registry: Registry,
     *,
+    pinned_changelist: int | None,
     ledger: Ledger,
     mutes: MuteStore,
     now: int,
@@ -385,6 +410,8 @@ def advise_world(
     Args:
         model: The world model the surface holds.
         registry: The normalized registry.
+        pinned_changelist: The pinned build's changelist, or None when the pin
+            did not parse - the caller's, never imported here (CS-1288).
         ledger: The per-world ledger.
         mutes: The global per-rule mute store.
         now: The current instant, injected.
@@ -395,4 +422,5 @@ def advise_world(
     Raises:
         clockspeed.advisor.ledger.StoreError: as :func:`advise` raises it.
     """
-    return advise(model.token, inputs_of(model, registry), ledger=ledger, mutes=mutes, now=now)
+    world = inputs_of(model, registry, pinned_changelist=pinned_changelist)
+    return advise(model.token, world, ledger=ledger, mutes=mutes, now=now)
