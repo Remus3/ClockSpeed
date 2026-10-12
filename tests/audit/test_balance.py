@@ -2443,6 +2443,89 @@ def test_a_present_clock_is_never_overridden_by_the_elision_mark(class_name: str
 
 
 # ---------------------------------------------------------------------------
+# CS-1298 seam: the clock-capability test is ONE public predicate
+# ---------------------------------------------------------------------------
+#
+# The flow kept its own copy of the elided-clock test and drifted from the
+# balance's after CS-1281 - that drift is CS-1298. The cure is one owner: the
+# balance publishes the test as a function and every reader imports it. These
+# arms grade the function's whole truth table, and prove the clocked draw
+# decides a fixed clock THROUGH it, so an inline copy left behind reddens.
+
+
+@pytest.mark.parametrize(
+    ("class_name", "expected"),
+    [
+        pytest.param(FIXED_WHOLE, True, id="clockable-true"),
+        pytest.param(FIXED_CLOCK_CLASS, False, id="clockable-false"),
+        pytest.param(UNKNOWN_CLOCK_CLASS, True, id="clockable-none"),
+        pytest.param(NOT_IN_REGISTRY, True, id="no-registry-entry"),
+    ],
+)
+def test_the_clock_capability_predicate_reads_only_a_declared_false(
+    class_name: str, expected: bool
+) -> None:
+    """Only an entry declaring False has no clock to elide; None stays unknown.
+
+    The registry carries a False entry beside every row, so a predicate that
+    reads any entry but the asked class's - or reads a missing entry as False -
+    answers a row wrongly. ``is`` and not ``==``: the answer is a bool.
+    """
+    assert balance.clock_is_elidable(class_name, clockability_registry()) is expected
+
+
+@pytest.mark.parametrize(
+    "class_name", [FIXED_WHOLE, FIXED_CLOCK_CLASS, UNKNOWN_CLOCK_CLASS, NOT_IN_REGISTRY]
+)
+def test_no_registry_at_all_leaves_every_clock_elidable(class_name: str) -> None:
+    """A caller holding no registry knows no capability, so nothing is fixed.
+
+    The same reading a missing entry gets: an unknown is never read as False.
+    """
+    assert balance.clock_is_elidable(class_name, None) is True
+
+
+def test_the_clock_capability_predicate_is_published() -> None:
+    """The flow imports it, so it is part of the module's stated surface."""
+    assert "clock_is_elidable" in balance.__all__
+
+
+def test_the_clocked_draw_decides_a_fixed_clock_through_the_public_predicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invert the predicate and the draw follows it: one owner, no inline copy.
+
+    The registry says :data:`FIXED_WHOLE` is clockable and
+    :data:`FIXED_CLOCK_CLASS` is not. A stub answering the opposite must flip
+    both groups, and must be asked with each class and the very mapping the
+    draw was given. A draw that kept its own inline test ignores the stub and
+    reports the registry's answer instead.
+    """
+    table = clockability_registry()
+    asked: list[tuple[str, Mapping[str, Building] | None]] = []
+
+    def inverted(class_name: str, buildings: Mapping[str, Building] | None) -> bool:
+        asked.append((class_name, buildings))
+        return class_name == FIXED_CLOCK_CLASS
+
+    monkeypatch.setattr(balance, "clock_is_elidable", inverted)
+    result = balance.clocked_draw_of(
+        world_machines(elided(FIXED_WHOLE), elided(FIXED_CLOCK_CLASS)), table
+    )
+
+    groups = {group.class_name: group for group in result.contributions}
+    assert (groups[FIXED_WHOLE].clock_fixed, groups[FIXED_WHOLE].clock_elided) == (True, False)
+    assert groups[FIXED_WHOLE].reason == balance._FIXED_CLOCK_REASON  # noqa: SLF001
+    assert (groups[FIXED_CLOCK_CLASS].clock_fixed, groups[FIXED_CLOCK_CLASS].clock_elided) == (
+        False,
+        True,
+    )
+    assert result.elided_clock_count == 1
+    assert [name for name, _held in asked] == [FIXED_WHOLE, FIXED_CLOCK_CLASS]
+    assert all(held is table for _name, held in asked)
+
+
+# ---------------------------------------------------------------------------
 # CS-1280: a tagless consumer on a CLEAN payload is priced at its class default
 # ---------------------------------------------------------------------------
 #

@@ -40,7 +40,8 @@ machine whose registry entry declares ``Building.clockable`` False is priced at
 the reference clock - its only clock - and is never counted in
 :attr:`WorldClockedDraw.elided_clock_count`, which counts defaults and nothing
 else. Only a declared False does this: the registry's None is a named unknown,
-so such a machine stays an elided one.
+so such a machine stays an elided one. The test is :func:`clock_is_elidable`,
+published so every reader of an elided clock asks the same one (CS-1298).
 
 A PRODUCTION BOOST IS A NAMED GAP, NEVER A CLOCK-ONLY PRICE (CS-1264). The
 clock law above is the whole of what this module models, and a boost scales
@@ -291,6 +292,7 @@ __all__ = [
     "WorldProduction",
     "WorldStarvation",
     "balance_of",
+    "clock_is_elidable",
     "clocked_draw_of",
     "draw_of",
     "production_of",
@@ -1774,6 +1776,35 @@ def _omissions_of(
     )
 
 
+def clock_is_elidable(class_name: str, buildings: Mapping[str, Building] | None) -> bool:
+    """Whether a machine of this class with no clock tag had its tag elided (CS-1281).
+
+    THE ONE OWNER OF THE CLOCK-CAPABILITY TEST, public so every audit that
+    reads an elided clock asks this rather than keeping a copy - CS-1298 was
+    such a copy, drifted after CS-1281. A machine whose clock tag is absent on
+    a cleanly read payload either had the tag elided at the class default, or
+    is of a class with no clock to write one for. ONLY A DECLARED False says
+    the second: an entry whose ``Building.clockable`` is False cannot be
+    clocked, so its untagged clock is the reference clock by construction and
+    never an elided default. True is elidable. The registry's None is a named
+    unknown and is never read as False, so it is elidable too; a class the
+    registry does not carry, and a caller holding no registry at all, are the
+    same unknown and are read the same way.
+
+    Args:
+        class_name: The machine's built class.
+        buildings: The consumer namespace keyed by bare class name, or None
+            when the caller holds no registry: capability unknown.
+
+    Returns:
+        False only when the registry declares the class cannot be clocked.
+    """
+    if buildings is None:
+        return True
+    entry = buildings.get(class_name)
+    return entry is None or entry.clockable is not False
+
+
 def clocked_draw_of(
     machines: WorldMachines,
     buildings: Mapping[str, Building],
@@ -1817,9 +1848,9 @@ def clocked_draw_of(
         untagged = state.overclock is None and state.overclock_elided
         # CS-1281. A class the registry declares CANNOT be clocked wrote no tag
         # because it has no clock, so it is priced at the reference clock and
-        # never counted elided. Only a declared False: None is the registry's
-        # named unknown and stays elided.
-        fixed = untagged and entry is not None and entry.clockable is False
+        # never counted elided. The test is clock_is_elidable's, the one owner
+        # every reader of an elided clock asks (CS-1298).
+        fixed = untagged and not clock_is_elidable(state.class_name, buildings)
         elided = untagged and not fixed
         read = ELIDED_CLOCK_DEFAULT if elided else REFERENCE_CLOCK if fixed else state.overclock
         outcome = _clocked_outcome(
