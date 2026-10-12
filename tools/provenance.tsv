@@ -337,6 +337,7 @@ tests/ops/test_shared_slots.py	authored	CS-946	first-add:CS-946
 tests/ops/test_shared_slots_staleness.py	authored	CS-1216	stamped
 tests/ops/test_suite_ration.py	authored	CS-993	first-add:CS-993
 tests/ops/test_usage_limit_refusal.py	authored	CS-1178	stamped
+tests/own_temp_root.py	authored	CS-1319	stamped
 tests/pathless_clone_guard.py	authored	CS-885	first-add:CS-885
 tests/pre_push_floor.py	authored	CS-824	stamped
 tests/repr_rendering_guard.py	authored	CS-852	first-add:CS-852
@@ -511,6 +512,7 @@ tests/test_memory_sync_link_derivation.py	authored	CS-892	first-add:CS-892
 tests/test_mypy_gate.py	authored	CS-411	first-add:CS-411
 tests/test_outbound_gate.py	authored	CS-957	first-add:CS-957
 tests/test_outbound_send.py	authored	CS-958	first-add:CS-958
+tests/test_own_temp_root.py	authored	CS-1319	stamped
 tests/test_pathless_clone_agreement.py	authored	CS-885	first-add:CS-885
 tests/test_pointer_claims.py	authored	CS-937	first-add:CS-937
 tests/test_posttooluse_census.py	authored	CS-845	first-add:CS-845
@@ -538,6 +540,7 @@ tests/test_session_start_wiring.py	authored	CS-952	first-add:CS-952
 tests/test_sha_citation_gate.py	authored	CS-1222	stamped
 tests/test_sphinx_roles.py	authored	CS-871	first-add:CS-871
 tests/test_subprocess_timeouts.py	authored	CS-1165	first-add:root
+tests/test_suite_temp_root.py	authored	CS-1319	stamped
 tests/test_third_party_register.py	authored	CS-1165	first-add:root
 tests/test_tier1_budget.py	authored	CS-896	first-add:CS-896
 tests/test_tier1_concentration.py	authored	CS-900	first-add:CS-900

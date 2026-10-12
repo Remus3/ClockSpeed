@@ -20,7 +20,8 @@ nested run that clears it claims a run directory of its own.
     explicit ``--basetemp`` claims nothing: whoever chose the place owns it.
   - A clean finish removes the whole run directory. A FAILED top-level run
     (exit 1, 2 or 3) keeps it, marked :data:`FAILED_NAME` so the next sweep
-    keeps it until :data:`STALE_AFTER_S` on every platform:
+    keeps it until :data:`STALE_AFTER_S` on every platform, the newest
+    :data:`KEEP_FAILED` only:
     ``tmp_path_retention_policy = "failed"`` keeps exactly the failing tests'
     directories, and they are the only record of what a flake wrote. Exit 0,
     4 (usage error) and 5 (nothing collected) remove it. A NESTED run - a
@@ -84,6 +85,11 @@ ALIVE_NAME: Final = ".alive"
 #: Written by a failed top-level run at its finish: its retained tmp_paths are
 #: kept until :data:`STALE_AFTER_S`, on every platform, though its owner is gone.
 FAILED_NAME: Final = ".failed"
+
+#: How many failed runs' directories the sweep keeps, newest first. One failed
+#: whole suite kept about sixteen thousand directories when measured, so a
+#: night of failures must not stack them; the newest is the one investigated.
+KEEP_FAILED: Final = 1
 
 #: The exit statuses whose run keeps its directory: tests failed, interrupted,
 #: internal error. A clean run, a usage error and an empty collection have no
@@ -189,6 +195,29 @@ def _owner_is_gone(run: Path) -> bool:
     return True
 
 
+def _classify(entry: os.DirEntry[str], clock: float) -> tuple[float | None, Path] | None:
+    """One sweep verdict: None to keep, ``(None, run)`` to remove, or ``(age, run)``.
+
+    The last is a failed run inside the stale age: kept or removed by
+    :func:`sweep` once every failed run's age is known.
+    """
+    if not entry.name.startswith(RUN_PREFIX):
+        return None
+    run = Path(entry.path)
+    try:
+        if entry.is_symlink() or entry.is_junction() or not entry.is_dir(follow_symlinks=False):
+            return None
+        age = clock - entry.stat(follow_symlinks=False).st_mtime
+    except OSError:
+        return None
+    if (run / FAILED_NAME).is_file():
+        return (None, run) if age > STALE_AFTER_S else (age, run)
+    if age <= GRACE_S:
+        return None
+    gone = _owner_is_gone(run) if os.name == "nt" else age > STALE_AFTER_S
+    return (None, run) if gone else None
+
+
 def sweep(parent: Path, now: float | None = None) -> int:
     """Remove every run directory under ``parent`` whose owner is gone.
 
@@ -196,7 +225,8 @@ def sweep(parent: Path, now: float | None = None) -> int:
     (:func:`_owner_is_gone`) - whatever its age, so a live run open for hours
     keeps its tmp_paths; elsewhere, older than :data:`STALE_AFTER_S`. A run a
     failed finish marked with :data:`FAILED_NAME` is kept until
-    :data:`STALE_AFTER_S` everywhere. An entry that is a link or a junction is
+    :data:`STALE_AFTER_S` everywhere, and only the newest :data:`KEEP_FAILED`
+    of them. An entry that is a link or a junction is
     never touched: no claim makes one.
 
     Args:
@@ -211,29 +241,23 @@ def sweep(parent: Path, now: float | None = None) -> int:
         entries = list(os.scandir(parent))
     except OSError:
         return 0
-    removed = 0
+    doomed: list[Path] = []
+    failed: list[tuple[float, Path]] = []
     for entry in entries:
-        if not entry.name.startswith(RUN_PREFIX):
+        verdict = _classify(entry, clock)
+        if verdict is None:
             continue
-        run = Path(entry.path)
-        try:
-            if entry.is_symlink() or entry.is_junction() or not entry.is_dir(follow_symlinks=False):
-                continue
-            age = clock - entry.stat(follow_symlinks=False).st_mtime
-        except OSError:
-            continue
-        if age <= GRACE_S:
-            continue
-        if (run / FAILED_NAME).is_file():
-            if age <= STALE_AFTER_S:
-                continue
-        elif os.name == "nt":
-            if not _owner_is_gone(run):
-                continue
-        elif age <= STALE_AFTER_S:
-            continue
+        failed_age, run = verdict
+        if failed_age is None:
+            doomed.append(run)
+        else:
+            failed.append((failed_age, run))
+    failed.sort(key=lambda pair: pair[0])
+    doomed.extend(run for _age, run in failed[KEEP_FAILED:])
+    removed = 0
+    for run in doomed:
         remove_tree(run)
-        if not os.path.lexists(entry.path):
+        if not os.path.lexists(run):
             removed += 1
     return removed
 

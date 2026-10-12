@@ -151,6 +151,8 @@ SUITE_SUPPORT: Final = (
     "tests/conftest.py",
     "tests/git_env.py",
     "tests/xdist_quiet.py",
+    # CS-1319: tests/conftest.py claims the run's own temp root through it.
+    "tests/own_temp_root.py",
     "clockspeed/__init__.py",
     "clockspeed/data/__init__.py",
     "clockspeed/data/locate.py",

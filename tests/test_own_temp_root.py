@@ -384,3 +384,26 @@ def test_a_half_made_run_is_removed_when_its_marker_cannot_open(
     fell_back = run is None and env == {}
     assert fell_back, "a claim whose marker could not open still claimed"
     assert left == [], "a half-made run directory was left behind"
+
+
+def test_only_the_newest_failed_run_is_kept(tmp_path: Path) -> None:
+    """Failed runs do not pile up: the sweep keeps the newest one's record only.
+
+    MEASURED on the first whole suite of this candidate: one failed run kept
+    about sixteen thousand directories, most of them module-scoped temp
+    directories the retention policy never prunes. A night of failing runs
+    inside the stale age would stack those; the newest failure is the one a
+    session investigates.
+    """
+    claims = [own_temp_root.claim(tmp_path, {}) for _ in range(3)]
+    runs = [run for run in claims if run is not None]
+    if len(runs) != len(claims):
+        pytest.fail("a claim owned nothing")
+    for run, age in zip(runs, (GRACE_S + 900, GRACE_S + 600, GRACE_S + 300), strict=True):
+        own_temp_root.finish(run, 1)
+        _age(run.path, age)
+    removed = own_temp_root.sweep(tmp_path)
+    survivors = sorted(path.name for path in tmp_path.iterdir())
+    newest = runs[-1].path.name
+    assert removed == len(runs) - 1, "the sweep did not reclaim every older failed run"
+    assert survivors == [newest], "the sweep kept a failed run other than the newest"

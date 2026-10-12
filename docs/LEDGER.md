@@ -75,6 +75,34 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1319 - CLOSED: the suite runs under its own temp root, so a killed or failed run cannot bloat the shared per-account pytest root (MAIN FIX TEMP-2)
+Verification: `tests/own_temp_root.py::install`, wired by `tests/own_temp_root.py::wrap_configure`
+at the foot of `tests/conftest.py`, claims `<temp>/clockspeed-pytest/run-<pid>-<hex>` and points
+PYTEST_DEBUG_TEMPROOT at it; `tests/own_temp_root.py::finish` removes a clean or nested run's
+directory and marks a failed top-level one's, kept until `STALE_AFTER_S`, the newest `KEEP_FAILED`
+only; `tests/own_temp_root.py::sweep` reclaims a dead run at the next claim, on Windows by its
+held-open `ALIVE_NAME` marker, never a live run, never a run-named link;
+`tests/own_temp_root.py::remove_tree` clears read-only on the entry itself, never follows a link,
+and removes trailing-dot names. Pinned by
+`tests/test_suite_temp_root.py::test_this_run_hands_out_temp_directories_under_the_tree_owned_root`
+and the arms of `tests/test_own_temp_root.py`, among them
+`test_a_live_run_is_never_swept_however_old_it_is`,
+`test_the_sweep_never_reaches_through_a_run_named_link`,
+`test_removal_clears_read_only_entries_and_never_follows_a_link`,
+`test_removal_takes_a_name_the_win32_path_layer_cannot_spell` and
+`test_only_the_newest_failed_run_is_kept`; `tests/test_hook_env_echo.py::SUITE_SUPPORT` carries the
+module into the pre-push sandbox. Measured: `tests/save/test_workdir.py` alone left no entry under
+its pytest root, so its read-only links do not block pytest's cleanup; the trailing-dot files the
+inbox lstat arms plant DO block a plain-path removal, pytest's own included, and are what kept one
+run directory standing. Two adversary rounds on the frozen candidate - round 1 refuted (a live run
+swept past six hours, the liveness probe reaching through a run-named junction, a raise inside
+pytest_configure, a vacuous live-run arm), each repaired red first and mutation-checked; round 2
+held, and its should-fixes (a failed run's record swept by the next claim, an unguarded half-made
+cleanup) are repaired with arms. Accepted residuals: a spawner that scrubs CLOCKSPEED_* makes a
+nested run look top-level, and a controller killed while its xdist workers still run can have its
+directory swept under them. The leftover counts read back after the pushing suite are in the
+outbound answer to MAIN's note.
+
 ### 2026-10-12 - CS-700 - DECISION RECORD (the session 138 merger, recorded by its /done). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. Ruling Q3's reversal fired: the flip block, with the CS-G03 full re-walk, is the next session's first and only work
 Verification: the 2026-10-08 CS-700 DECISION RECORD below, its Q2 and Q3; `docs/item_notes/phase7.md`
 section CS-700, the flip plan; `CS-NEXT-SESSION.txt`, the session 139 hand-off, which carries the
