@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from clockspeed.advisor.rules import power
+from clockspeed.advisor.rules import fuel, power
 from clockspeed.advisor.trace import RuleSpec
 
 
@@ -57,8 +57,11 @@ def build_registry(families: tuple[tuple[RuleSpec, ...], ...]) -> tuple[RuleSpec
     return tuple(sorted(specs, key=lambda spec: spec.rule_id))
 
 
-#: Every family module's rules, listed by hand.
-_FAMILIES: Final = (power.RULES,)
+#: Every family module's rules, listed by hand. The fuel family (CS-1285) is
+#: registered in the same change that has ``clockspeed/advisor/advise.py``
+#: offer its inputs, so no registered rule runs on a world that lacks them
+#: (the slice C ruling G6).
+_FAMILIES: Final = (power.RULES, fuel.RULES)
 
 #: The registered rules, sorted by rule id.
 REGISTRY: Final = build_registry(_FAMILIES)

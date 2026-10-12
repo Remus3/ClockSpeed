@@ -7,8 +7,10 @@ unlock models - and returns an :class:`Advice`: every rule's trace, every card
 a firing trace yields, and each card's resolution against BOTH persistence
 layers. :func:`world_inputs` is the adapter from the audit power balance and
 the unlock state to those inputs, :func:`inputs_of` composes that balance
-from a world model and a registry through the audit constructors (CS-1270), and
-:func:`advise_world` is the one call a surface makes over a world it holds.
+from a world model and a registry through the audit constructors (CS-1270),
+adds the fuel audit's inputs over the same machines model (CS-1285 slice D)
+through :func:`merged_inputs`, and :func:`advise_world` is the one call a
+surface makes over a world it holds.
 
 THE TWO LAYERS, BOTH CONSULTED, NEVER MERGED (CLAUDE.md section 7).
 
@@ -54,8 +56,8 @@ registry and the stores. It opens no save, reads no docs file and renders
 nothing on a surface. COMPOSING THE AUDIT MODELS IS THIS LAYER'S JOB (CS-1270):
 the surface holds a parsed world model and a normalized registry and may not
 reach the audit machines model itself (CS-1189), so :func:`inputs_of` calls
-placement, machines, network and balance here, over the already-parsed model -
-never over save or docs bytes. NO CLOCK: ``now`` is injected. NO LANGUAGE MODEL: every
+placement, machines, network, balance and fuel here, over the already-parsed
+model - never over save or docs bytes. NO CLOCK: ``now`` is injected. NO LANGUAGE MODEL: every
 word of every tier comes from :mod:`clockspeed.advisor.cards`.
 
 PRIVACY. The world token is personal data. It is handed to the ledger and
@@ -71,8 +73,10 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import registered_rules
+from clockspeed.advisor.rules.fuel import fuel_inputs
 from clockspeed.advisor.rules.power import balance_inputs
 from clockspeed.advisor.trace import (
+    InputValue,
     RuleSpec,
     StepKind,
     Trace,
@@ -81,11 +85,14 @@ from clockspeed.advisor.trace import (
     unlock_keys,
 )
 from clockspeed.audit.balance import balance_of
+from clockspeed.audit.fuel import fuel_supply_of
 from clockspeed.audit.machines import machines_of
 from clockspeed.audit.network import network_of
 from clockspeed.audit.placement import placement_of
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from clockspeed.audit.balance import WorldBalance
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import UnlockState, WorldModel
@@ -191,6 +198,30 @@ def world_inputs(balance: WorldBalance, unlocks: UnlockState) -> WorldInputs:
     return WorldInputs(values=balance_inputs(balance), unlocks=unlock_keys(unlocks))
 
 
+def merged_inputs(*groups: Mapping[str, InputValue]) -> dict[str, InputValue]:
+    """Merge the input groups the family adapters offer into one mapping.
+
+    Args:
+        groups: One mapping per adapter, each keyed by input name.
+
+    Returns:
+        A fresh dict holding every group's inputs.
+
+    Raises:
+        ValueError: an input name is offered by more than one group. Refused,
+            never overwritten: a rule would otherwise read another family's
+            figure under its own name, and its derivation would lie. The
+            message names the inputs, never a value.
+    """
+    merged: dict[str, InputValue] = {}
+    for group in groups:
+        clashing = sorted(name for name in group if name in merged)
+        if clashing:
+            raise ValueError("rule inputs offered by more than one adapter: " + ", ".join(clashing))
+        merged.update(group)
+    return merged
+
+
 def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
     """Build the rule inputs for one parsed world against one registry (CS-1270).
 
@@ -201,21 +232,34 @@ def inputs_of(model: WorldModel, registry: Registry) -> WorldInputs:
     model's unlock state to :func:`world_inputs`. Reads no file: both
     arguments are already parsed.
 
+    THE FUEL AUDIT (CS-1285 slice D) runs over the SAME machines model, read
+    once, and its inputs (:func:`clockspeed.advisor.rules.fuel.fuel_inputs`)
+    are merged beside the balance inputs through :func:`merged_inputs`, which
+    refuses a name both offer. ``raw_items`` stays at the audit's default of
+    none: a world model declares no item supplied from outside its machines,
+    and inventing one would mark a fuel unmeasured that the flow measures.
+
     Args:
         model: The world model the surface holds.
         registry: The normalized registry.
 
     Returns:
         The rule inputs.
+
+    Raises:
+        ValueError: the balance and the fuel adapter offer one input name.
     """
+    machines = machines_of(model)
     balance = balance_of(
         placement_of(model),
         registry.buildings,
-        machines_of(model),
+        machines,
         network_of(model),
         generators=registry.generators,
     )
-    return world_inputs(balance, model.unlocks)
+    balanced = world_inputs(balance, model.unlocks)
+    fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
+    return WorldInputs(values=merged_inputs(balanced.values, fuel), unlocks=balanced.unlocks)
 
 
 def advise(

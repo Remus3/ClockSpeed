@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from clockspeed.advisor.advise import settled_rules
 from clockspeed.advisor.ledger import (
     LEDGER_FILENAME,
     MUTES_FILENAME,
@@ -40,7 +41,9 @@ from clockspeed.advisor.ledger import (
     Ledger,
     MuteStore,
 )
-from clockspeed.advisor.rules import power
+from clockspeed.advisor.rules import fuel as fuel_rules
+from clockspeed.advisor.rules import power, registered_rules
+from clockspeed.advisor.trace import StepKind, run_rules
 from clockspeed.save.world import WorldProperties
 from clockspeed.surface import server
 from clockspeed.surface.api import advice as advice_endpoint
@@ -48,12 +51,15 @@ from clockspeed.surface.api import contract, health, pending, routes
 from clockspeed.surface.providers import StoreAdviceSource
 from tests.advisor import test_world_advice as world_fixtures
 from tests.audit import test_balance as balance_fixtures
+from tests.audit import test_fuel as fuel_fixtures
+from tests.audit import test_production as production_fixtures
 from tests.surface import test_map as map_fixtures
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from clockspeed.advisor.advise import Advice
+    from clockspeed.data.registry import Registry
     from clockspeed.save.world import WorldModel
 
 #: The instant the injected clock answers.
@@ -96,11 +102,13 @@ def _gap_id(found: Advice) -> str:
 
 
 def _table(
-    directory: Path, world: WorldModel | None = None
+    directory: Path, world: WorldModel | None = None, registry: Registry | None = None
 ) -> Mapping[tuple[str, str], contract.Handler]:
     built = routes.build_routes(
         map_fixtures._Worlds(world_fixtures.gap_world() if world is None else world),  # noqa: SLF001
-        map_fixtures._Registries(world_fixtures.synthetic_registry()),  # noqa: SLF001
+        map_fixtures._Registries(  # noqa: SLF001
+            world_fixtures.synthetic_registry() if registry is None else registry
+        ),
         _source(directory),
     )
     return {(route.method, route.template): route.handler for route in built}
@@ -745,3 +753,140 @@ def test_a_clean_tagless_consumer_is_priced_over_the_real_route_table(tmp_path: 
     reason = served["reason"]
     assert isinstance(reason, str)
     assert NEVER_CONSIDERED not in reason
+
+
+# ---------------------------------------------------------------------------
+# CS-1285 slice D: GET /api/advice carries the fuel trace, and nothing halts
+# ---------------------------------------------------------------------------
+#
+# THE CLAIM. The fuel family is registered beside ``inputs_of`` offering its
+# inputs (the slice C ruling G6), so over the real route table and the
+# store-reading source, GET /api/advice serves both fuel cards on the
+# synthetic fuel world and GET /api/advice/<id>/derivation serves each one's
+# tier 3, generated from a trace that reads the fuel audit's own fields.
+#
+# THE TRAP. A wiring change can halt a rule that was silent before: a
+# registered rule offered no input stops on ``input-missing``, and an audit
+# that raises takes the whole listing down. So every world the surface tests
+# serve is driven end to end - the listing answers 200, every registered rule
+# leaves exactly one trace, no trace holds an input-missing, input-refused,
+# precondition-unmet or rule-error step, and every rule that settled over the
+# balance-only inputs offered before slice D still settles.
+#
+# The figures are worked by hand in ``tests/advisor/test_world_advice.py``;
+# the display names are the fuel audit fixtures' own invented ones.
+
+#: The step kinds that mean a rule halted rather than decided.
+HALTING_KINDS: Final = frozenset(
+    {
+        StepKind.INPUT_MISSING,
+        StepKind.INPUT_REFUSED,
+        StepKind.PRECONDITION_UNMET,
+        StepKind.RULE_ERROR,
+    }
+)
+
+#: The supply card's headline on the fuel world: 10 m3 a minute short.
+FUEL_SUPPLY_HEADLINE: Final = (
+    f"Supply 10.00 m3 more Synthetic {fuel_fixtures.FUEL} per minute"
+    f" to Synthetic {fuel_fixtures.GEN_FUEL} x1"
+)
+
+#: The demand card's headline on the fuel world: 15 items a minute of coal.
+FUEL_DEMAND_HEADLINE: Final = (
+    f"Plan 15.00 items of Synthetic {fuel_fixtures.COAL} per minute"
+    f" for Synthetic {fuel_fixtures.GEN_COAL} x1"
+)
+
+#: The audit field the fuel rules' verdict input is sourced to.
+VERDICT_SOURCE: Final = "audit.fuel.verdicts.verdict"
+
+
+def _generator_world() -> WorldModel:
+    """The CS-1271 world: one built liquid generator whose fuels the registry never lists."""
+    return balance_fixtures.world_of(production_fixtures.FUEL)
+
+
+#: Every world the surface tests serve, with the registry each is served over.
+SERVED_WORLDS: Final[dict[str, tuple[Callable[[], WorldModel], Callable[[], Registry]]]] = {
+    "fuel": (world_fixtures.fuel_world, world_fixtures.fuel_registry),
+    "gap": (world_fixtures.gap_world, world_fixtures.synthetic_registry),
+    "generator": (_generator_world, world_fixtures.generator_registry),
+    "omission": (_omission_world, world_fixtures.synthetic_registry),
+}
+
+
+def _fuel_cards(directory: Path) -> dict[str, Mapping[str, object]]:
+    """The fuel cards GET /api/advice serves on the fuel world, by rule id."""
+    table = _table(directory, world_fixtures.fuel_world(), world_fixtures.fuel_registry())
+    data = _data(table["GET", advice_endpoint.ENDPOINT]({}))
+    cards = data["cards"]
+    assert isinstance(cards, list)
+    fuel_ids = (fuel_rules.DEMAND_RULE.rule_id, fuel_rules.SUPPLY_RULE.rule_id)
+    served = {card["rule_id"]: card for card in cards if card["rule_id"] in fuel_ids}
+    assert sorted(served) == sorted(fuel_ids)
+    return served
+
+
+def test_the_listing_serves_both_fuel_cards_over_the_real_route_table(tmp_path: Path) -> None:
+    served = _fuel_cards(tmp_path)
+
+    supply = served[fuel_rules.SUPPLY_RULE.rule_id]
+    demand = served[fuel_rules.DEMAND_RULE.rule_id]
+    assert supply["headline"] == FUEL_SUPPLY_HEADLINE
+    assert demand["headline"] == FUEL_DEMAND_HEADLINE
+    assert supply["domain"] == demand["domain"] == fuel_rules.DOMAIN
+    assert supply["state"] == demand["state"] == "new"
+
+
+@pytest.mark.parametrize(
+    "rule_id",
+    [fuel_rules.DEMAND_RULE.rule_id, fuel_rules.SUPPLY_RULE.rule_id],
+)
+def test_the_derivation_serves_a_fuel_cards_trace_over_the_real_route_table(
+    tmp_path: Path, rule_id: str
+) -> None:
+    card_id = _fuel_cards(tmp_path)[rule_id]["id"]
+    assert isinstance(card_id, str)
+    found = _source(tmp_path).advice(world_fixtures.fuel_world(), world_fixtures.fuel_registry())
+    assert found is not None
+    expected = next(a.card for a in found.cards if a.card.id == card_id)
+    table = _table(tmp_path, world_fixtures.fuel_world(), world_fixtures.fuel_registry())
+
+    data = _data(
+        table["GET", advice_endpoint.DERIVATION_ENDPOINT]({advice_endpoint.ID_PARAMETER: card_id})
+    )
+
+    derivation = data["derivation"]
+    assert isinstance(derivation, str)
+    assert derivation == expected.tier3
+    assert VERDICT_SOURCE in derivation
+    assert fuel_rules.IN_VERDICTS in derivation
+
+
+@pytest.mark.parametrize("world_name", sorted(SERVED_WORLDS))
+def test_no_rule_halts_on_a_served_world(tmp_path: Path, world_name: str) -> None:
+    make_world, make_registry = SERVED_WORLDS[world_name]
+    model = make_world()
+    registry = make_registry()
+
+    data = _data(_table(tmp_path, model, registry)["GET", advice_endpoint.ENDPOINT]({}))
+    found = _source(tmp_path).advice(model, registry)
+
+    assert found is not None
+    traced = [trace.rule_id for trace in found.traces]
+    assert traced == [spec.rule_id for spec in registered_rules()]
+    halted = sorted(
+        (trace.rule_id, step.kind.value)
+        for trace in found.traces
+        for step in trace.steps
+        if step.kind in HALTING_KINDS
+    )
+    assert halted == []
+    before = settled_rules(run_rules(power.RULES, world_fixtures.balance_by_hand(model, registry)))
+    after = settled_rules(found.traces)
+    assert sorted(before - after) == []
+    cards = data["cards"]
+    assert isinstance(cards, list)
+    served = sorted(card["rule_id"] for card in cards)
+    assert served == sorted(advised.card.rule_id for advised in found.cards)

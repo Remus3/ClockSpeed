@@ -45,7 +45,11 @@ it (adversary mutants M7 and M8, CS-500 S5 repair).
 EVERY WORLD IS SYNTHETIC. Each is a :class:`clockspeed.advisor.trace.WorldInputs`
 built by hand from invented exact values under ``synthetic.`` sources; nothing
 here reads a save, a docs file or a game install. Generated power is supplied
-directly because no audit model publishes it yet (CS-1059).
+directly because no audit model publishes it yet (CS-1059). The fuel family's
+worlds (CS-1285) are one invented burner class burning one invented liquid,
+every figure the rules recompute worked by hand in :func:`_fuel` so the
+recomputation agrees with it; a fixture that disagreed would end in a
+``rule-error``, which the firing and silent arms both refuse.
 """
 
 from __future__ import annotations
@@ -53,12 +57,13 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable, Iterable, Mapping
 from fractions import Fraction
+from types import MappingProxyType
 from typing import Any, Final
 
 import pytest
 
 from clockspeed.advisor.cards import Card, card_for
-from clockspeed.advisor.rules import power, registered_rules
+from clockspeed.advisor.rules import fuel, power, registered_rules
 from clockspeed.advisor.trace import (
     InputValue,
     RuleSpec,
@@ -67,6 +72,13 @@ from clockspeed.advisor.trace import (
     TraceStep,
     WorldInputs,
     run_rule,
+)
+from clockspeed.audit.fuel import (
+    REASON_FLOW_INCOMPLETE,
+    UNIT_CUBIC_METRE,
+    VERDICT_FIRE,
+    VERDICT_INDETERMINATE,
+    VERDICT_REJECT,
 )
 
 #: One zero-argument builder per rule id: the synthetic world to run it on.
@@ -127,8 +139,93 @@ def _power(
     )
 
 
+#: The invented burner class and liquid fuel every fuel world names.
+_BURNER: Final = "Build_SyntheticBurnerQx91_C"
+_OIL: Final = "Desc_SyntheticOilQx91_C"
+
+#: The liquid's energy per cubic metre, so one cubic metre a minute is 10 MW.
+_OIL_MJ_PER_M3: Final = Fraction(600)
+
+#: The fixed line the fixtures hand the rules for an indeterminate reason.
+_UNDECIDED_LINE: Final = "synthetic: the flow is incomplete"
+
+#: The out-of-scope lines the fixtures hand the rules.
+_OUT_OF_SCOPE: Final = ("synthetic: supplemental water", "synthetic: byproducts")
+
+
+def _fuel(
+    *,
+    verdict: str,
+    supply: Fraction,
+    shortfall: Fraction | None = None,
+    reasons: tuple[str, ...] = (),
+) -> WorldInputs:
+    """One synthetic fuel world: one burner class of two at clock one, one liquid.
+
+    Worked by hand: the demand is 2 x 100 MW = 200 MW, so the burn is
+    200 x 60 / 600 = 20 m3 a minute; a supply of ``s`` m3 a minute yields
+    ``s`` x 600 / 60 = 10 ``s`` MW, which is also the pool. A shortfall of
+    ``d`` MW is ``d`` x 60 / 600 = ``d`` / 10 m3 of the liquid alone.
+    """
+
+    def one(value: object) -> MappingProxyType[str, object]:
+        return MappingProxyType({_BURNER: value})
+
+    def per_fuel(value: object) -> MappingProxyType[str, object]:
+        return one(MappingProxyType({_OIL: value}))
+
+    rate = None if shortfall is None else shortfall / 10
+    return _world(
+        {
+            fuel.IN_CLASSES: (_BURNER,),
+            fuel.IN_VERDICTS: one(verdict),
+            fuel.IN_REASONS: one(reasons),
+            fuel.IN_DEMAND_REASONS: one(()),
+            fuel.IN_REASON_DETAILS: MappingProxyType(dict.fromkeys(reasons, _UNDECIDED_LINE)),
+            fuel.IN_INSTANCES: one(2),
+            fuel.IN_ELIDED: one(0),
+            fuel.IN_NAMEPLATE: one(Fraction(100)),
+            fuel.IN_CLOCK_SUM: one(Fraction(2)),
+            fuel.IN_DEMAND: one(Fraction(200)),
+            fuel.IN_FUELS: one((_OIL,)),
+            fuel.IN_MJ: MappingProxyType({_OIL: _OIL_MJ_PER_M3}),
+            fuel.IN_UNITS: MappingProxyType({_OIL: UNIT_CUBIC_METRE}),
+            fuel.IN_SUPPLY: per_fuel(supply),
+            fuel.IN_SUPPLY_MW: per_fuel(supply * 10),
+            fuel.IN_POOLED: one(supply * 10),
+            fuel.IN_SHORTFALL: one(shortfall),
+            fuel.IN_SHORTFALL_RATES: per_fuel(rate),
+            fuel.IN_BURNS: per_fuel(Fraction(20)),
+            fuel.IN_EXCLUSIONS: _OUT_OF_SCOPE,
+            fuel.IN_CLASS_NAMES: one("Synthetic Burner"),
+            fuel.IN_FUEL_NAMES: MappingProxyType({_OIL: "Synthetic Oil"}),
+        }
+    )
+
+
+def _fuel_short() -> WorldInputs:
+    """Ten m3 a minute is 100 MW against a 200 MW demand: 100 MW short over a complete flow."""
+    return _fuel(verdict=VERDICT_FIRE, supply=Fraction(10), shortfall=Fraction(100))
+
+
+def _fuel_covered() -> WorldInputs:
+    """Thirty m3 a minute is 300 MW, covering the 200 MW demand over a complete flow."""
+    return _fuel(verdict=VERDICT_REJECT, supply=Fraction(30))
+
+
+def _fuel_undecided() -> WorldInputs:
+    """An incomplete flow: the 100 MW supply is a floor, so no supply verdict is drawn."""
+    return _fuel(
+        verdict=VERDICT_INDETERMINATE, supply=Fraction(10), reasons=(REASON_FLOW_INCOMPLETE,)
+    )
+
+
 #: A world in which each registered rule FIRES.
 FIRING: Final[dict[str, WorldBuilder]] = {
+    # The burner's supply has no verdict, so its 20 m3 a minute burn is stated.
+    fuel.DEMAND_RULE.rule_id: _fuel_undecided,
+    # The burner is 100 MW short: 10 m3 a minute of the liquid alone.
+    fuel.SUPPLY_RULE.rule_id: _fuel_short,
     # Three unpriced machines out of ten: the draw is a floor.
     power.GAP_RULE.rule_id: lambda: _power(
         complete=False,
@@ -151,6 +248,10 @@ FIRING: Final[dict[str, WorldBuilder]] = {
 
 #: A world in which each registered rule DECLINES for a reason it records.
 SILENT: Final[dict[str, WorldBuilder]] = {
+    # The supply rule decides the burner (it fires), so no burn is stated.
+    fuel.DEMAND_RULE.rule_id: _fuel_short,
+    # The pooled supply covers the demand over a complete flow.
+    fuel.SUPPLY_RULE.rule_id: _fuel_covered,
     # Every considered machine is priced, so there is no gap to name.
     power.GAP_RULE.rule_id: lambda: _power(
         complete=True,
