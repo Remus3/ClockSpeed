@@ -75,6 +75,359 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1298, CS-1313 and CS-1314 - BATCH RECORD (adjudicated session 138: the shared part of rulings Q1 to Q3, the batch adversary, fixes 1 and 2, the verifier and the stop). NOT A COMPLETION RECORD; the three closes are the records below
+Verification: the three CLOSED records below, each carrying its own ruling verbatim, its merged
+files and its tests; the fix 1 arms
+`tests/audit/test_flow.py::test_the_flow_counts_unadmitted_records_and_never_class_rows` and
+`tests/audit/test_balance.py::test_starvation_counts_unadmitted_records_and_never_class_rows`; the
+fix 2 arms
+`tests/audit/test_flow.py::test_a_class_named_only_by_an_unresolved_token_is_no_recipe_class`,
+`::test_a_declared_class_named_only_by_an_unresolved_token_is_no_recipe_class`, the guard
+`::test_a_recipe_naming_a_resolved_and_an_unresolved_producer_names_the_resolved_one`,
+`tests/audit/test_balance.py::test_starvation_never_counts_a_record_of_an_unresolved_token` and
+`::test_a_recipe_class_is_a_resolved_producer_and_never_an_unresolved_token`. The commits are named
+by subject, "CS-1298 - S0: one public clock-capability predicate in the balance" through "CS-1314 -
+fix 2: the flow's recipe classes are automated producers only". Red first is each builder's report
+and was not re-observed here.
+THE SHARED RULINGS, VERBATIM from the session 138 adjudication: the parts the three items share.
+Each item's own ruling - Q1 for CS-1313, Q2 for CS-1298, Q3 and its amendment for CS-1314 - is in
+that item's CLOSED record below. Their line pointers are the adjudicator's reading of the base and
+rot by construction; the symbols in the records are the citations. The one line holding all three
+parts is split at its labels, and nothing else is changed.
+SLICING: S0 (shared predicate; balance.py, test_balance.py) lands before S2; S1 CS-1298 (flow.py,
+test_flow.py, fuel.py, overlay.py, test_fuel.py, test_overlay.py) and S2 CS-1313 (balance.py,
+test_balance.py, registry.py, test_registry.py, audit/__init__.py, test_every_warning_fires.py,
+rules/power.py docstring) in parallel after S0; S3 CS-1314 one slice after S1+S2 (flow.py,
+balance.py, advise.py, audit/__init__.py, their tests, test_fuel.py).
+COMMON-MODE: the registry admits any entry with a power field - Desc_Locomotive_C
+(FGVehicleDescriptor, power None) is a second non-buildable A1 misses, counted as a consumer through
+a draw gap; dropped recipes hide a producer class from the flow.
+RESIDUALS: library count of Desc_Locomotive_C (>0 files an item); dropped-recipe blind spot for S3's
+refuter; hover-pack save shape unmeasured.
+THE LIBRARY COUNTS the shared residuals ask for, read-only and by class only, over the save library:
+41 of 41 saves read, 0 refused, 0 analysis failures. Desc_Locomotive_C: 0 records in any save, so
+the residual's ">0 files an item" did not fire and no item is filed; the five saves that mention a
+locomotive mention only its recipe, as an unlock. Equip_HoverPack_C: 0 records in any form, so the
+hover-pack save shape stays unmeasured. Both stand as residuals below.
+ADVERSARY HISTORY. The batch adversary REFUTED the integrated candidate, the three items through
+"CS-1314 - the flow and starvation read the unadmitted census". F1: unresolved non-building producer
+tokens were named as recipe classes - the build gun, BP_BuildGun_C, holds a clean tagless census
+record in 37 of 41 library saves, so the flow could never read complete there; ruled by the Q3(a)
+amendment (the CS-1314 record below) and repaired by fix 2. F2: the Q1 ruling, which the CS-1313
+acceptance requires in this file, was not yet here; met by the CS-1313 record below. F3: the record
+count could be replaced by a class-row count - the mutant counting the flow's census rows instead of
+its records survived every targeted test, since each census arm held one record per class and kind;
+repaired by fix 1. F4: the closed equipment-group list is checked against the game's own docs only
+by an install-gated test; a residual, below. Every other mutant the adversary planted on the three
+items was killed. Regression held: 0 card, rule-input, draw or fuel diffs across 247 synthetic
+advise calls and all 41 library saves, base against candidate, and 70 library cards before and after
+(agent-reported). The changed fuel docstring sentences were read against the code and verified true;
+mypy and ruff were clean.
+FIX 1 (test-only): two arms hold several records of one class in each of the three census kinds, a
+different number per kind - the flow arm asserts the census triples and the flow warning's record
+count, the starvation arm the tagless and indeterminate counts, the machine-state-unread count and
+the unjudged count; the builder's four count mutants, the flow counting class rows and starvation
+counting class rows in its tagless, indeterminate and unjudged figures, were each killed. FIX 2: the
+Q3(a) amendment, option (i) - for the flow and starvation a recipe class is a name in a supplied
+recipe's produced_in only, a producer the registry resolved; the fuel audit keeps its own relation
+over both under Q3(d), and `clockspeed/audit/fuel.py` and its pin are untouched by either fix. The
+amendment's three required arms and the balance's recipe-class arm failed first on the pre-fix
+candidate, per the builder's red log; the guard stayed green; the mutant restoring unresolved tokens
+and the mutant dropping resolved producers were each killed, as were the earlier census mutants,
+re-run.
+THE VERIFIER on fixes 1 and 2: CONFIRMED. `clockspeed/audit/balance.py::recipe_classes_of` reads
+produced_in only, and the flow text says "a class a registry recipe is automated in";
+`clockspeed/audit/fuel.py` and `tests/audit/test_fuel.py` are unchanged since the commit "CS-1314 -
+the flow and starvation read the unadmitted census"; the record-count mutant is killed by
+`tests/audit/test_flow.py::test_the_flow_counts_unadmitted_records_and_never_class_rows`, and the
+restore-unresolved-tokens mutant by
+`tests/audit/test_flow.py::test_a_class_named_only_by_an_unresolved_token_is_no_recipe_class`,
+`::test_a_declared_class_named_only_by_an_unresolved_token_is_no_recipe_class`,
+`tests/audit/test_balance.py::test_a_recipe_class_is_a_resolved_producer_and_never_an_unresolved_token`
+and `::test_starvation_never_counts_a_record_of_an_unresolved_token`, with the guard green; a
+read-only library probe over all 41 saves names only Build_ConstructorMk1_C (120 clean tagless
+records, 14 saves) and the build gun in 0 saves (37 under the old rule), with 0 changes to advice
+cards, settled rules or the clocked draw against the previous published state (agent-reported).
+ADVERSARY LOOP STOPPED BY COST AGAINST RISK after one adversary round, two fixes and a verifier.
+Reversed by: a residual below reached from a real input.
+RESIDUALS, recorded and not fixed. Each is a `BACKLOG.md` line under the session 138 heading. (a)
+The adversary's F4: CI never checks the equipment-group list.
+`tests/data/test_registry.py::test_the_equipment_groups_are_exactly_those_whose_entries_carry_the_slot`
+and `::test_the_installed_build_marks_exactly_one_equipment_consumer` read the installed docs and
+skip on a machine with no game, so a pin move that adds an equipment group, or gives a second
+equipment class a power field, reddens only where the game is installed. (b) COMMON-MODE:
+Desc_Locomotive_C, a vehicle descriptor the registry carries in its consumer namespace with no power
+figure, is not equipment under ruling A1 and would count as a consumer through a draw gap; the
+ruling leaves the miss standing, and no library save holds a record of it. (c) The dropped-recipe
+blind spot: a recipe the registry dropped hides its producer class from the flow and from
+starvation, so a record of that class is not named and the flow can read complete; pinned as current
+behaviour by
+`tests/audit/test_flow.py::test_residual_a_recipe_the_registry_dropped_hides_its_producer_class_from_the_flow`.
+(d) The hover-pack save shape is unmeasured: no library save holds an Equip_HoverPack_C record, so
+its exclusion is proved on synthetic records only; every other equipment record the library holds
+was read as a top-level actor. (e) Two text leftovers the verifier found: the CS-1314 starvation
+section comment in `tests/audit/test_balance.py` still says "a built record of a class that runs
+recipes", and the CS-1313 equipment text in `clockspeed/audit/balance.py` still calls equipment
+records "built records".
+
+### 2026-10-12 - CS-1314 - CLOSED: the flow's completeness and starvation read the census of records the machines model leaves unadmitted, so a record of a class a registry recipe is automated in keeps WorldFlow.complete False and is named by class and kind in each model
+Verification: `clockspeed/audit/balance.py::recipe_classes_of`, the one owner of what a recipe class
+is, and `clockspeed/audit/balance.py::unadmitted_census_of`, the one owner of the CS-1280 partition
+by `clockspeed/audit/balance.py::CENSUS_KINDS` and
+`clockspeed/audit/balance.py::CENSUS_TAGLESS_CLEAN`; read by `clockspeed/audit/flow.py::flow_of`
+into `WorldFlow.unadmitted`, warned by
+`clockspeed/audit/flow.py::WARN_FLOW_RECIPE_CLASS_UNADMITTED`, and by
+`clockspeed/audit/balance.py::starvation_of` into `WorldStarvation.unadmitted`,
+`WorldStarvation.tagless_clean_count` and `WorldStarvation.indeterminate_record_count`;
+`clockspeed/audit/balance.py::balance_of` and `starvation_of` take `recipes` (default None), and no
+recipes over a non-empty census raises `clockspeed/audit/balance.py::WARN_BALANCE_CENSUS_UNJUDGED`;
+`clockspeed/advisor/advise.py::inputs_of` hands the balance the registry's recipes. Merged:
+`clockspeed/audit/balance.py`, `clockspeed/audit/flow.py`, `clockspeed/audit/__init__.py`,
+`clockspeed/advisor/advise.py`, `tests/audit/test_flow.py`, `tests/audit/test_balance.py`,
+`tests/audit/test_fuel.py`, `tests/audit/test_every_warning_fires.py` and
+`tests/advisor/test_world_advice.py`. The commits are named by subject, "CS-1314 - the flow and
+starvation read the unadmitted census", "CS-1314 - fix 1: the census counts records, not class rows"
+and "CS-1314 - fix 2: the flow's recipe classes are automated producers only". Red first is each
+builder's report and was not re-observed here. The item's section is relocated verbatim to
+`docs/history_notes.md`. The batch adversary, both fixes, the verifier, the stop and the residuals
+are the batch record above.
+THE ACCEPTANCE, clause by clause. (1) The flow's completeness and starvation_of read the census of
+records WorldMachines leaves unadmitted, read and unread, as the clocked draw has since CS-1266:
+through the real machines model,
+`tests/audit/test_flow.py::test_an_unadmitted_record_of_a_recipe_class_keeps_the_flow_incomplete`
+(clean, unclean and unread) and
+`tests/audit/test_balance.py::test_starvation_names_every_unadmitted_record_of_a_recipe_class`. (2)
+A built record of a class the registry gives a recipe, left out of the machines population, keeps
+WorldFlow.complete from reading True: (1)'s flow arm, while a class no recipe is automated in leaves
+the flow complete,
+`tests/audit/test_flow.py::test_an_unadmitted_record_of_no_recipe_class_leaves_the_flow_complete`.
+Under the Q3(a) amendment a class the registry gives a recipe is a class a registry recipe is
+automated in, a resolved producer, never an unresolved token:
+`::test_a_class_named_only_by_an_unresolved_token_is_no_recipe_class`,
+`::test_a_declared_class_named_only_by_an_unresolved_token_is_no_recipe_class`, the guard
+`::test_a_recipe_naming_a_resolved_and_an_unresolved_producer_names_the_resolved_one`,
+`tests/audit/test_balance.py::test_a_recipe_class_is_a_resolved_producer_and_never_an_unresolved_token`
+and `::test_starvation_never_counts_a_record_of_an_unresolved_token`. (3) Named by class in each
+model: `WorldFlow.unadmitted` and `WorldStarvation.unadmitted` as (class, kind, records), by (1)'s
+arms, counting records and never class rows,
+`tests/audit/test_flow.py::test_the_flow_counts_unadmitted_records_and_never_class_rows` and
+`tests/audit/test_balance.py::test_starvation_counts_unadmitted_records_and_never_class_rows`; both
+new codes are in the warning census,
+`tests/audit/test_every_warning_fires.py::test_the_fixture_raises_its_code[WARN_FLOW_RECIPE_CLASS_UNADMITTED]`
+and `[WARN_BALANCE_CENSUS_UNJUDGED]`. (4) The CS-1280 clean partition is honoured where it applies:
+in starvation a clean tagless record is its own counted kind and never starved, while payload-unread
+and no-machine-state stay indeterminate by kind and join the machine-state-unread count,
+`tests/audit/test_balance.py::test_starvation_names_every_unadmitted_record_of_a_recipe_class`,
+`::test_an_indeterminate_census_record_is_counted_in_the_unread_state_warning` and
+`::test_a_clean_census_count_above_its_read_count_is_clamped`; in the flow every kind keeps complete
+False, by ruling (b). (5) A synthetic arm per model reddens when the census is ignored: the batch
+adversary's mutant keeping the flow complete beside its warning was killed by (1)'s flow arm among
+others, and its mutant in which starvation ignores the census by the starvation arm of (1),
+`::test_an_indeterminate_census_record_is_counted_in_the_unread_state_warning` and
+`::test_the_balance_hands_its_recipes_to_starvation`; fix 2's builder killed both again. The
+rulings' (c) to (e) are pinned by
+`tests/audit/test_flow.py::test_a_bare_sequence_carries_no_census`,
+`tests/audit/test_fuel.py::test_a_census_record_of_a_recipe_class_never_marks_the_fuel_flow_incomplete`
+(the fuel audit's tuple flow and its own census judgment unchanged),
+`tests/audit/test_balance.py::test_a_starvation_handed_no_recipes_says_the_census_went_unjudged`,
+`::test_an_empty_census_needs_no_recipes_to_be_judged` and
+`tests/advisor/test_world_advice.py::test_inputs_of_hands_the_registry_recipes_to_the_balance`.
+EVERY CLAUSE IS MET.
+THE LIBRARY EFFECT, read-only and by class only, 41 of 41 saves read. After the change the flow
+names one class, Build_ConstructorMk1_C: 120 unadmitted records, every one clean and tagless, in 14
+of 41 saves; no other resolved recipe class holds an unadmitted record, and starvation counts the
+same records in its clean tagless kind, never starved. No library save's flow read complete before
+the change, so none flips (the adversary's comparison). Nothing outside `clockspeed/audit/` reads
+`WorldFlow.complete` or `WorldStarvation` - a grep of `clockspeed/` at the close - so no advice
+card, /api body or dashboard view changes.
+THE RULING, VERBATIM from the session 138 adjudication, with its decision, the clauses that decided
+it and what reverses it. Its line pointers are the adjudicator's reading of the base and rot by
+construction; the symbols above are the citations.
+Q3 CS-1314 - accept (a)-(e): (a) a recipe class is any name in the recipes argument's produced_in or
+unresolved_produced_in (the relation fuel.py ~1416-1418 reads); (b) census records named by kind
+(payload-unread / no-machine-state / tagless-clean) in their own list, conservation untouched; every
+kind keeps WorldFlow.complete from reading True; in starvation a clean tagless record is its own
+counted kind, never flagged starved (starved requires a recipe, balance.py ~1952-1955),
+payload-unread and no-machine-state stay indeterminate and distinguishable by kind; (c) the census
+is read only from a WorldMachines, the flow_of docstring says a bare sequence carries none; (d) the
+fuel audit keeps its tuple call and own census reading (its per-fuel REASON_SUPPLY_UNMEASURED /
+REASON_CLASS_UNREGISTERED judgment), pinned by a test; (e) starvation_of and balance_of gain
+recipes=None, advise.py ~273 passes registry.recipes, and when recipes is None with a non-empty
+census starvation_of carries a named warning that the census went unjudged (precedent
+generators=None -> WARN_BALANCE_PRODUCTION_UNMODELED, balance.py ~2002-2003). Reversed by: a
+measured clean tagless recipe-class record running a recipe (reopens b); a census record moving a
+fuel the fuel audit's class judgment misses (reopens d).
+THE Q3(a) AMENDMENT, VERBATIM (adjudicated session 138, after the batch adversary's F1). One phrase
+is restated and nothing else is changed: the commit the arms had to redden at is named by its
+subject, as this file requires, where the ruling gave its hash.
+DECISION: option (i). For the flow and starvation a recipe class is a name in the supplied recipes'
+`produced_in` ONLY (the resolved modeled buildings); unresolved tokens leave `recipe_classes_of`
+(balance.py ~2157). The fuel audit is untouched: fuel.py ~1418 keeps reading resolved and unresolved
+tokens under Q3(d). Deciding clause: registry.py ~142-146 (a recipe is automated when at least one
+producer token resolves to a modeled building) and ~1759 (every unresolved token flagged, recipe
+kept unautomated): the flow measures automated rates, so its recipe classes are the registry's
+automated producers; fuel asks a different question (can this class name a fuel item by any means)
+and over-inclusion only marks a fuel unmeasured. Measured: six unresolved tokens on the pin
+(BP_BuildGun_C 549, BP_WorkBenchComponent_C 58, BP_WorkshopComponent_C 44,
+FGBuildableAutomatedWorkBench 50, FGBuildGun 1, Build_AutomatedWorkBench_C 1), none in
+declared_classes, buildings, extractors or generators; Build_AutomatedWorkBench_C is not a placeable
+building on the pin (the bench is Build_WorkBench_C, named by no recipe token); under (i) the flow
+still names Build_ConstructorMk1_C (120 clean tagless records in 14/41 saves). REJECTED (ii)
+declared_classes (same result on the pin, wrong test - declared_classes covers items, schematics,
+equipment, not "is built"; a future equipment entry declaring BP_BuildGun_C would bring F1 back);
+(iii) reword only (the player always carries a build gun - the flow could never read complete on
+37/41 saves); (iv) a BuildGun token-text test (shape, registry.py ~137 forbids). RUNNER-UP (ii).
+Reversed by: a measured save record whose class is named only by an unresolved token and runs an
+automated recipe, or a registry change modeling unpowered buildings.
+REQUIRED EDITS: recipe_classes_of's docstring stops calling it "the relation fuel.py reads" and says
+why the two differ; the flow text at flow.py ~112 and ~306 says "a class a registry recipe is
+automated in" (never "built record" for a non-building).
+TESTS THAT MUST REDDEN AT "CS-1314 - the flow and starvation read the unadmitted census" (red first,
+capture): (1) test_flow: a recipe with produced_in=() and an unresolved token "Tool_Gun_C" plus one
+clean tagless census record of Tool_Gun_C -> unadmitted == (), no WARN_FLOW_RECIPE_CLASS_UNADMITTED,
+and that record does not stop complete reading True; (2) the same in test_balance: starvation_of
+does not count it as a clean tagless kind; (3) a pin rejecting (ii): an unresolved token that IS in
+declared_classes but not in buildings is also not named. GUARD (stays green): a recipe naming both
+"Build_Synth_C" (resolved) and "Tool_Gun_C" (unresolved) with a census record of Build_Synth_C ->
+Build_Synth_C still named, complete False. The test_fuel pin stays green and unedited. Kill the
+mutant that restores unresolved tokens.
+
+### 2026-10-12 - CS-1313 - CLOSED: an equipment class is never a built power consumer on any path - the registry marks equipment by its docs group, and the clocked draw counts such a record apart, names it and warns
+Verification: `clockspeed/data/registry.py::Building` field `is_equipment`, set from the docs group
+by `clockspeed/data/registry.py::EQUIPMENT_GROUP_SHORT_NAMES`, a closed list of the 15 equipment
+groups and never a class-name prefix; `clockspeed/audit/balance.py::clocked_draw_of`, which takes an
+equipment record out of the machine loop as it does a generator and refuses the class in
+`clockspeed/audit/balance.py::_is_power_consumer`, so neither
+`clockspeed/audit/balance.py::_tagless_census` nor `clockspeed/audit/balance.py::_omissions_of` ever
+holds it, then counts it in `WorldClockedDraw.equipment_record_count`, names it in
+`WorldClockedDraw.equipment_classes` and warns
+`clockspeed/audit/balance.py::WARN_BALANCE_EQUIPMENT_EXCLUDED`. Merged:
+`clockspeed/data/registry.py`, `clockspeed/audit/balance.py`, `clockspeed/audit/__init__.py`, the
+module docstring of `clockspeed/advisor/rules/power.py` (the count is not a rule input),
+`tests/data/test_registry.py`, `tests/audit/test_balance.py`,
+`tests/audit/test_every_warning_fires.py` and `tests/surface/test_registry.py`. The commits are
+named by subject, "CS-1313 - equipment is never a built power consumer" and "CS-1313 - the equipment
+mark is withheld from the registry surface". Red first is the builder's report and was not
+re-observed here. The item's section is relocated verbatim to `docs/history_notes.md`. The batch
+adversary, the verifier, the stop and the residuals are the batch record above.
+THE MECHANISM. The mark is the registry's, read from the docs group and never from a class name's
+shape:
+`tests/data/test_registry.py::test_the_mark_is_read_from_the_group_and_never_from_the_class_name`,
+`::test_an_equipment_group_entry_is_marked_equipment`,
+`::test_every_equipment_group_marks_a_power_bearing_entry`,
+`::test_a_power_bearing_entry_outside_the_equipment_groups_is_never_marked`,
+`::test_no_corpus_building_is_equipment`,
+`::test_a_hand_built_building_is_not_equipment_by_default`,
+`::test_the_equipment_groups_are_recognized_and_hold_no_other_role` and
+`::test_the_registry_never_reads_the_equipment_slot`. The list is verified against the
+mEquipmentSlot property every equipment class inherits, on an installed document only:
+`::test_the_equipment_groups_are_exactly_those_whose_entries_carry_the_slot` and
+`::test_the_installed_build_marks_exactly_one_equipment_consumer`, both skipping where no game is
+installed (residual (a) of the batch record). The hypertube entrance and the dimensional depot
+uploader, whose groups sit outside the buildable family while their entries are buildings, stay
+consumers, and Desc_Locomotive_C is deliberately left a consumer as a known miss under the ruling:
+`tests/audit/test_balance.py::test_a_buildable_from_a_non_buildable_group_stays_a_consumer` (an
+invented hypertube class and an invented vehicle descriptor) and
+`tests/data/test_registry.py::test_a_power_bearing_entry_outside_the_equipment_groups_is_never_marked`
+(the depot's, the hypertube entrance's and the vehicle descriptors' groups). THE MERGER'S GRANT
+(session 138): `tests/surface/test_registry.py` joined the CS-1313 write-list to add `is_equipment`
+to `tests/surface/test_registry.py::WITHHELD_FIELDS` - read for the balance's exclusion, asked for
+by no surface consumer - held by
+`tests/surface/test_registry.py::test_every_upstream_field_is_either_published_or_withheld_on_the_record`.
+THE ACCEPTANCE, clause by clause. (1) An adjudicator rules whether a record of Equip_HoverPack_C, or
+of any other equipment class the registry carries in its consumer namespace, is a built power
+consumer, and the ruling is recorded in `docs/LEDGER.md`: ruling Q1, answer A1, verbatim below. (2)
+`clocked_draw_of` follows it on every path - an admitted machine, a clean tagless record priced at
+its class default, and an omission - with a synthetic arm that reddens when the ruling is ignored, a
+clean tagless equipment record among its cases:
+`tests/audit/test_balance.py::test_an_equipment_record_is_never_a_built_power_consumer_on_any_path`
+and `::test_an_equipment_record_is_counted_apart_on_each_path` (admitted, tagless, unclean and
+unread), through the real machines model; a generator class stays a generator,
+`::test_a_generator_class_is_counted_as_a_generator_and_never_as_equipment`; the audit's repr
+renders counts and never a class, `::test_the_equipment_count_renders_counts_and_never_a_class`; in
+the warning census,
+`tests/audit/test_every_warning_fires.py::test_the_fixture_raises_its_code[WARN_BALANCE_EQUIPMENT_EXCLUDED]`.
+The batch adversary's mutants ignoring the mark in the consumer predicate and in the machine loop
+were each killed by those arms. (3) The save library is read read-only for records of such classes,
+counted by class only, and the count is recorded with the close: THE LIBRARY COUNT, 41 of 41 library
+saves read, 0 refused - Equip_HoverPack_C, the one equipment class the registry carries in its
+consumer namespace: 0 records in any form, in any save. No library save changes: the candidate's
+clocked draw counted 0 equipment records in all 41. For context, by class only: 14 other Equip_
+classes hold 157 records and BP_ConsumeableEquipment_C 28, all unadmitted census records of classes
+outside the consumer namespace, priced neither before nor after. EVERY CLAUSE IS MET.
+THE RULING, VERBATIM from the session 138 adjudication, with its decision, the alternatives it
+rejected and what reverses it. Its line pointers are the adjudicator's reading of the base and rot
+by construction; the symbols above are the citations.
+Q1 CS-1313 - A1: an equipment class is not a built power consumer on any path; counted apart like
+generators and named by a warning. The registry marks equipment by its docs group in _building
+(group name in hand at registry.py ~1261, ~1297), a new trailing field with a default as registry.py
+~674-679 did for clockable. clocked_draw_of applies the exclusion in the machine loop (beside
+balance.py ~1813-1815), _tagless_census (~1671) and _omissions_of (~1769) - the last two through
+_is_power_consumer (~1637). Rejected B (status quo: 100 MW phantom draw, false tagless-default
+warning), C (treats known content as unknown; power cards undecided forever), A2 `Equip_` prefix
+(shape detection, registry.py ~137 forbids; fails open). Reversed by: a measured save where an
+equipment-class record draws grid power with no player wearing it, or a reversal of CS-1280 toward
+live draw.
+
+### 2026-10-12 - CS-1298 - CLOSED: the flow asks the balance's own clock predicate, so a machine of a class declared non-clockable flows at the reference clock and is never counted elided, while an unknown clock capability stays elided as in the balance
+Verification: `clockspeed/audit/balance.py::clock_is_elidable`, published and the one owner of the
+test `clockspeed/audit/balance.py::clocked_draw_of` decides an untagged clock by;
+`clockspeed/audit/flow.py::_clock_of` imports and asks it, and `clockspeed/audit/flow.py::flow_of`
+takes `buildings` (default None, every capability unknown);
+`clockspeed/audit/fuel.py::fuel_supply_of` hands the flow the registry's buildings and
+`clockspeed/audit/overlay.py::evaluate_overlay` hands both of its flows its own. Merged:
+`clockspeed/audit/balance.py`, `clockspeed/audit/flow.py`, `clockspeed/audit/fuel.py`,
+`clockspeed/audit/overlay.py`, `tests/audit/test_balance.py` and `tests/audit/test_flow.py`. The
+commits are named by subject, "CS-1298 - S0: one public clock-capability predicate in the balance"
+and "CS-1298 - the flow reads the balance's clock predicate". Red first is each builder's report and
+was not re-observed here. The item's section is relocated verbatim to `docs/history_notes.md`. The
+batch adversary, the verifier, the stop and the residuals are the batch record above.
+THE ACCEPTANCE, clause by clause. (1) The flow never counts a machine of a class declared
+non-clockable as an elided clock, on its recipe group or in `WorldFlow.elided_clock_count`:
+`tests/audit/test_flow.py::test_a_class_that_cannot_be_clocked_flows_at_the_reference_clock_outside_the_elided_count`,
+and a read, unread or refused clock is never re-read,
+`::test_a_read_or_unread_clock_of_a_non_clockable_class_is_not_rescued`. (2) An unknown clock
+capability stays elided exactly as in the balance - no buildings, a missing entry and the registry's
+None: `::test_a_class_whose_clock_capability_is_unknown_stays_an_elided_flow_clock`, over the
+predicate's own
+`tests/audit/test_balance.py::test_the_clock_capability_predicate_reads_only_a_declared_false`,
+`::test_no_registry_at_all_leaves_every_clock_elidable`,
+`::test_the_clock_capability_predicate_is_published` and
+`::test_the_clocked_draw_decides_a_fixed_clock_through_the_public_predicate`. (3) The flow and
+balance agreement arm gains a synthetic non-clockable class and reddens when the flow counts it
+elided: `tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike`, now
+with non-clockable rows (Fixed, FixedRead, FixedUnread and BoostedFixed); the batch adversary's
+mutants - the flow ignoring the predicate, the fuel audit handing the flow no buildings, and the
+overlay dropping its buildings - were each killed by it, as Q2 requires, and the predicate-ignoring
+one also by (1)'s arm and
+`tests/audit/test_flow.py::test_the_flow_reads_the_balances_own_clock_predicate`. (4) Every flow
+docstring that claims the balance's own elided test is true of the code: the module docstring of
+`clockspeed/audit/flow.py` and the `_clock_of` docstring now say the flow imports
+`clock_is_elidable` and asks it, and
+`tests/audit/test_flow.py::test_the_flow_reads_the_balances_own_clock_predicate` holds the flow's
+name to be the balance's very function and asked with the mapping the flow was handed. EVERY CLAUSE
+IS MET.
+THE LIVE EFFECT: none. All 11 resolved recipe classes on the pin are clockable (the batch
+adversary's docs read: 0 non-clockable recipe classes), so on real data only a synthetic class moves
+the elided count.
+THE CORRECTION this file owes, being append-only. The 2026-10-08 CS-1265 CLOSED record says
+`clockspeed/audit/flow.py` reads the elision mark "with the balance's own predicate". That stopped
+being true when CS-1281, closed 2026-10-09, gave the balance's test a clock-capability arm the flow
+did not share, and it stayed false until this close; from this close it is true again, because the
+flow imports the balance's function. The CS-1265 record stands as written and this paragraph
+corrects it.
+THE RULING, VERBATIM from the session 138 adjudication, with its decision, the alternative it
+rejected and what reverses it. Its line pointers are the adjudicator's reading of the base and rot
+by construction; the symbols above are the citations.
+Q2 CS-1298 - one predicate: move the test at balance.py ~1817-1824 into ONE public function the flow
+imports (as ELIDED_CLOCK_DEFAULT already is, flow.py ~117); flow_of gains buildings=None; None =
+capability unknown, the clock stays elided exactly as the balance treats a missing entry (~1822).
+The agreement arm must also redden when fuel.py ~1611 or overlay.py ~888-889 drops `buildings`.
+Rejected: a second copy with reworded docstrings (two owners of one fact; CS-1298 is itself drift
+after CS-1281). Seam fine (CLAUDE.md 2.1 restricts imports between layers, not within audit/; no
+cycle: balance.py imports machines and placement only under TYPE_CHECKING). Reversed by: a measured
+class whose production clock and power clock differ.
+
 ### 2026-10-12 - CS-1288 - CLOSED: a save written on a build other than the pinned one carries a named build-mismatch warning on the audit and on every advice card computed from it, naming both builds and marking each figure as priced at the pinned build, and no off-pin rule settles
 Verification: `clockspeed/advisor/build.py::build_caveat` and
 `clockspeed/advisor/build.py::build_inputs`, read first by every rule of

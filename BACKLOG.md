@@ -636,3 +636,30 @@ residual CS-1316, so neither has a line here.
   detail table is private to `clockspeed/audit/build.py`, so a forged detail is not reachable from a
   real input - TRIGGER: a build warning detail built from anything but that table, or the table made
   public.
+
+The CS-1298, CS-1313 and CS-1314 closes' residuals: the rulings Q1 to Q3, the Q3(a) amendment, the
+batch adversary, both fixes and the verifier are their records in `docs/LEDGER.md`, 2026-10-12.
+None blocks a product item or reddens a suite.
+
+- From the CS-1313 batch adversary (its F4): the closed equipment-group list in
+  `clockspeed/data/registry.py` is held to the game's own docs only by the two installed-document
+  arms of `tests/data/test_registry.py`, which skip where no game is installed, so CI never checks
+  it; a patch adding an equipment group, or giving a second equipment class a power field, reddens
+  only on a machine with the game - TRIGGER: a pin move.
+- COMMON-MODE, from the session 138 rulings: `Desc_Locomotive_C`, a vehicle descriptor the registry
+  carries in its consumer namespace with no power figure, is not equipment under ruling A1, so a
+  record of it would count as a built consumer through a draw gap; no library save holds one, 0 of
+  41 read - TRIGGER: the first library save holding a locomotive record.
+- From the session 138 rulings, the dropped-recipe blind spot: a recipe the registry dropped hides
+  its producer class from the flow and from starvation, so a record of that class is not named and
+  the flow can read complete; pinned as current behaviour by
+  `tests/audit/test_flow.py::test_residual_a_recipe_the_registry_dropped_hides_its_producer_class_from_the_flow` -
+  TRIGGER: a registry change to which recipes it keeps or drops, or that arm reddening.
+- From the session 138 rulings: the hover-pack save shape is unmeasured - no library save holds an
+  `Equip_HoverPack_C` record, 0 of 41 read, so its exclusion is proved on synthetic records only,
+  while every other equipment record the library holds reads as a top-level actor - TRIGGER: the
+  first library save with a hover-pack record: confirm it is an actor record and still excluded.
+- From the CS-1314 fix verifier, two text leftovers: the CS-1314 starvation section comment in
+  `tests/audit/test_balance.py` still says "a built record of a class that runs recipes", and the
+  CS-1313 equipment text in `clockspeed/audit/balance.py` still calls equipment records "built
+  records" - TRIGGER: the next edit to `clockspeed/audit/balance.py`.

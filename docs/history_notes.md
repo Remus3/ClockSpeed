@@ -24,6 +24,91 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1314 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-12 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1314
+
+### Acceptance
+
+`clockspeed/audit/flow.py`'s completeness and `clockspeed/audit/balance.py::starvation_of` read
+the census of records `clockspeed/audit/machines.py::WorldMachines` leaves unadmitted, read and
+unread, as the clocked draw has since CS-1266: a built record of a class the registry gives a
+recipe, left out of the machines population, keeps `WorldFlow.complete` from reading True and is
+named by class in each model, and the CS-1280 clean partition is honoured where it applies. A
+synthetic arm per model reddens when the census is ignored.
+
+### Filed 2026-10-11 by the session 137 /done
+
+The `BACKLOG.md` "Session 131 residuals" line on flow completeness named "CS-1280 lands" as its
+trigger, and the CS-1280 close named it as fired; this /done read the line and filed it.
+`clockspeed/audit/flow.py` sets `complete` from the machines it skipped, and `starvation_of`
+partitions only `machines.machines`, so neither sees the records the census counts but never
+admits - the blind spot CS-1266 closed for the clocked draw. CS-1280 has now made the balance
+price part of that unadmitted population, so the balance and the flow judge different
+populations. The line is relocated to `docs/history_notes.md`.
+
+
+## CS-1313 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-12 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1313
+
+### Acceptance
+
+An adjudicator rules whether a record of `Equip_HoverPack_C`, or of any other equipment class the
+registry carries in its consumer namespace, is a built power consumer, and the ruling is
+recorded in `docs/LEDGER.md`. `clockspeed/audit/balance.py::clocked_draw_of` then follows it on
+every path - an admitted machine, a clean tagless record priced at its class default, and an
+omission - with a synthetic arm that reddens when the ruling is ignored, a clean tagless
+equipment record among its cases. The save library is read read-only for records of such
+classes, counts by class only, and the count is recorded with the close.
+
+### Filed 2026-10-11 by the session 137 /done
+
+The `BACKLOG.md` "Session 131 residuals" line on the hover pack named CS-1280's ruling as its
+trigger, and the CS-1280 close named it as fired; this /done read the line and filed it. The
+line reads that the registry lists `Equip_HoverPack_C` as a 100 MW consumer. Since CS-1280,
+`clockspeed/audit/balance.py::_tagless_census` takes every class in the consumer namespace whose
+records read clean and carry no machine tag, and `clockspeed/audit/balance.py::_price_tagless`
+prices them at the class default; no part of either asks whether the class is a building. Before
+CS-1280 such a record was at most a named omission. Whether any library save holds such a record
+is UNMEASURED; the CS-1280 measurement published only its omitted classes. The line is relocated
+to `docs/history_notes.md`.
+
+
+## CS-1298 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-12 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1298
+
+### Filed 2026-10-09 by the session 134 merger
+
+The sibling CS-1281's builder measured outside its slice, now an item of its own.
+`clockspeed/audit/flow.py::_clock_of` reads no registry input, so an untagged flowing machine
+of a class that cannot be clocked is still counted elided on its `RecipeGroup` and in
+`WorldFlow.elided_clock_count`, while since CS-1281
+`clockspeed/audit/balance.py::clocked_draw_of` prices that machine at the reference clock
+outside its own elided count. Two flow docstrings therefore claim falsely that the flow uses
+the balance's own elided test: the module docstring's "AN ELIDED CLOCK IS THE CLASS DEFAULT"
+paragraph ("The predicate is the balance's own") and `_clock_of`'s ("THE BALANCE'S OWN
+PREDICATE"). Repro: giving one synthetic building a non-clockable class in
+`tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike` fails
+with `{'Elided': 1} != {'Elided': 0}`; the arm is green today only because its synthetic
+buildings leave `clockable` None. It never triggers on real data today: 0 of 291
+recipe-building references name a class that cannot be clocked.
+
+### Acceptance
+
+the flow never counts a machine of a class declared non-clockable as an elided clock, on its recipe group or in `WorldFlow.elided_clock_count`, while an unknown clock capability stays elided exactly as in the balance; the flow and balance agreement arm gains a synthetic non-clockable class and reddens when the flow counts it elided; every flow docstring that claims the balance's own elided test is true of the code
+
+
 ## CS-1288 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-12 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**
