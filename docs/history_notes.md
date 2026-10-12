@@ -3826,6 +3826,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 135 - archived 2026-10-12 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 135 - 2026-10-09 - CS-959 and CS-1301 closed, FLEET-KIT v15 landed by the responder, four rulings recorded, and three repairs left on unmerged branches short of a surviving adversary pass
+
+- Shipped: CS-959 closed (the community profile complete while the repository is private; adjudicator CLOSE-NOW, HOLD rejected) and CS-1301 closed (the canary arms' leaky controls cut collection at their own tmp dir, and every child failure names itself). The responder landed CS-1303 (FLEET-KIT v15), pushed, its answer delivered 1/1. Filed CS-1304 (ROADMAP), CS-1305 and CS-1306 (BACKLOG), and at the /done CS-1307. Pushed through 032fa77; tier1 at 032fa77 green, all 5 jobs. Detail in docs/LEDGER.md.
+- In flight: three unmerged branches, named by tip subject. TIER2-RED with CS-1300 ("CS-815 - the env-echo wrapper arms wait at the foot of their module"): the first candidate refuted four ways; the repair refuted on minor points only - (a) filed as CS-1307, (b) a stale "exit 2" comment, (c) the CS-1300 red test is Windows-only - and a concurrency adversary's verdict was UNKNOWN at the /done. CS-1302 ("CS-1302 - the dev extra pins mypy to the one release this box runs"): the code survived its adversary; it closes only on a green tier1 after the push. CS-1292 ("CS-1292 - hash-pinned binaries, full path scrub, live tests" at the /done): the first candidate refuted by two lenses, six fixes applied and rebased, its suite rerunning at the /done; both lenses re-run next. Plan of record: one batch merge and ONE push once each survives.
+- Decisions: CS-1302 pins mypy 2.1.0; CS-1304 retry-once DENIED as masking; CS-1292's holder string, install-detail owner and hash-pinned binary allowlist; the TIER2-RED wait bound 2520 s; CS-959 CLOSE-NOW; the CS-1301 cross-drive sibling in tests/save/test_synthetic.py files nothing. All in docs/LEDGER.md. No ADR.
+- Surprises: a crafted .png (PNG magic, a NUL, then text citing an unpublished commit) passed the extension-and-magic binary exemption, exit 0. The TIER2-RED 400 s bound was false: an 804 s wait was measured inside a 1251.6 s whole suite. Two worktree agents shared one scratchpad progress helper and cross-wrote each other's progress files - one was set done falsely, then reset. Free memory fell to 747 MB with three gated suites live, and one child died of the paging-file status.
+- Failed paths: the first TIER2-RED candidate and the first CS-1292 candidate, each refuted; a CS-1304 retry-once, denied as masking.
+- Next action: read CI (the first tier2 nightly after 319cd8a), then finish the three branches - the outstanding adversary verdicts, the fixes, a re-refute - and land them in one batch push.
+
 ## Session 134 - archived 2026-10-11 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 134 - 2026-10-09 - four items closed and CS-1288 half shipped, CS-1285 slice B refuted four times and re-ruled fluid-only, a tier2 load flake fixed on a branch, and the CS-G03 full re-walk found owed

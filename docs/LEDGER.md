@@ -75,6 +75,24 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-700 - DECISION RECORD (the session 138 merger, recorded by its /done). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. Ruling Q3's reversal fired: the flip block, with the CS-G03 full re-walk, is the next session's first and only work
+Verification: the 2026-10-08 CS-700 DECISION RECORD below, its Q2 and Q3; `docs/item_notes/phase7.md`
+section CS-700, the flip plan; `CS-NEXT-SESSION.txt`, the session 139 hand-off, which carries the
+whole block, the operator's batched ask, the recovery rule and the step e wording.
+THE DECISION. Ruling Q3 of session 131 makes the flip block interactive and a session's last work,
+and the hand-off has carried its reversal since: "the merger's remaining context unable to hold the
+block plus S9-S12a - then the block is the next session's first and only work". Session 138's
+merger, after landing CS-1312, CS-1285, CS-1288, CS-1298, CS-1313 and CS-1314, judged that its
+remaining context could not hold the block plus S9-S12a. The reversal FIRED: the block, the CS-G03
+full clean-machine re-walk at the regeneration tip included, is session 139's first and only work.
+The walk is not run on its own, because Q2 runs it once at the regeneration tip, the S7a tip. Before
+step a, session 139 has an adjudicator - never the operator - rule whether either product item filed
+in session 138, CS-1315 or CS-1316, blocks the flip under "land all product before the flip block",
+and records the ruling here. Alternatives rejected: (1) starting the block in session 138, whose
+merger met the reversal's own condition; (2) a standalone re-walk now, which Q2 would re-owe at the
+regeneration tip. Reversed by: that adjudication ruling CS-1315 or CS-1316 a flip blocker - then
+the blocker lands first and the block follows it; or the operator's own words.
+
 ### 2026-10-12 - CS-1298, CS-1313 and CS-1314 - BATCH RECORD (adjudicated session 138: the shared part of rulings Q1 to Q3, the batch adversary, fixes 1 and 2, the verifier and the stop). NOT A COMPLETION RECORD; the three closes are the records below
 Verification: the three CLOSED records below, each carrying its own ruling verbatim, its merged
 files and its tests; the fix 1 arms
