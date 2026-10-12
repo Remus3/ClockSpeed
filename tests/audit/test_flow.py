@@ -54,7 +54,7 @@ import pytest
 from clockspeed.audit import balance, flow, fuel, machines, overlay
 from clockspeed.audit.machines import MachineState, WorldMachines
 from clockspeed.data.registry import Building, Recipe, Registry
-from clockspeed.save.world import RecordProperties, WorldModel
+from clockspeed.save.world import RecordProperties, WorldModel, WorldProperties
 from clockspeed.solve import exact, power
 from tests.audit import test_balance as balance_fx
 from tests.audit import test_machines as machines_fx
@@ -1479,3 +1479,180 @@ def test_the_flow_and_the_balance_classify_every_clock_alike(
     assert built == [flowed]
     assert evaluated.before_flow == flowed
     assert evaluated.after_flow == flowed
+
+
+# ---------------------------------------------------------------------------
+# CS-1314: a census record of a recipe class keeps the flow incomplete
+# ---------------------------------------------------------------------------
+#
+# ``WorldMachines`` counts every built record it did not admit, per class and
+# split the CS-1280 way: never read, read but not clean, read clean. A record
+# of a class the recipes name among their producers may be running one of
+# them, so a flow that judges only the admitted machines is short by whatever
+# it moves. Every world here is built through the real ``machines_of`` seam,
+# so the census is the one a save yields, never a hand-set count.
+
+#: The recipe class the census record is of: the corpus assembler, which the
+#: corpus recipes name as a producer and which no admitted machine here is.
+_CENSUS_CLASS: Final = synthetic.SOLVE_ASSEMBLER_BUILDING
+
+#: A class no corpus recipe names among its producers.
+_NON_RECIPE_CLASS: Final = balance_fx.FIXED_WHOLE
+
+#: The plate recipe's asset path, under a permitted root, so the one admitted
+#: machine reduces it to the corpus recipe name.
+_PLATE_ASSET: Final = (
+    f"/Game/FactoryGame/Synthetic/{synthetic.PLATE_RECIPE}.{synthetic.PLATE_RECIPE}"
+)
+
+#: Each census kind under the id the parametrised arms read it by.
+_CENSUS_KIND_IDS: Final = {
+    "clean": balance.CENSUS_TAGLESS_CLEAN,
+    "unclean": balance.GAP_NO_MACHINE_STATE,
+    "unread": balance.GAP_PAYLOAD_UNREAD,
+}
+
+
+def _census_flow_world(census_class: str, kind: str) -> WorldModel:
+    """One plate smelter that flows, then one census record of one class and kind.
+
+    Args:
+        census_class: The class of the record ``machines_of`` will not admit.
+        kind: Its census kind: read clean with no tag at all, read with only a
+            pending clock tag, or never read.
+
+    Returns:
+        The model.
+    """
+    rows: list[tuple[str, Mapping[str, object]]] = [(_SMELTER, balance_fx.TAGGED)]
+    unread: tuple[str, ...] = ()
+    if kind == balance.CENSUS_TAGLESS_CLEAN:
+        rows.append((census_class, {}))
+    elif kind == balance.GAP_NO_MACHINE_STATE:
+        rows.append((census_class, balance_fx.PENDING))
+    else:
+        unread = (census_class,)
+    base = balance_fx.census_world(*rows, unread=unread)
+    entries = dict(base.properties.by_record_index)
+    entries[0] = replace(entries[0], references=(machines_fx.recipe_reference(_PLATE_ASSET),))
+    return replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+
+
+def _census_rows(result: flow.WorldFlow) -> list[tuple[str, str, int]]:
+    """Each unadmitted entry as ``(class, kind, records)``, in published order.
+
+    Args:
+        result: The flow.
+
+    Returns:
+        The rows.
+    """
+    return list(result.unadmitted)
+
+
+@pytest.mark.parametrize("kind", list(_CENSUS_KIND_IDS.values()), ids=list(_CENSUS_KIND_IDS))
+def test_an_unadmitted_record_of_a_recipe_class_keeps_the_flow_incomplete(
+    recipes: dict[str, Recipe], kind: str
+) -> None:
+    """CS-1314's flow arm: every census kind of a recipe class reads incomplete.
+
+    THE ONE ADMITTED MACHINE FLOWS AND NOTHING IS SKIPPED, so without the
+    census the flow reads complete; the record left out of the population is
+    the only thing that can make it not. A clean tagless record is no
+    exception (ruling Q3 b): its class runs recipes, and nothing here says it
+    is not running one.
+    """
+    model = machines.machines_of(_census_flow_world(_CENSUS_CLASS, kind))
+    result = flow.flow_of(model, recipes)
+
+    assert [group.recipe_class_name for group in result.groups] == [synthetic.PLATE_RECIPE]
+    assert result.skipped_count == 0
+    assert result.complete is False
+    assert _census_rows(result) == [(_CENSUS_CLASS, kind, 1)]
+    assert _codes(result).get(flow.WARN_FLOW_RECIPE_CLASS_UNADMITTED) == 1
+    # Conservation is untouched: the census sits beside the population.
+    assert result.machines_considered == 1
+
+
+@pytest.mark.parametrize("kind", list(_CENSUS_KIND_IDS.values()), ids=list(_CENSUS_KIND_IDS))
+def test_an_unadmitted_record_of_no_recipe_class_leaves_the_flow_complete(
+    recipes: dict[str, Recipe], kind: str
+) -> None:
+    """The guard: a class no recipe names moves no recipe item, so it is not named."""
+    model = machines.machines_of(_census_flow_world(_NON_RECIPE_CLASS, kind))
+    held = sum(
+        count
+        for pairs in (model.unadmitted_read_counts, model.unadmitted_unread_counts)
+        for _class, count in pairs
+    )
+    result = flow.flow_of(model, recipes)
+
+    assert held == 1
+    assert result.complete is True
+    assert result.unadmitted == ()
+    assert flow.WARN_FLOW_RECIPE_CLASS_UNADMITTED not in _codes(result)
+
+
+def test_a_bare_sequence_carries_no_census(recipes: dict[str, Recipe]) -> None:
+    """Ruling Q3 c: the census is read only from a ``WorldMachines``.
+
+    The same machines as a bare sequence carry nothing to read it from, so the
+    flow over them reads only them - while the model of the same world, which
+    does carry it, does not read complete.
+    """
+    model = machines.machines_of(_census_flow_world(_CENSUS_CLASS, balance.CENSUS_TAGLESS_CLEAN))
+    bare = flow.flow_of(model.machines, recipes)
+    modelled = flow.flow_of(model, recipes)
+
+    assert bare.complete is True
+    assert bare.unadmitted == ()
+    assert flow.WARN_FLOW_RECIPE_CLASS_UNADMITTED not in _codes(bare)
+    assert modelled.complete is False
+
+
+def test_a_producer_named_only_by_an_unresolved_token_is_a_recipe_class(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Ruling Q3 a: an unresolved producer token names a recipe class too."""
+    stranger = "Build_SyntheticUnresolvedProducerQx14_C"
+    rows = {
+        **recipes,
+        "R_SyntheticUnresolvedQx14": replace(
+            recipes[synthetic.PLATE_RECIPE],
+            key="R_SyntheticUnresolvedQx14",
+            produced_in=(),
+            unresolved_produced_in=(stranger,),
+        ),
+    }
+    model = machines.machines_of(_census_flow_world(stranger, balance.GAP_PAYLOAD_UNREAD))
+
+    assert flow.flow_of(model, recipes).complete is True
+    result = flow.flow_of(model, rows)
+    assert result.complete is False
+    assert _census_rows(result) == [(stranger, balance.GAP_PAYLOAD_UNREAD, 1)]
+
+
+def test_residual_a_recipe_the_registry_dropped_hides_its_producer_class_from_the_flow(
+    recipes: dict[str, Recipe],
+) -> None:
+    """A NAMED RESIDUAL, NOT A FIX - the session 138 CS-1314 ruling's common mode.
+
+    A recipe class is known only from the recipes the caller hands in. When
+    the registry dropped every recipe a class produces - one it could not read
+    - the class is no recipe class here, so its census record is not named and
+    the flow reads complete. This arm pins today's behaviour so the blind spot
+    stays visible; it reddens the day a fix lands, which is when it is
+    rewritten.
+    """
+    survivors = {
+        key: recipe
+        for key, recipe in recipes.items()
+        if _CENSUS_CLASS not in (*recipe.produced_in, *recipe.unresolved_produced_in)
+    }
+    model = machines.machines_of(_census_flow_world(_CENSUS_CLASS, balance.GAP_PAYLOAD_UNREAD))
+
+    assert len(survivors) < len(recipes)
+    assert flow.flow_of(model, recipes).complete is False
+    blind = flow.flow_of(model, survivors)
+    assert blind.complete is True
+    assert blind.unadmitted == ()

@@ -242,9 +242,10 @@ def inputs_of(
     Composes the audit models the power balance needs - placement, machines
     and network, each read off the model - prices them against the registry's
     buildings, hands it the registry's generator namespace so a built
-    generator's capacity is computed (CS-1271), and hands the balance and the
-    model's unlock state to :func:`world_inputs`. Reads no file: both
-    arguments are already parsed.
+    generator's capacity is computed (CS-1271) and the registry's recipes so
+    its starvation judges the census of unadmitted records (CS-1314), and hands
+    the balance and the model's unlock state to :func:`world_inputs`. Reads no
+    file: both arguments are already parsed.
 
     THE FUEL AUDIT (CS-1285 slice D) runs over the SAME machines model, read
     once, and its inputs (:func:`clockspeed.advisor.rules.fuel.fuel_inputs`)
@@ -276,6 +277,7 @@ def inputs_of(
         machines,
         network_of(model),
         generators=registry.generators,
+        recipes=registry.recipes,
     )
     balanced = world_inputs(balance, model.unlocks)
     fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)

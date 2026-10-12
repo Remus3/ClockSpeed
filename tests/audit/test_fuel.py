@@ -1242,6 +1242,42 @@ def test_a_census_record_unmeasures_exactly_the_fluids_its_class_relates_to(
             assert (line.supply_per_minute is None) == (line.item_key in unmeasured)
 
 
+@pytest.mark.parametrize("census", ["read", "clean", "unread"])
+@pytest.mark.parametrize(
+    ("class_name", "reasons"),
+    [(MAKER, ()), (REFINERY, (fuel.REASON_SUPPLY_UNMEASURED,))],
+    ids=["relates-to-no-burned-fuel", "relates-to-the-burned-fuel"],
+)
+def test_a_census_record_of_a_recipe_class_never_marks_the_fuel_flow_incomplete(
+    class_name: str, reasons: tuple[str, ...], census: str
+) -> None:
+    """CS-1314 ruling Q3 d: the fuel audit keeps its tuple flow and its own census judgment.
+
+    The flow this audit builds is over a BARE SEQUENCE of its recipe machines,
+    which carries no census (``clockspeed/audit/flow.py`` ``flow_of``), so a
+    census record of a recipe class never marks that flow incomplete - were it
+    to, ``REASON_FLOW_INCOMPLETE`` would block every verdict in the world. The
+    audit's own reading of the record stands instead, per fuel: a class whose
+    recipes name the burned fuel unmeasures it, and one whose recipes do not
+    leaves the verdict alone - read, read clean or never read alike.
+    """
+    pairs = ((class_name, 1),)
+    if census == "unread":
+        world = _covered_fuel_world(unadmitted_unread=pairs)
+    else:
+        world = _covered_fuel_world(unadmitted_read=pairs)
+    if census == "clean":
+        world = replace(world, unadmitted_clean_counts=pairs)
+    producers = {name for recipe in RECIPES.values() for name in recipe.produced_in}
+    result = _audit(world)
+    verdict = _verdict(result, GEN_FUEL)
+
+    assert class_name in producers
+    assert result.flow_complete is True
+    assert verdict.reasons == reasons
+    assert verdict.verdict == (fuel.VERDICT_INDETERMINATE if reasons else fuel.VERDICT_REJECT)
+
+
 @pytest.mark.parametrize("census", ["unadmitted_read", "unadmitted_unread"])
 @pytest.mark.parametrize("class_name", [MOD_BUILD, MOD_BUILD_SHOUTED])
 def test_an_untabled_undeclared_buildable_is_unregistered(class_name: str, census: str) -> None:

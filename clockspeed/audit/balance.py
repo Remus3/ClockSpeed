@@ -219,6 +219,23 @@ and the four categories conserve against
 :attr:`WorldStarvation.machines_considered` for the same reason the draw buckets
 do.
 
+A RECORD NEVER ADMITTED IS JUDGED BESIDE THE POPULATION (CS-1314). The four
+categories partition ``WorldMachines.machines`` alone, so a built record of a
+class that runs a recipe, left out of that population, used to be in no
+category and in no list. :func:`starvation_of` now reads the census
+``WorldMachines`` publishes of what it did not admit, through
+:func:`unadmitted_census_of` - the one owner of the CS-1280 partition and of
+what a RECIPE CLASS is (:func:`recipe_classes_of`), which
+``clockspeed/audit/flow.py`` imports rather than copies. Each record of a
+recipe class is named by class and kind in :attr:`WorldStarvation.unadmitted`,
+outside the four categories, which still conserve. One read clean with no tag
+at all is :data:`CENSUS_TAGLESS_CLEAN`, counted apart and NEVER STARVED: a
+starved machine carries a recipe, and it carries none. One never read, or read
+and not clean, stays indeterminate under its own kind and joins the
+:data:`WARN_BALANCE_MACHINE_STATE_UNREAD` count. Only the caller's recipes can
+say which classes run one, so a starvation handed none over a non-empty census
+judges nothing and says so with :data:`WARN_BALANCE_CENSUS_UNJUDGED`.
+
 A FINDING HERE IS HALF AN AUDIT AND THIS MODULE SAYS SO. The package
 ``__init__`` states the whole rule: "This machine is idle" is half an audit;
 "this machine is idle because the segment upstream is saturated" is the whole
@@ -261,12 +278,14 @@ if TYPE_CHECKING:
     from clockspeed.audit.machines import WorldMachines
     from clockspeed.audit.network import WorldNetwork
     from clockspeed.audit.placement import WorldPlacement
-    from clockspeed.data.registry import Building, Generator
+    from clockspeed.data.registry import Building, Generator, Recipe
 
 __all__ = [
     "BOUND_EXACT",
     "BOUND_EXPONENT_BRACKET",
     "BOUND_KINDS",
+    "CENSUS_KINDS",
+    "CENSUS_TAGLESS_CLEAN",
     "CLOCKED_GAP_KINDS",
     "ELIDED_CLOCK_DEFAULT",
     "GAP_BOOST_UNMODELED",
@@ -283,6 +302,7 @@ __all__ = [
     "OMISSION_KINDS",
     "PRODUCTION_GAP_KINDS",
     "SOURCE_BALANCE",
+    "WARN_BALANCE_CENSUS_UNJUDGED",
     "WARN_BALANCE_CLOCKED_DRAW_BOUNDED",
     "WARN_BALANCE_CLOCKED_DRAW_UNMODELED",
     "WARN_BALANCE_CLOCK_ELIDED",
@@ -314,7 +334,9 @@ __all__ = [
     "clocked_draw_of",
     "draw_of",
     "production_of",
+    "recipe_classes_of",
     "starvation_of",
+    "unadmitted_census_of",
 ]
 
 #: Which layer noticed a warning raised here, for ``WorldWarning.source``.
@@ -419,6 +441,21 @@ GAP_NO_MACHINE_STATE: Final = "no-machine-state"
 #: considered at all - so the two vocabularies are disjoint.
 OMISSION_KINDS: Final = frozenset({GAP_PAYLOAD_UNREAD, GAP_NO_MACHINE_STATE})
 
+#: CS-1314. A census record whose payload read CLEAN - the CS-1280 mark,
+#: ``WorldMachines.unadmitted_clean_counts`` - and carried no machine tag at
+#: all: no clock, recipe, producing, pending clock or production-boost tag.
+#: The third kind of the CS-1280 partition of what ``WorldMachines`` did not
+#: admit, beside :data:`GAP_PAYLOAD_UNREAD` (never read) and
+#: :data:`GAP_NO_MACHINE_STATE` (read, not clean), whose words the census
+#: reuses so each fact keeps one spelling.
+CENSUS_TAGLESS_CLEAN: Final = "tagless-clean"
+
+#: CS-1314. The closed vocabulary of census kinds, in publication order: the
+#: CS-1280 partition of every record ``WorldMachines`` left unadmitted. ONE
+#: OWNER - ``clockspeed/audit/flow.py`` imports :func:`unadmitted_census_of`
+#: rather than partitioning the census a second way.
+CENSUS_KINDS: Final = (GAP_PAYLOAD_UNREAD, GAP_NO_MACHINE_STATE, CENSUS_TAGLESS_CLEAN)
+
 #: A clocked group whose draw the power law yields EXACTLY - the reference clock,
 #: a whole exponent, or a zero clock under a positive one. Its two ends are equal.
 BOUND_EXACT: Final = "exact"
@@ -459,6 +496,10 @@ WARN_BALANCE_PRODUCING_UNAVAILABLE: Final = "balance-producing-unavailable"
 
 #: This many machines carried no producing flag and were neither flagged nor
 #: counted as running. The starved set is short by whatever they hold.
+#: CS-1314: the count also carries every unadmitted record of a recipe class
+#: that is :data:`GAP_PAYLOAD_UNREAD` or :data:`GAP_NO_MACHINE_STATE`, each
+#: named in :attr:`WorldStarvation.unadmitted` - one code rather than a second,
+#: because the fact is the same one, as CS-1266 folded the omissions.
 WARN_BALANCE_MACHINE_STATE_UNREAD: Final = "balance-machine-state-unread"
 
 #: No production figure was computed - no generator namespace was supplied, or
@@ -512,6 +553,13 @@ WARN_BALANCE_TAGLESS_DEFAULT: Final = "balance-tagless-default"
 #: power consumer, on any path. Each class is named with its count in
 #: :attr:`WorldClockedDraw.equipment_classes`, so the exclusion is never silent.
 WARN_BALANCE_EQUIPMENT_EXCLUDED: Final = "balance-equipment-excluded"
+
+#: CS-1314. :func:`starvation_of` was handed no recipes - None, or an empty
+#: mapping - over a machines model whose census of unadmitted records is not
+#: empty, so it could not tell which of those records are of a class that runs
+#: a recipe and judged none of them. Counted in records. The precedent is
+#: :data:`WARN_BALANCE_PRODUCTION_UNMODELED` for a balance handed no generators.
+WARN_BALANCE_CENSUS_UNJUDGED: Final = "balance-census-unjudged"
 
 #: One fixed line per gap kind this module OWNS. The other three kinds carry
 #: ``clockspeed/solve/power.py``'s own reason verbatim instead, so no line is
@@ -654,7 +702,9 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_BALANCE_MACHINE_STATE_UNREAD: (
             "this many machines carried no producing flag, so they were neither"
             " flagged nor counted as running; the starved set is short by whatever"
-            " those machines hold"
+            " those machines hold; built records of a class that runs a recipe,"
+            " never admitted because no payload of theirs was read or it read and"
+            " was not clean, are counted here too and named in the unadmitted list"
         ),
         WARN_BALANCE_PRODUCTION_UNMODELED: (
             "no production figure was computed because no generator model was"
@@ -717,6 +767,12 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " because its entry declares a power field - so none was priced, counted as"
             " a built power consumer or named as an omission; each class is named with"
             " its count in the clocked draw's equipment list"
+        ),
+        WARN_BALANCE_CENSUS_UNJUDGED: (
+            "this many built records were never admitted as machines, and no recipes"
+            " were supplied to tell which of them are of a class that runs a recipe,"
+            " so none was judged; the starved set and its counts say nothing about"
+            " them, and an empty unadmitted list means unjudged, never none"
         ),
     }
 )
@@ -955,6 +1011,27 @@ class WorldStarvation:
             ``WorldMachines.producing_available``. False over a non-empty
             population means the empty starved set is a fact about this reader.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
+        unadmitted: CS-1314. Every census record of a RECIPE CLASS - one the
+            supplied recipes name among their producers - that
+            ``WorldMachines`` never admitted, as ``(class name, kind, record
+            count)`` triples, the kind one of :data:`CENSUS_KINDS` and the
+            count above zero, sorted by class then by kind order - plain
+            tuples, as :attr:`WorldClockedDraw.equipment_classes` names its
+            classes, and as :func:`unadmitted_census_of` returns them. A bare
+            class name is publisher content; :meth:`__repr__` renders only how
+            many triples there are. OUTSIDE the four
+            categories, which still conserve against
+            :attr:`machines_considered`. Empty when no recipes were supplied,
+            which :data:`WARN_BALANCE_CENSUS_UNJUDGED` then says.
+        tagless_clean_count: CS-1314. How many of those records are
+            :data:`CENSUS_TAGLESS_CLEAN`: read clean and carrying no machine
+            tag, so no recipe either. COUNTED APART AND NEVER STARVED - a
+            starved machine carries a recipe.
+        indeterminate_record_count: CS-1314. How many of those records are
+            :data:`GAP_PAYLOAD_UNREAD` or :data:`GAP_NO_MACHINE_STATE`: whether
+            such a record runs a recipe, or produces, is unknown, so it is
+            neither flagged nor counted as running, and the starved set is
+            short by whatever it holds.
     """
 
     starved_indices: tuple[int, ...]
@@ -964,6 +1041,10 @@ class WorldStarvation:
     machines_considered: int
     producing_available: bool
     warnings: tuple[WorldWarning, ...]
+    # CS-1314. Appended with defaults, so every existing construction stays valid.
+    unadmitted: tuple[tuple[str, str, int], ...] = ()
+    tagless_clean_count: int = 0
+    indeterminate_record_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts and flags, and none that a member could make raise.
@@ -978,6 +1059,9 @@ class WorldStarvation:
             f"unknown_state_count={self.unknown_state_count}, "
             f"machines_considered={self.machines_considered}, "
             f"producing_available={self.producing_available}, "
+            f"unadmitted={len(self.unadmitted)}, "
+            f"tagless_clean_count={self.tagless_clean_count}, "
+            f"indeterminate_record_count={self.indeterminate_record_count}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -2070,13 +2154,128 @@ def clocked_draw_of(
     return result
 
 
-def starvation_of(machines: WorldMachines) -> WorldStarvation:
+def recipe_classes_of(recipes: Mapping[str, Recipe]) -> frozenset[str]:
+    """Every class the supplied recipes name among their producers (CS-1314).
+
+    THE ONE OWNER OF WHAT A RECIPE CLASS IS (ruling Q3 a): a name in any
+    recipe's ``produced_in`` OR its ``unresolved_produced_in`` - the relation
+    ``clockspeed/audit/fuel.py`` reads, where a producer token the registry
+    could not resolve still names a class a record may be of. A class every
+    recipe of which the registry dropped is named by none of them, and is no
+    recipe class here: a residual the session 138 ruling records.
+
+    Args:
+        recipes: The recipes, keyed by class name.
+
+    Returns:
+        The recipe classes.
+    """
+    return frozenset(
+        name
+        for recipe in recipes.values()
+        for name in (*recipe.produced_in, *recipe.unresolved_produced_in)
+    )
+
+
+def unadmitted_census_of(
+    machines: WorldMachines, recipes: Mapping[str, Recipe]
+) -> tuple[tuple[str, str, int], ...]:
+    """Name every unadmitted record of a recipe class, by class and kind (CS-1314).
+
+    THE CS-1280 PARTITION, READ ONCE FOR EVERY AUDIT. ``WorldMachines``
+    publishes what it did not admit as two partitioning censuses - read and
+    unread - and a third that only MARKS members of the read one clean. So a
+    record of a recipe class is :data:`GAP_PAYLOAD_UNREAD` when it was never
+    read, :data:`CENSUS_TAGLESS_CLEAN` when it read clean, and
+    :data:`GAP_NO_MACHINE_STATE` when it read and did not. A hand-built clean
+    count above its class' read count is clamped to it, as
+    :func:`_tagless_census` clamps it, so no record is named twice and none the
+    read census does not hold is named at all. A record of any other class is
+    not named: no supplied recipe says it moves an item.
+
+    Args:
+        machines: The machines model, for its three per-class censuses.
+        recipes: The recipes, keyed by class name, whose producers decide
+            which classes are recipe classes.
+
+    Returns:
+        One ``(class name, kind, record count)`` triple per (class, kind) with
+        a record, sorted by class and then in :data:`CENSUS_KINDS` order.
+    """
+    classes = recipe_classes_of(recipes)
+    unread: dict[str, int] = {}
+    read: dict[str, int] = {}
+    clean: dict[str, int] = {}
+    for tally, census in (
+        (unread, machines.unadmitted_unread_counts),
+        (read, machines.unadmitted_read_counts),
+        (clean, machines.unadmitted_clean_counts),
+    ):
+        for class_name, count in census:
+            if count > 0 and class_name in classes:
+                tally[class_name] = tally.get(class_name, 0) + count
+    named: dict[tuple[str, str], int] = {}
+    for class_name, count in unread.items():
+        named[(class_name, GAP_PAYLOAD_UNREAD)] = count
+    for class_name, count in read.items():
+        tagless = min(clean.get(class_name, 0), count)
+        for kind, records in (
+            (GAP_NO_MACHINE_STATE, count - tagless),
+            (CENSUS_TAGLESS_CLEAN, tagless),
+        ):
+            if records > 0:
+                named[(class_name, kind)] = records
+    return tuple(
+        (class_name, kind, count)
+        for (class_name, kind), count in sorted(
+            named.items(), key=lambda entry: (entry[0][0], CENSUS_KINDS.index(entry[0][1]))
+        )
+    )
+
+
+def _census_size(machines: WorldMachines) -> int:
+    """How many records ``WorldMachines`` left unadmitted, of any class (CS-1314).
+
+    The read census and the unread one partition them; the clean census only
+    marks members of the read one and is never added again.
+
+    Args:
+        machines: The machines model.
+
+    Returns:
+        The record count.
+    """
+    return sum(
+        count
+        for census in (machines.unadmitted_read_counts, machines.unadmitted_unread_counts)
+        for _class_name, count in census
+        if count > 0
+    )
+
+
+def starvation_of(
+    machines: WorldMachines, *, recipes: Mapping[str, Recipe] | None = None
+) -> WorldStarvation:
     """Flag every machine that carries a recipe and is not producing.
 
     PURE, AND TOTAL, on the same terms :func:`draw_of` states.
 
+    CS-1314: the census of what ``WorldMachines`` did not admit is judged
+    beside the population, never inside it. Each record of a recipe class is
+    named in :attr:`WorldStarvation.unadmitted`; a clean tagless one is counted
+    apart and never flagged, because it carries no recipe; an unread or
+    unclean one is indeterminate, counted, and added to the
+    :data:`WARN_BALANCE_MACHINE_STATE_UNREAD` count, because the starved set is
+    short by whatever it holds exactly as it is for an admitted machine whose
+    producing flag never read. With no recipes - None, or an empty mapping,
+    as :func:`balance_of` reads an empty generator namespace - nothing can be
+    judged, and a non-empty census is :data:`WARN_BALANCE_CENSUS_UNJUDGED`.
+
     Args:
         machines: The machines model. Read only.
+        recipes: CS-1314. The recipes, keyed by class name, which say which
+            unadmitted records are of a class that runs one. None leaves the
+            census unjudged.
 
     Returns:
         The starvation model, whose four categories partition the population.
@@ -2096,11 +2295,19 @@ def starvation_of(machines: WorldMachines) -> WorldStarvation:
         else:
             starved.append(index)
 
+    # CS-1314. Judged only by recipes that can say what a recipe class is.
+    unadmitted = unadmitted_census_of(machines, recipes) if recipes else ()
+    tagless = sum(count for _class_name, kind, count in unadmitted if kind == CENSUS_TAGLESS_CLEAN)
+    indeterminate = sum(count for _class_name, _kind, count in unadmitted) - tagless
+
     warnings: list[WorldWarning] = []
     if machines.machines and not machines.producing_available:
         warnings.append(_warning(WARN_BALANCE_PRODUCING_UNAVAILABLE))
-    if unknown:
-        warnings.append(_warning(WARN_BALANCE_MACHINE_STATE_UNREAD, unknown))
+    if unknown + indeterminate:
+        warnings.append(_warning(WARN_BALANCE_MACHINE_STATE_UNREAD, unknown + indeterminate))
+    unjudged = 0 if recipes else _census_size(machines)
+    if unjudged:
+        warnings.append(_warning(WARN_BALANCE_CENSUS_UNJUDGED, unjudged))
 
     return WorldStarvation(
         starved_indices=tuple(starved),
@@ -2110,6 +2317,9 @@ def starvation_of(machines: WorldMachines) -> WorldStarvation:
         machines_considered=len(machines.machines),
         producing_available=machines.producing_available,
         warnings=tuple(warnings),
+        unadmitted=unadmitted,
+        tagless_clean_count=tagless,
+        indeterminate_record_count=indeterminate,
     )
 
 
@@ -2120,6 +2330,7 @@ def balance_of(
     network: WorldNetwork,
     *,
     generators: Mapping[str, Generator] | None = None,
+    recipes: Mapping[str, Recipe] | None = None,
 ) -> WorldBalance:
     """Compute both halves of one world's power balance.
 
@@ -2130,6 +2341,9 @@ def balance_of(
         network: The network model, for whether an upstream cause can be named.
         generators: CS-1059. The generator namespace, or None. Production is
             computed only over a non-empty one.
+        recipes: CS-1314. The recipes, keyed by class name, handed to
+            :func:`starvation_of` so it judges the census of unadmitted
+            records. None leaves that census unjudged, and says so.
 
     Returns:
         The balance, carrying every sub-model's warnings plus this level's own.
@@ -2137,7 +2351,7 @@ def balance_of(
     producers = generators or None
     draw = draw_of(placement, buildings, generators=producers)
     clocked_draw = clocked_draw_of(machines, buildings, generators=producers)
-    starvation = starvation_of(machines)
+    starvation = starvation_of(machines, recipes=recipes)
     production = None if producers is None else production_of(placement, producers, buildings)
 
     warnings = [*draw.warnings, *clocked_draw.warnings, *starvation.warnings]

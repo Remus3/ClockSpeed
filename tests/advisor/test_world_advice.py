@@ -385,6 +385,32 @@ def test_the_balance_and_the_fuel_audit_read_one_machines_model(
     assert kwargs == {}
 
 
+def test_inputs_of_hands_the_registry_recipes_to_the_balance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-1314 ruling Q3 e: the starvation inside the balance judges its census.
+
+    ``starvation_of`` can tell a recipe class from any other only by the
+    recipes, so :func:`inputs_of` hands the balance the registry's own - the
+    same object, never a copy or none - beside its generators (CS-1271).
+    """
+    calls: list[dict[str, object]] = []
+    real_balance_of = advise_module.balance_of
+
+    def recording(*args: object, **kwargs: object) -> WorldBalance:
+        calls.append(kwargs)
+        return real_balance_of(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(advise_module, "balance_of", recording)
+    registry = fuel_registry()
+
+    inputs_of(fuel_world(), registry, pinned_changelist=game_pin())
+
+    assert len(calls) == 1
+    assert calls[0].get("recipes") is registry.recipes
+    assert calls[0].get("generators") is registry.generators
+
+
 def _steps(trace_steps: tuple[TraceStep, ...], kind: StepKind, prefix: str) -> list[object]:
     """The values of one kind of step whose subject starts with ``prefix``, in order."""
     return [

@@ -107,6 +107,23 @@ other reason - refused, an unread payload, a disagreeing tag, or a hand-built
 state nobody marked - stays :data:`GAP_FLOW_CLOCK_UNREAD`, whatever the class's
 capability: only the elision mark is re-read, never an unread clock.
 
+A RECORD NEVER ADMITTED IS NAMED, AND THE FLOW IS NOT COMPLETE BESIDE IT
+(CS-1314). Every bucket above holds an ADMITTED machine, so a built record of a
+class that runs recipes, which ``clockspeed/audit/machines.py`` left out of its
+population - its payload never read, or read with no machine tag - used to
+leave the flow reading complete while it may be moving items. A
+``WorldMachines`` model carries the census of every such record, and the flow
+reads it through ``clockspeed/audit/balance.py`` ``unadmitted_census_of``, the
+one owner of what a RECIPE CLASS is (any name among a supplied recipe's
+producers, resolved or not) and of the CS-1280 partition into its three kinds.
+Each record of a recipe class is named by class and kind in
+:attr:`WorldFlow.unadmitted`, counted under
+:data:`WARN_FLOW_RECIPE_CLASS_UNADMITTED`, and keeps :attr:`WorldFlow.complete`
+False - EVERY kind, the clean tagless one included, because nothing says it is
+not running a recipe. The census is beside the population and never in it, so
+the buckets still conserve against ``machines_considered``. A bare sequence
+carries no census and names none.
+
 WHAT A DEFICIT IS
 -------------------
 An item is SHORT when its net rate falls below what the caller demands of it -
@@ -125,7 +142,11 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
-from clockspeed.audit.balance import ELIDED_CLOCK_DEFAULT, clock_is_elidable
+from clockspeed.audit.balance import (
+    ELIDED_CLOCK_DEFAULT,
+    clock_is_elidable,
+    unadmitted_census_of,
+)
 from clockspeed.audit.machines import MachineState, WorldMachines
 from clockspeed.save.world import WorldWarning
 from clockspeed.solve.exact import ExactArithmeticError, audit_exact, per_minute
@@ -151,6 +172,7 @@ __all__ = [
     "WARN_FLOW_NOTHING_FLOWING",
     "WARN_FLOW_NO_RECIPE",
     "WARN_FLOW_RATE_UNDEFINED",
+    "WARN_FLOW_RECIPE_CLASS_UNADMITTED",
     "WARN_FLOW_RECIPE_UNKNOWN",
     "FlowGap",
     "ItemFlow",
@@ -225,6 +247,12 @@ WARN_FLOW_CLOCK_REFUSED: Final = "flow-clock-refused"
 #: world is balanced.
 WARN_FLOW_NOTHING_FLOWING: Final = "flow-nothing-flowing"
 
+#: CS-1314. This many built records of a class the supplied recipes name among
+#: their producers were never admitted as machines, so whatever they move is
+#: outside this flow; each is named by class and kind in
+#: :attr:`WorldFlow.unadmitted`, and the flow is never complete beside one.
+WARN_FLOW_RECIPE_CLASS_UNADMITTED: Final = "flow-recipe-class-unadmitted"
+
 _WARNING_OF_GAP: Final[Mapping[str, str]] = MappingProxyType(
     {
         GAP_FLOW_NO_RECIPE: WARN_FLOW_NO_RECIPE,
@@ -273,6 +301,12 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_FLOW_NOTHING_FLOWING: (
             "no machine contributed to the flow, so an empty item map means nothing"
             " could be measured and never that the world is balanced"
+        ),
+        WARN_FLOW_RECIPE_CLASS_UNADMITTED: (
+            "this many built records of a class that runs a recipe were never admitted"
+            " as machines - their payload was never read, or carried no machine tag -"
+            " so whatever they move is outside this flow and it is not complete; each"
+            " is named by class and kind in the unadmitted list"
         ),
     }
 )
@@ -415,8 +449,10 @@ class WorldFlow:
         raw_items: What the caller declared raw, sorted.
         machines_considered: How many machines the input held.
         skipped_count: How many of them are in a gap.
-        complete: Whether every machine flowed. False means every item total
-            is short by whatever the skipped machines move.
+        complete: Whether every machine flowed AND no built record of a recipe
+            class was left out of the population (CS-1314, :attr:`unadmitted`).
+            False means every item total is short by whatever the skipped
+            machines and the unadmitted records move.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
         elided_clock_count: CS-1265. How many FLOWING machines ran at
             ``ELIDED_CLOCK_DEFAULT`` because their clock tag was elided - the
@@ -437,6 +473,16 @@ class WorldFlow:
             counts it, because it cannot know the class has no clock.
             CS-1278: neither audit prices or flows a boosted machine, so it is
             counted in neither, elided or not.
+        unadmitted: CS-1314. Every built record of a class the supplied recipes
+            name among their producers that ``WorldMachines`` never admitted,
+            as ``(class name, kind, record count)`` triples, the kind one of
+            ``clockspeed/audit/balance.py`` ``CENSUS_KINDS``, exactly as
+            ``balance.unadmitted_census_of`` returns them; :meth:`__repr__`
+            renders only how many there are. OUTSIDE
+            :attr:`machines_considered`, so the buckets still conserve; any
+            entry keeps :attr:`complete` False. Read only from a
+            ``WorldMachines``: a bare sequence carries no census, so this is
+            empty for one.
     """
 
     groups: tuple[RecipeGroup, ...]
@@ -450,6 +496,8 @@ class WorldFlow:
     complete: bool
     warnings: tuple[WorldWarning, ...]
     elided_clock_count: int
+    # CS-1314. Appended with a default, so every existing construction stays valid.
+    unadmitted: tuple[tuple[str, str, int], ...] = ()
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -464,6 +512,7 @@ class WorldFlow:
             f"machines_considered={self.machines_considered}, "
             f"skipped_count={self.skipped_count}, complete={self.complete}, "
             f"elided_clock_count={self.elided_clock_count}, "
+            f"unadmitted={len(self.unadmitted)}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -634,8 +683,21 @@ def flow_of(
     statement of intent rather than world content, on the terms
     ``clockspeed/solve/ratio.py`` refuses an inexact target.
 
+    CS-1314: a ``WorldMachines`` model carries the census of the built records
+    it did not admit, and every one of them of a RECIPE CLASS - a class some
+    supplied recipe names among its producers, resolved or not - is named in
+    :attr:`WorldFlow.unadmitted` by class and kind, warned by
+    :data:`WARN_FLOW_RECIPE_CLASS_UNADMITTED`, and keeps
+    :attr:`WorldFlow.complete` False, whatever its kind. The partition and the
+    predicate are ``clockspeed/audit/balance.py`` ``unadmitted_census_of``'s,
+    asked rather than copied. A BARE SEQUENCE CARRIES NO CENSUS: it is the
+    machines and nothing else, so a flow over one judges only them and names
+    no unadmitted record - the fuel audit builds its flow that way on purpose
+    and judges the census itself.
+
     Args:
-        machines: The machines, as a ``WorldMachines`` model or a bare sequence.
+        machines: The machines, as a ``WorldMachines`` model or a bare
+            sequence. Only the model carries a census.
         recipes: The recipes, keyed by class name. Supplied by the caller.
         raw_items: Items supplied from outside the built machines.
         demands: Item to the net output asked of it per minute. Absent items
@@ -654,7 +716,12 @@ def flow_of(
     Raises:
         InexactValueError: A demand is not exactly a Fraction.
     """
-    population = machines.machines if isinstance(machines, WorldMachines) else tuple(machines)
+    if isinstance(machines, WorldMachines):
+        population = machines.machines
+        unadmitted = unadmitted_census_of(machines, recipes)
+    else:
+        population = tuple(machines)
+        unadmitted = ()
     asked: dict[str, Fraction] = dict(demands or {})
     audit_exact(asked, path="demands")
     raw = tuple(sorted(set(raw_items)))
@@ -718,6 +785,9 @@ def flow_of(
             warnings.append(_warning(_WARNING_OF_GAP[kind], count))
     if not group_counts:
         warnings.append(_warning(WARN_FLOW_NOTHING_FLOWING))
+    unadmitted_records = sum(count for _class_name, _kind, count in unadmitted)
+    if unadmitted_records:
+        warnings.append(_warning(WARN_FLOW_RECIPE_CLASS_UNADMITTED, unadmitted_records))
 
     result = WorldFlow(
         groups=tuple(
@@ -736,9 +806,10 @@ def flow_of(
         raw_items=raw,
         machines_considered=len(population),
         skipped_count=skipped,
-        complete=skipped == 0 and bool(group_counts),
+        complete=skipped == 0 and bool(group_counts) and not unadmitted,
         warnings=tuple(warnings),
         elided_clock_count=sum(group_elided.values()),
+        unadmitted=unadmitted,
     )
     audit_exact(result, path="flow")
     return result

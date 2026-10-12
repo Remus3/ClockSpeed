@@ -67,6 +67,7 @@ from clockspeed.data.registry import (
     KEY_POWER_EXPONENT,
     Building,
     Generator,
+    Recipe,
     build_registry,
 )
 from clockspeed.save import objects, world
@@ -3297,3 +3298,232 @@ def test_a_buildable_from_a_non_buildable_group_stays_a_consumer() -> None:
     assert consumer_counts(result) == (2, 2, 0)
     assert result.upper_megawatts == result.lower_megawatts == Fraction(8)
     assert result.equipment_classes == ((EQUIPMENT_CLASS, 1),)
+
+
+# ---------------------------------------------------------------------------
+# CS-1314: starvation reads the census of unadmitted records of a recipe class
+# ---------------------------------------------------------------------------
+#
+# ``starvation_of`` partitions the ADMITTED machines, so a built record of a
+# class that runs recipes, left out of that population, used to be in no
+# category and in no list. Each world here is built through the real
+# ``machines_of`` seam. The ruling (session 138, Q3): such a record is named by
+# class and kind beside the four categories, which still conserve; a clean
+# tagless one is counted apart and never starved, because a starved machine
+# carries a recipe; the other two kinds stay indeterminate.
+
+#: CS-1314. An invented class a supplied recipe names as a resolved producer.
+RECIPE_MAKER = "Build_SyntheticMakerQx14_C"
+
+#: CS-1314. An invented class a supplied recipe names only by an unresolved
+#: producer token, the relation ``clockspeed/audit/fuel.py`` reads too.
+RECIPE_UNRESOLVED = "Build_SyntheticUnresolvedQx14_C"
+
+#: CS-1314. How many records the starvation census world leaves unadmitted:
+#: two clean tagless makers, one pending maker, one clean foundation-like
+#: record of no recipe class, and one unread unresolved-class record.
+CENSUS_RECORDS = 5
+
+
+def census_recipe(key: str, *, produced_in: str = "", unresolved: str = "") -> Recipe:
+    """One synthetic recipe naming one producer, resolved or not.
+
+    Args:
+        key: The recipe's class name.
+        produced_in: A resolved producer class, or empty for none.
+        unresolved: An unresolved producer token, or empty for none.
+
+    Returns:
+        The recipe.
+    """
+    return Recipe(
+        key=key,
+        display_name=f"Synthetic {key}",
+        duration=Fraction(4),
+        inputs=(),
+        outputs=(),
+        produced_in=(produced_in,) if produced_in else (),
+        variable_power_constant=None,
+        variable_power_factor=None,
+        unresolved_produced_in=(unresolved,) if unresolved else (),
+    )
+
+
+def census_recipes() -> Mapping[str, Recipe]:
+    """The recipes the starvation census arms judge by: one per producer spelling.
+
+    Returns:
+        Recipe class name to recipe.
+    """
+    return MappingProxyType(
+        {
+            RECIPE_CLASS: census_recipe(RECIPE_CLASS, produced_in=RECIPE_MAKER),
+            "Recipe_SyntheticUnresolvedQx14_C": census_recipe(
+                "Recipe_SyntheticUnresolvedQx14_C", unresolved=RECIPE_UNRESOLVED
+            ),
+        }
+    )
+
+
+def starvation_census_world() -> WorldModel:
+    """One starved machine, then five records ``machines_of`` will not admit.
+
+    Returns:
+        The model.
+    """
+    base = census_world(
+        (MACHINE_CLASS, {machines.PROPERTY_PRODUCING: False}),
+        (RECIPE_MAKER, {}),
+        (RECIPE_MAKER, {}),
+        (RECIPE_MAKER, PENDING),
+        (FIXED_WHOLE, {}),
+        unread=(RECIPE_UNRESOLVED,),
+    )
+    entries = dict(base.properties.by_record_index)
+    entries[0] = replace(entries[0], references=(machines_fx.recipe_reference(RECIPE_ASSET),))
+    return replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+
+
+def census_rows(entries: tuple[tuple[str, str, int], ...]) -> list[tuple[str, str, int]]:
+    """Each unadmitted triple ``(class, kind, records)``, in published order.
+
+    Args:
+        entries: The triples.
+
+    Returns:
+        The rows.
+    """
+    return list(entries)
+
+
+def test_starvation_names_every_unadmitted_record_of_a_recipe_class() -> None:
+    """CS-1314's starvation arm: every census kind of a recipe class, by class.
+
+    THE FOUR CATEGORIES ARE UNTOUCHED - the one admitted machine is starved and
+    they conserve against it alone. Beside them, each record of a recipe class
+    is named: the two clean tagless makers counted apart and never starved, the
+    pending maker and the unread unresolved-class record indeterminate, each by
+    its own kind. The foundation-like record is of no recipe class and is not
+    named.
+    """
+    model = machines.machines_of(starvation_census_world())
+    result = balance.starvation_of(model, recipes=census_recipes())
+
+    assert census_rows(result.unadmitted) == [
+        (RECIPE_MAKER, balance.GAP_NO_MACHINE_STATE, 1),
+        (RECIPE_MAKER, balance.CENSUS_TAGLESS_CLEAN, 2),
+        (RECIPE_UNRESOLVED, balance.GAP_PAYLOAD_UNREAD, 1),
+    ]
+    assert result.tagless_clean_count == 2  # noqa: PLR2004 - the two clean makers
+    assert result.indeterminate_record_count == 2  # noqa: PLR2004 - pending and unread
+    assert result.starved_indices == (0,)
+    total = (
+        len(result.starved_indices)
+        + result.running_count
+        + result.unconfigured_count
+        + result.unknown_state_count
+    )
+    assert total == result.machines_considered == 1
+    assert balance.WARN_BALANCE_CENSUS_UNJUDGED not in {code for code, _ in codes(result)}
+    rendered = repr(result)
+    assert "unadmitted=3" in rendered
+    assert RECIPE_MAKER not in rendered
+    assert RECIPE_UNRESOLVED not in rendered
+
+
+def codes(result: balance.WorldStarvation) -> list[tuple[str, int]]:
+    """Each raised warning as ``(code, count)``, in published order.
+
+    Args:
+        result: The starvation model.
+
+    Returns:
+        The pairs.
+    """
+    return [(warning.code, warning.count) for warning in result.warnings]
+
+
+def test_an_indeterminate_census_record_is_counted_in_the_unread_state_warning() -> None:
+    """The starved set is short by an indeterminate record, so the warning says so.
+
+    ``WARN_BALANCE_MACHINE_STATE_UNREAD`` counts what was neither flagged nor
+    counted running; a pending or unread record of a recipe class is exactly
+    that, and a clean tagless one is not - it carries no recipe to be short of.
+    """
+    model = machines.machines_of(starvation_census_world())
+    judged = dict(codes(balance.starvation_of(model, recipes=census_recipes())))
+
+    assert judged.get(balance.WARN_BALANCE_MACHINE_STATE_UNREAD) == 2  # noqa: PLR2004
+
+
+def test_the_balance_hands_its_recipes_to_starvation() -> None:
+    """Ruling Q3 e: ``balance_of`` takes the recipes and hands them on.
+
+    Without them the composite's starvation names nothing and says the census
+    went unjudged; with them it is the starvation the recipes judge.
+    """
+    model = machines.machines_of(starvation_census_world())
+    recipes = census_recipes()
+    composite = balance.balance_of(
+        built(modeled_counts()), modeled_registry(), model, world_network(), recipes=recipes
+    )
+    unjudged = balance.balance_of(
+        built(modeled_counts()), modeled_registry(), model, world_network()
+    )
+
+    assert composite.starvation == balance.starvation_of(model, recipes=recipes)
+    assert composite.starvation.unadmitted != ()
+    assert balance.WARN_BALANCE_CENSUS_UNJUDGED not in {w.code for w in composite.warnings}
+    assert unjudged.starvation.unadmitted == ()
+    assert balance.WARN_BALANCE_CENSUS_UNJUDGED in {w.code for w in unjudged.warnings}
+
+
+@pytest.mark.parametrize("recipes", [None, {}], ids=["none", "empty"])
+def test_a_starvation_handed_no_recipes_says_the_census_went_unjudged(
+    recipes: Mapping[str, Recipe] | None,
+) -> None:
+    """Ruling Q3 e: no recipes over a non-empty census is a named warning.
+
+    Nothing can tell a recipe class from any other without recipes, so no
+    record is named, none is counted either way, and the warning counts every
+    record the census holds - the precedent is a balance handed no generators.
+    An empty mapping is read as none, as ``balance_of`` reads an empty
+    generator namespace.
+    """
+    model = machines.machines_of(starvation_census_world())
+    result = balance.starvation_of(model, recipes=recipes)
+
+    assert dict(codes(result)).get(balance.WARN_BALANCE_CENSUS_UNJUDGED) == CENSUS_RECORDS
+    assert result.unadmitted == ()
+    assert (result.tagless_clean_count, result.indeterminate_record_count) == (0, 0)
+
+
+def test_an_empty_census_needs_no_recipes_to_be_judged() -> None:
+    """The guard: with nothing unadmitted there is nothing to leave unjudged."""
+    result = balance.starvation_of(category_machines())
+
+    assert balance.WARN_BALANCE_CENSUS_UNJUDGED not in {code for code, _ in codes(result)}
+
+
+def test_a_recipe_class_is_every_producer_a_recipe_names_resolved_or_not() -> None:
+    """Ruling Q3 a, the relation ``clockspeed/audit/fuel.py`` reads."""
+    assert balance.recipe_classes_of(census_recipes()) == frozenset(
+        {RECIPE_MAKER, RECIPE_UNRESOLVED}
+    )
+
+
+def test_a_clean_census_count_above_its_read_count_is_clamped() -> None:
+    """A hand-built clean census is a SUBSET of the read one, as ``_tagless_census`` reads it.
+
+    A class marked clean more often than it was read is clamped to the read
+    count, and one marked clean but never read names nothing.
+    """
+    model = replace(
+        world_machines(),
+        unadmitted_read_counts=((RECIPE_MAKER, 1),),
+        unadmitted_clean_counts=((RECIPE_MAKER, 3), (RECIPE_UNRESOLVED, 2)),
+    )
+
+    assert census_rows(balance.unadmitted_census_of(model, census_recipes())) == [
+        (RECIPE_MAKER, balance.CENSUS_TAGLESS_CLEAN, 1)
+    ]

@@ -289,6 +289,12 @@ FIXTURES: Final[Mapping[str, Firing]] = {
             balance_fx.equipment_registry(),
         ).warnings
     ),
+    # CS-1314: one unadmitted record, and no recipes to judge it by.
+    "WARN_BALANCE_CENSUS_UNJUDGED": lambda: (
+        balance.starvation_of(
+            machines.machines_of(balance_fx.census_world((balance_fx.FIXED_THIRD, {})))
+        ).warnings
+    ),
     "WARN_BALANCE_PRODUCTION_UNMODELED": lambda: _balance_composite(belts=True),
     "WARN_BALANCE_GENERATION_UNMODELED": lambda: (
         production_fx.production(
@@ -336,6 +342,13 @@ FIXTURES: Final[Mapping[str, Firing]] = {
     "WARN_FLOW_CLOCK_UNREAD": lambda: _flow(_smelter(synthetic.PLATE_RECIPE, None)),
     "WARN_FLOW_CLOCK_REFUSED": lambda: _flow(_smelter(synthetic.PLATE_RECIPE, Fraction(-1, 2))),
     "WARN_FLOW_NOTHING_FLOWING": _flow,
+    # CS-1314: one clean tagless record of a class the corpus recipes produce in.
+    "WARN_FLOW_RECIPE_CLASS_UNADMITTED": lambda: (
+        flow.flow_of(
+            machines.machines_of(balance_fx.census_world((synthetic.SOLVE_SMELTER_BUILDING, {}))),
+            dict(synthetic.solve_registry().recipes),
+        ).warnings
+    ),
     # footprint.py
     "WARN_FOOTPRINT_CLASS_NOT_CATEGORISED": lambda: _footprint(
         footprint_fx.actor(footprint_fx.UNLISTED_BUILDABLE, (1.0, 0.0, 0.0))
