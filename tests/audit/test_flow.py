@@ -31,6 +31,14 @@ boosted machine a gap in the balance - so the flow names it a gap too, by the
 tag's PRESENCE, whatever its clock reads and whether or not its value decoded.
 The agreement world carries boosted rows, so the both-audits arm reddens the
 moment the flow prices a machine the balance refuses.
+
+CS-1298: A CLASS THAT CANNOT BE CLOCKED HAS NO CLOCK TO ELIDE. Since CS-1281 the
+balance prices an untagged machine of a class the registry declares cannot be
+clocked at the reference clock, outside its elided count. The flow asks the
+balance's own predicate, ``balance.clock_is_elidable``, with the buildings its
+caller hands it, so the agreement world carries such a class and the both-audits
+arm reddens when the flow counts it elided - or when either of the flow's
+callers, the overlay and the fuel audit, drops the buildings and so counts it.
 """
 
 from __future__ import annotations
@@ -39,13 +47,13 @@ from collections.abc import Mapping
 from dataclasses import replace
 from fractions import Fraction
 from types import MappingProxyType
-from typing import Final, cast
+from typing import Any, Final, cast
 
 import pytest
 
-from clockspeed.audit import balance, flow, machines
+from clockspeed.audit import balance, flow, fuel, machines, overlay
 from clockspeed.audit.machines import MachineState, WorldMachines
-from clockspeed.data.registry import Building, Recipe
+from clockspeed.data.registry import Building, Recipe, Registry
 from clockspeed.save.world import RecordProperties, WorldModel
 from clockspeed.solve import exact, power
 from tests.audit import test_balance as balance_fx
@@ -469,6 +477,181 @@ def test_the_elided_counts_are_scoped_to_each_audits_own_population(
     assert drawn.elided_clock_count == _TWO
 
 
+# ---------------------------------------------------------------------------
+# CS-1298: a class that cannot be clocked has no clock to elide
+# ---------------------------------------------------------------------------
+#
+# The flow asks ``balance.clock_is_elidable`` - the balance's own predicate, not
+# a copy of it - whether an untagged machine's clock was elided. Only a class
+# the buildings DECLARE cannot be clocked answers no: such a machine flows at
+# the reference clock and is never counted elided. The registry's None, a class
+# it does not carry and no buildings at all are one unknown and stay elided.
+# The elided default IS the reference clock, so no rate moves here: these arms
+# grade counts.
+
+#: An invented built class whose registry entry declares it cannot be clocked.
+_FIXED_CLASS: Final = "Build_SyntheticFixedClockQx98_C"
+
+
+def _capability(declared: Mapping[str, bool | None]) -> Mapping[str, Building]:
+    """Build a buildings mapping declaring each class's clock capability.
+
+    Args:
+        declared: Class name to its ``Building.clockable``.
+
+    Returns:
+        The mapping, every entry at an exact draw so only the capability differs.
+    """
+    return balance_fx.registry(
+        *(
+            replace(
+                balance_fx.building(name, consumption=balance_fx.THIRD_MEGAWATTS), clockable=flag
+            )
+            for name, flag in declared.items()
+        )
+    )
+
+
+def _fixed(state: MachineState) -> MachineState:
+    """Move one synthetic machine onto :data:`_FIXED_CLASS`.
+
+    Args:
+        state: The machine.
+
+    Returns:
+        The same machine, of the class that cannot be clocked.
+    """
+    return replace(state, class_name=_FIXED_CLASS)
+
+
+def test_a_class_that_cannot_be_clocked_flows_at_the_reference_clock_outside_the_elided_count(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Alike in every machine field but the class, so only the declaration decides.
+
+    Two untagged machines of the fixed class - one per recipe - and one untagged
+    smelter, a class declared clockable, beside the fixed plate machine. All
+    three flow at the same rate, but only the smelter is an elided clock. A flow
+    that ignores the declaration counts the fixed two elided as well: one per
+    group becomes two and one, and the world's one becomes three.
+    """
+    states = [
+        _fixed(_elided(synthetic.PLATE_RECIPE)),
+        _elided(synthetic.PLATE_RECIPE),
+        _fixed(_elided(synthetic.ROD_RECIPE)),
+    ]
+    result = flow.flow_of(
+        states, recipes, buildings=_capability({_FIXED_CLASS: False, _SMELTER: True})
+    )
+
+    assert power.REFERENCE_CLOCK == balance.ELIDED_CLOCK_DEFAULT
+    assert sorted(
+        (group.machine_count, group.elided_machine_count, group.machine_equivalents)
+        for group in result.groups
+    ) == [
+        (1, 0, power.REFERENCE_CLOCK),
+        (_TWO, 1, power.REFERENCE_CLOCK + balance.ELIDED_CLOCK_DEFAULT),
+    ]
+    assert result.elided_clock_count == 1
+    assert result.items[_PLATE].produced == _PLATE_RATE * _TWO
+    assert result.gaps == ()
+    assert result.complete is True
+    assert _codes(result) == {}
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        pytest.param({_FIXED_CLASS: False, _SMELTER: None}, id="clockable-none"),
+        pytest.param({_FIXED_CLASS: False}, id="no-entry"),
+        pytest.param(None, id="no-buildings"),
+    ],
+)
+def test_a_class_whose_clock_capability_is_unknown_stays_an_elided_flow_clock(
+    recipes: dict[str, Recipe], declared: Mapping[str, bool | None] | None
+) -> None:
+    """The registry's None is a named unknown, never read as False.
+
+    The mapping carries a declared-False entry beside the asked class, so a
+    flow that reads ANY False in it, a missing entry as False, or the
+    registry's None as False counts this smelter fixed and its elided count 0.
+    """
+    buildings = None if declared is None else _capability(declared)
+    result = flow.flow_of([_elided(synthetic.PLATE_RECIPE)], recipes, buildings=buildings)
+
+    assert [(group.machine_count, group.elided_machine_count) for group in result.groups] == [
+        (1, 1)
+    ]
+    assert result.elided_clock_count == 1
+
+
+def test_a_read_or_unread_clock_of_a_non_clockable_class_is_not_rescued(
+    recipes: dict[str, Recipe],
+) -> None:
+    """Only the elision mark is re-read, exactly as ``balance.clocked_draw_of`` does.
+
+    A read clock is a measurement and stays one, even beside a stale mark no
+    reader writes; an unread or refused clock is a fact about this reader, and a
+    class with no clock does not make it go away. A flow that fixed every clock
+    of the class would flow the two read machines at one and the unread one too.
+    """
+    stale = replace(_machine(synthetic.ROD_RECIPE, Fraction(1, 2)), overclock_elided=True)
+    states = [
+        _fixed(_machine(synthetic.PLATE_RECIPE, Fraction(1, 2))),
+        _fixed(stale),
+        _fixed(_machine(synthetic.PLATE_RECIPE, None)),
+        _fixed(_machine(synthetic.ROD_RECIPE, cast("Fraction", 0.5))),
+    ]
+    result = flow.flow_of(states, recipes, buildings=_capability({_FIXED_CLASS: False}))
+
+    assert [
+        (group.machine_count, group.elided_machine_count, group.machine_equivalents)
+        for group in result.groups
+    ] == [(1, 0, Fraction(1, 2)), (1, 0, Fraction(1, 2))]
+    assert sorted((gap.kind, gap.machine_count) for gap in result.gaps) == [
+        (flow.GAP_FLOW_CLOCK_REFUSED, 1),
+        (flow.GAP_FLOW_CLOCK_UNREAD, 1),
+    ]
+    assert result.elided_clock_count == 0
+
+
+def test_the_flow_reads_the_balances_own_clock_predicate(
+    recipes: dict[str, Recipe], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One owner: the flow's binding IS the balance's, and the flow decides through it.
+
+    The identity alone passes a flow that imports the predicate and never asks
+    it; the inverted stub alone passes a flow asking a private copy bound under
+    the same name. A stub answering the opposite of the declarations must flip
+    both classes, asked only for the two untagged machines - as the balance
+    asks - in record order, with the very mapping the flow was handed.
+    """
+    assert getattr(flow, "clock_is_elidable", None) is balance.clock_is_elidable
+
+    table = _capability({_FIXED_CLASS: False, _SMELTER: True})
+    asked: list[tuple[str, Mapping[str, Building] | None]] = []
+
+    def inverted(class_name: str, buildings: Mapping[str, Building] | None) -> bool:
+        asked.append((class_name, buildings))
+        return class_name == _FIXED_CLASS
+
+    monkeypatch.setattr(flow, "clock_is_elidable", inverted)
+    states = [
+        _elided(synthetic.PLATE_RECIPE),
+        _machine(synthetic.PLATE_RECIPE),
+        _fixed(_elided(synthetic.ROD_RECIPE)),
+    ]
+    result = flow.flow_of(states, recipes, buildings=table)
+
+    assert sorted((group.machine_count, group.elided_machine_count) for group in result.groups) == [
+        (1, 1),
+        (_TWO, 0),
+    ]
+    assert result.elided_clock_count == 1
+    assert [name for name, _held in asked] == [_SMELTER, _FIXED_CLASS]
+    assert all(held is table for _name, held in asked)
+
+
 @pytest.mark.parametrize(
     "clock",
     [cast("Fraction", 0.5), cast("Fraction", 1), Fraction(-1, 2)],
@@ -862,8 +1045,8 @@ def test_the_repr_renders_counts_and_no_recipe_or_item_name(
 # per-class groups and the flow's per-recipe groups each hold exactly one machine
 # and every machine's classification can be read back out of both audits.
 # Every class is modeled and every recipe has a rate, so the clock - and, for
-# the CS-1278 rows, the production boost - is the only thing either audit is
-# asked about.
+# the CS-1278 rows, the production boost, and for the CS-1298 rows, the class's
+# declared clock capability - is the only thing either audit is asked about.
 
 #: One row per way a clock reaches both audits, in record order. The
 #: ``Boosted`` rows carry a production-boost tag beside a clock each audit
@@ -871,7 +1054,10 @@ def test_the_repr_renders_counts_and_no_recipe_or_item_name(
 #: or read at one on a STALLED machine - or refuse (``BoostedNegative``,
 #: ``BoostedUndecoded``), so a boost decided after the clock, not at all, or
 #: only on some clocks or some producing states, disagrees with the balance on
-#: at least one of them.
+#: at least one of them. CS-1298: the :data:`_FIXED_ROWS` are of classes the
+#: buildings declare cannot be clocked - untagged, read, unread and boosted - so
+#: a flow that counts the untagged one elided, or fixes a clock the balance
+#: reads or names unread, disagrees with the balance.
 _AGREEMENT_ROWS: Final = (
     "Read",
     "ReadOne",
@@ -888,13 +1074,23 @@ _AGREEMENT_ROWS: Final = (
     "BoostedOverclocked",
     "BoostedZero",
     "BoostedStalled",
+    "Fixed",
+    "FixedRead",
+    "FixedUnread",
+    "BoostedFixed",
 )
 
 #: The rows whose payload carries a production-boost tag.
 _BOOSTED_ROWS: Final = frozenset(label for label in _AGREEMENT_ROWS if label.startswith("Boosted"))
 
 #: The rows whose clock tag the serializer elided.
-_ELIDED_ROWS: Final = frozenset({"Elided", "BoostedElided"})
+_ELIDED_ROWS: Final = frozenset({"Elided", "BoostedElided", "Fixed", "BoostedFixed"})
+
+#: CS-1298. The rows whose class the buildings declare cannot be clocked.
+_FIXED_ROWS: Final = frozenset({"Fixed", "FixedRead", "FixedUnread", "BoostedFixed"})
+
+#: The rows whose payload never read.
+_UNREAD_PAYLOAD_ROWS: Final = frozenset({"Unread", "FixedUnread"})
 
 #: A decoded boost value. Never read by either audit; any float32 serves.
 _BOOST_VALUE: Final = machines_fx.as_float32("2")
@@ -929,6 +1125,12 @@ _AGREEMENT_VALUES: Final[Mapping[str, Mapping[str, object]]] = MappingProxyType(
             machines.PROPERTY_PRODUCING: False,
             _BOOST_TAG: _BOOST_VALUE,
         },
+        "Fixed": {machines.PROPERTY_PRODUCING: True},
+        "FixedRead": {
+            machines.PROPERTY_OVERCLOCK: machines_fx.as_float32(machines_fx.AUTHORED_OVERCLOCK)
+        },
+        "FixedUnread": {machines.PROPERTY_PRODUCING: True},
+        "BoostedFixed": {machines.PROPERTY_PRODUCING: True, _BOOST_TAG: _BOOST_VALUE},
     }
 )
 
@@ -1000,7 +1202,9 @@ def _agreement_entry(label: str) -> RecordProperties:
     reference = machines_fx.recipe_reference(
         f"/Game/FactoryGame/Synthetic/{recipe.removesuffix('_C')}.{recipe}"
     )
-    built = machines_fx.entry(_AGREEMENT_VALUES[label], reference, payload_read=label != "Unread")
+    built = machines_fx.entry(
+        _AGREEMENT_VALUES[label], reference, payload_read=label not in _UNREAD_PAYLOAD_ROWS
+    )
     if label == "BoostedUndecoded":
         # A torn boost tag, as the real decoder publishes one: its value dropped,
         # a disagreement counted, and its NAME carried so presence still reads.
@@ -1042,12 +1246,20 @@ def _agreement_recipes(recipes: Mapping[str, Recipe]) -> dict[str, Recipe]:
 def _agreement_buildings() -> Mapping[str, Building]:
     """Every row's class, modeled at an exact draw under a whole exponent.
 
+    CS-1298: a :data:`_FIXED_ROWS` class declares it cannot be clocked; every
+    other class leaves its capability None, the registry's named unknown.
+
     Returns:
         Class name to registry entry.
     """
     return balance_fx.registry(
         *(
-            balance_fx.building(_agreement_class(label), consumption=balance_fx.THIRD_MEGAWATTS)
+            replace(
+                balance_fx.building(
+                    _agreement_class(label), consumption=balance_fx.THIRD_MEGAWATTS
+                ),
+                clockable=False if label in _FIXED_ROWS else None,
+            )
             for label in _AGREEMENT_ROWS
         )
     )
@@ -1150,6 +1362,10 @@ def _agreement_expected() -> dict[str, _Classified]:
         "BoostedOverclocked": (_BOOSTED, None),
         "BoostedZero": (_BOOSTED, None),
         "BoostedStalled": (_BOOSTED, None),
+        "Fixed": (_PRICED, power.REFERENCE_CLOCK),
+        "FixedRead": (_PRICED, Fraction(machines_fx.AUTHORED_OVERCLOCK)),
+        "FixedUnread": (_UNREAD, None),
+        "BoostedFixed": (_BOOSTED, None),
     }
 
 
@@ -1160,6 +1376,9 @@ def test_the_agreement_world_carries_the_mark_only_where_the_payload_earns_it() 
     whose boost value never decoded, and the boosted rows still carry the
     clock and producing flag each would be priced at without the boost - one
     elided, the rest read at one, above one and at zero, one of them stalled.
+
+    CS-1298: the fixed rows reach the model as their clockable twins do - one
+    elided, one read, one unread - and only the buildings declare them fixed.
     """
     model = machines.machines_of(_agreement_world())
 
@@ -1174,6 +1393,16 @@ def test_the_agreement_world_carries_the_mark_only_where_the_payload_earns_it() 
         (by_label[label].overclock, by_label[label].producing)
         for label in ("BoostedRead", "BoostedOverclocked", "BoostedZero", "BoostedStalled")
     ] == [(Fraction(1), None), (Fraction(5, 2), True), (Fraction(0), None), (Fraction(1), False)]
+    assert [by_label[label].overclock for label in ("Fixed", "FixedRead", "FixedUnread")] == [
+        None,
+        Fraction(machines_fx.AUTHORED_OVERCLOCK),
+        None,
+    ]
+    assert {
+        label
+        for label in _AGREEMENT_ROWS
+        if _agreement_buildings()[_agreement_class(label)].clockable is False
+    } == _FIXED_ROWS
     assert _BOOST_TAG in machines.PRODUCTION_BOOST_PROPERTY_NAMES
     assert sum(state.recipe_class_name is not None for state in model.machines) == len(
         _AGREEMENT_ROWS
@@ -1181,7 +1410,7 @@ def test_the_agreement_world_carries_the_mark_only_where_the_payload_earns_it() 
 
 
 def test_the_flow_and_the_balance_classify_every_clock_alike(
-    recipes: dict[str, Recipe],
+    recipes: dict[str, Recipe], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """CS-1265's acceptance arm: one world, both audits, every machine's clock.
 
@@ -1193,10 +1422,21 @@ def test_the_flow_and_the_balance_classify_every_clock_alike(
     by its clock, while the balance names it boost-unmodeled is the same
     two-audits-one-machine disagreement, and the boosted elided row stays out
     of both elided counts.
+
+    CS-1298 extends it to the clock capability: the balance prices the untagged
+    ``Fixed`` row at the reference clock outside its elided count, so a flow
+    that counts it elided disagrees - on the row and on the world. The rate is
+    the same either way, so the elided counts are where it shows. The flow's
+    two callers are held to the same world: the overlay's before and after
+    flows, and the flow the fuel audit builds, must each EQUAL the flow built
+    here, so a caller that drops ``buildings`` counts ``Fixed`` elided and
+    reddens this arm.
     """
     model = machines.machines_of(_agreement_world())
-    flowed = flow.flow_of(model, _agreement_recipes(recipes))
-    drawn = balance.clocked_draw_of(model, _agreement_buildings())
+    rows = _agreement_recipes(recipes)
+    buildings = _agreement_buildings()
+    flowed = flow.flow_of(model, rows, buildings=buildings)
+    drawn = balance.clocked_draw_of(model, buildings)
 
     assert _flow_clocks(flowed) == _balance_clocks(drawn) == _agreement_expected()
     assert (
@@ -1207,7 +1447,35 @@ def test_the_flow_and_the_balance_classify_every_clock_alike(
             "ReadOne": 0,
             "Zero": 0,
             "Elided": 1,
+            "Fixed": 0,
+            "FixedRead": 0,
         }
     )
     assert flowed.elided_clock_count == drawn.elided_clock_count == 1
     assert flowed.machines_considered == drawn.machines_considered == len(_AGREEMENT_ROWS)
+
+    built: list[flow.WorldFlow] = []
+
+    def recording(*args: Any, **kwargs: Any) -> flow.WorldFlow:
+        result = flow.flow_of(*args, **kwargs)
+        built.append(result)
+        return result
+
+    monkeypatch.setattr(fuel, "flow_of", recording)
+    fuel.fuel_supply_of(
+        model,
+        Registry(
+            items=MappingProxyType({}),
+            recipes=MappingProxyType(rows),
+            buildings=buildings,
+            warnings=(),
+            unknown_groups=(),
+        ),
+    )
+    evaluated = overlay.evaluate_overlay(
+        model, overlay.Overlay(edits=()), rows, buildings=buildings
+    )
+
+    assert built == [flowed]
+    assert evaluated.before_flow == flowed
+    assert evaluated.after_flow == flowed

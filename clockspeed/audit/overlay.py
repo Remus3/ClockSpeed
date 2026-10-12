@@ -8,6 +8,8 @@ every edit applied in order, plus one :class:`EditRecord` per edit naming what
 it changed. :func:`evaluate_overlay` recomputes ``flow.flow_of`` (and
 ``balance.draw_of`` where a placement and the buildings are supplied) on the
 world before and after, and returns both side by side with per-item deltas.
+Both flows are handed whatever buildings the caller supplied, for the clock
+capability the flow reads (CS-1298).
 
 THE OVERLAY IS NEVER WRITTEN BACK, AND THIS MODULE OPENS NOTHING. Its inputs
 are models a lower layer already published and its outputs are new models; it
@@ -871,7 +873,10 @@ def evaluate_overlay(
         overlay: The edits.
         recipes: The recipes, keyed by class name.
         placement: The measured placement, for the draw.
-        buildings: The buildings, keyed by class name, for the draw.
+        buildings: The buildings, keyed by class name, for the draw - and,
+            CS-1298, handed to both flows, so an untagged machine of a class
+            they declare cannot be clocked is not counted elided before or
+            after. None leaves every clock capability unknown.
         raw_items: Items supplied from outside the built machines.
         demands: The caller's base demands.
 
@@ -885,8 +890,16 @@ def evaluate_overlay(
     application = apply_overlay(
         machines, overlay, recipes, placement=placement, buildings=buildings, demands=demands
     )
-    before_flow = flow_of(machines, recipes, raw_items=raw, demands=dict(demands or {}))
-    after_flow = flow_of(application.machines, recipes, raw_items=raw, demands=application.demands)
+    before_flow = flow_of(
+        machines, recipes, raw_items=raw, demands=dict(demands or {}), buildings=buildings
+    )
+    after_flow = flow_of(
+        application.machines,
+        recipes,
+        raw_items=raw,
+        demands=application.demands,
+        buildings=buildings,
+    )
 
     before_draw: WorldDraw | None = None
     after_draw: WorldDraw | None = None

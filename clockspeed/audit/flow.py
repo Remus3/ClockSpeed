@@ -24,7 +24,9 @@ non-linear in the clock, and power is not this module's question.
 
 THE CALLER SUPPLIES THE RECIPES, AS ``balance.py`` TAKES ITS BUILDINGS
 -------------------------------------------------------------------------
-``Recipe`` is imported for its type only. Nothing here builds a registry, reads
+``Recipe`` and ``Building`` are imported for their types only; the optional
+buildings are the caller's too, read for one fact - whether a class can be
+clocked (CS-1298). Nothing here builds a registry, reads
 ``clockspeed/data/`` or opens a save; the per-minute conversion is
 ``clockspeed/solve/exact.py`` ``per_minute``, the one owner of that arithmetic,
 so the rate this module computes cannot drift from the one the solver solved.
@@ -68,8 +70,8 @@ audit's documented order. Each decides the boost after its own earlier side,
 and neither reads the other's: a machine with no recipe, an unknown one or one
 with no defined rate is a recipe-side gap here while the balance, which reads no
 recipe, names the boost; a machine whose class the balance's registry does not
-model is a registry gap there while this audit, which reads no registry, names
-the boost.
+model is a registry gap there while this audit, which never asks whether a
+class is modelled, names the boost.
 ``tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike``
 holds the names to agree where no earlier fault exists, and
 ``tests/audit/test_flow.py::test_both_audits_name_a_boosted_machine_a_gap_when_an_earlier_fault_wins``
@@ -87,14 +89,23 @@ payload, no disagreeing tag, no clock tag at all - is a measured fact and not an
 unknown. Such a machine flows at ``clockspeed/audit/balance.py``
 ``ELIDED_CLOCK_DEFAULT``, the one owner of that value, and is counted on its
 :class:`RecipeGroup` and on :class:`WorldFlow`, so the default is never silent.
-The predicate is the balance's own - the clock is None AND the mark is set - so
-the two audits cannot disagree about the clock of a machine both of them price;
+The predicate is the balance's own - the clock is None AND the mark is set, and
+then ``clockspeed/audit/balance.py`` ``clock_is_elidable``, imported and asked,
+never copied (CS-1298) - so the two audits cannot disagree about the clock of a
+machine both of them price, given the same buildings;
 ``tests/audit/test_flow.py::test_the_flow_and_the_balance_classify_every_clock_alike``
-holds them to it. Their elided COUNTS are scoped to their own populations and
-differ where one audit gaps a machine before its clock is read -
+holds them to it. A CLASS THAT CANNOT BE CLOCKED HAS NO CLOCK TO ELIDE
+(CS-1281's rule in the balance): an untagged machine of a class the caller's
+``buildings`` declare ``Building.clockable`` False flows at the reference clock
+and is never counted elided. Only a declared False does this - the registry's
+None, a class the buildings do not carry, and no buildings at all are one
+unknown and stay elided. The elided default IS the reference clock, so this
+moves counts, never a rate. Their elided COUNTS are scoped to their own
+populations and differ where one audit gaps a machine before its clock is read -
 :attr:`WorldFlow.elided_clock_count` states the scope. A clock absent for ANY
 other reason - refused, an unread payload, a disagreeing tag, or a hand-built
-state nobody marked - stays :data:`GAP_FLOW_CLOCK_UNREAD`.
+state nobody marked - stays :data:`GAP_FLOW_CLOCK_UNREAD`, whatever the class's
+capability: only the elision mark is re-read, never an unread clock.
 
 WHAT A DEFICIT IS
 -------------------
@@ -114,15 +125,16 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
-from clockspeed.audit.balance import ELIDED_CLOCK_DEFAULT
+from clockspeed.audit.balance import ELIDED_CLOCK_DEFAULT, clock_is_elidable
 from clockspeed.audit.machines import MachineState, WorldMachines
 from clockspeed.save.world import WorldWarning
 from clockspeed.solve.exact import ExactArithmeticError, audit_exact, per_minute
+from clockspeed.solve.power import REFERENCE_CLOCK
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    from clockspeed.data.registry import Recipe
+    from clockspeed.data.registry import Building, Recipe
 
 __all__ = [
     "GAP_FLOW_BOOST_UNMODELED",
@@ -279,7 +291,9 @@ class RecipeGroup:
             figure a solver's ``PlanStep.machines`` is comparable to.
         elided_machine_count: CS-1265. How many of :attr:`machine_count` flowed
             at ``ELIDED_CLOCK_DEFAULT`` because their clock tag was elided,
-            rather than at a clock read from the save.
+            rather than at a clock read from the save. CS-1298: never a machine
+            of a class the buildings declare cannot be clocked, which flowed
+            at the reference clock because it has no other.
     """
 
     recipe_class_name: str
@@ -416,9 +430,13 @@ class WorldFlow:
             cannot price at the elided default (a power exponent that is not
             exactly a Fraction, which it names law-inexact), is the reverse. The
             two agree machine by machine wherever the flow flows the machine AND
-            the balance prices it - ``tests/audit/test_flow.py`` grades both
-            halves. CS-1278: neither audit prices or flows a boosted machine,
-            so it is counted in neither, elided or not.
+            the balance prices it, when the flow is handed the buildings the
+            balance reads - ``tests/audit/test_flow.py`` grades both halves.
+            CS-1298: an untagged machine of a class those buildings declare
+            cannot be clocked is counted in neither; a flow handed no buildings
+            counts it, because it cannot know the class has no clock.
+            CS-1278: neither audit prices or flows a boosted machine, so it is
+            counted in neither, elided or not.
     """
 
     groups: tuple[RecipeGroup, ...]
@@ -489,23 +507,42 @@ def _rates(recipe: Recipe) -> tuple[dict[str, Fraction], dict[str, Fraction]] | 
     return consumed, produced
 
 
-def _clock_of(state: MachineState) -> tuple[Fraction | None, bool]:
+def _clock_of(
+    state: MachineState, buildings: Mapping[str, Building] | None
+) -> tuple[Fraction | None, bool]:
     """The clock one machine flows at, and whether it is the elided default.
 
-    THE BALANCE'S OWN PREDICATE, written to match
-    ``clockspeed/audit/balance.py`` ``clocked_draw_of``: the default stands in
-    only when the clock is None AND the elision mark is set, so a present clock
-    is never overridden by the mark and an unmarked None is never priced.
+    THE BALANCE'S OWN PREDICATE, asked rather than copied, and decided in the
+    order ``clockspeed/audit/balance.py`` ``clocked_draw_of`` decides it. A
+    machine is UNTAGGED only when its clock is None AND the elision mark is
+    set, so a present clock is never overridden by the mark and an unmarked
+    None is never priced. An untagged machine is then put to
+    ``balance.clock_is_elidable`` - imported, so the two audits share one
+    function and cannot drift (CS-1298) - and only for an untagged machine, as
+    the balance asks. A class the buildings declare cannot be clocked wrote no
+    tag because it has no clock: it flows at ``REFERENCE_CLOCK`` and is NOT
+    elided. Every other untagged machine - a class declared clockable, one
+    whose capability is the registry's None, one the buildings do not carry, or
+    any when no buildings were handed in - flows at ``ELIDED_CLOCK_DEFAULT``
+    and is elided. The two clocks are equal, so the capability moves the
+    elided count and never the rate.
 
     Args:
         state: The machine.
+        buildings: The consumer namespace keyed by bare class name, or None
+            when the caller holds none: every capability unknown.
 
     Returns:
-        ``(clock, elided)``: the default and True for an elided tag, otherwise
-        the clock as read and False.
+        ``(clock, elided)``: the default and True for an elided tag, the
+        reference clock and False for a class with no clock, otherwise the
+        clock as read and False.
     """
-    if state.overclock is None and state.overclock_elided:
+    untagged = state.overclock is None and state.overclock_elided
+    fixed = untagged and not clock_is_elidable(state.class_name, buildings)
+    if untagged and not fixed:
         return ELIDED_CLOCK_DEFAULT, True
+    if fixed:
+        return REFERENCE_CLOCK, False
     return state.overclock, False
 
 
@@ -547,6 +584,7 @@ def _partition(
     population: Sequence[MachineState],
     recipes: Mapping[str, Recipe],
     rates: Mapping[str, tuple[dict[str, Fraction], dict[str, Fraction]] | None],
+    buildings: Mapping[str, Building] | None,
 ) -> tuple[dict[str, int], dict[str, Fraction], dict[str, int], dict[tuple[str, str | None], int]]:
     """Put every machine in exactly one bucket: a recipe group or a named gap.
 
@@ -554,6 +592,7 @@ def _partition(
         population: The machines.
         recipes: The supplied recipes.
         rates: The per-recipe rate cache, filled for every known recipe.
+        buildings: The buildings :func:`_clock_of` asks a clock capability of.
 
     Returns:
         Per flowing recipe its machine count, its clock sum and how many of its
@@ -565,7 +604,7 @@ def _partition(
     elided_counts: dict[str, int] = {}
     gaps: dict[tuple[str, str | None], int] = {}
     for state in population:
-        clock, elided = _clock_of(state)
+        clock, elided = _clock_of(state, buildings)
         kind = _gap_kind(state, clock, recipes, rates)
         recipe = state.recipe_class_name
         if kind is not None:
@@ -585,6 +624,7 @@ def flow_of(
     *,
     raw_items: Iterable[str] = (),
     demands: Mapping[str, Fraction] | None = None,
+    buildings: Mapping[str, Building] | None = None,
 ) -> WorldFlow:
     """Compute the nominal per-item flow of a built world, exactly.
 
@@ -600,6 +640,13 @@ def flow_of(
         raw_items: Items supplied from outside the built machines.
         demands: Item to the net output asked of it per minute. Absent items
             are asked for zero.
+        buildings: CS-1298. The registry's consumer namespace, keyed by bare
+            class name, which the balance's own clock-capability predicate
+            reads: an untagged machine of a class it declares cannot be clocked
+            flows at the reference clock and is not counted elided. None - the
+            default - is a caller holding no registry: every capability is
+            unknown and every untagged machine stays elided, as the balance
+            reads a class it does not carry.
 
     Returns:
         The flow, audited exact on the way out.
@@ -614,7 +661,9 @@ def flow_of(
 
     rates = {key: _rates(recipe) for key, recipe in recipes.items()}
 
-    group_counts, group_clocks, group_elided, gap_counts = _partition(population, recipes, rates)
+    group_counts, group_clocks, group_elided, gap_counts = _partition(
+        population, recipes, rates, buildings
+    )
 
     produced: dict[str, Fraction] = {}
     consumed: dict[str, Fraction] = {}

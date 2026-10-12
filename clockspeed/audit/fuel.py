@@ -28,8 +28,9 @@ extractor can yield and which classes exist are all read off the registry, so
 no caller-supplied mapping can disagree with it. The flow is NOT an input: it
 is built here, by ``clockspeed/audit/flow.py`` :func:`flow_of` - the one owner
 of that arithmetic - over the world's own machines that name a recipe, so no
-flow over some other population can ever be handed in. A machine the flow
-cannot rate (an unread clock, a boost, an unknown recipe) is the flow's own
+flow over some other population can ever be handed in. The flow is handed the
+registry's buildings, for the clock capability it reads (CS-1298). A machine
+the flow cannot rate (an unread clock, a boost, an unknown recipe) is the flow's own
 named gap, :data:`REASON_FLOW_INCOMPLETE`; a world with no recipe machine has
 a flow that moves nothing, which the flow model names incomplete too.
 
@@ -140,10 +141,13 @@ is labelled one by its reason - and every figure that could not is None, NEVER
 a zero (non-negotiable 7). Each accepted fuel's own supply-side reasons ride on
 its :class:`FuelLine`, in :data:`SUPPLY_REASONS` order.
 
-AN ELIDED CLOCK IS THE CLASS DEFAULT, COUNTED, by the predicate
+AN ELIDED CLOCK IS THE CLASS DEFAULT, COUNTED, by the tag test
 ``clockspeed/audit/balance.py`` and ``clockspeed/audit/flow.py`` share: a None
 clock with ``MachineState.overclock_elided`` set runs at
 ``ELIDED_CLOCK_DEFAULT`` and is counted on the result; any other None is unread.
+The clock-capability half of their test, ``balance.clock_is_elidable``
+(CS-1298), is asked by the flow built here and never of a generator's own
+clock by this module.
 
 OUT OF SCOPE. A built generator class that burns nothing - its registry entry
 carries no fuel list and the registry raised no unreadable-fuels warning for
@@ -1612,6 +1616,7 @@ def fuel_supply_of(
         tuple(state for state in machines.machines if state.recipe_class_name is not None),
         registry.recipes,
         raw_items=raw_items,
+        buildings=registry.buildings,
     )
     bases, out_of_scope = _bases_of(machines, registry)
     unrated = _unrated_of(machines, registry)
