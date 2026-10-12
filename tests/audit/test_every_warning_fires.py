@@ -282,6 +282,13 @@ FIXTURES: Final[Mapping[str, Firing]] = {
             balance_fx.modeled_registry(),
         ).warnings
     ),
+    # CS-1313: one clean tagless record of a class the registry marks equipment.
+    "WARN_BALANCE_EQUIPMENT_EXCLUDED": lambda: (
+        balance.clocked_draw_of(
+            machines.machines_of(balance_fx.census_world((balance_fx.EQUIPMENT_CLASS, {}))),
+            balance_fx.equipment_registry(),
+        ).warnings
+    ),
     "WARN_BALANCE_PRODUCTION_UNMODELED": lambda: _balance_composite(belts=True),
     "WARN_BALANCE_GENERATION_UNMODELED": lambda: (
         production_fx.production(

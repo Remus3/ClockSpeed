@@ -72,6 +72,15 @@ population with no rule-side change. Its own count,
 neither card's reason names it the way :data:`IN_ELIDED` names an elided
 clock.
 
+EQUIPMENT IS NOT A BUILT POWER CONSUMER (CS-1313). A record of a class the
+registry marks ``Building.is_equipment`` - the hover pack is the one the
+pinned build gives a power field - is set apart by
+``clockspeed/audit/balance.py`` on every path: it is in no priced group, gap
+or omission, and in neither :data:`IN_CONSIDERED` nor :data:`IN_OMITTED`, so
+it neither raises the clocked draw nor makes it a floor. Its count,
+``WorldClockedDraw.equipment_record_count``, is named by the audit's own
+``WARN_BALANCE_EQUIPMENT_EXCLUDED`` and is NOT offered here as a rule input.
+
 EVERY FIGURE IS PRICED AT THE PINNED BUILD (CS-1288). The clocked draw and
 the generation capacity are both priced from registry nameplates, and the
 registry is the PINNED build's. So each rule declares

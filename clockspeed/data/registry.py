@@ -230,6 +230,7 @@ from clockspeed.data.blobs import (
 from clockspeed.data.docs_extract import KEY_CLASS_NAME, DocsDocument, DocsGroup
 
 __all__ = [
+    "EQUIPMENT_GROUP_SHORT_NAMES",
     "EXTRACTION_MARKER_KEYS",
     "FLUID_FORMS",
     "FORM_GAS",
@@ -496,6 +497,48 @@ MAX_MALFORMED_BLOBS: Final = 4
 #: list, which is exactly how a real unknown gets missed.
 UNMODELED_GROUP_SHORT_NAMES: Final = frozenset({"FGCustomizationRecipe", "FGSchematic"})
 
+#: CS-1313. The groups whose entries are EQUIPMENT - a thing the player wears or
+#: carries, never a building on the power grid - and deliberately a CLOSED list
+#: of group names. The session 138 ruling (A1, docs/LEDGER.md) marks equipment
+#: by its docs group, and a group offers nothing else to be read by: the
+#: document carries no class hierarchy, and the equipment groups share no name
+#: family - the hover pack's is FGHoverPack, only two of these begin
+#: FGEquipment, and a "not FGBuildable" test would sweep in the hypertube
+#: entrance and the dimensional depot, whose groups sit outside that family
+#: while their entries are buildings. A class-name prefix is the shape test the
+#: module docstring forbids, and it fails open.
+#:
+#: THE CLOSED-WORLD ASSUMPTION, stated: a group not named here is not equipment.
+#: It holds for the pinned build, where the property every equipment class
+#: inherits, mEquipmentSlot, is carried by every entry of these groups and by no
+#: entry of any other - tests/data/test_registry.py checks that against an
+#: installed document. It holds for a group the build has never seen, because an
+#: unrecognized group never reaches this module. What it does not cover is a NEW
+#: equipment group once docs_extract learns its name, and that drift is what the
+#: installed-document arm reddens on. Listed whole rather than as the one group
+#: that carries a power field today, so a patch giving any other equipment class
+#: one is already marked. A vehicle descriptor is NOT equipment under the ruling
+#: and is not listed.
+EQUIPMENT_GROUP_SHORT_NAMES: Final = frozenset(
+    {
+        "FGChainsaw",
+        "FGChargedWeapon",
+        "FGConsumableEquipment",
+        "FGEquipmentStunSpear",
+        "FGEquipmentZipline",
+        "FGGasMask",
+        "FGGolfCartDispenser",
+        "FGHoverPack",
+        "FGJetPack",
+        "FGJumpingStilts",
+        "FGObjectScanner",
+        "FGParachute",
+        "FGPortableMinerDispenser",
+        "FGSuitBase",
+        "FGWeapon",
+    }
+)
+
 #: The struct shape of mPowerConsumption. Measured on exactly one entry, which
 #: is why a model written from the other 67 has two branches and publishes a
 #: confident zero for this one. Anchored end to end so a shape this pattern
@@ -662,6 +705,13 @@ class Building:
             clock as one whose clock tag was elided; False would assert a
             class cannot be clocked on no evidence. A consumer that needs a
             bool decides what None means itself, and says so.
+        is_equipment: CS-1313. True when the entry's docs group is one of
+            EQUIPMENT_GROUP_SHORT_NAMES: a thing the player wears or carries,
+            which sits in this namespace only because its entry declares a
+            power field, and which is never a building on the grid. Decided by
+            the GROUP the entry came from, never by the shape of its class
+            name. The entry keeps every other field as declared; it is the
+            audit balance that refuses to count it as a built power consumer.
     """
 
     key: str
@@ -677,6 +727,10 @@ class Building:
     # CS-1281. Appended with a default for the same reason. None is the
     # unknown, so the default asserts nothing about a hand-built entry.
     clockable: bool | None = None
+    # CS-1313. Appended with a default for the same reason. A group is always
+    # in hand, so there is no unknown to name; False is what every hand-built
+    # entry has always meant - a building on the grid.
+    is_equipment: bool = False
 
 
 @dataclass(frozen=True)
@@ -1273,7 +1327,8 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
         range beside it is what carries their real draw. A draw that is absent
         or unreadable is None rather than zero, and the struct shape supplies
         the range it names. The un-sharded clock base is read here too, and it
-        is a base rather than a ceiling - see the module docstring.
+        is a base rather than a ceiling - see the module docstring. The group
+        decides whether the entry is equipment (CS-1313).
     """
     power, struct_min, struct_max = _declared_power(entry, key, log)
     minimum = _optional_fraction(entry, KEY_ESTIMATED_MIN_POWER, key, log)
@@ -1306,6 +1361,9 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
         # collapsing into the "declared none" reading that None carries.
         unsharded_clock_base=_optional_fraction(entry, KEY_MAX_POTENTIAL, key, log),
         clockable=_optional_flag(entry, KEY_CAN_CHANGE_POTENTIAL, key, log),
+        # CS-1313. By the GROUP the entry came from - see
+        # EQUIPMENT_GROUP_SHORT_NAMES - and never by its class name's shape.
+        is_equipment=group_name in EQUIPMENT_GROUP_SHORT_NAMES,
     )
 
 

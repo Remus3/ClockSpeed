@@ -63,7 +63,8 @@ records ``WorldMachines`` did not admit, per class, and publishes LIKE FOR
 LIKE: :attr:`WorldClockedDraw.built_consumer_count` and
 :attr:`WorldClockedDraw.considered_consumer_count`, both over ONE predicate - a
 class the consumer namespace carries, the generator namespace does not, whose
-entry does not declare a FIXED draw of exactly zero. That last clause is read
+entry is not marked equipment (CS-1313, below) and does not declare a FIXED
+draw of exactly zero. That last clause is read
 off the same :func:`_classify` both draws use, never off a class list: a fixed
 zero draws nothing at any clock, so leaving one out cannot make a total a
 floor, while a variable entry's declared zero is not its draw and counts. Every
@@ -92,6 +93,22 @@ nameplate at clock and never reads the producing flag, so a tagless machine
 that may be idle is priced as every admitted idle machine already is; the
 recorded instantaneous draw (option D) and zero as idle (option B) were
 rejected.
+
+AN EQUIPMENT CLASS IS NEVER A BUILT POWER CONSUMER, ON ANY PATH (CS-1313). The
+consumer namespace carries a class the player wears or carries - the hover
+pack - because its docs entry declares a power field, and nothing above asked
+whether the class is a building. The ruling (A1, session 138, in
+``docs/LEDGER.md``) sets apart every record of a class whose entry the registry
+marks ``Building.is_equipment``: an admitted machine is taken out of the
+population as a generator is, and :func:`_is_power_consumer` refuses the class,
+so neither the tagless census nor the omissions nor either consumer count ever
+holds it. Every such record - admitted, read clean or not, and unread - is
+counted in :attr:`WorldClockedDraw.equipment_record_count`, named by class in
+:attr:`WorldClockedDraw.equipment_classes`, and warned by
+:data:`WARN_BALANCE_EQUIPMENT_EXCLUDED`, so the exclusion is never silent. The
+mark is the registry's, read from the docs group; nothing here reads a class
+name's shape. A vehicle descriptor is not marked, and the ruling records that
+as a miss it leaves standing.
 
 THE CONFIDENT ZERO IS THE FAILURE MODE THIS MODULE IS BUILT AGAINST
 ---------------------------------------------------------------------
@@ -271,6 +288,7 @@ __all__ = [
     "WARN_BALANCE_CLOCK_ELIDED",
     "WARN_BALANCE_CLOCK_UNREAD",
     "WARN_BALANCE_DRAW_UNMODELED",
+    "WARN_BALANCE_EQUIPMENT_EXCLUDED",
     "WARN_BALANCE_GENERATION_UNMODELED",
     "WARN_BALANCE_MACHINE_STATE_UNREAD",
     "WARN_BALANCE_NOTHING_BUILT",
@@ -489,6 +507,12 @@ WARN_BALANCE_CLOCK_ELIDED: Final = "balance-clock-elided"
 #: silent and neither hides inside the other.
 WARN_BALANCE_TAGLESS_DEFAULT: Final = "balance-tagless-default"
 
+#: CS-1313. This many built records of an EQUIPMENT class - one the registry
+#: marks ``Building.is_equipment`` - were set apart and never counted as a built
+#: power consumer, on any path. Each class is named with its count in
+#: :attr:`WorldClockedDraw.equipment_classes`, so the exclusion is never silent.
+WARN_BALANCE_EQUIPMENT_EXCLUDED: Final = "balance-equipment-excluded"
+
 #: One fixed line per gap kind this module OWNS. The other three kinds carry
 #: ``clockspeed/solve/power.py``'s own reason verbatim instead, so no line is
 #: written twice anywhere.
@@ -686,6 +710,13 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " read payload, so they were priced at their class default, the reference"
             " clock, in groups of their own; one whose payload carried a pending clock"
             " tag, a production-boost tag or a disagreeing value stays a named omission"
+        ),
+        WARN_BALANCE_EQUIPMENT_EXCLUDED: (
+            "this many built records were of an equipment class - a thing the player"
+            " wears or carries, which the registry lists beside the buildings only"
+            " because its entry declares a power field - so none was priced, counted as"
+            " a built power consumer or named as an omission; each class is named with"
+            " its count in the clocked draw's equipment list"
         ),
     }
 )
@@ -1406,6 +1437,16 @@ class WorldClockedDraw:
             :attr:`ClockedContribution.tagless` group. Never in
             :attr:`elided_clock_count`, and never one whose entry had no number:
             that one is its entry's gap.
+        equipment_record_count: CS-1313. How many built records were of a
+            class the registry marks ``Building.is_equipment`` and were set
+            apart on EVERY path: an admitted machine, a read record whether or
+            not it read clean, and an unread one. None of them is in any group,
+            gap, omission or consumer count, and none is in
+            :attr:`machines_considered`. Generators are decided first: a class
+            the generator namespace carries is counted there and never here.
+        equipment_classes: CS-1313. ``(class, records)`` per equipment class
+            counted in :attr:`equipment_record_count`, sorted, so each excluded
+            class is named with its count.
     """
 
     contributions: tuple[ClockedContribution, ...]
@@ -1427,6 +1468,8 @@ class WorldClockedDraw:
     considered_consumer_count: int = 0
     omitted_consumer_count: int = 0
     tagless_default_count: int = 0
+    equipment_record_count: int = 0
+    equipment_classes: tuple[tuple[str, int], ...] = ()
 
     def __repr__(self) -> str:
         """Render counts and flags, and nothing about any member.
@@ -1448,6 +1491,8 @@ class WorldClockedDraw:
             f"considered_consumer_count={self.considered_consumer_count}, "
             f"omitted_consumer_count={self.omitted_consumer_count}, "
             f"tagless_default_count={self.tagless_default_count}, "
+            f"equipment_record_count={self.equipment_record_count}, "
+            f"equipment_classes={len(self.equipment_classes)}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -1622,11 +1667,13 @@ def _is_power_consumer(
     """Whether one built class draws power, by the one predicate both counts read.
 
     CS-1266. The consumer namespace must carry the class and the generator
-    namespace must not. Its entry must then not declare a FIXED draw of exactly
-    zero, decided by :func:`_classify` - the function both draws already use -
-    so a variable entry, whose declared scalar is zero and is not its draw, is
-    a consumer, and an entry with no modeled draw at all is one too: nothing
-    says it draws nothing.
+    namespace must not. CS-1313: the entry must not be marked equipment, which
+    is what keeps an equipment record out of the tagless census, the omissions
+    and both consumer counts at once. Its entry must then not declare a FIXED
+    draw of exactly zero, decided by :func:`_classify` - the function both
+    draws already use - so a variable entry, whose declared scalar is zero and
+    is not its draw, is a consumer, and an entry with no modeled draw at all is
+    one too: nothing says it draws nothing.
 
     Args:
         class_name: The built class.
@@ -1639,10 +1686,57 @@ def _is_power_consumer(
     if class_name in producers:
         return False
     entry = buildings.get(class_name)
-    if entry is None:
+    if entry is None or entry.is_equipment:
         return False
     bucket = _classify(class_name, 1, entry)
     return isinstance(bucket, DrawGap) or bucket.megawatts_each != 0
+
+
+def _is_equipment(
+    class_name: str, buildings: Mapping[str, Building], producers: Mapping[str, Generator]
+) -> bool:
+    """Whether one built class is set apart as equipment (CS-1313).
+
+    The generator namespace is asked first, as :func:`_is_power_consumer` asks
+    it, so a class both namespaces would claim is counted once, as a
+    generator.
+
+    Args:
+        class_name: The built class.
+        buildings: The consumer namespace.
+        producers: The generator namespace, possibly empty.
+
+    Returns:
+        True when the registry marks the class' entry ``Building.is_equipment``.
+    """
+    if class_name in producers:
+        return False
+    entry = buildings.get(class_name)
+    return entry is not None and entry.is_equipment
+
+
+def _count_unadmitted_equipment(
+    machines: WorldMachines,
+    buildings: Mapping[str, Building],
+    producers: Mapping[str, Generator],
+    counted: dict[str, int],
+) -> None:
+    """Add every unadmitted record of an equipment class to its count, in place (CS-1313).
+
+    The read census and the unread one partition what ``WorldMachines`` did not
+    admit, so each record is added once; the clean census only marks members
+    of the read one and is never added again.
+
+    Args:
+        machines: The machines model, for its two partitioning censuses.
+        buildings: The consumer namespace.
+        producers: The generator namespace, possibly empty.
+        counted: Class name to records set apart, added to in place.
+    """
+    for census in (machines.unadmitted_read_counts, machines.unadmitted_unread_counts):
+        for class_name, total in census:
+            if total > 0 and _is_equipment(class_name, buildings, producers):
+                counted[class_name] = counted.get(class_name, 0) + total
 
 
 def _tagless_census(
@@ -1824,7 +1918,9 @@ def clocked_draw_of(
 
     Args:
         machines: The machines model, for each machine's class and clock.
-        buildings: The registry, keyed by bare class name.
+        buildings: The registry, keyed by bare class name. CS-1313: a record of
+            a class whose entry is marked ``Building.is_equipment`` is set apart
+            on every path and counted apart.
         generators: CS-1059. The generator namespace, or None. A machine whose
             class it carries is not a consumer and is counted apart.
 
@@ -1833,16 +1929,22 @@ def clocked_draw_of(
         one, a named bracket where it does not, a named gap where no number
         exists at all, and a named omission for every built power consumer the
         population never held (CS-1266) - save a tagless one on a clean
-        payload, priced at its class default in a group of its own (CS-1280).
+        payload, priced at its class default in a group of its own (CS-1280),
+        and never an equipment record, counted and named apart (CS-1313).
     """
     priced: dict[_GroupKey, _GroupValue] = {}
     gapped: dict[tuple[str, str], tuple[str, int]] = {}
     producers = generators or {}
     excluded = 0
+    equipment: dict[str, int] = {}
 
     for state in machines.machines:
         if state.class_name in producers:
             excluded += 1
+            continue
+        # CS-1313. Set apart like a generator, and named by class below.
+        if _is_equipment(state.class_name, buildings, producers):
+            equipment[state.class_name] = equipment.get(state.class_name, 0) + 1
             continue
         entry = buildings.get(state.class_name)
         untagged = state.overclock is None and state.overclock_elided
@@ -1872,6 +1974,10 @@ def clocked_draw_of(
         key = (state.class_name, clock, elided, fixed, False)
         prior = priced.get(key, (bound, reason, low, high, 0))
         priced[key] = (bound, reason, low, high, prior[4] + 1)
+
+    admitted_equipment = sum(equipment.values())
+    _count_unadmitted_equipment(machines, buildings, producers, equipment)
+    equipment_records = sum(equipment.values())
 
     tagless = _tagless_census(machines, buildings, producers)
     _price_tagless(tagless, buildings, priced, gapped)
@@ -1932,6 +2038,7 @@ def clocked_draw_of(
             (WARN_BALANCE_CLOCK_UNREAD, unread),
             (WARN_BALANCE_CLOCKED_DRAW_UNMODELED, unmodeled + omitted),
             (WARN_BALANCE_CLOCKED_DRAW_BOUNDED, bounded),
+            (WARN_BALANCE_EQUIPMENT_EXCLUDED, equipment_records),
         ),
     )
 
@@ -1942,7 +2049,9 @@ def clocked_draw_of(
         upper_megawatts=sum((group.upper_total for group in contributions), Fraction(0)),
         exact=not bounded and not gaps and not omissions,
         complete=not gaps and not omissions,
-        machines_considered=len(machines.machines) - excluded + tagless_considered,
+        machines_considered=(
+            len(machines.machines) - excluded - admitted_equipment + tagless_considered
+        ),
         bounded_machine_count=bounded,
         unread_clock_count=unread,
         elided_clock_count=defaulted,
@@ -1954,6 +2063,8 @@ def clocked_draw_of(
         considered_consumer_count=considered_consumers,
         omitted_consumer_count=omitted,
         tagless_default_count=tagless_defaulted,
+        equipment_record_count=equipment_records,
+        equipment_classes=tuple(sorted(equipment.items())),
     )
     audit_exact(result, path="clocked_draw")
     return result

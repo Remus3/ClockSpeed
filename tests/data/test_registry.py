@@ -47,12 +47,23 @@ from clockspeed.data.blobs import (
     parse_class_paths,
     parse_item_amounts,
 )
-from clockspeed.data.docs_extract import REASON_CLASSES_NOT_A_LIST
+from clockspeed.data.docs_extract import (
+    KNOWN_GROUP_SHORT_NAMES,
+    REASON_CLASSES_NOT_A_LIST,
+    DocsDocument,
+    load_document,
+    read_docs_text,
+)
+from clockspeed.data.locate import resolve_game_dir
 from clockspeed.data.registry import (
+    EQUIPMENT_GROUP_SHORT_NAMES,
     FORM_GAS,
     FORM_LIQUID,
     FORM_SOLID,
+    ITEM_GROUP_SHORT_NAMES,
     MAX_MALFORMED_BLOBS,
+    RECIPE_GROUP_SHORT_NAMES,
+    UNMODELED_GROUP_SHORT_NAMES,
     WARN_DUPLICATE_CLASS_NAME,
     WARN_EMPTY_DISPLAY_NAME,
     WARN_MALFORMED_BLOB,
@@ -80,6 +91,7 @@ from clockspeed.data.registry import (
 )
 from clockspeed.data.version import (
     CENSUS_KEY_BUILDING_FIELD_PRESENCE,
+    DOCS_RELATIVE_PARTS,
     is_registry_building_entry,
     pin,
 )
@@ -950,6 +962,188 @@ def test_the_clock_capability_field_is_not_ceiling_flavoured() -> None:
     names = {item.name for item in dataclasses.fields(Building)}
     assert "clockable" in names
     assert not ceiling_flavoured("clockable")
+
+
+# ---------------------------------------------------------------------------
+# CS-1313 - an equipment group's entry is marked equipment, by its GROUP
+# ---------------------------------------------------------------------------
+#
+# The session 138 ruling (A1): the hover pack declares a power field, so the
+# consumer namespace carries it, and the audit balance priced it as a built
+# 100 MW consumer. The registry marks equipment by the docs group an entry came
+# from - never by the shape of its class name - and the balance sets a marked
+# class apart. These arms hold the registry to the group, both ways.
+
+#: The hover pack's group: the one equipment group the pinned build gives a
+#: power field. A real short name, as the corpus uses; every class is invented.
+HOVER_GROUP = "FGHoverPack"
+EQUIPMENT_CLASS = "Equip_SynthHoverQx73_C"
+OUTSIDE_CLASS = "Build_SynthOutsideQx73_C"
+
+#: Real groups outside the FGBuildable family whose power-bearing entries are
+#: NOT equipment: the hypertube entrance's, the dimensional depot's, and the
+#: vehicle descriptors' - which the ruling names as a miss it leaves standing.
+#: A group test reading "not FGBuildable" as equipment marks all three.
+NON_BUILDABLE_FAMILY_GROUPS = (
+    "FGCentralStorageContainer",
+    "FGPipeHyperStart",
+    "FGVehicleDescriptor",
+)
+
+#: The property every equipment class inherits. The registry NEVER reads it;
+#: the installed-document arm below reads it as the witness the closed group
+#: list is held to.
+EQUIPMENT_SLOT_KEY = "mEquipmentSlot"
+
+
+def registry_with_power_entry(short_name: str, class_name: str) -> Registry:
+    """The corpus plus one group holding one power-bearing entry.
+
+    Args:
+        short_name: The added group's short name.
+        class_name: The added entry's ClassName.
+
+    Returns:
+        The registry built from the corpus with the group appended.
+    """
+    groups = synthetic.docs_json()
+    groups.append(
+        {
+            synthetic.KEY_NATIVE_CLASS: (
+                f"/Script/CoreUObject.Class'/Script/FactoryGame.{short_name}'"
+            ),
+            synthetic.KEY_CLASSES: [
+                {
+                    synthetic.KEY_CLASS_NAME: class_name,
+                    synthetic.KEY_DISPLAY_NAME: f"Synthetic {class_name}",
+                    synthetic.KEY_POWER_CONSUMPTION: "100.000000",
+                }
+            ],
+        }
+    )
+    return build_registry(synthetic.document_from(groups))
+
+
+def test_an_equipment_group_entry_is_marked_equipment() -> None:
+    marked = registry_with_power_entry(HOVER_GROUP, EQUIPMENT_CLASS)
+
+    entry = marked.buildings[EQUIPMENT_CLASS]
+    assert entry.is_equipment is True
+    # Kept in the namespace with its draw as declared: the mark refuses
+    # nothing here, and the balance is what sets the class apart.
+    assert entry.power_consumption == Fraction(100)
+    # Positive half: the corpus' own buildings are there, and none is marked.
+    assert BLENDER_BUILDING in marked.buildings
+    assert [key for key, item in marked.buildings.items() if item.is_equipment] == [EQUIPMENT_CLASS]
+
+
+@pytest.mark.parametrize("short_name", sorted(EQUIPMENT_GROUP_SHORT_NAMES))
+def test_every_equipment_group_marks_a_power_bearing_entry(short_name: str) -> None:
+    patched = registry_with_power_entry(short_name, EQUIPMENT_CLASS)
+    assert patched.buildings[EQUIPMENT_CLASS].is_equipment is True
+
+
+@pytest.mark.parametrize("short_name", NON_BUILDABLE_FAMILY_GROUPS)
+def test_a_power_bearing_entry_outside_the_equipment_groups_is_never_marked(
+    short_name: str,
+) -> None:
+    patched = registry_with_power_entry(short_name, OUTSIDE_CLASS)
+    assert patched.buildings[OUTSIDE_CLASS].is_equipment is False
+
+
+def test_the_mark_is_read_from_the_group_and_never_from_the_class_name() -> None:
+    # An equipment-shaped name in a building group is a building, and a
+    # building-shaped name in the hover pack's group is equipment: the prefix
+    # test the ruling rejected gets both of these wrong.
+    impostor = "Equip_SynthImpostorQx73_C"
+    in_building_group = registry_with_power_entry(synthetic.MANUFACTURER_GROUP, impostor)
+    assert in_building_group.buildings[impostor].is_equipment is False
+    in_equipment_group = registry_with_power_entry(HOVER_GROUP, OUTSIDE_CLASS)
+    assert in_equipment_group.buildings[OUTSIDE_CLASS].is_equipment is True
+
+
+def test_no_corpus_building_is_equipment(registry: Registry) -> None:
+    # The corpus' vehicle descriptor draws power too; the ruling leaves it a
+    # consumer, so it is unmarked like every building beside it.
+    assert HAULER_ITEM in registry.buildings
+    assert [key for key, item in registry.buildings.items() if item.is_equipment] == []
+
+
+def test_a_hand_built_building_is_not_equipment_by_default() -> None:
+    # Positional to the last required field, which is how an appended field
+    # with a default keeps every existing construction valid.
+    entry = Building("Build_SynthHandQx73_C", "Synthetic", Fraction(1), None, None, None, False)
+    assert entry.is_equipment is False
+
+
+def test_the_equipment_groups_are_recognized_and_hold_no_other_role() -> None:
+    assert HOVER_GROUP in EQUIPMENT_GROUP_SHORT_NAMES
+    # Every name is one the pinned build ships, so a stale name is loud.
+    assert EQUIPMENT_GROUP_SHORT_NAMES <= KNOWN_GROUP_SHORT_NAMES
+    roles = ITEM_GROUP_SHORT_NAMES | RECIPE_GROUP_SHORT_NAMES | UNMODELED_GROUP_SHORT_NAMES
+    assert EQUIPMENT_GROUP_SHORT_NAMES.isdisjoint(roles)
+    assert EQUIPMENT_GROUP_SHORT_NAMES.isdisjoint(NON_BUILDABLE_FAMILY_GROUPS)
+    assert [name for name in EQUIPMENT_GROUP_SHORT_NAMES if name.startswith("FGBuildable")] == []
+
+
+def test_the_registry_never_reads_the_equipment_slot() -> None:
+    # The witness stays a witness: reading it in the registry would be the
+    # field-shape test the module docstring forbids for a role. Positive half
+    # first, so the absence below is evidence.
+    literals = code_string_constants(registry_module)
+    assert synthetic.KEY_POWER_CONSUMPTION in literals
+    assert EQUIPMENT_SLOT_KEY not in literals
+
+
+@pytest.fixture(scope="module")
+def installed_document() -> DocsDocument:
+    """Load the installed build's docs once, or skip.
+
+    Returns:
+        The installed document.
+    """
+    game_dir, source = resolve_game_dir()
+    if game_dir is None:
+        pytest.skip(f"no game install on this machine; the resolver reported: {source}")
+    docs = game_dir.joinpath(*DOCS_RELATIVE_PARTS)
+    if not docs.is_file():
+        pytest.skip("this install ships no en-US docs file, so there is nothing to read")
+    return load_document(read_docs_text(docs))
+
+
+@pytest.mark.slow
+def test_the_installed_build_marks_exactly_one_equipment_consumer(
+    installed_document: DocsDocument,
+) -> None:
+    # COUNTS ONLY. The hover pack is the one equipment class the build gives a
+    # power field; a second is a patch the ruling has not seen.
+    real = build_registry(installed_document)
+    marked = sum(1 for item in real.buildings.values() if item.is_equipment)
+    assert marked == 1, f"{marked} of {len(real.buildings)} consumers are marked equipment"
+
+
+@pytest.mark.slow
+def test_the_equipment_groups_are_exactly_those_whose_entries_carry_the_slot(
+    installed_document: DocsDocument,
+) -> None:
+    # COUNTS ONLY. The closed list's assumption, held to the document: every
+    # entry of a listed group carries the inherited property, and no entry of
+    # any other group does.
+    witnessed = frozenset(
+        group.short_name
+        for group in installed_document.groups
+        if any(EQUIPMENT_SLOT_KEY in entry for entry in group.entries)
+    )
+    partial = sum(
+        1
+        for group in installed_document.groups
+        if group.short_name in witnessed
+        and not all(EQUIPMENT_SLOT_KEY in entry for entry in group.entries)
+    )
+    unlisted = len(witnessed - EQUIPMENT_GROUP_SHORT_NAMES)
+    stale = len(EQUIPMENT_GROUP_SHORT_NAMES - witnessed)
+    assert len(witnessed) > 0
+    assert (unlisted, stale, partial) == (0, 0, 0)
 
 
 # ---------------------------------------------------------------------------

@@ -44,8 +44,9 @@ construction rather than by hope.
 
 from __future__ import annotations
 
+import json
 import struct
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
@@ -54,7 +55,20 @@ import pytest
 
 from clockspeed.audit import balance, machines, network, placement
 from clockspeed.data import version
-from clockspeed.data.registry import Building, Generator
+from clockspeed.data.docs_extract import (
+    KEY_CLASS_NAME,
+    KEY_CLASSES,
+    KEY_NATIVE_CLASS,
+    load_document,
+)
+from clockspeed.data.registry import (
+    KEY_DISPLAY_NAME,
+    KEY_POWER_CONSUMPTION,
+    KEY_POWER_EXPONENT,
+    Building,
+    Generator,
+    build_registry,
+)
 from clockspeed.save import objects, world
 from clockspeed.save.header import SaveHeader
 from clockspeed.save.world import (
@@ -3016,3 +3030,270 @@ def test_the_tagless_warning_counts_priced_records_and_never_a_tagless_gap(famil
     assert raised.get(balance.WARN_BALANCE_TAGLESS_DEFAULT) == result.tagless_default_count == 1
     assert raised.get(balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED) == 1
     assert result.machines_considered == PAIRED_RECORDS
+
+
+# ---------------------------------------------------------------------------
+# CS-1313: an equipment class is never a built power consumer, on any path
+# ---------------------------------------------------------------------------
+#
+# The ruling (session 138, A1, docs/LEDGER.md): a record of a class the
+# registry marks ``Building.is_equipment`` is not a built power consumer on ANY
+# path - an admitted machine, a clean tagless record, a read record that did
+# not read clean, and an unread one. It is counted apart, as a generator is,
+# named with its count, and warned by WARN_BALANCE_EQUIPMENT_EXCLUDED. Every
+# arm reads the census through the REAL ``machines_of``.
+
+#: An invented equipment class. Its entry declares a positive draw on purpose,
+#: so only the equipment mark can keep it out of every count.
+EQUIPMENT_CLASS = "Equip_SynthHoverQx73_C"
+
+#: The draw its entry declares, large beside the fixture's other classes so a
+#: total that priced it shows at a glance.
+EQUIPMENT_MEGAWATTS = Fraction(100)
+
+#: The acceptance arm's equipment records: one on each of the four paths.
+EQUIPMENT_RECORDS = 4
+
+#: One world per path a record reaches the draw by, each holding ONE record of
+#: the equipment class. Built on demand so no arm shares a model with another.
+EQUIPMENT_PATH_WORLDS: Mapping[str, Callable[[], WorldModel]] = MappingProxyType(
+    {
+        "admitted": lambda: census_world((EQUIPMENT_CLASS, TAGGED)),
+        "tagless": lambda: census_world((EQUIPMENT_CLASS, {})),
+        "unclean": lambda: census_world((EQUIPMENT_CLASS, PENDING)),
+        "unread": lambda: census_world(unread=(EQUIPMENT_CLASS,)),
+    }
+)
+
+#: Where a record of each path lands when its class is NOT marked: priced, or
+#: named as an omission. The control half of the per-path arm.
+UNMARKED_LANDING: Mapping[str, str] = MappingProxyType(
+    {
+        "admitted": "priced",
+        "tagless": "priced",
+        "unclean": "omitted",
+        "unread": "omitted",
+    }
+)
+
+
+def equipment_entry(*, marked: bool = True) -> Building:
+    """The equipment class' registry entry.
+
+    Args:
+        marked: Whether the registry marks it equipment. False is the control:
+            the same entry as a building on the grid.
+
+    Returns:
+        The entry.
+    """
+    return replace(building(EQUIPMENT_CLASS, consumption=EQUIPMENT_MEGAWATTS), is_equipment=marked)
+
+
+def equipment_registry(*, marked: bool = True) -> Mapping[str, Building]:
+    """The two modeled entries plus the equipment class' entry.
+
+    Args:
+        marked: Passed to :func:`equipment_entry`.
+
+    Returns:
+        The mapping.
+    """
+    return registry(*modeled_registry().values(), equipment_entry(marked=marked))
+
+
+def named_classes(result: balance.WorldClockedDraw) -> set[str]:
+    """Every class the draw names in a group, a gap or an omission.
+
+    Args:
+        result: The clocked draw.
+
+    Returns:
+        The class names.
+    """
+    named = {group.class_name for group in result.contributions}
+    named |= {gap.class_name for gap in result.gaps}
+    named |= {item.class_name for item in result.omissions}
+    return named
+
+
+def test_an_equipment_record_is_never_a_built_power_consumer_on_any_path() -> None:
+    """CS-1313's acceptance arm: the ruling, and the arm that reddens when it is ignored.
+
+    One machine priced on its own clock, beside four records of an equipment
+    class whose entry declares 100 MW: a clean tagless one, a tagged one the
+    machines model admits, one carrying a pending clock tag, and one whose
+    payload never read. IGNORING THE RULING prices the first two - a phantom
+    draw - and names the other two as omissions, so the draw calls itself a
+    floor. With it, the draw is the one machine's figure, complete and exact,
+    every consumer count equals the same world's with no equipment in it, and
+    the four are counted apart, named and warned.
+    """
+    model = census_world(
+        (FIXED_WHOLE, TAGGED),
+        (EQUIPMENT_CLASS, {}),
+        (EQUIPMENT_CLASS, TAGGED),
+        (EQUIPMENT_CLASS, PENDING),
+        unread=(EQUIPMENT_CLASS,),
+    )
+    result = balance.clocked_draw_of(machines.machines_of(model), equipment_registry())
+    control = balance.clocked_draw_of(
+        machines.machines_of(census_world((FIXED_WHOLE, TAGGED))), equipment_registry()
+    )
+
+    assert tagless_groups(result) == []
+    assert named_classes(result) == {FIXED_WHOLE}
+    assert consumer_counts(result) == consumer_counts(control) == (1, 1, 0)
+    assert result.upper_megawatts == result.lower_megawatts == WHOLE_MEGAWATTS
+    assert (result.complete, result.exact) == (True, True)
+    assert result.machines_considered == control.machines_considered == 1
+    assert conserves(result)
+    assert result.tagless_default_count == 0
+    assert result.equipment_record_count == EQUIPMENT_RECORDS
+    assert result.equipment_classes == ((EQUIPMENT_CLASS, EQUIPMENT_RECORDS),)
+    raised = raised_counts(result)
+    assert raised.get(balance.WARN_BALANCE_EQUIPMENT_EXCLUDED) == EQUIPMENT_RECORDS
+    assert balance.WARN_BALANCE_TAGLESS_DEFAULT not in raised
+    assert balance.WARN_BALANCE_CLOCKED_DRAW_UNMODELED not in raised
+    assert balance.WARN_BALANCE_EQUIPMENT_EXCLUDED not in raised_counts(control)
+    assert (control.equipment_record_count, control.equipment_classes) == (0, ())
+
+
+@pytest.mark.parametrize("path", sorted(EQUIPMENT_PATH_WORLDS))
+def test_an_equipment_record_is_counted_apart_on_each_path(path: str) -> None:
+    """One equipment record per arm, one arm per path the draw reads a record on.
+
+    The machine loop, the tagless census and the omission census each decide
+    a record on their own, so dropping the exclusion from any one of them
+    reddens exactly the arms that path serves. THE CONTROL IS THE SAME RECORD
+    UNMARKED: it lands where any consumer of its path lands, which proves the
+    fixture reaches that path and that the mark alone decides.
+    """
+    population = machines.machines_of(EQUIPMENT_PATH_WORLDS[path]())
+    assert len(population.machines) == (1 if path == "admitted" else 0)
+    result = balance.clocked_draw_of(population, equipment_registry())
+    unmarked = balance.clocked_draw_of(population, equipment_registry(marked=False))
+
+    assert (result.contributions, result.gaps, result.omissions) == ((), (), ())
+    assert consumer_counts(result) == (0, 0, 0)
+    assert result.machines_considered == 0
+    assert result.upper_megawatts == result.lower_megawatts == 0
+    assert result.complete is True
+    assert result.tagless_default_count == 0
+    assert result.equipment_record_count == 1
+    assert result.equipment_classes == ((EQUIPMENT_CLASS, 1),)
+    assert raised_counts(result).get(balance.WARN_BALANCE_EQUIPMENT_EXCLUDED) == 1
+
+    priced = [group.class_name for group in unmarked.contributions]
+    omitted = [item.class_name for item in unmarked.omissions]
+    landed = {"priced": priced, "omitted": omitted}[UNMARKED_LANDING[path]]
+    assert landed == [EQUIPMENT_CLASS]
+    assert consumer_counts(unmarked)[0] == 1
+    assert unmarked.equipment_record_count == 0
+    assert balance.WARN_BALANCE_EQUIPMENT_EXCLUDED not in raised_counts(unmarked)
+
+
+def test_a_generator_class_is_counted_as_a_generator_and_never_as_equipment() -> None:
+    """A class both namespaces would claim is decided by the generator one first.
+
+    The generator exclusion is the older one and its count is already
+    published, so one record is never counted apart twice.
+    """
+    generators = MappingProxyType(
+        {
+            EQUIPMENT_CLASS: Generator(
+                key=EQUIPMENT_CLASS,
+                display_name=f"Synthetic {EQUIPMENT_CLASS}",
+                power_production=Fraction(30),
+                variable_production_constant=None,
+                variable_production_factor=None,
+                is_variable_production=False,
+            )
+        }
+    )
+    model = census_world((EQUIPMENT_CLASS, TAGGED), (EQUIPMENT_CLASS, {}))
+    result = balance.clocked_draw_of(
+        machines.machines_of(model), equipment_registry(), generators=generators
+    )
+
+    assert result.generator_machine_count == 1
+    assert (result.equipment_record_count, result.equipment_classes) == (0, ())
+    assert named_classes(result) == set()
+    assert balance.WARN_BALANCE_EQUIPMENT_EXCLUDED not in raised_counts(result)
+
+
+def test_the_equipment_count_renders_counts_and_never_a_class() -> None:
+    result = balance.clocked_draw_of(
+        machines.machines_of(census_world((EQUIPMENT_CLASS, {}))), equipment_registry()
+    )
+
+    assert EQUIPMENT_CLASS not in repr(result)
+    assert "equipment_record_count=1" in repr(result)
+    assert "equipment_classes=1" in repr(result)
+
+
+#: The groups the over-exclusion guard reads its entries from - real short
+#: names, as ``tests/data/synthetic.py`` uses, with invented classes in them.
+#: The first two sit outside the FGBuildable family: the hypertube entrance's
+#: group holds a building, and a vehicle descriptor is not equipment under the
+#: ruling. The third is the hover pack's.
+HYPERTUBE_GROUP = "FGPipeHyperStart"
+VEHICLE_GROUP = "FGVehicleDescriptor"
+HOVER_GROUP = "FGHoverPack"
+
+#: Invented classes, one per group above, and the draw each entry declares.
+HYPERTUBE_CLASS = "Build_SynthHyperStartQx73_C"
+VEHICLE_CLASS = "Desc_SynthLocoQx73_C"
+HYPERTUBE_DRAW = "3.000000"
+VEHICLE_DRAW = "5.000000"
+HOVER_DRAW = "100.000000"
+
+
+def docs_registry() -> Mapping[str, Building]:
+    """Build the consumer namespace through the REAL registry from a three-group document.
+
+    Returns:
+        The buildings, keyed by class.
+    """
+
+    def group(short_name: str, class_name: str, draw: str) -> dict[str, object]:
+        return {
+            KEY_NATIVE_CLASS: f"/Script/CoreUObject.Class'/Script/FactoryGame.{short_name}'",
+            KEY_CLASSES: [
+                {
+                    KEY_CLASS_NAME: class_name,
+                    KEY_DISPLAY_NAME: f"Synthetic {class_name}",
+                    KEY_POWER_CONSUMPTION: draw,
+                    KEY_POWER_EXPONENT: "1.000000",
+                }
+            ],
+        }
+
+    groups = [
+        group(HYPERTUBE_GROUP, HYPERTUBE_CLASS, HYPERTUBE_DRAW),
+        group(VEHICLE_GROUP, VEHICLE_CLASS, VEHICLE_DRAW),
+        group(HOVER_GROUP, EQUIPMENT_CLASS, HOVER_DRAW),
+    ]
+    return build_registry(load_document(json.dumps(groups))).buildings
+
+
+def test_a_buildable_from_a_non_buildable_group_stays_a_consumer() -> None:
+    """The over-exclusion guard, from the docs group to the draw.
+
+    One clean tagless record of each class. A group test that read "not an
+    FGBuildable group" as equipment would set the hypertube entrance and the
+    vehicle descriptor apart with the hover pack; the ruling sets apart the
+    hover pack alone. A vehicle descriptor kept as a consumer is the ruling's
+    stated miss, not this test's oversight.
+    """
+    entries = docs_registry()
+    assert [key for key, entry in sorted(entries.items()) if entry.is_equipment] == [
+        EQUIPMENT_CLASS
+    ]
+    model = census_world((HYPERTUBE_CLASS, {}), (VEHICLE_CLASS, {}), (EQUIPMENT_CLASS, {}))
+    result = balance.clocked_draw_of(machines.machines_of(model), entries)
+
+    assert tagless_groups(result) == [(HYPERTUBE_CLASS, 1), (VEHICLE_CLASS, 1)]
+    assert consumer_counts(result) == (2, 2, 0)
+    assert result.upper_megawatts == result.lower_megawatts == Fraction(8)
+    assert result.equipment_classes == ((EQUIPMENT_CLASS, 1),)
