@@ -44,6 +44,7 @@ from clockspeed.advisor.ledger import (
 from clockspeed.advisor.rules import fuel as fuel_rules
 from clockspeed.advisor.rules import power, registered_rules
 from clockspeed.advisor.trace import StepKind, run_rules
+from clockspeed.audit.machines import PROPERTY_OVERCLOCK, PROPERTY_PRODUCING
 from clockspeed.save.world import WorldProperties
 from clockspeed.surface import server
 from clockspeed.surface.api import advice as advice_endpoint
@@ -802,6 +803,31 @@ FUEL_DEMAND_HEADLINE: Final = (
 VERDICT_SOURCE: Final = "audit.fuel.verdicts.verdict"
 
 
+def _coal_world(*, tagged: int, untagged: int) -> WorldModel:
+    """Built coal generators: ``tagged`` running at clock one, ``untagged`` with no machine tag.
+
+    An untagged record is a built generator the save never recorded as a
+    running machine, so the machines model never admits it and the fuel audit
+    counts it as omitted (CS-1285 fix round 2).
+    """
+    base = balance_fixtures.world_of(*([fuel_fixtures.GEN_COAL] * (tagged + untagged)))
+    entries = dict(base.properties.by_record_index)
+    running = MappingProxyType(
+        {PROPERTY_PRODUCING: True, PROPERTY_OVERCLOCK: world_fixtures.CLOCK_ONE}
+    )
+    for index in range(tagged):
+        entries[index] = replace(entries[index], values=running)
+    return replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+
+
+def _one_coal_untagged() -> WorldModel:
+    return _coal_world(tagged=1, untagged=1)
+
+
+def _every_coal_untagged() -> WorldModel:
+    return _coal_world(tagged=0, untagged=2)
+
+
 def _generator_world() -> WorldModel:
     """The CS-1271 world: one built liquid generator whose fuels the registry never lists."""
     return balance_fixtures.world_of(production_fixtures.FUEL)
@@ -813,6 +839,8 @@ SERVED_WORLDS: Final[dict[str, tuple[Callable[[], WorldModel], Callable[[], Regi
     "gap": (world_fixtures.gap_world, world_fixtures.synthetic_registry),
     "generator": (_generator_world, world_fixtures.generator_registry),
     "omission": (_omission_world, world_fixtures.synthetic_registry),
+    "coal-one-untagged": (_one_coal_untagged, world_fixtures.fuel_registry),
+    "coal-all-untagged": (_every_coal_untagged, world_fixtures.fuel_registry),
 }
 
 
@@ -890,3 +918,48 @@ def test_no_rule_halts_on_a_served_world(tmp_path: Path, world_name: str) -> Non
     assert isinstance(cards, list)
     served = sorted(card["rule_id"] for card in cards)
     assert served == sorted(advised.card.rule_id for advised in found.cards)
+
+
+# CS-1285 fix round 2: a built generator the save never recorded as a running
+# machine still counts. Two built coal generators, one or both untagged: the
+# demand card names both, and says how many were never read - never "x1" and
+# never "x0".
+
+_UNREAD_COAL: Final = f"Synthetic {fuel_fixtures.GEN_COAL}"
+
+
+@pytest.mark.parametrize(
+    ("make_world", "headline", "note"),
+    [
+        (
+            _one_coal_untagged,
+            f"Resolve the fuel burn of {_UNREAD_COAL} x2 (1 never read) before planning its fuel",
+            "; 1 built generator was never read",
+        ),
+        (
+            _every_coal_untagged,
+            f"Resolve the fuel burn of {_UNREAD_COAL} x2 (2 never read) before planning its fuel",
+            "; 2 built generators were never read",
+        ),
+    ],
+    ids=["one-untagged", "all-untagged"],
+)
+def test_the_listing_states_the_built_generator_count_over_the_real_route_table(
+    tmp_path: Path, make_world: Callable[[], WorldModel], headline: str, note: str
+) -> None:
+    table = _table(tmp_path, make_world(), world_fixtures.fuel_registry())
+
+    data = _data(table["GET", advice_endpoint.ENDPOINT]({}))
+
+    cards = data["cards"]
+    assert isinstance(cards, list)
+    served = [card for card in cards if card["rule_id"] == fuel_rules.DEMAND_RULE.rule_id]
+    count = len(served)
+    assert count == 1
+    card = served[0]
+    assert isinstance(card, dict)
+    assert card["headline"] == headline
+    reason = card["reason"]
+    assert isinstance(reason, str)
+    assert reason.endswith(note)
+    assert "x0" not in f"{headline} {reason}"

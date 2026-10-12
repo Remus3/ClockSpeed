@@ -70,6 +70,17 @@ uses the class or fuel key instead when the name is empty, blank (spaces
 only) or not printable ASCII text - the registry carries empty names - and
 records that fallback as a rejected alternative.
 
+THE BUILT COUNT (fix round 2). A card counts every BUILT generator of its
+headline class - those the save recorded as running machines plus those it
+never did, the audit's omitted count - so its ``x<n>`` never drops one and
+never reads ``x0``. When any were never read, the headline says how many
+beside the count, and the reason ends with how many built generators were
+never read over every fired class, in the words
+``clockspeed/advisor/rules/power.py`` uses for a consumer never considered. A
+FIRE or REJECT carrying a generator never read is a ``rule-error``: its
+demand would be a floor, which the audit never decides on. So only the
+demand card can say a generator was never read.
+
 OUT OF SCOPE, NAMED. Supplemental resources (water) and byproducts are not
 modelled; a firing card's tier 3 reads the audit's exclusion lines and records
 them as out of scope. A firing card offered no exclusion line is a
@@ -124,6 +135,7 @@ IN_REASONS: Final = "power.fuel.reasons"
 IN_DEMAND_REASONS: Final = "power.fuel.demand_reasons"
 IN_REASON_DETAILS: Final = "power.fuel.reason_details"  # keyed by reason code
 IN_INSTANCES: Final = "power.fuel.instance_counts"
+IN_OMITTED: Final = "power.fuel.omitted_counts"
 IN_ELIDED: Final = "power.fuel.elided_clock_counts"
 IN_NAMEPLATE: Final = "power.fuel.nameplate_mw"
 IN_CLOCK_SUM: Final = "power.fuel.clock_sum"
@@ -152,6 +164,7 @@ SUPPLY_INPUTS: Final = (
     IN_REASONS,
     IN_REASON_DETAILS,
     IN_INSTANCES,
+    IN_OMITTED,
     IN_ELIDED,
     IN_NAMEPLATE,
     IN_CLOCK_SUM,
@@ -178,6 +191,7 @@ DEMAND_INPUTS: Final = (
     IN_DEMAND_REASONS,
     IN_REASON_DETAILS,
     IN_INSTANCES,
+    IN_OMITTED,
     IN_ELIDED,
     IN_NAMEPLATE,
     IN_CLOCK_SUM,
@@ -284,6 +298,7 @@ def fuel_inputs(world_fuel: WorldFuel, registry: Registry) -> dict[str, InputVal
         ),
         (IN_REASON_DETAILS, "REASON_DETAIL", _proxy((c, REASON_DETAIL.get(c)) for c in codes)),
         (IN_INSTANCES, "verdicts.instance_count", by_class(lambda v: v.instance_count)),
+        (IN_OMITTED, "verdicts.omitted_count", by_class(lambda v: v.omitted_count)),
         (IN_ELIDED, "verdicts.elided_clock_count", by_class(lambda v: v.elided_clock_count)),
         (IN_NAMEPLATE, "verdicts.nameplate_megawatts", by_class(lambda v: v.nameplate_megawatts)),
         (IN_CLOCK_SUM, "verdicts.clock_sum", by_class(lambda v: v.clock_sum)),
@@ -466,6 +481,35 @@ def _others(count: int, state: str) -> str:
     return f"; {classes} {state} too"
 
 
+def _generators(ctx: RuleContext, values: Mapping[str, object], key: str) -> tuple[str, str]:
+    """The headline's and the reason's generator label, counting every BUILT generator.
+
+    The count is the generators the save recorded as running machines plus
+    those it never did, so none drops out and no label reads ``x0``.
+
+    Returns:
+        ``(headline, reason)``: the headline's label adds how many were never
+        read when any were; the reason's leaves that to :func:`_omission`.
+    """
+    omitted = _count(_entry(values, IN_OMITTED, key))
+    built = _count(_entry(values, IN_INSTANCES, key)) + omitted
+    label = f"{_name(ctx, values, IN_CLASS_NAMES, key)} x{built}"
+    return (f"{label} ({omitted} never read)" if omitted else label), label
+
+
+def _omission(values: Mapping[str, object], keys: list[str]) -> str:
+    """The reason suffix counting built generators the save never read, or nothing.
+
+    Summed over every fired class, in the words ``power.draw_incomplete`` uses
+    for a built consumer the draw never considered.
+    """
+    omitted = sum(_count(_entry(values, IN_OMITTED, key)) for key in keys)
+    if omitted == 0:
+        return ""
+    generators = _plural(omitted, "built generator was", "built generators were")
+    return f"; {generators} never read"
+
+
 def _elision(values: Mapping[str, object], keys: list[str]) -> str:
     """The reason suffix naming generators priced at the default clock, or nothing."""
     elided = sum(_count(_entry(values, IN_ELIDED, key)) for key in keys)
@@ -515,6 +559,8 @@ def _pooled(ctx: RuleContext, values: Mapping[str, object], key: str) -> Fractio
 def _decided_demand(ctx: RuleContext, values: Mapping[str, object], key: str) -> Fraction:
     if _strings(_entry(values, IN_REASONS, key)):
         raise ValueError("a decided fuel verdict carries an indeterminate reason")
+    if _count(_entry(values, IN_OMITTED, key)):
+        raise ValueError("a decided fuel verdict has built generators the save never read")
     demand = _demand(ctx, values, key)
     if demand is None:
         raise ValueError("a decided fuel verdict has no demand")
@@ -580,15 +626,14 @@ def _evaluate_supply(ctx: RuleContext) -> Recommendation | None:
     energy = _known(_energy(values, fuel))
     rate = render_value(shortfalls[key] * _SIXTY / energy)
     unit = _unit(values, fuel)
-    count = _count(_entry(values, IN_INSTANCES, key))
-    generators = f"{_name(ctx, values, IN_CLASS_NAMES, key)} x{count}"
+    headline, generators = _generators(ctx, values, key)
     fuel_name = _name(ctx, values, IN_FUEL_NAMES, fuel)
     demand = render_value(_known(_entry(values, IN_DEMAND, key)))
     pooled = render_value(_known(_entry(values, IN_POOLED, key)))
     _exclusions(ctx, values)
     return Recommendation(
         subject_key=_subject(SUBJECT_SUPPLY_PREFIX, fired),
-        action=f"Supply {rate} {unit} more {fuel_name} per minute to {generators}",
+        action=f"Supply {rate} {unit} more {fuel_name} per minute to {headline}",
         reason=(
             f"{generators} demand {demand} MW but the pooled supply of every accepted fuel"
             f" yields {pooled} MW: {render_value(shortfalls[key])} MW short, which is"
@@ -646,23 +691,24 @@ def _evaluate_demand(ctx: RuleContext) -> Recommendation | None:
         known[key] = _burns(ctx, values, key)
     with_burn = [key for key in fired if known[key]]
     key = with_burn[0] if with_burn else fired[0]
-    count = _count(_entry(values, IN_INSTANCES, key))
-    generators = f"{_name(ctx, values, IN_CLASS_NAMES, key)} x{count}"
-    tail = f"{_others(len(fired) - 1, 'undecided')}{_elision(values, fired)}"
+    headline, generators = _generators(ctx, values, key)
+    tail = (
+        f"{_others(len(fired) - 1, 'undecided')}{_omission(values, fired)}{_elision(values, fired)}"
+    )
     if with_burn:
         fuel, burn = known[key][0]
         quantity = f"{render_value(burn)} {_unit(values, fuel)}"
         fuel_name = _name(ctx, values, IN_FUEL_NAMES, fuel)
         demand = render_value(_known(_entry(values, IN_DEMAND, key)))
         detail = _details(values, _strings(_entry(values, IN_REASONS, key))[:1])
-        action = f"Plan {quantity} of {fuel_name} per minute for {generators}"
+        action = f"Plan {quantity} of {fuel_name} per minute for {headline}"
         reason = (
             f"{generators} burn {quantity} of {fuel_name} per minute at a demand of"
             f" {demand} MW, with no supply verdict: {detail}{tail}"
         )
     else:
         detail = _details(values, _strings(_entry(values, IN_DEMAND_REASONS, key))[:1])
-        action = f"Resolve the fuel burn of {generators} before planning its fuel"
+        action = f"Resolve the fuel burn of {headline} before planning its fuel"
         reason = (
             f"The burn of {generators} is unknown, never zero, with no supply verdict:"
             f" {detail}{tail}"

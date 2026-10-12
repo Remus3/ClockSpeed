@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from clockspeed.advisor.advise import settled_rules
-from clockspeed.advisor.cards import card_for, card_id
+from clockspeed.advisor.cards import Card, card_for, card_id
 from clockspeed.advisor.rules import power as power_rules
 from clockspeed.advisor.rules.fuel import (
     DEMAND_RULE,
@@ -57,6 +57,7 @@ from clockspeed.advisor.rules.fuel import (
     IN_FUEL_NAMES,
     IN_MJ,
     IN_NAMEPLATE,
+    IN_OMITTED,
     IN_POOLED,
     IN_SHORTFALL,
     IN_SHORTFALL_RATES,
@@ -590,7 +591,10 @@ def _maker(class_name: str, recipe: str) -> MachineState:
     )
 
 
-def _machines(states: list[MachineState]) -> WorldMachines:
+def _machines(
+    states: list[MachineState], *, unadmitted: tuple[tuple[str, int], ...] = ()
+) -> WorldMachines:
+    """The machines model; ``unadmitted`` is the census of built records never admitted."""
     return WorldMachines(
         machines=tuple(states),
         producing_available=True,
@@ -601,7 +605,7 @@ def _machines(states: list[MachineState]) -> WorldMachines:
         refused_overclock_count=0,
         refused_recipe_count=0,
         warnings=(),
-        unadmitted_read_counts=(),
+        unadmitted_read_counts=unadmitted,
         unadmitted_unread_counts=(),
     )
 
@@ -636,6 +640,7 @@ def test_the_adapter_over_a_real_audit_carries_its_figures() -> None:
     assert offered(IN_CLOCK_SUM) == verdict.clock_sum
     assert offered(IN_POOLED) == verdict.pooled_megawatts
     assert offered(IN_SHORTFALL) == verdict.shortfall_megawatts
+    assert offered(IN_OMITTED) == verdict.omitted_count
     for line in verdict.fuels:
         assert offered(IN_SUPPLY, line.item_key) == line.supply_per_minute
         assert offered(IN_SUPPLY_MW, line.item_key) == line.supply_megawatts
@@ -1005,6 +1010,10 @@ def test_tier3_names_supplemental_resources_and_byproducts_as_out_of_scope(
                 *_covered_reject().fuels[1:],
             ),
         ),
+        # A FIRE or REJECT with built generators the save never read: its
+        # demand would be a floor, which the audit never decides on.
+        replace(_alpha_fire()[0], omitted_count=1),
+        replace(_covered_reject(), omitted_count=1),
         # A FIRE resting on a NEGATIVE supply - the audit floors supply at zero.
         _alpha_fire(supply=MappingProxyType({FUEL: Fraction(-10), TURBO: Fraction(6)}))[0],
         # A REJECT resting on a negative supply, covered by the other fuel.
@@ -1021,6 +1030,8 @@ def test_tier3_names_supplemental_resources_and_byproducts_as_out_of_scope(
         "reject-short",
         "reject-stray-shortfall",
         "reject-stray-rate",
+        "fire-unread-generators",
+        "reject-unread-generators",
         "fire-negative-supply",
         "reject-negative-supply",
     ],
@@ -1169,53 +1180,55 @@ EXPECTED_SUPPLY_TIER3: Final = "\n".join(
         "  4. Read power.fuel.reason_details = {} from audit.fuel.REASON_DETAIL",
         '  5. Read power.fuel.instance_counts = {"Build_QxAlphaGen_C": 2} from'
         " audit.fuel.verdicts.instance_count",
-        '  6. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
+        '  6. Read power.fuel.omitted_counts = {"Build_QxAlphaGen_C": 0} from'
+        " audit.fuel.verdicts.omitted_count",
+        '  7. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
         " audit.fuel.verdicts.elided_clock_count",
-        '  7. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
+        '  8. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
         " audit.fuel.verdicts.nameplate_megawatts",
-        '  8. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
+        '  9. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
         " audit.fuel.verdicts.clock_sum",
-        '  9. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
+        '  10. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
         " audit.fuel.verdicts.demand_megawatts",
-        '  10. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
+        '  11. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
         ' ("Desc_QxFuel_C", "Desc_QxTurbo_C")} from audit.fuel.verdicts.accepted_fuels',
-        '  11. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00, "Desc_QxTurbo_C": 2000.00}'
+        '  12. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00, "Desc_QxTurbo_C": 2000.00}'
         " from audit.fuel.verdicts.fuels.megajoules_per_unit",
-        '  12. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
+        '  13. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
         " audit.fuel.verdicts.fuels.unit",
-        '  13. Read power.fuel.supply_per_minute = {"Build_QxAlphaGen_C":'
+        '  14. Read power.fuel.supply_per_minute = {"Build_QxAlphaGen_C":'
         ' {"Desc_QxFuel_C": 10.00, "Desc_QxTurbo_C": 6.00}} from'
         " audit.fuel.verdicts.fuels.supply_per_minute",
-        '  14. Read power.fuel.supply_mw = {"Build_QxAlphaGen_C":'
+        '  15. Read power.fuel.supply_mw = {"Build_QxAlphaGen_C":'
         ' {"Desc_QxFuel_C": 125.00, "Desc_QxTurbo_C": 200.00}} from'
         " audit.fuel.verdicts.fuels.supply_megawatts",
-        '  15. Read power.fuel.pooled_mw = {"Build_QxAlphaGen_C": 325.00} from'
+        '  16. Read power.fuel.pooled_mw = {"Build_QxAlphaGen_C": 325.00} from'
         " audit.fuel.verdicts.pooled_megawatts",
-        '  16. Read power.fuel.shortfall_mw = {"Build_QxAlphaGen_C": 175.00} from'
+        '  17. Read power.fuel.shortfall_mw = {"Build_QxAlphaGen_C": 175.00} from'
         " audit.fuel.verdicts.shortfall_megawatts",
-        '  17. Read power.fuel.shortfall_rates = {"Build_QxAlphaGen_C":'
+        '  18. Read power.fuel.shortfall_rates = {"Build_QxAlphaGen_C":'
         ' {"Desc_QxFuel_C": 14.00, "Desc_QxTurbo_C": 5.25}} from'
         " audit.fuel.verdicts.fuels.shortfall_per_minute",
-        '  18. Read power.fuel.exclusions = ("supplemental resources such as water are not'
+        '  19. Read power.fuel.exclusions = ("supplemental resources such as water are not'
         ' compared against any supply", "byproducts a generator emits are not modelled")'
         " from audit.fuel.exclusions",
-        '  19. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
+        '  20. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
         " registry.generators.display_name",
-        '  20. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
+        '  21. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
         ' "Desc_QxTurbo_C": "Qx Turbo"} from registry.items.display_name',
-        "  21. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
-        "  22. Computed supply MW of Desc_QxFuel_C for Build_QxAlphaGen_C,"
+        "  22. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
+        "  23. Computed supply MW of Desc_QxFuel_C for Build_QxAlphaGen_C,"
         " supply times MJ over sixty = 125.00",
-        "  23. Computed supply MW of Desc_QxTurbo_C for Build_QxAlphaGen_C,"
+        "  24. Computed supply MW of Desc_QxTurbo_C for Build_QxAlphaGen_C,"
         " supply times MJ over sixty = 200.00",
-        "  24. Computed pooled supply MW of Build_QxAlphaGen_C = 325.00",
-        "  25. Computed shortfall MW of Build_QxAlphaGen_C, demand less pooled supply = 175.00",
-        "  26. Computed shortfall per minute of Desc_QxFuel_C alone for Build_QxAlphaGen_C = 14.00",
-        "  27. Computed shortfall per minute of Desc_QxTurbo_C alone for Build_QxAlphaGen_C = 5.25",
-        "  28. Rejected size supplemental resources and byproducts: out of scope:"
+        "  25. Computed pooled supply MW of Build_QxAlphaGen_C = 325.00",
+        "  26. Computed shortfall MW of Build_QxAlphaGen_C, demand less pooled supply = 175.00",
+        "  27. Computed shortfall per minute of Desc_QxFuel_C alone for Build_QxAlphaGen_C = 14.00",
+        "  28. Computed shortfall per minute of Desc_QxTurbo_C alone for Build_QxAlphaGen_C = 5.25",
+        "  29. Rejected size supplemental resources and byproducts: out of scope:"
         " supplemental resources such as water are not compared against any supply;"
         " byproducts a generator emits are not modelled",
-        "  29. Rule power.fuel_supply fired for power:fuel-supply:Build_QxAlphaGen_C",
+        "  30. Rule power.fuel_supply fired for power:fuel-supply:Build_QxAlphaGen_C",
     ]
 )
 
@@ -1260,8 +1273,10 @@ def test_the_demand_card_fires_on_every_indeterminate_reason(reason: str) -> Non
     undecided = _kinds(trace, StepKind.VERDICT_INDETERMINATE)
     assert bool(undecided) is burn_unknown
     if burn_unknown:
-        assert (
-            card.tier1 == "Resolve the fuel burn of Qx Alpha Generator x2 before planning its fuel"
+        # The omitted fixture builds a third generator the save never read.
+        built = "x3 (1 never read)" if reason == REASON_INSTANCES_OMITTED else "x2"
+        assert card.tier1 == (
+            f"Resolve the fuel burn of Qx Alpha Generator {built} before planning its fuel"
         )
     else:
         assert card.tier1.startswith("Plan ")
@@ -1419,39 +1434,41 @@ EXPECTED_DEMAND_TIER3: Final = "\n".join(
         " audit.fuel.REASON_DETAIL",
         '  6. Read power.fuel.instance_counts = {"Build_QxAlphaGen_C": 2} from'
         " audit.fuel.verdicts.instance_count",
-        '  7. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
+        '  7. Read power.fuel.omitted_counts = {"Build_QxAlphaGen_C": 0} from'
+        " audit.fuel.verdicts.omitted_count",
+        '  8. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
         " audit.fuel.verdicts.elided_clock_count",
-        '  8. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
+        '  9. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
         " audit.fuel.verdicts.nameplate_megawatts",
-        '  9. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
+        '  10. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
         " audit.fuel.verdicts.clock_sum",
-        '  10. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
+        '  11. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
         " audit.fuel.verdicts.demand_megawatts",
-        '  11. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
+        '  12. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
         ' ("Desc_QxFuel_C", "Desc_QxTurbo_C")} from audit.fuel.verdicts.accepted_fuels',
-        '  12. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00, "Desc_QxTurbo_C": 2000.00}'
+        '  13. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00, "Desc_QxTurbo_C": 2000.00}'
         " from audit.fuel.verdicts.fuels.megajoules_per_unit",
-        '  13. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
+        '  14. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
         " audit.fuel.verdicts.fuels.unit",
-        '  14. Read power.fuel.burns = {"Build_QxAlphaGen_C":'
+        '  15. Read power.fuel.burns = {"Build_QxAlphaGen_C":'
         ' {"Desc_QxFuel_C": 40.00, "Desc_QxTurbo_C": 15.00}} from'
         " audit.fuel.demands.burns.burn_per_minute",
-        '  15. Read power.fuel.exclusions = ("supplemental resources such as water are not'
+        '  16. Read power.fuel.exclusions = ("supplemental resources such as water are not'
         ' compared against any supply", "byproducts a generator emits are not modelled")'
         " from audit.fuel.exclusions",
-        '  16. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
+        '  17. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
         " registry.generators.display_name",
-        '  17. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
+        '  18. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
         ' "Desc_QxTurbo_C": "Qx Turbo"} from registry.items.display_name',
-        "  18. Rejected state a supply verdict for Build_QxAlphaGen_C: the production flow is"
+        "  19. Rejected state a supply verdict for Build_QxAlphaGen_C: the production flow is"
         " incomplete, so the fuel supply is a floor and not a measurement",
-        "  19. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
-        "  20. Computed burn per minute of Desc_QxFuel_C for Build_QxAlphaGen_C = 40.00",
-        "  21. Computed burn per minute of Desc_QxTurbo_C for Build_QxAlphaGen_C = 15.00",
-        "  22. Rejected size supplemental resources and byproducts: out of scope:"
+        "  20. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
+        "  21. Computed burn per minute of Desc_QxFuel_C for Build_QxAlphaGen_C = 40.00",
+        "  22. Computed burn per minute of Desc_QxTurbo_C for Build_QxAlphaGen_C = 15.00",
+        "  23. Rejected size supplemental resources and byproducts: out of scope:"
         " supplemental resources such as water are not compared against any supply;"
         " byproducts a generator emits are not modelled",
-        "  23. Rule power.fuel_demand fired for power:fuel-demand:Build_QxAlphaGen_C",
+        "  24. Rule power.fuel_demand fired for power:fuel-demand:Build_QxAlphaGen_C",
     ]
 )
 
@@ -1663,3 +1680,99 @@ def test_a_firing_card_with_no_exclusion_line_is_a_rule_error(spec: RuleSpec) ->
 
     assert trace.recommendation is None
     assert len(_errors(trace)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Fix round 2: a card states the BUILT generator count - read plus never read -
+# and how many were never read, so a generator the save never recorded as a
+# running machine never drops out of the count (and no card says "x0")
+# ---------------------------------------------------------------------------
+
+OMITTED_LINE: Final = REASON_DETAIL[REASON_INSTANCES_OMITTED]
+
+
+def _census_world(states: list[MachineState], *, alpha: int = 0, charlie: int = 0) -> WorldFuel:
+    """The given generators plus ``alpha`` and ``charlie`` built ones never admitted."""
+    census = tuple(
+        (key, count) for key, count in ((GEN_ALPHA, alpha), (GEN_CHARLIE, charlie)) if count
+    )
+    return fuel_supply_of(_machines(states, unadmitted=census), REGISTRY)
+
+
+def _demand_card(world: WorldFuel) -> tuple[Trace, Card]:
+    trace = run_rule(DEMAND_RULE, _inputs(world))
+    card = card_for(trace)
+    assert card is not None
+    return trace, card
+
+
+def test_the_census_worlds_are_the_shape_the_arms_below_rest_on() -> None:
+    one = _census_world([_gen(GEN_CHARLIE)], charlie=1)
+    untagged = _census_world([], charlie=2)
+
+    assert [(v.instance_count, v.omitted_count) for v in one.verdicts] == [(1, 1)]
+    assert [(v.instance_count, v.omitted_count) for v in untagged.verdicts] == [(0, 2)]
+    assert REASON_INSTANCES_OMITTED in one.verdicts[0].reasons
+
+
+def test_one_class_with_an_unread_generator_states_the_built_count() -> None:
+    trace, card = _demand_card(_census_world([_gen(GEN_CHARLIE)], charlie=1))
+
+    assert card.tier1 == (
+        "Resolve the fuel burn of Qx Charlie Generator x2 (1 never read) before planning its fuel"
+    )
+    assert card.tier2 == (
+        "The burn of Qx Charlie Generator x2 is unknown, never zero, with no supply verdict:"
+        f" {OMITTED_LINE}; 1 built generator was never read"
+    )
+    assert (
+        f'Read {IN_OMITTED} = {{"{GEN_CHARLIE}": 1}} from audit.fuel.verdicts.omitted_count'
+        in card.tier3
+    )
+    assert IN_OMITTED in _subjects(trace, StepKind.INPUT_READ)
+
+
+def test_two_classes_count_an_unread_generator_beside_the_headline() -> None:
+    world = _census_world([_gen(GEN_ALPHA), _gen(GEN_ALPHA), _gen(GEN_CHARLIE)], charlie=1)
+    _, card = _demand_card(world)
+
+    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert card.tier2 == (
+        "Qx Alpha Generator x2 burn 40.00 m3 of Qx Fuel per minute at a demand of 500.00 MW,"
+        f" with no supply verdict: {FLOW_LINE}; 1 other generator class is undecided too;"
+        " 1 built generator was never read"
+    )
+
+
+def test_two_classes_each_with_an_unread_generator_count_them_all() -> None:
+    world = _census_world([_gen(GEN_ALPHA), _gen(GEN_CHARLIE)], alpha=1, charlie=1)
+    _, card = _demand_card(world)
+
+    assert card.tier1 == (
+        "Resolve the fuel burn of Qx Alpha Generator x2 (1 never read) before planning its fuel"
+    )
+    assert card.tier2 == (
+        "The burn of Qx Alpha Generator x2 is unknown, never zero, with no supply verdict:"
+        f" {OMITTED_LINE}; 1 other generator class is undecided too;"
+        " 2 built generators were never read"
+    )
+
+
+def test_a_class_whose_every_generator_is_unread_never_reads_x0() -> None:
+    _, card = _demand_card(_census_world([], charlie=2))
+
+    assert card.tier1 == (
+        "Resolve the fuel burn of Qx Charlie Generator x2 (2 never read) before planning its fuel"
+    )
+    assert card.tier2 == (
+        "The burn of Qx Charlie Generator x2 is unknown, never zero, with no supply verdict:"
+        f" {OMITTED_LINE}; 2 built generators were never read"
+    )
+    assert "x0" not in card.tier1 + card.tier2
+
+
+def test_no_unread_generator_adds_no_never_read_note() -> None:
+    _, card = _demand_card(_real_pair())
+
+    assert "never read" not in card.tier1
+    assert "never read" not in card.tier2

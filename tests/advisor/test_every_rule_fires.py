@@ -183,6 +183,7 @@ def _fuel(
             fuel.IN_DEMAND_REASONS: one(()),
             fuel.IN_REASON_DETAILS: MappingProxyType(dict.fromkeys(reasons, _UNDECIDED_LINE)),
             fuel.IN_INSTANCES: one(2),
+            fuel.IN_OMITTED: one(0),
             fuel.IN_ELIDED: one(0),
             fuel.IN_NAMEPLATE: one(Fraction(100)),
             fuel.IN_CLOCK_SUM: one(Fraction(2)),
