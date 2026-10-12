@@ -108,15 +108,16 @@ state nobody marked - stays :data:`GAP_FLOW_CLOCK_UNREAD`, whatever the class's
 capability: only the elision mark is re-read, never an unread clock.
 
 A RECORD NEVER ADMITTED IS NAMED, AND THE FLOW IS NOT COMPLETE BESIDE IT
-(CS-1314). Every bucket above holds an ADMITTED machine, so a built record of a
-class that runs recipes, which ``clockspeed/audit/machines.py`` left out of its
-population - its payload never read, or read with no machine tag - used to
-leave the flow reading complete while it may be moving items. A
+(CS-1314). Every bucket above holds an ADMITTED machine, so a record of a class
+a registry recipe is automated in, which ``clockspeed/audit/machines.py`` left
+out of its population - its payload never read, or read with no machine tag -
+used to leave the flow reading complete while it may be moving items. A
 ``WorldMachines`` model carries the census of every such record, and the flow
 reads it through ``clockspeed/audit/balance.py`` ``unadmitted_census_of``, the
-one owner of what a RECIPE CLASS is (any name among a supplied recipe's
-producers, resolved or not) and of the CS-1280 partition into its three kinds.
-Each record of a recipe class is named by class and kind in
+one owner of what a RECIPE CLASS is - a class a registry recipe is automated
+in, a RESOLVED producer, never a token no building resolves such as the build
+gun (the session 138 Q3(a) amendment) - and of the CS-1280 partition into its
+three kinds. Each record of a recipe class is named by class and kind in
 :attr:`WorldFlow.unadmitted`, counted under
 :data:`WARN_FLOW_RECIPE_CLASS_UNADMITTED`, and keeps :attr:`WorldFlow.complete`
 False - EVERY kind, the clean tagless one included, because nothing says it is
@@ -247,9 +248,9 @@ WARN_FLOW_CLOCK_REFUSED: Final = "flow-clock-refused"
 #: world is balanced.
 WARN_FLOW_NOTHING_FLOWING: Final = "flow-nothing-flowing"
 
-#: CS-1314. This many built records of a class the supplied recipes name among
-#: their producers were never admitted as machines, so whatever they move is
-#: outside this flow; each is named by class and kind in
+#: CS-1314. This many records of a class a registry recipe is automated in - a
+#: resolved producer of a supplied recipe - were never admitted as machines,
+#: so whatever they move is outside this flow; each is named by class and kind in
 #: :attr:`WorldFlow.unadmitted`, and the flow is never complete beside one.
 WARN_FLOW_RECIPE_CLASS_UNADMITTED: Final = "flow-recipe-class-unadmitted"
 
@@ -303,8 +304,8 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " could be measured and never that the world is balanced"
         ),
         WARN_FLOW_RECIPE_CLASS_UNADMITTED: (
-            "this many built records of a class that runs a recipe were never admitted"
-            " as machines - their payload was never read, or carried no machine tag -"
+            "this many records of a class a registry recipe is automated in were never"
+            " admitted as machines - their payload was never read, or carried no machine tag -"
             " so whatever they move is outside this flow and it is not complete; each"
             " is named by class and kind in the unadmitted list"
         ),
@@ -449,7 +450,7 @@ class WorldFlow:
         raw_items: What the caller declared raw, sorted.
         machines_considered: How many machines the input held.
         skipped_count: How many of them are in a gap.
-        complete: Whether every machine flowed AND no built record of a recipe
+        complete: Whether every machine flowed AND no record of a recipe
             class was left out of the population (CS-1314, :attr:`unadmitted`).
             False means every item total is short by whatever the skipped
             machines and the unadmitted records move.
@@ -473,8 +474,9 @@ class WorldFlow:
             counts it, because it cannot know the class has no clock.
             CS-1278: neither audit prices or flows a boosted machine, so it is
             counted in neither, elided or not.
-        unadmitted: CS-1314. Every built record of a class the supplied recipes
-            name among their producers that ``WorldMachines`` never admitted,
+        unadmitted: CS-1314. Every record of a class a registry recipe is
+            automated in - a resolved producer of a supplied recipe - that
+            ``WorldMachines`` never admitted,
             as ``(class name, kind, record count)`` triples, the kind one of
             ``clockspeed/audit/balance.py`` ``CENSUS_KINDS``, exactly as
             ``balance.unadmitted_census_of`` returns them; :meth:`__repr__`
@@ -683,9 +685,10 @@ def flow_of(
     statement of intent rather than world content, on the terms
     ``clockspeed/solve/ratio.py`` refuses an inexact target.
 
-    CS-1314: a ``WorldMachines`` model carries the census of the built records
-    it did not admit, and every one of them of a RECIPE CLASS - a class some
-    supplied recipe names among its producers, resolved or not - is named in
+    CS-1314: a ``WorldMachines`` model carries the census of the records it
+    did not admit, and every one of them of a RECIPE CLASS - a class a
+    registry recipe is automated in, a resolved producer of a supplied recipe,
+    never an unresolved token (the Q3(a) amendment) - is named in
     :attr:`WorldFlow.unadmitted` by class and kind, warned by
     :data:`WARN_FLOW_RECIPE_CLASS_UNADMITTED`, and keeps
     :attr:`WorldFlow.complete` False, whatever its kind. The partition and the

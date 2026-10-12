@@ -1650,26 +1650,116 @@ def test_a_bare_sequence_carries_no_census(recipes: dict[str, Recipe]) -> None:
     assert modelled.complete is False
 
 
-def test_a_producer_named_only_by_an_unresolved_token_is_a_recipe_class(
-    recipes: dict[str, Recipe],
-) -> None:
-    """Ruling Q3 a: an unresolved producer token names a recipe class too."""
-    stranger = "Build_SyntheticUnresolvedProducerQx14_C"
-    rows = {
+#: CS-1314 fix 2, the Q3(a) amendment. A producer token no registry building
+#: resolves - the shape of the build gun and the bench components - and a
+#: class a recipe names as a resolved producer.
+_TOOL_CLASS: Final = "Tool_Gun_C"
+_SYNTH_CLASS: Final = "Build_Synth_C"
+
+
+def _tool_recipes(
+    recipes: Mapping[str, Recipe], *, resolved: tuple[str, ...] = ()
+) -> dict[str, Recipe]:
+    """The corpus recipes plus one whose producer is the tool token, unresolved.
+
+    Args:
+        recipes: The corpus recipes.
+        resolved: Resolved producers the added recipe also names.
+
+    Returns:
+        Recipe class name to recipe.
+    """
+    return {
         **recipes,
-        "R_SyntheticUnresolvedQx14": replace(
+        "R_SyntheticToolQx14": replace(
             recipes[synthetic.PLATE_RECIPE],
-            key="R_SyntheticUnresolvedQx14",
-            produced_in=(),
-            unresolved_produced_in=(stranger,),
+            key="R_SyntheticToolQx14",
+            produced_in=resolved,
+            unresolved_produced_in=(_TOOL_CLASS,),
         ),
     }
-    model = machines.machines_of(_census_flow_world(stranger, balance.GAP_PAYLOAD_UNREAD))
 
-    assert flow.flow_of(model, recipes).complete is True
+
+def _tool_census_world(*classes: str) -> WorldMachines:
+    """One plate smelter that flows, then one clean tagless record per class.
+
+    Args:
+        classes: The class of each record ``machines_of`` will not admit.
+
+    Returns:
+        The machines model, through the real ``machines_of``.
+    """
+    rows: list[tuple[str, Mapping[str, object]]] = [(_SMELTER, balance_fx.TAGGED)]
+    rows += [(class_name, {}) for class_name in classes]
+    base = balance_fx.census_world(*rows)
+    entries = dict(base.properties.by_record_index)
+    entries[0] = replace(entries[0], references=(machines_fx.recipe_reference(_PLATE_ASSET),))
+    return machines.machines_of(
+        replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+    )
+
+
+@pytest.mark.parametrize("kind", list(_CENSUS_KIND_IDS.values()), ids=list(_CENSUS_KIND_IDS))
+def test_a_class_named_only_by_an_unresolved_token_is_no_recipe_class(
+    recipes: dict[str, Recipe], kind: str
+) -> None:
+    """The Q3(a) amendment: the flow's recipe classes are AUTOMATED producers only.
+
+    A recipe is automated only in a producer the registry resolves to a
+    modeled building; an unresolved token - the build gun every player carries
+    - keeps it unautomated, so a record of that token's class moves nothing
+    this flow measures. It is not named, raises no warning, and leaves the
+    flow complete.
+    """
+    rows = _tool_recipes(recipes)
+    model = machines.machines_of(_census_flow_world(_TOOL_CLASS, kind))
     result = flow.flow_of(model, rows)
+
+    assert _census_rows(result) == []
+    assert flow.WARN_FLOW_RECIPE_CLASS_UNADMITTED not in _codes(result)
+    assert result.complete is True
+
+
+def test_a_declared_class_named_only_by_an_unresolved_token_is_no_recipe_class(
+    recipes: dict[str, Recipe],
+) -> None:
+    """The Q3(a) amendment rejects option (ii): a declared class is not thereby built.
+
+    ``Registry.declared_classes`` covers items, schematics and equipment, so
+    a tool token the docs DECLARE but no building resolves is still no recipe
+    class - through the recipes and buildings a registry hands the flow and
+    the starvation model alike.
+    """
+    registry = Registry(
+        items=MappingProxyType({}),
+        recipes=MappingProxyType(_tool_recipes(recipes)),
+        buildings=synthetic.solve_registry().buildings,
+        warnings=(),
+        unknown_groups=(),
+        declared_classes=frozenset({_TOOL_CLASS, *synthetic.solve_registry().buildings}),
+    )
+    model = _tool_census_world(_TOOL_CLASS)
+    result = flow.flow_of(model, registry.recipes, buildings=registry.buildings)
+    starved = balance.starvation_of(model, recipes=registry.recipes)
+
+    assert _TOOL_CLASS in registry.declared_classes
+    assert _TOOL_CLASS not in registry.buildings
+    assert _TOOL_CLASS not in balance.recipe_classes_of(registry.recipes)
+    assert result.unadmitted == ()
+    assert result.complete is True
+    assert (starved.unadmitted, starved.tagless_clean_count) == ((), 0)
+
+
+def test_a_recipe_naming_a_resolved_and_an_unresolved_producer_names_the_resolved_one(
+    recipes: dict[str, Recipe],
+) -> None:
+    """The guard: the amendment drops the token, never the recipe's real producer."""
+    rows = _tool_recipes(recipes, resolved=(_SYNTH_CLASS,))
+    model = _tool_census_world(_SYNTH_CLASS)
+    result = flow.flow_of(model, rows)
+
+    assert _census_rows(result) == [(_SYNTH_CLASS, balance.CENSUS_TAGLESS_CLEAN, 1)]
     assert result.complete is False
-    assert _census_rows(result) == [(stranger, balance.GAP_PAYLOAD_UNREAD, 1)]
 
 
 def test_residual_a_recipe_the_registry_dropped_hides_its_producer_class_from_the_flow(

@@ -220,20 +220,21 @@ and the four categories conserve against
 do.
 
 A RECORD NEVER ADMITTED IS JUDGED BESIDE THE POPULATION (CS-1314). The four
-categories partition ``WorldMachines.machines`` alone, so a built record of a
-class that runs a recipe, left out of that population, used to be in no
+categories partition ``WorldMachines.machines`` alone, so a record of a class a
+registry recipe is automated in, left out of that population, used to be in no
 category and in no list. :func:`starvation_of` now reads the census
 ``WorldMachines`` publishes of what it did not admit, through
 :func:`unadmitted_census_of` - the one owner of the CS-1280 partition and of
-what a RECIPE CLASS is (:func:`recipe_classes_of`), which
-``clockspeed/audit/flow.py`` imports rather than copies. Each record of a
+what a RECIPE CLASS is (:func:`recipe_classes_of`: a resolved producer, never a
+token no building resolves), which ``clockspeed/audit/flow.py`` imports rather
+than copies. Each record of a
 recipe class is named by class and kind in :attr:`WorldStarvation.unadmitted`,
 outside the four categories, which still conserve. One read clean with no tag
 at all is :data:`CENSUS_TAGLESS_CLEAN`, counted apart and NEVER STARVED: a
 starved machine carries a recipe, and it carries none. One never read, or read
 and not clean, stays indeterminate under its own kind and joins the
 :data:`WARN_BALANCE_MACHINE_STATE_UNREAD` count. Only the caller's recipes can
-say which classes run one, so a starvation handed none over a non-empty census
+say which classes one is automated in, so a starvation handed none over a non-empty census
 judges nothing and says so with :data:`WARN_BALANCE_CENSUS_UNJUDGED`.
 
 A FINDING HERE IS HALF AN AUDIT AND THIS MODULE SAYS SO. The package
@@ -556,8 +557,8 @@ WARN_BALANCE_EQUIPMENT_EXCLUDED: Final = "balance-equipment-excluded"
 
 #: CS-1314. :func:`starvation_of` was handed no recipes - None, or an empty
 #: mapping - over a machines model whose census of unadmitted records is not
-#: empty, so it could not tell which of those records are of a class that runs
-#: a recipe and judged none of them. Counted in records. The precedent is
+#: empty, so it could not tell which of those records are of a class a
+#: registry recipe is automated in and judged none of them. Counted in records. The precedent is
 #: :data:`WARN_BALANCE_PRODUCTION_UNMODELED` for a balance handed no generators.
 WARN_BALANCE_CENSUS_UNJUDGED: Final = "balance-census-unjudged"
 
@@ -702,7 +703,7 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_BALANCE_MACHINE_STATE_UNREAD: (
             "this many machines carried no producing flag, so they were neither"
             " flagged nor counted as running; the starved set is short by whatever"
-            " those machines hold; built records of a class that runs a recipe,"
+            " those machines hold; records of a class a registry recipe is automated in,"
             " never admitted because no payload of theirs was read or it read and"
             " was not clean, are counted here too and named in the unadmitted list"
         ),
@@ -769,8 +770,8 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " its count in the clocked draw's equipment list"
         ),
         WARN_BALANCE_CENSUS_UNJUDGED: (
-            "this many built records were never admitted as machines, and no recipes"
-            " were supplied to tell which of them are of a class that runs a recipe,"
+            "this many records were never admitted as machines, and no recipes were"
+            " supplied to tell which of them are of a class a registry recipe is automated in,"
             " so none was judged; the starved set and its counts say nothing about"
             " them, and an empty unadmitted list means unjudged, never none"
         ),
@@ -1011,8 +1012,8 @@ class WorldStarvation:
             ``WorldMachines.producing_available``. False over a non-empty
             population means the empty starved set is a fact about this reader.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
-        unadmitted: CS-1314. Every census record of a RECIPE CLASS - one the
-            supplied recipes name among their producers - that
+        unadmitted: CS-1314. Every census record of a RECIPE CLASS - one a
+            supplied recipe is automated in, a resolved producer - that
             ``WorldMachines`` never admitted, as ``(class name, kind, record
             count)`` triples, the kind one of :data:`CENSUS_KINDS` and the
             count above zero, sorted by class then by kind order - plain
@@ -2155,14 +2156,25 @@ def clocked_draw_of(
 
 
 def recipe_classes_of(recipes: Mapping[str, Recipe]) -> frozenset[str]:
-    """Every class the supplied recipes name among their producers (CS-1314).
+    """Every class a supplied recipe is AUTOMATED in (CS-1314, Q3 a as amended).
 
-    THE ONE OWNER OF WHAT A RECIPE CLASS IS (ruling Q3 a): a name in any
-    recipe's ``produced_in`` OR its ``unresolved_produced_in`` - the relation
-    ``clockspeed/audit/fuel.py`` reads, where a producer token the registry
-    could not resolve still names a class a record may be of. A class every
-    recipe of which the registry dropped is named by none of them, and is no
-    recipe class here: a residual the session 138 ruling records.
+    THE ONE OWNER OF WHAT A RECIPE CLASS IS for the flow and the starvation
+    model: a name in some recipe's ``produced_in`` - the producers the
+    registry RESOLVED to a modeled building - and nothing else. The registry
+    calls a recipe automated only when a producer token resolves, and keeps
+    one whose every token is unresolved (the build gun, the bench components)
+    unautomated, so a record of such a token's class moves nothing the flow
+    measures; naming it would make the flow read incomplete on every save,
+    since the player always carries a build gun. An unresolved token is
+    therefore no recipe class here, even when the docs declare its class.
+
+    WHY ``clockspeed/audit/fuel.py`` READS MORE. The fuel audit's own relation
+    also reads ``unresolved_produced_in``, because it asks a different
+    question - could a class name a fuel item by any means - and there an
+    over-inclusion only marks a fuel unmeasured, the safe direction; it keeps
+    its own reading under ruling Q3 d. A class every recipe of which the
+    registry dropped is named by neither: a residual the session 138 ruling
+    records.
 
     Args:
         recipes: The recipes, keyed by class name.
@@ -2170,11 +2182,7 @@ def recipe_classes_of(recipes: Mapping[str, Recipe]) -> frozenset[str]:
     Returns:
         The recipe classes.
     """
-    return frozenset(
-        name
-        for recipe in recipes.values()
-        for name in (*recipe.produced_in, *recipe.unresolved_produced_in)
-    )
+    return frozenset(name for recipe in recipes.values() for name in recipe.produced_in)
 
 
 def unadmitted_census_of(
@@ -2274,7 +2282,7 @@ def starvation_of(
     Args:
         machines: The machines model. Read only.
         recipes: CS-1314. The recipes, keyed by class name, which say which
-            unadmitted records are of a class that runs one. None leaves the
+            unadmitted records are of a class one is automated in. None leaves the
             census unjudged.
 
     Returns:

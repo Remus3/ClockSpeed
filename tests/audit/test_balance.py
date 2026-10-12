@@ -3315,13 +3315,19 @@ def test_a_buildable_from_a_non_buildable_group_stays_a_consumer() -> None:
 #: CS-1314. An invented class a supplied recipe names as a resolved producer.
 RECIPE_MAKER = "Build_SyntheticMakerQx14_C"
 
-#: CS-1314. An invented class a supplied recipe names only by an unresolved
-#: producer token, the relation ``clockspeed/audit/fuel.py`` reads too.
-RECIPE_UNRESOLVED = "Build_SyntheticUnresolvedQx14_C"
+#: CS-1314. A second invented class a second recipe names as a resolved
+#: producer, so the census arms sort two recipe classes.
+RECIPE_OTHER = "Build_SyntheticOtherQx14_C"
+
+#: CS-1314 fix 2, the Q3(a) amendment. A producer token no registry building
+#: resolves - the shape of the build gun and the bench components. A third
+#: recipe names it, and it alone, so the recipe is unautomated and the token's
+#: class is no recipe class for the flow or the starvation model.
+TOOL_CLASS = "Tool_Gun_C"
 
 #: CS-1314. How many records the starvation census world leaves unadmitted:
 #: two clean tagless makers, one pending maker, one clean foundation-like
-#: record of no recipe class, and one unread unresolved-class record.
+#: record of no recipe class, and one unread other-maker record.
 CENSUS_RECORDS = 5
 
 
@@ -3350,7 +3356,10 @@ def census_recipe(key: str, *, produced_in: str = "", unresolved: str = "") -> R
 
 
 def census_recipes() -> Mapping[str, Recipe]:
-    """The recipes the starvation census arms judge by: one per producer spelling.
+    """The recipes the starvation census arms judge by.
+
+    Two automated recipes, one per resolved producer, and one whose only
+    producer is the unresolved :data:`TOOL_CLASS`.
 
     Returns:
         Recipe class name to recipe.
@@ -3358,8 +3367,11 @@ def census_recipes() -> Mapping[str, Recipe]:
     return MappingProxyType(
         {
             RECIPE_CLASS: census_recipe(RECIPE_CLASS, produced_in=RECIPE_MAKER),
-            "Recipe_SyntheticUnresolvedQx14_C": census_recipe(
-                "Recipe_SyntheticUnresolvedQx14_C", unresolved=RECIPE_UNRESOLVED
+            "Recipe_SyntheticOtherQx14_C": census_recipe(
+                "Recipe_SyntheticOtherQx14_C", produced_in=RECIPE_OTHER
+            ),
+            "Recipe_SyntheticToolQx14_C": census_recipe(
+                "Recipe_SyntheticToolQx14_C", unresolved=TOOL_CLASS
             ),
         }
     )
@@ -3377,7 +3389,7 @@ def starvation_census_world() -> WorldModel:
         (RECIPE_MAKER, {}),
         (RECIPE_MAKER, PENDING),
         (FIXED_WHOLE, {}),
-        unread=(RECIPE_UNRESOLVED,),
+        unread=(RECIPE_OTHER,),
     )
     entries = dict(base.properties.by_record_index)
     entries[0] = replace(entries[0], references=(machines_fx.recipe_reference(RECIPE_ASSET),))
@@ -3402,7 +3414,7 @@ def test_starvation_names_every_unadmitted_record_of_a_recipe_class() -> None:
     THE FOUR CATEGORIES ARE UNTOUCHED - the one admitted machine is starved and
     they conserve against it alone. Beside them, each record of a recipe class
     is named: the two clean tagless makers counted apart and never starved, the
-    pending maker and the unread unresolved-class record indeterminate, each by
+    pending maker and the unread other-maker record indeterminate, each by
     its own kind. The foundation-like record is of no recipe class and is not
     named.
     """
@@ -3412,7 +3424,7 @@ def test_starvation_names_every_unadmitted_record_of_a_recipe_class() -> None:
     assert census_rows(result.unadmitted) == [
         (RECIPE_MAKER, balance.GAP_NO_MACHINE_STATE, 1),
         (RECIPE_MAKER, balance.CENSUS_TAGLESS_CLEAN, 2),
-        (RECIPE_UNRESOLVED, balance.GAP_PAYLOAD_UNREAD, 1),
+        (RECIPE_OTHER, balance.GAP_PAYLOAD_UNREAD, 1),
     ]
     assert result.tagless_clean_count == 2  # noqa: PLR2004 - the two clean makers
     assert result.indeterminate_record_count == 2  # noqa: PLR2004 - pending and unread
@@ -3428,7 +3440,7 @@ def test_starvation_names_every_unadmitted_record_of_a_recipe_class() -> None:
     rendered = repr(result)
     assert "unadmitted=3" in rendered
     assert RECIPE_MAKER not in rendered
-    assert RECIPE_UNRESOLVED not in rendered
+    assert RECIPE_OTHER not in rendered
 
 
 def codes(result: balance.WorldStarvation) -> list[tuple[str, int]]:
@@ -3544,11 +3556,36 @@ def test_an_empty_census_needs_no_recipes_to_be_judged() -> None:
     assert balance.WARN_BALANCE_CENSUS_UNJUDGED not in {code for code, _ in codes(result)}
 
 
-def test_a_recipe_class_is_every_producer_a_recipe_names_resolved_or_not() -> None:
-    """Ruling Q3 a, the relation ``clockspeed/audit/fuel.py`` reads."""
-    assert balance.recipe_classes_of(census_recipes()) == frozenset(
-        {RECIPE_MAKER, RECIPE_UNRESOLVED}
-    )
+def test_a_recipe_class_is_a_resolved_producer_and_never_an_unresolved_token() -> None:
+    """The Q3(a) amendment: a recipe class is an AUTOMATED producer only.
+
+    The two resolved producers are recipe classes; the token no building
+    resolves is not, though a recipe names it - unlike the fuel audit's
+    relation, which keeps reading it (Q3 d).
+    """
+    assert balance.recipe_classes_of(census_recipes()) == frozenset({RECIPE_MAKER, RECIPE_OTHER})
+
+
+@pytest.mark.parametrize("kind", ["clean", "pending", "unread"])
+def test_starvation_never_counts_a_record_of_an_unresolved_token(kind: str) -> None:
+    """The Q3(a) amendment: an unresolved token's record is no recipe-class record.
+
+    The build gun every player carries is such a record. A recipe names its
+    class only by a token no building resolves, so the recipe is unautomated;
+    the record is not named, never counted as a clean tagless kind or as an
+    indeterminate one, and adds nothing to the machine-state-unread count.
+    """
+    if kind == "unread":
+        model = machines.machines_of(census_world(unread=(TOOL_CLASS,)))
+    else:
+        model = machines.machines_of(
+            census_world((TOOL_CLASS, PENDING if kind == "pending" else {}))
+        )
+    result = balance.starvation_of(model, recipes=census_recipes())
+
+    assert result.unadmitted == ()
+    assert (result.tagless_clean_count, result.indeterminate_record_count) == (0, 0)
+    assert balance.WARN_BALANCE_MACHINE_STATE_UNREAD not in {code for code, _ in codes(result)}
 
 
 def test_a_clean_census_count_above_its_read_count_is_clamped() -> None:
@@ -3560,7 +3597,7 @@ def test_a_clean_census_count_above_its_read_count_is_clamped() -> None:
     model = replace(
         world_machines(),
         unadmitted_read_counts=((RECIPE_MAKER, 1),),
-        unadmitted_clean_counts=((RECIPE_MAKER, 3), (RECIPE_UNRESOLVED, 2)),
+        unadmitted_clean_counts=((RECIPE_MAKER, 3), (RECIPE_OTHER, 2)),
     )
 
     assert census_rows(balance.unadmitted_census_of(model, census_recipes())) == [
