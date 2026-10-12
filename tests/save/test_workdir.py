@@ -1944,6 +1944,216 @@ def test_purge_leaves_junctions_inside_the_copies_directory_and_what_is_behind_t
     assert kept == [True, True], "a junction inside the copies directory was removed"
 
 
+#: Routes into the pretend save directory under a spelling that a plain string
+#: compare of resolved paths does not recognise (CS-1312, fix round 1). The
+#: first four respell the WORK ROOT handed to the caller; the last two respell
+#: an override in the environment instead.
+RESPELLED_ROUTES: Final = (
+    "prefix-nested",
+    "prefix-junction",
+    "prefix-unc-nested",
+    "admin-share-nested",
+    "env-save-root-prefixed",
+    "env-work-root-prefixed",
+)
+
+#: The three callers of the forbidden-root check: the two deletes and the write.
+GATED_CALLERS: Final = ("purge_work_dir", "discard_copy", "copy_for_read")
+
+
+def respelled(path: Path, spelling: str) -> Path:
+    """Respell an absolute drive-letter path so a string compare no longer matches it.
+
+    ``prefix`` adds the Win32 long-path prefix, ``prefix-unc`` reaches the same
+    directory through that prefix's UNC form on the local admin share, and
+    ``admin-share`` through the admin share itself. Skips off Windows, and
+    skips the share spellings where the local admin share does not answer for
+    this account.
+
+    Args:
+        path: A directory under tmp_path, existing or planned.
+        spelling: One of the three spellings above.
+
+    Returns:
+        The same directory, spelled differently.
+    """
+    if os.name != "nt":
+        pytest.skip("Win32 path prefixes and admin shares exist only on Windows")
+    text = str(path.resolve())
+    if text[1:2] != ":":
+        pytest.skip("this temporary directory has no drive letter to respell")
+    share = text[0] + "$"
+    heads = {
+        "prefix": "\\\\?\\" + text[:2],
+        "prefix-unc": "\\\\?\\UNC\\localhost\\" + share,
+        "admin-share": "\\\\localhost\\" + share,
+    }
+    head = heads[spelling]
+    if not Path(head + "\\").is_dir():
+        pytest.skip("the local admin share does not answer for this account")
+    return Path(head + text[2:])
+
+
+def arrange_respelled_route(
+    route: str,
+    save_root: Path,
+    account: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path | None:
+    """Plant the pretend save directory and a copies directory reaching it by ``route``.
+
+    Args:
+        route: One of :data:`RESPELLED_ROUTES`.
+        save_root: The pretend save root.
+        account: The pretend account directory beneath it.
+        tmp_path: The test's own temporary directory.
+        monkeypatch: Sets the overrides; their values are never rendered.
+
+    Returns:
+        The work root to hand the caller, or None for the route that sets it
+        in the environment instead.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(account))
+    plant_save_directory(account)
+    if route.endswith("-junction"):
+        plain = tmp_path / "redirected-work"
+        plain.mkdir()
+        make_junction(plain / workdir.COPIES_DIR_NAME, account)
+    else:
+        copies = account / "nested-work" / workdir.COPIES_DIR_NAME
+        copies.mkdir(parents=True)
+        plant_save_directory(copies)
+        plain = copies.parent
+    if route == "env-save-root-prefixed":
+        monkeypatch.setenv(ENV_SAVE_ROOT, str(respelled(save_root, "prefix")))
+        monkeypatch.setenv(ENV_ACCOUNT_DIR, str(respelled(account, "prefix")))
+        return plain
+    if route == "env-work-root-prefixed":
+        monkeypatch.setenv(workdir.ENV_WORK_ROOT, str(respelled(plain, "prefix")))
+        return None
+    return respelled(plain, route.removesuffix("-nested").removesuffix("-junction"))
+
+
+def act_through(caller: str, work_root: Path | None, account: Path) -> bool:
+    """Drive one gated caller at the pretend save directory; True when it acted.
+
+    Acting is a removal for the two deletes and a finished copy for the write.
+    A refusal of the write is the one exception expected; any other propagates.
+
+    Args:
+        caller: One of :data:`GATED_CALLERS`.
+        work_root: The work root to hand it, or None for the configured one.
+        account: The pretend account directory, which holds the save to copy.
+
+    Returns:
+        Whether the caller removed or wrote anything.
+    """
+    if caller == "purge_work_dir":
+        return workdir.purge_work_dir(work_root=work_root) != EXPECT_NONE
+    root = work_root if work_root is not None else workdir.work_root()
+    if caller == "discard_copy":
+        victim = root / workdir.COPIES_DIR_NAME / ("Victim" + workdir.COPY_SUFFIX)
+        return workdir.discard_copy(victim, work_root=work_root)
+    try:
+        workdir.copy_for_read(account / "World.sav", work_root=work_root)
+    except workdir.DestinationRefusedError:
+        return False
+    return True
+
+
+@pytest.mark.parametrize("caller", GATED_CALLERS)
+@pytest.mark.parametrize("route", RESPELLED_ROUTES)
+def test_a_respelled_route_into_the_save_directory_is_refused_by_each_gated_caller(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    caller: str,
+) -> None:
+    """A long-path prefix, its UNC form or the admin share does not pass the gate (CS-1312).
+
+    Measured by the fix-round-1 adversary: ``Path.resolve`` keeps the prefix or
+    the share as the drive, so a string compare of resolved paths answered
+    "outside" for a directory inside the save root, and both deletes and the
+    write went through. Every file under the pretend save root is asserted
+    byte-identical - none changed, none went, none appeared - BEFORE the
+    caller's own verdict.
+    """
+    work_root = arrange_respelled_route(
+        route, pretend_save_root, pretend_account_dir, tmp_path, monkeypatch
+    )
+    before = hashes_under(pretend_save_root)
+
+    acted = act_through(caller, work_root, pretend_account_dir)
+
+    after = hashes_under(pretend_save_root)
+    assert after == before, "the save directory changed"
+    assert acted is False, "the caller acted through a respelled route into the save directory"
+
+
+@pytest.mark.parametrize("route", RESPELLED_ROUTES)
+@pytest.mark.parametrize("layer", ["identity-alone", "spelling-alone"])
+def test_each_layer_of_the_forbidden_root_compare_refuses_a_respelled_route_alone(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    layer: str,
+) -> None:
+    """Defense in depth, measured per layer: each compare holds with the other switched off.
+
+    ``identity-alone`` turns the spelling canonicaliser into a pass-through, so
+    only the (st_dev, st_ino) ancestor walk can refuse; ``spelling-alone``
+    makes every identity unknown, so only the canonical string compare can.
+    Without this a mutant deleting either layer survives the test above,
+    because the other layer still refuses each route.
+    """
+    if layer == "identity-alone":
+        monkeypatch.setattr(workdir, "_canonical", Path)
+    else:
+        monkeypatch.setattr(workdir, "_identity", lambda _path: None)
+    work_root = arrange_respelled_route(
+        route, pretend_save_root, pretend_account_dir, tmp_path, monkeypatch
+    )
+    before = hashes_under(pretend_save_root)
+
+    acted = act_through("purge_work_dir", work_root, pretend_account_dir)
+
+    after = hashes_under(pretend_save_root)
+    assert after == before, "the save directory changed"
+    assert acted is False, "purge acted through a respelled route into the save directory"
+
+
+def test_a_destination_the_identity_walk_cannot_stat_is_refused_without_a_path(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail closed: a destination whose ancestors will not stat is refused, naming no path.
+
+    Windows rejects this name at stat time with an error that is not "absent",
+    so whether the destination sits under a forbidden root cannot be shown by
+    identity, and the gate refuses rather than allowing it.
+    """
+    if os.name != "nt":
+        pytest.skip("only Windows rejects this name at stat time")
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    destination = tmp_path / "rejected?name" / workdir.COPIES_DIR_NAME
+
+    with pytest.raises(workdir.DestinationRefusedError) as caught:
+        workdir._refuse_if_forbidden(destination)  # noqa: SLF001
+
+    message = str(caught.value)
+    assert "\\" not in message, "the refusal rendered a path"
+    assert "/" not in message, "the refusal rendered a path"
+
+
 # ===========================================================================
 # work_root itself
 # ===========================================================================
@@ -2389,6 +2599,11 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
         "hashes_under": (
             "walks and digests a pretend save root the caller built under "
             "tmp_path, to show a purge left it byte-identical (CS-1312) "
+        ),
+        "respelled": (
+            "resolves a directory the caller built or planned under tmp_path, "
+            "then respells it with a Win32 prefix or as the local admin share "
+            "to probe the forbidden-root gate (CS-1312) "
         ),
         "test_an_unrecognised_failure_is_reported_as_could_not_tell": (
             "takes a reference to Path.iterdir in order to REPLACE it, and its "

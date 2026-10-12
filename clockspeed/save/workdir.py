@@ -83,7 +83,7 @@ import time
 from collections.abc import Sized
 from dataclasses import dataclass
 from errno import ENOENT, ENOTDIR
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from stat import S_ISREG
 from typing import Final
 
@@ -558,7 +558,7 @@ def _refuse_if_forbidden(destination: Path) -> None:
                 f"to sit outside it: {locate.redact(resolved)}. Clockspeed never writes to the "
                 "game install or the save directory."
             )
-        if resolved.is_relative_to(root.resolved):
+        if _inside(resolved, root.resolved):
             raise DestinationRefusedError(
                 f"refusing to write inside {root.label}: {locate.redact(resolved)}. Clockspeed "
                 "never writes to the game install or the save directory."
@@ -1046,3 +1046,147 @@ def purge_work_dir(*, work_root: Path | None = None) -> int:
     # from ``home`` only if the directory is swapped between the two resolves -
     # the J9 window. It is kept so this path and discard_copy share one gate.
     return sum(1 for entry in entries if _discard_from(home, entry))
+
+
+# --- the forbidden-root compare ----------------------------------------------
+#
+# Called from _refuse_if_forbidden, and defined here rather than beside it
+# because a citation pin fixes the text of a line in the middle of this module.
+# Python resolves these names at call time, so where they sit changes nothing.
+
+#: The UNC forms of the two Win32 namespace prefixes, each followed by
+#: ``server\share``. Matched case-insensitively and rewritten to the plain UNC
+#: form that names the same share.
+_UNC_PREFIXES: Final = ("\\\\?\\UNC\\", "\\\\.\\UNC\\")
+
+#: The two Win32 namespace prefixes themselves. Stripped only before a drive
+#: letter: a volume-GUID path has no drive-letter form to rewrite to, and the
+#: identity compare is what reaches it.
+_DRIVE_PREFIXES: Final = ("\\\\?\\", "\\\\.\\")
+
+#: Server names that make an admin share - share ``X$`` - the local drive X.
+#: The machine's own name joins them at call time, read and never rendered.
+_LOOPBACK_SERVERS: Final = frozenset({"localhost", "127.0.0.1"})
+
+#: The identity answer for a stat that FAILED, which settles neither a file
+#: id nor absence. Not a pair any real file carries.
+_UNCHECKED: Final = (-1, -1)
+
+
+def _local_servers() -> frozenset[str]:
+    """Return the lower-cased server names that mean this machine."""
+    name = (os.environ.get("COMPUTERNAME") or "").strip().lower()
+    return _LOOPBACK_SERVERS | frozenset({name} - {""})
+
+
+def _canonical(path: Path) -> Path:
+    """Spell a resolved Windows path the one way a string compare can match.
+
+    ``Path.resolve`` keeps a Win32 namespace prefix, that prefix's UNC form
+    and a local admin share as the path's DRIVE, so a resolved destination
+    spelled any of those ways compared as outside a forbidden root it was
+    inside (CS-1312 fix round 1, measured by its adversary). The prefix is
+    stripped before a drive letter, its UNC form becomes the plain UNC form,
+    and an admin share on a loopback name or this machine's own name becomes
+    the drive it shares. Any other path, and any path off Windows, comes back
+    unchanged; :func:`_identity` is the layer that does not depend on
+    spelling at all.
+
+    Args:
+        path: A resolved path.
+
+    Returns:
+        The same location in drive-letter or plain UNC form where one exists.
+    """
+    if not isinstance(path, PureWindowsPath):
+        return path
+    text = str(path)
+    upper = text.upper()
+    unc = [prefix for prefix in _UNC_PREFIXES if upper.startswith(prefix)]
+    if unc:
+        text = "\\\\" + text[len(unc[0]) :]
+    else:
+        for prefix in _DRIVE_PREFIXES:
+            rest = text[len(prefix) :]
+            if upper.startswith(prefix) and rest[1:2] == ":" and rest[:1].isalpha():
+                text = rest
+                break
+    canonical = Path(text)
+    server, _, share = canonical.drive[2:].partition("\\")
+    is_admin_share = (
+        canonical.drive.startswith("\\\\")
+        and len(share) == len("X$")
+        and share[0].isalpha()
+        and share[1] == "$"
+    )
+    if is_admin_share and server.lower() in _local_servers():
+        return Path(share[0] + ":\\", *canonical.parts[1:])
+    return canonical
+
+
+def _identity(path: Path) -> tuple[int, int] | None:
+    """Return the (st_dev, st_ino) pair of the file at ``path``, however it is spelled.
+
+    Args:
+        path: Any path.
+
+    Returns:
+        The pair. None when nothing is there - absent, or under something
+        that is not a directory - and when the filesystem reports no file id,
+        so there is nothing to compare. :data:`_UNCHECKED` when the stat
+        failed for any other reason, which the caller refuses on.
+    """
+    try:
+        info = path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except (OSError, ValueError):
+        return _UNCHECKED
+    if info.st_ino == 0:
+        return None
+    return info.st_dev, info.st_ino
+
+
+def _inside(resolved: Path, root: Path) -> bool:
+    """Return whether the resolved destination sits at or under the resolved root.
+
+    TWO COMPARES, EITHER ONE PLACES IT INSIDE (CS-1312 fix round 1). The string
+    compare runs on the :func:`_canonical` spelling of both sides. The identity
+    compare walks the destination and each of its ancestors and asks whether
+    any is the same FILE as the root - the same (st_dev, st_ino) pair - which
+    no spelling changes: a namespace prefix, a UNC form, an admin share under
+    any server name and a volume path all stat to the same pair.
+
+    FAIL CLOSED. A stat the identity compare needed that failed for a reason
+    other than absence leaves the destination not shown to be outside, so it
+    is refused - with a fixed message that renders no path. A root or an
+    ancestor that is simply not there has no identity to share and is passed
+    over; the string compare still covers it.
+
+    Args:
+        resolved: The resolved destination.
+        root: One resolved forbidden root.
+
+    Returns:
+        True when either compare places the destination inside the root.
+
+    Raises:
+        DestinationRefusedError: Neither compare placed it inside, and a stat
+            the identity compare needed failed.
+    """
+    if _canonical(resolved).is_relative_to(_canonical(root)):
+        return True
+    home = _identity(root)
+    if home is None:
+        return False
+    chain = [_identity(step) for step in (resolved, *resolved.parents)]
+    if home != _UNCHECKED and home in chain:
+        return True
+    if home == _UNCHECKED or _UNCHECKED in chain:
+        raise DestinationRefusedError(
+            "a directory on the destination's path, or a forbidden root, could not be "
+            "stat'ed, so the destination cannot be shown to sit outside the save root and "
+            "the game install. Clockspeed never writes to the game install or the save "
+            "directory."
+        )
+    return False
