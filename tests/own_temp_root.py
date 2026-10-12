@@ -41,6 +41,13 @@ nested run that clears it claims a run directory of its own.
     tree - ``tests/save/test_workdir.py`` plants read-only links and junctions
     pointing at directories that must survive.
 
+ACCEPTED RESIDUALS, recorded by the CS-1319 adversaries: a spawner that scrubs
+``CLOCKSPEED_*`` makes a nested run look top-level, so it keeps a failed
+directory until the next sweep; a controller killed while its xdist workers
+still run can have its directory swept under them; and :data:`KEEP_FAILED`
+counts across the whole root - every worktree and lane - so of two suites
+failing together only the later one's record survives the next claim.
+
 Nothing here raises out of a hook: a removal that still fails is left for the
 next sweep, never a red session.
 """

@@ -407,3 +407,26 @@ def test_only_the_newest_failed_run_is_kept(tmp_path: Path) -> None:
     newest = runs[-1].path.name
     assert removed == len(runs) - 1, "the sweep did not reclaim every older failed run"
     assert survivors == [newest], "the sweep kept a failed run other than the newest"
+
+
+def test_a_failed_run_is_ranked_even_inside_the_grace_period(tmp_path: Path) -> None:
+    """Two failures seconds apart: the older record goes at once, not after grace.
+
+    The third adversary's should-fix: a mutant that checked the grace period
+    before the failed marker passed every arm, because every failed run the
+    arms aged was already past it. A failed run's owner has finished, so the
+    grace period - which covers a sibling between its mkdir and its marker's
+    open - does not apply to it.
+    """
+    older = own_temp_root.claim(tmp_path, {})
+    newer = own_temp_root.claim(tmp_path, {})
+    if older is None or newer is None:
+        pytest.fail("a claim owned nothing")
+    own_temp_root.finish(older, 1)
+    own_temp_root.finish(newer, 1)
+    _age(older.path, 60)
+    _age(newer.path, 30)
+    removed = own_temp_root.sweep(tmp_path)
+    survivors = sorted(path.name for path in tmp_path.iterdir())
+    assert removed == 1, "the sweep did not reclaim the older failed run inside grace"
+    assert survivors == [newer.path.name], "the sweep kept the older failed run"
