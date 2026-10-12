@@ -4,7 +4,10 @@ The wiring - that a real run lands under the root - is graded in
 ``tests/test_suite_temp_root.py``. Here every arm drives
 ``tests/own_temp_root.py`` against a parent directory under ``tmp_path`` and a
 plain dict standing in for the environment, so no arm touches the real root
-or the real process environment.
+or the real process environment. The ``install`` arms are the exception they
+must be: ``install`` reads the process environment and the system temp
+directory, so those arms point the temp directory at ``tmp_path`` and clear
+the temp-root variables through ``monkeypatch``, which restores both.
 """
 
 from __future__ import annotations
@@ -12,7 +15,11 @@ from __future__ import annotations
 import os
 import stat
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -462,3 +469,209 @@ def test_a_missing_legacy_root_sweeps_nothing(tmp_path: Path) -> None:
     """A machine that never ran the CS-1319 layout has no old root; not an error."""
     removed = own_temp_root.sweep_legacy(tmp_path)
     assert removed == 0, "a sweep of a missing legacy root reported removals"
+
+
+def test_an_aged_stranger_under_the_legacy_root_is_never_swept(tmp_path: Path) -> None:
+    """Only ``run-*`` entries under the CS-1319 root are this sweep's to remove.
+
+    The first legacy arm's stranger was young, so the grace period alone kept
+    it and an emptied prefix filter passed unseen. This stranger is past the
+    stale age, carries no held marker, and must still survive.
+    """
+    legacy = tmp_path / own_temp_root.LEGACY_ROOT_NAME
+    stranger = legacy / "not-a-run"
+    (stranger / "pytest-of-someone" / "pytest-0").mkdir(parents=True)
+    _age(stranger, STALE_AFTER_S + HOUR)
+    removed = own_temp_root.sweep_legacy(tmp_path)
+    kept = stranger.is_dir()
+    assert kept, "the legacy sweep removed an aged entry without the run prefix"
+    assert removed == 0, "the legacy sweep counted a stranger as a removal"
+
+
+def _make_link(kind: str, link: Path, target: Path) -> None:
+    """A junction or a directory symlink at ``link``, or a skip where none can be made."""
+    if kind == "junction":
+        _make_junction(link, target)
+        return
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip("this account cannot create a symlink here: " + type(exc).__name__)
+
+
+@pytest.mark.parametrize("kind", ["junction", "symlink"])
+def test_a_legacy_root_that_is_a_link_is_never_reached_through(tmp_path: Path, kind: str) -> None:
+    """A CS-1319 root name that is a link is left alone, and so is its target.
+
+    The target holds a dead, stale ``run-*`` directory - one the sweep WOULD
+    remove from a real legacy root - so only the link guard keeps it.
+    """
+    outside = tmp_path / "outside"
+    target_run = outside / (own_temp_root.LEGACY_RUN_PREFIX + "1-dead")
+    (target_run / "pytest-of-someone" / "pytest-0").mkdir(parents=True)
+    (target_run / ALIVE_NAME).write_bytes(b"")
+    _age(target_run, STALE_AFTER_S + HOUR)
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    link = temp / own_temp_root.LEGACY_ROOT_NAME
+    _make_link(kind, link, outside)
+    removed = own_temp_root.sweep_legacy(temp)
+    untouched = target_run.is_dir()
+    assert untouched, "the legacy sweep reached through a linked root"
+    assert removed == 0, "the legacy sweep counted a removal through a linked root"
+    link_kept = os.path.lexists(link)
+    assert link_kept, "the legacy sweep removed a link it did not make"
+
+
+class _FakePluginManager:
+    """The two plugin-manager calls :func:`own_temp_root.install` makes."""
+
+    def __init__(self) -> None:
+        self.registered: dict[str, object] = {}
+
+    def has_plugin(self, name: str) -> bool:
+        """Whether ``name`` was registered."""
+        return name in self.registered
+
+    def register(self, plugin: object, name: str) -> None:
+        """Record ``plugin`` under ``name``."""
+        self.registered[name] = plugin
+
+
+class _FakeConfig:
+    """A configuration with no ``--basetemp`` and a stand-in temp path factory."""
+
+    def __init__(self) -> None:
+        self.option = SimpleNamespace(basetemp=None)
+        self.pluginmanager = _FakePluginManager()
+        self.original_factory = object()
+        self._tmp_path_factory: object = self.original_factory
+
+    def getoption(self, name: str, default: object = None) -> object:
+        """An option's value, as ``pytest.Config.getoption`` reads it."""
+        return getattr(self.option, name, default)
+
+
+@dataclass
+class _Installed:
+    """What one :func:`own_temp_root.install` call against ``tmp_path`` left."""
+
+    config: _FakeConfig
+    run: own_temp_root.Claim | None
+    root: Path
+    handed: list[str]
+
+
+def _install_under(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    rebuild: Callable[[_FakeConfig], object] | None = None,
+) -> _Installed:
+    """Run :func:`own_temp_root.install` with ``tmp_path`` as the system temp.
+
+    The temp-root variables are cleared through ``monkeypatch``, so this
+    process's own claim is restored after the arm. ``rebuild`` stands in for
+    pytest's factory rebuild; the default records the base temp it was handed.
+    """
+    monkeypatch.setattr(own_temp_root.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.delenv(ENV_TEMPROOT, raising=False)
+    monkeypatch.delenv(ENV_NESTED, raising=False)
+    handed: list[str] = []
+
+    def rebuild_from(config: _FakeConfig, **_kwargs: object) -> object:
+        if rebuild is not None:
+            return rebuild(config)
+        handed.append(str(config.option.basetemp))
+        return object()
+
+    monkeypatch.setattr(pytest.TempPathFactory, "from_config", rebuild_from)
+    config = _FakeConfig()
+    run = own_temp_root.install(cast("pytest.Config", config))
+    root = tmp_path / own_temp_root.ROOT_NAME
+    return _Installed(config=config, run=run, root=root, handed=handed)
+
+
+def _release(installed: _Installed) -> None:
+    """Finish an arm's claim, so no marker is left held open."""
+    if installed.run is not None:
+        own_temp_root.finish(installed.run, 0)
+
+
+def test_the_base_temp_given_to_pytest_is_strictly_inside_the_run_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A given base temp is emptied by pytest, so it is never the marker's directory.
+
+    The handed base temp must be a STRICT descendant of the claimed run
+    directory: the run directory itself holds the owner's alive marker, and
+    pytest would delete it - and with it the sweep's proof of a live owner.
+    """
+    installed = _install_under(tmp_path, monkeypatch)
+    try:
+        run = installed.run
+        if run is None:
+            pytest.fail("the install owned nothing")
+        given = Path(installed.config.option.basetemp)
+        strictly_inside = run.path in given.parents
+        assert strictly_inside, "the base temp is not strictly inside the run directory"
+        not_marker_dir = given != (run.path / ALIVE_NAME).parent
+        assert not_marker_dir, "the base temp is the directory holding the alive marker"
+        handed_same = installed.handed == [str(given)]
+        assert handed_same, "the factory was not rebuilt from the given base temp"
+        factory = installed.config._tmp_path_factory  # noqa: SLF001
+        replaced = factory is not installed.config.original_factory
+        assert replaced, "the rebuilt factory was not handed to pytest"
+    finally:
+        _release(installed)
+
+
+def test_a_failed_factory_rebuild_releases_the_claim_and_raises_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pytest whose factory API moved degrades to its default, never INTERNALERROR.
+
+    The adversary's finding on CS-1320: ``pyproject.toml`` admits any pytest
+    from 8.0 up, and ``TempPathFactory.from_config`` is not public API. A
+    rebuild that raised inside ``pytest_configure`` stopped the session with
+    exit 3 and left a claimed run directory with its marker held open. Now the
+    claim is released whole: no run directory, no variable, pytest's own
+    factory and option untouched, no finisher.
+    """
+
+    def moved(_config: _FakeConfig) -> object:
+        raise AttributeError("from_config")
+
+    installed = _install_under(tmp_path, monkeypatch, rebuild=moved)
+    try:
+        owned_nothing = installed.run is None
+        assert owned_nothing, "a failed rebuild still returned a claim"
+        runs_left = len(list(installed.root.glob(RUN_PREFIX + "*")))
+        assert runs_left == 0, "a failed rebuild left a claimed run directory"
+        env_named = bool(os.environ.get(ENV_TEMPROOT)) or bool(os.environ.get(ENV_NESTED))
+        assert not env_named, "a failed rebuild left the temp-root variables set"
+        option_restored = installed.config.option.basetemp is None
+        assert option_restored, "a failed rebuild left the base temp option amended"
+        factory = installed.config._tmp_path_factory  # noqa: SLF001
+        factory_kept = factory is installed.config.original_factory
+        assert factory_kept, "a failed rebuild replaced pytest's own factory"
+        finisher = own_temp_root.PLUGIN_NAME in installed.config.pluginmanager.registered
+        assert not finisher, "a failed rebuild still registered the finisher"
+    finally:
+        _release(installed)
+
+
+def test_install_reclaims_a_dead_run_under_the_legacy_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every install sweeps the CS-1319 root, so a run killed under it is not orphaned."""
+    legacy = tmp_path / own_temp_root.LEGACY_ROOT_NAME
+    dead = legacy / (own_temp_root.LEGACY_RUN_PREFIX + "1-dead")
+    (dead / "pytest-of-someone" / "pytest-0").mkdir(parents=True)
+    (dead / ALIVE_NAME).write_bytes(b"")
+    _age(dead, STALE_AFTER_S + HOUR)
+    installed = _install_under(tmp_path, monkeypatch)
+    try:
+        left = dead.exists()
+        assert not left, "install did not sweep the dead run under the legacy root"
+    finally:
+        _release(installed)

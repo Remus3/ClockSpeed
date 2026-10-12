@@ -46,7 +46,9 @@ CS-1319 root ``<temp>/clockspeed-pytest`` is swept by every install too
     elsewhere a run older than :data:`STALE_AFTER_S` is reclaimed. Nothing
     inside :data:`GRACE_S` is touched, and no link or junction ever is.
   - A claim that cannot make its directory owns nothing and raises nothing:
-    pytest falls back to its default rather than stopping the session.
+    pytest falls back to its default rather than stopping the session. So
+    does a claim whose base temp pytest could not be handed - a pytest whose
+    temp path factory API moved: the claim is released whole first.
   - Removal clears the read-only attribute and retries, ON THE ENTRY ITSELF and
     never through a link, and never follows a junction or a symlink out of the
     tree - ``tests/save/test_workdir.py`` plants read-only links and junctions
@@ -387,20 +389,53 @@ class _Finisher:
         finish(self.run, exitstatus)
 
 
-def _give_basetemp(config: pytest.Config, run: Claim) -> None:
+def _give_basetemp(config: pytest.Config, run: Claim) -> bool:
     """Hand pytest ``<run>/t`` as its base temp, as if ``--basetemp`` named it.
 
     pytest's own ``pytest_configure`` built its temp path factory before this
     trylast hook ran, so the factory is rebuilt from the amended option - the
     same object xdist reads each worker's base temp from at session start. A
     session without the tmpdir plugin has no factory and is left alone.
+
+    ``TempPathFactory.from_config`` is not public API and ``pyproject.toml``
+    admits every pytest from 8.0 up, so a rebuild that fails in ANY way puts
+    the option back, leaves pytest's own factory in place, and reports False:
+    the caller then releases the claim (CS-1320 adversary finding).
+
+    Returns:
+        False when the rebuild failed and nothing was handed over.
     """
     if not hasattr(config, "_tmp_path_factory"):
-        return
-    config.option.basetemp = str(run.path / BASE_NAME)
-    factory = pytest.TempPathFactory.from_config(config, _ispytest=True)
-    # pytest has no public setter; its tmpdir plugin and xdist both read this.
-    config._tmp_path_factory = factory  # noqa: SLF001
+        return True
+    original = getattr(config.option, "basetemp", None)
+    try:
+        config.option.basetemp = str(run.path / BASE_NAME)
+        factory = pytest.TempPathFactory.from_config(config, _ispytest=True)
+        # pytest has no public setter; its tmpdir plugin and xdist both read this.
+        config._tmp_path_factory = factory  # noqa: SLF001
+    except Exception:
+        with contextlib.suppress(Exception):
+            config.option.basetemp = original
+        return False
+    return True
+
+
+def _release(run: Claim, env: MutableMapping[str, str], prior: dict[str, str | None]) -> None:
+    """Undo a claim whole: close its marker, remove its directory, restore ``env``.
+
+    Chosen over keeping the claim with pytest's default factory: that factory
+    reads :data:`ENV_TEMPROOT` lazily and would build the CS-1319 depth - its
+    ``pytest-of-<user>/pytest-<N>`` under the run directory - which is the
+    path-limit failure CS-1320 exists to remove. Released, pytest falls back to
+    its own default, as a claim that cannot make its directory does.
+    """
+    run.nested = True
+    finish(run, 0)
+    for name, value in prior.items():
+        if value is None:
+            env.pop(name, None)
+        else:
+            env[name] = value
 
 
 def install(config: pytest.Config) -> Claim | None:
@@ -414,15 +449,20 @@ def install(config: pytest.Config) -> Claim | None:
         config: The session's configuration.
 
     Returns:
-        The claim, or None when this process owns none.
+        The claim, or None when this process owns none - including when pytest
+        could not be handed the base temp, so the claim was released.
     """
     if config.getoption("basetemp", None) or config.pluginmanager.has_plugin(PLUGIN_NAME):
         return None
     sweep_legacy(Path(tempfile.gettempdir()))
+    prior = {name: os.environ.get(name) for name in (ENV_TEMPROOT, ENV_NESTED)}
     run = claim(own_root(), os.environ)
-    if run is not None:
-        _give_basetemp(config, run)
-        config.pluginmanager.register(_Finisher(run), PLUGIN_NAME)
+    if run is None:
+        return None
+    if not _give_basetemp(config, run):
+        _release(run, os.environ, prior)
+        return None
+    config.pluginmanager.register(_Finisher(run), PLUGIN_NAME)
     return run
 
 
