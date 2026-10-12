@@ -2154,6 +2154,76 @@ def test_a_destination_the_identity_walk_cannot_stat_is_refused_without_a_path(
     assert "/" not in message, "the refusal rendered a path"
 
 
+def plant_link_at(name: Path, kind: str, save_file: Path, account: Path) -> None:
+    """Plant a link of ``kind`` at ``name`` reaching into the pretend save directory.
+
+    ``hardlink`` is a second name for the save file itself, ``symlink`` a file
+    symlink to it, ``dangling-symlink`` a symlink to a save-directory name that
+    does not exist yet, and ``junction`` a directory junction to the account
+    directory. Skips where the platform will not make the link.
+
+    Args:
+        name: Where the link goes - the copy's partial name.
+        kind: One of the four kinds above.
+        save_file: An invented save in the pretend account directory.
+        account: The pretend account directory.
+    """
+    if kind == "junction":
+        make_junction(name, account)
+        return
+    try:
+        if kind == "hardlink":
+            name.hardlink_to(save_file)
+        elif kind == "symlink":
+            name.symlink_to(save_file)
+        else:
+            name.symlink_to(account / "Planted.sav")
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"this platform will not create a {kind} here: {type(exc).__name__}")
+
+
+@pytest.mark.parametrize("kind", ["hardlink", "symlink", "dangling-symlink", "junction"])
+def test_a_link_left_at_the_partial_name_is_removed_not_written_through(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    pretend_source: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    """A link planted at the predictable partial name is unlinked, never followed (CS-1312).
+
+    The copy streams to ``<stem>.copy.sav.partial`` before renaming it into
+    place, and that name is predictable. Measured by the fix-round-2 landing
+    check: a hard link or a symlink already sitting there was FOLLOWED by the
+    write open - the save it reached was truncated and overwritten - and a
+    dangling symlink created its target in the save directory. The leftover is
+    now removed AS A LINK before the stream, so the copy SUCCEEDS into a fresh
+    partial file and nothing behind the link is touched. Every file under the
+    pretend save root is asserted byte-identical BEFORE the outcome.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    victim, save_file = plant_save_directory(pretend_account_dir)
+    copies = work / workdir.COPIES_DIR_NAME
+    copies.mkdir(parents=True)
+    partial = copies / (pretend_source.stem + workdir.COPY_SUFFIX + workdir.PARTIAL_SUFFIX)
+    plant_link_at(partial, kind, save_file, pretend_account_dir)
+    before = hashes_under(pretend_save_root)
+
+    try:
+        copy = workdir.copy_for_read(pretend_source, work_root=work)
+    except workdir.WorkDirError:
+        copy = None
+
+    after = hashes_under(pretend_save_root)
+    assert after == before, "the save directory changed"
+    assert copy is not None, "the copy refused instead of replacing the planted link"
+    assert sha256_of(copy) == sha256_of(pretend_source), "the copy is not the source's bytes"
+    assert not os.path.lexists(partial), "the partial name was left behind"
+    assert victim.is_file(), "a file in the save directory went"
+
+
 # ===========================================================================
 # work_root itself
 # ===========================================================================

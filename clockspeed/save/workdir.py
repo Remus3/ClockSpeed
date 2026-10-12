@@ -853,6 +853,20 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     destination = copies / (resolved_source.stem + COPY_SUFFIX)
     partial = destination.with_name(destination.name + PARTIAL_SUFFIX)
 
+    # A LINK LEFT AT THE PARTIAL NAME IS REMOVED, NEVER WRITTEN THROUGH
+    # (CS-1312 fix round 2). The name is predictable and the open below is a
+    # plain create-or-truncate that follows links, so a hard link or a symlink
+    # already sitting here pointed the write - and its truncation - at the file
+    # it reached, and a dangling symlink created its target. The one remove
+    # call unlinks the ENTRY itself, measured on Windows to remove a hard link,
+    # a live or dangling symlink, a junction and a directory symlink without
+    # touching what each reached. Anything it cannot remove - a real directory
+    # - stays, and the open then fails closed. RESIDUAL, in the J9 class: a
+    # hostile process re-planting a link between this removal and the open is
+    # still followed. An exclusive create would narrow that window, and it is
+    # not made here because the write surface pins this open's mode.
+    _remove_quietly(partial)
+
     try:
         _stream_copy(resolved_source, partial)
     except OSError as exc:
