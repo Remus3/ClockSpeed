@@ -119,10 +119,14 @@ count could be replaced by a class-row count - the mutant counting the flow's ce
 its records survived every targeted test, since each census arm held one record per class and kind;
 repaired by fix 1. F4: the closed equipment-group list is checked against the game's own docs only
 by an install-gated test; a residual, below. Every other mutant the adversary planted on the three
-items was killed. Regression held: 0 card, rule-input, draw or fuel diffs across 247 synthetic
-advise calls and all 41 library saves, base against candidate, and 70 library cards before and after
-(agent-reported). The changed fuel docstring sentences were read against the code and verified true;
-mypy and ruff were clean.
+items was killed. Regression, base against candidate: of the 675 synthetic captures both runs hold,
+the comparison logged no difference in the 247 advise-call or the 295 fuel captures and counted 102
+differences in the 133 inputs captures; the 8 it printed are each the starvation entry gaining one
+balance-census-unjudged warning, which no rule is offered as an input, and the other 94 were not
+printed; 8 captures from 8 tests new in the candidate had no base to compare. Over all 41 library
+saves the verifier's comparison found 0 changes to cards, settled rules or the clocked draw, and 70
+cards before and after (agent-reported, and re-read from the comparison logs). The changed fuel
+docstring sentences were read against the code and verified true; mypy and ruff were clean.
 FIX 1 (test-only): two arms hold several records of one class in each of the three census kinds, a
 different number per kind - the flow arm asserts the census triples and the flow warning's record
 count, the starvation arm the tagless and indeterminate counts, the machine-state-unread count and
