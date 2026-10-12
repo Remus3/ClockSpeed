@@ -902,15 +902,14 @@ def test_no_rule_halts_on_a_served_world(tmp_path: Path, world_name: str) -> Non
     found = _source(tmp_path).advice(model, registry)
 
     assert found is not None
-    traced = [trace.rule_id for trace in found.traces]
-    assert traced == [spec.rule_id for spec in registered_rules()]
-    halted = sorted(
-        (trace.rule_id, step.kind.value)
-        for trace in found.traces
-        for step in trace.steps
-        if step.kind in HALTING_KINDS
-    )
-    assert halted == []
+    # Each read of the withheld traces is reduced inline to a flag or a count,
+    # so no local holds them when an assertion fails (CS-850, CS-851).
+    one_trace_per_rule = [trace.rule_id for trace in found.traces] == [
+        spec.rule_id for spec in registered_rules()
+    ]
+    assert one_trace_per_rule
+    halted = sum(1 for trace in found.traces for step in trace.steps if step.kind in HALTING_KINDS)
+    assert halted == 0
     before = settled_rules(run_rules(power.RULES, world_fixtures.balance_by_hand(model, registry)))
     after = settled_rules(found.traces)
     assert sorted(before - after) == []

@@ -136,12 +136,14 @@ def by_hand(model: WorldModel, registry: Registry) -> WorldInputs:
 
     The balance inputs, then the fuel audit's inputs over the same world, merged
     by hand. The two name sets are asserted disjoint here, so the oracle can
-    never overwrite one adapter's input with the other's.
+    never overwrite one adapter's input with the other's. The overlap is
+    reduced to a count inline, so no local holds the withheld input mapping
+    when the assertion fails (CS-850, CS-851).
     """
     balance = balance_by_hand(model, registry)
     offered = fuel_inputs(fuel_supply_of(machines_of(model), registry), registry)
-    overlap = sorted(set(balance.values) & set(offered))
-    assert overlap == []
+    shared = len(set(balance.values) & set(offered))
+    assert shared == 0
     return WorldInputs(values={**balance.values, **offered}, unlocks=balance.unlocks)
 
 
@@ -281,8 +283,8 @@ def test_inputs_of_offers_every_fuel_rule_input(world_name: str) -> None:
     built = inputs_of(make_world(), make_registry())
 
     declared = set(fuel_rules.SUPPLY_INPUTS) | set(fuel_rules.DEMAND_INPUTS)
-    missing = sorted(declared - set(built.values))
-    assert missing == []
+    unoffered = len(declared - set(built.values))
+    assert unoffered == 0
 
 
 def test_a_name_both_adapters_offer_raises_and_never_overwrites(
@@ -362,10 +364,9 @@ def test_advise_world_fires_both_fuel_rules_with_the_figures_worked_by_hand(
         fuel_world(), fuel_registry(), ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW
     )
 
-    by_rule = {trace.rule_id: trace for trace in served.traces}
     fired = sorted(a.card.rule_id for a in served.cards)
-    supply = by_rule[fuel_rules.SUPPLY_RULE.rule_id]
-    demand = by_rule[fuel_rules.DEMAND_RULE.rule_id]
+    supply = next(t for t in served.traces if t.rule_id == fuel_rules.SUPPLY_RULE.rule_id)
+    demand = next(t for t in served.traces if t.rule_id == fuel_rules.DEMAND_RULE.rule_id)
     gen_fuel = fuel_fixtures.GEN_FUEL
     gen_coal = fuel_fixtures.GEN_COAL
     assert fuel_rules.SUPPLY_RULE.rule_id in fired
