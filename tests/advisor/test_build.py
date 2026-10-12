@@ -40,7 +40,8 @@ from clockspeed.advisor.advise import advise, settled_rules
 from clockspeed.advisor.build import BUILD_INPUTS, build_caveat, build_inputs
 from clockspeed.advisor.cards import card_for
 from clockspeed.advisor.ledger import Ledger, MuteStore
-from clockspeed.advisor.rules import fuel, power, registered_rules
+from clockspeed.advisor.rules import fuel, power
+from clockspeed.advisor.rules.fuel import fuel_inputs
 from clockspeed.advisor.trace import (
     NAME_PATTERN,
     InputValue,
@@ -52,13 +53,20 @@ from clockspeed.advisor.trace import (
     WorldInputs,
     run_rule,
 )
+from clockspeed.audit.balance import balance_of
 from clockspeed.audit.build import WARN_BUILD_MISMATCH, WARN_BUILD_UNCOMPARED
+from clockspeed.audit.fuel import fuel_supply_of
+from clockspeed.audit.machines import machines_of
+from clockspeed.audit.network import network_of
+from clockspeed.audit.placement import placement_of
 from clockspeed.data import version
+from clockspeed.data.registry import Registry
 from tests.advisor.build_fixtures import (
     build_check,
     game_pin,
     off_pin_build_inputs,
     pinned_build_inputs,
+    synthetic_world,
     uncompared_build_inputs,
 )
 
@@ -222,7 +230,8 @@ def test_on_the_pin_the_caveat_adds_nothing_and_the_probe_settles(tmp_path: Path
     trace = _only_trace(advice)
     assert _kinds(trace) == [StepKind.INPUT_READ] * 3 + [StepKind.RULE_FIRED]
     assert _only_tier2(advice) == BASE_REASON
-    assert PROBE_ID in settled_rules(advice.traces)
+    settled = PROBE_ID in settled_rules(advice.traces)
+    assert settled
 
 
 def test_on_the_pin_a_silent_probe_settles(tmp_path: Path) -> None:
@@ -230,7 +239,8 @@ def test_on_the_pin_a_silent_probe_settles(tmp_path: Path) -> None:
     trace = _only_trace(advice)
     assert _kinds(trace) == [StepKind.INPUT_READ] * 3
     assert advice.cards == ()
-    assert PROBE_ID in settled_rules(advice.traces)
+    settled = PROBE_ID in settled_rules(advice.traces)
+    assert settled
 
 
 # --- the caveat, off the pin -----------------------------------------------------
@@ -257,7 +267,8 @@ def test_off_the_pin_one_indeterminate_step_follows_the_three_reads(tmp_path: Pa
     ]
     assert [step.subject for step in trace.steps[:3]] == list(NAMES)
     assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(pin + 1, pin))]
-    assert PROBE_ID not in settled_rules(advice.traces)
+    settled = PROBE_ID in settled_rules(advice.traces)
+    assert not settled
 
 
 def test_off_the_pin_a_silent_probe_is_not_settled(tmp_path: Path) -> None:
@@ -266,7 +277,8 @@ def test_off_the_pin_a_silent_probe_is_not_settled(tmp_path: Path) -> None:
     trace = _only_trace(advice)
     assert advice.cards == ()
     assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(pin + 1, pin))]
-    assert PROBE_ID not in settled_rules(advice.traces)
+    settled = PROBE_ID in settled_rules(advice.traces)
+    assert not settled
 
 
 def test_tier_3_shows_each_build_read_with_its_source(tmp_path: Path) -> None:
@@ -309,7 +321,8 @@ def test_with_no_pin_one_indeterminate_step_carries_the_uncompared_detail(
     trace = _only_trace(advice)
     assert _kinds(trace)[:4] == [*[StepKind.INPUT_READ] * 3, StepKind.VERDICT_INDETERMINATE]
     assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(save, None))]
-    assert PROBE_ID not in settled_rules(advice.traces)
+    settled = PROBE_ID in settled_rules(advice.traces)
+    assert not settled
     lines = advice.cards[0].card.tier3.splitlines()
     assert f"  2. Read {PINNED_IN} = none from audit.build.pinned_changelist" in lines
 
@@ -319,7 +332,8 @@ def test_with_no_pin_a_silent_probe_is_not_settled(tmp_path: Path) -> None:
     advice = _advise(tmp_path, uncompared_build_inputs(save), fires=False)
     assert advice.cards == ()
     assert _indeterminate(_only_trace(advice)) == [(NAMEPLATE_ALTERNATIVE, _detail(save, None))]
-    assert PROBE_ID not in settled_rules(advice.traces)
+    settled = PROBE_ID in settled_rules(advice.traces)
+    assert not settled
 
 
 # --- forged and disagreeing inputs ----------------------------------------------
@@ -441,22 +455,62 @@ def test_a_rule_that_does_not_declare_the_build_inputs_cannot_read_them() -> Non
 # --- the seam ----------------------------------------------------------------------
 
 
-def test_the_build_inputs_never_collide_with_the_balance_or_fuel_inputs() -> None:
-    def declared(module: object) -> set[str]:
-        return {
-            value
-            for name, value in vars(module).items()
-            if name.startswith("IN_") and type(value) is str
-        }
+def _declared_names(module: object) -> set[str]:
+    """The input-name constants an adapter module declares."""
+    return {
+        value
+        for name, value in vars(module).items()
+        if name.startswith("IN_") and type(value) is str
+    }
 
-    balance_names = declared(power)
-    fuel_names = declared(fuel)
-    registered = {name for spec in registered_rules() for name in spec.inputs}
-    others = balance_names | fuel_names | registered
-    populated = bool(balance_names) and bool(fuel_names) and bool(registered)
+
+def _offered_names() -> tuple[set[str], set[str]]:
+    """The names the balance and fuel adapters actually offer over one synthetic world.
+
+    The world is the build fixtures' empty one and the registry is empty, so
+    every name here is one the adapter offers unconditionally.
+    """
+    model = synthetic_world(game_pin())
+    registry = Registry(
+        items=MappingProxyType({}),
+        recipes=MappingProxyType({}),
+        buildings=MappingProxyType({}),
+        warnings=(),
+        unknown_groups=(),
+    )
+    machines = machines_of(model)
+    balance = balance_of(
+        placement_of(model),
+        registry.buildings,
+        machines,
+        network_of(model),
+        generators=registry.generators,
+    )
+    offered_fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
+    return set(power.balance_inputs(balance)), set(offered_fuel)
+
+
+def test_the_build_inputs_never_collide_with_the_balance_or_fuel_inputs() -> None:
+    """The three build names are disjoint from every name the OTHER adapters offer.
+
+    ``clockspeed/advisor/advise.py::inputs_of`` merges the balance, fuel and
+    build groups and refuses a shared name, so a collision would take every
+    world down. Graded on each other adapter's declared name constants AND on
+    the keys it actually offers - never on the registered rules' declared
+    inputs, which carry the build names by design since every rule reads them
+    first (CS-1288, the session 138 ruling F7 arm 1).
+    """
+    offered_balance, offered_fuel = _offered_names()
+    others = _declared_names(power) | _declared_names(fuel) | offered_balance | offered_fuel
+    populated = all(
+        bool(names)
+        for names in (_declared_names(power), _declared_names(fuel), offered_balance, offered_fuel)
+    )
     assert populated
-    assert others.isdisjoint(NAMES)
-    assert not any(name.startswith("build.") for name in others)
+    disjoint = others.isdisjoint(NAMES)
+    assert disjoint
+    prefixed = any(name.startswith("build.") for name in others)
+    assert not prefixed
 
 
 def test_the_build_module_imports_neither_the_rules_nor_the_pin() -> None:
