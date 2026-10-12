@@ -4,8 +4,9 @@ WHAT THIS MODULE OWNS. The seam between ``clockspeed/audit/build.py`` and the
 advice rules. Every nameplate figure the audit prices is the PINNED build's
 nameplate, and a save written by another build is priced at it whether or not
 it was the save build's own. So every advice card computed from such a figure
-has to say so (the CS-1288 acceptance in ``docs/item_notes/phase5.md``: "no
-figure is silently presented as the save build's own"). Two functions:
+has to say so (the CS-1288 acceptance in ``docs/history_notes.md`` section
+CS-1288, relocated there from ``docs/item_notes/phase5.md`` on the item's close:
+"no figure is silently presented as the save build's own"). Two functions:
 
 - :func:`build_inputs` flattens the audit's
   :class:`clockspeed.audit.build.BuildCheck` into the three rule inputs

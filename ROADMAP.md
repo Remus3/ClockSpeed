@@ -286,11 +286,11 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1288 - a save written on a build other than the pinned one is priced at the pinned nameplate with no warning - 12 MW-era Mk2 miners are overstated 25 percent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1298 - the flow still counts a class that cannot be clocked as an elided clock, and two flow docstrings claim the balance's own elided test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1313 - since CS-1280 a clean tagless record of the hover pack, which the registry lists as a 100 MW consumer, would be priced as a built machine - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1314 - the flow and `starvation_of` judge completeness over the machines population only, blind to unadmitted records - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1315 - the registry is built from the installed docs file with no check against the version pin, so after a game patch an on-pin save is priced at the new install's nameplate with no warning - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1316 - on an off-pin save /api/map and the map panel show the installed registry's extractor rate as the save's own, with no build state - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

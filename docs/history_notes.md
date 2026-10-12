@@ -24,6 +24,51 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1288 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-12 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1288
+
+### Filed 2026-10-08 by the session 133 CS-1286 adversary
+
+`clockspeed/save/header.py::SaveHeader` carries each save's `build_changelist`, but the build is
+only displayed: `clockspeed/surface/api/world.py::_body` puts it in GET /api/world's body, and
+nothing compares it with the pin. `clockspeed/audit/balance.py::clocked_draw_of` prices every
+admitted machine at the pinned registry's nameplate. The save library holds saves on CL 211839,
+273254 and 463028 besides the pinned build (`clockspeed/data/version.py::GAME_BUILD`). On the two
+older builds the Mk2 miner's nameplate was 12 MW, so a 12 MW-era Mk2 is priced at the pinned
+15 MW, and 4 `Build_ConstructorMk1_C` records on those builds at clock 1/3 record an unscaled
+4.0 MW. The measurement is the 2026-10-08 CS-1286 closure record in `docs/LEDGER.md`.
+
+### Partial ship recorded 2026-10-09 (session 134) - slices A and B merged, slice C remains
+
+Slice A: `clockspeed/data/version.py::changelist_of` and
+`clockspeed/data/version.py::GAME_CHANGELIST`, derived from the `GAME_BUILD` pin. The parse
+admits the `-CL-` separator only and at most 18 digits; `CL-0` and a leading zero give None.
+Held by `tests/data/test_version.py`.
+
+Slice B: a standalone `clockspeed/audit/build.py::BuildCheck` from
+`clockspeed/audit/build.py::build_check_of`, raising `WARN_BUILD_MISMATCH` when the save's
+header changelist differs from the pin and `WARN_BUILD_UNCOMPARED` when no pinned changelist
+is available; builds compare by value. Held by `tests/audit/test_build.py`, and listed in the
+warning census by `tests/audit/test_every_warning_fires.py`.
+
+Adjudicated design: a standalone BuildCheck, not a field of another audit; test fixtures set
+the header changelist to the pin as parsed at test time, never a typed literal. A real-save
+probe found all 29 saves of the pinned world EQUAL to the pin.
+
+Slice C remains: the advisor wiring through one shared path, so every advice card computed
+from the audit carries the warning; tier 2 states both builds; tier 3 is generated from the
+trace. Slice C also switches `tests/surface/audit_harness.py::_build_changelist` (its own
+`CL-` regex, `_CHANGELIST_IN_PIN`) to `GAME_CHANGELIST`.
+
+### Acceptance
+
+When the loaded save's build changelist differs from the pinned build in clockspeed/data/version.py, the audit and every advice card computed from it carry a named build-mismatch warning that states both builds, a figure that depends on a nameplate is marked as priced at the pinned build, and no figure is silently presented as the save build's own; the warning fires from a synthetic fixture whose header build differs from the pin, is absent when they match, and is listed in the warning census; nothing infers an older build's nameplate.
+
+
 ## CS-1285 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-12 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

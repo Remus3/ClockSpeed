@@ -16,9 +16,9 @@ rule (``power.fuel_supply``, BOOTSTRAP.md section 5.3):
   claims NOTHING about supply, so a companion card can carry it over a flow too
   incomplete for a verdict. It declares no supply or shortfall field at all.
 
-THE BINDING RULING. ``docs/item_notes/phase5.md`` section CS-1285, the session
-134 ruling "slice B v2, narrowed", decides everything below that is not
-arithmetic; its clauses are cited by letter.
+THE BINDING RULING. ``docs/history_notes.md`` section CS-1285 (relocated there from
+``docs/item_notes/phase5.md`` on the item's close), the session 134 ruling "slice B v2,
+narrowed", decides everything below that is not arithmetic; its clauses are cited by letter.
 
 SEAM DISCIPLINE. Nothing here opens a save or the raw docs file, and nothing
 builds a registry. The inputs are ``WorldMachines`` - the built machines, their

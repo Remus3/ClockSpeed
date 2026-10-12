@@ -18,8 +18,9 @@ generator classes compete for - would be a confident fire or a confident
 silence about a world nobody measured, so each such class is INDETERMINATE with
 a NAMED reason, and an unknown figure is None, never a zero.
 
-THE BINDING v2 RULING (``docs/item_notes/phase5.md`` section CS-1285, the
-session 134 ruling) is what the arms below grade:
+THE BINDING v2 RULING (``docs/history_notes.md`` section CS-1285, relocated there from
+``docs/item_notes/phase5.md`` on the item's close; the session 134 ruling) is what the arms
+below grade:
 
 - VERDICTS DECIDE FLUID FUELS ONLY. A solid fuel is never measured - players,
   vehicles, sinks and stations move solids, and every real save holds a
@@ -1514,7 +1515,8 @@ def test_a_census_count_that_is_not_an_int_is_one_record(count: object) -> None:
 
 
 def test_a_standby_generator_still_demands_its_nameplate() -> None:
-    # The acceptance clause (docs/item_notes/phase5.md section CS-1285):
+    # The acceptance clause (docs/history_notes.md section CS-1285, relocated there
+    # from docs/item_notes/phase5.md on the item's close):
     # demand is "the exact Fraction sum over built instances of nameplate MW
     # times clock". A generator not producing is still built - and a starved
     # one is exactly what this rule exists to see - so two built generators

@@ -12,8 +12,9 @@ from them.
 
 THE PIN IS READ AT TEST TIME, NEVER TYPED. :func:`game_pin` reads
 ``clockspeed.data.version.GAME_CHANGELIST`` when it is called and asserts it
-parsed (the session 134 ruling in ``docs/item_notes/phase5.md`` section
-CS-1288). An off-pin fixture declares the pin plus or minus one - the build
+parsed (the session 134 ruling in ``docs/history_notes.md`` section CS-1288,
+relocated there from ``docs/item_notes/phase5.md`` on the item's close). An
+off-pin fixture declares the pin plus or minus one - the build
 after it or the build before it, :data:`OFF_PIN_OFFSETS` (the session 138
 ruling F8 as amended by the fix round 1 adjudication) - so no changelist
 literal appears here or in any caller.

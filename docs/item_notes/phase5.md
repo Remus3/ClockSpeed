@@ -506,45 +506,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1288
-
-### Filed 2026-10-08 by the session 133 CS-1286 adversary
-
-`clockspeed/save/header.py::SaveHeader` carries each save's `build_changelist`, but the build is
-only displayed: `clockspeed/surface/api/world.py::_body` puts it in GET /api/world's body, and
-nothing compares it with the pin. `clockspeed/audit/balance.py::clocked_draw_of` prices every
-admitted machine at the pinned registry's nameplate. The save library holds saves on CL 211839,
-273254 and 463028 besides the pinned build (`clockspeed/data/version.py::GAME_BUILD`). On the two
-older builds the Mk2 miner's nameplate was 12 MW, so a 12 MW-era Mk2 is priced at the pinned
-15 MW, and 4 `Build_ConstructorMk1_C` records on those builds at clock 1/3 record an unscaled
-4.0 MW. The measurement is the 2026-10-08 CS-1286 closure record in `docs/LEDGER.md`.
-
-### Partial ship recorded 2026-10-09 (session 134) - slices A and B merged, slice C remains
-
-Slice A: `clockspeed/data/version.py::changelist_of` and
-`clockspeed/data/version.py::GAME_CHANGELIST`, derived from the `GAME_BUILD` pin. The parse
-admits the `-CL-` separator only and at most 18 digits; `CL-0` and a leading zero give None.
-Held by `tests/data/test_version.py`.
-
-Slice B: a standalone `clockspeed/audit/build.py::BuildCheck` from
-`clockspeed/audit/build.py::build_check_of`, raising `WARN_BUILD_MISMATCH` when the save's
-header changelist differs from the pin and `WARN_BUILD_UNCOMPARED` when no pinned changelist
-is available; builds compare by value. Held by `tests/audit/test_build.py`, and listed in the
-warning census by `tests/audit/test_every_warning_fires.py`.
-
-Adjudicated design: a standalone BuildCheck, not a field of another audit; test fixtures set
-the header changelist to the pin as parsed at test time, never a typed literal. A real-save
-probe found all 29 saves of the pinned world EQUAL to the pin.
-
-Slice C remains: the advisor wiring through one shared path, so every advice card computed
-from the audit carries the warning; tier 2 states both builds; tier 3 is generated from the
-trace. Slice C also switches `tests/surface/audit_harness.py::_build_changelist` (its own
-`CL-` regex, `_CHANGELIST_IN_PIN`) to `GAME_CHANGELIST`.
-
-### Acceptance
-
-When the loaded save's build changelist differs from the pinned build in clockspeed/data/version.py, the audit and every advice card computed from it carry a named build-mismatch warning that states both builds, a figure that depends on a nameplate is marked as priced at the pinned build, and no figure is silently presented as the save build's own; the warning fires from a synthetic fixture whose header build differs from the pin, is absent when they match, and is listed in the warning census; nothing infers an older build's nameplate.
-
 ## CS-1298
 
 ### Filed 2026-10-09 by the session 134 merger
@@ -632,3 +593,29 @@ the pin; this item compares the registry's own source with it.
 A RELATED QUESTION, NOT THIS ITEM: GET /api/map serves `per_minute_normal` from the installed
 registry beside the save's placed extractors (`clockspeed/surface/api/map.py::_rate_of`). Whether
 that is owed an item of its own is the adjudication's residual (c), for a CS-1288 refuter to rule.
+
+## CS-1316
+
+### Acceptance
+
+On a save whose build changelist differs from the pinned build, the /api/map body carries the build state and marks per_minute_normal as the pinned build's rate, and the map panel shows it; the change to the CS-977 warning contract (source, code and count) is adjudicated and recorded before the code; a synthetic off-pin fixture shows the marking and an on-pin one does not; the surface still never computes the comparison itself (CLAUDE.md 2.1).
+
+### Filed 2026-10-12 (session 138) from the CS-1288 slice C adversary
+
+The CS-1288 slice C adversary probed GET /api/map over a synthetic world on the pin, at the pin plus
+one and at the pin minus one: each served the same extractor row at the same `per_minute_normal`,
+and no warning code named the build. The rate is the installed registry's:
+`clockspeed/surface/api/map.py::_row` serves it through `clockspeed/surface/api/map.py::_rate_of`
+beside the save's placed extractors, and the map panel's rate list, drawn by `mountMap` in
+`clockspeed/surface/web/panel_map.js`, shows it as the save's own. On an off-pin save nothing on
+either says which build that rate belongs to.
+
+The session 138 /api/map scope decision, recorded with the CS-1288 close in `docs/LEDGER.md`, keeps
+this out of CS-1288: that acceptance's subject is the audit and every advice card computed from it,
+GET /api/map serves no MW, and its warning shape is frozen by CS-977 to source, code and count, so
+stating both builds there needs an adjudicated contract change first. The comparison already exists
+as `clockspeed/audit/build.py::build_check_of`; the surface serves its result and never compares
+builds itself.
+
+CS-1288 answered the save-build question for the advice cards, and this item answers it for the map.
+CS-1315 is the sibling one layer down: whether the installed registry is the pinned build's at all.

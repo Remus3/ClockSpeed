@@ -75,6 +75,254 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1288 - CLOSED: a save written on a build other than the pinned one carries a named build-mismatch warning on the audit and on every advice card computed from it, naming both builds and marking each figure as priced at the pinned build, and no off-pin rule settles
+Verification: `clockspeed/advisor/build.py::build_caveat` and
+`clockspeed/advisor/build.py::build_inputs`, read first by every rule of
+`clockspeed/advisor/rules/power.py::RULES` and `clockspeed/advisor/rules/fuel.py::RULES`;
+`clockspeed/advisor/advise.py::inputs_of` and `clockspeed/advisor/advise.py::advise_world`, each
+taking the pin as a required keyword; `clockspeed/surface/providers.py::StoreAdviceSource`, which
+hands them `clockspeed/data/version.py::GAME_CHANGELIST`; over the audit's
+`clockspeed/audit/build.py::build_check_of` (slice B) and the pin's parse
+`clockspeed/data/version.py::changelist_of` (slice A). What slice C landed is the record below;
+slices A and B are the item section's "Partial ship recorded 2026-10-09 (session 134)" block. The
+item's section is relocated verbatim to `docs/history_notes.md`, and the docstrings that cited it by
+its old leaf now name it there. Decided by the session 138 close-record writer, who produced none of
+the slices, reading the acceptance clause by clause.
+THE ACCEPTANCE, clause by clause. (1) The audit carries a named build-mismatch warning that states
+both builds when the save's build differs from the pin: slices A and B,
+`tests/audit/test_build.py::test_a_differing_header_build_raises_the_mismatch_warning` and
+`::test_the_repr_renders_both_builds_and_no_token`, over
+`tests/data/test_version.py::test_the_pinned_changelist_is_read_out_of_the_pinned_build`. (2) Every
+advice card computed from it carries the warning and states both builds, through one shared path:
+every registered rule declares the build inputs,
+`tests/advisor/test_every_rule_fires.py::test_every_registered_rule_declares_the_build_inputs` and
+`::test_a_rule_added_without_the_build_inputs_is_named_by_the_census`; every `Recommendation` return
+site off the pin, on both sides of it, `::test_every_return_site_names_both_builds_off_the_pin`, its
+count pinned by `::test_the_recommendation_calls_are_pinned_to_the_fixture_count` and
+`::test_each_return_site_fixture_reaches_its_own_call`; composed,
+`tests/advisor/test_world_advice.py::test_off_the_pin_every_served_card_names_both_builds_and_nothing_settles`;
+served,
+`tests/surface/test_advice_source.py::test_off_the_pin_the_listing_and_derivation_name_both_builds`.
+(3) A figure that depends on a nameplate is marked as priced at the pinned build - the reason suffix
+"build-mismatch: priced at the pinned build <pin>, not the save build <save>":
+`tests/advisor/test_build.py::test_off_the_pin_the_reason_names_the_mismatch_and_both_builds`, and
+per rule
+`tests/advisor/rules/test_power.py::test_an_off_pin_card_names_both_builds_and_moves_nothing_else`
+and
+`tests/advisor/rules/test_fuel.py::test_an_off_pin_fuel_card_names_both_builds_and_moves_nothing_else`.
+(4) No figure is silently presented as the save build's own: off the pin each run records one
+indeterminate step and never settles, fired or silent,
+`tests/advisor/test_build.py::test_off_the_pin_one_indeterminate_step_follows_the_three_reads`,
+`::test_off_the_pin_a_silent_probe_is_not_settled`,
+`tests/advisor/test_every_rule_fires.py::test_the_silent_fixture_off_the_pin_is_not_settled`,
+`tests/advisor/rules/test_power.py::test_an_off_pin_silent_rule_is_not_settled`,
+`tests/advisor/rules/test_fuel.py::test_an_off_pin_silent_fuel_rule_is_not_settled` and
+`tests/advisor/test_world_advice.py::test_advise_and_record_completes_nothing_off_the_pin`; with no
+pin the same path under `build-uncompared`,
+`tests/advisor/test_build.py::test_with_no_pin_the_reason_names_build_uncompared_never_the_mismatch`
+and `::test_with_no_pin_a_silent_probe_is_not_settled`. (5) The warning fires from a synthetic
+fixture whose header build differs from the pin: at the audit
+`tests/audit/test_build.py::test_a_differing_header_build_raises_the_mismatch_warning`; at the
+advisor through `tests/advisor/build_fixtures.py::off_pin_build_inputs` at each of
+`tests/advisor/build_fixtures.py::OFF_PIN_OFFSETS`,
+`tests/advisor/test_every_rule_fires.py::test_the_firing_fixture_off_the_pin_still_fires_and_names_both_builds`.
+(6) It is absent when they match: `tests/audit/test_build.py::test_matching_builds_raise_nothing`,
+`tests/advisor/test_build.py::test_on_the_pin_the_caveat_adds_nothing_and_the_probe_settles`,
+`tests/advisor/test_world_advice.py::test_on_the_pin_no_served_card_mentions_a_build` and
+`tests/surface/test_advice_source.py::test_on_the_pin_the_listing_and_derivation_name_no_build`;
+every shared builder is the pinned build's own,
+`tests/audit/test_balance.py::test_the_shared_header_declares_the_pinned_build`,
+`tests/surface/test_map.py::test_the_empty_world_declares_the_pinned_build` and
+`tests/advisor/test_every_rule_fires.py::test_every_fixture_world_offers_the_pinned_build`. (7) It
+is listed in the warning census:
+`tests/audit/test_every_warning_fires.py::test_the_fixture_raises_its_code[WARN_BUILD_MISMATCH]`.
+(8) Nothing infers an older build's nameplate: an off-pin card's tier 1 and tier 2 are the on-pin
+card's own plus the suffix alone, by the two per-rule arms of (3); the caveat module reads no
+registry and imports neither the rules nor the pin,
+`tests/advisor/test_build.py::test_the_build_module_imports_neither_the_rules_nor_the_pin`. The
+slice C remainder the section named: tier 3 generated from the trace,
+`tests/advisor/test_build.py::test_tier_3_shows_each_build_read_with_its_source`,
+`tests/advisor/rules/test_power.py::test_an_off_pin_tier3_shows_both_builds_and_the_indeterminate_step`
+and
+`tests/advisor/rules/test_fuel.py::test_an_off_pin_fuel_tier3_is_the_snapshot_with_both_builds_and_one_step_more`;
+and `tests/surface/audit_harness.py::_build_changelist` reading `GAME_CHANGELIST`,
+`tests/surface/test_web_assets.py::test_the_harness_world_changelist_is_the_pinned_changelist_read_at_call_time`
+and `::test_the_harness_world_refuses_a_pin_that_carries_no_changelist`. EVERY CLAUSE IS MET.
+WHAT THE CLOSE DOES NOT CLAIM. The acceptance's subject is the audit and every advice card computed
+from it; GET /api/map is outside it by the scope decision in the record below and is filed as
+CS-1316. The suffix's "priced at the pinned build" holds only while the installed docs file is the
+pinned build's, which nothing checks; that is CS-1315.
+FILED BESIDE THIS CLOSE: CS-1316, from the CS-1288 slice C adversary - on an off-pin save GET
+/api/map and the map panel show the installed registry's extractor rate as the save's own, with no
+build state.
+
+### 2026-10-12 - CS-1288 - LANDED AND DECISION RECORD (adjudicated session 138, rulings F1 to F9, the F8 amendment and the /api/map scope decision). NOT A COMPLETION RECORD; the close is the record above. Slice C: every advice card states an off-pin build through one shared caveat
+Verification: the new module `clockspeed/advisor/build.py` -
+`clockspeed/advisor/build.py::BUILD_INPUTS`, `clockspeed/advisor/build.py::IN_SAVE_CHANGELIST`,
+`clockspeed/advisor/build.py::IN_PINNED_CHANGELIST`, `clockspeed/advisor/build.py::IN_WARNINGS`,
+`clockspeed/advisor/build.py::build_inputs` and `clockspeed/advisor/build.py::build_caveat`;
+comments and docstrings only in `clockspeed/advisor/trace.py` (ruling F6); every rule in
+`clockspeed/advisor/rules/power.py` and `clockspeed/advisor/rules/fuel.py` declaring `BUILD_INPUTS`
+ahead of its own inputs, calling the caveat first and appending it to the reason at every
+`Recommendation` return; `clockspeed/advisor/advise.py::inputs_of` and
+`clockspeed/advisor/advise.py::advise_world` with the required keyword `pinned_changelist`, and the
+`clockspeed/advisor/advise.py::settled_rules` docstring;
+`clockspeed/surface/providers.py::StoreAdviceSource`; three provenance rows in
+`tools/provenance.tsv`. The test files merged beside them: `tests/advisor/build_fixtures.py`,
+`tests/advisor/test_build.py`, `tests/advisor/rules/test_power.py`,
+`tests/advisor/rules/test_fuel.py`, `tests/advisor/test_every_rule_fires.py`,
+`tests/advisor/test_world_advice.py`, `tests/advisor/test_advise.py`, `tests/audit/test_balance.py`,
+`tests/surface/test_map.py`, `tests/surface/test_advice_source.py`, `tests/surface/audit_harness.py`
+and `tests/surface/test_web_assets.py`. Beyond the close's clause arms, the tests include
+`tests/advisor/test_build.py::test_the_adapter_offers_exactly_the_build_inputs_each_sourced_to_its_audit_field`,
+`::test_every_build_input_value_passes_the_exactness_walk`,
+`::test_forged_or_disagreeing_build_inputs_are_a_rule_error_with_no_card`,
+`::test_a_rule_that_does_not_declare_the_build_inputs_cannot_read_them`,
+`::test_the_build_inputs_never_collide_with_the_balance_or_fuel_inputs` and
+`::test_the_fixture_pin_is_the_version_pin_read_at_test_time`;
+`tests/advisor/rules/test_power.py::test_every_power_rule_declares_the_build_inputs_first`,
+`::test_the_off_pin_indeterminate_step_follows_the_three_build_reads`,
+`::test_an_off_pin_silent_headroom_over_a_floor_records_both_reasons` and
+`::test_with_no_pin_a_card_names_the_uncompared_build_never_a_mismatch`;
+`tests/advisor/rules/test_fuel.py::test_both_fuel_rules_declare_the_build_inputs_ahead_of_their_own`,
+`::test_a_fuel_rule_reads_every_declared_name_once`,
+`::test_the_off_pin_fuel_indeterminate_step_follows_the_three_build_reads` and
+`::test_with_no_pin_a_fuel_card_names_the_uncompared_build_never_a_mismatch`;
+`tests/advisor/test_advise.py::test_the_pin_is_a_required_keyword_of_every_world_entry_point`;
+`tests/advisor/test_every_rule_fires.py::test_every_registered_rule_lives_in_a_covered_module`; and
+`tests/advisor/test_world_advice.py::test_inputs_of_offers_the_build_check_against_the_pin_it_is_handed`
+and `::test_a_build_name_another_adapter_offers_raises_and_never_overwrites`. Red first is each
+builder's report and was not re-observed here. The commits are named by subject, "CS-1288 - slice
+C0: the build inputs and the build caveat" through "CS-1288 - fix 1: off-pin arms run on both sides
+of the pin".
+THE RULINGS, VERBATIM from the session 138 slice C adjudication, each with its decision, the
+alternatives it rejected, the clause that decided it and what reverses it. Their line pointers are
+the adjudicator's reading of the slice C base and rot by construction; the symbols above are the
+citations. One pointer is restated and nothing else is changed: F2's line pointer into the audit's
+build module is cited as that module's docstring, the symbol form the citation guard requires of a
+Python module.
+F1 indeterminate: on every off-pin run, fired or silent, the rule records one verdict-indeterminate
+step right after the three build reads and the card still fires; pin None takes the same path with
+WARN_BUILD_UNCOMPARED and its suffix names that code; mismatch wording never used with a None pin.
+Rejected a settling reject step (a silent off-pin rule would let Ledger.reconcile store completed
+from pinned-nameplate figures). Decided by advise.py:308-317, the acceptance "no figure is silently
+presented", non-negotiable 7. Reversed by: a measured nameplate source for the save's own build.
+F2 required keyword: inputs_of(model, registry, *, pinned_changelist) and advise_world(..., *,
+pinned_changelist, ...), no default; providers.py StoreAdviceSource.advice passes
+version.GAME_CHANGELIST. Rejected advise.py importing the pin (advisor/'s first runtime import from
+clockspeed.data; against the clockspeed/audit/build.py module docstring "the pin is a parameter,
+never an import"). Decided by CLAUDE.md 2.1. Reversed by: an adjudicated gate admitting
+clockspeed.data.version into advisor/, recorded in docs/ARCHITECTURE.md s3.
+F3 clockspeed/advisor/build.py, never importing clockspeed.advisor.rules; provenance row in the same
+slice. Rejected rules/build.py (one module per registered family). Reversed by: a build family with
+its own RULES.
+F4 three inputs sourced audit.build.<field>. Rejected one mapping (tier 3 must show every input read
+with its source, BOOTSTRAP.md:513). Reversed by: the engine sourcing keys inside a mapping
+separately.
+F5 no tier 1 marker (tier 1 is imperative, no reasoning, BOOTSTRAP.md:511; tier 2 shown inline;
+/api/advice serves tiers 1 and 2 together; nothing renders headline-only today). Reversed by: a
+shipped headline-only surface that cannot show tier 2.
+F6 amend comments/docstrings only: trace.py:131-133, RuleContext.indeterminate docstring
+trace.py:435-442, settled_rules docstring advise.py:308-317. Reversed by: an adjudicated new
+StepKind.
+F7 no exemptions: arm 1 every registered_rules() spec has set(BUILD_INPUTS) <= set(spec.inputs); arm
+2 an off-pin fixture for every Recommendation return site (6 today: power.py:238, 251, 263, 308;
+fuel.py:634, 717) asserting tier 2 names the code and both builds and the rule is not in
+settled_rules; on-pin no suffix and settlement unchanged; the count of Recommendation( calls per
+module pinned to the fixture count. Reversed by: an adjudicated rule reading no registry figure,
+exempted by name with a test.
+F8 fix the shared builders: tests/audit/test_balance.py::header() and
+tests/surface/test_map.py::empty_world() switch to GAME_CHANGELIST read at test time (asserted not
+None); off-pin fixtures use pin+1; tests/save/synthetic.py build_save default left alone. Reversed
+by: a new adjudication of the session 134 ruling.
+F9 no standalone build card and no /api/world warning. Reversed by: /api/audit (CS-1046) going live
+serving BuildCheck.warnings.
+SLICING: C0 (seam, F6 trace.py comments, provenance) lands alone and green; then ONE builder does
+C1+C2+C3 (power, fuel, wiring incl. F2, F8, F7, advise.py part of F6); C4
+(tests/surface/audit_harness.py and its test) any time. Rejected parallel C1/C2/C3 (not disjoint:
+shared fixtures). Reversed by: C0 shipping a shared helper offering on-pin build inputs to every
+test world.
+COMMON-MODE RISK: providers.py:425-451 builds the registry from the INSTALLED docs with no pin or
+hash check; after a game patch, before the pin moves, an old save equal to the pin is priced at the
+new install's nameplate with no warning, and the suffix "priced at the pinned build <pin>" is false.
+RESIDUALS: (a) BACKLOG: any headline-only renderer must show the mismatch state; (b) product item:
+the registry provider verifies the installed docs against the version.py pin, or the Registry
+carries its own build; (c) /api/map serves per_minute_normal from the installed registry beside the
+save's placed extractors (map.py:68-79) - a refuter rules whether a separate item is owed.
+THE F8 AMENDMENT (adjudicated session 138, the fix round 1 adjudication, after the adversary's
+mutant `save > pin` survived every test). `tests/advisor/build_fixtures.py::off_pin_build_inputs`
+takes an offset - default 1, never 0 - and `tests/advisor/build_fixtures.py::OFF_PIN_OFFSETS` holds
+the pin plus one and the pin minus one. The off-pin census arms of
+`tests/advisor/test_every_rule_fires.py`, the off-pin caveat arms of `tests/advisor/test_build.py`
+and one GET /api/advice arm,
+`tests/surface/test_advice_source.py::test_off_the_pin_the_listing_and_derivation_name_both_builds`,
+run at pin+1 AND pin-1, the pin read at test time and no changelist literal typed. A save OLDER than
+the pin is the item's motivating case. Reversed by: a new adjudication of F8.
+WRITE-LIST GRANTS (by the session 138 merger). `tests/advisor/test_build.py`, C0's file, joined the
+C1 to C3 write-list for two changes only: the collision arm
+`tests/advisor/test_build.py::test_the_build_inputs_never_collide_with_the_balance_or_fuel_inputs`
+grades the build names against the other adapters' declared input names and the keys they offer,
+never against registered rules' declared inputs, which F7 arm 1 requires to carry them; and its
+settled-rules assertions bind the predicate to a bool first, so no assertion renders
+`Advice.traces`. The fix round 1 adjudication extended the grant to
+`tests/advisor/build_fixtures.py` and `tests/advisor/test_build.py`.
+THE /api/map SCOPE DECISION (adjudicated session 138, question Q1, answer (B)). The CS-1288
+acceptance's subject is "the audit and every advice card computed from it"; its headline example is
+a power figure priced by the balance audit and shown only on power and fuel cards. GET /api/map
+serves no MW, and its warning shape is frozen by CS-977 to source, code and count, so it cannot
+state both builds without an adjudicated contract change. Decided: /api/map is outside CS-1288 and
+is filed as CS-1316, whose acceptance requires that contract change to be adjudicated and recorded
+before its code. Rejected: (A) fixing it inside CS-1288; (C) folding it into the registry-provenance
+item, CS-1315. Reversed by: an adjudicated re-reading of the acceptance that puts /api/map in its
+subject.
+THE ADVERSARY'S F2 DECISION (session 138; the adversary's finding labels are its own, apart from
+rulings F1 to F9). The F7 arm 2 census counts `Recommendation(` calls by callee name in each module
+of `tests/advisor/test_every_rule_fires.py::RULE_MODULES`, so a rule module that binds
+`Recommendation` under another name can add a return site without the caveat that no arm counts; the
+adversary's aliased-site mutant survived. Decided: a residual, not hardened - no re-bind guard is
+added, by product before process (`CLAUDE.md` section 7). Reversed by: any rule module binding
+`Recommendation` under another name.
+ADVERSARY HISTORY. The slice C adversary REFUTED the integrated candidate on test strength: the
+comparison in `clockspeed/advisor/build.py::build_caveat` mutated from "save differs from pin" to
+`save > pin` left every test green, while every save OLDER than the pin then ended in a rule-error
+and served no card, because every off-pin fixture was the pin plus one. Card behaviour itself held
+on every probe: the synthetic worlds on the pin, either side of it and with no pin, with no
+rule-error and nothing settled off the pin; and the newest pinned-world save, read on the pin and
+with the pin moved to +1, -1 and None - the same card ids, every off-pin card suffixed, nothing
+settled off the pin and no rule-error. Every other mutant the adversary planted was killed but the
+aliased return site, the F2 decision above. Fix 1 is the F8 amendment above. VERIFIER CONFIRMED on
+fix 1: the three comparison mutants `save > pin`, `save < pin` and `save - pin > 1` were each killed
+by `tests/advisor/test_every_rule_fires.py`, `tests/surface/test_advice_source.py` and
+`tests/advisor/test_build.py` alike; the pre-fix tests pass under `save > pin`, measured;
+`tools/freeze_witness.py` read the candidate unchanged before and after; mypy and ruff were clean.
+ADVERSARY LOOP STOPPED BY COST AGAINST RISK after one refutation, one fix and a verifier. Reversed
+by: a residual below reached from a real input.
+RESIDUALS, recorded and not fixed. Each is a `BACKLOG.md` line under the session 138 heading, except
+(b) and (c), which are OPEN items.
+(a) The rulings' residual (a): tier 1 carries no build marker (ruling F5), so any headline-only
+renderer - the overlay among them - must show the mismatch state.
+(b) COMMON-MODE, the rulings' residual (b): the registry is built from the installed docs file with
+no pin check, so after a game patch, before the pin moves, an on-pin save is priced at the new
+install's nameplate with no warning and the suffix "priced at the pinned build" is false. Filed as
+CS-1315.
+(c) The rulings' residual (c): GET /api/map serves the installed registry's extractor rate beside
+the save's placed extractors with no build state. Filed as CS-1316 by the scope decision above.
+(d) The adversary's F2: a rule module binding `Recommendation` under another name escapes the
+return-site census, as decided above.
+(e) The adversary's F4: with no pin, tier 2 says the save build was never compared "as no pinned
+build exists", while tier 3 carries the audit's `build-uncompared` detail, which says every
+nameplate figure is priced at the pinned build. Reachable only if the pin fails to parse.
+(f) `tests/advisor/test_build.py`'s adapter arm, exactness-walk arm and forged-input rows -
+`::test_the_adapter_offers_exactly_the_build_inputs_each_sourced_to_its_audit_field`,
+`::test_every_build_input_value_passes_the_exactness_walk` and
+`::test_forged_or_disagreeing_build_inputs_are_a_rule_error_with_no_card` - run only at the pin plus
+one.
+(g) The adversary's F3: an off-pin run reopens a completed card, completed back to new, until the
+next on-pin run, since an off-pin rule never settles (ruling F1);
+`clockspeed/advisor/advise.py::advise_and_record` has no production caller.
+(h) The C0 caveat checks the warning detail's type only. The audit's detail table is private to
+`clockspeed/audit/build.py`, and a forged detail is not reachable from a real input.
+
 ### 2026-10-12 - CS-1285 - CLOSED: the D4 fuel half has its rules - power.fuel_supply sizes a built fluid-fuel generator class's burn against the fuel the world makes, and power.fuel_demand states the burn wherever supply is undecided
 Verification: `clockspeed/advisor/rules/fuel.py::SUPPLY_RULE` and
 `clockspeed/advisor/rules/fuel.py::DEMAND_RULE`, registered through

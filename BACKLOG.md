@@ -605,3 +605,34 @@ reddens a suite.
 - From the CS-1285 adversaries: the import detector in `tests/surface/test_advice_source.py`
   misses relative imports, and none exist today - TRIGGER: the first relative import in the code
   it scans.
+
+The CS-1288 close's residuals: the slice C rulings F1 to F9, the F8 amendment, the /api/map scope
+decision, the adversary refutation and the verifier are its records in `docs/LEDGER.md`, 2026-10-12.
+None blocks a product item or reddens a suite. Its common-mode residual is CS-1315 and its /api/map
+residual CS-1316, so neither has a line here.
+
+- From the CS-1288 slice C rulings: tier 1 carries no build marker (ruling F5), so any renderer
+  that shows headlines only - the overlay among them - must still show the build-mismatch state, or
+  it presents an off-pin card as the save build's own - TRIGGER: a headline-only surface ships (F5's
+  reversal), or the overlay mode is built.
+- From the CS-1288 adversary: the F7 arm 2 census in `tests/advisor/test_every_rule_fires.py`
+  counts `Recommendation(` calls by callee name, so a rule module binding `Recommendation` under
+  another name could add a return site without the build caveat that no arm counts; decided a
+  residual, not hardened - TRIGGER: the next rule module added to `RULE_MODULES`, or any rule module
+  binding `Recommendation` under another name.
+- From the CS-1288 adversary: with no pin, a card's tier 2 says the save build was never compared
+  "as no pinned build exists", while its tier 3 carries the audit's `build-uncompared` detail, which
+  says every nameplate figure is priced at the pinned build; reachable only if the pin fails to
+  parse - TRIGGER: `GAME_CHANGELIST` in `clockspeed/data/version.py` reads None, or either text next
+  changes.
+- From the CS-1288 adversary: `tests/advisor/test_build.py`'s adapter arm, exactness-walk arm and
+  forged-input rows run only at the pin plus one, while fix 1 put its off-pin caveat arms on both
+  sides of the pin - TRIGGER: the next edit to `clockspeed/advisor/build.py`.
+- From the CS-1288 adversary: an off-pin run reopens a completed card, completed back to new,
+  until the next on-pin run, since an off-pin rule never settles (ruling F1); `advise_and_record` in
+  `clockspeed/advisor/advise.py` has no production caller - TRIGGER: `advise_and_record` gains a
+  production caller.
+- From the CS-1288 adversary: the build caveat checks the warning detail's type only; the audit's
+  detail table is private to `clockspeed/audit/build.py`, so a forged detail is not reachable from a
+  real input - TRIGGER: a build warning detail built from anything but that table, or the table made
+  public.
