@@ -1638,3 +1638,18 @@ fleet_test_guard.install(
 # Appended at the foot for the line-number reason above.
 # ---------------------------------------------------------------------------
 os.environ["FLEET_SIDECAR_ROOT"] = ""
+
+
+# ---------------------------------------------------------------------------
+# CS-1319 - this suite's temp root is the tree's own, never the shared one
+#
+# MAIN measured ~70k directories left overnight in the shared per-account
+# pytest temp root by killed runs of this suite. The configure hook above is
+# wrapped, not edited, so that every run first claims a run directory under
+# the tree-owned root - before xdist hands its workers their base temp at
+# session start. The mechanism and its reasons: tests/own_temp_root.py.
+# Appended at the foot for the line-number reason above.
+# ---------------------------------------------------------------------------
+from tests import own_temp_root  # noqa: E402 - appended at the foot, see above
+
+own_temp_root.wrap_configure(globals())
