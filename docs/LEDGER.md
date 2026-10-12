@@ -75,6 +75,30 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1320 - CLOSED: the suite's own temp root no longer costs path depth, so the 8.3 clone arm fits under MAX_PATH again
+Verification: CS-1319 nested pytest's `pytest-of-<user>/pytest-N` under `<temp>/clockspeed-pytest/run-<pid>-<hex>`,
+and the whole suite on b905f18 failed exactly one arm,
+`tests/test_flip_checks.py::test_a_short_name_repo_path_is_resolved_before_cloning`, under xdist only:
+git clone exited 128 on "Filename too long". `tests/own_temp_root.py` now claims `<temp>/cs-pt/r-<hex>`
+and hands pytest a basetemp strictly inside the run directory (`_give_basetemp`), so the
+per-user levels disappear; a failed factory rebuild releases the claim and falls back to pytest's
+default (`_release`); `sweep_legacy` reclaims dead runs left under the CS-1319 root name. Pinned by
+`tests/test_suite_temp_root.py::test_the_own_root_adds_no_path_depth_over_the_old_shared_layout`
+(red on b905f18 for the extra depth itself) and, in `tests/test_own_temp_root.py`,
+`test_the_base_temp_given_to_pytest_is_strictly_inside_the_run_directory`,
+`test_a_failed_factory_rebuild_releases_the_claim_and_raises_nothing`,
+`test_dead_runs_under_the_cs1319_root_name_are_still_reclaimed`,
+`test_install_reclaims_a_dead_run_under_the_legacy_root`,
+`test_an_aged_stranger_under_the_legacy_root_is_never_swept` and
+`test_a_legacy_root_that_is_a_link_is_never_reached_through`. Two adversary rounds on frozen,
+witnessed candidates: round 1 held with three should-fixes (an unguarded private-API rebuild, unpinned
+legacy-sweep guards, an unguarded basetemp equal to the run directory), each repaired with a
+mutant-checked arm; round 2 held. Accepted residuals, stopped by cost against risk: no arm raises
+anything but AttributeError from the rebuild, so narrowing the handler's except would survive; no arm
+restores a PRESENT prior env value in `_release`; nested runs get no basetemp and still nest
+pytest's per-user levels under the run directory; pytest 8.x was not exercised. Answered to MAIN's
+TEMP-2 note with the leftover counts read back after the acceptance suite.
+
 ### 2026-10-12 - CS-1319 - CLOSED: the suite runs under its own temp root, so a killed or failed run cannot bloat the shared per-account pytest root (MAIN FIX TEMP-2)
 Verification: `tests/own_temp_root.py::install`, wired by `tests/own_temp_root.py::wrap_configure`
 at the foot of `tests/conftest.py`, claims `<temp>/clockspeed-pytest/run-<pid>-<hex>` and points
