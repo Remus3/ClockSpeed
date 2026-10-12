@@ -84,7 +84,7 @@ from collections.abc import Sized
 from dataclasses import dataclass
 from errno import ENOENT, ENOTDIR
 from pathlib import Path, PureWindowsPath
-from stat import S_ISREG
+from stat import FILE_ATTRIBUTE_REPARSE_POINT, S_ISDIR, S_ISREG
 from typing import Final
 
 from clockspeed.data import locate
@@ -854,18 +854,32 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     partial = destination.with_name(destination.name + PARTIAL_SUFFIX)
 
     # A LINK LEFT AT THE PARTIAL NAME IS REMOVED, NEVER WRITTEN THROUGH
-    # (CS-1312 fix round 2). The name is predictable and the open below is a
-    # plain create-or-truncate that follows links, so a hard link or a symlink
-    # already sitting here pointed the write - and its truncation - at the file
-    # it reached, and a dangling symlink created its target. The one remove
-    # call unlinks the ENTRY itself, measured on Windows to remove a hard link,
-    # a live or dangling symlink, a junction and a directory symlink without
-    # touching what each reached. Anything it cannot remove - a real directory
-    # - stays, and the open then fails closed. RESIDUAL, in the J9 class: a
-    # hostile process re-planting a link between this removal and the open is
-    # still followed. An exclusive create would narrow that window, and it is
-    # not made here because the write surface pins this open's mode.
+    # (CS-1312 fix rounds 2 and 3). The name is predictable and the open below
+    # is a plain create-or-truncate that follows links, so a hard link or a
+    # symlink already sitting here pointed the write - and its truncation - at
+    # the file it reached, and a dangling symlink created its target. The one
+    # remove call unlinks the ENTRY itself, measured on Windows to remove a
+    # hard link, a live or dangling symlink, a junction and a directory symlink
+    # without touching what each reached. It does NOT remove everything: a
+    # symlink carrying the read-only attribute on the link itself survives it,
+    # and the open then followed that link. So whatever is still at the name
+    # after the removal is refused here, before any open - EXCEPT a plain
+    # directory, which no open can write through: the open fails on it and
+    # copy_for_read's own handler reports that, the route the chained-cause
+    # guard forces to measure that handler.
+    # RESIDUAL, in the J9 class: a hostile process re-planting a link between
+    # this check and the open is still followed. An exclusive create would not
+    # close that alone - measured on Windows, an exclusive create refuses a
+    # live symlink and a hard link but FOLLOWS a dangling symlink and creates
+    # its target - and this open's mode is pinned by the write-surface test.
     _remove_quietly(partial)
+    if os.path.lexists(partial) and not _plain_directory(partial):
+        raise DestinationRefusedError(
+            "an entry at the copy's partial name in the work directory survived removal, "
+            "and the write would follow it, so where the copy would land cannot be shown to "
+            "sit outside the save root and the game install. Clockspeed never writes to the "
+            "game install or the save directory."
+        )
 
     try:
         _stream_copy(resolved_source, partial)
@@ -1136,6 +1150,27 @@ def _canonical(path: Path) -> Path:
     if is_admin_share and server.lower() in _local_servers():
         return Path(share[0] + ":\\", *canonical.parts[1:])
     return canonical
+
+
+def _plain_directory(path: Path) -> bool:
+    """Return whether ``path`` is a real directory - not a link and no reparse point.
+
+    Read-only: one ``lstat``, which never follows the entry. A failure answers
+    False, so the caller refuses rather than trusting an entry it could not
+    classify.
+
+    Args:
+        path: The entry to classify.
+
+    Returns:
+        True only for a directory that an open for write cannot follow.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    reparse = getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
+    return S_ISDIR(info.st_mode) and not reparse
 
 
 def _identity(path: Path) -> tuple[int, int] | None:

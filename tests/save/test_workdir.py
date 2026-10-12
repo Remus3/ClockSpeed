@@ -2224,6 +2224,82 @@ def test_a_link_left_at_the_partial_name_is_removed_not_written_through(
     assert victim.is_file(), "a file in the save directory went"
 
 
+#: The Windows file attribute bit for read-only, as ``stat.FILE_ATTRIBUTE_READONLY``.
+FILE_ATTRIBUTE_READONLY: Final = 0x1
+
+
+def release_planted_links(*names: Path) -> None:
+    """Clear the read-only attribute ON EACH LINK, never its target, then unlink the link."""
+    for name in names:
+        if name.is_symlink():
+            name.chmod(0o600, follow_symlinks=False)
+            name.unlink()
+
+
+@pytest.mark.parametrize("kind", ["readonly-symlink", "readonly-dangling-symlink", "directory"])
+def test_an_entry_that_survives_removal_at_the_partial_name_is_refused(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    pretend_source: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    """An entry the removal could not take away is refused, never written through (CS-1312).
+
+    Measured by the fix-round-3 verifier: a symlink carrying the read-only
+    attribute ON THE LINK ITSELF survives the one remove call, and the write
+    open then followed it - a live one overwrote the save it reached, a
+    dangling one created a new file in the save directory. Both are now
+    refused before any open, as a refused destination. The real directory is
+    the control that was already refused, by the open failing on it, and it
+    must STILL reach that open: its handler wraps the OSError, which is the
+    route ``tests/test_chained_cause.py`` forces to measure that handler, so a
+    refusal that swallowed it too would leave that arm grading something else.
+    Every file under the pretend save root is asserted byte-identical, with
+    none new, BEFORE the verdict.
+    """
+    if kind != "directory" and os.chmod not in os.supports_follow_symlinks:
+        pytest.skip("this platform cannot set an attribute on a link itself")
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    _victim, save_file = plant_save_directory(pretend_account_dir)
+    copies = work / workdir.COPIES_DIR_NAME
+    copies.mkdir(parents=True)
+    final = copies / (pretend_source.stem + workdir.COPY_SUFFIX)
+    partial = final.with_name(final.name + workdir.PARTIAL_SUFFIX)
+    if kind == "directory":
+        partial.mkdir()
+    else:
+        link_kind = "symlink" if kind == "readonly-symlink" else "dangling-symlink"
+        plant_link_at(partial, link_kind, save_file, pretend_account_dir)
+        partial.chmod(0o444, follow_symlinks=False)
+        attributes = getattr(os.lstat(partial), "st_file_attributes", FILE_ATTRIBUTE_READONLY)
+        assert attributes & FILE_ATTRIBUTE_READONLY, "the link itself is not read-only"
+    before = hashes_under(pretend_save_root)
+
+    try:
+        try:
+            workdir.copy_for_read(pretend_source, work_root=work)
+        except workdir.DestinationRefusedError:
+            refusal = "refused as a destination"
+        except workdir.SourceUnreadableError:
+            refusal = "failed at the open"
+        except workdir.WorkDirError:
+            refusal = "failed elsewhere"
+        else:
+            refusal = "went ahead"
+        after = hashes_under(pretend_save_root)
+    finally:
+        release_planted_links(partial, final)
+
+    assert after == before, "the save directory changed"
+    # The source here is readable, so the source error can only come from the
+    # handler around the open - the route the chained-cause guard forces.
+    expected = "failed at the open" if kind == "directory" else "refused as a destination"
+    assert refusal == expected, "the entry left at the partial name was not handled as designed"
+
+
 # ===========================================================================
 # work_root itself
 # ===========================================================================
