@@ -959,16 +959,50 @@ def discard_copy(copy: Path, *, work_root: Path | None = None) -> bool:
         True when the copy was removed; False when it was refused, absent or
         would not remove - never an exception.
     """
-    copies = _copies_dir(_resolve_work_root(work_root))
+    home = _copies_home(_copies_dir(_resolve_work_root(work_root)))
+    return _discard_from(home, Path(copy))
+
+
+def _copies_home(copies: Path) -> Path | None:
+    """Resolve the copies directory, or refuse it - THE FORBIDDEN-ROOT GATE.
+
+    Shared by :func:`discard_copy` and :func:`purge_work_dir` so the two
+    deleting paths cannot drift apart (CS-1312). Fails closed without raising:
+    a copies directory inside a forbidden root, one that will not resolve, and
+    a forbidden root that is present and will not resolve all answer None.
+
+    Args:
+        copies: The copies directory under the work root.
+
+    Returns:
+        The resolved copies directory, or None when nothing in it may be
+        removed.
+    """
     try:
         _refuse_if_forbidden(copies)
     except WorkDirError:
-        return False
-    home = _resolved(copies)
-    parent = _resolved(Path(copy).parent)
+        return None
+    return _resolved(copies)
+
+
+def _discard_from(home: Path | None, copy: Path) -> bool:
+    """Remove ``copy`` only if it sits directly in ``home`` - THE PARENT GATE.
+
+    Then the suffix and regular-file test of :func:`_is_module_copy`, then the
+    one remove call. ``home`` is what :func:`_copies_home` answered, so a None
+    there refuses everything.
+
+    Args:
+        home: The resolved copies directory, or None when it was refused.
+        copy: The candidate file.
+
+    Returns:
+        True when the file was removed by this call.
+    """
+    parent = _resolved(copy.parent)
     if home is None or parent is None or parent != home:
         return False
-    return _is_module_copy(Path(copy)) and _remove_quietly(Path(copy))
+    return _is_module_copy(copy) and _remove_quietly(copy)
 
 
 def purge_work_dir(*, work_root: Path | None = None) -> int:
@@ -980,17 +1014,35 @@ def purge_work_dir(*, work_root: Path | None = None) -> int:
     that swept it would eventually delete something that was not ours. Nothing
     recurses and no directory is ever removed.
 
+    THE SAME GATE AS :func:`discard_copy`, BEFORE THE LISTING (CS-1312). The
+    two conditions above are not a bound on their own: a copies directory that
+    is a junction or a symlink into the save directory - or a plain directory
+    nested inside it - lists the save directory's own copy-suffixed files, and
+    this purge used to delete them. The copies directory is now checked against
+    the forbidden roots before it is listed, and every entry then goes through
+    the parent check and the suffix test ``discard_copy`` uses, through the
+    same two private helpers so the paths cannot drift. The J9 residual named
+    on ``discard_copy`` applies here unchanged.
+
     Args:
         work_root: Which work root to empty. Defaults to :func:`work_root`.
 
     Returns:
         How many files were removed. Zero when there is nothing there, when the
-        directory does not exist, or when it cannot be read - never an
-        exception, and never a directory created as a side effect of asking.
+        directory does not exist, when it cannot be read, or when it reaches a
+        forbidden root - never an exception, and never a directory created as
+        a side effect of asking.
     """
     copies = _copies_dir(_resolve_work_root(work_root))
+    home = _copies_home(copies)
+    if home is None:
+        return 0
     try:
         entries = sorted(copies.iterdir())
     except OSError:
         return 0
-    return sum(1 for entry in entries if _is_module_copy(entry) and _remove_quietly(entry))
+    # The parent check cannot be isolated by a failing test here: a listed
+    # entry's parent IS the copies directory by construction, so it differs
+    # from ``home`` only if the directory is swapped between the two resolves -
+    # the J9 window. It is kept so this path and discard_copy share one gate.
+    return sum(1 for entry in entries if _discard_from(home, entry))

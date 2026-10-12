@@ -1847,6 +1847,103 @@ def test_discard_refuses_a_junction_inside_the_copies_directory(
     assert kept, "the junction entry itself was removed"
 
 
+def hashes_under(root: Path) -> dict[str, str]:
+    """Every regular file beneath ``root``, keyed by its relative path, mapped to its sha256.
+
+    A file that is gone afterwards drops out of the mapping, so a delete shows
+    as a changed mapping rather than needing a per-file existence check.
+    """
+    return {
+        path.relative_to(root).as_posix(): sha256_of(path)
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+@pytest.mark.parametrize("shape", ["junction", "symlink", "nested"])
+def test_purge_through_a_copies_directory_reaching_the_save_directory_removes_nothing(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    shape: str,
+) -> None:
+    """The copies directory reaches the save directory, and purge removes nothing (CS-1312).
+
+    Three shapes: the copies directory IS a junction into the save directory,
+    IS a directory symlink into it, or is a plain directory NESTED inside it.
+    Each lists a copy-suffixed regular file, so the directory and suffix
+    conditions alone pass and only the forbidden-root check - the one
+    ``discard_copy`` already applies - stands between purge and a delete in
+    the save directory. Every file under the pretend save root is asserted
+    byte-identical BEFORE the count, so a regression fails on the save
+    directory rather than on a number.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    plant_save_directory(pretend_account_dir)
+    if shape == "nested":
+        work_root = pretend_account_dir / "nested-work"
+        copies = work_root / workdir.COPIES_DIR_NAME
+        copies.mkdir(parents=True)
+        plant_save_directory(copies)
+    else:
+        work_root = tmp_path / "redirected-work"
+        work_root.mkdir()
+        copies = work_root / workdir.COPIES_DIR_NAME
+        if shape == "junction":
+            make_junction(copies, pretend_account_dir)
+        else:
+            make_directory_symlink(copies, pretend_account_dir)
+    before = hashes_under(pretend_save_root)
+    suffixed = [name for name in before if name.endswith(workdir.COPY_SUFFIX)]
+    assert suffixed, "no copy-suffixed file was planted, so this proves nothing"
+
+    removed = workdir.purge_work_dir(work_root=work_root)
+
+    after = hashes_under(pretend_save_root)
+    assert after == before, "the save directory changed"
+    assert removed == EXPECT_NONE, "purge reported a removal through the save directory"
+
+
+def test_purge_leaves_junctions_inside_the_copies_directory_and_what_is_behind_them(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A junction subdirectory and a copy-suffixed junction entry, each into the save directory.
+
+    The purge twin of the discard test above (the adversary's J2 and J3): the
+    subdirectory carries no suffix and the suffixed entry is no file, so
+    neither is removed and nothing behind either is touched. A real copy sits
+    beside them and IS removed, which proves the purge ran its gate rather than
+    refusing the whole directory.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    plant_save_directory(pretend_account_dir)
+    before = hashes_under(pretend_save_root)
+    work_root = tmp_path / "purge-with-junctions"
+    copies = work_root / workdir.COPIES_DIR_NAME
+    copies.mkdir(parents=True)
+    inner = copies / "inner"
+    make_junction(inner, pretend_account_dir)
+    entry = copies / ("Entry" + workdir.COPY_SUFFIX)
+    make_junction(entry, pretend_account_dir)
+    ours = copies / ("Ours" + workdir.COPY_SUFFIX)
+    ours.write_bytes(b"a copy this module would have made, invented")
+
+    removed = workdir.purge_work_dir(work_root=work_root)
+
+    after = hashes_under(pretend_save_root)
+    assert after == before, "the save directory changed"
+    assert removed == EXPECT_AT_LEAST_ONE, "purge did not remove the one real copy"
+    assert not ours.exists(), "purge left the real copy behind"
+    kept = [inner.exists(), entry.exists()]
+    assert kept == [True, True], "a junction inside the copies directory was removed"
+
+
 # ===========================================================================
 # work_root itself
 # ===========================================================================
@@ -2289,6 +2386,10 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
         ),
         "sha256_of": ("digests a file the caller wrote into tmp_path "),
         "stat_triple": ("stats a file the caller wrote into tmp_path "),
+        "hashes_under": (
+            "walks and digests a pretend save root the caller built under "
+            "tmp_path, to show a purge left it byte-identical (CS-1312) "
+        ),
         "test_an_unrecognised_failure_is_reported_as_could_not_tell": (
             "takes a reference to Path.iterdir in order to REPLACE it, and its "
             "stand-in delegates to that reference for every path except the one "
