@@ -16,8 +16,9 @@ rules and the adapter that feeds them:
 
 The audit is ``clockspeed/audit/fuel.py``: :func:`fuel_inputs` flattens its
 ``WorldFuel`` into rule inputs. The binding rulings are the session 134 ruling
-in ``docs/item_notes/phase5.md`` section CS-1285 and the slice C adjudication
-of 2026-10-12, whose six clauses G1 to G6 are cited below.
+in ``docs/history_notes.md`` section CS-1285 (relocated there from
+``docs/item_notes/phase5.md`` on the item's close) and the slice C
+adjudication of 2026-10-12, whose six clauses G1 to G6 are cited below.
 
 THE ADAPTER FLATTENS, IT NEVER WRAPS (G3). The audit's result types are frozen
 dataclasses WITHOUT slots, which the engine's exactness walk refuses

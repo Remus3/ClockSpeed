@@ -29,6 +29,17 @@ liquid burner short of fuel over a complete flow and a solid burner whose
 supply is never measured; its figures are worked by hand in
 :data:`FUEL_SHORTFALL_MW` and :data:`COAL_BURN_PER_MINUTE`.
 
+CS-1288: THE BUILD CHECK JOINS THE COMPOSITION. :func:`inputs_of` takes the
+pin as a required keyword (the session 138 ruling F2), runs the audit's
+``build_check_of`` over the model's header against it, and offers its three
+inputs beside the other two groups. The oracle adds them by hand the same
+way. Every world here is the pinned build's own - the shared header reads
+the pin at test time (ruling F8) - and an off-pin world is the same model
+with its header declaring the pin plus one. Off the pin every served card
+names both builds on tier 2 and tier 3, no rule settles, and
+``advise_and_record`` completes nothing; on the pin no card mentions a build
+and the control completes.
+
 Every token, class name and number here is invented. No save and no install
 is read; every store lives in a temporary directory and every instant is
 injected.
@@ -47,11 +58,13 @@ import pytest
 from clockspeed.advisor import advise as advise_module
 from clockspeed.advisor.advise import (
     advise,
+    advise_and_record,
     advise_world,
     inputs_of,
     settled_rules,
     world_inputs,
 )
+from clockspeed.advisor.build import BUILD_INPUTS, IN_SAVE_CHANGELIST, build_inputs
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import fuel as fuel_rules
 from clockspeed.advisor.rules import power, registered_rules
@@ -67,6 +80,7 @@ from clockspeed.advisor.trace import (
 )
 from clockspeed.audit import fuel as fuel_audit
 from clockspeed.audit.balance import balance_of
+from clockspeed.audit.build import WARN_BUILD_MISMATCH, build_check_of
 from clockspeed.audit.fuel import fuel_supply_of
 from clockspeed.audit.machines import (
     PROPERTY_OVERCLOCK,
@@ -79,6 +93,7 @@ from clockspeed.audit.placement import placement_of
 from clockspeed.data.registry import Registry
 from clockspeed.save.objects import ObjectReference
 from clockspeed.save.world import RecordProperties, WorldModel, WorldProperties
+from tests.advisor.build_fixtures import game_pin
 from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
@@ -86,6 +101,7 @@ from tests.audit import test_production as production_fixtures
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from clockspeed.advisor.advise import Advice
     from clockspeed.audit.balance import WorldBalance
     from clockspeed.save.world import UnlockState
 
@@ -119,8 +135,16 @@ def gap_world() -> WorldModel:
     return replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
 
 
-def balance_by_hand(model: WorldModel, registry: Registry) -> WorldInputs:
-    """The balance half of the composition - all :func:`inputs_of` offered before slice D."""
+def balance_by_hand(
+    model: WorldModel, registry: Registry, *, pinned_changelist: int | None
+) -> WorldInputs:
+    """Every input :func:`inputs_of` offers but the fuel audit's.
+
+    The balance half of the composition - all :func:`inputs_of` offered
+    before slice D - beside the build check's three inputs over the model
+    against ``pinned_changelist`` (CS-1288), which every power rule reads
+    first. The two name sets are asserted disjoint, reduced to a count inline.
+    """
     balance = balance_of(
         placement_of(model),
         registry.buildings,
@@ -128,23 +152,32 @@ def balance_by_hand(model: WorldModel, registry: Registry) -> WorldInputs:
         network_of(model),
         generators=registry.generators,
     )
-    return WorldInputs(values=balance_inputs(balance), unlocks=unlock_keys(model.unlocks))
+    balanced = balance_inputs(balance)
+    build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
+    shared = len(set(balanced) & set(build))
+    assert shared == 0
+    return WorldInputs(values={**balanced, **build}, unlocks=unlock_keys(model.unlocks))
 
 
-def by_hand(model: WorldModel, registry: Registry) -> WorldInputs:
+def by_hand(model: WorldModel, registry: Registry, *, pinned_changelist: int | None) -> WorldInputs:
     """The composition :func:`inputs_of` claims, spelled out through the audit.
 
-    The balance inputs, then the fuel audit's inputs over the same world, merged
-    by hand. The two name sets are asserted disjoint here, so the oracle can
-    never overwrite one adapter's input with the other's. The overlap is
-    reduced to a count inline, so no local holds the withheld input mapping
-    when the assertion fails (CS-850, CS-851).
+    The balance and build inputs, then the fuel audit's inputs over the same
+    world, merged by hand. The two name sets are asserted disjoint here, so the
+    oracle can never overwrite one adapter's input with the other's. The
+    overlap is reduced to a count inline, so no local holds the withheld input
+    mapping when the assertion fails (CS-850, CS-851).
     """
-    balance = balance_by_hand(model, registry)
+    balance = balance_by_hand(model, registry, pinned_changelist=pinned_changelist)
     offered = fuel_inputs(fuel_supply_of(machines_of(model), registry), registry)
     shared = len(set(balance.values) & set(offered))
     assert shared == 0
     return WorldInputs(values={**balance.values, **offered}, unlocks=balance.unlocks)
+
+
+def off_pin(model: WorldModel) -> WorldModel:
+    """The same world as a save written by the build after the pin (ruling F8)."""
+    return replace(model, header=replace(model.header, build_changelist=game_pin() + 1))
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +261,8 @@ def test_inputs_of_is_the_audit_composition_over_one_world(world_name: str) -> N
     model = make_world()
     registry = make_registry()
 
-    built = inputs_of(model, registry)
-    expected = by_hand(model, registry)
+    built = inputs_of(model, registry, pinned_changelist=game_pin())
+    expected = by_hand(model, registry, pinned_changelist=game_pin())
 
     same_names = sorted(built.values) == sorted(expected.values)
     same_values = dict(built.values) == dict(expected.values)
@@ -265,7 +298,9 @@ def test_no_registered_rule_halts_on_a_missing_input_over_inputs_of(world_name: 
     exists, so a declared-but-unoffered name is not itself a halt.
     """
     make_world, make_registry = WORLDS[world_name]
-    traces = run_rules(registered_rules(), inputs_of(make_world(), make_registry()))
+    traces = run_rules(
+        registered_rules(), inputs_of(make_world(), make_registry(), pinned_changelist=game_pin())
+    )
 
     missing = sorted(
         (trace.rule_id, step.subject)
@@ -280,7 +315,7 @@ def test_no_registered_rule_halts_on_a_missing_input_over_inputs_of(world_name: 
 def test_inputs_of_offers_every_fuel_rule_input(world_name: str) -> None:
     """Independent of the registry: both fuel rules' declarations are offered."""
     make_world, make_registry = WORLDS[world_name]
-    built = inputs_of(make_world(), make_registry())
+    built = inputs_of(make_world(), make_registry(), pinned_changelist=game_pin())
 
     declared = set(fuel_rules.SUPPLY_INPUTS) | set(fuel_rules.DEMAND_INPUTS)
     unoffered = len(declared - set(built.values))
@@ -299,7 +334,7 @@ def test_a_name_both_adapters_offer_raises_and_never_overwrites(
     monkeypatch.setattr(advise_module, "fuel_inputs", colliding)
 
     with pytest.raises(ValueError, match="more than one adapter"):
-        inputs_of(fuel_world(), fuel_registry())
+        inputs_of(fuel_world(), fuel_registry(), pinned_changelist=game_pin())
 
 
 def test_merged_inputs_refuses_a_name_any_two_groups_share_and_renders_no_value() -> None:
@@ -340,7 +375,7 @@ def test_the_balance_and_the_fuel_audit_read_one_machines_model(
     monkeypatch.setattr(advise_module, "fuel_supply_of", recording)
     registry = fuel_registry()
 
-    inputs_of(fuel_world(), registry)
+    inputs_of(fuel_world(), registry, pinned_changelist=game_pin())
 
     assert len(made) == 1
     assert len(fuel_calls) == 1
@@ -361,7 +396,12 @@ def test_advise_world_fires_both_fuel_rules_with_the_figures_worked_by_hand(
     tmp_path: Path,
 ) -> None:
     served = advise_world(
-        fuel_world(), fuel_registry(), ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW
+        fuel_world(),
+        fuel_registry(),
+        pinned_changelist=game_pin(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
     )
 
     fired = sorted(a.card.rule_id for a in served.cards)
@@ -386,7 +426,12 @@ def test_advise_world_fires_both_fuel_rules_with_the_figures_worked_by_hand(
 def test_the_fuel_inputs_are_sourced_to_the_fuel_audit(tmp_path: Path) -> None:
     """Every fuel input a served trace reads names the audit field it came from."""
     served = advise_world(
-        fuel_world(), fuel_registry(), ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW
+        fuel_world(),
+        fuel_registry(),
+        pinned_changelist=game_pin(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
     )
 
     supply = next(t for t in served.traces if t.rule_id == fuel_rules.SUPPLY_RULE.rule_id)
@@ -401,8 +446,8 @@ def test_the_fuel_inputs_are_sourced_to_the_fuel_audit(tmp_path: Path) -> None:
 def test_inputs_of_reads_the_world_rather_than_answering_a_constant() -> None:
     registry = synthetic_registry()
 
-    gap = inputs_of(gap_world(), registry)
-    empty = inputs_of(balance_fixtures.world_of(), registry)
+    gap = inputs_of(gap_world(), registry, pinned_changelist=game_pin())
+    empty = inputs_of(balance_fixtures.world_of(), registry, pinned_changelist=game_pin())
 
     differs = dict(gap.values) != dict(empty.values)
     assert differs, "two different worlds produced the same inputs"
@@ -420,11 +465,16 @@ def test_advise_world_equals_advise_over_the_built_inputs(tmp_path: Path) -> Non
     registry = synthetic_registry()
 
     served = advise_world(
-        model, registry, ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
     )
     direct = advise(
         model.token,
-        by_hand(model, registry),
+        by_hand(model, registry, pinned_changelist=game_pin()),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -440,13 +490,23 @@ def test_advise_world_keys_the_ledger_by_the_models_own_token(tmp_path: Path) ->
     model = gap_world()
     registry = synthetic_registry()
     first = advise_world(
-        model, registry, ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
     )
     gap_id = next(a.card.id for a in first.cards if a.card.rule_id == power.GAP_RULE.rule_id)
     Ledger(tmp_path).set_state(model.token, gap_id, CardState.dismissed())
 
     again = advise_world(
-        model, registry, ledger=Ledger(tmp_path), mutes=MuteStore(tmp_path), now=NOW
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
     )
 
     state = next(a.state.kind for a in again.cards if a.card.id == gap_id)
@@ -459,6 +519,7 @@ def test_advise_world_writes_no_store(tmp_path: Path) -> None:
     advise_world(
         gap_world(),
         synthetic_registry(),
+        pinned_changelist=game_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -501,7 +562,7 @@ def captured_balance(
         return world_inputs(balance, unlocks)
 
     monkeypatch.setattr(advise_module, "world_inputs", spy)
-    built = inputs_of(model, registry)
+    built = inputs_of(model, registry, pinned_changelist=game_pin())
     calls = len(seen)
     assert calls == 1
     return built, seen[0]
@@ -582,6 +643,7 @@ def test_a_built_generator_settles_the_headroom_rule_end_to_end(tmp_path: Path) 
     served = advise_world(
         model,
         generator_registry(),
+        pinned_changelist=game_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -594,3 +656,148 @@ def test_a_built_generator_settles_the_headroom_rule_end_to_end(tmp_path: Path) 
     assert missing == []
     assert settled
     assert reasons == ["generation covers the upper bound of the clocked draw"]
+
+
+# ---------------------------------------------------------------------------
+# CS-1288: the build check joins the composition (the session 138 rulings F1,
+# F2 and F8). Every assertion over served advice binds a flag or a count
+# first, so none renders a withheld field (CS-850, CS-851).
+# ---------------------------------------------------------------------------
+
+
+def _the_world(model: WorldModel) -> WorldModel:
+    return model
+
+
+def _no_pin(pin: int) -> int | None:
+    del pin
+    return None
+
+
+def _the_pin(pin: int) -> int | None:
+    return pin
+
+
+#: How each case builds its model from the shared one, and the pin it hands.
+BUILD_CASES: Final[
+    dict[str, tuple[Callable[[WorldModel], WorldModel], Callable[[int], int | None]]]
+] = {
+    "off-pin": (off_pin, _the_pin),
+    "on-pin": (_the_world, _the_pin),
+    "no-pin": (_the_world, _no_pin),
+}
+
+
+@pytest.mark.parametrize("case", sorted(BUILD_CASES))
+def test_inputs_of_offers_the_build_check_against_the_pin_it_is_handed(case: str) -> None:
+    make_model, make_pin = BUILD_CASES[case]
+    model = make_model(gap_world())
+    pinned = make_pin(game_pin())
+
+    built = inputs_of(model, synthetic_registry(), pinned_changelist=pinned)
+
+    expected = build_inputs(build_check_of(model, pinned_changelist=pinned))
+    same = {name: built.values[name] for name in BUILD_INPUTS} == expected
+    assert same, case
+
+
+def test_a_build_name_another_adapter_offers_raises_and_never_overwrites(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    planted = InputValue(918273645, "synthetic.collision")
+
+    def colliding(world_fuel: object, registry: Registry) -> dict[str, InputValue]:
+        del world_fuel, registry
+        return {IN_SAVE_CHANGELIST: planted}
+
+    monkeypatch.setattr(advise_module, "fuel_inputs", colliding)
+
+    with pytest.raises(ValueError, match="more than one adapter"):
+        inputs_of(fuel_world(), fuel_registry(), pinned_changelist=game_pin())
+
+
+def _served(model: WorldModel, registry: Registry, directory: Path) -> Advice:
+    return advise_world(
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize("world_name", sorted(WORLDS))
+def test_off_the_pin_every_served_card_names_both_builds_and_nothing_settles(
+    tmp_path: Path, world_name: str
+) -> None:
+    pin = game_pin()
+    make_world, make_registry = WORLDS[world_name]
+    words = (WARN_BUILD_MISMATCH, f"priced at the pinned build {pin},", f"save build {pin + 1}")
+
+    served = _served(off_pin(make_world()), make_registry(), tmp_path)
+
+    cards = len(served.cards)
+    unnamed = sum(
+        1
+        for advised in served.cards
+        if not all(w in advised.card.tier2 and w in advised.card.tier3 for w in words)
+    )
+    settled = len(settled_rules(served.traces))
+    assert cards > 0
+    assert unnamed == 0
+    assert settled == 0
+
+
+@pytest.mark.parametrize("world_name", sorted(WORLDS))
+def test_on_the_pin_no_served_card_mentions_a_build(tmp_path: Path, world_name: str) -> None:
+    make_world, make_registry = WORLDS[world_name]
+
+    served = _served(make_world(), make_registry(), tmp_path)
+
+    cards = len(served.cards)
+    mentioning = sum(
+        1
+        for advised in served.cards
+        if "build-" in advised.card.tier2 or "build-" in advised.card.tier3
+    )
+    assert cards > 0
+    assert mentioning == 0
+
+
+@pytest.mark.parametrize("case", ["off-pin", "on-pin"])
+def test_advise_and_record_completes_nothing_off_the_pin(tmp_path: Path, case: str) -> None:
+    """A gap card recorded on the pin; then the gap is gone, on the pin or off it.
+
+    On the pin the gap rule settles silent and its card is completed - the
+    control. Off the pin the same silence is priced at another build, so the
+    rule does not settle and nothing is completed (ruling F1).
+    """
+    registry = synthetic_registry()
+    first = advise_and_record(
+        gap_world().token,
+        inputs_of(gap_world(), registry, pinned_changelist=game_pin()),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
+    )
+    gap_id = next(a.card.id for a in first.cards if a.card.rule_id == power.GAP_RULE.rule_id)
+    resolved = balance_fixtures.world_of(balance_fixtures.FIXED_WHOLE)
+    model = off_pin(resolved) if case == "off-pin" else resolved
+
+    second = advise_and_record(
+        model.token,
+        inputs_of(model, registry, pinned_changelist=game_pin()),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
+    )
+
+    gap_fires = any(a.card.rule_id == power.GAP_RULE.rule_id for a in second.cards)
+    completed_gap = second.completed == (gap_id,)
+    completed_none = second.completed == ()
+    assert not gap_fires
+    if case == "on-pin":
+        assert completed_gap
+    else:
+        assert completed_none

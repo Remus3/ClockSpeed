@@ -1,7 +1,8 @@
 """CS-1285 slice C: the D4 fuel rules, power.fuel_supply and power.fuel_demand.
 
-Graded here (``docs/item_notes/phase5.md`` section CS-1285, its Acceptance and
-the session 134 ruling, plus the slice C rulings G1 to G6 of 2026-10-12):
+Graded here (``docs/history_notes.md`` section CS-1285, relocated there from
+``docs/item_notes/phase5.md`` on the item's close - its Acceptance and the
+session 134 ruling - plus the slice C rulings G1 to G6 of 2026-10-12):
 
 - the adapter offers every input the two rules declare, each an exact value
   the engine admits, sourced to the fuel audit field (or, for a display name,

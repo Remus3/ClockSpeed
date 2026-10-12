@@ -44,6 +44,7 @@ from clockspeed.advisor.ledger import (
 from clockspeed.advisor.rules import fuel as fuel_rules
 from clockspeed.advisor.rules import power, registered_rules
 from clockspeed.advisor.trace import StepKind, run_rules
+from clockspeed.audit.build import WARN_BUILD_MISMATCH
 from clockspeed.audit.machines import PROPERTY_OVERCLOCK, PROPERTY_PRODUCING
 from clockspeed.save.world import WorldProperties
 from clockspeed.surface import server
@@ -51,6 +52,7 @@ from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, routes
 from clockspeed.surface.providers import StoreAdviceSource
 from tests.advisor import test_world_advice as world_fixtures
+from tests.advisor.build_fixtures import game_pin
 from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
@@ -910,7 +912,8 @@ def test_no_rule_halts_on_a_served_world(tmp_path: Path, world_name: str) -> Non
     assert one_trace_per_rule
     halted = sum(1 for trace in found.traces for step in trace.steps if step.kind in HALTING_KINDS)
     assert halted == 0
-    before = settled_rules(run_rules(power.RULES, world_fixtures.balance_by_hand(model, registry)))
+    balanced = world_fixtures.balance_by_hand(model, registry, pinned_changelist=game_pin())
+    before = settled_rules(run_rules(power.RULES, balanced))
     after = settled_rules(found.traces)
     assert sorted(before - after) == []
     cards = data["cards"]
@@ -962,3 +965,73 @@ def test_the_listing_states_the_built_generator_count_over_the_real_route_table(
     assert isinstance(reason, str)
     assert reason.endswith(note)
     assert "x0" not in f"{headline} {reason}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1288: GET /api/advice states an off-pin build (the session 138 rulings
+# F1, F2 and F5)
+# ---------------------------------------------------------------------------
+#
+# THE CLAIM. The store-reading source hands the advisor the pin as it reads
+# at call time, so over the real route table every card served for a save
+# another build wrote carries the mismatch code and both builds in its reason
+# (tier 2) and its derivation (tier 3), and no card served for a save the
+# pinned build wrote mentions a build at all. A source that handed no pin
+# would serve every on-pin card as uncompared, which the on-pin arm refuses.
+
+#: The served worlds the build arms run over; each serves at least one card.
+BUILD_WORLDS: Final = ("fuel", "gap", "omission")
+
+
+def _served_texts(directory: Path, model: WorldModel, registry: Registry) -> list[tuple[str, str]]:
+    """Each card GET /api/advice serves for a world: its reason, and its derivation."""
+    table = _table(directory, model, registry)
+    cards = _data(table["GET", advice_endpoint.ENDPOINT]({}))["cards"]
+    assert isinstance(cards, list)
+    texts: list[tuple[str, str]] = []
+    for card in cards:
+        assert isinstance(card, dict)
+        derivation = _data(
+            table["GET", advice_endpoint.DERIVATION_ENDPOINT](
+                {advice_endpoint.ID_PARAMETER: card["id"]}
+            )
+        )["derivation"]
+        reason = card["reason"]
+        assert isinstance(reason, str)
+        assert isinstance(derivation, str)
+        texts.append((reason, derivation))
+    return texts
+
+
+@pytest.mark.parametrize("world_name", BUILD_WORLDS)
+def test_off_the_pin_the_listing_and_derivation_name_both_builds(
+    tmp_path: Path, world_name: str
+) -> None:
+    pin = game_pin()
+    make_world, make_registry = SERVED_WORLDS[world_name]
+    words = (WARN_BUILD_MISMATCH, f"priced at the pinned build {pin},", f"save build {pin + 1}")
+
+    texts = _served_texts(tmp_path, world_fixtures.off_pin(make_world()), make_registry())
+
+    served = len(texts)
+    unnamed = sum(
+        1 for reason, derivation in texts if not all(w in reason and w in derivation for w in words)
+    )
+    assert served > 0
+    assert unnamed == 0
+
+
+@pytest.mark.parametrize("world_name", BUILD_WORLDS)
+def test_on_the_pin_the_listing_and_derivation_name_no_build(
+    tmp_path: Path, world_name: str
+) -> None:
+    make_world, make_registry = SERVED_WORLDS[world_name]
+
+    texts = _served_texts(tmp_path, make_world(), make_registry())
+
+    served = len(texts)
+    mentioning = sum(
+        1 for reason, derivation in texts if "build-" in reason or "build-" in derivation
+    )
+    assert served > 0
+    assert mentioning == 0
