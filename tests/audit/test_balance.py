@@ -3443,6 +3443,45 @@ def codes(result: balance.WorldStarvation) -> list[tuple[str, int]]:
     return [(warning.code, warning.count) for warning in result.warnings]
 
 
+#: CS-1314 fix 1. Records of one recipe class per kind in the counting arm:
+#: several of each, and a different number of each, so a count of records and
+#: a count of (class, kind) rows differ on every figure.
+MANY_CLEAN = 3
+MANY_PENDING = 2
+MANY_UNREAD = 4
+
+
+def test_starvation_counts_unadmitted_records_and_never_class_rows() -> None:
+    """CS-1314 fix 1: every starvation figure over the census is in RECORDS.
+
+    One maker class carries several clean tagless records, several pending
+    ones and several unread ones. Counting the (class, kind) rows would publish
+    one clean and two indeterminate where three and six records sit there.
+    """
+    model = machines.machines_of(
+        census_world(
+            *([(RECIPE_MAKER, {})] * MANY_CLEAN),
+            *([(RECIPE_MAKER, PENDING)] * MANY_PENDING),
+            unread=(RECIPE_MAKER,) * MANY_UNREAD,
+        )
+    )
+    result = balance.starvation_of(model, recipes=census_recipes())
+
+    assert census_rows(result.unadmitted) == [
+        (RECIPE_MAKER, balance.GAP_PAYLOAD_UNREAD, MANY_UNREAD),
+        (RECIPE_MAKER, balance.GAP_NO_MACHINE_STATE, MANY_PENDING),
+        (RECIPE_MAKER, balance.CENSUS_TAGLESS_CLEAN, MANY_CLEAN),
+    ]
+    assert result.tagless_clean_count == MANY_CLEAN
+    assert result.indeterminate_record_count == MANY_PENDING + MANY_UNREAD
+    raised = dict(codes(result))
+    assert raised.get(balance.WARN_BALANCE_MACHINE_STATE_UNREAD) == MANY_PENDING + MANY_UNREAD
+    unjudged = dict(codes(balance.starvation_of(model)))
+    assert unjudged.get(balance.WARN_BALANCE_CENSUS_UNJUDGED) == (
+        MANY_CLEAN + MANY_PENDING + MANY_UNREAD
+    )
+
+
 def test_an_indeterminate_census_record_is_counted_in_the_unread_state_warning() -> None:
     """The starved set is short by an indeterminate record, so the warning says so.
 

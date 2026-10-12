@@ -1593,6 +1593,46 @@ def test_an_unadmitted_record_of_no_recipe_class_leaves_the_flow_complete(
     assert flow.WARN_FLOW_RECIPE_CLASS_UNADMITTED not in _codes(result)
 
 
+#: CS-1314 fix 1. Records of the census class per kind in the counting arm:
+#: several of each, and a different number of each, so a count of records, a
+#: count of (class, kind) rows and a count of classes all differ.
+_CLEAN_RECORDS: Final = 3
+_PENDING_RECORDS: Final = 2
+_UNREAD_RECORDS: Final = 4
+
+
+def test_the_flow_counts_unadmitted_records_and_never_class_rows(
+    recipes: dict[str, Recipe],
+) -> None:
+    """CS-1314 fix 1: the census is counted in RECORDS, per class and kind.
+
+    One class carries several records of each of the three kinds. Counting the
+    (class, kind) rows would publish three where nine records sit outside the
+    flow - on the library, one row per save where the constructor census holds
+    many records.
+    """
+    rows: list[tuple[str, Mapping[str, object]]] = [(_SMELTER, balance_fx.TAGGED)]
+    rows += [(_CENSUS_CLASS, {})] * _CLEAN_RECORDS
+    rows += [(_CENSUS_CLASS, balance_fx.PENDING)] * _PENDING_RECORDS
+    base = balance_fx.census_world(*rows, unread=(_CENSUS_CLASS,) * _UNREAD_RECORDS)
+    entries = dict(base.properties.by_record_index)
+    entries[0] = replace(entries[0], references=(machines_fx.recipe_reference(_PLATE_ASSET),))
+    model = machines.machines_of(
+        replace(base, properties=WorldProperties(by_record_index=MappingProxyType(entries)))
+    )
+    result = flow.flow_of(model, recipes)
+
+    assert _census_rows(result) == [
+        (_CENSUS_CLASS, balance.GAP_PAYLOAD_UNREAD, _UNREAD_RECORDS),
+        (_CENSUS_CLASS, balance.GAP_NO_MACHINE_STATE, _PENDING_RECORDS),
+        (_CENSUS_CLASS, balance.CENSUS_TAGLESS_CLEAN, _CLEAN_RECORDS),
+    ]
+    assert _codes(result).get(flow.WARN_FLOW_RECIPE_CLASS_UNADMITTED) == (
+        _CLEAN_RECORDS + _PENDING_RECORDS + _UNREAD_RECORDS
+    )
+    assert result.complete is False
+
+
 def test_a_bare_sequence_carries_no_census(recipes: dict[str, Recipe]) -> None:
     """Ruling Q3 c: the census is read only from a ``WorldMachines``.
 
