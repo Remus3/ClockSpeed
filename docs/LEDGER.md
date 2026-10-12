@@ -75,6 +75,26 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-11 - CS-1302 - CLOSED: the dev extra pins mypy to one exact release, the one this box runs, and bare mypy exits 0 under it in tier1
+Verification: `pyproject.toml`, the `dev` extra's `mypy==2.1.0` line and the comment above it;
+`tests/test_mypy_gate.py::test_the_dev_extra_pins_mypy_to_one_exact_release` and
+`tests/test_mypy_gate.py::test_the_pinned_mypy_is_the_release_this_interpreter_runs`, each red
+first per the 2026-10-09 CS-1302 DECISION RECORD below; tier1's "gates, lint, types, tests" job,
+its "Type check" step (`python -m mypy`, in `.github/workflows/tier1.yml`). The commit is named by
+subject, "CS-1302 - the dev extra pins mypy to the one release this box runs". The item's section
+is relocated verbatim to `docs/history_notes.md`.
+THE ACCEPTANCE, clause by clause, read by the session 137 /done: ONE PLACE BOTH READ - the dev
+extra is the only mypy pin, tier1's toolchain step installs from it, and the "Install toolchain"
+step of tier1 run 38185182369 at 1668710 logs "Collecting mypy==2.1.0"; BARE MYPY EXITS 0 IN
+TIER1 - that run's "Type check" step ends "Success: no issues found", and the run reads SUCCESS
+on all five jobs (`gh run view`); BARE MYPY EXITS 0 LOCALLY - `python -m mypy` under mypy 2.1.0
+read exit 0, "Success: no issues found", by this /done; THE CS-G03 CLAUSE - re-read by the
+decision record below, which found the escalation already FIRED, so the full re-walk is owed
+either way.
+UNCHANGED RESIDUALS from the decision record: CI installs librt and pytest at releases other
+than this box's, which the pin does not cover; the version test reads the release in-process
+with the user site on the path.
+
 ### 2026-10-11 - CS-453 - SUPERSEDED by CS-1312 (session 137)
 Verification: the CS-1312 line in `ROADMAP.md` and its section in
 `docs/item_notes/phase4-followups-1000.md`, which absorbs this item; this item's section,

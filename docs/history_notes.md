@@ -24,6 +24,61 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## BACKLOG lines - relocated from `BACKLOG.md` 2026-10-11 by the session 137 /done
+
+**Moved here because each line's trigger fired.** The two "Session 131 residuals" lines below
+are filed as CS-1313 and CS-1314 in `ROADMAP.md`, their sections in `docs/item_notes/phase5.md`;
+the CS-1280 close in `docs/LEDGER.md` named both triggers as fired. The "Session 134 residuals"
+section closed on its own trigger: FLEET-KIT v17 (CS-1310, `docs/LEDGER.md`) carries v16's
+gitlock live-holder ceiling, `STALE_MIN` 120 minutes in `ops/fleet_kit/fleet_gitlock.py`, which
+outlasts a pre-push whole suite on this box. Verbatim:
+
+From "Session 131 residuals - filed 2026-10-08 under product before process":
+
+- The registry lists `Equip_HoverPack_C` as a 100 MW consumer, so an equipped hover pack may
+  count as a built power consumer - TRIGGER: a save carrying an equipped one, or CS-1280's
+  ruling.
+- `clockspeed/audit/flow.py` and `clockspeed/audit/balance.py::starvation_of` judge
+  completeness over the machines population only, the blind spot CS-1266 closed for the clocked
+  draw - TRIGGER: CS-1280 lands, or a surface reads flow completeness.
+
+From "Session 134 residuals - filed 2026-10-09 under product before process", its one line:
+
+- `ops/fleet_kit/fleet_gitlock.py` breaks a lock holder older than its 15-minute stale limit,
+  shorter than a pre-push whole suite on this box (about 22 minutes): other owners broke
+  session 134's push lock twice (11:53 and 12:24) while its push ran, and two suites then ran
+  side by side. A vendored kit file is never edited here (FLEET-COMMON 11); the report is ONE
+  note to MAIN, owed by the next session - TRIGGER: a kit lands whose stale limit outlasts a
+  pre-push suite, or MAIN rules the limit stands; close this line then. The note was sent in
+  session 136: the outbox's 2026-10-10-0718 REVIEW note, delivered 1/1 (agent-reported).
+
+
+## CS-1302 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-11
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1302
+
+### Acceptance
+
+The mypy release CI installs and the one a local gate runs are the same, pinned in one place
+both read, and bare `python -m mypy` exits 0 under that release locally and in tier1. A pin
+placed in `pyproject.toml` outside its lint tables first re-reads the escalation clause of
+the CS-G03 decision records in `docs/LEDGER.md`.
+
+### Filed 2026-10-09 by the session 134 /done
+
+`pyproject.toml`'s `dev` extra sets only the floor `mypy>=1.11`, and tier1's install step
+names that extra as the one owner of the tool versions. Tier1 run 37958927844 at `476ca8f`
+went red: CI installed mypy 2.4.0 while this box runs 2.1.0, and the two report a positional
+call to a keyword-only parameter under different error codes, so an ignore right for one is
+wrong for the other. `b64b41a` repaired that one site (the test calls through an Any-typed
+name, with no ignore) and tier1 37971510248 at `319cd8a` read green; the skew remains. Filed
+under the `CLAUDE.md` section 7 suite-red exception. ruff and pytest-xdist in the same extra
+already carry upper bounds, for the same lesson; pytest floats like mypy.
+
+
 ## CS-453 - item section, relocated from `docs/item_notes/phase4.md` 2026-10-11 on its supersession by CS-1312
 
 **Moved here from `docs/item_notes/phase4.md` when CS-1312 superseded the item.**
@@ -3481,6 +3536,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 134 - archived 2026-10-11 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 134 - 2026-10-09 - four items closed and CS-1288 half shipped, CS-1285 slice B refuted four times and re-ruled fluid-only, a tier2 load flake fixed on a branch, and the CS-G03 full re-walk found owed
+
+- Shipped: CS-1281, CS-1293, CS-1294 and CS-1296 closed; CS-1288 slices A (`version.changelist_of`, `GAME_CHANGELIST`) and B (the standalone `audit/build.py` BuildCheck) merged, slice C open. Detail in docs/LEDGER.md and the CS-1288 item note. Outside this session's own work the responder landed CS-1290 (FLEET-KIT v13, folding v12, before this session's first commit), CS-1297 (MAIN FIX TEMP-1) and CS-1299 (FLEET-KIT v14). Pushed 94b9318..476ca8f, then 476ca8f..319cd8a; tier1 at 319cd8a green. Filed CS-1298 (the merger) and, at the /done, CS-1300, CS-1301 and CS-1302. CS-1284: session 3 of 3 of rows recorded. Channel: the notes 2026-10-09-0305 (v12 and v13 answer) and 2026-10-08-2120 (v11 answer) each read back in MAIN's inbox, 1/1, SHA-256 equal.
+- In flight: TIER2-RED - tier2 37919155122 attempt 1 failed on the windows guards shard, a load flake (attempt 2 green); the fix (branch tip subject "CS-815 - the quiet barrier keeps its file, bounds its wait, fails loud") is unmerged, its first commit refuted for a directory race, and unverified on the 30x loop, the CS-1233 sibling users and the 400 s bound. CS-1285 slice B (tip subject "CS-1285 - slice B fix 3: an unregistered class is never assumed inert") refuted four times, unmerged; the binding v2 ruling is in its item note; build order A, B v2 on that candidate, C, D. CS-1288 slice C waits for CS-1280 and CS-1285, which share its files.
+- Decisions: CS-1288 is a standalone BuildCheck (adjudicated); CS-1285 v2 is fluid-only (adjudicated; runner-up, solids measured unless a non-buildable record exists, lost because every real save holds a player); TIER2-RED is a load flake and no budget is raised; the CS-1294 and CS-1288 slice A adversary loops stopped by cost against risk; builders run targeted tests only and the merger runs ONE integration suite. No ADR.
+- Surprises: tier1 at 476ca8f went red on mypy version skew - CI resolved mypy 2.4.0 over the `>=1.11` floor, this box runs 2.1.0, and the two code a positional call to a keyword-only parameter differently; b64b41a repaired the site and CS-1302 files the skew. The /done found the CS-G03 escalation FIRED: CS-1290 changed `.githooks/commit-msg` and `.githooks/pre-push` after the walk tip, so a FULL re-walk is owed before S7a (docs/LEDGER.md CS-G03 record). fleet_gitlock's 15-minute stale limit is shorter than a pre-push suite: other owners broke this session's push lock twice (11:53, 12:24) mid-push.
+- Failed paths: the suite gate starved - seven builders each ran a serial whole suite on the 2 machine-wide slots, 60+ min each, waiters near their 3600 s timeout; builders now run targeted tests only. The first TIER2-RED fix was refuted (a directory race in the two-waiter arm).
+- Next action: TIER2-RED - the 30x loop, the CS-1233 sibling users 5x and the 400 s bound against the tier2 windows guards shard; then an adversary pass and merge.
 
 ## Session 133 - archived 2026-10-10 from `WAKEUP_NOTES.md`, verbatim
 

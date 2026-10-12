@@ -1769,26 +1769,6 @@ Queued after section 1 (CS-1290) per the note's order of work. It needs a sessio
 spawn headless runs: a sub-agent slice cannot start it, so the main session or the lane
 queues it.
 
-## CS-1302
-
-### Acceptance
-
-The mypy release CI installs and the one a local gate runs are the same, pinned in one place
-both read, and bare `python -m mypy` exits 0 under that release locally and in tier1. A pin
-placed in `pyproject.toml` outside its lint tables first re-reads the escalation clause of
-the CS-G03 decision records in `docs/LEDGER.md`.
-
-### Filed 2026-10-09 by the session 134 /done
-
-`pyproject.toml`'s `dev` extra sets only the floor `mypy>=1.11`, and tier1's install step
-names that extra as the one owner of the tool versions. Tier1 run 37958927844 at `476ca8f`
-went red: CI installed mypy 2.4.0 while this box runs 2.1.0, and the two report a positional
-call to a keyword-only parameter under different error codes, so an ignore right for one is
-wrong for the other. `b64b41a` repaired that one site (the test calls through an Any-typed
-name, with no ignore) and tier1 37971510248 at `319cd8a` read green; the skew remains. Filed
-under the `CLAUDE.md` section 7 suite-red exception. ruff and pytest-xdist in the same extra
-already carry upper bounds, for the same lesson; pytest floats like mypy.
-
 ## CS-1304
 
 ### Acceptance

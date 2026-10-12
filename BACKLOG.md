@@ -52,6 +52,10 @@ the first: a consumer actually needs to follow a component to its parent.**
   is the arm that already fired once, so the missing guard costs visibility rather
   than protection - conditional on a second unguarded ignore entry appearing, at which
   point the arm is worth writing once for the class instead of for the line.
+- GitHub's notice, read in session 137 and filed 2026-10-11: `ubuntu-latest` moves to Ubuntu 26
+  from 2026-10-19, and every tier1 job and the ubuntu leg of each tier2 matrix run on
+  `ubuntu-latest`, so the image changes under an unchanged workflow - TRIGGER: the first tier1
+  or tier2 run on Ubuntu 26 fails, or 2026-10-19 passes: re-read tier1 and tier2.
 
 ## Mod content support
 
@@ -494,12 +498,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - A property-body walk that stops with bytes left over drops records from the object table
   entirely, so the clocked draw can still read complete - TRIGGER: a library save logs that
   warning.
-- The registry lists `Equip_HoverPack_C` as a 100 MW consumer, so an equipped hover pack may
-  count as a built power consumer - TRIGGER: a save carrying an equipped one, or CS-1280's
-  ruling.
-- `clockspeed/audit/flow.py` and `clockspeed/audit/balance.py::starvation_of` judge
-  completeness over the machines population only, the blind spot CS-1266 closed for the clocked
-  draw - TRIGGER: CS-1280 lands, or a surface reads flow completeness.
 - The adversaries' save-library sweeps copied real saves into the session scratchpad, recycled
   by the merger; an adversary brief must keep save copies under the gitignored `work/`
   directory - TRIGGER: the next adversary brief that sweeps the library.
@@ -514,16 +512,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - Two stubbed diagnostic responder passes wrote zero-duration inbox lines into the gitignored
   headless usage log, which the weekly build-versus-inbox split reads - TRIGGER: that split is
   next computed, or a diagnostic pass is next run against the live log.
-
-## Session 134 residuals - filed 2026-10-09 under product before process
-
-- `ops/fleet_kit/fleet_gitlock.py` breaks a lock holder older than its 15-minute stale limit,
-  shorter than a pre-push whole suite on this box (about 22 minutes): other owners broke
-  session 134's push lock twice (11:53 and 12:24) while its push ran, and two suites then ran
-  side by side. A vendored kit file is never edited here (FLEET-COMMON 11); the report is ONE
-  note to MAIN, owed by the next session - TRIGGER: a kit lands whose stale limit outlasts a
-  pre-push suite, or MAIN rules the limit stands; close this line then. The note was sent in
-  session 136: the outbox's 2026-10-10-0718 REVIEW note, delivered 1/1 (agent-reported).
 
 ## Session 135 residuals - filed 2026-10-09 under product before process
 

@@ -290,6 +290,8 @@ CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse
 CS-1285 - the D4 fuel half has no rule, so no card sizes a built generator's fuel burn against the fuel the world makes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1288 - a save written on a build other than the pinned one is priced at the pinned nameplate with no warning - 12 MW-era Mk2 miners are overstated 25 percent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1298 - the flow still counts a class that cannot be clocked as an elided clock, and two flow docstrings claim the balance's own elided test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1313 - since CS-1280 a clean tagless record of the hover pack, which the registry lists as a 100 MW consumer, would be priced as a built machine - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1314 - the flow and `starvation_of` judge completeness over the machines population only, blind to unadmitted records - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -366,6 +368,5 @@ CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and ca
 CS-1283 - rule whether the lane driver's checklist printer moves onto the kit's `fleet_checklist.emit()` (FLEET-KIT v10 ORDER item 5) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1302 - mypy is pinned only by a floor, so CI and this box run different releases that emit different error codes - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1307 - the env-echo git-hook arms in `tests/test_hook_env_echo.py` run the interpreter ladder under its bound without the quiet barrier - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
