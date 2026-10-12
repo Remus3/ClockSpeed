@@ -1865,3 +1865,48 @@ acceptance against the landing branch:
    `push_through`, failing any arm that neither waits nor sits in the set.
 4. Run the file 30 times, graded on failures.
 5. Re-read the guard shard duration from tier1.
+
+## CS-1317
+
+### Acceptance
+
+Tier 1's "gates, lint, types, tests" job runs inside its 420 s budget by sharding or caching:
+`TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` in `.github/workflows/tier1.yml` stay 420 and
+480, and no test is skipped or deselected to get there. The job's "tier 1 took" budget line reads
+within budget on two consecutive tier1 runs on main, every other job's budget line is read on the
+same runs, and the CS-700 flip block's step b is not started before that.
+
+### Filed 2026-10-12 by the session 138 /done
+
+The session 138 /done read tier1 38262274792 at c7fc806, the push of its records commit, which
+touched four docs and no code. The gates job's "Duration against the budget" step printed "tier 1
+took 483s - OVER THE CEILING (budget 420s, ceiling 480s)" as an error and failed the job. The same
+job's budget line read 336 s at 5b22e08, 473 s at 923e30f and 479 s at 0e82056, each "over budget",
+a report and not a failure; across those three its "Unit tests" step read 293 s, 415 s and 420 s
+and its "Type check" step 16 s, 23 s and 24 s. The rise landed with session 138's product pushes;
+which tests carry it is not measured here.
+
+The carried TIER-1 HEADROOM WATCH in the hand-off says: shard or cache when a shard crosses the
+budget, and never raise the pin. This item reddens tier1 and blocks CS-700 step b, which needs
+tier1 green, so `CLAUDE.md` section 7's product-before-process rule admits it. Related open items:
+CS-900, CS-917, CS-1012 and CS-1133 on tier 1's duration, and CS-1307, which moves guard-shard time.
+
+## CS-1318
+
+### Acceptance
+
+The cause of the hook-shard failure of the pre-commit case of
+`tests/test_hook_probe_bound.py::test_a_background_child_holding_stdout_is_refused_and_reaped`
+("the background process outlived the refusal - it was not reaped") is measured. Either the arm
+reproduces, and the reaping defect is fixed with the arm red first; or repeated runs on the ubuntu
+runner and on a loaded box show a load flake, and the arm's wait is made load-tolerant without
+raising the hook probe bound. A rerun alone never turns the red green, and no case is skipped.
+
+### Filed 2026-10-12 by the session 138 /done
+
+tier1 38262274792 at c7fc806 - a commit touching only `CS-NEXT-SESSION.txt`, `WAKEUP_NOTES.md`,
+`docs/LEDGER.md` and `docs/history_notes.md` - failed its hook shard, which runs on ubuntu-latest,
+on that one arm: 1 failed, 686 passed, 10 skipped. The same shard passed at 0e82056, the parent,
+and at 923e30f and 5b22e08. No record in the tree names this arm as flaky before, and the /done did
+not rerun the job. CS-1211, the same module's `hangs` reading a slow interpreter as hung under load,
+is FROZEN and is a sibling, not this arm.

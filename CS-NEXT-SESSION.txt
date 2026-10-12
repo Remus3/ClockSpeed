@@ -7,45 +7,54 @@ SESSION: 139
 THE SINGLE NEXT ACTION
 ================================================================================
 
-THE CS-700 FLIP BLOCK IS THIS SESSION'S FIRST AND ONLY WORK - INTERACTIVE, WITH THE OPERATOR
-PRESENT AT STEP e (Ruling Q3's reversal FIRED in session 138: docs/LEDGER.md, the 2026-10-12
-CS-700 DECISION RECORD). A HEADLESS SESSION NEVER STARTS THE BLOCK - a headless run stops after
-(1) and leaves the block for an interactive session. In order:
+TIER1 IS RED ON MAIN - THAT IS THE TOP ITEM (the /done rule: a red CI heads this prompt).
+tier1 38262274792 at c7fc806 - the session 138 /done's records push, four docs and no code -
+FAILED two jobs: "gates, lint, types, tests" read "tier 1 took 483s - OVER THE CEILING (budget
+420s, ceiling 480s)" (CS-1317, the breach the headroom watch predicted), and the ubuntu hook
+shard failed one reaping arm of tests/test_hook_probe_bound.py (CS-1318). Not rerun. The CS-700
+flip block's step b needs tier1 green and no commit may land on main from b to S12a, so THE
+REPAIR LANDS FIRST. THEN THE CS-700 FLIP BLOCK, still this session's first product-track work -
+INTERACTIVE, WITH THE OPERATOR PRESENT AT STEP e (Ruling Q3's reversal FIRED in session 138:
+docs/LEDGER.md, the 2026-10-12 CS-700 DECISION RECORD). A HEADLESS SESSION NEVER STARTS THE
+BLOCK. In order:
  (0) READS: ops/loop/control/inbox_status.json FIRST (the responder commits and pushes on main;
      proceed only while it reads idle); `git rev-parse HEAD`, `git ls-remote origin main` and
      `git log --oneline origin/main..main` - the session 138 /done's push results are in the
      REPORT at the foot of this file (a wrapper exit 0 can hide "clockspeed pre-push: BLOCKED";
      read the log line). READ CI for every SHA the session 138 /done pushed - tier1, every job,
-     AND each job's "tier 1 took" budget line - and the first tier2 nightly after 0e82056 (read
-     EVERY attempt). `python tools/inbox_watch.py`.
- (1) READ AND RULE, BEFORE STEP a: a DISTINCT adjudicator - never the operator (CLAUDE.md 6.1) -
-     rules whether CS-1315 or CS-1316 (product items filed in session 138; acceptance in
-     docs/item_notes/phase5.md and in OPEN ITEMS below) blocks the flip under "land all product
-     BEFORE the flip block". ADDED BY THE SESSION 138 /done, MEASURED: the same adjudication rules
-     on THE TIER-1 GATES JOB'S HEADROOM - its budget line read 473 s at 923e30f and 479 s at
-     0e82056 against the 420 s budget and the 480 s CEILING THAT FAILS THE JOB (the REPORT holds
-     this /done's own push reading). Step b needs tier1 green, and no commit may land on main from
-     b to S12a, so a ceiling breach at b strands the block mid-way. The headroom rule: shard or
-     cache, NEVER raise the pin. Record the ruling in docs/LEDGER.md. A ruled blocker lands FIRST
-     (TDD, a distinct adversary, ONE integration suite with Git's usr/bin on PATH, ONE push
-     through the git lock, tier1 read), then the block.
- (2) THE FLIP BLOCK below, from "BEFORE a" through step e, then WAIT at e (never /done on your
+     AND each job's "tier 1 took" budget line; the tier1 of its second push (subject in the
+     REPORT) is the second reading of both red jobs - and the first tier2 nightly after 0e82056
+     (read EVERY attempt). `python tools/inbox_watch.py`.
+ (1) READ AND RULE, BEFORE ANY CODE: a DISTINCT adjudicator - never the operator (CLAUDE.md 6.1)
+     - rules (i) CS-1317's repair route: shard or cache the gates job, NEVER raise the pin (no
+     tier1 budget, ceiling or bound raised, no test skipped or deselected); (ii) CS-1318: flake
+     or regression, decided by measurement, never by a rerun alone; (iii) whether CS-1315 or
+     CS-1316 (product items filed in session 138; acceptance in docs/item_notes/phase5.md and in
+     OPEN ITEMS below) blocks the flip under "land all product BEFORE the flip block". Record the
+     ruling in docs/LEDGER.md.
+ (2) LAND THE REPAIR: CS-1317, and CS-1318 where (1) rules it owed now - TDD where a test
+     applies, a distinct adversary, ONE integration suite with Git's usr/bin on PATH, ONE push
+     through the git lock - then READ tier1 GREEN on main (CS-1317's acceptance: two consecutive
+     tier1 runs with the gates job within budget). Then any blocker (1) ruled, the same way.
+ (3) THE FLIP BLOCK below, from "BEFORE a" through step e, then WAIT at e (never /done on your
      own while the ask is open). The CS-G03 FULL clean-machine re-walk runs ONCE, at the
      regeneration (S7a) tip, step c - never standalone (Q2). CS-1304 blocks the block only if a
-     deciding suite before step a shows its failure class (re-read it at that suite).
- (3) On the operator's own-words line: POST-CONFIRMATION (S9-S12a) as recorded below. Without
+     deciding suite before step a shows its failure class (re-read it at that suite). If the
+     remaining context cannot hold the block plus S9-S12a once the repair lands, Q3's reversal
+     applies again: the block is the next session's first work.
+ (4) On the operator's own-words line: POST-CONFIRMATION (S9-S12a) as recorded below. Without
      it: the RECOVERY RULE.
 
 ================================================================================
 THE NEXT SESSION'S ORDER (after the single next action)
 ================================================================================
 
- 1. The CS-700 flip block (above): reads, the read-and-rule step, a-e, wait, S9-S12a.
- 2. ONLY IF step (1) rules one a blocker: CS-1315, CS-1316 or the tier-1 gates headroom work,
-    BEFORE step a.
- 3. After the flip (later sessions): CS-1315 and CS-1316 (unless already landed as blockers),
-    then CS-1231 slice C and CS-1283, CS-1304, CS-1307, CS-1291, CS-1295, then the carried and
-    frozen lists (OPEN ITEMS below).
+ 1. TIER1 GREEN: the step (1) ruling, then CS-1317 (and CS-1318 as ruled), read green on main.
+ 2. Any flip blocker step (1) rules among CS-1315 and CS-1316, BEFORE step a.
+ 3. The CS-700 flip block (above): a-e, wait, S9-S12a.
+ 4. After the flip (later sessions): CS-1315 and CS-1316 (unless already landed as blockers),
+    CS-1318 if deferred, then CS-1231 slice C and CS-1283, CS-1304, CS-1307, CS-1291, CS-1295,
+    then the carried and frozen lists (OPEN ITEMS below).
 
 ================================================================================
 THE TOP TRACK - THE PUBLIC FLIP PATH (carried as the top track, in this order)
@@ -54,14 +63,16 @@ THE TOP TRACK - THE PUBLIC FLIP PATH (carried as the top track, in this order)
   DONE in session 138: PRODUCT BEFORE THE FLIP LANDED - CS-1312 (the non-negotiable 1
   exposure), CS-1285 (slices C and D) and CS-1288 (slice C) CLOSED, with CS-1298, CS-1313 and
   CS-1314; pushed 5b22e08..923e30f and 923e30f..0e82056, tier1 green at both, tier2 green at
-  923e30f. NEW PRODUCT ITEMS CS-1315 and CS-1316 - ruled at step (1) of the next action.
+  923e30f. NEW PRODUCT ITEMS CS-1315 and CS-1316 - ruled at step (1) of the next action. THE
+  /done's RECORDS PUSH c7fc806 TURNED TIER1 RED (CS-1317, CS-1318) - repaired before step a.
   DONE in session 137: s136-land landed with CS-1309; CS-1292 and CS-1308 CLOSED; Ruling 1 (PVR,
   secret scanning and push protection: the flip session turns them on through `gh api` as a
   fourth S12a act) and Ruling 2 (CS-953 CLOSED AS MOOT).
   1. CS-701 (handled by S7a) and CS-1304 (blocks the flip only if a deciding suite before step
      a shows its failure class - the session 138 pre-push suites and this /done's suite read no
      failure at all by their logs; that is NOT a ruling, re-read at the deciding suite).
-  2. THE STEP (1) ADJUDICATION: CS-1315, CS-1316 and the tier-1 gates headroom.
+  2. THE STEP (1) ADJUDICATION AND TIER1 GREEN: CS-1317 and CS-1318 repaired and read green;
+     CS-1315 and CS-1316 ruled.
   3. THE CS-G03 FULL CLEAN-MACHINE RE-WALK - UNBLOCKED; it runs at step c of the block (Q2).
   4. CS-700 steps a-d (THE FLIP BLOCK): the records commit and INBOX_STOP; the
      `--emit-historical` pin in tools/sha_citation_gate.py; the re-walk needing 0 failed;
@@ -93,7 +104,8 @@ READ THESE FIRST, IN THIS ORDER
   docs/item_notes/          phase7.md CS-700 (the flip plan, S7a script recorded verbatim,
                             S8/S10/S11 shapes, the identity-oracle residual, the session 131
                             notes, the "Session 137 ruling, recorded 2026-10-11" S12a note);
-                            phase5.md CS-1315 and CS-1316 (filed in session 138); phase7.md
+                            phase7.md CS-1317 and CS-1318 (filed by the session 138 /done, tier1
+                            red); phase5.md CS-1315 and CS-1316 (filed in session 138); phase7.md
                             CS-1231 (the session 132 and CS-1287 notes: v11 R2 UNHOLDS slice C),
                             CS-1283, CS-1291, CS-1295, CS-1304 (its session 135 ruling), CS-1307
                             (its session 137 verifier verdict and smallest remaining slice)
@@ -167,9 +179,10 @@ DIRTY FILES     none in the main checkout after the /done commits (read back in 
                 s138-* branches read 0 unlanded commits by patch-id (`git cherry main <branch>`)
                 and every s138 worktree read clean, by the session 138 /done.
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
-ANOTHER WRITER SHARES THIS TREE - the responder (above). ALLOCATE NEW IDS FROM CS-1317
+ANOTHER WRITER SHARES THIS TREE - the responder (above). ALLOCATE NEW IDS FROM CS-1319
   UPWARD AND RE-CHECK THE MAX FIRST (`git grep` and `git log --all` for the next id; CS-1316
-  was the highest in the tree and in all history at the session 138 /done).
+  was the highest in the tree and in all history at the session 138 /done's start, and that
+  /done filed CS-1317 and CS-1318).
 BRANCHES - KEEP, DO NOT PRUNE; CLASSIFY UNDER CS-1291 PART 7 (consumer check, classify by
   content, Recycle Bin, `git worktree prune`; never one a live agent uses). Name each by branch
   or tip subject, never by worktree id or unpublished SHA; find each with `git log --all
@@ -305,7 +318,10 @@ CS-1314     CLOSED: the flow's completeness and starvation read the unadmitted c
             class is a resolved producer only (the Q3(a) amendment).
 FILED       CS-1315 (the registry is built from the installed docs with no pin check) and CS-1316
             (/api/map shows the installed registry's extractor rate as an off-pin save's own) -
-            ROADMAP Phase 5, tier 2, sections in docs/item_notes/phase5.md.
+            ROADMAP Phase 5, tier 2, sections in docs/item_notes/phase5.md. BY THIS /done, on
+            the red tier1 at c7fc806: CS-1317 (the gates job past its 480 s ceiling) and CS-1318
+            (a reaping arm of tests/test_hook_probe_bound.py red on the ubuntu hook shard) -
+            ROADMAP Phase 7, tier 2, sections in docs/item_notes/phase7.md.
 BACKLOG     "Session 138 residuals": the CS-1285, CS-1288 and CS-1298/1313/1314 residual lines,
             each with its trigger.
 LEDGER      BY THIS /done: the CS-700 DECISION RECORD (Ruling Q3's reversal fired).
@@ -313,19 +329,30 @@ CHANNEL     no note sent by session 138 (no outbox note dated 2026-10-12).
 CI          tier1 38237839859 at 923e30f and 38254000817 at 0e82056 SUCCESS, all five jobs each;
             tier2 38239976940 at 923e30f SUCCESS, all 23 jobs, one attempt - the only tier2
             created after the 1668710 push (session 137's owed read). The session 137 hand-off
-            push 5b22e08: tier1 38191039718 SUCCESS, all five jobs. All read by the session 138
-            /done (`gh run view` and the jobs API).
+            push 5b22e08: tier1 38191039718 SUCCESS, all five jobs. THE /done's RECORDS PUSH
+            c7fc806: tier1 38262274792 FAILURE, one attempt, not rerun - the gates job over its
+            ceiling (CS-1317) and the hook shard's one failed arm (CS-1318); save, fill and guard
+            SUCCESS. All read by the session 138 /done (`gh run view` and the jobs API).
 
 ================================================================================
 OPEN ITEMS, PRIORITY ORDER
 ================================================================================
 
- 1 CS-700 - THE FLIP BLOCK, THIS SESSION'S FIRST AND ONLY WORK (THE SINGLE NEXT ACTION above),
-     INTERACTIVE, THE OPERATOR PRESENT AT STEP e. CS-1292 and CS-1308 LANDED; THE FULL CS-G03
-     RE-WALK runs at step c. CS-500's S9 overlay trace and S7/S8 (blocked on CS-1043, CS-1048,
-     CS-1058, CS-1243) as filed. CS-701 is handled by S7a; CS-704 and CS-959 at S12a (CS-959 is
-     closed: re-read the profile on the recreated repo - a CS-700 S12a check, not a close; PVR
-     endpoint 404 while private; Ruling 1 turns it on at S12a).
+ 0 CS-1317 AND CS-1318 - TIER1 IS RED ON MAIN, THE TOP ITEM (THE SINGLE NEXT ACTION above).
+     CS-1317: tier 1's gates job runs inside its 420 s budget by sharding or caching - the
+     tier1.yml budget and ceiling stay 420 and 480, no test skipped or deselected - read within
+     budget on two consecutive tier1 runs on main, every other job's budget line read on the same
+     runs, and CS-700 step b not started before that. CS-1318: the cause of the reaping arm's
+     failure is measured - it reproduces and is fixed red first, or repeated runs show a load
+     flake and the arm's wait is made load-tolerant without raising the hook probe bound; a rerun
+     alone never turns it green, no case skipped. Both tier 2; sections in phase7.md.
+ 1 CS-700 - THE FLIP BLOCK, THIS SESSION'S FIRST PRODUCT-TRACK WORK AFTER TIER1 IS GREEN (THE
+     SINGLE NEXT ACTION above), INTERACTIVE, THE OPERATOR PRESENT AT STEP e. CS-1292 and
+     CS-1308 LANDED; THE FULL CS-G03 RE-WALK runs at step c. CS-500's S9 overlay trace and
+     S7/S8 (blocked on CS-1043, CS-1048, CS-1058, CS-1243) as filed. CS-701 is handled by S7a;
+     CS-704 and CS-959 at S12a (CS-959 is closed: re-read the profile on the recreated repo - a
+     CS-700 S12a check, not a close; PVR endpoint 404 while private; Ruling 1 turns it on at
+     S12a).
  2 CS-1315 (ruled at step (1): a flip blocker, or after the flip): the registry provider verifies
      the installed docs file against the clockspeed/data/version.py pin (build and content
      hash) before any figure is priced, or the Registry carries the build it was extracted
@@ -362,14 +389,14 @@ CARRIED, NOT IN THE ORDER ABOVE:
  - CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
    (14,60) every inventory component payload ends in an 8-byte trailing run, 4 bytes
    unread, int32 0 on every sampled save. CS-1151 owns the stale (14,60) sentence.
- - TIER-1 HEADROOM WATCH - FIRED. Read by the session 138 /done from each job's "tier 1 took"
-   budget line (the "Duration against the budget" step): gates 336 s at 5b22e08, 473 s at
-   923e30f, 479 s at 0e82056 - over the 420 s budget, 1 s under the 480 s ceiling that FAILS
-   the job ("Over budget is a REPORT, not a failure"); fill 424 s, 424 s, 246 s; hook 384 s,
-   400 s, 390 s; guard 401 s, 264 s, 259 s; save 256 s, 269 s, 139 s. The gates job's "Unit
-   tests" STEP read 293 s, 415 s and 420 s and its "Type check" step 16 s, 23 s and 24 s.
-   Shard or cache when a shard crosses the budget; NEVER raise the pin. CS-1307 moves
-   guard-shard time. RULED AT STEP (1) FOR THE FLIP (step b needs tier1 green).
+ - TIER-1 HEADROOM WATCH - FIRED, AND THE CEILING BROKE (CS-1317). Read by the session 138
+   /done from each job's "tier 1 took" budget line (the "Duration against the budget" step), at
+   5b22e08, 923e30f, 0e82056 and c7fc806: gates 336 s, 473 s, 479 s, then 483 s - OVER THE
+   480 s CEILING, the job FAILED ("Over budget is a REPORT, not a failure"; the ceiling fails
+   it); fill 424 s, 424 s, 246 s, 322 s; hook 384 s, 400 s, 390 s, 378 s; guard 401 s, 264 s,
+   259 s, 365 s; save 256 s, 269 s, 139 s, 255 s. The gates job's "Unit tests" STEP read 293 s,
+   415 s and 420 s and its "Type check" step 16 s, 23 s and 24 s over the first three. Shard or
+   cache when a shard crosses the budget; NEVER raise the pin. CS-1307 moves guard-shard time.
  - FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
    ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206, CS-1215,
    CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032. (CS-953 CLOSED as moot in session 137;
@@ -494,7 +521,8 @@ RULING Q3'S REVERSAL FIRED - THE FLIP BLOCK IS THIS SESSION'S FIRST AND ONLY WOR
   standalone (Q2: once, at the regeneration tip). Rejected: starting the block in session 138; a
   standalone re-walk. Reversed by: the step (1) adjudication ruling CS-1315, CS-1316 or the tier-1
   headroom a flip blocker - then that lands first and the block follows; or the operator's own
-  words.
+  words. THE TIER-1 HALF IS NOW A MEASURED FACT, not a ruling: tier1 is red at c7fc806 (CS-1317,
+  CS-1318), and step b needs it green, so that repair lands before step a.
 CS-1312 GUARD OVER REMOVE (the merger; LEDGER CS-1312 CLOSED record): purge_work_dir has no
   production caller, but the module keeps it to clear personal-data-bearing copies; REMOVE lost
   (six files of citation-pin churn, a ledger-cited test body rewritten, no cleanup path left).
@@ -1027,9 +1055,11 @@ CLOSED BY THIS /done: nothing new. Every session 138 close (CS-1312, CS-1285, CS
   to docs/history_notes.md. CS-1315 and CS-1316 read present as ROADMAP lines with phase5.md
   sections; the BACKLOG "Session 138 residuals" section read present. All 17 s138-* branches read
   0 unlanded commits by patch-id and every s138 worktree clean.
-WRITTEN BY THIS /done: docs/LEDGER.md (the CS-700 DECISION RECORD - Ruling Q3's reversal fired);
-  WAKEUP_NOTES.md (session 138 added, session 135 relocated); docs/history_notes.md (WAKEUP
-  session 135 verbatim); this file. ROADMAP.md and BACKLOG.md unchanged - nothing to move.
+WRITTEN BY THIS /done, COMMIT 1: docs/LEDGER.md (the CS-700 DECISION RECORD - Ruling Q3's
+  reversal fired); WAKEUP_NOTES.md (session 138 added, session 135 relocated);
+  docs/history_notes.md (WAKEUP session 135 verbatim); this file. COMMIT 2, after the red tier1:
+  ROADMAP.md (the CS-1317 and CS-1318 lines); docs/item_notes/phase7.md (their sections);
+  WAKEUP_NOTES.md (the red tier1 in session 138's entry); this file. BACKLOG.md unchanged.
 TIER: 2 - session 138 touched the save layer (workdir.py), the advisor rules and wiring, the audit
   (balance, flow, fuel, overlay), the registry and the surface providers. THE WHOLE SUITE, run by
   this /done on the records tree (every edit above; this REPORT's text was written after it),
@@ -1048,44 +1078,61 @@ TIER: 2 - session 138 touched the save layer (workdir.py), the advisor rules and
   unexamined). `python -m ruff check .`: EXIT 0, "All checks passed!". The 8-file doc-reading set
   (archive rot, dated headings, doc budget, doc sweep x2, docs citations, ledger entry shape,
   readme audit), run first: EXIT 0, 835 passed.
-DOC RITUAL after the edits: python tools/drift_guard.py EXIT 0 (11 guards PASS, CLEAN); python
-  tools/doc_budget.py EXIT 0 (PASS, 0 over budget); python tools/memory_sync.py EXIT 0 (no tracked
-  change); python tools/sha_citation_gate.py EXIT 0 (PASS); each re-run after this REPORT was
-  written, results under COMMIT AND PUSH. `python tools/inbox_watch.py` EXIT 0: 0 unread of 535.
-  Logs: work/done138_*.log.
+DOC RITUAL after the commit 1 edits, and re-run on its final text: python tools/drift_guard.py
+  EXIT 0 (11 guards PASS, CLEAN); python tools/doc_budget.py EXIT 0 (PASS, 0 over budget); python
+  tools/memory_sync.py EXIT 0 (no tracked change); python tools/sha_citation_gate.py EXIT 0
+  (PASS); the 8-file doc-reading set EXIT 0, 835 passed; python tools/precommit_gate.py --staged
+  before staging EXIT 0 (PASS, 0 checked). For commit 2: COMMIT AND PUSH below. `python
+  tools/inbox_watch.py` EXIT 0: 0 unread of 535. Logs: work/done138_*.log.
 CI READ BY THIS /done (`gh run view` and the jobs API, every attempt): tier1 38191039718 at
   5b22e08, 38237839859 at 923e30f and 38254000817 at 0e82056 - SUCCESS, all five jobs each, one
   attempt each; the gates job's "Type check" step at 0e82056 read "Success: no issues found in
   412 source files". tier2 38239976940 at 923e30f (the only tier2 created after the 1668710 push):
-  SUCCESS, all 23 jobs, one attempt. THE TIER-1 BUDGET LINES: OPEN ITEMS, "TIER-1 HEADROOM WATCH -
-  FIRED".
+  SUCCESS, all 23 jobs, one attempt. THE TIER-1 BUDGET LINES: OPEN ITEMS, "TIER-1 HEADROOM WATCH".
+  tier1 at c7fc806, this /done's own push: COMMIT AND PUSH below.
 RESPONDER: inbox_status.json read state idle, task Idle, 0 runs in the window, at the /done's
   start (updated 08:11 on 2026-10-12), at 08:27 (updated 08:26) and before each commit and push
   (COMMIT AND PUSH).
 COUNTS READ: WORKTREES 65 lines; BRANCH REFS 348; CLAUDE.md 40790 bytes; OUTBOX 2026-10-12: 0
   notes; INBOX 0 unread of 535; OPEN PRs 0 (positive control: default branch main, 13 remote
-  heads); TOKEN SCOPES gist, read:org, repo, workflow; VISIBILITY private; HIGHEST ID CS-1316; KIT
-  v17; INBOX_STOP absent; QUEUE_STOP present (2026-09-19); subagent_first.mode "deny" (mtime
-  2026-10-10 07:19:27).
+  heads); TOKEN SCOPES gist, read:org, repo, workflow; VISIBILITY private; HIGHEST ID CS-1316 at
+  the start, CS-1318 after this /done filed CS-1317 and CS-1318; KIT v17; INBOX_STOP absent;
+  QUEUE_STOP present (2026-09-19); subagent_first.mode "deny" (mtime 2026-10-10 07:19:27).
 SESSION 138'S OWN PUSHES, READ BACK FROM THEIR LOGS: work/s138_push.log reads 15918 passed, 12
   skipped, 8 warnings in 1357.83 s and "5b22e08..923e30f  main -> main" (19 commits);
   work/s138_push2.log reads 16004 passed, 12 skipped, 8 warnings in 1269.50 s and
   "923e30f..0e82056  main -> main" (9 commits); neither log holds a "clockspeed pre-push:
   BLOCKED" line. `git ls-remote origin main` read 0e82056 at this /done's start.
-COMMIT AND PUSH: the records commit (subject "Session 138 /done - CS-700 Q3 record, WAKEUP,
-  session 139 hand-off") is committed and pushed through the git lock after this file is written.
-  Its SHA, its pre-commit and pre-push results and its tier1 are recorded by the hand-off-only
-  commit that follows it (subject "Session 138 /done - hand-off records the push and tier1
-  result"), which rewrites this paragraph.
-UNVERIFIED: the batch-2 adversary comparison's 94 unprinted inputs-capture differences (its script
-  and captures are gone; only the 8 printed are known - each the starvation entry gaining one
-  census-unjudged warning); the session 138 library counts (agent-reported - two independent
-  agents agreed on the 120 constructor records in 14 saves); whether any library save holds a
-  hover-pack or locomotive record (0 measured by those agents, not re-measured here); the session
-  138 agents' adversary and verifier verdicts and red-first reports (agent-reported, not re-run
-  here); where the session 138 verifier's planted mount point lived and whether it was removed
-  (this /done's link scan found none in the places it read - TEMP DIRS above); why local mypy
-  counts one more source file than tier1; the delivery of the responder's 2026-10-11-0610 note
-  into MAIN's inbox (no sibling-tree read).
-MARK: `fleet_done.py mark --session 138 --status done` after the read-back of the hand-off commit,
-  its push and this file.
+COMMIT 1 AND PUSH 1: the records commit c7fc806 (subject "Session 138 /done - CS-700 Q3 record,
+  WAKEUP, session 139 hand-off", 4 files) was committed through the git lock (pre-commit gate
+  PASS, 4 checked, 1 skipped, 0 blocking; wrapper exit 0; no trailer; git status clean after it)
+  and PUSHED through the git lock: the pre-push hook's gated whole suite read 16004 passed, 12
+  skipped, 8 warnings in 1271.35 s; git printed "0e82056..c7fc806  main -> main"; wrapper exit 0;
+  the log holds NO "clockspeed pre-push: BLOCKED" line. READ BACK: `git ls-remote origin main` =
+  c7fc806 = HEAD. Log: work/done138_push1.log. The responder read idle (updated 08:56) before the
+  commit and before the push.
+CI ON c7fc806, READ BY THIS /done: tier1 38262274792 FAILURE, one attempt, NOT RERUN. "gates,
+  lint, types, tests" FAILED at "Duration against the budget": "tier 1 took 483s - OVER THE
+  CEILING (budget 420s, ceiling 480s)" (CS-1317). "tests (hook shard)" FAILED at "Unit tests": 1
+  failed, 686 passed, 10 skipped - the pre-commit case of
+  tests/test_hook_probe_bound.py::test_a_background_child_holding_stdout_is_refused_and_reaped,
+  "the background process outlived the refusal - it was not reaped" (CS-1318). The save, fill and
+  guard shards SUCCESS. Log: work/done138_tier1_c7fc806.log.
+COMMIT 2 AND PUSH 2: this file, WAKEUP_NOTES.md, ROADMAP.md and docs/item_notes/phase7.md, subject
+  "Session 138 /done - tier1 red at c7fc806: file CS-1317 and CS-1318", committed and pushed
+  through the git lock after this paragraph was written, after drift_guard, doc_budget, the SHA
+  gate and a targeted doc and item-notes set read clean on this text (logs work/done138_*4.log).
+  ITS PUSH RESULT AND ITS CI ARE NOT IN THIS FILE: read them at step (0) of the next action.
+UNVERIFIED: whether CS-1318's red arm is a load flake or a regression (one red reading at c7fc806,
+  not rerun; the second push's tier1 is the next reading); the batch-2 adversary comparison's 94
+  unprinted inputs-capture differences (its script and captures are gone; only the 8 printed are
+  known - each the starvation entry gaining one census-unjudged warning); the session 138 library
+  counts (agent-reported - two independent agents agreed on the 120 constructor records in 14
+  saves); whether any library save holds a hover-pack or locomotive record (0 measured by those
+  agents, not re-measured here); the session 138 agents' adversary and verifier verdicts and
+  red-first reports (agent-reported, not re-run here); where the session 138 verifier's planted
+  mount point lived and whether it was removed (this /done's link scan found none in the places it
+  read - TEMP DIRS above); why local mypy counts one more source file than tier1; the delivery of
+  the responder's 2026-10-11-0610 note into MAIN's inbox (no sibling-tree read).
+MARK: `fleet_done.py mark --session 138 --status done` after the read-back of commit 2, its push
+  and this file.
