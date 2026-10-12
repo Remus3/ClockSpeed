@@ -9,12 +9,23 @@ about seventy thousand directories there, and the temp directory count costs
 boot time on this machine.
 
 THE MECHANISM. :func:`install`, called from the root conftest's
-``pytest_configure``, claims a fresh directory ``run-<pid>-<token>`` under the
-tree-owned root ``<temp>/clockspeed-pytest`` and points
-``PYTEST_DEBUG_TEMPROOT`` at it, so pytest builds its usual
-``pytest-of-<user>/pytest-<N>`` layout INSIDE that run directory. The variable
-is inherited, so xdist workers and nested pytest runs land there too, and a
-nested run that clears it claims a run directory of its own.
+``pytest_configure``, claims a fresh directory ``r-<token>`` under the
+tree-owned root ``<temp>/cs-pt``, gives pytest the base temp ``<run>/t``
+inside it, and points ``PYTEST_DEBUG_TEMPROOT`` at the run directory. xdist
+hands each worker ``<base>/popen-gw<N>``, so workers land there too; a nested
+pytest run inherits the variable and builds pytest's usual
+``pytest-of-<user>/pytest-<N>`` layout inside the run directory, and a nested
+run that clears it claims a run directory of its own.
+
+THE PATH BUDGET (CS-1320). The base temp is ``<temp>/cs-pt/r-<token>/t``, 19
+characters above the temp directory - never longer than pytest's own default
+``pytest-of-<user>/pytest-<N>/``, which is at least 21. The CS-1319 layout put
+its root and run directory ABOVE that default, about 37 characters deeper, and
+a clone into a tmp_path under xdist then hit the Windows path limit. The given
+base temp is ``t`` and never the run directory itself, because pytest empties a
+given base temp before use and the run directory holds the owner's marker. The
+CS-1319 root ``<temp>/clockspeed-pytest`` is swept by every install too
+(:func:`sweep_legacy`), so a run killed under the old name is not orphaned.
 
   - A claim never overrides a root already named in the environment, and an
     explicit ``--basetemp`` claims nothing: whoever chose the place owns it.
@@ -71,11 +82,20 @@ import pytest
 #: The variable pytest reads for the directory it builds ``pytest-of-<user>`` in.
 ENV_TEMPROOT: Final = "PYTEST_DEBUG_TEMPROOT"
 
-#: The tree-owned root's name, directly under the system temp directory.
-ROOT_NAME: Final = "clockspeed-pytest"
+#: The tree-owned root's name, directly under the system temp directory. Short
+#: on purpose: every character here is one less for a test's own paths.
+ROOT_NAME: Final = "cs-pt"
 
 #: Every run directory's name starts with this; the sweep touches nothing else.
-RUN_PREFIX: Final = "run-"
+RUN_PREFIX: Final = "r-"
+
+#: The base temp pytest is given, inside the run directory - never the run
+#: directory itself, which pytest would empty, marker and all.
+BASE_NAME: Final = "t"
+
+#: The CS-1319 root's name and its runs' prefix, swept by :func:`sweep_legacy`.
+LEGACY_ROOT_NAME: Final = "clockspeed-pytest"
+LEGACY_RUN_PREFIX: Final = "run-"
 
 #: A run directory older than this is a killed run's wherever its owner's
 #: liveness cannot be read. A whole suite takes minutes, so six hours never
@@ -202,13 +222,15 @@ def _owner_is_gone(run: Path) -> bool:
     return True
 
 
-def _classify(entry: os.DirEntry[str], clock: float) -> tuple[float | None, Path] | None:
+def _classify(
+    entry: os.DirEntry[str], clock: float, prefix: str = RUN_PREFIX
+) -> tuple[float | None, Path] | None:
     """One sweep verdict: None to keep, ``(None, run)`` to remove, or ``(age, run)``.
 
     The last is a failed run inside the stale age: kept or removed by
     :func:`sweep` once every failed run's age is known.
     """
-    if not entry.name.startswith(RUN_PREFIX):
+    if not entry.name.startswith(prefix):
         return None
     run = Path(entry.path)
     try:
@@ -225,7 +247,7 @@ def _classify(entry: os.DirEntry[str], clock: float) -> tuple[float | None, Path
     return (None, run) if gone else None
 
 
-def sweep(parent: Path, now: float | None = None) -> int:
+def sweep(parent: Path, now: float | None = None, prefix: str = RUN_PREFIX) -> int:
     """Remove every run directory under ``parent`` whose owner is gone.
 
     Gone means past :data:`GRACE_S` and, on Windows, provably exited
@@ -239,6 +261,7 @@ def sweep(parent: Path, now: float | None = None) -> int:
     Args:
         parent: The tree-owned root.
         now: The clock to age against; the wall clock when omitted.
+        prefix: The run directories' name prefix; nothing else is touched.
 
     Returns:
         How many run directories were removed.
@@ -251,7 +274,7 @@ def sweep(parent: Path, now: float | None = None) -> int:
     doomed: list[Path] = []
     failed: list[tuple[float, Path]] = []
     for entry in entries:
-        verdict = _classify(entry, clock)
+        verdict = _classify(entry, clock, prefix)
         if verdict is None:
             continue
         failed_age, run = verdict
@@ -266,6 +289,30 @@ def sweep(parent: Path, now: float | None = None) -> int:
         remove_tree(run)
         if not os.path.lexists(run):
             removed += 1
+    return removed
+
+
+def sweep_legacy(temp: Path, now: float | None = None) -> int:
+    """Sweep the CS-1319 root under ``temp`` with :func:`sweep`'s verdicts.
+
+    The root itself is removed once it is empty; a sibling still on the old
+    layout that loses that race falls back to pytest's default, as any claim
+    that cannot make its directory does. A root that is a link is never
+    touched. Never raises.
+
+    Args:
+        temp: The system temp directory the old root sits in.
+        now: The clock to age against; the wall clock when omitted.
+
+    Returns:
+        How many run directories were removed.
+    """
+    legacy = temp / LEGACY_ROOT_NAME
+    if _is_link(legacy):
+        return 0
+    removed = sweep(legacy, now, LEGACY_RUN_PREFIX)
+    with contextlib.suppress(OSError):
+        legacy.rmdir()
     return removed
 
 
@@ -290,7 +337,7 @@ def claim(parent: Path, env: MutableMapping[str, str]) -> Claim | None:
         parent.mkdir(parents=True, exist_ok=True)
         sweep(parent)
         while True:
-            run = parent / (RUN_PREFIX + str(os.getpid()) + "-" + secrets.token_hex(4))
+            run = parent / (RUN_PREFIX + secrets.token_hex(4))
             try:
                 run.mkdir(mode=0o700)
             except FileExistsError:
@@ -340,12 +387,28 @@ class _Finisher:
         finish(self.run, exitstatus)
 
 
+def _give_basetemp(config: pytest.Config, run: Claim) -> None:
+    """Hand pytest ``<run>/t`` as its base temp, as if ``--basetemp`` named it.
+
+    pytest's own ``pytest_configure`` built its temp path factory before this
+    trylast hook ran, so the factory is rebuilt from the amended option - the
+    same object xdist reads each worker's base temp from at session start. A
+    session without the tmpdir plugin has no factory and is left alone.
+    """
+    if not hasattr(config, "_tmp_path_factory"):
+        return
+    config.option.basetemp = str(run.path / BASE_NAME)
+    factory = pytest.TempPathFactory.from_config(config, _ispytest=True)
+    # pytest has no public setter; its tmpdir plugin and xdist both read this.
+    config._tmp_path_factory = factory  # noqa: SLF001
+
+
 def install(config: pytest.Config) -> Claim | None:
-    """Claim this session's run directory and register its finisher.
+    """Claim this session's run directory, give pytest its base temp, register the finisher.
 
     An explicit ``--basetemp`` claims nothing, and neither does a process whose
     environment already names a temp root: an xdist worker, a nested run, or
-    an operator's own choice.
+    an operator's own choice. The CS-1319 root is swept first either way.
 
     Args:
         config: The session's configuration.
@@ -355,8 +418,10 @@ def install(config: pytest.Config) -> Claim | None:
     """
     if config.getoption("basetemp", None) or config.pluginmanager.has_plugin(PLUGIN_NAME):
         return None
+    sweep_legacy(Path(tempfile.gettempdir()))
     run = claim(own_root(), os.environ)
     if run is not None:
+        _give_basetemp(config, run)
         config.pluginmanager.register(_Finisher(run), PLUGIN_NAME)
     return run
 

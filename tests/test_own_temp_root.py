@@ -289,7 +289,7 @@ def test_a_live_run_is_never_swept_however_old_it_is(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("ahead_s", [GRACE_S + 600, STALE_AFTER_S + HOUR])
 def test_the_sweep_never_reaches_through_a_run_named_link(tmp_path: Path, ahead_s: float) -> None:
-    """A ``run-*`` entry that is a junction is left alone, and so is its target.
+    """An ``r-*`` entry that is a junction is left alone, and so is its target.
 
     The adversary's finding on the first candidate: inside the liveness window
     the probe unlinked the marker THROUGH the junction, deleting a file outside
@@ -430,3 +430,35 @@ def test_a_failed_run_is_ranked_even_inside_the_grace_period(tmp_path: Path) -> 
     survivors = sorted(path.name for path in tmp_path.iterdir())
     assert removed == 1, "the sweep did not reclaim the older failed run inside grace"
     assert survivors == [newer.path.name], "the sweep kept the older failed run"
+
+
+def test_dead_runs_under_the_cs1319_root_name_are_still_reclaimed(tmp_path: Path) -> None:
+    """CS-1320 renamed the root; a killed run left under the old name is not orphaned.
+
+    The old root's runs carry the old prefix and the same liveness marker, so
+    the same sweep verdicts apply to them: a stale run goes, a fresh one and a
+    stranger stay. A root left empty is removed.
+    """
+    legacy = tmp_path / own_temp_root.LEGACY_ROOT_NAME
+    stale = legacy / (own_temp_root.LEGACY_RUN_PREFIX + "1-stale")
+    fresh = legacy / (own_temp_root.LEGACY_RUN_PREFIX + "2-fresh")
+    stranger = legacy / "not-a-run"
+    for directory in (stale, fresh, stranger):
+        (directory / "pytest-of-someone" / "pytest-0").mkdir(parents=True)
+    _age(stale, STALE_AFTER_S + HOUR)
+    removed = own_temp_root.sweep_legacy(tmp_path)
+    survivors = sorted(path.name for path in legacy.iterdir())
+    assert removed == 1, "the legacy sweep did not report exactly one removal"
+    kept_right = survivors == sorted([fresh.name, stranger.name])
+    assert kept_right, "the legacy sweep took the wrong entries"
+    for directory in (fresh, stranger):
+        own_temp_root.remove_tree(directory)
+    own_temp_root.sweep_legacy(tmp_path)
+    root_left = legacy.exists()
+    assert not root_left, "an empty legacy root was left standing"
+
+
+def test_a_missing_legacy_root_sweeps_nothing(tmp_path: Path) -> None:
+    """A machine that never ran the CS-1319 layout has no old root; not an error."""
+    removed = own_temp_root.sweep_legacy(tmp_path)
+    assert removed == 0, "a sweep of a missing legacy root reported removals"
