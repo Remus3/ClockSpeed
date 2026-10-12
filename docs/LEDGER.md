@@ -514,18 +514,25 @@ and `clockspeed/save/workdir.py::copy_for_read`, over the shared gate
 `::test_purge_leaves_junctions_inside_the_copies_directory_and_what_is_behind_them`,
 `::test_a_respelled_route_into_the_save_directory_is_refused_by_each_gated_caller`,
 `::test_each_layer_of_the_forbidden_root_compare_refuses_a_respelled_route_alone`,
-`::test_a_destination_the_identity_walk_cannot_stat_is_refused_without_a_path` and
-`::test_a_link_left_at_the_partial_name_is_removed_not_written_through`. Each was red first on its
-parent at "the save directory changed", or for the junction at the partial name at "the copy
-refused", per its builder; not re-observed here. Merged: `clockspeed/save/workdir.py` and
-`tests/save/test_workdir.py`. The commits are named by subject, "CS-1312 - purge_work_dir refuses
-a copies dir that reaches a save dir" through "CS-1312 - a link left at the partial name is
-removed, never followed". The item's section is relocated verbatim to `docs/history_notes.md`.
+`::test_a_destination_the_identity_walk_cannot_stat_is_refused_without_a_path`,
+`::test_a_link_left_at_the_partial_name_is_removed_not_written_through` (hardlink, symlink,
+dangling-symlink and junction),
+`::test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_through`
+(readonly-symlink, readonly-dangling-symlink, readonly-junction, readonly-directory-symlink and
+directory) and `::test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused` (symlink
+and dangling-symlink). Each was red first on its parent at "the save directory changed", or for
+the junction at the partial name at "the copy refused", per its builder; not re-observed here.
+The exceptions, per the fix 3 and fix 4 builders: the directory, readonly-junction and
+readonly-directory-symlink arms passed on their parents and pin the classification against
+widening. Merged: `clockspeed/save/workdir.py` and `tests/save/test_workdir.py`. The commits are
+named by subject, "CS-1312 - purge_work_dir refuses a copies dir that reaches a save dir" through
+"CS-1312 - an unreadable entry at the partial name is refused". The item's section is relocated
+verbatim to `docs/history_notes.md`.
 THE ACCEPTANCE, by its guard branch: the purge now passes `discard_copy`'s forbidden-root check
 before it lists the copies directory, and each entry through the same parent check, both through
 the two shared helpers so the delete paths cannot drift; the junction, symlink and nested arms
 hold a fake save directory byte-identical by hash; and a distinct adversary pass followed, two
-rounds below. CS-453's guard branch, absorbed by this item, is met by the same route.
+adversary rounds and three verifier rounds below. CS-453's guard branch, absorbed by this item, is met by the same route.
 DECISION RECORD (decided by the session 138 merger): ROUTE GUARD OVER REMOVE. No production
 caller exists. Consumer evidence, `git grep -n purge_work_dir` on the landing branch: the
 definition and the module's own docstrings and comments in `clockspeed/save/workdir.py`; call
@@ -546,9 +553,23 @@ on a stat that fails for any reason but absence. Round 2, the path-identity and 
 lens, read NOT REFUTED over 738 probes (agent-reported), and normal reads were not refused. The
 landing check then found that `copy_for_read` opened its `.partial` name through a planted link,
 no race needed; fix 2 removes a leftover entry at that name, as an entry and never what it
-reaches, before the stream. THE VERIFIER on fix 2: PENDING AT WRITING; its verdict is not recorded
-here. ADVERSARY LOOP STOPPED BY COST AGAINST RISK after round 2 plus a verifier. Reversed by: a
-residual below reached from a real input.
+reaches, before the stream. THE VERIFIER on fix 2 REFUTED it: a symlink at the `.partial` name
+with the read-only attribute set on the link itself survived the removal, and the "wb" open
+followed it - a live one overwrote the target save, a dangling one created a new file in the save
+directory. Fix 3 refuses anything left at the partial name after the removal with
+`clockspeed/save/workdir.py::DestinationRefusedError`, rendering no path, except a plain
+directory (no link, no reparse point), which the open cannot write through and which is kept so
+the forced arm of `tests/test_chained_cause.py` still reaches its handler. THE VERIFIER on fix 3
+REFUTED it: a link denied delete and read-attributes, inside a copies directory denied
+delete-child and list, with the backup and restore privileges disabled, was invisible to
+os.path.lexists - the lstat raised and lexists swallowed it - and the open followed it. Fix 4
+makes the check one lstat: not found proceeds, any other OSError refuses, a plain directory
+passes to the open, anything else refuses. THE VERIFIER on fix 4 CONFIRMED it: 21 real-ACL
+attacks with the privileges disabled, every one refused with the fake save root byte-identical,
+where the previous candidate in the same harness wrote into the fake save directory in 12 of
+them; a normal copy still byte-exact (agent-reported). ADVERSARY LOOP STOPPED BY COST AGAINST
+RISK after round 2, three verifier rounds and fix 4 confirmed. Reversed by: a residual below
+reached from a real input.
 RESIDUALS, recorded and not fixed.
 (a) J9: the copies directory swapped between the check and the unlink, which needs a hostile
 local process.
@@ -562,6 +583,11 @@ through an operator-set variable.
 (f) Volumes that share a serial number could be falsely refused.
 (g) The per-entry parent check inside the purge cannot be isolated by a failing test: its mutant
 survives, because the check differs only inside the J9 window.
+(h) The denied-lstat arm reproduces the denial by injection: Python 3.14's os.path.lexists on
+Windows is a C builtin that bypasses os.lstat, so the test denies both.
+(i) The real-ACL attack that refuted fix 3 is verified against fix 4 but is not a test.
+(j) An exclusive create would still follow a dangling symlink on Windows and create its target
+(measured).
 
 ### 2026-10-11 - CS-1302 - CLOSED: the dev extra pins mypy to one exact release, the one this box runs, and bare mypy exits 0 under it in tier1
 Verification: `pyproject.toml`, the `dev` extra's `mypy==2.1.0` line and the comment above it;
