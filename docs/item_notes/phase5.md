@@ -506,121 +506,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1285
-
-### Filed 2026-10-08 by the session 133 planner
-
-`BOOTSTRAP.md:564-567` names fuel chain sizing as half of D4, power and fuel planning, but the
-power family registers only `power.headroom` and `power.draw_incomplete`
-(`clockspeed/advisor/rules/power.py::RULES`), and the 2026-10-04 CS-500 progress record in
-`docs/LEDGER.md` lists the D4 fuel half as having no rule. Nothing below the advisor could feed
-one: `clockspeed/data/registry.py::Generator` carries no fuel field - only its key, display name,
-power production and the variable-production pair with its flag - so no layer knows which fuels
-a built generator burns. The shipped docs carry them as `mFuel`; the measured shape and the three
-design rulings are the 2026-10-08 CS-1285 decision record in `docs/LEDGER.md`.
-
-### Slice plan
-
-In order, each on the stated model of the one before it:
-
-- A, registry field: the appended, defaulted accepted-fuels field on `Generator`, read from
-  `mFuel`, plus the two fields ruling (d) below names. Lands only after CS-1281, merged in
-  session 134, and also corrects the stale `mFuel` sentence in that module's docstring
-  (the "Every scalar is a string" bullet).
-- B, computation: a new `fuel` module in `clockspeed/audit/` - per-class demand, per-fuel
-  supply, pooled energy, the exact shortfall and every indeterminate cause. Its verdicts
-  decide fluid fuels only, per the ruling below.
-- C, advisor rules: `power.fuel_supply` and the companion demand card, in their own family
-  module in `clockspeed/advisor/rules/`.
-- D, wiring: `clockspeed/advisor/advise.py` composes the new family, so GET /api/advice carries
-  the fuel trace.
-
-### RULING - filed 2026-10-09 (session 134) by a distinct adjudicator: slice B v2, narrowed
-
-Binding on slices A, B and C. It replaces any slice A or slice B text above that it
-contradicts. The slice B candidate - its tip the commit "CS-1285 - slice B fix 3: an
-unregistered class is never assumed inert", on an unpublished worktree branch - is NOT
-merged: it was refuted four times, and v2 rebuilds on it next session.
-
-DECISION: binding v2, narrowed - verdicts decide fluid fuels only.
-
-(a) A record no flow rates unmeasures a fuel when its class produces a registry recipe
-naming that fuel as input OR output, or when the class can extract it. An undeclared class,
-or one whose relation is unknown, unmeasures every fuel. A generator's own `mFuel` counts as
-demand, never as relation. Solid fuels are never measured, under a new reason
-`solid-supply-unmodelled`, because players, vehicles, sinks and stations move solids and
-every real save holds a player.
-
-(b) The `fuel` module filters; `clockspeed/audit/machines.py` is unchanged (it is on
-CS-1280's write-list). Per unrated class:
-
-- unregistered: an unreadable name, an untabled undeclared `Build_` class, or an admitted
-  machine of an undeclared class;
-- judged by (a): a declared class;
-- holds no fluid, counted on `WorldFuel`: a tabled class or any other census class.
-
-Rejected: a record kind in `clockspeed/audit/machines.py` (collides with CS-1280); a closed
-allowlist of 97 classes (goes stale).
-
-(c) A frozenset in the `fuel` module: the 9 undeclared build classes (the HUB built-in
-parts, path nodes, the flow indicator, the potty) plus `Build_GeneratorIntegratedBiomass_C`,
-a solid burner the solid reason covers. `BP_Tractor_C` needs no row; (b) covers it. The
-builder takes the names from a fresh read-only probe (class names only) and records them in
-`docs/LEDGER.md`.
-
-(d) Slice A appends two defaulted fields to `clockspeed/data/registry.py`:
-
-- `Extractor.allowed_resources`, from `mAllowedResources` when
-  `mOnlyAllowCertainResources` reads `'True'`, else None;
-- `Registry.declared_classes`, every ClassName of a recognized group.
-
-Extractable = `allowed_resources`, else the items of `allowed_forms`. The oil pump yields
-crude only. Order: CS-1281, then CS-1285 A, then CS-1285 B.
-
-(e) A clock-0 maker firing stands: it is the nominal answer, and
-`clockspeed/audit/flow.py` owns the clock domain.
-
-(f) No new slice, and nothing moves to D. The signature becomes
-`fuel_supply_of(machines, registry, *, raw_items=())`; the caller-supplied mappings go.
-Binding on slice C: the demand card fires on every indeterminate class.
-
-Write-list A: `clockspeed/data/registry.py`, `tests/data/test_registry.py`,
-`tests/data/synthetic.py`, `tests/surface/test_registry.py`.
-Write-list B: the `fuel` module in `clockspeed/audit/` and its `test_fuel` module in
-`tests/audit/` (the COAL verdict tests move to FUEL).
-
-Red first - each arm's name is the `test_` prefix plus the stem listed here, the prefix left
-off so no doc cites an arm before it exists: allowed_resources_only_when_restricted,
-unknown_group_classes_are_undeclared, a_recipe_less_eater_unmeasures_its_fluid_fuel,
-a_recipe_less_generator_a_fuel_recipe_names_unmeasures_it, a_solid_fuel_is_never_measured,
-a_non_buildable_census_record_never_blocks_a_fluid_verdict,
-an_untabled_undeclared_buildable_is_unregistered,
-an_oil_extractor_leaves_liquid_fuel_measured, the_audit_takes_only_machines_and_registry.
-Pinned green on arrival: a_clock_zero_maker_fires.
-
-Runner-up: solids measured unless a non-buildable record exists. It lost because every real
-save holds a player.
-
-Common-mode risk: the undeclared-class list comes from one save, and "Build_ means
-buildable" is a convention.
-
-Residual check before close: re-run the real-save probe on v2. `Desc_LiquidFuel_C` must
-carry no unmeasured or unregistered reason.
-
-### Partial ship recorded 2026-10-11 (session 137) - slices A and B v2 landed, slices C and D remain
-
-Slices A and B v2 landed with the session 137 landing branch. Their records - the merged files,
-the test names, slice B v2's upstream-shortfall ruling (Ruling 5) and its close notes - are the
-two 2026-10-11 CS-1285 records in `docs/LEDGER.md`. Ruling 5 adds nothing slice C must build:
-a fluid line whose chain holds an uncovered input is indeterminate, and the demand card already
-fires on every indeterminate class (ruling (f)). Option C, derating, is a `BACKLOG.md` line.
-The real-save probe re-run, its count per reason and the residual check above are recorded under
-(8) in the 2026-10-11 CS-1285 slice B v2 record in `docs/LEDGER.md`.
-
-### Acceptance
-
-A registered rule power.fuel_supply in its own family module declares every input it reads and no unlock. Generator gains an appended, defaulted field read from mFuel: accepted fuel keys in document order, or None when absent or unreadable, never an empty tuple, and an unreadable value is a named warning. Per built fuel generator class, demand is the exact Fraction sum over built instances of nameplate MW times clock; a fluid's energy value is per litre and is converted to MJ per cubic metre through LITRES_PER_CUBIC_METRE; a class with no fuel (geothermal) is out of scope. Supply is aggregated per fuel. The rule fires only when the pooled energy of all accepted fuels (supply times energy over 60, in MW) falls short of the class's demand, with the exact shortfall; it rejects only when that pooled energy covers demand over a complete flow. A fuel accepted by two built classes makes both indeterminate; an incomplete flow, an unknown energy value, unreadable fuels, an unread generator clock or a production gap is indeterminate, never a verdict. Tier 3 converts the shortfall into a rate for every accepted fuel; the headline fuel is chosen in mFuel order; tiers 1 and 2 name fuel, figure and generator count; tier 3 is generated from the trace. Over an incomplete flow, a companion demand card states each class's nameplate burn per accepted fuel, claims nothing about supply, and never fires where power.fuel_supply decides. Supplemental resources (water) and byproducts (nuclear waste) are out of scope and named as such on tier 3. GET /api/advice carries the fuel trace.
-
 ## CS-1288
 
 ### Filed 2026-10-08 by the session 133 CS-1286 adversary
@@ -726,3 +611,24 @@ partitions only `machines.machines`, so neither sees the records the census coun
 admits - the blind spot CS-1266 closed for the clocked draw. CS-1280 has now made the balance
 price part of that unadmitted population, so the balance and the flow judge different
 populations. The line is relocated to `docs/history_notes.md`.
+
+## CS-1315
+
+### Acceptance
+
+The registry provider verifies the installed docs file against the clockspeed/data/version.py pin (build and content hash) before any figure is priced, or the Registry carries the build it was extracted from; a mismatch produces a named warning on the audit and every advice card (the CS-1288 build-input path), a synthetic fixture whose docs hash differs from the pin fires it and a matching one does not, and nothing prices a figure from an unverified registry silently.
+
+### Filed 2026-10-12 (session 138) from the CS-1288 slice C adjudication
+
+The source is the common-mode risk record of the session 138 CS-1288 slice C adjudication, whose
+residual (b) names this as a product correctness gap. `clockspeed/surface/providers.py::InstalledRegistryProvider`
+builds the registry from the docs file of the INSTALLED game, and nothing on the request path
+compares that file with the pin - neither `clockspeed/data/version.py::GAME_BUILD` nor
+`clockspeed/data/version.py::DOCS_SHA256`. After a game patch, until the pin moves, a save equal
+to the pin is priced at the patched install's nameplate with no warning, and the CS-1288 suffix
+that calls a figure priced at the pinned build is false. CS-1288 compares the save's build with
+the pin; this item compares the registry's own source with it.
+
+A RELATED QUESTION, NOT THIS ITEM: GET /api/map serves `per_minute_normal` from the installed
+registry beside the save's placed extractors (`clockspeed/surface/api/map.py::_rate_of`). Whether
+that is owed an item of its own is the adjudication's residual (c), for a CS-1288 refuter to rule.

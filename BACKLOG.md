@@ -572,3 +572,36 @@ blocks a product item or reddens a suite.
   renders either today; the base held one such path, the slice one per refused or identified
   save - TRIGGER: a locals- or vars-rendering path reaches a log, report or response. The
   close: `docs/LEDGER.md`, the 2026-10-11 CS-1309 CLOSED record.
+
+## Session 138 residuals - filed 2026-10-12 under product before process
+
+The CS-1285 close's residuals: the slice C rulings G1 to G6, the two adversary refutations and
+the verifier are its records in `docs/LEDGER.md`, 2026-10-12. None blocks a product item or
+reddens a suite.
+
+- From the CS-1285 slice C rulings: the fuel demand card's subject is the sorted set of its fired
+  classes (G1), so a dismissed demand card shows again whenever that set changes - TRIGGER: the
+  engine issues one card per subject per rule (G1's reversal), or a dismissed fuel card is
+  reported back.
+- From the CS-1285 slice C rulings: a world with a built solid burner never auto-completes the
+  fuel supply card, since `power.fuel_supply` records an indeterminate step for every
+  indeterminate class and solid fuels are never measured (G2) - TRIGGER: a measured source for
+  solid supply, or per-subject settlement in the ledger.
+- COMMON-MODE, from the CS-1285 close: the fuel supply FIRE path has one reachable vanilla class,
+  the liquid-fuel burner, and no library save builds one, so no real save has driven a fuel FIRE
+  or REJECT; the rule's recomputation shares the fuel audit's formulas, so their agreement
+  catches wiring faults, not formula faults; and the v2 ruling's `Desc_LiquidFuel_C` residual
+  check is unmeasured for the same reason - TRIGGER: the first library save with a liquid-fuel
+  generator built: probe both fuel cards read-only.
+- From the CS-1285 adversaries: the fuel demand card's tier-2 "N built generators were never
+  read" sums over every fired class without naming the class - TRIGGER: that reason text next
+  changes, or a reader asks which class.
+- From the CS-1285 adversaries: which reason the fuel demand card's tier-2 detail cites when a
+  class carries several is not ruled (the rulings are silent) - TRIGGER: a ruling on reason
+  precedence, or that detail text next changes.
+- From the CS-1285 adversaries: a known demand beside an `instances-omitted` reason fires a
+  settled fuel demand card, reachable from synthetic inputs only - TRIGGER: the fuel audit lets a
+  class with an omitted instance keep a known demand.
+- From the CS-1285 adversaries: the import detector in `tests/surface/test_advice_source.py`
+  misses relative imports, and none exist today - TRIGGER: the first relative import in the code
+  it scans.

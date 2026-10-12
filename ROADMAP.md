@@ -262,7 +262,6 @@ CS-1148 - CS-1119's filed headline calls the trailing run's second remainder sha
 CS-1149 - the trailing run's residual population is recorded as ONE shape and is measured to be at least five - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1150 - one residual carrier class's trailing run carries platform account strings in plaintext, so any reader of that region is an echo path - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on NO payload and the walk reaches one on six figures of them - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1312 - `purge_work_dir` deletes through a junction into the save directory - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit
@@ -287,11 +286,11 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1285 - the D4 fuel half has no rule, so no card sizes a built generator's fuel burn against the fuel the world makes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1288 - a save written on a build other than the pinned one is priced at the pinned nameplate with no warning - 12 MW-era Mk2 miners are overstated 25 percent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1298 - the flow still counts a class that cannot be clocked as an elided clock, and two flow docstrings claim the balance's own elided test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1313 - since CS-1280 a clean tagless record of the hover pack, which the registry lists as a 100 MW consumer, would be priced as a built machine - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1314 - the flow and `starvation_of` judge completeness over the machines population only, blind to unadmitted records - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1315 - the registry is built from the installed docs file with no check against the version pin, so after a game patch an on-pin save is priced at the new install's nameplate with no warning - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

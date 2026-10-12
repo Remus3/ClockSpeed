@@ -1306,35 +1306,3 @@ therefore stronger evidence than a CLEAR, which cuts in this row's favour.
 ### Acceptance
 
 the mechanism by which `tests/save/test_absolute_claims.py::test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it` costs its share is NAMED in this repository rather than the share restated, the naming cites what the test actually does rather than its duration, and either that cost is reduced with a before-and-after runner profile reporting the save shard's share both times or the concentration is ruled irreducible with that mechanism as the reason - and no level is moved and no test is marked `slow` to reach either outcome
-
-## CS-1312
-
-### Acceptance
-
-`clockspeed/save/workdir.py::purge_work_dir` mirrors the forbidden-root check and the parent
-check of `clockspeed/save/workdir.py::discard_copy` before it removes anything, with junction
-and symlink tests in which a fake save directory stays byte-identical; OR `purge_work_dir` is
-removed, its tests with it, when a consumer check finds no caller, and the removal is recorded
-with that consumer evidence. Either route is followed by a distinct adversary pass.
-
-### Filed 2026-10-11 (session 137) by the CS-1309 verifier
-
-`clockspeed/save/workdir.py::purge_work_dir` has no forbidden-root check, unlike
-`clockspeed/save/workdir.py::discard_copy`. A session 137 verifier's probe deleted 1 to 2
-copy-suffixed files through a pre-planted junction or symlink into a fake save directory in 5 of
-5 variants, on head and on base, so it is not a CS-1309 regression. It has no production caller:
-`git grep` finds the name outside `tests/` and `docs/` only in `clockspeed/save/workdir.py`
-itself - its definition plus its own docstrings and comments, 0 call sites - and 6 call sites in
-two test modules, `tests/save/test_workdir.py` and `tests/save/test_newest_world.py`. It is a
-non-negotiable 1 exposure: a delete is a write, and this one can land in the save directory.
-
-OVERLAP WITH CS-453, stated so the two are not worked twice. CS-453, OPEN at tier 2 with its
-detail in `docs/item_notes/phase4.md`, asks that the delete path consult the refuse list, and was
-filed at tier 2 on the ground that the copies-directory and suffix conditions bound what a purge
-can remove. This probe measured that bound false through a junction or a symlink. A slice that
-closes CS-1312 by the guard route meets CS-453's first acceptance branch as well, and CS-453's
-exemption branch no longer has a true bound to assert.
-
-SUPERSESSION, session 137: CS-1312 absorbs CS-453, whose line is removed from `ROADMAP.md`,
-whose section is relocated verbatim to `docs/history_notes.md` and whose record is in
-`docs/LEDGER.md`, so this item alone carries the delete-path gap both named.

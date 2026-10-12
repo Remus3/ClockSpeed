@@ -35,7 +35,7 @@ clockspeed/
     power.py
   audit/          pillar 3 whole-world audit - PLACEMENT AND INVENTORY ONLY
   progress/       pillar 4 milestone routing - NOT BUILT
-  advisor/        pillar 5 - trace, cards and ledger built; no rules yet
+  advisor/        pillar 5 - trace, cards, ledger and the D4 power and fuel rule families
     trace.py
     cards.py
     ledger.py
@@ -78,7 +78,7 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/advisor/trace.py` | The rule execution trace: declared inputs, the unlock gate, exact reads, and the one engine-held record every explain tier projects from. A faulting rule becomes a `rule-error` step, never a crash. |
 | `clockspeed/advisor/cards.py` | The advice card: a sha256 identity over rule, subject and target, and three read-only tiers projected from one trace. |
 | `clockspeed/advisor/ledger.py` | The per-world ledger, keyed by a digest of the world token, and the global per-rule mute store - two atomically written files. |
-| `clockspeed/advisor/rules/` | NOTHING YET. The package is reserved for pillar 5 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
+| `clockspeed/advisor/rules/` | One module per rule family, each listed by hand in `clockspeed/advisor/rules/__init__.py::_FAMILIES`. The D4 families ship: power in `clockspeed/advisor/rules/power.py` and fuel in `clockspeed/advisor/rules/fuel.py`. A rule reads only the inputs it declares, handed to it by the trace engine, and opens no file. D1 to D3 have no rule yet; what they will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
 | `clockspeed/surface/server.py` | The local HTTPS listener and static serving. Port allocation is recorded in `config/ports.json`; see `docs/OPERATIONS.md`. |
 | `clockspeed/surface/api/` | JSON endpoints. Serialization only - no computation. |
 | `clockspeed/surface/web/` | Dashboard assets. |
@@ -235,9 +235,11 @@ emitting a dependency-ordered plan rather than an unordered list of gaps.
 
 ### Pillar 5 - The advisor
 
-**Status:** PARTLY BUILT. The trace engine, the card and the ledger ship in `advisor/`;
-no rule does yet. Specified in `BOOTSTRAP.md` sections 4 and 5. The five endpoints that
-would surface it answer 501 today - see `clockspeed/surface/api/pending.py`.
+**Status:** PARTLY BUILT. The trace engine, the card, the ledger, the composition in
+`clockspeed/advisor/advise.py` and the D4 power and fuel rule families ship in `advisor/`;
+D1 to D3 have no rule yet. Specified in `BOOTSTRAP.md` sections 4 and 5.
+`clockspeed/surface/api/advice.py` serves the advice endpoints, while the audit and plan
+endpoints still answer 501 - see `clockspeed/surface/api/pending.py`.
 
 Intent: the synthesizing layer that everything above feeds, running data-driven modular
 rules over the registry and the world model.
@@ -246,7 +248,8 @@ rules over the registry and the world model.
 
 ## 5. The advice card contract
 
-**Status:** BUILT, NO RULES YET. `advisor/` ships the trace, the card and the ledger.
+**Status:** BUILT. `advisor/` ships the trace, the card, the ledger and the rules of the D4
+power and fuel families, in `clockspeed/advisor/rules/`.
 Specified in `BOOTSTRAP.md` sections 5.1, 5.2 and 5.4, which own the tier definitions,
 the card identity and the rule-engine constraints.
 

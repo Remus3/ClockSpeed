@@ -75,6 +75,246 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1285 - CLOSED: the D4 fuel half has its rules - power.fuel_supply sizes a built fluid-fuel generator class's burn against the fuel the world makes, and power.fuel_demand states the burn wherever supply is undecided
+Verification: `clockspeed/advisor/rules/fuel.py::SUPPLY_RULE` and
+`clockspeed/advisor/rules/fuel.py::DEMAND_RULE`, registered through
+`clockspeed/advisor/rules/__init__.py::_FAMILIES`; `clockspeed/advisor/advise.py::inputs_of`; over
+`clockspeed/audit/fuel.py::fuel_supply_of` and the `mFuel` field of
+`clockspeed/data/registry.py::Generator`. What each slice landed is in the three CS-1285 records
+below: slices C and D (2026-10-12), slice B v2 and slice A (2026-10-11). The item's section is
+relocated verbatim to `docs/history_notes.md`; the module docstrings of the fuel audit, the fuel
+rule family and their test modules still name it by its old leaf, and the verbatim copy is where
+it now sits. Decided by the session 138 close-record writer, who produced none of the slices,
+reading the acceptance clause by clause.
+THE ACCEPTANCE, clause by clause. (1) A registered rule in its own family module, declaring every
+input it reads and no unlock: `tests/advisor/rules/test_fuel.py::test_rule_declares_every_input_it_reads_and_no_unlock`,
+and the registration by slice D, read by
+`tests/advisor/test_every_rule_fires.py::test_every_registered_rule_has_a_firing_fixture`.
+(2) The appended, defaulted `mFuel` field, in document order, None when absent or unreadable,
+never empty, an unreadable value a named warning: slice A,
+`tests/data/test_registry.py::test_accepted_fuels_are_read_from_mfuel_in_document_order` and
+`::test_an_unreadable_mfuel_is_none_and_a_named_warning`. (3) Demand as the exact sum of nameplate
+times clock, a fluid's per-litre energy converted through `LITRES_PER_CUBIC_METRE`, geothermal out
+of scope: slice B v2, `tests/audit/test_fuel.py::test_burn_is_exact_megawatts_times_sixty_over_energy`,
+`::test_a_fluid_fuel_burns_in_cubic_metres` and `::test_geothermal_is_out_of_scope`. (4) Supply
+aggregated per fuel and pooled: `tests/audit/test_fuel.py::test_pooled_fuels_cover_where_no_single_fuel_does`.
+(5) A fire only on a pooled shortfall, with the exact shortfall, and a reject only on cover over a
+complete flow: `tests/advisor/rules/test_fuel.py::test_the_supply_rule_fires_with_the_exact_shortfall`,
+`::test_a_reject_is_silent_and_settled`, `::test_a_shortfall_below_float_resolution_still_fires_exactly`
+and `tests/audit/test_fuel.py::test_a_covering_floor_on_incomplete_flow_is_still_indeterminate`.
+(6) A shared fuel, an incomplete flow, an unknown energy, unreadable fuels, an unread clock and a
+production gap each indeterminate: `tests/audit/test_fuel.py::test_a_fuel_shared_by_two_classes_is_indeterminate`,
+`::test_a_short_floor_on_incomplete_flow_is_indeterminate`, `::test_unknown_energy_is_a_named_gap_never_zero`,
+`::test_unreadable_fuels_are_indeterminate`, `::test_an_unread_clock_is_indeterminate` and
+`::test_a_production_gap_is_indeterminate`; at the rule,
+`tests/advisor/rules/test_fuel.py::test_an_indeterminate_class_gets_no_sized_card_and_never_settles`.
+(7) Tier 3's shortfall rate for every accepted fuel:
+`tests/advisor/rules/test_fuel.py::test_tier3_converts_the_shortfall_into_a_rate_for_every_accepted_fuel`.
+(8) The headline fuel in `mFuel` order: `::test_the_headline_fuel_is_the_first_in_mfuel_order`.
+(9) Tiers 1 and 2 name fuel, figure and generator count:
+`::test_tiers_1_and_2_name_fuel_figure_and_generator_count`, and since fix 2 the built count,
+`::test_one_class_with_an_unread_generator_states_the_built_count` and
+`::test_a_class_whose_every_generator_is_unread_never_reads_x0`. (10) Tier 3 generated from the
+trace: `::test_supply_tier3_snapshot_shows_the_whole_derivation` and
+`::test_demand_tier3_snapshot_shows_the_whole_derivation`. (11) The companion demand card, a burn
+per accepted fuel, no supply claim, silent where the supply rule decides:
+`::test_the_demand_card_states_each_burn_per_accepted_fuel`, `::test_the_demand_rule_reads_no_supply_input`
+and `::test_the_demand_card_never_fires_where_the_supply_rule_decides_every_class`. (12) Water and
+nuclear waste named out of scope on tier 3:
+`::test_tier3_names_supplemental_resources_and_byproducts_as_out_of_scope`. (13) GET /api/advice
+carries the fuel trace:
+`tests/surface/test_advice_source.py::test_the_derivation_serves_a_fuel_cards_trace_over_the_real_route_table`
+and `::test_the_listing_serves_both_fuel_cards_over_the_real_route_table`. EVERY CLAUSE IS MET.
+THE v2 RULING. Its (a) to (e) landed with slices A and B v2, per the 2026-10-11 records. Its (f),
+binding on slice C - the demand card fires on every indeterminate class - is
+`tests/advisor/rules/test_fuel.py::test_the_demand_card_fires_on_every_indeterminate_reason`. Its
+residual check before close has two halves. The real-save probe re-run is recorded under (8) of
+the 2026-10-11 slice B v2 record, and session 138's integrated adversary re-read the newest
+pinned-world save through `advise`: a complete flow, no unregistered record, and both built
+classes - the solid biomass and coal burners - indeterminate on `solid-supply-unmodelled` alone,
+with no rule-error. The `Desc_LiquidFuel_C` half has no line to read, because no library save
+builds a liquid-fuel generator: UNMEASURED, NOT PASSED. It is not an `### Acceptance` clause, and
+the session 137 correction to the slice B v2 record removed its "owed before the item closes"
+wording. Its subject goes to `BACKLOG.md` under the session 138 heading, with the common-mode
+residual of the record below, on the trigger "the first library save with a liquid-fuel generator
+built: probe both fuel cards read-only".
+FILED BESIDE THIS CLOSE: CS-1315, from the CS-1288 slice C adjudication - the registry is built
+from the installed docs file with no check against the version pin, so a figure either fuel card
+prices could come from a patched install's nameplate.
+
+### 2026-10-12 - CS-1285 - LANDED AND DECISION RECORD (adjudicated session 138, rulings G1 to G6). NOT A COMPLETION RECORD; the close is the record above. Slices C and D: the fuel supply and fuel demand rules, wired into GET /api/advice
+Verification: `clockspeed/advisor/rules/fuel.py` - `clockspeed/advisor/rules/fuel.py::fuel_inputs`,
+`clockspeed/advisor/rules/fuel.py::SUPPLY_INPUTS`, `clockspeed/advisor/rules/fuel.py::DEMAND_INPUTS`,
+`clockspeed/advisor/rules/fuel.py::SUBJECT_SUPPLY_PREFIX`,
+`clockspeed/advisor/rules/fuel.py::SUBJECT_DEMAND_PREFIX` and
+`clockspeed/advisor/rules/fuel.py::RULES`; `clockspeed/advisor/advise.py::inputs_of` and
+`clockspeed/advisor/advise.py::merged_inputs`; the family entry in
+`clockspeed/advisor/rules/__init__.py::_FAMILIES`; two provenance rows in `tools/provenance.tsv`.
+The tests: `tests/advisor/rules/test_fuel.py`, from
+`tests/advisor/rules/test_fuel.py::test_the_adapter_offers_every_declared_input_sourced_to_the_fuel_audit`,
+`::test_the_adapter_over_a_real_audit_carries_its_figures`,
+`::test_a_supply_figure_that_disagrees_with_the_audit_is_a_rule_error`,
+`::test_a_demand_figure_that_disagrees_with_the_audit_is_a_rule_error`,
+`::test_the_card_id_is_stable_when_figures_move_and_moves_with_the_class_set`,
+`::test_the_demand_card_id_is_the_sorted_fired_set`,
+`::test_the_demand_rule_settles_through_reject_steps`,
+`::test_a_display_name_that_is_not_text_falls_back_to_the_key_on_record` and
+`::test_an_unknown_burn_is_indeterminate_never_zero`, through fix 1's
+`::test_every_undecided_class_gets_its_own_indeterminate_supply_step`,
+`::test_every_fired_class_gets_its_own_supply_verdict_reject_on_tier3`,
+`::test_the_demand_headline_is_the_first_class_by_key_with_a_known_burn`,
+`::test_the_burn_unknown_headline_is_the_first_class_by_key` and
+`::test_a_firing_card_with_no_exclusion_line_is_a_rule_error`, to fix 2's
+`::test_two_classes_count_an_unread_generator_beside_the_headline`,
+`::test_a_class_whose_every_generator_is_unread_never_reads_x0` and
+`::test_no_unread_generator_adds_no_never_read_note`; the fuel fixtures in
+`tests/advisor/test_every_rule_fires.py::FIRING` and `tests/advisor/test_every_rule_fires.py::SILENT`,
+run by `tests/advisor/test_every_rule_fires.py::test_the_firing_fixture_fires_its_rule` and
+`::test_the_silent_fixture_keeps_its_rule_silent`;
+`tests/advisor/test_world_advice.py::test_advise_world_fires_both_fuel_rules_with_the_figures_worked_by_hand`,
+`::test_inputs_of_offers_every_fuel_rule_input`,
+`::test_the_balance_and_the_fuel_audit_read_one_machines_model` and
+`::test_a_name_both_adapters_offer_raises_and_never_overwrites`; and
+`tests/surface/test_advice_source.py::test_the_listing_serves_both_fuel_cards_over_the_real_route_table`,
+`::test_the_derivation_serves_a_fuel_cards_trace_over_the_real_route_table`,
+`::test_no_rule_halts_on_a_served_world` and
+`::test_the_listing_states_the_built_generator_count_over_the_real_route_table`. Red first is
+each builder's report and was not re-observed here. The commits are named by subject, "CS-1285 -
+slice C: the fuel supply and fuel demand rules" through "CS-1285 - fix 2: fuel cards state the
+built generator count".
+THE RULINGS, VERBATIM from the session 138 slice C adjudication, each with its decision, the
+alternatives it rejected, the clause that decided it and what reverses it. Their line pointers are
+the adjudicator's reading of the slice C base and rot by construction; the symbols above are the
+citations.
+G1 (a) AMENDED: the subject key is the SET of classes. Supply subject `power:fuel-supply:` + the
+FIRE class keys in sorted() order, comma-joined. Demand subject `power:fuel-demand:` + its fired
+class keys, same construction. Headline: first class by key (G5 amends this for demand); others
+counted in tier 2; every class listed in tier 3; headline fuel follows mFuel order. Rejected (a) as
+written: a dismissed card for X hides Y's fire while X fires and X sorts first. Rejected (b): one
+dismissal hides every class for good. Rejected (c): engine change outside the slice. Decided by
+cards.py:97-119, ledger.py:694-707, non-negotiable 7. Reversed by: an engine issuing one card per
+subject per rule (keys then per class).
+G2 SPLIT BY RULE: power.fuel_supply records one indeterminate step per INDETERMINATE class
+(unsettled, fails closed); BACKLOG line: a world with a built solid burner never auto-completes a
+supply card. power.fuel_demand settles like power.draw_incomplete: for each class it fires on it
+records reject("state a supply verdict for <class>", <REASON_DETAIL line>); indeterminate only where
+its own burn figure is unknown (G5). Rejected per-subject settlement (a ledger.py change); rejected
+indeterminate on the demand rule (category error - it never attempts the supply comparison). Decided
+by docs/LEDGER.md:1960-1979 (CS-1271), advise.py:96-115, 264-279, power.py:285-320. Reversed by:
+per-subject settlement in the ledger, or a measured source for solid supply.
+G3: the adapter flattens WorldFuel into exact admitted values, one declared input per field, sourced
+to its audit field, keyed by class key inside the value. The rule reads leaf figures and computes
+demand, supply MW per fuel, pooled MW, shortfall, shortfall rate per fuel and burn per fuel through
+ctx.compute, compares each with the audit's own figure and RAISES on any disagreement (rule-error,
+no card). Red first: a mis-paired fuel and energy in the adapter must end in a rule-error. Rejected:
+the opaque audit trace as one input; replaying audit steps as Computed lines. Decided by the
+Acceptance, non-negotiable 8, trace.py:340-347, power.py:228-229. Reversed by: a slotted audit type
+the engine admits, or a measured figure the recomputation cannot reproduce by construction.
+G4: fuel_inputs offers the registry display name verbatim; the RULE falls back to the class key when
+the name fails trace.py:324-330 (names may be empty: registry.py:581, 1134-1141) and records the
+fallback as a reject step. Test registries use invented names only. Rejected keys only; rejected an
+unrecorded adapter fallback. Reversed by: a ruling that advice text carries class keys only, or
+evidence a display name leaks personal data.
+G5: when no INDETERMINATE class has a known burn, the demand card still fires with a burn-unknown
+headline; each unknown burn is an indeterminate step carrying its DEMAND_REASONS detail line; if any
+fired class has a known burn, the headline is the first such class by key. Rejected silent (breaks
+ruling (f), non-negotiable 7). Decided by phase5.md:583-585, fuel.py:348-356, 400-403. Reversed by:
+an adjudicated amendment to ruling (f).
+G6: C and D land in ONE push. Adding the family to _FAMILIES (clockspeed/advisor/rules/__init__.py)
+belongs in SLICE D's commit beside the inputs_of wiring. Slice C tests its rules through explicit
+`rules=` arguments. Rejected C alone with rules registered (GET /api/advice would carry two
+input-missing traces; docs/LEDGER.md:1983-1984). Reversed by: inputs_of offering the fuel inputs
+before the rules are registered.
+ADVERSARY HISTORY. The slice C adversary REFUTED the first candidate on test vacuity: 8 mutants
+that break G2 or G5 on worlds the real fuel audit builds survived the suite. Fix 1 pinned every
+class's step and the headline on that real-save shape - one fluid class beside a coal class, no
+recipe machine - and made a negative supply, a firing card with no exclusion line and a stray
+shortfall figure or rate on a REJECT each a rule-error. The integrated C plus D adversary then
+REFUTED F1: a card's generator count left out built generators the audit never admitted, so a
+class with untagged generators read "x1", and one whose every generator was untagged read "x0";
+2 of the library saves hold such generators. Fix 2 states the built count with "(N never read)"
+and makes a supply FIRE or REJECT carrying an unread generator a rule-error. The verifier showed
+the audit cannot produce one, since any omitted instance makes its class INDETERMINATE. VERIFIER
+CONFIRMED: GET /api/advice over every synthetic world and registry pair, base against candidate,
+left the power rules' cards unchanged; the newest real save and the library read 0 rule-errors.
+ADVERSARY LOOP STOPPED BY COST AGAINST RISK after two refutations, two fixes and a verifier.
+Reversed by: a residual below reached from a real input.
+RESIDUALS, recorded and not fixed. Each is a `BACKLOG.md` line under the session 138 heading;
+(c) shares its line with the item's liquid-fuel check.
+(a) G1's set key re-shows a dismissed demand card whenever its class set changes.
+(b) G2: a world with a built solid burner never auto-completes the supply card.
+(c) COMMON-MODE: the FIRE path has one reachable vanilla class, the liquid-fuel burner, and no
+library save builds one; and the rule's recomputation shares the audit's formulas, so their
+agreement catches wiring faults, not formula faults.
+(d) The demand card's tier-2 "N built generators were never read" sums over every fired class
+without naming the class.
+(e) Which reason the demand card's tier-2 detail cites when a class carries several: the rulings
+are silent.
+(f) A known demand beside an instances-omitted reason fires a settled demand card; it is
+reachable from synthetic inputs only.
+(g) The import detector in `tests/surface/test_advice_source.py` misses relative imports; none
+exist today.
+
+### 2026-10-12 - CS-1312 - CLOSED by the guard route: `purge_work_dir` shares `discard_copy`'s forbidden-root and parent checks, and the one forbidden-root compare refuses a respelled or linked route into a save directory
+Verification: `clockspeed/save/workdir.py::purge_work_dir`, `clockspeed/save/workdir.py::discard_copy`
+and `clockspeed/save/workdir.py::copy_for_read`, over the shared gate
+`clockspeed/save/workdir.py::_copies_home`, `clockspeed/save/workdir.py::_discard_from`,
+`clockspeed/save/workdir.py::_refuse_if_forbidden`, `clockspeed/save/workdir.py::_inside`,
+`clockspeed/save/workdir.py::_canonical` and `clockspeed/save/workdir.py::_identity`. The tests:
+`tests/save/test_workdir.py::test_purge_through_a_copies_directory_reaching_the_save_directory_removes_nothing`
+(junction, symlink and nested),
+`::test_purge_leaves_junctions_inside_the_copies_directory_and_what_is_behind_them`,
+`::test_a_respelled_route_into_the_save_directory_is_refused_by_each_gated_caller`,
+`::test_each_layer_of_the_forbidden_root_compare_refuses_a_respelled_route_alone`,
+`::test_a_destination_the_identity_walk_cannot_stat_is_refused_without_a_path` and
+`::test_a_link_left_at_the_partial_name_is_removed_not_written_through`. Each was red first on its
+parent at "the save directory changed", or for the junction at the partial name at "the copy
+refused", per its builder; not re-observed here. Merged: `clockspeed/save/workdir.py` and
+`tests/save/test_workdir.py`. The commits are named by subject, "CS-1312 - purge_work_dir refuses
+a copies dir that reaches a save dir" through "CS-1312 - a link left at the partial name is
+removed, never followed". The item's section is relocated verbatim to `docs/history_notes.md`.
+THE ACCEPTANCE, by its guard branch: the purge now passes `discard_copy`'s forbidden-root check
+before it lists the copies directory, and each entry through the same parent check, both through
+the two shared helpers so the delete paths cannot drift; the junction, symlink and nested arms
+hold a fake save directory byte-identical by hash; and a distinct adversary pass followed, two
+rounds below. CS-453's guard branch, absorbed by this item, is met by the same route.
+DECISION RECORD (decided by the session 138 merger): ROUTE GUARD OVER REMOVE. No production
+caller exists. Consumer evidence, `git grep -n purge_work_dir` on the landing branch: the
+definition and the module's own docstrings and comments in `clockspeed/save/workdir.py`; call
+sites only in `tests/save/test_workdir.py` and `tests/save/test_newest_world.py` (six before this
+item's arms), a docstring mention in `tests/save/test_phase4_gate.py`, and doc citations; no
+caller in `clockspeed/` outside its own module, nor in `shell/`, `ops/`, `tools/` or `scripts/`.
+The module keeps the purge to clear personal-data-bearing copies that pile up across runs.
+REMOVE LOST: six files of citation-pin churn, a ledger-cited test body rewritten, and no cleanup
+path left. REVERSED BY: a consumer check finding `purge_work_dir` still uncalled once its cleanup
+role is served elsewhere - then REMOVE, under a new item.
+ADVERSARY HISTORY. Round 1, the deletion-path lens, REFUTED the first candidate: a `\\?\`,
+`\\?\UNC\` or `\\localhost\C$` spelling of the work or save root, reachable through the
+CLOCKSPEED_WORK_ROOT and CLOCKSPEED_SAVE_ROOT variables (named, never valued), passed the
+forbidden-root compare for `purge_work_dir`, `discard_copy` AND `copy_for_read` - the last a write
+into the save directory, older than this item. Fix 1 repaired it at the shared compare: a
+spelling canonicalisation plus a file-identity ancestor walk, either one refusing, failing closed
+on a stat that fails for any reason but absence. Round 2, the path-identity and false-refusal
+lens, read NOT REFUTED over 738 probes (agent-reported), and normal reads were not refused. The
+landing check then found that `copy_for_read` opened its `.partial` name through a planted link,
+no race needed; fix 2 removes a leftover entry at that name, as an entry and never what it
+reaches, before the stream. THE VERIFIER on fix 2: PENDING AT WRITING; its verdict is not recorded
+here. ADVERSARY LOOP STOPPED BY COST AGAINST RISK after round 2 plus a verifier. Reversed by: a
+residual below reached from a real input.
+RESIDUALS, recorded and not fixed.
+(a) J9: the copies directory swapped between the check and the unlink, which needs a hostile
+local process.
+(b) The `.partial` re-plant race: a hostile process re-planting a link between the removal and
+the open. An exclusive create would narrow it to the dangling-symlink case only, and
+`tests/save/test_phase4_gate.py::WRITER_WRITE_SURFACE` pins the open mode.
+(c) A file id of 0, as on a FAT drive root, leaves only the spelling compare, reachable only
+through an operator-set variable.
+(d) ReFS 128-bit file ids are unmeasured.
+(e) A false refusal on a case-sensitive directory, which predates this item.
+(f) Volumes that share a serial number could be falsely refused.
+(g) The per-entry parent check inside the purge cannot be isolated by a failing test: its mutant
+survives, because the check differs only inside the J9 window.
+
 ### 2026-10-11 - CS-1302 - CLOSED: the dev extra pins mypy to one exact release, the one this box runs, and bare mypy exits 0 under it in tier1
 Verification: `pyproject.toml`, the `dev` extra's `mypy==2.1.0` line and the comment above it;
 `tests/test_mypy_gate.py::test_the_dev_extra_pins_mypy_to_one_exact_release` and
