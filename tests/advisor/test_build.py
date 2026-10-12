@@ -15,14 +15,19 @@ and :func:`clockspeed.advisor.build.build_caveat` reads all three FIRST, then:
 - and raises - a ``rule-error``, no card - on any disagreement between the
   codes and the builds, or a value of the wrong exact type.
 
-A PROBE RULE, NOT A SHIPPED ONE. No registered rule reads the build inputs
-yet (slice C0 lands alone), so every arm runs a probe defined here through an
-explicit rule tuple. The settlement arms run :func:`clockspeed.advisor.advise.advise`
-with ``rules=`` and grade :func:`clockspeed.advisor.advise.settled_rules`.
+A PROBE RULE, NOT A SHIPPED ONE. Every registered rule reads the build inputs
+first since CS-1288 slice C1-C3, and each rule family's own tests and
+``tests/advisor/test_every_rule_fires.py`` grade that. The arms here grade the
+caveat itself, apart from any rule's own figures, so every one runs a probe
+defined here through an explicit rule tuple. The settlement arms run
+:func:`clockspeed.advisor.advise.advise` with ``rules=`` and grade
+:func:`clockspeed.advisor.advise.settled_rules`.
 
 THE PIN IS READ AT TEST TIME, NEVER TYPED (the session 134 ruling): every
 changelist here is :func:`tests.advisor.build_fixtures.game_pin` or the pin
-plus one. The world token is an invented 22-character literal.
+plus or minus one, and every off-pin arm runs on both sides of the pin
+(:data:`tests.advisor.build_fixtures.OFF_PIN_OFFSETS`, CS-1288 fix round 1).
+The world token is an invented 22-character literal.
 """
 
 from __future__ import annotations
@@ -62,6 +67,7 @@ from clockspeed.audit.placement import placement_of
 from clockspeed.data import version
 from clockspeed.data.registry import Registry
 from tests.advisor.build_fixtures import (
+    OFF_PIN_OFFSETS,
     build_check,
     game_pin,
     off_pin_build_inputs,
@@ -246,19 +252,36 @@ def test_on_the_pin_a_silent_probe_settles(tmp_path: Path) -> None:
 # --- the caveat, off the pin -----------------------------------------------------
 
 
-def test_off_the_pin_the_reason_names_the_mismatch_and_both_builds(tmp_path: Path) -> None:
+def _side(offset: int) -> str:
+    """A test id for an offset: the side of the pin the save sits on."""
+    return "after" if offset > 0 else "before"
+
+
+# Every off-pin arm runs on BOTH sides of the pin - the build after it and the
+# build before it (CS-1288 fix round 1). A save OLDER than the pin is the
+# item's motivating case, and a caveat comparing builds by order rather than by
+# equality passes on one side alone.
+
+
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_off_the_pin_the_reason_names_the_mismatch_and_both_builds(
+    tmp_path: Path, offset: int
+) -> None:
     pin = game_pin()
-    advice = _advise(tmp_path, off_pin_build_inputs(pin))
+    advice = _advise(tmp_path, off_pin_build_inputs(pin, offset))
     expected = (
         f"{BASE_REASON}; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin},"
-        f" not the save build {pin + 1}"
+        f" not the save build {pin + offset}"
     )
     assert _only_tier2(advice) == expected
 
 
-def test_off_the_pin_one_indeterminate_step_follows_the_three_reads(tmp_path: Path) -> None:
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_off_the_pin_one_indeterminate_step_follows_the_three_reads(
+    tmp_path: Path, offset: int
+) -> None:
     pin = game_pin()
-    advice = _advise(tmp_path, off_pin_build_inputs(pin))
+    advice = _advise(tmp_path, off_pin_build_inputs(pin, offset))
     trace = _only_trace(advice)
     assert _kinds(trace) == [
         *[StepKind.INPUT_READ] * 3,
@@ -266,33 +289,35 @@ def test_off_the_pin_one_indeterminate_step_follows_the_three_reads(tmp_path: Pa
         StepKind.RULE_FIRED,
     ]
     assert [step.subject for step in trace.steps[:3]] == list(NAMES)
-    assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(pin + 1, pin))]
+    assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(pin + offset, pin))]
     settled = PROBE_ID in settled_rules(advice.traces)
     assert not settled
 
 
-def test_off_the_pin_a_silent_probe_is_not_settled(tmp_path: Path) -> None:
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_off_the_pin_a_silent_probe_is_not_settled(tmp_path: Path, offset: int) -> None:
     pin = game_pin()
-    advice = _advise(tmp_path, off_pin_build_inputs(pin), fires=False)
+    advice = _advise(tmp_path, off_pin_build_inputs(pin, offset), fires=False)
     trace = _only_trace(advice)
     assert advice.cards == ()
-    assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(pin + 1, pin))]
+    assert _indeterminate(trace) == [(NAMEPLATE_ALTERNATIVE, _detail(pin + offset, pin))]
     settled = PROBE_ID in settled_rules(advice.traces)
     assert not settled
 
 
-def test_tier_3_shows_each_build_read_with_its_source(tmp_path: Path) -> None:
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_tier_3_shows_each_build_read_with_its_source(tmp_path: Path, offset: int) -> None:
     pin = game_pin()
-    advice = _advise(tmp_path, off_pin_build_inputs(pin))
+    advice = _advise(tmp_path, off_pin_build_inputs(pin, offset))
     tier3 = advice.cards[0].card.tier3
     lines = tier3.splitlines()
     second = f"  2. Read {PINNED_IN} = {pin} from audit.build.pinned_changelist"
-    assert f"  1. Read {SAVE_IN} = {pin + 1} from audit.build.save_changelist" in lines
+    assert f"  1. Read {SAVE_IN} = {pin + offset} from audit.build.save_changelist" in lines
     assert second in lines
     third = lines[lines.index(second) + 1]
     assert third.startswith(f'  3. Read {WARNINGS_IN} = {{"{WARN_BUILD_MISMATCH}": ')
     assert third.endswith(" from audit.build.warnings")
-    detail = _detail(pin + 1, pin)
+    detail = _detail(pin + offset, pin)
     assert f"  4. Indeterminate {NAMEPLATE_ALTERNATIVE}: {detail}" in lines
 
 
@@ -537,4 +562,8 @@ def test_the_fixture_pin_is_the_version_pin_read_at_test_time() -> None:
     pin = game_pin()
     assert pinned_build_inputs(pin)[SAVE_IN].value == pin
     assert off_pin_build_inputs(pin)[SAVE_IN].value == pin + 1
+    assert OFF_PIN_OFFSETS == (1, -1)
+    for offset in OFF_PIN_OFFSETS:
+        assert off_pin_build_inputs(pin, offset)[SAVE_IN].value == pin + offset
+    assert pin - 1 > 0
     assert uncompared_build_inputs(pin)[PINNED_IN].value is None

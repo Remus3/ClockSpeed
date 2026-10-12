@@ -59,12 +59,15 @@ EVERY CARD STATES AN OFF-PIN BUILD, WITH NO EXEMPTION (CS-1288, the session
 :data:`clockspeed.advisor.build.BUILD_INPUTS`, derived from the registry, so a
 rule added without them reddens by name. Arm 2: for EVERY ``Recommendation``
 return site in every rules module a fixture swapped to a save of the build
-after the pin fires a card whose tier 2 names the mismatch code and both
-builds, and whose rule does not settle; the number of ``Recommendation`` calls
-in each module is pinned to its fixture count, and each fixture is shown to
-reach its own call, so a new return site reddens until a fixture covers it.
-Every firing fixture swapped off the pin still fires and names both builds,
-and every silent fixture swapped off the pin no longer settles its rule.
+after the pin, and again to the build before it, fires a card whose tier 2
+names the mismatch code and both builds, and whose rule does not settle; the
+number of ``Recommendation`` calls in each module is pinned to its fixture
+count, and each fixture is shown to reach its own call, so a new return site
+reddens until a fixture covers it. Every firing fixture swapped off the pin,
+on either side, still fires and names both builds, and every silent fixture
+swapped off the pin no longer settles its rule. BOTH SIDES, because a save
+OLDER than the pin is the item's motivating case (CS-1288 fix round 1): a
+caveat comparing builds by order would pass on the newer side alone.
 """
 
 from __future__ import annotations
@@ -102,7 +105,12 @@ from clockspeed.audit.fuel import (
     VERDICT_INDETERMINATE,
     VERDICT_REJECT,
 )
-from tests.advisor.build_fixtures import game_pin, off_pin_build_inputs, pinned_build_inputs
+from tests.advisor.build_fixtures import (
+    OFF_PIN_OFFSETS,
+    game_pin,
+    off_pin_build_inputs,
+    pinned_build_inputs,
+)
 
 #: One zero-argument builder per rule id: the synthetic world to run it on.
 WorldBuilder = Callable[[], WorldInputs]
@@ -140,11 +148,21 @@ def _world(values: Mapping[str, object], unlocks: Iterable[str] = ()) -> WorldIn
     return WorldInputs(values={**offered, **build}, unlocks=frozenset(unlocks))
 
 
-def _off_pin(world: WorldInputs) -> WorldInputs:
-    """The same world, its build inputs swapped for a save of the build after the pin."""
-    return WorldInputs(
-        values={**world.values, **off_pin_build_inputs(game_pin())}, unlocks=world.unlocks
-    )
+def _off_pin(world: WorldInputs, offset: int) -> WorldInputs:
+    """The same world, its build inputs swapped for a save ``offset`` builds from the pin.
+
+    Every off-pin arm runs at each of :data:`OFF_PIN_OFFSETS` - the build after
+    the pin and the build before it (CS-1288 fix round 1): a save OLDER than
+    the pin is the item's motivating case, and a caveat comparing builds by
+    order rather than by equality would drop every card of one side.
+    """
+    build = off_pin_build_inputs(game_pin(), offset)
+    return WorldInputs(values={**world.values, **build}, unlocks=world.unlocks)
+
+
+def _side(offset: int) -> str:
+    """A test id for an offset: the side of the pin the save sits on."""
+    return "after" if offset > 0 else "before"
 
 
 def _power(
@@ -647,17 +665,25 @@ def test_each_return_site_fixture_reaches_its_own_call(
     assert every, f"{module_name}: a return site no fixture reaches"
 
 
+def _mismatch(pin: int, save: int) -> str:
+    """The tier 2 suffix of a save written by the build ``save``, the pin being ``pin``."""
+    return f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin}, not the save build {save}"
+
+
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
 @pytest.mark.parametrize(("module_name", "site"), _SITES, ids=[f"{m}:{s}" for m, s in _SITES])
-def test_every_return_site_names_both_builds_off_the_pin(module_name: str, site: str) -> None:
+def test_every_return_site_names_both_builds_off_the_pin(
+    module_name: str, site: str, offset: int
+) -> None:
     pin = game_pin()
     rule_id, make, headline = RETURN_SITES[module_name][site]
     spec = _spec(rule_id)
     on = run_rule(spec, make())
-    off = run_rule(spec, _off_pin(make()))
+    off = run_rule(spec, _off_pin(make(), offset))
     on_card = card_for(on)
     off_card = card_for(off)
     assert on_card is not None, site
-    assert off_card is not None, site
+    assert off_card is not None, f"{site} did not fire off the pin, {_side(offset)}"
 
     reached = on_card.tier1.startswith(headline)
     assert reached, f"{site} does not reach its own return site"
@@ -665,47 +691,45 @@ def test_every_return_site_names_both_builds_off_the_pin(module_name: str, site:
     assert clean, f"{site} names a build on the pin"
     named = all(
         words in off_card.tier2
-        for words in (WARN_BUILD_MISMATCH, f"pinned build {pin},", f"save build {pin + 1}")
+        for words in (WARN_BUILD_MISMATCH, f"pinned build {pin},", f"save build {pin + offset}")
     )
-    assert named, f"{site} does not name the code and both builds off the pin"
+    assert named, f"{site} does not name the code and both builds off the pin, {_side(offset)}"
     same_headline = off_card.tier1 == on_card.tier1
     assert same_headline, site
     settled_on = rule_id in settled_rules((on,))
     settled_off = rule_id in settled_rules((off,))
     assert settled_on, f"{site} does not settle on the pin"
-    assert not settled_off, f"{site} settles off the pin"
+    assert not settled_off, f"{site} settles off the pin, {_side(offset)}"
 
 
-def _mismatch(pin: int) -> str:
-    """The tier 2 suffix of a save written by the build after the pin."""
-    return (
-        f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin}, not the save build {pin + 1}"
-    )
-
-
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
 @pytest.mark.parametrize("rule_id", sorted(FIRING), ids=sorted(FIRING))
-def test_the_firing_fixture_off_the_pin_still_fires_and_names_both_builds(rule_id: str) -> None:
-    trace = run_rule(_spec(rule_id), _off_pin(FIRING[rule_id]()))
+def test_the_firing_fixture_off_the_pin_still_fires_and_names_both_builds(
+    rule_id: str, offset: int
+) -> None:
+    trace = run_rule(_spec(rule_id), _off_pin(FIRING[rule_id](), offset))
     card = card_for(trace)
-    assert card is not None, f"{rule_id} did not fire off the pin"
+    assert card is not None, f"{rule_id} did not fire off the pin, {_side(offset)}"
     faults = _fault_count(trace)
     assert faults == 0, rule_id
-    named = card.tier2.endswith(_mismatch(game_pin()))
-    assert named, f"{rule_id} does not name both builds off the pin"
+    pin = game_pin()
+    named = card.tier2.endswith(_mismatch(pin, pin + offset))
+    assert named, f"{rule_id} does not name both builds off the pin, {_side(offset)}"
     settled = rule_id in settled_rules((trace,))
-    assert not settled, f"{rule_id} settles off the pin"
+    assert not settled, f"{rule_id} settles off the pin, {_side(offset)}"
 
 
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
 @pytest.mark.parametrize("rule_id", sorted(SILENT), ids=sorted(SILENT))
-def test_the_silent_fixture_off_the_pin_is_not_settled(rule_id: str) -> None:
+def test_the_silent_fixture_off_the_pin_is_not_settled(rule_id: str, offset: int) -> None:
     spec = _spec(rule_id)
     on = run_rule(spec, SILENT[rule_id]())
-    off = run_rule(spec, _off_pin(SILENT[rule_id]()))
+    off = run_rule(spec, _off_pin(SILENT[rule_id](), offset))
     silent = off.recommendation is None and card_for(off) is None
-    assert silent, f"{rule_id} recommended off the pin"
+    assert silent, f"{rule_id} recommended off the pin, {_side(offset)}"
     faults = _fault_count(off)
-    assert faults == 0, rule_id
+    assert faults == 0, f"{rule_id} faulted off the pin, {_side(offset)}"
     settled_on = rule_id in settled_rules((on,))
     settled_off = rule_id in settled_rules((off,))
     assert settled_on, f"{rule_id} does not settle on the pin"
-    assert not settled_off, f"{rule_id} settles off the pin"
+    assert not settled_off, f"{rule_id} settles off the pin, {_side(offset)}"

@@ -13,8 +13,10 @@ from them.
 THE PIN IS READ AT TEST TIME, NEVER TYPED. :func:`game_pin` reads
 ``clockspeed.data.version.GAME_CHANGELIST`` when it is called and asserts it
 parsed (the session 134 ruling in ``docs/item_notes/phase5.md`` section
-CS-1288). An off-pin fixture declares the pin plus one (the session 138 ruling
-F8), so no changelist literal appears here or in any caller.
+CS-1288). An off-pin fixture declares the pin plus or minus one - the build
+after it or the build before it, :data:`OFF_PIN_OFFSETS` (the session 138
+ruling F8 as amended by the fix round 1 adjudication) - so no changelist
+literal appears here or in any caller.
 
 TESTS ONLY. This module lives under ``tests/`` so no production module can
 depend on it; ``clockspeed/advisor/build.py`` imports nothing from here.
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
     from clockspeed.advisor.trace import InputValue
 
 __all__ = [
+    "OFF_PIN_OFFSETS",
     "build_check",
     "game_pin",
     "off_pin_build_inputs",
@@ -48,6 +51,10 @@ __all__ = [
 
 # An invented 22-character base64url literal. Never a real world token.
 SYNTHETIC_TOKEN: Final = "BuildFixtureToken22chr"  # noqa: S105 - an invented marker, not a secret
+
+#: The two off-pin offsets every off-pin census runs at: the build after the
+#: pin and the build before it (CS-1288 fix round 1). Steps, never changelists.
+OFF_PIN_OFFSETS: Final = (1, -1)
 
 
 def game_pin() -> int:
@@ -130,17 +137,27 @@ def pinned_build_inputs(pin: int) -> dict[str, InputValue]:
     return build_inputs(build_check(pin, pin))
 
 
-def off_pin_build_inputs(pin: int) -> dict[str, InputValue]:
-    """The build inputs of a save written by the build after the pin.
+def off_pin_build_inputs(pin: int, offset: int = 1) -> dict[str, InputValue]:
+    """The build inputs of a save written ``offset`` builds away from the pin.
+
+    BOTH SIDES OF THE PIN MATTER (CS-1288 fix round 1, the adjudicated
+    amendment of ruling F8): a save OLDER than the pin is the item's
+    motivating case, and a caveat comparing builds by order rather than by
+    equality passes on one side alone. :data:`OFF_PIN_OFFSETS` holds both.
 
     Args:
-        pin: The pinned changelist, from :func:`game_pin`. The save declares
-            ``pin + 1``.
+        pin: The pinned changelist, from :func:`game_pin`.
+        offset: How far the save's build sits from the pin: ``1`` for the
+            build after it (the default), ``-1`` for the build before it.
+            Never zero.
 
     Returns:
         A fresh dict of the three build inputs, carrying the mismatch code.
     """
-    return build_inputs(build_check(pin + 1, pin))
+    assert offset != 0, "an off-pin save is never written by the pinned build"
+    save = pin + offset
+    assert save > 0, "the off-pin save build is not a positive changelist"
+    return build_inputs(build_check(save, pin))
 
 
 def uncompared_build_inputs(save_changelist: int) -> dict[str, InputValue]:

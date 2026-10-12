@@ -52,7 +52,7 @@ from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, routes
 from clockspeed.surface.providers import StoreAdviceSource
 from tests.advisor import test_world_advice as world_fixtures
-from tests.advisor.build_fixtures import game_pin
+from tests.advisor.build_fixtures import OFF_PIN_OFFSETS, game_pin
 from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
@@ -1003,15 +1003,34 @@ def _served_texts(directory: Path, model: WorldModel, registry: Registry) -> lis
     return texts
 
 
+def _built_by(model: WorldModel, changelist: int) -> WorldModel:
+    """The same world as a save whose header declares ``changelist``."""
+    return replace(model, header=replace(model.header, build_changelist=changelist))
+
+
+def _side(offset: int) -> str:
+    """A test id for an offset: the side of the pin the save sits on."""
+    return "after" if offset > 0 else "before"
+
+
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
 @pytest.mark.parametrize("world_name", BUILD_WORLDS)
 def test_off_the_pin_the_listing_and_derivation_name_both_builds(
-    tmp_path: Path, world_name: str
+    tmp_path: Path, world_name: str, offset: int
 ) -> None:
-    pin = game_pin()
-    make_world, make_registry = SERVED_WORLDS[world_name]
-    words = (WARN_BUILD_MISMATCH, f"priced at the pinned build {pin},", f"save build {pin + 1}")
+    """Both sides of the pin, the build after it and the build before it.
 
-    texts = _served_texts(tmp_path, world_fixtures.off_pin(make_world()), make_registry())
+    A save OLDER than the pin is the item's motivating case (CS-1288 fix round
+    1), so a source whose caveat compared builds by order would serve one side
+    no card at all.
+    """
+    pin = game_pin()
+    save = pin + offset
+    assert save > 0, "the off-pin save build is not a positive changelist"
+    make_world, make_registry = SERVED_WORLDS[world_name]
+    words = (WARN_BUILD_MISMATCH, f"priced at the pinned build {pin},", f"save build {save}")
+
+    texts = _served_texts(tmp_path, _built_by(make_world(), save), make_registry())
 
     served = len(texts)
     unnamed = sum(
