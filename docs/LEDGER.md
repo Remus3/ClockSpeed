@@ -96,7 +96,11 @@ legacy-sweep guards, an unguarded basetemp equal to the run directory), each rep
 mutant-checked arm; round 2 held. Accepted residuals, stopped by cost against risk: no arm raises
 anything but AttributeError from the rebuild, so narrowing the handler's except would survive; no arm
 restores a PRESENT prior env value in `_release`; nested runs get no basetemp and still nest
-pytest's per-user levels under the run directory; pytest 8.x was not exercised. Answered to MAIN's
+pytest's per-user levels under the run directory; pytest 8.x was not exercised. The new layout carries no account name in tmp_path, so the
+redacted-rather-than-deleted arm went vacuous-red; `tests/test_tmp_path_privacy.py::_run_sandbox` now
+names its own PYTEST_DEBUG_TEMPROOT so the sandbox keeps pytest's per-user layout, pinned by
+`test_the_path_was_redacted_rather_than_deleted` going red with the sandbox redaction off (third
+adversary round held). Answered to MAIN's
 TEMP-2 note with the leftover counts read back after the acceptance suite.
 
 ### 2026-10-12 - CS-1319 - CLOSED: the suite runs under its own temp root, so a killed or failed run cannot bloat the shared per-account pytest root (MAIN FIX TEMP-2)
