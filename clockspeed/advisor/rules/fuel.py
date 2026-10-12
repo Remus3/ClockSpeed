@@ -35,11 +35,12 @@ figure it states through ``RuleContext.compute``: the demand, each fuel's
 supply in MW, the pooled supply, the shortfall or headroom, each fuel's
 shortfall rate and each fuel's burn. Each is compared with the audit's own
 figure, and ANY disagreement - a fuel paired with another fuel's energy, a
-FIRE whose supply covers its demand, a REJECT short of it, a verdict carrying
-a reason, an unknown verdict word - raises, which the engine records as a
-``rule-error`` with no card. Agreement catches WIRING faults; the formulas are
-the audit's own (``D * 60 / E`` and ``s * E / 60``), so a formula fault common
-to both is a residual this check cannot see.
+FIRE whose supply covers its demand, a REJECT short of it or still carrying a
+shortfall figure or rate, a negative supply (the audit floors supply at
+zero), a verdict carrying a reason, an unknown verdict word - raises, which
+the engine records as a ``rule-error`` with no card. Agreement catches WIRING
+faults; the formulas are the audit's own (``D * 60 / E`` and ``s * E / 60``),
+so a formula fault common to both is a residual this check cannot see.
 
 THE SUBJECT IS THE SET (G1). A rule issues one card per run, so a card's
 subject key is the rule's prefix plus the SORTED keys of every class it fired
@@ -65,22 +66,23 @@ the burn to be resolved.
 
 DISPLAY NAMES FALL BACK ON RECORD (G4). :func:`fuel_inputs` offers each
 registry display name verbatim; a rule naming a class or a fuel in advice text
-uses the class or fuel key instead when the name is not printable ASCII text
-(the registry carries empty names), and records that fallback as a rejected
-alternative.
+uses the class or fuel key instead when the name is empty, blank (spaces
+only) or not printable ASCII text - the registry carries empty names - and
+records that fallback as a rejected alternative.
 
 OUT OF SCOPE, NAMED. Supplemental resources (water) and byproducts are not
 modelled; a firing card's tier 3 reads the audit's exclusion lines and records
-both as out of scope.
+them as out of scope. A firing card offered no exclusion line is a
+``rule-error``: the out-of-scope statement is part of the advice.
 
 UNLOCKS. Neither rule declares an unlock key, on the grounds
 ``clockspeed/advisor/rules/power.py`` states for the headroom rule: the advice
 names no building or recipe to unlock, so a declared key would be invented.
 
-NOT YET REGISTERED (G6). This family is absent from the registry in
-``clockspeed/advisor/rules/__init__.py`` until the advisor offers its inputs
-(``clockspeed/advisor/advise.py``); both land together, so a registered rule
-never runs on a world that lacks them.
+REGISTERED WITH ITS INPUTS (G6). Slice D registers this family in the registry
+in ``clockspeed/advisor/rules/__init__.py`` beside the wiring that offers its
+inputs in ``clockspeed/advisor/advise.py``; slices C and D land in one push,
+so a registered rule never runs on a world that lacks them.
 
 NO WORLD TOKEN, NO PATH, NO FLOAT. Every number is an exact ``Fraction`` or an
 ``int`` count, rendered through :func:`clockspeed.advisor.cards.render_value`.
@@ -204,7 +206,9 @@ _UNIT_WORDS: Final[Mapping[str, str]] = MappingProxyType(
 _VERDICT_WORDS: Final = frozenset({VERDICT_FIRE, VERDICT_REJECT, VERDICT_INDETERMINATE})
 
 _NO_CLASS: Final = "no built fuel generator class"
-_NAME_FALLBACK: Final = "the display name is empty or not printable ASCII text, so the key names it"
+_NAME_FALLBACK: Final = (
+    "the display name is empty, blank or not printable ASCII text, so the key names it"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +442,11 @@ def _unit(values: Mapping[str, object], fuel: str) -> str:
 
 
 def _name(ctx: RuleContext, values: Mapping[str, object], names: str, key: str) -> str:
-    """A class's or a fuel's display name, or its key - the fallback on record (G4)."""
+    """A class's or a fuel's display name, or its key - the fallback on record (G4).
+
+    A blank name - spaces only - is no name: :func:`_printable` wants a
+    visible character.
+    """
     name = _mapping(values[names]).get(key)
     if _printable(name):
         return str(name)
@@ -470,10 +478,9 @@ def _elision(values: Mapping[str, object], keys: list[str]) -> str:
 def _exclusions(ctx: RuleContext, values: Mapping[str, object]) -> None:
     """Record supplemental resources and byproducts as out of scope, from the audit's lines."""
     lines = _strings(values[IN_EXCLUSIONS])
-    if lines:
-        ctx.reject(
-            "size supplemental resources and byproducts", "out of scope: " + "; ".join(lines)
-        )
+    if not lines:
+        raise ValueError("a firing fuel card has no out-of-scope line to name")
+    ctx.reject("size supplemental resources and byproducts", "out of scope: " + "; ".join(lines))
 
 
 def _subject(prefix: str, keys: list[str]) -> str:
@@ -494,6 +501,8 @@ def _pooled(ctx: RuleContext, values: Mapping[str, object], key: str) -> Fractio
     for fuel in fuels:
         energy = _known(_energy(values, fuel))
         supply = _known(_fuel_entry(values, IN_SUPPLY, key, fuel))
+        if supply < 0:
+            raise ValueError("a fuel supply is negative, which the audit never offers")
         supply_mw = ctx.compute(
             f"supply MW of {fuel} for {key}, supply times MJ over sixty",
             supply * energy / _SIXTY,
@@ -534,8 +543,14 @@ def _reject(ctx: RuleContext, values: Mapping[str, object], key: str) -> None:
     demand = _decided_demand(ctx, values, key)
     pooled = _pooled(ctx, values, key)
     headroom = ctx.compute(f"headroom MW of {key}, pooled supply less demand", pooled - demand)
-    if headroom < 0 or _entry(values, IN_SHORTFALL, key) is not None:
+    if headroom < 0:
         raise ValueError("a REJECT verdict's pooled supply falls short of its demand")
+    stray = [_entry(values, IN_SHORTFALL, key)] + [
+        _fuel_entry(values, IN_SHORTFALL_RATES, key, fuel)
+        for fuel in _strings(_entry(values, IN_FUELS, key))
+    ]
+    if any(figure is not None for figure in stray):
+        raise ValueError("a REJECT verdict carries a shortfall figure")
     ctx.reject(f"add fuel supply for {key}", "pooled supply covers demand over a complete flow")
 
 

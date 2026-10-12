@@ -51,6 +51,7 @@ from clockspeed.advisor.rules.fuel import (
     DEMAND_RULE,
     IN_BURNS,
     IN_CLASS_NAMES,
+    IN_CLASSES,
     IN_CLOCK_SUM,
     IN_DEMAND,
     IN_FUEL_NAMES,
@@ -390,8 +391,13 @@ def _alpha_fire(
     return _class(GEN_ALPHA, VERDICT_FIRE, fuels=fuels, supply=supply, elided=elided)
 
 
-def _bravo_fire() -> tuple[FuelVerdict, FuelDemand]:
-    return _class(GEN_BRAVO, VERDICT_FIRE, supply=BRAVO_SUPPLY, clocks=(ONE,))
+def _bravo_fire(*, elided: int = 0) -> tuple[FuelVerdict, FuelDemand]:
+    return _class(GEN_BRAVO, VERDICT_FIRE, supply=BRAVO_SUPPLY, clocks=(ONE,), elided=elided)
+
+
+def _covered_reject() -> FuelVerdict:
+    """Alpha's REJECT: forty cubic metres of fuel a minute meet its 500 MW exactly."""
+    return _class(GEN_ALPHA, VERDICT_REJECT, supply=ALPHA_COVERED)[0]
 
 
 def _world_fuel(*classes: tuple[FuelVerdict, FuelDemand]) -> WorldFuel:
@@ -566,13 +572,14 @@ def test_fuel_inputs_never_collide_with_power_inputs() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _gen(class_name: str) -> MachineState:
+def _gen(class_name: str, *, clock: Fraction | None = ONE, elided: bool = False) -> MachineState:
+    """One generator; ``clock=None`` is an unread clock, ``elided`` the elided default."""
     return MachineState(
         class_name=class_name,
         producing=True,
         recipe_class_name=None,
-        overclock=ONE,
-        overclock_elided=False,
+        overclock=None if elided else clock,
+        overclock_elided=elided,
         production_boost_tagged=False,
     )
 
@@ -985,10 +992,38 @@ def test_tier3_names_supplemental_resources_and_byproducts_as_out_of_scope(
         replace(_alpha_fire()[0], shortfall_megawatts=ONE),
         # A FIRE carrying an indeterminate reason.
         replace(_alpha_fire()[0], reasons=(REASON_FLOW_INCOMPLETE,)),
-        # A REJECT whose pooled supply falls short of the demand.
-        replace(_alpha_fire()[0], verdict=VERDICT_REJECT, shortfall_megawatts=None),
+        # A REJECT whose pooled supply falls short of the demand, carrying no
+        # stray shortfall figure, so only the headroom check can catch it.
+        _class(GEN_ALPHA, VERDICT_REJECT, supply=ALPHA_SUPPLY)[0],
+        # A covered REJECT that still carries a shortfall figure.
+        replace(_covered_reject(), shortfall_megawatts=ONE),
+        # A covered REJECT one of whose fuels still carries a shortfall rate.
+        replace(
+            _covered_reject(),
+            fuels=(
+                replace(_covered_reject().fuels[0], shortfall_per_minute=ONE),
+                *_covered_reject().fuels[1:],
+            ),
+        ),
+        # A FIRE resting on a NEGATIVE supply - the audit floors supply at zero.
+        _alpha_fire(supply=MappingProxyType({FUEL: Fraction(-10), TURBO: Fraction(6)}))[0],
+        # A REJECT resting on a negative supply, covered by the other fuel.
+        _class(
+            GEN_ALPHA,
+            VERDICT_REJECT,
+            supply=MappingProxyType({FUEL: Fraction(-10), TURBO: Fraction(30)}),
+        )[0],
     ],
-    ids=["fire-covered", "fire-figure-off", "fire-with-reason", "reject-short"],
+    ids=[
+        "fire-covered",
+        "fire-figure-off",
+        "fire-with-reason",
+        "reject-short",
+        "reject-stray-shortfall",
+        "reject-stray-rate",
+        "fire-negative-supply",
+        "reject-negative-supply",
+    ],
 )
 def test_an_inconsistent_verdict_is_a_rule_error(verdict: FuelVerdict) -> None:
     _, demand = _alpha_fire()
@@ -1072,7 +1107,7 @@ def _renamed(generator: str | None = None, fuel: str | None = None) -> Registry:
 
 
 FALLBACK_REASON: Final = (
-    "the display name is empty or not printable ASCII text, so the key names it"
+    "the display name is empty, blank or not printable ASCII text, so the key names it"
 )
 
 
@@ -1085,12 +1120,22 @@ FALLBACK_REASON: Final = (
             GEN_ALPHA,
         ),
         (
+            _renamed(generator="   "),
+            f"Supply 14.00 m3 more Qx Fuel per minute to {GEN_ALPHA} x2",
+            GEN_ALPHA,
+        ),
+        (
             _renamed(fuel="Qx Fu\u00e9l"),
             f"Supply 14.00 m3 more {FUEL} per minute to Qx Alpha Generator x2",
             FUEL,
         ),
+        (
+            _renamed(fuel=" "),
+            f"Supply 14.00 m3 more {FUEL} per minute to Qx Alpha Generator x2",
+            FUEL,
+        ),
     ],
-    ids=["empty-class-name", "non-ascii-fuel-name"],
+    ids=["empty-class-name", "blank-class-name", "non-ascii-fuel-name", "blank-fuel-name"],
 )
 def test_a_display_name_that_is_not_text_falls_back_to_the_key_on_record(
     registry: Registry, headline: str, fallback: str
@@ -1417,3 +1462,204 @@ def test_demand_tier3_snapshot_shows_the_whole_derivation() -> None:
     assert card is not None
     assert card.tier2 == DEMAND_REASON
     assert card.tier3 == EXPECTED_DEMAND_TIER3
+
+
+# ---------------------------------------------------------------------------
+# Fix round 1: every fired class's own step, the headline and the default-clock
+# count, over the real-save shape - a fluid class beside a coal class, and no
+# recipe machine, so the flow is incomplete and every class is undecided
+# ---------------------------------------------------------------------------
+
+FLOW_LINE: Final = REASON_DETAIL[REASON_FLOW_INCOMPLETE]
+SOLID_LINE: Final = REASON_DETAIL[REASON_SOLID_SUPPLY_UNMODELLED]
+CLOCK_LINE: Final = REASON_DETAIL[REASON_CLOCK_UNREAD]
+
+#: One Charlie generator at clock one burns 75 * 60 / 300 items of coal a minute.
+CHARLIE_COAL_BURN: Final = CHARLIE_MW * SIXTY / COAL_MJ_PER_ITEM
+
+
+def _real_pair(
+    *,
+    alpha_clock: Fraction | None = ONE,
+    charlie_clock: Fraction | None = ONE,
+    elided: bool = False,
+) -> WorldFuel:
+    """Two Alpha generators and one Charlie (coal) generator, and nothing else.
+
+    ``elided`` puts ONE Alpha generator and the Charlie generator at the
+    elided default clock; a clock of None is an unread clock.
+    """
+    states = [
+        _gen(GEN_ALPHA, clock=alpha_clock, elided=elided),
+        _gen(GEN_ALPHA, clock=alpha_clock),
+        _gen(GEN_CHARLIE, clock=charlie_clock, elided=elided),
+    ]
+    return fuel_supply_of(_machines(states), REGISTRY)
+
+
+def _verdict_reasons(world: WorldFuel) -> dict[str, tuple[str, ...]]:
+    return {verdict.class_name: verdict.reasons for verdict in world.verdicts}
+
+
+def _pairs(trace: Trace, kind: StepKind, prefix: str) -> list[tuple[str, str]]:
+    return [
+        (step.subject, step.reason)
+        for step in trace.steps
+        if step.kind is kind and step.subject.startswith(prefix)
+    ]
+
+
+def test_the_real_pair_fixture_is_the_shape_the_arms_below_rest_on() -> None:
+    assert _verdict_reasons(_real_pair()) == {
+        GEN_ALPHA: (REASON_FLOW_INCOMPLETE,),
+        GEN_CHARLIE: (REASON_FLOW_INCOMPLETE, REASON_SOLID_SUPPLY_UNMODELLED),
+    }
+    assert _verdict_reasons(_real_pair(charlie_clock=None)) == {
+        GEN_ALPHA: (REASON_FLOW_INCOMPLETE,),
+        GEN_CHARLIE: (
+            REASON_CLOCK_UNREAD,
+            REASON_FLOW_INCOMPLETE,
+            REASON_SOLID_SUPPLY_UNMODELLED,
+        ),
+    }
+
+
+def test_every_undecided_class_gets_its_own_indeterminate_supply_step() -> None:
+    trace = run_rule(SUPPLY_RULE, _inputs(_real_pair()))
+
+    assert trace.recommendation is None
+    assert _pairs(trace, StepKind.VERDICT_INDETERMINATE, "compare") == [
+        (f"compare the pooled fuel supply against the demand of {GEN_ALPHA}", FLOW_LINE),
+        (
+            f"compare the pooled fuel supply against the demand of {GEN_CHARLIE}",
+            f"{FLOW_LINE}; {SOLID_LINE}",
+        ),
+    ]
+    assert SUPPLY_ID not in settled_rules((trace,))
+
+
+def test_every_fired_class_gets_its_own_supply_verdict_reject_on_tier3() -> None:
+    trace = run_rule(DEMAND_RULE, _inputs(_real_pair()))
+    card = card_for(trace)
+
+    assert card is not None
+    assert _pairs(trace, StepKind.ALTERNATIVE_REJECTED, "state a supply verdict") == [
+        (f"state a supply verdict for {GEN_ALPHA}", FLOW_LINE),
+        (f"state a supply verdict for {GEN_CHARLIE}", f"{FLOW_LINE}; {SOLID_LINE}"),
+    ]
+    assert f"Rejected state a supply verdict for {GEN_ALPHA}: {FLOW_LINE}" in card.tier3
+    charlie_line = f"Rejected state a supply verdict for {GEN_CHARLIE}: {FLOW_LINE}; {SOLID_LINE}"
+    assert charlie_line in card.tier3
+    assert DEMAND_ID in settled_rules((trace,))
+
+
+def test_the_demand_headline_is_the_first_class_by_key_with_a_known_burn() -> None:
+    trace = run_rule(DEMAND_RULE, _inputs(_real_pair()))
+    card = card_for(trace)
+
+    assert card is not None
+    assert card.subject_key == f"power:fuel-demand:{GEN_ALPHA},{GEN_CHARLIE}"
+    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert card.tier2 == (
+        "Qx Alpha Generator x2 burn 40.00 m3 of Qx Fuel per minute at a demand of 500.00 MW,"
+        f" with no supply verdict: {FLOW_LINE}; 1 other generator class is undecided too"
+    )
+    burn = _computed(trace)[f"burn per minute of {COAL} for {GEN_CHARLIE}"]
+    assert burn == CHARLIE_COAL_BURN
+
+
+def test_the_burn_unknown_headline_is_the_first_class_by_key() -> None:
+    world = _real_pair(alpha_clock=None, charlie_clock=None)
+    burns = [burn.burn_per_minute for demand in world.demands for burn in demand.burns]
+    assert burns == [None, None, None], "the fixture has a known burn"
+    card = card_for(run_rule(DEMAND_RULE, _inputs(world)))
+
+    assert card is not None
+    assert card.tier1 == "Resolve the fuel burn of Qx Alpha Generator x2 before planning its fuel"
+    assert card.tier2 == (
+        "The burn of Qx Alpha Generator x2 is unknown, never zero, with no supply verdict:"
+        f" {CLOCK_LINE}; 1 other generator class is undecided too"
+    )
+
+
+def test_an_unknown_burn_cites_its_demand_reason_and_no_other() -> None:
+    trace = run_rule(DEMAND_RULE, _inputs(_real_pair(charlie_clock=None)))
+
+    assert trace.recommendation is not None
+    assert _pairs(trace, StepKind.VERDICT_INDETERMINATE, "state the burn") == [
+        (f"state the burn of {COAL} for {GEN_CHARLIE}", CLOCK_LINE)
+    ]
+    assert DEMAND_ID not in settled_rules((trace,))
+
+
+def test_an_unknown_burn_beside_a_known_one_keeps_the_demand_rule_unsettled() -> None:
+    pair = _class(
+        GEN_ALPHA, VERDICT_INDETERMINATE, fuels=(FUEL, DUD), reasons=(REASON_ENERGY_UNKNOWN,)
+    )
+    trace = _run(DEMAND_RULE, pair)
+    card = card_for(trace)
+
+    assert card is not None
+    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert _computed(trace)[f"burn per minute of {FUEL} for {GEN_ALPHA}"] == Fraction(40)
+    assert _pairs(trace, StepKind.VERDICT_INDETERMINATE, "state the burn") == [
+        (f"state the burn of {DUD} for {GEN_ALPHA}", REASON_DETAIL[REASON_ENERGY_UNKNOWN])
+    ]
+    assert DEMAND_ID not in settled_rules((trace,))
+
+
+TWO_ELIDED: Final = "; it assumes the default clock for 2 generators whose save omits the clock tag"
+
+
+def test_the_supply_default_clock_note_counts_every_fired_class() -> None:
+    card = card_for(_run(SUPPLY_RULE, _alpha_fire(elided=1), _bravo_fire(elided=1)))
+
+    assert card is not None
+    assert card.tier2 == SUPPLY_REASON + "; 1 other generator class is short too" + TWO_ELIDED
+
+
+def test_the_demand_default_clock_note_counts_every_fired_class() -> None:
+    world = _real_pair(elided=True)
+    assert [verdict.elided_clock_count for verdict in world.verdicts] == [1, 1]
+    card = card_for(run_rule(DEMAND_RULE, _inputs(world)))
+
+    assert card is not None
+    assert card.tier2.endswith("; 1 other generator class is undecided too" + TWO_ELIDED)
+
+
+def _reversed(value: object) -> object:
+    assert type(value) is tuple
+    return tuple(reversed(value))
+
+
+@pytest.mark.parametrize(
+    ("spec", "kind", "prefix"),
+    [
+        (SUPPLY_RULE, StepKind.VERDICT_INDETERMINATE, "compare"),
+        (DEMAND_RULE, StepKind.ALTERNATIVE_REJECTED, "state a supply verdict"),
+    ],
+    ids=[SUPPLY_ID, DEMAND_ID],
+)
+def test_classes_are_taken_in_key_order_whatever_order_they_are_offered_in(
+    spec: RuleSpec, kind: StepKind, prefix: str
+) -> None:
+    trace = run_rule(spec, _tampered(_real_pair(), IN_CLASSES, _reversed))
+
+    subjects = [subject for subject, _ in _pairs(trace, kind, prefix)]
+    assert [subject.rsplit(" ", 1)[-1] for subject in subjects] == [GEN_ALPHA, GEN_CHARLIE]
+    if spec is DEMAND_RULE:
+        card = card_for(trace)
+        assert card is not None
+        assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+
+
+@pytest.mark.parametrize("spec", RULES, ids=lambda spec: spec.rule_id)
+def test_a_firing_card_with_no_exclusion_line_is_a_rule_error(spec: RuleSpec) -> None:
+    pair = _alpha_fire() if spec is SUPPLY_RULE else _undecided(REASON_FLOW_INCOMPLETE)
+    world = _world_fuel(pair)
+    assert run_rule(spec, _inputs(world)).recommendation is not None, "the control does not fire"
+
+    trace = run_rule(spec, _inputs(replace(world, exclusions=())))
+
+    assert trace.recommendation is None
+    assert len(_errors(trace)) == 1
