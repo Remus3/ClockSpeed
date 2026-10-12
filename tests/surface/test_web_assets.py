@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Final, NamedTuple
 
 import pytest
 
+from clockspeed.data import version
 from clockspeed.save.header import MASK_DIGEST_CHARACTERS, MASK_PREFIX, masked_token
 from clockspeed.surface import config, server
 from clockspeed.surface.api import advice as advice_endpoint
@@ -2773,7 +2774,7 @@ def test_the_harness_releases_its_port_and_a_restart_binds_a_fresh_one() -> None
     and the next run would collide with it - so "stop releases the port" is a
     claim this module makes and, until this arm, graded nowhere.
 
-    It is also the only arm that CALLS into ``tests/surface/audit_harness.py``
+    It is also an arm that CALLS into ``tests/surface/audit_harness.py``
     from a population member rather than from a fixture, which is what
     ``tests/test_liveness.py`` reads when it asks whether anything in the suite
     grades that module. A detector reached only through a fixture is reached by
@@ -3073,6 +3074,46 @@ def test_the_harness_world_token_is_a_digest_of_an_openly_synthetic_seed(
     assert served.startswith(MASK_PREFIX), served
     assert len(served) == len(MASK_PREFIX) + MASK_DIGEST_CHARACTERS, served
     assert "synthetic" in audit_harness.SYNTHETIC_WORLD_SEED, "the seed does not declare itself"
+
+
+def test_the_harness_world_changelist_is_the_pinned_changelist_read_at_call_time(
+    harness: audit_harness.AuditHarness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The world body's changelist is ``version.GAME_CHANGELIST``, read when built.
+
+    CS-1288 slice C4. The pin's changelist has ONE parse, owned by
+    ``clockspeed/data/version.py``; a second regex here over the build text
+    would be a second reading that drifts the moment the two parses disagree.
+    The served body is graded against the pin as read at test time, never a
+    typed literal. Then the pin is moved one past itself: a harness that still
+    reads the build string answers the old number and goes red here.
+    """
+    pinned = version.GAME_CHANGELIST
+    assert pinned is not None, "the tracked pin carries no changelist - nothing to compare"
+
+    code, body, _type = get(harness.port, WORLD_ENDPOINT)
+    assert code == HTTP_OK, code
+    served = json.loads(body)["data"]["build_changelist"]
+    assert served == pinned, f"served changelist {served} is not the pin's {pinned}"
+
+    moved = pinned + 1
+    monkeypatch.setattr(version, "GAME_CHANGELIST", moved)
+    built = audit_harness._world_data()["build_changelist"]  # noqa: SLF001 - the seam under test
+    assert built == moved, f"the harness read {built}, not the moved pin {moved}"
+
+
+def test_the_harness_world_refuses_a_pin_that_carries_no_changelist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pin with no changelist stops the harness rather than serving a stand-in.
+
+    A zero, or any default number, would be indistinguishable from a measured
+    changelist on the page the visual audit grades.
+    """
+    monkeypatch.setattr(version, "GAME_CHANGELIST", None)
+    with pytest.raises(AssertionError, match="changelist"):
+        audit_harness._world_data()  # noqa: SLF001 - the seam under test
 
 
 def personal_data_findings(blob: str) -> tuple[str, ...]:

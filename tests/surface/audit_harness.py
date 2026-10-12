@@ -89,7 +89,6 @@ allocation and a test server must never claim from it.
 from __future__ import annotations
 
 import json
-import re
 import sys
 import threading
 from fractions import Fraction
@@ -212,22 +211,28 @@ SYNTHETIC_WARNINGS: Final = (
 )
 
 
-#: The changelist inside the pinned build string. READ OUT OF THE PIN rather
-#: than retyped: a number written down twice is a number that drifts (CLAUDE.md
-#: section 4), and this one would drift the moment the pin moved.
-_CHANGELIST_IN_PIN: Final = re.compile(r"CL-(\d+)")
-
-
 def _build_changelist() -> int:
-    """The changelist the pinned game build names.
+    """The changelist the pinned game build names, read from its one owner.
+
+    ``clockspeed.data.version.GAME_CHANGELIST`` is the pin's only parse of its
+    build string (CS-1288). It is read HERE, at call time, rather than captured
+    at import or re-parsed with a second pattern: a number written down twice is
+    a number that drifts (CLAUDE.md section 4), and a second parse is a second
+    reading of the same number.
 
     Returns:
-        The integer from the pin, or zero when the pin's spelling carries none.
-        Zero rather than a raise: this module's job is to render a page for an
-        audit, and a pin whose shape changed is not a reason to render nothing.
+        The pinned changelist.
+
+    Raises:
+        AssertionError: The pin carries no changelist. A stand-in such as zero
+            would be indistinguishable from a measured value on the page the
+            audit grades.
     """
-    found = _CHANGELIST_IN_PIN.search(version.GAME_BUILD)
-    return int(found.group(1)) if found is not None else 0
+    changelist = version.GAME_CHANGELIST
+    if changelist is None:
+        message = "the pinned build carries no changelist for the harness world"
+        raise AssertionError(message)
+    return changelist
 
 
 def _unknown_classes() -> list[dict[str, object]]:
