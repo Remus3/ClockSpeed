@@ -2231,13 +2231,26 @@ FILE_ATTRIBUTE_READONLY: Final = 0x1
 def release_planted_links(*names: Path) -> None:
     """Clear the read-only attribute ON EACH LINK, never its target, then unlink the link."""
     for name in names:
-        if name.is_symlink():
+        if name.is_symlink() or name.is_junction():
             name.chmod(0o600, follow_symlinks=False)
             name.unlink()
 
 
-@pytest.mark.parametrize("kind", ["readonly-symlink", "readonly-dangling-symlink", "directory"])
-def test_an_entry_that_survives_removal_at_the_partial_name_is_refused(
+#: The read-only entries planted at the partial name, each mapped to the link
+#: kind :func:`plant_link_at` makes - or None for the plain directory control.
+SURVIVING_ENTRIES: Final[Mapping[str, str | None]] = MappingProxyType(
+    {
+        "readonly-symlink": "symlink",
+        "readonly-dangling-symlink": "dangling-symlink",
+        "readonly-junction": "junction",
+        "readonly-directory-symlink": "directory-symlink",
+        "directory": None,
+    }
+)
+
+
+@pytest.mark.parametrize("kind", list(SURVIVING_ENTRIES))
+def test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_through(
     pretend_save_root: Path,
     pretend_account_dir: Path,
     pretend_source: Path,
@@ -2245,21 +2258,25 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_refused(
     monkeypatch: pytest.MonkeyPatch,
     kind: str,
 ) -> None:
-    """An entry the removal could not take away is refused, never written through (CS-1312).
+    """An entry the removal could not take away is never written through (CS-1312).
 
     Measured by the fix-round-3 verifier: a symlink carrying the read-only
     attribute ON THE LINK ITSELF survives the one remove call, and the write
     open then followed it - a live one overwrote the save it reached, a
-    dangling one created a new file in the save directory. Both are now
-    refused before any open, as a refused destination. The real directory is
-    the control that was already refused, by the open failing on it, and it
-    must STILL reach that open: its handler wraps the OSError, which is the
-    route ``tests/test_chained_cause.py`` forces to measure that handler, so a
-    refusal that swallowed it too would leave that arm grading something else.
-    Every file under the pretend save root is asserted byte-identical, with
-    none new, BEFORE the verdict.
+    dangling one created a new file in the save directory. Every link kind -
+    those two, a read-only junction and a read-only directory symlink, both
+    measured to survive the removal too - is now refused before any open, as
+    a refused destination; the junction and the directory symlink pin that
+    the classification reads the link itself, not what it reaches. The plain
+    directory is the one entry NOT refused by that check, by design: no open
+    can write through it, so it must STILL reach the open and fail there, in
+    the handler ``tests/test_chained_cause.py`` forces through this same
+    shape - a refusal that swallowed it too would leave that arm grading
+    something else. Every file under the pretend save root is asserted
+    byte-identical, with none new, BEFORE the verdict.
     """
-    if kind != "directory" and os.chmod not in os.supports_follow_symlinks:
+    link_kind = SURVIVING_ENTRIES[kind]
+    if link_kind is not None and os.chmod not in os.supports_follow_symlinks:
         pytest.skip("this platform cannot set an attribute on a link itself")
     monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
     monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
@@ -2268,11 +2285,13 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_refused(
     copies.mkdir(parents=True)
     final = copies / (pretend_source.stem + workdir.COPY_SUFFIX)
     partial = final.with_name(final.name + workdir.PARTIAL_SUFFIX)
-    if kind == "directory":
+    if link_kind is None:
         partial.mkdir()
     else:
-        link_kind = "symlink" if kind == "readonly-symlink" else "dangling-symlink"
-        plant_link_at(partial, link_kind, save_file, pretend_account_dir)
+        if link_kind == "directory-symlink":
+            make_directory_symlink(partial, pretend_account_dir)
+        else:
+            plant_link_at(partial, link_kind, save_file, pretend_account_dir)
         partial.chmod(0o444, follow_symlinks=False)
         attributes = getattr(os.lstat(partial), "st_file_attributes", FILE_ATTRIBUTE_READONLY)
         assert attributes & FILE_ATTRIBUTE_READONLY, "the link itself is not read-only"
@@ -2296,8 +2315,81 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_refused(
     assert after == before, "the save directory changed"
     # The source here is readable, so the source error can only come from the
     # handler around the open - the route the chained-cause guard forces.
-    expected = "failed at the open" if kind == "directory" else "refused as a destination"
+    expected = "failed at the open" if link_kind is None else "refused as a destination"
     assert refusal == expected, "the entry left at the partial name was not handled as designed"
+
+
+def deny_stat_of(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
+    """Deny the lstat of exactly one path, as a read-attributes deny ACE does, at both layers.
+
+    ``os.lstat`` raises EACCES for it. ``os.path.lexists`` - a C builtin on
+    Windows that does not go through ``os.lstat`` - answers False for it,
+    which is what it does when that lstat is denied: it swallows the error.
+    Every other path is forwarded to the real function.
+
+    Args:
+        monkeypatch: The pytest fixture, which undoes both after the test.
+        target: The one path whose attributes are denied.
+    """
+    real_lstat = os.lstat
+    real_lexists = os.path.lexists
+
+    def denied_lstat(path: str | os.PathLike[str]) -> os.stat_result:
+        if os.fspath(path) == os.fspath(target):
+            raise PermissionError(errno.EACCES, "Access is denied")
+        return real_lstat(path)
+
+    def denied_lexists(path: str | os.PathLike[str]) -> bool:
+        return os.fspath(path) != os.fspath(target) and real_lexists(path)
+
+    monkeypatch.setattr(os, "lstat", denied_lstat)
+    monkeypatch.setattr(os.path, "lexists", denied_lexists)
+
+
+@pytest.mark.parametrize("kind", ["symlink", "dangling-symlink"])
+def test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused(
+    pretend_save_root: Path,
+    pretend_account_dir: Path,
+    pretend_source: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    """A link that will neither delete nor stat is refused, never written through (CS-1312).
+
+    Measured by the fix-round-4 verifier with real ACLs - delete and
+    read-attributes denied on the link, delete-child and list denied on the
+    copies directory: the removal failed, ``os.path.lexists`` swallowed the
+    denied lstat into "nothing there", the check was skipped and the write
+    open followed the link into the save directory. Reproduced here by
+    injection, deterministically: the link's unlink and its lstat are denied,
+    and ``lexists`` answers as it does under that denial. Every file under the
+    pretend save root is asserted byte-identical, with none new, BEFORE the
+    verdict.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
+    _victim, save_file = plant_save_directory(pretend_account_dir)
+    copies = work / workdir.COPIES_DIR_NAME
+    copies.mkdir(parents=True)
+    partial = copies / (pretend_source.stem + workdir.COPY_SUFFIX + workdir.PARTIAL_SUFFIX)
+    plant_link_at(partial, kind, save_file, pretend_account_dir)
+    refuse(monkeypatch, "unlink", partial)
+    deny_stat_of(monkeypatch, partial)
+    before = hashes_under(pretend_save_root)
+
+    try:
+        workdir.copy_for_read(pretend_source, work_root=work)
+    except workdir.DestinationRefusedError:
+        refusal = "refused as a destination"
+    except workdir.WorkDirError:
+        refusal = "failed elsewhere"
+    else:
+        refusal = "went ahead"
+
+    after = hashes_under(pretend_save_root)
+    assert after == before, "the save directory changed"
+    assert refusal == "refused as a destination", "an entry that would not stat was not refused"
 
 
 # ===========================================================================

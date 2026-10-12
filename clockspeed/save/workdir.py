@@ -854,17 +854,20 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     partial = destination.with_name(destination.name + PARTIAL_SUFFIX)
 
     # A LINK LEFT AT THE PARTIAL NAME IS REMOVED, NEVER WRITTEN THROUGH
-    # (CS-1312 fix rounds 2 and 3). The name is predictable and the open below
+    # (CS-1312 fix rounds 2 to 4). The name is predictable and the open below
     # is a plain create-or-truncate that follows links, so a hard link or a
     # symlink already sitting here pointed the write - and its truncation - at
     # the file it reached, and a dangling symlink created its target. The one
     # remove call unlinks the ENTRY itself, measured on Windows to remove a
     # hard link, a live or dangling symlink, a junction and a directory symlink
     # without touching what each reached. It does NOT remove everything: a
-    # symlink carrying the read-only attribute on the link itself survives it,
-    # and the open then followed that link. So whatever is still at the name
-    # after the removal is refused here, before any open - EXCEPT a plain
-    # directory, which no open can write through: the open fails on it and
+    # link carrying the read-only attribute on itself, or one whose ACL denies
+    # delete, survives it, and the open then followed that link. So
+    # :func:`_left_at` asks once, by lstat, what is still at the name, and
+    # anything it cannot show to be absent or a plain directory is refused
+    # here, before any open - including an entry whose lstat is denied, which
+    # ``os.path.lexists`` had reported as absent. A plain directory is let
+    # through because no open can write through it: the open fails on it and
     # copy_for_read's own handler reports that, the route the chained-cause
     # guard forces to measure that handler.
     # RESIDUAL, in the J9 class: a hostile process re-planting a link between
@@ -873,7 +876,7 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     # live symlink and a hard link but FOLLOWS a dangling symlink and creates
     # its target - and this open's mode is pinned by the write-surface test.
     _remove_quietly(partial)
-    if os.path.lexists(partial) and not _plain_directory(partial):
+    if _left_at(partial):
         raise DestinationRefusedError(
             "an entry at the copy's partial name in the work directory survived removal, "
             "and the write would follow it, so where the copy would land cannot be shown to "
@@ -1152,25 +1155,33 @@ def _canonical(path: Path) -> Path:
     return canonical
 
 
-def _plain_directory(path: Path) -> bool:
-    """Return whether ``path`` is a real directory - not a link and no reparse point.
+def _left_at(path: Path) -> bool:
+    """Return whether something an open for write could follow may still be at ``path``.
 
-    Read-only: one ``lstat``, which never follows the entry. A failure answers
-    False, so the caller refuses rather than trusting an entry it could not
-    classify.
+    Read-only: ONE ``lstat``, which never follows the entry (CS-1312 fix
+    round 4). It answers False only for two things it has SHOWN: nothing is
+    there - absent, or under something that is not a directory - or a plain
+    directory, no link and no reparse point, which no open can write through.
+    Every other entry answers True, and so does ANY OTHER lstat failure: an
+    entry whose attributes cannot be read cannot be shown to be harmless.
+    That second rule is the round-4 finding - measured with real ACLs, a link
+    denied delete and read-attributes survived the removal, ``os.path.lexists``
+    swallowed the denied lstat into "nothing there", and the open followed it.
 
     Args:
-        path: The entry to classify.
+        path: The copy's partial name, after the removal.
 
     Returns:
-        True only for a directory that an open for write cannot follow.
+        True when the caller must refuse rather than open.
     """
     try:
-        info = path.lstat()
-    except OSError:
+        info = os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
         return False
+    except (OSError, ValueError):
+        return True
     reparse = getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
-    return S_ISDIR(info.st_mode) and not reparse
+    return not S_ISDIR(info.st_mode) or bool(reparse)
 
 
 def _identity(path: Path) -> tuple[int, int] | None:
