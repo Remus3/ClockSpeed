@@ -932,4 +932,27 @@ CI READ BY THIS /done (`gh run view 38185182369`): tier1 at 1668710 SUCCESS, all
 RESPONDER: inbox_status.json read idle, Idle (updated 18:41) at the /done's start.
 COUNTS READ: WORKTREES 48 lines; BRANCH REFS 322; CLAUDE.md 40790 bytes; OUTBOX 2026-10-11: 1
   note (0610, the responder's); INBOX 0 unread of 535.
-COMMIT AND PUSH: recorded by the hand-off-only commit that follows the records push.
+COMMIT AND PUSH: the records commit 8de20e7 (subject "Session 137 /done - close CS-1302, file
+  CS-1313 and CS-1314", 8 files) was committed through the git lock (pre-commit gate PASS, 8
+  checked, 1 skipped, 0 blocking; wrapper exit 0; no trailer; git status clean after it) and
+  PUSHED through the git lock: the pre-push hook's gated whole suite read 15575 passed, 12
+  skipped, 8 warnings in 1167.98 s; git printed "1668710..8de20e7  main -> main"; wrapper exit
+  0; the log holds NO "clockspeed pre-push: BLOCKED" line. READ BACK: `git ls-remote origin
+  main` = 8de20e7 = HEAD. Log: work/done137_push1.log. The responder read idle before the
+  commit and before the push.
+CI ON THE PUSHED SHA, READ BY THIS /done: tier1 38189080066 at 8de20e7 SUCCESS, all five jobs
+  (hook, save, guard and fill shards, and "gates, lint, types, tests", whose "Type check" step
+  read "Success: no issues found in 407 source files"). JOB wall times: fill 422 s, hook 387 s,
+  gates 375 s, guard 323 s, save 254 s (setup included, not the budget line). No tier2 has run
+  since f8e30bf; the next nightly is the first after 1668710.
+THE HAND-OFF-ONLY COMMIT that writes this paragraph (subject "Session 137 /done - hand-off
+  records the push and tier1 result") is pushed by this /done after the file is written. ITS
+  PUSH RESULT AND ITS CI ARE NOT IN THIS FILE: read them at step (0) of the next action.
+UNVERIFIED: the delivery of the responder's 2026-10-11-0610 note into MAIN's inbox (no
+  sibling-tree read); the session 137 agents' adversary and verifier verdicts and the
+  integration-suite figures in docs/LEDGER.md (agent-reported, not re-run here); the CS-1280
+  library measurement (verifier and builder agree, not re-measured); whether any library save
+  holds a hover pack record (CS-1313, unmeasured); why local mypy counts 408 source files where
+  tier1 counts 407.
+MARK: `fleet_done.py mark --session 137 --status done` after the read-back of the hand-off
+  commit, its push and this file.
