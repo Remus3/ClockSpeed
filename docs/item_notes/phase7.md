@@ -1891,6 +1891,21 @@ budget, and never raise the pin. This item reddens tier1 and blocks CS-700 step 
 tier1 green, so `CLAUDE.md` section 7's product-before-process rule admits it. Related open items:
 CS-900, CS-917, CS-1012 and CS-1133 on tier 1's duration, and CS-1307, which moves guard-shard time.
 
+### Filed 2026-10-12 by the session 139 merger
+
+Live state: the sixth tier1 shard, job `scan` ("tests (scan shard)"), is on main with the catch-all's
+corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unchanged and nothing
+is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
+record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
+
+Next action: read tier1 on main after the push, every job's budget line. CS-700 step b waits for
+two consecutive within-budget catch-all readings. The item closes only when both catch-all and both
+scan readings are at most 360 s; otherwise a rebalance from both shards' CI durations is next. Owed
+before the close: the scan entries out of `PENDING_READINGS` in `tools/tier1_growth.py`,
+`PENDING_PROFILE` in `tools/tier1_concentration.py` and `PENDING_FIRST_RECORD` in
+`tools/tier2_headroom.py`, each at the removal condition stated beside it; one tier2
+workflow_dispatch after the merge is allowed (B1).
+
 ## CS-1318
 
 ### Acceptance
@@ -1910,3 +1925,15 @@ on that one arm: 1 failed, 686 passed, 10 skipped. The same shard passed at 0e82
 and at 923e30f and 5b22e08. No record in the tree names this arm as flaky before, and the /done did
 not rerun the job. CS-1211, the same module's `hangs` reading a slow interpreter as hung under load,
 is FROZEN and is a sibling, not this arm.
+
+### Filed 2026-10-12 by the session 139 merger
+
+Live state: measured as a load flake in the arm's `reap` liveness check, not a reaping defect; the
+classification evidence and the adversary's residuals are the CS-1318 record in `docs/LEDGER.md`,
+2026-10-12. The repair is on main: `outlives_the_reap_wait` in `tests/test_hook_probe_bound.py` polls
+for up to `REAP_WAIT` and reads a zombie as dead where the proc filesystem shows its state; the hook
+probe bound is unchanged and no case is skipped.
+
+Next action: the repeated ubuntu-runner runs the acceptance names - tier1's hook shard and the ubuntu
+tier2 dispatch legs - graded on this arm's failures; a rerun alone is never the evidence. It does not
+gate CS-1317's acceptance (ruling R2).

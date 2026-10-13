@@ -663,3 +663,15 @@ None blocks a product item or reddens a suite.
   `tests/audit/test_balance.py` still says "a built record of a class that runs recipes", and the
   CS-1313 equipment text in `clockspeed/audit/balance.py` still calls equipment records "built
   records" - TRIGGER: the next edit to `clockspeed/audit/balance.py`.
+
+## Session 139 residuals - filed 2026-10-12 under product before process
+
+The CS-1318 repair's residuals; its record and the session 139 rulings are in `docs/LEDGER.md`,
+2026-10-12. Neither blocks a product item or reddens a suite.
+
+- From the CS-1318 refutation: `tools/freeze_witness.py` counts untracked bytecode in its digest, so
+  it can report MOVED while every tracked byte is unchanged - TRIGGER: a witness reads MOVED on a
+  candidate whose tracked bytes are unchanged, or the next edit to `tools/freeze_witness.py`.
+- From the CS-1318 adversary: the reap check in `tests/test_hook_probe_bound.py` falls back to a
+  one-shot `kill -0` where there is no proc filesystem (macOS), so a zombie there still reads as a
+  survivor; latent while no CI job runs on macOS - TRIGGER: the first CI job on macOS.

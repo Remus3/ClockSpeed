@@ -75,6 +75,166 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1322 - CLOSED: the base temp's leaf carries pytest's per-user component, so redact has its needle in tmp_path on Linux again
+Verification: merged file `tests/own_temp_root.py` - `base_name` names the base temp handed to pytest,
+directly inside the run directory, for `pytest_user`, the per-user value pytest's own default spells
+in `pytest-of-<user>`, falling back to `unknown` as pytest does; CS-1320's fixed leaf `t` is gone.
+Pinned by the per-user-component arms
+`tests/test_own_temp_root.py::test_the_base_temp_is_named_for_pytests_own_per_user_component` and
+`tests/test_suite_temp_root.py::test_this_runs_base_temp_carries_pytests_per_user_component`, the
+fallback arms `test_an_unreadable_account_name_falls_back_to_unknown_as_pytest_does` and
+`test_an_account_name_that_cannot_be_a_fresh_directory_falls_back_to_unknown` in the first module,
+and the budget arm `tests/test_own_temp_root.py::test_the_handed_base_temp_is_no_deeper_than_pytests_own_default`,
+which keeps CS-1320's path budget: root, run directory and leaf together no longer than pytest's own
+`pytest-of-<user>/pytest-<N>`. Cause and route: ruling R4 of the session 139 rulings record below.
+The 13 ubuntu failures of the tier1 lane at 8601200 were reproduced on Windows with TEMP outside the
+profile and cleared by the fix: 12 green, and 1 a Windows-only artefact of that reproduction, the
+drive-letter assertion in `tests/save/test_usmap.py::test_no_exception_carries_a_decoded_name_a_raw_byte_or_a_path`.
+Two adversaries: NOT REFUTED. Ubuntu confirmation is the next tier1 run, unread at write time.
+
+### 2026-10-12 - CS-1318 - MEASURED AND REPAIRED, NOT CLOSED. CS-1318 STAYS OPEN: the reap arm's red was a load flake in its liveness check, which now polls, bounded and zombie-aware
+Verification: merged file `tests/test_hook_probe_bound.py` - `reap` asks `outlives_the_reap_wait`,
+which reads a process as a survivor only while it is still alive at the end of a bounded poll of
+`REAP_WAIT` (1 s), and where the proc filesystem carries the process state a zombie (Z, or X
+mid-collection) reads as dead. No hook probe bound was raised and no case is skipped. Arms:
+`tests/test_hook_probe_bound.py::test_the_reap_check_reads_an_exited_unwaited_child_as_dead`, red
+before the repair because a one-shot `kill -0` answered for a zombie, and its control
+`test_reap_control_a_live_process_still_reads_as_survived`. Classification evidence, a Linux replay
+under load: 51 of 150 pids lingered briefly, 9 of them zombies, all gone within 90 ms, 0 survived
+5 s - a load flake in the test's `reap` liveness check, not a reaping defect (ruling R2 of the
+session 139 rulings record below). Adversary: NOT REFUTED, with two residuals - macOS has no proc
+filesystem, so the check falls back to a one-shot `kill -0` there (a `BACKLOG.md` line, session 139
+residuals), and nothing tests that the poll is required. OPEN until the repeated ubuntu-runner runs
+its acceptance names, in `docs/item_notes/phase7.md` under CS-1318.
+
+### 2026-10-12 - CS-1317 - LANDED, NOT CLOSED. CS-1317 STAYS OPEN: a sixth tier1 shard, scan, takes the catch-all's corpus-scanning head
+Verification: merged file `.github/workflows/tier1.yml`, job `scan` ("tests (scan shard)"), pinned
+by `tests/test_tier1_budget.py::test_the_scan_shard_runs_exactly_the_catch_alls_scanning_head_and_no_other_shard_does`
+and `tests/test_queue_loop.py::test_the_scan_shard_is_required_and_a_skipped_one_is_not_success`;
+`TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` unchanged and nothing skipped. The new job and
+its four tier2 legs sit in the temporary tables `PENDING_READINGS` (`tools/tier1_growth.py`),
+`PENDING_PROFILE` (`tools/tier1_concentration.py`) and `PENDING_FIRST_RECORD`
+(`tools/tier2_headroom.py`, pinned by
+`tests/test_tier2_headroom.py::test_the_shipped_pending_entries_are_what_this_module_pins`), on
+grant B1. The cost comments of the fourth, fifth and sixth jobs now read about 35 s of runner time
+each, billed per job rounded up to whole minutes (ruling D2; the fourth and fifth by the
+comment-only commit "CS-1317 - correct the older shards' cost comments", the YAML document
+unchanged). The 360 s projection is UNMEASURED, adversary range 326 to 390 s. Rulings: R1 of the
+session 139 rulings record, the builder-blocker rulings B1 to B3 and the refutation ruling D1 to D4,
+all below. SHA note: the refutation ruling judged the candidate frozen at its slice commit on parent
+8601200; that commit landed on main as 6f29a4d with the same patch-id, and the ordered correction as
+2197a93, so the ruling's text names the landed commit; the builder-blocker ruling's line pointers,
+read at 8601200, are given in symbol form, as the citation guard requires. Next, per D4: CS-700 step b waits for two
+consecutive within-budget catch-all readings on main; CS-1317 closes only when both catch-all and
+both scan readings are at most 360 s, else it stays OPEN with a rebalance from both shards' CI
+durations next; owed before the close, the scan entries out of all three pending tables.
+
+### 2026-10-12 - CS-1317 - session 139 refutation ruling
+
+Adjudicated by a distinct read-only adjudicator; it produced no candidate.
+Candidate: 6f29a4d on cs1317-sixth-shard, parent 8601200, frozen.
+D1 DECISION: ship 6f29a4d plus a comment-only correction commit; no further
+move first. Alternative: move the four profiled-not-moved files first. Why:
+CI run 38303460197 shows no catch-all arm over 10.23s outside the moved four;
+the movable remainder is about 25s wall, under the 64s projection spread
+(adversary 326 to 390s), computed from the same uncalibrated ratio; main
+tier1 fails over the ceiling now. Probed this run: 329 targeted arms passed,
+exit 0; diff has 0 non-ASCII bytes, 0 CR; 12 files, all on the write-list.
+D2: tier1.yml "about 35 metered seconds per push" is wrong (per-job whole-
+minute billing, about 2 to 3 more minutes per push); tier2.yml "adds none"
+is wrong (four legs, about 170s fixed a night, Windows at 2x); the 360
+projection is marked UNMEASURED with the adversary range.
+D3: docs/item_notes/phase7.md is not in 6f29a4d; adversary file list wrong.
+D4: CS-700 step b unblocks on two consecutive within-budget catch-all
+readings on main (420/480 unchanged, every job line read). CS-1317 closes
+only if both catch-all and both scan readings are at most 360s; else OPEN,
+next action a rebalance from both shards' CI durations. Owed: remove the
+scan entries from PENDING_READINGS, PENDING_PROFILE, PENDING_FIRST_RECORD.
+Reversed by: a CI reading over 420s on the catch-all after merge.
+
+### 2026-10-12 - CS-1317 - session 139 builder-blocker rulings
+Adjudicated by a distinct read-only agent; decision, alternatives, why, reversed-by.
+B1 GRANTED: tools/tier2_headroom.py and tests/test_tier2_headroom.py join the
+CS-1317 write-list for a temporary PENDING_FIRST_RECORD table on the b756488
+precedent (pinned, CS id required, undeclared name red, still graded at 4/5,
+self-expiring with "remove"), keyed by the four new expanded leg names, not job
+ids. Removal: at 3 distinct recorded runs per new leg; the refresh commit is red
+until table and pin go (precedent 72205f5). CS-1317 stays OPEN until then. One
+workflow_dispatch after merge allowed. Fabricated or copied duration rows
+REJECTED (tools/tier2_headroom.py::MINIMUM_RUNS_PER_JOB). Rejected: excluding the shard from
+tier2; job-id keying. Same grant covers tools/tier1_growth.py and
+tests/test_tier1_growth.py for PENDING_READINGS (precedent: the tier1.yml hooks job's
+PENDING_READINGS comment).
+B2: test_chained_exemption_guard.py and test_disposition_sites.py MAY move to
+the sixth shard. CS-1173's reason is guard-shard overfill (LEDGER CS-1173,
+tests/test_tier1_budget.py::test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all);
+the not-in-guards half of the pin is kept, amended in the CS-1193 shape (same
+arm). Reversed by: the sixth shard over budget.
+B3: a 380 s projection is REJECTED against the 360 s target. A serial,
+named-file local profile runs through fleet_suite_gate.py at default slots,
+output untracked, used only as relative weights calibrated to CI phases.
+History-depth or spawn-bound files are taken at CI or worst cost; projection
+from the slow-runner reading. Reversed by: an operator re-ruling of 360 s.
+Common-mode risk: one CI reading underlies both target and projection.
+
+### 2026-10-12 - CS-1315 and CS-1316 - DECISION RECORD (adjudicated session 139, ruling R3). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1315 AND CS-1316 STAY OPEN. Neither blocks the CS-700 flip
+Verification: ruling R3 of the session 139 rulings record directly below, and
+`docs/item_notes/phase5.md` under CS-1315 and CS-1316. That record's heading names both items
+and closes neither; this record says so in the words `tools/drift_guard.py` guard (i) reads.
+
+### 2026-10-12 - CS-1317 / CS-1318 / CS-1315 / CS-1316 / CS-1320 - session 139 rulings
+Verification: tier1 38303460197 at 8601200 (gates job 114991714699: 507 s, pytest 440 s, 12 failed),
+38277053038 at f4e8468 (493 s, 0 UNPROVEN); docs/item_notes/phase7.md CS-1317 and CS-1318;
+docs/item_notes/phase5.md CS-1315 and CS-1316; CS-NEXT-SESSION.txt session 139 step (1).
+Ruled by a distinct read-only adjudicator that authored no candidate.
+R1 CS-1317. Decision: a sixth tier1 shard taking the catch-all's corpus-scanning head, chosen from
+CI --durations so the catch-all projects at or under 360 s; levels 420/480 untouched, nothing
+skipped. Projected saving about 120-170 s of 507 s. Alternatives rejected: mypy or other caching
+(at most about 20 s, and a cached gate input can go stale and green); the save shard (482 s reading,
+full-history checkout). Reversed by: no two consecutive within-budget gates readings after it lands.
+R2 CS-1318. Decision: not a regression - red at a docs-only commit whose code equals its green
+parent; cause unmeasured. Measure first (loaded box, ubuntu tier2 dispatch legs), then a bounded
+zombie-aware death poll; no bound raised, no skip. Deferred if unclassified by the batch: it does
+not gate CS-1317's acceptance, but a red at CS-700 step b is never rerun green. Alternatives
+rejected: quarantine (acceptance forbids); a rerun as evidence. Reversed by: a reproduction at
+unchanged code showing a reaping defect.
+R3 CS-1315, CS-1316. Decision: neither blocks the CS-700 flip. The product-before-flip clause
+(session 136 hand-off) named CS-1280, CS-1285 and CS-1288 C, all landed; neither item touches a
+safety floor. Alternative rejected: holding the flip. Reversed by: a game patch landing before
+CS-1315 closes, or the operator's own words.
+R4 CS-1320 regression. Decision: repair before the two-green read. Cause: 389d16c's base temp
+dropped pytest's per-user component, so on Linux tmp_path holds nothing redact rewrites. Fix: the
+base-temp leaf carries pytest's per-user component, red-first, filed under the next free ID.
+Alternative rejected: reverting 389d16c..8601200 (reopens the Windows MAX_PATH defect, reverts
+append-only ledger commits). Reversed by: a privacy oracle redesign that no longer reads tmp_path.
+R5. One batch, one push; code write-lists disjoint; shared docs merger-only, serialized by the git
+lock, this record first.
+
+### 2026-10-12 - CS-1321 - frozen-file DENIAL: no marker skip in .githooks/pre-push (MAIN DONE-SLOW ORDER)
+
+Authority: MAIN ORDER 2026-10-12-1912 (DONE-SLOW), provenance as verified by the
+dispatcher; distinct adjudicator, read-only. Recorded before any edit.
+
+A. .githooks/pre-push - DENY. Not granted: the green-marker skip block (a
+tools/whole_suite.py record under the git common dir, the hook exiting 0 on a tree
+match), the header lines 2-5 correction, and moving the CS_PASS_FLOOR line. The file
+stays byte-unchanged under CS-1321.
+Why: (1) the order's first option - one batched push whose pre-push run is the
+ritual's ONE gated whole suite - meets it with no frozen-file change; (2) a new tool,
+hook arm and guard modules are new tooling under the CLAUDE.md section 7
+product-before-process fence, which no MAIN note lifts; (3) the skip exits 0 on zero
+executed tests on the word of a writable file, against CS-821 and CONVENTIONS.md 7.2;
+the CS-1290 grant states "Perf tiering is NOT granted".
+B. CS-907 is not touched and stays OPEN (CONVENTIONS.md section 8 still states a fast
+subset).
+C. Conditions on the done.md route: one push, at most one whole suite, a flake re-run
+alone, --no-verify never; a CS-700 window arm (no commit, suite or push from step b to
+S12a); gate exit 3 ran no suite, so one push retry is permitted.
+Alternatives: B, exact tree marker (rejected: the hand-off commit changes the tree; a
+doc-diff allowlist is unprovable); C, marker skip (rejected, A above).
+Reversed by: a measured /done under the one-push ritual still running more than one
+gated whole suite - then a fresh grant request through an adjudicator.
+
 ### 2026-10-12 - CS-1321 - CLOSED: /done runs at most one gated whole suite - one commit batch, ONE push, a flake re-run alone (MAIN DONE-SLOW ORDER)
 Verification: merged file `.claude/commands/done.md` - step 1 runs no whole suite at any tier
 (tier 2 is `python -m mypy` as CI runs it, ruff check, ruff format --check and targeted
