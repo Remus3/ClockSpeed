@@ -1099,9 +1099,10 @@ jobs:
   # named first and second and both start at t=0.
   #
   # THIS COSTS THE LEANNESS RULE IN THE HEADER AGAIN, KNOWINGLY: a fourth checkout
-  # and install, about 35 metered seconds per push. The adjudicator's ruling on
-  # the route stands in for the operator decision that authorised the second
-  # job (CLAUDE.md section 6.1).
+  # and install, about 35s of runner time - but Actions bills each job rounded up
+  # to whole minutes, so the added job costs about 1 more metered minute per
+  # push. The adjudicator's ruling on the route stands in for the operator
+  # decision that authorised the second job (CLAUDE.md section 6.1).
   #
   # A NEW JOB HAS NO READINGS. tools/tier1_growth.py therefore names it in its
   # PENDING_READINGS set until five green readings are recorded; that set is a
@@ -1281,9 +1282,10 @@ jobs:
   # half of this shard's step, which tools/tier1_concentration.py refuses.
   #
   # THIS COSTS THE LEANNESS RULE IN THE HEADER AGAIN, KNOWINGLY: a fifth checkout
-  # and install, about 35 metered seconds per push. The adjudicator's ruling on
-  # the route stands in for the operator decision that authorised the second
-  # job (CLAUDE.md section 6.1).
+  # and install, about 35s of runner time - but Actions bills each job rounded up
+  # to whole minutes, so the added job costs about 1 more metered minute per
+  # push. The adjudicator's ruling on the route stands in for the operator
+  # decision that authorised the second job (CLAUDE.md section 6.1).
   #
   # A NEW JOB HAS NO READINGS. tools/tier1_growth.py names it in its
   # PENDING_READINGS set until five green readings are recorded, and
