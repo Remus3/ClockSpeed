@@ -67,15 +67,25 @@ OPEN or UNKNOWN, carries the KEEP RULE below WORD FOR WORD, so the session that 
 has it.
 
 **S12a KEEPS THE WINDOW'S RECORDS (CS-1323).** A window /done leaves its records uncommitted,
-and S12a resets the main tree. KEEP RULE: before any CS-700 S12a reset of the main tree, copy
-every record a window /done left uncommitted - the hand-off, `docs/LEDGER.md`,
-`WAKEUP_NOTES.md`, `ROADMAP.md` and any other file it wrote - into a NEW, EMPTY folder of its own
-under the tree's gitignored data directory at the tree root, named after the session number;
-the copy fails, and S12a stops, if
-that folder already exists. A reset leaves ignored files alone; never clean ignored files then.
-Restore the records IMMEDIATELY after the reset, before any other S12a act, and only from that
-folder. After a successful restore, remove that folder with a plain delete - it holds only
-copies of tracked-file content now restored, so the Recycle Bin rule does not apply.
+and S12a resets the main tree. KEEP RULE, in this order, each step only after the one before it:
+(1) COPY - before any CS-700 S12a reset of the main tree, copy every record a window /done left
+uncommitted - the hand-off, `docs/LEDGER.md`, `WAKEUP_NOTES.md`, `ROADMAP.md` and any other
+file it wrote - into a NEW, EMPTY folder of its own under the tree's gitignored data directory
+at the tree root, named after the session number - the number of the session that runs S12a
+and makes the copy; the copy fails, and S12a stops, if that folder already exists.
+(2) RESET - the S12a reset; a reset leaves ignored files alone, so never clean ignored files
+then. (3) RESTORE - the records IMMEDIATELY after the reset, before any other S12a act, and
+only from that folder. (4) READ-BACK - byte-compare each restored file against its copy in
+that folder; on any mismatch, S12a stops. (5) S12a's acts, in their recorded order.
+(6) The closing commit. (7) COMMIT READ-BACK - read the closing commit back: the restored
+records are committed and their bytes match HEAD's. (8) RECYCLE - only then send that folder to
+the Recycle Bin (FLEET item 9), by the method this tree used for CS-1275, in PowerShell:
+`Add-Type -AssemblyName Microsoft.VisualBasic`, then
+`[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('<folder>', 'OnlyErrorDialogs', 'SendToRecycleBin')`.
+If S12a halts at any point after the copy, keep the folder and hand the decision to a distinct
+adjudicator, recorded in the hand-off. A crash between the reset and the restore leaves that
+folder as the ONLY copy: the next session looks for it under the gitignored data directory
+before anything else.
 
 ## 0. Preconditions
 
@@ -289,17 +299,20 @@ the CS-700 window, or on UNKNOWN (above), this step does not run: push nothing, 
       suite gate refusal into its own exit 1 ("pytest exit status: [3]", no junit report), so
       the push's exit code never names a refusal: read it from the log, counting ONLY a line
       that STARTS with one of the patterns below - an indented or mid-line occurrence, such as
-      pytest failure output quoting one, never counts.
+      pytest failure output quoting one, never counts; a suite that ran and echoed refusal
+      lines from its own captured stderr also prints the hook's BLOCKED line, so a gate
+      refusal needs that line ABSENT.
       - `^SUITE-GATE: no suite slot free` (the gate's wait limit, `WAIT_S` in
         `ops/fleet_kit/fleet_suite_gate.py`, ran out) together with the hook's no-report line
-        `^clockspeed pre-push: pytest wrote no report`, or `^GITLOCK:` in a log with no
+        `^clockspeed pre-push: pytest wrote no report` and no `^clockspeed pre-push: BLOCKED`
+        line, or `^GITLOCK:` in a log with no
         `^clockspeed pre-push:` line (the kit's git lock refused the push and exited 3; the
         hook never ran): confirm the remote ref unmoved and retry the push exactly ONCE
         through the same command; that retry is the ritual's one gated whole suite. A second
         refusal stops the ritual with nothing pushed.
       - `^SUITE-GATE: .+ has uncommitted edits by another live agent` together with
-        `^clockspeed pre-push: pytest wrote no report`: NO retry. Stop at once with nothing
-        pushed.
+        `^clockspeed pre-push: pytest wrote no report` and no `^clockspeed pre-push: BLOCKED`
+        line: NO retry. Stop at once with nothing pushed.
       On either stop: commit nothing more and leave the commits local - the committed hand-off
       already says push pending, result UNREAD, so the next session pushes first - run MEASURE
       below and step 9, and step 10 marks `--status failed --reason "<the refusal>"`, either

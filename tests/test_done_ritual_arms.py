@@ -66,6 +66,34 @@ WINDOW_OPENER: Final = "**THE CS-700 WINDOW"
 SIGNAL_OPENER: Final = "- [ ] READ THE CS-700 WINDOW SIGNAL"
 KEEP_OPENER: Final = "**S12a KEEPS THE WINDOW'S RECORDS"
 KEEP_RULE_LABEL: Final = "KEEP RULE"
+
+#: The KEEP RULE's steps, in the only order that never loses a record: the
+#: folder is the sole copy from the reset until the closing commit is read back.
+KEEP_ORDER: Final = (
+    "COPY",
+    "RESET",
+    "RESTORE",
+    "READ-BACK",
+    "S12a's acts",
+    "The closing commit",
+    "COMMIT READ-BACK",
+    "RECYCLE",
+)
+
+#: A refusal-line pattern's role, by text it contains, then by the prefix it opens with.
+LINE_ROLES_BY_TEXT: Final = (
+    ("no suite slot free", "timeout"),
+    ("uncommitted edits", "foreign"),
+    ("wrote no report", "noreport"),
+    ("pre-push: BLOCKED", "blocked"),
+)
+LINE_ROLES_BY_PREFIX: Final = (("GITLOCK:", "lock"), ("clockspeed pre-push:", "hook"))
+
+#: Any wording that removes the keep folder.
+KEEP_REMOVAL: Final = re.compile(
+    r"[Rr]emov\w*\s+(?:that|the)\s+folder|[Dd]elet\w*\s+(?:that|the)\s+folder"
+    r"|send\s+that\s+folder|Recycle\s+Bin|DeleteDirectory"
+)
 REFUSAL_OPENER: Final = "- [ ] GATE-REFUSAL PATH"
 MEASURE_OPENER: Final = "- [ ] MEASURE"
 IGNORED_LABEL: Final = "NO BARE IGNORED PATH"
@@ -510,14 +538,68 @@ def test_the_keep_copy_goes_to_a_new_empty_folder_named_for_the_session() -> Non
     assert re.search(r"only\s+from\s+that\s+folder", rule), "the restore source is unbounded"
 
 
-def test_the_keep_restore_is_immediate_and_the_folder_is_then_removed() -> None:
-    rule = _keep_rule()
+def _keep_positions(rule: str) -> list[int]:
+    """Where each KEEP RULE step opens, in :data:`KEEP_ORDER`; -1 for a missing step."""
+    flat = " ".join(rule.split())
+    found = [re.search(rf"\({n}\)\s+{re.escape(s)}", flat) for n, s in enumerate(KEEP_ORDER, 1)]
+    return [match.start() if match else -1 for match in found]
 
-    assert re.search(r"IMMEDIATELY\s+after\s+the\s+reset", rule), "the restore is not immediate"
-    assert re.search(r"before\s+any\s+other\s+S12a\s+act", rule), "an S12a act may come first"
-    assert not re.search(r"[Rr]estore[^.]*closing\s+commit", rule), "the restore waits too long"
-    assert re.search(r"remove\s+(?:that|the)\s+folder", rule), "the folder is never removed"
-    assert "plain delete" in rule, "the removal method is not stated"
+
+def test_the_keep_rule_runs_in_its_stated_order() -> None:
+    positions = _keep_positions(_keep_rule())
+
+    assert -1 not in positions, "a KEEP RULE step is missing"
+    assert positions == sorted(positions), "the KEEP RULE steps are out of order"
+
+
+def test_the_copy_is_made_before_the_reset() -> None:
+    flat = " ".join(_keep_rule().split())
+    copy, reset = _keep_positions(_keep_rule())[:2]
+
+    assert copy >= 0, "the KEEP RULE has no COPY step"
+    assert re.search(r"[Bb]efore any CS-700 S12a reset", flat[copy:reset]), "copy after the reset"
+    assert not re.search(r"after any CS-700 S12a reset", flat), "the copy follows the reset"
+
+
+def test_the_folder_is_recycled_only_after_the_closing_commit_is_read_back() -> None:
+    flat = " ".join(_keep_rule().split())
+    read_back = _keep_positions(_keep_rule())[KEEP_ORDER.index("COMMIT READ-BACK")]
+    removals = [m.start() for m in KEEP_REMOVAL.finditer(flat)]
+
+    assert read_back >= 0, "the closing commit is never read back"
+    assert removals, "the folder is never removed"
+    assert min(removals) > read_back, "the folder is removed before the commit read-back"
+    assert "bytes match HEAD's" in flat, "the commit read-back compares nothing"
+
+
+def test_the_folder_goes_to_the_recycle_bin_by_the_recorded_method() -> None:
+    flat = " ".join(_keep_rule().split())
+
+    assert "Recycle Bin" in flat, "the folder is not recycled"
+    assert "Microsoft.VisualBasic" in flat, "the recycling method is not named"
+    assert "SendToRecycleBin" in flat, "the recycling method is not named"
+    assert "plain delete" not in flat, "the folder is unlinked directly"
+    assert "does not apply" not in flat, "FLEET item 9 is waived"
+
+
+def test_the_keep_restore_is_immediate_and_read_back() -> None:
+    flat = " ".join(_keep_rule().split())
+
+    assert re.search(r"IMMEDIATELY after the reset", flat), "the restore is not immediate"
+    assert re.search(r"before any other S12a act", flat), "an S12a act may come first"
+    assert not re.search(r"[Rr]estore[^.]*closing commit", flat), "the restore waits too long"
+    assert re.search(r"byte-compare each restored file against its copy", flat)
+    assert re.search(r"on any mismatch, S12a stops", flat), "a bad restore does not stop S12a"
+
+
+def test_a_halted_s12a_keeps_the_folder_for_an_adjudicator() -> None:
+    flat = " ".join(_keep_rule().split())
+
+    assert re.search(r"halts[^.]*keep the folder", flat), "a halt may lose the folder"
+    assert re.search(r"distinct adjudicator[^.]*hand-off", flat), "no one decides after a halt"
+    assert "session that runs S12a and makes the copy" in flat, "the session number is ambiguous"
+    assert re.search(r"crash between the reset and the restore[^.]*ONLY copy", flat)
+    assert re.search(r"before anything else", flat), "the next session may miss the folder"
 
 
 def test_the_window_hand_off_carries_the_keep_rule_word_for_word() -> None:
@@ -552,6 +634,7 @@ def test_a_slot_timeout_or_a_lock_refusal_is_retried_once() -> None:
     assert "WAIT_S" in retry[0], "the gate's wait limit is not named at its owner"
     assert "exactly ONCE" in retry[0], "the retry is not bounded to one"
     assert re.search(r"second refusal", retry[0], re.IGNORECASE), "no stop on a second refusal"
+    assert not re.search(r"once more|again|second retry", retry[0], re.IGNORECASE), "a 2nd retry"
 
 
 def test_foreign_uncommitted_edits_stop_the_ritual_without_a_retry() -> None:
@@ -579,16 +662,12 @@ def test_a_refusal_is_read_from_the_output_and_never_from_the_exit_code() -> Non
 def _line_role(spelled: str) -> str:
     """Which refusal line a spelled pattern is for, read from its literal text."""
     text = spelled.lstrip("^")
-    if "no suite slot free" in text:
-        return "timeout"
-    if "uncommitted edits" in text:
-        return "foreign"
-    if "wrote no report" in text:
-        return "noreport"
-    if text.startswith("GITLOCK:"):
-        return "lock"
-    if text.startswith("clockspeed pre-push:"):
-        return "hook"
+    for needle, role in LINE_ROLES_BY_TEXT:
+        if needle in text:
+            return role
+    for prefix, role in LINE_ROLES_BY_PREFIX:
+        if text.startswith(prefix):
+            return role
     return "other"
 
 
@@ -607,9 +686,10 @@ def _classify(log: str, roles: dict[str, list[re.Pattern[str]]]) -> str:
     def seen(role: str) -> bool:
         return any(pattern.search(log) for pattern in roles.get(role, []))
 
-    if seen("noreport") and seen("timeout"):
+    gate_refused = seen("noreport") and not seen("blocked")
+    if gate_refused and seen("timeout"):
         return "retry"
-    if seen("noreport") and seen("foreign"):
+    if gate_refused and seen("foreign"):
         return "stop"
     if seen("lock") and not seen("hook"):
         return "retry"
@@ -627,6 +707,7 @@ def _real_lines() -> dict[str, str]:
         "noreport": "clockspeed pre-push: " + (no_report.group(1) if no_report else ""),
         "lock": next((m for m in lock if "lock still held" in m), "") + "600s",
         "hook": "clockspeed pre-push: BLOCKED (pytest exit 1). Nothing was pushed.",
+        "blocked": "clockspeed pre-push: BLOCKED (pytest exit 1). Nothing was pushed.",
     }
 
 
@@ -648,7 +729,7 @@ def test_each_refusal_pattern_matches_its_real_line_only_at_column_0() -> None:
     roles = _refusal_patterns()
     real = _real_lines()
 
-    for role in ("timeout", "foreign", "noreport", "lock", "hook"):
+    for role in ("timeout", "foreign", "noreport", "blocked", "lock", "hook"):
         patterns = roles.get(role, [])
         assert patterns, f"step 8 spells no {role} line pattern"
         assert all(p.search(real[role]) for p in patterns), f"a {role} pattern misses its line"
@@ -666,6 +747,15 @@ def test_a_gate_refusal_needs_its_line_and_the_hook_no_report_line() -> None:
     assert _classify(f"{real['foreign']}\n", roles) == "none", "one line alone stopped"
     assert _classify(f"    {real['timeout']}\n{real['noreport']}\n", roles) == "none"
     assert _classify(f"E   x: {real['timeout']}\n{real['noreport']}\n", roles) == "none"
+
+
+def test_refusal_lines_echoed_beside_a_blocked_line_never_count() -> None:
+    roles = _refusal_patterns()
+    real = _real_lines()
+    echo = f"{real['noreport']}\n{real['blocked']}\n"
+
+    assert _classify(f"{real['timeout']}\n{echo}", roles) == "none", "an echo buys a 2nd suite"
+    assert _classify(f"{real['foreign']}\n{echo}", roles) == "none", "an echo stops the ritual"
 
 
 def test_a_lock_refusal_counts_only_when_the_hook_never_ran() -> None:
@@ -686,6 +776,8 @@ def test_step_8_states_the_rule_the_classifier_applies() -> None:
     assert len(stop) == 1, "step 8 has no single uncommitted-edits sub-bullet"
     assert "wrote no report" in retry[0], "a timeout line alone would be retried"
     assert "wrote no report" in stop[0], "an uncommitted-edits line alone would stop"
+    for item in (retry[0], stop[0]):
+        assert re.search(r"no\s+`\^clockspeed pre-push: BLOCKED`", item), "an echo would count"
     assert re.search(r"`\^GITLOCK:`[^`]*with\s+no\s+`\^clockspeed pre-push:`", retry[0])
     assert re.search(r"STARTS\s+with", block), "the anchoring is not stated in words"
 
@@ -694,6 +786,7 @@ def test_the_push_runs_in_git_bash_with_its_log_outside_the_tree() -> None:
     step = _steps().get("8", "")
 
     assert "Git Bash" in step, "the push shell is not named"
+    assert "never PowerShell" in step, "PowerShell is not ruled out"
     assert "UTF-16" in step, "the PowerShell 5.1 hazard is not stated"
     assert re.search(r"outside\s+the\s+tree", step), "the push log may sit inside the tree"
     assert re.search(r"never\s+a\s+tracked\s+or\s+claimable\s+path", step)
