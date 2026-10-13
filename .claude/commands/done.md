@@ -68,15 +68,19 @@ has it.
 
 **S12a KEEPS THE WINDOW'S RECORDS (CS-1323).** A window /done leaves its records uncommitted,
 and S12a resets the main tree. KEEP RULE, in this order, each step only after the one before it:
-(1) COPY - before any CS-700 S12a reset of the main tree, copy every record a window /done left
-uncommitted - the hand-off, `docs/LEDGER.md`, `WAKEUP_NOTES.md`, `ROADMAP.md` and any other
-file it wrote - into a NEW, EMPTY folder of its own under the tree's gitignored data directory
-at the tree root, named after the session number - the number of the session that runs S12a
-and makes the copy; the copy fails, and S12a stops, if that folder already exists.
+(1) COPY - before any CS-700 S12a reset of the main tree, copy into a NEW, EMPTY folder of its
+own under the tree's gitignored data directory at the tree root, named after the session
+number - the number of the session that runs S12a and makes the copy - EVERY path
+`git status --porcelain --untracked-files=all` lists, not only the records a window /done left
+(the hand-off, `docs/LEDGER.md`, `WAKEUP_NOTES.md`, `ROADMAP.md`); a deleted path is recorded by
+name in a list file in that folder. The copy fails, and S12a stops, if that folder already
+exists; and before step (2), S12a stops if any listed path is missing from the folder.
 (2) RESET - the S12a reset; a reset leaves ignored files alone, so never clean ignored files
-then. (3) RESTORE - the records IMMEDIATELY after the reset, before any other S12a act, and
-only from that folder. (4) READ-BACK - byte-compare each restored file against its copy in
-that folder; on any mismatch, S12a stops. (5) S12a's acts, in their recorded order.
+then. (3) RESTORE - every copied path IMMEDIATELY after the reset, before any other S12a act,
+and only from that folder, then re-apply the recorded deletions. (4) READ-BACK - byte-compare
+each restored file against its copy in that folder, covering every copied path, and confirm
+each recorded deletion is still absent; on any mismatch, S12a stops. (5) S12a's acts, in their
+recorded order.
 (6) The closing commit. (7) COMMIT READ-BACK - read the closing commit back: the restored
 records are committed and their bytes match HEAD's. (8) RECYCLE - only then send that folder to
 the Recycle Bin (FLEET item 9), by the method this tree used for CS-1275, in PowerShell:

@@ -561,6 +561,21 @@ def test_the_copy_is_made_before_the_reset() -> None:
     assert not re.search(r"after any CS-700 S12a reset", flat), "the copy follows the reset"
 
 
+def test_the_copy_takes_every_dirty_path_and_its_deletions_before_the_reset() -> None:
+    flat = " ".join(_keep_rule().split())
+    copy, reset, restore, read_back, acts = _keep_positions(_keep_rule())[:5]
+    step = flat[copy:reset] if 0 <= copy < reset else ""
+
+    assert step, "the KEEP RULE has no COPY step before its RESET step"
+    assert "`git status --porcelain --untracked-files=all`" in step, "the copy set is unbounded"
+    assert re.search(r"EVERY path", step), "only some dirty paths are copied"
+    assert "nothing else" not in step, "the copy is restricted to the window's records"
+    assert re.search(r"deleted path is recorded by name in a list file", step)
+    assert re.search(r"before step \(2\), S12a stops if any listed path is missing", step)
+    assert "re-apply the recorded deletions" in flat[restore:read_back], "deletions are lost"
+    assert "every copied path" in flat[read_back:acts], "the read-back skips a copied path"
+
+
 def test_the_folder_is_recycled_only_after_the_closing_commit_is_read_back() -> None:
     flat = " ".join(_keep_rule().split())
     read_back = _keep_positions(_keep_rule())[KEEP_ORDER.index("COMMIT READ-BACK")]
