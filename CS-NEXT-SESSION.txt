@@ -1,7 +1,7 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
 Written in session 140 at CS-700 flip block step a, 2026-10-13, UPDATED in session 140's CS-1325
 records commit after step c did NOT PASS and the window was ABANDONED and CLOSED by adjudication,
-and UPDATED AGAIN in session 140's CS-1315 records commit after CS-1315 slice A landed. It is NOT
+and UPDATED AGAIN in session 140's CS-1315 records commits after CS-1315 slice A landed. It is NOT
 a /done hand-off. The operator starts with "continue".
 
 SESSION: 141
@@ -26,10 +26,13 @@ origin/main by full SHA). Then CS-1315 SLICE A LANDED by cherry-pick (two commit
 "CS-1315 - registry provenance: content-hash check warns on every card" and "CS-1315 - provider: a
 coding bug raises, never reads as no install"; CS-1315 NOT CLOSED, slice B owed), and this file
 rides in the CS-1315 records commit on top (subject "CS-1315 - records: slice A landed, slice B and
-CS-1316 contracts"). THE PUSH WAS HELD: two doc guards read red at the landed slice A tip and
-green at its parent (LEDGER "CS-1315 - SLICE A LANDED WITH FIX 1" names both); the repair lands
-before any push, and a red is never rerun to green. The next session reads the remote ref against
-HEAD and the CI run, never the remembered result.
+CS-1316 contracts"). Two doc guards read red at the landed slice A tip and green at its parent
+(LEDGER "CS-1315 - SLICE A LANDED WITH FIX 1" names both); BOTH WERE REPAIRED BEFORE ANY PUSH,
+never rerun to green - the cited test name restored and the two archive-rot arms re-pinned
+(subject "CS-1315 - restore the cited test name; re-pin archive rot after slice A") - and this
+file was updated once more in a records commit on top (subject "CS-1315 - records: reds fixed,
+slice A pushed"), all pushed in ONE batch. The next session reads the remote ref against HEAD and
+the CI run, never the remembered result.
 SESSION 141 RESTARTS THE BLOCK AT STEP a - INTERACTIVE, THE OPERATOR PRESENT AT STEP e - and never
 resumes it at step c on the old tip: a NEW records commit holding the next hand-off, then
 INBOX_STOP, its push and read-backs; a NEW step b (regeneration commit, push, tier1); a NEW freeze
@@ -278,8 +281,8 @@ RACE GUARDS     every git commit / push through
                 .githooks/pre-push runs its suite through fleet_suite_gate.py (owner
                 FLEET_CLAIM_OWNER, else pre-push), with -x, grading the MAIN WORKING TREE.
 THE CS-700 WINDOW SIGNAL: session 140's step b regeneration commit b12396c opened the window; the
-  abandonment's recovery rule held it shut until the CS-1325 commits; the CS-1315 commits and this
-  records commit touch no citation set file, so the signal reads CLOSED on it. The restart's new
+  abandonment's recovery rule held it shut until the CS-1325 commits; the CS-1315 commits, its
+  reds fix and its records commits touch no citation set file, so the signal reads CLOSED on it. The restart's new
   step b opens a new window. The window rules - from flip block step b to S12a no commit, no suite, no push - are
   owned by .claude/commands/done.md (CS-1323).
 INBOX_STOP: ABSENT at this file's write - written at step a in session 140, removed by the
@@ -311,9 +314,10 @@ ROOT            the E: checkout named by ADR 0026; the C: spelling is a junction
 HEAD / remote   the two CS-1325 commits and their records commit were pushed in session 140 and
                 read back: HEAD == origin/main == the CS-1325 records commit (`git ls-remote
                 origin refs/heads/main` read, full SHA equal). Then the two CS-1315 slice A
-                commits were cherry-picked onto main (local and unpushed at write time), and this
-                file rides in ONE records commit on top; THE PUSH WAS HELD on two doc-guard reds
-                at the landed slice A tip (THE SINGLE NEXT ACTION, above).
+                commits were cherry-picked onto main with a records commit on top; the two
+                doc-guard reds at the landed slice A tip were repaired by one fix commit
+                (fast-forwarded), and a second records commit (this file's last) went with
+                them in ONE push (THE SINGLE NEXT ACTION, above).
                 A BLOCKED PUSH CAN REPORT EXIT 0 FROM A WRAPPER - READ THE LOG LINE
                 "clockspeed pre-push: BLOCKED", AND THE REMOTE REF.
 DIRTY FILES     none before the CS-1315 records commit (`git status` read clean); it holds this
@@ -336,6 +340,8 @@ BRANCHES - KEEP, DO NOT PRUNE; CLASSIFY UNDER CS-1291 PART 7 (consumer check, cl
   One worktree-agent-* branch in its agent worktree under .claude/worktrees, tip subject "CS-1315 -
     provider: a coding bug raises, never reads as no install" - CS-1315 slice A with fix 1 as
     landed.
+  One more worktree-agent-* branch, tip subject "CS-1315 - restore the cited test name; re-pin
+    archive rot after slice A" - the reds fix, landed by fast-forward (its tip is on main).
   LANDED IN SESSION 139 (all by cherry-pick; each read 0 unlanded by patch-id and clean):
   cs1317-sixth-shard - CS-1317 as landed, tip subject "CS-1317 - correct shard cost comments,
     mark the projection unmeasured", in its agent worktree under .claude/worktrees.

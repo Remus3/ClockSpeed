@@ -138,7 +138,12 @@ on docs/LEDGER.md (slice A renamed the tests/advisor/test_build.py test that the
 record cites - its "three reads" name is now "build reads") and
 `tests/test_archive_rot.py::test_the_deep_archives_rot_is_measured_and_pinned_per_arm` (two
 deep-archive line-pointer counts moved: refused form 14 against a pin of 15, landing on nothing 4
-against a pin of 3). The push is held until a repair lands; it is not this record's to grant.
+against a pin of 3). BOTH REPAIRED BEFORE THE PUSH, never rerun to green: the cited name restored
+(`tests/advisor/test_build.py::test_off_the_pin_one_indeterminate_step_follows_the_three_reads`)
+and the two arms re-pinned in tests/test_archive_rot.py (landing on nothing 3 to 4, refused form
+15 to 14 - one archive pointer into tests/data/test_registry.py moved onto a blank line under
+slice A's two added import lines; the archive unedited, the total unmoved at eighteen). Slice A
+was pushed in the same batch as this record.
 CS-1315 does not close: slice B is owed (the slice B contract record above).
 Reversed by: an adjudicated advice-only re-reading of the clause, or the operator's own words.
 
