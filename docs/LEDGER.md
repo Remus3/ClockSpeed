@@ -75,6 +75,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1321 - CLOSED: /done runs at most one gated whole suite - one commit batch, ONE push, a flake re-run alone (MAIN DONE-SLOW ORDER)
+Verification: merged file `.claude/commands/done.md` - step 1 runs no whole suite at any tier
+(tier 2 is `python -m mypy` as CI runs it, ruff check, ruff format --check and targeted
+`pytest tests/<module>`); steps 2 to 7 commit every ritual edit, the hand-off included, BEFORE
+step 8's single `git push` through `fleet_gitlock`, whose pre-push hook is the ritual's one gated
+whole suite; the read-back compares the remote ref to HEAD by full SHA; CI and the timing figures
+(start, end, the push suite's gate wait_s and hold_s from `durations.jsonl`) go to the next
+session and the gitignored `ops/loop/control/done_timing.json`, never to a commit after the push.
+No test pins done.md text (grep of tests/ and tools/: only its `tools/provenance.tsv` row), so no
+new guard was opened, per the product-before-process fence; checked with `tools/drift_guard.py`,
+`tools/doc_budget.py` and the targeted doc-guard tests.
+DECISION (adjudicated): route A, edit only done.md, over B, a targeted-suite bypass in the frozen
+`.githooks/pre-push` (needs cross-process trusted state, weakens the tier-0 gate, and is new
+tooling under the fence). Flake path (ii), leave the commits local and make push the next
+session's first act, over (i), retry the push (a second whole suite, breaching the order);
+`--no-verify` never. The section 6.1 "nothing unpushed" rule is narrowed for one session gap by
+the verified order. Reversed by: a measured /done still running more than one whole suite, or
+MAIN ruling the hook route.
+
 ### 2026-10-12 - CS-1320 - CLOSED: the suite's own temp root no longer costs path depth, so the 8.3 clone arm fits under MAX_PATH again
 Verification: CS-1319 nested pytest's `pytest-of-<user>/pytest-N` under `<temp>/clockspeed-pytest/run-<pid>-<hex>`,
 and the whole suite on b905f18 failed exactly one arm,

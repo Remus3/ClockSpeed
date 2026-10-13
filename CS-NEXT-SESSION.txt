@@ -655,6 +655,12 @@ THE SESSION 134 GITLOCK BACKLOG LINE CLOSED ON ITS TRIGGER (session 137 /done): 
   STALE_MIN 120 min outlasts a pre-push suite; MAIN's 1230 note answered the 0718 note.
   Reversed by: a kit lowering the ceiling below a measured pre-push suite.
 CARRIED:
+CS-1321 DONE-SLOW ONE ANSWER OWED TO MAIN: the next /done is the first under the
+  one-suite ritual (.claude/commands/done.md). After it, send MAIN ONE note
+  (tools/outbound_send.py, dry run then --send, gate CLEAN) answering the 2026-10-12 1912
+  DONE-SLOW ORDER with that ritual's measured wall time and its push suite's gate wait_s
+  and hold_s (from the gitignored ops/loop/control/done_timing.json), plus the CS-1321
+  commit. Reversed by: that note sent and read back.
 CS-1284 LANE RE-READ AFTER THE SWITCH MEETS THE CLAUSE (session 136, adjudicator ruling A;
   LEDGER CS-1284 record): "Before the switch" governs the positive control only; the hook
   reads FLEET_SUBAGENT_FIRST before the mode file, so a lane's exemption never depended on

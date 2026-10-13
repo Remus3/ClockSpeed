@@ -1,5 +1,5 @@
 ---
-description: The end-of-session ritual, end to end - suite, commit, push, ledger, roadmap, wakeup notes, drift guard, CI, and the next-session continuation prompt.
+description: The end-of-session ritual, end to end - checks, ledger, roadmap, wakeup notes, drift guard, the next-session continuation prompt, one commit batch, ONE push, and the marker.
 argument-hint: [item ids, e.g. CS-041 CS-042]
 ---
 
@@ -29,52 +29,53 @@ failure that stopped it. Items: $ARGUMENTS
 FLEET-COMMON item 13 (kit v9, `CLAUDE.md` section 2.3.1): this ritual runs UNPROMPTED once
 no checklist task remains - no operator prompt, no question.
 
+**ONE GATED WHOLE SUITE, ONE PUSH (MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321).** A /done
+runs AT MOST ONE gated whole suite, and it is the pre-push hook of the ritual's ONE push
+(step 8). Every ritual edit - code, `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, the
+drift guard results, the hand-off `CS-NEXT-SESSION.txt` - is committed BEFORE that push,
+and nothing is committed after it. A flake is never retried by a second whole suite: the
+failing tests are re-run ALONE (step 8's flake path). Every whole suite goes through the
+kit's suite gate; the pre-push hook already does. Why: MAIN measured the /done median
+rising from 62 to 134 min while each ritual ran several gated whole suites through a
+machine with ONE suite slot.
+
 ## 0. Preconditions
 
+- [ ] RECORD THE RITUAL'S START wall-clock time (local ISO-8601, to the second) - it goes
+      into the hand-off (step 6) for MAIN's DONE-SLOW measurement (CS-1321).
 - [ ] PRE-FLIGHT: every checklist task done or carried into the hand-off.
 - [ ] State the item IDs (`CS-nnn`) this session closed. An item with no ID gets one now.
 - [ ] Classify each closed item into a tier: 0 cosmetic, 1 local logic, 2 schema / engine /
       core algorithm / version bump / public interface. The HIGHEST tier touched decides the
-      suite you run.
+      checks you run.
 - [ ] `git status` - list every modified and untracked path. Nothing unexpected, nothing
       containing game data, a save file, or a generated artifact.
 
-## 1. Run the tier-appropriate suite - report counts observed THIS RUN
+## 1. Run the tier-appropriate checks - NO whole suite here - report counts observed THIS RUN
 
-- [ ] Run from the REPO ROOT with an EXPLICIT target directory. Never a bare recursive
-      invocation from the root - that can sweep runtime state directories and destroy live
-      locks or data.
+MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: this step NEVER runs a whole suite, at any tier.
+The ritual's ONE gated whole suite is the pre-push hook of its ONE push (step 8) - the hook
+already runs it through `ops/fleet_kit/fleet_suite_gate.py` and grades it from a junit
+report - and the whole-suite counts are read from THAT push's log.
+
+- [ ] Run from the REPO ROOT with an EXPLICIT target. Never a bare recursive invocation
+      from the root - that can sweep runtime state directories and destroy live locks or
+      data.
       - tier 0: syntax check plus `python -m ruff check <changed paths>` only.
-      - tier 1: `python -m pytest tests/<module> -q`
-      - tier 2: the WHOLE suite through the kit's suite gate (FLEET-COMMON 16c):
-        `python ops/fleet_kit/fleet_suite_gate.py run --owner <session_id>.<agent_id> --
-        python -m pytest tests -q`, plus `python -m mypy` plus any service restart and
-        mirror sync. The owner is the claims hook's own id; its deny reason names it.
-- [ ] Record the exact command, its EXIT CODE, and the pass / fail / skipped counts.
+      - tier 1: `python -m pytest tests/<module> -q` for each changed module.
+      - tier 2: `python -m mypy` exactly as CI runs it (no target - its config names the
+        package and the suite), `python -m ruff check .`, `python -m ruff format --check .`,
+        and TARGETED `python -m pytest tests/<module> -q` for every changed module, plus any
+        service restart and mirror sync. NOT the whole suite.
+- [ ] Record each exact command, its EXIT CODE, and the pass / fail / skipped counts.
 - [ ] **Report only counts observed THIS run. NEVER carry forward a prior count or a
       subagent-reported count.** A filed count is a hypothesis, not a fact.
 - [ ] A skipped suite is not a passing suite. If anything was skipped, say what and why.
-- [ ] Run the suite ONCE and trust the exit code. Re-run only if you edited since.
+- [ ] Run each check ONCE and trust the exit code. Re-run only if you edited since. A
+      failure that looks like a flake is re-run as the failing tests ALONE, never as a whole
+      suite.
 
-## 2. Commit and push
-
-- [ ] `python tools/precommit_gate.py --staged` before staging is even attempted, so a
-      violation is caught before the git hook runs. Both layers run; neither alone is
-      trusted.
-- [ ] Stage deliberately. Never `git add -A` without reading `git status` first.
-- [ ] Commit message: 7-bit ASCII, imperative, cites the item ID. For any message with
-      special characters, write it to a temp file and use `git commit -F <file>`, or a
-      SINGLE-quoted here-string. Never a double-quoted here-string and never a piped string.
-- [ ] Every `git commit` and `git push` runs through the kit's git lock (FLEET-COMMON
-      16a): `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> --
-      git commit -F <file>`, then the same prefix before `git push`. A bare commit or push
-      is denied by the claims hook.
-- [ ] Push. Read the output - a push that printed an error is not a push.
-- [ ] Record the resulting commit SHA, but remember: the LEDGER cites the item ID, the merged
-      file and the test name, NOT the slice SHA. Worktree-agent commits often do not survive
-      cherry-pick.
-
-## 3. Append the per-item entry to `docs/LEDGER.md`
+## 2. Append the per-item entry to `docs/LEDGER.md`
 
 Append-only, NEWEST-FIRST, one entry per item:
 
@@ -85,8 +86,10 @@ Append-only, NEWEST-FIRST, one entry per item:
       turn and size-budgeted. If the decision must NEVER be reopened, add a one-line
       `Settled` entry to `CLAUDE.md` stating what was decided AND what specifically not to
       re-pitch. Record the fence, not just the conclusion.
+- [ ] The ledger cites the item ID, the merged file and the test name, NOT a slice SHA.
+      Worktree-agent commits often do not survive cherry-pick.
 
-## 4. Update `ROADMAP.md`
+## 3. Update `ROADMAP.md`
 
 - [ ] Move every closed item OUT of `ROADMAP.md`. `ROADMAP.md` holds OPEN work only.
 - [ ] An item blocked on a condition OUTSIDE the repo moves to `docs/GATED.md` with the exact
@@ -98,13 +101,13 @@ Append-only, NEWEST-FIRST, one entry per item:
 - [ ] New work discovered this session gets an ID and one line, or goes to `BACKLOG.md` if
       aspirational. One line per item - no narrative.
 
-## 5. Refresh `WAKEUP_NOTES.md`
+## 4. Refresh `WAKEUP_NOTES.md`
 
 - [ ] Add this session's note at full fidelity.
 - [ ] Keep the last 2-3 sessions ONLY. Move everything older to `docs/history_notes.md`.
 - [ ] Relocate, do not delete.
 
-## 6. Run the drift guard - EVERY `/done`, no exceptions
+## 5. Run the drift guard - EVERY `/done`, no exceptions
 
 - [ ] `python tools/drift_guard.py` - record the exit code.
 - [ ] `python tools/doc_budget.py` - record the exit code.
@@ -112,18 +115,13 @@ Append-only, NEWEST-FIRST, one entry per item:
       truth; the store is a mirror. Never fix a fact only in the mirror.
 - [ ] Thirty seconds each time beats a cleanup session later.
 
-## 7. Confirm CI is green
-
-- [ ] Read the actual run status for the pushed commit. A claim that CI is green is not
-      evidence; the run status is.
-- [ ] If it is still running, say so. Do not predict the result.
-- [ ] If it is red, that is the top item of the continuation prompt.
-
-## 8. WRITE `CS-NEXT-SESSION.txt` - THE NEXT-SESSION CONTINUATION PROMPT
+## 6. WRITE `CS-NEXT-SESSION.txt` - THE NEXT-SESSION CONTINUATION PROMPT
 
 **This is not a courtesy. It IS the continuity mechanism. Every session ends with one.**
 Rediscovery - redoing closed work, re-pitching a refuted idea, acting on a stale doc - is
-the dominant failure mode, and this prompt is the defence against it.
+the dominant failure mode, and this prompt is the defence against it. It is written BEFORE
+the push and committed with the session's other work (MAIN 2026-10-12 DONE-SLOW ORDER,
+CS-1321), so it records the push as pending and CI as unread.
 
 It must be complete and self-contained - the operator pastes it into a cold session with no
 other context. WHAT GOES IN IT:
@@ -136,7 +134,9 @@ other context. WHAT GOES IN IT:
       `Session <n+1> checklist` from it - FLEET-COMMON item 13a.
 - [ ] What this session closed, by item ID, one line each.
 - [ ] The exact state of anything left half-done, including which files are dirty.
-- [ ] The single next action, stated as an imperative.
+- [ ] The single next action, stated as an imperative. Its FIRST act is always: read CI
+      for the SHA this ritual pushed (step 7), and read this ritual's timing record
+      (step 8) - "pushed; CI unread" is what this hand-off says about its own push.
 - [ ] The open item IDs in priority order with their acceptance criteria.
 - [ ] Every decision made this session that must not be re-litigated, with its fence.
 - [ ] Any spike result that CONTRADICTED `BOOTSTRAP.md`. The spike wins - say so plainly and
@@ -144,6 +144,11 @@ other context. WHAT GOES IN IT:
 - [ ] The files the next session must read first: `CLAUDE.md`, `memory/MEMORY.md`,
       `ROADMAP.md`, `WAKEUP_NOTES.md`, `docs/ARCHITECTURE.md`.
 - [ ] Any external condition being waited on.
+- [ ] The final report (step 9's content): the step 1 commands and exit codes with the
+      counts observed this run, the drift guard exit codes, the ritual's START time from
+      step 0, "push: pending, its pre-push suite is the ritual's one gated whole suite",
+      "CI unread", and anything you could not verify - labelled unverified rather than
+      rounded up to done.
 
 **HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. The fleet
 kit requires `<CODE>-NEXT-SESSION.txt` at the repo root in every tree (FLEET item 5). A
@@ -165,22 +170,86 @@ fence in a transcript is gone the moment the session is cleared; a file survives
 - [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file is
       the mechanism; the operator starts the next session with "continue".
 
+## 7. Commit everything - BEFORE the push
+
+MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: every ritual edit from steps 1 to 6 - code,
+`docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, any drift guard repair, the hand-off -
+is committed in this step. Nothing is committed after the push (step 8).
+
+- [ ] `python tools/precommit_gate.py --staged` before staging is even attempted, so a
+      violation is caught before the git hook runs. Both layers run; neither alone is
+      trusted.
+- [ ] Stage deliberately. Never `git add -A` without reading `git status` first.
+- [ ] Commit message: 7-bit ASCII, imperative, cites the item ID. For any message with
+      special characters, write it to a temp file and use `git commit -F <file>`, or a
+      SINGLE-quoted here-string. Never a double-quoted here-string and never a piped string.
+- [ ] Every `git commit` runs through the kit's git lock (FLEET-COMMON 16a):
+      `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> --
+      git commit -F <file>`. A bare commit is denied by the claims hook. The owner is the
+      claims hook's own id; its deny reason names it.
+- [ ] READ BACK: `git status` is clean and HEAD is the commit just made.
+- [ ] CI is NOT read in this ritual: the push has not happened yet, and nothing may be
+      committed after it to record CI. The hand-off already says "pushed; CI unread" and
+      makes reading CI for the pushed SHA (`gh run list --commit <full SHA>`) the next
+      session's FIRST act. If that run is red, it is the next session's top item.
+
+## 8. ONE push - the ritual's ONE gated whole suite
+
+MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
+
+- [ ] `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git push`,
+      with its output written to a log you read. A bare push is denied by the claims hook.
+      Its pre-push hook runs the whole suite through the kit's suite gate with a junit
+      verdict - that is the one gated whole suite; record its command, exit code and the
+      pass / fail / skipped counts FROM THIS PUSH'S LOG, never from an earlier run.
+- [ ] READ BACK after the push: the push log, the remote ref equals local HEAD by FULL SHA
+      (`git ls-remote origin refs/heads/<branch>` against `git rev-parse HEAD`), and a clean
+      `git status`. A blocked push can report exit 0 - the remote ref is the evidence, the
+      exit code is not.
+- [ ] FLAKE PATH (ii), adjudicated for CS-1321. If the push is BLOCKED by a test that
+      passes when re-run ALONE (`python -m pytest <nodeid> -q`):
+      - do NOT retry the push - a retry is a second whole suite and breaches the order;
+        `--no-verify` never;
+      - confirm from the push log AND from the remote ref NOT having moved that the push
+        really was blocked;
+      - leave the commits local; the next session's FIRST action is "push", so its first
+        push carries them through the full hook. The `CLAUDE.md` section 6.1 "nothing
+        unpushed" rule is narrowed for this one session gap by the verified order;
+      - file the flake as a `ROADMAP.md` or `BACKLOG.md` item and put "PUSH FIRST - the
+        last push was blocked by a flake, commits are local" at the top of the hand-off,
+        then commit both through the git lock as a NEW commit (a local commit runs no
+        suite). Nothing reached the remote, so the no-commit-after-the-push rule is not
+        breached; the next session's push carries every local commit. Never re-push.
+      A test that FAILS when re-run alone is not a flake: it is the failure that stopped
+      the ritual.
+- [ ] MEASURE for MAIN's DONE-SLOW answer: record the ritual's END wall-clock time (after
+      the read-back), and the push suite's gate `wait_s` and `hold_s` from the kit suite
+      gate's `durations.jsonl` - its directory is `gate_dir()` in
+      `ops/fleet_kit/fleet_suite_gate.py` (env FLEET_SUITE_DIR, else under LOCALAPPDATA) -
+      reading the line whose `tree` is this checkout's folder name and whose `ts` falls
+      inside the push. Because nothing is committed after the push, write these figures
+      with the start time from step 0 atomically to the gitignored
+      `ops/loop/control/done_timing.json`, and the next session carries them into its own
+      hand-off. Never write an absolute path into tracked text - repo-relative only.
+
 ## 9. Final report - in the hand-off file, never in chat
 
-Write into `CS-NEXT-SESSION.txt`: the suite command and exit code, the counts observed this
-run, the commit SHA, the push result, the drift guard exit codes, the CI status you READ,
-and anything you could not verify - labelled unverified rather than rounded up to done.
-Then commit it, and READ BACK the commit (HEAD and a clean `git status`) and the hand-off
-file on disk.
+The report was written into `CS-NEXT-SESSION.txt` in step 6 and committed in step 7, BEFORE
+the push (MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321). The push outcome, its suite counts, CI
+and the timing figures are NOT committed in this ritual: they are in the push log and
+`ops/loop/control/done_timing.json`, and the next session reads them, with CI, as its first
+act. READ BACK the hand-off file on disk against the committed blob (`git diff --quiet
+HEAD -- CS-NEXT-SESSION.txt`).
 
 ## 10. The /done marker - the LAST act (FLEET-COMMON item 15, kit v9)
 
-- [ ] Only after the commit and the hand-off are READ BACK, run
+- [ ] Only after the push and the hand-off are READ BACK, run
       `python ops/fleet_kit/fleet_done.py mark --session <n> --status done`, where `<n>` is
       THIS session's number - the one its checklist printed, not the `n+1` the new
       hand-off carries. The kit reads HEAD and hashes the hand-off itself and writes the
       gitignored `ops/loop/control/session_done.json`; its Stop hook then titles the tab.
-      Nothing is committed after it - a later commit or hand-off edit voids the marker.
+      The mark writes no commit. Nothing is committed after it - a later commit or hand-off
+      edit voids the marker.
 - [ ] If a step failed and stopped the ritual, still call it, naming that step:
       `python ops/fleet_kit/fleet_done.py mark --session <n> --status failed --reason "<step>"`
 - [ ] A mark that exits non-zero or prints `failed` after a `done` call is itself the
