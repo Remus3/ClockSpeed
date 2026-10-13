@@ -33,8 +33,8 @@ no checklist task remains - no operator prompt, no question.
 
 **ONE GATED WHOLE SUITE, ONE PUSH (MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321).** A /done
 runs AT MOST ONE gated whole suite, and it is the pre-push hook of the ritual's ONE push
-(step 8; a push the suite gate REFUSED ran no suite and is retried once - its GATE-REFUSAL
-PATH). Every ritual edit - code, `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, the
+(step 8; a push the suite gate or the git lock REFUSED ran no suite - its GATE-REFUSAL PATH
+says when it is retried). Every ritual edit - code, `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, the
 drift guard results, the hand-off `CS-NEXT-SESSION.txt` - is committed BEFORE that push,
 and nothing is committed after it. A flake is never retried by a second whole suite: the
 failing tests are re-run ALONE (step 8's flake path). Every whole suite goes through the
@@ -45,25 +45,43 @@ machine with ONE suite slot.
 **THE CS-700 WINDOW - COMMIT NOTHING, RUN NO SUITE, PUSH NOTHING (CS-1323).** From the
 hand-off's CS-700 flip block step b until S12a, no commit of any kind lands on the main tree's
 `main` (session 131 Ruling Q1: a /done commit on top of the regeneration re-stales the citation
-set). Step 0 reads the window from git: it is OPEN while
-`git diff-tree --no-commit-id --name-only -r HEAD` lists `tools/sha_citation_historical.json` -
-HEAD is still step b's regeneration commit (or its S7a image), the only commit that writes that
-file (`--emit-historical`, pinned by `tools/sha_citation_gate.py`). While it is open the ritual
-commits nothing, runs no suite and pushes nothing: step 1 runs no test suite (the window
-touches no Part 2 path - `tests/`, `clockspeed/`, `ops/`, `tools/`); steps 2 to 6 write to disk
-only and obey the flip block's RECOVERY RULE; steps 7 and 8 do not run, and the DONE-SLOW
-measurement waits for the first /done that pushes. In place of step 6's push wording the
-hand-off and its report say: "CS-700 window: this hand-off and this ritual's records are
-UNCOMMITTED, on disk only; nothing was committed, no suite ran, nothing was pushed". Step 9
-reads the hand-off back on disk, not against HEAD; step 10 marks `--status done` (the mark
-hashes the hand-off on disk).
+set). Step 0 reads the window signal: OPEN means HEAD's own commit touches
+`tools/sha_citation_historical.json`. Earlier CS-700 preparation commits wrote that file too, so
+the signal is not "the only writer": it is sound because step b's regeneration
+(`--emit-historical`) writes the file and then nothing else commits until S12a, so inside the
+window HEAD's own commit is that regeneration commit (or its S7a image). While the window is
+OPEN, or the signal is UNKNOWN, the ritual commits nothing, runs no suite and pushes nothing:
+step 1 runs no test suite (the window touches no Part 2 path - `tests/`, `clockspeed/`, `ops/`,
+`tools/`); steps 2 to 6 write to disk only and obey the flip block's RECOVERY RULE; steps 7 and
+8 do not run, and the DONE-SLOW measurement waits for the first /done that pushes. The hand-off
+then orders NO push, and in place of step 6's push wording it and its report say: "CS-700
+window: this hand-off and this ritual's records are UNCOMMITTED, on disk only; nothing was
+committed, no suite ran, nothing was pushed". Step 9 reads the hand-off back on disk, not
+against HEAD. OPEN: step 10 marks `--status done` (the mark hashes the hand-off on disk).
+UNKNOWN: the hand-off also says the window signal was unreadable, and step 10 marks
+`--status failed --reason "CS-700 window signal unreadable"`. UNKNOWN stops this ritual only
+and is never carried forward as OPEN: the next session reads the signal again before any other
+work, and a HEAD that still reads UNKNOWN (a merge HEAD) is resolved there by a distinct
+adjudicator reading the flip block's state, never by a ritual.
+
+**S12a KEEPS THE WINDOW'S RECORDS (CS-1323).** A window /done leaves its records uncommitted
+in tracked files - the hand-off, `docs/LEDGER.md`, `WAKEUP_NOTES.md`, `ROADMAP.md` and any other
+file it wrote. Before any CS-700 S12a reset of the main tree, copy every one of them into a
+folder of its own under the tree's gitignored data directory at the tree root (a reset leaves
+ignored files alone; never clean ignored files then), and restore them after the reset, before
+S12a's closing commit, so that commit carries them.
 
 ## 0. Preconditions
 
 - [ ] RECORD THE RITUAL'S START wall-clock time (local ISO-8601, to the second) - it goes
       into the hand-off (step 6) for MAIN's DONE-SLOW measurement (CS-1321).
-- [ ] READ THE CS-700 WINDOW signal (above) and record OPEN or CLOSED. OPEN changes steps 1
-      and 6 to 10 exactly as that paragraph says.
+- [ ] READ THE CS-700 WINDOW SIGNAL (above) and record OPEN, CLOSED or UNKNOWN. Run, in order:
+      - `git rev-list --parents -n 1 HEAD`: a non-zero exit reads UNKNOWN (no HEAD); more
+        than two SHAs on its line reads UNKNOWN (a merge HEAD, whose own diff is empty).
+      - `git diff-tree --root --no-commit-id --name-only -r HEAD`: a non-zero exit reads
+        UNKNOWN; output that lists `tools/sha_citation_historical.json` reads OPEN; output
+        that does not list it reads CLOSED.
+      OPEN or UNKNOWN changes steps 1 and 6 to 10 exactly as the window paragraph says.
 - [ ] PRE-FLIGHT: every checklist task done or carried into the hand-off.
 - [ ] State the item IDs (`CS-nnn`) this session closed. An item with no ID gets one now.
 - [ ] Classify each closed item into a tier: 0 cosmetic, 1 local logic, 2 schema / engine /
@@ -171,13 +189,15 @@ other context. WHAT GOES IN IT:
 - [ ] The exact state of anything left half-done, including which files are dirty.
 - [ ] The single next action, stated as an imperative. Its FIRST act is always: read the
       remote ref against this HEAD and the CI run for this HEAD's full SHA (the push is
-      step 8), and read this ritual's timing record `ops/loop/control/done_timing.json`
-      (step 8). If the remote ref does NOT equal this HEAD, the next session pushes FIRST,
+      step 8), and read this ritual's timing record (named in words; step 8 names its
+      path). If the remote ref does NOT equal this HEAD, the next session pushes FIRST,
       before any other work - that push is its one gated whole suite for the carried
       commits - and AFTER that push, if the timing record carries `blocked_by_flake`, files
       that test as a `ROADMAP.md` or `BACKLOG.md` item. The hand-off states its own push in the step 6
       wording above - push pending at write time, push result and CI UNREAD - never
-      "pushed".
+      "pushed". When step 0 read the window OPEN or UNKNOWN, the next action orders NO push:
+      its first act reads the window signal again, and OPEN keeps the flip block's no-commit
+      rule.
 - [ ] The open item IDs in priority order with their acceptance criteria.
 - [ ] Every decision made this session that must not be re-litigated, with its fence.
 - [ ] Any spike result that CONTRADICTED `BOOTSTRAP.md`. The spike wins - say so plainly and
@@ -219,8 +239,8 @@ fence in a transcript is gone the moment the session is cleared; a file survives
 
 MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: every ritual edit from steps 1 to 6 - code,
 `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, any drift guard repair, the hand-off -
-is committed in this step. Nothing is committed after the push (step 8). In the CS-700 window
-(above) this step does not run: commit nothing.
+is committed in this step. Nothing is committed after the push (step 8). In the CS-700 window,
+or on UNKNOWN (above), this step does not run: commit nothing.
 
 - [ ] `python tools/precommit_gate.py --staged` before staging is even attempted, so a
       violation is caught before the git hook runs. Both layers run; neither alone is
@@ -243,11 +263,12 @@ is committed in this step. Nothing is committed after the push (step 8). In the 
 ## 8. ONE push - the ritual's ONE gated whole suite
 
 MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual that runs a
-suite - a push the gate REFUSED ran none (GATE-REFUSAL PATH below). In the CS-700 window
-(above) this step does not run: push nothing, take no MEASURE.
+suite - a push the suite gate or the git lock REFUSED ran none (GATE-REFUSAL PATH below). In
+the CS-700 window, or on UNKNOWN (above), this step does not run: push nothing, take no MEASURE.
 
-- [ ] `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git push`,
-      with its output written to a log you read. A bare push is denied by the claims hook.
+- [ ] `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git push
+      > <log> 2>&1` - stderr captured, because the hook, the gate and the git lock write their
+      verdict lines there - and read the log. A bare push is denied by the claims hook.
       Its pre-push hook runs the whole suite through the kit's suite gate with a junit
       verdict - that is the one gated whole suite; record its command, exit code and the
       pass / fail / skipped counts FROM THIS PUSH'S LOG, never from an earlier run.
@@ -255,19 +276,22 @@ suite - a push the gate REFUSED ran none (GATE-REFUSAL PATH below). In the CS-70
       (`git ls-remote origin refs/heads/<branch>` against `git rev-parse HEAD`), and a clean
       `git status`. A blocked push can report exit 0 - the remote ref is the evidence, the
       exit code is not.
-- [ ] GATE-REFUSAL PATH (CS-1323). `ops/fleet_kit/fleet_suite_gate.py` exits 3 WITHOUT
-      running the suite when it refuses - no slot free after its wait limit (`WAIT_S` in that
-      file), or another live agent's uncommitted test-relevant edits. The push log shows a
-      `SUITE-GATE:` line beside the hook's pytest exit 3; exit 3 alone is not enough, since
-      pytest's own internal error is also 3. A refused gate ran no suite, so once the remote
-      ref is confirmed unmoved the push is retried exactly ONCE through the same git-lock
-      command, and that retry is the ritual's one gated whole suite. A second refusal stops the
-      ritual with nothing pushed: commit nothing more, leave the commits local (the committed
-      hand-off already says push pending, result UNREAD), run MEASURE below (a refused run
-      writes no gate line - record the two refusals in its place) and step 9, and step 10
-      marks `--status failed --reason "push refused twice by the suite gate"`. A red suite is
-      not a refusal and never retries the push: its failing tests are re-run ALONE (the flake
-      path below).
+- [ ] GATE-REFUSAL PATH (CS-1323). A refused push ran no suite. The pre-push hook turns a
+      suite gate refusal into its own exit 1 ("pytest exit status: [3]", no junit report), so
+      the push's exit code never names a refusal: read it from the captured log, by its line.
+      - `SUITE-GATE: no suite slot free` (the gate's wait limit, `WAIT_S` in
+        `ops/fleet_kit/fleet_suite_gate.py`, ran out) or a `GITLOCK:` line (the kit's git lock
+        refused the push and exited 3 - no push happened): confirm the remote ref unmoved and
+        retry the push exactly ONCE through the same command; that retry is the ritual's one
+        gated whole suite. A second refusal stops the ritual with nothing pushed.
+      - `SUITE-GATE:` naming uncommitted edits by another live agent: NO retry. Stop at once
+        with nothing pushed.
+      On either stop: commit nothing more and leave the commits local - the committed hand-off
+      already says push pending, result UNREAD, so the next session pushes first - run MEASURE
+      below and step 9, and step 10 marks `--status failed --reason "<the refusal>"`, either
+      "push refused twice" or "push refused: uncommitted edits by another live agent". A red
+      suite is not a refusal and never retries the push: its failing tests are re-run ALONE
+      (the flake path below).
 - [ ] FLAKE PATH (ii), adjudicated for CS-1321. If the push is BLOCKED by a test that
       passes when re-run ALONE (`python -m pytest <nodeid> -q`):
       - do NOT retry the push - a retry is a second whole suite and breaches the order;
@@ -296,8 +320,9 @@ suite - a push the gate REFUSED ran none (GATE-REFUSAL PATH below). In the CS-70
       the read-back), and the push suite's gate `wait_s` and `hold_s` from the kit suite
       gate's `durations.jsonl` - its directory is `gate_dir()` in
       `ops/fleet_kit/fleet_suite_gate.py` (env FLEET_SUITE_DIR, else under LOCALAPPDATA) -
-      reading the line whose `tree` is this checkout's folder name and whose `ts` falls
-      inside the push. Because nothing is committed after the push, write these figures
+      reading the line whose `tree` is this checkout's folder name, whose `ts` falls
+      inside the push and whose `exit` is not null - a refusal inside the gate's slot writes a
+      line with `exit` null and `hold_s` 0, which is not the push suite. Because nothing is committed after the push, write these figures
       with the start time from step 0 atomically to the gitignored
       `ops/loop/control/done_timing.json` - MERGED into it, never replacing a
       `blocked_by_flake` key the flake path already wrote - and the next session carries them into its own
@@ -307,8 +332,8 @@ suite - a push the gate REFUSED ran none (GATE-REFUSAL PATH below). In the CS-70
 
 The report was written into `CS-NEXT-SESSION.txt` in step 6 and committed in step 7, BEFORE
 the push (MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321). The push outcome, its suite counts, CI
-and the timing figures are NOT committed in this ritual: they are in the push log and
-`ops/loop/control/done_timing.json`, and the next session reads them, with CI, as its first
+and the timing figures are NOT committed in this ritual: they are in the push log and this
+ritual's timing record (step 8 names its path), and the next session reads them, with CI, as its first
 act. READ BACK the hand-off file on disk against the committed blob (`git diff --quiet
 HEAD -- CS-NEXT-SESSION.txt`).
 
