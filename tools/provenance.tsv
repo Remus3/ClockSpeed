@@ -476,6 +476,7 @@ tests/test_doc_budget.py	authored	CS-475	first-add:CS-475
 tests/test_doc_sweep.py	authored	CS-1184	stamped
 tests/test_doc_sweep_tree.py	authored	CS-1184	stamped
 tests/test_docs_citations.py	authored	CS-442	first-add:CS-442
+tests/test_done_ritual_arms.py	authored	CS-1321	stamped
 tests/test_edit_lint_check.py	authored	CS-204	first-add:CS-204
 tests/test_exception_messages.py	authored	CS-852	first-add:CS-852
 tests/test_exception_rendering.py	authored	CS-205	first-add:CS-205

@@ -33,7 +33,8 @@ no checklist task remains - no operator prompt, no question.
 
 **ONE GATED WHOLE SUITE, ONE PUSH (MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321).** A /done
 runs AT MOST ONE gated whole suite, and it is the pre-push hook of the ritual's ONE push
-(step 8). Every ritual edit - code, `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, the
+(step 8; a push the suite gate REFUSED ran no suite and is retried once - its GATE-REFUSAL
+PATH). Every ritual edit - code, `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, the
 drift guard results, the hand-off `CS-NEXT-SESSION.txt` - is committed BEFORE that push,
 and nothing is committed after it. A flake is never retried by a second whole suite: the
 failing tests are re-run ALONE (step 8's flake path). Every whole suite goes through the
@@ -41,10 +42,28 @@ kit's suite gate; the pre-push hook already does. Why: MAIN measured the /done m
 rising from 62 to 134 min while each ritual ran several gated whole suites through a
 machine with ONE suite slot.
 
+**THE CS-700 WINDOW - COMMIT NOTHING, RUN NO SUITE, PUSH NOTHING (CS-1323).** From the
+hand-off's CS-700 flip block step b until S12a, no commit of any kind lands on the main tree's
+`main` (session 131 Ruling Q1: a /done commit on top of the regeneration re-stales the citation
+set). Step 0 reads the window from git: it is OPEN while
+`git diff-tree --no-commit-id --name-only -r HEAD` lists `tools/sha_citation_historical.json` -
+HEAD is still step b's regeneration commit (or its S7a image), the only commit that writes that
+file (`--emit-historical`, pinned by `tools/sha_citation_gate.py`). While it is open the ritual
+commits nothing, runs no suite and pushes nothing: step 1 runs no test suite (the window
+touches no Part 2 path - `tests/`, `clockspeed/`, `ops/`, `tools/`); steps 2 to 6 write to disk
+only and obey the flip block's RECOVERY RULE; steps 7 and 8 do not run, and the DONE-SLOW
+measurement waits for the first /done that pushes. In place of step 6's push wording the
+hand-off and its report say: "CS-700 window: this hand-off and this ritual's records are
+UNCOMMITTED, on disk only; nothing was committed, no suite ran, nothing was pushed". Step 9
+reads the hand-off back on disk, not against HEAD; step 10 marks `--status done` (the mark
+hashes the hand-off on disk).
+
 ## 0. Preconditions
 
 - [ ] RECORD THE RITUAL'S START wall-clock time (local ISO-8601, to the second) - it goes
       into the hand-off (step 6) for MAIN's DONE-SLOW measurement (CS-1321).
+- [ ] READ THE CS-700 WINDOW signal (above) and record OPEN or CLOSED. OPEN changes steps 1
+      and 6 to 10 exactly as that paragraph says.
 - [ ] PRE-FLIGHT: every checklist task done or carried into the hand-off.
 - [ ] State the item IDs (`CS-nnn`) this session closed. An item with no ID gets one now.
 - [ ] Classify each closed item into a tier: 0 cosmetic, 1 local logic, 2 schema / engine /
@@ -90,6 +109,13 @@ Append-only, NEWEST-FIRST, one entry per item:
       re-pitch. Record the fence, not just the conclusion.
 - [ ] The ledger cites the item ID, the merged file and the test name, NOT a slice SHA.
       Worktree-agent commits often do not survive cherry-pick.
+- [ ] NO BARE IGNORED PATH (CS-1323): never write a gitignored path - this ritual's timing
+      record, anything under `ops/loop/control/` or `data/`, the local config - in backticks
+      into `docs/LEDGER.md`, `WAKEUP_NOTES.md` or the hand-off. Name it in words ("this
+      ritual's timing record"). Arm `R2 declared untracked` of `tests/test_citation_tables.py`
+      reads every backticked path in every tracked file outside `.claude/`, and one that
+      `.gitignore` matches with no `DECLINED_AS_DECLARED_UNTRACKED` row turns the push suite
+      red - CS-1321's first push.
 
 ## 3. Update `ROADMAP.md`
 
@@ -108,6 +134,8 @@ Append-only, NEWEST-FIRST, one entry per item:
 - [ ] Add this session's note at full fidelity.
 - [ ] Keep the last 2-3 sessions ONLY. Move everything older to `docs/history_notes.md`.
 - [ ] Relocate, do not delete.
+- [ ] NO BARE IGNORED PATH (step 2) holds here: a gitignored path is named in words, never
+      in backticks.
 
 ## 5. Run the drift guard - EVERY `/done`, no exceptions
 
@@ -127,7 +155,8 @@ CS-1321), so it NEVER says "pushed". It records its own push in exactly these wo
 "push of this commit pending at write time; push result and CI UNREAD - the next
 session's first act reads the remote ref against this HEAD and the CI run". The wording
 holds whatever the push then does - lands, is blocked by a flake, or is blocked by a real
-failure that stops the ritual - because nothing is committed after the push.
+failure that stops the ritual - because nothing is committed after the push. In the CS-700
+window the hand-off is NOT committed and carries the window's UNCOMMITTED wording instead.
 
 It must be complete and self-contained - the operator pastes it into a cold session with no
 other context. WHAT GOES IN IT:
@@ -181,6 +210,8 @@ fence in a transcript is gone the moment the session is cleared; a file survives
       how one enters a file in the first place.
 - [ ] Emphasise with CAPS, not `**`. It is read as plain text in Notepad, where `**` is two
       literal asterisks.
+- [ ] NO BARE IGNORED PATH (step 2) holds here: the hand-off is tracked, so a gitignored
+      path - the timing record included - is named in words, never in backticks.
 - [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file is
       the mechanism; the operator starts the next session with "continue".
 
@@ -188,7 +219,8 @@ fence in a transcript is gone the moment the session is cleared; a file survives
 
 MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: every ritual edit from steps 1 to 6 - code,
 `docs/LEDGER.md`, `ROADMAP.md`, `WAKEUP_NOTES.md`, any drift guard repair, the hand-off -
-is committed in this step. Nothing is committed after the push (step 8).
+is committed in this step. Nothing is committed after the push (step 8). In the CS-700 window
+(above) this step does not run: commit nothing.
 
 - [ ] `python tools/precommit_gate.py --staged` before staging is even attempted, so a
       violation is caught before the git hook runs. Both layers run; neither alone is
@@ -210,7 +242,9 @@ is committed in this step. Nothing is committed after the push (step 8).
 
 ## 8. ONE push - the ritual's ONE gated whole suite
 
-MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
+MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual that runs a
+suite - a push the gate REFUSED ran none (GATE-REFUSAL PATH below). In the CS-700 window
+(above) this step does not run: push nothing, take no MEASURE.
 
 - [ ] `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git push`,
       with its output written to a log you read. A bare push is denied by the claims hook.
@@ -221,6 +255,19 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
       (`git ls-remote origin refs/heads/<branch>` against `git rev-parse HEAD`), and a clean
       `git status`. A blocked push can report exit 0 - the remote ref is the evidence, the
       exit code is not.
+- [ ] GATE-REFUSAL PATH (CS-1323). `ops/fleet_kit/fleet_suite_gate.py` exits 3 WITHOUT
+      running the suite when it refuses - no slot free after its wait limit (`WAIT_S` in that
+      file), or another live agent's uncommitted test-relevant edits. The push log shows a
+      `SUITE-GATE:` line beside the hook's pytest exit 3; exit 3 alone is not enough, since
+      pytest's own internal error is also 3. A refused gate ran no suite, so once the remote
+      ref is confirmed unmoved the push is retried exactly ONCE through the same git-lock
+      command, and that retry is the ritual's one gated whole suite. A second refusal stops the
+      ritual with nothing pushed: commit nothing more, leave the commits local (the committed
+      hand-off already says push pending, result UNREAD), run MEASURE below (a refused run
+      writes no gate line - record the two refusals in its place) and step 9, and step 10
+      marks `--status failed --reason "push refused twice by the suite gate"`. A red suite is
+      not a refusal and never retries the push: its failing tests are re-run ALONE (the flake
+      path below).
 - [ ] FLAKE PATH (ii), adjudicated for CS-1321. If the push is BLOCKED by a test that
       passes when re-run ALONE (`python -m pytest <nodeid> -q`):
       - do NOT retry the push - a retry is a second whole suite and breaches the order;
