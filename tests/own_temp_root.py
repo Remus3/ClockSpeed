@@ -10,21 +10,30 @@ boot time on this machine.
 
 THE MECHANISM. :func:`install`, called from the root conftest's
 ``pytest_configure``, claims a fresh directory ``r-<token>`` under the
-tree-owned root ``<temp>/cs-pt``, gives pytest the base temp ``<run>/t``
+tree-owned root ``<temp>/cs-pt``, gives pytest the base temp ``<run>/<user>``
 inside it, and points ``PYTEST_DEBUG_TEMPROOT`` at the run directory. xdist
 hands each worker ``<base>/popen-gw<N>``, so workers land there too; a nested
 pytest run inherits the variable and builds pytest's usual
 ``pytest-of-<user>/pytest-<N>`` layout inside the run directory, and a nested
 run that clears it claims a run directory of its own.
 
-THE PATH BUDGET (CS-1320). The base temp is ``<temp>/cs-pt/r-<token>/t``, 19
-characters above the temp directory - never longer than pytest's own default
-``pytest-of-<user>/pytest-<N>/``, which is at least 21. The CS-1319 layout put
-its root and run directory ABOVE that default, about 37 characters deeper, and
-a clone into a tmp_path under xdist then hit the Windows path limit. The given
-base temp is ``t`` and never the run directory itself, because pytest empties a
-given base temp before use and the run directory holds the owner's marker. The
-CS-1319 root ``<temp>/clockspeed-pytest`` is swept by every install too
+THE PER-USER LEVEL (CS-1322). ``<user>`` is pytest's own per-user value, the
+one its default layout puts in ``pytest-of-<user>`` (:func:`base_name`).
+CS-1320 named the base temp ``t``; on a Linux runner, where ``/tmp`` is outside
+home, no tmp_path then carried the account, and every privacy arm that proves
+its redaction against the tmp_path's own needle went UNPROVEN or leaked.
+
+THE PATH BUDGET (CS-1320). The base temp is ``<temp>/cs-pt/r-<token>/<user>``,
+18 characters plus the name above the temp directory - never longer than
+pytest's own default ``pytest-of-<user>/pytest-<N>``, which is at least 20
+plus the same name. The leaf is the bare name and never ``pytest-of-<user>``,
+which would be eight over, and which is the very level a nested run that
+inherits the run directory builds beside it. The CS-1319 layout put its root
+and run directory ABOVE that default, about 37 characters deeper, and a clone
+into a tmp_path under xdist then hit the Windows path limit. The given base
+temp is never the run directory itself, because pytest empties a given base
+temp before use and the run directory holds the owner's marker. The CS-1319
+root ``<temp>/clockspeed-pytest`` is swept by every install too
 (:func:`sweep_legacy`), so a run killed under the old name is not orphaned.
 
   - A claim never overrides a root already named in the environment, and an
@@ -68,6 +77,7 @@ next sweep, never a red session.
 from __future__ import annotations
 
 import contextlib
+import getpass
 import os
 import secrets
 import shutil
@@ -91,9 +101,9 @@ ROOT_NAME: Final = "cs-pt"
 #: Every run directory's name starts with this; the sweep touches nothing else.
 RUN_PREFIX: Final = "r-"
 
-#: The base temp pytest is given, inside the run directory - never the run
-#: directory itself, which pytest would empty, marker and all.
-BASE_NAME: Final = "t"
+#: The per-user value pytest falls back to when it cannot read the account's
+#: name, or cannot make a directory of it - and so does the base temp's name.
+UNKNOWN_USER: Final = "unknown"
 
 #: The CS-1319 root's name and its runs' prefix, swept by :func:`sweep_legacy`.
 LEGACY_ROOT_NAME: Final = "clockspeed-pytest"
@@ -389,8 +399,49 @@ class _Finisher:
         finish(self.run, exitstatus)
 
 
+def pytest_user() -> str:
+    """The per-user value pytest puts in its default ``pytest-of-<user>`` level.
+
+    Derived as ``_pytest.tmpdir.get_user`` derives it - ``getpass.getuser()``,
+    or :data:`UNKNOWN_USER` when that cannot be read or is empty - and not
+    imported from there, because that is not public API. Never raises.
+    """
+    try:
+        return getpass.getuser() or UNKNOWN_USER
+    except (ImportError, OSError, KeyError):
+        return UNKNOWN_USER
+
+
+def base_name(run: Path) -> str:
+    """The base temp's name inside ``run``: pytest's per-user value, or its fallback.
+
+    CS-1322: the per-user level is what puts the account in every tmp_path, as
+    pytest's own layout does, and it is the needle the privacy arms prove their
+    redaction against on a platform whose temp directory is outside home.
+
+    pytest falls back to :data:`UNKNOWN_USER` when it cannot make a directory
+    of the name; this tests the same way, by making it - after refusing any
+    name that would not be a fresh directory DIRECTLY inside ``run``, because
+    pytest empties a given base temp: ``..`` is the tree-owned root, a
+    separator nests, a drive moves out. A name the run directory already holds
+    - the owner's marker - fails the make. Never raises.
+    """
+    user = pytest_user()
+    leaf = run / user
+    if user in {".", ".."} or leaf.parent != run or leaf.name != user:
+        return UNKNOWN_USER
+    try:
+        leaf.mkdir(mode=0o700)
+    except (OSError, ValueError):
+        return UNKNOWN_USER
+    return user
+
+
 def _give_basetemp(config: pytest.Config, run: Claim) -> bool:
-    """Hand pytest ``<run>/t`` as its base temp, as if ``--basetemp`` named it.
+    """Hand pytest ``<run>/<user>`` as its base temp, as if ``--basetemp`` named it.
+
+    ``<user>`` is :func:`base_name`'s: pytest's own per-user value. pytest
+    empties and remakes the directory the probe left.
 
     pytest's own ``pytest_configure`` built its temp path factory before this
     trylast hook ran, so the factory is rebuilt from the amended option - the
@@ -409,7 +460,7 @@ def _give_basetemp(config: pytest.Config, run: Claim) -> bool:
         return True
     original = getattr(config.option, "basetemp", None)
     try:
-        config.option.basetemp = str(run.path / BASE_NAME)
+        config.option.basetemp = str(run.path / base_name(run.path))
         factory = pytest.TempPathFactory.from_config(config, _ispytest=True)
         # pytest has no public setter; its tmpdir plugin and xdist both read this.
         config._tmp_path_factory = factory  # noqa: SLF001

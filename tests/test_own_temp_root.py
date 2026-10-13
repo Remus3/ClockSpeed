@@ -12,6 +12,7 @@ the temp-root variables through ``monkeypatch``, which restores both.
 
 from __future__ import annotations
 
+import getpass
 import os
 import stat
 import time
@@ -22,6 +23,7 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
+from _pytest import tmpdir as pytest_tmpdir
 
 from tests import own_temp_root
 from tests.own_temp_root import (
@@ -621,6 +623,134 @@ def test_the_base_temp_given_to_pytest_is_strictly_inside_the_run_directory(
         factory = installed.config._tmp_path_factory  # noqa: SLF001
         replaced = factory is not installed.config.original_factory
         assert replaced, "the rebuilt factory was not handed to pytest"
+    finally:
+        _release(installed)
+
+
+def _named_for_pytests_user(name: str) -> bool:
+    """Whether ``name`` is the per-user value pytest puts in its ``pytest-of-<user>``.
+
+    Derived through pytest's own ``get_user`` rather than through the module
+    under test, so the two derivations check each other. A bool, so a failing
+    arm renders no account name.
+    """
+    return name == (pytest_tmpdir.get_user() or "unknown")
+
+
+def test_the_base_temp_is_named_for_pytests_own_per_user_component(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1322 - the base temp keeps the per-user level pytest's own layout has.
+
+    MEASURED on the ubuntu tier1 lane at 8601200: CS-1320 named the base temp
+    ``t``, and ``/tmp`` sits outside the home directory there, so no tmp_path
+    carried anything ``redact`` rewrites - 13 privacy arms failed, 11 of them
+    UNPROVEN for want of a needle. pytest's default carries the account in
+    ``pytest-of-<user>``; the base temp is named for that same per-user value,
+    directly inside the run directory, so every tmp_path carries the account
+    again on every platform.
+    """
+    installed = _install_under(tmp_path, monkeypatch)
+    try:
+        run = installed.run
+        if run is None:
+            pytest.fail("the install owned nothing")
+        given = Path(installed.config.option.basetemp)
+        directly_inside = given.parent == run.path
+        assert directly_inside, "the base temp is not directly inside the run directory"
+        per_user = _named_for_pytests_user(given.name)
+        assert per_user, "the base temp lacks pytest's per-user component"
+    finally:
+        _release(installed)
+
+
+def _account_reads_as(monkeypatch: pytest.MonkeyPatch, value: str | None) -> None:
+    """Make ``getpass.getuser`` answer ``value``, or raise as pytest guards for when None."""
+
+    def getuser() -> str:
+        if value is None:
+            raise OSError("no account name")
+        return value
+
+    monkeypatch.setattr(getpass, "getuser", getuser)
+
+
+@pytest.mark.parametrize("value", [None, ""], ids=["unreadable", "empty"])
+def test_an_unreadable_account_name_falls_back_to_unknown_as_pytest_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    """An account pytest cannot read names its level ``pytest-of-unknown``; so here too."""
+    _account_reads_as(monkeypatch, value)
+    installed = _install_under(tmp_path, monkeypatch)
+    try:
+        run = installed.run
+        if run is None:
+            pytest.fail("the install owned nothing")
+        given = Path(installed.config.option.basetemp)
+        fell_back = given == run.path / "unknown"
+        assert fell_back, "an unreadable account name did not fall back to unknown"
+    finally:
+        _release(installed)
+
+
+@pytest.mark.parametrize(
+    "value", ["..", "a/b", "a\x00b", ALIVE_NAME], ids=["parent", "separator", "nul", "taken"]
+)
+def test_an_account_name_that_cannot_be_a_fresh_directory_falls_back_to_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """The fallback pytest takes: a ``pytest-of-<user>`` it cannot make is ``pytest-of-unknown``.
+
+    pytest empties a given base temp before use, so it must be a fresh
+    directory directly inside the run directory whatever the account is
+    called: ``..`` would hand pytest the tree-owned root itself, a separator
+    would nest it, a NUL cannot be spelled at all, and a name already taken in
+    the run directory - the owner's marker - is not fresh.
+    """
+    _account_reads_as(monkeypatch, value)
+    installed = _install_under(tmp_path, monkeypatch)
+    try:
+        run = installed.run
+        if run is None:
+            pytest.fail("the install owned nothing")
+        given = Path(installed.config.option.basetemp)
+        fell_back = given == run.path / "unknown"
+        assert fell_back, "an account name that cannot be a directory did not fall back"
+        marker_kept = (run.path / ALIVE_NAME).is_file()
+        assert marker_kept, "the per-user probe disturbed the owner's marker"
+    finally:
+        _release(installed)
+
+
+def _within_pytests_default_depth(prefix_length: int) -> bool:
+    """Whether ``prefix_length`` fits pytest's own default above the temp directory.
+
+    That default is ``pytest-of-<user>/pytest-<N>``, ``N`` one digit at its
+    shortest, so the bound is the strictest one - the same bound
+    ``tests/test_suite_temp_root.py`` grades a real run against.
+    """
+    user = pytest_tmpdir.get_user() or "unknown"
+    return prefix_length <= len(os.sep + "pytest-of-" + user + os.sep + "pytest-0")
+
+
+def test_the_handed_base_temp_is_no_deeper_than_pytests_own_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1320's path budget, graded where no ``--basetemp`` and no xdist can skip it.
+
+    The per-user leaf CS-1322 restores must not cost the depth CS-1320
+    removed: root, run directory and leaf together stay no longer than
+    pytest's own ``pytest-of-<user>/pytest-<N>``. A leaf spelled
+    ``pytest-of-<user>`` under the run directory would be eight characters
+    over this bound for every account name.
+    """
+    installed = _install_under(tmp_path, monkeypatch)
+    try:
+        if installed.run is None:
+            pytest.fail("the install owned nothing")
+        given = str(installed.config.option.basetemp)
+        within = _within_pytests_default_depth(len(given) - len(str(tmp_path)))
+        assert within, "the base temp is deeper than pytest's own default layout"
     finally:
         _release(installed)
 
