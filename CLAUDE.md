@@ -475,7 +475,8 @@ done that its acceptance says is not.
 
 **Nothing stays uncommitted or unpushed.** Batch commits and pushes so CI waits overlap
 with other work - remembering that CI runs only the TIP of a push, so a batch leaves its
-intermediate commits untested.
+intermediate commits untested. It and FLEET items 4 and 5 yield here only to the /done
+cases `.claude/commands/done.md` names (CS-1321, CS-1323).
 
 **A status request is answered with the section 2.3.1 checklist**, not prose.
 

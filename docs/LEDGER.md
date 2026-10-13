@@ -75,6 +75,76 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-12 - CS-1323 - CLOSED: /done holds the CS-700 window shut on a readable signal, retries a gate or lock refusal once on anchored lines, never spells a gitignored path bare, and S12a keeps a window /done's records
+Verification: merged files `.claude/commands/done.md`, `tests/test_done_ritual_arms.py` and the
+`tools/provenance.tsv` row for that test file. done.md: the CS-700 WINDOW paragraph and step 0's
+signal - OPEN when HEAD's own commit touches `tools/sha_citation_historical.json`, CLOSED otherwise,
+UNKNOWN on no HEAD, a merge HEAD or an unreadable diff - under which the ritual commits nothing, runs
+no suite and pushes nothing; step 8's refusal classifier, which retries ONCE on a suite-gate slot
+timeout with the hook's no-report line or a git-lock refusal with no hook line, each matched only at
+column 0 of its real line, and stops on a foreign uncommitted-edits refusal; the rule that every
+record-writing step names a gitignored path in words, never backticked; and the S12a KEEP RULE.
+Key arms in `tests/test_done_ritual_arms.py` - the window:
+`test_the_signal_reads_open_on_the_regeneration_commit`,
+`test_the_signal_reads_closed_on_the_commit_after_it`,
+`test_the_signal_reads_unknown_on_a_merge_head`,
+`test_open_or_unknown_commits_nothing_runs_no_suite_and_pushes_nothing`,
+`test_unknown_marks_failed_and_is_never_carried_forward_as_open`; the refusal retry:
+`test_a_slot_timeout_or_a_lock_refusal_is_retried_once`,
+`test_each_refusal_pattern_matches_its_real_line_only_at_column_0`,
+`test_a_gate_refusal_needs_its_line_and_the_hook_no_report_line`,
+`test_a_lock_refusal_counts_only_when_the_hook_never_ran`,
+`test_foreign_uncommitted_edits_stop_the_ritual_without_a_retry`,
+`test_a_red_suite_never_retries_the_push`; the ignored-path rule:
+`test_the_ledger_step_forbids_a_backticked_ignored_path`,
+`test_every_record_writing_step_carries_the_rule`,
+`test_no_template_spells_an_ignored_path_in_backticks`; the KEEP RULE:
+`test_the_keep_rule_runs_in_its_stated_order`,
+`test_the_copy_takes_every_dirty_path_and_its_deletions_before_the_reset`,
+`test_the_folder_is_recycled_only_after_the_closing_commit_is_read_back`,
+`test_a_halted_s12a_keeps_the_folder_for_an_adjudicator`,
+`test_a_hard_reset_drops_the_record_and_keeps_the_ignored_copy`.
+Two adversary lenses over four rounds: the gate lens NOT REFUTED at 39cf67b, the window lens
+REFUTED (low) at 39cf67b; the adjudicator STOPPED the loop (the stop ruling below) and folded one
+fix, the KEEP RULE copying every dirty path, landed as 1a0c2be; a verifier VERIFIED it. Residuals:
+`BACKLOG.md`, session 139 residuals, and `docs/item_notes/phase7.md` under CS-700.
+
+### 2026-10-12 - CS-1323 - CLAUDE.md 6.1 unpushed-state ruling
+Verification: `CLAUDE.md` section 6.1, the sentence after "Nothing stays uncommitted or
+unpushed", points at `.claude/commands/done.md` for every /done case that leaves commits
+local or the hand-off uncommitted; `python tools/doc_budget.py` and
+`python tools/drift_guard.py` exit 0 at the commit.
+DECISION (distinct read-only adjudicator): a one-sentence 6.1 pointer, over leaving the
+narrowing in done.md alone. Why: section 4 gives a rule one owner and its exceptions are
+part of it; this ledger holds no rules, so the CS-1321 record's narrowing sentence cannot
+be its home; an absolute auto-loaded rule invites a repair that breaches the MAIN
+DONE-SLOW order or the CS-700 freeze (`docs/item_notes/phase7.md`, CS-700 ORDER Q1); the
+precedence clause departs from FLEET items 4 and 5 only where CLAUDE.md states it. A red
+push applies 6.1's "no red suite ships" and is no narrowing. CLAUDE.md is not frozen.
+Reversed by: CS-1323 not landing, MAIN ruling the pre-push hook route, or a budget breach
+forcing relocation (relocate, keep the pointer).
+
+### 2026-10-12 - CS-1323 - adversary-loop STOP ruling (session 139)
+Verification: the CS-1323 close record above, and `tests/test_done_ritual_arms.py`.
+DECISION (distinct read-only adjudicator): STOP the refutation loop after four rounds, by
+`CLAUDE.md` section 7's cost-against-risk test, folding one fix - the KEEP RULE copies every dirty
+path - before the landing. Why: S12a is an interactive step weeks away, so its rule is read by a
+live session before it can act, and a further round costs more than the risk it retires.
+Runner-up: CONTINUE the loop. Residuals routed: `BACKLOG.md`, session 139 residuals (the Recycle
+Bin call, the arms' positional and phrase pins with their surviving mutants, the memory leaf's
+absolute push rule), and `docs/item_notes/phase7.md` under CS-700 (records uncommitted across
+sessions after a recovery, the window's close after an abandonment, a re-run's S5 porcelain-empty
+check).
+
+### 2026-10-12 - CS-1321 - FOLLOW-UP (session 139). NOT A COMPLETION RECORD. CS-1321 STAYS CLOSED. Its refutation found two /done arms absent, now landed under CS-1323, and its first push ran two whole suites
+Verification: the CS-1323 close record above, and `.claude/commands/done.md`.
+The session 139 refutation of CS-1321 found the CS-700 window arm and the gate-exit-3 retry arm
+absent from done.md; both landed under CS-1323. The responder's first push suite failed for real:
+`tests/test_citation_tables.py` arm R2, a bare gitignored path in its own ledger entry, fixed in
+ab3001a. It then ran a second whole suite. The suite gate's durations record reads, for the two:
+wait 1020 s, hold 1265 s, rc 2; then wait 156 s, hold 1390 s, rc 0. No note has gone to MAIN yet;
+the ONE ANSWER follows the next /done that pushes.
+
 ### 2026-10-12 - CS-1322 - CLOSED: the base temp's leaf carries pytest's per-user component, so redact has its needle in tmp_path on Linux again
 Verification: merged file `tests/own_temp_root.py` - `base_name` names the base temp handed to pytest,
 directly inside the run directory, for `pytest_user`, the per-user value pytest's own default spells

@@ -943,6 +943,17 @@ removal is an in-session adjudicator's ruling - which, while the rulesets stand,
 needs the deletion rule lifted for that one act - and the closing sequence does not
 advance past the act it halted at until that ruling is made.
 
+**S12a KEEPS A WINDOW /done's RECORDS, filed 2026-10-12 by CS-1323.** A /done inside the window,
+step b to S12a, commits nothing and leaves its records on disk, and S12a resets the main tree, so
+S12a obeys the KEEP RULE in `.claude/commands/done.md`, which owns it: before the reset, copy every
+dirty path into a new folder named for the session number under the tree's gitignored data
+directory; restore every copied path immediately after the reset; read them back byte for byte;
+and send the folder to the Recycle Bin only after the closing commit is read back. A halted S12a
+keeps the folder for a distinct adjudicator. A crash between the reset and the restore leaves that
+folder as the only copy, so the next session looks for it first. OPEN residuals, filed with it:
+after a recovery the records sit uncommitted across sessions; after an abandonment nothing says how
+the window closes; and a re-run's S5 porcelain-empty check would fail on the carried records.
+
 **RESUME FROM THE MEASURED STATE, NEVER THE REMEMBERED ONE, filed 2026-09-25 by
 CS-1190.** Any resume from S9 on first measures: the REST read and its `node_id`,
 S9c's two families, a mirror clone enumerated as S11 does, the rulesets read back,

@@ -675,3 +675,18 @@ The CS-1318 repair's residuals; its record and the session 139 rulings are in `d
 - From the CS-1318 adversary: the reap check in `tests/test_hook_probe_bound.py` falls back to a
   one-shot `kill -0` where there is no proc filesystem (macOS), so a zombie there still reads as a
   survivor; latent while no CI job runs on macOS - TRIGGER: the first CI job on macOS.
+
+The CS-1323 close's residuals; its record and its stop ruling are in `docs/LEDGER.md`, 2026-10-12.
+None blocks a product item or reddens a suite.
+
+- From the CS-1323 adversaries: the KEEP RULE's Recycle Bin call in `.claude/commands/done.md`
+  passes `OnlyErrorDialogs`, which can block a headless run on a dialog, and a relative folder path
+  resolves against the .NET working directory, not the shell's; both fail safe, keeping the folder -
+  TRIGGER: the KEEP RULE next runs at S12a, or the next edit to its recycle step.
+- From the CS-1323 adversaries: `tests/test_done_ritual_arms.py` pins done.md's step order by
+  position and some clauses by phrase, so mutants survive: "but only the records" in KEEP RULE step
+  (1), dropping "recorded deletion is still absent" in step (4), and "unless the reset already
+  ran" - TRIGGER: the next edit to the KEEP RULE or to those arms.
+- From the CS-1323 6.1 ruling: `memory/full-authority-adjudicate-do-not-ask.md` still states
+  `CLAUDE.md` section 6.1's push rule as absolute, without the /done cases done.md names - TRIGGER:
+  the next memory staleness scan, or the next edit to that leaf.
