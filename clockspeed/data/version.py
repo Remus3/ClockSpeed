@@ -417,8 +417,8 @@ _PIN_JSON: Final = """
   "docs_bytes": 10640180,
   "docs_relative": "CommunityResources/Docs/en-US.json",
   "docs_sha256": "a81d250e96aa13db3c0bf8c332c199ad930b2f15323e2c1a069afa4c07f971bb",
-  "game_build": "++FactoryGame+rel-main-anniversary-2026-CL-502094",
-  "integrity": "fafa13c09e18e9e8f5868292a09c0dad89e93c39ffd50810fa8015257da227d8",
+  "game_build": "++FactoryGame+rel-main-anniversary-2026-CL-513885",
+  "integrity": "efa07a82d4b8a3b997ff11b3881c8a3d2a7dae6371a196d8941c44b73b68c409",
   "schema": 2
 }
 """

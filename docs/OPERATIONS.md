@@ -412,9 +412,9 @@ the intended workflow, not an incident.**
 Steps:
 
 1. Confirm the signal. `python tools/drift_guard.py` - it names the pin that moved.
-2. Re-run the extractor and update the pin. **This is one command.**
+2. Re-measure the live install and rewrite the pin. **This is one command.**
    ```
-   python -m clockspeed.data.docs_extract --reextract --update-pin
+   python tools/drift_guard.py --re-extract
    ```
 3. Re-run the tier-appropriate suite. A recipe or building change is a tier 2 change.
 4. Record what moved in `docs/LEDGER.md` with an item ID and a verification pointer.
@@ -427,8 +427,10 @@ Two rules that govern this runbook:
 - Never commit the extracted registry, the docs file, or anything else lifted out of the
   game install. The pin and the hash are the only tracked artifacts of this process.
 
-Step 2's command is the committed shape of the workflow. The extractor itself is a phase
-2 deliverable; when it lands it lands behind exactly that one-command interface.
+Step 2's command is the committed shape of the workflow. It reads the installed build
+string and the docs file, read-only, and rewrites only the generated pin block in
+`clockspeed/data/version.py`; `clockspeed/data/docs_extract.py` has no command line of its
+own.
 
 ---
 
