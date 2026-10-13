@@ -22,7 +22,9 @@ The ritual's LAST act, step 10's `fleet_done.py mark`, stays inside the sub-agen
 run, after its own read-back - the main session runs nothing after the relay.
 
 Run EVERY step. Do not skip a step because it "looks clean". Record the observed result of
-each one in the ledger and the hand-off file - NOT in chat. FLEET-COMMON item 5: the ONLY
+each of steps 0 to 6 in the ledger and the hand-off file - NOT in chat; the results of step 8
+onward (push, its suite counts, CI, timing) go only to the push log and the gitignored
+`ops/loop/control/done_timing.json`, because nothing is committed after the push (CS-1321). FLEET-COMMON item 5: the ONLY
 chat output of this ritual is the line `Done ritual complete, safe to clear`, or the
 failure that stopped it. Items: $ARGUMENTS
 
