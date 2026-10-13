@@ -140,9 +140,13 @@ other context. WHAT GOES IN IT:
 - [ ] The exact state of anything left half-done, including which files are dirty.
 - [ ] The single next action, stated as an imperative. Its FIRST act is always: read the
       remote ref against this HEAD and the CI run for this HEAD's full SHA (the push is
-      step 8), and read this ritual's timing record (step 8). The hand-off states its own
-      push in the step 6 wording above - push pending at write time, push result and CI
-      UNREAD - never "pushed".
+      step 8), and read this ritual's timing record `ops/loop/control/done_timing.json`
+      (step 8). If the remote ref does NOT equal this HEAD, the next session pushes FIRST,
+      before any other work - that push is its one gated whole suite for the carried
+      commits - and if the timing record carries `blocked_by_flake`, files that test as a
+      `ROADMAP.md` or `BACKLOG.md` item. The hand-off states its own push in the step 6
+      wording above - push pending at write time, push result and CI UNREAD - never
+      "pushed".
 - [ ] The open item IDs in priority order with their acceptance criteria.
 - [ ] Every decision made this session that must not be re-litigated, with its fence.
 - [ ] Any spike result that CONTRADICTED `BOOTSTRAP.md`. The spike wins - say so plainly and
@@ -221,7 +225,8 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
         `--no-verify` never;
       - confirm from the push log AND from the remote ref NOT having moved that the push
         really was blocked;
-      - leave the commits local; the next session's FIRST action is "push", so its first
+      - leave the commits local; the next session's first act (the hand-off's next
+        action, step 6) finds HEAD unpushed and pushes before any other work, so that
         push carries them through the full hook. The `CLAUDE.md` section 6.1 "nothing
         unpushed" rule is narrowed for this one session gap by the verified order;
       - commit NOTHING more - the no-commit-after-the-push rule has no exception. The
@@ -230,7 +235,9 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
         the blocking test's node id and its alone-run result as `blocked_by_flake` in the
         gitignored `ops/loop/control/done_timing.json` (step 8's timing record); the next
         session reads it, pushes first, and files the flake as a `ROADMAP.md` or
-        `BACKLOG.md` item in that push. Never re-push in this ritual.
+        `BACKLOG.md` item in that push. Never re-push in this ritual. The ritual then
+        runs MEASURE below and step 9, and step 10 marks `--status failed --reason
+        "push blocked by flake"`.
       A test that FAILS when re-run alone is not a flake: it is the failure that stopped
       the ritual. The committed hand-off stays true - it said push pending and push result
       UNREAD, never "pushed" - and the next session's first act, reading the remote ref
@@ -242,7 +249,8 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
       reading the line whose `tree` is this checkout's folder name and whose `ts` falls
       inside the push. Because nothing is committed after the push, write these figures
       with the start time from step 0 atomically to the gitignored
-      `ops/loop/control/done_timing.json`, and the next session carries them into its own
+      `ops/loop/control/done_timing.json` - MERGED into it, never replacing a
+      `blocked_by_flake` key the flake path already wrote - and the next session carries them into its own
       hand-off. Never write an absolute path into tracked text - repo-relative only.
 
 ## 9. Final report - in the hand-off file, never in chat
