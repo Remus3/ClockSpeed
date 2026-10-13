@@ -690,3 +690,18 @@ None blocks a product item or reddens a suite.
 - From the CS-1323 6.1 ruling: `memory/full-authority-adjudicate-do-not-ask.md` still states
   `CLAUDE.md` section 6.1's push rule as absolute, without the /done cases done.md names - TRIGGER:
   the next memory staleness scan, or the next edit to that leaf.
+
+## Session 140 residuals - filed 2026-10-13 under product before process
+
+The game patch's residuals; the CS-1315 and CS-1316 R3 reversal record and the CS-1324 re-pin
+record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or reddens a suite.
+
+- From the session 140 R3 narrowing: install-side inputs other than the docs file moved with the
+  patch and carry no pinned digest - the usmap read from the install
+  (`clockspeed/save/usmap.py::USMAP_RELATIVE`) and Headers.zip
+  (`clockspeed/data/assets.py::HEADERS_ARCHIVE_PARTS`, 104 bytes larger than at ADR 0005); with no
+  earlier digest, whether saves written at the previous build now decode differently is unknown -
+  TRIGGER: a change in parse warnings on a save written at the previous build.
+- From the session 140 R3 narrowing: `tools/drift_guard.py::_live_differences` prints "only the
+  bytes moved" whenever the census is unchanged, which is false when only the build string moved -
+  TRIGGER: the next guard (h) work.

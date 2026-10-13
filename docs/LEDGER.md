@@ -75,6 +75,87 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-13 - CS-1324 - CLOSED: the version pin re-pinned to the patched game build; the docs bytes and the census are unchanged, so only the build string and the integrity digest moved
+Verification: merged files `clockspeed/data/version.py` (`_PIN_JSON`: game_build and integrity
+only; docs_sha256, docs_bytes and the census unchanged) and `docs/OPERATIONS.md` (the re-pin runbook's
+command corrected to `python tools/drift_guard.py --re-extract`; `clockspeed/data/docs_extract.py`
+has no command line of its own). Test:
+`tests/data/test_drift_guard_data.py::test_the_real_tree_soft_warnings_still_exit_zero`, red on
+`tools/drift_guard.py` guard (h) before the re-pin and green after; `tests/data/test_registry.py`
+and `tests/data/test_version.py`, 219 passed. A distinct verifier re-ran the re-extract in a fresh
+worktree and read the pin byte-identical; `python tools/drift_guard.py` exit 0 on main after the
+fast-forward, guard (h) PASS. The build strings are read from the pin and its history, never
+restated here (CLAUDE.md section 2). ADR 0005 re-check
+(`docs/adr/0005-overclock-ceiling-source.md`): the census is unchanged (114 groups, 2868 entries),
+mDefaultPotentialShardSlots is still absent, and the overclock slot constant stays None. The
+decision this re-pin follows is the CS-1315 and CS-1316 R3 reversal record directly below.
+
+### 2026-10-13 - CS-1315 and CS-1316 - R3 REVERSAL FIRED AND NARROWED (adjudicated session 140). NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1315 AND CS-1316 STAY OPEN. Neither blocks the CS-700 flip
+Verification: `tools/drift_guard.py` guard (h) FAIL on main at 38114ac (the live game build differs
+from the pin) and PASS after the CS-1324 re-pin above; `clockspeed/data/version.py::_PIN_JSON`
+(docs_sha256 and docs_bytes equal before and after); ruling R3 of the session 139 rulings record;
+`docs/item_notes/phase5.md` under CS-1315 (its acceptance amended by this ruling).
+The game patch (the pinned game build moved; both build strings are read from
+`clockspeed/data/version.py` and its history, CS-1324) fired R3's reversal clause (LEDGER R3:
+"Reversed by: a game patch landing before CS-1315 closes"). A first distinct adjudicator, on the
+false premise that the docs bytes moved, ruled CS-1315 a flip blocker and CS-1316 not. A second
+distinct adjudicator, on the measured premise (the installed en-US.json sha256 and size equal the
+pin; only the build string moved; nothing mispriced), narrowed that ruling under the
+recorded-measured-reason precedent: CS-1315 does NOT block CS-700; CS-1316 does not block.
+Alternatives: CS-1315 lands before step a (rejected: rested on a false premise; would not catch
+this patch's one real risk); holding for CS-1316 (rejected: no false claim, needs the CS-977
+ruling first). CS-1315 design ruling: content-hash check only, via data provenance
+(`Registry.source_sha256` computed in `clockspeed/data/` from the raw bytes), a pure audit check in
+`clockspeed/audit/build.py` taking the pin hash as a parameter (codes registry-mismatch and
+registry-unverified), and the CS-1288 caveat path in `clockspeed/advisor/build.py`; a build-string
+check rejected (it false-warns on exactly this patch); the acceptance amended before code. Save
+side: no save exists at the new build; the operator is asked to load and save once in the patched
+build; the unpinned usmap is filed to `BACKLOG.md` (Session 140 residuals). Reversed by: guard (h)
+listing the docs sha256 before CS-1315 closes, or the operator's own words. Common-mode risk: the
+pin and the registry both derive from en-US.json - a patch changing in-game values without
+regenerating it is invisible to every check.
+
+### 2026-10-13 - CS-1318 - GRADED AND REFUTED (session 140). NOT A COMPLETION RECORD. CS-1318 STAYS OPEN: no ubuntu run measured the load flake before the repair
+Verification: tier2 38349546806 (jobs 115138554698 and 115138554830), tier2 38385483026 (jobs
+115256099101 and 115256099240), tier1 38348699598 (job 115135935626) and tier1 38353247830 (job
+115150203664); `tests/test_hook_probe_bound.py` and `docs/item_notes/phase7.md` under CS-1318.
+A distinct adjudicator graded CLOSE on these six first-attempt green ubuntu legs at code containing
+3f8636d. A distinct adversary REFUTED it, and the refutation stands (default refuted): the
+acceptance clause "repeated runs on the ubuntu runner ... show a load flake" has no evidence. All
+six greens post-date the repair; the pre-repair ubuntu hook shard ran green, red, green, green,
+green with no load measurement; ruling R2 of the session 139 rulings record ordered the ubuntu
+tier2 legs measured before the repair, and no such run exists; at a 1-in-5 pre-repair rate six
+greens occur about 26% of the time with no fix (0.8^6); the loaded-box evidence is only a comment
+by the repair's own builder (`tests/test_hook_probe_bound.py`, the comment above REAP_WAIT), not a
+tracked replay. Evidence that would close CS-1318: a tracked replay script run repeatedly on
+ubuntu-latest at 382b3bb (the repair's parent) under induced load, showing the one-shot check
+misread lingering or zombie children as alive, plus its loaded-box transcript, plus first-attempt
+runs at repaired code. Checks that passed: 3f8636d is an ancestor of e9d3e27 and 38114ac; the
+repair is test-file-only; CS_PROBE_BOUND=10 unchanged in `.githooks/pre-commit`; none of the 10
+skips is the arm. Reversed by: the evidence above.
+
+### 2026-10-13 - CS-1317 - SECOND READING (session 140), NOT CLOSED. CS-1317 STAYS OPEN: D4's step-b catch-all condition is met, and the scan entries remain in the three pending tables
+Verification: tier1 38353247830 at 38114ac and tier1 38348699598 at e9d3e27, every job's "tier 1
+took" line; `tools/tier1_growth.py::PENDING_READINGS`, `tools/tier1_concentration.py::PENDING_PROFILE`
+and `tools/tier2_headroom.py::PENDING_FIRST_RECORD`. Adjudicated NOT YET GRADABLE.
+CS-1317 second reading, tier1 38353247830 at 38114ac: catch-all 271 s, scan 160 s, save 251, hook
+302, guard 354, fill 423 (warning). With 38348699598 (262/111), D4's step-b catch-all condition
+and its 360 s close threshold are MET; 420/480 unchanged. NOT CLOSED: scan entries remain in
+PENDING_READINGS (2 of 5 readings), PENDING_PROFILE (unprofiled) and PENDING_FIRST_RECORD (2 of 3
+tier2 runs). The item closes at the refresh commit that removes all three. Fill question ruled
+separately. Common-mode note: 38114ac is docs-only over e9d3e27, so the two readings sample
+runner variance, not suite growth.
+
+### 2026-10-13 - CS-1317 - session 140 fill-shard ruling
+Adjudicated by a distinct read-only adjudicator that authored no candidate.
+DECISION: a non-catch-all shard over the 420 s budget and under the 480 s
+ceiling does not hold CS-700 step b; it is a CS-1317 watch. Alternatives:
+hold until rebalanced; hold until two fill readings under 420 s. Why:
+tier1.yml makes the budget a warning, never a failure; the acceptance and
+D4 need within-budget catch-all readings only; step b needs tier1 green.
+Read: fill 423, 421, 423 s on 38353247830, 38348699598, 38335220406.
+Reversed by: any shard over 444 s on main before step b, or any red job.
+
 ### 2026-10-12 - CS-1323 - CLOSED: /done holds the CS-700 window shut on a readable signal, retries a gate or lock refusal once on anchored lines, never spells a gitignored path bare, and S12a keeps a window /done's records
 Verification: merged files `.claude/commands/done.md`, `tests/test_done_ritual_arms.py` and the
 `tools/provenance.tsv` row for that test file. done.md: the CS-700 WINDOW paragraph and step 0's

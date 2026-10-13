@@ -510,7 +510,7 @@ a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused
 
 ### Acceptance
 
-The registry provider verifies the installed docs file against the clockspeed/data/version.py pin (build and content hash) before any figure is priced, or the Registry carries the build it was extracted from; a mismatch produces a named warning on the audit and every advice card (the CS-1288 build-input path), a synthetic fixture whose docs hash differs from the pin fires it and a matching one does not, and nothing prices a figure from an unverified registry silently.
+The registry provider verifies the installed docs file against the clockspeed/data/version.py pin (build and content hash) (content hash; a build-only difference with equal bytes is not a mismatch - session 140 ruling, docs/LEDGER.md) before any figure is priced, or the Registry carries the build it was extracted from; a mismatch produces a named warning on the audit and every advice card (the CS-1288 build-input path), a synthetic fixture whose docs hash differs from the pin fires it and a matching one does not, and nothing prices a figure from an unverified registry silently.
 
 ### Filed 2026-10-12 (session 138) from the CS-1288 slice C adjudication
 

@@ -1,92 +1,124 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 139 by its /done, 2026-10-13. The operator starts with "continue".
+Written in session 140 at CS-700 flip block step a, 2026-10-13: the hand-off its records commit
+holds (session 131 Ruling Q3 - the next hand-off is committed in the records commit just before the
+regeneration, with the recovery rule). It is NOT a /done hand-off. The operator starts with
+"continue".
 
-SESSION: 140
+SESSION: 141
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-THIS FILE WAS COMMITTED BEFORE ITS PUSH (MAIN DONE-SLOW ORDER, CS-1321): push of this commit
-pending at write time; push result and CI UNREAD - the next session's first act reads the remote
-ref against this HEAD and the CI run. That push's pre-push suite is the session 139 /done's ONE
-gated whole suite. TIER1 IS GREEN ON MAIN at e9d3e27 (38348699598, all six jobs), the first green
-tier1 since 0e82056. In order:
- (0) READS, BEFORE ANY OTHER WORK: ops/loop/control/inbox_status.json FIRST (the responder commits
-     and pushes on main; proceed only while it reads idle). `git rev-parse HEAD` against `git
-     ls-remote origin refs/heads/main`, by FULL SHA. This ritual's timing record - the session 139
-     /done's done-timing file in the gitignored loop control directory, the one step 8 of
-     .claude/commands/done.md names (named in words here, CS-1323): its start, end, the push
-     suite's gate wait_s and hold_s, and any blocked_by_flake key. IF THE REMOTE REF DOES NOT
-     EQUAL HEAD, PUSH FIRST, before any other work, through the git lock from Git Bash with its
-     log outside the tree - that push is the one gated whole suite for the carried commits - and
-     only AFTER it, if the timing record carries blocked_by_flake, file that test as a ROADMAP.md
-     or BACKLOG.md line. Then CI for HEAD's full SHA (`gh run list --commit <full SHA>`): tier1,
-     every job, AND each job's "tier 1 took" budget line (CS-1317's second reading; a red run is
-     the top item). tier2 38349546806 (workflow_dispatch at e9d3e27, created 2026-10-13T05:04:21Z,
-     in progress at write time) and the first tier2 nightly after e9d3e27 - EVERY attempt, the
-     ubuntu legs graded on the CS-1318 arm. `python tools/inbox_watch.py`.
- (1) SEND MAIN THE ONE DONE-SLOW ANSWER - MAIN's ORDER 2026-10-12-1912 ("DONE-SLOW ...
-     ONE-ANSWER", HOP 1; the answer is HOP 2, class ANSWER). The session 139 /done is the ritual
-     it measures; nothing may be committed after that ritual's push, so the answer is sent here,
-     from its timing record. It gives: (a) THE COMMITS - the CS-1321 chain 897d17c..ab3001a (seven
-     commits, built, landed and pushed by the headless responder), the CS-1323 chain
-     03ecc6d..1a0c2be (five commits) with its records commit e49cd64, and the /done's own records
-     commit (its SHA read at (0)); (b) THE MEASURED WALL TIME of the session 139 /done - START
-     2026-10-13T00:05:44-05:00 (step 0), END from the timing record - and its push suite's gate
-     wait_s and hold_s; (c) THE HONEST DEVIATIONS, not /done rituals but gate time: the
-     responder's CS-1321 landing ran TWO whole suites (rc 2, wait 1020 s, hold 1265 s, on a bare
-     gitignored path in its own ledger entry; then rc 0, wait 156 s, hold 1390 s); the session 139
-     batch took TWO pushes (the first blocked by the merger's own LEDGER heading, rc 2, hold 635
-     s; the second green, hold 1309 s); in between, a 153-module targeted run held the gate 2244
-     s. If (0) finds the push did not land, say so and give the first push's figures too. Send
-     with tools/outbound_send.py: a dry run, then --send with `--channel-root C:/` (TRAPS), its
-     outbound gate CLEAN. Count the outbox first (FLEET 14c, 6 a local day; 2026-10-13 held 0 at
-     write time). NO directory name, account id or email in the note (FLEET 7). Read back the
-     destination copy re-hashed and report the reached count, 1/1. Never answer that order twice.
- (2) CS-1317 - THE SECOND READING. Ruling D4 (docs/LEDGER.md, the CS-1317 session 139 refutation
-     ruling): CS-700 step b waits for TWO CONSECUTIVE within-budget catch-all ("gates, lint,
-     types, tests") readings on main, 420/480 unchanged, every job line read - e9d3e27's 262 s is
-     the first. CS-1317 CLOSES only when both catch-all AND both scan readings are at most 360 s
-     (the first: 262 s and 111 s) and the scan entries are out of PENDING_READINGS
-     (tools/tier1_growth.py), PENDING_PROFILE (tools/tier1_concentration.py) and
-     PENDING_FIRST_RECORD (tools/tier2_headroom.py), each at the removal condition stated beside
-     it (the tier2 entries self-expire once each new leg holds the run floor - B1: 3 distinct
-     recorded runs). Otherwise it stays OPEN and a rebalance from both shards' CI durations is
-     next.
- (3) A RULING IS OWED BEFORE STEP b - A DISTINCT ADJUDICATOR, NEVER THE OPERATOR (CLAUDE.md 6.1):
-     the fill shard read 421 s at e9d3e27 and 423 s at ab3001a, OVER the 420 s budget (a warning,
-     under the 480 s ceiling); it read 424 s twice in session 138. D4 names the catch-all only,
-     with "every job line read". Rule whether a fill shard over budget holds step b, or is a
-     CS-1317 watch only. NO NEW ITEM (CLAUDE.md section 7, product before process): the fill
-     reading stays a watch under CS-1317. Record the ruling in docs/LEDGER.md.
- (4) THE CS-700 FLIP BLOCK below - INTERACTIVE ONLY, WITH THE OPERATOR PRESENT AT STEP e. A
-     HEADLESS SESSION NEVER STARTS THE BLOCK: session 139 did not start it, because the operator
-     said mid-session "Headless - Operator Is Away"; the block is carried unchanged. Step b only
-     after D4's second reading and the (3) ruling. From "BEFORE a" through step e, then WAIT at e
-     (never /done on your own while the ask is open). The CS-G03 FULL clean-machine re-walk runs
-     ONCE, at the regeneration (S7a) tip, step c - never standalone (Q2). CS-1304 blocks the block
-     only if a deciding suite before step a shows its failure class (re-read it at that suite). If
-     the remaining context cannot hold the block plus S9-S12a, Q3's reversal applies again: the
-     block is the next session's first work.
- (5) On the operator's own-words line: POST-CONFIRMATION (S9-S12a) as recorded below. Without it:
-     the RECOVERY RULE.
+THIS FILE IS THE CS-700 FLIP BLOCK STEP a RECORDS COMMIT, on top of the CS-1324 re-pin commit
+(main fast-forwarded to it in session 140, unpushed at write time - one push carries both). Push of
+this commit pending at write time; push result and CI UNREAD - the next session's first act reads
+the remote ref against this HEAD and the CI run. After this commit session 140 writes INBOX_STOP,
+pushes (the commit's pre-push suite is its gated whole suite), asserts local tags == ls-remote tags by name and SHA and HEAD ==
+origin/main, reads tier1 at this commit, then runs step b - the citation-set regeneration commit,
+its push and its tier1. FROM STEP b NO COMMIT OF ANY KIND LANDS ON THE MAIN TREE'S main UNTIL S12a
+(the CS-700 window, owned by .claude/commands/done.md). Steps c-e follow in session 140 only while
+it can hold them (Q3).
+IF YOU ARE READING THIS TEXT, no CS-700 window /done replaced it on disk - a window /done leaves its
+own UNCOMMITTED hand-off here, which supersedes this one - so session 140 ended (a crash, a stop, or
+the operator ending it) somewhere between this commit and step e. RESUME FROM THE MEASURED STATE,
+NEVER THE REMEMBERED ONE (phase7.md CS-700, CS-1190). In order:
+ (0) READS, BEFORE ANY OTHER WORK:
+     - THE KEEP RULE CRASH CHECK (.claude/commands/done.md): a copy folder named for a session
+       number under the tree's gitignored data directory means a crash between an S12a reset and
+       its restore; that folder is then the ONLY copy of the window's records - stop and hand it to
+       a distinct adjudicator.
+     - ops/loop/control/inbox_status.json (with INBOX_STOP present it reads halted).
+     - THE CS-700 WINDOW SIGNAL, exactly as .claude/commands/done.md step 0 reads it: CLOSED with
+       HEAD at this records commit means step b never landed; OPEN means HEAD's own commit is step
+       b's regeneration commit; UNKNOWN goes to a distinct adjudicator, never a ritual.
+     - `git rev-parse HEAD` against `git ls-remote origin refs/heads/main`, by FULL SHA, and `git
+       status --porcelain`.
+     - The sentinels, by presence: INBOX_STOP and QUEUE_STOP in the lanes control directory, and
+       the lane-wide STOP in the loop control directory (S7q writes it).
+     - The remote: `gh repo view --json visibility,isArchived` (S7q part 3 archives it; it read
+       PRIVATE and not archived at this file's write).
+     - The OUT folder E:\Sidecars\CS\Scratch\cs-flip-backup\cs700-s140\ (present means step d
+       began) and session 140's progress files in the gitignored progress directory (the step a
+       and b agent's is named s140-cs700-ab).
+     - CI for HEAD's full SHA (`gh run list --commit <full SHA>`): tier1, every job, and each job's
+       "tier 1 took" line; every tier2 run since 38385483026.
+     - `python tools/inbox_watch.py` (listing never acknowledges).
+ (1) ACT ON THAT STATE - each case is that state's own rule:
+     - CLOSED, HEAD == this records commit, the remote ref NOT equal: push first, through the git
+       lock from Git Bash with its log outside the tree (the gated whole suite for this commit);
+       then the next case.
+     - CLOSED, HEAD == this records commit == the remote ref: step a is done and step b never
+       landed. An INTERACTIVE session with the operator present re-enters the block at step b
+       after re-reading its two holds on main: D4 (no catch-all reading over 420 s) and the session
+       140 fill-shard ruling's reversal (any shard over 444 s on main before step b, or any red
+       job, holds step b) - and `python tools/drift_guard.py` exit 0: a further game patch turns
+       guard (h) red; re-pin first (the CS-1324 route), and if the docs sha256 moved, a distinct
+       adjudicator re-rules CS-1315 (the session 140 R3 narrowing's reversal). A session that does
+       not run the block removes INBOX_STOP (a sentinel, re-written at step a) and carries the
+       block unchanged.
+     - OPEN (step b landed) and no own-words line from the operator: THE RECOVERY RULE (THE CS-700
+       FLIP BLOCK below) - unarchive the remote if archived and read it back; remove STOP and
+       INBOX_STOP; S7a..S8a are VOID (keep the bundles); commit nothing, run no suite and push
+       nothing while the window reads OPEN; verify `python tools/sha_citation_gate.py
+       --flip-readiness` exit 0 and the diff from the regeneration commit. How the window then
+       closes - the block resumed at step c on the same regeneration tip, or a later commit that
+       re-stales the set and owes a new step b - is the open CS-1323 residual "after an
+       abandonment nothing says how the window closes" (phase7.md CS-700): a DISTINCT ADJUDICATOR
+       rules it, never the operator.
+     - ANY RED - a push suite, a tier1 job, a step b gate exit: it is the top item. Never rerun a
+       red to make it green.
+ (2) CS-1304 WATCH at every deciding suite: a failure in tests/test_cs1172_branch_canaries.py or
+     tests/test_cs1175_rule_narrowing.py reading "did not fail: exit 2", or a child_failure naming
+     a withheld exception, BLOCKS the block (the CS-1304 ruling); a child status over 255 (hex) is
+     a box-resource death - record it, never count it.
+ (3) After the flip, or once a recovery is adjudicated: THE NEXT SESSION'S ORDER below.
+
+DONE IN SESSION 140 BEFORE THIS COMMIT (each read, not remembered):
+ - Step (0): inbox_status.json idle; HEAD == origin/main == 38114ac by full SHA; tier1 38353247830
+   at 38114ac GREEN, six jobs - gates 271 s, scan 160 s, save 251 s, hook 302 s, guard 354 s, fill
+   423 s (over the 420 s budget, a warning); tier2 38349546806 and 38385483026 GREEN, 27 of 27
+   jobs each; the session 139 /done's timing record carries no blocked_by_flake.
+ - Step (1): THE DONE-SLOW ONE ANSWER SENT TO MAIN - the outbox note 2026-10-13-1410 (class ANSWER,
+   HOP 2, to MAIN's 2026-10-12-1912 ORDER, CS-1322 folded in as one line), read back 1/1 in MAIN's
+   inbox by SHA-256. OutboundCap 1 of 6 on 2026-10-13. NEVER ANSWER THAT ORDER AGAIN.
+ - Step (2): CS-1317's SECOND READING - adjudicated NOT YET GRADABLE: D4's step-b catch-all
+   condition and its 360 s close threshold MET; CS-1317 STAYS OPEN (LEDGER "CS-1317 - SECOND
+   READING").
+ - Step (3): THE FILL-SHARD RULING - a non-catch-all shard over 420 s and under 480 s does not hold
+   step b; a CS-1317 watch, no new item (LEDGER "CS-1317 - session 140 fill-shard ruling").
+ - CS-1318 GRADED: a distinct adjudicator graded CLOSE on six green ubuntu legs; a distinct
+   adversary REFUTED it and the refutation stands - CS-1318 STAYS OPEN (LEDGER "CS-1318 - GRADED
+   AND REFUTED").
+ - THE GAME PATCHED: the first step a attempt STOPPED before its records commit on `python
+   tools/drift_guard.py` guard (h) FAIL at 38114ac - the live game build differs from the pin; the
+   installed docs file's sha256 and size equal the pin. R3's reversal FIRED. A first distinct
+   adjudicator (on the false premise that the docs bytes moved) ruled CS-1315 a flip blocker; a
+   second, on the measured premise, NARROWED it: neither CS-1315 nor CS-1316 blocks the flip;
+   CS-1315's design ruled (content hash only) and its acceptance amended (LEDGER "CS-1315 and
+   CS-1316 - R3 REVERSAL FIRED AND NARROWED").
+ - CS-1324 CLOSED: the re-pin (`python tools/drift_guard.py --re-extract`; game_build and
+   integrity only), confirmed by a distinct verifier (re-extract byte-identical); main
+   fast-forwarded to it under the git lock and read back; `python tools/drift_guard.py` exit 0 on
+   main, guard (h) PASS (LEDGER "CS-1324 - CLOSED").
 
 ================================================================================
 THE NEXT SESSION'S ORDER (after the single next action)
 ================================================================================
 
- 1. Step (0): the reads; push first if the remote ref is not HEAD.
- 2. Step (1): the ONE DONE-SLOW answer to MAIN, read back 1/1.
- 3. Steps (2) and (3): CS-1317's second reading under D4 (close, or rebalance), and the fill-shard
-    ruling.
- 4. CS-1318: grade tier2 38349546806 and every later ubuntu run on the reap arm (acceptance in
-    docs/item_notes/phase7.md); a rerun alone is never the evidence.
- 5. The CS-700 flip block (interactive, the operator present): a-e, wait, S9-S12a.
- 6. After the flip (later sessions): CS-1315 and CS-1316 (ruled NOT flip blockers, R3), CS-1318 if
-    still open, then CS-1231 slice C and CS-1283, CS-1304, CS-1307, CS-1291, CS-1295, then the
-    carried and frozen lists (OPEN ITEMS below).
- 7. Housekeeping, carried and NOT urgent, under CS-1291 part 7 and FLEET 9 (a consumer check, then
+ 1. Step (0): the reads; step (1): the measured state's own case.
+ 2. The CS-700 flip block from the measured state (interactive, the operator present): b-e, wait,
+    S9-S12a - or the RECOVERY RULE and the adjudicated window close.
+ 3. CS-1317 - OPEN (OPEN ITEMS 0): the scan entries out of PENDING_READINGS (2 of 5 readings),
+    PENDING_PROFILE (unprofiled) and PENDING_FIRST_RECORD (2 of 3 tier2 runs); it closes at the
+    refresh commit that removes all three - a commit, so never inside the CS-700 window.
+ 4. CS-1318 - OPEN, its close REFUTED: the evidence that would close it (OPEN ITEMS 0b); a rerun
+    alone is never the evidence.
+ 5. After the flip (later sessions): CS-1315 FIRST (the session 140 content-hash design and its
+    amended acceptance), then CS-1316 (neither a flip blocker - R3, narrowed in session 140), then
+    CS-1231 slice C and CS-1283, CS-1304, CS-1307, CS-1291, CS-1295, then the carried and frozen
+    lists (OPEN ITEMS below).
+ 6. Housekeeping, carried and NOT urgent, under CS-1291 part 7 and FLEET 9 (a consumer check, then
     the Recycle Bin): the five session 139 worktrees (STATE OF THE TREE, BRANCHES), the adversary
     scratch folder outside the repo (TEMP DIRS), the work/saves leftover copy (WORK DIR).
 
@@ -94,6 +126,11 @@ THE NEXT SESSION'S ORDER (after the single next action)
 THE TOP TRACK - THE PUBLIC FLIP PATH (carried as the top track, in this order)
 ================================================================================
 
+  DONE in session 140: steps (0) to (3) of its single next action - the DONE-SLOW answer to MAIN
+  read back 1/1; CS-1317's second reading (D4's step-b condition MET, the item OPEN); the
+  fill-shard ruling (it does not hold step b); CS-1318 graded and REFUTED (OPEN). THE GAME
+  PATCHED: R3's reversal FIRED and was NARROWED (CS-1315 and CS-1316 still not flip blockers);
+  CS-1324 CLOSED (the re-pin). THE FLIP BLOCK STARTED: this file is its step a records commit.
   DONE in session 139: TIER1 GREEN AGAIN at e9d3e27 - CS-1317 LANDED (a sixth tier1 shard, scan;
   420/480 unchanged, nothing skipped; ruling R1), CS-1318 MEASURED AS A LOAD FLAKE AND REPAIRED
   (open for its repeated ubuntu runs; R2), CS-1322 CLOSED (the CS-1320 Linux regression; R4).
@@ -107,8 +144,10 @@ THE TOP TRACK - THE PUBLIC FLIP PATH (carried as the top track, in this order)
   fourth S12a act) and Ruling 2 (CS-953 CLOSED AS MOOT).
   1. CS-701 (handled by S7a) and CS-1304 (blocks the flip only if a deciding suite before step
      a shows its failure class; that is NOT a ruling - re-read it at the deciding suite).
-  2. CS-1317's second reading under D4 and the fill-shard ruling (THE SINGLE NEXT ACTION (2) and
-     (3)); step b waits on both.
+  2. DONE in session 140: CS-1317's second reading under D4 and the fill-shard ruling. Both of
+     step b's holds were met at this file's write; if step b has not landed, re-read them on main
+     first (D4 reverses on a catch-all reading over 420 s; the fill ruling on any shard over 444 s
+     or any red job).
   3. THE CS-G03 FULL CLEAN-MACHINE RE-WALK - UNBLOCKED; it runs at step c of the block (Q2).
   4. CS-700 steps a-d (THE FLIP BLOCK): the records commit and INBOX_STOP; the
      `--emit-historical` pin in tools/sha_citation_gate.py; the re-walk needing 0 failed;
@@ -147,11 +186,15 @@ READ THESE FIRST, IN THIS ORDER
                             recorded verbatim, S8/S10/S11 shapes, the identity-oracle residual, the
                             session 131 notes, the "Session 137 ruling, recorded 2026-10-11" S12a
                             note, the CS-1323 residuals and the KEEP RULE pointer); phase5.md
-                            CS-1315 and CS-1316 (ruled not flip blockers, R3); phase7.md CS-1231
+                            CS-1315 and CS-1316 (not flip blockers - R3, narrowed in session
+                            140; CS-1315's acceptance amended); phase7.md CS-1231
                             (the session 132 and CS-1287 notes: v11 R2 UNHOLDS slice C), CS-1283,
                             CS-1291, CS-1295, CS-1304 (its session 135 ruling), CS-1307 (its
                             session 137 verifier verdict and smallest remaining slice)
-  docs/LEDGER.md            the session 139 records, newest first: CS-1323 CLOSED, its CLAUDE.md
+  docs/LEDGER.md            the session 140 records, newest first: CS-1324 CLOSED, the CS-1315
+                            and CS-1316 R3 REVERSAL FIRED AND NARROWED, CS-1318 GRADED AND REFUTED,
+                            the CS-1317 SECOND READING and the session 140 fill-shard ruling;
+                            then the session 139 records: CS-1323 CLOSED, its CLAUDE.md
                             6.1 ruling and its adversary-loop STOP ruling; the CS-1321 FOLLOW-UP;
                             CS-1322 CLOSED; CS-1318 MEASURED AND REPAIRED; CS-1317 LANDED, its
                             refutation ruling (D1-D4) and its builder-blocker rulings (B1-B3); the
@@ -194,15 +237,18 @@ RACE GUARDS     every git commit / push through
                 tree wrote on 2026-10-12 reads slot 0 - one slot, shared with every tree.
                 .githooks/pre-push runs its suite through fleet_suite_gate.py (owner
                 FLEET_CLAIM_OWNER, else pre-push), with -x, grading the MAIN WORKING TREE.
-THE CS-700 WINDOW SIGNAL read CLOSED at e9d3e27 (the session 139 /done's step 0). The window
-  rules - from flip block step b to S12a no commit, no suite, no push - are owned by
-  .claude/commands/done.md (CS-1323).
-INBOX_STOP IS ABSENT (read by the session 139 /done). The unattended responder (scheduled task
-  CS-InboxResponder) is LIVE: inbox_status.json read state "idle", task "Idle", 4 runs in the
-  rolling window of 120 - its four inbox runs of 2026-10-12, three on MAIN's TEMP-2 FIX and one on
-  the DONE-SLOW ORDER (the headless usage log) - at the /done's start (updated 23:56 on 2026-10-12)
-  and before its commit (REPORT). IT COMMITS AND PUSHES ON main: read inbox_status.json and its
-  progress files before any commit, never touch its worktree or process.
+THE CS-700 WINDOW SIGNAL read CLOSED at e9d3e27 (the session 139 /done's step 0). This records
+  commit touches no tools/ path, so the signal reads CLOSED on it too; step b's regeneration commit
+  opens the window. The window rules - from flip block step b to S12a no commit, no suite, no push
+  - are owned by .claude/commands/done.md (CS-1323).
+INBOX_STOP: ABSENT at this file's write. Session 140 writes it immediately after this commit and
+  before the commit's push (step a; Q5: before the regeneration commit). The RECOVERY RULE removes
+  it, and so does a session that does not run the block (THE SINGLE NEXT ACTION (1)). The
+  unattended responder (scheduled task CS-InboxResponder) read state "idle", task "Idle", 1 run in
+  its rolling window of 120, updated 14:41 on 2026-10-13, before this commit; with INBOX_STOP
+  present it publishes state "halted" and starts nothing. WHEN LIVE IT COMMITS AND PUSHES ON main:
+  read inbox_status.json and its progress files before any commit, never touch its worktree or
+  process.
 IF THE RESPONDER REFUSES, CHECK THE PROXY LISTENER BEFORE THE RESPONDER (session 132 trap).
 QUEUE_STOP STILL HOLDS THE QUEUE LANES (queue, queue-b, queue-c, CS-1274), at
   ops/loop/control/lanes/QUEUE_STOP (read present, dated 2026-09-19). A lane worker runs with
@@ -212,7 +258,8 @@ SUBAGENT-FIRST HOOK: MODE "deny" since 2026-10-10 07:19:27 (the gitignored ops/l
   thread may only dispatch; every Bash, PowerShell, Read, Edit, Write, Grep, Glob and
   NotebookEdit call there is denied. AN ABSENT MODE FILE MEANS DENY. The log ops/loop/control/
   subagent_first.jsonl holds 395 NUL bytes from the 2026-10-10 10:02 reboot (CS-1284 record).
-CS-700 FLIP BLOCK: WRITE INBOX_STOP BEFORE THE CITATION-SET REGENERATION COMMIT (Q5 ruling).
+CS-700 FLIP BLOCK: WRITE INBOX_STOP BEFORE THE CITATION-SET REGENERATION COMMIT (Q5 ruling) -
+  session 140 writes it at step a, right after this records commit.
 
 ================================================================================
 STATE OF THE TREE
@@ -220,19 +267,24 @@ STATE OF THE TREE
 
 ROOT            the E: checkout named by ADR 0026; the C: spelling is a junction to it.
                 (This file does not spell the path - CS-1308, now CLOSED.)
-HEAD / remote   at the session 139 /done's start HEAD == origin/main == e9d3e27 (`git ls-remote
-                origin refs/heads/main` read, full SHA equal). This /done adds ONE records commit
-                on top: push pending at write time (THE SINGLE NEXT ACTION (0)).
+HEAD / remote   at session 140's step (0) HEAD == origin/main == 38114ac (`git ls-remote origin
+                refs/heads/main` read, full SHA equal). Then main was fast-forwarded to the
+                CS-1324 re-pin commit (subject "CS-1324 - re-pin: game build moved ...", local and
+                unpushed at write time). This file rides in ONE records commit on top (CS-700 step
+                a); one push carries both, pending at write time (THE SINGLE NEXT ACTION (0)).
                 A BLOCKED PUSH CAN REPORT EXIT 0 FROM A WRAPPER - READ THE LOG LINE
                 "clockspeed pre-push: BLOCKED", AND THE REMOTE REF.
-DIRTY FILES     none at the /done's start (`git status` read clean); this /done's edits - this
-                file, WAKEUP_NOTES.md and docs/history_notes.md - are its records commit. No
-                half-done work: all five session 139 worktrees read 0 unlanded commits by patch-id
-                (`git cherry main <branch>`) and clean.
+DIRTY FILES     none at session 140's start (`git status` read clean); the records commit holds
+                this file, docs/LEDGER.md (the five session 140 records), WAKEUP_NOTES.md
+                (session 140 added; session 137 relocated verbatim to docs/history_notes.md),
+                BACKLOG.md ("Session 140 residuals") and docs/item_notes/phase5.md (CS-1315's
+                acceptance amended). No half-done work
+                outside the flip block. All five session 139 worktrees read 0 unlanded commits by
+                patch-id (`git cherry main <branch>`) and clean (the session 139 /done's read).
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
-ANOTHER WRITER SHARES THIS TREE - the responder (above). ALLOCATE NEW IDS FROM CS-1324
-  UPWARD AND RE-CHECK THE MAX FIRST (`git grep` and `git log --all` for the next id; CS-1323
-  was the highest in the tree and in all history at the session 139 /done's start).
+ANOTHER WRITER SHARES THIS TREE - the responder (above). ALLOCATE NEW IDS FROM CS-1325
+  UPWARD AND RE-CHECK THE MAX FIRST (`git grep` and `git log --all` for the next id; CS-1324
+  was the highest in the tree at session 140's step a).
 BRANCHES - KEEP, DO NOT PRUNE; CLASSIFY UNDER CS-1291 PART 7 (consumer check, classify by
   content, Recycle Bin, `git worktree prune`; never one a live agent uses). Name each by branch
   or tip subject, never by worktree id or unpublished SHA; find each with `git log --all
@@ -355,8 +407,26 @@ LIVE SAVE DIR   the library holds 41 saves, every one of which parses (41 of 41 
                 by the session 138 agents' read-only library probes - agent-reported). A refused
                 save reddening the sweeps again is CS-1311's BACKLOG trigger. NEVER write a save
                 name, the world name, the account id or a home path anywhere tracked; Clockspeed
-                never writes to the save directory.
+                never writes to the save directory. NO SAVE EXISTS AT THE PATCHED BUILD (session
+                140): the step e batched ask carries one load-and-save in it.
 
+================================================================================
+SESSION 140 - CS-1324 CLOSED (detail in docs/LEDGER.md)
+================================================================================
+
+SENT        the DONE-SLOW ONE ANSWER to MAIN (outbox note 2026-10-13-1410, class ANSWER, HOP 2,
+            CS-1322 folded in), read back 1/1 in MAIN's inbox by SHA-256.
+READ        CS-1317's second reading at 38114ac (tier1 38353247830): NOT YET GRADABLE, OPEN.
+RULED       the session 140 fill-shard ruling (DECISIONS below).
+RULED       the game patch fired R3's reversal; a second adjudicator narrowed the first: CS-1315
+            and CS-1316 still not flip blockers; CS-1315's content-hash design and its amended
+            acceptance (DECISIONS below).
+CLOSED      CS-1324: the version pin re-pinned to the patched build (docs bytes unchanged).
+FILED       two BACKLOG lines ("Session 140 residuals"): the install-side inputs with no pinned
+            digest (the usmap, Headers.zip), and drift_guard's false "only the bytes moved" line.
+GRADED      CS-1318: CLOSE graded by an adjudicator, REFUTED by an adversary, the refutation
+            stands - OPEN.
+STARTED     the CS-700 flip block: this file is its step a records commit.
 ================================================================================
 CLOSED / LANDED - SESSION 139 (detail in docs/LEDGER.md)
 ================================================================================
@@ -391,37 +461,56 @@ CHANNEL     session 139 itself sent no note; the responder's TEMP-2 answer is 20
 OPEN ITEMS, PRIORITY ORDER
 ================================================================================
 
- 0 CS-1317 - LANDED, OPEN (THE SINGLE NEXT ACTION (2) and (3)). Acceptance (phase7.md): the gates
-     job's "tier 1 took" line within its 420 s budget on two consecutive tier1 runs on main, every
-     other job's budget line read on the same runs, levels 420/480 unchanged, no test skipped or
-     deselected, and CS-700 step b not started before that. D4: it closes only when both catch-all
-     and both scan readings are at most 360 s and the scan entries are out of the three PENDING
-     tables; else a rebalance from both shards' CI durations. FIRST READING, e9d3e27
-     (38348699598): gates 262 s, scan 111 s, guard 417 s, fill 421 s (OVER budget, a warning;
-     ceiling 480 s), save 253 s, hook 353 s. THE FILL WATCH, NO NEW ITEM: 424, 424, 246 and 322 s
-     at 5b22e08, 923e30f, 0e82056 and c7fc806; 423 s at ab3001a; 421 s at e9d3e27 - the ruling
-     owed is THE SINGLE NEXT ACTION (3). Tier 2.
- 0b CS-1318 - REPAIRED, OPEN. Acceptance (phase7.md): the cause measured - reproduced and fixed red
-     first, or repeated runs on the ubuntu runner and on a loaded box show a load flake and the
-     arm's wait is made load-tolerant without raising the hook probe bound; a rerun alone never
-     turns it green, no case skipped. MEASURED a load flake (R2; the LEDGER replay) and repaired;
-     the hook shard passed at e9d3e27 (353 s). OWED: the repeated ubuntu runs - tier2 38349546806
-     and later runs, graded on this arm. It does not gate CS-1317 (R2), but a red at CS-700 step b
-     is never rerun green. Tier 2.
- 1 CS-700 - THE FLIP BLOCK, INTERACTIVE, THE OPERATOR PRESENT AT STEP e, after (2) and (3) of THE
-     SINGLE NEXT ACTION. CS-1292 and CS-1308 LANDED; THE FULL CS-G03 RE-WALK runs at step c.
+ 0 CS-1317 - LANDED, OPEN (THE NEXT SESSION'S ORDER 3). Acceptance (phase7.md): the gates job's
+     "tier 1 took" line within its 420 s budget on two consecutive tier1 runs on main, every other
+     job's budget line read on the same runs, levels 420/480 unchanged, no test skipped or
+     deselected, and CS-700 step b not started before that. D4: it closes only when both
+     catch-all and both scan readings are at most 360 s and the scan entries are out of the three
+     PENDING tables; else a rebalance from both shards' CI durations. READINGS: e9d3e27
+     (38348699598) gates 262 s, scan 111 s; 38114ac (38353247830) gates 271 s, scan 160 s - D4's
+     step-b condition and its 360 s close threshold MET (session 140, LEDGER "CS-1317 - SECOND
+     READING"). STILL OWED: the scan entries out of PENDING_READINGS (2 of 5 readings),
+     PENDING_PROFILE (unprofiled) and PENDING_FIRST_RECORD (2 of 3 tier2 runs); the item closes at
+     the refresh commit that removes all three - a commit, so never inside the CS-700 window.
+     THE FILL WATCH, NO NEW ITEM (ruled in session 140: it does not hold step b): 424, 424, 246
+     and 322 s at 5b22e08, 923e30f, 0e82056 and c7fc806; 423 s at ab3001a; 421 s at e9d3e27; 423 s
+     at 38114ac. Tier 2.
+ 0b CS-1318 - REPAIRED, ITS CLOSE REFUTED, OPEN. Acceptance (phase7.md): the cause measured -
+     reproduced and fixed red first, or repeated runs on the ubuntu runner and on a loaded box
+     show a load flake and the arm's wait is made load-tolerant without raising the hook probe
+     bound; a rerun alone never turns it green, no case skipped. SESSION 140: an adjudicator
+     graded CLOSE on six first-attempt green ubuntu legs at code containing 3f8636d (tier2
+     38349546806 and 38385483026, two legs each; tier1 38348699598 and 38353247830, one each); an
+     adversary REFUTED it and the refutation stands - every green post-dates the repair; the
+     pre-repair ubuntu hook shard ran green, red, green, green, green with no load measurement; R2
+     ordered the ubuntu tier2 legs measured before the repair and none was; at a 1-in-5 rate six
+     greens occur about 26% of the time with no fix; the loaded-box evidence is a comment by the
+     repair's own builder, not a tracked replay. EVIDENCE THAT WOULD CLOSE IT: a tracked replay
+     script run repeatedly on ubuntu-latest at 382b3bb (the repair's parent) under induced load,
+     showing the one-shot check misread lingering or zombie children as alive, plus its loaded-box
+     transcript, plus first-attempt runs at repaired code. It gates neither CS-1317 (R2) nor the
+     flip, but a red at CS-700 step b is never rerun green. A new tracked script is a commit -
+     never inside the CS-700 window. Tier 2.
+ 1 CS-700 - THE FLIP BLOCK, INTERACTIVE, THE OPERATOR PRESENT AT STEP e - STARTED IN SESSION 140:
+     this file is step a's records commit; where the block stopped is measured by THE SINGLE NEXT
+     ACTION (0). CS-1292 and CS-1308 LANDED; THE FULL CS-G03 RE-WALK runs at step c.
      CS-500's S9 overlay trace and S7/S8 (blocked on CS-1043, CS-1048, CS-1058, CS-1243) as filed.
      CS-701 is handled by S7a; CS-704 and CS-959 at S12a (CS-959 is closed: re-read the profile on
      the recreated repo - a CS-700 S12a check, not a close; PVR endpoint 404 while private; Ruling
      1 turns it on at S12a).
- 2 CS-1315 (R3: NOT a flip blocker - after the flip): the registry provider verifies the
-     installed docs file against the clockspeed/data/version.py pin (build and content hash)
-     before any figure is priced, or the Registry carries the build it was extracted from; a
-     mismatch is a named warning on the audit and every advice card (the CS-1288 build-input
-     path); a synthetic fixture whose docs hash differs from the pin fires it and a matching one
-     does not; nothing prices a figure from an unverified registry silently. Tier 2. R3 reverses
-     if a game patch lands before CS-1315 closes.
- 3 CS-1316 (R3: NOT a flip blocker - after the flip): on a save whose build differs from the pin,
+ 2 CS-1315 (R3, NARROWED in session 140: NOT a flip blocker - FIRST after the flip): the registry
+     provider verifies the installed docs file against the clockspeed/data/version.py pin (build
+     and content hash) (content hash; a build-only difference with equal bytes is not a mismatch -
+     session 140 ruling, docs/LEDGER.md) before any figure is priced, or the Registry carries the
+     build it was extracted from; a mismatch is a named warning on the audit and every advice card
+     (the CS-1288 build-input path); a synthetic fixture whose docs hash differs from the pin fires
+     it and a matching one does not; nothing prices a figure from an unverified registry silently.
+     DESIGN (session 140 ruling): Registry.source_sha256 computed in clockspeed/data/ from the raw
+     bytes; a pure audit check in clockspeed/audit/build.py taking the pin hash as a parameter
+     (codes registry-mismatch and registry-unverified); the CS-1288 caveat path in
+     clockspeed/advisor/build.py; no build-string check. Tier 2. The narrowing reverses on guard
+     (h) listing the docs sha256 before CS-1315 closes, or the operator's own words.
+ 3 CS-1316 (R3, narrowed in session 140: NOT a flip blocker - after the flip and CS-1315): on a save whose build differs from the pin,
      the /api/map body carries the build state and marks per_minute_normal as the pinned build's
      rate, and the map panel shows it; the change to the CS-977 warning contract (source, code and
      count) is adjudicated and recorded BEFORE the code; a synthetic off-pin fixture shows the
@@ -452,7 +541,7 @@ CARRIED, NOT IN THE ORDER ABOVE:
  - CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
    (14,60) every inventory component payload ends in an 8-byte trailing run, 4 bytes
    unread, int32 0 on every sampled save. CS-1151 owns the stale (14,60) sentence.
- - TIER-1 HEADROOM WATCH - FIRED (CS-1317); ONE GREEN READING SINCE. Each job's "tier 1 took"
+ - TIER-1 HEADROOM WATCH - FIRED (CS-1317); TWO GREEN READINGS SINCE. Each job's "tier 1 took"
    line (the "Duration against the budget" step). Read by the session 138 /done at 5b22e08,
    923e30f, 0e82056 and c7fc806: gates 336, 473, 479, then 483 s (OVER THE 480 s CEILING, the job
    FAILED); fill 424, 424, 246, 322 s; hook 384, 400, 390, 378 s; guard 401, 264, 259, 365 s; save
@@ -461,8 +550,9 @@ CARRIED, NOT IN THE ORDER ABOVE:
    the gates job and 1 in the save shard, the CS-1320 Linux regression) gates 355 s, fill 423 s,
    hook 259 s, guard 320 s, save 264 s, five jobs; at e9d3e27 (38348699598, SUCCESS, six jobs)
    gates 262 s, scan 111 s, guard 417 s (3 s under budget), fill 421 s (over), save 253 s, hook
-   353 s. Shard or cache when a shard crosses the budget; NEVER raise the pin. CS-1307 moves
-   guard-shard time.
+   353 s. Read by session 140: at 38114ac (38353247830, SUCCESS, six jobs) gates 271 s, scan
+   160 s, save 251 s, hook 302 s, guard 354 s, fill 423 s (over). Shard or cache when a shard
+   crosses the budget; NEVER raise the pin. CS-1307 moves guard-shard time.
  - FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
    ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206, CS-1215,
    CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032. (CS-953 CLOSED as moot in session 137;
@@ -494,6 +584,10 @@ THE CS-700 FLIP BLOCK - INTERACTIVE ONLY, WITH THE OPERATOR PRESENT AT THE END
 ================================================================================
 
 (session 131 Q1-Q5 rulings; phase7.md CS-700 session 131 note; session 137 Ruling 1.)
+STATE AT THIS FILE'S WRITE (session 140): the block STARTED - step a IN PROGRESS, this file is its
+   records commit; INBOX_STOP, the push, the tags and HEAD read-backs and steps b-e follow in
+   session 140. Where the block stopped is MEASURED by THE SINGLE NEXT ACTION (0), never
+   remembered.
 BEFORE a: THE CS-G03 ESCALATION HAS FIRED (session 134 /done, LEDGER CS-G03 record):
    CS-1290 changed .githooks/commit-msg and .githooks/pre-push after the walk tip 457d2b9,
    so the session 133 delta ruling owes a FULL clean-machine re-walk (README half and Part
@@ -535,12 +629,39 @@ BEFORE a: THE CS-G03 ESCALATION HAS FIRED (session 134 /done, LEDGER CS-G03 reco
        (3) after I report the flip done, upload docs/assets/social-preview.png as the
        social preview.
        (4) if I report that any of the three did not turn on through the API, switch it on
-       at Settings > Code security." (line (4) per Ruling 1)
+       at Settings > Code security.
+       (5) load the game once in the patched build and save once - no save exists at that
+       build yet." (line (4) per Ruling 1; line (5) per the session 140 R3 narrowing)
    RECOVERY RULE (operator ends the session without the line): unarchive the remote and
    read it back; remove STOP and INBOX_STOP; S7a..S8a are VOID (keep the bundles); /done
    adds NO SHA and touches no Part 2 path (tests/ clockspeed/ ops/ tools/) and no CS-G03
    reversal path; verify with --flip-readiness exit 0 and the diff from the regeneration
    commit. A HEADLESS SESSION NEVER STARTS THE BLOCK.
+   THE KEEP RULE, WORD FOR WORD FROM .claude/commands/done.md (CS-1323; that file owns it):
+**S12a KEEPS THE WINDOW'S RECORDS (CS-1323).** A window /done leaves its records uncommitted,
+and S12a resets the main tree. KEEP RULE, in this order, each step only after the one before it:
+(1) COPY - before any CS-700 S12a reset of the main tree, copy into a NEW, EMPTY folder of its
+own under the tree's gitignored data directory at the tree root, named after the session
+number - the number of the session that runs S12a and makes the copy - EVERY path
+`git status --porcelain --untracked-files=all` lists, not only the records a window /done left
+(the hand-off, `docs/LEDGER.md`, `WAKEUP_NOTES.md`, `ROADMAP.md`); a deleted path is recorded by
+name in a list file in that folder. The copy fails, and S12a stops, if that folder already
+exists; and before step (2), S12a stops if any listed path is missing from the folder.
+(2) RESET - the S12a reset; a reset leaves ignored files alone, so never clean ignored files
+then. (3) RESTORE - every copied path IMMEDIATELY after the reset, before any other S12a act,
+and only from that folder, then re-apply the recorded deletions. (4) READ-BACK - byte-compare
+each restored file against its copy in that folder, covering every copied path, and confirm
+each recorded deletion is still absent; on any mismatch, S12a stops. (5) S12a's acts, in their
+recorded order.
+(6) The closing commit. (7) COMMIT READ-BACK - read the closing commit back: the restored
+records are committed and their bytes match HEAD's. (8) RECYCLE - only then send that folder to
+the Recycle Bin (FLEET item 9), by the method this tree used for CS-1275, in PowerShell:
+`Add-Type -AssemblyName Microsoft.VisualBasic`, then
+`[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('<folder>', 'OnlyErrorDialogs', 'SendToRecycleBin')`.
+If S12a halts at any point after the copy, keep the folder and hand the decision to a distinct
+adjudicator, recorded in the hand-off. A crash between the reset and the restore leaves that
+folder as the ONLY copy: the next session looks for it under the gitignored data directory
+before anything else.
 POST-CONFIRMATION: S9a/b/c, S10 push by SHA from the S7a clone to an explicit forge URL, S10b
   rulesets, S11 protection minimal shape + settings table (S11 keeps only what works while
   private - Dependabot alerts), S12 flip, S12a closing acts in the main tree after resetting it
@@ -570,7 +691,9 @@ OPERATOR - THE ONE BATCHED ASK (physical acts and grants only; FLEET item 1)
      the flip session reports an API refusal, switch the refused security setting on at
      Settings > Code security (Ruling 1).
   5. The four dead-secret files still await an operator deletion call.
-  Items 2-4 are presented at the flip block's step e, never before.
+  6. At the CS-700 flip block: load the game once in the patched build and save once (the
+     session 140 R3 narrowing: no save exists at the patched build).
+  Items 2-4 and 6 are presented at the flip block's step e, never before.
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -587,6 +710,41 @@ CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line? The O
 DECISIONS - DO NOT RE-LITIGATE (each with what would reverse it)
 ================================================================================
 
+SESSION 140:
+R3 REVERSAL FIRED AND NARROWED (two distinct adjudicators; LEDGER "CS-1315 and CS-1316 - R3
+  REVERSAL FIRED AND NARROWED"): the game patch fired R3's reversal; the first ruling (CS-1315 a
+  flip blocker) rested on the false premise that the docs bytes moved; the second, on the measured
+  premise (the docs sha256 and size equal the pin, only the build string moved, nothing mispriced),
+  narrowed it: neither CS-1315 nor CS-1316 blocks CS-700. Rejected: CS-1315 before step a; holding
+  for CS-1316 (no false claim; needs the CS-977 ruling first). Reversed by: guard (h) listing the
+  docs sha256 before CS-1315 closes, or the operator's own words.
+CS-1315 DESIGN (the same ruling): content hash only - Registry.source_sha256 from the raw bytes in
+  clockspeed/data/, a pure audit check in clockspeed/audit/build.py taking the pin hash as a
+  parameter (registry-mismatch, registry-unverified), the CS-1288 caveat path in
+  clockspeed/advisor/build.py; acceptance amended before code. Rejected: a build-string check (it
+  false-warns on exactly this patch). Common mode: the pin and the registry both derive from
+  en-US.json, so a patch that changes in-game values without regenerating it is invisible to every
+  check. Reversed by: as the R3 narrowing.
+CS-1324 RE-PIN ROUTE (LEDGER "CS-1324 - CLOSED"): `python tools/drift_guard.py --re-extract`
+  rewrites only the pin block (docs/OPERATIONS.md corrected; docs_extract has no CLI), and a re-pin
+  lands only after a distinct verifier's fresh re-extract reads it byte-identical. Rejected: the
+  runbook's old docs_extract command (it does not exist). Reversed by: a re-extract that moves the
+  census or the docs sha256 - then ADR 0005's re-check and an adjudicator before the pin lands.
+FILL-SHARD RULING (a distinct read-only adjudicator that authored no candidate; LEDGER "CS-1317 -
+  session 140 fill-shard ruling"): a non-catch-all shard over the 420 s budget and under the 480 s
+  ceiling does not hold CS-700 step b; it is a CS-1317 watch, NO NEW ITEM. Rejected: hold until
+  rebalanced; hold until two fill readings under 420 s. Why: tier1.yml makes the budget a warning,
+  never a failure; the acceptance and D4 need within-budget catch-all readings only; step b needs
+  tier1 green. Reversed by: any shard over 444 s on main before step b, or any red job.
+CS-1317 SECOND READING - NOT YET GRADABLE (adjudicated; LEDGER "CS-1317 - SECOND READING"): D4's
+  step-b condition and its 360 s close threshold MET; NOT CLOSED while the scan entries sit in the
+  three pending tables. Common mode: 38114ac is docs-only over e9d3e27, so the two readings sample
+  runner variance, not suite growth. Reversed by: the refresh commit removing all three entries
+  (then CS-1317 closes), or a catch-all reading over 420 s on main (D4's reversal).
+CS-1318 CLOSE REFUTED (a distinct adjudicator graded CLOSE; a distinct adversary REFUTED it,
+  default refuted; LEDGER "CS-1318 - GRADED AND REFUTED"): six post-repair greens are not the
+  acceptance's "repeated runs ... show a load flake". Rejected: closing on the six greens.
+  Reversed by: the evidence listed at OPEN ITEMS 0b.
 SESSION 139:
 CS-1321 FROZEN-FILE DENIAL - NO MARKER SKIP IN .githooks/pre-push (adjudicated; LEDGER 2026-10-12
   CS-1321 frozen-file DENIAL): the file stays byte-unchanged - no green-marker skip, no header
@@ -608,7 +766,8 @@ SESSION 139 RULINGS R1-R5 (a distinct read-only adjudicator; LEDGER "CS-1317, CS
   CS-1318 is not a regression: measure first, then a bounded zombie-aware poll - rejected
   quarantine and a rerun as evidence - reversed by a reproduction at unchanged code showing a
   reaping defect; R3 neither CS-1315 nor CS-1316 blocks the flip - rejected holding the flip -
-  reversed by a game patch landing before CS-1315 closes, or the operator's own words; R4 repair
+  reversed by a game patch landing before CS-1315 closes, or the operator's own words (FIRED in
+  session 140, then NARROWED - SESSION 140 above); R4 repair
   CS-1320 forward (CS-1322) - rejected reverting 389d16c..8601200 (it reopens the MAX_PATH defect
   and reverts append-only ledger commits) - reversed by a privacy oracle redesign that no longer
   reads tmp_path; R5 one batch, one push, disjoint code write-lists, shared docs merger-only (the
@@ -1008,14 +1167,15 @@ THE KIT DEFECTS REPORTED FOR v11: defect 5 (fleet_headless.py main()'s str(exc))
 TEMP-2 (MAIN 2026-10-12-0929 FIX): adopted as CS-1319 and CS-1320 by the responder (three inbox
   runs); its ONE ANSWER 2026-10-12-1519 is in the outbox. Its delivery into MAIN's inbox is NOT
   read back (no sibling-tree reads). Never answer TEMP-2 again. CS-1320's Linux regression was
-  repaired in session 139 as CS-1322 (R4); MAIN has not been told - the DONE-SLOW answer may carry
-  it in one line (FLEET 14c: several answers go in ONE note).
+  repaired in session 139 as CS-1322 (R4); MAIN was told in one line of the session 140 DONE-SLOW
+  answer.
 DONE-SLOW (MAIN 2026-10-12-1912 ORDER): adopted as CS-1321 by the responder (one inbox run), with
-  CS-1323 by session 139. ITS ONE ANSWER IS OWED - THE SINGLE NEXT ACTION (1).
-OUTBOUND COUNT: 2026-10-12: 1 of 6 (the 1519 answer); 2026-10-13: 0 of 6 at write time (both read
-  by the session 139 /done). Session 139 itself sent NO note. Count the outbox before sending.
+  CS-1323 by session 139. ITS ONE ANSWER WAS SENT IN SESSION 140 - the outbox note 2026-10-13-1410
+  (class ANSWER, HOP 2) - and read back 1/1 in MAIN's inbox by SHA-256. NEVER ANSWER IT AGAIN.
+OUTBOUND COUNT: 2026-10-12: 1 of 6 (the 1519 answer); 2026-10-13: 1 of 6 (the 1410 DONE-SLOW
+  answer, read by session 140). Count the outbox before sending.
 SENDING FROM E:: a note to MAIN needs `--channel-root C:/` (TRAPS).
-INBOX at the session 139 /done: 0 UNREAD of 537 (`python tools/inbox_watch.py`, read; all
+INBOX at session 140's step a: 0 UNREAD of 537 (`python tools/inbox_watch.py`, read; all
   acknowledged).
 
 ================================================================================
@@ -1023,15 +1183,25 @@ EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
 CS-700 S9 onward: the operator present at step e of the interactive flip block for the
-own-words line and the delete_repo OAuth grant; social preview after S12. CS-1207 and CS-815:
-operator rulings. FOUR DEAD-SECRET FILES still await an operator deletion call. The tier1 of the
-session 139 /done's push (CS-1317's second reading); tier2 38349546806 and the first tier2 nightly
-after e9d3e27 (CS-1318's ubuntu runs, and the scan legs' first tier2 records under B1). GitHub's
-ubuntu-latest move to Ubuntu 26 on 2026-10-19 (BACKLOG "CI and toolchain").
+own-words line and the delete_repo OAuth grant, and one save in the patched build (ask (5));
+social preview after S12. CS-1207 and CS-815:
+operator rulings. FOUR DEAD-SECRET FILES still await an operator deletion call. The tier1 runs of
+this records commit's push and of step b's push (read by session 140 if it got there; else by the
+next session's step (0)). CS-1318's closing evidence (OPEN ITEMS 0b). The scan legs' third tier2
+record under B1. GitHub's ubuntu-latest move to Ubuntu 26 on 2026-10-19 (BACKLOG "CI and
+toolchain").
 
 ================================================================================
-TRAPS PAID FOR (carried, plus sessions 137, 138 and 139)
+TRAPS PAID FOR (carried, plus sessions 137 to 140)
 ================================================================================
+
+A GAME PATCH TURNS drift_guard GUARD (h) RED AND STOPS A RECORDS COMMIT (session 140): the first
+  CS-700 step a attempt stopped on it, and the first adjudicator ruled on the false premise that
+  the docs bytes moved - only the build string had. Read the docs sha256 and size against the pin
+  before ruling on a patch. Re-pin with `python tools/drift_guard.py --re-extract` (docs_extract
+  has no CLI); its "only the bytes moved" line is false when only the build moved (BACKLOG).
+A FAST-FORWARD IS NOT A gitlock VERB (session 140): fleet_gitlock `run` wraps only commit and
+  push; S0 took the lock through the kit's git_lock context and ran `git merge --ff-only` inside.
 
 A LEDGER HEADING NAMING SEVERAL ITEM IDS JOINS THEM WITH COMMAS AND "and", NEVER SLASHES (session
   139): the pre-push suite's reading of LEDGER headings blocked the first batch push (gate rc 2,
@@ -1198,85 +1368,33 @@ A LOCAL CLONE HARD-LINKS OBJECT FILES (CS-1267).
 A GRANT IS NOT A REVIEW - always refute the candidate.
 
 ================================================================================
-SESSION 139 /done REPORT
+SESSION 140 - CS-700 STEP a RECORDS COMMIT REPORT (NOT A /done REPORT)
 ================================================================================
 
-RITUAL START  2026-10-13T00:05:44-05:00 (step 0, local wall clock).
+WRITTEN       2026-10-13 in session 140, by the step a and b agent, before INBOX_STOP and the push.
 PUSH          push of this commit pending at write time; push result and CI UNREAD - the next
               session's first act reads the remote ref against this HEAD and the CI run. Its
-              pre-push suite is this ritual's one gated whole suite. The push log is outside the
-              tree; the END time, the suite's gate wait_s and hold_s and its counts go to this
-              ritual's timing record (named in words; nothing is committed after the push).
-STEP 0        CS-700 WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0, two SHAs (one
-              parent); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit 0, listing
-              docs/LEDGER.md only. HEAD == origin/main == e9d3e27 by full SHA; `git status` clean.
-              Closed this session: CS-1321, CS-1322, CS-1323 (and CS-1319, CS-1320 by the responder
-              before the batch); every checklist task done or carried here. HIGHEST TIER TOUCHED:
-              2 - ops/loop/queue_loop.py, tools/tier1_growth.py, tools/tier1_concentration.py,
-              tools/tier2_headroom.py and the tier1 and tier2 workflows, among 27 files changed
-              f4e8468..e9d3e27.
-STEP 1        tier 2, NO WHOLE SUITE (MAIN DONE-SLOW ORDER), from the repo root in Git Bash, each
-              run once: `python -m mypy` EXIT 0, "Success: no issues found in 417 source files"
-              (tier1's Type check at e9d3e27 read 416 - local one above CI, as in sessions 137 and
-              138, unexamined); `python -m ruff check .` EXIT 0, "All checks passed!"; `python -m
-              ruff format --check .` EXIT 0, "401 files already formatted". TARGETED, one `python
-              -m pytest tests/<module>.py -q -p no:cacheprovider -rs` per changed test module plus
-              the provenance manifest, every one EXIT 0: test_done_ritual_arms 43 passed;
-              test_hook_env_echo 322; test_hook_probe_bound 52 passed, 1 skipped (its stated
-              reason: Git for Windows prepends its own usr/bin to a hook's PATH, measured
-              2026-09-25 - "NOT RUN, NOT PASSED"); test_own_temp_root 45; test_queue_loop 170;
-              test_queue_loop_ci_specs 10; test_suite_temp_root 3; test_tier1_budget 168;
-              test_tier1_concentration 37; test_tier1_growth 71; test_tier2_headroom 43;
-              test_tmp_path_privacy 15; test_provenance_manifest 68. TOTAL 1047 passed, 1 skipped,
-              0 failed, 0 errors. Logs in this ritual's session scratch, outside the tree.
-STEP 2        docs/LEDGER.md: NO NEW ENTRY - the CS-1321, CS-1322 and CS-1323 CLOSED records, the
-              CS-1317 and CS-1318 landing records and every session 139 ruling read present; none
-              duplicated.
-STEP 3        ROADMAP.md UNCHANGED: it lists none of CS-1319 to CS-1323; CS-1315 to CS-1318 stay
-              open lines. No new item (the fill reading is a CS-1317 watch). docs/GATED.md
-              unchanged.
-STEP 4        WAKEUP_NOTES.md: session 139 added; session 136 relocated to docs/history_notes.md
-              under "Session 136 - archived 2026-10-13", read back byte-verbatim.
-STEP 5        after the step 4 edits: `python tools/drift_guard.py` EXIT 0 (11 guards PASS,
-              CLEAN); `python tools/doc_budget.py` EXIT 0 (40 measured, 0 over budget); `python
-              tools/memory_sync.py` EXIT 0 (no recall mirror configured; nothing mirrored, no
-              tracked change).
-FINAL TEXT    re-run on this file's final text, before staging: `python tools/drift_guard.py`
-              EXIT 0 (CLEAN); `python tools/doc_budget.py` EXIT 0 (PASS); `python
-              tools/sha_citation_gate.py` EXIT 0 (PASS); `git check-ignore` over every backticked
-              path in the three edited files: none ignored; the doc-reading set - archive rot,
-              dated headings, doc budget, doc sweep and doc sweep tree, docs citations, ledger
-              entry shape, readme audit, citation tables, ops lane scope, tier1 budget - EXIT 0,
-              1057 passed. After this REPORT's figures were written in, drift_guard, the SHA
-              gate and the citation-tables module re-ran before staging; their exit codes are in
-              this ritual's session scratch logs, not here (this file cannot record a check of
-              its own final bytes).
-STEP 7        ONE commit through the git lock, no trailer, holding this file, WAKEUP_NOTES.md and
-              docs/history_notes.md; the responder read idle before it (read 00:22, state idle,
-              task Idle, updated 00:11, 4 runs in its window; read again immediately before the
-              commit and before the push). Its read-back is not recordable here.
-CI READ BY THIS /done (`gh run list`, `gh run view` and the job logs): tier1 38348699598 at e9d3e27
-  SUCCESS, six jobs, one attempt (its budget lines: OPEN ITEMS 0); tier1 38335220406 at ab3001a
-  FAILURE (the gates and save jobs; OPEN ITEMS, the HEADROOM WATCH); tier1 at 8601200, f4e8468 and
-  c7fc806 FAILURE (recorded by the session 138 /done and the session 139 rulings); tier2
-  38349546806 (workflow_dispatch at e9d3e27) IN PROGRESS at the read. No tier2 nightly ran after
-  923e30f's before the read.
-GATE ROWS READ (the kit suite gate's durations record, tree Clockspeed, 2026-10-12, all slot 0):
-  20:15 rc 2, wait 1020 s, hold 1265 s, and 20:42 rc 0, wait 156 s, hold 1390 s (the responder's
-  CS-1321 landing); 22:42 rc 2, hold 635 s (the first batch push); 22:54 rc 0, hold 2244 s (the
-  targeted run); 23:32 rc 0, hold 1309 s (the second batch push).
-COUNTS READ: WORKTREES 73 lines; BRANCH REFS 355; CLAUDE.md 40905 bytes; OUTBOX 2026-10-12 1 note,
-  2026-10-13 0; INBOX 0 unread of 537; PRs 0 (positive control: default branch main, 13 remote
-  heads); TOKEN SCOPES gist, read:org, repo, workflow; VISIBILITY PRIVATE; HIGHEST ID CS-1323; KIT
-  v17; INBOX_STOP absent; QUEUE_STOP present (2026-09-19); subagent_first.mode "deny" (mtime
-  2026-10-10 07:19:27); the responder 4 runs in its window of 120.
-UNVERIFIED: tier2 38349546806's result; the 153-module count of the targeted run (its gate row's
-  exit and hold were read; the count is as reported); that the first batch push's rc 2 came from
-  the LEDGER heading (as reported; e9d3e27's diff is that heading alone); who wrote the
+              pre-push suite is this commit's gated whole suite. The push log is outside the tree.
+S0            the CS-1324 re-pin commit fast-forwarded onto main under the git lock; HEAD read
+              back at it by full SHA; `python tools/drift_guard.py` exit 0 on main, guard (h) PASS.
+FILES         this file (SESSION 141); docs/LEDGER.md (five records, newest first: CS-1324
+              CLOSED, the CS-1315 and CS-1316 R3 REVERSAL FIRED AND NARROWED, CS-1318 GRADED AND
+              REFUTED, CS-1317 SECOND READING, the CS-1317 session 140 fill-shard ruling);
+              WAKEUP_NOTES.md and docs/history_notes.md (session 137 relocated verbatim);
+              BACKLOG.md ("Session 140 residuals"); docs/item_notes/phase5.md (CS-1315's
+              acceptance amended). No Part 2 path (tests/ clockspeed/ ops/ tools/) is touched.
+CHECKS        on the final text, before staging: `python tools/drift_guard.py`, `python
+              tools/doc_budget.py` and `python tools/sha_citation_gate.py`; their exit codes are in
+              the session scratch logs, not here (this file cannot record a check of its own final
+              bytes).
+COUNTS READ   INBOX 0 unread of 537; local tags 5 and ls-remote tags 5 by count (the name and SHA
+              compare is step a's read-back after the push); VISIBILITY PRIVATE, not archived; the
+              lane-wide STOP absent; INBOX_STOP absent before this commit; QUEUE_STOP present; the
+              responder idle, 1 run in its window of 120.
+CARRIED FROM THE SESSION 139 /done REPORT, STILL UNVERIFIED: the 153-module count of the session
+  139 targeted run (its gate row's exit and hold were read; the count is as reported); that the
+  first session 139 batch push's rc 2 came from the LEDGER heading (as reported); who wrote the
   cs1322-adv-tmp folder (inferred from its name and time); the session 139 agents' adversary,
-  verifier and replay verdicts (agent-reported, recorded in docs/LEDGER.md; only the targeted
-  modules above were re-run here); why local mypy counts one more source file than tier1; the
-  delivery of the responder's 2026-10-11-0610 and 2026-10-12-1519 notes into MAIN's inbox (no
-  sibling-tree read).
-MARK: `python ops/fleet_kit/fleet_done.py mark --session 139 --status done` after the push and
-  this file are read back (step 10).
+  verifier and replay verdicts (agent-reported, recorded in docs/LEDGER.md); why local mypy counts
+  one more source file than tier1; the delivery of the responder's 2026-10-11-0610 and
+  2026-10-12-1519 notes into MAIN's inbox (no sibling-tree read).
