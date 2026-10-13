@@ -170,9 +170,12 @@ python -m venv .venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
 .venv\Scripts\activate
 python -m pip install -e ".[dev]"
+$env:Path += ";<Git install>\usr\bin"
+```
+
+```
 python scripts/install_hooks.py
 python scripts/verify_env.py
-$env:Path += ";<Git install>\usr\bin"
 python scripts/make_cert.py
 python -m clockspeed.surface
 ```

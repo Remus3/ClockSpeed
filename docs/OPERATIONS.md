@@ -126,20 +126,17 @@ Create a virtual environment, activate it, and install the project with its `dev
 
 ```
 python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
 .venv\Scripts\activate
 python -m pip install -e ".[dev]"
 ```
 
-The activation line is the Windows `cmd` form; in Git Bash it is
-`source .venv/Scripts/activate`. A stock Windows PowerShell refuses it - running scripts
-is disabled under its default execution policy, and `python` then stays the base
-interpreter, so the install lands outside the virtual environment. In PowerShell, run this
-before the activation line; it lasts only for that terminal and changes no machine
-setting:
-
-```
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
-```
+The block is the PowerShell form. A stock Windows PowerShell refuses the activation line
+without the `Set-ExecutionPolicy` line before it - running scripts is disabled under its
+default execution policy, and `python` then stays the base interpreter, so the install
+lands outside the virtual environment. That line lasts only for that terminal and changes
+no machine setting. In `cmd`, leave it out; in Git Bash, leave it out and activate with
+`source .venv/Scripts/activate`.
 
 `.venv/` is gitignored. The core itself has no runtime dependencies; the `dev` extra is
 the toolchain the next steps check for.
@@ -162,9 +159,10 @@ only on a HARD one. A missing game or save is SOFT: it is reported and does not 
 check. Its `config/ports.json` row prints the dashboard's port.
 
 `scripts/make_cert.py` needs `openssl`. Git for Windows ships it in `<Git install>\usr\bin`,
-where `<Git install>` is the folder Git was installed into - the part before `/mingw64/`
-or `/ucrt64/` in the path `git --exec-path` prints - but a default Git install does not
-put that folder on PATH, and the script then exits 1 saying openssl is not on PATH.
+where `<Git install>` is the folder Git was installed into - the part before `/mingw64/`,
+`/ucrt64/` or `/clangarm64/` in the path `git --exec-path` prints - but a default Git
+install does not put that folder on PATH, and the script then exits 1 saying openssl is
+not on PATH.
 Unless `openssl version` already answers, append the folder to PATH for this terminal
 first. In `cmd`:
 
@@ -318,9 +316,9 @@ destroy live locks or data.
 
 **The test suite needs Git for Windows' `usr\bin` on PATH.** It runs `openssl`, `bash`,
 `sh` and other tools that Git for Windows ships in `<Git install>\usr\bin` - `<Git install>`
-being the part before `/mingw64/` or `/ucrt64/` in the path `git --exec-path` prints -
-and a default Git install leaves that folder off PATH, so part of the suite then fails
-rather than skips. APPEND it, never prepend it, so the
+being the part before `/mingw64/`, `/ucrt64/` or `/clangarm64/` in the path
+`git --exec-path` prints - and a default Git install leaves that folder off PATH, so part
+of the suite then fails rather than skips. APPEND it, never prepend it, so the
 Windows tools that share a name with one there (`find`, `sort`, `timeout`) keep
 precedence: `set "PATH=%PATH%;<Git install>\usr\bin"` in `cmd`,
 `$env:Path += ";<Git install>\usr\bin"` in PowerShell. Type it on its own line: chained

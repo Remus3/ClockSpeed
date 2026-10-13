@@ -40,6 +40,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 import doc_sweep  # noqa: E402
+import flip_checks  # noqa: E402
 import sha_citation_gate  # noqa: E402
 
 #: MAIN's stated budget: "README under ~220 lines".
@@ -199,7 +200,17 @@ QUICKSTART_ORDER: Final = (
 
 #: How a doc says where ``<Git install>`` ends in the path ``git --exec-path``
 #: prints: Git for Windows puts its binaries under one of these (CS-G03).
-GIT_INSTALL_MARKERS: Final = ("`/mingw64/`", "`/ucrt64/`")
+GIT_INSTALL_MARKERS: Final = ("`/mingw64/`", "`/ucrt64/`", "`/clangarm64/`")
+
+#: The README commands ``tools/flip_checks.py``'s readme walk (check 5) must find,
+#: in order. It runs only a fenced block made wholly of ``python`` lines, so a
+#: shell line merged into that block hides every command in it (CS-G03 refutation).
+README_WALK_COMMANDS: Final = (
+    "python scripts/install_hooks.py",
+    "python scripts/verify_env.py",
+    "python scripts/make_cert.py",
+    "python -m clockspeed.surface",
+)
 
 IMAGE_RE: Final = re.compile(r"!\[[^\]]*\]\((?P<target>[^)\s]+)\)")
 
@@ -257,12 +268,12 @@ MOVED_PROSE: Final = (
     " next two steps here, plus the contributor tooling - and continue here at `python "
     "scripts/make_cert.py`.",
     "Create a virtual environment, activate it, and install the project with its `dev` extra:",
-    "The activation line is the Windows `cmd` form; in Git Bash it is `source "
-    ".venv/Scripts/activate`. A stock Windows PowerShell refuses it - running scripts is "
-    "disabled under its default execution policy, and `python` then stays the base "
-    "interpreter, so the install lands outside the virtual environment. In PowerShell, "
-    "run this before the activation line; it lasts only for that terminal and changes no "
-    "machine setting:",
+    "The block is the PowerShell form. A stock Windows PowerShell refuses the activation "
+    "line without the `Set-ExecutionPolicy` line before it - running scripts is disabled "
+    "under its default execution policy, and `python` then stays the base interpreter, so "
+    "the install lands outside the virtual environment. That line lasts only for that "
+    "terminal and changes no machine setting. In `cmd`, leave it out; in Git Bash, leave "
+    "it out and activate with `source .venv/Scripts/activate`.",
     "`.venv/` is gitignored. The core itself has no runtime dependencies; the `dev` extra"
     " is the toolchain the next steps check for.",
     "Then:",
@@ -274,9 +285,9 @@ MOVED_PROSE: Final = (
     " not fail the check. Its `config/ports.json` row prints the dashboard's port.",
     "`scripts/make_cert.py` needs `openssl`. Git for Windows ships it in `<Git "
     "install>\\usr\\bin`, where `<Git install>` is the folder Git was installed into - the "
-    "part before `/mingw64/` or `/ucrt64/` in the path `git --exec-path` prints - but a "
-    "default Git install does not put that folder on PATH, and the script then exits 1 "
-    "saying openssl is not on PATH. "
+    "part before `/mingw64/`, `/ucrt64/` or `/clangarm64/` in the path `git --exec-path` "
+    "prints - but a default Git install does not put that folder on PATH, and the script "
+    "then exits 1 saying openssl is not on PATH. "
     "Unless `openssl version` already answers, append the folder to PATH for this "
     "terminal first. In `cmd`:",
     'In PowerShell the same line is `$env:Path += ";<Git install>\\usr\\bin"`. Then:',
@@ -619,6 +630,29 @@ def test_the_quickstart_runs_on_a_stock_windows_powershell(repo_root: Path) -> N
         assert before in fenced, f"the Quickstart lacks {before!r}"
         assert fenced.index(needed) < fenced.index(before), f"{needed!r} follows {before!r}"
         assert needed in section, f"section 1.2 does not explain {needed!r}"
+
+
+def test_section_1_2_sets_the_policy_before_activating(repo_root: Path) -> None:
+    """Copy-paste order works in section 1.2 too, not only the prose's 'run this first'."""
+    section = _subsection(_operations(repo_root), INSTALL_HEADING)
+    fenced = [
+        line.strip()
+        for block in re.findall(r"^```[^\n]*\n(.*?)^```", section, re.MULTILINE | re.DOTALL)
+        for line in block.splitlines()
+        if line.strip()
+    ]
+    policy, activation = QUICKSTART_ORDER[0]
+    assert policy in fenced, f"section 1.2 has no fenced {policy!r}"
+    assert activation in fenced, f"section 1.2 has no fenced {activation!r}"
+    assert fenced.index(policy) < fenced.index(activation), "section 1.2 activates first"
+
+
+def test_the_flip_readme_walk_finds_the_quickstart_commands(repo_root: Path) -> None:
+    """Parse only, never run: the README as ``flip_checks.readme_walk`` reads it."""
+    runnable, _ = flip_checks.command_lines(_readme(repo_root))
+    assert runnable, "README carries no runnable command line"
+    found = [line for line in runnable if line in README_WALK_COMMANDS]
+    assert found == list(README_WALK_COMMANDS), f"the readme walk finds {runnable}"
 
 
 def test_every_git_install_definition_says_where_it_ends(repo_root: Path) -> None:
