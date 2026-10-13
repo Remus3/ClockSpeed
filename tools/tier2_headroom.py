@@ -48,6 +48,10 @@ CS-1229 bridged its shard rename with a self-expiring table that lifted the run
 floor, and only that, for the named jobs; it was removed once every renamed leg
 was measured over the floor's worth of runs. A refresh drops rows for jobs the workflow no longer
 declares, so a renamed job's old rows do not stand as an offence no run can clear.
+
+AN ADDED LEG HAS THE SAME DILEMMA, and :data:`PENDING_FIRST_RECORD` is its bounded
+answer: CS-1317 restored the CS-1229 table, keyed now by the expanded LEG name rather
+than the job id, so the legs already measured keep their floor.
 """
 
 from __future__ import annotations
@@ -105,6 +109,34 @@ HEADROOM = Fraction(HEADROOM_NUMERATOR, HEADROOM_DENOMINATOR)
 # than zero seconds. Counting rows let one run copied three times, or one real
 # run beside two skipped ones, satisfy the floor with a single measurement.
 MINIMUM_RUNS_PER_JOB = 3
+
+# CS-1317 - THE TRANSITION, AND WHY IT IS A TABLE AND NOT A SKIP. The sixth tier1
+# shard ADDS a leg to each tier2 matrix job, and a leg can only be measured after
+# the commit adding it is pushed and a tier2 run on it completes. So for the first
+# nights the new legs have no recorded run, and the run floor above would ship that
+# commit red - the dilemma this module's docstring names.
+#
+# An entry here, keyed by the EXPANDED LEG NAME the API reports and naming the item
+# that added the leg, lifts THE RUN FLOOR ONLY, for that one leg, and nothing else:
+# - keyed by LEG, never by job id: CS-1229 keyed its table by job id, which lifted
+#   the floor on every leg of the job, and here the legs already measured keep it;
+# - every recorded run of a pending leg is still graded against the fraction;
+# - an entry naming a leg the workflow does not declare is an offence, which also
+#   refuses a bare job id, since no leg is named that;
+# - an entry not naming an item in the `CS-<number>` spelling is an offence;
+# - SELF-EXPIRING: once the leg holds the floor's worth of runs, the entry itself
+#   is an offence until it is removed, so it cannot stand on as an exemption;
+# - every tolerated leg is PRINTED on each grade, never silently passed;
+# - tests/test_tier2_headroom.py pins this literal, so widening it is red there
+#   until that pin moves in the same diff.
+PENDING_FIRST_RECORD: dict[str, str] = {
+    "full suite (ubuntu-latest, scan shard)": "CS-1317",
+    "full suite (windows-latest, scan shard)": "CS-1317",
+    "clean-checkout probe (ubuntu-latest, scan shard)": "CS-1317",
+    "clean-checkout probe (windows-latest, scan shard)": "CS-1317",
+}
+
+_ITEM_ID = re.compile(r"^CS-\d+$")
 
 # How many completed tier2 runs a refresh records by default.
 DEFAULT_RUNS = 5
@@ -310,27 +342,60 @@ def _row_offence(index: int, entry: object) -> str | tuple[str, int, int, str]:
     return str(job), int(run_id), seconds, str(entry["conclusion"])
 
 
-def grade(record: object, workflow_text: str) -> list[str]:
-    """Every offence of one record against one workflow.
+def _pending_offences(
+    pending: dict[str, str],
+    timeouts: dict[str, int],
+    samples: dict[str, set[int]],
+) -> list[str]:
+    """Every fault of the pending table itself - see :data:`PENDING_FIRST_RECORD`.
+
+    Args:
+        pending: Leg display name to item id.
+        timeouts: Display name to timeout, from the workflow.
+        samples: Display name to the distinct run ids that ran.
+
+    Returns:
+        The offences.
+    """
+    offences: list[str] = []
+    for leg, item in sorted(pending.items()):
+        if leg not in timeouts:
+            offences.append(f"pending entry {leg!r}: {WORKFLOW_RELATIVE} declares no such leg")
+        if not isinstance(item, str) or not _ITEM_ID.match(item):
+            offences.append(f"pending entry {leg!r} names no item id: {item!r}")
+        if leg in timeouts and len(samples.get(leg, set())) >= MINIMUM_RUNS_PER_JOB:
+            offences.append(
+                f"pending entry {leg!r}: the leg now holds {MINIMUM_RUNS_PER_JOB} runs, "
+                "so the transition is over - remove the entry"
+            )
+    return offences
+
+
+def _graded(
+    record: object, workflow_text: str, pending: dict[str, str]
+) -> tuple[list[str], list[str]]:
+    """Every offence of one record against one workflow, and every tolerated leg.
 
     Args:
         record: The parsed record document.
         workflow_text: The workflow file's text.
+        pending: Leg display name to the item id that added it.
 
     Returns:
-        The offences, empty when the record is clean.
+        (the offences, the pending legs tolerated below the run floor).
     """
     try:
         timeouts = declared_timeouts(workflow_text)
     except (ValueError, yaml.YAMLError) as exc:
         # The type and an authored first argument, never the object.
         detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
-        return [f"{WORKFLOW_RELATIVE}: {type(exc).__name__}: {detail}"]
+        return [f"{WORKFLOW_RELATIVE}: {type(exc).__name__}: {detail}"], []
     rows = record.get("jobs") if isinstance(record, dict) else None
     if not isinstance(record, dict) or set(record) != {"jobs"} or not isinstance(rows, list):
-        return [f"{RECORD_RELATIVE} is not a mapping holding exactly one 'jobs' list"]
+        return [f"{RECORD_RELATIVE} is not a mapping holding exactly one 'jobs' list"], []
 
     offences: list[str] = []
+    tolerated: list[str] = []
     durations: dict[str, list[tuple[int, int]]] = {}
     samples: dict[str, set[int]] = {}
     for index, entry in enumerate(rows):
@@ -347,10 +412,16 @@ def grade(record: object, workflow_text: str) -> list[str]:
         f"{job}: recorded, but {WORKFLOW_RELATIVE} declares no such job"
         for job in sorted(set(durations) - set(timeouts))
     )
+    offences.extend(_pending_offences(pending, timeouts, samples))
     for job, timeout_minutes in sorted(timeouts.items()):
         runs = durations.get(job, [])
         distinct = len(samples.get(job, set()))
-        if distinct < MINIMUM_RUNS_PER_JOB:
+        if distinct < MINIMUM_RUNS_PER_JOB and job in pending:
+            tolerated.append(
+                f"{job}: {distinct} distinct run(s), below {MINIMUM_RUNS_PER_JOB} and tolerated "
+                f"while {pending[job]} awaits its first record"
+            )
+        elif distinct < MINIMUM_RUNS_PER_JOB:
             offences.append(
                 f"{job}: {distinct} distinct run(s) that ran, fewer than {MINIMUM_RUNS_PER_JOB}; "
                 f"refresh with `python {Path(__file__).name} --refresh`"
@@ -363,7 +434,60 @@ def grade(record: object, workflow_text: str) -> list[str]:
                     f"{job}: run {run_id} took {seconds}s, at or past {HEADROOM} of its "
                     f"{timeout_minutes}-minute timeout-minutes ({limit}s)"
                 )
-    return offences
+    return offences, tolerated
+
+
+def grade(record: object, workflow_text: str, pending: dict[str, str] | None = None) -> list[str]:
+    """Every offence of one record against one workflow.
+
+    Args:
+        record: The parsed record document.
+        workflow_text: The workflow file's text.
+        pending: Leg display name to item id, lifting the run floor per
+            :data:`PENDING_FIRST_RECORD`; none when omitted.
+
+    Returns:
+        The offences, empty when the record is clean.
+    """
+    return _graded(record, workflow_text, pending or {})[0]
+
+
+def pending_notes(
+    record: object, workflow_text: str, pending: dict[str, str] | None = None
+) -> list[str]:
+    """Every leg the pending table tolerates below the run floor, one line each.
+
+    Args:
+        record: The parsed record document.
+        workflow_text: The workflow file's text.
+        pending: Leg display name to item id; none when omitted.
+
+    Returns:
+        The tolerated legs, empty when none is.
+    """
+    return _graded(record, workflow_text, pending or {})[1]
+
+
+def _tree_inputs(root: Path) -> tuple[object, str] | str:
+    """The record and the workflow text under ``root``, or why they cannot be read.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        (the parsed record, the workflow text), or the offence.
+    """
+    record_path = root / RECORD_RELATIVE
+    workflow_path = root / WORKFLOW_RELATIVE
+    if not workflow_path.is_file():
+        return f"{WORKFLOW_RELATIVE} is absent"
+    if not record_path.is_file():
+        return f"{RECORD_RELATIVE} is absent; run this tool with --refresh"
+    try:
+        document = json.loads(record_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return f"{RECORD_RELATIVE} is not JSON: {exc.msg} at line {exc.lineno}"
+    return document, workflow_path.read_text(encoding="utf-8")
 
 
 def grade_tree(root: Path) -> list[str]:
@@ -375,17 +499,25 @@ def grade_tree(root: Path) -> list[str]:
     Returns:
         The offences.
     """
-    record_path = root / RECORD_RELATIVE
-    workflow_path = root / WORKFLOW_RELATIVE
-    if not workflow_path.is_file():
-        return [f"{WORKFLOW_RELATIVE} is absent"]
-    if not record_path.is_file():
-        return [f"{RECORD_RELATIVE} is absent; run this tool with --refresh"]
-    try:
-        document = json.loads(record_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        return [f"{RECORD_RELATIVE} is not JSON: {exc.msg} at line {exc.lineno}"]
-    return grade(document, workflow_path.read_text(encoding="utf-8"))
+    inputs = _tree_inputs(root)
+    if isinstance(inputs, str):
+        return [inputs]
+    return grade(inputs[0], inputs[1], PENDING_FIRST_RECORD)
+
+
+def pending_tree(root: Path) -> list[str]:
+    """The legs :data:`PENDING_FIRST_RECORD` tolerates under ``root``.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        One line per tolerated leg.
+    """
+    inputs = _tree_inputs(root)
+    if isinstance(inputs, str):
+        return []
+    return pending_notes(inputs[0], inputs[1], PENDING_FIRST_RECORD)
 
 
 # ---------------------------------------------------------------------------
@@ -571,6 +703,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(f"wrote {written.relative_to(args.root).as_posix()}\n")
 
     offences = grade_tree(args.root)
+    for note in pending_tree(args.root):
+        sys.stdout.write(f"PENDING {note}\n")
     for offence in offences:
         sys.stdout.write(f"OFFENCE {offence}\n")
     if not offences:

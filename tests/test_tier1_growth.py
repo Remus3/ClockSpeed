@@ -108,8 +108,8 @@ EXPECTED_BUDGET_UNMET = ("tests (guard shard)",)
 #: ruling's route (A). Two-way: a listed job the workflow does not declare is
 #: red, and a listed job that has reached the floor is red, which forces this
 #: literal down at the refresh that records its fifth green reading. The fill
-#: shard joined it with CS-1198, by the same rule.
-EXPECTED_PENDING_READINGS = ("tests (hook shard)", "tests (fill shard)")
+#: shard joined it with CS-1198, and the scan shard with CS-1317, by the same rule.
+EXPECTED_PENDING_READINGS = ("tests (hook shard)", "tests (fill shard)", "tests (scan shard)")
 
 #: A synthetic second job for the pending arms, beside `_FLAT_JOBS`.
 _NEW_JOB = "a new job"

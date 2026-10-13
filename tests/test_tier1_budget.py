@@ -2573,7 +2573,10 @@ REBALANCED_TO_GUARDS = (
     "tests/test_assertion_rendering.py",
 )
 
-#: The files CS-1173's correction handed back to the catch-all shard.
+#: The files CS-1173's correction handed back to the catch-all shard. CS-1317
+#: moved them on again, to the scan shard, as the catch-all's corpus-scanning
+#: head; the arm below keeps only the half CS-1173 decided - not in the guard
+#: shard - and the scan shard's own arm pins where they live now.
 RETURNED_TO_CATCH_ALL = (
     "tests/test_chained_exemption_guard.py",
     "tests/test_disposition_sites.py",
@@ -2623,14 +2626,15 @@ def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all()
         f"the {JOB_ID!r} shard still runs {not_ignored}; a moved file it does not"
         f" ignore runs twice: {catch_all_ignores}"
     )
+    # CS-1317 MOVED THE RETURNED PAIR ON AGAIN, to the scan shard, because they
+    # are the catch-all's corpus-scanning head. The scan shard's arm below pins
+    # where they live now; this one keeps only the half CS-1173 decided - they
+    # are not in the guard shard, which they overfilled - and no longer asks the
+    # catch-all to run them, the half CS-1317's ruling (B2) dropped.
     still_in_guards = [path for path in RETURNED_TO_CATCH_ALL if path in guard_targets]
-    still_ignored = [
-        path for path in RETURNED_TO_CATCH_ALL if IGNORE_PREFIX + path in catch_all_ignores
-    ]
-    assert (still_in_guards, still_ignored) == ([], []), (
-        f"the files CS-1173 handed back to the {JOB_ID!r} shard are still in the"
-        f" {GUARD_JOB_ID!r} shard {still_in_guards} or still ignored by the catch-all"
-        f" {still_ignored}, so the guard shard CS-1173 overfilled is full again"
+    assert still_in_guards == [], (
+        f"the files CS-1173 handed back out of the {GUARD_JOB_ID!r} shard are in it again"
+        f" {still_in_guards}, so the guard shard CS-1173 overfilled is full again"
     )
     assert REBALANCED_TO_SAVE not in guard_targets, (
         f"the {GUARD_JOB_ID!r} shard still names {REBALANCED_TO_SAVE!r}: {guard_targets}"
@@ -2921,6 +2925,82 @@ def test_the_catch_alls_rebalanced_head_runs_last_in_the_hook_shard_and_nowhere_
     miscounted = {
         path: catch_all_ignores.count(IGNORE_PREFIX + path)
         for path in HOOK_FROM_CATCH_ALL
+        if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
+    }
+    assert miscounted == {}, (
+        f"the {JOB_ID!r} shard ignores these moved files the wrong number of times"
+        f" {miscounted}; each needs exactly one {IGNORE_PREFIX!r}"
+    )
+
+
+#: The sixth shard CS-1317 added, by the session 139 ruling R1. Its job id, and
+#: the display name the lane driver and the two tier-1 readers key on.
+SCAN_JOB_ID = "scan"
+SCAN_JOB_NAME = "tests (scan shard)"
+
+#: The catch-all's corpus-scanning head, moved here by CS-1317 when the catch-all
+#: read over its ceiling. Chosen from CI's own durations and a serial local
+#: profile calibrated to them, never by name; the readings and the projection
+#: live in tier1.yml, the one owner of this lane's numbers. The first two are
+#: :data:`RETURNED_TO_CATCH_ALL`, which the ruling (B2) let move on from the
+#: catch-all. tests/test_chained_exemption_guard.py is the only tier-1 file that
+#: reads the cached census in tests/chained_cause_guard.py outside the guard and
+#: fill shards, so moving it leaves no census paid twice in the catch-all.
+SCAN_SHARD_FILES = (
+    "tests/test_provenance_manifest.py",
+    "tests/test_chained_exemption_guard.py",
+    "tests/test_disposition_sites.py",
+    "tests/test_readme_audit.py",
+)
+
+
+def test_the_scan_shard_runs_exactly_the_catch_alls_scanning_head_and_no_other_shard_does() -> None:
+    """CS-1317 - the catch-all read over its ceiling, and its scanning head moved out.
+
+    The catch-all's pytest step had grown back over the budget on every push and
+    over the ceiling on a docs-only tip, and its measured head was four files
+    that each scan the whole tracked corpus. No level moved and no test was
+    dropped: the partition arm proves every file runs in exactly one leg, and
+    this arm pins WHICH leg, that the scan shard names nothing else, that the
+    display name the lane driver keys on is the one written here, and that the
+    catch-all ignores each moved file exactly once.
+    """
+    shards = suite_shards()
+    for job_id in (JOB_ID, SCAN_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    job_name = every_parsed_job()[SCAN_JOB_ID].get("name")
+    assert job_name == SCAN_JOB_NAME, (
+        f"the {SCAN_JOB_ID!r} job is named {job_name!r}; the lane driver and both tier-1"
+        f" readers key on {SCAN_JOB_NAME!r}"
+    )
+    scan_targets = shard_targets(shards[SCAN_JOB_ID])
+    assert sorted(scan_targets) == sorted(SCAN_SHARD_FILES), (
+        f"the {SCAN_JOB_ID!r} shard names {scan_targets}; CS-1317 gave it exactly"
+        f" {list(SCAN_SHARD_FILES)}"
+    )
+    homeless = [path for path in RETURNED_TO_CATCH_ALL if path not in scan_targets]
+    assert homeless == [], (
+        f"{homeless} left the catch-all under CS-1317 and must live in the"
+        f" {SCAN_JOB_ID!r} shard: {scan_targets}"
+    )
+    claims = {
+        path: sorted(
+            job_id
+            for job_id, tokens in shards.items()
+            for target in shard_targets(tokens)
+            if target == path
+        )
+        for path in SCAN_SHARD_FILES
+    }
+    wrong = {path: owners for path, owners in claims.items() if owners != [SCAN_JOB_ID]}
+    assert wrong == {}, (
+        f"{wrong}; each moved file must be claimed by the {SCAN_JOB_ID!r} shard alone,"
+        " or it runs twice or in the wrong leg"
+    )
+    catch_all_ignores = shard_ignores(shards[JOB_ID])
+    miscounted = {
+        path: catch_all_ignores.count(IGNORE_PREFIX + path)
+        for path in SCAN_SHARD_FILES
         if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
     }
     assert miscounted == {}, (

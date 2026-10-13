@@ -9,7 +9,7 @@
 # LEANNESS IS A REQUIREMENT, NOT A STYLE CHOICE. This repo is private and CI
 # minutes are metered (CONVENTIONS.md section 8, budget note), so this lane uses
 # the cheapest runner, one interpreter and one dependency install PER SHARD. It
-# runs FIVE jobs and once ran one - the reason for each added job, and the
+# runs SIX jobs and once ran one - the reason for each added job, and the
 # measurement that forced it, are on that job below. Everything expensive -
 # the Windows runner, the clean-checkout probe, the audits - lives in
 # tier2.yml, nightly and on tag.
@@ -397,9 +397,13 @@ jobs:
       # only one those arms accept - the space form would make the path that
       # follows it indistinguishable from a target.
       #
-      # THE LAST FIVE IGNORES ARE THE TIER1 SHARD REBALANCE, which moved this job's
-      # measured CPU-bound head out to the hook and fill shards. The readings, the
-      # pick and the projection are at those two jobs below.
+      # THE FIVE IGNORES BEFORE THE LAST FOUR ARE THE TIER1 SHARD REBALANCE, which
+      # moved this job's measured CPU-bound head out to the hook and fill shards.
+      # The readings, the pick and the projection are at those two jobs below.
+      #
+      # THE LAST FOUR ARE CS-1317, which moved this job's corpus-scanning head out
+      # to the scan shard. The readings, the pick and the projection are at that
+      # job below.
       - name: Unit tests
         run: >-
           python -m pytest tests
@@ -447,6 +451,10 @@ jobs:
           --ignore=tests/solve/test_ceiling_fence.py
           --ignore=tests/test_canary_population.py
           --ignore=tests/test_secret_sweep.py
+          --ignore=tests/test_provenance_manifest.py
+          --ignore=tests/test_chained_exemption_guard.py
+          --ignore=tests/test_disposition_sites.py
+          --ignore=tests/test_readme_audit.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -1355,6 +1363,196 @@ jobs:
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
+          -q -n auto --dist loadfile
+          --durations=15 --durations-min=5.0
+
+      - name: Duration against the budget
+        if: always()
+        run: |
+          if [ -z "${TIER1_STARTED:-}" ]; then
+            echo "FAIL: no start was recorded, so there is nothing to compare against."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          case "$TIER1_STARTED" in
+            *[!0-9]*)
+              echo "FAIL: the recorded start is not a whole number of seconds."
+              echo "Refusing to report a duration this job did not measure."
+              exit 1
+              ;;
+          esac
+          ELAPSED=$(( $(date +%s) - TIER1_STARTED ))
+          if [ "$ELAPSED" -lt 0 ]; then
+            echo "FAIL: the clock ran backwards - elapsed came out as ${ELAPSED}s."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          BUDGET="${TIER1_BUDGET_SECONDS:-}"
+          CEILING="${TIER1_CEILING_SECONDS:-}"
+          # THE LEVELS GET THE SAME REFUSAL THE START DOES, FOR THE SAME REASON.
+          # MEASURED 2026-09-06 (session 65), against this very script: with
+          # either level empty or carrying a unit, `[ 900 -gt "" ]` exits 2 with
+          # `integer expression expected` on stderr - and an `if` CONDITION is
+          # exempt from `set -e`, so the script did NOT stop. Both comparisons
+          # fell through to `else`, and a 900-second run printed
+          # `tier 1 took 900s - within budget` and exited 0.
+          #
+          # So the healthiest verdict this step can print was exactly what it
+          # printed when its own configuration was broken. The comment above
+          # already claimed every meaningless number "has to end in a refusal
+          # rather than in a cheerful verdict"; all three refusals it shipped
+          # guarded TIER1_STARTED and neither level had one.
+          case "$BUDGET" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_BUDGET_SECONDS is '${BUDGET}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          case "$CEILING" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_CEILING_SECONDS is '${CEILING}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            VERDICT="OVER THE CEILING"
+          elif [ "$ELAPSED" -gt "$BUDGET" ]; then
+            VERDICT="over budget"
+          else
+            VERDICT="within budget"
+          fi
+          LINE="tier 1 took ${ELAPSED}s - ${VERDICT}"
+          DETAIL="budget ${BUDGET}s, ceiling ${CEILING}s"
+          echo "${LINE} (${DETAIL})"
+          {
+            echo "### tier 1 duration"
+            echo ""
+            echo "| level | seconds |"
+            echo "| --- | --- |"
+            echo "| elapsed | ${ELAPSED} |"
+            echo "| budget | ${BUDGET} |"
+            echo "| ceiling | ${CEILING} |"
+            echo ""
+            echo "${LINE} (${DETAIL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            echo "::error::${LINE} (${DETAIL})"
+            echo "The ceiling sits BELOW the runaway cutoff on purpose, so this is a"
+            echo "failure naming a number rather than a cancellation naming none."
+            exit 1
+          fi
+          if [ "$ELAPSED" -gt "$BUDGET" ]; then
+            echo "::warning::${LINE} (${DETAIL})"
+            echo "Over budget is a REPORT, not a failure - the lane must never be red"
+            echo "for runner noise. The ceiling is what fails it."
+          fi
+
+  # -- THE SIXTH SHARD, AND THE MEASUREMENT THAT FORCED IT (CS-1317). --
+  #
+  # MEASURED: the catch-all's budget line read 479s, 493s and 507s on runs
+  # 38254000817, 38277053038 and 38303460197, the last two OVER THE CEILING and
+  # the 493 on a docs-only tip, while its pytest step read 418.42s, 428.92s and
+  # 440.06s - so its gates cost a near-fixed 61s to 67s and the growth is in the
+  # suite. THE LEVELS WERE NOT RAISED AND MUST NOT BE - guard (k) ratchets them in
+  # BOTH directions. The hook and fill shards read 378s and 363s of pytest on the
+  # same tip, so no existing leg had the room, and the work is PARTITIONED again
+  # rather than trimmed: every test that ran before still runs on every push, in
+  # exactly one shard, with no deselect and no skip. Caching was refused.
+  #
+  # WHAT RUNS HERE. The catch-all's corpus-scanning head: four files whose heavy
+  # arms each read the whole tracked tree. The pick came from CI's own
+  # --durations on run 38303460197 - the slowest of the three readings above,
+  # so the projection is taken from a slow runner - and a serial local profile
+  # of eight candidates calibrated to it, never by name. Local seconds, then the
+  # CI/local ratio of that file's own printed arms (lowest to highest):
+  #
+  #   tests/test_provenance_manifest.py      61.63s  2.72 to 3.06
+  #   tests/test_chained_exemption_guard.py  31.70s  3.40 to 3.78
+  #   tests/test_disposition_sites.py        29.86s  3.30 to 3.57
+  #   tests/test_readme_audit.py              8.98s  3.50
+  #
+  # So in CI worker seconds, pooled per file: 177.5, 110.6, 104.5 and 31.4, total
+  # 424.0. The LOW case takes each file's lowest ratio and its unprinted
+  # spawn-bound arms at 1.0 (13.96s of provenance and 3.55s of readme locally):
+  # 143.6 + 107.8 + 98.5 + 22.6 = 372.5. The HIGH case takes each file's highest
+  # ratio and those arms at 3.78, the highest ratio seen on any arm: 198.6 +
+  # 119.8 + 106.6 + 33.9 = 458.9. The four profiled and NOT moved - the dated
+  # headings, doc sweep, repr rendering and panel scope files - read 14.77s
+  # together locally, too little to matter.
+  #
+  # PROJECTED, W = 2 under loadfile. The catch-all loses half the moved worker
+  # time: 507 - 372.5/2 = 321s in the LOW case, 507 - 424.0/2 = 295s pooled,
+  # both under 360, the budget less its warn band. This job runs the four by
+  # xdist's test-count order - readme 130, provenance 68, chained 25,
+  # disposition 14 - so one worker takes provenance and the other the rest in
+  # turn: HIGH 33.9 + 119.8 + 106.6 = 260.3 against 198.6, plus about 24s
+  # outside pytest, about 284s; pooled about 271s. Both under 360.
+  #
+  # NO CENSUS IS PAID TWICE. tests/test_chained_exemption_guard.py is the only
+  # catch-all reader of the cached censuses in tests/chained_cause_guard.py and
+  # tests/pathless_clone_guard.py, and the other three moved files read no
+  # cached helper any catch-all file shares.
+  #
+  # tests/test_chained_exemption_guard.py and tests/test_disposition_sites.py
+  # are the pair CS-1173 handed back to the catch-all; the CS-1317 ruling let
+  # them move on to here, and they stay out of the guard shard they overfilled.
+  #
+  # THIS COSTS THE LEANNESS RULE IN THE HEADER AGAIN, KNOWINGLY: a sixth checkout
+  # and install, about 35 metered seconds per push. The adjudicator's ruling on
+  # the route stands in for the operator decision that authorised the second
+  # job (CLAUDE.md section 6.1).
+  #
+  # A NEW JOB HAS NO READINGS. tools/tier1_growth.py names it in its
+  # PENDING_READINGS set until five green readings are recorded,
+  # tools/tier1_concentration.py in its PENDING_PROFILE set until a profile is,
+  # and tools/tier2_headroom.py names its four tier2 legs in PENDING_FIRST_RECORD
+  # until each holds three runs.
+  #
+  # NO GATES HERE, for the reason the save shard already states.
+  scan:
+    name: tests (scan shard)
+    runs-on: ubuntu-latest
+    # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
+    # not a licence to run long.
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Record the start
+        run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install toolchain
+        run: python -m pip install -e ".[dev]"
+
+      # THE SIXTH LEG OF THE PARTITION. Explicit targets, never a bare recursive
+      # invocation from the repo root - CONVENTIONS.md section 7.1. Every path here is
+      # named as an `--ignore=` on the catch-all shard above, and the arms in
+      # tests/test_tier1_budget.py are red unless the two lists match exactly.
+      #
+      # ORDER IS NOT DISPATCH ORDER HERE. xdist 3.8 sorts the loadfile queue by test
+      # count, descending, and only the hook job turns that off; the projection
+      # above is taken on that sorted order. Do not reorder these for speed.
+      - name: Unit tests
+        run: >-
+          python -m pytest
+          tests/test_provenance_manifest.py
+          tests/test_chained_exemption_guard.py
+          tests/test_disposition_sites.py
+          tests/test_readme_audit.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 

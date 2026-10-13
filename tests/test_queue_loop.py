@@ -239,6 +239,7 @@ TIER1_GREEN = (
     ("tests (guard shard)", "success"),
     ("tests (hook shard)", "success"),
     ("tests (fill shard)", "success"),
+    ("tests (scan shard)", "success"),
 )
 TIER2_GREEN = (
     ("full suite (ubuntu-latest)", "success"),
@@ -548,6 +549,25 @@ def test_the_fill_shard_is_required_and_a_skipped_one_is_not_success():
     assert verdict == queue_loop.CI_SKIPPED, (verdict, detail)
     assert "tests (fill shard)" in detail
     absent = [row for row in TIER1_GREEN if row[0] != "tests (fill shard)"]
+    verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(absent))
+    assert verdict == queue_loop.CI_UNAVAILABLE, (verdict, detail)
+
+
+def test_the_scan_shard_is_required_and_a_skipped_one_is_not_success():
+    """CS-1317 - the sixth shard is graded, not waved through the grader's tail.
+
+    The same ungraded-shard case as the fill shard's arm above, on the job the
+    CS-1317 ruling added. Without its own matcher a skipped scan shard reads as
+    a green tier1 and the lane ships onto a main whose moved files never ran.
+    """
+    jobs = [
+        (name, "skipped" if name == "tests (scan shard)" else conclusion)
+        for name, conclusion in TIER1_GREEN
+    ]
+    verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(jobs))
+    assert verdict == queue_loop.CI_SKIPPED, (verdict, detail)
+    assert "tests (scan shard)" in detail
+    absent = [row for row in TIER1_GREEN if row[0] != "tests (scan shard)"]
     verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(absent))
     assert verdict == queue_loop.CI_UNAVAILABLE, (verdict, detail)
 

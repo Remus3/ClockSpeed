@@ -66,7 +66,10 @@ jobs:
   # lists in PERMITTED_DELETIONS is dropped, because this lane is where such a
   # path is still run. That module derives both sides and is red on any drift,
   # so a file moved between shards over there moves here in the same diff or
-  # not at all. Five shards, because that partition has five jobs.
+  # not at all. Six shards, because that partition has six jobs. The sixth,
+  # CS-1317's scan shard, is work the fast shard carried until then, so it
+  # moves time between legs and adds none; tools/tier2_headroom.py names its
+  # new legs in PENDING_FIRST_RECORD until each is measured.
   #
   # SIZED FROM MEASURED WALLS, NOT BY FEEL. At 87ea30c the tier1.yml run
   # 37125732357 read pytest steps of fast 340s, save 370s, guards 282s, hooks
@@ -103,7 +106,7 @@ jobs:
         # The tier1.yml job ids, one leg each. Each value selects exactly one
         # suite step below by its `if:`, and tests/test_tier1_budget.py is red
         # on a value with no step, a step with no value, or a second step.
-        shard: [fast, save, guards, hooks, fill]
+        shard: [fast, save, guards, hooks, fill, scan]
     defaults:
       run:
         # One script for both platforms. Git Bash ships on the Windows runner.
@@ -195,6 +198,10 @@ jobs:
           --ignore=tests/solve/test_ceiling_fence.py
           --ignore=tests/test_canary_population.py
           --ignore=tests/test_secret_sweep.py
+          --ignore=tests/test_provenance_manifest.py
+          --ignore=tests/test_chained_exemption_guard.py
+          --ignore=tests/test_disposition_sites.py
+          --ignore=tests/test_readme_audit.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Full test suite (save shard)
@@ -265,6 +272,16 @@ jobs:
           tests/test_secret_sweep.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
+      - name: Full test suite (scan shard)
+        if: matrix.shard == 'scan'
+        run: >-
+          python -m pytest
+          tests/test_provenance_manifest.py
+          tests/test_chained_exemption_guard.py
+          tests/test_disposition_sites.py
+          tests/test_readme_audit.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
   # ===========================================================================
   # Job 2 - THE CLEAN-CHECKOUT PROBE. The highest-value job in this file.
   #
@@ -300,8 +317,8 @@ jobs:
         # Windows' bundled bash, but dash and ash on this POSIX runner are stricter,
         # which is exactly why the probe runs on both platforms.
         os: [ubuntu-latest, windows-latest]
-        # The same five values as job 1, graded by the same arm.
-        shard: [fast, save, guards, hooks, fill]
+        # The same six values as job 1, graded by the same arm.
+        shard: [fast, save, guards, hooks, fill, scan]
     defaults:
       run:
         shell: bash
@@ -570,6 +587,10 @@ jobs:
           --ignore=tests/solve/test_ceiling_fence.py
           --ignore=tests/test_canary_population.py
           --ignore=tests/test_secret_sweep.py
+          --ignore=tests/test_provenance_manifest.py
+          --ignore=tests/test_chained_exemption_guard.py
+          --ignore=tests/test_disposition_sites.py
+          --ignore=tests/test_readme_audit.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Suite in the fresh clone (save shard)
@@ -642,6 +663,17 @@ jobs:
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Suite in the fresh clone (scan shard)
+        if: matrix.shard == 'scan'
+        working-directory: probe
+        run: >-
+          python -m pytest
+          tests/test_provenance_manifest.py
+          tests/test_chained_exemption_guard.py
+          tests/test_disposition_sites.py
+          tests/test_readme_audit.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       # =====================================================================

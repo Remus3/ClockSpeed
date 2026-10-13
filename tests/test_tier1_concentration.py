@@ -33,20 +33,21 @@ import tier1_concentration as concentration  # noqa: E402
 WORKFLOW_PATH = _ROOT / concentration.WORKFLOW_RELATIVE
 RECORD_PATH = _ROOT / concentration.RECORD_RELATIVE
 
-#: The fast shard, the save shard, the guard shard, the hook shard and the fill
-#: shard. Three was the partition CS-896 and CS-1060 split into; CS-1193 added
-#: the fourth, the hook shard, when the catch-all read over its ceiling (the
-#: wave-3 CI route ruling), and CS-1198 the fifth, the fill shard, when the hook
-#: shard read over its budget on a slow runner.
-SUITE_RUNNING_JOBS = 5
+#: The fast shard, the save shard, the guard shard, the hook shard, the fill
+#: shard and the scan shard. Three was the partition CS-896 and CS-1060 split
+#: into; CS-1193 added the fourth, the hook shard, when the catch-all read over
+#: its ceiling (the wave-3 CI route ruling), CS-1198 the fifth, the fill shard,
+#: when the hook shard read over its budget on a slow runner, and CS-1317 the
+#: sixth, the scan shard, when the catch-all read over its ceiling again.
+SUITE_RUNNING_JOBS = 6
 
 #: THE PENDING-PROFILE RATCHET (CS-1193). Every declared job no recorded run has
 #: profiled yet because it is NEW. Two-way, the rule tools/tier1_growth.py uses
 #: for its reading floor: a listed job the workflow does not declare is red, and
 #: a listed job profiled in EVERY recorded run is red, which forces this literal
 #: down at the refresh that profiles it at both ends. The fill shard joined it
-#: with CS-1198, by the same rule.
-EXPECTED_PENDING_PROFILE = ("tests (hook shard)", "tests (fill shard)")
+#: with CS-1198, and the scan shard with CS-1317, by the same rule.
+EXPECTED_PENDING_PROFILE = ("tests (hook shard)", "tests (fill shard)", "tests (scan shard)")
 
 
 @pytest.fixture(scope="module")

@@ -107,8 +107,8 @@ def test_the_parser_actually_finds_the_jobs_it_claims_to():
     # THE SET IS PINNED ON PURPOSE - this is the parser's known-good control,
     # so it names what the parse must find rather than deriving it from the
     # same file. `hooks` joined it deliberately with CS-1193's fourth shard,
-    # and `fill` with CS-1198's fifth.
-    assert set(tier1) == {"fast", "save", "guards", "hooks", "fill"}, tier1
+    # `fill` with CS-1198's fifth and `scan` with CS-1317's sixth.
+    assert set(tier1) == {"fast", "save", "guards", "hooks", "fill", "scan"}, tier1
     assert set(tier2) >= {"suite", "clean-checkout-probe", "audits"}, tier2
 
 

@@ -363,9 +363,10 @@ class CiSpec(NamedTuple):
 CI_REF = "main"
 
 #: `.github/workflows/tier1.yml` - `jobs.fast.name`, `jobs.save.name`,
-#: `jobs.guards.name`, `jobs.hooks.name`, the fourth shard CS-1193 added, and
-#: `jobs.fill.name`, the fifth CS-1198 added. It fires on every branch push, so
-#: it is never dispatched from here.
+#: `jobs.guards.name`, `jobs.hooks.name`, the fourth shard CS-1193 added,
+#: `jobs.fill.name`, the fifth CS-1198 added, and `jobs.scan.name`, the sixth
+#: CS-1317 added. It fires on every branch push, so it is never dispatched from
+#: here.
 #:
 #: EVERY DECLARED JOB APPEARS HERE, and a test enforces it both ways. A shard
 #: added to the workflow and nowhere else is graded by accident: skipped, or
@@ -381,6 +382,7 @@ CI_TIER1 = CiSpec(
         "tests (guard shard)",
         "tests (hook shard)",
         "tests (fill shard)",
+        "tests (scan shard)",
     ),
     advisory=(),
 )

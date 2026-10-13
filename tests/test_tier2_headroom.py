@@ -52,6 +52,18 @@ EXPECTED_RECORD_FIELDS = (
     "completed_at",
 )
 
+#: CS-1317 - the four tier2 LEGS the sixth tier1 shard adds, each against the
+#: item that added it. Keyed by the EXPANDED LEG NAME, never by a job id: a job id
+#: would lift the floor on every leg of `suite` and `clean-checkout-probe`, and the
+#: twenty legs already measured would lose theirs. PINNED, so a widening is red
+#: here until this literal moves in the same diff.
+EXPECTED_PENDING = {
+    "full suite (ubuntu-latest, scan shard)": "CS-1317",
+    "full suite (windows-latest, scan shard)": "CS-1317",
+    "clean-checkout probe (ubuntu-latest, scan shard)": "CS-1317",
+    "clean-checkout probe (windows-latest, scan shard)": "CS-1317",
+}
+
 #: What the tool's parser must derive from the recorded API payload. Literal, so
 #: a parser change and a fixture change both turn this red.
 EXPECTED_PARSED_FIXTURE = [
@@ -209,14 +221,14 @@ def test_the_shipped_record_grades_clean_against_the_shipped_workflow() -> None:
 
 
 def test_the_shipped_record_covers_every_job_the_workflow_expands_to() -> None:
-    """Every declared job is recorded, and nothing the workflow does not declare is."""
+    """Every declared job is recorded, bar a PENDING leg (CS-1317), and nothing else is."""
     workflow = (REPO_ROOT / tool.WORKFLOW_RELATIVE).read_text(encoding="utf-8")
     declared = set(tool.declared_jobs(workflow))
     document = json.loads((REPO_ROOT / tool.RECORD_RELATIVE).read_text(encoding="utf-8"))
     recorded = {entry["job"] for entry in document["jobs"]}
     assert declared, "the shipped workflow expanded to no jobs"
     assert sorted(recorded - declared) == []
-    assert sorted(declared - recorded) == []
+    assert sorted(declared - recorded - set(EXPECTED_PENDING)) == []
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +487,127 @@ def test_a_refresh_with_no_workflow_to_filter_by_refuses(tmp_path: Path) -> None
     assert not (tmp_path / tool.RECORD_RELATIVE).exists()
 
 
-def test_main_exits_non_zero_over_a_red_tree_and_zero_over_a_green_one(tmp_path: Path) -> None:
+# ---------------------------------------------------------------------------
+# CS-1317 - the PENDING transition: a NEW leg awaiting its first runs
+# ---------------------------------------------------------------------------
+
+#: The synthetic leg every pending arm below stages as new, and its sibling leg
+#: of the same matrix job, which must keep its run floor throughout.
+NEW_LEG = "full suite (windows-latest)"
+SIBLING_LEG = "full suite (ubuntu-latest)"
+
+
+def without_legs(document: dict[str, Any], *legs: str) -> dict[str, Any]:
+    """The record with every row of ``legs`` removed.
+
+    Args:
+        document: A record.
+        legs: The display names whose rows are dropped.
+
+    Returns:
+        A new record.
+    """
+    return {"jobs": [entry for entry in document["jobs"] if entry["job"] not in legs]}
+
+
+def offending_names(offences: list[str]) -> list[str]:
+    """The job or entry each offence opens with, sorted.
+
+    Args:
+        offences: The grade's offences.
+
+    Returns:
+        The text before each offence's first colon.
+    """
+    return sorted(offence.split(":")[0] for offence in offences)
+
+
+def test_a_leg_with_no_runs_is_red_without_a_pending_entry() -> None:
+    """The control for every pending arm below."""
+    offences = tool.grade(without_legs(record(), NEW_LEG), workflow_text())
+    assert offending_names(offences) == [NEW_LEG]
+
+
+def test_a_pending_leg_below_the_run_floor_is_tolerated() -> None:
+    offences = tool.grade(without_legs(record(), NEW_LEG), workflow_text(), {NEW_LEG: "CS-0"})
+    assert offences == []
+
+
+def test_a_pending_leg_lifts_the_floor_on_that_leg_alone() -> None:
+    """THE ONE CHANGE FROM CS-1229: keyed by LEG, so a sibling leg keeps its floor.
+
+    CS-1229 keyed its table by job id, which lifted the floor on every leg of the
+    job. Here the sibling leg of the same matrix job is unrecorded too, and it is
+    still red.
+    """
+    document = without_legs(record(), NEW_LEG, SIBLING_LEG)
+    offences = tool.grade(document, workflow_text(), {NEW_LEG: "CS-0"})
+    assert offending_names(offences) == [SIBLING_LEG]
+
+
+def test_a_pending_entry_keyed_by_a_job_id_is_red_and_lifts_nothing() -> None:
+    """The CS-1229 key shape is refused: a job id names no leg."""
+    offences = tool.grade(without_legs(record(), NEW_LEG), workflow_text(), {"suite": "CS-0"})
+    floor = [offence for offence in offences if offence.startswith(NEW_LEG)]
+    entry = [offence for offence in offences if "'suite'" in offence]
+    assert (len(floor), len(entry)) == (1, 1), offences
+    assert sorted(offences) == sorted(floor + entry), offences
+
+
+def test_a_pending_leg_is_still_graded_against_the_fraction() -> None:
+    """Pending lifts the run floor only; a recorded run past the fraction is red."""
+    document = without_legs(record(), NEW_LEG)
+    document["jobs"].append(row(NEW_LEG, 7, int(EXPECTED_HEADROOM * 30 * 60)))
+    offences = tool.grade(document, workflow_text(), {NEW_LEG: "CS-0"})
+    assert len(offences) == 1, offences
+    assert NEW_LEG in offences[0]
+
+
+def test_a_pending_entry_whose_leg_reached_the_floor_is_red() -> None:
+    """Self-expiring: once measured, the entry must go, so it cannot stand as a hole."""
+    offences = tool.grade(record(), workflow_text(), {NEW_LEG: "CS-0"})
+    assert len(offences) == 1, offences
+    assert NEW_LEG in offences[0]
+    assert "remove" in offences[0]
+
+
+def test_a_pending_entry_naming_an_undeclared_leg_is_red() -> None:
+    offences = tool.grade(record(), workflow_text(), {"retired leg": "CS-0"})
+    assert len(offences) == 1, offences
+    assert "retired leg" in offences[0]
+
+
+def test_a_pending_entry_without_an_item_id_is_red() -> None:
+    offences = tool.grade(without_legs(record(), NEW_LEG), workflow_text(), {NEW_LEG: "soon"})
+    assert len(offences) == 1, offences
+    assert "soon" in offences[0]
+
+
+def test_the_tolerated_legs_are_reported_rather_than_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_workflow(tmp_path, workflow_text())
+    target = tmp_path / tool.RECORD_RELATIVE
+    target.parent.mkdir(parents=True)
+    target.write_bytes(json.dumps(without_legs(record(), NEW_LEG)).encode("ascii"))
+    monkeypatch.setattr(tool, "PENDING_FIRST_RECORD", {NEW_LEG: "CS-0"})
+    assert tool.main(["--root", str(tmp_path)]) == 0
+    pending = [line for line in capsys.readouterr().out.splitlines() if line.startswith("PENDING")]
+    assert len(pending) == 1, pending
+    assert NEW_LEG in pending[0]
+    assert "CS-0" in pending[0]
+
+
+def test_the_shipped_pending_entries_are_what_this_module_pins() -> None:
+    assert tool.PENDING_FIRST_RECORD == EXPECTED_PENDING
+
+
+def test_main_exits_non_zero_over_a_red_tree_and_zero_over_a_green_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The synthetic workflow is not the shipped one, so the shipped PENDING
+    # table - which names shipped legs - does not describe it.
+    monkeypatch.setattr(tool, "PENDING_FIRST_RECORD", {})
     for name, document, expected in (
         ("red", record({"audit": 19 * 60}), 1),
         ("green", record(), 0),
