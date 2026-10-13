@@ -713,3 +713,11 @@ record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or red
   push both over, and its `git clone` line must sit in its own fenced block or
   `tools/flip_checks.py::command_lines` (check 5 reads python-only blocks) finds 0 commands again -
   TRIGGER: S12a.
+- From the CS-1315 slice A review (g2): `clockspeed/surface/providers.py::InstalledRegistryProvider`
+  rebuilds the registry and re-hashes the whole multi-megabyte docs file (the pin's docs_bytes owns
+  its size) on every request, and `clockspeed/data/registry.py::build_registry_from_bytes` keeps the
+  raw bytes alive through decode, parse and normalize - TRIGGER: a measured latency or memory
+  regression, or a cache item.
+- From the CS-1315 slice A review (g3): `clockspeed/data/version.py::DOCS_SHA256` turns a null
+  docs_sha256 in the pin into the string "None", which reads as registry-mismatch, not
+  registry-unverified (it fails loud) - TRIGGER: a generator that can write a null docs_sha256.

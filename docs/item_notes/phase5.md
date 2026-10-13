@@ -512,6 +512,12 @@ a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused
 
 The registry provider verifies the installed docs file against the clockspeed/data/version.py pin (build and content hash) (content hash; a build-only difference with equal bytes is not a mismatch - session 140 ruling, docs/LEDGER.md) before any figure is priced, or the Registry carries the build it was extracted from; a mismatch produces a named warning on the audit and every advice card (the CS-1288 build-input path), a synthetic fixture whose docs hash differs from the pin fires it and a matching one does not, and nothing prices a figure from an unverified registry silently.
 
+### Status recorded 2026-10-13 (session 140)
+
+Slice A has landed (registry provenance, the audit check and the advice caveat, with fix 1); slice B -
+/api/power, /api/solve and /api/optimize - is owed under the contract in `docs/LEDGER.md`, "CS-1315 -
+SLICE B CONTRACT RECORDED BEFORE CODE". The acceptance above is unchanged; CS-1315 stays open.
+
 ### Filed 2026-10-12 (session 138) from the CS-1288 slice C adjudication
 
 The source is the common-mode risk record of the session 138 CS-1288 slice C adjudication, whose
@@ -532,6 +538,11 @@ that is owed an item of its own is the adjudication's residual (c), for a CS-128
 ### Acceptance
 
 On a save whose build changelist differs from the pinned build, the /api/map body carries the build state and marks per_minute_normal as the pinned build's rate, and the map panel shows it; the change to the CS-977 warning contract (source, code and count) is adjudicated and recorded before the code; a synthetic off-pin fixture shows the marking and an on-pin one does not; the surface still never computes the comparison itself (CLAUDE.md 2.1).
+
+### Contract recorded 2026-10-13 (session 140)
+
+The CS-977 contract change is adjudicated and recorded before the code: `docs/LEDGER.md`, "CS-1316 -
+CONTRACT ADJUDICATED BEFORE CODE"; it builds after CS-1315 slice A.
 
 ### Filed 2026-10-12 (session 138) from the CS-1288 slice C adversary
 

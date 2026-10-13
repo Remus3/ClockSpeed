@@ -75,6 +75,88 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-13 - CS-1316 - CONTRACT ADJUDICATED BEFORE CODE (session 140). NOT A COMPLETION RECORD. CS-1316 STAYS OPEN
+Verification: `docs/item_notes/phase5.md` under CS-1316 (its acceptance: the CS-977 warning
+contract change adjudicated and recorded before the code); `clockspeed/audit/build.py::SOURCE_BUILD`,
+`clockspeed/audit/build.py::BuildCheck` and `clockspeed/audit/build.py::RegistryCheck` (the fields
+served); `clockspeed/surface/api/map.py` (the contract amended); `clockspeed/surface/providers.py`
+(the precedent for reading `clockspeed/data/version.py` attributes at call time).
+CS-1316 amends CS-977. WARNING_KEYS stays (source, code, count). WARNING_SOURCES adds
+clockspeed.audit.build.SOURCE_BUILD. build-mismatch, build-uncompared, registry-mismatch and
+registry-unverified are served verbatim, count 1. DATA_KEYS adds build_state = {save_changelist:
+int, pinned_changelist: int|null, save_build_matches: bool, registry_verified: bool|null (null when
+there is no registry)}, copied from BuildCheck and RegistryCheck; the surface compares nothing;
+map.py reads version.GAME_CHANGELIST and version.DOCS_SHA256 as module attributes at request time
+(precedent providers.py, not health.py). THROUGHPUT_KEYS unchanged. When save_build_matches is
+false and registry_verified is true, the panel marks per_minute_normal as the pinned build's rate;
+when registry_verified is not true it says the registry is unverified and makes no pinned-build
+claim. Rejected: widening WARNING_KEYS; a surface comparison; a throughput key; a build-only
+marking. Sequenced after CS-1315 slice A. Reversed by: a new adjudication of this record, or
+CS-1315 withdrawing registry_check_of.
+
+### 2026-10-13 - CS-1315 - SLICE B CONTRACT RECORDED BEFORE CODE (session 140). NOT A COMPLETION RECORD. CS-1315 STAYS OPEN
+Verification: `docs/item_notes/phase5.md` under CS-1315 (the acceptance's last clause, "nothing
+prices a figure from an unverified registry silently"); `clockspeed/audit/build.py::registry_check_of`
+(the one comparison slice B calls); `clockspeed/surface/api/power.py` and
+`clockspeed/surface/api/solve.py` (the three endpoints it amends).
+/api/power, /api/solve and /api/optimize 200 bodies gain build_state.registry_verified and warnings
+[{source: 'build', code: <audit code verbatim>, count: 1}] under the CS-1316 shape; a new
+clockspeed/surface/api/provenance.py calls audit.build.registry_check_of(registry,
+pinned_docs_sha256=version.DOCS_SHA256), reading the pin at call time, and never hashes or
+compares; panel_power.js, panel_solve.js and panel_optimize.js show the served code. /api/registry
+prices nothing - a distinct grader rules on it at close. The record above is the CS-1316 shape
+this contract serves under.
+
+### 2026-10-13 - CS-1315 - SLICE A LANDED WITH FIX 1 (session 140). NOT A COMPLETION RECORD. CS-1315 STAYS OPEN: slice B is owed
+Verification: `tests/surface/test_registry_provider_pin.py` (incl.
+`test_bytes_other_than_the_pin_serve_the_mismatch_on_every_card`,
+`test_bytes_equal_to_the_pin_serve_no_registry_code`,
+`test_a_build_only_difference_with_equal_bytes_is_not_a_registry_mismatch`,
+`test_a_type_error_inside_the_registry_build_propagates_out_of_the_provider` and
+`test_a_byte_reader_returning_text_raises_and_never_answers_none`) and
+`tests/advisor/test_world_advice.py`
+(`test_over_a_registry_from_other_bytes_every_card_names_the_mismatch_and_nothing_settles`,
+`test_over_a_registry_with_no_byte_source_every_card_names_unverified_and_nothing_settles`);
+merged files `clockspeed/data/registry.py` (`Registry.source_sha256`, `build_registry_from_bytes`),
+`clockspeed/audit/build.py::registry_check_of`, `clockspeed/advisor/build.py::build_caveat` and
+`clockspeed/surface/providers.py::StoreAdviceSource`.
+Two adversaries (seams/trace/echo/lifetime: NOT REFUTED; acceptance/production-path: REFUTED,
+uncertain) then a distinct adjudicator: the acceptance's last clause 'nothing prices a figure from
+an unverified registry silently' reaches /api/power, /api/solve and /api/optimize (phase5.md
+CS-1315); slice A (provenance: Registry.source_sha256 from raw bytes in
+clockspeed/data/registry.py; registry_check_of in clockspeed/audit/build.py; advisor build_caveat;
+StoreAdviceSource passes version.DOCS_SHA256) lands with fix 1 (providers.py no longer catches
+TypeError - a coding bug raises, never reads as no install). Fix 1 read against its ruling at
+landing: the byte path's read catches OSError and ValueError, its build RegistryError,
+DocsExtractError and ValueError - the build clause the same as the text path's - and no
+TypeError. Both commits landed on main by cherry-pick in order, messages kept; the ten targeted
+test files passed one at a time on main. Production on the maintainer's install: hash equals the
+pin, no registry code. The freeze-witness bytecode move was a recompile from unmoved source; the
+review stands. TWO DOC GUARDS READ RED AT THE LANDED SLICE A TIP, found before the push and green
+at its parent on main: `tests/test_docs_citations.py::test_every_path_name_citation_in_a_guarded_doc_resolves`
+on docs/LEDGER.md (slice A renamed the tests/advisor/test_build.py test that the CS-1288 close
+record cites - its "three reads" name is now "build reads") and
+`tests/test_archive_rot.py::test_the_deep_archives_rot_is_measured_and_pinned_per_arm` (two
+deep-archive line-pointer counts moved: refused form 14 against a pin of 15, landing on nothing 4
+against a pin of 3). The push is held until a repair lands; it is not this record's to grant.
+CS-1315 does not close: slice B is owed (the slice B contract record above).
+Reversed by: an adjudicated advice-only re-reading of the clause, or the operator's own words.
+
+### 2026-10-13 - CS-1315 - VARIANT A RULING, THE TIER-3 BUILD INPUTS (adjudicated session 140). NOT A COMPLETION RECORD. CS-1315 STAYS OPEN
+Verification: `clockspeed/advisor/build.py::BUILD_INPUTS` and
+`clockspeed/advisor/build.py::build_caveat`; `BOOTSTRAP.md` section 5.1, the tier 3 row ("every
+input read with its source"); the write-list tests named below.
+V: Variant A - six BUILD_INPUTS, the two hash reads and registry_warnings in the tier-3 trace
+(BOOTSTRAP.md section 5.1, tier 3: 'every input read with its source'; CS-1288 F4). B (fold codes
+into build.warnings) rejected: breaks CS-1288's exactness and leaves tier 3 incomplete. W:
+write-list widened by tests/advisor/rules/test_power.py, test_fuel.py,
+tests/advisor/test_world_advice.py, tests/surface/test_advice_source.py,
+tests/audit/test_every_warning_fires.py, tests/test_repr_rendering.py - no assertion removed or
+loosened. X: a registry with no byte source fires registry-unverified by design; on-pin fixtures
+stamp docs_pin(). Reversed by: an adjudicated engine change rendering a mapping's keys as separate
+sourced reads (V); a diff breaking the terms (W); an adjudicated production path building a
+registry from anything but bytes (X).
+
 ### 2026-10-13 - CS-700, CS-G03 and CS-1325 - step c NOT PASSED; window ABANDONED and CLOSED by adjudication
 Verification: `tests/test_readme_audit.py::test_the_flip_readme_walk_finds_the_quickstart_commands`,
 `tests/test_readme_audit.py::test_section_1_2_sets_the_policy_before_activating` and
