@@ -143,8 +143,8 @@ other context. WHAT GOES IN IT:
       step 8), and read this ritual's timing record `ops/loop/control/done_timing.json`
       (step 8). If the remote ref does NOT equal this HEAD, the next session pushes FIRST,
       before any other work - that push is its one gated whole suite for the carried
-      commits - and if the timing record carries `blocked_by_flake`, files that test as a
-      `ROADMAP.md` or `BACKLOG.md` item. The hand-off states its own push in the step 6
+      commits - and AFTER that push, if the timing record carries `blocked_by_flake`, files
+      that test as a `ROADMAP.md` or `BACKLOG.md` item. The hand-off states its own push in the step 6
       wording above - push pending at write time, push result and CI UNREAD - never
       "pushed".
 - [ ] The open item IDs in priority order with their acceptance criteria.
@@ -234,10 +234,11 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
         session's first act (remote ref against HEAD) finds the commits unpushed. Record
         the blocking test's node id and its alone-run result as `blocked_by_flake` in the
         gitignored `ops/loop/control/done_timing.json` (step 8's timing record); the next
-        session reads it, pushes first, and files the flake as a `ROADMAP.md` or
-        `BACKLOG.md` item in that push. Never re-push in this ritual. The ritual then
+        session reads it, pushes first, and only then files the flake as a `ROADMAP.md`
+        or `BACKLOG.md` item, carried by its own later push. Never re-push in this ritual. The ritual then
         runs MEASURE below and step 9, and step 10 marks `--status failed --reason
-        "push blocked by flake"`.
+        "push blocked by flake"`, and the chat line is that failure, not the complete
+        line.
       A test that FAILS when re-run alone is not a flake: it is the failure that stopped
       the ritual. The committed hand-off stays true - it said push pending and push result
       UNREAD, never "pushed" - and the next session's first act, reading the remote ref
