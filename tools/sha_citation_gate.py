@@ -219,7 +219,7 @@ S7A_IMAGE_ROWS: Final = frozenset({"389fe4a", WITNESS[1]})
 #: citation in the POST state. Written ONLY by ``--emit-historical``, in the PRE
 #: state, into the gate that judges the tree; checked on every run in every
 #: state. The set's bytes do not change across S7a, so the pin survives it.
-HISTORICAL_SHA256: Final = "4b7297dfb9ff78c9e6f0af7a0dc95427d1a009c9b31424fb0dbf7235e281d051"
+HISTORICAL_SHA256: Final = "452069aaed0ed672ea0f1582e5d1cc3868b10cc829b857edad85d5396f9e452e"
 
 #: The one source line :data:`HISTORICAL_SHA256` lives on - ``--emit-historical``
 #: rewrites exactly this line and refuses a source carrying it other than once.
