@@ -37,6 +37,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 from typing import Final
@@ -64,6 +65,7 @@ DATA_DIR: Final = "data"
 WINDOW_OPENER: Final = "**THE CS-700 WINDOW"
 SIGNAL_OPENER: Final = "- [ ] READ THE CS-700 WINDOW SIGNAL"
 KEEP_OPENER: Final = "**S12a KEEPS THE WINDOW'S RECORDS"
+KEEP_RULE_LABEL: Final = "KEEP RULE"
 REFUSAL_OPENER: Final = "- [ ] GATE-REFUSAL PATH"
 MEASURE_OPENER: Final = "- [ ] MEASURE"
 IGNORED_LABEL: Final = "NO BARE IGNORED PATH"
@@ -218,7 +220,29 @@ def _build_window_repos(root: Path) -> dict[str, Path]:
     _must(merge, "checkout", "-q", "main")
     _commit(merge, "docs/LEDGER.md", "record\n", "main moves on")
     _must(merge, "merge", "-q", "--no-ff", "-m", "merge the side branch", "side")
-    return {"empty": empty, "regeneration": regeneration, "after": after, "merge": merge}
+    return {
+        "empty": empty,
+        "regeneration": regeneration,
+        "after": after,
+        "merge": merge,
+        "unreadable": _unreadable_repo(root),
+    }
+
+
+def _unreadable_repo(root: Path) -> Path:
+    """HEAD's commit object reads, so the parent check passes, but its tree is gone.
+
+    The diff of HEAD against its parent then exits non-zero: the read failure
+    the signal's second command has to turn into UNKNOWN rather than CLOSED.
+    """
+    repo = _new_repo(root, "unreadable")
+    _commit(repo, "README.md", "base\n", "base")
+    _commit(repo, "docs/LEDGER.md", "record\n", "a commit whose tree goes missing")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+    loose = repo / ".git" / "objects" / tree[:2] / tree[2:]
+    loose.chmod(stat.S_IWRITE | stat.S_IREAD)
+    loose.unlink()
+    return repo
 
 
 def _decides(condition: str, done: subprocess.CompletedProcess[str]) -> bool:
@@ -382,6 +406,12 @@ def test_the_signal_reads_unknown_with_no_head(window_states: dict[str, str | No
     assert window_states["empty"] == "UNKNOWN"
 
 
+def test_the_signal_reads_unknown_when_the_diff_cannot_be_read(
+    window_states: dict[str, str | None],
+) -> None:
+    assert window_states["unreadable"] == "UNKNOWN"
+
+
 def test_the_window_bounds_and_its_soundness_are_stated() -> None:
     block = _block(_text(DONE_MD), WINDOW_OPENER)
 
@@ -452,15 +482,49 @@ def _reset_round_trip(root: Path) -> tuple[bytes, bytes]:
     return (repo / "CS-NEXT-SESSION.txt").read_bytes(), keep.read_bytes()
 
 
+def _keep_rule() -> str:
+    """The KEEP RULE itself: from its label to the end of the S12a paragraph."""
+    block = _block(_text(DONE_MD), KEEP_OPENER)
+    start = block.find(KEEP_RULE_LABEL)
+    return block[start:] if start >= 0 else ""
+
+
 def test_s12a_keeps_the_window_records() -> None:
     block = _block(_text(DONE_MD), KEEP_OPENER)
+    rule = _keep_rule()
 
     assert block, "done.md carries no S12a KEEPS THE WINDOW'S RECORDS paragraph"
-    assert re.search(r"[Bb]efore\s+any\s+CS-700\s+S12a\s+reset", block), "no copy before"
-    assert re.search(r"restore\w*\s+them\s+after\s+the\s+reset", block), "no restore after"
-    assert re.search(r"gitignored\s+data\s+directory", block), "the location is not named"
-    for record in ("hand-off", "docs/LEDGER.md", "WAKEUP_NOTES.md"):
-        assert record in block, f"the S12a copy omits {record}"
+    assert rule, f"the S12a paragraph carries no {KEEP_RULE_LABEL}"
+    assert re.search(r"[Bb]efore\s+any\s+CS-700\s+S12a\s+reset", rule), "no copy before"
+    assert re.search(r"gitignored\s+data\s+directory", rule), "the location is not named"
+    for record in ("hand-off", "docs/LEDGER.md", "WAKEUP_NOTES.md", "ROADMAP.md"):
+        assert record in rule, f"the KEEP RULE omits {record}"
+
+
+def test_the_keep_copy_goes_to_a_new_empty_folder_named_for_the_session() -> None:
+    rule = _keep_rule()
+
+    assert re.search(r"NEW,?\s+EMPTY\s+folder\s+of\s+its\s+own", rule), "a stale folder is reused"
+    assert re.search(r"named\s+after\s+the\s+session\s+number", rule), "the folder is unnamed"
+    assert re.search(r"fails[^.]*already\s+exists", rule), "an existing folder does not fail"
+    assert re.search(r"only\s+from\s+that\s+folder", rule), "the restore source is unbounded"
+
+
+def test_the_keep_restore_is_immediate_and_the_folder_is_then_removed() -> None:
+    rule = _keep_rule()
+
+    assert re.search(r"IMMEDIATELY\s+after\s+the\s+reset", rule), "the restore is not immediate"
+    assert re.search(r"before\s+any\s+other\s+S12a\s+act", rule), "an S12a act may come first"
+    assert not re.search(r"[Rr]estore[^.]*closing\s+commit", rule), "the restore waits too long"
+    assert re.search(r"remove\s+(?:that|the)\s+folder", rule), "the folder is never removed"
+    assert "plain delete" in rule, "the removal method is not stated"
+
+
+def test_the_window_hand_off_carries_the_keep_rule_word_for_word() -> None:
+    block = _block(_text(DONE_MD), WINDOW_OPENER)
+
+    assert KEEP_RULE_LABEL in block, "the window hand-off is not told to carry the KEEP RULE"
+    assert re.search(r"WORD\s+FOR\s+WORD", block), "the KEEP RULE may be paraphrased"
 
 
 def test_the_data_directory_is_ignored_in_this_tree() -> None:
@@ -510,6 +574,129 @@ def test_a_refusal_is_read_from_the_output_and_never_from_the_exit_code() -> Non
     assert "--status failed" in block, "a stop does not mark the ritual failed"
     assert re.search(r"nothing\s+pushed", block), "a stop does not say nothing pushed"
     assert re.search(r"next\s+session\s+pushes\s+first", block), "the next session is not told"
+
+
+def _line_role(spelled: str) -> str:
+    """Which refusal line a spelled pattern is for, read from its literal text."""
+    text = spelled.lstrip("^")
+    if "no suite slot free" in text:
+        return "timeout"
+    if "uncommitted edits" in text:
+        return "foreign"
+    if "wrote no report" in text:
+        return "noreport"
+    if text.startswith("GITLOCK:"):
+        return "lock"
+    if text.startswith("clockspeed pre-push:"):
+        return "hook"
+    return "other"
+
+
+def _refusal_patterns() -> dict[str, list[re.Pattern[str]]]:
+    """The refusal line patterns step 8 spells, compiled per line, keyed by role."""
+    block = _block(_steps().get("8", ""), REFUSAL_OPENER)
+    roles: dict[str, list[re.Pattern[str]]] = {}
+    for spelled in re.findall(r"`(\^?(?:SUITE-GATE|GITLOCK|clockspeed pre-push):[^`]*)`", block):
+        roles.setdefault(_line_role(spelled), []).append(re.compile(spelled, re.MULTILINE))
+    return roles
+
+
+def _classify(log: str, roles: dict[str, list[re.Pattern[str]]]) -> str:
+    """retry, stop or none for a captured push log, by the rule step 8 states."""
+
+    def seen(role: str) -> bool:
+        return any(pattern.search(log) for pattern in roles.get(role, []))
+
+    if seen("noreport") and seen("timeout"):
+        return "retry"
+    if seen("noreport") and seen("foreign"):
+        return "stop"
+    if seen("lock") and not seen("hook"):
+        return "retry"
+    return "none"
+
+
+def _real_lines() -> dict[str, str]:
+    """One line per role exactly as the kit and the hook print it."""
+    gate = _raised_messages(ast.parse(_text(SUITE_GATE)), "GateRefused")
+    lock = _raised_messages(ast.parse(_text(GIT_LOCK)), "LockRefused")
+    no_report = re.search(r'die "(pytest wrote no report[^"]*)"', _text(PRE_PUSH))
+    return {
+        "timeout": next((m for m in gate if "no suite slot free" in m), "") + "3600s",
+        "foreign": next((m for m in gate if "uncommitted edits" in m), "").format("tests"),
+        "noreport": "clockspeed pre-push: " + (no_report.group(1) if no_report else ""),
+        "lock": next((m for m in lock if "lock still held" in m), "") + "600s",
+        "hook": "clockspeed pre-push: BLOCKED (pytest exit 1). Nothing was pushed.",
+    }
+
+
+def test_the_real_refusal_lines_are_printed_unprefixed_at_column_0() -> None:
+    hook = _text(PRE_PUSH)
+    real = _real_lines()
+
+    assert "printf 'clockspeed pre-push: %s\\n' \"$1\"" in hook, "die prints another prefix"
+    assert "'clockspeed pre-push: BLOCKED (pytest exit %s). Nothing was pushed.\\n'" in hook
+    assert real["timeout"].startswith("SUITE-GATE: no suite slot free")
+    assert "has uncommitted edits by another live agent" in real["foreign"]
+    assert real["noreport"].startswith("clockspeed pre-push: pytest wrote no report")
+    assert real["lock"].startswith("GITLOCK: lock still held")
+    for owner in (SUITE_GATE, GIT_LOCK):
+        assert 'sys.stderr.write(msg + "\\n")' in _text(owner), f"{owner} prefixes its lines"
+
+
+def test_each_refusal_pattern_matches_its_real_line_only_at_column_0() -> None:
+    roles = _refusal_patterns()
+    real = _real_lines()
+
+    for role in ("timeout", "foreign", "noreport", "lock", "hook"):
+        patterns = roles.get(role, [])
+        assert patterns, f"step 8 spells no {role} line pattern"
+        assert all(p.search(real[role]) for p in patterns), f"a {role} pattern misses its line"
+        assert not any(p.search("    " + real[role]) for p in patterns), f"indented {role} counts"
+        assert not any(p.search("E   x: " + real[role]) for p in patterns), f"mid-line {role}"
+
+
+def test_a_gate_refusal_needs_its_line_and_the_hook_no_report_line() -> None:
+    roles = _refusal_patterns()
+    real = _real_lines()
+
+    assert _classify(f"{real['timeout']}\n{real['noreport']}\n", roles) == "retry"
+    assert _classify(f"{real['foreign']}\n{real['noreport']}\n", roles) == "stop"
+    assert _classify(f"{real['timeout']}\n", roles) == "none", "one line alone retried"
+    assert _classify(f"{real['foreign']}\n", roles) == "none", "one line alone stopped"
+    assert _classify(f"    {real['timeout']}\n{real['noreport']}\n", roles) == "none"
+    assert _classify(f"E   x: {real['timeout']}\n{real['noreport']}\n", roles) == "none"
+
+
+def test_a_lock_refusal_counts_only_when_the_hook_never_ran() -> None:
+    roles = _refusal_patterns()
+    real = _real_lines()
+
+    assert _classify(f"{real['lock']}\n", roles) == "retry"
+    assert _classify(f"{real['hook']}\n{real['lock']}\n", roles) == "none", "a red suite retried"
+    assert _classify(f"    {real['lock']}\n", roles) == "none", "an indented lock line counts"
+
+
+def test_step_8_states_the_rule_the_classifier_applies() -> None:
+    block = _block(_steps().get("8", ""), REFUSAL_OPENER)
+    retry = [item for item in _items(block) if "no suite slot free" in item]
+    stop = [item for item in _items(block) if "uncommitted edits by another live agent" in item]
+
+    assert len(retry) == 1, "step 8 has no single slot-timeout sub-bullet"
+    assert len(stop) == 1, "step 8 has no single uncommitted-edits sub-bullet"
+    assert "wrote no report" in retry[0], "a timeout line alone would be retried"
+    assert "wrote no report" in stop[0], "an uncommitted-edits line alone would stop"
+    assert re.search(r"`\^GITLOCK:`[^`]*with\s+no\s+`\^clockspeed pre-push:`", retry[0])
+    assert re.search(r"STARTS\s+with", block), "the anchoring is not stated in words"
+
+
+def test_the_push_runs_in_git_bash_with_its_log_outside_the_tree() -> None:
+    step = _steps().get("8", "")
+
+    assert "Git Bash" in step, "the push shell is not named"
+    assert "UTF-16" in step, "the PowerShell 5.1 hazard is not stated"
+    assert re.search(r"outside\s+the\s+tree", step), "the push log may sit inside the tree"
+    assert re.search(r"never\s+a\s+tracked\s+or\s+claimable\s+path", step)
 
 
 def test_a_red_suite_never_retries_the_push() -> None:

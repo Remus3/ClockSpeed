@@ -62,14 +62,20 @@ UNKNOWN: the hand-off also says the window signal was unreadable, and step 10 ma
 `--status failed --reason "CS-700 window signal unreadable"`. UNKNOWN stops this ritual only
 and is never carried forward as OPEN: the next session reads the signal again before any other
 work, and a HEAD that still reads UNKNOWN (a merge HEAD) is resolved there by a distinct
-adjudicator reading the flip block's state, never by a ritual.
+adjudicator reading the flip block's state, never by a ritual. The hand-off it leaves on disk,
+OPEN or UNKNOWN, carries the KEEP RULE below WORD FOR WORD, so the session that reaches S12a
+has it.
 
-**S12a KEEPS THE WINDOW'S RECORDS (CS-1323).** A window /done leaves its records uncommitted
-in tracked files - the hand-off, `docs/LEDGER.md`, `WAKEUP_NOTES.md`, `ROADMAP.md` and any other
-file it wrote. Before any CS-700 S12a reset of the main tree, copy every one of them into a
-folder of its own under the tree's gitignored data directory at the tree root (a reset leaves
-ignored files alone; never clean ignored files then), and restore them after the reset, before
-S12a's closing commit, so that commit carries them.
+**S12a KEEPS THE WINDOW'S RECORDS (CS-1323).** A window /done leaves its records uncommitted,
+and S12a resets the main tree. KEEP RULE: before any CS-700 S12a reset of the main tree, copy
+every record a window /done left uncommitted - the hand-off, `docs/LEDGER.md`,
+`WAKEUP_NOTES.md`, `ROADMAP.md` and any other file it wrote - into a NEW, EMPTY folder of its own
+under the tree's gitignored data directory at the tree root, named after the session number;
+the copy fails, and S12a stops, if
+that folder already exists. A reset leaves ignored files alone; never clean ignored files then.
+Restore the records IMMEDIATELY after the reset, before any other S12a act, and only from that
+folder. After a successful restore, remove that folder with a plain delete - it holds only
+copies of tracked-file content now restored, so the Recycle Bin rule does not apply.
 
 ## 0. Preconditions
 
@@ -266,9 +272,12 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual t
 suite - a push the suite gate or the git lock REFUSED ran none (GATE-REFUSAL PATH below). In
 the CS-700 window, or on UNKNOWN (above), this step does not run: push nothing, take no MEASURE.
 
-- [ ] `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git push
-      > <log> 2>&1` - stderr captured, because the hook, the gate and the git lock write their
-      verdict lines there - and read the log. A bare push is denied by the claims hook.
+- [ ] In Git Bash, never PowerShell (PowerShell 5.1's `2>&1` writes UTF-16 and wraps stderr
+      lines): `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> --
+      git push > <log> 2>&1`, stderr captured because the hook, the gate and the git lock
+      write their verdict lines there. The log is a file outside the tree - in the session's
+      scratch directory or the system temp directory - never a tracked or claimable path
+      inside it. Read the log. A bare push is denied by the claims hook.
       Its pre-push hook runs the whole suite through the kit's suite gate with a junit
       verdict - that is the one gated whole suite; record its command, exit code and the
       pass / fail / skipped counts FROM THIS PUSH'S LOG, never from an earlier run.
@@ -278,14 +287,19 @@ the CS-700 window, or on UNKNOWN (above), this step does not run: push nothing, 
       exit code is not.
 - [ ] GATE-REFUSAL PATH (CS-1323). A refused push ran no suite. The pre-push hook turns a
       suite gate refusal into its own exit 1 ("pytest exit status: [3]", no junit report), so
-      the push's exit code never names a refusal: read it from the captured log, by its line.
-      - `SUITE-GATE: no suite slot free` (the gate's wait limit, `WAIT_S` in
-        `ops/fleet_kit/fleet_suite_gate.py`, ran out) or a `GITLOCK:` line (the kit's git lock
-        refused the push and exited 3 - no push happened): confirm the remote ref unmoved and
-        retry the push exactly ONCE through the same command; that retry is the ritual's one
-        gated whole suite. A second refusal stops the ritual with nothing pushed.
-      - `SUITE-GATE:` naming uncommitted edits by another live agent: NO retry. Stop at once
-        with nothing pushed.
+      the push's exit code never names a refusal: read it from the log, counting ONLY a line
+      that STARTS with one of the patterns below - an indented or mid-line occurrence, such as
+      pytest failure output quoting one, never counts.
+      - `^SUITE-GATE: no suite slot free` (the gate's wait limit, `WAIT_S` in
+        `ops/fleet_kit/fleet_suite_gate.py`, ran out) together with the hook's no-report line
+        `^clockspeed pre-push: pytest wrote no report`, or `^GITLOCK:` in a log with no
+        `^clockspeed pre-push:` line (the kit's git lock refused the push and exited 3; the
+        hook never ran): confirm the remote ref unmoved and retry the push exactly ONCE
+        through the same command; that retry is the ritual's one gated whole suite. A second
+        refusal stops the ritual with nothing pushed.
+      - `^SUITE-GATE: .+ has uncommitted edits by another live agent` together with
+        `^clockspeed pre-push: pytest wrote no report`: NO retry. Stop at once with nothing
+        pushed.
       On either stop: commit nothing more and leave the commits local - the committed hand-off
       already says push pending, result UNREAD, so the next session pushes first - run MEASURE
       below and step 9, and step 10 marks `--status failed --reason "<the refusal>"`, either
