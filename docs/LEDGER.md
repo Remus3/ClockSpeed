@@ -252,7 +252,7 @@ Verification: ruling R3 of the session 139 rulings record directly below, and
 `docs/item_notes/phase5.md` under CS-1315 and CS-1316. That record's heading names both items
 and closes neither; this record says so in the words `tools/drift_guard.py` guard (i) reads.
 
-### 2026-10-12 - CS-1317 / CS-1318 / CS-1315 / CS-1316 / CS-1320 - session 139 rulings
+### 2026-10-12 - CS-1317, CS-1318, CS-1315, CS-1316 and CS-1320 - session 139 rulings
 Verification: tier1 38303460197 at 8601200 (gates job 114991714699: 507 s, pytest 440 s, 12 failed),
 38277053038 at f4e8468 (493 s, 0 UNPROVEN); docs/item_notes/phase7.md CS-1317 and CS-1318;
 docs/item_notes/phase5.md CS-1315 and CS-1316; CS-NEXT-SESSION.txt session 139 step (1).
