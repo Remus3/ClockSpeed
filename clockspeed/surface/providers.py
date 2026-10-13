@@ -476,13 +476,21 @@ class InstalledRegistryProvider:
         docs = install.joinpath(*version.DOCS_RELATIVE_PARTS)
         if self._read_docs is not None:
             return self._registry_from_text(docs, self._read_docs)
+        # ONLY what an install can cause, as the text path catches it since
+        # b12396c (CS-1315 fix 1). The read: OSError (absent or unreadable)
+        # and ValueError (a path the platform refuses, such as one carrying a
+        # NUL), the read's own pair there; no DocsExtractError, as a raw read
+        # decodes nothing. The build: RegistryError (the shipped grammar
+        # moved), DocsExtractError (bytes that will not decode or parse) and
+        # ValueError, the build's own three there. A TypeError is a bug in this
+        # tree and RAISES - a None here is a confident "no install".
         try:
             raw = self._read_docs_bytes(docs)
         except (OSError, ValueError):
             return None
         try:
             return registry.build_registry_from_bytes(raw)
-        except (registry.RegistryError, DocsExtractError, TypeError, ValueError):
+        except (registry.RegistryError, DocsExtractError, ValueError):
             return None
 
     @staticmethod

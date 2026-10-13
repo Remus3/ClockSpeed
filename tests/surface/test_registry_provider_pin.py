@@ -196,6 +196,50 @@ def test_bytes_that_will_not_parse_answer_none(tmp_path: Path) -> None:
     assert provider.registry() is None
 
 
+# A CODING BUG RAISES; IT NEVER READS AS "NO INSTALL" (CS-1315 fix 1). None is
+# the 503 a missing or unreadable install earns. A TypeError is a bug in this
+# tree, and folding it into None would serve a confident "no install" for it -
+# the silently-wrong answer non-negotiable 7 forbids. Both paths are graded:
+# the byte path, and the text path whose catch is b12396c's own.
+
+
+class _SyntheticCodingBugError(TypeError):
+    """A TypeError planted inside the registry build - never a real install fault."""
+
+
+def _raising_build(*_args: object, **_kwargs: object) -> object:
+    raise _SyntheticCodingBugError
+
+
+@pytest.mark.parametrize("path", ["bytes", "text"])
+def test_a_type_error_inside_the_registry_build_propagates_out_of_the_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    monkeypatch.setattr(providers.registry, "build_registry", _raising_build)
+    if path == "bytes":
+        provider = InstalledRegistryProvider(
+            find_install=lambda: (tmp_path, "test"), read_docs_bytes=lambda _path: SYNTHETIC_DOCS
+        )
+    else:
+        provider = InstalledRegistryProvider(
+            find_install=lambda: (tmp_path, "test"), read_docs=lambda _path: synthetic.DOCS_TEXT
+        )
+
+    with pytest.raises(_SyntheticCodingBugError):
+        provider.registry()
+
+
+def test_a_byte_reader_returning_text_raises_and_never_answers_none(tmp_path: Path) -> None:
+    """A reader that hands back a str is a bug in its caller, not a missing install."""
+    provider = InstalledRegistryProvider(
+        find_install=lambda: (tmp_path, "test"),
+        read_docs_bytes=lambda _path: synthetic.DOCS_TEXT,  # type: ignore[arg-type,return-value]
+    )
+
+    with pytest.raises(TypeError):
+        provider.registry()
+
+
 def test_the_provider_module_hashes_nothing() -> None:
     """The surface passes provenance through; the data layer computes it."""
     source = Path(providers.__file__).read_text(encoding="ascii")
