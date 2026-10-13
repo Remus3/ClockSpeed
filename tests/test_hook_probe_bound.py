@@ -118,6 +118,17 @@ GIT_TIMEOUT: Final = 120
 # How long a precondition probe waits before calling a shape a hang.
 PRECONDITION_WAIT: Final = 5
 
+# CS-1318: how long the reap check polls a signalled process for its death, and
+# how often. MEASURED on Linux, replaying the hook's shape 2 capture under GNU
+# timeout with 48 busy loops on 16 CPUs: when the hook returned, the background
+# pid was still present in 51 of 150 runs - 42 not yet run to exit, 9 exited and
+# unreaped - a one-shot `kill -0` read 2 as alive, and every one was gone within
+# 90ms. Unloaded, 150 of 150 were already gone. One second is the hook's
+# own kill grace, larger than no bound in this module, and a `sleep 600` the
+# bound never killed still outlives it.
+REAP_WAIT: Final = 1
+REAP_POLL: Final = 0.02
+
 # The refusal's own words, so an arm pins WHICH rule refused.
 TIMEOUT_REFUSAL: Final = "did not answer within"
 BINARY_REFUSAL: Final = "cannot be bounded"
@@ -697,17 +708,49 @@ def shell_env() -> dict[str, str]:
     return scrub(dict(os.environ))
 
 
+# CS-1318: `kill -0` answers for a ZOMBIE - a process already dead and waiting
+# only for its parent to collect its status - so where /proc carries the state,
+# Z (and X, mid-collection) reads as dead. Where /proc cannot be read, `kill -0`
+# alone decides, which can only read a dead process as alive, never the reverse.
+ALIVE_CHECK: Final = (
+    'kill -0 "$1" 2>/dev/null || exit 1\n'
+    '[ -r "/proc/$1/stat" ] || exit 0\n'
+    'read -r cs_s <"/proc/$1/stat" 2>/dev/null || exit 0\n'
+    "cs_s=${cs_s##*) }\n"
+    'case "$cs_s" in Z* | X*) exit 1 ;; esac\n'
+    "exit 0\n"
+)
+
+
 def process_alive(pid: str) -> bool:
-    """Whether a POSIX-layer process id is still alive, asked of the shell layer."""
+    """Whether a POSIX-layer process id is alive, asked of the shell layer once.
+
+    A zombie counts as dead (CS-1318).
+    """
     assert SHELL is not None, "process_alive needs a POSIX shell"
     proc = subprocess.run(
-        [SHELL, "-c", 'kill -0 "$1" 2>/dev/null', "cs816", pid],
+        [SHELL, "-c", ALIVE_CHECK, "cs816", pid],
         capture_output=True,
         timeout=GIT_TIMEOUT,
         env=shell_env(),
         check=False,
     )
     return proc.returncode == 0
+
+
+def outlives_the_reap_wait(pid: str) -> bool:
+    """Whether ``pid`` is still alive after polling it for up to REAP_WAIT seconds.
+
+    CS-1318: a process the bound signalled can still be running to its exit, or
+    be a zombie, when the hook has already returned on a loaded box. A single
+    look reads that as a survivor; a bounded poll waits for the death instead.
+    """
+    deadline = time.monotonic() + REAP_WAIT
+    while process_alive(pid):
+        if time.monotonic() >= deadline:
+            return True
+        time.sleep(REAP_POLL)
+    return False
 
 
 def reap(pid_file: Path) -> bool:
@@ -717,7 +760,7 @@ def reap(pid_file: Path) -> bool:
     pid = pid_file.read_text(encoding="ascii").strip()
     if not pid.isdigit():
         return False
-    alive = process_alive(pid)
+    alive = outlives_the_reap_wait(pid)
     if alive:
         subprocess.run(
             [SHELL, "-c", 'kill -9 "$1" 2>/dev/null', "cs816", pid],
@@ -1008,6 +1051,104 @@ def test_a_candidate_that_never_answers_is_refused_and_reaped(
     assert_refused_inside_the_bound(outcome, read_calls(log), (SLEEPER, "-c"))
     assert pid_file.is_file(), "the sleeper never ran, so this arm measured nothing"
     assert not survived, "the sleeping candidate outlived the refusal - it was not reaped"
+
+
+# --- the reap check itself (CS-1318) ------------------------------------------
+
+# A child that exits at once while its parent - exec'd into a sleeper - never
+# waits for it. It is a ZOMBIE for as long as the sleeper lives: dead, holding
+# only its exit status. MEASURED 12 of 12 on Linux and 12 of 12 under MSYS:
+# `kill -0` answers for it and its /proc state reads Z. The child EXITS rather
+# than being killed because MSYS LOST a kill sent to a child still starting in
+# 3 of 12 measured runs, leaving a live `sleep` the check rightly reported.
+ZOMBIE_MAKER: Final = (
+    "command -v sleep >/dev/null || exit 3\n"
+    'sleep 0 & printf "%s" "$!" >"$1"\n'
+    'printf "%s" ready >"$2"\nexec sleep 600\n'
+)
+
+
+def sleeper_env() -> dict[str, str]:
+    """``shell_env`` with the shell's own directory first on PATH.
+
+    A runner started from PowerShell carries no Git ``usr/bin`` on PATH, so a bare
+    ``sleep`` there is not found and an arm would measure a process never made.
+    """
+    assert SHELL is not None, "sleeper_env needs a POSIX shell"
+    env = shell_env()
+    env["PATH"] = str(Path(SHELL).parent) + os.pathsep + env.get("PATH", "")
+    return env
+
+
+def wait_for_file(path: Path) -> bool:
+    """Whether ``path`` holds content before the generous setup bound expires."""
+    deadline = time.monotonic() + GIT_TIMEOUT
+    while time.monotonic() < deadline:
+        if path.is_file() and path.stat().st_size:
+            return True
+        time.sleep(REAP_POLL)
+    return False
+
+
+@pytest.mark.skipif(SHELL is None, reason=SHELL_SKIP)
+def test_the_reap_check_reads_an_exited_unwaited_child_as_dead(tmp_path: Path) -> None:
+    """CS-1318. RED before the repair: a one-shot ``kill -0`` answered for a zombie.
+
+    The shape 2 background process can be in this state on a loaded runner: the
+    bound's kill landed, and its new parent has not yet collected it. The other
+    state measured there - signalled, not yet run to exit - is what the bounded
+    poll in ``outlives_the_reap_wait`` waits out.
+    """
+    pid_file = tmp_path / "zombie.pid"
+    ready = tmp_path / "zombie.ready"
+    extra: dict[str, object] = {}
+    if sys.platform == "win32":
+        extra["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        extra["start_new_session"] = True
+    assert SHELL is not None, "this arm needs a POSIX shell"
+    proc = subprocess.Popen(
+        [SHELL, "-c", ZOMBIE_MAKER, "cs1318", pid_file.as_posix(), ready.as_posix()],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=sleeper_env(),
+        **extra,  # type: ignore[call-overload]
+    )
+    try:
+        made = wait_for_file(ready)
+        survived = reap(pid_file)
+    finally:
+        kill_tree(proc)
+        proc.wait(timeout=GIT_TIMEOUT)
+    assert made, "the exited child was never made, so this arm measured nothing"
+    assert not survived, "the reap check read an exited child its parent never waited for as alive"
+
+
+@pytest.mark.skipif(SHELL is None, reason=SHELL_SKIP)
+def test_reap_control_a_live_process_still_reads_as_survived(tmp_path: Path) -> None:
+    """The control: a process nothing killed outlives the reap wait and is reported.
+
+    Without it, a reap check that read everything as dead would turn every
+    reaped arm above green on nothing.
+    """
+    pid_file = tmp_path / "alive.pid"
+    assert SHELL is not None, "this arm needs a POSIX shell"
+    subprocess.run(
+        [SHELL, "-c", 'sleep 600 & printf "%s" "$!" >"$1"', "cs1318", pid_file.as_posix()],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=GIT_TIMEOUT,
+        env=sleeper_env(),
+        check=False,
+    )
+    try:
+        survived = reap(pid_file)
+    finally:
+        reap(pid_file)
+    assert pid_file.is_file(), "the live process was never started, so this arm measured nothing"
+    assert survived, "the reap check read a live process as dead"
 
 
 @pytest.mark.parametrize("hook", COMMIT_HOOKS)
