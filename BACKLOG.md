@@ -705,3 +705,11 @@ record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or red
 - From the session 140 R3 narrowing: `tools/drift_guard.py::_live_differences` prints "only the
   bytes moved" whenever the census is unchanged, which is false when only the build string moved -
   TRIGGER: the next guard (h) work.
+- From CS-1325: `scripts/verify_env.py::MIN_PYTHON` asserts only the Python floor, not the
+  `requires-python` ceiling in `pyproject.toml` - TRIGGER: the next `scripts/verify_env.py` work,
+  or the cap moving.
+- From CS-1325, a residual: `README.md` is at its 220-line budget and its Quickstart at its 10-line
+  budget; the deferred clone command (the Session 126 residuals line above, added at S12a) will
+  push both over, and its `git clone` line must sit in its own fenced block or
+  `tools/flip_checks.py::command_lines` (check 5 reads python-only blocks) finds 0 commands again -
+  TRIGGER: S12a.

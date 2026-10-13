@@ -75,6 +75,29 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-13 - CS-700, CS-G03 and CS-1325 - step c NOT PASSED; window ABANDONED and CLOSED by adjudication
+Verification: `tests/test_readme_audit.py::test_the_flip_readme_walk_finds_the_quickstart_commands`,
+`tests/test_readme_audit.py::test_section_1_2_sets_the_policy_before_activating` and
+`tests/test_readme_audit.py::test_every_git_install_definition_says_where_it_ends`; merged files
+`pyproject.toml` (requires-python), `README.md`, `docs/OPERATIONS.md` and `CLAUDE.md` section 2.
+This record does not close CS-700 or CS-G03: CS-700 stays open and CS-G03 stays gated.
+The re-walk at b12396c failed D2: the docs said 3.13 or newer, python.org's newest was 3.15.0,
+PyYAML 6.0.3 has no cp315 wheel, and verify_env exited 1 (missing HARD dependencies: pytest,
+ruff); graded NOT PASSED by a distinct grader from the raw logs (README first result reached; hook
+proof held; suite never started). RECOVERY RULE applied: remote PRIVATE and not archived; STOP
+absent; INBOX_STOP removed and read absent; S7a-S8a void (none ran); OUT kept; --flip-readiness
+exit 0, READY - 438 listed; outside 0; stale 0; diff from b12396c empty. The window closes by a
+later commit that re-stales the set and owes a new step b, never by a re-walk of the same tip.
+CS-1325 CLOSED: requires-python capped at <3.15 (pip refusal on 3.15 verified live by the
+adversary), README and OPERATIONS say 3.13 or 3.14, D3-D7 fixed, CLAUDE.md section 2 and the
+OPERATIONS 'pinned' wording corrected; tests/test_readme_audit.py red-first incl.
+test_the_flip_readme_walk_finds_the_quickstart_commands, test_section_1_2_sets_the_policy_before_activating,
+test_every_git_install_definition_says_where_it_ends. An adversary refuted the first cut (merged
+Quickstart block gave flip_checks command_lines 0 commands); the fix stands. Session 141 restarts
+the block at step a with a fresh freeze, walker and grader. Reversed by: cp315 win_amd64 wheels for
+every dev dependency plus a green 3.15 tier1 leg (raise the cap to <3.16 and add the classifier);
+the operator present (the timing).
+
 ### 2026-10-13 - CS-1324 - CLOSED: the version pin re-pinned to the patched game build; the docs bytes and the census are unchanged, so only the build string and the integrity digest moved
 Verification: merged files `clockspeed/data/version.py` (`_PIN_JSON`: game_build and integrity
 only; docs_sha256, docs_bytes and the census unchanged) and `docs/OPERATIONS.md` (the re-pin runbook's

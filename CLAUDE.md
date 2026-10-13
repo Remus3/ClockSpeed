@@ -231,9 +231,10 @@ name is a platform account id. It is personal data and is never written into a t
 file, a commit message, a log, a fixture or a test.** The same applies to the world name,
 the Windows account name and any absolute path containing a home directory.
 
-**Interpreter, toolchain and game build:** asserted by `scripts/verify_env.py` and pinned
-by `clockspeed/data/version.py`. Do not restate a version or a build string in prose -
-read it from the pin, and let `tools/drift_guard.py` catch drift.
+**Interpreter:** `requires-python` in `pyproject.toml`; `scripts/verify_env.py` asserts
+its floor, the toolchain and the game build, which `clockspeed/data/version.py` pins. Do not
+restate a version or a build string in prose - read it from the pin, and let
+`tools/drift_guard.py` catch drift.
 
 **Port allocation:** recorded in `config/ports.json`. That file is the owner; no other
 file restates the numbers.
