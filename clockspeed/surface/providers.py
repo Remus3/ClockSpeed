@@ -61,7 +61,7 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.advisor.advise import advise_world
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
-from clockspeed.data.docs_extract import DocsExtractError, load_document, read_docs_text
+from clockspeed.data.docs_extract import DocsExtractError, load_document
 from clockspeed.save import workdir
 from clockspeed.save.world import (
     READER_REFUSAL_TYPES,
@@ -338,6 +338,21 @@ class SaveWorldProvider:
             self._remembered = None
 
 
+def _read_docs_bytes(path: Path) -> bytes:
+    """Read the docs file's raw bytes, read-only - the default byte reader.
+
+    Args:
+        path: The docs file.
+
+    Returns:
+        Its complete contents.
+
+    Raises:
+        OSError: The file could not be read.
+    """
+    return path.read_bytes()
+
+
 def _verdict_words(refusal: WorldLoadError) -> tuple[str, str] | None:
     """A refusal's stage and cause type as the vocabulary's OWN strings, or None.
 
@@ -403,13 +418,23 @@ class InstalledRegistryProvider:
 
     Satisfies ``contract.RegistryProvider[Registry]`` structurally, for the same
     reason and in the same direction as :class:`SaveWorldProvider`.
+
+    PROVENANCE IS PASSED THROUGH, NEVER COMPUTED HERE (CS-1315). By default the
+    docs file is read as raw BYTES and handed to
+    ``clockspeed.data.registry.build_registry_from_bytes``, which records their
+    sha256 on ``Registry.source_sha256``; this class hashes nothing and
+    compares nothing. The comparison with the pin is the audit's, reached
+    through :class:`StoreAdviceSource`. A caller that injects a TEXT reader
+    gets a registry with no byte source, which every card then names as
+    unverified - never a silent match.
     """
 
     def __init__(
         self,
         *,
         find_install: Callable[[], tuple[Path | None, str]] = locate.resolve_game_dir,
-        read_docs: Callable[[Path], str] = read_docs_text,
+        read_docs: Callable[[Path], str] | None = None,
+        read_docs_bytes: Callable[[Path], bytes] = _read_docs_bytes,
     ) -> None:
         """Wire the provider, defaulting to the real install resolution.
 
@@ -417,10 +442,16 @@ class InstalledRegistryProvider:
             find_install: Returns (install directory or None, the resolution
                 label that spoke). The label is discarded here: it can name an
                 override that points inside a home directory.
-            read_docs: Reads and decodes the shipped docs file.
+            read_docs: Reads and decodes the shipped docs file, as
+                ``docs_extract.read_docs_text`` does. When given, it is used
+                INSTEAD of ``read_docs_bytes``, and the registry carries no
+                source hash. None, the default, reads bytes.
+            read_docs_bytes: Reads the shipped docs file's raw bytes - the
+                default path, whose registry carries their sha256.
         """
         self._find_install = find_install
         self._read_docs = read_docs
+        self._read_docs_bytes = read_docs_bytes
 
     def registry(self) -> Registry | None:
         """The normalized registry, or None when this machine has no install.
@@ -433,7 +464,8 @@ class InstalledRegistryProvider:
             The registry, or None. None covers "no install found", "the docs
             file is absent or would not decode" and "the shipped grammar has
             changed" - the last of which is a real finding, but one the drift
-            guard reports, not one a dashboard request should raise on.
+            guard reports, not one a dashboard request should raise on. Read
+            as bytes, the registry carries their sha256 (CS-1315).
         """
         try:
             install, _label = self._find_install()
@@ -442,8 +474,31 @@ class InstalledRegistryProvider:
         if install is None:
             return None
         docs = install.joinpath(*version.DOCS_RELATIVE_PARTS)
+        if self._read_docs is not None:
+            return self._registry_from_text(docs, self._read_docs)
         try:
-            text = self._read_docs(docs)
+            raw = self._read_docs_bytes(docs)
+        except (OSError, ValueError):
+            return None
+        try:
+            return registry.build_registry_from_bytes(raw)
+        except (registry.RegistryError, DocsExtractError, TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _registry_from_text(docs: Path, read_docs: Callable[[Path], str]) -> Registry | None:
+        """Build from a decoded text - a registry with no byte source.
+
+        Args:
+            docs: The docs file.
+            read_docs: The injected text reader.
+
+        Returns:
+            The registry, carrying no source hash, or None as :meth:`registry`
+            answers it.
+        """
+        try:
+            text = read_docs(docs)
         except (DocsExtractError, OSError, ValueError):
             return None
         try:
@@ -469,7 +524,10 @@ class StoreAdviceSource:
     imports ``clockspeed.audit``; the advisor is the layer that consumes it.
     The one thing handed over beside them is the pin,
     ``clockspeed.data.version.GAME_CHANGELIST`` as it reads at call time, so
-    every card on a save another build wrote names both builds (CS-1288).
+    every card on a save another build wrote names both builds (CS-1288), and
+    ``clockspeed.data.version.DOCS_SHA256`` the same way, so every card priced
+    from a registry built from other docs bytes - or from none - says so
+    (CS-1315). Both are values read and passed on; nothing here compares them.
 
     :meth:`advice` ONLY READS. The ledger and the mute store are read whole in
     one open, and every writer replaces the file atomically, so a read never
@@ -521,6 +579,7 @@ class StoreAdviceSource:
                 world,
                 registry,
                 pinned_changelist=version.GAME_CHANGELIST,
+                pinned_docs_sha256=version.DOCS_SHA256,
                 ledger=Ledger(self._directory),
                 mutes=MuteStore(self._directory),
                 now=self._clock(),

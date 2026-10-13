@@ -316,6 +316,17 @@ FIXTURES: Final[Mapping[str, Firing]] = {
     "WARN_BUILD_UNCOMPARED": lambda: (
         build.build_check_of(build_fx.world(), pinned_changelist=None).warnings
     ),
+    # build.py, the registry's source against the pinned docs hash (CS-1315)
+    "WARN_REGISTRY_MISMATCH": lambda: (
+        build.registry_check_of(
+            build_fx.registry(build_fx.SOURCE_HASH), pinned_docs_sha256=build_fx.OTHER_HASH
+        ).warnings
+    ),
+    "WARN_REGISTRY_UNVERIFIED": lambda: (
+        build.registry_check_of(
+            build_fx.registry(None), pinned_docs_sha256=build_fx.SOURCE_HASH
+        ).warnings
+    ),
     # collectibles.py
     "WARN_COLLECTED_STATE_UNAVAILABLE": lambda: _collectibles(
         collectibles_fx.actor(collectibles_fx.CRYSTAL_CLASS, (1.0, 2.0, 3.0)), level_count=0

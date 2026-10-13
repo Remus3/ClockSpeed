@@ -52,7 +52,7 @@ from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, routes
 from clockspeed.surface.providers import StoreAdviceSource
 from tests.advisor import test_world_advice as world_fixtures
-from tests.advisor.build_fixtures import OFF_PIN_OFFSETS, game_pin
+from tests.advisor.build_fixtures import OFF_PIN_OFFSETS, docs_pin, game_pin
 from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
@@ -836,6 +836,9 @@ def _generator_world() -> WorldModel:
 
 
 #: Every world the surface tests serve, with the registry each is served over.
+#: Every registry here is VERIFIED - stamped as built from the pinned docs bytes
+#: by ``tests.advisor.build_fixtures.pinned_source`` (CS-1315) - so no served
+#: card carries a registry code and every expected text below is unchanged.
 SERVED_WORLDS: Final[dict[str, tuple[Callable[[], WorldModel], Callable[[], Registry]]]] = {
     "fuel": (world_fixtures.fuel_world, world_fixtures.fuel_registry),
     "gap": (world_fixtures.gap_world, world_fixtures.synthetic_registry),
@@ -844,6 +847,14 @@ SERVED_WORLDS: Final[dict[str, tuple[Callable[[], WorldModel], Callable[[], Regi
     "coal-one-untagged": (_one_coal_untagged, world_fixtures.fuel_registry),
     "coal-all-untagged": (_every_coal_untagged, world_fixtures.fuel_registry),
 }
+
+
+@pytest.mark.parametrize("world_name", sorted(SERVED_WORLDS))
+def test_every_served_registry_is_verified_against_the_docs_pin(world_name: str) -> None:
+    """CS-1315: the fixtures serve verified registries, so no card names a registry code."""
+    _make_world, make_registry = SERVED_WORLDS[world_name]
+    verified = make_registry().source_sha256 == docs_pin()
+    assert verified
 
 
 def _fuel_cards(directory: Path) -> dict[str, Mapping[str, object]]:
@@ -912,7 +923,9 @@ def test_no_rule_halts_on_a_served_world(tmp_path: Path, world_name: str) -> Non
     assert one_trace_per_rule
     halted = sum(1 for trace in found.traces for step in trace.steps if step.kind in HALTING_KINDS)
     assert halted == 0
-    balanced = world_fixtures.balance_by_hand(model, registry, pinned_changelist=game_pin())
+    balanced = world_fixtures.balance_by_hand(
+        model, registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin()
+    )
     before = settled_rules(run_rules(power.RULES, balanced))
     after = settled_rules(found.traces)
     assert sorted(before - after) == []

@@ -172,6 +172,9 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/audit/balance.py::WorldProduction",
     "clockspeed/audit/balance.py::WorldStarvation",
     "clockspeed/audit/build.py::BuildCheck",
+    # CS-1315: graded withheld - a hand-written repr over the two docs hashes
+    # and a warning count, no carrier field, on BuildCheck's terms.
+    "clockspeed/audit/build.py::RegistryCheck",
     "clockspeed/audit/collectibles.py::WorldCollectibles",
     "clockspeed/audit/flow.py::FlowGap",
     "clockspeed/audit/flow.py::ItemFlow",

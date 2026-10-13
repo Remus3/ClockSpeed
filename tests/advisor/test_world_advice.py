@@ -40,6 +40,17 @@ names both builds on tier 2 and tier 3, no rule settles, and
 ``advise_and_record`` completes nothing; on the pin no card mentions a build
 and the control completes.
 
+CS-1315: THE REGISTRY CHECK JOINS THE COMPOSITION. :func:`inputs_of` takes the
+pinned docs hash as a second required keyword, runs the audit's
+``registry_check_of`` over the very registry it prices from, and offers its
+three inputs beside the build's; the oracle derives them by hand the same way.
+Every registry here is stamped as built from the pinned docs bytes through
+``tests.advisor.build_fixtures.pinned_source`` - a hand-built registry has no
+byte source and is unverified by design - so the arms above grade what they
+graded before. Two arms vary the stamp: a registry from other bytes names
+``registry-mismatch`` on every served card and one with no byte source names
+``registry-unverified``, and over either nothing settles.
+
 Every token, class name and number here is invented. No save and no install
 is read; every store lives in a temporary directory and every instant is
 injected.
@@ -64,7 +75,12 @@ from clockspeed.advisor.advise import (
     settled_rules,
     world_inputs,
 )
-from clockspeed.advisor.build import BUILD_INPUTS, IN_SAVE_CHANGELIST, build_inputs
+from clockspeed.advisor.build import (
+    BUILD_INPUTS,
+    IN_SAVE_CHANGELIST,
+    build_inputs,
+    registry_inputs,
+)
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import fuel as fuel_rules
 from clockspeed.advisor.rules import power, registered_rules
@@ -80,7 +96,13 @@ from clockspeed.advisor.trace import (
 )
 from clockspeed.audit import fuel as fuel_audit
 from clockspeed.audit.balance import balance_of
-from clockspeed.audit.build import WARN_BUILD_MISMATCH, build_check_of
+from clockspeed.audit.build import (
+    WARN_BUILD_MISMATCH,
+    WARN_REGISTRY_MISMATCH,
+    WARN_REGISTRY_UNVERIFIED,
+    build_check_of,
+    registry_check_of,
+)
 from clockspeed.audit.fuel import fuel_supply_of
 from clockspeed.audit.machines import (
     PROPERTY_OVERCLOCK,
@@ -93,7 +115,12 @@ from clockspeed.audit.placement import placement_of
 from clockspeed.data.registry import Registry
 from clockspeed.save.objects import ObjectReference
 from clockspeed.save.world import RecordProperties, WorldModel, WorldProperties
-from tests.advisor.build_fixtures import game_pin
+from tests.advisor.build_fixtures import (
+    OFF_PIN_DOCS_SHA256,
+    docs_pin,
+    game_pin,
+    pinned_source,
+)
 from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
@@ -113,13 +140,18 @@ UNPRICED_MACHINE: Final = balance_fixtures.NOT_IN_REGISTRY
 
 
 def synthetic_registry() -> Registry:
-    """A registry whose buildings are the balance suite's whole-world set."""
-    return Registry(
-        items=MappingProxyType({}),
-        recipes=MappingProxyType({}),
-        buildings=MappingProxyType(dict(balance_fixtures.whole_world_registry())),
-        warnings=(),
-        unknown_groups=(),
+    """A registry whose buildings are the balance suite's whole-world set.
+
+    Stamped as built from the pinned docs bytes (CS-1315), so it is verified.
+    """
+    return pinned_source(
+        Registry(
+            items=MappingProxyType({}),
+            recipes=MappingProxyType({}),
+            buildings=MappingProxyType(dict(balance_fixtures.whole_world_registry())),
+            warnings=(),
+            unknown_groups=(),
+        )
     )
 
 
@@ -136,14 +168,20 @@ def gap_world() -> WorldModel:
 
 
 def balance_by_hand(
-    model: WorldModel, registry: Registry, *, pinned_changelist: int | None
+    model: WorldModel,
+    registry: Registry,
+    *,
+    pinned_changelist: int | None,
+    pinned_docs_sha256: str | None,
 ) -> WorldInputs:
     """Every input :func:`inputs_of` offers but the fuel audit's.
 
     The balance half of the composition - all :func:`inputs_of` offered
     before slice D - beside the build check's three inputs over the model
-    against ``pinned_changelist`` (CS-1288), which every power rule reads
-    first. The two name sets are asserted disjoint, reduced to a count inline.
+    against ``pinned_changelist`` (CS-1288), and the registry check's three
+    over the registry against ``pinned_docs_sha256`` (CS-1315), all of which
+    every power rule reads first. The name sets are asserted disjoint, reduced
+    to a count inline.
     """
     balance = balance_of(
         placement_of(model),
@@ -154,12 +192,19 @@ def balance_by_hand(
     )
     balanced = balance_inputs(balance)
     build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
-    shared = len(set(balanced) & set(build))
+    source = registry_inputs(registry_check_of(registry, pinned_docs_sha256=pinned_docs_sha256))
+    shared = len(set(balanced) & set(build)) + len((set(balanced) | set(build)) & set(source))
     assert shared == 0
-    return WorldInputs(values={**balanced, **build}, unlocks=unlock_keys(model.unlocks))
+    return WorldInputs(values={**balanced, **build, **source}, unlocks=unlock_keys(model.unlocks))
 
 
-def by_hand(model: WorldModel, registry: Registry, *, pinned_changelist: int | None) -> WorldInputs:
+def by_hand(
+    model: WorldModel,
+    registry: Registry,
+    *,
+    pinned_changelist: int | None,
+    pinned_docs_sha256: str | None,
+) -> WorldInputs:
     """The composition :func:`inputs_of` claims, spelled out through the audit.
 
     The balance and build inputs, then the fuel audit's inputs over the same
@@ -168,7 +213,12 @@ def by_hand(model: WorldModel, registry: Registry, *, pinned_changelist: int | N
     overlap is reduced to a count inline, so no local holds the withheld input
     mapping when the assertion fails (CS-850, CS-851).
     """
-    balance = balance_by_hand(model, registry, pinned_changelist=pinned_changelist)
+    balance = balance_by_hand(
+        model,
+        registry,
+        pinned_changelist=pinned_changelist,
+        pinned_docs_sha256=pinned_docs_sha256,
+    )
     offered = fuel_inputs(fuel_supply_of(machines_of(model), registry), registry)
     shared = len(set(balance.values) & set(offered))
     assert shared == 0
@@ -244,8 +294,11 @@ def fuel_world() -> WorldModel:
 
 
 def fuel_registry() -> Registry:
-    """The fuel audit's synthetic registry: invented items, generators and recipes."""
-    return fuel_fixtures.REGISTRY
+    """The fuel audit's synthetic registry: invented items, generators and recipes.
+
+    Stamped as built from the pinned docs bytes (CS-1315), so it is verified.
+    """
+    return pinned_source(fuel_fixtures.REGISTRY)
 
 
 #: The worlds the composition is graded over: no fuel class, and the fuel world.
@@ -261,8 +314,8 @@ def test_inputs_of_is_the_audit_composition_over_one_world(world_name: str) -> N
     model = make_world()
     registry = make_registry()
 
-    built = inputs_of(model, registry, pinned_changelist=game_pin())
-    expected = by_hand(model, registry, pinned_changelist=game_pin())
+    built = inputs_of(model, registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin())
+    expected = by_hand(model, registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin())
 
     same_names = sorted(built.values) == sorted(expected.values)
     same_values = dict(built.values) == dict(expected.values)
@@ -299,7 +352,13 @@ def test_no_registered_rule_halts_on_a_missing_input_over_inputs_of(world_name: 
     """
     make_world, make_registry = WORLDS[world_name]
     traces = run_rules(
-        registered_rules(), inputs_of(make_world(), make_registry(), pinned_changelist=game_pin())
+        registered_rules(),
+        inputs_of(
+            make_world(),
+            make_registry(),
+            pinned_changelist=game_pin(),
+            pinned_docs_sha256=docs_pin(),
+        ),
     )
 
     missing = sorted(
@@ -315,7 +374,9 @@ def test_no_registered_rule_halts_on_a_missing_input_over_inputs_of(world_name: 
 def test_inputs_of_offers_every_fuel_rule_input(world_name: str) -> None:
     """Independent of the registry: both fuel rules' declarations are offered."""
     make_world, make_registry = WORLDS[world_name]
-    built = inputs_of(make_world(), make_registry(), pinned_changelist=game_pin())
+    built = inputs_of(
+        make_world(), make_registry(), pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin()
+    )
 
     declared = set(fuel_rules.SUPPLY_INPUTS) | set(fuel_rules.DEMAND_INPUTS)
     unoffered = len(declared - set(built.values))
@@ -334,7 +395,12 @@ def test_a_name_both_adapters_offer_raises_and_never_overwrites(
     monkeypatch.setattr(advise_module, "fuel_inputs", colliding)
 
     with pytest.raises(ValueError, match="more than one adapter"):
-        inputs_of(fuel_world(), fuel_registry(), pinned_changelist=game_pin())
+        inputs_of(
+            fuel_world(),
+            fuel_registry(),
+            pinned_changelist=game_pin(),
+            pinned_docs_sha256=docs_pin(),
+        )
 
 
 def test_merged_inputs_refuses_a_name_any_two_groups_share_and_renders_no_value() -> None:
@@ -375,7 +441,7 @@ def test_the_balance_and_the_fuel_audit_read_one_machines_model(
     monkeypatch.setattr(advise_module, "fuel_supply_of", recording)
     registry = fuel_registry()
 
-    inputs_of(fuel_world(), registry, pinned_changelist=game_pin())
+    inputs_of(fuel_world(), registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin())
 
     assert len(made) == 1
     assert len(fuel_calls) == 1
@@ -404,7 +470,7 @@ def test_inputs_of_hands_the_registry_recipes_to_the_balance(
     monkeypatch.setattr(advise_module, "balance_of", recording)
     registry = fuel_registry()
 
-    inputs_of(fuel_world(), registry, pinned_changelist=game_pin())
+    inputs_of(fuel_world(), registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin())
 
     assert len(calls) == 1
     assert calls[0].get("recipes") is registry.recipes
@@ -425,6 +491,7 @@ def test_advise_world_fires_both_fuel_rules_with_the_figures_worked_by_hand(
         fuel_world(),
         fuel_registry(),
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -455,6 +522,7 @@ def test_the_fuel_inputs_are_sourced_to_the_fuel_audit(tmp_path: Path) -> None:
         fuel_world(),
         fuel_registry(),
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -472,8 +540,15 @@ def test_the_fuel_inputs_are_sourced_to_the_fuel_audit(tmp_path: Path) -> None:
 def test_inputs_of_reads_the_world_rather_than_answering_a_constant() -> None:
     registry = synthetic_registry()
 
-    gap = inputs_of(gap_world(), registry, pinned_changelist=game_pin())
-    empty = inputs_of(balance_fixtures.world_of(), registry, pinned_changelist=game_pin())
+    gap = inputs_of(
+        gap_world(), registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin()
+    )
+    empty = inputs_of(
+        balance_fixtures.world_of(),
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
+    )
 
     differs = dict(gap.values) != dict(empty.values)
     assert differs, "two different worlds produced the same inputs"
@@ -494,13 +569,14 @@ def test_advise_world_equals_advise_over_the_built_inputs(tmp_path: Path) -> Non
         model,
         registry,
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
     )
     direct = advise(
         model.token,
-        by_hand(model, registry, pinned_changelist=game_pin()),
+        by_hand(model, registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin()),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -519,6 +595,7 @@ def test_advise_world_keys_the_ledger_by_the_models_own_token(tmp_path: Path) ->
         model,
         registry,
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -530,6 +607,7 @@ def test_advise_world_keys_the_ledger_by_the_models_own_token(tmp_path: Path) ->
         model,
         registry,
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -546,6 +624,7 @@ def test_advise_world_writes_no_store(tmp_path: Path) -> None:
         gap_world(),
         synthetic_registry(),
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -566,14 +645,19 @@ def test_advise_world_writes_no_store(tmp_path: Path) -> None:
 
 
 def generator_registry() -> Registry:
-    """A registry carrying real generator spellings in both namespaces."""
-    return Registry(
-        items=MappingProxyType({}),
-        recipes=MappingProxyType({}),
-        buildings=production_fixtures.real_consumers(),
-        warnings=(),
-        unknown_groups=(),
-        generators=production_fixtures.real_generators(),
+    """A registry carrying real generator spellings in both namespaces.
+
+    Stamped as built from the pinned docs bytes (CS-1315), so it is verified.
+    """
+    return pinned_source(
+        Registry(
+            items=MappingProxyType({}),
+            recipes=MappingProxyType({}),
+            buildings=production_fixtures.real_consumers(),
+            warnings=(),
+            unknown_groups=(),
+            generators=production_fixtures.real_generators(),
+        )
     )
 
 
@@ -588,7 +672,7 @@ def captured_balance(
         return world_inputs(balance, unlocks)
 
     monkeypatch.setattr(advise_module, "world_inputs", spy)
-    built = inputs_of(model, registry, pinned_changelist=game_pin())
+    built = inputs_of(model, registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin())
     calls = len(seen)
     assert calls == 1
     return built, seen[0]
@@ -670,6 +754,7 @@ def test_a_built_generator_settles_the_headroom_rule_end_to_end(tmp_path: Path) 
         model,
         generator_registry(),
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -720,9 +805,14 @@ def test_inputs_of_offers_the_build_check_against_the_pin_it_is_handed(case: str
     model = make_model(gap_world())
     pinned = make_pin(game_pin())
 
-    built = inputs_of(model, synthetic_registry(), pinned_changelist=pinned)
+    registry = synthetic_registry()
+    built = inputs_of(model, registry, pinned_changelist=pinned, pinned_docs_sha256=docs_pin())
 
-    expected = build_inputs(build_check_of(model, pinned_changelist=pinned))
+    # BUILD_INPUTS is the build check's three and, since CS-1315, the registry
+    # check's three, so the oracle offers both - each derived by hand.
+    expected = build_inputs(build_check_of(model, pinned_changelist=pinned)) | registry_inputs(
+        registry_check_of(registry, pinned_docs_sha256=docs_pin())
+    )
     same = {name: built.values[name] for name in BUILD_INPUTS} == expected
     assert same, case
 
@@ -739,7 +829,12 @@ def test_a_build_name_another_adapter_offers_raises_and_never_overwrites(
     monkeypatch.setattr(advise_module, "fuel_inputs", colliding)
 
     with pytest.raises(ValueError, match="more than one adapter"):
-        inputs_of(fuel_world(), fuel_registry(), pinned_changelist=game_pin())
+        inputs_of(
+            fuel_world(),
+            fuel_registry(),
+            pinned_changelist=game_pin(),
+            pinned_docs_sha256=docs_pin(),
+        )
 
 
 def _served(model: WorldModel, registry: Registry, directory: Path) -> Advice:
@@ -747,6 +842,7 @@ def _served(model: WorldModel, registry: Registry, directory: Path) -> Advice:
         model,
         registry,
         pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
         ledger=Ledger(directory),
         mutes=MuteStore(directory),
         now=NOW,
@@ -802,7 +898,9 @@ def test_advise_and_record_completes_nothing_off_the_pin(tmp_path: Path, case: s
     registry = synthetic_registry()
     first = advise_and_record(
         gap_world().token,
-        inputs_of(gap_world(), registry, pinned_changelist=game_pin()),
+        inputs_of(
+            gap_world(), registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin()
+        ),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -813,7 +911,7 @@ def test_advise_and_record_completes_nothing_off_the_pin(tmp_path: Path, case: s
 
     second = advise_and_record(
         model.token,
-        inputs_of(model, registry, pinned_changelist=game_pin()),
+        inputs_of(model, registry, pinned_changelist=game_pin(), pinned_docs_sha256=docs_pin()),
         ledger=Ledger(tmp_path),
         mutes=MuteStore(tmp_path),
         now=NOW,
@@ -827,3 +925,70 @@ def test_advise_and_record_completes_nothing_off_the_pin(tmp_path: Path, case: s
         assert completed_gap
     else:
         assert completed_none
+
+
+# ---------------------------------------------------------------------------
+# CS-1315: the registry check joins the composition. Every assertion over
+# served advice binds a flag or a count first (CS-850, CS-851).
+# ---------------------------------------------------------------------------
+
+#: The reason suffix over a registry built from other bytes.
+REGISTRY_MISMATCH_SUFFIX: Final = (
+    f"; {WARN_REGISTRY_MISMATCH}: priced from a registry whose docs differ from the pinned build's"
+)
+
+#: The reason suffix over a registry with no byte source.
+REGISTRY_UNVERIFIED_SUFFIX: Final = (
+    f"; {WARN_REGISTRY_UNVERIFIED}: priced from a registry never checked against the pinned docs"
+)
+
+
+def _restamped(registry: Registry, source: str | None) -> Registry:
+    """The same registry, claiming another source hash or none."""
+    return replace(registry, source_sha256=source)
+
+
+@pytest.mark.parametrize("world_name", sorted(WORLDS))
+def test_over_a_registry_from_other_bytes_every_card_names_the_mismatch_and_nothing_settles(
+    tmp_path: Path, world_name: str
+) -> None:
+    make_world, make_registry = WORLDS[world_name]
+
+    served = _served(make_world(), _restamped(make_registry(), OFF_PIN_DOCS_SHA256), tmp_path)
+
+    cards = len(served.cards)
+    unnamed = sum(
+        1
+        for advised in served.cards
+        if REGISTRY_MISMATCH_SUFFIX not in advised.card.tier2
+        or WARN_REGISTRY_MISMATCH not in advised.card.tier3
+    )
+    settled = len(settled_rules(served.traces))
+    assert cards > 0
+    assert unnamed == 0
+    assert settled == 0
+
+
+@pytest.mark.parametrize("world_name", sorted(WORLDS))
+def test_over_a_registry_with_no_byte_source_every_card_names_unverified_and_nothing_settles(
+    tmp_path: Path, world_name: str
+) -> None:
+    make_world, make_registry = WORLDS[world_name]
+
+    served = _served(make_world(), _restamped(make_registry(), None), tmp_path)
+
+    cards = len(served.cards)
+    unnamed = sum(
+        1
+        for advised in served.cards
+        if REGISTRY_UNVERIFIED_SUFFIX not in advised.card.tier2
+        or WARN_REGISTRY_UNVERIFIED not in advised.card.tier3
+    )
+    mismatch_named = sum(
+        1 for advised in served.cards if WARN_REGISTRY_MISMATCH in advised.card.tier2
+    )
+    settled = len(settled_rules(served.traces))
+    assert cards > 0
+    assert unnamed == 0
+    assert mismatch_named == 0
+    assert settled == 0

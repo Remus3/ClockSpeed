@@ -65,6 +65,7 @@ from clockspeed.audit.balance import (
 from clockspeed.audit.build import WARN_BUILD_MISMATCH, WARN_BUILD_UNCOMPARED
 from tests.advisor.build_fixtures import (
     build_check,
+    docs_pin,
     game_pin,
     off_pin_build_inputs,
     pinned_build_inputs,
@@ -430,7 +431,12 @@ def test_registry_runs_through_the_engine_in_rule_id_order() -> None:
 
 
 def expected_tier3(pin: int) -> str:
-    """The whole on-pin derivation of the overdraw card, the pin read at test time."""
+    """The whole on-pin derivation of the overdraw card, the pin read at test time.
+
+    The docs hash is :func:`docs_pin` read at test time too (CS-1315), never
+    typed: steps 4 to 6 are the registry check's three reads.
+    """
+    docs = docs_pin()
     return "\n".join(
         [
             "Derivation of rule power.headroom (domain power)",
@@ -441,26 +447,30 @@ def expected_tier3(pin: int) -> str:
             f"  1. Read build.save_changelist = {pin} from audit.build.save_changelist",
             f"  2. Read build.pinned_changelist = {pin} from audit.build.pinned_changelist",
             "  3. Read build.warnings = {} from audit.build.warnings",
-            "  4. Read power.clocked_draw.complete = true from audit.balance.clocked_draw.complete",
-            "  5. Read power.production_available = true from audit.balance.production_available",
-            "  6. Read power.production_complete = true from"
+            f'  4. Read build.registry_sha256 = "{docs}" from audit.build.registry.source_sha256',
+            f'  5. Read build.pinned_docs_sha256 = "{docs}" from'
+            " audit.build.registry.pinned_sha256",
+            "  6. Read build.registry_warnings = {} from audit.build.registry.warnings",
+            "  7. Read power.clocked_draw.complete = true from audit.balance.clocked_draw.complete",
+            "  8. Read power.production_available = true from audit.balance.production_available",
+            "  9. Read power.production_complete = true from"
             " audit.balance.production.production_complete",
-            "  7. Read power.clocked_draw.lower_mw = 120.00 from"
+            "  10. Read power.clocked_draw.lower_mw = 120.00 from"
             " audit.balance.clocked_draw.lower_megawatts",
-            "  8. Read power.clocked_draw.upper_mw = 130.00 from"
+            "  11. Read power.clocked_draw.upper_mw = 130.00 from"
             " audit.balance.clocked_draw.upper_megawatts",
-            "  9. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
-            "  10. Read power.clocked_draw.elided_clock_count = 0 from"
+            "  12. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
+            "  13. Read power.clocked_draw.elided_clock_count = 0 from"
             " audit.balance.clocked_draw.elided_clock_count",
-            "  11. Read power.generation_mw = 100.00 from"
+            "  14. Read power.generation_mw = 100.00 from"
             " audit.balance.production.capacity_megawatts",
-            "  12. Computed shortfall at the lower draw bound in MW = 20.00",
-            "  13. Computed shortfall at the upper draw bound in MW = 30.00",
-            "  14. Rejected hold generation as built: the draw exceeds generation"
+            "  15. Computed shortfall at the lower draw bound in MW = 20.00",
+            "  16. Computed shortfall at the upper draw bound in MW = 30.00",
+            "  17. Rejected hold generation as built: the draw exceeds generation"
             " at both ends of the clock bracket",
-            "  15. Rejected quote one shortfall figure: the clock law brackets the draw,"
+            "  18. Rejected quote one shortfall figure: the clock law brackets the draw,"
             " so the shortfall is a range",
-            "  16. Rule power.headroom fired for power:generation-headroom",
+            "  19. Rule power.headroom fired for power:generation-headroom",
         ]
     )
 
@@ -755,9 +765,9 @@ def test_the_off_pin_indeterminate_step_follows_the_three_build_reads(site: str)
     spec, make, _headline = POWER_SITES[site]
     trace = run_rule(spec, make(off_pin_build_inputs(pin)))
 
-    kinds = [s.kind for s in trace.steps[:4]]
-    assert kinds == [*[StepKind.INPUT_READ] * 3, StepKind.VERDICT_INDETERMINATE]
-    assert tuple(s.subject for s in trace.steps[:3]) == BUILD_INPUTS
+    kinds = [s.kind for s in trace.steps[: len(BUILD_INPUTS) + 1]]
+    assert kinds == [*[StepKind.INPUT_READ] * len(BUILD_INPUTS), StepKind.VERDICT_INDETERMINATE]
+    assert tuple(s.subject for s in trace.steps[: len(BUILD_INPUTS)]) == BUILD_INPUTS
     build_steps = [
         (s.subject, s.reason)
         for s in trace.steps
@@ -838,4 +848,12 @@ def test_an_off_pin_tier3_shows_both_builds_and_the_indeterminate_step() -> None
     assert lines[6] == pin_line
     assert lines[7].startswith(f'  3. Read build.warnings = {{"{WARN_BUILD_MISMATCH}": ')
     assert lines[7].endswith(" from audit.build.warnings")
-    assert lines[8] == f"  4. Indeterminate {NAMEPLATE_ALTERNATIVE}: {_detail(pin + 1, pin)}"
+    docs = docs_pin()
+    assert lines[8] == (
+        f'  4. Read build.registry_sha256 = "{docs}" from audit.build.registry.source_sha256'
+    )
+    assert lines[9] == (
+        f'  5. Read build.pinned_docs_sha256 = "{docs}" from audit.build.registry.pinned_sha256'
+    )
+    assert lines[10] == "  6. Read build.registry_warnings = {} from audit.build.registry.warnings"
+    assert lines[11] == f"  7. Indeterminate {NAMEPLATE_ALTERNATIVE}: {_detail(pin + 1, pin)}"

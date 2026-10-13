@@ -31,16 +31,18 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import hashlib
 from collections.abc import Iterator, Mapping
 from dataclasses import FrozenInstanceError
 from fractions import Fraction
 from pathlib import Path
-from types import ModuleType
+from types import MappingProxyType, ModuleType
 from typing import Any
 
 import pytest
 
 from clockspeed.data import registry as registry_module
+from clockspeed.data import version as version_module
 from clockspeed.data.blobs import (
     BlobParseError,
     marker_count,
@@ -2029,12 +2031,15 @@ def test_the_slice_a_fields_are_appended_with_defaults() -> None:
     for klass, name in (
         (Generator, "accepted_fuels"),
         (Extractor, "allowed_resources"),
-        (Registry, "declared_classes"),
     ):
         fields = dataclasses.fields(klass)
         assert fields[-1].name == name, klass.__name__
+    # CS-1315 appended source_sha256 after declared_classes, on the same terms.
+    registry_tail = [field.name for field in dataclasses.fields(Registry)][-2:]
+    assert registry_tail == ["declared_classes", "source_sha256"]
     bare = Registry(items={}, recipes={}, buildings={}, warnings=(), unknown_groups=())
     assert bare.declared_classes == frozenset()
+    assert bare.source_sha256 is None
     generator = Generator("Build_X_C", "X", Fraction(1), None, None, False)
     assert generator.accepted_fuels is None
     extractor = Extractor("Build_Y_C", "Y", None, None, frozenset())
@@ -2094,3 +2099,72 @@ def test_the_corpus_blob_helper_reproduces_the_hand_written_anchor() -> None:
         synthetic.amount_blob(list(synthetic.ANCHOR_INGREDIENT_PAIRS))
         == synthetic.ANCHOR_INGREDIENTS_BLOB
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1315: the registry's provenance - the content hash of its source bytes
+# ---------------------------------------------------------------------------
+#
+# The registry provider builds from the INSTALLED docs file, and nothing on the
+# request path compared that file with the pin. The data layer is the one that
+# holds the raw bytes, so it records their sha256 - computed exactly as the pin
+# computes ``docs_sha256`` in ``clockspeed/data/version.py::build_pin`` - on
+# ``Registry.source_sha256``, and a registry with no byte source carries None.
+# The audit compares; this layer only records.
+
+
+def _synthetic_docs_bytes(encoding: str = "utf-16") -> bytes:
+    """The synthetic corpus as file bytes, UTF-16 with a byte-order mark by default."""
+    return synthetic.DOCS_TEXT.encode(encoding)
+
+
+def test_a_registry_built_from_docs_bytes_carries_the_sha256_of_those_bytes() -> None:
+    raw = _synthetic_docs_bytes()
+    built = registry_module.build_registry_from_bytes(raw)
+    expected = hashlib.sha256(raw).hexdigest()
+    assert built.source_sha256 == expected
+    # The same way the pin computes its own docs hash, so the audit's equality
+    # is a like-for-like comparison.
+    assert built.source_sha256 == version_module.build_pin(raw, "synthetic")["docs_sha256"]
+
+
+def test_the_bytes_registry_is_the_document_registry_plus_its_hash() -> None:
+    built = registry_module.build_registry_from_bytes(_synthetic_docs_bytes())
+    assert built.items
+    assert built.recipes
+    assert dataclasses.replace(built, source_sha256=None) == build_registry(
+        synthetic.synthetic_document()
+    )
+
+
+def test_the_hash_is_of_the_raw_bytes_never_of_the_decoded_text() -> None:
+    """Two encodings of one document decode to one text and hash apart.
+
+    A hash taken after the decode would be equal across the two, and would
+    differ from the pin's, which is taken over the bytes.
+    """
+    wide = registry_module.build_registry_from_bytes(_synthetic_docs_bytes("utf-16"))
+    narrow = registry_module.build_registry_from_bytes(_synthetic_docs_bytes("utf-8"))
+    assert dataclasses.replace(wide, source_sha256=None) == dataclasses.replace(
+        narrow, source_sha256=None
+    )
+    assert wide.source_sha256 != narrow.source_sha256
+
+
+def test_a_registry_with_no_byte_source_carries_no_hash(registry: Registry) -> None:
+    assert registry.source_sha256 is None
+    bare = Registry(
+        items=MappingProxyType({}),
+        recipes=MappingProxyType({}),
+        buildings=MappingProxyType({}),
+        warnings=(),
+        unknown_groups=(),
+    )
+    assert bare.source_sha256 is None
+
+
+@pytest.mark.parametrize("raw", [synthetic.DOCS_TEXT, bytearray(b"[]")], ids=["str", "bytearray"])
+def test_docs_that_are_not_exactly_bytes_are_refused(raw: object) -> None:
+    """A decoded text has no byte source to hash, so it never yields a hash."""
+    with pytest.raises(TypeError):
+        registry_module.build_registry_from_bytes(raw)  # type: ignore[arg-type]

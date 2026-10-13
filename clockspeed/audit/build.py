@@ -40,6 +40,33 @@ line, keyed rather than formatted, on the terms ``clockspeed/audit/network.py``
 states - so a detail is never built from something read out of a save. The two
 changelists a consumer states travel on :attr:`BuildCheck.save_changelist` and
 :attr:`BuildCheck.pinned_changelist`.
+
+THE REGISTRY'S OWN SOURCE, ONE LAYER DOWN (CS-1315)
+-----------------------------------------------------
+The build check compares the SAVE's build with the pin. :func:`registry_check_of`
+compares the REGISTRY's source with it: every nameplate figure is priced from
+the registry, and the registry is built from the INSTALLED docs file, which a
+game patch can change before the pin moves. The data layer records the sha256
+of the bytes it built from on ``Registry.source_sha256``; this check holds it
+beside the pinned docs hash, which arrives as a PARAMETER on the same terms as
+the pinned changelist. CONTENT HASHES ONLY (the session 140 ruling): a patch
+that moves the build string and leaves the docs bytes equal prices nothing
+differently, so no build reaches this check and it raises nothing there.
+
+Three outcomes again, none folded into another:
+
+- The hashes differ: :data:`WARN_REGISTRY_MISMATCH`.
+- Either hash is absent - a registry with no byte source, or no pinned docs
+  hash - :data:`WARN_REGISTRY_UNVERIFIED`, and :attr:`RegistryCheck.matches`
+  reads False. An empty string is absent: ``clockspeed/data/version.py``
+  reads its docs hash as empty when the pin carries none, and an empty pin
+  names no hash for the source to differ from.
+- The hashes are equal: no warning at all.
+
+A hash that is not text is REFUSED with ``TypeError``: the bytes spelling of a
+digest compares unequal to its own text and would raise the mismatch code over
+two equal hashes. The detail lines are fixed, as above, and neither hash is
+ever written into one; both travel on :class:`RegistryCheck`.
 """
 
 from __future__ import annotations
@@ -53,14 +80,19 @@ from clockspeed.save.world import WorldWarning
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only
     from collections.abc import Mapping
 
+    from clockspeed.data.registry import Registry
     from clockspeed.save.world import WorldModel
 
 __all__ = [
     "SOURCE_BUILD",
     "WARN_BUILD_MISMATCH",
     "WARN_BUILD_UNCOMPARED",
+    "WARN_REGISTRY_MISMATCH",
+    "WARN_REGISTRY_UNVERIFIED",
     "BuildCheck",
+    "RegistryCheck",
     "build_check_of",
+    "registry_check_of",
 ]
 
 #: Which layer noticed a warning raised here, for ``WorldWarning.source``.
@@ -77,6 +109,16 @@ WARN_BUILD_MISMATCH: Final = "build-mismatch"
 #: pinned build whatever build wrote the save.
 WARN_BUILD_UNCOMPARED: Final = "build-uncompared"
 
+#: The registry was built from docs bytes whose sha256 differs from the pinned
+#: docs hash (CS-1315). Every figure that depends on a nameplate is priced from
+#: that registry, so it is not the pinned build's own figure.
+WARN_REGISTRY_MISMATCH: Final = "registry-mismatch"
+
+#: The registry's source was never compared with the pinned docs hash: the
+#: registry carries no hash of its source bytes, or no pinned docs hash was
+#: available. NOT a match (CS-1315).
+WARN_REGISTRY_UNVERIFIED: Final = "registry-unverified"
+
 #: One fixed line per warning code raised here. Keyed rather than formatted, so
 #: a detail can never be built from something read out of a save.
 _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
@@ -91,6 +133,18 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "no pinned build changelist was available, so the save's build was never"
             " compared with it; this is not a match, and every figure that depends on a"
             " nameplate is priced at the pinned build whatever build wrote the save"
+        ),
+        WARN_REGISTRY_MISMATCH: (
+            "the registry was built from docs bytes whose content hash differs from the"
+            " pinned docs hash; every figure that depends on a nameplate is priced from"
+            " that registry and is not the pinned build's own, and no pinned value is"
+            " inferred; both hashes are carried on the registry check"
+        ),
+        WARN_REGISTRY_UNVERIFIED: (
+            "the registry's source docs were never compared with the pinned docs hash,"
+            " as the registry carries no hash of its source bytes or no pinned docs hash"
+            " was available; this is not a match, and every figure that depends on a"
+            " nameplate is priced from an unverified registry"
         ),
     }
 )
@@ -202,3 +256,102 @@ def build_check_of(model: WorldModel, *, pinned_changelist: int | None) -> Build
         pinned_changelist=pinned_changelist,
         warnings=warnings,
     )
+
+
+@dataclass(frozen=True, repr=False)
+class RegistryCheck:
+    """The registry's source hash and the pinned docs hash, and their relation.
+
+    ``repr`` is hand written on :class:`BuildCheck`'s terms. Both hashes are
+    digests of the shipped docs file, never of anything read out of a save.
+
+    Attributes:
+        source_sha256: ``Registry.source_sha256`` verbatim - the sha256 of the
+            bytes the registry was built from, or None with no byte source.
+        pinned_sha256: The pinned docs hash as the caller passed it, or None.
+        warnings: Everything flagged, in the ``WorldWarning`` idiom. Empty
+            exactly when both hashes are present and equal.
+    """
+
+    source_sha256: str | None
+    pinned_sha256: str | None
+    warnings: tuple[WorldWarning, ...]
+
+    @property
+    def compared(self) -> bool:
+        """Whether both hashes were present to compare.
+
+        Returns:
+            False when either is None or empty.
+        """
+        return bool(self.source_sha256) and bool(self.pinned_sha256)
+
+    @property
+    def matches(self) -> bool:
+        """Whether both hashes were compared AND are equal.
+
+        Returns:
+            False when they differ, and False when either is absent - an
+            unverified registry is never a match.
+        """
+        return self.compared and self.source_sha256 == self.pinned_sha256
+
+    def __repr__(self) -> str:
+        """Render the two hashes and the warning count.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(source_sha256={self.source_sha256}, "
+            f"pinned_sha256={self.pinned_sha256}, "
+            f"warnings={len(self.warnings)})"
+        )
+
+
+def _hash_or_refuse(value: object, name: str) -> str | None:
+    """Return a hash that is None or text, refusing anything else.
+
+    Args:
+        value: The hash.
+        name: What it is, for the refusal message - never its value.
+
+    Returns:
+        The hash unchanged.
+
+    Raises:
+        TypeError: The hash is neither None nor a ``str``.
+    """
+    if value is not None and not isinstance(value, str):
+        raise TypeError(name + " must be a str or None, not " + type(value).__name__)
+    return value
+
+
+def registry_check_of(registry: Registry, *, pinned_docs_sha256: str | None) -> RegistryCheck:
+    """Hold the registry's source hash beside the pinned docs hash, and flag any difference.
+
+    PURE. Reads one field off the registry and prices nothing. No build is a
+    parameter: a build-only difference with equal bytes is not a mismatch.
+
+    Args:
+        registry: The registry, for its ``source_sha256``.
+        pinned_docs_sha256: The pinned docs hash, or None when the pin carries
+            none. Keyword-only, so a caller names which hash it is.
+
+    Returns:
+        The check: :data:`WARN_REGISTRY_MISMATCH` when both hashes are present
+        and differ, :data:`WARN_REGISTRY_UNVERIFIED` when either is None or
+        empty, or no warning when they are equal.
+
+    Raises:
+        TypeError: Either hash is neither None nor a ``str``.
+    """
+    pinned = _hash_or_refuse(pinned_docs_sha256, "pinned_docs_sha256")
+    source = _hash_or_refuse(registry.source_sha256, "source_sha256")
+    if not source or not pinned:
+        warnings: tuple[WorldWarning, ...] = (_warning(WARN_REGISTRY_UNVERIFIED),)
+    elif source != pinned:
+        warnings = (_warning(WARN_REGISTRY_MISMATCH),)
+    else:
+        warnings = ()
+    return RegistryCheck(source_sha256=source, pinned_sha256=pinned, warnings=warnings)

@@ -130,6 +130,7 @@ from clockspeed.data.registry import (
 )
 from tests.advisor.build_fixtures import (
     build_check,
+    docs_pin,
     game_pin,
     off_pin_build_inputs,
     pinned_build_inputs,
@@ -1205,7 +1206,12 @@ def test_a_display_name_that_is_not_text_falls_back_to_the_key_on_record(
 
 
 def expected_supply_tier3(pin: int) -> str:
-    """The whole on-pin derivation of Alpha's supply card, the pin read at test time."""
+    """The whole on-pin derivation of Alpha's supply card, the pin read at test time.
+
+    The docs hash is :func:`docs_pin` read at test time too (CS-1315), never
+    typed: steps 4 to 6 are the registry check's three reads.
+    """
+    docs = docs_pin()
     return "\n".join(
         [
             "Derivation of rule power.fuel_supply (domain power)",
@@ -1216,66 +1222,70 @@ def expected_supply_tier3(pin: int) -> str:
             f"  1. Read build.save_changelist = {pin} from audit.build.save_changelist",
             f"  2. Read build.pinned_changelist = {pin} from audit.build.pinned_changelist",
             "  3. Read build.warnings = {} from audit.build.warnings",
-            '  4. Read power.fuel.classes = ("Build_QxAlphaGen_C") from'
+            f'  4. Read build.registry_sha256 = "{docs}" from audit.build.registry.source_sha256',
+            f'  5. Read build.pinned_docs_sha256 = "{docs}" from'
+            " audit.build.registry.pinned_sha256",
+            "  6. Read build.registry_warnings = {} from audit.build.registry.warnings",
+            '  7. Read power.fuel.classes = ("Build_QxAlphaGen_C") from'
             " audit.fuel.verdicts.class_name",
-            '  5. Read power.fuel.verdicts = {"Build_QxAlphaGen_C": "fire"} from'
+            '  8. Read power.fuel.verdicts = {"Build_QxAlphaGen_C": "fire"} from'
             " audit.fuel.verdicts.verdict",
-            '  6. Read power.fuel.reasons = {"Build_QxAlphaGen_C": ()} from'
+            '  9. Read power.fuel.reasons = {"Build_QxAlphaGen_C": ()} from'
             " audit.fuel.verdicts.reasons",
-            "  7. Read power.fuel.reason_details = {} from audit.fuel.REASON_DETAIL",
-            '  8. Read power.fuel.instance_counts = {"Build_QxAlphaGen_C": 2} from'
+            "  10. Read power.fuel.reason_details = {} from audit.fuel.REASON_DETAIL",
+            '  11. Read power.fuel.instance_counts = {"Build_QxAlphaGen_C": 2} from'
             " audit.fuel.verdicts.instance_count",
-            '  9. Read power.fuel.omitted_counts = {"Build_QxAlphaGen_C": 0} from'
+            '  12. Read power.fuel.omitted_counts = {"Build_QxAlphaGen_C": 0} from'
             " audit.fuel.verdicts.omitted_count",
-            '  10. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
+            '  13. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
             " audit.fuel.verdicts.elided_clock_count",
-            '  11. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
+            '  14. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
             " audit.fuel.verdicts.nameplate_megawatts",
-            '  12. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
+            '  15. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
             " audit.fuel.verdicts.clock_sum",
-            '  13. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
+            '  16. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
             " audit.fuel.verdicts.demand_megawatts",
-            '  14. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
+            '  17. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
             ' ("Desc_QxFuel_C", "Desc_QxTurbo_C")} from audit.fuel.verdicts.accepted_fuels',
-            '  15. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00,'
+            '  18. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00,'
             ' "Desc_QxTurbo_C": 2000.00} from audit.fuel.verdicts.fuels.megajoules_per_unit',
-            '  16. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
+            '  19. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
             " audit.fuel.verdicts.fuels.unit",
-            '  17. Read power.fuel.supply_per_minute = {"Build_QxAlphaGen_C":'
+            '  20. Read power.fuel.supply_per_minute = {"Build_QxAlphaGen_C":'
             ' {"Desc_QxFuel_C": 10.00, "Desc_QxTurbo_C": 6.00}} from'
             " audit.fuel.verdicts.fuels.supply_per_minute",
-            '  18. Read power.fuel.supply_mw = {"Build_QxAlphaGen_C":'
+            '  21. Read power.fuel.supply_mw = {"Build_QxAlphaGen_C":'
             ' {"Desc_QxFuel_C": 125.00, "Desc_QxTurbo_C": 200.00}} from'
             " audit.fuel.verdicts.fuels.supply_megawatts",
-            '  19. Read power.fuel.pooled_mw = {"Build_QxAlphaGen_C": 325.00} from'
+            '  22. Read power.fuel.pooled_mw = {"Build_QxAlphaGen_C": 325.00} from'
             " audit.fuel.verdicts.pooled_megawatts",
-            '  20. Read power.fuel.shortfall_mw = {"Build_QxAlphaGen_C": 175.00} from'
+            '  23. Read power.fuel.shortfall_mw = {"Build_QxAlphaGen_C": 175.00} from'
             " audit.fuel.verdicts.shortfall_megawatts",
-            '  21. Read power.fuel.shortfall_rates = {"Build_QxAlphaGen_C":'
+            '  24. Read power.fuel.shortfall_rates = {"Build_QxAlphaGen_C":'
             ' {"Desc_QxFuel_C": 14.00, "Desc_QxTurbo_C": 5.25}} from'
             " audit.fuel.verdicts.fuels.shortfall_per_minute",
-            '  22. Read power.fuel.exclusions = ("supplemental resources such as water are not'
+            '  25. Read power.fuel.exclusions = ("supplemental resources such as water are not'
             ' compared against any supply", "byproducts a generator emits are not modelled")'
             " from audit.fuel.exclusions",
-            '  23. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
+            '  26. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
             " registry.generators.display_name",
-            '  24. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
+            '  27. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
             ' "Desc_QxTurbo_C": "Qx Turbo"} from registry.items.display_name',
-            "  25. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
-            "  26. Computed supply MW of Desc_QxFuel_C for Build_QxAlphaGen_C,"
+            "  28. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
+            "  29. Computed supply MW of Desc_QxFuel_C for Build_QxAlphaGen_C,"
             " supply times MJ over sixty = 125.00",
-            "  27. Computed supply MW of Desc_QxTurbo_C for Build_QxAlphaGen_C,"
+            "  30. Computed supply MW of Desc_QxTurbo_C for Build_QxAlphaGen_C,"
             " supply times MJ over sixty = 200.00",
-            "  28. Computed pooled supply MW of Build_QxAlphaGen_C = 325.00",
-            "  29. Computed shortfall MW of Build_QxAlphaGen_C, demand less pooled supply = 175.00",
-            "  30. Computed shortfall per minute of Desc_QxFuel_C alone for"
+            "  31. Computed pooled supply MW of Build_QxAlphaGen_C = 325.00",
+            "  32. Computed shortfall MW of Build_QxAlphaGen_C, demand less pooled supply = 175.00",
+            "  33. Computed shortfall per minute of Desc_QxFuel_C alone for"
             " Build_QxAlphaGen_C = 14.00",
-            "  31. Computed shortfall per minute of Desc_QxTurbo_C alone for"
+            "  34. Computed shortfall per minute of Desc_QxTurbo_C alone for"
             " Build_QxAlphaGen_C = 5.25",
-            "  32. Rejected size supplemental resources and byproducts: out of scope:"
+            "  35. Rejected size supplemental resources and byproducts: out of scope:"
             " supplemental resources such as water are not compared against any supply;"
             " byproducts a generator emits are not modelled",
-            "  33. Rule power.fuel_supply fired for power:fuel-supply:Build_QxAlphaGen_C",
+            "  36. Rule power.fuel_supply fired for power:fuel-supply:Build_QxAlphaGen_C",
         ]
     )
 
@@ -1464,7 +1474,12 @@ DEMAND_REASON: Final = (
 
 
 def expected_demand_tier3(pin: int) -> str:
-    """The whole on-pin derivation of Alpha's demand card, the pin read at test time."""
+    """The whole on-pin derivation of Alpha's demand card, the pin read at test time.
+
+    The docs hash is :func:`docs_pin` read at test time too (CS-1315), never
+    typed: steps 4 to 6 are the registry check's three reads.
+    """
+    docs = docs_pin()
     return "\n".join(
         [
             "Derivation of rule power.fuel_demand (domain power)",
@@ -1475,54 +1490,58 @@ def expected_demand_tier3(pin: int) -> str:
             f"  1. Read build.save_changelist = {pin} from audit.build.save_changelist",
             f"  2. Read build.pinned_changelist = {pin} from audit.build.pinned_changelist",
             "  3. Read build.warnings = {} from audit.build.warnings",
-            '  4. Read power.fuel.classes = ("Build_QxAlphaGen_C") from'
+            f'  4. Read build.registry_sha256 = "{docs}" from audit.build.registry.source_sha256',
+            f'  5. Read build.pinned_docs_sha256 = "{docs}" from'
+            " audit.build.registry.pinned_sha256",
+            "  6. Read build.registry_warnings = {} from audit.build.registry.warnings",
+            '  7. Read power.fuel.classes = ("Build_QxAlphaGen_C") from'
             " audit.fuel.verdicts.class_name",
-            '  5. Read power.fuel.verdicts = {"Build_QxAlphaGen_C": "indeterminate"} from'
+            '  8. Read power.fuel.verdicts = {"Build_QxAlphaGen_C": "indeterminate"} from'
             " audit.fuel.verdicts.verdict",
-            '  6. Read power.fuel.reasons = {"Build_QxAlphaGen_C": ("flow-incomplete")} from'
+            '  9. Read power.fuel.reasons = {"Build_QxAlphaGen_C": ("flow-incomplete")} from'
             " audit.fuel.verdicts.reasons",
-            '  7. Read power.fuel.demand_reasons = {"Build_QxAlphaGen_C": ()} from'
+            '  10. Read power.fuel.demand_reasons = {"Build_QxAlphaGen_C": ()} from'
             " audit.fuel.demands.reasons",
-            '  8. Read power.fuel.reason_details = {"flow-incomplete": "the production flow is'
+            '  11. Read power.fuel.reason_details = {"flow-incomplete": "the production flow is'
             ' incomplete, so the fuel supply is a floor and not a measurement"} from'
             " audit.fuel.REASON_DETAIL",
-            '  9. Read power.fuel.instance_counts = {"Build_QxAlphaGen_C": 2} from'
+            '  12. Read power.fuel.instance_counts = {"Build_QxAlphaGen_C": 2} from'
             " audit.fuel.verdicts.instance_count",
-            '  10. Read power.fuel.omitted_counts = {"Build_QxAlphaGen_C": 0} from'
+            '  13. Read power.fuel.omitted_counts = {"Build_QxAlphaGen_C": 0} from'
             " audit.fuel.verdicts.omitted_count",
-            '  11. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
+            '  14. Read power.fuel.elided_clock_counts = {"Build_QxAlphaGen_C": 0} from'
             " audit.fuel.verdicts.elided_clock_count",
-            '  12. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
+            '  15. Read power.fuel.nameplate_mw = {"Build_QxAlphaGen_C": 250.00} from'
             " audit.fuel.verdicts.nameplate_megawatts",
-            '  13. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
+            '  16. Read power.fuel.clock_sum = {"Build_QxAlphaGen_C": 2.00} from'
             " audit.fuel.verdicts.clock_sum",
-            '  14. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
+            '  17. Read power.fuel.demand_mw = {"Build_QxAlphaGen_C": 500.00} from'
             " audit.fuel.verdicts.demand_megawatts",
-            '  15. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
+            '  18. Read power.fuel.accepted_fuels = {"Build_QxAlphaGen_C":'
             ' ("Desc_QxFuel_C", "Desc_QxTurbo_C")} from audit.fuel.verdicts.accepted_fuels',
-            '  16. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00,'
+            '  19. Read power.fuel.mj_per_unit = {"Desc_QxFuel_C": 750.00,'
             ' "Desc_QxTurbo_C": 2000.00} from audit.fuel.verdicts.fuels.megajoules_per_unit',
-            '  17. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
+            '  20. Read power.fuel.units = {"Desc_QxFuel_C": "m3", "Desc_QxTurbo_C": "m3"} from'
             " audit.fuel.verdicts.fuels.unit",
-            '  18. Read power.fuel.burns = {"Build_QxAlphaGen_C":'
+            '  21. Read power.fuel.burns = {"Build_QxAlphaGen_C":'
             ' {"Desc_QxFuel_C": 40.00, "Desc_QxTurbo_C": 15.00}} from'
             " audit.fuel.demands.burns.burn_per_minute",
-            '  19. Read power.fuel.exclusions = ("supplemental resources such as water are not'
+            '  22. Read power.fuel.exclusions = ("supplemental resources such as water are not'
             ' compared against any supply", "byproducts a generator emits are not modelled")'
             " from audit.fuel.exclusions",
-            '  20. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
+            '  23. Read power.fuel.class_names = {"Build_QxAlphaGen_C": "Qx Alpha Generator"} from'
             " registry.generators.display_name",
-            '  21. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
+            '  24. Read power.fuel.fuel_names = {"Desc_QxFuel_C": "Qx Fuel",'
             ' "Desc_QxTurbo_C": "Qx Turbo"} from registry.items.display_name',
-            "  22. Rejected state a supply verdict for Build_QxAlphaGen_C: the production flow is"
+            "  25. Rejected state a supply verdict for Build_QxAlphaGen_C: the production flow is"
             " incomplete, so the fuel supply is a floor and not a measurement",
-            "  23. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
-            "  24. Computed burn per minute of Desc_QxFuel_C for Build_QxAlphaGen_C = 40.00",
-            "  25. Computed burn per minute of Desc_QxTurbo_C for Build_QxAlphaGen_C = 15.00",
-            "  26. Rejected size supplemental resources and byproducts: out of scope:"
+            "  26. Computed demand MW of Build_QxAlphaGen_C, nameplate times clock sum = 500.00",
+            "  27. Computed burn per minute of Desc_QxFuel_C for Build_QxAlphaGen_C = 40.00",
+            "  28. Computed burn per minute of Desc_QxTurbo_C for Build_QxAlphaGen_C = 15.00",
+            "  29. Rejected size supplemental resources and byproducts: out of scope:"
             " supplemental resources such as water are not compared against any supply;"
             " byproducts a generator emits are not modelled",
-            "  27. Rule power.fuel_demand fired for power:fuel-demand:Build_QxAlphaGen_C",
+            "  30. Rule power.fuel_demand fired for power:fuel-demand:Build_QxAlphaGen_C",
         ]
     )
 
@@ -1963,9 +1982,9 @@ def test_the_off_pin_fuel_indeterminate_step_follows_the_three_build_reads(site:
     spec, make, _headline, _settles = FUEL_SITES[site]
     trace = run_rule(spec, make(off_pin_build_inputs(pin)))
 
-    kinds = [s.kind for s in trace.steps[:4]]
-    assert kinds == [*[StepKind.INPUT_READ] * 3, StepKind.VERDICT_INDETERMINATE]
-    assert tuple(s.subject for s in trace.steps[:3]) == BUILD_INPUTS
+    kinds = [s.kind for s in trace.steps[: len(BUILD_INPUTS) + 1]]
+    assert kinds == [*[StepKind.INPUT_READ] * len(BUILD_INPUTS), StepKind.VERDICT_INDETERMINATE]
+    assert tuple(s.subject for s in trace.steps[: len(BUILD_INPUTS)]) == BUILD_INPUTS
     build_steps = [
         (s.subject, s.reason)
         for s in _kinds(trace, StepKind.VERDICT_INDETERMINATE)
@@ -2047,6 +2066,7 @@ def test_an_off_pin_fuel_tier3_is_the_snapshot_with_both_builds_and_one_step_mor
     assert lines[head + 1] == expected[head + 1]
     assert lines[head + 2].startswith(f'  3. Read build.warnings = {{"{WARN_BUILD_MISMATCH}": ')
     assert lines[head + 2].endswith(" from audit.build.warnings")
+    assert lines[head + 3 : head + 6] == expected[head + 3 : head + 6]
     detail = _build_detail(pin + 1, pin)
-    assert lines[head + 3] == f"  4. Indeterminate {NAMEPLATE_ALTERNATIVE}: {detail}"
-    assert lines[head + 4 :] == [_renumbered(line) for line in expected[head + 3 :]]
+    assert lines[head + 6] == f"  7. Indeterminate {NAMEPLATE_ALTERNATIVE}: {detail}"
+    assert lines[head + 7 :] == [_renumbered(line) for line in expected[head + 6 :]]

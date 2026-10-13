@@ -61,8 +61,12 @@ from clockspeed.audit.build import (
     SOURCE_BUILD,
     WARN_BUILD_MISMATCH,
     WARN_BUILD_UNCOMPARED,
+    WARN_REGISTRY_MISMATCH,
+    WARN_REGISTRY_UNVERIFIED,
     BuildCheck,
+    RegistryCheck,
     build_check_of,
+    registry_check_of,
 )
 from clockspeed.audit.collectibles import (
     WARN_COLLECTED_ENTRY_UNJOINABLE,
@@ -283,6 +287,8 @@ __all__ = [
     "WARN_PLACEMENT_BOUNDS_UNDEFINED",
     "WARN_PLACEMENT_COORDINATE_NON_FINITE",
     "WARN_PLACEMENT_ORIENTATION_NON_FINITE",
+    "WARN_REGISTRY_MISMATCH",
+    "WARN_REGISTRY_UNVERIFIED",
     "AddMachines",
     "AxisBounds",
     "BuildCheck",
@@ -298,6 +304,7 @@ __all__ = [
     "OverlayEvaluation",
     "Placement",
     "RecipeGroup",
+    "RegistryCheck",
     "RemoveMachines",
     "SetDemand",
     "SwapRecipe",
@@ -313,4 +320,5 @@ __all__ = [
     "flow_of",
     "inventory_of",
     "placement_of",
+    "registry_check_of",
 ]

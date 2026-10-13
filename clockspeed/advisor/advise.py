@@ -22,6 +22,14 @@ with no default: this module never imports the pin's owner,
 ``clockspeed.data.version``, and a caller that forgets the pin fails to call
 rather than pricing silently.
 
+THE REGISTRY'S SOURCE TRAVELS THE SAME WAY (CS-1315). Every figure is priced
+from the registry, so :func:`inputs_of` also hands the audit's registry check
+the registry it prices from and the pinned docs hash - a second REQUIRED
+keyword, ``pinned_docs_sha256`` - and offers its three inputs
+(:func:`clockspeed.advisor.build.registry_inputs`). A registry built from
+other bytes, or with no byte source, is named on every card and settles
+nothing.
+
 THE TWO LAYERS, BOTH CONSULTED, NEVER MERGED (CLAUDE.md section 7).
 
 - The per-world ledger answers each card's state in THIS world, keyed by the
@@ -80,7 +88,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
-from clockspeed.advisor.build import build_inputs
+from clockspeed.advisor.build import build_inputs, registry_inputs
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import registered_rules
@@ -96,7 +104,7 @@ from clockspeed.advisor.trace import (
     unlock_keys,
 )
 from clockspeed.audit.balance import balance_of
-from clockspeed.audit.build import build_check_of
+from clockspeed.audit.build import build_check_of, registry_check_of
 from clockspeed.audit.fuel import fuel_supply_of
 from clockspeed.audit.machines import machines_of
 from clockspeed.audit.network import network_of
@@ -235,7 +243,11 @@ def merged_inputs(*groups: Mapping[str, InputValue]) -> dict[str, InputValue]:
 
 
 def inputs_of(
-    model: WorldModel, registry: Registry, *, pinned_changelist: int | None
+    model: WorldModel,
+    registry: Registry,
+    *,
+    pinned_changelist: int | None,
+    pinned_docs_sha256: str | None,
 ) -> WorldInputs:
     """Build the rule inputs for one parsed world against one registry (CS-1270).
 
@@ -256,13 +268,17 @@ def inputs_of(
 
     THE BUILD CHECK (CS-1288) holds the model's header build beside the pin it
     is handed, and its three inputs are merged beside the other two groups
-    the same way. Every registered rule reads them first.
+    the same way. THE REGISTRY CHECK (CS-1315) holds the source hash of the
+    very registry priced here beside the pinned docs hash, and its three
+    inputs join them. Every registered rule reads all six first.
 
     Args:
         model: The world model the surface holds.
         registry: The normalized registry.
         pinned_changelist: The pinned build's changelist, or None when the pin
             did not parse - never imported here (ruling F2).
+        pinned_docs_sha256: The pinned docs hash, or None or empty when the
+            pin carries none - never imported here either.
 
     Returns:
         The rule inputs.
@@ -282,7 +298,10 @@ def inputs_of(
     balanced = world_inputs(balance, model.unlocks)
     fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
     build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
-    return WorldInputs(values=merged_inputs(balanced.values, fuel, build), unlocks=balanced.unlocks)
+    source = registry_inputs(registry_check_of(registry, pinned_docs_sha256=pinned_docs_sha256))
+    return WorldInputs(
+        values=merged_inputs(balanced.values, fuel, build, source), unlocks=balanced.unlocks
+    )
 
 
 def advise(
@@ -400,6 +419,7 @@ def advise_world(
     registry: Registry,
     *,
     pinned_changelist: int | None,
+    pinned_docs_sha256: str | None,
     ledger: Ledger,
     mutes: MuteStore,
     now: int,
@@ -414,6 +434,8 @@ def advise_world(
         registry: The normalized registry.
         pinned_changelist: The pinned build's changelist, or None when the pin
             did not parse - the caller's, never imported here (CS-1288).
+        pinned_docs_sha256: The pinned docs hash, or None or empty when the
+            pin carries none - the caller's, never imported here (CS-1315).
         ledger: The per-world ledger.
         mutes: The global per-rule mute store.
         now: The current instant, injected.
@@ -424,5 +446,10 @@ def advise_world(
     Raises:
         clockspeed.advisor.ledger.StoreError: as :func:`advise` raises it.
     """
-    world = inputs_of(model, registry, pinned_changelist=pinned_changelist)
+    world = inputs_of(
+        model,
+        registry,
+        pinned_changelist=pinned_changelist,
+        pinned_docs_sha256=pinned_docs_sha256,
+    )
     return advise(model.token, world, ledger=ledger, mutes=mutes, now=now)

@@ -9,6 +9,16 @@ is why :func:`build_registry` takes an already-loaded
 machinery at all. That is what lets the whole model be proven against a
 hand-authored synthetic corpus on a machine with no game installed.
 
+PROVENANCE (CS-1315). :func:`build_registry_from_bytes` takes the docs file's
+raw BYTES - still never a path - and records their sha256 on
+:attr:`Registry.source_sha256`, computed exactly as
+``clockspeed/data/version.py::build_pin`` computes the pin's ``docs_sha256``,
+so a consumer can compare the registry's source with the pin like for like. A
+registry built from a document or by hand has no byte source and carries None.
+This layer records the hash and never compares it: the comparison is the
+audit's (``clockspeed/audit/build.py::registry_check_of``), which takes the pin
+as a parameter.
+
 WHY THIS LAYER IS THE DANGEROUS ONE
 -----------------------------------
 The parsers below it either return a value or raise. This layer JOINS and
@@ -213,9 +223,10 @@ the canary.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
@@ -227,7 +238,13 @@ from clockspeed.data.blobs import (
     parse_class_paths,
     parse_item_amounts,
 )
-from clockspeed.data.docs_extract import KEY_CLASS_NAME, DocsDocument, DocsGroup
+from clockspeed.data.docs_extract import (
+    KEY_CLASS_NAME,
+    DocsDocument,
+    DocsGroup,
+    decode_docs_bytes,
+    load_document,
+)
 
 __all__ = [
     "EQUIPMENT_GROUP_SHORT_NAMES",
@@ -302,6 +319,7 @@ __all__ = [
     "RegistryWarning",
     "automated_recipes",
     "build_registry",
+    "build_registry_from_bytes",
 ]
 
 # ---------------------------------------------------------------------------
@@ -948,6 +966,10 @@ class Registry:
             do not know, which is the test a save-side consumer needs; the
             registry models only the classes that draw power, extract,
             generate, or are items or recipes.
+        source_sha256: CS-1315. The lowercase hex sha256 of the docs bytes
+            this registry was built from, computed as the pin computes its
+            ``docs_sha256``, or None when it had no byte source - built from
+            a loaded document or by hand. Recorded, never compared here.
     """
 
     items: Mapping[str, Item]
@@ -964,6 +986,9 @@ class Registry:
     # CS-1285. Appended with a default on the same terms; a frozenset is
     # immutable, so one shared default is safe.
     declared_classes: frozenset[str] = frozenset()
+    # CS-1315. Appended with a default on the same terms: None is "no byte
+    # source", which the audit reads as unverified, never as a match.
+    source_sha256: str | None = None
 
 
 class _WarningLog:
@@ -2219,6 +2244,35 @@ def build_registry(document: DocsDocument) -> Registry:
         generators=MappingProxyType(generators),
         declared_classes=_declared_classes(document.groups),
     )
+
+
+def build_registry_from_bytes(raw: bytes) -> Registry:
+    """Build the registry from the docs file's raw bytes, recording their sha256.
+
+    PURE: no file is opened and no install is located - the caller hands the
+    bytes over. The decode and the load are ``docs_extract``'s own, so the
+    model is exactly :func:`build_registry`'s over the same document, plus
+    :attr:`Registry.source_sha256`.
+
+    Args:
+        raw: The complete docs file contents, exactly ``bytes``.
+
+    Returns:
+        The registry, carrying the sha256 of ``raw`` - the bytes, never the
+        decoded text, as the pin hashes them.
+
+    Raises:
+        TypeError: ``raw`` is not exactly ``bytes``. A decoded text has no byte
+            source to hash, and a mutable buffer could change between the
+            hash and the decode.
+        DocsDecodeError: The bytes did not decode under their sniffed encoding.
+        DocsStructureError: The decoded text is not a JSON list of groups.
+        RegistryIntegrityError: As :func:`build_registry` raises it.
+    """
+    if type(raw) is not bytes:
+        raise TypeError("docs bytes must be exactly bytes, not " + type(raw).__name__)
+    built = build_registry(load_document(decode_docs_bytes(raw)))
+    return replace(built, source_sha256=hashlib.sha256(raw).hexdigest())
 
 
 def automated_recipes(registry: Registry) -> tuple[Recipe, ...]:
