@@ -89,7 +89,9 @@ new guard was opened, per the product-before-process fence; checked with `tools/
 `tests/test_doc_budget.py`, `tests/test_ledger_entry_shape.py`, `tests/test_dated_headings.py`,
 `tests/test_docs_citations.py` and `tests/test_tier1_budget.py`. Adversary repair: the hand-off
 is committed before the push, so it records "push of this commit pending at write time; push
-result and CI UNREAD" and never "pushed"; the CI read cites the push as step 8, not step 7.
+result and CI UNREAD" and never "pushed"; the CI read cites the push as step 8, not step 7;
+the flake path commits nothing after a blocked push - it records the test in the gitignored
+timing file and the next session pushes first and files the flake.
 DECISION (adjudicated): route A, edit only done.md, over B, a targeted-suite bypass in the frozen
 `.githooks/pre-push` (needs cross-process trusted state, weakens the tier-0 gate, and is new
 tooling under the fence). Flake path (ii), leave the commits local and make push the next

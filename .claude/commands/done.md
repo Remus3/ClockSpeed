@@ -224,11 +224,13 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
       - leave the commits local; the next session's FIRST action is "push", so its first
         push carries them through the full hook. The `CLAUDE.md` section 6.1 "nothing
         unpushed" rule is narrowed for this one session gap by the verified order;
-      - file the flake as a `ROADMAP.md` or `BACKLOG.md` item and put "PUSH FIRST - the
-        last push was blocked by a flake, commits are local" at the top of the hand-off,
-        then commit both through the git lock as a NEW commit (a local commit runs no
-        suite). Nothing reached the remote, so the no-commit-after-the-push rule is not
-        breached; the next session's push carries every local commit. Never re-push.
+      - commit NOTHING more - the no-commit-after-the-push rule has no exception. The
+        committed hand-off already says push pending and result UNREAD, so the next
+        session's first act (remote ref against HEAD) finds the commits unpushed. Record
+        the blocking test's node id and its alone-run result as `blocked_by_flake` in the
+        gitignored `ops/loop/control/done_timing.json` (step 8's timing record); the next
+        session reads it, pushes first, and files the flake as a `ROADMAP.md` or
+        `BACKLOG.md` item in that push. Never re-push in this ritual.
       A test that FAILS when re-run alone is not a flake: it is the failure that stopped
       the ritual. The committed hand-off stays true - it said push pending and push result
       UNREAD, never "pushed" - and the next session's first act, reading the remote ref
