@@ -155,7 +155,7 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 |---|---|
 | **OS** | Windows |
 | **Game** | A local installation, kept current |
-| **Python** | 3.13 or newer - the `requires-python` floor in [`pyproject.toml`](pyproject.toml); `scripts/verify_env.py` asserts it and prints the version it found |
+| **Python** | 3.13 or 3.14 - take the newest 3.14.x, not python.org's newest release when that is newer. The range is `requires-python` in [`pyproject.toml`](pyproject.toml); `scripts/verify_env.py` asserts its floor and prints the version it found |
 | **git** | Git for Windows |
 | **openssl** | For `scripts/make_cert.py`, and for the test suite. Git for Windows ships one, but not on PATH by default - [`docs/OPERATIONS.md`](docs/OPERATIONS.md#12-install-and-run-from-scratch) section 1.2 says how to add it; the suite needs more of Git's tools on PATH, as section 2 there states. `scripts/verify_env.py` reports it as SOFT |
 | **Python packages** | The `dev` extra in `pyproject.toml`, installed by the Quickstart. Of it, `pytest` and `ruff` are the two `scripts/verify_env.py` counts as HARD |
@@ -163,22 +163,19 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 
 ## Quickstart
 
-From the root of a clone:
+From the root of a clone, in PowerShell - [`docs/OPERATIONS.md` 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch) has the full procedure, the `cmd` forms and where `<Git install>` is:
 
 ```
 python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
 .venv\Scripts\activate
 python -m pip install -e ".[dev]"
-```
-
-```
 python scripts/install_hooks.py
 python scripts/verify_env.py
+$env:Path += ";<Git install>\usr\bin"
 python scripts/make_cert.py
 python -m clockspeed.surface
 ```
-
-Full procedure: [`docs/OPERATIONS.md` 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch).
 
 ## First result
 

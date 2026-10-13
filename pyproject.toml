@@ -26,7 +26,13 @@ build-backend = "setuptools.build_meta"
 name = "clockspeed"
 description = "Deterministic, local, read-only planning and advisory system for a single-player factory-building game."
 readme = "README.md"
-requires-python = ">=3.13"
+# A CLOSED RANGE, NOT A FLOOR (CS-G03). A bare floor sent a fresh-machine walk to
+# python.org's newest release, 3.15.0, where the `dev` extra would not install:
+# PyYAML had no wheel for it and its source build needs MSVC. The ceiling is one
+# past the newest minor the toolchain has been installed on; raise it with the
+# classifiers below, and README.md and docs/OPERATIONS.md follow -
+# tests/test_readme_audit.py holds the four together.
+requires-python = ">=3.13,<3.15"
 
 # PEP 639 SPDX expression plus the file it is granted by. The copyright HOLDER
 # is owned by LICENSE and is deliberately not restated here: a restated fact is
@@ -592,9 +598,9 @@ markers = [
 # ===========================================================================
 
 [tool.mypy]
-# Floor version, not the running version. The project supports >=3.13 and the
-# type checker must judge against the floor or it will accept syntax the floor
-# rejects.
+# Floor version, not the running version. The project supports the
+# requires-python range above, and the type checker must judge against its floor
+# or it will accept syntax the floor rejects.
 python_version = "3.13"
 
 # WHAT THE GATE LOOKS AT, and this key is the whole of its authority: CI runs

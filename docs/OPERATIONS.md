@@ -8,18 +8,26 @@ operator terms, ports, MCP re-wire, and runbooks.
 `docs/ARCHITECTURE.md` and `docs/adr/`), and never restates a measured value that a
 machine already checks. Where a number is machine-owned, this file points at the owner.
 
-Commands below use `python`, and that is not interchangeable with `py -3`. **The two
-resolve to DIFFERENT installations on this machine and only `python` can import ruff,
-pytest or mypy** - `BOOTSTRAP.md` section 2.5 measured it, and CS-806 was filed when a
-session ran the tier-0 lint gate as written and read the module error as not-applicable.
+Commands below use `python`, and that is not interchangeable with `py -3`. **On the
+maintainer's machine the two resolve to DIFFERENT installations and only `python` can
+import ruff, pytest or mypy** - `BOOTSTRAP.md` section 2.5 measured it there, and CS-806
+was filed when a session ran the tier-0 lint gate as written and read the module error as
+not-applicable. Elsewhere it can differ: a fresh machine may hold several Pythons, and
+`py -3` takes the newest, which can be above the supported range. To use the launcher
+there, select a supported release explicitly - `py -3.14 -m venv .venv` - and inside the
+activated virtual environment `python` is that release.
 `scripts/verify_env.py` now HARD-fails under an interpreter that cannot import them, so
-run it to settle which one you are on rather than trusting a version string - both
-report the same version. Never write the interpreter's absolute path into a tracked
-file.
+run it to settle which one you are on rather than trusting a version string - on the
+maintainer's machine both report the same version. Never write the interpreter's absolute
+path into a tracked file.
 
 ---
 
-## 1. Fresh-clone bootstrap - run this first, in this exact order
+## 1. Fresh-clone bootstrap - run this after the 1.2 venv step, in this exact order
+
+Create, activate and install the virtual environment first, as
+[section 1.2](#12-install-and-run-from-scratch) does: `verify_env.py` counts `pytest` and
+`ruff`, which the `dev` extra installs, as HARD.
 
 > **A FRESH CLONE RUNS ZERO PROTECTION UNTIL SOMEONE WIRES IT.**
 >
@@ -76,9 +84,10 @@ Clockspeed. What it needs is the Requirements table in
 
 On a machine that has none of them yet, install from the official sources:
 
-1. **Python** from [python.org](https://www.python.org/downloads/windows/), in a release
-   that meets the `requires-python` floor in [`pyproject.toml`](../pyproject.toml) - that
-   file is where the version is pinned. That page lists the Python install manager first
+1. **Python** 3.13 or 3.14 - take the newest 3.14.x - from
+   [python.org](https://www.python.org/downloads/windows/). The supported range is
+   `requires-python` in [`pyproject.toml`](../pyproject.toml), and python.org's newest
+   release can lie above it. The download page lists the Python install manager first
    and the releases below it. Take a release's "Windows installer (64-bit)" rather than
    the install manager: the install manager refused to install on Windows 10 build 19041,
    where the installer worked. On the installer page that carries **Install Now**, tick
@@ -98,9 +107,9 @@ python --version
 git --version
 ```
 
-`python --version` must print a version that meets `requires-python`. If it does not,
-`python` is not reaching a suitable install - follow python.org's official Windows guide,
-<https://docs.python.org/3/using/windows.html>, then re-run the check.
+`python --version` must print a version inside the `requires-python` range. If it does
+not, `python` is not reaching a suitable install - follow python.org's official Windows
+guide, <https://docs.python.org/3/using/windows.html>, then re-run the check.
 
 #### Install and run
 
@@ -153,10 +162,11 @@ only on a HARD one. A missing game or save is SOFT: it is reported and does not 
 check. Its `config/ports.json` row prints the dashboard's port.
 
 `scripts/make_cert.py` needs `openssl`. Git for Windows ships it in `<Git install>\usr\bin`,
-where `<Git install>` is the folder Git was installed into (`git --exec-path` prints a path
-that starts with it), but a default Git install does not put that folder on PATH, and the
-script then exits 1 saying openssl is not on PATH. Unless `openssl version` already
-answers, append the folder to PATH for this terminal first. In `cmd`:
+where `<Git install>` is the folder Git was installed into - the part before `/mingw64/`
+or `/ucrt64/` in the path `git --exec-path` prints - but a default Git install does not
+put that folder on PATH, and the script then exits 1 saying openssl is not on PATH.
+Unless `openssl version` already answers, append the folder to PATH for this terminal
+first. In `cmd`:
 
 ```
 set "PATH=%PATH%;<Git install>\usr\bin"
@@ -307,9 +317,10 @@ directory explicitly. A bare sweep from the root can walk runtime state director
 destroy live locks or data.
 
 **The test suite needs Git for Windows' `usr\bin` on PATH.** It runs `openssl`, `bash`,
-`sh` and other tools that Git for Windows ships in `<Git install>\usr\bin` - the folder
-`git --exec-path` starts with - and a default Git install leaves that folder off PATH,
-so part of the suite then fails rather than skips. APPEND it, never prepend it, so the
+`sh` and other tools that Git for Windows ships in `<Git install>\usr\bin` - `<Git install>`
+being the part before `/mingw64/` or `/ucrt64/` in the path `git --exec-path` prints -
+and a default Git install leaves that folder off PATH, so part of the suite then fails
+rather than skips. APPEND it, never prepend it, so the
 Windows tools that share a name with one there (`find`, `sort`, `timeout`) keep
 precedence: `set "PATH=%PATH%;<Git install>\usr\bin"` in `cmd`,
 `$env:Path += ";<Git install>\usr\bin"` in PowerShell. Type it on its own line: chained

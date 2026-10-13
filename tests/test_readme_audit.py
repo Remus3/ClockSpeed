@@ -163,9 +163,43 @@ ABSOLUTE_CHECKOUT_RE: Final = re.compile(
 #: The two docs the acceptance names, plus the two this item rewrote.
 AUDITED_DOCS: Final = ("docs/LEDGER.md", "docs/history_notes.md", "README.md", "docs/OPERATIONS.md")
 
-#: A Python-version-shaped token, whole: 3.N or 3.NN plus any further ``.N`` parts,
-#: so ``3.13.0`` is one token and never equals the floor ``3.13``.
-PY_VERSION_RE: Final = re.compile(r"(?<![\d.])3\.\d{1,2}(?:\.\d+)*(?![\d.])")
+#: A Python-version-shaped token, whole: 3.N or 3.NN plus any further ``.N`` parts
+#: and an optional ``.x`` wildcard, so ``3.13.0`` and ``3.14.x`` are each one token
+#: and never equal the floor ``3.13``. A sentence's closing period ends a token; it
+#: does not hide it.
+PY_VERSION_RE: Final = re.compile(r"(?<![\d.])3\.\d{1,2}(?:\.\d+)*(?:\.x)?(?!\w|\.\d)")
+
+#: ``requires-python`` as a closed range of minors, floor AND ceiling (CS-G03). A bare
+#: floor admitted python.org's newest release, 3.15.0, which the ``dev`` extra could
+#: not install on: PyYAML shipped no wheel for it and its source build needs MSVC.
+REQUIRES_PYTHON_RE: Final = re.compile(r">=3\.(\d{1,2}),<3\.(\d{1,2})")
+
+#: The trove classifier prefix naming one supported minor.
+PY_CLASSIFIER: Final = "Programming Language :: Python :: "
+
+#: A doc admitting every release above a version - the phrase that sent a fresh
+#: walker to python.org's newest release.
+OPEN_CEILING_RE: Final = re.compile(
+    r"(?<![\d.])3\.\d{1,2}(?:\.\d+)*\s+or\s+(?:newer|higher|above)\b", re.IGNORECASE
+)
+
+#: The two docs that tell a reader which Python to install.
+PYTHON_DOCS: Final = ("README.md", "docs/OPERATIONS.md")
+
+#: The Quickstart lines a stock Windows PowerShell needs, each paired with the
+#: Quickstart command it must come before (CS-G03): activation is refused under
+#: the default execution policy, and make_cert exits 1 with no openssl on PATH.
+QUICKSTART_ORDER: Final = (
+    (
+        "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force",
+        ".venv\\Scripts\\activate",
+    ),
+    ('$env:Path += ";<Git install>\\usr\\bin"', "python scripts/make_cert.py"),
+)
+
+#: How a doc says where ``<Git install>`` ends in the path ``git --exec-path``
+#: prints: Git for Windows puts its binaries under one of these (CS-G03).
+GIT_INSTALL_MARKERS: Final = ("`/mingw64/`", "`/ucrt64/`")
 
 IMAGE_RE: Final = re.compile(r"!\[[^\]]*\]\((?P<target>[^)\s]+)\)")
 
@@ -195,10 +229,11 @@ INSTALL_ANCHOR: Final = "12-install-and-run-from-scratch"
 #: MOVED_COMMANDS; its "First result" paragraph is the README's, FIRST_RESULT.
 MOVED_PROSE: Final = (
     "On a machine that has none of them yet, install from the official sources:",
-    "1. **Python** from [python.org](https://www.python.org/downloads/windows/), in a "
-    "release that meets the `requires-python` floor in "
-    "[`pyproject.toml`](../pyproject.toml) - that file is where the version is pinned. "
-    "That page lists the Python install manager first and the releases below it. Take a "
+    "1. **Python** 3.13 or 3.14 - take the newest 3.14.x - from "
+    "[python.org](https://www.python.org/downloads/windows/). The supported range is "
+    "`requires-python` in [`pyproject.toml`](../pyproject.toml), and python.org's newest "
+    "release can lie above it. The download page lists the Python install manager first "
+    "and the releases below it. Take a "
     'release\'s "Windows installer (64-bit)" rather than the install manager: the install '
     "manager refused to install on Windows 10 build 19041, where the installer worked. On"
     " the installer page that carries **Install Now**, tick **Add python.exe to PATH** "
@@ -210,8 +245,8 @@ MOVED_PROSE: Final = (
     " **Node** from [nodejs.org](https://nodejs.org/), the LTS installer, only if you "
     "want the companion window or will run the test suite.",
     "Open a new terminal afterwards and check:",
-    "`python --version` must print a version that meets `requires-python`. If it does "
-    "not, `python` is not reaching a suitable install - follow python.org's official "
+    "`python --version` must print a version inside the `requires-python` range. If it "
+    "does not, `python` is not reaching a suitable install - follow python.org's official "
     "Windows guide, <https://docs.python.org/3/using/windows.html>, then re-run the "
     "check.",
     "Run every command below from the root of the clone, in the order given.",
@@ -238,9 +273,10 @@ MOVED_PROSE: Final = (
     "non-zero only on a HARD one. A missing game or save is SOFT: it is reported and does"
     " not fail the check. Its `config/ports.json` row prints the dashboard's port.",
     "`scripts/make_cert.py` needs `openssl`. Git for Windows ships it in `<Git "
-    "install>\\usr\\bin`, where `<Git install>` is the folder Git was installed into (`git "
-    "--exec-path` prints a path that starts with it), but a default Git install does not "
-    "put that folder on PATH, and the script then exits 1 saying openssl is not on PATH. "
+    "install>\\usr\\bin`, where `<Git install>` is the folder Git was installed into - the "
+    "part before `/mingw64/` or `/ucrt64/` in the path `git --exec-path` prints - but a "
+    "default Git install does not put that folder on PATH, and the script then exits 1 "
+    "saying openssl is not on PATH. "
     "Unless `openssl version` already answers, append the folder to PATH for this "
     "terminal first. In `cmd`:",
     'In PowerShell the same line is `$env:Path += ";<Git install>\\usr\\bin"`. Then:',
@@ -487,15 +523,114 @@ def test_citation_leaves_the_language_model_claim_to_the_readme(repo_root: Path)
     assert not LANGUAGE_MODEL_RE.search(cff), "CITATION.cff repeats it"
 
 
-def test_python_version_is_stated_once_in_requirements(repo_root: Path) -> None:
+def _supported_pythons(repo_root: Path) -> list[str]:
+    """Every minor ``requires-python`` admits, oldest first, from its floor and ceiling."""
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
-    floor = pyproject["project"]["requires-python"].removeprefix(">=")
+    spec = "".join(pyproject["project"]["requires-python"].split())
+    match = REQUIRES_PYTHON_RE.fullmatch(spec)
+    assert match, f"requires-python {spec!r} is not a closed >=3.N,<3.M range"
+    low, high = int(match[1]), int(match[2])
+    assert low < high, f"requires-python {spec!r} admits no minor"
+    return [f"3.{minor}" for minor in range(low, high)]
+
+
+def _range_phrase(supported: list[str]) -> str:
+    """The words a doc states the range in: ``3.13 or 3.14``, newest last."""
+    if len(supported) == 1:
+        return supported[0]
+    return f"{', '.join(supported[:-1])} or {supported[-1]}"
+
+
+@pytest.mark.parametrize(
+    ("text", "tokens"),
+    [
+        ("3.13 or 3.14", ["3.13", "3.14"]),
+        ("take the newest 3.14.x.", ["3.14.x"]),
+        ("it found 3.13.0.", ["3.13.0"]),
+        ("Python 3.13.", ["3.13"]),
+        ("section 13.3.14 and v23.14", []),
+    ],
+)
+def test_the_python_version_pattern_reads_whole_tokens(text: str, tokens: list[str]) -> None:
+    """The guard's own mutation arm: a wildcard or a sentence end hides no token."""
+    assert PY_VERSION_RE.findall(text) == tokens
+
+
+@pytest.mark.parametrize(
+    ("text", "hit"),
+    [
+        ("3.13 or newer", True),
+        ("Python 3.13.0 or\nhigher", True),
+        ("3.13 or 3.14", False),
+        ("not be produced for 3.16 or later", False),
+    ],
+)
+def test_the_open_ceiling_pattern_catches_the_walk_phrase(text: str, *, hit: bool) -> None:
+    """The guard's own mutation arm: the phrase the docs carried before CS-G03 is caught."""
+    assert bool(OPEN_CEILING_RE.search(text)) is hit
+
+
+def test_requires_python_has_a_ceiling_the_classifiers_match(repo_root: Path) -> None:
+    """A bare floor let a fresh walker take a release the ``dev`` extra cannot install on."""
+    supported = _supported_pythons(repo_root)
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    minors = [
+        item.removeprefix(PY_CLASSIFIER)
+        for item in pyproject["project"]["classifiers"]
+        if item.startswith(PY_CLASSIFIER + "3.")
+    ]
+    assert minors == supported, f"classifier minors {minors} differ from {supported}"
+
+
+def test_python_version_is_stated_once_in_requirements(repo_root: Path) -> None:
+    supported = _supported_pythons(repo_root)
     hits = {
         name: PY_VERSION_RE.findall(body)
         for name, body in _sections(_readme(repo_root)).items()
         if PY_VERSION_RE.search(body)
     }
-    assert hits == {"Requirements": [floor]}, f"version tokens by section: {hits}"
+    expected = [*supported, f"{supported[-1]}.x"]
+    assert hits == {"Requirements": expected}, f"version tokens by section: {hits}"
+
+
+@pytest.mark.parametrize("relative", PYTHON_DOCS)
+def test_the_install_docs_state_the_pyproject_range(repo_root: Path, relative: str) -> None:
+    """README and OPERATIONS name the range ``requires-python`` holds, and its newest minor."""
+    supported = _supported_pythons(repo_root)
+    text = _collapse((repo_root / relative).read_text(encoding="ascii"))
+    stated = f"{_range_phrase(supported)} - take the newest {supported[-1]}.x"
+    assert stated in text, f"{relative} does not say {stated!r}"
+    open_ended = len(OPEN_CEILING_RE.findall(text))
+    assert not open_ended, f"{relative} admits every newer release ({open_ended} hit(s))"
+
+
+def test_the_quickstart_runs_on_a_stock_windows_powershell(repo_root: Path) -> None:
+    """Each line a default PowerShell needs comes before the command that needs it."""
+    quickstart = _sections(_readme(repo_root)).get("Quickstart", "")
+    fenced = [
+        line.split("  #")[0].strip()
+        for block in re.findall(r"^```[^\n]*\n(.*?)^```", quickstart, re.MULTILINE | re.DOTALL)
+        for line in block.splitlines()
+        if line.strip()
+    ]
+    section = _subsection(_operations(repo_root), INSTALL_HEADING)
+    for needed, before in QUICKSTART_ORDER:
+        assert needed in fenced, f"the Quickstart lacks {needed!r}"
+        assert before in fenced, f"the Quickstart lacks {before!r}"
+        assert fenced.index(needed) < fenced.index(before), f"{needed!r} follows {before!r}"
+        assert needed in section, f"section 1.2 does not explain {needed!r}"
+
+
+def test_every_git_install_definition_says_where_it_ends(repo_root: Path) -> None:
+    """``git --exec-path`` prints more than the install folder; say which part it is."""
+    defined = [
+        paragraph
+        for paragraph in _paragraphs(_operations(repo_root))
+        if "<Git install>" in paragraph and "`git --exec-path`" in paragraph
+    ]
+    assert defined, "docs/OPERATIONS.md never says how to find <Git install>"
+    vague = [p for p in defined if not all(marker in p for marker in GIT_INSTALL_MARKERS)]
+    assert not vague, f"{len(vague)} of {len(defined)} paragraph(s) leave <Git install> open-ended"
 
 
 def test_quickstart_is_short_and_links_the_install_doc(repo_root: Path) -> None:
