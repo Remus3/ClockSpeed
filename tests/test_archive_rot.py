@@ -381,13 +381,35 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: moving the import out of its sorted place would let the deep archive dictate
 #: the shape of shipped code. NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per
 #: the note above.
+#: `_ROT_EMPTY` 3 TO 4 AND `_ROT_FORM` 15 TO 14, 2026-10-13 BY CS-1315, AND IT
+#: IS ONE POINTER RATHER THAN TWO FINDINGS - the CS-960 direction again. The
+#: CS-963 slip table in the archive names a line of `tests/data/test_registry.py`
+#: meaning the `def` of the misspelled-game-keys test, and that pointer was
+#: ALREADY stale: at the parent commit it landed on the first docstring line of
+#: the recipe-IO helper above that test. CS-1315 slice A added TWO import lines
+#: near the top of that module, so every line below shifted by two and the
+#: pointer started landing on the blank line above that helper. NO NEW ROT
+#: ARRIVED, nothing in the archive was edited, and the total across the two
+#: arms is unmoved at eighteen.
+#:
+#: ONE OTHER POINTER MOVED AND STAYED IN ITS BUCKET, which was checked rather
+#: than assumed by diffing every archived landing across the change: the ADR
+#: 0005 power-exponent pointer at `clockspeed/data/registry.py` shifted under
+#: the ten module-docstring lines the same slice added, and it still lands on a
+#: prose line of that docstring in the refused form. The archive's bytes are
+#: identical across the change.
+#:
+#: THE RECORDED REASON COVERS THIS SITE, on the same check the bumps above
+#: applied: the archive declares itself HISTORICAL, the citation was RIGHT WHEN
+#: WRITTEN, and the module moved underneath it - rot by construction. NO
+#: COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 9,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 3,
+    _ROT_EMPTY: 4,
     _ROT_NAME: 3,
     _ROT_PATH: 6,
-    _ROT_FORM: 15,
+    _ROT_FORM: 14,
 }
 
 

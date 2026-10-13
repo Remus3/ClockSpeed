@@ -319,7 +319,7 @@ def test_off_the_pin_the_reason_names_the_mismatch_and_both_builds(
 
 
 @pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
-def test_off_the_pin_one_indeterminate_step_follows_the_build_reads(
+def test_off_the_pin_one_indeterminate_step_follows_the_three_reads(
     tmp_path: Path, offset: int
 ) -> None:
     pin = game_pin()
