@@ -1484,10 +1484,12 @@ jobs:
   #
   # PROJECTED, W = 2 under loadfile. The catch-all loses half the moved worker
   # time: 507 - 372.5/2 = 321s in the LOW case, 507 - 424.0/2 = 295s pooled,
-  # both under 360, the budget less its warn band. This job runs the four by
-  # xdist's test-count order - readme 130, provenance 68, chained 25,
-  # disposition 14 - so one worker takes provenance and the other the rest in
-  # turn: HIGH 33.9 + 119.8 + 106.6 = 260.3 against 198.6, plus about 24s
+  # both under 360, the budget less its warn band. UNMEASURED: an adversary's
+  # recomputation put the catch-all at 326s to 343s, about 368s with the last
+  # rebalance's measured miss; the first CI reading settles it. This job runs
+  # the four by xdist's test-count order - readme 130, provenance 68, chained
+  # 25, disposition 14 - so one worker takes provenance and the other the rest
+  # in turn: HIGH 33.9 + 119.8 + 106.6 = 260.3 against 198.6, plus about 24s
   # outside pytest, about 284s; pooled about 271s. Both under 360.
   #
   # NO CENSUS IS PAID TWICE. tests/test_chained_exemption_guard.py is the only
@@ -1500,9 +1502,10 @@ jobs:
   # them move on to here, and they stay out of the guard shard they overfilled.
   #
   # THIS COSTS THE LEANNESS RULE IN THE HEADER AGAIN, KNOWINGLY: a sixth checkout
-  # and install, about 35 metered seconds per push. The adjudicator's ruling on
-  # the route stands in for the operator decision that authorised the second
-  # job (CLAUDE.md section 6.1).
+  # and install, about 35s of runner time - but Actions bills each job rounded up
+  # to whole minutes, so six jobs cost about 2 to 3 more metered minutes per push
+  # than five did. The adjudicator's ruling on the route stands in for the
+  # operator decision that authorised the second job (CLAUDE.md section 6.1).
   #
   # A NEW JOB HAS NO READINGS. tools/tier1_growth.py names it in its
   # PENDING_READINGS set until five green readings are recorded,
