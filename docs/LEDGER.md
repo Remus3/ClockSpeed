@@ -85,7 +85,11 @@ whole suite; the read-back compares the remote ref to HEAD by full SHA; CI and t
 session and the gitignored `ops/loop/control/done_timing.json`, never to a commit after the push.
 No test pins done.md text (grep of tests/ and tools/: only its `tools/provenance.tsv` row), so no
 new guard was opened, per the product-before-process fence; checked with `tools/drift_guard.py`,
-`tools/doc_budget.py` and the targeted doc-guard tests.
+`tools/doc_budget.py` and the targeted tests `tests/test_provenance_manifest.py`,
+`tests/test_doc_budget.py`, `tests/test_ledger_entry_shape.py`, `tests/test_dated_headings.py`,
+`tests/test_docs_citations.py` and `tests/test_tier1_budget.py`. Adversary repair: the hand-off
+is committed before the push, so it records "push of this commit pending at write time; push
+result and CI UNREAD" and never "pushed"; the CI read cites the push as step 8, not step 7.
 DECISION (adjudicated): route A, edit only done.md, over B, a targeted-suite bypass in the frozen
 `.githooks/pre-push` (needs cross-process trusted state, weakens the tier-0 gate, and is new
 tooling under the fence). Flake path (ii), leave the commits local and make push the next

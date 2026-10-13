@@ -121,7 +121,11 @@ Append-only, NEWEST-FIRST, one entry per item:
 Rediscovery - redoing closed work, re-pitching a refuted idea, acting on a stale doc - is
 the dominant failure mode, and this prompt is the defence against it. It is written BEFORE
 the push and committed with the session's other work (MAIN 2026-10-12 DONE-SLOW ORDER,
-CS-1321), so it records the push as pending and CI as unread.
+CS-1321), so it NEVER says "pushed". It records its own push in exactly these words:
+"push of this commit pending at write time; push result and CI UNREAD - the next
+session's first act reads the remote ref against this HEAD and the CI run". The wording
+holds whatever the push then does - lands, is blocked by a flake, or is blocked by a real
+failure that stops the ritual - because nothing is committed after the push.
 
 It must be complete and self-contained - the operator pastes it into a cold session with no
 other context. WHAT GOES IN IT:
@@ -134,9 +138,11 @@ other context. WHAT GOES IN IT:
       `Session <n+1> checklist` from it - FLEET-COMMON item 13a.
 - [ ] What this session closed, by item ID, one line each.
 - [ ] The exact state of anything left half-done, including which files are dirty.
-- [ ] The single next action, stated as an imperative. Its FIRST act is always: read CI
-      for the SHA this ritual pushed (step 7), and read this ritual's timing record
-      (step 8) - "pushed; CI unread" is what this hand-off says about its own push.
+- [ ] The single next action, stated as an imperative. Its FIRST act is always: read the
+      remote ref against this HEAD and the CI run for this HEAD's full SHA (the push is
+      step 8), and read this ritual's timing record (step 8). The hand-off states its own
+      push in the step 6 wording above - push pending at write time, push result and CI
+      UNREAD - never "pushed".
 - [ ] The open item IDs in priority order with their acceptance criteria.
 - [ ] Every decision made this session that must not be re-litigated, with its fence.
 - [ ] Any spike result that CONTRADICTED `BOOTSTRAP.md`. The spike wins - say so plainly and
@@ -146,8 +152,10 @@ other context. WHAT GOES IN IT:
 - [ ] Any external condition being waited on.
 - [ ] The final report (step 9's content): the step 1 commands and exit codes with the
       counts observed this run, the drift guard exit codes, the ritual's START time from
-      step 0, "push: pending, its pre-push suite is the ritual's one gated whole suite",
-      "CI unread", and anything you could not verify - labelled unverified rather than
+      step 0, the step 6 wording "push of this commit pending at write time; push result
+      and CI UNREAD - the next session's first act reads the remote ref against this HEAD
+      and the CI run" (its pre-push suite is the ritual's one gated whole suite), and
+      anything you could not verify - labelled unverified rather than
       rounded up to done.
 
 **HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. The fleet
@@ -189,9 +197,10 @@ is committed in this step. Nothing is committed after the push (step 8).
       claims hook's own id; its deny reason names it.
 - [ ] READ BACK: `git status` is clean and HEAD is the commit just made.
 - [ ] CI is NOT read in this ritual: the push has not happened yet, and nothing may be
-      committed after it to record CI. The hand-off already says "pushed; CI unread" and
-      makes reading CI for the pushed SHA (`gh run list --commit <full SHA>`) the next
-      session's FIRST act. If that run is red, it is the next session's top item.
+      committed after it to record CI. The hand-off already carries the step 6 wording -
+      push pending at write time, push result and CI UNREAD - and makes reading the remote
+      ref against its HEAD and CI for that full SHA (`gh run list --commit <full SHA>`) the
+      next session's FIRST act. If that run is red, it is the next session's top item.
 
 ## 8. ONE push - the ritual's ONE gated whole suite
 
@@ -221,7 +230,9 @@ MAIN 2026-10-12 DONE-SLOW ORDER, CS-1321: exactly ONE `git push` in the ritual.
         suite). Nothing reached the remote, so the no-commit-after-the-push rule is not
         breached; the next session's push carries every local commit. Never re-push.
       A test that FAILS when re-run alone is not a flake: it is the failure that stopped
-      the ritual.
+      the ritual. The committed hand-off stays true - it said push pending and push result
+      UNREAD, never "pushed" - and the next session's first act, reading the remote ref
+      against its HEAD, finds the push did not land.
 - [ ] MEASURE for MAIN's DONE-SLOW answer: record the ritual's END wall-clock time (after
       the read-back), and the push suite's gate `wait_s` and `hold_s` from the kit suite
       gate's `durations.jsonl` - its directory is `gate_dir()` in
