@@ -82,7 +82,7 @@ Verification: merged file `.claude/commands/done.md` - step 1 runs no whole suit
 step 8's single `git push` through `fleet_gitlock`, whose pre-push hook is the ritual's one gated
 whole suite; the read-back compares the remote ref to HEAD by full SHA; CI and the timing figures
 (start, end, the push suite's gate wait_s and hold_s from `durations.jsonl`) go to the next
-session and the gitignored `ops/loop/control/done_timing.json`, never to a commit after the push.
+session and the gitignored done timing record that done.md names, never to a commit after the push.
 No test pins done.md text (grep of tests/ and tools/: only its `tools/provenance.tsv` row), so no
 new guard was opened, per the product-before-process fence; checked with `tools/drift_guard.py`,
 `tools/doc_budget.py` and the targeted tests `tests/test_provenance_manifest.py`,
