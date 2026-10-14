@@ -2770,10 +2770,16 @@ FILL_FROM_CATCH_ALL = (
 #: THE REASONS CAME WITH THE FILES, because a reason left behind rots.
 #: tests/test_probe_refusal_output.py drives every shipped hook through real git
 #: and the wrapper with planted canaries (CS-814, CS-1200) - it was on the guard
-#: shard for ROOM, not for kinship, and the room was gone. The other two,
-#: tests/test_liveness.py and tests/test_mypy_gate.py, moved on to the scan shard
-#: in the CS-1317 rebalance (:data:`SCAN_FROM_FILL`).
-FILL_FROM_GUARDS = ("tests/test_probe_refusal_output.py",)
+#: shard for ROOM, not for kinship, and the room was gone.
+#: tests/test_mypy_gate.py is the second subprocess-heavy head, and this shard is
+#: the CPU-bound one by construction; the CS-1317 rebalance moved it to the scan
+#: shard and the measured scan reading moved it back. The third,
+#: tests/test_liveness.py, moved on to the scan shard in the CS-1317 rebalance
+#: (:data:`SCAN_FROM_FILL`).
+FILL_FROM_GUARDS = (
+    "tests/test_mypy_gate.py",
+    "tests/test_probe_refusal_output.py",
+)
 
 #: The tier1 shard rebalance's one arrival here, from the catch-all. The catch-all
 #: read over its budget on slow runners while this shard and the hook shard had
@@ -2946,18 +2952,16 @@ SCAN_FROM_CATCH_ALL = (
     "tests/test_readme_audit.py",
 )
 
-#: The CS-1317 rebalance's two arrivals here, from the FILL shard, by the session
-#: 141 ruling R2 and the adjudicated second file. The fill shard read over its
-#: budget on main while this shard read far under it, and these were the fill
-#: shard's two heaviest files by CI's own --durations; the readings and the
-#: projection live in tier1.yml, the one owner of this lane's numbers. Each
-#: file's fixtures are defined in that file alone, so the move pays no census
-#: twice. Both were already an `--ignore=` on the catch-all, so a move between
-#: two non-catch-all shards changes no ignore line at all.
-SCAN_FROM_FILL = (
-    "tests/test_liveness.py",
-    "tests/test_mypy_gate.py",
-)
+#: The CS-1317 rebalance's one arrival here, from the FILL shard, by the session
+#: 141 ruling R2. The fill shard read over its budget on main while this shard
+#: read far under it, and this was the fill shard's heaviest file by CI's own
+#: --durations; the readings and the projection live in tier1.yml, the one owner
+#: of this lane's numbers. Its fixtures are defined in this file alone, so the
+#: move pays no census twice. It was already an `--ignore=` on the catch-all, so
+#: a move between two non-catch-all shards changes no ignore line at all. The
+#: adjudicated second file, tests/test_mypy_gate.py, went back to the fill shard
+#: on the measured scan reading (:data:`FILL_FROM_GUARDS`).
+SCAN_FROM_FILL = ("tests/test_liveness.py",)
 
 #: The scan shard's whole membership, exactly.
 SCAN_SHARD_FILES = (
@@ -2972,7 +2976,7 @@ def test_the_scan_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -
     The catch-all's pytest step had grown back over the budget on every push and
     over the ceiling on a docs-only tip, and its measured head was four files
     that each scan the whole tracked corpus. The CS-1317 rebalance then moved the
-    fill shard's two heaviest files on to here (:data:`SCAN_FROM_FILL`), so this
+    fill shard's heaviest file on to here (:data:`SCAN_FROM_FILL`), so this
     shard is no longer the catch-all's head alone. No level moved and no test was
     dropped: the partition arm proves every file runs in exactly one leg, and
     this arm pins WHICH leg, that the scan shard names nothing else, that the
