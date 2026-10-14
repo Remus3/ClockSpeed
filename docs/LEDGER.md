@@ -75,6 +75,130 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1327 - frozen-file GRANT: .githooks/pre-push hands the suite gate the interpreter's own path
+Verification: `.githooks/pre-push` (the suite line that runs `ops/fleet_kit/fleet_suite_gate.py`)
+and `ops/fleet_kit/fleet_suite_gate.py::resolve_exe`; the CS-1327 section of
+`docs/item_notes/phase7.md`. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1327 STAYS OPEN.
+Recorded before any edit to the frozen file.
+Authority: CLAUDE.md sections 6 and 6.1. GRANTOR: the distinct read-only adjudicator of the
+session 141 step c recovery ruling (the record below, Q3 item 3), which produced none of the work.
+The grant was conditional on the root cause being CONFIRMED; a distinct adversary (reproduction
+lens) read it NOT REFUTED, which is the ruling's confirm branch, so the grant stands.
+A. .githooks/pre-push - GRANT, scope verbatim from the ruling: "after the interpreter ladder,
+resolve the chosen interpreter's sys.executable once, refuse if it is empty, never echo it, and
+pass it as the gate's command word on the suite line". Anything outside that scope goes back to a
+distinct adjudicator.
+B. Not granted: any other line of the hook, any other frozen file, and any edit under
+ops/fleet_kit/ (FLEET item 11 - the kit fix is MAIN's, reported by a FIX note).
+C. Order: the new pre-push test (tests/, not frozen) is seen RED on Windows at 28b1cba for the
+right reason before the hook edit; a distinct adversary then refutes the fix on three lenses.
+BLAST RADIUS (the ruling's words): every push from every clone, including the responder's and the
+lanes'. The hook is a CS-G03 reversal path, but the next walk is already a full walk.
+Rejected: a test-only fix (CLOCKSPEED_PYTHON set in the harness) and a docs-only workaround - each
+turns the suite green while every push from a venv clone built per the README stays blocked or
+runs the wrong interpreter.
+Reversed by: the cause re-graded REFUTED or inconclusive (then no grant: a fresh distinct
+diagnostician and a new ruling), or a distinct grader finding the 23 FAILED lines absent from the
+raw suite log (the ruling's Q1 reversal). MAIN's kit fix reverses nothing: an absolute path passes
+`resolve_exe` unchanged.
+
+### 2026-10-14 - CS-700, CS-G03 and CS-1327 - step c NOT PASSED; window ABANDONED and CLOSED by adjudication
+Verification: the 23 failing arms by test function -
+`tests/test_hook_env_echo.py::test_no_push_hook_path_echoes_a_canary` (4 pre-push arms),
+`tests/test_hook_interpreter_ladder.py::test_pre_push_accepts_a_passing_suite_with_the_variable_unset`
+and 3 more in that file,
+`tests/test_hook_probe_bound.py::test_pythoninspect_control_the_same_harness_accepts_without_it`
+(its pre-push arm), `tests/test_pre_push_ref_race.py::test_an_unraced_push_is_still_accepted` and
+5 more in that file, `tests/test_pre_push_suite_floor.py::test_a_genuinely_passing_tree_still_pushes`
+and 7 more in that file; `.githooks/pre-push` and `ops/fleet_kit/fleet_suite_gate.py::resolve_exe`.
+This record does not close CS-700 or CS-G03: CS-700 stays open and CS-G03 stays gated.
+STEP c NOT PASSED at 28b1cba: the CS-G03 full re-walk in a fresh long-paths-off Sandbox (walk
+folder cs-walk-141), graded by a distinct grader from the raw channel logs; its ruling sits in the
+session 141 OUT folder (cs700-s141), outside the tree. BLOCKING CLAUSE 7: the documented full
+suite, run once, read 16128 passed, 157 skipped, 23 failed, 0 errors, exit 1. Every other clause
+PASSED: pin held, bundle equals the candidate, fresh machine, README half (first result reached),
+Part 2a, Part 2b (violation refused, HEAD unchanged; control committed), the CS-1304 watch not
+triggered, deviations, independence and privacy, no commit. The 23 are every pre-push arm that
+reaches the hook's suite step; each read "pytest wrote no report of what it executed", the
+control arms included. README DEFECT 1 (no clone command) is the known R1 residual deferred to the
+flip, not blocking.
+DIAGNOSIS (a distinct read-only diagnostician; confidence HIGH): since CS-1290 (222be67, in
+28b1cba and not in the last passed walk tip 457d2b9) the hook runs its suite through the kit's
+suite gate with the bare command word `python` (the interpreter ladder's default when
+CLOCKSPEED_PYTHON is unset). On Windows resolve_exe passes a bare word to CreateProcess unchanged
+unless its PATH hit is a .cmd or .bat file, and CreateProcess searches the parent image's
+directory before PATH. From a venv the gate's process image is the base interpreter, so its child
+is the base interpreter, which a README install leaves without pytest: exit 1, no report.
+Reproduced at three levels on this machine (a bare child, the gate, the exact 23 of a 37-test
+selection under a scratch venv; the same selection under the base interpreter passed 37 of 37).
+CI misses it: tier1 is ubuntu-only and tier2's Windows legs install into setup-python with no
+venv; the maintainer machine uses no venv. Secondary: where the base has pytest, the push suite
+runs silently under the base interpreter, not the vetted venv.
+ADVERSARY (distinct, reproduction lens): NOT REFUTED. An independent scratch venv on a pytest-free
+base: 4 of the 23 ids FAILED "wrote no report", the control passed; the gate with bare `python`
+read "No module named pytest", exit 1, and with the venv's absolute path exit 0; both fixes (the
+hook passes the absolute interpreter path; the kit resolves bare words) turned them green; the same
+4 ids passed at 457d2b9. CORRECTION: the kit fix as first worded is unsafe - shutil.which on
+Windows searches the current directory first unless NoDefaultCurrentDirectoryInExePath is set, and
+the gate's cwd is the pushed tree's root, so the fix must exclude cwd; the existing .cmd/.bat
+branch already carries that flaw (reported to MAIN for v15). Residuals: the Sandbox was not re-run
+with a fix; 4 of the 23 ids were run.
+RECOVERY RULING (a distinct read-only adjudicator that produced none of the work; its file, in the
+OUT folder, sha256 a0345800f2c935f4d908ad5299519abeaad58c7aa9f44f21dbfaf55fef6f80e7):
+Q1 the hand-off's OPEN case and its ANY RED rule apply; rejected re-grading clause 7 as an
+environment fault and re-walking 28b1cba with CLOCKSPEED_PYTHON set; reversed by a distinct
+grader finding the 23 FAILED lines absent from the raw suite log.
+Q2 the window is ABANDONED and closes at the first commit after 28b1cba - this records commit;
+rejected holding it open for the fix (the fix needs commits to tests/ and .githooks/, which the
+window forbids); reversed by nothing short of the operator's own words.
+Q3 the fix, if the adversary confirms: this record and the grant above; a red-first Windows venv
+test; the scoped .githooks/pre-push edit (the grant above); a FIX note to MAIN (resolve_exe should
+resolve every bare word against the child's PATH, and its docstring is false); a distinct
+adversary on three lenses. Rejected: a test-only fix and a docs-only workaround.
+Q4 before step c is tried again: the fix on main (red first, adversary NOT REFUTED, a local Windows
+venv run on a pytest-free base passing the 23 and the new test); pushed, tier1 at that tip passing
+the step-b gate (a miss restarts the pair, R1/R2); one tier2 workflow_dispatch at or after the fix
+green on every job on attempt 1 (granted by the ruling; tier1 has no Windows leg); then the block
+restarts at step a with the operator present - a new a, b, freeze witness, walker in a new walk
+folder, grader, and S3-S5 into a new OUT folder; the walk stays the full walk.
+Q5 nothing is asked of the operator this session; the delete_repo grant is not asked early; the
+conditional install-time question lapses (the record below).
+Q6 R1 (the README clone command) stays in BACKLOG, triggered by the flip; rejected a placeholder
+clone line before it.
+Q7 these records land in this window-closing commit; the KEEP RULE does not apply (no window
+/done ran).
+DECISION: the recovery rule applies; the window is abandoned and closed by this commit; the fix is
+the in-tree hook change plus a FIX note to MAIN, conditional on the adversary (met).
+RUNNER-UP: keep the window open and re-walk 28b1cba with CLOCKSPEED_PYTHON set - lost: the
+documented suite is red as written, the precedent bars re-walking a failed tip, and the window
+forbids the fix commit.
+COMMON-MODE RISK: the 23 failures and both reproductions run through one test harness; no real
+`git push` from a venv clone has been seen blocked. RESIDUAL: a real venv-clone push (the fix
+adversary or the next walk settles it); other in-tree callers passing a bare `python` to the gate
+are not audited (MAIN's kit fix covers them).
+WINDOW CLOSED, read back: INBOX_STOP removed to the Recycle Bin and read back absent; QUEUE_STOP
+kept (CS-1274, 2026-09-19, never part of the block); STOP absent; the remote PRIVATE and not
+archived and `--flip-readiness` exit 0 with an empty diff from 28b1cba (the adjudicator's reads).
+S7q and S7a-S8a VOID (none ran). Kept as evidence only, never valid for a later walk: the OUT
+folder cs700-s141 (bundles, the S3-S5 record, the grader ruling), the walk folder cs-walk-141 and
+the freeze witness of 28b1cba; any later removal goes to the Recycle Bin. f81a246 and 28b1cba stay
+in history, pushed and green; as block steps they are used up. This commit is records only and is
+NOT pushed alone: it rides the CS-1327 fix push.
+
+### 2026-10-14 - CS-1317 and CS-700 - step a and step b tier1 pass the step-b gate; the operator ask lapses
+Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38638197223 at f81a246
+and 38642208376 at 28b1cba; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES).
+Not a completion record: CS-1317 and CS-700 stay open.
+STEP a, the records commit f81a246, pushed: tier1 38638197223 SUCCESS, six jobs on attempt 1:
+gates 305 s, fill 313, scan 203, save 205, guard 418, hook 389.
+STEP b, the citation-set regeneration commit 28b1cba, pushed: tier1 38642208376 SUCCESS, six jobs
+on attempt 1: gates 301 s, fill 228, scan 331, save 157, guard 352, hook 297.
+Install steps 5-11 s on both. GATE: both pass - catch-all, fill and scan at 420 s or under, no
+job over 444 s, attempt 1. Guard 418 s sits under its 420 s budget; the guard watch did not fire.
+OPERATOR ASK (the gate-reading-2 ruling Q2): 0 of the 4 tier1 runs after that ruling - 221e737,
+4f4e536, f81a246 and 28b1cba - had a job whose Install toolchain step read 20 s or more, against
+the 2 of 4 its trigger needed. THE QUESTION LAPSES and is never asked (recovery ruling Q5).
+
 ### 2026-10-14 - CS-1317 and CS-700 - step-b gate reading 2 of 2 passes
 Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38625359171 at 4f4e536; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
 PUSH 5 put main at 4f4e536 (records only; remote equal by full SHA, read again at CS-700 step a;
