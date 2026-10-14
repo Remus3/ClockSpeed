@@ -75,6 +75,36 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1317 and CS-700 - gate reading 2 missed on a slow runner; the pair restarts; the gate stands
+Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38614235281 at 569ecf0 and on green fill run 38609195253 at 3f15a1b; `tests/test_tier1_budget.py` (FILL_SHARD_FILES). Ruled by a distinct adjudicator. Not a completion record: CS-1317 and CS-700 stay open.
+PUSH 3 put main at 569ecf0 (records only; remote equal by full SHA; push suite 16296 passed, 12
+skipped, 1247.33 s). TIER1 38614235281 at 569ecf0 CANCELLED: gates 306 s, scan 347, save 260,
+guard 410, hook 389 success; fill 610 s cancelled at its 10-minute timeout at 89 percent (1368
+passed, no F or E). A distinct adjudicator compared it with green fill run 38609195253: install
+23.4 s vs 9.5 s, collection 55.4 s vs 12.1 s, light bands 11.1 s vs 2.7 s, 532 s vs 131 s elapsed
+at 89 percent - a runner about 4.06x slow; 3f15a1b..569ecf0 touches only BACKLOG.md and
+docs/LEDGER.md. Over 20 tier1 runs (about 113 job samples) the install step read 5-14 s except
+this job (24 s) and 140eab9's hook (26 s).
+Q1 RUNNER NOISE, no code fix, no fill move. The mypy ruling's reversal clause was spent at the
+first reading (3f15a1b, not fired); a gate miss all the same - THE PAIR RESTARTS AT 0 OF 2.
+Reversed by: a fill error or a fill reading over 420 s on a runner whose install step is 10 s or
+under.
+Q2 THE GATE STANDS, nothing new owed: about 10 percent per run severe slow jobs over 20 runs,
+guard over 444 about 10 percent - about 0.8 per run pass, about 0.5 for three in a row, about 5
+pushes expected. Runner-up (shard for a 2.3x runner: 10-11 jobs at 183-193 s, a liveness split;
+a 4.06x runner would need about 20 jobs, each a fresh draw) lost; caching saves at most 10 s per
+job (wheels cached); loosening is outside R2's reversal clauses. OPERATOR ASK, ONLY IF 2 of the
+next 4 tier1 runs have a job whose install step reads 20 s or more: "May a step-b gate miss whose
+failing job's Install toolchain step reads 20 s or more, its shard unchanged since its last
+green, be recorded as runner noise that neither counts nor restarts the pair? yes/no". Guard
+stays a watch.
+Q3 ORDER: this records commit; push 4 and read the gate (1 of 2); a records commit, push 5, read
+the gate (2 of 2); step a with the operator present. Tier1 has no workflow_dispatch trigger, so
+every reading needs a fresh commit.
+Common-mode risk: every runner-speed judgment is inferred from install and progress-line
+timestamps; no job measures CPU speed directly. Residual: the base rate rests on 20 runs. Not a
+completion record: CS-1317 and CS-700 stay open.
+
 ### 2026-10-14 - CS-1317 and CS-700 - step-b gate reading 1 of 2 passes
 Verification: "tier 1 took" lines and --durations on tier1 38609195253 at 3f15a1b; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
 PUSH 2 put main at 3f15a1b (remote equal by full SHA; push suite 16296 passed, 12 skipped,
