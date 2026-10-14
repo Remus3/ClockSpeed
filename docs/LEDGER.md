@@ -75,6 +75,57 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1317 and CS-700 - session 141 step-b holds ruling
+Verification: every job's "tier 1 took" line on tier1 38462295952 at 922ae50, 38466118991 at
+b12396c, 38481080373 (attempt 1) at 557cd45, 38491162550 at 1d84d19 and 38499621148 at 7db664c,
+each SUCCESS; scheduled tier2 38537859291 at 7db664c; `.github/workflows/tier1.yml`,
+`.github/workflows/tier2.yml` and `tests/test_tier1_budget.py` (FILL_SHARD_FILES and
+SCAN_SHARD_FILES); the CS-1317 session 140 second reading (D4) and fill-shard ruling below.
+Adjudicated by a distinct read-only adjudicator that produced none of the work. Not a completion
+record: this record does not close CS-1317 or CS-700, and both stay open.
+Readings ("tier 1 took", s; gates is the catch-all): 922ae50 gates 305, fill 365; b12396c gates
+264, fill 431; 557cd45 gates 448, guard 422, fill 260; 1d84d19 gates 174, fill 443; 7db664c gates
+300, guard 382, save 149, scan 159, hook 390, fill 427. Tier2 38537859291 at 7db664c RED on the
+windows-latest fill shard:
+`tests/test_probe_refusal_output.py::test_the_stubborn_sleep_makes_the_self_check_return_137`
+read 124, expected 137 (diagnosis in flight; never rerun green).
+R1 - HOLD 1 (D4) DISCHARGED; no catch-all rebalance is owed before step b. D4's reversal fired,
+which retires D4's step-b and 360 s close conditions; step b falls back to CS-1317's own
+Acceptance (two consecutive catch-all readings within 420 s on main), which 38491162550 (174 s)
+and 38499621148 (300 s) meet. The 448 s was runner speed, not distribution: 922ae50, b12396c and
+557cd45 ran the same 8758 tests in 305/264/448 s, and the 448 s run's Type check step alone took
+51 s against 19-24 s elsewhere. Rejected: D4's fallback rebalance. Reversed by: any catch-all
+reading over 420 s before step b, which restarts the pair.
+R2 - HOLD 2 STANDS on both grounds. (a) 448 > 444 fired the fill ruling's reversal, so its
+runner-up (hold until rebalanced) governs; the fill shard (a constant 1628 tests) reads 421-443 s
+on slow runners, and a measured 1.45x runner would cross the 600 s cutoff. (b) "Any red job"
+names no tier, so it covers tier2, and the tier2 red is the fill shard's own Windows leg.
+REBALANCE ACCEPTANCE: move tests/test_liveness.py (the fill shard's heaviest file, at least 156 s
+summed on both runs above) from fill to scan in .github/workflows/tier1.yml and both fill/scan
+legs of .github/workflows/tier2.yml; FILL_SHARD_FILES and SCAN_SHARD_FILES in
+tests/test_tier1_budget.py updated; the catch-all ignore list byte-identical (the CS-1214 shape);
+the B3 projection from those two runs' durations puts fill and scan each at 360 s or under, else
+an adjudicator rules on a second file; 420/480/10 unchanged; nothing skipped; tier1 and tier2
+budget, headroom, growth and concentration tests green; a commit that lands before step a.
+STEP-B GATE: on two consecutive tier1 runs on main after the move and on step a's own run - all
+six jobs pass on attempt 1, catch-all, fill and scan each at 420 s or under, no job over 444 s.
+Rejected: lifting the hold because the budget is a warning. Reversed by: no one- or two-file move
+projecting at 360 s or under, or the operator's own words.
+R3 - CS-700 STEP a WAITS for the tier2 red: fixed by a commit, its cause measured (the CS-1318
+standard), red-first where reproducible, no rerun, no skip; then one tier2 workflow_dispatch
+(granted by this ruling) at or after the fix commit, every job green on attempt 1. Why: no commit
+may land between step a's records commit and S12a. Rejected: step a on tier1 green alone.
+Reversed by: the operator's own words.
+R4 - ORDER: (1) this record; (2) the tier2 fix and the R2 rebalance as two disjoint slices in
+parallel, each with an adversary; (3) push 1, read tier1 against the step-b gate, dispatch tier2;
+(4) records commit, push 2, read tier1 against the gate; (5) step a with the operator present,
+push, gate read; (6) step b.
+RUNNER-UP: lift both holds (Acceptance met, budget a warning) - lost because step b's tier1 run
+can never be rerun green and fill sits about 10% under the ceiling against a measured 45% runner
+swing. COMMON-MODE RISK: D4, the fill ruling and both holds rest on tier1.yml's assumed +-18 s
+swing, which the measured spread disproves. RESIDUAL: the hook (about 385 s) and guard (about
+350 s) shards cross 420 s on a runner 1.25x slow or worse; the tier2 red's cause is open.
+
 ### 2026-10-13 - CS-1315 - CLOSED: registry provenance served on every pricing door - the audit, every advice card, /api/power, /api/solve and /api/optimize
 Verification: merged files `clockspeed/data/registry.py`, `clockspeed/audit/build.py`,
 `clockspeed/advisor/build.py`, `clockspeed/surface/providers.py`,
