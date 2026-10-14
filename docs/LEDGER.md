@@ -75,6 +75,67 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1326 - opened, fixed and landed, not closed
+Verification: merged file `tests/test_probe_refusal_output.py`; tests
+`tests/test_probe_refusal_output.py::test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill`
+and `tests/test_probe_refusal_output.py::test_the_stubborn_sleep_makes_the_self_check_return_137`;
+the CS-1326 section of `docs/item_notes/phase7.md`. Landed on main by cherry-pick: 53af340 (open),
+0e72c8d (fix) and ee58f4b (portability rework). Not a completion record: CS-1326 stays open until
+one tier2 workflow_dispatch at or after the fix is green on every job on attempt 1.
+RED: scheduled tier2 38537859291 at 7db664c, the windows-latest fill shard,
+`tests/test_probe_refusal_output.py::test_the_stubborn_sleep_makes_the_self_check_return_137`
+read [124]. CAUSE, measured: a load-triggered startup race in the test's own fixture - the
+stand-in sleep was TERM-immune only after its trap ran, and timeout's 0.05 s TERM (CS-815's
+expiry) could land first. Evidence: nothing on the path changed since the last green tier2; 124 in
+7 of 20 under 3x CPU oversubscription locally, 5 of 5 with a forced 0.3 s pre-trap delay; CI
+history 1 red and 40 green on Windows, 0 red and 100 green on ubuntu; three earlier local flakes
+(sessions 126 and 129); the BACKLOG watch line's "third flake" trigger had fired, so it was
+promoted to CS-1326.
+RED FIRST: test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill read [124] in 5 of 5 before
+the fix.
+FIX: a timeout shim beside the stubborn sleep runs the real timeout under
+`env --block-signal=TERM`, and the stubborn sleep runs under bash; the 0.05 s expiry, every
+assertion and every carrier byte unchanged; nothing skipped; the sibling arms assert the real path
+from a recorded status.
+ADVERSARY A (masking) REFUTED only on the unrun tier2 dispatch and an equivalent mutant (trap
+deletion stayed green; a docstring was false). ADVERSARY B (portability) REFUTED: ubuntu-latest
+rolls to Ubuntu 26.04 from 2026-10-19 to 2026-11-19 (runner-images issue 14748), whose default
+coreutils is uutils, and the shim's GNU check would redden 9 tests on 3 Linux legs.
+REWORK: the GNU check dropped (`env --block-signal=TERM <timeout> --version` exit 0 kept), the
+docstrings made truthful. THE ACCEPTANCE WAS AMENDED BY ITS BUILDER from GNU-only to GNU or
+uutils, on adversary B's refutation - recorded here. Both adversaries re-checked: NOT REFUTED
+(uutils 0.8.0 as the default PATH in WSL: the 9 stubborn tests pass; with the block deleted the
+slow-start arm read [124]; every carrier mutant red).
+RESIDUAL: no test times the grace, so a timeout sending KILL at once would pass; the coreutils
+version under windows-latest's Git 2.56 is unverified.
+
+### 2026-10-14 - CS-1317 - session 141 second-file and scan rulings
+Verification: `.github/workflows/tier1.yml`, `.github/workflows/tier2.yml` and
+`tests/test_tier1_budget.py` (FILL_SHARD_FILES and SCAN_SHARD_FILES); the printed durations of
+tier1 38491162550 at 1d84d19 and 38499621148 at 7db664c; R2's REBALANCE ACCEPTANCE and its B3
+projection in the session 141 step-b holds ruling below. Not a completion record: CS-1317 stays
+open.
+(1) The one-file move (tests/test_liveness.py, fill to scan) was REFUTED by an adversary on fill:
+B3 counts CI-only, 443 - 156.28/2 = 364.9 s > 360 (the builder's 349 added raw local seconds);
+scan held.
+(2) A distinct adjudicator ruled the second file tests/test_mypy_gate.py to scan. Runner-up
+tests/test_citation_tables.py lost: fill margin 3.7 s. tests/test_cs1175_rule_narrowing.py stays in
+fill, so the CS-1304 watch is untouched. Fill printed-only: 443 - (156.28+114.36)/2 = 307.7 s and
+427 - (153.23+106.81)/2 = 297.0 s; R2's reversal did not fire.
+(3) A fresh adversary on the pair: partition clean, setup identical, guard tests green; REFUTED
+(UNCERTAIN) on scan: --durations=15 cut about 97 liveness arms; scan 295 s printed-only, 351-368 s
+at a CI/local ratio of 2.0-2.6 on run 38499621148.
+(4) A distinct adjudicator ruled LAND the pair plus a third commit fixing the note and names, no
+further move: the B3 standard counts printed timings (scan 295 s, within 360); only the
+extrapolation crosses, by at most 8 s, 52 s under the 420 s gate; another move costs about an hour
+with its own unmeasured projection; section 7 cost-against-risk. Runner-up: a further move.
+Reversed by: the first tier1 reading after the push - scan over 360 s and at most 420 s: an
+adjudicator re-rules on measured timings, step b is not held, and the run counts; scan over 420 s:
+step b holds and an adjudicator picks the move from measured timings; no rerun counts as green.
+Record on that run: scan's and fill's "tier 1 took" lines and the liveness and mypy-gate timings.
+COMMON-MODE RISK: both analyses rest on the same two runs' truncated printouts, and neither covers
+CS-1326's change to a fill-shard file.
+
 ### 2026-10-14 - CS-1317 and CS-700 - session 141 step-b holds ruling
 Verification: every job's "tier 1 took" line on tier1 38462295952 at 922ae50, 38466118991 at
 b12396c, 38481080373 (attempt 1) at 557cd45, 38491162550 at 1d84d19 and 38499621148 at 7db664c,
