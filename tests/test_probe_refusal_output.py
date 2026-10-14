@@ -39,11 +39,16 @@ CS-1326 - THE STUBBORN CHILD IS TERM-IMMUNE FROM ITS FIRST INSTRUCTION. A
 ``sleep`` that ignores TERM only once its trap has run loses the race with the
 0.05 s bound whenever it starts slowly, and the check then returns 124 - a
 loaded runner did exactly that. So beside it on PATH goes a ``timeout`` that
-runs the real one with TERM BLOCKED: the child is born blocked, the bound's
-TERM stays pending until the trap discards it, and only the kill ends it. That
-``timeout`` records every self-check's status, and each arm reads the record
-to show the carrier's own check ended by the kill, because a carrier proceeds
-on 124 as well and an arm that read only that could pass on the wrong path.
+runs the real one with TERM BLOCKED. The child inherits that mask across its
+exec, so the bound's TERM stays pending from the child's first instruction and
+only the kill ends it. THE BLOCK IS WHAT CARRIES THE 137: with the trap line
+deleted every arm still passes (an adversary's mutant, session 141). The trap
+stays as a second barrier - it discards the pending TERM and keeps the child
+literally ignoring it, the shape CS-1200 names - but it is not the mechanism.
+That ``timeout`` records every self-check's status, and each arm reads the
+record to show the carrier's own check ended by the kill, because a carrier
+proceeds on 124 as well and an arm that read only that could pass on the
+wrong path.
 
 NOTHING ASSERTED HERE RENDERS AN ENVIRONMENT VALUE OR A PATH. Every run is
 reduced to an exit status, counts and bools before an assertion sees it (the
@@ -413,22 +418,30 @@ def test_a_wrapper_refusal_renders_no_canary(tmp_path: Path, leg: str) -> None:
 
 # --- condition 3: a kill after the grace is a working bound -------------------------
 
-#: A ``sleep`` that ignores TERM, so a bound is enforced only by the KILL. Its
-#: shebang is the resolved bash (CS-1326): bash keeps an inherited blocked TERM
-#: blocked through its start and its waits, while dash unblocks it while waiting
-#: on a child, so a dash stand-in for a slow start died of TERM even with the
-#: ``timeout`` below in front of it (measured, WSL Ubuntu 26.04).
-STUBBORN_SLEEP_HEAD: Final = "# CS-1200 fixture: a sleep that ignores TERM.\n"
+#: A ``sleep`` that outlives TERM, so a bound is enforced only by the KILL.
+#: CS-1326: what makes it outlive TERM is the mask it inherits across its exec
+#: from the ``timeout`` below - TERM blocked from its first instruction. Its
+#: ``trap '' TERM`` is a SECOND barrier: it discards the pending TERM and makes
+#: the child ignore it as CS-1200 describes, but with the trap deleted the
+#: block alone still yields 137. Its shebang is the resolved bash: bash keeps
+#: an inherited blocked TERM blocked through its start and its waits, while
+#: dash unblocks it while waiting on a child, so a dash stand-in for a slow
+#: start died of TERM even behind the ``timeout`` below (measured, WSL Ubuntu
+#: 26.04).
+STUBBORN_SLEEP_HEAD: Final = (
+    "# CS-1200 and CS-1326 fixture: a sleep started with TERM blocked by its\n"
+    "# timeout; the trap below is a second barrier that also ignores TERM.\n"
+)
 STUBBORN_TRAP: Final = "trap '' TERM\n"
 #: CS-1326: how long the slow-start arm's stubborn ``sleep`` runs the real one
 #: BEFORE its trap - six times the 0.05 s bound, well inside the 1 s grace.
 SLOW_START: Final = "0.3"
 
 #: CS-1326: beside the stubborn ``sleep``, a ``timeout`` that runs the real one
-#: with TERM BLOCKED. GNU timeout restores the mask it inherited in the child it
-#: starts, so that child is born with TERM blocked, the bound's TERM stays
-#: pending until the trap discards it, and only the kill can end it - however
-#: slowly the child starts. The real timeout still does all the bounding.
+#: with TERM BLOCKED. The real timeout starts its child with the mask it
+#: inherited - measured for GNU coreutils and for uutils - so that child is born
+#: with TERM blocked, the bound's TERM stays pending, and only the kill can end
+#: it, however slowly the child starts. The real timeout does all the bounding.
 TERM_BLOCKING_TIMEOUT: Final = (
     "#!/bin/sh\n"
     "# CS-1326 fixture: the real timeout, its child born with TERM blocked.\n"
@@ -506,13 +519,15 @@ def resolved_in_shell(root: Path) -> dict[str, str]:
 
 
 def stubborn_bin(root: Path, pre_trap_wait: str | None = None) -> Path:
-    """A directory whose ``sleep`` ignores TERM and then runs the real one.
+    """A directory whose ``sleep`` outlives TERM and then runs the real one.
 
     CS-1326: its ``timeout`` runs the real one with TERM blocked, so that
-    ``sleep`` is TERM-immune from its first instruction, and records every
-    carried self-check's status at :data:`SELF_CHECK_RECORD` under ``root``.
-    ``pre_trap_wait`` makes the ``sleep`` run the real one for that long BEFORE
-    its trap - a child that starts slowly, the shape a loaded box gives it.
+    ``sleep`` inherits the block across its exec and is TERM-immune from its
+    first instruction; its trap is a second barrier, not the mechanism. The
+    ``timeout`` records every carried self-check's status at
+    :data:`SELF_CHECK_RECORD` under ``root``. ``pre_trap_wait`` makes the
+    ``sleep`` run the real one for that long BEFORE its trap - a child that
+    starts slowly, the shape a loaded box gives it.
     """
     shell = require_posix_shell()
     real = shutil.which("sleep", path=str(Path(shell).parent)) or shutil.which("sleep")
@@ -533,7 +548,10 @@ def stubborn_bin(root: Path, pre_trap_wait: str | None = None) -> Path:
     )
     write_executable(root / "stubborn" / "timeout", shim.encode("utf-8"))
     # The precondition, asserted and never skipped: env takes --block-signal
-    # (coreutils 8.31 or later) and the timeout behind it is GNU's.
+    # and the timeout behind it answers --version, so BusyBox and coreutils
+    # before 8.31 refuse here. Any implementation is accepted - GNU and uutils
+    # both measured to keep the block in the child - because the slow-start arm
+    # below is the behavioural guard that the block reaches the child.
     proc = subprocess.run(
         [shell, str(root / "stubborn" / "timeout"), "--version"],
         capture_output=True,
@@ -541,9 +559,8 @@ def stubborn_bin(root: Path, pre_trap_wait: str | None = None) -> Path:
         timeout=CALL_TIMEOUT,
         check=False,
     )
-    gnu = b"GNU coreutils" in proc.stdout
-    usable = proc.returncode == 0 and gnu
-    assert usable, f"the TERM-blocking timeout is unusable: exit {proc.returncode}, GNU {gnu}"
+    code = proc.returncode
+    assert code == 0, f"the TERM-blocking timeout is unusable: --version exited {code}"
     return root / "stubborn"
 
 
@@ -602,13 +619,15 @@ def run_block(root: Path, carrier: str, *first: Path) -> BlockRun:
 
 
 def test_the_stubborn_sleep_makes_the_self_check_return_137(tmp_path: Path) -> None:
-    """ANTI-VACUITY. The TERM-ignoring sleep really makes the check end by the kill.
+    """ANTI-VACUITY. The stubborn fixture really makes the check end by the kill.
 
     With the real sleep the same check ends by the bound - 124, or 137 when a
     loaded box delays the child past the grace (CS-1200 measured 2 of 12) - and
     never by the child finishing. The stubborn half alone carries the proof.
-    CS-1326: the stubborn half read 124 on a loaded runner when its trap had not
-    run by the bound; its child is now born with TERM blocked.
+    CS-1326: what makes that half end by the kill is the TERM mask its child
+    inherits across exec from the fixture's ``timeout``, not the child's trap -
+    with the trap alone it read 124 on a loaded runner, whose child had not
+    reached the trap by the bound, and with the trap deleted it still reads 137.
     """
     stubborn = self_check_status(tmp_path, stubborn_bin(tmp_path))
     plain = self_check_status(tmp_path)
@@ -620,8 +639,11 @@ def test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill(tmp_path: Path) -
     """CS-1326. The kill must not depend on how fast the stubborn child starts.
 
     Its trap runs only after the 0.05 s bound has expired - the shape of the
-    loaded runner on which tier2 38537859291 read 124 for the arm above. The
-    record the arms below read is shown here to hold exactly what the shell saw.
+    loaded runner on which tier2 38537859291 read 124 for the arm above - so
+    only the inherited block can carry it to the kill: without the block it
+    reads 124. This is the behavioural guard that the block reaches the child,
+    whichever coreutils supplies ``env`` and ``timeout``. The record the arms
+    below read is shown here to hold exactly what the shell saw.
     """
     status = self_check_status(tmp_path, stubborn_bin(tmp_path, SLOW_START))
     recorded = self_check_record(tmp_path)

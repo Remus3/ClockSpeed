@@ -1960,8 +1960,8 @@ reproduction comes first: `stubborn_bin` gains a pre-trap delay option, and a ne
 137 for a stubborn sleep that starts slowly reads [124] before the fix. The fix makes the stubborn
 child immune to TERM from its first instruction - a `timeout` shim first on PATH that runs the real
 timeout as `env --block-signal=TERM <real timeout> "$@"`, or an equivalent the builder measures -
-and asserts its own precondition (`env --block-signal` supported, the timeout behind it GNU) loudly,
-never by a skip. The 0.05 s expiry of the carried self-check, every existing assertion and every
+and asserts its own precondition (`env --block-signal=TERM <timeout> --version` exits 0) loudly,
+never by a skip; any coreutils that passes it is accepted, GNU or uutils. The 0.05 s expiry of the carried self-check, every existing assertion and every
 carrier byte stay unchanged, and nothing is skipped or retried. Every sibling arm that passed
 vacuously through 124 - `test_a_kill_after_the_grace_is_a_working_bound` (four carriers),
 `test_the_wrapper_proceeds_when_the_self_check_ends_by_the_kill` (two legs) and the POSIX-only
