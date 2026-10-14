@@ -67,8 +67,8 @@ jobs:
   # path is still run. That module derives both sides and is red on any drift,
   # so a file moved between shards over there moves here in the same diff or
   # not at all. Six shards, because that partition has six jobs. The sixth,
-  # CS-1317's scan shard, is work the fast shard carried until then, so its
-  # suite time moves off the fast legs, but each of its four new legs pays its
+  # CS-1317's scan shard, is work the fast and fill shards carried until then, so
+  # its suite time moves off those legs, but each of its four new legs pays its
   # own checkout, interpreter and install, and each probe leg its own fresh
   # clone, bootstrap and hook-firing step - about 170s more runner time a
   # night, billed per job in whole minutes, the Windows legs at twice the Linux

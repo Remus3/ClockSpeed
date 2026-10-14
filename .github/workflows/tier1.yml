@@ -1336,8 +1336,9 @@ jobs:
       # readings that moved them. This stays the CPU-bound shard by construction.
       #
       # ORDER IS NOT DISPATCH ORDER HERE. xdist 3.8 sorts the loadfile queue by test
-      # count, descending, and only the hook job turns that off, so appending these
-      # three at the end changes no schedule. Do not reorder them for speed.
+      # count, descending, and only the hook job turns that off, so appending the
+      # one guard-shard arrival left here changes no schedule. Do not reorder for
+      # speed.
       #
       # tests/test_secret_sweep.py ARRIVED FROM THE CATCH-ALL IN THE TIER1 SHARD
       # REBALANCE, and only it. Over the twelve runs the hook shard's note names,
@@ -1461,8 +1462,10 @@ jobs:
   # rather than trimmed: every test that ran before still runs on every push, in
   # exactly one shard, with no deselect and no skip. Caching was refused.
   #
-  # WHAT RUNS HERE. The catch-all's corpus-scanning head: four files whose heavy
-  # arms each read the whole tracked tree. The pick came from CI's own
+  # WHAT RUNS HERE. Six files: the catch-all's corpus-scanning head, four files
+  # whose heavy arms each read the whole tracked tree, and the two the CS-1317
+  # rebalance moved on from the fill shard (the note at this job's Unit tests
+  # step). The pick of the four came from CI's own
   # --durations on run 38303460197 - the slowest of the three readings above,
   # so the projection is taken from a slow runner - and a serial local profile
   # of eight candidates calibrated to it, never by name. Local seconds, then the
@@ -1561,12 +1564,15 @@ jobs:
       # an adversary refuted the 349s that had added raw local seconds to it.
       # PROJECTED, W = 2, the fill shard losing half the moved worker time:
       # 443 - (156.28 + 114.36)/2 = 307.7s on 38491162550 and
-      # 427 - (153.23 + 106.81)/2 = 297.0s on 38499621148. The adjudicator's
-      # loadfile-scheduler simulation on two workers put the scan shard at worst
-      # 346.6s, under 360; its dispatch order is readme 146 tests, liveness 101,
-      # provenance 68, mypy gate 50, chained 25, disposition 14. The mypy gate's
-      # three conditional skips moved with it; nothing new is skipped.
-      # UNMEASURED until the first CI reading settles it.
+      # 427 - (153.23 + 106.81)/2 = 297.0s on 38499621148. This job's dispatch
+      # order is readme 146 tests, liveness 101, provenance 68, mypy gate 50,
+      # chained 25, disposition 14. The mypy gate's three conditional skips moved
+      # with it; nothing new is skipped.
+      # Scan, W = 2, loadfile simulation on 38499621148: 295s on printed
+      # arms only; pricing the about 97 liveness arms --durations=15 cut, at
+      # CI/local 2.0 to 2.6, gives 351s to 368s - the top over the 360s
+      # target, under the 420s step-b gate. UNMEASURED: the first tier1
+      # reading after this move settles it; the step-b gate governs.
       - name: Unit tests
         run: >-
           python -m pytest

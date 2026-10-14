@@ -916,6 +916,21 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1177 citation, relocated by CS-1193. Not a record defect.",
         ("690192831736:40b2c3e72a51:0",),
     ),
+    # --- class 8: the record was RIGHT when written; the CS-1317 rebalance
+    # RENAMED the scan shard's membership arm. The CS-1317 landing record cited it
+    # live; two fill-shard files then joined the scan shard, so a name saying it
+    # runs only the catch-all's head claimed what it no longer grades.
+    (
+        LEDGER,
+        "tests/test_tier1_budget.py"
+        "::test_the_scan_shard_runs_exactly_the_catch_alls_scanning_head_and_no_other_shard_does",
+    ): Disposition(
+        RENAMED,
+        "tests/test_tier1_budget.py"
+        "::test_the_scan_shard_runs_exactly_the_moved_files_and_no_other_shard_does",
+        "CS-1317 citation, renamed by the CS-1317 rebalance. Not a record defect.",
+        ("d07d47746d21:a2dd5d522dd7:0",),
+    ),
 }
 
 
@@ -1242,7 +1257,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: back under its ceiling. Right-when-written and dead now, in an append-only
 #: carrier, with a live target - the two class 7 rows in DISPOSITIONS are
 #: MOVED and checked in all three directions every run.
-FORGIVEN_LINE_POINTER_CEILING: Final = 66
+#:
+#: RAISED TO 67 BY THE CS-1317 REBALANCE, FOR A RENAME. The CS-1317 landing
+#: record cites the scan shard's membership arm by path and symbol; two fill-shard
+#: files then joined that shard, so the arm's name stopped being true and was
+#: renamed. Right-when-written and dead now, in an append-only carrier, with a
+#: live target - the class 8 row in DISPOSITIONS is RENAMED and checked in all
+#: three directions every run.
+FORGIVEN_LINE_POINTER_CEILING: Final = 67
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

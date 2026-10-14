@@ -2966,12 +2966,14 @@ SCAN_SHARD_FILES = (
 )
 
 
-def test_the_scan_shard_runs_exactly_the_catch_alls_scanning_head_and_no_other_shard_does() -> None:
+def test_the_scan_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -> None:
     """CS-1317 - the catch-all read over its ceiling, and its scanning head moved out.
 
     The catch-all's pytest step had grown back over the budget on every push and
     over the ceiling on a docs-only tip, and its measured head was four files
-    that each scan the whole tracked corpus. No level moved and no test was
+    that each scan the whole tracked corpus. The CS-1317 rebalance then moved the
+    fill shard's two heaviest files on to here (:data:`SCAN_FROM_FILL`), so this
+    shard is no longer the catch-all's head alone. No level moved and no test was
     dropped: the partition arm proves every file runs in exactly one leg, and
     this arm pins WHICH leg, that the scan shard names nothing else, that the
     display name the lane driver keys on is the one written here, and that the
