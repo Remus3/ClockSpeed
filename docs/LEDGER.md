@@ -75,6 +75,17 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1317 and CS-700 - step-b gate reading 1 of 2 passes
+Verification: "tier 1 took" lines and --durations on tier1 38609195253 at 3f15a1b; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
+PUSH 2 put main at 3f15a1b (remote equal by full SHA; push suite 16296 passed, 12 skipped,
+1278.69 s). TIER1 38609195253 at 3f15a1b SUCCESS, six jobs on attempt 1: gates 170 s, fill 231,
+scan 335, save 266, guard 384, hook 248; install steps 5-10 s (normal runners). Printed (top-15
+truncated): tests/test_mypy_gate.py 74.62 s over 3 arms in fill, tests/test_liveness.py 208.17 s
+over 8 arms in scan.
+GATE: catch-all, fill and scan within 420 s, no job over 444 s - READING 1 OF 2 PASSES.
+The scan ruling's reversal did not fire: scan 335 and fill 231 within 360 (projected 341.0 and
+308.0). The guard watch did not fire: guard 384, under 444.
+
 ### 2026-10-14 - CS-1326 - CLOSED: the stubborn-sleep fixture is immune to TERM from its first instruction, so the self-check ends by the kill under load
 Verification: tests/test_probe_refusal_output.py;
 test_the_stubborn_sleep_makes_the_self_check_return_137 and

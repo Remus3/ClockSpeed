@@ -745,3 +745,7 @@ blocks no product item and reddens no suite.
   (`tests/test_canary_population.py::TIMEOUT`) has about 1.8x headroom - TRIGGER: an error in
   `tests/test_canary_population_forced.py` on a runner whose install step is 10 s or under; then
   measure locally under a CPU cap before changing the timeout.
+- An adversary residual, cosmetic: the fill job's unit-test step comment in
+  `.github/workflows/tier1.yml` and the comment on `tests/test_tier1_budget.py::FILL_FROM_GUARDS`
+  still call tests/test_mypy_gate.py "the second subprocess-heavy head", with no first after the
+  session 141 moves - a stale phrase.
