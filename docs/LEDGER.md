@@ -75,6 +75,55 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1326 - CLOSED: the stubborn-sleep fixture is immune to TERM from its first instruction, so the self-check ends by the kill under load
+Verification: tests/test_probe_refusal_output.py;
+test_the_stubborn_sleep_makes_the_self_check_return_137 and
+test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill.
+LOAD: at 140eab9, 48 burners on 16 logical CPUs (loaded CPU min 100, 74
+samples), each test 20 of 20 at 137, no 124; measured by a non-builder agent.
+CI: tier2 workflow_dispatch 38595548717 at 140eab9, 27 of 27 green, attempt 1;
+windows fill 1480 passed, 1 skipped (the win32 real-commit arm).
+CORRECTION: that runner's Git was 2.55.0.windows.5, not "Git 2.56".
+RESIDUAL: no test times the grace; the windows coreutils version is unrecorded,
+but the env --block-signal precondition passed there.
+
+### 2026-10-14 - CS-1317 - first reading after the move: scan 392 s, mypy gate back to fill
+Verification: "tier 1 took" lines and --durations on tier1 38593869307 at 140eab9; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 stays open.
+Readings: scan 392 (pytest 375.24, install 9 s), fill 257, gates 309, save 267, guard 450, hook cancelled; liveness 172.63 s, mypy gate 102.09 s printed. Gate not met: guard over 444, hook not passed.
+RULING: move tests/test_mypy_gate.py to fill; projected scan 341.0 s, fill 308.0 s. Rejected: watch (7 percent margin); chained guard (scan 349.4 s). Reversed by: the first reading after the move - scan or fill over 360 s, an adjudicator re-rules; over 420 s, step b holds.
+
+### 2026-10-14 - CS-1317 and CS-700 - push 1 tier1 red ruled runner noise; the step-b gate stands
+Verification: tier1 38593869307 and tier2 38595548717 at 140eab9;
+`tests/test_canary_population_forced.py::pristine` and `tests/test_canary_population.py::TIMEOUT`;
+the canary watch line in `BACKLOG.md`, "Session 141 residuals". Ruled by a distinct adjudicator,
+which spot-checked the diagnosis.
+PUSH 1 put main at 140eab9 (remote equal by full SHA; push suite 16296 passed, 12 skipped,
+1252.65 s). TIER1 38593869307 at 140eab9 CANCELLED: hook cancelled at its timeout-minutes 10 (job
+reading 609 s, ceiling 480) after two setup errors - tests/test_canary_population_forced.py's
+module-scoped pristine fixture (child pytest, TIMEOUT = 300, normally 110-165 s) timing out,
+inferred from the progress-line arithmetic (504 characters, 72 percent of 699, results 300 and
+301); that runner was CPU-starved: Install toolchain 26.0 s vs 6.1-9.5 s on the 14 prior hook jobs
+and 8-9 s on the run's other five jobs; pytest 2.2x slower overall, 3.3-4.3x in heavy bands; no
+hang. Not CS-1318 (that shows as an F in test_hook_probe_bound.py); not CS-1326 (its file runs in
+fill, green at 257 s); no hook-shard file changed since the last green. Tier2 38595548717 at
+140eab9 green 27 of 27 (R3's tier2 condition met).
+Q1 RUNNER NOISE, no code fix: the job's 600 s cutoff trips at about 1.55x a slow-normal runner,
+before the canary timeout's 1.8x, so raising the timeout could never turn a red green. Recorded
+here against its cause; never rerun; push 2 gives the fresh reading. Runner-up (raise the timeout
+first) lost on that fact. Reversed by: an error in the canary file on a runner whose install step
+is 10 s or under (BACKLOG watch).
+Q2 THE GATE STANDS AS WRITTEN: the next two consecutive tier1 runs on main, then step a's own run,
+each pass all six jobs on attempt 1, catch-all, fill and scan at 420 s or under, no job over 444 s;
+any miss restarts the pair; R2's reversal clauses have not fired. Runner-up (loosen to the 480
+ceiling) is outside the reversal clauses.
+Q3 GUARD 450 s IS A WATCH: guard over 444 on either gate run means a guard move (CS-1307's lane,
+files from measured durations, projecting 360 s or under) is owed before step a and the pair
+restarts. Runner-up (move now) lost: an unmeasured layout change right before step a.
+Q4 ORDER: records commit; push 2 and read the gate; a commit recording that reading, push 3, read
+the gate; step a with the operator present.
+Residual: the canary CPU-throttle falsifier was not run. Not a completion record: CS-1317 and
+CS-700 stay open.
+
 ### 2026-10-14 - CS-1317 - FORGIVEN_LINE_POINTER_CEILING 66 to 67 granted
 Verification: `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and the class 8
 RENAMED row in `tests/test_citation_tables.py::DISPOSITIONS`, both carried by the CS-1317

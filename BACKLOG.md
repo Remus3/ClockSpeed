@@ -735,3 +735,13 @@ record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or red
   (`clockspeed/surface/web/panel_map.js`) lists every served warning code, the build codes
   included, as "the reason" no throughput was served - TRIGGER: the next
   `clockspeed/surface/web/panel_map.js` edit.
+
+## Session 141 residuals - filed 2026-10-14 under product before process
+
+The push 1 rulings' residual; the CS-1317 and CS-700 record is in `docs/LEDGER.md`, 2026-10-14. It
+blocks no product item and reddens no suite.
+
+- From the CS-1317 session 141 ruling: the canary pristine fixture's 300 s timeout
+  (`tests/test_canary_population.py::TIMEOUT`) has about 1.8x headroom - TRIGGER: an error in
+  `tests/test_canary_population_forced.py` on a runner whose install step is 10 s or under; then
+  measure locally under a CPU cap before changing the timeout.
