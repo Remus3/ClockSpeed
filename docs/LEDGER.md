@@ -75,6 +75,44 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-13 - CS-1315 - CLOSED: registry provenance served on every pricing door - the audit, every advice card, /api/power, /api/solve and /api/optimize
+Verification: merged files `clockspeed/data/registry.py`, `clockspeed/audit/build.py`,
+`clockspeed/advisor/build.py`, `clockspeed/surface/providers.py`,
+`clockspeed/surface/api/provenance.py`, `clockspeed/surface/api/power.py`,
+`clockspeed/surface/api/solve.py`, `clockspeed/surface/web/panel_power.js`,
+`clockspeed/surface/web/panel_solve.js` and `clockspeed/surface/web/panel_optimize.js`. Tests:
+`tests/audit/test_build.py::test_a_build_only_difference_with_equal_bytes_is_not_a_registry_mismatch`,
+`tests/audit/test_build.py::test_a_registry_built_from_other_bytes_raises_the_registry_mismatch`,
+`tests/advisor/test_world_advice.py::test_over_a_registry_from_other_bytes_every_card_names_the_mismatch_and_nothing_settles`,
+`tests/surface/test_registry_provider_pin.py::test_bytes_other_than_the_pin_serve_the_mismatch_on_every_card`,
+`tests/surface/test_registry_provider_pin.py::test_bytes_equal_to_the_pin_serve_no_registry_code`,
+`tests/surface/test_registry_state_served.py::test_every_door_serves_the_registry_state_the_audit_reached`
+and `tests/surface/test_registry_state_served.py::test_the_provenance_module_compares_nothing`.
+Review: slice A - two adversaries and an adjudication (slice B owed; the TypeError narrowing);
+slice B - an adversary, NOT REFUTED; closed by a distinct adjudicator, with CS-1316, in session
+140. Slice B landed by cherry-pick onto the CS-1316 tip, its message kept; the targeted test files
+passed one at a time on main. K1: /api/registry prices nothing - it serves identifiers and values
+true of the file it read, withholds every power field, and its panel's long division re-spells one
+served pair; reversed by /api/registry or `clockspeed/surface/web/panel_registry.js` deriving a
+figure from two or more values, or naming the pinned build. Common-mode risk: a patch changing
+in-game values without regenerating en-US.json is invisible to every check. Residuals (K4):
+`BACKLOG.md`, "Session 140 residuals".
+
+### 2026-10-13 - CS-1316 - CLOSED: on an off-pin save /api/map serves the build state and the map panel marks the extractor rate as the pinned build's
+Verification: merged files `clockspeed/surface/api/map.py` and
+`clockspeed/surface/web/panel_map.js`. Tests:
+`tests/surface/test_map.py::test_an_off_pin_world_marks_the_rate_as_the_pinned_builds`,
+`tests/surface/test_map.py::test_an_on_pin_world_carries_no_build_marking`,
+`tests/surface/test_panel_map.py::test_an_off_pin_world_marks_the_rate_as_the_pinned_builds`,
+`tests/surface/test_panel_map.py::test_an_on_pin_world_carries_no_build_marking`,
+`tests/surface/test_map.py::test_the_map_never_compares_builds_itself`,
+`tests/surface/test_map.py::test_an_unverified_registry_is_never_marked_as_the_pinned_builds` and
+`tests/surface/test_panel_map.py::test_an_unparsed_pin_still_marks_a_verified_rate_as_the_pinned_builds`.
+Review: contract adjudicated before code (the record below); an adversary REFUTED the first cut
+(an unparsed pin claimed the rate was not the save build's own); fixed and re-checked NOT
+REFUTED; closed by a distinct adjudicator, with CS-1315, in session 140. Both commits landed on
+main by fast-forward. Residual (K4): `BACKLOG.md`, "Session 140 residuals".
+
 ### 2026-10-13 - CS-1316 - CONTRACT ADJUDICATED BEFORE CODE (session 140). NOT A COMPLETION RECORD. CS-1316 STAYS OPEN
 Verification: `docs/item_notes/phase5.md` under CS-1316 (its acceptance: the CS-977 warning
 contract change adjudicated and recorded before the code); `clockspeed/audit/build.py::SOURCE_BUILD`,

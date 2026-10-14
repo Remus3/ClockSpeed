@@ -1,8 +1,9 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
 Written in session 140 at CS-700 flip block step a, 2026-10-13, UPDATED in session 140's CS-1325
 records commit after step c did NOT PASS and the window was ABANDONED and CLOSED by adjudication,
-and UPDATED AGAIN in session 140's CS-1315 records commits after CS-1315 slice A landed. It is NOT
-a /done hand-off. The operator starts with "continue".
+and UPDATED AGAIN in session 140's CS-1315 records commits after CS-1315 slice A landed, and in
+the CS-1315 and CS-1316 close records commit after both CLOSED. It is NOT a /done hand-off. The
+operator starts with "continue".
 
 SESSION: 141
 
@@ -31,8 +32,15 @@ CS-1316 contracts"). Two doc guards read red at the landed slice A tip and green
 never rerun to green - the cited test name restored and the two archive-rot arms re-pinned
 (subject "CS-1315 - restore the cited test name; re-pin archive rot after slice A") - and this
 file was updated once more in a records commit on top (subject "CS-1315 - records: reds fixed,
-slice A pushed"), all pushed in ONE batch. The next session reads the remote ref against HEAD and
-the CI run, never the remembered result.
+slice A pushed"), all pushed in ONE batch. THEN CS-1316 LANDED by fast-forward (two commits,
+subjects "CS-1316 - map serves the build state; rate is pinned only if verified" and "CS-1316 -
+unparsed pin: rate is pinned, save build never checked") and CS-1315 SLICE B by cherry-pick on top
+(subject "CS-1315 - slice B: power, solve and optimize serve the registry state"); the targeted
+test files read green one at a time on that tip; a distinct closing adjudicator CLOSED CS-1315 and
+CS-1316 together, and this file rides in the close records commit on top (subject "CS-1315,
+CS-1316 - closed: registry provenance on every pricing door"). THOSE FOUR COMMITS WERE NOT
+PUSHED BY THE MERGER - session 140's /done pushes the batch ONCE. The next session reads the
+remote ref against HEAD and the CI run, never the remembered result.
 SESSION 141 RESTARTS THE BLOCK AT STEP a - INTERACTIVE, THE OPERATOR PRESENT AT STEP e - and never
 resumes it at step c on the old tip: a NEW records commit holding the next hand-off, then
 INBOX_STOP, its push and read-backs; a NEW step b (regeneration commit, push, tier1); a NEW freeze
@@ -50,8 +58,9 @@ folder. In order:
      - ops/loop/control/inbox_status.json (it read idle in session 140 after INBOX_STOP's removal;
        with INBOX_STOP present it reads halted).
      - THE CS-700 WINDOW SIGNAL, exactly as .claude/commands/done.md step 0 reads it: CLOSED is
-       expected (HEAD's own commit is the CS-1315 records commit, which does not touch the citation
-       set file); OPEN or UNKNOWN goes to a distinct adjudicator, never a ritual.
+       expected (HEAD's own commit is the CS-1315 and CS-1316 close records commit, or a later
+       /done commit, none of which touches the citation set file); OPEN or UNKNOWN goes to a
+       distinct adjudicator, never a ritual.
      - `git rev-parse HEAD` against `git ls-remote origin refs/heads/main`, by FULL SHA, and `git
        status --porcelain`.
      - The sentinels, by presence: INBOX_STOP and QUEUE_STOP in the lanes control directory, and
@@ -63,7 +72,8 @@ folder. In order:
        "tier 1 took" line; every tier2 run since 38385483026.
      - `python tools/inbox_watch.py` (listing never acknowledges).
  (1) ACT ON THAT STATE - each case is that state's own rule:
-     - CLOSED, HEAD == the CS-1315 records commit, the remote ref NOT equal: push first, through
+     - CLOSED, HEAD == the CS-1315 and CS-1316 close records commit (or a later /done commit), the
+       remote ref NOT equal: push first, through
        the git lock from Git Bash with its log outside the tree (the gated whole suite); then the
        next case.
      - CLOSED, HEAD == the remote ref: an INTERACTIVE session with the operator present RESTARTS
@@ -127,12 +137,24 @@ DONE IN SESSION 140 (each read, not remembered, unless marked as an agent's reco
    adversaries then a distinct adjudicator ruled the acceptance's last clause reaches /api/power,
    /api/solve and /api/optimize; slice A landed on main by cherry-pick with fix 1 (the provider no
    longer catches TypeError), fix 1 read against its ruling at landing; ten targeted test files
-   green one at a time. SLICE B IS OWED (LEDGER "CS-1315 - SLICE B CONTRACT RECORDED BEFORE CODE").
+   green one at a time. SLICE B WAS OWED (LEDGER "CS-1315 - SLICE B CONTRACT RECORDED BEFORE CODE";
+   it landed later in session 140, below).
  - CS-1316 CONTRACT RULED before code (LEDGER "CS-1316 - CONTRACT ADJUDICATED BEFORE CODE"):
    CS-977 amended - build_state in DATA_KEYS, the four build codes served verbatim; it builds after
    CS-1315 slice A.
  - FILED two BACKLOG lines from the slice A review (g2: a re-hash and rebuild per request; g3: a
    null docs_sha256 read as the string "None").
+ - CS-1316 CLOSED (LEDGER "CS-1316 - CLOSED"): /api/map serves build_state and the build codes; the
+   map panel marks the rate as the pinned build's only when the registry is verified. An
+   adversary refuted the first cut (an unparsed pin), the fix re-checked NOT REFUTED; landed on
+   main by fast-forward and read back.
+ - CS-1315 CLOSED (LEDGER "CS-1315 - CLOSED"): slice B - /api/power, /api/solve and /api/optimize
+   serve the registry state through clockspeed/surface/api/provenance.py, the three panels print
+   it - adversary NOT REFUTED; cherry-picked onto the CS-1316 tip and read back. A distinct
+   adjudicator closed both together; K1: /api/registry prices nothing.
+ - FILED four more BACKLOG lines ("Session 140 residuals", K4): the audit harness's solve and
+   optimize stand-ins; the panels' "UNVERIFIED <code>" wording; test_power's walker; the map
+   panel's empty-throughput reason line.
 
 ================================================================================
 THE NEXT SESSION'S ORDER (after the single next action)
@@ -146,12 +168,9 @@ THE NEXT SESSION'S ORDER (after the single next action)
     refresh commit that removes all three - a commit, so never inside the CS-700 window.
  4. CS-1318 - OPEN, its close REFUTED: the evidence that would close it (OPEN ITEMS 0b); a rerun
     alone is never the evidence.
- 5. After the flip (later sessions): CS-1315 SLICE B FIRST (slice A LANDED in session 140; slice B
-    is /api/power, /api/solve and /api/optimize under the LEDGER contract "CS-1315 - SLICE B
-    CONTRACT RECORDED BEFORE CODE"), then CS-1316 (its contract ruled: LEDGER "CS-1316 - CONTRACT
-    ADJUDICATED BEFORE CODE"; neither a flip blocker - R3, narrowed in session 140), then
-    CS-1231 slice C and CS-1283, CS-1304, CS-1307, CS-1291, CS-1295, then the carried and frozen
-    lists (OPEN ITEMS below).
+ 5. After the flip (later sessions): CS-1231 slice C and CS-1283, CS-1304, CS-1307, CS-1291,
+    CS-1295, then the carried and frozen lists (OPEN ITEMS below). CS-1315 and CS-1316 CLOSED in
+    session 140.
  6. Housekeeping, carried and NOT urgent, under CS-1291 part 7 and FLEET 9 (a consumer check, then
     the Recycle Bin): the five session 139 worktrees (STATE OF THE TREE, BRANCHES), the adversary
     scratch folder outside the repo (TEMP DIRS), the work/saves leftover copy (WORK DIR).
@@ -166,8 +185,9 @@ THE TOP TRACK - THE PUBLIC FLIP PATH (carried as the top track, in this order)
   PATCHED: R3's reversal FIRED and was NARROWED (CS-1315 and CS-1316 still not flip blockers);
   CS-1324 CLOSED (the re-pin). THE FLIP BLOCK STARTED: steps a and b landed (tier1 green); step c's
   re-walk at b12396c NOT PASSED (D2); the window ABANDONED and CLOSED by adjudication; CS-1325
-  CLOSED (the interpreter range and walk defects). CS-1315 SLICE A LANDED after the window closed
-  (NOT closed - slice B owed); the CS-1316 contract ruled. Session 141 restarts the block at step a.
+  CLOSED (the interpreter range and walk defects). CS-1315 SLICE A LANDED after the window closed;
+  the CS-1316 contract ruled; then CS-1316 and CS-1315 slice B landed and both items CLOSED.
+  Session 141 restarts the block at step a.
   DONE in session 139: TIER1 GREEN AGAIN at e9d3e27 - CS-1317 LANDED (a sixth tier1 shard, scan;
   420/480 unchanged, nothing skipped; ruling R1), CS-1318 MEASURED AS A LOAD FLAKE AND REPAIRED
   (open for its repeated ubuntu runs; R2), CS-1322 CLOSED (the CS-1320 Linux regression; R4).
@@ -223,14 +243,12 @@ READ THESE FIRST, IN THIS ORDER
                             state and next action); phase7.md CS-700 (the flip plan, S7a script
                             recorded verbatim, S8/S10/S11 shapes, the identity-oracle residual, the
                             session 131 notes, the "Session 137 ruling, recorded 2026-10-11" S12a
-                            note, the CS-1323 residuals and the KEEP RULE pointer); phase5.md
-                            CS-1315 and CS-1316 (not flip blockers - R3, narrowed in session
-                            140; CS-1315's acceptance amended; its slice A status line and the
-                            CS-1316 contract pointer); phase7.md CS-1231
+                            note, the CS-1323 residuals and the KEEP RULE pointer); phase7.md CS-1231
                             (the session 132 and CS-1287 notes: v11 R2 UNHOLDS slice C), CS-1283,
                             CS-1291, CS-1295, CS-1304 (its session 135 ruling), CS-1307 (its
                             session 137 verifier verdict and smallest remaining slice)
-  docs/LEDGER.md            the session 140 records, newest first: the CS-1316 CONTRACT, the
+  docs/LEDGER.md            the session 140 records, newest first: CS-1315 CLOSED and CS-1316
+                            CLOSED (K1: /api/registry prices nothing); the CS-1316 CONTRACT, the
                             CS-1315 SLICE B CONTRACT, the CS-1315 SLICE A LANDING (NOT
                             CLOSED) and the CS-1315 VARIANT A RULING; the CS-700, CS-G03 and
                             CS-1325 record (step c NOT PASSED, the window abandoned and
@@ -282,8 +300,9 @@ RACE GUARDS     every git commit / push through
                 FLEET_CLAIM_OWNER, else pre-push), with -x, grading the MAIN WORKING TREE.
 THE CS-700 WINDOW SIGNAL: session 140's step b regeneration commit b12396c opened the window; the
   abandonment's recovery rule held it shut until the CS-1325 commits; the CS-1315 commits, its
-  reds fix and its records commits touch no citation set file, so the signal reads CLOSED on it. The restart's new
-  step b opens a new window. The window rules - from flip block step b to S12a no commit, no suite, no push - are
+  reds fix and its records commits touch no citation set file, nor do the CS-1316 commits, the
+  slice B cherry-pick and the close records commit, so the signal reads CLOSED on it. The
+  restart's new step b opens a new window. The window rules - from flip block step b to S12a no commit, no suite, no push - are
   owned by .claude/commands/done.md (CS-1323).
 INBOX_STOP: ABSENT at this file's write - written at step a in session 140, removed by the
   RECOVERY RULE and read absent. The restart writes it again at its own step a (Q5: before the
@@ -317,7 +336,10 @@ HEAD / remote   the two CS-1325 commits and their records commit were pushed in 
                 commits were cherry-picked onto main with a records commit on top; the two
                 doc-guard reds at the landed slice A tip were repaired by one fix commit
                 (fast-forwarded), and a second records commit (this file's last) went with
-                them in ONE push (THE SINGLE NEXT ACTION, above).
+                them in ONE push (THE SINGLE NEXT ACTION, above). Then, LOCAL ONLY at this
+                file's write: the two CS-1316 commits fast-forwarded, the CS-1315 slice B
+                commit cherry-picked (HEAD read back after each), and the close records commit
+                on top - NOT PUSHED by the merger; session 140's /done pushes the batch once.
                 A BLOCKED PUSH CAN REPORT EXIT 0 FROM A WRAPPER - READ THE LOG LINE
                 "clockspeed pre-push: BLOCKED", AND THE REMOTE REF.
 DIRTY FILES     none before the CS-1315 records commit (`git status` read clean); it holds this
@@ -325,7 +347,11 @@ DIRTY FILES     none before the CS-1315 records commit (`git status` read clean)
                 "Session 140 residuals" lines, g2 and g3), docs/item_notes/phase5.md (a CS-1315
                 status line and a CS-1316 contract pointer) and WAKEUP_NOTES.md (session 140
                 updated). No half-done work outside the flip block. CS-1315 slice A LANDED from
-                its agent worktree (BRANCHES); slice B is unstarted. All five
+                its agent worktree (BRANCHES). The close records commit holds this file,
+                docs/LEDGER.md (CS-1315 CLOSED, CS-1316 CLOSED), BACKLOG.md (four more
+                "Session 140 residuals" lines, K4), ROADMAP.md (both item lines removed),
+                docs/item_notes/phase5.md and docs/history_notes.md (both sections relocated
+                verbatim) and WAKEUP_NOTES.md; `git status` read clean before it. All five
                 session 139 worktrees read 0 unlanded commits by
                 patch-id (`git cherry main <branch>`) and clean (the session 139 /done's read).
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
@@ -342,6 +368,11 @@ BRANCHES - KEEP, DO NOT PRUNE; CLASSIFY UNDER CS-1291 PART 7 (consumer check, cl
     landed.
   One more worktree-agent-* branch, tip subject "CS-1315 - restore the cited test name; re-pin
     archive rot after slice A" - the reds fix, landed by fast-forward (its tip is on main).
+  One more worktree-agent-* branch, tip subject "CS-1316 - unparsed pin: rate is pinned, save
+    build never checked" - CS-1316 as landed by fast-forward (its tip is on main).
+  s140-cs1315b - CS-1315 slice B as landed by cherry-pick, tip subject "CS-1315 - slice B: power,
+    solve and optimize serve the registry state", in its agent worktree under .claude/worktrees.
+    Both read 0 unlanded by patch-id (`git cherry main <branch>`) and clean.
   LANDED IN SESSION 139 (all by cherry-pick; each read 0 unlanded by patch-id and clean):
   cs1317-sixth-shard - CS-1317 as landed, tip subject "CS-1317 - correct shard cost comments,
     mark the projection unmeasured", in its agent worktree under .claude/worktrees.
@@ -469,7 +500,7 @@ LIVE SAVE DIR   the library holds 41 saves, every one of which parses (41 of 41 
                 140): the step e batched ask carries one load-and-save in it.
 
 ================================================================================
-SESSION 140 - CS-1324 AND CS-1325 CLOSED, THE CS-700 WINDOW ABANDONED, CS-1315 SLICE A LANDED
+SESSION 140 - CS-1324, CS-1325, CS-1315 AND CS-1316 CLOSED, THE CS-700 WINDOW ABANDONED
 (detail in docs/LEDGER.md)
 ================================================================================
 
@@ -496,8 +527,13 @@ FILED       two more BACKLOG lines ("Session 140 residuals"): verify_env asserts
 RULED       CS-1315 Variant A (six BUILD_INPUTS in the tier-3 trace); the slice A adjudication
             (the acceptance's last clause reaches the three pricing endpoints) and fix 1; the
             CS-1315 slice B contract; the CS-1316 contract (DECISIONS below).
-LANDED      CS-1315 slice A with fix 1, by cherry-pick - NOT CLOSED; slice B owed.
+LANDED      CS-1315 slice A with fix 1, by cherry-pick - NOT CLOSED then; slice B owed (below).
 FILED       two more BACKLOG lines ("Session 140 residuals", g2 and g3) from the slice A review.
+LANDED      CS-1316 (two commits, fast-forward) and CS-1315 slice B (cherry-pick) - local, pushed
+            by session 140's /done.
+CLOSED      CS-1315 and CS-1316, together, by a distinct closing adjudicator (K1: /api/registry
+            prices nothing).
+FILED       four more BACKLOG lines ("Session 140 residuals", K4) from the close.
 ================================================================================
 CLOSED / LANDED - SESSION 139 (detail in docs/LEDGER.md)
 ================================================================================
@@ -570,30 +606,7 @@ OPEN ITEMS, PRIORITY ORDER
      CS-701 is handled by S7a; CS-704 and CS-959 at S12a (CS-959 is closed: re-read the profile on
      the recreated repo - a CS-700 S12a check, not a close; PVR endpoint 404 while private; Ruling
      1 turns it on at S12a).
- 2 CS-1315 (R3, NARROWED in session 140: NOT a flip blocker - FIRST after the flip): the registry
-     provider verifies the installed docs file against the clockspeed/data/version.py pin (build
-     and content hash) (content hash; a build-only difference with equal bytes is not a mismatch -
-     session 140 ruling, docs/LEDGER.md) before any figure is priced, or the Registry carries the
-     build it was extracted from; a mismatch is a named warning on the audit and every advice card
-     (the CS-1288 build-input path); a synthetic fixture whose docs hash differs from the pin fires
-     it and a matching one does not; nothing prices a figure from an unverified registry silently.
-     DESIGN (session 140 ruling): Registry.source_sha256 computed in clockspeed/data/ from the raw
-     bytes; a pure audit check in clockspeed/audit/build.py taking the pin hash as a parameter
-     (codes registry-mismatch and registry-unverified); the CS-1288 caveat path in
-     clockspeed/advisor/build.py; no build-string check. Tier 2. The narrowing reverses on guard
-     (h) listing the docs sha256 before CS-1315 closes, or the operator's own words.
-     SLICE A LANDED in session 140 with fix 1, NOT CLOSED (LEDGER "CS-1315 - SLICE A LANDED WITH
-     FIX 1"); SLICE B OWED - /api/power, /api/solve and /api/optimize under the LEDGER contract
-     "CS-1315 - SLICE B CONTRACT RECORDED BEFORE CODE"; the Variant A ruling holds.
- 3 CS-1316 (R3, narrowed in session 140: NOT a flip blocker - after the flip and CS-1315): on a save whose build differs from the pin,
-     the /api/map body carries the build state and marks per_minute_normal as the pinned build's
-     rate, and the map panel shows it; the change to the CS-977 warning contract (source, code and
-     count) is adjudicated and recorded BEFORE the code; a synthetic off-pin fixture shows the
-     marking and an on-pin one does not; the surface never computes the comparison (CLAUDE.md
-     2.1). Tier 2.
-     CONTRACT RULED in session 140 before code (LEDGER "CS-1316 - CONTRACT ADJUDICATED BEFORE
-     CODE"): CS-977 amended; it builds after CS-1315 slice A.
- 4 CS-1231 SLICE C AND CS-1283 - UNHELD by v11 R2 (the kit's spawn command line passes
+ 2 CS-1231 SLICE C AND CS-1283 - UNHELD by v11 R2 (the kit's spawn command line passes
      `--permission-mode MODE` through). CS-1287 did NOT move ops/loop/run_lane.ps1: the
      kit command line prints its own usage line, not the CLI's `type: result` object
      ops/loop/queue_loop.py parses, and its proxy and budget checks collide with the
@@ -604,16 +617,16 @@ OPEN ITEMS, PRIORITY ORDER
      test_headless_route). CS-1234: whether EVERY kit-written task name is basic-set is
      UNVERIFIED - re-read the current kit (v17) first. CLAUDE.md precedence clause (c)
      stands until slice C lands. A blocking design choice goes to an adjudicator.
- 5 CS-1304 (RULED: retry-once DENIED; may wait past the flip unless a deciding suite before
+ 3 CS-1304 (RULED: retry-once DENIED; may wait past the flip unless a deciding suite before
      CS-700 step a shows its failure class - then it blocks the flip block) and CS-1307 (the
      session 137 verifier REFUTED it as met: 7 git-hook arms run without the quiet barrier;
      its smallest remaining slice, five steps, is in phase7.md section CS-1307).
- 6 CS-1291: ADJUDICATE FIRST - pure process work, and part 1 touches the frozen
+ 4 CS-1291: ADJUDICATE FIRST - pure process work, and part 1 touches the frozen
      .githooks/pre-push, so section 7 product-before-process AND a frozen-file grant apply.
      Part 7 now also owns the session 136, 137, 138 and 139 branch and worktree classification.
- 7 CS-1295: the repo-review driver - one headless run through the kit spawn path; a
+ 5 CS-1295: the repo-review driver - one headless run through the kit spawn path; a
      sub-agent slice cannot start it.
- 8 /done.
+ 6 /done.
 CARRIED, NOT IN THE ORDER ABOVE:
  - CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
    (14,60) every inventory component payload ends in an 8-byte trailing run, 4 bytes
@@ -832,6 +845,12 @@ CS-1316 CONTRACT (adjudicated before code; LEDGER "CS-1316 - CONTRACT ADJUDICATE
   build codes served verbatim at count 1, DATA_KEYS adds build_state; the surface compares nothing.
   Rejected: widening WARNING_KEYS; a surface comparison; a throughput key; a build-only marking.
   Reversed by: a new adjudication of that record, or CS-1315 withdrawing registry_check_of.
+CS-1315 AND CS-1316 CLOSED TOGETHER (a distinct closing adjudicator; LEDGER "CS-1315 - CLOSED"
+  and "CS-1316 - CLOSED"): K1 - /api/registry prices nothing (identifiers and values true of the
+  file it read, every power field withheld; its panel's long division re-spells one served pair),
+  so it is not a pricing door; K4 - four residuals to BACKLOG. Reversed by: /api/registry or
+  clockspeed/surface/web/panel_registry.js deriving a figure from two or more values, or naming
+  the pinned build.
 CS-1324 RE-PIN ROUTE (LEDGER "CS-1324 - CLOSED"): `python tools/drift_guard.py --re-extract`
   rewrites only the pin block (docs/OPERATIONS.md corrected; docs_extract has no CLI), and a re-pin
   lands only after a distinct verifier's fresh re-extract reads it byte-identical. Rejected: the

@@ -721,3 +721,19 @@ record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or red
 - From the CS-1315 slice A review (g3): `clockspeed/data/version.py::DOCS_SHA256` turns a null
   docs_sha256 in the pin into the string "None", which reads as registry-mismatch, not
   registry-unverified (it fails loud) - TRIGGER: a generator that can write a null docs_sha256.
+- From the CS-1315 and CS-1316 close (K4): `tests/surface/audit_harness.py::_canned` serves the
+  /api/solve and /api/optimize stand-in bodies with no build_state and no warnings, under a stale
+  docstring, and no guard pins their key set to what the real doors serve - TRIGGER: the next
+  `tests/surface/audit_harness.py` work.
+- From the CS-1315 and CS-1316 close (K4): `registryLine` in
+  `clockspeed/surface/web/panel_power.js`, `clockspeed/surface/web/panel_solve.js` and
+  `clockspeed/surface/web/panel_optimize.js` prints "UNVERIFIED" with the served code for a
+  registry-mismatch, less specific than the map panel's "bytes DIFFER" - TRIGGER: the next panel
+  wording pass.
+- From the CS-1315 and CS-1316 close (K4): `tests/surface/test_power.py::bare_rate_paths` would
+  pass a top-level key spelled literally "warnings[0].count", since its exemption matches the path
+  string, and passes a float anywhere (pre-existing) - TRIGGER: the next edit to that walker.
+- From the CS-1315 and CS-1316 close (K4): the empty-throughput line in `mountMap`
+  (`clockspeed/surface/web/panel_map.js`) lists every served warning code, the build codes
+  included, as "the reason" no throughput was served - TRIGGER: the next
+  `clockspeed/surface/web/panel_map.js` edit.
