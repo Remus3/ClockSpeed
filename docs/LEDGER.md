@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1317 and CS-700 - step-b gate reading 1 of 2 passes after the restart
+Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38620497330 at 221e737; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
+PUSH 4 put main at 221e737 (records only; remote equal by full SHA; push suite 16296 passed, 12
+skipped, 1252.61 s). TIER1 38620497330 at 221e737 SUCCESS, six jobs on attempt 1: gates 230 s,
+fill 296, scan 316, save 272, guard 327, hook 251; install steps 5.7-10.7 s (normal runners).
+GATE: gates, fill and scan within 420 s, no job over 444 s - READING 1 OF 2 PASSES.
+The guard watch did not fire: guard 327, under 444. No install step read 20 s or more: 0 toward
+the operator-ask trigger (2 of the next 4 tier1 runs).
+
 ### 2026-10-14 - CS-1317 and CS-700 - gate reading 2 missed on a slow runner; the pair restarts; the gate stands
 Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38614235281 at 569ecf0 and on green fill run 38609195253 at 3f15a1b; `tests/test_tier1_budget.py` (FILL_SHARD_FILES). Ruled by a distinct adjudicator. Not a completion record: CS-1317 and CS-700 stay open.
 PUSH 3 put main at 569ecf0 (records only; remote equal by full SHA; push suite 16296 passed, 12
