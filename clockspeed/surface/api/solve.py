@@ -60,6 +60,13 @@ so does not depend on any machine state. Consulting the provider first would
 make the answer to one bad request depend on whether a game happens to be
 installed, which is the determinism property (CLAUDE.md section 1) given away
 for nothing.
+
+EVERY 200 SAYS WHICH REGISTRY PRICED IT (CS-1315). Both bodies end with
+``build_state`` and ``warnings`` from ``provenance.registry_state``: whether
+the registry was verified against the pinned docs hash, and the audit's own
+code when it was not. They sit at the top of ``data`` and never inside the
+optimize result's nested ``plan``, so the plan one door serves is the plan the
+other serves, and the state is stated once.
 """
 
 # SEAM DISCIPLINE (BOOTSTRAP.md section 6).
@@ -69,8 +76,10 @@ for nothing.
 # design bug.
 #
 # Below this module is clockspeed.solve, and that is the ONLY layer it names at
-# runtime. It opens no file: not a save, not the raw docs, not the game
-# install. The registry arrives from a provider the SERVER bound into the
+# runtime for an ANSWER. The registry's provenance (CS-1315) comes through
+# clockspeed/surface/api/provenance.py, a helper that publishes no route and
+# copies the audit layer's registry check. It opens no file: not a save, not the
+# raw docs, not the game install. The registry arrives from a provider the SERVER bound into the
 # handler by closure, so this module never imports the server, never learns how
 # a registry was obtained, and stays testable without an HTTPS listener.
 #
@@ -88,7 +97,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.solve import optimize, ratio
-from clockspeed.surface.api import contract
+from clockspeed.surface.api import contract, provenance
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -718,7 +727,8 @@ def solve_handler(provider: contract.RegistryProvider[Registry]) -> contract.Han
             # keys, so reading it would echo registry content.
             return contract.bad_request(SOLVE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
 
-        return contract.ok(SOLVE_ENDPOINT, _plan_data(plan))
+        data = {**_plan_data(plan), **provenance.registry_state(registry)}
+        return contract.ok(SOLVE_ENDPOINT, data)
 
     return handler
 
@@ -753,7 +763,9 @@ def optimize_handler(provider: contract.RegistryProvider[Registry]) -> contract.
             # registry is a caller shape bug, and its message names the keys.
             return contract.bad_request(OPTIMIZE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
 
-        return contract.ok(OPTIMIZE_ENDPOINT, _result_data(result))
+        return contract.ok(
+            OPTIMIZE_ENDPOINT, {**_result_data(result), **provenance.registry_state(registry)}
+        )
 
     return handler
 

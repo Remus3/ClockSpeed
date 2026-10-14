@@ -98,6 +98,7 @@ clockspeed/surface/api/health.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/map.py	authored	CS-977	first-add:CS-977
 clockspeed/surface/api/pending.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/power.py	authored	CS-962	first-add:CS-962
+clockspeed/surface/api/provenance.py	authored	CS-1315	stamped
 clockspeed/surface/api/registry.py	authored	CS-912	first-add:CS-912
 clockspeed/surface/api/routes.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/solve.py	authored	CS-601	first-add:CS-601
@@ -433,6 +434,7 @@ tests/surface/test_pending_route_count.py	authored	CS-927	first-add:CS-927
 tests/surface/test_power.py	authored	CS-962	first-add:CS-962
 tests/surface/test_registry.py	authored	CS-912	first-add:CS-912
 tests/surface/test_registry_provider_pin.py	authored	CS-1315	stamped
+tests/surface/test_registry_state_served.py	authored	CS-1315	stamped
 tests/surface/test_route_table_binding.py	authored	CS-1165	first-add:root
 tests/surface/test_routes.py	authored	CS-601	first-add:CS-601
 tests/surface/test_server.py	authored	CS-601	first-add:CS-601

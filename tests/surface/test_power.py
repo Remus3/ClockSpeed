@@ -69,8 +69,9 @@ if TYPE_CHECKING:
 #: The four measured draw shapes the power layer publishes.
 EXPECTED_SHAPES: Final = 4
 
-#: The top-level keys a power body carries.
-EXPECTED_DATA_KEYS: Final = 6
+#: The top-level keys a power body carries: the six power answers, then the
+#: registry's ``build_state`` and ``warnings`` (CS-1315 slice B).
+EXPECTED_DATA_KEYS: Final = 8
 
 #: How many routes this module publishes.
 EXPECTED_ROUTES: Final = 1
@@ -96,6 +97,12 @@ JSON_NUMBER: Final = re.compile(rb"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 
 #: The keys ``contract.rational`` spells an exact value with.
 RATIONAL_KEYS: Final = frozenset({"num", "den"})
+
+#: The one place a warning row's COUNT sits (CS-1315 slice B, the CS-1316
+#: shape). A count of occurrences, not a rate, so it is a bare integer the way
+#: ``slots`` is - and it is named by its whole path, so a bare number anywhere
+#: else in a warning row is still an offence.
+WARNING_COUNT_PATH: Final = re.compile(r"data\.warnings\[\d+\]\.count")
 
 
 # ---------------------------------------------------------------------------
@@ -358,11 +365,12 @@ def test_no_rate_reaches_the_wire_as_a_bare_number(registry: Registry) -> None:
 def bare_rate_paths(value: object, path: str = "data") -> tuple[str, ...]:
     """Every path at which a number sits OUTSIDE a ``{"num","den"}`` object.
 
-    ``slots`` is the one deliberate exception and is named rather than inferred:
+    ``slots`` is one deliberate exception and is named rather than inferred:
     it is a COUNT of shard sockets and not a rate, so it is served as a bare
     integer exactly as ``clockspeed/surface/api/registry.py`` serves
     ``sink_points``. Naming it here means a rate that acquired that key by
-    accident is still caught everywhere else.
+    accident is still caught everywhere else. A warning row's ``count`` is the
+    other, named by its whole path in :data:`WARNING_COUNT_PATH`.
 
     Args:
         value: The serialized body or a fragment of it.
@@ -374,7 +382,7 @@ def bare_rate_paths(value: object, path: str = "data") -> tuple[str, ...]:
     if isinstance(value, bool):
         return ()
     if isinstance(value, int):
-        return (path,)
+        return () if WARNING_COUNT_PATH.fullmatch(path) else (path,)
     if isinstance(value, dict):
         if set(value) == RATIONAL_KEYS:
             return ()
@@ -397,6 +405,15 @@ def test_the_bare_rate_detector_fires_on_a_planted_number() -> None:
     offence_count = len(offences)
     assert offence_count == 1
     assert offences[0] == "data.declared.megawatts"
+
+
+def test_the_warning_count_exemption_admits_the_count_and_nothing_beside_it() -> None:
+    # The count of a warning row is exempt; a planted number beside it in the
+    # same row, and a count anywhere but a top-level warning row, are not.
+    offences = bare_rate_paths(
+        {"warnings": [{"count": 1, "megawatts": 4}], "declared": {"count": 2}}
+    )
+    assert offences == ("data.warnings[0].megawatts", "data.declared.count")
 
 
 # ---------------------------------------------------------------------------

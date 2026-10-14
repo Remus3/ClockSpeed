@@ -61,6 +61,13 @@ payloads against ``clockspeed.surface.api.solve`` and
 ``clockspeed.surface.api.contract`` themselves, so a field this file spelled
 wrong - or one the endpoint later renames - is a red arm rather than a page
 that renders ``not an exact rational`` forever while the suite stays green.
+
+**THE REGISTRY'S PROVENANCE IS SAID BEFORE THE MACHINES (CS-1315 slice B).**
+Section o drives REAL ``/api/solve`` bodies - the shipped handler over the
+synthetic solve corpus stamped with one source hash - so the bench is graded on
+the ``build_state`` and the audit code the endpoint actually serves: UNVERIFIED
+and the code verbatim ahead of the first figure, verified with no code, and a
+body with no build state never read as verified.
 """
 
 from __future__ import annotations
@@ -77,8 +84,10 @@ from typing import TYPE_CHECKING, Any, Final
 
 import pytest
 
+from clockspeed.audit import build as build_model
 from clockspeed.solve import ratio
 from clockspeed.surface.api import contract, solve
+from tests.advisor.build_fixtures import OFF_PIN_DOCS_SHA256, docs_pin
 from tests.surface import panel_harness
 
 if TYPE_CHECKING:
@@ -2477,3 +2486,117 @@ def test_this_module_and_the_panel_hold_only_seven_bit_ascii() -> None:
         raw = path.read_bytes()
         raw.decode("ascii")
         assert b"\r" not in raw, f"{path.name} holds a carriage return"
+
+
+# ---------------------------------------------------------------------------
+# o. The registry's provenance, said before the machines (CS-1315 slice B)
+# ---------------------------------------------------------------------------
+
+#: What the bench says over a registry the audit did not verify, over one it
+#: did, and over a body that carried no state at all.
+UNVERIFIED_MARK: Final = "registry: UNVERIFIED"
+VERIFIED_MARK: Final = "registry: verified"
+NO_STATE_MARK: Final = "carried no build state"
+
+#: The first figure group the bench renders, which the provenance line precedes.
+FIRST_FIGURE: Final = "machines"
+
+#: The two registries the audit does not verify: other docs bytes, and none.
+UNVERIFIED_SOURCES: Final = ("other-docs-bytes", "no-byte-source")
+
+
+def _served_outcome(source_sha256: str | None) -> dict[str, Any]:
+    """A settled 200 carrying one REAL ``/api/solve`` body over a stamped registry.
+
+    Args:
+        source_sha256: The hash the registry claims it was built from, or None.
+
+    Returns:
+        The outcome the door hands the panel's callback.
+    """
+    import dataclasses  # noqa: PLC0415
+
+    from tests.solve import synthetic as corpus  # noqa: PLC0415
+
+    stamped = dataclasses.replace(corpus.solve_registry(), source_sha256=source_sha256)
+
+    class _Provider:
+        def registry(self) -> Any:
+            return stamped
+
+    response = solve.solve_handler(_Provider())(
+        {
+            solve.PARAM_TARGETS: f"{corpus.SOLVE_ROD_ITEM}=50",
+            solve.PARAM_RECIPES: f"{corpus.ROD_RECIPE},{corpus.PLATE_RECIPE}",
+            solve.PARAM_RAW_ITEMS: corpus.SOLVE_ORE_ITEM,
+            solve.PARAM_BYPRODUCT_POLICY: ratio.BYPRODUCT_SINKABLE,
+        }
+    )
+    assert response.http_status == contract.HTTP_OK, response.payload
+    return {"reached": True, "http": response.http_status, "body": dict(response.payload)}
+
+
+def _settled_text(tmp_path: Path, outcome: Mapping[str, Any]) -> str:
+    """The bench's text once one outcome has settled.
+
+    Args:
+        tmp_path: The driver's scratch directory.
+        outcome: What the door hands the callback.
+
+    Returns:
+        The rendered text.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        accepts=[True],
+        steps=_settled(outcome),
+    )
+    assert report["steps"][-1]["threw"] is None, report["steps"][-1]["threw"]
+    return panel_text(report)
+
+
+@pytest.mark.parametrize("case", UNVERIFIED_SOURCES)
+def test_an_unverified_registry_is_said_before_the_machines_with_its_served_code(
+    tmp_path: Path, case: str
+) -> None:
+    outcome = _served_outcome(OFF_PIN_DOCS_SHA256 if case == "other-docs-bytes" else None)
+    rows = outcome["body"]["data"]["warnings"]
+    codes = [str(row["code"]) for row in rows]
+    expected = (
+        build_model.WARN_REGISTRY_MISMATCH
+        if case == "other-docs-bytes"
+        else build_model.WARN_REGISTRY_UNVERIFIED
+    )
+    assert codes == [expected], rows
+
+    text = _settled_text(tmp_path, outcome)
+
+    assert UNVERIFIED_MARK in text, text
+    assert expected in text, text
+    assert VERIFIED_MARK not in text
+    assert text.index(UNVERIFIED_MARK) < text.index(FIRST_FIGURE), text
+
+
+def test_a_verified_registry_is_said_to_be_verified_and_names_no_code(tmp_path: Path) -> None:
+    outcome = _served_outcome(docs_pin())
+    assert outcome["body"]["data"]["warnings"] == []
+
+    text = _settled_text(tmp_path, outcome)
+
+    assert VERIFIED_MARK in text, text
+    assert UNVERIFIED_MARK not in text
+    assert build_model.WARN_REGISTRY_MISMATCH not in text
+    assert build_model.WARN_REGISTRY_UNVERIFIED not in text
+
+
+def test_a_body_without_a_build_state_is_never_read_as_verified(tmp_path: Path) -> None:
+    outcome = _served_outcome(docs_pin())
+    data = outcome["body"]["data"]
+    del data["build_state"]
+    del data["warnings"]
+
+    text = _settled_text(tmp_path, outcome)
+
+    assert NO_STATE_MARK in text, text
+    assert VERIFIED_MARK not in text

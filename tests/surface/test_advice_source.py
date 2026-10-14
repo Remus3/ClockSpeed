@@ -77,9 +77,11 @@ SURFACE_ROOT: Final = Path(__file__).resolve().parents[2] / "clockspeed" / "surf
 #: The layer no advice-path surface module may import.
 AUDIT_PACKAGE: Final = "clockspeed.audit"
 
-#: The one surface module importing the audit layer, since CS-977 - it
-#: serializes the placement and inventory models. Pinned, not tolerated.
-AUDIT_IMPORTERS: Final = frozenset({"api/map.py"})
+#: The surface modules importing the audit layer, pinned, not tolerated:
+#: ``api/map.py`` since CS-977 - it serializes the placement and inventory
+#: models - and ``api/provenance.py`` since CS-1315 slice B, which copies the
+#: audit's registry check into the three pricing doors' bodies.
+AUDIT_IMPORTERS: Final = frozenset({"api/map.py", "api/provenance.py"})
 
 #: The surface modules CS-1270 wrote or rewired.
 ADVICE_PATH: Final = frozenset({"api/advice.py", "api/routes.py", "providers.py"})

@@ -842,6 +842,10 @@ def _power_data() -> dict[str, object]:
         "at_clock": at_clock,
         "clamped": clamped,
         "variable_inputs": variable,
+        # CS-1315 slice B. The harness registry stands for one built from the
+        # pinned docs bytes, so the bench shows the verified state and no code.
+        "build_state": {"registry_verified": True},
+        "warnings": [],
     }
 
     _assert_keys_match("power body", body, power_endpoint.DATA_KEYS)

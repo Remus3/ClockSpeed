@@ -101,6 +101,11 @@ MESSAGE_SENTINEL: Final = "Desc_S4MessageSentinel_C"
 #: The keys ``contract.rational`` spells an exact ratio with.
 RATIONAL_KEYS: Final = frozenset({"num", "den"})
 
+#: The one place a bare integer may sit (CS-1315 slice B, the CS-1316 shape): a
+#: top-level warning row's COUNT, which counts occurrences and is not a rate.
+#: Named by its whole path, so a bare number anywhere else is still an offence.
+WARNING_COUNT_PATH: Final = re.compile(r"data\['warnings'\]\[\d+\]\['count'\]")
+
 #: A JSON string literal, so the number scanner can blank strings out before it
 #: looks for a decimal point. Without this the scanner reports every digit
 #: inside a recipe key, and a scanner that cannot be trusted is one whose silence
@@ -295,7 +300,8 @@ def bare_number_paths(value: object, path: str = "data") -> tuple[str, ...]:
     A rate that reached the wire as a plain JSON number is one a JavaScript
     client reads as an IEEE double. A two-field object cannot be misread that
     way by accident, so every numeric leaf in the serialized model must be
-    inside one.
+    inside one - save a warning row's integer count, at
+    :data:`WARNING_COUNT_PATH` and nowhere else.
 
     Args:
         value: Any part of a serialized payload.
@@ -319,6 +325,8 @@ def bare_number_paths(value: object, path: str = "data") -> tuple[str, ...]:
             for offence in bare_number_paths(item, f"{path}[{index}]")
         )
     if isinstance(value, bool) or not isinstance(value, int | float):
+        return ()
+    if isinstance(value, int) and WARNING_COUNT_PATH.fullmatch(path):
         return ()
     return (path,)
 
@@ -349,6 +357,11 @@ def test_the_bare_number_walker_finds_a_planted_bare_rate() -> None:
     found = bare_number_paths({"steps": [{"machines": 3}]})
     count = len(found)
     assert count == 1
+
+
+def test_the_warning_count_exemption_admits_the_count_and_nothing_beside_it() -> None:
+    found = bare_number_paths({"warnings": [{"count": 1, "machines": 3}], "steps": [{"count": 2}]})
+    assert found == ("data['warnings'][0]['machines']", "data['steps'][0]['count']")
 
 
 def test_the_bare_number_walker_accepts_a_rational_object() -> None:

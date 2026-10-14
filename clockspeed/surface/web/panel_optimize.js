@@ -419,15 +419,65 @@ function excludedLines(excluded) {
   return lines;
 }
 
+function servedCodes(warnings) {
+  /* Every warning code the body served, verbatim and in the body's order. */
+  var codes = [];
+  if (!warnings || typeof warnings.length !== "number") {
+    return codes;
+  }
+  for (var index = 0; index < warnings.length; index += 1) {
+    var row = warnings[index];
+    if (row && typeof row === "object" && row.code) {
+      codes.push(textOf(row.code));
+    }
+  }
+  return codes;
+}
+
+function registryLine(data) {
+  /*
+    WHICH REGISTRY PRICED THE SCORE AND THE PLAN BELOW - CS-1315. The endpoint
+    copies the audit layer's registry check into build_state and serves its
+    code under the "build" source; this bench compares NOTHING. It reads one
+    flag and prints what it says, AHEAD of the first figure, because "nothing
+    prices a figure from an unverified registry silently":
+
+    - registry_verified true: the registry was built from the docs this
+      project pins, and the line says so.
+    - registry_verified anything else: UNVERIFIED, with every served code.
+    - no build_state at all: said in as many words, and never read as the
+      verified case, which would be a confident claim nothing checked.
+
+    Read off the TOP of data and never off the nested plan, which carries none.
+  */
+  var state = data.build_state && typeof data.build_state === "object"
+    ? data.build_state
+    : null;
+  var codes = servedCodes(data.warnings);
+  var served = codes.length ? " Served: " + codes.join(", ") + "." : "";
+  if (state === null) {
+    return "registry: this answer carried no build state, so nothing here says whether the"
+      + " registry that priced it was verified." + served;
+  }
+  if (state.registry_verified === true) {
+    return "registry: verified - built from the docs this project pins." + served;
+  }
+  return "registry: UNVERIFIED - every figure below is priced from a registry not shown to"
+    + " be built from the docs this project pins." + served;
+}
+
 function renderResult(result, status, data) {
   /*
     A settled 200, rendered whole.
 
     THE SELECTION COMES FIRST because it is the answer pillar 2 exists to give -
     which recipes - and the plan beneath it is the consequence of that choice.
+    Only the registry line precedes it, because every figure here is priced
+    from that registry.
   */
   clearNode(result);
   addNote(result, "the endpoint answered " + String(status) + ".");
+  addNote(result, registryLine(data));
   addNote(result, "backend: " + textOf(data.backend));
   addNote(result, "score: " + rationalText(data.score));
   addGroup(result, "selection", nameLines(data.selection));

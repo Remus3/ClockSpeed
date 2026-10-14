@@ -81,8 +81,10 @@ for nothing.
 # design bug.
 #
 # Below this module is clockspeed.solve.power, and that is the ONLY layer it
-# names at runtime. It opens no file: not a save, not the raw docs, not the game
-# install. The registry arrives from a provider the SERVER bound into the
+# names at runtime for an ANSWER. The registry's provenance (CS-1315) comes
+# through clockspeed/surface/api/provenance.py, a helper that publishes no route
+# and copies the audit layer's registry check. It opens no file: not a save, not
+# the raw docs, not the game install. The registry arrives from a provider the SERVER bound into the
 # handler by closure, so this module never imports the server and never learns
 # how a registry was obtained.
 #
@@ -103,7 +105,7 @@ from fractions import Fraction
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.solve import power
-from clockspeed.surface.api import contract
+from clockspeed.surface.api import contract, provenance
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -196,7 +198,10 @@ RATIONAL_PATTERN: Final = re.compile(r"-?\d+(?:\.\d+|/\d+)?")
 #: conditional answers are always PRESENT and are null when the caller did not
 #: ask for them, so a client never has to tell an absent key from an unknown
 #: one. Null cannot be mistaken for an answer, because every power-layer answer
-#: is a named-outcome object and none of them is ever null.
+#: is a named-outcome object and none of them is ever null. The last two are
+#: ``provenance.DATA_KEYS`` (CS-1315): whether the registry every draw here is
+#: priced from was verified against the pinned docs, and the audit's code when
+#: it was not.
 DATA_KEYS: Final = (
     "building_key",
     "declared",
@@ -204,6 +209,7 @@ DATA_KEYS: Final = (
     "at_clock",
     "clamped",
     "variable_inputs",
+    *provenance.DATA_KEYS,
 )
 
 #: ``power.DeclaredDraw``'s fields, in its own order.
@@ -535,7 +541,8 @@ def _body(registry: Registry, request: _Shaped) -> dict[str, object]:
     Returns:
         The data object, keyed by :data:`DATA_KEYS`. Every key is present; the
         three that depend on an optional parameter are null when it was not
-        stated.
+        stated, and the registry's provenance is copied from
+        :func:`provenance.registry_state`.
 
     Raises:
         _PowerParameterError: An identifier names nothing in this registry. NOT
@@ -566,6 +573,7 @@ def _body(registry: Registry, request: _Shaped) -> dict[str, object]:
         "variable_inputs": (
             None if recipe is None else _variable(power.variable_power_inputs(building, recipe))
         ),
+        **provenance.registry_state(registry),
     }
 
 
