@@ -75,6 +75,33 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1317 - FORGIVEN_LINE_POINTER_CEILING 66 to 67 granted
+Verification: `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and the class 8
+RENAMED row in `tests/test_citation_tables.py::DISPOSITIONS`, both carried by the CS-1317
+rebalance commit "truthful scan note and names after the move", landed after this record. Not a
+completion record: CS-1317 stays open.
+GRANTED by a distinct adjudicator: the ceiling rises 66 to 67 for the one RENAMED row that the
+ordered rename of the scan shard's membership arm in `tests/test_tier1_budget.py` needs. The arm's
+old name claimed the scan shard runs only the catch-all's corpus-scanning head, false once
+tests/test_liveness.py and tests/test_mypy_gate.py moved there from the fill shard. The CS-1317
+landing record of 2026-10-12 cites the old name, and that record is append-only and published, so
+the citation is answered by a disposition, never by an edit to the record.
+It meets the four tests of the precedent grants (56 to 60 for four renamed tests, 55 to 56, and 63
+to 64 for CS-1167): the citation was right when written; the record is append-only and already on
+origin/main; the new name exists; no assertion was loosened. 67 is the minimum the exact-count
+ratchet accepts.
+Runner-up: deny, and keep a false name - lost: a false name is silently wrong, and CLAUDE.md
+section 7's product-before-process entry stops new tooling, not the forced cost of an ordered
+rename.
+Reversed by: that citation leaving the guarded docs, when the exact-count test forces 67 back to
+66.
+REFUTED AND REPAIRED: an adversary REFUTED the rebalance's third commit, "truthful scan note and
+names after the move", on a stale scan header paragraph in `.github/workflows/tier1.yml` (four
+files, readme 130 tests, about 284 s, "Both under 360"). The fourth commit, "scan header paragraph
+after the move", repaired it, comment only - checked by this landing agent: six files in the scan
+step, the readme file first at 146 tests by collection, no stale figure left, and the header points
+to the adjudicated scan note at the job's Unit tests step.
+
 ### 2026-10-14 - CS-1326 - opened, fixed and landed, not closed
 Verification: merged file `tests/test_probe_refusal_output.py`; tests
 `tests/test_probe_refusal_output.py::test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill`
