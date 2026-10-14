@@ -4,7 +4,8 @@ Owns (BOOTSTRAP.md section 7.1): the JSON rendering of one
 ``clockspeed.audit.placement.WorldPlacement`` and one
 ``clockspeed.audit.inventory.WorldInventory``, joined against the normalized
 registry for display names, extraction rates and the closed item-key
-vocabulary, and nothing else. It computes
+vocabulary, plus the two ``clockspeed.audit.build`` checks copied as
+``build_state`` (CS-1316), and nothing else. It computes
 nothing, it opens nothing, and it obtains both inputs through the providers the
 server binds into it rather than by reading a save or the install.
 
@@ -100,12 +101,28 @@ one of those three cases serves ``null`` and raises
 power plan cannot detect.
 
 AN AUDIT WARNING KEEPS ITS OWN SOURCE. ``clockspeed/audit/`` does not know an
-endpoint exists, so its advisories arrive under the sources ``placement`` and
-``inventory`` and are served with those verbatim. Remapping them to ``map`` would
-destroy the one field that says which layer flagged the thing. Only a warning
-THIS module raises carries :data:`SOURCE_MAP`, and the four it can raise are all
-about the registry join, which is the only thing this module does that the layers
-below cannot see.
+endpoint exists, so its advisories arrive under the sources ``placement``,
+``inventory`` and ``build`` and are served with those verbatim. Remapping them to
+``map`` would destroy the one field that says which layer flagged the thing. Only
+a warning THIS module raises carries :data:`SOURCE_MAP`, and the four it can raise
+are all about the registry join, which is the only thing this module does that
+the layers below cannot see.
+
+WHICH BUILD THE RATE BELONGS TO IS SERVED, AND IS NEVER DECIDED HERE (CS-1316,
+the contract adjudicated before the code and recorded in ``docs/LEDGER.md``).
+``per_minute_normal`` is priced from the registry, so on a save another build
+wrote it is the pinned build's rate and not the save build's own - but only when
+the registry is itself the pinned build's. Both comparisons are
+``clockspeed/audit/build.py``'s: :func:`_build_state` calls ``build_check_of``
+and ``registry_check_of`` and copies their fields into :data:`BUILD_STATE_KEYS`,
+and their four codes - ``build-mismatch``, ``build-uncompared``,
+``registry-mismatch`` and ``registry-unverified`` - ride under the ``build``
+source verbatim at count one. ``registry_verified`` is null when there is no
+registry, because nothing was verified and nothing failed to be. The pin is
+read off ``clockspeed.data.version`` as module attributes at request time, as
+``clockspeed/surface/providers.py`` reads it. :data:`THROUGHPUT_KEYS` and
+:data:`WARNING_KEYS` did not move; the panel reads the pair
+``save_build_matches`` false and ``registry_verified`` true as the marking.
 
 AN ITEM KEY IS SERVED ONLY WHEN THE REGISTRY NAMES IT (CS-1189). An item key is
 whatever string a save's ``ItemClass`` carried, reduced by
@@ -161,6 +178,12 @@ admitted, so the inventory section is empty by refusal, not by measurement.
 # `clockspeed/surface/api/world.py` already argued: the mask is the redaction
 # control `clockspeed/save/header.py` owns, and re-deriving a digest here would
 # be the same fact written in two places.
+#
+# THE PIN IS READ, NEVER BOUND (CS-1316). `version.GAME_CHANGELIST` and
+# `version.DOCS_SHA256` are read as module attributes inside `_build_state`, on
+# every request, and handed to `clockspeed.audit.build` as its parameters. A
+# `from ... import` would freeze the pin at import time, and a second parse here
+# would be the same number written in two places.
 
 from __future__ import annotations
 
@@ -168,8 +191,10 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.audit import build as build_model
 from clockspeed.audit import inventory as inventory_model
 from clockspeed.audit import placement as placement_model
+from clockspeed.data import version
 from clockspeed.save.header import masked_token
 from clockspeed.solve import exact
 from clockspeed.surface.api import contract
@@ -182,6 +207,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BOUNDS_KEYS",
+    "BUILD_STATE_KEYS",
     "DATA_KEYS",
     "ENDPOINT",
     "INVENTORY_KEYS",
@@ -227,11 +253,13 @@ SOURCE_MAP: Final = "map"
 
 #: Every source a warning in this body may carry. Published so a test can bind
 #: the served set to it, and deliberately a SUPERSET of what this module raises:
-#: the other two members are its neighbours' own, served verbatim.
+#: the other three members are its neighbours' own, served verbatim. The build
+#: source joined under CS-1316.
 WARNING_SOURCES: Final = (
     SOURCE_MAP,
     placement_model.SOURCE_PLACEMENT,
     inventory_model.SOURCE_INVENTORY,
+    build_model.SOURCE_BUILD,
 )
 
 #: There is no registry on this machine, so no rate and no display name could be
@@ -307,7 +335,21 @@ DATA_KEYS: Final = (
     "built_counts",
     "inventory",
     "throughput",
+    "build_state",
     "warnings",
+)
+
+#: The build state's keys (CS-1316), each copied from
+#: ``clockspeed.audit.build.BuildCheck`` or ``RegistryCheck`` and never derived
+#: here. ``save_changelist`` and ``pinned_changelist`` are exact integers, the
+#: pin null when it did not parse; ``save_build_matches`` is
+#: ``BuildCheck.matches``, false on an uncompared build; ``registry_verified`` is
+#: ``RegistryCheck.matches``, or null when there is no registry to check.
+BUILD_STATE_KEYS: Final = (
+    "save_changelist",
+    "pinned_changelist",
+    "save_build_matches",
+    "registry_verified",
 )
 
 #: The bounding box's keys. SIX FLAT AXES rather than three nested objects,
@@ -630,9 +672,9 @@ def _carried(warnings: Sequence[WorldWarning]) -> list[dict[str, object]]:
     """Render every advisory a layer below raised, keeping its own source.
 
     THE SOURCE IS SERVED VERBATIM AND IS NEVER REMAPPED. ``clockspeed/audit/``
-    does not know an endpoint exists, so its warnings say ``placement`` and
-    ``inventory``; rewriting them to ``map`` would destroy the one field that
-    says which layer flagged the thing.
+    does not know an endpoint exists, so its warnings say ``placement``,
+    ``inventory`` and ``build``; rewriting them to ``map`` would destroy the
+    one field that says which layer flagged the thing.
 
     ``detail`` and ``subject`` are not served, which the frozen CS-977 contract
     decided: this body's warning shape is the three keys in
@@ -653,6 +695,58 @@ def _carried(warnings: Sequence[WorldWarning]) -> list[dict[str, object]]:
         }
         for warning in warnings
     ]
+
+
+def _build_state(
+    model: WorldModel, registry: Registry | None
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    """Copy the audit's two build comparisons into the body, comparing nothing here.
+
+    BOTH CHECKS ARE ``clockspeed.audit.build``'s AND THIS FUNCTION ONLY CALLS
+    THEM. ``build_check_of`` holds the save's build beside the pin and
+    ``registry_check_of`` holds the registry's source hash beside the pinned
+    docs hash; each field below is one of their attributes, read and placed.
+    No header field and no hash is read here, which
+    ``tests/surface/test_map.py`` asserts on the shipped AST.
+
+    THE PIN IS READ NOW, off ``clockspeed.data.version`` as module attributes,
+    so a request sees the pin as it reads at request time - the
+    ``clockspeed/surface/providers.py`` precedent.
+
+    NO REGISTRY IS NULL, NEVER FALSE. ``registry_verified`` false says a
+    registry was checked and is not the pinned build's; with no registry
+    nothing was checked, the throughput section is already empty and
+    ``registry-unavailable`` already says why, so no registry code is raised.
+
+    Args:
+        model: The world, for the build its header declares.
+        registry: The normalized registry, or None.
+
+    Returns:
+        The build state keyed by :data:`BUILD_STATE_KEYS`, and every audit
+        build code, served under its own source at its own count of one.
+    """
+    checked = build_model.build_check_of(model, pinned_changelist=version.GAME_CHANGELIST)
+    if registry is None:
+        return (
+            {
+                "save_changelist": checked.save_changelist,
+                "pinned_changelist": checked.pinned_changelist,
+                "save_build_matches": checked.matches,
+                "registry_verified": None,
+            },
+            _carried(checked.warnings),
+        )
+    sourced = build_model.registry_check_of(registry, pinned_docs_sha256=version.DOCS_SHA256)
+    return (
+        {
+            "save_changelist": checked.save_changelist,
+            "pinned_changelist": checked.pinned_changelist,
+            "save_build_matches": checked.matches,
+            "registry_verified": sourced.matches,
+        },
+        [*_carried(checked.warnings), *_carried(sourced.warnings)],
+    )
 
 
 def _throughput(
@@ -718,6 +812,7 @@ def _body(model: WorldModel, registry: Registry | None) -> dict[str, object]:
     held = inventory_model.inventory_of(model)
     served, raised = _throughput(placed, registry)
     stocked, withheld = _inventory(held.items, registry)
+    state, flagged = _build_state(model, registry)
     return {
         "schema": SCHEMA,
         "masked_token": masked_token(model.token),
@@ -731,9 +826,11 @@ def _body(model: WorldModel, registry: Registry | None) -> dict[str, object]:
         "built_counts": _counts(placed.built_counts),
         "inventory": stocked,
         "throughput": served,
+        "build_state": state,
         "warnings": [
             *_carried(placed.warnings),
             *_carried(held.warnings),
+            *flagged,
             *raised,
             *withheld,
         ],

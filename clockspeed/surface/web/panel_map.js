@@ -698,6 +698,75 @@ registerPanel("map", function mountMap(root, data) {
     return "unnamed machine";
   }
 
+  /*
+    WHICH BUILD THE RATE BELONGS TO - CS-1316. Every rate on this panel is
+    priced from the registry, and the registry is the pinned build's only when
+    /api/map says it is: build_state.registry_verified true. The endpoint copies
+    the audit layer's two comparisons into build_state and serves the audit
+    codes under the "build" source; this panel compares NOTHING. It reads two
+    flags and prints what they say:
+
+    - registry_verified true and save_build_matches not true: every served rate
+      is marked as the PINNED BUILD'S RATE, because the save was written by
+      another build (or by one never compared with the pin) and the rate is not
+      that build's own.
+    - registry_verified anything but true: the registry is unverified, and no
+      rate is claimed for the pinned build or for any other.
+    - both true: there is nothing to say, so nothing is said.
+
+    A body without a build_state is reported as carrying none - it is never read
+    as the on-pin case, which would be a confident claim nothing checked.
+  */
+  var buildState = payload.build_state && typeof payload.build_state === "object"
+    && !isArray(payload.build_state) ? payload.build_state : null;
+  var buildCodes = [];
+  for (var buildIndex = 0; buildIndex < warnings.length; buildIndex += 1) {
+    var buildWarning = warnings[buildIndex];
+    if (buildWarning && buildWarning.source === "build" && buildWarning.code) {
+      buildCodes.push(String(buildWarning.code));
+    }
+  }
+  var buildServed = buildCodes.length
+    ? " Served with it: " + buildCodes.join(", ") + "."
+    : "";
+  var registryVerified = buildState !== null && buildState.registry_verified === true;
+  var markPinned = registryVerified && buildState.save_build_matches !== true;
+
+  function pinnedSpelling(state) {
+    /* A pin that did not parse is said to have not parsed, never printed as null. */
+    if (state.pinned_changelist === null || state.pinned_changelist === undefined) {
+      return "unknown - the pinned changelist did not parse, so the two builds were"
+        + " never compared";
+    }
+    return "build " + String(state.pinned_changelist);
+  }
+
+  var buildText = null;
+  if (buildState === null) {
+    buildText = "The body carried no build state, so this panel makes no claim about"
+      + " which game build any rate below belongs to." + buildServed;
+  } else if (!registryVerified) {
+    buildText = "The registry these rates come from is unverified - "
+      + (buildState.registry_verified === null
+        ? "there is no registry on this machine to verify"
+        : "it was not shown to be built from the docs this project pins")
+      + " - so this panel makes no claim about which game build any rate below"
+      + " belongs to. The save was written by build "
+      + spell(buildState.save_changelist)
+      + "." + buildServed;
+  } else if (markPinned) {
+    buildText = "This save was written by build "
+      + spell(buildState.save_changelist)
+      + "; the pinned build is "
+      + pinnedSpelling(buildState)
+      + ". The registry is verified as the pinned build's, so every rate below is"
+      + " the PINNED BUILD'S RATE and not the save build's own; no other build's"
+      + " rate is inferred." + buildServed;
+  }
+  if (buildText !== null) {
+    add(root, "p", "note", buildText).id = "map-build";
+  }
+
   var rates = add(root, "ul", "paths", null);
   rates.id = "map-throughput";
   for (var rateIndex = 0; rateIndex < throughput.length; rateIndex += 1) {
@@ -734,6 +803,10 @@ registerPanel("map", function mountMap(root, data) {
       if (others.length) {
         line += "; " + others.join(", ")
           + (measured ? " (scaling measured)" : " (scaling ASSUMED, not measured)");
+      }
+      if (markPinned) {
+        /* The marking attaches to a RATE; a row with none has nothing to mark. */
+        line += " - the PINNED BUILD'S RATE, not the save build's own";
       }
     }
 

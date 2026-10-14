@@ -44,6 +44,14 @@ g. THE THROUGHPUT ROW SEPARATES WHAT WAS MEASURED FROM WHAT WAS ASSUMED. The
 h. A MISSING RATE IS NULL AND NEVER ZERO. ``Extractor.items_per_cycle`` and
    ``Extractor.extract_cycle_time`` are None on measured entries, and a zero
    there is a power plan nothing can detect as wrong.
+i. THE BUILD STATE IS SERVED AND NEVER COMPUTED HERE (CS-1316, the contract
+   recorded in ``docs/LEDGER.md`` before the code). ``build_state`` copies
+   ``clockspeed.audit.build.BuildCheck`` and ``RegistryCheck``, the four audit
+   codes ride under the ``build`` source verbatim at count 1, and the pin is
+   read off ``clockspeed.data.version`` at request time. Every changelist here
+   is ``tests.advisor.build_fixtures.game_pin`` or the pin plus or minus one,
+   and every verified registry is stamped by ``pinned_source``; no changelist
+   literal appears in this file.
 
 Test-quality discipline (CONVENTIONS.md section 7.2). Every sweep binds its
 population size to a scalar and asserts an expected count BEFORE it iterates,
@@ -59,6 +67,7 @@ no save present.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import inspect
 import json
 import math
@@ -68,6 +77,7 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from clockspeed.audit import build as build_model
 from clockspeed.audit import inventory as inventory_model
 from clockspeed.audit import placement as placement_model
 from clockspeed.data import version
@@ -76,6 +86,12 @@ from clockspeed.save import usmap, world
 from clockspeed.save.header import masked_token
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import map as endpoint
+from tests.advisor.build_fixtures import (
+    OFF_PIN_DOCS_SHA256,
+    OFF_PIN_OFFSETS,
+    game_pin,
+    pinned_source,
+)
 from tests.save import synthetic
 from tests.surface.audit_harness import _MAP_QUARTER_TURNS
 
@@ -221,14 +237,36 @@ ARITHMETIC_NODES: Final = (ast.BinOp, ast.AugAssign)
 #: compares a served body against it. A tuple that was silently emptied would
 #: make every shape arm pass by comparing two empty sets - the exact vacuity
 #: this file's own stub phase measured, and the one hole it found.
-EXPECTED_DATA_KEYS: Final = 13
+EXPECTED_DATA_KEYS: Final = 14
 EXPECTED_BOUNDS_KEYS: Final = 6
 EXPECTED_PLACEMENT_KEYS: Final = 6
 EXPECTED_INVENTORY_KEYS: Final = 3
 EXPECTED_THROUGHPUT_KEYS: Final = 9
 EXPECTED_WARNING_KEYS: Final = 3
-EXPECTED_WARNING_SOURCES: Final = 3
+EXPECTED_WARNING_SOURCES: Final = 4
+EXPECTED_BUILD_STATE_KEYS: Final = 4
 EXPECTED_PURITIES: Final = 3
+
+#: CS-1316. The two fields the audit layer compares and this module must never
+#: read: the save header's build and the registry's source hash. Reading either
+#: here would be the first step of a comparison the surface does not own.
+COMPARED_FIELDS: Final = frozenset({"build_changelist", "source_sha256"})
+
+#: CS-1316. The comparison operators. ``Is``, ``IsNot``, ``In`` and ``NotIn``
+#: are absent on purpose: a None test and a vocabulary membership are not a
+#: comparison of two builds, and this module already holds both.
+COMPARISON_OPS: Final = (ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE)
+
+#: CS-1316. Every audit code the build source may serve, each at count one.
+BUILD_CODES: Final = frozenset(
+    {
+        build_model.WARN_BUILD_MISMATCH,
+        build_model.WARN_BUILD_UNCOMPARED,
+        build_model.WARN_REGISTRY_MISMATCH,
+        build_model.WARN_REGISTRY_UNVERIFIED,
+    }
+)
+EXPECTED_BUILD_CODES: Final = 4
 
 #: Attribute names this module must never read off a header or a record. Named
 #: explicitly so a reader sees the danger rather than inferring it from absence.
@@ -1591,3 +1629,342 @@ def test_the_uniqueness_helper_refuses_an_ambiguous_needle_and_an_absent_one() -
     assert gone == NO_OCCURRENCES, "the planted absent needle appears " + str(gone) + " times"
     with pytest.raises(AssertionError):
         assert_unique_needle(served, absent, "planted vacuity")
+
+
+# ---------------------------------------------------------------------------
+# 10 - the build state (i), CS-1316
+# ---------------------------------------------------------------------------
+
+#: The three registries the pinned-build marking must never reach: one with no
+#: byte source, one built from docs bytes other than the pinned, and none.
+UNVERIFIED_CASES: Final = ("no-byte-source", "other-docs-bytes", "no-registry")
+
+
+def _side(offset: int) -> str:
+    """Name an off-pin offset by the side of the pin it sits on.
+
+    Args:
+        offset: One of :data:`OFF_PIN_OFFSETS`.
+
+    Returns:
+        ``after`` or ``before``.
+    """
+    return "after" if offset > 0 else "before"
+
+
+def built_world(build_changelist: int) -> world.WorldModel:
+    """Drive a save written by one build, holding one built miner, through the REAL loader.
+
+    Args:
+        build_changelist: The build the synthetic header declares - the pin or
+            the pin plus an offset, never a literal.
+
+    Returns:
+        The loaded world.
+    """
+    return world.load_world_from_bytes(
+        synthetic.build_save(
+            header_kwargs={"build_changelist": build_changelist},
+            objects=(
+                synthetic.SyntheticObject(
+                    BUILT_PATH,
+                    CANARY_ROOT,
+                    CANARY_INSTANCE + "_1",
+                    translation=BUILT_TRANSLATION,
+                ),
+            ),
+        ),
+        property_map=empty_property_map(),
+        body_layout=world.BODY_LAYOUT_FLAT,
+    )
+
+
+def verified_registry() -> Registry:
+    """The miner registry, stamped as built from the pinned docs bytes.
+
+    Returns:
+        A registry whose source hash is the pin's, read at call time.
+    """
+    return pinned_source(fixture_registry(extractor=miner_extractor()))
+
+
+def unverified_case(case: str) -> tuple[Registry | None, bool | None, tuple[str, ...]]:
+    """One registry the marking must never reach, and what the body must say of it.
+
+    Args:
+        case: One of :data:`UNVERIFIED_CASES`.
+
+    Returns:
+        The registry or None, the ``registry_verified`` value it must serve,
+        and the registry codes it must serve under the build source.
+    """
+    if case == "no-byte-source":
+        return (
+            fixture_registry(extractor=miner_extractor()),
+            False,
+            (build_model.WARN_REGISTRY_UNVERIFIED,),
+        )
+    if case == "other-docs-bytes":
+        other = dataclasses.replace(
+            fixture_registry(extractor=miner_extractor()), source_sha256=OFF_PIN_DOCS_SHA256
+        )
+        return other, False, (build_model.WARN_REGISTRY_MISMATCH,)
+    return None, None, ()
+
+
+def build_warnings(data: Mapping[str, object]) -> list[Mapping[str, object]]:
+    """Every served warning under the build source, in body order.
+
+    Args:
+        data: The body.
+
+    Returns:
+        The rows.
+    """
+    return [row for row in rows(data, "warnings") if row["source"] == build_model.SOURCE_BUILD]
+
+
+def build_warning(code: str) -> dict[str, object]:
+    """The one row an audit build code is served as under the CS-1316 contract.
+
+    Args:
+        code: The audit's code.
+
+    Returns:
+        The row, verbatim source and code, count one.
+    """
+    return {"source": build_model.SOURCE_BUILD, "code": code, "count": 1}
+
+
+def comparison_ops(tree: ast.AST) -> list[str]:
+    """Every equality or ordering comparison operator in a tree, by class name.
+
+    Args:
+        tree: A parsed module.
+
+    Returns:
+        The operator names, a closed vocabulary from the ``ast`` module.
+    """
+    return [
+        type(op).__name__
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Compare)
+        for op in node.ops
+        if isinstance(op, COMPARISON_OPS)
+    ]
+
+
+def module_level_pin_reads(tree: ast.Module) -> list[str]:
+    """Every ``version.<name>`` read outside a function, which would bind the pin at import.
+
+    Args:
+        tree: A parsed module.
+
+    Returns:
+        The attribute names read at module level.
+    """
+    found: list[str] = []
+    for statement in tree.body:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        found.extend(
+            node.attr
+            for node in ast.walk(statement)
+            if isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "version"
+        )
+    return found
+
+
+def test_the_build_state_and_the_build_source_are_published() -> None:
+    """The contract's two additions, each bound by size before an arm compares against it."""
+    named = len(endpoint.BUILD_STATE_KEYS)
+    assert named == EXPECTED_BUILD_STATE_KEYS, "the build state tuple holds " + str(named)
+    assert "build_state" in endpoint.DATA_KEYS, sorted(endpoint.DATA_KEYS)
+    assert build_model.SOURCE_BUILD in endpoint.WARNING_SOURCES, endpoint.WARNING_SOURCES
+    codes = len(BUILD_CODES)
+    assert codes == EXPECTED_BUILD_CODES, "the build code set holds " + str(codes)
+
+
+def test_the_build_state_carries_exactly_the_published_keys_and_wire_types() -> None:
+    """Two integers and two flags; ``registry_verified`` is null with no registry."""
+    for registry, verified in ((fixture_registry(), False), (None, None)):
+        data = body_of(answer(canary_world(), registry))
+        state = mapping_of(data, "build_state")
+        assert frozenset(state) == frozenset(endpoint.BUILD_STATE_KEYS), sorted(state)
+        save = state["save_changelist"]
+        assert isinstance(save, int), type(save).__name__
+        assert not isinstance(save, bool), "save_changelist is a bool"
+        pinned = state["pinned_changelist"]
+        assert isinstance(pinned, int), type(pinned).__name__
+        assert not isinstance(pinned, bool), "pinned_changelist is a bool"
+        assert isinstance(state["save_build_matches"], bool), str(state["save_build_matches"])
+        assert state["registry_verified"] is verified, str(state["registry_verified"])
+        served = {str(row["code"]) for row in build_warnings(data)}
+        assert served, "the canary world raised no build code, so this arm grades nothing"
+        assert served <= BUILD_CODES, sorted(served)
+
+
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_an_off_pin_world_marks_the_rate_as_the_pinned_builds(offset: int) -> None:
+    """Off the pin, over a verified registry, the body says the rate is the pin's.
+
+    The marking is the PAIR the panel reads - ``save_build_matches`` false
+    beside ``registry_verified`` true - plus the audit's own mismatch code. The
+    row itself is unchanged: ``THROUGHPUT_KEYS`` did not move and the rate is
+    the one the registry prices, served as before.
+    """
+    pin = game_pin()
+    save = pin + offset
+    data = body_of(answer(built_world(save), verified_registry()))
+
+    state = dict(mapping_of(data, "build_state"))
+    expected = {
+        "save_changelist": save,
+        "pinned_changelist": pin,
+        "save_build_matches": False,
+        "registry_verified": True,
+    }
+    assert state == expected, str(state)
+
+    served = build_warnings(data)
+    assert served == [build_warning(build_model.WARN_BUILD_MISMATCH)], str(served)
+
+    row = rows(data, "throughput")[0]
+    assert frozenset(row) == frozenset(endpoint.THROUGHPUT_KEYS), sorted(row)
+    assert row["per_minute_normal"] == MINER_PER_MINUTE, str(row["per_minute_normal"])
+
+
+def test_an_on_pin_world_carries_no_build_marking() -> None:
+    """On the pin, over a verified registry, both flags read true and no build code is served."""
+    pin = game_pin()
+    data = body_of(answer(built_world(pin), verified_registry()))
+
+    state = dict(mapping_of(data, "build_state"))
+    expected = {
+        "save_changelist": pin,
+        "pinned_changelist": pin,
+        "save_build_matches": True,
+        "registry_verified": True,
+    }
+    assert state == expected, str(state)
+    served = build_warnings(data)
+    assert served == [], str(served)
+
+    row = rows(data, "throughput")[0]
+    assert row["per_minute_normal"] == MINER_PER_MINUTE, str(row["per_minute_normal"])
+
+
+@pytest.mark.parametrize("case", UNVERIFIED_CASES)
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_an_unverified_registry_is_never_marked_as_the_pinned_builds(
+    offset: int, case: str
+) -> None:
+    """Off the pin, ``registry_verified`` is never true unless the registry is the pin's.
+
+    The panel marks a rate as the pinned build's only on ``registry_verified``
+    true, so this arm grades the half of that pair the body owns: a registry
+    with no byte source or from other docs bytes serves false and its audit
+    code, and no registry at all serves null and no registry code.
+    """
+    pin = game_pin()
+    registry, verified, registry_codes = unverified_case(case)
+    data = body_of(answer(built_world(pin + offset), registry))
+
+    state = mapping_of(data, "build_state")
+    assert state["registry_verified"] is verified, str(state["registry_verified"])
+    assert state["registry_verified"] is not True, "an unverified registry was served verified"
+    assert state["save_build_matches"] is False, str(state["save_build_matches"])
+
+    served = build_warnings(data)
+    codes = (build_model.WARN_BUILD_MISMATCH, *registry_codes)
+    assert served == [build_warning(code) for code in codes], str(served)
+
+
+def test_an_unparsed_pin_serves_build_uncompared(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pin that did not parse is never a match, and the pin is read at request time.
+
+    The world declares the pin's own build, so only a request-time read of
+    ``version.GAME_CHANGELIST`` can serve it uncompared.
+    """
+    pin = game_pin()
+    registry = verified_registry()
+    monkeypatch.setattr(version, "GAME_CHANGELIST", None)
+    data = body_of(answer(built_world(pin), registry))
+
+    state = dict(mapping_of(data, "build_state"))
+    expected = {
+        "save_changelist": pin,
+        "pinned_changelist": None,
+        "save_build_matches": False,
+        "registry_verified": True,
+    }
+    assert state == expected, str(state)
+    served = build_warnings(data)
+    assert served == [build_warning(build_model.WARN_BUILD_UNCOMPARED)], str(served)
+
+
+def test_an_empty_docs_pin_serves_registry_unverified(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pin carrying no docs hash leaves even a stamped registry unverified.
+
+    The registry is stamped with the pin's hash BEFORE the pin is emptied, so
+    only a request-time read of ``version.DOCS_SHA256`` can serve it unverified.
+    """
+    pin = game_pin()
+    registry = verified_registry()
+    monkeypatch.setattr(version, "DOCS_SHA256", "")
+    data = body_of(answer(built_world(pin), registry))
+
+    state = mapping_of(data, "build_state")
+    assert state["registry_verified"] is False, str(state["registry_verified"])
+    assert state["save_build_matches"] is True, str(state["save_build_matches"])
+    served = build_warnings(data)
+    assert served == [build_warning(build_model.WARN_REGISTRY_UNVERIFIED)], str(served)
+
+
+def test_the_map_never_compares_builds_itself() -> None:
+    """CLAUDE.md 2.1: the surface copies the audit's comparison and makes none.
+
+    No read of either compared field, no equality or ordering operator, and
+    the pin read off ``version`` inside a function - never bound at import.
+    """
+    tree = endpoint_tree()
+    read = sorted(COMPARED_FIELDS & attribute_reads(tree))
+    assert read == [], "the endpoint reads a field the audit compares: " + str(read)
+    compared = comparison_ops(tree)
+    assert compared == [], "the endpoint holds a comparison: " + str(compared)
+
+    pins = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "version"
+    }
+    assert {"GAME_CHANGELIST", "DOCS_SHA256"} <= pins, sorted(pins)
+    at_import = module_level_pin_reads(tree)
+    assert at_import == [], "the pin is bound at import: " + str(at_import)
+    bound = [
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "clockspeed.data.version"
+        for alias in node.names
+    ]
+    assert bound == [], "a pin name is imported rather than read: " + str(bound)
+
+
+def test_the_build_comparison_detectors_find_a_planted_comparison() -> None:
+    """The negative control: each detector above finds what it hunts."""
+    planted = ast.parse(
+        "import version\n"
+        "PIN = version.GAME_CHANGELIST\n"
+        "def f(model, pin):\n"
+        "    return model.header.build_changelist != pin\n"
+    )
+    found = comparison_ops(planted)
+    assert found == ["NotEq"], str(found)
+    read = sorted(COMPARED_FIELDS & attribute_reads(planted))
+    assert read == ["build_changelist"], str(read)
+    at_import = module_level_pin_reads(planted)
+    assert at_import == ["GAME_CHANGELIST"], str(at_import)

@@ -465,6 +465,15 @@ def _map_data() -> dict[str, object]:
                 "purity_known": False,
             },
         ],
+        # CS-1316. The harness world is the pinned build's own and its registry
+        # the pinned docs', so the audit page shows the on-pin state - no build
+        # code, no marking - which is what the pinned development world serves.
+        "build_state": {
+            "save_changelist": _build_changelist(),
+            "pinned_changelist": _build_changelist(),
+            "save_build_matches": True,
+            "registry_verified": True,
+        },
         "warnings": [
             {
                 "source": SOURCE_WORLD,
@@ -480,7 +489,36 @@ def _map_data() -> dict[str, object]:
         message = f"canned map body does not match the endpoint: {missing} {surplus}"
         raise AssertionError(message)
     _assert_rows_match(body)
+    _assert_build_state_matches(body)
     return body
+
+
+def _assert_build_state_matches(body: dict[str, object]) -> None:
+    """Bind the canned BUILD STATE to the endpoint's own key tuple (CS-1316).
+
+    The same one-level-down guard :func:`_assert_rows_match` is for the rows:
+    the top-level check sees that ``build_state`` is present and nothing about
+    what it holds, so a canned state missing a key the panel reads would pass
+    it and render as a state the endpoint never serves.
+
+    Args:
+        body: The canned body, already checked at the top level.
+
+    Raises:
+        AssertionError: When the build state is not a mapping, or its key set
+            differs from ``map_endpoint.BUILD_STATE_KEYS`` in either direction.
+    """
+    state = body["build_state"]
+    if not isinstance(state, dict):
+        message = "canned map body carries no build state mapping"
+        raise AssertionError(message)
+    published = frozenset(map_endpoint.BUILD_STATE_KEYS)
+    keys = frozenset(state)
+    if keys != published:
+        missing = tuple(sorted(published - keys))
+        surplus = tuple(sorted(keys - published))
+        message = f"canned build state does not match the endpoint: {missing} {surplus}"
+        raise AssertionError(message)
 
 
 def _assert_rows_match(body: dict[str, object]) -> None:

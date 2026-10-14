@@ -72,8 +72,9 @@ import pytest
 
 from clockspeed.save.world import NODE_CLASS_NAMES
 from clockspeed.surface.api import map as map_endpoint
+from tests.advisor.build_fixtures import OFF_PIN_OFFSETS, game_pin
 from tests.surface import panel_harness
-from tests.surface.audit_harness import _assert_rows_match
+from tests.surface.audit_harness import _assert_build_state_matches, _assert_rows_match
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -102,6 +103,33 @@ ALT_ID: Final = "map-legend"
 INVENTORY_ID: Final = "map-inventory"
 THROUGHPUT_ID: Final = "map-throughput"
 NOTE_ID: Final = "map-note"
+#: CS-1316. The note that says which build the rates belong to, or that the
+#: registry is unverified. Absent when there is nothing to say: on the pin, over
+#: a verified registry.
+BUILD_ID: Final = "map-build"
+
+#: CS-1316. The marking a rate row carries when the save is off the pin and the
+#: registry is the pinned build's. Matched lower-cased, so the arm grades the
+#: claim rather than its capitalisation.
+PINNED_MARK: Final = "pinned build's rate"
+
+#: CS-1316. The audit codes the build source serves, spelled here for the
+#: reason :data:`MAX_ASCII_BYTE` gives: a test that imports what it asserts
+#: grades nothing.
+SOURCE_BUILD: Final = "build"
+BUILD_MISMATCH: Final = "build-mismatch"
+BUILD_UNCOMPARED: Final = "build-uncompared"
+
+#: CS-1316. The off-pin arm serves one rated row and one unrated row.
+TWO_RATE_ROWS: Final = 2
+
+#: CS-1316. The registry states the marking must never reach: the name, the
+#: served ``registry_verified`` and the registry code served beside it.
+UNVERIFIED_STATES: Final = (
+    ("no-byte-source", False, "registry-unverified"),
+    ("other-docs-bytes", False, "registry-mismatch"),
+    ("no-registry", None, None),
+)
 
 #: The class the panel puts on a plotted resource node and on a plotted built
 #: actor. Two shapes as well as two colours, because colour alone is not a
@@ -301,10 +329,59 @@ def _map_body(**overrides: Any) -> dict[str, Any]:
                 "purity_scaling_measured": False,
             }
         ],
+        # CS-1316. On the pin, over a verified registry: the state that carries
+        # no build marking, so every arm above grades the panel it always did.
+        "build_state": _build_state(game_pin(), game_pin(), matches=True, verified=True),
         "warnings": [{"source": "map", "code": "node-semantics-unavailable", "count": 1}],
     }
     body.update(overrides)
     return body
+
+
+def _build_state(
+    save: int, pinned: int | None, *, matches: bool, verified: bool | None
+) -> dict[str, Any]:
+    """A synthetic ``build_state``, keyed as the endpoint keys it.
+
+    Args:
+        save: The save's build - the pin or the pin plus an offset.
+        pinned: The pin, or None for a pin that did not parse.
+        matches: ``save_build_matches``.
+        verified: ``registry_verified``, None for no registry.
+
+    Returns:
+        The state.
+    """
+    return {
+        "save_changelist": save,
+        "pinned_changelist": pinned,
+        "save_build_matches": matches,
+        "registry_verified": verified,
+    }
+
+
+def _build_warning(code: str) -> dict[str, Any]:
+    """One audit build code as the endpoint serves it.
+
+    Args:
+        code: The code.
+
+    Returns:
+        The warning row, count one.
+    """
+    return {"source": SOURCE_BUILD, "code": code, "count": 1}
+
+
+def _side(offset: int) -> str:
+    """Name an off-pin offset by the side of the pin it sits on.
+
+    Args:
+        offset: One of ``OFF_PIN_OFFSETS``.
+
+    Returns:
+        ``after`` or ``before``.
+    """
+    return "after" if offset > 0 else "before"
 
 
 def _assert_body_matches(body: dict[str, Any]) -> None:
@@ -331,6 +408,7 @@ def _assert_body_matches(body: dict[str, Any]) -> None:
         message = f"canned map body does not match the endpoint: {missing} {surplus}"
         raise AssertionError(message)
     _assert_rows_match(body)
+    _assert_build_state_matches(body)
 
 
 # THE GUARD RUNS AT IMPORT, SO A DRIFTED FIXTURE FAILS COLLECTION. An arm that
@@ -992,3 +1070,138 @@ def test_an_empty_throughput_with_no_warning_still_refuses_to_imply_zero(
     printed = _text(report, THROUGHPUT_ID)
     assert printed.strip(), "an unexplained empty throughput rendered as an empty box"
     assert "no reason" in printed, f"the absent warning is not named: {printed!r}"
+
+
+# ---------------------------------------------------------------------------
+# g. Which build the rate belongs to - CS-1316
+# ---------------------------------------------------------------------------
+
+
+def _page(report: Mapping[str, Any]) -> str:
+    """The whole mounted panel's text, lower-cased for a claim sweep.
+
+    Args:
+        report: A report from the harness.
+
+    Returns:
+        The root's ``textContent``, lower-cased.
+    """
+    return str(report["nodes"][0]["text"]).lower()
+
+
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_an_off_pin_world_marks_the_rate_as_the_pinned_builds(tmp_path: Path, offset: int) -> None:
+    """Off the pin, over a verified registry, each served rate says whose it is.
+
+    The marking attaches to the RATE: a row with no rate has nothing to mark
+    and carries none. The note states both builds as the wire spelled them
+    and the audit code verbatim, so the reader sees the evidence, not only
+    the conclusion.
+    """
+    pin = game_pin()
+    save = pin + offset
+    rated = dict(_map_body()["throughput"][0])
+    unrated = dict(rated, class_name="Build_UnratedThing_C", per_minute_normal=None)
+    report = _mount(
+        tmp_path,
+        build_state=_build_state(save, pin, matches=False, verified=True),
+        throughput=[rated, unrated],
+        warnings=[_build_warning(BUILD_MISMATCH)],
+    )
+
+    rows = _entries(report, THROUGHPUT_ID)
+    assert len(rows) == TWO_RATE_ROWS, f"two throughput rows served, {len(rows)} rendered: {rows}"
+    assert "60" in rows[0], rows[0]
+    assert PINNED_MARK in rows[0].lower(), f"an off-pin rate is not marked: {rows[0]!r}"
+    assert PINNED_MARK not in rows[1].lower(), f"a row with no rate was marked: {rows[1]!r}"
+
+    note = _text(report, BUILD_ID)
+    assert str(save) in note, f"the note names no save build: {note!r}"
+    assert str(pin) in note, f"the note names no pinned build: {note!r}"
+    assert BUILD_MISMATCH in note, f"the note drops the served code: {note!r}"
+
+
+def test_an_on_pin_world_carries_no_build_marking(tmp_path: Path) -> None:
+    """On the pin, over a verified registry, there is nothing to say and nothing is said."""
+    report = _mount(tmp_path)
+    rows = _entries(report, THROUGHPUT_ID)
+    assert "60" in rows[0], f"the rate never rendered, so this arm grades nothing: {rows!r}"
+    page = _page(report)
+    assert PINNED_MARK not in page, "an on-pin rate was marked as the pinned build's"
+    assert "unverified" not in page, "a verified registry was called unverified"
+    built = panel_harness.nodes_matching(report, {"id": BUILD_ID})
+    assert not built, f"an on-pin world rendered a build note: {built!r}"
+
+
+@pytest.mark.parametrize("state", UNVERIFIED_STATES, ids=lambda state: state[0])
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS, ids=_side)
+def test_an_unverified_registry_is_never_marked_as_the_pinned_builds(
+    tmp_path: Path, offset: int, state: tuple[str, bool | None, str | None]
+) -> None:
+    """Off the pin, a registry not shown to be the pin's makes no pinned-build claim.
+
+    The rate row is the default one, so a rate IS rendered and the absence of
+    the marking is not the absence of a row. The note says the registry is
+    unverified and carries every served build code verbatim.
+    """
+    _name, verified, registry_code = state
+    pin = game_pin()
+    codes = [BUILD_MISMATCH] if registry_code is None else [BUILD_MISMATCH, registry_code]
+    report = _mount(
+        tmp_path,
+        build_state=_build_state(pin + offset, pin, matches=False, verified=verified),
+        warnings=[_build_warning(code) for code in codes],
+    )
+
+    rows = _entries(report, THROUGHPUT_ID)
+    assert "60" in rows[0], f"the rate never rendered, so this arm grades nothing: {rows!r}"
+    page = _page(report)
+    assert PINNED_MARK not in page, "a rate from an unverified registry was marked as the pin's"
+
+    note = _text(report, BUILD_ID)
+    assert "unverified" in note, f"the note does not say the registry is unverified: {note!r}"
+    missing = [code for code in codes if code not in note]
+    assert not missing, f"the note drops served codes {missing}: {note!r}"
+
+
+def test_an_on_pin_world_over_an_unverified_registry_still_says_so(tmp_path: Path) -> None:
+    """The registry half stands alone: a matching save does not verify the registry."""
+    pin = game_pin()
+    report = _mount(
+        tmp_path,
+        build_state=_build_state(pin, pin, matches=True, verified=False),
+        warnings=[_build_warning("registry-unverified")],
+    )
+    assert PINNED_MARK not in _page(report), "an unverified rate was marked as the pin's"
+    note = _text(report, BUILD_ID)
+    assert "unverified" in note, f"the note does not say the registry is unverified: {note!r}"
+
+
+def test_an_unparsed_pin_still_marks_a_verified_rate_as_the_pinned_builds(
+    tmp_path: Path,
+) -> None:
+    """An uncompared build is never a match, so a verified rate is still the pin's.
+
+    The note must not print a null as a changelist: it says the pin did not
+    parse, and the served code says the builds were never compared.
+    """
+    pin = game_pin()
+    report = _mount(
+        tmp_path,
+        build_state=_build_state(pin, None, matches=False, verified=True),
+        warnings=[_build_warning(BUILD_UNCOMPARED)],
+    )
+    rows = _entries(report, THROUGHPUT_ID)
+    assert PINNED_MARK in rows[0].lower(), f"a verified uncompared rate is unmarked: {rows[0]!r}"
+    note = _text(report, BUILD_ID)
+    assert BUILD_UNCOMPARED in note, f"the note drops the served code: {note!r}"
+    assert "did not parse" in note, f"the note does not say the pin did not parse: {note!r}"
+    assert "null" not in note.lower(), f"the note printed a null as a build: {note!r}"
+
+
+def test_a_body_without_a_build_state_makes_no_build_claim(tmp_path: Path) -> None:
+    """A body carrying no build state is reported as carrying none, never read as on-pin."""
+    report = _mount(tmp_path, build_state=None)
+    assert PINNED_MARK not in _page(report), "a rate was marked with no build state served"
+    note = _text(report, BUILD_ID)
+    assert "no build state" in note, f"the absent build state is not named: {note!r}"
