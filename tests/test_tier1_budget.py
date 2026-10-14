@@ -2770,14 +2770,10 @@ FILL_FROM_CATCH_ALL = (
 #: THE REASONS CAME WITH THE FILES, because a reason left behind rots.
 #: tests/test_probe_refusal_output.py drives every shipped hook through real git
 #: and the wrapper with planted canaries (CS-814, CS-1200) - it was on the guard
-#: shard for ROOM, not for kinship, and the room was gone.
-#: tests/test_mypy_gate.py is the second subprocess-heavy head, and this shard is
-#: the CPU-bound one by construction. The third, tests/test_liveness.py, moved on
-#: to the scan shard in the CS-1317 rebalance (:data:`SCAN_FROM_FILL`).
-FILL_FROM_GUARDS = (
-    "tests/test_mypy_gate.py",
-    "tests/test_probe_refusal_output.py",
-)
+#: shard for ROOM, not for kinship, and the room was gone. The other two,
+#: tests/test_liveness.py and tests/test_mypy_gate.py, moved on to the scan shard
+#: in the CS-1317 rebalance (:data:`SCAN_FROM_FILL`).
+FILL_FROM_GUARDS = ("tests/test_probe_refusal_output.py",)
 
 #: The tier1 shard rebalance's one arrival here, from the catch-all. The catch-all
 #: read over its budget on slow runners while this shard and the hook shard had
@@ -2950,14 +2946,18 @@ SCAN_FROM_CATCH_ALL = (
     "tests/test_readme_audit.py",
 )
 
-#: The CS-1317 rebalance's one arrival here, from the FILL shard, by the session
-#: 141 ruling R2. The fill shard read over its budget on main while this shard
-#: read far under it, and this file was the fill shard's heaviest by CI's own
-#: --durations; the readings and the projection live in tier1.yml, the one owner
-#: of this lane's numbers. Its fixtures are module-scoped, so the move pays no
-#: census twice. It was already an `--ignore=` on the catch-all, so a move between
+#: The CS-1317 rebalance's two arrivals here, from the FILL shard, by the session
+#: 141 ruling R2 and the adjudicated second file. The fill shard read over its
+#: budget on main while this shard read far under it, and these were the fill
+#: shard's two heaviest files by CI's own --durations; the readings and the
+#: projection live in tier1.yml, the one owner of this lane's numbers. Each
+#: file's fixtures are defined in that file alone, so the move pays no census
+#: twice. Both were already an `--ignore=` on the catch-all, so a move between
 #: two non-catch-all shards changes no ignore line at all.
-SCAN_FROM_FILL = ("tests/test_liveness.py",)
+SCAN_FROM_FILL = (
+    "tests/test_liveness.py",
+    "tests/test_mypy_gate.py",
+)
 
 #: The scan shard's whole membership, exactly.
 SCAN_SHARD_FILES = (

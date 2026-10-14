@@ -1324,17 +1324,16 @@ jobs:
       # named as an `--ignore=` on the catch-all shard above, and the arms in
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
       #
-      # THE TWO BEFORE THE LAST ARRIVED FROM THE GUARD SHARD UNDER CS-1214, which
+      # THE SECOND FROM LAST ARRIVED FROM THE GUARD SHARD UNDER CS-1214, which
       # moved three files here because the guard shard read over its budget and then
       # over its ceiling on a docs-only tip, and this shard was the receiver CS-1214's
-      # acceptance named. THEIR REASONS CAME WITH THEM. The third,
-      # tests/test_liveness.py, moved on to the scan shard in the CS-1317 rebalance;
-      # the scan shard's note below holds the readings that moved it.
-      # tests/test_mypy_gate.py is the second subprocess-heavy
-      # head, and this is the CPU-bound shard by construction.
+      # acceptance named. ITS REASON CAME WITH IT.
       # tests/test_probe_refusal_output.py drives every shipped hook through real git
       # and the wrapper with planted canaries (CS-814, CS-1200) - it sat on the guard
-      # shard for ROOM, not for kinship, and the room was gone.
+      # shard for ROOM, not for kinship, and the room was gone. The other two,
+      # tests/test_liveness.py and tests/test_mypy_gate.py, moved on to the scan
+      # shard in the CS-1317 rebalance; the scan shard's note below holds the
+      # readings that moved them. This stays the CPU-bound shard by construction.
       #
       # ORDER IS NOT DISPATCH ORDER HERE. xdist 3.8 sorts the loadfile queue by test
       # count, descending, and only the hook job turns that off, so appending these
@@ -1362,7 +1361,6 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
-          tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
           -q -n auto --dist loadfile
@@ -1552,20 +1550,22 @@ jobs:
       # count, descending, and only the hook job turns that off; the projection
       # above is taken on that sorted order. Do not reorder these for speed.
       #
-      # tests/test_liveness.py ARRIVED FROM THE FILL SHARD IN THE CS-1317 REBALANCE
-      # (session 141 ruling R2), and only it. The fill shard read 443s and 427s on
-      # runs 38491162550 and 38499621148, over the budget, while this job read 116s
-      # and 159s. It was the fill shard's heaviest file by CI's own --durations:
-      # four printed arms, 156.28s and 153.23s. A serial local profile put its
-      # unprinted remainder at 30.80s against 55.86s for those four arms, CI/local
-      # 1.89 to 3.30 per arm. PROJECTED, W = 2, from the slow readings: the fill
-      # shard loses half the moved worker time - 443 - 187.1/2 = 349s with the
-      # remainder at 1.0 (LOW), 443 - 242.5/2 = 322s at the pooled ratio. The
-      # printed arms alone give 443 - 156.28/2 = 365s, a floor that prices the 97
-      # unprinted tests at zero. This job starts it at t=0 on the second worker (101
-      # tests, second by count after the readme file), so it ends by the larger of
-      # its cost and the other four files' worker time, plus about 20s: HIGH 257.6s
-      # against at most 278s, so at most 298s; pooled, 159 + 257.6/2 = 288s.
+      # THE LAST TWO ARRIVED FROM THE FILL SHARD IN THE CS-1317 REBALANCE, and only
+      # they: tests/test_liveness.py by the session 141 ruling R2, then
+      # tests/test_mypy_gate.py as the adjudicated second file. The fill shard read
+      # 443s and 427s on runs 38491162550 and 38499621148, over the budget, while
+      # this job read 116s and 159s. They were the fill shard's two heaviest files
+      # by CI's own --durations, printed arms only (the B3 CI-only reading):
+      # liveness 156.28s and 153.23s, mypy gate 114.36s and 106.81s. ONE FILE WAS
+      # NOT ENOUGH: liveness alone projected 443 - 156.28/2 = 364.9s, over 360, and
+      # an adversary refuted the 349s that had added raw local seconds to it.
+      # PROJECTED, W = 2, the fill shard losing half the moved worker time:
+      # 443 - (156.28 + 114.36)/2 = 307.7s on 38491162550 and
+      # 427 - (153.23 + 106.81)/2 = 297.0s on 38499621148. The adjudicator's
+      # loadfile-scheduler simulation on two workers put the scan shard at worst
+      # 346.6s, under 360; its dispatch order is readme 146 tests, liveness 101,
+      # provenance 68, mypy gate 50, chained 25, disposition 14. The mypy gate's
+      # three conditional skips moved with it; nothing new is skipped.
       # UNMEASURED until the first CI reading settles it.
       - name: Unit tests
         run: >-
@@ -1575,6 +1575,7 @@ jobs:
           tests/test_disposition_sites.py
           tests/test_readme_audit.py
           tests/test_liveness.py
+          tests/test_mypy_gate.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
