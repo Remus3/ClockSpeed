@@ -1489,11 +1489,10 @@ jobs:
   # time: 507 - 372.5/2 = 321s in the LOW case, 507 - 424.0/2 = 295s pooled,
   # both under 360, the budget less its warn band. UNMEASURED: an adversary's
   # recomputation put the catch-all at 326s to 343s, about 368s with the last
-  # rebalance's measured miss; the first CI reading settles it. This job runs
-  # the four by xdist's test-count order - readme 130, provenance 68, chained
-  # 25, disposition 14 - so one worker takes provenance and the other the rest
-  # in turn: HIGH 33.9 + 119.8 + 106.6 = 260.3 against 198.6, plus about 24s
-  # outside pytest, about 284s; pooled about 271s. Both under 360.
+  # rebalance's measured miss; the first CI reading settles it. This job now
+  # runs six files in xdist's test-count order, the readme file first at 146
+  # tests. The full order and the adjudicated scan projection are in the note
+  # at this job's Unit tests step below, UNMEASURED until a CI reading.
   #
   # NO CENSUS IS PAID TWICE. tests/test_chained_exemption_guard.py is the only
   # catch-all reader of the cached censuses in tests/chained_cause_guard.py and
