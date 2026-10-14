@@ -270,7 +270,6 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
-          tests/test_liveness.py
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
@@ -284,6 +283,7 @@ jobs:
           tests/test_chained_exemption_guard.py
           tests/test_disposition_sites.py
           tests/test_readme_audit.py
+          tests/test_liveness.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
   # ===========================================================================
@@ -663,7 +663,6 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
-          tests/test_liveness.py
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
@@ -678,6 +677,7 @@ jobs:
           tests/test_chained_exemption_guard.py
           tests/test_disposition_sites.py
           tests/test_readme_audit.py
+          tests/test_liveness.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       # =====================================================================

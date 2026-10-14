@@ -2771,13 +2771,10 @@ FILL_FROM_CATCH_ALL = (
 #: tests/test_probe_refusal_output.py drives every shipped hook through real git
 #: and the wrapper with planted canaries (CS-814, CS-1200) - it was on the guard
 #: shard for ROOM, not for kinship, and the room was gone.
-#: tests/test_liveness.py is the guard shard's heaviest single file and this tree
-#: has measured it at about twice its local wall on the runner
-#: (docs/item_notes/phase4-followups-900.md). tests/test_mypy_gate.py is the
-#: second subprocess-heavy head, and this shard is the CPU-bound one by
-#: construction.
+#: tests/test_mypy_gate.py is the second subprocess-heavy head, and this shard is
+#: the CPU-bound one by construction. The third, tests/test_liveness.py, moved on
+#: to the scan shard in the CS-1317 rebalance (:data:`SCAN_FROM_FILL`).
 FILL_FROM_GUARDS = (
-    "tests/test_liveness.py",
     "tests/test_mypy_gate.py",
     "tests/test_probe_refusal_output.py",
 )
@@ -2946,11 +2943,26 @@ SCAN_JOB_NAME = "tests (scan shard)"
 #: catch-all. tests/test_chained_exemption_guard.py is the only tier-1 file that
 #: reads the cached census in tests/chained_cause_guard.py outside the guard and
 #: fill shards, so moving it leaves no census paid twice in the catch-all.
-SCAN_SHARD_FILES = (
+SCAN_FROM_CATCH_ALL = (
     "tests/test_provenance_manifest.py",
     "tests/test_chained_exemption_guard.py",
     "tests/test_disposition_sites.py",
     "tests/test_readme_audit.py",
+)
+
+#: The CS-1317 rebalance's one arrival here, from the FILL shard, by the session
+#: 141 ruling R2. The fill shard read over its budget on main while this shard
+#: read far under it, and this file was the fill shard's heaviest by CI's own
+#: --durations; the readings and the projection live in tier1.yml, the one owner
+#: of this lane's numbers. Its fixtures are module-scoped, so the move pays no
+#: census twice. It was already an `--ignore=` on the catch-all, so a move between
+#: two non-catch-all shards changes no ignore line at all.
+SCAN_FROM_FILL = ("tests/test_liveness.py",)
+
+#: The scan shard's whole membership, exactly.
+SCAN_SHARD_FILES = (
+    *SCAN_FROM_CATCH_ALL,
+    *SCAN_FROM_FILL,
 )
 
 
