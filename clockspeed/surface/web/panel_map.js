@@ -707,11 +707,16 @@ registerPanel("map", function mountMap(root, data) {
     flags and prints what they say:
 
     - registry_verified true and save_build_matches not true: every served rate
-      is marked as the PINNED BUILD'S RATE, because the save was written by
-      another build (or by one never compared with the pin) and the rate is not
-      that build's own.
+      is marked as the PINNED BUILD'S RATE. Only when the pin parsed and
+      save_build_matches is false - the two builds were COMPARED and differ -
+      does it add that the rate is not the save build's own. A pin that did not
+      parse compared nothing, and uncompared builds may be equal, so that case
+      says the audit's own "whatever build wrote the save" instead: whether the
+      rate is the save build's own was never checked (fix round 1).
     - registry_verified anything but true: the registry is unverified, and no
-      rate is claimed for the pinned build or for any other.
+      rate is claimed for the pinned build or for any other. A served
+      registry-mismatch code is said as what it is - the registry's docs bytes
+      DIFFER from the pinned docs - and nothing else is ever said to differ.
     - both true: there is nothing to say, so nothing is said.
 
     A body without a build_state is reported as carrying none - it is never read
@@ -731,15 +736,13 @@ registerPanel("map", function mountMap(root, data) {
     : "";
   var registryVerified = buildState !== null && buildState.registry_verified === true;
   var markPinned = registryVerified && buildState.save_build_matches !== true;
-
-  function pinnedSpelling(state) {
-    /* A pin that did not parse is said to have not parsed, never printed as null. */
-    if (state.pinned_changelist === null || state.pinned_changelist === undefined) {
-      return "unknown - the pinned changelist did not parse, so the two builds were"
-        + " never compared";
-    }
-    return "build " + String(state.pinned_changelist);
-  }
+  /* A pin that did not parse is said to have not parsed, never printed as null. */
+  var pinParsed = buildState !== null
+    && buildState.pinned_changelist !== null
+    && buildState.pinned_changelist !== undefined;
+  /* The two builds were compared and differ: the only case that earns "not its own". */
+  var buildsDiffer = markPinned && pinParsed && buildState.save_build_matches === false;
+  var registryDiffers = buildCodes.indexOf("registry-mismatch") !== -1;
 
   var buildText = null;
   if (buildState === null) {
@@ -749,19 +752,34 @@ registerPanel("map", function mountMap(root, data) {
     buildText = "The registry these rates come from is unverified - "
       + (buildState.registry_verified === null
         ? "there is no registry on this machine to verify"
-        : "it was not shown to be built from the docs this project pins")
+        : (registryDiffers
+          ? "its source docs bytes DIFFER from the docs this project pins"
+          : "it was never shown to be built from the docs this project pins"))
       + " - so this panel makes no claim about which game build any rate below"
       + " belongs to. The save was written by build "
       + spell(buildState.save_changelist)
       + "." + buildServed;
-  } else if (markPinned) {
+  } else if (buildsDiffer) {
     buildText = "This save was written by build "
       + spell(buildState.save_changelist)
-      + "; the pinned build is "
-      + pinnedSpelling(buildState)
+      + "; the pinned build is build "
+      + String(buildState.pinned_changelist)
       + ". The registry is verified as the pinned build's, so every rate below is"
       + " the PINNED BUILD'S RATE and not the save build's own; no other build's"
       + " rate is inferred." + buildServed;
+  } else if (markPinned) {
+    buildText = "This save was written by build "
+      + spell(buildState.save_changelist)
+      + "; "
+      + (pinParsed
+        ? "the pinned build is build " + String(buildState.pinned_changelist)
+          + ", and the body did not say whether the two match"
+        : "the pinned changelist did not parse, so the save's build was never"
+          + " compared with it, and that is not a match")
+      + ". The registry is verified as the pinned build's, so every rate below is"
+      + " the PINNED BUILD'S RATE whatever build wrote the save; whether it is the"
+      + " save build's own was never checked, and no other build's rate is"
+      + " inferred." + buildServed;
   }
   if (buildText !== null) {
     add(root, "p", "note", buildText).id = "map-build";
@@ -805,8 +823,15 @@ registerPanel("map", function mountMap(root, data) {
           + (measured ? " (scaling measured)" : " (scaling ASSUMED, not measured)");
       }
       if (markPinned) {
-        /* The marking attaches to a RATE; a row with none has nothing to mark. */
-        line += " - the PINNED BUILD'S RATE, not the save build's own";
+        /*
+          The marking attaches to a RATE; a row with none has nothing to mark.
+          "Not the save build's own" only where the builds were compared and
+          differ; otherwise it is unknown, and the row says so.
+        */
+        line += buildsDiffer
+          ? " - the PINNED BUILD'S RATE, not the save build's own"
+          : " - the PINNED BUILD'S RATE; whether it is the save build's own was"
+            + " never checked";
       }
     }
 

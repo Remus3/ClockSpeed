@@ -123,6 +123,17 @@ BUILD_UNCOMPARED: Final = "build-uncompared"
 #: CS-1316. The off-pin arm serves one rated row and one unrated row.
 TWO_RATE_ROWS: Final = 2
 
+#: CS-1316 fix round 1. The clause only a COMPARED, differing build earns,
+#: matched lower-cased; and the clause an uncompared build gets instead, which
+#: claims nothing either way - the audit's "whatever build wrote the save".
+NOT_SAVE_BUILDS_OWN: Final = "not the save build's own"
+NEVER_CHECKED: Final = "whether it is the save build's own was never checked"
+
+#: CS-1316 fix round 1. A registry mismatch is a measured difference and the
+#: note says so; an unverified or absent registry is never said to differ.
+REGISTRY_MISMATCH: Final = "registry-mismatch"
+DIFFER: Final = "differ"
+
 #: CS-1316. The registry states the marking must never reach: the name, the
 #: served ``registry_verified`` and the registry code served beside it.
 UNVERIFIED_STATES: Final = (
@@ -1113,6 +1124,7 @@ def test_an_off_pin_world_marks_the_rate_as_the_pinned_builds(tmp_path: Path, of
     assert len(rows) == TWO_RATE_ROWS, f"two throughput rows served, {len(rows)} rendered: {rows}"
     assert "60" in rows[0], rows[0]
     assert PINNED_MARK in rows[0].lower(), f"an off-pin rate is not marked: {rows[0]!r}"
+    assert NOT_SAVE_BUILDS_OWN in rows[0].lower(), f"a compared off-pin rate: {rows[0]!r}"
     assert PINNED_MARK not in rows[1].lower(), f"a row with no rate was marked: {rows[1]!r}"
 
     note = _text(report, BUILD_ID)
@@ -1163,6 +1175,13 @@ def test_an_unverified_registry_is_never_marked_as_the_pinned_builds(
     missing = [code for code in codes if code not in note]
     assert not missing, f"the note drops served codes {missing}: {note!r}"
 
+    # A MISMATCH IS A MEASURED DIFFERENCE AND IS SAID AS ONE; an unverified or
+    # absent registry was never compared, so it is never said to differ.
+    if registry_code == REGISTRY_MISMATCH:
+        assert DIFFER in note.lower(), f"a registry mismatch is not said to differ: {note!r}"
+    else:
+        assert DIFFER not in note.lower(), f"an uncompared registry is said to differ: {note!r}"
+
 
 def test_an_on_pin_world_over_an_unverified_registry_still_says_so(tmp_path: Path) -> None:
     """The registry half stands alone: a matching save does not verify the registry."""
@@ -1184,6 +1203,13 @@ def test_an_unparsed_pin_still_marks_a_verified_rate_as_the_pinned_builds(
 
     The note must not print a null as a changelist: it says the pin did not
     parse, and the served code says the builds were never compared.
+
+    AND IT MUST NOT SAY THE RATE IS NOT THE SAVE BUILD'S OWN (the CS-1316
+    truthfulness refutation). Uncompared builds may be equal - this save
+    declares the real pin's own build - so that clause is unknown here and
+    would be false on exactly this fixture. The audit's ``build-uncompared``
+    text is the model: priced at the pinned build whatever build wrote the
+    save, and whether it is the save build's own was never checked.
     """
     pin = game_pin()
     report = _mount(
@@ -1193,10 +1219,14 @@ def test_an_unparsed_pin_still_marks_a_verified_rate_as_the_pinned_builds(
     )
     rows = _entries(report, THROUGHPUT_ID)
     assert PINNED_MARK in rows[0].lower(), f"a verified uncompared rate is unmarked: {rows[0]!r}"
+    page = _page(report)
+    assert NOT_SAVE_BUILDS_OWN not in page, "an uncompared rate was called not the save build's own"
+    assert NEVER_CHECKED in rows[0], f"the row does not say the build is unchecked: {rows[0]!r}"
     note = _text(report, BUILD_ID)
     assert BUILD_UNCOMPARED in note, f"the note drops the served code: {note!r}"
     assert "did not parse" in note, f"the note does not say the pin did not parse: {note!r}"
     assert "null" not in note.lower(), f"the note printed a null as a build: {note!r}"
+    assert NEVER_CHECKED in note, f"the note does not say the save build is unchecked: {note!r}"
 
 
 def test_a_body_without_a_build_state_makes_no_build_claim(tmp_path: Path) -> None:
