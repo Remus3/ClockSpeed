@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1317 and CS-700 - step-b gate reading 2 of 2 passes
+Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38625359171 at 4f4e536; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
+PUSH 5 put main at 4f4e536 (records only; remote equal by full SHA, read again at CS-700 step a;
+push suite 16296 passed, 12 skipped, 1248.30 s - the push agent's record). TIER1 38625359171 at
+4f4e536 SUCCESS, six jobs on attempt 1, read from CI at step a: gates 188 s, fill 313, scan 338,
+save 166, guard 426, hook 394; install steps 5-9 s by the jobs API (normal runners).
+GATE: gates, fill and scan within 420 s, no job over 444 s - READING 2 OF 2 PASSES. With reading 1
+of 2 at 221e737 (tier1 38620497330) the consecutive pair is met; the gate's remaining condition is
+CS-700 step a's own tier1 run.
+GUARD 426 s is over its 420 s budget (a warning, never a failure) and 18 s under 444, so the guard
+watch (push 1 rulings, Q3) did not fire. No install step read 20 s or more: 0 of the 2 needed for
+the operator-ask trigger, with 2 of its 4 tier1 runs read.
+
 ### 2026-10-14 - CS-1317 and CS-700 - step-b gate reading 1 of 2 passes after the restart
 Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38620497330 at 221e737; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
 PUSH 4 put main at 221e737 (records only; remote equal by full SHA; push suite 16296 passed, 12
