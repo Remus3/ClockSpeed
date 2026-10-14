@@ -388,8 +388,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - CS-1269's same-origin refusal was probed without TLS and without a real browser, and the
   dashboard JS sending the proof header was not checked - TRIGGER: the dashboard gains a
   control that records a card state.
-- `tests/test_probe_refusal_output.py` flaked twice under box load (exit 124 versus 137) -
-  WATCH ONLY, never raise the 1.0s budget - TRIGGER: a third flake, or one on an idle box.
 
 ## Session 127 residuals - filed 2026-10-05 under product before process
 
