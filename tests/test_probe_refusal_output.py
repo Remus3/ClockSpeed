@@ -35,6 +35,16 @@ MEASURE that the check really returns 137 under it, and show every carrier's
 probe proceeding. The controls put a ``timeout`` that is no bound at all first
 on PATH and show every carrier still refusing.
 
+CS-1326 - THE STUBBORN CHILD IS TERM-IMMUNE FROM ITS FIRST INSTRUCTION. A
+``sleep`` that ignores TERM only once its trap has run loses the race with the
+0.05 s bound whenever it starts slowly, and the check then returns 124 - a
+loaded runner did exactly that. So beside it on PATH goes a ``timeout`` that
+runs the real one with TERM BLOCKED: the child is born blocked, the bound's
+TERM stays pending until the trap discards it, and only the kill ends it. That
+``timeout`` records every self-check's status, and each arm reads the record
+to show the carrier's own check ended by the kill, because a carrier proceeds
+on 124 as well and an arm that read only that could pass on the wrong path.
+
 NOTHING ASSERTED HERE RENDERS AN ENVIRONMENT VALUE OR A PATH. Every run is
 reduced to an exit status, counts and bools before an assertion sees it (the
 CS-1199 rule in ``tests/test_assertion_rendering.py``). The canary values are
@@ -403,10 +413,36 @@ def test_a_wrapper_refusal_renders_no_canary(tmp_path: Path, leg: str) -> None:
 
 # --- condition 3: a kill after the grace is a working bound -------------------------
 
-#: A ``sleep`` that ignores TERM, so a bound is enforced only by the KILL.
-STUBBORN_SLEEP_HEAD: Final = (
-    "#!/bin/sh\n# CS-1200 fixture: a sleep that ignores TERM.\ntrap '' TERM\n"
+#: A ``sleep`` that ignores TERM, so a bound is enforced only by the KILL. Its
+#: shebang is the resolved bash (CS-1326): bash keeps an inherited blocked TERM
+#: blocked through its start and its waits, while dash unblocks it while waiting
+#: on a child, so a dash stand-in for a slow start died of TERM even with the
+#: ``timeout`` below in front of it (measured, WSL Ubuntu 26.04).
+STUBBORN_SLEEP_HEAD: Final = "# CS-1200 fixture: a sleep that ignores TERM.\n"
+STUBBORN_TRAP: Final = "trap '' TERM\n"
+#: CS-1326: how long the slow-start arm's stubborn ``sleep`` runs the real one
+#: BEFORE its trap - six times the 0.05 s bound, well inside the 1 s grace.
+SLOW_START: Final = "0.3"
+
+#: CS-1326: beside the stubborn ``sleep``, a ``timeout`` that runs the real one
+#: with TERM BLOCKED. GNU timeout restores the mask it inherited in the child it
+#: starts, so that child is born with TERM blocked, the bound's TERM stays
+#: pending until the trap discards it, and only the kill can end it - however
+#: slowly the child starts. The real timeout still does all the bounding.
+TERM_BLOCKING_TIMEOUT: Final = (
+    "#!/bin/sh\n"
+    "# CS-1326 fixture: the real timeout, its child born with TERM blocked.\n"
+    '"{env}" --block-signal=TERM "{timeout}" "$@"\n'
+    "cs_rc=$?\n"
+    'case "$*" in\n'
+    '"{args}") printf \'%s\\n\' "$cs_rc" >>"{record}" ;;\n'
+    "esac\n"
+    'exit "$cs_rc"\n'
 )
+#: Where that ``timeout`` records each carried self-check's status, one a line.
+SELF_CHECK_RECORD: Final = "self-check-status.txt"
+#: What the shell resolves for the fixtures, in this order.
+RESOLVED_TOOLS: Final = ("bash", "env", "timeout")
 
 #: No bound at all: runs nothing and exits 1, the shape of a foreign ``timeout``.
 FOREIGN_TIMEOUT: Final = "#!/bin/sh\nexit 1\n"
@@ -415,6 +451,8 @@ ALWAYS_KILLED_TIMEOUT: Final = "#!/bin/sh\nexit 137\n"
 BROKEN_TIMEOUTS: Final = {"foreign": FOREIGN_TIMEOUT, "always-137": ALWAYS_KILLED_TIMEOUT}
 
 SELF_CHECK: Final = 'timeout -k 1 0.05 sleep 5 </dev/null >/dev/null 2>&1; printf "%s" "$?"'
+#: The self-check's arguments as the ``timeout`` in front of it receives them.
+SELF_CHECK_ARGS: Final = SELF_CHECK.split(" <", 1)[0].removeprefix("timeout ")
 KILLED: Final = "137"
 
 BLOCK_DIE: Final = b"die() { printf 'DIE: %s\\n' \"$1\"; exit 3; }\n"
@@ -445,14 +483,79 @@ def probe_block(raw: bytes) -> bytes:
     return b"\n".join(kept)
 
 
-def stubborn_bin(root: Path) -> Path:
-    """A directory whose ``sleep`` ignores TERM and then runs the real one."""
+def resolved_in_shell(root: Path) -> dict[str, str]:
+    """Each of :data:`RESOLVED_TOOLS` as the POSIX shell resolves it on the arms' PATH.
+
+    The shell's own spelling, so a shebang or a script line can use it as is.
+    Nothing resolved here is ever rendered.
+    """
+    resolve = 'for n do command -v "$n" || exit 1; done'
+    proc = subprocess.run(
+        [require_posix_shell(), "-c", resolve, "resolve", *RESOLVED_TOOLS],
+        capture_output=True,
+        env=block_env(root),
+        timeout=CALL_TIMEOUT,
+        check=False,
+    )
+    found = proc.stdout.decode("utf-8", "replace").splitlines()
+    whole = proc.returncode == 0 and len(found) == len(RESOLVED_TOOLS)
+    assert whole, f"the shell resolved {len(found)} of {len(RESOLVED_TOOLS)} fixture tools"
+    absolute = all(path.startswith("/") for path in found)
+    assert absolute, "a fixture tool resolved to something other than a file path"
+    return dict(zip(RESOLVED_TOOLS, found, strict=True))
+
+
+def stubborn_bin(root: Path, pre_trap_wait: str | None = None) -> Path:
+    """A directory whose ``sleep`` ignores TERM and then runs the real one.
+
+    CS-1326: its ``timeout`` runs the real one with TERM blocked, so that
+    ``sleep`` is TERM-immune from its first instruction, and records every
+    carried self-check's status at :data:`SELF_CHECK_RECORD` under ``root``.
+    ``pre_trap_wait`` makes the ``sleep`` run the real one for that long BEFORE
+    its trap - a child that starts slowly, the shape a loaded box gives it.
+    """
     shell = require_posix_shell()
     real = shutil.which("sleep", path=str(Path(shell).parent)) or shutil.which("sleep")
     assert real, "no real sleep resolved beside the shell or on PATH"
-    body = STUBBORN_SLEEP_HEAD + 'exec "' + Path(real).as_posix() + '" "$@"\n'
-    write_executable(root / "stubborn" / "sleep", body.encode("ascii"))
+    tools = resolved_in_shell(root)
+    one_word = len(tools["bash"].split()) == 1
+    assert one_word, "the resolved bash holds whitespace, so no shebang line can carry it"
+    sleep = '"' + Path(real).as_posix() + '"'
+    delay = "" if pre_trap_wait is None else sleep + " " + pre_trap_wait + "\n"
+    shebang = "#!" + tools["bash"] + "\n"
+    body = shebang + STUBBORN_SLEEP_HEAD + delay + STUBBORN_TRAP + "exec " + sleep + ' "$@"\n'
+    write_executable(root / "stubborn" / "sleep", body.encode("utf-8"))
+    shim = TERM_BLOCKING_TIMEOUT.format(
+        env=tools["env"],
+        timeout=tools["timeout"],
+        args=SELF_CHECK_ARGS,
+        record=(root / SELF_CHECK_RECORD).as_posix(),
+    )
+    write_executable(root / "stubborn" / "timeout", shim.encode("utf-8"))
+    # The precondition, asserted and never skipped: env takes --block-signal
+    # (coreutils 8.31 or later) and the timeout behind it is GNU's.
+    proc = subprocess.run(
+        [shell, str(root / "stubborn" / "timeout"), "--version"],
+        capture_output=True,
+        env=block_env(root),
+        timeout=CALL_TIMEOUT,
+        check=False,
+    )
+    gnu = b"GNU coreutils" in proc.stdout
+    usable = proc.returncode == 0 and gnu
+    assert usable, f"the TERM-blocking timeout is unusable: exit {proc.returncode}, GNU {gnu}"
     return root / "stubborn"
+
+
+def self_check_record(root: Path) -> list[str]:
+    """Every status the carried self-check returned through :func:`stubborn_bin`'s ``timeout``."""
+    record = root / SELF_CHECK_RECORD
+    return record.read_text(encoding="ascii").split() if record.is_file() else []
+
+
+def ended_by_the_kill(statuses: list[str]) -> bool:
+    """At least one self-check ran, and every one of them ended by the kill."""
+    return bool(statuses) and all(status == KILLED for status in statuses)
 
 
 def broken_bin(root: Path, kind: str) -> Path:
@@ -504,6 +607,8 @@ def test_the_stubborn_sleep_makes_the_self_check_return_137(tmp_path: Path) -> N
     With the real sleep the same check ends by the bound - 124, or 137 when a
     loaded box delays the child past the grace (CS-1200 measured 2 of 12) - and
     never by the child finishing. The stubborn half alone carries the proof.
+    CS-1326: the stubborn half read 124 on a loaded runner when its trap had not
+    run by the bound; its child is now born with TERM blocked.
     """
     stubborn = self_check_status(tmp_path, stubborn_bin(tmp_path))
     plain = self_check_status(tmp_path)
@@ -511,12 +616,31 @@ def test_the_stubborn_sleep_makes_the_self_check_return_137(tmp_path: Path) -> N
     assert plain in {"124", KILLED}, f"the real sleep did not end by the bound: [{plain}]"
 
 
+def test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill(tmp_path: Path) -> None:
+    """CS-1326. The kill must not depend on how fast the stubborn child starts.
+
+    Its trap runs only after the 0.05 s bound has expired - the shape of the
+    loaded runner on which tier2 38537859291 read 124 for the arm above. The
+    record the arms below read is shown here to hold exactly what the shell saw.
+    """
+    status = self_check_status(tmp_path, stubborn_bin(tmp_path, SLOW_START))
+    recorded = self_check_record(tmp_path)
+    assert status == KILLED, f"a slow-starting stubborn sleep did not end by the kill: [{status}]"
+    assert recorded == [status], f"the self-check record {recorded} is not the status the shell saw"
+
+
 @pytest.mark.parametrize("carrier", CARRIERS)
 def test_a_kill_after_the_grace_is_a_working_bound(tmp_path: Path, carrier: str) -> None:
-    """Condition 3: with the self-check ending by the kill, the probe proceeds."""
+    """Condition 3: with the self-check ending by the kill, the probe proceeds.
+
+    CS-1326: the record shows the carrier's own check ended by the kill - a 124
+    proceeds too, so without it this arm could pass on the path it is not about.
+    """
     run = run_block(tmp_path, carrier, stubborn_bin(tmp_path))
+    statuses = self_check_record(tmp_path)
     assert not run.died, f"{carrier} refused (bound refusal: {run.bound_refusal})"
     assert run.probe_rc == "0", f"{carrier}'s probe returned [{run.probe_rc}] for a real python"
+    assert ended_by_the_kill(statuses), f"{carrier}'s self-check statuses: {statuses}"
 
 
 @pytest.mark.parametrize("kind", sorted(BROKEN_TIMEOUTS))
@@ -532,11 +656,17 @@ def test_no_working_timeout_still_refuses(tmp_path: Path, carrier: str, kind: st
 def test_the_wrapper_proceeds_when_the_self_check_ends_by_the_kill(
     tmp_path: Path, leg: str
 ) -> None:
-    """Condition 3 through the whole wrapper: the tool runs and its verdict passes through."""
+    """Condition 3 through the whole wrapper: the tool runs and its verdict passes through.
+
+    CS-1326: and every self-check the wrapper ran ended by the kill, read from
+    the record rather than inferred from the wrapper proceeding.
+    """
     code, out = run_wrapper(leg, tmp_path, None, stubborn_bin(tmp_path))
     refused = WRAPPER_REFUSED in out
+    statuses = self_check_record(tmp_path)
     assert code == 0, f"{leg}: the wrapper exited {code} (refused: {refused})"
     assert not refused, f"{leg}: the wrapper refused"
+    assert ended_by_the_kill(statuses), f"{leg}: the wrapper's self-check statuses: {statuses}"
 
 
 @pytest.mark.parametrize("leg", LEGS)
@@ -571,7 +701,10 @@ def stubborn_first(root: Path, stubborn: Path) -> dict[str, str]:
     ),
 )
 def test_a_real_commit_proceeds_when_the_self_check_ends_by_the_kill(tmp_path: Path) -> None:
-    """Condition 3 through real git, where PATH order can be controlled."""
+    """Condition 3 through real git, where PATH order can be controlled.
+
+    CS-1326: the record shows the hook's own self-check ended by the kill.
+    """
     stubborn = stubborn_bin(tmp_path)
     work = make_repo(tmp_path, {PRE_COMMIT: tracked(PRE_COMMIT)})
     before = rev(work, tmp_path, "rev-parse", "HEAD")
@@ -579,5 +712,7 @@ def test_a_real_commit_proceeds_when_the_self_check_ends_by_the_kill(tmp_path: P
     assert git_ok(work, tmp_path, "add", "--", "staged.txt"), "the file did not stage"
     proc = run_git(work, stubborn_first(tmp_path, stubborn), "commit", "-q", "-m", SUBJECT)
     moved = rev(work, tmp_path, "rev-parse", "HEAD") != before
+    statuses = self_check_record(tmp_path)
     assert proc.returncode == 0, f"the commit exited {proc.returncode}"
     assert moved, "the commit did not land"
+    assert ended_by_the_kill(statuses), f"the hook's self-check statuses: {statuses}"
