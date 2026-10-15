@@ -75,6 +75,29 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1318 - session 142 reap-replay slice REFUTED; not landed; it waits until after the CS-700 window
+Verification: the CS-1318 section of `docs/item_notes/phase7.md`; `ROADMAP.md`. NOT A COMPLETION RECORD. CS-1318 STAYS OPEN. The distinct adversary's findings, agent-reported and relayed. CANDIDATE, on a worktree-agent branch: the commits "CS-1318 - red test: the reap replay counts a zombie as a misread" and "CS-1318 - reap replay tool and dispatch-only ubuntu replay workflow".
+REFUTED ON FITNESS: the tool re-implements the one-shot and zombie-aware checks instead of exercising the hook arm's own reap code. `.githooks/pre-commit` is byte-identical at 382b3bb and the repaired code, so the repair lives in the test arm's wait (REAP_WAIT), and the "pre-repair" leg runs nothing from 382b3bb that differs. Its time-of-death field measures the tool's own shell-spawn delay: max_dead_ms 64 under 48 burners with every pid already gone at first look, against 3 unloaded.
+REFUTED ON TEST ADEQUACY: two mutant tools still pass all 8 arms; the red commit read 8 failed, not the claimed 7 failed and 1 skipped. The zombie arm reads /proc state once without polling, and flaked 26/500 at 1x load and 4/200 at 3x load when called directly; real pytest processes failed 0/340.
+NOT REFUTED: hygiene (dispatch-only, contents: read, node24 majors) and CI cost (catch-all, about 5 s). In the 382b3bb arm loop under 48 burners on 16 CPUs (WSL), the arm passed 40 of 40.
+RESIDUALS: the checkout keeps its credentials while the measured code runs; the ref input reaches GITHUB_OUTPUT unvalidated.
+Next: a rework that drives the test arm itself at 382b3bb and at the repair under load, plus a polled zombie read; then a fresh freeze and adversary; after the CS-700 window.
+
+### 2026-10-15 - CS-1317 and CS-700 - NOT A COMPLETION RECORD. CS-1317 AND CS-700 STAY OPEN: the ruling record directly below records step-b gate reading 1 of 2
+Verification: the ruling record directly below (its DECISION and Reversed by); the CS-1317 section of
+`docs/item_notes/phase7.md`; `ROADMAP.md`. That ruling is recorded verbatim, so this record carries
+the disposition `tools/drift_guard.py` guard (i) reads for its two ids: CS-1317 stays open and
+closes only as its item notes say, and CS-700 stays open, THE STEP-B GATE pair at 1 of 2 with
+reading 2 owed at push 2.
+
+### 2026-10-15 - CS-1317 and CS-700 - step-b gate reading 1 of 2 passes at 47dfea7; fill 381 s re-ruled: no move
+DECISION: tier1 38812983441 at 47dfea7 SUCCESS 6/6 attempt 1, installs 9-10 s, "tier 1 took" gates 233, fill 381, scan 339, save 357, guard 261, hook 371 - READING 1 OF 2 PASSES; tier2 38813884239 27/27 attempt 1. The landing ruling's reversal fired on fill (381 > 360, within 420): NO MOVE before reading 2. Save is no flag (the line reads "tier 1 took"); hook owes nothing. CS-1318's test runs in the catch-all by construction and rides push 2 only if its adversary is NOT REFUTED first, else it waits until after the CS-700 window, never alone before step a.
+Alternatives: test_assertion_rendering.py back to guard - rejected (CS-1233 barrier, at least 389 s); to the catch-all - rejected (CS-1173 pin); test_cs1175_rule_narrowing.py to the catch-all - rejected (breaks the byte-identical ignores; an unmeasured layout in the gate push); CS-1318 in its own push - rejected (an extra gate draw).
+Runner-up's best argument: a 39 s margin is 9 percent and a miss restarts the pair. It lost: no unfenced receiver has room, CS-1317 receiver projections read 55-97 s low, and the miss route is already ruled.
+Why: section 7 cost against risk - a certain builder, freeze and adversary round, plus an unmeasured layout change in the gate push, against a 5-10 percent miss.
+COMMON-MODE RISK: runner speed is inferred from fill's arm ratios against one earlier run; no job measures CPU.
+Reversed by: reading 2 with fill over 420 s or any job over 444 s - the pair restarts and an adjudicator picks from both readings (the landing ruling's clause); reading 2 with fill over 400 s within its line - an adjudicator re-rules before step a; a grader showing an unfenced receiver with 60 s of measured room under 360; CS-1318's adversary REFUTED or unfinished at push 2.
+
 ### 2026-10-15 - CS-1317 - NOT A COMPLETION RECORD. CS-1317 STAYS OPEN: the two ruling records directly below rule the guard move's landing
 Verification: the two ruling records directly below (the landing ruling and the re-ruling); the
 CS-1317 section of `docs/item_notes/phase7.md`; `ROADMAP.md`. Both rulings are recorded verbatim,

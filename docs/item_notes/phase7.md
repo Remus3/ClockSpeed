@@ -1944,6 +1944,4 @@ classification evidence and the adversary's residuals are the CS-1318 record in 
 for up to `REAP_WAIT` and reads a zombie as dead where the proc filesystem shows its state; the hook
 probe bound is unchanged and no case is skipped.
 
-Next action: the repeated ubuntu-runner runs the acceptance names - tier1's hook shard and the ubuntu
-tier2 dispatch legs - graded on this arm's failures; a rerun alone is never the evidence. It does not
-gate CS-1317's acceptance (ruling R2).
+Next action: the rework the 2026-10-15 CS-1318 reap-replay REFUTED record in `docs/LEDGER.md` names, after the CS-700 window; it does not gate CS-1317's acceptance (ruling R2).
