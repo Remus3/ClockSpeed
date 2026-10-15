@@ -75,6 +75,12 @@ jobs:
   # rate; tools/tier2_headroom.py names its new legs in PENDING_FIRST_RECORD
   # until each is measured.
   #
+  # THE CS-1317 GUARD MOVE (session 142) moved two guard-shard files to the save
+  # shard and one to the fill shard, so the save legs - the worst projected legs
+  # of both jobs below - now carry more than the sizing below projected for
+  # them. Their first readings after the move are unmeasured;
+  # tools/tier2_headroom.py grades what they read.
+  #
   # SIZED FROM MEASURED WALLS, NOT BY FEEL. At 87ea30c the tier1.yml run
   # 37125732357 read pytest steps of fast 340s, save 370s, guards 282s, hooks
   # 291s and fill 331s on ubuntu, 1614s together; this job's ubuntu pytest step
@@ -213,6 +219,8 @@ jobs:
         run: >-
           python -m pytest
           tests/test_toolpath.py
+          tests/test_docs_citations.py
+          tests/test_chained_cause_census.py
           tests/test_trailer_routes.py
           tests/test_sha_citation_gate.py
           tests/save
@@ -224,13 +232,10 @@ jobs:
           python -m pytest
           tests/test_claude_hook.py
           tests/test_hook_env_echo.py
-          tests/test_docs_citations.py
-          tests/test_chained_cause_census.py
           tests/test_archive_rot.py
           tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py
           tests/test_locals_rendering.py
-          tests/test_assertion_rendering.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Full test suite (hooks shard)
@@ -273,6 +278,7 @@ jobs:
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
+          tests/test_assertion_rendering.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Full test suite (scan shard)
@@ -603,6 +609,8 @@ jobs:
         run: >-
           python -m pytest
           tests/test_toolpath.py
+          tests/test_docs_citations.py
+          tests/test_chained_cause_census.py
           tests/test_trailer_routes.py
           tests/test_sha_citation_gate.py
           tests/save
@@ -615,13 +623,10 @@ jobs:
           python -m pytest
           tests/test_claude_hook.py
           tests/test_hook_env_echo.py
-          tests/test_docs_citations.py
-          tests/test_chained_cause_census.py
           tests/test_archive_rot.py
           tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py
           tests/test_locals_rendering.py
-          tests/test_assertion_rendering.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Suite in the fresh clone (hooks shard)
@@ -666,6 +671,7 @@ jobs:
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
+          tests/test_assertion_rendering.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Suite in the fresh clone (scan shard)

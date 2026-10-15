@@ -713,7 +713,7 @@ jobs:
       # THE OTHER HALF OF THE PARTITION. Explicit target directory, never a bare
       # recursive invocation from the repo root - CONVENTIONS.md section 7.1.
       #
-      # IT ALSO CARRIES ONE GUARD FILE. tests/test_toolpath.py since CS-1170, named
+      # IT ALSO CARRIES GUARD FILES. tests/test_toolpath.py since CS-1170, named
       # FIRST so `--dist loadfile` hands it to a worker at the start rather than
       # behind everything else queued. tests/test_commit_msg_gate.py sat here from
       # CS-1173's correction until CS-1193 moved it to the hook shard, because it
@@ -729,6 +729,16 @@ jobs:
       # resolves every commit sha the docs cite against PUBLISHED history and
       # FAILS - never skips - on a shallow clone. This is the one tier-1 job with
       # full history, so it is the one place that arm can run at all.
+      #
+      # AND tests/test_docs_citations.py AND tests/test_chained_cause_census.py
+      # SINCE THE CS-1317 GUARD MOVE, named right after tests/test_toolpath.py as
+      # the session 142 ruling ordered - command order, not dispatch order, since
+      # this job keeps xdist's test-count sort. HERE FOR ROOM, NOT FOR KINSHIP:
+      # the guard shard read over the step-b gate and this leg had the room. The
+      # readings, the pick and the projection are in the guard shard's note below.
+      # Neither reads git history - checked at the move over each file's import
+      # closure - so this checkout's depth does not touch them, unlike the blob
+      # walk in tests/test_secret_sweep.py, which must never come here.
       #
       # THE ONE `--ignore=` IN THIS LANE IS A DELETION, NOT PARTITION BOOKKEEPING,
       # AND IT IS GOVERNED (CS-1073). Every other ignore in this file sits on the
@@ -776,8 +786,9 @@ jobs:
       # repair belongs in the file, not in these lists.
       - name: Unit tests
         run: >-
-          python -m pytest tests/test_toolpath.py tests/test_trailer_routes.py
-          tests/test_sha_citation_gate.py tests/save
+          python -m pytest tests/test_toolpath.py
+          tests/test_docs_citations.py tests/test_chained_cause_census.py
+          tests/test_trailer_routes.py tests/test_sha_citation_gate.py tests/save
           -q -n auto --dist loadfile
           --ignore=tests/save/test_phase4_gate.py
           --durations=15 --durations-min=5.0
@@ -974,16 +985,32 @@ jobs:
       # tests/test_probe_refusal_output.py was here for the same reason (CS-814,
       # CS-1200) and went to the fill shard under CS-1214, carrying that reason
       # with it; this file stayed because CS-1207 holds it.
+      #
+      # THE CS-1317 GUARD MOVE TOOK THREE FILES OUT, by the session 142 ruling.
+      # MEASURED on tier1 run 38787829458 at 628ad2d: this job read 462s, over
+      # the step-b gate's 444s line for any job, its pytest step 445.37s, while
+      # the save shard read 205s and the fill shard 240s. CI's --durations,
+      # printed arms only: tests/test_docs_citations.py 107.07s over three arms,
+      # tests/test_chained_cause_census.py 68.13s over four, and
+      # tests/test_assertion_rendering.py 80.85s over three. The first two went
+      # to the save shard, right after tests/test_toolpath.py, and the third to
+      # the fill shard. PROJECTED, W = 2, each job moving by half the moved
+      # worker time: this job 462 - (175.20 + 80.85)/2 = 334.0s, the save shard
+      # 205 + 175.20/2 = 292.6s, the fill shard 240 + 80.85/2 = 280.4s.
+      # tests/test_hook_env_echo.py did NOT move: it is this job's heaviest file,
+      # one setup reading 268.14s on that run, and CS-1207 holds it here; the
+      # ruling put the floor it sets this job at 315.5s, under 360.
+      # UNMEASURED until the next tier1 reading, and the projection does not
+      # price the move's one known cost: the three rendering files CS-1173 kept
+      # together for their shared cached censuses are split, so the fill shard
+      # builds those censuses again.
       - name: Unit tests
         run: >-
           python -m pytest
           tests/test_claude_hook.py
           tests/test_hook_env_echo.py
-          tests/test_docs_citations.py
-          tests/test_chained_cause_census.py
           tests/test_archive_rot.py tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py tests/test_locals_rendering.py
-          tests/test_assertion_rendering.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -1324,10 +1351,10 @@ jobs:
       # named as an `--ignore=` on the catch-all shard above, and the arms in
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
       #
-      # THE TWO BEFORE THE LAST ARRIVED FROM THE GUARD SHARD UNDER CS-1214, which
-      # moved three files here because the guard shard read over its budget and then
-      # over its ceiling on a docs-only tip, and this shard was the receiver CS-1214's
-      # acceptance named. THEIR REASONS CAME WITH THEM. tests/test_mypy_gate.py is
+      # THE TWO BEFORE tests/test_secret_sweep.py ARRIVED FROM THE GUARD SHARD
+      # UNDER CS-1214, which moved three files here because the guard shard read
+      # over its budget and then over its ceiling on a docs-only tip, and this
+      # shard was the receiver CS-1214's acceptance named. THEIR REASONS CAME WITH THEM. tests/test_mypy_gate.py is
       # the second subprocess-heavy head, and this is the CPU-bound shard by
       # construction. tests/test_probe_refusal_output.py drives every shipped hook
       # through real git and the wrapper with planted canaries (CS-814, CS-1200) -
@@ -1356,6 +1383,13 @@ jobs:
       # about 384s. Its blob walk is cheap here because this checkout is shallow,
       # which is why it never looked heavy in CI; it must never move to the save
       # shard, whose full-history checkout would make that walk the opposite.
+      #
+      # tests/test_assertion_rendering.py, THE LAST, ARRIVED FROM THE GUARD SHARD
+      # IN THE CS-1317 GUARD MOVE, by the session 142 ruling, for ROOM and not for
+      # kinship. The readings, the pick and the projection are in the guard
+      # shard's note above. It is one of the three rendering files CS-1173 kept
+      # together, so this job builds their cached censuses again - a cost the
+      # ruling took and the projection does not price.
       - name: Unit tests
         run: >-
           python -m pytest
@@ -1373,6 +1407,7 @@ jobs:
           tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
+          tests/test_assertion_rendering.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
