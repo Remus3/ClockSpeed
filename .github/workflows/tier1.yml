@@ -1003,7 +1003,7 @@ jobs:
       # tests/test_hook_env_echo.py did NOT move: it is this job's heaviest file
       # and CS-1207 holds it here. Its one setup reading 268.14s on that run is
       # the CS-1233 `alone` barrier wait, not the file's own work - the file
-      # runs in 59s alone.
+      # runs in about 59s run alone on a local box (not a CI reading).
       # Splitting the three rendering files CS-1173 kept together rebuilds no
       # census: the cached censuses tests/test_assertion_rendering.py builds are
       # used by no other guard file, and the one the other two share stays here
