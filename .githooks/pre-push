@@ -637,12 +637,32 @@ for case in root.iter("testcase"):
 sys.stdout.write("%d %d" % (executed, passed))
 '
 
+# CS-1327: THE GATE IS HANDED THE LADDER'S INTERPRETER BY ITS OWN PATH. Under the
+# frozen-file grant recorded in docs/LEDGER.md under "2026-10-14 - CS-1327";
+# read its scope before changing this block.
+#
+# THE DEFECT. The gate starts its command with no shell, and on Windows
+# CreateProcess searches the PARENT's application directory before PATH. A
+# venv's python.exe is a redirector whose running process is the BASE
+# interpreter, so the bare word the ladder chose started the base install: the
+# suite ran outside the venv, with no report where the base has no pytest.
+#
+# Resolved ONCE, here; sys.executable names the venv's own python. NEVER
+# RENDERED: an absolute path, routinely under a home directory (non-negotiable 3).
+CS_PY_EXE=$(cs_python -I -c 'import sys; sys.stdout.write(sys.executable or "")' 2>/dev/null </dev/null) ||
+    CS_PY_EXE=""
+if [ -z "$CS_PY_EXE" ]; then
+    die "the resolved interpreter did not report its own executable path." \
+        "The suite cannot be pinned to the interpreter the ladder chose." \
+        "BLOCKED (CS-1327): an unrunnable suite is not a passing suite."
+fi
+
 # Unquoted on purpose: the empty case must expand to NO argument, and sh has
 # no arrays. The variable is initialised above, so `set -u` is satisfied.
 # FLEET-COMMON 16c (kit v13, CS-1290 grant C.2): the whole suite runs inside a
 # machine-wide slot of the kit's suite gate, which exits with the suite's own
 # code, or 3 when it refuses or times out without running the suite.
-cs_python -P "$ROOT/ops/fleet_kit/fleet_suite_gate.py" run --owner "${FLEET_CLAIM_OWNER:-pre-push}" -- "$CS_PY" ${CS_PY_ARG:+"$CS_PY_ARG"} -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
+cs_python -P "$ROOT/ops/fleet_kit/fleet_suite_gate.py" run --owner "${FLEET_CLAIM_OWNER:-pre-push}" -- "$CS_PY_EXE" -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
 STATUS=$?
 
 if [ "$STATUS" -eq 5 ]; then
