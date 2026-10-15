@@ -649,7 +649,7 @@ sys.stdout.write("%d %d" % (executed, passed))
 #
 # Resolved ONCE, here; sys.executable names the venv's own python. NEVER
 # RENDERED: an absolute path, routinely under a home directory (non-negotiable 3).
-CS_PY_EXE=$(cs_python -I -c 'import sys; sys.stdout.write(sys.executable or "")' 2>/dev/null </dev/null) ||
+CS_PY_EXE=$(cs_python -I -X utf8 -c 'import sys; sys.stdout.write(sys.executable or "")' 2>/dev/null </dev/null) ||
     CS_PY_EXE=""
 if [ -z "$CS_PY_EXE" ]; then
     die "the resolved interpreter did not report its own executable path." \
