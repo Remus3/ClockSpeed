@@ -75,6 +75,33 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1317 - NOT A COMPLETION RECORD. CS-1317 STAYS OPEN: the two ruling records directly below rule the guard move's landing
+Verification: the two ruling records directly below (the landing ruling and the re-ruling); the
+CS-1317 section of `docs/item_notes/phase7.md`; `ROADMAP.md`. Both rulings are recorded verbatim,
+the landing ruling with only its unpublished SHA tokens replaced by their commit subjects in quotes
+(ruling (A) in the body of the CS-1327 session 142 records commit 0a2fe67), so this record carries
+the disposition `tools/drift_guard.py` guard (i) reads for CS-1317: CS-1317 stays open; the guard
+move it owed before step a lands under those rulings, and CS-1317 closes only as its item notes say.
+
+### 2026-10-15 - CS-1317 - session 142 guard-move landing ruling: land "CS-1317 - guard move: the census stays in the guard shard" plus a comment fix; the loop stops (section 7)
+DECISION: land "CS-1317 - guard move: three guard files to the save and fill shards", "CS-1317 - guard move: the census stays in the guard shard" and one comment-only commit (the "59s alone" figure labelled local; tier1.yml read back equal; test_tier1_budget.py green; fresh freeze witness); no further reshape. The B3 360 s line is measured against 38787829458, where the fresh adversary's timings read guard 285.1, save 298.9, fill 323.0 - the re-ruling's reversal did not fire.
+Alternatives: reshape again - rejected: no file assignment meets 360 at worst readings (headroom save 87, gates 55, fill 47, scan 17, hook -34; docs 96.6 s fits none); every other two-file shape is worse per run (376-408 s); docs alone (guard 365-368 s) fails 360, re-rulable only by the operator. Comment fix as a follow-up - rejected: it costs nothing now.
+Runner-up's best argument: per run, fill reads 383-390 s on 38625359171 and 38638197223, only 30 s under 420. It lost because no reshape within B3 lowers that, and a miss is then judged on measured timings.
+Why: section 7 cost against risk - fill over 420 is estimated at 5-10% per reading and a miss costs a pair restart; another round costs a certain hour and buys no margin.
+COMMON-MODE RISK: the ruling, the re-ruling and the adversary all price the moved files from the guard job's top-15 printouts, timed on the guard job's own runner. Each job runs on its own machine, so scaling to fill's runner (313 x 316/240 = 412 s) is tested by none of them.
+RESIDUAL: fill 383-421 s on a 313 s fill runner; save 345-370 s; hook 394 s, untouched by the move. The next two tier1 readings settle it.
+Reversed by: the first reading after the move with fill or save over 360 s but within its line - an adjudicator re-rules on measured timings and the reading counts; fill over 420 s or any job over 444 s - the pair restarts and an adjudicator picks from measured timings, trying the shards held to 444 s before those held to 420 s, never a rerun; or a grader showing B3 measures receivers against worst readings.
+
+### 2026-10-15 - CS-1317 - guard move RE-RULED: the census stays in the guard shard
+DECISION: the frozen candidate "CS-1317 - guard move: three guard files to the save and fill shards" does NOT land; its adversary projected save at 354-374 s (> 360), firing the move ruling's reversal. Reshape: test_docs_citations.py guard to save, test_assertion_rendering.py guard to fill, test_chained_cause_census.py stays in guard; catch-all ignores byte-identical; 420/480/10 unchanged; then a freeze witness and a fresh adversary on the delta.
+STANDARD: B3 counts each moved file whole - printed CI seconds plus its unprinted local tail times that file's own printed CI/local ratio, and its collection - on the source and the receiver alike. This supersedes the printed-only counting of session 141 ruling (4), whose first reading read scan 392 s against a 295 s printed projection, and the move ruling's printed-only rejection of the two-file move (368.0).
+PROJECTED on 38787829458 - the donor's slow-runner reading (session 139 B3), and the anchor for every receiver; a projection on another run is a residual, not this reversal: guard 289.4 (about 292 from a pinned local run), save 301.7, fill 316.0. The candidate's save: 376.6, about 444 at save's worst current reading (273).
+Alternatives: land as is - rejected (above). Census to scan - rejected (415 at scan's 340 worst, 5 s under its 420 line). Census to fill - 391. Census to the catch-all - breaks the byte-identical ignores. Assertion kept in guard and census to fill - guard about 314, and two reassignments against one.
+CORRECTION: the move ruling's env_echo "floor 315.5" is 268.14 + 16.63 + 30.75; its 268.14 s is the CS-1233 alone-barrier wait for sibling workers, not the file's work (run alone: 59.14 s). No floor near 360 exists, so the CS-1207 escalation is not live. The four assertion-rendering @cache censuses are used by no other guard file: the move costs no census rebuild.
+Why: the reshape is one file reverted from the candidate, it moves no collection cost to any receiver, and every job projects at or under 316 s.
+COMMON-MODE RISK: one truncated top-15 printout and one local machine's CI/local ratios underlie every projection, this one included.
+Reversed by: the first tier1 reading after the push with guard, save or fill over 360 s (an adjudicator re-rules on measured timings), or a fresh adversary projecting any job over 360 s by this standard.
+
 ### 2026-10-15 - CS-1327 - CLOSED: a push from a Windows venv clone runs its pre-push suite inside that venv, because the hook hands the suite gate the chosen interpreter's own path
 Verification: merged files `.githooks/pre-push` (after the interpreter ladder the chosen
 interpreter's sys.executable is resolved once, under -I and -X utf8; an empty resolve is refused as
