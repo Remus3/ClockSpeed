@@ -270,6 +270,21 @@ def git(
     )
 
 
+def push(
+    box: Sandbox, overrides: dict[str, str], *, path_first: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Offer the sandbox branch to its remote under the sandbox env plus ``overrides``.
+
+    The child environment is composed HERE and never bound in a test's frame,
+    so no assertion scope holds it (``tests/test_locals_rendering.py``).
+    ``path_first`` goes in front of the sandbox PATH.
+    """
+    env = {**box.env, **overrides}
+    if path_first is not None:
+        env["PATH"] = str(path_first) + os.pathsep + box.env.get("PATH", "")
+    return git(box, "push", "origin", BRANCH, env=env)
+
+
 def tip(box: Sandbox, *, remote: bool) -> str:
     """The sandbox branch locally, or as the bare remote itself holds it."""
     if remote:
@@ -351,11 +366,9 @@ def test_the_push_suite_runs_inside_the_venv_first_on_path(
     marker = tmp_path / "suite-prefix.txt"
     made = git(box, "commit", "-q", "--allow-empty", "-m", "CS-1327 offered commit")
     assert made.returncode == 0, "the offered commit could not be made"
-    env = dict(box.env)
-    env["PATH"] = str(venv.scripts) + os.pathsep + env.get("PATH", "")
-    env["VIRTUAL_ENV"] = str(venv.home)
-    env[MARKER_ENV] = str(marker)
-    proc = git(box, "push", "origin", BRANCH, env=env)
+    proc = push(
+        box, {"VIRTUAL_ENV": str(venv.home), MARKER_ENV: str(marker)}, path_first=venv.scripts
+    )
     said = "\n".join(
         line.strip() for line in proc.stderr.splitlines() if line.strip().startswith(HOOK_BANNER)
     )
@@ -432,14 +445,12 @@ def test_the_push_resolves_a_venv_whose_path_the_code_page_cannot_encode(
     marker = tmp_path / "suite-prefix.txt"
     made = git(box, "commit", "-q", "--allow-empty", "-m", "CS-1327 offered commit")
     assert made.returncode == 0, "the offered commit could not be made"
-    env = dict(box.env)
     if route == "path-first":
-        env["PATH"] = str(venv.scripts) + os.pathsep + env.get("PATH", "")
-        env["VIRTUAL_ENV"] = str(venv.home)
+        proc = push(
+            box, {"VIRTUAL_ENV": str(venv.home), MARKER_ENV: str(marker)}, path_first=venv.scripts
+        )
     else:
-        env["CLOCKSPEED_PYTHON"] = str(venv_python(venv))
-    env[MARKER_ENV] = str(marker)
-    proc = git(box, "push", "origin", BRANCH, env=env)
+        proc = push(box, {"CLOCKSPEED_PYTHON": str(venv_python(venv)), MARKER_ENV: str(marker)})
     said = hook_said(proc.stderr)
 
     died_on_the_resolve = CS1327_REFUSAL in proc.stderr
@@ -561,9 +572,7 @@ def test_the_cs1327_refusal_renders_no_interpreter_path_and_no_home_path(
     box = make_sandbox(tmp_path, isolated, relative_remote=True)
     made = git(box, "commit", "-q", "--allow-empty", "-m", "CS-1327 offered commit")
     assert made.returncode == 0, "the offered commit could not be made"
-    env = dict(box.env)
-    env["CLOCKSPEED_PYTHON"] = str(shim)
-    proc = git(box, "push", "origin", BRANCH, env=env)
+    proc = push(box, {"CLOCKSPEED_PYTHON": str(shim)})
     output = proc.stdout + proc.stderr
 
     resolve_asked = sentinel.is_file()
