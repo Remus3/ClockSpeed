@@ -1987,6 +1987,11 @@ The new test's recipe, from the diagnosis: create the venv from the base interpr
 the marker - not a missing report - is what tells the two interpreters apart there. On POSIX the
 same arm passes, because exec honours PATH.
 
-Next action: the worktree builder dispatched in session 141 - the new test red first on Windows at
-28b1cba, then the scoped hook edit; then the distinct adversary; then the push with the session 141
-records commit.
+Next action: the session 141 builder FINISHED - the new test (red first on Windows at 28b1cba) and
+the scoped hook fix are two commits on its branch, at a 28b1cba base; the provenance row for the new
+test is owed, because `tools/provenance_stamp.py` refuses CS-1327 at that base. Rebase the two
+commits onto main's tip, add the row as commit 3 (the merger's granted write-list extension),
+re-run the manifest test and the new test, freeze the tip, then the distinct adversary on five
+lenses (the three above, the CS_PY_ARG launcher argument the fix drops against the grant scope and
+the ladder rungs, and the row), then the fix's own push. The session 141 records commit rides the
+session 141 /done's one push instead (the 2026-10-14 CS-1327 /done record in `docs/LEDGER.md`).

@@ -75,6 +75,46 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-14 - CS-1327 - session 141 /done: the FIX note to MAIN delivered 1 of 1; the builder's fix committed on its branch, not landed
+Verification: the outbox note 2026-10-14-1840 by the SHA-256 below, against its re-hashed copy in
+MAIN's inbox; `tools/outbound_send.py`; the CS-1327 section of `docs/item_notes/phase7.md`;
+`CS-NEXT-SESSION.txt` (THE SINGLE NEXT ACTION). NOT A COMPLETION RECORD. NOTHING CLOSED.
+CS-1327 STAYS OPEN.
+THE FIX NOTE (sent in session 141, recorded here by its /done): outbox 2026-10-14-1840, class FIX,
+HOP 1, the kit v17 resolve_exe bare-word defect (from a Windows venv a bare command word starts the
+base interpreter); sha256 f05762c351275520980ef3e56946fc71c0e6d4c0fc2703050ef482cf242748e5;
+reached 1 of 1 (the destination copy re-hashed equal - the session's record). OutboundCap-exempt
+(FLEET 14c). Never re-report it; MAIN's fix arrives as a kit version, and the in-tree hook fix
+stays correct after it.
+THE BUILDER AT THE HAND-OFF'S WRITE (read by the /done from its branch, its worktree's porcelain and
+its progress file; never stopped, messaged or edited): the builder FINISHED - progress status
+done, its worktree clean. Its worktree-agent-* branch, made at 28b1cba, holds TWO commits, by tip
+subject: "CS-1327 red test - the push suite must run in the venv on PATH" (the red-first venv test)
+and "CS-1327 pre-push hands the suite gate the interpreter's own path" (.githooks/pre-push only:
+after the ladder, the interpreter's sys.executable resolved once, a silent BLOCKED (CS-1327) refusal
+when empty, passed as the gate's command word; it also drops the CS_PY_ARG launcher argument from
+the suite line - a grant-scope question for the adversary). Its evidence is agent-reported, not
+re-run here: red at 28b1cba; after the fix the new test and the five hook test files pass; a
+scratch venv over a pytest-free base reads the 23 arms plus the new test failed before and passed
+after; the other pre-push test files read 2 failed, both in `tests/test_provenance_manifest.py` -
+the new test file has no tools/provenance.tsv row. POSIX not run. The merger GRANTED a write-list
+extension for that one row, made only through `tools/provenance_stamp.py` with item CS-1327; the
+tool REFUSED, because the branch's 28b1cba base predates the commit that opened CS-1327. No third
+commit. MERGER DECISION, with its why: the next session rebases the two commits onto main's tip in
+that worktree first, then adds the row as commit 3 and re-runs the manifest test and the new test -
+deferred so that no live edit existed during this ritual's push suite. Rejected: adding the row on
+main after the cherry-pick (an unreviewed commit on main before the adversary). Then a freeze and a
+distinct adversary on the three-commit tip, five lenses: the pytest-free-base venv, POSIX
+unchanged, no echo, the CS_PY_ARG removal against the grant scope and the ladder rungs, and the
+provenance row.
+THE RESPONDER: the inbox status file read state idle, updated 18:41 on 2026-10-14 - it resumed after
+INBOX_STOP's removal. QUEUE_STOP present; INBOX_STOP and STOP absent.
+THE /done's PUSH: the window signal read CLOSED (HEAD's own commit, the window-closing records
+commit, touches no citation set file), so the ritual's one push carries that records commit and the
+ritual's own commit on top of 28b1cba, on the main session's /done brief and done.md step 8. The
+step c recovery ruling's "the records commit rides the fix push" yields to that one push; the
+CS-1327 fix lands by its own later push, and THE STEP-B GATE is read at the fix tip (Q4).
+
 ### 2026-10-14 - CS-1327 - frozen-file GRANT: .githooks/pre-push hands the suite gate the interpreter's own path
 Verification: `.githooks/pre-push` (the suite line that runs `ops/fleet_kit/fleet_suite_gate.py`)
 and `ops/fleet_kit/fleet_suite_gate.py::resolve_exe`; the CS-1327 section of
