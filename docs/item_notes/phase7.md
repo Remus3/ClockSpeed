@@ -1909,10 +1909,9 @@ corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unc
 is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
 record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
 
-Next action: read tier1 on main after the push, every job's budget line. CS-700 step b waits for
-two consecutive within-budget catch-all readings. The item closes only when both catch-all and both
-scan readings are at most 360 s; otherwise a rebalance from both shards' CI durations is next. Owed
-before the close: the scan entries out of `PENDING_READINGS` in `tools/tier1_growth.py`,
+Next action: the guard move owed before step a by the 2026-10-15 CS-1327, CS-1317 and CS-700 ruling in `docs/LEDGER.md`.
+The item closes only when both catch-all and both scan readings are at most 360 s; otherwise a
+rebalance from both shards' CI durations is next. Owed before the close: the scan entries out of `PENDING_READINGS` in `tools/tier1_growth.py`,
 `PENDING_PROFILE` in `tools/tier1_concentration.py` and `PENDING_FIRST_RECORD` in
 `tools/tier2_headroom.py`, each at the removal condition stated beside it; one tier2
 workflow_dispatch after the merge is allowed (B1).
@@ -1948,50 +1947,3 @@ probe bound is unchanged and no case is skipped.
 Next action: the repeated ubuntu-runner runs the acceptance names - tier1's hook shard and the ubuntu
 tier2 dispatch legs - graded on this arm's failures; a rerun alone is never the evidence. It does not
 gate CS-1317's acceptance (ruling R2).
-
-## CS-1327
-
-### Acceptance
-
-A push from a Windows venv clone runs its pre-push suite inside that venv. RED FIRST: a new
-pre-push test builds a venv under the test's temp directory, puts its Scripts folder first on the
-child PATH, leaves CLOCKSPEED_PYTHON unset, drives the real `.githooks/pre-push` bytes in a
-sandbox repository whose suite writes sys.prefix to a marker, and asserts the marker names that
-venv; it is seen RED on Windows at 28b1cba for the right reason (the marker names the base
-prefix, or, where the base interpreter has no pytest, the hook refuses with "pytest wrote no
-report"), and it is never skipped on Windows. THE FIX is only the hook edit the CS-1327 frozen-file
-grant in `docs/LEDGER.md` scopes: after the interpreter ladder, resolve the chosen interpreter's
-sys.executable once, refuse if it is empty, never echo it, and pass it as the suite gate's command
-word on the suite line; anything outside that scope goes back to a distinct adjudicator. A
-DISTINCT ADVERSARY refutes the fix through three lenses: (1) a Windows venv whose base interpreter
-has no pytest - the 23 pre-push arms the session 141 walk failed and the new test all pass; (2)
-POSIX behaviour unchanged; (3) no path or environment value is echoed on any hook path, refusal
-included. THE KIT FIX IS MAIN'S: a FIX note reports the resolve_exe defect, and nothing under
-ops/fleet_kit/ is edited here (FLEET item 11). No assertion is loosened and nothing is skipped or
-retried. Then the fix is pushed, tier1 at that tip is green, and one tier2 workflow_dispatch at or
-after the fix reads every job green on attempt 1 (granted by the session 141 recovery ruling).
-
-### Filed 2026-10-14 by session 141, from the CS-700 step c walk
-
-The session 141 CS-G03 re-walk at 28b1cba failed clause 7: 23 pre-push arms read "pytest wrote no
-report of what it executed". The cause, the adversary's NOT REFUTED verdict with its correction,
-the recovery ruling and the grant are the 2026-10-14 CS-700, CS-G03 and CS-1327 record and the
-CS-1327 grant record in `docs/LEDGER.md`; the diagnosis itself is in the gitignored work directory
-and is reference only. Since CS-1290 the hook hands the kit's suite gate the bare word the
-interpreter ladder chose, and on Windows the gate's child then resolves next to the gate's own
-process image - the base interpreter - before PATH.
-
-The new test's recipe, from the diagnosis: create the venv from the base interpreter
-(sys._base_executable when the runner is itself in a venv) with --without-pip and
---system-site-packages, so pytest is importable inside it on a machine whose base has pytest, and
-the marker - not a missing report - is what tells the two interpreters apart there. On POSIX the
-same arm passes, because exec honours PATH.
-
-Next action: the session 141 builder FINISHED - the new test (red first on Windows at 28b1cba) and
-the scoped hook fix are two commits on its branch, at a 28b1cba base; the provenance row for the new
-test is owed, because `tools/provenance_stamp.py` refuses CS-1327 at that base. Rebase the two
-commits onto main's tip, add the row as commit 3 (the merger's granted write-list extension),
-re-run the manifest test and the new test, freeze the tip, then the distinct adversary on five
-lenses (the three above, the CS_PY_ARG launcher argument the fix drops against the grant scope and
-the ladder rungs, and the row), then the fix's own push. The session 141 records commit rides the
-session 141 /done's one push instead (the 2026-10-14 CS-1327 /done record in `docs/LEDGER.md`).

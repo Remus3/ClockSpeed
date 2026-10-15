@@ -75,6 +75,42 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1327 - CLOSED: a push from a Windows venv clone runs its pre-push suite inside that venv, because the hook hands the suite gate the chosen interpreter's own path
+Verification: merged files `.githooks/pre-push` (after the interpreter ladder the chosen
+interpreter's sys.executable is resolved once, under -I and -X utf8; an empty resolve is refused as
+"BLOCKED (CS-1327)" with no path echoed; the resolved path is the suite gate's command word),
+`tests/test_cs1327_push_suite_runs_in_the_venv.py` and its `tools/provenance.tsv` row (authored,
+CS-1327). Tests:
+`tests/test_cs1327_push_suite_runs_in_the_venv.py::test_the_push_suite_runs_inside_the_venv_first_on_path`
+(red first on Windows at 28b1cba, agent-reported by the session 141 builder),
+`test_the_push_resolves_a_venv_whose_path_the_code_page_cannot_encode` and
+`test_the_cs1327_refusal_renders_no_interpreter_path_and_no_home_path` in the same module.
+LANDED TIP 628ad2d = origin/main. CI read back by full SHA: tier1 38787829458 SUCCESS, 6 of 6
+jobs; tier2 workflow_dispatch 38789049100 SUCCESS, 27 of 27; both attempt 1.
+ADVERSARIES AND RULINGS: round 1 REFUTED; round 2 lenses 2-6 NOT REFUTED and lens 1 a residual -
+the session 142 rounds record, the route ruling and the scope ruling below; the 2026-10-14 CS-1327
+frozen-file GRANT record. Nothing under ops/fleet_kit/ was edited; the kit's resolve_exe fix is
+MAIN's (the session 141 FIX note). The close ruling, and the step-b gate miss it does not cover,
+are the 2026-10-15 CS-1327, CS-1317 and CS-700 ruling record below.
+RESIDUALS: no real git push from a venv clone seen yet (the step c walk settles it); the
+`BACKLOG.md` line "CS-1327 session 142 lens-1 residual".
+
+### 2026-10-15 - CS-1317 and CS-700 - NOT A COMPLETION RECORD. CS-1317 AND CS-700 STAY OPEN: the ruling record directly below closes CS-1327 alone
+Verification: the ruling record directly below (its DECISION and ORDER); the CS-1317 section of
+`docs/item_notes/phase7.md`; `ROADMAP.md`. That ruling is recorded verbatim, so this record carries
+the disposition `tools/drift_guard.py` guard (i) reads for its other two ids: CS-1317 stays open,
+owing the guard move before step a, and CS-700 stays open, THE STEP-B GATE pair restarted at 0 of 2.
+
+### 2026-10-15 - CS-1327, CS-1317 and CS-700 - CS-1327 CLOSED at 628ad2d; the fix-tip guard 462 s misses THE STEP-B GATE; a guard move is owed; the pair restarts
+DECISION: CS-1327 CLOSED - its last clause met at 628ad2d = origin/main: tier1 38787829458 SUCCESS 6/6, tier2 38789049100 27/27, both attempt 1; THE STEP-B GATE is not in its acceptance. Guard 462 s on that gate run is a REAL MISS: the pair restarts at 0 of 2 and push 1 Q3's guard move is owed before step a, owned by CS-1317.
+MOVE: heaviest first by printed per-file sums of 38787829458's guard --durations (top-15 only, no junit), test_hook_env_echo.py excluded (CS-1207 hold): test_docs_citations.py and test_chained_cause_census.py guard to save, test_assertion_rendering.py guard to fill. B3: guard 334.0, save 292.6, fill 280.4; floor 315.5. Includes tier1.yml, the tier2.yml legs and the tests/test_tier1_budget.py pins; catch-all ignores byte-identical; 420/480/10 unchanged; nothing skipped. No frozen file is touched.
+ORDER: records; builder; freeze witness and a distinct adversary; push 1 = gate reading 1 plus one tier2 dispatch green on attempt 1 (granted); records, push 2 = reading 2; drift_guard exit 0; step a with the operator present, its own run the third.
+Alternatives: runner noise - rejected (guard install 9 s; gate-reading-2 Q1 counts noise as a miss; the exemption lapsed). Move test_hook_env_echo.py - rejected (CS-1207 hold, owed operator ruling). A two-file move - rejected (368.0 > 360). CS-1307 or a new item as owner - rejected (CS-1307 has no move and its guard re-read would be confounded; section 7).
+Why: the gate is numeric and 462 exceeds 444 on a normal-install runner; step a's tier1 can never be rerun green.
+COMMON-MODE RISK: every projection rests on one truncated top-15 printout; env_echo's unprinted arms sit unmeasured inside the floor's 44.5 s headroom.
+RESIDUAL: no real git push from a venv clone seen yet (the step c walk settles it); the BACKLOG CS-1327 lens-1 locale residual.
+Reversed by: CS-1327 - a distinct grader finding either run red, rerun, or the new test skipped on windows. The move - an adversary projecting guard or a receiver over 360 s, or the first reading after the move with guard over 360 s (an adjudicator re-rules; if the env_echo floor binds, the CS-1207 hold goes to a distinct adjudicator). The miss - a grader reading guard at 444 s or under on 38787829458.
+
 ### 2026-10-15 - CS-1327 - frozen-file SCOPE RULING: the CS_PY_ARG drop (commit "CS-1327 pre-push hands the suite gate the interpreter's own path") and the resolve's -X utf8 (commit "CS-1327 the resolve runs in UTF-8 mode, encoding-proof") are INSIDE the 2026-10-14 grant
 Verification: `.githooks/pre-push` (the CS_PY_EXE resolve and the suite line); the 2026-10-14 CS-1327 frozen-file GRANT record. NOT A COMPLETION RECORD. CS-1327 STAYS OPEN. Ruled before the commits land on main, by a distinct read-only adjudicator of session 142 that produced none of the work. No extension granted; none needed.
 (a) The suite line drops ${CS_PY_ARG:+...} - INSIDE: grant B excludes only OTHER lines; CS_PY_ARG is the py launcher's selector and makes sense only next to the launcher word the grant replaces. Keeping it hands python.exe "-3" (probed: exit 2) and breaks the py -3 rung. The resolve still goes through cs_python, so the exe is the interpreter the ladder chose.
