@@ -2585,21 +2585,25 @@ RETURNED_TO_CATCH_ALL = (
 #: The guard file CS-1173's correction moved to the save shard.
 REBALANCED_TO_SAVE = "tests/test_commit_msg_gate.py"
 
-#: The CS-1317 guard move, by the session 142 ruling: the guard shard read over
-#: the step-b gate, so the three heaviest files the ruling could move left it.
-#: These two went to the save shard, named right after :data:`REBALANCED_FILE`;
-#: the third went to the fill shard (:data:`FILL_FROM_GUARD_MOVE`). The readings
-#: and the projection live in tier1.yml, the one owner of this lane's numbers.
-#: Both were already an `--ignore=` on the catch-all, so a move between two
-#: non-catch-all shards changes no ignore line at all.
-GUARD_TO_SAVE = (
-    "tests/test_docs_citations.py",
-    "tests/test_chained_cause_census.py",
-)
+#: The CS-1317 guard move, by the session 142 ruling as its re-ruling reshaped
+#: it: the guard shard read over the step-b gate, so two files left it. This one
+#: went to the save shard, named right after :data:`REBALANCED_FILE`; the other
+#: went to the fill shard (:data:`FILL_FROM_GUARD_MOVE`). The readings and the
+#: projection live in tier1.yml, the one owner of this lane's numbers. Both were
+#: already an `--ignore=` on the catch-all, so a move between two non-catch-all
+#: shards changes no ignore line at all.
+GUARD_TO_SAVE = ("tests/test_docs_citations.py",)
 
 #: The guard file the CS-1317 guard move left where it was, although it is the
 #: guard shard's heaviest: CS-1207 holds it there.
 GUARD_HELD = "tests/test_hook_env_echo.py"
+
+#: The guard file the session 142 re-ruling KEPT in the guard shard, after the
+#: first ruling had sent it to the save shard. It keeps the place it held before
+#: the move - next after :data:`GUARD_HELD` once tests/test_docs_citations.py
+#: left the slot between them - and no other shard names it, the save shard
+#: least of all.
+GUARD_KEPT = "tests/test_chained_cause_census.py"
 
 
 def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all() -> None:
@@ -2619,14 +2623,15 @@ def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all()
     than two. No level moved and no test was dropped: the partition arm above
     still proves every file runs in exactly one leg, and this arm pins WHICH leg.
 
-    The three rendering files stayed TOGETHER under CS-1173 on purpose. They
-    share `@cache`d helpers in `tests/assertion_rendering_guard.py` and
-    `tests/locals_rendering_guard.py`, so splitting them across shards pays for
-    those censuses twice. THE CS-1317 GUARD MOVE SPLIT THEM KNOWINGLY: the
+    CS-1173 kept the three rendering files TOGETHER, for the `@cache`d
+    censuses in `tests/assertion_rendering_guard.py` and
+    `tests/locals_rendering_guard.py`. THE CS-1317 GUARD MOVE SPLIT THEM: the
     session 142 ruling moved tests/test_assertion_rendering.py on to the fill
-    shard (:data:`FILL_FROM_GUARD_MOVE`), so the fill shard builds those
-    censuses again. The arm below keeps only the half CS-1173 decided for it -
-    the catch-all does not run it - and the CS-1317 arm pins where it lives now.
+    shard (:data:`FILL_FROM_GUARD_MOVE`), and the split rebuilds no census -
+    the censuses that file builds are used by no other guard file, and the one
+    the other two share stays with both of them. The arm below keeps only the
+    half CS-1173 decided for it - the catch-all does not run it - and the
+    CS-1317 arm pins where it lives now.
     """
     shards = suite_shards()
     for job_id in (JOB_ID, GUARD_JOB_ID, SAVE_JOB_ID):
@@ -2815,11 +2820,12 @@ FILL_FROM_GUARDS = (
 FILL_FROM_CATCH_ALL_REBALANCE = ("tests/test_secret_sweep.py",)
 
 #: The CS-1317 guard move's one arrival here, from the GUARD shard, by the
-#: session 142 ruling; its two siblings went to the save shard
+#: session 142 ruling; its one sibling went to the save shard
 #: (:data:`GUARD_TO_SAVE`). It is one of the three rendering files CS-1173 kept
-#: together (:data:`REBALANCED_TO_GUARDS`), so this shard builds their cached
-#: censuses again - the ruling took that cost. It was already an `--ignore=` on
-#: the catch-all, so the move changes no ignore line at all. Appended last.
+#: together (:data:`REBALANCED_TO_GUARDS`), but the censuses it builds are used
+#: by no other guard file, so the split rebuilds none. It was already an
+#: `--ignore=` on the catch-all, so the move changes no ignore line at all.
+#: Appended last.
 FILL_FROM_GUARD_MOVE = ("tests/test_assertion_rendering.py",)
 
 #: The fill shard's whole membership, exactly.
@@ -3069,13 +3075,16 @@ def test_the_guard_moves_files_run_in_the_save_and_fill_shards_and_never_in_the_
     """CS-1317's guard move - the guard shard read over the step-b gate, so its head left.
 
     The session 142 ruling read the guard shard's --durations on a tier1 run
-    where that job read over the gate's per-job line, and moved three files out:
-    :data:`GUARD_TO_SAVE` to the save shard and :data:`FILL_FROM_GUARD_MOVE` to
-    the fill shard. :data:`GUARD_HELD` is the guard shard's heaviest file and it
-    STAYS, because CS-1207 holds it. The readings and the projection live in
-    tier1.yml, the one owner of this lane's numbers.
+    where that job read over the gate's per-job line, and its re-ruling moved
+    two files out: :data:`GUARD_TO_SAVE` to the save shard and
+    :data:`FILL_FROM_GUARD_MOVE` to the fill shard. :data:`GUARD_HELD` is the
+    guard shard's heaviest file and it STAYS, because CS-1207 holds it.
+    :data:`GUARD_KEPT` STAYS too, by the re-ruling, at the place it held before
+    the move - next after :data:`GUARD_HELD` - and in no other shard. The
+    readings and the projection live in tier1.yml, the one owner of this lane's
+    numbers.
 
-    The two save arrivals are named right after :data:`REBALANCED_FILE`, which
+    The save arrival is named right after :data:`REBALANCED_FILE`, which
     stays first, as the ruling ordered. That pins the ruling's command order
     and claims no schedule: the save job keeps xdist's default loadfile sort
     by test count (CS-1213 is open on exactly that). No level moved and no test
@@ -3095,6 +3104,7 @@ def test_the_guard_moves_files_run_in_the_save_and_fill_shards_and_never_in_the_
     owner = {
         **{path: [SAVE_JOB_ID] for path in GUARD_TO_SAVE},
         **{path: [FILL_JOB_ID] for path in FILL_FROM_GUARD_MOVE},
+        GUARD_KEPT: [GUARD_JOB_ID],
     }
     claims = {
         path: sorted(
@@ -3107,13 +3117,18 @@ def test_the_guard_moves_files_run_in_the_save_and_fill_shards_and_never_in_the_
     }
     wrong = {path: owners for path, owners in claims.items() if owners != owner[path]}
     assert wrong == {}, (
-        f"{wrong}; the CS-1317 guard move gave {owner}, each file to one shard alone, or it"
-        " runs twice, in the wrong leg, or back in the guard shard it overfilled"
+        f"{wrong}; the CS-1317 guard move as re-ruled gave {owner}, each file to one shard"
+        " alone, or it runs twice or in a leg the re-ruling did not give it"
     )
     guard_targets = shard_targets(shards[GUARD_JOB_ID])
     assert GUARD_HELD in guard_targets, (
         f"the {GUARD_JOB_ID!r} shard no longer names {GUARD_HELD!r}, which CS-1207 holds"
         f" there: {guard_targets}"
+    )
+    held_at = guard_targets.index(GUARD_HELD)
+    assert guard_targets[held_at + 1 : held_at + 2] == [GUARD_KEPT], (
+        f"the {GUARD_JOB_ID!r} shard must name {GUARD_KEPT!r} next after {GUARD_HELD!r},"
+        f" the place the session 142 re-ruling kept it at; it names {guard_targets}"
     )
     catch_all_ignores = shard_ignores(shards[JOB_ID])
     miscounted = {
