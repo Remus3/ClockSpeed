@@ -37,7 +37,9 @@ directory all live under pytest's ``tmp_path``.
 
 from __future__ import annotations
 
+import ctypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -278,8 +280,15 @@ def tip(box: Sandbox, *, remote: bool) -> str:
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
-def make_sandbox(tmp_path: Path, isolated: Environment) -> Sandbox:
-    """A real repository wired to the tracked hook (test-local floor), seeded remotely."""
+def make_sandbox(
+    tmp_path: Path, isolated: Environment, *, relative_remote: bool = False
+) -> Sandbox:
+    """A real repository wired to the tracked hook (test-local floor), seeded remotely.
+
+    ``relative_remote`` names the bare remote as ``../remote.git``, so git's own
+    "failed to push some refs to" line carries no absolute path, and an arm that
+    reads the whole push output for a path reads only what the HOOK rendered.
+    """
     hooks = tmp_path / "hooks"
     hooks.mkdir()
     installed = hooks / "pre-push"
@@ -308,7 +317,8 @@ def make_sandbox(tmp_path: Path, isolated: Environment) -> Sandbox:
     install_hook_kit(work)
 
     assert git(box, "init", "-q", "--bare", str(remote)).returncode == 0, "no bare remote"
-    assert git(box, "remote", "add", "origin", str(remote)).returncode == 0, "no origin"
+    url = "../" + remote.name if relative_remote else str(remote)
+    assert git(box, "remote", "add", "origin", url).returncode == 0, "no origin"
     assert git(box, "add", "-A").returncode == 0, "the seed could not be staged"
     assert git(box, "commit", "-q", "-m", "CS-1327 seed").returncode == 0, "no seed commit"
     seeded = git(box, "push", "-q", "--no-verify", "origin", BRANCH)
@@ -444,3 +454,129 @@ def test_the_push_resolves_a_venv_whose_path_the_code_page_cannot_encode(
     )
     landed = tip(box, remote=True) == tip(box, remote=False) != ""
     assert landed, f"the push was refused (route {route}, exit {proc.returncode})\n{said}"
+
+
+# THE CS-1327 REFUSAL ITSELF RENDERS NO PATH (round 2, closing adversary lens
+# 3's coverage gap). The arm above proves the refusal is not reached for a good
+# interpreter; this one REACHES it and reads everything the push printed.
+#
+# THE INTERPRETER is a shim that runs the real one for every call but the
+# resolve. On the resolve it touches a sentinel - proof the refusal was reached
+# through the resolve and nothing else - then prints its own path, the real
+# interpreter's path and the home path on BOTH streams, and fails. A hook that
+# rendered the resolve's streams, or rendered the interpreter it refused, is
+# caught. Only scalars are asserted: no assertion here can render a path.
+
+#: The shim's directory name - a fixed token any partial echo of its path carries.
+INTERPRETER_CANARY: Final = "cs1327-interpreter-canary"
+
+#: The resolve program is the only call that names this attribute.
+RESOLVE_WORD: Final = "sys.executable"
+
+#: Below this length a path form is too generic to grade - a bare ``/`` matches all.
+SHORTEST_GRADED_FORM: Final = 4
+
+#: A drive-letter path in forward-slash spelling, which MSYS spells ``/c/...``.
+DRIVE_PREFIX: Final = re.compile(r"[A-Za-z]:/")
+
+
+def path_forms(path: str | Path) -> set[str]:
+    """One path as the hook could spell it - native, forward-slash, MSYS - lower-cased."""
+    raw = str(path)
+    posix = raw.replace("\\", "/")
+    forms = {raw, posix}
+    if DRIVE_PREFIX.match(posix):
+        forms.add("/" + posix[0].lower() + posix[2:])
+    return {form.lower() for form in forms if len(form) >= SHORTEST_GRADED_FORM}
+
+
+def short_form(path: Path) -> str:
+    """The Windows 8.3 spelling of ``path``, or the path itself where there is none."""
+    if sys.platform != "win32":
+        return str(path)
+    buffer = ctypes.create_unicode_buffer(1024)
+    size = ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
+    return buffer.value if 0 < size < len(buffer) else str(path)
+
+
+def personal_forms(shim: Path) -> set[str]:
+    """Every spelling of the interpreter paths and the home path the arm grades."""
+    forms = {INTERPRETER_CANARY}
+    for interpreter in (shim, shim.parent, sys.executable, os.path.realpath(sys.executable)):
+        forms |= path_forms(interpreter)
+    home = Path.home()
+    if home.parent != home:
+        for spelling in (home, Path(os.path.realpath(home)), Path(short_form(home))):
+            forms |= path_forms(spelling)
+    return forms
+
+
+def leaks(text: str, forms: set[str]) -> int:
+    """How many of ``forms`` occur in ``text``, case-folded - a count, never the text."""
+    folded = text.lower()
+    return sum(1 for form in forms if form in folded)
+
+
+def refusing_shim(directory: Path, sentinel: Path) -> Path:
+    """An interpreter that runs the real one, except that it fails the resolve noisily."""
+    real = Path(sys.executable).as_posix()
+    home = Path.home().as_posix()
+    shell_safe = not any(ch in home + real for ch in '"$`\\')
+    noise = '"$0" "' + real + '" "' + home + '"' if shell_safe else '"$0"'
+    body = (
+        "#!/bin/sh\n"
+        'case "$*" in\n'
+        "    *" + RESOLVE_WORD + "*)\n"
+        '        : > "' + sentinel.as_posix() + '"\n'
+        "        printf '%s\\n' " + noise + "\n"
+        "        printf '%s\\n' " + noise + " >&2\n"
+        "        exit 1\n"
+        "        ;;\n"
+        "esac\n"
+        'exec "' + real + '" "$@"\n'
+    )
+    directory.mkdir(parents=True)
+    shim = directory / "python-shim"
+    shim.write_bytes(body.encode("utf-8"))
+    shim.chmod(0o755)
+    return shim
+
+
+def test_the_cs1327_refusal_renders_no_interpreter_path_and_no_home_path(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """Drive the BLOCKED (CS-1327) refusal; the push output names no personal path.
+
+    The shim fails only the resolve, so the hook reaches the refusal past every
+    earlier check. The non-vacuity half: the sentinel proves the shim saw the
+    resolve, the refusal word proves the hook took that branch, and the oracle
+    is shown finding the very paths it then reports absent.
+    """
+    sentinel = tmp_path / "resolve-was-asked.flag"
+    shim = refusing_shim(tmp_path / INTERPRETER_CANARY, sentinel)
+    forms = personal_forms(shim)
+    oracle_sees_paths = leaks(shim.as_posix(), forms) > 0 and leaks(str(Path.home()), forms) > 0
+    assert oracle_sees_paths, "harness fault: the path oracle cannot see the paths it grades"
+
+    box = make_sandbox(tmp_path, isolated, relative_remote=True)
+    made = git(box, "commit", "-q", "--allow-empty", "-m", "CS-1327 offered commit")
+    assert made.returncode == 0, "the offered commit could not be made"
+    env = dict(box.env)
+    env["CLOCKSPEED_PYTHON"] = str(shim)
+    proc = git(box, "push", "origin", BRANCH, env=env)
+    output = proc.stdout + proc.stderr
+
+    resolve_asked = sentinel.is_file()
+    refused_on_the_resolve = CS1327_REFUSAL in output
+    landed = tip(box, remote=True) == tip(box, remote=False) != ""
+    reached = resolve_asked and refused_on_the_resolve and not landed
+    assert reached, (
+        f"the CS-1327 refusal was not reached through the resolve (asked "
+        f"{resolve_asked}, refused {refused_on_the_resolve}, landed {landed}, "
+        f"push exit {proc.returncode})"
+    )
+    hits = leaks(output, forms)
+    assert hits == 0, (
+        f"the CS-1327 refusal rendered {hits} interpreter or home path spelling(s); "
+        f"none is shown here (push exit {proc.returncode})"
+    )
