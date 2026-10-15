@@ -75,6 +75,33 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1327 - frozen-file SCOPE RULING: the CS_PY_ARG drop (commit "CS-1327 pre-push hands the suite gate the interpreter's own path") and the resolve's -X utf8 (commit "CS-1327 the resolve runs in UTF-8 mode, encoding-proof") are INSIDE the 2026-10-14 grant
+Verification: `.githooks/pre-push` (the CS_PY_EXE resolve and the suite line); the 2026-10-14 CS-1327 frozen-file GRANT record. NOT A COMPLETION RECORD. CS-1327 STAYS OPEN. Ruled before the commits land on main, by a distinct read-only adjudicator of session 142 that produced none of the work. No extension granted; none needed.
+(a) The suite line drops ${CS_PY_ARG:+...} - INSIDE: grant B excludes only OTHER lines; CS_PY_ARG is the py launcher's selector and makes sense only next to the launcher word the grant replaces. Keeping it hands python.exe "-3" (probed: exit 2) and breaks the py -3 rung. The resolve still goes through cs_python, so the exe is the interpreter the ladder chose.
+(b) The resolve gains -X utf8 - INSIDE: the resolve is the line the grant creates, and the grant leaves its flags open, as with -I. Without it a cp1252 pipe cannot write a non-ANSI venv path (probed: exit 1), the resolve reads empty, and the grant's own refusal blocks a push 28b1cba allowed. The 3.13 floor supports the flag.
+Rejected: OUTSIDE plus an extension - it would read the grant as not covering the line it names, and would reopen -I and the redirects for scope review. OUTSIDE-DENIED - it leaves the py -3 rung or non-ANSI venv paths blocked.
+Reversed by: a distinct grader showing either part changes more than the suite's interpreter pin or the encoding of the resolve's own stdout (for example, a POSIX or lens-1 run where the suite interpreter differs from the ladder's choice); then a fresh scope ruling.
+
+### 2026-10-15 - CS-1327 - round-2 route ruling: land the round-2 tip "CS-1327 the venv arms compose the push env outside the test frame", record the locale residual
+DECISION: (B) land round 2 through the acceptance's remaining steps; no round 3.
+Alternatives: (A) Python starts the gate with sys.executable - rejected, extension DENIED; (C) export a UTF-8 LC_ALL in the hook - unprobed, outside the grant.
+Why: lens 1 needs a non-UTF-8 locale someone set on purpose plus a non-ASCII venv path; none is set here (process, both hives), and Git Bash's lang.sh sets only .UTF-8.
+The in-clone .venv case already failed before CS-1290 via $ROOT (probed); round 2 fails closed; A leaves $ROOT-derived arguments crossing the shell.
+Residual: the BACKLOG line "CS-1327 session 142 lens-1 residual"; CLAUDE.md section 7 Product before process ends the loop.
+Reversed by: a push blocked under a non-UTF-8 locale someone set, a supported venv layout outside the clone on a non-ASCII path,
+or the tier2 dispatch reading the new test red - then a fresh adjudicator on A and its extension.
+
+### 2026-10-15 - CS-1327 - session 142 rounds 1 and 2: adversary verdicts and a base-interpreter repair
+Verification: `.githooks/pre-push`; the CS-1327 section of `docs/item_notes/phase7.md`; the two rulings above; the Session 142 residuals in `BACKLOG.md`. NOT A COMPLETION RECORD. CS-1327 STAYS OPEN. Agent-reported, relayed by the merger.
+BUILDER: the two session 141 commits rebased onto main's tip; the provenance row added as commit 3 through the stamp tool.
+ROUND 1 (the three-commit tip) REFUTED by two distinct adversaries: on cp1252 a venv path holding U+0436 resolved empty under -I and BLOCKED, a regression against 28b1cba.
+With an ASCII venv over a pytest-free base the candidate read 24/24 passed and 28b1cba 23/23 failed for the right reason ("pytest wrote no report").
+ROUND 2 added a red non-ANSI arm, a BLOCKED no-echo arm, -X utf8 on the resolve and a `tests/test_locals_rendering.py` fix. Lenses 2-6 NOT REFUTED: WSL 433 passed, 1 skipped;
+Windows meta 2438 passed, 7 skipped. Lens 1 found the locale residual (the route ruling above); with LANG unset every path case read 27/27.
+RESIDUALS, pre-existing: no test catches a success-path echo of the resolved path; the hook's FLEET-COMMON 17 check runs a bare `python` before the ladder (POSIX python3-only machines).
+REPAIR: an adversary's pip install had put an editable clockspeed in the base Python 3.14, pointing at a scratch copy; the CS-403 record and no egg-info show none existed before, so it was
+uninstalled (an 11-file backup in the session scratchpad, not durable). Read back: the base import fails outside the repo and resolves to the repo root inside it.
+
 ### 2026-10-14 - CS-1327 - session 141 /done: the FIX note to MAIN delivered 1 of 1; the builder's fix committed on its branch, not landed
 Verification: the outbox note 2026-10-14-1840 by the SHA-256 below, against its re-hashed copy in
 MAIN's inbox; `tools/outbound_send.py`; the CS-1327 section of `docs/item_notes/phase7.md`;

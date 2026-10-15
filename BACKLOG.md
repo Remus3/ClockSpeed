@@ -749,3 +749,21 @@ blocks no product item and reddens no suite.
   `.github/workflows/tier1.yml` and the comment on `tests/test_tier1_budget.py::FILL_FROM_GUARDS`
   still call tests/test_mypy_gate.py "the second subprocess-heavy head", with no first after the
   session 141 moves - a stale phrase.
+
+## Session 142 residuals - filed 2026-10-15 under product before process
+
+The CS-1327 round-2 residuals; the route ruling and the round verdicts are in `docs/LEDGER.md`,
+2026-10-15. None blocks a product item or reddens a suite.
+
+- From the CS-1327 session 142 lens-1 residual: with a non-UTF-8 LANG, LC_ALL or LC_CTYPE set for
+  git, .githooks/pre-push BLOCKS when the venv's own path is non-ASCII, because MSYS re-decodes the
+  captured sys.executable bytes - TRIGGER: a push refused that way, or such a locale set for git;
+  then a distinct adjudicator rules on a grant extension for Python starting the gate with
+  sys.executable.
+- From the CS-1327 session 142 adversaries: no test catches a success-path echo of the
+  interpreter path the pre-push hook resolves (only the BLOCKED refusal's no-echo arm exists) -
+  TRIGGER: the next `.githooks/pre-push` edit, or any hook test change near the resolve.
+- From the CS-1327 session 142 adversaries, pre-existing: the pre-push hook's FLEET-COMMON 17
+  identity check runs a bare `python` before the interpreter ladder, so a POSIX machine with only
+  python3 cannot push - TRIGGER: a push refused on such a machine, or the next frozen-file grant
+  for `.githooks/pre-push`.
