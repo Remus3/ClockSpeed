@@ -13,18 +13,33 @@ driver's start marker arrived, and the partial stdout and stderr. Each site is
 driven here with its OWN run limit squeezed, so an arm proves that site routes
 through the helper rather than the helper being proved once in isolation.
 
-NO ARM HERE CAN BE FAILED BY A SLOW BUT CORRECT RUNNER. A run phase that must
+NO ARM HERE CAN BE FAILED BY A SLOW BUT CORRECT RUNNER. A phase that must
 time out never ends by construction; a start-up that must outlast a run limit
-is a planted spin with a floor; a run phase that must fit inside a limit
-lingers a fixed second against a limit three times that.
+is a planted spin with a floor; a run that must fit inside a limit may also
+overrun it, but only with a diagnosis showing it ran the whole limit.
+
+BOTH DEADLINES ARE PINNED ON A SCRIPTED CLOCK, NOT BY WALL TIME. A run that
+never ends times out under ANY finite deadline, and a diagnosis prints the
+limit it was handed rather than the time it waited, so neither can pin a
+deadline. Section e swaps ``test_panel_seam``'s ``time``, ``threading`` and
+``subprocess`` names for scripted ones and reads what ``run_node`` hands each
+blocking wait: the start wait must end at exactly ``started +
+NODE_START_TIMEOUT_SECONDS``, the run wait at exactly ``marker + run_timeout``.
+Section d hands all seven sites a recording ``run_node`` and reads the run
+limit each one passes.
 """
 
 from __future__ import annotations
 
+import io
 import re
 import shutil
+import subprocess
+import threading
+import time
 import warnings
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 
@@ -38,13 +53,15 @@ from tests.surface import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from pathlib import Path
     from types import ModuleType
 
-#: The run limit a site is squeezed to. Its run phase is made to NEVER end
-#: (:func:`plant_endless_run`), so the timeout is certain at any runner speed.
-MODEST_RUN_LIMIT: float = 0.5
+#: The run limit a site is squeezed to, and the start budget the start-phase
+#: arm is squeezed to. The phase is made to NEVER end (:func:`plant_endless_run`,
+#: :func:`plant_endless_start`), so the timeout is certain at any runner speed.
+MODEST_RUN_LIMIT: float = 0.25
+MODEST_START_BUDGET: float = 0.25
 
 #: The elapsed figure every diagnosis must carry.
 ELAPSED: re.Pattern[str] = re.compile(r"elapsed \d+\.\d\d s")
@@ -52,18 +69,17 @@ ELAPSED: re.Pattern[str] = re.compile(r"elapsed \d+\.\d\d s")
 #: The run limit every site carried before CS-1329, and still carries.
 RUN_LIMIT: float = 60.0
 
-#: The not-charged arm's three times. The planted start-up outlasts the run
-#: limit, so a deadline counted from the spawn has passed before the marker;
-#: the driver then lingers a fixed second, so it is still running when that
-#: wrong deadline is checked, and well inside the limit counted from the marker.
-SLOW_START_MS: int = 3500
-QUICK_RUN_LIMIT: float = 3.0
-LINGER_MS: int = 1000
+#: The not-charged arm's three times, end to end through real node. The
+#: planted start-up outlasts the run limit, and the driver lingers half the
+#: limit after the marker. Section e pins the same property exactly.
+SLOW_START_MS: int = 1500
+QUICK_RUN_LIMIT: float = 1.0
+LINGER_MS: int = 500
 
 #: A planted start-up for the slow-start line arms, and the line they set
 #: below it. Only the start-up's FLOOR matters, so a slow runner cannot fail them.
-PROBE_START_MS: int = 1000
-PROBE_LINE_SECONDS: float = 0.5
+PROBE_START_MS: int = 300
+PROBE_LINE_SECONDS: float = 0.1
 
 #: A slow-start line no runner reaches.
 UNREACHABLE_LINE_SECONDS: float = 1e9
@@ -104,6 +120,13 @@ def plant_slow_start(
         f"var until = Date.now() + {ms};\nwhile (Date.now() < until) {{}}\n{writes}".encode("ascii")
     )
     monkeypatch.setenv("NODE_OPTIONS", f'--require "{slow.as_posix()}"')
+
+
+def plant_endless_start(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every node this test starts spin forever BEFORE the start marker."""
+    endless = tmp_path / "endless_start.cjs"
+    endless.write_bytes(b"for (;;) {}\n")
+    monkeypatch.setenv("NODE_OPTIONS", f'--require "{endless.as_posix()}"')
 
 
 def plant_endless_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -306,7 +329,9 @@ def test_the_global_scope_census_harness_fails_with_a_diagnosis(
 def test_a_node_that_never_reaches_the_driver_says_the_marker_never_came(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(test_panel_seam, "NODE_START_TIMEOUT_SECONDS", 0.0)
+    """Node spins forever ahead of the marker, so the start budget always fires."""
+    monkeypatch.setattr(test_panel_seam, "NODE_START_TIMEOUT_SECONDS", MODEST_START_BUDGET)
+    plant_endless_start(tmp_path, monkeypatch)
     with pytest.raises(pytest.fail.Exception) as caught:
         test_panel_solve.drive(
             tmp_path, panel_harness.null_payload(), door=test_panel_solve.DOOR_NONE
@@ -315,6 +340,7 @@ def test_a_node_that_never_reaches_the_driver_says_the_marker_never_came(
     assert "timed out in its start phase" in text, text
     assert ELAPSED.search(text), text
     assert "start marker arrived: no" in text, text
+    assert f"inside its {MODEST_START_BUDGET:g} s start budget" in text, text
     assert "partial stdout" in text, text
     assert "partial stderr" in text, text
 
@@ -371,14 +397,13 @@ def test_node_start_up_is_never_charged_to_the_run_limit(
 ) -> None:
     """A start-up longer than the run limit is never what fails the run.
 
-    The planted start-up outlasts the run limit, and the driver lingers a fixed
-    second after the marker. A deadline counted from the SPAWN has therefore
-    passed before the marker, and is checked while the driver still lingers:
-    that run times out having run about 0 s, and this arm is red. Counted from
-    the MARKER, the run passes. The one other correct ending - a runner so slow
-    that the lingering driver overruns the limit after the marker - is
-    accepted only when the diagnosis shows the driver really ran the whole
-    limit, which the wrong deadline can never show.
+    End to end through real node; section e pins the deadline exactly. The
+    planted start-up outlasts the run limit and the driver lingers after the
+    marker, so a deadline counted from the SPAWN is checked while the driver
+    still lingers and times out having run about 0 s. Counted from the MARKER,
+    the run passes. The one other correct ending - a runner so slow that the
+    driver overruns the limit after the marker - is accepted only when the
+    diagnosis shows the driver really ran the whole limit.
     """
     plant_slow_start(tmp_path, monkeypatch, SLOW_START_MS)
     startup, ran, ending = startup_reading(quick_driver(tmp_path, LINGER_MS), QUICK_RUN_LIMIT)
@@ -448,22 +473,227 @@ def test_the_spawn_that_failed_reports_its_start_up_on_every_pass(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "module",
-    [
+class HandedOffError(Exception):
+    """Raised by the recording run_node once a site has handed it its run limit."""
+
+
+#: A run limit no site carries, to show each site hands over its OWN constant.
+SENTINEL_RUN_LIMIT: float = 47.0
+
+#: The seven node spawn sites, each bound to its arguments.
+SITES = (
+    pytest.param(
         test_panel_solve,
+        lambda tmp: test_panel_solve.drive(
+            tmp, panel_harness.null_payload(), door=test_panel_solve.DOOR_NONE
+        ),
+        id="solve-drive",
+    ),
+    pytest.param(
         panel_harness,
-        test_panel_seam,
+        lambda tmp: panel_harness.mount(tmp, test_panel_solve.MODULE, panel_harness.null_payload()),
+        id="panel-harness-run",
+    ),
+    pytest.param(
+        test_panel_seam, lambda tmp: test_panel_seam.run_seam(tmp, plant=False), id="seam-run-seam"
+    ),
+    pytest.param(
         test_panel_power,
+        lambda tmp: test_panel_power.drive(tmp, panel_harness.null_payload()),
+        id="power-drive",
+    ),
+    pytest.param(
         test_panel_optimize,
+        lambda tmp: test_panel_optimize.drive(tmp, panel_harness.null_payload()),
+        id="optimize-drive",
+    ),
+    pytest.param(
         test_panel_global_scope,
-    ],
-    ids=lambda module: module.__name__.rsplit(".", 1)[-1],
+        lambda tmp: test_panel_global_scope.run_page(tmp, ()),
+        id="global-scope-run-page",
+    ),
+    pytest.param(
+        test_panel_global_scope,
+        lambda tmp: test_panel_global_scope.census(
+            tmp, test_panel_global_scope.WEB_DIR / test_panel_solve.MODULE
+        ),
+        id="global-scope-census",
+    ),
 )
-def test_every_site_keeps_its_sixty_second_run_limit(module: ModuleType) -> None:
-    assert module.NODE_TIMEOUT_SECONDS == RUN_LIMIT
+
+
+@pytest.mark.parametrize(("module", "site"), SITES)
+def test_every_site_hands_run_node_its_own_unchanged_run_limit(
+    module: ModuleType,
+    site: Callable[[Path], object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The site's own constant, still 60 s, is the run limit run_node receives."""
+    handed: list[float] = []
+
+    def recording_run_node(*_args: object, run_timeout: float, **_kwargs: object) -> NoReturn:
+        handed.append(run_timeout)
+        raise HandedOffError
+
+    monkeypatch.setattr(test_panel_seam, "run_node", recording_run_node)
+    monkeypatch.setattr(panel_harness, "run_node", recording_run_node)
+    with pytest.raises(HandedOffError):
+        site(tmp_path)
+    monkeypatch.setattr(module, "NODE_TIMEOUT_SECONDS", SENTINEL_RUN_LIMIT)
+    with pytest.raises(HandedOffError):
+        site(tmp_path)
+    assert handed == [RUN_LIMIT, SENTINEL_RUN_LIMIT], handed
 
 
 def test_the_start_budget_is_a_separate_positive_budget() -> None:
     assert test_panel_seam.NODE_START_TIMEOUT_SECONDS > 0
     assert panel_harness.run_node is test_panel_seam.run_node
+
+
+# ---------------------------------------------------------------------------
+# e. Both deadlines, pinned on a scripted clock - no runner speed in them
+# ---------------------------------------------------------------------------
+
+#: The scripted clock's readings: the spawn; node reaching the marker 7 s later,
+#: a start-up under the 15 s slow-start line so no warning fires; and run_node
+#: waking 2 s after that, so a run wait counted from its OWN wake-up rather
+#: than from the marker shows as a different sum.
+SPAWN_AT: float = 1000.0
+MARKER_AT: float = 1007.0
+WOKEN_AT: float = 1009.0
+
+#: How long the scripted stderr waits for run_node to begin its start wait. It
+#: only bounds a run_node that never waits; a correct one begins at once.
+GATE_SECONDS: float = 5.0
+
+
+class ScriptedRun:
+    """What run_node reads the time from, waits on and spawns, all scripted.
+
+    The clock reads :data:`SPAWN_AT` until run_node begins its start wait, then
+    :data:`MARKER_AT` - node's start-up passes while run_node waits for it - and
+    the scripted stderr hands over the marker only after that. When the start
+    wait returns the clock reads :data:`WOKEN_AT`. Each blocking call records
+    the clock and the timeout it was handed, so a deadline is read as an exact
+    sum and never timed. ``sleep`` stays real: the clock never sees it.
+    """
+
+    def __init__(self) -> None:
+        """Start the clock at the spawn, with nothing recorded."""
+        self.now = SPAWN_AT
+        self.start_waits: list[tuple[float, float | None]] = []
+        self.run_waits: list[tuple[float, float | None]] = []
+        self.waiting = threading.Event()
+
+    def monotonic(self) -> float:
+        """The scripted reading."""
+        return self.now
+
+    def settled_event(self) -> threading.Event:
+        """The event run_node's start wait blocks on."""
+        return _ScriptedStartWait(self)
+
+    def popen(self, *_args: object, **_kwargs: object) -> _ScriptedProcess:
+        """The node run_node spawns."""
+        return _ScriptedProcess(self)
+
+
+class _ScriptedStartWait(threading.Event):
+    """The start wait: records it, lets the start-up pass, then really waits."""
+
+    def __init__(self, scripted: ScriptedRun) -> None:
+        super().__init__()
+        self._scripted = scripted
+
+    def wait(self, timeout: float | None = None) -> bool:
+        self._scripted.start_waits.append((self._scripted.now, timeout))
+        self._scripted.now = MARKER_AT
+        self._scripted.waiting.set()
+        settled = super().wait(timeout)
+        self._scripted.now = WOKEN_AT
+        return settled
+
+
+class _ScriptedStderr:
+    """Node's stderr: the marker line, once run_node is waiting for it."""
+
+    def __init__(self, scripted: ScriptedRun) -> None:
+        self._scripted = scripted
+
+    def __iter__(self) -> Iterator[str]:
+        self._scripted.waiting.wait(GATE_SECONDS)
+        yield test_panel_seam.NODE_START_MARKER + "\n"
+
+    def close(self) -> None:
+        """Nothing to release."""
+
+
+class _ScriptedProcess:
+    """A node that exits 0 the moment run_node waits on it, recording the wait."""
+
+    def __init__(self, scripted: ScriptedRun) -> None:
+        self._scripted = scripted
+        self.returncode: int | None = None
+        self.stdout = io.StringIO("")
+        self.stderr = _ScriptedStderr(scripted)
+
+    def wait(self, timeout: float | None = None) -> int:
+        self._scripted.run_waits.append((self._scripted.now, timeout))
+        self.returncode = 0
+        return 0
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def kill(self) -> None:
+        self.returncode = -9
+
+
+def install_scripted_run(monkeypatch: pytest.MonkeyPatch) -> ScriptedRun:
+    """Swap the three names run_node's module resolves for scripted ones."""
+    scripted = ScriptedRun()
+    monkeypatch.setattr(
+        test_panel_seam, "time", SimpleNamespace(monotonic=scripted.monotonic, sleep=time.sleep)
+    )
+    monkeypatch.setattr(
+        test_panel_seam,
+        "threading",
+        SimpleNamespace(Event=scripted.settled_event, Thread=threading.Thread),
+    )
+    monkeypatch.setattr(
+        test_panel_seam,
+        "subprocess",
+        SimpleNamespace(
+            Popen=scripted.popen,
+            PIPE=subprocess.PIPE,
+            TimeoutExpired=subprocess.TimeoutExpired,
+        ),
+    )
+    return scripted
+
+
+def test_both_deadlines_are_exact_on_a_scripted_clock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Start wait ends at spawn + start budget; run wait at marker + run limit.
+
+    A deadline is the clock when a wait began plus the timeout it was handed.
+    The start wait must begin at the spawn and be handed the start budget; the
+    run wait, begun at :data:`WOKEN_AT`, must end exactly :data:`RUN_LIMIT`
+    after the MARKER - not after the spawn, not after the wake-up, and not one
+    second more.
+    """
+    scripted = install_scripted_run(monkeypatch)
+    run = test_panel_seam.run_node(
+        "node", tmp_path / "scripted.cjs", label="the scripted driver", run_timeout=RUN_LIMIT
+    )
+    budget = test_panel_seam.NODE_START_TIMEOUT_SECONDS
+    assert scripted.start_waits == [(SPAWN_AT, budget)], scripted.start_waits
+    assert len(scripted.run_waits) == 1, scripted.run_waits
+    began, handed = scripted.run_waits[0]
+    assert began == WOKEN_AT, scripted.run_waits
+    assert handed is not None, scripted.run_waits
+    assert began + handed == MARKER_AT + RUN_LIMIT, scripted.run_waits
+    assert run.returncode == 0, run
+    assert run.startup_seconds == MARKER_AT - SPAWN_AT, run
