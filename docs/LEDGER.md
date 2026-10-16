@@ -89,14 +89,19 @@ spawn sites in six `tests/surface/` files run through one helper; a preload writ
 to stderr (fs.writeSync) when node reaches user code; start-up to the marker has its own 120 s
 budget; each site's 60 s run limit counts from the marker and is unchanged; a timeout in either
 phase fails naming the elapsed seconds, whether the marker arrived, and the partial stdout and
-stderr. No bound raised, nothing skipped, no retry.
-ALTERNATIVES (by content; the dispatch carried their letters only): A - a product defect in the
-panel or the driver: lost, the driver is deterministic and holds no timer, so nothing product-side
-is measured. C - raise the 60 s limit: lost, it grades nothing new and would hide a hang. D - rerun
-or retry once: lost, the CS-1304 session 135 ruling denies retry as masking, and the session 141
-R3 standard forbids a rerun green.
-NOT CS-1304's CLASS: CS-1304 is a forced child's exit 2 under memory load in two `tests/` files,
-read through `child_failure`; this red is a node spawn's wall-clock timeout with no exit code.
+stderr. Nothing skipped. The ruling ordered no limit raise and no rerun: the 60 s run limit is
+unchanged, and the red was never rerun.
+ALTERNATIVES (the ruling's own text): A - a product defect fixed product-side: rejected. No product
+file changed (a8079bb touched only Python-side imports and test section o), and a deterministic
+hang would fail all four fast legs, but 3 of 4 passed at f2696d1. C - an infra flake under the
+CS-1304 watch (record the reading, no code change): rejected. This is not CS-1304's failure class
+(no exit 2 in its two files, no `child_failure`, no status past 255), and the session 141 Q1
+runner-noise test fails here (install 19 s against a 13-27 s baseline; suite 548.70 s against
+548.55 s for the sibling). D - file a new item and defer: rejected, because a red is the top item
+and cannot be deferred.
+RUNNER-UP: C. Its best argument: a hang cannot yet be told from slow node start-up, so any fix is a
+guess. It lost because the first act - the diagnostic failure message plus the separate start-up
+budget - is what tells them apart.
 Reversed by: the next red reading "start marker arrived: yes" with the driver not finishing (a
 driver hang - a distinct adjudicator re-rules on A); a red reading "start marker arrived: no" past
 the 120 s start budget (node's start-up on the runner - an environment finding, never a raised
