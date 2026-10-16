@@ -976,7 +976,8 @@ jobs:
       # stays as the record of THAT run; it is no longer a reason to add work here.
       # No level moved, no test was dropped, and no `--ignore=` line changed: a
       # move between two non-catch-all shards leaves the union of their targets
-      # identical.
+      # identical. tests/test_mypy_gate.py has since come BACK here, in the
+      # session 142 mypy-gate move; its note is the last one above this step.
       #
       # tests/test_hook_env_echo.py IS HERE FOR ROOM, NOT FOR KINSHIP (CS-814). It
       # drives every shipped hook through real git and the wrapper with planted
@@ -1008,6 +1009,32 @@ jobs:
       # census: the cached censuses tests/test_assertion_rendering.py builds are
       # used by no other guard file, and the one the other two share stays here
       # with both of them.
+      #
+      # tests/test_mypy_gate.py, THE LAST, CAME BACK FROM THE FILL SHARD IN THE
+      # SESSION 142 MYPY-GATE MOVE, by a distinct adjudicator's ruling, for ROOM
+      # and not for kinship; CS-1214 had moved it out of here (above). MEASURED
+      # on tier1 run 38832060823 at a3acc6f, CS-700 step a's own run: the fill
+      # shard read 431s, over the 420s budget, and this job 200s. CI's
+      # --durations printed three mypy gate arms in the fill shard, summing to
+      # 102.7s on run 38812983441 at 47dfea7, 82.8s on run 38825678486 at
+      # b5e78e8 and 125.5s at a3acc6f.
+      # PROJECTED from those printed arms, the fill shard losing half the moved
+      # worker time (W = 2) and this job gaining the WHOLE of it, because the
+      # CS-1233 `alone` barrier in tests/test_hook_env_echo.py waits for every
+      # sibling worker: at 47dfea7 fill 330s and this job 364s, at b5e78e8 fill
+      # 279s and this job 321s, at a3acc6f fill 368s and this job 326s. The worst
+      # cross-runner figure for this job is 387s - its worst reading since the
+      # guard move, 261s at 47dfea7, plus the 125.5s of arms timed on a3acc6f's
+      # fill runner. UNMEASURED until the next tier1 reading.
+      # THE COUNTING STANDARD is B3 as the session 142 guard-move re-ruling
+      # restated it: a moved file counts whole - its printed CI seconds, plus its
+      # unprinted local tail times that file's own CI/local ratio, plus its
+      # collection - on the source and the receiver alike. The figures above are
+      # the mypy-gate ruling's, from the three printed arms; the file's unprinted
+      # tail is not in them. ORDER IS NOT DISPATCH ORDER HERE: xdist 3.8 sorts
+      # the loadfile queue by test count, descending, and only the hook job turns
+      # that off, so appending the file last changes no schedule. Its conditional
+      # skips moved with it; nothing new is skipped.
       - name: Unit tests
         run: >-
           python -m pytest
@@ -1016,6 +1043,7 @@ jobs:
           tests/test_chained_cause_census.py
           tests/test_archive_rot.py tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py tests/test_locals_rendering.py
+          tests/test_mypy_gate.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -1356,30 +1384,33 @@ jobs:
       # named as an `--ignore=` on the catch-all shard above, and the arms in
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
       #
-      # THE TWO BEFORE tests/test_secret_sweep.py ARRIVED FROM THE GUARD SHARD
+      # THE ONE BEFORE tests/test_secret_sweep.py ARRIVED FROM THE GUARD SHARD
       # UNDER CS-1214, which moved three files here because the guard shard read
       # over its budget and then over its ceiling on a docs-only tip, and this
-      # shard was the receiver CS-1214's acceptance named. THEIR REASONS CAME
-      # WITH THEM. tests/test_mypy_gate.py is the second subprocess-heavy head,
-      # and this is the CPU-bound shard by construction.
-      # tests/test_probe_refusal_output.py drives every shipped hook
+      # shard was the receiver CS-1214's acceptance named. ITS REASON CAME WITH
+      # IT. tests/test_probe_refusal_output.py drives every shipped hook
       # through real git and the wrapper with planted canaries (CS-814, CS-1200) -
       # it sat on the guard shard for ROOM, not for kinship, and the room was gone.
-      # The third, tests/test_liveness.py, moved on to the scan shard in the
-      # CS-1317 rebalance; the scan shard's note below holds the readings.
+      # tests/test_liveness.py moved on to the scan shard in the CS-1317
+      # rebalance; the scan shard's note below holds the readings.
       #
-      # tests/test_mypy_gate.py WENT TO THE SCAN SHARD IN THAT REBALANCE AND CAME
-      # BACK on the first reading after it. MEASURED on tier1 run 38593869307 at
-      # 140eab9, a normal runner: the scan shard read 392s and this job 257s, with
-      # 102.09s of mypy gate arms printed by CI's --durations. PROJECTED, W = 2,
-      # this job gaining half the moved worker time: 257 + 102.09/2 = 308.0s.
-      # UNMEASURED until the next tier1 reading. The mypy gate's three conditional
-      # skips moved back with it; nothing new is skipped.
+      # tests/test_mypy_gate.py NO LONGER RUNS HERE. It went to the scan shard in
+      # that rebalance and came back on the first reading after it - tier1 run
+      # 38593869307 at 140eab9 read the scan shard at 392s and this job at 257s,
+      # with 102.09s of mypy gate arms printed - and then went back to the guard
+      # shard in the session 142 mypy-gate move. MEASURED on tier1 run
+      # 38832060823 at a3acc6f, CS-700 step a's own run: this job read 431s, over
+      # the 420s budget, with 125.5s of mypy gate arms printed by CI's
+      # --durations. PROJECTED, W = 2, this job losing half the moved worker time:
+      # 330s at 47dfea7, 279s at b5e78e8 and 368s at a3acc6f. UNMEASURED until the
+      # next tier1 reading. The other two runs' arm sums, the counting standard
+      # and the guard shard's side of the move are in the guard shard's note
+      # above. The mypy gate's conditional skips moved with it; nothing new is
+      # skipped.
       #
       # ORDER IS NOT DISPATCH ORDER HERE. xdist 3.8 sorts the loadfile queue by test
       # count, descending, and only the hook job turns that off, so appending the
-      # two guard-shard arrivals left here changes no schedule. Do not reorder for
-      # speed.
+      # guard-shard arrivals here changes no schedule. Do not reorder for speed.
       #
       # tests/test_secret_sweep.py ARRIVED FROM THE CATCH-ALL IN THE TIER1 SHARD
       # REBALANCE, and only it. Over the twelve runs the hook shard's note names,
@@ -1410,7 +1441,6 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
-          tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
           tests/test_assertion_rendering.py
@@ -1621,7 +1651,9 @@ jobs:
       # the fill shard 257 + 102.09/2 = 308.0s. UNMEASURED until the next tier1
       # reading: over 360s on either job an adjudicator re-rules, and over 420s
       # the step-b gate holds. This job's dispatch order is readme 146 tests,
-      # liveness 101, provenance 68, chained 25, disposition 14.
+      # liveness 101, provenance 68, chained 25, disposition 14. The mypy gate
+      # has since left the fill shard for the guard shard, in the session 142
+      # mypy-gate move; the guard shard's note holds that reading.
       - name: Unit tests
         run: >-
           python -m pytest

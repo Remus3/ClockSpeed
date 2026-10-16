@@ -2605,6 +2605,17 @@ GUARD_HELD = "tests/test_hook_env_echo.py"
 #: least of all.
 GUARD_KEPT = "tests/test_chained_cause_census.py"
 
+#: The session 142 mypy-gate move, by a distinct adjudicator's ruling: the fill
+#: shard read over its budget at CS-700 step a's own tier1 run while the guard
+#: shard read far under it, so this file left the fill shard for the guard
+#: shard, which it had left under CS-1214 (:data:`FILL_FROM_GUARDS`). Appended
+#: LAST in the guard shard's command; the guard job keeps xdist's default
+#: loadfile sort by test count, so the place claims no schedule. It was already
+#: an `--ignore=` on the catch-all, so the move changes no ignore line at all.
+#: The readings and the projection live in tier1.yml, the one owner of this
+#: lane's numbers.
+GUARD_FROM_FILL = ("tests/test_mypy_gate.py",)
+
 
 def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all() -> None:
     """CS-1173 - the catch-all read over its budget once CS-1170 emptied the guard shard.
@@ -2799,16 +2810,13 @@ FILL_FROM_CATCH_ALL = (
 #: THE REASONS CAME WITH THE FILES, because a reason left behind rots.
 #: tests/test_probe_refusal_output.py drives every shipped hook through real git
 #: and the wrapper with planted canaries (CS-814, CS-1200) - it was on the guard
-#: shard for ROOM, not for kinship, and the room was gone.
-#: tests/test_mypy_gate.py is the second subprocess-heavy head, and this shard is
-#: the CPU-bound one by construction; the CS-1317 rebalance moved it to the scan
-#: shard and the measured scan reading moved it back. The third,
-#: tests/test_liveness.py, moved on to the scan shard in the CS-1317 rebalance
-#: (:data:`SCAN_FROM_FILL`).
-FILL_FROM_GUARDS = (
-    "tests/test_mypy_gate.py",
-    "tests/test_probe_refusal_output.py",
-)
+#: shard for ROOM, not for kinship, and the room was gone. It is the one CS-1214
+#: arrival still here. tests/test_liveness.py moved on to the scan shard in the
+#: CS-1317 rebalance (:data:`SCAN_FROM_FILL`). tests/test_mypy_gate.py went to the
+#: scan shard in that rebalance, came back on the measured scan reading, and went
+#: back to the guard shard under the session 142 mypy-gate move ruling
+#: (:data:`GUARD_FROM_FILL`).
+FILL_FROM_GUARDS = ("tests/test_probe_refusal_output.py",)
 
 #: The tier1 shard rebalance's one arrival here, from the catch-all. The catch-all
 #: read over its budget on slow runners while this shard and the hook shard had
@@ -2871,7 +2879,9 @@ def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -
     the guard shard read over its budget and then over its ceiling on a
     docs-only tip; this shard is the receiver CS-1214's acceptance named. The
     CS-1317 guard move added one more guard-shard file
-    (:data:`FILL_FROM_GUARD_MOVE`), again with no ignore line changed.
+    (:data:`FILL_FROM_GUARD_MOVE`), again with no ignore line changed, and the
+    session 142 mypy-gate move took one CS-1214 arrival back to the guard shard
+    (:data:`GUARD_FROM_FILL`), with none changed either.
 
     No level moved in either item and no test was dropped. CS-1214 moved files
     between two NON-CATCH-ALL shards, so the catch-all's ignore list is
@@ -2893,7 +2903,7 @@ def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -
     fill_targets = shard_targets(shards[FILL_JOB_ID])
     assert sorted(fill_targets) == sorted(FILL_SHARD_FILES), (
         f"the {FILL_JOB_ID!r} shard names {fill_targets}; CS-1198, CS-1214, the tier1"
-        f" shard rebalance and the CS-1317 guard move gave it exactly"
+        f" shard rebalance, the CS-1317 guard move and the mypy-gate move gave it exactly"
         f" {list(FILL_SHARD_FILES)}"
     )
     claims = {
@@ -3002,7 +3012,8 @@ SCAN_FROM_CATCH_ALL = (
 #: move pays no census twice. It was already an `--ignore=` on the catch-all, so
 #: a move between two non-catch-all shards changes no ignore line at all. The
 #: adjudicated second file, tests/test_mypy_gate.py, went back to the fill shard
-#: on the measured scan reading (:data:`FILL_FROM_GUARDS`).
+#: on the measured scan reading, and on to the guard shard under the session 142
+#: mypy-gate move ruling (:data:`GUARD_FROM_FILL`).
 SCAN_FROM_FILL = ("tests/test_liveness.py",)
 
 #: The scan shard's whole membership, exactly.
@@ -3134,6 +3145,55 @@ def test_the_guard_moves_files_run_in_the_save_and_fill_shards_and_never_in_the_
     miscounted = {
         path: catch_all_ignores.count(IGNORE_PREFIX + path)
         for path in owner
+        if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
+    }
+    assert miscounted == {}, (
+        f"the {JOB_ID!r} shard ignores these moved files the wrong number of times"
+        f" {miscounted}; each needs exactly one {IGNORE_PREFIX!r}"
+    )
+
+
+def test_the_mypy_gate_runs_in_the_guard_shard_alone_and_never_in_the_fill_shard() -> None:
+    """CS-1317's mypy-gate move - the fill shard read over its budget, so this file left it.
+
+    The session 142 mypy-gate move ruling, a distinct adjudicator's, moved
+    :data:`GUARD_FROM_FILL` from the fill shard to the guard shard. The fill
+    shard's exact-membership arm above pins that the fill shard no longer names
+    it; this arm pins that the guard shard does, that no other shard claims it,
+    and that the catch-all still ignores it exactly once - the move is between
+    two non-catch-all shards, so the ignore list is unchanged. No level moved and
+    no test was dropped: the partition arm still proves every file runs in
+    exactly one leg, and this arm pins WHICH leg. The readings and the
+    projection live in tier1.yml, the one owner of this lane's numbers.
+    """
+    shards = suite_shards()
+    for job_id in (JOB_ID, GUARD_JOB_ID, FILL_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    claims = {
+        path: sorted(
+            job_id
+            for job_id, tokens in shards.items()
+            for target in shard_targets(tokens)
+            if target == path
+        )
+        for path in GUARD_FROM_FILL
+    }
+    wrong = {path: owners for path, owners in claims.items() if owners != [GUARD_JOB_ID]}
+    assert wrong == {}, (
+        f"{wrong}; the session 142 mypy-gate move gave each of {list(GUARD_FROM_FILL)} to"
+        f" the {GUARD_JOB_ID!r} shard alone, or it runs twice or in a leg the ruling did"
+        " not give it"
+    )
+    fill_targets = shard_targets(shards[FILL_JOB_ID])
+    still_in_fill = [path for path in GUARD_FROM_FILL if path in fill_targets]
+    assert still_in_fill == [], (
+        f"the {FILL_JOB_ID!r} shard still names {still_in_fill}, which the session 142"
+        f" mypy-gate move took to the {GUARD_JOB_ID!r} shard: {fill_targets}"
+    )
+    catch_all_ignores = shard_ignores(shards[JOB_ID])
+    miscounted = {
+        path: catch_all_ignores.count(IGNORE_PREFIX + path)
+        for path in GUARD_FROM_FILL
         if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
     }
     assert miscounted == {}, (

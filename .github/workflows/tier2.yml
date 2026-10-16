@@ -236,6 +236,7 @@ jobs:
           tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py
           tests/test_locals_rendering.py
+          tests/test_mypy_gate.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Full test suite (hooks shard)
@@ -275,7 +276,6 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
-          tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
           tests/test_assertion_rendering.py
@@ -627,6 +627,7 @@ jobs:
           tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py
           tests/test_locals_rendering.py
+          tests/test_mypy_gate.py
           -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       - name: Suite in the fresh clone (hooks shard)
@@ -668,7 +669,6 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
-          tests/test_mypy_gate.py
           tests/test_probe_refusal_output.py
           tests/test_secret_sweep.py
           tests/test_assertion_rendering.py
