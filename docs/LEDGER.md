@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1317 and CS-700 - NOT A COMPLETION RECORD. CS-1317 AND CS-700 STAY OPEN: the ruling record directly below records step a's own tier1 missing THE STEP-B GATE
+Verification: the ruling record directly below (its DECISION and Reversed by); the "tier 1 took" lines on tier1 38832060823 at a3acc6f; the CS-1317 section of `docs/item_notes/phase7.md`; `ROADMAP.md`. That ruling is recorded verbatim, so this record carries the disposition `tools/drift_guard.py` guard (i) reads for its two ids: CS-1317 stays open and closes only as its item notes say, and CS-700 stays open, THE STEP-B GATE pair restarted at 0 of 2.
+INBOX_STOP: removed to the Recycle Bin by session 142 (PowerShell, Microsoft.VisualBasic FileSystem.DeleteFile with SendToRecycleBin) and read back absent; QUEUE_STOP read back present and STOP absent; the responder's inbox_status file read state "halted" (updated 2026-10-15T19:56:00-05:00) right after, then state "running" (updated 2026-10-15T20:11:02-05:00) at the responder's next tick.
+
+### 2026-10-15 - CS-1317 and CS-700 - step a's own tier1 misses THE STEP-B GATE on fill 431 s; the window never opened; test_mypy_gate.py fill to guard; the pair restarts
+DECISION: tier1 38832060823 at a3acc6f SUCCESS 6/6 attempt 1 (catch-all 309, fill 431, scan 306, save 350, guard 200, hook 402; installs 7-12 s, fill 11) MISSES the gate: step b HOLDS, the pair restarts at 0 of 2. The window signal reads CLOSED (a3acc6f touches no citation set file): nothing abandoned, a3acc6f used up. Move tests/test_mypy_gate.py fill to guard (tier1.yml, both tier2.yml fill/guards legs, test_tier1_budget.py pins; catch-all ignores byte-identical; 420/480/10 unchanged; nothing skipped). INBOX_STOP removed now; QUEUE_STOP kept. Not a completion record: CS-1317 and CS-700 stay open.
+PROJECTED (printed mypy 102.7/82.8/125.5 s; fill minus half, guard plus whole under the CS-1233 barrier): 47dfea7 fill 330 guard 364; b5e78e8 fill 279 guard 321; a3acc6f fill 368 guard 326; worst cross-runner guard 387; untouched jobs at most 402.
+ORDER: this record (rides push 1); builder with the B3 tail; freeze witness; a distinct adversary (partition and pins; probe-bound arms beside mypy in guard); land; push 1 = reading 1, plus one tier2 workflow_dispatch (granted) green on attempt 1; the /done records push = reading 2; drift_guard exit 0; a NEW step a in session 143 with the operator present, its own run the third.
+Alternatives: no move as noise - rejected (the landing clause orders a pick; install 11 s is over the noise test's 10 s; gate-reading-2 Q1 counts noise as a miss). Save 420 worst; hook 465; cs1175 (CS-1304); assertion_rendering back (landing ruling, CS-1233); catch-all (ignores); scan; citation_tables alone (fill 409); step a again in session 142 (b to e need 4-5 h more).
+Runner-up's best argument: one miss in three readings, and a layout change costs a builder and adversary round. It lost: fill pytest swung 296-413 s (1.40x) on normal installs, so three straight passes come out at about 0.3-0.6; the move buys 52 s.
+Why: section 7 cost against risk - one round of about 1 h against expected repeated pair restarts.
+COMMON-MODE RISK: three top-15 printouts (33 of mypy's 36 arms unprinted); fill's runners applied to guard; the barrier's serial model is inferred, not measured.
+Reversed by: an adversary projecting by B3 fill over 380 s at a3acc6f, or guard over 420 s at worst (re-rule before landing); the first reading after the move with fill over 420 s or any job over 444 s (the pair restarts, an adjudicator re-picks); a guard probe-bound flake beside mypy (a distinct adjudicator); the operator's own words.
+
 ### 2026-10-15 - CS-1317 and CS-700 - step-b gate reading 2 of 2 passes
 Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38825678486 at b5e78e8 and 38812983441 at 47dfea7; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
 GATE PUSH 2 put main at b5e78e8 (47dfea7..b5e78e8, records only; remote equal by full SHA, read
