@@ -366,3 +366,4 @@ CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, it
 CS-1307 - the env-echo git-hook arms in `tests/test_hook_env_echo.py` run the interpreter ladder under its bound without the quiet barrier - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1317 - tier 1's gates job ran past its 480 s ceiling on the session 138 /done's push, so tier1 is red on main - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then its ONE ANSWER after S12a - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

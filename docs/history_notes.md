@@ -24,6 +24,21 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## BACKLOG line - relocated from `BACKLOG.md` 2026-10-15 by the session 142 /done
+
+**Moved here because its source was fixed.** The "Session 141 residuals" line below named a stale
+phrase in two comments. The session 142 mypy-gate move (`docs/LEDGER.md`, "CS-1317 - mypy-gate
+move: adversary NOT REFUTED; landed", 2026-10-15) rewrote both comments, and the session 142 /done
+read the phrase absent from `.github/workflows/tier1.yml` and `tests/test_tier1_budget.py`.
+Verbatim:
+
+From "Session 141 residuals - filed 2026-10-14 under product before process":
+
+- An adversary residual, cosmetic: the fill job's unit-test step comment in
+  `.github/workflows/tier1.yml` and the comment on `tests/test_tier1_budget.py::FILL_FROM_GUARDS`
+  still call tests/test_mypy_gate.py "the second subprocess-heavy head", with no first after the
+  session 141 moves - a stale phrase.
+
 ## CS-1327 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-15 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

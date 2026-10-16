@@ -1201,6 +1201,16 @@ decision, the alternatives rejected and what reverses it are the 2026-10-11 CS-7
 RECORD in `docs/LEDGER.md`; `docs/public-readiness.md` findings M1 and M2 and its settings table
 say the same.
 
+### Filed 2026-10-15 by the session 142 /done: MAIN's PUBREPO ORDER is CS-1328
+
+MAIN's 2026-10-15 19:25 PUBREPO ORDER adds pre-flip work to this block; its body, its rules and
+its acceptance are the CS-1328 section of this leaf. Three of its additions bind this block's own
+steps: (a) the HEAD path scrub lands BEFORE the S7a baseline while none is taken - so before step
+b, because no commit lands from step b to S12a (the /done adjudicator's residual: before the new
+step a); (c) the read-only settings dump runs at S3, or at any time before S9; (d) the
+fleet.operatorIdent change runs after S8 proves identity zero and before S10, config only, no
+commit. No commit for that ORDER lands inside the window.
+
 ### Acceptance
 
 every item on that checklist passes, including the full-history secret scan, the PII scan across tracked files and commit messages, the third-party license audit, and the clean-checkout probe on a machine that has never seen the project
@@ -1909,7 +1919,7 @@ corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unc
 is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
 record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
 
-Next action: the guard move owed before step a by the 2026-10-15 CS-1327, CS-1317 and CS-700 ruling in `docs/LEDGER.md`.
+Next action: read THE STEP-B GATE's reading 2 after the session 142 mypy-gate move (the session 142 /done record in `docs/LEDGER.md`; the guard move and the mypy-gate move both landed).
 The item closes only when both catch-all and both scan readings are at most 360 s; otherwise a
 rebalance from both shards' CI durations is next. Owed before the close: the scan entries out of `PENDING_READINGS` in `tools/tier1_growth.py`,
 `PENDING_PROFILE` in `tools/tier1_concentration.py` and `PENDING_FIRST_RECORD` in
@@ -1945,3 +1955,91 @@ for up to `REAP_WAIT` and reads a zombie as dead where the proc filesystem shows
 probe bound is unchanged and no case is skipped.
 
 Next action: the rework the 2026-10-15 CS-1318 reap-replay REFUTED record in `docs/LEDGER.md` names, after the CS-700 window; it does not gate CS-1317's acceptance (ruling R2).
+
+## CS-1328
+
+### Acceptance
+
+Every done criterion of MAIN's 2026-10-15 PUBREPO ORDER holds: the settings checklist re-applied
+and read back after S12a; fleet.operatorIdent noreply-only, and user.email the noreply value in
+every checkout; the v0.1.0 tag's ancestor check passed and its release read back; the HEAD
+absolute-path count 0 outside an explicit allowlist; the accepted history residual recorded in the
+ledger. And the ORDER's ONE ANSWER is sent after S12a, in one note: the read-backs, the closing
+ledger commit hash and the census axis counts.
+
+### Filed 2026-10-15 by the session 142 /done, from MAIN's ORDER
+
+Filed from the MAIN note "2026-10-15-1925-from-MAIN-ORDER-to-CS-PUBREPO-CS-700-pre-flip-additions-ONE-ANSWER.md"
+(ORDER, HOP 1, one destination), sha256
+c733c36d9016c3a326c5e9b3e3e921d66dd7fd92677d806535d2c174c9bd1b77 - equal to MAIN's tracked,
+unmodified outbox copy, read by the session 142 /done, so under FLEET item 6 it is the operator's
+instruction (the operator's 2026-10-15 order: CS-700 done correctly before its public flip is fully
+realized). It rests on MAIN's 2026-10-15 PUBREPO posture ruling, item 3 (item 1 after the flip), in
+MAIN's tree. The inbox is gitignored, so this section is the only tracked copy here. In tighter
+form:
+
+0. WINDOW RULE: no commit for this ORDER inside the S7a..S12 window; every addition is placed so it
+   never voids S7a (the late-commit rule). Record the ORDER in the closing ledger commit after
+   S12a, and answer AFTER S12a.
+1. CORRECTED BLOCKER LIST: (i) CS-1317's remaining step-b condition, step a's own tier1 run; (ii)
+   the gh token lacks the delete_repo scope (S9a); (iii) the operator's own-words confirmation
+   covering S9-S12 as one run. CS-1327 is closed and is not a blocker. MAIN carries (ii) and (iii)
+   to the operator as ONE batched ask.
+2. ADDITIONS.
+   a. HEAD path scrub (about 44 lines naming this tree's absolute install root in both drive
+      spellings and the sidecars root): land it BEFORE the S7a baseline if that baseline is not
+      yet taken; otherwise it is the FIRST commit after S12a. The history residual (47/36/35 added
+      lines) is ACCEPTED: layout, not identity. Cleaning history is an ADR 0018 reopen, not an S7a
+      extension.
+   b. A census axis for drive-root project paths and foreign host names, NON-aborting, counts
+      recorded. Inside the window it runs as an uncommitted out-of-tree measurement (like the S7a
+      script); the tracked axis ships after S12a.
+   c. A settings dump at S3 (or now, if S3 has passed; read-only, any time before S9): the branch
+      protection rule body, vulnerability alerts, private vulnerability reporting, secret scanning
+      and push protection, topics, description, homepage, merge flags, CodeQL default setup,
+      Dependabot config. S11 and S12a re-apply each item and read it back; re-measure plan 1d at
+      run time (it drifted).
+   d. fleet.operatorIdent: after S8 proves identity zero and before S10, remove the personal email
+      value (--unset-all, then re-add the noreply value only); assert user.email equals the
+      noreply value in the main checkout and in every worktree; read back. Config only, no commit.
+   e. v0.1.0: an annotated tag on the S8a-adjudicated tip, cut AFTER S12a and the S7q lift, never
+      inside S10. Positive control: the tag commit is an ancestor of published main and is in
+      S7a's new-SHA map. Push the single tag ref only (never --tags or --mirror); gh release
+      create v0.1.0 --verify-tag with a hand-written notes body (generated notes OFF).
+   f. No commit for this ORDER inside the window (rule 0).
+   g. Post-flip, MAIN's fleet posture items apply here: 1a (hand-cut annotated milestone tags,
+      semver 0.x, hand-written notes); 1b (Conventional Commits subjects, the item id may sit in
+      the scope, merge subjects carry no agent worktree names - only AFTER auditing every subject
+      grep in this tree); 1d (a README section "How this repo is built": CLAUDE.md, .claude/,
+      ops/, .githooks and the hand-off as documented process, the licence stated plainly); 1g
+      (CodeQL triage, HIGH first, fix or dismiss with a written reason; Dependabot alerts ON,
+      security-update PRs OFF; an outsider read of tracked agent and hand-off text; a 30-day
+      failed-run Actions log sweep, counts only). A hashed lockfile is DROPPED here (dependencies
+      = [] by recorded decision).
+   MAIN's rejected alternatives: a blob scrub folded into S7a (fenced by ADR 0018; it invalidates
+   S7a's controls); the tag at S10 (it changes S10's one-SHA control); trusting plan 1d (it
+   drifted). Reverse if: the operator's own words reopen ADR 0018 (a history path scrub).
+3. DONE CRITERIA: the Acceptance above.
+4. ONE ANSWER: one note, after S12a - the read-backs above, the closing ledger commit hash and the
+   census axis counts. ANSWER classes are recorded, not answered.
+
+THE /done's DISPOSITION, ruled by a distinct read-only adjudicator of session 142 (option A): file
+the ORDER as this item; point CS-700's section and the hand-off's flip block at it; write no
+LEDGER entry for the ORDER before S12a (rule 0); send no reply; acknowledge the note by its key
+alone (the watcher's key-file acknowledgement, never the acknowledge-everything flag, which can
+swallow a note that arrives mid-pass), so the unattended responder stops re-firing on it - it had
+spawned a headless opus run on it on every tick, nine by 22:11, none acknowledging it. Rejected:
+leaving it unread (about four opus runs an hour against the tree's shared 120-run cap); the
+INBOX_STOP sentinel (it halts every inbox note, an autonomy change FLEET item 14 forbids); folding
+it into CS-700 (CS-700 closes at S12a, while this ORDER's tag, read-backs and answer come after
+it). Runner-up: the fold - the flip runner reads CS-700's text, so (c) and (d) could be missed; the
+pointers in CS-700's section and the hand-off cover that. COMMON-MODE RISK: every option assumed
+the window signal CLOSED (the adjudicator read HEAD 74d895d itself). RESIDUAL: addition (a) must
+land before session 143's new step a, or it slides to after S12a; the hand-off is one of the files
+it scrubs. Reversed by: step b landing before the /done commits (the window OPEN - commit
+nothing), or a MAIN note withdrawing the ORDER.
+
+Next action: in session 143, before the new CS-700 step a, a distinct adjudicator sequences
+addition (a) against THE STEP-B GATE (a scrub commit and its push are a further tier1 reading);
+then (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted measurement in
+the window; (e), (g), the ledger record and the ONE ANSWER after S12a.
