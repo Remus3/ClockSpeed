@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import warnings
 from typing import TYPE_CHECKING
 
 import pytest
@@ -51,6 +52,20 @@ RUN_LIMIT: float = 60.0
 SLOW_START_MS: int = 2500
 QUICK_RUN_LIMIT: float = 2.0
 
+#: A planted start-up for the slow-start line arms, and the line they set
+#: below it. Only the start-up's FLOOR matters, so a slow runner cannot fail them.
+PROBE_START_MS: int = 1000
+PROBE_LINE_SECONDS: float = 0.5
+
+#: A slow-start line no runner reaches.
+UNREACHABLE_LINE_SECONDS: float = 1e9
+
+#: The start-up reading a pass reports, in the slow-start line's words.
+STARTUP_READING: re.Pattern[str] = re.compile(r"reached its start marker in \d+\.\d\d s")
+
+#: A diagnosis's start-up figure, read back as a number.
+STARTUP_FIGURE: re.Pattern[str] = re.compile(r"start marker arrived: yes, (\d+\.\d\d) s after")
+
 
 def node_or_fail() -> str:
     """The interpreter off PATH. Absent node FAILS: a skip would grade nothing."""
@@ -58,6 +73,61 @@ def node_or_fail() -> str:
     if node is None:
         pytest.fail("node is not on PATH, so no driver ran and nothing was graded")
     return node
+
+
+def plant_slow_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ms: int, writes: str = ""
+) -> None:
+    """Make every node this test starts spin ``ms`` BEFORE the start marker.
+
+    The spin is a preload node runs ahead of the marker's, through
+    NODE_OPTIONS, which is where a cold start's time sits too. ``writes`` is
+    JavaScript run after the spin and still ahead of the marker.
+    """
+    slow = tmp_path / "slow_start.cjs"
+    slow.write_bytes(
+        f"var until = Date.now() + {ms};\nwhile (Date.now() < until) {{}}\n{writes}".encode("ascii")
+    )
+    monkeypatch.setenv("NODE_OPTIONS", f'--require "{slow.as_posix()}"')
+
+
+def quick_driver(tmp_path: Path) -> Path:
+    """A driver that writes one word and exits."""
+    script = tmp_path / "quick.cjs"
+    script.write_bytes(b'process.stdout.write("quick-1329");\n')
+    return script
+
+
+#: The two endings :func:`startup_reading` names: a clean pass of
+#: :func:`quick_driver`, and a run-phase timeout after the marker.
+CLEAN_RUN: str = "a clean pass"
+RUN_PHASE_TIMEOUT: str = "a run-phase timeout"
+
+
+def startup_reading(script: Path, run_timeout: float) -> tuple[float, str]:
+    """Run ``script`` and read its start-up seconds back, however it ended.
+
+    Returns:
+        The start-up seconds - from the run, or read off a run-phase
+        diagnosis - and :data:`CLEAN_RUN`, :data:`RUN_PHASE_TIMEOUT`, or the
+        unexpected ending verbatim with -1.0 when no figure can be read.
+    """
+    try:
+        run = test_panel_seam.run_node(
+            node_or_fail(), script, label="the quick driver", run_timeout=run_timeout
+        )
+    except pytest.fail.Exception as failure:
+        text = str(failure)
+        figure = STARTUP_FIGURE.search(text)
+        if figure is None or "timed out in its run phase" not in text:
+            return -1.0, text
+        return float(figure.group(1)), RUN_PHASE_TIMEOUT
+    clean = (
+        run.returncode == 0
+        and run.stdout == "quick-1329"
+        and test_panel_seam.NODE_START_MARKER not in run.stderr
+    )
+    return run.startup_seconds, CLEAN_RUN if clean else repr(run)
 
 
 def diagnosis(
@@ -216,17 +286,27 @@ def test_a_driver_that_hangs_after_the_marker_is_read_as_a_hang(
     assert_run_phase_diagnosis(text)
 
 
-def test_a_timeout_quotes_what_the_driver_had_already_written(tmp_path: Path) -> None:
-    script = tmp_path / "writes_then_spins.cjs"
-    script.write_bytes(
-        b'var fs = require("node:fs");\n'
-        b'fs.writeSync(1, "partial-out-1329");\n'
-        b'fs.writeSync(2, "partial-err-1329");\n'
-        b"for (;;) {}\n"
+def test_a_timeout_quotes_what_node_had_already_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A squeezed run limit quotes the output node wrote before it.
+
+    The writes land AHEAD of the marker, so the run phase always finds them
+    in the pipe, however slow the runner is.
+    """
+    plant_slow_start(
+        tmp_path,
+        monkeypatch,
+        0,
+        writes='var fs = require("node:fs");\n'
+        'fs.writeSync(1, "partial-out-1329");\n'
+        'fs.writeSync(2, "partial-err-1329\\n");\n',
     )
+    script = tmp_path / "spins.cjs"
+    script.write_bytes(b"for (;;) {}\n")
     with pytest.raises(pytest.fail.Exception) as caught:
         test_panel_seam.run_node(
-            node_or_fail(), script, label="the spinning driver", run_timeout=QUICK_RUN_LIMIT
+            node_or_fail(), script, label="the spinning driver", run_timeout=SQUEEZED
         )
     text = str(caught.value)
     assert "start marker arrived: yes" in text, text
@@ -238,31 +318,74 @@ def test_a_timeout_quotes_what_the_driver_had_already_written(tmp_path: Path) ->
 def test_node_start_up_is_never_charged_to_the_run_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A start-up longer than the run limit, then a quick driver: it passes.
+    """A start-up longer than the run limit is never what fails the run.
 
-    The slow start is a preload node runs BEFORE the marker's, through
-    NODE_OPTIONS, which is where a cold start's time sits too. Under one
-    budget spanning the whole process - the pre-CS-1329 shape - the same run
-    is a timeout.
+    Under one budget spanning the whole process - the pre-CS-1329 shape - this
+    is always a timeout, because the planted start-up alone outlasts the run
+    limit. Now there are two correct outcomes and the arm accepts both, so a
+    slow runner cannot fail it: the run passes, or a slow runner overruns the
+    run limit AFTER the marker. Either way the start-up is reported apart, at
+    no less than the planted spin.
     """
-    slow = tmp_path / "slow_start.cjs"
-    slow.write_bytes(
-        f"var until = Date.now() + {SLOW_START_MS};\nwhile (Date.now() < until) {{}}\n".encode(
-            "ascii"
+    plant_slow_start(tmp_path, monkeypatch, SLOW_START_MS)
+    startup, ending = startup_reading(quick_driver(tmp_path), QUICK_RUN_LIMIT)
+    assert ending in (CLEAN_RUN, RUN_PHASE_TIMEOUT), ending
+    assert startup >= SLOW_START_MS / 1000 - 0.05, (startup, ending)
+
+
+# ---------------------------------------------------------------------------
+# c2. A pass still says how long node took to start, past the slow-start line
+# ---------------------------------------------------------------------------
+
+
+def test_a_pass_whose_start_up_reached_the_slow_line_leaves_a_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A slow start that passes is the red's own precursor, so it is visible."""
+    monkeypatch.setattr(
+        test_panel_seam, "NODE_SLOW_START_SECONDS", PROBE_LINE_SECONDS, raising=False
+    )
+    plant_slow_start(tmp_path, monkeypatch, PROBE_START_MS)
+    with pytest.warns(UserWarning, match=STARTUP_READING) as seen:
+        run = test_panel_seam.run_node(
+            node_or_fail(), quick_driver(tmp_path), label="the quick driver", run_timeout=RUN_LIMIT
         )
-    )
-    script = tmp_path / "quick.cjs"
-    script.write_bytes(b'process.stdout.write("quick-1329");\n')
-    monkeypatch.setenv("NODE_OPTIONS", f'--require "{slow.as_posix()}"')
-    run = test_panel_seam.run_node(
-        node_or_fail(), script, label="the quick driver", run_timeout=QUICK_RUN_LIMIT
-    )
     assert run.returncode == 0, run.stderr
-    assert run.stdout == "quick-1329", run.stdout
-    assert run.startup_seconds >= SLOW_START_MS / 1000 - 0.05, run.startup_seconds
-    assert run.run_seconds < QUICK_RUN_LIMIT, run.run_seconds
-    assert run.startup_seconds + run.run_seconds > QUICK_RUN_LIMIT
-    assert test_panel_seam.NODE_START_MARKER not in run.stderr, run.stderr
+    readings = [str(w.message) for w in seen if STARTUP_READING.search(str(w.message))]
+    assert len(readings) == 1, readings
+    assert "past the" in readings[0], readings
+
+
+def test_a_pass_under_the_slow_line_leaves_no_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        test_panel_seam, "NODE_SLOW_START_SECONDS", UNREACHABLE_LINE_SECONDS, raising=False
+    )
+    with warnings.catch_warnings(record=True) as seen:
+        warnings.simplefilter("always")
+        run = test_panel_seam.run_node(
+            node_or_fail(), quick_driver(tmp_path), label="the quick driver", run_timeout=RUN_LIMIT
+        )
+    assert run.returncode == 0, run.stderr
+    assert not [w for w in seen if STARTUP_READING.search(str(w.message))]
+
+
+def test_the_spawn_that_failed_reports_its_start_up_on_every_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The tier2 red's own spawn reports its start-up even under the line.
+
+    So a green log carries the reading CS-1329 closes on.
+    """
+    monkeypatch.setattr(
+        test_panel_seam, "NODE_SLOW_START_SECONDS", UNREACHABLE_LINE_SECONDS, raising=False
+    )
+    with pytest.warns(UserWarning, match=STARTUP_READING) as seen:
+        test_panel_solve.test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface(tmp_path)
+    readings = [str(w.message) for w in seen if STARTUP_READING.search(str(w.message))]
+    assert len(readings) == 1, readings
+    assert "under the" in readings[0], readings
 
 
 # ---------------------------------------------------------------------------

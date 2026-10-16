@@ -39,6 +39,7 @@ import shutil
 import subprocess
 import threading
 import time
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Final
@@ -107,6 +108,13 @@ NODE_START_TIMEOUT_SECONDS: Final = 120.0
 
 #: The one stderr line the preload writes when node reaches user code.
 NODE_START_MARKER: Final = "clockspeed-node-start"
+
+#: A PASS whose start-up reached this many seconds still leaves a warning line
+#: in the log, because a slow start that passes is the red's own precursor. The
+#: tier2 spawn that failed read 6.31 s and then 19.40 s before it timed out; the
+#: slowest other spawn in that job, 9.73 s; a warm local start, under 0.1 s. The
+#: line sits above every passing reading and below the one before the red.
+NODE_SLOW_START_SECONDS: Final = 15.0
 
 #: The panel id the harness plants a throwing mount under.
 PLANTED_ID: Final = "planted-thrower"
@@ -441,6 +449,10 @@ _PARTIAL_CHARS: Final = 2000
 _REAP_SECONDS: Final = 10.0
 
 
+class NodeStartupWarning(UserWarning):
+    """A passing node run's start-up reading, left in the log on purpose."""
+
+
 @dataclass(frozen=True)
 class NodeRun:
     """One finished node run: its exit, its output, and each phase's seconds."""
@@ -535,7 +547,14 @@ def _diagnosis(
     )
 
 
-def run_node(node: str, script: Path, *args: str, label: str, run_timeout: float) -> NodeRun:
+def run_node(
+    node: str,
+    script: Path,
+    *args: str,
+    label: str,
+    run_timeout: float,
+    report_startup: bool = False,
+) -> NodeRun:
     """Run one node driver in two separately budgeted phases.
 
     START runs from the spawn to the start marker a preload writes when node
@@ -545,12 +564,17 @@ def run_node(node: str, script: Path, *args: str, label: str, run_timeout: float
     phase fails with :func:`_diagnosis` rather than a bare ``TimeoutExpired``,
     so the next reading tells node's cold start from a driver that hung.
 
+    A run that PASSES warns :class:`NodeStartupWarning` with its start-up
+    seconds when they reached :data:`NODE_SLOW_START_SECONDS`, or always when
+    ``report_startup`` is set, so a green log still carries the reading.
+
     Args:
         node: The interpreter, as the caller resolved it off PATH.
         script: The driver. The preload is written beside it.
         *args: The driver's own arguments.
         label: Names the driver in a failure, e.g. "the seam harness".
         run_timeout: The site's run limit, in seconds.
+        report_startup: Warn the start-up reading even under the slow line.
 
     Returns:
         The exit code, the output (the marker line removed) and both phases.
@@ -618,11 +642,22 @@ def run_node(node: str, script: Path, *args: str, label: str, run_timeout: float
             f"{label} exited 0 without the start marker, so the preload that "
             f"writes it never ran: {pipes.stderr.strip()!r}"
         )
+    startup = run_from - started
+    if marker_at is not None and (report_startup or startup >= NODE_SLOW_START_SECONDS):
+        side = "past" if startup >= NODE_SLOW_START_SECONDS else "under"
+        warnings.warn(
+            NodeStartupWarning(
+                f"{label} reached its start marker in {startup:.2f} s, {side} the "
+                f"{NODE_SLOW_START_SECONDS:g} s slow-start line; its run took "
+                f"{ended - run_from:.2f} s"
+            ),
+            stacklevel=2,
+        )
     return NodeRun(
         returncode=process.returncode,
         stdout=pipes.stdout,
         stderr=pipes.stderr,
-        startup_seconds=run_from - started,
+        startup_seconds=startup,
         run_seconds=ended - run_from,
     )
 

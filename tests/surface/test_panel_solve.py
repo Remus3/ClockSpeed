@@ -780,7 +780,7 @@ drive().then(
 """
 
 
-def drive(
+def drive(  # noqa: PLR0913 - one keyword per thing a driving arm varies
     tmp_path: Path,
     data: Mapping[str, Any],
     *,
@@ -790,6 +790,7 @@ def drive(
     steps: Sequence[Mapping[str, Any]] = (),
     extra_panels: Sequence[str] = (),
     web_dir: Path | None = None,
+    report_startup: bool = False,
 ) -> Mapping[str, Any]:
     """Mount ``panel_solve.js`` with a recording door and drive the given steps.
 
@@ -820,6 +821,8 @@ def drive(
             under test, so a registration ORDER has more than one member.
         web_dir: A copy of the web directory to load ``app.js`` from. Used to
             plant a defect back into the SEAM rather than into a panel.
+        report_startup: Leave node's start-up reading in the log even on a
+            fast pass (CS-1329), as :func:`panel_harness.run_node` describes.
 
     Returns:
         The report described on :func:`panel_harness.run`, plus ``solve_calls``
@@ -872,6 +875,7 @@ def drive(
         str(request),
         label=f"the solve driver mounting {target.name}",
         run_timeout=NODE_TIMEOUT_SECONDS,
+        report_startup=report_startup,
     )
     if completed.returncode != 0:
         pytest.fail(
@@ -1111,7 +1115,9 @@ def test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface(tmp_path: P
     is MEASURED against the shared harness's pinned lists rather than asserted
     in prose.
     """
-    report = drive(tmp_path, panel_harness.null_payload(), door=DOOR_NONE)
+    # The module's first node spawn, which a tier2 run saw time out at 60 s
+    # (CS-1329): it reports its start-up on every pass, so a green log does too.
+    report = drive(tmp_path, panel_harness.null_payload(), door=DOOR_NONE, report_startup=True)
     surface = report["standin_surface"]
     assert tuple(surface["node"]) == panel_harness.STANDIN_NODE_SURFACE, surface["node"]
     assert tuple(surface["document"]) == panel_harness.STANDIN_DOCUMENT_SURFACE, surface["document"]
