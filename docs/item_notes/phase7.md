@@ -2037,7 +2037,9 @@ pointers in CS-700's section and the hand-off cover that. COMMON-MODE RISK: ever
 the window signal CLOSED (the adjudicator read HEAD 74d895d itself). RESIDUAL: addition (a) must
 land before session 143's new step a, or it slides to after S12a; the hand-off is one of the files
 it scrubs. Reversed by: step b landing before the /done commits (the window OPEN - commit
-nothing), or a MAIN note withdrawing the ORDER.
+nothing), or a MAIN note withdrawing the ORDER. AS IT FELL OUT: the responder's own tenth run on
+the note acknowledged it by its key alone at 22:27 (the watcher's invocation log), before the
+/done's records commit; the /done's own key-only ack then found nothing unread and stored nothing.
 
 Next action: in session 143, before the new CS-700 step a, a distinct adjudicator sequences
 addition (a) against THE STEP-B GATE (a scrub commit and its push are a further tier1 reading);

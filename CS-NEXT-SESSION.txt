@@ -9,8 +9,9 @@ SESSION: 143
 THE SINGLE NEXT ACTION
 ================================================================================
 
-THIS FILE IS THE SESSION 142 /done RECORDS COMMIT, on top of 74d895d (HEAD == origin/main by full
-SHA at its write, tree clean; the CS-700 window signal CLOSED - 74d895d touches no citation set
+THIS FILE IS THE SESSION 142 /done RECORDS, in two commits on top of 74d895d - the records commit
+c62c47f and its ack-correction commit (HEAD) - (74d895d == origin/main by full SHA at the write,
+tree clean; the CS-700 window signal CLOSED - 74d895d touches no citation set
 file, and neither does this commit). Push of this commit pending at write time; push result and CI
 UNREAD - the next session's first act reads the remote ref against this HEAD and the CI run. THIS
 PUSH'S TIER1 IS THE STEP-B GATE'S READING 2 OF 2 after the session 142 mypy-gate move (reading 1,
@@ -87,11 +88,13 @@ SESSION 142 AFTER STEP a:
   to MAIN's tracked, unmodified outbox copy (read by this /done) - the operator's instruction under
   FLEET 6. FILED AS CS-1328 (ROADMAP Phase 7; its phase7.md section holds the ORDER whole in tighter
   form, its Acceptance and the /done adjudicator's disposition; CS-700's section points at it).
-  ACKNOWLEDGED BY ITS KEY ALONE (`python tools/inbox_watch.py --keys`, then `--ack-keys` on a file
-  outside the tree, never the acknowledge-everything flag) by this /done right after this commit,
-  before its push - the unattended responder had re-fired a headless opus run on it on every tick,
-  ten by 22:27, against the tree's 120-run cap. If the next listing shows it unread, that ack did
-  not land: acknowledge it by its key then. ITS RULES FOR THE BLOCK: (0) NO commit for it inside
+  ACKNOWLEDGED BY ITS KEY ALONE BY THE RESPONDER ITSELF: its tenth headless opus run on it, the
+  22:26 tick, used the watcher's ack-keys mode at 22:27:22 (the watcher's invocation log; the
+  /done read it unread at 22:12 and 0 unread at 22:36) - after ten runs, one per tick since 20:12,
+  against the tree's 120-run cap. The /done adjudicator's key-only ack then found nothing unread
+  and stored nothing. If a listing shows it unread again, acknowledge it by its key alone
+  (`python tools/inbox_watch.py --keys`, then `--ack-keys` on a file outside the tree, never the
+  acknowledge-everything flag). ITS RULES FOR THE BLOCK: (0) NO commit for it inside
   the S7a..S12 window; its LEDGER record rides the closing ledger commit after S12a and its ONE
   ANSWER is sent after S12a (no reply before). (a) THE HEAD PATH SCRUB (about 44 lines naming this
   tree's absolute install root in both drive spellings and the sidecars root - this hand-off among
@@ -437,8 +440,8 @@ INBOX_STOP: ABSENT at this file's write. Session 142 wrote it at its step a, rig
   regeneration commit); the RECOVERY RULE removes it, and so does a session that does not run the
   block. The unattended responder (scheduled task CS-InboxResponder) read state "idle", task
   "Idle", updated 22:27 on 2026-10-15 (read by the session 142 /done); runs_in_window 10 of its
-  120 cap, all ten its re-fires on the MAIN PUBREPO ORDER (THE CS-1328 ORDER above), which this /done
-  acknowledges by key. With INBOX_STOP present it reads "halted". WHEN LIVE IT COMMITS AND PUSHES ON main:
+  120 cap, all ten its re-fires on the MAIN PUBREPO ORDER (THE CS-1328 ORDER above), which its
+  tenth run acknowledged by key. With INBOX_STOP present it reads "halted". WHEN LIVE IT COMMITS AND PUSHES ON main:
   read inbox_status.json and its progress files before any commit, never touch its worktree or
   process.
 IF THE RESPONDER REFUSES, CHECK THE PROXY LISTENER BEFORE THE RESPONDER (session 132 trap).
@@ -713,8 +716,9 @@ PASSED      THE STEP-B GATE's reading 1 of 2 again, at 74d895d (tier1 3884139119
 TOLD        the operator, on their request to "run flip steps S9 to S12": not runnable before b to
             e; the own-words line is asked only at step e; their message was NOT that confirmation.
 ARRIVED     MAIN's 2026-10-15-1925 PUBREPO ORDER (CS-700 pre-flip additions), sha256-equal to
-            MAIN's outbox copy; the responder re-fired on it every tick; the /done filed it as
-            CS-1328 on a distinct adjudicator's ruling and acknowledges it by key.
+            MAIN's outbox copy; the responder re-fired on it every tick until its tenth run
+            acknowledged it by key (22:27); the /done filed it as CS-1328 on a distinct
+            adjudicator's ruling.
 CHANNEL     session 142 sent no note.
 /done       the session 142 /done: records only (two LEDGER records, WAKEUP_NOTES.md, ROADMAP.md
             CS-1328, phase7.md CS-1317's next action, CS-700's pointer and CS-1328's section, the
@@ -1131,7 +1135,8 @@ SESSION 142:
 CS-1328 DISPOSITION (the session 142 /done's distinct read-only adjudicator, option A; phase7.md
   CS-1328): MAIN's 2026-10-15-1925 PUBREPO ORDER filed as its own item CS-1328, CS-700's section
   and this file pointing at it; NO LEDGER entry for the ORDER before S12a (its rule 0); no reply;
-  the note acknowledged by its key alone so the responder stops re-firing. Rejected: leaving it
+  the note acknowledged by its key alone so the responder stops re-firing (the responder's own
+  tenth run acknowledged it first, at 22:27). Rejected: leaving it
   unread (about four opus runs an hour against the shared 120-run cap); INBOX_STOP (halts every
   note - FLEET 14); folding it into CS-700 (CS-700 closes at S12a, the ORDER's tag, read-backs and
   answer come after). Runner-up: the fold (the flip runner reads CS-700's text; the pointers cover
@@ -1781,7 +1786,8 @@ OUTBOUND COUNT: 2026-10-12: 1 of 6 (the 1519 answer); 2026-10-13: 1 of 6 (the 14
 SENDING FROM E:: a note to MAIN needs `--channel-root C:/` (TRAPS).
 INBOX at session 142 step a: 0 UNREAD of 538. Read by the session 142 /done: 1 UNREAD of 540 -
   MAIN's 2026-10-15-1925 PUBREPO ORDER (THE CS-1328 ORDER above; sha256-equal to MAIN's tracked
-  outbox copy), acknowledged by its key alone by this /done after its commit; NO REPLY until after
+  outbox copy), acknowledged by its key alone by the responder's tenth run at 22:27 (0 unread
+  read by the /done at 22:36); NO REPLY until after
   S12a (the ORDER's rule 0 and section 4 - ONE ANSWER then). The other new item, an SS ANSWER addressed to
   MAIN (2026-10-15-1941), is not listed unread. Session 142 sent no note; session 141 sent one,
   the 1840 FIX above.
@@ -1804,9 +1810,9 @@ TRAPS PAID FOR (carried, plus sessions 137 to 142)
 ================================================================================
 
 AN UNREAD ORDER THE WORKER CANNOT ACT ON RE-FIRES THE RESPONDER EVERY TICK (session 142 /done):
-  MAIN's PUBREPO ORDER defers its own answer to after S12a, so each headless opus run left it
+  MAIN's PUBREPO ORDER defers its own answer to after S12a, so nine headless opus runs left it
   unread and the next tick spawned again - ten runs in under two and a half hours against the
-  120-run cap. File such an ORDER as an item and acknowledge it by its key alone (`--keys`, then
+  120-run cap, the tenth acknowledging it. File such an ORDER as an item and acknowledge it by its key alone (`--keys`, then
   `--ack-keys`), never with the acknowledge-everything flag, which can swallow a note that arrives
   mid-pass.
 A PASSING PAIR DOES NOT PREDICT THE THIRD GATE RUN (session 142): reading 1 and 2 passed at 47dfea7
@@ -2032,8 +2038,9 @@ WRITTEN       2026-10-15 by the session 142 /done ritual, one sub-agent, in the 
 PUSH          push of this commit pending at write time; push result and CI UNREAD - the next
               session's first act reads the remote ref against this HEAD and the CI run. Its
               pre-push suite is the ritual's one gated whole suite, and its tier1 is THE STEP-B
-              GATE's reading 2 of 2. It carries this ritual's commit alone, on top of origin/main
-              74d895d.
+              GATE's reading 2 of 2. It carries this ritual's two commits - the records commit
+              c62c47f and the ack correction (the responder, not the /done, acknowledged the ORDER;
+              both before the push) - on top of origin/main 74d895d.
 STEP 0        WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0, two SHAs (not a
               merge; HEAD 74d895d over 960b64d); `git diff-tree --root --no-commit-id --name-only
               -r HEAD` exit 0, listing .github/workflows/tier1.yml, .github/workflows/tier2.yml and
@@ -2094,6 +2101,10 @@ STEP 5        `python tools/drift_guard.py` exit 0 (guards 11, PASS 11, WARN 0, 
               tests/test_chained_cause_census.py, tests/surface/test_acceptance.py,
               tests/surface/test_contract.py, tests/ops/test_lane_scope.py and
               tests/test_tier1_budget.py: exit 0 - 3215 passed, 0 failed, 0 skipped (6 warnings).
+              After the ack correction, drift_guard, sha_citation_gate and doc_budget exit 0 again,
+              and tests/test_citation_tables.py, tests/test_docs_citations.py,
+              tests/test_bare_path_citations.py, tests/test_done_ritual_arms.py and
+              tests/data/test_item_notes_index.py in ONE run: exit 0 - 796 passed.
 STEP 6        this file, whole: SESSION 143, THE FIRST ACT (reading 2), THE CS-1328 ORDER, every
               carried item.
 UNVERIFIED    the session 142 agents' verdicts and counts (the adversaries, graders, builders and
