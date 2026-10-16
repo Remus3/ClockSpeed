@@ -2064,7 +2064,10 @@ preload's start marker, has its own budget and is never charged to a site's run 
 site's 60 s run limit is unchanged; a timeout in either phase fails naming the elapsed seconds,
 whether the marker arrived, and the partial stdout and stderr; a pass whose start-up reaches the
 15 s slow-start line, and the failed spawn on every pass, leaves a NodeStartupWarning line with
-its start-up seconds - as `tests/surface/test_cs1329_driver_timeout.py` pins. It closes only when
+its start-up seconds - as `tests/surface/test_cs1329_driver_timeout.py` pins. The separation is
+pinned by `test_node_start_up_is_never_charged_to_the_run_limit`, which fails a run deadline
+counted from the spawn rather than from the marker. The 15 s line is PROVISIONAL, picked from
+whole-spawn times: it is recalibrated from the first tier2 start-up readings. It closes only when
 a tier2 dispatch at or after the landing commit is green on attempt 1 AND that green log shows
 the reported start-up seconds for the spawn that failed
 (`test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface`).

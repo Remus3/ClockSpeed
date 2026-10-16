@@ -95,6 +95,19 @@ slow start left no line; two arms depended on runner speed. Reworked in "CS-1329
 speed-free arms, provenance row", "CS-1329 - records: route A re-ruled, residual, closing reading"
 and "CS-1329 - read the failure's msg field, not the object". The CS-1328 ledger record still waits
 for the closing ledger commit after S12a (its rule 0); this record is not it.
+SECOND REFUTATION: a fresh session 143 adversary on the combined tip, the candidate "CS-700, CS-1317
+and CS-1329 - records: session 143 one-push sequencing", REFUTED CS-1329 again, on three counts.
+(HIGH) The start-up separation arm, `test_node_start_up_is_never_charged_to_the_run_limit`, did not
+kill a mutant that counts the run deadline from the spawn. (MEDIUM) The seven site arms that squeezed
+the run limit to 0.001 s failed under a 50 ms or a 200 ms main-thread wake-up delay. (LOW) The 15 s
+slow-start line was justified with whole-spawn times, not start-up readings. All three are fixed in
+"CS-1329 - arms that no runner speed can fail, mutant pinned": the mutant is now killed and the delay
+probes pass. Read back by the v2 landing builder this run, each probe compiled or patched in memory
+with no tracked file edited: the deadline-from-spawn mutant now fails the separation arm (start-up
+3.52 s, run 0.00 s, a run-phase timeout) where the arm in the combined tip passed it; under a 200 ms
+delay the combined tip's seven site arms fail (DID NOT RAISE) and the new seven pass, as they also
+do under 50 ms. The LOW fix is the `NODE_SLOW_START_SECONDS` comment in `tests/surface/test_panel_seam.py`:
+the 15 s line is PROVISIONAL, recalibrated from the first tier2 start-up readings.
 Reversed by: a tier1 miss at the pushed tip.
 
 ### 2026-10-16 - CS-1329 - DECISION RECORD (route B: a test-harness defect). NOT A COMPLETION RECORD. CS-1329 STAYS OPEN until a tier2 dispatch is green on attempt 1
@@ -103,8 +116,12 @@ fast shard; `tests/surface/test_cs1329_driver_timeout.py`; `tests/surface/test_p
 the CS-1329 section of `docs/item_notes/phase7.md`. Adjudicated by a distinct agent that produced
 none of the work; recorded by the CS-1329 builder.
 RED: `tests/surface/test_panel_solve.py::test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface`,
-the module's first node spawn, died of a bare subprocess TimeoutExpired at 60 s; that spawn's time
-in the job grew 6.31 s, 19.40 s, then over 60 s. The driver is deterministic and holds no timer.
+the module's first node spawn, died of a bare subprocess TimeoutExpired at 60 s; that spawn's
+WHOLE-SPAWN time (start-up and run together - no start-up reading existed before this split) in the
+job grew 6.31 s, 19.40 s, then over 60 s, and the slowest other spawn in that job took 9.73 s whole.
+Those figures bound start-up from above and say nothing of its share, so the 15 s slow-start line
+below is PROVISIONAL, to be recalibrated from the first tier2 start-up readings. The driver is
+deterministic and holds no timer.
 DECISION: route B - the harness is the defect. One bare 60 s budget charged node's start-up and the
 driver's run together, and its failure could not tell a cold start from a hang. FIX: the seven node
 spawn sites in six `tests/surface/` files run through one helper; a preload writes a start marker
