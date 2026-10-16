@@ -547,30 +547,30 @@ BRANCHES - KEEP, DO NOT PRUNE; CLASSIFY UNDER CS-1291 PART 7 (consumer check, cl
   LANDED IN SESSION 138 (all by cherry-pick):
   s138-land - the session 138 first landing branch (pushed 5b22e08..923e30f), tip subject
     "Session 138 - CS-1312 record: fixes 3 and 4 and their verifiers"; worktree
-    E:\Sidecars\CS\Worktree\s138-land.
+    <sidecars>\CS\Worktree\s138-land (<sidecars>: SIDECARS below).
   s138-cs1285cd - CS-1285 slices C and D as landed, tip subject "CS-1285 - fix 2: fuel cards
-    state the built generator count"; worktree E:\Sidecars\CS\Worktree\s138-cs1285cd.
+    state the built generator count"; worktree <sidecars>\CS\Worktree\s138-cs1285cd.
   s138-cs1288 - CS-1288 slice C as landed, tip subject "CS-1288 - fix 1: off-pin arms run on
-    both sides of the pin"; worktree E:\Sidecars\CS\Worktree\s138-cs1288.
+    both sides of the pin"; worktree <sidecars>\CS\Worktree\s138-cs1288.
   s138-docs, s138-docs2, s138-docs3, s138-docs4 - the session 138 record branches, tip subjects
     "Session 138 - close CS-1312, CS-1285 slices C and D, file CS-1315", "Session 138 - close
     CS-1288, file CS-1316", "Session 138 - CS-1312 record: fixes 3 and 4 and their verifiers"
     and "Session 138 - batch 2 record states the regression diffs exactly"; worktrees under
-    E:\Sidecars\CS\Worktree of the same names.
+    <sidecars>\CS\Worktree of the same names.
   s138-cs1312, s138-cs1285c, s138-cs1285d, s138-cs1288c0, s138-cs1288c13, s138-cs1288c4,
     s138-s0, s138-s1 (its worktree LOCKED), s138-s2 and s138-s3 - the session 138 builder
     branches, each in its agent worktree under .claude/worktrees (find each with `git worktree
     list`). Several session 138 agent worktrees also left a worktree-agent-* branch at an older
     base commit, holding no content of its own; classify by content.
   LANDED IN SESSION 137 (all by cherry-pick):
-  s137-land - the session 137 landing branch, worktree under E:\Sidecars\CS\Worktree\s137-land.
+  s137-land - the session 137 landing branch, worktree under <sidecars>\CS\Worktree\s137-land.
   s137-cs1308 - the first CS-1308 candidate, SUPERSEDED by s137-cs1308b; worktree
-    E:\Sidecars\CS\Worktree\s137-cs1308.
+    <sidecars>\CS\Worktree\s137-cs1308.
   s137-cs1308b - CS-1308 as landed, tip subject "CS-1308 - the separator token cannot
-    backtrack exponentially"; worktree E:\Sidecars\CS\Worktree\s137-cs1308b.
+    backtrack exponentially"; worktree <sidecars>\CS\Worktree\s137-cs1308b.
   s137-cs1285b - CS-1285 slice B v2 as landed, tip subject "CS-1285 - slice B v2: the float
-    scan flags int division and truediv"; worktree E:\Sidecars\CS\Worktree\s137-cs1285b.
-  s137-cs1311 - an UNUSED worktree (E:\Sidecars\CS\Worktree\s137-cs1311): its builder stopped
+    scan flags int division and truediv"; worktree <sidecars>\CS\Worktree\s137-cs1285b.
+  s137-cs1311 - an UNUSED worktree (<sidecars>\CS\Worktree\s137-cs1311): its builder stopped
     at the precondition; the branch holds no commit of its own (tip subject "CS-1309 -
     provenance rows for the two new test modules").
   s136-savefallback - CS-1309, tip subject "CS-1309 - pin the whole-copy scrub in the
@@ -601,7 +601,7 @@ WORKTREES       `git worktree list` 88 lines and `git for-each-ref refs/heads` 3
                 the session 142 /done; 87 and 371 at its step a, 84 and 367 at the session 141
                 /done). Besides main and the
                 branches above: cs-g06 at
-                E:\Sidecars\CS\Worktree\cs-g06 (REVIEW, one unique commit); builder worktrees
+                <sidecars>\CS\Worktree\cs-g06 (REVIEW, one unique commit); builder worktrees
                 whose content LANDED on main by cherry-pick (sessions 133-139); the superseded
                 CS-1289 v12 worktree; two CS-1231 REVIEW worktrees; four older REVIEW worktrees
                 holding uncommitted content. PRUNE ONLY under CS-1291 part 7.
@@ -629,7 +629,9 @@ WORK DIR        the gitignored work/ (1255 entries, read by the session 140 /don
                 not hold. SESSION 141 ADDED the step c walk-red diagnosis there (a markdown file
                 named for session 141's walk-suite red; reference only - the LEDGER record owns
                 its findings).
-SIDECARS        E:\Sidecars\CS holds Scratch\cs-flip-backup (the CS-700 OUT root, ADR 0026 as
+SIDECARS        <sidecars> is the fleet sidecar root on E: (MAIN's 2026-10-08 sidecar move;
+                CS-1328's HEAD path scrub writes it so, as ADR 0026 does).
+                <sidecars>\CS holds Scratch\cs-flip-backup (the CS-700 OUT root, ADR 0026 as
                 amended by CS-1293), Scratch\Clockspeed_scratch_cs1286, Walk\cs-walk-131,
                 Worktree (cs-g06, the five s137-* and the seven s138-* worktrees) and Temp, read
                 present by the session 138 /done. SESSION 140 ADDED (read present by name):
@@ -646,7 +648,7 @@ SIDECARS        E:\Sidecars\CS holds Scratch\cs-flip-backup (the CS-700 OUT root
                 SESSION 143 RESTART uses NEW folders: an OUT folder named for it, e.g.
                 Scratch\cs-flip-backup\cs700-s143 (created at its step d), and a new walk folder
                 under Walk\ (created at its step c). Any later removal of the stale ones: Recycle Bin.
-SANDBOX HARNESS E:\Sidecars\CS\Walk\cs-walk-141 (OUTSIDE the repo; the newest, set up from
+SANDBOX HARNESS <sidecars>\CS\Walk\cs-walk-141 (OUTSIDE the repo; the newest, set up from
                 cs-walk-140): send.ps1 (host side command channel), walk.wsb, ro\, chan\,
                 WALKER_PROMPT.txt and walk-log.md (the session 141 walk at 28b1cba, NOT PASSED,
                 clause 7). cs-walk-140 holds the session 140 walk at b12396c (NOT PASSED, D2);
@@ -1027,7 +1029,7 @@ BEFORE a: THE CS-G03 ESCALATION HAS FIRED (session 134 /done, LEDGER CS-G03 reco
       different verifier), S8 (a verifier that did not run S7a; flip_checks.py --stage s8
       with the trailer baseline), S8a (freeze_witness, an adjudicator that did none of the
       work, ruling into OUT\note.md only - no commit). OUT = a NEW folder under
-      E:\Sidecars\CS\Scratch\cs-flip-backup, named for the restarting session, e.g.
+      <sidecars>\CS\Scratch\cs-flip-backup, named for the restarting session, e.g.
       cs700-s142\ (outside the tree; cs700-s140 and cs700-s141 are STALE, evidence only). Q4: "local main" for S8/S8a/S10-S12 is main IN THE
       S7a CLONE; the late-commit check is that the main tree's main still equals the S7a
       baseline SHA.
@@ -1673,7 +1675,7 @@ ADVERSARY LOOPS STOPPED BY COST AGAINST RISK (session 131) on CS-1264, CS-1265, 
   Reversed by: a residual reachable from a library save, a live note name, or a started
   lane.
 CS-1275 MOVED WITHOUT MAIN'S RUNBOOK (session 130) on the operator's own words "do the move
-  to E:"; junction at C:. The flip backup root now lives at E:\Sidecars\CS\Scratch\
+  to E:"; junction at C:. The flip backup root now lives at <sidecars>\CS\Scratch\
   cs-flip-backup (ADR 0026 as amended, CS-1293). Reversed by: the operator's own words.
 FLEET-KIT v9 (129) -> v10 (CS-1282) -> v11 (CS-1287) -> v13 folding v12 (CS-1290) -> v14
   (CS-1299) -> v15 (CS-1303) -> v17 carrying v16 (CS-1310), each superseding the last.

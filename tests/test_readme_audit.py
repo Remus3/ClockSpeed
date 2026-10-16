@@ -1028,43 +1028,14 @@ def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:
 #: in ``docs/LEDGER.md`` gives each line's reason. Per path, the SHA-256 of the full text,
 #: newline stripped, of every line that spells the checkout root - the text fixes how
 #: many spellings the line holds. An added, changed, moved or doubled spelling changes the
-#: multiset; an edit that only shifts line numbers does not. The root is the operator's
-#: chosen location, not personal data: these lines state it where the topology
-#: (``CLAUDE.md`` section 2, ``BOOTSTRAP.md`` section 2), a settled entry (``CLAUDE.md``
-#: section 7, ``BOOTSTRAP.md`` section 11) or the move's own record (ADR 0026) must, and
-#: anywhere else a spelling is written ``<repo>`` in CS-1292's style. This file's own
+#: multiset; an edit that only shifts line numbers does not. CS-1328 (MAIN's 2026-10-15
+#: PUBREPO ORDER, addition a: the HEAD absolute-path count 0 outside an explicit
+#: allowlist) scrubbed the topology, settled-entry and ADR 0026 lines CS-1308 had kept,
+#: so every doc now writes the root ``<repo>`` in CS-1292's style. Only this file's own
 #: pattern lines - the comment above the pattern, the mutation arm's cases and the planted
-#: spellings - are kept the same way, line by line; the file itself is never exempt. A
-#: digest that moves is a reviewed change to this table.
+#: spellings - are kept, line by line; the file itself is never exempt. A digest that
+#: moves is a reviewed change to this table.
 KEPT_CHECKOUT_LINES: Final[dict[str, tuple[str, ...]]] = {
-    "BOOTSTRAP.md": (
-        # section 2, the project-root row
-        "653272d5dc9af6e07a1f4fa63c1b4bfe773dd3a6b98c181b3a03267711edfc8f",
-        # section 11, the settled entry
-        "bfc227c2eae7f1069667af8c8fef47ac0ba4ef324e178667614c68ae60626f04",
-    ),
-    "CLAUDE.md": (
-        # section 2, the project-root line
-        "42d5f6fc7e66bb738c3166f9f03e47f132628b5c39d61f9a5651f24d3e04c461",
-        # section 7, the settled entry
-        "19bd7c89374e3465c9eda1818a13682aeac972fc4ea549e97356a9ecc2df8481",
-    ),
-    "docs/adr/0026-the-root-moves-to-e.md": (
-        # the old root and its reversal clause
-        "0cd8b055635bf2706992c7f7f0ce8d125753f15723528d6870fa7639ca7cf898",
-        # decision 1, the root
-        "3c8dd2d49dcd4efb65532581dadf559f248cb953653f57b0fa228358de8358f1",
-        # the copy of the whole root
-        "a5f62a17c27c29afb62136200cd9c7876d208ea1e27ba9436d56effd9df4a744",
-        # the old root held as a working directory
-        "0ce9f2ed438915a402c460efbd806474a42f9a4a79428e21a93708af92322a16",
-        # the old root recycled, the junction from it
-        "abbe0f35037dbe1c1d3062ec0c10b5d4bd8ba9183731676b1f267d3221f5eb35",
-        # the junction's target
-        "8de51609b17b8d3424d990775a134e49fec3f061cc334c5e311aca929697a338",
-        # where the lanes now land
-        "526845ad38b6d39ef3b5d9c041a872dfa07207816fea80f793880b4af2061bc5",
-    ),
     "tests/test_readme_audit.py": (
         # in file order: the pattern comment above ABSOLUTE_CHECKOUT_RE, every case of
         # the mutation arm that spells the root, then _PLANTED and _PLANTED_WSL
@@ -1375,18 +1346,17 @@ def test_no_absolute_checkout_path_in_any_tracked_text_file(repo_root: Path) -> 
 
 #: The files a planted tree copies byte for byte from the real one: every file the
 #: ruled kept set touches, so the kept table holds there exactly as it does here.
-_PLANTED_FROM: Final = (
-    "BOOTSTRAP.md",
-    "CLAUDE.md",
-    "docs/adr/0026-the-root-moves-to-e.md",
-    "tests/test_readme_audit.py",
-)
+_PLANTED_FROM: Final = tuple(KEPT_CHECKOUT_LINES)
 
 #: The spelling a planted arm writes - one of the guard's own pattern lines.
 _PLANTED: Final = "D:\\Clockspeed"
 
 #: The WSL form the moved-spelling arm writes - one of the guard's own pattern lines.
 _PLANTED_WSL: Final = "/mnt/d/Clockspeed"
+
+#: The kept file the kept-line arms mutate. CS-1328 left this file's own pattern lines
+#: as the whole kept set, so the arms that mutated ``CLAUDE.md`` mutate this file.
+_KEPT_FILE: Final = "tests/test_readme_audit.py"
 
 
 def _planted_tree(
@@ -1467,30 +1437,30 @@ def test_the_guard_file_is_scanned_like_any_other(repo_root: Path, tmp_path: Pat
 
 def test_a_second_spelling_on_a_kept_line_fails(repo_root: Path, tmp_path: Path) -> None:
     """F2, mutant ``kept_same_line``: the line count holds, the line's content does not."""
-    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines, index = _kept_lines(repo_root, _KEPT_FILE)
     lines[index] += f" and `{_PLANTED}`"
     data = "\n".join(lines).encode()
-    assert "CLAUDE.md" in _guard_failure(_planted_tree(repo_root, tmp_path, {"CLAUDE.md": data}))
+    assert _KEPT_FILE in _guard_failure(_planted_tree(repo_root, tmp_path, {_KEPT_FILE: data}))
 
 
 def test_a_kept_spelling_moved_to_a_new_line_fails(repo_root: Path, tmp_path: Path) -> None:
     """F2, mutant ``kept_move``: one kept line scrubbed, one new spelling added elsewhere."""
-    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines, index = _kept_lines(repo_root, _KEPT_FILE)
     lines[index] = ABSOLUTE_CHECKOUT_RE.sub("<repo>", lines[index])
     lines.insert(len(lines) - 1, f"See `{_PLANTED_WSL}`.")
     data = "\n".join(lines).encode()
-    assert "CLAUDE.md" in _guard_failure(_planted_tree(repo_root, tmp_path, {"CLAUDE.md": data}))
+    assert _KEPT_FILE in _guard_failure(_planted_tree(repo_root, tmp_path, {_KEPT_FILE: data}))
 
 
 def test_a_line_shift_above_a_kept_line_stays_green(repo_root: Path, tmp_path: Path) -> None:
     """F2's control: an edit and an insertion above a kept line move it, and that is green."""
-    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines, index = _kept_lines(repo_root, _KEPT_FILE)
     assert index > 1, "the control needs a line above the first kept line"
     lines[0] += " (edited)"
     lines.insert(1, "A line inserted above every kept line.")
     data = "\n".join(lines).encode()
     test_no_absolute_checkout_path_in_any_tracked_text_file(
-        _planted_tree(repo_root, tmp_path, {"CLAUDE.md": data})
+        _planted_tree(repo_root, tmp_path, {_KEPT_FILE: data})
     )
 
 
@@ -1544,11 +1514,11 @@ def test_an_unpinned_binary_is_scanned(repo_root: Path, tmp_path: Path) -> None:
 
 def test_a_kept_line_removed_fails_as_missing(repo_root: Path, tmp_path: Path) -> None:
     """Mutant M6: a kept line scrubbed with nothing added elsewhere fails as missing."""
-    lines, index = _kept_lines(repo_root, "CLAUDE.md")
+    lines, index = _kept_lines(repo_root, _KEPT_FILE)
     lines[index] = ABSOLUTE_CHECKOUT_RE.sub("<repo>", lines[index])
     data = "\n".join(lines).encode()
-    message = _guard_failure(_planted_tree(repo_root, tmp_path, {"CLAUDE.md": data}))
-    assert "CLAUDE.md: 0 unexpected, 1 missing" in message
+    message = _guard_failure(_planted_tree(repo_root, tmp_path, {_KEPT_FILE: data}))
+    assert f"{_KEPT_FILE}: 0 unexpected, 1 missing" in message
 
 
 def test_a_nul_inside_the_spelling_does_not_hide_it(repo_root: Path, tmp_path: Path) -> None:

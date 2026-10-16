@@ -55,7 +55,7 @@ data and are deliberately absent here; see section 2.2.
 
 | Fact | Value |
 |---|---|
-| Project root | `E:\Clockspeed` |
+| Project root | `<repo>` on E: (ADR 0026) |
 | Python | 3.14.4. Resolved at runtime, never hardcoded - see 2.2. **Warning: `py -3` is the WRONG interpreter on this machine** (see 2.5) |
 | Node | `C:\Program Files\nodejs\node.exe` (present) |
 | GitHub CLI | `C:\Program Files\GitHub CLI\gh.exe` (present) |
@@ -830,7 +830,7 @@ the clean-checkout probe.
 Each of these was decided deliberately. Recorded here with the fence, not just the
 conclusion, so the argument is not rebuilt from scratch.
 
-- **Name is Clockspeed.** Root is `E:\Clockspeed` (ADR 0026). Not up for renaming.
+- **Name is Clockspeed.** Root is `<repo>` on E: (ADR 0026). Not up for renaming.
 - **Repo is private first, public later.** Hygiene is enforced from the first commit
   anyway (section 17 of `CONVENTIONS.md`). Do not defer the hygiene on the grounds that
   it is private.

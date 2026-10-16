@@ -219,7 +219,7 @@ the game process memory.
 
 ## 2. Paths and topology
 
-**Project root:** `E:\Clockspeed`
+**Project root:** `<repo>` on E:
 
 **Game install: auto-detected.** Never hardcode the install path. `clockspeed/data/locate.py`
 finds it at runtime and `scripts/verify_env.py` asserts the result.
@@ -517,7 +517,7 @@ point.
   "safe" patcher, or writing anything at all into the save directory.
   *Reversed by:* nothing - it is section 3's first non-negotiable, a floor no adjudicator
   and no MAIN note lifts.
-- **Name is Clockspeed, root is `E:\Clockspeed` (ADR 0026).** *Do not re-pitch:* a rename
+- **Name is Clockspeed, root is `<repo>` on E: (ADR 0026).** *Do not re-pitch:* a rename
   or a relocation of the root.
   *Reversed by:* only the operator's own words in the main session (section 6.1 - no
   adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.

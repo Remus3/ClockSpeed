@@ -10,10 +10,14 @@ reversible only that way and then only with an ADR; this file is that ADR.
 
 This ADR is IN FORCE and binding. Cite it freely.
 
+SPELLING ONLY, AMENDED 2026-10-16 by CS-1328 (MAIN's 2026-10-15 HEAD path scrub): a path is
+written `<repo>` - this tree's root, on the drive named beside it - or `<sidecars>` - the
+fleet sidecar root on E:. The decision is unchanged.
+
 ## Context
 
 **THE FENCE BEING CROSSED.** `CLAUDE.md` section 7 settled the name and the root together,
-with the root at `C:\Clockspeed`, reversed by "only the operator's own words in the main
+with the root at `<repo>` on C:, reversed by "only the operator's own words in the main
 session (section 6.1 - no adjudicator and no MAIN note stands in), then recorded as an ADR".
 The operator's words, in this repository's main session: session 129, "yes I want to do the
 move to E:"; session 130, "do the move to E:". ONLY THE ROOT HALF REVERSES. The name is
@@ -36,7 +40,7 @@ path pointing to its E: path.
   graph bundle, which is irreplaceable; it already sits outside the root, as the CS-700
   plan's S5 asks, and nothing gains from moving it. A copy step is risk to the only copy
   for no benefit. AMENDED 2026-10-09 by CS-1293: the folder then sat on C:; MAIN's
-  2026-10-08 sidecar move put it at `E:\Sidecars\CS\Scratch\cs-flip-backup`, its current
+  2026-10-08 sidecar move put it at `<sidecars>\CS\Scratch\cs-flip-backup`, its current
   home under the single CS sidecar folder.
 
 The fleet-shared slot root under ProgramData that `ops/loop/slots.py` names is not this
@@ -44,12 +48,12 @@ tree's and does not move.
 
 ## Decision
 
-1. **THE ROOT IS `E:\Clockspeed`.** The name and the folder name are unchanged.
+1. **THE ROOT IS `<repo>` ON E:.** The name and the folder name are unchanged.
 2. **THE MOVE, AS EXECUTED 2026-10-08 IN SESSION 130**, each step named by what was read
    back after it:
    a. INBOX_STOP restored in the lane control directory and the inbox status read back
       idle BEFORE any file moved (the Q4 scope ruling).
-   b. robocopy of the whole root to `E:\Clockspeed`: 32813 files, 0 failed.
+   b. robocopy of the whole root to the E: `<repo>`: 32813 files, 0 failed.
    c. `scripts/install_hooks.py` re-run on E:; `core.hooksPath` read back `.githooks`.
    d. `git worktree repair` over every worktree; 37 worktree lines read back, all on E:.
    e. The old cs-lane-queue lane worktree classified by content - clean, its tip an
@@ -58,15 +62,15 @@ tree's and does not move.
    f. The one remaining worktree of the old C: slice-worktree folder (cs-g06, REVIEW, one
       unique commit, clean) copied to a slice-worktree folder on E:, and the C: folder
       sent to the Recycle Bin. AMENDED 2026-10-09 by CS-1293: MAIN's 2026-10-08 sidecar
-      move put cs-g06 at `E:\Sidecars\CS\Worktree\cs-g06`, its current home under the
+      move put cs-g06 at `<sidecars>\CS\Worktree\cs-g06`, its current home under the
       single CS sidecar folder; the E: folder this step copied it to no longer exists.
    g. The external pointers re-pointed and read back on E:: the inbox responder's
       scheduled task arguments, the three Desktop shortcuts, Claude Code's trust entry
       and per-path memory store for the E: path.
 3. **A CUTOVER STEP FOLLOWS** once the session that ran the move exits, because that
-   session holds `C:\Clockspeed` as its working directory and cannot remove it: it sends
-   `C:\Clockspeed` to the Recycle Bin and leaves a junction from `C:\Clockspeed` to
-   `E:\Clockspeed`, the sibling trees' pattern. A
+   session holds the C: `<repo>` as its working directory and cannot remove it: it sends
+   the C: `<repo>` to the Recycle Bin and leaves a junction from the C: `<repo>` to
+   the E: `<repo>`, the sibling trees' pattern. A
    scheduled task runs it every ten minutes until it succeeds, refuses if the C: copy
    holds a commit E: lacks, first copies any note delivered to the C: path in between,
    then lifts INBOX_STOP and deletes itself.
@@ -77,7 +81,7 @@ tree's and does not move.
 ## Consequences
 
 - **Easier:** the lane worktree base has been derived from the repo root since CS-1274, so
-  lanes now land beside `E:\Clockspeed` with no further edit.
+  lanes now land beside the E: `<repo>` with no further edit.
 - **Kept working:** every C: reference the inventory missed, including MAIN's delivery
   path, resolves through the junction.
 - **Owed:** the CS-G03 clean-machine re-walk runs at a tip at or after the move commit,
