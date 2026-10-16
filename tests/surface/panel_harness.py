@@ -97,7 +97,6 @@ from __future__ import annotations
 import itertools
 import json
 import shutil
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -175,7 +174,13 @@ GRADER_STANDIN_SOURCE: Final = test_panel_seam.HARNESS_SOURCE
 RECORDING_MEMBER: Final = "addEventListener"
 
 #: How long one node run may take before it is a failure rather than a slow box.
+#: A RUN limit: it counts from the start marker, never from the spawn (CS-1329).
 NODE_TIMEOUT_SECONDS: Final = 60.0
+
+#: The node spawn every panel suite shares: start-up and run budgeted apart, and
+#: a timeout in either phase diagnosed. Defined in the grader, which may import
+#: nothing from here, and re-exported so the panel suites call it by this name.
+run_node: Final = test_panel_seam.run_node
 
 #: Distinguishes the scratch files of repeated calls sharing one tmp_path.
 _RUN_COUNTER: Final[Iterator[int]] = itertools.count()
@@ -876,12 +881,12 @@ def run(
     # Fixed argv, no shell. The interpreter is resolved off PATH because an
     # absolute interpreter path may not be written into a tracked file, and
     # every other argument is a path this function just wrote.
-    completed = subprocess.run(
-        [node, str(script), str(request)],
-        capture_output=True,
-        text=True,
-        timeout=NODE_TIMEOUT_SECONDS,
-        check=False,
+    completed = run_node(
+        node,
+        script,
+        str(request),
+        label=f"the panel harness mounting {target.name}",
+        run_timeout=NODE_TIMEOUT_SECONDS,
     )
     if completed.returncode != 0:
         pytest.fail(

@@ -40,7 +40,6 @@ import json
 import re
 import shutil
 import string
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -49,6 +48,7 @@ import pytest
 
 from clockspeed.surface import config, server
 from clockspeed.surface.api import solve
+from tests.surface import panel_harness
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -146,6 +146,7 @@ STATE_MOUNTED: Final = "mounted"
 STATE_FAILED: Final = "failed"
 
 #: How long one node run may take before it is a failure rather than a slow box.
+#: A RUN limit: it counts from the start marker, never from the spawn (CS-1329).
 NODE_TIMEOUT_SECONDS: Final = 60.0
 
 #: A CommonJS harness: the minimal DOM stand-in the seam touches, the SHIPPED
@@ -518,12 +519,12 @@ def run_page(tmp_path: Path, scripts: Sequence[Path]) -> Mapping[str, Any]:
         ).encode("ascii")
     )
     # Fixed argv, no shell; the interpreter is resolved off PATH.
-    completed = subprocess.run(
-        [node, str(harness), str(request)],
-        capture_output=True,
-        text=True,
-        timeout=NODE_TIMEOUT_SECONDS,
-        check=False,
+    completed = panel_harness.run_node(
+        node,
+        harness,
+        str(request),
+        label="the global scope harness",
+        run_timeout=NODE_TIMEOUT_SECONDS,
     )
     assert completed.returncode == 0, (
         f"the global scope harness exited {completed.returncode}: {completed.stderr.strip()}"
@@ -959,12 +960,12 @@ def census(tmp_path: Path, script: Path) -> set[str]:
     request.write_bytes(
         json.dumps({"script": str(script), "names": list(probe_names(source))}).encode("ascii")
     )
-    completed = subprocess.run(
-        [node, str(harness), str(request)],
-        capture_output=True,
-        text=True,
-        timeout=NODE_TIMEOUT_SECONDS,
-        check=False,
+    completed = panel_harness.run_node(
+        node,
+        harness,
+        str(request),
+        label=f"the census harness for {script.name}",
+        run_timeout=NODE_TIMEOUT_SECONDS,
     )
     assert completed.returncode == 0, (
         f"the census harness exited {completed.returncode}: {completed.stderr.strip()}"

@@ -76,7 +76,6 @@ import itertools
 import json
 import re
 import shutil
-import subprocess
 from collections.abc import Mapping
 from fractions import Fraction
 from pathlib import Path
@@ -147,6 +146,7 @@ REFUSED_STATUS: Final = 400
 NON_RENDERINGS: Final = ("undefined", "[object Object]", "NaN", "null")
 
 #: How long one driver run may take before it is a failure rather than a slow box.
+#: A RUN limit: it counts from the start marker, never from the spawn (CS-1329).
 NODE_TIMEOUT_SECONDS: Final = 60.0
 
 #: Distinguishes the scratch files of repeated calls sharing one tmp_path.
@@ -866,12 +866,12 @@ def drive(
 
     # Fixed argv, no shell. The interpreter is resolved off PATH because an
     # absolute interpreter path may not be written into a tracked file.
-    completed = subprocess.run(
-        [node, str(script), str(request)],
-        capture_output=True,
-        text=True,
-        timeout=NODE_TIMEOUT_SECONDS,
-        check=False,
+    completed = panel_harness.run_node(
+        node,
+        script,
+        str(request),
+        label=f"the solve driver mounting {target.name}",
+        run_timeout=NODE_TIMEOUT_SECONDS,
     )
     if completed.returncode != 0:
         pytest.fail(

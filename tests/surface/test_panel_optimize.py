@@ -43,7 +43,6 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import subprocess
 from typing import TYPE_CHECKING, Any, Final
 
 import pytest
@@ -91,6 +90,7 @@ FIELD_IDS: Final = (
 EXPECTED_FIELDS: Final = 7
 
 #: How long the driver may take before it is a hang rather than a run.
+#: A RUN limit: it counts from the start marker, never from the spawn (CS-1329).
 NODE_TIMEOUT_SECONDS: Final = 60.0
 
 #: Every way a browser script reaches the network. A panel that used any of
@@ -384,12 +384,12 @@ def drive(
         ).encode("ascii")
     )
 
-    completed = subprocess.run(
-        [node, str(script), str(payload)],
-        capture_output=True,
-        text=True,
-        timeout=NODE_TIMEOUT_SECONDS,
-        check=False,
+    completed = panel_harness.run_node(
+        node,
+        script,
+        str(payload),
+        label="the optimize bench driver",
+        run_timeout=NODE_TIMEOUT_SECONDS,
     )
     if completed.returncode != 0:
         pytest.fail(f"the optimize bench driver exited {completed.returncode}: {completed.stderr}")

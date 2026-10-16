@@ -32,12 +32,16 @@ missing.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import shutil
 import subprocess
+import threading
+import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import IO, TYPE_CHECKING, Any, Final
 
 import pytest
 
@@ -93,7 +97,16 @@ _NETWORK_SINKS: Final = (
 _BLOCK_COMMENT: Final = re.compile(r"/\*[\s\S]*?\*/")
 
 #: How long the node run may take before it is a failure rather than a slow box.
+#: A RUN limit: it counts from the start marker, never from the spawn (CS-1329).
 NODE_TIMEOUT_SECONDS: Final = 60.0
+
+#: How long node may take to REACH a driver - spawn to start marker - before
+#: that is a failure. A cold start on a loaded runner is node's time, not the
+#: driver's, so it is budgeted here and never charged to a site's run limit.
+NODE_START_TIMEOUT_SECONDS: Final = 120.0
+
+#: The one stderr line the preload writes when node reaches user code.
+NODE_START_MARKER: Final = "clockspeed-node-start"
 
 #: The panel id the harness plants a throwing mount under.
 PLANTED_ID: Final = "planted-thrower"
@@ -404,6 +417,216 @@ main().catch(function (failure) {
 """
 
 
+# ---------------------------------------------------------------------------
+# The node spawn every panel suite shares (CS-1329)
+# ---------------------------------------------------------------------------
+#
+# It lives in the grader because the grader may import nothing from
+# ``panel_harness.py``; the harness re-exports it, so there is one copy.
+
+#: The preload that writes the marker. ``fs.writeSync`` and not
+#: ``process.stderr.write``: a stream write to a pipe may be queued, and a
+#: driver that then spun would never flush it - reading a hang as a slow start.
+_START_MARKER_SOURCE: Final = (
+    '"use strict";\nrequire("node:fs").writeSync(2, "' + NODE_START_MARKER + '\\n");\n'
+)
+
+#: The preload's file name, written beside the driver it precedes.
+_START_MARKER_NAME: Final = "node_start_marker.cjs"
+
+#: How much of each stream a diagnosis quotes - the TAIL, where a run stopped.
+_PARTIAL_CHARS: Final = 2000
+
+#: How long a killed or exited node gets to die and close its pipes.
+_REAP_SECONDS: Final = 10.0
+
+
+@dataclass(frozen=True)
+class NodeRun:
+    """One finished node run: its exit, its output, and each phase's seconds."""
+
+    returncode: int
+    stdout: str
+    stderr: str
+    startup_seconds: float
+    run_seconds: float
+
+
+class _Pipes:
+    """Drains node's stdout and stderr on threads and notes the start marker."""
+
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        self.marker_at: float | None = None
+        #: Set on the marker, or when stderr closes without one.
+        self.settled = threading.Event()
+        self._out: list[str] = []
+        self._err: list[str] = []
+        self._threads = (
+            threading.Thread(target=self._drain_out, args=(process.stdout,), daemon=True),
+            threading.Thread(target=self._drain_err, args=(process.stderr,), daemon=True),
+        )
+        for thread in self._threads:
+            thread.start()
+
+    def _drain_out(self, stream: IO[str]) -> None:
+        self._out.append(stream.read())
+
+    def _drain_err(self, stream: IO[str]) -> None:
+        for line in stream:
+            if self.marker_at is None and line.rstrip("\r\n") == NODE_START_MARKER:
+                self.marker_at = time.monotonic()
+                self.settled.set()
+            else:
+                self._err.append(line)
+        self.settled.set()
+
+    def join(self, timeout: float) -> bool:
+        """Wait for both drains; True when both reached end of stream."""
+        deadline = time.monotonic() + timeout
+        for thread in self._threads:
+            thread.join(max(0.0, deadline - time.monotonic()))
+        return not any(thread.is_alive() for thread in self._threads)
+
+    @property
+    def stdout(self) -> str:
+        return "".join(self._out)
+
+    @property
+    def stderr(self) -> str:
+        return "".join(self._err)
+
+
+def _reap(process: subprocess.Popen[str], pipes: _Pipes) -> None:
+    """Kill node and collect whatever it had written."""
+    process.kill()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=_REAP_SECONDS)
+    pipes.join(_REAP_SECONDS)
+
+
+def _diagnosis(
+    label: str,
+    phase: str,
+    *,
+    started: float,
+    ended: float,
+    marker_at: float | None,
+    run_timeout: float,
+    pipes: _Pipes,
+) -> str:
+    """The failure text: elapsed seconds, the marker's fate, the partial output."""
+    if marker_at is None:
+        fate = (
+            "start marker arrived: no - node never reached the driver inside its "
+            f"{NODE_START_TIMEOUT_SECONDS:g} s start budget, so the time went to "
+            "node's own start-up, not to the driver"
+        )
+    else:
+        fate = (
+            f"start marker arrived: yes, {marker_at - started:.2f} s after the spawn - "
+            f"the driver then ran {ended - marker_at:.2f} s against its "
+            f"{run_timeout:g} s run limit, so the driver itself did not finish"
+        )
+    out, err = pipes.stdout, pipes.stderr
+    return (
+        f"{label} timed out in its {phase} phase: elapsed {ended - started:.2f} s; "
+        f"{fate}. partial stdout ({len(out)} chars, tail): {out[-_PARTIAL_CHARS:]!r}; "
+        f"partial stderr ({len(err)} chars, tail): {err[-_PARTIAL_CHARS:]!r}"
+    )
+
+
+def run_node(node: str, script: Path, *args: str, label: str, run_timeout: float) -> NodeRun:
+    """Run one node driver in two separately budgeted phases.
+
+    START runs from the spawn to the start marker a preload writes when node
+    reaches user code, against :data:`NODE_START_TIMEOUT_SECONDS`. RUN runs
+    from the marker to the exit, against ``run_timeout`` - the calling site's
+    own ``NODE_TIMEOUT_SECONDS``, which this never raises. A timeout in either
+    phase fails with :func:`_diagnosis` rather than a bare ``TimeoutExpired``,
+    so the next reading tells node's cold start from a driver that hung.
+
+    Args:
+        node: The interpreter, as the caller resolved it off PATH.
+        script: The driver. The preload is written beside it.
+        *args: The driver's own arguments.
+        label: Names the driver in a failure, e.g. "the seam harness".
+        run_timeout: The site's run limit, in seconds.
+
+    Returns:
+        The exit code, the output (the marker line removed) and both phases.
+    """
+    marker = script.parent / _START_MARKER_NAME
+    marker.write_bytes(_START_MARKER_SOURCE.encode("ascii"))
+    started = time.monotonic()
+    # Fixed argv, no shell: the caller's PATH lookup, then paths the caller and
+    # this function wrote.
+    process = subprocess.Popen(
+        [node, "--require", str(marker), str(script), *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    pipes = _Pipes(process)
+    try:
+        if not pipes.settled.wait(NODE_START_TIMEOUT_SECONDS):
+            ended = time.monotonic()
+            _reap(process, pipes)
+            pytest.fail(
+                _diagnosis(
+                    label,
+                    "start",
+                    started=started,
+                    ended=ended,
+                    marker_at=None,
+                    run_timeout=run_timeout,
+                    pipes=pipes,
+                )
+            )
+        marker_at = pipes.marker_at
+        run_from = time.monotonic() if marker_at is None else marker_at
+        try:
+            process.wait(timeout=max(0.0, run_from + run_timeout - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            ended = time.monotonic()
+            _reap(process, pipes)
+            pytest.fail(
+                _diagnosis(
+                    label,
+                    "run",
+                    started=started,
+                    ended=ended,
+                    marker_at=marker_at,
+                    run_timeout=run_timeout,
+                    pipes=pipes,
+                )
+            )
+        ended = time.monotonic()
+        if not pipes.join(_REAP_SECONDS):
+            pytest.fail(
+                f"{label} exited {process.returncode} but its output pipes were "
+                f"still open {_REAP_SECONDS:g} s later"
+            )
+    finally:
+        if process.poll() is None:
+            _reap(process, pipes)
+        if pipes.join(0.0):
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+    if marker_at is None and process.returncode == 0:
+        pytest.fail(
+            f"{label} exited 0 without the start marker, so the preload that "
+            f"writes it never ran: {pipes.stderr.strip()!r}"
+        )
+    return NodeRun(
+        returncode=process.returncode,
+        stdout=pipes.stdout,
+        stderr=pipes.stderr,
+        startup_seconds=run_from - started,
+        run_seconds=ended - run_from,
+    )
+
+
 def run_seam(tmp_path: Path, *, plant: bool) -> Mapping[str, Any]:
     """Run the shipped seam under node and return what it built.
 
@@ -429,18 +652,14 @@ def run_seam(tmp_path: Path, *, plant: bool) -> Mapping[str, Any]:
     # Fixed argv, no shell, and nothing on it comes from outside this file:
     # the interpreter is resolved off PATH, the harness path is pytest's own
     # temporary directory and the module names come from the server's table.
-    completed = subprocess.run(
-        [
-            node,
-            str(harness),
-            str(WEB_DIR),
-            "plant" if plant else "clean",
-            *PANEL_MODULES,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=NODE_TIMEOUT_SECONDS,
-        check=False,
+    completed = run_node(
+        node,
+        harness,
+        str(WEB_DIR),
+        "plant" if plant else "clean",
+        *PANEL_MODULES,
+        label="the seam harness",
+        run_timeout=NODE_TIMEOUT_SECONDS,
     )
     assert completed.returncode == 0, (
         f"the seam harness exited {completed.returncode}: {completed.stderr.strip()}"
