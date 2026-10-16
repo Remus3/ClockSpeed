@@ -117,7 +117,8 @@ def startup_reading(script: Path, run_timeout: float) -> tuple[float, str]:
             node_or_fail(), script, label="the quick driver", run_timeout=run_timeout
         )
     except pytest.fail.Exception as failure:
-        text = str(failure)
+        # The named field, never the object (tests/test_exception_rendering.py).
+        text = failure.msg or ""
         figure = STARTUP_FIGURE.search(text)
         if figure is None or "timed out in its run phase" not in text:
             return -1.0, text
