@@ -75,6 +75,14 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1317 - mypy-gate move: adversary NOT REFUTED; landed
+Verification: the candidate "CS-1317 - guard move: test_mypy_gate.py fill to guard" (its freeze witness read unmoved by `tools/freeze_witness.py` check before landing); `tests/test_tier1_budget.py`; `.github/workflows/tier1.yml`; `tests/xdist_quiet.py`. NOT A COMPLETION RECORD. Not a completion record: CS-1317 and CS-700 stay open.
+ADVERSARY: a distinct adversary checked four lenses and refuted none. Partition: 261 files, each once per job; the ignore lists identical. Pins: red at a3acc6f for the right reason; two mutants caught.
+PROJECTED (the unprinted tail of 0.17-0.22 included): fill 355-358 s at a3acc6f, under 380; guard 347-353 s at a3acc6f, worst cross-runner about 414-416 s, under 420 and its 444 line.
+SERIAL GUARD MODEL: confirmed from the xdist scheduler and `tests/xdist_quiet.py`.
+INTERACTION: the probe-bound arms all sit behind the CS-1233 barrier.
+RESIDUAL: the ruling's worst guard of 387 s was 21-28 s low, because it left out the tail.
+
 ### 2026-10-15 - CS-1317 and CS-700 - NOT A COMPLETION RECORD. CS-1317 AND CS-700 STAY OPEN: the ruling record directly below records step a's own tier1 missing THE STEP-B GATE
 Verification: the ruling record directly below (its DECISION and Reversed by); the "tier 1 took" lines on tier1 38832060823 at a3acc6f; the CS-1317 section of `docs/item_notes/phase7.md`; `ROADMAP.md`. That ruling is recorded verbatim, so this record carries the disposition `tools/drift_guard.py` guard (i) reads for its two ids: CS-1317 stays open and closes only as its item notes say, and CS-700 stays open, THE STEP-B GATE pair restarted at 0 of 2.
 INBOX_STOP: removed to the Recycle Bin by session 142 (PowerShell, Microsoft.VisualBasic FileSystem.DeleteFile with SendToRecycleBin) and read back absent; QUEUE_STOP read back present and STOP absent; the responder's inbox_status file read state "halted" (updated 2026-10-15T19:56:00-05:00) right after, then state "running" (updated 2026-10-15T20:11:02-05:00) at the responder's next tick.
