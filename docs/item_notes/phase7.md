@@ -2041,10 +2041,18 @@ nothing), or a MAIN note withdrawing the ORDER. AS IT FELL OUT: the responder's 
 the note acknowledged it by its key alone at 22:27 (the watcher's invocation log), before the
 /done's records commit; the /done's own key-only ack then found nothing unread and stored nothing.
 
-Next action: in session 143, before the new CS-700 step a, a distinct adjudicator sequences
-addition (a) against THE STEP-B GATE (a scrub commit and its push are a further tier1 reading);
-then (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted measurement in
-the window; (e), (g), the ledger record and the ONE ANSWER after S12a.
+SESSION 143: addition (a) is built and adversary-passed, landing in the session 143 push with
+CS-1329, one tier1 reading (the ruling: `docs/LEDGER.md`, 2026-10-16, under CS-700, CS-1317 and
+CS-1329). The explicit allowlist's owner is `KEPT_CHECKOUT_LINES` in `tests/test_readme_audit.py`.
+OPEN STEP before CS-1328 closes: 16 lines on 4 files still spell the old C:-drive sidecar paths
+(`docs/LEDGER.md` 4, `docs/history_notes.md` 5, `tests/test_queue_loop.py` and
+`tests/ops/test_multi_lane.py` 7); scrub them or allowlist them explicitly, because (b) only
+measures. The path detector `ABSOLUTE_CHECKOUT_RE` matches only paths ending in this tree's folder
+name, so it does not catch a sidecar-root spelling; no tracked file now spells the sidecar root.
+
+Next action: (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted
+measurement in the window; the open sidecar step above; (e), (g), the ledger record and the ONE
+ANSWER after S12a.
 
 ## CS-1329
 

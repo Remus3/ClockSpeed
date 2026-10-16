@@ -75,6 +75,28 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-16 - CS-700, CS-1317 and CS-1329 - NOT A COMPLETION RECORD. CS-700, CS-1317 AND CS-1329 STAY OPEN: session 143 sequencing ruling - CS-1329 and the HEAD path scrub land in one push and one tier1 reading
+Verification: `tests/surface/test_cs1329_driver_timeout.py`; `tests/test_readme_audit.py` (KEPT_CHECKOUT_LINES);
+the CS-1328 and CS-1329 sections of `docs/item_notes/phase7.md`; Q2 of the 2026-10-14 gate records and
+the 2026-10-15 step-b gate records below. Ruled by a distinct session 143 adjudicator that produced
+none of the work; recorded by the session 143 landing builder. NOTHING CLOSED.
+DECISION: CS-1329 and CS-1328 addition (a), the HEAD path scrub, land in ONE push and so ONE tier1
+reading. That keeps the met step-b gate pair, because every tier1 run on main is a gate reading and
+a miss restarts the pair (Q2, 2026-10-14: the gate stands as written). ORDER: this records commit
+rides that push; a tier2 workflow_dispatch at the pushed tip follows; then CS-700's new step a with
+the operator present.
+ALTERNATIVES REJECTED: two pushes - an extra chance to miss, and one tier2 dispatch would not cover
+both; the scrub inside step a - the hand-off orders it before step a; writing INBOX_STOP - FLEET
+item 14 and the CS-1328 disposition forbid it.
+ADVERSARY VERDICTS: CS-1328 (a), the candidate "CS-1328 (a) - HEAD path scrub: root and sidecar root
+as placeholders" - NOT REFUTED. CS-1329, the candidate "CS-1329 - records: alternatives restated to
+the ruling's text" - REFUTED on three findings: no provenance row for the new test module; a passing
+slow start left no line; two arms depended on runner speed. Reworked in "CS-1329 - slow-start line,
+speed-free arms, provenance row", "CS-1329 - records: route A re-ruled, residual, closing reading"
+and "CS-1329 - read the failure's msg field, not the object". The CS-1328 ledger record still waits
+for the closing ledger commit after S12a (its rule 0); this record is not it.
+Reversed by: a tier1 miss at the pushed tip.
+
 ### 2026-10-16 - CS-1329 - DECISION RECORD (route B: a test-harness defect). NOT A COMPLETION RECORD. CS-1329 STAYS OPEN until a tier2 dispatch is green on attempt 1
 Verification: scheduled tier2 38872659581 at f2696d1, the windows-latest clean-checkout probe job,
 fast shard; `tests/surface/test_cs1329_driver_timeout.py`; `tests/surface/test_panel_seam.py::run_node`;
