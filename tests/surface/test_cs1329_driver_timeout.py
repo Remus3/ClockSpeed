@@ -12,6 +12,11 @@ either phase fails with a message naming the elapsed seconds, whether the
 driver's start marker arrived, and the partial stdout and stderr. Each site is
 driven here with its OWN run limit squeezed, so an arm proves that site routes
 through the helper rather than the helper being proved once in isolation.
+
+NO ARM HERE CAN BE FAILED BY A SLOW BUT CORRECT RUNNER. A run phase that must
+time out never ends by construction; a start-up that must outlast a run limit
+is a planted spin with a floor; a run phase that must fit inside a limit
+lingers a fixed second against a limit three times that.
 """
 
 from __future__ import annotations
@@ -37,8 +42,9 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType
 
-#: A run limit no driver can meet, so the run phase is the one that fails.
-SQUEEZED: float = 0.001
+#: The run limit a site is squeezed to. Its run phase is made to NEVER end
+#: (:func:`plant_endless_run`), so the timeout is certain at any runner speed.
+MODEST_RUN_LIMIT: float = 0.5
 
 #: The elapsed figure every diagnosis must carry.
 ELAPSED: re.Pattern[str] = re.compile(r"elapsed \d+\.\d\d s")
@@ -46,11 +52,13 @@ ELAPSED: re.Pattern[str] = re.compile(r"elapsed \d+\.\d\d s")
 #: The run limit every site carried before CS-1329, and still carries.
 RUN_LIMIT: float = 60.0
 
-#: How long the planted slow start spins before node reaches the marker. It
-#: is longer than :data:`QUICK_RUN_LIMIT`, so a start-up charged to the run
-#: limit would fail the arm.
-SLOW_START_MS: int = 2500
-QUICK_RUN_LIMIT: float = 2.0
+#: The not-charged arm's three times. The planted start-up outlasts the run
+#: limit, so a deadline counted from the spawn has passed before the marker;
+#: the driver then lingers a fixed second, so it is still running when that
+#: wrong deadline is checked, and well inside the limit counted from the marker.
+SLOW_START_MS: int = 3500
+QUICK_RUN_LIMIT: float = 3.0
+LINGER_MS: int = 1000
 
 #: A planted start-up for the slow-start line arms, and the line they set
 #: below it. Only the start-up's FLOOR matters, so a slow runner cannot fail them.
@@ -65,6 +73,13 @@ STARTUP_READING: re.Pattern[str] = re.compile(r"reached its start marker in \d+\
 
 #: A diagnosis's start-up figure, read back as a number.
 STARTUP_FIGURE: re.Pattern[str] = re.compile(r"start marker arrived: yes, (\d+\.\d\d) s after")
+
+#: A diagnosis's run-phase figure, read back as a number.
+RAN_FIGURE: re.Pattern[str] = re.compile(r"the driver then ran (\d+\.\d\d) s against")
+
+#: How far a reported run may sit under its limit and still have reached it:
+#: the .2f rounding, and a Windows wait that truncates to whole milliseconds.
+REPORT_SLACK: float = 0.05
 
 
 def node_or_fail() -> str:
@@ -91,10 +106,28 @@ def plant_slow_start(
     monkeypatch.setenv("NODE_OPTIONS", f'--require "{slow.as_posix()}"')
 
 
-def quick_driver(tmp_path: Path) -> Path:
-    """A driver that writes one word and exits."""
+def plant_endless_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every node this test starts spin forever AFTER the start marker.
+
+    An ``--import`` preload in NODE_OPTIONS runs after every ``--require``
+    preload, the marker's included, and before the driver - so the run phase
+    of ANY site's driver never ends, and its run limit is certain to fire.
+    """
+    endless = tmp_path / "endless_run.mjs"
+    endless.write_bytes(b"for (;;) {}\n")
+    monkeypatch.setenv("NODE_OPTIONS", f'--import "{endless.as_uri()}"')
+
+
+def quick_driver(tmp_path: Path, linger_ms: int = 0) -> Path:
+    """A driver that writes one word and exits, after ``linger_ms`` if given."""
     script = tmp_path / "quick.cjs"
-    script.write_bytes(b'process.stdout.write("quick-1329");\n')
+    script.write_bytes(
+        (
+            'setTimeout(function () { process.stdout.write("quick-1329"); }, '
+            + str(linger_ms)
+            + ");\n"
+        ).encode("ascii")
+    )
     return script
 
 
@@ -104,13 +137,13 @@ CLEAN_RUN: str = "a clean pass"
 RUN_PHASE_TIMEOUT: str = "a run-phase timeout"
 
 
-def startup_reading(script: Path, run_timeout: float) -> tuple[float, str]:
-    """Run ``script`` and read its start-up seconds back, however it ended.
+def startup_reading(script: Path, run_timeout: float) -> tuple[float, float, str]:
+    """Run ``script`` and read both phases' seconds back, however it ended.
 
     Returns:
-        The start-up seconds - from the run, or read off a run-phase
+        The start-up and run seconds - from the run, or read off a run-phase
         diagnosis - and :data:`CLEAN_RUN`, :data:`RUN_PHASE_TIMEOUT`, or the
-        unexpected ending verbatim with -1.0 when no figure can be read.
+        unexpected ending verbatim with -1.0 for both when no figure reads.
     """
     try:
         run = test_panel_seam.run_node(
@@ -119,41 +152,49 @@ def startup_reading(script: Path, run_timeout: float) -> tuple[float, str]:
     except pytest.fail.Exception as failure:
         # The named field, never the object (tests/test_exception_rendering.py).
         text = failure.msg or ""
-        figure = STARTUP_FIGURE.search(text)
-        if figure is None or "timed out in its run phase" not in text:
-            return -1.0, text
-        return float(figure.group(1)), RUN_PHASE_TIMEOUT
+        started = STARTUP_FIGURE.search(text)
+        ran = RAN_FIGURE.search(text)
+        if started is None or ran is None or "timed out in its run phase" not in text:
+            return -1.0, -1.0, text
+        return float(started.group(1)), float(ran.group(1)), RUN_PHASE_TIMEOUT
     clean = (
         run.returncode == 0
         and run.stdout == "quick-1329"
         and test_panel_seam.NODE_START_MARKER not in run.stderr
     )
-    return run.startup_seconds, CLEAN_RUN if clean else repr(run)
+    return run.startup_seconds, run.run_seconds, CLEAN_RUN if clean else repr(run)
 
 
 def diagnosis(
-    module: ModuleType, call: Callable[[], object], monkeypatch: pytest.MonkeyPatch
+    module: ModuleType,
+    call: Callable[[], object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> str:
-    """Squeeze ``module``'s run limit, make the call, return the failure text.
+    """Squeeze ``module``'s run limit, end no run, make the call, return the failure.
 
     Args:
         module: The module owning the spawn site and its ``NODE_TIMEOUT_SECONDS``.
         call: The site, bound to its arguments.
-        monkeypatch: The fixture that restores the limit afterwards.
+        tmp_path: Where the endless-run preload is written.
+        monkeypatch: The fixture that restores the limit and NODE_OPTIONS.
 
     Returns:
         The ``pytest.fail`` message the site raised.
     """
-    monkeypatch.setattr(module, "NODE_TIMEOUT_SECONDS", SQUEEZED)
+    monkeypatch.setattr(module, "NODE_TIMEOUT_SECONDS", MODEST_RUN_LIMIT)
+    plant_endless_run(tmp_path, monkeypatch)
     with pytest.raises(pytest.fail.Exception) as caught:
         call()
     return str(caught.value)
 
 
 def assert_run_phase_diagnosis(text: str) -> None:
-    """The run phase timed out, and the message says enough to tell why."""
+    """The run phase timed out against the SITE's limit, and the message says why."""
+    assert "timed out in its run phase" in text, text
     assert ELAPSED.search(text), text
     assert "start marker arrived: yes" in text, text
+    assert f"against its {MODEST_RUN_LIMIT:g} s run limit" in text, text
     assert "partial stdout" in text, text
     assert "partial stderr" in text, text
 
@@ -171,6 +212,7 @@ def test_a_solve_driver_past_its_run_limit_fails_with_a_diagnosis(
         lambda: test_panel_solve.drive(
             tmp_path, panel_harness.null_payload(), door=test_panel_solve.DOOR_NONE
         ),
+        tmp_path,
         monkeypatch,
     )
     assert_run_phase_diagnosis(text)
@@ -189,6 +231,7 @@ def test_the_shared_panel_harness_fails_with_a_diagnosis(
         lambda: panel_harness.mount(
             tmp_path, test_panel_solve.MODULE, panel_harness.null_payload()
         ),
+        tmp_path,
         monkeypatch,
     )
     assert_run_phase_diagnosis(text)
@@ -198,7 +241,10 @@ def test_the_seam_harness_fails_with_a_diagnosis(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     text = diagnosis(
-        test_panel_seam, lambda: test_panel_seam.run_seam(tmp_path, plant=False), monkeypatch
+        test_panel_seam,
+        lambda: test_panel_seam.run_seam(tmp_path, plant=False),
+        tmp_path,
+        monkeypatch,
     )
     assert_run_phase_diagnosis(text)
 
@@ -209,6 +255,7 @@ def test_the_power_bench_driver_fails_with_a_diagnosis(
     text = diagnosis(
         test_panel_power,
         lambda: test_panel_power.drive(tmp_path, panel_harness.null_payload()),
+        tmp_path,
         monkeypatch,
     )
     assert_run_phase_diagnosis(text)
@@ -220,6 +267,7 @@ def test_the_optimize_bench_driver_fails_with_a_diagnosis(
     text = diagnosis(
         test_panel_optimize,
         lambda: test_panel_optimize.drive(tmp_path, panel_harness.null_payload()),
+        tmp_path,
         monkeypatch,
     )
     assert_run_phase_diagnosis(text)
@@ -231,6 +279,7 @@ def test_the_global_scope_page_harness_fails_with_a_diagnosis(
     text = diagnosis(
         test_panel_global_scope,
         lambda: test_panel_global_scope.run_page(tmp_path, ()),
+        tmp_path,
         monkeypatch,
     )
     assert_run_phase_diagnosis(text)
@@ -243,6 +292,7 @@ def test_the_global_scope_census_harness_fails_with_a_diagnosis(
     text = diagnosis(
         test_panel_global_scope,
         lambda: test_panel_global_scope.census(tmp_path, script),
+        tmp_path,
         monkeypatch,
     )
     assert_run_phase_diagnosis(text)
@@ -274,7 +324,7 @@ def test_a_driver_that_hangs_after_the_marker_is_read_as_a_hang(
 ) -> None:
     planted = tmp_path / "panel_spins.js"
     planted.write_bytes(b"for (;;) {}\n")
-    monkeypatch.setattr(test_panel_solve, "NODE_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(test_panel_solve, "NODE_TIMEOUT_SECONDS", MODEST_RUN_LIMIT)
     with pytest.raises(pytest.fail.Exception) as caught:
         test_panel_solve.drive(
             tmp_path,
@@ -307,7 +357,7 @@ def test_a_timeout_quotes_what_node_had_already_written(
     script.write_bytes(b"for (;;) {}\n")
     with pytest.raises(pytest.fail.Exception) as caught:
         test_panel_seam.run_node(
-            node_or_fail(), script, label="the spinning driver", run_timeout=SQUEEZED
+            node_or_fail(), script, label="the spinning driver", run_timeout=MODEST_RUN_LIMIT
         )
     text = str(caught.value)
     assert "start marker arrived: yes" in text, text
@@ -321,17 +371,21 @@ def test_node_start_up_is_never_charged_to_the_run_limit(
 ) -> None:
     """A start-up longer than the run limit is never what fails the run.
 
-    Under one budget spanning the whole process - the pre-CS-1329 shape - this
-    is always a timeout, because the planted start-up alone outlasts the run
-    limit. Now there are two correct outcomes and the arm accepts both, so a
-    slow runner cannot fail it: the run passes, or a slow runner overruns the
-    run limit AFTER the marker. Either way the start-up is reported apart, at
-    no less than the planted spin.
+    The planted start-up outlasts the run limit, and the driver lingers a fixed
+    second after the marker. A deadline counted from the SPAWN has therefore
+    passed before the marker, and is checked while the driver still lingers:
+    that run times out having run about 0 s, and this arm is red. Counted from
+    the MARKER, the run passes. The one other correct ending - a runner so slow
+    that the lingering driver overruns the limit after the marker - is
+    accepted only when the diagnosis shows the driver really ran the whole
+    limit, which the wrong deadline can never show.
     """
     plant_slow_start(tmp_path, monkeypatch, SLOW_START_MS)
-    startup, ending = startup_reading(quick_driver(tmp_path), QUICK_RUN_LIMIT)
-    assert ending in (CLEAN_RUN, RUN_PHASE_TIMEOUT), ending
-    assert startup >= SLOW_START_MS / 1000 - 0.05, (startup, ending)
+    startup, ran, ending = startup_reading(quick_driver(tmp_path, LINGER_MS), QUICK_RUN_LIMIT)
+    assert ending == CLEAN_RUN or (
+        ending == RUN_PHASE_TIMEOUT and ran >= QUICK_RUN_LIMIT - REPORT_SLACK
+    ), (startup, ran, ending)
+    assert startup >= SLOW_START_MS / 1000 - REPORT_SLACK, (startup, ran, ending)
 
 
 # ---------------------------------------------------------------------------

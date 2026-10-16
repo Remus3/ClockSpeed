@@ -110,10 +110,13 @@ NODE_START_TIMEOUT_SECONDS: Final = 120.0
 NODE_START_MARKER: Final = "clockspeed-node-start"
 
 #: A PASS whose start-up reached this many seconds still leaves a warning line
-#: in the log, because a slow start that passes is the red's own precursor. The
-#: tier2 spawn that failed read 6.31 s and then 19.40 s before it timed out; the
-#: slowest other spawn in that job, 9.73 s; a warm local start, under 0.1 s. The
-#: line sits above every passing reading and below the one before the red.
+#: in the log, because a slow start that passes is the red's own precursor.
+#: PROVISIONAL: no start-up reading existed before CS-1329 split the phases.
+#: The figures it was picked from are WHOLE-SPAWN times, start-up and run
+#: together - the tier2 spawn that failed read 6.31 s and then 19.40 s before
+#: it timed out, the slowest other spawn in that job 9.73 s - so they bound
+#: start-up from above and say nothing of its share. Recalibrate it from the
+#: first tier2 start-up readings this helper reports.
 NODE_SLOW_START_SECONDS: Final = 15.0
 
 #: The panel id the harness plants a throwing mount under.
