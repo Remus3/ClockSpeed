@@ -75,6 +75,33 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-16 - CS-1329 - DECISION RECORD (route B: a test-harness defect). NOT A COMPLETION RECORD. CS-1329 STAYS OPEN until a tier2 dispatch is green on attempt 1
+Verification: scheduled tier2 38872659581 at f2696d1, the windows-latest clean-checkout probe job,
+fast shard; `tests/surface/test_cs1329_driver_timeout.py`; `tests/surface/test_panel_seam.py::run_node`;
+the CS-1329 section of `docs/item_notes/phase7.md`. Adjudicated by a distinct agent that produced
+none of the work; recorded by the CS-1329 builder.
+RED: `tests/surface/test_panel_solve.py::test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface`,
+the module's first node spawn, died of a bare subprocess TimeoutExpired at 60 s; that spawn's time
+in the job grew 6.31 s, 19.40 s, then over 60 s. The driver is deterministic and holds no timer.
+DECISION: route B - the harness is the defect. One bare 60 s budget charged node's start-up and the
+driver's run together, and its failure could not tell a cold start from a hang. FIX: the seven node
+spawn sites in six `tests/surface/` files run through one helper; a preload writes a start marker
+to stderr (fs.writeSync) when node reaches user code; start-up to the marker has its own 120 s
+budget; each site's 60 s run limit counts from the marker and is unchanged; a timeout in either
+phase fails naming the elapsed seconds, whether the marker arrived, and the partial stdout and
+stderr. No bound raised, nothing skipped, no retry.
+ALTERNATIVES (by content; the dispatch carried their letters only): A - a product defect in the
+panel or the driver: lost, the driver is deterministic and holds no timer, so nothing product-side
+is measured. C - raise the 60 s limit: lost, it grades nothing new and would hide a hang. D - rerun
+or retry once: lost, the CS-1304 session 135 ruling denies retry as masking, and the session 141
+R3 standard forbids a rerun green.
+NOT CS-1304's CLASS: CS-1304 is a forced child's exit 2 under memory load in two `tests/` files,
+read through `child_failure`; this red is a node spawn's wall-clock timeout with no exit code.
+Reversed by: the next red reading "start marker arrived: yes" with the driver not finishing (a
+driver hang - a distinct adjudicator re-rules on A); a red reading "start marker arrived: no" past
+the 120 s start budget (node's start-up on the runner - an environment finding, never a raised
+bound); the operator's own words.
+
 ### 2026-10-15 - CS-1317 and CS-700 - session 142 /done: records only; its one push is THE STEP-B GATE's reading 2 of 2
 Verification: `CS-NEXT-SESSION.txt` (THE SINGLE NEXT ACTION and the session 142 /done final report); `WAKEUP_NOTES.md` (session 142); the CS-1317 and CS-1328 sections of `docs/item_notes/phase7.md`; `docs/history_notes.md` (the BACKLOG line relocated 2026-10-15). Not a completion record: CS-1317 and CS-700 stay open. NOTHING CLOSED by this ritual.
 STEP 0: start 2026-10-15T22:05:40-05:00. WINDOW SIGNAL CLOSED: HEAD 74d895d has two SHAs on its parents line (not a merge) and its own commit touches `.github/workflows/tier1.yml`, `.github/workflows/tier2.yml` and `tests/test_tier1_budget.py`, not the citation set file; HEAD == origin/main by full SHA; porcelain empty. Highest tier touched this session: 2 (a hook and a public interface in CS-1327; the CI workflows).

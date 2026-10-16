@@ -2045,3 +2045,22 @@ Next action: in session 143, before the new CS-700 step a, a distinct adjudicato
 addition (a) against THE STEP-B GATE (a scrub commit and its push are a further tier1 reading);
 then (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted measurement in
 the window; (e), (g), the ledger record and the ONE ANSWER after S12a.
+
+## CS-1329
+
+### Acceptance
+
+Every node spawn under `tests/surface/` (seven sites, six files) runs through one helper,
+`test_panel_seam.run_node`, re-exported as `panel_harness.run_node`: node's start-up, up to a
+preload's start marker, has its own budget and is never charged to a site's run limit; each
+site's 60 s run limit is unchanged; a timeout in either phase fails naming the elapsed seconds,
+whether the marker arrived, and the partial stdout and stderr, as
+`tests/surface/test_cs1329_driver_timeout.py` pins. It closes only when a tier2 dispatch at or
+after the landing commit is green on attempt 1.
+
+### Filed 2026-10-16 by the CS-1329 builder, from tier2 38872659581
+
+The windows clean-checkout probe's fast shard at f2696d1 died in the solve module's first node
+spawn with a bare TimeoutExpired at 60 s. Route B, decided and why: `docs/LEDGER.md`, the
+2026-10-16 CS-1329 DECISION RECORD. Next action: land, then read one tier2 dispatch; a red names
+its phase.
