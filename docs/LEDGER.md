@@ -108,6 +108,22 @@ with no tracked file edited: the deadline-from-spawn mutant now fails the separa
 delay the combined tip's seven site arms fail (DID NOT RAISE) and the new seven pass, as they also
 do under 50 ms. The LOW fix is the `NODE_SLOW_START_SECONDS` comment in `tests/surface/test_panel_seam.py`:
 the 15 s line is PROVISIONAL, recalibrated from the first tier2 start-up readings.
+THIRD REFUTATION: a session 143 adversary on landing candidate v2 (24e8e37) REFUTED CS-1329 a third
+time (MEDIUM). Three mutants of run_node's run deadline survived, the module 21 passed under each:
+M1 `started + NODE_START_TIMEOUT_SECONDS + run_timeout`, M2 `run_from + run_timeout + 2.0`, M3
+`run_from + 2 * run_timeout`. The run limit was not pinned: a run that never ends times out under any
+finite deadline, and the diagnosis prints the limit it was handed, not the time it waited. Fixed in
+"CS-1329 - both deadlines pinned on a scripted clock": a scripted clock and recording waits read the
+exact deadline run_node hands each blocking wait - the start wait at spawn plus the start budget, the
+run wait at marker plus the run limit - and each of the seven sites hands run_node its own unchanged
+60 s. Read back by the builder in a scratch copy, each mutant compiled in memory with no tracked file
+edited: M2 and M3 survive at v2 (21 passed each), and with the fix M1 to M7 each go red; the 50 ms,
+200 ms and 1 s after-marker and 3 s before-marker delay probes pass; the module passed 20 runs of 20.
+RESIDUAL: the module's wall time is now 5.40 to 5.50 s (20 local runs, not yet read in CI) in tier1's
+catch-all, against its 420 s gate.
+MERGER'S DECISION: the adversary loop on CS-1329 stops here, by cost against risk under CLAUDE.md
+section 7 "Product before process". Closure is checked by a verifier replaying M1 to M7 and the delay
+probes, not by a fourth adversary.
 Reversed by: a tier1 miss at the pushed tip.
 
 ### 2026-10-16 - CS-1329 - DECISION RECORD (route B: a test-harness defect). NOT A COMPLETION RECORD. CS-1329 STAYS OPEN until a tier2 dispatch is green on attempt 1
