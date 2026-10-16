@@ -75,6 +75,30 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-15 - CS-1317 and CS-700 - step-b gate reading 2 of 2 passes
+Verification: "tier 1 took" lines and the Install toolchain steps on tier1 38825678486 at b5e78e8 and 38812983441 at 47dfea7; `tests/test_tier1_budget.py` (FILL_SHARD_FILES, SCAN_SHARD_FILES). Not a completion record: CS-1317 and CS-700 stay open.
+GATE PUSH 2 put main at b5e78e8 (47dfea7..b5e78e8, records only; remote equal by full SHA, read
+again at CS-700 step a; push suite 16302 passed, 12 skipped, 1328.99 s, read from its log). TIER1
+38825678486 at b5e78e8 SUCCESS, six jobs on attempt 1, read from CI at step a: catch-all 214 s,
+fill 320, scan 262, save 288, guard 238, hook 394; install steps 7-12 s by the jobs API.
+READING 1 OF 2 (the ruling record below): tier1 38812983441 at 47dfea7, the first reading after the
+guard move: gates 233 s, fill 381, scan 339, save 357, guard 261, hook 371; tier2
+workflow_dispatch 38813884239 at 47dfea7 27 of 27 on attempt 1. Gate push 1 was 628ad2d..47dfea7
+(push suite 16302 passed, 12 skipped, 1336.14 s, read from its log).
+GATE: catch-all, fill and scan within 420 s, no job over 444 s - READING 2 OF 2 PASSES. With
+reading 1 the consecutive pair after the guard move is met; THE STEP-B GATE's remaining condition
+is CS-700 step a's own tier1 run, the third gate run (the 2026-10-15 CS-1327, CS-1317 and CS-700
+ruling's ORDER).
+The reading 1 ruling's clauses read at reading 2: fill 320 s, not over 400 or 420, and no job over
+444 s - not fired. Its CS-1318 clause took its own else branch: the slice's adversary read REFUTED
+before gate push 2, so the slice did not ride it and waits until after the CS-700 window (the
+2026-10-15 CS-1318 record). The guard-move rulings' 360 s lines read at reading 2: guard 238, save
+288, fill 320 - none over 360.
+OPERATOR PRESENCE FOR THIS BLOCK: the operator answered in the main session, in their own words via
+the session's question prompt, 2026-10-15, "Start CS-700 now", choosing the option described as
+"I'm present". Recorded at session 142's CS-700 step a as the operator's presence for this flip
+block.
+
 ### 2026-10-15 - CS-1318 - session 142 reap-replay slice REFUTED; not landed; it waits until after the CS-700 window
 Verification: the CS-1318 section of `docs/item_notes/phase7.md`; `ROADMAP.md`. NOT A COMPLETION RECORD. CS-1318 STAYS OPEN. The distinct adversary's findings, agent-reported and relayed. CANDIDATE, on a worktree-agent branch: the commits "CS-1318 - red test: the reap replay counts a zombie as a misread" and "CS-1318 - reap replay tool and dispatch-only ubuntu replay workflow".
 REFUTED ON FITNESS: the tool re-implements the one-shot and zombie-aware checks instead of exercising the hook arm's own reap code. `.githooks/pre-commit` is byte-identical at 382b3bb and the repaired code, so the repair lives in the test arm's wait (REAP_WAIT), and the "pre-repair" leg runs nothing from 382b3bb that differs. Its time-of-death field measures the tool's own shell-spawn delay: max_dead_ms 64 under 48 burners with every pid already gone at first look, against 3 unloaded.
