@@ -89,11 +89,14 @@ spawn sites in six `tests/surface/` files run through one helper; a preload writ
 to stderr (fs.writeSync) when node reaches user code; start-up to the marker has its own 120 s
 budget; each site's 60 s run limit counts from the marker and is unchanged; a timeout in either
 phase fails naming the elapsed seconds, whether the marker arrived, and the partial stdout and
-stderr. Nothing skipped. The ruling ordered no limit raise and no rerun: the 60 s run limit is
-unchanged, and the red was never rerun.
-ALTERNATIVES (the ruling's own text): A - a product defect fixed product-side: rejected. No product
-file changed (a8079bb touched only Python-side imports and test section o), and a deterministic
-hang would fail all four fast legs, but 3 of 4 passed at f2696d1. C - an infra flake under the
+stderr. A pass whose start-up reaches 15 s, and the failed spawn on every pass, leaves a
+NodeStartupWarning line carrying its start-up seconds. Nothing skipped. The ruling ordered no limit
+raise and no rerun: the 60 s run limit is unchanged, and the red was never rerun.
+ALTERNATIVES (the ruling's own text): A - a product defect fixed product-side. Route A rejected:
+a8079bb did change panel_solve.js, panel_power.js, panel_optimize.js and three api/ modules, and
+lands between the 6.31 s and 19.40 s runs, but it adds only pure string functions and no new
+require; the time then reached 60 s with no surface change, and a sibling non-node test grew in
+step. C - an infra flake under the
 CS-1304 watch (record the reading, no code change): rejected. This is not CS-1304's failure class
 (no exit 2 in its two files, no `child_failure`, no status past 255), and the session 141 Q1
 runner-noise test fails here (install 19 s against a 13-27 s baseline; suite 548.70 s against
@@ -102,6 +105,9 @@ and cannot be deferred.
 RUNNER-UP: C. Its best argument: a hang cannot yet be told from slow node start-up, so any fix is a
 guess. It lost because the first act - the diagnostic failure message plus the separate start-up
 budget - is what tells them apart.
+Residual: between the runs tier2.yml and pyproject.toml also changed (CS-1317 shard moves 5ba31b4,
+74d895d), which changes which tests share a worker; neither ruling tested that. Re-ruled by a fresh
+adjudicator, session 143.
 Reversed by: the next red reading "start marker arrived: yes" with the driver not finishing (a
 driver hang - a distinct adjudicator re-rules on A); a red reading "start marker arrived: no" past
 the 120 s start budget (node's start-up on the runner - an environment finding, never a raised
