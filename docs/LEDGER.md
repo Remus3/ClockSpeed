@@ -75,6 +75,121 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-17 - CS-700, CS-1328, CS-1231, CS-1283, CS-1291 and CS-1307 - NOT A COMPLETION RECORD. CS-700, CS-1328, CS-1231, CS-1283, CS-1291 AND CS-1307 STAY OPEN: session 144 /done - the operator's CPU stop; records committed, the push deferred
+Verification: tier1 38987573335 and tier2 39015311073 at 3592a5b; `CS-NEXT-SESSION.txt` (THE
+SINGLE NEXT ACTION, PARKED WIP and the session 144 /done final report); `WAKEUP_NOTES.md` (session
+144); the session 144 rulings record directly below. NOTHING CLOSED in session 144, and no code
+merged to main: this ritual's commit holds records only.
+THE OPERATOR'S CPU STOP - THIS RITUAL'S ONE DEVIATION. The operator, in their own words in the main
+session: "machine cpu is thrashing at 100% - wrap up everything to be continued in a different
+session". On that order this ritual did NOT run step 8's push, whose pre-push hook is the ritual's
+one gated whole suite (about 20 minutes) - exactly the load the operator stopped. Steps 0 to 7 ran,
+step 1 at tier 0, and no whole suite ran anywhere; the records commit is LOCAL ONLY; step 8's push
+and its MEASURE were skipped, and a push_deferred key carrying the reason and the step 0 start time
+was merged into this ritual's timing record (named in words); step 10 marks failed with the reason
+"push deferred by operator CPU stop". Never --no-verify. The remote therefore does NOT equal HEAD:
+the next session's first act is that push - its one gated whole suite for this commit - and only
+when the machine's CPU is not saturated.
+FIRST ACT (session 144; agent-reported to this ritual, and re-read by it where marked): HEAD 3592a5b
+equal to origin/main by full SHA (re-read with `git ls-remote origin refs/heads/main`); the session
+143 timing record (named in words, key session_143) - wall 3457 s, the push suite's gate wait_s
+0.005 and hold_s 1284.962, 16327 passed and 12 skipped, no blocked_by_flake. TIER1 38987573335 AT
+3592a5b PASSES THE STEP-B GATE as a further reading: SUCCESS, six jobs on attempt 1 (re-read);
+catch-all 215 s, fill 337, scan 203, save 189, guard 221, hook 404 (the session's figures; this
+ritual's own read of each job's start to completion: catch-all 220, fill 340, scan 209, save 189,
+guard 221, hook 404 s) - catch-all, fill and scan within 420 s and no job over 444 s. TIER2
+39015311073 (scheduled) at 3592a5b SUCCESS, 27 of 27 jobs on attempt 1 (re-read). The CS-700 window
+read CLOSED; no KEEP RULE copy folder; INBOX_STOP absent, QUEUE_STOP present, STOP absent (re-read);
+the remote PRIVATE and not archived (re-read); the inbox 0 unread; `python tools/drift_guard.py`
+exit 0, 11 of 11.
+THE CS-700 BLOCK WAS NOT RESTARTED: ruling R1 below ("Continue" alone does not establish the
+operator present at step e).
+HOUSEKEEPING (CS-1291 part 7 and FLEET item 9; agent-reported): 23 agent and scratch worktrees of
+sessions 139 to 143 sent to the Recycle Bin after a consumer check; 27 worktree entries pruned; 9
+fully merged branches deleted with `git branch -d`, and the 16 cherry-picked ones kept, never
+force-deleted. SKIPPED: the session 143 one-push records worktree (tip subject "CS-700, CS-1317 and
+CS-1329 - records: session 143 one-push sequencing", on main), reported git-locked under a process
+no longer running; this ritual read `git worktree list --porcelain` with no locked entry and the
+worktree still present - it is removed next session after a consumer check. KEPT: the CS-1318
+replay candidate's branch and worktree. Read by this ritual: `git worktree list` 72 lines and `git
+for-each-ref refs/heads` 371 refs (96 and 377 at the session 143 /done); the cs1322-adv-tmp folder
+at the E: volume root and the one leftover file in the gitignored work/saves still present.
+PARKED WIP (the operator's CPU stop): three builders' work, each committed on its own
+worktree-agent-* branch in its own agent worktree, UNVERIFIED and NOT on main, each one commit ahead
+of main (read by this ritual), by tip subject: "CS-1328 - WIP parked session 144 (unverified)" (S1,
+`tests/test_readme_audit.py` only); "CS-1307 - WIP parked session 144 (unverified)" (S2,
+`tests/test_claude_hook.py` only); "CS-1231 - WIP parked session 144 (unverified)" (S3,
+`tests/test_lane_runner_script.py` only). What each holds and what remains: `CS-NEXT-SESSION.txt`,
+PARKED WIP. The next session's housekeeping never removes them.
+STEP 0 (this ritual): start 2026-10-17T08:55:33-05:00. WINDOW SIGNAL CLOSED: `git rev-list
+--parents -n 1 HEAD` exit 0, two SHAs (3592a5b over d1ca4de, not a merge); `git diff-tree --root
+--no-commit-id --name-only -r HEAD` exit 0, listing the seven records files of the session 143 /done
+commit and not the citation set file. Porcelain empty. Items closed: none. Highest tier touched on
+main by this ritual: 0 (records only).
+STEP 1 (tier 0, from the repo root): `git diff --name-only HEAD -- "*.py"` exit 0 with empty output,
+and `git ls-files --others --exclude-standard -- "*.py"` exit 0 with empty output - no changed
+Python path, so ruff had no target and was not run. No pytest ran at step 1; the only pytest this
+ritual ran is the targeted records-reading set at step 5 (the hand-off's final report).
+STEP 5: `python tools/drift_guard.py` exit 0 (guards 11, PASS 11); `python tools/doc_budget.py`
+exit 0 (PASS); `python tools/memory_sync.py` exit 0 (23 leaves); `python tools/sha_citation_gate.py`
+exit 0 (PASS); the records-reading targeted set the session 142 /done named, plus
+`tests/test_readme_audit.py` (23 files in one serial run, listed in the hand-off's final report):
+exit 0 - 3362 passed, 0 failed, 0 skipped.
+RECORDS: this record and the session 144 rulings record below; session 144 in `WAKEUP_NOTES.md`,
+session 141 relocated verbatim to `docs/history_notes.md`; the session 145 hand-off. No `ROADMAP.md`
+change (nothing closed, no id filed) and no `BACKLOG.md` change. No CS-1328 ORDER record (its rule
+0: the closing ledger commit after S12a).
+CHANNEL: session 144 sent no note. OWED: ONE batched note to MAIN under the 6-per-day cap - the kit
+claims hook defect (BACKLOG "Session 143 residuals"), the CS-1283 keep-own-sink ruling (R4), and one
+line that CS-1291 part 1 conflicts with `.claude/commands/done.md`'s DONE-SLOW one-gated-suite rule.
+
+### 2026-10-17 - CS-700, CS-1328, CS-1283, CS-1231 and CS-1291 - NOT A COMPLETION RECORD. CS-700, CS-1328, CS-1283, CS-1231 AND CS-1291 STAY OPEN: session 144 rulings R1 to R6 (decision records)
+Verification: `CS-NEXT-SESSION.txt` (DECISIONS, SESSION 144, and PARKED WIP); `tests/test_readme_audit.py`
+(KEPT_CHECKOUT_LINES); `ops/loop/run_lane.ps1`; `ops/loop/queue_loop.py`; `.githooks/pre-push`;
+`.claude/commands/done.md`. Each ruled by a distinct session 144 adjudicator that produced none of
+the work (agent-reported to this ritual; the rulings' own files were not re-read here); recorded by
+the session 144 /done. NOTHING CLOSED.
+R1 - CS-700: THE FLIP BLOCK IS CARRIED UNCHANGED. DECISION: the block is not restarted in session
+144. WHY: the operator's "Continue" alone does not establish their presence at step e, which falls
+4 to 5 h after step a; the precedent is the explicit "I'm present" the session 142 step a record
+carries. RUNNER-UP: start step a now. Reversed by: the operator stating their presence in their own
+words in the main session.
+R2 - CS-1328: THE SIDECAR STEP IS SEQUENCED BEFORE STEP b, in an ordinary push batched with the
+session's commits, never inside step a. ALTERNATIVE REJECTED: folding it into step a's records
+commit. WHY (as the ritual's brief records it): it is a commit, so never inside the window; the
+CS-1328 ORDER leaves its place to a distinct adjudicator, before step b or after S12a; and every
+tier1 run on main is a gate reading, so batching it spends no extra reading (the session 143
+sequencing ruling's precedent). Reversed by: no reversal clause was recorded for this ritual; a
+fresh distinct adjudication on a measured reason, or the operator's own words.
+R3 - CS-1328: ALLOWLIST THE RECORDS, SCRUB THE TEST LITERALS. DECISION: the 9 records lines that
+spell the old C:-drive sidecar paths (4 in `docs/LEDGER.md`, 5 in `docs/history_notes.md`) and the
+negative detector line in `tests/ops/test_multi_lane.py` stay byte-unchanged and go on a
+digest-keyed allowlist of 10 rows in `tests/test_readme_audit.py`; the 6 literals in
+`tests/test_queue_loop.py` are scrubbed to the placeholder parent-directory form `ops/loop/lanes.py`
+already uses; the 5 drive-rooted lines that are not sidecar paths are out of this step's scope.
+WHY: `docs/LEDGER.md` is append-only, so an in-place edit is not permitted; the ORDER itself offers
+an explicit allowlist; and the CS-1292 precedent was ordered by file name. RUNNER-UP: scrub the
+records lines too. Reversed by: no reversal clause was recorded for this ritual; a fresh distinct
+adjudication, or the operator's own words.
+R4 - CS-1283: KEEP THE TREE'S OWN SINK. DECISION: `ops/loop/queue_loop.py::_emit` stays the lane
+driver's checklist sink rather than the kit's `ops/fleet_kit/fleet_checklist.py::emit`. WHY: kit
+v17's emit() neither flushes nor tees. CS-1283 STAYS
+OPEN until this ruling reaches MAIN in the next batched note and its delivery is read back.
+ALTERNATIVE REJECTED: moving the printer onto the kit's emit(). Reversed by (from the stated reason): a kit
+version whose emit() flushes and tees, or a MAIN ruling in reply - then a fresh adjudication.
+R5 - CS-1231 SLICE C: GO. DECISION: a hermetic design - a fake `python.cmd` shim on PATH for the
+runtime arms, plus an in-process contract arm that calls the real
+`ops/fleet_kit/fleet_headless.py::main` with a recorder spawn_fn - and CLAUDE.md precedence clause (c) retired as a net shrink when slice C lands.
+It lands only after a distinct adversary reads NOT REFUTED, and never rides a gate push half-done.
+ALTERNATIVES: not recorded for this ritual. Reversed by: an adversary REFUTED on the hermetic
+design, then a fresh adjudication; or the operator's own words.
+R6 - CS-1291: THE FROZEN-FILE GRANT FOR `.githooks/pre-push` PARTS 1, 2 AND 5 IS DEFERRED, NOT
+DENIED, until S12a completes or the CS-700 window is closed by adjudicated recovery. A fresh
+adjudicator then grants a scope that keeps one gated whole suite on the /done push (or amends
+`.claude/commands/done.md`), shows hook-job headroom under 444 s, and keeps every refusal check
+verbatim. NO GRANT IS RECORDED NOW, so no edit to the frozen file may start. Reversed by: S12a
+completing, or the window closed by adjudicated recovery - then that fresh adjudication.
+
 ### 2026-10-16 - CS-700, CS-1317 and CS-1328 - NOT A COMPLETION RECORD. CS-700, CS-1317 AND CS-1328 STAY OPEN: session 143 /done - step-b gate reading 2 of 2 passed at f2696d1; records only
 Verification: the "tier 1 took" lines of tier1 38850001619 at f2696d1; `CS-NEXT-SESSION.txt` (THE
 SINGLE NEXT ACTION and the session 143 /done final report); `WAKEUP_NOTES.md` (session 143);
