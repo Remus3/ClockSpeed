@@ -75,6 +75,90 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-16 - CS-700, CS-1317 and CS-1328 - NOT A COMPLETION RECORD. CS-700, CS-1317 AND CS-1328 STAY OPEN: session 143 /done - step-b gate reading 2 of 2 passed at f2696d1; records only
+Verification: the "tier 1 took" lines of tier1 38850001619 at f2696d1; `CS-NEXT-SESSION.txt` (THE
+SINGLE NEXT ACTION and the session 143 /done final report); `WAKEUP_NOTES.md` (session 143);
+`BACKLOG.md` ("Session 143 residuals"); the CS-1317 and CS-1328 sections of
+`docs/item_notes/phase7.md`. The one item session 143 closed, CS-1329, has its own completion
+record directly below; this record closes nothing.
+FIRST ACT (session 143, read again by this ritual): the session 142 /done push LANDED,
+74d895d..f2696d1, the remote equal by full SHA; its timing record (named in words, key session_142)
+carries no blocked_by_flake. The window signal read CLOSED, no KEEP RULE copy folder exists, the
+remote reads PRIVATE and not archived, and the inbox reads 0 unread of 540.
+GATE READING 2 OF 2 PASSES: tier1 38850001619 at f2696d1 SUCCESS, six jobs on attempt 1, read from
+CI by this ritual: catch-all 314 s, scan 341, fill 334, save 276, guard 344, hook 398. Catch-all,
+fill and scan within 420 s and no job over 444 s, so THE STEP-B GATE's consecutive pair after the
+mypy-gate move is MET (74d895d and f2696d1). Every later tier1 run on main is a further gate
+reading, and a miss restarts the pair (Q2, 2026-10-14).
+TIER2 RED: scheduled tier2 38872659581 at f2696d1 FAILURE on attempt 1, 26 of 27 jobs green; the
+red job "clean-checkout probe (windows-latest, fast shard)" - ruled and filed as CS-1329 (the
+records below). Never rerun.
+THE LANDING: the session 143 lander fast-forwarded main to d1ca4de, 12 commits on f2696d1
+(CS-1329, CS-1328 addition (a) and their records), and pushed f2696d1..d1ca4de through the git
+lock; its pre-push suite read 16327 passed, 12 skipped, 1291.44 s (read from the lander's push log
+by this ritual), and the remote equals d1ca4de by full SHA (read back by this ritual). Before its
+fast-forward the lander cleared a stale 0-byte index lock in the git directory, from 17:00, with the kit's
+fleet_gitlock clear_index_lock under the tree lock, logged in the git lock's log (agent-reported). ITS TIER1
+38983364636 at d1ca4de SUCCESS, six jobs on attempt 1, read from CI by this ritual: catch-all 287
+s, scan 309, fill 300, save 238, guard 323, hook 365 - a further gate reading that PASSES, so the
+pair holds and the sequencing ruling's reversal (a tier1 miss at the pushed tip) did not fire. ITS
+TIER2 workflow_dispatch 38983396183 at d1ca4de SUCCESS, 27 of 27 jobs on attempt 1, read back by
+this ritual - CS-1329's closing reading (the record below). CS-700's precondition that the CS-1329
+fix lands and one tier2 dispatch is green on attempt 1 is MET.
+STEP 0 (this ritual): start 2026-10-16T18:44:44-05:00. WINDOW SIGNAL CLOSED: HEAD d1ca4de has two
+SHAs on its parents line (not a merge) and its own commit touches only `docs/LEDGER.md`, not the
+citation set file; porcelain empty. Highest tier touched: 2, by the items' ROADMAP tier (test
+harness code under `tests/surface/`, `tests/test_readme_audit.py` and docs; no product code).
+STEP 1 (tier 2, from the repo root, each command once, NOT the whole suite): `python -m mypy` exit
+0 (no issues in 422 source files); `python -m ruff check .` exit 0; `python -m ruff format --check
+.` exit 0 (406 files formatted); targeted `python -m pytest <file> -q -p no:cacheprovider`, each
+exit 0: `tests/surface/test_cs1329_driver_timeout.py` 23 passed, `tests/surface/test_panel_seam.py`
+13 passed, `tests/surface/test_panel_solve.py` 55 passed and 1 warning (the NodeStartupWarning line
+of the spawn that failed, as its acceptance requires), `tests/surface/test_panel_power.py` 29
+passed, `tests/surface/test_panel_optimize.py` 30 passed, `tests/surface/test_panel_global_scope.py`
+19 passed, `tests/test_readme_audit.py` 146 passed, `tests/test_provenance_manifest.py` 68 passed.
+RECORDS: CS-1329's completion record (below), its `ROADMAP.md` line removed and its item section
+relocated verbatim from `docs/item_notes/phase7.md` to `docs/history_notes.md`; BACKLOG "Session
+143 residuals" (the kit claims hook's quote-wrapped redirect defect, owed to MAIN; the freeze
+witness's bytecode half under a concurrent suite; CS-1329's unpinned start budget); CS-1317's next
+action refreshed in `docs/item_notes/phase7.md`; session 143 in `WAKEUP_NOTES.md`, session 140
+relocated verbatim to `docs/history_notes.md`. The CS-1328 ledger
+record still waits for the closing ledger commit after S12a (its rule 0); this record is not it.
+THE PUSH: the ritual's one push carries this commit on top of d1ca4de; its pre-push suite is the
+ritual's one gated whole suite, and its tier1 is a further THE STEP-B GATE reading - UNREAD at this
+commit, read by session 144 first. The push result, its suite counts and the gate timings go only
+to this ritual's push log and its timing record (named in words).
+
+### 2026-10-16 - CS-1329 - CLOSED: every tests/surface node spawn budgets node's start-up apart from its run, and a timeout names its phase
+Verification: merged files `tests/surface/test_panel_seam.py` (`run_node`, with
+`NODE_START_TIMEOUT_SECONDS` and `NODE_SLOW_START_SECONDS`), `tests/surface/panel_harness.py` (its
+`run_node` re-export), the spawn sites in `tests/surface/test_panel_solve.py`,
+`tests/surface/test_panel_power.py`, `tests/surface/test_panel_optimize.py` and
+`tests/surface/test_panel_global_scope.py`, and `tests/surface/test_cs1329_driver_timeout.py` with its
+`tools/provenance.tsv` row (authored, CS-1329). Tests:
+`tests/surface/test_cs1329_driver_timeout.py::test_node_start_up_is_never_charged_to_the_run_limit`,
+`tests/surface/test_cs1329_driver_timeout.py::test_both_deadlines_are_exact_on_a_scripted_clock`,
+`tests/surface/test_cs1329_driver_timeout.py::test_every_site_hands_run_node_its_own_unchanged_run_limit`
+and `tests/surface/test_cs1329_driver_timeout.py::test_the_spawn_that_failed_reports_its_start_up_on_every_pass`;
+the reading spawn is
+`tests/surface/test_panel_solve.py::test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface`.
+CLOSING READING, the acceptance's condition MET: tier2 workflow_dispatch 38983396183 at d1ca4de,
+the landing tip and origin/main by full SHA, SUCCESS, 27 of 27 jobs on attempt 1, read back by the
+session 143 /done; the windows-latest clean-checkout probe job (fast shard) logs the spawn that
+failed: "the solve driver mounting panel_solve.js reached its start marker in 1.54 s, under the 15 s
+slow-start line; its run took 0.21 s". Tier1 38983364636 at d1ca4de SUCCESS, 6 of 6 on attempt 1.
+Run locally by that ritual: `tests/surface/test_cs1329_driver_timeout.py` 23 passed and
+`tests/surface/test_panel_solve.py` 55 passed with that one warning line.
+THRESHOLD DECISION, the session 143 merger's call: the PROVISIONAL 15 s slow-start line
+(`NODE_SLOW_START_SECONDS`) is RETAINED, not recalibrated. The first start-up reading, 1.54 s,
+leaves about 10x headroom, and 15 s stays below the 19.40 s whole-spawn reading taken before the
+red. Reversed by: a tier2 probe start-up reading at or over 15 s, or a second 60 s red.
+ROUTE AND RULINGS: route B, the 2026-10-16 CS-1329 DECISION RECORD below; three refutations, each
+fixed, and the adversary loop stopped by cost against risk, the session 143 sequencing ruling
+record below. Their Reversed by clauses stand.
+RESIDUALS: the 120 s start budget is not pinned by the acceptance (`BACKLOG.md`, "Session 143
+residuals"); the module's 5.40-5.50 s local wall time in tier1's catch-all.
+
 ### 2026-10-16 - CS-700, CS-1317 and CS-1329 - NOT A COMPLETION RECORD. CS-700, CS-1317 AND CS-1329 STAY OPEN: session 143 sequencing ruling - CS-1329 and the HEAD path scrub land in one push and one tier1 reading
 Verification: `tests/surface/test_cs1329_driver_timeout.py`; `tests/test_readme_audit.py` (KEPT_CHECKOUT_LINES);
 the CS-1328 and CS-1329 sections of `docs/item_notes/phase7.md`; Q2 of the 2026-10-14 gate records and

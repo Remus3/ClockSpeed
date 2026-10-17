@@ -1919,7 +1919,7 @@ corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unc
 is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
 record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
 
-Next action: read THE STEP-B GATE's reading 2 after the session 142 mypy-gate move (the session 142 /done record in `docs/LEDGER.md`; the guard move and the mypy-gate move both landed).
+Next action: reading 2 PASSED at f2696d1 and the d1ca4de tier1 passed too (the session 143 /done record in `docs/LEDGER.md`); read each later tier1 on main as a further gate reading - the session 143 /done push's first - then CS-700 step a's own run.
 The item closes only when both catch-all and both scan readings are at most 360 s; otherwise a
 rebalance from both shards' CI durations is next. Owed before the close: the scan entries out of `PENDING_READINGS` in `tools/tier1_growth.py`,
 `PENDING_PROFILE` in `tools/tier1_concentration.py` and `PENDING_FIRST_RECORD` in
@@ -2053,28 +2053,3 @@ name, so it does not catch a sidecar-root spelling; no tracked file now spells t
 Next action: (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted
 measurement in the window; the open sidecar step above; (e), (g), the ledger record and the ONE
 ANSWER after S12a.
-
-## CS-1329
-
-### Acceptance
-
-Every node spawn under `tests/surface/` (seven sites, six files) runs through one helper,
-`test_panel_seam.run_node`, re-exported as `panel_harness.run_node`: node's start-up, up to a
-preload's start marker, has its own budget and is never charged to a site's run limit; each
-site's 60 s run limit is unchanged; a timeout in either phase fails naming the elapsed seconds,
-whether the marker arrived, and the partial stdout and stderr; a pass whose start-up reaches the
-15 s slow-start line, and the failed spawn on every pass, leaves a NodeStartupWarning line with
-its start-up seconds - as `tests/surface/test_cs1329_driver_timeout.py` pins. The separation is
-pinned by `test_node_start_up_is_never_charged_to_the_run_limit`, which fails a run deadline
-counted from the spawn rather than from the marker. The 15 s line is PROVISIONAL, picked from
-whole-spawn times: it is recalibrated from the first tier2 start-up readings. It closes only when
-a tier2 dispatch at or after the landing commit is green on attempt 1 AND that green log shows
-the reported start-up seconds for the spawn that failed
-(`test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface`).
-
-### Filed 2026-10-16 by the CS-1329 builder, from tier2 38872659581
-
-The windows clean-checkout probe's fast shard at f2696d1 died in the solve module's first node
-spawn with a bare TimeoutExpired at 60 s. Route B, decided and why: `docs/LEDGER.md`, the
-2026-10-16 CS-1329 DECISION RECORD. Next action: land, then read one tier2 dispatch; a red names
-its phase.

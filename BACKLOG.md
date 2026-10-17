@@ -763,3 +763,24 @@ The CS-1327 round-2 residuals; the route ruling and the round verdicts are in `d
   identity check runs a bare `python` before the interpreter ladder, so a POSIX machine with only
   python3 cannot push - TRIGGER: a push refused on such a machine, or the next frozen-file grant
   for `.githooks/pre-push`.
+
+## Session 143 residuals - filed 2026-10-16 under product before process
+
+Process findings of session 143; the CS-1329 records are in `docs/LEDGER.md`, 2026-10-16. None
+blocks a product item or reddens a suite.
+
+- From a session 143 agent (agent-reported): the kit claims hook `ops/fleet_kit/fleet_claims.py`
+  misreads quote-wrapped less-than and greater-than characters inside a sed command as redirects
+  and claims bogus paths - a kit defect, owed to MAIN as ONE outbound note batched with any other
+  answer under the 6-per-day cap, never edited here (FLEET item 11) - TRIGGER: MAIN's kit version
+  fixing it, or such a claim blocking a real edit.
+- From a session 143 freeze (agent-reported): the bytecode half of `tools/freeze_witness.py` reads
+  MOVED while a concurrent suite run rewrites the bytecode caches - take a freeze record only after
+  a full pytest collect-only run, with no suite running - TRIGGER: a MOVED reading with no source
+  change, or the next edit to `tools/freeze_witness.py`.
+- From the CS-1329 closing verifier (CS-1329 CLOSED 2026-10-16): the 120 s
+  `NODE_START_TIMEOUT_SECONDS` in `tests/surface/test_panel_seam.py` is not pinned by its
+  acceptance -
+  `tests/surface/test_cs1329_driver_timeout.py::test_the_start_budget_is_a_separate_positive_budget`
+  asserts only that it is positive, so 120 to 60 stays green - TRIGGER: a tier2 probe start-up
+  reading at or over the 15 s slow-start line, a second 60 s red, or any edit to that constant.
