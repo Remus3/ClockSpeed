@@ -1387,6 +1387,119 @@ def env_echo_tests_after_the_first_wait(arms: ModuleArms) -> list[str]:
     return [name for name, waits in zip(tests[first:], waiting[first:], strict=True) if not waits]
 
 
+# CS-1307 - the same module's GIT-HOOK arms drive the same CS-815 probe ladder,
+# through real git: commit_through and push_through run `git commit` and
+# `git push` with the shipped hooks wired, and each hook probes the interpreter
+# ladder before anything else. The wrapper walk above scans only the callers of
+# run_wrapper, so it never saw them. These are the only two drivers in that
+# module that run git with its hooks enabled - every other git call there passes
+# --no-verify or runs no hook - so a test that reaches either one drives the ladder.
+GIT_HOOK_DRIVERS: Final = frozenset({"commit_through", "push_through"})
+ENV_ECHO_GIT_HOOK_ARMS: Final = (
+    "test_no_pre_commit_path_echoes_a_canary",
+    "test_no_commit_msg_path_echoes_a_canary",
+    "test_no_push_hook_path_echoes_a_canary",
+    "test_a_pre_commit_copy_that_dumps_the_environment_is_caught",
+    "test_no_account_name_skip_renders_the_name",
+    "test_the_skip_arm_separates_a_carried_token_from_a_rendered_one",
+    "test_a_gate_copy_whose_skip_renders_the_name_is_caught",
+)
+
+# MEASURED LOAD-TOLERANT, NOT WAITING (CS-1307). The git hooks do not bound their
+# ladder as one unit the way tools/claude_hook.sh does: each probe step is its
+# own `timeout -k 1 10` call around ONE process start (CS_PROBE_BOUND in each
+# hook), so sibling load has to slow a single start past ten seconds to move a
+# verdict. Measured on the operator's 16-CPU box, Windows - the CS-1307
+# sibling-load measurement, recorded under CS-1307 in docs/item_notes/phase7.md -
+# by running the seven arms (30 cases) under `-n 2 --dist loadfile` beside a
+# scratch sibling test that spins CPU-bound children for the whole run:
+#   - 32 spinners: 30 of 30 passed, their summed call time 1500.22s - against
+#     45.7s quiet - inside the 1500.84s burn.
+#   - 6 spinners, with a pass-through `timeout` shim first on PATH timing each
+#     of the 221 bounded hook steps: 30 of 30 passed in 50.73s inside the 240s
+#     burn. The longest step that answered took 75ms (80ms quiet) against the
+#     10s bound; the one step that expired is the PYTHONINSPECT arm's probe
+#     hang, its expected verdict, at 10.025s.
+# Making them wait would serialise them behind every sibling (the item's guard
+# shard risk). An arm that also drives the wrapper cannot sit here.
+# Each entry is named on its own, never derived from the list above, so a new
+# git-hook arm is unguarded until it is measured and listed here. One run
+# measured all seven, so they share one pointer - and that pointer is valid only
+# for the seven that run measured, frozen below: a new arm cites its own run.
+CS1307_POINTER: Final = (
+    "CS-1307 sibling-load measurement, recorded under CS-1307 in docs/item_notes/phase7.md"
+)
+CS1307_MEASURED_ARMS: Final = (
+    "test_no_pre_commit_path_echoes_a_canary",
+    "test_no_commit_msg_path_echoes_a_canary",
+    "test_no_push_hook_path_echoes_a_canary",
+    "test_a_pre_commit_copy_that_dumps_the_environment_is_caught",
+    "test_no_account_name_skip_renders_the_name",
+    "test_the_skip_arm_separates_a_carried_token_from_a_rendered_one",
+    "test_a_gate_copy_whose_skip_renders_the_name_is_caught",
+)
+CS1307_MEASURED_COUNT: Final = 7
+ENV_ECHO_LOAD_TOLERANT_ARMS: Final = {
+    "test_no_pre_commit_path_echoes_a_canary": CS1307_POINTER,
+    "test_no_commit_msg_path_echoes_a_canary": CS1307_POINTER,
+    "test_no_push_hook_path_echoes_a_canary": CS1307_POINTER,
+    "test_a_pre_commit_copy_that_dumps_the_environment_is_caught": CS1307_POINTER,
+    "test_no_account_name_skip_renders_the_name": CS1307_POINTER,
+    "test_the_skip_arm_separates_a_carried_token_from_a_rendered_one": CS1307_POINTER,
+    "test_a_gate_copy_whose_skip_renders_the_name_is_caught": CS1307_POINTER,
+}
+
+
+def test_every_env_echo_arm_that_drives_a_git_hook_waits_or_was_measured_tolerant() -> None:
+    """Every git-hook arm of tests/test_hook_env_echo.py waits, or is a measured tolerant one.
+
+    Each drives the same probe ladder the wrapper arms do, beside the same busy
+    sibling workers. One that does not wait at the quiet barrier must be named
+    in ENV_ECHO_LOAD_TOLERANT_ARMS, citing a run beside a CPU-bound sibling -
+    a non-empty citation, and the CS-1307 one only for the arms that run measured.
+    """
+    arms = module_arms(ENV_ECHO_MODULE)
+    reached = {
+        name: waits_through_a_fixture(arms, name)
+        for name in arms.functions
+        if name.startswith("test_") and call_closure(arms, name) & GIT_HOOK_DRIVERS
+    }
+    missing = sorted(set(ENV_ECHO_GIT_HOOK_ARMS) - set(reached))
+    assert missing == [], f"the walk missed these git-hook arms, so it proves nothing: {missing}"
+    stale = sorted(set(ENV_ECHO_LOAD_TOLERANT_ARMS) - set(reached))
+    assert stale == [], f"a load-tolerant entry names no git-hook arm there: {stale}"
+    unguarded = sorted(
+        name
+        for name, waits in reached.items()
+        if not waits and name not in ENV_ECHO_LOAD_TOLERANT_ARMS
+    )
+    assert unguarded == [], (
+        f"these arms drive a git hook's ladder beside busy siblings, unmeasured: {unguarded}"
+    )
+    tolerant_but_waiting = sorted(name for name in ENV_ECHO_LOAD_TOLERANT_ARMS if reached[name])
+    assert tolerant_but_waiting == [], f"a load-tolerant arm waits anyway: {tolerant_but_waiting}"
+    via_wrapper_too = sorted(
+        name for name in ENV_ECHO_LOAD_TOLERANT_ARMS if WRAPPER_DRIVER in call_closure(arms, name)
+    )
+    assert via_wrapper_too == [], (
+        f"a git-hook measurement does not cover the wrapper's one bound: {via_wrapper_too}"
+    )
+    uncited = sorted(
+        name
+        for name, why in ENV_ECHO_LOAD_TOLERANT_ARMS.items()
+        if not isinstance(why, str) or not why.strip()
+    )
+    assert uncited == [], f"a load-tolerant entry cites no measurement: {uncited}"
+    measured = len(set(CS1307_MEASURED_ARMS))
+    assert measured == CS1307_MEASURED_COUNT, f"the CS-1307 run measured seven, not {measured}"
+    borrowed = sorted(
+        name
+        for name, why in ENV_ECHO_LOAD_TOLERANT_ARMS.items()
+        if CS1307_POINTER in str(why) and name not in CS1307_MEASURED_ARMS
+    )
+    assert borrowed == [], f"these cite the CS-1307 run, which never measured them: {borrowed}"
+
+
 def fake_worker(run_id: str, worker: str) -> SimpleNamespace:
     """The two attributes of an xdist worker's config the barrier reads."""
     return SimpleNamespace(

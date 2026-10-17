@@ -527,6 +527,12 @@ def refused(run: Run, *said: bytes) -> bool:
 
 
 # --- the git hooks, driven through real git ---------------------------------------
+#
+# Every arm that reaches commit_through or push_through runs the hooks' probe
+# ladder, yet runs BESIDE the sibling workers and never waits: each probe step
+# is its own ten second bound around one process start, measured to hold beside
+# a CPU-bound sibling. tests/test_claude_hook.py names each such arm and pins it
+# (CS-1307); a new one is red there until it is measured or waits at the foot.
 
 
 def both_commit_hooks() -> dict[str, bytes]:
