@@ -448,14 +448,18 @@ def _run_runner(
     shim: bytes = _SHIM_RAN,
     extra_env: dict[str, str] | None = None,
 ) -> tuple[int, bool, list[str]]:
-    """Run the real runner over a shim CLI; return exit code, whether the shim ran, log lines."""
+    """Run the real runner over a shim; return exit code, whether the shim ran, log lines.
+
+    CS-1231 slice C: the runner's direct child is the fleet kit's interpreter,
+    which starts the CLI, so the shim stands where that interpreter stands.
+    """
     shell = shutil.which("powershell")
     if shell is None:
         pytest.skip("Windows PowerShell is not on PATH")
     shim_dir = tmp_path / "shim"
     shim_dir.mkdir()
     marker = shim_dir / "ran.txt"
-    (shim_dir / "claude.cmd").write_bytes(shim)
+    (shim_dir / "python.cmd").write_bytes(shim)
     prompt = tmp_path / "prompt.md"
     prompt.write_bytes(b"# synthetic\n")
     tree = tmp_path / "tree"
@@ -492,7 +496,7 @@ def test_the_runner_refuses_an_unrouted_start_without_running_the_cli(tmp_path: 
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
-def test_control_a_routed_start_reaches_the_cli(tmp_path: Path) -> None:
+def test_control_a_routed_start_reaches_the_kit(tmp_path: Path) -> None:
     """THE CONTROL: the same harness with the variable set does run the shim."""
     code, ran, lines = _run_runner(tmp_path, value=_RUNNER_GOOD)
     refused = any(line.startswith("lane refused") for line in lines)
@@ -524,16 +528,18 @@ def test_the_runner_refuses_a_value_outside_the_allowlist(tmp_path: Path, plante
 # ---------------------------------------------------------------------------
 # The fleet kit's PreToolUse hook (v10, carried at v11) denies every guarded
 # tool in a thread with no agent id, and DEFAULTS TO DENY when its mode file is absent. That file is
-# gitignored, so a lane worktree never has one, and run_lane.ps1 starts the CLI
-# directly rather than through the kit's spawn (whose child env already turns
-# the hook off) until CS-1231 slice C moves it. A headless lane worker has no
+# gitignored, so a lane worktree never has one. A headless lane worker has no
 # operator and no main pane, so the grant (docs/LEDGER.md, "2026-10-08 -
-# CS-1282") conditions the hook's wiring on the runner setting it off.
+# CS-1282") conditions the hook's wiring on the runner setting it off. Since
+# CS-1231 slice C the runner starts the kit's spawn command line, whose child
+# env turns the hook off for the CLI too; the runner's own assignment stays as
+# defence in depth, and both halves are graded here.
 
 #: The one accepted spelling: a literal, double-quoted assignment at script scope.
 _SUBAGENT_FIRST_OFF: Final = f'$env:{subagent_first.ENV_MODE} = "off"'
-#: The runner's single CLI invocation, the call operator on the resolved path.
-_INVOCATION: Final = re.compile(r"&\s*\$claude\b", re.IGNORECASE)
+#: The runner's single start, the call operator on the resolved interpreter that
+#: runs the kit's spawn command line.
+_INVOCATION: Final = re.compile(r"&\s*\$python\b", re.IGNORECASE)
 #: A shim that records the mode it was handed. "echo mode=" and never a bare
 #: echo, because a batch "echo off" toggles echoing instead of printing.
 _SHIM_MODE: Final = b'@echo mode=%FLEET_SUBAGENT_FIRST%> "%~dp0ran.txt"\r\n@exit /b 0\r\n'

@@ -2,19 +2,19 @@
 
 FLEET item 10: the fleet kit's spawn helper, `fleet_headless.spawn` in
 `ops/fleet_kit/fleet_headless.py`, is the ONLY path that starts `claude`.
-`CLAUDE.md` precedence clause (c) states the one exception this tree carries
-until CS-1231 slice C finishes: `ops/loop/run_lane.ps1` still starts `claude`
-directly, and QUEUE_STOP holds the lane that runs it. This module grades that
+`CLAUDE.md` precedence clause (c) once named one exception - the lane runner
+`ops/loop/run_lane.ps1` started `claude` directly - and CS-1231 slice C retired
+it: the runner now runs the kit's spawn command line. This module grades that
 at the grep level:
 
   1. THE WALK finds every tracked file that starts the CLI DIRECTLY, by shape:
      Python string constants (never a docstring), PowerShell, shell, batch and
      JavaScript command lines (never a comment), the hook commands of the
      tracked Claude settings, and the code in the markdown command files.
-  2. What it finds is EXACTLY the kit itself plus the one named exception. A
-     new direct start reddens it, and so does the exception going stale: when
-     run_lane.ps1 stops starting `claude`, its exception is retired here and in
-     `CLAUDE.md` together.
+  2. What it finds is EXACTLY the kit itself. A new direct start reddens it,
+     and so does an exception coming back in `CLAUDE.md`.
+  3. THE POSITIVE HALF: the inbox responder is a kit caller, and the lane
+     runner runs the kit's spawn command line.
 
 WHY TESTS ARE NOT WALKED. Every `claude` a test starts is a planted shim on a
 temporary PATH - a `claude.cmd` the test itself writes. The excluded roots are
@@ -46,10 +46,18 @@ ROOT: Final = Path(__file__).resolve().parents[2]
 #: The kit's spawn helper - the one sanctioned path that starts `claude`.
 KIT: Final = "ops/fleet_kit/fleet_headless.py"
 
-#: The ONE named exception, CLAUDE.md precedence clause (c): held by QUEUE_STOP
-#: until CS-1231 slice C moves the lane onto the kit.
+#: The lane runner. It was the one named exception (CLAUDE.md precedence clause
+#: (c)) until CS-1231 slice C moved it onto the kit's spawn command line.
 RUN_LANE: Final = "ops/loop/run_lane.ps1"
-DIRECT_START_EXCEPTIONS: Final = frozenset({RUN_LANE})
+
+#: No exception remains: nothing but the kit starts `claude` directly.
+DIRECT_START_EXCEPTIONS: Final[frozenset[str]] = frozenset()
+
+#: The lane runner's start, by shape: the kit's spawn command line, run by the
+#: resolved interpreter. Matched against the runner's code, comments dropped.
+_LANE_KIT_PATH: Final = re.compile(r'"ops\\fleet_kit\\fleet_headless\.py"')
+_LANE_KIT_SPAWN: Final = re.compile(r'^\s*"\$kit", "spawn",\s*$', re.MULTILINE)
+_LANE_KIT_CALL: Final = re.compile(r"&\s*\$python\s+@kitArgs\b")
 
 #: Probe-only hits: a string the scanner reads as a start but that only names
 #: the CLI to recognise a running Claude Code session (an image-name check, no
@@ -375,11 +383,12 @@ def test_the_walk_sees_the_kits_own_start() -> None:
 
 
 def test_every_direct_start_is_the_kit_or_the_one_named_exception() -> None:
-    """FLEET item 10 with CLAUDE.md clause (c): nothing else starts `claude` directly.
+    """FLEET item 10: nothing but the kit starts `claude` directly.
 
-    A new direct start appears here by path. A stale exception does too: the
-    expected set holds run_lane.ps1, so the day it stops starting `claude` this
-    arm reddens until the exception is retired.
+    The name is kept for the ledger's citation; the named exception it once
+    allowed, run_lane.ps1, is retired (CS-1231 slice C), so the expected set is
+    empty. A new direct start appears here by path - the lane runner included,
+    should it ever go back to starting the CLI itself.
     """
     direct = sorted(set(_without_probes(ROOT, walk(ROOT))) - {KIT})
     assert direct == sorted(DIRECT_START_EXCEPTIONS)
@@ -413,9 +422,34 @@ def test_every_probe_only_exemption_still_matches_a_hit() -> None:
 
 
 def test_the_exception_is_the_one_claude_md_names() -> None:
-    """The exception's authority is CLAUDE.md clause (c); it may not outlive that clause."""
+    """Clause (c) is retired: CLAUDE.md names neither the runner nor an exception.
+
+    The name is kept for the ledger's citation. An exception needs CLAUDE.md's
+    authority, so one coming back must come back there - and this arm reddens
+    when it does.
+    """
     text = (ROOT / "CLAUDE.md").read_bytes().decode("utf-8", "replace")
-    assert sorted(path for path in DIRECT_START_EXCEPTIONS if path in text) == [RUN_LANE]
+    named = sorted(path for path in {RUN_LANE, *DIRECT_START_EXCEPTIONS} if path in text)
+    excepted = "still starts `claude` directly" in text
+    assert (named, excepted) == ([], False)
+
+
+def test_the_lane_runner_starts_its_worker_through_the_kit_command_line() -> None:
+    """The positive half for the lane: the runner runs the kit's spawn command line.
+
+    Read off the runner's CODE, comments dropped, so a comment describing the
+    call cannot stand in for it: the vendored kit path, the spawn subcommand at
+    the head of the argument list, and the one call operator that runs it.
+    """
+    source = (ROOT / RUN_LANE).read_bytes().decode("ascii")
+    code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
+    shape = (
+        len(_LANE_KIT_PATH.findall(code)),
+        len(_LANE_KIT_SPAWN.findall(code)),
+        len(_LANE_KIT_CALL.findall(code)),
+    )
+    assert shape == (1, 1, 1)
+    assert direct_starts(RUN_LANE, source) == []
 
 
 def test_the_inbox_responder_starts_its_worker_through_the_kit() -> None:

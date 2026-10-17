@@ -13,14 +13,18 @@ refusal's SHAPE, and the worker log is assembled under `tmp_path` in the layout
 `ops/loop/run_lane.ps1` writes - a header line, the worker's output, an exit
 line - with the worker's output being the JSON result object a run emits when
 asked for JSON output, which the runner now asks for. The last arm runs the
-REAL runner over a shim `claude` and feeds the driver the log it wrote.
+REAL runner over a shim `python` standing where the fleet kit's interpreter
+stands (CS-1231 slice C), printing the line the REAL kit's command line prints
+for that result, and feeds the driver the log the runner wrote.
 
-No arm spawns a process, sleeps, takes a lock or reads the live channel.
+Only the runner half spawns a process. No arm sleeps or reads the live channel,
+and the one lock taken is the in-process kit's, on a budget file under tmp_path.
 """
 
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import os
 import subprocess
@@ -35,6 +39,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # A PLAIN IMPORT, never importorskip: a missing driver is a COLLECTION error.
+from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from ops.loop import queue_loop  # noqa: E402
 
 #: Planted in the result's free text, so an arm can prove the driver never
@@ -464,30 +469,81 @@ def _powershell() -> str:
     return str(shell)
 
 
-def _shim(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, Path]:
-    """A `claude` that records its argv, prints ONE result line and exits `code`.
+class _Closable:
+    """What the fake connect hands back: something the kit can close."""
 
-    NO REAL CLI IS EVER INVOKED: PATH is rebuilt from this directory and the
-    system directory, so `claude` resolves to this batch file or to nothing.
+    def close(self) -> None:
+        """Nothing to close."""
+
+
+def _kit_line(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[str, list[str]]:
+    """The line the REAL kit's command line prints when its CLI printed `result`.
+
+    The kit's own `main` and `spawn` run in this process against a root under
+    `tmp_path`; the CLI is a fake run that prints `result` and exits `code`,
+    and the proxy URL, the connect and the executable are injected, so nothing
+    live is read or written.
+
+    Returns:
+        The printed line, and the CLI argv the kit built.
     """
-    line = json.dumps(result, separators=(",", ":"))
+    started: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        started.append(list(argv))
+        return subprocess.CompletedProcess(argv, code, json.dumps(result), "")
+
+    def spawn_fn(root: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
+        line: dict[str, Any] = kit.spawn(
+            root,
+            code,
+            prompt,
+            run=fake_run,
+            url_source=lambda: "http://127.0.0.1:9",
+            connect=lambda *_args, **_kwargs: _Closable(),
+            exe_source=lambda: "synthetic-claude",
+            **kwargs,
+        )
+        return line
+
+    root = tmp_path / "kit-root"
+    root.mkdir(parents=True, exist_ok=True)
+    printed = io.StringIO()
+    exit_code = kit.main(
+        ["spawn", "--root", str(root), "--code", "CS", "--note", "synthetic", "--kind", "build"],
+        spawn_fn=spawn_fn,
+        stdin=io.StringIO("# synthetic prompt\n"),
+        stdout=printed,
+    )
+    assert exit_code == kit.CLI_OK, f"the in-process kit answered {exit_code}"
+    assert len(started) == 1, "the in-process kit did not start one CLI"
+    return printed.getvalue().strip(), started[0]
+
+
+def _shim(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, Path, list[str]]:
+    """A `python` that records its argv, prints the kit's ONE line and exits 0.
+
+    NO REAL KIT AND NO REAL CLI IS EVER INVOKED by the runner: PATH is rebuilt
+    from this directory and the system directory, so `python` resolves to this
+    batch file or to nothing. The kit exits 0 for a run that ENDED; the CLI's
+    own exit `code` rides in the line's `rc`.
+    """
+    line, cli_argv = _kit_line(tmp_path, result, code)
     unsafe = sorted(set(line) & _CMD_SPECIALS)
     assert unsafe == [], f"the shim's JSON holds cmd specials {unsafe}"
     shim_dir = tmp_path / "shim"
     shim_dir.mkdir(parents=True, exist_ok=True)
     # RELATIVE, so no path is baked into the shim: the runner sets its location
-    # to the tree before it invokes the CLI, so this lands in the tree.
+    # to the tree before it invokes the kit, so this lands in the tree.
     argv_file = tmp_path / "tree" / "argv.txt"
-    (shim_dir / "claude.cmd").write_bytes(
+    (shim_dir / "python.cmd").write_bytes(
         b"@echo off\r\n"
         + b"echo %* > argv.txt\r\n"
         + b"echo "
         + line.encode("ascii")
-        + b"\r\nexit /b "
-        + str(code).encode("ascii")
-        + b"\r\n"
+        + b"\r\nexit /b 0\r\n"
     )
-    return shim_dir, argv_file
+    return shim_dir, argv_file, cli_argv
 
 
 def _run_real_runner(tmp_path: Path, shim_dir: Path) -> Path:
@@ -528,14 +584,19 @@ def _run_real_runner(tmp_path: Path, shim_dir: Path) -> Path:
     return log
 
 
-def _real_log(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, str]:
-    """A log written by the real runner over a shim, and the argv the shim saw."""
-    shim_dir, argv_file = _shim(tmp_path, result, code)
+def _real_log(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, str, list[str]]:
+    """A log written by the real runner over a shim, and what it was handed.
+
+    Returns:
+        The log, the argv the shim saw, and the CLI argv the in-process kit
+        built for the same result.
+    """
+    shim_dir, argv_file, cli_argv = _shim(tmp_path, result, code)
     log = _run_real_runner(tmp_path, shim_dir)
     ran = argv_file.is_file()
     assert ran, "the shim never ran - the arm grades nothing"
     argv = argv_file.read_bytes().decode("ascii", errors="replace")
-    return log, argv
+    return log, argv, cli_argv
 
 
 @pytest.mark.skipif(os.name != "nt", reason="run_lane.ps1 is driven by Windows PowerShell")
@@ -549,12 +610,16 @@ def test_cs1178_a_real_runner_refusal_log_is_recognised_end_to_end(tmp_path: Pat
     that very file - records no run and backs off.
     """
     refusal = {**REFUSAL, "result": f"synthetic usage limit refusal {_PADDING}"}
-    log, argv = _real_log(tmp_path / "refused", refusal, 1)
-    control_log, _ = _real_log(tmp_path / "ordinary", ORDINARY_FAILURE, 1)
+    log, argv, cli_argv = _real_log(tmp_path / "refused", refusal, 1)
+    control_log, _, _ = _real_log(tmp_path / "ordinary", ORDINARY_FAILURE, 1)
 
-    # THE RUNNER'S HALF: the CLI was asked for its JSON result.
-    asked = "--output-format json" in argv
-    assert asked, "the runner did not ask the CLI for JSON output"
+    # THE RUNNER'S HALF: the runner ran the fleet kit's spawn command line
+    # (CS-1231 slice C), and the kit asked the CLI for its JSON result.
+    through_kit = "fleet_headless.py" in argv and " spawn " in argv
+    assert through_kit, "the runner did not run the kit's spawn command line"
+    at = cli_argv.index("--output-format") if "--output-format" in cli_argv else -1
+    asked = at >= 0 and cli_argv[at + 1 : at + 2] == ["json"]
+    assert asked, "the kit did not ask the CLI for JSON output"
 
     # THE LOG KEEPS A HUMAN-READABLE BODY and the machine-readable line, and
     # still ends on the runner's own exit line carrying the worker's code.

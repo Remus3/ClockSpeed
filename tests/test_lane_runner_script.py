@@ -247,11 +247,13 @@ def _kit_print(
             raise subprocess.TimeoutExpired(argv, kwargs.get("timeout") or 0)
         return subprocess.CompletedProcess(argv, rc, json.dumps(receipt), "")
 
-    def spawn_fn(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    def spawn_fn(root: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
         if refusal_code is not None:
             raise kit.Refused(f"synthetic refusal {_REFUSAL_NEEDLE}", code=refusal_code)
         line: dict[str, Any] = kit.spawn(
-            *args,
+            root,
+            code,
+            prompt,
             run=fake_run,
             url_source=lambda: _SYNTHETIC_URL,
             connect=_connect,
@@ -435,13 +437,13 @@ def _module_constant(source: Path, name: str) -> object:
     """
     values: list[object] = []
     for node in ast.parse(source.read_text(encoding="utf-8")).body:
-        target = None
+        target: ast.expr | None = None
+        value: ast.expr | None = None
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
+            target, value = node.targets[0], node.value
         elif isinstance(node, ast.AnnAssign):
-            target = node.target
+            target, value = node.target, node.value
         if isinstance(target, ast.Name) and target.id == name:
-            value = node.value
             values.append(value.value if isinstance(value, ast.Constant) else None)
     return values[0] if len(values) == 1 else None
 
@@ -653,11 +655,12 @@ def test_the_recorded_command_line_is_one_the_real_kit_accepts(tmp_path: Path) -
         started.append(list(cli_argv))
         return subprocess.CompletedProcess(cli_argv, 0, json.dumps(_RECEIPT), "")
 
-    def recorder(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        mapped.append((args, dict(kwargs)))
+    def recorder(root: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
+        mapped.append(((root, code, prompt), dict(kwargs)))
         line: dict[str, Any] = kit.spawn(
             tmp_path / "contract-root",
-            *args[1:],
+            code,
+            prompt,
             run=fake_run,
             url_source=lambda: _SYNTHETIC_URL,
             connect=_connect,
@@ -757,7 +760,10 @@ def test_a_kit_refusal_writes_its_code_and_never_its_message(tmp_path: Path) -> 
     leaked = any(_REFUSAL_NEEDLE in item for item in lines)
     assert leaked is False, "the kit's refusal message reached the log"
     ended = lines[-1] if lines else ""
-    assert ended.startswith("lane exit ") and ended.endswith("code=3"), ended[:80]
+    exited = ended.startswith("lane exit ")
+    assert exited, f"the last line is not an exit line: {ended[:80]!r}"
+    coded = ended.endswith(f"code={kit.CLI_REFUSED}")
+    assert coded, f"the exit line does not carry the refusal code: {ended[:80]!r}"
     assert done.returncode == kit.CLI_REFUSED
 
 

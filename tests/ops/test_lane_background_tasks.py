@@ -24,11 +24,17 @@ worker exposed. So every value is checked against an ALLOWLIST of good values
 (a denylist of bad ones leaked four times on this repository), twice:
 
 - a RUNTIME arm runs the real runner under Windows PowerShell with a stub
-  ``claude`` that dumps the environment it was handed. The runner's own process
+  ``python`` that dumps the environment it was handed. The runner's own process
   is seeded with POISONED values, so a runner that fails to set a variable
   before the invocation shows the poison, never an inherited good value;
 - a STATIC arm lexes the runner for the one accepted assignment of each name
-  at script scope before the ``& $claude`` line, which runs everywhere.
+  at script scope before the ``& $python`` line, which runs everywhere.
+
+CS-1231 SLICE C - THE RUNNER STARTS THE FLEET KIT, AND THE KIT STARTS THE CLI.
+So the runner's direct child is the kit's interpreter, and the CLI receives the
+kit's ``child_env`` built over that environment. One more arm grades that hop,
+on every platform: the kit's ``child_env`` over the values the static arm
+accepts hands the CLI every variable still allowlisted.
 
 THE PROMPT IS BOUND TO THE LAUNCHER in one arm, so the two cannot drift apart:
 the variable the prompt names as the reason nothing is backgrounded is the same
@@ -73,6 +79,7 @@ _TOOLS_DIR: Final = REPO_ROOT / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from toolpath import resolve_tool  # noqa: E402
 
 RUNNER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "run_lane.ps1"
@@ -119,13 +126,18 @@ POISON: Final = {
     CEILING_VAR: "1000",
 }
 
-#: What the stub exits with, distinctive so its line cannot come from a default.
+#: The worker's exit code the stub reports in its kit line, distinctive so the
+#: runner's exit line cannot carry it from a default.
 SHIM_EXIT_CODE: Final = 41
 
 _CHILD_TIMEOUT_S: Final = 120.0
 
-#: The invocation line: the call operator applied to the resolved CLI.
-_INVOCATION: Final = re.compile(r"&\s*\$claude\b", re.IGNORECASE)
+#: The invocation line: the call operator applied to the resolved interpreter
+#: that runs the fleet kit's spawn command line (CS-1231 slice C).
+_INVOCATION: Final = re.compile(r"&\s*\$python\b", re.IGNORECASE)
+
+#: A SYNTHETIC proxy URL for the kit's child_env. Never connected to.
+_SYNTHETIC_URL: Final = "http://127.0.0.1:9"
 
 
 def value_fault(name: str, value: str | None) -> str | None:
@@ -602,8 +614,8 @@ _GOOD_SCRIPT: Final = (
     '$env:BASH_MAX_TIMEOUT_MS = "2400000"\n'
     '$env:BASH_DEFAULT_TIMEOUT_MS = "2400000"\n'
     "try {\n"
-    "  $claude = (Get-Command claude).Source\n"
-    "  'x' | & $claude -p *>&1 | Out-File $Log\n"
+    "  $python = (Get-Command python).Source\n"
+    "  'x' | & $python kit.py spawn *>&1 | Out-File $Log\n"
     "} finally {}\n"
 )
 
@@ -712,8 +724,35 @@ def _poisoned_env(shim_dir: Path) -> dict[str, str]:
     return env
 
 
+#: Characters ``cmd.exe`` would interpret inside an ``echo``.
+_CMD_SPECIALS: Final = frozenset("&|<>^%")
+
+
+def _kit_line() -> str:
+    """The line the kit's command line prints for a run that ended, as JSON.
+
+    Built by the kit's own ``usage_line`` plus the two fields ``spawn`` adds,
+    so the shape the runner parses is the kit's; the worker's exit code rides
+    in ``rc``, which the runner records on its exit line.
+
+    Returns:
+        One JSON line holding no ``cmd.exe`` special character.
+    """
+    receipt = {"type": "result", "is_error": False, "result": "the stub ran"}
+    line = kit.usage_line(receipt, "CS", "synthetic", "opus", "high", False, SHIM_EXIT_CODE, 0.0)
+    line.update(result=receipt["result"], receipt=receipt)
+    text = json.dumps(line, separators=(",", ":"))
+    unsafe = sorted(set(text) & _CMD_SPECIALS)
+    assert unsafe == [], f"the kit line holds cmd specials {unsafe}"
+    return text
+
+
 def _stub(tmp_path: Path) -> tuple[Path, Path]:
-    """A ``claude`` that writes the environment it received beside itself.
+    """A ``python`` that writes the environment it received beside itself.
+
+    It stands where the fleet kit's interpreter stands: the runner's direct
+    child. It prints a kit line and exits 0, as the kit does for a run that
+    ended.
 
     Args:
         tmp_path: The test's scratch directory.
@@ -723,10 +762,10 @@ def _stub(tmp_path: Path) -> tuple[Path, Path]:
     """
     shim_dir = tmp_path / "shim"
     shim_dir.mkdir(exist_ok=True)
-    (shim_dir / "claude.cmd").write_bytes(
-        b'@echo off\r\nset > "%~dp0env.txt"\r\necho the stub ran\r\nexit /b '
-        + str(SHIM_EXIT_CODE).encode("ascii")
-        + b"\r\n"
+    (shim_dir / "python.cmd").write_bytes(
+        b'@echo off\r\nset > "%~dp0env.txt"\r\necho '
+        + _kit_line().encode("ascii")
+        + b"\r\nexit /b 0\r\n"
     )
     return shim_dir, shim_dir / "env.txt"
 
@@ -809,7 +848,7 @@ def test_control_the_dump_observes_an_inherited_poison(tmp_path: Path) -> None:
     shim_dir, dump = _stub(tmp_path)
     comspec = str(Path(_system_dir()) / "cmd.exe")
     subprocess.run(
-        [comspec, "/c", str(shim_dir / "claude.cmd")],
+        [comspec, "/c", str(shim_dir / "python.cmd")],
         capture_output=True,
         check=False,
         timeout=_CHILD_TIMEOUT_S,
@@ -826,6 +865,48 @@ def test_the_child_receives_an_allowlisted_environment(tmp_path: Path) -> None:
     """THE RUNTIME ARM: run the real runner, read the stub's own environment."""
     faults = _child_env_faults(RUNNER_SOURCE, tmp_path)
     assert faults == [], f"the child's environment is not allowlisted: {faults}"
+
+
+def _through_the_kit(parent: Mapping[str, str]) -> list[str]:
+    """The allowlist faults in what the kit's ``child_env`` hands the CLI.
+
+    Args:
+        parent: The environment the kit's interpreter received.
+
+    Returns:
+        The faults, empty when every value reaches the CLI allowlisted.
+    """
+    handed = kit.child_env(_SYNTHETIC_URL, parent=dict(parent))
+    return [
+        fault
+        for name in REQUIRED_VARS
+        if (fault := value_fault(name, handed.get(name))) is not None
+    ]
+
+
+def test_the_cli_behind_the_kit_receives_what_the_runner_set() -> None:
+    """CS-1231 slice C, STATIC: the kit's hop keeps every value, on every platform.
+
+    The kit's ``child_env`` strips credentials and provider switches only, so
+    each value the runner sets must survive it unchanged.
+    """
+    values = launcher_env_values(RUNNER_SOURCE.read_bytes().decode("ascii"))
+    found = sorted(values) == sorted(REQUIRED_VARS)
+    assert found, "the static arm did not accept every runner assignment"
+    faults = _through_the_kit(values)
+    assert faults == [], f"the kit drops or changes a runner value: {faults}"
+
+
+def test_control_the_kit_hop_reports_a_poisoned_parent() -> None:
+    """The control: a poisoned parent reaches the CLI poisoned, except the switch.
+
+    The kit forces the background switch on in every child (KIT-15), so only
+    the three timeouts can show their poison - which proves the arm above is
+    reading the values the kit passes through rather than ones it invents.
+    """
+    faults = _through_the_kit(POISON)
+    named = sorted(fault.split(":", 1)[0] for fault in faults)
+    assert named == sorted((MAX_TIMEOUT_VAR, DEFAULT_TIMEOUT_VAR, CEILING_VAR))
 
 
 # ===========================================================================
