@@ -1716,6 +1716,14 @@ on its keep-own-sink ruling. Next action: unpark on a MAIN kit answering K1 and 
 that they are won't-fix; fix L1 to L6; land only after a distinct adversary reads NOT REFUTED on
 the combined tip.
 
+### Recorded 2026-10-17 from MAIN's verified 13:16 RULING, item 4
+
+K1, K5 WON'T-FIX in the kit; slice C UNPARKS. L1: treat kit exit 4 or JSON error "timeout"
+as timeout; pass `--timeout` above the driver's timer, or drop that timer. L2: a budget
+refusal is exit 3, JSON code "budget-spent" - back off until `cap_frees_at` in
+`inbox_status.json`. Next: fix L1 to L6, land on a distinct adversary's NOT REFUTED.
+Reversed by a kit exit 0 or no error for a killed run, or a refusal not exit 3 budget-spent.
+
 ## CS-1234
 
 ### Acceptance
@@ -1764,6 +1772,13 @@ MAIN's read-only perf audit, ranked; the measured numbers are in the note and ar
 restated here. Item 4 (no suite gate) is section 1's kit v13 work, CS-1290. Item 10 is
 already open as CS-1284. The note says fix inline; each numbered part may land as its own
 slice. The section 8 review driver (CS-1295) folds this list in as known findings.
+
+### Recorded 2026-10-17 from MAIN's verified 13:16 RULING, item 3
+
+Part (1) and DONE-SLOW (CS-1321) compose; DONE-SLOW governs where they touch: a /done runs
+at most ONE gated whole suite, on the HEAD it pushes; pre-push runs no whole suite by
+default; a doc-only ritual may run none. Grant timing after CS-700 S12a unchanged. Reversed
+by TEST-TIER replacing the ritual suite, or a /done median over 65 min after 5 rituals.
 
 ## CS-1295
 
