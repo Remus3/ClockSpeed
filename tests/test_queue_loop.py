@@ -386,7 +386,7 @@ def test_the_local_suite_grades_the_lane_worktree_and_not_the_drivers_own_tree(t
     """
     seen: list = []
     clock = FakeClock()
-    lane_tree = r"C:\cs-worktrees\cs-lane-queue"
+    lane_tree = "<parent>/cs-worktrees/cs-lane-queue"
 
     def spy(**kw):
         seen.append(kw.get("cwd"))
@@ -1007,7 +1007,7 @@ def cycle_seams(fake, **over):
         "sleep": fake.sleep,
         "clock": fake.time,
         "monotonic": fake.monotonic,
-        "worktree": r"C:\cs-worktrees\cs-lane-queue",
+        "worktree": "<parent>/cs-worktrees/cs-lane-queue",
         # CS-1104 D1 - STATED, so no arm reads the live channel. See the audit.
         "surface": _stated_surface,
     }
@@ -1037,7 +1037,7 @@ def test_the_repo_root_is_forwarded_to_the_launcher(tmp_path):
 
         @staticmethod
         def worktree_path(_lane):
-            return r"C:\cs-worktrees\cs-lane-queue"
+            return "<parent>/cs-worktrees/cs-lane-queue"
 
     seams = cycle_seams(clock)
     seams.pop("launch")
@@ -1199,7 +1199,7 @@ def test_an_exception_with_no_reason_attribute_still_records_its_type():
 
         @staticmethod
         def worktree_path(_lane):
-            return r"C:\cs-worktrees\cs-lane-queue"
+            return "<parent>/cs-worktrees/cs-lane-queue"
 
     def fails(_lane, **_kw):
         raise RuntimeError("no reason attribute anywhere on me")
@@ -1324,7 +1324,7 @@ def loop_seams(fake, **over):
         "clock": fake.time,
         "monotonic": fake.monotonic,
         "emit": lambda _line: None,
-        "worktree": r"C:\cs-worktrees\cs-lane-queue",
+        "worktree": "<parent>/cs-worktrees/cs-lane-queue",
         # CS-1008 - BOTH SCOPE SEAMS, STATED, AND HERE RATHER THAN ONLY IN
         # `_drive`. Left at None these two fall through to `permit_for_lane` and
         # `claims.claim_states`, which read the LIVE `ROADMAP.md` and the LIVE
@@ -2396,7 +2396,7 @@ def _scripted_outcomes(words):
                 "refused": "worktree_in_use",
                 "holder": "queue-b",
                 "pid": 99,
-                "worktree": r"C:\cs-worktrees\cs-lane-queue",
+                "worktree": "<parent>/cs-worktrees/cs-lane-queue",
             }
         return {"ok": True, "token": "T"}
 

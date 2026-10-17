@@ -17,6 +17,7 @@ under a home directory would otherwise echo that home path.
 from __future__ import annotations
 
 import codecs
+import functools
 import hashlib
 import json
 import os
@@ -28,7 +29,7 @@ import sys
 import tomllib
 from collections import Counter
 from pathlib import Path
-from typing import Final
+from typing import Final, NamedTuple
 
 import pytest
 
@@ -159,6 +160,70 @@ ABSOLUTE_CHECKOUT_RE: Final = re.compile(
     rf"|{_SEP}[A-Za-z]{_DOLLAR}{_DOTTED}|{_SEP}Volume\{{[0-9A-Fa-f-]+\}}{_DOTTED})"
     rf"Clockspeed|(?<![A-Za-z])CLOCKS{_TILDE}\d",
     re.IGNORECASE,
+)
+
+#: CS-1328 - the sidecar folders: the lanes' old worktrees root and the flip's backup;
+#: the current sidecars root on E: (fix round 1); and that root's own layout - its
+#: ``CS`` folder, then ``Worktree``, ``Walk`` or ``Scratch`` as a whole segment - which
+#: still reads if the root itself is renamed.
+_SIDECAR_NAME: Final = (
+    rf"(?:cs-(?:worktrees|flip-backup)|sidecars"
+    rf"|cs{_SEP}+(?:worktree|walk|scratch)(?![A-Za-z0-9]))"
+)
+
+#: Fix round 1 - the 8.3 short names of those folders: the first six characters of a
+#: long name, a tilde and a digit, or five and two digits from the tenth on, behind
+#: anything but a letter, the tilde also URL-encoded or an HTML entity. Read anywhere,
+#: as the checkout pattern reads its own short name, and as a folder after a drive root,
+#: where a URL-encoded separator's last letter stands glued in front. No line of this
+#: file writes one whole; the arms build them at run time.
+_SIDECAR_SHORT_NAME: Final = (
+    rf"(?:(?:cs-wor|cs-fli|sideca){_TILDE}\d|(?:cs-wo|cs-fl|sidec){_TILDE}\d\d)"
+)
+_SIDECAR_SHORT: Final = rf"(?<![A-Za-z]){_SIDECAR_SHORT_NAME}"
+
+#: One step of a path between its drive root and a sidecar folder: one character but
+#: whitespace, a quote or a backtick and the characters no Windows path segment holds,
+#: or (fix round 1) one space between two characters that are neither a space nor a
+#: separator, as a segment such as ``Lane Roots`` holds one.
+_PATH_BODY: Final = r"(?:[^\s\"'`<>|*?:]|(?<=[^\s\\/]) (?=[^\s\\/]))"
+
+#: CS-1328 - a sidecar folder in a drive-rooted path, any case, for any drive letter: a
+#: drive colon and a separator, then the folder directly or after further segments, in
+#: every separator spelling ``_SEP`` reads (backslash, slash, doubled, JSON-escaped,
+#: URL-encoded, an HTML entity) and behind every rooted drive spelling the checkout
+#: pattern reads: Git Bash's ``/x/`` led by one to three separators, WSL's ``/mnt/x/``,
+#: Cygwin's ``/cygdrive/x/``, an admin share's ``x$`` and a ``\\?\Volume{<guid>}\``
+#: path, the drive and Git Bash forms also behind a glued single-letter option such as
+#: ``-I``. Unlike the checkout pattern's, the drive letter needs a left edge, so a URL
+#: scheme's colon is not a drive. Or a short name, anywhere. A placeholder root such as
+#: ``<parent>`` is not a drive, so a path under one is clean. The body between root and
+#: folder is lazy and holds no nested repeat, so a line that completes no path costs at
+#: most quadratic time in its length.
+SIDECAR_PATH_RE: Final = re.compile(
+    rf"(?:(?:{_EDGE}|{_GLUED})[A-Za-z]{_COLON}"
+    rf"|(?:(?<![A-Za-z0-9.~/\\])|{_GLUED}){_SEP}{{1,3}}[A-Za-z]"
+    rf"|{_SEP}(?:mnt|cygdrive){_DOTTED}[A-Za-z]|{_SEP}[A-Za-z]{_DOLLAR}"
+    rf"|{_SEP}Volume\{{[0-9A-Fa-f-]+\}})"
+    rf"(?:{_SEP}{_PATH_BODY}*?)?{_SEP}(?:{_SIDECAR_NAME}|{_SIDECAR_SHORT_NAME})"
+    rf"|{_SIDECAR_SHORT}",
+    re.IGNORECASE,
+)
+
+#: Fix round 1 - in markdown, a quoted drive root and a quoted sidecar folder on one
+#: line: the root spelled in two parts, as ``TWO_PART_CHECKOUT_RE`` reads the checkout's.
+TWO_PART_SIDECAR_RE: Final = re.compile(
+    rf"""(?=.*["'][A-Za-z]:[\\/]*["'])(?=.*["'](?:{_SIDECAR_NAME}|{_SIDECAR_SHORT_NAME})["'])""",
+    re.IGNORECASE,
+)
+
+#: The cheap per-view test that a body can hold a sidecar spelling at all, so only such a
+#: view's lines are searched with both patterns above: the stems every folder name and
+#: short name they match begins with, and the layout's folder pair as they match it. A
+#: superset of their folder alternatives, never a subset; a stem is literal text, so it
+#: scans fast where the short names' tilde alternatives do not.
+_SIDECAR_HINT: Final = re.compile(
+    rf"cs-wo|cs-fl|sidec|cs{_SEP}+(?:worktree|walk|scratch)(?![A-Za-z0-9])", re.IGNORECASE
 )
 
 #: The two docs the acceptance names, plus the two this item rewrote.
@@ -951,6 +1016,114 @@ def test_the_checkout_path_pattern_catches_every_spelling(text: str, *, hit: boo
     assert bool(ABSOLUTE_CHECKOUT_RE.search(text)) is hit
 
 
+#: Fix round 1 - a short name's tilde, raw and URL-encoded, kept apart from the letters
+#: before it so no line of this file writes a short name whole.
+_T: Final = "~"
+_URL_T: Final = "%7E"
+
+#: CS-1328 - the sidecar pattern's mutation arm, case id to (template, folder, hit). The
+#: arm puts the folder into the template's ``{}`` and the layout's ``CS`` folder into its
+#: ``{cs}`` at run time, so no line of this file spells a sidecar path and the whole-tree
+#: sidecar guard reads this file clean.
+_SIDECAR_SPELLINGS: Final[dict[str, tuple[str, str, bool]]] = {
+    "backslash": (r"C:\{}\cs-lane-queue", "cs-worktrees", True),
+    "forward-slash": ("C:/{}/cs-lane-queue", "cs-worktrees", True),
+    "doubled-backslash": (r'"C:\\{}"', "cs-worktrees", True),
+    "doubled-backslash-deep": (r'"C:\\{}\\cs-lane-queue"', "cs-worktrees", True),
+    "doubled-forward-slash": ("C://{}//cs-lane-queue", "cs-worktrees", True),
+    "json-escaped-slash": (r"C:\/{}", "cs-worktrees", True),
+    "mixed-separators": (r"C:/\{}", "cs-worktrees", True),
+    "lowercase-drive": (r"c:\{}", "cs-worktrees", True),
+    "other-drive": (r"Z:\{}", "cs-worktrees", True),
+    "uppercase-folder": (r"C:\{}", "CS-WORKTREES", True),
+    "flip-backup": (r"C:\{}\stamp", "cs-flip-backup", True),
+    "flip-backup-mixed-case": ("d:/{}", "Cs-Flip-Backup", True),
+    "flip-backup-doubled": (r'"C:\\{}"', "cs-flip-backup", True),
+    "nested-segment": (r"C:\stash\{}\cs-lane-queue", "cs-worktrees", True),
+    "dot-segment": (r"C:\.\{}", "cs-worktrees", True),
+    "url-encoded": ("C%3A%5C{}", "cs-worktrees", True),
+    "html-entity": ("C&#58;&#92;{}", "cs-worktrees", True),
+    "long-path-prefix": (r"\\?\C:\{}", "cs-worktrees", True),
+    "git-bash": ("/c/{}", "cs-worktrees", True),
+    "msys-double-slash": ("//c/{}", "cs-worktrees", True),
+    "wsl": ("/mnt/c/{}", "cs-flip-backup", True),
+    "cygwin": ("/cygdrive/c/{}", "cs-worktrees", True),
+    "admin-share": (r"\\host\c$\{}", "cs-worktrees", True),
+    "placeholder-root": ("<parent>/{}/cs-lane-queue", "cs-worktrees", False),
+    "placeholder-backslash": (r"<parent>\{}\cs-lane-queue", "cs-worktrees", False),
+    "relative": ("{}/lane1", "cs-worktrees", False),
+    "drive-then-space": ("C: {}", "cs-worktrees", False),
+    "drive-relative": ("C:{}", "cs-worktrees", False),
+    "word-colon": ("note:/{}", "cs-worktrees", False),
+    "folder-mid-segment": (r"C:\my-{}", "cs-worktrees", False),
+    "other-folder": (r"C:\{}", "cs-lane-queue", False),
+    # fix round 1: parity with the checkout pattern's drive spellings
+    "volume-guid": (r"\\?\Volume{{0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0}}\{}", "cs-worktrees", True),
+    "glued-option-drive": (r"-IC:\{}", "cs-worktrees", True),
+    "glued-option-git-bash": ("-I/c/{}", "cs-worktrees", True),
+    "url": ("https://example.com/{}", "cs-worktrees", False),
+    # fix round 1: a space inside a segment, and the folders' 8.3 short names
+    "space-in-segment": (r"C:\Lane Roots\{}\cs-lane-queue", "cs-worktrees", True),
+    "space-before-separator": (r"C:\x and then \{}", "cs-worktrees", False),
+    "short-name-under-drive": (r"C:\{}\cs-lane-queue", f"CS-WOR{_T}1", True),
+    "short-name-flip-backup": ("C:/{}/stamp", f"CS-FLI{_T}1", True),
+    "short-name-two-digit": (r"C:\{}", f"CS-WO{_T}12", True),
+    "short-name-bare": ("see {} for the lanes", f"cs-wor{_T}2", True),
+    "short-name-url-tilde": ("C%3A%5C{}", f"CS-WOR{_URL_T}1", True),
+    "short-name-behind-letter": ("x{}", f"cs-wor{_T}1", False),
+    # fix round 1: the current sidecars root on E: and its layout below it
+    "current-root-worktree": (r"E:\{}\{cs}\Worktree\cs-g06", "Sidecars", True),
+    "current-root-walk": ("e:/{}/{cs}/Walk/cs-walk-141", "sidecars", True),
+    "current-root-doubled": (r'"E:\\{}\\{cs}"', "Sidecars", True),
+    "current-root-git-bash": ("/e/{}/{cs}/Scratch", "Sidecars", True),
+    "current-root-short-name": (r"E:\{}\{cs}", f"SIDECA{_T}1", True),
+    "current-layout-renamed-root": (r"E:\{}\{cs}\Worktree\cs-g06", "Lanes", True),
+    "current-layout-placeholder": (r"<sidecars>\{cs}\Worktree\{}", "cs-g06", False),
+    "current-root-as-a-word": ("the {} folder", "Sidecars", False),
+    "layout-segment-prefix": (r"E:\Lanes\{cs}\{}", "Walkthrough", False),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_SIDECAR_SPELLINGS))
+def test_the_sidecar_path_pattern_catches_every_spelling(case: str) -> None:
+    """CS-1328's mutation arm: every drive-rooted sidecar spelling, no placeholder one."""
+    template, folder, hit = _SIDECAR_SPELLINGS[case]
+    text = template.format(folder, cs="CS")
+    assert bool(SIDECAR_PATH_RE.search(text)) is hit
+    if hit:
+        assert _SIDECAR_HINT.search(text), "the hint must pass every line the pattern hits"
+
+
+#: CS-1328 fix round 1 - a markdown line spelling a sidecar root in two quoted parts, the
+#: drive and the folder, as the checkout's two-part guard reads the root; the arm puts the
+#: folder into ``{}`` at run time.
+_TWO_PART_SIDECAR_LINE: Final = 'The drive "E:\\" and the folder "{}" make the root.'
+
+
+@pytest.mark.parametrize(
+    ("relative", "folder", "counted"),
+    [
+        ("docs/notes.md", "cs-worktrees", True),
+        ("docs/notes.md", "Sidecars", True),
+        ("docs/notes.md", f"CS-FLI{_T}1", True),
+        ("tools/notes.py", "cs-worktrees", False),
+    ],
+    ids=["markdown-lanes", "markdown-current-root", "markdown-short-name", "code"],
+)
+def test_a_two_part_sidecar_spelling_in_markdown_is_counted(
+    relative: str, folder: str, *, counted: bool
+) -> None:
+    """Fix round 1: markdown that quotes the drive and a sidecar folder apart is a hit.
+
+    Code is not read for it, as the checkout's two-part guard does not read code: a
+    spelling assembled from fragments there is that guard's recorded residual.
+    """
+    data = (_TWO_PART_SIDECAR_LINE.format(folder) + "\n").encode()
+    found = _body_hits(relative, [data], {})
+    assert found is not None
+    assert sum(found[1].values()) == (1 if counted else 0)
+
+
 #: CS-1308 fix round 4 - the time one line of separators may take to search. The guard
 #: reads every tracked line on every suite and CI run, so a pattern whose separator tokens
 #: can split one text two ways - backtracking exponentially in the run's length - is a hang.
@@ -993,9 +1166,31 @@ def test_the_checkout_path_pattern_cannot_backtrack_catastrophically(kind: str) 
     pattern that backtracks exponentially fails this arm rather than hanging the suite.
     """
     lines = [f"{prefix}{_BACKTRACK_RUNS[kind]}x" for prefix in _BACKTRACK_PREFIXES]
+    _assert_searches_miss_fast(kind, ABSOLUTE_CHECKOUT_RE, lines)
+
+
+#: CS-1328 - the prefixes that lead a run into the sidecar pattern's drive, Git Bash and
+#: WSL branches.
+_SIDECAR_BACKTRACK_PREFIXES: Final = ("C:", "/c", "/mnt/c")
+
+
+@pytest.mark.parametrize("kind", sorted(_BACKTRACK_RUNS))
+def test_the_sidecar_path_pattern_cannot_backtrack_catastrophically(kind: str) -> None:
+    """CS-1328: the same runs, each before a folder name one letter off a sidecar's."""
+    lines = [
+        f"{prefix}{_BACKTRACK_RUNS[kind]}cs-worktreez" for prefix in _SIDECAR_BACKTRACK_PREFIXES
+    ]
+    _assert_searches_miss_fast(kind, SIDECAR_PATH_RE, lines)
+
+
+def _assert_searches_miss_fast(kind: str, pattern: re.Pattern[str], lines: list[str]) -> None:
+    """Search each line in a child killed after ``_BACKTRACK_TIMEOUT_S``.
+
+    None may match, and none may take ``_BACKTRACK_BUDGET_S`` or longer.
+    """
     spec = {
-        "pattern": ABSOLUTE_CHECKOUT_RE.pattern,
-        "flags": int(ABSOLUTE_CHECKOUT_RE.flags),
+        "pattern": pattern.pattern,
+        "flags": int(pattern.flags),
         "lines": lines,
     }
     try:
@@ -1097,6 +1292,39 @@ KEPT_CHECKOUT_LINES: Final[dict[str, tuple[str, ...]]] = {
         "d0d4438f007929c56ed1de3602e186f3a51f5057c1b3c21a9d99a1951c8cefc5",
         "918f5d4c66a6e4ff427f8769be9fc80e5fb70e3b1829e24b8db3efe0b4888c7b",
         "d34ba214fd2a6d3219adad39a5dc60fb2bcbcfc212f5a2d4080ecaf59d43210a",
+    ),
+}
+
+#: CS-1328 - the explicit allowlist for ``SIDECAR_PATH_RE`` (MAIN's 2026-10-15 PUBREPO
+#: ORDER, addition a: the HEAD absolute-path count 0 outside an explicit allowlist),
+#: keyed by line CONTENT exactly as ``KEPT_CHECKOUT_LINES`` is, never by line number,
+#: because the ledger grows above its old lines. The session 144 ruling scrubbed the six
+#: queue-loop test literals to a ``<parent>`` placeholder and kept these ten lines,
+#: bytes unchanged: records that spell the old lanes' or flip backup's root on the C:
+#: drive, and one test literal that spells it with doubled separators. A row no line
+#: matches fails as missing; a new spelling fails as unexpected.
+KEPT_SIDECAR_LINES: Final[dict[str, tuple[str, ...]]] = {
+    "docs/LEDGER.md": (
+        # in file order: the lanes' root and the flip backup's root in the record of the
+        # move off the C: drive, the flip backup's root in a later record, and a quoted
+        # lane configuration whose root is written with doubled separators
+        "a480d78be97a8909c540c67f828604d101261cc6ab602cebb2fdcd7a1417b9fd",
+        "6c0d85911d691d62f9dd16c428c416a4f02eb09903e3074771c06de316dd432a",
+        "b5f742df2b2d8925564e00f09f0cefa96f34740c4df6ee8308a764a8a4f59031",
+        "d9a8635be43ee054347c4fb54e7a3de94c88e1dd184228c7c5f037f578c54a3e",
+    ),
+    "docs/history_notes.md": (
+        # in file order: the archived record of the same move, lanes' root then flip
+        # backup's root, then three archived notes naming a lane worktree under the root
+        "02a304c6429d11dc28d1f5515575afdb788be3d535b1d248f3933916766ff60f",
+        "a2a6fe35b10d209d92ec28310b07fbb12623e7acf1038582f47c69c792b516ce",
+        "bfe18c45b4fa5d542f10aabd53385c07bff96ad6141b8d1a559c5d94a236affe",
+        "e1372cb099fd897f470c7df7b0b1808035837186f052055fd4f2fb0964fd5895",
+        "e4bcd2f302216cd70c71a11b7480e4d7aca486e9c6e77947cd4e61db5d310545",
+    ),
+    "tests/ops/test_multi_lane.py": (
+        # the lanes' old root as a test literal, written with doubled separators
+        "201b0f315c6706d372594d8431f8a3376df2e481a57345cec5e50cacff15dfb0",
     ),
 }
 
@@ -1262,14 +1490,20 @@ def _tracked_bodies(
     return bodies
 
 
-def _body_hits(relative: str, bodies: list[bytes], pins: dict[str, str]) -> Counter[str] | None:
-    """One path's multiset of matching-line digests, or None when a body is unscannable.
+def _body_hits(
+    relative: str, bodies: list[bytes], pins: dict[str, str]
+) -> tuple[Counter[str], Counter[str]] | None:
+    """One path's two multisets of matching-line digests, or None when a body is unscannable.
 
-    The multiset is the elementwise maximum over the bodies and their views, so a line
-    two views both carry counts once and a line one view carries twice counts twice. A
-    body whose path AND bytes match a CS-1292 pin is skipped.
+    The first is the checkout root's, the second the sidecar roots' (CS-1328). Each is
+    the elementwise maximum over the bodies and their views, so a line two views both
+    carry counts once and a line one view carries twice counts twice. A body whose path
+    AND bytes match a CS-1292 pin is skipped. A view the sidecar hint does not match has
+    no sidecar line, so its lines are not searched for one.
     """
     hits: Counter[str] = Counter()
+    sidecar: Counter[str] = Counter()
+    markdown = relative.endswith(".md")
     for body in bodies:
         if sha_citation_gate.is_known_binary(relative, body, pins):
             continue
@@ -1279,37 +1513,86 @@ def _body_hits(relative: str, bodies: list[bytes], pins: dict[str, str]) -> Coun
         for view in views:
             lines = view.splitlines()
             hits |= Counter(_line_digest(x) for x in lines if ABSOLUTE_CHECKOUT_RE.search(x))
-    return hits
+            if _SIDECAR_HINT.search(view):
+                sidecar |= Counter(
+                    _line_digest(x)
+                    for x in lines
+                    if _SIDECAR_HINT.search(x)
+                    and (SIDECAR_PATH_RE.search(x) or (markdown and TWO_PART_SIDECAR_RE.match(x)))
+                )
+    return hits, sidecar
 
 
-def _checkout_path_hits(repo_root: Path) -> tuple[dict[str, Counter[str]], list[str]]:
-    """Each tracked path's multiset of matching-line digests, and the paths nothing reads.
+class _TreeHits(NamedTuple):
+    """One read of every tracked path, for both whole-tree path guards."""
+
+    #: Each path's multiset of digests of lines that spell the checkout root.
+    checkout: dict[str, Counter[str]]
+    #: Each path's multiset of digests of lines that spell a sidecar root (CS-1328).
+    sidecar: dict[str, Counter[str]]
+    #: The tracked paths no read decodes.
+    unscannable: list[str]
+
+
+def _checkout_path_hits(repo_root: Path) -> _TreeHits:
+    """Each tracked path's multisets of matching-line digests, and the paths nothing reads.
 
     Only a body whose path AND bytes match a CS-1292 pin in
     ``tools/sha_citation_binaries.json`` is skipped, read through the SHA citation gate's
     own loader rather than a copy of it. The text lives only in this frame and the two
-    helpers, so a failing assertion's locals never carry a matched line.
+    helpers, so a failing assertion's locals never carry a matched line. CS-1328: the
+    sidecar guard's lines come from the same bodies and views in the same loop, so one
+    pass over the tracked files serves both guards.
     """
     pins = sha_citation_gate.load_known_binaries(repo_root)
     index = _index_entries(repo_root)
     found: dict[str, Counter[str]] = {}
+    sidecar: dict[str, Counter[str]] = {}
     unscannable: list[str] = []
     for relative in doc_sweep.tracked_files(repo_root):
         bodies = _tracked_bodies(repo_root, relative, index.get(relative, []))
         hits = None if bodies is None else _body_hits(relative, bodies, pins)
         if hits is None:
             unscannable.append(relative)
-        elif hits:
-            found[relative] = hits
-    return found, unscannable
+            continue
+        if hits[0]:
+            found[relative] = hits[0]
+        if hits[1]:
+            sidecar[relative] = hits[1]
+    return _TreeHits(found, sidecar, unscannable)
 
 
-def _kept_set_problems(found: dict[str, Counter[str]]) -> list[str]:
-    """One ``<path>: <n> unexpected, <n> missing`` line per path off the kept table."""
+#: This checkout's root, resolved as the ``repo_root`` fixture resolves it.
+_THIS_ROOT: Final = Path(__file__).resolve().parents[1]
+
+
+@functools.cache
+def _this_tree_hits() -> _TreeHits:
+    """This checkout's one read, kept for the process (CS-1328)."""
+    return _checkout_path_hits(_THIS_ROOT)
+
+
+def _tree_hits(repo_root: Path) -> _TreeHits:
+    """``_checkout_path_hits`` of ``repo_root``, this checkout's read once per process.
+
+    Both whole-tree guards read this checkout, and the scan shard's ``--dist loadfile``
+    keeps this file on one worker, so the tracked files are walked once. A planted tree
+    is read afresh on every call: its arms build, mutate and read their own trees.
+    """
+    if repo_root.resolve() == _THIS_ROOT:
+        return _this_tree_hits()
+    return _checkout_path_hits(repo_root)
+
+
+def _kept_set_problems(
+    found: dict[str, Counter[str]],
+    kept: dict[str, tuple[str, ...]] = KEPT_CHECKOUT_LINES,
+) -> list[str]:
+    """One ``<path>: <n> unexpected, <n> missing`` line per path off the ``kept`` table."""
     problems: list[str] = []
-    for relative in sorted(set(found) | set(KEPT_CHECKOUT_LINES)):
+    for relative in sorted(set(found) | set(kept)):
         have = found.get(relative, Counter())
-        want = Counter(KEPT_CHECKOUT_LINES.get(relative, ()))
+        want = Counter(kept.get(relative, ()))
         unexpected = sum((have - want).values())
         missing = sum((want - have).values())
         if unexpected or missing:
@@ -1325,15 +1608,48 @@ def test_no_absolute_checkout_path_in_any_tracked_text_file(repo_root: Path) -> 
     paths and counts of line digests only, never a matched line, because the matched
     text is what is scrubbed.
     """
-    found, unscannable = _checkout_path_hits(repo_root)
-    assert not unscannable, (
-        f"tracked paths the guard cannot read or decode (unscannable): {unscannable}"
+    hits = _tree_hits(repo_root)
+    assert not hits.unscannable, (
+        f"tracked paths the guard cannot read or decode (unscannable): {hits.unscannable}"
     )
-    problems = _kept_set_problems(found)
+    problems = _kept_set_problems(hits.checkout)
     assert not problems, (
         "the checkout root is spelled off the kept table (path: line digests): "
         + "; ".join(problems)
     )
+
+
+def test_no_drive_rooted_sidecar_path_in_any_tracked_file(repo_root: Path) -> None:
+    """CS-1328 - the HEAD absolute-path count 0 outside an explicit allowlist, sidecars.
+
+    The read the checkout guard above takes, so every tracked file is read once for
+    both; its lines are held against ``KEPT_SIDECAR_LINES``. The messages name paths and
+    counts of line digests only, never a matched line.
+    """
+    hits = _tree_hits(repo_root)
+    assert not hits.unscannable, (
+        f"tracked paths the guard cannot read or decode (unscannable): {hits.unscannable}"
+    )
+    problems = _kept_set_problems(hits.sidecar, KEPT_SIDECAR_LINES)
+    assert not problems, (
+        "a sidecar root is spelled drive-rooted off the allowlist (path: line digests): "
+        + "; ".join(problems)
+    )
+
+
+def test_every_sidecar_allowlist_row_matches_a_live_line(repo_root: Path) -> None:
+    """CS-1328's stale-row guard: each allowlisted digest is a line the tree still holds.
+
+    The guard above counts a stale row as missing too; this arm names stale rows alone,
+    so a scrubbed or edited allowlisted line reads as a stale row, not as a leak.
+    """
+    sidecar = _tree_hits(repo_root).sidecar
+    stale = {
+        relative: total
+        for relative, digests in KEPT_SIDECAR_LINES.items()
+        if (total := sum((Counter(digests) - sidecar.get(relative, Counter())).values()))
+    }
+    assert not stale, f"allowlist rows no tracked line matches (path: rows): {stale}"
 
 
 # --- CS-1308 fix round 1: the whole-tree guard, mutated in a planted tree ---------
@@ -1597,6 +1913,54 @@ def test_an_unreadable_tracked_path_fails_as_unscannable(repo_root: Path, tmp_pa
     message = _guard_failure(root)
     assert "unscannable" in message
     assert relative in message
+
+
+# --- CS-1328: the sidecar allowlist, one allowlisted file mutated ---------------------
+
+
+def _sidecar_problems(repo_root: Path, relative: str, data: bytes) -> list[str]:
+    """The sidecar guard's problems with ``relative`` read as ``data``.
+
+    Every other path keeps this checkout's one read, so only the mutated body is read
+    again; the walk itself is the checkout guard's, mutated by the planted arms above.
+    Each arm asserts the whole list, so the unchanged paths are the arm's control: on a
+    green tree they add no problem.
+    """
+    found = dict(_tree_hits(repo_root).sidecar)
+    hits = _body_hits(relative, [data], {})
+    assert hits is not None
+    found.pop(relative, None)
+    if hits[1]:
+        found[relative] = hits[1]
+    return _kept_set_problems(found, KEPT_SIDECAR_LINES)
+
+
+def test_an_allowlisted_sidecar_line_scrubbed_fails_as_missing(repo_root: Path) -> None:
+    """The stale-row mutant: one allowlisted test literal scrubbed, nothing added."""
+    relative = "tests/ops/test_multi_lane.py"
+    lines = (repo_root / relative).read_bytes().decode("utf-8").split("\n")
+    index = next(n for n, line in enumerate(lines) if SIDECAR_PATH_RE.search(line))
+    lines[index] = SIDECAR_PATH_RE.sub("<sidecar>", lines[index])
+    data = "\n".join(lines).encode()
+    problems = _sidecar_problems(repo_root, relative, data)
+    assert problems == [f"{relative}: 0 unexpected, 1 missing"]
+
+
+def test_a_new_sidecar_spelling_above_the_allowlist_fails_as_unexpected(
+    repo_root: Path,
+) -> None:
+    """A new spelling at a file's head fails as one unexpected line.
+
+    The allowlisted line below it, moved down one line, still matches its row - the
+    property the ledger needs as it grows above its old lines. The small allowlisted
+    test file stands in for the ledger, so the arm does not read 2 MB again.
+    """
+    relative = "tests/ops/test_multi_lane.py"
+    lines = (repo_root / relative).read_bytes().decode("utf-8").split("\n")
+    lines.insert(1, _SIDECAR_SPELLINGS["forward-slash"][0].format("cs-flip-backup"))
+    data = "\n".join(lines).encode()
+    problems = _sidecar_problems(repo_root, relative, data)
+    assert problems == [f"{relative}: 1 unexpected, 0 missing"]
 
 
 #: CS-1308 F5 - a quoted drive root and the quoted folder name on one line: the root
