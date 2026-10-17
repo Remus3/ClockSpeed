@@ -1698,6 +1698,24 @@ the CLI's `type: result` object that `ops/loop/queue_loop.py` parses, and its pr
 budget checks collide with the lane's own loopback check and budget, so the move needs its
 own slice. Precedence clause (c) of `CLAUDE.md` stands until that slice lands.
 
+### Recorded 2026-10-17 by the session 145 /done
+
+Slice C is PARKED by adjudication on its own branch, NOT on main (tip subject "CS-1231 - lane
+runner starts its worker through the kit"; KEEP the branch and its agent worktree). Three distinct
+adversaries REFUTED it: the kit's `--timeout` fires before the driver's own timer, so a timed-out
+run records completed (HIGH); a kit budget refusal ends the night through launch_failed (MEDIUM);
+and lower findings, listed in `docs/LEDGER.md`, the 2026-10-17 CS-1231 record. The kit-side
+findings K1 to K5 went to MAIN in the session 145 REVIEW note. Carried locally, L1 to L6: plumb the
+driver's timeout into the runner, or map the kit's exit 4 to timeout_killed; a budget refusal onto
+the usage-limit wait path (after K5); the case-variant JSON keys PowerShell 5.1 reads; `CLAUDE.md`
+wording that cites the landing commit, never a kit version; at landing, the merger rewrites this
+section's lines that say slice C is open and clause (c) stands; the timeout test's docstring, which
+overclaims. Until it lands, `ops/loop/run_lane.ps1` starts `claude` directly and `CLAUDE.md`
+precedence clause (c) is accurate. CS-1283 no longer rides with this slice: it closed in session 145
+on its keep-own-sink ruling. Next action: unpark on a MAIN kit answering K1 and K5, or a ruling
+that they are won't-fix; fix L1 to L6; land only after a distinct adversary reads NOT REFUTED on
+the combined tip.
+
 ## CS-1234
 
 ### Acceptance
@@ -1717,28 +1735,6 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
-
-## CS-1283
-
-### Acceptance
-
-An adjudicator that built none of it rules, with the alternatives and the reason recorded
-in `docs/LEDGER.md`, whether `ops/loop/queue_loop.py::_emit` keeps its own sink or calls
-the vendored `ops/fleet_kit/fleet_checklist.py` `emit()`. If it calls `emit()`, every line
-is still flushed as it is written and still teed to the night log, and a test pins both;
-the ruling reaches MAIN in this tree's next batched note to MAIN. A MAIN kit whose `emit()`
-flushes and tees discharges the item by adoption.
-
-### Filed 2026-10-08 by the session 132 /done
-
-ORDER item 5 of MAIN's 2026-10-08 08:39 FLEET-KIT v10 note asks every tree to print its
-item-13 block through the kit's `fleet_checklist.emit()`. CS-1282 did not apply it to the
-one tree path that prints the block. `ops/loop/queue_loop.py::_emit` already never raises
-on a cp1252 console or under `pythonw`, and it flushes every line - the measured reason a
-detached driver's log once stayed empty (CS-1018) - and tees each line to the night log;
-the kit's `emit()` writes without a flush and tees nothing. The builder routed it for a
-ruling rather than change a working sink. It rides with CS-1231 slice C, which touches the
-same lane path.
 
 ## CS-1291
 
@@ -1886,6 +1882,32 @@ acceptance against the landing branch:
    `push_through`, failing any arm that neither waits nor sits in the set.
 4. Run the file 30 times, graded on failures.
 5. Re-read the guard shard duration from tier1.
+
+### Recorded 2026-10-17 by the session 145 /done
+
+Sibling-load measurement, 16-CPU Windows box. The seven git-hook arms (30 cases) ran under -n 2
+--dist loadfile beside a scratch sibling test that spawned CPU-bound spinner processes for the whole
+burn. Quiet: 30 passed, 45.7 s. 32 spinners: 30 passed, summed call time 1500.22 s, inside the burn.
+6 spinners: 30 passed in 50.73 s; a pass-through timeout script first on PATH called the real GNU
+timeout with the same arguments and exit status and logged each call's elapsed ms, exit code and
+bound: across 221 bounded hook steps the longest that answered took 75 ms (80 ms quiet) against the
+10 s bound; the only expiry was the PYTHONINSPECT arm's expected probe hang. Both files serial: 370
+passed in 96.77 s before, 371 passed in 90.81 s after. tests/test_hook_env_echo.py 30 consecutive
+runs under -n 2 --dist loadfile: 30/30 green, 51-59 s each; a single file has no busy sibling, so
+these runs are graded on failures only.
+
+STATE: steps 1 to 4 of the smallest remaining slice are DONE, landed in session 145 as the commit
+"CS-1307 - git-hook arms load-tolerant; guard covers commit/push callers": the seven arms sit in
+`ENV_ECHO_LOAD_TOLERANT_ARMS` in `tests/test_claude_hook.py`, citing this measurement through
+`CS1307_MEASURED_ARMS`, and
+`tests/test_claude_hook.py::test_every_env_echo_arm_that_drives_a_git_hook_waits_or_was_measured_tolerant`
+fails any arm reaching `commit_through` or `push_through` that neither waits nor sits in the set.
+Evidence before the change: at 9bf60fd no git-hook case exceeded 6.87 s in the guard shard. Next
+action: step 5, clause 3 - read the guard shard's duration from the session 145 /done push's tier1;
+the item closes on that reading. LOAD CONSTRAINT: the 32-spinner run saturated the machine and
+caused the operator's session 144 CPU stop - any load harness runs at most 6 spinners, never beside
+another suite. Residual: `BACKLOG.md`, "Session 145 residuals" (callers followed by bare name only).
+Rulings: `docs/LEDGER.md`, the 2026-10-17 CS-1307 record.
 
 ## CS-1317
 
@@ -2050,6 +2072,15 @@ OPEN STEP before CS-1328 closes: 16 lines on 4 files still spell the old C:-driv
 measures. The path detector `ABSOLUTE_CHECKOUT_RE` matches only paths ending in this tree's folder
 name, so it does not catch a sidecar-root spelling; no tracked file now spells the sidecar root.
 
+SESSION 145: the open sidecar step above is DONE - LANDED by adjudication as the commit "CS-1328 -
+sidecar-path detector and allowlist; scrub six test literals" (`docs/LEDGER.md`, 2026-10-17,
+CS-1328; session 144 rulings R2 and R3). The six `tests/test_queue_loop.py` literals are scrubbed to
+a parent placeholder; the ten records and detector lines stay byte-unchanged on a content-digest
+allowlist, `KEPT_SIDECAR_LINES` in `tests/test_readme_audit.py`, beside `KEPT_CHECKOUT_LINES`;
+`tests/test_readme_audit.py::test_no_drive_rooted_sidecar_path_in_any_tracked_file` and
+`tests/test_readme_audit.py::test_every_sidecar_allowlist_row_matches_a_live_line` pin it. The
+detector also covers the current sidecars root, so a tracked line spelling it turns the suite red -
+write <sidecars>. Its residual spellings: `BACKLOG.md`, "Session 145 residuals".
+
 Next action: (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted
-measurement in the window; the open sidecar step above; (e), (g), the ledger record and the ONE
-ANSWER after S12a.
+measurement in the window; (e), (g), the ledger record and the ONE ANSWER after S12a.

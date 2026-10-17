@@ -75,6 +75,168 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-17 - CS-700, CS-1307 and CS-1328 - NOT A COMPLETION RECORD. CS-700, CS-1307 AND CS-1328 STAY OPEN: session 145 /done - the carried push passed the step-b gate, two slices landed, one ruling's delivery closed CS-1283
+Verification: tier1 39050339227 at 9bf60fd; `CS-NEXT-SESSION.txt` (THE SINGLE NEXT ACTION and the
+session 145 /done final report); `WAKEUP_NOTES.md` (session 145); the four session 145 records
+directly below. The one item session 145 closed, CS-1283, has its own completion record below; this
+record closes nothing.
+FIRST ACT (session 145; agent-reported to this ritual): HEAD 9bf60fd, the session 144 /done records
+commit, unpushed at the start; the machine's CPU read average 7.5% and peak 13% on 16 cores, with no
+leftover processes; the CS-700 window CLOSED; the sentinels as expected; the inbox 0 unread. THE
+CARRIED PUSH OF 9bf60fd LANDED on one attempt through the git lock: its pre-push suite 16327 passed,
+0 failed, 12 skipped, 1286.43 s; the suite gate's wait_s 0.005 and hold_s 1287.848; the remote read
+back equal (this ritual's timing record, named in words, key session_145). TIER1 39050339227 AT
+9bf60fd PASSES THE STEP-B GATE as a further reading: six jobs on attempt 1, job durations catch-all
+197, hook 236, fill 336, scan 354 (its "tier 1 took" line 349), guard 349, save 377 s - catch-all,
+fill and scan within 420 s and no job over 444 s.
+HOUSEKEEPING (CS-1291 part 7 and FLEET item 9; agent-reported): the session 143 one-push records
+worktree (tip subject "CS-700, CS-1317 and CS-1329 - records: session 143 one-push sequencing", on
+main) read not locked; a consumer check passed; it went to the Recycle Bin, was pruned, and its
+branch was deleted with `git branch -d`.
+LANDED ON MAIN, each by cherry-pick through the git lock: CS-1328's sidecar step (commit "CS-1328 -
+sidecar-path detector and allowlist; scrub six test literals") and CS-1307's slice (commit "CS-1307
+- git-hook arms load-tolerant; guard covers commit/push callers", landed by this ritual's merge
+step); their records below. PARKED by adjudication: CS-1231 slice C (its record below). CLOSED: the
+item CS-1283 (its record below). CS-700 NOT RESTARTED: the operator did not state their presence in
+their own words this session (session 144 R1 stands).
+CHANNEL: ONE REVIEW note to MAIN delivered - in the outbox (named in words) as
+"2026-10-17-1212-from-CS-REVIEW-to-MAIN-kit-v17-claims-quoted-redirect-emit-sink-CS-1291-order-spawn-K1-K5-reply-on-3-and-4.md",
+four items: (1) the kit claims hook misreads quote-wrapped redirect characters; (2) the CS-1283
+ruling; (3) CS-1291 part 1 against the DONE-SLOW one-gated-suite rule - which order governs; (4) the
+CS-1231 slice C kit-side findings K1 to K5. The outbound cap read 1 of 6 for the day, the leak gate
+CLEAN, reached 1 of 1 with the destination copy re-hashed equal by SHA-256 (agent-reported; the
+kit's outbound log row read by this ritual). Replies are owed from MAIN on items 3 and 4.
+INCIDENT: a shared scratchpad progress helper was overwritten by another agent, so one builder's
+progress write landed in the push agent's progress file. LESSON: every agent writes its progress
+file with its own inline code.
+MERGE STEP (this ritual): the CS-1307 candidate - one commit on 3592a5b touching
+`tests/test_claude_hook.py` and `tests/test_hook_env_echo.py` only, read with `git show --stat` -
+cherry-picked with --no-commit onto 1b2c4ad without conflict, then committed through the git lock
+with its own message; its patch-id equals the candidate's. On the staged tree, identical to the
+commit's: `python -m pytest tests/test_claude_hook.py tests/test_hook_env_echo.py -q -n 2 --dist
+loadfile -p no:cacheprovider` exit 0, 371 passed, 0 failed, 0 skipped, 99.92 s
+(`tests/test_claude_hook.py` collects 49); `python -m ruff check` and `python -m ruff format
+--check` on both files exit 0.
+STEP 0 (this ritual): start 2026-10-17T13:11:11-05:00. WINDOW SIGNAL CLOSED: `git rev-list
+--parents -n 1 HEAD` exit 0, two SHAs (33fcd23 over 1b2c4ad, not a merge); `git diff-tree --root
+--no-commit-id --name-only -r HEAD` exit 0, listing the two test files and not the citation set
+file. Porcelain empty; no KEEP RULE copy folder; QUEUE_STOP present, INBOX_STOP and STOP absent; the
+responder idle with 0 runs in its window; the inbox 0 unread of 540. Highest tier touched: 1 (test
+code under `tests/` only).
+STEP 1 (tier 1, targeted, from the repo root, each command once; no whole suite): the merge step's
+run above; `python -m pytest tests/test_queue_loop.py tests/test_readme_audit.py -q -p
+no:cacheprovider` exit 0, 379 passed, 0 failed, 0 skipped; `python -m ruff check` and `python -m
+ruff format --check` on the four changed test modules exit 0.
+STEP 5: `python tools/drift_guard.py` first exit 1 - guard (i) read a body line of this record
+opening with an item id as an unread entry head - rewrapped, then exit 0 (guards 11, PASS 11);
+`python tools/doc_budget.py` exit 0 (PASS); `python tools/memory_sync.py` exit 0; `python
+tools/sha_citation_gate.py` exit 0 (PASS); the records-reading targeted set of the session 144
+/done (23 files in one serial run, listed in the hand-off's final report): exit 0 - 3425 passed, 0
+failed, 0 skipped. On the final bytes (all but this run's own figures): drift_guard,
+sha_citation_gate and doc_budget exit 0 again, and seven of those files in one run (the hand-off's
+final report names them): exit 0 - 856 passed, 0 failed, 0 skipped.
+RECORDS: this record and the four below; the CS-1283 line out of `ROADMAP.md` and its item section
+relocated verbatim to `docs/history_notes.md`; the CS-1307, CS-1328 and CS-1231 sections of
+`docs/item_notes/phase7.md`; `BACKLOG.md` "Session 145 residuals"; session 145 in `WAKEUP_NOTES.md`,
+session 142 relocated verbatim to `docs/history_notes.md`; the session 146 hand-off.
+THE PUSH: the ritual's one push carries the CS-1328 and CS-1307 commits and this records commit on
+top of 9bf60fd; its pre-push suite is the ritual's one gated whole suite, and its tier1 is a further
+THE STEP-B GATE reading and CS-1307's guard-shard reading - UNREAD at this commit, read by session
+146 first.
+
+### 2026-10-17 - CS-1307 - NOT A COMPLETION RECORD. CS-1307 STAYS OPEN until the guard shard is re-read: the git-hook env-echo arms measured load-tolerant, and the guard covers the commit_through and push_through callers
+Verification: merged files `tests/test_claude_hook.py` (`CS1307_MEASURED_ARMS` and
+`ENV_ECHO_LOAD_TOLERANT_ARMS`) and `tests/test_hook_env_echo.py` (the comment at its git-hook
+section). Test:
+`tests/test_claude_hook.py::test_every_env_echo_arm_that_drives_a_git_hook_waits_or_was_measured_tolerant`,
+beside `tests/test_claude_hook.py::test_every_env_echo_arm_that_drives_the_wrapper_runs_alone`. The
+measurement record: `docs/item_notes/phase7.md`, CS-1307.
+WHAT LANDED (commit "CS-1307 - git-hook arms load-tolerant; guard covers commit/push callers", by
+the session 145 /done's merge step): the guard walks every test reaching `commit_through` or
+`push_through` and fails any that neither waits at the quiet barrier nor sits in the measured
+load-tolerant set; a tolerant arm that waits anyway, a stale entry, one that also drives the
+wrapper, an empty citation, or the CS-1307 citation on an arm outside the frozen measured tuple is
+red too. Red first, naming all seven arms. No test function added: the file still collects 49, kept
+there to avoid an xdist tie with `tests/test_mypy_gate.py` at 50. No bound, budget or case moved;
+nothing skipped.
+ACCEPTANCE: clause 1 MET by measurement - the seven git-hook arms (30 cases) stay inside their
+bounds beside a CPU-bound sibling (the record in the item note); clause 2 MET - the file ran 30
+consecutive times under `-n 2 --dist loadfile`, 30 of 30 green, graded on failures; clause 3 (the
+guard shard's duration re-read after the change) UNMET at this commit - it is read from the session
+145 /done push's tier1 by the next session. Evidence before the change: at 9bf60fd no git-hook case
+exceeded 6.87 s in the guard shard (agent-reported).
+ADVERSARIES (distinct, agent-reported): A REFUTED - clause 3 unmet before the push; the guard
+follows callers by bare name only; the measured values were unchecked; a WIP SHA citation. B NOT
+REFUTED. ADJUDICATED: one small fix round - the pointer text, value assertions inside the existing
+arm, the file kept at 49 tests - and no further adversary. The bare-name residual is in
+`BACKLOG.md`, "Session 145 residuals".
+CONSTRAINT CARRIED: the session 144 32-spinner load run saturated this 16-CPU machine and caused the
+operator's CPU stop; any load harness runs at most 6 spinners, never beside another suite.
+
+### 2026-10-17 - CS-1283 - CLOSED: the lane driver's checklist printer keeps the tree's own sink, and the ruling reached MAIN with its delivery read back
+Verification: `ops/loop/queue_loop.py::_emit` (unchanged) against
+`ops/fleet_kit/fleet_checklist.py::emit` (kit v17, vendored byte-for-byte); ruling R4 in the
+2026-10-17 session 144 rulings record below; the session 145 REVIEW note to MAIN, item 2 (named in
+the session 145 /done record above), reached 1 of 1 and re-hashed equal by SHA-256.
+DECISION (session 144 R4, a distinct adjudicator that built none of it): keep the tree's own sink.
+ALTERNATIVES: call the kit's emit() directly; a wrapper around it. WHY: kit v17's emit() neither
+flushes nor tees, while `_emit` flushes every line (the measured CS-1018 reason a detached driver's
+log once stayed empty) and tees each line to the night log. The acceptance's last condition - the
+ruling reaches MAIN in this tree's next batched note - is MET: the session 145 REVIEW note carried
+it and its delivery was read back 1 of 1 by SHA-256 (agent-reported to this ritual). No code
+changed, so no test was added; the acceptance's flush-and-tee test binds only the emit() branch,
+which was not taken.
+Reversed by: a MAIN kit whose emit() flushes and tees, or a MAIN RULING ordering emit() - then a
+fresh adjudication under a new item.
+
+### 2026-10-17 - CS-1231 - NOT A COMPLETION RECORD. CS-1231 STAYS OPEN: slice C PARKED by adjudication on its branch after three refutations; kit-side findings K1 to K5 sent to MAIN
+Verification: the branch whose tip subject is "CS-1231 - lane runner starts its worker through the
+kit" (over "CS-1231 - WIP parked session 144 (unverified)"), in its agent worktree, NOT on main;
+`ops/loop/run_lane.ps1` on main unchanged - it still starts `claude` directly under CLAUDE.md
+precedence clause (c), which stays accurate; `docs/item_notes/phase7.md`, CS-1231.
+REFUTED by three distinct adversaries (agent-reported): HIGH - the kit's --timeout fires before the
+driver's own timer, so a timed-out run records completed; MEDIUM - a kit budget refusal ends the
+night through launch_failed; LOW-MEDIUM - the CLI's stderr is dropped; LOW - PowerShell 5.1 reads
+case-variant JSON keys; DOCS - the item-note lines would contradict CLAUDE.md, and "(c) retired at
+kit v17" is false; FLOORS LOW - --setting-sources drops the account's attribution-off keys, and
+status-file churn.
+DECISION (adjudicated): PARK at the branch tip; KEEP the branch and its worktree. The kit-side
+findings K1 to K5 went to MAIN in the session 145 REVIEW note, item 4. Carried locally: L1 plumb the
+driver's timeout into the runner, or map the kit's exit 4 to timeout_killed (scope
+`ops/loop/run_lane.ps1`, `ops/loop/lane_launcher.py`, `ops/loop/queue_loop.py` and their tests); L2
+a budget refusal onto the usage-limit wait path (depends on K5); L3 the case-variant JSON keys; L4
+the CLAUDE.md wording cites the landing commit, never "kit v17"; L5 at landing the merger updates
+the CS-1231 item-note lines that state slice C open and clause (c) standing; L6 the timeout test's
+docstring overclaims. ALTERNATIVES: not recorded for this ritual (agent-reported ruling).
+Reversed by: MAIN shipping a kit that answers K1 and K5, or ruling them won't-fix; then unpark, fix
+L1 to L6, and land only after a distinct adversary reads NOT REFUTED on the combined tip.
+
+### 2026-10-17 - CS-1328 - NOT A COMPLETION RECORD. CS-1328 STAYS OPEN for its post-S12a half: the sidecar step LANDED by adjudication
+Verification: merged files `tests/test_readme_audit.py` (`SIDECAR_PATH_RE`, `TWO_PART_SIDECAR_RE`
+and `KEPT_SIDECAR_LINES`) and `tests/test_queue_loop.py`. Tests:
+`tests/test_readme_audit.py::test_no_drive_rooted_sidecar_path_in_any_tracked_file` and
+`tests/test_readme_audit.py::test_every_sidecar_allowlist_row_matches_a_live_line`.
+CS-1328 sidecar step - LANDED by adjudication, session 145: six test literals in
+tests/test_queue_loop.py scrubbed to a parent placeholder; ten lines allowlisted by content digest
+in KEPT_SIDECAR_LINES in tests/test_readme_audit.py (four ledger record lines, five archived
+history-note lines, one multi-lane negative-detector literal), bytes unchanged; detector also covers
+the current sidecars root. Tests: test_no_drive_rooted_sidecar_path_in_any_tracked_file,
+test_every_sidecar_allowlist_row_matches_a_live_line. Alternatives: a second fix round (lost on cost
+against risk). Why: HEAD count 0 unexpected, 0 missing against 10 rows; residuals match the
+accepted CS-1308 ones. Reversed by: a tracked line in a residual form, or the operator's or MAIN's
+order to widen.
+ADVERSARIES (distinct, agent-reported): round 1 - the detector REFUTED (fixed), the leak and gate
+lenses NOT REFUTED; round 2 - the detector REFUTED on rarer spellings only; the loop stopped by cost
+against risk, the residual spellings in `BACKLOG.md`, "Session 145 residuals".
+THE SESSION 144 RULINGS IT FOLLOWS (the rulings record below): R2 - before CS-700 step b, in an
+ordinary push batched with the session's commits, never inside step a; R3 - the nine records lines
+and the multi-lane negative detector stay byte-unchanged on a digest-keyed allowlist of ten rows,
+the six `tests/test_queue_loop.py` literals scrubbed, and no in-place LEDGER edit. It lands before
+any new step a, in the session 145 /done push.
+STILL OWED before CS-1328 closes: (c) at S3, (d) between S8 and S10 and (b) as an uncommitted
+measurement inside the window; after S12a its ORDER record in the closing ledger commit (rule 0 -
+this record is not that record), (e), (g), the read-backs and its ONE ANSWER.
+
 ### 2026-10-17 - CS-700, CS-1328, CS-1231, CS-1283, CS-1291 and CS-1307 - NOT A COMPLETION RECORD. CS-700, CS-1328, CS-1231, CS-1283, CS-1291 AND CS-1307 STAY OPEN: session 144 /done - the operator's CPU stop; records committed, the push deferred
 Verification: tier1 38987573335 and tier2 39015311073 at 3592a5b; `CS-NEXT-SESSION.txt` (THE
 SINGLE NEXT ACTION, PARKED WIP and the session 144 /done final report); `WAKEUP_NOTES.md` (session

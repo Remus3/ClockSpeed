@@ -784,3 +784,20 @@ blocks a product item or reddens a suite.
   `tests/surface/test_cs1329_driver_timeout.py::test_the_start_budget_is_a_separate_positive_budget`
   asserts only that it is positive, so 120 to 60 stays green - TRIGGER: a tier2 probe start-up
   reading at or over the 15 s slow-start line, a second 60 s red, or any edit to that constant.
+
+## Session 145 residuals - filed 2026-10-17 under product before process
+
+Process findings of session 145; the CS-1328 and CS-1307 records are in `docs/LEDGER.md`,
+2026-10-17. None blocks a product item or reddens a suite.
+
+- From the CS-1328 round-2 adversary (loop stopped by cost against risk, session 145): the sidecar
+  detector misses a quoted two-part root whose folder continues, ends in a separator or is
+  backticked (TWO_PART_SIDECAR_RE, same gap as TWO_PART_CHECKOUT_RE), a Git Bash backslash-escaped
+  space, a doubled space, a PowerShell backtick-escaped space and a quote around one segment; plus
+  the CS-1308 residuals (code joins, drive-relative forms, hashed 8.3 names). Trigger: a hit, or the
+  public flip's outsider read.
+- CS-1307 residual: the env-echo guards in tests/test_claude_hook.py (call_closure) follow callers by
+  bare name only, so an alias, functools.partial, lambda, fixture, parametrized or argument-passed
+  driver, or an inlined hooked git commit reaches a hook unseen - ten planted arms stayed green
+  (session 145 acceptance adversary); trigger: an indirect caller of commit_through, push_through or
+  run_wrapper lands, or a git-hook arm flakes under load.
