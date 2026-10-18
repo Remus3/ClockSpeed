@@ -1778,7 +1778,7 @@ slice. The section 8 review driver (CS-1295) folds this list in as known finding
 Part (1) and DONE-SLOW (CS-1321) compose; DONE-SLOW governs where they touch: a /done runs
 at most ONE gated whole suite, on the HEAD it pushes; pre-push runs no whole suite by
 default; a doc-only ritual may run none. Grant timing after CS-700 S12a unchanged. Reversed
-by TEST-TIER replacing the ritual suite, or a /done median over 65 min after 5 rituals.
+by TEST-TIER replacing the ritual suite, or /done median still over 65 min after 5 rituals.
 
 ## CS-1295
 
@@ -1918,11 +1918,12 @@ STATE: steps 1 to 4 of the smallest remaining slice are DONE, landed in session 
 `tests/test_claude_hook.py::test_every_env_echo_arm_that_drives_a_git_hook_waits_or_was_measured_tolerant`
 fails any arm reaching `commit_through` or `push_through` that neither waits nor sits in the set.
 Evidence before the change: at 9bf60fd no git-hook case exceeded 6.87 s in the guard shard. Next
-action: step 5, clause 3 - read the guard shard's duration from the session 145 /done push's tier1;
-the item closes on that reading. LOAD CONSTRAINT: the 32-spinner run saturated the machine and
-caused the operator's session 144 CPU stop - any load harness runs at most 6 spinners, never beside
+action: clause 3 READ in session 146, the item STAYS OPEN - clauses 1 and 2 owe an independent
+re-measurement after S12a. LOAD CONSTRAINT: the 32-spinner run saturated the machine and caused
+the operator's session 144 CPU stop - any load harness runs at most 6 spinners, never beside
 another suite. Residual: `BACKLOG.md`, "Session 145 residuals" (callers followed by bare name only).
-Rulings: `docs/LEDGER.md`, the 2026-10-17 CS-1307 record.
+Rulings: `docs/LEDGER.md`, "2026-10-17 - CS-1307 - NOT A COMPLETION RECORD: clause 3 read; item
+STAYS OPEN - clauses 1 and 2 owe an independent re-measurement".
 
 ## CS-1317
 
@@ -1956,12 +1957,17 @@ corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unc
 is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
 record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
 
-Next action: reading 2 PASSED at f2696d1 and the d1ca4de tier1 passed too (the session 143 /done record in `docs/LEDGER.md`); read each later tier1 on main as a further gate reading - the session 143 /done push's first - then CS-700 step a's own run.
-The item closes only when both catch-all and both scan readings are at most 360 s; otherwise a
-rebalance from both shards' CI durations is next. Owed before the close: the scan entries out of `PENDING_READINGS` in `tools/tier1_growth.py`,
-`PENDING_PROFILE` in `tools/tier1_concentration.py` and `PENDING_FIRST_RECORD` in
-`tools/tier2_headroom.py`, each at the removal condition stated beside it; one tier2
-workflow_dispatch after the merge is allowed (B1).
+Next action: every tier1 on main through 02b6ebd passed as a further gate reading (the session 146
+CS-700 step a record in `docs/LEDGER.md`); read each later tier1 the same way - CS-700 step a's own
+run next. THE REFRESH COMMIT IS DEFERRED UNTIL AFTER S12a (the session 146 merger's decision, with
+its alternatives and Reversed by, in that record): it takes the scan entries out of
+`PENDING_READINGS` in `tools/tier1_growth.py`, `PENDING_PROFILE` in `tools/tier1_concentration.py`
+and `PENDING_FIRST_RECORD` in `tools/tier2_headroom.py`, each at the removal condition stated beside
+it, with their pins in `tests/test_tier1_growth.py`, `tests/test_tier1_concentration.py` and
+`tests/test_tier2_headroom.py`, and the item closes at that commit; one tier2 workflow_dispatch after
+the merge is allowed (B1). RETIRED: the 360 s close clause this line once carried - the session 141
+step-b holds ruling R1 (`docs/LEDGER.md`) retired D4's step-b and 360 s close conditions, so the
+close falls back to the Acceptance above.
 
 ## CS-1318
 
