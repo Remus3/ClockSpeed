@@ -66,8 +66,9 @@ same function that grades the named ref:
      walk. Its standing, as the CS-G03 re-walk ruling leaves it, is owned by
      CS-G03 in ``docs/GATED.md`` and is never restated here.
   6. DOC SWEEP - ``tools/doc_sweep.py``'s own sweep with URLs fetched, run
-     in-process over the REF tree, under ADR 0025 point 10: two exact URL pins,
-     matched by URL, each reported by its own count - see :func:`doc_sweep`.
+     in-process over the REF tree, under ADR 0025 point 10: one exact URL pin,
+     matched by URL and reported by its own count, the pre-publication pin
+     deleted after S12 as point 10b orders - see :func:`doc_sweep`.
   7. CLEAN CHECKOUT - the automatable half: a fresh clone of REF, the bootstrap
      block of ``docs/OPERATIONS.md``, and a staged non-ASCII violation that must
      leave HEAD unmoved. Its control commits the same violation with no hook
@@ -137,8 +138,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.error
-import urllib.request
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -250,29 +249,14 @@ NO_FETCH_PINNED: Final = frozenset(
     {"https://satisfactory.wiki.gg/wiki/Satisfactory_Wiki:Copyrights"}
 )
 
-#: ADR 0025 point 10b: README's tier1 badge - its workflow page and its image - which
-#: 404 while the repository is private. Inert once :data:`REPOSITORY_URL` answers
-#: publicly; deleted from this tool in the first commit after S12.
-PRE_PUBLICATION_DEAD: Final = frozenset(
-    {
-        "https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml",
-        "https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml/badge.svg",
-    }
-)
-
 #: The name of doc_sweep's own no-fetch predicate, which check 6 wraps for the run
 #: of one in-process sweep to learn each skipped URL by identity, then restores.
 NO_FETCH_PREDICATE: Final = "_no_fetch"
 
-#: The repository's own root URL, whose unauthenticated GET decides pin 10b.
-REPOSITORY_URL: Final = "https://github.com/Remus3/Clockspeed"
-
-#: The HTTP statuses pin 10b distinguishes, and the floor of an error.
-HTTP_OK: Final = 200
-HTTP_NOT_FOUND: Final = 404
+#: The floor of an HTTP error status: a URL answering at or above it is dead.
 HTTP_ERROR: Final = 400
 
-#: Seconds the repository-visibility GET may take.
+#: Seconds the forge account read (``gh api user``) may take.
 PROBE_TIMEOUT: Final = 20
 
 #: The prefix every project override carries. A walk scrubs them all from the
@@ -1168,53 +1152,27 @@ def doc_sweep_module() -> ModuleType:
     return _load_by_path("clockspeed_doc_sweep_for_flip", DOC_SWEEP_PATH)
 
 
-def repository_status(url: str) -> int:
-    """One UNAUTHENTICATED GET of ``url``; its HTTP status. Run time only, never in a test.
-
-    Raises:
-        OSError: the URL could not be reached at all.
-    """
-    request = urllib.request.Request(  # noqa: S310 - a pinned https constant only
-        url, method="GET", headers={"User-Agent": "clockspeed-flip-checks"}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:  # noqa: S310
-            return int(response.status)
-    except urllib.error.HTTPError as error:
-        return int(error.code)
-
-
 def doc_sweep(
     tree: Path,
     *,
     fetch: Callable[[str], int] | None = None,
-    probe: Callable[[str], int] | None = None,
     allowlists: tuple[dict[str, str], dict[str, str]] | None = None,
     no_fetch_pinned: frozenset[str] = NO_FETCH_PINNED,
-    pre_publication_dead: frozenset[str] = PRE_PUBLICATION_DEAD,
-    repository_url: str = REPOSITORY_URL,
 ) -> CheckResult:
     """Check 6: ``tools/doc_sweep.py``'s own sweep, with ``--urls``, under ADR 0025 point 10.
-
-    CHECK 6 PINS TWO EXACT URL SETS AND NOTHING ELSE.
 
     a. :data:`NO_FETCH_PINNED` - the exact distinct URLs on a doc_sweep no-fetch host
        the tree may carry. PERMANENT: CS-485 forbids any automated fetch of it, so it
        holds at S1, at S8 and after the flip. A pinned URL is reported
        ``policy-excluded``, never passed, and is not counted as a skip.
-    b. :data:`PRE_PUBLICATION_DEAD` - the exact own-repository URLs that 404 because
-       the repository is not public. It excuses a 404 ONLY while an unauthenticated
-       GET of :data:`REPOSITORY_URL` also answers 404, measured in the same run. Once
-       the repository answers publicly the pin is inert and a 404 on either URL
-       FAILS, so it expires by itself at publication. It is deleted from this tool in
-       the first commit after S12.
-    c. MATCHED BY URL, NEVER BY COUNT. The check FAILS on any skipped or dead URL
-       outside its pin, any skip kind other than no-fetch-host, any pinned URL the
-       tree no longer carries (a stale pin), and any pre-publication URL answering
-       other than 404 or 200.
-    d. REPORTED, NEVER SILENT. ``policy-excluded`` and ``pre-publication-dead`` are
-       counts of their own, apart from skips and findings, and the final line names
-       both.
+    b. The pre-publication pin is DELETED, as point 10b orders for the first commit
+       after S12: the repository answers publicly, so every dead URL FAILS, README's
+       tier1 badge included, and nothing excuses one.
+    c. MATCHED BY URL, NEVER BY COUNT. The check FAILS on any skipped URL outside
+       its pin, any dead URL, any skip kind other than no-fetch-host, and any pinned
+       URL the tree no longer carries (a stale pin).
+    d. REPORTED, NEVER SILENT. ``policy-excluded`` is a count of its own, apart from
+       skips and findings, and the final line names it.
 
     The sweep runs IN-PROCESS so every URL is known by identity: the skipped ones
     through doc_sweep's own no-fetch predicate, wrapped to record what it refused,
@@ -1225,11 +1183,8 @@ def doc_sweep(
     Args:
         tree: A checkout of REF.
         fetch: The URL fetcher; doc_sweep's own when None. The arms pass a stub.
-        probe: The repository-visibility GET; :func:`repository_status` when None.
         allowlists: doc_sweep's live and stale allowlists; its own when None.
         no_fetch_pinned: Pin a.
-        pre_publication_dead: Pin b.
-        repository_url: The repository's own root URL, for pin b's condition.
 
     Returns:
         The result; its control is set by :func:`measure`.
@@ -1270,60 +1225,24 @@ def doc_sweep(
     dead = {url for url, status in statuses.items() if status is None or status >= HTTP_ERROR}
     other_kinds = sum(n for kind, n in report.skips.items() if kind != module.SKIP_NO_FETCH_HOST)
     excluded = skipped & no_fetch_pinned
-    excused = _pre_publication_excused(
-        dead, statuses, pre_publication_dead, repository_url, probe or repository_status, result
-    )
     url_findings = sum(1 for finding in report.findings if finding.kind == module.DEAD_URL)
-    unexcused = len(report.findings) - url_findings + len(dead - excused)
     result.counts = {
         "urls checked": report.urls_checked,
-        "findings": unexcused,
+        "findings": len(report.findings) - url_findings + len(dead),
         "policy-excluded": len(excluded),
-        "pre-publication-dead": len(excused),
     }
     result.skips = other_kinds + len(skipped - no_fetch_pinned)
     if skipped - no_fetch_pinned:
         result.failures.append("a no-fetch URL outside the pinned set")
     if other_kinds:
         result.failures.append("a skip of a kind other than no-fetch-host")
-    if (no_fetch_pinned - skipped) or (pre_publication_dead - set(statuses)):
+    if no_fetch_pinned - skipped:
         result.failures.append("a pinned URL the tree no longer carries")
-    if dead - excused - pre_publication_dead:
-        result.failures.append("a dead URL outside the pre-publication pin")
+    if dead:
+        result.failures.append("a dead URL")
     if len(report.findings) - url_findings:
         result.failures.append("the doc sweep reported a finding")
     return result
-
-
-def _pre_publication_excused(
-    dead: set[str],
-    statuses: Mapping[str, int | None],
-    pinned: frozenset[str],
-    repository_url: str,
-    probe: Callable[[str], int],
-    result: CheckResult,
-) -> set[str]:
-    """Pin b: the pinned dead URLs a 404 is excused for, measured against the repository.
-
-    Appends a fixed-text failure for a pinned URL answering neither 404 nor 200, for a
-    pinned 404 while the repository answers publicly, and for a visibility probe that
-    could not be taken. Returns the URLs excused.
-    """
-    fetched = {url: statuses[url] for url in pinned if url in statuses}
-    if any(status not in (HTTP_NOT_FOUND, HTTP_OK) for status in fetched.values()):
-        result.failures.append("a pre-publication URL answered neither 404 nor 200")
-    candidates = {url for url, status in fetched.items() if status == HTTP_NOT_FOUND}
-    if not candidates:
-        return set()
-    try:
-        private = probe(repository_url) == HTTP_NOT_FOUND
-    except Exception:
-        result.failures.append("the repository's visibility could not be measured")
-        return set()
-    if not private:
-        result.failures.append("a dead URL outside the pre-publication pin")
-        return set()
-    return candidates & dead
 
 
 # --- checks 5 and 7: command walks in a scratch clone -------------------------
@@ -2109,10 +2028,9 @@ def final_line(results: Iterable[CheckResult]) -> str:
     failed = sum(1 for result in listed if not result.passed)
     verdict = "PASS" if listed and not failed else "FAIL"
     excluded = sum(result.counts.get("policy-excluded", 0) for result in listed)
-    pre_publication = sum(result.counts.get("pre-publication-dead", 0) for result in listed)
     return (
         f"flip_checks: automated verdict {verdict} - {failed} of {len(listed)} automated "
-        f"checks failed; policy-excluded {excluded}; pre-publication-dead {pre_publication}; "
+        f"checks failed; policy-excluded {excluded}; "
         f"human halves NOT-RUN-HERE {len(HUMAN_HALVES)}; this run does not clear CS-G03 "
         "(ADR 0025)"
     )

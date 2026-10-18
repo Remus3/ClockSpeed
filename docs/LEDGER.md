@@ -75,6 +75,253 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-18 - CS-700 - NOT A COMPLETION RECORD. CS-700 STAYS OPEN: the flip ran - S9 to S12 at T2, the repository PUBLIC from 15:27Z; S12a's post-flip reads, act (i), M1 and M2 read back; act (ii) is the push of this commit, acts (iii) and (iv) and the KEEP RULE close owed
+Verification: `docs/item_notes/phase7.md`, CS-700, THE PLAN steps S9 to S12a (the step texts this
+block ran); `tools/sha_citation_gate.py` with
+`tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits`; `git ls-remote`
+of the public remote (exactly HEAD and refs/heads/main); the gitignored rulings and records
+below, each by its full sha256. This record closes nothing.
+THE PUBLISHED TIP: T2 = f9b877256dd82e8d2844b6d7c876d3ab822ff097, the tip the S8a-2 adjudicator
+ruled READY. Two other tips are named in words only, because neither is published and the
+citation gate refuses an unpublished SHA in a tracked file (A-S12a ITEM 4.2): THE PRE-REWRITE
+MAIN (the S7a baseline) and THE PRE-STRIP TIP (S7a's output, the tip S8a first ruled READY).
+OPERATOR CONFIRMATIONS, own words, typed in this tree's main session (`CLAUDE.md` section 6.1).
+(1) VOID. As received (JSON-escaped, on one line here), its 40-hex SHA replaced by the words
+"the pre-strip tip":
+"operator is presemtI confirm CS-700 S9 through S12: delete and recreate the\n   Clockspeed remote and publish main at the pre-strip tip."
+After the repeated presence prefix "operator is presemt", whitespace-collapsed, it equalled
+that tip's asked line (2). It is VOID
+for every step by ruling (B): before S9 ran, the kit pre-push classifier found 34 Claude-Session
+trailers at the pre-strip tip, so S9 did not run there and no adjudicator retargets the line.
+Its verbatim bytes are in the gitignored flip note,
+<sidecars>/CS/Scratch/cs-flip-backup/cs700-s146/note.md, section "S9 confirmation and D7".
+(2) THE LINE S9 TO S12 RAN UNDER, as received (JSON-escaped, on one line here):
+"I confirm CS-700 S9 through S12: delete and      \n  recreate the Clockspeed remote and publish main  \n  at f9b877256dd82e8d2844b6d7c876d3ab822ff097."
+Whitespace-collapsed and trimmed it equals the S8a-2 ruling's asked line (2) character for
+character:
+"I confirm CS-700 S9 through S12: delete and recreate the Clockspeed remote and publish main at f9b877256dd82e8d2844b6d7c876d3ab822ff097."
+(the flip note, section "S9 confirmation at T2", recorded 13:46:09Z).
+THE RULING CHAIN, each gitignored in the data directory at the tree root, re-hashed for this
+record: ruling (B), the S9 blocker ruling, cs700-s146-s9-trailer-ruling.md - halt before S9,
+strip the 34 inside the S7a slot (S7a-2) to make T2, re-verify, a new own-words line; the S8-2
+grade (RG3), cs700-s146-s8-2-grade.md; S8a-2, cs700-s146-s8a2-ruling.md - READY at T2;
+A-S10, cs700-s146-s10-ruling.md - S10b continues past the landed refs/wip probe, the size
+substitution, packages a recorded residual, the push guard; A-S12a,
+cs700-s146-s12a-ruling.md - the ref hazard, the closing order (commits A and B), reset --keep,
+the blockers before act (ii). Beside them: the block rulings Q1-Q6, the runbook, the census
+ruling, the S7a controls ruling, ruling (A) on S8, the S8 re-grade (RG) and RG2; after S12a, A-432 - the second in-window headless run and the rebuild of this commit on T2.
+cs700-s146-s9-trailer-ruling.md e87fe1174ca1f5f9e099729d55661ba2c8add50ae8d99742034d5b7ac39d10b2
+cs700-s146-s8-2-grade.md 6d5b3fd7df2ec93497f9e38c467d729bc2a8db2fa16e33d18c024bb7cc0835c6
+cs700-s146-s8a2-ruling.md a66c4e2ba9fd51bc5e18cb953509c1801737158c2213bfe0aa8787e5777cdfb2
+cs700-s146-s10-ruling.md 737df292d55e459a4951addd9bd510622c8d26727c45bb8543873bf4b7e3f675
+cs700-s146-s12a-ruling.md 3dafe6dce1e6b569980b0a3a381a98dc7c67e904043b64659ab3699df00c16fc
+cs700-s146-rulings.md 62bdef13d23a18b1e1506ec696d82e1e56f7b623bc70ae833c70c0b7ec0eb2d1
+cs700-s146-runbook.md 0cbe388f2fe84fc46d19f96eb956197e19d78dcf40aa1d4e673c538db2826c4a
+cs700-s146-census-ruling.md 246d3d3f0c008ab066dd2121c003ecd97fec9e8cb6212842427686a410f1303d
+cs700-s146-s7a-controls-ruling.md bf68032643b2146dca9edc49864ce3570b31155709b31b49f1038eda90b92b81
+cs700-s146-s8-ruling.md 8353d6a4606298ca27eca9e277b5a220f3856b0a7a1b1e202b8333f02c0dea9f
+cs700-s146-s8-regrade.md 6aa8e1f5da2d59e5c15e0e2ee264f6d7bff029f732e0d175d2f15a8f38c7f868
+cs700-s146-s8-rg2.md 8ab1237dd55c4009358496ef683c68fbcbf8fdc2fd5636f9f16c4703c0c880d3
+cs700-s146-a432-ruling.md b7ca18bf0645738e1c658e0f21dd0f7dee73b1822d973612a316376049e71a7d
+THE RECORDS, gitignored, under <sidecars>/CS/Scratch/cs-flip-backup/cs700-s146/, re-hashed for
+this record; note.md is append-only, so its digest is the one A-S12a read as its input:
+note.md fda05a9cc3a1dd4a3dcadd038af4547cf1e9b18473e7058fb802cc4610c43852
+s7a2-record.txt ba915630a24e44184cc3585e217fa0342552fe6e03c2699e0e7e9353dea2bede
+s7a2-controls.txt 1908b2fa043a2052d4c7f4830fd452215f79cff1755094ea0345dee46508d167
+s7a2-rewrite-review.txt 177ebf3984a76c0d7eb1e7d9cf1295741673f54669e9ffcecfb74d9b112d11d6
+s7a2-controls-review.txt e32f35dacacf14552af6ff13fa5a2ad03c878edb4be72cdc1e4e760bcc53fcde
+s8-2-record.txt 81cc87ddf2c494e148431a9ee6bdc27a07b5833d9c7f72df68eacbedcb14bdf2
+s8-2b-record.txt 1c5ebc2bb865fd71f983c40bdf637160e86ac88bb571fe6b71f0ed6de6377006
+s9-prep-record.txt 19502c3bfb40bdc96f89ae98ecbe2c8c0d1c9b2bf3ea8befbda0edaf2c70b1d1
+s9-witness-record.txt 792d4efa31d3cdc9397c247a38d07628e9ac84c90df6d23d8201438856d66513
+s9-record.txt 8fd5fdf989dbc5be48c6df99a48642e3eb3c7e380fa917915cafd70377b75b0c
+s10-record.txt 496a740dc7911e2dd0c0b2146a254d0f01df32a6c8af7a91b58e433daef9c44f
+s10b-record.txt 162784577787cb0d05ed1a3185663988fd19d19bcc76580b782c8f04639d5891
+s10b-d-record.txt b26cebe28be4794cbbe5447577b8efc34d20e2766ec2287c0e296f3d8947a71d
+s10c-record.txt 282f89443844e42ec1a2b0112ebb5e5740ef052ad3d3146d1e6557e6e5148a1c
+s11-record.txt 6c010c1611d1830d433d54c466bca5ca4ab0f38a3f23a3ad7361610d058ef793
+s11-verify-record.txt c78e1a0c5a0036e4f026480e0fc045005e0aced8dc75b878642672207a62eb72
+s12-record.txt d08be52d0491d48ac6eb9f05b6e85424b0ed81b410586bcbe5cb456aa2f2e5d3
+s12a1-record.txt dcd40351732be32d6a730ae7dd1a08e003888c3e8af6d796c565f89e6ee1a7d5
+s12a2v-record.txt 826cd31a63aa9c78568b2af1df400aa5ebb3f43755fa5aa4156c71958ae61f88
+s3-all.bundle 9f3f61dbed93bd87079582561bcfb6bed092ba95bca402ee4a68753eead4d0df
+S7a-2, INSIDE THE S7a SLOT (ruling (B), 12:14Z): a strip-only pass over the pre-strip tip in a
+fresh clone, identity untouched, printed "commits seen 1843; messages stripped 34". Read back:
+1843 commits, trees pairwise equal, SHA kept 1581 and changed 262, T2 messages carrying any kit
+class 0, fsck clean; the delta controls PASS, 20 of 20; the rewrite review and the controls
+review each NOT REFUTED; S8 re-run at T2 (S8-2, its check T and final-line differences graded an
+artefact of the clone shape by RG3, re-run in S8-2b); S8a-2 READY at T2.
+S9 (14:00:32Z-14:01:31Z). The (1d) re-confirm, narrowed by adjudicator D-S9-1d: unarchive, the
+codespaces secrets read (200, total 0, control 200), re-archive read back true in two families.
+S9a DELETE rc 0 of the old remote, its node_id read equal in REST and GraphQL first. READ BACK:
+REST 404, GraphQL NOT_FOUND, ls-remote rc 128, each beside a positive control that answered.
+S9b RECREATE, private, rc 0, a new node_id unequal to the deleted one. S9c READ BACK: REST
+private, not archived; GraphQL PRIVATE, isEmpty true, refs 0; anonymous REST 404 (control 200);
+ls-remote 0 lines; REST git/refs 409 "Git Repository is empty." - S9c PASSED.
+S10 (14:09:59Z-14:10:08Z). From the S7a-2 clone, through `ops/fleet_kit/fleet_gitlock.py`: `git
+push origin` of T2 to refs/heads/main, rc 0; the pre-push hook RAN (trace2 shows the kit identity
+arm's child exit 0 before send-pack); no --no-verify, no force, no tag. READ BACK: ls-remote
+exactly HEAD and refs/heads/main at T2; REST git/refs exactly refs/heads/main; tags 0; GraphQL
+isEmpty false, defaultBranchRef main at T2.
+S10b. Two rulesets over ~ALL branches and ~ALL tags, active, no bypass, blocking creation, update,
+deletion and non-fast-forward; read back 4 of 4 rules on main. PROBES: P1 (a branch) and P2 (a
+tag) REFUSED by rule (GH013); P3, refs/wip/cs700-probe, ACCEPTED - phase7's stated limit, now
+measured on this forge. A-S10 item 5 ruled CONTINUE. The S10b-D actor deleted P3 at 14:43:53Z
+through the git lock ("- :refs/wip/cs700-probe [deleted]"). READ BACK: ls-remote exactly HEAD and
+refs/heads/main at T2; REST git/ref for the probe 404 with the main control 200; the no-op C2
+push "Everything up-to-date"; a fresh mirror clone holding exactly refs/heads/main at T2, fsck
+clean, 1843 commits, 601 tree entries equal to the S7a-2 clone - S10b PASSED. Before that verification, at 14:44:25Z, A-S10 5(d) D-1,
+the common push guard (remote.origin.pushurl to an unusable helper), read back as the push URL of 69 of 69 listed
+checkouts, its positive control rc 128 with no network request.
+S11 (15:00:13Z-15:02:23Z). Tip check PASS; the settings acts each issued once and read back PASS:
+branch protection on main equal to the S3 body; Dependabot alerts on (security-update PRs off);
+topics 20, set-equal to S3; labels RECONSTRUCTED, the old set UNRECORDED; description, empty
+homepage, wiki off, projects off; the final repository read differed from S3 in no field. The
+S11 verifier CONFIRMED it, mirror clone and protection shape included. Visibility stayed private.
+S12, THE FLIP (15:27:06Z-15:27:08Z). Pre-S12 pass 20 of 20 PASS, the S7q probe re-run PASS, a
+fresh mirror PASS, the two-family ref read 0.883 s before the call. `gh api` PATCH
+visibility=public: rc 0, HTTP 200. READ BACK (15:27:09Z-15:27:22Z), 11 of 11 PASS: REST public,
+GraphQL PUBLIC, the node_id equal to S9b's; anonymous REST 404 at 15:27:09Z, then 200 at 15:27:14Z
+(propagation), the anonymous web page 200; anonymous ls-remote exactly HEAD and refs/heads/main
+at T2; an anonymous fresh mirror holding one head at T2 and nothing else.
+S12a (S12a-1, 15:36:21Z-15:38:44Z). THE POST-FLIP READS re-taken, all PASS: public, refs exactly
+HEAD and refs/heads/main at T2 in ls-remote, REST and an anonymous mirror - STRAY REF: NONE.
+THE KEEP RULE steps (1) to (4) (`.claude/commands/done.md`): 0 records copied, the main tree
+moved onto T2 by `git reset --keep` (A-S12a ITEM 3 accepts the mode), read back HEAD == main ==
+T2, porcelain 0. ACT (i), 15:38:20Z: both S10b rulesets deleted, HTTP 204 each. READ BACK:
+rulesets 0, each ruleset GET 404, rules on main 0, branch protection still 200; ls-remote, REST
+and an anonymous ls-remote exactly HEAD and refs/heads/main at T2.
+THE 109-COLLISION FINDING (A-S12a M-e): in the main tree the citation gate read exit 1, state
+POST, 109 historical-collision tokens, every one reachable from one of 5 local pre-rewrite
+salvage tags, which the gate counts as published refs; with refs/tags excluded a simulation of the same sweep
+gave verdict 0 (V2 measured exit 0 after M1). So act (ii)'s own pre-push suite would have been red, while CI at T2 was green because a fresh
+checkout holds no tags. Cleared by M1, never by an allowlist row or a gate edit (ITEM 4.1).
+THE REF HAZARD (A-S12a ITEM 1): 12 stale tracking refs of the deleted remote made the kit
+identity arm treat the pre-rewrite lineage as already on the forge, so, in an exact in-process simulation of the arm, 267 of the 521 refs off
+T2 passed it while carrying trailers (co-author or Claude-*) or the non-noreply identity; the common guard
+was the only barrier. M1 (S12a-2, issued 16:15:24Z): one `git update-ref --stdin` transaction
+deleting the 5 salvage tags and the 12 stale tracking refs, each with an equal duplicate under
+refs/backup and in s3-all.bundle, their 12 reflog files copied out first.
+The call printed exactly "start: ok", "prepare: ok", "commit: ok", rc 0. READ BACK: the 17 refs
+absent, each refs/backup duplicate still at its old value; R1 refs/tags 0 lines, refs/backup/tags
+5 at the same SHAs; R2 refs/remotes exactly origin/HEAD and origin/main at T2, origin/HEAD a
+symref to origin/main; R3 the full ref listing byte-equal to the pre-call listing minus the 17;
+R4 porcelain 0, the main-tree freeze witness unmoved - M1 DONE. M2 (16:16:13Z-16:16:20Z): the
+same guard set per worktree (`git config --worktree remote.origin.pushurl`) in each of the 70
+linked worktrees (the ruling's 68 plus 2 agent worktrees made this session at T2), 0 failed. R5:
+the worktree-level value exactly 1 line, the guard, 70 of 70; `git remote get-url --push` the
+guard 70 of 70; none in the main worktree - M2 DONE. s12a2-record.txt sha256
+139c4d502414bd43ec06f6f176c709033227e66ae83de5a92f37526c992cb82b.
+VERIFIED by a fresh read-only verifier, S12a-2V, CONFIRMED WITH CORRECTIONS, the corrections being count drift after the actor read (the record s12a2v-record.txt under
+the same <sidecars>-relative folder): V1, the identity arm simulated per ref - 505 refs sit off
+T2 and the arm REFUSES all 504 pre-rewrite ones; PASSED WHILE EXPOSING 0 in every family (heads,
+wip, backup, preserve, tags); the one ref that passes is the slice P builder branch, a clean
+commit on T2; at the 16:29Z re-read a second agent branch, 2 commits on T2 touching docs/LEDGER.md only, also passed with 0 violations. V2, `python -B tools/sha_citation_gate.py` in the main tree: exit 0, historical
+POST, 0 collisions. V3, the push guard in 71 of 71 checkouts: the common guard exactly 1 line,
+and the worktree-level guard in all 70 linked worktrees. V4, the main-tree freeze witness
+unmoved, porcelain 0. RESIDUAL: a 71st linked worktree (the 72nd checkout), made by a review agent from about 16:22Z
+to 16:29Z, briefly lacked the M2 guard while the common guard still covered it; it has since
+been removed (71 checkouts listed again). S12a-2V's hand-back binds step 9: re-list the worktrees first, guard or retire any linked worktree without the M2 guard, and run R6 over that list.
+R6, the common-guard removal and its read-back, follows this commit (A-S12a step 9).
+D-W2, AN IN-WINDOW HEADLESS RUN (S8a-2 finding, its residual S8a2-R1): MAIN's nightly kit rollout
+spawned a headless BUILD run in this tree at 09:00:05Z although STOP, INBOX_STOP and QUEUE_STOP
+were present. It wrote the v18 kit over `ops/fleet_kit/`, ran a suite (failed at its 10 minute
+cap) and restored the tree by 09:10:47Z: every tracked byte equal to the pre-rewrite main, no
+commit, ref or push, every loadable kit bytecode a faithful compile. It falsified the premise
+that the sentinels stop every spawn and breached the window's no-suite rule; it is a kit defect
+for MAIN (FLEET item 11), carried in the CS-1328 ONE ANSWER. headless_usage read 34 rows, the newest stamped 09:10:56Z,
+at every later tip check from S9 to S12a-2 (the last at 16:12:59Z); the merger's two tip checks for the first build of this commit did not read it; the A-432 ruling read 35 rows, the newest the run below.
+A SECOND IN-WINDOW HEADLESS RUN (the A-432 ruling): at 18:45:39Z MAIN's kit v19 spawn started a
+headless build run in this tree for MAIN's GH-HYGIENE ORDER, although that ORDER's own
+precondition - this tree's v19 adoption first - was not met. It ran 88 s and wrote the 35th
+headless_usage row, stamped 18:47:07Z (13:47:07 local). STOP, INBOX_STOP and QUEUE_STOP were
+present, but not declared to the v19 spawn, which refuses only on sentinels a tree declares. It
+made a one-line README commit on local main above the first build of this commit: never
+published, set aside by the A-432 ruling, and to be re-applied as its own commit after act (iv). It sent
+MAIN an ANSWER note naming that commit. The three sentinels were declared to the v19 spawn at
+19:22:17Z.
+SLIPS, each disposed by the ruling named: (1) the S7a-2 rewrite ran before its review - review
+NOT REFUTED after, T2 sustained (S8a-2, S8a2-R3); (2) the coordinator narrowed ruling (B)'s
+second-family sweep without an adjudicator - re-founded as an enumerated allowance (S8a-2 ITEM
+1, S8a2-R3); (3) the S11 verifier ran its push-guard dry run directly, not through the git lock -
+stopped locally at the guard, rc 128, nothing sent or changed (S11-V SLIP 3); (4) S9's
+unarchive and re-archive of the old remote, an outward reversible act outside the S9 dispatch's
+step list, taken on the D-S9-1d ruling - the ref set read equal in two families after it (A-S10
+4.1). Smaller slips (two home-path echoes into tool output, never into a file; failed heredocs
+that ran nothing; one stray scratch file) are in each ruling's and record's own slips list. (5) The merger's first pre-commit test run rewrote one kit .pyc in the main tree, so the main-tree witness read moved in its bytecode half after V4 read it unmoved; the coordinator accepted it as a residual, the witness retiring at this commit (A-S12a 4.11). (6) Slice P first deleted the arm the CS-1183 record cites, which turned the docs-citation arm red in that run; the arm was restored under its name before this commit and reviewed by a separate adversary. (7) The first build of this commit was REFUTED on accuracy by a distinct adversary and rebuilt with its fixes.
+RESIDUALS: packages UNMEASURED through S12 (no read:packages scope; A-S10 item 3, its P1 to P3
+held at the pre-S12 pass) - the post-flip grant's measurement is recorded by the closing commit;
+labels RECONSTRUCTED, the old set unrecorded (A-S10 4.6); size - REST size 0 on 21 reads after
+S10 and 0 at S11, met by substitution (A-S10 item 2), 16811 KB at the pre-S12 pass against its
+33604 KB cap, unreferenced server objects measured only by that lagging counter; refs outside
+refs/heads and refs/tags stay writable by any write credential (A-S10 R1); the Actions logs of
+the runs at T2 are public (A-S10 4.5); D-W2; A-S12a R1 to R6.
+OWED, in the binding order of A-S12a as the A-432 ruling re-sequenced its steps 7 to 19: the act (ii) push of this commit and its landed read-back; act
+(iii) - private vulnerability reporting, secret scanning, push protection; tier1 on this commit;
+the community profile re-read; the lane re-cut; act (iv), the S7q lift; the KEEP RULE (6) to (8)
+closing commit; CS-1328 (e), (g) and the ONE ANSWER (the record below).
+
+### 2026-10-18 - CS-1328 - NOT A COMPLETION RECORD. CS-1328 STAYS OPEN: MAIN's 2026-10-15 PUBREPO ORDER recorded after S12a per its rule 0; additions (a) to (d) read back; (e), (g) and the ONE ANSWER owed
+Verification: `docs/item_notes/phase7.md`, CS-1328 (the ORDER in tighter form and its
+Acceptance); `tests/test_readme_audit.py::test_no_absolute_checkout_path_in_any_tracked_text_file`
+and `::test_no_drive_rooted_sidecar_path_in_any_tracked_file`, both passing on this commit's tree when run for
+this record; the gitignored records named below, by full sha256. This record closes nothing.
+THE ORDER: MAIN's note "2026-10-15-1925-from-MAIN-ORDER-to-CS-PUBREPO-CS-700-pre-flip-additions-ONE-ANSWER.md"
+(ORDER, HOP 1), sha256 c733c36d9016c3a326c5e9b3e3e921d66dd7fd92677d806535d2c174c9bd1b77, equal to
+MAIN's tracked, unmodified outbox copy (read by the session 142 /done), so under FLEET item 6 it
+is the operator's instruction. Its rule 0 put this record in the closing ledger commit after
+S12a, and nothing for the ORDER was committed inside the S7a..S12 window.
+(a) HEAD PATH SCRUB: landed before the window - the session 143 push and the session 145 sidecar
+step (the 2026-10-16 and 2026-10-17 CS-1328 records); its history residual is ACCEPTED by the
+ORDER (layout, not identity). On this commit's tree the two path tests in the Verification line pass, so
+HEAD's absolute-path count outside the explicit allowlists (`KEPT_CHECKOUT_LINES` and
+`KEPT_SIDECAR_LINES` in `tests/test_readme_audit.py`) is 0.
+(b) CENSUS AXIS, uncommitted and out of tree as the ORDER allows: census-axis-v3.py (sha256
+5d405e8ab17edb9d7d9f544f06383ba2e0c3d022e78943c4ce2f90fb986e4075), non-aborting, run at the
+pre-strip tip (03:30Z, exit 0) and at T2 (12:51Z, exit 0, with --root), every count line equal.
+Occurrences, HEAD / full closure: repo_root 13 / 3023, a lower bound (its annex A2);
+sidecar_root 0 / 333; sidecar_hist1 7 / 1047; sidecar_hist2 3 / 318; sidecar_bare1 the same
+occurrences as sidecar_root, never a distinct count; sidecar_wt 0 / 101; sidecar_walk 0 / 5;
+main_root 0 / 0, unproven-zero; host.netbios, host.dns and host.fqdn 0 / 0 each; any_drive
+164 / 6929; any_bash 451 / 3392. Paths 0 in every cell; messages 0 at HEAD. Closure 1843
+commits, 6137 trees, 5670 blobs, 603 paths. The tracked axis ships after S12a.
+s8-census-axis.txt 72f36838d1b692f983c10b853d1ccf28bb00a5c7b72da7cb564685bda636ac13
+s8-2-census-axis.txt 534ae9d9d2227301b04718887754fb4be0b2a5d1a40288668e8dd10b5aab2d9f
+(c) SETTINGS: dumped read-only at S3 (s3-settings-dump.txt, sha256
+582c9fc4af83797bdbeae616053dfbe17826c12c39318c0719f0f0d7d68fa2c8) and re-applied at S11 field by
+field, each read back and CONFIRMED by the S11 verifier (the CS-700 record above). CodeQL default
+setup read 403 "not enabled" at S3 and at S11, and no Dependabot config existed on the forge or in
+the tree, so neither had anything to restore. Private vulnerability reporting, secret scanning and
+push protection are S12a act (iii), owed.
+(d) fleet.operatorIdent (D7, 12:13Z, after S8 proved identity zero and before S10, config only):
+`--unset-all`, then ONE noreply value added. READ BACK in 69 checkouts (the main tree and 68
+linked): fleet.operatorIdent exactly one value, equal everywhere, and the effective user.email
+equal to the noreply value everywhere. s8-1328d-record.txt sha256
+90b097775c83e4b22cf1362ef8cc8957a05e5fb974161361b6ef48fc489dd74a.
+OWED (A-S12a steps 18 to 20): (e) the v0.1.0 annotated tag on T2, the S8a-adjudicated tip, after
+the S7q lift, its single ref pushed and the release read back; (g) the posture items, each its own
+work item; the ONE ANSWER, one note, carrying the read-backs, this commit's hash, the closing
+commit's hash and the census counts above. No reply has been sent.
+
+### 2026-10-18 - CS-700 - ADR 0025 point 10b executed: `PRE_PUBLICATION_DEAD` deleted from the flip checks in the first commit after S12
+Verification: `docs/adr/0025-the-tier-3-flip-checks-run-locally.md` point 10;
+`tools/flip_checks.py`, `tests/test_flip_checks.py::test_adr_0025_10b_the_pre_publication_pin_is_deleted_after_s12`
+and `::test_adr_0025_10b_a_badge_url_that_fails_is_a_dead_url_after_s12`, the failing-first arms.
+ADR 0025 point 10b says the pin "is deleted from the tool in the first commit after S12"; this
+commit is that commit (A-S12a ITEM 4.7). Slice P deletes `PRE_PUBLICATION_DEAD` and its excuse
+path from `tools/flip_checks.py`, with the pre-publication-dead count and its final-line term,
+so every dead URL now fails check 6, README's tier1 badge included; in
+`tests/test_flip_checks.py` the two arms above were written first, the module's existing pin
+references updated, and of the two excuse-path arms the one for a pinned URL answering neither 404 nor 200 replaced by the second of them; `::test_a_pinned_badge_404_fails_once_the_repository_is_public`, which the CS-1183 record cites, keeps its name and now asserts that a badge 404 fails and a badge 200 passes.
+POINT 10d, THE POST-S12 CHECK 6 READING (A-S12a step 5, a read-only verifier):
+`python -B tools/flip_checks.py` at T2 with the T2 tool, `--stage s8`, the pre-rewrite main as
+the trailer baseline ref and count 18 (S12a-2V, s12a2v-record.txt): the check 6 line reads
+pre-publication-dead 0, where the recorded pre-publication T2 run read 2 - the one check 6
+difference from that run; both README tier1 URLs answer 200 on an independent unauthenticated
+GET. The run exits 1, as recorded at T2: check 6 still fails on its known skip of a kind other
+than no-fetch-host, so this reading discharges point 10d's pre-publication-dead 0 and clears
+nothing else.
+
 ### 2026-10-17 - CS-700, CS-1317 and CS-1231 - NOT A COMPLETION RECORD. CS-700, CS-1317 AND CS-1231 STAY OPEN: session 146 CS-700 step a - the operator present in their own words, two further step-b gate readings passed, the flip block restarts at a NEW step a
 Verification: "tier 1 took" lines and the Install toolchain steps on tier1 39060449941 at df755f9
 and tier1 39064509789 at 02b6ebd; `CS-NEXT-SESSION.txt` (THE SINGLE NEXT ACTION, written at this

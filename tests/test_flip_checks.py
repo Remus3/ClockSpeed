@@ -19,6 +19,7 @@ check that always passes render identically in a summary.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import mmap
 import re
 import subprocess
@@ -1125,14 +1126,20 @@ def test_the_doc_sweep_control_adds_a_finding(tmp_path: Path) -> None:
     assert flip.control_doc_sweep(tmp_path)
 
 
-#: Synthetic stand-ins for the two pinned sets and the repository URL. The arms
-#: pass these, never the tool's real pins, so no arm depends on the live tree.
+#: Synthetic stand-ins for the pinned wiki set and README's badge. The arms pass
+#: these, never the tool's real pin, so no arm depends on the live tree.
 WIKI_PIN: Final = "https://synthetic.wiki.gg/wiki/Pinned_Page"
 WIKI_UNPINNED: Final = "https://synthetic.wiki.gg/wiki/Other_Page"
 BADGE_PAGE: Final = "https://forge.example.invalid/owner/repo/actions/workflows/t1.yml"
 BADGE_IMAGE: Final = BADGE_PAGE + "/badge.svg"
-REPO_URL: Final = "https://forge.example.invalid/owner/repo"
 OTHER_DEAD: Final = "https://elsewhere.example.invalid/gone"
+
+#: ADR 0025 point 10b - the names and doc_sweep parameters the pre-publication pin
+#: and its excuse path carried, every one deleted in the first commit after S12.
+PIN_10B_NAMES: Final = frozenset(
+    {"PRE_PUBLICATION_DEAD", "REPOSITORY_URL", "repository_status", "_pre_publication_excused"}
+)
+PIN_10B_PARAMETERS: Final = frozenset({"pre_publication_dead", "repository_url", "probe"})
 
 
 def pinned_tree(tmp_path: Path, extra: str = "") -> Path:
@@ -1152,72 +1159,91 @@ def sweep_pinned(
     result = flip.doc_sweep(
         tree,
         fetch=lambda url: statuses[url],
-        probe=lambda url: statuses[url],
         allowlists=({}, {}),
         no_fetch_pinned=wiki,
-        pre_publication_dead=frozenset({BADGE_PAGE, BADGE_IMAGE}),
-        repository_url=REPO_URL,
     )
     result.control = True
     return result
 
 
-PRIVATE: Final = {BADGE_PAGE: 404, BADGE_IMAGE: 404, REPO_URL: 404}
+PUBLIC: Final = {BADGE_PAGE: 200, BADGE_IMAGE: 200}
 
 
 def test_the_pristine_pinned_tree_passes_check_six(tmp_path: Path) -> None:
-    """Both pins hold, each reported by its own count, and nothing else is found."""
-    result = sweep_pinned(pinned_tree(tmp_path), PRIVATE)
+    """The wiki pin holds, reported by its own count, and nothing else is found."""
+    result = sweep_pinned(pinned_tree(tmp_path), PUBLIC)
 
     assert result.failures == []
     assert result.skips == 0
     assert result.counts["policy-excluded"] == 1
-    assert result.counts["pre-publication-dead"] == len((BADGE_PAGE, BADGE_IMAGE))
     assert result.passed
 
 
 def test_an_unpinned_no_fetch_url_fails(tmp_path: Path) -> None:
     """A second wiki URL is outside the exact pin, whatever the count."""
-    result = sweep_pinned(pinned_tree(tmp_path, f"\nAnd <{WIKI_UNPINNED}>.\n"), PRIVATE)
+    result = sweep_pinned(pinned_tree(tmp_path, f"\nAnd <{WIKI_UNPINNED}>.\n"), PUBLIC)
 
     assert "a no-fetch URL outside the pinned set" in result.failures
     assert not result.passed
 
 
 def test_an_unpinned_dead_url_fails(tmp_path: Path) -> None:
-    """A 404 outside the pre-publication pin is a dead URL, private repository or not."""
-    statuses = {**PRIVATE, OTHER_DEAD: 404}
+    """A 404 anywhere in the tree is a dead URL - no pin excuses one."""
+    statuses = {**PUBLIC, OTHER_DEAD: 404}
     result = sweep_pinned(pinned_tree(tmp_path, f"\nAnd <{OTHER_DEAD}>.\n"), statuses)
 
-    assert "a dead URL outside the pre-publication pin" in result.failures
+    assert "a dead URL" in result.failures
     assert not result.passed
 
 
 def test_a_stale_pin_fails(tmp_path: Path) -> None:
     """A pinned URL the tree no longer carries is a stale excuse."""
     stale = frozenset({WIKI_PIN, WIKI_UNPINNED})
-    result = sweep_pinned(pinned_tree(tmp_path), PRIVATE, wiki=stale)
+    result = sweep_pinned(pinned_tree(tmp_path), PUBLIC, wiki=stale)
 
     assert "a pinned URL the tree no longer carries" in result.failures
     assert not result.passed
 
 
 def test_a_pinned_badge_404_fails_once_the_repository_is_public(tmp_path: Path) -> None:
-    """The pin excuses a 404 only while the repository root answers 404 too."""
-    statuses = {**PRIVATE, REPO_URL: 200}
+    """The repository answers publicly after S12, so README's badge answering 404 FAILS.
+
+    ``docs/LEDGER.md`` cites this name for CS-1183. ADR 0025 10b deleted the pin that
+    once excused the 404 while the repository was private; the claim still holds,
+    now for every badge URL. The same tree with the badge answering 200 passes.
+    """
+    tree = pinned_tree(tmp_path)
+    dead = sweep_pinned(tree, {**PUBLIC, BADGE_PAGE: 404})
+    live = sweep_pinned(tree, PUBLIC)
+
+    assert "a dead URL" in dead.failures
+    assert not dead.passed
+    assert live.failures == []
+    assert live.passed
+
+
+@pytest.mark.parametrize("status", [404, 500])
+def test_adr_0025_10b_a_badge_url_that_fails_is_a_dead_url_after_s12(
+    tmp_path: Path, status: int
+) -> None:
+    """ADR 0025 10b: the pre-publication pin is deleted, so no badge failure is excused."""
+    statuses = {**PUBLIC, BADGE_IMAGE: status}
     result = sweep_pinned(pinned_tree(tmp_path), statuses)
 
-    assert "a dead URL outside the pre-publication pin" in result.failures
+    assert result.failures == ["a dead URL"]
+    assert "pre-publication-dead" not in result.counts
     assert not result.passed
 
 
-def test_a_pinned_url_answering_neither_404_nor_200_fails(tmp_path: Path) -> None:
-    """A pre-publication URL answering 500 is not the state the pin describes."""
-    statuses = {**PRIVATE, BADGE_IMAGE: 500}
-    result = sweep_pinned(pinned_tree(tmp_path), statuses)
+def test_adr_0025_10b_the_pre_publication_pin_is_deleted_after_s12() -> None:
+    """ADR 0025 10b: the pin, its excuse path and its final-line count are gone."""
+    leftovers = sorted(name for name in PIN_10B_NAMES if hasattr(flip, name))
+    parameters = sorted(PIN_10B_PARAMETERS & set(inspect.signature(flip.doc_sweep).parameters))
+    counted = "pre-publication-dead" in flip.final_line([])
 
-    assert "a pre-publication URL answered neither 404 nor 200" in result.failures
-    assert not result.passed
+    assert leftovers == []
+    assert parameters == []
+    assert not counted
 
 
 def test_a_short_name_repo_path_is_resolved_before_cloning(tmp_path: Path) -> None:
