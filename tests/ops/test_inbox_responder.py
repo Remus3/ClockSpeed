@@ -870,7 +870,7 @@ def _stamped(line: dict[str, Any]) -> bool:
     [
         ((LIVE_NOTE,), 0, LIVE_NOTE, "inbox"),
         ((ACK_NOTE,), 0, ACK_NOTE, "triage"),
-        ((ORDER_NOTE, ACK_NOTE), 0, ORDER_NOTE, "inbox"),
+        ((ORDER_NOTE, ACK_NOTE), 0, ORDER_NOTE, "order"),
         ((OWN_NOTE, ACK_NOTE), 0, ACK_NOTE, "triage"),
         ((ACK_NOTE,), 1, ACK_NOTE, "inbox"),
     ],
@@ -883,7 +883,9 @@ def test_the_usage_line_carries_ts_kind_and_label(
 
     The CLI is the stub runner; nothing starts. The kind is "triage" exactly
     when the pass runs on the kit's triage shape (sonnet, effort low), and
-    "inbox" for every other pass.
+    "inbox" for every other pass - except that since FLEET-KIT v18 (CS-1330)
+    the kit itself logs "order" for a pass whose note is an ORDER, FIX or
+    RULING when the caller passes "inbox".
     """
     _run(tree, RunSpy(), surface=_named(*names, more=more))
     lines = _usage_lines(tree)

@@ -41,8 +41,8 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      `BACKOFF_S`, so the account's "no" is not hammered every fifteen minutes.
   5. CS-1231 SLICE C - THE WORKER STARTS ONLY THROUGH THE FLEET KIT'S SPAWN
      HELPER (`ops/fleet_kit/fleet_headless.spawn`, FLEET item 10), the one path
-     that starts `claude` on this machine. The kit reads the second-account
-     proxy from the user store or REFUSES, with no fallback; counts the start
+     that starts `claude` on this machine. The kit reads its headless route
+     and fails closed exactly as FLEET item 10 states; counts the start
      against its tree-wide budget of 120 per rolling 24 hours under a lock,
      refusing every start on an unreadable budget and never resetting it
      (CS-1234, MAIN 0855); keeps the CLI off the working directory; and kills

@@ -120,6 +120,7 @@ from tests.chained_cause_guard import (
     tracked_sources,
     verdict_distribution,
 )
+from tests.toolpath_guard import kit_pin_problems
 
 # ---------------------------------------------------------------------------
 # The synthetic payload. NOT a path, NOT personal data, NOT derived from any
@@ -1347,17 +1348,57 @@ def test_the_live_population_is_derived_and_not_empty() -> None:
     assert graded, f"the sweep found {len(sites)} sites and none graded"
 
 
+#: CS-1330 - SITE-KEY COLLISIONS INSIDE A VENDORED FLEET KIT FILE, RECORDED
+#: RATHER THAN RESTRUCTURED. The restructure the arm below asks for is an edit
+#: of the kit's bytes, which FLEET item 11 forbids here: MAIN ships it as a kit
+#: version. Each entry is the shared key, the exact number of live sites that
+#: share it, and why. It holds only while all three facts the arm after it
+#: checks hold: the file is the kit's bytes (its sha256 equals its MANIFEST
+#: pin), EXEMPT names the key nowhere - so no exemption can forgive the sites
+#: it covers, which is the whole harm a collision does - and exactly that many
+#: live sites share it, no more and no fewer.
+VENDORED_KEY_COLLISIONS: Final[dict[str, tuple[int, str]]] = {
+    "ops/fleet_kit/fleet_headless.py::spawn::<bare>::Refused::<active>": (
+        2,
+        "FLEET-KIT version 19's spawn() re-raises a Refused bare from two "
+        "handlers - `except Refused:` around the new stop_sentinel_hit() read, "
+        "and `except Refused as exc:` around the argv build and the governor - "
+        "and the handler's binding is not a key segment, so the two read as one.",
+    ),
+}
+
+
 def test_every_site_key_is_distinct() -> None:
     """A COLLIDING KEY WOULD LET ONE EXEMPTION FORGIVE SEVERAL SITES.
 
     Four live sites collide on every key segment except the qualified name,
-    which is why the qualified name is in the key.
+    which is why the qualified name is in the key. The one allowance is
+    :data:`VENDORED_KEY_COLLISIONS`, matched EXACTLY in both directions: a new
+    collision reddens, and so does a recorded one that no longer occurs.
     """
     sites = raise_sites()
     keys = [site.key for site in sites]
-    assert len(set(keys)) == len(keys), (
+    shared = {key: keys.count(key) for key in set(keys) if keys.count(key) > 1}
+    recorded = {key: count for key, (count, _why) in VENDORED_KEY_COLLISIONS.items()}
+    assert shared == recorded, (
         "two sites share a key, so an exemption for one would cover the other: "
-        f"{sorted(key for key in keys if keys.count(key) > 1)}"
+        f"{sorted(shared.items())}; recorded vendored collisions: {sorted(recorded.items())}"
+    )
+
+
+def test_every_recorded_key_collision_is_vendored_pinned_and_unexempted() -> None:
+    """CS-1330. A RECORDED COLLISION IS EXCUSED ONLY WHILE IT CAN FORGIVE NOTHING.
+
+    Its file must be the kit's pinned bytes, so a collision this tree wrote can
+    never be recorded here, and EXEMPT must not name its key, so no single
+    exemption can cover the several sites behind it.
+    """
+    paths = [key.split("::", 1)[0] for key in VENDORED_KEY_COLLISIONS]
+    unpinned = kit_pin_problems(paths)
+    exempted = sorted(set(VENDORED_KEY_COLLISIONS) & set(EXEMPT))
+    assert (unpinned, exempted) == ([], []), (
+        f"recorded vendored collisions not at the kit pin: {unpinned}; "
+        f"recorded collisions an exemption names: {exempted}"
     )
 
 

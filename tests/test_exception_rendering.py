@@ -313,7 +313,39 @@ PARAMETER_RENDER_RESIDUALS = {
 # test_every_vendored_render_residual_is_at_its_kit_pin reddens, so a row can
 # never cover a render this tree wrote.
 VENDORED_RENDER_RESIDUALS = {
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1238): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 504): (
+        "CS-1330, FLEET item 11 - kit v20's _check_fallback re-raises a fallback "
+        "block's Refused route-invalid with its reason. MEASURED on the v20.1 "
+        "bytes: every route-invalid reason is a kit literal or ROUTE_VERSION "
+        "(the docstring's own rule: no message names the path), and the "
+        "OSError reading the route renders only its class name. Reversed if a "
+        "route-invalid reason is found naming a path or a config value."
+    ),
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 578): (
+        "CS-1330, FLEET item 11 - kit v19.1/v20 route_show() returns a Refused "
+        "route-missing or route-invalid as its reason, cut to 200 characters. "
+        "MEASURED on the v20.1 bytes: the same kit-literal reasons as the row "
+        "above, and the missing-file reason names the command, not the path. "
+        "Reversed as the row above."
+    ),
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 2140): (
+        "CS-1330, FLEET item 11 - the `route set` command line prints a Refused "
+        "from write_route() as its JSON error; an OSError there prints its class "
+        "name only. MEASURED on the v20.1 bytes: the refusals are the "
+        "route-invalid kit literals of the rows above. Reversed as those rows."
+    ),
+    ("ops/fleet_kit/fleet_lanes.py", "str(exc)", 1053): (
+        "CS-1330, FLEET item 11 - kit v20's LANE-95 command line, main(), prints "
+        "a ValueError or an OSError from checkpoint() / resume_point() as its "
+        "JSON error, cut to 200 characters. THIS ONE CAN CARRY A PATH: an "
+        "OSError's str() names the checkpoint file under the caller's own "
+        "--root. Nothing in this tree runs that command line (no lane here "
+        "writes LANE-95 units), so no output reaches a log; the site is OWED TO "
+        "MAIN as a kit report in the v20.1 adoption ANSWER - render the class "
+        "name, as the route CLI beside it does. Reversed by a kit version that "
+        "renders a field, or by any caller in this tree."
+    ),
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 2182): (
         "CS-1282, FLEET item 11 - the kit's command-line entry, main(), renders "
         "a Refused whole into its one JSON stdout line. Reported to MAIN as kit "
         "defect 5 and REJECTED in kit version 11's ORDER (CS-1287): with the "
@@ -323,9 +355,14 @@ VENDORED_RENDER_RESIDUALS = {
         "contract. Reversed if any Refused message is found rendering text the "
         "caller did not supply. The line moved 1069 -> 1089 on the v11 bytes "
         "1089 -> 1169 on the v13 bytes (CS-1290), 1169 -> 1220 on "
-        "the v14 bytes (CS-1299) and 1220 -> 1238 on the v15 bytes (CS-1303)."
+        "the v14 bytes (CS-1299), 1220 -> 1238 on the v15 bytes (CS-1303) "
+        "and 1238 -> 2182 on the v20.1 bytes (CS-1330). MEASURED on the "
+        "v20.1 bytes: the Refused messages v18 to v20 added carry a kit "
+        "literal, the KINDS tuple, a route-invalid kit literal, or a "
+        "stop-sentinel entry exactly as this tree's own ops/stop_sentinels.json "
+        "declares it - relative paths, echoed back."
     ),
-    ("ops/fleet_kit/fleet_gitlock.py", "str(exc)", 549): (
+    ("ops/fleet_kit/fleet_gitlock.py", "str(exc)", 562): (
         "CS-1290, FLEET item 11 - the git lock's command-line entry, main(), "
         "writes a LockRefused whole to stderr before exit 3. MEASURED on the v13, v14 "
         "and v17 bytes: every LockRefused it raises is a kit literal, an integer (a "
@@ -336,9 +373,10 @@ VENDORED_RENDER_RESIDUALS = {
         "merge-sweep refusal renders its path through the same rel_in. Reversed "
         "if a LockRefused is found rendering an absolute path or text the "
         "caller did not supply. The line moved 494 -> 549 on the v17 bytes "
-        "(CS-1310)."
+        "(CS-1310) and 549 -> 562 on the v19 bytes (CS-1330), whose two "
+        "changed usage refusals are kit literals."
     ),
-    ("ops/fleet_kit/fleet_suite_gate.py", "str(exc)", 544): (
+    ("ops/fleet_kit/fleet_suite_gate.py", "str(exc)", 1074): (
         "CS-1290, FLEET item 11 - the suite gate's command-line entry, main(), "
         "writes a GateRefused whole to stderr before exit 3. MEASURED on the v13 to v15 "
         "bytes: every GateRefused it raises is a kit literal, an integer (a "
@@ -346,7 +384,11 @@ VENDORED_RENDER_RESIDUALS = {
         "dirty path made TREE-RELATIVE by fleet_claims.rel_in - the dirty paths "
         "come from this tree's own status, inside its top. Reversed if a "
         "GateRefused is found rendering an absolute path or text the caller did "
-        "not supply."
+        "not supply. The line moved 544 -> 1074 on the v20.1 bytes (CS-1330); "
+        "MEASURED there, the three refusals v18 added carry an integer (the "
+        "free-commit shortfall in MB), a kit literal, or the caller's own BARE "
+        "command word - an absolute word is never checked, so never echoed - "
+        "and v19 to v20.1 add no GateRefused."
     ),
     ("ops/fleet_kit/fleet_rewrite.py", "str(exc)", 497): (
         "CS-1290, FLEET item 11 - the rewrite helper's command-line entry, "

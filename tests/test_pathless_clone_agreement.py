@@ -43,6 +43,7 @@ from tests.pathless_clone_guard import (
     DOCSTRING_PINS,
     ORDINALS,
     PRICING_COPY,
+    VENDORED_COPIES,
     Copy,
     canonical_body,
     copies,
@@ -61,7 +62,9 @@ from tests.pathless_clone_guard import (
     stale_excuses,
     unpinned_docstrings,
     unqualified,
+    vendored_copies,
 )
+from tests.toolpath_guard import kit_pin_problems
 
 #: The census's own planted-control module. Named here because an arm asserts
 #: this module is EXCLUDED, which needs the name; nothing is graded from it.
@@ -944,3 +947,17 @@ def test_flatten_matches_a_phrase_a_line_wrap_split() -> None:
     wrapped = "a single shared\n    owner is the CORRECT\n    repair"
     assert "shared owner" in flatten(wrapped)
     assert "correct repair" in flatten(wrapped)
+
+
+def test_every_recorded_vendored_copy_is_live_and_at_the_kit_pin() -> None:
+    """CS-1330. A RECORDED VENDORED COPY IS EXCUSED ONLY WHILE IT IS THE KIT'S.
+
+    Matched EXACTLY: every recorded key must still be reached by the sweep, so a
+    stale entry reddens, and its module must equal its kit MANIFEST pin, so a
+    helper this tree wrote can never be recorded as vendored.
+    """
+    found = {copy.key for copy in vendored_copies()}
+    stale = sorted(set(VENDORED_COPIES) - found)
+    assert not stale, f"recorded vendored copies the sweep no longer reaches: {stale}"
+    unpinned = kit_pin_problems(key.split("::", 1)[0] for key in VENDORED_COPIES)
+    assert unpinned == [], f"recorded vendored copies not at the kit pin: {unpinned}"

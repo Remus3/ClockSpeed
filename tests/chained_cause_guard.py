@@ -213,16 +213,16 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    predicate in limit 12 and the six are not, so :data:`UNPROVEN` here means
    "this module cannot tell" again rather than "this module did not look".
 
-11. THE KEY CANNOT SEPARATE TWO IDENTICAL SITES IN ONE FUNCTION. Two raises of
-   the SAME class, from the SAME handler type, in the SAME function, chaining
-   the SAME expression, produce one key between them. The tracked tree has no
-   such pair today - every live key is distinct, which
-   ``test_every_site_key_is_distinct`` asserts - and if one ever appears that
-   arm goes RED rather than letting one exemption quietly forgive both. The
-   line number is deliberately NOT in the key: it would make every key drift on
-   any edit above it, which is the dead-citation failure this item was filed
-   against. A collision is therefore reported as something to restructure, not
-   absorbed.
+11. THE KEY CANNOT SEPARATE TWO IDENTICAL SITES IN ONE FUNCTION. Two raises of the SAME class,
+   from the SAME handler type, in the SAME function, chaining the SAME expression, produce one
+   key between them. Exactly the collisions ``VENDORED_KEY_COLLISIONS`` records exist - each
+   in a vendored kit file FLEET item 11 forbids restructuring here - and every other
+   live key is distinct: ``test_every_site_key_is_distinct`` matches the shared keys and their
+   counts to that record exactly, in both directions. A recorded collision is excused only while
+   its file is at the kit pin and EXEMPT names its key nowhere, which
+   ``test_every_recorded_key_collision_is_vendored_pinned_and_unexempted`` asserts, so it forgives
+   nothing. The line number is deliberately NOT in the key: it would make every key drift on any
+   edit above it. A collision in this tree's own code is still restructured, not absorbed.
 
 12. THE PATHLESS CLEARANCE RESOLVES ONE SHAPE OF REPAIR, NOT EVERY SAFE ONE,
    AND EVERY GAP BELOW IS AN UNDER-REPORT RATHER THAN A HOLE.

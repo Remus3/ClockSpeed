@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 the operator - the kit's owner and sole copyright holder. See NOTICE.
-"""Fleet kit v14 - RACE GUARDS: the test-isolation guard (FLEET-COMMON 16).
+"""Fleet kit v18 - RACE GUARDS: the test-isolation guard (FLEET-COMMON 16).
 
 Vendored byte-for-byte at ops/fleet_kit/ and pinned by MANIFEST.json. Do NOT
 edit a vendored copy: report the defect to MAIN.
@@ -42,6 +42,17 @@ install() adds two autouse fixtures to the conftest namespace:
     True. A test or fixture that branches on request.fixturenames must not
     use tmp_path / monkeypatch as its signal.
 env FLEET_TEST_GUARD=off disables both (never in a gate run).
+
+v16 (KIT-16), OPT-IN: budget(seconds) for a timing test. It returns
+seconds x the number of LIVE suite-gate slot holders on the box right now
+(at least 1, at most fleet_suite_gate.MAX_SLOTS), so a time budget written
+for an idle box widens while other trees' suites share the CPU:
+
+    assert elapsed < fleet_test_guard.budget(2.0)
+
+Holders are the gate's slot files (fleet_suite_gate.held(gate_dir()));
+a dead or reused holder does not count. No psutil, no load sampling; any
+error reading the gate dir answers factor 1. load_factor() is the factor.
 """
 
 import fnmatch
@@ -104,14 +115,56 @@ def verdict(changed, deleted, created):
             + ". Point the test at tmp_path.")
 
 
+def load_factor(gate=None):
+    """Live suite-gate slot holders now, clamped to 1..MAX_SLOTS (v16)."""
+    try:
+        gate = gate or _gate()
+        n = len(gate.held(gate.gate_dir()))
+        return max(1, min(int(gate.MAX_SLOTS), n))
+    except Exception:  # noqa: BLE001 - a budget helper never breaks a test
+        return 1
+
+
+def budget(seconds, gate=None):
+    """A time budget scaled by load_factor() (v16, opt-in)."""
+    return float(seconds) * load_factor(gate)
+
+
+def _gate():
+    import importlib.util
+    import sys
+    key = "fleet_kit_fleet_suite_gate"
+    if key in sys.modules:
+        return sys.modules[key]
+    spec = importlib.util.spec_from_file_location(
+        key, Path(__file__).with_name("fleet_suite_gate.py"))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except BaseException:
+        sys.modules.pop(key, None)
+        raise
+    return mod
+
+
+# = fleet_headless.TEST_ROUTE_ENV (not imported: the guard never loads the kit).
+ROUTE_ENV = "FLEET_TEST_HEADLESS_ROUTE"
+
+
 def _off():
     return (os.environ.get("FLEET_TEST_GUARD") or "").strip().lower() == "off"
 
 
 def install(ns, root, watch=WATCH, env_roots=None, ignore=IGNORE, inflow=INFLOW,
             extra_ignore=()):
-    """Add the two autouse fixtures to a conftest's globals()."""
+    """Add the autouse fixtures (live-state guard, runtime roots, v19.1 headless
+    route) to a conftest's globals()."""
     root = Path(root)
+    # v16: progress rows written by a suite carry no owner pid (the session's
+    # own claude process would otherwise be recorded); a test that needs one
+    # passes owner= or sets FLEET_PROGRESS_OWNER itself.
+    os.environ["FLEET_PROGRESS_OWNER"] = "none"
     ignore = tuple(ignore) + tuple(extra_ignore or ())
     roots = dict(env_roots or {})
 
@@ -127,6 +180,21 @@ def install(ns, root, watch=WATCH, env_roots=None, ignore=IGNORE, inflow=INFLOW,
             pytest.fail(msg, pytrace=False)
 
     @pytest.fixture(autouse=True)
+    def _fleet_headless_route(request):
+        """v19.1: fleet_headless reads ~/.fleet/headless_route.json; a test never
+        reads or writes the real one. A valid split route in tmp per test, named
+        by the env redirect fleet_headless honours only inside a pytest test, so
+        the kit is covered under ANY module name (fleet_headless_flash,
+        ops.fleet_kit.fleet_headless, ...), loaded before or during the test.
+        A test of the route itself monkeypatches route_path or the env again."""
+        tmp = request.getfixturevalue("tmp_path_factory").mktemp("fleet-route")
+        p = tmp / "headless_route.json"
+        p.write_text('{"mode": "split", "version": 1}\n', encoding="ascii", newline="\n")
+        mp = request.getfixturevalue("monkeypatch")
+        mp.setenv(ROUTE_ENV, str(p))
+        yield
+
+    @pytest.fixture(autouse=True)
     def _fleet_runtime_roots(request):
         if not roots or _off():
             yield
@@ -139,4 +207,5 @@ def install(ns, root, watch=WATCH, env_roots=None, ignore=IGNORE, inflow=INFLOW,
 
     ns["_fleet_live_state_guard"] = _fleet_live_state_guard
     ns["_fleet_runtime_roots"] = _fleet_runtime_roots
+    ns["_fleet_headless_route"] = _fleet_headless_route
     return ns

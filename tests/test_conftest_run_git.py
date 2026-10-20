@@ -21,11 +21,13 @@ SKIPPED rather than red, which is the very defect under test.
 from __future__ import annotations
 
 import errno
+import importlib.util
 import os
 import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Final, NoReturn
 
@@ -41,11 +43,13 @@ NAMED_POINTERS: Final = frozenset({"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"}
 #: The bound the plant shrinks ``run_git`` to, in seconds.
 PLANTED_TIMEOUT_SECONDS: Final = 1.0
 
-#: How long the planted child would sleep if nothing stopped it, in seconds.
+#: How long the planted child would sleep if nothing stopped it, in seconds, on
+#: an idle box; :func:`_planted_bounds` scales it with the ceiling.
 PLANTED_SLEEP_SECONDS: Final = 30
 
-#: The ceiling on a planted run's wall time. Far under the child's sleep, so an
-#: arm that passes did so because the bound fired, not because the child ended.
+#: The ceiling on a planted run's wall time on an idle box. Far under the
+#: child's sleep, so an arm that passes did so because the bound fired, not
+#: because the child ended; :func:`_planted_bounds` widens it by the kit budget.
 PLANTED_WALL_CEILING_SECONDS: Final = 20.0
 
 #: What the control's planted child writes, so its run is seen, not assumed.
@@ -53,6 +57,22 @@ CONTROL_MARKER: Final = "cs1116-plant-ran"
 
 #: The exit code the control's planted child ends with.
 CONTROL_EXIT: Final = 3
+
+
+def _planted_bounds() -> tuple[float, float]:
+    """The planted run's wall-time ceiling and its child's sleep, in seconds.
+
+    ONE load read: the ceiling is the kit's ``budget()`` of the idle-box value,
+    widened by the live suite-gate slot holders (FLEET 16, kit v18 step 5), and
+    the sleep is derived from that same ceiling at the idle-box ratio, never
+    from a second read - so the child still sleeps past the ceiling at any load
+    and an arm that passes did so because the bound fired.
+
+    Returns:
+        ``(ceiling, sleep)``.
+    """
+    ceiling = float(conftest.fleet_test_guard.budget(PLANTED_WALL_CEILING_SECONDS))
+    return ceiling, ceiling * PLANTED_SLEEP_SECONDS / PLANTED_WALL_CEILING_SECONDS
 
 
 def _strip_repo_pointers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -106,20 +126,54 @@ def test_a_git_timeout_in_run_git_fails_rather_than_skips(
     """CS-1116 PLANT. A hung git FAILS; it is never read as git not being installed."""
     survivors = _strip_repo_pointers(monkeypatch)
     assert survivors == [], f"repository-locating variables survived the strip: {survivors}"
+    ceiling, sleep = _planted_bounds()
     monkeypatch.setattr(conftest, "RUN_GIT_TIMEOUT_SECONDS", PLANTED_TIMEOUT_SECONDS)
     monkeypatch.setattr(
         conftest,
         "RUN_GIT_PROGRAM",
-        (sys.executable, "-c", f"import time; time.sleep({PLANTED_SLEEP_SECONDS})"),
+        (sys.executable, "-c", f"import time; time.sleep({sleep})"),
     )
     started = time.monotonic()
     outcome, message, _ = _run_git_outcome(tmp_path)
     elapsed = time.monotonic() - started
     assert outcome == "failed", f"a planted git timeout ended {outcome}, not failed"
     assert "TIMED OUT" in message, "the failure does not say the git command timed out"
-    assert elapsed < PLANTED_WALL_CEILING_SECONDS, (
-        f"the planted run took {elapsed:.1f}s, so the bound did not fire"
-    )
+    assert elapsed < ceiling, f"the planted run took {elapsed:.1f}s, so the bound did not fire"
+
+
+def _kit_max_slots() -> int:
+    """The vendored suite gate's MAX_SLOTS, read from its own bytes by path."""
+    gate_path = Path(__file__).resolve().parents[1] / "ops" / "fleet_kit" / "fleet_suite_gate.py"
+    spec = importlib.util.spec_from_file_location("cs1330_suite_gate_slots", gate_path)
+    assert spec is not None
+    assert spec.loader is not None
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    return int(gate.MAX_SLOTS)
+
+
+def _fixed_load_factor(factor: int) -> Callable[..., int]:
+    """A stand-in for the kit's ``load_factor`` that always answers ``factor``."""
+
+    def load_factor(_gate: object = None) -> int:
+        return factor
+
+    return load_factor
+
+
+def test_the_planted_bounds_scale_with_the_kit_budget_and_the_sleep_stays_above_the_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-1330. The ceiling is the kit's ``budget()``; the sleep is derived above it."""
+    factors = (1, 2, _kit_max_slots())
+    bounds: dict[int, tuple[float, float]] = {}
+    for factor in factors:
+        monkeypatch.setattr(conftest.fleet_test_guard, "load_factor", _fixed_load_factor(factor))
+        bounds[factor] = _planted_bounds()
+    ceilings = {factor: ceiling for factor, (ceiling, _sleep) in bounds.items()}
+    assert ceilings == {factor: PLANTED_WALL_CEILING_SECONDS * factor for factor in factors}
+    below = sorted(factor for factor, (ceiling, sleep) in bounds.items() if sleep <= ceiling)
+    assert below == [], f"the planted sleep is not above the ceiling at factors {below}"
 
 
 def test_the_run_git_plant_is_what_runs_and_a_missing_git_still_returns_none(

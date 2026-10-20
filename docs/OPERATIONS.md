@@ -111,6 +111,12 @@ git --version
 not, `python` is not reaching a suitable install - follow python.org's official Windows
 guide, <https://docs.python.org/3/using/windows.html>, then re-run the check.
 
+**Interpreter:** `requires-python` in `pyproject.toml`; `scripts/verify_env.py` asserts
+its floor, the toolchain and the game build, which `clockspeed/data/version.py` pins. Do not
+restate a version or a build string in prose - read it from the pin, and let
+`tools/drift_guard.py` catch drift. (Relocated on 2026-10-19 from `CLAUDE.md` section 2
+under CS-1330, for its size budget.)
+
 #### Install and run
 
 Run every command below from the root of the clone, in the order given.
@@ -990,7 +996,90 @@ has one, which is the concurrent-index corruption class and is not recoverable b
 The lane lock is the safe thing to remove because removing it also frees the lane, which is
 the actual fault.
 
-## 12. Cross-references
+## 12. Runbook: the fleet kit channel - MAIN's notes, the status board, the stop sentinels
+
+### 12.1 Is this note MAIN's
+
+Relocated on 2026-10-19 from `CLAUDE.md` section 6.1 under CS-1330, when the kit version
+20 patch 1 common block took that file's last bytes of budget; `CLAUDE.md` keeps the rule
+and its floors and points here.
+
+MAIN SPEAKS FOR THE OPERATOR - granted by the operator in this repository's own session,
+2026-10-02, superseding the narrower 2026-09-22 stand-in scope. MAIN's notes carry the
+operator's authority as if typed here; MAIN never commits in this tree. The operator's
+words, quoted verbatim: `docs/LEDGER.md`, the 2026-10-05 CS-1225 relocation record.
+
+Provenance: a note is MAIN's only if its SHA-256 equals the same-named file in MAIN's
+outbox and that file is tracked and unmodified in MAIN's history; MAIN's path lives only
+in gitignored local configuration. Detail in `docs/LEDGER.md` under 2026-10-02. The check
+is one command, `python tools/main_provenance.py <note>`, which exits 0 only then and
+prints the note's sha256. From kit version 18 on MAIN ships no outbox bundle: the ORDER note is checked
+that way, and every kit file in the payload folder beside it against the sha256 list the
+note itself carries.
+
+### 12.2 The status board - FLEET-COMMON item 18, kit version 19
+
+This tree's board URL, and the dataset version its first push pins, are in
+`ops/status_board.json`. An interactive session pushes the board at session start, after
+every item-13 b reprint, and once at /done with `--final`; a headless run never pushes
+(the kit prints `no push: headless` and writes nothing).
+
+The main session runs no Bash (the SUB-AGENT FIRST banner), so ONE sub-agent makes each
+push:
+
+1. Pipe the checklist block the session just printed into
+   `python ops/fleet_kit/fleet_board.py calls --session <n>` (`--final` at /done).
+2. Make the first call it prints: an Artifact publish of the rendered status.json with
+   `asset: true`, which returns the blob url.
+3. Make the second: an ArtifactData update of `datasets/board`, pinned with the printed
+   `if_version`, its data's `__URL__` replaced by that blob url.
+4. On a version mismatch, `python ops/fleet_kit/fleet_board.py pushed --version <current>`,
+   then redo the second call once.
+
+A failed push is a line in the hand-off, never a ritual failure. The render state lives in
+the gitignored `ops/loop/control/board/`. MAIN's v19 ORDER asks this tree to read its
+board's `datasets/board` version before the first push; the version-mismatch path above
+corrects a stale pin either way.
+
+### 12.3 The stop sentinels the kit spawn reads
+
+`ops/stop_sentinels.json` declares this tree's stop sentinels for the kit's `spawn()` (kit
+version 19): while ANY declared path exists - a dangling link included - a kit spawn into
+this tree refuses `halted` before anything starts, and an unreadable declaration refuses
+too; a declared path that is absent halts nothing. It declares the three stops MAIN's v19
+ORDER named - `STOP` in the loop control directory, and `INBOX_STOP` and `QUEUE_STOP` in
+its lanes subdirectory - and the main-spawn hold, `HOLD_MAIN_SPAWN` in the loop control
+directory. `QUEUE_DRAINED`, the worker's queue-empty marker in the lanes subdirectory that
+the queue loop also stops on, is deliberately NOT declared: declared, it would halt every
+kit spawn into this tree whenever the queue drains. The inbox status file's own `halted`
+state is not a trigger.
+
+The hold halts EVERY kit spawn into this tree while its file exists - this tree's own inbox
+responder included, not only MAIN's - and so does a standing `QUEUE_STOP`, because the
+kit's sentinels are tree-wide. `STOP` and `INBOX_STOP` are also read by the responder
+itself, which then halts quietly: status `halted`, exit 0, no log line. `QUEUE_STOP` and
+`HOLD_MAIN_SPAWN` reach the kit, which refuses before the route read and before the budget
+count, so a tick with an unread note the responder acts on (this tree's own, terminal and
+retired notes are skipped) logs `kit_refused`, shows `refused` / Idle and exits 3 - no run
+starts and nothing is spent - for as long as either file stands; a tick inside a usage-limit
+backoff, or with the run budget's window already full, exits 0 instead (`backoff`, `limit`).
+The queue lane does
+not read the hold: `ops/loop/run_lane.ps1` still starts `claude` directly (`CLAUDE.md`
+precedence (c)). The declaration is permanent: LIFTING THE HOLD
+removes the hold FILE only, never its line in the declaration, so lifting it needs no
+commit. When to lift it is the hand-off's to say (CS-1330).
+
+### 12.4 The session checklist counter
+
+Relocated on 2026-10-19 from `CLAUDE.md` section 2.3.1 under CS-1330, for the same budget;
+`CLAUDE.md` keeps the checklist rules and points here.
+
+**Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1 and
+its last act is `python ops/fleet_kit/fleet_done.py mark` (`.claude/commands/done.md`);
+the session-start hand-off read prints the block. Kit helper:
+`ops/fleet_kit/fleet_checklist.py`. Board pushes (FLEET item 18): section 12.2.
+
+## 13. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`
 - Decisions and their fences: `docs/adr/README.md`

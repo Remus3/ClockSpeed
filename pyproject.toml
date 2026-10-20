@@ -343,20 +343,24 @@ ignore = [
 # Against version 4, D403 arrived at version 9; at version 10 PLR0912 and
 # PLR0915 arrived (_spawn_slotted gained its on_start and stdin_data branches);
 # version 11 (CS-1287) added findings but no new code; version 13 (CS-1290,
-# 88 findings MEASURED on its bytes) added PLR0911 (main()'s return ladder):
-#   A002     _run takes an `input` keyword, mirroring subprocess.run's own
+# 88 findings MEASURED on its bytes) added PLR0911 (main()'s return ladder);
+# version 19 (CS-1330, re-measured on its bytes with the entry removed) DROPS
+# PLR0912, which no longer fires on those bytes; version 20 patch 1 (CS-1330,
+# MEASURED on its bytes) brings PLR0912 back (route and fallback handling) and adds
+# FURB167 (the usage-limit patterns spell re.I):
+#   A002    _run takes an `input` keyword, mirroring subprocess.run's own
 #   D102 D103 D107 D205 D209 D403 D415   upstream's docstring layout and coverage
 #   N818     Refused is the kit's exception name and every carrier catches it
 #   PLC0415  `import winreg` sits inside _registry_value so POSIX imports work,
 #            and `import importlib.util` sits inside the helper that loads the
 #            sibling fleet_lanes.py by path
 #   PLR0911  main()'s one return per exit class (version 13)
-#   PLR0912 PLR0915   _spawn_slotted's branch and statement counts (version 10)
+#   PLR0915  _spawn_slotted's statement count (version 10)
 #   PLR0913  write_status, spawn and two helpers take the kit's keyword parameters
 #   PLR2004  literal 2 and 65536 in pin parsing and the git index check
 #   PLW1510  _kill_tree's best-effort taskkill run has no check= argument
 "ops/fleet_kit/fleet_headless.py" = [
-  "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "N818",
+  "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "FURB167", "N818",
   "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510",
 ]
 
@@ -382,17 +386,21 @@ ignore = [
 #   PTH105 PTH109   os.replace and os.getcwd, upstream's spelling
 #   RUF100   a `noqa: BLE001` for a rule this file does not select
 #   UP017    datetime.timezone.utc rather than the datetime.UTC alias
+# Version 19 (CS-1330, re-measured on its bytes with these entries removed) adds
+# FURB167 and PLR2004 to fleet_done.py (the hand-off archive's re.I spelling and
+# a literal 6, its banner-line length floor) and N818 to fleet_inbox.py
+# (LedgerLockBusy, the v18 ledger lock's exception, is the kit's API).
 # One-file codes: S110 (fleet_done.py's best-effort try/except/pass in the Stop
 # hook, which must never block), FURB167 (fleet_inbox.py spells re.M), PERF401
 # and RUF023 (fleet_inbox.py's loop append and unsorted __slots__), SLF001
 # (fleet_watch.py's own module-level helpers reach its class's private methods).
 "ops/fleet_kit/fleet_checklist.py" = ["D102", "D107", "D205", "D209", "PLC0415", "PLR2004"]
 "ops/fleet_kit/fleet_done.py" = [
-  "D103", "D205", "D209", "PLC0415", "PLR0911", "PLR0912", "PLW1510", "PTH105",
-  "PTH109", "RUF100", "S110", "UP017", "UP032",
+  "D103", "D205", "D209", "FURB167", "PLC0415", "PLR0911", "PLR0912", "PLR2004",
+  "PLW1510", "PTH105", "PTH109", "RUF100", "S110", "UP017", "UP032",
 ]
 "ops/fleet_kit/fleet_inbox.py" = [
-  "D101", "D102", "D103", "D105", "D107", "D205", "D209", "D403", "FURB167",
+  "D101", "D102", "D103", "D105", "D107", "D205", "D209", "D403", "FURB167", "N818",
   "PERF401", "PLC0415", "PLR0911", "PLR2004", "PTH109", "RUF023", "UP017",
 ]
 "ops/fleet_kit/fleet_lanes.py" = [
@@ -430,8 +438,19 @@ ignore = [
 # vendored here) adds four, all to fleet_claims.py's new shell-edit claims:
 # PLR0912 and SIM114 (its write-target parser's branch ladder), B007 and
 # PERF102 (a loop over by_main.items() that reads only the values).
-# fleet_test_guard.py MEASURED 0 findings and takes no entry. Codes beyond the
-# ones named above:
+# Version 19 (CS-1330, measured the same way on its bytes; it carries every v18
+# change and v18 was never vendored here): fleet_claims.py DROPS PERF401, which
+# no longer fires on its bytes; fleet_suite_gate.py ADDS
+# D105 D107 (PeakSampler's __enter__, __exit__ and __init__), D301 (a backslash
+# in its module docstring), FURB167 (re.I, re.M and re.S spelling), I001 (its
+# import block), PLC0415 (Windows-only ctypes in the two commit probes,
+# threading in PeakSampler and tomllib in the testpaths reader, each imported
+# inside its function), PLR1714 (has_testpaths' two == comparisons), PTH117
+# (os.path.isabs in path_which) and RUF100 (`noqa: BLE001` for a rule this
+# file does not select);
+# fleet_test_guard.py, MEASURED 0 findings until now, takes an entry: PLC0415
+# (budget()'s gate loader imports inside the function) and RUF100 (the same
+# BLE001 noqa). Codes beyond the ones named above:
 #   B905     fleet_identity.py's zip() without strict=
 #   E501     long lines in upstream's messages
 #   FURB167 FURB188   re.M spelling and a manual suffix strip
@@ -443,8 +462,8 @@ ignore = [
 #   UP032    .format() calls
 "ops/fleet_kit/fleet_claims.py" = [
   "B007", "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF102",
-  "PERF401", "PLC0415", "PLR0911", "PLR0912", "PLR2004", "PTH100", "PTH109", "PTH111",
-  "PTH123", "SIM114", "UP032",
+  "PLC0415", "PLR0911", "PLR0912", "PLR2004", "PTH100", "PTH109", "PTH111", "PTH123",
+  "SIM114", "UP032",
 ]
 "ops/fleet_kit/fleet_gitlock.py" = [
   "D103", "D205", "D209", "D403", "E501", "N818", "PLC0415", "PLR0911", "PLR0913", "PLR2004",
@@ -459,8 +478,27 @@ ignore = [
   "PTH123", "RUF059", "SLF001", "UP032",
 ]
 "ops/fleet_kit/fleet_suite_gate.py" = [
-  "D103", "D205", "D209", "E501", "N818", "PLR0913", "PLR2004", "PLW1510", "PTH100",
-  "PTH109", "PTH123", "RET504", "UP032",
+  "D103", "D105", "D107", "D205", "D209", "D301", "E501", "FURB167", "I001", "N818",
+  "PLC0415", "PLR0913", "PLR1714", "PLR2004", "PLW1510", "PTH100", "PTH105", "PTH109",
+  "PTH117", "PTH123", "RET504", "RUF100", "UP032",
+]
+# Version 20 patch 1 (CS-1330, MEASURED on its bytes): fleet_suite_gate.py adds
+# PTH105 (an os.replace); fleet_test_guard.py adds D205 and D209 (two fixture
+# docstrings) and PT022 (the route fixture yields with no teardown).
+"ops/fleet_kit/fleet_test_guard.py" = ["D205", "D209", "PLC0415", "PT022", "RUF100"]
+
+# THE ONE PYTHON MODULE FLEET-KIT VERSION 19 ADDED (CS-1330), the STATUS BOARD
+# renderer of FLEET-COMMON item 18, vendored and pinned exactly as the modules
+# above are. MEASURED by `ruff check` of its version 19 bytes under this file's
+# selection:
+#   C420     a dict comprehension upstream spells instead of dict.fromkeys
+#   D103 D205 D209   upstream's docstring layout and coverage
+#   E501     long lines in upstream's code and messages
+#   FURB167  re.I spelling
+#   PLR2004  fmt_eta()'s literal 120 s and 7200 s unit thresholds
+#   PTH105 PTH123   os.replace and builtin open(), upstream's spelling
+"ops/fleet_kit/fleet_board.py" = [
+  "C420", "D103", "D205", "D209", "E501", "FURB167", "PLR2004", "PTH105", "PTH123",
 ]
 
 [tool.ruff.lint.isort]
@@ -500,7 +538,9 @@ quote-style = "double"
 # bytes) - one exact path per entry, never a pattern. Version 11 (CS-1287) keeps
 # the same eight entries; version 13 (CS-1290) adds the six modules versions 12
 # and 13 added, each MEASURED "Would reformat" on its version 13 bytes; version
-# 14 (CS-1299) adds no module and keeps the same fourteen entries.
+# 14 (CS-1299) adds no module and keeps the same fourteen entries; version 19
+# (CS-1330) adds fleet_board.py, MEASURED "Would reformat" on its version 19
+# bytes.
 exclude = [
   "ops/loop/slots.py",
   "ops/fleet_kit/fleet_headless.py",
@@ -517,6 +557,7 @@ exclude = [
   "ops/fleet_kit/fleet_rewrite.py",
   "ops/fleet_kit/fleet_suite_gate.py",
   "ops/fleet_kit/fleet_test_guard.py",
+  "ops/fleet_kit/fleet_board.py",
 ]
 # LF, matching .gitattributes. Content hashes are load-bearing in this project
 # (the game data version pin, BOOTSTRAP.md section 8.1) and a file whose line
@@ -814,12 +855,25 @@ warn_return_any = false
 #               `marked["ok"] = False` / `True` -
 #               `marked = {"ok": None}` is inferred as a dict of None, so a
 #               bool assigned into it contradicts that inference.
+# MEASURED on the version 20 patch 1 bytes (CS-1330, bare `python -m mypy` on an
+# archived copy with EVERY kit block's disable_error_code stripped, the error set
+# diffed per module, by code and symbol, against the version 17 bytes measured
+# the same way; the line numbers are version 20 patch 1's), two more:
+#   unreachable fleet_headless.py:1404 - proc_start(), the progress-owner
+#               start-time probe: its POSIX /proc/stat tail after a win32
+#               branch that returns on every path; mypy judges it under the
+#               `platform = "win32"` pin above, on any host.
+#   arg-type    fleet_headless.py:1495 - _age_s(), `fromisoformat(when)` on
+#               `when = doc.get("updated")` or None, typed `Any | None`; a None
+#               raises the TypeError its own try already catches. It falls
+#               under the arg-type code this block already disabled, so
+#               re-enabling only the codes a version adds never shows it.
 # The bytes are the protocol every fleet tree shares and may not be edited here.
 #
-# ONLY these three codes ARE DISABLED, and only for this module. The rest of the
+# ONLY these four codes ARE DISABLED, and only for this module. The rest of the
 # gate still reads the file; `exclude` is NOT used, for the reason above.
 module = ["ops.fleet_kit.fleet_headless"]
-disable_error_code = ["union-attr", "arg-type", "assignment"]
+disable_error_code = ["union-attr", "arg-type", "assignment", "unreachable"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_inbox.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
@@ -833,6 +887,13 @@ disable_error_code = ["union-attr", "arg-type", "assignment"]
 #   into it contradicts that inference. Upstream's shape, not a defect here.
 # MEASURED on the version 14 bytes (CS-1299), one more:
 #   var-annotated  fleet_inbox.py:323 `out = {}` built up later
+# MEASURED on the version 20 patch 1 bytes (CS-1330, by the method the fleet_headless.py block states; the line
+# number is version 20 patch 1's), one more, under the assignment code this
+# block already disabled:
+#   assignment     fleet_inbox.py:611 `out["fallback"] = fallback` in
+#                  cost_split() - `fallback` counts runs per route (int
+#                  values), assigned into an `out` inferred as a dict of
+#                  per-kind float dicts
 # ONLY these three codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_inbox"]
 disable_error_code = ["arg-type", "assignment", "var-annotated"]
@@ -843,14 +904,21 @@ disable_error_code = ["arg-type", "assignment", "var-annotated"]
 # neither adding an error, pinned by tests/test_fleet_kit.py. MEASURED at
 # version 9, four errors (the line numbers are version 11's):
 #   unreachable    fleet_lanes.py:142 - proc_started's psutil fallback after a
-#                  win32 branch that returns on every path; mypy judges it on
-#                  this platform's sys.platform, so a Linux run would differ
+#                  win32 branch that returns on every path; mypy judges it
+#                  under the `platform = "win32"` pin above, on any host
 #   var-annotated  fleet_lanes.py:367 `counts = {}` and 391 `out = []`
 #   operator       fleet_lanes.py:565 `row["age_s"] > WRITE_GRACE_S` - `row` is
 #                  a dict of mixed values, so its age reads as `object`
-# ONLY these three codes ARE DISABLED, and only for this module.
+# MEASURED on the version 20 patch 1 bytes (CS-1330, by the method the fleet_headless.py block states; the line
+# numbers are version 20 patch 1's), three more:
+#   arg-type union-attr   fleet_lanes.py:1013 and 1014, _close_lane_row()'s
+#                  loader of the sibling fleet_headless.py -
+#                  `module_from_spec(spec)` (arg-type) and
+#                  `spec.loader.exec_module(mod)` (union-attr, twice) on a spec
+#                  typed `ModuleSpec | None` and not narrowed
+# ONLY these five codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_lanes"]
-disable_error_code = ["unreachable", "var-annotated", "operator"]
+disable_error_code = ["unreachable", "var-annotated", "operator", "arg-type", "union-attr"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_watch.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
@@ -905,8 +973,44 @@ disable_error_code = ["arg-type", "union-attr", "var-annotated"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_suite_gate.py - see the fleet_gitlock.py block above (CS-1290).
+# MEASURED on the version 20 patch 1 bytes (CS-1330, by the method the fleet_headless.py block states; the line
+# numbers are version 20 patch 1's), four more:
+#   var-annotated  fleet_suite_gate.py:592 `kids = {}` in tree_private_mb() and
+#                  :1019 `stats = {}` in run(), each an empty literal mypy
+#                  cannot type
+#   unreachable    fleet_suite_gate.py:822, resolve_exe()'s POSIX return after a
+#                  win32 branch that returns on every path (under the
+#                  `platform = "win32"` pin above), and :1052, run()'s
+#                  peak_commit_mb write - `peak = {"mb": None}` is inferred as a
+#                  dict of None, so its not-None branch reads as dead
 module = ["ops.fleet_kit.fleet_suite_gate"]
+disable_error_code = ["arg-type", "union-attr", "var-annotated", "unreachable"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_test_guard.py, VENDORED BYTE-IDENTICAL from MAIN's fleet
+# kit and pinned by tests/test_fleet_kit.py; MEASURED clean at version 13, it
+# takes a block at version 20 patch 1 - MEASURED on the version 20 patch 1
+# bytes (CS-1330, by the method the fleet_headless.py block states; the line numbers are version 20 patch 1's),
+# three errors, none at version 17:
+#   arg-type union-attr   fleet_test_guard.py:141 and 144, _gate(), the
+#                  suite-gate loader load_factor() calls for budget() -
+#                  `module_from_spec(spec)` (arg-type) and
+#                  `spec.loader.exec_module(mod)` (union-attr, twice) on a spec
+#                  typed `ModuleSpec | None` and not narrowed
+# ONLY these two codes ARE DISABLED, and only for this module.
+module = ["ops.fleet_kit.fleet_test_guard"]
 disable_error_code = ["arg-type", "union-attr"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_board.py, the one module FLEET-KIT version 19 added
+# (CS-1330), VENDORED BYTE-IDENTICAL and pinned by tests/test_fleet_kit.py.
+# MEASURED on the version 20 patch 1 bytes (CS-1330, by the method the fleet_headless.py block states; the line
+# number is version 20 patch 1's), one error:
+#   var-annotated  fleet_board.py:162 `out = []` in running_progress(), built up
+#                  later
+# ONLY var-annotated IS DISABLED, and only for this module.
+module = ["ops.fleet_kit.fleet_board"]
+disable_error_code = ["var-annotated"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_identity.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit

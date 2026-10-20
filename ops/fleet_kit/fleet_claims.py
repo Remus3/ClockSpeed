@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 the operator - the kit's owner and sole copyright holder. See NOTICE.
-"""Fleet kit v17 - RACE GUARDS: the per-tree file-claim registry and its hooks
+"""Fleet kit v18 - RACE GUARDS: the per-tree file-claim registry and its hooks
 (FLEET-COMMON item 16).
 
 Vendored byte-for-byte at ops/fleet_kit/ and pinned by MANIFEST.json. Do NOT
@@ -65,6 +65,23 @@ holds (a git error claims nothing; the claim step never denies). STILL NOT
 claimed: writes made inside a script the hook cannot see (python / node
 heredocs, [IO.File]::WriteAllText, a .ps1 file); fleet_gitlock's merge check
 (v17) is the backstop for those during a merge conclusion.
+
+v18 CLAIMS-SCOPE (ruling 2026-10-10-claims-scope): the bare commit / push
+denial is scoped to guarded repos. The repo is the `git -C` dir, else the dir
+a preceding plain `cd` / Set-Location segment moved to, else the payload cwd.
+It is guarded when it is any worktree of the project's own tree, or another
+fleet tree (its main checkout holds ops/fleet_kit/ or fleet-kit/
+fleet_gitlock.py). A commit in a repo outside every fleet tree (a temp
+packaging repo) is allowed; a target in no git repo, or a command naming
+--git-dir / --work-tree / GIT_DIR / GIT_WORK_TREE, stays denied (fail safe).
+
+v18 PARSER (V18-PARSER, S26): a `>` / tee / Set-Content INSIDE a quoted
+string (e.g. `python -c "x>127"`) is no longer read as a write target, so
+junk claims ("127", ".txt") stop landing in the registry. write_targets()
+matches on a copy whose quoted bodies are masked (quote characters and
+lengths kept), and reads each target back from the original text, so a
+quoted target (`> "a b.txt"`) still counts. Unbalanced quotes fall back to
+the v17 unmasked match (a missed claim is worse than a junk one).
 
 v13 shell parsing (KIT-13): segments split on ; & | && || and newlines only
 OUTSIDE quotes; heredoc bodies (<<WORD ... WORD) and PowerShell here-strings
@@ -662,14 +679,38 @@ def inplace_targets(words):
     return [f for f in files if f and not f.startswith(("$", "&"))]
 
 
+def mask_quoted(command):
+    """v18 (V18-PARSER): command with every quoted body replaced by '_' (the
+    quote characters and the length kept), so a regex sees no operator inside
+    a string. In double quotes a backslash escapes the next character. An
+    unbalanced quote returns the command unchanged."""
+    out, quote, k = list(command), None, 0
+    while k < len(command):
+        c = command[k]
+        if quote is None:
+            if c in "\"'":
+                quote = c
+        elif c == quote:
+            quote = None
+        elif quote == '"' and c == "\\" and k + 1 < len(command):
+            out[k] = out[k + 1] = "_"
+            k += 2
+            continue
+        else:
+            out[k] = "_"
+        k += 1
+    return command if quote is not None else "".join(out)
+
+
 def write_targets(command):
     """Best-effort file targets a shell command writes (redirect, tee, PS,
     and since v17 `sed -i` / `perl -i`)."""
     out = []
-    command = strip_heredocs(command)
+    command = strip_heredocs(command) or ""
+    masked = mask_quoted(command)
     for rx in (_REDIR, _TEE, _PS_WRITE):
-        for m in rx.finditer(command or ""):
-            t = _unquote(m.group(1))
+        for m in rx.finditer(masked):
+            t = _unquote(command[m.start(1):m.end(1)])
             if t and t.lower() not in _SINKS and not t.startswith(("$", "&")):
                 out.append(t)
     for seg in _segments(command):
@@ -699,17 +740,110 @@ def git_add_targets(command):
     return out
 
 
-def bare_git_write(command):
-    """'commit' / 'push' when the command runs one NOT through fleet_gitlock."""
+_CD = frozenset(("cd", "chdir", "pushd", "set-location", "sl"))
+
+
+def _cd_target(words):
+    """The directory a plain `cd X` / Set-Location X segment moves to, else None."""
+    if not words or _base(words[0]) not in _CD:
+        return None
+    args = [w for w in words[1:] if not w.startswith("-") and w.lower() != "/d"]
+    return args[-1] if len(args) == 1 else None
+
+
+_ENVSET = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_GITDIR = re.compile(r"--git-dir|--work-tree|\bGIT_DIR\b|\bGIT_WORK_TREE\b", re.I)
+_MSYS = re.compile(r"^/([A-Za-z])(?=/|$)")
+
+
+def _msys(p):
+    """/<d>/x -> <D>:/x on Windows (Git Bash paths); unchanged elsewhere."""
+    return _MSYS.sub(lambda m: m.group(1).upper() + ":", p) if WIN else p
+
+
+def fleet_tree(main):
+    """True when a main checkout vendors (or is the source of) the fleet gitlock."""
+    return any((Path(main) / rel / _GITLOCK).is_file()
+               for rel in ("ops/fleet_kit", "fleet-kit"))
+
+
+def guarded_repo(target, project):
+    """v18 CLAIMS-SCOPE: True when a commit / push at target must go through
+    fleet_gitlock - target is in the project's own tree (any worktree of it)
+    or in another fleet tree. Only a real git repo outside every fleet tree
+    is not guarded; a target in no repo stays guarded (fail safe)."""
+    t = tree_of(target)
+    if t is None:
+        return True  # no repo resolved: fail safe (git refuses there anyway)
+    proj = tree_of(project) if project is not None else None
+    if proj is not None and norm(proj[2]) == norm(t[2]):
+        return True
+    return fleet_tree(t[2])
+
+
+def bare_git_write(command, cwd=None, project=None):
+    """'commit' / 'push' when the command runs one NOT through fleet_gitlock.
+    With cwd (v18 CLAIMS-SCOPE) only a commit / push whose repo is guarded
+    counts; the repo is the `-C` dir, else the dir a preceding plain `cd`
+    segment moved to, else cwd. Any --git-dir / --work-tree / GIT_DIR /
+    GIT_WORK_TREE in the command keeps the old always-deny rule."""
+    return _bare_git(command, cwd, project, ("commit", "push"))
+
+
+LOCK_ONLY_VERBS = ("merge", "reset", "revert")
+
+
+def bare_git_lockonly(command, cwd=None, project=None):
+    """v20 (gitlock merge-routing nudge): 'merge' / 'reset' / 'revert' when the
+    command runs one NOT through fleet_gitlock in a guarded repo. Never a
+    deny: the hook answers with a one-line nudge (fleet_gitlock runs these
+    lock-only since v16)."""
+    return _bare_git(command, cwd, project, LOCK_ONLY_VERBS)
+
+
+def add_then_gitlock(command):
+    """v20: True when a `git add` segment runs before a fleet_gitlock segment in
+    one command (`git add f && python fleet_gitlock.py run ...`): when the
+    gitlock call fails, the staged paths stay in the shared index."""
+    seen_add = False
     for seg in _segments(command):
         if _GITLOCK in seg:
+            if seen_add:
+                return True
             continue
         words = _words(seg)
+        while words and _ENVSET.match(words[0]):
+            words = words[1:]
+        g = _git_verb(words)
+        if g and g[0] == "add":
+            seen_add = True
+    return False
+
+
+def _bare_git(command, cwd, project, verbs):
+    here = Path(cwd) if cwd is not None else None
+    if _GITDIR.search(command or ""):
+        here = None  # --git-dir / --work-tree / GIT_DIR can aim anywhere: guarded
+    for seg in _segments(command):
+        words = _words(seg)
+        if here is not None:
+            cd = _cd_target(words)
+            if cd is not None:
+                here = _abs(_msys(cd), here)
+                continue
+        if _GITLOCK in seg:
+            continue
         if read_only_search(words):
             continue
+        while words and _ENVSET.match(words[0]):
+            words = words[1:]  # VAR=value prefix
         g = _git_verb(words)
-        if g and g[0] in ("commit", "push"):
-            return g[0]
+        if g and g[0] in verbs:
+            if here is None:
+                return g[0]
+            target = _abs(_msys(g[2]), here) if g[2] else here
+            if guarded_repo(target, project if project is not None else cwd):
+                return g[0]
     return None
 
 
@@ -927,7 +1061,7 @@ def decide_shell(payload, me, now, ttl_s):
     t = tree_of(cwd)
     if t is not None and me:
         heartbeat(t[2], me, now)
-    verb = bare_git_write(command)
+    verb = bare_git_write(command, cwd, project_root(payload, os.environ))
     if verb:
         return "deny", ("GITLOCK: run `git {}` through fleet_gitlock.py: "
                         "python <kit>/fleet_gitlock.py run --owner {} -- git {} ...".format(verb, me or "<owner>", verb))
@@ -949,7 +1083,23 @@ def decide_shell(payload, me, now, ttl_s):
     if me:
         with contextlib.suppress(Exception):
             claim_shell(payload, me, cwd, files, specs, now, ttl_s)
+    # v20 nudges (allowed, one line of context, never a deny)
+    lockonly = bare_git_lockonly(command, cwd, project_root(payload, os.environ))
+    if lockonly:
+        return "nudge", ("GITLOCK: route `git {0}` through the git lock: python <kit>/"
+                         "fleet_gitlock.py run --owner {1} -- git {0} ... (lock only)"
+                         .format(lockonly, me or "<owner>"))
+    if add_then_gitlock(command):
+        return "nudge", ("GITLOCK: if this fleet_gitlock.py run fails, the paths you just "
+                         "staged stay in the shared index - unstage them with "
+                         "git restore --staged <path>")
     return "allow", ""
+
+
+def nudge_output(text):
+    """v20: an allowed call with one line of context (UI/UX standard s5)."""
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                   "additionalContext": " ".join(str(text).split())}}
 
 
 def decide(payload, env=None, now=None):
@@ -994,6 +1144,8 @@ def run_hook(stdin_text, env=None, now=None):
     decision, reason = decide(payload, env, now)
     if decision == "allow":
         return ""
+    if decision == "nudge":
+        return json.dumps(nudge_output(reason))
     log(root, {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "tool": payload.get("tool_name"),
                "thread": "sub" if payload.get("agent_id") else "main",
                "decision": decision if m == "deny" else "would-deny", "mode": m,

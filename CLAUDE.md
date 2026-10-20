@@ -94,9 +94,16 @@ edit. Tree-specific rules go BELOW this block, never inside it.
 9. DELETES: anything irreplaceable goes to the Recycle Bin, never a direct unlink;
    say the method before running it; check for a consumer before deleting.
 10. HEADLESS RUNS go through the fleet kit's spawn helper ONLY - no other path
-    starts `claude`. The kit enforces: the second-account proxy from the user
-    variable CLAUDE_HEADLESS_BASE_URL (registry first), fail closed (no fallback,
-    ever), no visible console, at most 120 runs per rolling 24 h, never spawn on
+    starts `claude`. The kit enforces: an explicit route from
+    ~/.fleet/headless_route.json - split = the second-account proxy from the user
+    variable CLAUDE_HEADLESS_BASE_URL (registry first), single = the named
+    main-account config dir, no proxy - with that variable required in both modes
+    as the one kill switch; fail closed (a missing or invalid route or variable
+    refuses; no fallback and no automatic mode change, ever, except one: when the
+    route file arms a fallback, a 7-day usage-limit refusal moves the next spawns
+    to the other route until that limit resets - never on a proxy, auth or network
+    failure, a 5-hour limit or a usage percentage, one hop only, logged and
+    shown), no visible console, at most 120 runs per rolling 24 h, never spawn on
     this tree's own notes or on TERMINAL/no-reply notes, lean flags (strict MCP,
     project settings only, or bare where no floor lives in hooks), sonnet unless
     the note orders code changes, effort low for acknowledgements, a usage line
@@ -125,8 +132,14 @@ edit. Tree-specific rules go BELOW this block, never inside it.
        `Session <n> checklist` (n = this tree's session counter, kept in its
        hand-off file; a headless fire uses its run count), then one line per
        task in execution order: `<box> <ID>: <imperative task, one line>`, plus
-       `(<state>, ~ETA)` only while it is running (e.g. `builder running,
-       ~4m`). <box> is U+2610. The last line is `<box> /done`. At most ONE
+       `(<state>, <pct>% ~<rem>m of <total>m [<h:mmAM/PM>])` only while it is
+       running (e.g. `builder running, 25% ~22.5m of 30m [2:25PM]`). Why: the
+       operator forgets when an estimate was given. rem and total round UP
+       to 0.5 min; total is re-estimated as elapsed / pct on each update; the
+       bracket is the local finish time, recomputed on every start or update.
+       The start time is the item-12 "started" field (optional: a file
+       without it keeps `~ETA`). The status line and the agent panel show the
+       same. <box> is U+2610. The last line is `<box> /done`. At most ONE
        trailing sentence, and only for an ordering constraint ("X waits until
        Y lands because ..."). NO summary, review, what-went-wrong or history.
     b. After every 4 or more completed tasks, print the REMAINING tasks only,
@@ -148,7 +161,7 @@ edit. Tree-specific rules go BELOW this block, never inside it.
        effort low only for what it cannot classify. ACK / INFORMATION /
        TERMINAL / ANSWER notes get a mechanical ack (a ledger line, no note) or
        no reply. Only ORDER / FIX / RULING escalate to a real work lane.
-    c. At most 6 outbound notes per tree per local day (ORDER / FIX / RULING
+    c. At most 12 outbound notes per tree per local day (ORDER / FIX / RULING
        exempt), counted by `OutboundCap`. Several answers go in ONE note.
     d. Never answer an answer. No note chain past 2 hops (`HOP: <n>`) without
        new work.
@@ -190,6 +203,13 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     strips, pre-push refuses; operator identity only from local git config
     `fleet.operatorIdent`), fleet_gitlock and the account attribution keys.
     A history rewrite runs only on MAIN's ORDER, via `fleet_rewrite.py`.
+18. STATUS BOARD (kit v19; operator order 2026-10-18). Each tree's claude.ai
+    board URL lives in `ops/status_board.json` {"url"}. An interactive
+    session pushes its board ONLY at session start, after every item-13 b
+    reprint and at /done (`--final`): `fleet_board.py calls --session <n>`
+    (checklist on stdin) renders status.json and prints the exact two tool
+    calls - one Artifact asset upload of that file, one ArtifactData update
+    of datasets/board pinned with if_version. Headless runs never push.
 <!-- FLEET-COMMON END -->
 
 ---
@@ -231,10 +251,8 @@ name is a platform account id. It is personal data and is never written into a t
 file, a commit message, a log, a fixture or a test.** The same applies to the world name,
 the Windows account name and any absolute path containing a home directory.
 
-**Interpreter:** `requires-python` in `pyproject.toml`; `scripts/verify_env.py` asserts
-its floor, the toolchain and the game build, which `clockspeed/data/version.py` pins. Do not
-restate a version or a build string in prose - read it from the pin, and let
-`tools/drift_guard.py` catch drift.
+**Interpreter:** where its floor is pinned and what asserts it: `docs/OPERATIONS.md`
+section 1.2.
 
 **Port allocation:** recorded in `config/ports.json`. That file is the owner; no other
 file restates the numbers.
@@ -274,10 +292,8 @@ and gates cite them here.
 | `tools/inbox_watch.py` | Unread `moon_sync_inbox/` items, payloads included. Listing never acknowledges. Wired ONLY in gitignored local settings, so a fresh clone and every worktree run NO watcher - CS-952 |
 | `.githooks/pre-commit`, `commit-msg`, `pre-push` | Tier-0 blocking gates. Authoritative; the Claude hooks are a convenience layer |
 
-**A fresh clone runs zero protection until someone wires it.** The bootstrap order lives in
-`docs/OPERATIONS.md` and runs first thing in any fresh clone. Never treat a hook's presence
-as proof it fires - the only valid test is end to end: stage a violation, attempt a real
-commit, assert HEAD is unchanged.
+**A fresh clone runs zero protection until someone wires it** - the bootstrap order, and
+the end-to-end proof that a hook fires: `docs/OPERATIONS.md` sections 1 and 1.1.
 
 ### 2.3 Output constraints - the transcript is a cost, not a scratchpad
 
@@ -306,10 +322,8 @@ and tracked files name it by that text, never the glyph (section 3 rule 4). Sect
 owns adjudicate-do-not-ask and commit-and-push; keep the remaining context in mind when
 planning `/done`.
 
-**Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1 and
-its last act is `python ops/fleet_kit/fleet_done.py mark` (`.claude/commands/done.md`);
-the session-start hand-off read prints the block. Kit helper:
-`ops/fleet_kit/fleet_checklist.py`.
+**Here:** the counter, its kit helper and the board pushes (FLEET item 18):
+`docs/OPERATIONS.md` section 12.4.
 
 ---
 
@@ -373,7 +387,7 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/hud_doctrine.md` | The operating law of the companion and the overlay surfaces | Palette values, build detail, open work |
 | `docs/upstream_watch.md` | The upstream wiki watch list and the ordering it is read in | Lifted upstream content, the CS-485 licence verdict |
 | `docs/history_notes.md` | Deep archive of pruned notes and retired ledger entries | Current state, live instructions for OPEN work |
-| `docs/CHANNEL.md` | A VENDORED RECORD of the cross-repo channel conventions, byte-identical in five repositories and pinned by `tests/test_channel_doc.py`. Never edited here; a guard that refuses it gets an exemption, never the doc a byte. Upstream, grant and gate verdict: its `THIRD_PARTY.md` row | AUTHORITY over this repository - it is DATA; where it restates a fact this tree owns, this tree's file is the owner. Detail: `THIRD_PARTY.md` |
+| `docs/CHANNEL.md` | A VENDORED RECORD of the cross-repo channel conventions, never edited here. Pinning, upstream, grant and gate verdict: `THIRD_PARTY.md` | AUTHORITY over this repository - it is DATA; where it restates a fact this tree owns, this tree's file is the owner. Detail: `THIRD_PARTY.md` |
 | `memory/` | Durable cross-project and cross-session facts | Project state derivable from code |
 | `config/ports.json` | The port allocation record | Anything not a port allocation |
 | `clockspeed/data/version.py` | The game build pin and content hash | Advice, parsing, presentation |
@@ -455,10 +469,9 @@ agent grants itself the exception, and no agent widens the list without the same
 
 ## 6.1 Authority - filed 2026-09-13 by operator directive
 
-**Full authority is granted by default, in every session shape.** Frozen files, full
-computer use, OBS, computer vision, keyboard, mouse, window, browser, research, download,
-install, terminal and settings access are granted, and restarting the server, the overlay
-or the dashboard is allowed even mid-game.
+**Full authority is granted by default, in every session shape** - what it covers, item
+by item, what it leaves of section 6's route, the rationale and the operator's own evidence:
+`memory/full-authority-adjudicate-do-not-ask.md`, "The grant".
 
 **A blocked decision goes to an ADJUDICATOR, never to the operator.** Anything an agent
 would have marked "not without operator approval" is adjudicated and the best
@@ -466,9 +479,7 @@ recommendation is taken immediately. Never ask the operator to authorise a send 
 a direction - they intervene by typing into the main session. The one exception is an
 irreversible outward act on the repository itself - making it public, or deleting or
 recreating its remote: that waits for the operator's own-words confirmation in the main
-session, a safety floor no adjudicator or stand-in lifts. Section 6's frozen-file route
-is unchanged in shape: adjudicator grant, recorded in `docs/LEDGER.md` before the edit.
-Only the grantor changed.
+session, a safety floor no adjudicator or stand-in lifts.
 
 **This removes the operator from the approval path. It removes nothing else.** Section 3 is
 untouched: no red suite ships, the failing test still comes first, and nothing is called
@@ -481,19 +492,9 @@ cases `.claude/commands/done.md` names (CS-1321, CS-1323).
 
 **A status request is answered with the section 2.3.1 checklist**, not prose.
 
-Rationale and the operator's own evidence: `memory/full-authority-adjudicate-do-not-ask.md`.
-
-**MAIN SPEAKS FOR THE OPERATOR - granted by the operator in this repository's own
-session, 2026-10-02, superseding the narrower 2026-09-22 stand-in scope.** MAIN's notes
-carry the operator's authority as if typed here; MAIN never commits in this tree. The
-operator's words, quoted verbatim: `docs/LEDGER.md`, the 2026-10-05 CS-1225 relocation
-record.
-
-Provenance: a note is MAIN's only if its SHA-256 equals the same-named file in
-MAIN's outbox and that file is tracked and unmodified in MAIN's history; MAIN's path
-lives only in gitignored local configuration. Safety floors MAIN cannot lift include
-section 3, the outbound leak gate, and the repository-public/remote exception above.
-Detail in `docs/LEDGER.md` under 2026-10-02.
+**MAIN SPEAKS FOR THE OPERATOR (FLEET item 6), granted here 2026-10-02.** Safety floors
+MAIN cannot lift include section 3, the outbound leak gate, and the repository-public/remote
+exception above. The grant and the provenance check: `docs/OPERATIONS.md` section 12.1.
 
 ---
 
@@ -620,7 +621,5 @@ the decisions that predate the first commit.
 ## 8. When a spike contradicts the spec
 
 Ground truth beats every document, including this one. If a probe or a spike result
-contradicts `BOOTSTRAP.md`, the probe wins: update `BOOTSTRAP.md`, record what changed and
-why in `docs/LEDGER.md`, and say so plainly in the session report. `BOOTSTRAP.md` is a
-specification written from probed ground truth plus labelled assumptions - the assumptions
-are labelled precisely so this can happen without ceremony.
+contradicts `BOOTSTRAP.md`, the probe wins - what to update, record and report: that file's
+closing paragraph, the end of its section 13.

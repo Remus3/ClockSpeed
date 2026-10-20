@@ -1586,7 +1586,8 @@ RUN_GIT_TIMEOUT_SECONDS: float = 120
 # (that would re-admit the whole class the guard exists to catch): the
 # responder's run budget and its lock (fleet_headless.RunBudget) and the inbox
 # task list (ops/loop/inbox_status.py). Trap (a) in SS's 2026-10-08 kit-v12
-# answer.
+# answer. Plus the board render's two state files (FLEET item 18,
+# fleet_board STATE_REL), which a board push rewrites mid-suite (CS-1330).
 # ---------------------------------------------------------------------------
 import importlib.util as _cs1290_importlib_util  # noqa: E402 - appended at the foot
 
@@ -1616,6 +1617,8 @@ GUARD_IGNORE: tuple[str, ...] = (
     "ops/loop/control/headless_budget.json",
     "ops/loop/control/headless_budget.json.lock",
     "ops/loop/control/inbox_status_tasks.json",
+    "ops/loop/control/board/state.json",
+    "ops/loop/control/board/status.json",
 )
 fleet_test_guard.install(
     globals(),

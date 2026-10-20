@@ -1,0 +1,8 @@
+{
+  "paths": [
+    "ops/loop/control/STOP",
+    "ops/loop/control/lanes/INBOX_STOP",
+    "ops/loop/control/lanes/QUEUE_STOP",
+    "ops/loop/control/HOLD_MAIN_SPAWN"
+  ]
+}

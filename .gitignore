@@ -284,6 +284,11 @@ shell/NVIDIA Corporation/
 /ops/loop/control/claims.mode
 /ops/loop/control/gitlock.jsonl
 /ops/loop/control/identity.jsonl
+# FLEET-KIT v19 STATUS BOARD (FLEET-COMMON 18, CS-1330): ops/fleet_kit/fleet_board.py
+# keeps its render state (state.json, status.json) here. Machine-local runtime
+# state the v19 ORDER says to ignore; covered by the directory line too, named
+# for the same reason.
+/ops/loop/control/board/
 
 # The lane's model config, read by ops/loop/run_lane.ps1 via $PSScriptRoot with
 # a known-good fallback so a lane never fails to spawn over a config read.

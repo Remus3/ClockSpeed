@@ -381,17 +381,11 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, str, int], str]] = {
 # alone may carry None, because kit_pin_problems() still holds it to MAIN's
 # bytes and stale_exemptions() to exactly one live site; the FROZEN table keeps
 # the rule that no row carries an unresolved program.
-VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str | None, int], str]] = {
-    ("ops/fleet_kit/fleet_suite_gate.py", "resolve_exe", "shutil.which", None, 1): (
-        "VENDORED byte-for-byte under FLEET item 11 (CS-1303) -"
-        " ops/fleet_kit/fleet_suite_gate.py is FLEET-KIT version 15's suite gate, pinned"
-        " by sha256 in ops/fleet_kit/MANIFEST.json and never edited here. resolve_exe()"
-        " asks shutil.which for a BARE suite command word to find a .cmd/.bat shim on"
-        " Windows, where which() searches the current directory before PATH, so a"
-        " planted npm.cmd in the working directory could be chosen. Owed to MAIN as a"
-        " kit report, not repaired here."
-    ),
-}
+# CS-1330: kit version 19 carries v18's resolve_exe(), which walks the CHILD's
+# PATH itself (empty, relative and cwd-equal entries skipped, PATHEXT tried) and
+# no longer calls shutil.which - MAIN's v18 ORDER: "your vendored-only exemption
+# ... can go". The row retired with it and the table is empty again.
+VENDORED_EXEMPTIONS: Final[dict[tuple[str, str, str, str | None, int], str]] = {}
 
 #: Both kinds, as the census consults them. A key in both would collapse here
 #: and be counted once - tests/test_toolpath.py asserts the two are disjoint.
@@ -409,8 +403,9 @@ KIT_MANIFEST: Final = REPO_ROOT / "ops" / "fleet_kit" / "MANIFEST.json"
 # VENDORED row CS-1272 added went with kit version 11 under CS-1287, and kit
 # version 13 brought two under CS-1290 - fleet_gitlock.py's git_alive() probes -
 # and kit version 14 retired both under CS-1299; kit version 15 brought one under
-# CS-1303 - fleet_suite_gate.py's resolve_exe() which() lookup.
-EXEMPTION_BUDGET: Final = 5
+# CS-1303 - fleet_suite_gate.py's resolve_exe() which() lookup - and kit version
+# 19 retired it under CS-1330.
+EXEMPTION_BUDGET: Final = 4
 
 
 @dataclass(frozen=True)

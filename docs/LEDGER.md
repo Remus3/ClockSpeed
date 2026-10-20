@@ -75,6 +75,185 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-19 - CS-1330 - vendor FLEET-KIT v20.1, the v18 to v20 tree steps folded in
+Verification: `tests/test_fleet_kit.py::test_fleet_kit_conformance`,
+`tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest`,
+`tests/test_fleet_kit.py::test_stop_sentinel_declaration_holds_the_three_stops_and_the_main_spawn_hold`,
+`tests/test_fleet_kit.py::test_the_suite_guard_ignores_the_board_render_state_and_still_sees_a_stop`,
+`tests/test_fleet_kit.py::test_the_installed_suite_guard_ignores_exactly_the_recorded_names`,
+`tests/test_conftest_run_git.py::test_the_planted_bounds_scale_with_the_kit_budget_and_the_sleep_stays_above_the_ceiling`,
+`tests/test_chained_cause_census.py::test_every_recorded_key_collision_is_vendored_pinned_and_unexempted`,
+`tests/test_pathless_clone_agreement.py::test_every_recorded_vendored_copy_is_live_and_at_the_kit_pin`,
+`tests/test_exception_rendering.py::test_every_vendored_render_residual_answers_exactly_one_live_site`
+and `tests/test_third_party_register.py`.
+
+Source: MAIN's ORDER notes (HOP 1), each verified MAIN's by `tools/main_provenance.py`
+against MAIN's tracked outbox copy - v18 2026-10-17 10:18, sha256
+dab99ba5dc672743ca87f824093e2e830eaea65bb819681a2c978bc10f220132; v19 2026-10-18 12:35, sha256
+66b3ebde4842143124e4ad8d65d27d0046d2a4a17cfc2a912095b918b11abe9e; v20 2026-10-18 18:12, sha256
+fbbeb49e06279692e2bb77b6ee58ba627b935a77e8c485f9014c39a1cd3684ee; v20 patch 1 2026-10-19 00:01,
+sha256 2c9c93d4263df219e538093e39226d2ad08fdb7d41e7e9e63c12ccfa3f000d56. v20.1 supersedes v20,
+which supersedes v19, which carries v18, so only v20.1 was vendored here. Vendored
+byte-for-byte into `ops/fleet_kit/`: every file `MANIFEST.json` names, plus `MANIFEST.json`
+sha256 8017eae27ba218ea51ab77885ab0a46cc3eceb39b9e9d5f4ee277f88e77d4602 (version 20; the patch
+lives in fleet_headless KIT_PATCH 1), held by `test_fleet_kit_files_match_manifest`;
+fleet_board.py added, and which of the rest changed against v17 is read from the v17 and
+v20.1 manifests' digests; the FLEET-COMMON block re-embedded in `CLAUDE.md` (items 10, 13 a, 14 c, new 18),
+which stays under its 40 KB budget by tree-side edits outside the block that no kit note
+ordered - passages MOVED verbatim (section 2's Interpreter line to `docs/OPERATIONS.md`
+section 1.2, section 2.3.1's Here line to section 12.4, the section 6.1 MAIN grant and provenance
+to section 12.1, and the section 4 `docs/CHANNEL.md` row's pinning and exemption sentences to its
+`THIRD_PARTY.md` paragraph) and passages REPLACED BY A POINTER to text that already said them (section 2.2's fresh
+clone to `docs/OPERATIONS.md` sections 1 and 1.1; the section 6.1 grant list and its
+frozen-file-route sentence to `memory/full-authority-adjudicate-do-not-ask.md`, The grant, the
+route also in `CLAUDE.md` section 6; section 8 to the closing paragraph of `BOOTSTRAP.md` section
+13); `fleet_headless.conformance()` returns [].
+Tree steps: `ops/status_board.json` and the ignored `ops/loop/control/board/` (FLEET item 18);
+the /done board push in `.claude/commands/done.md`; the runbook `docs/OPERATIONS.md` section 12;
+`ops/stop_sentinels.json` TRACKED, byte-identical to the live declaration (sha256
+3338852a5a4b38673ae4c151f477d02044095ce9988000a17aeb8f98d668d4f7): the stops MAIN's v19 ORDER
+named and `HOLD_MAIN_SPAWN`, held by `test_stop_sentinel_declaration_holds_the_three_stops_and_the_main_spawn_hold`,
+declared permanently - lifting the hold removes the hold file only
+(OPERATIONS 12.3). Adaptation repins on the v20.1 bytes: the kit pins in
+`tests/test_fleet_kit.py`; render residuals in `tests/test_exception_rendering.py`; the suite
+gate Popen exemption in `tests/test_subprocess_timeouts.py`; the vendored spawn() key
+collision in `tests/test_chained_cause_census.py`; the vendored copy in
+`tests/pathless_clone_guard.py`; `tests/toolpath_guard.py`; `tests/ops/test_shared_slots.py`;
+`tests/ops/test_inbox_responder.py` (usage kind "order"); ruff and mypy entries in
+`pyproject.toml`, measured on the bytes; register rows in `THIRD_PARTY.md`; its rows in
+`tools/provenance.tsv`. Guard changes, each measured on the shipped bytes: WIDENED -
+`test_every_site_key_is_distinct` to the key collision `VENDORED_KEY_COLLISIONS` records
+(spawn()'s bare Refused re-raise), held to the kit pin by
+`test_every_recorded_key_collision_is_vendored_pinned_and_unexempted`; the vendored copy
+`ops/fleet_kit/fleet_headless.py::_route_invalid` out of the pathless-clone reliances and
+copies, held exactly by `test_every_recorded_vendored_copy_is_live_and_at_the_kit_pin` and
+resting on that function's kit-literal messages; the planted run_git ceiling from a fixed
+idle-box value to `budget()` of it, scaled by the live slot holders up to MAX_SLOTS, as the v18
+ORDER asks, with the sleep scaled above it; the render residual rows in fleet_headless.py and
+fleet_lanes.py, held by `test_every_vendored_render_residual_answers_exactly_one_live_site`,
+because FLEET item 11 forbids the fix here (the fleet_lanes.py one is owed to MAIN as a kit report);
+and the ruff and mypy entries and the fleet_board.py format exclusion, each measured firing,
+because kit bytes may not be edited - TIGHTENED: the toolpath EXEMPTION_BUDGET lowered to the
+exemptions that remain (`tests/toolpath_guard.py::EXEMPTION_BUDGET`) with
+VENDORED_EXEMPTIONS emptied, since resolve_exe no longer calls shutil.which, and PERF401 dropped
+from fleet_claims.py - and the suite guard's GUARD_IGNORE in `tests/conftest.py` names the
+board render's state.json and status.json (FLEET item 18, fleet_board STATE_REL), since a board push during a main-checkout suite
+would otherwise fail it, held by
+`tests/test_fleet_kit.py::test_the_suite_guard_ignores_the_board_render_state_and_still_sees_a_stop`.
+No frozen file touched; no test asserted the outbound daily cap (FLEET item 14 c); no exact-key-set progress
+assertion needed a change.
+ORDER items ruled for this commit: timing tests moved to budget(): the planted run_git
+ceiling alone - it is `fleet_test_guard.budget()` of its idle-box value, and the child's sleep is derived
+from that one read, so it stays above the ceiling at any load. progress_task: none needed - the
+inbox responder's progress row is written and closed by its parent, its worker names no
+progress task, and passing one would let the kit's close_progress() rewrite a still-running row
+as failed on every successful run. Board dataset version: unread by the builder - its
+ArtifactData read of datasets/board was refused as not found or no access - so
+`ops/status_board.json` keeps 2 and the OPERATIONS 12.2 version-mismatch path corrects a stale
+pin. The limit 11 docstring of `tests/chained_cause_guard.py` now points to the collisions
+`VENDORED_KEY_COLLISIONS` records. The hand-off is not in this commit; its 30 KB mark limit is met by its next writer.
+Item id: CS-1330, the next free id (git grep over every ref), cross-referencing CS-1231, whose
+slice C stays OPEN; every citation of that id which predates this commit, the kit's version 4
+landing among them, stays. Rulings: the gitignored data/rulings files s149-kitupd_ruling.md,
+sha256 310b47b08f81a38dec6f8764a2c27ebd3d8a1c893c1bb9b04a3d2baa34addcf5, and the plan it rules,
+s149-kitupd_plan.md, sha256 c999c61d40b7c3f6c33c0138f08f9ad9c36079fc07b217a73c6cbeca1f225050.
+S3e, the read-only adversaries on the repair the second ruling ordered, found: the board-state
+test stayed green with `GUARD_IGNORE` widened by an exact or globbed stop name, by a glob over
+`board/` or over the control directory's json files, and with `install()` handed the kit
+default in place of `GUARD_IGNORE`; the kit's own default glob `ops/loop/control/lanes/*` hides
+the declared `lanes/INBOX_STOP` and `lanes/QUEUE_STOP` from every suite guard; the mypy entries
+missed errors new since v17 under codes already disabled; the exit 3 sentence of OPERATIONS
+12.3 and its BACKLOG residual were imprecise; and this record restated counts as prose. Fixed
+in this commit, each with its decision, alternatives and why:
+(1) DECISION: the board-state test's stop arm plants and removes every path
+`ops/stop_sentinels.json` declares and requires the guard to see each come and go, save the set
+the kit default hides, which must equal `KIT_HIDDEN_SENTINELS` exactly; and
+`test_the_installed_suite_guard_ignores_exactly_the_recorded_names` holds `GUARD_IGNORE` to a
+fresh load of the kit IGNORE plus `TREE_GUARD_IGNORE`, exactly, and holds the ignore the
+installed session guard uses, read from its fixture's closure, to the same tuple. Every S3e
+mutant goes red on them and the pristine tree stays green (the session 149 S1c mutation run).
+ALTERNATIVES: a no-glob check (an exact stop name passes it); `tests/conftest.py` exporting
+the list it installed (a second copy, not the installed state); a local edit of the kit IGNORE
+(FLEET item 11 forbids it). WHY: exact both ways, so any widening or narrowing of the list,
+and any growth of the kit-hidden set, turns red.
+(2) DECISION: re-measured every kit module by bare `python -m mypy` on archived v17 and v20.1
+trees with every kit block's disables stripped, diffing the per-module error sets by code and
+symbol; the `pyproject.toml` comments now record each error new since v17 -
+`ops/fleet_kit/fleet_headless.py::_age_s` arg-type beside
+`ops/fleet_kit/fleet_headless.py::proc_start` unreachable, and
+`ops/fleet_kit/fleet_inbox.py::cost_split` assignment - and the board, lanes, suite-gate and test-guard
+entries measured as recorded; the unreachable notes cite the `platform = "win32"` pin, so a
+Linux CI run reads the same set and is no independent read of it. Comment-only: no disable
+was missing. ALTERNATIVES: re-enabling only the codes a version adds (blind to a new error
+under a code already disabled - how they were missed). WHY: the comment is the only record
+of what each disable hides. RESIDUAL: the fleet_gitlock and fleet_claims entries already
+undercount at v17 (`ops/fleet_kit/fleet_gitlock.py::quiet_inherit` union-attr,
+`ops/fleet_kit/fleet_claims.py::claim_shell` var-annotated), not new under this item.
+(3) DECISION: OPERATIONS 12.3 and that BACKLOG line name the exact exit 3 condition - a tick
+with an unread note the responder acts on, its own, terminal and retired notes skipped; a
+backoff or a full budget window exits 0 - read against
+`ops/loop/inbox_responder.py::_locked_pass` and `ops/loop/inbox_responder.py::_refused` and
+`ops/fleet_kit/fleet_headless.py::spawn`.
+ALTERNATIVES: the ruled wording (false for damped notes, backoff and a full window). WHY: a
+runbook sentence is held to the code.
+(4) DECISION: this record restates no count as prose; each count it carried is cited by the
+test, guard constant or manifest that produces it. ALTERNATIVES: keep the counts (the file
+header forbids them). WHY: the header rule.
+To MAIN, one line each:
+- KIT: spawn() re-raises its bare Refused from sites that share one census key (this tree
+  records the collision in `VENDORED_KEY_COLLISIONS`); and its "halted" refusal on a declared
+  stop sentinel has no behavioural test in this tree - a `hit = None` mutant passes all but the
+  byte pins; does the kit's own suite pin it?
+- KIT: `ops/fleet_kit/fleet_lanes.py::main` prints `str(exc)[:200]` of an OSError, which can
+  carry a path under --root; render the class name as the route CLI does. No caller in this tree.
+- KIT: fleet_test_guard IGNORE omits fleet_board's own render state, state.json and
+  status.json under its STATE_REL; this tree ignores those names until the kit does.
+- KIT: the default IGNORE glob `ops/loop/control/lanes/*` hides the declared `lanes/INBOX_STOP`
+  and `lanes/QUEUE_STOP` from every suite guard; held exact here by `KIT_HIDDEN_SENTINELS`.
+- INFORMATION: kit sentinels are tree-wide, so the QUEUE_STOP the v19 ORDER had this tree
+  declare now also halts its inbox responder - exit 3 on each acted-on tick, nothing spent.
+SUITE: S2, the whole suite through `ops/fleet_kit/fleet_suite_gate.py` on the pre-repair
+candidate in its worktree, passed with exit 0 and no failure or error, read from its log by the
+lander. The S1b and S1c repairs each ran their targeted modules plus the census and doc set
+green, not the whole suite. The landing gate is the pre-push whole suite on this commit, which
+blocks the push on any red, so this record reaches the remote only through a green run of it.
+ADVERSARIES: read-only, default refuted, none the author of what it graded. On the first
+candidate: S3a byte fidelity - kit, manifest, note and the other trees' copies equal; refuted on
+this record's relocation clause and on the register's fleet_board date and ledger column, fixed
+in S1b. S3b weakened guards - each widening measured necessary and held to the kit pin, named
+above. S3c docs and leaks - no leak; refuted on the pyproject mypy line numbers and the
+responder docstring, fixed in S1b. S3d sequencing - the range pick reproduced clean in a
+sandbox; its board-render-state defect fixed in S1b. The second ruling, data/rulings file
+s149-kitupd_ruling2.md, sha256
+3a6e6b7769a846092402f04e5c25d4fa4f791e74236bc567d7658cebd5554bcf, ordered that repair. On S1b:
+S3e guard liveness refuted the board-state test (exact-stop and glob widenings survived) and
+S3e records and leaks refuted the mypy counts, the exit 3 sentence and the prose counts - each
+fixed in S1c as (1) to (4) above. On S1c: S3f, verdict LAND, nothing blocking; its finding that
+the To MAIN list lacked the lanes render line and the key collision is fixed in this commit.
+Residuals, one line each:
+- S3b: no test here proves spawn() refuses "halted" on a declared sentinel (BACKLOG, To MAIN).
+- S3b: the CS-1116 plant calls `_planted_bounds()` but no arm asserts it does; a constant sleep or
+  ceiling survives at load factor 1 (BACKLOG).
+- S3c: `ops/status_board.json` names the board artifact URL in a public repository; whether that
+  artifact is private is unverified.
+- S3c: kit item 14 e lists the kinds build, inbox and triage while the kit's KINDS adds order -
+  kit-internal.
+- S3d: no whole suite ran with the held hand-off files dirty before the pre-push one.
+- S3d: the range pick writes the WIP's narrower sentinel declaration between its picks; accepted,
+  the live file read back unchanged after it.
+- S3e: the kit default glob `ops/loop/control/lanes/*` hides the lanes stops from every suite
+  guard (To MAIN).
+- S3e: the fleet_gitlock and fleet_claims mypy entries undercount since v17, as (2) above records.
+- S3e: the new tests' Linux behaviour was not run before landing; tier-1 CI is that read.
+- S3f: `test_the_installed_suite_guard_ignores_exactly_the_recorded_names` reads only the
+  fixture's ignore name, not its watch, root or inflow nor the set snapshot() receives, so a
+  widening kit fixture is caught by the byte pins only.
+- S3f: the record is the guard - a glob co-added to `GUARD_IGNORE` and `TREE_GUARD_IGNORE`, or a
+  stop dropped from the json and the declared set together, passes; no glob-metacharacter check.
+- S3f: OPERATIONS 12.3 and its BACKLOG line omit the lock-held, unmeasured and unreadable-prompt
+  exits, and a full budget window there also covers an unreadable budget; one ragged reflow line
+  in 12.3.
+
 ### 2026-10-18 - CS-700 - NOT A COMPLETION RECORD. CS-700 STAYS OPEN: the flip ran - S9 to S12 at T2, the repository PUBLIC from 15:27Z; S12a's post-flip reads, act (i), M1 and M2 read back; act (ii) is the push of this commit, acts (iii) and (iv) and the KEEP RULE close owed
 Verification: `docs/item_notes/phase7.md`, CS-700, THE PLAN steps S9 to S12a (the step texts this
 block ran); `tools/sha_citation_gate.py` with

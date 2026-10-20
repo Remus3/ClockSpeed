@@ -801,3 +801,19 @@ Process findings of session 145; the CS-1328 and CS-1307 records are in `docs/LE
   driver, or an inlined hooked git commit reaches a hook unseen - ten planted arms stayed green
   (session 145 acceptance adversary); trigger: an indirect caller of commit_through, push_through or
   run_wrapper lands, or a git-hook arm flakes under load.
+
+## Session 149 residuals - filed 2026-10-19 under product before process
+
+- CS-1330 residual: no test in this tree proves the vendored fleet_headless.spawn() refuses
+  "halted" when a declared stop sentinel exists - a mutant `hit = None` stayed green except the two
+  byte pins (session 149 S3b); trigger: the next FLEET-KIT re-pin, unless MAIN's kit suite is read
+  to cover it.
+- CS-1330 residual: the CS-1116 plant in tests/test_conftest_run_git.py uses _planted_bounds() but
+  no arm asserts it does - a constant 30 s sleep or a constant 20 s assert survives at load factor
+  1 (session 149 S3b M3d, M3e); trigger: the plant flakes under suite load, or the next edit to it.
+- CS-1330 residual: ops/loop/inbox_responder.py reports a kit Refused with code "halted" (a
+  declared QUEUE_STOP or HOLD_MAIN_SPAWN standing) as a route refusal - "kit_refused", status
+  refused, exit 3 on every tick with an unread note it acts on (own, terminal and retired notes
+  are skipped; a backoff or full budget window exits 0) - instead of the quiet halted state its
+  own STOP check gives; trigger: either file standing over such a tick after the tag (C7), or a
+  route fault hidden behind it.

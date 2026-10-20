@@ -304,22 +304,25 @@ EXEMPTION_REASON_MINIMUM: Final = 40
 #
 # CS-1290 - THREE ROWS, all in VENDORED fleet kit files (v13; lines re-pointed
 # to the v14 bytes under CS-1299, fleet_suite_gate.py's to v15 under CS-1303,
-# and fleet_gitlock.py's to v17 under CS-1310)
+# fleet_gitlock.py's to v17 under CS-1310, and both to v20.1 under CS-1330 - v18
+# moved the suite gate's hand-over into its nested default_runner() as a Popen
+# waited on with no timeout, so that row re-keys onto the Popen site)
 # (FLEET item 11: the
 # bytes are MAIN's, pinned by ops/fleet_kit/MANIFEST.json and tests/test_fleet_kit.py,
 # so a line that moves reddens both this table and that pin). Each is the ONE
 # call where a kit wrapper hands over to the command it exists to wrap, and that
 # command's duration is the caller's to bound, never the wrapper's.
 EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
-    ("ops/fleet_kit/fleet_gitlock.py", "run", "subprocess.run", 529): (
-        "VENDORED kit v13-v17 git lock: runs the caller's git commit or git push"
+    ("ops/fleet_kit/fleet_gitlock.py", "run", "subprocess.run", 542): (
+        "VENDORED kit v13-v20.1 git lock: runs the caller's git commit or git push"
         " inside the lock, and a push runs this tree's pre-push whole suite for"
         " tens of minutes; a wrapper timeout would kill a healthy push mid-hook."
     ),
-    ("ops/fleet_kit/fleet_suite_gate.py", "run", "subprocess.run", 513): (
-        "VENDORED kit v13-v15 suite gate: runs the caller's WHOLE test suite inside a"
-        " machine-wide slot; the suite's own length is the caller's to bound, and"
-        " the gate's own wait for a slot is already bounded (exit 3)."
+    ("ops/fleet_kit/fleet_suite_gate.py", "default_runner", "subprocess.Popen", 1026): (
+        "VENDORED kit v13-v20.1 suite gate: runs the caller's WHOLE test suite inside a"
+        " machine-wide slot (v18: a Popen waited on while its commit peak is"
+        " sampled); the suite's own length is the caller's to bound, and the"
+        " gate's own wait for a slot is already bounded (exit 3)."
     ),
     ("ops/fleet_kit/fleet_rewrite.py", "run", "subprocess.run", 431): (
         "VENDORED kit v13-v14 rewrite helper: runs git filter-repo over the whole"

@@ -389,6 +389,8 @@ KIT_FORMAT_EXCLUSIONS: Final = [
     "ops/fleet_kit/fleet_rewrite.py",
     "ops/fleet_kit/fleet_suite_gate.py",
     "ops/fleet_kit/fleet_test_guard.py",
+    # CS-1330 - the one module kit version 19 added.
+    "ops/fleet_kit/fleet_board.py",
 ]
 
 #: The kit's own pin, which names every file it vendors.

@@ -11,17 +11,24 @@
 //   STATE A# CODE/L# branch +N  ctx NN%  5h NN%  7d NN%  model eff
 //   STATE is blank, or DONE / FAIL (validated /done marker), NEEDS, STALE, BLOCK
 //   (v14: a progress row or the loop status says blocked - an outside condition
-//   such as a proxy outage), HALT.
+//   such as a proxy outage), HALT, FALLBK (v20: the loop status says headless
+//   runs moved to the armed fallback route after a 7-day limit).
 //   Absent value -> `--` in its slot. Narrow COLUMNS drops whole slots from the
 //   RIGHT; a slot never shrinks. Percent slots reserve two cells for the
 //   problem mark (>= 70 -> 33 + `!`, >= 90 -> 1;31 + `!!`), so a mark never
 //   moves a later slot.
 // Lines 2-5, workflow rows from ops/loop/control/progress/*.json (item 12):
 //   [>] task-name     [####------]  45% ~3m   step text
-//   Order = file creation (first seen), never re-sorted. [+]/[x] rows stay 10
-//   min after their last write; running silent > 2x ETA (floor 5 min) -> [!]
-//   STALE; a stale row older than 24 h is abandoned and dropped. Over 4 rows:
-//   3 rows + `... +N more`.
+//   v20: a file with "started" reads `45% ~3m of 6.5m [2:25PM]` (etaClock).
+//   Order (v16): running rows first, then stale, needs, blocked, halted,
+//   done/failed, abandoned; first-seen (file creation) order inside a group.
+//   [+]/[x] rows stay 10 min after their last write; running silent > 2x ETA
+//   (floor 5 min) -> [!] STALE. v16 (ruling 2026-10-10 stale-progress-rows):
+//   a running row whose recorded owner pid is gone, or that has been silent
+//   over ABANDON_S (2 h), is ABANDONED -> [~]; it never sets STALE while a
+//   live (running or stale) row exists, and is dropped after DROP_S (24 h).
+//   needs / blocked / halted rows keep the 24 h hold. Over 4 rows: 3 rows +
+//   `... +N more`.
 // Colour only on problems and on DONE. Files only, git dirty count cached per
 // cwd for 5 s, no network, ASCII + SGR only, always exit 0, never prints
 // names, emails or ids.
@@ -34,9 +41,9 @@ const { execFileSync } = require('child_process');
 
 const SLOTS = [['state', 6], ['acct', 2], ['code', 8], ['branch', 12],
   ['ctx', 10], ['h5', 9], ['d7', 9], ['model', 11]];
-const STATE_SGR = { DONE: '1;32', FAIL: '1;31', STALE: '1;31', NEEDS: '1;33', HALT: '35', BLOCK: '1;33' };
+const STATE_SGR = { DONE: '1;32', FAIL: '1;31', STALE: '1;31', NEEDS: '1;33', HALT: '35', BLOCK: '1;33', FALLBK: '1;33' };
 const ROW_GLYPH = { running: '[>]', done: '[+]', failed: '[x]', stale: '[!]',
-  needs: '[?]', halted: '[=]', blocked: '[#]' };
+  needs: '[?]', halted: '[=]', blocked: '[#]', abandoned: '[~]' };
 const ROW_SGR = { running: '1', failed: '1;31', stale: '1;31', needs: '1;33', halted: '35',
   blocked: '1;33' };
 const MARKER_REL = ['ops', 'loop', 'control', 'session_done.json'];
@@ -44,7 +51,11 @@ const PROGRESS_REL = ['ops', 'loop', 'control', 'progress'];
 const STATUS_REL = ['ops', 'loop', 'control', 'inbox_status.json'];
 const DONE_KEEP_S = 600;
 const STALE_FLOOR_S = 300;
-const ABANDON_S = 86400;
+const ABANDON_S = 7200;
+const DROP_S = 86400;
+const HOLD_S = 86400;
+const ROW_RANK = { running: 0, stale: 1, needs: 2, blocked: 3, halted: 4, failed: 5, done: 5,
+  abandoned: 6 };
 const GIT_TTL_MS = 5000;
 const MAX_ROWS = 4;
 const EFF = { low: 'lo', medium: 'md', high: 'hi', xhigh: 'xh', max: 'mx' };
@@ -200,8 +211,64 @@ function fmtEta(s) {
   return '~' + Math.round(s / 3600) + 'h';
 }
 
-function progressRows(main, nowMs) {
-  // Rows to show, in first-seen order: {state, task, pct, eta, step, order}.
+// v20 (CHECKLIST-ETA-CLOCK, operator order 2026-10-18): a running row whose
+// file carries "started" reads `45% ~3m of 6.5m [2:25PM]` - rem and total
+// rounded UP to 0.5 min, total = elapsed / pct (eta_s while pct is 0), the
+// bracket the local finish time fixed at the last update. Mirrors
+// fleet_checklist.eta_clock; a file without "started" keeps `45% ~3m`.
+
+function fmtHalfMin(sec) {
+  const n = Math.max(0, Math.ceil((Math.max(0, Number(sec) || 0) - 0.5) / 30));
+  return (n % 2 ? Math.floor(n / 2) + '.5' : String(n / 2)) + 'm';
+}
+
+function fmtClock(ms) {
+  const t = new Date(Math.ceil(ms / 1000 - 1e-6) * 1000);
+  if (t.getSeconds()) t.setSeconds(60, 0);
+  const h = t.getHours();
+  const mm = String(t.getMinutes()).padStart(2, '0');
+  return (h % 12 || 12) + ':' + mm + (h < 12 ? 'AM' : 'PM');
+}
+
+function isoMs(v) {
+  if (typeof v !== 'string' || !v) return null;
+  const ms = Date.parse(v);
+  return isFinite(ms) && ms > 0 ? ms : null;
+}
+
+function etaClock(pct, etaS, startedMs, nowMs, updatedMs) {
+  // All times in ms; '' without enough input.
+  pct = typeof pct === 'number' && isFinite(pct) ? Math.max(0, Math.min(100, Math.trunc(pct))) : 0;
+  const start = typeof startedMs === 'number' && startedMs > 0 ? startedMs : null;
+  const ref = typeof updatedMs === 'number' && updatedMs > 0 ? updatedMs : nowMs;
+  let total;
+  let finish;
+  if (pct > 0 && start !== null && ref > start) {
+    total = (ref - start) * 100 / pct;
+    finish = start + total;
+  } else if (typeof etaS === 'number' && isFinite(etaS)) {
+    finish = ref + Math.max(0, Math.trunc(etaS)) * 1000;
+    if (start !== null && start <= ref) total = finish - start;
+    else total = pct < 100 ? (finish - ref) * 100 / (100 - pct) : finish - ref;
+  } else {
+    return '';
+  }
+  const rem = Math.max(0, finish - nowMs);
+  return pct + '% ~' + fmtHalfMin(rem / 1000) + ' of ' + fmtHalfMin(total / 1000) +
+    ' [' + fmtClock(finish) + ']';
+}
+
+function ownerDead(owner, alive) {
+  // v16: true only when the row names an owner pid that no longer exists.
+  if (!owner || typeof owner !== 'object') return false;
+  const pid = owner.pid;
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (alive) return alive(pid) === false;
+  try { process.kill(pid, 0); return false; } catch (e) { return e && e.code === 'ESRCH'; }
+}
+
+function progressRows(main, nowMs, alive) {
+  // Rows to show, ranked (ROW_RANK) then first-seen: {state, task, pct, eta, step, order}.
   const dir = path.join(main, ...PROGRESS_REL);
   let names = [];
   try { names = fs.readdirSync(dir).filter((n) => n.endsWith('.json')); } catch (e) { return []; }
@@ -217,48 +284,55 @@ function progressRows(main, nowMs) {
     let state = null;
     if (d.status === 'running') {
       const limit = Math.max(2 * (eta || 0), STALE_FLOOR_S);
-      if (age > limit) state = age > ABANDON_S ? null : 'stale';
+      if (age > DROP_S) state = null;
+      else if (age > ABANDON_S || ownerDead(d.owner, alive)) state = 'abandoned';
+      else if (age > limit) state = 'stale';
       else state = 'running';
     } else if (d.status === 'done' || d.status === 'failed') {
       state = age <= DONE_KEEP_S ? d.status : null;
     } else if (d.status === 'needs-operator') {
-      state = age <= ABANDON_S ? 'needs' : null;
+      state = age <= HOLD_S ? 'needs' : null;
     } else if (d.status === 'halted') {
-      state = age <= ABANDON_S ? 'halted' : null;
+      state = age <= HOLD_S ? 'halted' : null;
     } else if (d.status === 'blocked') {
-      state = age <= ABANDON_S ? 'blocked' : null;
+      state = age <= HOLD_S ? 'blocked' : null;
     }
     if (!state) continue;
     let step = d.step;
     if (Array.isArray(d.checklist) && d.checklist.length && d.checklist[0]) step = d.checklist[0].task || step;
     const born = st.birthtimeMs || st.ctimeMs || st.mtimeMs;
     rows.push({ state, task: d.task || name.slice(0, -5), pct: d.pct, eta: state === 'running' ? eta : null,
-      step, order: born, name });
+      step, order: born, name, startedMs: isoMs(d.started), updatedMs: isoMs(d.updated) || st.mtimeMs });
   }
-  rows.sort((a, b) => (a.order - b.order) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  rows.sort((a, b) => (ROW_RANK[a.state] - ROW_RANK[b.state]) || (a.order - b.order) ||
+    (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return rows;
 }
 
 function pad(s, w) { s = String(s); return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length); }
 function rpad(s, w) { s = String(s); return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s; }
 
-function rowLine(r, columns, plain) {
+function rowLine(r, columns, plain, nowMs) {
   const pct = typeof r.pct === 'number' ? Math.max(0, Math.min(100, Math.round(r.pct))) : null;
   const fill = pct == null ? 0 : Math.round(pct / 10);
   const bar = '[' + '#'.repeat(fill) + '-'.repeat(10 - fill) + ']';
+  // v20: `~rem of total [clock]` once the file carries "started".
+  const clk = r.state === 'running' && r.startedMs
+    ? etaClock(pct == null ? 0 : pct, r.eta, r.startedMs, nowMs || Date.now(), r.updatedMs) : '';
+  const tail = clk ? clk.slice(clk.indexOf(' ') + 1) + ' ' : pad(fmtEta(r.eta), 5) + ' ';
   const head = ' ' + pad(ascii(r.task), 13) + ' ' + bar + ' ' + rpad(pct == null ? '--' : pct + '%', 4) +
-    ' ' + pad(fmtEta(r.eta), 5) + ' ';
+    ' ' + tail;
   const room = Math.max(0, columns - 3 - head.length);
   const step = ascii(r.step).replace(/\s+/g, ' ').trim().slice(0, room);
   return sgr(plain ? '' : ROW_SGR[r.state], ROW_GLYPH[r.state]) + (head + step).replace(/\s+$/, '');
 }
 
-function rowLines(rows, columns) {
+function rowLines(rows, columns, nowMs) {
   if (rows.length > MAX_ROWS) {
-    return rows.slice(0, MAX_ROWS - 1).map((r) => rowLine(r, columns))
+    return rows.slice(0, MAX_ROWS - 1).map((r) => rowLine(r, columns, false, nowMs))
       .concat(['... +' + (rows.length - (MAX_ROWS - 1)) + ' more']);
   }
-  return rows.map((r) => rowLine(r, columns));
+  return rows.map((r) => rowLine(r, columns, false, nowMs));
 }
 
 // ---------------------------------------------------------------- line 1
@@ -311,6 +385,13 @@ function blocked(main) {
   return !!(s && s.state === 'blocked');
 }
 
+function fallingBack(main) {
+  // v20 ACCT-FALLBACK: the loop status file carries fallback: true while the
+  // headless runs use the armed fallback route; the marker makes it visible.
+  const s = readJson(path.join(main, ...STATUS_REL));
+  return !!(s && s.fallback === true);
+}
+
 function fitSlots(slots, columns) {
   let n = slots.length;
   const width = (k) => slots.slice(0, k).reduce((a, s) => a + s.w, 0) + (k - 1);
@@ -335,15 +416,18 @@ function render(d, opts) {
   const code = (main && codeOf(main, opts.roster)) || (lane && lane.code) || null;
   const hd = headOf(info);
   const dirty = info ? (opts.dirty !== undefined ? opts.dirty : dirtyCount(info.worktree, nowMs)) : null;
-  const rows = main ? progressRows(main, nowMs) : [];
+  const rows = main ? progressRows(main, nowMs, opts.alive) : [];
+  const live = rows.some((r) => r.state === 'running' || r.state === 'stale');
   const verdict = markerVerdict(main, d.session_id, mainHead(info));
   let state = '';
   if (verdict === 'FAIL') state = 'FAIL';
   else if (verdict === 'DONE') state = 'DONE';
   else if (rows.some((r) => r.state === 'needs')) state = 'NEEDS';
-  else if (rows.some((r) => r.state === 'stale')) state = 'STALE';
+  else if (rows.some((r) => r.state === 'stale') ||
+    (!live && rows.some((r) => r.state === 'abandoned'))) state = 'STALE';
   else if (rows.some((r) => r.state === 'blocked') || (main && blocked(main))) state = 'BLOCK';
   else if (main && halted(main)) state = 'HALT';
+  else if (main && fallingBack(main)) state = 'FALLBK';
   const cfg = env.CLAUDE_CONFIG_DIR || '';
   const am = /acct(\d+)/i.exec(path.basename(cfg));
   const acct = 'A' + (am ? am[1] : '1');
@@ -366,7 +450,7 @@ function render(d, opts) {
     model: { text: model },
   };
   const slots = SLOTS.map(([k, w]) => ({ w, text: ascii(vals[k].text), sgr: vals[k].sgr }));
-  const lines = [fitSlots(slots, columns)].concat(rowLines(rows, columns));
+  const lines = [fitSlots(slots, columns)].concat(rowLines(rows, columns, nowMs));
   return lines.join('\n');
 }
 
@@ -375,7 +459,8 @@ function readStdin() {
 }
 
 module.exports = { render, progressRows, rowLine, rowLines, markerVerdict, gitInfo, headOf,
-  mainHead, codeOf, laneOf, pctSlot, fitSlots, fmtEta, SLOTS, ascii };
+  mainHead, codeOf, laneOf, pctSlot, fitSlots, fmtEta, etaClock, fmtHalfMin, fmtClock, SLOTS, ascii, ownerDead,
+  ABANDON_S, DROP_S };
 
 if (require.main === module) {
   let out;

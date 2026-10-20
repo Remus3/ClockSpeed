@@ -898,19 +898,40 @@ def graded_sources() -> Mapping[str, str]:
     }
 
 
+#: CS-1330 - HELPERS INSIDE A VENDORED FLEET KIT FILE, RECORDED RATHER THAN
+#: GRADED. Kit version 20's ``_route_invalid`` is reached from censused raises
+#: (``raise _route_invalid(...) from None``) the way this tree's own
+#: ``_pathless_cause`` copies are, but it builds a kit ``Refused`` rather than a
+#: path-free clone, so it can neither share their body nor qualify. Grading it
+#: would demand an edit of the kit's bytes, which FLEET item 11 forbids here.
+#: Each key is held EXACTLY by
+#: ``test_every_recorded_vendored_copy_is_live_and_at_the_kit_pin``: it must
+#: still be found, and its module must be the kit's pinned bytes, so a helper
+#: this tree wrote can never be recorded here.
+VENDORED_COPIES: Final[frozenset[str]] = frozenset(
+    {
+        "ops/fleet_kit/fleet_headless.py::_route_invalid",
+    }
+)
+
+
 @cache
 def reliances() -> tuple[Reliance, ...]:
     """The live reliance population, derived on every run.
 
     Returns:
         Every censused raise in the graded tree that leans on a same-module
-        helper.
+        helper, less those leaning on a :data:`VENDORED_COPIES` helper.
 
     Raises:
         PathlessCloneDerivationError: The tree could not be parsed.
         RuntimeError: git is unavailable or reported failure.
     """
-    return reliances_in_sources(graded_sources())
+    return tuple(
+        reliance
+        for reliance in reliances_in_sources(graded_sources())
+        if f"{reliance.module}::{reliance.callee}" not in VENDORED_COPIES
+    )
 
 
 @cache
@@ -919,10 +940,24 @@ def copies() -> tuple[Copy, ...]:
 
     Returns:
         One entry per distinct helper the graded tree's censused raises rely
-        on.
+        on, less the :data:`VENDORED_COPIES`.
 
     Raises:
         PathlessCloneDerivationError: The tree could not be parsed.
         RuntimeError: git is unavailable or reported failure.
     """
-    return copies_in_sources(graded_sources())
+    return tuple(c for c in copies_in_sources(graded_sources()) if c.key not in VENDORED_COPIES)
+
+
+@cache
+def vendored_copies() -> tuple[Copy, ...]:
+    """The live copies :data:`VENDORED_COPIES` records, derived on every run.
+
+    Returns:
+        The recorded vendored helpers the sweep still reaches.
+
+    Raises:
+        PathlessCloneDerivationError: The tree could not be parsed.
+        RuntimeError: git is unavailable or reported failure.
+    """
+    return tuple(c for c in copies_in_sources(graded_sources()) if c.key in VENDORED_COPIES)

@@ -201,6 +201,7 @@ ops/fleet_kit/LICENSE	vendored	CS-1231	stamped
 ops/fleet_kit/MANIFEST.json	vendored	CS-1231	stamped
 ops/fleet_kit/NOTICE	vendored	CS-1231	stamped
 ops/fleet_kit/cli_display.json	vendored	CS-1272	stamped
+ops/fleet_kit/fleet_board.py	vendored	CS-1330	stamped
 ops/fleet_kit/fleet_checklist.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_claims.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_done.py	vendored	CS-1272	stamped
@@ -234,6 +235,8 @@ ops/loop/run_lane.ps1	authored	CS-918	first-add:CS-918
 ops/loop/scope.py	authored	CS-994	first-add:CS-994
 ops/loop/slots.py	vendored	CS-946	first-add:CS-946
 ops/loop/winmutex.py	vendored	CS-918	first-add:CS-918
+ops/status_board.json	authored	CS-1330	stamped
+ops/stop_sentinels.json	authored	CS-1330	stamped
 pyproject.toml	authored	CS-1165	first-add:root
 scripts/install_hooks.py	authored	CS-1165	first-add:root
 scripts/make_cert.py	authored	CS-601	first-add:CS-601
