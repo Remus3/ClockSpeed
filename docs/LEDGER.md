@@ -75,6 +75,39 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-19 - CS-1331 - the CS-1312 lstat denial forwards dir_fd; the Linux save-shard red repaired
+Verification: `tests/save/test_workdir.py::test_the_lstat_denial_takes_every_keyword_the_real_lstat_takes`,
+`tests/save/test_workdir.py::test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused`
+and `tests/save/test_workdir.py::test_the_workdir_suite_passes_with_no_install_and_no_save`;
+the repaired helper is `tests/save/test_workdir.py::deny_stat_of`.
+
+Repairs the tier-1 red that CS-1330's landing exposed on Linux only, in the `tests (save
+shard)` job. Cause, read with `--setup-show`: the kit's new `_fleet_headless_route` autouse
+fixture (`ops/fleet_kit/fleet_test_guard.py`, installed by `tests/conftest.py`) asks for
+`monkeypatch` before `_fleet_runtime_roots` asks for `tmp_path`, so `tmp_path`'s teardown
+`rmtree` - run on every pass under `tmp_path_retention_policy = "failed"` - now runs while
+a test's patches are still live. POSIX `rmtree` calls `os.lstat(name, dir_fd=...)`, the
+helper's stand-in took no `dir_fd`, and its TypeError escaped `ignore_errors` at teardown.
+Fix: the stand-in takes and forwards `dir_fd`; the denial is unchanged. Sibling sweep over
+`tests/`, `tools/`, `ops/` and `scripts/`: no other live patch can raise in that teardown.
+Residual, leak-only and swallowed by `ignore_errors`:
+`tests/test_main_provenance.py::test_a_scandir_error_refuses` leaves its `tmp_path` behind,
+and on Windows a test that `monkeypatch.chdir`s into `tmp_path` leaves that empty directory.
+The fixture ordering is the kit's, never edited here; it is MAIN's to change.
+ADVERSARIES (distinct, read-only, default refuted, agent-reported): NOT REFUTED, verdict LAND,
+no blocking finding. Method: the candidate pinned in a scratch clone and run on real Linux (WSL
+Ubuntu, CI's CPython minor) and on Windows; on Linux the base reproduced CI's teardown TypeError
+on `dir_fd` and the candidate passed, the whole of `tests/save/test_workdir.py` included;
+`--setup-show` confirmed the fixture-order cause; mutants of `deny_stat_of`, each applied by a
+unique anchor, hashed and restored; every os-level monkeypatch live at a `tmp_path` teardown
+read; the hygiene, census and citation gates, ruff, mypy and `tools/drift_guard.py` run on the
+clone. Residuals, one line each:
+- Docstring: the new test's "whatever keywords" claim is measured only for `dir_fd=None` - a stand-in that denies only that case survives on Linux and on Windows.
+- Dead on Windows: the new test's relative `dir_fd` arm cannot fire where `os.lstat` takes no `dir_fd`, so a stand-in that drops it dies only on Linux CI, never in the local pre-push suite.
+- Pre-existing, not CS-1331: the `os.lstat` half of the CS-1312 denial is not load-bearing - a forward-everything, deny-nothing stand-in leaves the CS-1312 cases green at base and candidate; filed in `BACKLOG.md`.
+- Scope: the cause is the kit's fixture order, so a future narrow `os` stand-in can pass on Windows and error only on Linux, and no guard prevents it; filed in `BACKLOG.md`, no note to MAIN in this delta.
+- `tests/test_claude_hook.py` holds a narrow `os.open` stand-in, safe only because an explicit `monkeypatch.undo()` in a `finally` runs before teardown.
+
 ### 2026-10-19 - CS-1330 - vendor FLEET-KIT v20.1, the v18 to v20 tree steps folded in
 Verification: `tests/test_fleet_kit.py::test_fleet_kit_conformance`,
 `tests/test_fleet_kit.py::test_fleet_kit_files_match_manifest`,

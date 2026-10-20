@@ -817,3 +817,12 @@ Process findings of session 145; the CS-1328 and CS-1307 records are in `docs/LE
   are skipped; a backoff or full budget window exits 0) - instead of the quiet halted state its
   own STOP check gives; trigger: either file standing over such a tick after the tag (C7), or a
   route fault hidden behind it.
+- CS-1331 residual: the os.lstat half of the CS-1312 denial in
+  tests/save/test_workdir.py::deny_stat_of was already vacuous at base - a forward-everything,
+  deny-nothing stand-in leaves the CS-1312 partial-name cases green at base and at CS-1331, on
+  Linux and on Windows (session 149 adversary), so "the denial is unchanged" proves nothing about
+  that half; trigger: the next edit to deny_stat_of or to the CS-1312 cases.
+- CS-1331 residual: the kit's fixture order (_fleet_headless_route asks for monkeypatch before
+  _fleet_runtime_roots asks for tmp_path) keeps a test's patches live through tmp_path's teardown
+  rmtree, so a narrow os stand-in can pass on Windows and fail only on Linux CI, and no guard here
+  catches it; trigger: the next FLEET-KIT re-pin - re-check the order there.

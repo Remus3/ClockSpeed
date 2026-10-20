@@ -2325,7 +2325,10 @@ def deny_stat_of(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
     ``os.lstat`` raises EACCES for it. ``os.path.lexists`` - a C builtin on
     Windows that does not go through ``os.lstat`` - answers False for it,
     which is what it does when that lstat is denied: it swallows the error.
-    Every other path is forwarded to the real function.
+    Every other path is forwarded to the real function, with the real
+    function's ``dir_fd`` keyword: ``tmp_path``'s own teardown ``rmtree`` can
+    run while this patch is live and calls ``os.lstat(name, dir_fd=...)`` on
+    POSIX (CS-1331).
 
     Args:
         monkeypatch: The pytest fixture, which undoes both after the test.
@@ -2334,16 +2337,55 @@ def deny_stat_of(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
     real_lstat = os.lstat
     real_lexists = os.path.lexists
 
-    def denied_lstat(path: str | os.PathLike[str]) -> os.stat_result:
+    def denied_lstat(path: str | os.PathLike[str], *, dir_fd: int | None = None) -> os.stat_result:
         if os.fspath(path) == os.fspath(target):
             raise PermissionError(errno.EACCES, "Access is denied")
-        return real_lstat(path)
+        return real_lstat(path, dir_fd=dir_fd)
 
     def denied_lexists(path: str | os.PathLike[str]) -> bool:
         return os.fspath(path) != os.fspath(target) and real_lexists(path)
 
     monkeypatch.setattr(os, "lstat", denied_lstat)
     monkeypatch.setattr(os.path, "lexists", denied_lexists)
+
+
+def test_the_lstat_denial_takes_every_keyword_the_real_lstat_takes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stand-in ``os.lstat`` accepts and forwards ``dir_fd`` (CS-1331).
+
+    pytest's ``tmp_path`` teardown runs ``shutil.rmtree`` under this suite's
+    ``tmp_path_retention_policy = "failed"``, and since the fleet kit's v20.1
+    route fixture asks for ``monkeypatch`` before ``tmp_path`` is set up, that
+    teardown runs while a test's patches are still live. On POSIX ``rmtree``
+    calls ``os.lstat(name, dir_fd=...)``; a stand-in narrower than the real
+    function raises TypeError there, which ``ignore_errors`` does not swallow,
+    and the CS-1312 test ERRORED at teardown on Linux CI. Every other path
+    reaches the real function with every keyword it came with, and the denied
+    path stays denied whatever keywords come with it. The relative-name arm
+    runs only where ``os.lstat`` takes a real directory descriptor - POSIX,
+    where the failure was measured.
+    """
+    denied = tmp_path / "denied"
+    other = tmp_path / "other"
+    denied.write_bytes(b"denied")
+    other.write_bytes(b"other")
+    expected = os.lstat(other)
+    takes_a_directory_descriptor = os.lstat in os.supports_dir_fd
+    deny_stat_of(monkeypatch, denied)
+
+    forwarded = os.lstat(other, dir_fd=None)
+    assert os.path.samestat(forwarded, expected), "dir_fd=None did not reach the real lstat"
+    with pytest.raises(PermissionError) as caught:
+        os.lstat(denied, dir_fd=None)
+    assert caught.value.errno == errno.EACCES, "the denied path was not denied with dir_fd"
+    if takes_a_directory_descriptor:
+        directory = os.open(tmp_path, os.O_RDONLY)
+        try:
+            relative = os.lstat(other.name, dir_fd=directory)
+        finally:
+            os.close(directory)
+        assert os.path.samestat(relative, expected), "a real dir_fd did not reach the real lstat"
 
 
 @pytest.mark.parametrize("kind", ["symlink", "dangling-symlink"])
@@ -2936,6 +2978,11 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
         ),
         "test_the_copy_survives_a_body_with_every_byte_value": (
             "reads back a synthetic body this test wrote into tmp_path "
+        ),
+        "test_the_lstat_denial_takes_every_keyword_the_real_lstat_takes": (
+            "writes two files into tmp_path and opens tmp_path itself as a "
+            "directory descriptor, to lstat those files through the CS-1331 "
+            "stand-in, never a save directory "
         ),
         "test_workdir_is_the_only_save_module_that_can_write": (
             "globs THIS REPO's own clockspeed/save sources to prove no "
