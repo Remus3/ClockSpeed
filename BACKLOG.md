@@ -826,3 +826,30 @@ Process findings of session 145; the CS-1328 and CS-1307 records are in `docs/LE
   _fleet_runtime_roots asks for tmp_path) keeps a test's patches live through tmp_path's teardown
   rmtree, so a narrow os stand-in can pass on Windows and fail only on Linux CI, and no guard here
   catches it; trigger: the next FLEET-KIT re-pin - re-check the order there.
+
+## Session 150 residuals - filed 2026-10-20 under product before process
+
+Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `docs/LEDGER.md`,
+2026-10-20). None blocks a product item or reddens a suite.
+
+- CS-704 tidy (A-S12a ITEM 4.5 and 4.6, ruled no edit owed): the trailer-baseline accept set in
+  `.github/workflows/tier1.yml` and `tests/test_trailer_routes.py` still lists its pre-rewrite
+  member beside that member's S7a image, and `tools/sha_citation_gate.py` still holds the
+  S7A_IMAGE_ROWS allowlist rows; tier1 resolves the image as its baseline, so dropping them would
+  amend the 2026-10-04 CS-704 ruling (the accept set is exactly two) in a workflow and a test
+  module; trigger: a tier1 red on that step, or the next edit to either file.
+- CS-700 cleanup item (A-S12a ITEM 2 step 17; CS-NEXT-SESSION.txt C13): retire or reset the
+  old-history linked worktrees one at a time, each classified by content and bundled before its
+  removal, its M2 push guard taken off only as it retires and never pushed from; then prune the
+  pre-rewrite local refs in one update-ref --stdin transaction after a fresh bundle, never
+  tagged; never a bulk prune, never a live agent's tree; trigger: the lanes need the worktree
+  slots or the disk, or C13 is worked.
+- CS-700 ADR 0025 10d amendment note (ADV-B2 item 4, advb2-review.txt in the flip records folder
+  outside the tree, sha256 041afee6e048535ab1c43c87d467afda69bd2fbbfb0cd4b1c4ffafececc7df03): one
+  "AMENDED 2026-10-18 by CS-700:" paragraph closing point 10 of
+  `docs/adr/0025-the-tier-3-flip-checks-run-locally.md`, Status unchanged - 10b executed at A''
+  (named in words there, no hex), check 6 pins one set, 10c's last clause and 10d's count and
+  final-line term lapsed, and the 10d flip-record reading is step 5's on T2; real drift that no
+  guard enforces (`tests/test_dated_headings.py` skips the ADRs); left out of B because no
+  adjudicator of B added it to B's list; trigger: an adjudicator adds it, or the next edit to
+  that ADR.

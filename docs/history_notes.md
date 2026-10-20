@@ -20145,3 +20145,75 @@ UNVERIFIED BY THE SESSION 146 /done DRAFTER: every session 146 figure above was 
   refs and worktree counts, CLAUDE.md's size, the sentinels by presence, the headless usage log's
   last two rows, the inbox status and the inbox folder listing).
 ```
+
+## Hand-off blocks - archived 2026-10-20 from `CS-NEXT-SESSION.txt` by commit B's author in session 150, verbatim
+
+**Moved here from the session 149 hand-off when commit B's author rewrote that file from its
+committed bytes (the S149-DONE ruling's C6/G3 line) in session 150.** Nothing below is
+current. Each block is quoted verbatim inside a text fence under the old file's own section
+title; the rewritten hand-off states in one line what each block held that is still open.
+The whole session 149 hand-off is also kept in git history, as the commit the session 149
+/done made, and byte for byte in that session's /done copy folder outside the tree.
+
+### From the session 149 hand-off: the header and its COMMIT STATE lines
+
+```text
+Written by the session 149 /done, 2026-10-20. Session 149 LANDED FLEET KIT v20.1 AS CS-1330 (tier1
+RED on the Linux save shard), repaired it as CS-1331 (tier1 green) and sent S5 to MAIN. S12a did
+NOT advance (R', B, the tag owed): HOLD_MAIN_SPAWN STANDS. Every item the session 148 hand-off held
+and session 149 did not act on is carried as one line plus a pointer to its full text; closed
+history and rationale moved verbatim to THE RELOCATION. The operator starts with "continue".
+COMMIT STATE OF THIS FILE: the S149-DONE ruling (gitignored, named in NAMES) applied the normal
+CS-1321 path - M landed between A'' and R', firing A-DONE's and S147-DONE's REVERSED BY, and the
+window signal read CLOSED - so this file and its records were committed (those three paths only);
+push of this commit pending at write time; push result and CI UNREAD - the next session's first
+act reads the remote ref against this HEAD and the CI run.
+```
+
+### From the session 149 hand-off: THE SINGLE NEXT ACTION - the G1 line
+
+```text
+   G1 (S149-DONE ruling; A-DONE G1-G7 RETIRED when the session 149 /done committed its records):
+   porcelain --untracked-files=all EMPTY; HEAD == the commit that last wrote this file, parent M;
+   origin/main == HEAD, or == M with HEAD unpushed (push it first, its pre-push suite gates it);
+   else STOP, a distinct adjudicator.
+```
+
+### From the session 149 hand-off: THE SINGLE NEXT ACTION - W2
+
+```text
+   W2 CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2, provenance verified): MAIN closes
+   it on a CS ANSWER or a green CS /done. Cause (inferred from the gate's timing): the session
+   148 v20.1 WIP suite, exit 1, 8 clone-census failures, fixed in CS-1330. THIS /done's pre-push
+   suite green (summary, no BLOCKED, ls-remote == HEAD): CLOSED - counts in the C8 ANSWER, ack by
+   key (C11); else a FIRST-WAVE LANE ITEM.
+```
+
+### From the session 149 hand-off: THE CLOSING SEQUENCE - C5a and C5
+
+```text
+ C5a OWED (S0 residual, narrowed by S149-DONE): a distinct adjudicator re-reads C5 and C6 against
+    the current tip (this /done's commit, or what follows it).
+ C5 R' (a builder; its P0, exact subject and body: S148 COPY, C5): `git cherry-pick --no-commit
+    refs/preserve/s146/gh-hygiene-readme`, staged exactly README.md, byte-equal to the ref's diff,
+    `git commit -F` through fleet_gitlock, never -a, a pathspec or `git add -A`; a conflict: STOP.
+    Pushed in B's push.
+```
+
+### From the session 149 hand-off: DECISIONS IN FORCE - the C5 line
+
+```text
+- C5's pick undone, its diff on the preserve ref (Rev: the ref lost). S147-DONE Q2: sessions 147 to
+  149's decisions live here until B (Rev: B's adjudicator).
+```
+
+### From the session 149 hand-off: the SESSION 149 /done FINAL REPORT
+
+```text
+=== SESSION 149 /done - FINAL REPORT (counts observed THIS RUN) ===
+START 2026-10-20T00:32:15-05:00. WINDOW CLOSED (both reads rc 0). STEP 0: G1 equal (s148 copies,
+marker); S149-DONE COMMIT. STEP 1 tier 2: mypy exit 0; ruff check . 0; ruff format --check . 0;
+25 doc test files exit 0, 2586 passed, 0 skipped. drift_guard 0; doc_budget 0; sha_citation_gate
+0; memory_sync n/a (memory/ unchanged). This file 30390 bytes. PUSH: as COMMIT STATE; its pre-push
+suite is the one gated whole suite. UNVERIFIED: none; the board FAILED (above).
+```

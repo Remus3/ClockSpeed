@@ -1,14 +1,13 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written by the session 149 /done, 2026-10-20. Session 149 LANDED FLEET KIT v20.1 AS CS-1330 (tier1
-RED on the Linux save shard), repaired it as CS-1331 (tier1 green) and sent S5 to MAIN. S12a did
-NOT advance (R', B, the tag owed): HOLD_MAIN_SPAWN STANDS. Every item the session 148 hand-off held
-and session 149 did not act on is carried as one line plus a pointer to its full text; closed
-history and rationale moved verbatim to THE RELOCATION. The operator starts with "continue".
-COMMIT STATE OF THIS FILE: the S149-DONE ruling (gitignored, named in NAMES) applied the normal
-CS-1321 path - M landed between A'' and R', firing A-DONE's and S147-DONE's REVERSED BY, and the
-window signal read CLOSED - so this file and its records were committed (those three paths only);
-push of this commit pending at write time; push result and CI UNREAD - the next session's first
-act reads the remote ref against this HEAD and the CI run.
+Written by the session 149 /done, 2026-10-20; rewritten in session 150 by B's author from its
+committed bytes (C6/G3). Session 149 LANDED FLEET KIT v20.1 AS CS-1330 (tier1 RED on the Linux
+save shard), repaired it as CS-1331 (tier1 green) and sent S5 to MAIN. Session 150: C5a GO at
+D; R' and B COMMITTED, NOT PUSHED; HOLD_MAIN_SPAWN STANDS. Every item the session 148 hand-off
+held and sessions 149 and 150 did not act on is carried as one line plus a pointer to its full
+text; closed history moved verbatim to THE RELOCATION. The operator starts with "continue".
+COMMIT STATE OF THIS FILE: committed in B, on R'; R' and B NOT pushed at this write - their ONE
+push follows ADV-B (C6). D, the session 149 /done's commit, LANDED and read back green (C5a):
+ls-remote main == D; tier1 39380059462 and tier2 39394172124 success.
 
 SESSION: 150
 
@@ -17,6 +16,9 @@ T2  f9b877256dd82e8d2844b6d7c876d3ab822ff097, the published flip tip.
 A'' 67b6d7c6f81100c4a3f0f7442c35a16d5572f655, the act (ii) ledger commit, parent T2.
 L   a1701b276728c92b3bf5fd716841c808771dc06d, CS-1330, parent A''.
 M   5d70a412315ebe5c2d8ebfd3d9a430ddb07deac0, CS-1331, parent L - origin/main at this /done's start.
+D   fa61bbc90a53d10507ba31466bdfe206322b4db6, the session 149 /done's commit, parent M; pushed.
+R' and B (session 150, unpublished at B's write, so in words): R' the README re-application,
+  parent D, README.md only (C5); B the KEEP RULE (6) docs commit, parent R' (C6).
 THE HEADLESS README COMMIT - MAIN's v19 spawn's README commit, NEVER PUBLISHED, its diff on
   refs/preserve/s146/gh-hygiene-readme; R' re-applies it (C5); B is the KEEP RULE (6) commit (C6).
 THE RULINGS, gitignored in the data directory: A-432 (RULING 4 IS THE SEQUENCE), A-S12a, A-S10,
@@ -35,7 +37,7 @@ THE S148 COPY - CS-NEXT-SESSION.txt in s148-done-copies, sha256
   this file shortens ("S148 COPY, <section>").
 THE RELOCATION - docs/history_notes.md, its section "Hand-off blocks - archived 2026-10-20 from
   CS-NEXT-SESSION.txt by the session 149 /done": the S148 COPY's closed and superseded blocks, its
-  DECISIONS and TRAPS, verbatim.
+  DECISIONS and TRAPS, verbatim; and the next section, by B's author: the blocks B replaced.
 
 === OPERATOR DIRECTIVE FOR SESSION 150 - THE OPERATOR'S OWN WORDS, VERBATIM (session 149) ===
 "when these are completed and **/done for clear to proceed next session as the headless background
@@ -74,12 +76,12 @@ BOUNDS THAT STILL APPLY:
    budget file: a start after this /done is a MAIN spawn - an adjudicator first. (f) CPU, free RAM,
    no main-checkout whole suite running. (g) `python tools/inbox_watch.py`; the remote PUBLIC;
    `git worktree list`.
-   G1 (S149-DONE ruling; A-DONE G1-G7 RETIRED when the session 149 /done committed its records):
-   porcelain --untracked-files=all EMPTY; HEAD == the commit that last wrote this file, parent M;
-   origin/main == HEAD, or == M with HEAD unpushed (push it first, its pre-push suite gates it);
+   G1 (S149-DONE ruling 5, re-based to B by B's author): porcelain --untracked-files=all EMPTY;
+   HEAD == the commit that last wrote this file (B), B^ == R', R'^ == D; origin/main == HEAD, or
+   == D with R' and B unpushed (C6: ADV-B, then their ONE push, its pre-push suite gates it);
    else STOP, a distinct adjudicator.
 2. FIRST WAVE, in parallel: W1 by one sub-agent; W2; and CLOSE S12a, each step read back before
-   the next: C5a, C5, C6 (R' and B in ONE push), C7.
+   the next: C5a and C5 DONE, C6 (B committed; ADV-B, then R' and B in ONE push), C7.
    W1 THE GITHUB-SECURITY-FINDINGS ORDER - HIGH, UNANSWERED (MAIN to all six, 2026-10-18-2243,
    provenance verified, sha256 fe218a98eac5aeccb356c18972264ddc2c63e710248aca762cf038ad676b2c31;
    no CS answer in the outbox). ONCE: every OPEN code-scanning, Dependabot and secret-scanning
@@ -88,11 +90,9 @@ BOUNDS THAT STILL APPLY:
    batched to the operator); dismiss false positives with a reason via the API; read back each
    state; record per kind before -> after, fixed, dismissed, left (why) here; ONE ANSWER,
    TERMINAL, HOP 2. Another runner reading it records it seen, no work. C9's 1g overlaps it.
-   W2 CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2, provenance verified): MAIN closes
-   it on a CS ANSWER or a green CS /done. Cause (inferred from the gate's timing): the session
-   148 v20.1 WIP suite, exit 1, 8 clone-census failures, fixed in CS-1330. THIS /done's pre-push
-   suite green (summary, no BLOCKED, ls-remote == HEAD): CLOSED - counts in the C8 ANSWER, ack by
-   key (C11); else a FIRST-WAVE LANE ITEM.
+   W2 CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2) CLOSED (C5a; S149-DONE ruling 9):
+   D's pre-push suite 16450 passed, 0 failed, 12 skipped, no BLOCKED line, ls-remote == D (this
+   ritual's timing record) - those counts go in the C8 ANSWER; ack the note by key (C11).
 3. LIFT THE HOLD after C7 reads back, with NO main-checkout whole suite running: say the method
    (Recycle Bin, FLEET 9), remove the file ops/loop/control/HOLD_MAIN_SPAWN only (its declaration
    stays - S0 ruling 2), read it absent and the responder's next tick (C11). C8 then runs from the
@@ -114,13 +114,13 @@ BOUNDS THAT STILL APPLY:
 
 === THE CLOSING SEQUENCE - WHAT REMAINS (A-432 RULING 4; C1-C4 DONE and C10 CLOSED by CS-1330
 are in THE RELOCATION; each step's full text: S148 COPY, THE CLOSING SEQUENCE) ===
- C5a OWED (S0 residual, narrowed by S149-DONE): a distinct adjudicator re-reads C5 and C6 against
-    the current tip (this /done's commit, or what follows it).
- C5 R' (a builder; its P0, exact subject and body: S148 COPY, C5): `git cherry-pick --no-commit
-    refs/preserve/s146/gh-hygiene-readme`, staged exactly README.md, byte-equal to the ref's diff,
-    `git commit -F` through fleet_gitlock, never -a, a pathspec or `git add -A`; a conflict: STOP.
-    Pushed in B's push.
- C6 B, DOCS ONLY, ON R' (content list: S148 COPY, C6): NO CS-G03 record; sessions 147 to 149's
+ C5a DONE (session 150): a distinct read-only adjudicator ruled GO for C5 and for authoring C6
+    at D, CI green at D; C7 GO after C6 reads back.
+ C5 R' DONE (session 150): the pick staged exactly README.md, its stable patch-id equal to the
+    preserve ref's; committed through fleet_gitlock with the S148 COPY's subject and body;
+    read back R'^ == D, README.md the only path. Pushed in B's push.
+ C6 B, DOCS ONLY, ON R' - COMMITTED, NOT PUSHED (content list: S148 COPY, C6; what B left out
+    and why: its LEDGER record): NO CS-G03 record; sessions 147 to 149's
     decisions; CS-700 CLOSED only by a distinct adjudicator reading its Acceptance (else phase7.md
     NOT grown; closing it reddens the arms citing it - run tests/surface and
     tests/ops/test_lane_scope.py); BACKLOG lines for the CS-704 tidy and C13; the ADR 0025 10d note
@@ -186,8 +186,8 @@ are in THE RELOCATION; each step's full text: S148 COPY, THE CLOSING SEQUENCE) =
  0 CS-1317 (K2). 0b CS-1318 - its close REFUTED: the rework drives the TEST ARM itself at 382b3bb
    and at the repair under load, then a fresh freeze and adversary; a rerun is never evidence. KEEP
    its refuted branch, "CS-1318 - reap replay tool and dispatch-only ubuntu replay workflow".
- 0c CS-1328 - owes C7, C8, K5; (g) is C9. 1 CS-700 - owes C5a to C6; closes only on a distinct
-   adjudicator at B. CS-704 a BACKLOG line in B; CS-959 done; CS-701 handled by S7a; CS-G03 C14;
+ 0c CS-1328 - owes C7, C8, K5; (g) is C9. 1 CS-700 - owes ADV-B, B's push (C6), C7; B left it
+   OPEN (C6). CS-704 a BACKLOG line in B; CS-959 done; CS-701 handled by S7a; CS-G03 C14;
    CS-500's S9 trace and S7/S8 blocked on CS-1043, CS-1048, CS-1058, CS-1243.
  2 CS-1231 (K1); CS-1234: is every kit-written task name basic-set - UNVERIFIED, re-read v20.1;
    MAIN 2237 section 3 item 4 rides with slice C.
@@ -214,8 +214,8 @@ shard. CS-815: does the desktop app SHOW the "REFUSED (CS-815)" hook-error line.
 === STATE OF THE TREE (read live) ===
 ROOT the E: checkout (ADR 0026), C: a junction. Land by cherry-pick, never merge (CS-1196). No
   main-tree pushurl; each linked worktree carries the M2 guard.
-RECORDS: the three COMMITTED by this /done (S149-DONE), copied with SHA256SUMS to THE COPY
-  FOLDER; porcelain EMPTY expected (G1).
+RECORDS: the three COMMITTED by the session 149 /done (S149-DONE), copied with SHA256SUMS to
+  THE COPY FOLDER, then rewritten in B (G3); porcelain EMPTY expected (G1, KEEP (7)).
 REFS 511 (heads 371) at this /done; remotes exactly origin/HEAD and origin/main; tags 0; the
   pre-rewrite refs local until C13; the preserve ref (C5). NEW IDS FROM CS-1332 - re-check `git
   grep` and `git log --all` first; the responder and lanes allocate too.
@@ -242,8 +242,9 @@ THE SAVE DIR: never written to; no save, world, account or home-path name in a t
   two commits; 4.5/4.6 no CS-704 edit (Rev: a tier1 red on it). S8 (A) precondition 6 MET BY
   ADJUDICATION, clearance after K4; ADV-SEND tag after the lift; ADV-B2 4. Rev: their lists.
 - OWN WORDS never a relay, paraphrase or MAIN note. Rev: only the exact line typed here.
-- C5's pick undone, its diff on the preserve ref (Rev: the ref lost). S147-DONE Q2: sessions 147 to
-  149's decisions live here until B (Rev: B's adjudicator).
+- C5's session 148 pick undone - SPENT: R' re-applied it (session 150); the preserve ref KEPT
+  until R' reads back on the remote (C12). S147-DONE Q2: sessions 147 to 149's decisions live
+  here, and B's LEDGER record records them (Rev: B's adjudicator).
 - S0 R1 CS-1330 the next free id. R2 the four-path declaration permanent; the hold lifts by its FILE
   after C7 (Rev: MAIN asking three paths). R3 relocate into docs/history_notes.md, never
   handoff-archive or archive --apply, until B (Rev: B; MAIN). R4 bounds on budget(); no
@@ -354,8 +355,8 @@ and S5; the CS-1207 and CS-815 rulings; the dead-secret files; CS-1318's evidenc
 START 2026-10-20T00:32:15-05:00. WINDOW CLOSED (both reads rc 0). STEP 0: G1 equal (s148 copies,
 marker); S149-DONE COMMIT. STEP 1 tier 2: mypy exit 0; ruff check . 0; ruff format --check . 0;
 25 doc test files exit 0, 2586 passed, 0 skipped. drift_guard 0; doc_budget 0; sha_citation_gate
-0; memory_sync n/a (memory/ unchanged). This file 30390 bytes. PUSH: as COMMIT STATE; its pre-push
-suite is the one gated whole suite. UNVERIFIED: none; the board FAILED (above).
+0; memory_sync n/a (memory/ unchanged). This file 30390 bytes. PUSH: LANDED, read back by C5a in
+session 150 (W2, COMMIT STATE). UNVERIFIED: none; the board FAILED (above).
 
 === READ FIRST ===
 CLAUDE.md; memory/MEMORY.md; ROADMAP.md; WAKEUP_NOTES.md; docs/ARCHITECTURE.md;

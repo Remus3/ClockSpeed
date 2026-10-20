@@ -75,6 +75,149 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-20 - CS-700 - NOT A COMPLETION RECORD. CS-700 STAYS OPEN: S12a's closing sequence read back through act (iv) and the hold; the README change re-applied as its own commit directly below this one; this is the KEEP RULE (6) closing commit; ADV-B, the push, the KEEP RULE (7) and (8), the tag and the ONE ANSWER owed
+Verification: `docs/item_notes/phase7.md`, CS-700, THE PLAN step S12a; `CS-NEXT-SESSION.txt`,
+THE CLOSING SEQUENCE; `tools/sha_citation_gate.py` with
+`tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits`; `git ls-remote`
+of the public remote; the gitignored rulings and records below, each by its full sha256, read
+equal for this record. This record closes nothing.
+THE COMMITS, as the hand-off names them: T2 f9b877256dd82e8d2844b6d7c876d3ab822ff097, the
+published flip tip; A'' 67b6d7c6f81100c4a3f0f7442c35a16d5572f655, the act (ii) ledger commit,
+single parent T2; L a1701b276728c92b3bf5fd716841c808771dc06d, the kit commit, and M
+5d70a412315ebe5c2d8ebfd3d9a430ddb07deac0, its Linux repair (the two records below); D
+fa61bbc90a53d10507ba31466bdfe206322b4db6, the session 149 /done's records commit, parent M. R',
+the commit directly below this one, and B, this commit, are named in words: neither is published
+at this write, and the citation gate refuses an unpublished SHA in a tracked file (A-S12a ITEM
+4.2).
+THE BINDING SEQUENCE: the A-432 ruling, cs700-s146-a432-ruling.md, gitignored in the data
+directory at the tree root, sha256
+b7ca18bf0645738e1c658e0f21dd0f7dee73b1822d973612a316376049e71a7d - its RULING 4 replaces A-S12a
+ITEM 2 steps 7 to 19 (the A-S12a ruling, cs700-s146-s12a-ruling.md, sha256
+3dafe6dce1e6b569980b0a3a381a98dc7c67e904043b64659ab3699df00c16fc).
+ACT (ii), A-432 step 6 (the PUSH-A record, push-a-record.txt, sha256
+434ce6ec22a3f42b50294be38d954c520d58f8f969da9cf0e95af09b0eb40589). First the common push guard
+came off the main checkout (A-S10 5(d), 20:50:13Z on 2026-10-18), read back R6: no push URL in
+the main checkout, every linked worktree still guarded; a fresh read-only verifier, V9, held it,
+its positive control refused rc 128 with nothing sent (v9-record.txt, sha256
+9c19457a49176cc668c507d90e757a2cff60216d5834eb89817f8868ed6fb295). The push of A'', issued at
+20:55:57Z, once, through `ops/fleet_kit/fleet_gitlock.py`, returned rc 0 at 21:18:56Z; its
+pre-push whole suite through `ops/fleet_kit/fleet_suite_gate.py` passed with no failure. READ
+BACK: ls-remote, REST and an anonymous fresh mirror clone each exactly refs/heads/main at A'',
+its single parent T2, fsck clean; STRAY REF none.
+ACT (iii), A-432 step 7, 21:23:27Z to 21:23:38Z on 2026-10-18 (s12a-iii-record.txt, sha256
+9580ef23aef49fca879bcc193cb76988a2635bfa933f7bcdd949091d8ae6a2aa), through `gh api`, each read
+back by its own GET: private vulnerability reporting enabled, then secret scanning enabled, then
+push protection enabled. No refusal, so the operator batch's line (4) was not owed.
+TIER1 ON A'', A-432 step 8: run 39167281147 completed success on attempt 1, every job green,
+THE STEP-B GATE PASS (the CI-W record, ci-a2-record.txt, sha256
+b476aef59f4dde61a24353ac3d8999656808f1e017d93944780fe113e97ba6b9).
+THE OPERATOR BATCH AND THE PACKAGES RESULT, A-S12a step 13, read back about 16:15Z on 2026-10-18
+by OP-V, a distinct read-only verifier (op-readback-record.txt, sha256
+0a6e9bd52d34d7befe4d1434312cac5fe430103b27092da0dafdeeb7859c9d12): the social preview a byte
+match with `docs/assets/social-preview.png`; the read:packages scope GRANTED, write:packages
+absent; the packages MEASURED at none - an HTTP 200 read for each package type, none listing a
+package, the positive control listing one (A-S10 item 3 PASS) - which measures the residual the
+2026-10-18 CS-700 record left as "packages UNMEASURED through S12"; one save made in the patched
+build, its header changelist equal to the pin, read without a write.
+THE COMMUNITY PROFILE RE-READ, A-432 step 10 (a read under the CS-959 rule, never a reopen), C4a
+of session 148 at 05:03:58Z on 2026-10-19: full health, every profile file present, no missing
+row - no new item.
+THE LANE RE-CUT READ, A-432 step 11, C4b: no lane worktree existed, origin/main read A'', and
+LANE_BASE in `ops/loop/lane_launcher.py` reads origin/main; nothing was re-cut.
+THE HOLD, A-432 step 12, C4c at 05:04:21Z: the hold HOLD_MAIN_SPAWN, in the gitignored control
+directory, appended to the stop-sentinel declaration and created empty, both atomically; read
+back: the declaration parses, it declares the three stops and the hold, and the hold exists. It
+keeps a MAIN kit spawn out of the main checkout while R', B and the tag are made; the
+declaration is tracked as `ops/stop_sentinels.json` since the kit commit, and the hold lifts by
+its file alone after the tag reads back (session 149's S0 ruling 2).
+ACT (iv), THE S7q LIFT, A-432 step 13, C4d at 05:04:55Z: STOP, INBOX_STOP and QUEUE_STOP each
+sent to the Recycle Bin (FLEET item 9), the STOP bytes copied out of the tree first; each read
+absent; `ops/loop/queue_loop.py::stop_reason` returned None with the hold present. The
+coordinator's call under A-432 R2 - the kit adopted by one runner only - was recorded before the
+lift.
+THE M1 AND M2 STATE, re-read for this record: no tags, the remote-tracking refs exactly
+origin/HEAD and origin/main; every linked worktree carries the M2 per-worktree push guard, and
+the main checkout carries no push URL. The old-history worktrees and the pre-rewrite local refs
+stay until THE CLEANUP ITEM (`BACKLOG.md`, Session 150 residuals).
+THE HEADLESS README COMMIT, ITS SUPERSESSION IN WORDS (A-432 RULING 1, decision (d)): at
+18:46:45Z on 2026-10-18 MAIN's kit v19 spawn made a one-line `README.md` commit for MAIN's
+GH-HYGIENE ORDER on local main, above the first, refuted build of the act (ii) commit. It was
+never published: A-432 set it aside, act (ii) pushed A'' alone, and the preserve ref
+refs/preserve/s146/gh-hygiene-readme kept its diff. R' re-applies that diff as its own commit,
+made in session 150 on D after the C5a adjudicator ruled GO at D: a cherry-pick with no commit
+of the preserve ref, the staged names exactly `README.md`, its stable patch-id equal to the
+ref's, committed through `ops/fleet_kit/fleet_gitlock.py` with the subject "README - heading to
+How this repo is built (GH-HYGIENE ORDER)" and no hex or trailer; read back: R'^ == D,
+`README.md` its only path. The preserve ref stays until R' reads back on the remote.
+THE ANSWER-NOTE GATE AND CAP GAPS (A-432 P7): the same spawn sent MAIN an ANSWER note, outbox
+stamp 2026-10-18-1330, whose copy in MAIN's inbox equals the outbox copy; it wrote no delivery
+row through `tools/outbound_send.py`, which records the gate verdict, and no OutboundCap row, so
+it bypassed this tree's outbound gate and daily cap counter - a FLEET item 11 kit report. A
+post-hoc grade by `tools/outbound_gate.py` with --file found nothing. Its correction rides
+the CS-1328 ONE ANSWER (A-432 RULING 2), never a separate note; that item, CS-1328, stays open.
+NO CS-G03 RECORD, by the A-DONE ruling, cs700-s146-done-ruling.md, sha256
+6a1e6a005d7793462db97aeb4c4654503cd6f71fb777ee8066148038fa59e5d8, RULING 2 (the S8 ruling
+governs): this record does not close CS-G03 and does not move its `docs/GATED.md` section. The
+flip ran (S12 at T2, public from 15:27:06Z on 2026-10-18); the clearance record of ADR 0025
+points 8 and 10d waits for the flip-checks binary-skip fix to land and for a run of the fixed
+tool against T2, the flip SHA, to exit 0.
+THE /done RECORDS OF SESSIONS 146 TO 149, owed here by the S149-DONE ruling 3 (A-DONE RULING 2,
+the S147-DONE ruling's Q2):
+- Session 146 /done, under the A-DONE ruling: RULING 1 held that ritual's records uncommitted on
+  disk behind the gates G1 to G7, with an out-of-tree byte copy; RULING 3 made SS's
+  2026-10-18-1500 ANSWER terminal, a mechanical ack with no reply; RULING 4 owed no
+  CS1307_POINTER fix.
+- Session 147 /done, under the S147-DONE ruling, cs700-s147-done-ruling.md, sha256
+  8e52192ff0cae6a5e8f9fcfea35f618bd26e7626a09ad1e8e0dc692a356fd799: G6 applied - no commit, suite
+  or push; the G1 set only, no LEDGER or ROADMAP write; a new out-of-tree copy folder; the kit
+  v19 adoption to take its own new id; the mark done.
+- Session 148 /done: G6 again on that precedent, its reversal conditions read absent.
+- Session 149 /done, under the S149-DONE ruling, s149-done-ruling.md in the gitignored rulings
+  folder, sha256 ff55d3146ba5da4a502b3656084e07495a6f10ab3d8afb395fc0103a84d5e0cc: COMMIT - its
+  three records committed as D on the normal path of the DONE-SLOW order, the A-DONE gates G1 to
+  G7 retired. D's one push landed: its pre-push whole suite through the suite gate passed with
+  no failure and no BLOCKED line, and ls-remote main read equal to D (this ritual's timing
+  record); tier1 39380059462 success on attempt 1 and the scheduled tier2 39394172124 success,
+  both at D, read by the C5a adjudicator in session 150. The three records,
+  `CS-NEXT-SESSION.txt`, `WAKEUP_NOTES.md` and `docs/history_notes.md`, are rewritten in this
+  commit from D's committed bytes (S149-DONE ruling 6): the C5a corrections folded in - D pushed
+  and green, MAIN's CS-SUITE-EXIT1 closed - the hand-off's G1 re-based to B, and the blocks it
+  replaced relocated verbatim into `docs/history_notes.md`.
+MAIN'S CS-SUITE-EXIT1 KEY (its 0730 INFORMATION note, section 2), a MAIN key and not an item of
+this tree: its closing condition, a green CS /done, is met by D's push above (S149-DONE ruling
+9); the counts go to MAIN in the CS-1328 ONE ANSWER, and the note is acked by key.
+DECISIONS OF SESSIONS 147 TO 149 (the S147-DONE ruling's Q2 held them in the hand-off until this
+commit; the hand-off keeps the live ones):
+- Session 147: a distinct adjudicator ruled that the kit v19 candidate lands only at A-432
+  RULING 4 step 21, with no main commit other than A'', R', B and the tag before it. SPENT: the
+  operator's kit v20.1 order of session 148 superseded its timing, the kit commit landed v20.1
+  instead, and the v19 branch was retired after bundling in session 149.
+- Session 148: the operator's order to land kit v20.1 "now" took precedence over that session's
+  adjudicated kit timing and paused S12a after act (iv); C5's uncommitted pick was undone, its
+  diff kept on the preserve ref, so a v20.1 commit could neither sweep it up nor be refused by
+  it.
+- Session 149: S0, s149-kitupd_ruling.md, sha256
+  310b47b08f81a38dec6f8764a2c27ebd3d8a1c893c1bb9b04a3d2baa34addcf5, and S0b,
+  s149-kitupd_ruling2.md, sha256 3a6e6b7769a846092402f04e5c25d4fa4f791e74236bc567d7658cebd5554bcf,
+  both recorded with the kit commit below; the S149-DONE ruling above.
+- Session 150: C5a, a distinct read-only adjudicator, ruled GO for R' and for authoring this
+  commit at D, with CI green at D, and GO for the tag once this commit reads back.
+LEFT OUT OF THIS COMMIT, each by the rule that keeps it out: CS-700 is not closed - no distinct
+adjudicator has read its Acceptance (A-432 step 16), so its `ROADMAP.md` line stays and
+`docs/item_notes/phase7.md`, at its leaf budget, is not touched; the ADR 0025 10d amendment note
+(ADV-B2 item 4, advb2-review.txt, sha256
+041afee6e048535ab1c43c87d467afda69bd2fbbfb0cd4b1c4ffafececc7df03) is a `BACKLOG.md` line, since
+no adjudicator of this commit added it to its list; the trailer-baseline tidy (A-S12a ITEM 4.5
+and 4.6: no accept-set or allowlist-row edit owed) and THE CLEANUP ITEM are `BACKLOG.md` lines
+(Session 150 residuals).
+OWED, in A-432 RULING 4's order: ADV-B, fresh, R' and B frozen with `tools/freeze_witness.py`,
+lenses accuracy and leak, default REFUTED; R' and B in one push through
+`ops/fleet_kit/fleet_gitlock.py`, one pre-push whole suite, read back ls-remote main == B, B^ ==
+R', R'^ == D (a non-fast-forward fetched and rebased once); the KEEP RULE (7) commit read-back,
+then (8), the session 146 copy folder to the Recycle Bin (`.claude/commands/done.md`); the
+v0.1.0 tag and release; the CS-1328 ONE ANSWER. Each record named by file name here sits in the flip
+records folder outside the tree that the 2026-10-18 CS-700 record names.
+
 ### 2026-10-19 - CS-1331 - the CS-1312 lstat denial forwards dir_fd; the Linux save-shard red repaired
 Verification: `tests/save/test_workdir.py::test_the_lstat_denial_takes_every_keyword_the_real_lstat_takes`,
 `tests/save/test_workdir.py::test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused`
