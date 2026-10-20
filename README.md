@@ -188,7 +188,7 @@ your system does not trust it, so the browser shows a certificate warning to acc
 the page titled "Clockspeed dashboard" loads. `https://localhost:<port>/api/health` answers
 a compact JSON object whose top-level `status` field is `ok`.
 
-## How it is built
+## How this repo is built
 
 Clockspeed is developed with Claude Code working as cooperating agents whose roles are
 defined in `.claude/agents/`, under written rules the repository enforces: work is
