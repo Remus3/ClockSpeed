@@ -5,7 +5,7 @@ RUNNING IT - and never performed the resolution the hooks perform. So the table
 could read PASS while every hook resolved a DIFFERENT interpreter, and a green
 environment report said nothing about the thing that gates a commit.
 
-THE ACCEPTANCE, from docs/item_notes/phase7.md: "it runs the hooks' own ladder
+THE ACCEPTANCE, from docs/history_notes.md, CS-818: "it runs the hooks' own ladder
 and reports the winner, failing when that winner differs from the interpreter it
 just graded".
 

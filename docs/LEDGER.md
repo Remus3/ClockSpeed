@@ -85,7 +85,7 @@ DECISION: CLOSE, ruled 2026-10-20 by a fresh closing adjudicator distinct from e
 reading the Acceptance against T2 = f9b877256dd82e8d2844b6d7c876d3ab822ff097 (tag v0.1.0), the tip
 published at the flip. The section moved to `docs/history_notes.md`; its Dependabot local-landing
 rule, still binding, moved to `docs/OPERATIONS.md` section 12.5.
-CONVENTIONS section 17 at T2, from the R run the CS-G03 record above carries (exit 0; every
+CONVENTIONS section 17 at T2, from the R run the CS-G03 record below carries (exit 0; every
 automated check skips 0, control FOUND, PASS):
 1. secrets, full history: blobs 5670, commit messages 1843, findings 0.
 2. PII, tracked files and commit messages: needles 18, hits 0; identity 1 name and 1 address, 0 off
@@ -105,7 +105,7 @@ ALTERNATIVES: KEEP OPEN, the runner-up, until the README clone command lands and
 walk passes. It lost: neither is in the Acceptance, and three separate gradings ruled both
 non-blocking. Both are now OPEN items, CS-1333 and CS-1334.
 EARLIER RULING: this session's first CS-700 adjudicator ruled KEEP OPEN only on check 6's two
-binary skips at T2; CS-1332 fixed that (its CLOSED record above), and check 6 now reads skips 0.
+binary skips at T2; CS-1332 fixed that (its CLOSED record below), and check 6 now reads skips 0.
 COMMON-MODE RISK: every run above shares flip_checks' own needle set, so a needle it does not
 derive is missed by all of them alike. The v0.1.0 tag message and release body are not in check 2's
 population and were not needle-scanned; a count-only probe with the same 18 needles found 0 hits in

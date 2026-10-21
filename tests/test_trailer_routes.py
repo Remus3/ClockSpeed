@@ -12,7 +12,7 @@ catcher in ``.github/workflows/tier1.yml``: a step that refuses unless a member
 of the pinned accept set - the baseline or its CS-700 S7a image - is an ancestor
 of HEAD, then runs ``tools/trailer_census.py`` over ``baseline..HEAD``. The
 trailer SHAPE is owned by the paragraph headed THE TRAILER-SHAPED CENSUS in
-``docs/item_notes/phase7.md`` and computed only by that tool; nothing here
+``docs/OPERATIONS.md`` section 12.6 and computed only by that tool; nothing here
 restates it.
 
 THE STEP IS EXECUTED, NEVER COPIED. Every arm reads the step's ``run`` text out of

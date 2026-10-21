@@ -1858,7 +1858,7 @@ def test_s8_fails_on_any_trailer(tmp_path: Path) -> None:
 
 
 def test_s8_without_its_baseline_control_is_a_skip(tmp_path: Path) -> None:
-    """The phase7 S8 control is the census over the pre-S7a baseline; absent, it is unmeasured."""
+    """The history_notes S8 control is the census over the pre-S7a baseline; absent, unmeasured."""
     repo, tip = trailer_repo(tmp_path, b"clean\n")
 
     result = flip.trailer_axis(repo.path, tip, "s8")

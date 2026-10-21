@@ -3,7 +3,7 @@
 
 THE DEFECT. Every tier-0 hook resolves its interpreter through ``cs_probe``, and
 before this item the probe ran each candidate with no time limit at all. Three
-hang shapes were MEASURED on this toolchain (docs/item_notes/phase7.md, CS-816):
+hang shapes were MEASURED on this toolchain (docs/history_notes.md, CS-816):
 
   1. ``PYTHONINSPECT=1``. The candidate runs the program and then goes
      interactive. Under MSYS ``/dev/null`` is the Windows ``NUL`` CHARACTER

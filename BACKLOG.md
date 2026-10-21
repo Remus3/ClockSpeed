@@ -703,10 +703,10 @@ record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or red
   `requires-python` ceiling in `pyproject.toml` - TRIGGER: the next `scripts/verify_env.py` work,
   or the cap moving.
 - From CS-1325, a residual: `README.md` is at its 220-line budget and its Quickstart at its 10-line
-  budget; the deferred clone command (the Session 126 residuals line above, added at S12a) will
+  budget; the deferred clone command (CS-1333) will
   push both over, and its `git clone` line must sit in its own fenced block or
   `tools/flip_checks.py::command_lines` (check 5 reads python-only blocks) finds 0 commands again -
-  TRIGGER: S12a.
+  TRIGGER: CS-1333 is worked.
 - From the CS-1315 slice A review (g2): `clockspeed/surface/providers.py::InstalledRegistryProvider`
   rebuilds the registry and re-hashes the whole multi-megabyte docs file (the pin's docs_bytes owns
   its size) on every request, and `clockspeed/data/registry.py::build_registry_from_bytes` keeps the
@@ -869,9 +869,8 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   Quickstart, its process-scope `RemoteSigned` line and the venv activation after it, from the
   default execution policy a new PowerShell starts with; trigger: the CS-1334 walk, whose runner
   then starts without Bypass, or the Quickstart's PowerShell lines next touched.
-- From the session 150 CS-700 close: `tools/trailer_census.py`, `tests/test_trailer_census.py`,
-  `tests/test_trailer_routes.py` and `.github/workflows/tier1.yml` name the paragraph headed THE
-  TRAILER-SHAPED CENSUS in `docs/item_notes/phase7.md` as the census's one owner; it moved verbatim
-  with the CS-700 section to `docs/history_notes.md`, which holds nothing current, so each pointer
-  now names an archive block; trigger: the next edit to any of those four files, or CS-704 is
-  worked.
+- From the session 150 G review: `tools/outbound_send.py` never calls
+  `ops/fleet_kit/fleet_inbox.py::OutboundCap` - it neither asks `allow` nor appends a `record`
+  row - so no note this tree sends through it counts against the FLEET item 14 c daily outbound
+  cap, and no send is refused at the cap; trigger: the next edit to `tools/outbound_send.py`, or
+  a local day on which this tree sends more non-exempt notes than that cap allows.

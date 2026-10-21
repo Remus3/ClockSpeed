@@ -24,6 +24,24 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## BACKLOG line - relocated from `BACKLOG.md` 2026-10-21 by the session 150 merger
+
+**Moved here because the line was discharged.** Its first trigger, the next edit to any of the
+four files it names, fired in the session 150 commit G, which repointed all four at the
+census's one live owner, `docs/OPERATIONS.md` section 12.6, after copying the definition there
+verbatim and leaving a one-line pointer in this file. Its second trigger could never fire:
+CS-704 closed on 2026-09-25 (`docs/LEDGER.md`). Verbatim:
+
+From "Session 150 residuals - filed 2026-10-20 under product before process":
+
+- From the session 150 CS-700 close: `tools/trailer_census.py`, `tests/test_trailer_census.py`,
+  `tests/test_trailer_routes.py` and `.github/workflows/tier1.yml` name the paragraph headed THE
+  TRAILER-SHAPED CENSUS in `docs/item_notes/phase7.md` as the census's one owner; it moved verbatim
+  with the CS-700 section to `docs/history_notes.md`, which holds nothing current, so each pointer
+  now names an archive block; trigger: the next edit to any of those four files, or CS-704 is
+  worked.
+
+
 ## BACKLOG lines - relocated from `BACKLOG.md` 2026-10-20 by the session 150 merger
 
 **Moved here because each line was discharged.** The "Session 149 residuals" line on the inbox
@@ -885,13 +903,7 @@ rewrite inside the trees - and REQUIRES `python tools/sha_citation_gate.py
 commit outside the set. Any other exit ABORTS S7a. See "SHA citation gate across S7a"
 below.
 
-**THE TRAILER-SHAPED CENSUS - defined here and ONLY here; every other file points at this
-paragraph.** Walk every commit message reachable from the tip being measured and
-count the lines that sit at column zero, carry a colon, and whose token before the
-first colon - trailing whitespace trimmed - folds case-insensitively to
-`co-authored-by`. That is the shape git's own trailer parser reads and the shape
-`.githooks/commit-msg` refuses. A plain substring search is NOT this census: it also
-matches prose naming the trailer.
+**THE TRAILER-SHAPED CENSUS** - moved on 2026-10-21 to its one live owner, `docs/OPERATIONS.md` section 12.6.
 
 **THE IDENTITY ALLOWLIST** holds exactly one address, the ruled noreply address,
 derived at run time from the operator's forge account and never written into a

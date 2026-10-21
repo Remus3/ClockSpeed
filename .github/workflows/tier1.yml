@@ -637,7 +637,7 @@ jobs:
       # catcher here, where no local configuration can skip it.
       #
       # THE COUNT IS NOT COMPUTED HERE. tools/trailer_census.py is the only
-      # implementation of the shape, which docs/item_notes/phase7.md owns under
+      # implementation of the shape, which docs/OPERATIONS.md section 12.6 owns under
       # THE TRAILER-SHAPED CENSUS. This step only frames the range and reads the
       # exit code: any non-zero - a hit, or a census that could not run - fails.
       #

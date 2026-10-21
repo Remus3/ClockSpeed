@@ -2,7 +2,7 @@
 """CS-1183 - the trailer-shaped census, as one command the flip and CS-704 both call.
 
 THE DEFINITION IS NOT RESTATED HERE. It lives in ONE place, the paragraph headed
-THE TRAILER-SHAPED CENSUS in ``docs/item_notes/phase7.md``, and every other file
+THE TRAILER-SHAPED CENSUS in ``docs/OPERATIONS.md`` section 12.6, and every other file
 points at it. :func:`is_trailer_line` is that paragraph as code and nothing more;
 its shape is the one ``.githooks/commit-msg`` refuses, because git's own trailer
 parser finds the separator FIRST and trims the token AFTERWARDS.

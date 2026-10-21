@@ -173,7 +173,7 @@ REPO_HEADING_SLUGS: Final = (
         "CS-1060 - RELOCATED 2026-09-14 on closure, from docs/item_notes/phase4-followups-900.md",
         "cs-1060---relocated-2026-09-14-on-closure-from-docsitem_notesphase4-followups-900md",
     ),
-    # docs/item_notes/phase7.md - a code span holding a hex identifier.
+    # docs/history_notes.md - a code span holding a hex identifier.
     (
         "FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`",
         "filed-2026-09-24-from-the-n0-adjudicator-ruling-at-599528c",

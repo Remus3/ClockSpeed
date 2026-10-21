@@ -1088,6 +1088,20 @@ binding since MAIN's 2026-10-08 22:46 ORDER, section 4.
 Never merge a Dependabot PR with the merge button or `gh pr merge`; apply it locally as an operator
 commit (cherry-pick `--reset-author`) and push.
 
+### 12.6 The trailer-shaped census
+
+Moved on 2026-10-21 from the CS-700 section of `docs/history_notes.md`, where that item's
+close had carried it and which holds nothing current. It is live: `tools/trailer_census.py`
+computes it, and the tier-1 census step and `tools/flip_checks.py` run that tool.
+
+**THE TRAILER-SHAPED CENSUS - defined here and ONLY here; every other file points at this
+paragraph.** Walk every commit message reachable from the tip being measured and
+count the lines that sit at column zero, carry a colon, and whose token before the
+first colon - trailing whitespace trimmed - folds case-insensitively to
+`co-authored-by`. That is the shape git's own trailer parser reads and the shape
+`.githooks/commit-msg` refuses. A plain substring search is NOT this census: it also
+matches prose naming the trailer.
+
 ## 13. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`

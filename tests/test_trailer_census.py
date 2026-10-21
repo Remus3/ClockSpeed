@@ -1,7 +1,7 @@
 """CS-1183 - the trailer-shaped census, graded over throwaway repositories only.
 
 THE DEFINITION UNDER TEST IS NOT RESTATED HERE. It is owned by the paragraph
-headed THE TRAILER-SHAPED CENSUS in ``docs/item_notes/phase7.md``; every arm
+headed THE TRAILER-SHAPED CENSUS in ``docs/OPERATIONS.md`` section 12.6; every arm
 below is one clause of it, read back through ``tools/trailer_census.py``.
 
 EVERY REPOSITORY IS BUILT IN ``tmp_path`` WITH ``git commit-tree``. That

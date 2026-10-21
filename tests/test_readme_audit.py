@@ -1,6 +1,6 @@
 """CS-1292 - the README public-readiness audit, held as tests.
 
-The acceptance (``docs/item_notes/phase7.md``, CS-1292) quotes MAIN's README
+The acceptance (``docs/history_notes.md``, CS-1292) quotes MAIN's README
 audit: a README under about 220 lines with an image, a short Quickstart with the
 remaining install detail in one linked doc (the environment-variable table
 included), a banner plus one dashboard screenshot under ``docs/assets/``, "no

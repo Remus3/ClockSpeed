@@ -2,9 +2,9 @@
 
 **Section status: LIVE.** A point-in-time audit of what would become public if this
 repository were published, written for the operator ahead of the visibility flip. The
-gate itself is CS-G03 in `docs/GATED.md` and the plan that runs it is CS-700 in
-`docs/item_notes/phase7.md`; this file records findings and recommended fixes and
-decides nothing those two own.
+gate itself was CS-G03 and the plan that ran it was CS-700; both have closed, their
+records are in `docs/LEDGER.md` and their sections in `docs/history_notes.md`. This file
+records findings and recommended fixes and decides nothing those two owned.
 
 Measured on 2026-10-03 against local `main` at `29d0cd9` and against every ref the
 remote currently serves.
