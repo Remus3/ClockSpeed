@@ -16,9 +16,18 @@ the sender, and it stays the arm that would redden if this file ever did.
 
 ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
 
-  1. A stop sentinel - `ops/loop/control/STOP` (the lane-wide one) or
+  1. A stop sentinel ends the run before anything else: the responder's own
+     two - `ops/loop/control/STOP` (the lane-wide one) and
      `ops/loop/control/lanes/INBOX_STOP` (this responder's own, mirroring the
-     queue lane's QUEUE_STOP) - ends the run before anything else.
+     queue lane's QUEUE_STOP) - and every path the tree declares in
+     `ops/stop_sentinels.json`, read by the kit's own `stop_sentinel_hit`
+     (CS-1234 S5). The kit's sentinels are tree-wide: each declared path, the
+     queue lane's QUEUE_STOP and the main-spawn hold included, refuses every
+     kit spawn into this tree, so the responder halts on them first instead of
+     reaching the kit and logging a route refusal every tick. An unreadable
+     declaration halts, as the kit's spawn does (fail closed); an absent one
+     adds nothing, and no declaration ever lifts the responder's own two. Any
+     entry halts, a dangling link included, as the kit reads it.
      The halted path still publishes `inbox_status.json` (state "halted")
      before it exits, so the widget shows a halt, never no signal.
   2. A single-instance named mutex; a run already in progress ends this one
@@ -56,8 +65,11 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      live note is an ORDER, FIX or RULING or sits past the listing cap; effort
      low only when every live note is an acknowledgement (`_kit_inputs`).
      CS-1272 H: the spawn carries a NON-EMPTY label (`run_label`, the first
-     live note's basename) and a kind (`run_kind`: "triage" on the kit's
-     triage shape, sonnet at effort low, else "inbox"), so the kit's usage
+     live note's basename) and a kind (`run_kind`: "order" when any unread
+     item is an ORDER, FIX or RULING - the kit maps "inbox" to "order" from
+     the label alone, so an ORDER behind the first live note was logged as
+     chatter (CS-1234 S5); "triage" on the kit's triage shape, sonnet at
+     effort low; else "inbox"), so the kit's usage
      line under `ops/loop/control/` attributes the run. While the worker runs,
      the fire's progress file carries its item-13 checklist (`_Progress`).
   7. The exit is classified and one JSON line is appended to a gitignored log
@@ -72,6 +84,12 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      unmeasured channel, an unreadable prompt, a worker that could not start -
      reads state "refused" with the kit's own `REFUSED_TASK` ("Idle"); only a
      halt reads "Halted", so the board never contradicts the kit's own write.
+     CS-1234 S5: where the kit's own write for a refusal is another word, the
+     responder publishes that word, branching on the refusal's ``code`` -
+     "halted" / Halted for a stop sentinel (code "halted", quiet, as the
+     responder's own halt), "limit" / Turn Limit Reached for a limit on both
+     routes (code "fallback-halted") or a spent budget, and "blocked" for an
+     outside cause (`kit.Blocked`, an unreachable proxy).
 
 THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` and
 `<repo>` are resolved at arm time (`(Get-Command pythonw).Source`, the checkout
@@ -107,7 +125,9 @@ from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from ops.fleet_kit import fleet_inbox as inbox_kit  # noqa: E402
 from ops.loop import headless_route, inbox_status, inbox_surface, winmutex  # noqa: E402
 
-#: The control directory and the sentinels that stop this responder.
+#: The control directory and the responder's OWN sentinels, relative to it - a
+#: floor, never lifted. Every path the tree declares in `kit.SENTINELS_REL`
+#: halts it too (`_standing`).
 CONTROL: Final = _HERE / "control"
 STOP_RELPATHS: Final = ("STOP", "lanes/INBOX_STOP")
 
@@ -145,6 +165,15 @@ KIT_EXTRA: Final = ("--dangerously-skip-permissions",)
 #: is logged with the unreadable budget rather than with a proxy refusal. The
 #: kit is byte-pinned, so this string moves only with a new kit version.
 KIT_LOCK_BUSY: Final = "budget lock busy"
+
+#: The kit refusal codes whose own status write is not "refused" / Idle
+#: (`fleet_headless.spawn`, `_refused_status`): a stop sentinel writes
+#: "halted" / Halted, a limit on both routes "limit" / Turn Limit Reached. The
+#: kit is byte-pinned, so these words move only with a new kit version; the
+#: agreement arms in tests/ops/test_inbox_responder.py read the kit's own write
+#: as their oracle, so a moved word reddens there.
+KIT_HALTED: Final = "halted"
+KIT_FALLBACK_HALTED: Final = "fallback-halted"
 
 #: Set on the worker for the reasons `ops/loop/run_lane.ps1` records (CS-1108):
 #: nothing backgrounded, and a long foreground command survives. The kit builds
@@ -214,6 +243,7 @@ VERDICTS: Final = DAMPED_VERDICTS | {VERDICT_LIVE, VERDICT_ACK, VERDICT_HEAVY}
 #: The run kinds the kit's usage line carries (FLEET-KIT v8/v9 `kind`).
 KIND_INBOX: Final = "inbox"
 KIND_TRIAGE: Final = "triage"
+KIND_ORDER: Final = "order"
 
 #: The spawn label when no live note is NAMED - every live item sits past the
 #: listing cap, so no basename can be given. Authored, never empty, and not in
@@ -377,16 +407,42 @@ def _log(root: Path, now: float, outcome: str, code: int, **fields: Any) -> None
             handle.write(line.encode("ascii"))
 
 
+def _tree_of(control: Path) -> Path:
+    """The tree a control directory sits in: ``<tree>/ops/loop/control``."""
+    return Path(control).parent.parent.parent
+
+
+def _standing(control: Path) -> list[Path] | None:
+    """The standing stop sentinels: the responder's own, then the tree's declared hit.
+
+    The declaration is read by the kit's own `stop_sentinel_hit`, so the two
+    cannot part, and every path is tested as the kit tests it - any entry, a
+    dangling link included. None when the declaration is unreadable: the kit
+    refuses every spawn into the tree then (fail closed), and so does this.
+    """
+    own = [Path(control) / rel for rel in STOP_RELPATHS]
+    standing = [path for path in own if os.path.lexists(path)]
+    tree = _tree_of(control)
+    try:
+        hit = kit.stop_sentinel_hit(tree)
+    except kit.Refused:
+        return None
+    if isinstance(hit, str):
+        standing.append(tree / hit)
+    return standing
+
+
 def _stopped(control: Path) -> bool:
-    return any((control / rel).exists() for rel in STOP_RELPATHS)
+    standing = _standing(control)
+    return standing is None or bool(standing)
 
 
 def _halted_since(control: Path, fallback: float) -> float:
-    """When the standing sentinel was placed - its mtime - or ``fallback``."""
+    """When the standing sentinel was placed - its own mtime - or ``fallback``."""
     stamps: list[float] = []
-    for rel in STOP_RELPATHS:
+    for path in _standing(control) or ():
         with contextlib.suppress(OSError):
-            stamps.append((control / rel).stat().st_mtime)
+            stamps.append(os.lstat(path).st_mtime)
     return min(stamps) if stamps else fallback
 
 
@@ -560,14 +616,30 @@ def run_label(fact: Mapping[str, Any]) -> str:
     return UNLISTED_LABEL
 
 
-def run_kind(writes_code: bool, effort: str) -> str:
-    """The kit's ``kind`` for a pass: triage on the kit's triage shape, else inbox.
+def has_order(fact: Mapping[str, Any], unread: int) -> bool:
+    """Whether any unread item, listed or past the cap, is an ORDER, FIX or RULING.
 
-    "triage" exactly when the pass runs on the model and effort the kit's inbox
-    module names for a triage look (`triage_spawn_kwargs`: sonnet, effort low) -
-    a pass over acknowledgements only. Every other pass, an ORDER, a question
-    or an item past the cap, is an ordinary "inbox" run.
+    Read from the verdicts (`VERDICT_HEAVY`, the classes the kit never damps),
+    each decided on the item's real name, so an ORDER behind the first live
+    note, or behind an escaped display, still counts.
     """
+    words = [word for _name, word in _judged(fact)] + _past(fact, unread)
+    return VERDICT_HEAVY in words
+
+
+def run_kind(writes_code: bool, effort: str, *, order: bool = False) -> str:
+    """The kit's ``kind`` for a pass: order, triage on the kit's triage shape, else inbox.
+
+    "order" when the pass does the work of an ORDER, FIX or RULING (`has_order`,
+    FLEET-KIT v18 KINDS): the kit maps "inbox" to "order" from the LABEL alone -
+    the first live note - so the responder names it whenever such a note is
+    live anywhere in the pass. "triage" exactly when the pass runs on the model
+    and effort the kit's inbox module names for a triage look
+    (`triage_spawn_kwargs`: sonnet, effort low) - a pass over acknowledgements
+    only. Every other pass, a question or an item past the cap, is "inbox".
+    """
+    if order:
+        return KIND_ORDER
     shape = inbox_kit.triage_spawn_kwargs(FLOORS_IN_HOOKS)
     triage = (shape["model"], shape["effort"])
     return KIND_TRIAGE if (kit.pick_model(writes_code), effort) == triage else KIND_INBOX
@@ -812,7 +884,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
             writes_code=writes_code,
             effort=effort,
             note=run_label(fact),
-            kind=run_kind(writes_code, effort),
+            kind=run_kind(writes_code, effort, order=has_order(fact, unread)),
             before_start=before_start,
             **seams,
         )
@@ -842,12 +914,30 @@ def is_lock_busy(refused: Exception) -> bool:
 
 
 def _refused(root: Path, board: _Board, refused: Exception, unread: int, started: float) -> int:
-    """The kit refused before anything started. Nothing ran, so no duration is recorded."""
+    """The kit refused before anything started. Nothing ran, so no duration is recorded.
+
+    The published state is the one the kit's own status write used for the
+    refusal (CS-1234 S5), decided on the refusal's ``code`` and class, so the
+    board never contradicts the kit a moment after it wrote.
+    """
+    code = getattr(refused, "code", None)
+    if code == KIT_HALTED:
+        # A sentinel the kit read that this pass's own check did not see - one
+        # placed since. QUIET, as the responder's own halt; the next tick halts
+        # before the lock.
+        board.show("halted", "Halted", started=_halted_since(board.control, started))
+        return EXIT_OK
     if isinstance(refused, kit.BudgetUnreadable) or is_lock_busy(refused):
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
         board.show("refused", kit.REFUSED_TASK)
         return EXIT_BUDGET_REFUSED
+    if code == KIT_FALLBACK_HALTED:
+        # A usage limit on the primary AND the armed fallback route: the kit
+        # holds every start until the earlier reset and writes a limit.
+        _log(root, started, "limit", EXIT_OK, unread=unread, reason="fallback halted")
+        board.show("limit", "Turn Limit Reached")
+        return EXIT_OK
     window = board.window(started)
     if window.count >= board.budget.cap:
         _log(root, started, "limit", EXIT_OK, unread=unread)
@@ -855,8 +945,10 @@ def _refused(root: Path, board: _Board, refused: Exception, unread: int, started
         return EXIT_OK
     # The proxy, the door or the executable. The kit's words are not logged:
     # the outcome word is the closed vocabulary, and the reason stays authored.
+    # An OUTSIDE cause (FLEET-KIT v14 `Blocked`, an unreachable proxy) reads
+    # "blocked", as the kit's own write does; every other refusal "refused".
     _log(root, started, "kit_refused", EXIT_ROUTE_REFUSED, unread=unread, reason="kit")
-    board.show("refused", kit.REFUSED_TASK)
+    board.show("blocked" if isinstance(refused, kit.Blocked) else "refused", kit.REFUSED_TASK)
     return EXIT_ROUTE_REFUSED
 
 

@@ -871,10 +871,18 @@ def _stamped(line: dict[str, Any]) -> bool:
         ((LIVE_NOTE,), 0, LIVE_NOTE, "inbox"),
         ((ACK_NOTE,), 0, ACK_NOTE, "triage"),
         ((ORDER_NOTE, ACK_NOTE), 0, ORDER_NOTE, "order"),
+        ((LIVE_NOTE, ORDER_NOTE), 0, LIVE_NOTE, "order"),
         ((OWN_NOTE, ACK_NOTE), 0, ACK_NOTE, "triage"),
         ((ACK_NOTE,), 1, ACK_NOTE, "inbox"),
     ],
-    ids=["question", "ack-only", "order-first", "own-note-never-labels", "past-the-cap"],
+    ids=[
+        "question",
+        "ack-only",
+        "order-first",
+        "order-second",
+        "own-note-never-labels",
+        "past-the-cap",
+    ],
 )
 def test_the_usage_line_carries_ts_kind_and_label(
     tree: Path, names: tuple[str, ...], more: int, label: str, kind: str
@@ -883,9 +891,10 @@ def test_the_usage_line_carries_ts_kind_and_label(
 
     The CLI is the stub runner; nothing starts. The kind is "triage" exactly
     when the pass runs on the kit's triage shape (sonnet, effort low), and
-    "inbox" for every other pass - except that since FLEET-KIT v18 (CS-1330)
-    the kit itself logs "order" for a pass whose note is an ORDER, FIX or
-    RULING when the caller passes "inbox".
+    "inbox" for every other pass - except that a pass with ANY live ORDER, FIX
+    or RULING is "order" (FLEET-KIT v18 KINDS). The kit itself maps "inbox" to
+    "order" only from the LABEL, the first live note, so CS-1234 S5 passes
+    "order" whenever such a note is live anywhere in the pass ("order-second").
     """
     _run(tree, RunSpy(), surface=_named(*names, more=more))
     lines = _usage_lines(tree)
@@ -1304,7 +1313,9 @@ def test_a_live_note_named_past_the_display_cap_is_weighed_by_its_real_name(tree
     """FIX 1 sibling: MAIN's ORDER past the display cap runs on the code model.
 
     The label stays the escaped display, and nothing past it - the part of the
-    name only the decision read - reaches any file the pass wrote.
+    name only the decision read - reaches any file the pass wrote. CS-1234 S5:
+    the kind is "order", decided on the real name too - the escaped label
+    carries no class the kit could read, so the kit alone logged it "inbox".
     """
     _channel(tree, LONG_ORDER)
     spy = RunSpy()
@@ -1316,7 +1327,7 @@ def test_a_live_note_named_past_the_display_cap_is_weighed_by_its_real_name(tree
         0,
         1,
         "opus",
-        [(inbox_watch.safe_display(LONG_ORDER), "inbox")],
+        [(inbox_watch.safe_display(LONG_ORDER), "order")],
         False,
     )
 
@@ -1404,4 +1415,258 @@ def test_the_judged_fact_carries_verdicts_never_names_and_the_lane_fact_is_uncha
         CAP_PLUS_ONE + 1,
         True,
         False,
+    )
+
+
+# --- CS-1234 S5: the kit's refusal states and the declared stop sentinels ---------
+
+#: This tree's own stop-sentinel declaration, read where the kit reads it (the
+#: kit's `SENTINELS_REL` under the tree root), and the paths it declares.
+DECLARATION: Final = ROOT / kit.SENTINELS_REL
+DECLARED: Final = tuple(json.loads(DECLARATION.read_bytes().decode("ascii"))["paths"])
+
+#: The responder's own floor, spelled as tree-relative paths.
+OWN_DECLARED: Final = tuple(f"ops/loop/control/{rel}" for rel in inbox_responder.STOP_RELPATHS)
+
+
+def _declare(tree: Path, payload: bytes | None = None) -> None:
+    """This tree's REAL declaration (or ``payload``) at the synthetic tree's root."""
+    target = tree / kit.SENTINELS_REL
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(DECLARATION.read_bytes() if payload is None else payload)
+
+
+def _plant(tree: Path, rel: str) -> None:
+    planted = tree / rel
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.write_bytes(b"")
+
+
+def _pair(tree: Path) -> tuple[Any, Any]:
+    status = _status(tree)
+    return status.get("state"), status.get("task")
+
+
+class _CountingLock:
+    """A lock factory that records every acquisition."""
+
+    def __init__(self) -> None:
+        """Nothing taken yet."""
+        self.taken = 0
+
+    @contextmanager
+    def __call__(self) -> Iterator[None]:
+        """Count the acquisition and hold nothing."""
+        self.taken += 1
+        yield None
+
+
+def test_the_declaration_names_stops_beyond_the_responders_own() -> None:
+    """Anti-vacuity: the declared-sentinel arms below plant paths the old list never read."""
+    beyond = sorted(set(DECLARED) - set(OWN_DECLARED))
+    covered = set(OWN_DECLARED) <= set(DECLARED)
+    assert (beyond, covered) == (
+        ["ops/loop/control/HOLD_MAIN_SPAWN", "ops/loop/control/lanes/QUEUE_STOP"],
+        True,
+    )
+
+
+@pytest.mark.parametrize("rel", DECLARED)
+def test_every_declared_stop_sentinel_halts_the_responder_quietly_before_the_lock(
+    tree: Path, rel: str
+) -> None:
+    """CS-1234 S5 item 2: the responder halts on every path the declaration names.
+
+    The kit's sentinels are tree-wide, so a standing QUEUE_STOP or
+    HOLD_MAIN_SPAWN refuses every kit spawn into this tree - the responder's
+    included. Ignoring them started nothing either; it took the lock, reached
+    the kit, logged a route refusal and exited 3 on every tick. Read from the
+    REAL declaration, so a path added there is covered here at once.
+    """
+    _declare(tree)
+    _plant(tree, rel)
+    lock = _CountingLock()
+    spy = RunSpy()
+    code = _run(tree, spy, lock=lock)
+    assert (code, len(spy.calls), _pair(tree), _log_records(tree), lock.taken) == (
+        0,
+        0,
+        ("halted", "Halted"),
+        [],
+        0,
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"{garbled", b'{"paths": "x"}', b'{"paths": ["../outside"]}', b"\xff\xfe"],
+    ids=["not-json", "paths-not-a-list", "path-outside-the-tree", "not-utf8"],
+)
+def test_an_unreadable_declaration_halts_the_responder_before_the_lock(
+    tree: Path, payload: bytes
+) -> None:
+    """FAIL CLOSED, as the kit's own spawn does: an unreadable declaration halts."""
+    _declare(tree, payload)
+    lock = _CountingLock()
+    spy = RunSpy()
+    code = _run(tree, spy, lock=lock)
+    assert (code, len(spy.calls), _pair(tree), _log_records(tree), lock.taken) == (
+        0,
+        0,
+        ("halted", "Halted"),
+        [],
+        0,
+    )
+
+
+@pytest.mark.parametrize("sentinel", inbox_responder.STOP_RELPATHS)
+def test_the_responders_own_stops_hold_beside_a_declaration_that_omits_them(
+    tree: Path, sentinel: str
+) -> None:
+    """The decision pinned: the responder's own STOP and INBOX_STOP are a floor, not a default.
+
+    The declaration ADDS to them; a declaration that drops one (or no
+    declaration at all, the arms above) never lifts the responder's own stop.
+    """
+    _declare(tree, json.dumps({"paths": ["ops/loop/control/HOLD_MAIN_SPAWN"]}).encode("ascii"))
+    (_control(tree) / sentinel).write_bytes(b"")
+    spy = RunSpy()
+    code = _run(tree, spy)
+    assert (code, len(spy.calls), _pair(tree), _log_records(tree)) == (
+        0,
+        0,
+        ("halted", "Halted"),
+        [],
+    )
+
+
+def test_a_dangling_link_at_the_responders_own_stop_halts_as_the_kit_reads_it(
+    tree: Path,
+) -> None:
+    """The kit halts on ANY entry at a declared path, a dangling link included; so does this."""
+    link = _control(tree) / inbox_responder.STOP_RELPATHS[0]
+    try:
+        link.symlink_to(tree / "absent-target")
+    except (OSError, NotImplementedError):
+        pytest.skip("this machine cannot create a symbolic link")
+    dangling = os.path.lexists(link) and not link.exists()
+    spy = RunSpy()
+    code = _run(tree, spy)
+    assert (dangling, code, len(spy.calls), _pair(tree)) == (True, 0, 0, ("halted", "Halted"))
+
+
+def _racing_surface(tree: Path) -> Callable[[Any], dict[str, Any]]:
+    """A surface that plants a declared sentinel AFTER the responder's own check ran."""
+
+    def surface(root: Any) -> dict[str, Any]:
+        _plant(tree, "ops/loop/control/HOLD_MAIN_SPAWN")
+        return _surface(2)(root)
+
+    return surface
+
+
+def _fallback_halted_route() -> Callable[[], dict[str, Any]]:
+    """An armed fallback whose own route hit a limit too, so the kit refuses "fallback-halted".
+
+    The state is the kit's own write, at the kit's own path - beside the
+    per-test route file the suite guard names - so nothing outside the test's
+    temporary directories is touched.
+    """
+    now = time.time()
+    state = {
+        "since": now - 60,
+        "until": now + 3600,
+        "from": "split",
+        "to": "single",
+        "halt_until": now + 3600,
+    }
+    kit._write_fallback_state(state)  # noqa: SLF001 - the kit's own state shape
+    route = {"version": 1, "mode": "split", "fallback": {"mode": "single", "config_dir": "x"}}
+    return lambda: dict(route)
+
+
+def _unreachable(address: Any, timeout: float = 0.0) -> _Socket:
+    del address, timeout
+    raise ConnectionRefusedError
+
+
+@pytest.mark.parametrize(
+    ("path", "pair", "exit_code", "outcomes"),
+    [
+        ("halted", ("halted", "Halted"), 0, []),
+        ("fallback-halted", ("limit", "Turn Limit Reached"), 0, ["limit"]),
+        (
+            "blocked",
+            ("blocked", kit.REFUSED_TASK),
+            inbox_responder.EXIT_ROUTE_REFUSED,
+            ["kit_refused"],
+        ),
+        (
+            "refused",
+            ("refused", kit.REFUSED_TASK),
+            inbox_responder.EXIT_ROUTE_REFUSED,
+            ["kit_refused"],
+        ),
+        ("budget-spent", ("limit", "Turn Limit Reached"), 0, ["limit"]),
+    ],
+)
+def test_a_kit_refusal_publishes_the_state_the_kits_own_write_used(
+    tree: Path, path: str, pair: tuple[str, str], exit_code: int, outcomes: list[str]
+) -> None:
+    """CS-1234 S5 item 1: the board shows what the kit wrote for the refusal, never a second word.
+
+    Every arm drives the REAL kit spawn down one refusal, and the ORACLE is the
+    kit's own status write, read the instant the refusal leaves the kit. The
+    responder then publishes over it; the two must agree, and the literal pair
+    anchors both, so an oracle that read nothing cannot pass. "halted" plants a
+    declared sentinel AFTER the responder's own check (a race the next tick
+    catches quietly); "blocked" is an unreachable proxy (FLEET-KIT v14);
+    "fallback-halted" is a limit on both routes (v20).
+    """
+    spy = RunSpy()
+    seams = _seams(spy)
+    surface = _surface(2)
+    if path == "halted":
+        _declare(tree)
+        surface = _racing_surface(tree)
+    elif path == "fallback-halted":
+        seams = _seams(spy, route_source=_fallback_halted_route())
+    elif path == "blocked":
+        seams = _seams(spy, connect=_unreachable)
+    elif path == "refused":
+        seams = _seams(spy, url_source=lambda: None)
+    else:
+        _fill_budget(tree, [T0 - 3600 + i for i in range(kit.RUNS_CAP)])
+    kit_wrote: list[tuple[Any, Any]] = []
+
+    def recording(*args: Any, **kwargs: Any) -> tuple[dict[str, Any], str]:
+        try:
+            return inbox_responder.kit_spawn(*args, **kwargs)
+        except kit.Refused:
+            kit_wrote.append(_pair(tree))
+            raise
+
+    code = _run(tree, spy, seams=seams, surface=surface, spawn=recording)
+    logged = [r.get("outcome") for r in _log_records(tree)]
+    assert (kit_wrote, _pair(tree), code, len(spy.calls), logged) == (
+        [pair],
+        pair,
+        exit_code,
+        0,
+        outcomes,
+    )
+
+
+def test_an_unreachable_proxy_still_exits_as_a_route_refusal_and_never_backs_off(
+    tree: Path,
+) -> None:
+    """Blocked is a route refusal for the exit and the log: only the published state moved."""
+    spy = RunSpy()
+    _run(tree, spy, seams=_seams(spy, connect=_unreachable))
+    second = _run(tree, spy, seams=_seams(spy, connect=_unreachable), now=lambda: T0 + 60)
+    backoff = (tree / inbox_responder.BACKOFF_RELPATH).exists()
+    assert (second, backoff, _pair(tree)) == (
+        inbox_responder.EXIT_ROUTE_REFUSED,
+        False,
+        ("blocked", kit.REFUSED_TASK),
     )
