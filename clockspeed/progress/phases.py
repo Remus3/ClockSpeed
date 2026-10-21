@@ -1,298 +1,578 @@
-"""CS-1043 - what one space-elevator phase COSTS, read from a table handed in.
+"""The phase model - what a space-elevator phase costs in machines, miners and resources.
 
-WHAT THIS MODULE OWNS
------------------------
-One pure function over a phase asset path and a cost table, returning a frozen
-:class:`PhaseCost`: one entry per item the phase requires, keyed by the SHIPPED
-item key, plus the warnings the read raised. It opens no save, no docs file and
-no install. It computes no rate and declares no budget - the milestone half of
-this item owns the completion budget and the rate arithmetic, and nothing here
-imports it or restates it. No value in this module is a rate, so no
-``Fraction`` appears in it either.
+CS-1043 S2, pillar 4. A phase cost renders EXACTLY three keys, and each is an
+exact Fraction mapping or None with a named reason - never ``{}`` and never 0:
 
-THE COST TABLE ARRIVES AS AN ARGUMENT BECAUSE NOTHING SHIPS ONE
-------------------------------------------------------------------
-``clockspeed.save.world`` publishes ``UnlockState.current_game_phase`` - the
-ASSET PATH of the phase a world is in, a string and not an index - and
-publishes nothing at all about what that phase costs. The absent producer is
-measured and named rather than left as a shrug: the carrier is
-``mGamePhaseCosts`` on ``BP_GamePhaseManager_C``, an ``ArrayProperty`` whose
-elements are ``PhaseCost`` structs carrying ``gamePhase`` and a ``cost`` array
-of ``ItemAmount``, and
-``docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`` records that
-grammar from a reading of real worlds. No module in this project reads that
-carrier, so THE FOLLOW-UP IS THAT READER, and this module is written to be
-wired to it with no change to its own shape.
+- ``machine``: building ClassName to the machine count at full clock, solved by
+  :func:`clockspeed.solve.ratio.solve_for_targets` over a caller-supplied
+  recipe selection. Pillar 4 does not CHOOSE recipes.
+- ``miner``: extractor ClassName to the count at full clock on the BASE rate,
+  which :data:`MINER_BASIS_BASE_RATE` names on the model. Purity scales a node's
+  rate in the game, and purity is not saved (CS-1040), so no multiplier is
+  applied and the basis says so rather than a comment.
+- ``resource``: raw item ClassName to the exact rate per minute the chain eats.
 
-A PROTOCOL FOR THE TABLE IS DELIBERATELY NOT DECLARED. A seam with no
-implementer is a seam nobody can grade, and a reader arriving later would be
-free to satisfy it by accident rather than by design. The table is a plain
-mapping argument until something real produces one.
+Each figure is driven by the phase's required rates: every cost amount over the
+completion budget, computed by :func:`clockspeed.progress.milestones.required_rates`
+so the budget has one owner, :data:`clockspeed.progress.milestones.COMPLETION_BUDGET_MINUTES`.
 
-WHAT IS DELIVERED IS NOT AVAILABLE TO THIS LAYER, AND THE REASON IS THE SEAM
--------------------------------------------------------------------------------
-Items already handed to the space elevator sit in its input inventory, and the
-per-building item totals that would answer "how much is already in" are
-published by ``clockspeed/audit/inventory.py``. THAT IS NOT A LAYER THIS
-PACKAGE MAY READ. ``clockspeed/progress/__init__.py`` names the layers below
-this one as ``clockspeed.save.world``, ``clockspeed.data`` and
-``clockspeed.solve``; ``clockspeed.audit`` is not among them, and a layer that
-reaches past its neighbour is a design bug (CLAUDE.md section 2.1). So every
-entry's delivered count is None today and :attr:`PhaseCost.delivered_available`
-is DERIVED from the entries rather than stored. A stored False is a claim
-nothing can redden; a derived one reads False while no entry carries a count
-and turns True the first time a sanctioned route to that count exists, with no
-edit here.
+WHERE PHASE COSTS COME FROM, AND WHY EVERY ONE IS NULL TODAY. A phase cost is a
+fact the save carries, but the save model carries none, and the field that
+holds it is unmeasured. So the costs arrive through :class:`PhaseCostSource`,
+parameterised at the wiring site, and the shipped source
+:data:`SHIPPED_PHASE_COST_SOURCE` returns no table at all under
+:data:`REASON_PHASE_COSTS_UNMEASURED`. Every phase cost therefore publishes
+null with that named reason, and ``phase_costs_available`` is DERIVED from the
+table the source returned - never hardcoded - so the day a measured source is
+wired it reads True without an edit here.
 
-A DUPLICATED ITEM KEY KEEPS THE FIRST AMOUNT AND IS FLAGGED
---------------------------------------------------------------
-:attr:`PhaseCost.required_by_item` is keyed by ``ItemAmount.item_key`` - the
-shipped key rule, never a local re-derivation of it - and two paths under
-different directories can share a trailing token. SUMMING THEM IS NOT THE
-CHOICE MADE HERE: no reader in this project has ever read a real cost table, so
-whether the game writes a repeated item as two rows meaning a total or as a
-re-declaration is unmeasured, and a sum would be an arithmetic invented to
-cover that gap. The mapping keeps the FIRST amount,
-:data:`WARN_PHASE_COST_ITEM_DUPLICATED` is raised, and
-:attr:`PhaseCost.entries` keeps BOTH entries whole - so a consumer that later
-measures the grammar can do its own arithmetic over the entries without this
-module having guessed on its behalf, and the flag is what stops the shortened
-mapping from reading as the whole truth.
+A PHASE WITH NO COST ENTRY IS NULL, NEVER ZERO (non-negotiable 7). A measured
+table that holds no entry for the selected phase publishes every figure as None
+under :data:`REASON_NO_COST_ENTRY`. An empty entry, a non-positive amount and a
+cost item the registry does not resolve are each null under their own reason.
 
-AN UNMODELLED ELEMENT IS FLAGGED AND SKIPPED, NEVER FATAL
-------------------------------------------------------------
-Non-negotiable 7. The element type of the table is annotated ``object`` rather
-than ``ItemAmount``, and that is load-bearing rather than loose: under the
-stricter annotation the type checker proves the refusal branch unreachable and
-``warn_unreachable`` deletes the only code path standing between a wrong
-element and a crash. There is no shipped producer to make the stricter promise
-true, so the check is live code and the annotation says so out loud.
+REQUIRED ONLY. Items already delivered into the elevator sit in its input
+inventory, which needs container stacks the save model does not yet read
+(CS-1038), so every figure here is the REQUIRED quantity and never the
+outstanding one.
 
-THE ARMS
-----------
-``tests/progress/test_phases.py::test_a_phase_cost_renders_machine_miner_and_resource_as_distinct_keys``
-``tests/progress/test_phases.py::test_a_phase_with_no_cost_entry_is_null_rather_than_zero``
-``tests/progress/test_phases.py::test_the_delivery_flag_is_derived_from_the_entries_rather_than_written``
+NO FLOAT, ANYWHERE (non-negotiable 6). The solve is exact; an extractor's base
+rate goes through :func:`clockspeed.solve.exact.per_minute`, a fluid's litres
+are scaled by :data:`clockspeed.data.registry.LITRES_PER_CUBIC_METRE` as a
+Fraction denominator, and every published model passes
+:func:`clockspeed.solve.exact.audit_exact`.
+
+DETERMINISM. Every published mapping is keyed in sorted order and a set of
+phase costs is published in phase order, so the same inputs publish the same
+output in the same order.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from fractions import Fraction
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import Final, Protocol
 
-from clockspeed.data.blobs import ItemAmount
-from clockspeed.save.world import WorldWarning
-
-if TYPE_CHECKING:  # pragma: no cover - import-time typing only
-    from collections.abc import Mapping, Sequence
+from clockspeed.data.registry import LITRES_PER_CUBIC_METRE, Registry
+from clockspeed.data.schematics import CostLine
+from clockspeed.progress import milestones
+from clockspeed.solve.exact import audit_exact, per_minute
+from clockspeed.solve.ratio import ProductionPlan, RatioError, RatioRequest, solve_for_targets
 
 __all__ = [
-    "SOURCE_PHASES",
-    "WARN_PHASE_COST_ITEM_DUPLICATED",
-    "WARN_PHASE_COST_ITEM_UNREADABLE",
+    "CLOCK_BASIS_FULL",
+    "MINER_BASIS_BASE_RATE",
+    "REASON_EMPTY_COST_ENTRY",
+    "REASON_EXTRACTOR_CANNOT_YIELD",
+    "REASON_EXTRACTOR_RATE_UNAVAILABLE",
+    "REASON_NONPOSITIVE_COST",
+    "REASON_NO_COST_ENTRY",
+    "REASON_NO_EXTRACTOR_SELECTED",
+    "REASON_NO_RAW_INPUT",
+    "REASON_NO_RECIPE_SELECTION",
+    "REASON_NO_SINGLE_BUILDING",
+    "REASON_PHASE_COSTS_UNMEASURED",
+    "REASON_RATIO_REFUSED",
+    "REASON_UNKNOWN_EXTRACTOR",
+    "REASON_UNKNOWN_RESOURCE",
+    "REASON_UNRESOLVED_COST_ITEM",
+    "SHIPPED_PHASE_COST_SOURCE",
+    "Figure",
     "PhaseCost",
-    "PhaseCostEntry",
-    "phase_cost_of",
+    "PhaseCostSource",
+    "PhaseCostTable",
+    "PhaseIntegrityError",
+    "RecipeSelection",
+    "UnmeasuredPhaseCosts",
+    "phase_cost",
+    "phase_costs",
+    "phase_costs_available",
 ]
 
-#: Which layer noticed a warning raised here, for ``WorldWarning.source``.
-SOURCE_PHASES: Final = "phases"
+#: Every machine and miner count assumes every building runs at full clock.
+CLOCK_BASIS_FULL: Final = "full-clock"
+#: A miner count is over the extractor's unscaled document rate: no purity
+#: multiplier is applied, because purity is not saved (CS-1040).
+MINER_BASIS_BASE_RATE: Final = "base-rate"
 
-#: This many elements of the cost sequence were not an item amount this module
-#: can read, so they were skipped. Flagged rather than dropped: a cost whose
-#: entries are short and whose warnings are empty is indistinguishable from a
-#: phase that genuinely requires less, and those are different facts.
-WARN_PHASE_COST_ITEM_UNREADABLE: Final = "phase-cost-item-unreadable"
-
-#: This many entries repeated an item key an earlier entry already claimed.
-#: Separate from the code above because an element nothing could read and an
-#: element read perfectly well whose key collided are different facts, and one
-#: code would make them indistinguishable - the collapse
-#: ``clockspeed/audit/network.py`` refuses between its own two empty-join
-#: reasons, one layer over.
-WARN_PHASE_COST_ITEM_DUPLICATED: Final = "phase-cost-item-duplicated"
-
-#: One fixed line per warning code raised here. Keyed rather than formatted, so
-#: a detail can never be built from something read out of a save - the idiom
-#: ``clockspeed/save/world.py`` established for the same reason.
-_WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
-    {
-        WARN_PHASE_COST_ITEM_UNREADABLE: (
-            "this many elements of the phase cost sequence were not an item amount this"
-            " reader models, so each was skipped and the required amounts below are short"
-            " by whatever they named; an unmodelled element is flagged and carried, never"
-            " fatal and never silently absent"
-        ),
-        WARN_PHASE_COST_ITEM_DUPLICATED: (
-            "this many cost entries repeated an item key an earlier entry already claimed;"
-            " the per-item mapping keeps the FIRST amount because no reader in this project"
-            " has measured whether the game means a total or a re-declaration, and the"
-            " entries themselves are published whole so a consumer can decide for itself"
-        ),
-    }
-)
+#: The shipped source: the save field that holds phase costs is unmeasured.
+REASON_PHASE_COSTS_UNMEASURED: Final = "phase-costs-unmeasured"
+#: The measured table holds no entry for the selected phase.
+REASON_NO_COST_ENTRY: Final = "no-cost-entry"
+#: The phase's entry lists no cost line at all.
+REASON_EMPTY_COST_ENTRY: Final = "empty-cost-entry"
+#: A cost item totals zero or less, which is no requirement anyone can build to.
+REASON_NONPOSITIVE_COST: Final = "nonpositive-cost"
+#: A cost item names nothing in the registry, so no recipe can be solved for it.
+REASON_UNRESOLVED_COST_ITEM: Final = "unresolved-cost-item"
+#: The caller supplied no recipe selection, and this layer does not choose one.
+REASON_NO_RECIPE_SELECTION: Final = "no-recipe-selection"
+#: The ratio solve refused the selection; the figure's detail names the refusal.
+REASON_RATIO_REFUSED: Final = "ratio-refused"
+#: A recipe the plan runs is producible in no single modelled building.
+REASON_NO_SINGLE_BUILDING: Final = "no-single-building"
+#: The plan eats no raw input, so there is nothing to mine.
+REASON_NO_RAW_INPUT: Final = "no-raw-input"
+#: A raw input has no extractor in the caller's selection.
+REASON_NO_EXTRACTOR_SELECTED: Final = "no-extractor-selected"
+#: A selected extractor names nothing in the registry.
+REASON_UNKNOWN_EXTRACTOR: Final = "unknown-extractor"
+#: A raw input names no item in the registry, so its unit is unknown.
+REASON_UNKNOWN_RESOURCE: Final = "unknown-resource"
+#: A selected extractor's documents do not admit the raw input it was given.
+REASON_EXTRACTOR_CANNOT_YIELD: Final = "extractor-cannot-yield"
+#: A selected extractor's rate is absent or zero in the document.
+REASON_EXTRACTOR_RATE_UNAVAILABLE: Final = "extractor-rate-unavailable"
 
 
-def _warning(code: str, count: int) -> WorldWarning:
-    """Build one warning raised by this module.
+class PhaseIntegrityError(Exception):
+    """A figure or a table was built in a shape this model forbids.
 
-    Args:
-        code: One of the ``WARN_PHASE_COST_*`` constants.
-        count: How many occurrences this aggregates.
-
-    Returns:
-        The warning, carrying the fixed detail registered for ``code``.
+    A defect in the code that built it, never a property of the data: the data
+    cases are published as None with a named reason. Deliberately NOT a
+    :class:`ValueError`, so no input handler can swallow it.
     """
-    return WorldWarning(
-        source=SOURCE_PHASES,
-        code=code,
-        detail=_WARNING_DETAIL[code],
-        count=count,
-    )
 
 
 @dataclass(frozen=True)
-class PhaseCostEntry:
-    """One item a phase requires, and how much of it is already in.
-
-    Frozen because an entry is a reading of a table handed in, not a working
-    value. ``raw_path`` is withheld from the rendering: it is an asset path, and
-    an asset path may cross this seam and may not reach a repr, a log line or an
-    exception (non-negotiable 12). It is kept whole anyway, on the terms
-    ``clockspeed/data/blobs.py`` ``ItemAmount`` keeps its own - it is the only
-    evidence available if ``item_key`` ever fails to resolve.
+class Figure:
+    """One rendered figure: an exact mapping, or None with a named reason.
 
     Attributes:
-        item_key: The shipped item key, read straight off
-            ``ItemAmount.item_key`` and never re-derived here.
-        raw_path: The full item path exactly as the table carried it.
-        required: The amount the phase requires, verbatim from the table and
-            never unit converted - units are not knowable at this seam.
-        delivered: How much is already in, or None when that count was never
-            available. ALWAYS None today, and honestly so: the count lives in
-            the space elevator's input inventory, which the module docstring
-            records as a layer this one may not read.
+        values: Key to an exact, positive Fraction, sorted by key, or None.
+            Never empty: an empty answer is published as None with a reason.
+        reason: None exactly when ``values`` is set, otherwise a REASON_*
+            constant.
+        detail: One line naming which refusal or which key, or the empty
+            string. Never a value read out of a save.
     """
 
-    item_key: str
-    raw_path: str = field(repr=False)
-    required: int
-    delivered: int | None = None
+    values: Mapping[str, Fraction] | None
+    reason: str | None
+    detail: str = ""
 
+    def __post_init__(self) -> None:
+        """Refuse a figure that is both, neither, empty or not positive.
 
-@dataclass(frozen=True, repr=False)
-class PhaseCost:
-    """What one phase costs, as this layer can honestly state it.
-
-    ``repr`` IS HAND WRITTEN AND RENDERS COUNTS ONLY. ``phase`` is an asset path
-    and so is every entry's ``raw_path``, and a test runner reprs a value before
-    a human chooses what to print, so neither may appear (non-negotiables 11 and
-    12). The phase is withheld ENTIRELY rather than rendered as a presence flag:
-    one of these exists only for a phase the table named, so its presence is
-    already implied by the object existing at all and a flag would add a field
-    that can never read False.
-
-    Attributes:
-        phase: The phase asset path this cost is for, as
-            ``UnlockState.current_game_phase`` publishes it.
-        entries: One entry per readable element of the cost sequence, in source
-            order, INCLUDING entries whose item key a sibling already claimed.
-        warnings: What the read flagged and carried.
-    """
-
-    phase: str = field(repr=False)
-    entries: tuple[PhaseCostEntry, ...] = field(repr=False)
-    warnings: tuple[WorldWarning, ...]
-
-    @property
-    def delivered_available(self) -> bool:
-        """Whether any entry carries a delivered count.
-
-        DERIVED AND NEVER STORED, which is the whole of this property. A stored
-        False would read correctly today and could not be reddened by any
-        change - the unreddenable vacuity shape - while this reads False
-        exactly while no entry carries a count and turns True the moment one
-        does, with no edit to this module.
-
-        Returns:
-            True when at least one entry's delivered count is present. A count
-            of zero IS present, so presence is tested and never truthiness.
+        Raises:
+            PhaseIntegrityError: The figure breaks the A3 shape.
         """
-        return any(entry.delivered is not None for entry in self.entries)
-
-    @property
-    def required_by_item(self) -> Mapping[str, int]:
-        """The required amount per item key, first amount winning a collision.
-
-        Keyed by the shipped ``ItemAmount.item_key``. On a repeated key the
-        FIRST amount is kept and :data:`WARN_PHASE_COST_ITEM_DUPLICATED` sits
-        in :attr:`warnings` - the module docstring records why that is not a
-        sum - and :attr:`entries` still carries every entry, so nothing is lost
-        by this mapping being the short view.
-
-        Returns:
-            A read-only mapping from item key to required amount.
-        """
-        required: dict[str, int] = {}
-        for entry in self.entries:
-            required.setdefault(entry.item_key, entry.required)
-        return MappingProxyType(required)
-
-    def __repr__(self) -> str:
-        """Render counts only, and withhold every asset path.
-
-        Returns:
-            The safe rendering.
-        """
-        return f"{type(self).__name__}(entries={len(self.entries)}, warnings={len(self.warnings)})"
+        if (self.values is None) == (self.reason is None):
+            raise PhaseIntegrityError("a figure carries exactly one of a mapping or a reason")
+        if self.values is not None:
+            if not self.values:
+                raise PhaseIntegrityError("a figure never renders an empty mapping")
+            for value in self.values.values():
+                if type(value) is not Fraction or value <= 0:
+                    raise PhaseIntegrityError(
+                        "a figure renders exact positive Fractions only, never 0 or a float"
+                    )
 
 
-def phase_cost_of(phase: str | None, costs: Mapping[str, Sequence[object]]) -> PhaseCost | None:
-    """What one phase costs, or None when the table names no cost for it.
-
-    NULL IS NOT ZERO, AND THE TWO ANSWERS ARE BOTH REAL. A phase the table does
-    not name is None - this reader has nothing to say about it. A phase the
-    table DOES name, with an empty cost sequence, is a :class:`PhaseCost`
-    carrying no entry - the table says it costs nothing. Collapsing the first
-    into a zero-valued cost would publish a confident answer about a phase
-    nothing was ever read for.
+def _figure(values: Mapping[str, Fraction]) -> Figure:
+    """Publish a computed mapping, sorted by key.
 
     Args:
-        phase: The phase asset path, as ``UnlockState.current_game_phase``
-            publishes it, or None when no carrier named one.
-        costs: The cost table, keyed by phase asset path. The element type is
-            annotated ``object`` on purpose - see the module docstring.
+        values: The computed mapping.
 
     Returns:
-        The cost of ``phase``, or None when ``phase`` is not a key of ``costs``,
-        which includes ``phase`` being None.
+        The figure.
     """
-    if phase is None or phase not in costs:
-        return None
+    return Figure(
+        values=MappingProxyType({key: values[key] for key in sorted(values)}), reason=None
+    )
 
-    entries: list[PhaseCostEntry] = []
-    claimed: set[str] = set()
-    unreadable = 0
-    duplicated = 0
-    for element in costs[phase]:
-        if not isinstance(element, ItemAmount):
-            unreadable += 1
-            continue
-        if element.item_key in claimed:
-            duplicated += 1
-        claimed.add(element.item_key)
-        entries.append(
-            PhaseCostEntry(
-                item_key=element.item_key,
-                raw_path=element.raw_path,
-                required=element.amount,
-            )
+
+def _null(reason: str, detail: str = "") -> Figure:
+    """Publish a figure that is unavailable.
+
+    Args:
+        reason: A REASON_* constant.
+        detail: Which refusal or key, or the empty string.
+
+    Returns:
+        The figure.
+    """
+    return Figure(values=None, reason=reason, detail=detail)
+
+
+@dataclass(frozen=True)
+class PhaseCostTable:
+    """What a phase-cost source publishes: every phase's cost, or why there is none.
+
+    Attributes:
+        entries: Phase token to its cost lines, in the registry's units - a
+            count for a solid, cubic metres for a fluid - or None when the
+            source has no measured table.
+        reason: None exactly when ``entries`` is set, otherwise a REASON_*
+            constant.
+    """
+
+    entries: Mapping[str, tuple[CostLine, ...]] | None
+    reason: str | None
+
+    def __post_init__(self) -> None:
+        """Refuse a table that is both or neither.
+
+        Raises:
+            PhaseIntegrityError: Both or neither of the fields is set.
+        """
+        if (self.entries is None) == (self.reason is None):
+            raise PhaseIntegrityError("a phase-cost table carries exactly one of entries or reason")
+
+
+class PhaseCostSource(Protocol):
+    """Where phase costs come from, parameterised at the wiring site."""
+
+    def phase_costs(self) -> PhaseCostTable:
+        """Publish the phase-cost table.
+
+        Returns:
+            The table, or a table carrying only the reason there is none.
+        """
+        ...
+
+
+class UnmeasuredPhaseCosts:
+    """The shipped source: the save field that holds phase costs is unmeasured."""
+
+    def phase_costs(self) -> PhaseCostTable:
+        """Publish no table, under its named reason.
+
+        Returns:
+            A table with no entries, under :data:`REASON_PHASE_COSTS_UNMEASURED`.
+        """
+        return PhaseCostTable(entries=None, reason=REASON_PHASE_COSTS_UNMEASURED)
+
+
+#: The source wired today. A later item measures the field and replaces it.
+SHIPPED_PHASE_COST_SOURCE: Final = UnmeasuredPhaseCosts()
+
+
+@dataclass(frozen=True)
+class RecipeSelection:
+    """The caller's choice of recipes and extractors; this layer chooses neither.
+
+    Attributes:
+        recipes: The selected recipe keys, as
+            :class:`clockspeed.solve.ratio.RatioRequest` takes them.
+        raw_items: Items available without bound.
+        byproduct_policy: One of :data:`clockspeed.solve.ratio.BYPRODUCT_POLICIES`,
+            required, with no default.
+        extractors: Raw item ClassName to the extractor ClassName that mines it.
+    """
+
+    recipes: tuple[str, ...]
+    raw_items: tuple[str, ...]
+    byproduct_policy: str
+    extractors: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class PhaseCost:
+    """One selected phase's cost, as required rates and the three A3 figures.
+
+    Attributes:
+        phase: The phase token the caller selected.
+        required: Cost item to the exact rate per minute that delivers it
+            inside ``budget_minutes``. Not rendered; it drives the other three.
+        machine: Building ClassName to the machine count at full clock.
+        miner: Extractor ClassName to the count at full clock, base rate.
+        resource: Raw item ClassName to the rate per minute the chain eats.
+        budget_minutes: The completion budget the rates were computed over.
+        clock_basis: :data:`CLOCK_BASIS_FULL`, named on the model.
+        miner_basis: :data:`MINER_BASIS_BASE_RATE`, named on the model.
+        phase_costs_available: Whether the source returned a measured table,
+            derived from that table and never hardcoded.
+    """
+
+    phase: str
+    required: Figure
+    machine: Figure
+    miner: Figure
+    resource: Figure
+    budget_minutes: Fraction
+    clock_basis: str
+    miner_basis: str
+    phase_costs_available: bool
+
+    def render(self) -> Mapping[str, Mapping[str, Fraction] | None]:
+        """Render exactly the three A3 keys.
+
+        Returns:
+            ``machine``, ``miner`` and ``resource``, each an exact mapping or
+            None. The reason for a None is on the matching figure.
+        """
+        return MappingProxyType(
+            {
+                "machine": self.machine.values,
+                "miner": self.miner.values,
+                "resource": self.resource.values,
+            }
         )
 
-    warnings: list[WorldWarning] = []
-    if unreadable > 0:
-        warnings.append(_warning(WARN_PHASE_COST_ITEM_UNREADABLE, unreadable))
-    if duplicated > 0:
-        warnings.append(_warning(WARN_PHASE_COST_ITEM_DUPLICATED, duplicated))
-    return PhaseCost(phase=phase, entries=tuple(entries), warnings=tuple(warnings))
+
+def phase_costs_available(source: PhaseCostSource) -> bool:
+    """Whether a source has a measured table, read off the table itself.
+
+    Args:
+        source: The phase-cost source.
+
+    Returns:
+        True when the source returned entries, False when it returned only a
+        reason.
+    """
+    return source.phase_costs().entries is not None
+
+
+def _machines(registry: Registry, plan: ProductionPlan) -> Figure:
+    """Sum the plan's machine counts by the building each recipe runs in.
+
+    Args:
+        registry: The registry the plan was solved over.
+        plan: The solved plan.
+
+    Returns:
+        Building ClassName to the full-clock machine count, or None under
+        :data:`REASON_NO_SINGLE_BUILDING` when a running recipe has no single
+        building - a partial count would read as the whole.
+    """
+    totals: dict[str, Fraction] = {}
+    for step in plan.steps:
+        if step.machines == 0:
+            continue
+        produced_in = registry.recipes[step.recipe_key].produced_in
+        if len(produced_in) != 1:
+            return _null(REASON_NO_SINGLE_BUILDING, step.recipe_key)
+        building = produced_in[0]
+        totals[building] = totals.get(building, Fraction(0)) + step.machines
+    if not totals:
+        return _null(REASON_NO_SINGLE_BUILDING)
+    return _figure(totals)
+
+
+def _base_rate(registry: Registry, item_key: str, extractor_key: str) -> Fraction | Figure:
+    """One extractor's base rate per minute in the item's registry unit.
+
+    Args:
+        registry: The registry.
+        item_key: The raw item.
+        extractor_key: The extractor the caller selected for it.
+
+    Returns:
+        The exact positive rate, or the null figure naming why there is none.
+    """
+    extractor = registry.extractors.get(extractor_key)
+    if extractor is None:
+        return _null(REASON_UNKNOWN_EXTRACTOR, extractor_key)
+    item = registry.items.get(item_key)
+    if item is None:
+        return _null(REASON_UNKNOWN_RESOURCE, item_key)
+    if extractor.allowed_resources is not None:
+        admitted = item_key in extractor.allowed_resources
+    else:
+        admitted = item.form in extractor.allowed_forms
+    if not admitted:
+        return _null(REASON_EXTRACTOR_CANNOT_YIELD, extractor_key)
+    per_cycle, cycle = extractor.items_per_cycle, extractor.extract_cycle_time
+    if per_cycle is None or cycle is None or per_cycle <= 0 or cycle <= 0:
+        return _null(REASON_EXTRACTOR_RATE_UNAVAILABLE, extractor_key)
+    rate = per_minute(per_cycle, cycle)
+    if item.is_fluid:
+        # mItemsPerCycle is LITRES on a fluid extractor; the solve is in cubic metres.
+        rate = rate / Fraction(LITRES_PER_CUBIC_METRE)
+    return rate
+
+
+def _miners(
+    registry: Registry, resource: Mapping[str, Fraction], chosen: RecipeSelection
+) -> Figure:
+    """Count the extractors the raw demand needs, at full clock and base rate.
+
+    Args:
+        registry: The registry.
+        resource: Raw item to the positive rate the chain eats.
+        chosen: The caller's selection, whose extractors are read.
+
+    Returns:
+        Extractor ClassName to the exact count, or the null figure naming the
+        first raw item, in sorted order, that cannot be mined.
+    """
+    totals: dict[str, Fraction] = {}
+    for item_key, demand in resource.items():
+        extractor_key = chosen.extractors.get(item_key)
+        if extractor_key is None:
+            return _null(REASON_NO_EXTRACTOR_SELECTED, item_key)
+        rate = _base_rate(registry, item_key, extractor_key)
+        if isinstance(rate, Figure):
+            return rate
+        totals[extractor_key] = totals.get(extractor_key, Fraction(0)) + demand / rate
+    return _figure(totals)
+
+
+def _all_null(
+    phase: str, required: Figure, reason: str, available: bool, detail: str = ""
+) -> PhaseCost:
+    """Publish a phase whose three figures share one named reason.
+
+    Args:
+        phase: The selected phase.
+        required: The required-rate figure, itself possibly null.
+        reason: A REASON_* constant.
+        available: The derived ``phase_costs_available``.
+        detail: Which refusal or key, or the empty string.
+
+    Returns:
+        The phase cost.
+    """
+    return PhaseCost(
+        phase=phase,
+        required=required,
+        machine=_null(reason, detail),
+        miner=_null(reason, detail),
+        resource=_null(reason, detail),
+        budget_minutes=milestones.completion_budget(),
+        clock_basis=CLOCK_BASIS_FULL,
+        miner_basis=MINER_BASIS_BASE_RATE,
+        phase_costs_available=available,
+    )
+
+
+def _solved(
+    phase: str,
+    required: Figure,
+    registry: Registry,
+    chosen: RecipeSelection,
+) -> PhaseCost:
+    """Solve the required rates over the selection and publish the three figures.
+
+    Args:
+        phase: The selected phase.
+        required: The required-rate figure, known to carry values.
+        registry: The registry.
+        chosen: The caller's selection.
+
+    Returns:
+        The phase cost, every figure computed or null under a named reason.
+    """
+    targets = required.values
+    if targets is None:
+        raise PhaseIntegrityError("a phase is solved only over required rates that exist")
+    request = RatioRequest(
+        targets=targets,
+        recipes=chosen.recipes,
+        raw_items=chosen.raw_items,
+        byproduct_policy=chosen.byproduct_policy,
+    )
+    try:
+        plan = solve_for_targets(registry, request)
+    except RatioError as refusal:
+        return _all_null(phase, required, REASON_RATIO_REFUSED, True, type(refusal).__name__)
+    eaten = {item: rate for item, rate in plan.raw_inputs.items() if rate > 0}
+    resource = _figure(eaten) if eaten else _null(REASON_NO_RAW_INPUT)
+    miner = _miners(registry, eaten, chosen) if eaten else _null(REASON_NO_RAW_INPUT)
+    return PhaseCost(
+        phase=phase,
+        required=required,
+        machine=_machines(registry, plan),
+        miner=miner,
+        resource=resource,
+        budget_minutes=milestones.completion_budget(),
+        clock_basis=CLOCK_BASIS_FULL,
+        miner_basis=MINER_BASIS_BASE_RATE,
+        phase_costs_available=True,
+    )
+
+
+def phase_cost(
+    source: PhaseCostSource,
+    registry: Registry,
+    phase: str,
+    chosen: RecipeSelection | None,
+) -> PhaseCost:
+    """Build the cost of ANY selected phase, not only the current one.
+
+    Args:
+        source: Where phase costs come from; :data:`SHIPPED_PHASE_COST_SOURCE`
+            at the shipped wiring site.
+        registry: The registry the selection names recipes and extractors in.
+        phase: The selected phase token.
+        chosen: The caller's recipe and extractor selection, or None.
+
+    Returns:
+        The phase cost, audited exact. Every figure that cannot be derived is
+        None with a named reason, never zero and never an empty mapping.
+
+    Raises:
+        ValueError: The selection names a recipe this registry does not hold,
+            or declares an item both raw and a cost item - a caller shape bug
+            the ratio solve refuses as one.
+    """
+    table = source.phase_costs()
+    if table.entries is None:
+        reason = table.reason or REASON_PHASE_COSTS_UNMEASURED
+        cost = _all_null(phase, _null(reason), reason, False)
+    else:
+        lines = table.entries.get(phase)
+        if lines is None:
+            cost = _all_null(phase, _null(REASON_NO_COST_ENTRY), REASON_NO_COST_ENTRY, True)
+        elif not lines:
+            cost = _all_null(phase, _null(REASON_EMPTY_COST_ENTRY), REASON_EMPTY_COST_ENTRY, True)
+        else:
+            cost = _costed(phase, lines, registry, chosen)
+    audit_exact(cost, path="phase_cost")
+    return cost
+
+
+def _costed(
+    phase: str,
+    lines: tuple[CostLine, ...],
+    registry: Registry,
+    chosen: RecipeSelection | None,
+) -> PhaseCost:
+    """Publish a phase that has cost lines.
+
+    Args:
+        phase: The selected phase.
+        lines: Its cost lines, at least one.
+        registry: The registry.
+        chosen: The caller's selection, or None.
+
+    Returns:
+        The phase cost.
+    """
+    totals = milestones.cost_totals(lines)
+    nonpositive = [item for item, amount in totals.items() if amount <= 0]
+    if nonpositive:
+        reason = REASON_NONPOSITIVE_COST
+        return _all_null(phase, _null(reason, nonpositive[0]), reason, True, nonpositive[0])
+    required = _figure(milestones.required_rates(lines))
+    unresolved = [item for item in totals if item not in registry.items]
+    if unresolved:
+        return _all_null(phase, required, REASON_UNRESOLVED_COST_ITEM, True, unresolved[0])
+    if chosen is None:
+        return _all_null(phase, required, REASON_NO_RECIPE_SELECTION, True)
+    return _solved(phase, required, registry, chosen)
+
+
+def phase_costs(
+    source: PhaseCostSource,
+    registry: Registry,
+    phases: Sequence[str],
+    chosen: RecipeSelection | None,
+) -> tuple[PhaseCost, ...]:
+    """Build the cost of every selected phase, in a deterministic order.
+
+    Args:
+        source: Where phase costs come from.
+        registry: The registry.
+        phases: The selected phase tokens, in any order. A repeat is read once.
+        chosen: The caller's selection, or None.
+
+    Returns:
+        One phase cost per distinct phase, in sorted phase order - never in
+        the caller's order.
+    """
+    return tuple(phase_cost(source, registry, phase, chosen) for phase in sorted(set(phases)))

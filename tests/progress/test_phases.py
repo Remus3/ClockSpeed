@@ -1,224 +1,465 @@
-"""CS-1043 - the space-elevator phase cost: distinct keys, and null over zero.
+"""CS-1043 S2 - the phase model: machine, miner and resource, or a named null.
 
-The acceptance clause these arms answer: a phase cost renders machine, miner
-and resource as DISTINCT KEYS, and a phase with no cost entry is NULL rather
-than zero.
+Every arm hand-authors a small SYNTHETIC registry - three items, two recipes,
+two buildings, two extractors - and a synthetic phase-cost source in this file,
+so no game install and no save file is needed and no slice of real game data is
+checked in (CLAUDE.md section 7).
 
-EVERY FIXTURE IS HAND-AUTHORED AND OBVIOUSLY SYNTHETIC - an asset path under an
-invented directory, an invented trailing token and an invented amount. Nothing
-here opens a save, a docs file or the game install, which is the first rule of
-``tests/progress/__init__.py``.
+THE CHAIN, AND THE ORACLE WORKED BY HAND. One phase costs 1000 plates over the
+two-hour budget, so the required plate rate is 1000/120 = 25/3 a minute.
 
-THE ITEM KEYS ARE NOT WRITTEN BY HAND, AND THAT IS THE POINT OF THE BLOB. The
-distinct-keys property has to be graded over the SHIPPED key rule rather than a
-rule this module invented beside it, so every fixture cost is built by handing
-a synthetic blob to ``clockspeed.data.blobs.parse_item_amounts`` and letting it
-derive each ``item_key`` exactly as it does for shipped data. A hand-written
-key would make these arms agree with themselves and with nothing else.
+- A constructor makes 2 plates from 3 ingots and 2 cubic metres of water every
+  6 seconds: 20 plates, 30 ingots and 20 cubic metres a minute per machine. So
+  25/3 plates need 5/12 constructors, which eat 25/2 ingots and 25/3 cubic
+  metres a minute.
+- A smelter makes 1 ingot from 1 ore every 4 seconds: 15 a minute. So 25/2
+  ingots need 5/6 smelters, which eat 25/2 ore a minute.
+- A miner pulls 1 ore a second, 60 a minute at its base rate, so 25/2 ore need
+  5/24 miners. A pump moves 2000 LITRES a second, 120 cubic metres a minute,
+  so 25/3 cubic metres need 5/72 pumps. A pump count that forgot the litre
+  conversion would be a thousand times smaller and would redden this arm.
 
-THE NULL ARM CARRIES ITS OWN DISCRIMINATING CONTROL. An ``is None`` assertion
-for an absent phase passes unchanged against a function that returns None for
-every input, so the same arm asserts that a phase which IS a key, with an empty
-cost sequence, publishes a model carrying no entry. An absent phase and a phase
-that costs nothing are different answers and the pair is what separates them.
-
-THE DELIVERY FLAG IS GRADED IN BOTH DIRECTIONS. A stored ``False`` satisfies the
-false half forever, so the true half is built from an entry whose delivered
-count is ZERO - which also reddens a derivation that asks whether that count is
-truthy instead of whether it is present.
+The expected values are written below as those hand-worked Fractions with the
+two-hour figure spelled in THIS file, never computed by the module under test.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from fractions import Fraction
+from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
-from clockspeed.data.blobs import ItemAmount, parse_item_amounts
-from clockspeed.progress.phases import (
-    WARN_PHASE_COST_ITEM_DUPLICATED,
-    WARN_PHASE_COST_ITEM_UNREADABLE,
-    PhaseCost,
-    PhaseCostEntry,
-    phase_cost_of,
+import pytest
+
+from clockspeed.data.registry import (
+    FORM_LIQUID,
+    FORM_SOLID,
+    Building,
+    Extractor,
+    Item,
+    Recipe,
+    RecipeIO,
+    Registry,
 )
+from clockspeed.data.schematics import CostLine
+from clockspeed.progress import milestones, phases
+from clockspeed.solve.exact import audit_exact
+from clockspeed.solve.ratio import BYPRODUCT_BALANCED
+from tests.solve.test_phase3_gate import inexact_violations
 
-#: The invented directory root every synthetic path below shares. It is the
-#: probe the repr arm greps for, so it must appear in no shipped path.
-SYNTHETIC_ROOT: Final = "/Game/CsSynth/"
+# ---------------------------------------------------------------------------
+# The synthetic corpus, authored here
+# ---------------------------------------------------------------------------
 
-#: A synthetic phase asset path in the shape ADR 0016 measured
-#: ``mCurrentGamePhase`` to carry - an object reference naming a ``GP_*`` asset.
-PHASE: Final = "/Game/CsSynth/Phases/GP_CsSynthPhase.GP_CsSynthPhase_C"
+#: Two hours in minutes, spelled here as the oracle rather than imported.
+TWO_HOURS_IN_MINUTES: Final = 120
 
-#: A second synthetic phase path that no fixture here ever makes a key of.
-ABSENT_PHASE: Final = "/Game/CsSynth/Phases/GP_CsSynthAbsent.GP_CsSynthAbsent_C"
+ORE_ITEM: Final = "Desc_SynthOre_C"
+WATER_ITEM: Final = "Desc_SynthWater_C"
+INGOT_ITEM: Final = "Desc_SynthIngot_C"
+PLATE_ITEM: Final = "Desc_SynthPlate_C"
 
-#: A machine descriptor, a miner descriptor and a resource descriptor, each
-#: under a DIFFERENT invented directory and each with a DIFFERENT trailing
-#: token, so a model that keyed by directory - or collapsed the three into one
-#: bucket - cannot satisfy the distinct-keys arm. The trailing single quote is
-#: the ``Type'Path'`` wrapper's own, kept so the shipped key rule's quote strip
-#: is exercised rather than assumed.
-MACHINE_PATH: Final = "/Game/CsSynth/Machines/Desc_CsAssembler.Desc_CsAssembler_C'"
-MINER_PATH: Final = "/Game/CsSynth/Miners/Desc_CsMinerMk7.Desc_CsMinerMk7_C'"
-RESOURCE_PATH: Final = "/Game/CsSynth/Resources/Desc_CsSynthOre.Desc_CsSynthOre_C'"
+SMELTER: Final = "Build_SynthSmelter_C"
+CONSTRUCTOR: Final = "Build_SynthConstructor_C"
+MINER: Final = "Build_SynthMiner_C"
+PUMP: Final = "Build_SynthPump_C"
 
-#: A fourth path, under a fourth directory, whose trailing token is the SAME as
-#: the machine descriptor's. This is the duplicate-key fixture, and it is a
-#: different PATH on purpose: two entries sharing a key is the interesting case
-#: and two identical entries is not.
-DUPLICATE_PATH: Final = "/Game/CsSynth/Duplicates/Desc_CsAssembler.Desc_CsAssembler_C'"
+INGOT_RECIPE: Final = "Recipe_SynthIngot_C"
+PLATE_RECIPE: Final = "Recipe_SynthPlate_C"
 
-#: What the shipped key rule derives from each path above - the token after the
-#: final dot with the wrapper quote stripped.
-MACHINE_KEY: Final = "Desc_CsAssembler_C"
-MINER_KEY: Final = "Desc_CsMinerMk7_C"
-RESOURCE_KEY: Final = "Desc_CsSynthOre_C"
+COSTED_PHASE: Final = "EGP_SynthPhaseCosted"
+UNCOSTED_PHASE: Final = "EGP_SynthPhaseUncosted"
+PLATE_COST: Final = 1000
 
-#: Three different amounts, so a model that summed two buckets, or read one
-#: entry's amount for another's, lands on a value the dict equality rejects.
-MACHINE_AMOUNT: Final = 4
-MINER_AMOUNT: Final = 9
-RESOURCE_AMOUNT: Final = 17
+KEY_MACHINE: Final = "machine"
+KEY_MINER: Final = "miner"
+KEY_RESOURCE: Final = "resource"
 
 
-def _blob(*entries: tuple[str, int]) -> str:
-    """Wrap synthetic item-amount entries in the measured blob grammar."""
-    inner = ",".join(f'(ItemClass="{path}",Amount={amount})' for path, amount in entries)
-    return f"({inner})"
+def _item(key: str, form: str) -> Item:
+    """Build one synthetic item.
 
+    Args:
+        key: The ClassName.
+        form: The verbatim form token.
 
-def _machine_miner_resource() -> tuple[ItemAmount, ...]:
-    """One machine, one miner and one resource descriptor, keys derived."""
-    return parse_item_amounts(
-        _blob(
-            (MACHINE_PATH, MACHINE_AMOUNT),
-            (MINER_PATH, MINER_AMOUNT),
-            (RESOURCE_PATH, RESOURCE_AMOUNT),
-        )
+    Returns:
+        The item.
+    """
+    return Item(
+        key=key,
+        display_name=key,
+        form=form,
+        energy_value=None,
+        sink_points=None,
+        is_fluid=form == FORM_LIQUID,
     )
+
+
+def _building(key: str) -> Building:
+    """Build one synthetic fixed-draw building.
+
+    Args:
+        key: The ClassName.
+
+    Returns:
+        The building.
+    """
+    return Building(
+        key=key,
+        display_name=key,
+        power_consumption=Fraction(4),
+        power_exponent=None,
+        estimated_min_power=None,
+        estimated_max_power=None,
+        is_variable_power=False,
+    )
+
+
+def synthetic_registry() -> Registry:
+    """Build the four-item, two-recipe chain the module docstring works by hand.
+
+    Returns:
+        The registry.
+    """
+    items = {
+        ORE_ITEM: _item(ORE_ITEM, FORM_SOLID),
+        WATER_ITEM: _item(WATER_ITEM, FORM_LIQUID),
+        INGOT_ITEM: _item(INGOT_ITEM, FORM_SOLID),
+        PLATE_ITEM: _item(PLATE_ITEM, FORM_SOLID),
+    }
+    recipes = {
+        INGOT_RECIPE: Recipe(
+            key=INGOT_RECIPE,
+            display_name="Synthetic Ingot",
+            duration=Fraction(4),
+            inputs=(RecipeIO(ORE_ITEM, Fraction(1)),),
+            outputs=(RecipeIO(INGOT_ITEM, Fraction(1)),),
+            produced_in=(SMELTER,),
+            variable_power_constant=None,
+            variable_power_factor=None,
+        ),
+        PLATE_RECIPE: Recipe(
+            key=PLATE_RECIPE,
+            display_name="Synthetic Plate",
+            duration=Fraction(6),
+            inputs=(RecipeIO(INGOT_ITEM, Fraction(3)), RecipeIO(WATER_ITEM, Fraction(2))),
+            outputs=(RecipeIO(PLATE_ITEM, Fraction(2)),),
+            produced_in=(CONSTRUCTOR,),
+            variable_power_constant=None,
+            variable_power_factor=None,
+        ),
+    }
+    extractors = {
+        MINER: Extractor(
+            key=MINER,
+            display_name="Synthetic Miner",
+            items_per_cycle=Fraction(1),
+            extract_cycle_time=Fraction(1),
+            allowed_forms=frozenset({FORM_SOLID}),
+        ),
+        PUMP: Extractor(
+            key=PUMP,
+            display_name="Synthetic Pump",
+            items_per_cycle=Fraction(2000),
+            extract_cycle_time=Fraction(1),
+            allowed_forms=frozenset({FORM_LIQUID}),
+        ),
+    }
+    buildings = {key: _building(key) for key in (SMELTER, CONSTRUCTOR, MINER, PUMP)}
+    return Registry(
+        items=MappingProxyType(items),
+        recipes=MappingProxyType(recipes),
+        buildings=MappingProxyType(buildings),
+        warnings=(),
+        unknown_groups=(),
+        extractors=MappingProxyType(extractors),
+    )
+
+
+def selection() -> phases.RecipeSelection:
+    """Select the two recipes, the two raw items and an extractor for each.
+
+    Returns:
+        The caller-supplied selection.
+    """
+    return phases.RecipeSelection(
+        recipes=(INGOT_RECIPE, PLATE_RECIPE),
+        raw_items=(ORE_ITEM, WATER_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: MINER, WATER_ITEM: PUMP}),
+    )
+
+
+class MeasuredSource:
+    """A synthetic measured source: one costed phase and nothing else."""
+
+    def __init__(self, entries: Mapping[str, tuple[CostLine, ...]] | None = None) -> None:
+        """Hold the entries this source publishes.
+
+        Args:
+            entries: Phase to cost lines; the one costed phase when omitted.
+        """
+        default = {COSTED_PHASE: (CostLine(PLATE_ITEM, Fraction(PLATE_COST)),)}
+        self._entries = MappingProxyType(dict(default if entries is None else entries))
+
+    def phase_costs(self) -> phases.PhaseCostTable:
+        """Publish the table.
+
+        Returns:
+            The measured table.
+        """
+        return phases.PhaseCostTable(entries=self._entries, reason=None)
+
+
+# ---------------------------------------------------------------------------
+# A3 - machine, miner and resource render as distinct keys
+# ---------------------------------------------------------------------------
 
 
 def test_a_phase_cost_renders_machine_miner_and_resource_as_distinct_keys() -> None:
-    """Catches a cost model that collapses distinct descriptors into one bucket.
+    """A costed phase renders exactly the three keys, each its own exact mapping.
 
-    Graded by DICT EQUALITY against a three-key literal rather than by three
-    membership checks: a model that summed two descriptors into one key, or
-    keyed by the directory instead of the shipped trailing token, satisfies
-    every membership check and dies here.
+    The expected mappings are the hand-worked chain in the module docstring.
     """
-    items = _machine_miner_resource()
-    cost = phase_cost_of(PHASE, {PHASE: items})
-    assert cost is not None
-    required = dict(cost.required_by_item)
-    assert required == {
-        MACHINE_KEY: MACHINE_AMOUNT,
-        MINER_KEY: MINER_AMOUNT,
-        RESOURCE_KEY: RESOURCE_AMOUNT,
-    }
-    entry_count = len(cost.entries)
-    assert entry_count == len(items)
-
-
-def test_a_phase_with_no_cost_entry_is_null_rather_than_zero() -> None:
-    """Catches an absent phase answered with a zero-valued cost, and the inverse.
-
-    The ``is None`` half alone passes against a function that returns None for
-    every input, so the discriminating control sits in the same arm: a phase
-    that IS a key, carrying an empty cost sequence, publishes a model with no
-    entry in it rather than nothing at all.
-    """
-    absent = phase_cost_of(ABSENT_PHASE, {})
-    assert absent is None
-    present = phase_cost_of(PHASE, {PHASE: ()})
-    assert present is not None
-    entry_count = len(present.entries)
-    assert entry_count == 0
-
-
-def test_the_delivery_flag_is_derived_from_the_entries_rather_than_written() -> None:
-    """Catches a stored ``False`` standing in for an unread delivered count.
-
-    The false half passes forever against a literal field, so the true half is
-    built from an entry whose delivered count is ZERO. That value also reddens
-    a derivation that asks whether the count is truthy instead of whether it is
-    present, which is the same collapse one field over.
-    """
-    undelivered = phase_cost_of(PHASE, {PHASE: _machine_miner_resource()})
-    assert undelivered is not None
-    unavailable = undelivered.delivered_available
-    assert unavailable is False
-    delivered = PhaseCost(
-        phase=PHASE,
-        entries=(
-            PhaseCostEntry(
-                item_key=MACHINE_KEY,
-                raw_path=MACHINE_PATH,
-                required=MACHINE_AMOUNT,
-                delivered=0,
-            ),
-        ),
-        warnings=(),
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
+    rendered = cost.render()
+    assert sorted(rendered) == [KEY_MACHINE, KEY_MINER, KEY_RESOURCE]
+    machine, miner, resource = (rendered[k] for k in (KEY_MACHINE, KEY_MINER, KEY_RESOURCE))
+    assert machine is not None
+    assert miner is not None
+    assert resource is not None
+    assert dict(machine) == {CONSTRUCTOR: Fraction(5, 12), SMELTER: Fraction(5, 6)}
+    assert dict(miner) == {MINER: Fraction(5, 24), PUMP: Fraction(5, 72)}
+    assert dict(resource) == {ORE_ITEM: Fraction(25, 2), WATER_ITEM: Fraction(25, 3)}
+    leaf_types = sorted(
+        {type(value).__name__ for figure in (machine, miner, resource) for value in figure.values()}
     )
-    available = delivered.delivered_available
-    assert available is True
+    assert leaf_types == ["Fraction"]
+    assert cost.phase_costs_available is True
+    assert cost.clock_basis == phases.CLOCK_BASIS_FULL
+    assert cost.miner_basis == phases.MINER_BASIS_BASE_RATE
 
 
-def test_a_duplicated_item_key_is_flagged_and_keeps_the_first_amount() -> None:
-    """Catches a repeated item key silently summed, and one silently dropped.
+def test_a_phase_with_no_cost_entry_is_null() -> None:
+    """A phase the measured source has no entry for is None with a reason, never zero."""
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), UNCOSTED_PHASE, selection())
+    rendered = cost.render()
+    assert sorted(rendered) == [KEY_MACHINE, KEY_MINER, KEY_RESOURCE]
+    nulls = [rendered[key] is None for key in (KEY_MACHINE, KEY_MINER, KEY_RESOURCE)]
+    assert nulls == [True, True, True]
+    reasons = [cost.machine.reason, cost.miner.reason, cost.resource.reason]
+    assert reasons == [phases.REASON_NO_COST_ENTRY] * 3
+    assert cost.required.values is None
+    assert cost.required.reason == phases.REASON_NO_COST_ENTRY
+    assert cost.phase_costs_available is True
 
-    Two entries under different directories whose shipped trailing token is the
-    same one. The mapping keeps the FIRST amount - the module docstring records
-    why summing would be an arithmetic nothing in this project has measured -
-    and the WARNING is asserted rather than only the shortened mapping, because
-    a mapping short by one entry with no flag on it is exactly the silent
-    wrong-answer defect the fourth rule of ``tests/progress/__init__.py`` names.
+
+MODULE_SOURCE: Final = Path(phases.__file__)
+#: A moved budget, one hour in minutes, planted by the budget-moved arm.
+MOVED_BUDGET_MINUTES: Final = 60
+#: A cost item the synthetic registry deliberately does not declare.
+GHOST_ITEM: Final = "Desc_SynthGhost_C"
+
+
+def null_reasons(cost: phases.PhaseCost) -> list[str | None]:
+    """Read the three rendered figures' reasons, in A3 key order.
+
+    Args:
+        cost: The phase cost.
+
+    Returns:
+        The machine, miner and resource reasons.
     """
-    items = parse_item_amounts(
-        _blob(
-            (MACHINE_PATH, MACHINE_AMOUNT),
-            (DUPLICATE_PATH, MINER_AMOUNT),
-        )
+    return [cost.machine.reason, cost.miner.reason, cost.resource.reason]
+
+
+def rendered_nulls(cost: phases.PhaseCost) -> list[bool]:
+    """Read whether each rendered key is None, in A3 key order.
+
+    Args:
+        cost: The phase cost.
+
+    Returns:
+        Three booleans.
+    """
+    rendered = cost.render()
+    return [rendered[key] is None for key in (KEY_MACHINE, KEY_MINER, KEY_RESOURCE)]
+
+
+# ---------------------------------------------------------------------------
+# Phase costs are unmeasured today, and availability is derived
+# ---------------------------------------------------------------------------
+
+
+def test_the_shipped_source_publishes_every_phase_null_as_unmeasured() -> None:
+    """The shipped source has no table, so every figure is None, never zero."""
+    cost = phases.phase_cost(
+        phases.SHIPPED_PHASE_COST_SOURCE, synthetic_registry(), COSTED_PHASE, selection()
     )
-    cost = phase_cost_of(PHASE, {PHASE: items})
-    assert cost is not None
-    required = dict(cost.required_by_item)
-    assert required == {MACHINE_KEY: MACHINE_AMOUNT}
-    entry_count = len(cost.entries)
-    assert entry_count == len(items)
-    codes = [warning.code for warning in cost.warnings]
-    assert WARN_PHASE_COST_ITEM_DUPLICATED in codes
+    assert rendered_nulls(cost) == [True, True, True]
+    assert null_reasons(cost) == [phases.REASON_PHASE_COSTS_UNMEASURED] * 3
+    assert cost.required.values is None
+    assert cost.phase_costs_available is False
+    assert phases.phase_costs_available(phases.SHIPPED_PHASE_COST_SOURCE) is False
 
 
-def test_a_cost_element_of_the_wrong_type_is_flagged_and_skipped() -> None:
-    """Catches an unmodelled cost element crashing, and one dropped in silence.
+def test_phase_costs_available_is_derived_from_the_table_not_hardcoded() -> None:
+    """Availability follows the table a source returns, whatever the source is.
 
-    Non-negotiable 7: unknown game content is flagged and skipped, never fatal
-    and never silently wrong. The readable siblings either side of the bad
-    element are the control that the skip is PER ELEMENT rather than wholesale,
-    and the warning is asserted rather than only the shortened mapping.
+    A measured table holding NO entry at all is still a measured table, so it
+    reads True; only a table with no entries mapping reads False.
     """
-    items = _machine_miner_resource()
-    cost = phase_cost_of(PHASE, {PHASE: (items[0], MACHINE_PATH, items[1])})
-    assert cost is not None
-    required = dict(cost.required_by_item)
-    assert required == {MACHINE_KEY: MACHINE_AMOUNT, MINER_KEY: MINER_AMOUNT}
-    codes = [warning.code for warning in cost.warnings]
-    assert WARN_PHASE_COST_ITEM_UNREADABLE in codes
+    empty_measured = MeasuredSource(entries={})
+    assert phases.phase_costs_available(empty_measured) is True
+    assert phases.phase_costs_available(MeasuredSource()) is True
+    cost = phases.phase_cost(empty_measured, synthetic_registry(), COSTED_PHASE, selection())
+    assert cost.phase_costs_available is True
+    assert null_reasons(cost) == [phases.REASON_NO_COST_ENTRY] * 3
 
 
-def test_no_asset_path_renders_in_the_repr() -> None:
-    """Catches a phase path or a cost item path reaching a rendered line.
+# ---------------------------------------------------------------------------
+# Each figure that cannot be derived is null with its own reason
+# ---------------------------------------------------------------------------
 
-    Non-negotiables 11 and 12: a path may cross this seam and may not reach a
-    repr, a log line or an exception, and a test runner reprs a value before a
-    human chooses what to print. The entry list is the control that a path WAS
-    there to leak - an empty model renders nothing either way, so the arm would
-    pass on a model that had never read anything.
+
+def test_a_phase_cost_item_the_registry_does_not_resolve_is_null() -> None:
+    """A ghost cost item nulls the three figures and keeps the required rates."""
+    source = MeasuredSource(
+        entries={
+            COSTED_PHASE: (
+                CostLine(PLATE_ITEM, Fraction(PLATE_COST)),
+                CostLine(GHOST_ITEM, Fraction(PLATE_COST)),
+            )
+        }
+    )
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+    assert rendered_nulls(cost) == [True, True, True]
+    assert null_reasons(cost) == [phases.REASON_UNRESOLVED_COST_ITEM] * 3
+    assert cost.machine.detail == GHOST_ITEM
+    assert cost.required.values is not None
+    assert sorted(cost.required.values) == [GHOST_ITEM, PLATE_ITEM]
+
+
+def test_a_phase_without_a_recipe_selection_is_null() -> None:
+    """This layer does not choose recipes, so no selection is a named null."""
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, None)
+    assert rendered_nulls(cost) == [True, True, True]
+    assert null_reasons(cost) == [phases.REASON_NO_RECIPE_SELECTION] * 3
+
+
+def test_a_ratio_refusal_is_null_with_the_refusal_named() -> None:
+    """A selection that cannot make the cost item is refused, never zeroed."""
+    starved = phases.RecipeSelection(
+        recipes=(PLATE_RECIPE,),
+        raw_items=(ORE_ITEM, WATER_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: MINER, WATER_ITEM: PUMP}),
+    )
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, starved)
+    assert rendered_nulls(cost) == [True, True, True]
+    assert null_reasons(cost) == [phases.REASON_RATIO_REFUSED] * 3
+    assert cost.machine.detail == "UnsolvableChain"
+
+
+def test_a_miner_figure_is_null_on_its_own_when_a_resource_cannot_be_mined() -> None:
+    """A missing or mismatched extractor nulls the miner figure and nothing else."""
+    unmapped = phases.RecipeSelection(
+        recipes=(INGOT_RECIPE, PLATE_RECIPE),
+        raw_items=(ORE_ITEM, WATER_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: MINER}),
+    )
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, unmapped)
+    assert rendered_nulls(cost) == [False, True, False]
+    assert cost.miner.reason == phases.REASON_NO_EXTRACTOR_SELECTED
+    assert cost.miner.detail == WATER_ITEM
+    crossed = phases.RecipeSelection(
+        recipes=(INGOT_RECIPE, PLATE_RECIPE),
+        raw_items=(ORE_ITEM, WATER_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: PUMP, WATER_ITEM: MINER}),
+    )
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, crossed)
+    assert cost.miner.reason == phases.REASON_EXTRACTOR_CANNOT_YIELD
+
+
+def test_a_figure_never_holds_an_empty_mapping_a_zero_or_both_halves() -> None:
+    """The A3 shape is enforced on the model, not left to every builder."""
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.Figure(values=MappingProxyType({}), reason=None)
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.Figure(values=MappingProxyType({SMELTER: Fraction(0)}), reason=None)
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.Figure(values=None, reason=None)
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.Figure(values=MappingProxyType({SMELTER: Fraction(1)}), reason="both")
+
+
+# ---------------------------------------------------------------------------
+# The phase budget is the milestone budget, read by name
+# ---------------------------------------------------------------------------
+
+
+def test_a_phase_required_rate_follows_the_budget_when_it_moves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Moving the one named budget moves the phase's rates and machine counts.
+
+    Over one hour 1000 plates need 50/3 a minute, which is 5/6 constructors.
+
+    Args:
+        monkeypatch: Replaces the budget for this arm only.
     """
-    cost = phase_cost_of(PHASE, {PHASE: _machine_miner_resource()})
-    assert cost is not None
-    rendered = repr(cost)
-    leaked = SYNTHETIC_ROOT in rendered
-    assert leaked is False
-    carried = any(SYNTHETIC_ROOT in entry.raw_path for entry in cost.entries)
-    assert carried is True
+    monkeypatch.setattr(milestones, "COMPLETION_BUDGET_MINUTES", Fraction(MOVED_BUDGET_MINUTES))
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
+    assert cost.required.values is not None
+    assert dict(cost.required.values) == {PLATE_ITEM: Fraction(PLATE_COST, MOVED_BUDGET_MINUTES)}
+    assert cost.machine.values is not None
+    assert cost.machine.values[CONSTRUCTOR] == Fraction(5, 6)
+    assert cost.budget_minutes == Fraction(MOVED_BUDGET_MINUTES)
+    unmoved = Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)
+    assert cost.required.values[PLATE_ITEM] != unmoved
+
+
+# ---------------------------------------------------------------------------
+# No float anywhere, and determinism
+# ---------------------------------------------------------------------------
+
+
+def test_no_float_reaches_a_phase_figure_or_the_module() -> None:
+    """The published model audits exact and the source scans clean.
+
+    A planted float in a copy of the same source is the control that the
+    phase 3 gate's AST scan can see one at all.
+    """
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
+    audit_exact(cost, path="phase_cost")
+    source = MODULE_SOURCE.read_text(encoding="utf-8")
+    assert inexact_violations(source) == []
+    planted = inexact_violations(source + "\nPLANTED_RATE = 0.5\n")
+    assert len(planted) == 1
+
+
+def test_the_same_inputs_publish_the_same_phase_output_in_the_same_order() -> None:
+    """Permuted phases, recipes and raw items publish a byte-identical result."""
+    registry = synthetic_registry()
+    reordered = phases.RecipeSelection(
+        recipes=(PLATE_RECIPE, INGOT_RECIPE),
+        raw_items=(WATER_ITEM, ORE_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({WATER_ITEM: PUMP, ORE_ITEM: MINER}),
+    )
+    first = phases.phase_costs(
+        MeasuredSource(), registry, [UNCOSTED_PHASE, COSTED_PHASE], selection()
+    )
+    second = phases.phase_costs(
+        MeasuredSource(), registry, [COSTED_PHASE, UNCOSTED_PHASE, COSTED_PHASE], reordered
+    )
+    assert [cost.phase for cost in first] == [COSTED_PHASE, UNCOSTED_PHASE]
+    assert repr(first) == repr(second)
+    machine = first[0].machine.values
+    assert machine is not None
+    assert list(machine) == [CONSTRUCTOR, SMELTER]
