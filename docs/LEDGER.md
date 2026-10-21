@@ -89,8 +89,11 @@ CLAUSE 1 MET (each git-hook arm waits at the quiet barrier, or a measured run be
 sibling shows it does not need to): the seven git-hook arms of `tests/test_hook_env_echo.py`, 30
 cases, ran under `-n 2 --dist loadfile` beside a sibling test holding 6 CPU-bound spinner processes
 and passed 30 of 30. A second run with a pass-through timeout shim timing each bounded hook step
-also passed 30 of 30: 221 bounded calls, the longest that answered 78 ms against the 10 s bound,
-and one expiry at 10.01 s, the PYTHONINSPECT arm's expected probe hang.
+also passed 30 of 30. The shim logged 221 bounded calls: 160 at the 10 s bound and 61 at a 0.05 s
+bound. The 61 are the hooks' own `timeout -k 1 0.05 sleep 5` self-check, which must expire, and
+each exited 124. Of the 160, 159 answered, the longest in 78.2 ms, and one expired at 10.01 s, the
+PYTHONINSPECT arm's expected probe hang. That makes 62 expiries in all: the 61 deliberate
+self-check expiries and that one.
 CLAUSE 2 MET (30 consecutive runs under `-n 2 --dist loadfile`, graded on failures as the
 acceptance's wording-fault note directs): `python ops/fleet_kit/fleet_suite_gate.py run --owner
 <id> -- python -m pytest tests/test_hook_env_echo.py -n 2 --dist loadfile` ran 30 consecutive
@@ -101,7 +104,8 @@ flag was that run's own hook children outliving their parent, checked against th
 folder, so no foreign suite ran beside any run. A strict reading that discards every flagged run
 leaves 20 clean runs, not 30; it bears on the quiet-machine condition the 2026-10-17 record set,
 not on clause 2 as worded, under which all 30 runs passed. The 30 runs went through the suite
-gate; the evidence does not say whether the sibling-load run did.
+gate, and so did both sibling-load runs: their recorded commands begin
+`python ops/fleet_kit/fleet_suite_gate.py run`, the same as each of the 30.
 CLAUSE 3 MET: the guard shard's duration was re-read in session 146, the 2026-10-17 record named
 above.
 CLAUSES 4 AND 5 MET: no bound, budget or skip was changed. `CS_PROBE_BOUND` reads 10 in each git
