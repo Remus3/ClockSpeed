@@ -87,6 +87,7 @@ DATA_MODULES: tuple[str, ...] = (
     "docs_extract",
     "locate",
     "registry",
+    "schematics",
     "version",
 )
 
@@ -1302,6 +1303,9 @@ ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     "docs_extract": frozenset(),
     "locate": frozenset(),
     "registry": frozenset({"blobs", "docs_extract"}),
+    # schematics is the registry's SIBLING (CS-1043): it reads the same loaded
+    # document through the same two neighbours and never reaches the registry.
+    "schematics": frozenset({"blobs", "docs_extract"}),
     "version": frozenset({"docs_extract"}),
 }
 

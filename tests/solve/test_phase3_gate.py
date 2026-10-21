@@ -16,7 +16,8 @@ a. No ``*.py`` under ``clockspeed/solve/`` contains a float or complex literal,
    to ``pow``/``round``/``divmod``, or an import of ``math``, ``cmath``,
    ``statistics``, ``decimal``, ``random``, ``numpy`` or ``scipy``. The same
    predicates hold over the pinned audit modules that decide on exact figures
-   (``EXACT_AUDIT_SOURCES``, CS-1285).
+   (``EXACT_AUDIT_SOURCES``, CS-1285) and over the pinned progress modules that
+   publish exact rates and phase costs (``EXACT_PROGRESS_SOURCES``, CS-1043).
 b. Every one of those predicates is fed a synthetic source string containing
    exactly the construct it forbids, and asserted to flag it.
 c. Importing any solve module pulls in no layer it may not reach, measured in a
@@ -96,7 +97,8 @@ and section (e) needs the banned tolerance words as data in order to hunt them.
 Both are ordinary ``ast.Constant`` values and identifiers in THIS file. So:
 
 - The section (a) scan is scoped to ``clockspeed/solve/`` plus the pinned
-  ``EXACT_AUDIT_SOURCES`` under ``clockspeed/audit/``, and does not walk
+  ``EXACT_AUDIT_SOURCES`` under ``clockspeed/audit/`` and the pinned
+  ``EXACT_PROGRESS_SOURCES`` under ``clockspeed/progress/``, and does not walk
   ``tests/``. If it were ever extended to cover the test tree it would flag this
   module, and the correct response would be to exclude this file explicitly, not
   to soften the predicates.
@@ -659,6 +661,37 @@ def test_the_scan_sees_a_float_spliced_into_the_real_fuel_audit(anchor: str, spl
     source = (AUDIT_PACKAGE / "fuel.py").read_text(encoding="utf-8")
     assert source.count(anchor) == 1, f"the anchor {anchor!r} is no longer unique in fuel.py"
     assert inexact_violations(source.replace(anchor, spliced))
+
+
+# The scope extended to pillar 4 (CS-1043): the progress models publish exact
+# required rates and phase costs, and a float used and discarded inside either
+# would move a published figure without leaving a float for audit_exact to find.
+PROGRESS_PACKAGE = REPO_ROOT / "clockspeed" / "progress"
+EXACT_PROGRESS_SOURCES: tuple[str, ...] = ("milestones.py", "phases.py")
+
+
+@pytest.mark.parametrize("relative", EXACT_PROGRESS_SOURCES)
+def test_no_exact_progress_module_contains_inexact_arithmetic(relative: str) -> None:
+    """Non-negotiable 6 over the progress modules that publish exact rates and costs."""
+    violations = inexact_violations((PROGRESS_PACKAGE / relative).read_text(encoding="utf-8"))
+    listed = "\n  ".join(violations)
+    found = len(violations)
+    assert found == 0, f"inexact arithmetic in clockspeed/progress/{relative}:\n  {listed}"
+
+
+@pytest.mark.parametrize("relative", EXACT_PROGRESS_SOURCES)
+def test_the_scan_sees_a_float_spliced_into_a_real_progress_module(relative: str) -> None:
+    """The progress scope is live: the real module, a math import spliced in, scans dirty.
+
+    Asserted against the REAL file, so a scan that stopped reading it - or an
+    anchor that drifted out of it - fails here instead of passing vacuously.
+    """
+    anchor = "from fractions import Fraction"
+    source = (PROGRESS_PACKAGE / relative).read_text(encoding="utf-8")
+    occurrences = source.count(anchor)
+    assert occurrences == 1, f"the anchor {anchor!r} is no longer unique in {relative}"
+    dirty = len(inexact_violations(source.replace(anchor, anchor + "\nimport math")))
+    assert dirty > 0, f"a math import spliced into clockspeed/progress/{relative} scanned clean"
 
 
 # ===========================================================================

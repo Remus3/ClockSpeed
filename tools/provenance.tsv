@@ -71,6 +71,7 @@ clockspeed/data/blobs.py	authored	CS-1165	first-add:root
 clockspeed/data/docs_extract.py	authored	CS-1165	first-add:root
 clockspeed/data/locate.py	authored	CS-1165	first-add:root
 clockspeed/data/registry.py	authored	CS-1165	first-add:root
+clockspeed/data/schematics.py	authored	CS-1043	stamped
 clockspeed/data/version.py	authored	CS-1165	first-add:root
 clockspeed/progress/__init__.py	authored	CS-1165	first-add:root
 clockspeed/progress/milestones.py	authored	CS-1043	stamped
@@ -318,6 +319,7 @@ tests/data/test_item_notes_index.py	authored	CS-856	first-add:CS-856
 tests/data/test_locate.py	authored	CS-1165	first-add:root
 tests/data/test_phase2_gate.py	authored	CS-1165	first-add:root
 tests/data/test_registry.py	authored	CS-1165	first-add:root
+tests/data/test_schematics.py	authored	CS-1043	stamped
 tests/data/test_version.py	authored	CS-1165	first-add:root
 tests/exception_message_guard.py	authored	CS-852	first-add:CS-852
 tests/fleet_hook_kit.py	authored	CS-1290	stamped

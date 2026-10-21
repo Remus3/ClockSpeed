@@ -931,6 +931,39 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1317 citation, renamed by the CS-1317 rebalance. Not a record defect.",
         ("d07d47746d21:a2dd5d522dd7:0",),
     ),
+    # --- class 9: the record was RIGHT about the tree it was written on; the
+    # CS-1043 adjudication then SUPERSEDED that tree's version. The queue lane's
+    # CLOSED record cites its own arms, and this tree's CS-1043 version replaced
+    # the lane's files at the same paths, so the names are bound nowhere. The
+    # newer record that supersedes the closure cites them again on purpose, as
+    # the record of what that closure graded. No live arm bears the lane's
+    # meaning - each graded a phase or milestone model the adjudication refused -
+    # so NO_TARGET rather than RENAMED, and the ledger keeps the names it had.
+    (
+        LEDGER,
+        "tests/progress/test_milestones.py"
+        "::test_each_required_rate_is_the_exact_fraction_cost_over_budget",
+    ): Disposition(
+        NO_TARGET,
+        "",
+        "the queue lane's CS-1043 arm, superseded by adjudication and replaced at"
+        " the same path. Not a record defect.",
+        ("01a1a316b6b5:b4a636469edf:0", "9385fc3dffbb:6f0eeacd3292:0"),
+    ),
+    (LEDGER, "test_the_required_rate_reddens_when_the_named_budget_moves"): Disposition(
+        NO_TARGET,
+        "",
+        "the queue lane's CS-1043 arm, superseded by adjudication and replaced at"
+        " the same path. Not a record defect.",
+        ("01a1a316b6b5:6580f13c3633:0", "9385fc3dffbb:988d784f10ee:0"),
+    ),
+    (LEDGER, "test_a_phase_with_no_cost_entry_is_null_rather_than_zero"): Disposition(
+        NO_TARGET,
+        "",
+        "the queue lane's CS-1043 arm, superseded by adjudication and replaced at"
+        " the same path. Not a record defect.",
+        ("01a1a316b6b5:d30d8587fc41:0", "9385fc3dffbb:40df11247188:0"),
+    ),
 }
 
 
@@ -1265,7 +1298,18 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: renamed. Right-when-written and dead now, in an append-only carrier, with a
 #: live target - the class 8 row in DISPOSITIONS is RENAMED and checked in all
 #: three directions every run.
-FORGIVEN_LINE_POINTER_CEILING: Final = 67
+#:
+#: RAISED TO 70 BY THE CS-1043 ADJUDICATION, FOR A SUPERSEDED VERSION, AND IT IS
+#: NO_TARGET RATHER THAN RENAMED ON PURPOSE. Two CS-1043 versions competed; the
+#: queue lane's landed first with a CLOSED record citing its own arms, and the
+#: adjudicated version then replaced the lane's files at the same paths. The
+#: carrier is append-only and the record was ordered kept, so no pointer in it
+#: can be repaired where it stands. RENAMED rows aimed at the surviving arms were
+#: adjudicated and REFUSED: those arms grade different code and never graded the
+#: lane's closure, so a three-direction check would hold up a false mapping. The
+#: three class 9 rows are NO_TARGET, pinned by site. THESE NOTCHES ARE PERMANENT:
+#: they come back only if the lane's record is retired to the deep archive.
+FORGIVEN_LINE_POINTER_CEILING: Final = 70
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

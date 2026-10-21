@@ -908,3 +908,9 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   already gone; the session 150 merger's 28 unloaded runs through the arm's own spawn read a
   zombie in all 28, so the miss is unreproduced off load; trigger: the next edit to that arm, or
   the CS-1318 rework's next round.
+- From the CS-1043 landing (`docs/LEDGER.md`, 2026-10-21, CS-1043): 2 of the 96 distinct
+  schematic-cost item classes resolve to no registry item, and no group of the docs file
+  defines either; they carry 180 cost-blob references (179 on parsed cost lines, 1 inside
+  the amount-less cost). `clockspeed/progress/milestones.py::unresolved_cost_items` flags
+  them and their milestones' rates publish None; trigger: the next docs-file version bump,
+  or a registry item-coverage item.

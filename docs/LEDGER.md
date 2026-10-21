@@ -75,6 +75,77 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1043 - NOT A COMPLETION RECORD. CS-1043 STAYS OPEN: the queue lane's CS-1043 closure is SUPERSEDED by adjudication
+Verification: `ROADMAP.md`; the CS-1043 section of `docs/item_notes/phase5.md`.
+SUPERSEDED: the record below headed "CS-1043 - CLOSED: pillar 4's package stops being
+empty" closed CS-1043 on the queue lane's version, merged as `clockspeed/progress/milestones.py`,
+`clockspeed/progress/phases.py`, `tests/progress/__init__.py`,
+`tests/progress/test_milestones.py` and `tests/progress/test_phases.py`, and graded by
+`tests/progress/test_milestones.py::test_each_required_rate_is_the_exact_fraction_cost_over_budget`,
+`::test_the_required_rate_reddens_when_the_named_budget_moves`,
+`tests/progress/test_phases.py::test_a_phase_cost_renders_machine_miner_and_resource_as_distinct_keys`
+and `::test_a_phase_with_no_cost_entry_is_null_rather_than_zero`. That closure is SUPERSEDED
+by adjudication: the lane's phase model publishes an item-to-number map with no machine,
+miner or resource figure, which fails acceptance clause A3, and it takes any phase-cost table
+it is handed as truth, against the phase-cost-source ruling recorded under CS-1043 in
+`docs/item_notes/phase5.md`. This tree's version, recorded in the LANDED record below,
+replaces the lane's at the same five paths, so three of the four lane arm names above are
+bound nowhere in the tree, and the fourth now names this tree's arm of the same name, which
+grades a different phase model; all four are kept here as the record of what that closure
+graded. The three dead names cost three NO_TARGET rows in
+`tests/test_citation_tables.py::DISPOSITIONS` and three notches of
+`tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING`, ADJUDICATED by a distinct
+adjudicator over RENAMED rows pointing at this tree's arms - refused, because those arms never
+graded the lane's closure and a checked mapping to them would hold up a false statement. The
+notches are permanent: they come back only if the lane's record is retired to
+`docs/history_notes.md`. CS-1043 STAYS OPEN pending its closure verifier, and this record does
+not close CS-1043. CS-1339, the lane's rate-arm population item, stays OPEN.
+
+### 2026-10-21 - CS-1043 - NOT A COMPLETION RECORD. CS-1043 STAYS OPEN: LANDED (closure graded next) - the schematic normalizer and the milestone and phase models
+Verification: `clockspeed/data/schematics.py` plus `tests/data/test_schematics.py`;
+`clockspeed/progress/milestones.py` plus
+`tests/progress/test_milestones.py::test_a_required_rate_is_cost_over_the_named_budget` and
+`tests/progress/test_milestones.py::test_a_required_rate_follows_the_budget_when_it_moves`;
+`clockspeed/progress/phases.py` plus
+`tests/progress/test_phases.py::test_a_phase_cost_renders_machine_miner_and_resource_as_distinct_keys`,
+`tests/progress/test_phases.py::test_a_figure_never_holds_an_empty_mapping_a_zero_or_both_halves`
+and `tests/progress/test_phases.py::test_a_phase_with_no_cost_entry_is_null`;
+`tests/data/test_phase2_gate.py::test_importing_a_data_module_pulls_in_only_its_permitted_neighbours`;
+`tests/solve/test_phase3_gate.py::test_no_exact_progress_module_contains_inexact_arithmetic`.
+LANDED: four commits cherry-picked onto main in order, "CS-1043 S1 - the schematic
+normalizer in the data layer", "CS-1043 S1 repair - kill the eleven surviving schematic
+mutants", "CS-1043 S2 - the milestone and phase models in the progress layer" and "CS-1043
+S2 repair - kill the five surviving progress mutants", each read back with its source's file
+list and stable patch-id; the landed tree equals the S2 branch tip's tree. Then one
+integration and records commit: seven provenance rows in `tools/provenance.tsv`; in
+`docs/ARCHITECTURE.md` a section 1.1 row for `clockspeed/data/schematics.py` and pillar 4
+PARTLY BUILT; "schematics" in `tests/data/test_phase2_gate.py`'s DATA_MODULES and
+ALLOWED_IMPORTS; EXACT_PROGRESS_SOURCES in `tests/solve/test_phase3_gate.py` section (a);
+the A3 amendment and CS-1340 in `docs/item_notes/phase5.md`; a `BACKLOG.md` line.
+ADVERSARY HISTORY (distinct, read-only, agent-reported): S1 was refuted on test strength,
+11 of 20 fresh mutants surviving a green suite, and its repair brings that to 0 of 20. S2
+was refuted, 5 of 28 surviving, and its repair brings that to 0 of 28, with the seed proof:
+the ordering arms red under every hash seed from 0 to 5.
+PROBE, names and counts only, re-measured by the merger on the installed docs file through
+the landed `clockspeed/data/schematics.py::normalize_schematics`: 574 schematics offered and
+published, 0 skipped, 573 costs parsed, 1 flagged under cost-without-amount and no other
+warning code. Of the 96 distinct cost item classes, 2 resolve to no registry item through
+`clockspeed/progress/milestones.py::unresolved_cost_items` and no group of the docs file
+defines either; they carry 179 parsed cost lines, 180 cost-blob references with the one
+amount-less cost, filed to `BACKLOG.md`.
+ADJUDICATIONS (distinct adjudicator, agent-reported). A3, AMENDED on the adjudicator route:
+the clause that read "renders machine, miner and resource as distinct keys" now reads
+"renders exactly the keys `machine`, `miner` and `resource`, each an exact Fraction mapping
+or None with a named reason, never empty or zero", owned under CS-1043's `### Acceptance` in
+`docs/item_notes/phase5.md`. Q2, THE PHASE-COST SOURCE: phase costs come from the save but
+are unmeasured - `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` found
+`mGamePhaseCosts` in a mature world and absent in a low-progress one, and whether its figures
+are a phase's total or its remainder is unmeasured - so they arrive through
+`clockspeed/progress/phases.py::PhaseCostSource`, the shipped source is unmeasured, and every
+phase publishes null; the measurement is split off as CS-1340. THE HUB TIER publishes
+unavailable, never 0, because 0 is a real tier: `clockspeed/progress/milestones.py::hub_tier`.
+NOT CLOSED: a verifier grades CS-1043's closure next, and this record does not close CS-1043.
+
 ### 2026-10-21 - CS-1043 - CLOSED: pillar 4's package stops being empty - the milestone and phase requirement models ship, priced against a named exact budget
 Verification: `clockspeed/progress/milestones.py` plus
 `tests/progress/test_milestones.py::test_each_required_rate_is_the_exact_fraction_cost_over_budget`
