@@ -455,6 +455,7 @@ tests/test_bare_path_citations.py	authored	CS-891	first-add:CS-891
 tests/test_canary_population.py	authored	CS-1177	stamped
 tests/test_canary_population_forced.py	authored	CS-1193	stamped
 tests/test_canary_temp_roots.py	authored	CS-1297	stamped
+tests/test_census_axis.py	authored	CS-1328	stamped
 tests/test_chained_cause.py	authored	CS-857	first-add:CS-857
 tests/test_chained_cause_census.py	authored	CS-857	first-add:CS-857
 tests/test_chained_exemption_guard.py	authored	CS-857	first-add:CS-857
@@ -569,6 +570,7 @@ tests/tier2_jobs_payload.json	authored	CS-1124	first-add:CS-1124
 tests/toolpath_guard.py	authored	CS-910	first-add:CS-910
 tests/xdist_quiet.py	authored	CS-1233	stamped
 tools/action_runtimes.py	authored	CS-990	first-add:CS-990
+tools/census_axis.py	authored	CS-1328	stamped
 tools/claude_hook.sh	authored	CS-815	stamped
 tools/dashboard_probe.py	authored	CS-918	first-add:CS-918
 tools/doc_budget.py	authored	CS-1165	first-add:root
