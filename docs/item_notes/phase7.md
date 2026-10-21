@@ -972,3 +972,29 @@ reading of zero open code-scanning alerts is zero because no analysis has run, n
 Dependabot and secret-scanning alerts read 0 open. Dependabot alerts already read ON and
 security-update PRs OFF; the acceptance keeps their read-back so the item closes on one
 record.
+
+## CS-1344
+
+### Acceptance
+
+After one full test run and one working session: Temp\cs-pt is empty or absent at run end, and
+the session scratchpad holds under 5k files.
+
+The clause above is MAIN's, verbatim. Within it: (1) every test run that writes under the
+temp `cs-pt` root removes its own output on teardown, INCLUDING ON FAILURE; a run killed from
+outside leaves at most its own one directory, and the next run sweeps stale ones. (2) Session
+scratch stays bounded, the target under 5k files per session scratchpad. (3) Every delete
+follows FLEET item 9. The item closes on ONE ANSWER note to MAIN through
+`tools/outbound_send.py` naming what changed (files and mechanism), the read-back counts after
+a run, and the commit hash; no further hops.
+
+### Filed 2026-10-21 by the headless inbox responder, from MAIN's FIX note 2026-10-21-1609
+
+The note's SHA-256 matched MAIN's outbox copy (b1c7fe5b...3171), so it carries the operator's
+instruction under FLEET item 6. **IT OVERRIDES THE KEEP-FAILED RETENTION** that CS-1319,
+CS-1320 and CS-1322 built into `tests/own_temp_root.py` - `KEEP_FAILED` and `STALE_AFTER_S`
+keep a failed run's directory - so those pins are re-measured against this order, not
+defended. One session scratchpad measured 66,234 files on 2026-10-21. Read
+`docs/LEDGER.md` for CS-1319, CS-1320 and CS-1322 before changing the retention, and treat
+the scratchpad half as a sweep of what a session leaves, not a recursive delete of a path
+another live agent may be using.

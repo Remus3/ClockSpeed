@@ -367,3 +367,4 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1336 - move commit subjects to Conventional Commits after auditing every site that matches one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1337 - the README's build section names no `CLAUDE.md`, no `ops/` and no hand-off file - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1338 - turn on CodeQL default setup, read the agent and hand-off text as an outsider, sweep 30 days of failed runs - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1344 - MAIN's 2026-10-21 FIX: test runs clear their own Temp `cs-pt` output on teardown, failure included, and session scratch stays bounded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

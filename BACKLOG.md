@@ -922,3 +922,8 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   usage line's `slot` is never the lane's own id - it falls back to the governor slot's name or
   to null - and `ops/fleet_kit/fleet_headless.py` documents null as a valid `slot`; trigger: MAIN
   names a slot convention, or the kit makes `slot` required.
+- From MAIN's 2026-10-21-1508 RULING (CS-1342): once kit v21 is adopted, remove the CS-1331
+  helper fix and the `tests/conftest.py` extra_ignore of the board's `state.json` and
+  `status.json`; the CS-1342 read-back ("halt_file change: commit, responder no longer
+  halted") rides in the v21 adoption ANSWER, no separate note; trigger: kit v21 adopted, after
+  2026-10-26.
