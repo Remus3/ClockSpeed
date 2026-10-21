@@ -161,8 +161,19 @@ def _tree_sha():
     return tree_sha
 
 
-def _drive(tmp_path: Path, results: list[dict[str, Any] | None], *, budget: int, **over: Any):
-    """Run the REAL `run_loop` over scripted worker results, every seam stated."""
+def _drive(
+    tmp_path: Path,
+    results: list[dict[str, Any] | None],
+    *,
+    budget: int,
+    loop: Any = None,
+    **over: Any,
+):
+    """Run the REAL `run_loop` over scripted worker results, every seam stated.
+
+    `loop` is the `run_loop` to call, for an arm that has patched the module's
+    own name so `main` reaches this one; None calls the module's.
+    """
     clock = FakeClock()
     launch, fired = _launcher(tmp_path, results)
     lines: list[str] = []
@@ -199,7 +210,7 @@ def _drive(tmp_path: Path, results: list[dict[str, Any] | None], *, budget: int,
         "emit": lines.append,
     }
     seams.update(over)
-    summary = queue_loop.run_loop(**seams)
+    summary = (queue_loop.run_loop if loop is None else loop)(**seams)
     written = (tmp_path / "cycles.jsonl").read_bytes().decode("utf-8")
     rows = [json.loads(line) for line in written.splitlines() if line.strip()]
     return summary, rows, written, clock, fired, lines
@@ -900,6 +911,71 @@ def test_r1_an_early_exit_kit_halt_stops_the_night_cleanly(tmp_path: Path) -> No
     assert outcomes == ["kit_halted"], f"outcomes {outcomes}"
     stopped = (summary["stopped_by"], len(fired), rows[0]["cycle"])
     assert stopped == ("kit_halted", 1, None), f"stopped {stopped}"
+
+
+class _NoMutex:
+    """Stands in for the driver mutex: takes no OS handle."""
+
+    def __call__(self) -> contextlib.AbstractContextManager[None]:
+        """Hand back a context manager that holds nothing."""
+        return contextlib.nullcontext()
+
+
+def test_r3_a_night_halted_at_its_first_start_ran_no_cycle_and_exits_as_a_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A halted start is not a cycle, so the night exits as a sentinel stop.
+
+    THROUGH `main`, over the real `run_loop`: a night whose only start the kit
+    halted ran ZERO cycles, and `main` reads that as "a stop file was there" -
+    counted as a cycle instead, it would read as a night that shipped nothing.
+    """
+    log = _ending_log(tmp_path / "h.log", _refused_tail("halted"))
+    launch, _ = _launches([("early", log)])
+    real = queue_loop.run_loop
+    seen: dict[str, Any] = {}
+
+    def night(**_kw: Any) -> dict[str, Any]:
+        summary, _, _, _, _, _ = _drive(tmp_path, [], budget=1, loop=real, launch=launch)
+        seen.update(summary)
+        return dict(summary)
+
+    monkeypatch.setattr(queue_loop, "run_loop", night)
+    monkeypatch.setattr(queue_loop, "_emit", lambda _line: None)
+    code = queue_loop.main(
+        ["--once", "--control-dir", str(tmp_path / "control")], singleton=_NoMutex()
+    )
+    ran = seen.get("cycles_run")
+    assert ran == 0, f"a halted start was counted as {ran} cycle(s)"
+    assert code == queue_loop.EXIT_STOP_SENTINEL, f"a halted night exited {code}"
+
+
+def test_r3_a_declared_sentinel_placed_during_a_back_off_ends_it_within_a_poll(
+    tmp_path: Path,
+) -> None:
+    """The back-off reads the TREE's declared sentinels too, not only the driver's own.
+
+    The declared sentinel appears once the back-off has begun - the first sleep
+    there is - so only a back-off that reads it stops inside the hour.
+    """
+    clock = FakeClock()
+
+    def kit_halt() -> str | None:
+        return "kit_halted" if clock.slept else None
+
+    summary, _, _, _, fired, _ = _drive(
+        tmp_path,
+        [REFUSAL, ORDINARY_SUCCESS],
+        budget=2,
+        kit_halt=kit_halt,
+        sleep=clock.sleep,
+        clock=clock.time,
+        monotonic=clock.monotonic,
+    )
+    verdict = (summary["stopped_by"], len(fired))
+    assert verdict == ("kit_halted", 1), f"night {verdict}"
+    waited = sum(clock.slept)
+    assert waited < queue_loop.USAGE_LIMIT_BACKOFF_S, f"the whole back-off was slept: {waited}s"
 
 
 def test_r1_control_an_early_exit_with_no_kit_ending_is_still_a_launch_failure(

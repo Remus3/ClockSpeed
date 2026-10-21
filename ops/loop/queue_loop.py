@@ -260,12 +260,17 @@ DEFAULT_KILL_GRACE_S = 15
 #: the KIT ends writes its usage line and leaves the kit's status file idle
 #: (CS-1234 clause 4); a tree killed from outside, the way `_taskkill` kills,
 #: counts a start and writes neither - MEASURED by the adversary of this slice.
-#: So the kit's timeout is the cycle's timeout, read off the runner's log as
+#: So the kit's `--timeout` ends the run, read off the runner's log as
 #: `timeout_killed` (`_runner_ending`, L1), and this driver's verified kill at
-#: `cycle_timeout_s` is the BACKSTOP for a runner the kit could not end. L1's
-#: "pass --timeout above the driver's timer, or drop that timer" is met by its
-#: second arm: the driver's timer no longer times the worker, it bounds the
-#: runner. `main` refuses any `--timeout` the kit's ceiling would not beat.
+#: `cycle_timeout_s`, `KIT_WRAP_MARGIN_S` later, STAYS as the backstop for a
+#: runner the kit could not end. That is NEITHER arm of MAIN's 13:16 RULING,
+#: item 4 - this driver's timer is not dropped, and the kit's timeout is not
+#: above it - but a THIRD option, adjudicated and recorded in docs/LEDGER.md as
+#: the CS-1231 L1 DEVIATION. RESIDUAL, NAMED RATHER THAN FIXED (a kit defect,
+#: reported to MAIN): when an orphaned descendant of the CLI holds its output
+#: pipe, the kit can block past its own timeout, and then the backstop fires and
+#: the run leaves no usage line. `main` refuses any `--timeout` the kit's
+#: ceiling would not beat.
 RUNNER_KIT_TIMEOUT_S = 14100
 #: The room between the kit's ceiling and the driver's kill: the kit's tree kill
 #: (taskkill, then its own five-second grace), its usage and status writes, and
