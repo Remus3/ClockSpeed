@@ -56,13 +56,9 @@ EXPECTED_RECORD_FIELDS = (
 #: item that added it. Keyed by the EXPANDED LEG NAME, never by a job id: a job id
 #: would lift the floor on every leg of `suite` and `clean-checkout-probe`, and the
 #: twenty legs already measured would lose theirs. PINNED, so a widening is red
-#: here until this literal moves in the same diff.
-EXPECTED_PENDING = {
-    "full suite (ubuntu-latest, scan shard)": "CS-1317",
-    "full suite (windows-latest, scan shard)": "CS-1317",
-    "clean-checkout probe (ubuntu-latest, scan shard)": "CS-1317",
-    "clean-checkout probe (windows-latest, scan shard)": "CS-1317",
-}
+#: here until this literal moves in the same diff. EMPTY since the CS-1317
+#: refresh recorded every one of those legs at the run floor.
+EXPECTED_PENDING: dict[str, str] = {}
 
 #: What the tool's parser must derive from the recorded API payload. Literal, so
 #: a parser change and a fixture change both turn this red.

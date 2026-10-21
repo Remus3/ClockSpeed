@@ -129,12 +129,12 @@ MINIMUM_RUNS_PER_JOB = 3
 # - every tolerated leg is PRINTED on each grade, never silently passed;
 # - tests/test_tier2_headroom.py pins this literal, so widening it is red there
 #   until that pin moves in the same diff.
-PENDING_FIRST_RECORD: dict[str, str] = {
-    "full suite (ubuntu-latest, scan shard)": "CS-1317",
-    "full suite (windows-latest, scan shard)": "CS-1317",
-    "clean-checkout probe (ubuntu-latest, scan shard)": "CS-1317",
-    "clean-checkout probe (windows-latest, scan shard)": "CS-1317",
-}
+#
+# EMPTY SINCE THE CS-1317 REFRESH. Its four scan-shard legs each reached the run
+# floor in the refreshed record, so the self-expiry offence above named every
+# entry and they were removed in that commit. The table stays, empty, as the
+# bounded answer for the next added leg.
+PENDING_FIRST_RECORD: dict[str, str] = {}
 
 _ITEM_ID = re.compile(r"^CS-\d+$")
 
