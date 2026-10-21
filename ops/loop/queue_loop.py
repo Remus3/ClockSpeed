@@ -4583,8 +4583,11 @@ def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
     args = parser.parse_args(argv)
     # CS-1231 slice C, R2 - A DEADLINE THE KIT CANNOT BEAT IS A USAGE ERROR. The
     # fleet kit's own timeout must end a run first, so the run writes its usage
-    # line; a `--timeout` that puts this driver's kill within the wrap margin of
-    # the kit's ceiling is refused here, before any night starts.
+    # line - EXCEPT when an orphaned descendant of the CLI holds its output pipe:
+    # then the kit blocks past its own timeout, this driver's backstop kill fires,
+    # and the run leaves no usage line (a kit defect, reported to MAIN). A
+    # `--timeout` that puts this driver's kill within the wrap margin of the
+    # kit's ceiling is refused here, before any night starts.
     if not kit_timeout_first(args.timeout):
         parser.error(
             f"--timeout must be at least {KIT_WRAP_MARGIN_S}s above the fleet kit's "

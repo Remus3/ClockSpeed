@@ -209,9 +209,11 @@ try {
   # ops/loop/queue_loop.py, and it sits BELOW the driver's own kill by
   # KIT_WRAP_MARGIN_S. Only a run the KIT ends writes its usage line and leaves
   # its status file idle; a tree killed from outside writes neither. So the
-  # kit's timeout is the cycle's timeout - the line below its exit says so -
+  # kit's timeout normally ends the cycle - the line below its exit says so -
   # and the driver's verified kill is the backstop for a run the kit could not
-  # end. The kit's default of one hour would end a worker hours early.
+  # end (an orphaned descendant holding the CLI's output pipe can keep the kit
+  # past its timeout; then the backstop fires and no usage line is written).
+  # The kit's default of one hour would end a worker hours early.
   # tests/test_lane_runner_script.py binds the literal to the driver by name.
   #
   # --floors-in-hooks: this tree's floors live in hooks, so the kit refuses
