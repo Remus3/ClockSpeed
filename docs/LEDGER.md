@@ -99,18 +99,30 @@ read (nothing is excused then), any markdown file the sweep could not read, pinn
 unreadable count the wrapped reader did not see. The repair commit makes `load_known_binaries`
 and `parse_historical` refuse a key listed twice at any depth (`refusing_repeats`), so check 6
 fails closed on such a pin file whichever row matches. `tools/doc_sweep.py` is unchanged.
-FAILING TEST FIRST, re-measured by the landing merger: the new cases, run against the pre-fix
-`tools/flip_checks.py` and `tools/sha_citation_gate.py` in a scratch clone, gave 29 of 36
-selected cases failed - each on the behaviour (the pinned image still a skip, the expected failure
-reason absent, the repeated key not refused), the nine mutant-control cases because no mutant
-anchor applies to the pre-fix file - and 7 passed: a still-fails arm and pre-existing gate arms.
+FAILING TEST FIRST, re-measured: in a scratch clone of this tree with `tools/flip_checks.py` and
+`tools/sha_citation_gate.py` put back as they stood at 2799d214566eb0f13934d709116c11e9d0eb1caf,
+a `-k` selection over `tests/test_flip_checks.py` and `tests/test_sha_citation_gate.py` - the
+twelve new test functions plus
+`tests/test_sha_citation_gate.py::test_a_malformed_pin_file_could_not_judge` - ran 34 cases: the
+31 new ones, that test's new `duplicate-key` case among them, and that test's 3 older ones. 30
+failed and 4 passed. 2 of the 30 fail STRUCTURALLY, on a missing attribute or key rather than on
+the behaviour: `tests/test_flip_checks.py::test_check_six_restores_doc_sweeps_own_reader`, an
+AttributeError (no `READ_TEXT_HOOK`), and
+`tests/test_flip_checks.py::test_a_pinned_path_that_cannot_be_read_stays_a_skip`, a KeyError
+(`known-binary`). The nine
+`tests/test_flip_checks.py::test_each_identity_mutant_applies_and_is_killed` cases fail because
+no mutant anchor applies to the pre-fix file. The other 19 fail on the
+behaviour (the pinned image still a skip, the expected failure reason absent, the repeated key not
+refused). The 4 that passed: the `absent` case of
+`tests/test_flip_checks.py::test_an_unpinned_nul_file_still_fails`, a still-fails arm, and the 3
+older gate cases. The same selection passes 34 of 34 against this tree's own tool files.
 The fix carries an in-suite mutation control: nine source mutants, each asserted to apply
 exactly once, each killed by its arm while the pristine arm holds.
-T2 READING: check 6 at T2 (f9b877256dd82e8d2844b6d7c876d3ab822ff097), through the tool's own
-`clone_at` and `measure` with its control: the pre-fix tool reads 2 skips, the two
-`docs/assets` PNGs as `unreadable-or-binary-file`, FAIL, exit 1; the landed tool reads exit 0,
-skips 0, known-binary 2, policy-excluded 1, findings 0, control FOUND, PASS. This record is not
-the CS-G03 record ADR 0025 point 8 requires.
+T2 READING: check 6 alone at T2 (f9b877256dd82e8d2844b6d7c876d3ab822ff097), through the tool's
+own `clone_at` and `measure` with its control - a check-6-only run, which has no exit code: the
+pre-fix tool reads skips 2, the two `docs/assets` PNGs as `unreadable-or-binary-file`, control
+FOUND, FAIL; the landed tool reads check 6 PASS, skips 0, known-binary 2, policy-excluded 1,
+findings 0, control FOUND. This record is not the CS-G03 record ADR 0025 point 8 requires.
 THE ACCEPTANCE RE-WORDED: the CS-1332 `### Acceptance` in `docs/item_notes/phase7.md` said
 `tools/doc_sweep.py`, as check 6 runs it, "no longer reports" a pinned binary as the skip. It now
 reads in the adjudicated S8 shape - check 6 excuses only a pinned binary, and `tools/doc_sweep.py`
@@ -179,7 +191,7 @@ every tier1 job sits at about half its ceiling; and the public repository now ge
 (nproc 4) while the records assume 2 (`tools/tier1_concentration.py`, `tools/measurements.json`).
 The item's section moved to `docs/history_notes.md`; its `ROADMAP.md` line is removed.
 
-### 2026-10-20 - CS-1234 - NOT A COMPLETION RECORD. CS-1234 STAYS OPEN: the S5 responder change landed - the kit's own state per refusal code, every declared stop sentinel honoured; clause 4's lane half rides with CS-1231 slice C
+### 2026-10-20 - CS-1234 - NOT A COMPLETION RECORD. CS-1234 STAYS OPEN: the responder change landed - the kit's own state per refusal code, every declared stop sentinel honoured; the queue lane's side rides with CS-1231 slice C
 Verification: `ops/loop/inbox_responder.py::kit_refusal_state`, `::_refused`, `::_standing` and
 `::_halted_since`;
 `tests/ops/test_inbox_responder.py::test_a_kit_refusal_publishes_the_state_the_kits_own_write_used`,
@@ -193,8 +205,9 @@ Verification: `ops/loop/inbox_responder.py::kit_refusal_state`, `::_refused`, `:
 `::test_two_standing_sentinels_show_the_halt_since_the_earliest`,
 `::test_the_usage_line_carries_ts_kind_and_label` and
 `::test_the_responder_never_hands_the_kit_a_halt_file`; `docs/OPERATIONS.md` section 12.3.
-CLAUSES 1 TO 3 of the S5 slice are met by the responder change. The responder publishes the
-kit's own state per refusal, derived from the refusal alone in the kit's order: code "halted"
+WHAT LANDED, named by behaviour, since the CS-1234 `### Acceptance` in
+`docs/item_notes/phase7.md` numbers no clauses: the responder publishes the kit's own state per
+refusal, derived from the refusal alone in the kit's order: code "halted"
 gives halted / Halted, quiet, exit 0; "fallback-halted" or "budget-spent" gives limit / Turn Limit
 Reached, logged "limit", exit 0; the kit's Blocked gives blocked / Idle, with exit 3 and the
 `kit_refused` line unchanged; any other refusal gives refused / Idle. It honours
@@ -204,15 +217,19 @@ lifts. It dates a halt from the oldest standing sentinel. A pass with a live ORD
 anywhere in it logs kind "order", where the kit derives "order" from the label alone. So a
 standing QUEUE_STOP or HOLD_MAIN_SPAWN now shows halted and exits 0, no longer `kit_refused` and
 exit 3; section 12.3 of `docs/OPERATIONS.md` says so.
-CLAUSE 4's lane half rides with CS-1231 slice C, because `ops/loop/run_lane.ps1` still starts
-`claude` directly (`CLAUDE.md` precedence (c)).
+THE QUEUE LANE'S SIDE rides with CS-1231 slice C: the queue lane does not read the hold, because
+`ops/loop/run_lane.ps1` still starts `claude` directly (`CLAUDE.md` precedence (c);
+`docs/OPERATIONS.md` section 12.3).
 RESIDUAL: the kit's halt_file refusal stays unmapped - it is raised with no code, production
 never hands the kit a halt file, and
 `tests/ops/test_inbox_responder.py::test_the_responder_never_hands_the_kit_a_halt_file` pins that.
 ADVERSARIES (distinct, read-only, default refuted, agent-reported): REFUTED twice - first on the
 refusal state, an unreachable proxy beside a full or unreadable budget published as a limit;
 then on five of 22 planted mutants surviving that repair - each round repaired; then landed on 22
-of 22 mutants killed, the loop stopped there by cost against risk (`CLAUDE.md` section 7). The
+of 22 mutants killed, agent-reported, the loop stopped there by cost against risk (`CLAUDE.md`
+section 7). RE-MEASURED for this record with that adversary's own 22-mutant script on a scratch
+export of the landed tree: 22 of 22 applied and 22 killed, the pristine
+`tests/ops/test_inbox_responder.py` 177 passed. The
 `BACKLOG.md` "Session 149 residuals" line on the responder's `kit_refused` halt is discharged and
 moved to `docs/history_notes.md`.
 
@@ -226,9 +243,13 @@ would be rewritten; 4 PASS. Alternatives: grant parts 1 and 2; grant part 2 alon
 Reversed by: the operator's own words, or a measured product block or suite red caused by the
 pre-push - a hook job over 444 s, or a /done median over 65 min after 5 rituals - after which a
 fresh adjudicator rules once S12a is fully closed.
-MEASURED: this session's three pre-push or suite-gated whole suites took about 19 minutes each,
-with concurrent agents running (the kit suite gate's machine-wide durations log reads 19.4 and
-19.3 minutes for two of them; the third is agent-reported). S12a is NOT fully closed:
+MEASURED: the kit suite gate's machine-wide durations log, written by
+`ops/fleet_kit/fleet_suite_gate.py`, holds two suite-gated pre-push whole suites this session, of
+about 19.4 and 19.3 minutes, run while another agent was live (its progress file spans both).
+They are known as pre-push by time, not by command hash, which differs per run: the first ended
+about two seconds before `origin/main` moved by push, the second began about seven seconds after
+the `v0.1.0` tag was made. The log's other session-150 lines cannot be identified as whole suites
+by command hash. S12a is NOT fully closed:
 HOLD_MAIN_SPAWN and the KEEP (8) folder are still present. Parts 3 and 5 to 9 touch no frozen
 file.
 
