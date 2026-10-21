@@ -990,7 +990,7 @@ a run, and the commit hash; no further hops.
 
 ### Filed 2026-10-21 by the headless inbox responder, from MAIN's FIX note 2026-10-21-1609
 
-The note's SHA-256 matched MAIN's outbox copy (b1c7fe5b...3171), so it carries the operator's
+The note's SHA-256 matched MAIN's outbox copy, so it carries the operator's
 instruction under FLEET item 6. **IT OVERRIDES THE KEEP-FAILED RETENTION** that CS-1319,
 CS-1320 and CS-1322 built into `tests/own_temp_root.py` - `KEEP_FAILED` and `STALE_AFTER_S`
 keep a failed run's directory - so those pins are re-measured against this order, not
