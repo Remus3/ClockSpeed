@@ -75,6 +75,48 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-700 - CLOSED: every section 17 gate item passed at T2
+Verification: `tools/flip_checks.py`;
+`tests/test_flip_checks.py::test_a_pinned_binary_is_not_a_skip`;
+`tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits`;
+`tests/ops/test_lane_scope.py::test_the_derived_gate_fence_equals_the_prompts_stated_gate_fence`;
+`tests/test_citation_tables.py::test_every_bare_path_decline_rung_is_disclosed_in_both_directions`.
+DECISION: CLOSE, ruled 2026-10-20 by a fresh closing adjudicator distinct from every builder,
+reading the Acceptance against T2 = f9b877256dd82e8d2844b6d7c876d3ab822ff097 (tag v0.1.0), the tip
+published at the flip. The section moved to `docs/history_notes.md`; its Dependabot local-landing
+rule, still binding, moved to `docs/OPERATIONS.md` section 12.5.
+CONVENTIONS section 17 at T2, from the R run the CS-G03 record above carries (exit 0; every
+automated check skips 0, control FOUND, PASS):
+1. secrets, full history: blobs 5670, commit messages 1843, findings 0.
+2. PII, tracked files and commit messages: needles 18, hits 0; identity 1 name and 1 address, 0 off
+the allowlist.
+3. third-party licences: exit 0, findings 0.
+4. publisher assets: history paths 603, publisher paths 0.
+5. README: commands 4, failed 0; the human half is the session 146 walk, grade
+b88684718bb98b8f609e278ca804a6d131fb4686bf9d587e0d799673d2110486, carried to T2 by tree equality.
+6. doc cross-references: URLs 10, findings 0, policy-excluded 1, known-binary 2, skips 0.
+7. clean checkout: bootstrap commands 3, failed 0; the human half is the same walk, on a fresh
+Sandbox: the violation refused, and 16246 passed, 0 failed.
+PUBLISHED TIP: the same command at be75ccf679186bcc7ec2671d1ccd14f6c8565ab2 also exits 0.
+REPO STATE, read back 2026-10-21: public; remote refs HEAD, main and the tag v0.1.0 only; rulesets
+0; private vulnerability reporting, secret scanning and push protection on; the v0.1.0 release
+final, neither draft nor prerelease; tier2 run 39526765992 at T2 completed green.
+ALTERNATIVES: KEEP OPEN, the runner-up, until the README clone command lands and a public-clone
+walk passes. It lost: neither is in the Acceptance, and three separate gradings ruled both
+non-blocking. Both are now OPEN items, CS-1333 and CS-1334.
+EARLIER RULING: this session's first CS-700 adjudicator ruled KEEP OPEN only on check 6's two
+binary skips at T2; CS-1332 fixed that (its CLOSED record above), and check 6 now reads skips 0.
+COMMON-MODE RISK: every run above shares flip_checks' own needle set, so a needle it does not
+derive is missed by all of them alike. The v0.1.0 tag message and release body are not in check 2's
+population and were not needle-scanned; a count-only probe with the same 18 needles found 0 hits in
+each.
+ADR: `docs/adr/0025-the-tier-3-flip-checks-run-locally.md` keeps its status. No `CLAUDE.md` section
+7 line is needed.
+RESIDUALS: the README clone command (CS-1333) and the public-clone walk (CS-1334); in `BACKLOG.md`,
+Session 150 residuals: walk evidence held by digest only, ExecutionPolicy Bypass untested, the
+dormant CS-700 window in `.claude/commands/done.md`, and the trailer-shaped census pointers that
+now name the archive.
+
 ### 2026-10-20 - CS-G03 - CLOSED: the visibility-flip gate cleared at T2 (ADR 0025 point 8)
 Verification: tools/flip_checks.py; tests/test_flip_checks.py::test_a_pinned_binary_is_not_a_skip; ADR 0025 points 7, 8, 10d.
 DECISION: CLEAR at T2 = f9b877256dd82e8d2844b6d7c876d3ab822ff097 (tag v0.1.0). Rejected: wait for a public-clone walk (not a stated condition; follow-up); wait for CS-1332 closure (the excused files were probed directly).

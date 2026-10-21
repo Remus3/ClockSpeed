@@ -378,14 +378,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 
 ## Session 126 residuals - filed 2026-10-04 under product before process
 
-- `README.md` carries no clone command - TRIGGER: the CS-700 flip; add it then, with the
-  public address.
-- A clone from the GitHub remote was never walked: the Sandbox walks this line was filed on
-  used a bundle, and so did session 146's step c walk, because the remote was private -
-  TRIGGER FIRED: the CS-700 flip made the remote public, and the CS-G03 record
-  (`docs/LEDGER.md`, 2026-10-20) carries the walk as a residual. In order: land the README
-  clone command first (the line above), then walk a fresh-Sandbox anonymous clone of the
-  public repository with a separate grader, and record the grade's sha256 in `docs/LEDGER.md`.
 - A generator class a future build adds to the registry but not to
   `clockspeed/audit/placement.py::BUILT_CLASS_ALLOWLIST` is dropped silently from the
   production capacity - TRIGGER: a game build bump, or a new generator group in the docs file.
@@ -861,3 +853,25 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   and the frozen `tools/precommit_gate.py` - the shape `tools/sha_citation_gate.py::refusing_repeats`
   closes for the binary pins; trigger: a repeated key found in a file one of them reads, or the
   next edit to one of those loaders (the frozen one through the `CLAUDE.md` section 6 route).
+- From the session 150 CS-700 close: THE CS-700 WINDOW block of `.claude/commands/done.md` - the
+  window-signal read in its step 0, the KEEP RULE and the window clauses in the steps after it - is
+  dormant now that the flip block's window has passed, yet its signal still reads OPEN on any HEAD
+  whose own commit touches `tools/sha_citation_historical.json`, and that /done would then commit
+  nothing, run no suite and push nothing; retire it; trigger: a commit that touches that file, or
+  the next edit to `.claude/commands/done.md`.
+- CS-G03 residual, walk evidence held by digest only (the 2026-10-20 CS-G03 record in
+  `docs/LEDGER.md`): the session 146 walk that record carries to T2 is held in the tree by sha256
+  alone - its grade and its walk log are files outside the tree - so no reader of the public
+  repository can re-check the walk itself; trigger: the CS-1334 walk is recorded, or anyone asks to
+  re-check the session 146 walk.
+- CS-G03 residual, ExecutionPolicy Bypass untested (the same record): the session 146 walk's
+  Sandbox runner was started with `-ExecutionPolicy Bypass`, so no walk has run the README
+  Quickstart, its process-scope `RemoteSigned` line and the venv activation after it, from the
+  default execution policy a new PowerShell starts with; trigger: the CS-1334 walk, whose runner
+  then starts without Bypass, or the Quickstart's PowerShell lines next touched.
+- From the session 150 CS-700 close: `tools/trailer_census.py`, `tests/test_trailer_census.py`,
+  `tests/test_trailer_routes.py` and `.github/workflows/tier1.yml` name the paragraph headed THE
+  TRAILER-SHAPED CENSUS in `docs/item_notes/phase7.md` as the census's one owner; it moved verbatim
+  with the CS-700 section to `docs/history_notes.md`, which holds nothing current, so each pointer
+  now names an archive block; trigger: the next edit to any of those four files, or CS-704 is
+  worked.

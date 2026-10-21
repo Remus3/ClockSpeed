@@ -1308,11 +1308,6 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         " them wrong once",
     ): 1,
     (
-        "docs/item_notes/phase7.md",
-        ".claude/settings.local.json",
-        "#### 5. CS-952 is sequenced BEFORE the flip and is a hard blocker",
-    ): 1,
-    (
         "docs/LEDGER.md",
         ".claude/settings.local.json",
         "### 2026-09-20 - CS-1159 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD."
@@ -1592,7 +1587,13 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: byte-for-byte in CLAUDE.md between its FLEET-COMMON markers. Neither copy can
 #: be repointed here. Each row REFUNDS, and the ceiling returns to 18, if a kit
 #: version stops naming the file.
-DECLARED_UNTRACKED_CEILING: Final = 20
+#:
+#: 20 TO 19 WHEN CS-700 CLOSED AND ITS DETAIL LEFT THE LIVE LEAF, 2026-10-21. The
+#: row CS-700 bought for its plan's section 5 is gone rather than moved: the closed
+#: section relocated to `docs/history_notes.md`, which this corpus does not carry, so
+#: the row refunds and the ceiling comes down with it, exactly as CS-952's did. As
+#: above, this comment names the rung and never the path.
+DECLARED_UNTRACKED_CEILING: Final = 19
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the

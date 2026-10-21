@@ -340,7 +340,6 @@ CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writ
 
 CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -365,3 +364,5 @@ CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, it
 CS-1307 - the env-echo git-hook arms in `tests/test_hook_env_echo.py` run the interpreter ladder under its bound without the quiet barrier - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then its ONE ANSWER after S12a - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1333 - `README.md` carries no clone command for the public repository - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

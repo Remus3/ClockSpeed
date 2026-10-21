@@ -1080,6 +1080,14 @@ its last act is `python ops/fleet_kit/fleet_done.py mark` (`.claude/commands/don
 the session-start hand-off read prints the block. Kit helper:
 `ops/fleet_kit/fleet_checklist.py`. Board pushes (FLEET item 18): section 12.2.
 
+### 12.5 Landing a Dependabot PR
+
+Moved on 2026-10-21 from the CS-700 section of `docs/item_notes/phase7.md` when that item closed;
+binding since MAIN's 2026-10-08 22:46 ORDER, section 4.
+
+Never merge a Dependabot PR with the merge button or `gh pr merge`; apply it locally as an operator
+commit (cherry-pick `--reset-author`) and push.
+
 ## 13. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`
