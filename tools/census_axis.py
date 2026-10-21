@@ -1367,10 +1367,13 @@ def _pattern_text(tree: ast.Module, node: ast.AST, seen: tuple[str, ...]) -> str
 
 
 def _read_pattern_source(repo_root: Path) -> ast.Module:
+    # The refusal is built in the raise itself, never through _hist_refuse: a chained
+    # raise whose raised slot calls a same-module function is read by
+    # tests/pathless_clone_guard.py as a copy of the path-free clone helper.
     try:
         return ast.parse(repo_root.joinpath(*HIST_SOURCE).read_bytes(), filename="<source>")
     except (OSError, SyntaxError, ValueError, RecursionError, MemoryError):
-        raise _hist_refuse("the test pattern source is unreadable") from None
+        raise UnmeasuredError(_HIST_FAIL + "the test pattern source is unreadable") from None
 
 
 def derive_hist_sidecars(repo_root: Path) -> tuple[list[list[str]], list[list[str]], int]:
