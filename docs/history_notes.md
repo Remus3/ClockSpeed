@@ -20153,7 +20153,8 @@ committed bytes (the S149-DONE ruling's C6/G3 line) in session 150.** Nothing be
 current. Each block is quoted verbatim inside a text fence under the old file's own section
 title; the rewritten hand-off states in one line what each block held that is still open.
 The whole session 149 hand-off is also kept in git history, as the commit the session 149
-/done made, and byte for byte in that session's /done copy folder outside the tree.
+/done made, and byte for byte in that session's /done copy folder outside the tree. Commit
+B2's author added the seven replaced lines this section first left out.
 
 ### From the session 149 hand-off: the header and its COMMIT STATE lines
 
@@ -20170,6 +20171,12 @@ push of this commit pending at write time; push result and CI UNREAD - the next 
 act reads the remote ref against this HEAD and the CI run.
 ```
 
+### From the session 149 hand-off: NAMES - the closing line of THE RELOCATION entry
+
+```text
+  DECISIONS and TRAPS, verbatim.
+```
+
 ### From the session 149 hand-off: THE SINGLE NEXT ACTION - the G1 line
 
 ```text
@@ -20177,6 +20184,12 @@ act reads the remote ref against this HEAD and the CI run.
    porcelain --untracked-files=all EMPTY; HEAD == the commit that last wrote this file, parent M;
    origin/main == HEAD, or == M with HEAD unpushed (push it first, its pre-push suite gates it);
    else STOP, a distinct adjudicator.
+```
+
+### From the session 149 hand-off: THE SINGLE NEXT ACTION - step 2's second line
+
+```text
+   the next: C5a, C5, C6 (R' and B in ONE push), C7.
 ```
 
 ### From the session 149 hand-off: THE SINGLE NEXT ACTION - W2
@@ -20200,6 +20213,26 @@ act reads the remote ref against this HEAD and the CI run.
     Pushed in B's push.
 ```
 
+### From the session 149 hand-off: THE CLOSING SEQUENCE - the first line of C6
+
+```text
+ C6 B, DOCS ONLY, ON R' (content list: S148 COPY, C6): NO CS-G03 record; sessions 147 to 149's
+```
+
+### From the session 149 hand-off: OPEN ITEMS THIS FILE TRACKS - the 0c and 1 lines
+
+```text
+ 0c CS-1328 - owes C7, C8, K5; (g) is C9. 1 CS-700 - owes C5a to C6; closes only on a distinct
+   adjudicator at B. CS-704 a BACKLOG line in B; CS-959 done; CS-701 handled by S7a; CS-G03 C14;
+```
+
+### From the session 149 hand-off: STATE OF THE TREE - the RECORDS line
+
+```text
+RECORDS: the three COMMITTED by this /done (S149-DONE), copied with SHA256SUMS to THE COPY
+  FOLDER; porcelain EMPTY expected (G1).
+```
+
 ### From the session 149 hand-off: DECISIONS IN FORCE - the C5 line
 
 ```text
@@ -20216,4 +20249,152 @@ marker); S149-DONE COMMIT. STEP 1 tier 2: mypy exit 0; ruff check . 0; ruff form
 25 doc test files exit 0, 2586 passed, 0 skipped. drift_guard 0; doc_budget 0; sha_citation_gate
 0; memory_sync n/a (memory/ unchanged). This file 30390 bytes. PUSH: as COMMIT STATE; its pre-push
 suite is the one gated whole suite. UNVERIFIED: none; the board FAILED (above).
+```
+
+## Hand-off and wakeup lines - archived 2026-10-20 from `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md` by commit B2's author in session 150, verbatim
+
+**Moved here when commit B2's author corrected commit B's records in session 150, after an
+adversary refuted B's accuracy.** Nothing below is current. Each block is quoted verbatim
+inside a text fence under the old file's own section title: first the lines B2 replaced in
+B's hand-off, then the `WAKEUP_NOTES.md` session 149 entry's lines that B and B2 replaced.
+The rewritten hand-off states in one line what each block held that is still open.
+
+### From commit B's hand-off: the header's status line and its COMMIT STATE lines
+
+```text
+D; R' and B COMMITTED, NOT PUSHED; HOLD_MAIN_SPAWN STANDS. Every item the session 148 hand-off
+held and sessions 149 and 150 did not act on is carried as one line plus a pointer to its full
+text; closed history moved verbatim to THE RELOCATION. The operator starts with "continue".
+COMMIT STATE OF THIS FILE: committed in B, on R'; R' and B NOT pushed at this write - their ONE
+push follows ADV-B (C6). D, the session 149 /done's commit, LANDED and read back green (C5a):
+ls-remote main == D; tier1 39380059462 and tier2 39394172124 success.
+```
+
+### From commit B's hand-off: NAMES - the R' and B entry
+
+```text
+R' and B (session 150, unpublished at B's write, so in words): R' the README re-application,
+  parent D, README.md only (C5); B the KEEP RULE (6) docs commit, parent R' (C6).
+```
+
+### From commit B's hand-off: NAMES - the closing line of THE RELOCATION entry
+
+```text
+  DECISIONS and TRAPS, verbatim; and the next section, by B's author: the blocks B replaced.
+```
+
+### From commit B's hand-off: THE SINGLE NEXT ACTION - step 1's reads (d) and (e)
+
+```text
+   timing record (blocked_by_flake: push first, then file it); W2. (c) G1 below. (d) W1's note,
+   by tools/main_provenance.py. (e) HOLD_MAIN_SPAWN present; STOP, INBOX_STOP, QUEUE_STOP absent;
+```
+
+### From commit B's hand-off: THE SINGLE NEXT ACTION - the G1 line
+
+```text
+   G1 (S149-DONE ruling 5, re-based to B by B's author): porcelain --untracked-files=all EMPTY;
+   HEAD == the commit that last wrote this file (B), B^ == R', R'^ == D; origin/main == HEAD, or
+   == D with R' and B unpushed (C6: ADV-B, then their ONE push, its pre-push suite gates it);
+```
+
+### From commit B's hand-off: THE SINGLE NEXT ACTION - step 2's second line and W1
+
+```text
+   the next: C5a and C5 DONE, C6 (B committed; ADV-B, then R' and B in ONE push), C7.
+   W1 THE GITHUB-SECURITY-FINDINGS ORDER - HIGH, UNANSWERED (MAIN to all six, 2026-10-18-2243,
+   provenance verified, sha256 fe218a98eac5aeccb356c18972264ddc2c63e710248aca762cf038ad676b2c31;
+   no CS answer in the outbox). ONCE: every OPEN code-scanning, Dependabot and secret-scanning
+   alert by `gh api` (the repo is ClockSpeed since 2026-10-18; a disabled 403 or 404 is a result);
+   triage; fix the real ones (commits after C7; a leaked secret rotated at its issuer, a grant
+   batched to the operator); dismiss false positives with a reason via the API; read back each
+   state; record per kind before -> after, fixed, dismissed, left (why) here; ONE ANSWER,
+   TERMINAL, HOP 2. Another runner reading it records it seen, no work. C9's 1g overlaps it.
+```
+
+### From commit B's hand-off: THE SINGLE NEXT ACTION - the last line of W2
+
+```text
+   ritual's timing record) - those counts go in the C8 ANSWER; ack the note by key (C11).
+```
+
+### From commit B's hand-off: THE SINGLE NEXT ACTION - step 4 (d)'s non-ROADMAP line
+
+```text
+   (K4, C9, C12, C13) and anything interactive go to the main session's sub-agents. (e) Briefs
+```
+
+### From commit B's hand-off: THE CLOSING SEQUENCE - C6's ADV-B and C6/G3 lines
+
+```text
+    only if B's adjudicator adds it; `python -B tools/sha_citation_gate.py` exit 0. ADV-B fresh, R'
+    and B frozen, default REFUTED. ONE push through fleet_gitlock (a non-fast-forward rebased
+    ONCE). C6/G3 (S149-DONE ruling): B stages only B's own edits - its LEDGER records, BACKLOG
+    lines, and the three record files as B's author rewrites them from their COMMITTED bytes; ADV-B
+    reviews git diff R' B; read back main == B, B^ == R', R'^ == the origin/main tip read at C5 P0;
+    KEEP (7) at B = porcelain 0 and the three files' bytes == HEAD's; KEEP (8) only after it.
+```
+
+### From commit B's hand-off: THE CLOSING SEQUENCE - the last line of C9, then C11, C12 and C13
+
+```text
+    tags, 1b Conventional Commits, 1d the README section, 1g the security triage (with W1).
+ C11 THE INBOX - the responder's ticks once the hold lifts, acked BY KEY, never ack-everything:
+    MAIN's v18, v19, v20 and v20.1 ORDERs (2026-10-17-1018, 2026-10-18-1235, 2026-10-18-1812,
+    2026-10-19-0001) and payload folders - worked by CS-1330, answered by S5 (read back): ack them;
+    SS 1010, 1307, 1500 and 1230 - skip, terminal (A-DONE RULING 3); MAIN's 2243 ORDER - W1;
+    GH-HYGIENE 1215 acked (R', C8); MAIN's 0730 INFORMATION - ack, terminal; its CS-SUITE-EXIT1 W2.
+ C12 RETIRE the two session 146 builder branches and worktrees, tip subjects "CS-700 S12a act (ii)
+    - apply the ADV-A2 fixes F1 to F4" and "CS-700 S12a slice P - keep the CS-1183 ledger-cited
+    badge arm": classify by CONTENT (`git cherry` reads "+"), no live claim, consumer check, bundle,
+    Recycle Bin, `git worktree prune`, then -D. KEEP the preserve ref until R' reads back.
+ C13 THE CLEANUP ITEM, OPEN, for the lane: 71 registered worktrees. NEVER bulk-prune; classify each
+    by CONTENT (ancestor-merged is not prunable; a fresh agent tree looks empty); bundle before
+    delete; skip any live agent's tree (re-read a lock's holder) and a session's cwd. An M2 guard
+    comes off only as its tree retires; the 68 old-history trees are retired, never pushed from;
+    M4 (the pre-rewrite refs, counted live) after a fresh bundle, in ONE `git update-ref --stdin`,
+    never tagged; work/saves' leftover and cs1322-adv-tmp (never walked) after a consumer check.
+    Inventory: THE RELOCATION, STATE OF THE TREE.
+```
+
+### From commit B's hand-off: OPEN ITEMS THIS FILE TRACKS - the 0c and 1 lines
+
+```text
+ 0c CS-1328 - owes C7, C8, K5; (g) is C9. 1 CS-700 - owes ADV-B, B's push (C6), C7; B left it
+   OPEN (C6). CS-704 a BACKLOG line in B; CS-959 done; CS-701 handled by S7a; CS-G03 C14;
+```
+
+### From commit B's hand-off: OPEN ITEMS THIS FILE TRACKS - the last line of CS-1291
+
+```text
+   or /done median still over 65 min after 5 rituals"). NO GRANT - no edit. Part 7 owns C12, C13.
+```
+
+### From commit B's hand-off: STATE OF THE TREE - the RECORDS and REFS lines
+
+```text
+RECORDS: the three COMMITTED by the session 149 /done (S149-DONE), copied with SHA256SUMS to
+  THE COPY FOLDER, then rewritten in B (G3); porcelain EMPTY expected (G1, KEEP (7)).
+REFS 511 (heads 371) at this /done; remotes exactly origin/HEAD and origin/main; tags 0; the
+  pre-rewrite refs local until C13; the preserve ref (C5). NEW IDS FROM CS-1332 - re-check `git
+  grep` and `git log --all` first; the responder and lanes allocate too.
+```
+
+### From commit B's hand-off: THE CHANNEL AND EXTERNAL CONDITIONS - the OWED line
+
+```text
+OWED: C8 and W1's ONE ANSWER. Never answer an answer; never re-send a sent note (S5 included;
+```
+
+### From `WAKEUP_NOTES.md`, the session 149 entry: the Shipped and In flight lines as commit D made them, replaced by commit B
+
+```text
+- Shipped: CLOSED: CS-1330 (fleet kit v17 to v20.1 vendored on main as a1701b276728c92b3bf5fd716841c808771dc06d, the v18 to v20 tree steps folded in and the stop-sentinel declaration tracked, under the session 149 S0 and S0b rulings; its gated whole suite 16447 passed, 12 skipped, agent-reported) and CS-1331 (the CS-1312 lstat denial's stand-in takes and forwards dir_fd; landed as 5d70a412315ebe5c2d8ebfd3d9a430ddb07deac0, its pre-push suite 16450 passed, 12 skipped by its push log, ls-remote read back equal; tier1 39371250062 success, six jobs on attempt 1). CS-1330's own tier1 39364435714 went RED on the Linux save shard only: the kit's fixture order runs tmp_path's teardown rmtree while a test's os.lstat stand-in, which took no dir_fd, is still live. A distinct adversary reproduced it on real Linux under WSL Ubuntu and found the repair NOT REFUTED. Housekeeping: the v19 build, the v20.1 WIP, the CS-1330 build and the CS-1331 build branches and their worktrees retired after bundling into the data directory's bundles folder (FLEET 9). ONE FIX note to MAIN, stamped 2026-10-19-2356 (kit v20.1 adopted, six kit defects, HOP 2), delivered 1 of 1, sha256 254a4ae216f0dcdb232197fd762dc402c906926d7cb323b83aa897b4f76de53f. BACKLOG "Session 149 residuals": three CS-1330 and two CS-1331 lines. The session 149 /done cut CS-NEXT-SESSION.txt from 249465 bytes by relocating closed blocks verbatim into docs/history_notes.md (S0 ruling 3; an item-census adversary: APPLY, its fixes made) and, by the S149-DONE ruling, COMMITTED these three records on the normal CS-1321 path with ONE push, pending at their write. Detail in docs/LEDGER.md.
+- In flight: S12a's closing sequence owes C5a (narrowed to C5 and C6 against the tip), C5 R', C6 B, C7 the v0.1.0 tag and release and C8 the ONE CS-1328 ANSWER; HOLD_MAIN_SPAWN stands until C7 reads back, so no lane spawns before it. MAIN's 2243 GITHUB-SECURITY-FINDINGS ORDER (W1) is unanswered. CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2) closes on this /done's pre-push suite if it reads green - unread at the write (W2). K1 to K5 follow S12a. The A-DONE gates G1 to G7 are RETIRED; the new G1 expects an empty porcelain. New IDs from CS-1332.
+```
+
+### From `WAKEUP_NOTES.md`, the session 149 entry: the In flight line as commit B made it, replaced by commit B2
+
+```text
+- In flight: S12a's closing sequence owes C5a (narrowed to C5 and C6 against the tip), C5 R', C6 B, C7 the v0.1.0 tag and release and C8 the ONE CS-1328 ANSWER; HOLD_MAIN_SPAWN stands until C7 reads back, so no lane spawns before it. MAIN's 2243 GITHUB-SECURITY-FINDINGS ORDER (W1) is unanswered. CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2) closes on this /done's pre-push suite if it reads green - unread at the write (W2); read in session 150: green, 16450 passed, 0 failed, 12 skipped, no BLOCKED line, ls-remote equal to HEAD - CLOSED, its counts owed to MAIN in the C8 ANSWER. K1 to K5 follow S12a. The A-DONE gates G1 to G7 are RETIRED; the new G1 expects an empty porcelain. New IDs from CS-1332.
 ```
