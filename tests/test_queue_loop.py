@@ -4319,3 +4319,67 @@ def test_cs1274_the_driver_log_survives_a_console_that_cannot_encode_the_box(
     console.flush()
     written = raw.getvalue().decode("ascii")
     assert written == "\\u2610 C1: a task\n"
+
+
+# ---------------------------------------------------------------------------
+# CS-1231 slice C - L1. THE KIT'S CEILING SITS ABOVE THE DRIVER'S OWN KILL.
+#
+# The runner hands the fleet kit a `--timeout`, and the kit kills the CLI's tree
+# when it expires. The driver's own kill is the one it VERIFIES - a kill that did
+# not take ends the night on `timeout_kill_failed`, while the kit swallows a
+# failed kill - so the driver's deadline, plus one poll and the kill grace, must
+# expire first. The defaults are graded here, and the command line refuses any
+# configuration that would invert the order rather than run it.
+# ---------------------------------------------------------------------------
+
+
+def test_cs1231c_the_kit_ceiling_sits_above_the_drivers_default_kill_deadline():
+    """The default night: the driver's verified kill lands before the kit's."""
+    ceiling = getattr(queue_loop, "RUNNER_KIT_TIMEOUT_S", None)
+    assert type(ceiling) is int, "the driver names no kit ceiling"
+    deadline = (
+        queue_loop.DEFAULT_CYCLE_TIMEOUT_S
+        + queue_loop.DEFAULT_POLL_S
+        + queue_loop.DEFAULT_KILL_GRACE_S
+    )
+    assert deadline < ceiling, f"the driver's kill at {deadline}s is not below {ceiling}s"
+
+
+def _no_night(monkeypatch):
+    """`run_loop` replaced by a recorder, so `main` can never start a real night."""
+    called: list[dict] = []
+
+    def recorder(**kw):
+        called.append(kw)
+        return {"cycles_run": 1, "stopped_by": "max_cycles", "records": [SHIPPED]}
+
+    monkeypatch.setattr(queue_loop, "run_loop", recorder)
+    return called
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [["--timeout", "20000"], ["--timeout", "inf"], ["--timeout", "nan"], ["--poll", "900"]],
+    ids=["timeout-above", "timeout-infinite", "timeout-nan", "poll-above"],
+)
+def test_cs1231c_the_cli_refuses_a_deadline_the_kits_ceiling_would_undercut(
+    tmp_path, monkeypatch, flags
+):
+    """A deadline the kit would beat is a usage error, and no night starts."""
+    called = _no_night(monkeypatch)
+    argv = [*flags, "--once", "--control-dir", str(tmp_path / "control")]
+    with pytest.raises(SystemExit) as raised:
+        queue_loop.main(argv, singleton=FakeSingleton())
+    code = raised.value.code
+    assert code == 2, f"the refusal exited {code!r}"  # noqa: PLR2004 - argparse's usage code
+    assert called == [], "a night started on a deadline the kit's ceiling undercuts"
+
+
+def test_cs1231c_control_the_cli_accepts_its_default_deadline(tmp_path, monkeypatch):
+    """THE CONTROL: the same command line with the defaults runs the night."""
+    called = _no_night(monkeypatch)
+    code = queue_loop.main(
+        ["--once", "--control-dir", str(tmp_path / "control")], singleton=FakeSingleton()
+    )
+    assert code == queue_loop.EXIT_OK
+    assert len(called) == 1

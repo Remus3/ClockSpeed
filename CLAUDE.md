@@ -22,8 +22,8 @@ MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and 
 this tree.** Specifically: (a) section 2.3's rule never to poll a background task in
 one-line turns governs over FLEET item 12's periodic check - wait for the completion
 notification; (b) retired at kit v9, whose item 13 carries the checklist section 2.3.1
-applies; (c) retired at kit v17, FLEET item 10 holds with no exception; (d) FLEET item
-5's rule that every do-not-re-litigate entry states what would reverse it is met by the
+applies; (c) retired by CS-1231 slice C - FLEET item 10 holds with no exception; (d) FLEET
+item 5's rule that every do-not-re-litigate entry states what would reverse it is met by the
 *Reversed by:* clause on each section 7 entry. Section 6.1's repository-public/remote
 safety floor holds whatever FLEET item 1 says.
 

@@ -23,12 +23,15 @@ and the one lock taken is the in-process kit's, on a budget file under tmp_path.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
@@ -654,3 +657,479 @@ def test_cs1178_a_real_runner_refusal_log_is_recognised_end_to_end(tmp_path: Pat
     ], f"outcomes {outcomes}"
     assert sum(clock.slept[:_POLLS]) == queue_loop.USAGE_LIMIT_BACKOFF_S, clock.slept[:4]
     assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+
+
+# ===========================================================================
+# CS-1231 slice C - THE KIT'S ENDINGS, read off the runner's log by the driver
+#
+# The runner starts the fleet kit, and the kit can end a run three ways the
+# CLI's result object cannot show: its own timeout (exit 4), a refusal (exit 3,
+# with a code), and a bad command line (exit 2). The runner writes ONE line
+# naming the ending IMMEDIATELY before its exit line, and the driver reads only
+# that line - so worker text earlier in the log cannot forge it. The words below
+# are literals on purpose: an arm that compared against a constant the repair
+# introduces would fail on the base with an AttributeError, not for its reason.
+# ===========================================================================
+
+_STAMP: Final = "2026-01-01T00:00:05"
+
+#: The kit's own timeout, as the runner records it.
+_TIMEOUT_TAIL: Final = (f"lane timeout {_STAMP} kit_exit=4", f"lane exit {_STAMP} code=4")
+
+#: The fleet kit's budget refusal and its usage-limit halt, by code.
+_BUDGET_CODE: Final = "budget-spent"
+_LIMIT_CODE: Final = "fallback-halted"
+
+#: Planted where the driver must never copy from: the kit's status file.
+_STATUS_NEEDLE: Final = "cs1231c-status-needle"
+
+
+def _refused_tail(code: str) -> tuple[str, str]:
+    """A kit refusal, as the runner records it: the code, then the exit line."""
+    return (f"lane refused {_STAMP} kit_code={code}", f"lane exit {_STAMP} code=3")
+
+
+def _ending_log(path: Path, tail: tuple[str, ...], *, before: tuple[str, ...] = ()) -> Path:
+    """A runner log in `run_lane.ps1`'s layout whose LAST lines are `tail`."""
+    lines = [
+        "lane start 2026-01-01T00:00:00 cwd=cs-lane-queue model=synthetic effort=high",
+        *before,
+        *tail,
+    ]
+    path.write_bytes(b"\xef\xbb\xbf" + ("\r\n".join(lines) + "\r\n").encode("utf-8"))
+    return path
+
+
+def _ok_log(path: Path) -> Path:
+    """An ordinary run's log - the control every refusal arm is told apart from."""
+    return _worker_log(path, ORDINARY_SUCCESS, 0)
+
+
+def _iso(epoch: float) -> str:
+    """An offset-bearing ISO stamp, the shape the kit writes `cap_frees_at` in."""
+    return datetime.fromtimestamp(epoch, tz=UTC).isoformat(timespec="seconds")
+
+
+#: The wall clock `FakeClock` starts at, so a status file can be written against it.
+_WALL: Final = FakeClock().wall
+
+
+def _status(
+    control: Path,
+    *,
+    frees_in: float | None,
+    used: int = 120,
+    cap: int = 120,
+    now: float = _WALL,
+) -> Path:
+    """The kit's status file in `control`, with the run budget's fields set.
+
+    `frees_in` is seconds after `now` (the fake clock's start by default), or
+    None for no stamp.
+    """
+    doc = {
+        "schema": 1,
+        "code": "CS",
+        "state": "limit",
+        "task": "Turn Limit Reached",
+        "runs_in_window": used,
+        "runs_cap": cap,
+        "window_s": 86400,
+        "cap_frees_at": None if frees_in is None else _iso(now + frees_in),
+        "reason": f"synthetic {_STATUS_NEEDLE}",
+    }
+    control.mkdir(parents=True, exist_ok=True)
+    path = control / "inbox_status.json"
+    path.write_bytes(json.dumps(doc).encode("ascii"))
+    return path
+
+
+def _launches(items: list[Path | str]):
+    """A `launch` seam: a Path leaves that log behind, "early" exits in the grace.
+
+    "early" raises the launcher's own refusal for a runner that exited inside
+    its 2.0 s liveness grace - the path a fast kit refusal takes.
+    """
+    fired: list[dict[str, Any]] = []
+
+    def launch(lane: str, **kw: Any) -> dict[str, Any]:
+        fired.append({"lane": lane, **kw})
+        item = items[len(fired) - 1]
+        if item == "early":
+            raise queue_loop.lane_launcher.LaneLaunchError(
+                "the runner exited 3 within 2.0s of starting, so no worker is behind this lane",
+                reason="runner_exited_early",
+                waited_s=1.2,
+            )
+        assert isinstance(item, Path)
+        return {"pid": 4242, "log": str(item.resolve())}
+
+    return launch, fired
+
+
+def test_l1_a_kit_timeout_ending_is_recorded_timeout_killed_not_completed(tmp_path: Path) -> None:
+    """THE HIGH FINDING: the kit's own timeout ended the run, so it is a timeout.
+
+    The kit kills the CLI's tree at its `--timeout` and exits 4; the runner
+    exits on its own a moment later, so the driver's pid probe sees a worker
+    that EXITED, and before this repair the cycle read `completed`.
+    """
+    launch, _ = _launches([_ending_log(tmp_path / "t.log", _TIMEOUT_TAIL)])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == "timeout_killed", f"a kit timeout was recorded as {outcome!r}"
+    assert rows[0]["worker_ok"] is False
+
+
+def test_l1_control_a_marker_in_worker_text_is_not_the_runners_ending(tmp_path: Path) -> None:
+    """THE CONTROL: only the line immediately before the exit line is read.
+
+    A worker's own words are written ahead of its result object, so a
+    timeout-shaped line in them is never adjacent to the exit line - and a run
+    whose CLI exited 4 itself is still a run that ended.
+    """
+    forged = (f"lane timeout {_STAMP} kit_exit=4", json.dumps(ORDINARY_SUCCESS))
+    log = _ending_log(tmp_path / "f.log", (f"lane exit {_STAMP} code=4",), before=forged)
+    launch, _ = _launches([log])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == "completed", f"a forged marker was read as the ending: {outcome!r}"
+
+
+def test_l2_a_post_grace_budget_refusal_is_not_a_cycle_and_backs_off_until_the_cap_frees(
+    tmp_path: Path,
+) -> None:
+    """THE MEDIUM FINDING, after the grace: a spent budget is refused, not run.
+
+    The row says so, costs no cycle of the night, and the driver waits until the
+    kit's cap frees - `cap_frees_at` in the kit's status file, plus one poll -
+    rather than the fixed usage-limit hour or the 45-second settle.
+    """
+    control = tmp_path / "control"
+    _status(control, frees_in=5000)
+    logs = [
+        _ending_log(tmp_path / "r.log", _refused_tail(_BUDGET_CODE)),
+        _ok_log(tmp_path / "ok1.log"),
+        _ok_log(tmp_path / "ok2.log"),
+    ]
+    launch, fired = _launches(list(logs))
+    summary, rows, written, clock, _, _ = _drive(tmp_path, [], budget=2, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == ["budget_spent", "completed", "completed"], f"outcomes {outcomes}"
+    assert rows[0]["cycle"] is None, "a refused start was numbered as a cycle"
+    assert rows[0]["worker_ok"] is False
+    waited = sum(clock.slept) - SETTLE_S
+    expected = 5000 + queue_loop.USAGE_LIMIT_BACKOFF_POLL_S
+    assert waited == expected, f"the back-off was {waited}s, not {expected}s"
+    counted = (summary["cycles_run"], summary["stopped_by"], len(fired))
+    assert counted == (2, queue_loop.STOPPED_BY_MAX_CYCLES, 3), f"summary {counted}"
+    leaked = _STATUS_NEEDLE in written
+    assert leaked is False, "the kit's status text reached the written row"
+
+
+def test_l2_an_early_exit_budget_refusal_is_not_a_launch_failure(tmp_path: Path) -> None:
+    """THE MEDIUM FINDING, inside the grace: no launch_failed, no ended night.
+
+    A kit refusal is fast, so the runner often exits inside the launcher's 2.0 s
+    grace, which raises `runner_exited_early` and leaves the driver no log to
+    read. The kit's own status file says the budget is spent, so the start is
+    refused, not failed: the night goes on, and the next start runs.
+    """
+    _status(tmp_path / "control", frees_in=600)
+    items: list[Path | str] = ["early", _ok_log(tmp_path / "a.log"), _ok_log(tmp_path / "b.log")]
+    launch, _ = _launches(items)
+    summary, rows, _, clock, _, _ = _drive(tmp_path, [], budget=2, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == ["budget_spent", "completed", "completed"], f"outcomes {outcomes}"
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+    waited = sum(clock.slept) - SETTLE_S
+    expected = 600 + queue_loop.USAGE_LIMIT_BACKOFF_POLL_S
+    assert waited == expected, f"the back-off was {waited}s, not {expected}s"
+
+
+def test_l2_early_exit_budget_refusals_never_end_the_night_as_launch_failures(
+    tmp_path: Path,
+) -> None:
+    """Three in a row end the night on the usage-limit word, not on a lane fault.
+
+    The kit rewrites its status file on every refusal, so each early exit here
+    finds a cap that frees ten minutes after the moment it was refused.
+    """
+    control = tmp_path / "control"
+    clock = FakeClock()
+    fired: list[int] = []
+
+    def launch(_lane: str, **_kw: Any) -> dict[str, Any]:
+        fired.append(len(fired))
+        _status(control, frees_in=600, now=clock.wall)
+        raise queue_loop.lane_launcher.LaneLaunchError(
+            "the runner exited 3 within 2.0s of starting, so no worker is behind this lane",
+            reason="runner_exited_early",
+            waited_s=1.2,
+        )
+
+    summary, rows, _, _, _, _ = _drive(
+        tmp_path,
+        [],
+        budget=5,
+        launch=launch,
+        sleep=clock.sleep,
+        clock=clock.time,
+        monotonic=clock.monotonic,
+    )
+    limit = queue_loop.MAX_CONSECUTIVE_USAGE_REFUSALS
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == ["budget_spent"] * limit, f"outcomes {outcomes}"
+    stopped = summary["stopped_by"]
+    assert stopped == queue_loop.STOPPED_BY_USAGE_LIMIT, f"the night stopped on {stopped!r}"
+    assert len(fired) == limit
+
+
+def test_l2_control_an_early_exit_with_budget_left_is_still_a_launch_failure(
+    tmp_path: Path,
+) -> None:
+    """THE CONTROL: only a SPENT budget turns an early exit into a refusal."""
+    _status(tmp_path / "control", frees_in=600, used=5)
+    launch, _ = _launches(["early"])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == "launch_failed", f"an early exit with budget left read {outcome!r}"
+
+
+def test_l2_repeated_budget_refusals_end_the_night_on_the_usage_limit_word(
+    tmp_path: Path,
+) -> None:
+    """Bounded: a cap that will not free tonight ends the night, with its own word."""
+    _status(tmp_path / "control", frees_in=60)
+    limit = queue_loop.MAX_CONSECUTIVE_USAGE_REFUSALS
+    logs = [_ending_log(tmp_path / f"r{n}.log", _refused_tail(_BUDGET_CODE)) for n in range(5)]
+    launch, fired = _launches(list(logs))
+    summary, rows, _, _, _, _ = _drive(tmp_path, [], budget=5, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == ["budget_spent"] * limit, f"outcomes {outcomes}"
+    stopped = (summary["stopped_by"], len(fired), summary["cycles_run"])
+    assert stopped == (queue_loop.STOPPED_BY_USAGE_LIMIT, limit, 0), f"stopped {stopped}"
+
+
+def test_l2_other_kit_refusal_codes_are_launch_failures_not_completions(tmp_path: Path) -> None:
+    """Any other kit refusal is a start that did not happen - never `completed`."""
+    logs = [_ending_log(tmp_path / "p.log", _refused_tail("proxy-unreachable"))]
+    launch, _ = _launches(list(logs))
+    _, rows, written, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == "launch_failed", f"a kit refusal was recorded as {outcome!r}"
+    named = "proxy-unreachable" in rows[0]["detail"]
+    assert named, "the row does not name the kit's refusal code"
+    assert NEEDLE not in written
+
+
+def test_l2_a_refusal_code_outside_the_kits_vocabulary_is_written_as_unknown(
+    tmp_path: Path,
+) -> None:
+    """The driver renders only its own copy of the kit's words, never the log's."""
+    planted = "cs-planted-code"
+    logs = [_ending_log(tmp_path / "u.log", _refused_tail(planted))]
+    launch, _ = _launches(list(logs))
+    _, rows, written, _, _, lines = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == "launch_failed", f"an unknown refusal read {outcome!r}"
+    leaked = planted in written or any(planted in line for line in lines)
+    assert leaked is False, "a code outside the kit's vocabulary reached the row"
+
+
+@pytest.mark.parametrize(
+    ("ending", "word"),
+    [
+        (_refused_tail(_LIMIT_CODE), "usage_refused"),
+        (None, "usage_refused"),
+    ],
+    ids=["kit-fallback-halted", "cli-429"],
+)
+def test_a_usage_limit_refusal_stops_the_lane_with_no_hop_of_its_own(
+    tmp_path: Path, ending: tuple[str, str] | None, word: str
+) -> None:
+    """FLEET item 10: a usage limit is waited out, then the night ends - no fallback.
+
+    Both shapes of a usage limit - the CLI's own 429 refusal and the kit's
+    `fallback-halted` (the limit holds on every route the kit may use) - are
+    refused-not-run rows, backed off by the fixed hour, and end the night on the
+    usage-limit word. Every launch is handed exactly the seams it always was: no
+    route, mode, model or account is chosen by the lane, so the ONLY hop is the
+    one the kit's own route file arms, inside the kit.
+    """
+    limit = queue_loop.MAX_CONSECUTIVE_USAGE_REFUSALS
+    logs = []
+    for n in range(5):
+        path = tmp_path / f"l{n}.log"
+        logs.append(_ending_log(path, ending) if ending else _worker_log(path, REFUSAL, 1))
+    launch, fired = _launches(list(logs))
+    summary, rows, _, clock, _, _ = _drive(tmp_path, [], budget=5, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == [word] * limit, f"outcomes {outcomes}"
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_USAGE_LIMIT
+    backed_off = sum(clock.slept)
+    assert backed_off == queue_loop.USAGE_LIMIT_BACKOFF_S * (limit - 1), backed_off
+    handed = sorted({key for call in fired for key in call})
+    assert handed == ["lane", "run_id", "token"], f"a launch was handed {handed}"
+    lanes = {call["lane"] for call in fired}
+    assert lanes == {queue_loop.LANE}, f"the lane changed under a limit: {sorted(lanes)}"
+
+
+#: The kit's route-changing API, which neither the driver nor the runner may name.
+_ROUTE_API: Final = frozenset(
+    {"write_route", "start_fallback", "effective_route", "fallback_state_path", "route_show"}
+)
+
+
+def test_neither_the_driver_nor_the_runner_names_the_kits_route_api() -> None:
+    """The static half of the arm above: no hop is even reachable from the lane.
+
+    The driver's code names no kit function that moves a route, and the
+    runner's code - comments dropped - passes no fallback flag and runs no kit
+    subcommand but `spawn`.
+    """
+    tree = ast.parse((ROOT / "ops" / "loop" / "queue_loop.py").read_text(encoding="utf-8"))
+    names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+    names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+    named = sorted(names & _ROUTE_API)
+    assert named == [], f"the driver names the kit's route API: {named}"
+    text = RUNNER_SOURCE.read_bytes().decode("ascii")
+    code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    flagged = "fallback" in code.lower()
+    assert flagged is False, "the runner's code carries a fallback flag"
+    subcommands = re.findall(r'"\$kit",\s*"([a-z]+)"', code)
+    assert subcommands == ["spawn"], f"the runner runs kit subcommands {subcommands}"
+
+
+@pytest.mark.parametrize(
+    ("frees_in", "expected"),
+    [
+        (5000.0, 5000 + 30),
+        (-100.0, 30),
+        (10 * 86400.0, 86400),
+        (None, 3600),
+    ],
+    ids=["future", "past", "beyond-a-window", "no-stamp"],
+)
+def test_l2_the_budget_back_off_reads_cap_frees_at_and_clamps(
+    tmp_path: Path, frees_in: float | None, expected: int
+) -> None:
+    """Until the cap frees plus one poll, inside [one poll, one window], else an hour."""
+    _status(tmp_path, frees_in=frees_in)
+    status = queue_loop._kit_status(tmp_path)  # noqa: SLF001 - the reader under test
+    got = queue_loop._budget_back_off_s(status, _WALL)  # noqa: SLF001 - the clamp under test
+    assert got == expected
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [b"{not json", b"[]", b'{"cap_frees_at": "2026-01-01T00:00:00"}', b'{"cap_frees_at": 7}'],
+    ids=["garbled", "not-an-object", "naive-stamp", "not-a-string"],
+)
+def test_l2_an_unusable_status_file_backs_off_the_fixed_hour(
+    tmp_path: Path, planted: bytes
+) -> None:
+    """A stamp the driver cannot place in time is never guessed at."""
+    (tmp_path / "inbox_status.json").write_bytes(planted)
+    status = queue_loop._kit_status(tmp_path)  # noqa: SLF001 - the reader under test
+    got = queue_loop._budget_back_off_s(status, _WALL)  # noqa: SLF001 - the clamp under test
+    assert got == queue_loop.USAGE_LIMIT_BACKOFF_S
+
+
+def test_l2_the_driver_names_the_kits_status_file_window_and_codes() -> None:
+    """The driver's own copies of the kit's facts, bound to the kit by value.
+
+    The status file's name, the budget window that bounds the back-off, and the
+    refusal vocabulary the driver renders - every code the kit can raise.
+    """
+    source = (ROOT / "ops" / "fleet_kit" / "fleet_headless.py").read_text(encoding="utf-8")
+    raised = set(re.findall(r'code="([a-z-]+)"', source))
+    raised |= set(re.findall(r'^    code = "([a-z-]+)"$', source, re.MULTILINE))
+    facts = {
+        "status": kit.STATUS_REL.name == queue_loop.KIT_STATUS_NAME,
+        "window": kit.WINDOW_S == queue_loop.KIT_WINDOW_S,
+        "codes": raised == set(queue_loop.KIT_REFUSAL_CODES),
+    }
+    assert all(facts.values()), f"the driver's copy of the kit drifted: {facts}"
+
+
+def _kit_ending(tmp_path: Path, ending: str) -> tuple[str, int]:
+    """What the REAL kit's command line prints, and its exit, for one ending.
+
+    "timeout": the CLI outlives the kit's `--timeout`. "budget-spent": the
+    kit's run budget under `tmp_path` already holds its cap of starts. The
+    kit's own `main` and `spawn` run in this process; nothing live is touched.
+    """
+    root = tmp_path / "kit-root"
+    if ending == _BUDGET_CODE:
+        budget = root / kit.BUDGET_REL
+        budget.parent.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(tz=UTC).timestamp()
+        budget.write_bytes(json.dumps({"starts": [now] * kit.RUNS_CAP}).encode("ascii"))
+    root.mkdir(parents=True, exist_ok=True)
+
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout") or 0)
+
+    def spawn_fn(root_: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
+        line: dict[str, Any] = kit.spawn(
+            root_,
+            code,
+            prompt,
+            run=fake_run,
+            url_source=lambda: "http://127.0.0.1:9",
+            connect=lambda *_args, **_kwargs: _Closable(),
+            exe_source=lambda: "synthetic-claude",
+            **kwargs,
+        )
+        return line
+
+    printed = io.StringIO()
+    exit_code = kit.main(
+        ["spawn", "--root", str(root), "--code", "CS", "--note", "synthetic", "--kind", "build"],
+        spawn_fn=spawn_fn,
+        stdin=io.StringIO("# synthetic prompt\n"),
+        stdout=printed,
+    )
+    return printed.getvalue().strip(), exit_code
+
+
+def _ending_runner_log(tmp_path: Path, ending: str) -> tuple[Path, int]:
+    """The real runner's log over a shim printing the real kit's line for `ending`."""
+    line, exit_code = _kit_ending(tmp_path, ending)
+    unsafe = sorted(set(line) & _CMD_SPECIALS)
+    assert unsafe == [], f"the shim's JSON holds cmd specials {unsafe}"
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    (shim_dir / "python.cmd").write_bytes(
+        b"@echo off\r\necho "
+        + line.encode("ascii")
+        + b"\r\nexit /b "
+        + str(exit_code).encode("ascii")
+        + b"\r\n"
+    )
+    return _run_real_runner(tmp_path, shim_dir), exit_code
+
+
+@pytest.mark.skipif(os.name != "nt", reason="run_lane.ps1 is driven by Windows PowerShell")
+@pytest.mark.parametrize(
+    ("ending", "kit_exit", "word"),
+    [("timeout", 4, "timeout_killed"), (_BUDGET_CODE, 3, "budget_spent")],
+    ids=["kit-timeout", "kit-budget-spent"],
+)
+def test_a_real_runner_log_of_a_kit_ending_is_read_end_to_end(
+    tmp_path: Path, ending: str, kit_exit: int, word: str
+) -> None:
+    """THE RUNNER AND THE DRIVER TOGETHER, over the real kit's printed line.
+
+    The real runner runs over a shim that prints what the REAL kit's command
+    line prints for its own timeout and for a spent run budget, and the driver
+    reads that very log. Before the repair both read `completed`.
+    """
+    log, exit_code = _ending_runner_log(tmp_path, ending)
+    assert exit_code == kit_exit, f"the in-process kit answered {exit_code}"
+    _status(tmp_path / "control", frees_in=60)
+    launch, _ = _launches([log, _ok_log(tmp_path / "ok.log")])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == word, f"the kit's {ending} ending was recorded as {outcome!r}"

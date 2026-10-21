@@ -819,7 +819,7 @@ changing anything here - it carries the measurements the design is built on.
 |---|---|---|
 | lane lock | `ops/loop/lanes.py` | Decides who may run. FREE / RUNNING / RECLAIMABLE, by PROBING the pid |
 | launcher | `ops/loop/lane_launcher.py` | Turns a claim into a worker in a git worktree |
-| runner | `ops/loop/run_lane.ps1` | The headless `claude -p` invocation, prompt piped on stdin |
+| runner | `ops/loop/run_lane.ps1` | Starts the worker through the fleet kit's `spawn` command line, prompt piped on stdin; the kit starts `claude -p` |
 | driver | `ops/loop/queue_loop.py` | Repeats the cycle, and OWNS EVERY WAIT |
 | detached launcher | `ops/loop/launch_queue_loop.ps1` | Starts the driver hidden, for a night |
 | worker prompt | `tools/headless-queue.md` | What the worker is told to do. TRACKED - a worktree is a fresh checkout and carries no gitignored file |
@@ -1073,9 +1073,9 @@ sentinel; an unreadable declaration halts it too (fail closed, as the kit's spaw
 declaration lifts `STOP` or `INBOX_STOP`. So `QUEUE_STOP` and `HOLD_MAIN_SPAWN` no longer reach
 the kit: no `kit_refused` line, no `refused` / Idle and no exit 3 while either file stands. A
 sentinel placed after that check, which the kit then reads, also shows `halted` and exits 0.
-The queue lane does
-not read the hold: `ops/loop/run_lane.ps1` still starts `claude` directly (`CLAUDE.md`
-precedence (c)). The declaration is permanent: LIFTING THE HOLD
+The queue lane meets the hold at the kit: `ops/loop/run_lane.ps1` starts its worker through
+the kit's `spawn` (CS-1231 slice C), so a standing hold refuses the lane's start, code `halted`,
+and the driver writes a `launch_failed` row for it. The declaration is permanent: LIFTING THE HOLD
 removes the hold FILE only, never its line in the declaration, so lifting it needs no
 commit. When to lift it is the hand-off's to say (CS-1330).
 

@@ -434,6 +434,27 @@ def test_the_exception_is_the_one_claude_md_names() -> None:
     assert (named, excepted) == ([], False)
 
 
+#: The precedence paragraph's clause (c), up to the clause that follows it.
+_CLAUSE_C: Final = re.compile(r"\(c\)(.*?)\(d\)", re.DOTALL)
+
+
+def test_clause_c_names_the_slice_that_retired_it_and_no_kit_version() -> None:
+    """CS-1231 slice C, L4: the retirement cites the slice, never a kit version.
+
+    A kit version is a number that moves under the clause - the parked draft
+    said "kit v17" while the vendored kit moved on - and an item id does not.
+    Read from the FIRST "(c)" ... "(d)" span, which is the precedence paragraph.
+    """
+    text = (ROOT / "CLAUDE.md").read_bytes().decode("utf-8", "replace")
+    found = _CLAUSE_C.search(text)
+    assert found is not None, "CLAUDE.md carries no precedence clause (c)"
+    clause = " ".join(found.group(1).split())
+    cites = "CS-1231 slice C" in clause
+    assert cites, f"clause (c) does not name the slice that retired it: {clause[:120]!r}"
+    versioned = re.search(r"\bkit v\d", clause) is not None
+    assert versioned is False, f"clause (c) cites a kit version: {clause[:120]!r}"
+
+
 def test_the_lane_runner_starts_its_worker_through_the_kit_command_line() -> None:
     """The positive half for the lane: the runner runs the kit's spawn command line.
 

@@ -182,6 +182,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime
 import functools
 import hashlib
 import importlib
@@ -253,6 +254,17 @@ ACQUIRE_WAIT_S = 30
 #: shutdown - `/F` grants none. Short enough that a driver which cannot kill its
 #: worker says so within a poll or two.
 DEFAULT_KILL_GRACE_S = 15
+#: CS-1231 slice C, L1 - THE FLEET KIT'S OWN CEILING, which `ops/loop/run_lane.ps1`
+#: hands the kit as `--timeout` (tests/test_lane_runner_script.py binds the two
+#: by name). The kit kills the CLI's tree when it expires and SWALLOWS a kill that
+#: fails, while this driver VERIFIES its own kill and ends the night on
+#: `timeout_kill_failed` when one does not take - so the driver's kill must land
+#: first. It does: the default cycle budget plus one poll plus the kill grace is
+#: 14425 s, and this is that plus a 300 s margin. `main` refuses any `--timeout`
+#: and `--poll` that would put the driver's kill at or past it, and a run the kit
+#: killed anyway - one this driver stopped watching - is still read as a timeout
+#: off the runner's log (`_runner_ending`), never as a run that completed.
+RUNNER_KIT_TIMEOUT_S = 14725
 #: Consecutive `error` outcomes before the loop gives up. One genuine fault plus
 #: two chances for it to be transient; a fourth would be watching the same
 #: traceback scroll past all night.
@@ -299,6 +311,53 @@ USAGE_LIMIT_STATUS = 429
 #: being read whole on the cycle's own path.
 _RESULT_TAIL_BYTES = 64 * 1024
 
+#: CS-1231 slice C - THE FLEET KIT'S FACTS THIS DRIVER READS, held as its OWN
+#: copies for the reason `_LAUNCH_REASONS` below is: every word this module
+#: writes into a row is a literal it contains. Bound to the kit by value in
+#: tests/ops/test_usage_limit_refusal.py. The status file is the one the kit
+#: publishes beside this driver's stop sentinels - the runner hands the kit the
+#: main tree as its root - and it carries `cap_frees_at`, when the rolling run
+#: budget next frees a start (MAIN's 13:16 RULING, item 4: a budget refusal backs
+#: off until then). The window bounds that back-off: a cap frees within one.
+KIT_STATUS_NAME = "inbox_status.json"
+KIT_WINDOW_S = 86400
+#: The kit's refusal codes, every one it can raise, and the two this driver
+#: routes rather than counts as a start that failed.
+KIT_REFUSAL_CODES = (
+    "refused",
+    "blocked",
+    "proxy-unreachable",
+    "budget-unreadable",
+    "budget-lock-unopenable",
+    "budget-lock-busy",
+    "budget-write-failed",
+    "budget-spent",
+    "empty-note",
+    "no-kind",
+    "halted",
+    "fallback-halted",
+    "route-missing",
+    "route-invalid",
+    "route-bare",
+)
+KIT_BUDGET_SPENT = "budget-spent"
+KIT_FALLBACK_HALTED = "fallback-halted"
+#: The runner's OWN words on a refused line: a code it would not echo, and the
+#: kit refusing its command line (exit 2).
+_RUNNER_REFUSAL_WORDS = ("unknown", "bad-arguments")
+#: The status file is a few hundred bytes; this is a bound, not a budget.
+_KIT_STATUS_MAX_BYTES = 64 * 1024
+#: The runner's ending lines, by shape. The stamp is `Get-Date -Format s`.
+_RUNNER_EXIT_LINE = re.compile(r"lane exit \S+ code=(\S+)")
+_RUNNER_TIMEOUT_LINE = re.compile(r"lane timeout \S+ kit_exit=[0-9]{1,3}")
+_RUNNER_REFUSED_LINE = re.compile(r"lane refused \S+ kit_code=([a-z][a-z-]{0,39})")
+#: The launcher's own terminal line, appended AFTER the runner's exit line when
+#: the runner exited inside its liveness grace - see `note_worker_abort`.
+_LAUNCHER_ABORT_PREFIX = "lane abort "
+#: The runner's endings as `_runner_ending` names them.
+ENDING_TIMEOUT = "timeout"
+ENDING_REFUSED = "refused"
+
 #: THE DRIVER'S OWN COPY of `lane_launcher.LAUNCH_REASONS`, duplicated on
 #: purpose. `_fault`'s structural rule is that this module renders whole only an
 #: exception type IT defines, because it BUILDS that message - and a promise
@@ -328,6 +387,8 @@ _LAUNCH_REASONS = (
     "unexpected_fault",
     "unspecified",
 )
+#: The one reason CS-1231 slice C reads: the runner exited inside the grace.
+_EXITED_EARLY = "runner_exited_early"
 
 
 # ---------------------------------------------------------------------------
@@ -649,6 +710,28 @@ _USAGE_REFUSED_DETAIL = (
     "REFUSED, NOT RUN - the run's result carries api_error_status 429 with no "
     "evidence of work; not counted as a cycle"
 )
+#: CS-1231 slice C - the fleet kit's own usage-limit halt: the limit holds on
+#: every route the kit may use, so the kit refused before anything started. The
+#: SAME outcome as a 429 refusal - waited out, then the night ends - because the
+#: lane makes no hop of its own; the only one is the kit's, inside the kit.
+_KIT_LIMIT_DETAIL = (
+    "REFUSED, NOT RUN - the fleet kit halted every route on a usage limit "
+    "(kit code fallback-halted); not counted as a cycle"
+)
+#: CS-1231 slice C, L2 - THE FLEET KIT'S RUN BUDGET IS SPENT: FLEET item 10's
+#: rolling cap of starts was reached, so the kit refused before anything started.
+#: Its OWN word, not `usage_refused`: the account did not say no, the fleet's
+#: budget did, and it frees at a time the kit publishes - so the driver waits
+#: until then instead of the fixed hour. On the usage-limit path otherwise: not
+#: a cycle, refunded, and counted toward MAX_CONSECUTIVE_USAGE_REFUSALS. NEVER
+#: `launch_failed`, which is a fault in this tree and ends the night after three.
+OUTCOME_BUDGET_SPENT = "budget_spent"
+_BUDGET_SPENT_DETAIL = (
+    "REFUSED, NOT RUN - the fleet kit's rolling run budget is spent (kit code "
+    "budget-spent); not counted as a cycle"
+)
+#: The outcomes that are REFUSED, NOT RUN: not a cycle, and backed off.
+_REFUSED_OUTCOMES = frozenset({OUTCOME_USAGE_REFUSED, OUTCOME_BUDGET_SPENT})
 
 #: THE OUTCOMES THAT COUNT AS A CYCLE HAVING HAPPENED - an ALLOWLIST, and the
 #: allowlist is the mechanism. The invariant is "no sequence of outcomes in
@@ -2798,18 +2881,19 @@ def _await_death(pid, started, *, alive, stranger, kill_grace_s, poll_s, sleep, 
         sleep(step)
 
 
-def _back_off(sleep, control_dir) -> str | None:
-    """CS-1178 - sleep `USAGE_LIMIT_BACKOFF_S` in polls, or stop at a sentinel.
+def _back_off(sleep, control_dir, seconds: float = USAGE_LIMIT_BACKOFF_S) -> str | None:
+    """CS-1178 - sleep `seconds` in polls, or stop at a sentinel.
 
     The driver owns this wait like every other; it is only cut into polls so
     that a stop sentinel written during it is read within one poll rather than
-    an hour later.
+    an hour later. `seconds` is the fixed usage-limit hour unless the caller
+    measured a better one - CS-1231 slice C's wait for the kit's cap to free.
 
     Returns:
         The NAME of a stop sentinel that appeared, or None when the whole
         back-off was slept.
     """
-    remaining = float(USAGE_LIMIT_BACKOFF_S)
+    remaining = float(seconds)
     step = float(USAGE_LIMIT_BACKOFF_POLL_S)
     while remaining > 0:
         reason = stop_reason(control_dir)
@@ -2911,6 +2995,179 @@ def _is_usage_refusal(result: object) -> bool:
         return False
     cost = result.get("total_cost_usd")
     return cost is None or (type(cost) in (int, float) and cost == 0)
+
+
+def _runner_ending(log: object) -> tuple[str, str | None] | None:
+    """CS-1231 slice C - how the FLEET KIT ended the run, read off the runner's log.
+
+    `ops/loop/run_lane.ps1` starts the kit, and the kit can end a run in ways
+    the CLI's result object cannot show: its own timeout (exit 4) and a refusal
+    (exit 3 with a code, or exit 2 for its command line). The runner writes ONE
+    line naming that ending IMMEDIATELY before its own exit line, and only that
+    line is read here - the worker's text is written earlier in the log, so it
+    can never stand in for it. The launcher's `lane abort` lines, appended after
+    the exit line when the runner died inside the liveness grace, are skipped.
+
+    READ, NEVER RENDERED, and the same bounds as `_worker_result`: an absolute
+    path only, the final `_RESULT_TAIL_BYTES`, and it never raises.
+
+    Args:
+        log: The `log` field of the launcher's answer. Any object.
+
+    Returns:
+        (ENDING_TIMEOUT, None) when the kit's timeout ended the run and the
+        exit line carries the kit's timeout code; (ENDING_REFUSED, word) for a
+        refusal, `word` being this module's own copy of the code or "unknown";
+        None for any other ending, a run that ended included.
+    """
+    lines = _runner_last_lines(log)
+    exited = _RUNNER_EXIT_LINE.fullmatch(lines[-1]) if len(lines) == 2 else None  # noqa: PLR2004
+    if exited is None:
+        return None
+    before = lines[0]
+    if _RUNNER_TIMEOUT_LINE.fullmatch(before) and exited.group(1) == "4":
+        return ENDING_TIMEOUT, None
+    if not before.startswith("lane refused "):
+        return None
+    named = _RUNNER_REFUSED_LINE.fullmatch(before)
+    words = (*KIT_REFUSAL_CODES, *_RUNNER_REFUSAL_WORDS)
+    code = named.group(1) if named else None
+    # THE DRIVER'S OWN LITERAL, looked up - never the log's string.
+    return ENDING_REFUSED, words[words.index(code)] if code in words else "unknown"
+
+
+def _runner_last_lines(log: object) -> list[str]:
+    """The runner log's last two non-empty lines, the launcher's aborts skipped.
+
+    Fewer than two, or none at all, for a log that is not an absolute path,
+    cannot be read, or holds fewer lines. Never raises.
+    """
+    if type(log) is not str or not log.strip() or not Path(log).is_absolute():
+        return []
+    try:
+        with Path(log).open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, fh.tell() - _RESULT_TAIL_BYTES))
+            tail = fh.read()
+    except OSError:
+        return []
+    lines = [line.strip().lstrip("\ufeff") for line in tail.decode("utf-8", "replace").splitlines()]
+    lines = [line for line in lines if line]
+    while lines and lines[-1].startswith(_LAUNCHER_ABORT_PREFIX):
+        lines.pop()
+    return lines[-2:]
+
+
+def _kit_status(control_dir=None) -> dict | None:
+    """The fleet kit's published status file, or None. Never raises.
+
+    CS-1231 slice C, L2. Read for two facts only - whether the run budget is
+    spent and when it frees - and NOTHING read here is ever rendered: the file
+    carries a free-text reason the kit built from an exception.
+
+    Args:
+        control_dir: The control directory, or None for this tree's own.
+
+    Returns:
+        The parsed object, or None for an absent, oversized or unparseable file.
+    """
+    path = (CONTROL if control_dir is None else Path(control_dir)) / KIT_STATUS_NAME
+    try:
+        with path.open("rb") as fh:
+            raw = fh.read(_KIT_STATUS_MAX_BYTES + 1)
+        if len(raw) > _KIT_STATUS_MAX_BYTES:
+            return None
+        doc = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return doc if type(doc) is dict else None
+
+
+def _cap_frees_epoch(status: object) -> float | None:
+    """`cap_frees_at` as epoch seconds, or None when it cannot be placed in time.
+
+    A stamp with no offset is refused rather than guessed in some local zone.
+    """
+    stamp = status.get("cap_frees_at") if type(status) is dict else None
+    if type(stamp) is not str:
+        return None
+    try:
+        moment = datetime.datetime.fromisoformat(stamp)
+        if moment.tzinfo is None:
+            return None
+        epoch = moment.timestamp()
+    except (ValueError, OverflowError, OSError):
+        return None
+    return epoch if math.isfinite(epoch) else None
+
+
+def _budget_spent(status: object, now: float) -> bool:
+    """True when the kit's own status says its run budget is spent right now.
+
+    The early-exit evidence (CS-1231 slice C, L2): a runner that exited inside
+    the launcher's grace leaves the driver no log, but the kit published its
+    budget's count, its cap and when it frees. Spent means at the cap, with a
+    stamp still ahead - an unreadable budget publishes no stamp, and stays a
+    launch failure, because it refuses every start until a person repairs it.
+    """
+    if type(status) is not dict:
+        return False
+    used, cap = status.get("runs_in_window"), status.get("runs_cap")
+    if type(used) is not int or type(cap) is not int or cap <= 0 or used < cap:
+        return False
+    frees = _cap_frees_epoch(status)
+    return frees is not None and frees > now
+
+
+def _budget_back_off_s(status: object, now: float) -> float:
+    """How long to wait for a spent run budget: until it frees, plus one poll.
+
+    Clamped to [one poll, `KIT_WINDOW_S`] - a cap frees within one window by
+    construction - and the fixed `USAGE_LIMIT_BACKOFF_S` when the stamp cannot
+    be placed in time. Only this number is ever emitted, never the stamp.
+    """
+    frees = _cap_frees_epoch(status)
+    if frees is None:
+        return float(USAGE_LIMIT_BACKOFF_S)
+    wait = math.ceil(frees - now) + USAGE_LIMIT_BACKOFF_POLL_S
+    return float(min(max(wait, USAGE_LIMIT_BACKOFF_POLL_S), KIT_WINDOW_S))
+
+
+def kit_ceiling_holds(
+    cycle_timeout_s: float, poll_s: float, kill_grace_s: float = DEFAULT_KILL_GRACE_S
+) -> bool:
+    """CS-1231 slice C, L1 - whether this driver's kill lands before the kit's.
+
+    The driver reads its deadline once per poll and then grants the kill its
+    grace, so all three must sum strictly below `RUNNER_KIT_TIMEOUT_S`. A value
+    that is not a finite, non-negative number never holds: an infinite deadline
+    is a driver that never kills, and NaN compares false with everything.
+    """
+    parts = (cycle_timeout_s, poll_s, kill_grace_s)
+    if not all(type(part) in (int, float) and math.isfinite(part) and part >= 0 for part in parts):
+        return False
+    return bool(sum(parts) < RUNNER_KIT_TIMEOUT_S)
+
+
+def _ending_outcome(ending, outcome: str, detail: str, ran_for: float) -> tuple[str, str]:
+    """The outcome and detail a runner's kit ending turns a `completed` exit into.
+
+    Only a worker that EXITED on its own is asked; the details are this
+    module's literals plus numbers it measured.
+    """
+    if ending is None:
+        return outcome, detail
+    kind, code = ending
+    if kind == ENDING_TIMEOUT:
+        return OUTCOME_TIMEOUT, (
+            f"worker ran {ran_for}s - the fleet kit's own {RUNNER_KIT_TIMEOUT_S}s "
+            f"ceiling killed it (kit exit 4), recorded as a timeout"
+        )
+    if code == KIT_BUDGET_SPENT:
+        return OUTCOME_BUDGET_SPENT, _BUDGET_SPENT_DETAIL
+    if code == KIT_FALLBACK_HALTED:
+        return OUTCOME_USAGE_REFUSED, _KIT_LIMIT_DETAIL
+    return OUTCOME_LAUNCH_FAILED, f"the lane runner recorded a refused start - kit code {code}"
 
 
 #: The fallback token when the surface module itself cannot be bound. The
@@ -3137,6 +3394,8 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     surface=None,
     checklist=None,
     result_of=_worker_result,
+    ending_of=_runner_ending,
+    kit_status=None,
     emit=_emit,
     sleep=time.sleep,
     clock=time.time,
@@ -3166,6 +3425,16 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     it. None, the default, asks for no check: a direct caller that wants one
     says so, rather than this function reading the real control plane behind a
     test's back.
+
+    CS-1231 slice C. The runner starts the fleet kit, so a worker that EXITED
+    is asked how the kit ended it (`ending_of`, `_runner_ending`): the kit's own
+    timeout is `timeout_killed`, a spent run budget `budget_spent`, the kit's
+    usage-limit halt `usage_refused`, any other refusal `launch_failed` - never
+    `completed`. A runner that exited inside the launcher's grace leaves no log
+    to ask, so `kit_status` - a zero-argument callable answering the kit's
+    status file, `run_loop` passes it - is read instead, and a budget the kit
+    publishes as spent makes the refusal `budget_spent`. None asks for no read,
+    for the reason `stopped` defaults to None.
     """
     # Resolved INSIDE the guard rather than through a conditional expression, so
     # the module object is never typed as "maybe None" - a shape that reads as a
@@ -3318,6 +3587,19 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             outcome, detail = OUTCOME_LAUNCH_FAILED, _launch_fault(exc)[:400]
             launch_reason = _launch_reason(exc)
             launch_waited = _launch_waited(getattr(exc, "waited_s", None))
+            # CS-1231 slice C, L2 - A FAST KIT REFUSAL DIES INSIDE THE GRACE.
+            # The kit refuses a spent budget in about a second, so the runner
+            # often exits before the launcher's liveness grace ends, and that
+            # reads as `runner_exited_early` with no log handed back. The
+            # kit's own status file says whether the budget is spent; when it
+            # is, the start was refused, not failed, and three of them must not
+            # end the night as a fault in this tree.
+            if (
+                launch_reason == _EXITED_EARLY
+                and kit_status is not None
+                and _budget_spent(kit_status(), clock())
+            ):
+                outcome, detail = OUTCOME_BUDGET_SPENT, _BUDGET_SPENT_DETAIL
         else:
             pid = run.get("pid")
             if not pid:
@@ -3381,6 +3663,16 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 # looked at, and a cycle nobody looked at must not read like one
                 # that was checked and found clean.
                 observe()
+                # CS-1231 slice C - HOW THE KIT ENDED IT. Only a worker that
+                # EXITED on its own is asked, as below. The kit's own timeout
+                # was a kill, so it is a timeout; a refusal never started.
+                if outcome == OUTCOME_COMPLETED:
+                    outcome, detail = _ending_outcome(
+                        ending_of(run.get("log")),
+                        outcome,
+                        detail,
+                        round(monotonic() - launched_m, 1),
+                    )
                 # CS-1178 - DID IT RUN AT ALL. Only a worker that EXITED on its
                 # own is asked: a killed one is a run that happened, whatever
                 # its log says. A refusal's row carries this module's literal,
@@ -3579,6 +3871,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     # CS-1274 r2 - the SAME sentinels the top of this loop
                     # reads, re-read before every claim attempt in the cycle.
                     stopped=functools.partial(stop_reason, control_dir),
+                    # CS-1231 slice C - the kit's status file, beside the same
+                    # sentinels, read only for a runner that exited early.
+                    kit_status=functools.partial(_kit_status, control_dir),
                     surface=surface,
                     # CS-1274 - FLEET item 13: the night's REMAINING cycles as
                     # at this fire, so the lane file never lists a done one.
@@ -3856,7 +4151,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             and (verdict is None or verdict["verdict"] not in _CI_ROLLUP_BAD)
         )
 
-        refused = record["outcome"] == OUTCOME_USAGE_REFUSED
+        # CS-1231 slice C - a spent fleet run budget is refused, not run, too.
+        refused = record["outcome"] in _REFUSED_OUTCOMES
         if refused:
             # CS-1178 - NOT A CYCLE, SO NOT NUMBERED AS ONE. The row is written,
             # because the refusal happened; its `cycle` is None so no reader
@@ -3888,22 +4184,37 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # refusal there ends the run recorded, without backing off and
         # re-launching - otherwise one refused `--once` became three launches
         # over two hours.
+        #
+        # CS-1231 slice C, L2 - A SPENT RUN BUDGET TAKES THIS PATH TOO, sharing
+        # the counter and the stop word: both are an outside "no" that is waited
+        # out, and the row's outcome word says which it was. Its wait is until
+        # the kit's cap frees, read off the kit's status file, not the hour.
         if refused:
             consecutive_usage_refusals += 1
             if total == 1 or consecutive_usage_refusals >= usage_refusal_limit:
                 stopped_by = STOPPED_BY_USAGE_LIMIT
                 emit(
                     f"queue-loop stop: {consecutive_usage_refusals} consecutive usage "
-                    f"limit refusal(s) - not re-arming against a limit that has not lifted"
+                    f"limit or run budget refusal(s) - not re-arming against a limit "
+                    f"that has not lifted"
                 )
                 break
-            emit(
-                f"queue-loop backoff: usage limit refusal {consecutive_usage_refusals}/"
-                f"{usage_refusal_limit} - waiting {USAGE_LIMIT_BACKOFF_S}s in "
-                f"{USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
-            )
+            if record["outcome"] == OUTCOME_BUDGET_SPENT:
+                wait_s = _budget_back_off_s(_kit_status(control_dir), clock())
+                emit(
+                    f"queue-loop backoff: fleet run budget spent {consecutive_usage_refusals}/"
+                    f"{usage_refusal_limit} - waiting {wait_s:g}s for the kit's cap to free, "
+                    f"in {USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
+                )
+            else:
+                wait_s = float(USAGE_LIMIT_BACKOFF_S)
+                emit(
+                    f"queue-loop backoff: usage limit refusal {consecutive_usage_refusals}/"
+                    f"{usage_refusal_limit} - waiting {USAGE_LIMIT_BACKOFF_S}s in "
+                    f"{USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
+                )
             with _phase("back_off", cycle):
-                interrupted = _back_off(sleep, control_dir)
+                interrupted = _back_off(sleep, control_dir, wait_s)
             if interrupted:
                 stopped_by = interrupted
                 emit(f"queue-loop stop: {interrupted} present during the back-off")
@@ -4033,9 +4344,12 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     # CS-1178 - A REFUSED RUN IS NOT A CYCLE, and the summary says so: the
     # refusals are counted apart rather than folded into `cycles_run`.
     refusals = sum(1 for record in records if record["outcome"] == OUTCOME_USAGE_REFUSED)
+    # CS-1231 slice C - and a spent run budget is not a cycle either.
+    budget_refusals = sum(1 for record in records if record["outcome"] == OUTCOME_BUDGET_SPENT)
     return {
-        "cycles_run": len(records) - refusals,
+        "cycles_run": len(records) - refusals - budget_refusals,
         "usage_refusals": refusals,
+        "budget_refusals": budget_refusals,
         "stopped_by": stopped_by,
         "records": records,
     }
@@ -4186,6 +4500,15 @@ def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
         "--once", action="store_true", help="run exactly one cycle - overrides --cycles"
     )
     args = parser.parse_args(argv)
+    # CS-1231 slice C, L1 - A DEADLINE THE KIT WOULD BEAT IS A USAGE ERROR. The
+    # driver's verified kill must land before the fleet kit's unverified one,
+    # so a `--timeout` or `--poll` that puts it at or past the kit's ceiling is
+    # refused here, before any night starts, rather than run inverted.
+    if not kit_ceiling_holds(args.timeout, args.poll):
+        parser.error(
+            f"--timeout plus --poll plus the {DEFAULT_KILL_GRACE_S}s kill grace must stay "
+            f"below the fleet kit's {RUNNER_KIT_TIMEOUT_S}s ceiling (RUNNER_KIT_TIMEOUT_S)"
+        )
     if not retain_log:
         return _drive(args, singleton)
     # OPENED BEFORE THE SINGLETON GUARD, so a refused second driver leaves its
@@ -4244,18 +4567,17 @@ def _drive(args, singleton) -> int:
         )
         return EXIT_ALREADY_RUNNING
 
-    refusals = int(summary.get("usage_refusals") or 0)
+    usage = int(summary.get("usage_refusals") or 0)
+    # CS-1231 slice C - a spent fleet run budget is a refusal too.
+    budget = int(summary.get("budget_refusals") or 0)
+    refusals = usage + budget
     _emit(
-        f"queue-loop done: {summary['cycles_run']} cycle(s), {refusals} usage limit "
-        f"refusal(s), stopped_by={summary['stopped_by']}"
+        f"queue-loop done: {summary['cycles_run']} cycle(s), {usage} usage limit "
+        f"refusal(s), {budget} run budget refusal(s), stopped_by={summary['stopped_by']}"
     )
     # `usage_refusals` too, since CS-1178: a night whose only runs were refused
     # ran zero cycles but DID attempt, so its sentinel was not already there.
-    if (
-        summary["cycles_run"] == 0
-        and not summary.get("usage_refusals")
-        and summary["stopped_by"] in STOP_NAMES
-    ):
+    if summary["cycles_run"] == 0 and not refusals and summary["stopped_by"] in STOP_NAMES:
         sentinel = stop_path_for(summary["stopped_by"], control_dir)
         _emit(
             f"queue-loop refused: {summary['stopped_by']} was ALREADY present "
@@ -4270,8 +4592,9 @@ def _drive(args, singleton) -> int:
     stopped = summary["stopped_by"]
     if summary["cycles_run"] == 0 and refusals:
         _emit(
-            f"queue-loop stop: every run tonight was a usage limit refusal "
-            f"({refusals}) - no cycle ran; see the usage_refused rows in {CYCLE_LOG.name}"
+            f"queue-loop stop: every run tonight was a usage limit or run budget refusal "
+            f"({refusals}) - no cycle ran; see the usage_refused and budget_spent rows in "
+            f"{CYCLE_LOG.name}"
         )
         # The usage-limit word, so the table below answers with its own number.
         stopped = STOPPED_BY_USAGE_LIMIT

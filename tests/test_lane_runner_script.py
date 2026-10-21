@@ -26,7 +26,7 @@ runner, for a fault the runner never had.
 CS-1231 SLICE C - THE RUNNER STARTS ITS WORKER THROUGH THE FLEET KIT. FLEET item
 10 makes the kit's spawn helper the only path that starts the CLI, so the runner
 now runs ``python ops/fleet_kit/fleet_headless.py spawn ...`` and the kit starts
-the CLI. Three things follow, and each has an arm here:
+the CLI. Four things follow, and each has an arm here:
 
 - THE COMMAND LINE IS PINNED WHOLE, flag by flag, and today's permission mode is
   carried across rather than widened: the direct start passed
@@ -35,11 +35,21 @@ the CLI. Three things follow, and each has an arm here:
 - THE CONTRACT ARM feeds the command line the runner really produced to the
   REAL ``fleet_headless.main`` in process, so a flag the kit's parser rejects,
   or a value it maps somewhere else, reddens here rather than on a live night.
-- THE KIT'S THREE ENDINGS each leave a log the driver can read: exit 0 writes
-  the result's text and then the result object whole, so
-  ``ops/loop/queue_loop.py`` reads the same tail it always read; exit 3 writes a
-  ``lane refused`` line carrying the kit's refusal CODE and never its message;
-  exit 4, the kit's timeout, writes the exit line with that code.
+- THE KIT'S ENDINGS each leave a log the driver can read: exit 0 writes the
+  result's text and then the result object whole, so ``ops/loop/queue_loop.py``
+  reads the same tail it always read; exit 3 writes a ``lane refused`` line
+  carrying the kit's refusal CODE and never its message; exit 2 writes one
+  carrying the runner's own word ``bad-arguments``; and exit 4, or a kit line
+  whose exact-case ``error`` is ``timeout``, writes a ``lane timeout`` line. Each
+  of those lines sits IMMEDIATELY before the exit line, the one place the driver
+  reads it from. What is graded is the runner's handling of the line the kit
+  PRINTS for each ending - the kit's own kill is not exercised here.
+- THE KIT'S LINE IS READ BY EXACT-CASE KEYS (CS-1231 slice C, L3). Windows
+  PowerShell 5.1 matches ``-contains`` and member access case-insensitively, so a
+  line keyed ``Kit`` or ``RC`` would otherwise be taken for the kit's. MEASURED
+  on 5.1.19041 for this arm set: ``ConvertFrom-Json`` THROWS
+  ``DuplicateKeysInJsonString`` on two keys differing only in case, so such a
+  line is never parsed at all.
 
 THESE ARMS SPAWN A REAL powershell.exe, and that is deliberate: a grep for a
 ``finally`` block would pass on a script whose ``try`` never encloses the thing
@@ -93,6 +103,13 @@ STATUS_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "inbox_status.py"
 
 #: The driver's kill budget for one cycle, found by NAME in its source.
 CYCLE_BUDGET_NAME: Final = "DEFAULT_CYCLE_TIMEOUT_S"
+
+#: The kit ceiling the runner must hand the kit, found by NAME in the driver.
+KIT_CEILING_NAME: Final = "RUNNER_KIT_TIMEOUT_S"
+
+#: The driver's poll and kill grace, by NAME: its kill lands within both.
+POLL_NAME: Final = "DEFAULT_POLL_S"
+GRACE_NAME: Final = "DEFAULT_KILL_GRACE_S"
 
 #: This tree's fleet code, found by NAME in the status module's source.
 TREE_CODE_NAME: Final = "CODE"
@@ -562,7 +579,7 @@ def _expected_argv(tmp_path: Path, model: str, effort: str) -> list[str]:
     Returns:
         The argv after the interpreter.
     """
-    cycle = _module_constant(DRIVER_SOURCE, CYCLE_BUDGET_NAME)
+    ceiling = _module_constant(DRIVER_SOURCE, KIT_CEILING_NAME)
     code = _module_constant(STATUS_SOURCE, TREE_CODE_NAME)
     return [
         str(KIT_SOURCE),
@@ -584,7 +601,7 @@ def _expected_argv(tmp_path: Path, model: str, effort: str) -> list[str]:
         "--permission-mode",
         PERMISSION_MODE,
         "--timeout",
-        str(cycle),
+        str(ceiling),
         "--cwd",
         str(tmp_path / "tree"),
     ]
@@ -611,9 +628,9 @@ def test_the_runner_starts_its_worker_through_the_kits_spawn_command_line(
 
     The whole command line is pinned. The permission mode is today's - the
     direct start's ``--dangerously-skip-permissions`` is the CLI's
-    ``bypassPermissions`` mode - and the timeout is the driver's own cycle
-    budget, so the kit's one-hour default never kills a worker the driver
-    would still have waited for.
+    ``bypassPermissions`` mode - and the timeout is the driver's kit ceiling,
+    found by NAME in its source; the static arm below grades that ceiling
+    against the driver's own kill.
     """
     argv, _stdin, lines = _recorded_run(tmp_path)
     header = _HEADER.search(lines[0]) if lines else None
@@ -688,7 +705,7 @@ def test_the_recorded_command_line_is_one_the_real_kit_accepts(tmp_path: Path) -
         "floors_in_hooks": kwargs.get("floors_in_hooks") is True,
         "writes_code": kwargs.get("writes_code") is True,
         "kind": kwargs.get("kind") == "build",
-        "timeout": kwargs.get("timeout") == _module_constant(DRIVER_SOURCE, CYCLE_BUDGET_NAME),
+        "timeout": kwargs.get("timeout") == _module_constant(DRIVER_SOURCE, KIT_CEILING_NAME),
         "prompt": _PROMPT_TEXT.strip() in str(args[2]),
     }
     assert all(facts.values()), f"the kit mapped the command line otherwise: {facts}"
@@ -718,19 +735,30 @@ def test_the_permission_mode_the_runner_passes_is_one_the_kit_allows() -> None:
     assert PERMISSION_MODE in kit.PERMISSION_MODES
 
 
-def test_the_kit_timeout_the_runner_passes_is_the_drivers_cycle_budget() -> None:
-    """STATIC: the kit's ceiling never undercuts the driver's own kill.
+def test_the_kit_timeout_the_runner_passes_sits_above_the_drivers_kill() -> None:
+    """STATIC: the runner hands the kit the driver's kit ceiling, and it is higher.
 
     The direct start had no ceiling of its own; the driver killed the tree at
-    its cycle budget. The kit defaults to one hour, so the runner hands it the
-    driver's budget, found here by NAME in the driver's source.
+    its cycle budget. The kit kills at its ``--timeout``, so that value must sit
+    ABOVE the driver's default kill - its budget plus one poll plus the kill
+    grace - or the kit's unverified kill lands first (CS-1231 slice C, L1).
+    Equality does not give that: the driver's timer starts after the
+    launcher's grace and is read once per poll. Every value is found by NAME in
+    the driver's source; ``tests/test_queue_loop.py`` grades the command line's
+    refusal of a deadline above the ceiling.
     """
     text = RUNNER_SOURCE.read_bytes().decode("ascii")
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     passed = re.findall(r'"--timeout",\s*"([0-9]+)"', code)
-    budget = _module_constant(DRIVER_SOURCE, CYCLE_BUDGET_NAME)
-    assert isinstance(budget, int)
-    assert passed == [str(budget)]
+    ceiling = _module_constant(DRIVER_SOURCE, KIT_CEILING_NAME)
+    assert passed == [str(ceiling)], f"the runner passes {passed}, not the ceiling {ceiling}"
+    parts = [_module_constant(DRIVER_SOURCE, name) for name in (CYCLE_BUDGET_NAME, POLL_NAME)]
+    parts.append(_module_constant(DRIVER_SOURCE, GRACE_NAME))
+    numbers = all(type(part) is int for part in [*parts, ceiling])
+    assert numbers, f"a driver constant is not an int literal: {parts} {ceiling}"
+    kill = sum(part for part in parts if type(part) is int)
+    above = type(ceiling) is int and kill < ceiling
+    assert above, f"the driver's kill at {kill}s is not below the kit's {ceiling}s"
 
 
 # ===========================================================================
@@ -789,9 +817,27 @@ def test_a_refusal_code_outside_the_plain_vocabulary_is_never_echoed(tmp_path: P
     assert unknown, "the refusal was not recorded as unknown"
 
 
+#: The runner's timeout line, by shape: the stamp, then the kit's own exit code.
+_TIMEOUT_LINE: Final = re.compile(r"^lane timeout \S+ kit_exit=[0-9]+$")
+
+
+def _timeout_ending(lines: list[str]) -> tuple[bool, str]:
+    """Whether the log ends on the timeout line then the exit line, and that exit line."""
+    ended = lines[-1] if lines else ""
+    marked = len(lines) >= 2 and _TIMEOUT_LINE.match(lines[-2]) is not None  # noqa: PLR2004
+    return marked, ended
+
+
 @_ON_WINDOWS
-def test_a_kit_timeout_ends_on_the_kits_timeout_code(tmp_path: Path) -> None:
-    """Exit 4: the kit killed the tree at its ceiling; the log says so by code."""
+def test_a_kit_timeout_writes_the_timeout_line_then_the_kits_timeout_code(tmp_path: Path) -> None:
+    """Exit 4: the line the kit prints for its own timeout, recorded as a timeout.
+
+    The kit's line here is produced by the REAL kit's ``main`` over a fake run
+    that raises ``TimeoutExpired`` - so what is graded is the runner's handling
+    of the kit's timeout ending, not the kit's kill of a real tree. The driver
+    reads the line immediately before the exit line; before CS-1231 slice C's
+    L1 repair that line did not exist, and a kit timeout read as completed.
+    """
     line, kit_code = _kit_print(tmp_path, timed_out=True)
     assert kit_code == kit.CLI_TIMEOUT
     shim_dir = _shim(tmp_path, line, kit_code)
@@ -800,11 +846,205 @@ def test_a_kit_timeout_ends_on_the_kits_timeout_code(tmp_path: Path) -> None:
 
     log, _done = _run_runner(tmp_path, shim_dir)
     lines = _log_lines(log)
-    ended = lines[-1] if lines else ""
+    marked, ended = _timeout_ending(lines)
+    assert marked, "the line before the exit line is not the runner's timeout line"
     coded = ended.startswith("lane exit ") and ended.endswith(f"code={kit.CLI_TIMEOUT}")
     assert coded, f"the exit line does not carry the kit's timeout code: {ended[:80]!r}"
     refused = any(item.startswith(("lane refused ", "lane fault ")) for item in lines)
     assert refused is False
+
+
+@_ON_WINDOWS
+def test_a_kit_line_reporting_a_timeout_is_a_timeout_whatever_the_exit_code(
+    tmp_path: Path,
+) -> None:
+    """MAIN's ruling reads EITHER sign: exit 4, or the kit line's error ``timeout``.
+
+    The shim prints the real kit's timeout line but exits 0, so only the line
+    can say what happened; the runner records the timeout and the kit's code.
+    """
+    line, kit_code = _kit_print(tmp_path, timed_out=True)
+    assert kit_code == kit.CLI_TIMEOUT
+    shim_dir = _shim(tmp_path, line, kit.CLI_OK)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    marked, ended = _timeout_ending(_log_lines(log))
+    assert marked, "a kit line reporting a timeout did not write the timeout line"
+    coded = ended.endswith(f"code={kit.CLI_TIMEOUT}")
+    assert coded, f"the exit line does not carry the kit's timeout code: {ended[:80]!r}"
+
+
+@_ON_WINDOWS
+def test_a_kit_exit_four_alone_is_a_timeout(tmp_path: Path) -> None:
+    """The other sign on its own: exit 4 with no kit line the runner can parse.
+
+    The two arms above both print the kit's line, which carries ``error``
+    ``timeout``, so they cannot tell whether the exit code is read at all; this
+    one prints nothing parseable, so only exit 4 can say the kit timed out.
+    """
+    shim_dir = _shim(tmp_path, "the kit printed no line the runner can parse", kit.CLI_TIMEOUT)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    marked, ended = _timeout_ending(_log_lines(log))
+    assert marked, "kit exit 4 alone did not write the timeout line"
+    coded = ended.endswith(f"code={kit.CLI_TIMEOUT}")
+    assert coded, f"the exit line does not carry the kit's timeout code: {ended[:80]!r}"
+
+
+@_ON_WINDOWS
+def test_a_kit_usage_error_writes_the_runners_bad_arguments_word(tmp_path: Path) -> None:
+    """Exit 2: the kit refused its own command line - a start that did not happen.
+
+    The runner names it with its own word, so the driver never reads a bad
+    command line as a run that ended.
+    """
+    shim_dir = _shim(tmp_path, json.dumps({"error": "empty prompt"}), kit.CLI_USAGE)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    lines = _log_lines(log)
+    before = lines[-2] if len(lines) >= 2 else ""  # noqa: PLR2004
+    named = before.startswith("lane refused ") and before.endswith(" kit_code=bad-arguments")
+    assert named, f"the line before the exit line is {before[:80]!r}"
+    coded = lines[-1].endswith(f"code={kit.CLI_USAGE}")
+    assert coded, f"the exit line does not carry the kit's usage code: {lines[-1][:80]!r}"
+
+
+# ===========================================================================
+# c2. L3 - the kit's line is read by EXACT-CASE keys
+# ===========================================================================
+
+
+@_ON_WINDOWS
+def test_a_case_variant_kit_line_is_not_taken_as_the_kits(tmp_path: Path) -> None:
+    """``Kit`` is not ``kit``: a line keyed so is not the kit's, and its ``RC`` is not used.
+
+    Before the L3 repair ``-contains "kit"`` matched ``Kit`` and ``$kitLine.rc``
+    read ``RC``, so the exit line carried a code no kit line ever named.
+    """
+    planted = {"Kit": kit.KIT_VERSION, "RC": WORKER_EXIT_CODE, "Receipt": _RECEIPT}
+    shim_dir = _shim(tmp_path, json.dumps(planted), kit.CLI_OK)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    lines = _log_lines(log)
+    ended = lines[-1]
+    coded = ended.startswith("lane exit ") and ended.endswith(f"code={kit.CLI_OK}")
+    assert coded, f"a case-variant line set the exit code: {ended[:80]!r}"
+    # NOT TAKEN FOR THE KIT'S LINE, SO WRITTEN WITH THE REST - the runner keeps
+    # what it cannot attribute. A runner whose key match ignored case would
+    # have consumed it as the kit's line and written none of it.
+    kept = planted in _json_lines(lines)
+    assert kept, "the case-variant line was consumed as the kit's own line"
+
+
+@_ON_WINDOWS
+def test_a_refusal_with_a_case_variant_code_key_is_written_as_unknown(tmp_path: Path) -> None:
+    """``CODE`` is not ``code``: the refusal is recorded, its code is not trusted.
+
+    Before the L3 repair ``$kitLine.code`` read ``CODE``, which would have
+    routed an unverified word into the driver's budget back-off.
+    """
+    planted = {"refused": "synthetic", "CODE": "budget-spent"}
+    shim_dir = _shim(tmp_path, json.dumps(planted), kit.CLI_REFUSED)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    refused = [item for item in _log_lines(log) if item.startswith("lane refused ")]
+    unknown = len(refused) == 1 and refused[0].endswith(" kit_code=unknown")
+    assert unknown, f"a case-variant code key was trusted: {refused}"
+
+
+@_ON_WINDOWS
+def test_a_receipt_with_a_case_variant_result_key_writes_no_text_line(tmp_path: Path) -> None:
+    """``Result`` is not ``result``: no worker text is written off the wrong key."""
+    text = "cs1231c case variant receipt text"
+    line, kit_code = _kit_print(tmp_path, receipt={"type": "result", "Result": text}, rc=0)
+    shim_dir = _shim(tmp_path, line, kit_code)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    written = text in _log_lines(log)
+    assert written is False, "a case-variant result key was written as the worker's text"
+
+
+@_ON_WINDOWS
+def test_control_a_kit_line_with_duplicate_case_keys_is_never_parsed(tmp_path: Path) -> None:
+    """THE MEASURED PIN, a control: PowerShell 5.1 refuses to parse such a line.
+
+    ``ConvertFrom-Json`` throws ``DuplicateKeysInJsonString`` on ``rc`` beside
+    ``RC``, so neither value reaches the exit line - before the repair and after.
+    """
+    planted = '{"kit": 20, "rc": 37, "RC": 41}'
+    shim_dir = _shim(tmp_path, planted, kit.CLI_OK)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    ended = _log_lines(log)[-1]
+    coded = ended.endswith(f"code={kit.CLI_OK}")
+    assert coded, f"a duplicate-key line set the exit code: {ended[:80]!r}"
+
+
+# ===========================================================================
+# c3. CS-1234's lane half - every lane start is counted in the kit's budget
+# ===========================================================================
+
+
+@_ON_WINDOWS
+def test_a_lane_start_is_counted_in_the_kits_budget_with_a_kinded_usage_line(
+    tmp_path: Path,
+) -> None:
+    """FLEET items 10 and 14e: the lane's start counts, and names its kind and label.
+
+    The runner's REAL command line is fed to the REAL kit's ``main`` and
+    ``spawn`` over a root under ``tmp_path`` and a fake CLI: the start lands in
+    the kit's rolling 24-hour budget - the one the inbox responder's starts
+    count against, at most ``RUNS_CAP`` - and the run writes ONE usage line
+    whose ``kind`` and ``note`` are both set, the note being the lane log's name.
+    """
+    argv, stdin, _lines = _recorded_run(tmp_path)
+    root = tmp_path / "budget-root"
+
+    def fake_run(cli_argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(cli_argv, 0, json.dumps(_RECEIPT), "")
+
+    def spawn_fn(_root: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
+        line: dict[str, Any] = kit.spawn(
+            root,
+            code,
+            prompt,
+            run=fake_run,
+            url_source=lambda: _SYNTHETIC_URL,
+            connect=_connect,
+            exe_source=lambda: "synthetic-claude",
+            **kwargs,
+        )
+        return line
+
+    code = kit.main(
+        argv[1:],
+        spawn_fn=spawn_fn,
+        stdin=io.StringIO(stdin.decode("ascii", errors="replace")),
+        stdout=io.StringIO(),
+    )
+    assert code == kit.CLI_OK, f"the kit's command line answered {code}"
+    used = kit.RunBudget(root / kit.BUDGET_REL).used()
+    assert used == 1, f"the lane's start counted {used} times in the kit's budget"
+    usage = (root / kit.USAGE_REL).read_bytes().decode("ascii").splitlines()
+    rows = [json.loads(item) for item in usage if item.strip()]
+    assert len(rows) == 1, f"{len(rows)} usage lines for one start"
+    facts = (rows[0].get("kind"), rows[0].get("note"), rows[0].get("kit"))
+    assert facts == ("build", "lane_queue_synthetic", kit.KIT_VERSION), f"usage line {facts}"
+    assert kit.RUNS_CAP == 120  # noqa: PLR2004 - FLEET item 10's number, read from the kit
 
 
 # ===========================================================================

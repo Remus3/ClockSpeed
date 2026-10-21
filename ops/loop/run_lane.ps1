@@ -123,6 +123,20 @@ try {
   # Any read or parse fault keeps the fallback model and effort set above.
 }
 
+# CS-1231 SLICE C, L3 - THE KIT'S JSON IS READ BY EXACT-CASE NAMES ONLY. Windows
+# PowerShell 5.1 matches -contains and member access case-INSENSITIVELY, so
+# $line.rc also answers a key spelled RC, and a line keyed Kit would pass for
+# the kit's. MEASURED on 5.1: ConvertFrom-Json THROWS DuplicateKeysInJsonString
+# on two keys that differ only in case, so one parsed object never holds both.
+# A definition, so it cannot refuse; it sits above the header for that reason.
+# The comma keeps an array value whole rather than unrolled into a scalar.
+function Get-ExactField($Object, [string]$Name) {
+  if ($null -eq $Object) { return $null }
+  $hit = @($Object.PSObject.Properties | Where-Object { $_.Name -ceq $Name })
+  if ($hit.Count -ne 1) { return $null }
+  return ,$hit[0].Value
+}
+
 "lane start $(Get-Date -Format s) cwd=$Cwd model=$model effort=$effort prompt=$PromptFile" |
   Out-File "$Log" -Encoding utf8
 
@@ -191,11 +205,13 @@ try {
   # values resolved above. The kit adds only narrowing flags of its own (no
   # session persistence, strict MCP config, project and local settings).
   #
-  # --timeout IS THE DRIVER'S CYCLE BUDGET, DEFAULT_CYCLE_TIMEOUT_S in
-  # ops/loop/queue_loop.py. The direct start had no ceiling of its own - the
-  # driver killed the tree at that budget - and the kit's default is one hour,
-  # which would kill a worker the driver was still waiting for.
-  # tests/test_lane_runner_script.py binds the two by name.
+  # --timeout IS THE DRIVER'S KIT CEILING, RUNNER_KIT_TIMEOUT_S in
+  # ops/loop/queue_loop.py, and it sits ABOVE the driver's own kill: its cycle
+  # budget plus one poll plus the kill grace. The driver's kill is the one it
+  # VERIFIES, so it must land first; the kit's is the backstop for a worker the
+  # driver no longer watches. The direct start had no ceiling at all, and the
+  # kit's default of one hour would kill a worker the driver still waits for.
+  # tests/test_lane_runner_script.py binds the literal to the driver by name.
   #
   # --floors-in-hooks: this tree's floors live in hooks, so the kit refuses
   # --bare for it. The prompt goes on STDIN, as it always has; the kit's
@@ -211,7 +227,7 @@ try {
     "--effort", "$effort",
     "--floors-in-hooks",
     "--permission-mode", "bypassPermissions",
-    "--timeout", "14400",
+    "--timeout", "14725",
     "--cwd", "$Cwd"
   )
 
@@ -243,11 +259,13 @@ try {
     & $python @kitArgs *>&1)
 
   $code = $LASTEXITCODE
+  $kitExit = $code
 
   # THE KIT PRINTS ONE JSON LINE. Exit 0 (ran) and 4 (timed out): its usage
-  # line, the CLI's result object nested under "receipt". Exit 3 (refused): a
-  # "refused" message and a "code" word. Found by its keys; everything else in
-  # $out is the kit's own stderr, still written below.
+  # line, keyed "kit", the CLI's result object nested under "receipt". Exit 3
+  # (refused): a "refused" message and a "code" word. Found by its keys, matched
+  # by EXACT case (L3 above); everything else in $out is the kit's own stderr,
+  # still written below.
   $kitLine = $null
   $rest = @()
   foreach ($item in $out) {
@@ -256,7 +274,7 @@ try {
       try {
         $parsed = $text | ConvertFrom-Json -ErrorAction Stop
         $keys = @($parsed.PSObject.Properties | ForEach-Object { $_.Name })
-        if (($keys -contains "kit") -or ($keys -contains "refused")) {
+        if (($keys -ccontains "kit") -or ($keys -ccontains "refused")) {
           $kitLine = $parsed
           continue
         }
@@ -267,19 +285,39 @@ try {
     $rest += $item
   }
 
+  # EVERY KIT ENDING THE CLI'S RESULT CANNOT SHOW GETS ONE LINE OF ITS OWN, and
+  # it is ALWAYS the last line before the exit line the finally writes - the
+  # one place ops/loop/queue_loop.py reads it from, so worker text written
+  # earlier in the log can never stand in for it. Its words are fixed.
   if ($code -eq 3) {
     # THE CODE ONLY, NEVER THE MESSAGE. The code is a fixed kit vocabulary word;
     # the message is text built from an exception, and this log is written
     # unattended (CLAUDE.md non-negotiable 12). A code of any other shape is
     # not echoed either: it is written as "unknown".
     $kitCode = "unknown"
-    if (($null -ne $kitLine) -and (([string]$kitLine.code) -cmatch '^[a-z][a-z-]{0,39}\z')) {
-      $kitCode = [string]$kitLine.code
+    $named = Get-ExactField $kitLine "code"
+    if (($named -is [string]) -and ($named -cmatch '^[a-z][a-z-]{0,39}\z')) {
+      $kitCode = $named
     }
     "lane refused $(Get-Date -Format s) kit_code=$kitCode" |
       Out-File "$Log" -Append -Encoding utf8
     exit 3
   }
+
+  if ($code -eq 2) {
+    # THE KIT REFUSED ITS OWN COMMAND LINE - a start that did not happen. Its
+    # usage text is written as it always was, then this runner's own word.
+    $out | Out-File "$Log" -Append -Encoding utf8
+    "lane refused $(Get-Date -Format s) kit_code=bad-arguments" |
+      Out-File "$Log" -Append -Encoding utf8
+    exit 2
+  }
+
+  # CS-1231 SLICE C, L1 - THE KIT'S OWN TIMEOUT, read off EITHER sign MAIN's
+  # ruling names: exit 4, or a kit line whose exact-case "error" is "timeout".
+  $timedOut = ($code -eq 4)
+  $kitError = Get-ExactField $kitLine "error"
+  if (($kitError -is [string]) -and ($kitError -ceq "timeout")) { $timedOut = $true }
 
   if ((($code -eq 0) -or ($code -eq 4)) -and ($null -ne $kitLine)) {
     # WRITTEN IN TODAY'S ORDER: the result's text as readable lines, then
@@ -289,9 +327,10 @@ try {
     # rather than one escaped JSON string. The kit's usage line is not written:
     # it is not a result object, it nests a second copy of one that would
     # double the tail the driver reads, and the kit appends it to its own log.
-    $receipt = $kitLine.receipt
-    if (($null -ne $receipt) -and ($null -ne $receipt.result)) {
-      [string]$receipt.result | Out-File "$Log" -Append -Encoding utf8
+    $receipt = Get-ExactField $kitLine "receipt"
+    $said = Get-ExactField $receipt "result"
+    if ($said -is [string]) {
+      $said | Out-File "$Log" -Append -Encoding utf8
     }
     if ($rest.Count -gt 0) {
       $rest | Out-File "$Log" -Append -Encoding utf8
@@ -302,12 +341,20 @@ try {
     }
     # THE WORKER'S CODE, as the direct start recorded it: on a run that ended,
     # the kit's 0 means "ran" and the CLI's own exit code is its "rc".
-    $rc = $kitLine.rc
+    $rc = Get-ExactField $kitLine "rc"
     if (($code -eq 0) -and (($rc -is [int]) -or ($rc -is [long]))) {
       $code = $rc
     }
   } else {
     $out | Out-File "$Log" -Append -Encoding utf8
+  }
+
+  if ($timedOut) {
+    # A KILLED RUN IS A TIMEOUT, NEVER A RUN THAT ENDED: the exit line carries
+    # the kit's timeout code whatever the CLI's own code was.
+    "lane timeout $(Get-Date -Format s) kit_exit=$kitExit" |
+      Out-File "$Log" -Append -Encoding utf8
+    $code = 4
   }
 } catch {
   # THE TYPE AND THE ERROR ID, NEVER $_.Exception.Message. An error id is
