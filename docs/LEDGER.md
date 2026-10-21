@@ -75,6 +75,76 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-700 - NOT A COMPLETION RECORD. NOTHING CLOSED. The C13 cleanup item's third pass: 8 worktrees and 239 branches retired by content, bundled first; CS-1342 read
+Verification: this record; `git worktree list --porcelain` and `git for-each-ref`, read back by the
+pass; the bundle s150c-retire.bundle, beside s150-c13-retire.bundle and s150b-retire.bundle, sha256
+cc486870b8b062fd54e6c800f353090504f270ddfbe35c8d1f1b60f7ee573ac4, `git bundle verify` exit 0, a
+complete history, 256 heads, each equal to the ref it was cut from.
+THE ITEM: `BACKLOG.md`, Session 150 residuals, the CS-700 cleanup item (C13 in the hand-off). The
+two earlier session 150 passes retired 55 worktrees and 52 branches (bundle s150-c13-retire.bundle)
+and then 6 more (s150b-retire.bundle); their preserve refs stay.
+READ AT THE START: 26 `git worktree list` lines (main and 25 linked) and 540 refs, 328 under
+refs/heads. HOW EACH WAS CLASSIFIED, BY CONTENT: `git patch-id --stable` for every commit not on
+main; a commit whose patch is not on main counts as landed only when every path and blob it writes
+appears in main's own history, or, for a branch, when every path its unmatched commits touch reads
+byte-equal on main's tip; a tree holding a tracked change, a staged change or a non-cache untracked
+file holds work; the reflog of every candidate graded the same way. All 1699 commits of the
+pre-rewrite main match main by patch-id.
+THE TABLE. Linked worktrees 25: MERGED-BY-CONTENT and clean 8, retired; merged by commits but
+holding uncommitted work 4, KEPT (two old-history agent trees whose tip is "Record session 98 and
+relocate the session 95 note", one whose tip is "Catch the tests-tree size ceiling on approach, not
+on arrival", and work/s137_cs1308f2_land_wt); UNIQUE 12, KEPT; lane-0 1, KEPT as the queue lane's
+tree, which `ops/loop/lane_launcher.py::ensure_worktree` re-cuts. LIVE: six builder worktrees cut
+after the last push, none in the start read, never touched. Branches 327 besides main:
+MERGED-BY-CONTENT 242, UNIQUE 85. Other refs 209, none touched: refs/preserve 85 (52 merged, 33
+unique), refs/backup 71 (31, 40), refs/wip 53 (25, 28).
+RETIRED, IN THIS ORDER. (1) 17 reflog tips of four retired branches - ingest/inspiration,
+lane/queue, slice/cs-1121 and a CS-1231 kit-v4 builder branch - hold commits whose content is in no
+main commit, so each became a ref under refs/preserve/s150c/reflog, in one `git update-ref --stdin`
+transaction, before the bundle. (2) The bundle, of the 239 branches and those 17 refs. (3) The
+worktrees, by `git worktree remove`, none locked, none forced, each named here by its item since the
+gate reads an agent id as a commit: the CS-1341 and the CS-1339 builder trees, every path their
+commits touch byte-equal on main, their patch-ids differing because each slice landed as one commit;
+the CS-1043 S2 and S1 repair trees, the CS-1335 tree and the CS-1234 clause 3 tree; and two
+old-history trees with their M2 guards, the CS-1281 tree (its one unmatched commit's five blobs all
+on main) and the CS-1269 tree, whose one untracked file, a done progress record, was copied beside
+the bundle and sent to the Recycle Bin first. (4) The 239 branches by `git branch -D`, each re-read
+equal to its bundled head first: 232 old-history, 7 new-history.
+READ BACK AFTER: 24 `git worktree list` lines and 324 refs, 95 under refs/heads, the six live
+builder trees and their branches among them; the six read back untouched.
+KEEPS LEFT, EACH WITH ITS REASON. archive/local-history: CS-936, never pushed and never deleted
+(`docs/item_notes/phase4-followups-900.md`). The K1 branch, tip "CS-1231 - lane runner starts its
+worker through the kit", and its tree: the hand-off's K1 KEEP. The CS-1318 refuted branch, tip
+"CS-1318 - reap replay tool and dispatch-only ubuntu replay workflow", and its tree, and the CS-1318
+rework tree, tip "CS-1318 - rework the reap replay: drive the measured arm's own reap": CS-1318 is
+on HOLD. slice/cs-g06-discharge: ruled DISCARD and kept (the CS-G06 record of 2026-10-20). Every
+refs/preserve ref, the s146 one included: a recorded KEEP each, and this pass lifts none. The four
+trees holding uncommitted work and the three merged branches they hold. The 85 UNIQUE branches and
+the 12 UNIQUE trees.
+CS-1342, READ: the ID is on main only in `BACKLOG.md` (the post-v21 cleanup line) and in the CS-1344
+filing commit's message - no `ROADMAP.md` line, no leaf section and no `docs/LEDGER.md` record. The
+headless inbox responder made it for MAIN's 2026-10-21-1508 RULING (QUEUE_STOP to the lane spawns'
+halt_file), in two runs. Run 1 built the branch whose tip is "CS-1342 QUEUE_STOP leaves the
+tree-wide sentinels for queue halt_file": one commit on the session 150 records commit, 15 files,
+among them a new lane-spawn module in ops/loop and a new halt-file test module. Run 2 built the
+branch whose tip is "CS-1342 - export the lane halt_file resolved against the driver cwd": three
+commits on the CS-1339 closing commit, the build and two adversary repairs, 11 files and neither new
+module. The responder's own progress record names run 2's tip as the candidate to land, and it was
+not landed only because the main tree then held another writer's uncommitted work. Neither lineage
+is on main; each simulated onto main conflicts in `docs/LEDGER.md` alone. VERDICT: run 2 is UNIQUE
+AND UNLANDED; run 1 is UNIQUE, SUPERSEDED by run 2, unlanded. Both trees KEPT.
+RECOMMENDATION: land run 2's three commits by cherry-pick under a fresh freeze and adversary, filing
+CS-1342 in `ROADMAP.md` and its leaf in the same batch; then bundle and retire run 1 as superseded.
+THE REMOTE: origin set to the moved repository's spelling, ClockSpeed with a capital S. A grep of
+every tracked file found nothing that reads this checkout's remote URL to decide behaviour;
+`tools/census_axis.py::_origin_root` reads only a census clone's local origin. Read back: `git
+ls-remote origin main` returned fc67fc54375306593a6e7b5da0a0b98ccb317b09, equal to local main: the
+responder's two commits above 90811ca2a58e2e69031ab26daf9f7ff47cfc7a0c, CS-1344's filing and its
+citation-gate fix, were pushed while this pass ran.
+NOT DONE, LEFT OPEN: M4's non-branch pre-rewrite refs (refs/backup, refs/wip, refs/preserve/heads)
+in one `git update-ref --stdin`; the 85 UNIQUE branches; the 13 old-history trees still registered;
+the work/saves leftover and cs1322-adv-tmp, after a consumer check.
+
 ### 2026-10-21 - CS-1341 - CLOSED: the lane driver reads the lane tree's starting HEAD after the launch makes the tree, so a cycle that shipped is never scored unreadable
 Verification: `tests/test_queue_loop.py::test_the_starting_head_is_read_after_the_launch_makes_the_tree`,
 `tests/test_queue_loop.py::test_a_tree_the_kit_moves_to_its_base_is_not_a_commit` and
