@@ -75,6 +75,117 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1043 - CLOSED: pillar 4's package stops being empty - the milestone and phase requirement models ship, priced against a named exact budget
+Verification: `clockspeed/progress/milestones.py` plus
+`tests/progress/test_milestones.py::test_each_required_rate_is_the_exact_fraction_cost_over_budget`
+and `::test_the_required_rate_reddens_when_the_named_budget_moves`;
+`clockspeed/progress/phases.py` plus
+`tests/progress/test_phases.py::test_a_phase_cost_renders_machine_miner_and_resource_as_distinct_keys`
+and `::test_a_phase_with_no_cost_entry_is_null_rather_than_zero`.
+
+**THE DEFECT.** `clockspeed/progress/` held a package docstring and a seam comment and no
+code, so the project could not name one milestone, its cost, its tier or a space elevator
+phase cost - the whole of the milestone requirements panel. `clockspeed/data/registry.py`
+excludes `FGSchematic` from its modelled groups and rules that the group belongs to the
+progression layer; that layer did not exist, so the exclusion pointed at nothing.
+
+**ROOT CAUSE.** Not a bug in a shipped path - a reserved package nobody had built. This
+item FOLLOWS the registry's ruling rather than re-opening it: `clockspeed/data/registry.py`
+is NOT edited, and the schematic entries arrive through a `SchematicSource` protocol
+declared in `clockspeed/progress/milestones.py` and parameterised at the wiring site, which
+is the `clockspeed/surface/api/contract.py` `WorldProvider` idiom and is generic for the
+reason that module records - naming the concrete type would import three layers down.
+
+**SIBLING SWEEP: PREDICTED NONE, MEASURED NONE.** New code in an empty package has no
+sibling call sites that could share a root cause. The cycle report's prediction and the
+measurement agree, which is the one case where that is worth recording rather than the
+difference.
+
+**THE JOIN IS THE RESOLVED CONTENT ASSET PATH**, as the item's fence requires: the asset
+path half of an entry's `FullName`, matched against `UnlockState.purchased_schematics`,
+which `clockspeed/save/world.py`'s `_unlock_paths` already publishes as asset paths. No
+name-matching heuristic sits beside it, and the arm proving so uses two entries whose
+trailing class tokens are byte-identical, so a trailing-token reducer reddens it.
+
+**THREE THINGS THIS SHIPS NULL TODAY, each with a warning rather than a silent zero.** The
+HUB tier is `UnlockState.trading_post_level`, which no measured carrier path fills, so it
+publishes null plus an unread-tier warning. A phase cost table has no shipped producer at
+all - `mGamePhaseCosts` is read nowhere under `clockspeed/` - so `phase_cost_of` takes its
+table as an explicit argument and no protocol with no implementer was invented. And
+`delivered_available` reads false.
+
+**THE ITEM'S STATED REASON FOR THAT LAST ONE WAS MEASURED STALE AND IS CORRECTED HERE
+RATHER THAN COPIED FORWARD.** The CS-1043 section said space elevator deliveries are
+blocked on CS-1038's container stacks. CS-1038 is CLOSED and `clockspeed/audit/inventory.py`
+publishes per-building item totals. The real blocker is the SEAM: `clockspeed/progress/`
+names save, data and solve as the layers below it and does NOT name `clockspeed.audit`, so
+this layer may not read that one. The seam reason is what went into the shipped docstring.
+`delivered_available` is also a DERIVED property over the entries rather than a stored
+`False`, so it cannot be falsely set true without a real delivery, and the arm pins both
+halves with `delivered=0` so a truthiness bug reddens too.
+
+**TIER 2 PAID** - a new public interface in a new package. The whole suite ran under
+`fleet_suite_gate.py`.
+
+**THE BUDGET IS A NAMED CONSTANT BECAUSE THE CLAUSE CANNOT BE GRADED OTHERWISE.**
+`MILESTONE_BUDGET_MINUTES` is a module-level `Final` `Fraction` read in the function body,
+never a default argument - a default binds at def time and makes the reddening arm
+unreddenable. The builder proved the order by shipping a deliberate stage-1 implementation
+with the literal at the division site: the reddening arm failed with `AttributeError` under
+`monkeypatch.setattr` while the other seven arms passed, which is the control separating a
+working arm from a module that merely errored.
+
+**TDD ORDER, as raised rather than as predicted.** The milestone arm's first red was
+`ImportError: cannot import name 'milestones' from 'clockspeed.progress'`, not the predicted
+`ModuleNotFoundError` - a from-import of a missing submodule raises the former. The phase
+arm's first red was `ModuleNotFoundError: No module named 'clockspeed.progress.phases'`.
+Same right reason both times: the subject did not exist, so nothing asserted could be
+vacuously true.
+
+**THE DOC EDIT IS LINE-COUNT-NEUTRAL, AND THE FIRST VERSION WAS NOT.** `progress/` was in
+`docs/ARCHITECTURE.md`'s NOT-BUILT family, which
+`tests/test_architecture_attributions.py::test_a_package_the_document_calls_not_built_really_is`
+asserts binds no public name - so the first public name in either module reddens it, and the
+doc edit is part of the work rather than tidying after it. Both occurrences of the guard
+string had to go, because once no Status line carries it the sentinel arm asserts it is
+absent from the whole document. A first version added seven lines and turned three guards
+red - `tests/test_pointer_claims.py` twice and `tests/test_archive_rot.py` - because other
+files pin LINE NUMBERS into that document and one archived pointer had been landing on
+nothing past its end. The repair was to make the edit 6 insertions against 6 deletions
+rather than to move three unrelated files, one of them a historical archive.
+
+**VERIFIER: CONFIRM**, by an agent that produced no part of the work, graded against the
+acceptance clause alone. It ran four mutation probes of its own and each reddened exactly
+one arm: the named budget replaced by the literal at the division site, the join reduced to
+the trailing class token, the derived delivery flag collapsed to a truthiness test, and
+`phase_cost_of` returning null unconditionally. It restored each from a byte snapshot rather
+than from git and reported the source digest identical afterwards.
+
+**THE FREEZE WITNESS READ MOVED, AND IT WAS BYTECODE ONLY.** `tools/freeze_witness.py check`
+reported the candidate moved, with the detail that the bytecode digest differs across the
+same number of `.pyc` files. That is the verifier's own mutation probes rewriting the
+bytecode cache; the source digest of `clockspeed/progress/milestones.py` after the verdict
+equals the digest the verifier recorded after its restore, and the working tree held the
+same seven paths. Recorded rather than rounded up to a clean freeze.
+
+**FILED THIS CYCLE: CS-1339**, from the verifier's OUT OF CLAUSE note. The rate arm grades
+"each required rate" over a one-element cost list, so a reader pricing only the first of
+several cost entries survives it. The clause grades a rate's VALUE and that is
+mutation-proven; the arm's POPULATION is what is thin. It was filed rather than folded in
+because the candidate was frozen and the one verifier pass had already returned.
+
+**DEVIATIONS FROM THE FILED SPEC, named rather than rounded up.** Each module carries two
+warning codes beyond the enumerated set, because an element nothing could read and an
+element read perfectly whose key collided are different facts and one code makes them
+indistinguishable. A duplicated phase cost item key keeps the FIRST amount and warns rather
+than summing, because nothing in this project has read a real cost table and a sum would be
+invented arithmetic; `entries` keeps every element so a later reader can do its own.
+`Milestone.class_name` has no entry key behind it and is derived from the asset path as a
+label only - the join arm deliberately gives both twin entries the same `class_name` so a
+drift into using it as the join reddens.
+
+**CI: recorded by the driver, not observed by this worker.**
+
 ### 2026-10-21 - CS-1318 - NOT A COMPLETION RECORD. CS-1318 STAYS OPEN, ON HOLD: in the session 150 load window no leg discriminates, and the rework's adversary reads HOLD
 Verification: the CS-1318 section of `docs/item_notes/phase7.md`; `ROADMAP.md`;
 `tests/test_hook_probe_bound.py::test_a_background_child_holding_stdout_is_refused_and_reaped`.

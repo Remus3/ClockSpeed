@@ -141,53 +141,6 @@ a new arm module under `tests/audit/` builds a synthetic world of two machines j
 
 nothing can say which belt feeds which machine or which connections share a power circuit: CS-1041's line named both and its acceptance graded neither, and `clockspeed/audit/network.py` therefore hardcodes `belt_topology_available` and `circuit_topology_available` False, which CS-1045 then had to derive its own edge availability from - so two closed items both declare the same absence and no item owns it
 
-## CS-1043
-
-### Filed 2026-09-13
-
-**REPAIRED 2026-09-14 (session 95).** The acceptance now NAMES the constant into
-existence: it reads "reddens when the budget moves - which REQUIRES that budget to be a
-NAMED `Fraction` constant in the new module, because a literal at the site makes this
-clause unreddenable". The trap below is what the repair closes; it is kept because the
-reasoning is what stops the next filing from repeating it.
-
-**THE HOLE IS AT THE BOTTOM.** `clockspeed/data/registry.py` excludes `FGSchematic` from the
-modelled groups and `clockspeed/progress/` holds a docstring and a seam comment and no code
-at all, so the project cannot name one milestone, its cost, its tier, or a space-elevator
-phase cost. That is the whole of the milestone-requirements panel.
-
-**WRITE-LIST:** NEW `milestones` and `phases` modules under `clockspeed/progress/`,
-and a NEW `tests/progress/` package - its `__init__` plus one arm module for each of the
-two modules above. **DEPENDS ON:** CS-1039 for `UnlockState`, including the HUB
-tier from `mTradingPostLevel` and the phase from `mCurrentGamePhase`. **TIER 2, NO GAME
-NEEDED** - a hand-authored synthetic schematic document; the rule suite must run with no
-install.
-
-**IT DOES NOT EDIT `clockspeed/data/registry.py`.** That module already rules that
-`FGSchematic` belongs to the progression layer. This item FOLLOWS that ruling rather than
-re-opening it, and consumes the shipped Document through a `SchematicSource` protocol
-declared here and parameterised at the wiring site - the `WorldProvider` idiom.
-
-**THE SCHEMATIC-TO-REGISTRY JOIN IS THE RESOLVED CONTENT ASSET PATH** of an
-`mPurchasedSchematics` reference. That is the measured join key. **Do not invent a
-name-matching heuristic beside it.**
-
-**ELEVATOR ITEMS ALREADY DELIVERED ARE BLOCKED ON THE KEYSTONE.** They sit inside the space
-elevator's input inventory and need CS-1038's container stacks. Until that lands the phase
-model publishes `delivered_available` false and shows REQUIRED only. A phase with no cost
-entry is null and never zero.
-
-**NO FLOAT REACHES A RATE.** The two-hour completion budget is held as a `Fraction`, and the
-every-machine-at-full-clock assumption is named ON THE MODEL rather than in a comment.
-
-### Acceptance
-
-a new arm module under `tests/progress/` builds a synthetic schematic document and a synthetic unlock state, asserts each required rate is the exact Fraction cost over budget with no float anywhere, and reddens when the budget moves - which REQUIRES that budget to be a NAMED `Fraction` constant in the new module, because a literal at the site makes this clause unreddenable and that is the CS-1039 vacuity shape by name, and a second new arm module there asserts a phase cost renders machine, miner and resource as distinct keys and that a phase with no cost entry is null rather than zero
-
-### Full headline
-
-`clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all, so the project cannot name one milestone, its cost, its tier or a space elevator phase cost, which is the whole of the milestone requirements panel
-
 ## CS-1048
 
 ### Filed 2026-09-13
@@ -495,6 +448,36 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a fixture with a newer save on disk sets the stale flag in the API payload; a moved build pin sets it too; the stamp contains no world name or path
+
+## CS-1339
+
+### Filed 2026-10-21 by the queue lane, out of CS-1043's verifier pass
+
+**THIS IS AN ANTI-VACUITY ROW, NOT A DEFECT IN A PUBLISHED RATE.** CS-1043's verifier
+CONFIRMED its clause and reported this separately as OUT OF CLAUSE: the arm that grades
+"each required rate" feeds a cost list of ONE item, so the word `each` is satisfied over a
+one-element set. A reader that priced only the FIRST of several cost entries and dropped the
+rest would pass that arm unchanged. The rate's VALUE is graded and mutation-proven; the
+arm's POPULATION is what is thin.
+
+**IT IS CHEAP AND THE FIXTURE ALREADY ADMITS IT.** `cost_blob` in
+`tests/progress/test_milestones.py` takes varargs, so a multi-item cost is a one-line
+fixture change rather than a new helper. It was filed rather than folded into CS-1043
+because that item's candidate was frozen and its one verifier pass had already returned -
+a verdict covers only the tree it was taken over.
+
+**DO NOT WIDEN THIS INTO A REVIEW OF THE OTHER ARMS.** The five sibling arms were each
+mutation-proven during CS-1043's cycle (the join, the derived delivery flag, the truthiness
+collapse, the unconditional null and the budget constant all reddened their own arm). This
+row is the one population the probes did not cover.
+
+### Acceptance
+
+`tests/progress/test_milestones.py`'s rate arm feeds a cost blob of at least three item amounts with pairwise distinct amounts and asserts EVERY published rate by one mapping equality of item key to the exact `Fraction` cost over `MILESTONE_BUDGET_MINUTES`, so a reader that prices only the first cost entry reddens it, proven by planting that mutation and quoting the arm it fails
+
+### Full headline
+
+CS-1043's rate arm grades "each required rate" over a one-element cost list, so a reader that prices only the first cost entry of several survives it
 
 ## CS-1253
 

@@ -73,6 +73,8 @@ clockspeed/data/locate.py	authored	CS-1165	first-add:root
 clockspeed/data/registry.py	authored	CS-1165	first-add:root
 clockspeed/data/version.py	authored	CS-1165	first-add:root
 clockspeed/progress/__init__.py	authored	CS-1165	first-add:root
+clockspeed/progress/milestones.py	authored	CS-1043	stamped
+clockspeed/progress/phases.py	authored	CS-1043	stamped
 clockspeed/save/__init__.py	authored	CS-1165	first-add:root
 clockspeed/save/chunks.py	authored	CS-1165	first-add:root
 clockspeed/save/header.py	authored	CS-1165	first-add:root
@@ -344,6 +346,9 @@ tests/ops/test_usage_limit_refusal.py	authored	CS-1178	stamped
 tests/own_temp_root.py	authored	CS-1319	stamped
 tests/pathless_clone_guard.py	authored	CS-885	first-add:CS-885
 tests/pre_push_floor.py	authored	CS-824	stamped
+tests/progress/__init__.py	authored	CS-1043	stamped
+tests/progress/test_milestones.py	authored	CS-1043	stamped
+tests/progress/test_phases.py	authored	CS-1043	stamped
 tests/repr_rendering_guard.py	authored	CS-852	first-add:CS-852
 tests/save/__init__.py	authored	CS-1165	first-add:root
 tests/save/independent_table.py	authored	CS-829	first-add:CS-829

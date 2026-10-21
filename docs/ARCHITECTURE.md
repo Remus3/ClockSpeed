@@ -34,7 +34,7 @@ clockspeed/
     backends/
     power.py
   audit/          pillar 3 whole-world audit - PLACEMENT AND INVENTORY ONLY
-  progress/       pillar 4 milestone routing - NOT BUILT
+  progress/       pillar 4 - milestone and phase requirement models, no router yet
   advisor/        pillar 5 - trace, cards, ledger and the D4 power and fuel rule families
     trace.py
     cards.py
@@ -73,7 +73,7 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/solve/backends/` | Pluggable optimizer implementations behind that interface. Swapping one changes no caller. |
 | `clockspeed/solve/power.py` | Power and clock mathematics, including the overclock scaling exponent taken from data rather than hardcoded. |
 | `clockspeed/audit/` | TWO MODULES, AND THE PILLAR ITSELF IS STILL UNBUILT. `clockspeed/audit/placement.py` turns one `WorldModel` into node and built placements with exact decimal-string coordinates, per-class counts and world bounds; `clockspeed/audit/inventory.py` aggregates container contents into per-item totals and carries its own denominators. Both are what the map surface consumes, and neither is the diff-against-intent the pillar is specified as in `BOOTSTRAP.md` section 4. |
-| `clockspeed/progress/` | NOTHING YET. The package is reserved for pillar 4 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` section 4. |
+| `clockspeed/progress/` | MODELS ONLY, AND THE PILLAR ITSELF IS STILL UNBUILT. `clockspeed/progress/milestones.py` turns the shipped schematic entries and one `UnlockState` into per-milestone costs, pricing each required amount against a named exact budget held as a `Fraction`; `clockspeed/progress/phases.py` turns one phase cost table into distinct per-item requirements, and answers null rather than zero for a phase the table does not name. Both PRICE a target; neither ROUTES to it, which is what the pillar is specified as in `BOOTSTRAP.md` section 4. |
 | `clockspeed/audit/balance.py` | The clocked power draw: `clocked_draw_of` prices each machine at its own clock - exact where the power law allows, otherwise an exact named bracket - and names a gap for an unread clock rather than pricing it at the default. |
 | `clockspeed/advisor/trace.py` | The rule execution trace: declared inputs, the unlock gate, exact reads, and the one engine-held record every explain tier projects from. A faulting rule becomes a `rule-error` step, never a crash. |
 | `clockspeed/advisor/cards.py` | The advice card: a sha256 identity over rule, subject and target, and three read-only tiers projected from one trace. |
@@ -227,11 +227,11 @@ intent yet.
 
 ### Pillar 4 - Milestone and progression routing
 
-**Status:** NOT BUILT. Reserved for `progress/`, which holds a package docstring and no
-code. Specified in `BOOTSTRAP.md` section 4.
+**Status:** PARTLY BUILT, AND THE PART THAT EXISTS IS NOT THE PILLAR. `progress/` holds
+`clockspeed/progress/milestones.py` and `clockspeed/progress/phases.py`, landed under
+CS-1043. They PRICE a target and route to none. Specified in `BOOTSTRAP.md` section 4.
 
-Intent: route from the current world state to a freely selected milestone or phase target,
-emitting a dependency-ordered plan rather than an unordered list of gaps. Relocated from
+Intent, still unmet: a dependency-ordered plan rather than a gap list. Relocated from
 `README.md` by CS-1333: the plan's steps are add, upgrade, redesign and tear down, toward the
 next milestone or one several tiers out, and `/api/plan` answers 501 today and names the work
 item that builds it.
