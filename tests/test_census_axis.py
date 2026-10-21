@@ -552,18 +552,17 @@ def _miscounted(table: Table) -> int:
     return wrong
 
 
-def _letters() -> list[str]:
-    """Every letter A-Z, the two ``DRIVES`` first: the letters each root is scanned on."""
-    return [*DRIVES, *(chr(c) for c in range(ord("A"), ord("Z") + 1) if chr(c) not in DRIVES)]
+#: A letter neither of ``DRIVES``, which no census told to use ``DRIVES`` may count.
+IDLE: Final = next(chr(c) for c in range(ord("A"), ord("Z") + 1) if chr(c) not in DRIVES)
 
 
 def _cover_gaps(table: Table, roots: list[str]) -> int:
-    """(cell, root, spelling) triples whose any-letter occ is not the per-letter sum."""
+    """(cell, root, spelling) triples whose letter-class occ is not the per-letter sum."""
     gaps = 0
     for row in table.values():
         for name in roots:
-            drive_sum = sum(row[f"{name}.{c}"][0] for c in _letters())
-            bash_sum = sum(row[f"{name}.{census.BASH}.{c}"][0] for c in _letters())
+            drive_sum = sum(row[f"{name}.{c}"][0] for c in DRIVES)
+            bash_sum = sum(row[f"{name}.{census.BASH}.{c}"][0] for c in DRIVES)
             gaps += row[f"{census.COVER_PREFIX}{name}"][0] != drive_sum
             gaps += row[f"{census.COVER_PREFIX}{name}.{census.BASH}"][0] != bash_sum
     return gaps
@@ -605,14 +604,15 @@ def test_hits_never_abort_and_all_seven_controls_pass(pristine: Run) -> None:
     assert refusals == 0
 
 
-def test_every_root_is_scanned_on_every_letter(pristine: Run) -> None:
-    _code, table, _lines = pristine
-    want = {f"{name}.{c}" for name in ("repo_root", "main_root") for c in _letters()}
-    missing = sum(1 for label in want if label not in table[("full", "blobs")])
-    assert missing == 0
+def test_only_the_drive_letters_are_counted(pristine: Run) -> None:
+    _code, table, lines = pristine
+    idle_labels = sum(1 for row in table.values() for label in row if label.endswith(f".{IDLE}"))
+    idle_lines = sum(1 for x in lines if f".{IDLE} occ " in x)
+    assert idle_labels == 0
+    assert idle_lines == 0
 
 
-def test_any_letter_needles_equal_the_per_letter_sum_in_every_cell(
+def test_letter_class_needles_equal_the_per_letter_sum_in_every_cell(
     world: World,
     pristine: Run,
 ) -> None:
@@ -623,37 +623,52 @@ def test_any_letter_needles_equal_the_per_letter_sum_in_every_cell(
     assert covered
 
 
-def test_the_seeds_choose_what_is_printed_never_what_is_counted(
-    world: World,
-    pristine: Run,
-) -> None:
-    _c, full_table, full_lines = pristine
-    code, table, lines = _run(world, drives=[DRIVES[0]])
-    same_table = table == full_table
-    printed = [x for x in lines if x.startswith("count ")]
-    full_printed = [x for x in full_lines if x.startswith("count ")]
-    extra = sum(1 for x in printed if x not in full_printed)
-    hits_lost = sum(1 for x in full_printed if " occ 0 " not in x and x not in printed)
-    in_order = printed == [x for x in full_printed if x in printed]
-    assert code == EXIT_OK
-    assert same_table
-    assert extra == 0
-    assert hits_lost == 0
-    assert in_order
-
-
-def test_a_seed_with_no_hits_is_printed_and_an_idle_letter_is_not(world: World) -> None:
-    idle = next(c for c in _letters() if c not in DRIVES)
-    _c, _t, quiet = _run(world)
-    _c, _t, seeded = _run(world, drives=[*DRIVES, idle])
-    idle_label = f" repo_root.{idle} "
-    printed_quiet = sum(1 for x in quiet if idle_label in x)
-    printed_seeded = sum(1 for x in seeded if idle_label in x)
+def test_every_drive_letter_is_printed_even_with_no_hits(world: World) -> None:
+    _c, _t, seeded = _run(world, drives=[*DRIVES, IDLE])
+    idle_label = f" repo_root.{IDLE} "
+    printed = sum(1 for x in seeded if idle_label in x)
     zero_lines = sum(1 for x in seeded if idle_label in x and x.endswith(" occ 0 lines 0 objs 0"))
     cells = len(census.SCOPES) * len(census.POPULATIONS)
-    assert printed_quiet == 0
-    assert printed_seeded == cells
+    assert printed == cells
     assert zero_lines == cells
+
+
+def _coverage_table(gap_population: str, gap: int) -> Table:
+    """A census table for one root, its letter-class count ``gap`` ahead in one population.
+
+    The gap sits in ``gap_population`` of the full closure and nowhere else.
+    """
+    table: Table = {}
+    for scope in census.SCOPES:
+        for pop in census.POPULATIONS:
+            row: dict[str, tuple[int, int, int]] = {}
+            for i, drive in enumerate(DRIVES, 1):
+                row[f"repo_root.{drive}"] = (i, i, 1)
+                row[f"repo_root.{census.BASH}.{drive}"] = (2 * i, 2 * i, 1)
+            extra = gap if (scope, pop) == ("full", gap_population) else 0
+            per_letter = sum(range(1, len(DRIVES) + 1))
+            row[f"{census.COVER_PREFIX}repo_root"] = (per_letter + extra, 1, 1)
+            row[f"{census.COVER_PREFIX}repo_root.{census.BASH}"] = (2 * per_letter, 1, 1)
+            table[(scope, pop)] = row
+    return table
+
+
+@pytest.mark.parametrize("population", ["blobs", "paths", "messages"])
+def test_drive_coverage_reads_every_population_of_the_full_closure(population: str) -> None:
+    gap = 3
+    off = census.uncovered(_coverage_table(population, gap), ["repo_root"], list(DRIVES))
+    clean = census.uncovered(_coverage_table(population, 0), ["repo_root"], list(DRIVES))
+    assert off == gap
+    assert clean == 0
+
+
+def test_drive_coverage_never_lets_one_population_offset_another() -> None:
+    table = _coverage_table("paths", 2)
+    row = table[("full", "messages")]
+    occ, lines, objs = row[f"{census.COVER_PREFIX}repo_root"]
+    row[f"{census.COVER_PREFIX}repo_root"] = (occ - 2, lines, objs)
+    off = census.uncovered(table, ["repo_root"], list(DRIVES))
+    assert off == 4  # noqa: PLR2004 - two ahead in paths plus two behind in messages
 
 
 def test_count_lines_never_name_the_absent_needles(pristine: Run) -> None:
@@ -872,20 +887,6 @@ def test_each_mutant_turns_its_arm_red(
     failed = _control(lines, oracle, "FAIL")
     assert code == EXIT_FAILED_CONTROL
     assert failed
-
-
-def test_a_census_that_scans_only_its_seeds_fails_drive_coverage(
-    world: World, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(census, "scan_letters", list)
-    landed = census.scan_letters is list
-    code, _table, lines = _run(world, drives=[DRIVES[0]])
-    covered_failed = _control(lines, "drive_coverage", "FAIL")
-    refusal_then_exit = lines[-2:] == [FAILED_CONTROL_LINE, "exit 1"]
-    assert landed
-    assert code == EXIT_FAILED_CONTROL
-    assert covered_failed
-    assert refusal_then_exit
 
 
 # --- the command line -------------------------------------------------------------------
@@ -1211,6 +1212,61 @@ def test_a_sidecars_override_without_the_markers_is_refused(world: World) -> Non
         "does not hold the sidecar markers", census.derive_sidecar_root, world.clone,
         world.fake_repo, str(world.fake_main),
     )  # fmt: skip
+    assert refused
+
+
+def _unc_path(*parts: str) -> str:
+    """A network-share path, built at run time; its anchor is no local drive's."""
+    return "//" + "/".join(parts)
+
+
+def test_the_drive_scan_reads_the_repo_root_drive_not_the_clone_drive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scanned: list[Path] = []
+
+    def spy_scan(drive_root: Path) -> Path:
+        scanned.append(drive_root)
+        return tmp_path
+
+    clone = tmp_path / "Lone"
+    repo_root = Path(_unc_path("srv", "share", "Repo"))
+    monkeypatch.setattr(census, "drive_scan", spy_scan)
+    root, source = census.derive_sidecar_root(clone, repo_root, None)
+    want = Path(repo_root.anchor)
+    distinct = want != Path(clone.anchor)
+    read_root_drive = scanned == [want]
+    chosen = root == tmp_path
+    assert distinct
+    assert read_root_drive
+    assert chosen
+    assert source == "drive-scan"
+
+
+def _marked(parent: Path, name: str, markers: int) -> Path:
+    """A folder under ``parent`` holding the first ``markers`` sidecar markers."""
+    folder = parent / name
+    for marker in census.SIDECAR_MARKERS[:markers]:
+        folder.joinpath(*marker).mkdir(parents=True, exist_ok=True)
+    folder.mkdir(exist_ok=True)
+    return folder
+
+
+def test_the_drive_scan_takes_its_one_candidate_over_every_decoy(tmp_path: Path) -> None:
+    _marked(tmp_path, "Bare", 0)
+    _marked(tmp_path, "Half", 1)
+    tmp_path.joinpath("note.txt").write_bytes(b"x\n")
+    only = _marked(tmp_path, "Whole", len(census.SIDECAR_MARKERS))
+    chosen = census.drive_scan(tmp_path) == only
+    assert chosen
+
+
+@pytest.mark.parametrize("candidates", [0, 2, 3])
+def test_the_drive_scan_refuses_none_or_several_candidates(tmp_path: Path, candidates: int) -> None:
+    _marked(tmp_path, "Half", 1)
+    for i in range(candidates):
+        _marked(tmp_path, f"Whole{i}", len(census.SIDECAR_MARKERS))
+    refused = _refused("none or several", census.drive_scan, tmp_path)
     assert refused
 
 
