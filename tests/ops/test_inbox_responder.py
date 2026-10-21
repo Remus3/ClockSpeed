@@ -1979,3 +1979,182 @@ def test_a_kit_halt_raced_past_the_own_check_shows_its_sentinels_age(tree: Path)
     _run(tree, spy, surface=racing)
     since = datetime.fromisoformat(_status(tree)["task_started"]).timestamp()
     assert (_pair(tree), len(spy.calls), since) == (("halted", "Halted"), 0, T0 - 3600)
+
+
+# --- CS-1234 clause 3: the ETA is timed on COMPLETED runs only -------------------
+#
+# `task_eta_s` is the median of the last ten COMPLETED instances, null under
+# three (MAIN 0915). "Completed" is this repository's own word for it, as
+# `ops/loop/queue_loop.py` spells it: a worker that EXITED ON ITS OWN. A worker
+# that never started, one the kit killed at its timeout and one the API refused
+# on a usage limit (CS-1178: "did it run at all") are no completed run, so none
+# of them is ever a duration in the clock. A worker that exited non-zero on its
+# own did complete, and is timed.
+
+
+class _Clock:
+    """A wall clock only the worker moves, so a run lasts exactly what it spent."""
+
+    def __init__(self) -> None:
+        """Start at the module epoch."""
+        self.at = T0
+
+    def __call__(self) -> float:
+        """The current reading."""
+        return self.at
+
+
+class _Spending(RunSpy):
+    """A worker that runs ``seconds`` on ``clock`` and then exits on its own."""
+
+    def __init__(self, clock: _Clock, seconds: float, returncode: int, output: str) -> None:
+        """Spend ``seconds``, then answer ``returncode`` and ``output``."""
+        super().__init__(returncode, output)
+        self.clock = clock
+        self.seconds = seconds
+
+    def __call__(self, argv: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+        """Move the clock by the run's length, then exit."""
+        self.clock.at += self.seconds
+        return super().__call__(argv, **kw)
+
+
+class _Killed(RunSpy):
+    """A worker the kit kills at its timeout after ``seconds`` on ``clock``."""
+
+    def __init__(self, clock: _Clock, seconds: float) -> None:
+        """Spend ``seconds`` before the kill."""
+        super().__init__()
+        self.clock = clock
+        self.seconds = seconds
+
+    def __call__(self, argv: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+        """Move the clock, then time out the way the kit's runner does."""
+        super().__call__(argv, **kw)
+        self.clock.at += self.seconds
+        raise subprocess.TimeoutExpired(argv, inbox_responder.WORKER_TIMEOUT_S)
+
+
+def _ending(kind: str, clock: _Clock, seconds: float) -> RunSpy:
+    """One worker that ends the named way."""
+    if kind == "never-started":
+        return _Unstartable()
+    if kind == "killed":
+        return _Killed(clock, seconds)
+    if kind == "usage-refused":
+        return _Spending(clock, seconds, 1, USAGE_LIMIT_OUTPUT)
+    if kind == "failed":
+        return _Spending(clock, seconds, 1, "crash")
+    return _Spending(clock, seconds, 0, OK_OUTPUT)
+
+
+#: The outcome word each ending logs - the anti-vacuity control: a pass that
+#: never reached its worker would log another word, or none.
+ENDING_OUTCOMES: Final = {
+    "never-started": "spawn_failed",
+    "killed": "timeout",
+    "usage-refused": "usage_limit",
+    "failed": "failed",
+    "ok": "ok",
+}
+
+
+def _drive_ending(tree: Path, clock: _Clock, kind: str, seconds: float) -> None:
+    """One pass ending ``kind``, then past any back-off it wrote."""
+    _run(tree, _ending(kind, clock, seconds), now=clock)
+    clock.at += inbox_responder.BACKOFF_S + 1.0
+
+
+def _published_eta(tree: Path, clock: _Clock) -> list[tuple[Any, Any]]:
+    """Start one more worker; the (task, task_eta_s) its running status was published under.
+
+    A list, so a pass that never reached the worker reads ``[]``, never a value.
+    """
+    seen: list[tuple[Any, Any]] = []
+
+    class Peeking(RunSpy):
+        def __call__(self, argv: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+            during = _status(tree)
+            seen.append((during.get("task"), during.get("task_eta_s")))
+            return super().__call__(argv, **kw)
+
+    _run(tree, Peeking(), now=clock)
+    return seen
+
+
+def test_three_never_started_workers_leave_the_running_session_eta_null(tree: Path) -> None:
+    """CS-1234 clause 3 - the verifier's probe: three workers that never started.
+
+    Each one's pass logged spawn_failed on a clock that never moved; the next
+    worker's running status must still carry a null ETA, never a median of
+    three zero-second "runs".
+    """
+    clock = _Clock()
+    for _ in range(inbox_status.ETA_MIN):
+        _drive_ending(tree, clock, "never-started", 0.0)
+    published = _published_eta(tree, clock)
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (outcomes, published) == (
+        ["spawn_failed"] * inbox_status.ETA_MIN + ["ok"],
+        [("Running Session", None)],
+    )
+
+
+@pytest.mark.parametrize("never_started", [1, 3, 5])
+@pytest.mark.parametrize(
+    ("completed", "eta"),
+    [((100.0, 200.0), None), ((100.0, 200.0, 600.0), 200)],
+)
+def test_never_started_workers_beside_completed_runs_never_enter_the_median(
+    tree: Path, never_started: int, completed: tuple[float, ...], eta: int | None
+) -> None:
+    """Two completed runs stay null however many never started; three are their own median.
+
+    The never-started passes are interleaved, one before every completed run
+    and the rest after, so no position in the last ten shields the defect.
+    """
+    clock = _Clock()
+    kinds = ["never-started"] * never_started
+    plan: list[tuple[str, float]] = []
+    for seconds in completed:
+        if kinds:
+            plan.append((kinds.pop(), 0.0))
+        plan.append(("ok", seconds))
+    plan.extend((kind, 0.0) for kind in kinds)
+    for kind, seconds in plan:
+        _drive_ending(tree, clock, kind, seconds)
+    published = _published_eta(tree, clock)
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    want = [ENDING_OUTCOMES[kind] for kind, _ in plan] + ["ok"]
+    assert (outcomes, published) == (want, [("Running Session", eta)])
+
+
+@pytest.mark.parametrize(
+    ("ending", "eta"),
+    [
+        ("never-started", None),
+        ("killed", None),
+        ("usage-refused", None),
+        ("failed", 200),
+        ("ok", 200),
+    ],
+)
+def test_only_a_worker_that_exited_on_its_own_times_the_running_session(
+    tree: Path, ending: str, eta: int | None
+) -> None:
+    """Three runs of one ending: only an exit of the worker's own is a completed run.
+
+    The sibling paths of the never-started defect - a kill at the kit's
+    timeout and a usage-limit refusal - recorded a duration the same way. A
+    non-zero exit of the worker's own is the control that the clock still
+    times a run that completed, so the fix cannot pass by timing nothing.
+    """
+    clock = _Clock()
+    for seconds in (100.0, 200.0, 600.0):
+        _drive_ending(tree, clock, ending, seconds)
+    published = _published_eta(tree, clock)
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (outcomes, published) == (
+        [ENDING_OUTCOMES[ending]] * 3 + ["ok"],
+        [("Running Session", eta)],
+    )

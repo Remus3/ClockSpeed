@@ -149,6 +149,13 @@ BACKOFF_S: Final = 3600.0
 #: killing an honest one.
 WORKER_TIMEOUT_S: Final = 3 * 3600.0
 
+#: CS-1234 clause 3 - the outcomes of a COMPLETED run, the only ones the
+#: "Running Session" ETA is timed on: a worker that EXITED ON ITS OWN, the
+#: meaning `ops/loop/queue_loop.py` gives "completed". A worker that never
+#: started, one the kit killed at its timeout, and a usage-limit refusal
+#: (CS-1178: did it run at all) record the idle time and no duration.
+COMPLETED_OUTCOMES: Final = frozenset({headless_route.OUTCOME_OK, headless_route.OUTCOME_FAILED})
+
 #: This tree's floors live in hooks, and ``--bare`` skips hooks, so the kit is
 #: told so on every spawn and refuses a bare run. FLEET-KIT v11 ORDER item 3
 #: (CS-1287): a triage spawn takes ``fleet_inbox.triage_spawn_kwargs`` of this
@@ -776,8 +783,15 @@ class _Board:
             self.clock.set_idle_since(since)
         self.show("idle", "Idle", started=since)
 
-    def ended(self, finished: float, seconds: float) -> None:
-        self.clock.record("Running Session", seconds)
+    def ended(self, finished: float, seconds: float | None) -> None:
+        """A worker's pass ended at ``finished``; the idle time starts there, as the kit's does.
+
+        ``seconds`` is a duration ONLY for a completed run (CS-1234 clause 3:
+        the ETA is the median of COMPLETED instances) - see `COMPLETED_OUTCOMES`.
+        None for anything else, which records the idle time and no duration.
+        """
+        if seconds is not None:
+            self.clock.record("Running Session", seconds)
         self.clock.set_idle_since(finished)
 
     def refresh(self) -> None:
@@ -912,8 +926,9 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
     except kit.Refused as refused:
         return _refused(root, board, refused, unread, started)
     except OSError:
+        # The worker never started: no completed run, so no duration (CS-1234 clause 3).
         finished = now()
-        board.ended(finished, finished - started)
+        board.ended(finished, None)
         _log(root, finished, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
         progress.ended("spawn_failed")
         board.show("refused", kit.REFUSED_TASK)
@@ -1000,14 +1015,16 @@ def _finished(
 ) -> tuple[int, str]:
     """Classify the finished run, publish and log it. Returns the exit code and outcome word."""
     finished = now()
-    board.ended(finished, finished - started)
     if line.get("error") == "timeout":
+        # A kill at the kit's timeout is no completed run (CS-1234 clause 3).
+        board.ended(finished, None)
         _log(root, finished, "timeout", EXIT_TIMEOUT, unread=unread)
         board.idle()
         return EXIT_TIMEOUT, "timeout"
     rc = line.get("rc")
     returncode = rc if type(rc) is int else None
     outcome = headless_route.classify_exit(returncode, output)
+    board.ended(finished, finished - started if outcome in COMPLETED_OUTCOMES else None)
     if outcome == headless_route.OUTCOME_USAGE_LIMIT:
         _write_backoff(root / BACKOFF_RELPATH, finished + BACKOFF_S)
     code = _outcome_exit(outcome)
