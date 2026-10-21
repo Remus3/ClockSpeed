@@ -4,12 +4,17 @@ r"""CS-1328 (b) - the census axis for drive-rooted project paths and foreign hos
 THE TRACKED FORM of the out-of-tree v3 measurement the session 146 flip block ran inside
 the S7a..S12 window (its counts are in ``docs/LEDGER.md``, the 2026-10-18 CS-1328
 record). The measurement is v3's: the same needles, the same three populations, the same
-two scopes, the same five controls and the same count lines. What changed, so it can be
-tracked and run on any tree:
+two scopes, v3's five controls and v3's count lines. What changed, so it can be tracked
+and run on any tree:
 
-  - no drive letter is written here: the letters each root is spelled on are the repo
-    root's own drive, then the system drive (where the tree lived before ADR 0026's
-    move), or exactly those ``--drive`` names, in its order;
+  - no drive letter is written here, and none is guessed: every root is spelled on
+    EVERY letter A-Z. The SEED letters - the repo root's own drive, then the system
+    drive (where the tree lived before ADR 0026's move), or exactly the ``--drive``
+    names, in that order - are always printed, first; any other letter is printed only
+    where a root occurs on it. v3 spelled each root on two fixed letters only, so its
+    counts miss a root written behind any third letter;
+  - two controls are added (drive_coverage and sidecar_categories_live, below), so a
+    needle that is derived wrong fails a control instead of quietly counting less;
   - a POSIX absolute root is read as well as a drive-rooted one, so the arms in
     ``tests/test_census_axis.py`` - v3's own self-test, moved into the suite - run on
     any platform;
@@ -48,7 +53,8 @@ NEEDLES - built at run time, never printed; labelled by category only:
                       it names no person, account, host or home path
   main_root           MAIN's root, the main_root key of config/main_tree.local.json under
                       the repo root - the gitignored local file the tree reads it from
-Each root above is counted in two spellings per drive letter <D>, each its own needle:
+Each root above is counted in two spellings per drive letter <D> of A-Z (a letter off the
+seeds is printed only where it counts), each its own needle:
   <root>.<D>          drive spelling  <D>:<sep><c1><sep>...<cn>
   <root>.bash.<D>     Git Bash        <lead><d><sep><c1><sep>...<cn>
   any_drive           every drive-rooted path: a letter, a colon, a separator
@@ -79,7 +85,17 @@ below a sidecar root, never directly under a drive root, so it adds no needle.
 
 LIVENESS. For each sidecar category its full-closure count is printed, the occurrences
 summed over its spellings, once for full.blobs and once over all three populations, with
-zero_in_history true when the latter is 0. It is a report, not a control.
+zero_in_history true when the latter is 0. v3 printed it as a report only; here it is
+also the control sidecar_categories_live, because a needle-derivation break (a wrong
+old-worktree suffix, a wrong walk folder name) zeroes a category while the summed
+sidecar residual stays non-zero.
+
+COVERAGE. Each root is also counted, hidden, by a second construction: ONE needle per
+spelling with a letter class in place of the letter. Each per-letter needle counts a
+subset of it and no two letters overlap, so the any-letter count less the sum over all
+26 per-letter needles is the root's occurrences the per-letter needles missed. The
+control drive_coverage needs that to be 0 for every root, so a per-letter needle built
+wrong fails it instead of quietly undercounting.
 
 COUNTS, per scope, population and needle: occ (matches), lines (distinct lines holding
 one, summed over objects), objs (objects holding one). COUNTS AND BOOLEANS ONLY: no
@@ -96,6 +112,10 @@ CONTROLS. Hits never abort. A failed control prints FAIL and exits 1 - UNMEASURE
                          exactly its planted positives and none of its negatives
   walk_complete          this walk's commit, tree and blob sets equal those of
                          `git rev-list --objects <T>` (a second family)
+  drive_coverage         every root's any-letter count equals its per-letter sum, over
+                         the full closure (see COVERAGE)
+  sidecar_categories_live  every sidecar category occurs somewhere in the closure
+The first five are v3's, in v3's order; the last two are this file's.
 Exit 2 is UNMEASURED too: a usage error, a failed precondition (the tip not a full hex
 SHA or not a commit, a shallow clone, a grafts file) or a needle that cannot be derived.
 
@@ -115,6 +135,7 @@ import os
 import re
 import secrets
 import socket
+import string
 import subprocess
 import sys
 import threading
@@ -169,6 +190,9 @@ POPULATIONS: Final = ("blobs", "paths", "messages")
 ANY_LABEL: Final = "any_drive"
 BASH_LABEL: Final = "any_bash"
 ABSENT_PREFIX: Final = "absent."
+#: The hidden any-letter needles behind the drive_coverage control.
+COVER_PREFIX: Final = "cover."
+ANY_LETTER: Final = rb"[a-z]"
 
 #: Seconds one git call may take, and one git child may take to exit once closed.
 GIT_TIMEOUT_S: Final = 600
@@ -629,6 +653,16 @@ def bash_pattern(drive: str, comps: list[str]) -> re.Pattern[bytes]:
     return re.compile(BASH_LEAD + letter + SEP + _body(comps) + NAME_TAIL)
 
 
+def cover_pattern(comps: list[str]) -> re.Pattern[bytes]:
+    """The drive spelling of a root behind ANY letter; a superset of every root_pattern."""
+    return re.compile(ANY_LETTER + b":" + SEP + _body(comps) + NAME_TAIL)
+
+
+def cover_bash_pattern(comps: list[str]) -> re.Pattern[bytes]:
+    """The Git Bash spelling of a root behind ANY letter; a superset of every bash_pattern."""
+    return re.compile(BASH_LEAD + ANY_LETTER + SEP + _body(comps) + NAME_TAIL)
+
+
 def spell(drive: bytes, comps: list[bytes], sep: bytes) -> bytes:
     """A drive spelling: ``drive``, a colon, then ``comps`` joined by ``sep``."""
     return drive + b":" + sep + sep.join(comps)
@@ -764,7 +798,8 @@ def build_scanner(
         drives: The drive letters, in label order.
 
     Returns:
-        The scanner; the absent needles carry ``ABSENT_PREFIX``.
+        The scanner; the absent needles carry ``ABSENT_PREFIX``, and each root's hidden
+        any-letter needles, after every derived one, carry ``COVER_PREFIX``.
     """
     drive_roots = []
     bash_roots = []
@@ -772,6 +807,9 @@ def build_scanner(
         for drive in drives:
             drive_roots.append((f"{name}.{drive}", root_pattern(drive, comps)))
             bash_roots.append((f"{name}.{BASH}.{drive}", bash_pattern(drive, comps)))
+    for name, comps in root_comps.items():
+        drive_roots.append((f"{COVER_PREFIX}{name}", cover_pattern(comps)))
+        bash_roots.append((f"{COVER_PREFIX}{name}.{BASH}", cover_bash_pattern(comps)))
     host_list = [(f"host.{label}", name.lower().encode("ascii")) for label, name in hosts.items()]
     host_list.append((f"{ABSENT_PREFIX}host", absent_host.lower().encode("ascii")))
     return Scanner(drive_roots, bash_roots, host_list)
@@ -899,34 +937,59 @@ def matcher_selfcheck(
         drives: The drive letters.
 
     Returns:
-        True when every needle, both anchors and every host needle pass.
+        True when every needle - derived and any-letter - both anchors and every host
+        needle pass.
     """
-    for name, comps in root_comps.items():
-        cb = [c.encode("utf-8") for c in comps]
-        for drive in drives:
-            d = drive.encode("ascii")
-            positives, negatives = _drive_cases(d, cb)
-            if not _counts_exactly(
-                Scanner([(name, root_pattern(drive, comps))], [], []), 0, positives, negatives
-            ):
-                return False
-            positives, negatives = _bash_cases(d, cb)
-            if not _counts_exactly(
-                Scanner([], [(name, bash_pattern(drive, comps))], []), 0, positives, negatives
-            ):
-                return False
+    checks = [ok for name, comps in root_comps.items() for ok in _root_checks(name, comps, drives)]
     anchors = Scanner([], [], [])
     drive_pos, drive_neg, bash_pos, bash_neg = _anchor_cases()
-    if not _counts_exactly(anchors, 0, drive_pos, drive_neg):
-        return False
-    if not _counts_exactly(anchors, 1, bash_pos, bash_neg):
-        return False
+    checks.append(_counts_exactly(anchors, 0, drive_pos, drive_neg))
+    checks.append(_counts_exactly(anchors, 1, bash_pos, bash_neg))
     for label, host in hosts.items():
         h = host.encode("ascii")
         positives, negatives = _host_cases(h)
-        if not _counts_exactly(Scanner([], [], [(label, h.lower())]), 2, positives, negatives):
-            return False
-    return True
+        checks.append(
+            _counts_exactly(Scanner([], [], [(label, h.lower())]), 2, positives, negatives)
+        )
+    return all(checks)
+
+
+def _probe_letter(drives: list[str]) -> bytes | None:
+    """A letter outside ``drives``, so the any-letter needles are tried off the derived set.
+
+    None when ``drives`` holds every letter.
+    """
+    outside = [c for c in "QJXZABCDEFGHIKLMNOPRSTUVWY" if c not in drives]
+    return outside[0].encode("ascii") if outside else None
+
+
+def _root_checks(name: str, comps: list[str], drives: list[str]) -> Iterator[bool]:
+    """One root's checks.
+
+    Each derived needle counts its own letter and no other; the root's any-letter
+    needles count every derived letter and one letter outside the set.
+    """
+    cb = [c.encode("utf-8") for c in comps]
+    probe = _probe_letter(drives)
+    probe_drive = _drive_cases(probe, cb)[0] if probe is not None else []
+    probe_bash = _bash_cases(probe, cb)[0] if probe is not None else []
+    cover_d = Scanner([(name, cover_pattern(comps))], [], [])
+    cover_b = Scanner([], [(name, cover_bash_pattern(comps))], [])
+    letters = [d.encode("ascii") for d in drives]
+    for letter in [*letters, *([probe] if probe is not None else [])]:
+        d_pos, d_neg = _drive_cases(letter, cb)
+        b_pos, b_neg = _bash_cases(letter, cb)
+        yield _counts_exactly(cover_d, 0, d_pos, d_neg)
+        yield _counts_exactly(cover_b, 0, b_pos, b_neg)
+        if letter not in letters:
+            continue
+        drive = letter.decode("ascii")
+        yield _counts_exactly(
+            Scanner([(name, root_pattern(drive, comps))], [], []), 0, d_pos, d_neg + probe_drive
+        )
+        yield _counts_exactly(
+            Scanner([], [(name, bash_pattern(drive, comps))], []), 0, b_pos, b_neg + probe_bash
+        )
 
 
 def text_of(data: bytes) -> tuple[bytes, bool]:
@@ -1375,7 +1438,7 @@ def _letter(text: str) -> str | None:
 def derive_drives(
     repo_root: str, overrides: list[str] | None, system_drive: str | None
 ) -> tuple[list[str], str]:
-    """The drive letters every root is spelled on, in label order, never repeated.
+    """The seed drive letters, always printed and first in label order, never repeated.
 
     Args:
         repo_root: This repository's root, whose own drive comes first.
@@ -1533,39 +1596,99 @@ def _scan_closure(
     return cells, utf16, blob_bytes
 
 
-def _report_cells(cells: dict[tuple[str, str], Cell], labels: list[str], emit: Emit) -> Table:
-    table: Table = {}
+def label_letter(label: str) -> str | None:
+    """The drive letter a root needle's label ends with, or None for any other label."""
+    last = label.rsplit(".", 1)[-1] if "." in label else ""
+    return last if len(last) == 1 and last in string.ascii_uppercase else None
+
+
+def shown_labels(table: Table, labels: list[str], seeds: list[str]) -> list[str]:
+    """The labels a report prints, in label order.
+
+    Never a hidden (absent or any-letter) needle; a root needle only on a seed letter or
+    where it counts at least one occurrence in some cell; every other label always.
+    """
+    shown = []
+    for label in labels:
+        if label.startswith((ABSENT_PREFIX, COVER_PREFIX)):
+            continue
+        letter = label_letter(label)
+        if letter is None or letter in seeds or any(row[label][0] for row in table.values()):
+            shown.append(label)
+    return shown
+
+
+def _report_cells(
+    cells: dict[tuple[str, str], Cell], labels: list[str], seeds: list[str], emit: Emit
+) -> Table:
+    table: Table = {
+        key: {label: (cell.occ[k], cell.lines[k], cell.objs[k]) for k, label in enumerate(labels)}
+        for key, cell in cells.items()
+    }
+    shown = shown_labels(table, labels, seeds)
     for scope in SCOPES:
         for pop in POPULATIONS:
-            cell = cells[(scope, pop)]
-            emit(f"cell {scope}.{pop} objects {cell.objects}")
-            row = {}
-            for k, label in enumerate(labels):
-                row[label] = (cell.occ[k], cell.lines[k], cell.objs[k])
-                if not label.startswith(ABSENT_PREFIX):
-                    emit(
-                        f"count {scope}.{pop} {label} occ {cell.occ[k]} "
-                        f"lines {cell.lines[k]} objs {cell.objs[k]}"
-                    )
-            table[(scope, pop)] = row
+            emit(f"cell {scope}.{pop} objects {cells[(scope, pop)].objects}")
+            row = table[(scope, pop)]
+            for label in shown:
+                occ, lines, objs = row[label]
+                emit(f"count {scope}.{pop} {label} occ {occ} lines {lines} objs {objs}")
     return table
 
 
-def _report_liveness(table: Table, labels: list[str], emit: Emit) -> tuple[int, int]:
-    """One liveness line per sidecar category: (summed sidecar occ, sidecar needles)."""
+def _report_liveness(table: Table, labels: list[str], emit: Emit) -> tuple[int, int, int, int]:
+    """One liveness line per sidecar category.
+
+    Returns:
+        The full.blobs occ summed over every sidecar needle, the number of those
+        needles, the number of categories with any occurrence in the closure, and the
+        number of categories.
+    """
     full_blobs = table[("full", "blobs")]
     sidecar_labels = [label for label in labels if is_sidecar_label(label)]
     categories: dict[str, list[str]] = {}
     for label in sidecar_labels:
         categories.setdefault(sidecar_category(label) or label, []).append(label)
+    live = 0
     for category, members in categories.items():
         in_blobs = sum(full_blobs[label][0] for label in members)
         in_all = sum(table[("full", pop)][label][0] for pop in POPULATIONS for label in members)
+        live += in_all > 0
         emit(
             f"liveness {category} full_blobs_occ {in_blobs} full_all_occ {in_all} "
             f"zero_in_history {_flag(in_all == 0)}"
         )
-    return sum(full_blobs[label][0] for label in sidecar_labels), len(sidecar_labels)
+    occ = sum(full_blobs[label][0] for label in sidecar_labels)
+    return occ, len(sidecar_labels), live, len(categories)
+
+
+def uncovered(table: Table, roots: list[str], drives: list[str]) -> int:
+    """The roots' closure occurrences the per-letter needles of ``drives`` did not count.
+
+    Args:
+        table: The census table, hidden any-letter needles included.
+        roots: The root labels, absent root excluded.
+        drives: The letters whose per-letter needles are summed.
+
+    Returns:
+        Each root's any-letter occ less its per-letter occ over ``drives``, summed over
+        the full closure's three populations, both spellings and every root.
+    """
+    total = 0
+    for pop in POPULATIONS:
+        row = table[("full", pop)]
+        for name in roots:
+            for any_label, prefix in (
+                (f"{COVER_PREFIX}{name}", f"{name}."),
+                (f"{COVER_PREFIX}{name}.{BASH}", f"{name}.{BASH}."),
+            ):
+                total += row[any_label][0] - sum(row[prefix + d][0] for d in drives)
+    return total
+
+
+def scan_letters(seeds: list[str]) -> list[str]:
+    """Every drive letter the census scans: the seeds in their order, then the rest A-Z."""
+    return [*seeds, *(c for c in string.ascii_uppercase if c not in seeds)]
 
 
 def run_census(
@@ -1583,12 +1706,13 @@ def run_census(
         tip: The tip, a full lower-case hex commit id.
         root_comps: Each root's components, keyed by its category label.
         hosts: Each host name, keyed by its kind.
-        drives: The drive letters, in label order.
+        drives: The seed letters, always printed and first in label order; every other
+            letter A-Z is scanned too and printed only where a root occurs on it.
         emit: Where each report line goes.
 
     Returns:
-        The exit code (0 every control passed, 1 one failed) and the full table,
-        absent needles included.
+        The exit code (0 every control passed, 1 one failed) and the full table over
+        every letter, absent and any-letter needles included.
 
     Raises:
         UnmeasuredError: On a failed precondition or an unreadable object.
@@ -1597,10 +1721,11 @@ def run_census(
     raw_len = preconditions(repo, tip, emit)
     absent_comps = [f"cs-absent-{secrets.token_hex(12)}"]
     absent_host = f"absent-{secrets.token_hex(8)}"
-    scanner = build_scanner(root_comps, hosts, absent_comps, absent_host, drives)
+    letters = scan_letters(drives)
+    scanner = build_scanner(root_comps, hosts, absent_comps, absent_host, letters)
     labels = scanner.labels
     selfcheck_ok = matcher_selfcheck(
-        {**root_comps, "absent": absent_comps}, {**hosts, "absent": absent_host}, drives
+        {**root_comps, "absent": absent_comps}, {**hosts, "absent": absent_host}, letters
     )
     with object_reader(repo) as read:
         closure = Closure(read, tip, raw_len)
@@ -1618,10 +1743,12 @@ def run_census(
         f"head_paths {len(closure.head_paths)} blob_bytes {blob_bytes} "
         f"utf16_decoded_head {utf16['head']} utf16_decoded_full {utf16['full']}"
     )
-    table = _report_cells(cells, labels, emit)
+    table = _report_cells(cells, labels, drives, emit)
+    shown = shown_labels(table, labels, drives)
     full_blobs = table[("full", "blobs")]
-    residual = sum(full_blobs[f"repo_root.{drive}"][0] for drive in drives)
-    sidecar, sidecar_needles = _report_liveness(table, labels, emit)
+    residual = sum(full_blobs[f"repo_root.{letter}"][0] for letter in letters)
+    sidecar, sidecar_needles, live, categories = _report_liveness(table, shown, emit)
+    off_set = uncovered(table, list(root_comps), letters)
     absent_total = sum(
         v[0]
         for row in table.values()
@@ -1638,6 +1765,16 @@ def run_census(
         ("absent_token_zero", absent_total == 0, f"occ {absent_total} over 6 cells"),
         ("matcher_selfcheck", selfcheck_ok, "every needle"),
         ("walk_complete", walk_ok, "commits, trees and blobs equal rev-list --objects"),
+        (
+            "drive_coverage",
+            off_set == 0,
+            f"any-letter occ less the per-letter sum over {len(letters)} letters {off_set}",
+        ),
+        (
+            "sidecar_categories_live",
+            live == categories,
+            f"{live} of {categories} categories occur in the closure",
+        ),
     ]
     for name, ok, detail in controls:
         emit(f"control {name} {'PASS' if ok else 'FAIL'} ({detail})")

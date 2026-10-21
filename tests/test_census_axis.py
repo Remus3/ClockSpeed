@@ -63,8 +63,19 @@ EXIT_FAILED_CONTROL: Final = 1
 EXIT_UNMEASURED: Final = 2
 
 #: The number of controls a census run reports, and of sidecar categories.
-CONTROL_COUNT: Final = 5
+CONTROL_COUNT: Final = 7
 SIDECAR_CATEGORIES: Final = 6
+
+#: The exact refusal line a run with a failed control prints before its exit line.
+FAILED_CONTROL_LINE: Final = (
+    "UNMEASURED a control failed - an adjudicator rules before the count is used"
+)
+
+#: The two historical folder names this module PINS, independently of the census's own
+#: constants, so a census that derives either wrong is graded against the right one: the
+#: old worktree root's suffix after the repo folder name, and the old walk harness folder.
+WT_SUFFIX_PIN: Final = "-wt"
+WALK_PIN: Final = "cs-walk-131"
 
 #: The historical-folder source the fixture plants as ``tests/test_readme_audit.py``, in
 #: the real file's shape: an annotated, implicitly concatenated rf-string whose field is a
@@ -281,8 +292,8 @@ class World:
             "sidecar": census.split_root(str(self.sidecars)),
             "hist": HIST_NAMES,
             "bare": HIST_BARE,
-            "wt": [self.fake_repo.name + census.WT_SUFFIX],
-            "walk": [census.WALK_FOLDER],
+            "wt": [self.fake_repo.name + WT_SUFFIX_PIN],
+            "walk": [WALK_PIN],
             "main": census.split_root(str(self.fake_main)),
         }
         parts.update(replace)
@@ -322,7 +333,7 @@ def _blobs(rc: list[bytes], sc: list[bytes], mc: list[bytes], wt: list[bytes]
     d1, d2 = (d.encode("ascii") for d in DRIVES)
     l1, l2 = d1.lower(), d2.lower()
     h1, h2 = _enc(HIST_NAMES[0]), _enc(HIST_NAMES[1])
-    wk = [census.WALK_FOLDER.encode("ascii")]
+    wk = [WALK_PIN.encode("ascii")]
     bc = _enc(HIST_BARE[0])
     up = HOST.upper().encode("ascii")
     low = HOST.encode("ascii")
@@ -434,7 +445,7 @@ def world(tmp_path_factory: pytest.TempPathFactory) -> World:
     rc = _enc(census.split_root(str(fake_repo)))
     sc = _enc(census.split_root(str(sidecars)))
     mc = _enc(census.split_root(str(fake_main)))
-    wt = _enc([fake_repo.name + census.WT_SUFFIX])
+    wt = _enc([fake_repo.name + WT_SUFFIX_PIN])
     h2 = _enc(HIST_NAMES[1])
     d1, d2 = (d.encode("ascii") for d in DRIVES)
     up = HOST.upper().encode("ascii")
@@ -462,12 +473,14 @@ def world(tmp_path_factory: pytest.TempPathFactory) -> World:
     return World(base, sidecars, fake_repo, fake_main, clone, tip, hosts)
 
 
-def _run(world: World, roots: dict[str, list[str]] | None = None) -> Run:
+def _run(
+    world: World, roots: dict[str, list[str]] | None = None, drives: list[str] | None = None
+) -> Run:
     """One census run over the clone: (exit code, table, emitted lines)."""
     lines: list[str] = []
     code, table = census.run_census(
         world.clone, world.tip, world.roots() if roots is None else roots, world.hosts,
-        list(DRIVES), lines.append,
+        list(DRIVES) if drives is None else drives, lines.append,
     )  # fmt: skip
     return code, table, lines
 
@@ -530,9 +543,30 @@ def _miscounted(table: Table) -> int:
     wrong = 0
     for cell, row in table.items():
         want = expect[cell]
-        wrong += sum(1 for label in row if row[label] != want.get(label, ZERO))
+        wrong += sum(
+            1
+            for label in row
+            if not label.startswith(census.COVER_PREFIX) and row[label] != want.get(label, ZERO)
+        )
         wrong += sum(1 for label in want if label not in row)
     return wrong
+
+
+def _letters() -> list[str]:
+    """Every letter A-Z, the two ``DRIVES`` first: the letters each root is scanned on."""
+    return [*DRIVES, *(chr(c) for c in range(ord("A"), ord("Z") + 1) if chr(c) not in DRIVES)]
+
+
+def _cover_gaps(table: Table, roots: list[str]) -> int:
+    """(cell, root, spelling) triples whose any-letter occ is not the per-letter sum."""
+    gaps = 0
+    for row in table.values():
+        for name in roots:
+            drive_sum = sum(row[f"{name}.{c}"][0] for c in _letters())
+            bash_sum = sum(row[f"{name}.{census.BASH}.{c}"][0] for c in _letters())
+            gaps += row[f"{census.COVER_PREFIX}{name}"][0] != drive_sum
+            gaps += row[f"{census.COVER_PREFIX}{name}.{census.BASH}"][0] != bash_sum
+    return gaps
 
 
 def _control(lines: list[str], name: str, verdict: str) -> bool:
@@ -554,7 +588,7 @@ def test_every_cell_counts_exactly(pristine: Run) -> None:
     assert miscounted == 0
 
 
-def test_hits_never_abort_and_all_five_controls_pass(pristine: Run) -> None:
+def test_hits_never_abort_and_all_seven_controls_pass(pristine: Run) -> None:
     code, table, lines = pristine
     hits = sum(v[0] for row in table.values() for label, v in row.items()
                if not label.startswith(census.ABSENT_PREFIX))  # fmt: skip
@@ -562,11 +596,64 @@ def test_hits_never_abort_and_all_five_controls_pass(pristine: Run) -> None:
     summary = f"result controls_passed {CONTROL_COUNT} of {CONTROL_COUNT}; hits never abort"
     has_summary = summary in lines
     last_is_exit_0 = lines[-1] == "exit 0"
+    refusals = sum(1 for x in lines if x.startswith("UNMEASURED"))
     assert hits > 0
     assert code == EXIT_OK
     assert passed == CONTROL_COUNT
     assert has_summary
     assert last_is_exit_0
+    assert refusals == 0
+
+
+def test_every_root_is_scanned_on_every_letter(pristine: Run) -> None:
+    _code, table, _lines = pristine
+    want = {f"{name}.{c}" for name in ("repo_root", "main_root") for c in _letters()}
+    missing = sum(1 for label in want if label not in table[("full", "blobs")])
+    assert missing == 0
+
+
+def test_any_letter_needles_equal_the_per_letter_sum_in_every_cell(
+    world: World,
+    pristine: Run,
+) -> None:
+    _code, table, lines = pristine
+    gaps = _cover_gaps(table, list(world.roots()))
+    covered = _control(lines, "drive_coverage", "PASS")
+    assert gaps == 0
+    assert covered
+
+
+def test_the_seeds_choose_what_is_printed_never_what_is_counted(
+    world: World,
+    pristine: Run,
+) -> None:
+    _c, full_table, full_lines = pristine
+    code, table, lines = _run(world, drives=[DRIVES[0]])
+    same_table = table == full_table
+    printed = [x for x in lines if x.startswith("count ")]
+    full_printed = [x for x in full_lines if x.startswith("count ")]
+    extra = sum(1 for x in printed if x not in full_printed)
+    hits_lost = sum(1 for x in full_printed if " occ 0 " not in x and x not in printed)
+    in_order = printed == [x for x in full_printed if x in printed]
+    assert code == EXIT_OK
+    assert same_table
+    assert extra == 0
+    assert hits_lost == 0
+    assert in_order
+
+
+def test_a_seed_with_no_hits_is_printed_and_an_idle_letter_is_not(world: World) -> None:
+    idle = next(c for c in _letters() if c not in DRIVES)
+    _c, _t, quiet = _run(world)
+    _c, _t, seeded = _run(world, drives=[*DRIVES, idle])
+    idle_label = f" repo_root.{idle} "
+    printed_quiet = sum(1 for x in quiet if idle_label in x)
+    printed_seeded = sum(1 for x in seeded if idle_label in x)
+    zero_lines = sum(1 for x in seeded if idle_label in x and x.endswith(" occ 0 lines 0 objs 0"))
+    cells = len(census.SCOPES) * len(census.POPULATIONS)
+    assert printed_quiet == 0
+    assert printed_seeded == cells
+    assert zero_lines == cells
 
 
 def test_count_lines_never_name_the_absent_needles(pristine: Run) -> None:
@@ -596,9 +683,16 @@ def test_a_zero_repo_root_residual_fails_its_control(world: World) -> None:
     code, _table, lines = _run(world, world.roots(repo=_absent()))
     root_failed = _control(lines, "root_residual_nonzero", "FAIL")
     sidecar_passed = _control(lines, "sidecar_residual_nonzero", "PASS")
+    passed = sum(1 for x in lines if x.startswith("control ") and " PASS " in x)
+    summary = f"result controls_passed {CONTROL_COUNT - 1} of {CONTROL_COUNT}; hits never abort"
+    has_summary = summary in lines
+    refusal_then_exit = lines[-2:] == [FAILED_CONTROL_LINE, "exit 1"]
     assert code == EXIT_FAILED_CONTROL
     assert root_failed
     assert sidecar_passed
+    assert passed == CONTROL_COUNT - 1
+    assert has_summary
+    assert refusal_then_exit
 
 
 def test_a_zero_sidecar_residual_fails_its_control(world: World) -> None:
@@ -611,11 +705,15 @@ def test_a_zero_sidecar_residual_fails_its_control(world: World) -> None:
         1 for x in lines if x.startswith("liveness ") and x.endswith(" zero_in_history true")
     )
     sidecar_failed = _control(lines, "sidecar_residual_nonzero", "FAIL")
+    categories_failed = _control(lines, "sidecar_categories_live", "FAIL")
     root_passed = _control(lines, "root_residual_nonzero", "PASS")
+    refusal_then_exit = lines[-2:] == [FAILED_CONTROL_LINE, "exit 1"]
     assert code == EXIT_FAILED_CONTROL
     assert sidecar_failed
+    assert categories_failed
     assert root_passed
     assert zeros == SIDECAR_CATEGORIES
+    assert refusal_then_exit
 
 
 #: For each sidecar category, the replacements that leave it the only one with hits.
@@ -629,27 +727,45 @@ ALONE: Final = {
 
 
 @pytest.mark.parametrize("keep", sorted(ALONE))
-def test_each_sidecar_category_alone_carries_its_control(world: World, keep: str) -> None:
+def test_each_sidecar_category_alone_carries_the_residual_not_the_liveness(
+    world: World, keep: str
+) -> None:
     empty = {"sidecar": _absent(), "hist": [], "bare": [], "wt": _absent(), "walk": _absent()}
     code, _table, lines = _run(world, world.roots(**{k: empty[k] for k in ALONE[keep]}))
     sidecar_passed = _control(lines, "sidecar_residual_nonzero", "PASS")
-    assert code == EXIT_OK
+    categories_failed = _control(lines, "sidecar_categories_live", "FAIL")
+    assert code == EXIT_FAILED_CONTROL
     assert sidecar_passed
+    assert categories_failed
 
 
-def test_a_category_absent_from_history_aborts_nothing(world: World) -> None:
-    code, _table, lines = _run(world, world.roots(walk=_absent()))
-    walk_zero = (
-        f"liveness {census.SIDECAR_WALK} full_blobs_occ 0 full_all_occ 0 zero_in_history true"
-        in lines
-    )
-    wt_live = (
-        f"liveness {census.SIDECAR_WT} full_blobs_occ 4 full_all_occ 4 zero_in_history false"
-        in lines
-    )
-    assert code == EXIT_OK
-    assert walk_zero
-    assert wt_live
+#: Each sidecar category a needle-derivation break can zero, by its root keyword.
+ZEROED: Final = {
+    "sidecar": census.SIDECAR_ROOT,
+    "wt": census.SIDECAR_WT,
+    "walk": census.SIDECAR_WALK,
+}
+
+
+@pytest.mark.parametrize("which", sorted(ZEROED))
+def test_a_category_absent_from_history_fails_the_liveness_control_alone(
+    world: World, which: str
+) -> None:
+    code, table, lines = _run(world, world.roots(**{which: _absent()}))
+    zero = f"liveness {ZEROED[which]} full_blobs_occ 0 full_all_occ 0 zero_in_history true" in lines
+    categories_failed = _control(lines, "sidecar_categories_live", "FAIL")
+    passed = sum(1 for x in lines if x.startswith("control ") and " PASS " in x)
+    count_lines = sum(1 for x in lines if x.startswith("count "))
+    _c, _t, full_lines = _run(world)
+    full_count_lines = sum(1 for x in full_lines if x.startswith("count "))
+    refusal_then_exit = lines[-2:] == [FAILED_CONTROL_LINE, "exit 1"]
+    assert code == EXIT_FAILED_CONTROL
+    assert zero
+    assert categories_failed
+    assert passed == CONTROL_COUNT - 1
+    assert count_lines == full_count_lines
+    assert refusal_then_exit
+    assert len(table) == len(census.SCOPES) * len(census.POPULATIONS)
 
 
 def test_absent_needles_are_live_when_planted(world: World) -> None:
@@ -726,6 +842,8 @@ MUTANTS: Final = (
     ("walk_complete", "rev_list_family", _mutate_walk, "walk_complete"),
     ("absent_token_zero", "secrets", _constant(SimpleNamespace(token_hex=lambda _n: PLANT)),
      "absent_token_zero"),
+    ("drive_coverage", "root_pattern", _constant(lambda _drive, _comps: re.compile(rb"(?!)")),
+     "drive_coverage"),
 )  # fmt: skip
 
 
@@ -754,6 +872,20 @@ def test_each_mutant_turns_its_arm_red(
     failed = _control(lines, oracle, "FAIL")
     assert code == EXIT_FAILED_CONTROL
     assert failed
+
+
+def test_a_census_that_scans_only_its_seeds_fails_drive_coverage(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(census, "scan_letters", list)
+    landed = census.scan_letters is list
+    code, _table, lines = _run(world, drives=[DRIVES[0]])
+    covered_failed = _control(lines, "drive_coverage", "FAIL")
+    refusal_then_exit = lines[-2:] == [FAILED_CONTROL_LINE, "exit 1"]
+    assert landed
+    assert code == EXIT_FAILED_CONTROL
+    assert covered_failed
+    assert refusal_then_exit
 
 
 # --- the command line -------------------------------------------------------------------
@@ -792,12 +924,16 @@ def test_cli_prints_counts_and_booleans_only(
     }
     missing = len(derived - set(out))
     leaks = [world.base.name, "fakerepo", "fakemain", HOST, "oldlanes", "old-backup", "oldcars",
-             census.WALK_FOLDER, world.tip, world.tip[:7]]  # fmt: skip
+             WALK_PIN, world.tip, world.tip[:7]]  # fmt: skip
     low = text.lower()
     leaked = sum(1 for s in leaks if s.lower() in low)
     drive_rooted = census.ANY_DRIVE.search(low.encode("ascii", "replace")) is not None
     bash_rooted = census.ANY_BASH.search(low.encode("ascii", "replace")) is not None
     ascii_only = text.isascii()
+    summary = f"result controls_passed {CONTROL_COUNT} of {CONTROL_COUNT}; hits never abort"
+    has_summary = summary in out
+    last_is_exit_0 = out[-1] == "exit 0"
+    refusals = sum(1 for x in out if x.startswith("UNMEASURED"))
     assert code == EXIT_OK
     assert same_counts
     assert missing == 0
@@ -805,6 +941,120 @@ def test_cli_prints_counts_and_booleans_only(
     assert not drive_rooted
     assert not bash_rooted
     assert ascii_only
+    assert has_summary
+    assert last_is_exit_0
+    assert refusals == 0
+
+
+def _other_root(tmp_path: Path, world: World) -> Path:
+    """A second repo root, named as the fixture's is, whose own path no blob spells.
+
+    Every other derived root - the sidecar root, both historical folders, the bare folder,
+    the old worktree root, the walk folder and MAIN's root - matches the fixture's, so a
+    census run against it fails exactly one control: root_residual_nonzero.
+    """
+    root = tmp_path / world.fake_repo.name
+    root.joinpath(".git").mkdir(parents=True)
+    root.joinpath(*census.MAIN_CONFIG).parent.mkdir()
+    root.joinpath(*census.MAIN_CONFIG).write_bytes(
+        json.dumps({census.MAIN_KEY: str(world.fake_main)}).encode("utf-8")
+    )
+    root.joinpath(*census.HIST_SOURCE).parent.mkdir()
+    root.joinpath(*census.HIST_SOURCE).write_bytes(HIST_FIXTURE.encode("utf-8"))
+    return root
+
+
+def test_cli_pins_the_exit_line_the_return_code_and_the_refusal_on_a_failed_control(
+    world: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:  # fmt: skip
+    monkeypatch.setattr(census, "derive_hosts", lambda: (dict(world.hosts), 0))
+    root = _other_root(tmp_path, world)
+    argv = ["--repo", str(world.clone), "--tip", world.tip, "--root", str(root),
+            "--sidecars", str(world.sidecars), *_drive_args()]  # fmt: skip
+    code, text = _main(argv, capsys)
+    out = text.splitlines()
+    root_failed = _control(out, "root_residual_nonzero", "FAIL")
+    failed = sum(1 for x in out if x.startswith("control ") and " FAIL " in x)
+    summary = f"result controls_passed {CONTROL_COUNT - 1} of {CONTROL_COUNT}; hits never abort"
+    has_summary = summary in out
+    refusal_then_exit = out[-2:] == [FAILED_CONTROL_LINE, "exit 1"]
+    refusals = sum(1 for x in out if x.startswith("UNMEASURED"))
+    assert code == EXIT_FAILED_CONTROL
+    assert root_failed
+    assert failed == 1
+    assert has_summary
+    assert refusal_then_exit
+    assert refusals == 1
+
+
+#: Which system drive the needle-set arm plants, by letter, as a synthetic value.
+SYNTHETIC_SYSTEM_DRIVE: Final = DRIVES[1] + ":"
+
+
+def _components(text: str) -> list[str]:
+    """This module's own split of a root: after its drive letter or its leading '/'."""
+    body = re.sub(r"^[A-Za-z]:", "", text)
+    return [c for c in re.split(r"[\\/]+", body) if c and c != "."]
+
+
+def _letter_of(text: str) -> str | None:
+    match = re.match(r"([A-Za-z]):", text)
+    return match.group(1).upper() if match is not None else None
+
+
+def test_cli_derives_exactly_the_needle_set_the_fixture_defines(
+    world: World,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seen: dict[str, tuple[object, ...]] = {}
+
+    def spy_census(*args: object) -> tuple[int, Table]:
+        seen["census"] = args
+        return EXIT_OK, {}
+
+    real_drives = census.derive_drives
+
+    def spy_drives(root: str, overrides: object, system: object) -> object:
+        seen["drives_from"] = (root,)
+        return real_drives(root, overrides, system)
+
+    monkeypatch.setattr(census, "derive_hosts", lambda: (dict(world.hosts), 0))
+    monkeypatch.setattr(census, "run_census", spy_census)
+    monkeypatch.setattr(census, "derive_drives", spy_drives)
+    monkeypatch.setenv("SYSTEMDRIVE", SYNTHETIC_SYSTEM_DRIVE)
+    code, _text = _main(["--repo", str(world.clone), "--tip", world.tip], capsys)
+    call = seen.get("census", (None,) * 6)
+    tip, roots, hosts, drives = call[1], call[2], call[3], call[4]
+    want_roots = {
+        "repo_root": _components(str(world.fake_repo)),
+        census.SIDECAR_ROOT: _components(str(world.sidecars)),
+        f"{census.SIDECAR_HIST}1": HIST_NAMES[0],
+        f"{census.SIDECAR_HIST}2": HIST_NAMES[1],
+        f"{census.SIDECAR_BARE}1": HIST_BARE[0],
+        census.SIDECAR_WT: [world.fake_repo.name + WT_SUFFIX_PIN],
+        census.SIDECAR_WALK: [WALK_PIN],
+        "main_root": _components(str(world.fake_main)),
+    }
+    want_drives: list[str] = []
+    for letter in (_letter_of(str(world.fake_repo)), DRIVES[1]):
+        if letter is not None and letter not in want_drives:
+            want_drives.append(letter)
+    drives_from = str(seen.get("drives_from", ("",))[0])
+    from_root = census.same_path(Path(drives_from), world.fake_repo) if drives_from else False
+    distinct = not census.same_path(world.clone, world.fake_repo)
+    same_roots = roots == want_roots
+    same_drives = drives == want_drives
+    same_hosts = hosts == world.hosts
+    same_tip = tip == world.tip
+    assert code == EXIT_OK
+    assert same_roots
+    assert same_drives
+    assert same_hosts
+    assert same_tip
+    assert distinct
+    assert from_root
 
 
 def test_cli_accepts_the_checkout_itself_as_its_root(
@@ -1014,7 +1264,7 @@ def test_historical_folders_fail_closed_on_each_bad_source(
 
 
 def test_the_old_worktree_root_is_the_repo_folder_plus_its_suffix(world: World) -> None:
-    same = census.derive_wt_root(world.fake_repo) == [world.fake_repo.name + census.WT_SUFFIX]
+    same = census.derive_wt_root(world.fake_repo) == [world.fake_repo.name + WT_SUFFIX_PIN]
     assert same
 
 
