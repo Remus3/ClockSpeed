@@ -607,3 +607,104 @@ def test_every_phase_reason_code_is_distinct() -> None:
     codes = [getattr(phases, name) for name in phases.__all__ if name.startswith("REASON_")]
     assert len(codes) == len(set(codes))
     assert len(codes) > 1
+
+
+# ---------------------------------------------------------------------------
+# CS-1339 - the cost guards read every total, not only the first
+# ---------------------------------------------------------------------------
+
+#: A positive amount, planted on the valid line beside the non-positive one.
+VALID_LINE_COST: Final = 5
+#: Two-line costs, ingot then plate, with the zero on the SECOND line and then
+#: on the FIRST - the ingot sorts before the plate, so each holds in source AND
+#: sorted order - and the item the null must name. The guard reads sorted
+#: totals, so a check that read only the first total passes the first cost, and
+#: one that read only the last total passes the second.
+NONPOSITIVE_PHASE_COSTS: Final = (
+    (
+        (CostLine(INGOT_ITEM, Fraction(VALID_LINE_COST)), CostLine(PLATE_ITEM, Fraction(0))),
+        PLATE_ITEM,
+    ),
+    (
+        (CostLine(INGOT_ITEM, Fraction(0)), CostLine(PLATE_ITEM, Fraction(VALID_LINE_COST))),
+        INGOT_ITEM,
+    ),
+)
+#: A cost item the synthetic registry does not declare, spelled to sort AFTER
+#: the plate. The ghost arm's ghost sorts before it, so a check that read only
+#: the first sorted total still caught that one.
+LATE_GHOST_ITEM: Final = "Desc_SynthZGhost_C"
+#: Two-line costs, plate and late ghost, with the ghost LAST in source order and
+#: then FIRST. The late ghost sorts after the plate, so it is last in sorted
+#: order in both. A check that read only the first sorted total passes the
+#: first cost, and one that read only the last source line passes the second.
+UNRESOLVED_PHASE_COSTS: Final = (
+    (CostLine(PLATE_ITEM, Fraction(PLATE_COST)), CostLine(LATE_GHOST_ITEM, Fraction(PLATE_COST))),
+    (CostLine(LATE_GHOST_ITEM, Fraction(PLATE_COST)), CostLine(PLATE_ITEM, Fraction(PLATE_COST))),
+)
+
+
+@pytest.mark.parametrize(
+    ("lines", "zero_item"), NONPOSITIVE_PHASE_COSTS, ids=["zero-second", "zero-first"]
+)
+def test_a_non_positive_phase_cost_on_either_line_is_null_never_an_error(
+    lines: tuple[CostLine, ...], zero_item: str
+) -> None:
+    """A zero on either of two cost lines nulls every figure by name.
+
+    The zero is second in both orders in one case and first in both in the
+    other, so a guard that read only one end of the sorted totals would hand
+    the zero to the required-rate figure, which refuses it by raising.
+
+    Args:
+        lines: The two cost lines, ingot first.
+        zero_item: The item on the non-positive line, which the null names.
+    """
+    assert INGOT_ITEM < PLATE_ITEM
+    source = MeasuredSource(entries={COSTED_PHASE: lines})
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+    machine_reason = cost.machine.reason
+    assert machine_reason == phases.REASON_NONPOSITIVE_COST
+    reasons_named = null_reasons(cost) == [phases.REASON_NONPOSITIVE_COST] * 3
+    assert reasons_named
+    all_null = rendered_nulls(cost) == [True, True, True]
+    assert all_null
+    detail, required_reason = cost.machine.detail, cost.required.reason
+    assert detail == zero_item
+    assert required_reason == phases.REASON_NONPOSITIVE_COST
+    required_withheld = cost.required.values is None
+    assert required_withheld
+
+
+@pytest.mark.parametrize("lines", UNRESOLVED_PHASE_COSTS, ids=["ghost-last", "ghost-first"])
+def test_an_unresolved_phase_cost_item_on_either_line_is_null(
+    lines: tuple[CostLine, ...],
+) -> None:
+    """A ghost on either of two cost lines nulls the three figures.
+
+    The ghost is last in source order in one case and first in the other, and
+    last in sorted order in both. A check that read only the first sorted
+    total, or only the last source line, would pass a selection that makes
+    plates on to the solve, which refuses the ghost under the wrong reason.
+
+    Args:
+        lines: The two cost lines, one a plate and one the late ghost.
+    """
+    assert PLATE_ITEM < LATE_GHOST_ITEM
+    registry = synthetic_registry()
+    ghost_declared = LATE_GHOST_ITEM in registry.items
+    assert not ghost_declared
+    source = MeasuredSource(entries={COSTED_PHASE: lines})
+    cost = phases.phase_cost(source, registry, COSTED_PHASE, selection())
+    machine_reason = cost.machine.reason
+    assert machine_reason == phases.REASON_UNRESOLVED_COST_ITEM
+    reasons_named = null_reasons(cost) == [phases.REASON_UNRESOLVED_COST_ITEM] * 3
+    assert reasons_named
+    all_null = rendered_nulls(cost) == [True, True, True]
+    assert all_null
+    detail = cost.machine.detail
+    assert detail == LATE_GHOST_ITEM
+    required = cost.required.values
+    assert required is not None
+    required_keys_kept = sorted(required) == [PLATE_ITEM, LATE_GHOST_ITEM]
+    assert required_keys_kept

@@ -526,3 +526,69 @@ def test_every_milestone_reason_code_is_distinct() -> None:
     codes = [getattr(milestones, name) for name in milestones.__all__ if name.startswith("REASON_")]
     assert len(codes) == len(set(codes))
     assert len(codes) > 1
+
+
+# ---------------------------------------------------------------------------
+# CS-1339 - the non-positive guard reads every cost line, not only the first
+# ---------------------------------------------------------------------------
+
+#: Two hand-built costs whose non-positive line comes SECOND. The first is
+#: second in source order only - the plate sorts before the rotor, so it is
+#: first in the guard's sorted totals. The second is second in source order
+#: AND in sorted ClassName order. The arm above always plants the bad line
+#: first, so a guard that read only the first line, in either order, passed it.
+LATER_NONPOSITIVE_COSTS: Final = (
+    (CostLine(ROTOR_ITEM, Fraction(ROTOR_AMOUNT)), CostLine(PLATE_ITEM, Fraction(0))),
+    (CostLine(PLATE_ITEM, Fraction(PLATE_AMOUNT)), CostLine(ROTOR_ITEM, Fraction(0))),
+)
+
+
+@pytest.mark.parametrize(
+    "cost",
+    LATER_NONPOSITIVE_COSTS,
+    ids=["second-in-source-order", "second-in-source-and-sorted-order"],
+)
+def test_a_non_positive_amount_on_a_later_cost_line_is_flagged_and_published_null(
+    cost: tuple[CostLine, ...],
+) -> None:
+    """A zero on the second cost line nulls the requirement, as one on the first does.
+
+    The catalog is hand-built, as in the arm above, so the catalog's own amount
+    flag is skipped and this model's guard alone stands between the zero and a
+    published zero rate.
+
+    Args:
+        cost: The two cost lines, the non-positive one second.
+    """
+    assert PLATE_ITEM < ROTOR_ITEM
+    first_amount, second_amount = cost[0].amount, cost[1].amount
+    assert first_amount > 0
+    assert second_amount == 0
+    unflagged = Schematic(
+        class_name=ZERO_MILESTONE,
+        tech_tier=1,
+        type_token=TYPE_MILESTONE,
+        cost=cost,
+        purchase_dependencies=(),
+        phase_dependency=None,
+        dependencies_complete=True,
+    )
+    catalog = SchematicCatalog(
+        schematics=MappingProxyType({ZERO_MILESTONE: unflagged}),
+        warnings=(),
+        entries_offered=1,
+        entries_skipped=0,
+        costs_parsed=1,
+        costs_flagged=0,
+    )
+    plan = milestones.milestone_requirement(
+        catalog, synthetic_registry(), unlock_state(), ZERO_MILESTONE
+    )
+    reason = plan.reason
+    assert reason == milestones.REASON_NONPOSITIVE_COST
+    rates_withheld = plan.rates is None
+    assert rates_withheld
+    cost_withheld = plan.cost is None
+    assert cost_withheld
+    unresolved_lines = plan.unresolved_lines
+    assert unresolved_lines is None
