@@ -1307,8 +1307,11 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: can be repaired where it stands. RENAMED rows aimed at the surviving arms were
 #: adjudicated and REFUSED: those arms grade different code and never graded the
 #: lane's closure, so a three-direction check would hold up a false mapping. The
-#: three class 9 rows are NO_TARGET, pinned by site. THESE NOTCHES ARE PERMANENT:
-#: they come back only if the lane's record is retired to the deep archive.
+#: three class 9 rows are NO_TARGET, pinned by site. THESE NOTCHES ARE PERMANENT
+#: WHILE EITHER RECORD STANDS: each row pins two sites, one in the lane's CLOSED
+#: record and one in the newer record that supersedes that closure and cites the
+#: same arm again, so a notch comes back only if BOTH records are retired to the
+#: deep archive.
 FORGIVEN_LINE_POINTER_CEILING: Final = 70
 
 

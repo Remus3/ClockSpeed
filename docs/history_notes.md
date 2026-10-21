@@ -24,6 +24,71 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1339 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1339
+
+### Filed 2026-10-21 by the queue lane, out of CS-1043's verifier pass
+
+**THIS IS AN ANTI-VACUITY ROW, NOT A DEFECT IN A PUBLISHED RATE.** CS-1043's verifier
+CONFIRMED its clause and reported this separately as OUT OF CLAUSE: the arm that grades
+"each required rate" feeds a cost list of ONE item, so the word `each` is satisfied over a
+one-element set. A reader that priced only the FIRST of several cost entries and dropped the
+rest would pass that arm unchanged. The rate's VALUE is graded and mutation-proven; the
+arm's POPULATION is what is thin.
+
+**IT IS CHEAP AND THE FIXTURE ALREADY ADMITS IT.** `cost_blob` in
+`tests/progress/test_milestones.py` takes varargs, so a multi-item cost is a one-line
+fixture change rather than a new helper. It was filed rather than folded into CS-1043
+because that item's candidate was frozen and its one verifier pass had already returned -
+a verdict covers only the tree it was taken over.
+
+**DO NOT WIDEN THIS INTO A REVIEW OF THE OTHER ARMS.** The five sibling arms were each
+mutation-proven during CS-1043's cycle (the join, the derived delivery flag, the truthiness
+collapse, the unconditional null and the budget constant all reddened their own arm). This
+row is the one population the probes did not cover.
+
+### RETARGETED - recorded 2026-10-21 (session 150) by the session 150 merger
+
+**THE CLAUSE WAS WRITTEN AGAINST THE QUEUE LANE'S CODE, AND IT NOW NAMES THIS TREE'S.** The
+lane's CS-1043 version was superseded by adjudication (`docs/LEDGER.md`, 2026-10-21, CS-1043)
+and this tree's version replaced it at the same paths, so the old clause's
+`MILESTONE_BUDGET_MINUTES` and the body's `cost_blob` above name nothing in the tree. An
+independent mutation verifier (agent-reported), run on the landed CS-1043 tree, planted
+"first cost entry only" mutants across the progress layer: the suite killed 19 of 22, the
+rate site this item was filed for among them. The three survivors are guard checks that every
+arm feeds with the bad entry first: the `nonpositive-cost` check in
+`clockspeed/progress/milestones.py::milestone_requirement`, and the `nonpositive-cost` and
+`unresolved-cost-item` checks in `clockspeed/progress/phases.py::_costed`.
+
+**FIRST MEANS FIRST IN EITHER ORDER.** `clockspeed/progress/milestones.py::cost_totals` sorts
+by ClassName, so an entry written second can still be read first:
+`tests/progress/test_phases.py::test_a_phase_cost_item_the_registry_does_not_resolve_is_null`
+writes its unresolved item second, and that item sorts first. A test that reddens a
+first-entry mutant puts the bad entry first in neither order.
+
+**DECISION:** retarget the clause to the three surviving checks, one test each, named by
+function and reason code. **ALTERNATIVES REJECTED:** closing CS-1339 as met because the rate
+site is now killed - the population hole it names survives at three sites in the same layer;
+reading the old names as this tree's `COMPLETION_BUDGET_MINUTES` and fixture - the rate site
+needs no new test, so the item would close on work already done; one combined test for all
+three checks - a single red cannot say which check reads only the first entry. **WHY:** the
+item's subject is the first-entry population, and the verifier measured where that population
+is still thin in the code that ships. The `ROADMAP.md` headline names no lane-only symbol and
+stands.
+
+### Acceptance
+
+three new tests, one per guard check, each feeding a cost of at least two items whose bad entry is first in neither its source order nor the sorted ClassName order of `clockspeed/progress/milestones.py::cost_totals`, and each asserting the published reason exactly: in `tests/progress/test_milestones.py`, a non-positive amount on a later entry makes `clockspeed/progress/milestones.py::milestone_requirement` publish no rates under `nonpositive-cost`, on a catalog built directly because through the document the schematic normalizer's non-positive-amount flag makes the cost None first; in `tests/progress/test_phases.py`, a non-positive amount on a later entry and, in a separate test, a later entry naming no registry item make `clockspeed/progress/phases.py::phase_cost` publish its machine, miner and resource figures null under `nonpositive-cost` and `unresolved-cost-item` respectively; and each test is shown red against its own check rewritten to read only the first cost entry, by planting that mutation and quoting the test it fails
+
+### Full headline
+
+CS-1043's rate arm grades "each required rate" over a one-element cost list, so a reader that prices only the first cost entry of several survives it
+
+
 ## CS-1043 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

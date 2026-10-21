@@ -75,6 +75,50 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1339 - CLOSED: each of the progress layer's three cost guard checks is pinned by a test that a first-entry-only read fails
+Verification: `tests/progress/test_milestones.py::test_a_non_positive_amount_on_a_later_cost_line_is_flagged_and_published_null`,
+`tests/progress/test_phases.py::test_a_non_positive_phase_cost_on_either_line_is_null_never_an_error`
+and `::test_an_unresolved_phase_cost_item_on_either_line_is_null`, over
+`clockspeed/progress/milestones.py::milestone_requirement` and
+`clockspeed/progress/phases.py::phase_cost`.
+MERGED: tests only, `tests/progress/test_milestones.py` and `tests/progress/test_phases.py`. The
+CS-1339 slice's three commits were applied in order and committed as one on main, and both files
+read back byte-equal to the slice's final blobs. No production file changed.
+THE CLAUSES, named by behaviour since the `### Acceptance` numbers none. THREE NEW TESTS, ONE PER
+GUARD CHECK: MET - the three above, for the `nonpositive-cost` check in
+`clockspeed/progress/milestones.py::milestone_requirement` and the `nonpositive-cost` and
+`unresolved-cost-item` checks in `clockspeed/progress/phases.py::_costed`. A COST OF AT LEAST TWO
+ITEMS WHOSE BAD ENTRY IS FIRST IN NEITHER SOURCE NOR SORTED ORDER: MET - each test runs two
+two-line cases, and one case of each holds it: the milestone test's
+`second-in-source-and-sorted-order`, the phase non-positive test's `zero-second` and the
+unresolved test's `ghost-last`. Each test's other case puts the bad entry first in sorted order
+(`second-in-source-order`), first in both orders (`zero-first`) or first in source order
+(`ghost-first`). EACH ASSERTING THE PUBLISHED REASON EXACTLY: MET - the milestone test asserts
+`clockspeed/progress/milestones.py::REASON_NONPOSITIVE_COST` with no rates, no cost and no
+unresolved lines published; the phase tests assert the machine, miner and resource reasons all
+equal `clockspeed/progress/phases.py::REASON_NONPOSITIVE_COST` or
+`clockspeed/progress/phases.py::REASON_UNRESOLVED_COST_ITEM`, with all three figures rendered
+null. A CATALOG BUILT DIRECTLY for the milestone test: MET - it builds its
+`clockspeed/data/schematics.py::SchematicCatalog` by hand with no cost flagged. SHOWN RED AGAINST
+ITS OWN CHECK READING ONLY THE FIRST COST ENTRY, THE MUTATION PLANTED AND THE FAILING TEST
+QUOTED: MET by an independent mutation verifier on a clone of the slice's final tree
+(agent-reported; its results file read back by this record's author). It planted five rewrites
+at each check - first source line only, first sorted total only, last source line only, last
+sorted total only, and the check skipped - and its results record all 15 applied, all 15 killed
+and every file restored by hash, over a pristine run of 84 passed. The first-entry kills, as its
+results quote them: at the milestone check, the first source line by both cases of the milestone
+test and the first sorted total by `second-in-source-and-sorted-order`; at the phase
+non-positive check, both by `zero-second`; at the unresolved check, the first sorted total by
+both cases of the unresolved test, and the first source line by `ghost-last` and by
+`tests/progress/test_phases.py::test_a_phase_cost_item_the_registry_does_not_resolve_is_null`.
+TWO REPAIR ROUNDS came before that pass: the verifier's earlier passes found a last-sorted-total
+rewrite surviving at the phase non-positive check, then a last-source-line rewrite surviving at
+the unresolved check, and each repair added the second case to that test and renamed it.
+DECISION: CLOSE, every clause met. RELOCATED: the section moved word for word from
+`docs/item_notes/phase5.md` to `docs/history_notes.md`, and its `ROADMAP.md` line is dropped.
+Reversed by: a first-entry-only read at any of the three checks that the progress suite passes -
+new work under a new ID.
+
 ### 2026-10-21 - CS-700 - CORRECTION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The 2026-10-20 CS-700 record's daily-cap gap on the 1330 ANSWER is this tree's own, not the kit's
 Verification: `tools/outbound_send.py::main` and `tools/outbound_send.py::perform_send`, read
 against `ops/fleet_kit/fleet_inbox.py::OutboundCap`; the `BACKLOG.md` line from the session 150
