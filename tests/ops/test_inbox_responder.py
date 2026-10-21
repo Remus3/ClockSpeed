@@ -18,6 +18,7 @@ arm grades the line STRUCTURALLY and binds each finding to a bool.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import json
 import os
@@ -1678,24 +1679,45 @@ def test_an_unreachable_proxy_still_exits_as_a_route_refusal_and_never_backs_off
 #: Every refusal cause an arm can plant through the REAL kit spawn. The kit
 #: raises ONE refusal - the first cause in its own check order - so with two
 #: causes standing, the responder must publish the kit's write for THAT one.
-#: The budget lock held busy is left out: the kit waits its full lock_wait (10
-#: s) for it, and it is a budget-stage cause like "budget-unreadable", which
-#: every pre-budget cause outranks the same way.
+#: "lock-busy" holds the real budget lock while the kit asks for it, with the
+#: kit's lock wait cut to `_QUICK_LOCK_WAIT_S` so the suite does not wait 10 s;
+#: "route-missing" is the kit's own `read_route` of an absent route file.
 CAUSES: Final = (
     "halted",
     "fallback-halted",
+    "route-missing",
     "refused",
     "blocked",
     "budget-full",
     "budget-unreadable",
+    "lock-busy",
 )
 
-#: The two causes that cannot stand together: both are the one budget file.
-_EXCLUSIVE: Final = frozenset({"budget-full", "budget-unreadable"})
+#: The pairs that cannot stand together: one budget file, and one route seam.
+_EXCLUSIVE: Final = (
+    frozenset({"budget-full", "budget-unreadable"}),
+    frozenset({"fallback-halted", "route-missing"}),
+)
 
 CAUSE_SETS: Final = [(cause,) for cause in CAUSES] + [
-    pair for pair in itertools.combinations(CAUSES, 2) if set(pair) != _EXCLUSIVE
+    pair for pair in itertools.combinations(CAUSES, 2) if frozenset(pair) not in _EXCLUSIVE
 ]
+
+_QUICK_LOCK_WAIT_S: Final = 0.1
+_REAL_BUDGET: Final = kit.RunBudget
+
+
+def _quick_budget(path: Any, **kwargs: Any) -> Any:
+    """The kit's own budget, with a lock wait short enough for a suite."""
+    kwargs.setdefault("lock_wait", _QUICK_LOCK_WAIT_S)
+    return _REAL_BUDGET(path, **kwargs)
+
+
+def _route_missing() -> Callable[[], dict[str, Any]]:
+    """The kit's own route read of a file that is not there: Refused "route-missing"."""
+    absent = Path(tempfile.gettempdir()) / "ir-absent-route" / "headless_route.json"
+    return lambda: kit.read_route(absent)
+
 
 #: For each state the kit can write on a refusal, the exits and log outcomes
 #: the responder may pair with it - "refused" covers a route refusal (exit 3)
@@ -1723,6 +1745,10 @@ def _plant_causes(
             surface = _racing_surface(tree)
         elif cause == "fallback-halted":
             overrides["route_source"] = _fallback_halted_route()
+        elif cause == "route-missing":
+            overrides["route_source"] = _route_missing()
+        elif cause == "lock-busy":
+            pass  # held by `_drive`, for the length of the pass only
         elif cause == "refused":
             overrides["url_source"] = lambda: None
         elif cause == "blocked":
@@ -1747,7 +1773,12 @@ def _drive(tree: Path, causes: tuple[str, ...]) -> tuple[list[tuple[Any, Any]], 
             kit_wrote.append(_pair(tree))
             raise
 
-    code = _run(tree, spy, seams=seams, surface=surface, spawn=recording)
+    with contextlib.ExitStack() as stack:
+        if "lock-busy" in causes:
+            patch = stack.enter_context(pytest.MonkeyPatch.context())
+            patch.setattr(kit, "RunBudget", _quick_budget)
+            stack.enter_context(_REAL_BUDGET(_budget_file(tree))._lock())  # noqa: SLF001
+        code = _run(tree, spy, seams=seams, surface=surface, spawn=recording)
     return kit_wrote, code, len(spy.calls)
 
 
@@ -1816,15 +1847,122 @@ def test_a_halt_is_shown_since_its_sentinel_was_placed(tree: Path, rel: str) -> 
     assert (_pair(tree), since) == (("halted", "Halted"), T0 - 3600)
 
 
-def test_two_standing_sentinels_show_the_halt_since_the_earliest(tree: Path) -> None:
-    """With an own stop and a declared one standing, the halt began at the older one."""
+#: The main-spawn hold, declared LAST in this tree's declaration.
+HOLD: Final = "ops/loop/control/HOLD_MAIN_SPAWN"
+
+
+@pytest.mark.parametrize(
+    ("stop_age", "hold_age"),
+    [(600, 7200), (7200, 600)],
+    ids=["older-declared-last", "older-declared-first"],
+)
+def test_two_standing_sentinels_show_the_halt_since_the_earliest(
+    tree: Path, stop_age: int, hold_age: int
+) -> None:
+    """With an own stop and a declared one standing, the halt began at the older one.
+
+    BOTH ORDERS, so neither the first nor the last stamp can pass for the
+    oldest: STOP is declared first and HOLD_MAIN_SPAWN last, and each is the
+    older in one arm (kills a first-stamp and a last-stamp mutant alike).
+    """
     _declare(tree)
-    for rel, age in (("ops/loop/control/STOP", 600), ("ops/loop/control/HOLD_MAIN_SPAWN", 7200)):
+    order = [DECLARED.index(rel) for rel in ("ops/loop/control/STOP", HOLD)]
+    for rel, age in (("ops/loop/control/STOP", stop_age), (HOLD, hold_age)):
         _plant(tree, rel)
         _aged(tree / rel, T0 - age)
     _run(tree, RunSpy())
     since = datetime.fromisoformat(_status(tree)["task_started"]).timestamp()
-    assert since == T0 - 7200
+    assert (order == sorted(order), since) == (True, T0 - max(stop_age, hold_age))
+
+
+def test_a_dangling_link_sentinel_is_dated_from_the_links_own_mtime(tree: Path) -> None:
+    """The kit counts a dangling link as standing, so its age is the LINK's own lstat mtime.
+
+    Following the link finds nothing, so a stat-based reading drops it and
+    dates the halt from the tick. The pass clock sits an hour past the link.
+    """
+    link = _control(tree) / inbox_responder.STOP_RELPATHS[0]
+    try:
+        link.symlink_to(tree / "absent-target")
+    except (OSError, NotImplementedError):
+        pytest.skip("this machine cannot create a symbolic link")
+    placed = float(int(os.lstat(link).st_mtime))
+    _run(tree, RunSpy(), now=lambda: placed + 3600)
+    since = datetime.fromisoformat(_status(tree)["task_started"]).timestamp()
+    assert (_pair(tree), since) == (("halted", "Halted"), placed)
+
+
+def test_the_responders_own_older_stop_dates_a_halt_a_narrow_declaration_names(
+    tree: Path,
+) -> None:
+    """A declaration that omits STOP and INBOX_STOP: the own floor still halts, and dates it.
+
+    With the declared hold standing beside the responder's own STOP, the
+    halt began at the own, older one - the floor is never dropped once the
+    kit names a declared hit.
+    """
+    _declare(tree, json.dumps({"paths": [HOLD]}).encode("ascii"))
+    own = _control(tree) / inbox_responder.STOP_RELPATHS[0]
+    own.write_bytes(b"")
+    _aged(own, T0 - 7200)
+    _plant(tree, HOLD)
+    _aged(tree / HOLD, T0 - 600)
+    spy = RunSpy()
+    code = _run(tree, spy)
+    since = datetime.fromisoformat(_status(tree)["task_started"]).timestamp()
+    assert (code, len(spy.calls), _pair(tree), since) == (0, 0, ("halted", "Halted"), T0 - 7200)
+
+
+def _lock_busy_refusal(tmp_path: Path) -> Exception:
+    """The kit's own lock-busy refusal: its budget lock held for real while a second asks."""
+    path = tmp_path / "budget.json"
+    with _REAL_BUDGET(path)._lock(), pytest.raises(kit.Refused) as caught:  # noqa: SLF001
+        _REAL_BUDGET(path, lock_wait=_QUICK_LOCK_WAIT_S).start()
+    return caught.value
+
+
+def _route_missing_refusal() -> Exception:
+    with pytest.raises(kit.Refused) as caught:
+        _route_missing()()
+    return caught.value
+
+
+@pytest.mark.parametrize(
+    ("make", "code"),
+    [(_lock_busy_refusal, "budget-lock-busy"), (None, "route-missing")],
+    ids=["lock-busy", "route-missing"],
+)
+def test_the_kits_lock_busy_and_route_missing_codes_map_to_the_kits_own_state(
+    tmp_path: Path, make: Callable[[Path], Exception] | None, code: str
+) -> None:
+    """The REAL kit refusals, by their exact codes, map to "refused" / Idle - the kit's write.
+
+    Both are written "refused" / Idle by the kit (`_spawn_slotted` for a
+    budget-stage refusal, `_refused_status` for a route one), never a limit.
+    """
+    refused = _route_missing_refusal() if make is None else make(tmp_path)
+    mapped = inbox_responder.kit_refusal_state(refused)
+    assert (getattr(refused, "code", None), mapped) == (code, ("refused", kit.REFUSED_TASK))
+
+
+def test_the_responder_never_hands_the_kit_a_halt_file(tree: Path) -> None:
+    """The decision pinned: no ``halt_file`` reaches the kit, so its codeless halt never arises.
+
+    The kit's halt-file refusal is written halted / Halted but raised with no
+    code, so only a match on its message words could map it. The responder
+    passes no halt file, so the refusal is unreachable and stays unmapped.
+    """
+    seen: list[dict[str, Any]] = []
+    real = kit.spawn
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        seen.append(dict(kwargs))
+        return real(*args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(kit, "spawn", recording)
+        _run(tree, RunSpy())
+    assert ([("halt_file" in kw) for kw in seen], len(seen)) == ([False], 1)
 
 
 def test_a_kit_halt_raced_past_the_own_check_shows_its_sentinels_age(tree: Path) -> None:
