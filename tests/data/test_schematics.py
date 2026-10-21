@@ -33,10 +33,15 @@ from clockspeed.data.docs_extract import DocsDocument
 from clockspeed.data.schematics import (
     WARN_COST_WITHOUT_AMOUNT,
     WARN_MISSING_FIELD,
+    WARN_NONPOSITIVE_AMOUNT,
+    WARN_REPEATED_PHASE_DEPENDENCY,
     WARN_UNKNOWN_DEPENDENCY,
     WARN_UNKNOWN_FIELD,
+    WARN_UNPARSABLE_FLAG,
     WARN_UNPARSABLE_TIER,
     WARN_UNREADABLE_COST,
+    WARN_UNREADABLE_DEPENDENCIES,
+    WARN_UNREADABLE_DEPENDENCY,
     CostLine,
     PhaseDependency,
     PurchaseDependency,
@@ -518,3 +523,146 @@ def test_the_model_is_frozen() -> None:
         schematic.tech_tier = 1  # type: ignore[misc]
     with pytest.raises(TypeError):
         catalog.schematics[NORMAL_SCHEMATIC] = schematic  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# S1 repair: every dependency flag is READ, and anything unreadable marks the
+# prerequisites incomplete rather than passing the remainder off as the whole
+# ---------------------------------------------------------------------------
+
+LATER_PHASE: Final = "EGP_SynthLaterPhase"
+
+
+def one_dependent(dependencies: object) -> SchematicCatalog:
+    """Normalize one schematic carrying the given mSchematicDependencies value.
+
+    Args:
+        dependencies: The raw field value; None removes the field.
+
+    Returns:
+        The catalog.
+    """
+    return normalize_schematics(
+        schematic_document(
+            [schematic_entry(DEPENDENT_SCHEMATIC, mSchematicDependencies=dependencies)]
+        )
+    )
+
+
+@pytest.mark.parametrize(("spelling", "expected"), [("True", True), ("False", False)])
+def test_require_all_is_read_from_its_spelling(spelling: str, *, expected: bool) -> None:
+    catalog = one_dependent([purchase_dependency([PREREQ_A], require_all=spelling)])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.purchase_dependencies == (
+        PurchaseDependency(schematics=(PREREQ_A,), require_all=expected),
+    )
+    assert schematic.dependencies_complete is True
+    assert catalog.warnings == ()
+
+
+@pytest.mark.parametrize(("spelling", "expected"), [("True", True), ("False", False)])
+def test_only_in_selected_phase_is_read_from_its_spelling(spelling: str, *, expected: bool) -> None:
+    catalog = one_dependent([phase_dependency(only=spelling)])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.phase_dependency == PhaseDependency(
+        phase=GAME_PHASE, only_in_selected_phase=expected
+    )
+    assert schematic.dependencies_complete is True
+    assert catalog.warnings == ()
+
+
+def test_an_unreadable_require_all_flag_marks_the_dependencies_incomplete() -> None:
+    catalog = one_dependent([purchase_dependency([PREREQ_A], require_all="Yes")])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    # Kept, with the flag unknown rather than guessed as either.
+    assert schematic.purchase_dependencies == (
+        PurchaseDependency(schematics=(PREREQ_A,), require_all=None),
+    )
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_UNPARSABLE_FLAG, DEPENDENT_SCHEMATIC)) == 1
+
+
+def test_an_unreadable_only_in_phase_flag_marks_the_dependencies_incomplete() -> None:
+    catalog = one_dependent([phase_dependency(only="Maybe")])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.phase_dependency == PhaseDependency(
+        phase=GAME_PHASE, only_in_selected_phase=None
+    )
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_UNPARSABLE_FLAG, DEPENDENT_SCHEMATIC)) == 1
+
+
+def test_a_repeated_phase_dependency_keeps_the_first_and_is_incomplete() -> None:
+    catalog = one_dependent([phase_dependency(), phase_dependency(phase=LATER_PHASE)])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.game_phase == GAME_PHASE
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_REPEATED_PHASE_DEPENDENCY, DEPENDENT_SCHEMATIC)) == 1
+
+
+_UNREADABLE_SCHEMATIC_LISTS: Final[dict[str, object]] = {
+    "unquoted-path": "(Schematic_SynthBare_C)",
+    "not-a-string": [PREREQ_B],
+}
+
+
+@pytest.mark.parametrize("case", sorted(_UNREADABLE_SCHEMATIC_LISTS))
+def test_an_unreadable_schematic_list_drops_that_dependency_and_is_incomplete(case: str) -> None:
+    unreadable = {
+        **purchase_dependency([PREREQ_B]),
+        KEY_DEP_SCHEMATICS: _UNREADABLE_SCHEMATIC_LISTS[case],
+    }
+    catalog = one_dependent([purchase_dependency([PREREQ_A]), unreadable])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    # Dropped, never published as an empty prerequisite group.
+    assert schematic.purchase_dependencies == (
+        PurchaseDependency(schematics=(PREREQ_A,), require_all=True),
+    )
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_UNREADABLE_DEPENDENCY, DEPENDENT_SCHEMATIC)) == 1
+
+
+@pytest.mark.parametrize("token", ["", 3])
+def test_an_empty_or_non_string_phase_token_is_unreadable_and_incomplete(token: object) -> None:
+    catalog = one_dependent([{**phase_dependency(), KEY_DEP_PHASE: token}])
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.phase_dependency is None
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_UNREADABLE_DEPENDENCY, DEPENDENT_SCHEMATIC)) == 1
+
+
+def test_an_absent_dependency_list_is_flagged_incomplete_and_never_fatal() -> None:
+    # PINNED: the shipped document carries mSchematicDependencies on every
+    # schematic entry, and its "no prerequisites" is the EMPTY LIST - see
+    # test_no_dependency_means_no_phase_and_a_complete_empty_list. An ABSENT key
+    # is therefore unmeasured content: read as unknown and flagged, never as
+    # "no prerequisites", and never fatal.
+    catalog = one_dependent(None)
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.purchase_dependencies == ()
+    assert schematic.phase_dependency is None
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_UNREADABLE_DEPENDENCIES, DEPENDENT_SCHEMATIC)) == 1
+
+
+@pytest.mark.parametrize("value", ["", "None", {KEY_DEP_CLASS: PURCHASED_CLASS_PATH}])
+def test_a_non_list_dependency_value_is_flagged_incomplete(value: object) -> None:
+    catalog = one_dependent(value)
+    schematic = catalog.schematics[DEPENDENT_SCHEMATIC]
+    assert schematic.purchase_dependencies == ()
+    assert schematic.dependencies_complete is False
+    assert len(warnings_of(catalog, WARN_UNREADABLE_DEPENDENCIES, DEPENDENT_SCHEMATIC)) == 1
+
+
+@pytest.mark.parametrize("amount", [-3, 0])
+def test_a_non_positive_cost_amount_is_flagged_and_published_null(amount: int) -> None:
+    blob = synthetic.amount_blob([(PART_ITEM, PART_AMOUNT), (PLATE_ITEM, amount)])
+    catalog = normalize_schematics(
+        schematic_document([schematic_entry(NORMAL_SCHEMATIC, mCost=blob)])
+    )
+    # Never published: a negative cost is a refund and a zero one is a free
+    # line, and the document has shipped neither.
+    assert catalog.schematics[NORMAL_SCHEMATIC].cost is None
+    assert len(warnings_of(catalog, WARN_NONPOSITIVE_AMOUNT, NORMAL_SCHEMATIC)) == 1
+    assert not warnings_of(catalog, WARN_UNREADABLE_COST, NORMAL_SCHEMATIC)
+    assert catalog.costs_flagged == 1

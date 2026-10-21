@@ -40,10 +40,19 @@ FLAG AND SKIP, NEVER FATAL AND NEVER SILENTLY WRONG (non-negotiable 7)
 - **An empty cost is the empty tuple, and it is not None.** ``""`` is a real
   and valid value - a schematic that costs nothing - while None means the cost
   is unknown. The two are different facts and stay distinguishable.
+- **A negative or zero cost amount is None, never published**, under the
+  named code :data:`WARN_NONPOSITIVE_AMOUNT`. Neither has been shipped, and a
+  refund or a free line would be a confident number of the right type.
 - **A short prerequisite list is a wrong availability answer**, so a
   dependency this module cannot read in full is flagged and
   :attr:`Schematic.dependencies_complete` is published False rather than the
-  readable remainder passing for the whole.
+  readable remainder passing for the whole. That covers an unknown shape, an
+  unreadable ``mSchematics`` list, an empty phase token, a True/False flag in
+  neither spelling and a repeated phase dependency.
+- **An ABSENT dependency list is unknown, not "no prerequisites".** The
+  shipped document carries ``mSchematicDependencies`` on every schematic entry
+  and says "none" with the EMPTY LIST, so a missing key is unmeasured content:
+  flagged, incomplete, and never fatal.
 - **A field outside the measured keyset is flagged and read past**, aggregated
   by field name so one new field on every entry is one warning row with a
   count rather than one row per schematic.
@@ -101,6 +110,7 @@ __all__ = [
     "WARN_EMPTY_VALUE",
     "WARN_MISSING_CLASS_NAME",
     "WARN_MISSING_FIELD",
+    "WARN_NONPOSITIVE_AMOUNT",
     "WARN_NON_STRING_VALUE",
     "WARN_REPEATED_PHASE_DEPENDENCY",
     "WARN_UNKNOWN_DEPENDENCY",
@@ -214,6 +224,7 @@ WARN_EMPTY_VALUE: Final = "empty-value"
 WARN_MISSING_CLASS_NAME: Final = "missing-class-name"
 WARN_MISSING_FIELD: Final = "missing-field"
 WARN_NON_STRING_VALUE: Final = "non-string-value"
+WARN_NONPOSITIVE_AMOUNT: Final = "non-positive-amount"
 WARN_REPEATED_PHASE_DEPENDENCY: Final = "repeated-phase-dependency"
 WARN_UNKNOWN_DEPENDENCY: Final = "unknown-dependency-shape"
 WARN_UNKNOWN_FIELD: Final = "unknown-field"
@@ -552,9 +563,21 @@ def _cost(
                 f"{KEY_COST} does not match the item-amount grammar; cost unknown",
             )
         return None
+    # Neither sign has been shipped. A negative line is a refund and a zero line
+    # is a free one, and publishing either is a confident number of the right
+    # type - so both are flagged under one named code and the cost is unknown.
     if any(amount.amount < 0 for amount in amounts):
         log.add(
-            WARN_UNREADABLE_COST, subject, f"{KEY_COST} carries a negative amount; cost unknown"
+            WARN_NONPOSITIVE_AMOUNT,
+            subject,
+            f"{KEY_COST} carries a negative amount; cost unknown, never a refund",
+        )
+        return None
+    if any(amount.amount == 0 for amount in amounts):
+        log.add(
+            WARN_NONPOSITIVE_AMOUNT,
+            subject,
+            f"{KEY_COST} carries a zero amount; cost unknown, never a free line",
         )
         return None
     return tuple(CostLine(amount.item_key, Fraction(amount.amount)) for amount in amounts)
