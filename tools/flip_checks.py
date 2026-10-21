@@ -68,7 +68,8 @@ same function that grades the named ref:
   6. DOC SWEEP - ``tools/doc_sweep.py``'s own sweep with URLs fetched, run
      in-process over the REF tree, under ADR 0025 point 10: one exact URL pin,
      matched by URL and reported by its own count, the pre-publication pin
-     deleted after S12 as point 10b orders - see :func:`doc_sweep`.
+     deleted after S12 as point 10b orders - see :func:`doc_sweep`. A file the
+     sweep could not read is excused only by a path-and-SHA-256 pin (CS-1332).
   7. CLEAN CHECKOUT - the automatable half: a fresh clone of REF, the bootstrap
      block of ``docs/OPERATIONS.md``, and a staged non-ASCII violation that must
      leave HEAD unmoved. Its control commits the same violation with no hook
@@ -253,6 +254,10 @@ NO_FETCH_PINNED: Final = frozenset(
 #: of one in-process sweep to learn each skipped URL by identity, then restores.
 NO_FETCH_PREDICATE: Final = "_no_fetch"
 
+#: CS-1332 - the name of doc_sweep's own reader, wrapped the same way to learn each
+#: file the sweep could not read by identity, then restored.
+READ_TEXT_HOOK: Final = "_read_text"
+
 #: The floor of an HTTP error status: a URL answering at or above it is dead.
 HTTP_ERROR: Final = 400
 
@@ -299,6 +304,7 @@ _PROBE_IDENTITY: Final = (
 
 SECRET_SWEEP_PATH: Final = REPO_ROOT / "tests" / "secret_sweep_guard.py"
 DOC_SWEEP_PATH: Final = _TOOLS_DIR / "doc_sweep.py"
+CITATION_GATE_PATH: Final = _TOOLS_DIR / "sha_citation_gate.py"
 LICENCE_AUDIT_PATH: Final = _TOOLS_DIR / "licence_audit.py"
 
 
@@ -1152,6 +1158,83 @@ def doc_sweep_module() -> ModuleType:
     return _load_by_path("clockspeed_doc_sweep_for_flip", DOC_SWEEP_PATH)
 
 
+def citation_gate() -> ModuleType:
+    """``tools/sha_citation_gate.py``, whose binary pins check 6 reads - CS-1332."""
+    return _load_by_path("clockspeed_sha_citation_gate_for_flip", CITATION_GATE_PATH)
+
+
+def recording_reader(
+    reader: Callable[[Path, str], str | None], unread: list[str]
+) -> Callable[[Path, str], str | None]:
+    """doc_sweep's own reader, wrapped to record each tracked name it returns nothing for."""
+
+    def recording_read(root: Path, name: str) -> str | None:
+        text = reader(root, name)
+        if text is None:
+            unread.append(name)
+        return text
+
+    return recording_read
+
+
+def excused_binaries(
+    tree: Path, unread: Sequence[str], counted: int, markdown_suffix: str, result: CheckResult
+) -> int:
+    """CS-1332: how many files the sweep could not read a hash pin excuses.
+
+    The pins are the sha-citation gate's own file in the REF tree, read by that
+    gate's own loader and matched by its own ``is_known_binary`` - path AND
+    SHA-256 of the exact bytes, never an extension or a magic number. Every file
+    not excused stays a skip. A pin source the loader refuses or cannot read
+    FAILS the check and excuses nothing. A pinned path whose bytes have drifted
+    FAILS. A markdown file is never excused, pinned or not: the sweep's rules
+    read markdown, so a NUL there hides its links, anchors and URLs. When the
+    sweep counted a different number of unreadable files from the ones its
+    wrapped reader saw, the check FAILS and nothing is excused, because a count
+    no identity stands behind is never offset.
+
+    Args:
+        tree: A checkout of REF.
+        unread: The tracked files doc_sweep's own reader returned nothing for.
+        counted: doc_sweep's own unreadable-or-binary skip count.
+        markdown_suffix: doc_sweep's own markdown suffix.
+        result: Check 6's result, which each fixed failure reason is added to.
+
+    Returns:
+        The number of files excused.
+    """
+    module = citation_gate()
+    unseen = counted != len(unread)
+    if unseen:
+        result.failures.append("the unreadable files were not all learned by identity")
+    try:
+        pins = module.load_known_binaries(tree)
+    except (module.GateError, OSError):
+        result.failures.append("the binary pin source could not be read or trusted")
+        return 0
+    excused = 0
+    markdown = drifted = False
+    for name in sorted(set(unread)):
+        if name.casefold().endswith(markdown_suffix.casefold()):
+            markdown = True
+            continue
+        if name not in pins:
+            continue
+        try:
+            raw = (tree / name).read_bytes()
+        except OSError:
+            continue
+        if module.is_known_binary(name, raw, pins):
+            excused += 1
+        else:
+            drifted = True
+    if markdown:
+        result.failures.append("a markdown file the sweep could not read")
+    if drifted:
+        result.failures.append("a pinned binary whose bytes have drifted from its pin")
+    return 0 if unseen else excused
+
+
 def doc_sweep(
     tree: Path,
     *,
@@ -1173,12 +1256,17 @@ def doc_sweep(
        URL the tree no longer carries (a stale pin).
     d. REPORTED, NEVER SILENT. ``policy-excluded`` is a count of its own, apart from
        skips and findings, and the final line names it.
+    e. CS-1332 - A FILE THE SWEEP COULD NOT READ is learned by identity too, through
+       doc_sweep's own reader, wrapped the same way. One whose path AND SHA-256 match
+       a pin in the REF tree's sha-citation binary pin file is counted
+       ``known-binary``, never a skip; every other one stays a skip and FAILS - see
+       :func:`excused_binaries` for the drifted, markdown and untrusted-pin cases.
 
     The sweep runs IN-PROCESS so every URL is known by identity: the skipped ones
     through doc_sweep's own no-fetch predicate, wrapped to record what it refused,
     and the fetched ones through a recording fetcher. doc_sweep's CLI prints skip
     counts, not skipped URLs, and that file is not this slice's to change. No URL is
-    ever printed here.
+    ever printed here, and no path.
 
     Args:
         tree: A checkout of REF.
@@ -1211,8 +1299,11 @@ def doc_sweep(
             skipped.add(url)
         return refused
 
+    reader = getattr(module, READ_TEXT_HOOK)  # doc_sweep's own reader, wrapped not copied
+    unread: list[str] = []
     live, stale = allowlists if allowlists is not None else (None, None)
     setattr(module, NO_FETCH_PREDICATE, recording_no_fetch)
+    setattr(module, READ_TEXT_HOOK, recording_reader(reader, unread))
     try:
         report = module.sweep(
             tree, allowlist=live, stale_allowlist=stale, check_urls=True, fetch=recording_fetch
@@ -1222,14 +1313,19 @@ def doc_sweep(
         return result
     finally:
         setattr(module, NO_FETCH_PREDICATE, predicate)
+        setattr(module, READ_TEXT_HOOK, reader)
+    counted = report.skips.get(module.SKIP_UNREADABLE, 0)
+    known = excused_binaries(tree, unread, counted, module.MARKDOWN_SUFFIX, result)
     dead = {url for url, status in statuses.items() if status is None or status >= HTTP_ERROR}
     other_kinds = sum(n for kind, n in report.skips.items() if kind != module.SKIP_NO_FETCH_HOST)
+    other_kinds -= known
     excluded = skipped & no_fetch_pinned
     url_findings = sum(1 for finding in report.findings if finding.kind == module.DEAD_URL)
     result.counts = {
         "urls checked": report.urls_checked,
         "findings": len(report.findings) - url_findings + len(dead),
         "policy-excluded": len(excluded),
+        "known-binary": known,
     }
     result.skips = other_kinds + len(skipped - no_fetch_pinned)
     if skipped - no_fetch_pinned:

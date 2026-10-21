@@ -18,8 +18,10 @@ check that always passes render identically in a summary.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import inspect
+import json
 import mmap
 import re
 import subprocess
@@ -1244,6 +1246,349 @@ def test_adr_0025_10b_the_pre_publication_pin_is_deleted_after_s12() -> None:
     assert leftovers == []
     assert parameters == []
     assert not counted
+
+
+# --- CS-1332: check 6 learns each file the sweep could not read by identity ---
+
+#: The sha-citation gate's own binary pin file, which check 6 reads in the tree.
+PIN_FILE: Final = "tools/sha_citation_binaries.json"
+
+#: A synthetic stand-in for a tracked image: PNG magic, then a NUL. Invented bytes.
+SYNTHETIC_PNG: Final = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rsynthetic-image"
+
+#: Where the synthetic image is tracked - nested, the way docs/assets is.
+PNG_PATH: Final = "docs/assets/synthetic.png"
+
+#: The fixed reasons the CS-1332 arms read, each named once.
+DRIFTED: Final = "a pinned binary whose bytes have drifted from its pin"
+UNTRUSTED_PINS: Final = "the binary pin source could not be read or trusted"
+UNREAD_MARKDOWN: Final = "a markdown file the sweep could not read"
+OTHER_SKIP: Final = "a skip of a kind other than no-fetch-host"
+
+
+def pin_bytes(pinned: dict[str, bytes]) -> bytes:
+    """A pin file mapping each path to the SHA-256 of the bytes given for it."""
+    table = {name: hashlib.sha256(data).hexdigest() for name, data in pinned.items()}
+    return json.dumps(table, indent=2).encode("ascii") + b"\n"
+
+
+def binary_tree(tmp_path: Path, files: dict[str, bytes], pins: bytes | None) -> Path:
+    """A work tree holding a README, ``files`` and, when given, the pin file's exact bytes."""
+    tree = tmp_path / "binaries"
+    planted = {"README.md": b"# x\n", **files}
+    if pins is not None:
+        planted[PIN_FILE] = pins
+    work_repo(tree, planted)
+    return tree
+
+
+def sweep_binaries(tree: Path, module: ModuleType = flip) -> Any:
+    """Check 6 over ``tree`` with no URL pin and no allowlist - never the network."""
+    result = module.doc_sweep(
+        tree, fetch=lambda _url: 200, allowlists=({}, {}), no_fetch_pinned=frozenset()
+    )
+    result.control = True
+    return result
+
+
+def test_a_pinned_binary_is_not_a_skip(tmp_path: Path) -> None:
+    """CS-1332: a tracked binary whose path AND SHA-256 match a pin is not a skip.
+
+    It is counted under its own ``known-binary`` count instead - reported, never silent.
+    """
+    pins = pin_bytes({PNG_PATH: SYNTHETIC_PNG})
+    result = sweep_binaries(binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pins))
+
+    assert result.failures == []
+    assert result.skips == 0
+    assert result.counts["known-binary"] == 1
+    assert result.passed
+
+
+@pytest.mark.parametrize("pin_source", ["absent", "pins-a-sibling"])
+def test_an_unpinned_nul_file_still_fails(tmp_path: Path, pin_source: str) -> None:
+    """CS-1332 keep-arm: a NUL-bearing file no pin names stays a skip and FAILS.
+
+    With a pin source that pins its sibling, only the sibling is excused - a pin
+    excuses one file by identity, never the population.
+    """
+    files = {PNG_PATH: SYNTHETIC_PNG, "data.bin": b"raw\x00bytes"}
+    pins = pin_bytes({PNG_PATH: SYNTHETIC_PNG}) if pin_source == "pins-a-sibling" else None
+    expected = 1 if pin_source == "pins-a-sibling" else len(files)
+    result = sweep_binaries(binary_tree(tmp_path, files, pins))
+
+    assert result.skips == expected
+    assert OTHER_SKIP in result.failures
+    assert not result.passed
+
+
+def test_a_drifted_pinned_binary_fails(tmp_path: Path) -> None:
+    """CS-1332: a pinned path whose bytes no longer hash to its pin FAILS - bytes, not path."""
+    pins = pin_bytes({PNG_PATH: SYNTHETIC_PNG + b"-as-reviewed"})
+    result = sweep_binaries(binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pins))
+
+    assert DRIFTED in result.failures
+    assert result.skips == 1
+    assert result.counts["known-binary"] == 0
+    assert not result.passed
+
+
+#: A pinned name carrying one character above 0x7E, built from its code point so
+#: this file stays ASCII; the gate's loader refuses a pin file that is not ASCII.
+NON_ASCII_NAME: Final = "caf" + chr(0xE9) + ".png"
+
+
+def malformed_pins(kind: str) -> bytes:
+    """A pin source the gate's loader refuses, each beside a GOOD row for the image.
+
+    The good row is what makes the arm bite: a loader that kept what it could
+    parse would excuse the image, so failing closed is observable.
+    """
+    good = hashlib.sha256(SYNTHETIC_PNG).hexdigest()
+    sources = {
+        "not-json": json.dumps({PNG_PATH: good}).encode("ascii")[:-1],
+        "not-an-object": json.dumps([PNG_PATH, good]).encode("ascii"),
+        "a-bad-digest": json.dumps({PNG_PATH: good, "other.bin": good.upper()}).encode("ascii"),
+        "a-climbing-path": json.dumps({PNG_PATH: good, "../outside.png": good}).encode("ascii"),
+        "not-ascii": json.dumps({PNG_PATH: good, NON_ASCII_NAME: good}, ensure_ascii=False).encode(
+            "utf-8"
+        ),
+    }
+    return sources[kind]
+
+
+@pytest.mark.parametrize(
+    "kind", ["not-json", "not-an-object", "a-bad-digest", "a-climbing-path", "not-ascii"]
+)
+def test_a_malformed_pin_source_fails_closed(tmp_path: Path, kind: str) -> None:
+    """CS-1332: a pin source the gate's own loader refuses FAILS and excuses nothing."""
+    tree = binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, malformed_pins(kind))
+    result = sweep_binaries(tree)
+
+    assert UNTRUSTED_PINS in result.failures
+    assert result.skips == 1
+    assert result.counts["known-binary"] == 0
+    assert not result.passed
+
+
+def test_an_unreadable_pin_source_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1332: a pin source that cannot be read FAILS and excuses nothing.
+
+    The read is refused by name for this one file, so the sweep's own read of it
+    is refused too and it is counted as a skip beside the image.
+    """
+    tree = binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pin_bytes({PNG_PATH: SYNTHETIC_PNG}))
+    real_read = Path.read_bytes
+    refused: list[bool] = []
+
+    def refuse_the_pins(self: Path) -> bytes:
+        if self.name == Path(PIN_FILE).name:
+            refused.append(True)
+            raise PermissionError(13, "synthetic refusal")
+        return real_read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse_the_pins)
+    result = sweep_binaries(tree)
+    monkeypatch.undo()
+    was_refused = bool(refused)
+
+    assert was_refused
+    assert UNTRUSTED_PINS in result.failures
+    assert result.skips == len(("image", "pin file"))
+    assert result.counts["known-binary"] == 0
+    assert not result.passed
+
+
+def test_a_nul_in_a_markdown_file_is_never_excused(tmp_path: Path) -> None:
+    """CS-1332: a pinned markdown file carrying a NUL FAILS, its pin matching or not.
+
+    The sweep's rules read markdown, so a NUL there hides its links, anchors and URLs.
+    """
+    notes = b"# notes\n\x00\n"
+    files = {"README.md": b"# x\n\n[notes](notes.md)\n", "notes.md": notes}
+    result = sweep_binaries(binary_tree(tmp_path, files, pin_bytes({"notes.md": notes})))
+
+    assert UNREAD_MARKDOWN in result.failures
+    assert result.skips == 1
+    assert result.counts["known-binary"] == 0
+    assert not result.passed
+
+
+def test_a_pinned_path_that_cannot_be_read_stays_a_skip(tmp_path: Path) -> None:
+    """CS-1332: a pinned path absent from disk has no bytes to match, so it stays a skip."""
+    tree = binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pin_bytes({PNG_PATH: SYNTHETIC_PNG}))
+    (tree / PNG_PATH).unlink()
+    result = sweep_binaries(tree)
+
+    assert result.skips == 1
+    assert OTHER_SKIP in result.failures
+    assert result.counts["known-binary"] == 0
+    assert not result.passed
+
+
+#: The reason check 6 gives when doc_sweep counted an unreadable file its wrapped
+#: reader never saw - a count no identity stands behind is never offset.
+UNSEEN: Final = "the unreadable files were not all learned by identity"
+
+
+def unseen_skip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make doc_sweep count one unreadable file more than its reader returned nothing for."""
+    sweep_module = flip.doc_sweep_module()
+    real_sweep = sweep_module.sweep
+
+    def sweep_with_an_unseen_skip(*args: object, **kwargs: object) -> object:
+        report = real_sweep(*args, **kwargs)
+        report.skip(sweep_module.SKIP_UNREADABLE)
+        return report
+
+    monkeypatch.setattr(sweep_module, "sweep", sweep_with_an_unseen_skip)
+
+
+def test_an_unreadable_count_no_identity_stands_behind_excuses_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1332: a skip the wrapped reader never saw FAILS, and no pin offsets any skip."""
+    tree = binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pin_bytes({PNG_PATH: SYNTHETIC_PNG}))
+    unseen_skip(monkeypatch)
+    result = sweep_binaries(tree)
+
+    assert UNSEEN in result.failures
+    assert result.skips == len(("image", "unseen"))
+    assert result.counts["known-binary"] == 0
+    assert not result.passed
+
+
+def test_check_six_restores_doc_sweeps_own_reader(tmp_path: Path) -> None:
+    """CS-1332: the wrapped reader is put back, as the wrapped no-fetch predicate is."""
+    sweep_module = flip.doc_sweep_module()
+    before = getattr(sweep_module, flip.READ_TEXT_HOOK)
+    sweep_binaries(binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, None))
+    restored = getattr(sweep_module, flip.READ_TEXT_HOOK) is before
+
+    assert restored
+
+
+def _arm_pinned(tmp_path: Path, module: ModuleType, _mp: pytest.MonkeyPatch) -> bool:
+    pins = pin_bytes({PNG_PATH: SYNTHETIC_PNG})
+    result = sweep_binaries(binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pins), module)
+    return bool(result.passed and result.skips == 0 and result.counts["known-binary"] == 1)
+
+
+def _arm_keep(tmp_path: Path, module: ModuleType, _mp: pytest.MonkeyPatch) -> bool:
+    files = {PNG_PATH: SYNTHETIC_PNG, "data.bin": b"raw\x00bytes"}
+    pins = pin_bytes({PNG_PATH: SYNTHETIC_PNG})
+    result = sweep_binaries(binary_tree(tmp_path, files, pins), module)
+    return result.skips == 1 and OTHER_SKIP in result.failures
+
+
+def _arm_drifted(tmp_path: Path, module: ModuleType, _mp: pytest.MonkeyPatch) -> bool:
+    pins = pin_bytes({PNG_PATH: SYNTHETIC_PNG + b"-as-reviewed"})
+    result = sweep_binaries(binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pins), module)
+    return DRIFTED in result.failures and result.counts["known-binary"] == 0
+
+
+def _arm_malformed(tmp_path: Path, module: ModuleType, _mp: pytest.MonkeyPatch) -> bool:
+    tree = binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, malformed_pins("a-bad-digest"))
+    result = sweep_binaries(tree, module)
+    return UNTRUSTED_PINS in result.failures and result.counts["known-binary"] == 0
+
+
+def _arm_markdown(tmp_path: Path, module: ModuleType, _mp: pytest.MonkeyPatch) -> bool:
+    notes = b"# notes\n\x00\n"
+    files = {"README.md": b"# x\n\n[notes](notes.md)\n", "notes.md": notes}
+    result = sweep_binaries(binary_tree(tmp_path, files, pin_bytes({"notes.md": notes})), module)
+    return UNREAD_MARKDOWN in result.failures and result.counts["known-binary"] == 0
+
+
+def _arm_unseen(tmp_path: Path, module: ModuleType, mp: pytest.MonkeyPatch) -> bool:
+    tree = binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, pin_bytes({PNG_PATH: SYNTHETIC_PNG}))
+    with mp.context() as scoped:
+        unseen_skip(scoped)
+        result = sweep_binaries(tree, module)
+    return UNSEEN in result.failures and result.counts["known-binary"] == 0
+
+
+def _arm_restored(tmp_path: Path, module: ModuleType, _mp: pytest.MonkeyPatch) -> bool:
+    sweep_module = flip.doc_sweep_module()
+    before = getattr(sweep_module, flip.READ_TEXT_HOOK)
+    try:
+        sweep_binaries(binary_tree(tmp_path, {PNG_PATH: SYNTHETIC_PNG}, None), module)
+        return getattr(sweep_module, flip.READ_TEXT_HOOK) is before
+    finally:
+        setattr(sweep_module, flip.READ_TEXT_HOOK, before)
+
+
+#: CS-1332 - each mutant of check 6's identity rule: the exact source text it
+#: replaces, the text put in its place, and the arm that must kill it.
+IDENTITY_MUTANTS: Final = {
+    "pin-by-path-only": (
+        "        if module.is_known_binary(name, raw, pins):\n",
+        "        if name in pins:\n",
+        _arm_drifted,
+    ),
+    "markdown-excused": (
+        "        if name.casefold().endswith(markdown_suffix.casefold()):\n",
+        "        if False:\n",
+        _arm_markdown,
+    ),
+    "untrusted-pins-silent": (
+        '        result.failures.append("the binary pin source could not be read or trusted")\n',
+        "",
+        _arm_malformed,
+    ),
+    "unpinned-excused": (
+        "        if name not in pins:\n            continue\n",
+        "        if name not in pins:\n            excused += 1\n            continue\n",
+        _arm_keep,
+    ),
+    "reader-not-wrapped": (
+        "    setattr(module, READ_TEXT_HOOK, recording_reader(reader, unread))\n",
+        "",
+        _arm_pinned,
+    ),
+    "excusal-not-offset": ("    other_kinds -= known\n", "", _arm_pinned),
+    "unseen-count-offset": (
+        "    return 0 if unseen else excused\n",
+        "    return excused\n",
+        _arm_unseen,
+    ),
+    "unseen-count-silent": (
+        f'        result.failures.append("{UNSEEN}")\n',
+        "        pass\n",
+        _arm_unseen,
+    ),
+    "reader-not-restored": ("        setattr(module, READ_TEXT_HOOK, reader)\n", "", _arm_restored),
+}
+
+
+@pytest.mark.parametrize("name", sorted(IDENTITY_MUTANTS))
+def test_each_identity_mutant_applies_and_is_killed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """CS-1332: every mutant lands exactly once, the pristine arm holds, the mutant's does not.
+
+    A mutant that never applied looks green, so the replaced text is counted
+    first; the same arm run on the pristine module is the floor.
+    """
+    old, new, arm = IDENTITY_MUTANTS[name]
+    source = FLIP_SOURCE.read_text(encoding="utf-8")
+    applied = source.count(old)
+    mutant = ModuleType(f"clockspeed_flip_checks_mutant_{name.replace('-', '_')}")
+    mutant.__file__ = str(FLIP_SOURCE)
+    monkeypatch.setitem(sys.modules, mutant.__name__, mutant)
+    mutated = source.replace(old, new)
+    # Counted before the mutant executes, so a mutant that does not even compile
+    # still reports whether it applied.
+    assert applied == 1
+    exec(compile(mutated, str(FLIP_SOURCE), "exec"), mutant.__dict__)  # noqa: S102
+    pristine_holds = arm(tmp_path / "pristine", flip, monkeypatch)
+    mutant_holds = arm(tmp_path / "mutant", mutant, monkeypatch)
+
+    assert mutated != source
+    assert pristine_holds
+    assert not mutant_holds
 
 
 def test_a_short_name_repo_path_is_resolved_before_cloning(tmp_path: Path) -> None:
