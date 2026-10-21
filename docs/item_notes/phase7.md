@@ -972,3 +972,30 @@ reading of zero open code-scanning alerts is zero because no analysis has run, n
 Dependabot and secret-scanning alerts read 0 open. Dependabot alerts already read ON and
 security-update PRs OFF; the acceptance keeps their read-back so the item closes on one
 record.
+
+## CS-1341
+
+### Acceptance
+
+`ops/loop/lane_launcher.py::launch_lane` reads the lane tree's HEAD through its `_git` seam after `ops/loop/lane_launcher.py::ensure_worktree` returns and before the worker spawns, and returns it as `start_head`, None on any failure and never a raise; `ops/loop/queue_loop.py::run_loop` prefers that `start_head` as the commit record's `pre` over its own earlier read; no read of `origin/main` serves as the progress witness; three tests, each red before the change, carry the names that spell in snake case "the starting head is read after the launch makes the tree" and "a tree the kit moves to its base is not a commit", both in `tests/test_queue_loop.py`, and "a launch reads its start head between the kit and the spawn", in `tests/test_lane_launcher.py`; each of these mutants is planted and killed: the read taken before the launch, the read taken after the spawn, the read taken before `ensure_worktree`, the early read winning over `start_head`, a read of `origin/main` as the witness, and `advanced` set without both reads; and `docs/OPERATIONS.md` section 10.6 gains rows for exits 8, 9, 10 and 11
+
+### Filed 2026-10-21 (session 150) from the session 150 lane cycle
+
+**THE DRIVER READS THE LANE TREE'S STARTING HEAD BEFORE THE LAUNCH THAT MAKES THE TREE.**
+`ops/loop/queue_loop.py::run_loop` takes its `pre` read of the lane tree's HEAD before the
+cycle calls the launch, and since CS-1274's per-launch trees the launch is what prepares that
+tree: `ops/loop/lane_launcher.py::ensure_worktree` hands the claim to
+`ops/loop/lane_launcher.py::prepare_worktree`, which has the kit add a missing tree detached
+at its base and move a present one there. On a box with no tree yet the early read gets
+nothing, the row's commit reads unreadable, and the driver exits 9 over a cycle that shipped -
+measured on the session 150 lane cycle, ledger row 53 of the loop report. On a tree that
+already exists the early read sees the commit the kit is about to move away from, so a worker
+that did nothing can score as advanced.
+
+**IT CLEARS THE CLAUDE.md SECTION 7 PRODUCT-BEFORE-PROCESS FENCE** because it blocks product
+work: the queue lane builds product items, a false exit 9 stops its driver after a cycle that
+shipped, and a false advanced counts progress no worker made.
+
+**THE TESTS ARE NAMED BY THEIR WORDS, NOT AS IDENTIFIERS**, because an identifier no module
+binds yet is a dead citation in this leaf to `tests/test_docs_citations.py`, the reason the
+index gives for naming an unbuilt file by directory and stem.

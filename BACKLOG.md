@@ -874,10 +874,14 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   default execution policy a new PowerShell starts with; trigger: the CS-1334 walk, whose runner
   then starts without Bypass, or the Quickstart's PowerShell lines next touched.
 - From the session 150 G review: `tools/outbound_send.py` never calls
-  `ops/fleet_kit/fleet_inbox.py::OutboundCap` - it neither asks `allow` nor appends a `record`
-  row - so no note this tree sends through it counts against the FLEET item 14 c daily outbound
-  cap, and no send is refused at the cap; trigger: the next edit to `tools/outbound_send.py`, or
-  a local day on which this tree sends more non-exempt notes than that cap allows.
+  `ops/fleet_kit/fleet_inbox.py::OutboundCap` - its `main` asks no `allow` and its
+  `perform_send` appends no `record` row - so no note this tree sends counts against the FLEET
+  item 14 c daily outbound cap, and no send is refused at it. The owner is this tree, not the kit
+  (`docs/LEDGER.md`, 2026-10-21, the CS-700 correction record). Two uncounted non-exempt sends
+  are measured: the 2026-10-18 1330 ANSWER and the 2026-10-21 1312 ANSWER. It stays here under
+  the CLAUDE.md section 7 product-before-process fence; trigger: the next edit to
+  `tools/outbound_send.py`, or a local day on which this tree sends more non-exempt notes than
+  that cap allows.
 - From the session 150 H pointer sweep: the frozen `.githooks/commit-msg`'s CS-813 comment
   block points at `docs/item_notes/phase7.md` for CS-813's four leaks, but CS-813 closed and
   its section moved to `docs/history_notes.md` (its record: `docs/LEDGER.md`, 2026-09-25,
@@ -914,3 +918,7 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   the amount-less cost). `clockspeed/progress/milestones.py::unresolved_cost_items` flags
   them and their milestones' rates publish None; trigger: the next docs-file version bump,
   or a registry item-coverage item.
+- From the session 150 lane cycle: `ops/loop/run_lane.ps1` passes no `--slot`, so a lane
+  usage line's `slot` is never the lane's own id - it falls back to the governor slot's name or
+  to null - and `ops/fleet_kit/fleet_headless.py` documents null as a valid `slot`; trigger: MAIN
+  names a slot convention, or the kit makes `slot` required.

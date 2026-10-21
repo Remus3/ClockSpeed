@@ -75,6 +75,24 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-700 - CORRECTION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The 2026-10-20 CS-700 record's daily-cap gap on the 1330 ANSWER is this tree's own, not the kit's
+Verification: `tools/outbound_send.py::main` and `tools/outbound_send.py::perform_send`, read
+against `ops/fleet_kit/fleet_inbox.py::OutboundCap`; the `BACKLOG.md` line from the session 150
+G review.
+CORRECTS the 2026-10-20 CS-700 record below that reads S12a's closing sequence back through
+act (iv), whose paragraph THE ANSWER-NOTE GATE AND CAP GAPS files the 1330 ANSWER's missing
+OutboundCap row under a FLEET item 11 kit report. That record is published and stays as
+written. MEASURED in session 150, the cap half is this tree's: `tools/outbound_send.py`, this
+tree's own gated sender, never calls the kit's cap - `main` asks no `allow` before a send and
+`perform_send` appends no `record` row - so no note it sends is counted against the FLEET item
+14 c daily cap or refused at it, whichever process wrote the note. The 2026-10-21 1312 ANSWER is
+the second uncounted send: it carries its gated delivery row, verdict CLEAN, and no cap row, so
+the cap's record reads 0 non-exempt notes for the day against a true count of 1. The kit-side
+report already went out, in section 3 of this tree's ANSWER stamped 2026-10-20-2356, and it is
+not answered again (FLEET item 14 d). The repair stays a `BACKLOG.md` line under the CLAUDE.md
+section 7 product-before-process fence. The gate half of the old paragraph, a note written
+outside the gated sender, is not re-measured here.
+
 ### 2026-10-21 - CS-1043 - NOT A COMPLETION RECORD. CS-1043 STAYS OPEN: the queue lane's CS-1043 closure is SUPERSEDED by adjudication
 Verification: `ROADMAP.md`; the CS-1043 section of `docs/item_notes/phase5.md`.
 SUPERSEDED: the record below headed "CS-1043 - CLOSED: pillar 4's package stops being
@@ -97,9 +115,11 @@ graded. The three dead names cost three NO_TARGET rows in
 `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING`, ADJUDICATED by a distinct
 adjudicator over RENAMED rows pointing at this tree's arms - refused, because those arms never
 graded the lane's closure and a checked mapping to them would hold up a false statement. The
-notches are permanent: they come back only if the lane's record is retired to
-`docs/history_notes.md`. CS-1043 STAYS OPEN pending its closure verifier, and this record does
-not close CS-1043. CS-1339, the lane's rate-arm population item, stays OPEN.
+notches are permanent: each row pins one site in this record and one in the lane's, so they
+come back only if both records are retired to `docs/history_notes.md`. CS-1043 STAYS OPEN
+pending its closure verifier, and this record does not close CS-1043. CS-1339, the lane's
+first-cost-entry population item, stays OPEN, its acceptance retargeted in session 150 to this
+tree's guard checks.
 
 ### 2026-10-21 - CS-1043 - NOT A COMPLETION RECORD. CS-1043 STAYS OPEN: LANDED (closure graded next) - the schematic normalizer and the milestone and phase models
 Verification: `clockspeed/data/schematics.py` plus `tests/data/test_schematics.py`;
@@ -116,10 +136,17 @@ LANDED: four commits cherry-picked onto main in order, "CS-1043 S1 - the schemat
 normalizer in the data layer", "CS-1043 S1 repair - kill the eleven surviving schematic
 mutants", "CS-1043 S2 - the milestone and phase models in the progress layer" and "CS-1043
 S2 repair - kill the five surviving progress mutants", each read back with its source's file
-list and stable patch-id; the landed tree equals the S2 branch tip's tree. Then one
-integration and records commit: seven provenance rows in `tools/provenance.tsv`; in
-`docs/ARCHITECTURE.md` a section 1.1 row for `clockspeed/data/schematics.py` and pillar 4
-PARTLY BUILT; "schematics" in `tests/data/test_phase2_gate.py`'s DATA_MODULES and
+list. The stable patch-id equals its source's for three of the four; the S2 commit's differs,
+because on main it replaces the queue lane's five files at the same paths rather than adding
+them. After the S2 repair the seven CS-1043 code and test paths equal the S2 branch tip's
+byte for byte, and the two whole trees differ only by the queue lane's commit's changes to
+six record and doc files beneath them. Then one integration and records commit: two
+provenance rows added to `tools/provenance.tsv`, for `clockspeed/data/schematics.py` and
+`tests/data/test_schematics.py`, the other five CS-1043 rows being already present; in
+`docs/ARCHITECTURE.md` the progress tree line and the section 1.1 progress row rewritten in
+place, the tree line now reading pillar 4 PARTLY BUILT as section 4's status already did, and
+`clockspeed/data/schematics.py` recorded as a section 4 paragraph under pillar 4 instead of a
+section 1.1 row; "schematics" in `tests/data/test_phase2_gate.py`'s DATA_MODULES and
 ALLOWED_IMPORTS; EXACT_PROGRESS_SOURCES in `tests/solve/test_phase3_gate.py` section (a);
 the A3 amendment and CS-1340 in `docs/item_notes/phase5.md`; a `BACKLOG.md` line.
 ADVERSARY HISTORY (distinct, read-only, agent-reported): S1 was refuted on test strength,
