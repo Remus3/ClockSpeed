@@ -24,6 +24,39 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1341 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`. On the close, before the move, the acceptance's three
+test names were rewritten from words to identifiers, once the tests existed on main.
+
+## CS-1341
+
+### Acceptance
+
+`ops/loop/lane_launcher.py::launch_lane` reads the lane tree's HEAD through its `_git` seam after `ops/loop/lane_launcher.py::ensure_worktree` returns and before the worker spawns, and returns it as `start_head`, None on any failure and never a raise; `ops/loop/queue_loop.py::run_loop` prefers that `start_head` as the commit record's `pre` over its own earlier read; no read of `origin/main` serves as the progress witness; three tests, each red before the change: `tests/test_queue_loop.py::test_the_starting_head_is_read_after_the_launch_makes_the_tree`, `tests/test_queue_loop.py::test_a_tree_the_kit_moves_to_its_base_is_not_a_commit` and `tests/test_lane_launcher.py::test_a_launch_reads_its_start_head_between_the_kit_and_the_spawn`; each of these mutants is planted and killed: the read taken before the launch, the read taken after the spawn, the read taken before `ensure_worktree`, the early read winning over `start_head`, a read of `origin/main` as the witness, and `advanced` set without both reads; and `docs/OPERATIONS.md` section 10.6 gains rows for exits 8, 9, 10 and 11
+
+### Filed 2026-10-21 (session 150) from the session 150 lane cycle
+
+**THE DRIVER READS THE LANE TREE'S STARTING HEAD BEFORE THE LAUNCH THAT MAKES THE TREE.**
+`ops/loop/queue_loop.py::run_loop` takes its `pre` read of the lane tree's HEAD before the
+cycle calls the launch, and since CS-1274's per-launch trees the launch is what prepares that
+tree: `ops/loop/lane_launcher.py::ensure_worktree` hands the claim to
+`ops/loop/lane_launcher.py::prepare_worktree`, which has the kit add a missing tree detached
+at its base and move a present one there. On a box with no tree yet the early read gets
+nothing, the row's commit reads unreadable, and the driver exits 9 over a cycle that shipped -
+measured on the session 150 lane cycle, ledger row 53 of the loop report. On a tree that
+already exists the early read sees the commit the kit is about to move away from, so a worker
+that did nothing can score as advanced.
+
+**IT CLEARS THE CLAUDE.md SECTION 7 PRODUCT-BEFORE-PROCESS FENCE** because it blocks product
+work: the queue lane builds product items, a false exit 9 stops its driver after a cycle that
+shipped, and a false advanced counts progress no worker made.
+
+**THE TESTS ARE NAMED BY THEIR WORDS, NOT AS IDENTIFIERS**, because an identifier no module
+binds yet is a dead citation in this leaf to `tests/test_docs_citations.py`, the reason the
+index gives for naming an unbuilt file by directory and stem.
+
 ## CS-1043 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-21 on this tree's close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

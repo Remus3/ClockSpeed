@@ -75,6 +75,60 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1341 - CLOSED: the lane driver reads the lane tree's starting HEAD after the launch makes the tree, so a cycle that shipped is never scored unreadable
+Verification: `tests/test_queue_loop.py::test_the_starting_head_is_read_after_the_launch_makes_the_tree`,
+`tests/test_queue_loop.py::test_a_tree_the_kit_moves_to_its_base_is_not_a_commit` and
+`tests/test_lane_launcher.py::test_a_launch_reads_its_start_head_between_the_kit_and_the_spawn`,
+over `ops/loop/lane_launcher.py::launch_lane` and `ops/loop/queue_loop.py::run_loop`.
+MERGED: `ops/loop/lane_launcher.py`, `ops/loop/queue_loop.py`, `tests/test_lane_launcher.py`,
+`tests/test_queue_loop.py` and `docs/OPERATIONS.md`. The CS-1341 slice's three commits were
+applied in order and committed as one on main, and all five files read back byte-equal to the
+slice's final blobs.
+CAUSE: CS-1274's per-launch trees. Since that item the launch is what prepares the lane tree -
+`ops/loop/lane_launcher.py::ensure_worktree` hands the claim to
+`ops/loop/lane_launcher.py::prepare_worktree`, which has the kit add a missing tree at its base
+and move a present one there - while `ops/loop/queue_loop.py::run_loop` took its `pre` read of
+the tree's HEAD before `ops/loop/queue_loop.py::run_cycle` called the launch. EVIDENCE: the
+session 150 lane cycle, which shipped and still exited 9, because the early read found no tree
+and the row's commit read unreadable.
+THE CLAUSES, named by behaviour since the `### Acceptance` numbers none. THE START HEAD READ
+THROUGH THE `_git` SEAM AFTER `ensure_worktree` RETURNS AND BEFORE THE SPAWN, RETURNED AS
+`start_head`, None ON ANY FAILURE AND NEVER A RAISE: MET -
+`tests/test_lane_launcher.py::test_a_launch_reads_its_start_head_between_the_kit_and_the_spawn`,
+`tests/test_lane_launcher.py::test_a_start_head_git_cannot_give_is_none_and_the_launch_goes_on`
+and `tests/test_lane_launcher.py::test_a_tree_with_no_git_of_its_own_is_never_asked_for_a_start_head`.
+`run_loop` PREFERRING `start_head` AS THE COMMIT RECORD'S `pre` OVER ITS OWN EARLIER READ: MET -
+`tests/test_queue_loop.py::test_the_starting_head_is_read_after_the_launch_makes_the_tree`,
+`tests/test_queue_loop.py::test_a_tree_the_kit_moves_to_its_base_is_not_a_commit` and
+`tests/test_queue_loop.py::test_a_start_head_falls_back_to_the_early_read_and_still_needs_both_reads`.
+NO READ OF `origin/main` AS THE PROGRESS WITNESS: MET - the starting witness is the tree's own
+HEAD, and `ops/loop/queue_loop.py::_is_progress` is unchanged. THE THREE NAMED TESTS RED BEFORE
+THE CHANGE: MET, agent-reported by the slice's builder. EACH NAMED MUTANT PLANTED AND KILLED: MET
+by an independent mutation verifier (agent-reported), which killed every mutant it planted in two
+rounds; a real `git worktree add` probe returned the tree's own HEAD as the start head.
+`docs/OPERATIONS.md` SECTION 10.6 ROWS FOR EXITS 8, 9, 10 AND 11: MET - all four rows read back.
+THE ADVERSARY, three rounds (agent-reported). Round one held on five findings, repaired with these
+tests: a launch refused after the kit moved the tree fell back to the early read, now
+`tests/test_queue_loop.py::test_a_refusal_after_the_kit_moved_the_tree_is_never_scored_as_a_commit`
+and `tests/test_lane_launcher.py::test_a_refused_launch_carries_the_start_head_it_read`; the
+launcher's HEAD read dropped every GIT_* name and the driver's did not, now
+`tests/test_queue_loop.py::test_both_lane_head_reads_hand_git_one_environment_with_no_git_variables`;
+and a pop turned into a plain read could leak the launch's keys into the ledger row, now
+`tests/test_queue_loop.py::test_a_ledger_row_never_carries_the_launch_s_private_keys`; the other
+two were runbook wording and one test rename. Round two held on runbook wording and one missing
+pin: the two GIT_* filters were compared only over the names this process carries, now
+`tests/test_queue_loop.py::test_the_two_git_environment_filters_give_one_answer_for_one_mapping`.
+The final round's verdict: NOT REFUTED.
+RESIDUAL, recorded by cost against risk rather than repaired: `docs/OPERATIONS.md` section 10.6
+row 8 does not name the `launch_failed` rows that come from a kit refusal code read after the
+grace; and a cycle that RAISES after the launch keeps the early read, so its row can print
+commit=yes, but its error outcome never counts as progress.
+DECISION: CLOSE, every clause met. RELOCATED: the section moved word for word from
+`docs/item_notes/phase7.md` to `docs/history_notes.md`, its acceptance's three test names
+rewritten from words to identifiers first, and its `ROADMAP.md` line is dropped.
+Reversed by: a lane cycle whose `pre` is read before the launch makes or moves the tree that the
+lane suites pass - new work under a new ID.
+
 ### 2026-10-21 - CS-1043 - CLOSED: the schematic catalog and the milestone and phase models ship, every acceptance clause graded met by an independent closure verifier
 Verification: `clockspeed/data/schematics.py` plus
 `tests/data/test_schematics.py::test_parsed_plus_flagged_equals_total`;
