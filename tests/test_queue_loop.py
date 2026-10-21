@@ -3122,6 +3122,8 @@ def test_the_success_stop_words_are_a_closed_set():
         "STOP",
         "QUEUE_STOP",
         "QUEUE_DRAINED",
+        # CS-1231 slice C: a sentinel the tree declares in ops/stop_sentinels.json.
+        "kit_halted",
     }
     overlap = set(queue_loop._SUCCESS_STOPS) & set(queue_loop._STOP_EXIT)  # noqa: SLF001
     assert overlap == set(), f"a word both means success and carries a failure code: {overlap}"
@@ -4322,27 +4324,29 @@ def test_cs1274_the_driver_log_survives_a_console_that_cannot_encode_the_box(
 
 
 # ---------------------------------------------------------------------------
-# CS-1231 slice C - L1. THE KIT'S CEILING SITS ABOVE THE DRIVER'S OWN KILL.
+# CS-1231 slice C - L1 and R2. THE KIT'S OWN TIMEOUT ENDS THE RUN; THE DRIVER'S
+# KILL IS THE BACKSTOP.
 #
 # The runner hands the fleet kit a `--timeout`, and the kit kills the CLI's tree
-# when it expires. The driver's own kill is the one it VERIFIES - a kill that did
-# not take ends the night on `timeout_kill_failed`, while the kit swallows a
-# failed kill - so the driver's deadline, plus one poll and the kill grace, must
-# expire first. The defaults are graded here, and the command line refuses any
-# configuration that would invert the order rather than run it.
+# when it expires - and only a run the KIT ends writes its usage line and leaves
+# its status file idle (CS-1234 clause 4). A tree killed from outside, the way
+# the driver kills, counts a start and writes no usage line at all (MEASURED by
+# the adversary). So the kit's ceiling sits BELOW the driver's own kill, by a
+# margin that covers the kit's tree kill and the runner's wrap, and the driver's
+# verified kill stays only as the backstop for a runner the kit could not end.
+# The command line refuses any `--timeout` that would invert the order.
 # ---------------------------------------------------------------------------
 
 
-def test_cs1231c_the_kit_ceiling_sits_above_the_drivers_default_kill_deadline():
-    """The default night: the driver's verified kill lands before the kit's."""
+def test_cs1231c_the_kit_ceiling_sits_below_the_drivers_default_kill_deadline():
+    """The default night: the kit ends a run that outlives its ceiling, first."""
     ceiling = getattr(queue_loop, "RUNNER_KIT_TIMEOUT_S", None)
+    margin = getattr(queue_loop, "KIT_WRAP_MARGIN_S", None)
     assert type(ceiling) is int, "the driver names no kit ceiling"
-    deadline = (
-        queue_loop.DEFAULT_CYCLE_TIMEOUT_S
-        + queue_loop.DEFAULT_POLL_S
-        + queue_loop.DEFAULT_KILL_GRACE_S
-    )
-    assert deadline < ceiling, f"the driver's kill at {deadline}s is not below {ceiling}s"
+    assert type(margin) is int, "the driver names no wrap margin"
+    assert margin > 0, "the wrap margin leaves no room"
+    room = queue_loop.DEFAULT_CYCLE_TIMEOUT_S - ceiling
+    assert room >= margin, f"the kit's {ceiling}s ceiling leaves {room}s before the driver's kill"
 
 
 def _no_night(monkeypatch):
@@ -4359,27 +4363,187 @@ def _no_night(monkeypatch):
 
 @pytest.mark.parametrize(
     "flags",
-    [["--timeout", "20000"], ["--timeout", "inf"], ["--timeout", "nan"], ["--poll", "900"]],
-    ids=["timeout-above", "timeout-infinite", "timeout-nan", "poll-above"],
+    [
+        ["--timeout", "14399"],
+        ["--timeout", "14100"],
+        ["--timeout", "600"],
+        ["--timeout", "inf"],
+        ["--timeout", "nan"],
+    ],
+    ids=["one-below-the-margin", "at-the-ceiling", "below-the-ceiling", "infinite", "nan"],
 )
-def test_cs1231c_the_cli_refuses_a_deadline_the_kits_ceiling_would_undercut(
+def test_cs1231c_the_cli_refuses_a_deadline_the_kits_ceiling_would_not_beat(
     tmp_path, monkeypatch, flags
 ):
-    """A deadline the kit would beat is a usage error, and no night starts."""
+    """A deadline the kit cannot finish inside is a usage error, and no night starts."""
     called = _no_night(monkeypatch)
     argv = [*flags, "--once", "--control-dir", str(tmp_path / "control")]
     with pytest.raises(SystemExit) as raised:
         queue_loop.main(argv, singleton=FakeSingleton())
     code = raised.value.code
     assert code == 2, f"the refusal exited {code!r}"  # noqa: PLR2004 - argparse's usage code
-    assert called == [], "a night started on a deadline the kit's ceiling undercuts"
+    assert called == [], "a night started on a deadline the kit's ceiling does not beat"
 
 
-def test_cs1231c_control_the_cli_accepts_its_default_deadline(tmp_path, monkeypatch):
-    """THE CONTROL: the same command line with the defaults runs the night."""
+@pytest.mark.parametrize(
+    "flags",
+    [[], ["--timeout", "14400"], ["--timeout", "20000"]],
+    ids=["default", "exactly-the-margin", "above"],
+)
+def test_cs1231c_control_the_cli_accepts_a_deadline_the_kit_beats(tmp_path, monkeypatch, flags):
+    """THE CONTROL: the default - exactly the margin above the ceiling - and above, run."""
     called = _no_night(monkeypatch)
     code = queue_loop.main(
-        ["--once", "--control-dir", str(tmp_path / "control")], singleton=FakeSingleton()
+        [*flags, "--once", "--control-dir", str(tmp_path / "control")], singleton=FakeSingleton()
     )
     assert code == queue_loop.EXIT_OK
     assert len(called) == 1
+
+
+def test_cs1231c_the_kits_timeout_fires_first_and_the_driver_never_kills(tmp_path):
+    """R2 on a default cycle: the kit ends the run, the driver reads it, nothing is killed.
+
+    The worker stays up until just past the kit's ceiling - where the kit's own
+    kill ends it - and its log ends on the runner's timeout line. The driver's
+    deadline is still ahead, so it never fires its backstop kill, and the cycle
+    is a timeout.
+    """
+    clock = FakeClock()
+    log = tmp_path / "lane.log"
+    log.write_bytes(
+        b"lane start 2026-01-01T00:00:00 cwd=w model=m effort=high prompt=p\n"
+        b"lane timeout 2026-01-01T03:55:05 kit_exit=4\n"
+        b"lane exit 2026-01-01T03:55:06 code=4\n"
+    )
+    ceiling = getattr(queue_loop, "RUNNER_KIT_TIMEOUT_S", 0)
+    killed: list[int] = []
+    got = queue_loop.run_cycle(
+        1,
+        **cycle_seams(
+            clock,
+            launch=lambda _lane, **_kw: {"pid": WORKER_PID, "log": str(log.resolve())},
+            alive=lambda _pid: clock.monotonic() < ceiling + 5,
+            kill=killed.append,
+            poll_s=queue_loop.DEFAULT_POLL_S,
+        ),
+    )
+    verdict = (got["outcome"], killed)
+    assert verdict == ("timeout_killed", []), f"cycle {verdict}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1231 slice C - R1. THE DRIVER HONOURS THE TREE'S DECLARED STOP SENTINELS.
+#
+# `ops/stop_sentinels.json` declares INBOX_STOP and HOLD_MAIN_SPAWN beside the
+# driver's own STOP and QUEUE_STOP, and the fleet kit refuses every start while
+# one stands. The driver now reads the same declaration through the kit's own
+# `stop_sentinel_hit`, as the inbox responder does (CS-1234), so a standing hold
+# is a clean stop before any launch - and an unreadable declaration stops the
+# night too (fail closed), as the kit itself refuses on one.
+# ---------------------------------------------------------------------------
+
+
+def _declare(root, paths, *, present=()):
+    """A tree under `root` whose `ops/stop_sentinels.json` declares `paths`."""
+    (root / "ops").mkdir(parents=True, exist_ok=True)
+    (root / "ops" / "stop_sentinels.json").write_bytes(json.dumps({"paths": paths}).encode())
+    for rel in present:
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(b"synthetic\n")
+
+
+def test_cs1231c_the_kit_stop_reader_honours_the_trees_declaration(tmp_path):
+    """A declared sentinel that stands stops; an unreadable declaration stops too."""
+    hold = "ops/loop/control/HOLD_MAIN_SPAWN"
+    reader = getattr(queue_loop, "kit_stop_reason", None)
+    assert callable(reader), "the driver has no reader for the tree's declared sentinels"
+    absent, standing, garbled, undeclared = (
+        tmp_path / "a",
+        tmp_path / "s",
+        tmp_path / "g",
+        tmp_path / "u",
+    )
+    _declare(absent, [hold])
+    _declare(standing, [hold], present=[hold])
+    (garbled / "ops").mkdir(parents=True)
+    (garbled / "ops" / "stop_sentinels.json").write_bytes(b"{not json")
+    undeclared.mkdir()
+    words = [reader(root) for root in (absent, standing, garbled, undeclared)]
+    assert words == [None, "kit_halted", "kit_halted", None], f"words {words}"
+
+
+def test_cs1231c_a_declared_sentinel_stops_the_night_before_any_launch(tmp_path):
+    """The kit's declared sentinel is read at the top of the night: nothing launches."""
+    clock = FakeClock()
+    launched: list[int] = []
+
+    def launch(_lane, **_kw):
+        launched.append(1)
+        return {"pid": 1, "log": "l"}
+
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            max_cycles=3,
+            launch=launch,
+            control_dir=tmp_path / "control",
+            kit_halt=lambda: "kit_halted",
+        )
+    )
+    verdict = (summary["stopped_by"], launched, summary["records"])
+    assert verdict == ("kit_halted", [], []), f"night {verdict}"
+
+
+def test_cs1231c_a_declared_sentinel_placed_during_a_claim_wait_stops_before_the_claim(
+    tmp_path,
+):
+    """The same read guards every claim attempt, as the driver's own sentinels do."""
+    clock = FakeClock()
+    asked: list[int] = []
+    answers = iter([None, None, "kit_halted"])
+
+    def acquire(_lane, **_kw):
+        asked.append(1)
+        return {"ok": False, "refused": "lane_held", "holder": "queue-b", "pid": 7}
+
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            max_cycles=1,
+            acquire=acquire,
+            acquire_retries=5,
+            control_dir=tmp_path / "control",
+            kit_halt=lambda: next(answers, "kit_halted"),
+        )
+    )
+    verdict = (summary["stopped_by"], len(asked))
+    assert verdict == ("kit_halted", 1), f"night {verdict}"
+
+
+def test_cs1231c_the_cli_hands_the_night_the_kits_reader_over_this_tree(monkeypatch):
+    """Production reads the REAL declaration: `main` binds the kit's reader to this tree."""
+    called = _no_night(monkeypatch)
+    queue_loop.main(["--once"], singleton=FakeSingleton())
+    bound = called[0].get("kit_halt") if called else None
+    reader = getattr(queue_loop, "kit_stop_reason", None)
+    shape = (
+        getattr(bound, "func", None) is reader and reader is not None,
+        getattr(bound, "args", None) == (getattr(queue_loop, "KIT_ROOT", None),),
+    )
+    assert shape == (True, True), f"the night was handed {shape}"
+    root = getattr(queue_loop, "KIT_ROOT", None)
+    declares = root is not None and (root / "ops" / "stop_sentinels.json").is_file()
+    assert declares, "the kit root is not the tree that carries the declaration"
+
+
+def test_cs1231c_a_night_stopped_by_a_declared_sentinel_exits_as_a_sentinel_stop(
+    monkeypatch,
+):
+    """Zero cycles under a standing declared sentinel exits as a stop, not a fault."""
+    monkeypatch.setattr(
+        queue_loop,
+        "run_loop",
+        lambda **_kw: {"cycles_run": 0, "stopped_by": "kit_halted", "records": []},
+    )
+    code = queue_loop.main(["--once"], singleton=FakeSingleton())
+    assert code == queue_loop.EXIT_STOP_SENTINEL, f"a declared-sentinel stop exited {code}"

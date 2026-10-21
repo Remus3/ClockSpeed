@@ -206,11 +206,12 @@ try {
   # session persistence, strict MCP config, project and local settings).
   #
   # --timeout IS THE DRIVER'S KIT CEILING, RUNNER_KIT_TIMEOUT_S in
-  # ops/loop/queue_loop.py, and it sits ABOVE the driver's own kill: its cycle
-  # budget plus one poll plus the kill grace. The driver's kill is the one it
-  # VERIFIES, so it must land first; the kit's is the backstop for a worker the
-  # driver no longer watches. The direct start had no ceiling at all, and the
-  # kit's default of one hour would kill a worker the driver still waits for.
+  # ops/loop/queue_loop.py, and it sits BELOW the driver's own kill by
+  # KIT_WRAP_MARGIN_S. Only a run the KIT ends writes its usage line and leaves
+  # its status file idle; a tree killed from outside writes neither. So the
+  # kit's timeout is the cycle's timeout - the line below its exit says so -
+  # and the driver's verified kill is the backstop for a run the kit could not
+  # end. The kit's default of one hour would end a worker hours early.
   # tests/test_lane_runner_script.py binds the literal to the driver by name.
   #
   # --floors-in-hooks: this tree's floors live in hooks, so the kit refuses
@@ -227,7 +228,7 @@ try {
     "--effort", "$effort",
     "--floors-in-hooks",
     "--permission-mode", "bypassPermissions",
-    "--timeout", "14725",
+    "--timeout", "14100",
     "--cwd", "$Cwd"
   )
 
@@ -287,8 +288,11 @@ try {
 
   # EVERY KIT ENDING THE CLI'S RESULT CANNOT SHOW GETS ONE LINE OF ITS OWN, and
   # it is ALWAYS the last line before the exit line the finally writes - the
-  # one place ops/loop/queue_loop.py reads it from, so worker text written
-  # earlier in the log can never stand in for it. Its words are fixed.
+  # one place ops/loop/queue_loop.py reads it from, on EVERY exit: a kit
+  # refusal ends this runner inside the launcher's liveness grace, and the
+  # launcher hands this log back on that refusal (CS-1231 slice C, R1). Worker
+  # text written earlier in the log can never stand in for it. Its words are
+  # fixed.
   if ($code -eq 3) {
     # THE CODE ONLY, NEVER THE MESSAGE. The code is a fixed kit vocabulary word;
     # the message is text built from an exception, and this log is written

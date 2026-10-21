@@ -1073,9 +1073,11 @@ sentinel; an unreadable declaration halts it too (fail closed, as the kit's spaw
 declaration lifts `STOP` or `INBOX_STOP`. So `QUEUE_STOP` and `HOLD_MAIN_SPAWN` no longer reach
 the kit: no `kit_refused` line, no `refused` / Idle and no exit 3 while either file stands. A
 sentinel placed after that check, which the kit then reads, also shows `halted` and exits 0.
-The queue lane meets the hold at the kit: `ops/loop/run_lane.ps1` starts its worker through
-the kit's `spawn` (CS-1231 slice C), so a standing hold refuses the lane's start, code `halted`,
-and the driver writes a `launch_failed` row for it. The declaration is permanent: LIFTING THE HOLD
+The queue lane honours the hold too (CS-1231 slice C): its driver reads every declared path
+through the kit's own `stop_sentinel_hit` before each cycle and each claim, and stops the night
+on `kit_halted` - an unreadable declaration stops it too, fail closed. A hold placed after that
+read meets the kit, which refuses the start with code `halted`, and the driver stops on the
+same word. The declaration is permanent: LIFTING THE HOLD
 removes the hold FILE only, never its line in the declaration, so lifting it needs no
 commit. When to lift it is the hand-off's to say (CS-1330).
 

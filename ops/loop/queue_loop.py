@@ -254,17 +254,23 @@ ACQUIRE_WAIT_S = 30
 #: shutdown - `/F` grants none. Short enough that a driver which cannot kill its
 #: worker says so within a poll or two.
 DEFAULT_KILL_GRACE_S = 15
-#: CS-1231 slice C, L1 - THE FLEET KIT'S OWN CEILING, which `ops/loop/run_lane.ps1`
+#: CS-1231 slice C, R2 - THE FLEET KIT'S OWN CEILING, which `ops/loop/run_lane.ps1`
 #: hands the kit as `--timeout` (tests/test_lane_runner_script.py binds the two
-#: by name). The kit kills the CLI's tree when it expires and SWALLOWS a kill that
-#: fails, while this driver VERIFIES its own kill and ends the night on
-#: `timeout_kill_failed` when one does not take - so the driver's kill must land
-#: first. It does: the default cycle budget plus one poll plus the kill grace is
-#: 14425 s, and this is that plus a 300 s margin. `main` refuses any `--timeout`
-#: and `--poll` that would put the driver's kill at or past it, and a run the kit
-#: killed anyway - one this driver stopped watching - is still read as a timeout
-#: off the runner's log (`_runner_ending`), never as a run that completed.
-RUNNER_KIT_TIMEOUT_S = 14725
+#: by name). It sits BELOW this driver's kill, by `KIT_WRAP_MARGIN_S`. Only a run
+#: the KIT ends writes its usage line and leaves the kit's status file idle
+#: (CS-1234 clause 4); a tree killed from outside, the way `_taskkill` kills,
+#: counts a start and writes neither - MEASURED by the adversary of this slice.
+#: So the kit's timeout is the cycle's timeout, read off the runner's log as
+#: `timeout_killed` (`_runner_ending`, L1), and this driver's verified kill at
+#: `cycle_timeout_s` is the BACKSTOP for a runner the kit could not end. L1's
+#: "pass --timeout above the driver's timer, or drop that timer" is met by its
+#: second arm: the driver's timer no longer times the worker, it bounds the
+#: runner. `main` refuses any `--timeout` the kit's ceiling would not beat.
+RUNNER_KIT_TIMEOUT_S = 14100
+#: The room between the kit's ceiling and the driver's kill: the kit's tree kill
+#: (taskkill, then its own five-second grace), its usage and status writes, and
+#: the runner's log lines and exit, with the driver's poll on top.
+KIT_WRAP_MARGIN_S = 300
 #: Consecutive `error` outcomes before the loop gives up. One genuine fault plus
 #: two chances for it to be transient; a fourth would be watching the same
 #: traceback scroll past all night.
@@ -342,6 +348,7 @@ KIT_REFUSAL_CODES = (
 )
 KIT_BUDGET_SPENT = "budget-spent"
 KIT_FALLBACK_HALTED = "fallback-halted"
+KIT_HALTED = "halted"
 #: The runner's OWN words on a refused line: a code it would not echo, and the
 #: kit refusing its command line (exit 2).
 _RUNNER_REFUSAL_WORDS = ("unknown", "bad-arguments")
@@ -732,6 +739,23 @@ _BUDGET_SPENT_DETAIL = (
 )
 #: The outcomes that are REFUSED, NOT RUN: not a cycle, and backed off.
 _REFUSED_OUTCOMES = frozenset({OUTCOME_USAGE_REFUSED, OUTCOME_BUDGET_SPENT})
+#: CS-1231 slice C, R1 - THE KIT REFUSED BECAUSE A STOP SENTINEL THIS TREE
+#: DECLARES STANDS (kit code `halted`): `ops/stop_sentinels.json` names INBOX_STOP
+#: and HOLD_MAIN_SPAWN beside this driver's own. Not a cycle and not a fault: the
+#: night STOPS on `KIT_HALT_STOP`, as it does at the sentinels it reads itself.
+#: Reached only when one appears between this driver's own read of the
+#: declaration (`kit_stop_reason`) and the kit's.
+OUTCOME_KIT_HALTED = "kit_halted"
+_KIT_HALTED_DETAIL = (
+    "REFUSED, NOT RUN - a stop sentinel declared in ops/stop_sentinels.json stands "
+    "(kit code halted); the night stops"
+)
+#: The stop word for a sentinel the TREE declares - read through the kit's own
+#: `stop_sentinel_hit` - and for a declaration that cannot be read (fail closed).
+#: A stop like the driver's own sentinel names, so it is a success word.
+KIT_HALT_STOP = "kit_halted"
+#: The tree the runner hands the kit as its root: the one this driver lives in.
+KIT_ROOT = _HERE.parents[1]
 
 #: THE OUTCOMES THAT COUNT AS A CYCLE HAVING HAPPENED - an ALLOWLIST, and the
 #: allowlist is the mechanism. The invariant is "no sequence of outcomes in
@@ -982,10 +1006,11 @@ def _mod(name: str):
 def _taskkill(pid) -> None:
     """Hard-kill a wedged worker AND its children. Never raises.
 
-    `/T` is not decoration: the pid is the powershell WRAPPER and `claude` is
-    its child, so killing only the wrapper would orphan a live worker inside the
-    lane worktree while the very next cycle fires a second worker into the SAME
-    directory.
+    `/T` is not decoration: the pid is the powershell WRAPPER, its child is the
+    fleet kit's `python` and `claude` is the kit's child - the wrapper's
+    GRANDCHILD since CS-1231 slice C - so killing only the wrapper would orphan
+    a live worker inside the lane worktree while the very next cycle fires a
+    second worker into the SAME directory.
 
     Failure is swallowed on purpose - the caller is already recording a timeout,
     and a kill that could throw would turn one bad cycle into a dead driver. The
@@ -2180,9 +2205,10 @@ def _sentinel_word(value: object) -> str:
         The matching member of `STOP_NAMES`, or its first - the global halt -
         for a value that is not exactly one of them.
     """
-    if type(value) is not str or value not in STOP_NAMES:
+    words = (*STOP_NAMES, KIT_HALT_STOP)
+    if type(value) is not str or value not in words:
         return STOP_NAMES[0]
-    return STOP_NAMES[STOP_NAMES.index(value)]
+    return words[words.index(value)]
 
 
 # ---------------------------------------------------------------------------
@@ -2881,28 +2907,33 @@ def _await_death(pid, started, *, alive, stranger, kill_grace_s, poll_s, sleep, 
         sleep(step)
 
 
-def _back_off(sleep, control_dir, seconds: float = USAGE_LIMIT_BACKOFF_S) -> str | None:
+def _back_off(
+    sleep, control_dir, seconds: float = USAGE_LIMIT_BACKOFF_S, stopped=None
+) -> str | None:
     """CS-1178 - sleep `seconds` in polls, or stop at a sentinel.
 
     The driver owns this wait like every other; it is only cut into polls so
     that a stop sentinel written during it is read within one poll rather than
     an hour later. `seconds` is the fixed usage-limit hour unless the caller
     measured a better one - CS-1231 slice C's wait for the kit's cap to free.
+    `stopped`, a zero-argument stop seam, replaces the read of `control_dir`'s
+    own sentinels when given - `run_loop` hands it the declared ones as well.
 
     Returns:
         The NAME of a stop sentinel that appeared, or None when the whole
         back-off was slept.
     """
+    read = functools.partial(stop_reason, control_dir) if stopped is None else stopped
     remaining = float(seconds)
     step = float(USAGE_LIMIT_BACKOFF_POLL_S)
     while remaining > 0:
-        reason = stop_reason(control_dir)
+        reason = read()
         if reason:
             return reason
         chunk = min(step, remaining)
         sleep(chunk)
         remaining -= chunk
-    return stop_reason(control_dir)
+    return read()
 
 
 def _worker_result(log: object) -> dict | None:
@@ -3101,22 +3132,28 @@ def _cap_frees_epoch(status: object) -> float | None:
     return epoch if math.isfinite(epoch) else None
 
 
-def _budget_spent(status: object, now: float) -> bool:
-    """True when the kit's own status says its run budget is spent right now.
+def kit_stop_reason(root) -> str | None:
+    """CS-1231 slice C, R1 - `KIT_HALT_STOP` while a sentinel the tree declares stands.
 
-    The early-exit evidence (CS-1231 slice C, L2): a runner that exited inside
-    the launcher's grace leaves the driver no log, but the kit published its
-    budget's count, its cap and when it frees. Spent means at the cap, with a
-    stamp still ahead - an unreadable budget publishes no stamp, and stays a
-    launch failure, because it refuses every start until a person repairs it.
+    `ops/stop_sentinels.json` under `root` declares the paths the fleet kit
+    refuses every start beside - INBOX_STOP and HOLD_MAIN_SPAWN as well as this
+    driver's own STOP and QUEUE_STOP - and it is read here through the KIT'S OWN
+    `stop_sentinel_hit`, as the inbox responder reads it (CS-1234), so the two
+    cannot part. FAIL CLOSED: an unreadable declaration is a stop too, as it is
+    a refusal in the kit; so is a kit that cannot be loaded. Never raises, and
+    nothing it read is returned.
+
+    Args:
+        root: The tree whose declaration is read - `KIT_ROOT` in production.
+
+    Returns:
+        `KIT_HALT_STOP`, or None when no declared sentinel stands.
     """
-    if type(status) is not dict:
-        return False
-    used, cap = status.get("runs_in_window"), status.get("runs_cap")
-    if type(used) is not int or type(cap) is not int or cap <= 0 or used < cap:
-        return False
-    frees = _cap_frees_epoch(status)
-    return frees is not None and frees > now
+    try:
+        hit = _mod("fleet_headless").stop_sentinel_hit(root)
+    except Exception:  # DELIBERATE: every fault here is a stop, never a launch
+        return KIT_HALT_STOP
+    return KIT_HALT_STOP if hit else None
 
 
 def _budget_back_off_s(status: object, now: float) -> float:
@@ -3133,20 +3170,18 @@ def _budget_back_off_s(status: object, now: float) -> float:
     return float(min(max(wait, USAGE_LIMIT_BACKOFF_POLL_S), KIT_WINDOW_S))
 
 
-def kit_ceiling_holds(
-    cycle_timeout_s: float, poll_s: float, kill_grace_s: float = DEFAULT_KILL_GRACE_S
-) -> bool:
-    """CS-1231 slice C, L1 - whether this driver's kill lands before the kit's.
+def kit_timeout_first(cycle_timeout_s: float) -> bool:
+    """CS-1231 slice C, R2 - whether the kit's own timeout ends a run before this driver.
 
-    The driver reads its deadline once per poll and then grants the kill its
-    grace, so all three must sum strictly below `RUNNER_KIT_TIMEOUT_S`. A value
-    that is not a finite, non-negative number never holds: an infinite deadline
-    is a driver that never kills, and NaN compares false with everything.
+    The driver kills no earlier than `cycle_timeout_s` after the launch - it
+    reads its deadline once per poll, never before - so the kit's ceiling must
+    sit at least `KIT_WRAP_MARGIN_S` below it. A deadline that is not a finite
+    number never holds: an infinite one is a driver with no backstop, and NaN
+    compares false with everything.
     """
-    parts = (cycle_timeout_s, poll_s, kill_grace_s)
-    if not all(type(part) in (int, float) and math.isfinite(part) and part >= 0 for part in parts):
+    if type(cycle_timeout_s) not in (int, float) or not math.isfinite(cycle_timeout_s):
         return False
-    return bool(sum(parts) < RUNNER_KIT_TIMEOUT_S)
+    return bool(cycle_timeout_s - RUNNER_KIT_TIMEOUT_S >= KIT_WRAP_MARGIN_S)
 
 
 def _ending_outcome(ending, outcome: str, detail: str, ran_for: float) -> tuple[str, str]:
@@ -3167,7 +3202,27 @@ def _ending_outcome(ending, outcome: str, detail: str, ran_for: float) -> tuple[
         return OUTCOME_BUDGET_SPENT, _BUDGET_SPENT_DETAIL
     if code == KIT_FALLBACK_HALTED:
         return OUTCOME_USAGE_REFUSED, _KIT_LIMIT_DETAIL
+    if code == KIT_HALTED:
+        return OUTCOME_KIT_HALTED, _KIT_HALTED_DETAIL
     return OUTCOME_LAUNCH_FAILED, f"the lane runner recorded a refused start - kit code {code}"
+
+
+def _early_exit_outcome(log, ending_of, result_of, outcome: str, detail: str) -> tuple[str, str]:
+    """CS-1231 slice C, R1 - what a runner that died inside the launcher's grace was.
+
+    EVERY kit refusal lands here - MEASURED at about 0.24 s, against the 2.0 s
+    grace - so this is the path a refusal takes, not a rare one. The launcher
+    hands back the log it chose for the runner, and it is asked exactly what a
+    runner that exited after the grace is asked: the kit's ending first, then
+    whether the CLI's own result was a usage-limit refusal. A log that names
+    neither leaves the launch failure as it was.
+    """
+    ending = ending_of(log)
+    if ending is not None:
+        return _ending_outcome(ending, outcome, detail, 0.0)
+    if _is_usage_refusal(result_of(log)):
+        return OUTCOME_USAGE_REFUSED, _USAGE_REFUSED_DETAIL
+    return outcome, detail
 
 
 #: The fallback token when the surface module itself cannot be bound. The
@@ -3395,7 +3450,6 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     checklist=None,
     result_of=_worker_result,
     ending_of=_runner_ending,
-    kit_status=None,
     emit=_emit,
     sleep=time.sleep,
     clock=time.time,
@@ -3429,12 +3483,10 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     CS-1231 slice C. The runner starts the fleet kit, so a worker that EXITED
     is asked how the kit ended it (`ending_of`, `_runner_ending`): the kit's own
     timeout is `timeout_killed`, a spent run budget `budget_spent`, the kit's
-    usage-limit halt `usage_refused`, any other refusal `launch_failed` - never
-    `completed`. A runner that exited inside the launcher's grace leaves no log
-    to ask, so `kit_status` - a zero-argument callable answering the kit's
-    status file, `run_loop` passes it - is read instead, and a budget the kit
-    publishes as spent makes the refusal `budget_spent`. None asks for no read,
-    for the reason `stopped` defaults to None.
+    usage-limit halt `usage_refused`, a declared stop sentinel `kit_halted`,
+    any other refusal `launch_failed` - never `completed`. A runner that exited
+    inside the launcher's grace - where EVERY kit refusal lands - is asked the
+    same questions off the log the launcher hands back on that refusal.
     """
     # Resolved INSIDE the guard rather than through a conditional expression, so
     # the module object is never typed as "maybe None" - a shape that reads as a
@@ -3587,19 +3639,16 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             outcome, detail = OUTCOME_LAUNCH_FAILED, _launch_fault(exc)[:400]
             launch_reason = _launch_reason(exc)
             launch_waited = _launch_waited(getattr(exc, "waited_s", None))
-            # CS-1231 slice C, L2 - A FAST KIT REFUSAL DIES INSIDE THE GRACE.
-            # The kit refuses a spent budget in about a second, so the runner
-            # often exits before the launcher's liveness grace ends, and that
-            # reads as `runner_exited_early` with no log handed back. The
-            # kit's own status file says whether the budget is spent; when it
-            # is, the start was refused, not failed, and three of them must not
-            # end the night as a fault in this tree.
-            if (
-                launch_reason == _EXITED_EARLY
-                and kit_status is not None
-                and _budget_spent(kit_status(), clock())
-            ):
-                outcome, detail = OUTCOME_BUDGET_SPENT, _BUDGET_SPENT_DETAIL
+            # CS-1231 slice C, R1 - A KIT REFUSAL ALWAYS DIES INSIDE THE GRACE.
+            # The runner exits about 0.24 s after it starts when the kit
+            # refuses, so it reads as `runner_exited_early` on every such run;
+            # the launcher hands back the runner's log on that refusal, and the
+            # kit's code in it decides what the start was. ONLY that reason:
+            # any other launch failure never got as far as a runner.
+            if launch_reason == _EXITED_EARLY:
+                outcome, detail = _early_exit_outcome(
+                    getattr(exc, "log", None), ending_of, result_of, outcome, detail
+                )
         else:
             pid = run.get("pid")
             if not pid:
@@ -3741,6 +3790,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     claim_root=None,
     hold=None,
     surface=None,
+    kit_halt=None,
     sleep=time.sleep,
     clock=time.time,
     monotonic=time.monotonic,
@@ -3794,6 +3844,21 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     wait = wait_for_ci if wait is None else wait
     suite = run_local_suite if suite is None else suite
 
+    def stopping() -> str | None:
+        """This driver's own sentinels first, then the ones the tree declares.
+
+        CS-1231 slice C, R1. `kit_halt` - a zero-argument callable, `main`
+        binds `kit_stop_reason` to the tree - answers `KIT_HALT_STOP` while a
+        sentinel `ops/stop_sentinels.json` declares stands, or the declaration
+        cannot be read. None, the default, asks for no read, for the reason
+        `run_cycle`'s `stopped` defaults to None.
+        """
+        own = stop_reason(control_dir)
+        if own:
+            return own
+        # THE DRIVER'S OWN LITERAL, whatever the seam answered.
+        return KIT_HALT_STOP if kit_halt is not None and kit_halt() else None
+
     records: list = []
     stopped_by = None
     consecutive_errors = 0
@@ -3812,7 +3877,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     cycle = 0
     while cycle < total:
         cycle += 1
-        reason = stop_reason(control_dir)
+        reason = stopping()
         if reason:
             stopped_by = reason
             emit(f"queue-loop stop: {reason} present - {len(records)} cycle(s) run")
@@ -3870,10 +3935,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     observe=watch.sample,
                     # CS-1274 r2 - the SAME sentinels the top of this loop
                     # reads, re-read before every claim attempt in the cycle.
-                    stopped=functools.partial(stop_reason, control_dir),
-                    # CS-1231 slice C - the kit's status file, beside the same
-                    # sentinels, read only for a runner that exited early.
-                    kit_status=functools.partial(_kit_status, control_dir),
+                    # CS-1231 slice C - and the sentinels the tree declares.
+                    stopped=stopping,
                     surface=surface,
                     # CS-1274 - FLEET item 13: the night's REMAINING cycles as
                     # at this fire, so the lane file never lists a done one.
@@ -4151,8 +4214,10 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             and (verdict is None or verdict["verdict"] not in _CI_ROLLUP_BAD)
         )
 
-        # CS-1231 slice C - a spent fleet run budget is refused, not run, too.
-        refused = record["outcome"] in _REFUSED_OUTCOMES
+        # CS-1231 slice C - a spent fleet run budget is refused, not run, too,
+        # and so is a start the kit halted at a declared stop sentinel.
+        halted = record["outcome"] == OUTCOME_KIT_HALTED
+        refused = record["outcome"] in _REFUSED_OUTCOMES or halted
         if refused:
             # CS-1178 - NOT A CYCLE, SO NOT NUMBERED AS ONE. The row is written,
             # because the refusal happened; its `cycle` is None so no reader
@@ -4189,6 +4254,16 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # the counter and the stop word: both are an outside "no" that is waited
         # out, and the row's outcome word says which it was. Its wait is until
         # the kit's cap frees, read off the kit's status file, not the hour.
+        # CS-1231 slice C, R1 - A DECLARED STOP SENTINEL STANDS: a clean stop on
+        # the sentinel word, as at the top of the loop - never a fault counted
+        # three times over until the night ends on `consecutive_launch_failures`.
+        if halted:
+            stopped_by = KIT_HALT_STOP
+            emit(
+                "queue-loop stop: the fleet kit halted the start at a stop sentinel "
+                "declared in ops/stop_sentinels.json"
+            )
+            break
         if refused:
             consecutive_usage_refusals += 1
             if total == 1 or consecutive_usage_refusals >= usage_refusal_limit:
@@ -4214,7 +4289,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     f"{USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
                 )
             with _phase("back_off", cycle):
-                interrupted = _back_off(sleep, control_dir, wait_s)
+                interrupted = _back_off(sleep, control_dir, wait_s, stopping)
             if interrupted:
                 stopped_by = interrupted
                 emit(f"queue-loop stop: {interrupted} present during the back-off")
@@ -4346,8 +4421,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     refusals = sum(1 for record in records if record["outcome"] == OUTCOME_USAGE_REFUSED)
     # CS-1231 slice C - and a spent run budget is not a cycle either.
     budget_refusals = sum(1 for record in records if record["outcome"] == OUTCOME_BUDGET_SPENT)
+    halts = sum(1 for record in records if record["outcome"] == OUTCOME_KIT_HALTED)
     return {
-        "cycles_run": len(records) - refusals - budget_refusals,
+        "cycles_run": len(records) - refusals - budget_refusals - halts,
         "usage_refusals": refusals,
         "budget_refusals": budget_refusals,
         "stopped_by": stopped_by,
@@ -4391,7 +4467,7 @@ _STOP_EXIT = {
 #:
 #: Membership here is permission to exit 0, NOT a guarantee of it: a run in this
 #: set whose records contain no shipping cycle still returns EXIT_NO_PROGRESS.
-_SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES})
+_SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES, KIT_HALT_STOP})
 
 
 def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
@@ -4500,14 +4576,14 @@ def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
         "--once", action="store_true", help="run exactly one cycle - overrides --cycles"
     )
     args = parser.parse_args(argv)
-    # CS-1231 slice C, L1 - A DEADLINE THE KIT WOULD BEAT IS A USAGE ERROR. The
-    # driver's verified kill must land before the fleet kit's unverified one,
-    # so a `--timeout` or `--poll` that puts it at or past the kit's ceiling is
-    # refused here, before any night starts, rather than run inverted.
-    if not kit_ceiling_holds(args.timeout, args.poll):
+    # CS-1231 slice C, R2 - A DEADLINE THE KIT CANNOT BEAT IS A USAGE ERROR. The
+    # fleet kit's own timeout must end a run first, so the run writes its usage
+    # line; a `--timeout` that puts this driver's kill within the wrap margin of
+    # the kit's ceiling is refused here, before any night starts.
+    if not kit_timeout_first(args.timeout):
         parser.error(
-            f"--timeout plus --poll plus the {DEFAULT_KILL_GRACE_S}s kill grace must stay "
-            f"below the fleet kit's {RUNNER_KIT_TIMEOUT_S}s ceiling (RUNNER_KIT_TIMEOUT_S)"
+            f"--timeout must be at least {KIT_WRAP_MARGIN_S}s above the fleet kit's "
+            f"{RUNNER_KIT_TIMEOUT_S}s ceiling (RUNNER_KIT_TIMEOUT_S), so the kit ends a run first"
         )
     if not retain_log:
         return _drive(args, singleton)
@@ -4542,6 +4618,9 @@ def _drive(args, singleton) -> int:
                 local_suite=args.local_suite,
                 lane=args.lane,
                 control_dir=control_dir,
+                # CS-1231 slice C, R1 - the declaration the kit reads, read here
+                # through the kit's own reader, before any launch.
+                kit_halt=functools.partial(kit_stop_reason, KIT_ROOT),
                 repo_root=(None if args.repo_root is None else Path(args.repo_root)),
                 cycle_log=cycle_log,
             )
@@ -4577,12 +4656,21 @@ def _drive(args, singleton) -> int:
     )
     # `usage_refusals` too, since CS-1178: a night whose only runs were refused
     # ran zero cycles but DID attempt, so its sentinel was not already there.
-    if summary["cycles_run"] == 0 and not refusals and summary["stopped_by"] in STOP_NAMES:
-        sentinel = stop_path_for(summary["stopped_by"], control_dir)
-        _emit(
-            f"queue-loop refused: {summary['stopped_by']} was ALREADY present "
-            f"at {sentinel} - zero cycles ran. Delete that file to run."
-        )
+    # CS-1231 slice C, R1 - a sentinel the TREE declares stops a night the same
+    # way; its path is the declaration's to name, so its line names the file.
+    stop_words = (*STOP_NAMES, KIT_HALT_STOP)
+    if summary["cycles_run"] == 0 and not refusals and summary["stopped_by"] in stop_words:
+        if summary["stopped_by"] == KIT_HALT_STOP:
+            _emit(
+                "queue-loop refused: a stop sentinel declared in ops/stop_sentinels.json "
+                "stands, or the declaration cannot be read - zero cycles ran."
+            )
+        else:
+            sentinel = stop_path_for(summary["stopped_by"], control_dir)
+            _emit(
+                f"queue-loop refused: {summary['stopped_by']} was ALREADY present "
+                f"at {sentinel} - zero cycles ran. Delete that file to run."
+            )
         return EXIT_STOP_SENTINEL
     # CS-1178 - A NIGHT THAT WAS ONLY REFUSALS says so, whatever stopped it. A
     # sentinel read mid-back-off would otherwise fall through to "no progress"

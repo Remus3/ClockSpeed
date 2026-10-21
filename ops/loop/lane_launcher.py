@@ -413,6 +413,9 @@ class LaneLaunchError(RuntimeError):
         super().__init__(message)
         self.reason = reason
         self.waited_s = waited_s
+        # CS-1231 slice C - the runner log ``launch_lane`` had chosen, set by its
+        # handler on the way out; None until then, and when it had chosen none.
+        self.log: str | None = None
 
 
 def worktree_path(lane: str) -> Path:
@@ -807,12 +810,14 @@ def _kill_argv(pid: Any) -> list[str] | None:
 
     ``/T`` IS REQUIRED, the same flag for the same reason as the driver's
     ``queue_loop._taskkill`` (CS-1274 r3). The pid this module spawned is the
-    PowerShell WRAPPER ``run_lane.ps1`` runs in, and ``claude`` is its child:
-    killing only the wrapper leaves a live writer in the lane worktree while the
-    lane is released and reads FREE behind it. The two killers are mirrors
-    rather than one shared function - the launcher importing the driver would
-    invert the seam - and ``tests/test_lane_launcher.py`` pins their argv to
-    agree. Neither has a POSIX branch: the runner is a PowerShell script.
+    PowerShell WRAPPER ``run_lane.ps1`` runs in; its child is the fleet kit's
+    ``python``, and ``claude`` is the kit's child - the wrapper's GRANDCHILD
+    (CS-1231 slice C): killing only the wrapper leaves a live writer in the
+    lane worktree while the lane is released and reads FREE behind it. The two
+    killers are mirrors rather than one shared function - the launcher importing
+    the driver would invert the seam - and ``tests/test_lane_launcher.py`` pins
+    their argv to agree. Neither has a POSIX branch: the runner is a PowerShell
+    script.
 
     THE PROGRAM IS RESOLVED FROM PATH, NEVER NAMED (CS-910). Windows searches
     the current directory before PATH, and this spawn happens with the LANE
@@ -951,6 +956,12 @@ def launch_lane(
         # is waiting on; the note is diagnosis, and diagnosis never delays a
         # release.
         note_worker_abort(log, exc.reason)
+        # CS-1231 slice C, R1 - THE LOG GOES BACK WITH THE REFUSAL. The runner
+        # starts the fleet kit, and a kit refusal ends it inside the liveness
+        # grace on every run, so this refusal is the ONLY answer the driver gets;
+        # the runner's last lines name the kit's code, and the driver reads them
+        # off this path - its own literal, never this exception's message.
+        exc.log = None if log is None else str(log)
         raise
     except Exception as exc:  # ANY fault at all must free the lane, not only ours
         # BEFORE the release: a worker no lock names must not outlive the lane

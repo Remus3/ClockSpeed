@@ -556,6 +556,12 @@ def _run_real_runner(tmp_path: Path, shim_dir: Path) -> Path:
     tree = tmp_path / "tree"
     tree.mkdir(exist_ok=True)
     log = tmp_path / "lane_queue_real.log"
+    _run_runner_to(RUNNER_SOURCE, prompt, tree, log, shim_dir)
+    return log
+
+
+def _run_runner_to(runner: Path, prompt: Path, tree: Path, log: Path, shim_dir: Path) -> None:
+    """Run `runner` - the REAL runner - over the shim PATH, writing `log`."""
     env = dict(os.environ)
     system_root = env.get("SYSTEMROOT") or env.get("SystemRoot") or "C:\\Windows"
     env["PATH"] = f"{shim_dir}{os.pathsep}{Path(system_root) / 'System32'}"
@@ -571,7 +577,7 @@ def _run_real_runner(tmp_path: Path, shim_dir: Path) -> Path:
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            str(RUNNER_SOURCE),
+            str(runner),
             "-PromptFile",
             str(prompt),
             "-Cwd",
@@ -584,7 +590,6 @@ def _run_real_runner(tmp_path: Path, shim_dir: Path) -> Path:
         timeout=_CHILD_TIMEOUT_S,
         env=env,
     )
-    return log
 
 
 def _real_log(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, str, list[str]]:
@@ -744,23 +749,35 @@ def _status(
     return path
 
 
-def _launches(items: list[Path | str]):
-    """A `launch` seam: a Path leaves that log behind, "early" exits in the grace.
+def _early_exit(log: Path | None):
+    """The launcher's refusal for a runner that exited inside its 2.0 s grace.
 
-    "early" raises the launcher's own refusal for a runner that exited inside
-    its 2.0 s liveness grace - the path a fast kit refusal takes.
+    Built as `launch_lane` re-raises it: the reason word, the wait it consumed,
+    and the log it had chosen for that runner (None when it had chosen none).
+    """
+    exc = queue_loop.lane_launcher.LaneLaunchError(
+        "the runner exited 3 within 2.0s of starting, so no worker is behind this lane",
+        reason="runner_exited_early",
+        waited_s=0.24,
+    )
+    exc.log = None if log is None else str(log.resolve())
+    return exc
+
+
+def _launches(items: list[Any]):
+    """A `launch` seam: a Path leaves that log behind; ("early", log) exits in the grace.
+
+    ("early", log) raises the launcher's own refusal for a runner that exited
+    inside its 2.0 s liveness grace - the path EVERY fast kit refusal takes
+    (MEASURED by the adversary: about 0.24 s) - carrying that runner's log.
     """
     fired: list[dict[str, Any]] = []
 
     def launch(lane: str, **kw: Any) -> dict[str, Any]:
         fired.append({"lane": lane, **kw})
         item = items[len(fired) - 1]
-        if item == "early":
-            raise queue_loop.lane_launcher.LaneLaunchError(
-                "the runner exited 3 within 2.0s of starting, so no worker is behind this lane",
-                reason="runner_exited_early",
-                waited_s=1.2,
-            )
+        if isinstance(item, tuple):
+            raise _early_exit(item[1])
         assert isinstance(item, Path)
         return {"pid": 4242, "log": str(item.resolve())}
 
@@ -827,56 +844,41 @@ def test_l2_a_post_grace_budget_refusal_is_not_a_cycle_and_backs_off_until_the_c
     assert leaked is False, "the kit's status text reached the written row"
 
 
-def test_l2_an_early_exit_budget_refusal_is_not_a_launch_failure(tmp_path: Path) -> None:
-    """THE MEDIUM FINDING, inside the grace: no launch_failed, no ended night.
+@pytest.mark.parametrize(
+    ("tail", "word"),
+    [
+        (_refused_tail(_BUDGET_CODE), "budget_spent"),
+        (_refused_tail(_LIMIT_CODE), "usage_refused"),
+        (_refused_tail("blocked"), "launch_failed"),
+        (_refused_tail("refused"), "launch_failed"),
+    ],
+    ids=["budget-spent", "fallback-halted", "blocked", "refused"],
+)
+def test_r1_an_early_exit_kit_refusal_is_read_off_the_runners_log(
+    tmp_path: Path, tail: tuple[str, str], word: str
+) -> None:
+    """R1: a fast kit refusal ALWAYS dies inside the grace, so the log is read there.
 
-    A kit refusal is fast, so the runner often exits inside the launcher's 2.0 s
-    grace, which raises `runner_exited_early` and leaves the driver no log to
-    read. The kit's own status file says the budget is spent, so the start is
-    refused, not failed: the night goes on, and the next start runs.
+    The launcher hands back the log it chose for the runner; the runner's ending
+    line in it names the kit's code, and the code decides the outcome - the same
+    mapping as after the grace, never the bare `launch_failed` of a lane fault.
     """
+    log = _ending_log(tmp_path / "e.log", (*tail, f"lane abort {_STAMP} code=none reason=x"))
     _status(tmp_path / "control", frees_in=600)
-    items: list[Path | str] = ["early", _ok_log(tmp_path / "a.log"), _ok_log(tmp_path / "b.log")]
-    launch, _ = _launches(items)
-    summary, rows, _, clock, _, _ = _drive(tmp_path, [], budget=2, launch=launch)
-    outcomes = [row["outcome"] for row in rows]
-    assert outcomes == ["budget_spent", "completed", "completed"], f"outcomes {outcomes}"
-    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
-    waited = sum(clock.slept) - SETTLE_S
-    expected = 600 + queue_loop.USAGE_LIMIT_BACKOFF_POLL_S
-    assert waited == expected, f"the back-off was {waited}s, not {expected}s"
+    launch, _ = _launches([("early", log)])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == word, f"an early-exit {tail[0][-30:]!r} read {outcome!r}"
 
 
-def test_l2_early_exit_budget_refusals_never_end_the_night_as_launch_failures(
+def test_r1_early_exit_budget_refusals_never_end_the_night_as_launch_failures(
     tmp_path: Path,
 ) -> None:
-    """Three in a row end the night on the usage-limit word, not on a lane fault.
-
-    The kit rewrites its status file on every refusal, so each early exit here
-    finds a cap that frees ten minutes after the moment it was refused.
-    """
-    control = tmp_path / "control"
-    clock = FakeClock()
-    fired: list[int] = []
-
-    def launch(_lane: str, **_kw: Any) -> dict[str, Any]:
-        fired.append(len(fired))
-        _status(control, frees_in=600, now=clock.wall)
-        raise queue_loop.lane_launcher.LaneLaunchError(
-            "the runner exited 3 within 2.0s of starting, so no worker is behind this lane",
-            reason="runner_exited_early",
-            waited_s=1.2,
-        )
-
-    summary, rows, _, _, _, _ = _drive(
-        tmp_path,
-        [],
-        budget=5,
-        launch=launch,
-        sleep=clock.sleep,
-        clock=clock.time,
-        monotonic=clock.monotonic,
-    )
+    """Three in a row end the night on the usage-limit word, not on a lane fault."""
+    _status(tmp_path / "control", frees_in=600)
+    log = _ending_log(tmp_path / "e.log", _refused_tail(_BUDGET_CODE))
+    launch, fired = _launches([("early", log)] * 5)
+    summary, rows, _, _, _, _ = _drive(tmp_path, [], budget=5, launch=launch)
     limit = queue_loop.MAX_CONSECUTIVE_USAGE_REFUSALS
     outcomes = [row["outcome"] for row in rows]
     assert outcomes == ["budget_spent"] * limit, f"outcomes {outcomes}"
@@ -885,15 +887,67 @@ def test_l2_early_exit_budget_refusals_never_end_the_night_as_launch_failures(
     assert len(fired) == limit
 
 
-def test_l2_control_an_early_exit_with_budget_left_is_still_a_launch_failure(
+def test_r1_an_early_exit_kit_halt_stops_the_night_cleanly(tmp_path: Path) -> None:
+    """R1: `halted` is a declared stop sentinel standing - a clean stop, not a fault.
+
+    Before the repair three of these were three `launch_failed` rows and a night
+    ended on `consecutive_launch_failures`.
+    """
+    log = _ending_log(tmp_path / "h.log", _refused_tail("halted"))
+    launch, fired = _launches([("early", log)] * 5)
+    summary, rows, _, _, _, _ = _drive(tmp_path, [], budget=5, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == ["kit_halted"], f"outcomes {outcomes}"
+    stopped = (summary["stopped_by"], len(fired), rows[0]["cycle"])
+    assert stopped == ("kit_halted", 1, None), f"stopped {stopped}"
+
+
+def test_r1_control_an_early_exit_with_no_kit_ending_is_still_a_launch_failure(
     tmp_path: Path,
 ) -> None:
-    """THE CONTROL: only a SPENT budget turns an early exit into a refusal."""
-    _status(tmp_path / "control", frees_in=600, used=5)
-    launch, _ = _launches(["early"])
+    """THE CONTROL: an early exit whose log names no kit ending stays a lane fault.
+
+    The status file says the budget is spent, and that is NOT evidence the
+    start was refused for it: only the runner's own line is read.
+    """
+    _status(tmp_path / "control", frees_in=600)
+    log = _ending_log(tmp_path / "n.log", (f"lane exit {_STAMP} code=1",))
+    launch, _ = _launches([("early", log), ("early", None)])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=2, settle_s=0, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == ["launch_failed", "launch_failed"], f"outcomes {outcomes}"
+
+
+def test_r3_only_an_early_exit_reads_the_runners_log(tmp_path: Path) -> None:
+    """A launch that failed BEFORE a runner ran is a lane fault, whatever a log says.
+
+    The launcher hands its chosen log back on every refusal; only
+    `runner_exited_early` means a runner wrote it. Here the spawn itself failed,
+    and a stale log at that path names a spent budget - which must not be read.
+    """
+    log = _ending_log(tmp_path / "stale.log", _refused_tail(_BUDGET_CODE))
+    exc = queue_loop.lane_launcher.LaneLaunchError(
+        "spawn failed: synthetic", reason="spawn_failed", waited_s=None
+    )
+    exc.log = str(log.resolve())
+
+    def launch(_lane: str, **_kw: Any) -> dict[str, Any]:
+        raise exc
+
     _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
     outcome = rows[0]["outcome"]
-    assert outcome == "launch_failed", f"an early exit with budget left read {outcome!r}"
+    assert outcome == "launch_failed", f"a spawn failure read its stale log as {outcome!r}"
+
+
+def test_r3_a_timeout_line_before_an_exit_line_without_the_kits_code_is_not_a_timeout(
+    tmp_path: Path,
+) -> None:
+    """The timeout line counts only beside the kit's timeout code on the exit line."""
+    tail = (f"lane timeout {_STAMP} kit_exit=4", f"lane exit {_STAMP} code=0")
+    launch, _ = _launches([_ending_log(tmp_path / "t0.log", tail)])
+    _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == "completed", f"a timeout line beside exit code 0 read {outcome!r}"
 
 
 def test_l2_repeated_budget_refusals_end_the_night_on_the_usage_limit_word(
@@ -1057,28 +1111,47 @@ def _kit_ending(tmp_path: Path, ending: str) -> tuple[str, int]:
     """What the REAL kit's command line prints, and its exit, for one ending.
 
     "timeout": the CLI outlives the kit's `--timeout`. "budget-spent": the
-    kit's run budget under `tmp_path` already holds its cap of starts. The
-    kit's own `main` and `spawn` run in this process; nothing live is touched.
+    kit's run budget under `tmp_path` already holds its cap of starts.
+    "halted": the kit root declares a stop sentinel that stands. "blocked": the
+    proxy probe fails, the kit's own `Blocked`. "refused" and "fallback-halted":
+    the kit refuses with that code. "limit": the CLI's own fast usage-limit
+    refusal, which the kit runs and marks as a limit. The kit's own `main` and
+    `spawn` run in this process; nothing live is touched.
     """
     root = tmp_path / "kit-root"
+    root.mkdir(parents=True, exist_ok=True)
     if ending == _BUDGET_CODE:
         budget = root / kit.BUDGET_REL
         budget.parent.mkdir(parents=True, exist_ok=True)
         now = datetime.now(tz=UTC).timestamp()
         budget.write_bytes(json.dumps({"starts": [now] * kit.RUNS_CAP}).encode("ascii"))
-    root.mkdir(parents=True, exist_ok=True)
+    if ending == "halted":
+        hold = root / "ops" / "loop" / "control" / "HOLD_MAIN_SPAWN"
+        hold.parent.mkdir(parents=True, exist_ok=True)
+        hold.write_bytes(b"synthetic hold\n")
+        declared = {"paths": ["ops/loop/control/HOLD_MAIN_SPAWN"]}
+        (root / "ops" / "stop_sentinels.json").write_bytes(json.dumps(declared).encode("ascii"))
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if ending == "limit":
+            return subprocess.CompletedProcess(argv, 1, json.dumps(_LIMIT_RESULT), "")
         raise subprocess.TimeoutExpired(argv, kwargs.get("timeout") or 0)
 
+    def connect(*_args: Any, **_kwargs: Any) -> _Closable:
+        if ending == "blocked":
+            raise ConnectionRefusedError
+        return _Closable()
+
     def spawn_fn(root_: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
+        if ending in {"refused", _LIMIT_CODE}:
+            raise kit.Refused("synthetic kit refusal", code=ending)
         line: dict[str, Any] = kit.spawn(
             root_,
             code,
             prompt,
             run=fake_run,
             url_source=lambda: "http://127.0.0.1:9",
-            connect=lambda *_args, **_kwargs: _Closable(),
+            connect=connect,
             exe_source=lambda: "synthetic-claude",
             **kwargs,
         )
@@ -1094,8 +1167,13 @@ def _kit_ending(tmp_path: Path, ending: str) -> tuple[str, int]:
     return printed.getvalue().strip(), exit_code
 
 
-def _ending_runner_log(tmp_path: Path, ending: str) -> tuple[Path, int]:
-    """The real runner's log over a shim printing the real kit's line for `ending`."""
+#: The CLI's own fast usage-limit refusal: the refusal's shape, and a message
+#: the kit's `classify_limit` reads as a five-hour limit.
+_LIMIT_RESULT: Final = {**REFUSAL, "result": "synthetic 5-hour limit reached"}
+
+
+def _kit_shim(tmp_path: Path, ending: str) -> tuple[Path, int]:
+    """A `python` shim that prints the real kit's line for `ending` and exits as it did."""
     line, exit_code = _kit_ending(tmp_path, ending)
     unsafe = sorted(set(line) & _CMD_SPECIALS)
     assert unsafe == [], f"the shim's JSON holds cmd specials {unsafe}"
@@ -1108,6 +1186,12 @@ def _ending_runner_log(tmp_path: Path, ending: str) -> tuple[Path, int]:
         + str(exit_code).encode("ascii")
         + b"\r\n"
     )
+    return shim_dir, exit_code
+
+
+def _ending_runner_log(tmp_path: Path, ending: str) -> tuple[Path, int]:
+    """The real runner's log over a shim printing the real kit's line for `ending`."""
+    shim_dir, exit_code = _kit_shim(tmp_path, ending)
     return _run_real_runner(tmp_path, shim_dir), exit_code
 
 
@@ -1133,3 +1217,66 @@ def test_a_real_runner_log_of_a_kit_ending_is_read_end_to_end(
     _, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
     outcome = rows[0]["outcome"]
     assert outcome == word, f"the kit's {ending} ending was recorded as {outcome!r}"
+
+
+#: Every fast kit ending the adversary measured inside the launcher's grace, and
+#: the lane outcome each one must be.
+_EARLY_ENDINGS: Final = [
+    ("halted", "kit_halted"),
+    (_LIMIT_CODE, "usage_refused"),
+    ("limit", "usage_refused"),
+    ("blocked", "launch_failed"),
+    ("refused", "launch_failed"),
+    (_BUDGET_CODE, "budget_spent"),
+]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="run_lane.ps1 is driven by Windows PowerShell")
+@pytest.mark.parametrize(("ending", "word"), _EARLY_ENDINGS, ids=[e for e, _ in _EARLY_ENDINGS])
+def test_r1_a_fast_kit_ending_through_the_real_launcher_and_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ending: str, word: str
+) -> None:
+    """R1, REPRODUCED: the 0.24 s refusal, through the REAL `launch_lane` and runner.
+
+    The launcher's spawn seam runs the REAL `run_lane.ps1` over a shim printing
+    what the REAL kit prints for each ending, then raises exactly what
+    `_spawn` raises for a runner that exited inside its 2.0 s grace. The real
+    `launch_lane` releases, appends its `lane abort` line and re-raises; the
+    driver must still read the kit's code off the runner's log. Before the
+    repair every one of these read `launch_failed`.
+    """
+    launcher = queue_loop.lane_launcher
+    shim_dir, _kit_exit = _kit_shim(tmp_path, ending)
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# a prompt the shim never reads\n")
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    released: list[Any] = []
+    monkeypatch.setattr(launcher, "command_path", lambda _lane, **_kw: prompt)
+    monkeypatch.setattr(launcher, "ensure_worktree", lambda _lane, **_kw: tree)
+    monkeypatch.setattr(launcher, "_refuse_main_tree", lambda *_args: None)
+    monkeypatch.setattr(launcher.lanes, "release_lane", released.append)
+
+    def spawn(runner: Path, prompt_path: Path, cwd: Path, log: Path) -> Any:
+        _run_runner_to(runner, prompt_path, cwd, log, shim_dir)
+        raise launcher.LaneLaunchError(
+            "the runner exited within the grace, so no worker is behind this lane",
+            reason=launcher.REASON_RUNNER_EXITED_EARLY,
+            waited_s=0.24,
+        )
+
+    def launch(lane: str, **kw: Any) -> dict[str, Any]:
+        answer: dict[str, Any] = launcher.launch_lane(
+            lane, log_dir=tmp_path / "logs", spawn=spawn, **kw
+        )
+        return answer
+
+    _status(tmp_path / "control", frees_in=600)
+    summary, rows, _, _, _, _ = _drive(tmp_path, [], budget=1, launch=launch)
+    outcome = rows[0]["outcome"]
+    assert outcome == word, f"a fast kit {ending} ending read {outcome!r}"
+    assert released == ["T"], "the real launcher did not release the lane on its refusal"
+    logs = list((tmp_path / "logs").glob("*.log"))
+    aborted = len(logs) == 1 and b"lane abort " in logs[0].read_bytes()
+    assert aborted, "the real launcher did not append its abort line to the runner's log"
+    assert summary["stopped_by"] != queue_loop.STOPPED_BY_LAUNCH_FAILED

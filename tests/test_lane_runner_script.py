@@ -107,9 +107,8 @@ CYCLE_BUDGET_NAME: Final = "DEFAULT_CYCLE_TIMEOUT_S"
 #: The kit ceiling the runner must hand the kit, found by NAME in the driver.
 KIT_CEILING_NAME: Final = "RUNNER_KIT_TIMEOUT_S"
 
-#: The driver's poll and kill grace, by NAME: its kill lands within both.
-POLL_NAME: Final = "DEFAULT_POLL_S"
-GRACE_NAME: Final = "DEFAULT_KILL_GRACE_S"
+#: The room the kit's ceiling leaves before the driver's kill, by NAME.
+MARGIN_NAME: Final = "KIT_WRAP_MARGIN_S"
 
 #: This tree's fleet code, found by NAME in the status module's source.
 TREE_CODE_NAME: Final = "CODE"
@@ -735,30 +734,30 @@ def test_the_permission_mode_the_runner_passes_is_one_the_kit_allows() -> None:
     assert PERMISSION_MODE in kit.PERMISSION_MODES
 
 
-def test_the_kit_timeout_the_runner_passes_sits_above_the_drivers_kill() -> None:
-    """STATIC: the runner hands the kit the driver's kit ceiling, and it is higher.
+def test_the_kit_timeout_the_runner_passes_sits_below_the_drivers_kill() -> None:
+    """STATIC: the runner hands the kit the driver's kit ceiling, and it is LOWER.
 
-    The direct start had no ceiling of its own; the driver killed the tree at
-    its cycle budget. The kit kills at its ``--timeout``, so that value must sit
-    ABOVE the driver's default kill - its budget plus one poll plus the kill
-    grace - or the kit's unverified kill lands first (CS-1231 slice C, L1).
-    Equality does not give that: the driver's timer starts after the
-    launcher's grace and is read once per poll. Every value is found by NAME in
-    the driver's source; ``tests/test_queue_loop.py`` grades the command line's
-    refusal of a deadline above the ceiling.
+    The kit kills at its ``--timeout`` and, because it ended the run itself,
+    writes the run's usage line and leaves its status file idle; a tree killed
+    from outside, the way the driver kills, writes no usage line at all
+    (CS-1231 slice C, R2). So the ceiling sits below the driver's default
+    budget by the wrap margin - room for the kit's tree kill and the runner's
+    wrap - and the driver's verified kill is only the backstop. Every value is
+    found by NAME in the driver's source; ``tests/test_queue_loop.py`` grades
+    the command line's refusal of a deadline the ceiling would not beat.
     """
     text = RUNNER_SOURCE.read_bytes().decode("ascii")
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     passed = re.findall(r'"--timeout",\s*"([0-9]+)"', code)
     ceiling = _module_constant(DRIVER_SOURCE, KIT_CEILING_NAME)
     assert passed == [str(ceiling)], f"the runner passes {passed}, not the ceiling {ceiling}"
-    parts = [_module_constant(DRIVER_SOURCE, name) for name in (CYCLE_BUDGET_NAME, POLL_NAME)]
-    parts.append(_module_constant(DRIVER_SOURCE, GRACE_NAME))
-    numbers = all(type(part) is int for part in [*parts, ceiling])
-    assert numbers, f"a driver constant is not an int literal: {parts} {ceiling}"
-    kill = sum(part for part in parts if type(part) is int)
-    above = type(ceiling) is int and kill < ceiling
-    assert above, f"the driver's kill at {kill}s is not below the kit's {ceiling}s"
+    budget = _module_constant(DRIVER_SOURCE, CYCLE_BUDGET_NAME)
+    margin = _module_constant(DRIVER_SOURCE, MARGIN_NAME)
+    assert isinstance(budget, int), f"the driver's budget is not an int literal: {budget}"
+    assert isinstance(margin, int), f"the driver's wrap margin is not an int literal: {margin}"
+    assert isinstance(ceiling, int), f"the kit ceiling is not an int literal: {ceiling}"
+    below = margin > 0 and budget - ceiling >= margin
+    assert below, f"the kit's {ceiling}s does not sit {margin}s below the driver's {budget}s"
 
 
 # ===========================================================================
@@ -994,6 +993,35 @@ def test_control_a_kit_line_with_duplicate_case_keys_is_never_parsed(tmp_path: P
     assert coded, f"a duplicate-key line set the exit code: {ended[:80]!r}"
 
 
+@_ON_WINDOWS
+def test_an_error_value_that_only_differs_in_case_is_not_a_timeout(tmp_path: Path) -> None:
+    """The VALUE is matched by exact case too: ``TIMEOUT`` is not the kit's word."""
+    planted = {"kit": kit.KIT_VERSION, "rc": None, "error": "TIMEOUT", "receipt": None}
+    shim_dir = _shim(tmp_path, json.dumps(planted), kit.CLI_OK)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    marked, ended = _timeout_ending(_log_lines(log))
+    assert marked is False, "a case-variant error value was read as the kit's timeout"
+    coded = ended.endswith(f"code={kit.CLI_OK}")
+    assert coded, f"a case-variant error value set the exit code: {ended[:80]!r}"
+
+
+@_ON_WINDOWS
+def test_a_refusal_code_that_only_differs_in_case_is_written_as_unknown(tmp_path: Path) -> None:
+    """The refusal CODE is matched by exact case: ``BUDGET-SPENT`` is no kit word."""
+    planted = {"refused": "synthetic", "code": "BUDGET-SPENT"}
+    shim_dir = _shim(tmp_path, json.dumps(planted), kit.CLI_REFUSED)
+    resolves = _resolves_python(shim_dir)
+    assert resolves, "the shim did not reach PATH - the arm grades nothing"
+
+    log, _done = _run_runner(tmp_path, shim_dir)
+    refused = [item for item in _log_lines(log) if item.startswith("lane refused ")]
+    unknown = len(refused) == 1 and refused[0].endswith(" kit_code=unknown")
+    assert unknown, f"a case-variant code value was trusted: {refused}"
+
+
 # ===========================================================================
 # c3. CS-1234's lane half - every lane start is counted in the kit's budget
 # ===========================================================================
@@ -1045,6 +1073,62 @@ def test_a_lane_start_is_counted_in_the_kits_budget_with_a_kinded_usage_line(
     facts = (rows[0].get("kind"), rows[0].get("note"), rows[0].get("kit"))
     assert facts == ("build", "lane_queue_synthetic", kit.KIT_VERSION), f"usage line {facts}"
     assert kit.RUNS_CAP == 120  # noqa: PLR2004 - FLEET item 10's number, read from the kit
+
+
+#: A stand-in CLI that outlives any short ceiling: a batch file pinging for a
+#: minute, so the kit's REAL tree kill is what ends it.
+_SLEEPER: Final = b"@echo off\r\nping -n 60 127.0.0.1 >nul\r\n"
+
+#: The ceiling the R2 arm swaps in for the runner's real one, so the kit's own
+#: timeout fires inside the arm's run instead of after hours.
+_SHORT_CEILING_S: Final = 3
+
+
+@_ON_WINDOWS
+def test_the_kits_own_timeout_ends_the_run_with_one_usage_line(tmp_path: Path) -> None:
+    """R2: when the KIT's ceiling fires first, the run leaves its usage line.
+
+    The runner's REAL command line, its ceiling shortened, is fed to the REAL
+    kit's ``main`` and ``spawn`` with the REAL process runner: the stand-in CLI
+    is a live child the kit's own tree kill ends. Exactly one start is counted,
+    exactly one usage line records the timeout, and the status file is not left
+    ``running`` - what a tree killed from outside, the driver's way, never
+    writes. The runner's ceiling sits below the driver's kill (the static arm
+    above), so this is the timeout path of every timed-out cycle.
+    """
+    argv, stdin, _lines = _recorded_run(tmp_path)
+    at = argv.index("--timeout") if "--timeout" in argv else -1
+    assert at > 0, "the runner passes the kit no --timeout"
+    shortened = [*argv[1 : at + 1], str(_SHORT_CEILING_S), *argv[at + 2 :]]
+    root = tmp_path / "kill-root"
+    sleeper = tmp_path / "sleeper.cmd"
+    sleeper.write_bytes(_SLEEPER)
+
+    def spawn_fn(_root: Any, code: Any, prompt: Any, **kwargs: Any) -> dict[str, Any]:
+        line: dict[str, Any] = kit.spawn(
+            root,
+            code,
+            prompt,
+            url_source=lambda: _SYNTHETIC_URL,
+            connect=_connect,
+            exe_source=lambda: str(sleeper),
+            **kwargs,
+        )
+        return line
+
+    code = kit.main(
+        shortened,
+        spawn_fn=spawn_fn,
+        stdin=io.StringIO(stdin.decode("ascii", errors="replace")),
+        stdout=io.StringIO(),
+    )
+    assert code == kit.CLI_TIMEOUT, f"the kit's command line answered {code}"
+    used = kit.RunBudget(root / kit.BUDGET_REL).used()
+    usage = (root / kit.USAGE_REL).read_bytes().decode("ascii").splitlines()
+    rows = [json.loads(item) for item in usage if item.strip()]
+    status = json.loads((root / kit.STATUS_REL).read_bytes().decode("utf-8"))
+    facts = (used, len(rows), rows[0].get("error") if rows else None, status.get("state"))
+    assert facts == (1, 1, "timeout", "idle"), f"start, usage lines, error, state {facts}"
 
 
 # ===========================================================================
