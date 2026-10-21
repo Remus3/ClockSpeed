@@ -1113,7 +1113,94 @@ first colon - trailing whitespace trimmed - folds case-insensitively to
 `.githooks/commit-msg` refuses. A plain substring search is NOT this census: it also
 matches prose naming the trailer.
 
-## 13. Cross-references
+## 13. Runbook: cutting a milestone tag
+
+Filed on 2026-10-21 under CS-1335, from posture item 1a of MAIN's PUBREPO ORDER (CS-1328
+(g)). These are the rules `v0.1.0` was cut under, written down so the next milestone does
+not rediscover them. This section is their one owner; every other file points here.
+
+**What a milestone tag is.** An ANNOTATED tag - never a lightweight one - named in semver
+0.x, `v0.MINOR.PATCH`: MINOR moves for a milestone, PATCH for a fix to one that adds no
+capability. Leaving 0.x is outside this policy. Its release notes are hand-written.
+
+**Who cuts it.** An interactive session, by hand, through ONE sub-agent - the main session
+runs no Bash (the SUB-AGENT FIRST banner in `CLAUDE.md`). The call to cut one comes from the
+operator's own words, a MAIN ORDER (FLEET item 6) or an adjudicator's ruling (`CLAUDE.md`
+section 6.1), never from a question put to the operator. NO lane, loop tick, inbox
+responder or other headless run cuts, pushes, moves or deletes a tag; one that is asked to
+leaves it for the next interactive session. This is a written rule: no hook enforces it.
+
+**The commit it goes on - never an unreviewed or an unpushed one.** REVIEWED: a distinct
+adjudicator ruled on that exact commit, frozen at its SHA (`CLAUDE.md` section 5), and a
+ruling covers only the SHA it read, so a commit landed after it needs its own. PUSHED: it is
+an ancestor of the published `main` - never a local-only commit or a worktree branch tip.
+The control, read before the tag is made, must exit 0:
+
+```
+git fetch origin main
+git merge-base --is-ancestor <full-sha> origin/main
+```
+
+**The tag message.** One subject line, no body, no trailer, ASCII only:
+`Clockspeed v0.MINOR.PATCH - <the milestone in a few words>`; the first reads
+`Clockspeed v0.1.0 - first public release`. The tagger is the operator identity commits
+carry (FLEET item 17). Write the message to a file outside the checkout, gate it (below),
+and tag from that same file, so the bytes gated are the bytes tagged:
+
+```
+git tag -a v0.MINOR.PATCH -F <message-file> <full-sha>
+```
+
+**The notes, and the outbound gate.** The release notes are written by hand, in a file
+OUTSIDE the checkout - the session scratchpad - so they are never committed and never sit
+where a whole-tree guard reads them. Generated notes stay OFF: never `--generate-notes`.
+The tag message and the release body are public once pushed and created, and no commit hook
+reads either, so both files pass `tools/outbound_gate.py --file <path>` first. Anything but
+CLEAN stops the cut; edit the text, never the gate. Its exit codes are that module's
+docstring's and are not restated here.
+
+**Push the one ref.** Only that tag ref, through the kit's lock (FLEET item 16 a), never
+`--tags`, `--mirror` or `--follow-tags`:
+
+```
+python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git push origin refs/tags/v0.MINOR.PATCH
+```
+
+Read back: `git ls-remote --tags origin` lists the tag, and its peeled `^{}` line names the
+commit the ancestor control passed.
+
+**The release.** Made from the pushed tag, final - neither `--draft` nor `--prerelease`:
+
+```
+gh release create v0.MINOR.PATCH --verify-tag --title "Clockspeed v0.MINOR.PATCH" --notes-file <notes-file>
+```
+
+`--verify-tag` aborts when the tag is not already on the remote, so the release can never
+mint a tag of its own on whatever `main` is then. Read back:
+`gh release view v0.MINOR.PATCH --json tagName,isDraft,isPrerelease` - both flags false.
+
+**Tier 2 on the tag.** The tag push starts `.github/workflows/tier2.yml`, which fires on
+`v*` tags (section 10.2). Read it to completion:
+
+```
+gh run list --workflow tier2.yml --commit <full-sha> --json databaseId,event,headBranch,attempt,status,conclusion
+```
+
+The tag's run is the one whose `headBranch` is the tag name. Give the FULL SHA: a short one
+returns an empty list and exits 0, which reads as no run at all. Read a re-run's earlier
+attempts too, with `gh run view <databaseId> --attempt <n>`. A red run never moves the tag;
+it is recorded, and its fix ships as the next PATCH.
+
+**A pushed tag is never moved.** Never re-pointed, force-pushed, or deleted and re-cut: a
+clone that fetched it keeps the old object, so a moved tag names two commits. A wrong tag is
+superseded by the next PATCH.
+
+**The record.** One `docs/LEDGER.md` entry per cut, under the item it was cut for: the tag,
+the tagged commit's full SHA, the ancestor control's exit code, the `ls-remote` read-back,
+the outbound gate's verdict on both files, the release's draft and prerelease flags, and the
+tier 2 run's id and conclusion.
+
+## 14. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`
 - Decisions and their fences: `docs/adr/README.md`
