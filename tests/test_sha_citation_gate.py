@@ -855,8 +855,10 @@ def test_a_citation_smuggled_behind_png_magic_fails_the_run(code_repo: Repo, pin
         b"not json\n",
         b'{"docs/assets/known.png": "beef"}\n',
         b'{"../outside.png": "' + b"a" * 64 + b'"}\n',
+        b'{"docs/assets/known.png": "' + b"a" * 64 + b'", '
+        b'"docs/assets/known.png": "' + b"b" * 64 + b'"}\n',
     ],
-    ids=["not-json", "short-digest", "path-outside-the-tree"],
+    ids=["not-json", "short-digest", "path-outside-the-tree", "duplicate-key"],
 )
 def test_a_malformed_pin_file_could_not_judge(code_repo: Repo, body: bytes) -> None:
     """A pin file the gate cannot trust is refused, exit 2 - never read as an empty list."""
@@ -864,6 +866,60 @@ def test_a_malformed_pin_file_could_not_judge(code_repo: Repo, body: bytes) -> N
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
     assert "COULD NOT JUDGE" in done.stderr
+
+
+def _duplicate_key_pins(digests: list[str]) -> bytes:
+    """A pin file listing :data:`KNOWN_PNG` once per digest, in order - a duplicate key."""
+    rows = ", ".join(f'"{KNOWN_PNG}": "{digest}"' for digest in digests)
+    return ("{" + rows + "}\n").encode("ascii")
+
+
+@pytest.mark.parametrize("matching", ["last", "first"])
+def test_a_binary_pin_listed_twice_is_refused(tmp_path: Path, matching: str) -> None:
+    """CS-1332: a pinned path listed twice is refused, as the allowlist and historical set refuse.
+
+    JSON keeps the LAST value for a repeated key, so without the refusal a drifted
+    file passed whenever the last row matched its bytes - whichever row matches.
+    """
+    reviewed = hashlib.sha256(_png()).hexdigest()
+    drifted = hashlib.sha256(_png() + b"\x00").hexdigest()
+    order = [reviewed, drifted] if matching == "last" else [drifted, reviewed]
+    target = tmp_path / gate.KNOWN_BINARY_FILE
+    target.parent.mkdir(parents=True)
+    target.write_bytes(_duplicate_key_pins(order))
+
+    with pytest.raises(gate.GateError, match="listed twice"):
+        gate.load_known_binaries(tmp_path)
+
+
+@pytest.mark.parametrize("key", ["tokens", "witness", "pre"])
+def test_a_historical_key_listed_twice_is_refused(key: str) -> None:
+    """CS-1332 sibling: the historical set refuses a repeated key, at any depth.
+
+    A repeated ``tokens`` would otherwise be read as whichever list JSON keeps last.
+    """
+    pre = hashlib.sha1(b"synthetic pre", usedforsecurity=False).hexdigest()
+    post = hashlib.sha1(b"synthetic post", usedforsecurity=False).hexdigest()
+    witness = f'"witness": {{"pre": "{pre}", "post": "{post}"}}'
+    tokens = '"tokens": []'
+    single = f'{{"schema": 1, {witness}, {tokens}}}\n'
+    repeated = {
+        "tokens": f'{{"schema": 1, {witness}, "tokens": ["{post[:12]}"], {tokens}}}\n',
+        "witness": (
+            f'{{"schema": 1, "witness": {{"pre": "{post}", "post": "{post}"}}, '
+            f"{witness}, {tokens}}}\n"
+        ),
+        "pre": (
+            f'{{"schema": 1, "witness": {{"pre": "{post}", "pre": "{pre}", "post": "{post}"}}, '
+            f"{tokens}}}\n"
+        ),
+    }[key]
+    control = gate.parse_historical(single.encode("ascii"))
+    control_witness = control.witness == (pre, post)
+
+    assert control_witness
+    with pytest.raises(gate.GateError, match="listed twice"):
+        gate.parse_historical(repeated.encode("ascii"))
 
 
 def test_a_png_named_text_file_is_still_read_and_judged(code_repo: Repo) -> None:

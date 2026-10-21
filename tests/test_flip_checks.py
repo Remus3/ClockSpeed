@@ -1353,12 +1353,37 @@ def malformed_pins(kind: str) -> bytes:
         "not-ascii": json.dumps({PNG_PATH: good, NON_ASCII_NAME: good}, ensure_ascii=False).encode(
             "utf-8"
         ),
+        "a-duplicate-key-matching-last": duplicate_pins([REVIEWED_ELSEWHERE, good]),
+        "a-duplicate-key-matching-first": duplicate_pins([good, REVIEWED_ELSEWHERE]),
     }
     return sources[kind]
 
 
+#: The digest of bytes the image is NOT: the row a duplicate key shadows or is shadowed by.
+REVIEWED_ELSEWHERE: Final = hashlib.sha256(SYNTHETIC_PNG + b"-as-reviewed").hexdigest()
+
+
+def duplicate_pins(digests: list[str]) -> bytes:
+    """A pin source listing the image's path once per digest, in order - a duplicate key.
+
+    JSON keeps the LAST value for a repeated key, so a loader that does not refuse
+    the repeat excuses drifted bytes whenever the last row matches them.
+    """
+    rows = ", ".join(f'"{PNG_PATH}": "{digest}"' for digest in digests)
+    return ("{" + rows + "}\n").encode("ascii")
+
+
 @pytest.mark.parametrize(
-    "kind", ["not-json", "not-an-object", "a-bad-digest", "a-climbing-path", "not-ascii"]
+    "kind",
+    [
+        "not-json",
+        "not-an-object",
+        "a-bad-digest",
+        "a-climbing-path",
+        "not-ascii",
+        "a-duplicate-key-matching-last",
+        "a-duplicate-key-matching-first",
+    ],
 )
 def test_a_malformed_pin_source_fails_closed(tmp_path: Path, kind: str) -> None:
     """CS-1332: a pin source the gate's own loader refuses FAILS and excuses nothing."""

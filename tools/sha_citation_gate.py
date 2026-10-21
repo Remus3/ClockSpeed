@@ -649,19 +649,44 @@ def _union(found: Iterable[list[Occurrence]]) -> list[Occurrence]:
     return list(merged.values())
 
 
+def refusing_repeats(reason: str) -> Callable[[list[tuple[str, object]]], dict[str, object]]:
+    """A ``json`` object hook refusing a key listed twice, with ``reason`` - CS-1332.
+
+    JSON keeps the LAST value of a repeated key and says nothing, so a pin or a
+    set read without this is whichever row happens to come last. The refusal is
+    the one :func:`allowlist_map` and the historical tokens already make: a
+    member listed twice is an error, never resolved.
+
+    Raises:
+        GateError: From the hook, when any object at any depth repeats a key.
+    """
+
+    def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        keys = [key for key, _value in pairs]
+        if len(set(keys)) != len(keys):
+            raise GateError(reason)
+        return dict(pairs)
+
+    return unique
+
+
 def load_known_binaries(repo: Path) -> dict[str, str]:
     """The tree's binary pins, ``path -> sha256``; empty when :data:`KNOWN_BINARY_FILE` is absent.
 
     Raises:
         GateError: When the file is not a JSON object of plain repository-relative
-            POSIX paths to 64-character lower-case hex digests - a pin file the
-            gate cannot trust is never read as an empty list.
+            POSIX paths to 64-character lower-case hex digests, each path listed
+            once - a pin file the gate cannot trust is never read as an empty list,
+            and a repeated path is never read as its last row (CS-1332).
     """
     target = repo / KNOWN_BINARY_FILE
     if not target.is_file():
         return {}
     try:
-        data = json.loads(target.read_bytes().decode("ascii"))
+        data = json.loads(
+            target.read_bytes().decode("ascii"),
+            object_pairs_hook=refusing_repeats("a binary pin path is listed twice"),
+        )
     except (UnicodeDecodeError, ValueError) as exc:
         raise GateError("the binary pin file is not ASCII JSON") from exc
     if not isinstance(data, dict):
@@ -1050,7 +1075,10 @@ def parse_historical(raw: bytes) -> Historical:
         GateError: On any deviation. The reason is fixed text - never a value.
     """
     try:
-        data = json.loads(raw.decode("ascii"))
+        data = json.loads(
+            raw.decode("ascii"),
+            object_pairs_hook=refusing_repeats("historical set has a key listed twice"),
+        )
     except (UnicodeDecodeError, ValueError):
         raise GateError("historical set is not ASCII JSON") from None
     if not isinstance(data, dict) or set(data) != {"schema", "witness", "tokens"}:
