@@ -27,7 +27,12 @@ import pytest
 
 from clockspeed.data.docs_extract import DocsDocument
 from clockspeed.data.registry import FORM_SOLID, Item, Registry
-from clockspeed.data.schematics import CostLine, SchematicCatalog, normalize_schematics
+from clockspeed.data.schematics import (
+    CostLine,
+    Schematic,
+    SchematicCatalog,
+    normalize_schematics,
+)
 from clockspeed.progress import milestones
 from clockspeed.save.world import UnlockState
 from clockspeed.solve.exact import InexactValueError, audit_exact
@@ -435,3 +440,89 @@ def test_the_same_inputs_publish_the_same_output_in_the_same_order() -> None:
     near_rates = first[0].rates
     assert near_rates is not None
     assert list(near_rates) == [PLATE_ITEM, ROTOR_ITEM]
+
+
+# ---------------------------------------------------------------------------
+# Repair arms - each written against a mutant that survived the first suite
+# ---------------------------------------------------------------------------
+
+#: The amount basis as published, spelled here so a relabel reddens.
+AMOUNT_BASIS_SPELLING: Final = "as-written"
+ZERO_MILESTONE: Final = "Schematic_SynthZeroCost_C"
+
+
+def test_requirements_are_ordered_by_tier_whatever_order_the_caller_gives() -> None:
+    """A caller order that is the exact reverse of the answer is still sorted.
+
+    The targets arrive unknown first, then tier 6, then tier 1, and the answer
+    is tier 1, tier 6, unknown last. The order a caller gives is fixed and
+    adversarial, so an implementation that echoed it reddens under every hash
+    seed rather than on a coin flip.
+    """
+    published = milestones.milestone_requirements(
+        milestone_catalog(),
+        synthetic_registry(),
+        unlock_state(),
+        [ABSENT_MILESTONE, FAR_MILESTONE, NEAR_MILESTONE, FAR_MILESTONE],
+    )
+    order = [requirement.target for requirement in published]
+    assert order == [NEAR_MILESTONE, FAR_MILESTONE, ABSENT_MILESTONE]
+
+
+@pytest.mark.parametrize("amount", [0, -5])
+def test_a_non_positive_milestone_cost_is_null_never_a_zero_rate(amount: int) -> None:
+    """A zero or negative amount publishes None with a reason, as a phase does.
+
+    Through the document, the catalog flags the amount and the cost arrives as
+    None. Through a hand-built catalog that skips that flag, this model's own
+    guard still refuses to publish a zero or negative rate.
+
+    Args:
+        amount: The non-positive amount planted on the plate line.
+    """
+    flagged_doc = schematic_document(
+        [
+            schematic_entry(
+                ZERO_MILESTONE, **{KEY_COST: synthetic.amount_blob([(PLATE_ITEM, amount)])}
+            )
+        ]
+    )
+    registry, unlocks = synthetic_registry(), unlock_state()
+    through_doc = milestones.milestone_requirement(
+        normalize_schematics(flagged_doc), registry, unlocks, ZERO_MILESTONE
+    )
+    assert through_doc.rates is None
+    assert through_doc.reason == milestones.REASON_COST_UNREADABLE
+    unflagged = Schematic(
+        class_name=ZERO_MILESTONE,
+        tech_tier=1,
+        type_token=TYPE_MILESTONE,
+        cost=(CostLine(PLATE_ITEM, Fraction(amount)), CostLine(ROTOR_ITEM, Fraction(ROTOR_AMOUNT))),
+        purchase_dependencies=(),
+        phase_dependency=None,
+        dependencies_complete=True,
+    )
+    catalog = SchematicCatalog(
+        schematics=MappingProxyType({ZERO_MILESTONE: unflagged}),
+        warnings=(),
+        entries_offered=1,
+        entries_skipped=0,
+        costs_parsed=1,
+        costs_flagged=0,
+    )
+    guarded = milestones.milestone_requirement(catalog, registry, unlocks, ZERO_MILESTONE)
+    assert guarded.rates is None
+    assert guarded.cost is None
+    assert guarded.reason == milestones.REASON_NONPOSITIVE_COST
+
+
+def test_the_amount_basis_is_pinned_by_its_exact_spelling() -> None:
+    """The published unit basis is a fixed spelling, not whatever the constant holds."""
+    assert near_requirement().amount_basis == AMOUNT_BASIS_SPELLING
+
+
+def test_every_milestone_reason_code_is_distinct() -> None:
+    """No two REASON_* constants share a spelling, so a reason names one cause."""
+    codes = [getattr(milestones, name) for name in milestones.__all__ if name.startswith("REASON_")]
+    assert len(codes) == len(set(codes))
+    assert len(codes) > 1

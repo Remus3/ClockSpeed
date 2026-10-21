@@ -23,6 +23,10 @@ FLAG, NEVER FABRICATE (non-negotiable 7).
   catalog publishes None for a cost it could not read - an amount-less blob
   among them - and a defaulted zero would be a free milestone reported with
   confidence. :data:`REASON_COST_UNREADABLE` names it.
+- **A zero or negative cost amount publishes None, never a zero or negative
+  rate**, under :data:`REASON_NONPOSITIVE_COST` - the same answer a phase
+  gives. The catalog already flags such an amount and publishes the cost as
+  None; this guard holds for a catalog built without that flag.
 - **An empty cost is the empty mapping, and it is not None.** The catalog
   distinguishes a schematic that costs nothing from one whose cost is unknown,
   and so does this model.
@@ -76,6 +80,7 @@ __all__ = [
     "COMPLETION_BUDGET_MINUTES",
     "REASON_COST_UNREADABLE",
     "REASON_HUB_TIER_UNREAD",
+    "REASON_NONPOSITIVE_COST",
     "REASON_UNKNOWN_SCHEMATIC",
     "REASON_UNRESOLVED_COST_ITEM",
     "WARN_UNRESOLVED_COST_ITEM",
@@ -105,6 +110,8 @@ REASON_UNKNOWN_SCHEMATIC: Final = "unknown-schematic"
 REASON_COST_UNREADABLE: Final = "cost-unreadable"
 #: The save model read no HUB tier; no carrier is measured for it.
 REASON_HUB_TIER_UNREAD: Final = "hub-tier-unread"
+#: A cost item totals zero or less, which no rate can honestly deliver.
+REASON_NONPOSITIVE_COST: Final = "nonpositive-cost"
 #: A cost item names nothing in the registry, so the rates are not derived.
 REASON_UNRESOLVED_COST_ITEM: Final = "unresolved-cost-item"
 
@@ -166,7 +173,7 @@ class MilestoneRequirement:
         amount_basis: The unit basis of ``cost`` and ``rates``.
         warnings: Every cost item flagged, sorted by item ClassName.
         unresolved_lines: How many cost lines name an item the registry does
-            not resolve, or None when no cost line could be read at all.
+            not resolve, or None when the cost is not published.
     """
 
     target: str
@@ -297,9 +304,9 @@ def milestone_requirement(
         target: The selected schematic's ClassName.
 
     Returns:
-        The requirement, audited exact. An unknown target, a flagged cost or
-        an unresolved cost item is published as None with its named reason,
-        never as zero.
+        The requirement, audited exact. An unknown target, a flagged cost, a
+        non-positive amount or an unresolved cost item is published as None
+        with its named reason, never as zero.
 
     Raises:
         InexactValueError: A cost amount or the budget is not exactly a
@@ -330,6 +337,20 @@ def milestone_requirement(
             cost=None,
             rates=None,
             reason=REASON_COST_UNREADABLE,
+            hub_tier=hub,
+            budget_minutes=budget,
+            amount_basis=AMOUNT_BASIS_AS_WRITTEN,
+            warnings=(),
+            unresolved_lines=None,
+        )
+    elif any(amount <= 0 for amount in cost_totals(schematic.cost).values()):
+        requirement = MilestoneRequirement(
+            target=target,
+            tech_tier=schematic.tech_tier,
+            type_token=schematic.type_token,
+            cost=None,
+            rates=None,
+            reason=REASON_NONPOSITIVE_COST,
             hub_tier=hub,
             budget_minutes=budget,
             amount_basis=AMOUNT_BASIS_AS_WRITTEN,
@@ -391,6 +412,11 @@ def milestone_requirements(
     Returns:
         One requirement per distinct target, in tier order with an unknown
         tier last, then ClassName order - never in the caller's order.
+        Repeats are dropped in the caller's order rather than through a
+        set, so nothing here depends on the hash seed even before the sort.
     """
-    built = (milestone_requirement(catalog, registry, unlocks, target) for target in set(targets))
+    built = (
+        milestone_requirement(catalog, registry, unlocks, target)
+        for target in dict.fromkeys(targets)
+    )
     return tuple(sorted(built, key=_order_key))

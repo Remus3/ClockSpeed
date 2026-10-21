@@ -573,6 +573,9 @@ def phase_costs(
 
     Returns:
         One phase cost per distinct phase, in sorted phase order - never in
-        the caller's order.
+        the caller's order. Repeats are dropped in the caller's order rather
+        than through a set, so nothing depends on the hash seed.
     """
-    return tuple(phase_cost(source, registry, phase, chosen) for phase in sorted(set(phases)))
+    return tuple(
+        phase_cost(source, registry, phase, chosen) for phase in sorted(dict.fromkeys(phases))
+    )

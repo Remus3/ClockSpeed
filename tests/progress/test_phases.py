@@ -25,6 +25,7 @@ two-hour figure spelled in THIS file, never computed by the module under test.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
 from fractions import Fraction
 from pathlib import Path
@@ -463,3 +464,146 @@ def test_the_same_inputs_publish_the_same_phase_output_in_the_same_order() -> No
     machine = first[0].machine.values
     assert machine is not None
     assert list(machine) == [CONSTRUCTOR, SMELTER]
+
+
+# ---------------------------------------------------------------------------
+# Repair arms - each written against a mutant that survived the first suite
+# ---------------------------------------------------------------------------
+
+ASSEMBLER: Final = "Build_SynthAssembler_C"
+KILN: Final = "Build_SynthKiln_C"
+TWIN_PLATE_RECIPE: Final = "Recipe_SynthTwinPlate_C"
+SLAG_RECIPE: Final = "Recipe_SynthSlag_C"
+SAND_ITEM: Final = "Desc_SynthSand_C"
+SLAG_ITEM: Final = "Desc_SynthSlag_C"
+
+#: The basis labels as published, spelled here so a relabel reddens.
+CLOCK_BASIS_SPELLING: Final = "full-clock"
+MINER_BASIS_SPELLING: Final = "base-rate"
+
+
+def extended_registry() -> Registry:
+    """Add a two-building plate recipe and an idle slag recipe to the base chain.
+
+    The twin plate recipe is the plate recipe made in EITHER the constructor
+    or the assembler. The slag recipe eats sand into slag; under the balanced
+    policy nothing consumes slag, so the solve runs it at exactly zero
+    machines and the plan eats exactly zero sand.
+
+    Returns:
+        The registry.
+    """
+    base = synthetic_registry()
+    plate = base.recipes[PLATE_RECIPE]
+    twin = dataclasses.replace(plate, key=TWIN_PLATE_RECIPE, produced_in=(CONSTRUCTOR, ASSEMBLER))
+    slag = Recipe(
+        key=SLAG_RECIPE,
+        display_name="Synthetic Slag",
+        duration=Fraction(1),
+        inputs=(RecipeIO(SAND_ITEM, Fraction(1)),),
+        outputs=(RecipeIO(SLAG_ITEM, Fraction(1)),),
+        produced_in=(KILN,),
+        variable_power_constant=None,
+        variable_power_factor=None,
+    )
+    items = dict(base.items)
+    items[SAND_ITEM] = _item(SAND_ITEM, FORM_SOLID)
+    items[SLAG_ITEM] = _item(SLAG_ITEM, FORM_SOLID)
+    recipes = dict(base.recipes)
+    recipes[TWIN_PLATE_RECIPE] = twin
+    recipes[SLAG_RECIPE] = slag
+    buildings = dict(base.buildings)
+    buildings[ASSEMBLER] = _building(ASSEMBLER)
+    buildings[KILN] = _building(KILN)
+    return dataclasses.replace(
+        base,
+        items=MappingProxyType(items),
+        recipes=MappingProxyType(recipes),
+        buildings=MappingProxyType(buildings),
+    )
+
+
+def test_a_recipe_made_in_two_buildings_nulls_the_machine_figure() -> None:
+    """A running recipe with two producing buildings is never charged to the first.
+
+    Which building runs it is the caller's choice, and the selection does not
+    make it, so the machine figure is None under its reason while the resource
+    figure, which does not depend on the building, is still published.
+    """
+    twin = phases.RecipeSelection(
+        recipes=(INGOT_RECIPE, TWIN_PLATE_RECIPE),
+        raw_items=(ORE_ITEM, WATER_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: MINER, WATER_ITEM: PUMP}),
+    )
+    cost = phases.phase_cost(MeasuredSource(), extended_registry(), COSTED_PHASE, twin)
+    assert cost.machine.values is None
+    assert cost.machine.reason == phases.REASON_NO_SINGLE_BUILDING
+    assert cost.machine.detail == TWIN_PLATE_RECIPE
+    assert cost.resource.values is not None
+    assert dict(cost.resource.values) == {ORE_ITEM: Fraction(25, 2), WATER_ITEM: Fraction(25, 3)}
+
+
+@pytest.mark.parametrize("amount", [Fraction(0), Fraction(-5)])
+def test_a_non_positive_phase_cost_is_null_with_a_reason_never_an_error(amount: Fraction) -> None:
+    """A zero or negative cost amount publishes every figure None, by name.
+
+    It must not reach the required-rate figure, which refuses a zero by
+    raising - an error where the contract is a named None.
+
+    Args:
+        amount: The non-positive amount planted on the plate line.
+    """
+    source = MeasuredSource(entries={COSTED_PHASE: (CostLine(PLATE_ITEM, amount),)})
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+    assert rendered_nulls(cost) == [True, True, True]
+    assert null_reasons(cost) == [phases.REASON_NONPOSITIVE_COST] * 3
+    assert cost.required.values is None
+    assert cost.required.reason == phases.REASON_NONPOSITIVE_COST
+    assert cost.machine.detail == PLATE_ITEM
+
+
+def test_a_raw_input_the_plan_eats_none_of_is_excluded_not_published_as_zero() -> None:
+    """A raw item the solve assigns zero consumption is left out of every figure.
+
+    The slag recipe runs at zero machines, so its sand is declared raw and is
+    eaten at exactly zero. Publishing it would render a 0, and a miner count
+    for it would demand an extractor for nothing.
+    """
+    idle = phases.RecipeSelection(
+        recipes=(INGOT_RECIPE, PLATE_RECIPE, SLAG_RECIPE),
+        raw_items=(ORE_ITEM, WATER_ITEM, SAND_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: MINER, WATER_ITEM: PUMP}),
+    )
+    cost = phases.phase_cost(MeasuredSource(), extended_registry(), COSTED_PHASE, idle)
+    assert cost.resource.values is not None
+    assert dict(cost.resource.values) == {ORE_ITEM: Fraction(25, 2), WATER_ITEM: Fraction(25, 3)}
+    assert cost.miner.values is not None
+    assert dict(cost.miner.values) == {MINER: Fraction(5, 24), PUMP: Fraction(5, 72)}
+    assert cost.machine.values is not None
+    assert dict(cost.machine.values) == {CONSTRUCTOR: Fraction(5, 12), SMELTER: Fraction(5, 6)}
+
+
+def test_the_basis_labels_are_pinned_by_their_exact_spelling() -> None:
+    """The two bases named on the model are published under fixed spellings.
+
+    A consumer reads the label, not the constant's name, so a relabel is a
+    contract change and must redden here rather than move with the constant.
+    """
+    cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
+    assert (cost.clock_basis, cost.miner_basis) == (CLOCK_BASIS_SPELLING, MINER_BASIS_SPELLING)
+    shipped = phases.phase_cost(
+        phases.SHIPPED_PHASE_COST_SOURCE, synthetic_registry(), COSTED_PHASE, selection()
+    )
+    assert (shipped.clock_basis, shipped.miner_basis) == (
+        CLOCK_BASIS_SPELLING,
+        MINER_BASIS_SPELLING,
+    )
+
+
+def test_every_phase_reason_code_is_distinct() -> None:
+    """No two REASON_* constants share a spelling, so a reason names one cause."""
+    codes = [getattr(phases, name) for name in phases.__all__ if name.startswith("REASON_")]
+    assert len(codes) == len(set(codes))
+    assert len(codes) > 1
