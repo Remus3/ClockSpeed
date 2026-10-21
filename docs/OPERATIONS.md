@@ -1116,8 +1116,12 @@ matches prose naming the trailer.
 ## 13. Runbook: cutting a milestone tag
 
 Filed on 2026-10-21 under CS-1335, from posture item 1a of MAIN's PUBREPO ORDER (CS-1328
-(g)). These are the rules `v0.1.0` was cut under, written down so the next milestone does
-not rediscover them. This section is their one owner; every other file points here.
+(g)), AFTER `v0.1.0` was cut, so the next milestone does not rediscover the rules. This
+section is the policy's one owner. `v0.1.0` met it on the annotated tag, the one-line
+message, the operator tagger, the ancestry of `main`, the hand-written notes and the final
+release, with ONE EXCEPTION: its tag message was given inline with `-m`, not from a gated
+message file, and the record of its tag message and release body (`docs/LEDGER.md`, the
+CS-700 close) shows only a count-only needle probe of each, never an outbound gate pass.
 
 **What a milestone tag is.** An ANNOTATED tag - never a lightweight one - named in semver
 0.x, `v0.MINOR.PATCH`: MINOR moves for a milestone, PATCH for a fix to one that adds no
