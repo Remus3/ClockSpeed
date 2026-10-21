@@ -1238,9 +1238,10 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: WHY NONE OF THE THREE IS A REPAIR INSTEAD. The carrier is append-only by its
 #: own header, so no pointer inside a published record can be repointed where it
 #: stands - the CS-300 paragraph above makes the same argument at length. The SIX
-#: sibling pointers found in the same sweep, in `docs/item_notes/phase7.md` under
-#: `## CS-1160`, were repaired by symbol instead and cost NOTHING, because that
-#: file is live and forgiveness there would have been free and therefore wrong.
+#: sibling pointers found in the same sweep, then in `docs/item_notes/phase7.md`
+#: under `## CS-1160` and in `docs/history_notes.md` under that heading since
+#: CS-1160 closed, were repaired by symbol instead and cost NOTHING, because that
+#: file was live and forgiveness there would have been free and therefore wrong.
 #: A seventh in `docs/history_notes.md` was rewritten to symbol form at
 #: relocation time, while it was still repairable, and its archive pin did not
 #: move.

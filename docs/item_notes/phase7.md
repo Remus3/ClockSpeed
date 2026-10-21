@@ -929,8 +929,16 @@ allowlist, `KEPT_SIDECAR_LINES` in `tests/test_readme_audit.py`, beside `KEPT_CH
 detector also covers the current sidecars root, so a tracked line spelling it turns the suite red -
 write <sidecars>. Its residual spellings: `BACKLOG.md`, "Session 145 residuals".
 
+SESSION 150: addition (g) is FILED as four items, so it has ONE owner each and is no longer
+owed under this ID: 1a is CS-1335, 1b is CS-1336, 1d is CS-1337 and 1g is CS-1338. (g) sits
+outside this item's Acceptance, so none of the four gates this item's close or its ONE
+ANSWER. 1d was NOT met by the commit "README - heading to How this repo is built (GH-HYGIENE
+ORDER)", which changed the heading alone: a distinct read-only adjudicator ruled it NOT MET
+(CS-1337's section carries the ruling). The hashed lockfile stays DROPPED, as (g) says.
+
 Next action: (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted
-measurement in the window; (e), (g), the ledger record and the ONE ANSWER after S12a.
+measurement in the window; (e), the ledger record and the ONE ANSWER after S12a; (g) is
+CS-1335 to CS-1338 (SESSION 150 above).
 
 ## CS-1333
 
@@ -979,3 +987,112 @@ CS-G03 and CS-700 records in `docs/LEDGER.md` carry it as a residual, and three 
 ruled it non-blocking for the close. When it runs it fires the session 131 residual trigger "the
 post-flip public-clone walk" in `BACKLOG.md`, and the session 150 residual on the walk runner's
 execution policy there.
+
+## CS-1335
+
+### Acceptance
+
+`docs/OPERATIONS.md` carries the milestone tag policy in a section of its own, its one owner:
+a milestone tag is hand-cut, annotated and named in semver 0.x (`v0.MINOR.PATCH`); its
+release notes are hand-written, generated notes OFF; the tagged commit is an ancestor of
+the published `main`; only that one tag ref is pushed, never `--tags` or `--mirror`; and no
+lane or headless run cuts a tag. A read of every tag the remote serves, each annotated and
+reachable from `main`, is recorded in `docs/LEDGER.md` under this ID.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1a of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+Docs only. The first tag, `v0.1.0`, was cut under CS-1328 (e), and this policy writes down
+the rules that tag was cut under so the next milestone does not have to rediscover them.
+
+## CS-1336
+
+### Acceptance
+
+Before any subject rule changes, an audit lists every site in the tree that matches, parses,
+asserts on or prescribes a commit subject - hooks, tools, tests, workflows, `ops/` scripts and
+the docs that tell an agent how to write one - each by its symbol, marked frozen
+(CLAUDE.md section 6) or vendored (`ops/fleet_kit/`, FLEET item 11), and the audit is
+recorded in `docs/LEDGER.md` under this ID. Then commit subjects follow Conventional Commits
+(`type(scope): summary`, the item ID allowed as the scope), merge subjects carry no agent
+worktree name, every audited site agrees with that, and the convention is written in one
+owner file. A frozen file is edited only after an adjudicator's grant under CLAUDE.md
+section 6 is recorded in `docs/LEDGER.md`; a vendored kit file is never edited here, and a
+change it needs goes to MAIN as a kit report.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1b of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+Two frozen files sit in the audit's population: `.githooks/commit-msg` checks the subject
+itself (its length limit and its bare-placeholder ban), and `tools/precommit_gate.py` is the
+frozen commit gate; whether the gate reads a subject is the audit's to state. So an edit to
+either routes through the CLAUDE.md section 6 grant before it is made.
+
+## CS-1337
+
+### Acceptance
+
+The `How this repo is built` section of `README.md` names `CLAUDE.md`, `.claude/`, `ops/`,
+`.githooks/` and the hand-off file `CS-NEXT-SESSION.txt` as the documented process, each in
+a clause that names or links to it and restates none of its rules, with no item ID and no
+fleet jargon, because the README is for outsiders and never contains internal process
+(CLAUDE.md section 4); the licence stays stated plainly under `## License`.
+`tests/test_readme_audit.py::README_LINE_BUDGET` and
+`tests/test_readme_audit.py::QUICKSTART_LINE_BUDGET` still hold, or a raise of either is
+ruled on the adjudicator route and recorded in `docs/LEDGER.md`.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1d of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+NOT MET at filing, by a distinct read-only adjudicator of session 150 at the H commit's
+parent: the section names `.claude/agents/` and `.githooks/`, and the licence is stated
+plainly, but it never names `CLAUDE.md`, `ops/` or the hand-off. The commit "README -
+heading to How this repo is built (GH-HYGIENE ORDER)" changed the heading alone, MAIN's
+GH-HYGIENE ORDER says only that the heading stays, and no record narrows 1d. Rejected: MET
+on the heading (a heading is not the content); a fold into CS-1333 (that item has its own
+acceptance). The README sits at its whole line budget, and CS-1333 presses the same budget,
+so the two land one after the other.
+
+## CS-1338
+
+### Acceptance
+
+CodeQL default setup is configured on the public repository and read back as configured; its
+first analysis of `main` is read, and every alert it raises is triaged HIGH first - fixed, or
+dismissed with a written reason. Dependabot alerts read back ON and Dependabot security-update
+PRs read back OFF. An outsider read of every tracked agent and hand-off text - `CLAUDE.md`,
+`.claude/agents/`, `.claude/commands/`, `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md` -
+records each finding with its fix or its reason. A sweep of the GitHub Actions runs that
+failed in the 30 days before it records counts only - runs and failures, by workflow and by
+job - and never a log line. Each read-back and count is recorded in `docs/LEDGER.md` under
+this ID.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1g of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+Measured at filing: the code-scanning default setup reads `not-configured` and the
+code-scanning alerts API answers "no analysis found", so the session 150 security-findings
+reading of zero open code-scanning alerts is zero because no analysis has run, not a triage;
+Dependabot and secret-scanning alerts read 0 open. Dependabot alerts already read ON and
+security-update PRs OFF; the acceptance keeps their read-back so the item closes on one
+record.

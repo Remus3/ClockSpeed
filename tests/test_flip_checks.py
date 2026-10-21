@@ -226,12 +226,16 @@ def test_the_sha_prints_first_and_the_final_line_is_never_a_bare_pass(
     assert sum(1 for line in lines if "human half: NOT-RUN-HERE" in line) == len(flip.HUMAN_HALVES)
 
 
-#: The gate the two human halves were held under until it closed (``docs/GATED.md``,
-#: CS-G03). No flip-check string names it any more (CS-1296).
+#: The gate the two human halves were held under until it closed (its record:
+#: ``docs/LEDGER.md``, CS-G08). No flip-check string names it any more (CS-1296).
 CLOSED_GATE: Final = "CS-G08"
 
-#: The gate whose record owns the human halves' standing. Pointed at, never restated.
+#: The gate whose closing record in ``docs/LEDGER.md`` cleared the human halves'
+#: standing. Pointed at, never restated.
 STANDING_OWNER: Final = "CS-G03"
+
+#: The open item that owns a fresh walk of both human halves, now CS-G03 has closed.
+FRESH_WALK: Final = "CS-1334"
 
 
 def test_no_flip_check_string_names_the_closed_cs_g08_gate() -> None:
@@ -244,6 +248,18 @@ def test_no_flip_check_string_names_the_closed_cs_g08_gate() -> None:
     assert stale == []
     assert unpointed == []
     assert not docstring_stale
+
+
+def test_each_human_half_names_its_fresh_walk_and_no_closed_gate_owns_it() -> None:
+    """CS-G03 closed: each human half names CS-1334, and nothing says a gate still owns it."""
+    owners = [owner for _key, owner in flip.HUMAN_HALVES]
+    unwalked = [owner for owner in owners if FRESH_WALK not in owner]
+    still_owned = [owner for owner in owners if "owned by" in owner]
+    docstring_gated = "``docs/GATED.md``" in (flip.__doc__ or "")
+
+    assert unwalked == []
+    assert still_owned == []
+    assert not docstring_gated
 
 
 def test_the_readiness_audit_method_does_not_gate_the_human_halves_under_cs_g08() -> None:

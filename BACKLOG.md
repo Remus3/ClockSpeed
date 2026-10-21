@@ -874,3 +874,8 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   row - so no note this tree sends through it counts against the FLEET item 14 c daily outbound
   cap, and no send is refused at the cap; trigger: the next edit to `tools/outbound_send.py`, or
   a local day on which this tree sends more non-exempt notes than that cap allows.
+- From the session 150 H pointer sweep: the frozen `.githooks/commit-msg`'s CS-813 comment
+  block points at `docs/item_notes/phase7.md` for CS-813's four leaks, but CS-813 closed and
+  its section moved to `docs/history_notes.md` (its record: `docs/LEDGER.md`, 2026-09-25,
+  CS-813); repoint it there; trigger: the next adjudicated grant that touches
+  `.githooks/commit-msg`.
