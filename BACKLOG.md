@@ -811,12 +811,6 @@ Process findings of session 145; the CS-1328 and CS-1307 records are in `docs/LE
 - CS-1330 residual: the CS-1116 plant in tests/test_conftest_run_git.py uses _planted_bounds() but
   no arm asserts it does - a constant 30 s sleep or a constant 20 s assert survives at load factor
   1 (session 149 S3b M3d, M3e); trigger: the plant flakes under suite load, or the next edit to it.
-- CS-1330 residual: ops/loop/inbox_responder.py reports a kit Refused with code "halted" (a
-  declared QUEUE_STOP or HOLD_MAIN_SPAWN standing) as a route refusal - "kit_refused", status
-  refused, exit 3 on every tick with an unread note it acts on (own, terminal and retired notes
-  are skipped; a backoff or full budget window exits 0) - instead of the quiet halted state its
-  own STOP check gives; trigger: either file standing over such a tick after the tag (C7), or a
-  route fault hidden behind it.
 - CS-1331 residual: the os.lstat half of the CS-1312 denial in
   tests/save/test_workdir.py::deny_stat_of was already vacuous at base - a forward-everything,
   deny-nothing stand-in leaves the CS-1312 partial-name cases green at base and at CS-1331, on
@@ -844,17 +838,22 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   pre-rewrite local refs in one update-ref --stdin transaction after a fresh bundle, never
   tagged; never a bulk prune, never a live agent's tree; trigger: the lanes need the worktree
   slots or the disk, or C13 is worked.
-- CS-700 ADR 0025 10d amendment note (ADV-B2 item 4, advb2-review.txt in the flip records folder
-  outside the tree, sha256 041afee6e048535ab1c43c87d467afda69bd2fbbfb0cd4b1c4ffafececc7df03): one
-  "AMENDED 2026-10-18 by CS-700:" paragraph closing point 10 of
-  `docs/adr/0025-the-tier-3-flip-checks-run-locally.md`, Status unchanged - 10b executed at A''
-  (named in words there, no hex), check 6 pins one set, 10c's last clause and 10d's count and
-  final-line term lapsed, and the 10d flip-record reading is step 5's on T2; real drift that no
-  guard enforces (`tests/test_dated_headings.py` skips the ADRs); left out of B because no
-  adjudicator of B added it to B's list; trigger: an adjudicator adds it, or the next edit to
-  that ADR.
 - Outbound send bypass (session 150): on 2026-10-19 a sub-agent delivered an outbound note to
   MAIN by writing the destination copy directly instead of through `tools/outbound_send.py`; it
   ran the outbound gate standalone first, so nothing leaked, and the note re-gated CLEAN on
   2026-10-20, but no delivery record was written for it; trigger: an outbound send bypasses the
   send tool again.
+- CS-1317 deferral, tier1 growth (the session 150 ruling (C); `docs/LEDGER.md`, 2026-10-20,
+  CS-1317): the tier1 readings refresh waits - the measurement record's digest-pinned seed rows
+  anchor on the superseded tier1 window, so a refresh re-anchors them across the CS-1223 F1
+  fence, and the scan shard stays in `PENDING_READINGS` in `tools/tier1_growth.py`; trigger: five
+  green tier1 runs on main, all on 4-vCPU runners, or any tier1 budget line over 420 s.
+- CS-1317 deferral, tier1 concentration (the same ruling): the profile refresh waits, and the scan
+  shard stays in `PENDING_PROFILE` in `tools/tier1_concentration.py`; trigger: the growth line's
+  trigger plus a measurable before/after pair.
+- From the CS-1332 correctness round: JSON loaders that feed a pin or an allow decision keep the
+  last row of a repeated key without refusing it - `tools/freeze_witness.py::load_record`,
+  `tools/drift_guard.py` (the port record), `tools/licence_audit.py`, `tools/main_provenance.py`
+  and the frozen `tools/precommit_gate.py` - the shape `tools/sha_citation_gate.py::refusing_repeats`
+  closes for the binary pins; trigger: a repeated key found in a file one of them reads, or the
+  next edit to one of those loaders (the frozen one through the `CLAUDE.md` section 6 route).

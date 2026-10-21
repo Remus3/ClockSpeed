@@ -75,6 +75,171 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-20 - CS-1332 - LANDED, NOT CLOSED. CS-1332 STAYS OPEN until a verifier grades its closure: flip_checks check 6 excuses a file it could not read only by a path-and-SHA-256 pin, and the pin loader refuses a repeated key
+Verification: `tools/flip_checks.py::excused_binaries`, `::recording_reader` and `::doc_sweep`;
+`tools/sha_citation_gate.py::refusing_repeats` and `::load_known_binaries`;
+`tests/test_flip_checks.py::test_a_pinned_binary_is_not_a_skip`,
+`::test_an_unpinned_nul_file_still_fails`, `::test_a_drifted_pinned_binary_fails`,
+`::test_a_malformed_pin_source_fails_closed`, `::test_an_unreadable_pin_source_fails_closed`,
+`::test_a_nul_in_a_markdown_file_is_never_excused`,
+`::test_a_pinned_path_that_cannot_be_read_stays_a_skip`,
+`::test_an_unreadable_count_no_identity_stands_behind_excuses_nothing`,
+`::test_check_six_restores_doc_sweeps_own_reader` and
+`::test_each_identity_mutant_applies_and_is_killed`;
+`tests/test_sha_citation_gate.py::test_a_binary_pin_listed_twice_is_refused` and
+`::test_a_historical_key_listed_twice_is_refused`; ADR 0025, the CS-1332 amendment after point 10d.
+THE FIX: check 6 wraps doc_sweep's own reader, `_read_text`, the way it already wraps the
+no-fetch predicate, learns by path each tracked file the reader returned nothing for, and
+restores the reader after the sweep. A learned file is excused - counted `known-binary` on the
+check line, never a skip - only when its path AND the SHA-256 of its bytes match a pin in the
+REF tree's `tools/sha_citation_binaries.json`, read by the sha-citation gate's own
+`load_known_binaries` and matched by its own `is_known_binary`. It still FAILS on an unpinned
+NUL-bearing file, a pinned path whose bytes drifted, a pin source the loader refuses or cannot
+read (nothing is excused then), any markdown file the sweep could not read, pinned or not, and an
+unreadable count the wrapped reader did not see. The repair commit makes `load_known_binaries`
+and `parse_historical` refuse a key listed twice at any depth (`refusing_repeats`), so check 6
+fails closed on such a pin file whichever row matches. `tools/doc_sweep.py` is unchanged.
+FAILING TEST FIRST, re-measured by the landing merger: the new cases, run against the pre-fix
+`tools/flip_checks.py` and `tools/sha_citation_gate.py` in a scratch clone, gave 29 of 36
+selected cases failed - each on the behaviour (the pinned image still a skip, the expected failure
+reason absent, the repeated key not refused), the nine mutant-control cases because no mutant
+anchor applies to the pre-fix file - and 7 passed: a still-fails arm and pre-existing gate arms.
+The fix carries an in-suite mutation control: nine source mutants, each asserted to apply
+exactly once, each killed by its arm while the pristine arm holds.
+T2 READING: check 6 at T2 (f9b877256dd82e8d2844b6d7c876d3ab822ff097), through the tool's own
+`clone_at` and `measure` with its control: the pre-fix tool reads 2 skips, the two
+`docs/assets` PNGs as `unreadable-or-binary-file`, FAIL, exit 1; the landed tool reads exit 0,
+skips 0, known-binary 2, policy-excluded 1, findings 0, control FOUND, PASS. This record is not
+the CS-G03 record ADR 0025 point 8 requires.
+THE ACCEPTANCE RE-WORDED: the CS-1332 `### Acceptance` in `docs/item_notes/phase7.md` said
+`tools/doc_sweep.py`, as check 6 runs it, "no longer reports" a pinned binary as the skip. It now
+reads in the adjudicated S8 shape - check 6 excuses only a pinned binary, and `tools/doc_sweep.py`
+itself is untouched - because the fix the CS-700 S8 ruling ordered lives in check 6, and the old
+words would have demanded a doc_sweep change that ruling never ordered. The rest of the clause is
+unchanged.
+ADVERSARIES (distinct, read-only, default refuted, agent-reported): a smuggling lens, NOT
+REFUTED, which raised whether a binary pin in check 6 amends ADR 0025 point 10; a correctness
+lens, REFUTED on duplicate keys - a pin file listing one path twice was read as its last row, so
+a drifted image passed when the last row matched its new bytes - repaired by the
+`refusing_repeats` commit; the repair NOT REFUTED.
+THE ADR 0025 RULING (a distinct adjudicator): (A) AMEND - point 10 gains a CS-1332 paragraph
+after 10d: check 6 pins one exact binary set beside its URL set, and nothing else; the excusal
+rule and the 10c failures it adds are written there. Alternatives: (B) no amendment; (C) reject
+the binary pin. Why, read from the texts the ruling rests on: point 10 names the exact sets check
+6 pins "AND NOTHING ELSE", so an excuse it does not name is a silent one (against B); and the pin
+is the fix shape the CS-700 S8 ruling ordered, without which check 6 cannot pass at T2 while the
+two images are tracked (against C). The paragraph adds "a pin source with a repeated key" to the
+ordered failure list, for the repair above; its URL-set wording is the CS-700 record below.
+`docs/adr/README.md` is unchanged: the Status stays `accepted`.
+
+### 2026-10-20 - CS-700 - NOT A COMPLETION RECORD. CS-700 STAYS OPEN: ADR 0025 point 10 amended for 10b's execution; the BACKLOG 10d amendment note discharged
+Verification: `docs/adr/0025-the-tier-3-flip-checks-run-locally.md`, the "Amended 2026-10-20 by
+CS-700" paragraph after point 10d; `tools/flip_checks.py::doc_sweep`, its points b and d; the
+2026-10-18 record "ADR 0025 point 10b executed" below.
+The `BACKLOG.md` "Session 150 residuals" line on the ADR 0025 10d amendment note carried the
+trigger "an adjudicator adds it, or the next edit to that ADR"; the CS-1332 amendment is that
+edit. A distinct adjudicator ruled. Q1, CORRECT the ordered CS-1332 sentence: it said check 6
+"pins two exact URL sets", copied from point 10's unamended heading and false at HEAD, where
+10b's set is deleted; it now reads "the exact URL set of 10a, 10b's having been deleted after S12
+as it ordered, and ONE EXACT BINARY SET". Runner-up, verbatim: it respects the order and matches
+the heading; it lost because a false present-tense claim is the drift that line records. Q2, THE
+TRIGGER FIRED: the CS-700 paragraph lands in the same commit, before the CS-1332 one, re-measured
+from in-tree facts rather than from the out-of-tree review file the line cited, and dated by the
+day it was filed; the line moves to `docs/history_notes.md`. Alternative: defer, allowed only for
+a clause that cannot be re-measured this session. The paragraph: 10b executed in the S12a act
+(ii) ledger commit of 2026-10-18, check 6 pins one URL set, 10c's last clause and 10d's count and
+final-line term lapsed with it, and the re-run 10d names for point 8's flip record is the A-S12a
+step 5 reading at T2. The Status is unchanged.
+
+### 2026-10-20 - CS-1317 - CLOSED by adjudication: tier 1's gates job reads inside its 420 s budget on two consecutive tier1 runs on main; the tier2 record refreshed; the tier1 growth and concentration refreshes DEFERRED with triggers
+Verification: `tools/tier2_durations.json`, `tools/tier2_headroom.py::PENDING_FIRST_RECORD`
+(empty) and its pin `tests/test_tier2_headroom.py::EXPECTED_PENDING`, with
+`tests/test_tier2_headroom.py::test_the_shipped_record_grades_clean_against_the_shipped_workflow`,
+`::test_the_shipped_record_covers_every_job_the_workflow_expands_to` and
+`::test_the_shipped_pending_entries_are_what_this_module_pins`; `TIER1_BUDGET_SECONDS` and
+`TIER1_CEILING_SECONDS` in `.github/workflows/tier1.yml`; each job's "Duration against the
+budget" step on the two tier1 runs below.
+MERGED: `tools/tier2_durations.json` re-taken from every completed tier2 run whose head is
+published on main, the tag run included; each of the four scan-shard legs now holds the run floor,
+so `PENDING_FIRST_RECORD` in `tools/tier2_headroom.py` and its pin in
+`tests/test_tier2_headroom.py` are emptied together; every recorded duration is inside the
+stated fraction of its timeout. `tools/tier1_growth.py`, `tools/tier1_concentration.py`,
+`tests/test_tier1_growth.py` and `tests/test_tier1_concentration.py` are unchanged.
+ACCEPTANCE EVIDENCE, re-read by the landing merger: tier1 runs 39380059462 and 39524377128 are
+consecutive tier1 push runs on main, both success. The gates job's budget line reads "tier 1 took
+136s - within budget" and "tier 1 took 173s - within budget" (budget 420s, ceiling 480s); every
+other job's budget line on the same two runs reads within budget, the highest 222 s; both levels
+read 420 and 480 at HEAD, unchanged. Both runs' runner CPU step printed 4.
+THE RULING (a distinct adjudicator): CLOSE on the acceptance; the tier1 growth and tier1
+concentration refreshes are DEFERRED (C), each with a trigger, in `BACKLOG.md` "Session 150
+residuals". Alternatives: (A) re-anchor the measurement record's digest-pinned seed rows on the
+new tier1 window, which crosses the CS-1223 F1 fence, plus an unruled raise of the jitter ratchet;
+(B) split the refreshes into a new item. Why: product before process (`CLAUDE.md` section 7);
+every tier1 job sits at about half its ceiling; and the public repository now gets 4-vCPU runners
+(nproc 4) while the records assume 2 (`tools/tier1_concentration.py`, `tools/measurements.json`).
+The item's section moved to `docs/history_notes.md`; its `ROADMAP.md` line is removed.
+
+### 2026-10-20 - CS-1234 - NOT A COMPLETION RECORD. CS-1234 STAYS OPEN: the S5 responder change landed - the kit's own state per refusal code, every declared stop sentinel honoured; clause 4's lane half rides with CS-1231 slice C
+Verification: `ops/loop/inbox_responder.py::kit_refusal_state`, `::_refused`, `::_standing` and
+`::_halted_since`;
+`tests/ops/test_inbox_responder.py::test_a_kit_refusal_publishes_the_state_the_kits_own_write_used`,
+`::test_every_pair_of_refusal_causes_publishes_the_kits_own_write`,
+`::test_an_unreachable_proxy_beside_a_spent_budget_still_reads_blocked`,
+`::test_the_kits_lock_busy_and_route_missing_codes_map_to_the_kits_own_state`,
+`::test_every_declared_stop_sentinel_halts_the_responder_quietly_before_the_lock`,
+`::test_an_unreadable_declaration_halts_the_responder_before_the_lock`,
+`::test_the_responders_own_stops_hold_beside_a_declaration_that_omits_them`,
+`::test_a_halt_is_shown_since_its_sentinel_was_placed`,
+`::test_two_standing_sentinels_show_the_halt_since_the_earliest`,
+`::test_the_usage_line_carries_ts_kind_and_label` and
+`::test_the_responder_never_hands_the_kit_a_halt_file`; `docs/OPERATIONS.md` section 12.3.
+CLAUSES 1 TO 3 of the S5 slice are met by the responder change. The responder publishes the
+kit's own state per refusal, derived from the refusal alone in the kit's order: code "halted"
+gives halted / Halted, quiet, exit 0; "fallback-halted" or "budget-spent" gives limit / Turn Limit
+Reached, logged "limit", exit 0; the kit's Blocked gives blocked / Idle, with exit 3 and the
+`kit_refused` line unchanged; any other refusal gives refused / Idle. It honours
+`ops/stop_sentinels.json` through the kit's own `stop_sentinel_hit`, before its lock, and halts
+on an unreadable declaration (fail closed); STOP and INBOX_STOP stay a floor no declaration
+lifts. It dates a halt from the oldest standing sentinel. A pass with a live ORDER, FIX or RULING
+anywhere in it logs kind "order", where the kit derives "order" from the label alone. So a
+standing QUEUE_STOP or HOLD_MAIN_SPAWN now shows halted and exits 0, no longer `kit_refused` and
+exit 3; section 12.3 of `docs/OPERATIONS.md` says so.
+CLAUSE 4's lane half rides with CS-1231 slice C, because `ops/loop/run_lane.ps1` still starts
+`claude` directly (`CLAUDE.md` precedence (c)).
+RESIDUAL: the kit's halt_file refusal stays unmapped - it is raised with no code, production
+never hands the kit a halt file, and
+`tests/ops/test_inbox_responder.py::test_the_responder_never_hands_the_kit_a_halt_file` pins that.
+ADVERSARIES (distinct, read-only, default refuted, agent-reported): REFUTED twice - first on the
+refusal state, an unreachable proxy beside a full or unreadable budget published as a limit;
+then on five of 22 planted mutants surviving that repair - each round repaired; then landed on 22
+of 22 mutants killed, the loop stopped there by cost against risk (`CLAUDE.md` section 7). The
+`BACKLOG.md` "Session 149 residuals" line on the responder's `kit_refused` halt is discharged and
+moved to `docs/history_notes.md`.
+
+### 2026-10-20 - CS-1291 - NOT A COMPLETION RECORD. CS-1291 STAYS OPEN: the frozen-file grant for `.githooks/pre-push`, parts 1 and 2, DENIED by adjudication
+Verification: `CLAUDE.md` sections 6 and 7 ("Product before process"); `.githooks/pre-push`,
+unchanged; this record.
+THE RULING (a distinct adjudicator, on the `CLAUDE.md` section 6 route): DENIED. Criteria: 1
+FAIL - no product item is blocked and no suite is red, and MAIN's ORDER cannot lift the section 7
+fence; 2 FAIL - the floors weaken (CS-821, R6); 3 PARTIAL - the CS-1290-pinned suite-gate line
+would be rewritten; 4 PASS. Alternatives: grant parts 1 and 2; grant part 2 alone; defer.
+Reversed by: the operator's own words, or a measured product block or suite red caused by the
+pre-push - a hook job over 444 s, or a /done median over 65 min after 5 rituals - after which a
+fresh adjudicator rules once S12a is fully closed.
+MEASURED: this session's three pre-push or suite-gated whole suites took about 19 minutes each,
+with concurrent agents running (the kit suite gate's machine-wide durations log reads 19.4 and
+19.3 minutes for two of them; the third is agent-reported). S12a is NOT fully closed:
+HOLD_MAIN_SPAWN and the KEEP (8) folder are still present. Parts 3 and 5 to 9 touch no frozen
+file.
+
+### 2026-10-20 - CS-G06 - NOT A COMPLETION RECORD. CS-G06 STAYS GATED: the unlanded "Discharge gate CS-G06" commit adjudicated DISCARD
+Verification: `docs/GATED.md`, CS-G06; this record.
+Found during the session 150 worktree retirement: the commit "Discharge gate CS-G06 and unfence
+CS-913", never landed. A distinct adjudicator ruled DISCARD: its discharge was refuted, the gate's
+condition is unmet at the tip, and it conflicts with the tip in `ROADMAP.md`, `docs/GATED.md` and
+`docs/LEDGER.md` (the conflicts re-read by the landing merger with a cherry-pick simulation). It
+is kept under a local preserve ref and is named here in words only.
+
 ### 2026-10-20 - CS-700 - NOT A COMPLETION RECORD. CS-700 STAYS OPEN: S12a's closing sequence read back through act (iv) and the hold; the README change re-applied as its own commit directly below this one; this is the KEEP RULE (6) closing commit; ADV-B, the push, the KEEP RULE (7) and (8), the tag and the ONE ANSWER owed
 Verification: `docs/item_notes/phase7.md`, CS-700, THE PLAN step S12a; `CS-NEXT-SESSION.txt`,
 THE CLOSING SEQUENCE; `tools/sha_citation_gate.py` with

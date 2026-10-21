@@ -24,6 +24,87 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## BACKLOG lines - relocated from `BACKLOG.md` 2026-10-20 by the session 150 merger
+
+**Moved here because each line was discharged.** The "Session 149 residuals" line on the inbox
+responder is discharged by CS-1234's S5 responder change (`docs/LEDGER.md`, 2026-10-20, CS-1234):
+a declared QUEUE_STOP or HOLD_MAIN_SPAWN now halts the responder quietly before its lock - status
+`halted`, exit 0, no log line. The "Session 150 residuals" line on the ADR 0025 10d amendment
+fired on its own trigger, the next edit to that ADR, and the amendment landed (`docs/LEDGER.md`,
+2026-10-20, CS-700). Verbatim:
+
+From "Session 149 residuals - filed 2026-10-19 under product before process":
+
+- CS-1330 residual: ops/loop/inbox_responder.py reports a kit Refused with code "halted" (a
+  declared QUEUE_STOP or HOLD_MAIN_SPAWN standing) as a route refusal - "kit_refused", status
+  refused, exit 3 on every tick with an unread note it acts on (own, terminal and retired notes
+  are skipped; a backoff or full budget window exits 0) - instead of the quiet halted state its
+  own STOP check gives; trigger: either file standing over such a tick after the tag (C7), or a
+  route fault hidden behind it.
+
+From "Session 150 residuals - filed 2026-10-20 under product before process":
+
+- CS-700 ADR 0025 10d amendment note (ADV-B2 item 4, advb2-review.txt in the flip records folder
+  outside the tree, sha256 041afee6e048535ab1c43c87d467afda69bd2fbbfb0cd4b1c4ffafececc7df03): one
+  "AMENDED 2026-10-18 by CS-700:" paragraph closing point 10 of
+  `docs/adr/0025-the-tier-3-flip-checks-run-locally.md`, Status unchanged - 10b executed at A''
+  (named in words there, no hex), check 6 pins one set, 10c's last clause and 10d's count and
+  final-line term lapsed, and the 10d flip-record reading is step 5's on T2; real drift that no
+  guard enforces (`tests/test_dated_headings.py` skips the ADRs); left out of B because no
+  adjudicator of B added it to B's list; trigger: an adjudicator adds it, or the next edit to
+  that ADR.
+
+
+## CS-1317 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-20 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1317
+
+### Acceptance
+
+Tier 1's "gates, lint, types, tests" job runs inside its 420 s budget by sharding or caching:
+`TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` in `.github/workflows/tier1.yml` stay 420 and
+480, and no test is skipped or deselected to get there. The job's "tier 1 took" budget line reads
+within budget on two consecutive tier1 runs on main, every other job's budget line is read on the
+same runs, and the CS-700 flip block's step b is not started before that.
+
+### Filed 2026-10-12 by the session 138 /done
+
+The session 138 /done read tier1 38262274792 at c7fc806, the push of its records commit, which
+touched four docs and no code. The gates job's "Duration against the budget" step printed "tier 1
+took 483s - OVER THE CEILING (budget 420s, ceiling 480s)" as an error and failed the job. The same
+job's budget line read 336 s at 5b22e08, 473 s at 923e30f and 479 s at 0e82056, each "over budget",
+a report and not a failure; across those three its "Unit tests" step read 293 s, 415 s and 420 s
+and its "Type check" step 16 s, 23 s and 24 s. The rise landed with session 138's product pushes;
+which tests carry it is not measured here.
+
+The carried TIER-1 HEADROOM WATCH in the hand-off says: shard or cache when a shard crosses the
+budget, and never raise the pin. This item reddens tier1 and blocks CS-700 step b, which needs
+tier1 green, so `CLAUDE.md` section 7's product-before-process rule admits it. Related open items:
+CS-900, CS-917, CS-1012 and CS-1133 on tier 1's duration, and CS-1307, which moves guard-shard time.
+
+### Filed 2026-10-12 by the session 139 merger
+
+Live state: the sixth tier1 shard, job `scan` ("tests (scan shard)"), is on main with the catch-all's
+corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unchanged and nothing
+is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
+record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
+
+Next action: every tier1 on main through 02b6ebd passed as a further gate reading (the session 146
+CS-700 step a record in `docs/LEDGER.md`); read each later tier1 the same way - CS-700 step a's own
+run next. THE REFRESH COMMIT IS DEFERRED UNTIL AFTER S12a (the session 146 merger's decision, with
+its alternatives and Reversed by, in that record): it takes the scan entries out of
+`PENDING_READINGS` in `tools/tier1_growth.py`, `PENDING_PROFILE` in `tools/tier1_concentration.py`
+and `PENDING_FIRST_RECORD` in `tools/tier2_headroom.py`, each at the removal condition stated beside
+it, with their pins in `tests/test_tier1_growth.py`, `tests/test_tier1_concentration.py` and
+`tests/test_tier2_headroom.py`, and the item closes at that commit; one tier2 workflow_dispatch after
+the merge is allowed (B1). RETIRED: the 360 s close clause this line once carried - the session 141
+step-b holds ruling R1 (`docs/LEDGER.md`) retired D4's step-b and 360 s close conditions, so the
+close falls back to the Acceptance above.
+
+
 ## CS-700 - spent flip-block subsections, relocated from `docs/item_notes/phase7.md` 2026-10-20 (session 150)
 
 **CS-700 STAYS OPEN; these four subsections of its section moved here, verbatim.** They governed

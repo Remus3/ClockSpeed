@@ -122,6 +122,27 @@ and 8 are the answer: a green run of the tool is never the gate clearing.
        both counts. Point 8's flip record cites the post-S12 re-run in which
        pre-publication-dead is 0.
 
+    *Amended 2026-10-20 by CS-700: point 10b was executed in the first commit after S12, the
+    S12a act (ii) ledger commit of 2026-10-18, which deleted `PRE_PUBLICATION_DEAD` and its
+    excuse path from `tools/flip_checks.py` (`docs/LEDGER.md`, the 2026-10-18 record "ADR 0025
+    point 10b executed"). Check 6 now pins ONE exact URL set, 10a's, so every dead URL FAILS,
+    README's tier1 badge included. 10c's last clause, on a `PRE_PUBLICATION_DEAD` URL
+    answering other than 404 or 200, lapsed with it, and so did 10d's pre-publication-dead
+    count and its term in point 7's final line. The post-S12 re-run that 10d names for point
+    8's flip record is the A-S12a step 5 reading at T2, in that same ledger record, which read
+    pre-publication-dead 0.*
+
+    *Amended 2026-10-20 by CS-1332, in the fix shape the CS-700 S8 ruling ordered: check 6
+    pins the exact URL set of 10a, 10b's having been deleted after S12 as it ordered, and ONE
+    EXACT BINARY SET, and nothing else. A file doc_sweep's own reader returns nothing for is
+    learned by path, never by count, and is excused only when its path AND the SHA-256 of its
+    bytes match a pin in the ref's `tools/sha_citation_binaries.json`, matched by
+    `tools/sha_citation_gate.py`'s own `is_known_binary`. It is reported known-binary on the
+    check line, never a skip, and is not counted in points 5 and 7. 10c also FAILS on: any
+    unreadable-or-binary-file skip no pin excuses; any unread markdown file; a pinned path
+    whose bytes drifted; a pin source that cannot be read or trusted; a pin source with a
+    repeated key; an unread count the learned paths do not match.*
+
 ## Consequences
 
 - **Easier:** the seven checks exist as one runnable job long before the flip, which is

@@ -1871,50 +1871,6 @@ another suite. Residual: `BACKLOG.md`, "Session 145 residuals" (callers followed
 Rulings: `docs/LEDGER.md`, "2026-10-17 - CS-1307 - NOT A COMPLETION RECORD: clause 3 read; item
 STAYS OPEN - clauses 1 and 2 owe an independent re-measurement".
 
-## CS-1317
-
-### Acceptance
-
-Tier 1's "gates, lint, types, tests" job runs inside its 420 s budget by sharding or caching:
-`TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` in `.github/workflows/tier1.yml` stay 420 and
-480, and no test is skipped or deselected to get there. The job's "tier 1 took" budget line reads
-within budget on two consecutive tier1 runs on main, every other job's budget line is read on the
-same runs, and the CS-700 flip block's step b is not started before that.
-
-### Filed 2026-10-12 by the session 138 /done
-
-The session 138 /done read tier1 38262274792 at c7fc806, the push of its records commit, which
-touched four docs and no code. The gates job's "Duration against the budget" step printed "tier 1
-took 483s - OVER THE CEILING (budget 420s, ceiling 480s)" as an error and failed the job. The same
-job's budget line read 336 s at 5b22e08, 473 s at 923e30f and 479 s at 0e82056, each "over budget",
-a report and not a failure; across those three its "Unit tests" step read 293 s, 415 s and 420 s
-and its "Type check" step 16 s, 23 s and 24 s. The rise landed with session 138's product pushes;
-which tests carry it is not measured here.
-
-The carried TIER-1 HEADROOM WATCH in the hand-off says: shard or cache when a shard crosses the
-budget, and never raise the pin. This item reddens tier1 and blocks CS-700 step b, which needs
-tier1 green, so `CLAUDE.md` section 7's product-before-process rule admits it. Related open items:
-CS-900, CS-917, CS-1012 and CS-1133 on tier 1's duration, and CS-1307, which moves guard-shard time.
-
-### Filed 2026-10-12 by the session 139 merger
-
-Live state: the sixth tier1 shard, job `scan` ("tests (scan shard)"), is on main with the catch-all's
-corpus-scanning head; `TIER1_BUDGET_SECONDS` and `TIER1_CEILING_SECONDS` are unchanged and nothing
-is skipped. The 360 s catch-all projection is UNMEASURED (adversary range 326 to 390 s). The landing
-record and the session 139 rulings R1, B1 to B3 and D1 to D4 are in `docs/LEDGER.md`, 2026-10-12.
-
-Next action: every tier1 on main through 02b6ebd passed as a further gate reading (the session 146
-CS-700 step a record in `docs/LEDGER.md`); read each later tier1 the same way - CS-700 step a's own
-run next. THE REFRESH COMMIT IS DEFERRED UNTIL AFTER S12a (the session 146 merger's decision, with
-its alternatives and Reversed by, in that record): it takes the scan entries out of
-`PENDING_READINGS` in `tools/tier1_growth.py`, `PENDING_PROFILE` in `tools/tier1_concentration.py`
-and `PENDING_FIRST_RECORD` in `tools/tier2_headroom.py`, each at the removal condition stated beside
-it, with their pins in `tests/test_tier1_growth.py`, `tests/test_tier1_concentration.py` and
-`tests/test_tier2_headroom.py`, and the item closes at that commit; one tier2 workflow_dispatch after
-the merge is allowed (B1). RETIRED: the 360 s close clause this line once carried - the session 141
-step-b holds ruling R1 (`docs/LEDGER.md`) retired D4's step-b and 360 s close conditions, so the
-close falls back to the Acceptance above.
-
 ## CS-1318
 
 ### Acceptance
@@ -2056,13 +2012,14 @@ measurement in the window; (e), (g), the ledger record and the ONE ANSWER after 
 
 ### Acceptance
 
-`tools/doc_sweep.py`, as `tools/flip_checks.py` check 6 runs it, no longer reports a tracked binary
-pinned by path plus sha256 as an `unreadable-or-binary-file` skip, and the two tracked images named
-below are pinned; a tracked file carrying a NUL byte that no pin names still fails check 6; a pinned
-path whose bytes no longer match its sha256 fails; and a pin source that is malformed or cannot be
-read fails closed, never read as an empty pin. Each of the four arms is watched red against the
-unfixed tool before it goes green. Then the fixed tool, run against the tree at T2 (`f9b8772`),
-exits 0 with zero automated skips, and that run is recorded in `docs/LEDGER.md` under this ID.
+`tools/flip_checks.py` check 6 excuses a tracked binary from its `unreadable-or-binary-file` skips
+only when the file's path plus sha256 match a pin, and excuses nothing else; `tools/doc_sweep.py`
+itself is untouched; and the two tracked images named below are pinned. A tracked file carrying a
+NUL byte that no pin names still fails check 6; a pinned path whose bytes no longer match its sha256
+fails; and a pin source that is malformed or cannot be read fails closed, never read as an empty
+pin. Each of the four arms is watched red against the unfixed tool before it goes green. Then the
+fixed tool, run against the tree at T2 (`f9b8772`), exits 0 with zero automated skips, and that run
+is recorded in `docs/LEDGER.md` under this ID.
 
 ### Filed 2026-10-20 by the session 150 merger, from the session 150 adjudication
 
