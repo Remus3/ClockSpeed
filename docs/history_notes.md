@@ -55,6 +55,413 @@ From "Session 150 residuals - filed 2026-10-20 under product before process":
   that ADR.
 
 
+## CS-G03 - gate section, CLEARED and relocated from `docs/GATED.md` 2026-10-20
+
+**Moved here from `docs/GATED.md` when the gate cleared (session 150).**
+The record is in `docs/LEDGER.md` under CS-G03.
+
+### CS-G03 - Public visibility flip
+
+**One line:** Flip the repository from private to public.
+
+**Unblocked by:** all seven CI tier-3 gate checks passing - full-history secret scan, PII
+scan across all tracked files and all commit messages, third-party license audit, no
+publisher-owned data assets tracked in the tree or in history, `README.md` taking an
+outsider from zero to a first result, all doc cross-references resolving with no orphaned
+or stale markdown, and a clean-checkout probe passing on a machine that has never seen
+the project.
+
+**The latest pre-publication audit** - findings, severities and the settings to re-apply
+after the remote is recreated - is `docs/public-readiness.md`.
+
+**This is an operator sign-off item as well as a technical one.** It is outward-facing
+and irreversible in practice, so the gate clearing is necessary and not sufficient.
+
+**PREP half, workable now:** every one of the seven checks exists as a runnable job long
+before the flip is contemplated. Hygiene is enforced from the first commit and is not
+deferred on the grounds that the repo is private.
+
+**The third-party licence audit has its first recorded verdict.** Electron's gate result -
+split into local use, a public manifest merely NAMING it, and distribution of a packaged
+binary - is `docs/adr/0013-electron-licence-gate.md`. The audit consumes that record rather
+than re-deriving it, and the ADR states which of the three scopes was cleared only WITH
+obligations.
+
+#### Operator decision 2026-08-13: the flip ships from a FRESH history
+
+**The working tree is clean of PII; the history is not, and cannot be made clean without
+a rewrite.** Decided: do not rewrite. The public artifact is produced from a squashed or
+orphan-branch history instead, and the local development history is kept intact and
+private because it is genuinely useful.
+
+Two facts force this, both measured rather than assumed:
+
+1. **The tree carried personal data and every commit still does.** `BOOTSTRAP.md` carried
+   the pinned world name and three world-identity tokens. The working tree has been
+   scrubbed, but all commits that existed at the time of the decision carry the unscrubbed
+   file. Commit MESSAGES were checked and are clean.
+2. **Author identity is real-identity-linked in every commit.** Every commit is authored
+   under a real email address. This was NOT caught when the operator was asked about the
+   PII question - it was surfaced afterwards by the adjudicator reviewing the LICENSE
+   change, as the common-mode risk in the reasoning behind that change. Changing the
+   LICENSE holder to a collective name does not touch it, and neither does scrubbing
+   `BOOTSTRAP.md`.
+
+3. **Agent co-authorship trailers are publication metadata too.** Operator decision: no
+   commit carries a `Co-authored-by:` trailer naming an agent. Measured at the time of the
+   decision, no commit did - the trailer had never been added - so this is a standing rule
+   going forward rather than a cleanup, and it costs nothing to keep true. It is recorded
+   here rather than only in a habit because a trailer is trivial to reintroduce by default
+   and impossible to remove later without the rewrite this section exists to avoid.
+
+   **TWO MECHANISMS CARRY THIS CLAUSE, and until CS-1157 only one of them existed.**
+   `.githooks/commit-msg` REFUSES a `co-authored-by` trailer end to end, on a polarity
+   deliberately wider than the rule, and `tests/test_commit_msg_gate.py` drives it - so the
+   trailer has never landed. But refusing is not the same as not generating: the harness
+   injected an attribution instruction into every session, worded as though it superseded
+   earlier guidance, and the only thing between that instruction and a refused commit was a
+   model reading a memory note and declining by hand each time. `.claude/settings.json` now
+   sets `attribution` to blank and `includeCoAuthoredBy` to false, under the frozen-file
+   grant recorded in `docs/LEDGER.md` under CS-1157, and the same two keys are set at user
+   scope so a repository with no settings file on this machine is covered too. BOTH KEYS,
+   because an older client reads only the deprecated one and would reintroduce the trailer
+   silently. The gate stays the primary defence and is not weakened by this: a settings key
+   is a request to the tool and the gate is a refusal by the repository.
+
+   The blanked `attribution.pr` suppresses the PR-body footer as well, which is MORE than
+   this clause asks for. That is a deliberate extension on this clause's own reasoning -
+   publication metadata is trivial to reintroduce and impossible to remove later - and it is
+   written down rather than left to be discovered.
+
+**Therefore the flip has an eighth precondition, additional to the seven above:** the
+published history is generated fresh; the identity it is authored under is chosen
+deliberately at that point rather than inherited from the local git config; and no commit
+in it carries an agent co-authorship trailer. A scrubbed working tree pushed onto the
+existing history satisfies none of the three.
+
+**Do not** treat the working-tree scrub as having cleared this item. It cleared the tree,
+which is the PREP half. The DRAIN half is the flip itself and it remains gated.
+
+#### Measured 2026-08-22 (CS-702): the rule was broken the day after it was written, and is now ENFORCED
+
+**Nothing above this heading is edited, and that is deliberate.** The 2026-08-13 record
+stands exactly as written, its measurement sentence included, because that sentence was
+true when written. What follows is a LATER observation and what it changed. Filed as new
+text rather than as a correction in place, because the dated record is now the evidence
+that the rule was written down BEFORE it was broken - the most useful thing it holds.
+
+**The measurement, and how to re-derive it rather than trust it.** Walk every commit body
+on `main` and match a line that sits at column zero, carries a colon, and whose text before
+that colon - trailing whitespace trimmed - folds to `co-authored-by`. That is the shape git
+itself reads as a trailer, and it is the shape the gate matches. Measured on 2026-08-22:
+EIGHTEEN commits match, oldest `e9af2df`, newest `5907d45`, all dated 2026-08-14 or
+2026-08-15, and ZERO since. The eighteen are a closed set at that date. The repository
+total keeps growing, so the eighteen, the two SHAs and the two dates are the stable figures
+here - not a ratio. The stripped-prefix method this section first described returns the
+same eighteen over this history, so the correction recorded further down changes the gate,
+not the census.
+
+**A naive census gets this wrong - but only for ONE SPELLING of the token, and naming which
+spelling is the whole of the point.** A plain substring search for the COLON-LESS token
+`co-authored-by` also matches PROSE ABOUT THE RULE, this subsection included: measured
+2026-08-22 over `main`, it returns NINETEEN where the trailer-shaped match returns EIGHTEEN,
+and the nineteenth is a commit message discussing this very item. Search for the token WITH
+its colon and the gap closes - that returns EIGHTEEN as well. So in that particular
+comparison it is the COLON doing the separating, not the anchor, and an earlier draft of
+this paragraph cited the nineteen without saying which token it had searched for. A count
+whose matcher is unstated cannot be checked by the next reader, which is the only thing a
+recorded measurement is for.
+
+**What was overtaken is the CONSEQUENCE, not the measurement.** Every one of the eighteen
+postdates the 2026-08-13 decision by one or two days. What did not hold is the clause that
+followed it - that the rule "costs nothing to keep true". A rule kept by habit, against a
+tool whose default violates it, is a rule that fails on the first session nobody is
+watching, and this one failed on the next. The same entry predicted that in its closing
+sentence and shipped no mechanism.
+
+**What changed: the rule is now MECHANICAL.** `.githooks/commit-msg` rejects the trailer,
+under the frozen-file grant recorded in `docs/LEDGER.md` for CS-702. The acceptance is an
+end-to-end transcript - a real staged change, a real `git commit`, a non-zero exit and an
+unmoved HEAD - because a hook's presence is never proof that it fires.
+`tests/test_commit_msg_gate.py` drives real commits in a throwaway repository for exactly
+that reason: `core.hooksPath` is machine-local configuration that is never cloned, so a
+unit test of the matcher would be byte-identical green whether the gate fired or not.
+
+**The gate's polarity is WIDER than this section's rule, deliberately.** The 2026-08-13
+decision forbids a trailer NAMING AN AGENT; the gate rejects EVERY co-authorship trailer,
+name-free, a hypothetical human one included. A list of agent names would fail open on the
+next harness or model rename, which is the continuous pressure the item was filed against.
+Measured cost at the grant: zero - all eighteen name an agent, and no human co-author
+trailer exists anywhere in the history. A genuine human co-author is BLOCKED, which is the
+intended failure direction; the route out is a new item and a recorded allowlist entry,
+never a shortened matcher.
+
+**The predicate is derived from GIT'S OWN TRAILER PARSER, after a first cut that was wrong
+in BOTH directions at once.** That first cut matched a body line whose STRIPPED form started
+with `co-authored-by:`. Measured against git 2.53, it was simultaneously too narrow and too
+wide, and the two halves were refuted independently.
+
+TOO NARROW, which is a gate failing OPEN on the exact thing it exists to stop. git locates
+the separator FIRST and trims the token AFTERWARDS, so a line reading `Co-authored-by :
+value` - one space before the colon - is a real trailer to git. Under the first cut the
+commit was ACCEPTED, HEAD moved, and
+`git log -1 --format=%(trailers:key=Co-authored-by,valueonly)` returned the value. A tab
+before the colon behaved identically.
+
+TOO WIDE, which is how a gate gets switched off. git refuses whitespace before the token
+has begun, so an INDENTED line is not a trailer to git at any position in any message -
+`interpret-trailers --parse` returns nothing for it and the key reads empty on a commit
+carrying one. The first cut blocked it anyway, and the cost was that this repository could
+not QUOTE THE SHAPE IT FORBIDS: this subsection, the ledger entry closing the item and the
+commit message landing it were all rejected by the gate they describe.
+
+**So the shipped predicate judges a line only at column zero, and compares the trimmed
+token before the first colon, case-folded.** To quote the shape rather than record one,
+INDENT the example by one space - which is exactly the shape git also declines to read.
+
+**A FENCED BLOCK IS NOT A SHIELD, and this gate must never be taught that it is.** Measured
+2026-08-22 on git 2.53: a triple-backtick block whose only trailer-shaped line is a
+co-authorship one is not parsed as a trailer, but the SAME block carrying a GIT-GENERATED
+trailer beside it - a sign-off, or a cherry-pick line - is parsed whole, fence lines and
+all, and the co-authorship line inside it becomes a real trailer. The gate therefore still
+refuses a fenced example whose content sits flush at column zero. That is a DECLARED
+divergence in the fail-CLOSED direction, pinned by a test so it cannot drift silently, and
+the obvious cheap fix - skip fenced blocks - would fail OPEN on precisely the sign-off
+message above. Indent the content instead.
+
+**THIS GATE IS A CLIENT-SIDE, LOCALLY-ARMED CONTROL, and a whole CLASS of routes goes around
+it.** Naming only two of them, as this section first did, understated the shape of the
+problem. The hook fires only where `core.hooksPath` points at `.githooks/` on the machine
+doing the commit, and only on the code paths git chooses to run `commit-msg` on. Members of
+the class, recorded rather than chased, each its own item: `git commit --no-verify`;
+`git cherry-pick`; `git revert`, which is a sequencer sibling of cherry-pick and was MISSED
+by the first enumeration of this list; `git rebase` on either backend; `git am`; a fresh
+clone on which nobody
+has run the bootstrap, where the hook is present but unarmed; `core.commentChar` or
+`core.commentString` remapped, which moves the comment-stripping the gate is built on; and a
+substituted interpreter, which was a live member of this class until **CS-703 CLOSED it on
+2026-08-22**. The ladder now requires a candidate to answer with a token it has to COMPUTE
+and to return a failure code it has to REPORT, and a set-but-failing `CLOCKSPEED_PYTHON` is
+refused rather than silently replaced by the next rung. That member sat ABOVE the edit line
+the CS-702 grant drew and could not be touched under it; CS-703's own grant drew the new
+line. **It was never a `CLOCKSPEED_PYTHON` problem:** the same escape was measured through
+the `python` rung with no environment variable set at all, so unsetting the variable was
+never a mitigation. What remains open here is narrower and is filed separately - the probe
+proves PYTHONHOOD and not TOOLCHAIN (CS-817), pre-push trusts an exit code for pytest's
+presence (CS-821), and `.claude/settings.json` carries no probe at all (CS-815).
+
+**THE HOOK PREDICTS THE BYTES GIT WILL STORE AND NEVER OBSERVES THEM, and three further
+escapes follow from that. They are MEASURED, they are NOT closed here, and they are filed as
+CS-813.** Cleanup runs AFTER this hook: on the editor path the hook sees git's full template
+while the stored message has it stripped. The comment-stripping this gate inherits models one
+cleanup mode out of five. Measured with real commits: a co-authorship trailer below git's cut
+token is stored and git reads it as a trailer; a comment line carrying a byte above 0x7E puts
+that byte in the stored message, which is a hole in non-negotiable 4 inside the hook that
+enforces it; and a long comment line as the first line inflates the STORED subject past the
+72-character cap. All three predate the trailer check and none is caused by it.
+
+**A REWRITE OF THAT PRE-FILTER WAS BUILT UNDER A WIDENED GRANT, MEASURED, AND DELIBERATELY NOT
+SHIPPED - that is a result, not an unfinished attempt.** It closed all three escapes and a
+fourth nobody had named, and it was refuted anyway. Reading the whole buffer is sound for a
+SCAN and unsound for a SELECTION: the subject is chosen from the first non-blank line, so
+reading more lines does not widen the check, it picks a DIFFERENT line from the one git stores.
+A message whose first line is a comment therefore passed with a stored subject well over the
+cap, and the same shape let a placeholder subject through - both cases the inherited
+comment-stripping got RIGHT. It also rejected `git commit --verbose` whenever the staged diff
+carried a byte above 0x7E, which blocks precisely the work of fixing such a byte, and rejected
+git's own generated `fixup!` subject for any commit whose subject is 66 characters or longer.
+The honest reading is that a commit-msg hook can be made conservative and cannot be made
+complete, because two inputs to the prediction - an explicit cleanup override and the verbose
+flag - are invisible to any hook. The measurements are kept against CS-813 so the next attempt
+starts from them rather than from scratch.
+
+**What closes the class is not a better matcher - it is a RANGE SCAN.** Over the pushed
+commits, in `.githooks/pre-push`, or on the CI side, or both: a range scan reads history as
+it LANDS rather than as it is authored, and none of the routes above can avoid being read.
+Each is its own frozen file and its own grant. Until one exists, read this gate as making
+the rule hard to break BY ACCIDENT - which is the failure it was actually filed against, a
+tool whose default violates the rule every session - and not as making it impossible to
+break on purpose.
+
+**The eighth precondition above is NOT breached by the eighteen.** It speaks of the
+PUBLISHED history, and this section already rules that the published history is generated
+fresh from a squash or an orphan branch, which need not carry them. What the eighteen broke
+was the standing rule and the consequence drawn from it, not the flip.
+
+#### Filed 2026-09-24 (CS-700): ADR 0018 replaces the fresh-history mechanism above
+
+No dated text above this note is edited; it stands exactly as written, and the
+sentences this note supersedes are listed here instead of being marked in place.
+`docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`,
+accepted 2026-09-08, replaced the squash or orphan-branch mechanism of the
+2026-08-13 decision: the remote is deleted and recreated and `main` is pushed
+with its commit graph kept. Superseded, located by content:
+
+- In the 2026-08-13 decision's opening paragraph, "Decided: do not rewrite." and
+  "The public artifact is produced from a squashed or orphan-branch history
+  instead" - `main` is published, and S7a rewrites its identity and strips its
+  trailers.
+- In the eighth precondition, the first clause "the published history is generated
+  fresh". It now reads - the published history is `main` after CS-700 step S7a,
+  which rewrites author and committer to the chosen noreply identity and strips
+  every agent co-authorship trailer. Its second and third clauses stand unchanged
+  and are discharged at S7a, and S8 proves both: its re-scan re-runs S7a's identity
+  allowlist check and the trailer-shaped census. `main` pushed WITHOUT S7a still satisfies
+  none of the three.
+- The CS-702 section's closing paragraph, "The eighth precondition above is NOT
+  breached by the eighteen", rested on a history "generated fresh from a squash or
+  an orphan branch" and no longer holds - without the S7a strip the eighteen would
+  publish.
+
+The trailer-shaped census the flip runs is defined in exactly one place, CS-700 step S7a
+in `docs/item_notes/phase7.md`. The CS-702 section's "Walk every commit body on
+`main`" paragraph is the method that measured the eighteen on 2026-08-22, kept as
+dated evidence; it is not the census's definition, and where the two differ S7a
+governs. Steps and controls: CS-700 in `docs/item_notes/phase7.md`.
+
+#### Filed 2026-09-24 (CS-700): who decides the flip and who performs it
+
+"Operator sign-off" above and in CS-700 S9 is read through `CLAUDE.md` section
+6.1, and it splits three ways.
+
+**(a) The adjudicator DECIDES readiness.** The decision that the gate has cleared
+is an in-session adjudicator's, ruled at a frozen SHA - CS-700 step S8a - on
+evidence re-run that session against all eight preconditions; a ruling from MAIN
+may stand in for that decision. The adjudicated SHA is the SHA S9 onward operates
+on. A commit to `main` after S7a voids S7a through S8a and restarts them from the
+preservation bundle - CS-700's one late-commit rule, stated at S7a; no range is
+re-adjudicated. S10 pushes the adjudicated SHA itself, not a branch name.
+The ruling itself is recorded outside that history until S12 completes, so
+recording it never moves `main` - CS-700 step S8a states where.
+
+**(b) The operator's single confirmation is the irreversible-act FLOOR, not a
+decision.** S9 deletes and recreates the remote and S12 publishes the repository;
+both are outward-facing and cannot be undone. The operator confirms them in their
+own words typed into the main session, once, immediately before S9, and
+that confirmation covers S9 through S12 as one run. It lapses if any step's control
+aborts, if the session ends, or if `main` moves past the adjudicated SHA, and is
+never reused: continuing needs a new own-words confirmation, and CS-700's plan
+states the remote's state at each halt point and where a run resumes. It
+confirms a plan already ruled at (a). It is not a request to authorise a choice or
+to pick a direction - section 6.1 routes those away from the operator - and it is
+not delegable: section 6.1 names this exact act as its one exception, an
+irreversible outward act on the repository itself that waits for the operator's
+own-words confirmation, "a safety floor no adjudicator or stand-in lifts".
+
+**(c) The floor binds every actor** - an adjudicator, MAIN and any session,
+including the one running the flip. Section 6.1 states the floor directly in its
+exception for an irreversible outward act on the repository itself, and says of
+MAIN's stand-in that it "lifts no safety floor - destructive or irreversible acts"
+among them. This note cites those sentences and does not extend them. The session
+agent executes every step; the operator's hands are needed only for a credential
+or scope grant.
+
+#### Filed 2026-10-04 (session 126): check 7 and the human half of check 5 are SATISFIED
+
+**CS-G08 IS SATISFIED AND HAS LEFT THIS FILE.** Windows Sandbox launched fresh - no
+Python, git, Node, game, save or agent settings - and a second context-free agent walked
+README.md and the CS-1187 protocol there on a bundle clone (the remote is private). An
+adjudicator CLOSED CS-1186 and CS-1187 on that walk. So check 7 (the clean-checkout probe on
+a machine that has never seen the project) and the human half of check 5 (README taking an
+outsider from zero to a first result with no game) are SATISFIED. Records: `docs/LEDGER.md`
+under CS-G08, CS-1187, CS-1186 and the CS-G03 decision record.
+
+**THIS GATE STAYS GATED.** The flip still waits on the remaining checks re-run at the
+final tip (CS-700 S3 to S8a) and on the operator's own-words S9 confirmation - section
+(b) above. Nothing in this note is that confirmation.
+
+#### Filed 2026-10-08 (session 129): the session 126 satisfaction is spent, and one re-walk follows the CS-1275 move
+
+**THE CS-G03 DECISION RECORD'S REVERSAL CLAUSE FIRED.** Its record in `docs/LEDGER.md`
+(2026-10-04) holds the satisfaction only until a commit before the flip touches a path a walk
+step exercises. CS-1272 edited `pyproject.toml` and CS-1274 edited `docs/OPERATIONS.md`, so
+check 7 and the human half of check 5 are OWED again. Per the 2026-10-08 Q2 scope ruling
+(`docs/LEDGER.md`, the FLEET-KIT v9 decision record), ONE clean-machine walk at a tip at or
+after the CS-1275 move commit settles both, and it is a hard precondition of CS-700 step a.
+CS-1272, CS-1274 and CS-1275 are MENTIONED in the classification block, not BLOCKED: the
+re-walk waits on the move, never the move on this gate. THIS GATE STAYS GATED.
+
+#### Filed 2026-10-08 (session 130): the CS-1275 move commit landed, so the re-walk is due
+
+**THE MOVE COMMIT LANDED** in session 130 (`docs/LEDGER.md` under CS-1275, and
+`docs/adr/0026-the-root-moves-to-e.md`). The one clean-machine re-walk the note above names
+is now DUE, at a tip at or after that commit, and it stays a hard precondition of CS-700
+step a (the Q2 scope ruling). THIS GATE STAYS GATED.
+
+#### Filed 2026-10-08 (session 131): the first re-walk FAILED; repairs landed; a second walk is running
+
+**THE FIRST RE-WALK FAILED.** It ran at `ed0b03f`, a tip after the CS-1275 move commit, in a
+fresh Windows Sandbox. Its verdict lines: the README first result reached; `scripts/verify_env.py`
+exit 0; the hook violation refused with HEAD unchanged, and the control committed; the full
+suite RED, with failures and errors; six README defects. The counts are recorded once, in
+CS-1279's section in `docs/item_notes/phase7.md`. So check 7 and
+the human half of check 5 are NOT satisfied by it. The causes, the repairs and the second walk's
+acceptance are CS-1279 (`ROADMAP.md`, Phase 7), MENTIONED in the classification block, not
+BLOCKED: this gate waits on that walk, never the walk on this gate. The repairs landed in the
+CS-1279 commit, and a second walk by a different context-free agent is running at a tip at or
+after it. It stays a hard precondition of CS-700 step a. THIS GATE STAYS GATED.
+
+#### Filed 2026-10-08 (session 131): the second walk PASSED; check 7 and the human half of check 5 are SATISFIED again
+
+**THE SECOND WALK PASSED, AND THIS NOTE SUPERSEDES THE ONE ABOVE**, which says a second walk
+"is running": it ran. A different context-free agent walked at `457d2b9`, the CS-1279 repair
+commit, in a fresh Windows Sandbox with long paths off. Its verdict lines: a fresh bundle clone
+(the remote is private); `scripts/verify_env.py` exit 0; the non-ASCII violation blocked with
+HEAD unchanged, and the ASCII control committed; the full suite, run as documented, GREEN; the
+README first result reached with no game. The counts are recorded once, in `docs/LEDGER.md`
+under CS-1279; walk 1's counts moved with CS-1279's section to `docs/history_notes.md`. An
+adjudicator that did not walk CLOSED CS-1279 on that log, so check 7 (the clean-checkout probe
+on a machine that has never seen the project) and the human half of check 5 (README taking an
+outsider from zero to a first result with no game) are SATISFIED again, and the Q2
+precondition of CS-700 step a is DISCHARGED. README defects R2 and R3 and the
+`docs/OPERATIONS.md` observation O1 are residuals in `BACKLOG.md`; there is no third walk.
+Record, with its reversal clause: `docs/LEDGER.md`, the 2026-10-08 CS-G03 decision record.
+
+**THIS GATE STAYS GATED.** The flip still waits on the remaining checks re-run at the final
+tip (CS-700 S3 to S8a), on the conditional Part 2 re-run of the suite clause before S7a (the
+condition is held in CS-700's section in `docs/item_notes/phase7.md`), and on the operator's
+own-words S9 confirmation - section (b) above. Nothing in this note is that confirmation.
+
+
+## CS-1332 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-20 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1332
+
+### Acceptance
+
+`tools/flip_checks.py` check 6 excuses a tracked binary from its `unreadable-or-binary-file` skips
+only when the file's path plus sha256 match a pin, and excuses nothing else; `tools/doc_sweep.py`
+itself is untouched; and the two tracked images named below are pinned. A tracked file carrying a
+NUL byte that no pin names still fails check 6; a pinned path whose bytes no longer match its sha256
+fails; and a pin source that is malformed or cannot be read fails closed, never read as an empty
+pin. Each of the four arms is watched red against the unfixed tool before it goes green. Then the
+fixed tool, run against the tree at T2 (`f9b8772`), exits 0 with zero automated skips, and that run
+is recorded in `docs/LEDGER.md` under this ID.
+
+### Filed 2026-10-20 by the session 150 merger, from the session 150 adjudication
+
+**WHAT IS MEASURED.** At T2 (`f9b8772`), the tip published at the flip, check 6 - doc_sweep's own
+sweep with URLs fetched - reports two skips of kind `unreadable-or-binary-file`: `docs/assets/dashboard.png`
+and `docs/assets/social-preview.png`. doc_sweep reads every tracked file as a possible referrer, and
+its `_read_text` helper returns nothing for a file it cannot read or one carrying a NUL byte, which
+the sweep counts as that skip. ADR 0025 counts a pass only as exit 0 with zero automated skips
+(points 5 and 7), so check 6 cannot pass at T2 while those images are tracked, and the CS-G03
+record ADR 0025 point 8 requires has no passing run to cite.
+
+**THE RULED SHAPE, restated here because its source is not a tracked file.** A pin by path PLUS
+sha256 makes a tracked binary KNOWN, so it is not a skip; nothing else is excused. An unpinned file
+carrying NUL bytes still fails, a pinned path whose bytes drifted fails, and a malformed pin source
+fails closed. ADR 0025 point 10 names the exact sets check 6 pins; whether a binary pin placed in
+check 6 rather than in doc_sweep amends that point is not ruled here.
+
+**THE CHAIN IT OPENS.** CS-1332 lands; the fixed tool runs at T2 and exits 0; the adjudicated
+CS-G03 record is written in `docs/LEDGER.md`; then a fresh CS-700 closing adjudicator runs. CS-700
+stays OPEN until that last step.
+
+
 ## CS-1317 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-20 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

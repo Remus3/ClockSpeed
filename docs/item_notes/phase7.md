@@ -1154,8 +1154,11 @@ commit. No commit for that ORDER lands inside the window.
 
 ### Filed 2026-10-20 by the session 150 merger: CS-1332 precedes the close
 
-This session's adjudication keeps CS-700 OPEN on check 6's two binary skips at T2. The fix, and
-the order of the close that follows it, are owned by the CS-1332 section of this leaf.
+This session's adjudication kept CS-700 OPEN on check 6's two binary skips at T2. The fix,
+CS-1332, is CLOSED, and the CS-G03 record is written (`docs/LEDGER.md`, 2026-10-20, under each
+ID). The CS-1332 section, which owned the order of the close, is in `docs/history_notes.md`,
+relocated on its close. Next action: the one step that order leaves - a fresh CS-700 closing
+adjudicator. CS-700 stays OPEN until it rules.
 
 ### Acceptance
 
@@ -2007,36 +2010,3 @@ write <sidecars>. Its residual spellings: `BACKLOG.md`, "Session 145 residuals".
 
 Next action: (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted
 measurement in the window; (e), (g), the ledger record and the ONE ANSWER after S12a.
-
-## CS-1332
-
-### Acceptance
-
-`tools/flip_checks.py` check 6 excuses a tracked binary from its `unreadable-or-binary-file` skips
-only when the file's path plus sha256 match a pin, and excuses nothing else; `tools/doc_sweep.py`
-itself is untouched; and the two tracked images named below are pinned. A tracked file carrying a
-NUL byte that no pin names still fails check 6; a pinned path whose bytes no longer match its sha256
-fails; and a pin source that is malformed or cannot be read fails closed, never read as an empty
-pin. Each of the four arms is watched red against the unfixed tool before it goes green. Then the
-fixed tool, run against the tree at T2 (`f9b8772`), exits 0 with zero automated skips, and that run
-is recorded in `docs/LEDGER.md` under this ID.
-
-### Filed 2026-10-20 by the session 150 merger, from the session 150 adjudication
-
-**WHAT IS MEASURED.** At T2 (`f9b8772`), the tip published at the flip, check 6 - doc_sweep's own
-sweep with URLs fetched - reports two skips of kind `unreadable-or-binary-file`: `docs/assets/dashboard.png`
-and `docs/assets/social-preview.png`. doc_sweep reads every tracked file as a possible referrer, and
-its `_read_text` helper returns nothing for a file it cannot read or one carrying a NUL byte, which
-the sweep counts as that skip. ADR 0025 counts a pass only as exit 0 with zero automated skips
-(points 5 and 7), so check 6 cannot pass at T2 while those images are tracked, and the CS-G03
-record ADR 0025 point 8 requires has no passing run to cite.
-
-**THE RULED SHAPE, restated here because its source is not a tracked file.** A pin by path PLUS
-sha256 makes a tracked binary KNOWN, so it is not a skip; nothing else is excused. An unpinned file
-carrying NUL bytes still fails, a pinned path whose bytes drifted fails, and a malformed pin source
-fails closed. ADR 0025 point 10 names the exact sets check 6 pins; whether a binary pin placed in
-check 6 rather than in doc_sweep amends that point is not ruled here.
-
-**THE CHAIN IT OPENS.** CS-1332 lands; the fixed tool runs at T2 and exits 0; the adjudicated
-CS-G03 record is written in `docs/LEDGER.md`; then a fresh CS-700 closing adjudicator runs. CS-700
-stays OPEN until that last step.

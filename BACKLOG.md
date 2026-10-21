@@ -380,8 +380,12 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 
 - `README.md` carries no clone command - TRIGGER: the CS-700 flip; add it then, with the
   public address.
-- A clone from the GitHub remote was never walked; both Sandbox walks used a bundle because
-  the remote is private - TRIGGER: the CS-700 flip makes the remote public.
+- A clone from the GitHub remote was never walked: the Sandbox walks this line was filed on
+  used a bundle, and so did session 146's step c walk, because the remote was private -
+  TRIGGER FIRED: the CS-700 flip made the remote public, and the CS-G03 record
+  (`docs/LEDGER.md`, 2026-10-20) carries the walk as a residual. In order: land the README
+  clone command first (the line above), then walk a fresh-Sandbox anonymous clone of the
+  public repository with a separate grader, and record the grade's sha256 in `docs/LEDGER.md`.
 - A generator class a future build adds to the registry but not to
   `clockspeed/audit/placement.py::BUILT_CLASS_ALLOWLIST` is dropped silently from the
   production capacity - TRIGGER: a game build bump, or a new generator group in the docs file.

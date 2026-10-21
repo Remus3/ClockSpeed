@@ -75,6 +75,49 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-20 - CS-G03 - CLOSED: the visibility-flip gate cleared at T2 (ADR 0025 point 8)
+Verification: tools/flip_checks.py; tests/test_flip_checks.py::test_a_pinned_binary_is_not_a_skip; ADR 0025 points 7, 8, 10d.
+DECISION: CLEAR at T2 = f9b877256dd82e8d2844b6d7c876d3ab822ff097 (tag v0.1.0). Rejected: wait for a public-clone walk (not a stated condition; follow-up); wait for CS-1332 closure (the excused files were probed directly).
+R: `python -B tools/flip_checks.py f9b877256dd82e8d2844b6d7c876d3ab822ff097 --stage s8 --trailer-baseline-ref refs/preserve/heads/main --trailer-baseline-count 18`, from main at be75ccf679186bcc7ec2671d1ccd14f6c8565ab2, tool b108f00b0d1c35019708e1df37bae1ae7c60504c, exit 0. 1: blobs 5670, messages 1843, raw 3, findings 0. 2: needles 18, hits 0. 3: findings 0. 4: paths 603, publisher 0. 5a: commands 4, failed 0. 6: urls 10, findings 0, policy-excluded 1, known-binary 2. 7a: commands 3, failed 0. T: 1843, trailer lines 0. I: 1 name, 1 address, off 0. Each: skips 0, control FOUND, PASS. Final line: "flip_checks: automated verdict PASS - 0 of 9 automated checks failed; policy-excluded 1; human halves NOT-RUN-HERE 2; this run does not clear CS-G03 (ADR 0025)". Output sha256 e3f71d828492a3881288c7af5cafa7bd8e4656ce97b6dd0f8bf96766ec35e24f.
+10d: post-S12 pre-publication-dead 0; R: no dead URL.
+WALK: session 146 step c, fresh Sandbox, bundle clone of the pre-rewrite main; verify_env 0; violation refused, control committed; 16246 passed, 157 skipped, 0 failed; README first result, no game. PASSED 1-12, separate grader. Grade b88684718bb98b8f609e278ca804a6d131fb4686bf9d587e0d799673d2110486; log a080cf974c6a1b62904bac61df06fb511bbb2b43eedcf6f028c5acbee67669ec. Carried by tree equality to T2, read this session.
+S9: line (2) of the 2026-10-18 CS-700 record. Separate session-150 adjudicator.
+RESIDUALS: public-clone walk and README clone command; evidence held by digest only; ExecutionPolicy Bypass untested.
+
+### 2026-10-20 - CS-1332 - CLOSED: a verifier distinct from the builder CONFIRMED it - check 6 excuses only a path-and-SHA-256-pinned binary, and the fixed tool exits 0 at T2 with zero automated skips
+Verification: `tools/flip_checks.py`, `tools/sha_citation_gate.py`, `tests/test_flip_checks.py`,
+`tests/test_sha_citation_gate.py` and the CS-1332 amendment after point 10d of
+`docs/adr/0025-the-tier-3-flip-checks-run-locally.md`, as merged. The twelve new test functions:
+`tests/test_flip_checks.py::test_a_pinned_binary_is_not_a_skip`,
+`::test_an_unpinned_nul_file_still_fails`, `::test_a_drifted_pinned_binary_fails`,
+`::test_a_malformed_pin_source_fails_closed`, `::test_an_unreadable_pin_source_fails_closed`,
+`::test_a_nul_in_a_markdown_file_is_never_excused`,
+`::test_a_pinned_path_that_cannot_be_read_stays_a_skip`,
+`::test_an_unreadable_count_no_identity_stands_behind_excuses_nothing`,
+`::test_check_six_restores_doc_sweeps_own_reader` and
+`::test_each_identity_mutant_applies_and_is_killed`;
+`tests/test_sha_citation_gate.py::test_a_binary_pin_listed_twice_is_refused` and
+`::test_a_historical_key_listed_twice_is_refused`. Plus the duplicate-key case,
+`tests/test_sha_citation_gate.py::test_a_malformed_pin_file_could_not_judge[duplicate-key]`.
+R, THE ACCEPTANCE RUN: `python -B tools/flip_checks.py f9b877256dd82e8d2844b6d7c876d3ab822ff097 --stage s8 --trailer-baseline-ref refs/preserve/heads/main --trailer-baseline-count 18`,
+exit 0. Its check 6 line:
+`urls checked 10; findings 0; policy-excluded 1; known-binary 2; skips 0; control FOUND; PASS`.
+Output sha256 e3f71d828492a3881288c7af5cafa7bd8e4656ce97b6dd0f8bf96766ec35e24f. Every automated
+check in it reads skips 0; the CS-G03 record above carries the whole run.
+RED FIRST: the twelve functions run 30 cases, and with the duplicate-key case and that test's 3
+older cases the selection is 34. Against `tools/flip_checks.py` and `tools/sha_citation_gate.py`
+as they stood before the fix it read 30 failed and 4 passed - the 4 are
+`tests/test_flip_checks.py::test_an_unpinned_nul_file_still_fails[absent]`, a still-fails arm,
+and the 3 older cases - and against the tools at HEAD it reads 34 of 34 passed.
+`tools/doc_sweep.py` IS UNTOUCHED: its `git diff` from T2
+(f9b877256dd82e8d2844b6d7c876d3ab822ff097) to HEAD (be75ccf679186bcc7ec2671d1ccd14f6c8565ab2) is
+empty.
+THE GRADE: CONFIRMED at be75ccf679186bcc7ec2671d1ccd14f6c8565ab2 by a verifier distinct from the
+builder; the red-first and HEAD readings above are its own. The fix, its adversaries and its ADR
+ruling are the LANDED record directly below.
+THIS IS NOT THE CS-G03 RECORD. The record ADR 0025 point 8 requires is the separate CS-G03 record
+above, ruled by a distinct adjudicator.
+
 ### 2026-10-20 - CS-1332 - LANDED, NOT CLOSED. CS-1332 STAYS OPEN until a verifier grades its closure: flip_checks check 6 excuses a file it could not read only by a path-and-SHA-256 pin, and the pin loader refuses a repeated key
 Verification: `tools/flip_checks.py::excused_binaries`, `::recording_reader` and `::doc_sweep`;
 `tools/sha_citation_gate.py::refusing_repeats` and `::load_known_binaries`;
