@@ -98,13 +98,7 @@ today", and this section is a summary of it.
   mismatches. The computation is written and tested, and the advice cards already read its
   power balance; `/api/audit` answers a documented 501 naming the work item that publishes it.
 
-**Next**
-
-- **Milestone routing against any target** is specified and not yet written: a
-  dependency-ordered plan - add, upgrade, redesign, tear down - toward the next milestone or
-  one several tiers out. `/api/plan` answers 501 today and names the work item that builds it.
-- **Advice rules for the other domains** - node siting and claim order, onsite processing
-  versus transport, and the milestone gap - are not yet written.
+**Next:** milestone routing and the other advice domains - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) section 4.
 
 ## How it works
 
@@ -135,8 +129,7 @@ today", and this section is a summary of it.
 
 Each layer consumes only the layer below it through a stated model: the solver never reads
 a save, the advisor never reads the raw game files, and the dashboard never computes. The
-full module map and the seams are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and
-each architectural decision has its own record in [`docs/adr/`](docs/adr/).
+full module map and the seams are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Your data stays yours
 
@@ -160,6 +153,13 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 | **openssl** | For `scripts/make_cert.py`, and for the test suite. Git for Windows ships one, but not on PATH by default - [`docs/OPERATIONS.md`](docs/OPERATIONS.md#12-install-and-run-from-scratch) section 1.2 says how to add it; the suite needs more of Git's tools on PATH, as section 2 there states. `scripts/verify_env.py` reports it as SOFT |
 | **Python packages** | The `dev` extra in `pyproject.toml`, installed by the Quickstart. Of it, `pytest` and `ruff` are the two `scripts/verify_env.py` counts as HARD |
 | **Node** | For the optional companion window, and to run the full test suite - without Node the dashboard panel tests fail rather than skip. Running Clockspeed itself does not need it |
+
+## Get the code
+
+```
+git clone https://github.com/Remus3/ClockSpeed.git
+cd ClockSpeed
+```
 
 ## Quickstart
 

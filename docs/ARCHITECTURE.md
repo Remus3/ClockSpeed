@@ -231,13 +231,18 @@ intent yet.
 code. Specified in `BOOTSTRAP.md` section 4.
 
 Intent: route from the current world state to a freely selected milestone or phase target,
-emitting a dependency-ordered plan rather than an unordered list of gaps.
+emitting a dependency-ordered plan rather than an unordered list of gaps. Relocated from
+`README.md` by CS-1333: the plan's steps are add, upgrade, redesign and tear down, toward the
+next milestone or one several tiers out, and `/api/plan` answers 501 today and names the work
+item that builds it.
 
 ### Pillar 5 - The advisor
 
 **Status:** PARTLY BUILT. The trace engine, the card, the ledger, the composition in
 `clockspeed/advisor/advise.py` and the D4 power and fuel rule families ship in `advisor/`;
-D1 to D3 have no rule yet. Specified in `BOOTSTRAP.md` sections 4 and 5.
+D1 to D3 - node siting and claim order, onsite processing versus transport, and the milestone
+gap, relocated from `README.md` by CS-1333 - have no rule yet. Specified in `BOOTSTRAP.md`
+sections 4 and 5.
 `clockspeed/surface/api/advice.py` serves the advice endpoints, while the audit and plan
 endpoints still answer 501 - see `clockspeed/surface/api/pending.py`.
 

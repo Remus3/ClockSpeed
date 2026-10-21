@@ -277,6 +277,19 @@ README_WALK_COMMANDS: Final = (
     "python -m clockspeed.surface",
 )
 
+#: CS-1333: the README's anonymous clone of the public repository, in the casing the
+#: forge reports for it today. The repository was renamed to this casing and a clone
+#: under the old one still resolves, so ``origin`` may carry either: this pin holds the
+#: casing, and the origin arm compares lower-cased.
+PUBLIC_CLONE_URL: Final = "https://github.com/Remus3/ClockSpeed.git"
+
+#: A GitHub remote in a form git accepts - https with or without user info, ssh, or
+#: scp-like - with its owner and repository captured. Any other remote has no public form.
+_GITHUB_REMOTE_RE: Final = re.compile(
+    r"(?:https://(?:[^@/\s]+@)?github\.com/|ssh://git@github\.com/|git@github\.com:)"
+    r"(?P<owner>[A-Za-z0-9-]+)/(?P<repo>[A-Za-z0-9._-]+?)(?:\.git)?/?"
+)
+
 IMAGE_RE: Final = re.compile(r"!\[[^\]]*\]\((?P<target>[^)\s]+)\)")
 
 #: Every environment override the moved install table documents.
@@ -718,6 +731,102 @@ def test_the_flip_readme_walk_finds_the_quickstart_commands(repo_root: Path) -> 
     assert runnable, "README carries no runnable command line"
     found = [line for line in runnable if line in README_WALK_COMMANDS]
     assert found == list(README_WALK_COMMANDS), f"the readme walk finds {runnable}"
+
+
+def _public_form(remote: str) -> str | None:
+    """A GitHub remote's anonymous https clone address, lower-cased, or None.
+
+    User info in an https remote is dropped, never returned. GitHub resolves an owner
+    or a repository name in any casing, so the form is lower-cased for comparison.
+    """
+    matched = _GITHUB_REMOTE_RE.fullmatch(remote.strip())
+    if matched is None:
+        return None
+    return f"https://github.com/{matched['owner']}/{matched['repo']}.git".lower()
+
+
+def _fenced_blocks(markdown: str) -> list[list[str]]:
+    """The non-empty, stripped lines of each fenced block, in document order."""
+    return [
+        [line.strip() for line in block.splitlines() if line.strip()]
+        for block in re.findall(r"^```[^\n]*\n(.*?)^```", markdown, re.MULTILINE | re.DOTALL)
+    ]
+
+
+def _clone_blocks(markdown: str) -> list[list[str]]:
+    """Every fenced block that carries a ``git clone`` line."""
+    return [
+        block
+        for block in _fenced_blocks(markdown)
+        if any(line.startswith("git clone ") for line in block)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("remote", "public"),
+    [
+        ("https://github.com/Owner/Repo.git", "https://github.com/owner/repo.git"),
+        ("https://github.com/Owner/Repo", "https://github.com/owner/repo.git"),
+        ("https://github.com/Owner/Repo/", "https://github.com/owner/repo.git"),
+        ("https://someone@github.com/Owner/Repo.git\n", "https://github.com/owner/repo.git"),
+        ("git@github.com:Owner/Repo.git", "https://github.com/owner/repo.git"),
+        ("ssh://git@github.com/Owner/Repo.git", "https://github.com/owner/repo.git"),
+        ("https://gitlab.com/Owner/Repo.git", None),
+        ("https://github.com.example/Owner/Repo.git", None),
+        ("https://github.com/Owner", None),
+        ("https://github.com/Owner/Repo/tree/main", None),
+        ("../source", None),
+    ],
+)
+def test_the_public_form_reads_every_github_remote_spelling(
+    remote: str, public: str | None
+) -> None:
+    assert _public_form(remote) == public
+
+
+def test_the_readme_carries_the_public_clone_command(repo_root: Path) -> None:
+    """CS-1333: an outsider's first command, in a fenced block of its own.
+
+    ``flip_checks.command_lines`` (check 5) reads only blocks made wholly of python
+    lines, so a clone line merged into one hides that block's commands. The clone block
+    holds the clone and the step into it, nothing else, and comes before the Quickstart.
+    """
+    readme = _readme(repo_root)
+    blocks = _clone_blocks(readme)
+    assert len(blocks) == 1, f"{len(blocks)} fenced block(s) carry a git clone line"
+    directory = PUBLIC_CLONE_URL.rsplit("/", 1)[1].removesuffix(".git")
+    expected = [f"git clone {PUBLIC_CLONE_URL}", f"cd {directory}"]
+    assert blocks[0] == expected, "the clone block is not the public clone and its cd alone"
+    clone_at = readme.index(expected[0])
+    quickstart_at = readme.index("\n## Quickstart\n")
+    assert clone_at < quickstart_at, "the clone command follows the Quickstart"
+    _, unrunnable = flip_checks.command_lines(readme)
+    assert unrunnable == 0, f"the readme walk counts {unrunnable} unrunnable line(s)"
+
+
+def test_the_readme_clone_address_is_the_origin_remotes_public_form(repo_root: Path) -> None:
+    """The README's clone address is ``origin``'s, compared lower-cased.
+
+    The remote is never rendered: an https remote can carry a token in its user info,
+    and a local remote is a path that can name a home directory.
+    """
+    blocks = _clone_blocks(_readme(repo_root))
+    assert len(blocks) == 1, f"{len(blocks)} fenced block(s) carry a git clone line"
+    address = blocks[0][0].removeprefix("git clone ").strip()
+    shown = subprocess.run(
+        ["git", "-C", str(repo_root), "remote", "get-url", "origin"],
+        env=_git_env(),
+        check=False,
+        capture_output=True,
+        timeout=120,
+    )
+    if shown.returncode != 0:
+        pytest.skip("this checkout has no origin remote")
+    public = _public_form(shown.stdout.decode("utf-8", "replace"))
+    if public is None:
+        pytest.skip("origin is not a GitHub remote, so it has no public form")
+    same = public == _public_form(address)
+    assert same, "the README clone address is not origin's public form"
 
 
 def test_every_git_install_definition_says_where_it_ends(repo_root: Path) -> None:
