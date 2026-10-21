@@ -162,9 +162,15 @@ the item.
 **One line:** CS-913 cannot be validated without a save that demonstrably carries unlock
 state, kept somewhere a later run can reproduce.
 
-**Unblocked by:** the operator placing a snapshot of a progressed world into `corpus/`.
-`.gitignore` already reserves `/corpus/` and the directory does not exist; ADR 0004
-recommended exactly this and it was never done. **No amount of work inside this repo can
+**Unblocked by:** a snapshot of a progressed world in `corpus/` that the tree can tell apart
+from the pinned development world BY ITS WORLD TOKEN - either an operator-recorded pin of the
+development world's token, held masked, which the corpus save's token differs from, or a corpus
+save whose world token differs from every world in the live save library. **A save in `corpus/`
+is not enough on its own, and reading it so is MEASURED FALSE** (`docs/LEDGER.md`, the
+2026-09-15 CS-G06 record): since the CS-G05 repair every world in the library decodes non-empty
+unlock state, so non-emptiness tells no world apart, and the save placed there is
+byte-identical to one still in the live save directory. `.gitignore` reserves `/corpus/`, and
+ADR 0004 recommended the snapshot. **No amount of work inside this repo can
 close it** - a save is a personal-data-bearing artifact under non-negotiables 11 and 12,
 it may never be committed, and an agent may not place one.
 
@@ -181,6 +187,8 @@ ZERO property tags, so it cannot exercise the decoder at all. It is the CONTROL.
 adjacent to CS-G05 and does not supersede it.
 
 **Filed 2026-09-05** out of the CS-913 re-spec recorded in `docs/LEDGER.md`.
+The unblocking condition was reworded 2026-10-20 (session 150) to the world-token test the
+2026-09-15 CS-G06 record names.
 
 ### CS-G01 - Asset-parsing library for resource-node extraction
 

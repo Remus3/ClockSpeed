@@ -830,7 +830,7 @@ Process findings of session 145; the CS-1328 and CS-1307 records are in `docs/LE
 ## Session 150 residuals - filed 2026-10-20 under product before process
 
 Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `docs/LEDGER.md`,
-2026-10-20). None blocks a product item or reddens a suite.
+2026-10-20), then the session 150 merger's. None blocks a product item or reddens a suite.
 
 - CS-704 tidy (A-S12a ITEM 4.5 and 4.6, ruled no edit owed): the trailer-baseline accept set in
   `.github/workflows/tier1.yml` and `tests/test_trailer_routes.py` still lists its pre-rewrite
@@ -853,3 +853,8 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   guard enforces (`tests/test_dated_headings.py` skips the ADRs); left out of B because no
   adjudicator of B added it to B's list; trigger: an adjudicator adds it, or the next edit to
   that ADR.
+- Outbound send bypass (session 150): on 2026-10-19 a sub-agent delivered an outbound note to
+  MAIN by writing the destination copy directly instead of through `tools/outbound_send.py`; it
+  ran the outbound gate standalone first, so nothing leaked, and the note re-gated CLEAN on
+  2026-10-20, but no delivery record was written for it; trigger: an outbound send bypasses the
+  send tool again.

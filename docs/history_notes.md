@@ -24,6 +24,80 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-700 - spent flip-block subsections, relocated from `docs/item_notes/phase7.md` 2026-10-20 (session 150)
+
+**CS-700 STAYS OPEN; these four subsections of its section moved here, verbatim.** They governed
+the flip block, which ran - S9 to S12 at T2 on 2026-10-18 - and whose S12a acts read back, in
+`docs/LEDGER.md` under the 2026-10-18 and 2026-10-20 CS-700 records. They were relocated to make
+room in the leaf for the CS-1332 section, and the leaf keeps a one-line pointer here. Ledger
+pointers that name these headings in the leaf now resolve to this block. A body below is history
+and is not a live instruction.
+
+### Recorded 2026-10-08 by the session 129 Q2 scope ruling
+
+The CS-G03 clean-machine re-walk is a hard precondition of flip step a, per the 2026-10-08 Q2
+scope ruling (`docs/LEDGER.md`, the FLEET-KIT v9 decision record): one walk at a tip at or after
+the CS-1275 move commit, before S7a.
+
+### Filed 2026-10-08 (session 131): the Part 2 re-run before S7a
+
+The Q2 precondition above is DISCHARGED by walk 2 at `457d2b9` (`docs/LEDGER.md`, the
+2026-10-08 CS-G03 decision record). One condition carries forward to S7a: the suite clause is
+re-run as Part 2 ALONE (a fresh long-paths-off sandbox, a fresh bundle clone, the
+`docs/OPERATIONS.md` bootstrap, the hook proof, the full suite - no README walk) before S7a
+whenever `git diff --name-only 457d2b9 <S7a tip>` lists anything under `tests/`, `clockspeed/`,
+`ops/` or `tools/`. S7a's identity rewrite changes no files, so it spends nothing.
+
+#### Filed 2026-10-08 (session 131): the flip block's order, two mains and the S7q responder check
+
+Ruled in session 131 by a distinct adjudicator; the decision record, with the alternatives
+rejected and what reverses each ruling, is the 2026-10-08 CS-700 decision record in
+`docs/LEDGER.md`. Five rulings bind the flip block:
+
+1. ORDER (Q1). The citation-set regeneration - `--emit-historical`, its commit, its push and
+   its tier1 read - runs BEFORE S3 and S7q. From it until S12a's closing commit, no commit of
+   any kind lands on the main tree's `main`. `--flip-readiness` re-runs read-only at the S7a
+   baseline, and any non-zero exit aborts. Before emitting, assert that the local tags equal
+   the `git ls-remote` tags by name and SHA, and that HEAD equals `origin/main`. A `/done`
+   between the regeneration and S7a re-stales the set, so none may fall there.
+2. PART 2 (Q2). A commit changing only `tools/sha_citation_historical.json` and the gate's pin
+   line IS a suite-path change, so Part 2 runs once, at the regeneration tip, which is the S7a
+   tip: `tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits` reads
+   the clone's published refs.
+3. SHAPE (Q3). Interactive sessions only, and the block is the session's last work. The next
+   hand-off is committed in the records commit just before the regeneration, with a recovery
+   rule. At step e the session WAITS and never runs `/done` on its own. If the operator ends
+   the session without the S9 own-words line: unarchive the remote and read it back, remove
+   `STOP` and INBOX_STOP, treat S7a to S8a as void and keep the bundles, and run a `/done`
+   that adds no SHA and touches no Part 2 or CS-G03-reversal path. A headless session never
+   starts the block.
+4. TWO MAINS (Q4). For S8, S8a and S10 to S12, "local main" is `main` in the S7a rewrite clone
+   outside the tree; S10 pushes from it by SHA to an explicit forge URL. The late-commit check
+   is that the main tree's `main` still equals the S7a baseline SHA. The main tree is reset
+   onto the adjudicated SHA only after S12a's post-flip reads pass, and the closing ledger
+   commit is made there.
+5. S7q PART 2 (Q5). The process check adds `ops/loop/inbox_responder.py` and every kit-spawned
+   headless worker - a command line it cannot read counts as a hit, and the positive control
+   carries the new strings - and reads the inbox status file idle. INBOX_STOP is written
+   before the regeneration commit.
+
+The `gh` token lacks the `delete_repo` scope S9a needs: an operator OAuth act, batched into the
+S9 ask. Session 131 did not start the block - the operator ended the session before it.
+
+### Session 137 ruling, recorded 2026-10-11: the three security settings at S12a
+
+Ruled in session 137 by a distinct adjudicator (Ruling 1). Private vulnerability reporting,
+secret scanning and push protection are turned on by the flip session through `gh api` with the
+existing token - the repo scope suffices - as S12a's act (iii): after act (ii) is read back
+landed and before the S7q lift, now act (iv). Order: private vulnerability reporting, then
+secret scanning, then push protection, each read back. Repeating it is harmless, and an API
+refusal is recorded in the note while the sequence carries on. S11 keeps only what works while
+private, Dependabot alerts. The step-e ask gains one conditional line: "(4) if I report that any
+of the three did not turn on through the API, switch it on at Settings > Code security." The
+decision, the alternatives rejected and what reverses it are the 2026-10-11 CS-700 DECISION
+RECORD in `docs/LEDGER.md`; `docs/public-readiness.md` findings M1 and M2 and its settings table
+say the same.
+
 ## CS-1283 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-17 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
