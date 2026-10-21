@@ -18,6 +18,7 @@ arm grades the line STRUCTURALLY and binds each finding to a bool.
 
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import shutil
@@ -1670,3 +1671,173 @@ def test_an_unreachable_proxy_still_exits_as_a_route_refusal_and_never_backs_off
         False,
         ("blocked", kit.REFUSED_TASK),
     )
+
+
+# --- CS-1234 S5 repair: the state is the refusal's, never a re-read of the budget ---
+
+#: Every refusal cause an arm can plant through the REAL kit spawn. The kit
+#: raises ONE refusal - the first cause in its own check order - so with two
+#: causes standing, the responder must publish the kit's write for THAT one.
+#: The budget lock held busy is left out: the kit waits its full lock_wait (10
+#: s) for it, and it is a budget-stage cause like "budget-unreadable", which
+#: every pre-budget cause outranks the same way.
+CAUSES: Final = (
+    "halted",
+    "fallback-halted",
+    "refused",
+    "blocked",
+    "budget-full",
+    "budget-unreadable",
+)
+
+#: The two causes that cannot stand together: both are the one budget file.
+_EXCLUSIVE: Final = frozenset({"budget-full", "budget-unreadable"})
+
+CAUSE_SETS: Final = [(cause,) for cause in CAUSES] + [
+    pair for pair in itertools.combinations(CAUSES, 2) if set(pair) != _EXCLUSIVE
+]
+
+#: For each state the kit can write on a refusal, the exits and log outcomes
+#: the responder may pair with it - "refused" covers a route refusal (exit 3)
+#: and a counting failure (exit 9).
+_CONSISTENT: Final[dict[str, set[tuple[int, tuple[str, ...]]]]] = {
+    "halted": {(0, ())},
+    "limit": {(0, ("limit",))},
+    "blocked": {(inbox_responder.EXIT_ROUTE_REFUSED, ("kit_refused",))},
+    "refused": {
+        (inbox_responder.EXIT_ROUTE_REFUSED, ("kit_refused",)),
+        (inbox_responder.EXIT_BUDGET_REFUSED, ("budget_refused",)),
+    },
+}
+
+
+def _plant_causes(
+    tree: Path, spy: RunSpy, causes: tuple[str, ...]
+) -> tuple[dict[str, Any], Callable[[Any], dict[str, Any]]]:
+    """Stand every cause in ``causes`` at once; returns the kit seams and the surface."""
+    overrides: dict[str, Any] = {}
+    surface = _surface(2)
+    for cause in causes:
+        if cause == "halted":
+            _declare(tree)
+            surface = _racing_surface(tree)
+        elif cause == "fallback-halted":
+            overrides["route_source"] = _fallback_halted_route()
+        elif cause == "refused":
+            overrides["url_source"] = lambda: None
+        elif cause == "blocked":
+            overrides["connect"] = _unreachable
+        elif cause == "budget-full":
+            _fill_budget(tree, [T0 - 3600 + i for i in range(kit.RUNS_CAP)])
+        else:
+            _budget_file(tree).write_bytes(b"{garbled")
+    return _seams(spy, **overrides), surface
+
+
+def _drive(tree: Path, causes: tuple[str, ...]) -> tuple[list[tuple[Any, Any]], int, int]:
+    """One pass through the REAL kit spawn; the kit's own write is read as it refuses."""
+    spy = RunSpy()
+    seams, surface = _plant_causes(tree, spy, causes)
+    kit_wrote: list[tuple[Any, Any]] = []
+
+    def recording(*args: Any, **kwargs: Any) -> tuple[dict[str, Any], str]:
+        try:
+            return inbox_responder.kit_spawn(*args, **kwargs)
+        except kit.Refused:
+            kit_wrote.append(_pair(tree))
+            raise
+
+    code = _run(tree, spy, seams=seams, surface=surface, spawn=recording)
+    return kit_wrote, code, len(spy.calls)
+
+
+@pytest.mark.parametrize("budget", ["budget-full", "budget-unreadable"])
+def test_an_unreachable_proxy_beside_a_spent_budget_still_reads_blocked(
+    tree: Path, budget: str
+) -> None:
+    """The adversary's repro: the kit refuses on the proxy, before it counts the budget.
+
+    It writes "blocked" / Idle. A responder that re-read the budget window
+    published "limit", logged "limit" and exited 0, hiding the proxy fault.
+    """
+    kit_wrote, code, calls = _drive(tree, ("blocked", budget))
+    logged = [r.get("outcome") for r in _log_records(tree)]
+    assert (kit_wrote, _pair(tree), code, calls, logged) == (
+        [("blocked", kit.REFUSED_TASK)],
+        ("blocked", kit.REFUSED_TASK),
+        inbox_responder.EXIT_ROUTE_REFUSED,
+        0,
+        ["kit_refused"],
+    )
+
+
+@pytest.mark.parametrize("causes", CAUSE_SETS, ids=["+".join(c) for c in CAUSE_SETS])
+def test_every_pair_of_refusal_causes_publishes_the_kits_own_write(
+    tree: Path, causes: tuple[str, ...]
+) -> None:
+    """Each cause alone and every pair together: the board reads what the kit wrote.
+
+    The ORACLE is the kit's own status write, read the instant its refusal
+    leaves the kit. Anti-vacuity: the kit wrote exactly once, in a state of
+    the published vocabulary, and the exit and log outcome agree with it.
+    """
+    kit_wrote, code, calls = _drive(tree, causes)
+    logged = tuple(r.get("outcome") for r in _log_records(tree))
+    wrote = kit_wrote[0] if len(kit_wrote) == 1 else (None, None)
+    consistent = (code, logged) in _CONSISTENT.get(str(wrote[0]), set())
+    assert (len(kit_wrote), wrote[0] in inbox_status.STATES, _pair(tree) == wrote) == (
+        1,
+        True,
+        True,
+    )
+    assert (calls, consistent) == (0, True)
+
+
+def _aged(path: Path, epoch: float) -> None:
+    os.utime(path, (epoch, epoch))
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [*OWN_DECLARED, "ops/loop/control/lanes/QUEUE_STOP", "ops/loop/control/HOLD_MAIN_SPAWN"],
+)
+def test_a_halt_is_shown_since_its_sentinel_was_placed(tree: Path, rel: str) -> None:
+    """The halted status carries the standing sentinel's own mtime, never the tick's clock.
+
+    Kills M11 (`_halted_since` ignoring every sentinel, so the halt reads as
+    begun at every tick): the sentinel is aged an hour behind the pass clock.
+    """
+    _declare(tree)
+    _plant(tree, rel)
+    _aged(tree / rel, T0 - 3600)
+    _run(tree, RunSpy())
+    status = _status(tree)
+    since = datetime.fromisoformat(status["task_started"]).timestamp()
+    assert (_pair(tree), since) == (("halted", "Halted"), T0 - 3600)
+
+
+def test_two_standing_sentinels_show_the_halt_since_the_earliest(tree: Path) -> None:
+    """With an own stop and a declared one standing, the halt began at the older one."""
+    _declare(tree)
+    for rel, age in (("ops/loop/control/STOP", 600), ("ops/loop/control/HOLD_MAIN_SPAWN", 7200)):
+        _plant(tree, rel)
+        _aged(tree / rel, T0 - age)
+    _run(tree, RunSpy())
+    since = datetime.fromisoformat(_status(tree)["task_started"]).timestamp()
+    assert since == T0 - 7200
+
+
+def test_a_kit_halt_raced_past_the_own_check_shows_its_sentinels_age(tree: Path) -> None:
+    """The kit-halted refusal path dates the halt from the sentinel too, not from the tick."""
+    _declare(tree)
+    rel = "ops/loop/control/HOLD_MAIN_SPAWN"
+
+    def racing(root: Any) -> dict[str, Any]:
+        _plant(tree, rel)
+        _aged(tree / rel, T0 - 3600)
+        return _surface(2)(root)
+
+    spy = RunSpy()
+    _run(tree, spy, surface=racing)
+    since = datetime.fromisoformat(_status(tree)["task_started"]).timestamp()
+    assert (_pair(tree), len(spy.calls), since) == (("halted", "Halted"), 0, T0 - 3600)

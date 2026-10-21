@@ -167,13 +167,15 @@ KIT_EXTRA: Final = ("--dangerously-skip-permissions",)
 KIT_LOCK_BUSY: Final = "budget lock busy"
 
 #: The kit refusal codes whose own status write is not "refused" / Idle
-#: (`fleet_headless.spawn`, `_refused_status`): a stop sentinel writes
-#: "halted" / Halted, a limit on both routes "limit" / Turn Limit Reached. The
-#: kit is byte-pinned, so these words move only with a new kit version; the
-#: agreement arms in tests/ops/test_inbox_responder.py read the kit's own write
-#: as their oracle, so a moved word reddens there.
+#: (`fleet_headless.spawn`, `_refused_status`, `_spawn_slotted`): a stop
+#: sentinel writes "halted" / Halted; a limit on both routes and a spent budget
+#: "limit" / Turn Limit Reached. The kit is byte-pinned, so these words move
+#: only with a new kit version; the agreement arms in
+#: tests/ops/test_inbox_responder.py read the kit's own write as their oracle,
+#: so a moved word reddens there.
 KIT_HALTED: Final = "halted"
 KIT_FALLBACK_HALTED: Final = "fallback-halted"
+KIT_BUDGET_SPENT: Final = "budget-spent"
 
 #: Set on the worker for the reasons `ops/loop/run_lane.ps1` records (CS-1108):
 #: nothing backgrounded, and a long foreground command survives. The kit builds
@@ -413,12 +415,14 @@ def _tree_of(control: Path) -> Path:
 
 
 def _standing(control: Path) -> list[Path] | None:
-    """The standing stop sentinels: the responder's own, then the tree's declared hit.
+    """The standing stop sentinels: the responder's own, then the tree's declared ones.
 
-    The declaration is read by the kit's own `stop_sentinel_hit`, so the two
-    cannot part, and every path is tested as the kit tests it - any entry, a
-    dangling link included. None when the declaration is unreadable: the kit
+    WHETHER a declared one stands is the kit's own `stop_sentinel_hit`, so the
+    two cannot part, and every path is tested as the kit tests it - any entry,
+    a dangling link included. None when the declaration is unreadable: the kit
     refuses every spawn into the tree then (fail closed), and so does this.
+    The kit names its FIRST hit only; once it has named one, every other
+    declared path that stands is listed too, so the halt's age is the oldest.
     """
     own = [Path(control) / rel for rel in STOP_RELPATHS]
     standing = [path for path in own if os.path.lexists(path)]
@@ -428,8 +432,25 @@ def _standing(control: Path) -> list[Path] | None:
     except kit.Refused:
         return None
     if isinstance(hit, str):
-        standing.append(tree / hit)
+        declared = [tree / hit, *_declared_paths(tree)]
+        standing.extend(path for path in declared if os.path.lexists(path))
     return standing
+
+
+def _declared_paths(tree: Path) -> list[Path]:
+    """Every path the tree's declaration names, read leniently - for a halt's age only.
+
+    Called only after the kit's `stop_sentinel_hit` has read the same file and
+    named a hit, so it never decides a halt; an unreadable file names none.
+    """
+    try:
+        doc = json.loads((tree / kit.SENTINELS_REL).read_bytes().decode("utf-8"))
+        rels = doc["paths"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    if not isinstance(rels, list):
+        return []
+    return [tree / rel for rel in rels if isinstance(rel, str) and rel]
 
 
 def _stopped(control: Path) -> bool:
@@ -920,36 +941,52 @@ def _refused(root: Path, board: _Board, refused: Exception, unread: int, started
     refusal (CS-1234 S5), decided on the refusal's ``code`` and class, so the
     board never contradicts the kit a moment after it wrote.
     """
-    code = getattr(refused, "code", None)
-    if code == KIT_HALTED:
+    state, task = kit_refusal_state(refused)
+    if state == "halted":
         # A sentinel the kit read that this pass's own check did not see - one
         # placed since. QUIET, as the responder's own halt; the next tick halts
         # before the lock.
-        board.show("halted", "Halted", started=_halted_since(board.control, started))
+        board.show(state, task, started=_halted_since(board.control, started))
+        return EXIT_OK
+    if state == "limit":
+        # A spent budget, or a usage limit on the primary AND the armed
+        # fallback route: the kit holds every start until it frees.
+        if getattr(refused, "code", None) == KIT_FALLBACK_HALTED:
+            _log(root, started, "limit", EXIT_OK, unread=unread, reason="fallback halted")
+        else:
+            _log(root, started, "limit", EXIT_OK, unread=unread)
+        board.show(state, task)
         return EXIT_OK
     if isinstance(refused, kit.BudgetUnreadable) or is_lock_busy(refused):
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
-        board.show("refused", kit.REFUSED_TASK)
+        board.show(state, task)
         return EXIT_BUDGET_REFUSED
-    if code == KIT_FALLBACK_HALTED:
-        # A usage limit on the primary AND the armed fallback route: the kit
-        # holds every start until the earlier reset and writes a limit.
-        _log(root, started, "limit", EXIT_OK, unread=unread, reason="fallback halted")
-        board.show("limit", "Turn Limit Reached")
-        return EXIT_OK
-    window = board.window(started)
-    if window.count >= board.budget.cap:
-        _log(root, started, "limit", EXIT_OK, unread=unread)
-        board.show("limit", "Turn Limit Reached")
-        return EXIT_OK
-    # The proxy, the door or the executable. The kit's words are not logged:
-    # the outcome word is the closed vocabulary, and the reason stays authored.
-    # An OUTSIDE cause (FLEET-KIT v14 `Blocked`, an unreachable proxy) reads
-    # "blocked", as the kit's own write does; every other refusal "refused".
+    # The proxy, the door or the executable - "blocked" for an outside cause,
+    # else "refused". The kit's words are not logged: the outcome word is the
+    # closed vocabulary, and the reason stays authored.
     _log(root, started, "kit_refused", EXIT_ROUTE_REFUSED, unread=unread, reason="kit")
-    board.show("blocked" if isinstance(refused, kit.Blocked) else "refused", kit.REFUSED_TASK)
+    board.show(state, task)
     return EXIT_ROUTE_REFUSED
+
+
+def kit_refusal_state(refused: Exception) -> tuple[str, str]:
+    """The ``(state, task)`` the kit's own status write used for this one refusal.
+
+    DERIVED FROM THE REFUSAL ALONE - its ``code`` and class, in the kit's own
+    order (`fleet_headless.spawn`, `_refused_status`, `_spawn_slotted`) - and
+    never from a re-read of the budget or the route: the kit raises the FIRST
+    cause it meets, so with a full budget beside an unreachable proxy it
+    refuses on the proxy and writes "blocked", whatever the window holds.
+    """
+    code = getattr(refused, "code", None)
+    if code == KIT_HALTED:
+        return "halted", "Halted"
+    if code in {KIT_FALLBACK_HALTED, KIT_BUDGET_SPENT}:
+        return "limit", "Turn Limit Reached"
+    if isinstance(refused, kit.Blocked):
+        return "blocked", kit.REFUSED_TASK
+    return "refused", kit.REFUSED_TASK
 
 
 def _finished(
