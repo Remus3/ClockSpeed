@@ -75,6 +75,121 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1318 - NOT A COMPLETION RECORD. CS-1318 STAYS OPEN, ON HOLD: in the session 150 load window no leg discriminates, and the rework's adversary reads HOLD
+Verification: the CS-1318 section of `docs/item_notes/phase7.md`; `ROADMAP.md`;
+`tests/test_hook_probe_bound.py::test_a_background_child_holding_stdout_is_refused_and_reaped`.
+Session 150 load window: no leg discriminates. tools/cs1318_reap_replay.py from the rework commit
+'CS-1318 - rework the reap replay: drive the measured arm's own reap', via fleet_suite_gate.py run,
+win32, 16 CPUs, all legs QUIET. 30 iterations x 2 cases per leg: repair loaded 60/60, repair
+control 60/60, pre-repair (d7a58a1d) loaded 60/60, pre-repair control 59/60 (1 pre-commit failure
+off the reap assertion), verdict_ms 12-18. Loaded-box clause UNMET on Windows: at 6 spinners the
+one-shot check read every child dead at first look. Ubuntu not measured.
+OUTPUT sha256, re-read by the merger from the four arm records, each matching its leg's counts
+above: repair loaded 8c39a6c11428751a802a643729f85ee82b31456130bc207349e4a99cfd170631, repair
+control f7489c5611c5c59f2b000d9bebc8343ef44151e62fef095fa27448b16117cb66, pre-repair loaded
+0db5f315cd8fe1a4d1f146e5628839bcec6defb6a6680a84bdc5dc0e66bc66c5, pre-repair control
+aa4928a417b99f4c0cff65482708bd6946857229587a446de037a19f2b3ae2c4.
+THE ADVERSARY'S VERDICT on the rework (distinct, read-only, agent-reported): HOLD. The earlier
+refutation points are fixed. 5 of 12 fresh mutants survived: S1 (reap_fired equals any failure),
+S2 (verdict_ms constant), S3 (a setup or teardown error recorded as failed), W1 (the workflow's
+`-ne 40` changed to `-gt 40` lets a short SHA through to GITHUB_OUTPUT) and P3 (near-equivalent).
+Workflow weaknesses: `$(( CPUS * LOAD_PER_CPU ))` evaluates its input as a shell expression, and
+`repaired_ref` takes any commit id while `cache: pip` saves a cache. Landing "to let the ubuntu
+leg run" does not satisfy `CLAUDE.md` section 7's cost-against-risk stop. The two cherry-picked
+pair messages, "CS-1318 - red test: the reap replay counts a zombie as a misread" and "CS-1318 -
+reap replay tool and dispatch-only ubuntu replay workflow", must be squashed or reworded before
+any landing, because they carry the refuted counts and an unpublished pin. The work is held on its
+worktree branch; none of it is on main.
+NEXT: the items the CS-1318 section of `docs/item_notes/phase7.md` names.
+
+### 2026-10-21 - CS-1335 - CLOSED: `docs/OPERATIONS.md` section 13 owns the milestone tag policy, and the one tag the remote serves reads annotated and reachable from `main`
+Verification: `docs/OPERATIONS.md` section 13, "Runbook: cutting a milestone tag"; the remote read
+below, re-run by the merger.
+CS-1335: policy in docs/OPERATIONS.md section 13. Remote tag read 2026-10-21: git ls-remote --tags
+origin serves only v0.1.0, an annotated tag on f9b877256dd82e8d2844b6d7c876d3ab822ff097. That
+commit is an ancestor of origin/main d542d956ddeae1ad9fd054081d47134c0087584a (exit 0). Release
+final, not draft, not prerelease. tier2 run 39526765992 on the tag: success.
+THE MERGER'S READ, matching the text above: `git ls-remote --tags origin` lists the v0.1.0 tag
+ref and its peeled line, nothing else; `git cat-file -t v0.1.0` prints tag, and the local tag
+object is the one the remote serves; `git merge-base --is-ancestor v0.1.0^{commit} origin/main`
+exits 0; `gh release view v0.1.0 --json isDraft,isPrerelease` reads both false; `gh run view
+39526765992` reads workflow tier2, event push, head branch v0.1.0, conclusion success.
+THE CLAUSES, named by behaviour since the `### Acceptance` numbers none. A SECTION OF ITS OWN,
+ITS ONE OWNER: MET - section 13 says it is the policy's one owner; the old section 13,
+Cross-references, is now section 14, and a grep of every tracked file outside `docs/_archive/`
+finds no reference to an OPERATIONS section 13 or 14 that meant the old numbering. HAND-CUT,
+ANNOTATED, `v0.MINOR.PATCH`: MET - "What a milestone tag is". HAND-WRITTEN NOTES, GENERATED
+NOTES OFF: MET - "The notes, and the outbound gate", never `--generate-notes`. AN ANCESTOR OF THE
+PUBLISHED `main`: MET - "The commit it goes on", whose ancestor control is read before the tag is
+made. ONLY THAT ONE TAG REF PUSHED: MET - "Push the one ref", never `--tags`, `--mirror` or
+`--follow-tags`. NO LANE OR HEADLESS RUN CUTS A TAG: MET - "Who cuts it", which says no hook
+enforces it. EVERY TAG THE REMOTE SERVES READ, ANNOTATED AND REACHABLE FROM `main`, RECORDED
+UNDER THIS ID: MET - the read above.
+THE v0.1.0 EXCEPTION: the section names v0.1.0's one exception - its tag message was given inline
+with `-m`, not from a gated message file, and its record shows only a count-only needle probe of
+the tag message and the release body.
+LANDED: two commits cherry-picked onto main, 2b095749e56ba25f6b2dff9ec62c515facfdb18c (the
+section) and 6e3bcf9cbc6a73ea97c9219a6d9ea6cdd371d6d1 (the repair naming the exception), each
+read back with its source's file list and stable patch-id. An adversary refuted two sentences of
+the first - the claim to be the rules v0.1.0 was cut under, and that every other file points to
+the section - and the second repairs both (agent-reported, in its message).
+DECISION: CLOSE, every clause met. RELOCATED: the section moved word for word from
+`docs/item_notes/phase7.md` to `docs/history_notes.md`; it held no live rule, since section 13
+owns the policy. Its `ROADMAP.md` line is dropped. Reversed by: a tag the remote serves that reads
+lightweight or not reachable from `main` - new work under a new ID.
+
+### 2026-10-21 - CS-1234 - CLOSED: the inbox responder publishes its schema 1 status file, times its ETA on completed runs only, and starts at most 120 headless runs per rolling 24 hours under the kit's lock
+Verification: `ops/loop/inbox_responder.py::COMPLETED_OUTCOMES`, `::_Board.ended` and
+`::_finished`; `ops/loop/inbox_status.py::publish`, `::_atomic_write` and `::TaskClock.eta`;
+`tests/ops/test_inbox_responder.py::test_three_never_started_workers_leave_the_running_session_eta_null`,
+`::test_never_started_workers_beside_completed_runs_never_enter_the_median`,
+`::test_only_a_worker_that_exited_on_its_own_times_the_running_session`,
+`::test_the_halted_path_still_publishes_its_status`,
+`::test_the_kits_refused_task_is_a_basic_task_and_refused_is_not_one`,
+`::test_at_the_cap_nothing_starts_and_the_limit_is_published`,
+`::test_an_unreadable_budget_refuses_the_start_and_is_never_reset` and
+`::test_a_busy_budget_lock_refuses_as_a_counting_failure`;
+`tests/ops/test_inbox_status.py::test_publish_writes_schema_one_exactly`,
+`::test_publish_refuses_a_name_outside_the_sets`,
+`::test_eta_is_null_below_three_and_the_median_of_the_last_ten` and
+`::test_the_published_cap_and_window_are_the_kits`;
+`tests/test_lane_runner_script.py::test_a_lane_start_is_counted_in_the_kits_budget_with_a_kinded_usage_line`.
+THE CLAUSES, named by behaviour since the `### Acceptance` in `docs/item_notes/phase7.md` numbers
+none, in the order the 2026-10-21 lane-side record counts them. A distinct verifier graded the item
+at d542d956ddeae1ad9fd054081d47134c0087584a (agent-reported):
+CLAUSE 1 MET (the status file, written atomically in schema 1 on every state change and at least
+once per tick, its halted path included): the 12-key schema, an atomic write that leaves no temp
+file beside it, and the halted path.
+CLAUSE 2 MET (task names only from the basic set).
+CLAUSE 4 MET (at most 120 headless starts per rolling 24 hours, counted under a lock, an
+unreadable counter refusing every start): the kit's locked 120 cap, with the lane counted through
+the kit's `spawn` and `--kind build`. The orphan-pipe case does not block this clause: it is a kit
+defect, reported to MAIN as a FIX and a FLEET rule, not part of the acceptance (the CS-1231 L1
+DEVIATION record and the CS-1234 lane-side record, both 2026-10-21).
+CLAUSE 3, UNMET AT THAT COMMIT AND MET NOW (`task_eta_s` the median of the last ten completed
+instances, null under three): a worker that never started was recorded as a finished Running
+Session of zero seconds, so three of them published an ETA of 0 where the acceptance requires
+null; a kill at the kit's timeout and a usage-limit refusal were timed the same way. The fix,
+cherry-picked onto main as 00dfa50a51ad97cab7a5c691a60f4c172b960b1d, times only an outcome in
+`COMPLETED_OUTCOMES` - ok or failed, a worker that exited on its own, the meaning
+`ops/loop/queue_loop.py` gives completed - and every other ending records the idle time only.
+Three new test functions, parametrised to 12 cases, hold it: three never-started workers leave
+the ETA null; never-started workers beside two and three completed runs never enter the median;
+one arm per ending, the failed exit the control that a completed run is still timed.
+THE ADVERSARY (distinct, read-only, agent-reported): NOT REFUTED on 9 of 9 probes; the
+median-of-the-last-ten-completed and the null-under-three behaviour hold.
+RESIDUALS, to `BACKLOG.md`: the suite does not pin the ten-run window or an even-count median -
+re-measured by the merger on a scratch export of the landed tree, a window widened past ten and a
+high median each leave `tests/ops/test_inbox_status.py` and `tests/ops/test_inbox_responder.py`
+green, while a kill control, the three-run floor lowered to two, reddens them - and a worker that
+crashes within seconds counts as a completed run in the ETA.
+DECISION: CLOSE, every clause met. RELOCATED: the section moved word for word from
+`docs/item_notes/phase7.md` to `docs/history_notes.md`; it held no live rule, since the status
+file's rules live in FLEET item 10 of `CLAUDE.md` and in `ops/loop/inbox_status.py`. Its
+`ROADMAP.md` line is dropped. Reversed by: a status file outside schema 1, a task name outside the
+basic set, an ETA published from fewer than three completed runs, or a 121st start inside a rolling
+24 hours - new work under a new ID.
+
 ### 2026-10-21 - CS-1333 - CLOSED: `README.md` carries the public repository's clone command in a fenced block of its own, and check 5 reads PASS at the landing commit
 Verification: `tests/test_readme_audit.py::test_the_readme_carries_the_public_clone_command`,
 `::test_the_readme_clone_address_is_the_origin_remotes_public_form`,

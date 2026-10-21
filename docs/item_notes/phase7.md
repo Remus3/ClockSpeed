@@ -601,26 +601,6 @@ Slice C LANDED at eeec6967c2fdbc64aa19a51fe4ba6cdaf75f7419; clause (c) retired. 
 recorded third option (driver kill as backstop), not MAIN's arms - `docs/LEDGER.md`, the CS-1231
 L1 DEVIATION record; the orphan-pipe defect went to MAIN as a FIX.
 
-## CS-1234
-
-### Acceptance
-
-The CS inbox responder writes its gitignored inbox-status file atomically
-in MAIN 0915's schema 1 on every state change and at least once per tick, including on
-its halted path; task names come only from the basic set; `task_eta_s` is the median of
-the last ten completed instances of a task, null under three; at most 120 headless runs
-start per rolling 24 hours, counted under a lock, and an unreadable counter refuses every
-start.
-
-### Full headline
-
-the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless
-starts at 120 per rolling 24 hours
-
-### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
-
-RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
-
 ## CS-1291
 
 ### Acceptance
@@ -739,7 +719,31 @@ classification evidence and the adversary's residuals are the CS-1318 record in 
 for up to `REAP_WAIT` and reads a zombie as dead where the proc filesystem shows its state; the hook
 probe bound is unchanged and no case is skipped.
 
-Next action: the rework the 2026-10-15 CS-1318 reap-replay REFUTED record in `docs/LEDGER.md` names, after the CS-700 window; it does not gate CS-1317's acceptance (ruling R2).
+The rework that record named was done in session 150 and is HELD - the next section; it does
+not gate CS-1317's acceptance (ruling R2).
+
+### Recorded 2026-10-21 by the session 150 landing merge, the rework HELD
+
+The rework, the commit "CS-1318 - rework the reap replay: drive the measured arm's own reap",
+fixes the earlier refutation points. Its Windows load window found no leg discriminating, so
+the loaded-box clause is UNMET on Windows, and Ubuntu is not measured (`docs/LEDGER.md`,
+2026-10-21, CS-1318). Its distinct adversary read HOLD, and the work is held on its worktree
+branch; none of it is on main.
+
+Next action, exactly these items, then a fresh freeze and a distinct adversary before any
+landing:
+
+1. Kill the surviving mutants S1 (reap_fired equals any failure), S2 (verdict_ms constant), S3
+   (a setup or teardown error recorded as failed) and W1 (the workflow's `-ne 40` changed to
+   `-gt 40` lets a short SHA through to GITHUB_OUTPUT); P3 is near-equivalent - 5 of the
+   adversary's 12 fresh mutants survived.
+2. Fix the two workflow weaknesses: `$(( CPUS * LOAD_PER_CPU ))` evaluates its input as a shell
+   expression, and `repaired_ref` takes any commit id while `cache: pip` saves a cache.
+3. Squash or reword the two cherry-picked pair messages, "CS-1318 - red test: the reap replay
+   counts a zombie as a misread" and "CS-1318 - reap replay tool and dispatch-only ubuntu
+   replay workflow", which carry the refuted counts and an unpublished pin.
+4. Land only on a case that meets `CLAUDE.md` section 7's cost-against-risk stop; landing "to
+   let the ubuntu leg run" does not.
 
 ## CS-1328
 
@@ -881,28 +885,6 @@ CS-G03 and CS-700 records in `docs/LEDGER.md` carry it as a residual, and three 
 ruled it non-blocking for the close. When it runs it fires the session 131 residual trigger "the
 post-flip public-clone walk" in `BACKLOG.md`, and the session 150 residual on the walk runner's
 execution policy there.
-
-## CS-1335
-
-### Acceptance
-
-`docs/OPERATIONS.md` carries the milestone tag policy in a section of its own, its one owner:
-a milestone tag is hand-cut, annotated and named in semver 0.x (`v0.MINOR.PATCH`); its
-release notes are hand-written, generated notes OFF; the tagged commit is an ancestor of
-the published `main`; only that one tag ref is pushed, never `--tags` or `--mirror`; and no
-lane or headless run cuts a tag. A read of every tag the remote serves, each annotated and
-reachable from `main`, is recorded in `docs/LEDGER.md` under this ID.
-
-### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
-
-Posture item 1a of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
-section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
-hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
-opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
-work instead of keeping it out of this file.
-
-Docs only. The first tag, `v0.1.0`, was cut under CS-1328 (e), and this policy writes down
-the rules that tag was cut under so the next milestone does not have to rediscover them.
 
 ## CS-1336
 

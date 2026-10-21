@@ -24,6 +24,60 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1335 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1335
+
+### Acceptance
+
+`docs/OPERATIONS.md` carries the milestone tag policy in a section of its own, its one owner:
+a milestone tag is hand-cut, annotated and named in semver 0.x (`v0.MINOR.PATCH`); its
+release notes are hand-written, generated notes OFF; the tagged commit is an ancestor of
+the published `main`; only that one tag ref is pushed, never `--tags` or `--mirror`; and no
+lane or headless run cuts a tag. A read of every tag the remote serves, each annotated and
+reachable from `main`, is recorded in `docs/LEDGER.md` under this ID.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1a of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+Docs only. The first tag, `v0.1.0`, was cut under CS-1328 (e), and this policy writes down
+the rules that tag was cut under so the next milestone does not have to rediscover them.
+
+
+## CS-1234 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1234
+
+### Acceptance
+
+The CS inbox responder writes its gitignored inbox-status file atomically
+in MAIN 0915's schema 1 on every state change and at least once per tick, including on
+its halted path; task names come only from the basic set; `task_eta_s` is the median of
+the last ten completed instances of a task, null under three; at most 120 headless runs
+start per rolling 24 hours, counted under a lock, and an unreadable counter refuses every
+start.
+
+### Full headline
+
+the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless
+starts at 120 per rolling 24 hours
+
+### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
+
+RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
+
+
 ## CS-1333 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

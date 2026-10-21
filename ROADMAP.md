@@ -357,14 +357,12 @@ CS-1206 - a test run by pre-push can print an environment value outside any asse
 CS-1207 - the hook environment allowlist lists known readers, so an unlisted reader such as `os.path.expandvars` escapes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gates, mark slow tests, trim CI and inbox spend (MAIN 2246 section 2) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then its ONE ANSWER after S12a - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1335 - write the milestone tag policy: hand-cut annotated 0.x tags with hand-written notes - acceptance: in detail - tier: 0 - detail: `docs/item_notes.md`
 CS-1336 - move commit subjects to Conventional Commits after auditing every site that matches one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1337 - the README's build section names no `CLAUDE.md`, no `ops/` and no hand-off file - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1338 - turn on CodeQL default setup, read the agent and hand-off text as an outsider, sweep 30 days of failed runs - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

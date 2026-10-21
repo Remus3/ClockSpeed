@@ -892,3 +892,19 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   `REPOSITORY_URL` (which `tests/test_measurement_record.py` binds to `CITATION.cff`) and the
   origin remote still spell the repository in the old casing, which the forge redirects; trigger:
   the forge stops redirecting the old casing, or the next measurement-record change.
+- From the CS-1234 close (`docs/LEDGER.md`, 2026-10-21, CS-1234): two `ops/loop/inbox_status.py`
+  ETA mutants survive the suite - the ten-run window widened (`ETA_KEEP` raised) and the
+  even-count median taken high (`statistics.median_high`) each leave
+  `tests/ops/test_inbox_status.py` and `tests/ops/test_inbox_responder.py` green, re-measured by
+  the session 150 merger against a kill control; an adversary's probe kills both (agent-reported);
+  trigger: the next edit to `ops/loop/inbox_status.py::TaskClock`, or a published `task_eta_s`
+  that is not the median of the last ten completed runs.
+- From the CS-1234 close: a worker that crashes within seconds exits on its own as failed, which
+  `ops/loop/inbox_responder.py::COMPLETED_OUTCOMES` counts as a completed run, so its few seconds
+  enter the Running Session ETA; trigger: a published ETA pulled down by fast failures, or the
+  next edit to `COMPLETED_OUTCOMES`.
+- From the CS-1318 rework's adversary (agent-reported): `tests/test_hook_probe_bound.py::ZOMBIE_MAKER`
+  left no zombie in 5 of 28 MSYS runs, so its zombie arm sometimes grades a process that is
+  already gone; the session 150 merger's 28 unloaded runs through the arm's own spawn read a
+  zombie in all 28, so the miss is unreproduced off load; trigger: the next edit to that arm, or
+  the CS-1318 rework's next round.
