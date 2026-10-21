@@ -784,7 +784,10 @@ def _launches(items: list[Any]):
     """
     fired: list[dict[str, Any]] = []
 
-    def launch(lane: str, **kw: Any) -> dict[str, Any]:
+    # A NAME OF ITS OWN in this module, not `launch`: tests/liveness.py re-reads
+    # a value-returning grader by its name, and the first `launch` here is a
+    # different helper - a repeated name is not an identity.
+    def launch_scripted(lane: str, **kw: Any) -> dict[str, Any]:
         fired.append({"lane": lane, **kw})
         item = items[len(fired) - 1]
         if isinstance(item, tuple):
@@ -792,7 +795,7 @@ def _launches(items: list[Any]):
         assert isinstance(item, Path)
         return {"pid": 4242, "log": str(item.resolve())}
 
-    return launch, fired
+    return launch_scripted, fired
 
 
 def test_l1_a_kit_timeout_ending_is_recorded_timeout_killed_not_completed(tmp_path: Path) -> None:
