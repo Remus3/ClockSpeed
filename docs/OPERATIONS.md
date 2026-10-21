@@ -796,6 +796,15 @@ temp-file form is the default.
   simultaneously personal data and a drift source, and the tier-3 scan looks for them.
 - Use a windowless interpreter for background daemons so no console window flashes.
 
+### 9.3 A load harness on this machine
+
+Moved on 2026-10-21 from the CS-1307 section of `docs/item_notes/phase7.md` when that item
+closed; binding since the session 145 /done, after a 32-spinner run saturated the machine and
+caused the operator's session 144 CPU stop.
+
+A load harness - CPU-bound spinner processes run beside a test to measure it under sibling
+load - runs at most 6 spinners, and never beside another suite.
+
 ---
 
 ## 10. Runbook: the headless `queue` lane

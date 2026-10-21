@@ -1410,7 +1410,7 @@ ENV_ECHO_GIT_HOOK_ARMS: Final = (
 # own `timeout -k 1 10` call around ONE process start (CS_PROBE_BOUND in each
 # hook), so sibling load has to slow a single start past ten seconds to move a
 # verdict. Measured on the operator's 16-CPU box, Windows - the CS-1307
-# sibling-load measurement, recorded under CS-1307 in docs/item_notes/phase7.md -
+# sibling-load measurement, recorded under CS-1307 in docs/history_notes.md -
 # by running the seven arms (30 cases) under `-n 2 --dist loadfile` beside a
 # scratch sibling test that spins CPU-bound children for the whole run:
 #   - 32 spinners: 30 of 30 passed, their summed call time 1500.22s - against
@@ -1427,7 +1427,7 @@ ENV_ECHO_GIT_HOOK_ARMS: Final = (
 # measured all seven, so they share one pointer - and that pointer is valid only
 # for the seven that run measured, frozen below: a new arm cites its own run.
 CS1307_POINTER: Final = (
-    "CS-1307 sibling-load measurement, recorded under CS-1307 in docs/item_notes/phase7.md"
+    "CS-1307 sibling-load measurement, recorded under CS-1307 in docs/history_notes.md"
 )
 CS1307_MEASURED_ARMS: Final = (
     "test_no_pre_commit_path_echoes_a_canary",

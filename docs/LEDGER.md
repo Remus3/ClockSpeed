@@ -75,6 +75,51 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1307 - CLOSED: an independent quiet-machine re-measurement read the seven git-hook arms load-tolerant and the file 30 of 30 green
+Verification: `tests/test_hook_env_echo.py`, its seven git-hook arms as `ENV_ECHO_GIT_HOOK_ARMS`
+in `tests/test_claude_hook.py` names them;
+`tests/test_claude_hook.py::test_every_env_echo_arm_that_drives_a_git_hook_waits_or_was_measured_tolerant`;
+`CS_PROBE_BOUND` in `.githooks/pre-commit`, `.githooks/commit-msg` and `.githooks/pre-push`.
+EVIDENCE: a session 150 re-measurement on a quiet machine, independent of the session 145 builder.
+It replaces that builder's counts, which the 2026-10-17 record "CS-1307 - NOT A COMPLETION RECORD:
+clause 3 read; item STAYS OPEN - clauses 1 and 2 owe an independent re-measurement" left
+unevidenced. Raw evidence is held by digest only: summary sha256
+5c423ddfb0da892be0b41f3cc818ed5f9f6009d3afdf128542c3e6e9cbb248ea.
+CLAUSE 1 MET (each git-hook arm waits at the quiet barrier, or a measured run beside a CPU-bound
+sibling shows it does not need to): the seven git-hook arms of `tests/test_hook_env_echo.py`, 30
+cases, ran under `-n 2 --dist loadfile` beside a sibling test holding 6 CPU-bound spinner processes
+and passed 30 of 30. A second run with a pass-through timeout shim timing each bounded hook step
+also passed 30 of 30: 221 bounded calls, the longest that answered 78 ms against the 10 s bound,
+and one expiry at 10.01 s, the PYTHONINSPECT arm's expected probe hang.
+CLAUSE 2 MET (30 consecutive runs under `-n 2 --dist loadfile`, graded on failures as the
+acceptance's wording-fault note directs): `python ops/fleet_kit/fleet_suite_gate.py run --owner
+<id> -- python -m pytest tests/test_hook_env_echo.py -n 2 --dist loadfile` ran 30 consecutive
+times. Every run exited 0 with 322 passed, 0 failed, 0 errors and 0 skipped; durations 51.8 to
+55.6 s, median 52.6 s.
+QUIET MACHINE, STATED HONESTLY: a poller watching for other suites flagged 10 of the 30 runs. Each
+flag was that run's own hook children outliving their parent, checked against the run's temp
+folder, so no foreign suite ran beside any run. A strict reading that discards every flagged run
+leaves 20 clean runs, not 30; it bears on the quiet-machine condition the 2026-10-17 record set,
+not on clause 2 as worded, under which all 30 runs passed. The 30 runs went through the suite
+gate; the evidence does not say whether the sibling-load run did.
+CLAUSE 3 MET: the guard shard's duration was re-read in session 146, the 2026-10-17 record named
+above.
+CLAUSES 4 AND 5 MET: no bound, budget or skip was changed. `CS_PROBE_BOUND` reads 10 in each git
+hook; no commit after the CS-1307 slice ("CS-1307 - git-hook arms load-tolerant; guard covers
+commit/push callers") touched `tests/test_hook_env_echo.py`, `tests/test_claude_hook.py` or
+`.githooks/` before this record's commit, which changes only the text of `CS1307_POINTER` and the
+comment above it; each of the 30 runs skipped 0.
+DECISION: CLOSE, on the reversal the 2026-10-17 record states - an independent re-measurement
+reading 30 of 30 with the sibling arm inside its bound closes the item. ALTERNATIVE REJECTED: keep
+it open until 30 runs read no poller flag, the strict reading - each flag traced to the run's own
+hook children, and the acceptance grades failures. Reversed by: a git-hook arm of
+`tests/test_hook_env_echo.py` failing its bound in tier1 or tier2, which reopens the defect as a
+new item.
+RELOCATED: the section moved word for word from `docs/item_notes/phase7.md` to
+`docs/history_notes.md`; its live load-harness limit moved first to `docs/OPERATIONS.md` section
+9.3, and `CS1307_POINTER` in `tests/test_claude_hook.py` now names the archive.
+RESIDUALS: the bare-name caller walk stays in `BACKLOG.md`, "Session 145 residuals".
+
 ### 2026-10-21 - CS-700 - CLOSED: every section 17 gate item passed at T2
 Verification: `tools/flip_checks.py`;
 `tests/test_flip_checks.py::test_a_pinned_binary_is_not_a_skip`;
