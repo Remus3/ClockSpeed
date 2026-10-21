@@ -3474,6 +3474,378 @@ def test_the_cycle_line_says_whether_the_cycle_committed(tmp_path):
     assert all("commit=unreadable" in line for line in blind_lines), blind_lines
 
 
+# ===========================================================================
+# CS-1341 - THE STARTING HEAD IS READ AFTER THE LAUNCH HAS MADE THE TREE.
+#
+# CS-1274 gave every launch the kit's own tree, and the kit prepares it INSIDE
+# the launch: a missing tree is added at the lane base, a present one is moved
+# there with `checkout --detach`. The driver's own read ran BEFORE the cycle,
+# so it looked at a tree that did not exist yet - a cycle that shipped read
+# `commit=unreadable` and the run exited 9 (ledger row 53, session 150) - or
+# at the commit the kit was about to move away from, which scored a worker
+# that did nothing as a commit. The launcher reads the tree's HEAD between the
+# kit and the spawn and hands it back as `start_head` - on a refusal too, as
+# an attribute of the refusal. The early read is now only the fallback for a
+# launch that ran without supplying one, or a cycle that never launched; a
+# refused launch that read nothing is unreadable instead.
+# ===========================================================================
+
+
+def _kit_tree_launch(tree, *, made_at, worker_leaves, start_key=True):
+    """A `launch` seam that moves a fake lane tree the way the kit and a worker do.
+
+    `tree["head"]` is what the arm's `tree_sha` seam answers. The launch sets
+    it to `made_at` - the kit making or re-basing the tree - and reads it there,
+    as `launch_lane` does, then sets it to `worker_leaves`: what the worker's
+    commits, or the lack of them, leave for the read after the cycle.
+
+    Args:
+        tree: The one-key dict this seam and the arm's `tree_sha` share.
+        made_at: The HEAD the kit leaves, or None for one the launch could not
+            read.
+        worker_leaves: The HEAD the worker leaves, or None for a tree lost.
+        start_key: False for a launcher that predates the key.
+
+    Returns:
+        A `launch` seam.
+    """
+
+    def launch(_lane, **_kw):
+        tree["head"] = made_at
+        run = {"pid": 1, "log": "l"}
+        if start_key:
+            run["start_head"] = tree["head"]
+        tree["head"] = worker_leaves
+        return run
+
+    return launch
+
+
+def test_the_starting_head_is_read_after_the_launch_makes_the_tree(tmp_path, monkeypatch):
+    """THE MEASURED NIGHT: no lane tree on this box until the launch made one.
+
+    The fake tree reads None until the launch seam runs, as a box with no kit
+    tree yet does, and the worker then commits. The cycle shipped, so the row
+    must say so and a one-cycle run must exit 0. Before the repair the early
+    read saw no tree and the row said `commit=unreadable` - the shape of the
+    exit-9 night in ledger row 53.
+
+    The remote answers a sha the tree never holds, so a start taken off
+    `origin/main` instead of the tree cannot pass here by agreeing with it.
+    """
+    tree = {"head": None}
+    summary = _drive(
+        tmp_path,
+        [_DONE],
+        budget=1,
+        ci_gate=False,
+        head_sha=lambda: "sha-remote",
+        tree_sha=lambda _cwd: tree["head"],
+        launch=_kit_tree_launch(tree, made_at="commit-base", worker_leaves="commit-worker"),
+    )
+    commit = summary["records"][0]["commit"]
+    want = {"pre": "commit-base", "post": "commit-worker", "advanced": True, "detail": ""}
+    assert commit == want, commit
+    assert _exit_for(monkeypatch, summary) == 0
+
+
+def test_a_tree_the_kit_moves_to_its_base_is_not_a_commit(tmp_path, monkeypatch):
+    """THE OTHER HALF: a tree an earlier run left, re-based, and a worker that did nothing.
+
+    The kit moves the tree to the lane base inside the launch - after saving
+    the earlier run's commit under `refs/fleet-lanes/` - and this cycle's
+    worker commits nothing. Before the repair the driver compared the earlier
+    run's commit with the base and scored the kit's move as this cycle's work.
+
+    The remote answers a sha the tree never holds: the kit's base is the
+    remote-tracking ref, which can be stale, so a start taken off the remote
+    would read the base as a move.
+    """
+    tree = {"head": "commit-earlier-run"}
+    summary = _drive(
+        tmp_path,
+        [_DONE],
+        budget=1,
+        ci_gate=False,
+        head_sha=lambda: "sha-remote",
+        tree_sha=lambda _cwd: tree["head"],
+        launch=_kit_tree_launch(tree, made_at="commit-base", worker_leaves="commit-base"),
+    )
+    commit = summary["records"][0]["commit"]
+    want = {"pre": "commit-base", "post": "commit-base", "advanced": False, "detail": ""}
+    assert commit == want, commit
+    assert _exit_for(monkeypatch, summary) == 9  # noqa: PLR2004 - the literal is the oracle
+
+
+@pytest.mark.parametrize(
+    ("before", "made_at", "after", "start_key", "want"),
+    [
+        # No tree before the launch and none the launch could read: the start
+        # is unknown, so a readable tree after it is not a commit.
+        pytest.param(None, None, "commit-worker", True, (None, False, True), id="no-start-read"),
+        # The launch read its start and the tree was lost after it: the after
+        # read is unknown, so the start alone is not a commit either.
+        pytest.param(
+            "commit-earlier-run",
+            "commit-base",
+            None,
+            True,
+            ("commit-base", False, True),
+            id="tree-lost-after",
+        ),
+        # A launch that could not read its start falls back to the early read.
+        pytest.param("commit-1", None, "commit-2", True, ("commit-1", True, False), id="fallback"),
+        # And so does a launcher that predates the key.
+        pytest.param(
+            "commit-1", "commit-base", "commit-2", False, ("commit-1", True, False), id="no-key"
+        ),
+    ],
+)
+def test_a_start_head_falls_back_to_the_early_read_and_still_needs_both_reads(
+    tmp_path, before, made_at, after, start_key, want
+):
+    """`advanced` needs a readable start AND a readable end, whichever read the start was.
+
+    The launch's `start_head` wins only when it is present. Absent or None on
+    a launch that RAN, the driver's early read stands, exactly as before
+    CS-1341 - so a launch seam that never supplies the key changes nothing.
+    A refused launch is the other rule; see the arm after this one.
+    """
+    tree = {"head": before}
+    summary = _drive(
+        tmp_path,
+        [_DONE],
+        budget=1,
+        ci_gate=False,
+        head_sha=lambda: "sha-remote",
+        tree_sha=lambda _cwd: tree["head"],
+        launch=_kit_tree_launch(tree, made_at=made_at, worker_leaves=after, start_key=start_key),
+    )
+    commit = summary["records"][0]["commit"]
+    got = (commit["pre"], commit["advanced"], "could not be read" in commit["detail"])
+    assert got == want, commit
+
+
+def _refused_kit_launch(tree, *, start, raises):
+    """A `launch` seam that lets the kit move the tree and is then REFUSED.
+
+    The kit has already moved the tree to the lane base when the refusal
+    comes, which is the case a pre-launch read gets wrong. `raises` refuses
+    the way `launch_lane` does - a `LaneLaunchError` carrying the start head it
+    read, set on the way out - and otherwise the launch returns no pid.
+
+    Args:
+        tree: The one-key dict this seam and the arm's `tree_sha` share.
+        start: The start head the launch read, or None for none.
+        raises: True to refuse by raising, False to return no pid.
+
+    Returns:
+        A `launch` seam.
+    """
+
+    def launch(_lane, **_kw):
+        tree["head"] = "commit-base"
+        if raises:
+            refusal = lane_launcher.LaneLaunchError(
+                "refused", reason=lane_launcher.REASON_SPAWN_FAILED
+            )
+            refusal.start_head = start
+            raise refusal
+        run = {"pid": None, "log": "l"}
+        if start is not None:
+            run["start_head"] = start
+        return run
+
+    return launch
+
+
+@pytest.mark.parametrize(
+    ("start", "raises", "want"),
+    [
+        pytest.param("commit-base", True, ("commit-base", False, "commit=no"), id="raised-read"),
+        pytest.param(None, True, (None, False, "commit=unreadable"), id="raised-unread"),
+        pytest.param("commit-base", False, ("commit-base", False, "commit=no"), id="no-pid-read"),
+        pytest.param(None, False, (None, False, "commit=unreadable"), id="no-pid-unread"),
+    ],
+)
+def test_a_refusal_after_the_kit_moved_the_tree_is_never_scored_as_a_commit(
+    tmp_path, start, raises, want
+):
+    """CS-1341 r2 - A REFUSED LAUNCH STARTS FROM WHAT IT READ, OR FROM NOTHING.
+
+    The kit moves the tree inside the launch, so a refusal that comes after it
+    leaves the early read naming a commit the kit has already moved away from.
+    Measured by an adversary before the repair: pre was the earlier run's
+    commit, post the kit's base, `advanced` true, and the console printed
+    `launch_failed ... commit=yes`. A refused launch that read its start is
+    compared with that; one that read none is unreadable, never the early read.
+    """
+    tree = {"head": "commit-earlier-run"}
+    said: list[str] = []
+    summary = _drive(
+        tmp_path,
+        [_DONE],
+        budget=1,
+        ci_gate=False,
+        head_sha=lambda: "sha-remote",
+        tree_sha=lambda _cwd: tree["head"],
+        launch=_refused_kit_launch(tree, start=start, raises=raises),
+        emit=said.append,
+    )
+    row = summary["records"][0]
+    words = [
+        word for line in _cycle_lines(said) for word in line.split() if word.startswith("commit=")
+    ]
+    got = (row["commit"]["pre"], row["commit"]["advanced"], words[-1] if words else None)
+    assert row["outcome"] == queue_loop.OUTCOME_LAUNCH_FAILED, row["outcome"]
+    assert got == want, row["commit"]
+
+
+def test_both_lane_head_reads_hand_git_one_environment_with_no_git_variables(tmp_path, monkeypatch):
+    """CS-1341 r2 - the start read and the after read must ask ONE repository.
+
+    A git started with `GIT_DIR` in its environment reads THAT repository,
+    whatever `-C` says, and a pre-push hook exports it. The launcher's read
+    stripped every `GIT_*` name and the driver's did not, so the two reads
+    could name two repositories, and then any completed cycle could score as a
+    commit. Both now hand git the same environment, and so does the driver's
+    remote read, which `-C` alone cannot aim either.
+
+    NAMES ONLY. The planted values are never rendered, and what is recorded
+    from each call is the sorted list of variable NAMES, never a value
+    (CLAUDE.md section 3 rule 13).
+    """
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / ".git").write_bytes(b"gitdir: planted\n")
+    monkeypatch.setenv("GIT_DIR", "planted-git-dir")
+    monkeypatch.setenv("GIT_INDEX_FILE", "planted-index")
+    names: list[list[str] | None] = []
+
+    class Done:
+        returncode = 0
+        stdout = "a" * 40 + "\trefs/heads/main\n"
+
+    def fake_run(_argv, **kw):
+        env = kw.get("env")
+        names.append(None if env is None else sorted(env))
+        return Done()
+
+    monkeypatch.setattr(queue_loop.subprocess, "run", fake_run)
+    monkeypatch.setattr(queue_loop, "resolve_tool", lambda _name: "synthetic-git")
+    monkeypatch.setattr(lane_launcher, "resolve_tool", lambda _name: "synthetic-git")
+    start = lane_launcher._start_head(tree)  # noqa: SLF001 - the read under test
+    after = queue_loop.local_head_sha(tree)
+    remote = queue_loop.remote_head_sha()
+    passed = [listed is not None for listed in names]
+    stripped = [
+        listed is not None and not any(name.upper().startswith("GIT_") for name in listed)
+        for listed in names
+    ]
+    one_env = len(names) == 3 and names[0] == names[1] == names[2]  # noqa: PLR2004 - three reads
+    read = (start is not None, after is not None, remote is not None)
+    assert (read, passed, stripped, one_env) == (
+        (True, True, True),
+        [True, True, True],
+        [True, True, True],
+        True,
+    )
+
+
+#: CS-1341 r3 - the planted mapping both git environment filters are fed. Five
+#: real `GIT_*` names, two spelled in lower and mixed case, a name that starts
+#: `GIT` with no underscore, and two that are nothing to do with git. A plain
+#: dict and never `os.environ`: a Windows environment upper-cases its keys, so
+#: it could never carry the lower-case spellings this needs.
+_PLANTED_ENV_NAMES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CEILING_DIRECTORIES",
+    "git_dir",
+    "Git_Index_File",
+    "GITHUB_ACTIONS",
+    "PATH",
+    "PLANTED_KEEP",
+)
+
+
+def test_the_two_git_environment_filters_give_one_answer_for_one_mapping():
+    """CS-1341 r3 - the filter is written twice, so the two copies are graded TOGETHER.
+
+    `lane_launcher._git_free_env` serves the start read and `queue_loop._git_env`
+    the driver's reads. The arm above sees only the names this process happens
+    to carry, so a copy that drifted in case or in prefix would pass it. Here
+    both copies are fed one planted mapping and must keep exactly the stated
+    names: every `GIT_*` name goes, whatever its case, and nothing else does.
+
+    NAMES ONLY. Every value is one placeholder, and what is compared is the
+    sorted names each filter kept (CLAUDE.md section 3 rule 13).
+    """
+    planted = dict.fromkeys(_PLANTED_ENV_NAMES, "planted")
+    launcher_kept = sorted(lane_launcher._git_free_env(planted))  # noqa: SLF001 - the copy under test
+    driver_kept = sorted(queue_loop._git_env(planted))  # noqa: SLF001 - the copy under test
+    want = ["GITHUB_ACTIONS", "PATH", "PLANTED_KEEP"]
+    assert (launcher_kept, driver_kept) == (want, want)
+
+
+#: CS-1341 r2 - THE LEDGER ROW'S KEYS, pinned. Measured equal to the rows the
+#: driver wrote before CS-1341 existed, on both paths, so the launch's private
+#: keys (`start_head`, `launch_refused`) are consumed and never written. A new
+#: row field is a deliberate edit to this set, not a leak nobody noticed.
+_ROW_KEYS_SHARED = frozenset(
+    {
+        "commit",
+        "cycle",
+        "detail",
+        "duration_s",
+        "ended_at",
+        "inbox",
+        "launch_reason",
+        "launch_waited_s",
+        "ok",
+        "outcome",
+        "pid",
+        "ration",
+        "run_id",
+        "scope",
+        "started_at",
+        "worker_ok",
+    }
+)
+_ROW_KEYS = {
+    # The error row is built in `run_loop` after `run_cycle` raised: no lane index.
+    "completed": _ROW_KEYS_SHARED | {"lane_index"},
+    "error": _ROW_KEYS_SHARED,
+}
+
+
+def test_a_ledger_row_never_carries_the_launch_s_private_keys(tmp_path):
+    """The driver POPS what the launch handed it; a plain read would leak it.
+
+    One completed cycle whose launch read a start head, then one cycle that
+    raised before any launch - the normal path and the error path. Both rows
+    are read back off the ledger file, not off the summary, because the file is
+    what a reader of the night gets.
+    """
+    tree = {"head": "commit-earlier-run"}
+    _drive(
+        tmp_path,
+        [_DONE, queue_loop.OUTCOME_ERROR],
+        budget=2,
+        ci_gate=False,
+        tree_sha=lambda _cwd: tree["head"],
+        launch=_kit_tree_launch(tree, made_at="commit-base", worker_leaves="commit-worker"),
+    )
+    lines = (tmp_path / "l.jsonl").read_text(encoding="utf-8").splitlines()
+    rows = [json.loads(line) for line in lines if line.strip()]
+    keys = {row["outcome"]: sorted(row) for row in rows}
+    private = sorted({"start_head", "launch_refused"} & {key for row in rows for key in row})
+    want = {outcome: sorted(pinned) for outcome, pinned in _ROW_KEYS.items()}
+    assert (private, keys) == ([], want)
+
+
 # ---------------------------------------------------------------------------
 # CS-1008 - `_drive` grades a STATED fixture, never the machine's live state.
 # CS-1011 - a worktree collision is its OWN recorded fault.

@@ -228,6 +228,18 @@ def _held(root: Path) -> bool:
     return (root / str(lanes.LOCK_NAME)).exists()
 
 
+@pytest.fixture(autouse=True)
+def _no_real_git(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every arm's git is a recording fake unless the arm binds its own.
+
+    CS-1341. A launch reads its tree's HEAD through the git seam, so an arm
+    that launches into a checkout would otherwise start a real git, and the
+    module docstring's promise that no arm here shells out to git would be
+    false. An arm that reads the calls binds its own ``_Git`` over this one.
+    """
+    monkeypatch.setattr(launcher, "_git", _Git())
+
+
 # ===========================================================================
 # a. One lanes module, not two
 # ===========================================================================
@@ -332,14 +344,16 @@ def test_a_command_doc_present_on_disk_is_returned(tmp_path: Path) -> None:
 # ===========================================================================
 
 
-def test_a_caller_named_checkout_is_reused_without_git_or_the_kit(
+def test_a_caller_named_checkout_is_reused_with_one_head_read_and_no_kit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A tree the CLAIM names and the kit did not derive is the caller's to keep.
 
     The launcher only ever MANAGES the kit's own per-index worktrees. A tree a
-    caller named, already a checkout, is run in as it stands - no git, and no
-    kit re-base underneath a directory somebody else chose.
+    caller named, already a checkout, is run in as it stands - no kit re-base
+    underneath a directory somebody else chose, and no git but the one
+    read-only ``rev-parse HEAD`` every launch takes its start head with
+    (CS-1341).
     """
     git = _Git()
     monkeypatch.setattr(launcher, "_git", git)
@@ -347,8 +361,8 @@ def test_a_caller_named_checkout_is_reused_without_git_or_the_kit(
     spawn = _Spawn()
     _launch(tmp_path, spawn, claim["token"])
     ran_in = spawn.calls[0][2].name
-    called = len(git.calls)
-    assert (ran_in, called) == ("caller-named", ZERO)
+    asked = [(Path(args[1]).name, args[2:]) for args in git.calls]
+    assert (ran_in, asked) == ("caller-named", [("caller-named", ["rev-parse", "HEAD"])])
 
 
 def test_a_caller_named_tree_that_is_not_a_checkout_is_refused_and_released(
@@ -499,7 +513,16 @@ def test_a_launch_reports_the_worker_it_started(tmp_path: Path) -> None:
     root, claim = _acquire(tmp_path)
     answer = _launch(tmp_path, _Spawn(), claim["token"])
     keys = sorted(answer)
-    assert keys == ["lane", "log", "pid", "prompt", "run_id", "started_at", "worktree"]
+    assert keys == [
+        "lane",
+        "log",
+        "pid",
+        "prompt",
+        "run_id",
+        "start_head",
+        "started_at",
+        "worktree",
+    ]
     reported = (answer["lane"], answer["run_id"], answer["pid"])
     assert reported == ("queue", RUN_ID, WORKER_PID)
     still_held = _held(root)
@@ -528,6 +551,172 @@ def test_a_launch_repoints_the_lock_at_the_worker(tmp_path: Path) -> None:
     _launch(tmp_path, _Spawn(), claim["token"])
     holder = lanes.lane_state(root)["pid"]
     assert holder == WORKER_PID
+
+
+# ===========================================================================
+# CS-1341 - the start head: read in the tree the kit made, before the worker
+# ===========================================================================
+
+
+def _kit_made_tree(tmp_path: Path, events: list[str]) -> Any:
+    """An ``ensure_worktree`` seam that MAKES its tree, the way the kit adds one.
+
+    The tree has no ``.git`` until this seam runs, so a read taken before it
+    finds no checkout to ask.
+    """
+    tree = tmp_path / "wts" / "kit-made"
+
+    def ensure(_lane: str, **_kw: Any) -> Path:
+        events.append("kit")
+        tree.mkdir(parents=True, exist_ok=True)
+        (tree / ".git").write_bytes(b"gitdir: planted\n")
+        return tree
+
+    return ensure
+
+
+def test_a_launch_reads_its_start_head_between_the_kit_and_the_spawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE ORDER IS THE FIX, so the order is what is graded - by recorded call sequence.
+
+    The kit makes a missing tree, or moves a present one to the lane base,
+    inside ``ensure_worktree``. A HEAD read before it sees no tree or the
+    commit the kit is about to move away from; a read after the spawn may see
+    the worker's first commit. Only a read between the two is the commit the
+    worker started from. It asks the TREE's ``HEAD`` - never ``origin/main``,
+    which says where work landed and not where this worker began.
+    """
+    events: list[str] = []
+    git = _Git()
+
+    def recording_git(args: list[str], cwd: Any = None, timeout: Any = None) -> _GitResult:
+        events.append("git " + " ".join(args[2:]))
+        return git(args, cwd=cwd, timeout=timeout)
+
+    def spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> _FakeProc:
+        del runner, prompt, cwd, log
+        events.append("spawn")
+        return _FakeProc()
+
+    monkeypatch.setattr(launcher, "_git", recording_git)
+    monkeypatch.setattr(launcher, "ensure_worktree", _kit_made_tree(tmp_path, events))
+    _, claim = _acquire(tmp_path)
+    answer = _launch(tmp_path, spawn, claim["token"])  # type: ignore[arg-type]
+    asked_in = [Path(args[1]).name for args in git.calls if args[:1] == ["-C"]]
+    verdict = (events, asked_in, answer.get("start_head"))
+    assert verdict == (["kit", "git rev-parse HEAD", "spawn"], ["kit-made"], SHA)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        pytest.param(_GitResult(returncode=128), id="git-refused"),
+        pytest.param(_GitResult(stdout="\n"), id="git-said-nothing"),
+        pytest.param(
+            launcher.LaneLaunchError("git", reason=launcher.REASON_GIT_NOT_FOUND),
+            id="git-not-found",
+        ),
+        pytest.param(subprocess.TimeoutExpired("git", 1), id="git-hung"),
+        pytest.param(OSError("planted"), id="git-would-not-start"),
+    ],
+)
+def test_a_start_head_git_cannot_give_is_none_and_the_launch_goes_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: _GitResult | BaseException
+) -> None:
+    """None on every failure, and NEVER a raise: the read is evidence, not a gate.
+
+    The worker can still run in a tree whose HEAD could not be read, and the
+    driver already has a fallback for a missing start. A raise here would turn
+    a diagnostic read into a refused launch, released lane and all.
+    """
+
+    def failing_git(args: list[str], cwd: Any = None, timeout: Any = None) -> _GitResult:
+        del args, cwd, timeout
+        if isinstance(fault, BaseException):
+            raise fault
+        return fault
+
+    monkeypatch.setattr(launcher, "_git", failing_git)
+    monkeypatch.setattr(launcher, "ensure_worktree", _kit_made_tree(tmp_path, []))
+    root, claim = _acquire(tmp_path)
+    spawn = _Spawn()
+    answer = _launch(tmp_path, spawn, claim["token"])
+    verdict = ("start_head" in answer, answer.get("start_head"), len(spawn.calls), _held(root))
+    assert verdict == (True, None, ONE, True)
+
+
+def test_a_tree_with_no_git_of_its_own_is_never_asked_for_a_start_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``git -C`` in a directory that is not a checkout answers for an ENCLOSING one.
+
+    Git searches upward for a repository, so a read in a tree with no ``.git``
+    would report the HEAD of a checkout that contains it, if one does - a
+    commit from a different tree, which is worse than no answer. Such a tree
+    is not asked.
+    """
+    git = _Git()
+    monkeypatch.setattr(launcher, "_git", git)
+    bare = tmp_path / "wts" / "no-git"
+    bare.mkdir(parents=True)
+    monkeypatch.setattr(launcher, "ensure_worktree", lambda _lane, **_kw: bare)
+    _, claim = _acquire(tmp_path)
+    answer = _launch(tmp_path, _Spawn(), claim["token"])
+    verdict = ("start_head" in answer, answer.get("start_head"), len(git.calls))
+    assert verdict == (True, None, ZERO)
+
+
+def _refusing_spawn(fault: BaseException) -> Any:
+    """A spawn seam that refuses with ``fault`` - AFTER the start head was read."""
+
+    def spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> _FakeProc:
+        del runner, prompt, cwd, log
+        raise fault
+
+    return spawn
+
+
+@pytest.mark.parametrize(
+    ("fault", "reason"),
+    [
+        pytest.param(
+            launcher.LaneLaunchError("spawn refused", reason=launcher.REASON_SPAWN_FAILED),
+            launcher.REASON_SPAWN_FAILED,
+            id="refused",
+        ),
+        pytest.param(ValueError("planted"), launcher.REASON_UNEXPECTED_FAULT, id="faulted"),
+    ],
+)
+def test_a_refused_launch_carries_the_start_head_it_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: BaseException, reason: str
+) -> None:
+    """CS-1341 r2 - a refusal AFTER the kit moved the tree hands the driver its start.
+
+    The kit has already moved the tree when the spawn refuses, so the driver's
+    early read names a commit the tree no longer holds. The refusal carries the
+    start head the launch read, on both refusal shapes: the launcher's own
+    word, and the unexpected fault it converts into one.
+    """
+    monkeypatch.setattr(launcher, "ensure_worktree", _kit_made_tree(tmp_path, []))
+    root, claim = _acquire(tmp_path)
+    with pytest.raises(launcher.LaneLaunchError) as caught:
+        _launch(tmp_path, _refusing_spawn(fault), claim["token"])
+    carried = getattr(caught.value, "start_head", "absent")
+    verdict = (caught.value.reason, carried, _held(root))
+    assert verdict == (reason, SHA, False)
+
+
+def test_a_launch_refused_before_its_read_carries_no_start_head(tmp_path: Path) -> None:
+    """A refusal BEFORE the read carries None - never a stale or invented head."""
+    bare = tmp_path / "not-a-checkout"
+    bare.mkdir()
+    root, claim = _acquire(tmp_path, worktree=bare)
+    with pytest.raises(launcher.LaneLaunchError) as caught:
+        _launch(tmp_path, _Spawn(), claim["token"])
+    carried = getattr(caught.value, "start_head", "absent")
+    verdict = (caught.value.reason, carried, _held(root))
+    assert verdict == (launcher.REASON_WORKTREE_MISSING, None, False)
 
 
 def test_a_spawn_that_fails_releases_the_lane(tmp_path: Path) -> None:

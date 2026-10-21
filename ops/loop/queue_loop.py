@@ -820,6 +820,11 @@ EXIT_USAGE_LIMIT = 11  # the account refused every run until the back-off gave u
 #: two different files at 3am.
 _UNREADABLE_HEAD = "the lane worktree HEAD could not be read - "
 
+#: CS-1341 - why a REFUSED launch that read no start head has no `pre`. The
+#: kit may already have moved the tree when the refusal came, so the early
+#: read is no stand-in for the commit the tree started the cycle at.
+_REFUSED_UNREAD = "the launch was refused and read no start head"
+
 #: CS-1274 - the wording for a cycle the cap placed OFF its lane's home index.
 #: The HEAD reads look in the home worktree, which that cycle never touched, so
 #: their before and after say nothing about it - recorded as unreadable, never
@@ -2339,6 +2344,8 @@ def remote_head_sha(ref: str = CI_REF) -> str | None:
             text=True,
             timeout=GH_TIMEOUT_S,
             check=False,
+            # CS-1341 - `-C` alone cannot aim it past an inherited `GIT_DIR`.
+            env=_git_env(),
             creationflags=_NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError):
@@ -2348,6 +2355,33 @@ def remote_head_sha(ref: str = CI_REF) -> str | None:
     first = (proc.stdout or "").strip().split("\n", 1)[0]
     parts = first.split()
     return parts[0] if parts else None
+
+
+def _git_env(environ=None) -> dict:
+    """The environment a git child of the driver gets: this one, with no `GIT_*` name.
+
+    CS-1341. A git started with `GIT_DIR` in its environment acts on THAT
+    repository whatever `-C` says, and a pre-push hook exports it. The
+    launcher's start-head read already strips every `GIT_*` name
+    (`lane_launcher._git_free_env`); a driver read that did not could ask another
+    repository, and a start read in one and an after read in another compare
+    two unrelated HEADs. The SAME filter, so both reads ask one repository.
+
+    WRITTEN TWICE, because this module binds the launcher only when it
+    launches and `local_head_sha` must never raise; `tests/test_queue_loop.py`
+    feeds both copies one planted mapping and requires one answer.
+
+    Only names are tested; no value is rendered (CLAUDE.md
+    non-negotiable 13).
+
+    Args:
+        environ: The mapping to filter, or None for this process's own.
+
+    Returns:
+        A copy of it without any `GIT_*` variable.
+    """
+    source = os.environ if environ is None else environ
+    return {name: value for name, value in source.items() if not name.upper().startswith("GIT_")}
 
 
 def local_head_sha(cwd) -> str | None:
@@ -2384,6 +2418,8 @@ def local_head_sha(cwd) -> str | None:
             text=True,
             timeout=GH_TIMEOUT_S,
             check=False,
+            # CS-1341 - the launcher's start read gets the same; see `_git_env`.
+            env=_git_env(),
             creationflags=_NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError):
@@ -3361,6 +3397,19 @@ def _claim_tree(claim) -> str | None:
     return tree if type(tree) is str and tree.strip() else None
 
 
+def _launch_start(source) -> str | None:
+    """CS-1341 - the start head a launch read, when it is honestly a string, else None.
+
+    `source` is the launch's run dict, or the refusal it raised, which carries
+    the same value as an attribute.
+    """
+    if isinstance(source, dict):
+        head = source.get("start_head")
+    else:
+        head = getattr(source, "start_head", None)
+    return head if type(head) is str and head.strip() else None
+
+
 class LaneProgress:
     """One fire's item-12 progress file, carrying its item-13 checklist. NEVER RAISES.
 
@@ -3492,6 +3541,12 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     any other refusal `launch_failed` - never `completed`. A runner that exited
     inside the launcher's grace - where EVERY kit refusal lands - is asked the
     same questions off the log the launcher hands back on that refusal.
+
+    CS-1341. The row carries `start_head`: the lane tree's HEAD as the launch
+    read it, after the kit made or moved the tree and before the spawn, or
+    None - off the run on a launch, off the refusal on a refused one - and
+    `launch_refused`, true when the launch was refused or returned no pid.
+    `run_loop` pops both and builds `commit.pre` from them.
     """
     # Resolved INSIDE the guard rather than through a conditional expression, so
     # the module object is never typed as "maybe None" - a shape that reads as a
@@ -3529,6 +3584,12 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     # CS-1274 - ON EVERY ROW too: the lane index the claim took, or None for a
     # cycle that claimed nothing.
     lane_index: int | None = None
+    # CS-1341 - ON EVERY ROW as well: the start head the launch read, or None
+    # for a cycle that launched nothing or a launch that could not read one.
+    start_head: str | None = None
+    # CS-1341 - and whether the launch was REFUSED, which decides what a
+    # missing start head means - see `run_loop`.
+    launch_refused = False
 
     def _record(outcome, ok, pid, ended_at, detail="") -> dict:
         return {
@@ -3552,6 +3613,9 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # CS-1274. Which kit lane index this cycle held - so a cycle placed
             # off its lane's home is visible in the ledger, not only inferred.
             "lane_index": lane_index,
+            # CS-1341. Consumed by `run_loop`, which pops it into `commit.pre`.
+            "start_head": start_head,
+            "launch_refused": launch_refused,
             # CS-1104. Taken when the row is built, on EVERY outcome, so a
             # refused or failed cycle still says what was waiting in the channel.
             #
@@ -3637,6 +3701,10 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         except Exception as exc:
             if not _is_launch_error(exc):
                 raise
+            # CS-1341 - THE REFUSAL CARRIES THE START HEAD THE LAUNCH READ. The
+            # kit may have moved the tree before the refusal came.
+            start_head = _launch_start(exc)
+            launch_refused = True
             # launch_lane has ALREADY released the lane on this path; the
             # finally below releases again, which is deliberate - release_lane
             # is idempotent, and an unconditional release is the only shape that
@@ -3655,9 +3723,14 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     getattr(exc, "log", None), ending_of, result_of, outcome, detail
                 )
         else:
+            # CS-1341 - through a validator, as the fields copied off the claim
+            # are, and BEFORE the pid check so a launch that returned no pid
+            # still carries it.
+            start_head = _launch_start(run)
             pid = run.get("pid")
             if not pid:
                 outcome, detail = OUTCOME_LAUNCH_FAILED, "launch returned no pid"
+                launch_refused = True
             else:
                 detail = str(run.get("log") or "")
                 # Identity, captured ONCE and only here. A pid alone does not
@@ -3901,6 +3974,10 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # produced a commit is a question about the worker, not about the
         # CI gate, and a night run with the gate off still has to be
         # stopped when it is accomplishing nothing.
+        #
+        # CS-1341 - AND NOW ONLY THE FALLBACK. The launch reads the tree after
+        # the kit has made or moved it, and that read, when the launch hands
+        # one back, wins below the cycle.
         with _phase("lane_head_pre", cycle):
             pre_tree, pre_why = _lane_head(tree_sha, lane, worktree)
         # BEFORE THE CYCLE, AND THE ORDER IS THE MECHANISM. A cycle that closes
@@ -3991,6 +4068,23 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # ---- THE DRIVER-OWNED WAITS, before the append so ONE row carries
         # ---- the cycle and its acceptance together.
         note = ""
+        # CS-1341 - THE LAUNCH'S OWN START WINS. The kit makes a missing lane
+        # tree, and moves a present one to its base, INSIDE the launch - so the
+        # early read above can see no tree at all, or a commit this worker
+        # never starts from. `launch_lane` reads the tree between the kit and
+        # the spawn.
+        # POPPED, both keys, so the row keeps its shape: the value lives on as
+        # `commit.pre`. A REFUSED launch that read nothing has no start - the
+        # kit may have moved the tree before the refusal - so it is unreadable,
+        # never the early read. A cycle that claimed nothing, a running launch
+        # that read nothing, a cycle that raised and a launch seam that
+        # predates the key leave the early read standing.
+        start_head = record.pop("start_head", None)
+        launch_refused = bool(record.pop("launch_refused", False))
+        if start_head:
+            pre_tree, pre_why = start_head, ""
+        elif launch_refused:
+            pre_tree, pre_why = None, _REFUSED_UNREAD
         with _phase("lane_head_post", cycle):
             post_tree, post_why = _lane_head(tree_sha, lane, worktree)
         # DID THIS CYCLE PRODUCE A COMMIT - the question the progress

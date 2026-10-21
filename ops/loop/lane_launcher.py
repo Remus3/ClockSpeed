@@ -71,6 +71,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -394,7 +395,12 @@ class LaneLaunchError(RuntimeError):
     """
 
     def __init__(
-        self, message: str, *, reason: str = REASON_UNSPECIFIED, waited_s: float | None = None
+        self,
+        message: str,
+        *,
+        reason: str = REASON_UNSPECIFIED,
+        waited_s: float | None = None,
+        start_head: str | None = None,
     ) -> None:
         """Record the message, the refusal's reason, and the liveness wait it consumed.
 
@@ -409,10 +415,16 @@ class LaneLaunchError(RuntimeError):
                 consumed, or None when the refusal came before any wait. It is
                 what separates a runner that died INSIDE the grace from one
                 killed AFTER it, which a cycle's total duration cannot.
+            start_head: CS-1341 - the tree's HEAD ``launch_lane`` read before
+                it was refused, or None when the refusal came before the read
+                or the read got nothing. ``launch_lane`` sets it on the way
+                out, so the driver's commit question still has the commit
+                this tree held once the kit had made or moved it.
         """
         super().__init__(message)
         self.reason = reason
         self.waited_s = waited_s
+        self.start_head = start_head
         # CS-1231 slice C - the runner log ``launch_lane`` had chosen, set by its
         # handler on the way out; None until then, and when it had chosen none.
         self.log: str | None = None
@@ -484,6 +496,24 @@ def _same_path(one: Any, other: Any) -> bool:
     return bool(lanes._key(one) == lanes._key(other))  # noqa: SLF001 - one owner, one spelling
 
 
+def _git_free_env(environ: Mapping[str, str]) -> dict[str, str]:
+    """``environ`` without any ``GIT_*`` name, the case of the name ignored.
+
+    The filter every git child of this module gets - see ``_git``. CS-1341 -
+    ``queue_loop._git_env`` is its twin for the driver's own reads, and
+    ``tests/test_queue_loop.py`` feeds both one planted mapping and requires
+    one answer. Only names are tested; no value is rendered (CLAUDE.md
+    non-negotiable 13).
+
+    Args:
+        environ: The environment to filter.
+
+    Returns:
+        A copy of it with no ``GIT_*`` variable.
+    """
+    return {name: value for name, value in environ.items() if not name.upper().startswith("GIT_")}
+
+
 def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any:
     """Run one git command and hand back the completed process.
 
@@ -496,7 +526,11 @@ def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any
     started from inside a hook inherits ``GIT_DIR`` and ``GIT_INDEX_FILE``, and
     every ``-C`` below would then act on the repository the HOOK was running in.
     Only names are filtered; no value is read or rendered (CLAUDE.md
-    non-negotiable 13).
+    non-negotiable 13). CS-1341 - ``queue_loop._git_env`` applies the SAME
+    filter to the driver's own HEAD reads, so the start head read here and
+    the HEAD the driver reads after the cycle name one repository; tests in
+    ``tests/test_queue_loop.py`` hold the two to one environment and the two
+    filters to one answer.
 
     Args:
         args: The arguments after ``git``.
@@ -511,7 +545,7 @@ def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any
         # A lane that cannot find git cannot make its worktree, and a worktree
         # is mandatory. Refusing loudly beats spawning into the wrong tree.
         raise LaneLaunchError("git could not be resolved from PATH", reason=REASON_GIT_NOT_FOUND)
-    env = {name: value for name, value in os.environ.items() if not name.upper().startswith("GIT_")}
+    env = _git_free_env(os.environ)
     return subprocess.run(
         [exe, *args],
         # tracked file is forbidden by CLAUDE.md non-negotiable 3
@@ -677,6 +711,42 @@ def ensure_worktree(lane: str, *, token: Any, root: Any = None) -> Path:
     # git runs in or against it.
     _refuse_main_tree(claimed, REPO_ROOT if root is None else Path(root), lane)
     return prepare_worktree(claimed, index, root=root)
+
+
+def _start_head(worktree: Any) -> str | None:
+    """The commit the worker STARTS from: the tree's own ``HEAD``, read after the kit.
+
+    CS-1341. The kit makes a missing lane tree, and moves a present one to
+    ``LANE_BASE``, inside ``ensure_worktree`` - so a read taken before the
+    launch, where the driver used to take its only one, sees no tree at all or
+    the commit the kit is about to move away from. Read here, between the kit
+    and the spawn, it is the commit this cycle's worker begins at.
+
+    The tree's ``HEAD`` and never ``origin/main``: the remote says where work
+    landed, not where this worker began. ``rev-parse`` mutates nothing - no
+    fetch, no index lock. A tree with no ``.git`` of its own is not asked,
+    because git searches upward and would answer for a checkout that
+    contains it.
+
+    None on every failure and NEVER a raise. The read is evidence for the
+    driver, not a gate on the launch, and the driver falls back to its own
+    early read when this is None.
+
+    Args:
+        worktree: The tree ``ensure_worktree`` returned.
+
+    Returns:
+        The tree's HEAD, or None.
+    """
+    try:
+        if not (Path(worktree) / ".git").exists():
+            return None
+        proc = _git(["-C", str(worktree), "rev-parse", "HEAD"])
+    except Exception:  # see the docstring - a failed read is a None, never a refusal
+        return None
+    if proc.returncode != 0:
+        return None
+    return (proc.stdout or "").strip() or None
 
 
 def _log_path(lane: str, run_id: Any, log_dir: Any = None) -> Path:
@@ -907,8 +977,10 @@ def launch_lane(
             test may reach it.
 
     Returns:
-        The lane, the run id, the worker pid, the worktree, the log, the prompt
-        and the wall-clock start time. The liveness wait a SURVIVING worker
+        The lane, the run id, the worker pid, the worktree, the log, the
+        prompt, the start head (CS-1341 - the tree's HEAD after the kit and
+        before the spawn, None when it could not be read) and the wall-clock
+        start time. The liveness wait a SURVIVING worker
         consumed is not among them: this key set is pinned by
         ``tests/test_lane_launcher.py``, and the wait is carried only on a
         refusal, where it is what tells an early exit from a post-grace kill.
@@ -930,12 +1002,19 @@ def launch_lane(
     # below kills it before the lane is released.
     pid: Any = None
     tracked = False
+    # CS-1341 - BOUND BEFORE THE TRY too, so a refusal after the read hands
+    # the driver what the read got, and one before it hands back None.
+    start_head: str | None = None
     try:
         prompt = command_path(lane, root=root)
         worktree = ensure_worktree(lane, token=token, root=root)
         # AGAIN after the worktree step: the two checks happen at different
         # moments, and a path can be handed in between.
         _refuse_main_tree(worktree, repo, lane)
+        # CS-1341 - AFTER the kit has made or moved the tree, BEFORE the worker
+        # can commit in it: the one place the read names the commit this
+        # worker starts from. See `_start_head`.
+        start_head = _start_head(worktree)
         log = _log_path(lane, run_id, log_dir=log_dir)
         proc = starter(RUNNER, prompt, worktree, log)
         pid = getattr(proc, "pid", None)
@@ -962,6 +1041,7 @@ def launch_lane(
         # the runner's last lines name the kit's code, and the driver reads them
         # off this path - its own literal, never this exception's message.
         exc.log = None if log is None else str(log)
+        exc.start_head = start_head
         raise
     except Exception as exc:  # ANY fault at all must free the lane, not only ours
         # BEFORE the release: a worker no lock names must not outlive the lane
@@ -974,7 +1054,9 @@ def launch_lane(
         # still carries the full detail into the traceback for a reader who is
         # entitled to it (CLAUDE.md non-negotiable 12).
         message = f"launch failed: {type(exc).__name__}"
-        raise LaneLaunchError(message, reason=REASON_UNEXPECTED_FAULT) from exc
+        raise LaneLaunchError(
+            message, reason=REASON_UNEXPECTED_FAULT, start_head=start_head
+        ) from exc
     except BaseException:
         # CS-1274 r2 - AN INTERRUPT IS NOT AN ``Exception``. KeyboardInterrupt
         # or SystemExit between the spawn and the re-point used to skip both
@@ -992,5 +1074,6 @@ def launch_lane(
         "worktree": str(worktree),
         "log": str(log),
         "prompt": str(prompt),
+        "start_head": start_head,
         "started_at": time.time(),
     }

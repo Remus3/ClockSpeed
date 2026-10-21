@@ -924,6 +924,10 @@ child, so killing only the wrapper orphans a live worker inside the lane worktre
 | 5 | The same fault repeated until the loop gave up | Read the last rows; whatever broke cycle 3 will break cycle 4 |
 | 6 | A gating CI job went red on a pushed sha | Fix the red before firing again |
 | 7 | The driver's own local suite went red | Same |
+| 8 | Consecutive cycles whose launch failed - the lane was claimed, then the launch refused or returned no pid - reached the launch-failure limit | Read the last rows' `launch_reason` and `detail`. A claim, worktree or command-doc reason is this tree's to fix; `spawn_failed` and `runner_exited_early` mean the start itself refused - a missing or refused headless route or proxy is one such cause, outside this tree - so read the runner's log first |
+| 9 | Either consecutive cycles that did not both complete and advance the lane HEAD reached the no-progress limit (`no_progress`), whatever earlier cycles shipped; or no cycle both completed and advanced the lane HEAD and the night ended on `max_cycles`, or on a stop sentinel once at least one cycle had run (a sentinel there before any cycle is exit 2) | Read each row's commit: commit=no -> the worker log; commit=unreadable -> the git state |
+| 10 | A stop word in no table - never read as success | A driver defect. The console ALERT line names the word; add it to `_STOP_EXIT` or to `_SUCCESS_STOPS` |
+| 11 | The account said no - a usage limit or a spent run budget. Either a one-cycle run's first such refusal, with no back-off; or consecutive such refusals reaching their limit, backing off between them, whatever earlier cycles shipped; or a night that ran no cycle and was refused at least once - by the usage limit or a spent run budget - whatever then stopped it | Wait it out; it is the account saying no, not a fault in this tree. The `usage_refused` and `budget_spent` rows say which |
 
 ### 10.7 Checks that no machine performs
 
