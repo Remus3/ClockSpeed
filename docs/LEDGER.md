@@ -75,6 +75,55 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1043 - CLOSED: the schematic catalog and the milestone and phase models ship, every acceptance clause graded met by an independent closure verifier
+Verification: `clockspeed/data/schematics.py` plus
+`tests/data/test_schematics.py::test_parsed_plus_flagged_equals_total`;
+`clockspeed/progress/milestones.py` plus
+`tests/progress/test_milestones.py::test_a_required_rate_is_cost_over_the_named_budget`,
+`tests/progress/test_milestones.py::test_a_required_rate_follows_the_budget_when_it_moves` and
+`tests/progress/test_milestones.py::test_no_float_reaches_a_rate_or_the_module`;
+`clockspeed/progress/phases.py` plus
+`tests/progress/test_phases.py::test_a_phase_cost_renders_machine_miner_and_resource_as_distinct_keys`,
+`tests/progress/test_phases.py::test_a_figure_never_holds_an_empty_mapping_a_zero_or_both_halves`,
+`tests/progress/test_phases.py::test_a_phase_with_no_cost_entry_is_null` and
+`tests/progress/test_phases.py::test_the_shipped_source_publishes_every_phase_null_as_unmeasured`.
+MERGED: `clockspeed/data/schematics.py`, `clockspeed/progress/milestones.py`,
+`clockspeed/progress/phases.py`, `tests/data/test_schematics.py`, `tests/progress/__init__.py`,
+`tests/progress/test_milestones.py` and `tests/progress/test_phases.py`, the seven code and
+test paths the LANDED record below counts. This record changes no code.
+SUPERSEDES NOTHING NEW. The queue lane's CLOSED record below, headed "pillar 4's package stops
+being empty", was already superseded by the record below headed "the queue lane's CS-1043
+closure is SUPERSEDED by adjudication". This record closes this tree's version, the one the
+LANDED record below recorded and that replaced the lane's at the same paths.
+THE CLAUSES, named by behaviour since the `### Acceptance` numbers none, as a distinct closure
+verifier graded them on the tree at this session's CS-1339 close (agent-reported). A SYNTHETIC
+SCHEMATIC DOCUMENT AND A SYNTHETIC UNLOCK STATE: MET - the milestone arm module builds both,
+through `tests/progress/test_milestones.py::schematic_document` and
+`tests/progress/test_milestones.py::unlock_state`. EACH REQUIRED RATE THE EXACT FRACTION COST
+OVER A NAMED `Fraction` BUDGET, REDDENING WHEN THE BUDGET MOVES, WITH NO FLOAT: MET - the three
+milestone tests above, over `clockspeed/progress/milestones.py::COMPLETION_BUDGET_MINUTES`.
+EXACTLY THE KEYS `machine`, `miner` AND `resource`, EACH AN EXACT FRACTION MAPPING OR None WITH A
+NAMED REASON, NEVER EMPTY OR ZERO: MET - the first two phase tests above. A PHASE WITH NO COST
+ENTRY NULL RATHER THAN ZERO: MET - the third. THE PHASE-COST SOURCE RULING: MET - the fourth.
+NO FLOAT, non-negotiable 6: MET, checked by an AST scan; the shipped scan over both progress
+modules is `tests/solve/test_phase3_gate.py::test_no_exact_progress_module_contains_inexact_arithmetic`.
+UNKNOWN CONTENT FLAGGED AND SKIPPED, non-negotiable 7: MET - the schematics test above. SEAM,
+FIXTURES AND RECORDS: clean. The verifier also ran 7 in-memory mutation probes, all caught, and
+268 target tests, passed with exit 0 (agent-reported).
+HANDED ON: the `mGamePhaseCosts` measurement is CS-1340's, which stays OPEN.
+NOT DELIVERED BY CS-1043, AND NOT AN ACCEPTANCE CLAUSE: three instructions in the item's filing
+note have zero hits in `clockspeed/progress/` - a `SchematicSource` protocol, the join on the
+resolved content asset path of an `mPurchasedSchematics` reference, which
+`clockspeed/save/world.py::UnlockState` publishes as `purchased_schematics`, and the
+`delivered_available` flag. No open item owned
+them; CS-1046's filing names a concrete `SchematicSource` among what it publishes, not the
+protocol. They are filed as CS-1343, OPEN under Phase 5, its owner for all three.
+DECISION: CLOSE, every clause met. RELOCATED: the section moved word for word from
+`docs/item_notes/phase5.md` to `docs/history_notes.md`, under a relocation heading distinct
+from the one the lane's closure left there, and its `ROADMAP.md` line is dropped. Reversed
+by: a required rate that is not the exact Fraction cost over the named budget, or a phase
+figure that is empty or zero, which the progress suite passes - new work under a new ID.
+
 ### 2026-10-21 - CS-1339 - CLOSED: each of the progress layer's three cost guard checks is pinned by a test that a first-entry-only read fails
 Verification: `tests/progress/test_milestones.py::test_a_non_positive_amount_on_a_later_cost_line_is_flagged_and_published_null`,
 `tests/progress/test_phases.py::test_a_non_positive_phase_cost_on_either_line_is_null_never_an_error`

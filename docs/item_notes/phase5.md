@@ -141,78 +141,6 @@ a new arm module under `tests/audit/` builds a synthetic world of two machines j
 
 nothing can say which belt feeds which machine or which connections share a power circuit: CS-1041's line named both and its acceptance graded neither, and `clockspeed/audit/network.py` therefore hardcodes `belt_topology_available` and `circuit_topology_available` False, which CS-1045 then had to derive its own edge availability from - so two closed items both declare the same absence and no item owns it
 
-## CS-1043
-
-### Filed 2026-09-13
-
-**REPAIRED 2026-09-14 (session 95).** The acceptance now NAMES the constant into
-existence: it reads "reddens when the budget moves - which REQUIRES that budget to be a
-NAMED `Fraction` constant in the new module, because a literal at the site makes this
-clause unreddenable". The trap below is what the repair closes; it is kept because the
-reasoning is what stops the next filing from repeating it.
-
-**THE HOLE IS AT THE BOTTOM.** `clockspeed/data/registry.py` excludes `FGSchematic` from the
-modelled groups and `clockspeed/progress/` holds a docstring and a seam comment and no code
-at all, so the project cannot name one milestone, its cost, its tier, or a space-elevator
-phase cost. That is the whole of the milestone-requirements panel.
-
-**WRITE-LIST:** NEW `milestones` and `phases` modules under `clockspeed/progress/`,
-and a NEW `tests/progress/` package - its `__init__` plus one arm module for each of the
-two modules above. **DEPENDS ON:** CS-1039 for `UnlockState`, including the HUB
-tier from `mTradingPostLevel` and the phase from `mCurrentGamePhase`. **TIER 2, NO GAME
-NEEDED** - a hand-authored synthetic schematic document; the rule suite must run with no
-install.
-
-**IT DOES NOT EDIT `clockspeed/data/registry.py`.** That module already rules that
-`FGSchematic` belongs to the progression layer. This item FOLLOWS that ruling rather than
-re-opening it, and consumes the shipped Document through a `SchematicSource` protocol
-declared here and parameterised at the wiring site - the `WorldProvider` idiom.
-
-**THE SCHEMATIC-TO-REGISTRY JOIN IS THE RESOLVED CONTENT ASSET PATH** of an
-`mPurchasedSchematics` reference. That is the measured join key. **Do not invent a
-name-matching heuristic beside it.**
-
-**ELEVATOR ITEMS ALREADY DELIVERED ARE BLOCKED ON THE KEYSTONE.** They sit inside the space
-elevator's input inventory and need CS-1038's container stacks. Until that lands the phase
-model publishes `delivered_available` false and shows REQUIRED only. A phase with no cost
-entry is null and never zero.
-
-**NO FLOAT REACHES A RATE.** The two-hour completion budget is held as a `Fraction`, and the
-every-machine-at-full-clock assumption is named ON THE MODEL rather than in a comment.
-
-### ADJUDICATED - recorded 2026-10-21 (session 150) by the landing merger
-
-**A3 IS AMENDED ON THE ADJUDICATOR ROUTE.** The phase-cost clause read "renders machine,
-miner and resource as distinct keys". The adjudicated clause under `### Acceptance` below
-requires exactly the keys `machine`, `miner` and `resource`, each an exact Fraction mapping
-or None with a named reason, never empty or zero. The amendment is recorded in
-`docs/LEDGER.md` under CS-1043.
-
-**PHASE COSTS COME FROM THE SAVE, AND THE SAVE'S FIELD IS UNMEASURED, SO THEY PUBLISH
-NULL.** `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` found
-`mGamePhaseCosts` in a mature world and absent outright in a low-progress one, and
-whether its figures are a phase's total or its remainder is unmeasured. So the costs
-arrive through `clockspeed/progress/phases.py::PhaseCostSource`, the shipped source is
-unmeasured, and every phase publishes null under a named reason. The measurement is
-split off as CS-1340.
-
-**THE HUB TIER PUBLISHES UNAVAILABLE, NEVER 0, BECAUSE 0 IS A REAL TIER.**
-`clockspeed/progress/milestones.py::hub_tier` publishes the save model's unread level as
-None under a named reason, never a defaulted zero.
-
-**THE SCHEMATIC MODEL LANDED IN THE DATA LAYER**, as
-`clockspeed/data/schematics.py`, a sibling of `clockspeed/data/registry.py` and not an
-edit to it, and `clockspeed/progress/` consumes the catalog it builds rather than the
-document.
-
-### Acceptance
-
-a new arm module under `tests/progress/` builds a synthetic schematic document and a synthetic unlock state, asserts each required rate is the exact Fraction cost over budget with no float anywhere, and reddens when the budget moves - which REQUIRES that budget to be a NAMED `Fraction` constant in the new module, because a literal at the site makes this clause unreddenable and that is the CS-1039 vacuity shape by name, and a second new arm module there asserts a phase cost renders exactly the keys `machine`, `miner` and `resource`, each an exact Fraction mapping or None with a named reason, never empty or zero, and that a phase with no cost entry is null rather than zero
-
-### Full headline
-
-`clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all, so the project cannot name one milestone, its cost, its tier or a space elevator phase cost, which is the whole of the milestone requirements panel
-
 ## CS-1048
 
 ### Filed 2026-09-13
@@ -551,3 +479,39 @@ counts only in every record (non-negotiable 12).
 ### Acceptance
 
 whether each `PhaseCost` entry's `cost` in `mGamePhaseCosts` is the phase's total or its remainder is measured read-only on a work copy of the pinned development world and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; `mGamePhaseCosts` is named in `clockspeed/save/world.py::UNLOCK_CARRIERS_UNREAD` for as long as the reader does not publish it; `clockspeed/save/world.py` is then wired to publish it, with a synthetic arm under `tests/save/` asserting each decoded cost amount is an exact Fraction and that a world without the array publishes no table rather than an empty or zero one; and a `PhaseCostSource` built from it under the measured meaning replaces the unmeasured shipped source in `clockspeed/progress/phases.py`, so `phase_costs_available` reads True on a world that carries the array
+
+## CS-1343
+
+### Filed 2026-10-21 (session 150), split out of CS-1043 by its closure verifier
+
+**THREE FILING INSTRUCTIONS THAT NO CLAUSE GRADED, AND THAT THE PROGRESS LAYER DOES NOT CARRY.** CS-1043 closed
+with every acceptance clause met. Its closure verifier reported three instructions in the
+item's filing note that its acceptance does not grade and that `clockspeed/progress/` does
+not carry: its sources hold zero hits for `SchematicSource`, for `purchased_schematics` and
+for `delivered_available`. No open item owned them. The clause below quotes each from that
+note, which now sits in `docs/history_notes.md` with the rest of CS-1043's section.
+
+**WHAT THE LANDED CODE DOES INSTEAD.**
+`clockspeed/progress/milestones.py::milestone_requirement` takes a
+`clockspeed/data/schematics.py::SchematicCatalog` as an argument and reads the unlock state
+for the HUB tier alone. `clockspeed/progress/phases.py` publishes no delivery flag, and its
+docstring says every figure is the REQUIRED quantity and never the outstanding one.
+
+**TWO FACTS A BUILDER SETTLES BEFORE BUILDING, NOT AFTER.** The first instruction names the
+shipped Document as what the protocol carries, but CS-1043's adjudicated landing put the
+schematic model in the data layer, with `clockspeed/progress/` consuming the catalog it
+builds rather than the document. The third names CS-1038's container stacks as the blocker
+on delivered items, and CS-1038 is recorded CLOSED in `docs/LEDGER.md`, while
+`clockspeed/progress/__init__.py` names the world model, the normalized registry and
+`clockspeed.solve` as the layers below it, and not `clockspeed.audit`. A builder who reads
+either fact as changing a clause routes it to an adjudicator; the clause quotes the filing
+as written.
+
+**CS-1046 NAMES A CONCRETE `SchematicSource`** among what its filing says it publishes.
+
+**TIER 2, NO GAME NEEDED**, on CS-1043's own terms: a hand-authored synthetic schematic
+document, and the rule suite must run with no install.
+
+### Acceptance
+
+each of three instructions from CS-1043's filing note is met as written in `clockspeed/progress/`, each graded by an arm under `tests/progress/` on a hand-authored synthetic schematic document: "consumes the shipped Document through a `SchematicSource` protocol declared here and parameterised at the wiring site - the `WorldProvider` idiom"; "THE SCHEMATIC-TO-REGISTRY JOIN IS THE RESOLVED CONTENT ASSET PATH of an `mPurchasedSchematics` reference. That is the measured join key. Do not invent a name-matching heuristic beside it."; and "ELEVATOR ITEMS ALREADY DELIVERED ARE BLOCKED ON THE KEYSTONE. They sit inside the space elevator's input inventory and need CS-1038's container stacks. Until that lands the phase model publishes `delivered_available` false and shows REQUIRED only."

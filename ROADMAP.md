@@ -266,7 +266,6 @@ CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on N
 
 ## Phase 5 - advisor and audit
 
-CS-1043 - `clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1058 - nothing can say which belt feeds which machine or which connections share a power circuit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1048 - node purity is structurally absent from every save and the in-game map is rendered live rather than shipped - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1061 - the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -287,6 +286,7 @@ CS-1251 - a save-settle grace period: parse only the newest save whose size and 
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1340 - measure the save's `mGamePhaseCosts` (total or remainder), record it in ADR 0016, wire `clockspeed/save/world.py` and add `mGamePhaseCosts` to `UNLOCK_CARRIERS_UNREAD` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1343 - three CS-1043 filing instructions the progress layer does not carry: a `SchematicSource` protocol, the asset-path join, `delivered_available` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
