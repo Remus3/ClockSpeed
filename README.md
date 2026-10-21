@@ -2,7 +2,7 @@
 
 ![Clockspeed - a deterministic production planner and advisor for Satisfactory](docs/assets/social-preview.png)
 
-[![tier1](https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml/badge.svg)](https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml)
+[![tier1](https://github.com/Remus3/ClockSpeed/actions/workflows/tier1.yml/badge.svg)](https://github.com/Remus3/ClockSpeed/actions/workflows/tier1.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 

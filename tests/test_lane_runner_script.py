@@ -1094,7 +1094,7 @@ def test_the_kits_own_timeout_ends_the_run_with_one_usage_line(tmp_path: Path) -
     exactly one usage line records the timeout, and the status file is not left
     ``running`` - what a tree killed from outside, the driver's way, never
     writes. The runner's ceiling sits below the driver's kill (the static arm
-    above), so this is the timeout path of every timed-out cycle.
+    above), so this is the timeout path of every timed-out cycle but the orphan-pipe case.
     """
     argv, stdin, _lines = _recorded_run(tmp_path)
     at = argv.index("--timeout") if "--timeout" in argv else -1

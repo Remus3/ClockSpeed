@@ -580,8 +580,9 @@ driver's timeout into the runner, or map the kit's exit 4 to timeout_killed; a b
 the usage-limit wait path (after K5); the case-variant JSON keys PowerShell 5.1 reads; `CLAUDE.md`
 wording that cites the landing commit, never a kit version; at landing, the merger rewrites this
 section's lines that say slice C is open and clause (c) stands; the timeout test's docstring, which
-overclaims. Until it lands, `ops/loop/run_lane.ps1` starts `claude` directly and `CLAUDE.md`
-precedence clause (c) is accurate. CS-1283 no longer rides with this slice: it closed in session 145
+overclaims. Slice C has since LANDED and `CLAUDE.md` precedence clause (c) is retired (the session
+150 record below): `ops/loop/run_lane.ps1` starts its worker through the kit's `spawn`. CS-1283 no
+longer rides with this slice: it closed in session 145
 on its keep-own-sink ruling. Next action: unpark on a MAIN kit answering K1 and K5, or a ruling
 that they are won't-fix; fix L1 to L6; land only after a distinct adversary reads NOT REFUTED on
 the combined tip.
@@ -593,6 +594,12 @@ as timeout; pass `--timeout` above the driver's timer, or drop that timer. L2: a
 refusal is exit 3, JSON code "budget-spent" - back off until `cap_frees_at` in
 `inbox_status.json`. Next: fix L1 to L6, land on a distinct adversary's NOT REFUTED.
 Reversed by a kit exit 0 or no error for a killed run, or a refusal not exit 3 budget-spent.
+
+### Recorded 2026-10-21 by the session 150 landing merge, ruling L5
+
+Slice C LANDED at eeec6967c2fdbc64aa19a51fe4ba6cdaf75f7419; clause (c) retired. L1 is met by a
+recorded third option (driver kill as backstop), not MAIN's arms - `docs/LEDGER.md`, the CS-1231
+L1 DEVIATION record; the orphan-pipe defect went to MAIN as a FIX.
 
 ## CS-1234
 
@@ -848,28 +855,6 @@ ORDER)", which changed the heading alone: a distinct read-only adjudicator ruled
 Next action: (c) at S3 and (d) between S8 and S10 inside the block; (b) as an uncommitted
 measurement in the window; (e), the ledger record and the ONE ANSWER after S12a; (g) is
 CS-1335 to CS-1338 (SESSION 150 above).
-
-## CS-1333
-
-### Acceptance
-
-`README.md` carries a `git clone` command for the public repository's GitHub address, in a fenced
-block of its own, so `tools/flip_checks.py::command_lines`, which reads only python-only blocks,
-still finds the README's commands. `tests/test_readme_audit.py::README_LINE_BUDGET` and
-`tests/test_readme_audit.py::QUICKSTART_LINE_BUDGET` still hold, or a raise of either is ruled on
-the adjudicator route and recorded in `docs/LEDGER.md`. A `tools/flip_checks.py` run at the landing
-commit reads check 5 PASS with failed 0 and skips 0, and that run is recorded in `docs/LEDGER.md`
-under this ID.
-
-### Filed 2026-10-21 by the session 150 CS-700 close, promoted from a BACKLOG line
-
-Promoted from the session 126 residuals' line in `BACKLOG.md` ("`README.md` carries no clone
-command - TRIGGER: the CS-700 flip; add it then, with the public address."). Its trigger fired: the
-flip made the remote public, and the CS-700 closing adjudicator ruled the clone command a
-follow-up, not a condition of the close (`docs/LEDGER.md`, 2026-10-21, CS-700). The `BACKLOG.md`
-line "From CS-1325, a residual" names the two README budgets the command presses on, and the
-session 131 residual lines whose trigger is the R1 clone-command edit fire when it lands. CS-1334
-walks the clone after this item lands.
 
 ## CS-1334
 

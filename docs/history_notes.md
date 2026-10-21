@@ -24,6 +24,34 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1333 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1333
+
+### Acceptance
+
+`README.md` carries a `git clone` command for the public repository's GitHub address, in a fenced
+block of its own, so `tools/flip_checks.py::command_lines`, which reads only python-only blocks,
+still finds the README's commands. `tests/test_readme_audit.py::README_LINE_BUDGET` and
+`tests/test_readme_audit.py::QUICKSTART_LINE_BUDGET` still hold, or a raise of either is ruled on
+the adjudicator route and recorded in `docs/LEDGER.md`. A `tools/flip_checks.py` run at the landing
+commit reads check 5 PASS with failed 0 and skips 0, and that run is recorded in `docs/LEDGER.md`
+under this ID.
+
+### Filed 2026-10-21 by the session 150 CS-700 close, promoted from a BACKLOG line
+
+Promoted from the session 126 residuals' line in `BACKLOG.md` ("`README.md` carries no clone
+command - TRIGGER: the CS-700 flip; add it then, with the public address."). Its trigger fired: the
+flip made the remote public, and the CS-700 closing adjudicator ruled the clone command a
+follow-up, not a condition of the close (`docs/LEDGER.md`, 2026-10-21, CS-700). The `BACKLOG.md`
+line "From CS-1325, a residual" names the two README budgets the command presses on, and the
+session 131 residual lines whose trigger is the R1 clone-command edit fire when it lands. CS-1334
+walks the clone after this item lands.
+
+
 ## CS-1307 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

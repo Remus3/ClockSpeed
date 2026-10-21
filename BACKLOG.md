@@ -477,15 +477,16 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 
 - README says verify_env's `config/ports.json` row prints the dashboard's port and calls
   `<port>` "that `allocations` entry"; the row prints only base and band, and the port table
-  names the dashboard (walk 2, R2) - TRIGGER: the R1 clone-command edit after the CS-700 flip,
-  or `README.md` or `scripts/verify_env.py` next touched.
+  names the dashboard (walk 2, R2) - TRIGGER FIRED in session 150: the R1 clone-command edit after the CS-700 flip landed as CS-1333
+  (`docs/LEDGER.md`, 2026-10-21, CS-1333); OWED: this fix, or its move to `ROADMAP.md` once next.
 - README's openssl hint "`git --exec-path` prints a path that starts with it" is ambiguous: Git
   prints `<Git install>/ucrt64/libexec/git-core`, two leading folders qualify, and only the
-  outer one has `usr\bin` (walk 2, R3) - TRIGGER: the R1 edit after the flip, or `README.md` next
-  touched.
+  outer one has `usr\bin` (walk 2, R3) - TRIGGER FIRED in session 150: the R1 clone-command edit after the CS-700 flip landed as CS-1333
+  (`docs/LEDGER.md`, 2026-10-21, CS-1333); OWED: this fix, or its move to `ROADMAP.md` once next.
 - `docs/OPERATIONS.md` section 1 has no venv or pip step, so a reader arriving from
   `.github/CONTRIBUTING.md` runs the bootstrap under the base interpreter and verify_env fails
-  loudly (walk 2, O1) - TRIGGER: the R1 edit after the flip, or either file next touched.
+  loudly (walk 2, O1) - TRIGGER FIRED in session 150: the R1 clone-command edit after the CS-700 flip landed as CS-1333
+  (`docs/LEDGER.md`, 2026-10-21, CS-1333); OWED: this fix, or its move to `ROADMAP.md` once next.
 - No walk has exercised a real browser's certificate warning, Python at the requires-python
   floor, or Windows 11; all four used `curl.exe -k`, the newest Python and Windows 10 build
   19041 - TRIGGER: the post-flip public-clone walk.
@@ -706,7 +707,10 @@ record are in `docs/LEDGER.md`, 2026-10-13. Neither blocks a product item or red
   budget; the deferred clone command (CS-1333) will
   push both over, and its `git clone` line must sit in its own fenced block or
   `tools/flip_checks.py::command_lines` (check 5 reads python-only blocks) finds 0 commands again -
-  TRIGGER: CS-1333 is worked.
+  TRIGGER FIRED in session 150: CS-1333 landed inside both budgets, README 220 of 220 lines and
+  Quickstart 10 of 10, by relocation, with its clone line in a fenced block of its own, so check 5
+  reads 4 commands (`docs/LEDGER.md`, 2026-10-21, CS-1333); nothing is owed - the next README
+  addition presses both budgets again.
 - From the CS-1315 slice A review (g2): `clockspeed/surface/providers.py::InstalledRegistryProvider`
   rebuilds the registry and re-hashes the whole multi-megabyte docs file (the pin's docs_bytes owns
   its size) on every request, and `clockspeed/data/registry.py::build_registry_from_bytes` keeps the
@@ -879,3 +883,12 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   its section moved to `docs/history_notes.md` (its record: `docs/LEDGER.md`, 2026-09-25,
   CS-813); repoint it there; trigger: the next adjudicated grant that touches
   `.githooks/commit-msg`.
+- From the CS-1231 slice C landing (the CS-1231 L1 DEVIATION record in `docs/LEDGER.md`,
+  2026-10-21): a tree-side Windows job object, started by `ops/loop/run_lane.ps1`, that kills the
+  worker's orphaned descendants when the driver's backstop kill fires - today an orphan holding
+  the CLI's output pipe survives the backstop; trigger: MAIN declines the kit FIX, or a real lane
+  log shows an orphan.
+- Repo-casing residual (the CS-1333 landing): `CITATION.cff`, `tools/measurement_record.py`'s
+  `REPOSITORY_URL` (which `tests/test_measurement_record.py` binds to `CITATION.cff`) and the
+  origin remote still spell the repository in the old casing, which the forge redirects; trigger:
+  the forge stops redirecting the old casing, or the next measurement-record change.

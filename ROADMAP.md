@@ -363,7 +363,6 @@ CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the ki
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then its ONE ANSWER after S12a - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1333 - `README.md` carries no clone command for the public repository - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1335 - write the milestone tag policy: hand-cut annotated 0.x tags with hand-written notes - acceptance: in detail - tier: 0 - detail: `docs/item_notes.md`
 CS-1336 - move commit subjects to Conventional Commits after auditing every site that matches one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

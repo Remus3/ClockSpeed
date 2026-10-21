@@ -75,6 +75,162 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1333 - CLOSED: `README.md` carries the public repository's clone command in a fenced block of its own, and check 5 reads PASS at the landing commit
+Verification: `tests/test_readme_audit.py::test_the_readme_carries_the_public_clone_command`,
+`::test_the_readme_clone_address_is_the_origin_remotes_public_form`,
+`::test_the_public_form_reads_every_github_remote_spelling`,
+`::test_the_flip_readme_walk_finds_the_quickstart_commands`,
+`::test_readme_is_under_the_line_budget` and `::test_quickstart_is_short_and_links_the_install_doc`;
+`tools/flip_checks.py::command_lines`.
+CLAUSE 1 MET (a `git clone` of the public repository's GitHub address, in a fenced block of its
+own, with `tools/flip_checks.py::command_lines` still finding the README's commands): the README's
+"Get the code" section, before the Quickstart, holds the anonymous clone in the casing the forge
+reports and the `cd` into it, in a fence of its own; `command_lines` over the README finds the 4
+Quickstart commands.
+CLAUSE 2 MET (both budgets hold, no raise): `README_LINE_BUDGET` 220 and `QUICKSTART_LINE_BUDGET`
+10 are unchanged, and the README reads 220 lines and its Quickstart 10, held by relocation - the
+Status section's Next detail moved to `docs/ARCHITECTURE.md` section 4 behind a one-line pointer.
+No raise was ruled, so none is recorded. `tests/test_readme_audit.py` read 222 passed at the commit
+the run below graded.
+CLAUSE 3 MET (check 5 at the landing commit, recorded under this ID): `python -B
+tools/flip_checks.py 030540dc5e880fdef2a94a6318d26f346b95c5c7 --stage s8 --trailer-baseline-ref
+refs/preserve/heads/main --trailer-baseline-count 18`, exit 0. That commit is the main commit
+above the CS-1333 change (bc365929ccae7a2176b2dbaceb337aa225993c43); between the two only
+comments in two `ops/loop/` files differ. Check 5: commands 4, failed 0, skips 0, control FOUND,
+PASS. The other eight automated checks each read skips 0, control FOUND, PASS. Final line:
+"flip_checks: automated verdict PASS - 0 of 9 automated checks failed; policy-excluded 1; human
+halves NOT-RUN-HERE 2; this run does not clear CS-G03 (ADR 0025)". Output sha256
+7f09ae7750d3733194824a6f91fd03f869441a3e29a0b15d8ab4c045b3c93815.
+DECISION: CLOSE, every clause met. RELOCATED: the section moved word for word from
+`docs/item_notes/phase7.md` to `docs/history_notes.md`, and its `ROADMAP.md` line is dropped.
+TRIGGERS FIRED: the three session 131 residual lines in `BACKLOG.md` whose trigger is the R1 edit
+are marked fired and owed, and the "From CS-1325, a residual" line is marked fired with nothing
+owed. The README's tier1 badge and `.github/ISSUE_TEMPLATE/config.yml` now spell the repository
+in the casing the clone line uses; `CITATION.cff` keeps the old casing, because
+`tests/test_measurement_record.py::test_the_pinned_repository_is_the_one_the_citation_file_names`
+binds it to `tools/measurement_record.py::REPOSITORY_URL` - a `BACKLOG.md` residual. Reversed by: a check 5 run at a later main commit reading failed or skipped
+above 0, which is new work under a new ID. NEXT: CS-1334 walks the public clone.
+
+### 2026-10-21 - CS-1234 - NOT A COMPLETION RECORD. CS-1234 STAYS OPEN: clause 4's lane side MET by CS-1231 slice C, with the orphan residual; a verifier grades the close after the push
+Verification: `tests/test_lane_runner_script.py::test_a_lane_start_is_counted_in_the_kits_budget_with_a_kinded_usage_line`
+and `::test_the_kits_own_timeout_ends_the_run_with_one_usage_line`; `ops/loop/run_lane.ps1`, its
+kit `spawn` command line with `--kind build`.
+CLAUSE 4, LANE SIDE (at most 120 headless runs start per rolling 24 hours, counted under a lock;
+the `### Acceptance` in `docs/item_notes/phase7.md` numbers no clauses, and this is its fourth
+requirement): MET. The queue lane's runner starts its worker only through the kit's `spawn`, so
+one lane start is one start counted in the kit's rolling 24-hour budget - the one the inbox
+responder's starts count against - plus one usage line with kind build and the lane log's name as
+its note. The first arm feeds the runner's real command line to the real kit and reads exactly one
+counted start, exactly one usage line with kind build, and the kit's `RUNS_CAP` equal to 120; the
+second reads one start and one usage line on a run the kit's own timeout ends.
+RESIDUAL, THE ORPHAN CASE: when an orphaned descendant of the CLI holds its output pipe, the kit
+blocks past its own timeout, the driver's backstop kill fires, and that run's start is counted with
+no usage line - the CS-1231 L1 DEVIATION record below; the kit defect went to MAIN as a FIX.
+NOT CLOSED HERE: the responder side is the 2026-10-20 CS-1234 record; a verifier grades the
+item's close after this push.
+
+### 2026-10-21 - CS-1231 - NOT A COMPLETION RECORD. CS-1231 STAYS OPEN: slice C LANDED on main - the queue lane starts its worker through the kit's spawn, and `CLAUDE.md` precedence clause (c) is retired
+Verification: `ops/loop/run_lane.ps1`; `ops/loop/queue_loop.py::RUNNER_KIT_TIMEOUT_S`,
+`::KIT_WRAP_MARGIN_S`, `::kit_timeout_first` and `::_ending_outcome`; `ops/loop/lane_launcher.py`;
+the arms named below; `docs/item_notes/phase7.md`, CS-1231.
+LANDED: the slice's five commits, cherry-picked onto main in order, each read back with its
+source's file list and stable patch-id, the fifth 0ea153411cfd3a1570abdba55ffa7e9a5ccf68f9
+("CS-1231 slice C and CS-1234 - true timer note, two mutants killed"). One comment-only commit
+follows, 030540dc5e880fdef2a94a6318d26f346b95c5c7, qualifying the `main` comment in
+`ops/loop/queue_loop.py` and the `--timeout` note in `ops/loop/run_lane.ps1` for the orphan case.
+THE LIVENESS FIX AND ITS CAUSE: the first landing gate found
+`tests/test_liveness.py::test_every_grader_the_population_filter_excludes_is_counted_and_returns_a_value`
+red, because K1's gate list had missed that whole-tree guard. It was a helper-name shadowing: the
+guard re-reads a value-returning grader by its name, and `tests/ops/test_usage_limit_refusal.py`
+already held an older `launch` helper, so the guard read the wrong function. The slice's scripted
+helper is renamed `launch_scripted` and the guard is untouched; that fix, picked onto main as
+eeec6967c2fdbc64aa19a51fe4ba6cdaf75f7419, is the slice's tip.
+FILES: `ops/loop/run_lane.ps1`, `ops/loop/queue_loop.py`, `ops/loop/lane_launcher.py`, `CLAUDE.md`
+(precedence clause (c)) and `docs/OPERATIONS.md`; tests `tests/test_lane_runner_script.py`,
+`tests/test_queue_loop.py`, `tests/ops/test_usage_limit_refusal.py`,
+`tests/ops/test_headless_spawn_paths.py`, `tests/ops/test_headless_route.py` and
+`tests/ops/test_lane_background_tasks.py`.
+L1 (a timeout is a timeout): kit exit 4, or a kit line whose exact-case error is timeout, is
+recorded `timeout_killed` -
+`tests/ops/test_usage_limit_refusal.py::test_l1_a_kit_timeout_ending_is_recorded_timeout_killed_not_completed`,
+`tests/test_lane_runner_script.py::test_a_kit_exit_four_alone_is_a_timeout` and
+`::test_a_kit_timeout_writes_the_timeout_line_then_the_kits_timeout_code`. The kit's `--timeout`
+sits `KIT_WRAP_MARGIN_S` below the driver's kill and `main` refuses a deadline the kit cannot beat -
+`tests/test_queue_loop.py::test_cs1231c_the_cli_refuses_a_deadline_the_kits_ceiling_would_not_beat`
+and `::test_cs1231c_the_kits_timeout_fires_first_and_the_driver_never_kills`. L1 is met by a
+recorded third option, not either arm of MAIN's ruling: the CS-1231 L1 DEVIATION record below.
+L2 (a budget refusal waits): budget-spent is not a cycle and backs off until `cap_frees_at` in the
+kit's status file -
+`tests/ops/test_usage_limit_refusal.py::test_l2_a_post_grace_budget_refusal_is_not_a_cycle_and_backs_off_until_the_cap_frees`,
+`::test_l2_the_budget_back_off_reads_cap_frees_at_and_clamps` and
+`::test_r1_early_exit_budget_refusals_never_end_the_night_as_launch_failures`.
+L3 (exact-case JSON keys) -
+`tests/test_lane_runner_script.py::test_a_case_variant_kit_line_is_not_taken_as_the_kits`,
+`::test_a_refusal_with_a_case_variant_code_key_is_written_as_unknown` and
+`::test_control_a_kit_line_with_duplicate_case_keys_is_never_parsed`.
+L4 (`CLAUDE.md` names the slice, never a kit version) -
+`tests/ops/test_headless_spawn_paths.py::test_clause_c_names_the_slice_that_retired_it_and_no_kit_version`.
+L5: the CS-1231 section of `docs/item_notes/phase7.md` records the landing, in this commit.
+L6 (the runner tests' docstrings claim only what they assert): rewritten in the slice, and read
+NOT REFUTED by the final adversary.
+THE HALTED CODE, A PRE-REPAIR RESIDUAL, RESOLVED: in the wording before the R1 repair a kit
+refusal coded halted read as launch_failed; `::_ending_outcome` now maps it to `kit_halted`, a
+clean stop - `tests/ops/test_usage_limit_refusal.py::test_r1_an_early_exit_kit_halt_stops_the_night_cleanly`
+and `::test_r1_a_fast_kit_ending_through_the_real_launcher_and_runner`, and the final adversary's
+mutant that maps halted back to launch_failed was killed.
+CS-1234 CLAUSE 4, LANE SIDE: one lane start gives one counted kit start plus one usage line, kind
+build, except in the orphan case - the CS-1234 record above.
+ADVERSARY HISTORY (session 150, agent-reported): REFUTED twice. The first refutation's R1 to R3
+were repaired in "CS-1231 slice C and CS-1234 - repair R1 to R3 of the refutation"; the second's
+two surviving mutants and the timer note's overclaim in the tip commit. A distinct adversary then
+read the combined tip NOT REFUTED on everything except the missing L1 DEVIATION record, which this
+commit adds. MUTANTS, read from that adversary's mutation log: 20 of 20 applied, killed and
+restored, each by a named arm.
+RESIDUALS: the kit-side findings K2 to K4 of the session 145 REVIEW note (K1 and K5 were ruled
+won't-fix by MAIN's 13:16 RULING); the orphan case, the next record. FIXED IN THIS COMMIT, not
+carried: the docstring of
+`tests/test_lane_runner_script.py::test_the_kits_own_timeout_ends_the_run_with_one_usage_line`
+called its path "the timeout path of every timed-out cycle"; it now excepts the orphan-pipe case.
+
+### 2026-10-21 - CS-1231 - NOT A COMPLETION RECORD. CS-1231 STAYS OPEN: the slice C L1 DEVIATION, adjudicated in session 150
+Verification: `ops/loop/queue_loop.py::RUNNER_KIT_TIMEOUT_S`, `::KIT_WRAP_MARGIN_S` and
+`::kit_timeout_first`;
+`tests/test_queue_loop.py::test_cs1231c_the_kits_timeout_fires_first_and_the_driver_never_kills`;
+`tests/test_lane_runner_script.py::test_the_kit_timeout_the_runner_passes_sits_below_the_drivers_kill`.
+CS-1231 slice C L1 DEVIATION (session 150 adjudication). Kit --timeout 14100 ends the run; the
+driver kill at +300 s stays as a backstop - a third option, neither arm of MAIN 13:16 item 4.
+Alternatives: drop the timer (unbounded behind an orphan pipe holder); kit timeout above the
+driver (no usage line on any timeout). Evidence: orphan_chain repro. Residual: the orphan case
+loses its usage line, leaves kit status running, and the orphan survives. Reversed by: a MAIN
+order naming an arm, or a kit returning within timeout plus grace under orphan_chain.
+The kit defect went to MAIN as a FIX note on 2026-10-21.
+
+### 2026-10-21 - CS-1328 - NOT A COMPLETION RECORD. CS-1328 STAYS OPEN for its other parts: addition (b), the tracked census axis, LANDED
+Verification: `tools/census_axis.py`; `tests/test_census_axis.py::test_every_cell_counts_exactly`,
+`::test_hits_never_abort_and_all_seven_controls_pass` and `::test_each_mutant_turns_its_arm_red`;
+the out-of-tree v3, by the sha256 the 2026-10-18 CS-1328 record pins.
+THE TRACKED CENSUS AXIS LANDED: `tools/census_axis.py`, `tests/test_census_axis.py`. Run beside v3
+on the same clone and tip: 255 of v3's 257 lines identical and in order, all 222 count lines among
+them; root_residual equals v3's. Residual: three adversary rounds; landed on the cost-against-risk
+stop (CLAUDE.md section 7) on mutation evidence and the pre-push suite, with no fourth adversary.
+LANDED as four commits cherry-picked onto main in order, each read back with its source's file
+list and stable patch-id; the tip is 0855d98517a961eb30d880e7cfec45d659d94eb7, the guard fix.
+THE GUARD FIX AND ITS CAUSE (a residual of the landing): the first landing attempt was STOPPED by
+`tests/test_pathless_clone_agreement.py`, 8 failed, because K5's gate list missed that whole-tree
+guard. Its population is derived from call sites, a chained raise whose raised slot calls a
+same-module function, so the axis's `raise _hist_refuse(...) from None` read as a sixth copy of
+the path-free clone helper, its body disagreeing and its docstring unpinned. The fix builds
+`UnmeasuredError` in the raise itself, with the same fixed phrase, in
+`tools/census_axis.py::_read_pattern_source`; the guard's pins are unchanged.
+RE-MEASURED BY THE LANDING MERGER at that tip: v3, its file's sha256 read equal to that pin, and
+the tracked axis, each run with `--repo` a fresh clone of main, `--tip` the guard fix and
+`--root` the checkout, each exit 0. v3 printed 257 lines and the tracked axis 260; 255 identical and in order; 222 count
+lines each, identical and in order; root_residual full.blobs repo_root occ 2769 in both; controls
+5 of 5 and 7 of 7. The lines that differ are the title, the tracked axis's derive-drives line, its
+two added controls (drive_coverage, sidecar_categories_live) and the result line's control count.
+Closure at that tip: commits 1876, trees 6259, blobs 5839, paths 608. The parity counts above
+read the same at 030540dc5e880fdef2a94a6318d26f346b95c5c7, before the fix.
+
 ### 2026-10-21 - CS-1307 - CLOSED: an independent quiet-machine re-measurement read the seven git-hook arms load-tolerant and the file 30 of 30 green
 Verification: `tests/test_hook_env_echo.py`, its seven git-hook arms as `ENV_ECHO_GIT_HOOK_ARMS`
 in `tests/test_claude_hook.py` names them;
