@@ -4,6 +4,13 @@
     "Point a lane at one for a single run with CLOCKSPEED_LANE_SCOPE_<LANE>=<name>;",
     "for the queue lane that is CLOCKSPEED_LANE_SCOPE_QUEUE=dashboard.",
     "",
+    "THE LANE NAME IS UPPER-CASED AND ITS HYPHEN KEPT, so queue-b reads",
+    "CLOCKSPEED_LANE_SCOPE_QUEUE-B. PowerShell sets that only in the braced form,",
+    "${env:CLOCKSPEED_LANE_SCOPE_QUEUE-B} = '<name>' - the bare $env: form does not",
+    "parse - and a POSIX shell cannot export it; env(1) can pass it to one child. Set",
+    "it in the shell that runs ops/loop/launch_queue_loop.ps1, for that process only,",
+    "never at user or machine scope: the driver and every worker inherit it from there.",
+    "",
     "A SCOPE THAT NAMES AN anchor_phase IS A PARTITION, NOT A LIST, AND THAT IS WHAT",
     "STOPS IT SHRINKING IN SILENCE. Every takeable row of the anchor phase must be",
     "either in items or in excluded with a written reason. Delete an id from items",
@@ -82,6 +89,34 @@
         "CS-1261": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned",
         "CS-1262": "filed by the 2026-10-04 inspiration ingest; unscoped until its directive slice is planned"
       }
+    },
+    "advisor-ranking": {
+      "description": "A PRODUCT subject for the queue lane, filed in session 150 under CLAUDE.md section 7's product-before-process rule: how cards and plans are ordered, and the stores and optimizer that ordering reads. WRITE AREA, judged from each row's acceptance and the code it names: clockspeed/advisor/advise.py and cards.py (CS-1244's badge, CS-1246's quick-win order, CS-1247's domain interleave), clockspeed/advisor/ledger.py (CS-1246's aging count, CS-1253's versioned stores), and clockspeed/solve/optimize.py with clockspeed/solve/backends/ (CS-1244's objective ladder, CS-1245's bounded enumeration). CS-1253 IS HERE, NOT WITH THE SAVE ROWS, because CS-1246 ages a card by an evaluation count the ledger does not store, so both rows edit ledger.py and one lane serialises them. AN ENUMERATION, NOT A PARTITION: anchoring '## Phase 5' would need every other lane's rows as exclusions. Graded per member by test_the_declared_scopes_all_validate_against_the_live_roadmap.",
+      "items": [
+        "CS-1244",
+        "CS-1245",
+        "CS-1246",
+        "CS-1247",
+        "CS-1253"
+      ],
+      "excluded": {}
+    },
+    "registry-audit": {
+      "description": "A PRODUCT subject for the queue-b lane, filed in session 150: registry integrity and audit totals. WRITE AREA: clockspeed/data/registry.py, docs_extract.py and version.py (CS-1241's build-aware variants and decisions table, CS-1242's extraction census against the pinned build) and clockspeed/audit/ (CS-1250's count-once invariant). CS-1250 IS HERE because CS-1242's docs-versus-save agreement can only sit where the registry and the world model meet, which is clockspeed/audit/, and both rows would then edit that package's export list. CS-1240 IS DELIBERATELY ABSENT: it re-keys every registry and save join, which spans data/, audit/, surface/ and the progress/ schematic join CS-1343 is building, and CS-1343's clause forbids a name-matching heuristic beside that join while CS-1240 adds one normalised fallback. An adjudicator rules whether the fallback reaches that join before CS-1240 joins any scope. AN ENUMERATION, NOT A PARTITION, graded per member.",
+      "items": [
+        "CS-1241",
+        "CS-1242",
+        "CS-1250"
+      ],
+      "excluded": {}
+    },
+    "ratio-settle": {
+      "description": "A PRODUCT subject for the queue-c lane, filed in session 150: the ratio solve's explicit cycle handling and the save reader's settle window. WRITE AREA: clockspeed/solve/ratio.py (CS-1249; optimize.py and backends/greedy.py absorb RatioError and consume ExclusionNote, so a flagged cycle shape reaches them without an edit to the advisor-ranking lane's files) and clockspeed/save/workdir.py with save/world.py and SaveWorldProvider in clockspeed/surface/providers.py (CS-1251's settle filter and autosave debounce). AN ENUMERATION, NOT A PARTITION, graded per member.",
+      "items": [
+        "CS-1249",
+        "CS-1251"
+      ],
+      "excluded": {}
     }
   }
 }
