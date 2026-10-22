@@ -29,6 +29,7 @@ docstring is one string constant and its contents are never identifiers.
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
@@ -99,6 +100,7 @@ from tests.solve.synthetic import (
     C5_POWER_MW,
     C5_STD_MACHINES,
     C5_TRINKET_TARGET,
+    C8_TWIN_PER_MACHINE,
     FLUID_RECIPE,
     GADGET_RECIPE,
     PLATE_RECIPE,
@@ -108,7 +110,10 @@ from tests.solve.synthetic import (
     SOLVE_ORE_ITEM,
     SOLVE_ROD_ITEM,
     SOLVE_TRINKET_ITEM,
+    SOLVE_TWIN_ITEM,
     STD_GADGET_RECIPE,
+    TWIN_A_RECIPE,
+    TWIN_B_RECIPE,
     registry_with,
     solve_registry,
 )
@@ -611,6 +616,65 @@ def test_ranking_nothing_publishes_nothing_rather_than_inventing_a_reference(
 
 
 # ---------------------------------------------------------------------------
+# Clause 2 - ties break on the documented stable key
+# ---------------------------------------------------------------------------
+#
+# The key's owner is ``clockspeed/solve/optimize.py::ranking_key``: the score
+# first, then the selection's registry positions. Every other ranking arm in
+# this file ranks plans whose scores differ, so the position half decides
+# nothing there and a sort on the score alone passes all of them. The C8 twins
+# tie on every objective by construction, which leaves the position half as the
+# only thing that can decide. Both input orders are fed because ``sorted`` is STABLE: a score-only
+# sort hands back the caller's order unchanged, so it passes on [A, B] and fails
+# only on [B, A]. An arm fed one order could not tell the key from the input.
+
+
+def _twin(built: Registry, recipe: str) -> ProductionPlan:
+    """Build one C8 twin's plan: one machine's output of Twin through that recipe alone.
+
+    Args:
+        built: The built registry.
+        recipe: ``TWIN_A_RECIPE`` or ``TWIN_B_RECIPE``.
+
+    Returns:
+        The plan.
+    """
+    return _plan(built, SOLVE_TWIN_ITEM, C8_TWIN_PER_MACHINE, (recipe,))
+
+
+@pytest.mark.parametrize("objective_name", OBJECTIVES)
+def test_equal_score_twins_rank_on_the_documented_stable_key_in_either_input_order(
+    registry: Registry, objective_name: str
+) -> None:
+    """R_TwinA ranks first whichever order the twins arrive in, under every objective.
+
+    The expected order is derived from registry order, not from the subject:
+    R_TwinA sits before R_TwinB in the corpus, so its position tuple is the
+    smaller one and ``optimize.ranking_key`` puts it first on a tied score.
+    """
+    objective = Objective(weights=MappingProxyType({objective_name: UNIT}))
+    twin_a = _twin(registry, TWIN_A_RECIPE)
+    twin_b = _twin(registry, TWIN_B_RECIPE)
+    positions = optimize.registry_positions(registry)
+
+    # The anti-vacuity controls: the score half really is a tie, so only the
+    # position half can decide, and registry order really does put A first.
+    tied = optimize.score_plan(registry, twin_a, objective)
+    assert optimize.score_plan(registry, twin_b, objective) == tied
+    assert positions[TWIN_A_RECIPE] < positions[TWIN_B_RECIPE]
+
+    for handed_in in ((twin_b, twin_a), (twin_a, twin_b)):
+        ranked = rank_plans(registry, handed_in, objective=objective)
+
+        assert ranked[0].plan is twin_a
+        assert ranked[1].plan is twin_b
+        assert [entry.key for entry in ranked] == [
+            optimize.ranking_key(tied, (TWIN_A_RECIPE,), positions),
+            optimize.ranking_key(tied, (TWIN_B_RECIPE,), positions),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # Re-scoring and never re-solving
 # ---------------------------------------------------------------------------
 
@@ -711,22 +775,180 @@ def test_the_power_rung_clears_normally_when_both_sides_are_priceable() -> None:
     assert power_check.reference == C3_POWER_MW
 
 
+def _grade_under_a_substituted_objective(
+    built: Registry, monkeypatch: pytest.MonkeyPatch, substitute: Objective
+) -> list[str]:
+    """Make every rung score by ``substitute``, then grade C5 against C3 on each.
+
+    :func:`~clockspeed.solve.strategy.check_strategy` refuses every rung that
+    could build a malformed objective, so no hand-assembled :class:`Strategy`
+    can put one inside :func:`~clockspeed.solve.strategy.check_threshold`'s
+    absorbing block. Substituting the rung's objective builder reaches it,
+    and the spy records that the substitute was really called -
+    a patch that never applied would leave every arm below grading nothing.
+
+    Args:
+        built: The built registry.
+        monkeypatch: The fixture the substitution is undone through.
+        substitute: The objective every rung scores by instead of its own.
+
+    Returns:
+        The rung names the substitute was built for, in call order. Reached
+        only when every rung and the badge raised; a rung absorbed into a
+        verdict instead fails the enclosing arm at its ``pytest.raises``.
+    """
+    built_for: list[str] = []
+
+    def _substituted(rung: Strategy) -> Objective:
+        built_for.append(rung.name)
+        return substitute
+
+    monkeypatch.setattr(strategy, "_single_objective", _substituted)
+    plan = _c5(built)
+    reference = _c3(built)
+    for rung in STRATEGY_LADDER:
+        with pytest.raises(ObjectiveUndefinedError):
+            check_threshold(built, plan, reference, rung)
+    with pytest.raises(ObjectiveUndefinedError):
+        badge_for(built, plan, reference)
+    return built_for
+
+
 def test_a_malformed_objective_is_not_absorbed_as_a_failed_threshold(
-    registry: Registry,
+    registry: Registry, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``ObjectiveUndefinedError`` propagates: a typo is not a threshold verdict."""
+    """``ObjectiveUndefinedError`` from inside check_threshold's own scoring propagates.
+
+    A typo is not a threshold verdict: absorbing it would publish "not cleared"
+    for a rung that was never evaluated. The control first grades the same
+    pair with the real builder, so the raise below is the substitute's doing.
+    """
+    control = check_threshold(registry, _c5(registry), _c3(registry), STRATEGY_LADDER[0])
+    assert control.cleared is False
+    assert control.reason == NOT_CLEARED_OVER_BOUND
     unmodeled = Objective(weights=MappingProxyType({"minimize-belts": UNIT}))
 
-    with pytest.raises(ObjectiveUndefinedError):
-        rank_plans(registry, _corpus(registry), objective=unmodeled)
+    built_for = _grade_under_a_substituted_objective(registry, monkeypatch, unmodeled)
+
+    # One per rung from the loop, then ONE from the badge: its first rung raises
+    # and no later rung is built.
+    assert built_for == [*(rung.name for rung in STRATEGY_LADDER), STRATEGY_LADDER[0].name]
 
 
-def test_an_objective_with_no_weights_at_all_propagates_too(registry: Registry) -> None:
+def test_an_objective_with_no_weights_at_all_propagates_too(
+    registry: Registry, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The other shape of the same refusal, on the same route."""
     empty = Objective(weights=MappingProxyType({}))
 
+    built_for = _grade_under_a_substituted_objective(registry, monkeypatch, empty)
+
+    assert built_for == [*(rung.name for rung in STRATEGY_LADDER), STRATEGY_LADDER[0].name]
+
+
+@pytest.mark.parametrize(
+    "weights",
+    [{"minimize-belts": UNIT}, {}],
+    ids=["unmodeled-name", "no-weights"],
+)
+def test_ranking_by_a_malformed_objective_refuses_before_any_threshold_is_graded(
+    registry: Registry, monkeypatch: pytest.MonkeyPatch, weights: dict[str, Fraction]
+) -> None:
+    """rank_plans scores every plan under the caller's objective before any badge.
+
+    So the refusal comes from that scoring, not from a rung: with
+    ``check_threshold`` replaced by a stand-in that refuses, the raise is still
+    ``ObjectiveUndefinedError`` and never the stand-in's.
+    """
+    monkeypatch.setattr(strategy, "check_threshold", _refuse)
+    malformed = Objective(weights=MappingProxyType(weights))
+
     with pytest.raises(ObjectiveUndefinedError):
-        rank_plans(registry, _corpus(registry), objective=empty)
+        rank_plans(registry, _corpus(registry), objective=malformed)
+
+
+# ---------------------------------------------------------------------------
+# What check_threshold lets through, as against what it absorbs
+# ---------------------------------------------------------------------------
+#
+# Exactly one refusal is absorbed as a flagged skip: PowerNotComparableError,
+# for a recipe the registry MODELS but cannot price. A recipe the registry does
+# not model at all is a different fault - a plan handed in beside a registry it
+# was not solved against - and reaches the caller as the KeyError the power
+# rung's registry lookup raises. The raw and buildings rungs never look a
+# recipe up, so they grade such a plan from its own fields.
+
+
+def _foreign_registry() -> Registry:
+    """The corpus with C1's rod recipe dropped, so the C1 plan names a recipe it lacks.
+
+    Returns:
+        The variant registry.
+    """
+    return registry_with(drop=frozenset({ROD_RECIPE}))
+
+
+def test_check_threshold_absorbs_the_unpriceable_and_lets_an_unknown_recipe_through(
+    registry: Registry,
+) -> None:
+    """On the one rung both faults reach: a flagged verdict for one, a KeyError for the other."""
+    power_rung = STRATEGY_LADDER[2]
+    assert power_rung.name == RUNG_WITHIN_POWER
+
+    # Absorbed: modelled, but produced in no building, so it has no exact draw.
+    priced_apart = registry_with(add=[_no_building_entry()])
+    unpriceable = _plan(priced_apart, SOLVE_ROD_ITEM, NO_BUILDING_TARGET, (NO_BUILDING_RECIPE,))
+    flagged = check_threshold(priced_apart, unpriceable, _c1(priced_apart), power_rung)
+    assert flagged.cleared is False
+    assert flagged.reason == NOT_CLEARED_UNPRICEABLE
+    assert flagged.score is None
+
+    # Let through: not modelled at all, on either side of the comparison.
+    foreign = _foreign_registry()
+    assert ROD_RECIPE not in foreign.recipes
+    named = _c1(registry)
+    assert ROD_RECIPE in {step.recipe_key for step in named.steps}
+    with pytest.raises(KeyError, match=re.escape(ROD_RECIPE)):
+        check_threshold(foreign, named, _c5(foreign), power_rung)
+    with pytest.raises(KeyError, match=re.escape(ROD_RECIPE)):
+        check_threshold(foreign, _c5(foreign), named, power_rung)
+
+
+def test_the_raw_and_buildings_rungs_grade_a_foreign_plan_from_its_own_fields(
+    registry: Registry,
+) -> None:
+    """Neither rung looks a recipe up, so an unmodelled one changes nothing there."""
+    foreign = _foreign_registry()
+    named = _c1(registry)
+    raw_rung, buildings_rung, _power_rung = STRATEGY_LADDER
+
+    raw = check_threshold(foreign, named, named, raw_rung)
+    buildings = check_threshold(foreign, named, named, buildings_rung)
+
+    assert (raw.score, raw.reference, raw.cleared) == (C1_ORE_DEMAND, C1_ORE_DEMAND, True)
+    assert (buildings.score, buildings.reference, buildings.cleared) == (
+        C1_MACHINES,
+        C1_MACHINES,
+        True,
+    )
+
+
+def test_a_badge_and_a_ranking_refuse_a_plan_naming_a_recipe_the_registry_lacks(
+    registry: Registry,
+) -> None:
+    """The KeyError reaches the caller of each, and under a raw-only ranking too.
+
+    A raw objective never prices power, so the ranking's KeyError there can
+    only come from the position half of the key, which looks every step up
+    whatever the objective.
+    """
+    foreign = _foreign_registry()
+    named = _c1(registry)
+
+    with pytest.raises(KeyError, match=re.escape(ROD_RECIPE)):
+        badge_for(foreign, named, _c5(foreign))
+    with pytest.raises(KeyError, match=re.escape(ROD_RECIPE)):
+        rank_plans(foreign, (named, _c5(foreign)), objective=weighted_objective(raw=UNIT))
 
 
 # ---------------------------------------------------------------------------

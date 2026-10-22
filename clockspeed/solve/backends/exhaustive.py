@@ -22,9 +22,13 @@ WHY THE TIE-BREAK IS NOT DEFINED HERE
 ---------------------------------------
 It is ``optimize.ranking_key``, owned by the layer whose determinism claim
 already describes it and argued at length in that module's docstring: one
-documented stable key, consumed by both backends and by the strategy ladder
-above them. This file re-exports it, so ``exhaustive.ranking_key`` still
-resolves and the name stays in this module's ``__all__``.
+documented stable key, consumed by this backend - through
+``optimize.result_ranking_key`` - and by the strategy ladder. The greedy backend
+does NOT consume it: what greedy scores is a relaxed probe plan with no
+canonical selection to read positions from, and ``greedy.py`` states that
+asymmetry at its own comparison. This file re-exports the key, so
+``exhaustive.ranking_key`` still resolves and the name stays in this module's
+``__all__``.
 
 What stays here is what the ENUMERATION contributes. Ties are ordinary rather
 than exotic - the C8 fixture's two twin recipes are byte-for-byte equivalent in

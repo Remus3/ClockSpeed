@@ -127,8 +127,17 @@ That is the ONLY refusal absorbed, on exactly the rule ``relax.py`` states.
 :class:`~clockspeed.solve.optimize.ObjectiveUndefinedError` PROPAGATES, because
 it does not say the threshold failed - it says the question was malformed, and
 absorbing it would publish "not cleared" for a rung that was never evaluated.
-So does every other refusal, including a ``ValueError`` from a plan naming a
-recipe this registry does not model.
+So does every other exception, including the ``KeyError`` raised for a plan
+naming a recipe this registry does not model. That is not unknown content to
+flag: the registry has no entry for the recipe at all, so the fault is a
+mismatch between the plan and the registry it was handed with, and recording
+it as "power-not-comparable" would misreport that mismatch as a pricing gap.
+Among the rungs, the KeyError comes only from the power rung, the one rung
+whose arithmetic looks a recipe up in the registry; the raw and buildings rungs
+read only the plan's own rates and machine counts and grade such a plan
+normally. :func:`badge_for` reaches it through its power rung, and
+:func:`rank_plans` reaches it whatever the objective, because the position half
+of its key looks up every step even where the scoring looked none up.
 
 WHY rank_plans RE-SCORES AND NEVER RE-SOLVES
 ----------------------------------------------
@@ -458,9 +467,15 @@ def check_threshold(
     Raises:
         StrategyUndefinedError: The rung states no evaluable threshold.
         ObjectiveUndefinedError: Propagates from
-            :func:`~clockspeed.solve.optimize.score_plan`. A malformed objective
-            is not a failed threshold.
-        ValueError: A plan names a recipe this registry does not model.
+            :func:`~clockspeed.solve.optimize.score_plan`, never absorbed - a
+            malformed objective is not a failed threshold. Every rung that
+            passes :func:`check_strategy` builds a well-formed objective, so
+            this is the guard behind that check rather than a path such a rung
+            reaches.
+        KeyError: The rung scores by power and pricing either plan reaches a
+            step naming a recipe this registry does not model. Propagates,
+            never absorbed; a raw or buildings rung looks no recipe up and
+            grades such a plan normally.
     """
     check_strategy(strategy)
     objective = _single_objective(strategy)
@@ -510,6 +525,8 @@ def badge_for(registry: Registry, plan: ProductionPlan, reference: ProductionPla
         StrategyUndefinedError: Some rung states no evaluable threshold.
         ObjectiveUndefinedError: Propagates, as :func:`check_threshold`
             documents.
+        KeyError: The power rung's pricing reaches a recipe this registry does
+            not model, as :func:`check_threshold` documents.
     """
     checks = tuple(
         check_threshold(registry, plan, reference, strategy) for strategy in STRATEGY_LADDER
@@ -587,6 +604,11 @@ def rank_plans(
             recipe has no exact draw. NOT absorbed here: the caller asked for a
             RANKING by power and there is no order to publish. The per-rung
             absorption in :func:`check_threshold` is a different question.
+        KeyError: Some plan names a recipe this registry does not model.
+            Whatever the objective, unless a refusal above is reached first:
+            an objective whose scoring looks no recipe up is still followed by
+            the position half of the key, which looks every step up in
+            :func:`~clockspeed.solve.optimize.registry_positions`.
     """
     if not plans:
         return ()
