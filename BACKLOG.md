@@ -922,11 +922,11 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   usage line's `slot` is never the lane's own id - it falls back to the governor slot's name or
   to null - and `ops/fleet_kit/fleet_headless.py` documents null as a valid `slot`; trigger: MAIN
   names a slot convention, or the kit makes `slot` required.
-- From MAIN's 2026-10-21-1508 RULING (CS-1342): once kit v21 is adopted, remove the CS-1331
-  helper fix and the `tests/conftest.py` extra_ignore of the board's `state.json` and
-  `status.json`; the CS-1342 read-back ("halt_file change: commit, responder no longer
-  halted") rides in the v21 adoption ANSWER, no separate note; trigger: kit v21 adopted, after
-  2026-10-26.
+- From MAIN's 2026-10-21-1508 RULING, whose CS-1342 part is CLOSED (`docs/LEDGER.md`,
+  2026-10-21, CS-1342): once kit v21 is adopted, remove the CS-1331 helper fix and the
+  `tests/conftest.py` extra_ignore of the board's `state.json` and `status.json`, and carry the
+  landed CS-1342 read-back ("halt_file change: commit, responder no longer halted") in the v21
+  adoption ANSWER, no separate note; trigger: kit v21 adopted, after 2026-10-26.
 - From the session 150 lane scopes (`docs/LEDGER.md`, 2026-10-21, the SESSION 150 LANE SCOPES
   record): the queue-b and queue-c lanes are not wired - `ops/loop/lane_launcher.py::LANE_COMMANDS`
   names queue alone - so the `registry-audit` and `ratio-settle` scopes in
@@ -977,3 +977,17 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
 - From the same read, O16: the CLAUDE.md precedence paragraph's clause (b) does not parse as a
   sentence; reword it to say FLEET item 13 now carries the checklist section 2.3.1 applies;
   trigger: the next edit to that paragraph.
+- From the CS-1342 close (`docs/LEDGER.md`, 2026-10-21, CS-1342): `ops/stop_sentinels.json`
+  still declares INBOX_STOP tree-wide, so a standing INBOX_STOP stops the lane spawns as well as
+  the inbox responder - the mirror of the QUEUE_STOP case MAIN's 1508 RULING moved onto the lane
+  halt_file, and not ordered; trigger: MAIN orders it, or the next edit to
+  `ops/stop_sentinels.json`.
+- From the same close: a mutant deleting the `os.path.lexists(halt)` re-check in
+  `ops/loop/queue_loop.py::kit_spawn` survives the suite; it matters only in the rare race where
+  QUEUE_STOP is removed between the kit's own halt check and that re-check; trigger: the next
+  edit to `kit_spawn`, or a lane night recorded as `queue_stopped` with no QUEUE_STOP standing.
+- From the CS-1336 close (`docs/LEDGER.md`, 2026-10-21, CS-1336): the Conventional subject rule
+  and the hand-written merge, revert and cherry-pick subject rules in `.github/CONTRIBUTING.md`
+  section 4 are documented, not enforced - `.githooks/commit-msg` (frozen) never reads a type,
+  and a bare `git revert` or `git cherry-pick` commits without running it; trigger: a subject
+  that is not Conventional, or a merge commit, lands on main after the cutover.

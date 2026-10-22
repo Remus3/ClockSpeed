@@ -964,6 +964,30 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " the same path. Not a record defect.",
         ("01a1a316b6b5:d30d8587fc41:0", "9385fc3dffbb:40df11247188:0"),
     ),
+    # --- the record was RIGHT when written; CS-1342 RENAMED the test. QUEUE_STOP
+    # left the tree-wide declaration, so the declaration holds two stops, not
+    # three; the CS-1330 record cited the old name live, in both spellings.
+    (
+        LEDGER,
+        "tests/test_fleet_kit.py"
+        "::test_stop_sentinel_declaration_holds_the_three_stops_and_the_main_spawn_hold",
+    ): Disposition(
+        RENAMED,
+        "tests/test_fleet_kit.py"
+        "::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold",
+        "CS-1330 cited it live; CS-1342 moved QUEUE_STOP out and renamed it. Not a record defect.",
+        ("bb6c962df2e7:6d0439dd89af:0",),
+    ),
+    (
+        LEDGER,
+        "test_stop_sentinel_declaration_holds_the_three_stops_and_the_main_spawn_hold",
+    ): Disposition(
+        RENAMED,
+        "tests/test_fleet_kit.py"
+        "::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold",
+        "CS-1330 cited it live; CS-1342 moved QUEUE_STOP out and renamed it. Not a record defect.",
+        ("bb6c962df2e7:845235b12002:0",),
+    ),
 }
 
 
@@ -1312,7 +1336,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: record and one in the newer record that supersedes that closure and cites the
 #: same arm again, so a notch comes back only if BOTH records are retired to the
 #: deep archive.
-FORGIVEN_LINE_POINTER_CEILING: Final = 70
+#:
+#: RAISED TO 72 BY THE CS-1342 LANDING, FOR A RENAME. The CS-1330 record cites
+#: the stop-sentinel declaration arm in both spellings, path and bare name, as
+#: holding three stops; CS-1342 moved QUEUE_STOP out of the declaration and the
+#: arm was renamed for the two it now holds. Right-when-written and dead now, in
+#: an append-only carrier, with a live target - the two rows in DISPOSITIONS
+#: are RENAMED and checked in all three directions every run.
+FORGIVEN_LINE_POINTER_CEILING: Final = 72
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

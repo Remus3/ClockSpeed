@@ -24,6 +24,40 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1336 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1336
+
+### Acceptance
+
+Before any subject rule changes, an audit lists every site in the tree that matches, parses,
+asserts on or prescribes a commit subject - hooks, tools, tests, workflows, `ops/` scripts and
+the docs that tell an agent how to write one - each by its symbol, marked frozen
+(CLAUDE.md section 6) or vendored (`ops/fleet_kit/`, FLEET item 11), and the audit is
+recorded in `docs/LEDGER.md` under this ID. Then commit subjects follow Conventional Commits
+(`type(scope): summary`, the item ID allowed as the scope), merge subjects carry no agent
+worktree name, every audited site agrees with that, and the convention is written in one
+owner file. A frozen file is edited only after an adjudicator's grant under CLAUDE.md
+section 6 is recorded in `docs/LEDGER.md`; a vendored kit file is never edited here, and a
+change it needs goes to MAIN as a kit report.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1b of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+Two frozen files sit in the audit's population: `.githooks/commit-msg` checks the subject
+itself (its length limit and its bare-placeholder ban), and `tools/precommit_gate.py` is the
+frozen commit gate; whether the gate reads a subject is the audit's to state. So an edit to
+either routes through the CLAUDE.md section 6 grant before it is made.
+
+
 ## CS-1337 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

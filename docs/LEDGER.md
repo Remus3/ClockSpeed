@@ -75,6 +75,79 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1336 - CLOSED: commit subjects follow Conventional Commits from the cutover on, no merge since it, every audited site agrees, and `.github/CONTRIBUTING.md` section 4 owns the convention
+Verification: `.github/CONTRIBUTING.md` section 4 Commits; the CS-1336 audit record below; re-run
+at main's tip after the CS-1342 landing, the cutover being the commit
+`docs(CS-1336): adopt Conventional Commits, route picks through the hook`:
+`git log --format=%s <cutover>..HEAD` lists 8 subjects, 0 of them failing
+`^(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([^)]+\))?: .+` and 0 over 72
+characters; `git rev-list --merges --count <cutover>..HEAD` reads 0, so 0 merge subjects name an
+agent worktree. This record's own commit is the ninth, in the same form.
+THE ACCEPTANCE, CLAUSE BY CLAUSE, quoted from its section in `docs/item_notes/phase7.md`:
+"an audit lists every site in the tree that matches, parses, asserts on or prescribes a commit
+subject ... recorded in `docs/LEDGER.md` under this ID" - MET by the audit record, committed
+before the cutover. "commit subjects follow Conventional Commits (`type(scope): summary`, the
+item ID allowed as the scope)" - MET, the counts above. "merge subjects carry no agent worktree
+name" - MET, no merge in the range. "every audited site agrees with that" - MET: the audit's two
+CONFLICTS (`tools/headless-inbox.md`'s Commit and push bullet and `docs/OPERATIONS.md` section
+12.5) and its restating sites (`tools/headless-queue.md` section 10 rule 2,
+`.claude/commands/done.md` and `.claude/commands/orchestrated-run.md`) now point at
+`.github/CONTRIBUTING.md` section 4, re-read at this tip; no ENFORCE, PARSE or ASSERT file the
+audit names has changed since the audit, each AGREES or is silent on the type; and a distinct
+adversary returned NOT REFUTED after two rounds (agent-reported). "the convention is written in
+one owner file" - MET, `.github/CONTRIBUTING.md` section 4, which says it owns the convention
+and every other file points there. The frozen-file and vendored-file clause - MET, vacuously:
+no frozen or vendored site disagreed, so none was edited, no grant was needed and no kit report
+was owed.
+RESIDUAL: the convention is documented, not enforced - `.githooks/commit-msg` (frozen) never
+reads a type, and a bare `git revert` or `git cherry-pick` commits without running it, so the
+merge, revert and pick rules hold by prose alone; a line in `BACKLOG.md`, session 150 residuals.
+The section moved to `docs/history_notes.md` and the `ROADMAP.md` line is gone.
+
+### 2026-10-21 - CS-1342 - CLOSED: landed on main as one linear commit, graded LAND-AFTER-FIX and then NOT REFUTED; QUEUE_STOP reaches the lane spawns only as their per-call halt_file
+Verification: `ops/stop_sentinels.json`, `ops/loop/queue_loop.py::kit_spawn`,
+`ops/loop/run_lane.ps1` and `ops/loop/inbox_responder.py`; the nine `test_cs1342_` tests in
+`tests/test_queue_loop.py`, among them
+`::test_cs1342_the_lane_kit_spawn_hands_the_kit_the_queue_stop_halt_file` and
+`::test_cs1342_a_relative_control_dir_exports_an_absolute_queue_stop`;
+`tests/ops/test_usage_limit_refusal.py::test_cs1342_an_early_exit_queue_stop_halt_stops_the_night_on_queue_stop`;
+`tests/ops/test_headless_spawn_paths.py::test_the_lane_runner_starts_its_worker_through_the_kit_command_line`
+and `::test_the_lane_kit_spawn_reaches_the_kits_own_spawn_and_starts_nothing`;
+`tests/test_fleet_kit.py::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold`;
+`tests/ops/test_inbox_responder.py::test_a_standing_queue_stop_does_not_halt_the_responder` and
+`::test_the_responder_never_hands_the_kit_a_halt_file`.
+THE RULING: MAIN's 2026-10-21-1508 RULING, its provenance verified, ordered QUEUE_STOP out of
+`ops/stop_sentinels.json` and onto the lane spawns as the kit's per-call halt_file, STOP and
+HOLD_MAIN_SPAWN kept tree-wide, no kit change.
+MERGED: one commit, `feat(CS-1342): pass QUEUE_STOP to lane spawns as a per-call halt file`, a
+linear replay by `git cherry-pick --no-commit` of the slice's five commits in order - the inbox
+responder's three, then the two test commits - never a merge. `ops/loop/inbox_responder.py`,
+`ops/loop/run_lane.ps1`, `ops/stop_sentinels.json`, `tests/ops/test_headless_spawn_paths.py`,
+`tests/ops/test_inbox_responder.py`, `tests/ops/test_usage_limit_refusal.py`,
+`tests/test_fleet_kit.py` and `tests/test_lane_runner_script.py` read back blob-equal to the
+slice tip. `docs/OPERATIONS.md`, `ops/loop/queue_loop.py` and `tests/test_queue_loop.py`, which
+main also changed after the slice was cut, read back equal to the clean three-way result, their
+landed change patch-id equal to the slice's own. `docs/LEDGER.md` keeps every entry; the
+slice's own CS-1342 record, below, predates its two test commits.
+GRADED: an adversary returned LAND-AFTER-FIX (agent-reported): the night-wide
+`CS_QUEUE_STOP_FILE` export, inherited by a lane worker's suite, turned
+`::test_cs1342_the_lane_kit_spawn_hands_the_kit_the_queue_stop_halt_file` red, and its assertion
+rendered the inherited value (CLAUDE.md section 3 rule 13). Both fixed: the test deletes the
+variable before the code under test runs, and both halt_file comparisons are bound to booleans
+first. The FLEET item 10 spawn-path guard now pins the whole chain - the runner, then
+`queue_loop.py kit-spawn`, then the kit's own `spawn` - with a spy arm that refuses every other
+process start. The final adversary pass returned NOT REFUTED (agent-reported).
+THE RENAME'S CITATION COST: the arm the CS-1330 record cites in both spellings as holding three
+stops is now `tests/test_fleet_kit.py::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold`,
+so `tests/test_docs_citations.py` read the CS-1330 citations dead at this landing. The carrier is
+append-only, so two RENAMED rows join `tests/test_citation_tables.py::DISPOSITIONS`, and
+`tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` rises from 70 to 72 for them,
+its reason written beside it.
+RESIDUAL: a mutant deleting the `os.path.lexists(halt)` re-check in
+`ops/loop/queue_loop.py::kit_spawn` survives; it matters only in the rare race where QUEUE_STOP
+is removed between the kit's own halt check and that re-check. It and INBOX_STOP, the mirror
+case that was not ordered, are lines in `BACKLOG.md`, session 150 residuals.
+
 ### 2026-10-21 - CS-1342 - CLOSED: QUEUE_STOP moves out of the tree-wide declaration onto the lane spawns' halt_file
 Verification: `tests/test_fleet_kit.py::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold`,
 `tests/ops/test_inbox_responder.py::test_a_standing_queue_stop_does_not_halt_the_responder`,
