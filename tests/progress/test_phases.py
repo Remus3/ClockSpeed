@@ -30,7 +30,7 @@ from collections.abc import Mapping
 from fractions import Fraction
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final
+from typing import Final, cast
 
 import pytest
 
@@ -44,10 +44,12 @@ from clockspeed.data.registry import (
     RecipeIO,
     Registry,
 )
-from clockspeed.data.schematics import CostLine
+from clockspeed.data.schematics import CostLine, normalize_schematics
 from clockspeed.progress import milestones, phases
 from clockspeed.solve.exact import audit_exact
 from clockspeed.solve.ratio import BYPRODUCT_BALANCED
+from tests.data import synthetic
+from tests.progress.test_milestones import KEY_COST, schematic_document, schematic_entry
 from tests.solve.test_phase3_gate import inexact_violations
 
 # ---------------------------------------------------------------------------
@@ -708,3 +710,226 @@ def test_an_unresolved_phase_cost_item_on_either_line_is_null(
     assert required is not None
     required_keys_kept = sorted(required) == [PLATE_ITEM, LATE_GHOST_ITEM]
     assert required_keys_kept
+
+
+# ---------------------------------------------------------------------------
+# CS-1343 - delivered_available is derived from the table's delivered reading
+# ---------------------------------------------------------------------------
+
+#: The machine-figure reason each publishing path in ``delivered_sweep`` must
+#: reach, in its order - None for the solved chain. Asserting it proves every
+#: path was entered, so no flag below is read off a path that never ran.
+SWEEP_REASONS: Final = [
+    phases.REASON_PHASE_COSTS_UNMEASURED,
+    phases.REASON_NO_COST_ENTRY,
+    phases.REASON_EMPTY_COST_ENTRY,
+    phases.REASON_NONPOSITIVE_COST,
+    phases.REASON_UNRESOLVED_COST_ITEM,
+    phases.REASON_NO_RECIPE_SELECTION,
+    phases.REASON_RATIO_REFUSED,
+    None,
+]
+
+
+class ReadingSource:
+    """A synthetic source that carries a delivered reading, measured or not."""
+
+    def __init__(
+        self,
+        entries: Mapping[str, tuple[CostLine, ...]] | None,
+        delivered: Mapping[str, Fraction] | None,
+    ) -> None:
+        """Hold the table this source publishes.
+
+        Args:
+            entries: Phase to cost lines, or None for an unmeasured table.
+            delivered: The delivered reading, or None for no reading.
+        """
+        self._entries = None if entries is None else MappingProxyType(dict(entries))
+        self._delivered = delivered
+
+    def phase_costs(self) -> phases.PhaseCostTable:
+        """Publish the table.
+
+        Returns:
+            The table, unmeasured when no entries were given.
+        """
+        reason = phases.REASON_PHASE_COSTS_UNMEASURED if self._entries is None else None
+        return phases.PhaseCostTable(
+            entries=self._entries, reason=reason, delivered=self._delivered
+        )
+
+
+def delivered_sweep(delivered: Mapping[str, Fraction] | None) -> list[tuple[str | None, bool]]:
+    """Read the flag off every path in the module that builds a phase cost.
+
+    The paths, in :data:`SWEEP_REASONS` order: an unmeasured table, a phase
+    with no entry, an empty entry, a non-positive cost, an unresolved cost
+    item, no recipe selection, a ratio refusal and the solved chain. Each runs
+    over a source carrying ``delivered``, so a site that hard-coded the flag
+    reddens on its own row.
+
+    Args:
+        delivered: The delivered reading every source carries, or None.
+
+    Returns:
+        One (machine reason, ``delivered_available``) pair per path.
+    """
+    registry = synthetic_registry()
+    starved = phases.RecipeSelection(
+        recipes=(PLATE_RECIPE,),
+        raw_items=(ORE_ITEM, WATER_ITEM),
+        byproduct_policy=BYPRODUCT_BALANCED,
+        extractors=MappingProxyType({ORE_ITEM: MINER, WATER_ITEM: PUMP}),
+    )
+    plate = (CostLine(PLATE_ITEM, Fraction(PLATE_COST)),)
+    cases: tuple[
+        tuple[Mapping[str, tuple[CostLine, ...]] | None, str, phases.RecipeSelection | None], ...
+    ] = (
+        (None, COSTED_PHASE, selection()),
+        ({COSTED_PHASE: plate}, UNCOSTED_PHASE, selection()),
+        ({COSTED_PHASE: ()}, COSTED_PHASE, selection()),
+        ({COSTED_PHASE: (CostLine(PLATE_ITEM, Fraction(0)),)}, COSTED_PHASE, selection()),
+        ({COSTED_PHASE: (CostLine(GHOST_ITEM, Fraction(PLATE_COST)),)}, COSTED_PHASE, selection()),
+        ({COSTED_PHASE: plate}, COSTED_PHASE, None),
+        ({COSTED_PHASE: plate}, COSTED_PHASE, starved),
+        ({COSTED_PHASE: plate}, COSTED_PHASE, selection()),
+    )
+    readings: list[tuple[str | None, bool]] = []
+    for entries, phase, chosen in cases:
+        cost = phases.phase_cost(ReadingSource(entries, delivered), registry, phase, chosen)
+        readings.append((cost.machine.reason, cost.delivered_available))
+    return readings
+
+
+def test_the_shipped_source_publishes_delivered_available_false_required_only() -> None:
+    """No delivered producer sits below the progress layer, so the flag reads False.
+
+    The shipped source publishes no delivered reading, and a measured table
+    whose source carries none reads False too, on every path that builds a
+    phase cost. The required figure is the whole cost over the budget - the
+    REQUIRED quantity, with nothing delivered taken off it.
+    """
+    shipped = phases.phase_cost(
+        phases.SHIPPED_PHASE_COST_SOURCE, synthetic_registry(), COSTED_PHASE, selection()
+    )
+    assert shipped.delivered_available is False
+    shipped_reading = phases.SHIPPED_PHASE_COST_SOURCE.phase_costs().delivered
+    assert shipped_reading is None
+    measured = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
+    assert measured.delivered_available is False
+    required = measured.required.values
+    assert required is not None
+    assert dict(required) == {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
+    readings = delivered_sweep(None)
+    assert [reason for reason, _ in readings] == SWEEP_REASONS
+    assert [flag for _, flag in readings] == [False] * len(SWEEP_REASONS)
+
+
+def test_delivered_available_is_derived_with_a_zero_count_reading_true() -> None:
+    """A delivered reading that is present reads True, even when it counts nothing.
+
+    A zero-count reading is still a reading. The reading of one item at zero
+    reddens a flag derived from the counts; the EMPTY reading reddens one that
+    collapses the mapping by truthiness. The unmeasured table on the first
+    path keeps its reading, so the flag follows the reading and not the cost
+    table - and ``phase_costs_available`` still reads False beside it.
+    """
+    zero_count: Mapping[str, Fraction] = MappingProxyType({PLATE_ITEM: Fraction(0)})
+    zero_readings = delivered_sweep(zero_count)
+    assert [reason for reason, _ in zero_readings] == SWEEP_REASONS
+    assert [flag for _, flag in zero_readings] == [True] * len(SWEEP_REASONS)
+    empty: Mapping[str, Fraction] = MappingProxyType({})
+    empty_readings = delivered_sweep(empty)
+    assert [reason for reason, _ in empty_readings] == SWEEP_REASONS
+    assert [flag for _, flag in empty_readings] == [True] * len(SWEEP_REASONS)
+    unmeasured = ReadingSource(None, zero_count)
+    assert phases.phase_costs_available(unmeasured) is False
+
+
+def test_a_delivered_reading_holds_exact_non_negative_counts_only() -> None:
+    """A delivered count is an exact Fraction at zero or above, enforced on the table.
+
+    The zero-count table is the control: it constructs, so each refusal below
+    is about its own value and not about a reading being present at all. The
+    float has a case of its own, so a check that let a float through beside a
+    Fraction reddens here and not only under the module's source scan.
+    """
+    reason = phases.REASON_PHASE_COSTS_UNMEASURED
+    zero = MappingProxyType({PLATE_ITEM: Fraction(0)})
+    table = phases.PhaseCostTable(entries=None, reason=reason, delivered=zero)
+    assert table.delivered is zero
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.PhaseCostTable(
+            entries=None, reason=reason, delivered=MappingProxyType({PLATE_ITEM: Fraction(-1)})
+        )
+    not_a_fraction = cast("Fraction", 1)
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.PhaseCostTable(
+            entries=None, reason=reason, delivered=MappingProxyType({PLATE_ITEM: not_a_fraction})
+        )
+    a_float = cast("Fraction", 0.5)
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.PhaseCostTable(
+            entries=None, reason=reason, delivered=MappingProxyType({PLATE_ITEM: a_float})
+        )
+
+
+#: The synthetic schematic whose document cost the schematic-document arm reads.
+PHASE_SCHEMATIC: Final = "Schematic_SynthElevatorPhase_C"
+
+
+class TableSource:
+    """A synthetic source that publishes one table exactly as it was built."""
+
+    def __init__(self, table: phases.PhaseCostTable) -> None:
+        """Hold the table this source publishes.
+
+        Args:
+            table: The table.
+        """
+        self._table = table
+
+    def phase_costs(self) -> phases.PhaseCostTable:
+        """Publish the table.
+
+        Returns:
+            The table as built.
+        """
+        return self._table
+
+
+def test_delivered_available_is_graded_on_a_synthetic_schematic_document() -> None:
+    """Cost lines normalized from a hand-authored schematic document carry the flag.
+
+    One synthetic schematic costing the plates is loaded through the real
+    docs_extract seam with the milestone arms' own builders, and normalized by
+    :func:`clockspeed.data.schematics.normalize_schematics`. Its cost lines
+    become the phase's entry in a table carrying a zero-count delivered
+    reading, which reads True; the same table with no reading reads False.
+    The required figure is the hand-worked 25/3 a minute on both, so the
+    document's lines drove the required rate and nothing delivered came off it.
+    """
+    blob = synthetic.amount_blob([(PLATE_ITEM, PLATE_COST)])
+    catalog = normalize_schematics(
+        schematic_document([schematic_entry(PHASE_SCHEMATIC, **{KEY_COST: blob})])
+    )
+    lines = catalog.schematics[PHASE_SCHEMATIC].cost
+    assert lines is not None
+    assert lines == (CostLine(PLATE_ITEM, Fraction(PLATE_COST)),)
+    read = phases.PhaseCostTable(
+        entries=MappingProxyType({COSTED_PHASE: lines}),
+        reason=None,
+        delivered=MappingProxyType({PLATE_ITEM: Fraction(0)}),
+    )
+    unread = dataclasses.replace(read, delivered=None)
+    required_rate = {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
+    registry = synthetic_registry()
+    with_reading = phases.phase_cost(TableSource(read), registry, COSTED_PHASE, selection())
+    assert with_reading.delivered_available is True
+    assert with_reading.required.values is not None
+    assert dict(with_reading.required.values) == required_rate
+    without = phases.phase_cost(TableSource(unread), registry, COSTED_PHASE, selection())
+    assert without.delivered_available is False
+    assert without.required.values is not None
+    assert dict(without.required.values) == required_rate

@@ -31,10 +31,17 @@ table that holds no entry for the selected phase publishes every figure as None
 under :data:`REASON_NO_COST_ENTRY`. An empty entry, a non-positive amount and a
 cost item the registry does not resolve are each null under their own reason.
 
-REQUIRED ONLY. Items already delivered into the elevator sit in its input
-inventory, which needs container stacks the save model does not yet read
-(CS-1038), so every figure here is the REQUIRED quantity and never the
-outstanding one.
+REQUIRED ONLY, AND ``delivered_available`` IS DERIVED (CS-1343). Items already
+delivered into the elevator sit in its input inventory. A source publishes that
+reading as the ``delivered`` mapping on :class:`PhaseCostTable`, and a phase
+cost's ``delivered_available`` is True exactly when the mapping is present -
+even when every count in it is zero, because a zero-count reading is still a
+reading. No delivered producer sits below this layer today: the inventory model
+lives in ``clockspeed.audit``, which is not a layer below this one, so the
+shipped source publishes no mapping and the flag reads False. Real values wait
+on CS-1340's measurement of the save's phase costs. Either way every figure here
+is the REQUIRED quantity and never the outstanding one: this model does not
+subtract a delivered reading.
 
 NO FLOAT, ANYWHERE (non-negotiable 6). The solve is exact; an extractor's base
 rate goes through :func:`clockspeed.solve.exact.per_minute`, a fluid's litres
@@ -208,19 +215,32 @@ class PhaseCostTable:
             source has no measured table.
         reason: None exactly when ``entries`` is set, otherwise a REASON_*
             constant.
+        delivered: Item ClassName to the exact count already delivered into
+            the elevator, in the registry's units, or None when the source has
+            no delivered reading. Independent of ``entries``: a reading of
+            zero counts, or of no items at all, is still a reading.
     """
 
     entries: Mapping[str, tuple[CostLine, ...]] | None
     reason: str | None
+    delivered: Mapping[str, Fraction] | None = None
 
     def __post_init__(self) -> None:
-        """Refuse a table that is both or neither.
+        """Refuse a table that is both or neither, or a delivered count that is not exact.
 
         Raises:
-            PhaseIntegrityError: Both or neither of the fields is set.
+            PhaseIntegrityError: Both or neither of ``entries`` and ``reason``
+                is set, or a delivered count is not an exact Fraction at zero
+                or above.
         """
         if (self.entries is None) == (self.reason is None):
             raise PhaseIntegrityError("a phase-cost table carries exactly one of entries or reason")
+        if self.delivered is not None:
+            for count in self.delivered.values():
+                if type(count) is not Fraction or count < 0:
+                    raise PhaseIntegrityError(
+                        "a delivered count is an exact Fraction at zero or above, never a float"
+                    )
 
 
 class PhaseCostSource(Protocol):
@@ -242,9 +262,11 @@ class UnmeasuredPhaseCosts:
         """Publish no table, under its named reason.
 
         Returns:
-            A table with no entries, under :data:`REASON_PHASE_COSTS_UNMEASURED`.
+            A table with no entries, under :data:`REASON_PHASE_COSTS_UNMEASURED`,
+            and no delivered reading: no delivered producer sits below this
+            layer.
         """
-        return PhaseCostTable(entries=None, reason=REASON_PHASE_COSTS_UNMEASURED)
+        return PhaseCostTable(entries=None, reason=REASON_PHASE_COSTS_UNMEASURED, delivered=None)
 
 
 #: The source wired today. A later item measures the field and replaces it.
@@ -286,6 +308,9 @@ class PhaseCost:
         miner_basis: :data:`MINER_BASIS_BASE_RATE`, named on the model.
         phase_costs_available: Whether the source returned a measured table,
             derived from that table and never hardcoded.
+        delivered_available: Whether the source returned a delivered
+            reading, derived from the table's ``delivered`` mapping and never
+            hardcoded. Every figure stays the REQUIRED quantity either way.
     """
 
     phase: str
@@ -297,6 +322,7 @@ class PhaseCost:
     clock_basis: str
     miner_basis: str
     phase_costs_available: bool
+    delivered_available: bool
 
     def render(self) -> Mapping[str, Mapping[str, Fraction] | None]:
         """Render exactly the three A3 keys.
@@ -413,7 +439,13 @@ def _miners(
 
 
 def _all_null(
-    phase: str, required: Figure, reason: str, available: bool, detail: str = ""
+    phase: str,
+    required: Figure,
+    reason: str,
+    available: bool,
+    detail: str = "",
+    *,
+    delivered_available: bool,
 ) -> PhaseCost:
     """Publish a phase whose three figures share one named reason.
 
@@ -423,6 +455,7 @@ def _all_null(
         reason: A REASON_* constant.
         available: The derived ``phase_costs_available``.
         detail: Which refusal or key, or the empty string.
+        delivered_available: The derived ``delivered_available``.
 
     Returns:
         The phase cost.
@@ -437,6 +470,7 @@ def _all_null(
         clock_basis=CLOCK_BASIS_FULL,
         miner_basis=MINER_BASIS_BASE_RATE,
         phase_costs_available=available,
+        delivered_available=delivered_available,
     )
 
 
@@ -445,6 +479,7 @@ def _solved(
     required: Figure,
     registry: Registry,
     chosen: RecipeSelection,
+    delivered_available: bool,
 ) -> PhaseCost:
     """Solve the required rates over the selection and publish the three figures.
 
@@ -453,6 +488,7 @@ def _solved(
         required: The required-rate figure, known to carry values.
         registry: The registry.
         chosen: The caller's selection.
+        delivered_available: The derived ``delivered_available``.
 
     Returns:
         The phase cost, every figure computed or null under a named reason.
@@ -469,7 +505,14 @@ def _solved(
     try:
         plan = solve_for_targets(registry, request)
     except RatioError as refusal:
-        return _all_null(phase, required, REASON_RATIO_REFUSED, True, type(refusal).__name__)
+        return _all_null(
+            phase,
+            required,
+            REASON_RATIO_REFUSED,
+            True,
+            type(refusal).__name__,
+            delivered_available=delivered_available,
+        )
     eaten = {item: rate for item, rate in plan.raw_inputs.items() if rate > 0}
     resource = _figure(eaten) if eaten else _null(REASON_NO_RAW_INPUT)
     miner = _miners(registry, eaten, chosen) if eaten else _null(REASON_NO_RAW_INPUT)
@@ -483,6 +526,7 @@ def _solved(
         clock_basis=CLOCK_BASIS_FULL,
         miner_basis=MINER_BASIS_BASE_RATE,
         phase_costs_available=True,
+        delivered_available=delivered_available,
     )
 
 
@@ -511,17 +555,21 @@ def phase_cost(
             the ratio solve refuses as one.
     """
     table = source.phase_costs()
+    # Present is True whatever it counts: a zero-count or empty reading is one.
+    delivered = table.delivered is not None
     if table.entries is None:
         reason = table.reason or REASON_PHASE_COSTS_UNMEASURED
-        cost = _all_null(phase, _null(reason), reason, False)
+        cost = _all_null(phase, _null(reason), reason, False, delivered_available=delivered)
     else:
         lines = table.entries.get(phase)
         if lines is None:
-            cost = _all_null(phase, _null(REASON_NO_COST_ENTRY), REASON_NO_COST_ENTRY, True)
+            reason = REASON_NO_COST_ENTRY
+            cost = _all_null(phase, _null(reason), reason, True, delivered_available=delivered)
         elif not lines:
-            cost = _all_null(phase, _null(REASON_EMPTY_COST_ENTRY), REASON_EMPTY_COST_ENTRY, True)
+            reason = REASON_EMPTY_COST_ENTRY
+            cost = _all_null(phase, _null(reason), reason, True, delivered_available=delivered)
         else:
-            cost = _costed(phase, lines, registry, chosen)
+            cost = _costed(phase, lines, registry, chosen, delivered)
     audit_exact(cost, path="phase_cost")
     return cost
 
@@ -531,6 +579,7 @@ def _costed(
     lines: tuple[CostLine, ...],
     registry: Registry,
     chosen: RecipeSelection | None,
+    delivered_available: bool,
 ) -> PhaseCost:
     """Publish a phase that has cost lines.
 
@@ -539,6 +588,7 @@ def _costed(
         lines: Its cost lines, at least one.
         registry: The registry.
         chosen: The caller's selection, or None.
+        delivered_available: The derived ``delivered_available``.
 
     Returns:
         The phase cost.
@@ -547,14 +597,34 @@ def _costed(
     nonpositive = [item for item, amount in totals.items() if amount <= 0]
     if nonpositive:
         reason = REASON_NONPOSITIVE_COST
-        return _all_null(phase, _null(reason, nonpositive[0]), reason, True, nonpositive[0])
+        return _all_null(
+            phase,
+            _null(reason, nonpositive[0]),
+            reason,
+            True,
+            nonpositive[0],
+            delivered_available=delivered_available,
+        )
     required = _figure(milestones.required_rates(lines))
     unresolved = [item for item in totals if item not in registry.items]
     if unresolved:
-        return _all_null(phase, required, REASON_UNRESOLVED_COST_ITEM, True, unresolved[0])
+        return _all_null(
+            phase,
+            required,
+            REASON_UNRESOLVED_COST_ITEM,
+            True,
+            unresolved[0],
+            delivered_available=delivered_available,
+        )
     if chosen is None:
-        return _all_null(phase, required, REASON_NO_RECIPE_SELECTION, True)
-    return _solved(phase, required, registry, chosen)
+        return _all_null(
+            phase,
+            required,
+            REASON_NO_RECIPE_SELECTION,
+            True,
+            delivered_available=delivered_available,
+        )
+    return _solved(phase, required, registry, chosen, delivered_available)
 
 
 def phase_costs(
