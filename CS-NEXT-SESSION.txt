@@ -1,45 +1,34 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written by the session 149 /done, 2026-10-20; rewritten in session 150 by B's author from its
-committed bytes (C6/G3). Session 149 LANDED FLEET KIT v20.1 AS CS-1330 (tier1 RED on the Linux
-save shard), repaired it as CS-1331 (tier1 green) and sent S5 to MAIN. Session 150: C5a GO at
-D; R', B and B2 COMMITTED, NOT PUSHED; HOLD_MAIN_SPAWN STANDS. Every item the session 148 hand-off
-held and sessions 149 and 150 did not act on is carried as one line plus a pointer to its full
-text; closed history moved verbatim to THE RELOCATION. The operator starts with "continue".
-COMMIT STATE OF THIS FILE: committed in B on R', corrected in B2 on B; R', B and B2 NOT pushed at
-this write - their ONE push follows ADV-B (C6). D, the session 149 /done's commit, LANDED and read
-back green (C5a): ls-remote main == D; tier1 39380059462 and tier2 39394172124 success.
+Written by the session 150 /done, 2026-10-22, one sub-agent in the main checkout. Session 150
+finished S12a's closing sequence (C5 to C13), lifted HOLD_MAIN_SPAWN, closed CS-700 and sixteen
+more items, proved one scoped queue lane cycle (it shipped CS-1244) and walked the public clone on
+a fresh Sandbox once (PARTIAL). Every item the session 150 hand-off held and this session did not
+act on is carried here, verbatim or tighter; spent blocks stay readable in THE PRIOR HAND-OFF.
+The operator starts with "continue".
+COMMIT STATE OF THIS FILE: push of this commit pending at write time; push result and CI UNREAD -
+the next session's first act reads the remote ref against this HEAD and the CI run.
 
-SESSION: 150
+SESSION: 151
 
 === NAMES (gitignored paths are named in words; no unpublished SHA is spelled) ===
-T2  f9b877256dd82e8d2844b6d7c876d3ab822ff097, the published flip tip.
-A'' 67b6d7c6f81100c4a3f0f7442c35a16d5572f655, the act (ii) ledger commit, parent T2.
-L   a1701b276728c92b3bf5fd716841c808771dc06d, CS-1330, parent A''.
-M   5d70a412315ebe5c2d8ebfd3d9a430ddb07deac0, CS-1331, parent L - origin/main at this /done's start.
-D   fa61bbc90a53d10507ba31466bdfe206322b4db6, the session 149 /done's commit, parent M; pushed.
-R', B and B2 (session 150, unpublished at this write, so in words): R' the README re-application,
-  parent D, README.md only (C5); B the KEEP RULE (6) docs commit, parent R' (C6); B2, parent B,
-  docs only, fixes the accuracy faults ADV-B's first pass found in B (C6).
-THE HEADLESS README COMMIT - MAIN's v19 spawn's README commit, NEVER PUBLISHED, its diff on
-  refs/preserve/s146/gh-hygiene-readme; R' re-applies it (C5); B is the KEEP RULE (6) commit (C6).
-THE RULINGS, gitignored in the data directory: A-432 (RULING 4 IS THE SEQUENCE), A-S12a, A-S10,
-  ruling (B), S8, S8a-2, A-DONE (G1 to G7), S147-DONE (each file and sha256: S148 COPY, NAMES); in
-  its rulings folder S0 s149-kitupd_ruling.md
-  310b47b08f81a38dec6f8764a2c27ebd3d8a1c893c1bb9b04a3d2baa34addcf5, S0b s149-kitupd_ruling2.md
-  3a6e6b7769a846092402f04e5c25d4fa4f791e74236bc567d7658cebd5554bcf and S149-DONE
-  s149-done-ruling.md ff55d3146ba5da4a502b3656084e07495a6f10ab3d8afb395fc0103a84d5e0cc (COMMIT).
-THE OUT FOLDER <sidecars>\CS\Scratch\cs-flip-backup\cs700-s146: note.md (its last section selects
-  the resume state), the records, reviews, bundles, and the S7a and S7a-2 clones' commit-maps.
-THE COPY FOLDER s149-done-copies there (this /done's three records, SHA256SUMS, the item census);
-  the s148, s147 and s146 copy folders are READ-ONLY HISTORY (s146's holds release-v0.1.0.md and
-  answer-to-main.md).
+T2  f9b877256dd82e8d2844b6d7c876d3ab822ff097, the published flip tip; tag v0.1.0 peels to it.
+D   fa61bbc90a53d10507ba31466bdfe206322b4db6, the session 149 /done's commit.
+O   964ff381927155d0e20b1e3cfaaae504eeb8c94e, origin/main at this /done's start; tier1 run
+    39754942911 success. This /done's commit sits on one records commit above O (the CS-1334
+    walk record), both pushed by this /done's ONE push.
+THE PRIOR HAND-OFF - `git show 2799d214566eb0f13934d709116c11e9d0eb1caf:CS-NEXT-SESSION.txt`, the
+  session 150 hand-off as B2 wrote it: the full text of every spent block this file drops.
+THE RULINGS, gitignored in the data directory: A-432, A-S12a, A-S10, ruling (B), S8, S8a-2,
+  A-DONE, S147-DONE; in its rulings folder S0, S0b and S149-DONE (each file and sha256: THE PRIOR
+  HAND-OFF, NAMES).
+THE OUT FOLDER <sidecars>\CS\Scratch\cs-flip-backup\cs700-s146: note.md, the records, reviews,
+  bundles, and the S7a and S7a-2 clones' commit-maps.
 THE S148 COPY - CS-NEXT-SESSION.txt in s148-done-copies, sha256
   84960e6633a59c30beeb0c3a318f64f9d7d9352db9700beed1e45838b81b5397: the FULL TEXT of every item
   this file shortens ("S148 COPY, <section>").
-THE RELOCATION - docs/history_notes.md, its section "Hand-off blocks - archived 2026-10-20 from
-  CS-NEXT-SESSION.txt by the session 149 /done": the S148 COPY's closed and superseded blocks, its
-  DECISIONS and TRAPS, verbatim; then two sections, by B's and B2's authors: the blocks each
-  replaced.
+THE RELOCATION - docs/history_notes.md, its "Hand-off blocks - archived 2026-10-20" sections.
+THE BUILDER LIST - the session 150 builder-worktree list in the data directory (nine names; a
+  worktree agent id never goes in a tracked line).
 
 === OPERATOR DIRECTIVE FOR SESSION 150 - THE OPERATOR'S OWN WORDS, VERBATIM (session 149) ===
 "when these are completed and **/done for clear to proceed next session as the headless background
@@ -48,179 +37,141 @@ auditing, researching, expansion of scope, condensing of information for human r
 flow."
 "use as many open lane slots as possible each round etc."
 BOUNDS THAT STILL APPLY:
-- FLEET 10: at most 120 headless runs per rolling 24 h; run_lane.ps1 starts claude directly
-  (precedence (c)): the driver counts lane cycles plus usage-log rows.
+- FLEET 10: at most 120 headless runs per rolling 24 h. The lane worker now starts through the
+  kit's spawn (CS-1231 slice C; CLAUDE.md precedence clause (c) retired), so the kit's own budget
+  counts every lane run with the responder's: read the headless usage log and budget file first.
 - SUITE SLOTS: ONE machine-wide gate slot here (MAIN's DONE-SLOW note), shared by every tree;
   builders run targeted tests, one integration suite per landing; -LocalSuite takes the slot.
 - RAM: concurrent lanes have hit MemoryError; read free memory before each lane; stop at the first
   such death.
-- HOLD_MAIN_SPAWN: no lane spawns until step 3 lifts it after C7 (a lane pushes HEAD:main; A-432
-  RULING 4 allows no other commit first).
 - CLAUDE.md section 7: PRODUCT BEFORE PROCESS (new tooling or guards go to BACKLOG.md unless they
   block a product item or redden a suite); a Settled fence (mod content before phase 6, the
   Dedicated Server API) stays shut unless the operator lifts it in their own words. Condensing
-  relocates, never deletes; CLAUDE.md (about 73 bytes of headroom) is never condensed.
-- STOP: QUEUE_STOP ends every lane at its next cycle; `taskkill /F /T /PID <driver pid>`
-  (OPERATIONS 10.5). A lane never runs in the main checkout.
+  relocates, never deletes; CLAUDE.md (40767 bytes, 193 bytes of headroom) is never condensed.
+- STOP: QUEUE_STOP stops every lane at its next cycle and reaches each lane spawn as its per-call
+  halt file (CS-1342); `taskkill /F /T /PID <driver pid>` (OPERATIONS 10.5). A lane never runs in
+  the main checkout.
 
-=== THE SINGLE NEXT ACTION - SESSION 150, IN ORDER ===
-0. Print "Session 150 checklist" (FLEET 13a; the box U+2610, never the glyph). Steps 1 to 3 are
-   INTERACTIVE, by sub-agents; a headless run never runs S12a.
-1. READS before any act: (a) HEAD and `git ls-remote origin` by full SHA - EXACTLY HEAD and
-   refs/heads/main, else phase7's STRAY REF to an adjudicator; porcelain --untracked-files=all.
-   (b) If the remote is not HEAD, PUSH FIRST through fleet_gitlock (the one gated whole suite; a
-   blocked push can notify exit 0 - read "clockspeed pre-push: BLOCKED" and the remote); then
-   `gh run list --commit <full SHA>` - a red is the top item, never rerun green; this ritual's
-   timing record (blocked_by_flake: push first, then file it); W2. (c) G1 below. (d) W1 DONE
-   (step 2). (e) HOLD_MAIN_SPAWN present; STOP, INBOX_STOP, QUEUE_STOP absent;
-   ops/stop_sentinels.json tracked, sha256
-   3338852a5a4b38673ae4c151f477d02044095ce9988000a17aeb8f98d668d4f7; the headless usage log and
-   budget file: a start after this /done is a MAIN spawn - an adjudicator first. (f) CPU, free RAM,
-   no main-checkout whole suite running. (g) `python tools/inbox_watch.py`; the remote PUBLIC;
-   `git worktree list`.
-   G1 (S149-DONE ruling 5, re-based to B2 by B2's author): porcelain --untracked-files=all EMPTY;
-   HEAD == the commit that last wrote this file (B2), B2^ == B, B^ == R', R'^ == D; origin/main ==
-   HEAD, or == D with R', B and B2 unpushed (C6: ADV-B, then their ONE push, its pre-push suite
-   gates it);
-   else STOP, a distinct adjudicator.
-2. FIRST WAVE, in parallel: W1 by one sub-agent; W2; and CLOSE S12a, each step read back before
-   the next: C5a and C5 DONE, C6 (B and B2 committed; ADV-B, then R', B and B2 in ONE push), C7.
-   W1 THE GITHUB-SECURITY-FINDINGS ORDER (MAIN to all six, 2026-10-18-2243) DONE (session 150):
-   ONE ANSWER, TERMINAL, HOP 2, delivered 1/1 at 2026-10-20T23:08:09Z, source and destination
-   both sha256 56b2b0f87895ebc2580c8406594a4918a2ddcdae99c7d347cc65f0e447adbd33. Per kind, open
-   before -> after: code scanning not configured (HTTP 404), 0 -> 0; Dependabot (HTTP 200) 0 -> 0;
-   secret scanning (HTTP 200) 0 -> 0; nothing fixed, dismissed or left, so no fix is queued.
-   W2 CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2) CLOSED (C5a; S149-DONE ruling 9):
-   D's pre-push suite 16450 passed, 0 failed, 12 skipped, no BLOCKED line, ls-remote == D (this
-   ritual's timing record) - those counts go in the C8 ANSWER; the note is acked by key (C11).
-3. LIFT THE HOLD after C7 reads back, with NO main-checkout whole suite running: say the method
-   (Recycle Bin, FLEET 9), remove the file ops/loop/control/HOLD_MAIN_SPAWN only (its declaration
-   stays - S0 ruling 2), read it absent and the responder's next tick (C11). C8 then runs from the
-   main session beside the lanes.
-4. THE LANES: (a) prove one cycle - `python ops/loop/queue_loop.py --once` (OPERATIONS 10.3;
-   --local-suite only with no other suite live) - and read its queue-ledger row: summary AND exit
-   code. (b) Fill every slot - queue, queue-b, queue-c (ops/loop/lanes.py; LANE_CAP 3,
-   the kit maximum) - one hidden driver each, started one at a time, each on its own lane-<i>
-   worktree detached at origin/main:
-   powershell -NoProfile -ExecutionPolicy Bypass -File ops\loop\launch_queue_loop.ps1 -Lane <lane> -Cycles <n>
-   Before each start: the 120-run count, free RAM, the gate's queue. (c) EACH ROUND, as a driver
-   exits: its exit code first (OPERATIONS 10.6), then re-read every lane lock and refill EVERY free
-   slot within the bounds. (d) The queue is ROADMAP.md top to bottom (tools/headless-queue.md); for
-   UI/UX auditing scope a lane's run to the dashboard,
-   CLOCKSPEED_LANE_SCOPE_<LANE upper-cased>=dashboard (config/lane_scopes.json). Non-ROADMAP work
-   (K4, C9, C13's remainder) and anything interactive go to the main session's sub-agents. (e) Briefs
-   carry BRIEF RULES AND TRAPS; status is the checklist (FLEET 13b).
-5. /done when the operator stops the run, or unprompted when no task remains.
+=== THE SINGLE NEXT ACTION - SESSION 151, IN ORDER ===
+0. Print "Session 151 checklist" (FLEET 13a; the box U+2610, never the glyph). The board push
+   (FLEET 18) waits on MAIN's board note (OPERATOR below); until it lands, a failed push is one line.
+1. READS before any act: (a) HEAD and `git ls-remote origin` by full SHA - EXACTLY HEAD,
+   refs/heads/main and the tag v0.1.0; any other ref is a stray ref: STOP, a distinct
+   adjudicator; porcelain --untracked-files=all EMPTY. (b) If the remote is not HEAD, PUSH FIRST
+   through fleet_gitlock (the one gated whole suite; a blocked push can notify exit 0 - read
+   "clockspeed pre-push: BLOCKED" and the remote); then `gh run list --commit <full SHA>` - a red
+   is the top item, never rerun green; this ritual's timing record (blocked_by_flake: push first,
+   then file it). (c) STOP, INBOX_STOP, QUEUE_STOP and HOLD_MAIN_SPAWN absent; ops/stop_sentinels.json
+   tracked, sha256 9b34ab97b0abe1b4e5b1b6e69dd77f6295013ddb9bb26015d50189539db78e1f (three paths
+   since CS-1342); the headless usage log and budget file. (d) CPU, free RAM, no main-checkout
+   whole suite running. (e) `python tools/inbox_watch.py`; the remote PUBLIC; `git worktree list`.
+2. THE OPEN ITEMS, in the order below, by sub-agents; the lanes beside them within the bounds.
+3. /done when the operator stops the run, or unprompted when no task remains.
 
-=== THE CLOSING SEQUENCE - WHAT REMAINS (A-432 RULING 4; C1-C4 DONE and C10 CLOSED by CS-1330
-are in THE RELOCATION; each step's full text: S148 COPY, THE CLOSING SEQUENCE) ===
- C5a DONE (session 150): a distinct read-only adjudicator ruled GO for C5 and for authoring C6
-    at D, CI green at D; C7 GO after C6 reads back.
- C5 R' DONE (session 150): the pick staged exactly README.md, its stable patch-id equal to the
-    preserve ref's; committed through fleet_gitlock with the S148 COPY's subject and body;
-    read back R'^ == D, README.md the only path. Pushed in B's push.
- C6 B, DOCS ONLY, ON R' - COMMITTED, NOT PUSHED (content list: S148 COPY, C6; what B left out
-    and why: its LEDGER record): NO CS-G03 record; sessions 147 to 149's
-    decisions; CS-700 CLOSED only by a distinct adjudicator reading its Acceptance (else phase7.md
-    NOT grown; closing it reddens the arms citing it - run tests/surface and
-    tests/ops/test_lane_scope.py); BACKLOG lines for the CS-704 tidy and C13; the ADR 0025 10d note
-    only if B's adjudicator adds it; `python -B tools/sha_citation_gate.py` exit 0. ADV-B fresh, R',
-    B and B2 frozen, default REFUTED (its first pass REFUTED B's accuracy; B2 fixes it). ONE push
-    through fleet_gitlock (a non-fast-forward rebased ONCE). C6/G3 (S149-DONE ruling): B stages only
-    B's own edits - its LEDGER records, BACKLOG lines, and the three record files as B's author
-    rewrites them from their COMMITTED bytes; ADV-B reviews git diff R' B2; read back main == B2,
-    B2^ == B, B^ == R', R'^ == the origin/main tip read at C5 P0; KEEP (7) at B2 = porcelain 0 and
-    the three files' bytes == HEAD's; KEEP (8) only after it.
-    KEEP (8) recycles data/146, never s146-done-copies (C7, C8 read it). The first post-B /done
-    rules the kit archive route (S0 ruling 3).
- C7 THE v0.1.0 TAG AND RELEASE (CS-1328 (e); controls and flags: S148 COPY, C7): an annotated tag on
-    T2 after its two controls (an ancestor of origin/main; the image of THE PRE-REWRITE MAIN in the
-    composed commit-maps, that SHA never tracked); refs/tags/v0.1.0 pushed alone through
-    fleet_gitlock; `gh release create v0.1.0 --verify-tag` from release-v0.1.0.md with ADV-SEND's
-    fixes, notes outside the checkout; read back; read every tier2 attempt.
- C8 THE ONE CS-1328 ANSWER after C6 and C7 (content: S148 COPY, C8): tools/outbound_send.py dry
-    run then --send, `--channel-root C:/`, gate CLEAN, cap counted, HOP 2; it carries A-432 RULING
-    2's correction of the kit-spawned 1330 ANSWER - no separate note; answer-to-main.md is REFUTED
-    as written (ADV-SEND), rebuild from landed facts; destination re-hashed 1/1.
- C9 CS-1328 (g) after the ANSWER, outside its Acceptance, each its own item (S148 COPY, C9): 1a
-    tags, 1b Conventional Commits, 1d the README section, 1g the security triage (W1 DONE: zero
-    open alerts).
- C11 DONE (session 150), nothing owed: all 15 items it named - MAIN's v18, v19, v20 and v20.1
-    ORDERs and their four payloads, SS 1010, 1307, 1500 and 1230, MAIN's 2243 ORDER, GH-HYGIENE
-    1215 and MAIN's 0730 INFORMATION - each read as already acked by key in the inbox seen-record.
- C12 DONE (session 150): the two session 146 builder branches and worktrees retired, their content
-    on main, bundled first; the s146 preserve ref KEPT until R' reads back on the remote.
- C13 WORKED (session 150): `git worktree list` 71 -> 16 (43 by `git worktree remove`, 12 to the
-    Recycle Bin, each classified by content); 52 branches deleted; 65 refs kept under
-    refs/preserve/s150, all in one verified bundle of 65 heads, sha256
-    95e8bc1153493836d5abd45d3555a82066b0deb3cc59b937c6413314be7037ce; slice/cs-g06-discharge KEPT,
-    its commit ruled DISCARD by an adjudicator (a refuted discharge). OPEN, by its rules (THE
-    RELOCATION, B2's section): the 15 old-history linked trees that hold work (K1's and CS-1318's
-    KEPT); M4, the pre-rewrite refs; work/saves' leftover and cs1322-adv-tmp after a consumer check.
- C14 RESIDUALS, unchanged (S148 COPY, C14): A-S12a R1 to R6, A-S10 R1 to R4, A-DONE R1 to R5 (R1
-    the CS-1323 KEEP (5)-(6) reading), A-432 R1 to R4, D-W2. A crash before B: phase7's RESUME rule
-    and note.md select the state. CS-G03: B writes a NOT-A-COMPLETION line only; its clearance
-    waits for K4 and the FIXED tool at T2 exiting 0. The SAFE residual CLOSED (tracked).
-
-=== CARRIED - AFTER S12a CLOSES, each its own commit and adversary (S148 COPY, CARRIED, PARKED WIP) ===
- K1 CS-1231 SLICE C - UNPARKED (MAIN's 13:16 RULING), NOT built; spec cs1231c-spec-s146.md in the
-    data directory, re-read against the v20.1 spawn() first. KEEP its branch, tip subject "CS-1231 -
-    lane runner starts its worker through the kit" (two commits on 3592a5b). L1 kit exit 4 or
-    "timeout" is timeout; L2 exit 3 "budget-spent" waits for cap_frees_at; L3 case-variant keys; L4
-    cite the landing commit, not "kit v17"; L5 phase7.md's four slice-C-open lines; L6 the timeout
-    docstring. R5: a python.cmd shim plus an in-process contract arm; clause (c) retired. Lands on a
-    distinct adversary NOT REFUTED. Rev: a kit exit 0 for a killed run, or a refusal not exit 3.
- K2 CS-1317 - the refresh commit takes the scan entries out of PENDING_READINGS, PENDING_PROFILE and
-    PENDING_FIRST_RECORD (tools/tier1_growth.py, tier1_concentration.py, tier2_headroom.py and their
-    pins); CS-1317 closes at it; count pre-S9a runs from the recorded figures (an inference).
- K3 CS-1307 - clauses 1 and 2: 30 runs and one sibling-load run on a quiet machine through the
-    gate; 30 of 30 closes it. Moving its phase7.md section updates CS1307_POINTER in the same commit.
- K4 THE flip_checks BINARY-SKIP FIX (S8 ruling; the next free ID): a hash-pinned tracked binary is
-    no skip, an unpinned NUL-bearing file still fails, red-first; then the FIXED tool at T2 exits 0;
-    X1 to X3 not owed.
- K5 CS-1328 (b) THE TRACKED CENSUS AXIS (census-axis-v3.py in THE OUT FOLDER): its own commit.
-
-=== OPEN ITEMS THIS FILE TRACKS (ROADMAP.md owns the lines; histories: THE RELOCATION) ===
- 0 CS-1317 (K2). 0b CS-1318 - its close REFUTED: the rework drives the TEST ARM itself at 382b3bb
-   and at the repair under load, then a fresh freeze and adversary; a rerun is never evidence. KEEP
-   its refuted branch, "CS-1318 - reap replay tool and dispatch-only ubuntu replay workflow".
- 0c CS-1328 - owes C7, C8, K5; (g) is C9. 1 CS-700 - owes ADV-B, the push (C6), C7; OPEN by this
-   session's adjudication: flip_checks check 6 (doc_sweep) at T2 skips 2 unreadable-or-binary files,
-   the two docs/assets PNGs, so K4 (a new CS-ID) precedes the CS-G03 record and a fresh CS-700
-   closing adjudicator. CS-704 a BACKLOG line in B; CS-959 done; CS-701 handled by S7a; CS-G03 C14;
-   CS-500's S9 trace and S7/S8 blocked on CS-1043, CS-1048, CS-1058, CS-1243.
- 2 CS-1231 (K1); CS-1234: is every kit-written task name basic-set - UNVERIFIED, re-read v20.1;
-   MAIN 2237 section 3 item 4 rides with slice C.
- 3 CS-1304: 30x on a quiet machine; retry-once DENIED. ITS WATCH at every deciding suite: a
-   cs1172 or cs1175 canary reading "did not fail: exit 2", or a child_failure naming a withheld
-   exception - record it, an adjudicator; a child status over 255 is never counted. CS-1307 (K3).
- 4 CS-1291 - ADJUDICATE FIRST; R6's frozen-file grant (pre-push parts 1, 2, 5) waits for S12a, then
-   a fresh adjudicator with MAIN's 13:16 item 3 ("Reversed by TEST-TIER replacing the ritual suite,
-   or /done median still over 65 min after 5 rituals"). NO GRANT - no edit. Part 7 owns C13's remainder.
- 5 CS-1295 - one headless run through the kit spawn; open: are ignored dependency trees counted.
+=== OPEN ITEMS, PRIORITY ORDER (ROADMAP.md owns the lines; acceptance: each item's section
+    under "### Acceptance" in the leaf named) ===
+ 1 CS-1334 (docs/item_notes/phase7.md) STAYS OPEN. The first fresh-Sandbox walk is PARTIAL
+   (docs/LEDGER.md, 2026-10-22): clause 11's suite counts are missing - the suite stalled at
+   about 70 percent with 0 failures, no summary line, no exit-code file. Re-walk after CS-1349
+   lands or MAIN's kit fix, or with Sandbox MemoryInMB of at least 20480; the re-walk also needs a
+   runner that writes an exit-code file for a step it kills and reads the dashboard port from
+   scripts/verify_env.py's output; then a separate grade, its sha256 recorded under the ID.
+ 2 CS-1349 (phase7.md): the pre-push gate command never matches its own gate history. A
+   FROZEN-FILE change (.githooks/pre-push): an adjudicated grant recorded in docs/LEDGER.md BEFORE
+   the edit; the kit half is MAIN's (the 0647 FIX note); no edit under ops/fleet_kit/.
+ 3 CS-1345 (phase7.md): an outsider's fork cannot push until git config fleet.operatorIdent is
+   set, and no doc says so - a written step.
+ 4 CS-1344 (phase7.md): MAIN's FIX - test runs clear their own Temp cs-pt output on teardown,
+   failure included; session scratch under 5k files; closes on ONE ANSWER to MAIN.
+ 5 CS-1328 (phase7.md): C7 and C8 DONE - the ONE ANSWER delivered 2026-10-21T04:56:56Z, sha256
+   43722c053b625d2ace5ee23aa721be771dd034dd92c1b7863b874938979a28d6 (docs/LEDGER.md, 2026-10-22).
+   Owes a distinct closure verifier reading every Acceptance clause; addition (g) is CS-1335 to
+   CS-1338, all closed.
+ 6 CS-1231 (phase7.md): slice C LANDED (2026-10-21 record); its section names no open slice. Owes
+   a distinct closure verifier reading its Acceptance.
+ 7 CS-1295 (phase7.md): the full-tree review, ONE headless kit spawn of 3 to 6 hours, not
+   started; open question: are ignored dependency trees counted.
+ 8 CS-1318 (phase7.md) ON HOLD, decided session 150 under cost against risk: reopen only on a
+   hook-shard red at unchanged code; take any Linux reading through WSL. KEEP its refuted branch,
+   "CS-1318 - reap replay tool and dispatch-only ubuntu replay workflow".
+ 9 CS-1304 (phase7.md): WAIT for a natural child_failure reading; retry-once DENIED. ITS WATCH at
+   every deciding suite: a cs1172 or cs1175 canary reading "did not fail: exit 2", or a
+   child_failure naming a withheld exception - record it, an adjudicator; a child status over 255
+   is never counted.
+10 CS-1340 (docs/item_notes/phase5.md): needs the game (the save's mGamePhaseCosts).
+11 CS-1346, CS-1347 and CS-1348 (phase5.md): the badge reaches no card; greedy never re-ranks;
+   a delivered producer for the elevator inventory.
+12 CS-1240 (phase5.md): acceptance amended (no fallback in the asset-path join); out of every
+   lane scope, for disjointness.
+13 CS-815: the operator answered (OPERATOR below); grade its acceptance against that answer.
+14 CS-1291 (phase7.md): ADJUDICATE FIRST; R6's frozen-file grant (pre-push parts 1, 2, 5) waits
+   for a fresh adjudicator with MAIN's 13:16 item 3 ("Reversed by TEST-TIER replacing the ritual
+   suite, or /done median still over 65 min after 5 rituals"). NO GRANT - no edit. Part 7 owns
+   C13's remainder.
+15 C13 REMAINDER: 16 unique and 4 dirty worktrees kept; 85 unique branches; 13 old-history trees;
+   the non-branch pre-rewrite refs (M4); work/saves' leftover and cs1322-adv-tmp after a consumer
+   check; slice/cs-g06-discharge KEPT (its commit ruled DISCARD); the s146 preserve ref, kept
+   until R' read back on the remote, which it now does. THE BUILDER LIST's nine session 150
+   worktrees are landed by content and retirable:
+   retire each by content, never by bulk prune. `git worktree list` read 27 entries and 98 local
+   heads at this /done.
+16 C14 RESIDUALS, unchanged (S148 COPY, C14): A-S12a R1 to R6, A-S10 R1 to R4, A-DONE R1 to R5,
+   A-432 R1 to R4, D-W2.
+17 BACKLOG TRIGGERS FIRED by the CS-1334 walk, not yet acted on: the session 131 "post-flip
+   public-clone walk" line; the session 150 "ExecutionPolicy Bypass untested" line (RemoteSigned
+   worked in the walk); the session 150 "walk evidence held by digest only" line.
+18 S0 RULING 3, the kit archive route: owed by the first post-B /done. This /done did NOT rule
+   it - it relocated no hand-off block (spent blocks stay readable at THE PRIOR HAND-OFF); the
+   next /done that relocates one rules it first, by a distinct adjudicator.
  CARRIED: CS-828, CS-829 as filed (CS-1151 owns the stale (14,60) sentence). FROZEN unless it
    blocks product or reddens a suite: CS-1207, CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205,
    CS-1206, CS-1215, CS-1197, CS-1211, CS-1212, CS-1213, CS-1202, CS-1194, CS-1032. CS-907 open.
-   CS-936 contained (39 s136-land commits touch a root spelling - CS-700 states it). TIER-1: shard
-   or cache, NEVER raise the pin. BACKLOG: Ubuntu 26 fired 2026-10-19 (tier1 green at M; re-read
-   tier2); the README clone command and public-clone walk after B; the residuals, only on a trigger.
+   CS-936 contained. TIER-1: shard or cache, NEVER raise the pin. BACKLOG: Ubuntu 26 fired
+   2026-10-19 (tier1 green at M; re-read tier2); the residuals, only on a trigger.
+
+=== THE LANES ===
+Proven in session 150: one `queue` cycle, scope advisor-ranking, shipped CS-1244 on the CS-1341
+fixed driver; the queue cycle log's last row read ok true, outcome completed, worker_ok true.
+Next: more `queue` cycles with CLOCKSPEED_LANE_SCOPE_QUEUE=advisor-ranking set per process,
+  powershell -NoProfile -ExecutionPolicy Bypass -File ops\loop\launch_queue_loop.ps1 -Lane queue -Cycles 1
+against the remaining rows CS-1245, CS-1246, CS-1247 and CS-1253. queue-b and queue-c are NOT
+wired (BACKLOG). Before each start: the 120-run count, free RAM, the gate's queue. As a driver
+exits: its exit code first (OPERATIONS 10.6), then the lane locks. The queue is ROADMAP.md top to
+bottom (tools/headless-queue.md); scopes live in config/lane_scopes.json. The main session cannot
+claim a lane row (ops/loop/claims.py::try_claim_row), so a lane's scope must exclude every item
+main has in progress - the root of the CS-1043 collision. Non-ROADMAP work and anything
+interactive go to the main session's sub-agents. Briefs carry BRIEF RULES AND TRAPS.
 
 === OPERATOR (FLEET 1 - never ask; record if volunteered) ===
-OWED: the four dead-secret files await a deletion call (batch items 1 to 4 and 6 to 8 DONE or
-LAPSED). CS-1207: its loop HALTED by a safety classifier - never re-dispatch; owed round 17
-interactively, out of scope, or LANDED-NOT-CLOSED with tests/test_hook_env_echo.py in the fill
-shard. CS-815: does the desktop app SHOW the "REFUSED (CS-815)" hook-error line.
+ANSWERED in the operator's own words in the main session, 2026-10-22 (docs/LEDGER.md, 2026-10-22):
+- THE BOARD URL in ops/status_board.json, a tracked file of the public repo: "it can stay there;
+  nothing to worry about is in it" - the privacy question CLOSED. THE BOARD itself: "status board
+  ill have main update what i want done with that for CS and all others" - NOT owed by the
+  operator; it WAITS on that MAIN note, and the next session acts on the note when it arrives.
+- CS-815: "it does show it and it is also marked as stale" - the desktop app SHOWS the "REFUSED
+  (CS-815)" hook-error line and marks it stale; grade CS-815's acceptance against this (item 13).
+- THE FOUR DEAD-SECRET FILES: DELETION ORDERED by the operator 2026-10-22 ('delete them'); carried
+  out by a sub-agent: three, under an old temp scratchpad, were already gone; the fourth, a suite
+  log the incident left in the Git install folder, outside the repo with no consumer, went to the
+  Recycle Bin and read back gone. CLOSED - all four deleted; none was tracked.
+- THE GH TOKEN's delete_repo scope: "narrow it", then "that gh repo token was done". Read back by a
+  sub-agent with `gh auth status`: scopes gist, read:org, repo and workflow; delete_repo ABSENT.
+  CLOSED.
+- A NEW EXPOSURE that sub-agent found - four Visual Studio installer logs written 2026-10-22 in the
+  user temp folder carrying an admin-family key other than the dead one: "just delete the 4 logs
+  they werent sent to github so it is fine". Found by a presence-only scan, sent to the Recycle
+  Bin and read back gone; the operator judged no rotation needed. CLOSED.
+STILL OWED: CS-1207 - its loop HALTED by a safety classifier - never re-dispatch; owed round 17
+  interactively, out of scope, or LANDED-NOT-CLOSED with tests/test_hook_env_echo.py in the fill
+  shard.
 
 === STATE OF THE TREE (read live) ===
 ROOT the E: checkout (ADR 0026), C: a junction. Land by cherry-pick, never merge (CS-1196). No
   main-tree pushurl; each linked worktree carries the M2 guard.
-RECORDS: the three COMMITTED by the session 149 /done (S149-DONE), copied with SHA256SUMS to
-  THE COPY FOLDER, then rewritten in B (G3) and corrected in B2; porcelain EMPTY expected (G1,
-  KEEP (7)).
-REFS 511 (heads 371) at the session 149 /done, 524 (heads 319) after C13 (session 150); remotes
-  exactly origin/HEAD and origin/main; tags 0; the pre-rewrite refs local until C13; the preserve
-  ref (C5). NEW IDS FROM CS-1332 - re-check `git grep` and `git log --all` first; the responder
-  and lanes allocate too.
+REFS: remotes exactly origin/HEAD, origin/main and the tag v0.1.0; refs/preserve local (s146,
+  s150, s150b, s150c, heads). NEW IDS - re-check `git grep`, `git log --all` and origin/main's ROADMAP.md first; the
+  responder and lanes allocate too (CS-1346 collided in session 150; the unpublished one became
+  CS-1348).
 THE RESPONDER (CS-InboxResponder) commits and pushes on main when live: read inbox_status.json
   first; a refusal every tick - check the proxy listener (name CLAUDE_HEADLESS_BASE_URL only).
 KIT v20 patch 1 (CS-1330); never edit a kit file; never re-report a sent defect. Every commit and
@@ -228,50 +179,47 @@ KIT v20 patch 1 (CS-1330); never edit a kit file; never re-report a sent defect.
   ...`, every whole suite through fleet_suite_gate.py; pre-push grades the MAIN WORKING TREE.
   SUBAGENT-FIRST is deny; a lane worker runs with it off.
 THE REMOTE: PUBLIC since 2026-10-18T15:27:06Z; branch protection; PVR, secret scanning, push
-  protection ON.
-THE BOARD: ops/status_board.json puts the claude.ai board URL in a tracked file of a public repo
-  (the artifact's privacy UNVERIFIED). No board render or sentinel change during a main-checkout
-  whole suite (S0b D-D1). This /done's board push: FAILED: asset upload not_found (no such Artifact or no access); call 2 not made; local pin reset to 2.
+  protection ON; CodeQL default setup ON (CS-1338).
+THE BOARD: ops/status_board.json holds the board URL (the operator: it can stay). No board render
+  or sentinel change during a main-checkout whole suite (S0b D-D1). This /done's board push
+  (--final, session 150): FAILED: asset upload not_found (no such Artifact or no access); call 2
+  not made; the board waits on MAIN's board note (OPERATOR).
 THE SAVE DIR: never written to; no save, world, account or home-path name in a tracked file.
 
-=== DECISIONS IN FORCE ("Rev:" what reverses it; rationale and spent entries: THE RELOCATION) ===
-- S149-DONE COMMIT: LEDGER and ROADMAP untouched (B's); A-DONE R1 and G1 to G7 RETIRED; S0 R3's G6
-  clause and (b) rejection reversed, its relocation kept. Rev: none after the commit.
-- A-DONE R2 no CS-G03 CLOSED record in B (Rev: the FIXED tool at T2 exiting 0); R3 SS 1500
-  terminal; R4 no CS1307_POINTER fix.
-- A-432 R1(d) R' just before B; R2 the 1330 correction rides C8; R4 THE SEQUENCE. Rev: R' not
-  applying; MAIN; the operator. A-S12a 1 M1+M2, M4 to C13 (Rev: V1 or V2 failing, a stray ref); 2
-  two commits; 4.5/4.6 no CS-704 edit (Rev: a tier1 red on it). S8 (A) precondition 6 MET BY
-  ADJUDICATION, clearance after K4; ADV-SEND tag after the lift; ADV-B2 4. Rev: their lists.
-- OWN WORDS never a relay, paraphrase or MAIN note. Rev: only the exact line typed here.
-- C5's session 148 pick undone - SPENT: R' re-applied it (session 150); the preserve ref KEPT
-  until R' reads back on the remote (C12). S147-DONE Q2: sessions 147 to 149's decisions live
-  here, and B's LEDGER record records them (Rev: B's adjudicator).
-- S0 R1 CS-1330 the next free id. R2 the four-path declaration permanent; the hold lifts by its FILE
-  after C7 (Rev: MAIN asking three paths). R3 relocate into docs/history_notes.md, never
-  handoff-archive or archive --apply, until B (Rev: B; MAIN). R4 bounds on budget(); no
-  progress_task; the board pin on a live read. S0b two exact board names in GUARD_IGNORE; exit 3
-  under the hold until C7 (Rev: a MAIN IGNORE fix; BACKLOG triggers).
+=== DECISIONS IN FORCE ("Rev:" what reverses it; spent entries: THE PRIOR HAND-OFF) ===
+- SESSION 150: CS-1043 took MAIN's version over the lane's 5b5f771b (Rev: none, it is closed).
+  CS-1336 is document-only, no hook enforcement (Rev: a frozen-file grant, or its BACKLOG
+  trigger). CS-1240: no fallback in the asset-path join, acceptance amended (Rev: a new
+  adjudicated amendment in docs/LEDGER.md). CS-1343 clause 3 amended on the adjudicator route (Rev:
+  CS-1348 landing a delivered producer). The FORGIVEN_LINE_POINTER_CEILING raise from 70 to 72
+  ratified after the fact, no slack (Rev: a citation leaving). CS-1318 HOLD (Rev: a hook-shard red
+  at unchanged code). CodeQL alert 4 dismissed after an adversary's check (Rev: a new alert on that
+  sink, or the adversary's reading refuted). Lane scopes keep main's in-progress items out (Rev: a
+  claim path for the main session).
+- OWN WORDS never a relay, paraphrase or MAIN note - except FLEET 6 for MAIN's verified notes,
+  within its floors. Rev: only the exact line typed here.
+- S0 R2: the stop-sentinel declaration is permanent, three paths since CS-1342 per MAIN's 1508
+  RULING (Rev: MAIN). R4 bounds on budget(); no progress_task; the board pin on a live read. S0b
+  two exact board names in GUARD_IGNORE (Rev: a MAIN IGNORE fix; BACKLOG triggers).
+- A-S12a 1 M1+M2, M4 to C13 (Rev: V1 or V2 failing, a stray ref); 4.5/4.6 no CS-704 edit (Rev: a
+  tier1 red on it).
 - PRODUCT BEFORE PROCESS (Rev: the operator). SUITE-GATE builders targeted, the merger ONE suite
   (Rev: more slots, or no queueing). CS-1321 pre-push byte-unchanged (CS-907 untouched), route A,
   a flake leaves commits local, never --no-verify; the 6.1 pointer stays (Rev: a /done still
   running two suites; MAIN; a budget breach).
-- ADVERSARY LOOPS STOPPED BY COST, sessions 129 to 145 (Rev: a residual reachable from a real input
+- ADVERSARY LOOPS STOPPED BY COST, sessions 129 to 150 (Rev: a residual reachable from a real input
   - a library save, a tracked path, a rendering path). RULING (A) an unpublished slice SHA becomes
   its subject in quotes (Rev: a different landed subject).
 - CS-1328 LEDGER append-only, KEPT_SIDECAR_LINES by digest, KEPT_CHECKOUT_LINES the one root
   allowlist (Rev: a residual-form line; an order to widen). CS-1283 _emit keeps its sink (Rev: a
-  MAIN emit() that flushes and tees). CS-1307 49 tests (Rev: the bare-name trigger; an arm over
-  bound). CS-1329 route B, 15 s line kept (Rev: "yes" with no finish; "no" past 120 s; 15 s; a
-  second 60 s red). CS-1327 inside its grant, (A) DENIED, never ops/fleet_kit/ (Rev: a part
-  changing more; a non-UTF-8 locale block).
+  MAIN emit() that flushes and tees). CS-1329 route B, 15 s line kept (Rev: "yes" with no finish;
+  "no" past 120 s; 15 s; a second 60 s red). CS-1327 inside its grant, (A) DENIED, never
+  ops/fleet_kit/ (Rev: a part changing more; a non-UTF-8 locale block).
 - B3 a moved file counts whole, no rerun; B1 pending rows at 3 runs (Rev: B3 against worst
-  readings; 360 s re-ruled). "SECOND SUBPROCESS-HEAVY HEAD" retired (Rev: the phrase back);
-  FORGIVEN_LINE_POINTER_CEILING 67 (Rev: that citation leaving).
+  readings; 360 s re-ruled). "SECOND SUBPROCESS-HEAVY HEAD" retired (Rev: the phrase back).
 - CS-1325 requires-python below 3.15 (Rev: cp315 wheels and a green 3.15 leg). CS-1324 re-pin by
   `python tools/drift_guard.py --re-extract` after a verifier (Rev: the census or docs sha256
-  moving). S139 R2 measure CS-1318, then a bounded poll (Rev: a reaping defect at unchanged code);
-  R4 CS-1320 repaired forward (Rev: an oracle off tmp_path).
+  moving). R4 CS-1320 repaired forward (Rev: an oracle off tmp_path).
 - CS-1312 purge_work_dir kept (Rev: uncalled). STALE_MIN 120 min (Rev: a kit lowering it).
   CS-1284's re-read (Rev: its list). CS-1302 mypy==2.1.0 (Rev: tier1 failing under it). CS-1292
   CITATION.cff, OPERATIONS 1.2, hash-pinned binaries (Rev: a LICENSE grant; a smuggle-proof design).
@@ -301,28 +249,33 @@ THE SAVE DIR: never written to; no save, world, account or home-path name in a t
   the advisor, no build card before /api/audit (CS-1046); CS-1285 G1-G6, D4 Q1-Q3, fluid-only,
   RULING 5; CS-1313 equipment never a consumer; CS-1298 one clock predicate; CS-1314 RESOLVED
   produced_in; CS-1309 same-world fallback; CS-1280 class default on a clean payload; CS-1286,
-  CS-1059, CS-1263, CS-1264, CS-1265, CS-1266, CS-1268, CS-1270, CS-1271, CS-400, CS-959's template.
+  CS-1059, CS-1263, CS-1264, CS-1265, CS-1266, CS-1268, CS-1270, CS-1271, CS-400, CS-959's
+  template; CS-1043, CS-1343 and CS-1244 as their records state.
 
 === BRIEF RULES AND TRAPS (live; full lists: THE RELOCATION, TRAPS; the memory index) ===
 - /done's mark FAILS a hand-off over 30720 bytes: keep this file under it.
-- Briefs: TARGETED tests written literally, never an empty target; bare `python -m mypy`; `python
-  -m ruff check .` and `ruff format --check .`; tests/test_sphinx_roles.py,
+- Briefs: TARGETED tests written literally, never an empty target - confirm every path and list
+  file exists first (a missing one ran a bare whole suite twice in session 150); bare `python -m
+  mypy`; `python -m ruff check .` and `ruff format --check .`; tests/test_sphinx_roles.py,
   tests/test_provenance_manifest.py (a new file needs a provenance row),
-  tests/test_assertion_rendering.py, tests/test_locals_rendering.py; subjects of 72 characters at
-  most. Line pointers and census guards show only in the integration suite.
+  tests/test_assertion_rendering.py, tests/test_locals_rendering.py,
+  tests/test_pathless_clone_agreement.py; subjects of 72 characters at most, Conventional Commits
+  (.github/CONTRIBUTING.md section 4). Line pointers and census guards show only in the
+  integration suite.
 - Each agent names its own progress, log and scratch files; git's usr/bin on PATH; `python -B` in
   mutant harnesses; never pip into the base interpreter; the owner id literal in gitlock commands;
   no quote-wrapped < or > in sed; `git -C`, never `cd`; a doc agent never shares a staging
   worktree; Verify write-lists with `git ls-files`; worktree agents start stale.
 - Never in a tracked line: a backticked gitignored path, a drive root ending in this folder's name
   or the sidecar root (<repo>, <sidecars>), a worktree agent id, an unpublished SHA. LEDGER
-  headings join ids with "and"; a body line never opens with an id; a ruling heading naming an
-  open id gets a separate NOT A COMPLETION record. A dated heading in a LIVE file: its date follows
-  a provenance verb (relocated, moved, filed, archived, recorded, measured, probed, observed,
-  session <n>), never leads, and no terminal verb (closed, superseded, retired, withdrawn) precedes
-  it anywhere: guard (g) of tools/drift_guard.py; tests/test_dated_headings.py ("superseded").
-- CPU first; two suite-running builders at most; a load harness at most 6 spinners, never beside a
-  suite; a /done skips its push only on the operator's order; freeze only after a collect-only run
+  headings join ids with "and"; a body line never opens with an id or a hash sign (a LEDGER line
+  opening with one is read as a heading and displaced 7 forgiven citations); a ruling heading
+  naming an open id gets a separate NOT A COMPLETION record. A dated heading in a LIVE file: its
+  date follows a provenance verb (relocated, moved, filed, archived, recorded, measured, probed,
+  observed, session <n>), never leads, and no terminal verb (closed, superseded, retired,
+  withdrawn) precedes it anywhere: guard (g) of tools/drift_guard.py; tests/test_dated_headings.py.
+- CPU first; two suite-running builders at most; load harness limits: docs/OPERATIONS.md section
+  9.3; a /done skips its push only on the operator's order; freeze only after a collect-only run
   with no suite running.
 - Never os.walk, rmtree or rglob a tree holding a planted link (remove a link AS A LINK). gitlock
   wraps only commit and push; a squashed landing reads "+" in `git cherry` - classify by content;
@@ -335,35 +288,40 @@ THE SAVE DIR: never written to; no save, world, account or home-path name in a t
   .git/index.lock only by the kit's clear_index_lock. Windows: -X utf8 under -I; an absolute
   interpreter to the suite gate; split PATH on os.pathsep.
 
-=== THE CHANNEL AND EXTERNAL CONDITIONS (history: THE RELOCATION) ===
-OWED: C8's ONE ANSWER (W1's is DONE). Never answer an answer; never re-send a sent note (S5 included;
-THE RELOCATION, THE CHANNEL). MAIN's 13:16 RULING: no reply. Cap 12 a day since v20.1.
-WAITING ON: MAIN's nightly rollout near 09:00Z (the hold refuses it); MAIN's answers to the 1213 FIX
-and S5; the CS-1207 and CS-815 rulings; the dead-secret files; CS-1318's evidence; Ubuntu 26.
+=== THE CHANNEL AND EXTERNAL CONDITIONS ===
+OWED: nothing outbound beyond CS-1344's ONE ANSWER when it closes. SENT in session 150, never to
+be re-sent: the W1 ANSWER, the ONE CS-1328 ANSWER, the 0420 FIX (kit spawn timeout), the 1312
+ANSWER (settings inert keys), the 1610 INFORMATION (the OutboundCap bypass is ours) and the 0647
+FIX (suite-gate commit admission); and S5 (session 149). Never answer an answer. MAIN's 13:16 RULING: no reply. Cap 12
+a day since v20.1.
+WAITING ON: a MAIN kit version answering the 0647 FIX (CS-1349's kit half) and the 0420 FIX;
+MAIN's answers to the 1213 FIX and S5; MAIN's note on the status board for CS and every tree; the
+CS-1207 ruling; CS-1318's evidence; Ubuntu 26.
 
-=== SESSION 149 - DONE (detail in docs/LEDGER.md) ===
-- CS-1330 LANDED as L: kit v20.1, the declaration tracked (S0, S0b); S2's suite 16447 passed, 12
-  skipped (agent-reported); tier1 39364435714 RED on the save shard.
-- CS-1331 LANDED as M: the lstat stand-in forwards dir_fd; NOT REFUTED; ls-remote read back;
-  tier1 39371250062 success, six jobs on attempt 1.
-- S5: the 2026-10-19-2356 FIX note to MAIN (v20.1 adopted, six kit defects), HOP 2, delivered
-  1/1, sha256 254a4ae216f0dcdb232197fd762dc402c906926d7cb323b83aa897b4f76de53f.
-- Bundled, then retired: the kit and CS-1331 build branches, three worktrees; the sentinel
-  exclude line dropped; BACKLOG "Session 149 residuals" (three CS-1330, two CS-1331 lines).
-- This /done: COMMIT (S149-DONE); cut from 249465 bytes by relocation; census adversary APPLY,
-  fixes a to f made.
+=== SESSION 150 - DONE (detail in docs/LEDGER.md) ===
+- CLOSED: CS-1332, CS-1317, CS-G03, CS-700, CS-1307, CS-1333, CS-1234, CS-1335, CS-1043 (MAIN's
+  version), CS-1339, CS-1341, CS-1336, CS-1337, CS-1342, CS-1343, CS-1338, CS-1244 (closed again).
+- LANDED: CS-1231 slice C; CS-1328 (b). S12a C5 to C13, the HOLD lift and KEEP (8); C13's bundle
+  sha256 cc486870b8b062fd54e6c800f353090504f270ddfbe35c8d1f1b60f7ee573ac4.
+- FILED: CS-1340, CS-1344, CS-1345, CS-1346, CS-1347, CS-1348, CS-1349.
+- No spike contradicted BOOTSTRAP.md.
 
-=== SESSION 149 /done - FINAL REPORT (counts observed THIS RUN) ===
-START 2026-10-20T00:32:15-05:00. WINDOW CLOSED (both reads rc 0). STEP 0: G1 equal (s148 copies,
-marker); S149-DONE COMMIT. STEP 1 tier 2: mypy exit 0; ruff check . 0; ruff format --check . 0;
-25 doc test files exit 0, 2586 passed, 0 skipped. drift_guard 0; doc_budget 0; sha_citation_gate
-0; memory_sync n/a (memory/ unchanged). This file 30390 bytes. PUSH: LANDED, read back by C5a in
-session 150 (W2, COMMIT STATE). UNVERIFIED: none; the board FAILED (above).
+=== SESSION 150 /done - FINAL REPORT (counts observed THIS RUN) ===
+START 2026-10-22T07:13:00-05:00. WINDOW CLOSED (both reads exit 0). TIER 2. STEP 1, each exit 0:
+`python -m mypy` (434 source files); `python -m ruff check .`; `python -m ruff format --check .`
+(417 files); targeted pytest over tests/data, tests/progress, tests/solve, tests/ops, tests/surface
+and 16 changed top-level files: 7016 passed, 0 failed, 3 skipped (an off-Windows store arm, a chmod
+read-back arm, a git-for-Windows PATH arm); after the edits, 54 doc-reading test files: 5362
+passed, 0 failed, 8 skipped, each by its stated reason, exit 0. STEP 5: drift_guard exit 0 (11 guards PASS);
+doc_budget exit 0; memory_sync exit 0 (memory/ unchanged). PUSH: push of this
+commit pending at write time; push result and CI UNREAD - the next session's first act reads the
+remote ref against this HEAD and the CI run (its pre-push suite is the ritual's one gated whole
+suite). UNVERIFIED: the deletions and the gh scope read-back, done and read back by other
+sub-agents and relayed by the main session, not re-read by this ritual.
 
 === READ FIRST ===
 CLAUDE.md; memory/MEMORY.md; ROADMAP.md; WAKEUP_NOTES.md; docs/ARCHITECTURE.md;
-.claude/commands/done.md; docs/OPERATIONS.md sections 10 and 12; tools/headless-queue.md; the
-A-432, A-S12a, A-DONE, S0, S0b and S149-DONE rulings; docs/item_notes/phase7.md; docs/LEDGER.md
-(2026-10-19 and 2026-10-18 first); docs/GATED.md CS-G03; note.md; THE S148 COPY for any shortened
-item.
+.claude/commands/done.md; docs/OPERATIONS.md sections 10 and 12; tools/headless-queue.md;
+docs/item_notes/phase7.md and phase5.md for the open items; docs/LEDGER.md (2026-10-22 and
+2026-10-21 first); THE PRIOR HAND-OFF or THE S148 COPY for any shortened item.
 Then run: python tools/inbox_watch.py (listing never acknowledges)

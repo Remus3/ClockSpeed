@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-22 - CS-1328 and CS-1231 - NOT A COMPLETION RECORD. CS-1328 AND CS-1231 STAY OPEN: session 150 /done - every closed item's record read present, the ONE CS-1328 ANSWER recorded as delivered, and the operator's answers to the batched ask recorded
+Verification: `tools/outbound_send.py::perform_send`, whose delivery record in the gitignored data
+directory holds the ONE ANSWER's row; `git ls-remote origin`, which serves the v0.1.0 tag; the
+sections of both items in `docs/item_notes/phase7.md`, each with its `### Acceptance` clause.
+This record closes nothing.
+STEP 0. The ritual started 2026-10-22T07:13:00-05:00. The CS-700 window read CLOSED: both reads
+exited 0, HEAD has one parent, and HEAD's own commit does not list the citation historical file.
+Highest tier touched this session: 2. The tree was clean at the start.
+STEP 1, tier 2, each command exit 0 this run: `python -m mypy` (no issues, 434 source files);
+`python -m ruff check .`; `python -m ruff format --check .` (417 files formatted); one targeted
+pytest run over tests/data, tests/progress, tests/solve, tests/ops, tests/surface and the sixteen
+changed top-level test files, every path read present first: 7016 passed, 0 failed, 3 skipped -
+an off-Windows store arm, a chmod read-back arm and a git-for-Windows PATH arm, each skipping by
+its own stated reason. After this ritual's edits, one pytest run over the 54 test files that
+read the edited documents, every path read present first, exit 0: 5362 passed, 0 failed, 8
+skipped - a NUL-argument arm, two chmod read-back arms, two git-for-Windows PATH arms and three
+empty-gap-record arms, each by its stated reason.
+STEP 2. A newest-first record was read present for every item session 150 closed: CS-1332,
+then CS-1317, CS-G03, CS-700, CS-1307, CS-1333, CS-1234, CS-1335, CS-1043 (MAIN's version),
+and CS-1339, CS-1341, CS-1336, CS-1337, CS-1342, CS-1343, CS-1338 and CS-1244 (closed again).
+No completion record was missing; this record is the only one this ritual adds.
+STEP 3. `ROADMAP.md` read: no closed item is left on it, and every item filed this session has
+its line. STEP 4: the session 150 entry added to `WAKEUP_NOTES.md`; the session 147 entry
+relocated verbatim to `docs/history_notes.md`. STEP 5: `python tools/drift_guard.py` exit 0
+(guards 11, PASS 11, FAIL 0); `python tools/doc_budget.py` exit 0 (measured 40, over budget 0);
+`python tools/memory_sync.py` exit 0, run although the tracked `memory/` is unchanged. STEP 6:
+the hand-off rewritten whole, `SESSION: 151`.
+THE ONE CS-1328 ANSWER (C8): delivered to MAIN at 2026-10-21T04:56:56Z, gate verdict CLEAN,
+11685 bytes, sha256 43722c053b625d2ace5ee23aa721be771dd034dd92c1b7863b874938979a28d6, by the
+delivery record. With C7 - the remote serves the annotated tag v0.1.0, peeling to
+f9b877256dd82e8d2844b6d7c876d3ab822ff097 - every step the item's next-action line names is done.
+The item stays OPEN: a distinct closure verifier reads every clause of its Acceptance, the
+ledger-recorded history residual included. This ritual grades nothing.
+SLICE C: landed (the 2026-10-21 CS-1231 record), and the item's section names no open slice. The
+item stays OPEN for a distinct closure verifier reading its Acceptance.
+READ THIS RITUAL: no stop sentinel and no HOLD_MAIN_SPAWN file present (the hold lifted); no 146
+folder left in the data directory (KEEP (8)); the last row of the queue cycle log, ok true,
+outcome completed, worker_ok true, scope advisor-ranking, worked CS-1244.
+OPERATOR ANSWERS, typed by the operator in the main session on 2026-10-22 and relayed to this
+ritual by the main session, to the batched ask:
+(1) The board URL in the tracked status board file: "it can stay there; nothing to worry about
+is in it". The privacy question is CLOSED. The board artifact still reads not found; the
+operator: "status board ill have main update what i want done with that for CS and all
+others" - so it is not owed by the operator here and waits on that MAIN note.
+(2) The CS-815 hook-error line: "it does show it and it is also marked as stale". The next
+session grades that item's acceptance against this answer.
+(3) The four dead-secret files: "delete them". Three, under an old temp scratchpad, were already
+gone; the fourth, a suite log outside the repository with no consumer, went to the Recycle Bin by
+a sub-agent on that order and read back gone. CLOSED: all four deleted.
+(4) The gh token's delete_repo scope: "narrow it", then "that gh repo token was done". Read
+back by a sub-agent: the scopes are gist, read:org, repo and workflow, delete_repo ABSENT. CLOSED.
+A NEW EXPOSURE that sub-agent found - four installer logs written on 2026-10-22 in the user temp
+folder carrying an admin-family key other than the dead one - is CLOSED too. The operator: "just
+delete the 4 logs they werent sent to github so it is fine"; the four went to the Recycle Bin,
+found by a presence-only scan and read back gone, and the operator judged no rotation needed.
+MEMORY: five harness memory notes, three new and two updated; the tracked `memory/` unchanged.
+
 ### 2026-10-22 - CS-1334 - NOT A COMPLETION RECORD. CS-1334 STAYS OPEN: the first fresh-Sandbox walk of an anonymous public clone, graded PARTIAL by a grader that did not walk, clause 11 NOT MET
 Verification: CS-1334's section in `docs/item_notes/phase7.md`, its `### Acceptance` clause;
 `git ls-remote` of the public remote for `main`; the three untracked scratch artifacts named
