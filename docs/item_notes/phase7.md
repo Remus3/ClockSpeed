@@ -914,36 +914,6 @@ itself (its length limit and its bare-placeholder ban), and `tools/precommit_gat
 frozen commit gate; whether the gate reads a subject is the audit's to state. So an edit to
 either routes through the CLAUDE.md section 6 grant before it is made.
 
-## CS-1337
-
-### Acceptance
-
-The `How this repo is built` section of `README.md` names `CLAUDE.md`, `.claude/`, `ops/`,
-`.githooks/` and the hand-off file `CS-NEXT-SESSION.txt` as the documented process, each in
-a clause that names or links to it and restates none of its rules, with no item ID and no
-fleet jargon, because the README is for outsiders and never contains internal process
-(CLAUDE.md section 4); the licence stays stated plainly under `## License`.
-`tests/test_readme_audit.py::README_LINE_BUDGET` and
-`tests/test_readme_audit.py::QUICKSTART_LINE_BUDGET` still hold, or a raise of either is
-ruled on the adjudicator route and recorded in `docs/LEDGER.md`.
-
-### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
-
-Posture item 1d of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
-section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
-hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
-opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
-work instead of keeping it out of this file.
-
-NOT MET at filing, by a distinct read-only adjudicator of session 150 at the H commit's
-parent: the section names `.claude/agents/` and `.githooks/`, and the licence is stated
-plainly, but it never names `CLAUDE.md`, `ops/` or the hand-off. The commit "README -
-heading to How this repo is built (GH-HYGIENE ORDER)" changed the heading alone, MAIN's
-GH-HYGIENE ORDER says only that the heading stays, and no record narrows 1d. Rejected: MET
-on the heading (a heading is not the content); a fold into CS-1333 (that item has its own
-acceptance). The README sits at its whole line budget, and CS-1333 presses the same budget,
-so the two land one after the other.
-
 ## CS-1338
 
 ### Acceptance
@@ -998,3 +968,23 @@ defended. One session scratchpad measured 66,234 files on 2026-10-21. Read
 `docs/LEDGER.md` for CS-1319, CS-1320 and CS-1322 before changing the retention, and treat
 the scratchpad half as a sweep of what a session leaves, not a recursive delete of a path
 another live agent may be using.
+
+## CS-1345
+
+### Acceptance
+
+An outsider who follows the `README.md` Quickstart in a fresh clone of a fork of the public repository, with every hook installed, can commit and push to that fork: the step that sets local git config `fleet.operatorIdent`, without which `ops/fleet_kit/fleet_identity.py::pre_push` refuses every push, is written in its one owner file and pointed at, not restated, from `README.md`, `.github/CONTRIBUTING.md` and `docs/OPERATIONS.md` wherever they need it; and if the kit itself must change for an outsider to push, the change goes to MAIN as a kit report and no file under `ops/fleet_kit/` is edited here
+
+### Filed 2026-10-21 (session 150) from the CS-1338 outsider read
+
+**THE GAP.** In a fresh clone the pre-push hook refuses every push until local git config
+`fleet.operatorIdent` is set: `ops/fleet_kit/fleet_identity.py::pre_push` reads
+`ops/fleet_kit/fleet_identity.py::operator_idents` from the clone's LOCAL config and, finding
+none, refuses through `ops/fleet_kit/fleet_identity.py::_no_operator`, whose message names the key
+and the fix. A fresh clone never carries the key. `README.md`, `.github/CONTRIBUTING.md` and
+`docs/OPERATIONS.md` never mention it, so an outsider following the Quickstart can commit -
+`ops/fleet_kit/fleet_identity.py::commit_msg` strips and always returns 0 - but cannot push.
+
+**THE KIT IS VENDORED** (FLEET item 11), so the fix in this tree is a written step; what value an
+outsider sets, and whether a fork should need the key at all, is the kit's to say, through MAIN.
+Filed in Phase 7 because it is the public repository's outsider path, beside CS-1334's walk.

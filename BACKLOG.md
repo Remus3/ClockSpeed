@@ -927,3 +927,53 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   `status.json`; the CS-1342 read-back ("halt_file change: commit, responder no longer
   halted") rides in the v21 adoption ANSWER, no separate note; trigger: kit v21 adopted, after
   2026-10-26.
+- From the session 150 lane scopes (`docs/LEDGER.md`, 2026-10-21, the SESSION 150 LANE SCOPES
+  record): the queue-b and queue-c lanes are not wired - `ops/loop/lane_launcher.py::LANE_COMMANDS`
+  names queue alone - so the `registry-audit` and `ratio-settle` scopes in
+  `config/lane_scopes.json` reach no lane; trigger: a second lane is started, or the next edit to
+  `LANE_COMMANDS`.
+- From the same record: `tools/headless-queue.md`'s scope step runs `python -m ops.loop.scope`
+  without `--lane`, and the module's `--lane` default is the queue lane, so a queue-b or queue-c
+  worker following that prompt would read the queue lane's scope; trigger: queue-b or queue-c
+  wired, or the next edit to that step.
+- From the same record: CS-1240 is out of every lane scope pending an adjudication of whether its
+  normalised fallback join reaches the `clockspeed/progress/` schematic join, beside which
+  CS-1343's clause forbids a name-matching heuristic; trigger: that adjudication rules, or
+  CS-1343 closes.
+- From the same record: the main session cannot claim a row - `ops/loop/claims.py::try_claim_row`
+  refuses the main tree through `ops/loop/lanes.py::require_worktree` - so a row the main session
+  works is never claimed and a lane can take it at the same time, the root of session 150's
+  CS-1043 collision; trigger: a second main-versus-lane collision on one row, or the next edit to
+  `try_claim_row`.
+- From the CS-1337 close (`docs/LEDGER.md`, 2026-10-21, CS-1337): the README's How this repo is
+  built section repeats `.github/CONTRIBUTING.md`'s precedence rule, that the owner file a rule
+  names governs - a restated rule with somewhere to drift; trigger: the next edit to that README
+  section or to the rule in `.github/CONTRIBUTING.md`.
+- From the CS-1338 outsider read (`docs/LEDGER.md`, 2026-10-21, CS-1338 part A), O1 to O4, O6 and
+  O7, owned by the hand-off rewrite: the hand-off calls CS-1231 slice C unbuilt, restates
+  CLAUDE.md's byte headroom instead of naming `tools/doc_budget.py`, gives zero open alerts as a
+  triage, and carries a stale next-free-ID line; the session 149 `WAKEUP_NOTES.md` entry asserts
+  both states, and its entries break the file's ids-plus-pointer Shipped shape; trigger: the next
+  /done.
+- From the same read, O10: `.claude/commands/drift-guard.md` restates the port band
+  `config/ports.json` owns and other trees' bands; point at the owner instead; trigger: the next
+  edit to that command or to `config/ports.json`.
+- From the same read, O11: `.claude/commands/orchestrated-run.md`,
+  `.claude/commands/drift-guard.md`, `.claude/commands/weekly-hygiene.md` and
+  `.claude/commands/sync-docs.md` describe a semantic memory store, while `tools/memory_sync.py`
+  says none is wired; one clause in each saying so, else grep `memory/`; trigger: the next edit to
+  any of the four, or a store wired.
+- From the same read, O12: all nine `.claude/commands/` files open with a kit-version banner that
+  reads to an outsider as the current kit version; reword it as "since" that version; trigger: the
+  next kit adoption that touches those files.
+- From the same read, O13 and O14: `.claude/commands/done.md` says the operator pastes the hand-off
+  into a cold session, where the rest of the file says the session starts from continue; and
+  `.claude/commands/tdd.md` step 5 runs mypy with a target, which replaces config discovery and
+  cannot see `tests/`, so it should be bare `python -m mypy`; trigger: the next edit to either
+  command.
+- From the same read, O15: `.claude/commands/audit.md` restates which save versions the operator's
+  library holds, a measured fact that drifts as the library changes; point at the save layer's
+  version dispatch instead; trigger: the next edit to that command, or a save version bump.
+- From the same read, O16: the CLAUDE.md precedence paragraph's clause (b) does not parse as a
+  sentence; reword it to say FLEET item 13 now carries the checklist section 2.3.1 applies;
+  trigger: the next edit to that paragraph.

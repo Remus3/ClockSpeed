@@ -24,6 +24,42 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1337 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1337
+
+### Acceptance
+
+The `How this repo is built` section of `README.md` names `CLAUDE.md`, `.claude/`, `ops/`,
+`.githooks/` and the hand-off file `CS-NEXT-SESSION.txt` as the documented process, each in
+a clause that names or links to it and restates none of its rules, with no item ID and no
+fleet jargon, because the README is for outsiders and never contains internal process
+(CLAUDE.md section 4); the licence stays stated plainly under `## License`.
+`tests/test_readme_audit.py::README_LINE_BUDGET` and
+`tests/test_readme_audit.py::QUICKSTART_LINE_BUDGET` still hold, or a raise of either is
+ruled on the adjudicator route and recorded in `docs/LEDGER.md`.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1d of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+NOT MET at filing, by a distinct read-only adjudicator of session 150 at the H commit's
+parent: the section names `.claude/agents/` and `.githooks/`, and the licence is stated
+plainly, but it never names `CLAUDE.md`, `ops/` or the hand-off. The commit "README -
+heading to How this repo is built (GH-HYGIENE ORDER)" changed the heading alone, MAIN's
+GH-HYGIENE ORDER says only that the heading stays, and no record narrows 1d. Rejected: MET
+on the heading (a heading is not the content); a fold into CS-1333 (that item has its own
+acceptance). The README sits at its whole line budget, and CS-1333 presses the same budget,
+so the two land one after the other.
+
+
 ## CS-1341 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

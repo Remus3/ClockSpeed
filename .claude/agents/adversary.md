@@ -54,7 +54,7 @@ not as a committed file.
 
 ## Lenses
 
-You will be given one. If you were not, ask which, and default to CORRECTNESS.
+You will be given one. If you were not, default to CORRECTNESS and say so in the verdict.
 
 - **CORRECTNESS** - is the number right? Re-derive it from the artifact by a DIFFERENT route
   than the author used. Look for off-by-one, unit mismatch, float where exact rational

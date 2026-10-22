@@ -83,5 +83,5 @@ in `docs/LEDGER.md` with the item ID (`CS-nnn`).
   looked.
 - `RESIDUAL:` what remains unsettled and what would settle it.
 - `DECISION: SPLIT` is legal when the criteria genuinely conflict - say which criterion each
-  candidate wins and hand the trade-off to the operator. `DECISION: NEITHER` is legal when
+  candidate wins and hand the trade-off to a second, distinct adjudicator. `DECISION: NEITHER` is legal when
   both violate a non-negotiable.

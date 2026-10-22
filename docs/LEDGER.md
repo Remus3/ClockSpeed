@@ -75,6 +75,137 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - SESSION 150 LANE SCOPES - NOT A COMPLETION RECORD. NOTHING CLOSED. Three Phase 5 product scopes declared in `config/lane_scopes.json`, CONFIRMED by a verifier, and reaching a lane only per process
+Verification: `config/lane_scopes.json`, the scopes `advisor-ranking`, `registry-audit` and
+`ratio-settle`; `tests/ops/test_lane_scope.py::test_the_declared_scopes_all_validate_against_the_live_roadmap`,
+with `tests/ops/test_lane_scope.py`, `tests/ops/test_scope_binding.py` and
+`tests/ops/test_multi_lane.py` green at the landing (101 passed).
+WHAT LANDED: three enumeration scopes, one per lane, under CLAUDE.md section 7's product before
+process: `advisor-ranking` for queue (CS-1244, CS-1245, CS-1246, CS-1247, CS-1253),
+`registry-audit` for queue-b (CS-1241, CS-1242, CS-1250) and `ratio-settle` for queue-c (CS-1249,
+CS-1251), their write areas disjoint by module, each scope's description carrying its reasons. A
+distinct verifier CONFIRMED the three against the live roadmap (agent-reported).
+HOW ONE REACHES A LANE: only through the per-process variable `CLOCKSPEED_LANE_SCOPE_<LANE>`, the
+lane name upper-cased with its hyphen kept, set in the shell that starts the lane and never at user
+or machine scope (`ops/loop/lanes.py::LANE_SCOPE_ENV_PREFIX`; the file's own `_README`). Nothing
+sets it today, so an unscoped read still offers the process rows first.
+LEFT OPEN, each a line in `BACKLOG.md`, session 150 residuals: queue-b and queue-c are not wired
+(`ops/loop/lane_launcher.py::LANE_COMMANDS` names queue alone); `tools/headless-queue.md` runs its
+scope step without `--lane`; CS-1240 is out of every scope pending an adjudication against
+CS-1343's no-name-matching rule; and the main session cannot claim a row
+(`ops/loop/claims.py::try_claim_row`), the root of session 150's CS-1043 collision.
+
+### 2026-10-21 - CS-1338 - NOT A COMPLETION RECORD. CS-1338 STAYS OPEN: part A - CodeQL default setup configured and its first analysis triaged, the Dependabot read-back, the 30-day failed-run sweep and the outsider read
+Verification: this record, each read-back a GET against the repository's code-scanning,
+Dependabot and Actions endpoints; the TLS 1.2 pins (`ssl.TLSVersion.TLSv1_2`) in
+`tests/test_make_cert.py`, `tests/surface/test_server.py`, `tests/surface/test_acceptance.py`,
+`tests/test_chained_cause_census.py` and `tools/dashboard_probe.py`, all green at the landing.
+DEFAULT SETUP: read before as not-configured, with no analysis; turned on, and read back as
+configured: schedule weekly, query suite default, languages actions, javascript-typescript and
+python (the API's javascript and typescript entries are aliases of javascript-typescript).
+FIRST ANALYSIS: run 39691301609, CodeQL Setup, on main at
+90811ca2a58e2e69031ab26daf9f7ff47cfc7a0c, conclusion success, its three language jobs green. 4
+alerts, all HIGH by security severity, 0 critical, medium or low: py/insecure-protocol 3, all
+under `tests/`, and py/clear-text-logging-sensitive-data 1, under `tools/`; 0 in a vendored file,
+0 in a frozen file.
+TRIAGE, HIGH FIRST. #4, py/clear-text-logging-sensitive-data at `tools/outbound_gate.py::write_stream`:
+DISMISSED as a false positive after an adversary's confirmation (agent-reported) - what reaches
+the stream is a detection rule's label and its regex fingerprint, printed by the deliberate
+fingerprint re-record path, and never a credential value; CodeQL matched the name of the frozen
+gate's `SECRET_PATTERNS` table. #1 to #3, py/insecure-protocol on loopback TLS contexts in
+`tests/test_make_cert.py` and `tests/surface/test_server.py`: FIXED by pinning TLS 1.2 on every
+test and tool context, the idiom `clockspeed/surface/server.py` already uses; whether the three
+close is read on the next analysis.
+DEPENDABOT, READ BACK, nothing changed: alerts ON; security-update PRs OFF.
+30-DAY SWEEP, counts only, no log opened: the window holds the repository's whole Actions
+history, every run at attempt 1. Runs 21, failed 1 - tier1 12 and 1, tier2 5 and 0, the
+Dependabot pip graph update 4 and 0. Job runs 211, failed 1: tier1's save shard, in the run
+already recorded as CS-1330's Linux-only red, which CS-1331 repaired.
+OUTSIDER READ: 20 tracked files - `CLAUDE.md`, the 8 files of `.claude/agents/`, the 9 of
+`.claude/commands/`, `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md`. Mechanical sweep: non-ASCII
+bytes, CR bytes, email-shaped strings, home-directory paths and URLs 0 in every file; no account
+id, world name, Windows user or machine name. 18 findings, one line each:
+O1 the hand-off calls CS-1231 slice C unbuilt and `ops/loop/run_lane.ps1` a direct CLI start; both landed otherwise.
+O2 the hand-off restates CLAUDE.md's byte headroom, and the figure has drifted.
+O3 the hand-off and `WAKEUP_NOTES.md` give zero open alerts as a triage, when no analysis had run.
+O4 the hand-off's next-free-ID line is stale.
+O5 a tracked file carries the claude.ai status board URL in a public repository.
+O6 the session 149 `WAKEUP_NOTES.md` entry was patched mid-session and asserts both states.
+O7 `WAKEUP_NOTES.md` entries break the file's own ids-plus-pointer Shipped shape.
+O8 `.claude/agents/adjudicator.md` hands a SPLIT decision's trade-off to the operator.
+O9 `.claude/agents/adversary.md` tells an adversary given no lens to ask which.
+O10 `.claude/commands/drift-guard.md` restates the port band `config/ports.json` owns, and other trees' bands.
+O11 four command files describe a semantic memory store that no tool wires.
+O12 all nine command files open with a kit-version banner that reads as the current kit.
+O13 `.claude/commands/done.md` says the operator pastes the hand-off; elsewhere the session starts from continue.
+O14 `.claude/commands/tdd.md` runs mypy with a target, which cannot see `tests/`.
+O15 `.claude/commands/audit.md` restates which save versions the operator's library holds.
+O16 the CLAUDE.md precedence clause (b) does not parse as a sentence.
+O17 CLAUDE.md section 7 carries a measured commit count, kept as the dated evidence of a directive.
+O18 the hand-off is dense with internal labels an outsider cannot act on.
+WHAT EACH GOT: O8 and O9 FIXED by one-line wording changes in the commit carrying this record - a
+SPLIT now goes to a second, distinct adjudicator, and an adversary given no lens defaults to
+CORRECTNESS and says so in its verdict. O5 goes to the operator ask, its file untouched. O18 is
+met by CS-1337, whose README section names the hand-off as the note one session leaves for the
+next. O17 stands for its stated reason. The rest are lines in `BACKLOG.md`, session 150
+residuals.
+STAYS OPEN: alerts #1 to #3 are not yet read closed.
+
+### 2026-10-21 - CS-1337 - CLOSED: the README's How this repo is built section names `CLAUDE.md`, `.claude/`, `ops/`, `.githooks/` and `CS-NEXT-SESSION.txt` as the documented process, restating none of their rules
+Verification: `README.md`, its `How this repo is built` section;
+`tests/test_readme_audit.py::README_LINE_BUDGET` and
+`tests/test_readme_audit.py::QUICKSTART_LINE_BUDGET`, both unmoved, with
+`tests/test_readme_audit.py` and `tests/test_community_health.py` green at the landing (245
+passed).
+THE ACCEPTANCE, PART BY PART: each of the five is named in a clause that names it and restates
+none of its rules; no item ID and no fleet jargon; the licence stays stated plainly under
+`## License`; and both budgets hold, the section changing net zero lines, so no raise was ruled.
+GRADED: a distinct adversary returned NOT REFUTED after one repair (agent-reported). The repair
+stopped calling the process files ignorable, since the hooks and the suite load helpers under
+`ops/` and `.github/CONTRIBUTING.md` defers to the owner files it names.
+RESIDUAL: the README repeats `.github/CONTRIBUTING.md`'s precedence rule, that the owner file a
+rule names governs; a line in `BACKLOG.md`, session 150 residuals.
+The section moved to `docs/history_notes.md` and the `ROADMAP.md` line is gone.
+
+### 2026-10-21 - CS-1343 - NOT A COMPLETION RECORD. CS-1343 STAYS OPEN: its three slices LANDED (closure graded next), and clause 1 is amended to the schematic catalog on an adjudicated ruling
+Verification: S1 `tests/data/test_schematics.py::test_a_schematic_publishes_the_asset_path_half_of_its_full_name`,
+`::test_a_schematic_without_a_full_name_publishes_no_asset_path_and_is_flagged`,
+`::test_a_full_name_without_its_separator_is_flagged_never_guessed`,
+`::test_a_non_string_full_name_publishes_no_asset_path_and_is_flagged` and
+`::test_a_full_name_that_is_not_one_class_and_one_path_half_is_flagged`; S2
+`tests/progress/test_milestones.py::test_a_source_with_no_catalog_publishes_null_under_a_named_reason`,
+`::test_purchased_is_the_asset_path_join_not_the_trailing_token`,
+`::test_a_schematic_with_no_asset_path_is_purchased_unknown_never_false`,
+`::test_a_purchased_path_no_schematic_knows_is_counted_never_dropped` and
+`::test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted`; S3
+`tests/progress/test_phases.py::test_the_shipped_source_publishes_delivered_available_false_required_only`,
+`::test_delivered_available_is_derived_with_a_zero_count_reading_true` and
+`::test_a_delivered_reading_holds_exact_non_negative_counts_only`. `tests/progress` with the
+phase 2 and phase 3 gates green at the landing (292 passed).
+LANDED, each slice by cherry-pick `--no-commit` and one commit, every touched file read back
+blob-equal to its slice's final commit. S1, `clockspeed/data/schematics.py`:
+`Schematic.asset_path`, the path half of a docs entry's FullName after its one-space separator,
+None and flagged when FullName is missing, not a string or not two halves. S2,
+`clockspeed/progress/milestones.py`: the `SchematicSource` protocol, `purchase_state` and
+`PurchaseState`, the purchased join being exact path equality against `Schematic.asset_path`,
+an unknown asset path purchased-unknown and never False, an unmatched purchased path counted and
+never dropped. S3, `clockspeed/progress/phases.py`: `PhaseCostTable`'s delivered mapping and
+`PhaseCost.delivered_available`, False from the shipped source, so every figure stays REQUIRED.
+INDEPENDENT VERIFIERS, agent-reported. S1: 11 of 11 mutants killed after one repair, and the
+one-space separator confirmed by a read-only counts-only probe, in which 76 of 76 purchased paths
+compared equal. S2: 27 mutants graded
+after one repair; residuals: the WARN code spellings are unpinned, and removing `audit_exact` is
+an equivalent mutant. S3: 21 of 21 mutants killed, plus the follow-up's arms.
+CLAUSE 1 AMENDED, on the adjudicator route `docs/item_notes.md` names: "the shipped Document" now
+reads "the shipped schematic catalog"; the decision, the alternatives and the reason are in the
+item's section in `docs/item_notes/phase5.md`. Clauses 2 and 3 still quote CS-1043's filing as
+written.
+GATED PART: the producer that makes `delivered_available` read True waits on CS-1340's
+measurement and on a seam ruling for the delivered source, since the inventory model sits in
+`clockspeed/audit/`, not in a layer below `clockspeed/progress/`.
+`docs/ARCHITECTURE.md`'s progress row now names the protocol, the join and the flag, one line for
+one.
+
 ### 2026-10-21 - CS-1336 - NOT A COMPLETION RECORD. CS-1336 STAYS OPEN: the commit-subject site audit its Acceptance orders before any subject rule changes
 Verification: re-run over tracked files from the root, excluding `docs/history_notes.md`,
 `docs/LEDGER.md`, `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md` (records quoting past subjects):
