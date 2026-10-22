@@ -190,13 +190,13 @@ a compact JSON object whose top-level `status` field is `ok`.
 
 ## How this repo is built
 
-Clockspeed is developed with Claude Code working as cooperating agents whose roles are
-defined in `.claude/agents/`, under written rules the repository enforces: work is
-test-first and an adversarial pass tries to break each change; tier-0 git hooks in
-`.githooks/` refuse non-ASCII content, secrets, personal data and publisher-owned files;
-the `tier1` and `tier2` workflows in `.github/workflows/` run the suites in CI; and an
-unattended lane works queued rows ([`docs/OPERATIONS.md`](docs/OPERATIONS.md)). None of
-this tooling is in the advice path, and the product itself makes no network call.
+Clockspeed is developed with Claude Code agents, and these tracked files are the process
+they follow: `CLAUDE.md` holds the rules they work under, `.claude/` their roles, commands
+and settings, `ops/` the scripts that run queued work unattended and helpers the git hooks
+and the test suite load, `.githooks/` those hooks, which the Quickstart installs, and
+`CS-NEXT-SESSION.txt` the note one working session leaves for the next. Contributing needs
+no Claude Code: start at `.github/CONTRIBUTING.md`, which sums up the rules a change must
+keep; where it names a rule's owner file, that file governs. The product uses none of this.
 
 ## Documentation
 
