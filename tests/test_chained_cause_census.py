@@ -620,6 +620,7 @@ def _cert_failure(cert: Path) -> BaseException:
         The caught failure.
     """
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     with pytest.raises((OSError, ssl.SSLError)) as caught:
         context.load_cert_chain(cert, cert)
     return caught.value

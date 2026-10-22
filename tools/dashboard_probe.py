@@ -1450,16 +1450,21 @@ def client_context(certificate: Path, *, verify: bool) -> ssl.SSLContext:
             a waived run is not evidence about the certificate.
 
     Returns:
-        The context.
+        The context. Either branch pins TLS 1.2, as clockspeed/surface/server.py
+        pins its own: the interpreter's default minimum is not TLS 1.2 on every
+        build (CS-1338).
     """
     if not verify:
         # WAIVED, NOT CHECKED. Reached only when the operator passed
         # --no-verify, and the report says so on its own face.
         waived = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        waived.minimum_version = ssl.TLSVersion.TLSv1_2
         waived.check_hostname = False
         waived.verify_mode = ssl.CERT_NONE
         return waived
-    return ssl.create_default_context(cafile=str(certificate))
+    context = ssl.create_default_context(cafile=str(certificate))
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
 
 
 def https_client(

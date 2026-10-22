@@ -200,7 +200,10 @@ def tls_echo_server(
         The bound port, and a list that accumulates the exception TYPE NAMES
         the server saw. A rejected handshake is an expected entry there.
     """
+    # Every context here pins TLS 1.2, as clockspeed/surface/server.py does: the
+    # interpreter's default minimum is not TLS 1.2 on every build (CS-1338).
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
 
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1234,6 +1237,7 @@ def test_a_generated_pair_serves_real_tls_to_a_verifying_client(tmp_path: Path) 
 
     with tls_echo_server(cert_path, key_path, rounds=1) as (port, server_errors):
         context = ssl.create_default_context(cafile=str(cert_path))
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         checks_hostname = context.check_hostname
         reply = _speak_tls(port, context, server_hostname="127.0.0.1")
 
@@ -1254,6 +1258,7 @@ def test_a_client_without_the_certificate_as_its_ca_is_rejected(tmp_path: Path) 
 
     with tls_echo_server(cert_path, key_path, rounds=1) as (port, server_errors):
         naive = ssl.create_default_context()
+        naive.minimum_version = ssl.TLSVersion.TLSv1_2
         with pytest.raises(ssl.SSLCertVerificationError) as caught:
             _speak_tls(port, naive, server_hostname="127.0.0.1")
         verify_code = caught.value.verify_code
@@ -1279,6 +1284,7 @@ def test_a_client_that_trusts_the_certificate_still_refuses_a_hostname_it_does_n
 
     with tls_echo_server(cert_path, key_path, rounds=1) as (port, _server_errors):
         context = ssl.create_default_context(cafile=str(cert_path))
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         with pytest.raises(ssl.SSLCertVerificationError) as caught:
             _speak_tls(port, context, server_hostname="clockspeed.example")
         message = str(caught.value)

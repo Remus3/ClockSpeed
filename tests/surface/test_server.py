@@ -539,9 +539,13 @@ def client_context(cert: Path) -> ssl.SSLContext:
         cert: The certificate to trust.
 
     Returns:
-        The context.
+        The context, pinned to TLS 1.2 as clockspeed/surface/server.py pins
+        its own: the interpreter's default minimum is not TLS 1.2 on every
+        build (CS-1338).
     """
-    return ssl.create_default_context(cafile=str(cert))
+    context = ssl.create_default_context(cafile=str(cert))
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
 
 
 def request(
@@ -667,6 +671,7 @@ def serving_handler(
         The bound port.
     """
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(cfg.cert_path, cfg.key_path)
     registered = [probe_route()] if routes_to_serve is None else list(routes_to_serve)
     listener = server.DashboardServer(

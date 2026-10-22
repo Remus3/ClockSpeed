@@ -1024,10 +1024,14 @@ def verifying_client(live_api: tuple[int, Path]) -> ssl.SSLContext:
         live_api: The running server.
 
     Returns:
-        The context.
+        The context, pinned to TLS 1.2 as clockspeed/surface/server.py pins
+        its own: the interpreter's default minimum is not TLS 1.2 on every
+        build (CS-1338).
     """
     _, cert_path = live_api
-    return ssl.create_default_context(cafile=str(cert_path))
+    context = ssl.create_default_context(cafile=str(cert_path))
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
 
 
 @pytest.fixture(scope="module")
@@ -1323,6 +1327,7 @@ def test_a_planted_answer_on_an_unbuilt_route_is_rejected_over_the_real_wire(
     assert swapped == 1, "the plant did not replace exactly one route"
 
     client = ssl.create_default_context(cafile=str(cert_path))
+    client.minimum_version = ssl.TLSVersion.TLSv1_2
     with serve(_config(cert_path, key_path, web_dir), planted) as server:
         observed = _observe(_bound_port(server), client, template, "GET")
 
@@ -1668,6 +1673,7 @@ def test_a_client_carrying_only_the_system_trust_store_is_rejected(
 ) -> None:
     port, _ = live_api
     naive = ssl.create_default_context()
+    naive.minimum_version = ssl.TLSVersion.TLSv1_2
     with pytest.raises(ssl.SSLError):
         _speak_https(port, naive, "GET", "/api/health")
 
