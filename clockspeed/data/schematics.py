@@ -26,6 +26,10 @@ THE MEASURED SHAPES THIS READS, BY NAME
   game-phase dependency (``Class``, ``mGamePhase``,
   ``mOnlyAllowInSelectedPhase``). ``mSchematics`` is a quoted class-path blob,
   the grammar :func:`~clockspeed.data.blobs.parse_class_paths` owns.
+- ``FullName`` is a class half, one space and a path half -
+  ``BlueprintGeneratedClass /Game/<package>.<ClassName>``. The path half is
+  published as :attr:`Schematic.asset_path`, the join key CS-1343 names for a
+  save's ``mPurchasedSchematics`` reference.
 
 FLAG AND SKIP, NEVER FATAL AND NEVER SILENTLY WRONG (non-negotiable 7)
 ---------------------------------------------------------------------
@@ -53,6 +57,13 @@ FLAG AND SKIP, NEVER FATAL AND NEVER SILENTLY WRONG (non-negotiable 7)
   shipped document carries ``mSchematicDependencies`` on every schematic entry
   and says "none" with the EMPTY LIST, so a missing key is unmeasured content:
   flagged, incomplete, and never fatal.
+- **An asset path is read, never guessed.** ``FullName`` is not on every docs
+  entry (``clockspeed/data/docs_extract.py``, beside ``KEY_CLASS_NAME``), so
+  one that is absent, not a string, or not exactly two non-empty halves around
+  one space publishes :attr:`Schematic.asset_path` None and is flagged. The
+  path is never rebuilt from the ClassName and never reduced with
+  :func:`class_name_of_path`: matching on a trailing token is the
+  name-matching heuristic the join must not use.
 - **A field outside the measured keyset is flagged and read past**, aggregated
   by field name so one new field on every entry is one warning row with a
   count rather than one row per schematic.
@@ -96,6 +107,7 @@ __all__ = [
     "KEY_DEPENDENCIES",
     "KEY_DEPENDENCY_CLASS",
     "KEY_DEPENDENCY_SCHEMATICS",
+    "KEY_FULL_NAME",
     "KEY_GAME_PHASE",
     "KEY_ONLY_IN_SELECTED_PHASE",
     "KEY_REQUIRE_ALL",
@@ -120,6 +132,7 @@ __all__ = [
     "WARN_UNREADABLE_COST",
     "WARN_UNREADABLE_DEPENDENCIES",
     "WARN_UNREADABLE_DEPENDENCY",
+    "WARN_UNREADABLE_FULL_NAME",
     "CostLine",
     "PhaseDependency",
     "PurchaseDependency",
@@ -149,6 +162,14 @@ KEY_DEPENDENCY_SCHEMATICS: Final = "mSchematics"
 KEY_REQUIRE_ALL: Final = "mRequireAllSchematicsToBePurchased"
 KEY_GAME_PHASE: Final = "mGamePhase"
 KEY_ONLY_IN_SELECTED_PHASE: Final = "mOnlyAllowInSelectedPhase"
+KEY_FULL_NAME: Final = "FullName"
+
+#: The one character a FullName separates its class half from its path half
+#: with - ``BlueprintGeneratedClass /Game/<package>.<ClassName>``.
+_FULL_NAME_SEPARATOR: Final = " "
+#: A readable FullName is exactly this many non-empty halves around that
+#: separator: the class half, then the path half.
+_FULL_NAME_HALVES: Final = 2
 
 #: The class token a purchased-schematics dependency's ``Class`` path ends in.
 PURCHASED_DEPENDENCY_CLASS: Final = "BP_SchematicPurchasedDependency_C"
@@ -173,7 +194,7 @@ _PHASE_DEPENDENCY_KEYS: Final = frozenset(
 KNOWN_SCHEMATIC_FIELDS: Final = frozenset(
     {
         KEY_CLASS_NAME,
-        "FullName",
+        KEY_FULL_NAME,
         KEY_COST,
         "mDependenciesBlocksSchematicAccess",
         "mDescription",
@@ -233,6 +254,7 @@ WARN_UNPARSABLE_TIER: Final = "unparsable-tier"
 WARN_UNREADABLE_COST: Final = "unreadable-cost"
 WARN_UNREADABLE_DEPENDENCIES: Final = "unreadable-dependencies"
 WARN_UNREADABLE_DEPENDENCY: Final = "unreadable-dependency"
+WARN_UNREADABLE_FULL_NAME: Final = "unreadable-full-name"
 
 
 class SchematicIntegrityError(Exception):
@@ -312,6 +334,15 @@ class Schematic:
             none. A second one is flagged and the first is kept.
         dependencies_complete: False when any prerequisite could not be read
             in full, so the two fields above are known to be a remainder.
+        asset_path: The PATH half of the entry's ``FullName`` verbatim - the
+            object path after the one space that separates it from the class
+            half - published as this side of the join CS-1343 names against a
+            save's schematic references. None when ``FullName`` is absent, not
+            a string, or not exactly one class half and one path half -
+            flagged, and never rebuilt from the ClassName or reduced to a
+            trailing token. Defaulted to None, the unknown reading, only so a
+            hand-built Schematic stays constructible;
+            :func:`normalize_schematics` always passes it.
     """
 
     class_name: str
@@ -321,6 +352,7 @@ class Schematic:
     purchase_dependencies: tuple[PurchaseDependency, ...]
     phase_dependency: PhaseDependency | None
     dependencies_complete: bool
+    asset_path: str | None = None
 
     @property
     def dependency_schematics(self) -> tuple[str, ...]:
@@ -526,6 +558,37 @@ def _type_token(entry: Mapping[str, object], subject: str, log: _WarningLog) -> 
         log.add(WARN_EMPTY_VALUE, subject, f"{KEY_TYPE} is empty; type unknown")
         return None
     return text
+
+
+def _asset_path(entry: Mapping[str, object], subject: str, log: _WarningLog) -> str | None:
+    """Read the PATH half of FullName verbatim.
+
+    Split on the separator and nothing else: no ``.`` is parsed and the path
+    half is never cut down to a trailing token, because reducing a path to its
+    trailing token is the name-matching heuristic the join must not use.
+
+    Args:
+        entry: The entry mapping.
+        subject: The owning ClassName.
+        log: The warning log.
+
+    Returns:
+        The path half, or None when FullName is absent, not a string, or not
+        exactly two non-empty halves around one separator.
+    """
+    text = _text(entry, KEY_FULL_NAME, subject, log)
+    if text is None:
+        return None
+    halves = text.split(_FULL_NAME_SEPARATOR)
+    if len(halves) != _FULL_NAME_HALVES or not all(halves):
+        log.add(
+            WARN_UNREADABLE_FULL_NAME,
+            subject,
+            f"{KEY_FULL_NAME} is not one class half and one path half around one "
+            "separator; asset path unknown, never guessed",
+        )
+        return None
+    return halves[1]
 
 
 def _cost(
@@ -825,6 +888,7 @@ def normalize_schematics(document: DocsDocument) -> SchematicCatalog:
                 purchase_dependencies=tuple(dependencies.purchases),
                 phase_dependency=dependencies.phase,
                 dependencies_complete=dependencies.complete,
+                asset_path=_asset_path(entry, name, log),
             )
     catalog = SchematicCatalog(
         schematics=MappingProxyType(built),

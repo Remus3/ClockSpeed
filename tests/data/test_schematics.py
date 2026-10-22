@@ -33,6 +33,7 @@ from clockspeed.data.docs_extract import DocsDocument
 from clockspeed.data.schematics import (
     WARN_COST_WITHOUT_AMOUNT,
     WARN_MISSING_FIELD,
+    WARN_NON_STRING_VALUE,
     WARN_NONPOSITIVE_AMOUNT,
     WARN_REPEATED_PHASE_DEPENDENCY,
     WARN_UNKNOWN_DEPENDENCY,
@@ -42,6 +43,7 @@ from clockspeed.data.schematics import (
     WARN_UNREADABLE_COST,
     WARN_UNREADABLE_DEPENDENCIES,
     WARN_UNREADABLE_DEPENDENCY,
+    WARN_UNREADABLE_FULL_NAME,
     CostLine,
     PhaseDependency,
     PurchaseDependency,
@@ -70,6 +72,11 @@ KEY_DEP_SCHEMATICS: Final = "mSchematics"
 KEY_DEP_REQUIRE_ALL: Final = "mRequireAllSchematicsToBePurchased"
 KEY_DEP_PHASE: Final = "mGamePhase"
 KEY_DEP_ONLY_IN_PHASE: Final = "mOnlyAllowInSelectedPhase"
+KEY_FULL_NAME: Final = "FullName"
+
+#: The class half of a FullName, ahead of the one space that separates it from
+#: the path half.
+FULL_NAME_CLASS: Final = "BlueprintGeneratedClass"
 
 AMOUNTLESS_SCHEMATIC: Final = "Schematic_SynthAmountless_C"
 NORMAL_SCHEMATIC: Final = "Schematic_SynthNormal_C"
@@ -100,6 +107,32 @@ PHASE_CLASS_PATH: Final = (
     "/Game/Synth/Dependency/BP_GamePhaseReachedDependency.BP_GamePhaseReachedDependency_C"
 )
 UNKNOWN_CLASS_PATH: Final = "/Game/Synth/Dependency/BP_SynthNewDependency.BP_SynthNewDependency_C"
+
+
+def schematic_asset_path(class_name: str) -> str:
+    """Build the object path a schematic's FullName carries as its path half.
+
+    Args:
+        class_name: The schematic's ClassName, e.g. ``Schematic_SynthNormal_C``.
+
+    Returns:
+        ``/Game/Synth/Schematics/<stem>.<ClassName>`` - a package path, one
+        ``.``, then the class token. It is neither the whole FullName nor its
+        trailing token, so a reader returning either does not match it.
+    """
+    return f"/Game/Synth/Schematics/{class_name.removesuffix('_C')}.{class_name}"
+
+
+def full_name(class_name: str) -> str:
+    """Build a FullName in its measured shape: the class half, one space, the path half.
+
+    Args:
+        class_name: The schematic's ClassName.
+
+    Returns:
+        ``BlueprintGeneratedClass /Game/Synth/Schematics/<stem>.<ClassName>``.
+    """
+    return f"{FULL_NAME_CLASS} {schematic_asset_path(class_name)}"
 
 
 def amountless_blob(class_names: Sequence[str]) -> str:
@@ -159,6 +192,7 @@ def schematic_entry(class_name: str, **fields: Any) -> dict[str, Any]:
     """
     entry: dict[str, Any] = {
         synthetic.KEY_CLASS_NAME: class_name,
+        KEY_FULL_NAME: full_name(class_name),
         KEY_DISPLAY_NAME: "Synthetic Schematic",
         KEY_COST: "",
         KEY_TECH_TIER: "0",
@@ -666,3 +700,109 @@ def test_a_non_positive_cost_amount_is_flagged_and_published_null(amount: int) -
     assert len(warnings_of(catalog, WARN_NONPOSITIVE_AMOUNT, NORMAL_SCHEMATIC)) == 1
     assert not warnings_of(catalog, WARN_UNREADABLE_COST, NORMAL_SCHEMATIC)
     assert catalog.costs_flagged == 1
+
+
+# ---------------------------------------------------------------------------
+# CS-1343: the asset path is the PATH half of FullName - read, never guessed
+# ---------------------------------------------------------------------------
+
+ASSET_SCHEMATIC: Final = "Schematic_SynthAsset_C"
+
+
+def one_asset(full: object) -> SchematicCatalog:
+    """Normalize one schematic carrying the given FullName value.
+
+    Args:
+        full: The raw field value; None removes the field.
+
+    Returns:
+        The catalog.
+    """
+    return normalize_schematics(
+        schematic_document([schematic_entry(ASSET_SCHEMATIC, **{KEY_FULL_NAME: full})])
+    )
+
+
+def test_a_schematic_publishes_the_asset_path_half_of_its_full_name() -> None:
+    whole = full_name(ASSET_SCHEMATIC)
+    expected = schematic_asset_path(ASSET_SCHEMATIC)
+    # Controls: the fixture tells the path half apart from the whole value,
+    # from its trailing token and from the ClassName, so a reader returning
+    # any of the three cannot pass.
+    assert whole != expected
+    assert class_name_of_path(whole) != expected
+    assert expected != ASSET_SCHEMATIC
+
+    catalog = one_asset(whole)
+    schematic = catalog.schematics[ASSET_SCHEMATIC]
+    assert schematic.asset_path == expected
+    assert catalog.warnings == ()
+
+
+def test_a_schematic_without_a_full_name_publishes_no_asset_path_and_is_flagged() -> None:
+    catalog = one_asset(None)
+    schematic = catalog.schematics[ASSET_SCHEMATIC]
+    # None, never the ClassName and never a path rebuilt from it: the document
+    # did not say where the asset lives.
+    assert schematic.asset_path is None
+    missing = warnings_of(catalog, WARN_MISSING_FIELD, ASSET_SCHEMATIC)
+    assert [KEY_FULL_NAME in warning.detail for warning in missing] == [True]
+    # Flagged and read past, never fatal, and the cost accounting still closes.
+    assert set(catalog.schematics) == {ASSET_SCHEMATIC}
+    assert catalog.entries_skipped == 0
+    assert catalog.costs_parsed + catalog.costs_flagged == len(catalog.schematics)
+
+
+@pytest.mark.parametrize("value", [3, [FULL_NAME_CLASS]])
+def test_a_non_string_full_name_publishes_no_asset_path_and_is_flagged(value: object) -> None:
+    catalog = one_asset(value)
+    assert catalog.schematics[ASSET_SCHEMATIC].asset_path is None
+    flagged = warnings_of(catalog, WARN_NON_STRING_VALUE, ASSET_SCHEMATIC)
+    assert [KEY_FULL_NAME in warning.detail for warning in flagged] == [True]
+
+
+_SEPARATORLESS_FULL_NAMES: Final[dict[str, str]] = {
+    "path-half-alone": schematic_asset_path(ASSET_SCHEMATIC),
+    "class-half-alone": FULL_NAME_CLASS,
+    "empty": "",
+}
+
+
+@pytest.mark.parametrize("case", sorted(_SEPARATORLESS_FULL_NAMES))
+def test_a_full_name_without_its_separator_is_flagged_never_guessed(case: str) -> None:
+    text = _SEPARATORLESS_FULL_NAMES[case]
+    # Control: the case really does lack the one separator.
+    assert " " not in text
+    catalog = one_asset(text)
+    schematic = catalog.schematics[ASSET_SCHEMATIC]
+    # None - never the whole value, never its trailing token, never the
+    # ClassName - and flagged under its own code.
+    assert schematic.asset_path is None
+    assert len(warnings_of(catalog, WARN_UNREADABLE_FULL_NAME, ASSET_SCHEMATIC)) == 1
+    # Read past, never fatal, and the cost accounting still closes.
+    assert set(catalog.schematics) == {ASSET_SCHEMATIC}
+    assert catalog.costs_parsed + catalog.costs_flagged == len(catalog.schematics)
+    # The detail names the field, never the value: the path is not echoed.
+    path = schematic_asset_path(ASSET_SCHEMATIC)
+    assert not [warning for warning in catalog.warnings if path in warning.detail]
+
+
+_UNSPLITTABLE_FULL_NAMES: Final[dict[str, str]] = {
+    "two-separators": f"{FULL_NAME_CLASS} /Game/Synth/Two Words.Two Words_C",
+    "empty-class-half": f" {schematic_asset_path(ASSET_SCHEMATIC)}",
+    "empty-path-half": f"{FULL_NAME_CLASS} ",
+    # The separator is one space, not any whitespace: a reader splitting on
+    # whitespace runs reads both of these as two clean halves.
+    "tab-separator": f"{FULL_NAME_CLASS}\t{schematic_asset_path(ASSET_SCHEMATIC)}",
+    "double-space": f"{FULL_NAME_CLASS}  {schematic_asset_path(ASSET_SCHEMATIC)}",
+}
+
+
+@pytest.mark.parametrize("case", sorted(_UNSPLITTABLE_FULL_NAMES))
+def test_a_full_name_that_is_not_one_class_and_one_path_half_is_flagged(case: str) -> None:
+    catalog = one_asset(_UNSPLITTABLE_FULL_NAMES[case])
+    # A tab or a run of spaces is not the one separator, and which space
+    # separates the halves, or what an empty half stands for, is unmeasured,
+    # so no half is guessed at.
+    assert catalog.schematics[ASSET_SCHEMATIC].asset_path is None
+    assert len(warnings_of(catalog, WARN_UNREADABLE_FULL_NAME, ASSET_SCHEMATIC)) == 1
