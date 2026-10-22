@@ -17,7 +17,7 @@ budget moves, which is the CS-1039 vacuity shape by name.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
 from types import MappingProxyType
@@ -31,6 +31,7 @@ from clockspeed.data.schematics import (
     CostLine,
     Schematic,
     SchematicCatalog,
+    class_name_of_path,
     normalize_schematics,
 )
 from clockspeed.progress import milestones
@@ -185,18 +186,22 @@ def synthetic_registry() -> Registry:
     )
 
 
-def unlock_state(trading_post_level: int | None = None) -> UnlockState:
-    """Build a synthetic unlock state that has purchased nothing.
+def unlock_state(
+    trading_post_level: int | None = None, *, purchased: Iterable[str] = ()
+) -> UnlockState:
+    """Build a synthetic unlock state, by default one that has purchased nothing.
 
     Args:
         trading_post_level: The HUB tier to plant, or None - which is what
             every real load publishes today.
+        purchased: The schematic asset paths to plant as bought, in the shape
+            a load publishes them: object paths, not ClassNames.
 
     Returns:
         The unlock state.
     """
     return UnlockState(
-        purchased_schematics=frozenset(),
+        purchased_schematics=frozenset(purchased),
         recipes=frozenset(),
         current_game_phase=None,
         feature_flags=MappingProxyType({}),
@@ -592,3 +597,298 @@ def test_a_non_positive_amount_on_a_later_cost_line_is_flagged_and_published_nul
     assert cost_withheld
     unresolved_lines = plan.unresolved_lines
     assert unresolved_lines is None
+
+
+# ---------------------------------------------------------------------------
+# CS-1343 - the schematic source, and the purchased join by exact asset path
+# ---------------------------------------------------------------------------
+
+#: The class half every synthetic FullName below carries, ahead of its one space.
+FULL_NAME_CLASS_HALF: Final = "BlueprintGeneratedClass"
+
+#: Two schematics whose asset paths end in the SAME class token and differ only
+#: in their package. The catalog keeps one schematic per ClassName, so the home
+#: twin is keyed by that token, as the game keys a schematic, and the away twin
+#: by a ClassName of its own.
+TWIN_HOME: Final = "Schematic_SynthTwin_C"
+TWIN_AWAY: Final = "Schematic_SynthTwinAway_C"
+TWIN_HOME_PATH: Final = "/Game/SynthHome/Schematics/Schematic_SynthTwin.Schematic_SynthTwin_C"
+TWIN_AWAY_PATH: Final = "/Game/SynthAway/Schematics/Schematic_SynthTwin.Schematic_SynthTwin_C"
+
+KNOWN_MILESTONE: Final = "Schematic_SynthKnown_C"
+KNOWN_PATH: Final = "/Game/Synth/Schematics/Schematic_SynthKnown.Schematic_SynthKnown_C"
+DECOY_MILESTONE: Final = "Schematic_SynthDecoy_C"
+DECOY_PATH: Final = "/Game/Synth/Schematics/Schematic_SynthDecoy.Schematic_SynthDecoy_C"
+#: A purchased path that ENDS IN the whole of the decoy's asset path and is not it.
+DECOY_MIRROR_PATH: Final = "/Game/SynthMirror" + DECOY_PATH
+NESTED_MILESTONE: Final = "Schematic_SynthNested_C"
+#: A purchased path the nested schematic's asset path ends in, and is not.
+NESTED_SHORT_PATH: Final = "/Game/Synth/Schematics/Schematic_SynthNested.Schematic_SynthNested_C"
+NESTED_PATH: Final = "/Game/SynthMirror" + NESTED_SHORT_PATH
+#: A purchased path whose class token no schematic here carries.
+NOVEL_PATH: Final = "/Game/SynthNovel/Schematics/Schematic_SynthNovel.Schematic_SynthNovel_C"
+#: The novel path's class token in another package - a distinct path.
+NOVEL_ELSEWHERE_PATH: Final = (
+    "/Game/SynthNovelElsewhere/Schematics/Schematic_SynthNovel.Schematic_SynthNovel_C"
+)
+#: The novel path in other letter case and nothing else - a distinct path.
+NOVEL_CASE_PATH: Final = "/Game/SYNTHNOVEL/Schematics/Schematic_SynthNovel.Schematic_SynthNovel_C"
+
+#: Near misses of the known schematic's asset path, none of them that path:
+#: the same characters in other letter case, the path with characters
+#: appended, and a proper prefix of it.
+KNOWN_CASE_PATH: Final = "/game/synth/schematics/schematic_synthknown.schematic_synthknown_c"
+KNOWN_APPENDED_PATH: Final = KNOWN_PATH + "_Extended"
+KNOWN_PREFIX_PATH: Final = "/Game/Synth/Schematics/Schematic_SynthKnown"
+NEAR_MISS_PATHS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "case-only": KNOWN_CASE_PATH,
+        "appended": KNOWN_APPENDED_PATH,
+        "proper-prefix": KNOWN_PREFIX_PATH,
+    }
+)
+
+PATHLESS_MILESTONE: Final = "Schematic_SynthPathless_C"
+#: A purchased path whose class token IS the pathless schematic's ClassName.
+PATHLESS_LOOKALIKE_PATH: Final = (
+    "/Game/Synth/Schematics/Schematic_SynthPathless.Schematic_SynthPathless_C"
+)
+#: FullName values that publish no asset path: absent, and present but
+#: unreadable - the path half alone, with no class half and no separator.
+PATHLESS_FULL_NAMES: Final[Mapping[str, str | None]] = MappingProxyType(
+    {"missing": None, "unreadable": PATHLESS_LOOKALIKE_PATH}
+)
+
+#: The no-install reason as published, spelled here so a relabel reddens.
+NO_CATALOG_REASON_SPELLING: Final = "no-schematic-catalog"
+
+
+class FixedSchematicSource:
+    """A schematic source that publishes one fixed catalog, or None for no install."""
+
+    def __init__(self, catalog: SchematicCatalog | None) -> None:
+        """Hold the catalog this source publishes.
+
+        Args:
+            catalog: The catalog, or None to stand for a machine with no install.
+        """
+        self._catalog = catalog
+
+    def catalog(self) -> SchematicCatalog | None:
+        """Publish the held catalog.
+
+        Returns:
+            The catalog, or None.
+        """
+        return self._catalog
+
+
+def pathed_entry(class_name: str, path: str) -> dict[str, Any]:
+    """Build one schematic entry whose FullName carries the given asset path.
+
+    Args:
+        class_name: The entry's ClassName.
+        path: The path half of its FullName.
+
+    Returns:
+        The entry.
+    """
+    return schematic_entry(
+        class_name, **{synthetic.KEY_FULL_NAME: FULL_NAME_CLASS_HALF + " " + path}
+    )
+
+
+def catalog_of(entries: Sequence[Mapping[str, Any]]) -> SchematicCatalog:
+    """Normalize schematic entries through the real document seam.
+
+    Args:
+        entries: The FGSchematic Classes entries.
+
+    Returns:
+        The catalog.
+    """
+    return normalize_schematics(schematic_document(entries))
+
+
+def purchase_state_of(
+    entries: Sequence[Mapping[str, Any]], purchased: Iterable[str]
+) -> milestones.PurchaseState:
+    """Join a world's purchased paths against a catalog built from entries.
+
+    Args:
+        entries: The FGSchematic Classes entries.
+        purchased: The asset paths the world bought.
+
+    Returns:
+        The purchase state.
+    """
+    source = FixedSchematicSource(catalog_of(entries))
+    return milestones.purchase_state(source, unlock_state(purchased=purchased))
+
+
+def test_a_source_with_no_catalog_publishes_null_under_a_named_reason() -> None:
+    """No install is None under its named reason, never an empty catalog's answer.
+
+    The world bought one path. An EMPTY catalog is a real answer: it knows no
+    schematic, so it publishes the empty mapping and counts that path
+    unmatched. The no-install answer differs from it in every field, so a
+    join that read a missing catalog as an empty one reddens here.
+    """
+    unlocks = unlock_state(purchased=[KNOWN_PATH])
+    absent = milestones.purchase_state(FixedSchematicSource(None), unlocks)
+    assert absent.purchased is None
+    assert absent.reason == milestones.REASON_NO_SCHEMATIC_CATALOG
+    assert absent.reason == NO_CATALOG_REASON_SPELLING
+    assert absent.unmatched_paths is None
+    assert absent.warnings == ()
+    empty = milestones.purchase_state(FixedSchematicSource(catalog_of([])), unlocks)
+    assert empty.purchased is not None
+    assert len(empty.purchased) == 0
+    assert empty.reason is None
+    assert empty.unmatched_paths == 1
+
+
+def test_purchased_is_the_asset_path_join_not_the_trailing_token() -> None:
+    """Twins whose class tokens are byte-identical are told apart by their paths.
+
+    The world bought the away twin's path. The forbidden trailing-token reduce
+    cannot tell the two paths apart, and the home twin's ClassName IS that
+    token, so a join on the trailing token, on the ClassName, or on a path
+    that ends in the ClassName would mark the home twin bought as well. Exact
+    path equality publishes it False.
+    """
+    tokens = {class_name_of_path(TWIN_HOME_PATH), class_name_of_path(TWIN_AWAY_PATH)}
+    assert tokens == {TWIN_HOME}
+    state = purchase_state_of(
+        [pathed_entry(TWIN_HOME, TWIN_HOME_PATH), pathed_entry(TWIN_AWAY, TWIN_AWAY_PATH)],
+        [TWIN_AWAY_PATH],
+    )
+    assert state.reason is None
+    assert state.purchased is not None
+    assert dict(state.purchased) == {TWIN_AWAY: True, TWIN_HOME: False}
+    assert state.unmatched_paths == 0
+    assert state.warnings == ()
+
+
+@pytest.mark.parametrize("case", sorted(PATHLESS_FULL_NAMES))
+def test_a_schematic_with_no_asset_path_is_purchased_unknown_never_false(case: str) -> None:
+    """A schematic with no asset path is None - never False, and never True.
+
+    The world bought a path whose class token IS the pathless schematic's
+    ClassName, so a ClassName join would read it True, and reading the
+    missing path as "not bought" would read it False. Neither is
+    known. The schematic is flagged, and the path no schematic knows is
+    counted rather than credited to it.
+
+    Args:
+        case: Whether the FullName is absent or present but unreadable.
+    """
+    value = PATHLESS_FULL_NAMES[case]
+    full_name = {} if value is None else {synthetic.KEY_FULL_NAME: value}
+    catalog = catalog_of(
+        [
+            schematic_entry(PATHLESS_MILESTONE, **full_name),
+            pathed_entry(KNOWN_MILESTONE, KNOWN_PATH),
+        ]
+    )
+    assert catalog.schematics[PATHLESS_MILESTONE].asset_path is None
+    unlocks = unlock_state(purchased=[KNOWN_PATH, PATHLESS_LOOKALIKE_PATH])
+    state = milestones.purchase_state(FixedSchematicSource(catalog), unlocks)
+    assert state.purchased is not None
+    assert PATHLESS_MILESTONE in state.purchased
+    pathless = state.purchased[PATHLESS_MILESTONE]
+    assert pathless is None
+    assert state.purchased[KNOWN_MILESTONE] is True
+    assert state.unmatched_paths == 1
+    flagged = [(w.code, w.subject, w.count) for w in state.warnings]
+    assert flagged == [
+        (milestones.WARN_ASSET_PATH_UNKNOWN, PATHLESS_MILESTONE, 1),
+        (milestones.WARN_UNMATCHED_PURCHASED_PATH, milestones.PURCHASED_PATHS_SUBJECT, 1),
+    ]
+
+
+def test_a_purchased_path_no_schematic_knows_is_counted_never_dropped() -> None:
+    """Every distinct purchased path equal to no asset path is counted, never merged.
+
+    Five such paths: one whose class token no schematic carries, the same
+    token in another package, the first path in other letter case, one that
+    ends in the whole of the decoy's asset path, and one the nested
+    schematic's asset path ends in. A join that dropped them, or matched on a
+    path suffix in either direction, a trailing token or a ClassName, would
+    publish a smaller count or mark the decoy or the nested schematic bought;
+    a count that merged paths by class token or by letter case would publish
+    a smaller count. The count is all that is published: no purchased path
+    reaches the model's repr.
+    """
+    assert DECOY_MIRROR_PATH.endswith(DECOY_PATH)
+    assert NESTED_PATH.endswith(NESTED_SHORT_PATH)
+    entries = [
+        pathed_entry(KNOWN_MILESTONE, KNOWN_PATH),
+        pathed_entry(DECOY_MILESTONE, DECOY_PATH),
+        pathed_entry(NESTED_MILESTONE, NESTED_PATH),
+    ]
+    unknown = [
+        NOVEL_PATH,
+        NOVEL_ELSEWHERE_PATH,
+        NOVEL_CASE_PATH,
+        DECOY_MIRROR_PATH,
+        NESTED_SHORT_PATH,
+    ]
+    distinct = len(set(unknown))
+    assert distinct == len(unknown)
+    assert len({class_name_of_path(path) for path in unknown}) < distinct
+    assert len({path.casefold() for path in unknown}) < distinct
+    purchased = [KNOWN_PATH, *unknown]
+    state = purchase_state_of(entries, purchased)
+    assert state.purchased is not None
+    assert dict(state.purchased) == {
+        DECOY_MILESTONE: False,
+        KNOWN_MILESTONE: True,
+        NESTED_MILESTONE: False,
+    }
+    assert list(state.purchased) == sorted(state.purchased)
+    unmatched = state.unmatched_paths
+    assert unmatched == distinct
+    flagged = [(w.code, w.subject, w.count) for w in state.warnings]
+    assert flagged == [
+        (milestones.WARN_UNMATCHED_PURCHASED_PATH, milestones.PURCHASED_PATHS_SUBJECT, distinct)
+    ]
+    rendered = repr(state)
+    leaked = [path for path in purchased if path in rendered]
+    assert leaked == []
+
+
+@pytest.mark.parametrize("case", sorted(NEAR_MISS_PATHS))
+def test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted(case: str) -> None:
+    """A path that differs from an asset path in any character is not its purchase.
+
+    The world bought one near miss of the known schematic's asset path - the
+    path in other letter case, the path with characters appended, or a proper
+    prefix of it - and the decoy's exact path. A case-insensitive join, or a
+    join on either path starting with the other, would mark the known
+    schematic bought or leave the near miss uncounted. The decoy is bought in
+    the same world, so an arm that marked nothing bought could not pass.
+
+    Args:
+        case: Which near miss the world bought.
+    """
+    near_miss = NEAR_MISS_PATHS[case]
+    resemblance = {
+        "case-only": near_miss.casefold() == KNOWN_PATH.casefold(),
+        "appended": near_miss.startswith(KNOWN_PATH),
+        "proper-prefix": KNOWN_PATH.startswith(near_miss),
+    }
+    resembles = resemblance[case]
+    assert resembles
+    entries = [
+        pathed_entry(KNOWN_MILESTONE, KNOWN_PATH),
+        pathed_entry(DECOY_MILESTONE, DECOY_PATH),
+    ]
+    state = purchase_state_of(entries, [near_miss, DECOY_PATH])
+    assert state.purchased is not None
+    assert dict(state.purchased) == {DECOY_MILESTONE: True, KNOWN_MILESTONE: False}
+    assert state.unmatched_paths == 1
+    flagged = [(w.code, w.subject, w.count) for w in state.warnings]
+    assert flagged == [
+        (milestones.WARN_UNMATCHED_PURCHASED_PATH, milestones.PURCHASED_PATHS_SUBJECT, 1)
+    ]

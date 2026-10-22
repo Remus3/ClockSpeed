@@ -11,6 +11,31 @@ the normalized :class:`clockspeed.data.registry.Registry` its cost items are
 joined against, and the :class:`clockspeed.save.world.UnlockState` a load
 publishes. It never opens the raw docs file and never opens a save.
 
+THE CATALOG ARRIVES THROUGH A :class:`SchematicSource` (CS-1343), a protocol
+declared here and parameterised at the wiring site, as
+:class:`clockspeed.progress.phases.PhaseCostSource` is. The source publishes
+the typed catalog, never the raw document, and publishes None when there is
+no install to build one from. :func:`purchase_state` publishes that None
+under :data:`REASON_NO_SCHEMATIC_CATALOG` rather than reading it as an empty
+catalog, which would report every purchase unmatched with confidence. The
+concrete source is not built here.
+
+THE PURCHASED JOIN IS EXACT ASSET-PATH EQUALITY (CS-1343). A schematic is
+bought when one of the unlock state's ``purchased_schematics`` object paths
+equals its :attr:`clockspeed.data.schematics.Schematic.asset_path`, compared
+as whole strings. The path is never reduced to a trailing token, never
+compared with a ClassName and never matched by suffix: two packages can ship
+the same class token, and only the path tells them apart.
+
+- **A schematic with no asset path is purchased-UNKNOWN, None, never False**,
+  and is flagged under :data:`WARN_ASSET_PATH_UNKNOWN`. Whether the world
+  bought it cannot be read, and False would be a confident wrong answer.
+- **A purchased path no schematic's asset path equals is COUNTED, never
+  dropped.** :attr:`PurchaseState.unmatched_paths` states how many, and when
+  any is, one :data:`WARN_UNMATCHED_PURCHASED_PATH` row carries that count.
+  The paths themselves are not published: an object path read out of a save
+  may not reach a repr, a log line or an exception (non-negotiable 12).
+
 THE BUDGET IS A NAMED CONSTANT, AND THAT IS THE ACCEPTANCE. Each required rate
 is exactly ``cost / COMPLETION_BUDGET_MINUTES``, read at the division site from
 :data:`COMPLETION_BUDGET_MINUTES`. A literal there would make the arm that
@@ -68,7 +93,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Protocol
 
 from clockspeed.data.registry import Registry
 from clockspeed.data.schematics import CostLine, SchematicCatalog
@@ -78,20 +103,27 @@ from clockspeed.solve.exact import InexactValueError, audit_exact
 __all__ = [
     "AMOUNT_BASIS_AS_WRITTEN",
     "COMPLETION_BUDGET_MINUTES",
+    "PURCHASED_PATHS_SUBJECT",
     "REASON_COST_UNREADABLE",
     "REASON_HUB_TIER_UNREAD",
     "REASON_NONPOSITIVE_COST",
+    "REASON_NO_SCHEMATIC_CATALOG",
     "REASON_UNKNOWN_SCHEMATIC",
     "REASON_UNRESOLVED_COST_ITEM",
+    "WARN_ASSET_PATH_UNKNOWN",
+    "WARN_UNMATCHED_PURCHASED_PATH",
     "WARN_UNRESOLVED_COST_ITEM",
     "HubTier",
     "MilestoneRequirement",
     "MilestoneWarning",
+    "PurchaseState",
+    "SchematicSource",
     "completion_budget",
     "cost_totals",
     "hub_tier",
     "milestone_requirement",
     "milestone_requirements",
+    "purchase_state",
     "required_rates",
     "unresolved_cost_items",
 ]
@@ -114,9 +146,20 @@ REASON_HUB_TIER_UNREAD: Final = "hub-tier-unread"
 REASON_NONPOSITIVE_COST: Final = "nonpositive-cost"
 #: A cost item names nothing in the registry, so the rates are not derived.
 REASON_UNRESOLVED_COST_ITEM: Final = "unresolved-cost-item"
+#: The schematic source published no catalog: there is no install to read.
+REASON_NO_SCHEMATIC_CATALOG: Final = "no-schematic-catalog"
 
 #: The warning code for one cost item the registry does not resolve.
 WARN_UNRESOLVED_COST_ITEM: Final = "unresolved-cost-item"
+#: The warning code for one schematic the catalog publishes with no asset
+#: path, so whether the world bought it is unknown.
+WARN_ASSET_PATH_UNKNOWN: Final = "asset-path-unknown"
+#: The warning code for the purchased paths no schematic's asset path equals.
+WARN_UNMATCHED_PURCHASED_PATH: Final = "unmatched-purchased-path"
+
+#: The subject of the unmatched-path warning: the unlock-state field the paths
+#: were read from, and never a path itself.
+PURCHASED_PATHS_SUBJECT: Final = "purchased_schematics"
 
 
 @dataclass(frozen=True)
@@ -135,13 +178,16 @@ class HubTier:
 
 @dataclass(frozen=True)
 class MilestoneWarning:
-    """One cost item this model flagged, and why.
+    """One piece of content this model flagged, and why.
 
     Attributes:
         code: A WARN_* constant.
-        subject: The item ClassName.
+        subject: The cost item's ClassName, the schematic's ClassName, or for
+            unmatched purchased paths :data:`PURCHASED_PATHS_SUBJECT` - never
+            a path.
         detail: One line naming the consequence, never echoing a value.
-        count: How many cost lines this row aggregates.
+        count: How many cost lines, schematics or purchased paths this row
+            aggregates.
     """
 
     code: str
@@ -187,6 +233,45 @@ class MilestoneRequirement:
     amount_basis: str
     warnings: tuple[MilestoneWarning, ...]
     unresolved_lines: int | None
+
+
+class SchematicSource(Protocol):
+    """Where the schematic catalog comes from, parameterised at the wiring site."""
+
+    def catalog(self) -> SchematicCatalog | None:
+        """Publish the normalized schematic catalog.
+
+        Returns:
+            The catalog, or None when there is no install to build one from.
+        """
+        ...
+
+
+@dataclass(frozen=True)
+class PurchaseState:
+    """Which catalog schematics the world bought, joined by exact asset path.
+
+    It holds no purchased path. Those are read out of a save, so only their
+    count is published.
+
+    Attributes:
+        purchased: Schematic ClassName to True when a purchased path equals
+            its asset path, False when none does, or None when it has no asset
+            path - unknown, never False. Sorted by ClassName. None, with
+            ``reason`` set, when the source published no catalog.
+        reason: None when ``purchased`` was joined, otherwise a REASON_*
+            constant.
+        unmatched_paths: How many purchased paths equal no schematic's asset
+            path - counted, never dropped - or None when there is no catalog.
+        warnings: One row per schematic with no asset path, and one row
+            counting the unmatched purchased paths when there are any,
+            sorted by code then subject.
+    """
+
+    purchased: Mapping[str, bool | None] | None
+    reason: str | None
+    unmatched_paths: int | None
+    warnings: tuple[MilestoneWarning, ...]
 
 
 def _require_fraction(value: object, name: str) -> Fraction:
@@ -420,3 +505,83 @@ def milestone_requirements(
         for target in dict.fromkeys(targets)
     )
     return tuple(sorted(built, key=_order_key))
+
+
+def _warning_key(warning: MilestoneWarning) -> tuple[str, str]:
+    """Sort by code, then by subject.
+
+    Args:
+        warning: One warning.
+
+    Returns:
+        The sort key.
+    """
+    return (warning.code, warning.subject)
+
+
+def purchase_state(source: SchematicSource, unlocks: UnlockState) -> PurchaseState:
+    """Join the world's purchased paths against the source's catalog by exact path.
+
+    Each schematic's asset path is looked up in the purchased set as a whole
+    string. Nothing is reduced, compared with a ClassName or matched by
+    suffix.
+
+    Args:
+        source: Where the catalog comes from.
+        unlocks: The world's unlock state; ``purchased_schematics`` is the
+            join's other side.
+
+    Returns:
+        The purchase state, audited exact. A source with no catalog publishes
+        None under :data:`REASON_NO_SCHEMATIC_CATALOG`, never an empty
+        catalog's answer.
+    """
+    catalog = source.catalog()
+    if catalog is None:
+        state = PurchaseState(
+            purchased=None,
+            reason=REASON_NO_SCHEMATIC_CATALOG,
+            unmatched_paths=None,
+            warnings=(),
+        )
+    else:
+        bought = unlocks.purchased_schematics
+        purchased: dict[str, bool | None] = {}
+        warnings: list[MilestoneWarning] = []
+        for name in sorted(catalog.schematics):
+            path = catalog.schematics[name].asset_path
+            if path is None:
+                purchased[name] = None
+                warnings.append(
+                    MilestoneWarning(
+                        code=WARN_ASSET_PATH_UNKNOWN,
+                        subject=name,
+                        detail="schematic has no asset path; whether it was bought is unknown",
+                        count=1,
+                    )
+                )
+            else:
+                purchased[name] = path in bought
+        known = {
+            schematic.asset_path
+            for schematic in catalog.schematics.values()
+            if schematic.asset_path is not None
+        }
+        unmatched = len(bought - known)
+        if unmatched:
+            warnings.append(
+                MilestoneWarning(
+                    code=WARN_UNMATCHED_PURCHASED_PATH,
+                    subject=PURCHASED_PATHS_SUBJECT,
+                    detail="purchased path equals no schematic asset path; counted, never dropped",
+                    count=unmatched,
+                )
+            )
+        state = PurchaseState(
+            purchased=MappingProxyType(purchased),
+            reason=None,
+            unmatched_paths=unmatched,
+            warnings=tuple(sorted(warnings, key=_warning_key)),
+        )
+    audit_exact(state, path="purchase_state")
+    return state
