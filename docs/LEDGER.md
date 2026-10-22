@@ -253,6 +253,137 @@ shared key. The item's section left `docs/item_notes/phase5.md` at this landing;
 `docs/history_notes.md` because it records a licence-hygiene fact this entry does not own, and
 its `Acceptance` half was deleted rather than copied, since this entry carries it.
 
+### 2026-10-21 - CS-1240 - NOT A COMPLETION RECORD. CS-1240 STAYS OPEN: its acceptance AMENDED on the adjudicator route, ruling any normalised fallback out of the asset-path purchase join
+Verification: the item's section in `docs/item_notes/phase5.md`, its `### Acceptance` clause and
+the AMENDED tail appended to it; `clockspeed/progress/milestones.py::purchase_state`, which keeps
+CS-1343's exact asset-path equality;
+`tests/progress/test_milestones.py::test_purchased_is_the_asset_path_join_not_the_trailing_token`
+and `::test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted`, which pin it; the
+`registry-audit` scope's description in `config/lane_scopes.json`.
+ACCEPTANCE AMENDED, ON THE ADJUDICATOR ROUTE. DECISION: amend. The acceptance alone requires no
+fallback, but the filing note's "every registry and save join" reaches CS-1343's purchase join,
+and a filing note cannot be edited. The clause now ends: any normalised fallback applies to
+ClassName-keyed lookups only, never to an asset-path join; `purchase_state` keeps the exact
+equality, no fallback is added in `clockspeed/progress/milestones.py`, no path is reduced with
+`clockspeed/data/schematics.py::class_name_of_path` to feed one, and the two tests above stay
+green and unedited. The filing note above the clause is unchanged.
+ALTERNATIVES REJECTED: (a) compatible as written - the unedited filing note still reaches the
+join; (c) excluded on CS-1343 grounds - the amendment settles the conflict, so nothing is left to
+exclude it on.
+WHY: a case fold on that join reddens the near-miss test's case-only case.
+LANE SCOPES: CS-1240 stays out of every lane scope, for disjointness only. Its write area crosses
+`clockspeed/advisor/` (queue), `clockspeed/data/` and `clockspeed/audit/` (queue-b), and
+`clockspeed/save/world.py` and `clockspeed/surface/providers.py` (queue-c), and its panel needs
+`clockspeed/surface/`, which no scope owns. The `registry-audit` description and the `BACKLOG.md`
+line now say so.
+RESIDUAL: the acceptance does not require a fallback match to be flagged (`CLAUDE.md` section 3,
+non-negotiable 7); that is left to its builder.
+
+### 2026-10-21 - CS-1338 - CLOSED: CodeQL alerts #1 to #3 read FIXED on the pushed code, #4 stays dismissed as a false positive, no alert is open, and with part A every part of the acceptance is recorded
+Verification: this record and the CS-1338 part A record below, each read-back a GET against the
+repository's code-scanning endpoints; the TLS 1.2 pins (`ssl.TLSVersion.TLSv1_2`) in
+`tests/test_make_cert.py`, `tests/surface/test_server.py`, `tests/surface/test_acceptance.py`,
+`tests/test_chained_cause_census.py` and `tools/dashboard_probe.py`.
+READ BACK, at main's tip `docs(CS-1342): record the landing and close CS-1336`: the newest CodeQL
+analyses ran on that commit, one per language category - actions, javascript-typescript and
+python. Alerts #1, #2 and #3, py/insecure-protocol, read FIXED, so the TLS 1.2 pins closed them.
+Alert #4, py/clear-text-logging-sensitive-data at `tools/outbound_gate.py::write_stream`, reads
+DISMISSED, reason false positive, as part A triaged it. The open-alert listing reads 0.
+THE ACCEPTANCE, PART BY PART, its section now in `docs/history_notes.md`. Default setup
+configured and read back as configured - MET, part A. Its first analysis of `main` read, and
+every alert it raises triaged HIGH first, fixed or dismissed with a written reason - MET: part A
+triaged all four, HIGH first, and this record reads #1 to #3 fixed and #4 dismissed with its
+reason. Dependabot alerts ON and security-update PRs OFF, read back - MET, part A. The outsider
+read of `CLAUDE.md`, `.claude/agents/`, `.claude/commands/`, `CS-NEXT-SESSION.txt` and
+`WAKEUP_NOTES.md`, each finding with its fix or its reason - MET, part A's O1 to O18 and what
+each got. The 30-day failed-run sweep, counts only - MET, part A. Each read-back and count
+recorded in this file under this ID - MET, part A and this record.
+The section moved to `docs/history_notes.md` and the `ROADMAP.md` line is gone.
+
+### 2026-10-21 - CS-1342 - RATIFICATION RECORD. NOT A COMPLETION RECORD. A distinct adjudicator RATIFIED the `FORGIVEN_LINE_POINTER_CEILING` raise from 70 to 72 after the fact
+Verification: `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and the reason text
+beside it; the two RENAMED rows in `tests/test_citation_tables.py::DISPOSITIONS`, aimed at
+`tests/test_fleet_kit.py::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold`.
+RATIFIED, agent-reported: the raise landed with the CS-1342 landing, and a distinct adjudicator
+RATIFIED it after the fact. The two RENAMED rows track the stop-sentinel declaration test renamed
+in place; 72 is exactly 22 pins plus 50 dispositions, with no slack; and the reason text was
+verified true. The ceiling and its rows are unchanged by this record.
+
+### 2026-10-21 - CS-1343 - CORRECTION RECORD. NOT A COMPLETION RECORD. The LANDED record's 292 passed counts `tests/data/test_schematics.py` too; `tests/progress` with the two gates is 234
+Verification: `python -m pytest --collect-only -q` over `tests/progress`,
+`tests/data/test_phase2_gate.py` and `tests/solve/test_phase3_gate.py` collects 234, and over
+`tests/data/test_schematics.py` collects 58; 234 plus 58 is 292. Re-measured at main's tip for
+this record, the code the landing and the closure verifier graded.
+CORRECTION: the 2026-10-21 record headed "CS-1343 - NOT A COMPLETION RECORD. CS-1343 STAYS OPEN:
+its three slices LANDED" says `tests/progress` with the phase 2 and phase 3 gates was green at the
+landing (292 passed). That set is 234; the 292 includes `tests/data/test_schematics.py`. The
+record is published, so it stands as written and this record corrects it.
+
+### 2026-10-21 - CS-1343 - CLOSED: the `SchematicSource` protocol, the exact asset-path join and a derived `delivered_available` hold in `clockspeed/progress/`, clause 3 as amended, graded SPLIT-AND-CLOSE
+Verification: `clockspeed/data/schematics.py`, `clockspeed/progress/milestones.py` and
+`clockspeed/progress/phases.py`, with `tests/data/test_schematics.py`,
+`tests/progress/test_milestones.py` and `tests/progress/test_phases.py`; the tests per clause
+below.
+THE ACCEPTANCE, CLAUSE BY CLAUSE, its section now in `docs/history_notes.md`. Clause 1, as
+amended, "consumes the shipped schematic catalog through a `SchematicSource` protocol declared
+here and parameterised at the wiring site - the `WorldProvider` idiom" - MET:
+`clockspeed/progress/milestones.py::SchematicSource` and `::purchase_state`;
+`tests/progress/test_milestones.py::test_a_source_with_no_catalog_publishes_null_under_a_named_reason`
+and `::test_purchased_is_the_asset_path_join_not_the_trailing_token`. Clause 2, as written, the
+resolved content asset path of an `mPurchasedSchematics` reference as the join key and no
+name-matching heuristic beside it - MET: `clockspeed/data/schematics.py::Schematic` publishes the
+path half of FullName as `asset_path`, and `clockspeed/progress/milestones.py::purchase_state`
+compares it by exact path equality;
+`tests/data/test_schematics.py::test_a_schematic_publishes_the_asset_path_half_of_its_full_name`,
+`::test_a_schematic_without_a_full_name_publishes_no_asset_path_and_is_flagged`,
+`::test_a_full_name_without_its_separator_is_flagged_never_guessed`,
+`::test_a_non_string_full_name_publishes_no_asset_path_and_is_flagged` and
+`::test_a_full_name_that_is_not_one_class_and_one_path_half_is_flagged`;
+`tests/progress/test_milestones.py::test_purchased_is_the_asset_path_join_not_the_trailing_token`,
+`::test_a_schematic_with_no_asset_path_is_purchased_unknown_never_false`,
+`::test_a_purchased_path_no_schematic_knows_is_counted_never_dropped` and
+`::test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted`. Clause 3, as amended -
+MET: `clockspeed/progress/phases.py::PhaseCostTable` and `::PhaseCost`, `delivered_available`
+False from the shipped source, derived and never stored;
+`tests/progress/test_phases.py::test_the_shipped_source_publishes_delivered_available_false_required_only`,
+`::test_delivered_available_is_derived_with_a_zero_count_reading_true`,
+`::test_a_delivered_reading_holds_exact_non_negative_counts_only` and
+`::test_delivered_available_is_graded_on_a_synthetic_schematic_document`.
+GRADED: an independent closure verifier returned SPLIT-AND-CLOSE at the pushed code
+(agent-reported): 292 passed across `tests/data/test_schematics.py`, `tests/progress` and the
+phase 2 and phase 3 gates, `tests/data/test_phase2_gate.py` and `tests/solve/test_phase3_gate.py`,
+and its structural checks were clean. THE SPLIT: the producer that makes `delivered_available`
+read True from a real reading is CS-1348, OPEN under Phase 5, waiting on CS-1340 and on a seam
+ruling; clause 3's amendment, the record below, moved the blocker to it.
+RESIDUALS, lines in `BACKLOG.md`, session 150 residuals:
+`clockspeed/progress/milestones.py::milestone_requirement` and `::milestone_requirements` still
+take a bare catalog, and the module docstring near the top of
+`clockspeed/progress/milestones.py` overstates that the catalog arrives through the source; and
+the WARN code spellings are unpinned.
+The section moved to `docs/history_notes.md` and the `ROADMAP.md` line is gone.
+
+### 2026-10-21 - CS-1343 - NOT A COMPLETION RECORD. Clause 3 AMENDED on the adjudicator route: its delivered-items blocker moves from CS-1038, CLOSED, to a delivered producer below `clockspeed/progress/`, filed as CS-1348
+Verification: the item's section, its `### Acceptance` clause and its CLAUSE 3 AMENDED
+paragraph, relocated to `docs/history_notes.md` by the close above;
+`tests/progress/test_phases.py::test_the_shipped_source_publishes_delivered_available_false_required_only`
+and `::test_delivered_available_is_derived_with_a_zero_count_reading_true`, which pin the amended
+clause; CS-1348's line in `ROADMAP.md` and its section in `docs/item_notes/phase5.md`.
+CLAUSE 3 AMENDED, ON THE ADJUDICATOR ROUTE. DECISION: the blocker moves from CS-1038 (CLOSED) to
+a delivered producer below `progress/`. ALTERNATIVES REJECTED: keeping "Until that lands" while
+reading it as another blocker (the silent re-reading `docs/item_notes.md` forbids); a
+`docs/GATED.md` row (`docs/GATED.md` excludes in-repo blockers). WHY: CS-1038 is closed, and
+`clockspeed/progress/__init__.py` does not list `clockspeed.audit` below `progress/`.
+THE AMENDED WORDS: where the filing read "ELEVATOR ITEMS ALREADY DELIVERED ARE BLOCKED ON THE
+KEYSTONE" and named CS-1038's container stacks, clause 3 now reads that delivered items need a
+delivered producer below `clockspeed/progress/`, which no layer publishes today, waiting on
+CS-1340's measurement and on a seam ruling for the delivered source, with CS-1348 owning it;
+until it lands `delivered_available` publishes False, derived from
+`clockspeed/progress/phases.py::PhaseCostTable`'s delivered mapping and never stored, and every
+figure stays REQUIRED. The clause's lead-in reads "met, as written or as amended on the
+adjudicator route". The same section records two rulings on the landed shape, Q1 on the
+`SchematicSource` protocol and Q2 on the join, and drops its sentence that clauses 2 and 3 still
+quoted the filing as written.
+
 ### 2026-10-21 - CS-1336 - CLOSED: commit subjects follow Conventional Commits from the cutover on, no merge since it, every audited site agrees, and `.github/CONTRIBUTING.md` section 4 owns the convention
 Verification: `.github/CONTRIBUTING.md` section 4 Commits; the CS-1336 audit record below; re-run
 at main's tip after the CS-1342 landing, the cutover being the commit

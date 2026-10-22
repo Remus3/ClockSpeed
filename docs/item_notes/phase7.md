@@ -886,35 +886,6 @@ ruled it non-blocking for the close. When it runs it fires the session 131 resid
 post-flip public-clone walk" in `BACKLOG.md`, and the session 150 residual on the walk runner's
 execution policy there.
 
-## CS-1338
-
-### Acceptance
-
-CodeQL default setup is configured on the public repository and read back as configured; its
-first analysis of `main` is read, and every alert it raises is triaged HIGH first - fixed, or
-dismissed with a written reason. Dependabot alerts read back ON and Dependabot security-update
-PRs read back OFF. An outsider read of every tracked agent and hand-off text - `CLAUDE.md`,
-`.claude/agents/`, `.claude/commands/`, `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md` -
-records each finding with its fix or its reason. A sweep of the GitHub Actions runs that
-failed in the 30 days before it records counts only - runs and failures, by workflow and by
-job - and never a log line. Each read-back and count is recorded in `docs/LEDGER.md` under
-this ID.
-
-### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
-
-Posture item 1g of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
-section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
-hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
-opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
-work instead of keeping it out of this file.
-
-Measured at filing: the code-scanning default setup reads `not-configured` and the
-code-scanning alerts API answers "no analysis found", so the session 150 security-findings
-reading of zero open code-scanning alerts is zero because no analysis has run, not a triage;
-Dependabot and secret-scanning alerts read 0 open. Dependabot alerts already read ON and
-security-update PRs OFF; the acceptance keeps their read-back so the item closes on one
-record.
-
 ## CS-1344
 
 ### Acceptance

@@ -936,15 +936,14 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   without `--lane`, and the module's `--lane` default is the queue lane, so a queue-b or queue-c
   worker following that prompt would read the queue lane's scope; trigger: queue-b or queue-c
   wired, or the next edit to that step.
-- From the same record: CS-1240 is out of every lane scope pending an adjudication of whether its
-  normalised fallback join reaches the `clockspeed/progress/` schematic join, beside which
-  CS-1343's clause forbids a name-matching heuristic; trigger: that adjudication rules, or
-  CS-1343 closes.
 - From the same record: the main session cannot claim a row - `ops/loop/claims.py::try_claim_row`
   refuses the main tree through `ops/loop/lanes.py::require_worktree` - so a row the main session
   works is never claimed and a lane can take it at the same time, the root of session 150's
   CS-1043 collision; trigger: a second main-versus-lane collision on one row, or the next edit to
   `try_claim_row`.
+- From the CS-1240 adjudication (`docs/LEDGER.md`, 2026-10-21, CS-1240): CS-1240 is out of every
+  lane scope because its write area crosses all three plus a surface/ panel; trigger: a slice
+  plan splitting CS-1240 by module, or a scope that owns surface/.
 - From the CS-1337 close (`docs/LEDGER.md`, 2026-10-21, CS-1337): the README's How this repo is
   built section repeats `.github/CONTRIBUTING.md`'s precedence rule, that the owner file a rule
   names governs - a restated rule with somewhere to drift; trigger: the next edit to that README
@@ -1015,3 +1014,12 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   comparison is reached, so the two domains never meet in a test; trigger: the next edit to
   `clockspeed/solve/strategy.py::check_threshold`'s refusal handling, or a world producing an
   unpriceable recipe at a requested rate of zero.
+- From the CS-1343 close (`docs/LEDGER.md`, 2026-10-21, CS-1343):
+  `clockspeed/progress/milestones.py::milestone_requirement` and `::milestone_requirements` still
+  take a bare `SchematicCatalog` rather than a `SchematicSource`, and the module docstring of
+  `clockspeed/progress/milestones.py` overstates that the catalog arrives through the source;
+  trigger: CS-1046 wires a concrete `SchematicSource`, or the next edit to either function.
+- From the same close: the WARN code spellings in `clockspeed/progress/milestones.py`, among them
+  `WARN_ASSET_PATH_UNKNOWN` and `WARN_UNMATCHED_PURCHASED_PATH`, are unpinned - no arm reddens
+  when a spelling changes; trigger: a consumer matches on a WARN code, or the next edit to those
+  constants.

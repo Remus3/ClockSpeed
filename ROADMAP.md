@@ -285,9 +285,9 @@ CS-1251 - a save-settle grace period: parse only the newest save whose size and 
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1340 - measure the save's `mGamePhaseCosts` (total or remainder), record it in ADR 0016, wire `clockspeed/save/world.py` and add `mGamePhaseCosts` to `UNLOCK_CARRIERS_UNREAD` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1343 - three CS-1043 filing instructions the progress layer does not carry: a `SchematicSource` protocol, the asset-path join, `delivered_available` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1346 - the strategy badge reaches no card: `advise()` sees no plan, so nothing produces a badge for a trace - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1347 - greedy's walk returns the first selection that solves and never re-ranks its canonical result through the shared ranking key - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1348 - a delivered producer for the space elevator's input inventory, so `delivered_available` reads True from a real reading - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -365,6 +365,5 @@ CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, it
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then its ONE ANSWER after S12a - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1338 - turn on CodeQL default setup, read the agent and hand-off text as an outsider, sweep 30 days of failed runs - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1344 - MAIN's 2026-10-21 FIX: test runs clear their own Temp `cs-pt` output on teardown, failure included, and session scratch stays bounded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1345 - an outsider's fork cannot push: pre-push refuses until git config `fleet.operatorIdent` is set, and no doc says so - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

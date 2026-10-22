@@ -40,6 +40,118 @@ ledger entry does not own.
 
 From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Builds on `clockspeed/solve/optimize.py`'s exact objectives; player-tunable weights stay in `BACKLOG.md` until this lands.
 
+## CS-1338 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1338
+
+### Acceptance
+
+CodeQL default setup is configured on the public repository and read back as configured; its
+first analysis of `main` is read, and every alert it raises is triaged HIGH first - fixed, or
+dismissed with a written reason. Dependabot alerts read back ON and Dependabot security-update
+PRs read back OFF. An outsider read of every tracked agent and hand-off text - `CLAUDE.md`,
+`.claude/agents/`, `.claude/commands/`, `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md` -
+records each finding with its fix or its reason. A sweep of the GitHub Actions runs that
+failed in the 30 days before it records counts only - runs and failures, by workflow and by
+job - and never a log line. Each read-back and count is recorded in `docs/LEDGER.md` under
+this ID.
+
+### Filed 2026-10-21 by the session 150 H commit, from CS-1328 (g)
+
+Posture item 1g of MAIN's 2026-10-15 PUBREPO ORDER, addition (g), whose tracked copy is CS-1328's
+section in this leaf; under FLEET item 6 it is the operator's instruction, and the session 150
+hand-off files each (g) posture item as its own item. It is filed from that ORDER rather than
+opened by this tree, so CLAUDE.md section 7's product-before-process fence ranks it behind product
+work instead of keeping it out of this file.
+
+Measured at filing: the code-scanning default setup reads `not-configured` and the
+code-scanning alerts API answers "no analysis found", so the session 150 security-findings
+reading of zero open code-scanning alerts is zero because no analysis has run, not a triage;
+Dependabot and secret-scanning alerts read 0 open. Dependabot alerts already read ON and
+security-update PRs OFF; the acceptance keeps their read-back so the item closes on one
+record.
+
+## CS-1343 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-21 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`. On the close, before the move, its clause 3 was
+amended on the adjudicator route and the CLAUSE 3 and Q1 and Q2 rulings were added, so the text
+below is the amended one.
+
+## CS-1343
+
+### Filed 2026-10-21 (session 150), split out of CS-1043 by its closure verifier
+
+**THREE FILING INSTRUCTIONS THAT NO CLAUSE GRADED, AND THAT THE PROGRESS LAYER DOES NOT CARRY.** CS-1043 closed
+with every acceptance clause met. Its closure verifier reported three instructions in the
+item's filing note that its acceptance does not grade and that `clockspeed/progress/` does
+not carry: its sources hold zero hits for `SchematicSource`, for `purchased_schematics` and
+for `delivered_available`. No open item owned them. The clause below quotes each from that
+note, which now sits in `docs/history_notes.md` with the rest of CS-1043's section.
+
+**WHAT THE LANDED CODE DOES INSTEAD.**
+`clockspeed/progress/milestones.py::milestone_requirement` takes a
+`clockspeed/data/schematics.py::SchematicCatalog` as an argument and reads the unlock state
+for the HUB tier alone. `clockspeed/progress/phases.py` publishes no delivery flag, and its
+docstring says every figure is the REQUIRED quantity and never the outstanding one.
+
+**TWO FACTS A BUILDER SETTLES BEFORE BUILDING, NOT AFTER.** The first instruction names the
+shipped Document as what the protocol carries, but CS-1043's adjudicated landing put the
+schematic model in the data layer, with `clockspeed/progress/` consuming the catalog it
+builds rather than the document. The third names CS-1038's container stacks as the blocker
+on delivered items, and CS-1038 is recorded CLOSED in `docs/LEDGER.md`, while
+`clockspeed/progress/__init__.py` names the world model, the normalized registry and
+`clockspeed.solve` as the layers below it, and not `clockspeed.audit`. A builder who reads
+either fact as changing a clause routes it to an adjudicator; the clause quotes the filing
+as written.
+
+**CLAUSE 1 AMENDED, ON THE ADJUDICATOR ROUTE.** A distinct adjudicator of session 150 ruled on the
+first fact above before slice S2 was dispatched. DECISION: clause 1 reads "the shipped schematic
+catalog" where CS-1043's filing note reads "the shipped Document", so `SchematicSource` hands
+`clockspeed/progress/` a `clockspeed/data/schematics.py::SchematicCatalog`; the clause's other
+words still quote the filing as written. ALTERNATIVES REJECTED: a source
+that hands over the raw Document, which would have `clockspeed/progress/` normalize the docs file
+again past the seam CS-1043's adjudicated landing set, with the data layer owning the schematic
+model; and keeping the word while reading it as the catalog, the quiet re-reading
+`docs/item_notes.md` forbids. WHY: `clockspeed/progress/milestones.py::milestone_requirement`
+already consumes the catalog the data layer builds, so the protocol carries what the layer below
+publishes. The amendment is recorded in `docs/LEDGER.md` under this ID.
+
+**CLAUSE 3 AMENDED, ON THE ADJUDICATOR ROUTE.** DECISION: the blocker moves from CS-1038
+(CLOSED) to a delivered producer below `progress/`. ALTERNATIVES REJECTED: keeping "Until that
+lands" while reading it as another blocker (the silent re-reading `docs/item_notes.md`
+forbids); a `docs/GATED.md` row (`docs/GATED.md` excludes in-repo blockers). WHY: CS-1038 is
+closed, and `clockspeed/progress/__init__.py` does not list `clockspeed.audit` below
+`progress/`. The amendment is recorded in `docs/LEDGER.md` under this ID.
+
+**TWO RULINGS ON THE LANDED SHAPE, ON THE SAME ROUTE: Q1 ON THE PROTOCOL, Q2 ON THE JOIN.**
+
+Q1. `SchematicSource` is a non-generic Protocol in `clockspeed/progress/milestones.py` with one
+method, `catalog() -> SchematicCatalog | None`; None means this machine has no install,
+published under `REASON_NO_SCHEMATIC_CATALOG`, never read as an empty catalog. Non-generic
+because `progress/` already imports the catalog type; `WorldProvider` is generic only because
+`surface/` may not name a save-layer type. The concrete class belongs to CS-1046
+(`clockspeed/surface/providers.py`).
+
+Q2. THE JOIN IS SPLIT ACROSS TWO LAYERS, AND THE SAVE LAYER IS UNCHANGED. `data/` publishes
+`Schematic.asset_path`, the path half of `FullName`; `progress/` does the match, being the first
+layer that sees both models; `save/` already publishes `purchased_schematics` as asset paths.
+`FullName` is not on every docs entry, so a schematic without one is purchased-unknown: None,
+never False. `delivered_available` is derived from `PhaseCostTable.delivered`, which is None
+today.
+
+**CS-1046 NAMES A CONCRETE `SchematicSource`** among what its filing says it publishes.
+
+**TIER 2, NO GAME NEEDED**, on CS-1043's own terms: a hand-authored synthetic schematic
+document, and the rule suite must run with no install.
+
+### Acceptance
+
+each of three instructions from CS-1043's filing note is met, as written or as amended on the adjudicator route, in `clockspeed/progress/`, each graded by an arm under `tests/progress/` on a hand-authored synthetic schematic document: "consumes the shipped schematic catalog through a `SchematicSource` protocol declared here and parameterised at the wiring site - the `WorldProvider` idiom"; "THE SCHEMATIC-TO-REGISTRY JOIN IS THE RESOLVED CONTENT ASSET PATH of an `mPurchasedSchematics` reference. That is the measured join key. Do not invent a name-matching heuristic beside it."; and, AMENDED: items already delivered into the space elevator need a delivered producer below `clockspeed/progress/`, which no layer publishes today; it waits on CS-1340's measurement and on a seam ruling for the delivered source, and CS-1348 owns it; until it lands the phase model publishes `delivered_available` False, derived from `clockspeed/progress/phases.py::PhaseCostTable`'s delivered mapping and never stored, and shows REQUIRED only, pinned by `tests/progress/test_phases.py::test_the_shipped_source_publishes_delivered_available_false_required_only` and `::test_delivered_available_is_derived_with_a_zero_count_reading_true`.
+
 ## CS-1336 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

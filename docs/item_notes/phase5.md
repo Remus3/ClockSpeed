@@ -327,7 +327,7 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 ### Acceptance
 
-a fixture with one unknown class yields a flagged-and-skipped record with no exception and the panel lists it with a count and first-seen save; a display-name change in the fixture registry changes no output
+a fixture with one unknown class yields a flagged-and-skipped record with no exception and the panel lists it with a count and first-seen save; a display-name change in the fixture registry changes no output; AMENDED on the adjudicator route: any normalised fallback applies to ClassName-keyed lookups only, never to an asset-path join - `clockspeed/progress/milestones.py::purchase_state` keeps CS-1343's exact asset-path equality, no fallback is added in `clockspeed/progress/milestones.py`, and no path is reduced with `clockspeed/data/schematics.py::class_name_of_path` to feed one; `tests/progress/test_milestones.py::test_purchased_is_the_asset_path_join_not_the_trailing_token` and `::test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted` stay green and unedited
 
 ## CS-1241
 
@@ -470,54 +470,6 @@ counts only in every record (non-negotiable 12).
 
 whether each `PhaseCost` entry's `cost` in `mGamePhaseCosts` is the phase's total or its remainder is measured read-only on a work copy of the pinned development world and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; `mGamePhaseCosts` is named in `clockspeed/save/world.py::UNLOCK_CARRIERS_UNREAD` for as long as the reader does not publish it; `clockspeed/save/world.py` is then wired to publish it, with a synthetic arm under `tests/save/` asserting each decoded cost amount is an exact Fraction and that a world without the array publishes no table rather than an empty or zero one; and a `PhaseCostSource` built from it under the measured meaning replaces the unmeasured shipped source in `clockspeed/progress/phases.py`, so `phase_costs_available` reads True on a world that carries the array
 
-## CS-1343
-
-### Filed 2026-10-21 (session 150), split out of CS-1043 by its closure verifier
-
-**THREE FILING INSTRUCTIONS THAT NO CLAUSE GRADED, AND THAT THE PROGRESS LAYER DOES NOT CARRY.** CS-1043 closed
-with every acceptance clause met. Its closure verifier reported three instructions in the
-item's filing note that its acceptance does not grade and that `clockspeed/progress/` does
-not carry: its sources hold zero hits for `SchematicSource`, for `purchased_schematics` and
-for `delivered_available`. No open item owned them. The clause below quotes each from that
-note, which now sits in `docs/history_notes.md` with the rest of CS-1043's section.
-
-**WHAT THE LANDED CODE DOES INSTEAD.**
-`clockspeed/progress/milestones.py::milestone_requirement` takes a
-`clockspeed/data/schematics.py::SchematicCatalog` as an argument and reads the unlock state
-for the HUB tier alone. `clockspeed/progress/phases.py` publishes no delivery flag, and its
-docstring says every figure is the REQUIRED quantity and never the outstanding one.
-
-**TWO FACTS A BUILDER SETTLES BEFORE BUILDING, NOT AFTER.** The first instruction names the
-shipped Document as what the protocol carries, but CS-1043's adjudicated landing put the
-schematic model in the data layer, with `clockspeed/progress/` consuming the catalog it
-builds rather than the document. The third names CS-1038's container stacks as the blocker
-on delivered items, and CS-1038 is recorded CLOSED in `docs/LEDGER.md`, while
-`clockspeed/progress/__init__.py` names the world model, the normalized registry and
-`clockspeed.solve` as the layers below it, and not `clockspeed.audit`. A builder who reads
-either fact as changing a clause routes it to an adjudicator; the clause quotes the filing
-as written.
-
-**CLAUSE 1 AMENDED, ON THE ADJUDICATOR ROUTE.** A distinct adjudicator of session 150 ruled on the
-first fact above before slice S2 was dispatched. DECISION: clause 1 reads "the shipped schematic
-catalog" where CS-1043's filing note reads "the shipped Document", so `SchematicSource` hands
-`clockspeed/progress/` a `clockspeed/data/schematics.py::SchematicCatalog`; the clause's other
-words, and clauses 2 and 3, still quote the filing as written. ALTERNATIVES REJECTED: a source
-that hands over the raw Document, which would have `clockspeed/progress/` normalize the docs file
-again past the seam CS-1043's adjudicated landing set, with the data layer owning the schematic
-model; and keeping the word while reading it as the catalog, the quiet re-reading
-`docs/item_notes.md` forbids. WHY: `clockspeed/progress/milestones.py::milestone_requirement`
-already consumes the catalog the data layer builds, so the protocol carries what the layer below
-publishes. The amendment is recorded in `docs/LEDGER.md` under this ID.
-
-**CS-1046 NAMES A CONCRETE `SchematicSource`** among what its filing says it publishes.
-
-**TIER 2, NO GAME NEEDED**, on CS-1043's own terms: a hand-authored synthetic schematic
-document, and the rule suite must run with no install.
-
-### Acceptance
-
-each of three instructions from CS-1043's filing note is met as written in `clockspeed/progress/`, each graded by an arm under `tests/progress/` on a hand-authored synthetic schematic document: "consumes the shipped schematic catalog through a `SchematicSource` protocol declared here and parameterised at the wiring site - the `WorldProvider` idiom"; "THE SCHEMATIC-TO-REGISTRY JOIN IS THE RESOLVED CONTENT ASSET PATH of an `mPurchasedSchematics` reference. That is the measured join key. Do not invent a name-matching heuristic beside it."; and "ELEVATOR ITEMS ALREADY DELIVERED ARE BLOCKED ON THE KEYSTONE. They sit inside the space elevator's input inventory and need CS-1038's container stacks. Until that lands the phase model publishes `delivered_available` false and shows REQUIRED only."
-
 ## CS-1346
 
 ### Filed 2026-10-22 by the CS-1244 close
@@ -575,3 +527,26 @@ below requires the choice to be written down either way.
 ### Acceptance
 
 the result `clockspeed/solve/backends/greedy.py` returns is the lowest-ranking of the canonical selections its walk actually reached, by `clockspeed/solve/optimize.py::result_ranking_key`; a synthetic fixture in which the first selection that solves is not the lowest-ranking one reddens on the old behaviour and passes on the new, so the arm is not vacuous; and the heuristic's no-backtracking guarantee is restated or AMENDED explicitly in that module's docstring, with an amendment recorded in `docs/LEDGER.md` under this ID, never changed in silence
+
+## CS-1348
+
+### Filed 2026-10-21 (session 150), split out of CS-1343 on its close
+
+**THE HOLE.** CS-1343 closed with its clause 3 amended on the adjudicator route: the phase model
+publishes `delivered_available` False, derived from
+`clockspeed/progress/phases.py::PhaseCostTable`'s delivered mapping, because no layer below
+`clockspeed/progress/` publishes a delivered reading. Items already delivered into the space
+elevator sit in its input inventory, nothing reads that inventory into the table, and so every
+phase shows REQUIRED only.
+
+**WAITS ON:** CS-1340, and a seam ruling on which layer below `clockspeed/progress/` publishes
+the delivered reading. The inventory model sits in `clockspeed/audit/`, which
+`clockspeed/progress/__init__.py` does not list below it.
+
+**IT NEEDS A REAL SAVE, AND READS IT READ-ONLY** - a work copy through
+`clockspeed/save/workdir.py`, never the save directory (non-negotiable 1), and names and counts
+only in every record (non-negotiable 12).
+
+### Acceptance
+
+the elevator input inventory's carrier is measured read-only on a work copy and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; the layer the seam ruling names publishes it as `PhaseCostTable.delivered`, exact Fraction counts; a synthetic arm under `tests/progress/` shows `delivered_available` True from that producer, including a zero count, and False for a world with no reading, published as None, never zero.
