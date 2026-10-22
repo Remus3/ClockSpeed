@@ -75,6 +75,32 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1342 - CLOSED: QUEUE_STOP moves out of the tree-wide declaration onto the lane spawns' halt_file
+Verification: `tests/test_fleet_kit.py::test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold`,
+`tests/ops/test_inbox_responder.py::test_a_standing_queue_stop_does_not_halt_the_responder`,
+`tests/test_queue_loop.py::test_cs1342_the_lane_kit_spawn_hands_the_kit_the_queue_stop_halt_file`,
+`::test_cs1342_a_standing_queue_stop_refuses_the_lane_spawn_with_its_own_word`,
+`::test_cs1342_another_codeless_refusal_is_not_relabelled_without_the_halt_file` and
+`::test_cs1342_the_driver_reads_a_queue_stop_refusal_as_its_own_stop_word`, and
+`tests/ops/test_usage_limit_refusal.py::test_cs1342_an_early_exit_queue_stop_halt_stops_the_night_on_queue_stop`.
+THE ORDER: MAIN's ruling of 2026-10-21, section 3 - the v19 ORDER meant QUEUE_STOP to stop
+queue work, not the inbox responder; move it out of `ops/stop_sentinels.json` and pass it as
+the per-call halt_file on the lane / queue spawns; keep STOP and HOLD_MAIN_SPAWN tree-wide; no
+kit change. MERGED: `ops/stop_sentinels.json` declares STOP, INBOX_STOP and HOLD_MAIN_SPAWN
+only. The kit's command line has no halt-file flag, so `ops/loop/run_lane.ps1` now starts the
+kit through `python ops/loop/queue_loop.py kit-spawn`, which runs the kit's own `main` with
+`spawn_fn` = the kit's own `spawn` plus `halt_file` = the driver's
+`QUEUE_STOP_FILE` (`STOP_FILES` under the same control root as `STOP_RELPATHS`). The kit's
+halt-file refusal is codeless (class default `refused`), so `kit_spawn` re-raises it as
+`queue-stop` while the file stands; the runner writes `kit_code=queue-stop`, `_ending_outcome`
+maps it to `queue_stopped`, and `run_loop` stops on `QUEUE_STOP`, not a cycle and not a launch
+failure. The inbox responder still hands the kit no halt_file
+(`test_the_responder_never_hands_the_kit_a_halt_file`). Tests re-pinned for the new runner
+command line: `tests/test_lane_runner_script.py` and
+`tests/ops/test_usage_limit_refusal.py::test_neither_the_driver_nor_the_runner_names_the_kits_route_api`.
+Docs: `docs/OPERATIONS.md` section 12.3 and the `ops/loop/inbox_responder.py` and
+`ops/loop/queue_loop.py` comments. REPAIRED after an adversary REFUTED four defects: only the kit's own `halt file present` refusal is re-coded, any other keeps its code and reason (`::test_cs1342_another_codeless_refusal_keeps_its_code_while_queue_stop_stands`); the halt_file follows `--control-dir` through the exported `CS_QUEUE_STOP_FILE` (`::test_cs1342_the_kit_spawn_halt_file_comes_from_the_driver_environment`, `::test_cs1342_the_night_exports_its_own_control_dirs_queue_stop`); two `run_lane.ps1` comments corrected. A second adversary pass found a relative `--control-dir` exported a relative path the kit resolved inside the lane worktree; the export is now resolved against the driver's cwd (`::test_cs1342_a_relative_control_dir_exports_an_absolute_queue_stop`).
+
 ### 2026-10-21 - SESSION 150 LANE SCOPES - NOT A COMPLETION RECORD. NOTHING CLOSED. Three Phase 5 product scopes declared in `config/lane_scopes.json`, CONFIRMED by a verifier, and reaching a lane only per process
 Verification: `config/lane_scopes.json`, the scopes `advisor-ranking`, `registry-audit` and
 `ratio-settle`; `tests/ops/test_lane_scope.py::test_the_declared_scopes_all_validate_against_the_live_roadmap`,

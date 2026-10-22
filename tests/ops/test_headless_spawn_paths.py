@@ -4,8 +4,9 @@ FLEET item 10: the fleet kit's spawn helper, `fleet_headless.spawn` in
 `ops/fleet_kit/fleet_headless.py`, is the ONLY path that starts `claude`.
 `CLAUDE.md` precedence clause (c) once named one exception - the lane runner
 `ops/loop/run_lane.ps1` started `claude` directly - and CS-1231 slice C retired
-it: the runner now runs the kit's spawn command line. This module grades that
-at the grep level:
+it: the runner now runs the kit's spawn command line - since CS-1342 through
+the driver's `queue_loop.py kit-spawn`, which hands the kit's own `main` the
+lane's per-call halt_file. This module grades that at the grep level:
 
   1. THE WALK finds every tracked file that starts the CLI DIRECTLY, by shape:
      Python string constants (never a docstring), PowerShell, shell, batch and
@@ -14,7 +15,8 @@ at the grep level:
   2. What it finds is EXACTLY the kit itself. A new direct start reddens it,
      and so does an exception coming back in `CLAUDE.md`.
   3. THE POSITIVE HALF: the inbox responder is a kit caller, and the lane
-     runner runs the kit's spawn command line.
+     runner runs the kit's spawn command line through `kit-spawn`, whose
+     hand-off to the kit's own `spawn` is pinned by its AST and by a spy.
 
 WHY TESTS ARE NOT WALKED. Every `claude` a test starts is a planted shim on a
 temporary PATH - a `claude.cmd` the test itself writes. The excluded roots are
@@ -33,8 +35,10 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Final
@@ -42,6 +46,11 @@ from typing import Final
 import pytest
 
 ROOT: Final = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# A PLAIN IMPORT, never importorskip: a missing driver is a COLLECTION error.
+from ops.loop import queue_loop  # noqa: E402
 
 #: The kit's spawn helper - the one sanctioned path that starts `claude`.
 KIT: Final = "ops/fleet_kit/fleet_headless.py"
@@ -53,11 +62,83 @@ RUN_LANE: Final = "ops/loop/run_lane.ps1"
 #: No exception remains: nothing but the kit starts `claude` directly.
 DIRECT_START_EXCEPTIONS: Final[frozenset[str]] = frozenset()
 
-#: The lane runner's start, by shape: the kit's spawn command line, run by the
-#: resolved interpreter. Matched against the runner's code, comments dropped.
-_LANE_KIT_PATH: Final = re.compile(r'"ops\\fleet_kit\\fleet_headless\.py"')
-_LANE_KIT_SPAWN: Final = re.compile(r'^\s*"\$kit", "spawn",\s*$', re.MULTILINE)
+#: The driver whose `kit-spawn` the lane runner starts (CS-1342).
+DRIVER: Final = "ops/loop/queue_loop.py"
+
+#: The lane runner's start, by shape, matched against its CODE - block comments
+#: blanked, comment lines dropped: `$kit` bound once, to the driver; the
+#: `kit-spawn` subcommand at the head of the one argument list; the interpreter
+#: bound once, from PATH; and the ONE call operator in the file running them.
+_LANE_KIT_ASSIGN: Final = re.compile(r"^\s*\$kit\s*=", re.MULTILINE)
+_LANE_KIT_BIND: Final = re.compile(
+    r'^\s*\$kit\s*=\s*Join-Path\s+\$root\s+"ops\\loop\\queue_loop\.py"\s*$', re.MULTILINE
+)
+_LANE_ARGS_ASSIGN: Final = re.compile(r"^\s*\$kitArgs\s*=", re.MULTILINE)
+_LANE_ARGS_HEAD: Final = re.compile(
+    r'^\s*\$kitArgs\s*=\s*@\(\s*\n\s*"\$kit",\s*"kit-spawn",\s*$', re.MULTILINE
+)
+_LANE_PYTHON_ASSIGN: Final = re.compile(r"^\s*\$python\s*=", re.MULTILINE)
+_LANE_PYTHON_BIND: Final = re.compile(
+    r"^\s*\$python\s*=\s*\(Get-Command python -ErrorAction Stop\)\.Source\s*$", re.MULTILINE
+)
 _LANE_KIT_CALL: Final = re.compile(r"&\s*\$python\s+@kitArgs\b")
+
+#: Every PowerShell call operator: an `&` that is neither part of a redirection
+#: (`*>&1`, `2>&1`) nor of a `&&` chain.
+_PS_CALL_OPERATOR: Final = re.compile(r"(?<![>&])&(?!&)")
+
+#: Every OTHER shape that starts a process from PowerShell: the process and
+#: job cmdlets and their aliases, the .NET process class, a COM shell, a
+#: `cmd /c` line, and a bare interpreter or CLI at the head of a statement, a
+#: pipe stage or a subexpression.
+_PS_OTHER_LAUNCH: Final = re.compile(
+    r"(?i)\b(?:Start-Process|saps|Start-Job|Start-ThreadJob|Invoke-Expression|iex"
+    r"|Invoke-Command|icm|Invoke-Item)\b"
+    r"|\bDiagnostics\.Process\b|\bProcessStartInfo\b|\bWScript\.Shell\b"
+    r"|\bcmd(?:\.exe)?\s+/[ck]\b"
+    r"|(?:^|[|;({]|&&)\s*(?:python[w3]?|py|node|npx|claude|powershell|pwsh|cmd|bash|sh|wsl)"
+    r"(?:\.exe|\.cmd)?(?=\s|$)",
+    re.MULTILINE,
+)
+
+#: Every call the driver's `kit_spawn` may make, by dotted name - an ALLOWLIST,
+#: so a process start, or any call not named here, reddens the arm: the kit
+#: bound by name, the halt path read, the kit's own `spawn`, `main` and
+#: `Refused`, and three builtins. A computed callee has no name and is refused.
+KIT_SPAWN_CALLS: Final = frozenset(
+    {
+        "_mod",
+        "os.environ.get",
+        "os.path.lexists",
+        "kit.spawn",
+        "kit.main",
+        "kit.Refused",
+        "str",
+        "type",
+        "int",
+    }
+)
+
+#: Every process start `os` offers on this platform, for the spy to refuse.
+_OS_STARTS: Final = tuple(
+    sorted(
+        name
+        for name in dir(os)
+        if name.startswith(("spawn", "exec", "posix_spawn"))
+        or name in {"system", "popen", "startfile"}
+    )
+)
+
+#: Every process start `subprocess` offers, for the spy to refuse.
+_SUBPROCESS_STARTS: Final = (
+    "Popen",
+    "run",
+    "call",
+    "check_call",
+    "check_output",
+    "getoutput",
+    "getstatusoutput",
+)
 
 #: Probe-only hits: a string the scanner reads as a start but that only names
 #: the CLI to recognise a running Claude Code session (an image-name check, no
@@ -455,22 +536,166 @@ def test_clause_c_names_the_slice_that_retired_it_and_no_kit_version() -> None:
     assert versioned is False, f"clause (c) cites a kit version: {clause[:120]!r}"
 
 
-def test_the_lane_runner_starts_its_worker_through_the_kit_command_line() -> None:
-    """The positive half for the lane: the runner runs the kit's spawn command line.
+def _ps_code(source: str) -> str:
+    """PowerShell CODE only: block comments blanked, then comment lines dropped."""
+    blanked = _PS_BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
+    return "\n".join(line for line in blanked.splitlines() if not line.lstrip().startswith("#"))
 
-    Read off the runner's CODE, comments dropped, so a comment describing the
-    call cannot stand in for it: the vendored kit path, the spawn subcommand at
-    the head of the argument list, and the one call operator that runs it.
+
+def _dotted(node: ast.AST) -> str | None:
+    """`a.b.c` for a Name or an Attribute chain on one; None for a computed callee."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return ".".join([node.id, *reversed(parts)])
+
+
+def _top_function(tree: ast.Module, name: str) -> ast.FunctionDef:
+    """The one top-level function ``name`` in the driver."""
+    found = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name]
+    assert len(found) == 1, f"{DRIVER} defines {len(found)} top-level {name}()"
+    return found[0]
+
+
+def _string(node: ast.Constant | None) -> str | None:
+    """A string constant's value, else None."""
+    return node.value if node is not None and isinstance(node.value, str) else None
+
+
+def test_the_lane_runner_starts_its_worker_through_the_kit_command_line() -> None:
+    """The positive half for the lane: the WHOLE chain to the kit's own `spawn`.
+
+    (a) THE RUNNER, read off its CODE so a comment describing the call cannot
+    stand in for it: `$kit` bound once, to the driver `ops/loop/queue_loop.py`;
+    `kit-spawn` at the head of the one argument list; the interpreter bound
+    once, from PATH; ONE call operator in the file, and it runs exactly those;
+    no other launcher shape; and no direct `claude`.
+
+    (b) THE DRIVER, read off its AST: `kit-spawn` is the subcommand `main`
+    hands to `kit_spawn`; `kit_spawn` binds `kit` once, to the module
+    `fleet_headless`, which is the vendored kit's own file; it calls the kit's
+    `main` once, with `spawn` first and its own `spawn_fn`, which calls the
+    kit's `spawn` once, with the halt_file; and it makes no call outside
+    `KIT_SPAWN_CALLS` and names no `claude` - so it starts nothing itself.
+    The spy below grades the same hand-off by running it.
     """
     source = (ROOT / RUN_LANE).read_bytes().decode("ascii")
-    code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
-    shape = (
-        len(_LANE_KIT_PATH.findall(code)),
-        len(_LANE_KIT_SPAWN.findall(code)),
+    code = _ps_code(source)
+    runner = (
+        len(_LANE_KIT_ASSIGN.findall(code)),
+        len(_LANE_KIT_BIND.findall(code)),
+        len(_LANE_ARGS_ASSIGN.findall(code)),
+        len(_LANE_ARGS_HEAD.findall(code)),
+        len(_LANE_PYTHON_ASSIGN.findall(code)),
+        len(_LANE_PYTHON_BIND.findall(code)),
+        len(_PS_CALL_OPERATOR.findall(code)),
         len(_LANE_KIT_CALL.findall(code)),
+        len(_PS_OTHER_LAUNCH.findall(code)),
+        direct_starts(RUN_LANE, source),
     )
-    assert shape == (1, 1, 1)
-    assert direct_starts(RUN_LANE, source) == []
+    assert runner == (1, 1, 1, 1, 1, 1, 1, 1, 0, [])
+
+    tree = ast.parse((ROOT / DRIVER).read_bytes().decode("ascii"))
+    words = [
+        _string(node.value if isinstance(node.value, ast.Constant) else None)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and [_dotted(target) for target in node.targets] == ["KIT_SPAWN_COMMAND"]
+    ]
+    main = _top_function(tree, "main")
+    dispatched = [
+        node
+        for node in ast.walk(main)
+        if isinstance(node, ast.Call) and _dotted(node.func) == "kit_spawn"
+    ]
+    spawn = _top_function(tree, "kit_spawn")
+    calls = [node for node in ast.walk(spawn) if isinstance(node, ast.Call)]
+    binds = [
+        node.value
+        for node in ast.walk(spawn)
+        if isinstance(node, ast.Assign) and [_dotted(target) for target in node.targets] == ["kit"]
+    ]
+    bound = (
+        len(binds) == 1
+        and isinstance(binds[0], ast.Call)
+        and _dotted(binds[0].func) == "_mod"
+        and [_string(arg if isinstance(arg, ast.Constant) else None) for arg in binds[0].args]
+        == ["fleet_headless"]
+    )
+    vendored = Path(str(queue_loop.fleet_headless.__file__)).resolve() == (ROOT / KIT).resolve()
+    mains = [node for node in calls if _dotted(node.func) == "kit.main"]
+    main_shape = (
+        len(mains) == 1
+        and bool(mains[0].args)
+        and isinstance(mains[0].args[0], ast.List)
+        and bool(mains[0].args[0].elts)
+        and isinstance(mains[0].args[0].elts[0], ast.Constant)
+        and mains[0].args[0].elts[0].value == "spawn"
+        and [(kw.arg, _dotted(kw.value)) for kw in mains[0].keywords] == [("spawn_fn", "spawn_fn")]
+    )
+    spawns = [node for node in calls if _dotted(node.func) == "kit.spawn"]
+    spawn_shape = len(spawns) == 1 and "halt_file" in [kw.arg for kw in spawns[0].keywords]
+    outside = sorted({_dotted(node.func) or "<computed>" for node in calls} - KIT_SPAWN_CALLS)
+    docstring = spawn.body[0].value if isinstance(spawn.body[0], ast.Expr) else None
+    named = any(
+        "claude" in node.value.lower()
+        for node in ast.walk(spawn)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and node is not docstring
+    )
+    driver = (words, len(dispatched), bound, vendored, main_shape, spawn_shape, outside, named)
+    assert driver == (["kit-spawn"], 1, True, True, True, True, [], False)
+
+
+def test_the_lane_kit_spawn_reaches_the_kits_own_spawn_and_starts_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """THE SPY on (b): the runner's `kit-spawn` reaches the kit's `spawn` once, and only it.
+
+    Run through the driver's own `main` with the runner's word. The kit's
+    `spawn` is a recorder, and every process start `subprocess` and `os` offer
+    is replaced by one that refuses, so a driver that started anything itself
+    reddens here as well as in the AST arm. An inherited `CS_QUEUE_STOP_FILE`
+    (the night's export, CS-1342) is deleted first, and only the halt_file KEY
+    is compared, never its value.
+    """
+    kit = queue_loop.fleet_headless
+    monkeypatch.delenv("CS_QUEUE_STOP_FILE", raising=False)
+    seen: list[list[str]] = []
+    started: list[str] = []
+
+    def recording(root: object, code: object, prompt: object, **kwargs: object) -> dict[str, str]:
+        del root, code, prompt
+        seen.append(sorted(kwargs))
+        return {"kit": "synthetic"}
+
+    def refused_start(*_args: object, **_kwargs: object) -> None:
+        started.append("start")
+        raise AssertionError("kit_spawn started a process itself")
+
+    monkeypatch.setattr(kit, "spawn", recording)
+    for owner, names in ((subprocess, _SUBPROCESS_STARTS), (os, _OS_STARTS)):
+        for name in names:
+            if hasattr(owner, name):
+                monkeypatch.setattr(owner, name, refused_start)
+    root = tmp_path / "root"
+    root.mkdir()
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# a synthetic prompt\n")
+    argv = ["--root", str(root), "--code", "CS", "--note", "lane_queue_synthetic"]
+    argv += ["--kind", "build", "--prompt-file", str(prompt)]
+    rc = queue_loop.main(["kit-spawn", *argv])
+    printed = capsys.readouterr().out.strip()
+    reached = (
+        rc == kit.CLI_OK,
+        json.loads(printed) == {"kit": "synthetic"},
+        len(seen),
+        bool(seen) and "halt_file" in seen[0],
+        len(started),
+    )
+    assert reached == (True, True, 1, True, 0)
 
 
 def test_the_inbox_responder_starts_its_worker_through_the_kit() -> None:

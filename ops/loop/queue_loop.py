@@ -224,6 +224,24 @@ STOP_FILES = tuple(CONTROL / rel for rel in STOP_RELPATHS)
 #: The bare names, derived from one definition rather than written out twice -
 #: `stop_reason` reports a NAME and `main` has to turn it back into a path.
 STOP_NAMES = tuple(Path(rel).name for rel in STOP_RELPATHS)
+#: CS-1342 (MAIN ruling 2026-10-21) - THE LANE'S OWN STOP, and the kit's
+#: per-call `halt_file` on every lane spawn. It is NOT declared in
+#: `ops/stop_sentinels.json`: a declared sentinel is tree-wide and halted the
+#: inbox responder too, while QUEUE_STOP stops queue work only. One file, read
+#: by this driver between cycles and by the kit at the instant of each spawn.
+QUEUE_STOP_REL = "lanes/QUEUE_STOP"
+QUEUE_STOP_NAME = Path(QUEUE_STOP_REL).name
+QUEUE_STOP_FILE = STOP_FILES[STOP_RELPATHS.index(QUEUE_STOP_REL)]
+#: CS-1342 repair (D4) - the variable a night exports for the length of its
+#: run: the QUEUE_STOP under the control directory THIS night reads its stops
+#: from, so `--control-dir` moves the kit's per-call halt_file with it. The
+#: launcher copies the driver's environment to the runner and the runner's
+#: `kit-spawn` inherits it; unset or empty means `QUEUE_STOP_FILE`.
+QUEUE_STOP_ENV = "CS_QUEUE_STOP_FILE"
+#: The kit's OWN reason for its halt-file refusal (`fleet_headless.spawn`
+#: raises `Refused("halt file present")`, codeless). Only that refusal is
+#: re-coded `queue-stop` (D1) - any other keeps its own code and reason.
+KIT_HALT_FILE_REASON = "halt file present"
 
 #: Append-only, one JSON object per line. NOT tmp+os.replace: the atomic-write
 #: rule (CLAUDE.md non-negotiable 5) exists for files another process POLLS
@@ -357,6 +375,12 @@ KIT_HALTED = "halted"
 #: The runner's OWN words on a refused line: a code it would not echo, and the
 #: kit refusing its command line (exit 2).
 _RUNNER_REFUSAL_WORDS = ("unknown", "bad-arguments")
+#: CS-1342 - the lane path's OWN word for the kit's halt-file refusal. The kit
+#: raises that refusal with no code of its own (it prints its class default,
+#: `refused`), so `kit_spawn` re-codes it to this word while QUEUE_STOP stands,
+#: and the runner records it as `kit_code=queue-stop`. It fits the runner's
+#: code shape, lower-case letters and hyphens.
+RUNNER_QUEUE_STOP_CODE = "queue-stop"
 #: The status file is a few hundred bytes; this is a bound, not a budget.
 _KIT_STATUS_MAX_BYTES = 64 * 1024
 #: The runner's ending lines, by shape. The stamp is `Get-Date -Format s`.
@@ -746,8 +770,10 @@ _BUDGET_SPENT_DETAIL = (
 _REFUSED_OUTCOMES = frozenset({OUTCOME_USAGE_REFUSED, OUTCOME_BUDGET_SPENT})
 #: CS-1231 slice C, R1 - THE KIT REFUSED BECAUSE A STOP SENTINEL THIS TREE
 #: DECLARES STANDS (kit code `halted`): `ops/stop_sentinels.json` names INBOX_STOP
-#: and HOLD_MAIN_SPAWN beside this driver's own. Not a cycle and not a fault: the
-#: night STOPS on `KIT_HALT_STOP`, as it does at the sentinels it reads itself.
+#: and HOLD_MAIN_SPAWN beside this driver's own STOP (QUEUE_STOP is the lane's
+#: per-call halt_file instead, CS-1342 - see `OUTCOME_QUEUE_STOPPED`). Not a
+#: cycle and not a fault: the night STOPS on `KIT_HALT_STOP`, as it does at
+#: the sentinels it reads itself.
 #: Reached only when one appears between this driver's own read of the
 #: declaration (`kit_stop_reason`) and the kit's.
 OUTCOME_KIT_HALTED = "kit_halted"
@@ -759,6 +785,16 @@ _KIT_HALTED_DETAIL = (
 #: `stop_sentinel_hit` - and for a declaration that cannot be read (fail closed).
 #: A stop like the driver's own sentinel names, so it is a success word.
 KIT_HALT_STOP = "kit_halted"
+#: CS-1342 - THE KIT REFUSED THE LANE SPAWN AT ITS PER-CALL HALT_FILE, the lane's
+#: QUEUE_STOP (runner code `queue-stop`). Not a cycle and not a fault: the night
+#: stops on the QUEUE_STOP word itself, exactly as when this driver reads that
+#: sentinel between cycles. Reached only when it appears between that read and
+#: the kit's.
+OUTCOME_QUEUE_STOPPED = "queue_stopped"
+_QUEUE_STOPPED_DETAIL = (
+    "REFUSED, NOT RUN - the lane's QUEUE_STOP stands (the fleet kit's halt_file "
+    "for this spawn, runner code queue-stop); the night stops"
+)
 #: The tree the runner hands the kit as its root: the one this driver lives in.
 KIT_ROOT = _HERE.parents[1]
 
@@ -3102,7 +3138,7 @@ def _runner_ending(log: object) -> tuple[str, str | None] | None:
     if not before.startswith("lane refused "):
         return None
     named = _RUNNER_REFUSED_LINE.fullmatch(before)
-    words = (*KIT_REFUSAL_CODES, *_RUNNER_REFUSAL_WORDS)
+    words = (*KIT_REFUSAL_CODES, *_RUNNER_REFUSAL_WORDS, RUNNER_QUEUE_STOP_CODE)
     code = named.group(1) if named else None
     # THE DRIVER'S OWN LITERAL, looked up - never the log's string.
     return ENDING_REFUSED, words[words.index(code)] if code in words else "unknown"
@@ -3178,7 +3214,8 @@ def kit_stop_reason(root) -> str | None:
 
     `ops/stop_sentinels.json` under `root` declares the paths the fleet kit
     refuses every start beside - INBOX_STOP and HOLD_MAIN_SPAWN as well as this
-    driver's own STOP and QUEUE_STOP - and it is read here through the KIT'S OWN
+    driver's own STOP; QUEUE_STOP is not declared, it is the lane spawn's
+    per-call halt_file (CS-1342) - and it is read here through the KIT'S OWN
     `stop_sentinel_hit`, as the inbox responder reads it (CS-1234), so the two
     cannot part. FAIL CLOSED: an unreadable declaration is a stop too, as it is
     a refusal in the kit; so is a kit that cannot be loaded. Never raises, and
@@ -3225,6 +3262,23 @@ def kit_timeout_first(cycle_timeout_s: float) -> bool:
     return bool(cycle_timeout_s - RUNNER_KIT_TIMEOUT_S >= KIT_WRAP_MARGIN_S)
 
 
+def _refused_code_outcome(code) -> tuple[str, str]:
+    """The outcome and detail a runner's recorded refusal CODE names.
+
+    Split from `_ending_outcome` when CS-1342 added the lane's own
+    `queue-stop`; a code none of these names is a launch failure, as before.
+    """
+    if code == KIT_BUDGET_SPENT:
+        return OUTCOME_BUDGET_SPENT, _BUDGET_SPENT_DETAIL
+    if code == KIT_FALLBACK_HALTED:
+        return OUTCOME_USAGE_REFUSED, _KIT_LIMIT_DETAIL
+    if code == KIT_HALTED:
+        return OUTCOME_KIT_HALTED, _KIT_HALTED_DETAIL
+    if code == RUNNER_QUEUE_STOP_CODE:
+        return OUTCOME_QUEUE_STOPPED, _QUEUE_STOPPED_DETAIL
+    return OUTCOME_LAUNCH_FAILED, f"the lane runner recorded a refused start - kit code {code}"
+
+
 def _ending_outcome(ending, outcome: str, detail: str, ran_for: float) -> tuple[str, str]:
     """The outcome and detail a runner's kit ending turns a `completed` exit into.
 
@@ -3239,13 +3293,7 @@ def _ending_outcome(ending, outcome: str, detail: str, ran_for: float) -> tuple[
             f"worker ran {ran_for}s - the fleet kit's own {RUNNER_KIT_TIMEOUT_S}s "
             f"ceiling killed it (kit exit 4), recorded as a timeout"
         )
-    if code == KIT_BUDGET_SPENT:
-        return OUTCOME_BUDGET_SPENT, _BUDGET_SPENT_DETAIL
-    if code == KIT_FALLBACK_HALTED:
-        return OUTCOME_USAGE_REFUSED, _KIT_LIMIT_DETAIL
-    if code == KIT_HALTED:
-        return OUTCOME_KIT_HALTED, _KIT_HALTED_DETAIL
-    return OUTCOME_LAUNCH_FAILED, f"the lane runner recorded a refused start - kit code {code}"
+    return _refused_code_outcome(code)
 
 
 def _early_exit_outcome(log, ending_of, result_of, outcome: str, detail: str) -> tuple[str, str]:
@@ -4315,7 +4363,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
 
         # CS-1231 slice C - a spent fleet run budget is refused, not run, too,
         # and so is a start the kit halted at a declared stop sentinel.
-        halted = record["outcome"] == OUTCOME_KIT_HALTED
+        halted = record["outcome"] in (OUTCOME_KIT_HALTED, OUTCOME_QUEUE_STOPPED)
         refused = record["outcome"] in _REFUSED_OUTCOMES or halted
         if refused:
             # CS-1178 - NOT A CYCLE, SO NOT NUMBERED AS ONE. The row is written,
@@ -4356,6 +4404,15 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # CS-1231 slice C, R1 - A DECLARED STOP SENTINEL STANDS: a clean stop on
         # the sentinel word, as at the top of the loop - never a fault counted
         # three times over until the night ends on `consecutive_launch_failures`.
+        # CS-1342 - the lane's own QUEUE_STOP, met by the kit as this spawn's
+        # halt_file, stops the night on the QUEUE_STOP word itself.
+        if halted and record["outcome"] == OUTCOME_QUEUE_STOPPED:
+            stopped_by = QUEUE_STOP_NAME
+            emit(
+                f"queue-loop stop: {QUEUE_STOP_NAME} present - the fleet kit halted "
+                "the lane spawn at its halt_file"
+            )
+            break
         if halted:
             stopped_by = KIT_HALT_STOP
             emit(
@@ -4520,7 +4577,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     refusals = sum(1 for record in records if record["outcome"] == OUTCOME_USAGE_REFUSED)
     # CS-1231 slice C - and a spent run budget is not a cycle either.
     budget_refusals = sum(1 for record in records if record["outcome"] == OUTCOME_BUDGET_SPENT)
-    halts = sum(1 for record in records if record["outcome"] == OUTCOME_KIT_HALTED)
+    halts = sum(
+        1 for record in records if record["outcome"] in (OUTCOME_KIT_HALTED, OUTCOME_QUEUE_STOPPED)
+    )
     return {
         "cycles_run": len(records) - refusals - budget_refusals - halts,
         "usage_refusals": refusals,
@@ -4569,6 +4628,62 @@ _STOP_EXIT = {
 _SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES, KIT_HALT_STOP})
 
 
+#: CS-1342 - the subcommand `ops/loop/run_lane.ps1` starts the kit through.
+KIT_SPAWN_COMMAND = "kit-spawn"
+
+
+def kit_spawn(argv, *, halt_file=None) -> int:
+    """CS-1342 - the fleet kit's `spawn` command line, with the lane's halt_file.
+
+    MAIN's ruling of 2026-10-21: QUEUE_STOP stops QUEUE work, so it is passed as
+    the per-call `halt_file` on every lane spawn rather than declared tree-wide.
+    The kit's command line has no flag for it, so the runner starts the kit's
+    OWN `main` through here: every flag is the kit's and is parsed by the kit,
+    and only `spawn_fn` is supplied - the kit's own `spawn`, looked up at call
+    time, with `halt_file` added. No other path starts the CLI (FLEET item 10).
+
+    THE KIT'S HALT-FILE REFUSAL IS CODELESS: it carries the class default code
+    `refused`, which the driver could only read as a launch failure. So THAT
+    refusal - exactly the kit's `Refused` class, its default code and its own
+    reason `KIT_HALT_FILE_REASON` - is re-raised under `RUNNER_QUEUE_STOP_CODE`
+    while the halt file stands, so the runner records `kit_code=queue-stop` and
+    the night stops on QUEUE_STOP. Every other refusal passes through with its
+    own code and reason, even one raised after QUEUE_STOP appeared (a CLI not
+    found, a proxy down, a failed start): its diagnosis is never relabelled.
+
+    THE HALT PATH FOLLOWS THE NIGHT'S CONTROL DIRECTORY: `_drive` exports the
+    QUEUE_STOP under the directory it reads its stops from as `QUEUE_STOP_ENV`,
+    and the runner's environment carries it here.
+
+    Args:
+        argv: The kit's `spawn` arguments, after the subcommand word.
+        halt_file: The halt path. None reads `QUEUE_STOP_ENV`, and an unset or
+            empty variable means `QUEUE_STOP_FILE`. A test seam.
+
+    Returns:
+        The kit's own CLI exit code.
+    """
+    kit = _mod("fleet_headless")
+    if halt_file is None:
+        halt_file = os.environ.get(QUEUE_STOP_ENV) or QUEUE_STOP_FILE
+    halt = str(halt_file)
+
+    def spawn_fn(*args, **kwargs):
+        try:
+            return kit.spawn(*args, halt_file=halt, **kwargs)
+        except kit.Refused as exc:
+            own_halt = (
+                type(exc) is kit.Refused
+                and exc.code == kit.Refused.code
+                and exc.args == (KIT_HALT_FILE_REASON,)
+            )
+            if own_halt and os.path.lexists(halt):
+                raise kit.Refused(KIT_HALT_FILE_REASON, code=RUNNER_QUEUE_STOP_CODE) from None
+            raise
+
+    return int(kit.main(["spawn", *argv], spawn_fn=spawn_fn))
+
+
 def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
     """CLI entry point for the detached launcher.
 
@@ -4601,8 +4716,14 @@ def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
             file never gets one in the real reports directory.
 
     Returns:
-        One of the EXIT_* codes.
+        One of the EXIT_* codes, or for `kit-spawn` the kit's own exit code.
     """
+    # CS-1342 - THE RUNNER'S KIT START, dispatched before any night machinery:
+    # no parser of this driver's, no night log and no singleton guard - a lane
+    # spawn runs WHILE the driver holds that guard.
+    raw = sys.argv[1:] if argv is None else list(argv)
+    if raw[:1] == [KIT_SPAWN_COMMAND]:
+        return kit_spawn(raw[1:])
     parser = argparse.ArgumentParser(
         prog="queue_loop", description="Re-fire the one-row queue lane worker cycle after cycle."
     )
@@ -4695,6 +4816,25 @@ def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
         return _drive(args, singleton)
 
 
+@contextlib.contextmanager
+def _exported(name: str, value: str):
+    """Set one environment variable for the block, then restore what was there.
+
+    CS-1342 repair (D4) - the night's QUEUE_STOP path reaches the runner's
+    `kit-spawn` through the environment the launcher copies; restored so an
+    in-process caller (a test) is left as it was. Never renders the value.
+    """
+    before = os.environ.get(name)
+    os.environ[name] = value
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = before
+
+
 def _drive(args, singleton) -> int:
     """Run one night from parsed arguments; `main` documents the exit codes.
 
@@ -4704,12 +4844,18 @@ def _drive(args, singleton) -> int:
     cycles = 1 if args.once else args.cycles
     cycle_log = None if args.reports_dir is None else Path(args.reports_dir) / CYCLE_LOG.name
     control_dir = None if args.control_dir is None else Path(args.control_dir)
+    # CS-1342 repair (D4) - the lane spawns' halt_file is the QUEUE_STOP under
+    # THIS night's control directory, the same file `stop_reason` reads. It is
+    # RESOLVED against the driver's cwd before it is exported: run_lane.ps1
+    # changes into the lane worktree before kit-spawn, so a relative
+    # --control-dir would otherwise name a different file in the kit.
+    queue_stop = Path(stop_path_for(QUEUE_STOP_NAME, control_dir)).resolve()
 
     # THE LANE IS BOUND INTO THE GUARD, not read inside it, so the injected
     # seam stays the zero-argument callable every existing caller passes.
     guard = functools.partial(_driver_singleton, args.lane) if singleton is None else singleton
     try:
-        with guard():
+        with guard(), _exported(QUEUE_STOP_ENV, str(queue_stop)):
             summary = run_loop(
                 max_cycles=cycles,
                 settle_s=args.settle,

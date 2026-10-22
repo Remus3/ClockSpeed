@@ -1467,9 +1467,33 @@ def test_the_declaration_names_stops_beyond_the_responders_own() -> None:
     """Anti-vacuity: the declared-sentinel arms below plant paths the old list never read."""
     beyond = sorted(set(DECLARED) - set(OWN_DECLARED))
     covered = set(OWN_DECLARED) <= set(DECLARED)
-    assert (beyond, covered) == (
-        ["ops/loop/control/HOLD_MAIN_SPAWN", "ops/loop/control/lanes/QUEUE_STOP"],
-        True,
+    assert (beyond, covered) == (["ops/loop/control/HOLD_MAIN_SPAWN"], True)
+
+
+#: The queue lane's own stop. CS-1342 (MAIN ruling 2026-10-21): it stops QUEUE
+#: work only, so it is no longer declared tree-wide - the lane hands it to the
+#: kit as its per-call ``halt_file`` - and the responder is not halted by it.
+QUEUE_STOP: Final = "ops/loop/control/lanes/QUEUE_STOP"
+
+
+def test_a_standing_queue_stop_does_not_halt_the_responder(tree: Path) -> None:
+    """CS-1342: QUEUE_STOP is lane-scoped, so the responder still spawns beside it.
+
+    The REAL declaration is planted, so a QUEUE_STOP put back into it reddens
+    here. The control: the same tree with HOLD_MAIN_SPAWN standing halts with
+    no kit call, so the arm cannot pass by never reaching the declaration read.
+    """
+    _declare(tree)
+    _plant(tree, QUEUE_STOP)
+    spy = RunSpy()
+    code = _run(tree, spy)
+    ran = (code, len(spy.calls), _pair(tree)[0] == "halted")
+    _plant(tree, HOLD)
+    held = RunSpy()
+    held_code = _run(tree, held)
+    assert (ran, (held_code, len(held.calls), _pair(tree))) == (
+        (0, 1, False),
+        (0, 0, ("halted", "Halted")),
     )
 
 
@@ -1479,11 +1503,12 @@ def test_every_declared_stop_sentinel_halts_the_responder_quietly_before_the_loc
 ) -> None:
     """CS-1234 S5 item 2: the responder halts on every path the declaration names.
 
-    The kit's sentinels are tree-wide, so a standing QUEUE_STOP or
-    HOLD_MAIN_SPAWN refuses every kit spawn into this tree - the responder's
-    included. Ignoring them started nothing either; it took the lock, reached
-    the kit, logged a route refusal and exited 3 on every tick. Read from the
-    REAL declaration, so a path added there is covered here at once.
+    The kit's declared sentinels are tree-wide, so a standing HOLD_MAIN_SPAWN
+    refuses every kit spawn into this tree - the responder's included (the
+    queue lane's QUEUE_STOP is not declared, CS-1342). Ignoring them started
+    nothing either; it took the lock, reached the kit, logged a route refusal
+    and exited 3 on every tick. Read from the REAL declaration, so a path
+    added there is covered here at once.
     """
     _declare(tree)
     _plant(tree, rel)
@@ -1830,7 +1855,7 @@ def _aged(path: Path, epoch: float) -> None:
 
 @pytest.mark.parametrize(
     "rel",
-    [*OWN_DECLARED, "ops/loop/control/lanes/QUEUE_STOP", "ops/loop/control/HOLD_MAIN_SPAWN"],
+    [*OWN_DECLARED, "ops/loop/control/HOLD_MAIN_SPAWN"],
 )
 def test_a_halt_is_shown_since_its_sentinel_was_placed(tree: Path, rel: str) -> None:
     """The halted status carries the standing sentinel's own mtime, never the tick's clock.

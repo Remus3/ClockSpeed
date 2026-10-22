@@ -169,22 +169,33 @@ try {
 
   # CS-1231 SLICE C - THE KIT STARTS THE CLI; THIS RUNNER STARTS THE KIT.
   # FLEET item 10 makes the fleet kit's spawn helper the ONLY path that starts
-  # the CLI. So this runner runs `python ops/fleet_kit/fleet_headless.py spawn`
-  # and the kit resolves the CLI itself (never from the working directory),
-  # routes it through the proxy, counts it against the fleet run budget, opens
-  # no console window and kills the whole process tree at its timeout.
+  # the CLI. So this runner runs `python ops/loop/queue_loop.py kit-spawn`,
+  # which is the kit's OWN `spawn` command line - the kit's `main` parses every
+  # flag below - with one addition the kit's command line has no flag for:
+  # CS-1342 (MAIN ruling 2026-10-21) hands the kit the lane's QUEUE_STOP as its
+  # per-call halt_file, so QUEUE_STOP halts queue spawns only and is no longer
+  # declared tree-wide in ops/stop_sentinels.json. The QUEUE_STOP path is the
+  # one under the driver's control directory, which the driver exports to this
+  # runner's environment. The kit's own refusal at a standing QUEUE_STOP comes
+  # back with the code `queue-stop`, written below as kit_code=queue-stop; any
+  # other refusal keeps the kit's own code. Everything else is the kit's: it
+  # resolves the CLI itself (never from the working directory), routes it
+  # through the proxy, counts it against the fleet run budget, opens no console
+  # window and kills the whole process tree at its timeout.
   #
   # RESOLVED, NOT ASSUMED, and inside the try. This is a TERMINATING failure -
   # the lookup used to run above the header, so a box with nothing on PATH
   # produced no log at all and the launcher blamed the runner for exiting early.
   $python = (Get-Command python -ErrorAction Stop).Source
 
-  # THE MAIN TREE AND ITS VENDORED KIT, from $PSScriptRoot and never the cwd,
-  # for the reason the config is read that way above: this runner lives in the
-  # MAIN tree. The kit keeps its budget, status and usage files under --root.
+  # THE MAIN TREE AND THE DRIVER'S kit-spawn ENTRY (queue_loop.py, which loads
+  # the vendored kit under ops/fleet_kit itself), from $PSScriptRoot and never
+  # the cwd, for the reason the config is read that way above: this runner
+  # lives in the MAIN tree. The kit keeps its budget, status and usage files
+  # under --root.
   # GetFullPath only normalises a path; it never throws for one that is absent.
   $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
-  $kit = Join-Path $root "ops\fleet_kit\fleet_headless.py"
+  $kit = Join-Path $root "ops\loop\queue_loop.py"
 
   # The usage line's label is the log's own name, which names the lane and the
   # run, so one usage line can be joined to its log. Never empty: the kit's
@@ -220,7 +231,7 @@ try {
   # --bare for it. The prompt goes on STDIN, as it always has; the kit's
   # command line reads stdin when no --prompt-file is given.
   $kitArgs = @(
-    "$kit", "spawn",
+    "$kit", "kit-spawn",
     "--root", "$root",
     "--code", "CS",
     "--note", "$label",

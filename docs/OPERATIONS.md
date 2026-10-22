@@ -1059,23 +1059,31 @@ corrects a stale pin either way.
 `ops/stop_sentinels.json` declares this tree's stop sentinels for the kit's `spawn()` (kit
 version 19): while ANY declared path exists - a dangling link included - a kit spawn into
 this tree refuses `halted` before anything starts, and an unreadable declaration refuses
-too; a declared path that is absent halts nothing. It declares the three stops MAIN's v19
-ORDER named - `STOP` in the loop control directory, and `INBOX_STOP` and `QUEUE_STOP` in
-its lanes subdirectory - and the main-spawn hold, `HOLD_MAIN_SPAWN` in the loop control
-directory. `QUEUE_DRAINED`, the worker's queue-empty marker in the lanes subdirectory that
+too; a declared path that is absent halts nothing. It declares `STOP` in the loop control
+directory, `INBOX_STOP` in its lanes subdirectory, and the main-spawn hold, `HOLD_MAIN_SPAWN`
+in the loop control directory. `QUEUE_STOP` is NOT declared (CS-1342, MAIN's ruling of
+2026-10-21: the v19 ORDER meant it to stop queue work, not the inbox responder). It is
+lane-scoped instead: the lane runner starts the kit through `python ops/loop/queue_loop.py
+kit-spawn`, the kit's own `spawn` command line with the lane's `QUEUE_STOP` handed to the
+kit's `spawn()` as its per-call `halt_file`. A standing one refuses that lane spawn before
+anything starts; the kit raises that refusal with no code of its own, so `kit-spawn` names it
+`queue-stop`, the runner writes `kit_code=queue-stop`, and the driver stops the night on
+`QUEUE_STOP` - the same word it stops on when it reads the file itself between cycles.
+`QUEUE_DRAINED`, the worker's queue-empty marker in the lanes subdirectory that
 the queue loop also stops on, is deliberately NOT declared: declared, it would halt every
 kit spawn into this tree whenever the queue drains. The inbox status file's own `halted`
 state is not a trigger.
 
 The hold halts EVERY kit spawn into this tree while its file exists - this tree's own inbox
-responder included, not only MAIN's - and so does a standing `QUEUE_STOP`, because the
-kit's sentinels are tree-wide. The responder reads every one of them itself, before its lock
+responder included, not only MAIN's - because the kit's declared sentinels are tree-wide. A
+standing `QUEUE_STOP` does NOT halt the responder: it is not declared, and the responder
+hands the kit no `halt_file`. The responder reads every one of them itself, before its lock
 and before it lists the channel: `STOP` and `INBOX_STOP` directly, and every declared path
 through the kit's own `stop_sentinel_hit`, so the two cannot part (CS-1234). Any standing one
 halts it quietly - status `halted`, exit 0, no log line - dated from the oldest standing
 sentinel; an unreadable declaration halts it too (fail closed, as the kit's spawn does), and no
-declaration lifts `STOP` or `INBOX_STOP`. So `QUEUE_STOP` and `HOLD_MAIN_SPAWN` no longer reach
-the kit: no `kit_refused` line, no `refused` / Idle and no exit 3 while either file stands. A
+declaration lifts `STOP` or `INBOX_STOP`. So `HOLD_MAIN_SPAWN` no longer reaches the kit: no
+`kit_refused` line, no `refused` / Idle and no exit 3 while it stands. A
 sentinel placed after that check, which the kit then reads, also shows `halted` and exits 0.
 The queue lane honours the hold too (CS-1231 slice C): its driver reads every declared path
 through the kit's own `stop_sentinel_hit` before each cycle and each claim, and stops the night

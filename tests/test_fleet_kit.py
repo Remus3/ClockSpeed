@@ -79,12 +79,14 @@ KIT_WATCH = KIT_DIR / "fleet_watch.py"
 KIT_TOKENS_CSS = KIT_DIR / "tokens.css"
 KIT_TOKENS_JSON = KIT_DIR / "tokens.json"
 # This tree's stop-sentinel declaration (authored here, read by the kit's
-# stop_sentinel_hit()), and the four paths it declares, in order.
+# stop_sentinel_hit()), and the three paths it declares, in order. QUEUE_STOP
+# is NOT one of them (CS-1342, MAIN ruling 2026-10-21): it stops queue work
+# only, so it rides on the lane's own spawns as the kit's per-call halt_file
+# and never halts the inbox responder.
 STOP_SENTINELS = REPO_ROOT / "ops" / "stop_sentinels.json"
 DECLARED_SENTINELS = (
     "ops/loop/control/STOP",
     "ops/loop/control/lanes/INBOX_STOP",
-    "ops/loop/control/lanes/QUEUE_STOP",
     "ops/loop/control/HOLD_MAIN_SPAWN",
 )
 # This tree's own additions to the kit guard's default IGNORE, in the order
@@ -100,10 +102,7 @@ TREE_GUARD_IGNORE = (
 # (its "ops/loop/control/lanes/*" glob), so no suite guard here sees them come or
 # go. The root cause is the kit default, owed to MAIN, never a local kit edit;
 # held exact so the gap cannot grow unseen.
-KIT_HIDDEN_SENTINELS = (
-    "ops/loop/control/lanes/INBOX_STOP",
-    "ops/loop/control/lanes/QUEUE_STOP",
-)
+KIT_HIDDEN_SENTINELS = ("ops/loop/control/lanes/INBOX_STOP",)
 
 # The kit version MAIN's 2026-10-19 00:01 ORDER note names (v20.1: patch 1 of 20).
 KIT_VERSION = 20
@@ -226,12 +225,13 @@ def test_every_kit_file_on_disk_is_named_by_the_manifest() -> None:
     assert on_disk == expected
 
 
-def test_stop_sentinel_declaration_holds_the_three_stops_and_the_main_spawn_hold(
+def test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold(
     tmp_path: Path,
 ) -> None:
     # Authored here, not vendored: the kit's spawn() refuses "halted" while any
     # path this file declares exists. The hold is declared permanently; lifting
-    # it removes the hold FILE, never this line (CS-1330 ruling 2).
+    # it removes the hold FILE, never this line (CS-1330 ruling 2). A standing
+    # QUEUE_STOP is NOT a tree-wide hit (CS-1342): it is the lane's halt_file.
     raw = STOP_SENTINELS.read_bytes()
     assert b"\r" not in raw
     text = raw.decode("ascii")
@@ -247,8 +247,13 @@ def test_stop_sentinel_declaration_holds_the_three_stops_and_the_main_spawn_hold
         planted.write_bytes(b"")
         hits[rel] = kit.stop_sentinel_hit(tmp_path)
         planted.unlink()
+    queue_stop = tmp_path / "ops" / "loop" / "control" / "lanes" / "QUEUE_STOP"
+    queue_stop.parent.mkdir(parents=True, exist_ok=True)
+    queue_stop.write_bytes(b"")
+    queue_hit = kit.stop_sentinel_hit(tmp_path)
+    queue_stop.unlink()
     expected_hits = {rel: rel for rel in DECLARED_SENTINELS}
-    assert (declared, control, hits) == (DECLARED_SENTINELS, None, expected_hits)
+    assert (declared, control, hits, queue_hit) == (DECLARED_SENTINELS, None, expected_hits, None)
     assert text == json.dumps({"paths": list(DECLARED_SENTINELS)}, indent=2) + "\n"
 
 

@@ -634,7 +634,7 @@ def test_cs1178_a_real_runner_refusal_log_is_recognised_end_to_end(tmp_path: Pat
 
     # THE RUNNER'S HALF: the runner ran the fleet kit's spawn command line
     # (CS-1231 slice C), and the kit asked the CLI for its JSON result.
-    through_kit = "fleet_headless.py" in argv and " spawn " in argv
+    through_kit = "queue_loop.py" in argv and " kit-spawn " in argv
     assert through_kit, "the runner did not run the kit's spawn command line"
     at = cli_argv.index("--output-format") if "--output-format" in cli_argv else -1
     asked = at >= 0 and cli_argv[at + 1 : at + 2] == ["json"]
@@ -916,6 +916,24 @@ def test_r1_an_early_exit_kit_halt_stops_the_night_cleanly(tmp_path: Path) -> No
     assert stopped == ("kit_halted", 1, None), f"stopped {stopped}"
 
 
+def test_cs1342_an_early_exit_queue_stop_halt_stops_the_night_on_queue_stop(
+    tmp_path: Path,
+) -> None:
+    """CS-1342: the lane spawn's halt_file refusal is a clean stop on QUEUE_STOP.
+
+    QUEUE_STOP is no longer declared tree-wide; the lane hands it to the kit as
+    its per-call halt_file, and the runner records the refusal as
+    `kit_code=queue-stop`. That is the driver's own stop word - not a cycle, not
+    a fault counted toward `consecutive_launch_failures`.
+    """
+    log = _ending_log(tmp_path / "q.log", _refused_tail("queue-stop"))
+    launch, fired = _launches([("early", log)] * 5)
+    summary, rows, _, _, _, _ = _drive(tmp_path, [], budget=5, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    stopped = (summary["stopped_by"], len(fired), rows[0]["cycle"], summary["cycles_run"])
+    assert (outcomes, stopped) == (["queue_stopped"], ("QUEUE_STOP", 1, None, 0))
+
+
 class _NoMutex:
     """Stands in for the driver mutex: takes no OS handle."""
 
@@ -1119,7 +1137,8 @@ def test_neither_the_driver_nor_the_runner_names_the_kits_route_api() -> None:
 
     The driver's code names no kit function that moves a route, and the
     runner's code - comments dropped - passes no fallback flag and runs no kit
-    subcommand but `spawn`.
+    subcommand but `kit-spawn`, the driver's wrapper over the kit's own `spawn`
+    (CS-1342).
     """
     tree = ast.parse((ROOT / "ops" / "loop" / "queue_loop.py").read_text(encoding="utf-8"))
     names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
@@ -1130,8 +1149,8 @@ def test_neither_the_driver_nor_the_runner_names_the_kits_route_api() -> None:
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     flagged = "fallback" in code.lower()
     assert flagged is False, "the runner's code carries a fallback flag"
-    subcommands = re.findall(r'"\$kit",\s*"([a-z]+)"', code)
-    assert subcommands == ["spawn"], f"the runner runs kit subcommands {subcommands}"
+    subcommands = re.findall(r'"\$kit",\s*"([a-z-]+)"', code)
+    assert subcommands == ["kit-spawn"], f"the runner runs kit subcommands {subcommands}"
 
 
 @pytest.mark.parametrize(

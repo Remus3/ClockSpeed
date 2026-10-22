@@ -21,10 +21,13 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      `ops/loop/control/lanes/INBOX_STOP` (this responder's own, mirroring the
      queue lane's QUEUE_STOP) - and every path the tree declares in
      `ops/stop_sentinels.json`, read by the kit's own `stop_sentinel_hit`
-     (CS-1234 S5). The kit's sentinels are tree-wide: each declared path, the
-     queue lane's QUEUE_STOP and the main-spawn hold included, refuses every
-     kit spawn into this tree, so the responder halts on them first instead of
-     reaching the kit and logging a route refusal every tick. An unreadable
+     (CS-1234 S5). The kit's declared sentinels are tree-wide: each declared
+     path, the main-spawn hold included, refuses every kit spawn into this
+     tree, so the responder halts on them first instead of reaching the kit
+     and logging a route refusal every tick. The queue lane's QUEUE_STOP is
+     NOT declared and does NOT halt this responder (CS-1342, MAIN ruling
+     2026-10-21): it is lane-scoped, the per-call `halt_file` on the lane's own
+     kit spawns, and this responder hands the kit no `halt_file`. An unreadable
      declaration halts, as the kit's spawn does (fail closed); an absent one
      adds nothing, and no declaration ever lifts the responder's own two. Any
      entry halts, a dangling link included, as the kit reads it.

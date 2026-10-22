@@ -4919,3 +4919,222 @@ def test_cs1231c_a_night_stopped_by_a_declared_sentinel_exits_as_a_sentinel_stop
     )
     code = queue_loop.main(["--once"], singleton=FakeSingleton())
     assert code == queue_loop.EXIT_STOP_SENTINEL, f"a declared-sentinel stop exited {code}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1342 - QUEUE_STOP is the lane spawns' per-call halt_file (MAIN ruling
+# 2026-10-21), never a tree-wide declared sentinel. The runner reaches the kit
+# through `queue_loop.py kit-spawn`, which hands the kit's own `spawn` the
+# lane's QUEUE_STOP as `halt_file` and re-codes the kit's codeless halt-file
+# refusal to the driver's word `queue-stop`.
+# ---------------------------------------------------------------------------
+
+_CS1342_KIT_ARGV = (
+    "--root",
+    "{root}",
+    "--code",
+    "CS",
+    "--note",
+    "lane_queue_synthetic",
+    "--kind",
+    "build",
+    "--prompt-file",
+    "{prompt}",
+)
+
+#: The variable the driver exports for the whole night (CS-1342 repair D4).
+#: A lane worker's pre-push suite and a `--local-suite` run inherit it, so
+#: every test whose code under test reads it sets or deletes it first, and
+#: no assertion here renders what it holds.
+_CS1342_ENV = "CS_QUEUE_STOP_FILE"
+
+
+def _cs1342_argv(tmp_path: Path) -> list[str]:
+    """The kit command line after `kit-spawn`, over a synthetic root and prompt."""
+    root = tmp_path / "root"
+    root.mkdir(exist_ok=True)
+    prompt = tmp_path / "cs1342_prompt.md"
+    prompt.write_bytes(b"# a synthetic prompt\n")
+    return [item.format(root=root, prompt=prompt) for item in _CS1342_KIT_ARGV]
+
+
+def test_cs1342_the_lane_kit_spawn_hands_the_kit_the_queue_stop_halt_file(
+    tmp_path, monkeypatch, capsys
+):
+    """THE SPY: every lane spawn reaches `kit.spawn` with halt_file = lanes/QUEUE_STOP.
+
+    Resolved against the same control root the driver reads `STOP_RELPATHS`
+    under, so the driver's own stop and the kit's per-call halt are one file.
+
+    ISOLATED FROM AN INHERITED EXPORT: the driver exports `_CS1342_ENV` for
+    the whole night, so without the delete below a lane worker's suite would
+    hand kit-spawn the night's path instead of the tree's QUEUE_STOP.
+    """
+    monkeypatch.delenv(_CS1342_ENV, raising=False)
+    kit = queue_loop.fleet_headless
+    seen: list[dict] = []
+
+    def recording(root, code, prompt, **kwargs):
+        del root, code, prompt
+        seen.append(dict(kwargs))
+        return {"kit": "synthetic"}
+
+    monkeypatch.setattr(kit, "spawn", recording)
+    rc = queue_loop.main(["kit-spawn", *_cs1342_argv(tmp_path)], singleton=FakeSingleton())
+    printed = capsys.readouterr().out.strip()
+    expected = queue_loop.STOP_FILES[queue_loop.STOP_RELPATHS.index("lanes/QUEUE_STOP")]
+    halts = [kw.get("halt_file") for kw in seen]
+    # Bound to booleans first: an assertion never renders an environment value.
+    one_spawn = len(halts) == 1
+    halted_on_queue_stop = halts == [str(expected)]
+    assert (rc, one_spawn, halted_on_queue_stop, json.loads(printed)) == (
+        kit.CLI_OK,
+        True,
+        True,
+        {"kit": "synthetic"},
+    )
+
+
+def test_cs1342_a_standing_queue_stop_refuses_the_lane_spawn_with_its_own_word(tmp_path, capsys):
+    """The kit's halt-file refusal is codeless; the lane path names it `queue-stop`.
+
+    The REAL kit `spawn` runs: its halt-file check is its FIRST act, so the
+    planted halt refuses before any route, budget or process is touched.
+    """
+    kit = queue_loop.fleet_headless
+    halt = tmp_path / "control" / "lanes" / "QUEUE_STOP"
+    halt.parent.mkdir(parents=True)
+    halt.write_bytes(b"held")
+    rc = queue_loop.kit_spawn(_cs1342_argv(tmp_path), halt_file=halt)
+    printed = json.loads(capsys.readouterr().out.strip())
+    word = getattr(queue_loop, "RUNNER_QUEUE_STOP_CODE", None)
+    assert (rc, printed.get("code"), word) == (kit.CLI_REFUSED, "queue-stop", "queue-stop")
+
+
+def test_cs1342_another_codeless_refusal_is_not_relabelled_without_the_halt_file(
+    tmp_path, monkeypatch, capsys
+):
+    """The control: a codeless refusal with NO QUEUE_STOP standing keeps the kit's word."""
+    kit = queue_loop.fleet_headless
+
+    def refusing(*_args, **_kwargs):
+        raise kit.Refused("synthetic codeless refusal")
+
+    monkeypatch.setattr(kit, "spawn", refusing)
+    absent = tmp_path / "control" / "lanes" / "QUEUE_STOP"
+    rc = queue_loop.kit_spawn(_cs1342_argv(tmp_path), halt_file=absent)
+    printed = json.loads(capsys.readouterr().out.strip())
+    assert (rc, printed.get("code")) == (kit.CLI_REFUSED, "refused")
+
+
+def test_cs1342_the_driver_reads_a_queue_stop_refusal_as_its_own_stop_word(tmp_path):
+    """A `kit_code=queue-stop` ending is the driver's QUEUE_STOP outcome, never `unknown`."""
+    log = tmp_path / "lane_queue_cs1342.log"
+    lines = [
+        "lane start 2026-01-01T00:00:00 cwd=cs-lane-queue model=synthetic effort=high",
+        "lane refused 2026-01-01T00:00:05 kit_code=queue-stop",
+        "lane exit 2026-01-01T00:00:05 code=3",
+    ]
+    log.write_bytes(("\r\n".join(lines) + "\r\n").encode("ascii"))
+    ending = queue_loop._runner_ending(str(log))  # noqa: SLF001
+    outcome = queue_loop._ending_outcome(ending, "completed", "", 0.0)[0]  # noqa: SLF001
+    assert (ending, outcome) == ((queue_loop.ENDING_REFUSED, "queue-stop"), "queue_stopped")
+
+
+# ---------------------------------------------------------------------------
+# CS-1342 repair - D1: ONLY the kit's own halt-file refusal is re-coded; D4: the
+# halt_file follows the control directory the driver reads its stops under.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("reason", ["claude not found", "proxy down", "start failed"])
+def test_cs1342_another_codeless_refusal_keeps_its_code_while_queue_stop_stands(
+    tmp_path, monkeypatch, capsys, reason
+):
+    """A non-halt refusal raised while QUEUE_STOP stands keeps `refused` and its reason.
+
+    QUEUE_STOP can appear AFTER the kit's own halt check; the kit then refuses
+    for some other cause, and relabelling that as queue-stop loses the diagnosis.
+    """
+    kit = queue_loop.fleet_headless
+    halt = tmp_path / "control" / "lanes" / "QUEUE_STOP"
+    halt.parent.mkdir(parents=True)
+    halt.write_bytes(b"held")
+
+    def refusing(*_args, **_kwargs):
+        raise kit.Refused(reason)
+
+    monkeypatch.setattr(kit, "spawn", refusing)
+    rc = queue_loop.kit_spawn(_cs1342_argv(tmp_path), halt_file=halt)
+    printed = json.loads(capsys.readouterr().out.strip())
+    assert (rc, printed.get("code"), printed.get("refused")) == (
+        kit.CLI_REFUSED,
+        "refused",
+        reason,
+    )
+
+
+def test_cs1342_the_kit_spawn_halt_file_comes_from_the_driver_environment(tmp_path, monkeypatch):
+    """With no explicit halt_file, kit-spawn takes the path the driver exported."""
+    kit = queue_loop.fleet_headless
+    seen: list[object] = []
+
+    def recording(root, code, prompt, **kwargs):
+        del root, code, prompt
+        seen.append(kwargs.get("halt_file"))
+        return {"kit": "synthetic"}
+
+    monkeypatch.setattr(kit, "spawn", recording)
+    sandbox = tmp_path / "sandbox" / "lanes" / "QUEUE_STOP"
+    monkeypatch.setenv(_CS1342_ENV, str(sandbox))
+    queue_loop.kit_spawn(_cs1342_argv(tmp_path))
+    # Bound to booleans first: an assertion never renders an environment value.
+    one_spawn = len(seen) == 1
+    took_the_export = seen == [str(sandbox)]
+    assert (one_spawn, took_the_export) == (True, True)
+
+
+@pytest.mark.parametrize("sandboxed", [True, False])
+def test_cs1342_the_night_exports_its_own_control_dirs_queue_stop(tmp_path, monkeypatch, sandboxed):
+    """The driver exports the QUEUE_STOP under the control dir it reads, then restores."""
+    monkeypatch.setenv(_CS1342_ENV, "inherited-value")
+    seen: list[tuple[object, str | None]] = []
+
+    def recorder(**kw):
+        seen.append((kw.get("control_dir"), os.environ.get(_CS1342_ENV)))
+        return {"cycles_run": 1, "stopped_by": "max_cycles", "records": [SHIPPED]}
+
+    monkeypatch.setattr(queue_loop, "run_loop", recorder)
+    control = tmp_path / "sandbox-control"
+    flags = ["--control-dir", str(control)] if sandboxed else []
+    queue_loop.main(["--once", *flags], singleton=FakeSingleton())
+    expected = control / "lanes" / "QUEUE_STOP" if sandboxed else queue_loop.QUEUE_STOP_FILE
+    # Bound to booleans first: an assertion never renders an environment value.
+    exported = len(seen) == 1 and seen[0][1] == str(expected)
+    restored = os.environ.get(_CS1342_ENV) == "inherited-value"
+    assert (exported, restored) == (True, True)
+
+
+def test_cs1342_a_relative_control_dir_exports_an_absolute_queue_stop(tmp_path, monkeypatch):
+    """A relative --control-dir exports the QUEUE_STOP resolved against the DRIVER's cwd.
+
+    run_lane.ps1 changes into the lane worktree before kit-spawn, so a relative
+    export would make the kit check a different file than `stop_reason` reads.
+    """
+    monkeypatch.setenv(_CS1342_ENV, "inherited-value")
+    monkeypatch.chdir(tmp_path)
+    seen: list[str | None] = []
+
+    def recorder(**kw):
+        del kw
+        seen.append(os.environ.get(_CS1342_ENV))
+        return {"cycles_run": 1, "stopped_by": "max_cycles", "records": [SHIPPED]}
+
+    monkeypatch.setattr(queue_loop, "run_loop", recorder)
+    queue_loop.main(["--once", "--control-dir", "sbx"], singleton=FakeSingleton())
+    expected = (tmp_path / "sbx" / "lanes" / "QUEUE_STOP").resolve()
+    # Bound to booleans first: an assertion never renders an environment value.
+    one_run = len(seen) == 1 and seen[0] is not None
+    absolute = one_run and Path(str(seen[0])).is_absolute()
+    matches = one_run and Path(str(seen[0])) == expected
+    assert (one_run, absolute, matches) == (True, True, True)

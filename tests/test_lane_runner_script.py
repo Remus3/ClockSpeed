@@ -25,7 +25,9 @@ runner, for a fault the runner never had.
 
 CS-1231 SLICE C - THE RUNNER STARTS ITS WORKER THROUGH THE FLEET KIT. FLEET item
 10 makes the kit's spawn helper the only path that starts the CLI, so the runner
-now runs ``python ops/fleet_kit/fleet_headless.py spawn ...`` and the kit starts
+now runs ``python ops/loop/queue_loop.py kit-spawn ...`` - the kit's own
+``spawn`` command line plus the lane's QUEUE_STOP as its per-call ``halt_file``
+(CS-1342) - and the kit starts
 the CLI. Four things follow, and each has an arm here:
 
 - THE COMMAND LINE IS PINNED WHOLE, flag by flag, and today's permission mode is
@@ -97,7 +99,6 @@ from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from toolpath import resolve_tool  # noqa: E402
 
 RUNNER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "run_lane.ps1"
-KIT_SOURCE: Final = REPO_ROOT / "ops" / "fleet_kit" / "fleet_headless.py"
 DRIVER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "queue_loop.py"
 STATUS_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "inbox_status.py"
 
@@ -581,8 +582,8 @@ def _expected_argv(tmp_path: Path, model: str, effort: str) -> list[str]:
     ceiling = _module_constant(DRIVER_SOURCE, KIT_CEILING_NAME)
     code = _module_constant(STATUS_SOURCE, TREE_CODE_NAME)
     return [
-        str(KIT_SOURCE),
-        "spawn",
+        str(DRIVER_SOURCE),
+        "kit-spawn",
         "--root",
         str(REPO_ROOT),
         "--code",
@@ -661,8 +662,11 @@ def test_the_recorded_command_line_is_one_the_real_kit_accepts(tmp_path: Path) -
     the printed line - where the runner reads it.
     """
     argv, stdin, _lines = _recorded_run(tmp_path)
-    kit_path = _norm(argv[0]) == _norm(str(KIT_SOURCE))
-    assert kit_path, "the runner did not run the vendored kit"
+    # CS-1342 - the runner starts the kit through the driver's `kit-spawn`,
+    # which hands the kit's own `main` ["spawn", *rest]; the halt_file it adds
+    # is graded in tests/test_queue_loop.py. Here the REST is fed to the kit.
+    kit_path = (_norm(argv[0]), argv[1:2]) == (_norm(str(DRIVER_SOURCE)), ["kit-spawn"])
+    assert kit_path, "the runner did not start the kit through the driver's kit-spawn"
 
     mapped: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     started: list[list[str]] = []
@@ -687,7 +691,7 @@ def test_the_recorded_command_line_is_one_the_real_kit_accepts(tmp_path: Path) -
 
     printed = io.StringIO()
     code = kit.main(
-        argv[1:],
+        ["spawn", *argv[2:]],
         spawn_fn=recorder,
         stdin=io.StringIO(stdin.decode("ascii", errors="replace")),
         stdout=printed,
@@ -1059,7 +1063,7 @@ def test_a_lane_start_is_counted_in_the_kits_budget_with_a_kinded_usage_line(
         return line
 
     code = kit.main(
-        argv[1:],
+        ["spawn", *argv[2:]],
         spawn_fn=spawn_fn,
         stdin=io.StringIO(stdin.decode("ascii", errors="replace")),
         stdout=io.StringIO(),
@@ -1099,7 +1103,7 @@ def test_the_kits_own_timeout_ends_the_run_with_one_usage_line(tmp_path: Path) -
     argv, stdin, _lines = _recorded_run(tmp_path)
     at = argv.index("--timeout") if "--timeout" in argv else -1
     assert at > 0, "the runner passes the kit no --timeout"
-    shortened = [*argv[1 : at + 1], str(_SHORT_CEILING_S), *argv[at + 2 :]]
+    shortened = ["spawn", *argv[2 : at + 1], str(_SHORT_CEILING_S), *argv[at + 2 :]]
     root = tmp_path / "kill-root"
     sleeper = tmp_path / "sleeper.cmd"
     sleeper.write_bytes(_SLEEPER)
