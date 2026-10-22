@@ -19,6 +19,15 @@ an absent number can never pass as a zero.
   totals. Away from the reference clock the answer is DEFERRED - an exact
   coefficient beside a symbolic ``clock ** exponent`` term - and the golden
   records that outcome, never a number.
+- ``strategy.json``  CS-1244 clause 1. One score per named objective over four
+  chains, and the strategy badge a plan earns against a named reference. The
+  badge cases include the NON-MONOTONE one, which fails a lower rung and clears
+  a higher one, because that is the case the ladder exists to describe.
+
+A strategy case names its plan rather than restating the request that builds it:
+a plan that already has a ratio golden is REFERENCED by that golden's name, so
+the two corpora cannot drift apart on one request. A plan with no ratio golden
+carries its own request block in exactly the shape :func:`_solve` consumes.
 """
 
 from __future__ import annotations
@@ -32,7 +41,7 @@ from typing import Any
 import pytest
 
 from clockspeed.data.registry import Registry
-from clockspeed.solve import power, ratio
+from clockspeed.solve import optimize, power, ratio, strategy
 from clockspeed.solve.exact import DeferredPowerTerm, to_exact
 from tests.solve import synthetic
 
@@ -79,6 +88,18 @@ def _load(name: str) -> list[dict[str, Any]]:
 RATIO_CASES = _load("ratio.json")
 CLOCK_CASES = _load("clock.json")
 POWER_CASES = _load("power.json")
+
+_STRATEGY_FILE = "strategy.json"
+_STRATEGY_CORPUS: dict[str, Any] = json.loads(
+    (GOLDEN_DIR / _STRATEGY_FILE).read_text(encoding="ascii")
+)
+
+#: Every plan a strategy case may name, and how to build it. See the module
+#: docstring for why a plan with a ratio golden is referenced rather than
+#: restated.
+STRATEGY_PLANS: Mapping[str, Mapping[str, Any]] = _STRATEGY_CORPUS["plans"]
+
+STRATEGY_CASES: list[dict[str, Any]] = _STRATEGY_CORPUS["cases"]
 
 
 def _ids(cases: list[dict[str, Any]]) -> list[str]:
@@ -286,12 +307,122 @@ def test_power_golden(case: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Strategy - the objective scores and the badge ladder
+# ---------------------------------------------------------------------------
+
+#: The weight every objective in this corpus is scored at. One, because a score
+#: case grades ONE direction; a weighting would make the golden a statement
+#: about the trade-off between directions instead.
+STRATEGY_WEIGHT = Fraction(1)
+
+#: The one-direction objective each named objective is graded through, built the
+#: same way ``_REGISTRIES`` and ``_POLICIES`` above are keyed. A case naming
+#: anything else raises rather than silently scoring something adjacent, and
+#: ``test_the_strategy_corpus_can_score_every_modeled_objective`` pins the keys
+#: against the shipped tuple so a fourth objective cannot arrive uncovered.
+_STRATEGY_OBJECTIVES: Mapping[str, Callable[[], optimize.Objective]] = {
+    optimize.OBJECTIVE_RAW: lambda: optimize.weighted_objective(raw=STRATEGY_WEIGHT),
+    optimize.OBJECTIVE_BUILDINGS: lambda: optimize.weighted_objective(buildings=STRATEGY_WEIGHT),
+    optimize.OBJECTIVE_POWER: lambda: optimize.weighted_objective(power=STRATEGY_WEIGHT),
+}
+
+
+def _strategy_plan(name: str) -> ratio.ProductionPlan:
+    """Build one named strategy plan through the real solver.
+
+    Args:
+        name: The plan name, a key of the corpus ``plans`` table.
+
+    Returns:
+        The solved plan.
+    """
+    spec = STRATEGY_PLANS[name]
+    golden = spec.get("ratio_golden")
+    if golden is not None:
+        return _solve(_ratio_by_name(golden))
+    request: dict[str, Any] = dict(spec["request"])
+    return _solve(request)
+
+
+def _badge_is_non_monotone(case: Mapping[str, Any]) -> bool:
+    """Say whether a badge case fails a lower rung and clears a higher one.
+
+    Read off the GOLDEN rather than off a badge the code produced, so the
+    property is a statement about the corpus and stays true of it without
+    running the module under test.
+
+    Args:
+        case: A badge case.
+
+    Returns:
+        True when some rung is not cleared and some later rung is.
+    """
+    flags = [bool(check["cleared"]) for check in case["expected"]["checks"]]
+    return any(not flags[index] and any(flags[index + 1 :]) for index in range(len(flags)))
+
+
+def _strategy_cases_of(kind: str) -> list[dict[str, Any]]:
+    """Select the strategy cases of one kind.
+
+    Args:
+        kind: ``score`` or ``badge``.
+
+    Returns:
+        Those cases, in file order.
+    """
+    return [case for case in STRATEGY_CASES if case["kind"] == kind]
+
+
+@pytest.mark.parametrize("case", STRATEGY_CASES, ids=_ids(STRATEGY_CASES))
+def test_strategy_golden(case: dict[str, Any]) -> None:
+    registry = synthetic.solve_registry()
+    expected = case["expected"]
+
+    if case["kind"] == "score":
+        objective = _STRATEGY_OBJECTIVES[case["objective"]]()
+        score = optimize.score_plan(registry, _strategy_plan(case["plan"]), objective)
+        _assert_exact(score, expected["score"], f"score[{case['objective']}]")
+        return
+
+    badge = strategy.badge_for(
+        registry, _strategy_plan(case["plan"]), _strategy_plan(case["reference"])
+    )
+    assert badge.strongest == expected["strongest"]
+    assert badge.cleared == tuple(expected["cleared"])
+    assert [check.strategy for check in badge.checks] == [
+        golden["strategy"] for golden in expected["checks"]
+    ]
+    for check, golden in zip(badge.checks, expected["checks"], strict=True):
+        rung = golden["strategy"]
+        cleared = check.cleared
+        assert cleared is golden["cleared"], f"{rung}: cleared is {cleared}"
+        reason = check.reason
+        assert reason == golden["reason"], f"{rung}: reason is {reason}"
+        _assert_exact(check.score, golden["score"], f"{rung}.score")
+        _assert_exact(check.reference, golden["reference"], f"{rung}.reference")
+        _assert_exact(check.bound, golden["bound"], f"{rung}.bound")
+
+
+def test_the_strategy_ladder_order_is_the_order_every_badge_case_records() -> None:
+    """A reorder of the shipped ladder reddens here rather than silently passing."""
+    shipped = [rung.name for rung in strategy.STRATEGY_LADDER]
+    for case in _strategy_cases_of("badge"):
+        recorded = [golden["strategy"] for golden in case["expected"]["checks"]]
+        assert recorded == shipped, case["name"]
+
+
+def test_the_strategy_corpus_can_score_every_modeled_objective() -> None:
+    """The objective table is keyed by the shipped tuple, not by a hand-kept list."""
+    assert sorted(_STRATEGY_OBJECTIVES) == sorted(optimize.OBJECTIVES)
+
+
+# ---------------------------------------------------------------------------
 # The corpus itself
 # ---------------------------------------------------------------------------
 
 
 def _all_cases() -> list[dict[str, Any]]:
-    return RATIO_CASES + CLOCK_CASES + POWER_CASES
+    return RATIO_CASES + CLOCK_CASES + POWER_CASES + STRATEGY_CASES
 
 
 @pytest.mark.parametrize(
@@ -332,6 +463,23 @@ def test_the_corpus_names_only_synthetic_content() -> None:
     for case in CLOCK_CASES + POWER_CASES:
         if "building" in case:
             assert case["building"] in _SYNTHETIC_BUILDINGS, case["name"]
+    for name, spec in STRATEGY_PLANS.items():
+        golden = spec.get("ratio_golden")
+        if golden is not None:
+            assert golden in {case["name"] for case in RATIO_CASES}, name
+            continue
+        request = spec["request"]
+        assert request["registry"] in _REGISTRIES, name
+        assert set(request["recipes"]) <= _SYNTHETIC_RECIPES, name
+        named_items = set(request["raw_items"]) | set(request.get("targets", {}))
+        named_items |= set(request.get("supply", {}))
+        if "target_item" in request:
+            named_items.add(request["target_item"])
+        assert named_items <= _SYNTHETIC_ITEMS, name
+    for case in STRATEGY_CASES:
+        assert case["plan"] in STRATEGY_PLANS, case["name"]
+        if "reference" in case:
+            assert case["reference"] in STRATEGY_PLANS, case["name"]
 
 
 def test_the_corpus_covers_every_clause() -> None:
@@ -343,3 +491,29 @@ def test_the_corpus_covers_every_clause() -> None:
     ]
     assert any(case["kind"] == "draw" for case in deferred)
     assert any(case["kind"] == "plan" for case in deferred)
+
+
+def test_the_strategy_corpus_scores_every_named_objective() -> None:
+    """CS-1244 clause 1: each named objective has golden cases, all three of them."""
+    scored = {case["objective"] for case in _strategy_cases_of("score")}
+    assert scored == set(optimize.OBJECTIVES)
+
+
+def test_the_strategy_corpus_carries_a_non_monotone_badge() -> None:
+    """Clearance across different objectives is not monotone, and a case proves it.
+
+    Without such a case every badge golden would be satisfied by a
+    longest-cleared-PREFIX reading of ``strongest`` as well as by the shipped
+    highest-index one, and the corpus would grade the distinction the module
+    docstring calls load-bearing not at all.
+    """
+    badges = _strategy_cases_of("badge")
+    graded = [case["name"] for case in badges]
+    non_monotone = [case["name"] for case in badges if _badge_is_non_monotone(case)]
+    assert non_monotone, f"no badge case fails a lower rung and clears a higher one: {graded}"
+    for name in non_monotone:
+        (case,) = [entry for entry in badges if entry["name"] == name]
+        flags = [bool(check["cleared"]) for check in case["expected"]["checks"]]
+        highest = max(index for index, flag in enumerate(flags) if flag)
+        strongest = case["expected"]["strongest"]
+        assert strongest == case["expected"]["checks"][highest]["strategy"], name

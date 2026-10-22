@@ -359,16 +359,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a synthetic map fixture with three nodes and one gated region excludes the gated node until the unlock flag is set; distances are exact rationals or integers; claims rank by reachability band, then yield
 
-## CS-1244
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Builds on `clockspeed/solve/optimize.py`'s exact objectives; player-tunable weights stay in `BACKLOG.md` until this lands.
-
-### Acceptance
-
-each named objective has golden cases; ties break on a documented stable key; switching objective changes ranking but never the plan arithmetic; a badge records the strongest threshold cleared in fixed ladder order
-
 ## CS-1245
 
 ### Filed 2026-10-04 by the inspiration ingest
@@ -527,3 +517,61 @@ document, and the rule suite must run with no install.
 ### Acceptance
 
 each of three instructions from CS-1043's filing note is met as written in `clockspeed/progress/`, each graded by an arm under `tests/progress/` on a hand-authored synthetic schematic document: "consumes the shipped schematic catalog through a `SchematicSource` protocol declared here and parameterised at the wiring site - the `WorldProvider` idiom"; "THE SCHEMATIC-TO-REGISTRY JOIN IS THE RESOLVED CONTENT ASSET PATH of an `mPurchasedSchematics` reference. That is the measured join key. Do not invent a name-matching heuristic beside it."; and "ELEVATOR ITEMS ALREADY DELIVERED ARE BLOCKED ON THE KEYSTONE. They sit inside the space elevator's input inventory and need CS-1038's container stacks. Until that lands the phase model publishes `delivered_available` false and shows REQUIRED only."
+
+## CS-1346
+
+### Filed 2026-10-22 by the CS-1244 close
+
+**THE BADGE REACHES NO CARD, AND THE SCOPE SAID IT WOULD.** CS-1244 shipped
+`clockspeed/solve/strategy.py::StrategyBadge`, and `config/lane_scopes.json`'s
+`advisor-ranking` description had credited `clockspeed/advisor/cards.py` with carrying it.
+Measured on the code at that close: `clockspeed/advisor/cards.py::Card` is frozen with
+exactly ONE field, `trace`, and one-parameter construction is load-bearing - the trace is
+the only constructor parameter and tier text cannot be supplied; and
+`clockspeed/advisor/advise.py` is built from audit models and unlock state, so NO PLAN
+REACHES IT and a badge field on the card would have had no producer. Both files are
+therefore UNCHANGED by CS-1244, and the scope clause was corrected rather than satisfied.
+
+**WHAT IS ALREADY DONE, SO THIS ITEM DOES NOT REDO IT.**
+`clockspeed/advisor/cards.py::render_value` renders a frozen dataclass field by field, so a
+badge placed on a trace reaches the tier-3 derivation with no change to the renderer. What
+is missing is the PRODUCER: a rule that reads a plan, which is what gives a trace a badge
+to carry. Non-negotiable 8 binds the tier-3 half - the derivation is generated from the
+trace, never hand-written - and that is why the clause below says so rather than leaving it
+to the builder.
+
+### Acceptance
+
+a rule trace carries a `clockspeed/solve/strategy.py::StrategyBadge`, produced by a rule that reads a plan, and the card's tier-3 derivation renders that badge FROM the trace, generated and never hand-written; a synthetic fixture world whose rule reads a plan shows the badge in the tier-3 derivation and shows nothing of it in tier 1; and no constructor parameter is added to `clockspeed/advisor/cards.py::Card`, whose single `trace` field stays the only one
+
+## CS-1347
+
+### Filed 2026-10-22 by the CS-1244 close
+
+**THE SHARED KEY BREAKS A TIE AND DOES NOT RANK A RESULT.** CS-1244 promoted the one
+documented ranking key to `clockspeed/solve/optimize.py` as `ranking_key` and
+`result_ranking_key`, and both backends now break a TIE with it
+(`tests/solve/test_optimize.py::test_both_backends_break_a_tie_with_the_same_documented_key`).
+A tie-break is not a ranking. `clockspeed/solve/backends/greedy.py::GreedyBackend.optimize`
+documents its own return as "the first selection that solves the real request, in canonical
+form", and its class docstring says the walk commits to each step and never backtracks, so
+on a problem where a worse first step leads to a better factory it returns the worse
+factory. It never re-ranks the canonical selections its walk actually reached through the
+shared key, so nothing requires its result to be the lowest-ranking one it saw.
+
+**THE SHIPPED FIXTURES DO NOT DISTINGUISH THE TWO BACKENDS**, which is why this was found
+by reading rather than by a red arm:
+`tests/solve/test_optimize.py::test_c5_the_two_backends_produce_structurally_identical_plans`
+and `::test_c3_the_two_backends_agree_on_the_loop` both hold. CS-1244's close touched this
+module with a COMMENT ONLY - a verifier parsed it with docstrings stripped and found the AST
+byte-identical to HEAD's - so nothing about the walk changed and the finding is about
+behaviour that predates it.
+
+**WHETHER TO CORRECT THE WALK OR AMEND ITS GUARANTEE IS THIS ITEM'S TO SETTLE**, on the
+adjudicator route, never by quietly reading the no-backtracking sentence as something else.
+Re-ranking what the walk reached is not backtracking, so the two may both hold; the clause
+below requires the choice to be written down either way.
+
+### Acceptance
+
+the result `clockspeed/solve/backends/greedy.py` returns is the lowest-ranking of the canonical selections its walk actually reached, by `clockspeed/solve/optimize.py::result_ranking_key`; a synthetic fixture in which the first selection that solves is not the lowest-ranking one reddens on the old behaviour and passes on the new, so the arm is not vacuous; and the heuristic's no-backtracking guarantee is restated or AMENDED explicitly in that module's docstring, with an amendment recorded in `docs/LEDGER.md` under this ID, never changed in silence

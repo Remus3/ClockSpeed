@@ -266,8 +266,16 @@ class GreedyBackend:
                 # C5 fixture exists to force.
                 continue
             scored = score_plan(registry, probed, request.objective)
-            # Strictly less, so a tie keeps the earlier key and the tie-break is
-            # registry order rather than whatever comparison happened last.
+            # NOT optimize.ranking_key, and the asymmetry is stated rather than
+            # papered over. That key ranks a canonical result; what is scored
+            # here is the RELAXED PROBE plan _probe returns, which sinks
+            # byproducts and relaxes the raw set, so it is not a result and has
+            # no canonical selection to read positions from. The tie therefore
+            # resolves through `pool` order - registry order, as this method's
+            # Args record and its caller builds it - plus a STRICTLY less
+            # comparison, which keeps the earlier key. Same registry ordering
+            # optimize.ranking_key breaks a tie with, reached by a different
+            # route rather than by the key itself.
             if best is None or scored < best:
                 chosen, best = key, scored
         return chosen

@@ -1,0 +1,103 @@
+{
+  "about": "CS-1244 clause 1. One score per named objective over four chains of the synthetic solve corpus, plus the strategy badge a plan earns against a named reference. Every figure is HAND-DERIVED from the constants tests/solve/synthetic.py publishes - C1_ORE_DEMAND, C3_POWER_MW, C4_ORE_CAP, C5_STD_MACHINES and the rest - and not one was produced by running score_plan or badge_for and pasting what came back. Each score case weights exactly ONE direction at exactly one, so the score IS that direction's total rather than a blend: raw totals the plan's raw input rates, buildings totals the step machine counts as fractional machine equivalents, and power prices every step at its building's own un-sharded clock base. Each badge case runs the shipped ladder, whose every rung carries the identity bound of one, so a rung clears when score(plan) <= score(reference) and no fitted constant appears anywhere. Two fixtures are deliberately ABSENT. The unpriceable-power case cannot live here: this harness admits only the main and rich_recovery registries and refuses any name outside the synthetic sets, while a no-producer recipe is a local registry variant - tests/solve/test_strategy.py covers it. And the C8 twins R_TwinA and R_TwinB are byte-identical on every objective BY CONSTRUCTION, so a golden over their scores would prove nothing that the tie-break arm in tests/solve/test_optimize.py does not prove better.",
+  "plans": {
+    "c1_rod_50": {"ratio_golden": "c1_rod_50"},
+    "c3_gadget_20_balanced": {"ratio_golden": "c3_gadget_20_balanced"},
+    "c4_supply_ore_45": {"ratio_golden": "c4_supply_ore_45"},
+    "c5_trinket_30": {
+      "request": {
+        "registry": "main",
+        "direction": "targets",
+        "recipes": ["Std_Gadget"],
+        "raw_items": ["Desc_SolveOre_C"],
+        "policy": "balanced",
+        "targets": {"Desc_SolveTrinket_C": "30"}
+      }
+    }
+  },
+  "cases": [
+    {"name": "c5_vs_c3_badge", "kind": "badge", "plan": "c5_trinket_30", "reference": "c3_gadget_20_balanced",
+     "expected": {"strongest": "within-power", "cleared": ["within-buildings", "within-power"],
+       "checks": [
+         {"strategy": "within-raw", "cleared": false, "score": "120", "reference": "60", "bound": "1", "reason": "over-bound"},
+         {"strategy": "within-buildings", "cleared": true, "score": "3", "reference": "6", "bound": "1", "reason": ""},
+         {"strategy": "within-power", "cleared": true, "score": "45", "reference": "436/3", "bound": "1", "reason": ""}
+       ]},
+     "why": "THE NON-MONOTONE CASE, and the whole reason C5 is in this corpus: it is the only fixture whose raw cost is high while its machines and its power are low - 120 Ore/min against 3 machines and 45 MW - which is exactly the inversion a badge has to expose. Graded against C3 at the identity bound: raw 120 <= 60 is FALSE, buildings 3 <= 6 is TRUE, power 45 <= 436/3 is TRUE. So the cleared tuple has a GAP in it, and strongest is the HIGHEST-INDEX cleared rung, within-power. A longest-cleared-PREFIX reading would publish no badge at all for a plan that earned two rungs, so this case is what separates the two readings rather than leaving the distinction asserted in prose."},
+
+    {"name": "c1_vs_c3_badge", "kind": "badge", "plan": "c1_rod_50", "reference": "c3_gadget_20_balanced",
+     "expected": {"strongest": "within-power", "cleared": ["within-raw", "within-buildings", "within-power"],
+       "checks": [
+         {"strategy": "within-raw", "cleared": true, "score": "50", "reference": "60", "bound": "1", "reason": ""},
+         {"strategy": "within-buildings", "cleared": true, "score": "5", "reference": "6", "bound": "1", "reason": ""},
+         {"strategy": "within-power", "cleared": true, "score": "20", "reference": "436/3", "bound": "1", "reason": ""}
+       ]},
+     "why": "The ALL-CLEAR case: raw 50 <= 60, buildings 5 <= 6, power 20 <= 436/3, so every rung clears and strongest is the top rung within-power. C1 is the fixture to state it on because it is the corpus's only Smelter-only chain - both steps run in Build_SolveSmelter_C at 4 MW - so its power score is drawn from a different building than C3's 30 MW Refinery, and a draw read off the wrong building cannot hide behind a figure the two plans share."},
+
+    {"name": "c3_vs_c5_badge", "kind": "badge", "plan": "c3_gadget_20_balanced", "reference": "c5_trinket_30",
+     "expected": {"strongest": "within-raw", "cleared": ["within-raw"],
+       "checks": [
+         {"strategy": "within-raw", "cleared": true, "score": "60", "reference": "120", "bound": "1", "reason": ""},
+         {"strategy": "within-buildings", "cleared": false, "score": "6", "reference": "3", "bound": "1", "reason": "over-bound"},
+         {"strategy": "within-power", "cleared": false, "score": "436/3", "reference": "45", "bound": "1", "reason": "over-bound"}
+       ]},
+     "why": "The same pair with the roles swapped, which is what shows the gap above is a property of the COMPARISON and not a property C5 carries around with it: raw 60 <= 120 is TRUE, buildings 6 <= 3 is FALSE, power 436/3 <= 45 is FALSE. Only the weakest rung clears, so strongest is within-raw - and a rule that published the ladder's strongest rung regardless of clearance would say within-power here, which is wrong in the opposite direction from the prefix reading."},
+
+    {"name": "c3_vs_itself_badge", "kind": "badge", "plan": "c3_gadget_20_balanced", "reference": "c3_gadget_20_balanced",
+     "expected": {"strongest": "within-power", "cleared": ["within-raw", "within-buildings", "within-power"],
+       "checks": [
+         {"strategy": "within-raw", "cleared": true, "score": "60", "reference": "60", "bound": "1", "reason": ""},
+         {"strategy": "within-buildings", "cleared": true, "score": "6", "reference": "6", "bound": "1", "reason": ""},
+         {"strategy": "within-power", "cleared": true, "score": "436/3", "reference": "436/3", "bound": "1", "reason": ""}
+       ]},
+     "why": "The reference always badges at the top rung, because score <= 1 * score holds on every objective from the identity bound alone - so this case pins the comparison as non-strict rather than leaving <= and < indistinguishable, which every other badge case here does leave open. C3 is the fixture to state it on: its 436/3 MW is the one non-integer score in the corpus, so the self-comparison also exercises an equality between two exact Fractions rather than between two floats that merely agree."},
+
+    {"name": "c1_rod_50_raw", "kind": "score", "plan": "c1_rod_50", "objective": "raw",
+     "expected": {"score": "50"},
+     "why": "C1_ORE_DEMAND = 50/min: the C1_PLATE_MACHINES = 5/3 R_Plate machines each draw C1_PLATE_PER_MACHINE = 30 Ore/min, and 5/3 * 30 = 50. Desc_SolveOre_C is the corpus's only declared raw item, so the unweighted raw total is that single rate and this case says nothing about summing across incommensurate raws - the limit optimize.py states for itself."},
+
+    {"name": "c1_rod_50_buildings", "kind": "score", "plan": "c1_rod_50", "objective": "buildings",
+     "expected": {"score": "5"},
+     "why": "C1_ROD_MACHINES 10/3 + C1_PLATE_MACHINES 5/3 = 5. Two fractional steps summing to an integer, which is the discriminator here: a buildings objective that rounded each step up to a built count would report 4 + 2 = 6, not 5, so this case grades the machine-EQUIVALENTS decision rather than merely the addition."},
+
+    {"name": "c1_rod_50_power", "kind": "score", "plan": "c1_rod_50", "objective": "power",
+     "expected": {"score": "20"},
+     "why": "C1_POWER_MW = 20: (C1_ROD_MACHINES 10/3 + C1_PLATE_MACHINES 5/3) = 5 machines, all in Build_SolveSmelter_C at its declared 4 MW, and 5 * 4 = 20. The only Smelter-only power total in the corpus, so a draw taken from the Assembler's 15 MW or the Refinery's 30 MW cannot reproduce it."},
+
+    {"name": "c3_gadget_20_balanced_raw", "kind": "score", "plan": "c3_gadget_20_balanced", "objective": "raw",
+     "expected": {"score": "60"},
+     "why": "C3_ORE_DEMAND = 60/min: R_Fluid draws 10 Ore per machine-minute at C3_FLUID_MACHINES = 2 machines = 20, and R_Plate draws 30 at C3_PLATE_MACHINES = 4/3 = 40. R_Gadget and R_Recover consume no raw item at all - their inputs are intermediates - so a raw total that summed every step's ingredients rather than the plan's raw inputs would overshoot this figure."},
+
+    {"name": "c3_gadget_20_balanced_buildings", "kind": "score", "plan": "c3_gadget_20_balanced", "objective": "buildings",
+     "expected": {"score": "6"},
+     "why": "C3_GADGET_MACHINES 2 + C3_RECOVER_MACHINES 2/3 + C3_FLUID_MACHINES 2 + C3_PLATE_MACHINES 4/3 = 6. The BUILDINGS headline: four steps, two of them fractional, where 2/3 + 4/3 = 2 exactly. MEASURED rather than assumed - the same addition in binary floating point, 2.0 + 2/3 + 2.0 + 4/3, evaluates to 5.999999999999999, so an inexact path reports a number that is not 6 and renders as a plausible one."},
+
+    {"name": "c3_gadget_20_balanced_power", "kind": "score", "plan": "c3_gadget_20_balanced", "objective": "power",
+     "expected": {"score": "436/3"},
+     "why": "C3_POWER_MW = 436/3: the Refinery steps 2 + 2 + 2/3 = 14/3 at 30 MW = 140, plus the Smelter step 4/3 at 4 MW = 16/3, and 140 + 16/3 = 436/3. THE POWER HEADLINE, because 436/3 is the only score in this whole corpus that is not an integer and is therefore the one case that catches a float substitution. synthetic.py publishes C3_POWER_FLOAT_REPR = 145.33333333333334 for exactly that purpose: it is what a float path produces here, it renders as a perfectly plausible megawatt figure, and it is a DIFFERENT NUMBER - Fraction(436, 3) == 145.33333333333334 is False, measured. So this harness's two-way check rejects it on the type and on the value both."},
+
+    {"name": "c4_supply_ore_45_raw", "kind": "score", "plan": "c4_supply_ore_45", "objective": "raw",
+     "expected": {"score": "45"},
+     "why": "C4_ORE_CAP = 45/min. Alone among the raw scores here this figure is an INPUT rather than a derived output: C4 is the backwards solve from a 45 Ore/min supply cap, so a raw objective that really totals the plan's raw inputs returns the cap the request stated, exactly and with nothing left over. Anything else would mean the backwards solve had not consumed its whole supply."},
+
+    {"name": "c4_supply_ore_45_buildings", "kind": "score", "plan": "c4_supply_ore_45", "objective": "buildings",
+     "expected": {"score": "9/2"},
+     "why": "C4_GADGET_MACHINES 3/2 + C4_RECOVER_MACHINES 1/2 + C4_FLUID_MACHINES 3/2 + C4_PLATE_MACHINES 1 = 9/2. The only non-integer buildings score in the corpus, and a cross-check of C3 on this axis as well: C4 is the same chain at C4_SCALE = 3/4, and 6 * 3/4 = 9/2 exactly."},
+
+    {"name": "c4_supply_ore_45_power", "kind": "score", "plan": "c4_supply_ore_45", "objective": "power",
+     "expected": {"score": "109"},
+     "why": "C4_POWER_MW = 109: Refinery 3/2 + 3/2 + 1/2 = 7/2 at 30 MW = 105, plus Smelter 1 at 4 MW = 4. This case CROSS-CHECKS C3's 436/3 exactly, and that independence is the reason to include it rather than a convenience: 436/3 * C4_SCALE 3/4 = 109, and the two figures are reached by different routes - one forwards from a 20 Gadget/min target, one backwards from a 45 Ore/min cap - so their agreement is evidence about the arithmetic instead of one number read twice."},
+
+    {"name": "c5_trinket_30_raw", "kind": "score", "plan": "c5_trinket_30", "objective": "raw",
+     "expected": {"score": "120"},
+     "why": "C5_ORE_DEMAND = 120/min: C5_STD_MACHINES = 3 Std_Gadget machines, each consuming 4 Ore per 6 s cycle, which is the C5_STD_ORE_DRAW rate of 40 Ore/min. THE RAW HEADLINE and the badge discriminator: 120 is the highest raw cost in the corpus while this same plan's 3 machines and 45 MW are the lowest, and that inversion is what the badge ladder exists to expose. Note what is NOT scored here - Alt_Gadget would cost only C5_ALT_ORE_IF_FEASIBLE = 10 Ore/min, but its Desc_SolveRare_C input has no producer, so the plan graded is the feasible singleton."},
+
+    {"name": "c5_trinket_30_buildings", "kind": "score", "plan": "c5_trinket_30", "objective": "buildings",
+     "expected": {"score": "3"},
+     "why": "C5_STD_MACHINES = 3: a single step, 30 Trinket/min at C5_STD_PER_MACHINE = 10 per machine-minute. One step on purpose - every other buildings case here sums two or four, so this one proves the total is not a count of steps and does not depend on there being several to add."},
+
+    {"name": "c5_trinket_30_power", "kind": "score", "plan": "c5_trinket_30", "objective": "power",
+     "expected": {"score": "45"},
+     "why": "C5_POWER_MW = 45: C5_STD_MACHINES = 3 machines in Build_SolveAssembler_C at its declared 15 MW. The corpus's only Assembler-only total, so all three synthetic buildings' draws are exercised across these power cases, and 45 MW beside 120 Ore/min is the other half of what makes C5 the badge discriminator."}
+  ]
+}

@@ -991,3 +991,27 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   section 4 are documented, not enforced - `.githooks/commit-msg` (frozen) never reads a type,
   and a bare `git revert` or `git cherry-pick` commits without running it; trigger: a subject
   that is not Conventional, or a merge commit, lands on main after the cutover.
+- From the CS-1244 close (`docs/LEDGER.md`, 2026-10-22, CS-1244): `clockspeed/solve/relax.py` and
+  `clockspeed/audit/flow.py` have NO row in `docs/ARCHITECTURE.md` section 1.1's module map and no
+  entry in its package-topology tree, despite having landed, and that table is effectively FROZEN
+  against new rows because two live `file:line` pointers cite lines below it by NUMBER -
+  `tests/test_precommit_gate.py` and one in append-only `docs/LEDGER.md` - so every future module
+  accumulates in pillar prose instead, as CS-1244's own `clockspeed/solve/strategy.py` did; the
+  repair is by-name citation at both sites, the second needing an appended correcting record
+  because that file is never edited where it stands; trigger: the next edit to that table or to
+  either citing site.
+- From the same close: `tests/solve/golden/ratio.json` carries no C5 case at all, so the C5
+  chain's machine counts, ore demand and byproducts have no ratio golden, and the CS-1244 strategy
+  corpus solves that chain from an inline request instead; trigger: the next edit to the C5
+  constants in `tests/solve/synthetic.py`, or a second consumer needing a C5 ratio figure.
+- From the same close: `clockspeed/solve/strategy.py`'s docstring claims no division appears
+  anywhere in the module; that is true today and is graded only by its CONSEQUENCE - the
+  zero-scored-reference arms - and never structurally, so an `ast.Div` ban over the module body
+  would grade the spelling claim directly rather than through what it causes; trigger: the next
+  edit to `clockspeed/solve/strategy.py::check_threshold`, or a second module making the same
+  spelling claim.
+- From the same close: the intersection of the unpriceable-power domain and the
+  zero-scored-reference domain is UNGRADED - an unpriceable reference short-circuits before any
+  comparison is reached, so the two domains never meet in a test; trigger: the next edit to
+  `clockspeed/solve/strategy.py::check_threshold`'s refusal handling, or a world producing an
+  unpriceable recipe at a requested rate of zero.

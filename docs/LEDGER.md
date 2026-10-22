@@ -75,6 +75,184 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-22 - CS-1244 - CLOSED: a named strategy ladder with an exact relative threshold per rung, the documented ranking key promoted to the module whose docstring already claimed it, and a badge recording the strongest rung cleared
+Verification: `clockspeed/solve/strategy.py` (`STRATEGY_LADDER`, `RUNG_WITHIN_RAW`,
+`RUNG_WITHIN_BUILDINGS`, `RUNG_WITHIN_POWER`, `Strategy`, `ThresholdCheck`, `StrategyBadge`,
+`RankedPlan`, `check_strategy`, `check_threshold`, `badge_for`, `rank_plans`),
+`clockspeed/solve/optimize.py` (`registry_positions`, `ranking_key`, `result_ranking_key`, all
+three in `__all__`), `clockspeed/solve/backends/exhaustive.py`, `tests/solve/golden/strategy.json`
+and `docs/ARCHITECTURE.md` Pillar 2; the arms
+`tests/solve/test_strategy.py::test_the_badge_records_the_strongest_rung_cleared_and_not_the_longest_prefix`,
+`::test_a_zero_scored_reference_clears_a_zero_scored_plan`,
+`::test_switching_the_objective_reorders_but_moves_no_plan_arithmetic`,
+`::test_the_ladder_order_is_one_pinned_table`,
+`::test_a_badge_always_carries_one_check_per_rung_in_ladder_order`,
+`::test_an_unpriceable_power_term_is_flagged_and_does_not_poison_the_other_rungs`,
+`::test_a_malformed_objective_is_not_absorbed_as_a_failed_threshold`,
+`tests/solve/test_optimize.py::test_the_ranking_key_order_is_invariant_under_an_order_preserving_reindexing`,
+`::test_both_backends_break_a_tie_with_the_same_documented_key`,
+`::test_the_backend_re_export_is_the_owner_s_function_and_not_a_copy`,
+`tests/solve/test_golden.py::test_the_strategy_corpus_scores_every_named_objective` and
+`::test_the_strategy_corpus_carries_a_non_monotone_badge`.
+THE ACCEPTANCE, CLAUSE BY CLAUSE, quoted from its section in `docs/item_notes/phase5.md`:
+"each named objective has golden cases" - MET by `tests/solve/golden/strategy.json`, a corpus of
+score cases and badge cases whose every figure is hand-derived from the constants
+`tests/solve/synthetic.py` publishes rather than pasted back from a run, graded by
+`tests/solve/test_golden.py::test_strategy_golden` with its coverage asserted rather than
+counted by `::test_the_strategy_corpus_scores_every_named_objective`, which iterates
+`clockspeed/solve/optimize.py::OBJECTIVES` and fails on an objective the corpus does not score,
+and by `::test_the_strategy_corpus_carries_a_non_monotone_badge`. The corpus names its two
+DELIBERATE absences in its own `about` field and says why each cannot live there - the
+unpriceable-power case needs a local registry variant the harness refuses, and the C8 twins are
+byte-identical on every objective by construction.
+"ties break on a documented stable key" - MET, and the documentation and the code now agree for
+the first time. The key was PROMOTED to `clockspeed/solve/optimize.py`, which is where that
+module's own docstring had always claimed it lived, out of
+`clockspeed/solve/backends/exhaustive.py`, which actually held it. Three new public names, all in
+`__all__`: `registry_positions`, `ranking_key(score, selection, positions)` - score first, so a
+ladder can rank a plan under an objective it was not solved under - and `result_ranking_key`.
+`clockspeed/solve/backends/exhaustive.py` now RE-EXPORTS the same function OBJECT rather than a
+copy, which `::test_the_backend_re_export_is_the_owner_s_function_and_not_a_copy` grades by
+identity, and its only executable change is the call site moving to `result_ranking_key`, whose
+body is the removed function verbatim. Both backends break a tie with it
+(`::test_both_backends_break_a_tie_with_the_same_documented_key`) and the key's order survives an
+order-preserving reindexing of the registry
+(`::test_the_ranking_key_order_is_invariant_under_an_order_preserving_reindexing`).
+`clockspeed/solve/backends/greedy.py` is a COMMENT-ONLY change: a verifier parsed it with
+docstrings stripped and compared the AST against HEAD's, found them byte-identical and so
+established that no behaviour change is possible there (agent-reported).
+"switching objective changes ranking but never the plan arithmetic" - MET by
+`::test_switching_the_objective_reorders_but_moves_no_plan_arithmetic`, and bounded structurally
+rather than by that one case: `::test_the_subject_module_names_no_solve_entry_point_at_all` reads
+the module for a solve entry point and
+`::test_ranking_reaches_no_solve_at_runtime_either` grades the same claim at runtime. `rank_plans`
+re-SCORES plans it was handed and reaches no solve entry point; the only field it reads off a plan
+itself is a step's recipe key, recovered in registry order by
+`clockspeed/solve/strategy.py::_plan_selection`.
+"a badge records the strongest threshold cleared in fixed ladder order" - MET by
+`STRATEGY_LADDER`, three rungs in the fixed order `within-raw`, `within-buildings`,
+`within-power`, each carrying `bound` of `Fraction(1)`;
+`::test_the_ladder_order_is_one_pinned_table` pins the order as a table rather than deriving it,
+`::test_every_rung_names_a_real_objective_and_says_what_it_proves` binds each rung to a modelled
+objective, `::test_a_badge_always_carries_one_check_per_rung_in_ladder_order` requires one verdict
+per rung in that order whatever cleared, and
+`::test_the_badge_records_the_strongest_rung_cleared_and_not_the_longest_prefix` is the arm the
+reading turns on.
+THE DESIGN DECISIONS, EACH WITH THE ALTERNATIVE IT REFUSED - a recorded departure, not
+decoration, and argued in `clockspeed/solve/strategy.py`'s own docstring rather than restated
+here. A THRESHOLD IS AN EXACT MULTIPLICATIVE BOUND on a minimizing score against a
+caller-named REFERENCE plan: cleared when `score <= bound * reference_score`. A PRODUCT, never a
+quotient, so no division appears and a zero-scored reference clears only a zero-scored plan,
+exactly and without a guard. An ABSOLUTE bound was REFUSED because every term the objectives
+total scales with the requested rate, so an absolute number encodes the fixture's target rate and
+measures nothing about the plan. A PER-UNIT RATIO was REFUSED even though it is scale-free,
+because its bound would have to be a FITTED constant and nothing in this project derives one -
+a threshold with no derivation is CONVENTIONS.md section 7.2's unrun gate wearing a number. Every
+shipped bound is `Fraction(1)`, the multiplicative identity rather than a tuned figure, and that
+alone separates the shipped fixtures.
+`StrategyBadge.strongest` IS THE HIGHEST-INDEX CLEARED RUNG, NEVER THE LONGEST CLEARED PREFIX.
+`clockspeed/solve/relax.py`'s ladder stops at its first firing rung and records a cumulative
+prefix, and that is RIGHT THERE because loosening is monotone in severity; threshold clearance
+across DIFFERENT objectives is NOT monotone, so the same reading would be wrong here. The
+discriminating case is the C5 plan graded against the C3 reference: raw fails, buildings and
+power clear, so a longest-prefix reading publishes NO badge where highest-index publishes
+`within-power`.
+LADDER ORDER IS WEAKEST CLAIM FIRST. `within-power` can clear only if every used recipe is
+exactly priceable at its own un-sharded base, so its clearance is strictly more evidence than
+either rung above it.
+NON-NEGOTIABLE 7 (unknown content flagged and skipped, never fatal, never silently wrong):
+`check_threshold` ABSORBS `PowerNotComparableError` into `cleared=False`, `score=None`,
+`reason="power-not-comparable"`, and does NOT absorb `ObjectiveUndefinedError`. A verifier
+confirmed the orientation from the code rather than from the test names: the two are SIBLINGS
+under `OptimizeError` and `issubclass` is False in both directions, so neither absorption could
+have been reached by accident through the other.
+THE SCOPE DESCRIPTION DIVERGED, AND THIS RECORDS IT PLAINLY RATHER THAN SILENTLY.
+`config/lane_scopes.json`'s `advisor-ranking` description credited `clockspeed/advisor/cards.py`
+with "CS-1244's badge". That is WRONG ON THE CODE: `Card` is frozen with exactly one field,
+`trace`, and one-parameter construction is load-bearing; `advise()` is built from audit models
+and unlock state and NO PLAN REACHES IT, so a badge field there would have had no producer.
+`clockspeed/advisor/cards.py` and `clockspeed/advisor/advise.py` are UNCHANGED by this item. The
+badge reaches tier 3 unchanged through `render_value`, which already renders a frozen dataclass
+field by field. The clause is corrected in `config/lane_scopes.json` at this landing and the
+remaining work is filed as CS-1346.
+THE VERIFIER PASS - ONE pass, by a distinct `verifier` agent that produced none of the work,
+against a candidate FROZEN and WITNESSED with `tools/freeze_witness.py` (its tree hash over the
+witnessed files unmoved at the end; only the bytecode half moved, from the verifier's own ordered
+`__pycache__` purges). VERDICT: all four acceptance clauses CONFIRM. It re-derived every golden
+figure by hand from `tests/solve/synthetic.py` INDEPENDENTLY and BEFORE opening the corpus, and
+found none of them wrong. It ran a 13-mutation battery and 12 were caught, each by a named arm.
+Counts it reported, agent-reported and each tied to the command that produced it:
+`pytest tests -q -m "not slow" -n auto` through the kit suite gate returned
+`17034 passed, 10 skipped, 9 warnings in 1481.11s (0:24:41)` at exit 0, and the `slow` marker
+returned `35 passed, 2 skipped, 17044 deselected in 227.56s (0:03:47)` at exit 0. All 12 skips
+were read and none relates to this row. `python tools/drift_guard.py` read
+`guards: 11 PASS 11 WARN 0 FAIL 0`.
+THE THREE DEFECTS THE VERIFIER FOUND INSIDE THIS ROW'S OWN CODE, ALL REPAIRED IN THE SAME CYCLE -
+it CONFIRMED every clause and still found these, which is the point of the pass.
+(1) A FALSE behavioural sentence in `clockspeed/solve/optimize.py::ranking_key`'s docstring
+claimed the two position mappings "disagree on every value". Measured false: on the C5 candidate
+pair both read `Alt_Gadget` at 0 and `Std_Gadget` at 1. Repaired, and the measurement found a
+SIBLING of the same false claim one function over in `::registry_positions`, repaired too.
+(2) An imprecise sentence in `clockspeed/solve/strategy.py`'s module docstring claimed
+`rank_plans` calls `score_plan` "and nothing else that computes". Narrowed to what is true: it
+reaches no solve entry point, and the only field it reads off a plan itself is a step's recipe
+KEY.
+(3) A SURVIVING NON-EQUIVALENT MUTANT - the product-versus-quotient threshold form was UNGRADED.
+Mutating the product to a quotient left the whole `tests/solve` suite green. Closed by eight new
+arms built on a LEGITIMATE zero-scored reference: the C1 chain solved at a requested rate of zero
+through pillar 1's ordinary door, returning a real plan with real steps at zero machines - no
+private poke and no hand-built dataclass. The quotient mutation now reddens seven of those eight
+arms with `ZeroDivisionError: Fraction(1, 0)`, and the eighth plus the other arms staying green
+independently reproduced the verifier's finding rather than merely agreeing with it.
+WHICH RUN COVERS WHICH TREE - stated rather than implied, because one run does not cover both.
+The whole-suite figures above were observed at the PRE-REPAIR tree. The repair changed docstring
+text and added test arms only, and the runs that cover the POST-REPAIR tree are narrower:
+agent-reported, the whole `tests/solve` directory through the kit suite gate read
+`712 passed in 26.16s` at exit 0 (`704 passed` before the eight new arms), and twelve whole-tree
+census and rendering guards read `2058 passed, 6 warnings in 216.52s (0:03:36)` at exit 0.
+`python -m ruff check .` read `All checks passed!`, `python -m ruff format --check .` read
+`417 files already formatted`, and `python tools/provenance_stamp.py check` PASSED at exit 0.
+THE FINAL TREE, OBSERVED BY THE MERGER ITSELF rather than reported to it: through the kit suite
+gate, `python -m pytest tests -q -m "not slow" -n auto` read
+`17042 passed, 10 skipped, 9 warnings in 1378.64s (0:22:58)` at exit 0, every skip carrying an
+authored platform reason and none of them over this row's files; `python -m pytest tests -q -m
+"slow"` read `35 passed, 2 skipped, 17052 deselected in 225.61s (0:03:45)` at exit 0; `python -m
+ruff check .` read `All checks passed!`; `python -m ruff format --check .` read `417 files already
+formatted`; `python -m mypy` bare read `Success: no issues found in 433 source files` at exit 0.
+AND THAT FINAL-TREE RUN CAUGHT A DEFECT EVERY EARLIER RUN HAD MISSED, which is the reason the
+whole-tree gate is owed on a tier 2 row and the reason this paragraph exists. The repair's new
+arm compared `ThresholdCheck.score`, typed `Fraction | None`, against zero without narrowing it,
+so `tests/test_mypy_gate.py::test_the_bare_repo_wide_invocation_reports_no_errors` FAILED on the
+first final-tree slow run with `Unsupported operand types for < ("int" and "None")`. Three
+subagents had each read `Success: no issues found in 433 source files` before it, from an earlier
+tree; a targeted `mypy clockspeed` would have said nothing about it either, because an explicit
+target replaces config discovery and the tests then go unchecked. Repaired by binding the field
+to a scalar and narrowing it with the type-identity assertion this suite uses everywhere else,
+which keeps the arm's positive claim intact; the figures above are the re-run.
+THE CI VERDICT IS NOT RECORDED HERE BECAUSE THIS WORKER DID NOT OBSERVE IT. The driver
+`ops/loop/queue_loop.py` records the lane's CI verdict; no green was read by the worker that
+wrote this entry, and none is claimed.
+RESIDUAL. Four measured residuals, none a blocker, each a line in `BACKLOG.md` under the CS-1244
+close. `clockspeed/solve/relax.py` and `clockspeed/audit/flow.py` have no `docs/ARCHITECTURE.md`
+section 1.1 row and no package-topology entry despite having landed, and that table is
+effectively frozen against new rows because two live `file:line` pointers cite lines below it by
+number - one of them in this append-only file, so its repair needs an appended correcting record;
+that is why CS-1244's own module is recorded in the Pillar 2 prose rather than as a section 1.1
+row. `tests/solve/golden/ratio.json` carries no C5 case at all, so the C5 chain's machine counts,
+ore demand and byproducts have no ratio golden and the strategy corpus solves that chain from an
+inline request instead. `clockspeed/solve/strategy.py`'s docstring claims no division appears
+anywhere in the module; that is true today but is graded only by its CONSEQUENCE, the
+zero-reference arms, and not structurally. And the intersection of the unpriceable-power domain
+and the zero-scored-reference domain is UNGRADED: an unpriceable reference short-circuits before
+any comparison, so the two domains never meet in a test. Two further findings became ROADMAP rows
+rather than backlog lines, because each is a defect in shipped behaviour rather than a residual:
+CS-1346, the badge reaches no card because `advise()` sees no plan, and CS-1347, greedy's walk
+returns the first selection that solves and never re-ranks its canonical result through the
+shared key. The item's section left `docs/item_notes/phase5.md` at this landing; its `Filed
+2026-10-04 by the inspiration ingest` provenance paragraph moved VERBATIM to
+`docs/history_notes.md` because it records a licence-hygiene fact this entry does not own, and
+its `Acceptance` half was deleted rather than copied, since this entry carries it.
+
 ### 2026-10-21 - CS-1336 - CLOSED: commit subjects follow Conventional Commits from the cutover on, no merge since it, every audited site agrees, and `.github/CONTRIBUTING.md` section 4 owns the convention
 Verification: `.github/CONTRIBUTING.md` section 4 Commits; the CS-1336 audit record below; re-run
 at main's tip after the CS-1342 landing, the cutover being the commit

@@ -62,7 +62,13 @@ from typing import Any
 import pytest
 
 from clockspeed.data.registry import Registry
-from clockspeed.solve.backends import BACKEND_EXHAUSTIVE, BACKEND_GREEDY, available_backends
+from clockspeed.solve import optimize
+from clockspeed.solve.backends import (
+    BACKEND_EXHAUSTIVE,
+    BACKEND_GREEDY,
+    available_backends,
+    exhaustive,
+)
 from clockspeed.solve.backends.exhaustive import ranking_key
 from clockspeed.solve.exact import audit_exact
 from clockspeed.solve.optimize import (
@@ -80,6 +86,8 @@ from clockspeed.solve.optimize import (
     SolveConfig,
     UnknownBackendError,
     optimize_plan,
+    registry_positions,
+    result_ranking_key,
     score_plan,
     select_backend,
     usable_candidates,
@@ -115,6 +123,7 @@ from tests.solve.synthetic import (
     C5_POWER_MW,
     C5_STD_MACHINES,
     C5_TRINKET_TARGET,
+    C8_TWIN_PER_MACHINE,
     FLUID_RECIPE,
     GADGET_RECIPE,
     ORPHAN_RECIPE,
@@ -152,6 +161,16 @@ BOTH_BACKENDS: tuple[str, ...] = (BACKEND_EXHAUSTIVE, BACKEND_GREEDY)
 
 C5_CANDIDATES: tuple[str, ...] = (ALT_GADGET_RECIPE, STD_GADGET_RECIPE)
 C3_CANDIDATES: tuple[str, ...] = (GADGET_RECIPE, RECOVER_RECIPE, FLUID_RECIPE, PLATE_RECIPE)
+C8_CANDIDATES: tuple[str, ...] = (TWIN_B_RECIPE, TWIN_A_RECIPE)
+
+#: One objective per direction ``optimize.OBJECTIVES`` names. Spelled out rather
+#: than derived from that tuple, so adding a fourth direction reddens this file
+#: instead of silently widening every parametrization that reads it.
+EACH_OBJECTIVE: tuple[Objective, ...] = (MINIMIZE_RAW, MINIMIZE_POWER, MINIMIZE_BUILDINGS)
+
+#: Every objective shape the C8 tie is asked under - one per direction, plus the
+#: combination the arm this replaced used when it ran on one backend only.
+C8_OBJECTIVES: tuple[Objective, ...] = (*EACH_OBJECTIVE, MINIMIZE_EVERYTHING)
 
 LOCKED_ALTERNATE: ExclusionNote = ExclusionNote(
     recipe_key=ALT_GADGET_RECIPE, reason=EXCLUDED_LOCKED
@@ -246,6 +265,26 @@ def _c3_request(backend: str, **overrides: Any) -> OptimizeRequest:
     }
     fields.update(overrides)
     return _request(backend, **fields)
+
+
+def _c8_request(backend: str | None, objective: Objective) -> OptimizeRequest:
+    """Build the C8 twin request - two recipes nothing in any objective tells apart.
+
+    Args:
+        backend: The backend name for the config, or None to leave it unstated.
+        objective: What to minimize.
+
+    Returns:
+        The request. The target is one twin's whole per-machine output, so the
+        answer is one machine of whichever twin the tie-break names.
+    """
+    return _request(
+        backend,
+        targets=MappingProxyType({SOLVE_TWIN_ITEM: C8_TWIN_PER_MACHINE}),
+        candidates=C8_CANDIDATES,
+        unlocked=C8_CANDIDATES,
+        objective=objective,
+    )
 
 
 def _machines(plan: ProductionPlan) -> dict[str, Fraction]:
@@ -532,17 +571,36 @@ def test_the_selection_is_published_in_registry_order(backend: str) -> None:
     assert result.selection == tuple(step.recipe_key for step in result.plan.steps)
 
 
-def test_c8_twins_resolve_to_the_earlier_recipe_in_registry_order() -> None:
-    """C8's twins are identical in every objective, so only a stated rule decides."""
-    twins = (TWIN_B_RECIPE, TWIN_A_RECIPE)
-    request = _request(
-        BACKEND_EXHAUSTIVE,
-        targets=MappingProxyType({SOLVE_TWIN_ITEM: Fraction(10)}),
-        candidates=twins,
-        unlocked=twins,
-    )
+@pytest.mark.parametrize("backend", BOTH_BACKENDS)
+@pytest.mark.parametrize("objective", C8_OBJECTIVES)
+def test_both_backends_break_a_tie_with_the_same_documented_key(
+    objective: Objective, backend: str
+) -> None:
+    """C8's twins are identical in every objective, so only a stated rule decides.
 
-    assert _run(solve_registry(), request).selection == (TWIN_A_RECIPE,)
+    Widened from an exhaustive-only arm. It is not evidence of a behaviour
+    change - both backends already answered this way under every objective - and
+    that is the point: the CONTRACT is that one key decides a tie everywhere,
+    and an arm on one backend leaves the other free to drift. The assertion is
+    the hand-derived absolute rather than backend agreement, for the reason this
+    file's docstring records for C5: two backends broken identically agree.
+    """
+    result = _run(solve_registry(), _c8_request(backend, objective))
+
+    assert result.selection == (TWIN_A_RECIPE,)
+
+
+def test_the_key_is_published_by_the_layer_that_documents_it() -> None:
+    """One owner. The module whose docstring argues the rule is the one exporting it."""
+    assert "ranking_key" in optimize.__all__
+    assert "result_ranking_key" in optimize.__all__
+    assert "registry_positions" in optimize.__all__
+
+
+def test_the_backend_re_export_is_the_owner_s_function_and_not_a_copy() -> None:
+    """``in __all__`` on both modules would also pass on two drifting definitions."""
+    assert exhaustive.ranking_key is optimize.ranking_key
+    assert "ranking_key" in exhaustive.__all__
 
 
 # --- the tie-break rule itself ---------------------------------------------
@@ -557,6 +615,12 @@ def test_c8_twins_resolve_to_the_earlier_recipe_in_registry_order() -> None:
 # cannot reproduce, and two backends would then disagree on ties.
 
 
+#: Positions for the arms below. Strictly increasing, which is the one property
+#: ``ranking_key`` documents as required, and named rather than real recipe keys
+#: so an arm about the RULE cannot be read as an arm about the fixture.
+STUB_POSITIONS: dict[str, int] = {"first": 0, "second": 1, "third": 2}
+
+
 def _ranked(selection: tuple[str, ...], score: Fraction) -> tuple[Fraction, tuple[int, ...]]:
     """Build a ranking key from a selection and a score, with fixed positions.
 
@@ -567,6 +631,21 @@ def _ranked(selection: tuple[str, ...], score: Fraction) -> tuple[Fraction, tupl
     Returns:
         The ranking key.
     """
+    return ranking_key(score, selection, STUB_POSITIONS)
+
+
+def _result(selection: tuple[str, ...], score: Fraction) -> OptimizeResult:
+    """Build a result carrying nothing but the two fields the key reads.
+
+    Args:
+        selection: Recipe keys in registry order.
+        score: The objective value.
+
+    Returns:
+        The result. Its plan is empty - ``result_ranking_key`` reads ``score``
+        and ``selection`` and nothing else, and an arm that needed a real plan
+        would be an arm about the solver.
+    """
     plan = ProductionPlan(
         steps=(),
         targets=MappingProxyType({}),
@@ -575,7 +654,7 @@ def _ranked(selection: tuple[str, ...], score: Fraction) -> tuple[Fraction, tupl
         excluded=(),
         byproduct_policy=BYPRODUCT_BALANCED,
     )
-    result = OptimizeResult(
+    return OptimizeResult(
         backend=BACKEND_EXHAUSTIVE,
         selection=selection,
         plan=plan,
@@ -583,7 +662,6 @@ def _ranked(selection: tuple[str, ...], score: Fraction) -> tuple[Fraction, tupl
         objective=MINIMIZE_RAW,
         excluded=(),
     )
-    return ranking_key(result, {"first": 0, "second": 1, "third": 2})
 
 
 def test_the_ranking_key_puts_the_score_ahead_of_every_position() -> None:
@@ -608,6 +686,49 @@ def test_the_ranking_key_is_exact_and_carries_no_float() -> None:
 
     assert type(key[0]) is Fraction
     assert key[1] == (0,)
+
+
+def test_the_result_shaped_key_reads_the_result_own_score_and_selection() -> None:
+    """The wrapper a backend calls, so its call site cannot pass the two apart."""
+    result = _result(("second",), Fraction(1, 3))
+
+    key = result_ranking_key(result, STUB_POSITIONS)
+
+    assert key == ranking_key(result.score, result.selection, STUB_POSITIONS)
+    assert type(key[0]) is Fraction
+    assert key[1] == (1,)
+
+
+def test_the_ranking_key_order_is_invariant_under_an_order_preserving_reindexing() -> None:
+    """Any mapping monotone in registry order picks the same winner.
+
+    The documented licence for ``exhaustive.py`` passing its usable-candidate
+    index while a later ladder passes :func:`registry_positions`: the two
+    mappings disagree on every VALUE and agree on every ORDER, and the position
+    tuple decides only a tie, so only the order can be observed.
+    """
+    registry = solve_registry()
+    usable, _ = usable_candidates(registry, _c8_request(BACKEND_EXHAUSTIVE, MINIMIZE_RAW))
+    candidate_index = {key: index for index, key in enumerate(usable)}
+    whole_registry = registry_positions(registry)
+    tied = Fraction(7)
+
+    assert candidate_index != dict(whole_registry)
+    # Each row carries the EXPECTED sign as well, so an implementation that
+    # dropped the position half entirely - making both sides False and the two
+    # equal - is red rather than vacuously green.
+    for left, right, expected in (
+        ((TWIN_A_RECIPE,), (TWIN_B_RECIPE,), True),
+        ((TWIN_B_RECIPE,), (TWIN_A_RECIPE,), False),
+        ((TWIN_A_RECIPE,), (TWIN_A_RECIPE, TWIN_B_RECIPE), True),
+    ):
+        narrow = ranking_key(tied, left, candidate_index) < ranking_key(
+            tied, right, candidate_index
+        )
+        wide = ranking_key(tied, left, whole_registry) < ranking_key(tied, right, whole_registry)
+
+        assert narrow == expected, f"{left} vs {right} is wrong under the candidate index"
+        assert wide == expected, f"{left} vs {right} reorders under a reindexing"
 
 
 # ===========================================================================

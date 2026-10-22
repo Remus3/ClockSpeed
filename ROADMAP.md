@@ -275,7 +275,6 @@ CS-1240 - unknown content: stable-id keying, one normalised fallback, and an Unm
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1244 - a named strategy ladder for ranking plans and cards, each objective an exact formula with a threshold - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1245 - bounded candidate enumeration with deterministic trimming, keeping the smallest passing candidate - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1246 - quick-win card ordering with an aging guard computed from the per-world ledger - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1247 - a deterministic domain interleave in the top-N card list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -287,6 +286,8 @@ CS-1252 - a freshness stamp and a stale marker on every card, API response and c
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1340 - measure the save's `mGamePhaseCosts` (total or remainder), record it in ADR 0016, wire `clockspeed/save/world.py` and add `mGamePhaseCosts` to `UNLOCK_CARRIERS_UNREAD` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1343 - three CS-1043 filing instructions the progress layer does not carry: a `SchematicSource` protocol, the asset-path join, `delivered_available` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1346 - the strategy badge reaches no card: `advise()` sees no plan, so nothing produces a badge for a trace - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1347 - greedy's walk returns the first selection that solves and never re-ranks its canonical result through the shared ranking key - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

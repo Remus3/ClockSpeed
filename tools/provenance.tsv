@@ -92,6 +92,7 @@ clockspeed/solve/optimize.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/power.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/ratio.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/relax.py	authored	CS-1237	stamped
+clockspeed/solve/strategy.py	authored	CS-1244	stamped
 clockspeed/surface/__init__.py	authored	CS-1165	first-add:root
 clockspeed/surface/__main__.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/__init__.py	authored	CS-1165	first-add:root
@@ -403,6 +404,7 @@ tests/solve/golden/clock.json	authored	CS-1239	stamped
 tests/solve/golden/display.json	authored	CS-1239	stamped
 tests/solve/golden/power.json	authored	CS-1239	stamped
 tests/solve/golden/ratio.json	authored	CS-1239	stamped
+tests/solve/golden/strategy.json	authored	CS-1244	stamped
 tests/solve/synthetic.py	authored	CS-300	first-add:CS-300
 tests/solve/test_ceiling_fence.py	authored	CS-303	first-add:CS-303
 tests/solve/test_display_rounding.py	authored	CS-1239	stamped
@@ -414,6 +416,7 @@ tests/solve/test_phase3_gate.py	authored	CS-300	first-add:CS-300
 tests/solve/test_power.py	authored	CS-300	first-add:CS-300
 tests/solve/test_ratio.py	authored	CS-300	first-add:CS-300
 tests/solve/test_relax.py	authored	CS-1237	stamped
+tests/solve/test_strategy.py	authored	CS-1244	stamped
 tests/solve/test_synthetic.py	authored	CS-300	first-add:CS-300
 tests/sphinx_role_guard.py	authored	CS-871	first-add:CS-871
 tests/surface/__init__.py	authored	CS-601	first-add:CS-601

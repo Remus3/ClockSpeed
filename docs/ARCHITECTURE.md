@@ -214,6 +214,19 @@ decision that must slot behind the existing interface without changing a caller.
 **Implemented by:** `solve/optimize.py` (the interface) and `solve/backends/` (the
 implementations).
 
+A consumer sibling landed above that interface under CS-1244, recorded here rather than
+as a section 1.1 row for the reason the Pillar 4 note below gives.
+`clockspeed/solve/strategy.py` owns the named strategy ladder and the badge: it RE-SCORES
+a plan it was handed under each rung's objective in turn, against a reference plan the
+caller names, and publishes the strongest claim the plan cleared beside one verdict per
+rung. It consumes what `clockspeed/solve/optimize.py` publishes - the objective
+arithmetic and the ranking key - and adds a policy over them; it owns no search, it
+re-solves nothing, and it imports no `clockspeed/solve/backends/` module, because
+reaching past the interface for a rule is the section 3 seam bug.
+`clockspeed/solve/relax.py` is the standing precedent for such a sibling. The threshold
+form, the ladder order and the badge rule are argued in the module itself and are not
+restated here.
+
 ### Pillar 3 - Whole-world audit from the save
 
 **Status:** PARTLY BUILT, AND THE PART THAT EXISTS IS NOT THE PILLAR. `audit/` now holds

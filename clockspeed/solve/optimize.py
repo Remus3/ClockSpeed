@@ -106,10 +106,48 @@ CLAUDE.md section 1: two runs on one input disagreeing is a bug. Nothing
 published here takes its order from the caller. Candidates are deduplicated and
 sorted into REGISTRY order at the door, so a permuted or repeated candidate
 tuple produces a byte-identical result; objective weights are stored in sorted
-key order; and the ranking key a backend breaks ties with is the score paired
-with the selection's registry POSITIONS, which is a total order on distinct
-selections and is therefore independent of the order in which a backend happened
-to visit them.
+key order; and the one documented key a tie is broken with is
+:func:`ranking_key`, the score paired with the selection's registry POSITIONS,
+which is a total order on distinct selections and is therefore independent of
+the order in which a search happened to visit them. A backend ranking canonical
+results calls it; ``backends/greedy.py`` ranks a relaxed probe plan instead, so
+it reaches the SAME registry ordering by its pool order and says so at the
+comparison rather than leaving it implied.
+
+WHY THE RANKING KEY IS OWNED HERE RATHER THAN BY A BACKEND
+------------------------------------------------------------
+It was defined in ``backends/exhaustive.py`` while the paragraph above already
+claimed it for this layer, and ``backends/greedy.py`` broke its own tie by an
+inline rule that named no key at all. Two unrelated statements of one tie-break
+is a tie-break that can drift, and CS-1244 clause 2 asks for ONE documented
+stable key. The argument for the rule follows; the argument about the mask walk
+that consumes it stays with the walk.
+
+Ties are ordinary rather than exotic: the C8 fixture's two twin recipes are
+byte-for-byte equivalent in duration, ingredients, products and building, so
+every objective scores them identically by construction. With only the score to
+rank by, the winner would be whichever selection a search happened to reach
+first, and that is a property of the search rather than of the problem.
+
+So the ranking key is ``(score, registry positions of the selection)``. Both
+halves are exact and neither depends on visit order: distinct selections have
+distinct position tuples, so the key is a total order and the same selection
+wins however the space is walked. A shorter tuple that is a prefix of a longer
+one sorts first, which means a tie between a selection and a superset of it
+resolves to the smaller factory - the right answer and, more importantly, a
+STATED one.
+
+:func:`ranking_key` is a named function rather than an inline tuple because the
+position half is INVISIBLE in a result's published fields, exactly as
+``exact.py``'s pivot rule is invisible in ``solve_linear``'s: the key is unique
+per canonical selection, so a score-only rule computes the same winner on every
+input this project can build a fixture for. The rule is load-bearing anyway.
+Without a stated one the tie-break is "whichever the search reached first",
+which is an implementation detail a REPLACEMENT backend cannot reproduce, and
+two backends would then disagree on ties while each looked correct alone. So it
+is extracted and tested at the selector, on the same reasoning and by the same
+route ``tests/solve/test_exact.py`` uses for ``_pivot_row``. A contract with no
+test is the CONVENTIONS.md section 7.2 unrun gate.
 
 WHY THESE EXCEPTIONS CARRY AN Error SUFFIX WHEN ratio.py's DO NOT
 -------------------------------------------------------------------
@@ -171,7 +209,10 @@ __all__ = [
     "check_objective",
     "evaluate_selection",
     "optimize_plan",
+    "ranking_key",
     "registry_order",
+    "registry_positions",
+    "result_ranking_key",
     "score_plan",
     "select_backend",
     "solve_selection",
@@ -680,6 +721,90 @@ def registry_order(registry: Registry, keys: Iterable[str]) -> tuple[str, ...]:
     """
     wanted = set(keys)
     return tuple(key for key in registry.recipes if key in wanted)
+
+
+def registry_positions(registry: Registry) -> Mapping[str, int]:
+    """Index every recipe the registry models by its place in registry order.
+
+    The position mapping for a caller that is not a search and so has no
+    candidate set to index against - a strategy ladder re-ranking plans it did
+    not solve, for one. It agrees with a backend's own usable-candidate index on
+    ORDER always, and on the individual values only where those candidates are a
+    prefix of registry order - and ORDER is the only thing :func:`ranking_key`
+    reads from it.
+
+    Args:
+        registry: The built registry.
+
+    Returns:
+        Recipe key to its zero-based index in registry order, read-only.
+        Strictly increasing in registry order, which is the one property
+        :func:`ranking_key` requires of a position mapping.
+    """
+    return MappingProxyType({key: index for index, key in enumerate(registry.recipes)})
+
+
+def ranking_key(
+    score: Fraction, selection: Sequence[str], positions: Mapping[str, int]
+) -> tuple[Fraction, tuple[int, ...]]:
+    """The one documented stable key a tie is broken with: score, then position.
+
+    The other half of the determinism claim, with :func:`registry_order`. The
+    module docstring argues at length why the rule is owned here and why it is a
+    named function; this is what it computes.
+
+    Takes a SCORE rather than a result because a caller may rank a plan under an
+    objective it was not solved under, and a result's own ``score`` field is the
+    value for the objective it carries. A ladder comparing one plan against
+    several objectives has several scores and one selection.
+
+    Args:
+        score: The objective value, exact. Lower wins.
+        selection: The recipe keys being ranked, in registry order. Every one of
+            them must appear in ``positions``.
+        positions: Recipe key to position. ANY mapping strictly increasing in
+            registry order is admissible, and the two in this package MAY
+            disagree on a value rather than always doing so: a backend passes
+            its own usable-candidate index, while :func:`registry_positions`
+            indexes the whole registry. The two coincide on every value exactly
+            where the usable candidates are a PREFIX of registry order - on the
+            C5 pair both read Alt_Gadget at 0 and Std_Gadget at 1 - and need not
+            coincide otherwise: a candidate set drawn from mid-registry
+            disagrees on every key, and one sharing only registry order's first
+            key disagrees on the rest. Both mappings are correct either way,
+            because the position tuple decides only a tie and only its ORDER is
+            ever read - at the first index where two selections in registry
+            order differ, which key sorts first is fixed by registry order
+            alone, and where one is a prefix of the other the shorter tuple
+            sorts first by length. So an order-preserving reindexing names the
+            same winner.
+
+    Returns:
+        The key. Lower wins. The score dominates; the position tuple decides
+        only a tie, and decides it in favour of the selection whose recipes come
+        earliest in the registry - which also means the smaller of two
+        selections when one is a prefix of the other.
+    """
+    return (score, tuple(positions[key] for key in selection))
+
+
+def result_ranking_key(
+    result: OptimizeResult, positions: Mapping[str, int]
+) -> tuple[Fraction, tuple[int, ...]]:
+    """Rank a canonical result under the objective it was solved for.
+
+    The shape a backend searching the real request wants: the score to rank by
+    is the one already on the result, so there is nothing for a call site to
+    pass twice and nothing for it to pass inconsistently.
+
+    Args:
+        result: A canonical result, whose selection is in registry order.
+        positions: A position mapping, as :func:`ranking_key` documents it.
+
+    Returns:
+        :func:`ranking_key` of the result's own score and selection.
+    """
+    return ranking_key(result.score, result.selection, positions)
 
 
 def usable_candidates(

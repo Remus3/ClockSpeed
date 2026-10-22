@@ -18,35 +18,38 @@ The empty subset is enumerated too. It is a real selection - it is the answer to
 a target rate of zero - and skipping it because "no recipes cannot be a plan"
 would be an assumption rather than a result.
 
-WHY THE TIE-BREAK IS THE SCORE PAIRED WITH REGISTRY POSITIONS
----------------------------------------------------------------
-Ties are ordinary rather than exotic: the C8 fixture's two twin recipes are
-byte-for-byte equivalent in duration, ingredients, products and building, so
-every objective scores them identically by construction. With only the score to
-rank by, the winner would be whichever mask happened to be visited first, and
-that is a property of the enumeration rather than of the problem.
+WHY THE TIE-BREAK IS NOT DEFINED HERE
+---------------------------------------
+It is ``optimize.ranking_key``, owned by the layer whose determinism claim
+already describes it and argued at length in that module's docstring: one
+documented stable key, consumed by both backends and by the strategy ladder
+above them. This file re-exports it, so ``exhaustive.ranking_key`` still
+resolves and the name stays in this module's ``__all__``.
 
-So the ranking key is ``(score, registry positions of the selection)``. Both
-halves are exact and neither depends on visit order: distinct selections have
-distinct position tuples, so the key is a total order and the same selection
-wins no matter how the lattice is walked. A shorter tuple that is a prefix of a
-longer one sorts first, which means a tie between a selection and a superset of
-it resolves to the smaller factory - the right answer and, more importantly, a
-STATED one.
+What stays here is what the ENUMERATION contributes. Ties are ordinary rather
+than exotic - the C8 fixture's two twin recipes are byte-for-byte equivalent in
+duration, ingredients, products and building, so every objective scores them
+identically by construction - and with only the score to rank by, the winner
+would be whichever mask happened to be visited first, which is a property of
+this enumeration rather than of the problem.
 
-Note what that makes UNOBSERVABLE from this backend's output, and why
-:func:`ranking_key` is a named function rather than an inline tuple. Because the
-key is unique per canonical selection, and because the mask enumeration is
-itself deterministic, a score-only rule computes the same winner on every input
-this project can build a fixture for - the position half is invisible in the
-return value, exactly as ``exact.py``'s pivot rule is invisible in
-``solve_linear``'s. It is nonetheless load-bearing: without a stated rule the
-tie-break is "whichever mask came first", which is an implementation detail a
-REPLACEMENT backend cannot reproduce, and two backends would then disagree on
-ties while each looked correct alone. So the rule is extracted here and tested
-at the selector, on the same reasoning and by the same route
+Note what that makes UNOBSERVABLE from this backend's output. Because the key is
+unique per canonical selection, and because the mask enumeration is itself
+deterministic, a score-only rule computes the same winner on every input this
+project can build a fixture for - the position half is invisible in the return
+value, exactly as ``exact.py``'s pivot rule is invisible in ``solve_linear``'s.
+It is nonetheless load-bearing: without a stated rule the tie-break is
+"whichever mask came first", which is an implementation detail a REPLACEMENT
+backend cannot reproduce, and two backends would then disagree on ties while
+each looked correct alone. So the rule is tested at the selector rather than
+through a run of this backend, on the same reasoning and by the same route
 ``tests/solve/test_exact.py`` uses for ``_pivot_row``. A contract with no test
 is the CONVENTIONS.md section 7.2 unrun gate.
+
+The position mapping this backend hands the key is its own usable-candidate
+index, not the whole registry's. That is licensed rather than convenient: the
+key reads only the ORDER of the mapping, and both indexes are strictly
+increasing in registry order.
 
 WHY THE CAP IS A REFUSAL AND NOT A DEGRADATION
 ------------------------------------------------
@@ -60,7 +63,6 @@ backend name falling back on a typo.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from fractions import Fraction
 
 from clockspeed.data.registry import Registry
@@ -72,34 +74,14 @@ from clockspeed.solve.optimize import (
     OptimizeResult,
     SearchSpaceTooLargeError,
     evaluate_selection,
+    ranking_key,
+    result_ranking_key,
     usable_candidates,
 )
 
+#: Re-exported from its owner, ``clockspeed/solve/optimize.py``, so the name
+#: this module published before the rule moved still resolves here.
 __all__ = ["ExhaustiveBackend", "ranking_key"]
-
-
-def ranking_key(
-    result: OptimizeResult, positions: Mapping[str, int]
-) -> tuple[Fraction, tuple[int, ...]]:
-    """The total order the search minimizes over: score first, then registry position.
-
-    A named function rather than an inline tuple, for the reason the module
-    docstring gives at length and ``clockspeed/solve/exact.py`` gives for
-    ``_pivot_row``: the rule is invisible in the backend's return value, so this
-    is the only place it can be tested, and an untested rule is one somebody
-    simplifies away.
-
-    Args:
-        result: A canonical result, whose selection is in registry order.
-        positions: Recipe key to its index among the usable candidates.
-
-    Returns:
-        The key. Lower wins. The score dominates; the position tuple decides
-        only a tie, and decides it in favour of the selection whose recipes come
-        earliest in the registry - which also means the smaller of two
-        selections when one is a prefix of the other.
-    """
-    return (result.score, tuple(positions[key] for key in result.selection))
 
 
 class ExhaustiveBackend:
@@ -162,7 +144,7 @@ class ExhaustiveBackend:
             )
             if result is None:
                 continue
-            ranking = ranking_key(result, position)
+            ranking = result_ranking_key(result, position)
             if best_key is None or ranking < best_key:
                 best, best_key = result, ranking
 

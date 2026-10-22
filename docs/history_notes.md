@@ -24,6 +24,22 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1244 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-22 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`. Its `### Acceptance` half was DELETED
+rather than copied, because that record quotes the clause whole and a second copy
+of a finished record is a second owner. The paragraph below is kept rather than
+dropped: it records that the item came from an untracked external survey as IDEAS
+ONLY, with nothing fetched, copied or lifted, which is a licence-hygiene fact the
+ledger entry does not own.
+
+## CS-1244
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Builds on `clockspeed/solve/optimize.py`'s exact objectives; player-tunable weights stay in `BACKLOG.md` until this lands.
+
 ## CS-1336 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-21 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
