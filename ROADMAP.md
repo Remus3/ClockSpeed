@@ -367,3 +367,4 @@ CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then i
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1344 - MAIN's 2026-10-21 FIX: test runs clear their own Temp `cs-pt` output on teardown, failure included, and session scratch stays bounded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1345 - an outsider's fork cannot push: pre-push refuses until git config `fleet.operatorIdent` is set, and no doc says so - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

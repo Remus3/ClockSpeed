@@ -1023,3 +1023,9 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   `WARN_ASSET_PATH_UNKNOWN` and `WARN_UNMATCHED_PURCHASED_PATH`, are unpinned - no arm reddens
   when a spelling changes; trigger: a consumer matches on a WARN code, or the next edit to those
   constants.
+- From the CS-1334 walk (`docs/LEDGER.md`, 2026-10-22, CS-1334): the `docs/OPERATIONS.md`
+  section 1 bootstrap leaves openssl off PATH, so `scripts/verify_env.py` reports it MISSING
+  (soft) on a fresh machine; trigger: the next edit to `docs/OPERATIONS.md` section 1, or
+  CS-1334's re-walk.
+- From the same walk: python.org publishes no hash for the Python installer the walk downloaded,
+  so that download cannot be cross-checked; trigger: CS-1334's re-walk.

@@ -75,6 +75,40 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-22 - CS-1334 - NOT A COMPLETION RECORD. CS-1334 STAYS OPEN: the first fresh-Sandbox walk of an anonymous public clone, graded PARTIAL by a grader that did not walk, clause 11 NOT MET
+Verification: CS-1334's section in `docs/item_notes/phase7.md`, its `### Acceptance` clause;
+`git ls-remote` of the public remote for `main`; the three untracked scratch artifacts named
+below, held outside the tree and cited here by full sha256 alone. This record closes nothing.
+THE WALK. A fresh Windows Sandbox that had never seen the project made an anonymous clone of the
+public repository at 964ff381927155d0e20b1e3cfaaae504eeb8c94e, the clone's HEAD equal to what
+`git ls-remote` reported for `main`, and every `README.md` Quickstart step read PASS. The README
+first result MATCHED with no game installed. The hooks refused a staged non-ASCII commit, and
+the control commit landed. The start route was RemoteSigned with no Bypass: the Sandbox started
+its runner under `-ExecutionPolicy RemoteSigned`, the policy the Quickstart itself sets at
+process scope, and no harness file passed `-ExecutionPolicy Bypass`.
+CLAUSE 11 NOT MET: the suite's counts, read from its log and from its exit-code file. The suite
+stalled at about 70 percent with 0 failures, wrote no summary line and no exit-code file, and
+the suite step was killed after about 106.5 minutes. What its log holds is a partial run, not
+the suite's counts.
+THE GRADE: PARTIAL, by a distinct grader that did not walk and graded the walk record alone,
+each record file's digest read equal first. The grade, an untracked scratch artifact named
+grade.md, sha256 e73ebcb931555df329bc049f0b0886b3f8e12722c1b123905fc3d6e7643a5601. The record it
+grades: walk.md, an untracked scratch artifact, sha256
+c55f3f3b1a0f2f6ef0f6689b7fdc81a7fa16e067be60dfc6ce6a8f16d6709c8a, and steps.json, an untracked
+scratch artifact, sha256 c0b8c1ae9d867a9fd73df8da7eb8708ae22874ec75f41600379ee68b40d25950.
+THE RE-WALK NEEDS: (1) a suite run that reaches its summary and writes an exit-code file, by
+fixing or measuring the suite-gate stall CS-1349 files, or by giving the Sandbox more memory;
+(2) a walk runner that writes an exit-code file for a step it kills; (3) a runner that reads the
+dashboard port from `scripts/verify_env.py`'s output. Then a separate grade, and its sha256
+recorded under this ID.
+DOWNLOADS USED: Python 3.14.9 from python.org, which publishes no hash for that installer, so
+the download was not cross-checked (a `BACKLOG.md` session 150 residual); Git for Windows
+2.56.0.2, its sha256 matching the release's GitHub asset digest; Node v24.22.1 from nodejs.org,
+matching its SHASUMS256.txt - outside the walk brief's Git-and-Python source list, and ruled in
+by a distinct adjudicator because the suite needs node.
+THE STALL'S CAUSE IS INFERRED, NOT MEASURED inside the Sandbox: the suite gate's commit
+admission, filed as CS-1349, whose kit half went to MAIN as a FIX note.
+
 ### 2026-10-22 - CS-1244 - CLOSED AGAIN. An independent closure verifier REOPENED the lane's closure on clause 2, and a repair pinning the tie key and the threshold absorb re-closes it
 Verification: `clockspeed/solve/strategy.py::rank_plans`, `::check_threshold` and `::badge_for`,
 and `clockspeed/solve/backends/exhaustive.py`'s module docstring; the arms
