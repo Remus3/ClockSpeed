@@ -75,6 +75,64 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-22 - CS-1244 - CLOSED AGAIN. An independent closure verifier REOPENED the lane's closure on clause 2, and a repair pinning the tie key and the threshold absorb re-closes it
+Verification: `clockspeed/solve/strategy.py::rank_plans`, `::check_threshold` and `::badge_for`,
+and `clockspeed/solve/backends/exhaustive.py`'s module docstring; the arms
+`tests/solve/test_strategy.py::test_equal_score_twins_rank_on_the_documented_stable_key_in_either_input_order`,
+`::test_check_threshold_absorbs_the_unpriceable_and_lets_an_unknown_recipe_through`,
+`::test_the_raw_and_buildings_rungs_grade_a_foreign_plan_from_its_own_fields`,
+`::test_a_badge_and_a_ranking_refuse_a_plan_naming_a_recipe_the_registry_lacks`,
+`::test_a_malformed_objective_is_not_absorbed_as_a_failed_threshold`,
+`::test_an_objective_with_no_weights_at_all_propagates_too` and
+`::test_ranking_by_a_malformed_objective_refuses_before_any_threshold_is_graded`.
+THE FIRST VERDICT, REFUTED, by a distinct closure verifier that produced none of the work: three
+of the four acceptance clauses MET. Clause 2, "ties break on a documented stable key", was
+behaviourally correct but UNPINNED in `clockspeed/solve/strategy.py::rank_plans`: a mutant that
+sorts on the score alone survived all 712 tests in `tests/solve`, because every ranking arm
+ranked plans whose scores differ, so the position half of the key never decided anything. A
+second mutant, widening the absorbing `except` in `clockspeed/solve/strategy.py::check_threshold`
+to `Exception`, survived as well, and the docstrings hid it: they named `ValueError` for a plan
+naming a recipe the registry does not model, where the code raises `KeyError`.
+THE REPAIR, test arms and docstrings only. TIE KEY: the C8 twins tie on every objective, so only
+the position half of `clockspeed/solve/optimize.py::ranking_key` can decide, and
+`tests/solve/test_strategy.py::test_equal_score_twins_rank_on_the_documented_stable_key_in_either_input_order`
+ranks them in BOTH input orders, because `sorted` is stable and a score-only sort echoes its
+input, so it passes on one order and fails only on the other. ABSORB LINE:
+`::test_check_threshold_absorbs_the_unpriceable_and_lets_an_unknown_recipe_through`,
+`::test_the_raw_and_buildings_rungs_grade_a_foreign_plan_from_its_own_fields` and
+`::test_a_badge_and_a_ranking_refuse_a_plan_naming_a_recipe_the_registry_lacks` pin that
+`check_threshold` absorbs only `PowerNotComparableError` and PROPAGATES the `KeyError`, which
+only the power rung raises and which `badge_for` and `rank_plans` pass to their callers. A plan
+naming a recipe the registry lacks is a mismatch between the plan and the registry it was handed
+with, not unknown content, so non-negotiable 7 does not apply to it; absorbing it as
+"power-not-comparable" would misreport that mismatch as a pricing gap. MALFORMED OBJECTIVE:
+`::test_a_malformed_objective_is_not_absorbed_as_a_failed_threshold` keeps the name the record
+below cites, and now REACHES `check_threshold`'s absorbing block by substituting the rung's
+objective builder; before, it refused inside `rank_plans`'s own scoring before any threshold was
+graded, and that route now has its own arm,
+`::test_ranking_by_a_malformed_objective_refuses_before_any_threshold_is_graded`. DOCSTRINGS:
+`clockspeed/solve/strategy.py`'s module docstring and the `Raises` sections of
+`check_threshold`, `badge_for` and `rank_plans` now name `KeyError`, and
+`clockspeed/solve/backends/exhaustive.py`'s module docstring no longer says both backends
+consume the key.
+THE RE-VERIFICATION, by a distinct verifier against the frozen repair: CONFIRMED-CLOSE, mutants
+M1 to M5 all killed, and `tests/solve` read 720 passed (agent-reported).
+CORRECTION to the 2026-10-22 record below headed "CS-1244 - CLOSED: a named strategy ladder",
+which is published and so stands as written. Two of its sentences are FALSE.
+(1) "Both backends break a tie with it": `clockspeed/solve/backends/greedy.py` does not use
+`clockspeed/solve/optimize.py::ranking_key`. It scores a relaxed probe plan, which has no
+canonical selection to read positions from, and resolves a tie through registry-ordered pool
+iteration and a strict less-than, as its own comment states. Only
+`clockspeed/solve/backends/exhaustive.py`, through `::result_ranking_key`, and the strategy
+ladder's `clockspeed/solve/strategy.py::rank_plans` use the key.
+`tests/solve/test_optimize.py::test_both_backends_break_a_tie_with_the_same_documented_key`
+grades both backends' OUTCOME on the C8 twins, not which rule produced it; that greedy never
+consults the key is CS-1347's subject.
+(2) "The badge reaches tier 3 unchanged through `render_value`": the badge reaches NO card. No
+plan reaches `clockspeed/advisor/advise.py`, so no rule trace carries a badge for
+`clockspeed/advisor/cards.py::render_value` to render, and that absence is exactly what CS-1346
+records.
+
 ### 2026-10-22 - CS-1244 - CLOSED: a named strategy ladder with an exact relative threshold per rung, the documented ranking key promoted to the module whose docstring already claimed it, and a badge recording the strongest rung cleared
 Verification: `clockspeed/solve/strategy.py` (`STRATEGY_LADDER`, `RUNG_WITHIN_RAW`,
 `RUNG_WITHIN_BUILDINGS`, `RUNG_WITHIN_POWER`, `Strategy`, `ThresholdCheck`, `StrategyBadge`,

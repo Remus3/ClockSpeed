@@ -524,6 +524,20 @@ adjudicator route, never by quietly reading the no-backtracking sentence as some
 Re-ranking what the walk reached is not backtracking, so the two may both hold; the clause
 below requires the choice to be written down either way.
 
+### CORRECTION - recorded 2026-10-22 (session 150) by the CS-1244 re-close
+
+**THE FILING ABOVE SAYS BOTH BACKENDS BREAK A TIE WITH THE SHARED KEY, AND GREEDY DOES NOT.**
+Only `clockspeed/solve/backends/exhaustive.py`, through
+`clockspeed/solve/optimize.py::result_ranking_key`, and the strategy ladder's
+`clockspeed/solve/strategy.py::rank_plans` use the key. `clockspeed/solve/backends/greedy.py`
+scores a relaxed probe plan, which has no canonical selection to read positions from, and
+resolves a tie through registry-ordered pool iteration and a strict less-than - the same
+registry ordering, reached by a different route, as its own comment states.
+`tests/solve/test_optimize.py::test_both_backends_break_a_tie_with_the_same_documented_key`
+grades both backends' outcome on the C8 twins, not which rule produced it. That greedy never
+consults the key is this item's own subject. The filing stays as written and this block
+corrects it; the same correction to the CS-1244 record is in `docs/LEDGER.md`.
+
 ### Acceptance
 
 the result `clockspeed/solve/backends/greedy.py` returns is the lowest-ranking of the canonical selections its walk actually reached, by `clockspeed/solve/optimize.py::result_ranking_key`; a synthetic fixture in which the first selection that solves is not the lowest-ranking one reddens on the old behaviour and passes on the new, so the arm is not vacuous; and the heuristic's no-backtracking guarantee is restated or AMENDED explicitly in that module's docstring, with an amendment recorded in `docs/LEDGER.md` under this ID, never changed in silence
