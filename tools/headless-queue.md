@@ -661,9 +661,10 @@ engine change is substantive; a five-file rename is not.
 ## 10. Commit and push discipline
 
 1. **Stage only the files you authored. Never `git add -A`. Never amend.**
-2. **The subject cites the CS id** and says what changed. The commit-msg hook enforces 7-bit
-   ASCII, a subject of at most 72 characters, and no bare placeholder subject - so "wip",
-   "fix" and "update" as an entire subject are refused.
+2. **The subject follows `.github/CONTRIBUTING.md` section 4**, which also says how a
+   revert or cherry-pick reaches the hook. On a commit made with `git commit`, the
+   commit-msg hook enforces 7-bit ASCII, a subject of at most 72 characters, and no bare
+   placeholder subject - so "wip", "fix" and "update" as an entire subject are refused.
 3. **Never add a co-authorship trailer.** The commit-msg hook REFUSES one by operator
    policy, and its absence is not a defect to file.
 4. Write the message with a file (`git commit -F`) or a single-quoted here-string. Never a

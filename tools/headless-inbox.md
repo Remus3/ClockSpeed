@@ -56,8 +56,9 @@ all (section 4).
   against a FROZEN candidate (pin the SHA, witness it with `tools/freeze_witness.py`). It
   lands on the main tree by `git cherry-pick` ONLY when the main tree is clean and no
   other push is running - never by merge, never over someone else's uncommitted work.
-- **Commit and push** per `CLAUDE.md` sections 2.3.1 and 6.1. Commit subjects start with a
-  `CS-` id; no co-author trailer. Every commit and push runs through `python
+- **Commit and push** per `CLAUDE.md` sections 2.3.1 and 6.1. Commit subjects follow
+  `.github/CONTRIBUTING.md` section 4; no co-author trailer. Every commit and push
+  runs through `python
   ops/fleet_kit/fleet_gitlock.py run --owner headless.<run id> -- git ...` and any whole
   suite through `python ops/fleet_kit/fleet_suite_gate.py run --owner headless.<run id>
   -- <suite cmd>` (FLEET-COMMON 16a, 16c): this spawn fires no Claude hook, so this line

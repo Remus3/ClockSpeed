@@ -1101,7 +1101,9 @@ Moved on 2026-10-21 from the CS-700 section of `docs/item_notes/phase7.md` when 
 binding since MAIN's 2026-10-08 22:46 ORDER, section 4.
 
 Never merge a Dependabot PR with the merge button or `gh pr merge`; apply it locally as an operator
-commit (cherry-pick `--reset-author`) and push.
+commit and push. Apply it with `git cherry-pick --no-commit`, then commit it with `git commit`
+and a hand-written subject in the form `.github/CONTRIBUTING.md` section 4 owns - never the
+PR's own `Bump ...` subject, which a bare cherry-pick keeps without running the commit-msg hook.
 
 ### 12.6 The trailer-shaped census
 

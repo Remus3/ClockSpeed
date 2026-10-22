@@ -275,9 +275,10 @@ or on UNKNOWN (above), this step does not run: commit nothing.
       violation is caught before the git hook runs. Both layers run; neither alone is
       trusted.
 - [ ] Stage deliberately. Never `git add -A` without reading `git status` first.
-- [ ] Commit message: 7-bit ASCII, imperative, cites the item ID. For any message with
-      special characters, write it to a temp file and use `git commit -F <file>`, or a
-      SINGLE-quoted here-string. Never a double-quoted here-string and never a piped string.
+- [ ] Commit message: 7-bit ASCII, and its subject follows `.github/CONTRIBUTING.md`
+      section 4. For any message with special characters, write it to a temp file and
+      use `git commit -F <file>`, or a SINGLE-quoted here-string. Never a double-quoted
+      here-string and never a piped string.
 - [ ] Every `git commit` runs through the kit's git lock (FLEET-COMMON 16a):
       `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> --
       git commit -F <file>`. A bare commit is denied by the claims hook. The owner is the

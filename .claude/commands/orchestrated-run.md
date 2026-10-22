@@ -104,6 +104,8 @@ is substantive, a five-file rename is not.
 
 - [ ] Merge slice by slice. Re-run the tier-appropriate suite AFTER the merge - slices that
       passed independently can fail together at the seam.
+- [ ] Each merge, revert or cherry-pick subject follows `.github/CONTRIBUTING.md`
+      section 4.
 - [ ] Report: what each slice delivered, the verifier verdict, the adjudicator decision plus
       the runner-up's best argument, every adversary verdict, and every UNRESOLVED item.
 - [ ] Anything unverified is labelled unverified. Do not round an uncertainty up to a claim.

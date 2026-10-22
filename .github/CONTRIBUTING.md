@@ -93,8 +93,20 @@ piped it into.
 
 ## 4. Commits
 
-- Subject line at most 72 characters, ASCII, imperative, and naming the item it belongs
-  to where there is one.
+- Commit subjects follow Conventional Commits: `type(scope): summary`, imperative,
+  ASCII, at most 72 characters as the commit-msg hook counts them. The type is one of
+  feat, fix, docs, test, refactor, perf, build, ci, chore or revert. The scope is the
+  item ID, as in `fix(CS-1336): ...`; a commit serving several items scopes the first
+  and names the rest in the body; a hand-off or session-record commit is
+  `chore(handoff): ...` with its session number in the summary; a commit with neither
+  has no scope. The prefix costs up to 19 characters, so shorten the summary and move
+  detail to the body - the limit is never raised. Write a merge or revert subject by
+  hand in the same form, naming no branch and no agent worktree; never keep git's
+  default merge message. A revert or cherry-pick is made with `--no-commit` and then
+  committed with `git commit`, so the commit-msg hook sees its subject, because
+  `git revert` and `git cherry-pick` commit without running that hook. This section
+  owns the convention and every other file points here. It applies from the commit
+  that wrote it; earlier subjects are never rewritten.
 - **No co-authorship trailer of any kind.** This is an operator decision recorded in
   `docs/GATED.md` under CS-G03: a trailer is publication metadata, it is trivial to
   reintroduce by default, and it is impossible to remove later without a history
