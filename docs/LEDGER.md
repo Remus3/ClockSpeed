@@ -75,6 +75,58 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-21 - CS-1336 - NOT A COMPLETION RECORD. CS-1336 STAYS OPEN: the commit-subject site audit its Acceptance orders before any subject rule changes
+Verification: re-run over tracked files from the root, excluding `docs/history_notes.md`,
+`docs/LEDGER.md`, `CS-NEXT-SESSION.txt` and `WAKEUP_NOTES.md` (records quoting past subjects):
+P1 `git grep -n -i -E "commit subject|subject line|subjects? (must|should|start|begin|cite)|--format=%s|%x01%s|--pretty|log -1|--oneline|COMMIT_EDITMSG|72[- ]char"`;
+P2 `git grep -n -E "git log|\"log\"|--format=|%B|rev-list" -- "*.py" "*.js" "*.sh" ".githooks/*" ".github/*"`;
+P3 `git grep -n -E "\"commit\"|commit -m|\"-m\"|--message|git merge|cherry-pick" -- ops tools scripts .claude`;
+P4 `git grep -n -E "re\.compile\(.*CS-|CS-\[0-9\]" -- "*.py" "*.js"`. A hit whose subject is the
+advice card's subject_key or a test's subject-under-test is outside the population.
+PRESCRIBE (ours): `.github/CONTRIBUTING.md` section 4 Commits - 72, ASCII, imperative, names
+the item; silent on type. `tools/headless-inbox.md` Commit and push bullet - subjects start
+with a CS- id; CONFLICTS. `tools/headless-queue.md` section 10 rule 2 and
+`.claude/commands/done.md` section 7 - cite the item ID; compatible, restated.
+`.claude/commands/orchestrated-run.md` Phase 7 - merges, subject unstated; the source of
+git's default worktree-named merge subjects. `docs/OPERATIONS.md` section 12.5 - lands a
+Dependabot PR by cherry-pick `--reset-author`, which keeps the PR's own `Bump ...` subject and
+commits without running the commit-msg hook; CONFLICTS.
+ENFORCE: `.githooks/commit-msg` LIMIT, PLACEHOLDERS, first_line (FROZEN) - 72 cap, bare
+placeholder ban, ASCII, control bytes, co-authored-by key; AGREES, silent on type.
+`ops/fleet_kit/fleet_identity.py::forbidden_line` and `::strip_message` (VENDORED) - AGREES.
+`ops/fleet_kit/fleet_gitlock.py::LOCK_ONLY_VERBS`, `ops/fleet_kit/fleet_rewrite.py`,
+`ops/fleet_kit/fleet_done.py` (VENDORED) - silent. `tools/precommit_gate.py` text-stdin mode
+and `.githooks/pre-commit`, `.githooks/pre-push` (FROZEN), `tools/pretooluse_gate.py`,
+`.github/workflows/tier1.yml`, `.github/workflows/tier2.yml` - silent.
+`tools/flip_checks.py::violation_moves_head` - a HOOK INPUT: it commits the CS-n probe subject
+`CS-1183 - flip check probe` in a throwaway clone and reads whether HEAD moved; silent on type,
+so a hook that ever enforced one would refuse the probe for its subject rather than for the byte
+it plants.
+PARSE (ours): `tools/provenance_stamp.py::first_adds` and `::CITED_RE` - an ID in a scope
+matches; bootstrap only; AGREES. `tools/trailer_census.py::is_trailer_line` - AGREES.
+`tools/census_axis.py`, `tools/flip_checks.py`, `tools/sha_citation_gate.py` - no subject
+read. `.claude/commands/insights.md` - one-line log, IDs cited; AGREES.
+ASSERT (ours): `tests/test_commit_msg_gate.py::test_an_over_long_subject_is_still_blocked`,
+`::test_a_subject_at_the_limit_is_still_accepted`, `::test_a_placeholder_subject_is_still_blocked`,
+`tests/test_commit_msg_cleanup_matrix.py::SUBJECT_LIMIT`, `tests/test_hook_env_echo.py::drive_commit_msg`,
+`tests/test_hook_interpreter_ladder.py::MESSAGE_CLASSES` - pin the hook; AGREE. Their accepted
+controls, with `tests/test_commit_msg_control_bytes.py` and `tests/test_identity_hooks.py`,
+use CS-n fixture subjects and redden only if the hook ever enforces a type.
+`tests/test_trailer_routes.py::test_git_revert_with_an_edited_message_is_caught` - git's
+default revert subject in a synthetic repo; silent. `tests/test_provenance_manifest.py`
+CITED_RE mirror - AGREES.
+SILENT: `CONVENTIONS.md` sections 8 and 10, `BOOTSTRAP.md`, `CLAUDE.md`, `docs/OPERATIONS.md`
+section 9.1, `.github/PULL_REQUEST_TEMPLATE.md`, `.claude/agents/builder.md`.
+No frozen or vendored site disagrees: no CLAUDE.md section 6 grant and no kit report is owed.
+MEASURED, the adversary's reproduction in a scratch repository (agent-reported): `git revert`,
+with `-e` or with `--no-edit`, and a bare `git cherry-pick` commit WITHOUT running the
+commit-msg hook; only `--no-commit` followed by `git commit` runs it; `git merge -m` runs it.
+Measured over the last 200 subjects of main: 162 lead with a CS- number, 2 with CS-G, 14 with
+S<n>, 21 with Session <n>, 1 other; 0 Conventional, 0 merges, 0 over 72, 45 at 69 to 72
+characters. Full history: 144 merges, 23 naming an agent worktree. No site prescribes the
+S<n> or Session <n> prefixes. Re-read before this record was committed, at main's tip of the
+CS-700 C13 record: every count above unchanged.
+
 ### 2026-10-21 - CS-700 - NOT A COMPLETION RECORD. NOTHING CLOSED. The C13 cleanup item's third pass: 8 worktrees and 239 branches retired by content, bundled first; CS-1342 read
 Verification: this record; `git worktree list --porcelain` and `git for-each-ref`, read back by the
 pass; the bundle s150c-retire.bundle, beside s150-c13-retire.bundle and s150b-retire.bundle, sha256
