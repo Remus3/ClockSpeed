@@ -332,3 +332,39 @@ table's entries owe - so a cost item the elevator holds none of reads an exact
 zero - plus any item it does hold. `tests/save/test_elevator_input.py` and
 `tests/progress/test_save_phase_source.py` grade it on synthetic fixtures
 only.
+
+---
+
+## Amendment - unread and unmapped phase costs (CS-1340 repair)
+
+Measured 2026-10-23 (session 151) by the slice that wired the reader, after an
+adversary refuted its first cut on `CLAUDE.md` section 3 non-negotiable 7.
+Names and counts only.
+
+**What the installed docs name.** Read on the pinned build's docs through
+`clockspeed/data/docs_extract.py`: the registry carries 12 elevator part
+items, `Desc_SpaceElevatorPart_1_C` through `_12_C`, so every part the
+measured table names resolves; and the schematic catalog's game-phase
+dependencies name exactly one phase token, `EGP_Victory` - none of the four
+the measured table carries. So the only `mGamePhaseCosts` this project has
+measured names phases the installed registry does not, and nothing in the
+save or the docs maps them onto the build's `GP_*` phases. No mapping is
+invented: a consumer may not map one onto another without measuring it.
+
+**What ships on it.** Unknown content is flagged and skipped, never read as a
+usable table:
+
+- every array element skipped is counted on the reading and raised as
+  `clockspeed/save/world.py::WARN_PHASE_COST_ENTRY_SKIPPED`, carrying the
+  count, including an array none of whose elements read;
+- an array present and not an array, two records carrying it, or a phase
+  manager whose payload did not read raise
+  `clockspeed/save/world.py::WARN_PHASE_COSTS_UNREAD`, so unread content is
+  never reported as a world that writes no array;
+- `clockspeed/progress/phases.py::SavePhaseCosts` takes the installed phase
+  vocabulary from `clockspeed/progress/phases.py::installed_phases`, publishes
+  no table for an unread or wholly skipped array, carries the skip count on
+  the table, withholds and names every phase the vocabulary lacks under
+  `clockspeed/progress/phases.py::REASON_UNMAPPED_PHASE`, and publishes no
+  table when no phase maps. On the measured table against the pinned build,
+  that is every phase.

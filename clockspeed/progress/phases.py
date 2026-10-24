@@ -32,6 +32,16 @@ under :data:`REASON_EMPTY_COST_ENTRY`. A world that writes no array - every
 ``phase_costs_available`` is DERIVED from the table the source returned -
 never hardcoded - so it reads True on exactly the worlds that carry the array.
 
+UNREAD AND UNMAPPED CONTENT IS FLAGGED, NEVER A TABLE (CS-1340 repair,
+non-negotiable 7). A table the save layer flagged unread, or whose every
+element was skipped, publishes no table under :data:`REASON_PHASE_COSTS_UNREAD`;
+the skip count rides on :class:`PhaseCostTable`, and a phase missing beside a
+skip is :data:`REASON_COST_ENTRY_UNREAD`, never "no entry". A phase the
+installed registry does not name (:func:`installed_phases`) is withheld under
+:data:`REASON_UNMAPPED_PHASE` and named on the table - ADR 0016 records that
+the only table measured names pre-1.0 phases the pinned build's docs do not -
+and no phase is ever mapped onto another here.
+
 A PHASE WITH NO COST ENTRY IS NULL, NEVER ZERO (non-negotiable 7). A measured
 table that holds no entry for the selected phase publishes every figure as None
 under :data:`REASON_NO_COST_ENTRY`. An empty entry, a non-positive amount and a
@@ -74,15 +84,16 @@ from types import MappingProxyType
 from typing import Final, Protocol
 
 from clockspeed.data.registry import LITRES_PER_CUBIC_METRE, Registry
-from clockspeed.data.schematics import CostLine
+from clockspeed.data.schematics import CostLine, SchematicCatalog
 from clockspeed.progress import milestones
-from clockspeed.save.world import WorldModel
+from clockspeed.save.world import WARN_PHASE_COSTS_UNREAD, WorldModel
 from clockspeed.solve.exact import audit_exact, per_minute
 from clockspeed.solve.ratio import ProductionPlan, RatioError, RatioRequest, solve_for_targets
 
 __all__ = [
     "CLOCK_BASIS_FULL",
     "MINER_BASIS_BASE_RATE",
+    "REASON_COST_ENTRY_UNREAD",
     "REASON_EMPTY_COST_ENTRY",
     "REASON_EXTRACTOR_CANNOT_YIELD",
     "REASON_EXTRACTOR_RATE_UNAVAILABLE",
@@ -93,9 +104,11 @@ __all__ = [
     "REASON_NO_RAW_INPUT",
     "REASON_NO_RECIPE_SELECTION",
     "REASON_NO_SINGLE_BUILDING",
+    "REASON_PHASE_COSTS_UNREAD",
     "REASON_RATIO_REFUSED",
     "REASON_UNKNOWN_EXTRACTOR",
     "REASON_UNKNOWN_RESOURCE",
+    "REASON_UNMAPPED_PHASE",
     "REASON_UNRESOLVED_COST_ITEM",
     "Figure",
     "PhaseCost",
@@ -104,6 +117,7 @@ __all__ = [
     "PhaseIntegrityError",
     "RecipeSelection",
     "SavePhaseCosts",
+    "installed_phases",
     "phase_cost",
     "phase_costs",
     "phase_costs_available",
@@ -144,6 +158,18 @@ REASON_UNKNOWN_RESOURCE: Final = "unknown-resource"
 REASON_EXTRACTOR_CANNOT_YIELD: Final = "extractor-cannot-yield"
 #: A selected extractor's rate is absent or zero in the document.
 REASON_EXTRACTOR_RATE_UNAVAILABLE: Final = "extractor-rate-unavailable"
+#: CS-1340 repair. The world may hold a phase-cost table and none was READ: the
+#: save layer raised ``WARN_PHASE_COSTS_UNREAD``, or every element of the array
+#: was skipped. Unread content - never "no table was written".
+REASON_PHASE_COSTS_UNREAD: Final = "phase-costs-unread"
+#: CS-1340 repair. The table holds no entry for the selected phase AND skipped
+#: elements it could not read, so the phase's entry may be one of those - its
+#: absence is not evidence that nothing is owed.
+REASON_COST_ENTRY_UNREAD: Final = "cost-entry-unread"
+#: CS-1340 repair. The phase is not one the installed registry names, so the
+#: save's entry for it is withheld rather than presented as a current phase's
+#: cost. A table naming no installed phase at all is published as no table.
+REASON_UNMAPPED_PHASE: Final = "unmapped-phase"
 
 
 class PhaseIntegrityError(Exception):
@@ -231,11 +257,20 @@ class PhaseCostTable:
             the elevator, in the registry's units, or None when the source has
             no delivered reading. Independent of ``entries``: a reading of
             zero counts, or of no items at all, is still a reading.
+        skipped_count: How many elements of the source's table did not read
+            and were skipped - CS-1340 repair. Carried, never dropped: a phase
+            missing while this is above zero is null under
+            :data:`REASON_COST_ENTRY_UNREAD`, not :data:`REASON_NO_COST_ENTRY`.
+        unmapped: The phases the source read and WITHHELD because the installed
+            registry does not name them - CS-1340 repair. Each is null under
+            :data:`REASON_UNMAPPED_PHASE`; none is in ``entries``.
     """
 
     entries: Mapping[str, tuple[CostLine, ...]] | None
     reason: str | None
     delivered: Mapping[str, Fraction] | None = None
+    skipped_count: int = 0
+    unmapped: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         """Refuse a table that is both or neither, or a delivered count that is not exact.
@@ -247,6 +282,10 @@ class PhaseCostTable:
         """
         if (self.entries is None) == (self.reason is None):
             raise PhaseIntegrityError("a phase-cost table carries exactly one of entries or reason")
+        if type(self.skipped_count) is not int or self.skipped_count < 0:
+            raise PhaseIntegrityError("a skipped count is an int at zero or above")
+        if self.entries is not None and self.unmapped & set(self.entries):
+            raise PhaseIntegrityError("a withheld phase is never also a published entry")
         if self.delivered is not None:
             for count in self.delivered.values():
                 if type(count) is not Fraction or count < 0:
@@ -267,20 +306,54 @@ class PhaseCostSource(Protocol):
         ...
 
 
+def installed_phases(catalog: SchematicCatalog) -> frozenset[str]:
+    """The phase vocabulary the installed registry names - CS-1340 repair.
+
+    Every phase token a schematic's game-phase dependency names in the
+    installed docs, and nothing else: a token invented here would let a save's
+    table pass as current. ADR 0016 records what the pinned build's docs name.
+
+    Args:
+        catalog: The installed schematic catalog.
+
+    Returns:
+        The tokens, possibly empty.
+    """
+    return frozenset(
+        token
+        for schematic in catalog.schematics.values()
+        if (token := schematic.game_phase) is not None
+    )
+
+
 class SavePhaseCosts:
     """The shipped source: a world's own ``mGamePhaseCosts``, under the measured meaning.
 
     CS-1340. It consumes the save layer through its stated model only -
-    ``WorldModel.phase_costs`` - and reads no bytes and no record.
+    ``WorldModel.phase_costs`` and the warnings on the same model - and reads
+    no bytes and no record.
+
+    NOTHING UNREAD OR UNMAPPED IS PRESENTED AS A TABLE (CS-1340 repair,
+    non-negotiable 7). An array the save layer flagged unread, or one whose
+    every element was skipped, publishes no table under
+    :data:`REASON_PHASE_COSTS_UNREAD`, and the skip count is carried on the
+    table either way. A phase the installed registry does not name is withheld
+    and named in ``unmapped`` - never mapped onto a current phase - and a table
+    naming no installed phase at all publishes no table under
+    :data:`REASON_UNMAPPED_PHASE`.
     """
 
-    def __init__(self, world: WorldModel) -> None:
-        """Hold the world whose phase costs this source publishes.
+    def __init__(self, world: WorldModel, installed: frozenset[str]) -> None:
+        """Hold the world, and the phase vocabulary its table is checked against.
 
         Args:
             world: The loaded world model.
+            installed: The phases the installed registry names -
+                :func:`installed_phases` at the shipped wiring site. Required:
+                a table checked against nothing would pass as current.
         """
         self._world = world
+        self._installed = installed
 
     def phase_costs(self) -> PhaseCostTable:
         """Publish each phase's OWED lines, or no table when the world wrote none.
@@ -291,24 +364,48 @@ class SavePhaseCosts:
         and hide what the phase still owes on its other lines.
 
         Returns:
-            The table, or one carrying only :data:`REASON_NO_PHASE_COST_TABLE`,
-            with the delivered reading :meth:`_delivered` builds either way.
+            The table, or one carrying only its reason - no table written,
+            unread, or naming no installed phase - with the skip count, the
+            withheld phases and the delivered reading :meth:`_delivered` builds
+            in every case.
         """
         reading = self._world.phase_costs
         if reading is None:
-            return PhaseCostTable(
-                entries=None, reason=REASON_NO_PHASE_COST_TABLE, delivered=self._delivered({})
+            unread = any(
+                warning.code == WARN_PHASE_COSTS_UNREAD for warning in self._world.warnings
             )
+            reason = REASON_PHASE_COSTS_UNREAD if unread else REASON_NO_PHASE_COST_TABLE
+            return PhaseCostTable(entries=None, reason=reason, delivered=self._delivered({}))
+        skipped = reading.skipped_count
+        if skipped and not reading.by_phase:
+            return PhaseCostTable(
+                entries=None,
+                reason=REASON_PHASE_COSTS_UNREAD,
+                delivered=self._delivered({}),
+                skipped_count=skipped,
+            )
+        unmapped = frozenset(phase for phase in reading.by_phase if phase not in self._installed)
         entries = {
             phase: tuple(
                 CostLine(line.item_class, line.amount) for line in lines if line.amount > 0
             )
             for phase, lines in reading.by_phase.items()
+            if phase not in unmapped
         }
+        if unmapped and not entries:
+            return PhaseCostTable(
+                entries=None,
+                reason=REASON_UNMAPPED_PHASE,
+                delivered=self._delivered({}),
+                skipped_count=skipped,
+                unmapped=unmapped,
+            )
         return PhaseCostTable(
             entries=MappingProxyType({phase: entries[phase] for phase in sorted(entries)}),
             reason=None,
             delivered=self._delivered(entries),
+            skipped_count=skipped,
+            unmapped=unmapped,
         )
 
     def _delivered(
@@ -400,6 +497,25 @@ class PhaseCost:
                 "resource": self.resource.values,
             }
         )
+
+
+def _missing_reason(table: PhaseCostTable, phase: str) -> str:
+    """Why a measured table holds no entry for ``phase`` - CS-1340 repair.
+
+    Args:
+        table: The table, known to carry entries.
+        phase: The selected phase.
+
+    Returns:
+        :data:`REASON_UNMAPPED_PHASE` for a phase the source withheld,
+        :data:`REASON_COST_ENTRY_UNREAD` when the source skipped an element the
+        phase's entry may be, and :data:`REASON_NO_COST_ENTRY` otherwise.
+    """
+    if phase in table.unmapped:
+        return REASON_UNMAPPED_PHASE
+    if table.skipped_count:
+        return REASON_COST_ENTRY_UNREAD
+    return REASON_NO_COST_ENTRY
 
 
 def phase_costs_available(source: PhaseCostSource) -> bool:
@@ -625,7 +741,7 @@ def phase_cost(
     else:
         lines = table.entries.get(phase)
         if lines is None:
-            reason = REASON_NO_COST_ENTRY
+            reason = _missing_reason(table, phase)
             cost = _all_null(phase, _null(reason), reason, True, delivered_available=delivered)
         elif not lines:
             reason = REASON_EMPTY_COST_ENTRY

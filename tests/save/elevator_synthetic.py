@@ -155,6 +155,24 @@ def record_reference_tag(name: str, path: str) -> bytes:
     return synthetic.property_tag(name, objects.REFERENCE_TYPE_WORD, value)
 
 
+def int_array_tag(name: str, values: tuple[int, ...]) -> bytes:
+    """A legacy ``ArrayProperty`` of ``IntProperty`` - elements that are NOT structs.
+
+    Args:
+        name: The property name.
+        values: The int32 elements, in file order.
+
+    Returns:
+        The whole tag.
+    """
+    return synthetic.property_tag(
+        name,
+        "ArrayProperty",
+        _i32(len(values)) + b"".join(_i32(value) for value in values),
+        tag_extra=synthetic.fstring("IntProperty"),
+    )
+
+
 def struct_array_tag(name: str, struct_word: str, elements: tuple[bytes, ...]) -> bytes:
     """A legacy ``ArrayProperty`` of ``StructProperty`` carrying those element tag lists.
 

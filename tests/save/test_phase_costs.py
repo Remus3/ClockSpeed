@@ -48,6 +48,19 @@ def _phase_costs(blob: bytes) -> world.PhaseCostReading | None:
     return world.load_world_from_bytes(blob).phase_costs
 
 
+def _flag_counts(model: world.WorldModel, code: str) -> list[int]:
+    """The count of every world warning carrying ``code``, in stream order.
+
+    Args:
+        model: The loaded world.
+        code: The warning code.
+
+    Returns:
+        One count per warning with that code; empty when none was raised.
+    """
+    return [warning.count for warning in model.warnings if warning.code == code]
+
+
 def _amounts(reading: world.PhaseCostReading, phase: str) -> list[tuple[str, Fraction]]:
     """One phase's lines as ``(item class, amount)`` pairs, in file order.
 
@@ -107,6 +120,9 @@ def test_a_world_without_the_array_publishes_no_table_rather_than_an_empty_one()
     assert len(present) == 1, "the control's phase manager record is missing"
     assert model.properties.by_record_index[present[0]].payload_read
     assert model.phase_costs is None
+    # NOT WRITTEN IS NOT UNREAD: the common case raises neither phase-cost flag.
+    assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == []
+    assert _flag_counts(model, world.WARN_PHASE_COST_ENTRY_SKIPPED) == []
 
 
 def test_a_world_with_no_phase_manager_publishes_no_table() -> None:
@@ -147,8 +163,10 @@ def test_two_carrier_arrays_publish_no_table_and_claim_neither() -> None:
         (es.phase_costs_tag(),),
     )
     blob = es.save_blob(manager_tags=(es.phase_costs_tag(),), extra_actors=(second,))
+    model = world.load_world_from_bytes(blob)
 
-    assert _phase_costs(blob) is None
+    assert model.phase_costs is None
+    assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == [1]
 
 
 @pytest.mark.parametrize(
@@ -191,8 +209,29 @@ def test_two_carrier_arrays_publish_no_table_and_claim_neither() -> None:
                 ),
             ),
         ),
+        # CS-1340 repair: an EGP_-prefixed token that is not an identifier is not
+        # vocabulary either. Kills the mutant that drops the identifier shape check.
+        es.tag_list(
+            es.enum_byte_tag("gamePhase", "EGamePhase", "EGP_Synth:PersistentLevel.Planted"),
+            es.struct_array_tag("cost", "ItemAmount", (es.item_amount(es.PART_A_PATH, 5),)),
+        ),
+        # CS-1340 repair: a cost line that is not a struct is not a line. The WHOLE
+        # entry is skipped and flagged; skipping only the line would publish the
+        # phase short of what it owes. Kills the line-skip mutant.
+        es.tag_list(
+            es.enum_byte_tag("gamePhase", "EGamePhase", _THIRD_PHASE),
+            es.int_array_tag("cost", (5,)),
+        ),
     ],
-    ids=["unshaped-token", "no-token", "instance-path-item", "negative-amount", "string-amount"],
+    ids=[
+        "unshaped-token",
+        "no-token",
+        "instance-path-item",
+        "negative-amount",
+        "string-amount",
+        "egp-prefixed-non-identifier-token",
+        "non-struct-cost-line",
+    ],
 )
 def test_an_unreadable_entry_is_skipped_and_counted_never_fatal(bad_entry: bytes) -> None:
     """Non-negotiable 7: unknown content is flagged and skipped, never fatal.
@@ -201,18 +240,22 @@ def test_an_unreadable_entry_is_skipped_and_counted_never_fatal(bad_entry: bytes
     published without one of its cost lines would understate what it owes, and
     nothing downstream could tell. The readable entries beside it still arrive,
     so a reader that discarded the whole array on one bad entry reddens too.
+    And it is FLAGGED (CS-1340 repair): the skip count rides on the world's
+    warning stream as :data:`~clockspeed.save.world.WARN_PHASE_COST_ENTRY_SKIPPED`.
     """
     tag = es.struct_array_tag(
         es.PHASE_COSTS_PROPERTY,
         "PhaseCost",
         (es.phase_cost(es.OWED_PHASE, ((es.PART_A_PATH, 3),)), bad_entry),
     )
-    reading = _phase_costs(es.save_blob(manager_tags=(tag,)))
+    model = world.load_world_from_bytes(es.save_blob(manager_tags=(tag,)))
+    reading = model.phase_costs
 
     assert reading is not None
     assert sorted(reading.by_phase) == [es.OWED_PHASE]
     assert _amounts(reading, es.OWED_PHASE) == [(es.PART_A, Fraction(3))]
     assert reading.skipped_count == 1
+    assert _flag_counts(model, world.WARN_PHASE_COST_ENTRY_SKIPPED) == [1]
 
 
 def test_a_phase_written_twice_is_dropped_and_counted_never_merged() -> None:
@@ -277,3 +320,61 @@ def test_the_phase_cost_reading_renders_counts_only() -> None:
         ]
         assert leaked == []
     assert repr(reading) == "PhaseCostReading(phases=2, lines=3, skipped_count=0)"
+
+
+# ---------------------------------------------------------------------------
+# CS-1340 repair - unread content is flagged, never read as a usable table
+# ---------------------------------------------------------------------------
+
+
+def test_an_array_with_no_readable_entry_publishes_no_phase_and_flags_every_skip() -> None:
+    """An array whose every element is unreadable carries its count and is flagged.
+
+    The reading holds no phase and counts both skipped elements, and the flag
+    carries the same count, so a consumer can tell "nothing readable was
+    written" from "no phase was written" - the second is the empty array above,
+    which raises no flag.
+    """
+    bad = es.tag_list(
+        es.struct_array_tag("cost", "ItemAmount", (es.item_amount(es.PART_A_PATH, 5),))
+    )
+    tag = es.struct_array_tag(es.PHASE_COSTS_PROPERTY, "PhaseCost", (bad, bad))
+    model = world.load_world_from_bytes(es.save_blob(manager_tags=(tag,)))
+    reading = model.phase_costs
+
+    assert reading is not None
+    assert dict(reading.by_phase) == {}
+    assert reading.skipped_count == _BOTH_COPIES
+    assert _flag_counts(model, world.WARN_PHASE_COST_ENTRY_SKIPPED) == [_BOTH_COPIES]
+    empty = world.load_world_from_bytes(es.save_blob(manager_tags=(es.phase_costs_tag(()),)))
+    assert _flag_counts(empty, world.WARN_PHASE_COST_ENTRY_SKIPPED) == []
+
+
+def test_an_array_that_is_not_an_array_is_flagged_unread_not_absent() -> None:
+    """The array PRESENT and unreadable as one is flagged, never read as not written.
+
+    ``mGamePhaseCosts`` carried as a scalar decodes, but not as an array, so no
+    table is published - and the flag says the table was there and unread,
+    which "the world writes no array" would deny.
+    """
+    model = world.load_world_from_bytes(
+        es.save_blob(manager_tags=(es.int_tag(es.PHASE_COSTS_PROPERTY, 5),))
+    )
+
+    assert model.phase_costs is None
+    assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == [1]
+
+
+def test_a_phase_manager_whose_payload_did_not_read_is_flagged_unread() -> None:
+    """A manager payload that did not read may hold the array, so it is not "absent".
+
+    The fixture cuts the tail off the phase-cost tag, so the manager's payload
+    does not read under the measured grammar. Whether it carried an array is
+    then unknown, and the flag says so rather than letting no table read as a
+    world that writes none.
+    """
+    cut = es.phase_costs_tag()[: -len(synthetic.DECODABLE_TRAILING_RUN) - 1]
+    model = world.load_world_from_bytes(es.save_blob(manager_tags=(cut,)))
+
+    assert model.phase_costs is None
+    assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == [1]

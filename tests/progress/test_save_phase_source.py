@@ -32,9 +32,11 @@ from __future__ import annotations
 from fractions import Fraction
 from typing import Final
 
-from clockspeed.data.schematics import CostLine
+from clockspeed.data.schematics import CostLine, normalize_schematics
 from clockspeed.progress import phases
 from clockspeed.save import world
+from tests.data.test_schematics import phase_dependency
+from tests.progress.test_milestones import KEY_DEPENDENCIES, schematic_document, schematic_entry
 from tests.progress.test_phases import (
     CONSTRUCTOR,
     COSTED_PHASE,
@@ -52,6 +54,23 @@ from tests.save import elevator_synthetic as es
 PLATE_PATH: Final = f"/Game/Synthetic/Parts/Desc_SynthPlate.{PLATE_ITEM}"
 
 
+#: The phase vocabulary the synthetic install knows: every phase these fixtures
+#: cost. The CS-1340 repair arms below pass a narrower one on purpose.
+INSTALLED: Final = frozenset({es.PAID_PHASE, es.OWED_PHASE, COSTED_PHASE})
+
+
+def _source(model: world.WorldModel) -> phases.SavePhaseCosts:
+    """The shipped save source over ``model``, against :data:`INSTALLED`.
+
+    Args:
+        model: The loaded world.
+
+    Returns:
+        The source.
+    """
+    return phases.SavePhaseCosts(model, INSTALLED)
+
+
 def _world(entries: tuple[es.PhaseEntry, ...] | None) -> world.WorldModel:
     """Load a synthetic world whose phase manager carries ``entries``, or no array.
 
@@ -67,14 +86,14 @@ def _world(entries: tuple[es.PhaseEntry, ...] | None) -> world.WorldModel:
 
 def test_phase_costs_available_reads_true_on_a_world_that_carries_the_array() -> None:
     """CS-1340 acceptance: the shipped source reads True from a real reading."""
-    source = phases.SavePhaseCosts(_world(es.DEFAULT_ENTRIES))
+    source = _source(_world(es.DEFAULT_ENTRIES))
 
     assert phases.phase_costs_available(source) is True
 
 
 def test_a_world_without_the_array_reads_false_under_a_named_reason() -> None:
     """No array, no table: every figure null under its named reason, never zero."""
-    source = phases.SavePhaseCosts(_world(None))
+    source = _source(_world(None))
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
     assert phases.phase_costs_available(source) is False
@@ -94,7 +113,7 @@ def test_the_table_carries_what_is_owed_and_drops_what_is_paid() -> None:
         (es.PAID_PHASE, ((es.PART_A_PATH, 0),)),
         (es.OWED_PHASE, ((es.PART_A_PATH, 2500), (es.PART_B_PATH, 0), (es.PART_B_PATH, 7))),
     )
-    table = phases.SavePhaseCosts(_world(entries)).phase_costs()
+    table = _source(_world(entries)).phase_costs()
 
     assert table.reason is None
     assert table.entries is not None
@@ -108,7 +127,7 @@ def test_the_table_carries_what_is_owed_and_drops_what_is_paid() -> None:
 
 def test_a_phase_paid_in_full_is_null_as_an_empty_entry_never_a_zero_figure() -> None:
     """A phase with nothing owed has nothing to build, and says so by a reason."""
-    source = phases.SavePhaseCosts(_world(((COSTED_PHASE, ((PLATE_PATH, 0),)),)))
+    source = _source(_world(((COSTED_PHASE, ((PLATE_PATH, 0),)),)))
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
     assert cost.phase_costs_available is True
@@ -124,7 +143,7 @@ def test_an_owed_phase_drives_the_hand_worked_chain_end_to_end() -> None:
     plates over two hours is 25/3 a minute, which needs 5/12 constructors and
     5/6 smelters. The save carries the amount; nothing here re-derives it.
     """
-    source = phases.SavePhaseCosts(_world(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),)))
+    source = _source(_world(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),)))
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
     assert cost.required.values is not None
@@ -167,7 +186,7 @@ def test_delivered_available_reads_true_from_the_elevator_including_a_zero_count
     count. Both are exact Fractions.
     """
     held = ((es.PART_A_PATH, HELD_UNITS), *es.EMPTY_SLOTS[1:])
-    source = phases.SavePhaseCosts(_elevator_world(es.DEFAULT_ENTRIES, held))
+    source = _source(_elevator_world(es.DEFAULT_ENTRIES, held))
     table = source.phase_costs()
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
@@ -180,7 +199,7 @@ def test_delivered_available_reads_true_from_the_elevator_including_a_zero_count
 
 def test_an_elevator_of_empty_slots_is_a_reading_of_zero_and_reads_true() -> None:
     """The measured shape - every slot empty - is zero delivered, never no reading."""
-    source = phases.SavePhaseCosts(_elevator_world(es.DEFAULT_ENTRIES, es.EMPTY_SLOTS))
+    source = _source(_elevator_world(es.DEFAULT_ENTRIES, es.EMPTY_SLOTS))
     table = source.phase_costs()
     cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
 
@@ -191,7 +210,7 @@ def test_an_elevator_of_empty_slots_is_a_reading_of_zero_and_reads_true() -> Non
 
 def test_a_world_with_no_elevator_publishes_none_and_reads_false_never_zero() -> None:
     """No reading is None - not an empty mapping, and not a zero count per item."""
-    source = phases.SavePhaseCosts(_elevator_world(es.DEFAULT_ENTRIES, None))
+    source = _source(_elevator_world(es.DEFAULT_ENTRIES, None))
     table = source.phase_costs()
     cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
 
@@ -208,7 +227,7 @@ def test_the_delivered_reading_stands_without_a_phase_cost_table() -> None:
     beside False. With no table there is no cost item to key a zero by, so
     an empty elevator is an empty reading - still present.
     """
-    source = phases.SavePhaseCosts(_elevator_world(None, es.EMPTY_SLOTS))
+    source = _source(_elevator_world(None, es.EMPTY_SLOTS))
     table = source.phase_costs()
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
@@ -222,11 +241,162 @@ def test_the_delivered_reading_stands_without_a_phase_cost_table() -> None:
 def test_a_delivered_reading_takes_nothing_off_the_required_figure() -> None:
     """The model subtracts no delivered reading: the owed amount drives the rate alone."""
     held = ((PLATE_PATH, HELD_UNITS),)
-    source = phases.SavePhaseCosts(
-        _elevator_world(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),), held)
-    )
+    source = _source(_elevator_world(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),), held))
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
     assert cost.delivered_available is True
     assert cost.required.values is not None
     assert dict(cost.required.values) == {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
+
+
+# ---------------------------------------------------------------------------
+# CS-1340 repair - unread and unmapped content is flagged, never authoritative
+# ---------------------------------------------------------------------------
+
+#: An installed phase vocabulary that names none of the fixtures' phases - the
+#: measured shape of a pre-1.0 table read against the pinned build's docs.
+FOREIGN_INSTALL: Final = frozenset({"EGP_SynthInstalledOnly"})
+
+#: How many unreadable elements the all-unreadable fixture writes.
+UNREADABLE_ELEMENTS: Final = 2
+
+
+def _null_reasons(cost: phases.PhaseCost) -> list[str | None]:
+    """The three rendered figures' reasons, in A3 key order.
+
+    Args:
+        cost: The phase cost.
+
+    Returns:
+        The machine, miner and resource reasons.
+    """
+    return [cost.machine.reason, cost.miner.reason, cost.resource.reason]
+
+
+def _all_bad_world() -> world.WorldModel:
+    """A world whose phase-cost array holds two elements and neither reads.
+
+    Returns:
+        The loaded world.
+    """
+    bad = es.tag_list(
+        es.struct_array_tag("cost", "ItemAmount", (es.item_amount(es.PART_A_PATH, 5),))
+    )
+    tag = es.struct_array_tag(es.PHASE_COSTS_PROPERTY, "PhaseCost", (bad,) * UNREADABLE_ELEMENTS)
+    return world.load_world_from_bytes(es.save_blob(manager_tags=(tag,)))
+
+
+def test_an_array_with_no_readable_entry_is_not_a_usable_table() -> None:
+    """Non-negotiable 7: nothing readable is not "a table with no entry for this phase".
+
+    Before the repair this read as available with an empty table, every phase
+    "no-cost-entry", and the skip count dropped. Now no table is published, the
+    reason names the content as unread, and the table carries the count.
+    """
+    source = _source(_all_bad_world())
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
+
+    assert phases.phase_costs_available(source) is False
+    assert table.entries is None
+    assert table.reason == phases.REASON_PHASE_COSTS_UNREAD
+    assert table.skipped_count == UNREADABLE_ELEMENTS
+    assert _null_reasons(cost) == [phases.REASON_PHASE_COSTS_UNREAD] * 3
+
+
+def test_a_phase_missing_beside_a_skipped_entry_is_unread_not_absent() -> None:
+    """A phase the table lacks while an entry was skipped may BE the skipped one.
+
+    The readable phase still costs; the missing one says its entry may be the
+    unread one, and the table carries the skip count, never dropped.
+    """
+    bad = es.tag_list(
+        es.enum_byte_tag("gamePhase", "EGamePhase", es.PAID_PHASE),
+        es.int_array_tag("cost", (5,)),
+    )
+    tag = es.struct_array_tag(
+        es.PHASE_COSTS_PROPERTY,
+        "PhaseCost",
+        (es.phase_cost(es.OWED_PHASE, ((es.PART_A_PATH, 3),)), bad),
+    )
+    source = _source(world.load_world_from_bytes(es.save_blob(manager_tags=(tag,))))
+    table = source.phase_costs()
+    missing = phases.phase_cost(source, synthetic_registry(), es.PAID_PHASE, selection())
+
+    assert table.entries is not None
+    assert sorted(table.entries) == [es.OWED_PHASE]
+    assert table.skipped_count == 1
+    assert _null_reasons(missing) == [phases.REASON_COST_ENTRY_UNREAD] * 3
+    assert missing.phase_costs_available is True
+
+
+def test_an_array_present_but_unreadable_as_one_reads_unread_not_unwritten() -> None:
+    """The save layer's unread flag reaches the reason; "no table" is kept for no array."""
+    garbled = world.load_world_from_bytes(
+        es.save_blob(manager_tags=(es.int_tag(es.PHASE_COSTS_PROPERTY, 5),))
+    )
+    unwritten = world.load_world_from_bytes(es.save_blob(manager_tags=()))
+
+    assert _source(garbled).phase_costs().reason == phases.REASON_PHASE_COSTS_UNREAD
+    assert _source(unwritten).phase_costs().reason == phases.REASON_NO_PHASE_COST_TABLE
+
+
+def test_a_table_naming_no_installed_phase_is_not_authoritative() -> None:
+    """A pre-1.0 table read against an install that knows none of its phases.
+
+    The measured case: a save carrying ``EGP_`` phases the pinned build's docs
+    do not name. No table is presented, every phase is null under the unmapped
+    reason, and the table names which phases were withheld - never silently
+    treated as the current phases, and never mapped onto them.
+    """
+    source = phases.SavePhaseCosts(_world(es.DEFAULT_ENTRIES), FOREIGN_INSTALL)
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
+
+    assert phases.phase_costs_available(source) is False
+    assert table.entries is None
+    assert table.reason == phases.REASON_UNMAPPED_PHASE
+    assert table.unmapped == frozenset({es.PAID_PHASE, es.OWED_PHASE})
+    assert _null_reasons(cost) == [phases.REASON_UNMAPPED_PHASE] * 3
+
+
+def test_an_unmapped_phase_beside_a_mapped_one_is_withheld_and_named() -> None:
+    """Only the phases the install knows are presented; the others are flagged by name."""
+    source = phases.SavePhaseCosts(_world(es.DEFAULT_ENTRIES), frozenset({es.OWED_PHASE}))
+    table = source.phase_costs()
+    withheld = phases.phase_cost(source, synthetic_registry(), es.PAID_PHASE, selection())
+
+    assert table.entries is not None
+    assert sorted(table.entries) == [es.OWED_PHASE]
+    assert table.unmapped == frozenset({es.PAID_PHASE})
+    assert _null_reasons(withheld) == [phases.REASON_UNMAPPED_PHASE] * 3
+
+
+def test_a_part_the_install_does_not_know_is_null_under_its_own_reason() -> None:
+    """A mapped phase owing an item the registry lacks is null, never solved without it."""
+    source = _source(_world(((COSTED_PHASE, ((es.PART_A_PATH, 9),)),)))
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert _null_reasons(cost) == [phases.REASON_UNRESOLVED_COST_ITEM] * 3
+    assert cost.machine.detail == es.PART_A
+
+
+def test_the_installed_phases_are_the_catalog_phase_dependency_tokens() -> None:
+    """The vocabulary a source checks against is read off the installed schematics.
+
+    One synthetic schematic gates on a phase and one gates on none, so the
+    vocabulary is exactly the one token - never a token invented here.
+    """
+    catalog = normalize_schematics(
+        schematic_document(
+            [
+                schematic_entry(
+                    "Schematic_SynthPhaseGated_C",
+                    **{KEY_DEPENDENCIES: [phase_dependency(COSTED_PHASE)]},
+                ),
+                schematic_entry("Schematic_SynthUngated_C"),
+            ]
+        )
+    )
+
+    assert phases.installed_phases(catalog) == frozenset({COSTED_PHASE})

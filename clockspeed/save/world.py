@@ -460,6 +460,8 @@ __all__ = [
     "WARN_NODE_SEMANTICS_UNAVAILABLE",
     "WARN_NODE_TRANSFORM_ABSENT",
     "WARN_NO_PROPERTY_MAP",
+    "WARN_PHASE_COSTS_UNREAD",
+    "WARN_PHASE_COST_ENTRY_SKIPPED",
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ContainerContents",
     "ContainerEntry",
@@ -601,6 +603,13 @@ WARN_NO_PROPERTY_MAP: Final = "no-property-map"
 WARN_UNLOCK_GRAMMAR_UNMEASURED: Final = "unlock-grammar-unmeasured"
 WARN_NODE_SEMANTICS_UNAVAILABLE: Final = "node-semantics-unavailable"
 WARN_NODE_TRANSFORM_ABSENT: Final = "node-transform-absent"
+#: CS-1340 repair: elements of ``mGamePhaseCosts`` that did not read and were
+#: skipped. The COUNT is the number skipped - see :func:`_read_phase_costs`.
+WARN_PHASE_COST_ENTRY_SKIPPED: Final = "phase-cost-entry-skipped"
+#: CS-1340 repair: a phase manager may hold ``mGamePhaseCosts`` and no table
+#: was read from it - the array is not an array, two records carry it, or a
+#: manager's payload did not read. Unread content, never "no array written".
+WARN_PHASE_COSTS_UNREAD: Final = "phase-costs-unread"
 
 #: A newer save was refused by the reader and skipped - :func:`load_newest_world`.
 #: The SUBJECT is WHY, never WHICH: the refusing stage and the cause type, both
@@ -664,6 +673,16 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             " skipped rather than published with invented coordinates; the node list is"
             " short by this many, and this reader does not recover their placement from"
             " the parent path such a record carries"
+        ),
+        WARN_PHASE_COST_ENTRY_SKIPPED: (
+            "this many elements of the phase-cost array did not read under the measured"
+            " grammar and were skipped whole; a phase missing from the published table may"
+            " be one of them, so its absence is not evidence that nothing is owed"
+        ),
+        WARN_PHASE_COSTS_UNREAD: (
+            "the phase manager may hold a phase-cost array and no table was read from it,"
+            " because the array is not an array, more than one record carries it, or a manager"
+            " payload did not read; this is unread content, not a world that writes none"
         ),
     }
 )
@@ -964,7 +983,14 @@ class PhaseCostReading:
     PRESENT ONLY WHEN THE ARRAY WAS READ. :attr:`WorldModel.phase_costs` is
     None for a world that writes no array, for a world with two carriers of it
     (ambiguous, so neither is claimed) and for one whose array did not decode
-    as a container; a reading here is never the stand-in for any of those.
+    as a container; a reading here is never the stand-in for any of those, and
+    each of those but the first raises ``WARN_PHASE_COSTS_UNREAD``.
+
+    A READING THAT HOLDS NO PHASE AND COUNTS SKIPS IS NOT A TABLE (CS-1340
+    repair). Every element of the array was unreadable: ``by_phase`` is empty,
+    ``skipped_count`` says how many, and ``WARN_PHASE_COST_ENTRY_SKIPPED``
+    carries the same count. Only an EMPTY array - no element at all - is a
+    reading of no phase.
 
     Attributes:
         by_phase: Phase token - the save's ``EGamePhase`` member, an ``EGP_``
@@ -2277,37 +2303,51 @@ def _phase_cost_entry(value: object) -> tuple[str, tuple[PhaseCostLine, ...]] | 
     return token, lines
 
 
-def _read_phase_costs(table: ObjectTable, properties: WorldProperties) -> PhaseCostReading | None:
+def _read_phase_costs(
+    table: ObjectTable, properties: WorldProperties
+) -> tuple[PhaseCostReading | None, list[WorldWarning]]:
     """Publish ``mGamePhaseCosts`` as an exact table - CS-1340.
 
     IT READS NO BYTES OF ITS OWN, on the terms :func:`_read_unlocks` states.
 
-    NO ARRAY IS NO TABLE. A world that writes none returns None, never an
-    empty reading - which is the shape of every 1.0-native save ADR 0016
-    measured, so this is the common case, not an edge. Two carriers of it are
-    ambiguous and return None too: merging them or picking one would publish
-    a table no save wrote.
+    NO ARRAY IS NO TABLE, AND RAISES NO FLAG. A world that writes none returns
+    None, never an empty reading - which is the shape of every 1.0-native save
+    ADR 0016 measured, so this is the common case, not an edge.
+
+    UNREAD IS NOT UNWRITTEN (CS-1340 repair, non-negotiable 7). An array that
+    is present and not an array, two records carrying it (merging or picking
+    would publish a table no save wrote), or a phase manager whose payload did
+    not read - so whether it held the array is unknown - each return None AND
+    raise :data:`WARN_PHASE_COSTS_UNREAD`. Every element skipped is counted on
+    the reading AND raised as :data:`WARN_PHASE_COST_ENTRY_SKIPPED` carrying
+    that count, including the case where no element read at all: the reading
+    then holds no phase and says how many it skipped, and a consumer must not
+    take it for a table.
 
     Args:
         table: The walked record table, for each record's class path.
         properties: The decoded payloads, keyed by index into ``table.records``.
 
     Returns:
-        The reading, or None when there is no single readable array.
+        The reading, or None when there is no single readable array, and the
+        flags raised getting there.
     """
     carrier, name = PHASE_COST_CARRIER
-    arrays = [
-        entry.values[name]
+    entries = [
+        properties.by_record_index.get(index)
         for index, record in enumerate(table.records)
         if class_name_of(record.type_path) == carrier
-        and (entry := properties.by_record_index.get(index)) is not None
-        and name in entry.values
     ]
-    if len(arrays) != 1 or not isinstance(arrays[0], ContainerContents):
-        return None
+    holding = [entry for entry in entries if entry is not None and name in entry.values]
+    unread = any(entry is None or not entry.payload_read for entry in entries)
+    if not holding and not unread:
+        return None, []
+    array = holding[0].values[name] if len(holding) == 1 else None
+    if unread or not isinstance(array, ContainerContents):
+        return None, [_warning(SOURCE_WORLD, WARN_PHASE_COSTS_UNREAD)]
     read: list[tuple[str, tuple[PhaseCostLine, ...]]] = []
     skipped = 0
-    for element in arrays[0].entries:
+    for element in array.entries:
         entry_read = _phase_cost_entry(element.value)
         if entry_read is None:
             skipped += 1
@@ -2319,10 +2359,12 @@ def _read_phase_costs(table: ObjectTable, properties: WorldProperties) -> PhaseC
     # A PHASE WRITTEN TWICE IS AMBIGUOUS: neither copy is published, both count.
     skipped += sum(count for count in written.values() if count > 1)
     kept = {token: lines for token, lines in read if written[token] == 1}
-    return PhaseCostReading(
+    reading = PhaseCostReading(
         by_phase=MappingProxyType({token: kept[token] for token in sorted(kept)}),
         skipped_count=skipped,
     )
+    flags = [_warning(SOURCE_WORLD, WARN_PHASE_COST_ENTRY_SKIPPED, skipped)] if skipped else []
+    return reading, flags
 
 
 #: THE SPACE ELEVATOR'S INPUT INVENTORY CARRIER - CS-1348. The elevator's
@@ -2974,6 +3016,8 @@ def load_world_from_bytes(
         if nodes:
             warnings.append(_warning(SOURCE_WORLD, WARN_NODE_SEMANTICS_UNAVAILABLE, len(nodes)))
         warnings.extend(node_warnings)
+        phase_costs, phase_cost_warnings = _read_phase_costs(table, properties)
+        warnings.extend(phase_cost_warnings)
 
         return WorldModel(
             token=parsed.world_token,
@@ -2984,7 +3028,7 @@ def load_world_from_bytes(
             warnings=(*_carried(parsed, body, mapping, table), *warnings),
             properties=properties,
             parents=_parent_targets(table),
-            phase_costs=_read_phase_costs(table, properties),
+            phase_costs=phase_costs,
             elevator_input=_read_elevator_input(table, properties),
         )
     except BaseException:

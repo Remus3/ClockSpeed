@@ -310,7 +310,7 @@ def no_table_source() -> phases.SavePhaseCosts:
         The source.
     """
     blob = elevator_synthetic.save_blob(manager_tags=())
-    return phases.SavePhaseCosts(world.load_world_from_bytes(blob))
+    return phases.SavePhaseCosts(world.load_world_from_bytes(blob), frozenset({COSTED_PHASE}))
 
 
 def test_the_shipped_source_publishes_every_phase_null_as_unmeasured() -> None:
