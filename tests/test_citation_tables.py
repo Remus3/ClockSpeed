@@ -988,6 +988,16 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1330 cited it live; CS-1342 moved QUEUE_STOP out and renamed it. Not a record defect.",
         ("bb6c962df2e7:845235b12002:0",),
     ),
+    # --- the record was RIGHT when written; CS-1344 RENAMED the arm. MAIN's FIX of
+    # 2026-10-21 removed the keep-the-newest-failed-run retention the CS-1319
+    # closure cited it for, so the arm now grades that every failed run is
+    # reclaimed - the newest included - and its name says so.
+    (LEDGER, "test_only_the_newest_failed_run_is_kept"): Disposition(
+        RENAMED,
+        "tests/test_own_temp_root.py::test_every_failed_run_older_code_kept_is_reclaimed_at_once",
+        "CS-1319 cited it live; CS-1344 removed the retention and renamed it. Not a record defect.",
+        ("d964b6da9d1e:f9e82b15d005:0",),
+    ),
 }
 
 
@@ -1343,7 +1353,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: arm was renamed for the two it now holds. Right-when-written and dead now, in
 #: an append-only carrier, with a live target - the two rows in DISPOSITIONS
 #: are RENAMED and checked in all three directions every run.
-FORGIVEN_LINE_POINTER_CEILING: Final = 72
+#:
+#: RAISED TO 73 BY CS-1344, FOR A RENAME. The CS-1319 closure cites the
+#: keep-the-newest-failed-run arm by its bare name; MAIN's FIX of 2026-10-21
+#: removed that retention, and the arm was renamed for what it now grades -
+#: every failed run reclaimed, the newest included. Right-when-written and dead
+#: now, in an append-only carrier, with a live target - the row in DISPOSITIONS
+#: is RENAMED, pinned by its one site and checked in all three directions.
+FORGIVEN_LINE_POINTER_CEILING: Final = 73
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
