@@ -75,6 +75,17 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-23 - CS-1345 - CLOSED: the push identity step for an outsider's fork is written once in docs/OPERATIONS.md section 1.3
+Verification: `docs/OPERATIONS.md` section 1.3, pointed at from `README.md`,
+`.github/CONTRIBUTING.md` and `docs/OPERATIONS.md` section 1; re-derived by a distinct verifier's
+scratch-fork repro against `ops/fleet_kit/fleet_identity.py` and `.githooks/commit-msg` (message
+rule, fetch-first, Update-branch route, new-branch route) and the doc guard tests;
+`tools/drift_guard.py` exit 0. Two adversary passes refuted earlier candidates (the existing-branch
+workaround; three wording points); both repaired. Residual: the kit also matches indented
+attribution lines, which the text's word "trailer" does not cover; the existing-branch refusal of
+already-published foreign commits is a kit defect reported to MAIN by FIX note sha256
+b3bdf3e54374a5b3293bec54ebbb0963c2a40fdc92924d3deb1c7b95903c22b4.
+
 ### 2026-10-23 - CS-1328 - CLOSED: every done criterion of the PUBREPO ORDER re-derived by a distinct verifier
 Verification: `tests/test_readme_audit.py::test_no_absolute_checkout_path_in_any_tracked_text_file`
 and `::test_no_drive_rooted_sidecar_path_in_any_tracked_file`; `tests/test_census_axis.py`

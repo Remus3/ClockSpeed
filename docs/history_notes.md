@@ -24,6 +24,31 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1345 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-23 on its close
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1345
+
+### Acceptance
+
+An outsider who follows the `README.md` Quickstart in a fresh clone of a fork of the public repository, with every hook installed, can commit and push to that fork: the step that sets local git config `fleet.operatorIdent`, without which `ops/fleet_kit/fleet_identity.py::pre_push` refuses every push, is written in its one owner file and pointed at, not restated, from `README.md`, `.github/CONTRIBUTING.md` and `docs/OPERATIONS.md` wherever they need it; and if the kit itself must change for an outsider to push, the change goes to MAIN as a kit report and no file under `ops/fleet_kit/` is edited here
+
+### Filed 2026-10-21 (session 150) from the CS-1338 outsider read
+
+**THE GAP.** In a fresh clone the pre-push hook refuses every push until local git config
+`fleet.operatorIdent` is set: `ops/fleet_kit/fleet_identity.py::pre_push` reads
+`ops/fleet_kit/fleet_identity.py::operator_idents` from the clone's LOCAL config and, finding
+none, refuses through `ops/fleet_kit/fleet_identity.py::_no_operator`, whose message names the key
+and the fix. A fresh clone never carries the key. `README.md`, `.github/CONTRIBUTING.md` and
+`docs/OPERATIONS.md` never mention it, so an outsider following the Quickstart can commit -
+`ops/fleet_kit/fleet_identity.py::commit_msg` strips and always returns 0 - but cannot push.
+
+**THE KIT IS VENDORED** (FLEET item 11), so the fix in this tree is a written step; what value an
+outsider sets, and whether a fork should need the key at all, is the kit's to say, through MAIN.
+Filed in Phase 7 because it is the public repository's outsider path, beside CS-1334's walk.
+
 ## CS-1328 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-23 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
