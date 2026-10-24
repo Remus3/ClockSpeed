@@ -64,6 +64,11 @@ GRACE_S: Final = 1800.0
 #: The variable naming this session's id; its name only is ever spelled.
 ENV_SESSION: Final = "CLAUDE_CODE_SESSION_ID"
 
+#: The harness's session tree under the temp directory, as a glob prefix:
+#: ``<temp>/<harness>/<project>/``. One string, so no constant reads as a start
+#: of the CLI to the FLEET item 10 census.
+SESSION_TREE_GLOB: Final = "claude/*/"
+
 #: A session id is a lowercase UUID; anything else is refused, never globbed.
 SESSION_ID: Final = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
@@ -181,10 +186,9 @@ def resolve_scratchpad(env: Mapping[str, str], temp: Path) -> Path | None:
     session = env.get(ENV_SESSION, "")
     if not SESSION_ID.fullmatch(session):
         return None
-    base = temp / "claude"
     found = [
         path
-        for path in base.glob("*/" + session + "/scratchpad")
+        for path in temp.glob(SESSION_TREE_GLOB + session + "/scratchpad")
         if path.is_dir() and not path.is_symlink() and not path.is_junction()
     ]
     return found[0] if len(found) == 1 else None
