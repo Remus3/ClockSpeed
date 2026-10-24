@@ -351,6 +351,7 @@ def save_blob(
     elevators: int = 1,
     input_target: str = INPUT_INSTANCE,
     inventory_tags: tuple[bytes, ...] | None = None,
+    input_references: int = 1,
 ) -> bytes:
     """A save holding a phase manager, optional other actors and an optional elevator.
 
@@ -364,6 +365,8 @@ def save_blob(
             reference names.
         inventory_tags: The input inventory component's tags, replacing the
             ``mInventoryStacks`` tag ``slots`` builds; None keeps that tag.
+        input_references: How many ``mInputInventory`` tags each elevator
+            writes - more than one is a repeated key.
 
     Returns:
         The save bytes.
@@ -384,7 +387,8 @@ def save_blob(
             actors.append(synthetic.SyntheticObject(ELEVATOR_CLASS, ROOT, instance))
             payloads.append(
                 _actor_payload(
-                    (record_reference_tag(INPUT_PROPERTY, input_target),), (INPUT_INSTANCE,)
+                    (record_reference_tag(INPUT_PROPERTY, input_target),) * input_references,
+                    (INPUT_INSTANCE,),
                 )
             )
         components.append(

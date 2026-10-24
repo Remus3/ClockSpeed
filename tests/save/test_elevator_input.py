@@ -149,6 +149,8 @@ def test_an_input_reference_that_lands_on_no_record_publishes_no_reading() -> No
         (es.PART_A_PATH, -1),
         ("/Game/Synthetic:PersistentLevel.Desc_SynthPartA_C", 2),
         (_MOD_PATH, -1),
+        ("/Game/Synthetic/Desc_SynthPartA.", 2),
+        ("/Game/Synthetic/Desc_SynthPartA", 2),
     ],
     ids=[
         "class-at-zero",
@@ -157,6 +159,8 @@ def test_an_input_reference_that_lands_on_no_record_publishes_no_reading() -> No
         "negative-count",
         "game-rooted-instance-path-item",
         "negative-count-on-an-unknown-item",
+        "item-path-with-empty-asset-name",
+        "item-path-with-no-asset-segment",
     ],
 )
 def test_one_malformed_stack_withholds_the_whole_reading(bad_slot: tuple[str, int]) -> None:

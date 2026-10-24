@@ -390,6 +390,7 @@ tests/save/test_reach_guard.py	authored	CS-491	first-add:CS-491
 tests/save/test_reference_list.py	authored	CS-828	first-add:CS-828
 tests/save/test_reference_pair.py	authored	CS-828	first-add:CS-828
 tests/save/test_reference_resolution.py	authored	CS-831	first-add:CS-831
+tests/save/test_repeated_keys.py	authored	CS-1340	stamped
 tests/save/test_scan_slot_zero.py	authored	CS-1097	first-add:CS-1097
 tests/save/test_struct_controls.py	authored	CS-1165	first-add:root
 tests/save/test_struct_interior.py	authored	CS-829	first-add:CS-829

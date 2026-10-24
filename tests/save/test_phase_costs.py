@@ -233,6 +233,31 @@ def test_two_carrier_arrays_publish_no_table_and_claim_neither() -> None:
                 (es.item_amount("/Game/Synthetic:PersistentLevel.Desc_SynthPartA_C", 5),),
             ),
         ),
+        # CS-1340 round 5: an EMPTY cost array of non-structs is not an empty
+        # struct array - it is unreadable, and must not read as paid in full.
+        es.tag_list(
+            es.enum_byte_tag("gamePhase", "EGamePhase", _THIRD_PHASE),
+            es.int_array_tag("cost", ()),
+        ),
+        # CS-1340 round 5: an EMPTY struct cost array is withheld and flagged. A
+        # phase that costs nothing is a claim the save cannot tell from a lost
+        # array, and every measured entry lists its items, even at zero.
+        es.phase_cost(_THIRD_PHASE, ()),
+        # CS-1340 round 5: an item path whose final segment is empty names no asset.
+        es.phase_cost(_THIRD_PHASE, (("/Game/Synthetic/Desc_SynthPartA.", 5),)),
+        # CS-1340 round 5: a SET of item structs decodes element by element and is
+        # still not the measured array, so it is not read as one.
+        es.tag_list(
+            es.enum_byte_tag("gamePhase", "EGamePhase", _THIRD_PHASE),
+            synthetic.property_tag(
+                "cost",
+                "SetProperty",
+                (0).to_bytes(4, "little")
+                + (1).to_bytes(4, "little")
+                + es.item_amount(es.PART_A_PATH, 5),
+                tag_extra=synthetic.fstring("StructProperty"),
+            ),
+        ),
     ],
     ids=[
         "unshaped-token",
@@ -243,6 +268,10 @@ def test_two_carrier_arrays_publish_no_table_and_claim_neither() -> None:
         "egp-prefixed-non-identifier-token",
         "non-struct-cost-line",
         "game-rooted-instance-path-item",
+        "empty-non-struct-cost",
+        "empty-struct-cost",
+        "item-path-with-no-asset-name",
+        "cost-in-a-set-of-structs",
     ],
 )
 def test_an_unreadable_entry_is_skipped_and_counted_never_fatal(bad_entry: bytes) -> None:

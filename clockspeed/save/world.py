@@ -470,6 +470,8 @@ __all__ = [
     "WARN_PAID_OFF_UNREAD",
     "WARN_PHASE_COSTS_UNREAD",
     "WARN_PHASE_COST_ENTRY_SKIPPED",
+    "WARN_REPEATED_KEY",
+    "WARN_TARGET_PHASE_UNREAD",
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ContainerContents",
     "ContainerEntry",
@@ -638,6 +640,14 @@ WARN_PAID_OFF_ELEMENT_SKIPPED: Final = "phase-paid-off-element-skipped"
 #: CS-1348 amended: the paid-off array was read and no target phase was - its
 #: elements name no phase of their own, so they belong to none.
 WARN_PAID_OFF_TARGET_UNREAD: Final = "phase-paid-off-target-unread"
+#: CS-1340, CS-1348 round 5 - THE REPEATED-KEY RULE. A carrier property or keyed
+#: element written more than once: every copy is withheld and this is raised
+#: once, its SUBJECT the carrier property's name and its COUNT the copies.
+WARN_REPEATED_KEY: Final = "carrier-key-repeated"
+#: CS-1348 round 5: ``mTargetGamePhase`` is there and names no shipped asset -
+#: a record path, a path outside the shipped root, or one with no asset name -
+#: or more than one phase manager names a target. Never silent.
+WARN_TARGET_PHASE_UNREAD: Final = "target-phase-unread"
 
 #: A newer save was refused by the reader and skipped - :func:`load_newest_world`.
 #: The SUBJECT is WHY, never WHICH: the refusing stage and the cause type, both
@@ -731,6 +741,16 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_PAID_OFF_TARGET_UNREAD: (
             "the target phase's paid-off costs were read and no target phase was, so they"
             " were not published; their elements name no phase of their own"
+        ),
+        WARN_REPEATED_KEY: (
+            "a carrier property or keyed element was written more than once, so every"
+            " copy was withheld rather than one taken; the subject names the carrier and"
+            " the count how many copies"
+        ),
+        WARN_TARGET_PHASE_UNREAD: (
+            "the target phase is named and was not read, because its path does not name a"
+            " shipped asset or more than one phase manager names one; this is unread"
+            " content, not a world with no target phase"
         ),
         WARN_PHASE_COSTS_UNREAD: (
             "the phase manager may hold a phase-cost array and no table was read from it,"
@@ -2343,6 +2363,83 @@ def _phase_token(value: object) -> str | None:
     return value
 
 
+def _repeats(keys: Iterable[str]) -> dict[str, int]:
+    """THE REPEATED-KEY RULE'S ONE HELPER - every key seen more than once, with its copies.
+
+    CS-1340, CS-1348 round 5. Every carrier and keyed element this module
+    reads goes through here, and a key it returns is never published - not
+    the last copy, not the first - and raises :data:`WARN_REPEATED_KEY` with
+    :func:`_repeated_flag`.
+
+    Args:
+        keys: The keys, in the order the save wrote them.
+
+    Returns:
+        Each repeated key to how many times it was written.
+    """
+    counts: dict[str, int] = {}
+    for key in keys:
+        counts[key] = counts.get(key, 0) + 1
+    return {key: count for key, count in counts.items() if count > 1}
+
+
+def _repeated_flag(carrier: str, copies: int) -> WorldWarning:
+    """The repeated-key flag, naming the carrier property and counting the copies.
+
+    Args:
+        carrier: The carrier property's name - a module constant, never a value
+            read out of a save.
+        copies: How many copies were withheld.
+
+    Returns:
+        The warning.
+    """
+    return WorldWarning(
+        source=SOURCE_WORLD,
+        code=WARN_REPEATED_KEY,
+        detail=_WARNING_DETAIL[WARN_REPEATED_KEY],
+        subject=carrier,
+        count=copies,
+    )
+
+
+def _shipped_asset_name(path: str) -> str | None:
+    """The asset name a shipped object path names, or None - CS-1348 round 5.
+
+    THE ONE PARSE every item and target path goes through. The path must sit
+    under the shipped root, carry no level separator - which would make it a
+    record, not an asset - and END in a non-empty identifier after its last
+    ``.``: ``/Game/GP_X.`` names nothing, and ``/Game/GP_X`` names no object.
+
+    NO SEPARATE "HAS A DOT" TEST, PROVEN RATHER THAN OMITTED. With no ``.``,
+    :func:`class_name_of` returns the whole path, which starts with the ``/`` of
+    the shipped root and so is never an identifier - the identifier test
+    already refuses it, and a second test could change no outcome.
+
+    Args:
+        path: The object path half of a reference.
+
+    Returns:
+        The final segment, or None.
+    """
+    if not path.startswith(_ITEM_ASSET_ROOT) or _INSTANCE_SEPARATOR in path:
+        return None
+    name = class_name_of(path)
+    return name if name.isidentifier() else None
+
+
+def _line_item(line: PhaseCostLine) -> str:
+    """A line's item ClassName - the sort key every published item mapping is keyed in.
+
+    Args:
+        line: One line.
+
+    Returns:
+        Its item ClassName.
+    """
+    return line.item_class
+
+
 def _item_class(value: object) -> str | None:
     """The ClassName of one ``ItemClass`` reference, admitted only for a shipped asset.
 
@@ -2355,12 +2452,9 @@ def _item_class(value: object) -> str | None:
     if not isinstance(value, tuple) or len(value) != _REFERENCE_PARTS:
         return None
     path = value[1]
-    if not isinstance(path, str) or not path.startswith(_ITEM_ASSET_ROOT):
+    if not isinstance(path, str):
         return None
-    if _INSTANCE_SEPARATOR in path:
-        return None
-    name = class_name_of(path)
-    return name or None
+    return _shipped_asset_name(path)
 
 
 def _phase_cost_lines(value: object) -> tuple[PhaseCostLine, ...] | None:
@@ -2376,7 +2470,10 @@ def _phase_cost_lines(value: object) -> tuple[PhaseCostLine, ...] | None:
     Returns:
         The lines in file order, or None.
     """
-    if not isinstance(value, ContainerContents):
+    # CS-1340 round 5: a non-struct array is unreadable, and an EMPTY one is
+    # withheld - a phase costing nothing is a claim the save cannot tell from a
+    # lost array, and every measured entry lists its items, even at zero.
+    if not _is_struct_array(value) or not value.entries:
         return None
     lines: list[PhaseCostLine] = []
     for entry in value.entries:
@@ -2410,24 +2507,28 @@ def _item_amount(value: object) -> PhaseCostLine | None:
     return PhaseCostLine(item_class=item, amount=Fraction(amount))
 
 
-def _phase_cost_entry(value: object) -> tuple[str, tuple[PhaseCostLine, ...]] | None:
-    """One ``PhaseCost`` element as a token and its lines, or None.
+def _phase_cost_entry(
+    value: object,
+) -> tuple[str | None, tuple[PhaseCostLine, ...] | None]:
+    """One ``PhaseCost`` element as its token and its lines, each None when unread.
+
+    THE TOKEN IS RETURNED EVEN WHEN THE LINES DO NOT READ (round 5), so an
+    element whose cost is unreadable still counts as a copy of its phase under
+    the repeated-key rule: a readable copy beside an unreadable one is not taken.
 
     Args:
         value: One array element's decoded value, of any shape.
 
     Returns:
-        The token and its lines, or None when either does not read.
+        The token, or None when it does not read; and the lines, or None when
+        they do not read or the token did not.
     """
     if not isinstance(value, StructValue):
-        return None
+        return None, None
     token = _phase_token(value.properties.get(_PHASE_ENTRY_NAME))
     if token is None:
-        return None
-    lines = _phase_cost_lines(value.properties.get(_PHASE_LINES_NAME))
-    if lines is None:
-        return None
-    return token, lines
+        return None, None
+    return token, _phase_cost_lines(value.properties.get(_PHASE_LINES_NAME))
 
 
 def _read_phase_costs(
@@ -2475,25 +2576,25 @@ def _read_phase_costs(
     array = holding[0].values[name] if len(holding) == 1 else None
     if unread or not _is_struct_array(array):
         return None, [_warning(SOURCE_WORLD, WARN_PHASE_COSTS_UNREAD)]
-    read: list[tuple[str, tuple[PhaseCostLine, ...]]] = []
-    skipped = 0
-    for element in array.entries:
-        entry_read = _phase_cost_entry(element.value)
-        if entry_read is None:
-            skipped += 1
-        else:
-            read.append(entry_read)
-    written: dict[str, int] = {}
-    for token, _lines in read:
-        written[token] = written.get(token, 0) + 1
-    # A PHASE WRITTEN TWICE IS AMBIGUOUS: neither copy is published, both count.
-    skipped += sum(count for count in written.values() if count > 1)
-    kept = {token: lines for token, lines in read if written[token] == 1}
+    parsed = [_phase_cost_entry(element.value) for element in array.entries]
+    unreadable = sum(1 for token, lines in parsed if token is None or lines is None)
+    # THE REPEATED-KEY RULE: a phase written twice publishes neither copy, even
+    # when only one of them read.
+    repeated = _repeats(token for token, _lines in parsed if token is not None)
+    kept = {
+        token: lines
+        for token, lines in parsed
+        if token is not None and lines is not None and token not in repeated
+    }
     reading = PhaseCostReading(
         by_phase=MappingProxyType({token: kept[token] for token in sorted(kept)}),
-        skipped_count=skipped,
+        skipped_count=len(parsed) - len(kept),
     )
-    flags = [_warning(SOURCE_WORLD, WARN_PHASE_COST_ENTRY_SKIPPED, skipped)] if skipped else []
+    flags = (
+        [_warning(SOURCE_WORLD, WARN_PHASE_COST_ENTRY_SKIPPED, unreadable)] if unreadable else []
+    )
+    if repeated:
+        flags.append(_repeated_flag(name, sum(repeated.values())))
     return reading, flags
 
 
@@ -2566,13 +2667,13 @@ def _stack_holding(value: object) -> tuple[str | None, int] | None:
         return None
     if not path.startswith(_ITEM_ASSET_ROOT):
         return (None, count)
-    name = class_name_of(path)
+    name = _shipped_asset_name(path)
     return (name, count) if name else None
 
 
 def _elevator_input_entry(
     elevators: list[int], properties: WorldProperties
-) -> RecordProperties | None:
+) -> tuple[RecordProperties | None, list[WorldWarning]]:
     """The input inventory component's published entry, followed by the join.
 
     NO ``payload_read`` TEST, AND THAT IS PROVEN RATHER THAN OMITTED (CS-1348
@@ -2589,20 +2690,24 @@ def _elevator_input_entry(
 
     Returns:
         The component's entry, or None unless there is exactly one elevator
-        carrying exactly one input reference that resolves to one record.
+        carrying exactly one input reference that resolves to one record; and
+        the repeated-key flag when the elevator writes that reference twice.
     """
     _carrier, name = ELEVATOR_INPUT_CARRIER
     entry = properties.by_record_index.get(elevators[0]) if len(elevators) == 1 else None
     if entry is None:
-        return None
+        return None, []
     targets = [
         target
         for reference, target in zip(entry.references, entry.reference_targets, strict=False)
         if reference.property_name == name
     ]
+    repeated = _repeats(name for _target in targets)
+    if repeated:
+        return None, [_repeated_flag(name, repeated[name])]
     if len(targets) != 1 or (landed := targets[0].record_index) is None:
-        return None
-    return properties.by_record_index.get(landed)
+        return None, []
+    return properties.by_record_index.get(landed), []
 
 
 def _read_elevator_input(
@@ -2635,8 +2740,8 @@ def _read_elevator_input(
     ]
     if not elevators:
         return None, []
-    unread = [_warning(SOURCE_WORLD, WARN_ELEVATOR_INPUT_UNREAD)]
-    inventory = _elevator_input_entry(elevators, properties)
+    inventory, entry_flags = _elevator_input_entry(elevators, properties)
+    unread = [*entry_flags, _warning(SOURCE_WORLD, WARN_ELEVATOR_INPUT_UNREAD)]
     stacks = None if inventory is None else inventory.values.get(_STACKS_NAME)
     if not _is_struct_array(stacks):
         return None, unread
@@ -2667,24 +2772,28 @@ TARGET_PHASE_CARRIER: Final = ("BP_GamePhaseManager_C", "mTargetGamePhase")
 PAID_OFF_CARRIER: Final = ("BP_GamePhaseManager_C", "mTargetGamePhasePaidOffCosts")
 
 
-def _target_of(entry: RecordProperties) -> str | None:
-    """The shipped asset path a manager's ``mTargetGamePhase`` names, or None.
+def _target_of(entry: RecordProperties) -> tuple[str | None, list[WorldWarning]]:
+    """The shipped asset path a manager's ``mTargetGamePhase`` names, and its flags.
 
     Args:
         entry: One phase manager's published properties.
 
     Returns:
-        The path when exactly one tag names a shipped asset - ``/Game/`` and no
-        level separator - and None otherwise.
+        The path when exactly one tag names a shipped asset by
+        :func:`_shipped_asset_name`; otherwise None, with the repeated-key flag
+        for a tag written twice and :data:`WARN_TARGET_PHASE_UNREAD` for one
+        that names no shipped asset. No tag at all is None and no flag.
     """
     _carrier, name = TARGET_PHASE_CARRIER
     paths = [ref.object_path for ref in entry.references if ref.property_name == name]
-    if len(paths) != 1:
-        return None
-    path = paths[0]
-    if not path.startswith(_ITEM_ASSET_ROOT) or _INSTANCE_SEPARATOR in path:
-        return None
-    return path
+    repeated = _repeats(name for _path in paths)
+    if repeated:
+        return None, [_repeated_flag(name, repeated[name])]
+    if not paths:
+        return None, []
+    if _shipped_asset_name(paths[0]) is None:
+        return None, [_warning(SOURCE_WORLD, WARN_TARGET_PHASE_UNREAD)]
+    return paths[0], []
 
 
 def _read_paid_off(
@@ -2718,35 +2827,46 @@ def _read_paid_off(
         for index, record in enumerate(table.records)
         if class_name_of(record.type_path) == carrier
     ]
+    _target_carrier, target_name = TARGET_PHASE_CARRIER
     only = entries[0] if len(entries) == 1 else None
-    target = None if only is None else _target_of(only)
+    target, flags = (None, []) if only is None else _target_of(only)
+    if len(entries) > 1 and any(
+        ref.property_name == target_name
+        for entry in entries
+        if entry is not None
+        for ref in entry.references
+    ):
+        flags = [_warning(SOURCE_WORLD, WARN_TARGET_PHASE_UNREAD)]
     holding = [entry for entry in entries if entry is not None and name in entry.values]
     unread = any(
         entry is None or not entry.payload_read or name in entry.undecoded_names
         for entry in entries
     )
     if not holding and not unread:
-        return target, None, []
+        return target, None, flags
     array = holding[0].values[name] if len(holding) == 1 else None
     if unread or not _is_struct_array(array):
-        return target, None, [_warning(SOURCE_WORLD, WARN_PAID_OFF_UNREAD)]
+        return target, None, [*flags, _warning(SOURCE_WORLD, WARN_PAID_OFF_UNREAD)]
     if target is None:
-        return target, None, [_warning(SOURCE_WORLD, WARN_PAID_OFF_TARGET_UNREAD)]
-    items: dict[str, Fraction] = {}
-    skipped = 0
-    for element in array.entries:
-        line = _item_amount(element.value)
-        if line is None or line.item_class in items:
-            skipped += 1
-        else:
-            items[line.item_class] = line.amount
+        return target, None, [*flags, _warning(SOURCE_WORLD, WARN_PAID_OFF_TARGET_UNREAD)]
+    lines = [_item_amount(element.value) for element in array.entries]
+    read = [line for line in lines if line is not None]
+    skipped = len(lines) - len(read)
+    # THE REPEATED-KEY RULE: an item paid off twice publishes no reading at all.
+    repeated = _repeats(line.item_class for line in read)
     if skipped:
-        return target, None, [_warning(SOURCE_WORLD, WARN_PAID_OFF_ELEMENT_SKIPPED, skipped)]
+        flags.append(_warning(SOURCE_WORLD, WARN_PAID_OFF_ELEMENT_SKIPPED, skipped))
+    if repeated:
+        flags.append(_repeated_flag(name, sum(repeated.values())))
+    if skipped or repeated:
+        return target, None, flags
     reading = PaidOffReading(
         phase=class_name_of(target),
-        items=MappingProxyType({item: items[item] for item in sorted(items)}),
+        items=MappingProxyType(
+            {line.item_class: line.amount for line in sorted(read, key=_line_item)}
+        ),
     )
-    return target, reading, []
+    return target, reading, flags
 
 
 def _checked_layout(body_layout: str) -> str:

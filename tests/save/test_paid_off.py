@@ -78,6 +78,8 @@ def _paid_flags(model: world.WorldModel) -> list[tuple[str, int]]:
         world.WARN_PAID_OFF_UNREAD,
         world.WARN_PAID_OFF_ELEMENT_SKIPPED,
         world.WARN_PAID_OFF_TARGET_UNREAD,
+        world.WARN_TARGET_PHASE_UNREAD,
+        world.WARN_REPEATED_KEY,
     }
     return [(w.code, w.count) for w in model.warnings if w.code in codes]
 
@@ -169,7 +171,10 @@ def test_two_carriers_of_the_paid_off_array_publish_none_and_flag() -> None:
     model = _model(*tags, extra=(second,))
 
     assert model.paid_off is None
-    assert _paid_flags(model) == [(world.WARN_PAID_OFF_UNREAD, 1)]
+    assert _paid_flags(model) == [
+        (world.WARN_TARGET_PHASE_UNREAD, 1),
+        (world.WARN_PAID_OFF_UNREAD, 1),
+    ]
 
 
 def test_an_unread_manager_beside_the_carrier_publishes_none_and_flags() -> None:
@@ -183,7 +188,10 @@ def test_an_unread_manager_beside_the_carrier_publishes_none_and_flags() -> None
     model = _model(es.target_tag(), es.paid_off_tag(((es.PART_A_PATH, 1),)), extra=(second,))
 
     assert model.paid_off is None
-    assert _paid_flags(model) == [(world.WARN_PAID_OFF_UNREAD, 1)]
+    assert _paid_flags(model) == [
+        (world.WARN_TARGET_PHASE_UNREAD, 1),
+        (world.WARN_PAID_OFF_UNREAD, 1),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -197,7 +205,7 @@ def test_an_unread_manager_beside_the_carrier_publishes_none_and_flags() -> None
             synthetic.property_tag("Amount", "StrProperty", synthetic.fstring("5")),
         ),
         es.tag_list(es.int_tag("Amount", 5)),
-        es.item_amount(es.PART_B_PATH, 3),
+        es.item_amount("/Game/Synthetic/Desc_SynthPartA.", 5),
     ],
     ids=[
         "instance-path-item",
@@ -205,7 +213,7 @@ def test_an_unread_manager_beside_the_carrier_publishes_none_and_flags() -> None
         "negative-amount",
         "string-amount",
         "no-item",
-        "repeated-item",
+        "item-path-with-no-asset-name",
     ],
 )
 def test_a_skipped_element_withholds_the_reading_and_flags_its_count(bad: bytes) -> None:
@@ -238,33 +246,63 @@ def test_every_skipped_element_is_counted() -> None:
     assert _paid_flags(model) == [(world.WARN_PAID_OFF_ELEMENT_SKIPPED, _TWO_SKIPPED)]
 
 
-@pytest.mark.parametrize(
-    "target",
-    [
-        (),
-        (es.target_tag("Persistent_Level:PersistentLevel.GP_Planted_0"),),
-        (es.target_tag("/Synthetic/GP_X.GP_X"),),
-        # Under /Game/ and carrying the level separator: a record, not an asset.
-        (es.target_tag("/Game/Synthetic:PersistentLevel.GP_Planted_0"),),
-    ],
-    ids=["no-target", "instance-path-target", "target-outside-game", "game-rooted-instance-target"],
+#: Target paths that do not parse to a shipped asset name (CS-1348 round 5).
+_UNREADABLE_TARGETS: Final = (
+    "Persistent_Level:PersistentLevel.GP_Planted_0",
+    "/Synthetic/GP_X.GP_X",
+    # Under /Game/ and carrying the level separator: a record, not an asset.
+    "/Game/Synthetic:PersistentLevel.GP_Planted_0",
+    # The final segment is empty, so the path names no asset at all.
+    "/Game/GP_X.",
+    # No object segment at all.
+    "/Game/GP_X",
+    # An object segment that is not an identifier names no asset either.
+    "/Game/Synthetic.GP/Planted",
 )
-def test_paid_off_with_no_readable_target_phase_publishes_none_and_flags(
-    target: tuple[bytes, ...],
-) -> None:
-    """The elements name no phase, so without a readable target they belong to none."""
-    model = _model(*target, es.paid_off_tag(((es.PART_A_PATH, 1),)))
+_UNREADABLE_TARGET_IDS: Final = (
+    "instance-path-target",
+    "target-outside-game",
+    "game-rooted-instance-target",
+    "empty-asset-name",
+    "no-asset-segment",
+    "non-identifier-name",
+)
+
+
+def test_paid_off_with_no_target_tag_publishes_none_and_flags() -> None:
+    """The elements name no phase, so without a target they belong to none."""
+    model = _model(es.paid_off_tag(((es.PART_A_PATH, 1),)))
 
     assert model.paid_off is None
     assert _paid_flags(model) == [(world.WARN_PAID_OFF_TARGET_UNREAD, 1)]
     assert model.target_phase is None
 
 
-def test_the_target_phase_is_refused_when_it_names_no_shipped_asset() -> None:
-    """A target reference to a record instance never crosses the seam."""
-    model = _model(es.target_tag("Persistent_Level:PersistentLevel.GP_Planted_0"))
+@pytest.mark.parametrize("path", _UNREADABLE_TARGETS, ids=_UNREADABLE_TARGET_IDS)
+def test_paid_off_with_an_unreadable_target_publishes_none_and_flags_both(path: str) -> None:
+    """An unreadable target is flagged itself, and the paid-off array it would own too."""
+    model = _model(es.target_tag(path), es.paid_off_tag(((es.PART_A_PATH, 1),)))
+
+    assert model.paid_off is None
+    assert model.target_phase is None
+    assert _paid_flags(model) == [
+        (world.WARN_TARGET_PHASE_UNREAD, 1),
+        (world.WARN_PAID_OFF_TARGET_UNREAD, 1),
+    ]
+
+
+@pytest.mark.parametrize("path", _UNREADABLE_TARGETS, ids=_UNREADABLE_TARGET_IDS)
+def test_an_unreadable_target_with_no_array_is_flagged_never_silent(path: str) -> None:
+    """CS-1348 round 5: an unreadable target is never the silence of no target.
+
+    With no paid-off array beside it, the target flag is the only flag - and
+    a manager writing no target at all, the control, raises none.
+    """
+    model = _model(es.target_tag(path))
 
     assert model.target_phase is None
+    assert _paid_flags(model) == [(world.WARN_TARGET_PHASE_UNREAD, 1)]
+    assert _paid_flags(_model()) == []
     assert _model().target_phase is None
 
 
@@ -276,7 +314,10 @@ def test_two_managers_publish_no_target_phase() -> None:
         (es.target_tag(),),
     )
 
-    assert _model(es.target_tag(), extra=(second,)).target_phase is None
+    model = _model(es.target_tag(), extra=(second,))
+
+    assert model.target_phase is None
+    assert _paid_flags(model) == [(world.WARN_TARGET_PHASE_UNREAD, 1)]
 
 
 def test_both_carriers_are_reachable_from_the_adr_carrier_table() -> None:
@@ -320,4 +361,7 @@ def test_two_target_tags_on_one_manager_publish_no_target_phase() -> None:
 
     assert model.target_phase is None
     assert model.paid_off is None
-    assert _paid_flags(model) == [(world.WARN_PAID_OFF_TARGET_UNREAD, 1)]
+    assert _paid_flags(model) == [
+        (world.WARN_REPEATED_KEY, 2),
+        (world.WARN_PAID_OFF_TARGET_UNREAD, 1),
+    ]

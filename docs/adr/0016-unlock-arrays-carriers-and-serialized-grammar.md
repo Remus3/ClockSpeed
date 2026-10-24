@@ -456,3 +456,59 @@ reads both properties and publishes them on the world model;
 `clockspeed/progress/phases.py::SavePhaseCosts` consumes them only through the
 world model; `clockspeed/audit/` stays out. `tests/save/test_paid_off.py` and
 `tests/progress/test_save_phase_source.py` grade it on synthetic fixtures only.
+
+---
+
+## Amendment - the header deprecation, and one rule for repeated keys (CS-1340, CS-1348 round 5)
+
+Recorded 2026-10-24 (session 151) by the slice that wired the readers, after a
+third adversary refuted the round-4 candidate on non-negotiable 7.
+
+**The header deprecation.** The shipped header
+`Source/FactoryGame/Public/FGGamePhaseManager.h`, inside the install's
+`CommunityResources/Headers.zip`, marks `mGamePhaseCosts` "DEPRECATED Only kept
+for save compatibility". That agrees with the measurement above: only the
+world carried forward from pre-1.0 builds writes the array, and no 1.0-native
+save does.
+
+**One rule for repeated keys.** A carrier property or keyed element this
+reader sees more than once is never last-wins and never first-wins: every copy
+is withheld - the reading is None, or the element is left out - and
+`clockspeed/save/world.py::WARN_REPEATED_KEY` is raised once, its subject the
+carrier property's name and its count the copies.
+`clockspeed/save/world.py::_repeats` is the one helper, and it is applied to
+every key this layer can see twice: a phase-cost entry's phase token - counted
+even when that copy's cost does not read, so a readable copy beside an
+unreadable one is not taken; a paid-off element's item, which withholds the
+whole paid-off reading; the `mTargetGamePhase` tag on a manager; and the
+elevator's `mInputInventory` reference. `tests/save/test_repeated_keys.py`
+grades it with one parametrized arm, one case per carrier.
+
+**The residual, recorded rather than claimed.** A TOP-LEVEL property tag written
+twice - `mGamePhaseCosts`, `mTargetGamePhasePaidOffCosts` or `mInventoryStacks`
+- never reaches this layer twice. `clockspeed/save/objects.py::read_properties`
+publishes a payload's values by NAME, so a repeated tag is already one value,
+the last, when `clockspeed/save/world.py` sees it; that reader publishes an
+ordered population only for reference tags and struct tags, which is why the
+repeated `mTargetGamePhase` and `mInputInventory` cases above are caught and
+these are not. Closing it needs that reader to publish the names of top-level
+tags written more than once, and this layer to refuse a carrier named there;
+`clockspeed/save/objects.py` is outside the slice that wrote this, so the gap
+is left open here by name. The same collapse would lose all but one element of
+any fixed-size array property written as repeated tags; none is read here.
+
+**An empty or wrong-typed cost array is not "paid in full".** A `PhaseCost`
+whose `cost` is not an array of structs is unreadable, skipped and flagged with
+`clockspeed/save/world.py::WARN_PHASE_COST_ENTRY_SKIPPED`. A `cost` that IS an
+array of structs with no element is withheld and flagged the same way: a phase
+that costs nothing is a claim the save cannot tell apart from a lost array,
+and every measured entry lists its items, a paid one at zero. A phase whose
+listed items are all zero is still published - that is the measured shape of
+a phase paid in full.
+
+**A path that names no asset is unreadable.** Every item and target path goes
+through one parse: under the shipped root, no level separator, and a
+non-empty identifier after its last `.` - so `/Game/GP_X.` and `/Game/GP_X`
+name nothing. A target that fails it, or two phase managers naming targets,
+raise `clockspeed/save/world.py::WARN_TARGET_PHASE_UNREAD` whether or not a
+paid-off array is beside it; a manager writing no target raises nothing.
