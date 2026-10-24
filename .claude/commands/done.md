@@ -378,6 +378,13 @@ ritual's timing record (step 8 names its path), and the next session reads them,
 act. READ BACK the hand-off file on disk against the committed blob (`git diff --quiet
 HEAD -- CS-NEXT-SESSION.txt`).
 
+BOUND THE SESSION SCRATCH (CS-1344, MAIN's FIX of 2026-10-21). Only after the push log and the
+hand-off are READ BACK, run `python tools/scratch_sweep.py --apply`. It sends the largest top-level
+directories of THIS session's scratchpad to the Recycle Bin (FLEET item 9) until it holds under the
+tool's bound, and never touches a loose file, a link, anything created or written inside its grace
+period, or anything outside that one scratchpad. Its one output line is counts only. Exit 1 (still
+over the bound) or 2 (no single scratchpad resolved) never stops the ritual.
+
 ## 10. The /done marker - the LAST act (FLEET-COMMON item 15, kit v9)
 
 - [ ] Only after the push and the hand-off are READ BACK, run

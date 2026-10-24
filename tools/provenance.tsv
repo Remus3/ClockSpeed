@@ -566,6 +566,7 @@ tests/test_report_redaction_classes.py	authored	CS-860	first-add:CS-860
 tests/test_repr_rendering.py	authored	CS-852	first-add:CS-852
 tests/test_save_name_not_a_token.py	authored	CS-1097	first-add:CS-1097
 tests/test_scaffold.py	authored	CS-1165	first-add:root
+tests/test_scratch_sweep.py	authored	CS-1344	stamped
 tests/test_secret_sweep.py	authored	CS-939	first-add:CS-939
 tests/test_session_start_wiring.py	authored	CS-952	first-add:CS-952
 tests/test_sha_citation_gate.py	authored	CS-1222	stamped
@@ -615,6 +616,7 @@ tools/precommit_gate.py	authored	CS-1165	first-add:root
 tools/pretooluse_gate.py	authored	CS-425	first-add:CS-425
 tools/provenance.tsv	authored	CS-1165	stamped
 tools/provenance_stamp.py	authored	CS-1165	first-add:CS-1165
+tools/scratch_sweep.py	authored	CS-1344	stamped
 tools/sha_citation_binaries.json	authored	CS-1292	stamped
 tools/sha_citation_gate.py	authored	CS-1222	stamped
 tools/sha_citation_historical.json	authored	CS-700	stamped
