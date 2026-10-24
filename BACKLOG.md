@@ -1029,3 +1029,8 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   CS-1334's re-walk.
 - From the same walk: python.org publishes no hash for the Python installer the walk downloaded,
   so that download cannot be cross-checked; trigger: CS-1334's re-walk.
+- From the CS-1349 landing (`docs/LEDGER.md`, 2026-10-23, CS-1349): a non-ASCII environment name
+  that Windows Python upper-cases to CS_PUSH_REPORT (U+017F) survives the `.githooks/pre-push`
+  unset and aims the report at its path, fail-closed; action: unset every inherited name with a
+  byte above 0x7F, with a U+017F arm and a ProgramFiles(x86) control; trigger: such a name seen in
+  a real environment.

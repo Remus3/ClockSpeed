@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-23 - CS-1349 - NOT A COMPLETION RECORD. CS-1349 STAYS OPEN: stable pre-push suite command LANDED; the Sandbox walk clause pends CS-1334
+Verification: `.githooks/pre-push`, the suite line;
+`tests/test_pre_push_suite_floor.py::test_two_pushes_from_one_checkout_hand_the_gate_one_command_hash`;
+`tests/test_pre_push_suite_floor.py::test_an_inherited_case_variant_of_the_report_variable_cannot_aim_the_report`;
+`tests/test_pre_push_suite_floor.py::test_the_sandbox_margin_reaches_the_kit_gate_as_zero`. Two
+distinct adversary passes; round 1 refuted on an ASCII case variant, repaired.
+RESIDUAL: a non-ASCII name Windows Python upper-cases to CS_PUSH_REPORT (U+017F) survives the
+unset and aims the report, hostname attribute included, at its path, fail-closed. Ruled within
+grant A by a distinct session 151 adjudicator: crafted environment only; PYTHONPATH already
+reaches the suite.
+Reversed by: such a name in a real environment; then unset every inherited name with a byte above
+0x7F, with a U+017F arm and a ProgramFiles(x86) control.
+
 ### 2026-10-23 - CS-1345 - CLOSED: the push identity step for an outsider's fork is written once in docs/OPERATIONS.md section 1.3
 Verification: `docs/OPERATIONS.md` section 1.3, pointed at from `README.md`,
 `.github/CONTRIBUTING.md` and `docs/OPERATIONS.md` section 1; re-derived by a distinct verifier's
