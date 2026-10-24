@@ -952,3 +952,35 @@ def test_delivered_available_is_graded_on_a_synthetic_schematic_document() -> No
     assert without.delivered_available is False
     assert without.required.values is not None
     assert dict(without.required.values) == required_rate
+
+
+# ---------------------------------------------------------------------------
+# CS-1340 round 3 - the table refuses a skip count or a withheld phase it cannot hold
+# ---------------------------------------------------------------------------
+
+
+def test_a_table_refuses_a_skip_count_that_is_not_an_int_at_zero_or_above() -> None:
+    """A skip count is a count: an int at zero or above, and a bool is not one.
+
+    The count of one constructs, so each refusal is about its own value.
+    Kills the mutant that drops the check.
+    """
+    plate = MappingProxyType({COSTED_PHASE: (CostLine(PLATE_ITEM, Fraction(PLATE_COST)),)})
+    table = phases.PhaseCostTable(entries=plate, reason=None, skipped_count=1)
+    assert table.skipped_count == 1
+    for bad in (-1, True, cast("int", Fraction(1))):
+        with pytest.raises(phases.PhaseIntegrityError):
+            phases.PhaseCostTable(entries=plate, reason=None, skipped_count=bad)
+
+
+def test_a_table_refuses_a_phase_both_withheld_and_published() -> None:
+    """A withheld phase is never also an entry: the two would contradict each other.
+
+    A phase withheld beside a DIFFERENT published one constructs, so the
+    refusal is about the overlap. Kills the mutant that drops the check.
+    """
+    plate = MappingProxyType({COSTED_PHASE: (CostLine(PLATE_ITEM, Fraction(PLATE_COST)),)})
+    beside = phases.PhaseCostTable(entries=plate, reason=None, unmapped=frozenset({UNCOSTED_PHASE}))
+    assert beside.unmapped == frozenset({UNCOSTED_PHASE})
+    with pytest.raises(phases.PhaseIntegrityError):
+        phases.PhaseCostTable(entries=plate, reason=None, unmapped=frozenset({COSTED_PHASE}))

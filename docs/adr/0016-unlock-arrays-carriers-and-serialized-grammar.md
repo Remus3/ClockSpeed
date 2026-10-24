@@ -319,18 +319,34 @@ CS-1340 amendment measured is unmeasured too.
 the reader on the class this table records, and
 `clockspeed/save/world.py::ElevatorInput` publishes the input inventory as
 exact Fraction counts by item ClassName. An elevator whose slots are all empty
-publishes an EMPTY reading - nothing delivered, a reading - and None is kept
-for no reading: no elevator, two of them, an input reference that does not land
-on exactly one record, or a carrier with one stack that does not read.
+publishes an EMPTY reading - nothing delivered, a reading. A world with no
+elevator publishes None and no flag. An elevator whose input is not read - two
+of them, an input reference that does not land on one record, a carrier with
+no array of stacks, or one malformed stack - publishes None and raises
+`clockspeed/save/world.py::WARN_ELEVATOR_INPUT_UNREAD`, never the silence of
+no elevator. A well-formed stack naming an item outside the shipped asset root
+is unknown content: it is skipped, counted on the reading, and raised as
+`clockspeed/save/world.py::WARN_ELEVATOR_INPUT_STACK_SKIPPED` with that count,
+while every shipped item's count beside it stays exact.
 
-**The seam, taken by this slice and left for an adjudicator to rule.** The
-save layer publishes the carrier, because the inventory model lives in
-`clockspeed/audit/` and that layer is not below `clockspeed/progress/`.
+**The seam, as ruled.** The save layer publishes the carrier, and
 `clockspeed/progress/phases.py::SavePhaseCosts` reads it from the world model
 and publishes it as `PhaseCostTable.delivered`, keyed by every item the
 table's entries owe - so a cost item the elevator holds none of reads an exact
-zero - plus any item it does hold. `tests/save/test_elevator_input.py` and
-`tests/progress/test_save_phase_source.py` grade it on synthetic fixtures
+zero - plus any item it does hold. A distinct adjudicator, in session 151,
+ruled the seam RESPECTED: `clockspeed/progress/__init__.py` lists the save
+world model as the layer below; `clockspeed/progress/phases.py` reads only
+`WorldModel.phase_costs` and `WorldModel.elevator_input` of it; and
+`clockspeed/save/` imports nothing from `clockspeed/audit/` or
+`clockspeed/progress/`. Alternatives rejected: `clockspeed/audit/` as the
+producer, because it is not below `clockspeed/progress/`; and
+`clockspeed/progress/` reading save records directly, because that skips the
+save model. Open risks, recorded rather than closed:
+`clockspeed/save/world.py` re-implements the inventory-stack format
+`clockspeed/audit/inventory.py` also reads, so the two can drift; and what an
+item in the elevator's input means for delivery is unmeasured, because every
+slot of every measured elevator was empty. `tests/save/test_elevator_input.py`
+and `tests/progress/test_save_phase_source.py` grade it on synthetic fixtures
 only.
 
 ---
@@ -357,8 +373,9 @@ usable table:
 - every array element skipped is counted on the reading and raised as
   `clockspeed/save/world.py::WARN_PHASE_COST_ENTRY_SKIPPED`, carrying the
   count, including an array none of whose elements read;
-- an array present and not an array, two records carrying it, or a phase
-  manager whose payload did not read raise
+- an array present and not an ARRAY OF STRUCTS - a scalar, a map, an array of
+  another element, or a tag the reader counted and could not decode - two
+  records carrying it, or a phase manager whose payload did not read raise
   `clockspeed/save/world.py::WARN_PHASE_COSTS_UNREAD`, so unread content is
   never reported as a world that writes no array;
 - `clockspeed/progress/phases.py::SavePhaseCosts` takes the installed phase

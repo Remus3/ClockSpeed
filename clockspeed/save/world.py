@@ -400,6 +400,7 @@ from clockspeed.save.header import (
     read_header,
 )
 from clockspeed.save.objects import (
+    STRUCT_TYPE_WORD,
     WARN_UNPARSED_PROPERTY_PAYLOAD,
     WARN_UNRESOLVED_SCHEMA,
     ContainerValue,
@@ -455,6 +456,8 @@ __all__ = [
     "TARGET_RESOLVED",
     "TARGET_STATES",
     "TARGET_UNRESOLVED",
+    "WARN_ELEVATOR_INPUT_STACK_SKIPPED",
+    "WARN_ELEVATOR_INPUT_UNREAD",
     "WARN_NEWER_SAVE_REFUSED",
     "WARN_NEWEST_SAVE_UNIDENTIFIED",
     "WARN_NODE_SEMANTICS_UNAVAILABLE",
@@ -610,6 +613,15 @@ WARN_PHASE_COST_ENTRY_SKIPPED: Final = "phase-cost-entry-skipped"
 #: was read from it - the array is not an array, two records carry it, or a
 #: manager's payload did not read. Unread content, never "no array written".
 WARN_PHASE_COSTS_UNREAD: Final = "phase-costs-unread"
+#: CS-1348 round 3: an elevator is there and its input inventory was not read -
+#: two elevators, an input reference that lands on no single record, a carrier
+#: with no stack array or none of stacks, or one malformed stack. Unavailable
+#: with this flag, never the silence of a world with no elevator.
+WARN_ELEVATOR_INPUT_UNREAD: Final = "elevator-input-unread"
+#: CS-1348 round 3: well-formed input stacks naming an item outside the
+#: shipped asset root - unknown content - skipped. The COUNT is how many; the
+#: reading counts every other stack.
+WARN_ELEVATOR_INPUT_STACK_SKIPPED: Final = "elevator-input-stack-skipped"
 
 #: A newer save was refused by the reader and skipped - :func:`load_newest_world`.
 #: The SUBJECT is WHY, never WHICH: the refusing stage and the cause type, both
@@ -678,6 +690,17 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "this many elements of the phase-cost array did not read under the measured"
             " grammar and were skipped whole; a phase missing from the published table may"
             " be one of them, so its absence is not evidence that nothing is owed"
+        ),
+        WARN_ELEVATOR_INPUT_UNREAD: (
+            "the space elevator is there and its input inventory was not read, because"
+            " more than one elevator was found, its input reference lands on no single"
+            " record, or its carrier holds no readable stack array or a malformed stack;"
+            " this is unread content, not a world with no elevator"
+        ),
+        WARN_ELEVATOR_INPUT_STACK_SKIPPED: (
+            "this many input stacks of the space elevator name an item outside the shipped"
+            " game content and were skipped; every other stack is counted, so what was"
+            " delivered of those items is not known"
         ),
         WARN_PHASE_COSTS_UNREAD: (
             "the phase manager may hold a phase-cost array and no table was read from it,"
@@ -1025,10 +1048,18 @@ class PhaseCostReading:
 class ElevatorInput:
     """What the space elevator's input inventory holds, by item - CS-1348.
 
-    PRESENT ONLY WHEN THE CARRIER WAS READ WHOLE. :attr:`WorldModel.elevator_input`
-    is None for a world with no elevator, with two of them, whose input
-    reference does not land on exactly one record, or whose carrier holds one
-    stack that does not read - never a partial count published as the whole.
+    PRESENT ONLY WHEN THE CARRIER READ. :attr:`WorldModel.elevator_input` is
+    None for a world with no elevator, which raises no flag, and for an
+    elevator whose input was not read - two elevators, an input reference that
+    lands on no single record, a carrier with no readable stack array, or one
+    MALFORMED stack - which raises ``WARN_ELEVATOR_INPUT_UNREAD``: a malformed
+    stack says the carrier is not in the measured shape, so any count beside
+    it could be the misread one.
+
+    PARTIAL ONLY FOR UNKNOWN CONTENT (CS-1348 round 3). A well-formed stack
+    naming an item outside the shipped asset root is skipped and counted in
+    ``skipped_count``, with ``WARN_ELEVATOR_INPUT_STACK_SKIPPED`` carrying the
+    same count; every shipped item's count beside it is exact.
 
     Attributes:
         items: Item ClassName - the text after the final ``.`` of a SHIPPED
@@ -1036,10 +1067,13 @@ class ElevatorInput:
             sorted order. EMPTY when every slot is empty: a reading of nothing
             delivered, which is every elevator ADR 0016 measured.
         slot_count: How many stacks the carrier held, empty slots included.
+        skipped_count: How many well-formed stacks named an item outside the
+            shipped asset root and were skipped.
     """
 
     items: Mapping[str, Fraction]
     slot_count: int
+    skipped_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts only, withholding every item.
@@ -1047,7 +1081,10 @@ class ElevatorInput:
         Returns:
             The safe rendering.
         """
-        return f"{type(self).__name__}(items={len(self.items)}, slot_count={self.slot_count})"
+        return (
+            f"{type(self).__name__}(items={len(self.items)}, slot_count={self.slot_count}, "
+            f"skipped_count={self.skipped_count})"
+        )
 
 
 @dataclass(frozen=True, repr=False)
@@ -2339,11 +2376,14 @@ def _read_phase_costs(
         if class_name_of(record.type_path) == carrier
     ]
     holding = [entry for entry in entries if entry is not None and name in entry.values]
-    unread = any(entry is None or not entry.payload_read for entry in entries)
+    unread = any(
+        entry is None or not entry.payload_read or name in entry.undecoded_names
+        for entry in entries
+    )
     if not holding and not unread:
         return None, []
     array = holding[0].values[name] if len(holding) == 1 else None
-    if unread or not isinstance(array, ContainerContents):
+    if unread or not _is_struct_array(array):
         return None, [_warning(SOURCE_WORLD, WARN_PHASE_COSTS_UNREAD)]
     read: list[tuple[str, tuple[PhaseCostLine, ...]]] = []
     skipped = 0
@@ -2379,19 +2419,48 @@ _STACKS_NAME: Final = "mInventoryStacks"
 _STACK_ITEM_NAME: Final = "Item"
 _STACK_COUNT_NAME: Final = "NumItems"
 
+#: The container word the measured carriers are written under - an array, and
+#: never a map or a set, whose elements are structs.
+_ARRAY_TYPE_WORD: Final = "ArrayProperty"
 
-def _stack_holding(value: object) -> tuple[str, int] | None:
-    """One input stack as an item and a count, or None when it does not read.
+
+def _is_struct_array(value: object) -> TypeIs[ContainerContents]:
+    """Whether a decoded value is an ARRAY of STRUCTS - the measured carrier shape.
+
+    CS-1340 round 3. A map or a set is a container too, and an array of some
+    other element is one, and an EMPTY one of either would otherwise read as an
+    empty array of structs - a reading the save never wrote.
+
+    Args:
+        value: One decoded value, of any shape.
+
+    Returns:
+        True for an ``ArrayProperty`` whose element word is ``StructProperty``.
+    """
+    return (
+        isinstance(value, ContainerContents)
+        and value.type_word == _ARRAY_TYPE_WORD
+        and value.element_words == (STRUCT_TYPE_WORD,)
+    )
+
+
+def _stack_holding(value: object) -> tuple[str | None, int] | None:
+    """One input stack as an item and a count, or None when it is malformed.
 
     An EMPTY SLOT - an empty class and a count of 0 - reads as ``("", 0)``. A
-    row is a shipped item class with a positive count. Every other pairing is
-    a stack that does not read.
+    row is a shipped item class with a positive count. A well-formed stack
+    naming an item outside the shipped asset root is UNKNOWN CONTENT and reads
+    as ``(None, count)``, so the caller skips and counts it. Every other
+    pairing is malformed: a class with a count that is not positive, a count
+    without a class, a value that is not a stack, or a "class" carrying the
+    level separator, which names a record and not an item.
 
     Args:
         value: One stack element's decoded value, of any shape.
 
     Returns:
-        The ClassName and count, ``("", 0)`` for an empty slot, or None.
+        The ClassName and count, ``("", 0)`` for an empty slot, ``(None,
+        count)`` for an unknown item, or None when malformed.
     """
     if not isinstance(value, StructValue):
         return None
@@ -2403,32 +2472,36 @@ def _stack_holding(value: object) -> tuple[str, int] | None:
     path = item.class_path
     if not path:
         return ("", 0) if count == 0 else None
-    if count <= 0 or not path.startswith(_ITEM_ASSET_ROOT) or _INSTANCE_SEPARATOR in path:
+    if count <= 0 or _INSTANCE_SEPARATOR in path:
         return None
+    if not path.startswith(_ITEM_ASSET_ROOT):
+        return (None, count)
     name = class_name_of(path)
     return (name, count) if name else None
 
 
 def _elevator_input_entry(
-    table: ObjectTable, properties: WorldProperties
+    elevators: list[int], properties: WorldProperties
 ) -> RecordProperties | None:
     """The input inventory component's published entry, followed by the join.
 
+    NO ``payload_read`` TEST, AND THAT IS PROVEN RATHER THAN OMITTED (CS-1348
+    round 3). ``objects.read_properties`` raises its unparsed-payload code at
+    exactly one site and returns an EMPTY property mapping there, and
+    :class:`RecordProperties` derives ``payload_read`` from that code - so a
+    carrier whose payload did not read holds no ``mInventoryStacks`` and is
+    refused, with the unread flag, by the stack-array test the caller makes.
+    A second test here could never change an outcome, so no arm could grade it.
+
     Args:
-        table: The walked record table, for each record's class path.
-        properties: The decoded payloads, keyed by index into ``table.records``.
+        elevators: The record index of every elevator in the world.
+        properties: The decoded payloads, keyed by record index.
 
     Returns:
-        The component's entry, or None unless exactly one elevator carries
-        exactly one input reference that resolves to one record whose payload
-        read.
+        The component's entry, or None unless there is exactly one elevator
+        carrying exactly one input reference that resolves to one record.
     """
-    carrier, name = ELEVATOR_INPUT_CARRIER
-    elevators = [
-        index
-        for index, record in enumerate(table.records)
-        if class_name_of(record.type_path) == carrier
-    ]
+    _carrier, name = ELEVATOR_INPUT_CARRIER
     entry = properties.by_record_index.get(elevators[0]) if len(elevators) == 1 else None
     if entry is None:
         return None
@@ -2439,43 +2512,62 @@ def _elevator_input_entry(
     ]
     if len(targets) != 1 or (landed := targets[0].record_index) is None:
         return None
-    inventory = properties.by_record_index.get(landed)
-    return inventory if inventory is not None and inventory.payload_read else None
+    return properties.by_record_index.get(landed)
 
 
-def _read_elevator_input(table: ObjectTable, properties: WorldProperties) -> ElevatorInput | None:
+def _read_elevator_input(
+    table: ObjectTable, properties: WorldProperties
+) -> tuple[ElevatorInput | None, list[WorldWarning]]:
     """Publish the space elevator's input inventory - CS-1348.
 
     IT READS NO BYTES OF ITS OWN and follows the reference by the published
     join, never by matching a path itself.
 
-    ALL OR NOTHING. One stack that does not read withholds the whole reading:
-    a count short of one stack would understate what was delivered, and
-    nothing downstream could tell (non-negotiable 7).
+    FLAGGED, NEVER SILENT (round 3, non-negotiable 7). A world with no
+    elevator returns None and no flag. An elevator whose input was not read -
+    see :class:`ElevatorInput` - returns None and
+    :data:`WARN_ELEVATOR_INPUT_UNREAD`. Well-formed stacks of an unknown item
+    are skipped, counted on the reading and raised as
+    :data:`WARN_ELEVATOR_INPUT_STACK_SKIPPED` with that count.
 
     Args:
         table: The walked record table, for each record's class path.
         properties: The decoded payloads, keyed by index into ``table.records``.
 
     Returns:
-        The reading, or None when there is no single readable carrier.
+        The reading or None, and the flags raised getting there.
     """
-    inventory = _elevator_input_entry(table, properties)
+    carrier, _name = ELEVATOR_INPUT_CARRIER
+    elevators = [
+        index
+        for index, record in enumerate(table.records)
+        if class_name_of(record.type_path) == carrier
+    ]
+    if not elevators:
+        return None, []
+    unread = [_warning(SOURCE_WORLD, WARN_ELEVATOR_INPUT_UNREAD)]
+    inventory = _elevator_input_entry(elevators, properties)
     stacks = None if inventory is None else inventory.values.get(_STACKS_NAME)
-    if not isinstance(stacks, ContainerContents):
-        return None
+    if not _is_struct_array(stacks):
+        return None, unread
     items: dict[str, Fraction] = {}
+    skipped = 0
     for element in stacks.entries:
         held = _stack_holding(element.value)
         if held is None:
-            return None
+            return None, unread
         item, count = held
-        if item:
+        if item is None:
+            skipped += 1
+        elif item:
             items[item] = items.get(item, Fraction(0)) + count
-    return ElevatorInput(
+    reading = ElevatorInput(
         items=MappingProxyType({item: items[item] for item in sorted(items)}),
         slot_count=len(stacks.entries),
+        skipped_count=skipped,
     )
+    flags = [_warning(SOURCE_WORLD, WARN_ELEVATOR_INPUT_STACK_SKIPPED, skipped)] if skipped else []
+    return reading, flags
 
 
 def _checked_layout(body_layout: str) -> str:
@@ -3018,6 +3110,8 @@ def load_world_from_bytes(
         warnings.extend(node_warnings)
         phase_costs, phase_cost_warnings = _read_phase_costs(table, properties)
         warnings.extend(phase_cost_warnings)
+        elevator_input, elevator_warnings = _read_elevator_input(table, properties)
+        warnings.extend(elevator_warnings)
 
         return WorldModel(
             token=parsed.world_token,
@@ -3029,7 +3123,7 @@ def load_world_from_bytes(
             properties=properties,
             parents=_parent_targets(table),
             phase_costs=phase_costs,
-            elevator_input=_read_elevator_input(table, properties),
+            elevator_input=elevator_input,
         )
     except BaseException:
         del data

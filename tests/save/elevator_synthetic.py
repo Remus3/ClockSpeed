@@ -350,6 +350,7 @@ def save_blob(
     slots: tuple[tuple[str, int], ...] | None = None,
     elevators: int = 1,
     input_target: str = INPUT_INSTANCE,
+    inventory_tags: tuple[bytes, ...] | None = None,
 ) -> bytes:
     """A save holding a phase manager, optional other actors and an optional elevator.
 
@@ -361,6 +362,8 @@ def save_blob(
         elevators: How many elevator actors to write when ``slots`` is given.
         input_target: The instance path the elevator's ``mInputInventory``
             reference names.
+        inventory_tags: The input inventory component's tags, replacing the
+            ``mInventoryStacks`` tag ``slots`` builds; None keeps that tag.
 
     Returns:
         The save bytes.
@@ -392,5 +395,6 @@ def save_blob(
         stacks = struct_array_tag(
             STACKS_PROPERTY, "InventoryStack", tuple(stack(path, n) for path, n in slots)
         )
-        component_payloads.append(synthetic.tagged_property_payload((stacks,), trailing=_TRAILING))
+        tags = (stacks,) if inventory_tags is None else inventory_tags
+        component_payloads.append(synthetic.tagged_property_payload(tags, trailing=_TRAILING))
     return _level_body(tuple(actors), tuple(components), (*payloads, *component_payloads))

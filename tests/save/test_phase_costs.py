@@ -222,6 +222,17 @@ def test_two_carrier_arrays_publish_no_table_and_claim_neither() -> None:
             es.enum_byte_tag("gamePhase", "EGamePhase", _THIRD_PHASE),
             es.int_array_tag("cost", (5,)),
         ),
+        # CS-1340 round 3: a path UNDER /Game/ that carries the level separator
+        # names a record, not an asset. Kills the mutant that drops the
+        # separator check behind the root check.
+        es.tag_list(
+            es.enum_byte_tag("gamePhase", "EGamePhase", _THIRD_PHASE),
+            es.struct_array_tag(
+                "cost",
+                "ItemAmount",
+                (es.item_amount("/Game/Synthetic:PersistentLevel.Desc_SynthPartA_C", 5),),
+            ),
+        ),
     ],
     ids=[
         "unshaped-token",
@@ -231,6 +242,7 @@ def test_two_carrier_arrays_publish_no_table_and_claim_neither() -> None:
         "string-amount",
         "egp-prefixed-non-identifier-token",
         "non-struct-cost-line",
+        "game-rooted-instance-path-item",
     ],
 )
 def test_an_unreadable_entry_is_skipped_and_counted_never_fatal(bad_entry: bytes) -> None:
@@ -375,6 +387,105 @@ def test_a_phase_manager_whose_payload_did_not_read_is_flagged_unread() -> None:
     """
     cut = es.phase_costs_tag()[: -len(synthetic.DECODABLE_TRAILING_RUN) - 1]
     model = world.load_world_from_bytes(es.save_blob(manager_tags=(cut,)))
+
+    assert model.phase_costs is None
+    assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == [1]
+
+
+# ---------------------------------------------------------------------------
+# CS-1340 round 3 - present but undecodable is flagged, never "not written"
+# ---------------------------------------------------------------------------
+
+
+def _i32(value: int) -> bytes:
+    """One little-endian int32.
+
+    Args:
+        value: The integer.
+
+    Returns:
+        Its four bytes.
+    """
+    return value.to_bytes(4, "little", signed=True)
+
+
+@pytest.mark.parametrize(
+    "tag",
+    [
+        # A type word the reader has no grammar for: the tag is counted, not decoded.
+        synthetic.property_tag(es.PHASE_COSTS_PROPERTY, "TextProperty", b"\x00" * 9),
+        # An array whose declared count disagrees with its bytes.
+        synthetic.property_tag(
+            es.PHASE_COSTS_PROPERTY,
+            "ArrayProperty",
+            _i32(5) + _i32(1),
+            tag_extra=synthetic.fstring("IntProperty"),
+        ),
+        # An array whose element type the reader has no grammar for.
+        synthetic.property_tag(
+            es.PHASE_COSTS_PROPERTY,
+            "ArrayProperty",
+            _i32(1) + bytes(4),
+            tag_extra=synthetic.fstring("TextProperty"),
+        ),
+        # A map decodes as a container, and an EMPTY one is not an empty array.
+        synthetic.property_tag(
+            es.PHASE_COSTS_PROPERTY,
+            "MapProperty",
+            _i32(0) + _i32(0),
+            tag_extra=synthetic.fstring("ByteProperty") + synthetic.fstring("IntProperty"),
+        ),
+        # An EMPTY array of a non-struct element is not an empty PhaseCost array.
+        es.int_array_tag(es.PHASE_COSTS_PROPERTY, ()),
+        # A SET of structs has the measured element word and is still not an array.
+        synthetic.property_tag(
+            es.PHASE_COSTS_PROPERTY,
+            "SetProperty",
+            _i32(0) + _i32(0),
+            tag_extra=synthetic.fstring("StructProperty"),
+        ),
+    ],
+    ids=[
+        "unmeasured-type",
+        "size-disagrees",
+        "unmeasured-element",
+        "empty-map",
+        "empty-int-array",
+        "empty-set-of-structs",
+    ],
+)
+def test_a_present_array_the_reader_cannot_decode_is_flagged_unread(tag: bytes) -> None:
+    """Non-negotiable 7: PRESENT AND UNDECODABLE is not ABSENT.
+
+    Each tag names ``mGamePhaseCosts`` on the phase manager and none decodes to
+    the measured array of ``PhaseCost`` structs - the reader drops it into
+    ``undecoded_names``, or decodes it as the wrong container. Before round 3
+    each published exactly what a world writing no array publishes, with no
+    flag; the control arm above holds the no-array world flag-free.
+    """
+    model = world.load_world_from_bytes(es.save_blob(manager_tags=(tag,)))
+
+    assert model.phase_costs is None
+    assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == [1]
+
+
+def test_one_unread_manager_beside_one_holding_the_array_publishes_no_table() -> None:
+    """A second manager whose payload did not read may hold a second array.
+
+    Publishing the readable one's table would claim it is THE table while the
+    other is unknown, so no table is published and the unread flag is raised.
+    Kills the mutant that drops the unread check and keeps only the
+    one-holder check.
+    """
+    cut = es.phase_costs_tag()[: -len(synthetic.DECODABLE_TRAILING_RUN) - 1]
+    second = (
+        es.PHASE_MANAGER_CLASS,
+        "Persistent_Level:PersistentLevel.SyntheticPhaseManager_1",
+        (cut,),
+    )
+    model = world.load_world_from_bytes(
+        es.save_blob(manager_tags=(es.phase_costs_tag(),), extra_actors=(second,))
+    )
 
     assert model.phase_costs is None
     assert _flag_counts(model, world.WARN_PHASE_COSTS_UNREAD) == [1]
