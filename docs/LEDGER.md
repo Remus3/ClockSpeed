@@ -75,6 +75,9 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1344 - NOT A COMPLETION RECORD. CS-1344 STAYS OPEN: cs-pt teardown and the scratch sweep LANDED; clause 2 and the ONE ANSWER pend the first /done
+Verification: `tests/own_temp_root.py`, `tests/test_cs1344_temp_teardown.py`, `tools/scratch_sweep.py` (wired into `.claude/commands/done.md`), `tests/test_own_temp_root.py::test_finish_never_touches_another_runs_directory`. A distinct adversary did not refute delete-safety; a distinct verifier's three surviving mutants were then killed. Residuals: the Recycle-Bin-refusal path is tested with the shell stubbed, not against a real full bin; a build-time cleanup mutant run against the real shared Temp root emptied other live runs' cs-pt folders once this session (no shipped path does this).
+
 ### 2026-10-24 - CS-1344 - FORGIVEN_LINE_POINTER_CEILING 72 to 73 granted
 Verification: `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and its RENAMED row in `tests/test_citation_tables.py::DISPOSITIONS`, aimed at `tests/test_own_temp_root.py::test_every_failed_run_older_code_kept_is_reclaimed_at_once`.
 Not a completion record.
