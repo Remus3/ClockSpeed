@@ -618,6 +618,18 @@ CS_REPORT="$CS_REPORT_DIR/report.xml"
 # expands and pytest's junitxml plugin does. Still a fresh mktemp directory per
 # run, removed by the trap above and never rendered. A dedicated name, never
 # PYTEST_ADDOPTS: an inherited value of that reaches pytest unchanged.
+#
+# CS-1349 repair, same grant. Windows resolves a child's environment
+# case-insensitively while sh keeps each spelling apart, so an inherited
+# cs_push_report in any case would outrank the assignment below there. Every
+# inherited spelling is unset first; awk lists the NAMES only, never a value
+# (CLAUDE.md non-negotiable 13).
+cs_report_names=$(awk 'BEGIN { for (n in ENVIRON) if (toupper(n) == "CS_PUSH_REPORT") print n }' </dev/null 2>/dev/null) ||
+    die "the environment's variable names could not be listed." \
+        "The report's place cannot be made the hook's own, so the push is BLOCKED (CS-1349)."
+for cs_report_name in $cs_report_names; do
+    unset "$cs_report_name"
+done
 CS_PUSH_REPORT=$CS_REPORT
 export CS_PUSH_REPORT
 

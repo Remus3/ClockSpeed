@@ -51,6 +51,7 @@ from typing import Final, NamedTuple
 import pytest
 
 from tests.fleet_hook_kit import (
+    COMMIT_MARGIN_ENV,
     DURATIONS_FILE,
     OPERATOR_IDENT_KEY,
     SUITE_DIR_ENV,
@@ -733,6 +734,83 @@ def test_an_inherited_report_variable_cannot_aim_the_report(
     assert result.landed, f"a planted report variable broke an ordinary push:\n{result.report}"
     written = planted.exists()
     assert not written, "pytest wrote its report where an inherited variable aimed it"
+
+
+#: Other spellings of the report variable. sh keeps each spelling as a variable
+#: of its own, but a Windows child resolves its environment case-insensitively,
+#: so an inherited spelling could outrank the hook's own assignment there.
+REPORT_ENV_VARIANTS: Final = (REPORT_ENV.lower(), "Cs_Push_Report")
+
+
+@pytest.mark.parametrize("spelling", REPORT_ENV_VARIANTS, ids=["lower-case", "mixed-case"])
+def test_an_inherited_case_variant_of_the_report_variable_cannot_aim_the_report(
+    tmp_path: Path, isolated: Environment, spelling: str
+) -> None:
+    """CS-1349 repair. A planted case variant must not aim the report either.
+
+    RED at 0121c0e3 on Windows, measured by a distinct adversary: the variant
+    reached pytest beside the hook's own name, pytest wrote the report inside
+    the work tree, and the push was refused as "no report".
+    """
+    box = make_sandbox(tmp_path, isolated, tests=suite_of(PASSING_TEST, 3))
+    # Built from tmp_path, never from the sandbox's withheld field (the locals guard).
+    planted = tmp_path / "work" / "planted-report.xml"
+    result = push(box, extra_env={spelling: str(planted)})
+    written = planted.exists()
+    assert not written, "pytest wrote its report where an inherited case variant aimed it"
+    assert result.landed, f"a planted case variant broke an ordinary push:\n{result.report}"
+
+
+#: Stands in for a sandbox's suite gate. It loads the REAL kit file installed
+#: beside it, records only WHETHER the kit's own ``commit_margin_mb()`` reads 0 in
+#: the process the hook starts as the gate - never the value - and exits 3, the
+#: gate's own refusal code, without running the suite, so no arm can wait on the
+#: machine's free commit.
+MARGIN_SPY_GATE: Final = (
+    "import json\n"
+    "import runpy\n"
+    "import sys\n"
+    "from pathlib import Path\n"
+    "\n"
+    "kit = runpy.run_path(str(Path(__file__).with_name('fleet_suite_gate_real.py')))\n"
+    "record = Path(kit['gate_dir']()) / 'cs1349-margin-spy.json'\n"
+    "record.parent.mkdir(parents=True, exist_ok=True)\n"
+    "record.write_text(json.dumps({'zero': kit['commit_margin_mb']() == 0}))\n"
+    "sys.exit(3)\n"
+)
+
+#: Where the spy writes its one boolean, inside the sandbox's slot directory.
+MARGIN_SPY_RECORD: Final = "cs1349-margin-spy.json"
+
+
+@pytest.mark.parametrize(
+    ("override", "reads_zero"), [(None, True), ("", False)], ids=["margin-set", "control-emptied"]
+)
+def test_the_sandbox_margin_reaches_the_kit_gate_as_zero(
+    tmp_path: Path, isolated: Environment, override: str | None, reads_zero: bool
+) -> None:
+    """CS-1349 grant clause C, proved where it acts: inside the gate's own process.
+
+    ``isolated`` sets the margin through ``tests/fleet_hook_kit.py::commit_margin_env``.
+    A real push through the tracked hook starts the spy as the gate, and the
+    KIT's reader answers 0. THE CONTROL empties the variable for one push and the
+    same reader answers non-zero, so the oracle can see the difference. What the
+    margin then changes in admission depends on the machine's free commit and is
+    not measured here.
+    """
+    box = make_sandbox(tmp_path, isolated, tests=suite_of(PASSING_TEST, 3))
+    # Built from tmp_path, never from the sandbox's withheld field (the locals guard).
+    kit = tmp_path / "work" / "ops" / "fleet_kit"
+    (kit / "fleet_suite_gate_real.py").write_bytes((kit / "fleet_suite_gate.py").read_bytes())
+    (kit / "fleet_suite_gate.py").write_bytes(MARGIN_SPY_GATE.encode("ascii"))
+    extra = {} if override is None else {COMMIT_MARGIN_ENV: override}
+    result = push(box, extra_env=extra)
+    record = Path(suite_dir_env(tmp_path)[SUITE_DIR_ENV]) / MARGIN_SPY_RECORD
+    ran = record.is_file()
+    assert ran, f"the spy never ran as the gate:\n{result.report}"
+    zero = json.loads(record.read_bytes())["zero"]
+    assert zero is reads_zero, f"the kit's margin reader answered zero={zero}"
+    assert not result.landed, "a push whose gate never ran the suite moved the remote"
 
 
 def test_the_suite_line_hands_pytest_the_report_through_one_quoted_word() -> None:
