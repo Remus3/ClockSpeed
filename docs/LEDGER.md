@@ -75,6 +75,11 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1347 - CLOSED: greedy returns the lowest-ranking selection its walk reached
+Verification: clockspeed/solve/backends/greedy.py ranks every reached canonical result by optimize.result_ranking_key; its docstring AMENDS the first-solve contract and restates no-backtracking.
+tests/solve/test_optimize.py::test_cs1347_greedy_returns_the_lowest_ranking_selection_its_walk_reached fails on the old walk.
+Amended clause (session 151, distinct adjudicator): greedy refuses a power objective with PowerNotComparableError as exhaustive does; tests/surface/test_solve.py::test_a_power_objective_c10_cannot_price_is_400_on_both_backends. Two distinct adversary passes refuted earlier candidates on test blindness; repaired; a distinct verifier confirmed the merged candidate.
+
 ### 2026-10-24 - CS-1340 - CLOSED WITH RESIDUAL: save phase-cost source wired, amended clauses met
 Verification: tests/progress/test_save_phase_source.py::test_a_table_naming_no_installed_phase_is_not_authoritative, tests/save/test_repeated_keys.py::test_a_repeated_key_is_withheld_and_flagged_never_last_wins
 Clauses 1 and 4 amended session 151 (pinned world writes none; library reads False, named reason); ADR 0016 records the header deprecation. Three distinct adversary passes refuted earlier candidates on rule 7; each repaired; a distinct adjudicator closed it with the residual.

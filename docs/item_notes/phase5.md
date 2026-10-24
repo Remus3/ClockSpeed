@@ -439,52 +439,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1347
-
-### Filed 2026-10-22 by the CS-1244 close
-
-**THE SHARED KEY BREAKS A TIE AND DOES NOT RANK A RESULT.** CS-1244 promoted the one
-documented ranking key to `clockspeed/solve/optimize.py` as `ranking_key` and
-`result_ranking_key`, and both backends now break a TIE with it
-(`tests/solve/test_optimize.py::test_both_backends_break_a_tie_with_the_same_documented_key`).
-A tie-break is not a ranking. `clockspeed/solve/backends/greedy.py::GreedyBackend.optimize`
-documents its own return as "the first selection that solves the real request, in canonical
-form", and its class docstring says the walk commits to each step and never backtracks, so
-on a problem where a worse first step leads to a better factory it returns the worse
-factory. It never re-ranks the canonical selections its walk actually reached through the
-shared key, so nothing requires its result to be the lowest-ranking one it saw.
-
-**THE SHIPPED FIXTURES DO NOT DISTINGUISH THE TWO BACKENDS**, which is why this was found
-by reading rather than by a red arm:
-`tests/solve/test_optimize.py::test_c5_the_two_backends_produce_structurally_identical_plans`
-and `::test_c3_the_two_backends_agree_on_the_loop` both hold. CS-1244's close touched this
-module with a COMMENT ONLY - a verifier parsed it with docstrings stripped and found the AST
-byte-identical to HEAD's - so nothing about the walk changed and the finding is about
-behaviour that predates it.
-
-**WHETHER TO CORRECT THE WALK OR AMEND ITS GUARANTEE IS THIS ITEM'S TO SETTLE**, on the
-adjudicator route, never by quietly reading the no-backtracking sentence as something else.
-Re-ranking what the walk reached is not backtracking, so the two may both hold; the clause
-below requires the choice to be written down either way.
-
-### CORRECTION - recorded 2026-10-22 (session 150) by the CS-1244 re-close
-
-**THE FILING ABOVE SAYS BOTH BACKENDS BREAK A TIE WITH THE SHARED KEY, AND GREEDY DOES NOT.**
-Only `clockspeed/solve/backends/exhaustive.py`, through
-`clockspeed/solve/optimize.py::result_ranking_key`, and the strategy ladder's
-`clockspeed/solve/strategy.py::rank_plans` use the key. `clockspeed/solve/backends/greedy.py`
-scores a relaxed probe plan, which has no canonical selection to read positions from, and
-resolves a tie through registry-ordered pool iteration and a strict less-than - the same
-registry ordering, reached by a different route, as its own comment states.
-`tests/solve/test_optimize.py::test_both_backends_break_a_tie_with_the_same_documented_key`
-grades both backends' outcome on the C8 twins, not which rule produced it. That greedy never
-consults the key is this item's own subject. The filing stays as written and this block
-corrects it; the same correction to the CS-1244 record is in `docs/LEDGER.md`.
-
-### Acceptance
-
-the result `clockspeed/solve/backends/greedy.py` returns is the lowest-ranking of the canonical selections its walk actually reached, by `clockspeed/solve/optimize.py::result_ranking_key`; a synthetic fixture in which the first selection that solves is not the lowest-ranking one reddens on the old behaviour and passes on the new, so the arm is not vacuous; and the heuristic's no-backtracking guarantee is restated or AMENDED explicitly in that module's docstring, with an amendment recorded in `docs/LEDGER.md` under this ID, never changed in silence
-
 ## CS-1350
 
 ### Filed 2026-10-23 by the CS-1245 close

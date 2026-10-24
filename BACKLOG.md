@@ -1040,3 +1040,6 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
 - From the same close: CS-1340 reopen trigger: a library save holding a part-paid phase, or a
   1.0-native world that writes `mGamePhaseCosts` - re-measure; never map `EGP_` names to `GP_`
   phases without measuring.
+- CS-1347 residual (`docs/LEDGER.md`, 2026-10-24, CS-1347): if power requests on real game data
+  start refusing (PowerNotComparableError at POST /api/optimize), consider skipping unpriceable
+  candidates at the door in both backends (adjudicated option (d), out of CS-1347's scope).
