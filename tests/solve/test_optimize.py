@@ -1265,16 +1265,24 @@ def _worse_registry() -> Registry:
     return registry_with(add=[SCRAP_ROD_ENTRY, waste])
 
 
+def _burn_entry() -> dict[str, str]:
+    """Build R_Burn: 2000 L Residue -> 1 Relic, 4 s.
+
+    Returns:
+        The entry mapping.
+    """
+    return _flow_recipe_entry(
+        BURN_RECIPE, [(SOLVE_RESIDUE_ITEM, CONSUMER_RESIDUE_LITRES)], [(SOLVE_RELIC_ITEM, 1)]
+    )
+
+
 def _tie_registry() -> Registry:
     """Build the TIE variant: R_Burn declared BEFORE R_ScrapRod, on purpose.
 
     Returns:
         The variant registry, built through the real docs seam.
     """
-    burn = _flow_recipe_entry(
-        BURN_RECIPE, [(SOLVE_RESIDUE_ITEM, CONSUMER_RESIDUE_LITRES)], [(SOLVE_RELIC_ITEM, 1)]
-    )
-    return registry_with(add=[burn, SCRAP_ROD_ENTRY])
+    return registry_with(add=[_burn_entry(), SCRAP_ROD_ENTRY])
 
 
 def _rod_request(backend: str, candidates: tuple[str, ...]) -> OptimizeRequest:
@@ -1344,6 +1352,89 @@ def test_cs1347_greedy_breaks_a_reached_tie_exactly_as_exhaustive_does() -> None
         assert type(result.score) is Fraction
     assert greedy.plan == exhaustive.plan
     assert greedy.selection == exhaustive.selection
+
+
+# --- two more wrong rules a second adversary found surviving -----------------
+#
+# TIE REVERSED, registry_with(add=[R_ScrapRod, R_Burn]) - R_Burn now AFTER
+# R_ScrapRod. The walk is the TIE walk: {R_Plate, R_ScrapRod} first, then
+# {R_Plate, R_ScrapRod, R_Burn}, both at 30 Ore. Now the first is a PREFIX of
+# the second in registry order, so the key keeps the two-recipe selection. A
+# score-only rule that lets an equal score REPLACE the best so far (<= rather
+# than <) answers the three-recipe one, and the one-direction TIE arm above
+# cannot see it, because there the later selection is also the key's choice.
+#
+# TWO ROUNDS PAST, registry_with(add=[R_ScrapRod, R_Burn, R_Remelt]) with
+#
+#   R_Remelt  1 Relic -> 1 Plate, 4 s    Relic -15, Plate +15
+#
+# Round 1 is a three-way probe tie at 30 - adding R_Plate (Ore 30), R_Burn
+# (Plate 30 relaxed) or R_Remelt (Relic 30 relaxed) - and R_Plate wins by pool
+# order. Round 2: {R_Plate, R_ScrapRod} SOLVES at 30 Ore; adding R_Remelt alone
+# leaves Plate with two producers and one balance, which is underdetermined, so
+# R_Burn is the only feasible probe. Round 3: {R_Plate, R_ScrapRod, R_Burn}
+# solves at 30 (Relic vented), and R_Remelt now probes feasible. Round 4, all
+# four: s = 2; Residue 30 - 30b = 0 -> b = 1; Relic 15b - 15m = 0 -> m = 1;
+# Plate 30p - 30 + 15 = 0 -> p = 1/2; Ore 15. The minimum is reached TWO rounds
+# after the first solve, so a walk that stops one round after it answers 30.
+
+REMELT_RECIPE: str = "R_Remelt"
+
+TWO_ROUNDS_TIED_SOLVE: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE, BURN_RECIPE)
+TWO_ROUNDS_ANSWER: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE, BURN_RECIPE, REMELT_RECIPE)
+TWO_ROUNDS_ANSWER_MACHINES: dict[str, Fraction] = {
+    PLATE_RECIPE: Fraction(1, 2),
+    SCRAP_ROD_RECIPE: Fraction(2),
+    BURN_RECIPE: Fraction(1),
+    REMELT_RECIPE: Fraction(1),
+}
+TWO_ROUNDS_ANSWER_ORE: Fraction = Fraction(15)
+
+
+def test_cs1347_a_score_tie_the_other_way_round_keeps_the_earlier_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kills SCORE-ONLY WITH <=: the later of two tied selections is NOT the key's choice."""
+    variant = registry_with(add=[SCRAP_ROD_ENTRY, _burn_entry()])
+    candidates = (BURN_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
+    _, result, spy = _spied_greedy_run(
+        monkeypatch, variant, _rod_request(BACKEND_GREEDY, candidates)
+    )
+    exhaustive = _run(variant, _rod_request(BACKEND_EXHAUSTIVE, candidates))
+
+    # Anti-vacuity: both tied selections are reached, the key's choice FIRST.
+    assert [(each.selection, each.score) for each in spy.reached] == [
+        (RECLAIM_FIRST_SOLVE, TIE_ORE),
+        ((PLATE_RECIPE, SCRAP_ROD_RECIPE, BURN_RECIPE), TIE_ORE),
+    ]
+    assert result.selection == RECLAIM_FIRST_SOLVE
+    assert result.score == TIE_ORE
+    assert exhaustive.selection == result.selection
+    assert exhaustive.plan == result.plan
+
+
+def test_cs1347_the_minimum_two_rounds_past_the_first_solve_is_still_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kills a walk that stops ONE round after its first solve."""
+    remelt = _flow_recipe_entry(REMELT_RECIPE, [(SOLVE_RELIC_ITEM, 1)], [(SOLVE_PLATE_ITEM, 1)])
+    variant = registry_with(add=[SCRAP_ROD_ENTRY, _burn_entry(), remelt])
+    candidates = (REMELT_RECIPE, BURN_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
+    _, result, spy = _spied_greedy_run(
+        monkeypatch, variant, _rod_request(BACKEND_GREEDY, candidates)
+    )
+    exhaustive = _run(variant, _rod_request(BACKEND_EXHAUSTIVE, candidates))
+
+    # Anti-vacuity: three reached solves, the minimum two rounds after the first.
+    assert [(each.selection, each.score) for each in spy.reached] == [
+        (RECLAIM_FIRST_SOLVE, TIE_ORE),
+        (TWO_ROUNDS_TIED_SOLVE, TIE_ORE),
+        (TWO_ROUNDS_ANSWER, TWO_ROUNDS_ANSWER_ORE),
+    ]
+    assert result.selection == TWO_ROUNDS_ANSWER
+    assert _machines(result.plan) == TWO_ROUNDS_ANSWER_MACHINES
+    assert result.score == TWO_ROUNDS_ANSWER_ORE
+    assert exhaustive.plan == result.plan
 
 
 # --- a power objective on C10 - refused by both backends, by ruling ----------

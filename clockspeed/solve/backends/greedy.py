@@ -83,14 +83,19 @@ canonical result to rank.
 
 This replaces the walk's earlier contract, "the first selection that solves the
 real request". That walk stopped at its first solve, so a later round it never
-ran could not be compared at all. The two differ whenever adding a recipe to a
-selection that already solves makes a better factory - a recipe that turns a
-vented byproduct back into an intermediate is the ordinary case, and
-``tests/solve/test_optimize.py``'s CS-1347 reclaim fixture is built on that: the
-first solve costs 30 Ore a minute and the next round's selection costs 15. So a
-solve no longer ends the walk; the walk runs on until no addition probes
-feasible, and the cost bound is the one it already had: at most one round per
-pool member, plus the round that asks about the empty selection.
+ran could not be compared at all. Up to its first solve the new walk takes the
+same steps as the old one, so the two outcomes differ EXACTLY when, after that
+first solve, the walk either reaches a selection ranking strictly below it under
+the key - a strictly lower score, or an equal score with an earlier position
+tuple - or raises while scoring, the power refusal below. A better factory that
+some addition WOULD make is not enough: the walk must take that addition, and it
+adds only the lowest-scoring feasible probe. All three cases are fixtures in
+``tests/solve/test_optimize.py``: on C10 the first solve costs 30 Ore a minute
+and the next round's selection 15; on the TIE fixture a later selection ties the
+first at 30 and ranks below it; and C10 under power raises. So a solve no longer
+ends the walk; the walk runs on until no addition probes feasible, and the cost
+bound is the one it already had: at most one round per pool member, plus the
+round that asks about the empty selection.
 
 THE NO-BACKTRACKING GUARANTEE, RESTATED. Re-ranking what the walk reached is
 not backtracking, and the walk still never backtracks: every step it commits to
