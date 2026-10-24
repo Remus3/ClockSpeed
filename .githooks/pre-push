@@ -610,6 +610,17 @@ case "$cs_report_real/" in
 esac
 CS_REPORT="$CS_REPORT_DIR/report.xml"
 
+# CS-1349: THE REPORT'S PLACE REACHES PYTEST THROUGH ONE STABLE WORD. Under the
+# frozen-file grant recorded in docs/LEDGER.md under "2026-10-23 - CS-1349";
+# read its scope before changing this. The suite gate keys its history by a
+# hash of every word after `--`, so a per-run path among them matched no
+# earlier push. The suite line hands pytest a single-quoted word the shell never
+# expands and pytest's junitxml plugin does. Still a fresh mktemp directory per
+# run, removed by the trap above and never rendered. A dedicated name, never
+# PYTEST_ADDOPTS: an inherited value of that reaches pytest unchanged.
+CS_PUSH_REPORT=$CS_REPORT
+export CS_PUSH_REPORT
+
 # THE READER. It prints "<executed> <passed>" and nothing else, and exits
 # non-zero on anything it cannot read as a pytest junit report. A testcase with
 # a skipped child is NOT RUN - xfail is written that way too. Deselected tests
@@ -662,7 +673,7 @@ fi
 # FLEET-COMMON 16c (kit v13, CS-1290 grant C.2): the whole suite runs inside a
 # machine-wide slot of the kit's suite gate, which exits with the suite's own
 # code, or 3 when it refuses or times out without running the suite.
-cs_python -P "$ROOT/ops/fleet_kit/fleet_suite_gate.py" run --owner "${FLEET_CLAIM_OWNER:-pre-push}" -- "$CS_PY_EXE" -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
+cs_python -P "$ROOT/ops/fleet_kit/fleet_suite_gate.py" run --owner "${FLEET_CLAIM_OWNER:-pre-push}" -- "$CS_PY_EXE" -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml '${CS_PUSH_REPORT}' </dev/null
 STATUS=$?
 
 if [ "$STATUS" -eq 5 ]; then

@@ -20,11 +20,21 @@ Grant condition C.3 (``docs/LEDGER.md``, 2026-10-09 CS-1290): no assertion is
 weakened by any of this. The hook bytes the sandboxes install stay the tracked
 bytes, floor line apart (``tests/pre_push_floor.py``).
 
+CS-1349, THE COMMIT MARGIN. The gate admits a run only while free commit covers
+the run's history-derived requirement PLUS a margin, and a fresh slot directory
+holds no history, so every sandbox push would ask for the kit's default
+requirement and its default margin together. Every sandbox that drives a real
+push sets the margin to 0 in its own environment through :func:`commit_margin_env`.
+The variable is NAMED by reading the kit's own ``ENV_COMMIT_MARGIN`` constant,
+never restated here, and its value is never rendered (CLAUDE.md non-negotiable
+13). Grant clause C, ``docs/LEDGER.md``, 2026-10-23 CS-1349.
+
 THIS MODULE NEVER WRITES OUTSIDE THE DIRECTORY IT IS HANDED.
 """
 
 from __future__ import annotations
 
+import ast
 import shutil
 from pathlib import Path
 from typing import Final
@@ -57,6 +67,50 @@ def install_hook_kit(work: Path) -> Path:
     return target
 
 
+#: The kit file whose module-level string constants this module reads by name.
+SUITE_GATE_FILE: Final = KIT_DIR / "fleet_suite_gate.py"
+
+#: The margin every sandbox push asks the gate for.
+SANDBOX_COMMIT_MARGIN: Final = 0
+
+
+class KitConstantError(LookupError):
+    """The kit file does not assign the named constant exactly once, to a string."""
+
+
+def kit_constant(name: str) -> str:
+    """The string the suite gate's source assigns to ``name`` at module level.
+
+    Read from the source's syntax tree, never by importing the kit, so asking for
+    a name runs none of the kit's own code. Raises unless exactly one top-level
+    assignment binds ``name`` to a plain string literal.
+    """
+    tree = ast.parse(SUITE_GATE_FILE.read_text(encoding="ascii"))
+    values = [
+        node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and [getattr(target, "id", None) for target in node.targets] == [name]
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    ]
+    if len(values) != 1:
+        raise KitConstantError(f"{name}: {len(values)} string assignment(s) in the suite gate")
+    return values[0]
+
+
+#: The variable the suite gate reads its commit margin from, named by the kit.
+COMMIT_MARGIN_ENV: Final = kit_constant("ENV_COMMIT_MARGIN")
+
+#: The file the gate appends one record per run to, inside its slot directory.
+DURATIONS_FILE: Final = kit_constant("DURATIONS")
+
+
 def suite_dir_env(tmp_path: Path) -> dict[str, str]:
     """The gate's slot directory, under the arm's own temporary directory."""
     return {SUITE_DIR_ENV: str(tmp_path / "fleet-suite-gate")}
+
+
+def commit_margin_env() -> dict[str, str]:
+    """The gate's commit margin, set to 0 for a sandbox push (CS-1349)."""
+    return {COMMIT_MARGIN_ENV: str(SANDBOX_COMMIT_MARGIN)}

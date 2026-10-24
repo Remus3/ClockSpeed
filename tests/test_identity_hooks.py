@@ -32,6 +32,7 @@ from tests.fleet_hook_kit import (
     KIT_DIR,
     OPERATOR_IDENT_KEY,
     SUITE_DIR_ENV,
+    commit_margin_env,
     install_hook_kit,
     suite_dir_env,
 )
@@ -67,6 +68,8 @@ def commit_box(request: pytest.FixtureRequest) -> CommitSandbox:
 def push_env(request: pytest.FixtureRequest) -> Environment:
     """The floor module's isolated push environment."""
     env: Environment = request.getfixturevalue("push_isolated")
+    # CS-1349: the gate's commit margin is 0 for a sandbox push (grant clause C).
+    env.variables.update(commit_margin_env())
     return env
 
 

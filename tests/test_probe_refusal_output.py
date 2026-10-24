@@ -71,7 +71,12 @@ from typing import Final, NamedTuple
 
 import pytest
 
-from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
+from tests.fleet_hook_kit import (
+    OPERATOR_IDENT_KEY,
+    commit_margin_env,
+    install_hook_kit,
+    suite_dir_env,
+)
 from tests.git_env import scrub
 from tests.test_pretooluse_gate import envelope, require_posix_shell
 
@@ -183,6 +188,8 @@ def child_env(root: Path, extra: dict[str, str] | None = None) -> dict[str, str]
         env.pop(name)
     env.update(zip(CANARY_NAMES, MARKERS, strict=True))
     env.update(suite_dir_env(root))
+    # CS-1349: the gate's commit margin is 0 for a sandbox push (grant clause C).
+    env.update(commit_margin_env())
     # CS-1297: the nested pytest names its base temp `pytest-of-<account>`, and
     # the account here may be a canary marker - aim TMPDIR (read first by
     # tempfile and by the hook's mktemp) under this arm's own root, outside the

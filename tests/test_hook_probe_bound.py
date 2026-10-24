@@ -69,7 +69,12 @@ from typing import Final, NamedTuple
 
 import pytest
 
-from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
+from tests.fleet_hook_kit import (
+    OPERATOR_IDENT_KEY,
+    commit_margin_env,
+    install_hook_kit,
+    suite_dir_env,
+)
 from tests.git_env import scrub
 from tests.pre_push_floor import wired_hook_bytes
 
@@ -614,6 +619,8 @@ def isolated(tmp_path: Path) -> Environment:
     for name in (ENV_NAME, INSPECT_NAME):
         env.pop(name, None)
     env.update(suite_dir_env(tmp_path))
+    # CS-1349: the gate's commit margin is 0 for a sandbox push (grant clause C).
+    env.update(commit_margin_env())
     return Environment(env)
 
 

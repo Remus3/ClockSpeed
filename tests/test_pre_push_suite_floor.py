@@ -26,6 +26,11 @@ floor line alone is rewritten to a test-local value through
 and read the shipped value from it (ruling recorded in ``docs/LEDGER.md`` under
 "CS-824 - GRANT CLARIFICATION", condition C4).
 
+CS-1349, ONE GATE COMMAND PER CHECKOUT. Two landed pushes through one sandbox
+must leave the suite gate two records carrying ONE command hash, read from the
+gate's own durations file; the arms are at the end of this module, under the
+frozen-file grant recorded in ``docs/LEDGER.md`` under "2026-10-23 - CS-1349".
+
 RESOURCE LIFETIME. Every child is a ``subprocess.run`` bounded by
 ``GIT_TIMEOUT``, which reaps it. The sandbox, its bare remote and the hook's own
 temporary directory all live under pytest's ``tmp_path``, which pytest removes on
@@ -35,6 +40,7 @@ arm owns, so the arm can prove the hook removed its report on every exit path.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -44,7 +50,14 @@ from typing import Final, NamedTuple
 
 import pytest
 
-from tests.fleet_hook_kit import OPERATOR_IDENT_KEY, install_hook_kit, suite_dir_env
+from tests.fleet_hook_kit import (
+    DURATIONS_FILE,
+    OPERATOR_IDENT_KEY,
+    SUITE_DIR_ENV,
+    commit_margin_env,
+    install_hook_kit,
+    suite_dir_env,
+)
 from tests.git_env import scrub
 from tests.pre_push_floor import (
     FLOOR_LINE,
@@ -89,11 +102,14 @@ SHADOW_PYTEST: Final = b"# CS-821: a shadow pytest that runs nothing at all\n"
 
 #: The adversary's shadow: runs nothing, but writes a report claiming one passed
 #: test and exits 0. Every report check alone accepts it; only where pytest
-#: RESOLVES FROM can refuse it.
+#: RESOLVES FROM can refuse it. CS-1349: it expands the report word the way
+#: pytest's junitxml plugin does, so it writes where the real report would land.
 FORGING_PYTEST: Final = (
+    b"import os\n"
     b"import sys\n"
     b"if '--junitxml' in sys.argv:\n"
-    b"    target = sys.argv[sys.argv.index('--junitxml') + 1]\n"
+    b"    word = sys.argv[sys.argv.index('--junitxml') + 1]\n"
+    b"    target = os.path.expanduser(os.path.expandvars(word))\n"
     b"    with open(target, 'w', encoding='ascii') as handle:\n"
     b'        handle.write(\'<testsuite><testcase classname="x" name="y"/></testsuite>\')\n'
 )
@@ -125,14 +141,18 @@ RED_EXIT: Final = "BLOCKED (pytest exit"
 #: Overwrites the finished report with bytes no XML parser accepts. It acts in
 #: the CONTROLLER only: an xdist worker also loads this conftest, and a worker
 #: corrupting the file before the controller writes it would measure nothing.
+#: CS-1349: the option holds the hook's report WORD, which it expands the way
+#: pytest's junitxml plugin does, so it overwrites the report pytest wrote.
 CORRUPTING_CONFTEST: Final = (
+    "import os\n"
     "from pathlib import Path\n"
     "\n"
     "\n"
     "def pytest_unconfigure(config):\n"
     "    target = config.option.xmlpath\n"
     "    if target and not hasattr(config, 'workerinput'):\n"
-    "        Path(target).write_bytes(b'<not-xml')\n"
+    "        place = os.path.expanduser(os.path.expandvars(target))\n"
+    "        Path(place).write_bytes(b'<not-xml')\n"
 )
 
 
@@ -250,6 +270,8 @@ def isolated(tmp_path: Path) -> Environment:
     reports.mkdir()
     env["TMPDIR"] = str(reports)
     env.update(suite_dir_env(tmp_path))
+    # CS-1349: the gate's commit margin is 0 for a sandbox push (grant clause C).
+    env.update(commit_margin_env())
     return Environment(env)
 
 
@@ -605,3 +627,128 @@ def test_the_helper_changes_the_floor_line_and_nothing_else() -> None:
     assert not differs_only_on_floor_line(drifted, tracked), "a second drifted line passed"
     assert wired_hook_bytes("pre-commit", b"x\n") == b"x\n", "a non-push hook was rewritten"
     assert wired_hook_bytes("commit-msg", b"x\n") == b"x\n", "a non-push hook was rewritten"
+
+
+# --- CS-1349: two pushes from one checkout hand the suite gate ONE command --
+#
+# THE GAP. The suite gate keys its own history - the commit admission's
+# ``required_commit_mb`` and the short-suite lane's ``median_hold`` - by
+# ``ops/fleet_kit/fleet_suite_gate.py::cmd_hash``, taken over EVERY command word
+# after ``--``. The hook handed it the junit report's path as one of those words,
+# inside a fresh ``mktemp -d`` directory new on every push, so no push matched
+# an earlier one and every push asked for the kit's default commit requirement.
+#
+# THE GRANT, ``docs/LEDGER.md``, 2026-10-23 CS-1349: only how the report path
+# reaches pytest changes. The directory stays a fresh ``mktemp -d`` per run,
+# outside the tree, removed by the trap and never rendered; an inherited
+# ``PYTEST_ADDOPTS`` reaches pytest unchanged.
+#
+# THE ORACLE IS THE GATE'S OWN RECORD: one line per run in its durations file,
+# in the slot directory ``isolated`` aims under the arm's own ``tmp_path``.
+
+#: The variable the hook hands pytest the report's place through. Named here so
+#: the planted-value arm can aim it; the static arm proves the hook uses it.
+REPORT_ENV: Final = "CS_PUSH_REPORT"
+
+#: The one command word that carries it: single-quoted, so the SHELL never
+#: expands it and pytest's own junitxml plugin does.
+REPORT_WORD: Final = "'${" + REPORT_ENV + "}'"
+
+#: A harmless, distinctive inherited value the sandbox test checks byte for byte.
+INHERITED_ADDOPTS: Final = "-p no:cacheprovider"
+
+#: A sandbox test that passes only when pytest saw the inherited value unchanged.
+ADDOPTS_TEST: Final = (
+    "import os\n"
+    "\n"
+    "\n"
+    "def test_the_inherited_addopts_reached_pytest_unchanged() -> None:\n"
+    f"    assert os.environ.get('PYTEST_ADDOPTS') == {INHERITED_ADDOPTS!r}\n"
+)
+
+#: The shape of the gate's ``cmd`` field: 16 lowercase hex digits.
+CMD_HASH: Final = re.compile(r"[0-9a-f]{16}")
+
+#: How many pushes the acceptance arm makes, so how many records the gate owes.
+PUSHES: Final = 2
+
+
+def gate_records(tmp_path: Path) -> list[dict[str, object]]:
+    """Every record the sandbox's suite gate appended, oldest first."""
+    durations = Path(suite_dir_env(tmp_path)[SUITE_DIR_ENV]) / DURATIONS_FILE
+    if not durations.is_file():
+        return []
+    lines = durations.read_bytes().decode("ascii").split("\n")
+    return [json.loads(line) for line in lines if line.strip()]
+
+
+def test_two_pushes_from_one_checkout_hand_the_gate_one_command_hash(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """THE CS-1349 ACCEPTANCE ARM. RED at base: two records, two distinct ``cmd`` hashes."""
+    box = make_sandbox(tmp_path, isolated, tests=suite_of(PASSING_TEST, 3))
+    first = push(box)
+    assert first.landed, f"the first ordinary push was refused:\n{first.report}"
+    second = push(box)
+    assert second.landed, f"the second ordinary push was refused:\n{second.report}"
+    hashes = [record.get("cmd") for record in gate_records(tmp_path)]
+    recorded = len(hashes)
+    assert recorded == PUSHES, f"the gate recorded {recorded} runs for two pushes, not two"
+    shaped = sum(1 for value in hashes if isinstance(value, str) and CMD_HASH.fullmatch(value))
+    assert shaped == PUSHES, f"{shaped} of the two records carry a command hash"
+    distinct = len(set(hashes))
+    assert distinct == 1, f"two pushes from one checkout handed the gate {distinct} commands"
+    leaked = first.leaked_path or second.leaked_path
+    assert not leaked, "a push rendered the report's temporary path"
+    assert leftovers(box) == 0, "the hook left a report directory behind across two pushes"
+
+
+def test_an_inherited_addopts_reaches_pytest_unchanged(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-1349 grant clause A. The report path never rides on ``PYTEST_ADDOPTS``.
+
+    The sandbox's one test passes only when pytest saw the inherited value byte
+    for byte, so a hook that appended to it, replaced it or dropped it is refused.
+    """
+    tests = {"test_sandbox.py": ADDOPTS_TEST}
+    box = make_sandbox(tmp_path, isolated, tests=tests)
+    result = push(box, extra_env={"PYTEST_ADDOPTS": INHERITED_ADDOPTS})
+    assert result.landed, f"the inherited value did not reach pytest unchanged:\n{result.report}"
+
+
+def test_an_inherited_report_variable_cannot_aim_the_report(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """The hook ASSIGNS the variable; a value planted in the environment is overwritten.
+
+    The planted place is inside the work tree, which the CS-821 check refuses for
+    the hook's own directory. Were the planted value used, pytest would write
+    there and the hook would find no report of its own.
+    """
+    box = make_sandbox(tmp_path, isolated, tests=suite_of(PASSING_TEST, 3))
+    # Built from tmp_path, never from the sandbox's withheld field (the locals guard).
+    planted = tmp_path / "work" / "planted-report.xml"
+    result = push(box, extra_env={REPORT_ENV: str(planted)})
+    assert result.landed, f"a planted report variable broke an ordinary push:\n{result.report}"
+    written = planted.exists()
+    assert not written, "pytest wrote its report where an inherited variable aimed it"
+
+
+def test_the_suite_line_hands_pytest_the_report_through_one_quoted_word() -> None:
+    """The CS-1349 static half: the word, its export, and no per-run path among the words.
+
+    One suite line; it carries the single-quoted word once and no ``$CS_REPORT``
+    expansion; the hook exports the variable exactly once.
+    """
+    lines = TRACKED_HOOK.read_bytes().decode("ascii").split("\n")
+    suite = [line for line in lines if "fleet_suite_gate.py" in line and " run " in line]
+    count = len(suite)
+    assert count == 1, f"the hook carries {count} suite lines, not one"
+    words = suite[0].split(" -- ", 1)[1]
+    quoted = words.count("--junitxml " + REPORT_WORD)
+    assert quoted == 1, f"the suite line hands the report word {quoted} times, not once"
+    per_run = "$CS_REPORT" in words
+    assert not per_run, "a per-run report path is still among the command words"
+    exported = sum(1 for line in lines if line.strip() == "export " + REPORT_ENV)
+    assert exported == 1, f"the hook exports the report variable on {exported} lines, not one"
