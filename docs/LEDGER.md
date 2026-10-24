@@ -75,6 +75,118 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-23 - CS-1245 - CLOSED. Bounded candidate enumeration ships as `clockspeed/solve/bound.py`, a trim ABOVE the OptimizerBackend seam with its cap and rule recorded, leaving `optimize.py` and both backends byte-unchanged
+Verification: `clockspeed/solve/bound.py::optimize_within_bound` plus
+`tests/solve/test_bound.py::test_a_cap_hit_records_the_cap_the_rule_and_a_conserving_partition`,
+`::test_two_processes_under_different_hash_seeds_agree` and
+`::test_the_chosen_prefix_is_the_smallest_that_passes` - one arm per clause of the acceptance.
+Headless queue lane cycle, lane 0, worktree detached at 514bb515.
+
+THE CLAUSE, as filed by the 2026-10-04 inspiration ingest and graded verbatim: a cap hit in a
+fixture produces a recorded step naming the cap and the trim rule; two runs choose the same
+candidate; the chosen candidate is the smallest that passes every validation check, not the first
+built.
+
+THE DEFECT AND ITS ROOT CAUSE. Nothing bounded an over-cap request at all: above
+`clockspeed/solve/optimize.py::MAX_EXHAUSTIVE_CANDIDATES` the only behaviour was
+`clockspeed/solve/backends/exhaustive.py` raising `SearchSpaceTooLargeError`, and a caller who
+could not shrink the request themselves had no answer available. The root cause of the stall was
+not the missing code but a CONFLICT: that refusal is defended in writing under the heading WHY THE
+CAP IS A REFUSAL AND NOT A DEGRADATION, and arm 1 of the clause requires a cap hit to RETURN
+something a recorded step can ride on. A pre-dispatch spec check filed that as a blocker and
+refused to build past it.
+
+THE ADJUDICATED RULING, taken immediately on the section 6.1 route with no operator in the loop,
+and recorded here because the reading of the clause is the decision: the trim lives ABOVE the
+`OptimizerBackend` seam in a new sibling module modelled on `clockspeed/solve/relax.py`;
+`optimize_within_bound` narrows the REQUEST and re-enters through `optimize_plan`; the clause
+grades the candidate SET, so the trim ranking defines nested prefixes and the first prefix that
+solves is the smallest that does; `clockspeed/solve/optimize.py::result_ranking_key` is LEFT ALONE and still picks
+the winner inside each prefix; the bound is OPT-IN BY CALL SITE with no `SolveConfig` field, so an
+unconfigured `optimize_plan` caller above the cap still gets the same refusal with the same
+message. Reading the clause as fewest RECIPES was refused: cardinality dominating the score would
+demote the objective the request states, and `OBJECTIVE_BUILDINGS` already expresses smaller as an
+exact weight. Reversed by: a timing measurement showing the nested-prefix ascent costs more than
+the cap itself, or the operator's own words re-reading smallest as fewest recipes.
+
+WHAT THAT BUYS, AND IT IS THE POINT OF THE RULING: no written design decision is reversed.
+`clockspeed/solve/optimize.py`, `clockspeed/solve/backends/exhaustive.py` and
+`clockspeed/solve/backends/greedy.py` are byte-identical to `origin/main`, proven by SHA-256 of
+raw bytes against the blob, not by a filtered `git diff` alone. The refusal becomes the new
+module's safety floor under the exhaustive backend, and the bounded answer comes back from a
+DIFFERENT function carrying a record of what was dropped.
+
+THE COST BOUND IS ARITHMETIC RATHER THAN A MEASUREMENT, which is why no timing fixture was built:
+prefix k costs `1 << k` subsets, so the whole ascent costs `(1 << (K + 1)) - 2` against the single
+capped search's `1 << K` - a factor just under two, never an unbounded run.
+
+THE SIBLING SWEEP, AND THE PREDICTION IT FALSIFIED. The cycle predicted the cap's one call site in
+`exhaustive.py` would be the sibling set and that `optimize.py` would change. Both were wrong. The
+cap site needed no edit at all, and the real sibling set was the places that PIN the solve module
+population: `tests/solve/test_phase3_gate.py::SOLVE_SOURCES` and `::SOLVE_TEST_SOURCES`, which
+assert the pinned lists against the filesystem in both directions and went red on the new module
+exactly as their own docstring says they should. Two sites, both swept, plus the two
+`tools/provenance.tsv` rows and the `_SOURCE_FILES` entry in `tests/solve/test_optimize.py` that
+puts the new module inside the four source census arms. The reusable lesson: in this tree a new
+module's siblings are its DECLARATIONS, not its callers.
+
+TESTS ADDED, ten in `tests/solve/test_bound.py`, named for what they grade:
+`test_a_cap_hit_records_the_cap_the_rule_and_a_conserving_partition`,
+`test_the_record_shape_is_the_one_relax_py_established`,
+`test_an_under_cap_request_is_not_recorded_as_trimmed`,
+`test_a_permuted_and_duplicated_candidate_tuple_does_not_move_the_answer`,
+`test_two_processes_under_different_hash_seeds_agree`,
+`test_the_chosen_prefix_is_the_smallest_that_passes`,
+`test_a_target_producer_last_in_registry_order_survives_the_trim`,
+`test_a_request_no_prefix_can_solve_refuses_and_names_the_cap_and_the_rule`,
+`test_the_refusal_is_a_no_plan_refusal_a_caller_already_handles`,
+`test_the_trim_rule_vocabulary_is_closed_and_holds_the_shipped_rule`.
+
+WHY THOSE ARMS ARE NOT VACUOUS, stated because three of this project's measured defect classes meet
+here. The shipped `tests/solve/synthetic.py::registry_with` yields eleven recipes against a cap of
+twelve, so NO shipped fixture can hit the cap and every cap arm pads first and fronts its act with
+`assert len(usable) > MAX_EXHAUSTIVE_CANDIDATES`. The cap is compared against the imported
+CONSTANT and never the literal, so moving the constant moves the arm. Kept and removed are graded
+as a PARTITION WITH CONSERVATION - length sum, empty intersection, union equal to the usable set -
+because a count alone cannot express a dropped row. Determinism is graded ACROSS PROCESSES under
+two `PYTHONHASHSEED` values, since a same-process double call cannot catch a set-ordered trim, and
+the probe was shown to have power: a set-ordered trim really does render differently between those
+two seeds. The smallest-passing arm proves the size-one prefix infeasible independently and then
+asserts the STRICT inequality `whole.score < bounded.result.score`, so the arm reddens both if the
+ascent starts at the wrong k and if it quietly returns the whole-set optimum.
+
+THE TRADE THIS SHIPS, RECORDED HERE AND NOT ONLY IN THE MODULE: because the prefix size dominates
+the order, `optimize_within_bound` can return a plan that scores WORSE than the best plan over the
+whole trimmed set. That is the adjudicated order, k then score then positions with k outermost,
+and the record plus `chosen_size` is what makes it visible instead of silent. A caller who wants
+the whole-set optimum calls `optimize_plan` and gets the refusal.
+
+TIER 2 PAID, as a new public interface in the solve path. Counts observed THIS run, on this tree:
+`python -m pytest tests/solve tests/ops` plus twenty named doc and census guard modules, serial,
+summary line `4719 passed, 5 skipped, 6 warnings in 575.62s (0:09:35)`, exit 0; the five skips are
+platform or privilege bound and name no file of this item. A WHOLE-SUITE RUN WAS NOT OBTAINED
+LOCALLY and that is a residual rather than a claim: another agent on this box held the machine-wide
+suite slot with a live parallel run, and two attempts waited the full tool ceiling without starting
+pytest at all. The whole suite is paid by the pre-push hook on the committed tree.
+
+VERIFIER: CONFIRM, by an agent that produced none of it, on one pass as the lane's bounded
+refutation rule allows. It re-derived the clause from `origin/main`, proved the three
+must-not-change files byte-identical by SHA-256, proved the census arms genuinely cover the new
+module by injecting each defect into a copy and watching the predicate fire, ran the new arms three
+times for stability, and demonstrated the live divergence that CS-1350 records. Its one finding was
+a docstring claim scoped too widely - that the shared ranking key picks the winner inside every
+prefix, which is true of the exhaustive backend and not of greedy. Repaired in the same commit by
+qualifying both sentences, and the repair was proven DOCSTRING-ONLY: the module's AST with
+docstrings stripped is identical before and after.
+
+FILED THIS CYCLE: CS-1350, the one divergence the clause does not reach. The ascent starts at
+k = 1, so a request whose usable candidate set is EMPTY is refused where `optimize_plan` answers a
+zero target rate with the empty selection. Demonstrated live rather than reasoned about. It ships
+disclosed in the artifact rather than repaired, because no arm of the filed clause touches a
+request with no candidates, and the divergence is a loud exception rather than a wrong plan.
+
+CI: recorded by the driver, not observed by this worker.
+
 ### 2026-10-22 - CS-1328 and CS-1231 - NOT A COMPLETION RECORD. CS-1328 AND CS-1231 STAY OPEN: session 150 /done - every closed item's record read present, the ONE CS-1328 ANSWER recorded as delivered, and the operator's answers to the batched ask recorded
 Verification: `tools/outbound_send.py::perform_send`, whose delivery record in the gitignored data
 directory holds the ONE ANSWER's row; `git ls-remote origin`, which serves the v0.1.0 tag; the

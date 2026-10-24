@@ -189,6 +189,7 @@ NO_PRODUCER_RECIPE: str = "R_NoProducer"
 PADDING_PREFIX: str = "R_Pad"
 
 _SOURCE_FILES: tuple[tuple[str, ...], ...] = (
+    ("clockspeed", "solve", "bound.py"),
     ("clockspeed", "solve", "optimize.py"),
     ("clockspeed", "solve", "backends", "__init__.py"),
     ("clockspeed", "solve", "backends", "exhaustive.py"),

@@ -275,7 +275,6 @@ CS-1240 - unknown content: stable-id keying, one normalised fallback, and an Unm
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1245 - bounded candidate enumeration with deterministic trimming, keeping the smallest passing candidate - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1246 - quick-win card ordering with an aging guard computed from the per-world ledger - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1247 - a deterministic domain interleave in the top-N card list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1248 - unit-tagged quantities and a single raw-versus-display boundary - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -288,6 +287,7 @@ CS-1340 - measure the save's `mGamePhaseCosts` (total or remainder), record it i
 CS-1346 - the strategy badge reaches no card: `advise()` sees no plan, so nothing produces a badge for a trace - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1347 - greedy's walk returns the first selection that solves and never re-ranks its canonical result through the shared ranking key - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1348 - a delivered producer for the space elevator's input inventory, so `delivered_available` reads True from a real reading - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1350 - `optimize_within_bound` refuses an empty usable set where `optimize_plan` answers it, because the ascent starts at k = 1 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

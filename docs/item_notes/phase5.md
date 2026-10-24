@@ -359,16 +359,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a synthetic map fixture with three nodes and one gated region excludes the gated node until the unlock flag is set; distances are exact rationals or integers; claims rank by reachability band, then yield
 
-## CS-1245
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Stays behind `OptimizerBackend`; no external optimizer (section 7).
-
-### Acceptance
-
-a cap hit in a fixture produces a recorded step naming the cap and the trim rule; two runs choose the same candidate; the chosen candidate is the smallest that passes every validation check, not the first built
-
 ## CS-1246
 
 ### Filed 2026-10-04 by the inspiration ingest
@@ -564,3 +554,34 @@ only in every record (non-negotiable 12).
 ### Acceptance
 
 the elevator input inventory's carrier is measured read-only on a work copy and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; the layer the seam ruling names publishes it as `PhaseCostTable.delivered`, exact Fraction counts; a synthetic arm under `tests/progress/` shows `delivered_available` True from that producer, including a zero count, and False for a world with no reading, published as None, never zero.
+
+## CS-1350
+
+### Filed 2026-10-23 by the CS-1245 close
+
+**THE DIVERGENCE IS DOCUMENTED RATHER THAN HIDDEN, WHICH IS WHY IT IS A ROW AND NOT A BUG
+REPORT.** `clockspeed/solve/bound.py`'s ascent builds the nested prefixes S_1 to S_K and starts
+at k = 1, so a request whose usable set is EMPTY has no prefix at all and is refused with
+`BoundExhaustedError` having tried nothing. `clockspeed/solve/backends/exhaustive.py` enumerates
+the empty subset deliberately - its docstring says the empty selection is a real selection and
+is the answer to a target rate of zero - so `optimize_plan` ANSWERS exactly the request
+`optimize_within_bound` refuses. The module docstring states the divergence under THE
+CONSEQUENCE, STATED PLAINLY; this row is to remove it.
+
+**IT IS NARROW AND IT IS LOUD.** The refusal is an exception, never a wrong plan, and it is
+reachable only when the door leaves nothing usable. That is why it shipped rather than held the
+CS-1245 close: no measured arm of CS-1245's acceptance touches it.
+
+**DO NOT FIX IT BY SPECIAL-CASING AN EMPTY USABLE SET.** Starting the chain at k = 0 covers it
+with the chain the module already proves things about, and S_0 is a subset of every other
+prefix so the smallest-passing proof still holds. A special case is a second rule that the
+cost-bound arithmetic and the nestedness proof in that docstring would both then have to
+exempt.
+
+### Acceptance
+
+`clockspeed/solve/bound.py::optimize_within_bound` on a request whose usable candidate set is
+empty and whose targets are all zero returns the same plan `clockspeed/solve/optimize.py::optimize_plan` returns for it, with `chosen_size` 0 and no trim record, and an arm in
+`tests/solve/test_bound.py` reddens on the shipped refusal; the cost-bound arithmetic and the
+k = 1 sentences in that module's docstring are corrected in the same commit, so no docstring
+claim outlives the behaviour it described

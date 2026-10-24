@@ -87,6 +87,7 @@ clockspeed/solve/__init__.py	authored	CS-1165	first-add:root
 clockspeed/solve/backends/__init__.py	authored	CS-1165	first-add:root
 clockspeed/solve/backends/exhaustive.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/backends/greedy.py	authored	CS-300	first-add:CS-300
+clockspeed/solve/bound.py	authored	CS-1245	stamped
 clockspeed/solve/exact.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/optimize.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/power.py	authored	CS-300	first-add:CS-300
@@ -406,6 +407,7 @@ tests/solve/golden/power.json	authored	CS-1239	stamped
 tests/solve/golden/ratio.json	authored	CS-1239	stamped
 tests/solve/golden/strategy.json	authored	CS-1244	stamped
 tests/solve/synthetic.py	authored	CS-300	first-add:CS-300
+tests/solve/test_bound.py	authored	CS-1245	stamped
 tests/solve/test_ceiling_fence.py	authored	CS-303	first-add:CS-303
 tests/solve/test_display_rounding.py	authored	CS-1239	stamped
 tests/solve/test_exact.py	authored	CS-300	first-add:CS-300

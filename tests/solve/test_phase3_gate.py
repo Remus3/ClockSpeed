@@ -173,6 +173,7 @@ SOLVE_SOURCES: tuple[str, ...] = (
     "backends/__init__.py",
     "backends/exhaustive.py",
     "backends/greedy.py",
+    "bound.py",
     "exact.py",
     "optimize.py",
     "power.py",
@@ -187,6 +188,7 @@ SOLVE_SOURCES: tuple[str, ...] = (
 SOLVE_TEST_SOURCES: tuple[str, ...] = (
     "__init__.py",
     "synthetic.py",
+    "test_bound.py",
     "test_ceiling_fence.py",
     "test_display_rounding.py",
     "test_exact.py",
