@@ -355,8 +355,10 @@ tests/pre_push_floor.py	authored	CS-824	stamped
 tests/progress/__init__.py	authored	CS-1043	stamped
 tests/progress/test_milestones.py	authored	CS-1043	stamped
 tests/progress/test_phases.py	authored	CS-1043	stamped
+tests/progress/test_save_phase_source.py	authored	CS-1340	stamped
 tests/repr_rendering_guard.py	authored	CS-852	first-add:CS-852
 tests/save/__init__.py	authored	CS-1165	first-add:root
+tests/save/elevator_synthetic.py	authored	CS-1340	stamped
 tests/save/independent_table.py	authored	CS-829	first-add:CS-829
 tests/save/reach_guard.py	authored	CS-495	first-add:CS-495
 tests/save/synthetic.py	authored	CS-1165	first-add:root
@@ -368,6 +370,7 @@ tests/save/test_collectables.py	authored	CS-1038	first-add:CS-1038
 tests/save/test_container_elements.py	authored	CS-830	first-add:CS-830
 tests/save/test_decode_oracles.py	authored	CS-420	first-add:CS-420
 tests/save/test_element_framing_refusals.py	authored	CS-829	first-add:CS-829
+tests/save/test_elevator_input.py	authored	CS-1348	stamped
 tests/save/test_header.py	authored	CS-1165	first-add:root
 tests/save/test_independent_table.py	authored	CS-829	first-add:CS-829
 tests/save/test_inventory_item.py	authored	CS-400	stamped
@@ -379,6 +382,7 @@ tests/save/test_objects.py	authored	CS-1165	first-add:root
 tests/save/test_oracle_citations.py	authored	CS-420	first-add:CS-420
 tests/save/test_phase4_gate.py	authored	CS-409	first-add:CS-409
 tests/save/test_phase4_gate_depth.py	authored	CS-400	stamped
+tests/save/test_phase_costs.py	authored	CS-1340	stamped
 tests/save/test_properties.py	authored	CS-413	first-add:CS-413
 tests/save/test_property_payload_14_60.py	authored	CS-977	first-add:CS-977
 tests/save/test_reach_guard.py	authored	CS-491	first-add:CS-491
