@@ -24,6 +24,19 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## BACKLOG line - relocated from `BACKLOG.md` 2026-10-24 by the session 151 /done
+
+**Moved here because the line is false.** python.org does publish a sha256 for each installer
+it ships, through its release API, as read in session 151, so a downloaded installer can be
+cross-checked; the line's trigger, CS-1334's re-walk, now just reads that hash. "The same
+walk" is the first CS-1334 walk (`docs/LEDGER.md`, 2026-10-22, CS-1334). Verbatim:
+
+From "Session 150 residuals - filed 2026-10-20 under product before process":
+
+- From the same walk: python.org publishes no hash for the Python installer the walk downloaded,
+  so that download cannot be cross-checked; trigger: CS-1334's re-walk.
+
+
 ## BACKLOG line - relocated from `BACKLOG.md` 2026-10-24 by the session 151 merger
 
 **Moved here because its trigger is spent.** CS-1240 closed on 2026-10-24 (`docs/LEDGER.md`,
@@ -6708,6 +6721,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
 
+
+## Session 148 - archived 2026-10-24 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 148 - 2026-10-19 - S12a's closing sequence ran C4a to C4d (the S7q lift), C5 was undone on the operator's kit v20.1 "now" order, and v20.1 was built as WIP on a local branch with its full suite owed
+
+- Shipped: nothing CLOSED, nothing landed on main, nothing pushed - main and the remote still read A'' (67b6d7c6f81100c4a3f0f7442c35a16d5572f655). S12a closing sequence C4a to C4d DONE, each read back in the S12a note.md section of THE OUT FOLDER under the Sidecars scratch folder: C4a community profile health 100 (7 of 7 files); C4b 0 lane worktrees, nothing to re-cut; C4c the hold HOLD_MAIN_SPAWN created empty and declared in ops/stop_sentinels.json; C4d STOP, INBOX_STOP and QUEUE_STOP sent to the Recycle Bin and read absent - THE S7q LIFT IS DONE. This /done ran under the A-DONE ruling's G6 again (B did not land, main reads A''): tier 0 checks only, these records and the session 149 hand-off on disk, NOT committed - commit B carries them.
+- In flight: (1) kit v20.1 - the operator ordered it "now" this session, superseding adjudication D's timing (v19 at step 21 after C8). WIP is THE v20.1 WIP COMMIT (the one commit on the local branch cs-kit-v20-1-wip, subject "WIP CS-1231 - vendor FLEET-KIT v20.1, v18 to v20 tree steps folded in", parent A''; unpublished, so named in words - its full SHA is in THE OUT FOLDER's note.md, the session 148 /done section), NOT pushed or merged. Provenance passes for v18, v19, v20 and v20.1; conformance() == []; ruff, mypy and drift_guard clean; CLAUDE.md 40887 bytes. The first gated suite gave 8 failed in tests/test_pathless_clone_agreement.py (the kit's fleet_headless._route_invalid counted by the clone census); the fix is in the WIP commit and the targeted 1537 tests pass; the FULL gated suite has NOT run (unverified). New kit file: fleet_board.py. Owed: the full gated suite, rebase, push to main through fleet_gitlock with an ls-remote read-back, ONE ANSWER to MAIN covering the v18, v19, v20 and v20.1 ORDERs with a kit defect report (fleet_lanes.py:1053 renders the OSError text, a possible path echo), a docs/LEDGER.md entry. (2) C5 R' was cherry-picked, then UNDONE (restored off README.md) so the tree reads exactly the G1 set for the v20.1 runner; the change is still on the preserve ref and C5 restarts on the post-v20.1 tip; C6's push check R'^ == A'' must be re-based to the v20.1 tip; C6 to C8 not started. (3) HOLD_MAIN_SPAWN stays present and the sentinels stay lifted. (4) The MAIN 2243 GITHUB-SECURITY-FINDINGS ORDER owes ONE ANSWER. (5) CS-NEXT-SESSION.txt is about 249 KB at the session 148 /done write against the kit v18 30 KB /done limit, which binds once v20.1 lands - owed, not attempted. THREE FILES STAY UNCOMMITTED BY DESIGN - WAKEUP_NOTES.md, docs/history_notes.md and CS-NEXT-SESSION.txt (G1 to G7, re-pointed at the session 148 copies).
+- Decisions: the operator's kit v20.1 "now" order takes precedence over adjudication D's timing and pauses S12a after C4d; C5's uncommitted pick was undone rather than left staged (a v20.1 commit could sweep it or be refused by it; the diff stays on the preserve ref); this /done applied G6 under the S147-DONE ruling's Q1 precedent (no commit, suite or push), its reversal conditions read absent (no commit on main past A'', G1 read equal). No new ADR.
+- Surprises: the kit's fleet_headless._route_invalid tripped the clone census (8 failed), fixed in the census, not the kit; fleet_lanes.py:1053 may echo a path through an OSError text (a FLEET 11 report, never a local edit).
+- Failed paths: none abandoned.
+- Next action: the G1 reads and HEAD == origin/main == A'', then (a) the v20.1 full gated suite on cs-kit-v20-1-wip, rebase, push through fleet_gitlock, ls-remote read-back and the ONE ANSWER to MAIN; (b) resume C5 to C8 on the v20.1 tip; (c) the rest (CS-NEXT-SESSION.txt THE SINGLE NEXT ACTION).
 
 ## Session 147 - archived 2026-10-22 from `WAKEUP_NOTES.md`, verbatim
 

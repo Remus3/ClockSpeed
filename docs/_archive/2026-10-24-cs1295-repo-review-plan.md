@@ -85,7 +85,7 @@ Order: smallest authoritative folders first, then tests, ops/loop, work last.
 
 Hierarchy; memory recall (memory/, hand-off, WAKEUP_NOTES); dated files for archive
 (list only, with consumer check); pins, leaves, worktrees, scratch, orphans, stale;
-outside-the-repo references (candidates for E:/Sidecars/CS); the .md set and the
+outside-the-repo references (candidates for <sidecars>/CS); the .md set and the
 CLAUDE.md section 4 owner table; inferred topics marked INFERRED.
 
 ## Known findings folded in

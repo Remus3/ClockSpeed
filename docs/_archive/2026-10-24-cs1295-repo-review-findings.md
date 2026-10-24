@@ -20,7 +20,7 @@ F002 | size budget | BACKLOG.md (76 KB) and THIRD_PARTY.md (71 KB) have no row i
 
 F003 | stray file | adj55_node_floor.log: stale ignored root log from an old adjudication; holds a home-directory path and non-ASCII bytes; only docs/LEDGER.md names it. Prune candidate (list only). | status: PROPOSED: move to the sidecar folder or Recycle Bin; OPERATOR-GATED (deletion)
 
-F004 | memory recall | CS-NEXT-SESSION.txt (26 KB, session 151) and WAKEUP_NOTES.md (3 entries, sessions 148-150) are present and current; memory/MEMORY.md lists every leaf on disk. No recall defect in the repo copy. INFERRED: a second, harness-side memory store with about 70 leaves lives outside the repo; it is a candidate for the E:/Sidecars/CS consolidation list and overlaps the repo store in topic. | status: PROPOSED: BACKLOG line recording which store owns which fact class
+F004 | memory recall | CS-NEXT-SESSION.txt (26 KB, session 151) and WAKEUP_NOTES.md (3 entries, sessions 148-150) are present and current; memory/MEMORY.md lists every leaf on disk. No recall defect in the repo copy. INFERRED: a second, harness-side memory store with about 70 leaves lives outside the repo; it is a candidate for the <sidecars>/CS consolidation list and overlaps the repo store in topic. | status: PROPOSED: BACKLOG line recording which store owns which fact class
 
 F005 | pyproject | pyproject.toml is about 1050 lines with a roughly 250-line ruff per-file-ignores block; drift risk, list only. | status: NOT-APPLICABLE: organisation note, no action proposed
 
@@ -68,7 +68,7 @@ F018 | size | save/objects.py (446 KB) and save/world.py (155 KB) are single mod
 
 ## config
 
-F019 | external path | config/main_tree.local.json (ignored) points at an absolute path on the C: drive that still exists; C:/Clockspeed is a stale old full checkout and old lane logs still reference it. Candidate to consolidate under E:/Sidecars/CS. | status: PROPOSED; OPERATOR-GATED (prune of the old C: checkout)
+F019 | external path | config/main_tree.local.json (ignored) points at an absolute path on the C: drive that still exists; <repo> on C: is a stale old full checkout and old lane logs still reference it. Candidate to consolidate under <sidecars>/CS. | status: PROPOSED; OPERATOR-GATED (prune of the old C: checkout)
 
 ## corpus
 
@@ -84,7 +84,7 @@ F022 | duplicate | data/social-preview.png and docs/assets/social-preview.png di
 
 F023 | scratch | docs/_scratch/cs_worktree_classification.md is session 100 and names C: paths that predate ADR 0026; docs/_scratch/cs1087_spec.md is untracked planner scratch whose only reference is history_notes.md. | status: KNOWN (classification doc); cs1087_spec candidate: archive to docs/_archive
 
-F024 | size | docs/history_notes.md is 1.7 MB and names C:/cs-flip-backup and C:/cs-worktrees, which no longer exist; docs/item_notes/phase4.md is 100 KB, check it against the leaf-size rule (ADR 0010/0011). | status: PROPOSED: BACKLOG line to check phase4.md against the leaf rule
+F024 | size | docs/history_notes.md is 1.7 MB and names <c-drive>/cs-flip-backup and <c-drive>/cs-worktrees, which no longer exist; docs/item_notes/phase4.md is 100 KB, check it against the leaf-size rule (ADR 0010/0011). | status: PROPOSED: BACKLOG line to check phase4.md against the leaf rule
 
 ## memory
 
@@ -104,9 +104,9 @@ F029 | loop control | ops/loop/control/progress/ holds about 290 finished progre
 
 F030 | loop control | Stale lane claims CS-301, CS-870 and CS-892 name a C: worktree that no longer exists; claims.jsonl (323 lines) and subagent_first.jsonl (5.4 MB) have no rotation. | status: PROPOSED: BACKLOG line for claim clearing and log rotation
 
-F031 | loop reports | ops/loop/reports holds 57 old lane_queue logs (53 from 2026-09) with headers pointing at C: paths, 9 reports named by long numeric ids, empty .err files and 2026-09 queue logs; one log points at E:/cs-worktrees/lane-0, outside E:/Sidecars/CS. | status: PROPOSED; OPERATOR-GATED (prune)
+F031 | loop reports | ops/loop/reports holds 57 old lane_queue logs (53 from 2026-09) with headers pointing at C: paths, 9 reports named by long numeric ids, empty .err files and 2026-09 queue logs; one log points at <e-drive>/cs-worktrees/lane-0, outside <sidecars>/CS. | status: PROPOSED; OPERATOR-GATED (prune)
 
-F032 | orphan script | ops/loop/control/cs1275_cutover.py is a finished one-shot C-to-E move script that hardcodes C: paths; only history_notes.md mentions it. | status: PROPOSED: move under E:/Sidecars/CS or prune
+F032 | orphan script | ops/loop/control/cs1275_cutover.py is a finished one-shot C-to-E move script that hardcodes C: paths; only history_notes.md mentions it. | status: PROPOSED: move under <sidecars>/CS or prune
 
 ## scripts
 

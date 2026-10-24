@@ -75,6 +75,62 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1344 and CS-1334 - NOT A COMPLETION RECORD. CS-1344 AND CS-1334 STAY OPEN: session 151 /done - every closed item's record read present, the session 150 builder worktrees retired by content, and the CS-1334 re-walk not launched on host RAM
+Verification: the session 151 records below this one in this file; `tools/scratch_sweep.py`, run at
+step 9 of `.claude/commands/done.md` after the push; the CS-1334 section of
+`docs/item_notes/phase7.md` with its `### Acceptance` clause. This record closes nothing.
+STEP 0. The ritual started 2026-10-24T11:29:08-05:00. The CS-700 window read CLOSED: both reads
+exited 0, HEAD has one parent, and HEAD's own commit does not list the citation historical file.
+Highest tier touched this session: 2. The tree was clean at the start; HEAD sat eight commits
+above origin/main.
+STEP 1, tier 2, each command exit 0 this run: `python -m mypy` (no issues, 453 source files);
+`python -m ruff check .`; `python -m ruff format --check .` (436 files already formatted); one
+targeted pytest run with -n auto over tests/advisor, tests/progress, tests/save, tests/solve,
+tests/surface, tests/data/test_display_name_keying.py, the thirteen changed top-level test files,
+the sha citation gate's test file and the five census guard files, every path read present
+first: 6574 passed, 0 failed, 3 skipped - two git-for-Windows PATH arms and a no-Recycle-Bin arm,
+each skipping by its own stated reason.
+After this ritual's edits, one pytest run with -n auto over the 79 test files that read the
+edited documents or the tracked tree, every path read present first: exit 1, 7629 passed, 4
+failed, 9 skipped - an off-Windows store arm, two git-for-Windows PATH arms, two chmod read-back
+arms, three empty-gap-record arms and a NUL-argument arm, each by its stated reason. All 4
+failures were the checkout-root and sidecar-root spelling arms of `tests/test_readme_audit.py`,
+reading six lines of the two dated CS-1295 archive files this session committed after its last
+push, which spelled the old checkout root and the sidecar root drive-rooted; no ritual edit caused
+them, and the push suite would have read them red. REPAIRED in this ritual: those spellings
+scrubbed to placeholder roots (<repo> on C:, <sidecars>, <c-drive>, <e-drive>), every other byte
+of both files unchanged - a hygiene scrub, not a correction of the dated findings, chosen over
+allowlist rows because the CS-1328 kept-line tables widen only on an order. Then one pytest run
+with -n auto over `tests/test_readme_audit.py`, `tests/test_archive_rot.py` and fifteen more files
+that read the whole tracked tree, every path read present first: exit 0, 661 passed, 0 failed, 0
+skipped.
+STEP 2. A newest-first record was read present for every item session 151 closed: the seven
+items CS-1328, CS-1345, CS-1346, CS-1347, CS-1340, CS-1348 and CS-1240, and the queue lane's
+close of CS-1245. No completion record was missing; this record is the only one this ritual adds.
+STEP 3. `ROADMAP.md` read: no closed item is left on it, and the items CS-1350 and CS-1351 have
+their lines; the gated items CS-G09 and CS-G10 are in `docs/GATED.md`. Four session 151 findings
+filed in `BACKLOG.md` under "Session 151 residuals"; the "python.org publishes no hash" line
+relocated verbatim to `docs/history_notes.md`, because python.org does publish installer sha256
+values through its release API. STEP 4: the session 151 entry added to `WAKEUP_NOTES.md`; the
+session 148 entry relocated verbatim to `docs/history_notes.md`.
+STEP 5: `python tools/drift_guard.py` exit 0 (guards 11, PASS 11, FAIL 0); `python
+tools/doc_budget.py` exit 0 (measured 40, over budget 0); `python tools/memory_sync.py` exit 0,
+run although the tracked `memory/` is unchanged. Both guards read exit 0 again, with the same
+counts, after the archive repair.
+STEP 6: the hand-off rewritten whole, `SESSION: 152`.
+THE C13 PASS: the nine session 150 builder worktrees named in the data directory's list were
+retired by content during session 151, their tips saved first; this ritual read none of the nine
+left in `git worktree list`, which read 26 entries and 97 local heads. The eight session 151
+builder and review worktrees are landed and listed in the data directory, retirable by content.
+THE CS-1334 RE-WALK never launched. Host free RAM read 15.5 to 20.6 GB of 31.6 GB over two
+attempts and about 150 minutes of checks, with no builder running, against the 24 GB gate for a
+Sandbox of 20480 MB. The harness, the gate logs and the attempt's prep, gate-wait and progress
+scripts are kept in the data directory's CS-1334 harness folder.
+FOR CS-1344, clause 2 - the session scratchpad under 5k files - is met only by this ritual's step 9
+sweep, which runs after the push; its result is in this ritual's timing record, and the ONE
+ANSWER to MAIN is drafted, not sent.
+MEMORY: three harness memory notes, two new and one updated; the tracked `memory/` unchanged.
+
 ### 2026-10-24 - CS-1240 - CLOSED: stable-id unmodelled content, its panel, display-name change moves only wording
 Verification: `clockspeed/save/sightings.py`, `clockspeed/surface/web/panel_unmodelled.js`; tests `tests/save/test_sightings.py`,
 `tests/surface/test_world_unmodelled.py`, `tests/surface/test_panel_unmodelled.py`, `tests/advisor/test_display_name_keying.py`,

@@ -1024,8 +1024,6 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   section 1 bootstrap leaves openssl off PATH, so `scripts/verify_env.py` reports it MISSING
   (soft) on a fresh machine; trigger: the next edit to `docs/OPERATIONS.md` section 1, or
   CS-1334's re-walk.
-- From the same walk: python.org publishes no hash for the Python installer the walk downloaded,
-  so that download cannot be cross-checked; trigger: CS-1334's re-walk.
 - From the CS-1349 landing (`docs/LEDGER.md`, 2026-10-23, CS-1349): a non-ASCII environment name
   that Windows Python upper-cases to CS_PUSH_REPORT (U+017F) survives the `.githooks/pre-push`
   unset and aims the report at its path, fail-closed; action: unset every inherited name with a
@@ -1115,3 +1113,27 @@ the verifier's corrections, the operator-gated ids and why F028 is not filed, is
   CS-1288 part c and CS-1313; confirm each reached `docs/LEDGER.md` or an ADR, else archive it to
   docs/_archive, before any prune of work/; trigger: any work/ prune (the operator-gated F039),
   or a reader needing one of those rulings.
+
+## Session 151 residuals - filed 2026-10-24 under product before process
+
+From the session 151 work and its /done (`docs/LEDGER.md`, 2026-10-24, the session 151 /done
+record). None blocks a product item or reddens a suite.
+
+- CI runs Python 3.14 only: every python-version key in `.github/workflows/tier1.yml` and
+  `.github/workflows/tier2.yml` read 3.14 on 2026-10-24, while `pyproject.toml` declares
+  requires-python from 3.13, so the 3.13 floor is never tested in CI; add one floor job; trigger:
+  a failure seen only on 3.13, or the next structural edit to either workflow.
+- The queue lane's progress file stops updating while the lane's builder runs: in the CS-1245
+  cycle on 2026-10-23 it sat stale about 3.5 hours, past twice its own ETA step, so FLEET item
+  12's staleness rule reads a healthy cycle as failed; have the driver refresh it while it waits
+  on the builder; trigger: a cycle judged failed on that file's age, or the next edit to the lane
+  driver's wait loop.
+- `tools/sha_citation_gate.py::ALLOWLIST` gained 23 rows in session 151 for the worktree ids the
+  dated CS-1295 review files under docs/_archive cite; CLAUDE.md section 4 excludes dated archives
+  from search, so a distinct adjudicator rules whether the gate should skip docs/_archive instead
+  of allowlisting each id; trigger: the next archive file citing a worktree id, or the next edit
+  to that table.
+- The first CS-1295 review spawn ran only with four switches beyond its ruled command - --root,
+  --prompt-file, bypassPermissions and --floors-in-hooks; write the working command into the
+  CS-1295 section of `docs/item_notes/phase7.md` before the next run; trigger: the next CS-1295
+  review run.
