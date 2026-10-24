@@ -24,6 +24,27 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## BACKLOG line - relocated from `BACKLOG.md` 2026-10-24 by the session 151 merger
+
+**Moved here because its trigger is spent.** CS-1240 closed on 2026-10-24 (`docs/LEDGER.md`,
+2026-10-24, CS-1240), built outside every lane scope, so no slice plan will split it by module
+and a scope that owns surface/ no longer bears on it. The matching sentences left the
+`registry-audit` description in `config/lane_scopes.json` in the same commit. Verbatim:
+
+From "Session 150 residuals - filed 2026-10-20 under product before process":
+
+- From the CS-1240 adjudication (`docs/LEDGER.md`, 2026-10-21, CS-1240): CS-1240 is out of every
+  lane scope because its write area crosses all three plus a surface/ panel; trigger: a slice
+  plan splitting CS-1240 by module, or a scope that owns surface/.
+
+From `config/lane_scopes.json`, the `registry-audit` scope's description, wrapped here:
+
+> CS-1240 IS DELIBERATELY ABSENT, FOR DISJOINTNESS ONLY: its filing note re-keys every registry
+> and save join, spanning advisor/ (queue), data/ and audit/ (queue-b), save/world.py and
+> surface/providers.py (queue-c), and its panel needs surface/, which no scope owns. The CS-1343
+> conflict is RULED - docs/LEDGER.md, 2026-10-21, CS-1240.
+
+
 ## CS-1240 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

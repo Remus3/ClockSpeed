@@ -131,6 +131,8 @@ docs/CHANNEL.md	vendored	CS-1095	first-add:CS-1095
 docs/GATED.md	authored	CS-1165	first-add:root
 docs/LEDGER.md	authored	CS-1165	first-add:root
 docs/OPERATIONS.md	authored	CS-1165	first-add:root
+docs/_archive/2026-10-24-cs1295-repo-review-findings.md	authored	CS-1295	stamped
+docs/_archive/2026-10-24-cs1295-repo-review-plan.md	authored	CS-1295	stamped
 docs/_archive/inbox-digest-2026-09-13.md	authored	CS-1009	first-add:CS-1009
 docs/_archive/spike-report-s1-s2-s3-s7.md	authored	CS-1165	first-add:root
 docs/adr/0001-adr-process.md	authored	CS-1165	first-add:root

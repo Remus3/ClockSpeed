@@ -941,9 +941,6 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   works is never claimed and a lane can take it at the same time, the root of session 150's
   CS-1043 collision; trigger: a second main-versus-lane collision on one row, or the next edit to
   `try_claim_row`.
-- From the CS-1240 adjudication (`docs/LEDGER.md`, 2026-10-21, CS-1240): CS-1240 is out of every
-  lane scope because its write area crosses all three plus a surface/ panel; trigger: a slice
-  plan splitting CS-1240 by module, or a scope that owns surface/.
 - From the CS-1337 close (`docs/LEDGER.md`, 2026-10-21, CS-1337): the README's How this repo is
   built section repeats `.github/CONTRIBUTING.md`'s precedence rule, that the owner file a rule
   names governs - a restated rule with somewhere to drift; trigger: the next edit to that README
