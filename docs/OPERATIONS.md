@@ -55,6 +55,8 @@ The order is not arbitrary:
    describes is known good. It is idempotent - it updates in place by category plus key
    and never duplicates.
 
+Before the first push from the clone, take the one step in [section 1.3](#13-set-your-push-identity-before-the-first-push).
+
 ### 1.1 Prove the hooks fire - presence is not firing
 
 Installation is not proof. The only valid test is end to end. It makes a real commit, and
@@ -243,6 +245,29 @@ To check that an override resolved, run `python scripts/verify_env.py`: each loc
 names the source it was resolved by, or reports it not found. The dashboard cannot tell
 you - an override pointing at an empty folder and no game at all both show there as no
 game installation found.
+
+### 1.3 Set your push identity before the first push
+
+Only a clone you push from needs this; running Clockspeed never does. The pre-push hook that
+section 1 installs runs `ops/fleet_kit/fleet_identity.py`, which refuses every push until
+this clone's LOCAL git config holds the key `fleet.operatorIdent`. Local config is never
+cloned, so a fresh clone - a clone of a fork included - never carries it. Set it once per
+clone, to the name and address your commits carry - `git config user.name` and
+`git config user.email` print them, and section 1.1 says how to set them if they are empty:
+
+```
+git config --local --add fleet.operatorIdent "Your Name <you@example.com>"
+```
+
+A value is `Name <address>` or a bare address. A pushed commit passes when the address of
+its author and the address of its committer each equal the address in one of the key's
+values, compared without case; the name need not match. The key takes several values: run
+the line again for each other address you commit under. Every commit the push carries is
+checked, so a push carrying someone else's commits is refused - bring another author's work
+into your fork on the forge side, such as GitHub's "Sync fork", and pull it from there
+rather than pushing it from your clone. A push made before the key is set is refused with a
+message naming the key and this command. The check belongs to the vendored fleet kit, which
+is never edited here.
 
 ---
 

@@ -163,7 +163,7 @@ cd ClockSpeed
 
 ## Quickstart
 
-From the root of a clone, in PowerShell - [`docs/OPERATIONS.md` 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch) has the full procedure, the `cmd` forms and where `<Git install>` is:
+From the root of a clone, in PowerShell - [`docs/OPERATIONS.md` 1.2](docs/OPERATIONS.md#12-install-and-run-from-scratch) has the full procedure, the `cmd` forms and where `<Git install>` is, and 1.3 the step to take before your first push:
 
 ```
 python -m venv .venv

@@ -24,6 +24,8 @@ arbitrary: `scripts/install_hooks.py` first, so protection exists before anythin
 committed; `scripts/verify_env.py` second, so a missing hard dependency is found before
 any work starts; `tools/memory_sync.py` third. Run them from the repository root.
 
+**Before your first push**, take the one-time step in `docs/OPERATIONS.md` section 1.3.
+
 **Installation is not proof that a hook fires.** `docs/OPERATIONS.md` section 1.1 gives
 the only valid test: stage a file containing a banned character, attempt a real commit,
 and assert that HEAD is unchanged. If HEAD moved, the gate did not fire.
