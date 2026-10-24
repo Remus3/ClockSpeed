@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Final
 
+import pytest
+
 from clockspeed.save.objects import REASON_CLASS_NOT_MODELLED
 from clockspeed.surface.api import world as endpoint
 from tests.surface import panel_harness
@@ -86,19 +88,21 @@ def _entry(stable_id: object, count: object, first_seen: object) -> dict[str, ob
 
 
 def _world(
-    classes: list[dict[str, object]],
+    classes: object,
     *,
-    this_save: int = 1,
-    saves_read: int = 1,
-    checked: bool = True,
+    this_save: int | None = 1,
+    saves_read: int | None = 1,
+    checked: object = True,
+    keyed: bool = True,
 ) -> dict[str, object]:
     """A ``data.world`` carrying an ``unmodelled`` object and nothing else needed.
 
     Args:
-        classes: The listed classes.
-        this_save: This save's ordinal.
-        saves_read: How many saves were read.
-        checked: Whether a property map was supplied.
+        classes: The listed classes - a list in every well-formed body.
+        this_save: This save's ordinal, None when the save names no world.
+        saves_read: How many saves were read, None when the save names no world.
+        checked: Whether a property map was supplied - a bool when well formed.
+        keyed: Whether the save names a world its saves are counted under.
 
     Returns:
         The world payload.
@@ -106,6 +110,7 @@ def _world(
     unmodelled = {
         "scope": endpoint.FIRST_SEEN_SCOPE,
         "checked": checked,
+        "keyed": keyed,
         "this_save": this_save,
         "saves_read": saves_read,
         "classes": classes,
@@ -211,3 +216,81 @@ def test_a_class_path_with_markup_renders_as_text(tmp_path: Path) -> None:
     bold = sum(1 for row in report["nodes"] if row["tag"] == "B")
     assert bold == 0
     assert _rows(report)[0][0] == planted
+
+
+# ---------------------------------------------------------------------------
+# CS-1240 repair round - a malformed shape reads withheld, never as a claim
+# ---------------------------------------------------------------------------
+
+#: The positive claims a malformed body must never be rendered as.
+CLAIM_RESOLVED: Final = "every class in this save resolved"
+CLAIM_UNCHECKED: Final = "not checked"
+CLAIM_UNANSWERED: Final = "did not answer"
+
+#: Marks a ``classes`` key the body leaves out altogether.
+ABSENT: Final = object()
+
+
+@pytest.mark.parametrize(
+    "classes",
+    [ABSENT, "garbage", {"0": 1}, None],
+    ids=["missing", "string", "object", "null"],
+)
+def test_a_class_list_that_is_not_a_list_reads_withheld_never_resolved(
+    tmp_path: Path, classes: object
+) -> None:
+    """Rule 7: no list is not an empty list, so nothing is called resolved."""
+    world = _world(None if classes is ABSENT else classes)
+    unmodelled = world["unmodelled"]
+    assert isinstance(unmodelled, dict)
+    if classes is ABSENT:
+        del unmodelled["classes"]
+    report = _mount(tmp_path, panel_harness.null_payload(world=world))
+    text = _text(report)
+    assert CLAIM_RESOLVED not in text
+    assert "withheld" in text
+    assert _rows(report) == []
+
+
+def test_a_non_object_member_of_the_class_list_renders_a_withheld_row(tmp_path: Path) -> None:
+    """A member that is not an object is one row of withheld cells, not a skip."""
+    data = panel_harness.null_payload(world=_world([7]))
+    report = _mount(tmp_path, data)
+    assert _rows(report) == [["withheld", "withheld", "withheld", "withheld"]]
+    assert CLAIM_RESOLVED not in _text(report)
+
+
+@pytest.mark.parametrize("checked", ["yes", None, 1], ids=["string", "null", "number"])
+def test_a_checked_flag_that_is_not_a_bool_reads_withheld_never_unchecked(
+    tmp_path: Path, checked: object
+) -> None:
+    """Only ``false`` says no property map was found; anything else is withheld."""
+    data = panel_harness.null_payload(world=_world([_entry(CLASS_X, 1, 1)], checked=checked))
+    report = _mount(tmp_path, data)
+    text = _text(report)
+    assert CLAIM_UNCHECKED not in text
+    assert CLAIM_RESOLVED not in text
+    assert "withheld" in text
+    assert _rows(report) == []
+
+
+def test_a_world_without_an_unmodelled_object_reads_withheld_not_unanswered(
+    tmp_path: Path,
+) -> None:
+    """The route answered; only the object is missing, and that is what is said."""
+    report = _mount(tmp_path, panel_harness.null_payload(world={"counts": {}}))
+    text = _text(report)
+    assert CLAIM_UNANSWERED not in text
+    assert "withheld" in text
+
+
+def test_a_save_naming_no_world_withholds_first_read_and_says_why(tmp_path: Path) -> None:
+    """A save naming no world counts no save, so every first-read cell is withheld."""
+    data = panel_harness.null_payload(
+        world=_world([_entry(CLASS_X, 1, None)], this_save=None, saves_read=None, keyed=False)
+    )
+    report = _mount(tmp_path, data)
+    text = _text(report)
+    assert _rows(report) == [[CLASS_X, "1", "withheld", REASON_CLASS_NOT_MODELLED]]
+    assert "names no world" in text
+    assert "read 1 of 1" not in text

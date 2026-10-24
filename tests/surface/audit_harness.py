@@ -277,6 +277,7 @@ def _unmodelled() -> dict[str, object]:
     return {
         "scope": world_endpoint.FIRST_SEEN_SCOPE,
         "checked": True,
+        "keyed": True,
         "this_save": SYNTHETIC_SAVES_READ,
         "saves_read": SYNTHETIC_SAVES_READ,
         "classes": [

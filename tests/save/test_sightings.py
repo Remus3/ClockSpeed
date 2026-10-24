@@ -25,6 +25,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Final
 
+import pytest
+
 from clockspeed.save import sightings, usmap, world
 from clockspeed.save.objects import REASON_CLASS_NOT_MODELLED
 from tests.save import synthetic
@@ -83,21 +85,23 @@ def load(
     ticks: int,
     token: str = synthetic.SYNTHETIC_WORLD_TOKEN,
     mapping: usmap.PropertyMap | None = None,
+    play: int = 0,
 ) -> world.WorldModel:
     """Build a flat synthetic save carrying ``paths`` and load it for real.
 
     Args:
         paths: One record per entry, in file order.
-        ticks: The header's save stamp.
+        ticks: The header's save instant.
         token: The world token.
         mapping: The property map, defaulting to one modelling
             :data:`MODELLED_NAME` only.
+        play: The header's play duration, in seconds.
 
     Returns:
         The loaded world.
     """
     blob = synthetic.build_save(
-        header_kwargs={"datetime_ticks": ticks, "world_token": token},
+        header_kwargs={"datetime_ticks": ticks, "world_token": token, "play_duration": play},
         objects=tuple(
             synthetic.SyntheticObject(path, "Persistent_Level", f"Persistent_Level.Thing_{index}")
             for index, path in enumerate(paths)
@@ -120,7 +124,7 @@ def second_save() -> world.WorldModel:
     return load((UNKNOWN_Y, MODELLED_PATH, UNKNOWN_X, UNKNOWN_X), ticks=SECOND_TICKS)
 
 
-def rows(report: sightings.SightingReport) -> tuple[tuple[str, int, int], ...]:
+def rows(report: sightings.SightingReport) -> tuple[tuple[str, int, int | None], ...]:
     """Each sighting as ``(stable id, count, first seen)``, in report order.
 
     Args:
@@ -274,3 +278,59 @@ def test_a_case_only_near_miss_is_flagged_and_never_resolved_by_a_fallback() -> 
     found = rows(sightings.report(sightings.EMPTY_HISTORY, model))
     assert found == tuple(sorted(((CASE_NEAR_MISS, 1, 1), (UNKNOWN_X, 1, 1), (folded_x, 1, 1))))
     assert sightings.stable_id(CASE_NEAR_MISS) != sightings.stable_id(MODELLED_PATH)
+
+
+# ---------------------------------------------------------------------------
+# CS-1240 repair round - a save naming no world, and what makes two saves two
+# ---------------------------------------------------------------------------
+
+#: A header identifier that names no world: ``world.is_world_token`` refuses it,
+#: and ``world.world_digest`` answers ``world.NO_WORLD`` for it.
+NO_TOKEN: Final = ""
+
+
+def test_saves_naming_no_world_are_never_pooled_into_one_history() -> None:
+    """Two token-less saves are not one world, so neither is counted with the other.
+
+    ``clockspeed/save/world.py::is_world_token`` states the rule this module
+    keeps: two worlds whose headers carry one refused value are NOT one known
+    world - an empty identifier names nothing at all. Pooling them would print
+    "save 2 of 2" for a save that may belong to another world entirely.
+    """
+    first = load((UNKNOWN_X,), ticks=FIRST_TICKS, token=NO_TOKEN)
+    second = load((UNKNOWN_Y, UNKNOWN_X), ticks=SECOND_TICKS, token=NO_TOKEN)
+    history = sightings.observe(sightings.EMPTY_HISTORY, first)
+    found = sightings.report(history, second)
+    assert found.keyed is False
+    assert (found.this_save, found.saves_read) == (None, None)
+    assert rows(found) == ((UNKNOWN_X, 1, None), (UNKNOWN_Y, 1, None))
+
+
+def test_a_save_naming_no_world_records_nothing_in_the_history() -> None:
+    """Observing a token-less save leaves the history exactly as it was."""
+    unkeyed = load((UNKNOWN_X,), ticks=FIRST_TICKS, token=NO_TOKEN)
+    after = sightings.observe(sightings.EMPTY_HISTORY, unkeyed)
+    assert after is sightings.EMPTY_HISTORY
+    keyed = sightings.report(after, first_save())
+    assert keyed.keyed is True
+    assert (keyed.this_save, keyed.saves_read) == (1, 1)
+
+
+@pytest.mark.parametrize(
+    ("ticks", "play"),
+    [(SECOND_TICKS, 0), (FIRST_TICKS, 3600)],
+    ids=["save-instant", "play-duration"],
+)
+def test_two_saves_differing_only_by_their_stamp_are_two_saves(ticks: int, play: int) -> None:
+    """Same world, same census, one stamp field apart: two saves read, not one.
+
+    The census half of a save's key cannot tell these apart - both carry X
+    once - so only the stamp can, and a key that dropped it would read the
+    second save as a re-read of the first.
+    """
+    first = load((MODELLED_PATH, UNKNOWN_X), ticks=FIRST_TICKS)
+    later = load((MODELLED_PATH, UNKNOWN_X), ticks=ticks, play=play)
+    history = sightings.observe(sightings.EMPTY_HISTORY, first)
+    found = sightings.report(history, later)
+    assert (found.this_save, found.saves_read) == (2, 2)
+    assert rows(found) == ((UNKNOWN_X, 1, 1),)

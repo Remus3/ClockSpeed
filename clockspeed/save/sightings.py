@@ -23,8 +23,18 @@ THE SCOPE IS WHATEVER HOLDS THE HISTORY, AND IT IS ONE PROCESS (the CS-1240
 adjudication, session 151). The dashboard's provider holds it in memory, so
 "first seen" means the first save READ since the server started - a save
 written while nothing was reading is never counted, and a restart forgets
-everything. A persistent history would make a GET write; that was ruled out
-and is recorded in ``docs/LEDGER.md``, not decided here.
+everything. A persistent history would make a GET write, and that adjudication
+ruled it out; this module did not decide it.
+
+A SAVE NAMING NO WORLD IS NEVER POOLED. A header whose identifier
+:func:`clockspeed.save.world.is_world_token` refuses names no world, and two
+such saves are not one world - the rule that function states and the advice
+ledger keeps by refusing the identifier outright. So :func:`observe` records
+nothing for one, and :func:`report` answers it UNKEYED: its classes are listed
+with their counts, and every ordinal - this save, saves read, first seen - is
+None, because there is no world to count its saves in. Pooling them under one
+empty key would print "save 2 of 2" for a save that may belong to another
+world entirely.
 
 NO FALLBACK, AND THAT IS A RULE OF THIS MODULE, NOT AN OMISSION. The id is
 never case-folded, trimmed or reduced, and nothing here resolves one spelling
@@ -52,7 +62,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
-from clockspeed.save.world import WARN_NO_PROPERTY_MAP, world_digest
+from clockspeed.save.world import NO_WORLD, WARN_NO_PROPERTY_MAP, world_digest
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -104,12 +114,13 @@ class Sighting:
             ``clockspeed.save.objects.UNKNOWN_CLASS_REASONS``.
         first_seen: The ordinal, among the distinct saves of this world the
             history has read (1 is the first), of the first that carried it.
+            None when the save names no world, so no save is counted with it.
     """
 
     stable_id: str
     count: int
     reason: str
-    first_seen: int
+    first_seen: int | None
 
 
 @dataclass(frozen=True, repr=False)
@@ -120,15 +131,20 @@ class SightingReport:
         checked: Whether the save was checked against a property map at all.
             False when none was supplied, and then :attr:`sightings` is empty
             because NOTHING was checked - never because everything resolved.
-        this_save: The ordinal of the save reported on.
-        saves_read: How many distinct saves of this world the history has read.
+        keyed: Whether the save names a world its saves are counted under.
+            False for a header identifier ``world.is_world_token`` refuses;
+            every ordinal is then None.
+        this_save: The ordinal of the save reported on, or None when unkeyed.
+        saves_read: How many distinct saves of this world the history has read,
+            or None when unkeyed.
         sightings: One entry per unmodelled class, ordered by stable id, so the
             order never moves with the record order of a save.
     """
 
     checked: bool
-    this_save: int
-    saves_read: int
+    keyed: bool
+    this_save: int | None
+    saves_read: int | None
     sightings: tuple[Sighting, ...]
 
 
@@ -205,7 +221,8 @@ def observe(history: SightingHistory, model: WorldModel) -> SightingHistory:
 
     A save already read changes nothing. A new one takes the next ordinal of
     its world, and every id it carries that this world has not seen is first
-    seen in it; an id already seen keeps its earlier ordinal.
+    seen in it; an id already seen keeps its earlier ordinal. A save naming no
+    world changes nothing either: it is never pooled with another.
 
     Args:
         history: What was read before.
@@ -213,9 +230,11 @@ def observe(history: SightingHistory, model: WorldModel) -> SightingHistory:
 
     Returns:
         The history including ``model``. The same object when ``model`` was
-        already read.
+        already read, or names no world.
     """
     world = world_digest(model.token)
+    if world == NO_WORLD:
+        return history
     reads = history.worlds.get(world)
     if reads is None:
         reads = _WorldReads(saves=MappingProxyType({}), first_seen=MappingProxyType({}))
@@ -252,7 +271,8 @@ def report(history: SightingHistory, model: WorldModel) -> SightingReport:
 
     ``model`` is observed first, so a save the history has not read is
     answered as the next one read - the report never names a save that has no
-    ordinal. Nothing is written back: the caller keeps its own history.
+    ordinal. Nothing is written back: the caller keeps its own history. A save
+    naming no world is answered unkeyed, every ordinal None.
 
     Args:
         history: What was read before.
@@ -261,10 +281,22 @@ def report(history: SightingHistory, model: WorldModel) -> SightingReport:
     Returns:
         The report.
     """
-    seen = observe(history, model)
-    reads = seen.worlds[world_digest(model.token)]
+    world = world_digest(model.token)
+    if world == NO_WORLD:
+        return SightingReport(
+            checked=_checked(model),
+            keyed=False,
+            this_save=None,
+            saves_read=None,
+            sightings=tuple(
+                Sighting(stable_id=sighted, count=count, reason=reason, first_seen=None)
+                for sighted, count, reason in _census(model)
+            ),
+        )
+    reads = observe(history, model).worlds[world]
     return SightingReport(
         checked=_checked(model),
+        keyed=True,
         this_save=reads.saves[_save_key(model)],
         saves_read=len(reads.saves),
         sightings=tuple(

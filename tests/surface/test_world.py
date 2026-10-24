@@ -203,6 +203,7 @@ ALLOWED_ATTRIBUTE_READS: Final = frozenset(
         "sighting_history",
         "report",
         "checked",
+        "keyed",
         "this_save",
         "saves_read",
         "sightings",

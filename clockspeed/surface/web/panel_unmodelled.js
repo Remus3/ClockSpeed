@@ -105,8 +105,14 @@
   }
 
   function scopeStated(report) {
-    /* Whether the body names the one scope this panel knows how to word. */
+    /*
+      Whether the body names the one scope this panel knows how to word, for a
+      save that names a world. keyed must be exactly true: a save naming no
+      world has no ordinals at all, and a keyed flag of any other shape is a
+      defect upstream, not a world.
+    */
     return (
+      report["keyed"] === true &&
       report["scope"] === SCOPE_WORD &&
       isWholeNumber(report["this_save"]) &&
       isWholeNumber(report["saves_read"])
@@ -187,6 +193,14 @@
 
   function scopeNote(report) {
     /* The scope of "first read", in words, with this save's own ordinal. */
+    if (report["keyed"] === false) {
+      return el(
+        "p",
+        "note",
+        "This save names no world, so no save is counted with it and every first read is" +
+          " withheld - two saves naming no world are never taken for one world."
+      );
+    }
     if (!scopeStated(report)) {
       return el("p", "note", "the body did not state what first read counts, so no save is named");
     }
@@ -216,13 +230,27 @@
       )
     );
 
+    /*
+      EVERY BRANCH BELOW IS A CLAIM, SO EACH ONE IS TAKEN ONLY ON ITS OWN EXACT
+      SHAPE. "did not answer", "not checked" and "every class resolved" are
+      positive statements about the world; a body that is merely the wrong
+      shape supports none of them, so it reads withheld instead (non-negotiable
+      7). An absent list is not an empty list, and a checked flag that is not
+      false is not "no property map was found".
+    */
     var world = data ? data["world"] : null;
-    var report = isObject(world) ? world["unmodelled"] : null;
-    if (!isObject(report)) {
+    if (!isObject(world)) {
       root.appendChild(el("p", "note", "/api/world did not answer, so nothing is listed"));
       return;
     }
-    if (report["checked"] !== true) {
+    var report = world["unmodelled"];
+    if (!isObject(report)) {
+      root.appendChild(
+        el("p", "note", "withheld - the world arrived without its unmodelled report, so nothing is listed")
+      );
+      return;
+    }
+    if (report["checked"] === false) {
       root.appendChild(
         el(
           "p",
@@ -233,7 +261,23 @@
       );
       return;
     }
-    var classes = isArray(report["classes"]) ? report["classes"] : [];
+    if (report["checked"] !== true) {
+      root.appendChild(
+        el(
+          "p",
+          "note",
+          "withheld - the report did not say whether this save was checked, so nothing is listed"
+        )
+      );
+      return;
+    }
+    var classes = report["classes"];
+    if (!isArray(classes)) {
+      root.appendChild(
+        el("p", "note", "withheld - the class list did not arrive as a list, so nothing is listed")
+      );
+      return;
+    }
     if (classes.length === 0) {
       root.appendChild(
         el("p", "note", "every class in this save resolved against the property map")

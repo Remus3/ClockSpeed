@@ -135,6 +135,7 @@ def test_the_body_lists_one_unknown_class_with_its_count_and_first_seen_save() -
     assert sorted(found) == sorted(endpoint.UNMODELLED_KEYS)
     assert found["scope"] == endpoint.FIRST_SEEN_SCOPE
     assert found["checked"] is True
+    assert found["keyed"] is True
     assert (found["this_save"], found["saves_read"]) == (1, 1)
     assert classes(found) == [(fixtures.UNKNOWN_X, 1, 1)]
     listed = found["classes"]
@@ -207,3 +208,41 @@ def test_a_world_with_no_property_map_is_reported_unchecked() -> None:
     found = unmodelled(_Fixed(unchecked))
     assert found["checked"] is False
     assert classes(found) == []
+
+
+def test_a_save_naming_no_world_is_answered_unkeyed_with_its_ordinals_withheld() -> None:
+    """No world, no count: the ordinals are null and the body says why."""
+    model = fixtures.load(
+        (fixtures.UNKNOWN_X,), ticks=fixtures.FIRST_TICKS, token=fixtures.NO_TOKEN
+    )
+    found = unmodelled(_Fixed(model))
+    assert found["keyed"] is False
+    assert (found["this_save"], found["saves_read"]) == (None, None)
+    assert classes(found) == [(fixtures.UNKNOWN_X, 1, None)]
+
+
+def test_the_provider_never_pools_two_saves_naming_no_world(tmp_path: Path) -> None:
+    """Two token-less saves read in turn are never "save 2 of 2"."""
+    older = plant(tmp_path / "first.sav", FIRST_MTIME_NS)
+    newer = plant(tmp_path / "second.sav", SECOND_MTIME_NS)
+    by_name = {
+        older.name: fixtures.load(
+            (fixtures.UNKNOWN_X,), ticks=fixtures.FIRST_TICKS, token=fixtures.NO_TOKEN
+        ),
+        newer.name: fixtures.load(
+            (fixtures.UNKNOWN_Y, fixtures.UNKNOWN_X),
+            ticks=fixtures.SECOND_TICKS,
+            token=fixtures.NO_TOKEN,
+        ),
+    }
+    ranking = [older]
+    provider = providers.SaveWorldProvider(
+        find_saves=lambda _dir: tuple(ranking),
+        load=lambda path: by_name[path.name],
+    )
+    unmodelled(provider)
+    ranking.insert(0, newer)
+    second = unmodelled(provider)
+    assert second["keyed"] is False
+    assert (second["this_save"], second["saves_read"]) == (None, None)
+    assert classes(second) == [(fixtures.UNKNOWN_X, 1, None), (fixtures.UNKNOWN_Y, 1, None)]

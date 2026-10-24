@@ -64,7 +64,9 @@ server started, and the object's ``scope`` word says exactly that: a restart
 forgets them, and a save written while nothing was reading is never counted.
 What keys them - a digest of the save's own stamp - never crosses this wire;
 ordinals, counts and class paths do. A provider that is not also a
-:class:`SightingSource` holds no history and is answered as one save read.
+:class:`SightingSource` holds no history and is answered as one save read. A
+save whose header names no world is answered with ``keyed`` false and every
+ordinal null: it is never counted with another such save.
 
 NO WORLD IS 503, NEVER 501. The save layer is written, is eleven thousand lines
 and works; what is absent is its INPUT. Rendering that as 501 would tell the
@@ -170,7 +172,9 @@ UNKNOWN_CLASS_KEYS: Final = ("type_path", "count", "reason", "first_index")
 FIRST_SEEN_SCOPE: Final = "since-server-start"
 
 #: The ``unmodelled`` object's keys (CS-1240).
-UNMODELLED_KEYS: Final = ("scope", "checked", "this_save", "saves_read", "classes")
+#: ``keyed`` is False for a save whose header names no world; ``this_save``,
+#: ``saves_read`` and every ``first_seen`` are then null, never a count.
+UNMODELLED_KEYS: Final = ("scope", "checked", "keyed", "this_save", "saves_read", "classes")
 
 #: One listed unmodelled class's keys (CS-1240). ``stable_id`` is the class path.
 UNMODELLED_CLASS_KEYS: Final = ("stable_id", "count", "reason", "first_seen")
@@ -304,6 +308,7 @@ def _unmodelled(model: WorldModel, history: sightings.SightingHistory) -> dict[s
     return {
         "scope": FIRST_SEEN_SCOPE,
         "checked": found.checked,
+        "keyed": found.keyed,
         "this_save": found.this_save,
         "saves_read": found.saves_read,
         "classes": [
