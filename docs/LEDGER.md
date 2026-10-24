@@ -155,6 +155,23 @@ and committed on its own first; the lift commit descends from it; the rows cite 
 is re-graded at that tip.
 NOT GRADED: whether version 20 patch 1 is still MAIN's current kit.
 
+### 2026-10-23 - CS-1349 - frozen-file GRANT: the pre-push suite command is stable across pushes
+Verification: `.githooks/pre-push`, the suite line; the CS-1349 section of
+`docs/item_notes/phase7.md`. NOT A COMPLETION RECORD. CS-1349 STAYS OPEN. Recorded before any
+edit.
+Authority: CLAUDE.md sections 6 and 6.1. GRANTOR: a distinct read-only session 151 adjudicator
+that produced none of the work.
+A. GRANT: only how the report path reaches pytest, so the words after `--` match across pushes
+from one checkout; plus comment lines citing this grant. The report directory stays a fresh
+mktemp -d per run, outside the tree, removed by trap and never rendered. An inherited
+PYTEST_ADDOPTS reaches pytest unchanged.
+B. NOT GRANTED: any other line; the hook setting the margin or slot-directory variable;
+ops/fleet_kit/.
+C. Tests: tests/fleet_hook_kit.py and the eight acceptance files set the margin to 0, naming the
+kit constant and never its value. Forging fixtures follow the new path. No assertion is
+weakened. The new two-push one-hash test is seen RED first, then a distinct adversary.
+Reversed by: a breach of A or C, after which a fresh adjudicator rules.
+
 ### 2026-10-23 - CS-1245 - CLOSED. Bounded candidate enumeration ships as `clockspeed/solve/bound.py`, a trim ABOVE the OptimizerBackend seam with its cap and rule recorded, leaving `optimize.py` and both backends byte-unchanged
 Verification: `clockspeed/solve/bound.py::optimize_within_bound` plus
 `tests/solve/test_bound.py::test_a_cap_hit_records_the_cap_the_rule_and_a_conserving_partition`,
