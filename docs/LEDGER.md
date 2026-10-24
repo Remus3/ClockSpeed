@@ -75,6 +75,12 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1344 - FORGIVEN_LINE_POINTER_CEILING 72 to 73 granted
+Verification: `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and its RENAMED row in `tests/test_citation_tables.py::DISPOSITIONS`, aimed at `tests/test_own_temp_root.py::test_every_failed_run_older_code_kept_is_reclaimed_at_once`.
+Not a completion record.
+GRANTED by a distinct adjudicator: the CS-1319 closure cited the keep-the-newest-failed-run arm live; MAIN's FIX of 2026-10-21 overrode that retention and the arm was rewritten in place. RENAMED, not NO_TARGET: unlike CS-1043, the closure was not superseded. 73 is exact.
+Runner-up: keep the old name - lost: a false name.
+
 ### 2026-10-24 - CS-1347 - CLOSED: greedy returns the lowest-ranking selection its walk reached
 Verification: clockspeed/solve/backends/greedy.py ranks every reached canonical result by optimize.result_ranking_key; its docstring AMENDS the first-solve contract and restates no-backtracking.
 tests/solve/test_optimize.py::test_cs1347_greedy_returns_the_lowest_ranking_selection_its_walk_reached fails on the old walk.
