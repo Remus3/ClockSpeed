@@ -37,6 +37,20 @@ check its own preconditions:
   when every part of it is exact, because a rule could write a float into it
   and reach the trace and every later rule through the shared reference.
   :meth:`RuleContext.compute` takes exactly a ``Fraction``.
+- **Five solve-layer types are admitted though declared without slots**
+  (CS-1346). :data:`PLAN_TYPES` names the plan and the strategy badge a rule
+  reads to carry that badge into its trace - ``ProductionPlan``, ``PlanStep``,
+  ``ExclusionNote``, ``StrategyBadge`` and ``ThresholdCheck``. The solve layer
+  declares each frozen WITHOUT ``slots=True``, so every instance carries a
+  ``__dict__`` - the reason an unslotted dataclass is refused, since state
+  there is invisible to the walk. Each is admitted by EXACT type (a subclass is
+  refused), only while frozen, and only when its ``__dict__`` holds EXACTLY its
+  declared fields: an attribute planted beside them, exact or not, refuses the
+  read. Its fields are walked like any other part, so a float anywhere inside
+  still refuses it. What stays unenforced is the same as for a slotted value:
+  ordinary assignment raises ``FrozenInstanceError``, and a rule that writes
+  through ``__dict__`` or ``object.__setattr__`` is deliberate subversion (see
+  below). Any other unslotted dataclass is still refused.
 - **Text is printable ASCII strings only.** A recommendation's fields, a
   computed label and a rejected alternative's text must be ``str`` of
   printable ASCII (0x20 to 0x7E - no tab, newline or other control character)
@@ -85,6 +99,9 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.solve.ratio import ExclusionNote, PlanStep, ProductionPlan
+from clockspeed.solve.strategy import StrategyBadge, ThresholdCheck
+
 if TYPE_CHECKING:
     from clockspeed.save.world import UnlockState
 
@@ -98,6 +115,12 @@ MAX_EXACT_NODES: Final = 10000
 
 #: Scalar types a rule input may hold, matched EXACTLY - never a subclass.
 _EXACT_SCALARS: Final = (Fraction, int, bool, str)
+
+#: CS-1346: the solve-layer frozen dataclasses admitted WITHOUT slots, matched
+#: EXACTLY, each only while its ``__dict__`` holds exactly its declared fields.
+#: A rule reads a plan and its strategy badge through these; see the module
+#: docstring for what is and is not enforced over them.
+PLAN_TYPES: Final = (ProductionPlan, PlanStep, ExclusionNote, StrategyBadge, ThresholdCheck)
 
 #: What a rule-error step names an exception whose type name is not a plain
 #: ASCII identifier - a dynamically built class could carry any text there.
@@ -349,6 +372,10 @@ def _children(value: object) -> tuple[object, ...] | None:
         and not hasattr(value, "__dict__")
     ):
         return tuple(getattr(value, fld.name) for fld in dataclasses.fields(value))
+    if kind in PLAN_TYPES and kind.__dataclass_params__.frozen:  # type: ignore[union-attr]
+        names = tuple(fld.name for fld in dataclasses.fields(kind))
+        if tuple(sorted(vars(value))) == tuple(sorted(names)):
+            return tuple(getattr(value, name) for name in names)
     return None
 
 

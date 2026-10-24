@@ -19,7 +19,9 @@ import contextlib
 import enum
 from dataclasses import dataclass
 from fractions import Fraction
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
+
+import pytest
 
 from clockspeed.advisor.trace import (
     InputRefusedError,
@@ -36,6 +38,15 @@ from clockspeed.advisor.trace import (
     unlock_keys,
 )
 from clockspeed.save.world import UnlockState
+from clockspeed.solve.ratio import ExclusionNote, PlanStep, ProductionPlan
+from clockspeed.solve.strategy import (
+    NOT_CLEARED_OVER_BOUND,
+    RUNG_WITHIN_BUILDINGS,
+    RUNG_WITHIN_POWER,
+    RUNG_WITHIN_RAW,
+    StrategyBadge,
+    ThresholdCheck,
+)
 from tests.advisor.worlds import SYNTHETIC_RULES, UNLOCK_UNIVERSE, generate_worlds
 
 _OVERCLOCK = "feature:synthetic-overclock"
@@ -354,6 +365,139 @@ def test_a_rule_mutating_what_it_read_alters_neither_the_trace_nor_the_next_rule
     assert second.recommendation is not None
     assert _subjects_of(second, StepKind.INPUT_REFUSED) == ()
     assert world.values["a.declared"].value == MappingProxyType({"k": Fraction(1)})
+
+
+# --- CS-1346: the solve-layer plan and badge types ---------------------------
+
+
+def _check(name: str, *, cleared: bool, score: object, reference: object) -> ThresholdCheck:
+    """One invented rung verdict at the identity bound."""
+    return ThresholdCheck(
+        strategy=name,
+        cleared=cleared,
+        score=score,  # type: ignore[arg-type]
+        reference=reference,  # type: ignore[arg-type]
+        bound=Fraction(1),
+        reason="" if cleared else NOT_CLEARED_OVER_BOUND,
+    )
+
+
+def _badge(power_score: object = Fraction(45)) -> StrategyBadge:
+    """An invented badge: raw over its bound, buildings and power cleared."""
+    return StrategyBadge(
+        strongest=RUNG_WITHIN_POWER,
+        cleared=(RUNG_WITHIN_BUILDINGS, RUNG_WITHIN_POWER),
+        checks=(
+            _check(RUNG_WITHIN_RAW, cleared=False, score=Fraction(120), reference=Fraction(60)),
+            _check(RUNG_WITHIN_BUILDINGS, cleared=True, score=Fraction(3), reference=Fraction(6)),
+            _check(RUNG_WITHIN_POWER, cleared=True, score=power_score, reference=Fraction(436, 3)),
+        ),
+    )
+
+
+def _plan() -> ProductionPlan:
+    """An invented plan: one fractional step, one exclusion, exact rates."""
+    return ProductionPlan(
+        steps=(PlanStep(recipe_key="Recipe_Synthetic_C", machines=Fraction(10, 3)),),
+        targets=MappingProxyType({"Desc_Synthetic_C": Fraction(50)}),
+        raw_inputs=MappingProxyType({"Desc_SyntheticOre_C": Fraction(50)}),
+        byproducts=MappingProxyType({}),
+        excluded=(ExclusionNote(recipe_key="Recipe_SyntheticExcluded_C", reason="synthetic"),),
+        byproduct_policy="synthetic-policy",
+    )
+
+
+def _read_values(trace: Trace) -> list[object]:
+    return [step.value for step in trace.steps if step.kind is StepKind.INPUT_READ]
+
+
+def test_a_solve_plan_and_its_badge_are_read_as_exact_values() -> None:
+    """CS-1346: the five solve types cross though none is declared with slots."""
+    plan = _plan()
+    badge = _badge()
+    goods = (plan, badge, plan.steps[0], plan.excluded[0], badge.checks[0], (plan, badge))
+    for good in goods:
+        trace = run_rule(_reads("a.declared"), _world(a_declared=good))
+        name = type(good).__name__
+        refused = _subjects_of(trace, StepKind.INPUT_REFUSED)
+        assert refused == (), name
+        assert trace.recommendation is not None, name
+        read = _read_values(trace)
+        assert read == [good], name
+
+
+def test_a_plan_type_carrying_an_undeclared_attribute_is_refused() -> None:
+    """An instance attribute outside the declared fields is state the walk never sees."""
+    control = run_rule(_reads("a.declared"), _world(a_declared=_badge()))
+    assert control.recommendation is not None
+
+    for planted in (0.5, Fraction(1)):
+        for good in (_badge(), _plan(), _plan().steps[0]):
+            object.__setattr__(good, "planted", planted)
+            trace = run_rule(_reads("a.declared"), _world(a_declared=good))
+            name = type(good).__name__
+            assert trace.recommendation is None, name
+            assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",), name
+            assert _read_values(trace) == [], name
+
+
+def test_a_plan_type_holding_an_inexact_value_is_refused() -> None:
+    """The walk descends into an admitted type's fields; a float anywhere refuses it."""
+    control = run_rule(_reads("a.declared"), _world(a_declared=_badge(Fraction(45))))
+    assert control.recommendation is not None
+
+    trace = run_rule(_reads("a.declared"), _world(a_declared=_badge(45.0)))
+    assert trace.recommendation is None
+    reasons = [s.reason for s in trace.steps if s.kind is StepKind.INPUT_REFUSED]
+    assert reasons == ["a float is not an exact type"]
+
+
+def test_a_plan_type_is_admitted_only_while_frozen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The class-level frozen flag is read on every walk; an unfrozen one refuses."""
+    control = run_rule(_reads("a.declared"), _world(a_declared=_badge()))
+    assert control.recommendation is not None
+
+    monkeypatch.setattr(StrategyBadge, "__dataclass_params__", SimpleNamespace(frozen=False))
+    trace = run_rule(_reads("a.declared"), _world(a_declared=_badge()))
+    assert trace.recommendation is None
+    assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",)
+
+
+class _BadgeSubclass(StrategyBadge):
+    """A subclass of an admitted type: matched by exact type, so refused."""
+
+
+def test_a_subclass_of_a_plan_type_is_refused() -> None:
+    base = _badge()
+    control = run_rule(_reads("a.declared"), _world(a_declared=base))
+    assert control.recommendation is not None
+
+    sub = _BadgeSubclass(strongest=base.strongest, cleared=base.cleared, checks=base.checks)
+    trace = run_rule(_reads("a.declared"), _world(a_declared=sub))
+    assert trace.recommendation is None
+    assert _subjects_of(trace, StepKind.INPUT_REFUSED) == ("a.declared",)
+
+
+def test_a_rule_assigning_into_a_read_badge_alters_neither_the_trace_nor_the_next_rule() -> None:
+    def vandal(ctx: RuleContext) -> Recommendation | None:
+        value = ctx.read("a.declared")
+        value.strongest = None  # type: ignore[attr-defined]
+        return _recommend()
+
+    vandal_spec = RuleSpec(
+        rule_id="synthetic.a-vandal",
+        domain="power",
+        inputs=("a.declared",),
+        unlocks=(),
+        evaluate=vandal,
+    )
+    world = _world(a_declared=_badge())
+    first, second = run_rules((vandal_spec, _reads("a.declared")), world)
+    assert first.recommendation is None
+    assert _subjects_of(first, StepKind.RULE_ERROR) == ("FrozenInstanceError",)
+    assert _read_values(first) == [_badge()]
+    assert second.recommendation is not None
+    assert _read_values(second) == [_badge()]
 
 
 # --- the context is the only door, as far as Python lets it be --------------
