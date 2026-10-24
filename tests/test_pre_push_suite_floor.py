@@ -748,7 +748,7 @@ def test_an_inherited_case_variant_of_the_report_variable_cannot_aim_the_report(
 ) -> None:
     """CS-1349 repair. A planted case variant must not aim the report either.
 
-    RED at 0121c0e3 on Windows, measured by a distinct adversary: the variant
+    RED at bb4458fe on Windows, measured by a distinct adversary: the variant
     reached pytest beside the hook's own name, pytest wrote the report inside
     the work tree, and the push was refused as "no report".
     """
