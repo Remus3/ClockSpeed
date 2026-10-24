@@ -22,7 +22,9 @@ before an assertion sees it.
 from __future__ import annotations
 
 import ctypes
+import datetime
 import importlib.util
+import json
 import os
 import shutil
 import sys
@@ -50,9 +52,15 @@ TREE: Final = 20
 MANY_LOOSE: Final = 80
 OUTSIDE: Final = 100
 
-#: ``SHFileOperationW``'s delete operation and its allow-undo flag.
-FO_DELETE: Final = 3
+#: The shell's allow-undo and recycle-on-delete operation flags, and the
+#: transfer flag the shell sets on a delete only when the item will be recycled.
 FOF_ALLOWUNDO: Final = 0x0040
+FOFX_RECYCLEONDELETE: Final = 0x00080000
+TSF_DELETE_RECYCLE_IF_POSSIBLE: Final = 0x80
+
+#: An agent's progress-file ETA, and how long ago a stale one last wrote.
+ETA_S: Final = 600
+STALE_AGE_S: Final = 3 * ETA_S
 
 
 def _load() -> ModuleType:
@@ -318,7 +326,18 @@ def test_the_cli_reports_under_over_and_refused(tmp_path: Path, scratchpad: Path
     _fill(scratchpad / "big", BIG)
     _loose(scratchpad, BIG)
     remover = Recorder()
-    base = ["--scratchpad", str(scratchpad), "--bound", str(BOUND), "--grace-s", "0"]
+    progress = tmp_path / "progress"
+    progress.mkdir()
+    base = [
+        "--scratchpad",
+        str(scratchpad),
+        "--bound",
+        str(BOUND),
+        "--grace-s",
+        "0",
+        "--progress-dir",
+        str(progress),
+    ]
     dry = SWEEP.main(base, remove=remover)
     applied = SWEEP.main([*base, "--apply"], remove=remover)
     refused = SWEEP.main(["--scratchpad", str(tmp_path / "absent")], remove=remover)
@@ -333,46 +352,6 @@ def test_the_cli_reports_under_over_and_refused(tmp_path: Path, scratchpad: Path
     assert under == SWEEP.EXIT_UNDER, f"a scratchpad under the bound exited {under}"
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="the Recycle Bin is reachable on Windows only")
-@pytest.mark.parametrize("status", [0, 2])
-def test_recycle_asks_the_shell_for_an_undoable_delete_of_exactly_the_one_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int
-) -> None:
-    """The shell is asked to DELETE with UNDO - the Recycle Bin - one path, double-NUL ended.
-
-    The shell call is stubbed, so nothing reaches the real Recycle Bin; a
-    refusal from the shell raises rather than falling back to a direct unlink.
-    """
-    target = tmp_path / "tree"
-    target.mkdir()
-    spelled = str(target.absolute())
-    seen: dict[str, object] = {}
-
-    class FakeShell:
-        def SHFileOperationW(self, ref: object) -> int:  # noqa: N802 - the Win32 name
-            operation = ref._obj  # type: ignore[attr-defined]  # noqa: SLF001 - byref's target
-            seen["func"] = operation.wFunc
-            seen["flags"] = operation.fFlags
-            seen["from"] = ctypes.wstring_at(operation.pFrom, len(spelled) + 2)
-            return status
-
-    monkeypatch.setattr(ctypes.windll, "shell32", FakeShell())
-    raised = False
-    try:
-        SWEEP.recycle(target)
-    except OSError:
-        raised = True
-    deleting = seen.get("func") == FO_DELETE
-    flags = seen.get("flags")
-    undoable = isinstance(flags, int) and bool(flags & FOF_ALLOWUNDO)
-    one_path = seen.get("from") == spelled + "\0\0"
-    assert deleting, "the shell was not asked to delete"
-    assert undoable, "the delete was not sent to the Recycle Bin"
-    assert one_path, "the shell was not handed exactly the one path, double-NUL ended"
-    assert raised == (status != 0), f"shell status {status} was not reported as it should be"
-    assert target.is_dir(), "the stubbed recycle removed the directory some other way"
-
-
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows has a Recycle Bin")
 def test_recycle_refuses_where_there_is_no_recycle_bin(tmp_path: Path) -> None:
     """Never a direct unlink in its place: the directory stays and the call raises."""
@@ -384,3 +363,229 @@ def test_recycle_refuses_where_there_is_no_recycle_bin(tmp_path: Path) -> None:
         refused = True
     assert refused, "recycle did not refuse where no Recycle Bin is reachable"
     assert target.is_dir(), "recycle removed the directory without a Recycle Bin"
+
+
+def _backdate_all(tree: Path, seconds: float) -> None:
+    """Back-date every modification time under ``tree``, the tree itself included."""
+    stamp = time.time() - seconds
+    for root, dirs, files in os.walk(tree):
+        for name in dirs + files:
+            os.utime(Path(root) / name, (stamp, stamp))
+    os.utime(tree, (stamp, stamp))
+
+
+def test_a_tree_made_moments_ago_is_young_by_its_creation_time_whatever_its_mtimes(
+    scratchpad: Path,
+) -> None:
+    """Extraction can stamp every file with an OLD modification time; creation is now.
+
+    ``git archive`` piped to ``tar`` writes each entry's commit time as its
+    modification time, so a tree extracted a second ago can read as days old by
+    mtime alone. The arm back-dates every mtime and sweeps on the real clock:
+    the creation time keeps the tree. The control sweeps the same tree on a
+    clock past the grace period, where it goes.
+    """
+    tree = _fill(scratchpad / "extracted", BIG)
+    _backdate_all(tree, GRACE_S + 3600)
+    remover = Recorder()
+    SWEEP.sweep(scratchpad, apply=True, remove=remover, bound=BOUND, now=time.time())
+    kept = len(remover.handed) == 0 and tree.is_dir()
+    assert kept, "a tree created moments ago was swept on its old modification times"
+    SWEEP.sweep(scratchpad, apply=True, remove=remover, bound=BOUND, now=_later())
+    control = remover.handed == [tree]
+    assert control, "the control sweep past the grace period did not take the tree"
+
+
+def test_a_scratchpad_holding_exactly_the_bound_is_swept_strictly_under_it(
+    scratchpad: Path,
+) -> None:
+    """MAIN's acceptance is UNDER the bound: exactly the bound is still too many."""
+    large = _fill(scratchpad / "large", BOUND - SMALL)
+    small = _fill(scratchpad / "small", SMALL)
+    remover = Recorder()
+    result = SWEEP.sweep(scratchpad, apply=True, remove=remover, bound=BOUND, now=_later())
+    only_large = remover.handed == [large] and small.is_dir()
+    assert result.before == BOUND, f"the arm planted {result.before} files, not the bound"
+    assert only_large, "a scratchpad at exactly the bound was not swept under it"
+    assert result.after == SMALL, f"the sweep left {result.after} files"
+    assert not result.over_bound, "the swept scratchpad still read as at or over the bound"
+
+
+def test_exactly_the_bound_reads_as_over_it(tmp_path: Path, scratchpad: Path) -> None:
+    """A scratchpad of exactly the bound in loose files is reported over it, exit 1."""
+    _loose(scratchpad, BOUND)
+    remover = Recorder()
+    result = SWEEP.sweep(scratchpad, apply=True, remove=remover, bound=BOUND, now=_later())
+    assert result.over_bound, "exactly the bound read as under it"
+    progress = tmp_path / "progress"
+    progress.mkdir()
+    argv = ["--scratchpad", str(scratchpad), "--bound", str(BOUND), "--progress-dir", str(progress)]
+    code = SWEEP.main(argv, remove=remover)
+    assert code == SWEEP.EXIT_OVER, f"exactly the bound exited {code}, not over"
+
+
+def test_recycle_raises_and_keeps_the_directory_when_the_bin_cannot_take_it(
+    tmp_path: Path,
+) -> None:
+    """The shell's sink stopped a delete the bin would not take: nothing is deleted.
+
+    The shell call is stubbed - nothing reaches the real Recycle Bin - and the
+    stub reports what the progress sink reports when it refused a delete that
+    would have been permanent.
+    """
+    target = _fill(tmp_path / "tree", FEW)
+    refused = SWEEP.ShellOutcome(refused=True, outside_bin=False, recycled=False)
+    raised = False
+    try:
+        SWEEP.recycle(target, deleter=lambda _path: refused)
+    except SWEEP.BinRefusedError:
+        raised = True
+    assert raised, "a delete the bin could not take did not raise BinRefusedError"
+    assert target.is_dir(), "a delete the bin could not take removed the directory"
+
+
+@pytest.mark.parametrize("kind", ["outside_bin", "failed"])
+def test_recycle_raises_on_any_outcome_that_is_not_a_clean_recycle(
+    tmp_path: Path, kind: str
+) -> None:
+    """Deleted outside the bin, or not deleted at all: both raise, neither is a success."""
+    target = _fill(tmp_path / "tree", FEW)
+    outcome = SWEEP.ShellOutcome(refused=False, outside_bin=kind == "outside_bin", recycled=False)
+    raised: type[BaseException] | None = None
+    try:
+        SWEEP.recycle(target, deleter=lambda _path: outcome)
+    except OSError as exc:
+        raised = type(exc)
+    expected = SWEEP.BinRefusedError if kind == "outside_bin" else OSError
+    assert raised is expected, f"{kind}: recycle raised the wrong verdict"
+
+
+def test_the_operation_asks_for_the_recycle_bin_with_undo() -> None:
+    """The flags handed to the shell recycle on delete and allow undo."""
+    flags = SWEEP.OPERATION_FLAGS
+    recycling = bool(flags & FOFX_RECYCLEONDELETE) and bool(flags & FOF_ALLOWUNDO)
+    assert recycling, "the shell operation does not ask for the Recycle Bin"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the shell sink is a Windows COM object")
+def test_the_sink_stops_every_delete_the_bin_will_not_take() -> None:
+    """Called through its own COM vtable: a delete without the recycle flag is aborted."""
+    sink = SWEEP.ProgressSink()
+    index = SWEEP.SINK_METHODS.index("PreDeleteItem")
+    vtable = ctypes.cast(sink.pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    proto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p)
+    pre_delete = proto(vtable[index])
+    recycled = pre_delete(sink.pointer, TSF_DELETE_RECYCLE_IF_POSSIBLE, None)
+    allowed = recycled == 0 and not sink.refused
+    assert allowed, "the sink stopped a delete the bin would take"
+    permanent = pre_delete(sink.pointer, 0, None)
+    stopped = permanent < 0 and sink.refused
+    assert stopped, "the sink let through a delete the bin would not take"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the shell sink is a Windows COM object")
+def test_the_sink_flags_a_delete_that_left_nothing_in_the_bin() -> None:
+    """PostDeleteItem with success and no recycled item is a delete outside the bin."""
+    sink = SWEEP.ProgressSink()
+    index = SWEEP.SINK_METHODS.index("PostDeleteItem")
+    vtable = ctypes.cast(sink.pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    proto = ctypes.WINFUNCTYPE(
+        ctypes.c_long,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_long,
+        ctypes.c_void_p,
+    )
+    post_delete = proto(vtable[index])
+    marker = ctypes.c_int(1)
+    post_delete(sink.pointer, TSF_DELETE_RECYCLE_IF_POSSIBLE, None, 0, ctypes.addressof(marker))
+    clean = sink.recycled and not sink.outside_bin
+    assert clean, "a delete that left an item in the bin was not read as recycled"
+    post_delete(sink.pointer, 0, None, 0, None)
+    assert sink.outside_bin, "a delete that left nothing in the bin was not flagged"
+
+
+def test_a_sweep_stops_at_the_first_directory_the_bin_cannot_take(scratchpad: Path) -> None:
+    """One refusal stops the sweep: no further directory is handed to the shell."""
+    _fill(scratchpad / "big", BIG)
+    _fill(scratchpad / "mid", MID)
+    handed: list[Path] = []
+
+    def refusing(path: Path) -> None:
+        handed.append(path)
+        raise SWEEP.BinRefusedError("planted: the bin cannot take it")
+
+    result = SWEEP.sweep(scratchpad, apply=True, remove=refusing, bound=SMALL, now=_later())
+    assert len(handed) == 1, f"the sweep handed {len(handed)} directories after a refusal"
+    assert result.stopped, "the sweep did not report that it stopped"
+    assert result.failed == 1, f"the sweep reported {result.failed} failed, not 1"
+
+
+def _progress(directory: Path, name: str, status: str, age_s: float, eta_s: float) -> None:
+    """One agent's progress file, last written ``age_s`` seconds ago."""
+    when = datetime.datetime.fromtimestamp(time.time() - age_s).astimezone()
+    doc = {"task": name, "pct": 50, "step": "x", "eta_s": eta_s, "status": status}
+    doc["updated"] = when.isoformat(timespec="seconds")
+    (directory / (name + ".json")).write_bytes(json.dumps(doc).encode("ascii"))
+
+
+def _cli(scratchpad: Path, progress: Path, *extra: str) -> list[str]:
+    return [
+        "--scratchpad",
+        str(scratchpad),
+        "--bound",
+        str(BOUND),
+        "--grace-s",
+        "0",
+        "--progress-dir",
+        str(progress),
+        "--apply",
+        *extra,
+    ]
+
+
+@pytest.mark.parametrize("planted", ["running", "unreadable"])
+def test_an_apply_is_refused_while_any_agent_may_be_live(
+    tmp_path: Path, scratchpad: Path, planted: str
+) -> None:
+    """A reading agent changes no timestamp, so a live progress file stops the apply.
+
+    An unreadable progress file cannot prove its agent finished, so it stops
+    the apply too. Nothing is handed to the shell; the exit is refused.
+    """
+    big = _fill(scratchpad / "big", BIG)
+    progress = tmp_path / "progress"
+    progress.mkdir()
+    if planted == "running":
+        _progress(progress, "adv-x", "running", 30, ETA_S)
+    else:
+        (progress / "adv-x.json").write_bytes(b"{not json")
+    remover = Recorder()
+    code = SWEEP.main(_cli(scratchpad, progress), remove=remover)
+    assert code == SWEEP.EXIT_REFUSED, f"{planted}: the apply exited {code}, not refused"
+    nothing = len(remover.handed) == 0 and big.is_dir()
+    assert nothing, f"{planted}: the apply moved a directory while an agent may be live"
+
+
+@pytest.mark.parametrize("planted", ["stale", "done", "own"])
+def test_a_finished_stale_or_own_progress_file_does_not_stop_the_apply(
+    tmp_path: Path, scratchpad: Path, planted: str
+) -> None:
+    """Done, silent past twice its ETA, or the caller's own named task: the apply runs."""
+    _fill(scratchpad / "big", BIG)
+    progress = tmp_path / "progress"
+    progress.mkdir()
+    extra: list[str] = []
+    if planted == "stale":
+        _progress(progress, "adv-x", "running", STALE_AGE_S, ETA_S)
+    elif planted == "done":
+        _progress(progress, "adv-x", "done", 30, ETA_S)
+    else:
+        _progress(progress, "done-151", "running", 30, ETA_S)
+        extra = ["--ignore-task", "done-151"]
+    remover = Recorder()
+    code = SWEEP.main(_cli(scratchpad, progress, *extra), remove=remover)
+    assert code == SWEEP.EXIT_UNDER, f"{planted}: the apply exited {code}"
+    handed = len(remover.handed)
+    assert handed == 1, f"{planted}: the apply handed {handed} directories, not 1"
