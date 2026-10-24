@@ -238,18 +238,18 @@ _CHILD_TIMEOUT_SECONDS = 300
 # ---------------------------------------------------------------------------
 
 # "No write-capable call site outside workdir.py" is a claim relative to a SET.
-# Pinning the set makes this gate a stated contract rather than a description of
-# whatever happened to be on disk when it ran.
+# Pinning it makes this gate a stated contract, not a description of the disk.
 #
 # THE PACKAGE __init__.py IS ON THE LIST DELIBERATELY. CS-400 names six modules;
-# the package initialiser is a seventh file that can hold a write just as easily
-# as any of them, and a scan that skipped it would carry a hole exactly where
-# nobody looks. Covering it is strictly stronger than the clause requires.
+# the package initialiser is a seventh file that can hold a write as easily as
+# any of them, and a scan skipping it would hole exactly where nobody looks -
+# covering it is stronger than the clause requires. CS-1240 added sightings.py.
 SAVE_SOURCES: Final[tuple[str, ...]] = (
     "__init__.py",
     "chunks.py",
     "header.py",
     "objects.py",
+    "sightings.py",
     "usmap.py",
     "workdir.py",
     "world.py",
@@ -2316,6 +2316,11 @@ ALLOWED_SAVE_IMPORTS: Final[dict[str, frozenset[str]]] = {
     "clockspeed.save.workdir": frozenset(),
     "clockspeed.save.objects": frozenset({"usmap"}),
     "clockspeed.save.world": frozenset({"chunks", "header", "objects", "usmap", "workdir"}),
+    # CS-1240: sightings sits ON TOP of the composer - it merges world models
+    # and imports world, which brings the five in with it. Nothing imports it.
+    "clockspeed.save.sightings": frozenset(
+        {"chunks", "header", "objects", "usmap", "workdir", "world"}
+    ),
 }
 
 #: No module in this package may reach these. ``solve`` and ``advisor`` sit
@@ -2477,7 +2482,9 @@ def test_the_composer_imports_all_five() -> None:
     assert ALLOWED_SAVE_IMPORTS["clockspeed.save.world"] == frozenset(
         {"chunks", "header", "objects", "usmap", "workdir"}
     )
-    assert len(ALLOWED_SAVE_IMPORTS["clockspeed.save.world"]) == len(SAVE_SOURCES) - 2
+    # Every source but three: the package initialiser, world itself, and
+    # sightings (CS-1240), which consumes world rather than feeding it.
+    assert len(ALLOWED_SAVE_IMPORTS["clockspeed.save.world"]) == len(SAVE_SOURCES) - 3
 
 
 #: Workers for the child pytest run, BOUNDED rather than ``auto`` on purpose.
@@ -3833,6 +3840,15 @@ _ABSENCE_MITIGATIONS: Final = MappingProxyType(
             "is unavailable to it and would be a false claim. It refuses by "
             "raising WorldLoadError(stage constant, exception type name) and "
             "delegates every path-handling step to workdir, which redacts",
+        ),
+        "sightings.py": (
+            (_MITIGATION_NO_PATH, _MITIGATION_RECORDS_RETAIN_NO_BYTES),
+            "CS-1240. It merges world models a caller already holds and never "
+            "learns where a save came from, so the redactor would have nothing "
+            "to strip. Its records hold class paths, ordinals and two SHA-256 "
+            "digests - of the world token and of the save's own stamp - and no "
+            "field of any type it defines is bytes; every type is a repr=False "
+            "dataclass with no __repr__, so none renders a field at all",
         ),
     }
 )

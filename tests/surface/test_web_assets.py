@@ -76,6 +76,7 @@ PANEL_MODULES: Final = (
     "panel_scope.js",
     "panel_solve.js",
     "panel_warnings.js",
+    "panel_unmodelled.js",
     "panel_map.js",
     "panel_optimize.js",
     "panel_power.js",

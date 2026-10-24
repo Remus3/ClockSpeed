@@ -434,23 +434,36 @@ function renderWorld(result) {
     rows.appendChild(countRow);
   }
 
+  /*
+    CS-1240 - THE LIST MOVED TO THE UNMODELLED CONTENT PANEL, AND THIS SECTION
+    NOW POINTS AT IT. panel_unmodelled.js lists every unmodelled class by its
+    stable id with its count and the save it was first read in, so a class
+    path is listed in ONE place on the page. This section keeps the number and
+    says where the list is. #unmodeled-list stays in the document, empty and
+    hidden, because tools/dashboard_probe.py names it as a node this script
+    reaches for.
+
+    THE OLD EMPTY-LIST LINE WAS WRONG IN ONE CASE AND IS NOT KEPT. It said
+    "every class in this world resolved against the registry" whenever the list
+    was empty - including a world read with no property map, where nothing was
+    checked at all. Whether a save was checked is the panel's to say, from the
+    body's own unmodelled.checked; this line claims nothing about it.
+  */
   var unknown = data["unknown_classes"] || [];
-  if (!unknown.length) {
+  var pointer = "the Unmodelled content panel below lists each one, with the save it was first read in";
+  if (unknown.length) {
     listNote.appendChild(
-      document.createTextNode(
-        data["contains_unmodeled_content"]
-          ? "this world carries content this build does not model"
-          : "every class in this world resolved against the registry"
-      )
+      document.createTextNode(unknown.length + " class path(s) this build does not model - " + pointer)
     );
     return;
   }
   listNote.appendChild(
-    document.createTextNode(unknown.length + " class path(s) this build does not model:")
+    document.createTextNode(
+      data["contains_unmodeled_content"]
+        ? "this world carries content this build does not model - " + pointer
+        : "no class path is listed here - the Unmodelled content panel below says whether this save was checked"
+    )
   );
-  for (var u = 0; u < unknown.length; u += 1) {
-    list.appendChild(el("li", null, unknown[u]["type_path"] + "  x" + unknown[u]["count"]));
-  }
 }
 
 /* --- the panel seam ----------------------------------------------------- */

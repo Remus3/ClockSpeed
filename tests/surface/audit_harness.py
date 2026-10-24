@@ -116,6 +116,7 @@ from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, registry, solve
 from clockspeed.surface.api import map as map_endpoint
 from clockspeed.surface.api import power as power_endpoint
+from clockspeed.surface.api import world as world_endpoint
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -252,6 +253,44 @@ def _unknown_classes() -> list[dict[str, object]]:
     ]
 
 
+#: CS-1240: the save each synthetic class was first read in, among the three
+#: saves the harness world claims were read since the server started. One per
+#: label the panel prints - an earlier save, this save, and a middle one.
+SYNTHETIC_SAVES_READ: Final = 3
+SYNTHETIC_FIRST_SEEN: Final = (1, 3, 2)
+
+
+def _unmodelled() -> dict[str, object]:
+    """Render the synthetic unmodelled classes as the ``unmodelled`` object.
+
+    Ordered by stable id, as ``clockspeed.save.sightings.report`` orders them.
+
+    Returns:
+        The object, keyed by ``world.UNMODELLED_KEYS``.
+    """
+    paired = sorted(
+        (type_path, count, first_seen)
+        for (type_path, count, _index), first_seen in zip(
+            SYNTHETIC_UNKNOWN_CLASSES, SYNTHETIC_FIRST_SEEN, strict=True
+        )
+    )
+    return {
+        "scope": world_endpoint.FIRST_SEEN_SCOPE,
+        "checked": True,
+        "this_save": SYNTHETIC_SAVES_READ,
+        "saves_read": SYNTHETIC_SAVES_READ,
+        "classes": [
+            {
+                "stable_id": type_path,
+                "count": count,
+                "reason": REASON_CLASS_NOT_MODELLED,
+                "first_seen": first_seen,
+            }
+            for type_path, count, first_seen in paired
+        ],
+    }
+
+
 def _warnings() -> list[dict[str, object]]:
     """Render the synthetic advisories in the endpoint's own shape.
 
@@ -282,6 +321,7 @@ def _world_data() -> dict[str, object]:
         "unlocks": dict(SYNTHETIC_UNLOCKS),
         "warnings": _warnings(),
         "unknown_classes": _unknown_classes(),
+        "unmodelled": _unmodelled(),
     }
 
 

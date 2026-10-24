@@ -16,10 +16,11 @@
   inventing a source for one side or dropping it from the other, so they render
   as two labelled groups instead.
 
-  unknown_classes IS NOT RENDERED HERE. app.js:408-424 already lists it in the
-  World section, and world.py:213-221 records that a type_path is the ONE place
-  a class path crosses this wire. One place on the wire, one place on the page;
-  this panel points at that section rather than copying it.
+  unknown_classes IS NOT RENDERED HERE. Since CS-1240 panel_unmodelled.js lists
+  every unmodelled class, by its stable id, with its count and the save it was
+  first read in; world.py's module docstring records why a class path may cross
+  this wire at all. One place on the page lists them; this panel points at that
+  panel rather than copying it.
 
   ------------------------------------------------------------------------
   THE PERSONAL-DATA FINDING, AND THE DEFENCE BUILT ON IT
@@ -488,7 +489,7 @@
         "p",
         "note",
         "this world carries unmodelled content; the classes involved are listed"
-          + " in the World section of this page"
+          + " in the Unmodelled content panel of this page"
       )
     );
   }

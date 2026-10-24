@@ -428,11 +428,11 @@ def test_both_null_mounts_and_says_so(tmp_path: Path) -> None:
 
 
 def test_no_unknown_class_type_path_is_duplicated_here(tmp_path: Path) -> None:
-    """Acceptance 4: ``unknown_classes`` belongs to the World section.
+    """Acceptance 4: the unmodelled classes belong to their own panel.
 
-    app.js:408-424 already renders that list. This panel names the section
-    instead, so the one place a ``type_path`` crosses the wire stays one place
-    on the page too.
+    Since CS-1240 ``panel_unmodelled.js`` renders that list, by stable id. This
+    panel names that panel instead, so the class paths are listed in one place
+    on the page.
 
     Args:
         tmp_path: Scratch directory.

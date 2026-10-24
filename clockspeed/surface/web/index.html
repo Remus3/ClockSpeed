@@ -118,7 +118,13 @@
     </div>
     <h3 id="h-unmodeled">Unmodeled classes</h3>
     <p class="note" id="unmodeled-note">reading ...</p>
-    <ul class="paths" id="unmodeled-list"></ul>
+    <!--
+      CS-1240 - EMPTY AND HIDDEN ON PURPOSE. The list itself lives in the
+      Unmodelled content panel; the note above counts and points there. The
+      node stays because tools/dashboard_probe.py requires every id app.js
+      reaches for, and app.js still clears it on every render.
+    -->
+    <ul class="paths" id="unmodeled-list" hidden></ul>
   </section>
 
   <!--
@@ -152,6 +158,7 @@
 <script src="panel_scope.js" defer></script>
 <script src="panel_solve.js" defer></script>
 <script src="panel_warnings.js" defer></script>
+<script src="panel_unmodelled.js" defer></script>
 <script src="panel_map.js" defer></script>
 <script src="panel_optimize.js" defer></script>
 <script src="panel_power.js" defer></script>

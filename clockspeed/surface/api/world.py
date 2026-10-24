@@ -55,6 +55,17 @@ unmodelled classes is not a concession to convenience; it IS non-negotiable 7's
 purpose, and BOOTSTRAP.md section 9 requires an explicit "this world contains
 content I do not model" rather than a quiet partial answer.
 
+THE SAME CLASS PATH IS THE STABLE ID ``unmodelled`` LISTS (CS-1240). The
+``unmodelled`` object carries each unmodelled class again, keyed by
+``clockspeed.save.sightings.stable_id`` - which IS that class path, verbatim -
+with its count in this save and the ordinal of the save it was first read in.
+The ordinals count the distinct saves of this world the provider read since the
+server started, and the object's ``scope`` word says exactly that: a restart
+forgets them, and a save written while nothing was reading is never counted.
+What keys them - a digest of the save's own stamp - never crosses this wire;
+ordinals, counts and class paths do. A provider that is not also a
+:class:`SightingSource` holds no history and is answered as one save read.
+
 NO WORLD IS 503, NEVER 501. The save layer is written, is eleven thousand lines
 and works; what is absent is its INPUT. Rendering that as 501 would tell the
 operator the save reader has not been built - see the 501/503 split in
@@ -73,17 +84,21 @@ operator the save reader has not been built - see the 501/503 split in
 # imported. The server obtains the world and binds the provider into the
 # handler by closure, which is also why nothing here imports the server.
 #
-# The ONE runtime name taken from the save layer is `masked_token`, and taking
+# TWO runtime names are taken from the save layer. `masked_token`, and taking
 # it is strictly better than the alternative. The mask is the redaction control
 # `clockspeed/save/header.py` owns; re-deriving a digest here would be the same
 # fact written in two places, and a hand-rolled one that is subtly wrong looks
-# identical to a correct one. `WorldModel` itself is named for typing only and
-# is not imported at runtime.
+# identical to a correct one. And `sightings` (CS-1240), for the same reason:
+# ordering the unmodelled classes and counting the saves read is computing, and
+# this layer never computes, so the report is the save layer's and this module
+# only names its fields. `WorldModel` itself is named for typing only and is not
+# imported at runtime.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
+from clockspeed.save import sightings
 from clockspeed.save.header import masked_token
 from clockspeed.surface.api import contract
 
@@ -96,9 +111,13 @@ __all__ = [
     "COUNT_KEYS",
     "DATA_KEYS",
     "ENDPOINT",
+    "FIRST_SEEN_SCOPE",
     "UNKNOWN_CLASS_KEYS",
     "UNLOCK_KEYS",
+    "UNMODELLED_CLASS_KEYS",
+    "UNMODELLED_KEYS",
     "WARNING_KEYS",
+    "SightingSource",
     "make_handler",
 ]
 
@@ -120,6 +139,7 @@ DATA_KEYS: Final = (
     "unlocks",
     "warnings",
     "unknown_classes",
+    "unmodelled",
 )
 
 #: What is counted rather than listed. Every one of these names a collection
@@ -143,6 +163,35 @@ WARNING_KEYS: Final = ("source", "code", "detail", "subject", "count")
 
 #: One unmodelled class's keys - the asymmetry the module docstring states.
 UNKNOWN_CLASS_KEYS: Final = ("type_path", "count", "reason", "first_index")
+
+#: What the ``unmodelled`` object's first-seen ordinals are counted over: the
+#: saves the provider read since the server started. A fixed word, so a reader
+#: never has to infer the scope from the numbers.
+FIRST_SEEN_SCOPE: Final = "since-server-start"
+
+#: The ``unmodelled`` object's keys (CS-1240).
+UNMODELLED_KEYS: Final = ("scope", "checked", "this_save", "saves_read", "classes")
+
+#: One listed unmodelled class's keys (CS-1240). ``stable_id`` is the class path.
+UNMODELLED_CLASS_KEYS: Final = ("stable_id", "count", "reason", "first_seen")
+
+
+@runtime_checkable
+class SightingSource(Protocol):
+    """A world provider that also remembers which saves it read (CS-1240).
+
+    Optional on purpose: :func:`make_handler` takes any
+    ``contract.WorldProvider``, and answers one that is not also this as a
+    provider that has read the one save it handed over.
+    """
+
+    def sighting_history(self) -> sightings.SightingHistory:
+        """The history of saves read so far.
+
+        Returns:
+            The history.
+        """
+        ...
 
 
 def _counts(model: WorldModel) -> dict[str, int]:
@@ -237,11 +286,44 @@ def _unknown_classes(model: WorldModel) -> list[dict[str, object]]:
     ]
 
 
-def _body(model: WorldModel) -> dict[str, object]:
+def _unmodelled(model: WorldModel, history: sightings.SightingHistory) -> dict[str, object]:
+    """Render every unmodelled class by stable id, with the save it was first read in.
+
+    THE REPORT IS THE SAVE LAYER'S; THIS ONLY NAMES ITS FIELDS.
+    ``clockspeed.save.sightings.report`` orders the classes, counts the saves
+    and keys the history; nothing here sorts, counts or compares.
+
+    Args:
+        model: The world.
+        history: The provider's history, or the empty one.
+
+    Returns:
+        The object, keyed by :data:`UNMODELLED_KEYS`.
+    """
+    found = sightings.report(history, model)
+    return {
+        "scope": FIRST_SEEN_SCOPE,
+        "checked": found.checked,
+        "this_save": found.this_save,
+        "saves_read": found.saves_read,
+        "classes": [
+            {
+                "stable_id": entry.stable_id,
+                "count": entry.count,
+                "reason": entry.reason,
+                "first_seen": entry.first_seen,
+            }
+            for entry in found.sightings
+        ],
+    }
+
+
+def _body(model: WorldModel, history: sightings.SightingHistory) -> dict[str, object]:
     """Build the success body by naming every field it carries.
 
     Args:
         model: The world.
+        history: The provider's history of saves read, or the empty one.
 
     Returns:
         The body, keyed by :data:`DATA_KEYS`.
@@ -259,6 +341,7 @@ def _body(model: WorldModel) -> dict[str, object]:
         "unlocks": _unlocks(model),
         "warnings": _warnings(model),
         "unknown_classes": _unknown_classes(model),
+        "unmodelled": _unmodelled(model, history),
     }
 
 
@@ -294,6 +377,9 @@ def make_handler(worlds: contract.WorldProvider[WorldModel]) -> contract.Handler
         model = worlds.world()
         if model is None:
             return contract.unavailable(ENDPOINT, contract.REASON_NO_SAVE)
-        return contract.ok(ENDPOINT, _body(model))
+        history = sightings.EMPTY_HISTORY
+        if isinstance(worlds, SightingSource):
+            history = worlds.sighting_history()
+        return contract.ok(ENDPOINT, _body(model, history))
 
     return handle

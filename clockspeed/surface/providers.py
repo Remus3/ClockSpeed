@@ -62,12 +62,13 @@ from clockspeed.advisor.advise import advise_world
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
 from clockspeed.data.docs_extract import DocsExtractError, load_document
-from clockspeed.save import workdir
+from clockspeed.save import sightings, workdir
 from clockspeed.save.world import (
     READER_REFUSAL_TYPES,
     SAVE_VERDICT_STAGES,
     STAGE_HEADER,
     WorldLoadError,
+    WorldModel,
     load_newest_world,
     load_world,
     read_world_digest,
@@ -81,7 +82,6 @@ if TYPE_CHECKING:
 
     from clockspeed.advisor.advise import Advice
     from clockspeed.data.registry import Registry
-    from clockspeed.save.world import WorldModel
 
 __all__ = [
     "FORBIDDEN_IN_AN_ASSET_NAME",
@@ -161,6 +161,20 @@ class SaveWorldProvider:
     changes again or the process restarts. An ordinary write moves the
     modification time on NTFS; reaching this takes a deliberate restore.
 
+    ONE MEMORY OUTLIVES THE RANKING ON PURPOSE: THE SIGHTING HISTORY (CS-1240).
+    Every world :meth:`world` hands up is observed into a
+    ``clockspeed.save.sightings.SightingHistory`` - which distinct saves of
+    each world were read, and the first of them that carried each unmodelled
+    class - and :meth:`sighting_history` hands it to the world endpoint. It is
+    the only thing here NOT pruned to the ranking, because "first seen" is a
+    claim about every save read since the server started, a file gone from the
+    ranking included. It is held in memory only, never written (the CS-1240
+    adjudication: a persistent one would make a GET write), so a restart
+    forgets it. It holds digests, ordinals and class paths and never a path;
+    the save layer merges it, and nothing here counts or compares. It grows by
+    one small entry per distinct save read, which is what remembering every
+    save read costs.
+
     THE FRAME HOLDS SAVE PATHS, AS IT ALWAYS HAS. :meth:`world` holds the
     ranking in a local for the walk and the prune, as the single-save version
     held the newest path; ``tests/locals_rendering_guard.py`` grades test
@@ -213,6 +227,19 @@ class SaveWorldProvider:
         self._remembered: tuple[tuple[Path, int, int], WorldModel] | None = None
         self._verdicts: dict[tuple[Path, int, int], tuple[str, str]] = {}
         self._digests: dict[tuple[Path, int, int], str] = {}
+        self._sightings = sightings.EMPTY_HISTORY
+
+    def sighting_history(self) -> sightings.SightingHistory:
+        """Every save read since this provider was built, as the save layer keys it.
+
+        A reference read of an immutable value, so it takes no lock: a caller
+        racing a :meth:`world` call sees the history before or after that
+        save was observed, never half of it.
+
+        Returns:
+            The history - ``sightings.EMPTY_HISTORY`` before the first read.
+        """
+        return self._sightings
 
     def world(self) -> WorldModel | None:
         """The current world, or None when this machine has no save to read.
@@ -233,6 +260,9 @@ class SaveWorldProvider:
         remembered, so the next call retries it; a save whose identity cannot
         be read is loaded per call, exactly as before this provider remembered
         anything.
+
+        Every world handed up is observed into :meth:`sighting_history`;
+        observing a save already read changes nothing (CS-1240).
         """
         with self._lock:
             try:
@@ -242,13 +272,19 @@ class SaveWorldProvider:
             try:
                 if not candidates:
                     return None
-                return load_newest_world(
+                model = load_newest_world(
                     candidates, load=self._remembering_load, identify=self._remembering_identify
                 )
             except (WorldLoadError, OSError, ValueError):
                 return None
             finally:
                 self._keep_ranked(candidates)
+            # Only a world model is observed. The injectable load is typed to
+            # return one; a test double standing in for a world is not one, and
+            # has no header or object table to observe.
+            if isinstance(model, WorldModel):
+                self._sightings = sightings.observe(self._sightings, model)
+            return model
 
     def _remembering_load(self, path: Path) -> WorldModel:
         """Load one candidate, answering from memory when its identity allows.

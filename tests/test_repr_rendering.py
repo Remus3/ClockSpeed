@@ -248,6 +248,13 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/objects.py::_Cursor",
     "clockspeed/save/objects.py::_PayloadWalk",
     "clockspeed/save/objects.py::_UnknownLog",
+    # CS-1240: all four graded withheld - repr=False dataclasses with no
+    # __repr__ of their own, so each renders as object.__repr__ does, no field
+    # at all: no class path, no world digest and no save key.
+    "clockspeed/save/sightings.py::Sighting",
+    "clockspeed/save/sightings.py::SightingHistory",
+    "clockspeed/save/sightings.py::SightingReport",
+    "clockspeed/save/sightings.py::_WorldReads",
     "clockspeed/save/usmap.py::PropertyEntry",
     "clockspeed/save/usmap.py::PropertyMap",
     "clockspeed/save/usmap.py::Schema",

@@ -195,6 +195,19 @@ ALLOWED_ATTRIBUTE_READS: Final = frozenset(
         "type_path",
         "reason",
         "first_index",
+        # CS-1240: the save layer's sighting report, and the optional provider
+        # method its history comes from. ``stable_id`` is the same class path
+        # as ``type_path`` above, so it rides the same asymmetry.
+        "EMPTY_HISTORY",
+        "SightingHistory",
+        "sighting_history",
+        "report",
+        "checked",
+        "this_save",
+        "saves_read",
+        "sightings",
+        "stable_id",
+        "first_seen",
     }
 )
 

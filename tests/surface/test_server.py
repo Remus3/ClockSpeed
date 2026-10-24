@@ -2939,6 +2939,7 @@ def test_the_static_surface_is_exactly_the_names_the_page_loads() -> None:
         "panel_registry.js",
         "panel_scope.js",
         "panel_solve.js",
+        "panel_unmodelled.js",
         "panel_warnings.js",
     ]
 

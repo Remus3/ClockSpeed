@@ -518,9 +518,25 @@ tr:last-child td {
 }
 
 td.route,
-td.count {
+td.count,
+td.stable-id {
   font-family: ui-monospace, "Cascadia Mono", "Consolas",
     "Liberation Mono", monospace;
+}
+
+/*
+  CS-1240 - A CLASS PATH WRAPS, BECAUSE THE FACTS BESIDE IT ARE THE POINT. A
+  stable id is a long unbroken class path. Left nowrap like td.route, the
+  longest one sized the column past the panel at 1280px and pushed the record
+  count and the first-read save - the two facts a reader came for - off to the
+  right behind a sideways scroll; that was seen in the screenshot, not argued.
+  Wrapping lets the column shrink, and the 24ch floor is what stops it
+  collapsing to one character (the trap the narrow-width rule below records).
+*/
+td.stable-id {
+  min-width: 24ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /*

@@ -81,6 +81,7 @@ clockspeed/save/__init__.py	authored	CS-1165	first-add:root
 clockspeed/save/chunks.py	authored	CS-1165	first-add:root
 clockspeed/save/header.py	authored	CS-1165	first-add:root
 clockspeed/save/objects.py	authored	CS-1165	first-add:root
+clockspeed/save/sightings.py	authored	CS-1240	stamped
 clockspeed/save/usmap.py	authored	CS-1165	first-add:root
 clockspeed/save/workdir.py	authored	CS-1165	first-add:root
 clockspeed/save/world.py	authored	CS-1165	first-add:root
@@ -121,6 +122,7 @@ clockspeed/surface/web/panel_power.js	authored	CS-962	first-add:CS-962
 clockspeed/surface/web/panel_registry.js	authored	CS-960	first-add:CS-960
 clockspeed/surface/web/panel_scope.js	authored	CS-960	first-add:CS-960
 clockspeed/surface/web/panel_solve.js	authored	CS-960	first-add:CS-960
+clockspeed/surface/web/panel_unmodelled.js	authored	CS-1240	stamped
 clockspeed/surface/web/panel_warnings.js	authored	CS-960	first-add:CS-960
 config/lane_scopes.json	authored	CS-994	first-add:CS-994
 config/ports.json	authored	CS-1165	first-add:root
@@ -278,6 +280,7 @@ tests/advisor/rules/test_power.py	authored	CS-500	stamped
 tests/advisor/test_advise.py	authored	CS-500	stamped
 tests/advisor/test_build.py	authored	CS-1288	stamped
 tests/advisor/test_cards.py	authored	CS-500	stamped
+tests/advisor/test_display_name_keying.py	authored	CS-1240	stamped
 tests/advisor/test_every_rule_fires.py	authored	CS-500	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped
 tests/advisor/test_trace.py	authored	CS-500	stamped
@@ -313,6 +316,7 @@ tests/data/synthetic.py	authored	CS-1165	first-add:root
 tests/data/test_assets.py	authored	CS-1040	first-add:CS-1040
 tests/data/test_blobs.py	authored	CS-1165	first-add:root
 tests/data/test_build_cost.py	authored	CS-930	first-add:CS-930
+tests/data/test_display_name_keying.py	authored	CS-1240	stamped
 tests/data/test_docs_extract.py	authored	CS-1165	first-add:root
 tests/data/test_drift_guard_data.py	authored	CS-1165	first-add:root
 tests/data/test_drift_guard_skip_names.py	authored	CS-1158	stamped
@@ -392,6 +396,7 @@ tests/save/test_reference_pair.py	authored	CS-828	first-add:CS-828
 tests/save/test_reference_resolution.py	authored	CS-831	first-add:CS-831
 tests/save/test_repeated_keys.py	authored	CS-1340	stamped
 tests/save/test_scan_slot_zero.py	authored	CS-1097	first-add:CS-1097
+tests/save/test_sightings.py	authored	CS-1240	stamped
 tests/save/test_struct_controls.py	authored	CS-1165	first-add:root
 tests/save/test_struct_interior.py	authored	CS-829	first-add:CS-829
 tests/save/test_struct_interior_14_60.py	authored	CS-829	first-add:CS-829
@@ -452,6 +457,7 @@ tests/surface/test_panel_registry.py	authored	CS-962	first-add:CS-962
 tests/surface/test_panel_scope.py	authored	CS-962	first-add:CS-962
 tests/surface/test_panel_seam.py	authored	CS-960	first-add:CS-960
 tests/surface/test_panel_solve.py	authored	CS-962	first-add:CS-962
+tests/surface/test_panel_unmodelled.py	authored	CS-1240	stamped
 tests/surface/test_panel_warnings.py	authored	CS-962	first-add:CS-962
 tests/surface/test_pending.py	authored	CS-601	first-add:CS-601
 tests/surface/test_pending_route_count.py	authored	CS-927	first-add:CS-927
@@ -467,6 +473,7 @@ tests/surface/test_web_assets.py	authored	CS-601	first-add:CS-601
 tests/surface/test_world.py	authored	CS-601	first-add:CS-601
 tests/surface/test_world_provider_fallback.py	authored	CS-1309	stamped
 tests/surface/test_world_provider_memo.py	authored	CS-1203	stamped
+tests/surface/test_world_unmodelled.py	authored	CS-1240	stamped
 tests/test_action_runtimes.py	authored	CS-990	first-add:CS-990
 tests/test_architecture_attributions.py	authored	CS-928	first-add:CS-928
 tests/test_archive_rot.py	authored	CS-1165	first-add:root
