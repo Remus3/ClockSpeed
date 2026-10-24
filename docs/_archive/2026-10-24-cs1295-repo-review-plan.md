@@ -7,19 +7,19 @@ each generated or worktree tree as one row; fix nothing, delete nothing, take no
 
 ## Snapshot
 
-Snapshot time: 2026-10-24T03:30:14. Total files: 38171.
-A first walk gave 38960; the live tree then lost one linked worktree and a few git
-objects, and five unmarked duplicate repo copies under work/ were reclassified from
-authored to single-row units. The second walk is the start snapshot used throughout.
+Snapshot time: 2026-10-24T03:30:54. Total files: 35931.
+Earlier walks gave 38960 and 38171: the live tree lost linked worktrees between walks and
+five unmarked duplicate repo copies under work/ were reclassified from authored to single-row
+units. The third walk, taken before any review, is the start snapshot used throughout.
 
-Per class: git=4232, generated=4476, inbox=877, outbox=45, authored=2407, worktree=21696, nested-repo=4435, save=3
+Per class: git=4205, generated=4476, inbox=877, outbox=45, authored=2407, worktree=19483, nested-repo=4435, save=3
 Authored by git state: tracked=620, ignored=1787
 
-Per top-level folder (files): .git=4232, .mypy_cache=18, .pytest_cache=5, .ruff_cache=67, <channel inbox folder>=877, moon_sync_outbox=45, <root-files>=16, .claude=21109, .githooks=3, .github=9, certs=2, clockspeed=148, config=3, corpus=1, data=59, docs=55, memory=24, ops=498, scripts=8, shell=582, tests=706, tools=61, work=9643
+Per top-level folder (files): .git=4205, .mypy_cache=18, .pytest_cache=5, .ruff_cache=67, <channel inbox folder>=877, moon_sync_outbox=45, <root-files>=16, .claude=18896, .githooks=3, .github=9, certs=2, clockspeed=148, config=3, corpus=1, data=59, docs=55, memory=24, ops=498, scripts=8, shell=582, tests=706, tools=61, work=9643
 
 ## Units (non-authored)
 
-- git: 4232
+- git: 4205
 - generated:.mypy_cache: 18
 - generated:.pytest_cache: 5
 - generated:.ruff_cache: 67
@@ -31,19 +31,18 @@ Per top-level folder (files): .git=4232, .mypy_cache=18, .pytest_cache=5, .ruff_
 - worktree:.claude/worktrees/agent-a1b08f9553779e024: 782
 - worktree:.claude/worktrees/agent-a1ca6574c0fe3231a: 744
 - worktree:.claude/worktrees/agent-a2b6051f5e76ede83: 465
-- worktree:.claude/worktrees/an account-id-named entry: 2435
-- worktree:.claude/worktrees/agent-a301eedf9a4d13fae: 666
+- worktree:.claude/worktrees/an account-id-named entry #2: 782
+- worktree:.claude/worktrees/agent-a301eedf9a4d13fae: 694
 - worktree:.claude/worktrees/agent-a3040e24c9008c13d: 798
 - worktree:.claude/worktrees/agent-a4680c300742bd2e8: 1133
 - worktree:.claude/worktrees/agent-a47d3ed3ae73c739f: 1107
 - worktree:.claude/worktrees/agent-a50232a210328da57: 537
 - worktree:.claude/worktrees/agent-a50e3824837d24fcd: 753
-- worktree:.claude/worktrees/agent-a6223602abf4ce25b: 807
 - worktree:.claude/worktrees/agent-a696864ecd64dbe42: 768
-- worktree:.claude/worktrees/agent-a6ffefdb4e68be8f3: 721
 - worktree:.claude/worktrees/agent-a8915505dc0a69d68: 736
 - worktree:.claude/worktrees/agent-a8d21d7d20ea1b118: 1140
-- worktree:.claude/worktrees/agent-ab56bf4e4eca508d4: 713
+- worktree:.claude/worktrees/an account-id-named entry #3: 995
+- worktree:.claude/worktrees/an account-id-named entry #4: 658
 - worktree:.claude/worktrees/agent-ada15e8ddd25abf3f: 805
 - worktree:.claude/worktrees/agent-ae6825afcde250bcc: 1133
 - worktree:.claude/worktrees/agent-ae6cedd3443ae97ae: 523
