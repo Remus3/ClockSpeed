@@ -109,9 +109,11 @@ tuple produces a byte-identical result; objective weights are stored in sorted
 key order; and the one documented key a tie is broken with is
 :func:`ranking_key`, the score paired with the selection's registry POSITIONS,
 which is a total order on distinct selections and is therefore independent of
-the order in which a search happened to visit them. A backend ranking canonical
-results calls it; ``backends/greedy.py`` ranks a relaxed probe plan instead, so
-it reaches the SAME registry ordering by its pool order and says so at the
+the order in which a search happened to visit them. Both shipped backends rank
+their canonical results by it - ``backends/greedy.py`` returns the
+lowest-ranking selection its walk reached (CS-1347). What greedy ALSO ranks, at
+each probe step, is a relaxed probe plan with no canonical selection, so that
+step reaches the SAME registry ordering by its pool order and says so at the
 comparison rather than leaving it implied.
 
 WHY THE RANKING KEY IS OWNED HERE RATHER THAN BY A BACKEND

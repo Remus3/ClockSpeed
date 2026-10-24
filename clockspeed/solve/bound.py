@@ -81,9 +81,9 @@ in.)
 
 Inside one prefix, the winner is whichever backend the request configured,
 untouched - which for the exhaustive backend is the oracle's own
-``optimize.result_ranking_key``, and for the greedy backend is that heuristic's
-own first-that-solves walk, which consults no shared key and whose re-ranking is
-CS-1347's open subject. This module changes neither.
+``optimize.result_ranking_key``, and for the greedy backend is the
+lowest-ranking, by that same key, of the selections that heuristic's walk
+reached (CS-1347). This module changes neither.
 
 Only ``NoFeasibleSelectionError`` is absorbed as "not this
 prefix", on exactly ``relax.py``'s reasoning: every other refusal says the

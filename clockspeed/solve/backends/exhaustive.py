@@ -22,11 +22,13 @@ WHY THE TIE-BREAK IS NOT DEFINED HERE
 ---------------------------------------
 It is ``optimize.ranking_key``, owned by the layer whose determinism claim
 already describes it and argued at length in that module's docstring: one
-documented stable key, consumed by this backend - through
-``optimize.result_ranking_key`` - and by the strategy ladder. The greedy backend
-does NOT consume it: what greedy scores is a relaxed probe plan with no
-canonical selection to read positions from, and ``greedy.py`` states that
-asymmetry at its own comparison. This file re-exports the key, so
+documented stable key, consumed by this backend and by the greedy one - each
+through ``optimize.result_ranking_key``, to rank its canonical results - and by
+the strategy ladder. The greedy backend consumes it for its RESULT only, the
+lowest-ranking selection its walk reached (CS-1347): each probe step scores a
+relaxed plan with no canonical selection to read positions from, so that step
+is ordered by pool order instead, and ``greedy.py`` states that asymmetry at its
+own comparison. This file re-exports the key, so
 ``exhaustive.ranking_key`` still resolves and the name stays in this module's
 ``__all__``.
 
