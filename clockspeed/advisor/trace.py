@@ -26,8 +26,9 @@ check its own preconditions:
 - **Only immutable exact values cross.** Every value read is walked by an
   ALLOWLIST (non-negotiable 6), by EXACT type - a subclass is refused, since
   it can carry an instance ``__dict__``: ``Fraction``, ``int``, ``bool``,
-  ``str``, ``None``, ``tuple``, ``MappingProxyType`` and frozen dataclasses
-  declared with ``slots=True``, recursively. An enum member is refused (its
+  ``str``, ``None``, ``tuple``, ``MappingProxyType``, frozen dataclasses
+  declared with ``slots=True``, and the solve types :data:`PLAN_TYPES` names
+  (below), recursively. An enum member is refused (its
   value is mutable); a rule needing one reads its name as a ``str``. The walk
   is bounded by WORK as well as depth, so a shared-subtree value cannot make
   a read exponential. A SET IS REFUSED, frozen or not: its iteration order and repr
@@ -384,7 +385,8 @@ def _inexact_reason(value: object) -> str | None:
 
     An ALLOWLIST walk over :func:`_children`, by exact type; anything it does
     not name - a float, a Decimal, a dict, a list, a set, an enum member, a
-    subclass of an allowed type, an unslotted or non-frozen dataclass - is
+    subclass of an allowed type, a non-frozen dataclass, an unslotted one
+    outside :data:`PLAN_TYPES` - is
     refused, so a new inexact or mutable type cannot slip past by not being
     named. At most :data:`MAX_EXACT_NODES` parts are visited and at most
     :data:`MAX_EXACT_DEPTH` levels descended. When several parts fail, the

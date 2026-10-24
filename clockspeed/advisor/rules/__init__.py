@@ -57,7 +57,9 @@ def build_registry(families: tuple[tuple[RuleSpec, ...], ...]) -> tuple[RuleSpec
     return tuple(sorted(specs, key=lambda spec: spec.rule_id))
 
 
-#: Every family module's rules, listed by hand. The fuel family (CS-1285) is
+#: Every REGISTERED family module's rules, listed by hand. The plan family
+#: (``clockspeed/advisor/rules/plan.py``, CS-1346) is not among them:
+#: ``clockspeed/advisor/advise.py`` offers no plan yet. The fuel family (CS-1285) is
 #: registered in the same change that has ``clockspeed/advisor/advise.py``
 #: offer its inputs, so no registered rule runs on a world that lacks them
 #: (the slice C ruling G6).
