@@ -1043,3 +1043,73 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
 - CS-1347 residual (`docs/LEDGER.md`, 2026-10-24, CS-1347): if power requests on real game data
   start refusing (PowerNotComparableError at POST /api/optimize), consider skipping unpriceable
   candidates at the door in both backends (adjudicated option (d), out of CS-1347's scope).
+
+## Session 151 CS-1295 review findings - filed 2026-10-24 under product before process
+
+The PROPOSED rows of the first CS-1295 review run, one line each, cited by finding id. The
+findings file is `docs/_archive/2026-10-24-cs1295-repo-review-findings.md`; the record, with
+the verifier's corrections, the operator-gated ids and why F028 is not filed, is in
+`docs/LEDGER.md`, 2026-10-24, CS-1295. None blocks a product item or reddens a suite.
+
+- CS-1295 review F001: CLAUDE.md measured 40767 bytes on 2026-10-24 against the 40960-byte hard
+  fail in `tools/doc_budget.py`, about 190 bytes of headroom, so the next CLAUDE.md edit that
+  adds text fails CI; first relocate a section 7 entry or section 2 prose to
+  `docs/history_notes.md`, never touching the FLEET-COMMON block; trigger: the next edit to
+  CLAUDE.md.
+- CS-1295 review F002: BACKLOG.md and THIRD_PARTY.md, about 76 KB and 71 KB measured 2026-10-24,
+  have no row in `tools/doc_budget.py`; add a budget row for each, or split THIRD_PARTY.md per
+  dependency; trigger: the next edit to `tools/doc_budget.py`, or either file passing 100 KB.
+- CS-1295 review F004 (INFERRED by the review): the tracked `memory/` store and the harness-side
+  memory store outside the repo, about 70 leaves, overlap in topic and no line records which
+  store owns which fact class; write that line; trigger: one fact found in both stores, or the
+  sidecar consolidation worked.
+- CS-1295 review F008: `.claude/scheduled_tasks.lock` is excluded only by the local
+  .git/info/exclude, so a fresh clone or a new worktree shows it untracked; add it to
+  `.gitignore`; trigger: the next edit to `.gitignore`, or the lock seen untracked in a clone.
+- CS-1295 review F009, WEAK (the session 151 verifier): the report list in
+  `.claude/commands/weekly-hygiene.md` names a bare verify_env.py where its run step already
+  spells scripts/verify_env.py - a label, not a broken command; spell the path there; trigger:
+  the next edit to that command.
+- CS-1295 review F012: `.github/workflows/tier1.yml` (about 91 KB) and
+  `.github/workflows/tier2.yml` (about 61 KB) are single workflow files; factor their shared
+  steps into composite actions; trigger: the next structural edit to either workflow.
+- CS-1295 review F017: `clockspeed/audit/collectibles.py`, `clockspeed/audit/footprint.py` and
+  `clockspeed/data/blobs.py` are not mentioned in `docs/ARCHITECTURE.md`; add module-map rows,
+  minding the line-number freeze the CS-1244 close line above records; trigger: the next edit to
+  that module map.
+- CS-1295 review F022: the gitignored data/social-preview.png and
+  `docs/assets/social-preview.png` differ in bytes, and `tests/test_readme_audit.py` names both;
+  keep one; trigger: the next edit to either image or to those names in that test.
+- CS-1295 review F024: `docs/item_notes/phase4.md` measured about 100 KB on 2026-10-24; check it
+  against the item-notes leaf-size rule (ADR 0010 and 0011); `docs/history_notes.md` also names
+  two C: folders that no longer exist; trigger: the next edit to that leaf.
+- CS-1295 review F030: stale lane claims for CS-301, CS-870 and CS-892 name a C: worktree that no
+  longer exists, and the gitignored claims.jsonl and subagent_first.jsonl under ops/loop/control/
+  have no rotation; clear the stale claims and rotate both logs; trigger: a lane refused on a
+  stale claim, or either log passing 10 MB.
+- CS-1295 review F032: the gitignored cs1275_cutover.py under ops/loop/control/ is the finished
+  one-shot C-to-E move script and hardcodes C: paths, and only `docs/history_notes.md` mentions
+  it; move it to the sidecar folder or send it to the Recycle Bin; trigger: the next cleanup of
+  that folder.
+- CS-1295 review F035: the tests/ root holds about 14 guard helpers, a JSON fixture and
+  xdist_quiet.py beside about 120 test modules, several helpers import from test modules, and
+  `tests/conftest.py` is imported as a library for run_git and walk_inventory; create
+  tests/_support and move the helpers there; trigger: the next new helper at the tests/ root, or
+  a helper import cycle.
+- CS-1295 review F036: tests filed under the wrong layer - the drift-guard and item-notes-index
+  tests under tests/data, the absolute-claims and oracle-citations tests under tests/save - and
+  about 12 modules named by CS id rather than by topic; re-file each by layer and topic; trigger:
+  the next edit to one of them.
+- CS-1295 review F037: about a dozen test modules exceed 150 KB - the docs-citations,
+  precommit-gate, queue-loop and tier1-budget modules lead, and the save world and properties
+  tests pass 5.6k lines - split candidates; the inventory-library test needs the real save
+  library and skips on a clean clone; trigger: the next edit that grows one of them.
+- CS-1295 review F038: `tools/headless-queue.md` and `tools/headless-inbox.md` are not in the
+  CLAUDE.md section 4 owner table; add them or relocate them, minding F001's headroom; the same
+  finding lists data blobs beside code in tools/ and `tools/action_runtimes.py` with no caller
+  beyond its test; trigger: the next edit to the section 4 table, or to either prompt's location.
+- CS-1295 review F040: four ruling files exist only in gitignored work/ scratch - the session 137
+  rulings, whose header says recording pends, and three session 138 rulings for CS-1285 part c,
+  CS-1288 part c and CS-1313; confirm each reached `docs/LEDGER.md` or an ADR, else archive it to
+  docs/_archive, before any prune of work/; trigger: any work/ prune (the operator-gated F039),
+  or a reader needing one of those rulings.

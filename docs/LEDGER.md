@@ -75,6 +75,39 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1295 - NOT A COMPLETION RECORD. CS-1295 STAYS OPEN: first review run landed as a partial record
+Verification: `docs/_archive/2026-10-24-cs1295-repo-review-plan.md` and
+`docs/_archive/2026-10-24-cs1295-repo-review-findings.md`, landed from the review run (kit spawn
+exit 0 in 2119 s). A distinct verifier re-counted 35,688 files now against 35,931 at the
+snapshot, the -243 delta fully explained (worktrees -479, .git +184, caches +10, authored +42);
+the 2,407 per-file rows match the snapshot exactly; no leak; scope clean; graded CONFIRMED WITH
+CORRECTIONS.
+NOT MET: 25 findings were PROPOSED - 16 are now filed in BACKLOG.md under the session 151
+CS-1295 review group, the operator-gated ones are listed below and F028 is not filed; 1,041 rows
+were skimmed, sampled or not opened (the 100 percent reviewed clause); CS-1292 and CS-1293 are
+not folded in; the ANSWER to MAIN is still owed.
+Corrections to the archived findings file, which is dated and not edited: F006 should read 11
+old-history worktrees out of 23, not 18 of 21; F028 is likely wrong - the docs/rulings/ path the
+vendored fleet_headless.py cites is in MAIN's tree - so it is not filed; F009 is weak, a report
+label rather than a broken command, and is filed marked WEAK; the count table's "Equal: YES"
+compares the snapshot total with itself, so it shows no coverage, and its "2323" sub-agent rows
+should read 2365.
+Operator-needing findings, not filed as tasks: F003, F011, F015, F019, F021, F031, F039, F042,
+F043. F029 counts KNOWN (CS-1291 item 9); its stale-running-rows half is not filed separately.
+Side effect: 3 stray scratch files the run left in a system Temp folder (its F043); removal is
+operator-gated.
+
+### 2026-10-24 - CS-1295 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1295 STAYS OPEN: every file on disk counted, generated trees one row each, review-only spawn now
+Verification: ruled by a distinct session 151 adjudicator; applied in
+`docs/_archive/2026-10-24-cs1295-repo-review-plan.md`.
+Ruling: ignored dependency trees are COUNTED - every file under the main checkout from a start
+snapshot; .git one unit; generated or duplicate trees one row each with count, producer and
+consumer; authored files one row each; saves counted, never opened or named. Spawned
+review-only (no suite slot, no fix, no delete, no new id) because it uses nothing product work
+needs.
+Alternatives: exclude ignored trees (lost: MAIN's order says "ignored alike"); read every file
+(lost: about 30k duplicates and a personal-data risk); wait for Phase 5 (runner-up).
+
 ### 2026-10-24 - CS-1344 - NOT A COMPLETION RECORD. CS-1344 STAYS OPEN: cs-pt teardown and the scratch sweep LANDED; clause 2 and the ONE ANSWER pend the first /done
 Verification: `tests/own_temp_root.py`, `tests/test_cs1344_temp_teardown.py`, `tools/scratch_sweep.py` (wired into `.claude/commands/done.md`), `tests/test_own_temp_root.py::test_finish_never_touches_another_runs_directory`. A distinct adversary did not refute delete-safety; a distinct verifier's three surviving mutants were then killed. Residuals: the Recycle-Bin-refusal path is tested with the shell stubbed, not against a real full bin; a build-time cleanup mutant run against the real shared Temp root emptied other live runs' cs-pt folders once this session (no shipped path does this).
 
