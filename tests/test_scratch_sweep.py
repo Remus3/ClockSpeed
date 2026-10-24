@@ -62,6 +62,15 @@ TSF_DELETE_RECYCLE_IF_POSSIBLE: Final = 0x80
 ETA_S: Final = 600
 STALE_AGE_S: Final = 3 * ETA_S
 
+#: An ETA above the live floor, and an age between one and two of it: live
+#: under the twice-its-ETA rule, stale under a once-its-ETA rule.
+LONG_ETA_S: Final = 1200
+PAST_ETA_AGE_S: Final = 1800
+
+#: MAIN's acceptance, verbatim in its number: "the session scratchpad holds
+#: under 5k files". Spelled here, never imported, so a moved constant is caught.
+ACCEPTANCE_BOUND: Final = 5000
+
 
 def _load() -> ModuleType:
     """Load the tool by path under a module name private to this file."""
@@ -520,6 +529,10 @@ def test_a_sweep_stops_at_the_first_directory_the_bin_cannot_take(scratchpad: Pa
     assert len(handed) == 1, f"the sweep handed {len(handed)} directories after a refusal"
     assert result.stopped, "the sweep did not report that it stopped"
     assert result.failed == 1, f"the sweep reported {result.failed} failed, not 1"
+    big_left = SWEEP.count_files(scratchpad / "big")
+    mid_left = SWEEP.count_files(scratchpad / "mid")
+    assert big_left == BIG, f"the refused directory kept {big_left} of its {BIG} files"
+    assert mid_left == MID, f"the untouched directory kept {mid_left} of its {MID} files"
 
 
 def _progress(directory: Path, name: str, status: str, age_s: float, eta_s: float) -> None:
@@ -545,20 +558,24 @@ def _cli(scratchpad: Path, progress: Path, *extra: str) -> list[str]:
     ]
 
 
-@pytest.mark.parametrize("planted", ["running", "unreadable"])
+@pytest.mark.parametrize("planted", ["running", "running_past_its_eta", "unreadable"])
 def test_an_apply_is_refused_while_any_agent_may_be_live(
     tmp_path: Path, scratchpad: Path, planted: str
 ) -> None:
     """A reading agent changes no timestamp, so a live progress file stops the apply.
 
     An unreadable progress file cannot prove its agent finished, so it stops
-    the apply too. Nothing is handed to the shell; the exit is refused.
+    the apply too. Nothing is handed to the shell; the exit is refused. An
+    agent silent for longer than its ETA but not yet twice it is still live:
+    the ETA is above the floor there, so only the twice-its-ETA rule holds it.
     """
     big = _fill(scratchpad / "big", BIG)
     progress = tmp_path / "progress"
     progress.mkdir()
     if planted == "running":
         _progress(progress, "adv-x", "running", 30, ETA_S)
+    elif planted == "running_past_its_eta":
+        _progress(progress, "adv-x", "running", PAST_ETA_AGE_S, LONG_ETA_S)
     else:
         (progress / "adv-x.json").write_bytes(b"{not json")
     remover = Recorder()
@@ -589,3 +606,34 @@ def test_a_finished_stale_or_own_progress_file_does_not_stop_the_apply(
     assert code == SWEEP.EXIT_UNDER, f"{planted}: the apply exited {code}"
     handed = len(remover.handed)
     assert handed == 1, f"{planted}: the apply handed {handed} directories, not 1"
+
+
+def test_the_bound_is_the_acceptances_number_and_is_strict(
+    tmp_path: Path, scratchpad: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One under the acceptance's number is under; the number itself is over.
+
+    Graded at the boundary on the tool's own default, then through the CLI
+    with no ``--bound``: any other constant, or a CLI default that drifted from
+    it, fails here.
+    """
+    default = SWEEP.BOUND_FILES
+    under = SWEEP.SweepResult(
+        before=0, after=ACCEPTANCE_BOUND - 1, recycled=0, failed=0, bound=default
+    )
+    at = SWEEP.SweepResult(before=0, after=ACCEPTANCE_BOUND, recycled=0, failed=0, bound=default)
+    assert not under.over_bound, "one file under the acceptance's number read as over the bound"
+    assert at.over_bound, "the acceptance's number itself read as under the bound"
+    seen: list[int] = []
+
+    def capture(*_args: object, **kwargs: object) -> object:
+        bound = kwargs.get("bound")
+        seen.append(bound if isinstance(bound, int) else -1)
+        return under
+
+    monkeypatch.setattr(SWEEP, "sweep", capture)
+    progress = tmp_path / "progress"
+    progress.mkdir()
+    SWEEP.main(["--scratchpad", str(scratchpad), "--progress-dir", str(progress)])
+    cli_bound = seen[0] if seen else -1
+    assert cli_bound == ACCEPTANCE_BOUND, f"the CLI's default bound is {cli_bound}"
