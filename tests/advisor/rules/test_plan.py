@@ -518,4 +518,5 @@ def test_advise_with_the_family_named_yields_the_badged_card(tmp_path: Path) -> 
     card = shown[0].card
     derivation = card.tier3
     assert derivation == expected_tier3(game_pin())
-    assert ADOPT_RULE.rule_id in settled_rules(advice.traces)
+    settled = ADOPT_RULE.rule_id in settled_rules(advice.traces)
+    assert settled
