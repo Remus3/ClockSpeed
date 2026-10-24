@@ -259,15 +259,31 @@ clone, to the name and address your commits carry - `git config user.name` and
 git config --local --add fleet.operatorIdent "Your Name <you@example.com>"
 ```
 
-A value is `Name <address>` or a bare address. A pushed commit passes when the address of
+A value is `Name <address>` or a bare address. A checked commit passes when the address of
 its author and the address of its committer each equal the address in one of the key's
-values, compared without case; the name need not match. The key takes several values: run
-the line again for each other address you commit under. Every commit the push carries is
-checked, so a push carrying someone else's commits is refused - bring another author's work
-into your fork on the forge side, such as GitHub's "Sync fork", and pull it from there
-rather than pushing it from your clone. A push made before the key is set is refused with a
-message naming the key and this command. The check belongs to the vendored fleet kit, which
-is never edited here.
+values, compared without case - the name need not match - and its message carries no AI or
+bot attribution line. The key takes several values: run the line again for each other
+address you commit under. A push made before the key is set is refused with a message
+naming the key and this command.
+
+**Which commits a push is checked on.** For a branch the remote does not have yet: every
+commit not reachable from a ref the remote advertises whose tip this clone has fetched. For
+an update to a branch the remote has: every commit reachable from the new tip and not from
+that branch's current tip on the remote, even one the remote already holds under another
+branch. So a push that brings another
+author's commits into a branch is refused. Bring their work into your fork on the forge
+side first, such as GitHub's "Sync fork", then:
+
+- **Your fork's `main`:** pull it from the fork and push your own commits on top.
+- **A branch you have already pushed**, such as a pull request's: merging or rebasing that
+  work into it and pushing is refused, a force-push included. Push the result as a NEW
+  branch, `git push origin <branch>:<new-branch>`, and open a new pull request from it.
+  Deleting the old branch on the remote and pushing it again also passes, but deleting a
+  branch closes its open pull request.
+
+That existing-branch refusal is a known limitation of the vendored fleet kit, reported to
+MAIN, the kit's owner; until the kit changes, the new branch is the route. The check
+belongs to the kit, which is never edited here.
 
 ---
 
