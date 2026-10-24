@@ -24,6 +24,36 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1240 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`. On the close, before the move, its acceptance was
+amended session 151 by a distinct adjudicator, so the text below is the amended one.
+
+## CS-1240
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Key every registry and save join on the stable class identifier, never a display name; one case-and-punctuation fallback; then flag, skip and list.
+
+### CLAUSE AMENDED - recorded 2026-10-24 (session 151) by a distinct adjudicator
+
+**The acceptance was amended session 151 by a distinct adjudicator**: its display-name
+clause, filed as "a display-name change in the fixture registry changes no output", now
+reads verbatim:
+
+"a display-name change in the fixture registry changes no output except rendered display-name text on any tier; every registry key, figure, warning, unknown group, every rule input except the two wording inputs, every card id and the shown set are identical"
+
+The rest of the acceptance, the 2026-10-21 amendment included, is unchanged. WHY: a card
+renders the display name as its wording, so a rename must move that text and nothing else;
+the two wording inputs, `clockspeed/advisor/rules/fuel.py::IN_CLASS_NAMES` and
+`::IN_FUEL_NAMES`, are keyed by ClassName and by item key and carry the display name only as
+wording. The amendment is recorded in `docs/LEDGER.md` under this ID.
+
+### Acceptance
+
+a fixture with one unknown class yields a flagged-and-skipped record with no exception and the panel lists it with a count and first-seen save; a display-name change in the fixture registry changes no output except rendered display-name text on any tier; every registry key, figure, warning, unknown group, every rule input except the two wording inputs, every card id and the shown set are identical (AMENDED session 151 by a distinct adjudicator); AMENDED on the adjudicator route: any normalised fallback applies to ClassName-keyed lookups only, never to an asset-path join - `clockspeed/progress/milestones.py::purchase_state` keeps CS-1343's exact asset-path equality, no fallback is added in `clockspeed/progress/milestones.py`, and no path is reduced with `clockspeed/data/schematics.py::class_name_of_path` to feed one; `tests/progress/test_milestones.py::test_purchased_is_the_asset_path_join_not_the_trailing_token` and `::test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted` stay green and unedited
+
 ## CS-1347 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

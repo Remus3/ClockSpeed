@@ -1043,6 +1043,11 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
 - CS-1347 residual (`docs/LEDGER.md`, 2026-10-24, CS-1347): if power requests on real game data
   start refusing (PowerNotComparableError at POST /api/optimize), consider skipping unpriceable
   candidates at the door in both backends (adjudicated option (d), out of CS-1347's scope).
+- From the CS-1240 adjudication (`docs/LEDGER.md`, 2026-10-24, CS-1240): the Unmodelled content
+  panel's first-read history lives in the dashboard provider's memory, so a restart forgets it
+  and a class first read in an earlier server run shows "this save"; a history that survives a
+  restart needs an ADR allowing a GET to write before any store is built; trigger: the operator
+  asks for first-seen to survive a restart.
 
 ## Session 151 CS-1295 review findings - filed 2026-10-24 under product before process
 

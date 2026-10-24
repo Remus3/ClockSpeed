@@ -319,16 +319,6 @@ contract change, not a new route alone; (b) the tier-3 trace step and per-world 
 storage, which wait on CS-500. A clock above the un-sharded base is FLAGGED rather than
 refused because `clockspeed/solve/power.py::clock_ceiling` publishes no ceiling figure.
 
-## CS-1240
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Key every registry and save join on the stable class identifier, never a display name; one case-and-punctuation fallback; then flag, skip and list.
-
-### Acceptance
-
-a fixture with one unknown class yields a flagged-and-skipped record with no exception and the panel lists it with a count and first-seen save; a display-name change in the fixture registry changes no output; AMENDED on the adjudicator route: any normalised fallback applies to ClassName-keyed lookups only, never to an asset-path join - `clockspeed/progress/milestones.py::purchase_state` keeps CS-1343's exact asset-path equality, no fallback is added in `clockspeed/progress/milestones.py`, and no path is reduced with `clockspeed/data/schematics.py::class_name_of_path` to feed one; `tests/progress/test_milestones.py::test_purchased_is_the_asset_path_join_not_the_trailing_token` and `::test_a_near_miss_of_an_asset_path_is_not_a_purchase_and_is_counted` stay green and unedited
-
 ## CS-1241
 
 ### Filed 2026-10-04 by the inspiration ingest

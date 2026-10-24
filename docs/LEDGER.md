@@ -75,6 +75,28 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1240 - CLOSED: stable-id unmodelled content, its panel, display-name change moves only wording
+Verification: `clockspeed/save/sightings.py`, `clockspeed/surface/web/panel_unmodelled.js`; tests `tests/save/test_sightings.py`,
+`tests/surface/test_world_unmodelled.py`, `tests/surface/test_panel_unmodelled.py`, `tests/advisor/test_display_name_keying.py`,
+`tests/data/test_display_name_keying.py`.
+ACCEPTANCE AMENDED session 151 by a distinct adjudicator: the display-name clause excepts rendered display-name text;
+IN_CLASS_NAMES and IN_FUEL_NAMES are keyed by ClassName/item key and carry the display name only as wording.
+A distinct adversary refuted the first candidate (malformed panel input read as a positive claim; unkeyed saves pooled;
+a key mutant survived); repaired; the adjudicator verified the repair.
+Residual: no test covers a `keyed` value that is missing or not a bool (the code withholds).
+
+### 2026-10-24 - CS-1240 - DECISION RECORD: first-seen means first read since this server started (FS-B)
+Ruled during the build by a distinct read-only adjudicator that authored no candidate. DECISION: FS-B - no write; a pure
+merge in `clockspeed/save/sightings.py`, history keyed by world_digest and each class by type_path, held in the dashboard
+provider's memory; the label is the ordinal of saves read for this world since the server started, "this save" when current.
+ALTERNATIVES: FS-A a persistent per-world sightings store (RUNNER-UP: the server likely restarts each play session, so FS-B
+nears FS-C; it lost on two invariant changes - the provider never writes, a GET never writes - a write on the health-probe
+path, and a stored save time); FS-C current save only (met in name only); labels SL-1 datetime_ticks (personal data), SL-2 a masked digest.
+WHY: FS-B changes no invariant, is testable by injecting find_saves, is cheapest, and BOOTSTRAP section 9 allows a reduced answer, never a wrong one.
+CONDITIONS: the merge in `clockspeed/save/`, never surface/ or audit/; the panel says "since this server started" and shows no path,
+filename, datetime_ticks or path digest; tests for two saves and a restart reset. RESIDUAL: the server reads only the newest save,
+so first seen means first read; a history surviving a restart needs an ADR letting a GET write (BACKLOG.md). No ADR now.
+
 ### 2026-10-24 - CS-1295 - NOT A COMPLETION RECORD. CS-1295 STAYS OPEN: first review run landed as a partial record
 Verification: `docs/_archive/2026-10-24-cs1295-repo-review-plan.md` and
 `docs/_archive/2026-10-24-cs1295-repo-review-findings.md`, landed from the review run (kit spawn

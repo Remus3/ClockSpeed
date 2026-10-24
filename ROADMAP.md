@@ -271,7 +271,6 @@ CS-1048 - node purity is structurally absent from every save and the in-game map
 CS-1061 - the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1064 - `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never written back - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1240 - unknown content: stable-id keying, one normalised fallback, and an Unmodelled Content panel - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
