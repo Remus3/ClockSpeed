@@ -25,10 +25,10 @@ already describes it and argued at length in that module's docstring: one
 documented stable key, consumed by this backend and by the greedy one - each
 through ``optimize.result_ranking_key``, to rank its canonical results - and by
 the strategy ladder. The greedy backend consumes it for its RESULT only, the
-lowest-ranking selection its walk reached (CS-1347): each probe step scores a
-relaxed plan with no canonical selection to read positions from, so that step
-is ordered by pool order instead, and ``greedy.py`` states that asymmetry at its
-own comparison. This file re-exports the key, so
+lowest-ranking selection its walk reached (CS-1347): each probe step takes the
+lowest SCORE among relaxed plans, which have no canonical selection to read
+positions from, so a tie between two probes goes to pool order instead, and
+``greedy.py`` states that asymmetry at its own comparison. This file re-exports the key, so
 ``exhaustive.ranking_key`` still resolves and the name stays in this module's
 ``__all__``.
 
@@ -39,18 +39,22 @@ identically by construction - and with only the score to rank by, the winner
 would be whichever mask happened to be visited first, which is a property of
 this enumeration rather than of the problem.
 
-Note what that makes UNOBSERVABLE from this backend's output. Because the key is
-unique per canonical selection, and because the mask enumeration is itself
-deterministic, a score-only rule computes the same winner on every input this
-project can build a fixture for - the position half is invisible in the return
-value, exactly as ``exact.py``'s pivot rule is invisible in ``solve_linear``'s.
-It is nonetheless load-bearing: without a stated rule the tie-break is
-"whichever mask came first", which is an implementation detail a REPLACEMENT
-backend cannot reproduce, and two backends would then disagree on ties while
-each looked correct alone. So the rule is tested at the selector rather than
-through a run of this backend, on the same reasoning and by the same route
-``tests/solve/test_exact.py`` uses for ``_pivot_row``. A contract with no test
-is the CONVENTIONS.md section 7.2 unrun gate.
+What the position half decides is OBSERVABLE in this backend's output, because
+mask order is not key order. A score-only rule keeps whichever tied selection
+the count visits first. On the CS-1347 TIE fixture in
+``tests/solve/test_optimize.py`` the usable candidates are R_Plate, R_Burn and
+R_ScrapRod at bits 0, 1 and 2: {R_Plate, R_ScrapRod} is mask 5 and {R_Plate,
+R_Burn, R_ScrapRod} is mask 7, both eat 30 Ore a minute, and the key ranks the
+second first because R_Burn sorts before R_ScrapRod. Measured: with this
+backend's comparison reduced to the score alone,
+``test_cs1347_greedy_breaks_a_reached_tie_exactly_as_exhaustive_does`` fails
+with the two-recipe selection. The rule is load-bearing for a second reason as
+well: without a stated rule the tie-break is "whichever mask came first", which
+is an implementation detail a REPLACEMENT backend cannot reproduce, and two
+backends would then disagree on ties while each looked correct alone. So the
+rule is tested at the selector, by the route ``tests/solve/test_exact.py`` uses
+for ``_pivot_row``, and end to end through a run of both backends on that
+fixture. A contract with no test is the CONVENTIONS.md section 7.2 unrun gate.
 
 The position mapping this backend hands the key is its own usable-candidate
 index, not the whole registry's. That is licensed rather than convenient: the

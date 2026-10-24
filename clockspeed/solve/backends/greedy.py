@@ -86,7 +86,7 @@ real request". That walk stopped at its first solve, so a later round it never
 ran could not be compared at all. The two differ whenever adding a recipe to a
 selection that already solves makes a better factory - a recipe that turns a
 vented byproduct back into an intermediate is the ordinary case, and
-``tests/solve/test_optimize.py``'s CS-1347 fixture is built on exactly that: the
+``tests/solve/test_optimize.py``'s CS-1347 reclaim fixture is built on that: the
 first solve costs 30 Ore a minute and the next round's selection costs 15. So a
 solve no longer ends the walk; the walk runs on until no addition probes
 feasible, and the cost bound is the one it already had: at most one round per

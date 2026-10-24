@@ -112,8 +112,9 @@ which is a total order on distinct selections and is therefore independent of
 the order in which a search happened to visit them. Both shipped backends rank
 their canonical results by it - ``backends/greedy.py`` returns the
 lowest-ranking selection its walk reached (CS-1347). What greedy ALSO ranks, at
-each probe step, is a relaxed probe plan with no canonical selection, so that
-step reaches the SAME registry ordering by its pool order and says so at the
+each probe step, are relaxed probe plans, which have no canonical selection: it
+takes the lowest score and breaks a tie between two probes by pool order - the
+SAME registry ordering, reached by a different route - and says so at the
 comparison rather than leaving it implied.
 
 WHY THE RANKING KEY IS OWNED HERE RATHER THAN BY A BACKEND
@@ -135,21 +136,25 @@ So the ranking key is ``(score, registry positions of the selection)``. Both
 halves are exact and neither depends on visit order: distinct selections have
 distinct position tuples, so the key is a total order and the same selection
 wins however the space is walked. A shorter tuple that is a prefix of a longer
-one sorts first, which means a tie between a selection and a superset of it
-resolves to the smaller factory - the right answer and, more importantly, a
-STATED one.
+one sorts first, so a tie between a selection and a superset whose added recipes
+all come LATER in registry order than every recipe of its own resolves to the
+smaller factory. A superset that adds a recipe EARLIER than one of the
+selection's own sorts first instead and resolves to the larger factory - the
+CS-1347 TIE fixture in ``tests/solve/test_optimize.py`` is that case. Either way
+the answer is a STATED one.
 
-:func:`ranking_key` is a named function rather than an inline tuple because the
-position half is INVISIBLE in a result's published fields, exactly as
-``exact.py``'s pivot rule is invisible in ``solve_linear``'s: the key is unique
-per canonical selection, so a score-only rule computes the same winner on every
-input this project can build a fixture for. The rule is load-bearing anyway.
-Without a stated one the tie-break is "whichever the search reached first",
-which is an implementation detail a REPLACEMENT backend cannot reproduce, and
-two backends would then disagree on ties while each looked correct alone. So it
-is extracted and tested at the selector, on the same reasoning and by the same
-route ``tests/solve/test_exact.py`` uses for ``_pivot_row``. A contract with no
-test is the CONVENTIONS.md section 7.2 unrun gate.
+:func:`ranking_key` is a named function rather than an inline tuple so the rule
+has ONE statement that both backends and the strategy ladder call, and so it
+can be tested at the selector, by the route ``tests/solve/test_exact.py`` uses
+for ``_pivot_row``. What its position half decides is OBSERVABLE in a result: a
+score-only rule keeps whichever tied selection a search reached first, and on
+that TIE fixture this differs from the key on both shipped backends - measured,
+the fixture's arms fail with either backend's comparison reduced to the score
+alone. Without a stated rule the tie-break is "whichever the search reached
+first", which is an implementation detail a REPLACEMENT backend cannot
+reproduce, and two backends would then disagree on ties while each looked
+correct alone. A contract with no test is the CONVENTIONS.md section 7.2 unrun
+gate.
 
 WHY THESE EXCEPTIONS CARRY AN Error SUFFIX WHEN ratio.py's DO NOT
 -------------------------------------------------------------------

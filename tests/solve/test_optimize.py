@@ -611,14 +611,14 @@ def test_the_backend_re_export_is_the_owner_s_function_and_not_a_copy() -> None:
 
 # --- the tie-break rule itself ---------------------------------------------
 #
-# Tested at the selector rather than through a backend run, on the same
-# reasoning tests/solve/test_exact.py records for _pivot_row: the rule is
-# INVISIBLE in the backend's output. The key is unique per canonical selection
-# and the mask enumeration is deterministic, so a score-only rule computes the
-# same winner on every fixture this project can build - which means an
-# end-to-end test of it can only ever pass. The rule still matters, because
-# "whichever mask came first" is an implementation detail a REPLACEMENT backend
-# cannot reproduce, and two backends would then disagree on ties.
+# Tested at the selector, by the route tests/solve/test_exact.py records for
+# _pivot_row, so the RULE has arms of its own apart from any search. It is also
+# observable end to end: a score-only rule keeps whichever tied selection a
+# search reached first, and section h's TIE fixture is a measured case where
+# that differs from the key on both backends. The rule matters for a second
+# reason too: "whichever mask came first" is an implementation detail a
+# REPLACEMENT backend cannot reproduce, and two backends would then disagree on
+# ties.
 
 
 #: Positions for the arms below. Strictly increasing, which is the one property
@@ -1140,19 +1140,26 @@ class _WalkSpy:
         return result
 
 
-def _spied_greedy_run(monkeypatch: pytest.MonkeyPatch) -> tuple[Registry, OptimizeResult, _WalkSpy]:
-    """Run greedy on the CS-1347 fixture through the seam, with the walk recorded.
+def _spied_greedy_run(
+    monkeypatch: pytest.MonkeyPatch,
+    variant: Registry | None = None,
+    request: OptimizeRequest | None = None,
+) -> tuple[Registry, OptimizeResult, _WalkSpy]:
+    """Run greedy on a CS-1347 fixture through the seam, with the walk recorded.
 
     Args:
         monkeypatch: The fixture that installs, and later removes, the spy.
+        variant: The registry, or None for the reclaim fixture's.
+        request: The request, or None for the reclaim fixture's under greedy.
 
     Returns:
         The registry, the result ``optimize_plan`` returned, and the spy.
     """
     spy = _WalkSpy()
     monkeypatch.setattr(greedy_backend, "evaluate_selection", spy)
-    variant = _reclaim_registry()
-    return variant, _run(variant, _reclaim_request(BACKEND_GREEDY)), spy
+    registry = _reclaim_registry() if variant is None else variant
+    asked = _reclaim_request(BACKEND_GREEDY) if request is None else request
+    return registry, _run(registry, asked), spy
 
 
 @pytest.mark.parametrize("backend", BOTH_BACKENDS)
@@ -1203,3 +1210,170 @@ def test_cs1347_the_greedy_walk_still_never_backtracks(monkeypatch: pytest.Monke
         assert after[: len(before)] == before
         assert len(after) == len(before) + 1
         assert after[-1] not in before
+
+
+# --- three wrong rules the reclaim fixture cannot tell apart ----------------
+#
+# On the reclaim fixture the lowest-ranking reached selection is ALSO the last
+# one reached and strictly the best on score, so three wrong rules return the
+# right answer there: keep the LAST solve, rank by SCORE ALONE, and break a
+# score tie in REVERSED position order. An adversary measured all three passing
+# every arm in tests/solve. Two more fixtures, each derived by hand, separate
+# them. Both add 4 s recipes beside R_Plate and R_ScrapRod, with the target,
+# policy and objective of the reclaim fixture:
+#
+#   R_Waste  2000 L Residue + 1 Ore -> 1 Relic   Residue -30, Ore -15, Relic +15
+#   R_Burn   2000 L Residue -> 1 Relic           Residue -30, Relic +15
+#
+# WORSE, registry_with(add=[R_ScrapRod, R_Waste]). {R_Plate, R_ScrapRod,
+# R_Waste}: s = 2; Residue 30 - 30w = 0 -> w = 1; Plate 30p - 30 = 0 -> p = 1;
+# Relic vented at 15; Ore 30p + 15w = 45. The walk reaches it AFTER the 30-Ore
+# first solve, because R_Waste is the only addition left and it probes
+# feasible. A later solve is WORSE, so keeping the last solve answers 45 where
+# 30 is right.
+#
+# TIE, registry_with(add=[R_Burn, R_ScrapRod]) - R_Burn deliberately FIRST.
+# {R_Plate, R_Burn, R_ScrapRod}: s = 2, b = 1, p = 1, Relic vented at 15, Ore
+# 30 - the SAME score as {R_Plate, R_ScrapRod}. The walk reaches the
+# two-recipe selection first: at round 1, adding R_Plate and adding R_Burn both
+# probe at a relaxed score of 30, and R_Plate wins that probe tie by pool order.
+# The full key then ranks the THREE-recipe selection first: in registry order
+# the two position tuples first differ where R_Burn stands against R_ScrapRod,
+# and R_Burn sorts earlier. So a score-only rule keeps the first reached and
+# answers the two-recipe selection, a reversed position order prefers it too,
+# and the documented key - which the exhaustive backend also applies - answers
+# the three-recipe one.
+
+WASTE_RECIPE: str = "R_Waste"
+BURN_RECIPE: str = "R_Burn"
+
+#: Residue each consumer takes per cycle, in LITRES, and R_Waste's Ore per cycle.
+CONSUMER_RESIDUE_LITRES: int = 2000
+WASTE_ORE_PER_CYCLE: int = 1
+
+#: Every CS-1347 fixture's first solve - R_ScrapRod is the only Rod producer and
+#: R_Plate the only Plate producer that probes feasible beside it.
+FIRST_SOLVE_MACHINES: dict[str, Fraction] = {
+    PLATE_RECIPE: Fraction(1),
+    SCRAP_ROD_RECIPE: Fraction(2),
+}
+
+WORSE_LATER_SOLVE: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE, WASTE_RECIPE)
+WORSE_LATER_SOLVE_ORE: Fraction = Fraction(45)
+
+TIE_ANSWER: tuple[str, ...] = (PLATE_RECIPE, BURN_RECIPE, SCRAP_ROD_RECIPE)
+TIE_ANSWER_MACHINES: dict[str, Fraction] = {
+    PLATE_RECIPE: Fraction(1),
+    BURN_RECIPE: Fraction(1),
+    SCRAP_ROD_RECIPE: Fraction(2),
+}
+#: The tied score: both selections eat 30 Ore a minute.
+TIE_ORE: Fraction = Fraction(30)
+
+
+def _scrap_rod_entry() -> dict[str, str]:
+    """Build R_ScrapRod, the one Rod producer every CS-1347 fixture shares.
+
+    Returns:
+        The entry mapping.
+    """
+    return _flow_recipe_entry(
+        SCRAP_ROD_RECIPE,
+        [(SOLVE_PLATE_ITEM, 1)],
+        [(SOLVE_ROD_ITEM, 1), (SOLVE_RESIDUE_ITEM, SCRAP_ROD_RESIDUE_LITRES)],
+    )
+
+
+def _worse_registry() -> Registry:
+    """Build the WORSE variant: a later reached solve costs more than the first.
+
+    Returns:
+        The variant registry, built through the real docs seam.
+    """
+    waste = _flow_recipe_entry(
+        WASTE_RECIPE,
+        [(SOLVE_RESIDUE_ITEM, CONSUMER_RESIDUE_LITRES), (SOLVE_ORE_ITEM, WASTE_ORE_PER_CYCLE)],
+        [(SOLVE_RELIC_ITEM, 1)],
+    )
+    return registry_with(add=[_scrap_rod_entry(), waste])
+
+
+def _tie_registry() -> Registry:
+    """Build the TIE variant: R_Burn declared BEFORE R_ScrapRod, on purpose.
+
+    Returns:
+        The variant registry, built through the real docs seam.
+    """
+    burn = _flow_recipe_entry(
+        BURN_RECIPE, [(SOLVE_RESIDUE_ITEM, CONSUMER_RESIDUE_LITRES)], [(SOLVE_RELIC_ITEM, 1)]
+    )
+    return registry_with(add=[burn, _scrap_rod_entry()])
+
+
+def _rod_request(backend: str, candidates: tuple[str, ...]) -> OptimizeRequest:
+    """Build a 30 Rod/min, residue-sinkable, minimize-raw request.
+
+    Args:
+        backend: The backend name for the config.
+        candidates: The candidates, also the unlocked set.
+
+    Returns:
+        The request.
+    """
+    return replace(_reclaim_request(backend), candidates=candidates, unlocked=candidates)
+
+
+def test_cs1347_a_later_worse_solve_never_displaces_an_earlier_better_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kills KEEP-THE-LAST-SOLVE: here the walk's last solve is its worst."""
+    candidates = (WASTE_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
+    variant, result, spy = _spied_greedy_run(
+        monkeypatch, _worse_registry(), _rod_request(BACKEND_GREEDY, candidates)
+    )
+
+    # Anti-vacuity: the walk reached the worse selection, and reached it LAST.
+    assert [(each.selection, each.score) for each in spy.reached] == [
+        (RECLAIM_FIRST_SOLVE, RECLAIM_FIRST_SOLVE_ORE),
+        (WORSE_LATER_SOLVE, WORSE_LATER_SOLVE_ORE),
+    ]
+    assert result.selection == RECLAIM_FIRST_SOLVE
+    assert _machines(result.plan) == FIRST_SOLVE_MACHINES
+    assert result.score == RECLAIM_FIRST_SOLVE_ORE
+    assert _run(variant, _rod_request(BACKEND_EXHAUSTIVE, candidates)).plan == result.plan
+
+
+def test_cs1347_a_score_tie_is_broken_by_the_full_key_not_by_visit_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kills RANK-BY-SCORE-ALONE: two reached selections tie on score, not on key."""
+    candidates = (BURN_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
+    variant, result, spy = _spied_greedy_run(
+        monkeypatch, _tie_registry(), _rod_request(BACKEND_GREEDY, candidates)
+    )
+    positions = registry_positions(variant)
+    first, *later = spy.reached
+    tied = [each for each in later if each.selection == TIE_ANSWER]
+
+    # Anti-vacuity: the two-recipe selection is reached FIRST, the three-recipe
+    # one later, at the SAME score - and the full key ranks the later one lower.
+    assert (first.selection, first.score) == (RECLAIM_FIRST_SOLVE, TIE_ORE)
+    assert [each.score for each in tied] == [TIE_ORE]
+    assert result_ranking_key(tied[0], positions) < result_ranking_key(first, positions)
+    assert result.selection == TIE_ANSWER
+
+
+def test_cs1347_greedy_breaks_a_reached_tie_exactly_as_exhaustive_does() -> None:
+    """Kills a REVERSED tie-break: the pinned winner, on both backends, and equal."""
+    variant = _tie_registry()
+    candidates = (BURN_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
+    greedy = _run(variant, _rod_request(BACKEND_GREEDY, candidates))
+    exhaustive = _run(variant, _rod_request(BACKEND_EXHAUSTIVE, candidates))
+
+    for result in (greedy, exhaustive):
+        assert result.selection == TIE_ANSWER
+        assert _machines(result.plan) == TIE_ANSWER_MACHINES
+        assert result.score == TIE_ORE
+        assert type(result.score) is Fraction
+    assert greedy.plan == exhaustive.plan
+    assert greedy.selection == exhaustive.selection
