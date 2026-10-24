@@ -24,6 +24,88 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1348 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`. On the close, before the move, its acceptance was
+amended session 151 by a distinct adjudicator, so the text below is the amended one.
+
+## CS-1348
+
+### Filed 2026-10-21 (session 150), split out of CS-1343 on its close
+
+**THE HOLE.** CS-1343 closed with its clause 3 amended on the adjudicator route: the phase model
+publishes `delivered_available` False, derived from
+`clockspeed/progress/phases.py::PhaseCostTable`'s delivered mapping, because no layer below
+`clockspeed/progress/` publishes a delivered reading. Items already delivered into the space
+elevator sit in its input inventory, nothing reads that inventory into the table, and so every
+phase shows REQUIRED only.
+
+**WAITS ON:** CS-1340, and a seam ruling on which layer below `clockspeed/progress/` publishes
+the delivered reading. The inventory model sits in `clockspeed/audit/`, which
+`clockspeed/progress/__init__.py` does not list below it.
+
+**IT NEEDS A REAL SAVE, AND READS IT READ-ONLY** - a work copy through
+`clockspeed/save/workdir.py`, never the save directory (non-negotiable 1), and names and counts
+only in every record (non-negotiable 12).
+
+### ACCEPTANCE REPLACED - recorded 2026-10-24 (session 151) by a distinct adjudicator
+
+**The acceptance was amended session 151 by a distinct adjudicator**, replaced wholesale by the
+paid_off/held clause recorded in the CS-1348 amended section of
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`, copied verbatim under
+Acceptance below. As filed it read: "the elevator input inventory's carrier is measured read-only on a work copy and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; the layer the seam ruling names publishes it as `PhaseCostTable.delivered`, exact Fraction counts; a synthetic arm under `tests/progress/` shows `delivered_available` True from that producer, including a zero count, and False for a world with no reading, published as None, never zero." WHY: the shipped headers declare
+`mTargetGamePhasePaidOffCosts` on the game phase manager as an array of `ItemAmount` whose
+elements name no phase - they belong to whichever phase `mTargetGamePhase` names - and whether an
+item held in the elevator's input is already counted as paid is unmeasured, so a single delivered
+reading would sum two quantities the save keeps apart. The amendment is recorded in
+`docs/LEDGER.md` under this ID.
+
+### Acceptance
+
+AMENDED, replaced wholesale: `clockspeed/progress/phases.py::SavePhaseCosts` replaces the table's one delivered reading with two that are never summed: `paid_off`, by target phase, and `held`, the elevator's input verbatim. Whether an item sitting in the input is already counted as paid is unmeasured - every measured input was empty - so neither is added to the other until a measured non-empty input shows it. A paid-off phase the installed vocabulary lacks is withheld in `unmapped` under `clockspeed/progress/phases.py::REASON_UNMAPPED_PHASE`, never netted against another phase; on the pinned build that is every `GP_*` phase, because the installed docs name only `EGP_Victory`.
+
+## CS-1340 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`. On the close, before the move, its clauses 1 and 4 were
+amended session 151 by a distinct adjudicator, so the text below is the amended one.
+
+## CS-1340
+
+### Filed 2026-10-21 (session 150), split out of CS-1043 by its adjudicator
+
+**THE HOLE.** A space-elevator phase cost is a fact the save carries, and nothing reads
+it. `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` found
+`mGamePhaseCosts` on `BP_GamePhaseManager_C` in a mature world and absent outright in a
+low-progress one; its `PhaseCost` interiors carry `gamePhase` and `cost`, and whether a
+`cost` is the phase's total or its remainder is unmeasured. `clockspeed/save/world.py`
+publishes no phase cost and does not name the array in `UNLOCK_CARRIERS_UNREAD`. CS-1043
+therefore ships `clockspeed/progress/phases.py` with an unmeasured `PhaseCostSource`, and
+every phase publishes null.
+
+**IT NEEDS THE GAME, AND READS THE SAVE READ-ONLY** - a work copy through
+`clockspeed/save/workdir.py`, never the save directory (non-negotiable 1), and names and
+counts only in every record (non-negotiable 12).
+
+### CLAUSES 1 AND 4 AMENDED - recorded 2026-10-24 (session 151) by a distinct adjudicator
+
+**Clauses 1 and 4 were amended session 151 by a distinct adjudicator**, and the clause under
+Acceptance below is the amended one, each amended part marked AMENDED. Clause 1 as filed read
+"measured read-only on a work copy of the pinned development world"; clause 4 as filed read
+"a `PhaseCostSource` built from it under the measured meaning replaces the unmeasured shipped
+source in `clockspeed/progress/phases.py`, so `phase_costs_available` reads True on a world that
+carries the array". WHY: measured read-only and recorded in
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`, the pinned development world
+writes no `mGamePhaseCosts` - only the world carried forward from pre-1.0 builds does, and the
+shipped header marks the array deprecated - and the one measured table names phases the
+installed phase vocabulary lacks, so no library world can read True. In amended clause 4, "It"
+is `phase_costs_available`. The amendment is recorded in `docs/LEDGER.md` under this ID.
+
+### Acceptance
+
+AMENDED: whether each `PhaseCost` entry's `cost` in `mGamePhaseCosts` is the phase's total or its remainder is measured read-only on a work copy of a library world that writes the array, with the pinned world recorded as writing none, and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; `mGamePhaseCosts` is named in `clockspeed/save/world.py::UNLOCK_CARRIERS_UNREAD` for as long as the reader does not publish it; `clockspeed/save/world.py` is then wired to publish it, with a synthetic arm under `tests/save/` asserting each decoded cost amount is an exact Fraction and that a world without the array publishes no table rather than an empty or zero one; and, AMENDED: a `PhaseCostSource` built from it under the measured meaning replaces the unmeasured shipped source. It reads True on a synthetic world naming an installed phase. On every library world it reads False with a named reason: `no-phase-cost-table` for 1.0-native worlds, `unmapped-phase` for the legacy array. ADR 0016 records the header deprecation.
+
 ## CS-1346 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

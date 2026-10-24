@@ -731,6 +731,35 @@ be a cross-file edit this filing does not make.
 
 **Filed 2026-10-23** (session 151) from that record.
 
+### CS-G10 - 1.0 phase costs from the shipped GP_ phase assets (UFGGamePhase::mCosts)
+
+**One line:** the milestone-gap advice domain needs each space-elevator phase's cost on a
+1.0 build, and that cost lives in the shipped `GP_` phase assets' `UFGGamePhase::mCosts`,
+inside the paks.
+
+**Unblocked by:** the SAME written `CONVENTIONS.md` section 14 verdict on Oodle Data
+recorded under CS-G01 above, which pak extraction needs. No amount of work inside this repo
+reaches it.
+
+**The save is not a 1.0 phase-cost source**, and that is measured, not assumed:
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` records that no 1.0-native
+save writes `mGamePhaseCosts`, that the shipped header marks the array deprecated and kept
+only for save compatibility, and that the one measured table - written by a world carried
+forward from pre-1.0 builds - names phases the installed vocabulary lacks. Mapping its
+`EGP_` names onto `GP_` phases without measuring is not a substitute, and this entry refuses
+that trade.
+
+**Tier 2 when it unblocks.** It blocks the milestone-gap advice domain, one of the four v1
+domains in `CLAUDE.md` section 7: until it lands, every library world publishes no phase
+cost, under a named reason.
+
+**PREP half, workable now:** a pak-backed source slots behind
+`clockspeed/progress/phases.py::PhaseCostSource` beside the save-backed one, so no consumer
+changes when the verdict lands.
+
+**Filed 2026-10-24** (session 151) by the close of the item that wired the save phase-cost
+source.
+
 ---
 
 ## Cross-references

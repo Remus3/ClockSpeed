@@ -283,9 +283,7 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1340 - measure the save's `mGamePhaseCosts` (total or remainder), record it in ADR 0016, wire `clockspeed/save/world.py` and add `mGamePhaseCosts` to `UNLOCK_CARRIERS_UNREAD` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1347 - greedy's walk returns the first selection that solves and never re-ranks its canonical result through the shared ranking key - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1348 - a delivered producer for the space elevator's input inventory, so `delivered_available` reads True from a real reading - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1350 - `optimize_within_bound` refuses an empty usable set where `optimize_plan` answers it, because the ascent starts at k = 1 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1351 - plan.adopt runs on no world: advise_world ranks no plan and no recipe-to-unlock join fills its requires - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 

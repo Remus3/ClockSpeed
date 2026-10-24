@@ -439,27 +439,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1340
-
-### Filed 2026-10-21 (session 150), split out of CS-1043 by its adjudicator
-
-**THE HOLE.** A space-elevator phase cost is a fact the save carries, and nothing reads
-it. `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` found
-`mGamePhaseCosts` on `BP_GamePhaseManager_C` in a mature world and absent outright in a
-low-progress one; its `PhaseCost` interiors carry `gamePhase` and `cost`, and whether a
-`cost` is the phase's total or its remainder is unmeasured. `clockspeed/save/world.py`
-publishes no phase cost and does not name the array in `UNLOCK_CARRIERS_UNREAD`. CS-1043
-therefore ships `clockspeed/progress/phases.py` with an unmeasured `PhaseCostSource`, and
-every phase publishes null.
-
-**IT NEEDS THE GAME, AND READS THE SAVE READ-ONLY** - a work copy through
-`clockspeed/save/workdir.py`, never the save directory (non-negotiable 1), and names and
-counts only in every record (non-negotiable 12).
-
-### Acceptance
-
-whether each `PhaseCost` entry's `cost` in `mGamePhaseCosts` is the phase's total or its remainder is measured read-only on a work copy of the pinned development world and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; `mGamePhaseCosts` is named in `clockspeed/save/world.py::UNLOCK_CARRIERS_UNREAD` for as long as the reader does not publish it; `clockspeed/save/world.py` is then wired to publish it, with a synthetic arm under `tests/save/` asserting each decoded cost amount is an exact Fraction and that a world without the array publishes no table rather than an empty or zero one; and a `PhaseCostSource` built from it under the measured meaning replaces the unmeasured shipped source in `clockspeed/progress/phases.py`, so `phase_costs_available` reads True on a world that carries the array
-
 ## CS-1347
 
 ### Filed 2026-10-22 by the CS-1244 close
@@ -505,29 +484,6 @@ corrects it; the same correction to the CS-1244 record is in `docs/LEDGER.md`.
 ### Acceptance
 
 the result `clockspeed/solve/backends/greedy.py` returns is the lowest-ranking of the canonical selections its walk actually reached, by `clockspeed/solve/optimize.py::result_ranking_key`; a synthetic fixture in which the first selection that solves is not the lowest-ranking one reddens on the old behaviour and passes on the new, so the arm is not vacuous; and the heuristic's no-backtracking guarantee is restated or AMENDED explicitly in that module's docstring, with an amendment recorded in `docs/LEDGER.md` under this ID, never changed in silence
-
-## CS-1348
-
-### Filed 2026-10-21 (session 150), split out of CS-1343 on its close
-
-**THE HOLE.** CS-1343 closed with its clause 3 amended on the adjudicator route: the phase model
-publishes `delivered_available` False, derived from
-`clockspeed/progress/phases.py::PhaseCostTable`'s delivered mapping, because no layer below
-`clockspeed/progress/` publishes a delivered reading. Items already delivered into the space
-elevator sit in its input inventory, nothing reads that inventory into the table, and so every
-phase shows REQUIRED only.
-
-**WAITS ON:** CS-1340, and a seam ruling on which layer below `clockspeed/progress/` publishes
-the delivered reading. The inventory model sits in `clockspeed/audit/`, which
-`clockspeed/progress/__init__.py` does not list below it.
-
-**IT NEEDS A REAL SAVE, AND READS IT READ-ONLY** - a work copy through
-`clockspeed/save/workdir.py`, never the save directory (non-negotiable 1), and names and counts
-only in every record (non-negotiable 12).
-
-### Acceptance
-
-the elevator input inventory's carrier is measured read-only on a work copy and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; the layer the seam ruling names publishes it as `PhaseCostTable.delivered`, exact Fraction counts; a synthetic arm under `tests/progress/` shows `delivered_available` True from that producer, including a zero count, and False for a world with no reading, published as None, never zero.
 
 ## CS-1350
 

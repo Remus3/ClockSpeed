@@ -484,15 +484,19 @@ whole paid-off reading; the `mTargetGamePhase` tag on a manager; and the
 elevator's `mInputInventory` reference. `tests/save/test_repeated_keys.py`
 grades it with one parametrized arm, one case per carrier.
 
-**The residual, recorded rather than claimed.** A TOP-LEVEL property tag written
-twice - `mGamePhaseCosts`, `mTargetGamePhasePaidOffCosts` or `mInventoryStacks`
-- never reaches this layer twice. `clockspeed/save/objects.py::read_properties`
-publishes a payload's values by NAME, so a repeated tag is already one value,
-the last, when `clockspeed/save/world.py` sees it; that reader publishes an
-ordered population only for reference tags and struct tags, which is why the
-repeated `mTargetGamePhase` and `mInputInventory` cases above are caught and
-these are not. Closing it needs that reader to publish the names of top-level
-tags written more than once, and this layer to refuse a carrier named there;
+**The residual, recorded rather than claimed.** A property tag written twice
+at the top level or inside one struct element never reaches this layer twice:
+a top-level `mGamePhaseCosts`, `mTargetGamePhasePaidOffCosts` or
+`mInventoryStacks`, or a `gamePhase`, `cost`, `ItemClass`, `Amount`, `Item` or
+`NumItems` tag repeated inside one element. `clockspeed/save/objects.py`
+decodes both levels into a mapping keyed by tag NAME - `_walk_payload` at the
+top level, `_walk_struct_tags` inside one struct element - so a repeated tag is
+already one value, the last, with its array index dropped, when
+`clockspeed/save/world.py` sees it; that reader publishes an ordered
+population only for reference tags and struct tags, which is why the repeated
+`mTargetGamePhase` and `mInputInventory` cases above are caught and these are
+not. Closing it needs that reader to publish the names of tags written more
+than once at either level, and this layer to refuse a carrier named there;
 `clockspeed/save/objects.py` is outside the slice that wrote this, so the gap
 is left open here by name. The same collapse would lose all but one element of
 any fixed-size array property written as repeated tags; none is read here.

@@ -1034,3 +1034,9 @@ Commit B's lines (A-S12a ITEM 2 step 17, A-432 step 15; the CS-700 record in `do
   unset and aims the report at its path, fail-closed; action: unset every inherited name with a
   byte above 0x7F, with a U+017F arm and a ProgramFiles(x86) control; trigger: such a name seen in
   a real environment.
+- From the CS-1340 close (`docs/LEDGER.md`, 2026-10-24, CS-1340): `clockspeed/save/objects.py`
+  collapses repeated tag names last-wins and drops the array index, top level and struct
+  interiors, for every reader; promote when a reader consumes a repeated name.
+- From the same close: CS-1340 reopen trigger: a library save holding a part-paid phase, or a
+  1.0-native world that writes `mGamePhaseCosts` - re-measure; never map `EGP_` names to `GP_`
+  phases without measuring.

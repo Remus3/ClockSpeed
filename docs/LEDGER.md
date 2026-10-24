@@ -75,6 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1340 - CLOSED WITH RESIDUAL: save phase-cost source wired, amended clauses met
+Verification: tests/progress/test_save_phase_source.py::test_a_table_naming_no_installed_phase_is_not_authoritative, tests/save/test_repeated_keys.py::test_a_repeated_key_is_withheld_and_flagged_never_last_wins
+Clauses 1 and 4 amended session 151 (pinned world writes none; library reads False, named reason); ADR 0016 records the header deprecation. Three distinct adversary passes refuted earlier candidates on rule 7; each repaired; a distinct adjudicator closed it with the residual.
+Residual: objects.py repeated-tag collapse, filed in BACKLOG; the 1.0 phase-cost source from the shipped GP_ phase assets is gated as CS-G10.
+
+### 2026-10-24 - CS-1348 - CLOSED WITH RESIDUAL: paid_off and held published separately, never summed
+Verification: tests/progress/test_save_phase_source.py::test_held_is_the_input_verbatim_and_never_summed_with_paid_off
+Acceptance replaced wholesale session 151 by the paid_off/held clause; ADR 0016 CS-1348 amended section.
+Residual: same as CS-1340.
+
 ### 2026-10-24 - CS-1346 - CLOSED: plan.adopt reads a ranked plan and carries its strategy badge into tier 3 from the trace; unregistered until advise_world offers a plan
 Verification: `clockspeed/advisor/rules/plan.py`; `clockspeed/advisor/trace.py::PLAN_TYPES`;
 `tests/advisor/rules/test_plan.py::test_the_trace_carries_the_badge_read_by_a_rule_that_reads_a_plan`,
