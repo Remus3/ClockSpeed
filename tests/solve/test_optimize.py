@@ -128,11 +128,23 @@ from tests.solve.synthetic import (
     C5_STD_MACHINES,
     C5_TRINKET_TARGET,
     C8_TWIN_PER_MACHINE,
+    C10_FIRST_MACHINE_TOTAL,
+    C10_FIRST_ORE_DEMAND,
+    C10_FIRST_PLATE_MACHINES,
+    C10_FIRST_POWER_MW,
+    C10_RECLAIM_MACHINES,
+    C10_RECLAIMED_ORE_DEMAND,
+    C10_RECLAIMED_PLATE_MACHINES,
+    C10_ROD_TARGET,
+    C10_SCRAP_ROD_MACHINES,
     FLUID_RECIPE,
     GADGET_RECIPE,
     ORPHAN_RECIPE,
     PLATE_RECIPE,
+    RECLAIM_RECIPE,
     RECOVER_RECIPE,
+    SCRAP_ROD_ENTRY,
+    SCRAP_ROD_RECIPE,
     SOLVE_ASSEMBLER_BUILDING,
     SOLVE_GADGET_ITEM,
     SOLVE_ORE_ITEM,
@@ -147,6 +159,7 @@ from tests.solve.synthetic import (
     TWIN_B_RECIPE,
     ZERO_DURATION_RECIPE,
     building_path,
+    reclaim_registry,
     registry_with,
     solve_registry,
 )
@@ -964,25 +977,11 @@ def test_no_module_in_this_slice_carries_a_float_literal(parts: tuple[str, ...])
 # h. CS-1347 - greedy returns the lowest-ranking selection its walk REACHED
 # ===========================================================================
 #
-# THE FIXTURE, DERIVED BY HAND. Two recipes join the corpus through
-# registry_with, beside C1's R_Plate (1 Ore -> 1 Plate, 2 s: Ore -30 and
-# Plate +30 per machine per minute). Both run 4 s, so 15 cycles a minute, and
-# Residue is RF_LIQUID, so its 1000 L on the wire is 1 cubic metre a cycle:
-#
-#   R_ScrapRod  1 Plate -> 1 Rod + 1000 L Residue   Plate -15, Rod +15, Residue +15
-#   R_Reclaim   2000 L Residue -> 1 Plate           Residue -30, Plate +15
-#
-# Target 30 Rod/min, byproducts SINKABLE, minimize raw. With p, s and r the
-# machine counts of R_Plate, R_ScrapRod and R_Reclaim:
-#
-#   {R_Plate, R_ScrapRod}             Rod 15s = 30 -> s = 2; Plate 30p - 30 = 0
-#                                     -> p = 1; Residue vented at 30   Ore 30
-#   {R_Plate, R_ScrapRod, R_Reclaim}  s = 2; Residue 30 - 30r = 0 -> r = 1;
-#                                     Plate 30p - 30 + 15 = 0 -> p = 1/2  Ore 15
-#
-# No other subset solves. R_ScrapRod is the only Rod producer, and without
-# R_Plate the Plate balance -15s + 15r = 0 and the Residue balance 15s - 30r = 0
-# contradict each other at s = 2.
+# THE FIXTURE is C10, derived by hand in tests/solve/synthetic.py and shared
+# with tests/surface/test_solve.py: C1's R_Plate plus R_ScrapRod (Plate -> Rod
+# + Residue) and R_Reclaim (Residue -> Plate, no building). Target 30 Rod/min,
+# byproducts SINKABLE, minimize raw: {R_Plate, R_ScrapRod} costs 30 Ore and
+# {R_Plate, R_ScrapRod, R_Reclaim} costs 15, and nothing else solves.
 #
 # THE WALK, DERIVED BY HAND. Round 0: only R_ScrapRod probes feasible - the
 # other two produce no Rod. Round 1: R_ScrapRod alone does not solve, since
@@ -995,31 +994,25 @@ def test_no_module_in_this_slice_carries_a_float_literal(parts: tuple[str, ...])
 # first solve answers 30 where 15 is right - which is what makes the arms below
 # non-vacuous rather than a re-run of C3, where the two coincide.
 
-SCRAP_ROD_RECIPE: str = "R_ScrapRod"
-RECLAIM_RECIPE: str = "R_Reclaim"
-
-#: Both added recipes run 4 s a cycle, written as the document writes durations.
+#: The WORSE and TIE recipes below run 4 s a cycle, as C10's do, written as the
+#: document writes durations.
 RECLAIM_DURATION_TEXT: str = "4.000000"
 
-#: Residue on the wire, in LITRES - the registry converts, nothing here does.
-SCRAP_ROD_RESIDUE_LITRES: int = 1000
-RECLAIM_RESIDUE_LITRES: int = 2000
-
-RECLAIM_ROD_TARGET: Fraction = Fraction(30)
+RECLAIM_ROD_TARGET: Fraction = C10_ROD_TARGET
 
 #: The first selection the walk reaches that solves, and what it costs.
 RECLAIM_FIRST_SOLVE: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE)
-RECLAIM_FIRST_SOLVE_ORE: Fraction = Fraction(30)
+RECLAIM_FIRST_SOLVE_ORE: Fraction = C10_FIRST_ORE_DEMAND
 
 #: The lowest-ranking selection the walk reaches, in registry order - R_Plate is
 #: in the main corpus, and registry_with appends the two added recipes after it.
 RECLAIM_ANSWER: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE, RECLAIM_RECIPE)
 RECLAIM_ANSWER_MACHINES: dict[str, Fraction] = {
-    PLATE_RECIPE: Fraction(1, 2),
-    SCRAP_ROD_RECIPE: Fraction(2),
-    RECLAIM_RECIPE: Fraction(1),
+    PLATE_RECIPE: C10_RECLAIMED_PLATE_MACHINES,
+    SCRAP_ROD_RECIPE: C10_SCRAP_ROD_MACHINES,
+    RECLAIM_RECIPE: C10_RECLAIM_MACHINES,
 }
-RECLAIM_ANSWER_ORE: Fraction = Fraction(15)
+RECLAIM_ANSWER_ORE: Fraction = C10_RECLAIMED_ORE_DEMAND
 
 #: Deliberately NOT in registry order, so no arm leans on caller order.
 RECLAIM_CANDIDATES: tuple[str, ...] = (RECLAIM_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
@@ -1052,25 +1045,12 @@ def _flow_recipe_entry(
 
 
 def _reclaim_registry() -> Registry:
-    """Build the CS-1347 variant: the main corpus plus the two added recipes.
+    """Build C10, the CS-1347 fixture shared with the HTTP arms.
 
     Returns:
         The variant registry, built through the real docs seam.
     """
-    return registry_with(
-        add=[
-            _flow_recipe_entry(
-                SCRAP_ROD_RECIPE,
-                [(SOLVE_PLATE_ITEM, 1)],
-                [(SOLVE_ROD_ITEM, 1), (SOLVE_RESIDUE_ITEM, SCRAP_ROD_RESIDUE_LITRES)],
-            ),
-            _flow_recipe_entry(
-                RECLAIM_RECIPE,
-                [(SOLVE_RESIDUE_ITEM, RECLAIM_RESIDUE_LITRES)],
-                [(SOLVE_PLATE_ITEM, 1)],
-            ),
-        ]
-    )
+    return reclaim_registry()
 
 
 def _reclaim_request(backend: str) -> OptimizeRequest:
@@ -1254,8 +1234,8 @@ WASTE_ORE_PER_CYCLE: int = 1
 #: Every CS-1347 fixture's first solve - R_ScrapRod is the only Rod producer and
 #: R_Plate the only Plate producer that probes feasible beside it.
 FIRST_SOLVE_MACHINES: dict[str, Fraction] = {
-    PLATE_RECIPE: Fraction(1),
-    SCRAP_ROD_RECIPE: Fraction(2),
+    PLATE_RECIPE: C10_FIRST_PLATE_MACHINES,
+    SCRAP_ROD_RECIPE: C10_SCRAP_ROD_MACHINES,
 }
 
 WORSE_LATER_SOLVE: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE, WASTE_RECIPE)
@@ -1271,19 +1251,6 @@ TIE_ANSWER_MACHINES: dict[str, Fraction] = {
 TIE_ORE: Fraction = Fraction(30)
 
 
-def _scrap_rod_entry() -> dict[str, str]:
-    """Build R_ScrapRod, the one Rod producer every CS-1347 fixture shares.
-
-    Returns:
-        The entry mapping.
-    """
-    return _flow_recipe_entry(
-        SCRAP_ROD_RECIPE,
-        [(SOLVE_PLATE_ITEM, 1)],
-        [(SOLVE_ROD_ITEM, 1), (SOLVE_RESIDUE_ITEM, SCRAP_ROD_RESIDUE_LITRES)],
-    )
-
-
 def _worse_registry() -> Registry:
     """Build the WORSE variant: a later reached solve costs more than the first.
 
@@ -1295,7 +1262,7 @@ def _worse_registry() -> Registry:
         [(SOLVE_RESIDUE_ITEM, CONSUMER_RESIDUE_LITRES), (SOLVE_ORE_ITEM, WASTE_ORE_PER_CYCLE)],
         [(SOLVE_RELIC_ITEM, 1)],
     )
-    return registry_with(add=[_scrap_rod_entry(), waste])
+    return registry_with(add=[SCRAP_ROD_ENTRY, waste])
 
 
 def _tie_registry() -> Registry:
@@ -1307,7 +1274,7 @@ def _tie_registry() -> Registry:
     burn = _flow_recipe_entry(
         BURN_RECIPE, [(SOLVE_RESIDUE_ITEM, CONSUMER_RESIDUE_LITRES)], [(SOLVE_RELIC_ITEM, 1)]
     )
-    return registry_with(add=[burn, _scrap_rod_entry()])
+    return registry_with(add=[burn, SCRAP_ROD_ENTRY])
 
 
 def _rod_request(backend: str, candidates: tuple[str, ...]) -> OptimizeRequest:
@@ -1377,3 +1344,74 @@ def test_cs1347_greedy_breaks_a_reached_tie_exactly_as_exhaustive_does() -> None
         assert type(result.score) is Fraction
     assert greedy.plan == exhaustive.plan
     assert greedy.selection == exhaustive.selection
+
+
+# --- a power objective on C10 - refused by both backends, by ruling ----------
+#
+# C10's R_Reclaim names no building, so it has no draw to price. The walk that
+# returned at its first solve answered a power request on C10 with
+# {R_Plate, R_ScrapRod} at 34 MW, because it stopped before it priced R_Reclaim
+# - an answer to an incomparable question, decided by walk order. The walk that
+# runs on prices R_Reclaim when it probes adding it, in _best_addition through
+# score_plan, and refuses; the exhaustive backend refuses on the same request
+# when it scores the three-recipe subset in evaluate_selection. The CS-1347
+# adjudicator ACCEPTED the refusal: the walk is not changed and the error is not
+# caught. Raw and buildings never price a draw, so they are the controls.
+
+
+def _c10_request(backend: str, objective: Objective) -> OptimizeRequest:
+    """Build the C10 request under a named objective.
+
+    Args:
+        backend: The backend name for the config.
+        objective: What to minimize.
+
+    Returns:
+        The request.
+    """
+    return replace(_reclaim_request(backend), objective=objective)
+
+
+@pytest.mark.parametrize("backend", BOTH_BACKENDS)
+def test_cs1347_a_power_objective_on_c10_is_refused_by_both_backends(backend: str) -> None:
+    """The ruled behaviour: no plan, and the refusal names the unpriceable recipe."""
+    with pytest.raises(PowerNotComparableError) as caught:
+        _run(reclaim_registry(), _c10_request(backend, MINIMIZE_POWER))
+
+    frames = [entry.name for entry in caught.traceback]
+    assert caught.value.recipe_key == RECLAIM_RECIPE
+    assert "score_plan" in frames
+    # Where each backend prices the unpriceable recipe, as greedy.py and the
+    # module comment above state it.
+    origin = "_best_addition" if backend == BACKEND_GREEDY else "evaluate_selection"
+    assert origin in frames
+
+
+def test_cs1347_greedy_refuses_c10_power_only_after_its_first_solve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The walk prices the first solve at 34 MW, runs on, and refuses at R_Reclaim."""
+    spy = _WalkSpy()
+    monkeypatch.setattr(greedy_backend, "evaluate_selection", spy)
+
+    with pytest.raises(PowerNotComparableError):
+        _run(reclaim_registry(), _c10_request(BACKEND_GREEDY, MINIMIZE_POWER))
+
+    reached = [(each.selection, each.score) for each in spy.reached]
+    assert reached == [(RECLAIM_FIRST_SOLVE, C10_FIRST_POWER_MW)]
+
+
+@pytest.mark.parametrize("backend", BOTH_BACKENDS)
+def test_cs1347_c10_controls_raw_and_buildings_answer_on_both_backends(backend: str) -> None:
+    """The refusal is about power alone: the same request answers under raw and buildings."""
+    registry = reclaim_registry()
+
+    raw = _run(registry, _c10_request(backend, MINIMIZE_RAW))
+    buildings = _run(registry, _c10_request(backend, MINIMIZE_BUILDINGS))
+
+    assert raw.selection == RECLAIM_ANSWER
+    assert raw.score == C10_RECLAIMED_ORE_DEMAND
+    assert buildings.selection == RECLAIM_FIRST_SOLVE
+    assert _machines(buildings.plan) == FIRST_SOLVE_MACHINES
+    assert buildings.score == C10_FIRST_MACHINE_TOTAL
+    assert type(buildings.score) is Fraction

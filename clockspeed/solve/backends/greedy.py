@@ -100,6 +100,27 @@ problem where a worse first step leads to a better factory, it can still return
 the worse factory, because the better one lies on a path it did not take. What
 CS-1347 adds is the guarantee on the path it DID take: nothing it reached ranks
 below what it returns.
+
+A POWER OBJECTIVE THE WALK CANNOT PRICE IS REFUSED - RULED, CS-1347
+--------------------------------------------------------------------
+Because a solve no longer ends the walk, the walk now probes additions the
+first-solve walk never reached. A probe is scored by ``optimize.score_plan``
+inside ``_best_addition``, so when the objective weights power and the probed
+plan uses a recipe with no exact draw, ``PowerNotComparableError`` is raised
+THERE - on C10 in ``tests/solve/synthetic.py``, while probing R_Reclaim, which
+names no building, after the first solve. The first-solve walk answered that
+request with a 34 MW plan only because it stopped before pricing R_Reclaim: an
+answer to a question the objective cannot compare, decided by walk order.
+
+The exhaustive backend refuses the same request, raising from
+``optimize.evaluate_selection`` when it scores the three-recipe subset, and
+greedy now refuses it exactly as exhaustive does; ``POST /api/optimize``
+transcribes the refusal as HTTP 400 ``power_not_comparable`` for either
+backend. The CS-1347 adjudicator ACCEPTED it: the error is not caught here, and
+the walk is not changed to avoid it. The two backends price different sets of
+recipes - greedy every recipe on a probe it scores, exhaustive every recipe of a
+canonical result it scores - so the equality is graded on that request rather
+than claimed for every request.
 """
 
 from __future__ import annotations
@@ -331,8 +352,11 @@ class GreedyBackend:
             ValueError: A candidate names no recipe in this registry.
             NoFeasibleSelectionError: The walk ran out of feasible additions.
             ObjectiveUndefinedError: The objective names no usable direction.
-            PowerNotComparableError: The power objective is weighted and some
-                used recipe has no exact draw.
+            PowerNotComparableError: The power objective is weighted and a plan
+                the walk scores uses a recipe with no exact draw - raised by
+                ``optimize.score_plan``, from ``_best_addition`` when it is a
+                probe, as on C10, or from ``optimize.evaluate_selection`` when
+                it is a reached selection. Not caught, by the CS-1347 ruling.
         """
         usable, excluded = usable_candidates(registry, request)
         reachable = _reachable_items(registry, usable, request.raw_items)

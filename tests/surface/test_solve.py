@@ -36,6 +36,10 @@ d. 503 AND 501 DO NOT COLLAPSE. ``build_registry`` needs a document read from
 e. THE SURFACE DECIDES NOTHING THE SOLVER COULD DECIDE. An unknown backend
    name, an objective naming no direction and an unsolvable chain are all the
    solver's verdicts, reached by calling it and transcribing what came back.
+f. The supply direction, through the same door.
+g. CS-1347: a power objective the shared C10 fixture cannot price is HTTP 400
+   ``power_not_comparable`` on BOTH backends, with no recipe key in the bytes,
+   and the same request under raw answers 200.
 
 Test-quality discipline (CONVENTIONS.md section 7.2). Every population size is
 bound to a scalar and asserted before it is iterated. Every detector used to
@@ -55,6 +59,7 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from clockspeed.solve import optimize, ratio
+from clockspeed.solve.backends import BACKEND_EXHAUSTIVE, BACKEND_GREEDY, available_backends
 from clockspeed.surface.api import contract, solve
 from tests.solve import synthetic
 
@@ -965,3 +970,109 @@ def test_a_supply_refusal_body_never_echoes_a_request_value(registry: Registry) 
     raw = contract.encode(call(DOORS["solve"], registry, parameters).payload)
     assert UNCONSUMED_SUPPLY_ITEM.encode("ascii") not in raw
     assert synthetic.SOLVE_ROD_ITEM.encode("ascii") not in raw
+
+
+# ---------------------------------------------------------------------------
+# (g) CS-1347: a power objective the C10 fixture cannot price, on both backends
+# ---------------------------------------------------------------------------
+#
+# C10 is shared with tests/solve/test_optimize.py, which grades the same request
+# at the solve layer. Its R_Reclaim names no building, so a power-weighted
+# objective has no exact draw to rank by, and BOTH backends refuse - greedy
+# since CS-1347 made its walk run past its first solve, a refusal the CS-1347
+# adjudicator ACCEPTED. Before that change this door answered greedy's request
+# with HTTP 200 and a 34 MW plan decided by where the walk happened to stop.
+
+#: The two shipped backends, each asked through the door's own parameter.
+C10_BACKENDS: Final = (BACKEND_EXHAUSTIVE, BACKEND_GREEDY)
+
+#: Asserted before the backends are iterated.
+EXPECTED_C10_BACKENDS: Final = 2
+
+C10_CANDIDATES: Final = ",".join(
+    (synthetic.RECLAIM_RECIPE, synthetic.SCRAP_ROD_RECIPE, synthetic.PLATE_RECIPE)
+)
+
+#: The C10 request under power. Literal parameter names, as above.
+C10_POWER_PARAMETERS: Final[Mapping[str, str]] = {
+    "targets": f"{synthetic.SOLVE_ROD_ITEM}={synthetic.C10_ROD_TARGET}",
+    "candidates": C10_CANDIDATES,
+    "unlocked": C10_CANDIDATES,
+    "raw_items": synthetic.SOLVE_ORE_ITEM,
+    "byproduct_policy": ratio.BYPRODUCT_SINKABLE,
+    "objective": f"{optimize.OBJECTIVE_POWER}=1",
+}
+
+#: C10's raw-objective answer, in registry order.
+C10_RAW_SELECTION: Final = (
+    synthetic.PLATE_RECIPE,
+    synthetic.SCRAP_ROD_RECIPE,
+    synthetic.RECLAIM_RECIPE,
+)
+
+
+@pytest.fixture(scope="module")
+def reclaim() -> Registry:
+    """C10, built once through the real seam.
+
+    Returns:
+        The variant registry.
+    """
+    return synthetic.reclaim_registry()
+
+
+def recipe_keys_in(raw: bytes, value: Registry) -> list[str]:
+    """Every recipe key of a registry that appears anywhere in encoded bytes.
+
+    Args:
+        raw: The encoded response.
+        value: The registry whose recipe keys are looked for.
+
+    Returns:
+        The keys found, sorted.
+    """
+    return sorted(key for key in value.recipes if key.encode("ascii") in raw)
+
+
+def test_the_c10_backend_population_is_the_two_shipped_backends() -> None:
+    count = len(C10_BACKENDS)
+    assert count == EXPECTED_C10_BACKENDS
+    assert set(C10_BACKENDS) == set(available_backends())
+
+
+@pytest.mark.parametrize("backend", C10_BACKENDS)
+def test_a_power_objective_c10_cannot_price_is_400_on_both_backends(
+    backend: str, reclaim: Registry
+) -> None:
+    response = call(DOORS["optimize"], reclaim, {**C10_POWER_PARAMETERS, "backend": backend})
+    status = response.http_status
+    reason = response.payload.get("reason")
+    problems = contract.contract_problems(response)
+    leaked = recipe_keys_in(contract.encode(response.payload), reclaim)
+    assert status == contract.HTTP_BAD_REQUEST
+    assert reason == contract.REASON_POWER_NOT_COMPARABLE
+    assert problems == ()
+    assert leaked == []
+
+
+@pytest.mark.parametrize("backend", C10_BACKENDS)
+def test_the_same_c10_request_under_raw_is_200_on_both_backends(
+    backend: str, reclaim: Registry
+) -> None:
+    """The control: only the objective differs, and the key scan finds keys here."""
+    parameters = {
+        **C10_POWER_PARAMETERS,
+        "objective": f"{optimize.OBJECTIVE_RAW}=1",
+        "backend": backend,
+    }
+    response = call(DOORS["optimize"], reclaim, parameters)
+    status = response.http_status
+    problems = contract.contract_problems(response)
+    data = response.payload["data"]
+    assert isinstance(data, dict)
+    selection = tuple(data["selection"])
+    found = set(recipe_keys_in(contract.encode(response.payload), reclaim))
+    assert status == contract.HTTP_OK
+    assert problems == ()
+    assert selection == C10_RAW_SELECTION
+    assert set(C10_RAW_SELECTION) <= found

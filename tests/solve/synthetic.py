@@ -64,6 +64,9 @@ Each is a shape that breaks a solver which passes its own tests.
 - **C9** the loop's plausible wrong answer - a negative machine count. Built as
   a VARIANT through :func:`registry_with`, never in the main corpus, which must
   build cleanly.
+- **C10** a byproduct reclaimed into an intermediate, whose first solve is not
+  its best, by a recipe with no building to price a draw from. A VARIANT,
+  through :func:`reclaim_registry`.
 
 WHERE THIS CORPUS DEPARTS FROM ITS BRIEF, AND WHY
 ---------------------------------------------------
@@ -261,6 +264,11 @@ TWIN_B_RECIPE: Final = "R_TwinB"
 #: C9, and deliberately NOT in the main corpus. Reach it through
 #: :func:`rich_recovery_registry`.
 RICH_RECOVER_RECIPE: Final = "R_RecoverRich"
+
+#: C10, and deliberately NOT in the main corpus. Reach both through
+#: :func:`reclaim_registry`.
+SCRAP_ROD_RECIPE: Final = "R_ScrapRod"
+RECLAIM_RECIPE: Final = "R_Reclaim"
 
 SOLVE_RECIPES: Final = (
     ALT_GADGET_RECIPE,
@@ -501,6 +509,54 @@ C8_TWIN_ORE_DRAW: Final = Fraction(-10)
 C9_RICH_FLUID_LITRES_PER_CYCLE: Final = 9000
 C9_RICH_FLUID_YIELD: Final = Fraction(135)
 C9_FLUID_MACHINES: Final = Fraction(-6, 5)
+
+# ---------------------------------------------------------------------------
+# C10 - A FIRST SOLVE THAT IS NOT THE BEST, AND A STEP NO DRAW CAN PRICE
+#
+#   R_ScrapRod  1 Plate -> 1 Rod + 1000 L Residue, 4 s, Assembler
+#   R_Reclaim   2000 L Residue -> 1 Plate,         4 s, NO automated producer
+#   plus C1's R_Plate.
+#
+#   Per machine per minute:
+#     R_Plate     Ore -30, Plate +30                 Smelter, 4 MW
+#     R_ScrapRod  Plate -15, Rod +15, Residue +15    Assembler, 15 MW
+#     R_Reclaim   Residue -30, Plate +15             no building, so no draw
+#
+#   Target 30 Rod/min, byproducts sinkable; p, s, r the machine counts:
+#     {R_Plate, R_ScrapRod}             Rod 15s = 30 -> s = 2; Plate 30p - 30 = 0
+#                                       -> p = 1; Residue vented at 30.
+#                                       Ore 30, machines 3, power 4 + 30 = 34 MW
+#     {R_Plate, R_ScrapRod, R_Reclaim}  s = 2; Residue 30 - 30r = 0 -> r = 1;
+#                                       Plate 30p - 30 + 15 = 0 -> p = 1/2.
+#                                       Ore 15, machines 7/2, power UNPRICEABLE
+#
+#   No other subset solves: R_ScrapRod is the only Rod producer, and without
+#   R_Plate the Plate balance -15s + 15r = 0 and the Residue balance
+#   15s - 30r = 0 contradict each other at s = 2. So raw prefers the three
+#   recipes, buildings prefers the two, and power cannot be answered at all -
+#   the three-recipe subset solves and R_Reclaim has no draw. A VARIANT, built
+#   through :func:`reclaim_registry`; the main corpus builds without it.
+# ---------------------------------------------------------------------------
+
+C10_DURATION_S: Final = Fraction(4)
+
+#: Residue on the wire, in LITRES. The registry converts; nothing here does.
+C10_SCRAP_ROD_RESIDUE_LITRES: Final = 1000
+C10_RECLAIM_RESIDUE_LITRES: Final = 2000
+
+C10_ROD_TARGET: Final = Fraction(30)
+
+#: {R_Plate, R_ScrapRod}.
+C10_FIRST_PLATE_MACHINES: Final = Fraction(1)
+C10_SCRAP_ROD_MACHINES: Final = Fraction(2)
+C10_FIRST_ORE_DEMAND: Final = Fraction(30)
+C10_FIRST_MACHINE_TOTAL: Final = Fraction(3)
+C10_FIRST_POWER_MW: Final = Fraction(34)
+
+#: {R_Plate, R_ScrapRod, R_Reclaim}. R_ScrapRod runs 2 machines here too.
+C10_RECLAIMED_PLATE_MACHINES: Final = Fraction(1, 2)
+C10_RECLAIM_MACHINES: Final = Fraction(1)
+C10_RECLAIMED_ORE_DEMAND: Final = Fraction(15)
 
 # ---------------------------------------------------------------------------
 # Document construction
@@ -746,6 +802,26 @@ RICH_RECOVERY_ENTRY: Final = _recipe_entry(
     SOLVE_REFINERY_BUILDING,
 )
 
+#: C10's two additions, published so a downstream slice names them rather than
+#: rebuilding them.
+SCRAP_ROD_ENTRY: Final = _recipe_entry(
+    SCRAP_ROD_RECIPE,
+    C10_DURATION_S,
+    [(SOLVE_PLATE_ITEM, 1)],
+    [(SOLVE_ROD_ITEM, 1), (SOLVE_RESIDUE_ITEM, C10_SCRAP_ROD_RESIDUE_LITRES)],
+    SOLVE_ASSEMBLER_BUILDING,
+)
+
+#: No automated producer: an empty produced-in blob, a real and valid value, and
+#: the shape the power objective cannot price.
+RECLAIM_ENTRY: Final = _recipe_entry(
+    RECLAIM_RECIPE,
+    C10_DURATION_S,
+    [(SOLVE_RESIDUE_ITEM, C10_RECLAIM_RESIDUE_LITRES)],
+    [(SOLVE_PLATE_ITEM, 1)],
+    None,
+)
+
 
 def _document(recipes: Sequence[Mapping[str, Any]]) -> list[Any]:
     """Assemble the whole corpus around a recipe list.
@@ -857,3 +933,15 @@ def rich_recovery_registry() -> Registry:
         arithmetic it implies, not in the data.
     """
     return registry_with(replace={RECOVER_RECIPE: RICH_RECOVERY_ENTRY})
+
+
+def reclaim_registry() -> Registry:
+    """Build C10: the main corpus plus R_ScrapRod and an unpriceable R_Reclaim.
+
+    Appended, so both sort after R_Plate in registry order. Shared by the
+    solve-layer arms and the HTTP arms, so the two grade one fixture.
+
+    Returns:
+        The variant registry.
+    """
+    return registry_with(add=[SCRAP_ROD_ENTRY, RECLAIM_ENTRY])
