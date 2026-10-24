@@ -398,3 +398,43 @@ def save_blob(
         tags = (stacks,) if inventory_tags is None else inventory_tags
         component_payloads.append(synthetic.tagged_property_payload(tags, trailing=_TRAILING))
     return _level_body(tuple(actors), tuple(components), (*payloads, *component_payloads))
+
+
+# ---------------------------------------------------------------------------
+# CS-1348 amended - the target phase and its paid-off costs
+# ---------------------------------------------------------------------------
+
+#: The measured property names on the phase manager (ADR 0016, CS-1348 amended).
+TARGET_PROPERTY: Final = "mTargetGamePhase"
+PAID_OFF_PROPERTY: Final = "mTargetGamePhasePaidOffCosts"
+
+#: An invented target phase in the measured ``GP_*`` asset shape, and its name
+#: as the save's reference names it - the object path's final segment.
+TARGET_PHASE: Final = "GP_SynthAssemblyPhase_2"
+TARGET_PATH: Final = f"/Game/Synthetic/GamePhases/{TARGET_PHASE}.{TARGET_PHASE}"
+
+
+def target_tag(path: str = TARGET_PATH) -> bytes:
+    """The phase manager's top-level ``mTargetGamePhase`` asset reference.
+
+    Args:
+        path: The object path the reference names.
+
+    Returns:
+        The whole tag.
+    """
+    return asset_reference_tag(TARGET_PROPERTY, path)
+
+
+def paid_off_tag(lines: tuple[tuple[str, int], ...]) -> bytes:
+    """The ``mTargetGamePhasePaidOffCosts`` array of ``ItemAmount`` structs.
+
+    Args:
+        lines: Each ``(item path, amount)``, in file order.
+
+    Returns:
+        The whole tag.
+    """
+    return struct_array_tag(
+        PAID_OFF_PROPERTY, "ItemAmount", tuple(item_amount(path, amount) for path, amount in lines)
+    )

@@ -380,6 +380,7 @@ tests/save/test_newest_world.py	authored	CS-1309	stamped
 tests/save/test_node_orientation_carry.py	authored	CS-1019	stamped
 tests/save/test_objects.py	authored	CS-1165	first-add:root
 tests/save/test_oracle_citations.py	authored	CS-420	first-add:CS-420
+tests/save/test_paid_off.py	authored	CS-1348	stamped
 tests/save/test_phase4_gate.py	authored	CS-409	first-add:CS-409
 tests/save/test_phase4_gate_depth.py	authored	CS-400	stamped
 tests/save/test_phase_costs.py	authored	CS-1340	stamped

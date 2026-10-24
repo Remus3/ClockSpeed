@@ -154,99 +154,168 @@ def test_an_owed_phase_drives_the_hand_worked_chain_end_to_end() -> None:
 
 
 # ---------------------------------------------------------------------------
-# CS-1348 - the delivered reading comes from the elevator's input inventory
+# CS-1348 amended - paid_off from the target phase, held from the input, never summed
 # ---------------------------------------------------------------------------
 
 #: Units of the first part sitting in the elevator's input inventory.
 HELD_UNITS: Final = 7
 
+#: Units of the first part the save says are paid off on the target phase.
+PAID_UNITS: Final = 2500
 
-def _elevator_world(
-    entries: tuple[es.PhaseEntry, ...] | None, slots: tuple[tuple[str, int], ...] | None
+#: The installed vocabulary these arms check the paid-off phase against: the
+#: target phase plus every phase the cost-table fixtures use.
+INSTALLED_WITH_TARGET: Final = INSTALLED | {es.TARGET_PHASE}
+
+
+def _manager_world(
+    manager_tags: tuple[bytes, ...], slots: tuple[tuple[str, int], ...] | None
 ) -> world.WorldModel:
-    """Load a synthetic world with a phase-cost array and an elevator, either optional.
+    """Load a synthetic world whose phase manager carries ``manager_tags``.
 
     Args:
-        entries: The array's entries, or None for a manager without the array.
+        manager_tags: The manager's tags, in file order.
         slots: The elevator input slots, or None for no elevator.
 
     Returns:
         The loaded world.
     """
-    tags = () if entries is None else (es.phase_costs_tag(entries),)
-    return world.load_world_from_bytes(es.save_blob(manager_tags=tags, slots=slots))
+    return world.load_world_from_bytes(es.save_blob(manager_tags=manager_tags, slots=slots))
 
 
-def test_delivered_available_reads_true_from_the_elevator_including_a_zero_count() -> None:
-    """CS-1348 acceptance: True from the producer, a zero count among the counts.
+def _paid_tags(*lines: tuple[str, int]) -> tuple[bytes, ...]:
+    """The target phase reference and its paid-off array.
 
-    The table's delivered mapping is keyed by every item the table's own
-    entries owe, so a cost item the elevator holds none of reads an exact
-    ZERO rather than going missing - and the item it does hold reads its
-    count. Both are exact Fractions.
+    Args:
+        *lines: Each ``(item path, amount)`` paid off.
+
+    Returns:
+        The manager's tags.
     """
-    held = ((es.PART_A_PATH, HELD_UNITS), *es.EMPTY_SLOTS[1:])
-    source = _source(_elevator_world(es.DEFAULT_ENTRIES, held))
+    return (es.target_tag(), es.paid_off_tag(lines))
+
+
+def test_paid_off_reads_the_target_phase_including_a_zero_count() -> None:
+    """CS-1348 amended: paid_off is the target phase as the save names it, exact.
+
+    The save's own zero is kept - it was written - and the flag reads True on
+    the target phase only.
+    """
+    tags = _paid_tags((es.PART_A_PATH, PAID_UNITS), (es.PART_B_PATH, 0))
+    source = phases.SavePhaseCosts(_manager_world(tags, None), INSTALLED_WITH_TARGET)
+    table = source.phase_costs()
+    on_target = phases.phase_cost(source, synthetic_registry(), es.TARGET_PHASE, selection())
+    elsewhere = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert table.paid_off is not None
+    assert {phase: dict(items) for phase, items in table.paid_off.items()} == {
+        es.TARGET_PHASE: {es.PART_A: Fraction(PAID_UNITS), es.PART_B: Fraction(0)}
+    }
+    kinds = {type(count).__name__ for items in table.paid_off.values() for count in items.values()}
+    assert kinds == {"Fraction"}
+    assert on_target.paid_off_available is True
+    assert elsewhere.paid_off_available is False
+
+
+def test_a_paid_off_phase_the_install_lacks_is_withheld_never_netted() -> None:
+    """The measured case: the target names a GP_ phase the docs' vocabulary lacks.
+
+    The reading is withheld, the phase is named in ``unmapped`` and is null
+    under the unmapped reason, and no other phase gains it.
+    """
+    tags = _paid_tags((es.PART_A_PATH, PAID_UNITS))
+    source = phases.SavePhaseCosts(_manager_world(tags, None), INSTALLED)
+    table = source.phase_costs()
+    target = phases.phase_cost(source, synthetic_registry(), es.TARGET_PHASE, selection())
+    costed = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert table.paid_off is None
+    assert table.unmapped == frozenset({es.TARGET_PHASE})
+    assert _null_reasons(target) == [phases.REASON_UNMAPPED_PHASE] * 3
+    assert target.paid_off_available is False
+    assert costed.paid_off_available is False
+    assert _null_reasons(costed) == [phases.REASON_NO_PHASE_COST_TABLE] * 3
+
+
+def test_no_paid_off_array_publishes_none_never_a_zero() -> None:
+    """No library save writes the array, so no reading - never "nothing paid".
+
+    The pinned development world's shape: a target phase, an elevator of empty
+    slots, and no paid-off array. ``paid_off`` is None, and ``held`` is the
+    empty input with no key at all - so no part reads an exact zero it may
+    already have paid.
+    """
+    source = phases.SavePhaseCosts(
+        _manager_world((es.target_tag(),), es.EMPTY_SLOTS), INSTALLED_WITH_TARGET
+    )
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), es.TARGET_PHASE, selection())
+
+    assert table.paid_off is None
+    assert table.held is not None
+    assert dict(table.held) == {}
+    assert (cost.paid_off_available, cost.held_available) == (False, True)
+
+
+def test_held_is_the_input_verbatim_and_never_summed_with_paid_off() -> None:
+    """Both readings of one item stay apart, and neither moves the required figure."""
+    tags = (
+        es.target_tag(),
+        es.paid_off_tag(((PLATE_PATH, PAID_UNITS),)),
+        es.phase_costs_tag(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),)),
+    )
+    held = ((PLATE_PATH, HELD_UNITS), *es.EMPTY_SLOTS[1:])
+    source = phases.SavePhaseCosts(_manager_world(tags, held), INSTALLED_WITH_TARGET)
     table = source.phase_costs()
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
 
-    assert table.delivered is not None
-    assert dict(table.delivered) == {es.PART_A: Fraction(HELD_UNITS), es.PART_B: Fraction(0)}
-    kinds = sorted({type(count).__name__ for count in table.delivered.values()})
-    assert kinds == ["Fraction"]
-    assert cost.delivered_available is True
+    assert table.held is not None
+    assert dict(table.held) == {PLATE_ITEM: Fraction(HELD_UNITS)}
+    assert table.paid_off is not None
+    assert dict(table.paid_off[es.TARGET_PHASE]) == {PLATE_ITEM: Fraction(PAID_UNITS)}
+    assert cost.required.values is not None
+    assert dict(cost.required.values) == {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
+    assert cost.held_available is True
 
 
-def test_an_elevator_of_empty_slots_is_a_reading_of_zero_and_reads_true() -> None:
-    """The measured shape - every slot empty - is zero delivered, never no reading."""
-    source = _source(_elevator_world(es.DEFAULT_ENTRIES, es.EMPTY_SLOTS))
-    table = source.phase_costs()
-    cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
-
-    assert table.delivered is not None
-    assert dict(table.delivered) == {es.PART_A: Fraction(0), es.PART_B: Fraction(0)}
-    assert cost.delivered_available is True
-
-
-def test_a_world_with_no_elevator_publishes_none_and_reads_false_never_zero() -> None:
-    """No reading is None - not an empty mapping, and not a zero count per item."""
-    source = _source(_elevator_world(es.DEFAULT_ENTRIES, None))
-    table = source.phase_costs()
-    cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
-
-    assert table.delivered is None
-    assert cost.delivered_available is False
-    assert cost.phase_costs_available is True
-
-
-def test_the_delivered_reading_stands_without_a_phase_cost_table() -> None:
-    """The pinned development world's shape: an elevator, and no array.
-
-    The two readings are independent: the flag follows the elevator and
-    ``phase_costs_available`` follows the array, so this world reads True
-    beside False. With no table there is no cost item to key a zero by, so
-    an empty elevator is an empty reading - still present.
-    """
-    source = _source(_elevator_world(None, es.EMPTY_SLOTS))
+def test_a_world_with_no_elevator_publishes_held_none_never_zero() -> None:
+    """No elevator is no held reading: None, not an empty mapping, not a zero."""
+    source = _source(_manager_world(_paid_tags((es.PART_A_PATH, 1)), None))
     table = source.phase_costs()
     cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert table.held is None
+    assert cost.held_available is False
+
+
+def test_the_readings_stand_without_a_phase_cost_table() -> None:
+    """The two readings are independent of the cost table and of each other."""
+    tags = _paid_tags((es.PART_A_PATH, 1))
+    source = phases.SavePhaseCosts(_manager_world(tags, es.EMPTY_SLOTS), INSTALLED_WITH_TARGET)
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), es.TARGET_PHASE, selection())
 
     assert table.entries is None
-    assert table.delivered is not None
-    assert dict(table.delivered) == {}
-    assert cost.delivered_available is True
+    assert (cost.paid_off_available, cost.held_available) == (True, True)
     assert cost.phase_costs_available is False
 
 
-def test_a_delivered_reading_takes_nothing_off_the_required_figure() -> None:
-    """The model subtracts no delivered reading: the owed amount drives the rate alone."""
-    held = ((PLATE_PATH, HELD_UNITS),)
-    source = _source(_elevator_world(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),), held))
-    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+def test_a_withheld_paid_off_phase_beside_a_mapped_cost_table_is_named() -> None:
+    """The withheld paid-off phase is named beside a cost table that maps, never dropped."""
+    tags = (
+        es.target_tag(),
+        es.paid_off_tag(((es.PART_A_PATH, 1),)),
+        es.phase_costs_tag(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),)),
+    )
+    source = phases.SavePhaseCosts(_manager_world(tags, None), INSTALLED)
+    table = source.phase_costs()
+    target = phases.phase_cost(source, synthetic_registry(), es.TARGET_PHASE, selection())
 
-    assert cost.delivered_available is True
-    assert cost.required.values is not None
-    assert dict(cost.required.values) == {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
+    assert table.entries is not None
+    assert sorted(table.entries) == [COSTED_PHASE]
+    assert table.paid_off is None
+    assert table.unmapped == frozenset({es.TARGET_PHASE})
+    assert _null_reasons(target) == [phases.REASON_UNMAPPED_PHASE] * 3
 
 
 # ---------------------------------------------------------------------------

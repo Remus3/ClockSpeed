@@ -330,10 +330,12 @@ is unknown content: it is skipped, counted on the reading, and raised as
 while every shipped item's count beside it stays exact.
 
 **The seam, as ruled.** The save layer publishes the carrier, and
-`clockspeed/progress/phases.py::SavePhaseCosts` reads it from the world model
-and publishes it as `PhaseCostTable.delivered`, keyed by every item the
-table's entries owe - so a cost item the elevator holds none of reads an exact
-zero - plus any item it does hold. A distinct adjudicator, in session 151,
+`clockspeed/progress/phases.py::SavePhaseCosts` reads it from the world model.
+It first published it as one `delivered` reading keyed by every item the
+table's entries owe, an owed item the elevator held none of reading an exact
+zero; the CS-1348 amended section below WITHDREW that zero and replaced the
+one reading with two, `paid_off` and `held`, never summed. A distinct
+adjudicator, in session 151,
 ruled the seam RESPECTED: `clockspeed/progress/__init__.py` lists the save
 world model as the layer below; `clockspeed/progress/phases.py` reads only
 `WorldModel.phase_costs` and `WorldModel.elevator_input` of it; and
@@ -385,3 +387,72 @@ usable table:
   `clockspeed/progress/phases.py::REASON_UNMAPPED_PHASE`, and publishes no
   table when no phase maps. On the measured table against the pinned build,
   that is every phase.
+
+---
+
+## Amendment - the target phase and what is paid off on it (CS-1348 amended)
+
+Measured 2026-10-24 (session 151) on work copies, by the method and with the
+limits of the CS-1340 amendment, by the slice that wired the reader. Names and
+counts only. The library was unchanged since that amendment: 43 saves in the
+same three worlds, the newest still the pinned work copy.
+
+**Why it was measured.** A distinct adjudicator read the shipped headers:
+`mTargetGamePhasePaidOffCosts` is declared on the game phase manager as an
+array of `ItemAmount` carried with `SaveGame`, and its elements name no phase -
+they belong to whichever phase `mTargetGamePhase` names. CS-1348's acceptance
+was amended on that reading.
+
+**`mTargetGamePhasePaidOffCosts` is written by no save in the library.** Its
+name, as the length-prefixed string a property tag carries, occurs zero times
+in the decompressed body of every one of the 43 saves, and no phase manager
+decodes a tag of that name.
+
+**`mTargetGamePhase` is written on 39 saves, by exactly one phase manager each,
+as a top-level `ObjectProperty` naming a shipped `/Game/` asset:** on all 31
+saves of the pinned development world - `GP_Project_Assembly_Phase_1` on its 3
+oldest and `GP_Project_Assembly_Phase_2` on the 28 after its phase advanced -
+on all 7 saves of the second world (`GP_Project_Assembly_Phase_1`), and on the
+third world's `(14, 52)` save (`GP_Project_Assembly_Phase_3`). The third
+world's 4 older saves write the legacy `mGamePhase` instead and no target.
+
+| Property | Carrier type path |
+|---|---|
+| `mTargetGamePhasePaidOffCosts` | `/Game/FactoryGame/Schematics/Progression/BP_GamePhaseManager.BP_GamePhaseManager_C` |
+
+The class in that row is the class that carries `mTargetGamePhase` on every
+save above; the paid-off array itself was observed on none, so the row records
+the class the shipped headers declare it on and the reader keys on, not an
+observation of the array.
+
+**What ships on it.** `clockspeed/save/world.py::TARGET_PHASE_CARRIER` and
+`clockspeed/save/world.py::PAID_OFF_CARRIER` key the reader, and both names
+have left `UNLOCK_CARRIERS_UNREAD` because both are read.
+`WorldModel.target_phase` publishes the target's shipped asset path, and
+`clockspeed/save/world.py::PaidOffReading` publishes that phase - the path's
+final segment, as the save names it - to exact Fraction counts. An ABSENT array
+publishes None and no flag: no library save writes it, so its absence is no
+reading, never "nothing paid", until a library save that writes it is recorded
+here. A present array that is not an array of structs, two carriers, or a
+manager payload that did not read raise
+`clockspeed/save/world.py::WARN_PAID_OFF_UNREAD`; one element that does not
+read or repeats an item raises
+`clockspeed/save/world.py::WARN_PAID_OFF_ELEMENT_SKIPPED` with the count; a
+present array with no readable target raises
+`clockspeed/save/world.py::WARN_PAID_OFF_TARGET_UNREAD`. Each publishes None.
+
+`clockspeed/progress/phases.py::SavePhaseCosts` replaces the table's one
+delivered reading with two that are never summed: `paid_off`, by target phase,
+and `held`, the elevator's input verbatim. Whether an item sitting in the input
+is already counted as paid is unmeasured - every measured input was empty - so
+neither is added to the other until a measured non-empty input shows it. A
+paid-off phase the installed vocabulary lacks is withheld in `unmapped` under
+`clockspeed/progress/phases.py::REASON_UNMAPPED_PHASE`, never netted against
+another phase; on the pinned build that is every `GP_*` phase, because the
+installed docs name only `EGP_Victory`.
+
+**The seam, as ruled.** A distinct adjudicator ruled: `clockspeed/save/world.py`
+reads both properties and publishes them on the world model;
+`clockspeed/progress/phases.py::SavePhaseCosts` consumes them only through the
+world model; `clockspeed/audit/` stays out. `tests/save/test_paid_off.py` and
+`tests/progress/test_save_phase_source.py` grade it on synthetic fixtures only.

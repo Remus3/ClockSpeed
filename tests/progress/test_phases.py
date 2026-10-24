@@ -732,8 +732,14 @@ def test_an_unresolved_phase_cost_item_on_either_line_is_null(
 
 
 # ---------------------------------------------------------------------------
-# CS-1343 - delivered_available is derived from the table's delivered reading
+# CS-1343, CS-1348 amended - paid_off and held are derived from the table
 # ---------------------------------------------------------------------------
+#
+# THE NAMES BELOW ARE KEPT, THE CLAIM IN THEM IS NOT. `docs/LEDGER.md` cites
+# four arms of this section by name, and it is append-only. CS-1348's amended
+# acceptance replaced the table's one `delivered` reading with two - `paid_off`
+# and `held`, never summed - so each arm keeps its cited name and grades the
+# two readings that replaced the one it was written for.
 
 #: The machine-figure reason each publishing path in ``delivered_sweep`` must
 #: reach, in its order - None for the solved chain. Asserting it proves every
@@ -749,23 +755,34 @@ SWEEP_REASONS: Final = [
     None,
 ]
 
+#: A paid-off reading for every phase the sweep selects, at one item's zero.
+PAID_ZERO: Final[Mapping[str, Mapping[str, Fraction]]] = MappingProxyType(
+    {
+        COSTED_PHASE: MappingProxyType({PLATE_ITEM: Fraction(0)}),
+        UNCOSTED_PHASE: MappingProxyType({PLATE_ITEM: Fraction(0)}),
+    }
+)
+
 
 class ReadingSource:
-    """A synthetic source that carries a delivered reading, measured or not."""
+    """A synthetic source that carries paid-off and held readings, measured or not."""
 
     def __init__(
         self,
         entries: Mapping[str, tuple[CostLine, ...]] | None,
-        delivered: Mapping[str, Fraction] | None,
+        paid_off: Mapping[str, Mapping[str, Fraction]] | None,
+        held: Mapping[str, Fraction] | None,
     ) -> None:
         """Hold the table this source publishes.
 
         Args:
             entries: Phase to cost lines, or None for an unmeasured table.
-            delivered: The delivered reading, or None for no reading.
+            paid_off: The paid-off reading by phase, or None for no reading.
+            held: The input reading, or None for no reading.
         """
         self._entries = None if entries is None else MappingProxyType(dict(entries))
-        self._delivered = delivered
+        self._paid_off = paid_off
+        self._held = held
 
     def phase_costs(self) -> phases.PhaseCostTable:
         """Publish the table.
@@ -775,24 +792,28 @@ class ReadingSource:
         """
         reason = phases.REASON_NO_PHASE_COST_TABLE if self._entries is None else None
         return phases.PhaseCostTable(
-            entries=self._entries, reason=reason, delivered=self._delivered
+            entries=self._entries, reason=reason, paid_off=self._paid_off, held=self._held
         )
 
 
-def delivered_sweep(delivered: Mapping[str, Fraction] | None) -> list[tuple[str | None, bool]]:
-    """Read the flag off every path in the module that builds a phase cost.
+def delivered_sweep(
+    paid_off: Mapping[str, Mapping[str, Fraction]] | None,
+    held: Mapping[str, Fraction] | None,
+) -> list[tuple[str | None, bool, bool]]:
+    """Read both flags off every path in the module that builds a phase cost.
 
     The paths, in :data:`SWEEP_REASONS` order: an unmeasured table, a phase
     with no entry, an empty entry, a non-positive cost, an unresolved cost
     item, no recipe selection, a ratio refusal and the solved chain. Each runs
-    over a source carrying ``delivered``, so a site that hard-coded the flag
-    reddens on its own row.
+    over a source carrying the two readings, so a site that hard-coded either
+    flag reddens on its own row.
 
     Args:
-        delivered: The delivered reading every source carries, or None.
+        paid_off: The paid-off reading every source carries, or None.
+        held: The input reading every source carries, or None.
 
     Returns:
-        One (machine reason, ``delivered_available``) pair per path.
+        One (machine reason, ``paid_off_available``, ``held_available``) per path.
     """
     registry = synthetic_registry()
     starved = phases.RecipeSelection(
@@ -814,83 +835,109 @@ def delivered_sweep(delivered: Mapping[str, Fraction] | None) -> list[tuple[str 
         ({COSTED_PHASE: plate}, COSTED_PHASE, starved),
         ({COSTED_PHASE: plate}, COSTED_PHASE, selection()),
     )
-    readings: list[tuple[str | None, bool]] = []
+    readings: list[tuple[str | None, bool, bool]] = []
     for entries, phase, chosen in cases:
-        cost = phases.phase_cost(ReadingSource(entries, delivered), registry, phase, chosen)
-        readings.append((cost.machine.reason, cost.delivered_available))
+        source = ReadingSource(entries, paid_off, held)
+        cost = phases.phase_cost(source, registry, phase, chosen)
+        readings.append((cost.machine.reason, cost.paid_off_available, cost.held_available))
     return readings
 
 
 def test_the_shipped_source_publishes_delivered_available_false_required_only() -> None:
-    """No delivered reading, so the flag reads False on every path.
+    """No paid-off and no held reading, so both flags read False on every path.
 
-    The shipped save source over a world with no delivered reading publishes
-    none, and a measured table whose source carries none reads False too, on
-    every path that builds a phase cost. The required figure is the whole cost
-    over the budget, with nothing delivered taken off it. The name is kept
-    because ``docs/LEDGER.md`` and ``docs/history_notes.md`` cite it.
+    The shipped save source over a world with neither reading publishes
+    neither, and a measured table whose source carries none reads False too,
+    on every path that builds a phase cost. The required figure is the whole
+    cost over the budget, with nothing taken off it. The name is kept because
+    ``docs/LEDGER.md`` and ``docs/history_notes.md`` cite it.
     """
     source = no_table_source()
     shipped = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
-    assert shipped.delivered_available is False
-    shipped_reading = source.phase_costs().delivered
-    assert shipped_reading is None
+    assert (shipped.paid_off_available, shipped.held_available) == (False, False)
+    table = source.phase_costs()
+    assert (table.paid_off, table.held) == (None, None)
     measured = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
-    assert measured.delivered_available is False
+    assert (measured.paid_off_available, measured.held_available) == (False, False)
     required = measured.required.values
     assert required is not None
     assert dict(required) == {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
-    readings = delivered_sweep(None)
-    assert [reason for reason, _ in readings] == SWEEP_REASONS
-    assert [flag for _, flag in readings] == [False] * len(SWEEP_REASONS)
+    readings = delivered_sweep(None, None)
+    assert [reason for reason, _, _ in readings] == SWEEP_REASONS
+    assert [(paid, held) for _, paid, held in readings] == [(False, False)] * len(SWEEP_REASONS)
 
 
 def test_delivered_available_is_derived_with_a_zero_count_reading_true() -> None:
-    """A delivered reading that is present reads True, even when it counts nothing.
+    """A present reading reads True, even when it counts nothing - each on its own.
 
-    A zero-count reading is still a reading. The reading of one item at zero
-    reddens a flag derived from the counts; the EMPTY reading reddens one that
-    collapses the mapping by truthiness. The unmeasured table on the first
-    path keeps its reading, so the flag follows the reading and not the cost
-    table - and ``phase_costs_available`` still reads False beside it.
+    A zero-count reading is still a reading. A paid-off reading of one item at
+    zero, and an EMPTY held reading, each turn their own flag True and leave
+    the other False, on every path - so a flag derived from the counts, from
+    truthiness, or from the other reading reddens. The unmeasured table on the
+    first path keeps its readings, so the flags follow the readings and not the
+    cost table - and ``phase_costs_available`` still reads False beside them.
     """
-    zero_count: Mapping[str, Fraction] = MappingProxyType({PLATE_ITEM: Fraction(0)})
-    zero_readings = delivered_sweep(zero_count)
-    assert [reason for reason, _ in zero_readings] == SWEEP_REASONS
-    assert [flag for _, flag in zero_readings] == [True] * len(SWEEP_REASONS)
+    paid = delivered_sweep(PAID_ZERO, None)
+    assert [reason for reason, _, _ in paid] == SWEEP_REASONS
+    assert [(p, h) for _, p, h in paid] == [(True, False)] * len(SWEEP_REASONS)
     empty: Mapping[str, Fraction] = MappingProxyType({})
-    empty_readings = delivered_sweep(empty)
-    assert [reason for reason, _ in empty_readings] == SWEEP_REASONS
-    assert [flag for _, flag in empty_readings] == [True] * len(SWEEP_REASONS)
-    unmeasured = ReadingSource(None, zero_count)
+    held = delivered_sweep(None, empty)
+    assert [reason for reason, _, _ in held] == SWEEP_REASONS
+    assert [(p, h) for _, p, h in held] == [(False, True)] * len(SWEEP_REASONS)
+    unmeasured = ReadingSource(None, PAID_ZERO, empty)
     assert phases.phase_costs_available(unmeasured) is False
 
 
+def test_a_paid_off_reading_is_per_phase_never_another_phases() -> None:
+    """A paid-off reading for one phase never sets the flag on another."""
+    only_costed = MappingProxyType({COSTED_PHASE: MappingProxyType({PLATE_ITEM: Fraction(0)})})
+    source = ReadingSource(None, only_costed, None)
+    registry = synthetic_registry()
+    costed = phases.phase_cost(source, registry, COSTED_PHASE, selection())
+    other = phases.phase_cost(source, registry, UNCOSTED_PHASE, selection())
+
+    assert costed.paid_off_available is True
+    assert other.paid_off_available is False
+
+
 def test_a_delivered_reading_holds_exact_non_negative_counts_only() -> None:
-    """A delivered count is an exact Fraction at zero or above, enforced on the table.
+    """Every paid-off and held count is an exact Fraction at zero or above.
 
     The zero-count table is the control: it constructs, so each refusal below
     is about its own value and not about a reading being present at all. The
     float has a case of its own, so a check that let a float through beside a
-    Fraction reddens here and not only under the module's source scan.
+    Fraction reddens here and not only under the module's source scan. The
+    name is kept because ``docs/LEDGER.md`` cites it.
     """
     reason = phases.REASON_NO_PHASE_COST_TABLE
     zero = MappingProxyType({PLATE_ITEM: Fraction(0)})
-    table = phases.PhaseCostTable(entries=None, reason=reason, delivered=zero)
-    assert table.delivered is zero
-    with pytest.raises(phases.PhaseIntegrityError):
-        phases.PhaseCostTable(
-            entries=None, reason=reason, delivered=MappingProxyType({PLATE_ITEM: Fraction(-1)})
-        )
+    table = phases.PhaseCostTable(
+        entries=None, reason=reason, paid_off=MappingProxyType({COSTED_PHASE: zero}), held=zero
+    )
+    assert table.held is zero
     not_a_fraction = cast("Fraction", 1)
-    with pytest.raises(phases.PhaseIntegrityError):
-        phases.PhaseCostTable(
-            entries=None, reason=reason, delivered=MappingProxyType({PLATE_ITEM: not_a_fraction})
-        )
     a_float = cast("Fraction", 0.5)
+    for bad in (Fraction(-1), not_a_fraction, a_float):
+        counts = MappingProxyType({PLATE_ITEM: bad})
+        with pytest.raises(phases.PhaseIntegrityError):
+            phases.PhaseCostTable(entries=None, reason=reason, held=counts)
+        with pytest.raises(phases.PhaseIntegrityError):
+            phases.PhaseCostTable(
+                entries=None, reason=reason, paid_off=MappingProxyType({COSTED_PHASE: counts})
+            )
+
+
+def test_a_table_refuses_a_phase_both_withheld_and_paid_off() -> None:
+    """A phase withheld as unmapped is never also presented as paid off."""
+    reason = phases.REASON_NO_PHASE_COST_TABLE
+    paid = MappingProxyType({COSTED_PHASE: MappingProxyType({PLATE_ITEM: Fraction(1)})})
+    beside = phases.PhaseCostTable(
+        entries=None, reason=reason, paid_off=paid, unmapped=frozenset({UNCOSTED_PHASE})
+    )
+    assert beside.unmapped == frozenset({UNCOSTED_PHASE})
     with pytest.raises(phases.PhaseIntegrityError):
         phases.PhaseCostTable(
-            entries=None, reason=reason, delivered=MappingProxyType({PLATE_ITEM: a_float})
+            entries=None, reason=reason, paid_off=paid, unmapped=frozenset({COSTED_PHASE})
         )
 
 
@@ -919,15 +966,16 @@ class TableSource:
 
 
 def test_delivered_available_is_graded_on_a_synthetic_schematic_document() -> None:
-    """Cost lines normalized from a hand-authored schematic document carry the flag.
+    """Cost lines normalized from a hand-authored schematic document carry the flags.
 
     One synthetic schematic costing the plates is loaded through the real
     docs_extract seam with the milestone arms' own builders, and normalized by
     :func:`clockspeed.data.schematics.normalize_schematics`. Its cost lines
-    become the phase's entry in a table carrying a zero-count delivered
-    reading, which reads True; the same table with no reading reads False.
-    The required figure is the hand-worked 25/3 a minute on both, so the
-    document's lines drove the required rate and nothing delivered came off it.
+    become the phase's entry in a table carrying a zero-count paid-off reading
+    and an empty held reading, which read True; the same table with neither
+    reads False. The required figure is the hand-worked 25/3 a minute on both,
+    so the document's lines drove the required rate and nothing paid or held
+    came off it. The name is kept because ``docs/LEDGER.md`` cites it.
     """
     blob = synthetic.amount_blob([(PLATE_ITEM, PLATE_COST)])
     catalog = normalize_schematics(
@@ -939,17 +987,18 @@ def test_delivered_available_is_graded_on_a_synthetic_schematic_document() -> No
     read = phases.PhaseCostTable(
         entries=MappingProxyType({COSTED_PHASE: lines}),
         reason=None,
-        delivered=MappingProxyType({PLATE_ITEM: Fraction(0)}),
+        paid_off=PAID_ZERO,
+        held=MappingProxyType({}),
     )
-    unread = dataclasses.replace(read, delivered=None)
+    unread = dataclasses.replace(read, paid_off=None, held=None)
     required_rate = {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}
     registry = synthetic_registry()
     with_reading = phases.phase_cost(TableSource(read), registry, COSTED_PHASE, selection())
-    assert with_reading.delivered_available is True
+    assert (with_reading.paid_off_available, with_reading.held_available) == (True, True)
     assert with_reading.required.values is not None
     assert dict(with_reading.required.values) == required_rate
     without = phases.phase_cost(TableSource(unread), registry, COSTED_PHASE, selection())
-    assert without.delivered_available is False
+    assert (without.paid_off_available, without.held_available) == (False, False)
     assert without.required.values is not None
     assert dict(without.required.values) == required_rate
 

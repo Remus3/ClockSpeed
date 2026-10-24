@@ -438,6 +438,7 @@ __all__ = [
     "EMPTY_WORLD_PROPERTIES",
     "NODE_CLASS_NAMES",
     "NO_WORLD",
+    "PAID_OFF_CARRIER",
     "PHASE_COST_CARRIER",
     "READER_REFUSAL_TYPES",
     "SAVE_VERDICT_STAGES",
@@ -453,6 +454,7 @@ __all__ = [
     "STAGE_OBJECTS",
     "STAGE_USMAP",
     "TARGET_AMBIGUOUS",
+    "TARGET_PHASE_CARRIER",
     "TARGET_RESOLVED",
     "TARGET_STATES",
     "TARGET_UNRESOLVED",
@@ -463,12 +465,16 @@ __all__ = [
     "WARN_NODE_SEMANTICS_UNAVAILABLE",
     "WARN_NODE_TRANSFORM_ABSENT",
     "WARN_NO_PROPERTY_MAP",
+    "WARN_PAID_OFF_ELEMENT_SKIPPED",
+    "WARN_PAID_OFF_TARGET_UNREAD",
+    "WARN_PAID_OFF_UNREAD",
     "WARN_PHASE_COSTS_UNREAD",
     "WARN_PHASE_COST_ENTRY_SKIPPED",
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ContainerContents",
     "ContainerEntry",
     "ElevatorInput",
+    "PaidOffReading",
     "PhaseCostLine",
     "PhaseCostReading",
     "RecordProperties",
@@ -622,6 +628,16 @@ WARN_ELEVATOR_INPUT_UNREAD: Final = "elevator-input-unread"
 #: shipped asset root - unknown content - skipped. The COUNT is how many; the
 #: reading counts every other stack.
 WARN_ELEVATOR_INPUT_STACK_SKIPPED: Final = "elevator-input-stack-skipped"
+#: CS-1348 amended: ``mTargetGamePhasePaidOffCosts`` is on a manager and no
+#: reading was taken - it is not an array of structs, two records carry it, or
+#: a manager payload did not read.
+WARN_PAID_OFF_UNREAD: Final = "phase-paid-off-unread"
+#: CS-1348 amended: elements of the paid-off array that did not read. The
+#: COUNT is how many; one is enough to withhold the whole reading.
+WARN_PAID_OFF_ELEMENT_SKIPPED: Final = "phase-paid-off-element-skipped"
+#: CS-1348 amended: the paid-off array was read and no target phase was - its
+#: elements name no phase of their own, so they belong to none.
+WARN_PAID_OFF_TARGET_UNREAD: Final = "phase-paid-off-target-unread"
 
 #: A newer save was refused by the reader and skipped - :func:`load_newest_world`.
 #: The SUBJECT is WHY, never WHICH: the refusing stage and the cause type, both
@@ -701,6 +717,20 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "this many input stacks of the space elevator name an item outside the shipped"
             " game content and were skipped; every other stack is counted, so what was"
             " delivered of those items is not known"
+        ),
+        WARN_PAID_OFF_UNREAD: (
+            "the phase manager may hold the target phase's paid-off costs and no reading"
+            " was taken, because they are not an array of item amounts, more than one"
+            " record carries them, or a manager payload did not read"
+        ),
+        WARN_PAID_OFF_ELEMENT_SKIPPED: (
+            "this many elements of the target phase's paid-off costs did not read, so no"
+            " paid-off reading was published; a reading short of one element would"
+            " understate what is paid"
+        ),
+        WARN_PAID_OFF_TARGET_UNREAD: (
+            "the target phase's paid-off costs were read and no target phase was, so they"
+            " were not published; their elements name no phase of their own"
         ),
         WARN_PHASE_COSTS_UNREAD: (
             "the phase manager may hold a phase-cost array and no table was read from it,"
@@ -1085,6 +1115,35 @@ class ElevatorInput:
             f"{type(self).__name__}(items={len(self.items)}, slot_count={self.slot_count}, "
             f"skipped_count={self.skipped_count})"
         )
+
+
+@dataclass(frozen=True, repr=False)
+class PaidOffReading:
+    """What is paid off on the target phase - CS-1348 amended.
+
+    ``mTargetGamePhasePaidOffCosts`` is an array of ``ItemAmount`` whose
+    elements name NO phase: they belong to whichever phase
+    ``mTargetGamePhase`` names, so the reading carries that phase beside them.
+
+    Attributes:
+        phase: The target phase as the save's reference names it - the final
+            segment of its shipped ``GP_*`` asset path. Never mapped onto any
+            other phase vocabulary here.
+        items: Item ClassName to the exact count paid off, keyed in sorted
+            order, a written zero kept. EMPTY only when the save wrote an
+            empty array - nothing paid, a reading.
+    """
+
+    phase: str
+    items: Mapping[str, Fraction]
+
+    def __repr__(self) -> str:
+        """Render the item count only, withholding the phase and every item.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(items={len(self.items)})"
 
 
 @dataclass(frozen=True, repr=False)
@@ -1695,6 +1754,13 @@ class WorldModel:
             :class:`ElevatorInput`. NONE MEANS NO READING, never "nothing
             delivered": an elevator of empty slots publishes an empty reading.
             Defaulted on the terms ``properties`` gives, and not on the wire.
+        target_phase: The SHIPPED asset path ``mTargetGamePhase`` names on the
+            one phase manager, or None - no manager, two of them, no such tag,
+            or a path that is not a shipped asset. CS-1348 amended.
+        paid_off: What is paid off on that target phase - CS-1348 amended,
+            see :class:`PaidOffReading`. NONE MEANS NO READING, never
+            "nothing paid": no library save writes the array (ADR 0016), so
+            an absent one is not read as an empty one.
     """
 
     token: str
@@ -1707,6 +1773,8 @@ class WorldModel:
     parents: WorldParents = EMPTY_WORLD_PARENTS
     phase_costs: PhaseCostReading | None = None
     elevator_input: ElevatorInput | None = None
+    target_phase: str | None = None
+    paid_off: PaidOffReading | None = None
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -1999,11 +2067,15 @@ UNLOCK_CARRIERS: Final[Mapping[tuple[str, str], str]] = MappingProxyType(
 #: :func:`_read_phase_costs` publishes it as :attr:`WorldModel.phase_costs`.
 #: Removing that reader puts it back here, which
 #: ``tests/save/test_phase_costs.py`` binds.
+#:
+#: ``mTargetGamePhase`` AND ``mTargetGamePhasePaidOffCosts`` ARE NOT HERE
+#: EITHER, ON THE SAME TERMS (CS-1348 amended): :func:`_read_paid_off`
+#: publishes them as :attr:`WorldModel.target_phase` and
+#: :attr:`WorldModel.paid_off`, and ``tests/save/test_paid_off.py`` binds it.
 UNLOCK_CARRIERS_UNREAD: Final = (
     "mPaidOffSchematic",
     "mSavedOngoingResearch",
     "mUnlockedResearchTrees",
-    "mTargetGamePhase",
     "mTradingPostLevel",
 )
 
@@ -2308,16 +2380,34 @@ def _phase_cost_lines(value: object) -> tuple[PhaseCostLine, ...] | None:
         return None
     lines: list[PhaseCostLine] = []
     for entry in value.entries:
-        interior = entry.value
-        if not isinstance(interior, StructValue):
+        line = _item_amount(entry.value)
+        if line is None:
             return None
-        item = _item_class(interior.properties.get(_LINE_ITEM_NAME))
-        amount = interior.properties.get(_LINE_AMOUNT_NAME)
-        # `type(...) is int` and never isinstance: a bool IS an int in Python.
-        if item is None or type(amount) is not int or amount < 0:
-            return None
-        lines.append(PhaseCostLine(item_class=item, amount=Fraction(amount)))
+        lines.append(line)
     return tuple(lines)
+
+
+def _item_amount(value: object) -> PhaseCostLine | None:
+    """One ``ItemAmount`` interior as an item and an exact amount, or None.
+
+    Shared by the phase-cost lines and the paid-off elements, which ADR 0016
+    measured in the same grammar.
+
+    Args:
+        value: One element's decoded value, of any shape.
+
+    Returns:
+        The line, or None when it is not a struct naming a shipped item with
+        an integer amount at zero or above.
+    """
+    if not isinstance(value, StructValue):
+        return None
+    item = _item_class(value.properties.get(_LINE_ITEM_NAME))
+    amount = value.properties.get(_LINE_AMOUNT_NAME)
+    # `type(...) is int` and never isinstance: a bool IS an int in Python.
+    if item is None or type(amount) is not int or amount < 0:
+        return None
+    return PhaseCostLine(item_class=item, amount=Fraction(amount))
 
 
 def _phase_cost_entry(value: object) -> tuple[str, tuple[PhaseCostLine, ...]] | None:
@@ -2568,6 +2658,95 @@ def _read_elevator_input(
     )
     flags = [_warning(SOURCE_WORLD, WARN_ELEVATOR_INPUT_STACK_SKIPPED, skipped)] if skipped else []
     return reading, flags
+
+
+#: CS-1348 amended: the target phase reference and its paid-off costs, both
+#: on the phase manager. ADR 0016's carrier tables record both;
+#: ``tests/save/test_paid_off.py`` binds the keys to them.
+TARGET_PHASE_CARRIER: Final = ("BP_GamePhaseManager_C", "mTargetGamePhase")
+PAID_OFF_CARRIER: Final = ("BP_GamePhaseManager_C", "mTargetGamePhasePaidOffCosts")
+
+
+def _target_of(entry: RecordProperties) -> str | None:
+    """The shipped asset path a manager's ``mTargetGamePhase`` names, or None.
+
+    Args:
+        entry: One phase manager's published properties.
+
+    Returns:
+        The path when exactly one tag names a shipped asset - ``/Game/`` and no
+        level separator - and None otherwise.
+    """
+    _carrier, name = TARGET_PHASE_CARRIER
+    paths = [ref.object_path for ref in entry.references if ref.property_name == name]
+    if len(paths) != 1:
+        return None
+    path = paths[0]
+    if not path.startswith(_ITEM_ASSET_ROOT) or _INSTANCE_SEPARATOR in path:
+        return None
+    return path
+
+
+def _read_paid_off(
+    table: ObjectTable, properties: WorldProperties
+) -> tuple[str | None, PaidOffReading | None, list[WorldWarning]]:
+    """Publish the target phase and what is paid off on it - CS-1348 amended.
+
+    IT READS NO BYTES OF ITS OWN, on the terms :func:`_read_unlocks` states.
+
+    NO ARRAY IS NO READING AND NO FLAG. ADR 0016 records that no library save
+    writes ``mTargetGamePhasePaidOffCosts``, so its absence is not read as
+    "nothing paid". A present array that is not an array of structs, two
+    records carrying it, or a manager payload that did not read raise
+    :data:`WARN_PAID_OFF_UNREAD`; a present array with no readable target
+    phase raises :data:`WARN_PAID_OFF_TARGET_UNREAD`, because its elements
+    name no phase; one element that does not read - or repeats an item -
+    withholds the whole reading and raises
+    :data:`WARN_PAID_OFF_ELEMENT_SKIPPED` with the count skipped. Each of
+    those publishes None.
+
+    Args:
+        table: The walked record table, for each record's class path.
+        properties: The decoded payloads, keyed by index into ``table.records``.
+
+    Returns:
+        The target phase's asset path, the reading, and the flags raised.
+    """
+    carrier, name = PAID_OFF_CARRIER
+    entries = [
+        properties.by_record_index.get(index)
+        for index, record in enumerate(table.records)
+        if class_name_of(record.type_path) == carrier
+    ]
+    only = entries[0] if len(entries) == 1 else None
+    target = None if only is None else _target_of(only)
+    holding = [entry for entry in entries if entry is not None and name in entry.values]
+    unread = any(
+        entry is None or not entry.payload_read or name in entry.undecoded_names
+        for entry in entries
+    )
+    if not holding and not unread:
+        return target, None, []
+    array = holding[0].values[name] if len(holding) == 1 else None
+    if unread or not _is_struct_array(array):
+        return target, None, [_warning(SOURCE_WORLD, WARN_PAID_OFF_UNREAD)]
+    if target is None:
+        return target, None, [_warning(SOURCE_WORLD, WARN_PAID_OFF_TARGET_UNREAD)]
+    items: dict[str, Fraction] = {}
+    skipped = 0
+    for element in array.entries:
+        line = _item_amount(element.value)
+        if line is None or line.item_class in items:
+            skipped += 1
+        else:
+            items[line.item_class] = line.amount
+    if skipped:
+        return target, None, [_warning(SOURCE_WORLD, WARN_PAID_OFF_ELEMENT_SKIPPED, skipped)]
+    reading = PaidOffReading(
+        phase=class_name_of(target),
+        items=MappingProxyType({item: items[item] for item in sorted(items)}),
+    )
+    return target, reading, []
 
 
 def _checked_layout(body_layout: str) -> str:
@@ -3112,6 +3291,8 @@ def load_world_from_bytes(
         warnings.extend(phase_cost_warnings)
         elevator_input, elevator_warnings = _read_elevator_input(table, properties)
         warnings.extend(elevator_warnings)
+        target_phase, paid_off, paid_off_warnings = _read_paid_off(table, properties)
+        warnings.extend(paid_off_warnings)
 
         return WorldModel(
             token=parsed.world_token,
@@ -3124,6 +3305,8 @@ def load_world_from_bytes(
             parents=_parent_targets(table),
             phase_costs=phase_costs,
             elevator_input=elevator_input,
+            target_phase=target_phase,
+            paid_off=paid_off,
         )
     except BaseException:
         del data

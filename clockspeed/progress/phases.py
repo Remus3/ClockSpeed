@@ -47,22 +47,22 @@ table that holds no entry for the selected phase publishes every figure as None
 under :data:`REASON_NO_COST_ENTRY`. An empty entry, a non-positive amount and a
 cost item the registry does not resolve are each null under their own reason.
 
-STILL TO BUILD, AND ``delivered_available`` IS DERIVED (CS-1343). Items already
-delivered into the elevator sit in its input inventory. A source publishes that
-reading as the ``delivered`` mapping on :class:`PhaseCostTable`, and a phase
-cost's ``delivered_available`` is True exactly when the mapping is present -
-even when every count in it is zero, because a zero-count reading is still a
-reading. THE PRODUCER IS THE SAVE LAYER (CS-1348): it publishes the
-elevator's input inventory as ``clockspeed.save.world.WorldModel.elevator_input``,
-because the inventory model lives in ``clockspeed.audit``, which is not a layer
-below this one. :class:`SavePhaseCosts` publishes it as the ``delivered``
-mapping, keyed by every item the table's entries owe - a cost item the
-elevator holds none of reads an exact ZERO - plus any item the elevator does
-hold. A world with no reading - no elevator, or one whose carrier did not read
-whole - publishes None, never zero, and the flag reads False. Either way this
-model does not subtract a delivered reading: every figure is driven by the
-amounts the source published, which for the save source are already what the
-world still owes.
+WHAT IS PAID OFF AND WHAT IS HELD, NEVER SUMMED (CS-1348 amended). The save
+layer publishes two readings and this model keeps them apart:
+``paid_off`` - what ``mTargetGamePhasePaidOffCosts`` says is paid off on the
+phase ``mTargetGamePhase`` names, keyed by that phase - and ``held`` - what the
+elevator's input inventory holds. A phase cost's ``paid_off_available`` and
+``held_available`` are True exactly when the matching reading is present, even
+when it counts nothing. Neither is ever added to the other: whether an item
+sitting in the input is already counted as paid is unmeasured, because every
+measured input was empty. A paid-off phase the installed vocabulary lacks is
+withheld in ``unmapped`` under :data:`REASON_UNMAPPED_PHASE`, never netted
+against another phase. No reading is None, never zero: no library save writes
+the paid-off array (ADR 0016), so its absence is no reading, and an empty input
+publishes an empty ``held`` - never an exact zero for a part already paid.
+This model subtracts neither reading: every figure is driven by the amounts the
+source published, which for the save source are already what the world still
+owes.
 
 NO FLOAT, ANYWHERE (non-negotiable 6). The solve is exact; an extractor's base
 rate goes through :func:`clockspeed.solve.exact.per_minute`, a fluid's litres
@@ -253,10 +253,12 @@ class PhaseCostTable:
             source has no measured table.
         reason: None exactly when ``entries`` is set, otherwise a REASON_*
             constant.
-        delivered: Item ClassName to the exact count already delivered into
-            the elevator, in the registry's units, or None when the source has
-            no delivered reading. Independent of ``entries``: a reading of
-            zero counts, or of no items at all, is still a reading.
+        paid_off: Phase to item ClassName to the exact count paid off on
+            that phase - CS-1348 amended - or None when the source has no
+            paid-off reading for any phase it may present. Independent of
+            ``entries``: a reading of zero, or of no items, is still a reading.
+        held: Item ClassName to the exact count the elevator's input holds,
+            or None when there is no reading. NEVER summed with ``paid_off``.
         skipped_count: How many elements of the source's table did not read
             and were skipped - CS-1340 repair. Carried, never dropped: a phase
             missing while this is above zero is null under
@@ -268,17 +270,18 @@ class PhaseCostTable:
 
     entries: Mapping[str, tuple[CostLine, ...]] | None
     reason: str | None
-    delivered: Mapping[str, Fraction] | None = None
+    paid_off: Mapping[str, Mapping[str, Fraction]] | None = None
+    held: Mapping[str, Fraction] | None = None
     skipped_count: int = 0
     unmapped: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        """Refuse a table that is both or neither, or a delivered count that is not exact.
+        """Refuse a table that is both or neither, or a count that is not exact.
 
         Raises:
             PhaseIntegrityError: Both or neither of ``entries`` and ``reason``
-                is set, or a delivered count is not an exact Fraction at zero
-                or above.
+                is set, a paid-off or held count is not an exact Fraction at
+                zero or above, or a withheld phase is also presented.
         """
         if (self.entries is None) == (self.reason is None):
             raise PhaseIntegrityError("a phase-cost table carries exactly one of entries or reason")
@@ -286,11 +289,16 @@ class PhaseCostTable:
             raise PhaseIntegrityError("a skipped count is an int at zero or above")
         if self.entries is not None and self.unmapped & set(self.entries):
             raise PhaseIntegrityError("a withheld phase is never also a published entry")
-        if self.delivered is not None:
-            for count in self.delivered.values():
+        if self.paid_off is not None and self.unmapped & set(self.paid_off):
+            raise PhaseIntegrityError("a withheld phase is never also presented as paid off")
+        readings = [] if self.held is None else [self.held]
+        readings.extend(() if self.paid_off is None else self.paid_off.values())
+        for reading in readings:
+            for count in reading.values():
                 if type(count) is not Fraction or count < 0:
                     raise PhaseIntegrityError(
-                        "a delivered count is an exact Fraction at zero or above, never a float"
+                        "a paid-off or held count is an exact Fraction at zero or above,"
+                        " never a float"
                     )
 
 
@@ -366,23 +374,28 @@ class SavePhaseCosts:
         Returns:
             The table, or one carrying only its reason - no table written,
             unread, or naming no installed phase - with the skip count, the
-            withheld phases and the delivered reading :meth:`_delivered` builds
-            in every case.
+            withheld phases and the paid-off and held readings in every case.
         """
+        paid_off, withheld = self._paid_off()
+        held = None if self._world.elevator_input is None else self._world.elevator_input.items
         reading = self._world.phase_costs
         if reading is None:
             unread = any(
                 warning.code == WARN_PHASE_COSTS_UNREAD for warning in self._world.warnings
             )
             reason = REASON_PHASE_COSTS_UNREAD if unread else REASON_NO_PHASE_COST_TABLE
-            return PhaseCostTable(entries=None, reason=reason, delivered=self._delivered({}))
+            return PhaseCostTable(
+                entries=None, reason=reason, paid_off=paid_off, held=held, unmapped=withheld
+            )
         skipped = reading.skipped_count
         if skipped and not reading.by_phase:
             return PhaseCostTable(
                 entries=None,
                 reason=REASON_PHASE_COSTS_UNREAD,
-                delivered=self._delivered({}),
+                paid_off=paid_off,
+                held=held,
                 skipped_count=skipped,
+                unmapped=withheld,
             )
         unmapped = frozenset(phase for phase in reading.by_phase if phase not in self._installed)
         entries = {
@@ -396,40 +409,34 @@ class SavePhaseCosts:
             return PhaseCostTable(
                 entries=None,
                 reason=REASON_UNMAPPED_PHASE,
-                delivered=self._delivered({}),
+                paid_off=paid_off,
+                held=held,
                 skipped_count=skipped,
-                unmapped=unmapped,
+                unmapped=unmapped | withheld,
             )
         return PhaseCostTable(
             entries=MappingProxyType({phase: entries[phase] for phase in sorted(entries)}),
             reason=None,
-            delivered=self._delivered(entries),
+            paid_off=paid_off,
+            held=held,
             skipped_count=skipped,
-            unmapped=unmapped,
+            unmapped=unmapped | withheld,
         )
 
-    def _delivered(
-        self, entries: Mapping[str, tuple[CostLine, ...]]
-    ) -> Mapping[str, Fraction] | None:
-        """The elevator's input inventory, keyed over every item the entries owe.
-
-        CS-1348. An owed item the elevator holds none of reads an exact zero,
-        so "none delivered" is a count and never a missing key; an item the
-        elevator holds that no entry owes is kept with its count.
-
-        Args:
-            entries: The published entries, phase to owed lines.
+    def _paid_off(self) -> tuple[Mapping[str, Mapping[str, Fraction]] | None, frozenset[str]]:
+        """What is paid off on the target phase, or why it is withheld - CS-1348 amended.
 
         Returns:
-            Item ClassName to the exact count, sorted by key, or None when the
-            world published no elevator reading - never zero for no reading.
+            The phase to its exact counts, or None for no reading, and the
+            phase withheld because the installed vocabulary lacks it - never
+            netted against another phase, never mapped onto one.
         """
-        held = self._world.elevator_input
-        if held is None:
-            return None
-        counts = {line.item_class: Fraction(0) for lines in entries.values() for line in lines}
-        counts.update(held.items)
-        return MappingProxyType({item: counts[item] for item in sorted(counts)})
+        reading = self._world.paid_off
+        if reading is None:
+            return None, frozenset()
+        if reading.phase not in self._installed:
+            return None, frozenset({reading.phase})
+        return MappingProxyType({reading.phase: reading.items}), frozenset()
 
 
 @dataclass(frozen=True)
@@ -467,9 +474,12 @@ class PhaseCost:
         miner_basis: :data:`MINER_BASIS_BASE_RATE`, named on the model.
         phase_costs_available: Whether the source returned a measured table,
             derived from that table and never hardcoded.
-        delivered_available: Whether the source returned a delivered
-            reading, derived from the table's ``delivered`` mapping and never
-            hardcoded. Every figure stays the REQUIRED quantity either way.
+        paid_off_available: Whether the table carries a paid-off reading for
+            THIS phase, derived from its ``paid_off`` mapping and never
+            hardcoded - CS-1348 amended.
+        held_available: Whether the table carries the elevator's input
+            reading, derived from its ``held`` mapping and never hardcoded.
+            Neither changes a figure.
     """
 
     phase: str
@@ -481,7 +491,8 @@ class PhaseCost:
     clock_basis: str
     miner_basis: str
     phase_costs_available: bool
-    delivered_available: bool
+    paid_off_available: bool
+    held_available: bool
 
     def render(self) -> Mapping[str, Mapping[str, Fraction] | None]:
         """Render exactly the three A3 keys.
@@ -497,6 +508,19 @@ class PhaseCost:
                 "resource": self.resource.values,
             }
         )
+
+
+@dataclass(frozen=True)
+class _Readings:
+    """The two derived reading flags, threaded to every site that builds a phase cost.
+
+    Attributes:
+        paid_off: The derived ``paid_off_available``.
+        held: The derived ``held_available``.
+    """
+
+    paid_off: bool
+    held: bool
 
 
 def _missing_reason(table: PhaseCostTable, phase: str) -> str:
@@ -623,7 +647,7 @@ def _all_null(
     available: bool,
     detail: str = "",
     *,
-    delivered_available: bool,
+    readings: _Readings,
 ) -> PhaseCost:
     """Publish a phase whose three figures share one named reason.
 
@@ -633,7 +657,7 @@ def _all_null(
         reason: A REASON_* constant.
         available: The derived ``phase_costs_available``.
         detail: Which refusal or key, or the empty string.
-        delivered_available: The derived ``delivered_available``.
+        readings: The derived ``paid_off_available`` and ``held_available``.
 
     Returns:
         The phase cost.
@@ -648,7 +672,8 @@ def _all_null(
         clock_basis=CLOCK_BASIS_FULL,
         miner_basis=MINER_BASIS_BASE_RATE,
         phase_costs_available=available,
-        delivered_available=delivered_available,
+        paid_off_available=readings.paid_off,
+        held_available=readings.held,
     )
 
 
@@ -657,7 +682,7 @@ def _solved(
     required: Figure,
     registry: Registry,
     chosen: RecipeSelection,
-    delivered_available: bool,
+    readings: _Readings,
 ) -> PhaseCost:
     """Solve the required rates over the selection and publish the three figures.
 
@@ -666,7 +691,7 @@ def _solved(
         required: The required-rate figure, known to carry values.
         registry: The registry.
         chosen: The caller's selection.
-        delivered_available: The derived ``delivered_available``.
+        readings: The derived ``paid_off_available`` and ``held_available``.
 
     Returns:
         The phase cost, every figure computed or null under a named reason.
@@ -689,7 +714,7 @@ def _solved(
             REASON_RATIO_REFUSED,
             True,
             type(refusal).__name__,
-            delivered_available=delivered_available,
+            readings=readings,
         )
     eaten = {item: rate for item, rate in plan.raw_inputs.items() if rate > 0}
     resource = _figure(eaten) if eaten else _null(REASON_NO_RAW_INPUT)
@@ -704,7 +729,8 @@ def _solved(
         clock_basis=CLOCK_BASIS_FULL,
         miner_basis=MINER_BASIS_BASE_RATE,
         phase_costs_available=True,
-        delivered_available=delivered_available,
+        paid_off_available=readings.paid_off,
+        held_available=readings.held,
     )
 
 
@@ -734,20 +760,26 @@ def phase_cost(
     """
     table = source.phase_costs()
     # Present is True whatever it counts: a zero-count or empty reading is one.
-    delivered = table.delivered is not None
+    readings = _Readings(
+        paid_off=table.paid_off is not None and phase in table.paid_off,
+        held=table.held is not None,
+    )
     if table.entries is None:
-        reason = table.reason or REASON_NO_PHASE_COST_TABLE
-        cost = _all_null(phase, _null(reason), reason, False, delivered_available=delivered)
+        if phase in table.unmapped:
+            reason = REASON_UNMAPPED_PHASE
+        else:
+            reason = table.reason or REASON_NO_PHASE_COST_TABLE
+        cost = _all_null(phase, _null(reason), reason, False, readings=readings)
     else:
         lines = table.entries.get(phase)
         if lines is None:
             reason = _missing_reason(table, phase)
-            cost = _all_null(phase, _null(reason), reason, True, delivered_available=delivered)
+            cost = _all_null(phase, _null(reason), reason, True, readings=readings)
         elif not lines:
             reason = REASON_EMPTY_COST_ENTRY
-            cost = _all_null(phase, _null(reason), reason, True, delivered_available=delivered)
+            cost = _all_null(phase, _null(reason), reason, True, readings=readings)
         else:
-            cost = _costed(phase, lines, registry, chosen, delivered)
+            cost = _costed(phase, lines, registry, chosen, readings)
     audit_exact(cost, path="phase_cost")
     return cost
 
@@ -757,7 +789,7 @@ def _costed(
     lines: tuple[CostLine, ...],
     registry: Registry,
     chosen: RecipeSelection | None,
-    delivered_available: bool,
+    readings: _Readings,
 ) -> PhaseCost:
     """Publish a phase that has cost lines.
 
@@ -766,7 +798,7 @@ def _costed(
         lines: Its cost lines, at least one.
         registry: The registry.
         chosen: The caller's selection, or None.
-        delivered_available: The derived ``delivered_available``.
+        readings: The derived ``paid_off_available`` and ``held_available``.
 
     Returns:
         The phase cost.
@@ -781,7 +813,7 @@ def _costed(
             reason,
             True,
             nonpositive[0],
-            delivered_available=delivered_available,
+            readings=readings,
         )
     required = _figure(milestones.required_rates(lines))
     unresolved = [item for item in totals if item not in registry.items]
@@ -792,7 +824,7 @@ def _costed(
             REASON_UNRESOLVED_COST_ITEM,
             True,
             unresolved[0],
-            delivered_available=delivered_available,
+            readings=readings,
         )
     if chosen is None:
         return _all_null(
@@ -800,9 +832,9 @@ def _costed(
             required,
             REASON_NO_RECIPE_SELECTION,
             True,
-            delivered_available=delivered_available,
+            readings=readings,
         )
-    return _solved(phase, required, registry, chosen, delivered_available)
+    return _solved(phase, required, registry, chosen, readings)
 
 
 def phase_costs(

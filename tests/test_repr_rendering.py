@@ -264,6 +264,9 @@ RECORDED_POPULATION: tuple[str, ...] = (
     # CS-1348: graded withheld - a hand-written repr renders the item and slot
     # counts and no item ClassName.
     "clockspeed/save/world.py::ElevatorInput",
+    # CS-1348 amended: graded withheld - a hand-written repr renders the item
+    # count and never the target phase or an item ClassName.
+    "clockspeed/save/world.py::PaidOffReading",
     # CS-1340: both graded withheld - hand-written reprs render the amount, or
     # the phase, line and skip counts, and never a phase token or ClassName.
     "clockspeed/save/world.py::PhaseCostLine",
