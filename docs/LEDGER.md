@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-24 - CS-1346 - CLOSED: plan.adopt reads a ranked plan and carries its strategy badge into tier 3 from the trace; unregistered until advise_world offers a plan
+Verification: `clockspeed/advisor/rules/plan.py`; `clockspeed/advisor/trace.py::PLAN_TYPES`;
+`tests/advisor/rules/test_plan.py::test_the_trace_carries_the_badge_read_by_a_rule_that_reads_a_plan`,
+`::test_tier3_renders_the_badge_generated_from_the_trace`, `::test_tier1_shows_nothing_of_the_badge`,
+`::test_card_keeps_its_one_trace_field`. A distinct adversary's refutation pass did not refute it
+(14 of 14 mutants red). Residual: the rule runs on no production world until advise_world ranks
+a plan (filed as CS-1351); a rule writing a float into a badge field through vars() is refused
+at the next rule's read, not at its own.
+
 ### 2026-10-23 - CS-1349 - NOT A COMPLETION RECORD. CS-1349 STAYS OPEN: stable pre-push suite command LANDED; the Sandbox walk clause pends CS-1334
 Verification: `.githooks/pre-push`, the suite line;
 `tests/test_pre_push_suite_floor.py::test_two_pushes_from_one_checkout_hand_the_gate_one_command_hash`;

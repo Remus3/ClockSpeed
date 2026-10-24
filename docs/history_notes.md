@@ -24,6 +24,37 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1346 - item section, relocated from `docs/item_notes/phase5.md` 2026-10-24 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1346
+
+### Filed 2026-10-22 by the CS-1244 close
+
+**THE BADGE REACHES NO CARD, AND THE SCOPE SAID IT WOULD.** CS-1244 shipped
+`clockspeed/solve/strategy.py::StrategyBadge`, and `config/lane_scopes.json`'s
+`advisor-ranking` description had credited `clockspeed/advisor/cards.py` with carrying it.
+Measured on the code at that close: `clockspeed/advisor/cards.py::Card` is frozen with
+exactly ONE field, `trace`, and one-parameter construction is load-bearing - the trace is
+the only constructor parameter and tier text cannot be supplied; and
+`clockspeed/advisor/advise.py` is built from audit models and unlock state, so NO PLAN
+REACHES IT and a badge field on the card would have had no producer. Both files are
+therefore UNCHANGED by CS-1244, and the scope clause was corrected rather than satisfied.
+
+**WHAT IS ALREADY DONE, SO THIS ITEM DOES NOT REDO IT.**
+`clockspeed/advisor/cards.py::render_value` renders a frozen dataclass field by field, so a
+badge placed on a trace reaches the tier-3 derivation with no change to the renderer. What
+is missing is the PRODUCER: a rule that reads a plan, which is what gives a trace a badge
+to carry. Non-negotiable 8 binds the tier-3 half - the derivation is generated from the
+trace, never hand-written - and that is why the clause below says so rather than leaving it
+to the builder.
+
+### Acceptance
+
+a rule trace carries a `clockspeed/solve/strategy.py::StrategyBadge`, produced by a rule that reads a plan, and the card's tier-3 derivation renders that badge FROM the trace, generated and never hand-written; a synthetic fixture world whose rule reads a plan shows the badge in the tier-3 derivation and shows nothing of it in tier 1; and no constructor parameter is added to `clockspeed/advisor/cards.py::Card`, whose single `trace` field stays the only one
+
 ## CS-1345 - item section, relocated from `docs/item_notes/phase7.md` 2026-10-23 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

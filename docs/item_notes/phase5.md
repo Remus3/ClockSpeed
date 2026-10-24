@@ -460,32 +460,6 @@ counts only in every record (non-negotiable 12).
 
 whether each `PhaseCost` entry's `cost` in `mGamePhaseCosts` is the phase's total or its remainder is measured read-only on a work copy of the pinned development world and recorded in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` with names and counts only; `mGamePhaseCosts` is named in `clockspeed/save/world.py::UNLOCK_CARRIERS_UNREAD` for as long as the reader does not publish it; `clockspeed/save/world.py` is then wired to publish it, with a synthetic arm under `tests/save/` asserting each decoded cost amount is an exact Fraction and that a world without the array publishes no table rather than an empty or zero one; and a `PhaseCostSource` built from it under the measured meaning replaces the unmeasured shipped source in `clockspeed/progress/phases.py`, so `phase_costs_available` reads True on a world that carries the array
 
-## CS-1346
-
-### Filed 2026-10-22 by the CS-1244 close
-
-**THE BADGE REACHES NO CARD, AND THE SCOPE SAID IT WOULD.** CS-1244 shipped
-`clockspeed/solve/strategy.py::StrategyBadge`, and `config/lane_scopes.json`'s
-`advisor-ranking` description had credited `clockspeed/advisor/cards.py` with carrying it.
-Measured on the code at that close: `clockspeed/advisor/cards.py::Card` is frozen with
-exactly ONE field, `trace`, and one-parameter construction is load-bearing - the trace is
-the only constructor parameter and tier text cannot be supplied; and
-`clockspeed/advisor/advise.py` is built from audit models and unlock state, so NO PLAN
-REACHES IT and a badge field on the card would have had no producer. Both files are
-therefore UNCHANGED by CS-1244, and the scope clause was corrected rather than satisfied.
-
-**WHAT IS ALREADY DONE, SO THIS ITEM DOES NOT REDO IT.**
-`clockspeed/advisor/cards.py::render_value` renders a frozen dataclass field by field, so a
-badge placed on a trace reaches the tier-3 derivation with no change to the renderer. What
-is missing is the PRODUCER: a rule that reads a plan, which is what gives a trace a badge
-to carry. Non-negotiable 8 binds the tier-3 half - the derivation is generated from the
-trace, never hand-written - and that is why the clause below says so rather than leaving it
-to the builder.
-
-### Acceptance
-
-a rule trace carries a `clockspeed/solve/strategy.py::StrategyBadge`, produced by a rule that reads a plan, and the card's tier-3 derivation renders that badge FROM the trace, generated and never hand-written; a synthetic fixture world whose rule reads a plan shows the badge in the tier-3 derivation and shows nothing of it in tier 1; and no constructor parameter is added to `clockspeed/advisor/cards.py::Card`, whose single `trace` field stays the only one
-
 ## CS-1347
 
 ### Filed 2026-10-22 by the CS-1244 close
@@ -585,3 +559,32 @@ empty and whose targets are all zero returns the same plan `clockspeed/solve/opt
 `tests/solve/test_bound.py` reddens on the shipped refusal; the cost-bound arithmetic and the
 k = 1 sentences in that module's docstring are corrected in the same commit, so no docstring
 claim outlives the behaviour it described
+
+## CS-1351
+
+### Filed 2026-10-24 (session 151) by the CS-1346 close
+
+**THE RULE SHIPS AND RUNS ON NO WORLD.** CS-1346 shipped `clockspeed/advisor/rules/plan.py`,
+whose `plan.adopt` rule reads one ranked plan and carries its
+`clockspeed/solve/strategy.py::StrategyBadge` into the tier-3 derivation from the trace. It is
+NOT registered in `clockspeed/advisor/rules/__init__.py::_FAMILIES`:
+`clockspeed/advisor/advise.py::advise_world` ranks no plan for a world, so it offers the rule no
+inputs, and the CS-1285 slice C ruling G6 registers a family only in the change that has the
+advisor offer its inputs. Until then the rule runs only where a caller names it, through
+`clockspeed/advisor/trace.py::run_rule` or `clockspeed/advisor/advise.py::advise` with its
+`rules` argument.
+
+**ITS REQUIRES HAVE NO PRODUCER EITHER.** A plan names recipes by registry ClassName and the
+unlock state holds asset paths, and no join between the two ships, so
+`clockspeed/advisor/rules/plan.py::plan_inputs` takes the unlock keys a plan's recipes need as a
+REQUIRED keyword from its caller. A production caller has nothing true to pass there until that
+join exists, which is why the headline names both halves.
+
+**WHAT CS-1346 LEFT DONE, SO THIS ITEM DOES NOT REDO IT.** The rule and its adapter, the
+engine's admission of the solve types `clockspeed/advisor/trace.py::PLAN_TYPES` names, and the
+tier-3 rendering through `clockspeed/advisor/cards.py::render_value`, each with its arm in
+`tests/advisor/rules/test_plan.py`.
+
+### Acceptance
+
+`clockspeed/advisor/advise.py::advise_world` ranks a plan for a synthetic fixture world and `plan.adopt` fires on it, its `clockspeed/solve/strategy.py::StrategyBadge` reaching the tier-3 derivation of a real card that call returns, with the unlock keys the plan's recipes need filled by a recipe-to-unlock join rather than supplied by hand; the plan family is registered in `clockspeed/advisor/rules/__init__.py::_FAMILIES` in that same change; and the rule-family row of `docs/ARCHITECTURE.md` names the plan family as registered
