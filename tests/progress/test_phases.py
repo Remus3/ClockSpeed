@@ -46,10 +46,12 @@ from clockspeed.data.registry import (
 )
 from clockspeed.data.schematics import CostLine, normalize_schematics
 from clockspeed.progress import milestones, phases
+from clockspeed.save import world
 from clockspeed.solve.exact import audit_exact
 from clockspeed.solve.ratio import BYPRODUCT_BALANCED
 from tests.data import synthetic
 from tests.progress.test_milestones import KEY_COST, schematic_document, schematic_entry
+from tests.save import elevator_synthetic
 from tests.solve.test_phase3_gate import inexact_violations
 
 # ---------------------------------------------------------------------------
@@ -293,20 +295,39 @@ def rendered_nulls(cost: phases.PhaseCost) -> list[bool]:
 
 
 # ---------------------------------------------------------------------------
-# Phase costs are unmeasured today, and availability is derived
+# A world with no phase-cost array has no table, and availability is derived
 # ---------------------------------------------------------------------------
 
 
+def no_table_source() -> phases.SavePhaseCosts:
+    """The shipped save source over a synthetic world that writes no phase-cost array.
+
+    The phase manager is PRESENT and the array is not - the shape ADR 0016
+    measured on every 1.0-native save in the library - and there is no
+    elevator, so the source publishes neither a table nor a delivered reading.
+
+    Returns:
+        The source.
+    """
+    blob = elevator_synthetic.save_blob(manager_tags=())
+    return phases.SavePhaseCosts(world.load_world_from_bytes(blob))
+
+
 def test_the_shipped_source_publishes_every_phase_null_as_unmeasured() -> None:
-    """The shipped source has no table, so every figure is None, never zero."""
-    cost = phases.phase_cost(
-        phases.SHIPPED_PHASE_COST_SOURCE, synthetic_registry(), COSTED_PHASE, selection()
-    )
+    """A world that writes no array has no table, so every figure is None, never zero.
+
+    THE NAME IS KEPT, NOT THE CLAIM IN IT. ``docs/LEDGER.md`` cites this arm by
+    name and is append-only, so it keeps the CS-1043 spelling; since CS-1340 the
+    shipped source is :class:`~clockspeed.progress.phases.SavePhaseCosts`, and
+    its null is "no table on this world", not "unmeasured".
+    """
+    source = no_table_source()
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
     assert rendered_nulls(cost) == [True, True, True]
-    assert null_reasons(cost) == [phases.REASON_PHASE_COSTS_UNMEASURED] * 3
+    assert null_reasons(cost) == [phases.REASON_NO_PHASE_COST_TABLE] * 3
     assert cost.required.values is None
     assert cost.phase_costs_available is False
-    assert phases.phase_costs_available(phases.SHIPPED_PHASE_COST_SOURCE) is False
+    assert phases.phase_costs_available(source) is False
 
 
 def test_phase_costs_available_is_derived_from_the_table_not_hardcoded() -> None:
@@ -595,9 +616,7 @@ def test_the_basis_labels_are_pinned_by_their_exact_spelling() -> None:
     """
     cost = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
     assert (cost.clock_basis, cost.miner_basis) == (CLOCK_BASIS_SPELLING, MINER_BASIS_SPELLING)
-    shipped = phases.phase_cost(
-        phases.SHIPPED_PHASE_COST_SOURCE, synthetic_registry(), COSTED_PHASE, selection()
-    )
+    shipped = phases.phase_cost(no_table_source(), synthetic_registry(), COSTED_PHASE, selection())
     assert (shipped.clock_basis, shipped.miner_basis) == (
         CLOCK_BASIS_SPELLING,
         MINER_BASIS_SPELLING,
@@ -720,7 +739,7 @@ def test_an_unresolved_phase_cost_item_on_either_line_is_null(
 #: reach, in its order - None for the solved chain. Asserting it proves every
 #: path was entered, so no flag below is read off a path that never ran.
 SWEEP_REASONS: Final = [
-    phases.REASON_PHASE_COSTS_UNMEASURED,
+    phases.REASON_NO_PHASE_COST_TABLE,
     phases.REASON_NO_COST_ENTRY,
     phases.REASON_EMPTY_COST_ENTRY,
     phases.REASON_NONPOSITIVE_COST,
@@ -754,7 +773,7 @@ class ReadingSource:
         Returns:
             The table, unmeasured when no entries were given.
         """
-        reason = phases.REASON_PHASE_COSTS_UNMEASURED if self._entries is None else None
+        reason = phases.REASON_NO_PHASE_COST_TABLE if self._entries is None else None
         return phases.PhaseCostTable(
             entries=self._entries, reason=reason, delivered=self._delivered
         )
@@ -803,18 +822,18 @@ def delivered_sweep(delivered: Mapping[str, Fraction] | None) -> list[tuple[str 
 
 
 def test_the_shipped_source_publishes_delivered_available_false_required_only() -> None:
-    """No delivered producer sits below the progress layer, so the flag reads False.
+    """No delivered reading, so the flag reads False on every path.
 
-    The shipped source publishes no delivered reading, and a measured table
-    whose source carries none reads False too, on every path that builds a
-    phase cost. The required figure is the whole cost over the budget - the
-    REQUIRED quantity, with nothing delivered taken off it.
+    The shipped save source over a world with no delivered reading publishes
+    none, and a measured table whose source carries none reads False too, on
+    every path that builds a phase cost. The required figure is the whole cost
+    over the budget, with nothing delivered taken off it. The name is kept
+    because ``docs/LEDGER.md`` and ``docs/history_notes.md`` cite it.
     """
-    shipped = phases.phase_cost(
-        phases.SHIPPED_PHASE_COST_SOURCE, synthetic_registry(), COSTED_PHASE, selection()
-    )
+    source = no_table_source()
+    shipped = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
     assert shipped.delivered_available is False
-    shipped_reading = phases.SHIPPED_PHASE_COST_SOURCE.phase_costs().delivered
+    shipped_reading = source.phase_costs().delivered
     assert shipped_reading is None
     measured = phases.phase_cost(MeasuredSource(), synthetic_registry(), COSTED_PHASE, selection())
     assert measured.delivered_available is False
@@ -855,7 +874,7 @@ def test_a_delivered_reading_holds_exact_non_negative_counts_only() -> None:
     float has a case of its own, so a check that let a float through beside a
     Fraction reddens here and not only under the module's source scan.
     """
-    reason = phases.REASON_PHASE_COSTS_UNMEASURED
+    reason = phases.REASON_NO_PHASE_COST_TABLE
     zero = MappingProxyType({PLATE_ITEM: Fraction(0)})
     table = phases.PhaseCostTable(entries=None, reason=reason, delivered=zero)
     assert table.delivered is zero

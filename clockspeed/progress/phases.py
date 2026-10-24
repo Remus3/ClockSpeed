@@ -16,32 +16,36 @@ Each figure is driven by the phase's required rates: every cost amount over the
 completion budget, computed by :func:`clockspeed.progress.milestones.required_rates`
 so the budget has one owner, :data:`clockspeed.progress.milestones.COMPLETION_BUDGET_MINUTES`.
 
-WHERE PHASE COSTS COME FROM, AND WHY EVERY ONE IS NULL TODAY. A phase cost is a
-fact the save carries, but the save model carries none, and the field that
-holds it is unmeasured. So the costs arrive through :class:`PhaseCostSource`,
-parameterised at the wiring site, and the shipped source
-:data:`SHIPPED_PHASE_COST_SOURCE` returns no table at all under
-:data:`REASON_PHASE_COSTS_UNMEASURED`. Every phase cost therefore publishes
-null with that named reason, and ``phase_costs_available`` is DERIVED from the
-table the source returned - never hardcoded - so the day a measured source is
-wired it reads True without an edit here.
+WHERE PHASE COSTS COME FROM - THE SAVE, UNDER THE MEASURED MEANING (CS-1340).
+A phase cost is a fact the save carries: ``mGamePhaseCosts``, which the save
+layer publishes as ``clockspeed.save.world.WorldModel.phase_costs``. The costs
+arrive through :class:`PhaseCostSource`, parameterised at the wiring site, and
+the shipped source is :class:`SavePhaseCosts`, built from a world model.
+``docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`` measured
+what an amount MEANS: what the world STILL OWES on that phase - a phase the
+save's own phase token says was reached reads zero on every line. So the
+source publishes each phase's OWED lines, drops a paid line (zero owed is
+nothing to build), and a phase paid in full publishes an EMPTY entry, null
+under :data:`REASON_EMPTY_COST_ENTRY`. A world that writes no array - every
+1.0-native save ADR 0016 measured - publishes no table, under
+:data:`REASON_NO_PHASE_COST_TABLE`, and every phase cost is null.
+``phase_costs_available`` is DERIVED from the table the source returned -
+never hardcoded - so it reads True on exactly the worlds that carry the array.
 
 A PHASE WITH NO COST ENTRY IS NULL, NEVER ZERO (non-negotiable 7). A measured
 table that holds no entry for the selected phase publishes every figure as None
 under :data:`REASON_NO_COST_ENTRY`. An empty entry, a non-positive amount and a
 cost item the registry does not resolve are each null under their own reason.
 
-REQUIRED ONLY, AND ``delivered_available`` IS DERIVED (CS-1343). Items already
+STILL TO BUILD, AND ``delivered_available`` IS DERIVED (CS-1343). Items already
 delivered into the elevator sit in its input inventory. A source publishes that
 reading as the ``delivered`` mapping on :class:`PhaseCostTable`, and a phase
 cost's ``delivered_available`` is True exactly when the mapping is present -
 even when every count in it is zero, because a zero-count reading is still a
-reading. No delivered producer sits below this layer today: the inventory model
-lives in ``clockspeed.audit``, which is not a layer below this one, so the
-shipped source publishes no mapping and the flag reads False. Real values wait
-on CS-1340's measurement of the save's phase costs. Either way every figure here
-is the REQUIRED quantity and never the outstanding one: this model does not
-subtract a delivered reading.
+reading. :class:`SavePhaseCosts` publishes no delivered reading yet, so the
+flag reads False on it. Either way this model does not subtract a delivered
+reading: every figure is driven by the amounts the source published, which
+for the save source are already what the world still owes.
 
 NO FLOAT, ANYWHERE (non-negotiable 6). The solve is exact; an extractor's base
 rate goes through :func:`clockspeed.solve.exact.per_minute`, a fluid's litres
@@ -65,6 +69,7 @@ from typing import Final, Protocol
 from clockspeed.data.registry import LITRES_PER_CUBIC_METRE, Registry
 from clockspeed.data.schematics import CostLine
 from clockspeed.progress import milestones
+from clockspeed.save.world import WorldModel
 from clockspeed.solve.exact import audit_exact, per_minute
 from clockspeed.solve.ratio import ProductionPlan, RatioError, RatioRequest, solve_for_targets
 
@@ -77,22 +82,21 @@ __all__ = [
     "REASON_NONPOSITIVE_COST",
     "REASON_NO_COST_ENTRY",
     "REASON_NO_EXTRACTOR_SELECTED",
+    "REASON_NO_PHASE_COST_TABLE",
     "REASON_NO_RAW_INPUT",
     "REASON_NO_RECIPE_SELECTION",
     "REASON_NO_SINGLE_BUILDING",
-    "REASON_PHASE_COSTS_UNMEASURED",
     "REASON_RATIO_REFUSED",
     "REASON_UNKNOWN_EXTRACTOR",
     "REASON_UNKNOWN_RESOURCE",
     "REASON_UNRESOLVED_COST_ITEM",
-    "SHIPPED_PHASE_COST_SOURCE",
     "Figure",
     "PhaseCost",
     "PhaseCostSource",
     "PhaseCostTable",
     "PhaseIntegrityError",
     "RecipeSelection",
-    "UnmeasuredPhaseCosts",
+    "SavePhaseCosts",
     "phase_cost",
     "phase_costs",
     "phase_costs_available",
@@ -104,8 +108,9 @@ CLOCK_BASIS_FULL: Final = "full-clock"
 #: multiplier is applied, because purity is not saved (CS-1040).
 MINER_BASIS_BASE_RATE: Final = "base-rate"
 
-#: The shipped source: the save field that holds phase costs is unmeasured.
-REASON_PHASE_COSTS_UNMEASURED: Final = "phase-costs-unmeasured"
+#: The world published no phase-cost table: its save writes no single readable
+#: ``mGamePhaseCosts`` array - every 1.0-native save ADR 0016 measured.
+REASON_NO_PHASE_COST_TABLE: Final = "no-phase-cost-table"
 #: The measured table holds no entry for the selected phase.
 REASON_NO_COST_ENTRY: Final = "no-cost-entry"
 #: The phase's entry lists no cost line at all.
@@ -255,22 +260,47 @@ class PhaseCostSource(Protocol):
         ...
 
 
-class UnmeasuredPhaseCosts:
-    """The shipped source: the save field that holds phase costs is unmeasured."""
+class SavePhaseCosts:
+    """The shipped source: a world's own ``mGamePhaseCosts``, under the measured meaning.
+
+    CS-1340. It consumes the save layer through its stated model only -
+    ``WorldModel.phase_costs`` - and reads no bytes and no record.
+    """
+
+    def __init__(self, world: WorldModel) -> None:
+        """Hold the world whose phase costs this source publishes.
+
+        Args:
+            world: The loaded world model.
+        """
+        self._world = world
 
     def phase_costs(self) -> PhaseCostTable:
-        """Publish no table, under its named reason.
+        """Publish each phase's OWED lines, or no table when the world wrote none.
+
+        A line the save says is paid - zero owed - is dropped, because it is
+        nothing to build; a phase paid in full is therefore an EMPTY entry.
+        Kept, a paid line would null its whole phase as a non-positive cost
+        and hide what the phase still owes on its other lines.
 
         Returns:
-            A table with no entries, under :data:`REASON_PHASE_COSTS_UNMEASURED`,
-            and no delivered reading: no delivered producer sits below this
-            layer.
+            The table, or one carrying only :data:`REASON_NO_PHASE_COST_TABLE`.
+            No delivered reading: :class:`SavePhaseCosts` publishes none yet.
         """
-        return PhaseCostTable(entries=None, reason=REASON_PHASE_COSTS_UNMEASURED, delivered=None)
-
-
-#: The source wired today. A later item measures the field and replaces it.
-SHIPPED_PHASE_COST_SOURCE: Final = UnmeasuredPhaseCosts()
+        reading = self._world.phase_costs
+        if reading is None:
+            return PhaseCostTable(entries=None, reason=REASON_NO_PHASE_COST_TABLE, delivered=None)
+        entries = {
+            phase: tuple(
+                CostLine(line.item_class, line.amount) for line in lines if line.amount > 0
+            )
+            for phase, lines in reading.by_phase.items()
+        }
+        return PhaseCostTable(
+            entries=MappingProxyType({phase: entries[phase] for phase in sorted(entries)}),
+            reason=None,
+            delivered=None,
+        )
 
 
 @dataclass(frozen=True)
@@ -539,8 +569,8 @@ def phase_cost(
     """Build the cost of ANY selected phase, not only the current one.
 
     Args:
-        source: Where phase costs come from; :data:`SHIPPED_PHASE_COST_SOURCE`
-            at the shipped wiring site.
+        source: Where phase costs come from; :class:`SavePhaseCosts` over the
+            loaded world at the shipped wiring site.
         registry: The registry the selection names recipes and extractors in.
         phase: The selected phase token.
         chosen: The caller's recipe and extractor selection, or None.
@@ -558,7 +588,7 @@ def phase_cost(
     # Present is True whatever it counts: a zero-count or empty reading is one.
     delivered = table.delivered is not None
     if table.entries is None:
-        reason = table.reason or REASON_PHASE_COSTS_UNMEASURED
+        reason = table.reason or REASON_NO_PHASE_COST_TABLE
         cost = _all_null(phase, _null(reason), reason, False, delivered_available=delivered)
     else:
         lines = table.entries.get(phase)

@@ -176,6 +176,16 @@ cut matched zero records on every real world while every synthetic arm passed.
 And it does not treat the phase as an integer: it is an ``ObjectProperty``
 naming a ``GP_*`` asset, so :attr:`UnlockState.current_game_phase` is a string.
 
+THE PHASE COSTS ARE READ TOO, AND PUBLISHED APART FROM THE UNLOCK STATE
+(CS-1340). ``mGamePhaseCosts`` on the same phase manager is published as
+:attr:`WorldModel.phase_costs`, one exact Fraction per cost line, because a
+phase cost is not an unlock and :class:`UnlockState` has nowhere to put it.
+WHAT AN AMOUNT MEANS is ADR 0016's measurement and not this module's: the
+quantity the world STILL OWES on that phase. A world that writes no array -
+every 1.0-native save in the measured library - publishes NO TABLE, None and
+never an empty or zero one, so a consumer cannot mistake "not written" for
+"nothing owed".
+
 That is not a placeholder to be quietly filled in by inference. ADR 0004's
 single most important engineering consequence is that **an absent unlock array
 means EMPTY, never missing and never an error.** A reader that assumes presence
@@ -368,6 +378,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, fields
+from fractions import Fraction
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn, TypeIs
@@ -418,6 +429,7 @@ __all__ = [
     "EMPTY_WORLD_PROPERTIES",
     "NODE_CLASS_NAMES",
     "NO_WORLD",
+    "PHASE_COST_CARRIER",
     "READER_REFUSAL_TYPES",
     "SAVE_VERDICT_STAGES",
     "SOURCE_CHUNKS",
@@ -443,6 +455,8 @@ __all__ = [
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ContainerContents",
     "ContainerEntry",
+    "PhaseCostLine",
+    "PhaseCostReading",
     "RecordProperties",
     "ReferenceTarget",
     "ResourceNode",
@@ -905,6 +919,71 @@ EMPTY_UNLOCK_STATE: Final = UnlockState(
     scanned_resources=frozenset(),
     trading_post_level=None,
 )
+
+
+@dataclass(frozen=True, repr=False)
+class PhaseCostLine:
+    """One line of one phase's cost, as the save wrote it - CS-1340.
+
+    Attributes:
+        item_class: The item's ClassName - the text after the final ``.`` of a
+            SHIPPED asset path (``/Game/...``), the key the registry's items
+            are keyed by. A path that is not a shipped asset path never
+            reaches this field: the entry carrying it is skipped instead.
+        amount: What the world STILL OWES of that item on that phase, as an
+            exact Fraction at zero or above. The meaning is ADR 0016's
+            measurement: a phase the save's own phase token says was reached
+            reads zero on every line. Zero is KEPT - a paid line is a reading.
+    """
+
+    item_class: str
+    amount: Fraction
+
+    def __repr__(self) -> str:
+        """Render the amount, and withhold the item.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(amount={self.amount})"
+
+
+@dataclass(frozen=True, repr=False)
+class PhaseCostReading:
+    """``mGamePhaseCosts`` as published to a higher layer - CS-1340.
+
+    PRESENT ONLY WHEN THE ARRAY WAS READ. :attr:`WorldModel.phase_costs` is
+    None for a world that writes no array, for a world with two carriers of it
+    (ambiguous, so neither is claimed) and for one whose array did not decode
+    as a container; a reading here is never the stand-in for any of those.
+
+    Attributes:
+        by_phase: Phase token - the save's ``EGamePhase`` member, an ``EGP_``
+            identifier - to that phase's lines in file order, keyed in sorted
+            phase order. An entry the reader could not read whole is ABSENT
+            here and counted in ``skipped_count``, never published short of a
+            line.
+        skipped_count: How many array elements were skipped: an element that
+            is not a ``PhaseCost`` interior, a phase token outside the ``EGP_``
+            shape, a line naming no shipped asset or carrying an amount that
+            is not an integer at zero or above, and every element of a phase
+            written more than once.
+    """
+
+    by_phase: Mapping[str, tuple[PhaseCostLine, ...]]
+    skipped_count: int = 0
+
+    def __repr__(self) -> str:
+        """Render counts only, withholding every token and item.
+
+        Returns:
+            The safe rendering.
+        """
+        lines = sum(len(entry) for entry in self.by_phase.values())
+        return (
+            f"{type(self).__name__}(phases={len(self.by_phase)}, lines={lines}, "
+            f"skipped_count={self.skipped_count})"
+        )
 
 
 @dataclass(frozen=True, repr=False)
@@ -1506,6 +1585,11 @@ class WorldModel:
             CS-400 S2b, see :class:`WorldParents`. DEFAULTED to
             :data:`EMPTY_WORLD_PARENTS` on the terms ``properties`` gives.
             Not on the wire either.
+        phase_costs: ``mGamePhaseCosts`` read off the phase manager -
+            CS-1340, see :class:`PhaseCostReading`. NONE MEANS NO TABLE, never
+            "nothing owed": a world that writes no array publishes None, not an
+            empty or zero reading. Defaulted on the terms ``properties`` gives,
+            and not on the wire.
     """
 
     token: str
@@ -1516,6 +1600,7 @@ class WorldModel:
     warnings: tuple[WorldWarning, ...]
     properties: WorldProperties = EMPTY_WORLD_PROPERTIES
     parents: WorldParents = EMPTY_WORLD_PARENTS
+    phase_costs: PhaseCostReading | None = None
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -1802,6 +1887,12 @@ UNLOCK_CARRIERS: Final[Mapping[tuple[str, str], str]] = MappingProxyType(
 #: rather than a general one. The first two were named in the item note as
 #: explicitly retained; the next two decode but have nowhere on
 #: :class:`UnlockState` to land; the last has no measured carrier at all.
+#:
+#: ``mGamePhaseCosts`` IS NOT HERE BECAUSE IT IS READ (CS-1340): it is named
+#: here for exactly as long as no reader publishes it, and
+#: :func:`_read_phase_costs` publishes it as :attr:`WorldModel.phase_costs`.
+#: Removing that reader puts it back here, which
+#: ``tests/save/test_phase_costs.py`` binds.
 UNLOCK_CARRIERS_UNREAD: Final = (
     "mPaidOffSchematic",
     "mSavedOngoingResearch",
@@ -2033,6 +2124,162 @@ def _read_unlocks(
         # and every arm that asserts identity against it stays meaningful.
         state = EMPTY_UNLOCK_STATE
     return state, [_warning(SOURCE_WORLD, WARN_UNLOCK_GRAMMAR_UNMEASURED)]
+
+
+#: THE PHASE-COST CARRIER, keyed like :data:`UNLOCK_CARRIERS` by the record
+#: class a save writes and the property name together - CS-1340. ADR 0016's
+#: carrier table records the class; ``tests/save/test_phase_costs.py`` parses
+#: that table and binds this key to it.
+PHASE_COST_CARRIER: Final = ("BP_GamePhaseManager_C", "mGamePhaseCosts")
+
+#: The ``PhaseCost`` interior's two names and the ``ItemAmount`` interior's
+#: two, as ADR 0016 measured them.
+_PHASE_ENTRY_NAME: Final = "gamePhase"
+_PHASE_LINES_NAME: Final = "cost"
+_LINE_ITEM_NAME: Final = "ItemClass"
+_LINE_AMOUNT_NAME: Final = "Amount"
+
+#: A phase token is an ``EGamePhase`` member. The PREFIX AND THE IDENTIFIER
+#: SHAPE ARE AN ALLOWLIST: a value that is not shipped vocabulary is world
+#: content and never becomes a published key.
+_PHASE_MEMBER_PREFIX: Final = "EGP_"
+
+#: The one root a cost line's item may come from - shipped content, on the
+#: terms :data:`UNLOCK_ASSET_ROOTS` states.
+_ITEM_ASSET_ROOT: Final = "/Game/"
+
+
+def _phase_token(value: object) -> str | None:
+    """A phase token, admitted only in the ``EGP_`` identifier shape.
+
+    Args:
+        value: The decoded ``gamePhase`` value, of any shape.
+
+    Returns:
+        The token, or None when it is not one.
+    """
+    if not isinstance(value, str) or not value.startswith(_PHASE_MEMBER_PREFIX):
+        return None
+    if not (value.isascii() and value.isidentifier()):
+        return None
+    return value
+
+
+def _item_class(value: object) -> str | None:
+    """The ClassName of one ``ItemClass`` reference, admitted only for a shipped asset.
+
+    Args:
+        value: The decoded ``ItemClass`` value - the measured reference pair.
+
+    Returns:
+        The ClassName, or None when the value is not a shipped asset reference.
+    """
+    if not isinstance(value, tuple) or len(value) != _REFERENCE_PARTS:
+        return None
+    path = value[1]
+    if not isinstance(path, str) or not path.startswith(_ITEM_ASSET_ROOT):
+        return None
+    if _INSTANCE_SEPARATOR in path:
+        return None
+    name = class_name_of(path)
+    return name or None
+
+
+def _phase_cost_lines(value: object) -> tuple[PhaseCostLine, ...] | None:
+    """Every line of one ``cost`` array, or None when any line does not read.
+
+    ALL OR NOTHING, ON PURPOSE. A phase published short of one line would
+    understate what it owes, and nothing downstream could tell the difference
+    (non-negotiable 7), so one unreadable line costs its whole entry.
+
+    Args:
+        value: The decoded ``cost`` value, of any shape.
+
+    Returns:
+        The lines in file order, or None.
+    """
+    if not isinstance(value, ContainerContents):
+        return None
+    lines: list[PhaseCostLine] = []
+    for entry in value.entries:
+        interior = entry.value
+        if not isinstance(interior, StructValue):
+            return None
+        item = _item_class(interior.properties.get(_LINE_ITEM_NAME))
+        amount = interior.properties.get(_LINE_AMOUNT_NAME)
+        # `type(...) is int` and never isinstance: a bool IS an int in Python.
+        if item is None or type(amount) is not int or amount < 0:
+            return None
+        lines.append(PhaseCostLine(item_class=item, amount=Fraction(amount)))
+    return tuple(lines)
+
+
+def _phase_cost_entry(value: object) -> tuple[str, tuple[PhaseCostLine, ...]] | None:
+    """One ``PhaseCost`` element as a token and its lines, or None.
+
+    Args:
+        value: One array element's decoded value, of any shape.
+
+    Returns:
+        The token and its lines, or None when either does not read.
+    """
+    if not isinstance(value, StructValue):
+        return None
+    token = _phase_token(value.properties.get(_PHASE_ENTRY_NAME))
+    if token is None:
+        return None
+    lines = _phase_cost_lines(value.properties.get(_PHASE_LINES_NAME))
+    if lines is None:
+        return None
+    return token, lines
+
+
+def _read_phase_costs(table: ObjectTable, properties: WorldProperties) -> PhaseCostReading | None:
+    """Publish ``mGamePhaseCosts`` as an exact table - CS-1340.
+
+    IT READS NO BYTES OF ITS OWN, on the terms :func:`_read_unlocks` states.
+
+    NO ARRAY IS NO TABLE. A world that writes none returns None, never an
+    empty reading - which is the shape of every 1.0-native save ADR 0016
+    measured, so this is the common case, not an edge. Two carriers of it are
+    ambiguous and return None too: merging them or picking one would publish
+    a table no save wrote.
+
+    Args:
+        table: The walked record table, for each record's class path.
+        properties: The decoded payloads, keyed by index into ``table.records``.
+
+    Returns:
+        The reading, or None when there is no single readable array.
+    """
+    carrier, name = PHASE_COST_CARRIER
+    arrays = [
+        entry.values[name]
+        for index, record in enumerate(table.records)
+        if class_name_of(record.type_path) == carrier
+        and (entry := properties.by_record_index.get(index)) is not None
+        and name in entry.values
+    ]
+    if len(arrays) != 1 or not isinstance(arrays[0], ContainerContents):
+        return None
+    read: list[tuple[str, tuple[PhaseCostLine, ...]]] = []
+    skipped = 0
+    for element in arrays[0].entries:
+        entry_read = _phase_cost_entry(element.value)
+        if entry_read is None:
+            skipped += 1
+        else:
+            read.append(entry_read)
+    written: dict[str, int] = {}
+    for token, _lines in read:
+        written[token] = written.get(token, 0) + 1
+    # A PHASE WRITTEN TWICE IS AMBIGUOUS: neither copy is published, both count.
+    skipped += sum(count for count in written.values() if count > 1)
+    kept = {token: lines for token, lines in read if written[token] == 1}
+    return PhaseCostReading(
+        by_phase=MappingProxyType({token: kept[token] for token in sorted(kept)}),
+        skipped_count=skipped,
+    )
 
 
 def _checked_layout(body_layout: str) -> str:
@@ -2583,6 +2830,7 @@ def load_world_from_bytes(
             warnings=(*_carried(parsed, body, mapping, table), *warnings),
             properties=properties,
             parents=_parent_targets(table),
+            phase_costs=_read_phase_costs(table, properties),
         )
     except BaseException:
         del data

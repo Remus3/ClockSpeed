@@ -192,3 +192,82 @@ subject world was identified by measurement rather than by name - the pinned dev
 world is INFERRED to be the `(14, 60)` group from its onboarding shape and from matching
 ADR 0004's control, and that inference was not confirmed against a name, because a world
 name may not be written into a tracked file.
+
+---
+
+## Amendment - what a `PhaseCost` amount means (CS-1340)
+
+Measured 2026-10-23 (session 151) by the slice that wired the reader, which
+under `CLAUDE.md` section 5 may not also grade it. Every save was read through
+a WORK COPY made by `clockspeed/save/workdir.py`; nothing was written to the
+save directory or the game install, and every copy but the pinned one was
+discarded after its read. Worlds were told apart by the digest of the header's
+world token and are named here by role only. Names and counts only.
+
+**The library at measurement.** 43 saves in three worlds: the pinned
+development world, 31 saves, every one `(14, 60)`, its pinned work copy the
+newest save, file mtime 2026-10-18T16:11:14Z; a second world, 7 saves, all
+`(14, 52)`; and a third world, 5 saves - one `(14, 52)`, one `(13, 42)` and
+three `(10, 36)`. Every save of all three loaded through
+`clockspeed/save/world.py::load_world_from_bytes`, and every
+`BP_GamePhaseManager_C` payload read whole with no undecoded tag.
+
+**The pinned development world writes no `mGamePhaseCosts` at all, on any of
+its 31 saves.** Its phase manager carries exactly two tags,
+`mCurrentGamePhase` and `mTargetGamePhase`, naming
+`GP_Project_Assembly_Phase_0` and `_1` on the 3 oldest saves and
+`GP_Project_Assembly_Phase_1` and `_2` on the 28 after its phase advanced. The
+array is absent on both sides of that advance, so this world cannot say
+whether an amount is a total or a remainder - only that a 1.0-native world at
+this progress does not write it. The second world, at
+`GP_Project_Assembly_Phase_0`, writes none either.
+
+**The meaning was measured on the third world, the only one that writes the
+array.** All 5 of its saves carry one array of 4 `PhaseCost` elements whose
+decoded values are identical across all 5 saves and all three version pairs.
+`gamePhase` is a `ByteProperty` naming an `EGamePhase` member - an `EGP_`
+token - and `cost` an array of `ItemAmount` structs, each an `ObjectProperty`
+`ItemClass` naming a `/Game/FactoryGame/...` asset with an empty level half,
+and an `IntProperty` `Amount`.
+
+| `gamePhase` | lines | amounts, in file order |
+|---|---|---|
+| `EGP_MidGame` | 1 | 0 |
+| `EGP_LateGame` | 3 | 0, 0, 0 |
+| `EGP_EndGame` | 3 | 2500, 500, 100 |
+| `EGP_FoodCourt` | 4 | 4000, 4000, 1000, 1000 |
+
+The items are `Desc_SpaceElevatorPart_1_C` through `_9_C`. The world's own
+phase on its `(13, 42)` and `(10, 36)` saves is the legacy `mGamePhase`, a
+`ByteProperty` reading `EGP_LateGame`; its `(14, 52)` save writes
+`mCurrentGamePhase` naming `GP_Project_Assembly_Phase_2` instead.
+
+**THE AMOUNT IS WHAT THE WORLD STILL OWES, NOT THE PHASE'S TOTAL.** Within one
+save the zeros fall exactly on the phases up to and including the world's own
+phase token, and every line past it is positive. Read as totals, a phase the
+world reached would cost nothing on every one of its lines - four lines and
+three distinct items listed at amount zero - so the total reading is refuted
+by the save itself.
+
+**WHAT WAS NOT MEASURED, AND IT IS THE RESIDUAL.** No save in the library holds
+a phase PART paid, so "decremented as items are delivered" and "the full
+figure until the phase is reached, then zero" are not told apart: both agree
+with every observation above. The reader publishes the value as what is still
+owed, which is exact on every measured save; under the second reading a part
+paid phase would be overstated. A save holding a part paid phase re-opens
+this, and the pinned development world cannot supply one, because it writes no
+array.
+
+**WHAT SHIPS ON IT.** `clockspeed/save/world.py::PHASE_COST_CARRIER` keys the
+reader on the class this table already records, and
+`clockspeed/save/world.py::PhaseCostReading` publishes each phase's lines as
+exact Fractions, a zero kept. A world that writes no array publishes NO TABLE -
+`WorldModel.phase_costs` is None, never an empty or zero reading - and so does
+a world with two carriers of it. `clockspeed/progress/phases.py::SavePhaseCosts`
+is the shipped phase-cost source under this meaning: it drops a paid line and
+publishes a phase paid in full as an empty entry. On the pinned development
+world, and on every 1.0-native save measured, `phase_costs_available` therefore
+reads False. Whether a 1.0 world's phase costs are recoverable elsewhere - from
+the shipped `GP_*` phase assets rather than the save - is unmeasured.
+`tests/save/test_phase_costs.py` and `tests/progress/test_save_phase_source.py`
+grade it on synthetic fixtures only.
