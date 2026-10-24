@@ -714,6 +714,23 @@ argues against a pure start-offset error, but the set of alignments tried was
 never recorded, so it does not settle it either. Do not close CS-G05 by
 resemblance to the three readable pairs - its own section forbids exactly that.
 
+### CS-G09 - MAIN's kit-hook commands in a probed form
+
+**One line:** CS-815's kit-hook half: the subagent-first and claims PreToolUse hook
+commands in `.claude/settings.json` stay ORDER-exact on a bare interpreter, and only MAIN
+can make a probed form conformant.
+
+**Unblocked by:** a MAIN ruling or kit version that makes a probed (interpreter-checked)
+form of the subagent-first and claims PreToolUse hook commands conformant. MAIN's orders
+fix those commands, so no amount of work inside this repo reaches it. The ruling is
+`docs/LEDGER.md`, the 2026-10-23 CS-815 FROZEN-FILE GRANT DENIED, DEFERRED TO MAIN record.
+
+**Not a second state for CS-815.** It stays OPEN in `ROADMAP.md` and this gate holds its
+kit-hook half only, so the classification block keeps it MENTIONED; fencing the row would
+be a cross-file edit this filing does not make.
+
+**Filed 2026-10-23** (session 151) from that record.
+
 ---
 
 ## Cross-references

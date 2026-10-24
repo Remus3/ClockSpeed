@@ -75,6 +75,75 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-23 - CS-1328 - CLOSED: every done criterion of the PUBREPO ORDER re-derived by a distinct verifier
+Verification: `tests/test_readme_audit.py::test_no_absolute_checkout_path_in_any_tracked_text_file`
+and `::test_no_drive_rooted_sidecar_path_in_any_tracked_file`; `tests/test_census_axis.py`
+(`tools/census_axis.py`); `git ls-remote origin`; `gh release view v0.1.0`; the delivery row of ONE
+ANSWER sha256 43722c053b625d2ace5ee23aa721be771dd034dd92c1b7863b874938979a28d6.
+Addition (g) is CS-1335 to CS-1338. A distinct adversary's refutation pass STANDS.
+Residual: only the act (iii) settings were re-applied after S12a, the rest re-applied at S11 and
+read back later; MAIN's inbox copy was not re-hashed.
+
+### 2026-10-23 - CS-1291 - NOT A COMPLETION RECORD. CS-1291 STAYS OPEN: the R6 frozen-file grant for `.githooks/pre-push`, parts 1, 2 and 5, DENIED again by a fresh adjudicator
+Verification: `CLAUDE.md` sections 6 and 7; the 2026-10-20 CS-1291 DENY below; `.githooks/pre-push`,
+unchanged since 2026-10-15; this record.
+THE RULING: DENIED; no edit to the frozen file may start. S12a is closed, but the 2026-10-20
+reversal also needs the operator's own words or a measured pre-push-caused product block or suite
+red. Measured: tier1 hook shard 133 to 248 s over six main runs, green at the tip; /done wall median
+57.6 min (sessions 139 to 143); the CS-1334 stall is inferred, owned by CS-1349. MAIN's verified
+13:16 RULING item 3, sha256 f25bcf287f065d1e3fc3c1647d89fb1426510adec03f71f8afa052cc9ca45c41, leaves
+the grant here. Part 5 touches no frozen file.
+Alternatives: grant 1, 2 and 5; part 2 alone; after CS-1349.
+Reversed by: the 2026-10-20 clause, after CS-1349 lands.
+
+### 2026-10-23 - CS-815 - FROZEN-FILE GRANT DENIED, DEFERRED TO MAIN. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-815 STAYS OPEN
+Verification: The two kit PreToolUse hooks stay ORDER-exact (v11 R3, v12 section 3, provenance
+verified by `tools/main_provenance.py`, exit 0). A wrap through `tools/claude_hook.sh` would change
+the command, exceed the ordered 10 s timeout (worst case 11 s), and lose its report behind
+` || true`. `conformance()` (`ops/fleet_kit/fleet_headless.py`) checks only manifest hashes and the
+FLEET-COMMON block, so it would not catch the change; MAIN's orders decide it. Reported to MAIN
+under FLEET item 11 as a FIX. Ruled by a distinct session 151 adjudicator.
+Alternatives rejected: a local grant (breaks the orders, fixes one tree of six); a plain deny with
+no report.
+Common-mode risk: the CS-1282 and CS-1290 grants and the test pins all copy MAIN's strings, so none
+tests whether bare `python` is safe.
+Reversed by: a MAIN ruling or kit version that makes a probed form conformant.
+
+### 2026-10-23 - CS-815 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-815 STAYS OPEN: its scope is every settings.json gate hook that names a bare interpreter
+Verification: the `tests/test_claude_hook.py` loud-report test, 6 passed, exit 0; a scratch run of
+`.claude/settings.json` PreToolUse hooks 2 and 3. Ruled by a distinct adjudicator.
+DECISION: "such a hook" names a shape, and the item headline still holds at HEAD. The "ONLY
+remaining check" note was written before the kit hooks existed, and a grant's edit scope is not an
+acceptance's scope.
+MEASURED: with the real python, both hooks deny. With an argument-ignoring `python` first on PATH,
+both exit 0 with no output. With no interpreter, hook 2 is silent and hook 3 exits 127. The
+operator's answer meets the by-eye check for the two wrapped hooks.
+REJECTED: closing on the original two commands - its close condition was written before the hooks it
+would excuse, and CS-1282 never weighed a loud non-2 exit.
+REMAINING: (1) a FIX note to MAIN - the kit's ORDER-exact wiring fails open across the fleet; (2) a
+frozen-file grant from a distinct adjudicator, recorded under CS-815 before the edit, routing both
+hooks through `tools/claude_hook.sh` and reported to MAIN; (3) proof against every
+ARGUMENT_IGNORING_PROGRAMS entry.
+RESIDUAL: the SubagentStop and Stop hooks have the same shape but gate nothing; no record says
+whether the operator's stale line was freshly triggered.
+
+### 2026-10-23 - CS-1231 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1231 STAYS OPEN: the gate-before-lift clause is NOT MET at the version 20 patch 1 lift
+Verification: `THIRD_PARTY.md` - 24 fleet-kit rows, all CLEARED, matching the tracked files - and
+their gate-date column. Ruled by a distinct adjudicator.
+DECISION: "the lift" is the commit that vendored the kit version now held; "dated before" means a
+committed gate record that comes before it, as at version 4. Every row says its gate ran "in the
+CS-1330 commit that vendors it".
+REJECTED: the version 4 reading - that gate read five files, and "current" ties the clause to the
+files as they are now; each file's first vendoring - can never be met, and every row is re-cleared
+at each version; close with deviation - section 6.1 calls nothing done that its acceptance says is
+not; amendment - an adjudicator may amend, but the clause restates CONVENTIONS section 14 and can
+still be met. The losing argument, that the Apache-2.0 terms never changed, fails because the clause
+grades timing.
+REMAINING: at MAIN's next kit version, a gate by an adjudicator who built nothing, over every file
+and committed on its own first; the lift commit descends from it; the rows cite it; the whole clause
+is re-graded at that tip.
+NOT GRADED: whether version 20 patch 1 is still MAIN's current kit.
+
 ### 2026-10-23 - CS-1245 - CLOSED. Bounded candidate enumeration ships as `clockspeed/solve/bound.py`, a trim ABOVE the OptimizerBackend seam with its cap and rule recorded, leaving `optimize.py` and both backends byte-unchanged
 Verification: `clockspeed/solve/bound.py::optimize_within_bound` plus
 `tests/solve/test_bound.py::test_a_cap_hit_records_the_cap_the_rule_and_a_conserving_partition`,

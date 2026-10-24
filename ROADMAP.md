@@ -363,7 +363,6 @@ CS-1291 - PERF-AUDIT: tier pre-push by the pushed diff, preflight the cheap gate
 CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the kit spawn path, plan first then 100 percent of files (MAIN 2246 section 8) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1328 - MAIN's 2026-10-15 PUBREPO ORDER: the CS-700 pre-flip additions, then its ONE ANSWER after S12a - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1344 - MAIN's 2026-10-21 FIX: test runs clear their own Temp `cs-pt` output on teardown, failure included, and session scratch stays bounded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1345 - an outsider's fork cannot push: pre-push refuses until git config `fleet.operatorIdent` is set, and no doc says so - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
