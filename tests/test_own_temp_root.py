@@ -30,7 +30,6 @@ from tests.own_temp_root import (
     ALIVE_NAME,
     ENV_NESTED,
     ENV_TEMPROOT,
-    FAILED_NAME,
     GRACE_S,
     RUN_PREFIX,
     STALE_AFTER_S,
@@ -183,28 +182,30 @@ def test_removal_of_a_missing_tree_is_quiet(tmp_path: Path) -> None:
     own_temp_root.remove_tree(tmp_path / "absent")
 
 
-@pytest.mark.parametrize(
-    ("exitstatus", "kept"), [(0, False), (1, True), (2, True), (3, True), (4, False), (5, False)]
-)
-def test_finish_removes_a_clean_run_and_keeps_a_failed_one(
-    tmp_path: Path, exitstatus: int, kept: bool
+@pytest.mark.parametrize("nested", [False, True])
+def test_finish_removes_the_whole_run_directory_top_level_or_nested(
+    tmp_path: Path, nested: bool
 ) -> None:
-    """A failed TOP-LEVEL run's retained tmp_paths are the record of the failure.
+    """CS-1344 - every finish clears its run's output; nothing reads the exit status.
 
-    Failed, interrupted and internal-error runs keep theirs; a usage error and
-    an empty collection have no record to keep, so they are removed like a
-    clean run (the second adversary's note: exit 5 kept an empty directory).
-
-    ``tmp_path_retention_policy = "failed"`` keeps exactly those; removing the
-    run directory on failure would throw that record away. A kept directory is
-    bounded by the sweep instead.
+    CS-1319 kept a failed, interrupted or internal-error TOP-LEVEL run's
+    directory as the record of the failure, and removed a nested one's - a
+    pytest a test spawned, often failing on purpose: the first whole suite
+    under that mechanism left 36 of them. MAIN's FIX of 2026-10-21 overrides
+    the retention: one failed whole suite kept about sixteen thousand
+    directories, and the temp directory's entry count costs boot time. An
+    operator who wants a failure's tmp_paths passes ``--basetemp``, which this
+    mechanism never claims or removes. The real exit statuses - passing,
+    failing, erroring, interrupted - are driven through a real session in
+    ``tests/test_cs1344_temp_teardown.py``.
     """
-    run = own_temp_root.claim(tmp_path, {})
+    run = own_temp_root.claim(tmp_path, {ENV_NESTED: "1"} if nested else {})
     if run is None:
         pytest.fail("the claim owned nothing")
-    (run.path / "pytest-of-someone").mkdir()
-    own_temp_root.finish(run, exitstatus)
-    assert run.path.exists() == kept, "finish did not follow the exit status"
+    (run.path / "pytest-of-someone" / "pytest-0").mkdir(parents=True)
+    own_temp_root.finish(run)
+    left = os.path.lexists(run.path)
+    assert not left, "finish kept the run directory"
 
 
 def test_a_top_level_claim_marks_the_environment_for_nested_runs(tmp_path: Path) -> None:
@@ -213,26 +214,6 @@ def test_a_top_level_claim_marks_the_environment_for_nested_runs(tmp_path: Path)
     run = own_temp_root.claim(tmp_path, env)
     marked = run is not None and not run.nested and env.get(ENV_NESTED) == "1"
     assert marked, "a top-level claim did not mark the environment"
-
-
-@pytest.mark.parametrize("exitstatus", [0, 1, 2])
-def test_a_nested_run_removes_its_directory_whatever_its_exit_status(
-    tmp_path: Path, exitstatus: int
-) -> None:
-    """A pytest a test spawned - often failing ON PURPOSE - leaves nothing behind.
-
-    MEASURED on the first whole-suite run under this mechanism: 36 nested runs
-    that cleared the temp-root variable kept their run directories, because
-    the arm that spawned them expected a failing exit status. Their tmp_paths
-    are not a record of anything; the spawning test grades their output.
-    """
-    run = own_temp_root.claim(tmp_path, {ENV_NESTED: "1"})
-    if run is None:
-        pytest.fail("the nested claim owned nothing")
-    (run.path / "pytest-of-someone").mkdir()
-    own_temp_root.finish(run, exitstatus)
-    left = run.path.exists()
-    assert not left, "a nested run left its directory behind"
 
 
 def _dead_run(parent: Path, name: str, age_s: float) -> Path:
@@ -265,7 +246,7 @@ def test_the_sweep_reclaims_a_killed_run_long_before_it_is_stale(tmp_path: Path)
         survivors = sorted(path.name for path in tmp_path.iterdir())
         work_kept = work.is_file()
     finally:
-        own_temp_root.finish(live, 0)
+        own_temp_root.finish(live)
     assert removed == 1, "the sweep did not reclaim exactly the dead run"
     dead_kept = dead.name in survivors
     assert not dead_kept, "the sweep kept a dead run"
@@ -291,7 +272,7 @@ def test_a_live_run_is_never_swept_however_old_it_is(tmp_path: Path) -> None:
         removed = own_temp_root.sweep(tmp_path)
         work_kept = work.is_file()
     finally:
-        own_temp_root.finish(live, 0)
+        own_temp_root.finish(live)
     assert removed == 0, "the sweep counted a live run as removed"
     assert work_kept, "the sweep emptied a live run because it was old"
 
@@ -346,35 +327,33 @@ def test_a_run_directory_inside_its_grace_period_is_never_swept(tmp_path: Path) 
     assert removed == 0, "the sweep took a run directory inside its grace period"
 
 
-def test_a_failed_runs_record_survives_the_next_claim_until_it_is_stale(tmp_path: Path) -> None:
-    """The next run's sweep does not throw away the record a failed run kept.
+def test_a_run_whose_removal_left_something_is_reclaimed_by_the_next_sweep_at_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1344 - a teardown that could not finish its removal is not left for hours.
 
-    The second adversary's should-fix: the failed run's owner has exited, so
-    its marker unlinks and the very next claim - any pytest, a nested one
-    included - reclaimed the directory at once. A failed run is marked, and a
-    marked run is kept until :data:`STALE_AFTER_S`, on every platform.
+    A removal can fail part-way - a file a leaked child still holds open on
+    Windows. The owner has finished, so neither the grace period (a sibling
+    between its mkdir and its marker's open) nor the stale age (a platform with
+    no liveness proof) protects anything: the very next sweep reclaims it, on
+    every platform. The failed removal is simulated by a removal that does
+    nothing, so the run is still inside its grace period at the sweep.
     """
-    failed = own_temp_root.claim(tmp_path, {})
-    if failed is None:
+    run = own_temp_root.claim(tmp_path, {})
+    if run is None:
         pytest.fail("the claim owned nothing")
-    record = failed.path / "pytest-of-someone" / "pytest-0" / "test_flake0" / "written.txt"
-    record.parent.mkdir(parents=True)
-    record.write_bytes(b"what the flake wrote")
-    own_temp_root.finish(failed, 1)
-    marked = (failed.path / FAILED_NAME).is_file()
-    assert marked, "a failed run was not marked"
-    _age(failed.path, GRACE_S + 60)
-    nxt = own_temp_root.claim(tmp_path, {})
-    if nxt is None:
-        pytest.fail("the next claim owned nothing")
-    own_temp_root.finish(nxt, 0)
-    kept_by_next = record.is_file()
-    assert kept_by_next, "the next claim swept a failed run's record"
-    _age(failed.path, STALE_AFTER_S)
+    work = run.path / "pytest-of-someone" / "pytest-0" / "work.txt"
+    work.parent.mkdir(parents=True)
+    work.write_bytes(b"what the run wrote")
+    with monkeypatch.context() as patch:
+        patch.setattr(own_temp_root, "remove_tree", lambda _path: None)
+        own_temp_root.finish(run)
+    left_by_finish = os.path.lexists(run.path)
+    assert left_by_finish, "the simulated failed removal removed the run anyway"
     removed = own_temp_root.sweep(tmp_path)
-    gone = failed.path.exists()
-    assert removed == 1, "the sweep did not reclaim the stale failed run"
-    assert not gone, "a stale failed run was kept forever"
+    gone = not os.path.lexists(run.path)
+    assert removed == 1, "the next sweep did not reclaim the finished run's leftover"
+    assert gone, "a finished run's leftover waited out the grace period or the stale age"
 
 
 def test_a_half_made_run_is_removed_when_its_marker_cannot_open(
@@ -395,50 +374,63 @@ def test_a_half_made_run_is_removed_when_its_marker_cannot_open(
     assert left == [], "a half-made run directory was left behind"
 
 
-def test_only_the_newest_failed_run_is_kept(tmp_path: Path) -> None:
-    """Failed runs do not pile up: the sweep keeps the newest one's record only.
+#: The marker the CS-1319 finisher wrote into a failed run's kept directory.
+#: Spelled out, not imported: a worktree on an older commit still writes it.
+CS1319_FAILED_MARKER = ".failed"
 
-    MEASURED on the first whole suite of this candidate: one failed run kept
-    about sixteen thousand directories, most of them module-scoped temp
-    directories the retention policy never prunes. A night of failing runs
-    inside the stale age would stack those; the newest failure is the one a
-    session investigates.
+
+def test_every_failed_run_older_code_kept_is_reclaimed_at_once(tmp_path: Path) -> None:
+    """CS-1344 - no failed run's directory is kept, the newest one included.
+
+    The CS-1319 finisher kept the newest failed run until the stale age, and a
+    worktree on an older commit still does. Its owner has finished, so the
+    next sweep reclaims every one of them, inside the grace period or past it,
+    and the root is left empty.
     """
-    claims = [own_temp_root.claim(tmp_path, {}) for _ in range(3)]
-    runs = [run for run in claims if run is not None]
-    if len(runs) != len(claims):
-        pytest.fail("a claim owned nothing")
-    for run, age in zip(runs, (GRACE_S + 900, GRACE_S + 600, GRACE_S + 300), strict=True):
-        own_temp_root.finish(run, 1)
-        _age(run.path, age)
+    ages = (30.0, 60.0, GRACE_S + 300)
+    runs = []
+    for index, age in enumerate(ages):
+        run = tmp_path / (RUN_PREFIX + f"{index}-failed")
+        (run / "pytest-of-someone" / "pytest-0").mkdir(parents=True)
+        (run / CS1319_FAILED_MARKER).write_bytes(b"")
+        _age(run, age)
+        runs.append(run)
+    planted = len(runs)
     removed = own_temp_root.sweep(tmp_path)
-    survivors = sorted(path.name for path in tmp_path.iterdir())
-    newest = runs[-1].path.name
-    assert removed == len(runs) - 1, "the sweep did not reclaim every older failed run"
-    assert survivors == [newest], "the sweep kept a failed run other than the newest"
+    survivors = len(list(tmp_path.iterdir()))
+    assert removed == planted, "the sweep did not reclaim every failed run"
+    assert survivors == 0, f"the sweep kept {survivors} failed run(s)"
 
 
-def test_a_failed_run_is_ranked_even_inside_the_grace_period(tmp_path: Path) -> None:
-    """Two failures seconds apart: the older record goes at once, not after grace.
+def test_finish_never_touches_another_runs_directory(tmp_path: Path) -> None:
+    """CS-1344 - a teardown removes its own run directory and nothing beside it.
 
-    The third adversary's should-fix: a mutant that checked the grace period
-    before the failed marker passed every arm, because every failed run the
-    arms aged was already past it. A failed run's owner has finished, so the
-    grace period - which covers a sibling between its mkdir and its marker's
-    open - does not apply to it.
+    Other suites run concurrently under the same root. A failing run's finish
+    leaves a live sibling, a sibling inside its grace period, a sibling whose
+    owner is gone (the NEXT claim's to reclaim, never a finish's) and a
+    stranger exactly as it found them.
     """
-    older = own_temp_root.claim(tmp_path, {})
-    newer = own_temp_root.claim(tmp_path, {})
-    if older is None or newer is None:
+    own = own_temp_root.claim(tmp_path, {})
+    live = own_temp_root.claim(tmp_path, {})
+    if own is None or live is None:
         pytest.fail("a claim owned nothing")
-    own_temp_root.finish(older, 1)
-    own_temp_root.finish(newer, 1)
-    _age(older.path, 60)
-    _age(newer.path, 30)
-    removed = own_temp_root.sweep(tmp_path)
-    survivors = sorted(path.name for path in tmp_path.iterdir())
-    assert removed == 1, "the sweep did not reclaim the older failed run inside grace"
-    assert survivors == [newer.path.name], "the sweep kept the older failed run"
+    young = tmp_path / (RUN_PREFIX + "young")
+    dead = _dead_run(tmp_path, "dead", GRACE_S + 600)
+    stranger = tmp_path / "not-a-run"
+    works = [live.path / "work.txt", young / "work.txt", dead / "work.txt", stranger / "work.txt"]
+    try:
+        for work in works:
+            work.parent.mkdir(exist_ok=True)
+            work.write_bytes(b"another run's work")
+        _age(dead, GRACE_S + 600)
+        own_temp_root.finish(own)
+        kept = sum(1 for work in works if work.is_file())
+        own_gone = not os.path.lexists(own.path)
+    finally:
+        own_temp_root.finish(live)
+    planted = len(works)
+    assert own_gone, "the failing run's finish kept its own run directory"
+    assert kept == planted, f"the finish removed {planted - kept} sibling work file(s)"
 
 
 def test_dead_runs_under_the_cs1319_root_name_are_still_reclaimed(tmp_path: Path) -> None:
@@ -596,7 +588,7 @@ def _install_under(
 def _release(installed: _Installed) -> None:
     """Finish an arm's claim, so no marker is left held open."""
     if installed.run is not None:
-        own_temp_root.finish(installed.run, 0)
+        own_temp_root.finish(installed.run)
 
 
 def test_the_base_temp_given_to_pytest_is_strictly_inside_the_run_directory(

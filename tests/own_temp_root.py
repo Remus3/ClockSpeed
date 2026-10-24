@@ -38,22 +38,27 @@ root ``<temp>/clockspeed-pytest`` is swept by every install too
 
   - A claim never overrides a root already named in the environment, and an
     explicit ``--basetemp`` claims nothing: whoever chose the place owns it.
-  - A clean finish removes the whole run directory. A FAILED top-level run
-    (exit 1, 2 or 3) keeps it, marked :data:`FAILED_NAME` so the next sweep
-    keeps it until :data:`STALE_AFTER_S` on every platform, the newest
-    :data:`KEEP_FAILED` only:
-    ``tmp_path_retention_policy = "failed"`` keeps exactly the failing tests'
-    directories, and they are the only record of what a flake wrote. Exit 0,
-    4 (usage error) and 5 (nothing collected) remove it. A NESTED run - a
-    pytest a test spawned, marked by :data:`ENV_NESTED` - removes its directory
-    whatever its exit status: the first whole suite under this mechanism left
-    36 of them, failing on purpose.
-  - A killed run never reaches its finish, so every claim first sweeps its
-    siblings. On Windows each owner holds :data:`ALIVE_NAME` open for its
-    life, so a run whose marker can be unlinked has no live owner and is
-    reclaimed at once, and a held marker keeps a run however old it is;
-    elsewhere a run older than :data:`STALE_AFTER_S` is reclaimed. Nothing
-    inside :data:`GRACE_S` is touched, and no link or junction ever is.
+  - Every finish removes the whole run directory, WHATEVER THE EXIT STATUS,
+    top-level or nested (CS-1344). CS-1319 kept a failed top-level run's
+    directory as the record of the failure; MAIN's FIX of 2026-10-21 overrode
+    that retention, because one failed whole suite kept about sixteen thousand
+    directories and the temp directory's entry count costs boot time. Whoever
+    wants a failure's tmp_paths passes ``--basetemp``, which claims nothing
+    and is never removed. A finish removes its OWN run directory and nothing
+    else: concurrent suites share the root, and reclaiming a dead sibling is
+    the next claim's sweep's job, never a teardown's.
+  - A removal that leaves something behind - a file a leaked child still
+    holds open - marks the run :data:`FINISHED_NAME`. Its owner has finished,
+    so the next sweep reclaims it at once, inside :data:`GRACE_S` or past it,
+    on every platform; so too a run marked :data:`LEGACY_FAILED_NAME`, the
+    record a worktree on an older commit still keeps.
+  - A killed run never reaches its finish, so it leaves its one run directory
+    and nothing more, and every claim first sweeps its siblings. On Windows
+    each owner holds :data:`ALIVE_NAME` open for its life, so a run whose
+    marker can be unlinked has no live owner and is reclaimed at once, and a
+    held marker keeps a run however old it is; elsewhere a run older than
+    :data:`STALE_AFTER_S` is reclaimed. Nothing unmarked inside
+    :data:`GRACE_S` is touched, and no link or junction ever is.
   - A claim that cannot make its directory owns nothing and raises nothing:
     pytest falls back to its default rather than stopping the session. So
     does a claim whose base temp pytest could not be handed - a pytest whose
@@ -63,12 +68,10 @@ root ``<temp>/clockspeed-pytest`` is swept by every install too
     tree - ``tests/save/test_workdir.py`` plants read-only links and junctions
     pointing at directories that must survive.
 
-ACCEPTED RESIDUALS, recorded by the CS-1319 adversaries: a spawner that scrubs
-``CLOCKSPEED_*`` makes a nested run look top-level, so it keeps a failed
-directory until the next sweep; a controller killed while its xdist workers
-still run can have its directory swept under them; and :data:`KEEP_FAILED`
-counts across the whole root - every worktree and lane - so of two suites
-failing together only the later one's record survives the next claim.
+ACCEPTED RESIDUALS: a controller killed while its xdist workers still run can
+have its directory swept under them (the CS-1319 adversaries); and off
+Windows, where no liveness is provable, a killed run's directory waits for
+:data:`STALE_AFTER_S` before a claim reclaims it (CS-1344).
 
 Nothing here raises out of a hook: a removal that still fails is left for the
 next sweep, never a red session.
@@ -121,22 +124,17 @@ GRACE_S: Final = 120.0
 #: The marker each owner holds open for its whole life, inside its run directory.
 ALIVE_NAME: Final = ".alive"
 
-#: Written by a failed top-level run at its finish: its retained tmp_paths are
-#: kept until :data:`STALE_AFTER_S`, on every platform, though its owner is gone.
-FAILED_NAME: Final = ".failed"
+#: Written by a finish whose removal left something behind: the owner has
+#: finished, so the next sweep reclaims the run at once, grace period or not.
+FINISHED_NAME: Final = ".done"
 
-#: How many failed runs' directories the sweep keeps, newest first. One failed
-#: whole suite kept about sixteen thousand directories when measured, so a
-#: night of failures must not stack them; the newest is the one investigated.
-KEEP_FAILED: Final = 1
-
-#: The exit statuses whose run keeps its directory: tests failed, interrupted,
-#: internal error. A clean run, a usage error and an empty collection have no
-#: record worth keeping.
-KEEP_STATUSES: Final = frozenset({1, 2, 3})
+#: The CS-1319 finisher's mark on a failed run it kept. A worktree on an older
+#: commit still writes it; its owner has finished too, so it is reclaimed alike.
+LEGACY_FAILED_NAME: Final = ".failed"
 
 #: Set by a top-level claim, inherited by everything it spawns: a claim that
-#: finds it is a NESTED run - a pytest a test started - and keeps nothing.
+#: finds it is a NESTED run - a pytest a test started - and records so. Since
+#: CS-1344 a nested run and a top-level one finish alike: both remove all.
 ENV_NESTED: Final = "CLOCKSPEED_PYTEST_NESTED"
 
 #: The plugin name the finisher registers under, so it is registered once.
@@ -234,14 +232,16 @@ def _owner_is_gone(run: Path) -> bool:
     return True
 
 
-def _classify(
-    entry: os.DirEntry[str], clock: float, prefix: str = RUN_PREFIX
-) -> tuple[float | None, Path] | None:
-    """One sweep verdict: None to keep, ``(None, run)`` to remove, or ``(age, run)``.
+def _owner_finished(run: Path) -> bool:
+    """Whether ``run``'s owner reached its finish: a finish marker is inside it.
 
-    The last is a failed run inside the stale age: kept or removed by
-    :func:`sweep` once every failed run's age is known.
+    Called only on a real directory, never on a link.
     """
+    return any((run / name).is_file() for name in (FINISHED_NAME, LEGACY_FAILED_NAME))
+
+
+def _doomed(entry: os.DirEntry[str], clock: float, prefix: str = RUN_PREFIX) -> Path | None:
+    """One sweep verdict: the run directory to remove, or None to keep the entry."""
     if not entry.name.startswith(prefix):
         return None
     run = Path(entry.path)
@@ -251,24 +251,23 @@ def _classify(
         age = clock - entry.stat(follow_symlinks=False).st_mtime
     except OSError:
         return None
-    if (run / FAILED_NAME).is_file():
-        return (None, run) if age > STALE_AFTER_S else (age, run)
+    if _owner_finished(run):
+        return run
     if age <= GRACE_S:
         return None
     gone = _owner_is_gone(run) if os.name == "nt" else age > STALE_AFTER_S
-    return (None, run) if gone else None
+    return run if gone else None
 
 
 def sweep(parent: Path, now: float | None = None, prefix: str = RUN_PREFIX) -> int:
     """Remove every run directory under ``parent`` whose owner is gone.
 
-    Gone means past :data:`GRACE_S` and, on Windows, provably exited
-    (:func:`_owner_is_gone`) - whatever its age, so a live run open for hours
-    keeps its tmp_paths; elsewhere, older than :data:`STALE_AFTER_S`. A run a
-    failed finish marked with :data:`FAILED_NAME` is kept until
-    :data:`STALE_AFTER_S` everywhere, and only the newest :data:`KEEP_FAILED`
-    of them. An entry that is a link or a junction is
-    never touched: no claim makes one.
+    Gone means finished - marked :data:`FINISHED_NAME` or
+    :data:`LEGACY_FAILED_NAME`, reclaimed at once on every platform - or past
+    :data:`GRACE_S` and, on Windows, provably exited (:func:`_owner_is_gone`)
+    whatever its age, so a live run open for hours keeps its tmp_paths;
+    elsewhere, older than :data:`STALE_AFTER_S`. An entry that is a link or a
+    junction is never touched: no claim makes one.
 
     Args:
         parent: The tree-owned root.
@@ -283,19 +282,7 @@ def sweep(parent: Path, now: float | None = None, prefix: str = RUN_PREFIX) -> i
         entries = list(os.scandir(parent))
     except OSError:
         return 0
-    doomed: list[Path] = []
-    failed: list[tuple[float, Path]] = []
-    for entry in entries:
-        verdict = _classify(entry, clock, prefix)
-        if verdict is None:
-            continue
-        failed_age, run = verdict
-        if failed_age is None:
-            doomed.append(run)
-        else:
-            failed.append((failed_age, run))
-    failed.sort(key=lambda pair: pair[0])
-    doomed.extend(run for _age, run in failed[KEEP_FAILED:])
+    doomed = [run for entry in entries if (run := _doomed(entry, clock, prefix)) is not None]
     removed = 0
     for run in doomed:
         remove_tree(run)
@@ -365,26 +352,25 @@ def claim(parent: Path, env: MutableMapping[str, str]) -> Claim | None:
     return Claim(path=run, nested=nested, alive=alive)
 
 
-def finish(run: Claim, exitstatus: int) -> None:
-    """Remove a run's directory unless it is a failed top-level run's.
+def finish(run: Claim) -> None:
+    """Remove the run's own directory, whatever the session's exit status (CS-1344).
 
-    A kept directory is marked with :data:`FAILED_NAME`, so the next claim's
-    sweep keeps it until :data:`STALE_AFTER_S` rather than reclaiming it the
-    moment its owner is gone.
+    Only ``run.path`` is touched - never a sibling, live or dead. A removal
+    that leaves something behind marks the directory :data:`FINISHED_NAME`,
+    so the next claim's sweep reclaims it at once rather than after the grace
+    period or the stale age. Never raises.
 
     Args:
         run: The claim :func:`claim` returned.
-        exitstatus: The session's exit status; zero is a clean run.
     """
     if run.alive is not None:
         with contextlib.suppress(OSError):
             run.alive.close()
         run.alive = None
-    if run.nested or int(exitstatus) not in KEEP_STATUSES:
-        remove_tree(run.path)
-        return
-    with contextlib.suppress(OSError):
-        (run.path / FAILED_NAME).write_bytes(b"")
+    remove_tree(run.path)
+    if os.path.lexists(run.path) and not _is_link(run.path):
+        with contextlib.suppress(OSError):
+            (run.path / FINISHED_NAME).write_bytes(b"")
 
 
 class _Finisher:
@@ -394,9 +380,9 @@ class _Finisher:
         self.run = run
 
     @pytest.hookimpl(trylast=True)
-    def pytest_sessionfinish(self, exitstatus: int) -> None:
-        """After pytest's own temp retention has run, finish the run directory."""
-        finish(self.run, exitstatus)
+    def pytest_sessionfinish(self) -> None:
+        """After pytest's own temp retention has run, remove the run directory."""
+        finish(self.run)
 
 
 def pytest_user() -> str:
@@ -480,8 +466,7 @@ def _release(run: Claim, env: MutableMapping[str, str], prior: dict[str, str | N
     path-limit failure CS-1320 exists to remove. Released, pytest falls back to
     its own default, as a claim that cannot make its directory does.
     """
-    run.nested = True
-    finish(run, 0)
+    finish(run)
     for name, value in prior.items():
         if value is None:
             env.pop(name, None)

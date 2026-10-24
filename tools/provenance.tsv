@@ -498,6 +498,7 @@ tests/test_cs1175_rule_narrowing.py	authored	CS-1175	stamped
 tests/test_cs1179_reseed_recovery.py	authored	CS-1179	stamped
 tests/test_cs1191_colour_xdist_redaction.py	authored	CS-1191	stamped
 tests/test_cs1327_push_suite_runs_in_the_venv.py	authored	CS-1327	stamped
+tests/test_cs1344_temp_teardown.py	authored	CS-1344	stamped
 tests/test_dashboard_probe.py	authored	CS-918	first-add:CS-918
 tests/test_dated_headings.py	authored	CS-840	first-add:CS-840
 tests/test_disposition_sites.py	authored	CS-1121	first-add:CS-1121
