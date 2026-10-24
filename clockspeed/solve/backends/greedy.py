@@ -53,22 +53,53 @@ State the limit plainly rather than let the word "feasibility" imply more: the
 relaxation is a PROBE, not a proof. A trial that passes it can still fail the
 real request, and a trial that fails it is not proven hopeless. That is why this
 backend is a heuristic and why ``exhaustive.py`` exists. The final answer is
-never the relaxed plan: the walk returns only when the REAL request solves,
-under the caller's own byproduct policy and raw set.
+never the relaxed plan: the walk returns only a selection on which the REAL
+request solved, under the caller's own byproduct policy and raw set.
 
 WHY THE WALK GROWS INSTEAD OF SHRINKING
 -----------------------------------------
-Each round asks the real request first. If it solves, that is the answer. If it
-does not, exactly one recipe is added - the feasible-probing addition with the
-lowest score, ties going to registry order. The selection therefore grows by one
-per round and the loop is bounded by the candidate count, so it terminates
-whether or not it succeeds. When no addition probes feasible, there is nothing
-left to try and the refusal is reported rather than an empty plan returned.
+Each round asks the real request about the current selection first, and keeps
+the canonical result when it solves. Then exactly one recipe is added - the
+feasible-probing addition with the lowest score, ties going to registry order.
+The selection therefore grows by one per round and the loop is bounded by the
+candidate count, so it terminates whether or not it succeeds. When no addition
+probes feasible, the walk ends; if no round's selection solved, the refusal is
+reported rather than an empty plan returned.
 
 Growing rather than shrinking is what makes the first step meaningful. Starting
 from the full candidate set and removing would begin by solving a system that
 usually has several producers for one item, which is underdetermined, and the
 first decision would be made with no information at all.
+
+WHAT THE WALK RETURNS - AMENDED BY CS-1347
+-------------------------------------------
+The LOWEST-RANKING of the canonical selections the walk actually reached, by
+``optimize.result_ranking_key`` - the one documented key the exhaustive backend
+ranks by, handed the same usable-candidate position index. "Reached" means
+exactly the selections the walk handed to ``optimize.evaluate_selection``: one
+per round, along the single path it grew. A probe trial is not reached in that
+sense, because what a probe solves is the relaxed request, which has no
+canonical result to rank.
+
+This replaces the walk's earlier contract, "the first selection that solves the
+real request". That walk stopped at its first solve, so a later round it never
+ran could not be compared at all. The two differ whenever adding a recipe to a
+selection that already solves makes a better factory - a recipe that turns a
+vented byproduct back into an intermediate is the ordinary case, and
+``tests/solve/test_optimize.py``'s CS-1347 fixture is built on exactly that: the
+first solve costs 30 Ore a minute and the next round's selection costs 15. So a
+solve no longer ends the walk; the walk runs on until no addition probes
+feasible, and the cost bound is the one it already had: at most one round per
+pool member, plus the round that asks about the empty selection.
+
+THE NO-BACKTRACKING GUARANTEE, RESTATED. Re-ranking what the walk reached is
+not backtracking, and the walk still never backtracks: every step it commits to
+stays committed, it never removes a recipe, and it never returns to a fork to
+try the branch it declined. So the heuristic's limit is unchanged in kind - on a
+problem where a worse first step leads to a better factory, it can still return
+the worse factory, because the better one lies on a path it did not take. What
+CS-1347 adds is the guarantee on the path it DID take: nothing it reached ranks
+below what it returns.
 """
 
 from __future__ import annotations
@@ -83,6 +114,7 @@ from clockspeed.solve.optimize import (
     OptimizeRequest,
     OptimizeResult,
     evaluate_selection,
+    result_ranking_key,
     score_plan,
     usable_candidates,
 )
@@ -220,7 +252,9 @@ class GreedyBackend:
     A HEURISTIC, stated rather than implied: it takes the locally best feasible
     step and never backtracks, so on a problem where a worse first step leads to
     a better factory it returns the worse factory. ``exhaustive.py`` is the
-    oracle that says when that has happened.
+    oracle that says when that has happened. Among the selections its one path
+    DID reach, it returns the lowest-ranking under the shared key - the
+    CS-1347 amendment the module docstring records.
     """
 
     @property
@@ -267,7 +301,8 @@ class GreedyBackend:
                 continue
             scored = score_plan(registry, probed, request.objective)
             # NOT optimize.ranking_key, and the asymmetry is stated rather than
-            # papered over. That key ranks a canonical result; what is scored
+            # papered over. That key ranks a canonical result - optimize() below
+            # ranks the walk's reached results by it; what is scored
             # here is the RELAXED PROBE plan _probe returns, which sinks
             # byproducts and relaxes the raw set, so it is not a result and has
             # no canonical selection to read positions from. The tie therefore
@@ -281,14 +316,16 @@ class GreedyBackend:
         return chosen
 
     def optimize(self, registry: Registry, request: OptimizeRequest) -> OptimizeResult:
-        """Prune by reachability, then grow one selection until the request solves.
+        """Prune by reachability, grow one selection, and rank what the walk reached.
 
         Args:
             registry: The built registry.
             request: The problem.
 
         Returns:
-            The first selection that solves the real request, in canonical form.
+            The lowest-ranking, by ``optimize.result_ranking_key``, of the
+            canonical results of every selection the walk evaluated against the
+            real request - not merely the first one that solved.
 
         Raises:
             ValueError: A candidate names no recipe in this registry.
@@ -301,21 +338,33 @@ class GreedyBackend:
         reachable = _reachable_items(registry, usable, request.raw_items)
         pool = tuple(key for key in usable if _inputs_reachable(registry.recipes[key], reachable))
 
+        # The same position mapping the exhaustive backend hands the shared
+        # key, so the two rank a canonical result by one rule and one index.
+        position = {key: index for index, key in enumerate(usable)}
+        best: OptimizeResult | None = None
+        best_key: tuple[Fraction, tuple[int, ...]] | None = None
+
         selected: tuple[str, ...] = ()
         # One round per possible addition, plus the round that asks the real
         # request about the empty selection. Bounded, so the walk terminates
-        # whether or not it succeeds.
+        # whether or not it succeeds. A round whose selection solves does NOT
+        # end the walk: its canonical result is kept if it ranks lowest so
+        # far, and the walk grows on until no addition probes feasible.
         for _ in range(len(pool) + 1):
             result = evaluate_selection(
                 registry, request, selected, backend=self.name, excluded=excluded
             )
             if result is not None:
-                return result
+                ranking = result_ranking_key(result, position)
+                if best_key is None or ranking < best_key:
+                    best, best_key = result, ranking
             chosen = self._best_addition(registry, request, selected, pool)
             if chosen is None:
                 break
             selected = (*selected, chosen)
 
+        if best is not None:
+            return best
         raise NoFeasibleSelectionError(
             f"no feasible addition remains after {len(selected)} step(s): "
             f"{', '.join(selected) or 'nothing was selected'}. "

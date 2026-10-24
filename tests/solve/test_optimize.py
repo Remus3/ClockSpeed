@@ -53,8 +53,10 @@ rather than ``isinstance``, because ``isinstance(True, int)`` is True as well.
 from __future__ import annotations
 
 import ast
+from collections.abc import Sequence
 from dataclasses import replace
 from fractions import Fraction
+from itertools import pairwise
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -69,6 +71,7 @@ from clockspeed.solve.backends import (
     available_backends,
     exhaustive,
 )
+from clockspeed.solve.backends import greedy as greedy_backend
 from clockspeed.solve.backends.exhaustive import ranking_key
 from clockspeed.solve.exact import audit_exact
 from clockspeed.solve.optimize import (
@@ -95,6 +98,7 @@ from clockspeed.solve.optimize import (
 )
 from clockspeed.solve.ratio import (
     BYPRODUCT_BALANCED,
+    BYPRODUCT_SINKABLE,
     EXCLUDED_ZERO_DURATION,
     ExclusionNote,
     ProductionPlan,
@@ -134,6 +138,7 @@ from tests.solve.synthetic import (
     SOLVE_ORE_ITEM,
     SOLVE_PLATE_ITEM,
     SOLVE_RELIC_ITEM,
+    SOLVE_RESIDUE_ITEM,
     SOLVE_ROD_ITEM,
     SOLVE_TRINKET_ITEM,
     SOLVE_TWIN_ITEM,
@@ -953,3 +958,248 @@ def test_no_module_in_this_slice_carries_a_float_literal(parts: tuple[str, ...])
     ]
 
     assert literals == [], f"{parts[-1]} carries float literals {literals}"
+
+
+# ===========================================================================
+# h. CS-1347 - greedy returns the lowest-ranking selection its walk REACHED
+# ===========================================================================
+#
+# THE FIXTURE, DERIVED BY HAND. Two recipes join the corpus through
+# registry_with, beside C1's R_Plate (1 Ore -> 1 Plate, 2 s: Ore -30 and
+# Plate +30 per machine per minute). Both run 4 s, so 15 cycles a minute, and
+# Residue is RF_LIQUID, so its 1000 L on the wire is 1 cubic metre a cycle:
+#
+#   R_ScrapRod  1 Plate -> 1 Rod + 1000 L Residue   Plate -15, Rod +15, Residue +15
+#   R_Reclaim   2000 L Residue -> 1 Plate           Residue -30, Plate +15
+#
+# Target 30 Rod/min, byproducts SINKABLE, minimize raw. With p, s and r the
+# machine counts of R_Plate, R_ScrapRod and R_Reclaim:
+#
+#   {R_Plate, R_ScrapRod}             Rod 15s = 30 -> s = 2; Plate 30p - 30 = 0
+#                                     -> p = 1; Residue vented at 30   Ore 30
+#   {R_Plate, R_ScrapRod, R_Reclaim}  s = 2; Residue 30 - 30r = 0 -> r = 1;
+#                                     Plate 30p - 30 + 15 = 0 -> p = 1/2  Ore 15
+#
+# No other subset solves. R_ScrapRod is the only Rod producer, and without
+# R_Plate the Plate balance -15s + 15r = 0 and the Residue balance 15s - 30r = 0
+# contradict each other at s = 2.
+#
+# THE WALK, DERIVED BY HAND. Round 0: only R_ScrapRod probes feasible - the
+# other two produce no Rod. Round 1: R_ScrapRod alone does not solve, since
+# nothing makes Plate, and of the two additions only R_Plate probes feasible,
+# by the contradiction above. Round 2: {R_Plate, R_ScrapRod} SOLVES at Ore 30.
+# That is the first selection the walk reaches that solves, and it is what the
+# walk used to return. R_Reclaim then probes feasible, and round 3's
+# three-recipe selection solves at Ore 15. So the first solve is NOT the
+# lowest-ranking selection the walk reached, and a walk that returns at its
+# first solve answers 30 where 15 is right - which is what makes the arms below
+# non-vacuous rather than a re-run of C3, where the two coincide.
+
+SCRAP_ROD_RECIPE: str = "R_ScrapRod"
+RECLAIM_RECIPE: str = "R_Reclaim"
+
+#: Both added recipes run 4 s a cycle, written as the document writes durations.
+RECLAIM_DURATION_TEXT: str = "4.000000"
+
+#: Residue on the wire, in LITRES - the registry converts, nothing here does.
+SCRAP_ROD_RESIDUE_LITRES: int = 1000
+RECLAIM_RESIDUE_LITRES: int = 2000
+
+RECLAIM_ROD_TARGET: Fraction = Fraction(30)
+
+#: The first selection the walk reaches that solves, and what it costs.
+RECLAIM_FIRST_SOLVE: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE)
+RECLAIM_FIRST_SOLVE_ORE: Fraction = Fraction(30)
+
+#: The lowest-ranking selection the walk reaches, in registry order - R_Plate is
+#: in the main corpus, and registry_with appends the two added recipes after it.
+RECLAIM_ANSWER: tuple[str, ...] = (PLATE_RECIPE, SCRAP_ROD_RECIPE, RECLAIM_RECIPE)
+RECLAIM_ANSWER_MACHINES: dict[str, Fraction] = {
+    PLATE_RECIPE: Fraction(1, 2),
+    SCRAP_ROD_RECIPE: Fraction(2),
+    RECLAIM_RECIPE: Fraction(1),
+}
+RECLAIM_ANSWER_ORE: Fraction = Fraction(15)
+
+#: Deliberately NOT in registry order, so no arm leans on caller order.
+RECLAIM_CANDIDATES: tuple[str, ...] = (RECLAIM_RECIPE, SCRAP_ROD_RECIPE, PLATE_RECIPE)
+
+
+def _flow_recipe_entry(
+    class_name: str,
+    ingredients: Sequence[tuple[str, int]],
+    products: Sequence[tuple[str, int]],
+) -> dict[str, str]:
+    """Build one multi-flow recipe entry as docs text, in the corpus grammar.
+
+    Args:
+        class_name: The entry's ClassName.
+        ingredients: ``(item ClassName, verbatim amount)`` pairs. Fluid amounts
+            are LITRES.
+        products: The product side, byproducts included.
+
+    Returns:
+        The entry mapping, every value a string as in the real document.
+    """
+    return {
+        KEY_CLASS_NAME: class_name,
+        KEY_DISPLAY_NAME: class_name.removeprefix("R_"),
+        KEY_DURATION: RECLAIM_DURATION_TEXT,
+        KEY_INGREDIENTS: amount_blob(ingredients),
+        KEY_PRODUCT: amount_blob(products),
+        KEY_PRODUCED_IN: class_path_blob([building_path(SOLVE_ASSEMBLER_BUILDING)]),
+    }
+
+
+def _reclaim_registry() -> Registry:
+    """Build the CS-1347 variant: the main corpus plus the two added recipes.
+
+    Returns:
+        The variant registry, built through the real docs seam.
+    """
+    return registry_with(
+        add=[
+            _flow_recipe_entry(
+                SCRAP_ROD_RECIPE,
+                [(SOLVE_PLATE_ITEM, 1)],
+                [(SOLVE_ROD_ITEM, 1), (SOLVE_RESIDUE_ITEM, SCRAP_ROD_RESIDUE_LITRES)],
+            ),
+            _flow_recipe_entry(
+                RECLAIM_RECIPE,
+                [(SOLVE_RESIDUE_ITEM, RECLAIM_RESIDUE_LITRES)],
+                [(SOLVE_PLATE_ITEM, 1)],
+            ),
+        ]
+    )
+
+
+def _reclaim_request(backend: str) -> OptimizeRequest:
+    """Build the CS-1347 request: 30 Rod/min, residue sinkable, minimize raw.
+
+    Args:
+        backend: The backend name for the config.
+
+    Returns:
+        The request.
+    """
+    return _request(
+        backend,
+        targets=MappingProxyType({SOLVE_ROD_ITEM: RECLAIM_ROD_TARGET}),
+        candidates=RECLAIM_CANDIDATES,
+        unlocked=RECLAIM_CANDIDATES,
+        byproduct_policy=BYPRODUCT_SINKABLE,
+        objective=MINIMIZE_RAW,
+    )
+
+
+class _WalkSpy:
+    """Record every selection the greedy walk hands to ``evaluate_selection``.
+
+    Installed over the NAME the greedy module calls, so it sees exactly the
+    selections the walk evaluates against the real request and nothing a probe
+    tries. It delegates to the real function, so the run it records is the
+    run that would have happened without it.
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing recorded.
+
+        The real function is read from its owner, ``optimize``, which is the
+        object the greedy module imported by name - so the spy delegates to
+        exactly what it replaces.
+        """
+        self.real = optimize.evaluate_selection
+        self.handed: list[tuple[str, ...]] = []
+        self.reached: list[OptimizeResult] = []
+
+    def __call__(
+        self,
+        registry: Registry,
+        request: OptimizeRequest,
+        selection: Sequence[str],
+        *,
+        backend: str,
+        excluded: tuple[ExclusionNote, ...],
+    ) -> OptimizeResult | None:
+        """Record the selection, delegate, and record the canonical result.
+
+        Args:
+            registry: As ``evaluate_selection`` takes it.
+            request: As ``evaluate_selection`` takes it.
+            selection: The walk's selection, in the order the walk grew it.
+            backend: As ``evaluate_selection`` takes it.
+            excluded: As ``evaluate_selection`` takes it.
+
+        Returns:
+            Whatever the real function returns.
+        """
+        self.handed.append(tuple(selection))
+        result = self.real(registry, request, selection, backend=backend, excluded=excluded)
+        if result is not None:
+            self.reached.append(result)
+        return result
+
+
+def _spied_greedy_run(monkeypatch: pytest.MonkeyPatch) -> tuple[Registry, OptimizeResult, _WalkSpy]:
+    """Run greedy on the CS-1347 fixture through the seam, with the walk recorded.
+
+    Args:
+        monkeypatch: The fixture that installs, and later removes, the spy.
+
+    Returns:
+        The registry, the result ``optimize_plan`` returned, and the spy.
+    """
+    spy = _WalkSpy()
+    monkeypatch.setattr(greedy_backend, "evaluate_selection", spy)
+    variant = _reclaim_registry()
+    return variant, _run(variant, _reclaim_request(BACKEND_GREEDY)), spy
+
+
+@pytest.mark.parametrize("backend", BOTH_BACKENDS)
+def test_cs1347_reclaim_matches_the_hand_derived_absolute(backend: str) -> None:
+    """Both backends answer 15 Ore. The old greedy walk answered 30."""
+    result = _run(_reclaim_registry(), _reclaim_request(backend))
+
+    assert result.selection == RECLAIM_ANSWER
+    assert _machines(result.plan) == RECLAIM_ANSWER_MACHINES
+    assert result.plan.raw_inputs[SOLVE_ORE_ITEM] == RECLAIM_ANSWER_ORE
+    assert result.score == RECLAIM_ANSWER_ORE
+    assert type(result.score) is Fraction
+    audit_exact(result, path="result")
+
+
+def test_cs1347_greedy_returns_the_lowest_ranking_selection_its_walk_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The acceptance clause, graded on the reached set rather than on one number.
+
+    The first two asserts are the anti-vacuity control: the first selection
+    the walk reaches that solves is the hand-derived 30-Ore one, and something
+    the walk reached ranks strictly below it. Only then is the return graded,
+    against the minimum of everything reached under the shared key.
+    """
+    variant, result, spy = _spied_greedy_run(monkeypatch)
+    positions = registry_positions(variant)
+    first = spy.reached[0]
+    lowest = min(spy.reached, key=lambda each: result_ranking_key(each, positions))
+
+    assert (first.selection, first.score) == (RECLAIM_FIRST_SOLVE, RECLAIM_FIRST_SOLVE_ORE)
+    assert result_ranking_key(lowest, positions) < result_ranking_key(first, positions)
+    assert result == lowest
+    assert any(result is each for each in spy.reached)
+
+
+def test_cs1347_the_greedy_walk_still_never_backtracks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The restated guarantee: each evaluated selection is the last plus one key.
+
+    Re-ranking what the walk reached is not backtracking, and this arm is what
+    keeps that sentence in ``greedy.py`` true: the walk starts from nothing,
+    grows by exactly one new recipe per round, and never drops one.
+    """
+    _, _, spy = _spied_greedy_run(monkeypatch)
+
+    assert spy.handed[0] == ()
+    for before, after in pairwise(spy.handed):
+        assert after[: len(before)] == before
+        assert len(after) == len(before) + 1
+        assert after[-1] not in before
