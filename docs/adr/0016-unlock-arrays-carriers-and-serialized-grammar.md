@@ -271,3 +271,64 @@ reads False. Whether a 1.0 world's phase costs are recoverable elsewhere - from
 the shipped `GP_*` phase assets rather than the save - is unmeasured.
 `tests/save/test_phase_costs.py` and `tests/progress/test_save_phase_source.py`
 grade it on synthetic fixtures only.
+
+---
+
+## Amendment - the space elevator's input inventory carrier (CS-1348)
+
+Measured 2026-10-23 (session 151) on the same work copies, by the same method
+and with the same limits as the CS-1340 amendment above, by the slice that
+wired the reader. Names and counts only.
+
+**The carrier.** The elevator is one `Build_SpaceElevator_C` actor - exactly
+one on each of the pinned development world's 28 newer saves (none on its 3
+oldest) and on each of the third world's 5; the second world has none. Its
+top-level `ObjectProperty` `mInputInventory` resolves through the published
+reference join to exactly one component record of class
+`FGInventoryComponent` on every one of those 33 saves; on
+the four whose type paths were printed - the pinned work copy and three of the
+third world's - that component's own parent path resolves back to the
+elevator too, and its type path is `/Script/FactoryGame.FGInventoryComponent`.
+It carries three tags:
+
+- `mInventoryStacks`, an array of `InventoryStack` structs, 6 elements on
+  every measured save, each an `Item` (`InventoryItem`) and a `NumItems`
+  (`IntProperty`) - the spelling `clockspeed/audit/inventory.py` already reads;
+- `mArbitrarySlotSizes`, present on every measured save - on the pinned work
+  copy, the one save whose values were printed, 6 `IntProperty` elements,
+  every one 0;
+- `mAllowedItemDescriptors`, 6 `ObjectProperty` elements, every one an EMPTY
+  reference.
+
+On the pinned work copy the elevator's other inventory reference,
+`mInventoryPotential`, lands on a second inventory component carrying 3 slot
+sizes; it is not the input carrier.
+
+| Property | Carrier type path |
+|---|---|
+| `mInputInventory` | `/Game/FactoryGame/Buildable/Factory/SpaceElevator/Build_SpaceElevator.Build_SpaceElevator_C` |
+
+**Every measured slot is empty.** On all 33 elevator-bearing saves every one
+of the 6 stacks is an empty slot - an empty item class and a count of 0. So
+the carrier and its grammar are measured, and a NON-EMPTY reading is not: no
+save in the library holds an item in the elevator's input. Whether an item
+sitting there is already netted out of the `mGamePhaseCosts` amount the
+CS-1340 amendment measured is unmeasured too.
+
+**What ships on it.** `clockspeed/save/world.py::ELEVATOR_INPUT_CARRIER` keys
+the reader on the class this table records, and
+`clockspeed/save/world.py::ElevatorInput` publishes the input inventory as
+exact Fraction counts by item ClassName. An elevator whose slots are all empty
+publishes an EMPTY reading - nothing delivered, a reading - and None is kept
+for no reading: no elevator, two of them, an input reference that does not land
+on exactly one record, or a carrier with one stack that does not read.
+
+**The seam, taken by this slice and left for an adjudicator to rule.** The
+save layer publishes the carrier, because the inventory model lives in
+`clockspeed/audit/` and that layer is not below `clockspeed/progress/`.
+`clockspeed/progress/phases.py::SavePhaseCosts` reads it from the world model
+and publishes it as `PhaseCostTable.delivered`, keyed by every item the
+table's entries owe - so a cost item the elevator holds none of reads an exact
+zero - plus any item it does hold. `tests/save/test_elevator_input.py` and
+`tests/progress/test_save_phase_source.py` grade it on synthetic fixtures
+only.

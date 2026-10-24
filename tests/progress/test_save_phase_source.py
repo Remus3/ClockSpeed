@@ -16,6 +16,12 @@ EMPTY entry, null under ``REASON_EMPTY_COST_ENTRY``: nothing is left to build.
 A paid line kept would null its whole phase as a non-positive cost, which
 would hide what the phase still owes on its other lines.
 
+CS-1348 - THE DELIVERED READING. The save layer publishes the elevator's input
+inventory (``WorldModel.elevator_input``) and the source publishes it as
+``PhaseCostTable.delivered``, keyed by every item the entries owe, so an owed
+item the elevator holds none of is an exact zero. No elevator is no reading:
+None, never zero, and ``delivered_available`` reads False.
+
 Every world here is built from ``tests/save/elevator_synthetic.py`` and loaded
 through the real save reader, so the arm grades the seam end to end, with no
 game install and no save file (CLAUDE.md section 7).
@@ -126,3 +132,101 @@ def test_an_owed_phase_drives_the_hand_worked_chain_end_to_end() -> None:
     assert cost.machine.values is not None
     assert dict(cost.machine.values) == {CONSTRUCTOR: Fraction(5, 12), SMELTER: Fraction(5, 6)}
     assert cost.phase_costs_available is True
+
+
+# ---------------------------------------------------------------------------
+# CS-1348 - the delivered reading comes from the elevator's input inventory
+# ---------------------------------------------------------------------------
+
+#: Units of the first part sitting in the elevator's input inventory.
+HELD_UNITS: Final = 7
+
+
+def _elevator_world(
+    entries: tuple[es.PhaseEntry, ...] | None, slots: tuple[tuple[str, int], ...] | None
+) -> world.WorldModel:
+    """Load a synthetic world with a phase-cost array and an elevator, either optional.
+
+    Args:
+        entries: The array's entries, or None for a manager without the array.
+        slots: The elevator input slots, or None for no elevator.
+
+    Returns:
+        The loaded world.
+    """
+    tags = () if entries is None else (es.phase_costs_tag(entries),)
+    return world.load_world_from_bytes(es.save_blob(manager_tags=tags, slots=slots))
+
+
+def test_delivered_available_reads_true_from_the_elevator_including_a_zero_count() -> None:
+    """CS-1348 acceptance: True from the producer, a zero count among the counts.
+
+    The table's delivered mapping is keyed by every item the table's own
+    entries owe, so a cost item the elevator holds none of reads an exact
+    ZERO rather than going missing - and the item it does hold reads its
+    count. Both are exact Fractions.
+    """
+    held = ((es.PART_A_PATH, HELD_UNITS), *es.EMPTY_SLOTS[1:])
+    source = phases.SavePhaseCosts(_elevator_world(es.DEFAULT_ENTRIES, held))
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert table.delivered is not None
+    assert dict(table.delivered) == {es.PART_A: Fraction(HELD_UNITS), es.PART_B: Fraction(0)}
+    kinds = sorted({type(count).__name__ for count in table.delivered.values()})
+    assert kinds == ["Fraction"]
+    assert cost.delivered_available is True
+
+
+def test_an_elevator_of_empty_slots_is_a_reading_of_zero_and_reads_true() -> None:
+    """The measured shape - every slot empty - is zero delivered, never no reading."""
+    source = phases.SavePhaseCosts(_elevator_world(es.DEFAULT_ENTRIES, es.EMPTY_SLOTS))
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
+
+    assert table.delivered is not None
+    assert dict(table.delivered) == {es.PART_A: Fraction(0), es.PART_B: Fraction(0)}
+    assert cost.delivered_available is True
+
+
+def test_a_world_with_no_elevator_publishes_none_and_reads_false_never_zero() -> None:
+    """No reading is None - not an empty mapping, and not a zero count per item."""
+    source = phases.SavePhaseCosts(_elevator_world(es.DEFAULT_ENTRIES, None))
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), es.OWED_PHASE, selection())
+
+    assert table.delivered is None
+    assert cost.delivered_available is False
+    assert cost.phase_costs_available is True
+
+
+def test_the_delivered_reading_stands_without_a_phase_cost_table() -> None:
+    """The pinned development world's shape: an elevator, and no array.
+
+    The two readings are independent: the flag follows the elevator and
+    ``phase_costs_available`` follows the array, so this world reads True
+    beside False. With no table there is no cost item to key a zero by, so
+    an empty elevator is an empty reading - still present.
+    """
+    source = phases.SavePhaseCosts(_elevator_world(None, es.EMPTY_SLOTS))
+    table = source.phase_costs()
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert table.entries is None
+    assert table.delivered is not None
+    assert dict(table.delivered) == {}
+    assert cost.delivered_available is True
+    assert cost.phase_costs_available is False
+
+
+def test_a_delivered_reading_takes_nothing_off_the_required_figure() -> None:
+    """The model subtracts no delivered reading: the owed amount drives the rate alone."""
+    held = ((PLATE_PATH, HELD_UNITS),)
+    source = phases.SavePhaseCosts(
+        _elevator_world(((COSTED_PHASE, ((PLATE_PATH, PLATE_COST),)),), held)
+    )
+    cost = phases.phase_cost(source, synthetic_registry(), COSTED_PHASE, selection())
+
+    assert cost.delivered_available is True
+    assert cost.required.values is not None
+    assert dict(cost.required.values) == {PLATE_ITEM: Fraction(PLATE_COST, TWO_HOURS_IN_MINUTES)}

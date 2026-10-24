@@ -186,6 +186,12 @@ every 1.0-native save in the measured library - publishes NO TABLE, None and
 never an empty or zero one, so a consumer cannot mistake "not written" for
 "nothing owed".
 
+THE SPACE ELEVATOR'S INPUT INVENTORY IS PUBLISHED THE SAME WAY (CS-1348), as
+:attr:`WorldModel.elevator_input`: what the elevator's input slots hold, by
+item, as exact Fractions. The carrier is ADR 0016's measurement. An elevator
+whose slots are all empty - every measured one - publishes an EMPTY reading,
+nothing delivered; None is kept for no reading at all.
+
 That is not a placeholder to be quietly filled in by inference. ADR 0004's
 single most important engineering consequence is that **an absent unlock array
 means EMPTY, never missing and never an error.** A reader that assumes presence
@@ -397,6 +403,7 @@ from clockspeed.save.objects import (
     WARN_UNPARSED_PROPERTY_PAYLOAD,
     WARN_UNRESOLVED_SCHEMA,
     ContainerValue,
+    InventoryItem,
     ObjectError,
     ObjectRecord,
     ObjectReference,
@@ -424,6 +431,7 @@ __all__ = [
     "BODY_LAYOUTS",
     "BODY_LAYOUT_FLAT",
     "BODY_LAYOUT_LEVELLED",
+    "ELEVATOR_INPUT_CARRIER",
     "EMPTY_UNLOCK_STATE",
     "EMPTY_WORLD_PARENTS",
     "EMPTY_WORLD_PROPERTIES",
@@ -455,6 +463,7 @@ __all__ = [
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ContainerContents",
     "ContainerEntry",
+    "ElevatorInput",
     "PhaseCostLine",
     "PhaseCostReading",
     "RecordProperties",
@@ -984,6 +993,35 @@ class PhaseCostReading:
             f"{type(self).__name__}(phases={len(self.by_phase)}, lines={lines}, "
             f"skipped_count={self.skipped_count})"
         )
+
+
+@dataclass(frozen=True, repr=False)
+class ElevatorInput:
+    """What the space elevator's input inventory holds, by item - CS-1348.
+
+    PRESENT ONLY WHEN THE CARRIER WAS READ WHOLE. :attr:`WorldModel.elevator_input`
+    is None for a world with no elevator, with two of them, whose input
+    reference does not land on exactly one record, or whose carrier holds one
+    stack that does not read - never a partial count published as the whole.
+
+    Attributes:
+        items: Item ClassName - the text after the final ``.`` of a SHIPPED
+            asset path - to the exact count the input slots hold, keyed in
+            sorted order. EMPTY when every slot is empty: a reading of nothing
+            delivered, which is every elevator ADR 0016 measured.
+        slot_count: How many stacks the carrier held, empty slots included.
+    """
+
+    items: Mapping[str, Fraction]
+    slot_count: int
+
+    def __repr__(self) -> str:
+        """Render counts only, withholding every item.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(items={len(self.items)}, slot_count={self.slot_count})"
 
 
 @dataclass(frozen=True, repr=False)
@@ -1590,6 +1628,10 @@ class WorldModel:
             "nothing owed": a world that writes no array publishes None, not an
             empty or zero reading. Defaulted on the terms ``properties`` gives,
             and not on the wire.
+        elevator_input: The space elevator's input inventory - CS-1348, see
+            :class:`ElevatorInput`. NONE MEANS NO READING, never "nothing
+            delivered": an elevator of empty slots publishes an empty reading.
+            Defaulted on the terms ``properties`` gives, and not on the wire.
     """
 
     token: str
@@ -1601,6 +1643,7 @@ class WorldModel:
     properties: WorldProperties = EMPTY_WORLD_PROPERTIES
     parents: WorldParents = EMPTY_WORLD_PARENTS
     phase_costs: PhaseCostReading | None = None
+    elevator_input: ElevatorInput | None = None
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -2282,6 +2325,117 @@ def _read_phase_costs(table: ObjectTable, properties: WorldProperties) -> PhaseC
     )
 
 
+#: THE SPACE ELEVATOR'S INPUT INVENTORY CARRIER - CS-1348. The elevator's
+#: class as a save writes it, and the top-level reference naming its input
+#: inventory component. ADR 0016's CS-1348 amendment records both;
+#: ``tests/save/test_elevator_input.py`` binds this key to that table.
+ELEVATOR_INPUT_CARRIER: Final = ("Build_SpaceElevator_C", "mInputInventory")
+
+#: The input component's stack array and one stack's two names - the spelling
+#: ``clockspeed/audit/inventory.py`` reads, measured on the elevator's carrier.
+_STACKS_NAME: Final = "mInventoryStacks"
+_STACK_ITEM_NAME: Final = "Item"
+_STACK_COUNT_NAME: Final = "NumItems"
+
+
+def _stack_holding(value: object) -> tuple[str, int] | None:
+    """One input stack as an item and a count, or None when it does not read.
+
+    An EMPTY SLOT - an empty class and a count of 0 - reads as ``("", 0)``. A
+    row is a shipped item class with a positive count. Every other pairing is
+    a stack that does not read.
+
+    Args:
+        value: One stack element's decoded value, of any shape.
+
+    Returns:
+        The ClassName and count, ``("", 0)`` for an empty slot, or None.
+    """
+    if not isinstance(value, StructValue):
+        return None
+    item = value.properties.get(_STACK_ITEM_NAME)
+    count = value.properties.get(_STACK_COUNT_NAME)
+    # `type(...) is int` and never isinstance: a bool IS an int in Python.
+    if not isinstance(item, InventoryItem) or type(count) is not int:
+        return None
+    path = item.class_path
+    if not path:
+        return ("", 0) if count == 0 else None
+    if count <= 0 or not path.startswith(_ITEM_ASSET_ROOT) or _INSTANCE_SEPARATOR in path:
+        return None
+    name = class_name_of(path)
+    return (name, count) if name else None
+
+
+def _elevator_input_entry(
+    table: ObjectTable, properties: WorldProperties
+) -> RecordProperties | None:
+    """The input inventory component's published entry, followed by the join.
+
+    Args:
+        table: The walked record table, for each record's class path.
+        properties: The decoded payloads, keyed by index into ``table.records``.
+
+    Returns:
+        The component's entry, or None unless exactly one elevator carries
+        exactly one input reference that resolves to one record whose payload
+        read.
+    """
+    carrier, name = ELEVATOR_INPUT_CARRIER
+    elevators = [
+        index
+        for index, record in enumerate(table.records)
+        if class_name_of(record.type_path) == carrier
+    ]
+    entry = properties.by_record_index.get(elevators[0]) if len(elevators) == 1 else None
+    if entry is None:
+        return None
+    targets = [
+        target
+        for reference, target in zip(entry.references, entry.reference_targets, strict=False)
+        if reference.property_name == name
+    ]
+    if len(targets) != 1 or (landed := targets[0].record_index) is None:
+        return None
+    inventory = properties.by_record_index.get(landed)
+    return inventory if inventory is not None and inventory.payload_read else None
+
+
+def _read_elevator_input(table: ObjectTable, properties: WorldProperties) -> ElevatorInput | None:
+    """Publish the space elevator's input inventory - CS-1348.
+
+    IT READS NO BYTES OF ITS OWN and follows the reference by the published
+    join, never by matching a path itself.
+
+    ALL OR NOTHING. One stack that does not read withholds the whole reading:
+    a count short of one stack would understate what was delivered, and
+    nothing downstream could tell (non-negotiable 7).
+
+    Args:
+        table: The walked record table, for each record's class path.
+        properties: The decoded payloads, keyed by index into ``table.records``.
+
+    Returns:
+        The reading, or None when there is no single readable carrier.
+    """
+    inventory = _elevator_input_entry(table, properties)
+    stacks = None if inventory is None else inventory.values.get(_STACKS_NAME)
+    if not isinstance(stacks, ContainerContents):
+        return None
+    items: dict[str, Fraction] = {}
+    for element in stacks.entries:
+        held = _stack_holding(element.value)
+        if held is None:
+            return None
+        item, count = held
+        if item:
+            items[item] = items.get(item, Fraction(0)) + count
+    return ElevatorInput(
+        items=MappingProxyType({item: items[item] for item in sorted(items)}),
+        slot_count=len(stacks.entries),
+    )
+
+
 def _checked_layout(body_layout: str) -> str:
     """Refuse an unrecognised body layout before anything is parsed.
 
@@ -2831,6 +2985,7 @@ def load_world_from_bytes(
             properties=properties,
             parents=_parent_targets(table),
             phase_costs=_read_phase_costs(table, properties),
+            elevator_input=_read_elevator_input(table, properties),
         )
     except BaseException:
         del data

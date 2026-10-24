@@ -42,10 +42,17 @@ delivered into the elevator sit in its input inventory. A source publishes that
 reading as the ``delivered`` mapping on :class:`PhaseCostTable`, and a phase
 cost's ``delivered_available`` is True exactly when the mapping is present -
 even when every count in it is zero, because a zero-count reading is still a
-reading. :class:`SavePhaseCosts` publishes no delivered reading yet, so the
-flag reads False on it. Either way this model does not subtract a delivered
-reading: every figure is driven by the amounts the source published, which
-for the save source are already what the world still owes.
+reading. THE PRODUCER IS THE SAVE LAYER (CS-1348): it publishes the
+elevator's input inventory as ``clockspeed.save.world.WorldModel.elevator_input``,
+because the inventory model lives in ``clockspeed.audit``, which is not a layer
+below this one. :class:`SavePhaseCosts` publishes it as the ``delivered``
+mapping, keyed by every item the table's entries owe - a cost item the
+elevator holds none of reads an exact ZERO - plus any item the elevator does
+hold. A world with no reading - no elevator, or one whose carrier did not read
+whole - publishes None, never zero, and the flag reads False. Either way this
+model does not subtract a delivered reading: every figure is driven by the
+amounts the source published, which for the save source are already what the
+world still owes.
 
 NO FLOAT, ANYWHERE (non-negotiable 6). The solve is exact; an extractor's base
 rate goes through :func:`clockspeed.solve.exact.per_minute`, a fluid's litres
@@ -284,12 +291,14 @@ class SavePhaseCosts:
         and hide what the phase still owes on its other lines.
 
         Returns:
-            The table, or one carrying only :data:`REASON_NO_PHASE_COST_TABLE`.
-            No delivered reading: :class:`SavePhaseCosts` publishes none yet.
+            The table, or one carrying only :data:`REASON_NO_PHASE_COST_TABLE`,
+            with the delivered reading :meth:`_delivered` builds either way.
         """
         reading = self._world.phase_costs
         if reading is None:
-            return PhaseCostTable(entries=None, reason=REASON_NO_PHASE_COST_TABLE, delivered=None)
+            return PhaseCostTable(
+                entries=None, reason=REASON_NO_PHASE_COST_TABLE, delivered=self._delivered({})
+            )
         entries = {
             phase: tuple(
                 CostLine(line.item_class, line.amount) for line in lines if line.amount > 0
@@ -299,8 +308,31 @@ class SavePhaseCosts:
         return PhaseCostTable(
             entries=MappingProxyType({phase: entries[phase] for phase in sorted(entries)}),
             reason=None,
-            delivered=None,
+            delivered=self._delivered(entries),
         )
+
+    def _delivered(
+        self, entries: Mapping[str, tuple[CostLine, ...]]
+    ) -> Mapping[str, Fraction] | None:
+        """The elevator's input inventory, keyed over every item the entries owe.
+
+        CS-1348. An owed item the elevator holds none of reads an exact zero,
+        so "none delivered" is a count and never a missing key; an item the
+        elevator holds that no entry owes is kept with its count.
+
+        Args:
+            entries: The published entries, phase to owed lines.
+
+        Returns:
+            Item ClassName to the exact count, sorted by key, or None when the
+            world published no elevator reading - never zero for no reading.
+        """
+        held = self._world.elevator_input
+        if held is None:
+            return None
+        counts = {line.item_class: Fraction(0) for lines in entries.values() for line in lines}
+        counts.update(held.items)
+        return MappingProxyType({item: counts[item] for item in sorted(counts)})
 
 
 @dataclass(frozen=True)
