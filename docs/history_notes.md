@@ -23097,3 +23097,88 @@ OWED: C8 and W1's ONE ANSWER. Never answer an answer; never re-send a sent note 
 ```text
 - In flight: S12a's closing sequence owes C5a (narrowed to C5 and C6 against the tip), C5 R', C6 B, C7 the v0.1.0 tag and release and C8 the ONE CS-1328 ANSWER; HOLD_MAIN_SPAWN stands until C7 reads back, so no lane spawns before it. MAIN's 2243 GITHUB-SECURITY-FINDINGS ORDER (W1) is unanswered. CS-SUITE-EXIT1 (MAIN's 0730 INFORMATION note, section 2) closes on this /done's pre-push suite if it reads green - unread at the write (W2); read in session 150: green, 16450 passed, 0 failed, 12 skipped, no BLOCKED line, ls-remote equal to HEAD - CLOSED, its counts owed to MAIN in the C8 ANSWER. K1 to K5 follow S12a. The A-DONE gates G1 to G7 are RETIRED; the new G1 expects an empty porcelain. New IDs from CS-1332.
 ```
+
+
+## Hand-off blocks - relocated from `CS-NEXT-SESSION.txt` 2026-10-26 by MAIN ORDER U5, verbatim
+
+**Moved here when MAIN ORDER U5 item 4 brought the session 153 hand-off from 30597 bytes to
+under 25000.** Nothing below is current. Each block is quoted verbatim inside a text fence under
+the old file's own section title. The trimmed hand-off keeps every item not yet acted on and
+points here, as THE U5 RELOCATION, for the closed blocks; the full pre-trim file, including the
+original wording of every carried line the trim tightened, is the published commit
+bb013f94ca799dd331c3a326eaae12f647535818 (the hand-off's THE U5 BASE). Not a /done relocation:
+S0 ruling 3 (the kit archive route) was not ruled first, and the hand-off's item 14 says so.
+
+### From the session 153 hand-off: OPERATOR - the answered and done-request lines
+
+```text
+ANSWERED 2026-10-22 (docs/LEDGER.md, 2026-10-22, session 150 /done record): the board URL stays
+  in ops/status_board.json; THE BOARD itself waits on MAIN's note ("status board ill have main
+  update what i want done with that for CS and all others"); CS-815's answer was graded in session
+  151 (item 8); the dead-secret files, the gh delete_repo scope and the four installer logs CLOSED.
+SESSION 152: the operator's one request, own words: "look at the worktrees and do what is needed"
+  - done as CS-1352.
+```
+
+### From the session 153 hand-off: STATE OF THE TREE - THE BOARD with its push history
+
+The live half (LOCAL ONLY, the artifacts are the operator's, no render during a whole suite)
+stays in the hand-off; the session 151 and 152 push history is what moved.
+
+```text
+THE BOARD: LOCAL ONLY since kit v23 - no claude.ai push, ever; the claude.ai board artifacts are
+  the operator's to delete, not ours. ops/status_board.json can stay. No board render
+  or sentinel change during a main-checkout whole suite (S0b D-D1). Session 151's start and
+  --final pushes FAILED (asset upload not_found); session 152 made NO start push; this /done's
+  board push (--final, session 152): DONE - asset uploaded; call 2 hit a version mismatch (pin 5,
+  server 3), re-pinned by `pushed`, then committed at version 4, recorded by `pushed --version 4`.
+```
+
+### From the session 153 hand-off: DECISIONS IN FORCE - the SESSION 150 CS-1043 entry
+
+```text
+- SESSION 150: CS-1043 took MAIN's version over the lane's 5b5f771b (Rev: none, it is closed).
+  CS-1336 is document-only, no hook enforcement (Rev: a frozen-file grant, or its BACKLOG
+  trigger). CS-1343 clause 3 amended on the adjudicator route. CS-1318 HOLD (Rev: a hook-shard red
+  at unchanged code). CodeQL alert 4 dismissed after an adversary's check (Rev: a new alert on that
+  sink, or the adversary's reading refuted). Lane scopes keep main's in-progress items out (Rev: a
+  claim path for the main session).
+```
+
+The other SESSION 150 decisions in that entry stay in the hand-off; only the CS-1043 sentence,
+closed and reversed by nothing, moved.
+
+### From the session 153 hand-off: SESSION 152 - DONE
+
+```text
+=== SESSION 152 - DONE (detail in docs/LEDGER.md, 2026-10-25) ===
+- CLOSED: CS-1352, tier 0 - the session 152 worktree sweep: 6 worktrees already in main removed; 2
+  stale locks held by a dead process unlocked; 11 superseded worktrees removed, branches kept; 4
+  dirty worktrees and 16 orphan work folders to the Recycle Bin after patch backups that pass `git
+  apply --check` and a consumer check; 7 branches with no '+' in `git cherry` deleted (restore
+  commands in THE SWEEP ARCHIVE); about 558 MB recycled. No tracked file changed; no commit.
+- No ROADMAP or BACKLOG change; the residual is item 12's concurrent-prune line.
+- No spike contradicted BOOTSTRAP.md.
+```
+
+### From the session 153 hand-off: SESSION 152 /done - FINAL REPORT
+
+```text
+=== SESSION 152 /done - FINAL REPORT (counts observed THIS RUN) ===
+START 2026-10-25T19:33:44-05:00. WINDOW CLOSED (both reads exit 0; HEAD has one parent). TIER 0.
+STEP 1, from the repo root: `git diff --name-only HEAD -- "*.py"` exit 0 and `git ls-files
+--others --exclude-standard -- "*.py"` exit 0, both empty - no changed Python path, so ruff had
+no target and was not run; no pytest at step 1.
+STEP 5: drift_guard first exit 1 - guard (i) read a wrapped BACKLOG line opening with ids as
+owning five; rewrapped, then exit 0; that line was later removed for item 12's concurrent-prune
+line. After every edit: drift_guard exit 0 (11 PASS); doc_budget exit 0 (40 measured, 0 over);
+memory_sync exit 0 (23 leaves). TARGETED, no whole suite: pytest -n 6 over the 72 test files that
+read the edited records or the tracked tree, each path read present first: exit 0, 6924 passed, 0
+failed, 9 skipped (each by its stated platform or empty-record reason); after the later edits 15
+of them again: exit 0, 1793 passed, 0 failed, 0 skipped.
+PUSH: push of this commit pending at write time; push result and CI UNREAD - the next session's
+first act reads the remote ref against this HEAD and the CI run (its pre-push suite is the
+ritual's one gated whole suite). UNVERIFIED: the sweep was done by other sub-agents; this ritual
+re-read its counts live (worktrees 5, heads 90, porcelain empty, the archive ref, the manifest),
+not the Recycle Bin's contents; the concurrent prune's outcome is UNREAD by this ritual.
+```
