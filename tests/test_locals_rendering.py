@@ -1069,6 +1069,7 @@ def test_a_nonlocal_declared_name_is_still_a_finding():
     )
 
 
+@pytest.mark.inner_suite
 def test_every_recorded_form_renders_exactly_as_it_declares(
     recorded_showlocals: tuple[int, str],
     recorded_default: tuple[int, str],
@@ -1517,6 +1518,7 @@ def test_every_sensitive_class_is_covered_by_the_forced_arms():
     )
 
 
+@pytest.mark.inner_suite
 def test_the_forced_arms_actually_ran_and_failed(leaking_showlocals: tuple[int, str]):
     # DETECTED IS NOT CRASHED. A sandbox that died during collection renders no
     # planted token either, and that is not the property under test.
@@ -1530,6 +1532,7 @@ def test_the_forced_arms_actually_ran_and_failed(leaking_showlocals: tuple[int, 
     assert collected, f"the control sandbox did not collect all {arms} forced arms"
 
 
+@pytest.mark.inner_suite
 def test_the_unremedied_arms_render_every_planted_token_under_showlocals(
     leaking_showlocals: tuple[int, str],
 ):
@@ -1547,6 +1550,7 @@ def test_the_unremedied_arms_render_every_planted_token_under_showlocals(
     )
 
 
+@pytest.mark.inner_suite
 def test_the_unremedied_arms_render_no_planted_token_by_default(
     leaking_default: tuple[int, str],
 ):
@@ -1570,6 +1574,7 @@ def test_the_unremedied_arms_render_no_planted_token_by_default(
     )
 
 
+@pytest.mark.inner_suite
 def test_the_remedied_arms_render_no_planted_token_under_showlocals(
     remedied_showlocals: tuple[int, str],
 ):

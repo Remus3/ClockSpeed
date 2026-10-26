@@ -723,6 +723,7 @@ def test_every_arm_planted_its_marker():
     assert unplanted == ()
 
 
+@pytest.mark.inner_suite
 def test_the_forced_arms_actually_ran_and_failed(
     default_run: RunResult,
 ):
@@ -777,6 +778,7 @@ def test_every_twin_is_one_stated_edit_away_from_its_quiet_arm():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.inner_suite
 def test_every_arm_renders_exactly_as_it_declares(
     default_run: RunResult,
 ):
@@ -786,6 +788,7 @@ def test_every_arm_renders_exactly_as_it_declares(
     assert disagreed == ()
 
 
+@pytest.mark.inner_suite
 def test_every_rendering_is_attributed_to_the_mechanism_it_declares(
     default_run: RunResult,
 ):
@@ -823,6 +826,7 @@ def test_the_mechanisms_measured_are_more_than_one():
     assert len(fired) >= DISTINCT_MECHANISMS_MEASURED
 
 
+@pytest.mark.inner_suite
 def test_the_channel_renders_without_showlocals(
     default_run: RunResult,
 ):
@@ -832,6 +836,7 @@ def test_the_channel_renders_without_showlocals(
     assert len(rendering) > 0
 
 
+@pytest.mark.inner_suite
 def test_the_showlocals_flag_changes_nothing_on_this_channel(
     default_run: RunResult,
     showlocals_run: dict[str, bool],
@@ -842,6 +847,7 @@ def test_the_showlocals_flag_changes_nothing_on_this_channel(
     assert moved == ()
 
 
+@pytest.mark.inner_suite
 def test_the_binding_is_not_what_renders_the_chained_context(
     default_run: RunResult,
 ):
@@ -860,6 +866,7 @@ def test_the_binding_is_not_what_renders_the_chained_context(
     assert measured["chain-with-a-binding"]
 
 
+@pytest.mark.inner_suite
 def test_position_relative_to_the_handler_is_not_the_rule(
     default_run: RunResult,
 ):
@@ -869,6 +876,7 @@ def test_position_relative_to_the_handler_is_not_the_rule(
     assert measured["object-kept-past-the-handler"]
 
 
+@pytest.mark.inner_suite
 def test_the_chain_is_suppressed_only_where_nothing_escapes_first(
     default_run: RunResult,
 ):
@@ -879,6 +887,7 @@ def test_the_chain_is_suppressed_only_where_nothing_escapes_first(
     assert measured["call-escapes-before-a-from-none"]
 
 
+@pytest.mark.inner_suite
 def test_the_frame_argument_channel_survives_chain_suppression(
     default_run: RunResult,
 ):
@@ -897,6 +906,7 @@ def test_the_frame_argument_channel_survives_chain_suppression(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.inner_suite
 def test_the_binding_channel_leaks_with_an_inert_message(
     default_run: RunResult,
 ):
@@ -941,6 +951,7 @@ def test_the_attribute_carrier_keeps_the_marker_out_of_args():
     assert not supers[0].keywords
 
 
+@pytest.mark.inner_suite
 def test_the_message_channel_leaks_with_no_named_handler(
     default_run: RunResult,
 ):
@@ -952,6 +963,7 @@ def test_the_message_channel_leaks_with_no_named_handler(
     assert "except" not in ARMS["no-handler-anywhere"].source
 
 
+@pytest.mark.inner_suite
 def test_the_two_channels_are_measured_independent(
     default_run: RunResult,
 ):

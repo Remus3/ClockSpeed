@@ -506,6 +506,7 @@ def pytest_collect_directory(path, parent):
 """
 
 
+@pytest.mark.inner_suite
 def test_a_reaped_sibling_leaves_the_control_red_forced_red_output(
     tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
@@ -526,6 +527,7 @@ def test_a_reaped_sibling_leaves_the_control_red_forced_red_output(
     assert sibling.is_dir(), "the control's collection listed above its own directory"
 
 
+@pytest.mark.inner_suite
 def test_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     """Every canary arm forced red at once prints no whole canary value.
 

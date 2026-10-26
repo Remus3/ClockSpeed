@@ -94,6 +94,7 @@ def test_the_unhygienic_copy_lands_each_edit_exactly_once(tmp_path: Path) -> Non
     assert written, "the unhygienic copy was not written"
 
 
+@pytest.mark.inner_suite
 def test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output(
     tmp_path: Path, pristine: Verdict
 ) -> None:
@@ -160,6 +161,7 @@ def test_a_planted_module_reads_a_canary():
 """
 
 
+@pytest.mark.inner_suite
 def test_a_new_canary_module_in_no_list_is_picked_up_and_graded_forced_red_output(
     tmp_path: Path, pristine: Verdict
 ) -> None:

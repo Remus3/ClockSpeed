@@ -2698,6 +2698,7 @@ def _shard_partition_faults(shards: list[tuple[str, ...]], collected: list[str])
     return sorted(found)
 
 
+@pytest.mark.inner_suite
 def test_the_save_suite_passes_with_no_install_and_no_save() -> None:
     """PHASE INVARIANT. The whole save suite is green with all four overrides absent.
 
@@ -2731,6 +2732,7 @@ def test_the_save_suite_passes_with_no_install_and_no_save() -> None:
         assert int(passed.group(1)) > 0
 
 
+@pytest.mark.inner_suite
 def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None:
     """The recursion guard is verified against pytest's own collection, not assumed.
 
@@ -3081,6 +3083,7 @@ def _collected_node_ids(stdout: str) -> list[str]:
     return [line.strip() for line in stdout.splitlines() if "::" in line]
 
 
+@pytest.mark.inner_suite
 def test_the_shards_partition_the_whole_collection_exactly() -> None:
     """Every test the whole command collects is run by EXACTLY ONE shard.
 

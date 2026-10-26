@@ -644,6 +644,7 @@ xfail_strict = true
 
 markers = [
   "slow: a test the pre-push hook may exclude to keep tier 0 instant. Select the fast subset with -m 'not slow' (CONVENTIONS.md section 8, tier 0 pre-push).",
+  "inner_suite: re-runs a whole (sub)suite or a sandbox suite in a child pytest, or drives a shell harness. Runs in CI and pre-push; an in-session local run deselects it with CLOCKSPEED_FAST_LOCAL=1 or -m 'not inner_suite' (CS-1356).",
 ]
 
 

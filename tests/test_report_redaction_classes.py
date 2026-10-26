@@ -1039,6 +1039,7 @@ def test_the_rule_set_name_is_assigned_exactly_once():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.inner_suite
 def test_the_proving_run_was_configured_by_the_shipped_pyproject(guarded_root, guarded_run):
     copied = guarded_root / "pyproject.toml"
     shipped_config = REPO_ROOT / "pyproject.toml"
@@ -1059,6 +1060,7 @@ def test_the_proving_run_was_configured_by_the_shipped_pyproject(guarded_root, g
     )
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("arm", ["guarded", "control"])
 def test_both_arms_detected_rather_than_crashed(arm, guarded_run, control_run):
     run = guarded_run if arm == "guarded" else control_run
@@ -1078,6 +1080,7 @@ def test_both_arms_detected_rather_than_crashed(arm, guarded_run, control_run):
     assert missing == [], f"the {run.label} sandbox rendered no block for {missing}"
 
 
+@pytest.mark.inner_suite
 def test_the_control_arm_carries_every_class_in_every_mechanism_block(control_run):
     _assert_home_oracle_is_not_vacuous()
     blocks = failure_blocks(control_run.output)
@@ -1098,6 +1101,7 @@ def test_the_control_arm_carries_every_class_in_every_mechanism_block(control_ru
     )
 
 
+@pytest.mark.inner_suite
 def test_the_guarded_report_is_redacted_rather_than_deleted(guarded_run):
     region = guarded_region(guarded_run.output)
     gone = sorted(fragment for fragment in SURVIVING_FRAGMENTS if fragment not in region)
@@ -1148,11 +1152,13 @@ def _assert_class_is_redacted(run: SandboxRun, class_id: str) -> None:
     assert per_block == [], f"the {class_id} class survived in a mechanism block: {per_block}"
 
 
+@pytest.mark.inner_suite
 def test_the_home_path_class_is_redacted_on_every_mechanism(guarded_run):
     _assert_home_oracle_is_not_vacuous()
     _assert_class_is_redacted(guarded_run, shipped.CLASS_HOME_PATH)
 
 
+@pytest.mark.inner_suite
 def test_the_home_path_doubled_spelling_is_the_channel_a_chained_cause_renders(guarded_run):
     # THE ARM THAT MUST SKIP LOUDLY RATHER THAN PASS QUIETLY. On a platform with
     # no backslashes the doubled spelling IS the native one, so the gap this
@@ -1184,6 +1190,7 @@ def test_the_home_path_doubled_spelling_is_the_channel_a_chained_cause_renders(g
     assert leaked == [], f"the doubled spelling survived the chained cause: {leaked}"
 
 
+@pytest.mark.inner_suite
 def test_the_account_name_class_is_redacted_on_every_mechanism(guarded_run):
     _assert_class_is_redacted(guarded_run, shipped.CLASS_ACCOUNT_NAME)
 

@@ -1159,6 +1159,7 @@ def floor_arms(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, str]:
     return _run_sandbox(tmp_path_factory.mktemp("cs850_floor"), form=ARM_FLOOR)
 
 
+@pytest.mark.inner_suite
 def test_the_forced_arms_actually_ran_and_failed(leaking_arms: tuple[int, str]):
     # DETECTED IS NOT CRASHED. A sandbox that died during collection renders no
     # planted token either, and that is not the property under test.
@@ -1173,6 +1174,7 @@ def test_the_forced_arms_actually_ran_and_failed(leaking_arms: tuple[int, str]):
     assert collected, f"the control sandbox did not collect all {arms} forced arms"
 
 
+@pytest.mark.inner_suite
 def test_the_unremedied_arms_render_every_planted_token(leaking_arms: tuple[int, str]):
     # THE CONTROL, AND THE WHOLE OF THIS MODULE RESTS ON IT. If a planted token
     # is NOT rendered here, the grep below cannot distinguish a remedy that
@@ -1188,6 +1190,7 @@ def test_the_unremedied_arms_render_every_planted_token(leaking_arms: tuple[int,
     )
 
 
+@pytest.mark.inner_suite
 def test_the_remedied_arms_render_no_planted_token(remedied_arms: tuple[int, str]):
     # THE ACCEPTANCE, GRADED ON THE RENDERED OUTPUT. Same arms, same failures,
     # the aggregate bound to a plain scalar before the assert.
@@ -1217,6 +1220,7 @@ def test_the_remedied_arms_render_no_planted_token(remedied_arms: tuple[int, str
     )
 
 
+@pytest.mark.inner_suite
 def test_every_forced_arm_reached_its_assertion_through_shipped_construction(
     leaking_arms: tuple[int, str],
 ):
@@ -1241,6 +1245,7 @@ def test_every_forced_arm_reached_its_assertion_through_shipped_construction(
     )
 
 
+@pytest.mark.inner_suite
 def test_the_forced_arms_are_green_before_they_are_forced(floor_arms: tuple[int, str]):
     # THE PRISTINE FLOOR. The same arms, built the same way out of the same
     # shipped classes, with the comparison left unforced. Without it a red
@@ -1263,6 +1268,7 @@ def test_the_forced_arms_are_green_before_they_are_forced(floor_arms: tuple[int,
     )
 
 
+@pytest.mark.inner_suite
 def test_the_shipped_repr_is_what_gets_bypassed_in_every_forced_arm(
     leaking_arms: tuple[int, str],
 ):
@@ -3880,6 +3886,7 @@ def _env_render(tmp_path: Path, test: str) -> tuple[int, int]:
     return result.returncode, rendered.count(_ENV_PLANT)
 
 
+@pytest.mark.inner_suite
 def test_the_flagged_shape_renders_the_environment_and_the_remedy_does_not(
     tmp_path: Path,
 ) -> None:

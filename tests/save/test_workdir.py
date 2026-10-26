@@ -2756,6 +2756,7 @@ def _child_pytest_args() -> list[str]:
     ]
 
 
+@pytest.mark.inner_suite
 def test_the_workdir_suite_passes_with_no_install_and_no_save() -> None:
     """This module exits zero with all four overrides pointed at a nonexistent path.
 
@@ -2776,6 +2777,7 @@ def test_the_workdir_suite_passes_with_no_install_and_no_save() -> None:
     assert int(passed.group(1)) >= EXPECT_AT_LEAST_ONE
 
 
+@pytest.mark.inner_suite
 def test_the_child_run_deselects_only_the_recursing_test() -> None:
     """The recursion guard is verified against pytest's own collection, not assumed.
 

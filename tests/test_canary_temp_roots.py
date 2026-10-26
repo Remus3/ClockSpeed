@@ -71,6 +71,7 @@ def no_marker_roots_left() -> Iterator[None]:
                 shutil.rmtree(root, onexc=_writable_retry)
 
 
+@pytest.mark.inner_suite
 @pytest.mark.usefixtures("no_marker_roots_left")
 @pytest.mark.parametrize("name", sorted(MODULES))
 def test_the_inner_pytest_temp_root_stays_under_tmp_path(tmp_path: Path, name: str) -> None:

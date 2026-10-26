@@ -732,6 +732,7 @@ def settings_timeout(event: str) -> int:
     return int(timeouts[0])
 
 
+@pytest.mark.inner_suite
 def test_the_settings_commands_run_under_a_shell_like_the_harness(
     tmp_path: Path,
     alone: Environment,
@@ -1077,6 +1078,7 @@ def quiet_run(tmp_path: Path, *, wait: bool) -> dict[str, str]:
     return {path.name: path.read_text(encoding="ascii") for path in child.out.iterdir()}
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("wait", [True, False], ids=["quiet", "control"])
 def test_the_measurement_starts_only_after_every_sibling_worker_finished(
     tmp_path: Path, wait: bool
@@ -1110,6 +1112,7 @@ LSTAT_FALLBACK_IS_WINDOWS_ONLY: Final = (
 )
 
 
+@pytest.mark.inner_suite
 @pytest.mark.skipif(sys.platform != "win32", reason=LSTAT_FALLBACK_IS_WINDOWS_ONLY)
 def test_a_sibling_deleted_mid_collection_never_reaches_the_nested_run(tmp_path: Path) -> None:
     """The nested run never reads a sibling of the directory it collects.

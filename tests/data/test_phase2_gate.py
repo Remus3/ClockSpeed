@@ -691,6 +691,7 @@ def _child_pytest_args() -> list[str]:
     ]
 
 
+@pytest.mark.inner_suite
 def test_the_data_layer_suite_passes_with_the_install_unresolvable() -> None:
     """The whole data-layer suite exits zero with the install forced unresolvable.
 
@@ -719,6 +720,7 @@ def test_the_data_layer_suite_passes_with_the_install_unresolvable() -> None:
     assert int(passed.group(1)) > 0
 
 
+@pytest.mark.inner_suite
 def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None:
     """The recursion guard is verified against pytest's own collection, not assumed.
 

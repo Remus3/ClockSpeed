@@ -248,6 +248,7 @@ def counts(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Counts]:
     }
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("child", [_label(child) for child in CHILDREN])
 def test_the_diff_reached_the_report(counts: dict[str, Counts], child: str) -> None:
     """THE RENDERED-DIFF CONTROL, and the header the exclusion depends on."""
@@ -257,6 +258,7 @@ def test_the_diff_reached_the_report(counts: dict[str, Counts], child: str) -> N
     assert header, "the output did not open with the session header"
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize(
     "child", [_label(child) for child in (ACCEPTANCE, COLOURED, XDIST_VVV, BARE)]
 )
@@ -266,18 +268,21 @@ def test_the_coloured_children_were_coloured(counts: dict[str, Counts], child: s
     assert escapes >= 1, "escape codes in a coloured child: %d" % escapes
 
 
+@pytest.mark.inner_suite
 def test_the_plain_control_carries_no_escape_code(counts: dict[str, Counts]) -> None:
     """The equivalence control is a plain run, or it controls nothing."""
     escapes = counts[_label(PLAIN)].escapes
     assert escapes == 0, "escape codes in the plain control: %d" % escapes
 
 
+@pytest.mark.inner_suite
 def test_the_oracle_sees_the_name_when_redaction_is_removed(counts: dict[str, Counts]) -> None:
     """THE HYGIENE-REMOVED CONTROL: without it every zero below is a zero about nothing."""
     renderings = counts[_label(BARE)].renderings
     assert renderings >= 1, "account-name renderings with redaction removed: %d" % renderings
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("child", [_label(child) for child in REDACTED_CHILDREN])
 def test_no_account_name_renders_beyond_the_session_header(
     counts: dict[str, Counts], child: str
@@ -345,6 +350,7 @@ def printed(tmp_path_factory: pytest.TempPathFactory) -> Counts:
     return _count((completed.stdout + completed.stderr).decode("utf-8", errors="replace"))
 
 
+@pytest.mark.inner_suite
 def test_a_name_before_a_non_colour_escape_is_redacted_as_at_base(printed: Counts) -> None:
     """No regression against the unrepaired rules: both printed names are replaced."""
     markers = printed.markers

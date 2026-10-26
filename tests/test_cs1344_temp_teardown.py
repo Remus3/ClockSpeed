@@ -194,6 +194,7 @@ def _entries(root: Path) -> list[str]:
         return []
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("outcome", sorted(EXPECTED_EXIT))
 def test_a_top_level_run_leaves_no_output_under_the_root_whatever_its_outcome(
     tmp_path: Path, outcome: str
@@ -213,6 +214,7 @@ def test_a_top_level_run_leaves_no_output_under_the_root_whatever_its_outcome(
     assert left == 0, f"{outcome}: the run left {left} entr(ies) under the root at its finish"
 
 
+@pytest.mark.inner_suite
 def test_a_failing_runs_teardown_never_touches_another_runs_directory(tmp_path: Path) -> None:
     """Only the run's own directory goes; a concurrent run's output is never swept.
 
@@ -267,6 +269,7 @@ def _back_date(path: Path, seconds: float) -> None:
     os.utime(path, (when, when))
 
 
+@pytest.mark.inner_suite
 def test_a_killed_run_leaves_only_its_own_directory_and_the_next_run_sweeps_it(
     tmp_path: Path,
 ) -> None:

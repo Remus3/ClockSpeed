@@ -628,6 +628,7 @@ def pytest_collect_directory(path, parent):
 """
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("flags", [[], ["--showlocals"]], ids=["plain", "showlocals"])
 def test_a_reaped_sibling_leaves_the_control_red_forced_red_output(
     flags: list[str], tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
@@ -649,6 +650,7 @@ def test_a_reaped_sibling_leaves_the_control_red_forced_red_output(
     assert sibling.is_dir(), "the control's collection listed above its own directory"
 
 
+@pytest.mark.inner_suite
 def test_showlocals_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     """Every canary arm forced red under `--showlocals` prints no canary value.
 

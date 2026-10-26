@@ -1146,6 +1146,7 @@ def _reported_rootdir(stdout: str) -> Path | None:
     return None
 
 
+@pytest.mark.inner_suite
 def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
     """Frame ARGUMENTS are rendered by pytest with no --showlocals. Measured."""
     sentinel = "NameThatMustNotEscapeButWill"
@@ -1177,6 +1178,7 @@ def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
     assert f"text = '{sentinel}'" in result.stdout
 
 
+@pytest.mark.inner_suite
 def test_the_probe_sandbox_pins_the_child_rootdir_at_itself(tmp_path: Path) -> None:
     """The CS-448 pin above is MEASURED here, not asserted by its own comment.
 

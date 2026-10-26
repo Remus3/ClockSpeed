@@ -469,17 +469,20 @@ def rendered_key(tmp_path_factory: pytest.TempPathFactory) -> str:
     )
 
 
+@pytest.mark.inner_suite
 def test_the_env_frame_reached_the_report(rendered_key: str) -> None:
     """THE CONTROL, as an arm of its own so it fails by name when the harness drifts."""
     _assert_the_frame_was_rendered(rendered_key, local=True)
 
 
+@pytest.mark.inner_suite
 def test_a_planted_key_does_not_survive_a_rendered_env_frame(rendered_key: str) -> None:
     """CS-1156: the exact shape that leaked on 2026-09-19, through the real render path."""
     _assert_the_frame_was_rendered(rendered_key, local=True)
     assert PLANTED_KEY not in rendered_key, _tail(rendered_key)
 
 
+@pytest.mark.inner_suite
 def test_the_placeholder_is_what_replaced_it(rendered_key: str) -> None:
     """Absence alone passes for a collapsed report. The placeholder pins the substitution.
 
@@ -491,6 +494,7 @@ def test_the_placeholder_is_what_replaced_it(rendered_key: str) -> None:
     assert REDACTED_CREDENTIAL in rendered_key, _tail(rendered_key)
 
 
+@pytest.mark.inner_suite
 def test_a_second_vendor_shape_does_not_survive_either(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -505,6 +509,7 @@ def test_a_second_vendor_shape_does_not_survive_either(
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
 
+@pytest.mark.inner_suite
 def test_a_prefixless_secret_in_a_listed_variable_does_not_survive(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -529,6 +534,7 @@ def test_a_prefixless_secret_in_a_listed_variable_does_not_survive(
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
 
+@pytest.mark.inner_suite
 def test_a_credential_does_not_survive_a_collection_failure(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -548,6 +554,7 @@ def test_a_credential_does_not_survive_a_collection_failure(
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
 
+@pytest.mark.inner_suite
 def test_a_credential_does_not_survive_captured_output(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -651,6 +658,7 @@ def parameter_counts(
     }
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("verbosity", [" ".join(flags) for flags in VERBOSITIES])
 def test_both_parameter_kinds_reached_the_report(
     parameter_counts: dict[tuple[bool, str], ParameterCounts], verbosity: str
@@ -666,6 +674,7 @@ def test_both_parameter_kinds_reached_the_report(
     assert bare_markers >= RENDERED_PARAMETERS, "rendered parameters, bare child: %d" % bare_markers
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("verbosity", [" ".join(flags) for flags in VERBOSITIES])
 def test_a_credential_in_a_test_parameter_renders_no_credential_shape(
     parameter_counts: dict[tuple[bool, str], ParameterCounts], verbosity: str
@@ -689,6 +698,7 @@ def test_a_credential_in_a_test_parameter_renders_no_credential_shape(
     assert account == 0, "account-name fragments beside a cut: %d" % account
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("verbosity", [" ".join(flags) for flags in VERBOSITIES])
 def test_the_counts_see_every_door_when_redaction_is_removed(
     parameter_counts: dict[tuple[bool, str], ParameterCounts], verbosity: str
@@ -805,6 +815,7 @@ def selection_counts(tmp_path_factory: pytest.TempPathFactory) -> SelectionCount
     )
 
 
+@pytest.mark.inner_suite
 def test_selection_by_the_original_id_still_works(selection_counts: SelectionCounts) -> None:
     """``-k`` and ``--deselect`` by the id pytest built select and deselect exactly one.
 
@@ -830,6 +841,7 @@ def test_selection_by_the_original_id_still_works(selection_counts: SelectionCou
     )
 
 
+@pytest.mark.inner_suite
 def test_an_id_copied_from_the_output_reruns(selection_counts: SelectionCounts) -> None:
     """Every id on a FAILED line that carries no placeholder reruns exactly one test."""
     copied = selection_counts.copied
@@ -838,6 +850,7 @@ def test_an_id_copied_from_the_output_reruns(selection_counts: SelectionCounts) 
     assert reran == copied, "copied ids that reran: %d of %d" % (reran, copied)
 
 
+@pytest.mark.inner_suite
 def test_ordinary_text_renders_exactly_as_written(selection_counts: SelectionCounts) -> None:
     """No shape renders, and an id or a message carrying no known value is untouched.
 

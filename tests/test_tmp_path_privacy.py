@@ -675,6 +675,7 @@ def test_the_oracle_is_not_vacuous() -> None:
     )
 
 
+@pytest.mark.inner_suite
 def test_the_control_run_proves_this_harness_can_see_a_leak(control_run: SandboxRun) -> None:
     # THE POSITIVE CONTROL. The same sandbox, the same forced failures, the
     # same default flags - with the redaction NOT installed. If this finds
@@ -701,6 +702,7 @@ def test_the_control_run_proves_this_harness_can_see_a_leak(control_run: Sandbox
         )
 
 
+@pytest.mark.inner_suite
 def test_the_control_run_leaks_through_both_exception_types(control_run: SandboxRun) -> None:
     # The pair is the point: SystemExit is a non-OSError that was live
     # disclosure in an earlier session. Measuring only the MemoryError block
@@ -720,6 +722,7 @@ def test_the_control_run_leaks_through_both_exception_types(control_run: Sandbox
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.inner_suite
 def test_a_forced_memory_error_renders_no_home_path_and_no_account_name(
     guarded_run: SandboxRun,
 ) -> None:
@@ -736,6 +739,7 @@ def test_a_forced_memory_error_renders_no_home_path_and_no_account_name(
     _assert_no_personal_data(block, f"the guarded {MEMORY_TEST} block")
 
 
+@pytest.mark.inner_suite
 def test_a_forced_system_exit_renders_no_home_path_and_no_account_name(
     guarded_run: SandboxRun,
 ) -> None:
@@ -752,12 +756,14 @@ def test_a_forced_system_exit_renders_no_home_path_and_no_account_name(
     _assert_no_personal_data(block, f"the guarded {EXIT_TEST} block")
 
 
+@pytest.mark.inner_suite
 def test_the_whole_guarded_region_is_clean(guarded_run: SandboxRun) -> None:
     # Wider than the two blocks: the region also carries the traceback source
     # lines, the crash locations, the short summary and the final counts line.
     _assert_no_personal_data(guarded_region(guarded_run.output), "the guarded region")
 
 
+@pytest.mark.inner_suite
 def test_showlocals_widens_the_channel_without_widening_the_leak(
     guarded_showlocals_run: SandboxRun,
 ) -> None:
@@ -773,6 +779,7 @@ def test_showlocals_widens_the_channel_without_widening_the_leak(
     _assert_no_personal_data(section, "the guarded FAILURES section under -l")
 
 
+@pytest.mark.inner_suite
 def test_the_path_was_redacted_rather_than_deleted(guarded_run: SandboxRun) -> None:
     # A remedy that blanked the whole report would also pass every assertion
     # above. The placeholders are the remedy's fingerprint, and the surviving
@@ -792,6 +799,7 @@ def test_the_path_was_redacted_rather_than_deleted(guarded_run: SandboxRun) -> N
     assert EXIT_TEST in section, "the SystemExit test name did not survive redaction"
 
 
+@pytest.mark.inner_suite
 def test_the_short_summary_still_names_the_exception(guarded_run: SandboxRun) -> None:
     # A REGRESSION THIS SLICE ALREADY CAUSED ONCE, so it is graded rather than
     # remembered. Handing pytest a bare redacted string works for the FAILURES
@@ -811,6 +819,7 @@ def test_the_short_summary_still_names_the_exception(guarded_run: SandboxRun) ->
     )
 
 
+@pytest.mark.inner_suite
 def test_only_the_session_header_names_the_sandbox_root(
     control_run: SandboxRun, guarded_run: SandboxRun
 ) -> None:
@@ -841,6 +850,7 @@ def test_only_the_session_header_names_the_sandbox_root(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.inner_suite
 def test_an_earlier_test_that_repoints_the_home_directory_cannot_poison_a_later_report(
     control_poison_run: SandboxRun, guarded_poison_run: SandboxRun
 ) -> None:
@@ -882,6 +892,7 @@ def test_an_earlier_test_that_repoints_the_home_directory_cannot_poison_a_later_
     )
 
 
+@pytest.mark.inner_suite
 def test_a_line_style_traceback_renders_no_crash_path(
     control_tb_line_run: SandboxRun, guarded_tb_line_run: SandboxRun
 ) -> None:
@@ -911,6 +922,7 @@ def test_a_line_style_traceback_renders_no_crash_path(
     _assert_no_personal_data(region, "the guarded --tb=line region")
 
 
+@pytest.mark.inner_suite
 def test_the_parallel_lane_renders_no_worker_interpreter_path(
     control_xdist_run: SandboxRun, guarded_xdist_run: SandboxRun
 ) -> None:
@@ -963,6 +975,7 @@ def test_the_parallel_lane_renders_no_worker_interpreter_path(
         )
 
 
+@pytest.mark.inner_suite
 def test_a_url_quoted_path_renders_no_account_name(
     control_quoted_run: SandboxRun, guarded_quoted_run: SandboxRun
 ) -> None:
@@ -994,6 +1007,7 @@ def test_a_url_quoted_path_renders_no_account_name(
     )
 
 
+@pytest.mark.inner_suite
 def test_the_warnings_summary_is_a_measured_residual_and_not_a_covered_channel(
     guarded_warning_run: SandboxRun,
 ) -> None:

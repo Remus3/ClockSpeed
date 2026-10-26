@@ -901,6 +901,7 @@ def flagged_session(value: str) -> tuple[int, int, int, int]:
     )
 
 
+@pytest.mark.inner_suite
 @DERIVATION_ONLY
 def test_a_child_flag_its_parent_did_not_issue_fails_loudly(tmp_path: Path) -> None:
     """CS-1193, from the adjudicator's HOLD: a flag in a TOP-LEVEL env is refused, not obeyed.
@@ -1005,6 +1006,7 @@ def test_a_frame_that_binds_the_canary_raises():
 )
 
 
+@pytest.mark.inner_suite
 def test_a_raise_inside_the_gates_own_helper_renders_no_canary_forced_red_output(
     tmp_path: Path,
 ) -> None:

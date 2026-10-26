@@ -3808,6 +3808,7 @@ def alone(request: pytest.FixtureRequest) -> None:
     await_quiet_siblings(request.config)
 
 
+@pytest.mark.inner_suite
 @pytest.mark.parametrize("arm", WRAPPER_ARMS)
 @pytest.mark.usefixtures("alone")
 def test_no_claude_hook_path_echoes_a_canary(tmp_path: Path, arm: str) -> None:
@@ -3817,6 +3818,7 @@ def test_no_claude_hook_path_echoes_a_canary(tmp_path: Path, arm: str) -> None:
     assert result.hits == 0, f"{arm}: {result.hits} canary occurrence(s) in the hook output"
 
 
+@pytest.mark.inner_suite
 @pytest.mark.usefixtures("alone")
 def test_a_wrapper_copy_that_dumps_the_environment_is_caught(tmp_path: Path) -> None:
     """THE CONTROL for the wrapper harness: every canary IS found."""

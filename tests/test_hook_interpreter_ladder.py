@@ -2690,6 +2690,7 @@ def run_child_pytest(
     return read_child_outcomes(report)
 
 
+@pytest.mark.inner_suite
 def test_no_arm_needing_an_import_time_shell_fails_when_it_cannot_be_resolved(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:
@@ -3497,6 +3498,7 @@ def run_sandbox_suite(box: Sandbox, env: dict[str, str]) -> int:
     return proc.returncode
 
 
+@pytest.mark.inner_suite
 def test_the_run_recorder_tells_controller_from_worker_without_reading_the_environment(
     tmp_path: Path, isolated: Environment
 ) -> None:
