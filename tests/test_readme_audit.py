@@ -1431,18 +1431,6 @@ KEPT_SIDECAR_LINES: Final[dict[str, tuple[str, ...]]] = {
         "e1372cb099fd897f470c7df7b0b1808035837186f052055fd4f2fb0964fd5895",
         "e4bcd2f302216cd70c71a11b7480e4d7aca486e9c6e77947cd4e61db5d310545",
     ),
-    "ops/fleet_kit/fleet_headless.py": (
-        # CS-1354, kit v23 (vendored byte-for-byte, never edited here): the docstring
-        # naming the kit's default sidecar root
-        "f13231a120d1d2b554e8d4f04b44cddbb9d0bb9a071fd787a269f8df50fbe79a",
-    ),
-    "ops/fleet_kit/fleet_lanes.py": (
-        # CS-1354, kit v23 (vendored byte-for-byte, never edited here): the
-        # module docstring, the SIDECAR_DEFAULT constant and a function docstring
-        "b82ea347e27c4b7e202a7f13851566e30c67deb8b8dd1fa13dddacb63a8759b8",
-        "95fdd6ade29cad5d1b19abd2fca503eb8c841b0dca95f62afede3bac994ef83e",
-        "80f344b749b5dce4f0dfa8c9af3b6a62562a9edec3779000798cfdc10674e98c",
-    ),
     "tests/ops/test_multi_lane.py": (
         # the lanes' old root as a test literal, written with doubled separators
         "201b0f315c6706d372594d8431f8a3376df2e481a57345cec5e50cacff15dfb0",

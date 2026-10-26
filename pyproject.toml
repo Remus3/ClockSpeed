@@ -466,8 +466,9 @@ ignore = [
 #   RUF059   an unpacked value left unused
 #   SLF001   fleet_gitlock.py and fleet_rewrite.py reach a sibling's private helper
 #   UP032    .format() calls
+#   ARG001   fleet_claims.py claim_shell keeps its cwd parameter (kit v24 KIT-CLAIMS-CWD)
 "ops/fleet_kit/fleet_claims.py" = [
-  "B007", "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF102",
+  "ARG001", "B007", "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF102",
   "PLC0415", "PLR0911", "PLR0912", "PLR2004", "PTH100", "PTH109", "PTH111", "PTH123",
   "SIM114", "UP032",
 ]
