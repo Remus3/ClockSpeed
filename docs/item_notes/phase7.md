@@ -872,6 +872,8 @@ read error message rendered the full test path under the E: Temp root, which the
 arm catches - the redaction appears to cover home-relative paths only, so a path outside the
 home leaks; the same echo rule as `CLAUDE.md` section 3 rule 12. (2) The flip check does not
 refuse a home on E: by its location. INFERRED, not measured: both turned red when the kit v23
-adoption (CS-1354) moved the Temp root onto E:, the repo's own drive. The U5 commits stay local
-until this is green (CS-1321 route A, never `--no-verify`).
+adoption (CS-1354) moved the Temp root onto E:, the repo's own drive - yet the same base pushed
+green at 2026-10-25 23:35 (0 failed), so the trigger is this run's environment, likely the
+headless spawn's Temp root, not the commit. The U5 commits stay local until a push is green
+(CS-1321 route A, never `--no-verify`).
 
