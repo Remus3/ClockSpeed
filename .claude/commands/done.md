@@ -109,6 +109,11 @@ before anything else.
       checks you run.
 - [ ] `git status` - list every modified and untracked path. Nothing unexpected, nothing
       containing game data, a save file, or a generated artifact.
+- [ ] Every note authored into `moon_sync_outbox/` this session is DELIVERED with
+      `python tools/outbound_send.py --note <path> --to <dest>` (dry run, then `--send`)
+      and its `reached N/M` line read back before the commit. An outbox note with no
+      delivery-record entry is a LOST SEND - the root cause of the session-152 2335 ANSWER
+      that never reached MAIN.
 
 ## 1. Run the tier-appropriate checks - NO whole suite here - report counts observed THIS RUN
 

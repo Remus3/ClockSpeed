@@ -71,6 +71,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -3823,3 +3824,153 @@ def test_all_leaves_a_retired_sibling_out_and_still_delivers(tmp_path: Path) -> 
     assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
     assert changed == expected, f"--all changed {changed}"
     assert recorded == len(expected), "the record does not match what was delivered"
+
+
+# U5 item 1 - FLEET-COMMON item 7: "Delivery = destination copies re-hashed and
+# an N/M reached-count reported". A rename that returned without raising is not
+# proof that the bytes now sitting in a sibling's inbox are the note's bytes, so
+# every copy is read back and hashed after the commit phase.
+
+REACHED_RE = re.compile(rb"reached (\d+)/(\d+)")
+
+
+def reached_counts(out: bytes) -> list[tuple[int, int]]:
+    """Every `reached N/M` pair the run printed, as integers."""
+    return [(int(n), int(m)) for n, m in REACHED_RE.findall(out)]
+
+
+def tampering_rename(
+    sender: ModuleType, victim: Path, *, remove: bool
+) -> Callable[[Path, Path], None]:
+    """A `rename_no_clobber` that lands the file and then damages ONE copy.
+
+    The real rename runs first, so the commit phase reports a clean landing -
+    which is exactly the state the re-hash exists to distrust. Only `victim` is
+    damaged, so a multi-destination arm can tell the good copy from the bad.
+    """
+    real = sender.rename_no_clobber
+
+    def rename(staged: Path, target: Path) -> None:
+        real(staged, target)
+        if target != victim:
+            return
+        if remove:
+            target.unlink()
+        else:
+            target.write_bytes(b"not the bytes that were sent\n")
+
+    return rename
+
+
+def test_a_clean_send_reports_every_copy_reached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Prove a clean send re-hashes its copy and prints `reached 1/1` at exit 0.
+
+    THE CONTROL FOR THE TWO DAMAGE ARMS BELOW: a re-hash that reported every
+    send as a mismatch would pass both of them and fail here.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    payload = CLEAN_BODY.encode("ascii")
+
+    code = sender.perform_send(
+        payload, NOTE_NAME, [(DEST_A, delivered(channel, DEST_A))], "CLEAN", []
+    )
+    captured = capsys.readouterr()
+    counts = reached_counts(captured.out.encode("ascii"))
+    entries = record_entries({ENV_RECORD: str(tmp_path / RECORD_NAME)})
+    flags = [entry.get("verified") for entry in entries if isinstance(entry, dict)]
+
+    assert code == EXIT_OK, f"a clean send returned {code}"
+    assert counts == [(1, 1)], f"a clean send reported {counts}, not reached 1/1"
+    assert flags == [True], f"the record's verified flags are {flags}"
+
+
+def test_a_copy_altered_after_rename_fails_loudly_as_a_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Prove a copy whose bytes differ from the note exits non-zero with MISMATCH.
+
+    The rename lands and then the copy is overwritten, so the commit phase
+    alone would report a clean delivery. The run must name the destination,
+    report reached 0/1, never print an absolute path, and record the copy as
+    unverified rather than as a clean delivery.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    target = delivered(channel, DEST_A)
+    monkeypatch.setattr(sender, "rename_no_clobber", tampering_rename(sender, target, remove=False))
+
+    code = sender.perform_send(
+        CLEAN_BODY.encode("ascii"), NOTE_NAME, [(DEST_A, target)], "CLEAN", []
+    )
+    captured = capsys.readouterr()
+    counts = reached_counts(captured.out.encode("ascii"))
+    err = captured.err
+    named = "MISMATCH" in err and DEST_A in err
+    leaked = str(tmp_path) in err or str(tmp_path) in captured.out
+    entries = record_entries({ENV_RECORD: str(tmp_path / RECORD_NAME)})
+    flags = [entry.get("verified") for entry in entries if isinstance(entry, dict)]
+
+    assert code == EXIT_INCOMPLETE, f"a mismatched copy returned {code}"
+    assert counts == [(0, 1)], f"a mismatched copy reported {counts}, not reached 0/1"
+    assert named, "stderr does not name the destination and the word MISMATCH"
+    assert not leaked, "an absolute path reached the output"
+    assert flags == [False], f"the record's verified flags are {flags}"
+
+
+def test_a_copy_missing_after_rename_fails_loudly_as_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Prove a copy that is gone after the rename exits non-zero with MISSING."""
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    target = delivered(channel, DEST_A)
+    monkeypatch.setattr(sender, "rename_no_clobber", tampering_rename(sender, target, remove=True))
+
+    code = sender.perform_send(
+        CLEAN_BODY.encode("ascii"), NOTE_NAME, [(DEST_A, target)], "CLEAN", []
+    )
+    captured = capsys.readouterr()
+    counts = reached_counts(captured.out.encode("ascii"))
+    err = captured.err
+    named = "MISSING" in err and DEST_A in err
+    leaked = str(tmp_path) in err or str(tmp_path) in captured.out
+
+    assert code == EXIT_INCOMPLETE, f"a missing copy returned {code}"
+    assert counts == [(0, 1)], f"a missing copy reported {counts}, not reached 0/1"
+    assert named, "stderr does not name the destination and the word MISSING"
+    assert not leaked, "an absolute path reached the output"
+
+
+def test_one_damaged_copy_of_two_is_counted_and_named_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Prove N counts only the verified copies and only the bad one is named.
+
+    The sibling case of the two arms above: a re-hash that checked only the
+    first destination, or that named every destination on any failure, passes
+    a single-destination arm and fails here.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    victim = delivered(channel, DEST_B)
+    monkeypatch.setattr(sender, "rename_no_clobber", tampering_rename(sender, victim, remove=False))
+    targets = [(name, delivered(channel, name)) for name in (DEST_A, DEST_B)]
+
+    code = sender.perform_send(CLEAN_BODY.encode("ascii"), NOTE_NAME, targets, "CLEAN", [])
+    captured = capsys.readouterr()
+    counts = reached_counts(captured.out.encode("ascii"))
+    bad_lines = [line for line in captured.err.splitlines() if "MISMATCH" in line]
+    names_b = all(DEST_B in line for line in bad_lines) and bool(bad_lines)
+    names_a = any(DEST_A in line for line in bad_lines)
+
+    assert code == EXIT_INCOMPLETE, f"one damaged copy of two returned {code}"
+    assert counts == [(1, 2)], f"one damaged copy of two reported {counts}, not reached 1/2"
+    assert names_b, "the damaged destination is not named on a MISMATCH line"
+    assert not names_a, "the verified destination was named as a mismatch"

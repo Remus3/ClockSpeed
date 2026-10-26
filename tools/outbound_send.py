@@ -839,6 +839,39 @@ def commit_all(targets: Sequence[tuple[str, Path]]) -> tuple[list[str], str]:
     return landed, ""
 
 
+def verify_copies(
+    payload: bytes, targets: Sequence[tuple[str, Path]], landed: Sequence[str]
+) -> tuple[list[str], list[str]]:
+    """Re-read every landed copy and compare its SHA-256 to the payload's.
+
+    Returns (the destinations whose copy is present and hash-equal, one fault
+    line per copy that is not). A fault line names the destination ASCII-escaped
+    and the word MISSING or MISMATCH - never the path, which sits in another
+    repository's tree under a home-rooted checkout and is personal data.
+
+    AN UNREADABLE COPY IS MISSING, not an exception. This runs after a rename
+    has already delivered something, so a raise here would reach the outer
+    handler with a detail string instead of the destination's name.
+    """
+    wanted = hashlib.sha256(payload).hexdigest()
+    paths = dict(targets)
+    verified: list[str] = []
+    faults: list[str] = []
+    for name in landed:
+        try:
+            found = hashlib.sha256(paths[name].read_bytes()).hexdigest()
+        except OSError:
+            faults.append("MISSING: the copy at destination %s is not there" % _ascii(name))
+            continue
+        if found != wanted:
+            faults.append(
+                "MISMATCH: the copy at destination %s does not hash to the note" % _ascii(name)
+            )
+            continue
+        verified.append(name)
+    return verified, faults
+
+
 def _refuse(lines: Sequence[str]) -> int:
     """Report a refusal and send nothing."""
     body = "".join("  " + _ascii(line) + "\n" for line in lines)
@@ -933,6 +966,22 @@ def perform_send(
     failure raised anywhere after a rename is still visible to the handler that
     reports it. A tool that says nothing was sent over a delivered note is worse
     than the partial send it hides.
+
+    EVERY COPY THAT LANDED IS READ BACK AND RE-HASHED (FLEET-COMMON item 7,
+    MAIN order U5 item 1: "Delivery = destination copies re-hashed and an N/M
+    reached-count reported"). A rename that returned without raising proves a
+    directory entry moved, not that the bytes now in a sibling's inbox are the
+    note's bytes. The run prints `reached N/M` on stdout - N the copies present
+    AND hash-equal to the payload, M every requested destination - and a copy
+    that is MISSING or whose hash is a MISMATCH fails loudly through
+    :func:`_incomplete`, naming the destination and never its path.
+
+    THE RECORD KEEPS ONE ENTRY PER LANDED COPY AND GAINS A BOOLEAN `verified`
+    FIELD, rather than dropping the copies that failed the re-hash. A
+    mismatched copy is still sitting in a sibling's inbox, and a record that
+    forgets it is the CS-951 hole again; `verified: false` is the record
+    telling the truth about it. Every entry carries the field, so a reader
+    never has to treat its absence as a third state.
     """
     _staged, stage_error = stage_all(payload, targets)
     if stage_error:
@@ -945,6 +994,7 @@ def perform_send(
 
     landed_names, commit_error = commit_all(targets)
     delivered.extend(landed_names)
+    verified, faults = verify_copies(payload, targets, landed_names)
 
     # THE RECORD IS WRITTEN FOR WHAT LANDED, EVEN WHEN THE SEND WENT WRONG.
     # A delivery the record never learned about is exactly the CS-951 hole,
@@ -959,6 +1009,7 @@ def perform_send(
             "sha256": digest,
             "bytes": len(payload),
             "gate_verdict": verdict_name,
+            "verified": name in verified,
         }
         for name in landed_names
     ]
@@ -969,6 +1020,21 @@ def perform_send(
         except (OSError, ValueError) as exc:
             record_error = type(exc).__name__
 
+    # THE COUNT PRINTS ON EVERY PATH THAT REACHED THE COMMIT PHASE, success
+    # or not, so the operator's read-back always has a line to read.
+    write_stream(sys.stdout, "%s: reached %d/%d\n" % (TOOL, len(verified), len(targets)))
+
+    if faults:
+        lines = list(faults)
+        if commit_error:
+            lines.append("the send also failed part way through: " + commit_error)
+        lines.append(
+            "reached %d of %d destination(s); the record marks the failed copies "
+            "verified: false" % (len(verified), len(targets))
+        )
+        if record_error:
+            lines.append("and the record could not be written: " + record_error)
+        return _incomplete(lines)
     if commit_error:
         return _incomplete(
             [
