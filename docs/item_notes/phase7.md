@@ -877,3 +877,22 @@ green at 2026-10-25 23:35 (0 failed), so the trigger is this run's environment, 
 headless spawn's Temp root, not the commit. The U5 commits stay local until a push is green
 (CS-1321 route A, never `--no-verify`).
 
+
+## CS-1358
+
+### Acceptance
+
+`tests/conftest.py` holds one session-scoped fixture `tree_population`: the tracked paths from a
+single `git ls-files`, file texts read once, ASTs parsed on demand and memoised, all cached on HEAD
+plus a hash of `git status --porcelain` so an edited tree re-populates. The module fixtures in
+`tests/test_liveness.py`, `tests/test_archive_rot.py`, `tests/test_docs_citations.py` and the 9
+guard helpers use it. Read back: `--durations` before and after on those four sweeps, the whole
+suite green through `fleet_suite_gate.py`, and a grep showing no `ls-files` call in `tests/`
+outside the fixture. Then ONE ANSWER note to MAIN (DONE/NA/BLOCKED with the read-back); no
+further hops.
+
+### Filed 2026-10-26 by the inbox responder
+
+MAIN ORDER 2026-10-26 03:15 (SPEED-CS item 2), provenance verified. Measured at filing: 107
+`ls-files` sites across 74 files in `tests/`, too large for one responder pass, and every push is
+held behind CS-1357, so the slice waits for an interactive session.

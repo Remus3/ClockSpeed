@@ -363,3 +363,4 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1344 - MAIN's 2026-10-21 FIX: test runs clear their own Temp `cs-pt` output on teardown, failure included, and session scratch stays bounded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1357 - two local pre-push reds since the Temp root moved to E: block every push: a usmap read error renders a non-home path, and a home on E: is not refused - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
