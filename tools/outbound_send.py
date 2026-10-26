@@ -980,8 +980,9 @@ def perform_send(
     FIELD, rather than dropping the copies that failed the re-hash. A
     mismatched copy is still sitting in a sibling's inbox, and a record that
     forgets it is the CS-951 hole again; `verified: false` is the record
-    telling the truth about it. Every entry carries the field, so a reader
-    never has to treat its absence as a third state.
+    telling the truth about it. Entries written before the field existed do
+    not carry it, so a reader treats an absent `verified` as UNKNOWN - never
+    as true.
     """
     _staged, stage_error = stage_all(payload, targets)
     if stage_error:

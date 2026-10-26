@@ -3974,3 +3974,35 @@ def test_one_damaged_copy_of_two_is_counted_and_named_alone(
     assert counts == [(1, 2)], f"one damaged copy of two reported {counts}, not reached 1/2"
     assert names_b, "the damaged destination is not named on a MISMATCH line"
     assert not names_a, "the verified destination was named as a mismatch"
+
+
+def test_a_partial_commit_reports_every_requested_destination_as_m(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Prove M is every REQUESTED destination, not every copy that landed.
+
+    Every arm above lands all of its targets, so `landed == targets` there and
+    a denominator taken from the landed names passes them all. Here the second
+    rename fails outright, with no tampering, so only a count over the
+    requested targets reports reached 1/2.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    victim = delivered(channel, DEST_B)
+    real = sender.rename_no_clobber
+
+    def failing_rename(staged: Path, target: Path) -> None:
+        if target == victim:
+            message = "the second rename fails"
+            raise OSError(message)
+        real(staged, target)
+
+    monkeypatch.setattr(sender, "rename_no_clobber", failing_rename)
+    targets = [(name, delivered(channel, name)) for name in (DEST_A, DEST_B)]
+
+    code = sender.perform_send(CLEAN_BODY.encode("ascii"), NOTE_NAME, targets, "CLEAN", [])
+    counts = reached_counts(capsys.readouterr().out.encode("ascii"))
+
+    assert code == EXIT_INCOMPLETE, f"a partial commit returned {code}"
+    assert counts == [(1, 2)], f"a partial commit reported {counts}, not reached 1/2"
