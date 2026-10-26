@@ -173,7 +173,7 @@ ROOT the E: checkout (ADR 0026), C: a junction. Land by cherry-pick, never merge
 REFS: remotes exactly origin/HEAD, origin/main, tag v0.1.0; refs/preserve local (s146, s150,
   s150b, s150c, heads); refs/archive/s152 local (item 12). NEW IDS: re-check `git grep`, `git log
   --all` and origin/main's ROADMAP.md first; the responder and lanes allocate too (next free at
-  the U5 trim: CS-1357, as CS-1354 to CS-1356 landed after session 152; gated CS-G11).
+  the U5 pass: CS-1358; CS-1357 = the 2 local pre-push reds, U5 commits unpushed; gated CS-G11).
 THE RESPONDER (CS-InboxResponder) commits and pushes on main when live: read inbox_status.json
   first; a refusal every tick: check the proxy listener (name CLAUDE_HEADLESS_BASE_URL only).
 KIT v23 (CS-1354; v20 patch 1 under CS-1330 before it); never edit a kit file or re-report a sent

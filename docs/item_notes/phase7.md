@@ -854,3 +854,24 @@ Sandbox.
 run when no other slot holder is live, or cap the requirement at the machine's own commit limit.
 The tree-side half - a stable pre-push command and the tests' margin - is this item. Filed in
 Phase 7 beside CS-1334, whose re-walk it unblocks.
+
+## CS-1357
+
+### Acceptance
+
+`tests/save/test_usmap.py::test_no_exception_carries_a_decoded_name_a_raw_byte_or_a_path` and
+`tests/test_flip_checks.py::test_a_home_on_another_drive_is_refused_by_its_location` pass on this
+machine with the test Temp root on E:, and a `clockspeed/save/usmap.py::load_usmap` read error
+renders no absolute path wherever the file lives. Neither test is weakened to pass.
+
+### Filed 2026-10-26 by the MAIN ORDER U5 inbox pass
+
+**THE GAP.** The pre-push whole suite failed twice on this machine (2 failed, 7848 passed) and
+both failures reproduce alone on the base `c0816233`, untouched by the U5 slice. (1) The usmap
+read error message rendered the full test path under the E: Temp root, which the test's `:/`
+arm catches - the redaction appears to cover home-relative paths only, so a path outside the
+home leaks; the same echo rule as `CLAUDE.md` section 3 rule 12. (2) The flip check does not
+refuse a home on E: by its location. INFERRED, not measured: both turned red when the kit v23
+adoption (CS-1354) moved the Temp root onto E:, the repo's own drive. The U5 commits stay local
+until this is green (CS-1321 route A, never `--no-verify`).
+
