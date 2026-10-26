@@ -75,6 +75,70 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-25 - CS-1352 - CLOSED: the session 152 worktree sweep - 21 worktrees and 16 orphan work folders retired by content, 7 spent branches deleted
+Verification: `git worktree list` read 5 entries and `git branch --list` 90 local heads, both read
+back by the session 152 /done after the sweep (26 entries and 97 heads at the session 151 /done);
+the ref refs/archive/s152/s137_cs1308f2_land_wt; the sweep's manifest, patch backups and copied
+scratch in the session 152 sweep archive folder under the gitignored work folder (named in words).
+Tier 0: the sweep changed no tracked file and made no commit, so no test names it.
+SCOPE. The operator's one request in session 152, in their own words: "look at the worktrees and
+do what is needed." A survey read 26 worktrees and none live: no lane lock, no live claim, and the
+lane-0 progress file done since 2026-10-23.
+RETIRED, each by content, never by bulk prune:
+- 6 clean worktrees whose content is already in main, removed with `git worktree remove`.
+- 2 stale worktree locks held by a dead process, unlocked first.
+- 11 clean but superseded worktrees removed with their branches KEPT; two carried gitignored
+  scratch, copied into the archive folder first.
+- 4 dirty worktrees sent to the Recycle Bin after patch backups that pass `git apply --check`;
+  every changed blob of each is already in main's history; the one detached HEAD among them is
+  kept at the archive ref above.
+- 16 orphan folders under the gitignored work folder sent to the Recycle Bin after a consumer
+  check (no live consumer; only archive and history docs name them), unique diffs saved as
+  patches first. One held two stale save-file copies, a work copy that `clockspeed/save/workdir.py`
+  recreates on demand; the save directory itself was never touched.
+- 7 agent branches deleted with `git branch -D`, each reading zero '+' lines in `git cherry`
+  against main; each one's sha and restore command are in the manifest.
+About 558 MB went to the Recycle Bin (FLEET item 9); nothing was unlinked directly.
+KEPT ON PURPOSE: the two CS-1318 worktrees (the hand-off's keep order), the lane-0 tree, and the
+session 151 CS-1295 review tree, which holds unique gitignored review data. Untouched: the
+cs1322-adv-tmp folder at the E: volume root, slice/cs-g06-discharge, every refs/preserve ref.
+DECISION: no adjudicator was needed - each act followed the hand-off's C13 rule (by content, never
+by bulk prune), and a branch with any '+' line in `git cherry` was kept rather than forced, since
+a squashed landing also reads '+'. RESIDUAL: the superseded unmerged branches left, and recycling
+the archive folder after a grace period. A second branch and worktree prune, on the operator's
+order, ran concurrently with this /done (refs and worktrees only, no tracked edit, no commit);
+its outcome is in the second manifest in the same archive folder, not in this record, and the
+counts above were read before it. No BACKLOG line is filed: the hand-off carries it. No licence
+gate applies.
+STEP 0 (the session 152 /done): start 2026-10-25T19:33:44-05:00. WINDOW SIGNAL CLOSED: `git
+rev-list --parents -n 1 HEAD` exit 0 with two SHAs (not a merge); `git diff-tree --root
+--no-commit-id --name-only -r HEAD` exit 0, listing the session 151 /done's seven records files
+and not the citation historical file. Porcelain empty. HEAD equal to origin/main by full SHA
+(`git ls-remote origin`); CI for it read success - tier1 and CodeQL on its push, tier2 on its
+schedule. Items closed: CS-1352, the next free id (`git grep` and `git log --all` read no id
+above CS-1351 in use). Highest tier touched: 0.
+STEP 1, tier 0, from the repo root: `git diff --name-only HEAD -- "*.py"` exit 0 and `git ls-files
+--others --exclude-standard -- "*.py"` exit 0, both empty - no changed Python path, so ruff had no
+target and was not run. No pytest ran at step 1.
+STEP 2: this record. STEP 3: `ROADMAP.md` unchanged - CS-1352 was filed and closed inside session
+152 and never had a line; `BACKLOG.md` unchanged, the residual carried by the hand-off. STEP 4:
+session 152 added to `WAKEUP_NOTES.md`; session 149 relocated verbatim to `docs/history_notes.md`.
+STEP 5: `python tools/drift_guard.py` first read exit 1 - guard (i) read a wrapped `BACKLOG.md`
+continuation line that opened with item ids as an entry head owning five of them; rewrapped, it
+read exit 0, and that line was later removed when the concurrent prune's outcome moved to the
+hand-off. After every ritual edit: `python tools/drift_guard.py` exit 0 (guards 11, PASS 11);
+`python tools/doc_budget.py` exit 0 (measured 40, over budget 0); `python tools/memory_sync.py`
+exit 0 (23 leaves, the tracked `memory/` unchanged). TARGETED, no whole suite: one pytest run with
+-n 6 over the 72 test files that read the edited records or the tracked tree, every path read
+present first: exit 0, 6924 passed, 0 failed, 9 skipped - an off-Windows store arm, two
+git-for-Windows PATH arms, two chmod read-back arms, three empty-gap-record arms and a
+NUL-argument arm, each by its stated reason; after the later edits, 15 of those files again
+(`tests/test_readme_audit.py`, `tests/test_citation_tables.py`, `tests/test_ledger_entry_shape.py`,
+`tests/test_dated_headings.py`, `tests/ops/test_lane_scope.py` among them): exit 0, 1793 passed, 0
+failed, 0 skipped.
+STEP 6: the hand-off rewritten whole, `SESSION: 153`. The session-start status board push (FLEET
+item 18) was NOT made in session 152; the /done's `--final` push is recorded in the hand-off.
+
 ### 2026-10-24 - CS-1344 and CS-1334 - NOT A COMPLETION RECORD. CS-1344 AND CS-1334 STAY OPEN: session 151 /done - every closed item's record read present, the session 150 builder worktrees retired by content, and the CS-1334 re-walk not launched on host RAM
 Verification: the session 151 records below this one in this file; `tools/scratch_sweep.py`, run at
 step 9 of `.claude/commands/done.md` after the push; the CS-1334 section of
