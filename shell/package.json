@@ -12,6 +12,9 @@
     "test": "node --test"
   },
   "devDependencies": {
-    "electron": "44.0.0"
+    "electron": "44.9.1"
+  },
+  "overrides": {
+    "undici": "7.30.1"
   }
 }
