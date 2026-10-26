@@ -1,4 +1,4 @@
-"""CS-1356: the ``inner_suite`` marker, and its opt-in local deselection.
+"""CS-1356: the ``inner_suite`` marker, and its explicit command-line deselect.
 
 WHAT IS MARKED. A test that re-runs a whole (sub)suite or a sandbox suite in a
 child ``python -m pytest``, or drives the Claude hook wrapper through a POSIX
@@ -6,13 +6,16 @@ shell the way the harness does. Those are the slowest tests in the tree by
 setup and wall time, and every one of them still runs in tier1, tier2 and the
 pre-push gate.
 
-THE OPT-IN IS THE WHOLE DESIGN. ``tests/conftest.py`` deselects ``inner_suite``
-items only when the variable named by ``OPT_IN`` below is set to ``1``. Nothing
-else changes: the marker is NOT in ``addopts``, so CI (``python -m pytest
-tests``) and the frozen ``.githooks/pre-push`` keep collecting every marked
-test. The equivalent explicit spelling is ``-m "not inner_suite"``.
+THE ONLY OPT-IN IS THE COMMAND LINE. An in-session local run deselects the
+marked tests with ``-m "not inner_suite"``. Nothing else does: the marker is
+NOT in ``addopts``, and no environment variable is consulted - the frozen
+``.githooks/pre-push`` passes the pushing shell's environment through, so an
+environment switch would silently drop the marked tests from the pre-push
+gate. CI and pre-push build their own command lines and so collect every
+marked test. ``ENV_DECOY`` below names the retired variable; setting it must
+change nothing.
 
-This module is collection only - two child ``--collect-only`` runs over a
+This module is collection only - a few child ``--collect-only`` runs over a
 handful of node ids - and is deliberately NOT marked, so the local fast run
 still proves the switch works. No environment value is rendered anywhere here:
 the child environments are built from the parent's, and only node ids and
@@ -30,14 +33,15 @@ from typing import Final
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 
-#: The opt-in variable. Its NAME is the contract; its value is never rendered.
-OPT_IN: Final = "CLOCKSPEED_FAST_LOCAL"
+#: The retired environment opt-in. Setting it must NOT change collection. Its
+#: NAME appears here; its value is never rendered.
+ENV_DECOY: Final = "CLOCKSPEED_FAST_LOCAL"
 
 #: The marker every whole-suite or shell-harness test carries.
 MARKER: Final = "inner_suite"
 
 #: MAIN's measured worst offenders (CS-1356), one node id each. Each must be
-#: deselected under the opt-in and collected without it.
+#: deselected by ``-m "not inner_suite"`` and collected without it.
 OFFENDERS: Final = (
     "tests/test_claude_hook.py::test_the_settings_commands_run_under_a_shell_like_the_harness",
     "tests/test_hook_env_echo.py::test_no_claude_hook_path_echoes_a_canary[pretooluse-allows]",
@@ -50,8 +54,8 @@ OFFENDERS: Final = (
 )
 
 #: THE CONTROL: a cheap unmarked test in an offender's own module. It must be
-#: collected in BOTH modes, so a switch that deselected everything - or a
-#: child that collected nothing - cannot pass the opt-in arm.
+#: collected in EVERY mode, so a switch that deselected everything - or a
+#: child that collected nothing - cannot pass the deselect arm.
 CONTROL: Final = (
     "tests/test_canary_population_forced.py::test_the_unhygienic_copy_lands_each_edit_exactly_once"
 )
@@ -66,18 +70,20 @@ def _ini_options() -> dict[str, object]:
     return table
 
 
-def _collected(*, opt_in: bool) -> tuple[int, frozenset[str]]:
+def _collected(*, deselect: bool, env_decoy: bool) -> tuple[int, frozenset[str]]:
     """Collect the offenders and the control in a child; return its exit code and node ids.
 
-    The child environment is the parent's with the opt-in forced on or off, so
-    a parent run that itself carries the opt-in cannot decide the off arm.
+    ``deselect`` adds ``-m "not inner_suite"`` to the child's command line.
+    ``env_decoy`` sets the retired environment variable to ``1``. The child
+    environment is the parent's with that variable forced on or off, so a
+    parent run that itself carries it cannot decide any arm.
     """
     env = dict(os.environ)
-    env.pop(OPT_IN, None)
+    env.pop(ENV_DECOY, None)
     env.pop("PYTEST_ADDOPTS", None)
     env.pop("PYTEST_XDIST_WORKER", None)
-    if opt_in:
-        env[OPT_IN] = "1"
+    if env_decoy:
+        env[ENV_DECOY] = "1"
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     argv = [
@@ -88,9 +94,10 @@ def _collected(*, opt_in: bool) -> tuple[int, frozenset[str]]:
         "-q",
         "-p",
         "no:cacheprovider",
-        *OFFENDERS,
-        CONTROL,
     ]
+    if deselect:
+        argv += ["-m", f"not {MARKER}"]
+    argv += [*OFFENDERS, CONTROL]
     done = subprocess.run(
         argv,
         capture_output=True,
@@ -120,19 +127,31 @@ def test_the_marker_is_not_deselected_by_default() -> None:
     assert not excluded, f"addopts names {MARKER}, so CI and pre-push would skip it"
 
 
-def test_the_opt_in_deselects_every_named_offender() -> None:
-    """With the opt-in set, no offender is collected and the control still is."""
-    code, ids = _collected(opt_in=True)
-    assert code == 0, f"the opt-in collection exited {code}"
+def test_the_explicit_deselect_drops_every_named_offender() -> None:
+    """With ``-m "not inner_suite"``, no offender is collected and the control still is."""
+    code, ids = _collected(deselect=True, env_decoy=False)
+    assert code == 0, f"the deselect collection exited {code}"
     kept = sorted(node for node in OFFENDERS if node in ids)
-    assert not kept, f"the opt-in run still collected: {kept}"
+    assert not kept, f"the deselect run still collected: {kept}"
     control = CONTROL in ids
-    assert control, "the opt-in run did not collect the unmarked control"
+    assert control, "the deselect run did not collect the unmarked control"
 
 
-def test_without_the_opt_in_every_named_offender_is_collected() -> None:
-    """Without the opt-in, the marker selects nothing away - CI's view."""
-    code, ids = _collected(opt_in=False)
+def test_without_the_deselect_every_named_offender_is_collected() -> None:
+    """Without ``-m``, the marker selects nothing away - CI's view."""
+    code, ids = _collected(deselect=False, env_decoy=False)
     assert code == 0, f"the default collection exited {code}"
     missing = sorted(node for node in (*OFFENDERS, CONTROL) if node not in ids)
     assert not missing, f"the default run did not collect: {missing}"
+
+
+def test_the_retired_environment_variable_changes_nothing() -> None:
+    """The pre-push hook inherits the pushing shell's env, so no env value may deselect.
+
+    With the retired variable set to ``1`` and no ``-m``, every offender and
+    the control must still be collected.
+    """
+    code, ids = _collected(deselect=False, env_decoy=True)
+    assert code == 0, f"the env-decoy collection exited {code}"
+    missing = sorted(node for node in (*OFFENDERS, CONTROL) if node not in ids)
+    assert not missing, f"the environment variable deselected: {missing}"

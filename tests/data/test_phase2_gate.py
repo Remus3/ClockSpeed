@@ -691,7 +691,6 @@ def _child_pytest_args() -> list[str]:
     ]
 
 
-@pytest.mark.inner_suite
 def test_the_data_layer_suite_passes_with_the_install_unresolvable() -> None:
     """The whole data-layer suite exits zero with the install forced unresolvable.
 
@@ -720,7 +719,6 @@ def test_the_data_layer_suite_passes_with_the_install_unresolvable() -> None:
     assert int(passed.group(1)) > 0
 
 
-@pytest.mark.inner_suite
 def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None:
     """The recursion guard is verified against pytest's own collection, not assumed.
 
@@ -1378,3 +1376,12 @@ def test_blobs_imports_nothing_from_clockspeed_beyond_its_own_package_shell() ->
         f"importing clockspeed.data.blobs loaded {sorted(loaded)}; it is the bottom of the "
         "layer and must depend on nothing inside the project"
     )
+
+
+# CS-1356: the inner_suite marker is applied here at the foot rather than as a
+# decorator on each test. A decorator above them would shift every line below,
+# and the archive and the ledger carry line pointers into this module that a
+# shift would turn into rot. pytest.mark applied to a function stores the mark
+# on it exactly as the decorator form does.
+pytest.mark.inner_suite(test_the_data_layer_suite_passes_with_the_install_unresolvable)
+pytest.mark.inner_suite(test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse)

@@ -1656,33 +1656,3 @@ os.environ["FLEET_SIDECAR_ROOT"] = ""
 from tests import own_temp_root  # noqa: E402 - appended at the foot, see above
 
 own_temp_root.wrap_configure(globals())
-
-
-# ---------------------------------------------------------------------------
-# CS-1356 - ``inner_suite``: an OPT-IN local deselect of the slowest tests
-#
-# A test that re-runs a whole (sub)suite or a sandbox suite in a child pytest,
-# or drives the Claude hook wrapper through a POSIX shell, carries the
-# ``inner_suite`` marker (registered in pyproject.toml). Setting
-# CLOCKSPEED_FAST_LOCAL=1 for an in-session local run deselects those items;
-# ``-m "not inner_suite"`` is the equivalent explicit spelling. With the
-# variable unset - tier1, tier2 and the frozen pre-push gate - nothing changes
-# and every marked test runs. Only the variable's NAME appears here; its value
-# is compared, never rendered (CLAUDE.md section 3 rule 13). Graded by
-# tests/test_inner_suite_marker.py. Appended at the foot for the line-number
-# reason above.
-# ---------------------------------------------------------------------------
-INNER_SUITE_MARKER = "inner_suite"
-INNER_SUITE_OPT_IN = "CLOCKSPEED_FAST_LOCAL"
-
-
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Deselect every ``inner_suite`` item, but only under the local opt-in."""
-    if os.environ.get(INNER_SUITE_OPT_IN) != "1":
-        return
-    kept = [item for item in items if item.get_closest_marker(INNER_SUITE_MARKER) is None]
-    if len(kept) == len(items):
-        return
-    dropped = [item for item in items if item.get_closest_marker(INNER_SUITE_MARKER) is not None]
-    config.hook.pytest_deselected(items=dropped)
-    items[:] = kept
