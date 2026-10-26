@@ -130,13 +130,17 @@ edit. Tree-specific rules go BELOW this block, never inside it.
        `Session <n> checklist` (n = this tree's session counter, kept in its
        hand-off file; a headless fire uses its run count), then one line per
        task in execution order: `<box> <ID>: <imperative task, one line>`, plus
-       `(<state>, <pct>% ~<rem>m of <total>m [<h:mmAM/PM>])` only while it is
-       running (e.g. `builder running, 25% ~22.5m of 30m [2:25PM]`). Why: the
-       operator forgets when an estimate was given. rem and total round UP
-       to 0.5 min; total is re-estimated as elapsed / pct on each update; the
+       `(<state>, started <h:mmAM/PM> - <pct>% ~<rem>m of <total>m Remain
+       [<h:mmAM/PM>])` only while it is running (e.g. `builder running,
+       started 1:55PM - 25% ~22.5m of 30m Remain [2:25PM]`). Why: the
+       operator forgets when a task started and when an estimate was given.
+       The start rounds DOWN to the minute; rem and total round UP to 0.5
+       min; total is re-estimated as elapsed / pct on each update; the
        bracket is the local finish time, recomputed on every start or update.
-       The start time is the item-12 "started" field (optional: a file
-       without it keeps `~ETA`). The status line and the agent panel show the
+       The start time is the item-12 "started" field (optional: a row
+       without it reads `<pct>% ~<rem> Remain`). Rendered by fleet_checklist
+       (render / Checklist), never hand-typed ETA prose; the item-13 b
+       reprint, status answers, the status line and the agent panel show the
        same. <box> is U+2610. The last line is `<box> /done`. At most ONE
        trailing sentence, and only for an ordering constraint ("X waits until
        Y lands because ..."). NO summary, review, what-went-wrong or history.
@@ -189,8 +193,12 @@ edit. Tree-specific rules go BELOW this block, never inside it.
        bare commit, push or whole suite; SubagentStop releases the claims.
     c. Every whole test suite runs through
        `fleet_suite_gate.py run --owner <id> -- <cmd>` (machine-wide slots,
-       default 2, FIFO queue; fails closed on timeout; refuses while another
-       live agent holds uncommitted edits in the tree).
+       default 2, FIFO queue; the count re-read live; one suite per tree at
+       a time; memory and CPU admission; `--exclusive` for a suite that
+       needs the whole box; fails closed on timeout; refuses while another
+       live agent holds uncommitted edits in the tree). Every "waiting on
+       the suite gate" report names the trees holding the gate and the ones
+       next up, read from `fleet_suite_gate.py status`.
     d. Each tree's tests/conftest.py installs `fleet_test_guard.py`: a suite
        that changes live state (control files, inbox, outbox) fails, and
        declared runtime roots point at tmp_path.
@@ -201,13 +209,14 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     strips, pre-push refuses; operator identity only from local git config
     `fleet.operatorIdent`), fleet_gitlock and the account attribution keys.
     A history rewrite runs only on MAIN's ORDER, via `fleet_rewrite.py`.
-18. STATUS BOARD (kit v19; operator order 2026-10-18). Each tree's claude.ai
-    board URL lives in `ops/status_board.json` {"url"}. An interactive
-    session pushes its board ONLY at session start, after every item-13 b
-    reprint and at /done (`--final`): `fleet_board.py calls --session <n>`
-    (checklist on stdin) renders status.json and prints the exact two tool
-    calls - one Artifact asset upload of that file, one ArtifactData update
-    of datasets/board pinned with if_version. Headless runs never push.
+18. STATUS BOARD (kit v23; operator order 2026-10-25). LOCAL ONLY: no
+    claude.ai artifact, no Artifact or ArtifactData call, no board URL.
+    Why: operator views it locally; the artifact push wasted tokens. An
+    interactive session renders its board ONLY at session start, after
+    every item-13 b reprint and at /done (`--final`):
+    `fleet_board.py render --session <n>` (checklist on stdin) writes
+    status.json and board.html to ops/loop/control/board/ in the MAIN
+    checkout; open board.html in a browser. Headless runs never render.
 <!-- FLEET-COMMON END -->
 
 ---
@@ -320,7 +329,7 @@ and tracked files name it by that text, never the glyph (section 3 rule 4). Sect
 owns adjudicate-do-not-ask and commit-and-push; keep the remaining context in mind when
 planning `/done`.
 
-**Here:** the counter, its kit helper and the board pushes (FLEET item 18):
+**Here:** the counter, its kit helper and the local board render (FLEET item 18):
 `docs/OPERATIONS.md` section 12.4.
 
 ---
@@ -500,7 +509,9 @@ exception above. The grant and the provenance check: `docs/OPERATIONS.md` sectio
 
 Each entry records what was decided AND specifically what not to re-pitch. A settled entry
 that records only the conclusion invites someone to rebuild the argument. The fence is the
-point.
+point. *An operator ADR* below means only the operator's own words in
+the main session (section 6.1 - no adjudicator and no MAIN note stands in), then recorded
+as an ADR in `docs/adr/`.
 
 **The two that matter most are the zero-language-model rule and the never-write rule.**
 
@@ -509,8 +520,7 @@ point.
   or rendered. *Do not re-pitch:* an LLM-backed explainer, summarizer, ranker, natural
   language front end, or a model used "only for the prose". The tier-3 derivation is
   generated from the rule trace, which is exactly why no model is needed.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Never write to the game install or a save file.** An invariant, not a preference.
   *Do not re-pitch:* an opt-in write mode, a backup-then-write, an in-place save edit, a
   "safe" patcher, or writing anything at all into the save directory.
@@ -518,8 +528,7 @@ point.
   and no MAIN note lifts.
 - **Name is Clockspeed, root is `<repo>` on E: (ADR 0026).** *Do not re-pitch:* a rename
   or a relocation of the root.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Repo is private first, public later.** Hygiene is enforced from the first commit
   anyway. *Do not re-pitch:* deferring hygiene work on the grounds that the repo is
   private.
@@ -527,31 +536,25 @@ point.
   half and waits for the operator's own words in the main session (section 6.1).
 - **Python core.** Node exists solely for the Electron shell. *Do not re-pitch:* a rewrite
   in another language, or moving core logic into the Node side.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Three explain tiers: headline, one-line reason, full derivation.** *Do not re-pitch:*
   collapsing to two, or adding a fourth.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Persistence is per-world ledger PLUS global per-rule mute.** Both layers. *Do not
   re-pitch:* dropping either one, or merging them into a single store.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **All four advice domains ship in v1** - node siting and claim order, onsite processing
   versus transport and by what method, milestone gap against any target, and power and
   fuel planning. *Do not re-pitch:* cutting a domain to a later version.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Milestone target is a free selector.** *Do not re-pitch:* a fixed pointer at the next
   milestone. Selecting a target several tiers out and getting a redesign plan is required
   capability, not a stretch goal.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Companion window in v1; the in-game overlay is a later flagged mode of the same
   shell**, default off, degrading to the companion on bind failure. *Do not re-pitch:*
   building the overlay first, making it the default, or treating it as a separate app.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Mods: architecture now, content later.** Namespaced identifiers, unknown classes
   tolerated, unmodeled content flagged, feature-flag registry from phase 0. *Do not
   re-pitch:* opening mod content work before phase 6 completes.
@@ -561,9 +564,7 @@ point.
 - **Dedicated Server API is out of scope for v1.** The docs are on disk and free to read,
   but single-player saves are the world-state source. *Do not re-pitch:* it as a
   world-state source. Revisit only if the operator starts running a dedicated server.
-  *Reversed by:* once the operator runs a dedicated server, only the operator's own words
-  in the main session (section 6.1 - no adjudicator and no MAIN note stands in), then
-  recorded as an ADR in `docs/adr/`.
+  *Reversed by:* once the operator runs a dedicated server, an operator ADR.
 - **No external optimizer dependency in phase 3.** Interface first, dependency later and
   gated. *Do not re-pitch:* an LP or ILP library before `OptimizerBackend` exists, before
   it slots behind the interface without changing a caller, and before the `CONVENTIONS.md`
@@ -576,10 +577,8 @@ point.
   with `LICENSE`; the gate result and the reasoning are in `docs/LEDGER.md` under CS-485.
   Reading it and citing a URL is CLEARED and carries no obligation. *Do not re-pitch:*
   lifting a node dataset, a table or a data dump from any wiki or community source; nor an
-  automated poller against the wiki, which its platform terms appear to forbid. *Do not
-  argue from "it is official":* that is the site's standing, not any page's authority, and
-  its save-format pages are a major version stale and carry a byte label this project has
-  already measured false.
+  automated poller against the wiki, which its platform terms appear to forbid. Why "it is
+  official" does not change this: `docs/history_notes.md`, the kit v23 relocation.
   *Reversed by:* a named source whose licence CLEARS the `CONVENTIONS.md` section 14
   gate in `THIRD_PARTY.md`, plus only the operator's own words in the main session (section
   6.1 - no adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/` -
@@ -595,15 +594,13 @@ point.
   by world name. *Do not re-pitch:* filename or world-name keying - filenames change on
   every save and autosaves rotate. The ledger tolerates a token it has never seen by
   treating it as a new world rather than failing.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+  *Reversed by:* an operator ADR.
 - **Test fixtures are small synthetic registries hand-authored in the repo**, never slices
   of real game data. *Do not re-pitch:* checking in a trimmed real docs file or a trimmed
   real save "just for tests". The rule suite must run on a machine with no game installed.
-  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
-  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
-- **Product before process - filed 2026-10-03 by operator directive.** Measured over
-  2026-09-19..10-03: of 371 commits, 8 touched `clockspeed/` or `shell/`. No NEW tooling,
+  *Reversed by:* an operator ADR.
+- **Product before process - filed 2026-10-03 by operator directive.** The measurement
+  behind it: `docs/history_notes.md`, the kit v23 relocation. No NEW tooling,
   guard, CI, citation or provenance item is opened unless it blocks a product item or
   turns a suite red; such findings go to `BACKLOG.md`. The next work is CS-400, then the
   Phase 5 advisor. An adversary loop on low-risk hardening stops by cost against risk and

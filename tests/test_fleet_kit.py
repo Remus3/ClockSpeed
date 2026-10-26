@@ -1,4 +1,4 @@
-"""CS-1330 - the vendored FLEET-KIT version 20 patch 1, byte-pinned and conformance-checked.
+"""CS-1330 - the vendored FLEET-KIT version 23, byte-pinned and conformance-checked.
 
 ``ops/fleet_kit/`` is VENDORED from MAIN, not authored here: the same
 twenty-four files sit at the same path in every fleet repository and only a MAIN
@@ -13,8 +13,10 @@ version 14 under CS-1299, version 15 under CS-1303, version 17 under CS-1310
 (it carried the whole v16 FIX, so v16 was never vendored here), and version 20
 patch 1 supersedes it under CS-1330 (it carries every v18, v19 and v20 change, so
 none of those was vendored here, and it added ``fleet_board.py``), as MAIN's
-v20.1 ORDER note (2026-10-19 00:01) says. The manifest version stays 20 at
-patch 1.
+v20.1 ORDER note (2026-10-19 00:01) says. Version 23 supersedes it under MAIN's
+cumulative v23 ORDER note (2026-10-25 19:26), which carries every v21 and v22
+change, so neither was vendored here; it adds no file. The board is LOCAL ONLY
+from v23: render writes it and nothing is pushed.
 
 Two arms:
 
@@ -32,8 +34,8 @@ files and the main-spawn hold, and the vendored ``stop_sentinel_hit()`` halts on
 each one alone and on none when none exists.
 
 A fourth arm holds this tree's suite-guard ignore list (``GUARD_IGNORE`` in
-``tests/conftest.py``) against the vendored board renderer: a board push (FLEET
-item 18) during a suite writes ``fleet_board.STATE_REL``, which the kit guard
+``tests/conftest.py``) against the vendored board renderer: a local board render
+(FLEET item 18) during a suite writes ``fleet_board.STATE_REL``, which the kit guard
 watches, and the guard must neither fail on it nor go blind to any declared stop
 sentinel planted or removed beside it - save those the kit's own default ignore
 already hides, held to an exact record so that gap cannot grow unseen. A fifth
@@ -104,34 +106,34 @@ TREE_GUARD_IGNORE = (
 # held exact so the gap cannot grow unseen.
 KIT_HIDDEN_SENTINELS = ("ops/loop/control/lanes/INBOX_STOP",)
 
-# The kit version MAIN's 2026-10-19 00:01 ORDER note names (v20.1: patch 1 of 20).
-KIT_VERSION = 20
+# The kit version MAIN's 2026-10-25 19:26 ORDER note names (v23, patch 0).
+KIT_VERSION = 23
 # The MANIFEST.json digest named in that note.
-MANIFEST_SHA256 = "8017eae27ba218ea51ab77885ab0a46cc3eceb39b9e9d5f4ee277f88e77d4602"
+MANIFEST_SHA256 = "f5d82861cce3f5c2d565495dbd3a8cceff3b9d895117a2f6f9d4c83f11ba527c"
 # The twenty-three listed kit file digests named in the same note. Spelled as named
 # constants rather than as a JSON-shaped mapping so this pin does not reproduce
 # MANIFEST.json's own lines - the provenance near-duplicate metric
 # (tools/provenance_stamp.py) would otherwise grade the pin as a lift of it.
-COMMON_SHA256 = "940d8a7c5981c6889692d54b3e3a3f4a12a8edcc6ba730ed0a7d7fc2666cc202"
+COMMON_SHA256 = "5e8fa06f61033cca76c5a2868067f92974d3ab6f555963f74dbff0d9bfbbc663"
 LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
 NOTICE_SHA256 = "f4b77ae089fa0be6e16d628786195b04c884ffbc859f79dd7c9eefee8722a18d"
-MODULE_SHA256 = "05eb2934f004f6bbb892ab0913034ec2f06e0fc405d972d8d8735058de547f17"
+MODULE_SHA256 = "26bc517b1d599a36852db3cf4fe4ebc8d0e5ac15f2cd31cb4b13c80cc83216a7"
 CLI_DISPLAY_SHA256 = "fcd92544574eb2e646c9eed62218e4852a570818a7e3de455151aa27c8c7d4d3"
-BOARD_SHA256 = "df8376eef7e7e3252b0feb56490bcbb10f2381556b75b798098a2092b0a43b98"
-CHECKLIST_SHA256 = "e269de8eb36b9f5a5ed5e7449455ddd078913ca9312d3ce373b5944848905801"
+BOARD_SHA256 = "07b98c23252435f0d8641bed97012d88ea9a51d39eaa8ea51467ca1adce483a5"
+CHECKLIST_SHA256 = "583d7c2c900d0003a2350eafa8ca703c6f11bf15f5871282a6f4f00bfdacfd8c"
 CLAIMS_SHA256 = "9c020bfda9a406aad6994e225fac51162329164d29a457f384ac497501f9e7da"
-DONE_SHA256 = "15bd43beca9052d21046f0554919b829660ae6c663f7af5c252b27e81a4ea961"
+DONE_SHA256 = "39b1b572894ed5f8b629022a1e8b148ccce8a95e1e6273a3ad024b01657dc7ac"
 GITLOCK_SHA256 = "e46264acc68ce721516f15b63bcb29428217f1b64fa4fa3c5b6226f39e4ae880"
-IDENTITY_SHA256 = "b46bf90d3ea7155c0fc2aaf59d95e78d7d44ce60421411f1efc41c08a06fdb78"
+IDENTITY_SHA256 = "8fc064075adb1b02e08c5df758ac9b4e0a6d53ba44c488659357dafc980f2019"
 INBOX_SHA256 = "42dd431bc71f8cd0a1d54d66a0cab3c97bd5217c45b9601993f57363841065cd"
-LANES_SHA256 = "b7bc8713a7ff27798566f67e3c8b729103218b75e6d6fd87914c953716a1d954"
+LANES_SHA256 = "a54e2685cd69c4253a3371db8bd236fdc1576ec2d9a10738561b54dbc4ce8ccd"
 REWRITE_SHA256 = "c40bfcacbf08a3b9be4a4d2de971cd39f0cbbb772d76ba68e962d8c9adf7e97d"
 SECRETS_SHA256 = "4e112c1f22c448fe773155b753fce5c678a09afc878cdf31b258eac5b3f0cf38"
-STATUSLINE_SHA256 = "25aed8d270b32e08ec39f9e3b224f84acfa17925f03674ac7a7e6b4740bf6dfd"
+STATUSLINE_SHA256 = "9cca74653baae70bc5bcfef4482b751681f903e94d13afe7fe93c5a9fc9289eb"
 SUBAGENT_FIRST_SHA256 = "e0a7509186824249d1131f59bfa94207c32717cd62bbde3e0f6a8e5a13cf047f"
-SUBAGENT_STATUS_SHA256 = "3338364bc8a4095bedbc66d8636ff64caa48fbbc8606d5876c2d0e76573a6c77"
-SUITE_GATE_SHA256 = "6ad7c361fe45749bdaa91196fec190e89f0ca8f330a36a3b0b4f2cfc23f78a07"
-TEST_GUARD_SHA256 = "3c062811508a2f22e65a41c9138f6ff72abf2e66515102a8a3fbcd91efc01fc7"
+SUBAGENT_STATUS_SHA256 = "5da9e04b6a0deed94deb7d4949637b4130df8eaf8aa3a491d3309344199d580b"
+SUITE_GATE_SHA256 = "fcf139f135bb9ee4e3d74f20116f45c66cd1fa8267416f31b3a9db8ebd97b6a2"
+TEST_GUARD_SHA256 = "6f6c401a077174fd363417d5e83b43d48f2aff1e9535f8af7eabdca829884ecb"
 WATCH_SHA256 = "5685ed7a4abaf0d755c4dd728b7a0dd9e9bb3e6e8ab3c223f99042601d05eb57"
 TOKENS_CSS_SHA256 = "88dc4c91a9bc926b2c6d4c505155ac41d486ad48da3c1d64670f5a15d87a93ee"
 TOKENS_JSON_SHA256 = "6545ef8555132eead997d9d89d18f14ee9178b5cc727aca29a8f5fa83f918c80"
@@ -261,7 +263,7 @@ def test_the_suite_guard_ignores_the_board_render_state_and_still_sees_a_stop(
     tmp_path: Path,
 ) -> None:
     # The kit guard watches ops/loop/control and its own IGNORE omits the two
-    # files fleet_board.render() writes there, so a board push during a
+    # files fleet_board.render() writes there, so a board render during a
     # main-checkout suite would fail the session. GUARD_IGNORE names the two;
     # the second arm plants and removes EVERY path ops/stop_sentinels.json
     # declares, in turn, and proves the guard sees each one come and go - save
@@ -279,10 +281,12 @@ def test_the_suite_guard_ignores_the_board_render_state_and_still_sees_a_stop(
     )
     before = guard.snapshot(tmp_path, ignore=conftest.GUARD_IGNORE)
     plan = board.render(tmp_path, 1, [], environ={})
-    # An early return writes nothing, so a no-push plan would pass vacuously.
-    pushed = plan.get("push") is True
+    # An early return writes nothing, so an unrendered plan would pass vacuously.
+    pushed = plan.get("rendered") is True
     state_dir = tmp_path / board.STATE_REL
-    written = sorted(name for name in ("state.json", "status.json") if (state_dir / name).is_file())
+    written = sorted(
+        name for name in ("board.html", "state.json", "status.json") if (state_dir / name).is_file()
+    )
     after = guard.snapshot(tmp_path, ignore=conftest.GUARD_IGNORE)
     rendered = guard.compare(before, after)
     declared = tuple(json.loads(STOP_SENTINELS.read_bytes().decode("ascii"))["paths"])
@@ -305,7 +309,7 @@ def test_the_suite_guard_ignores_the_board_render_state_and_still_sees_a_stop(
     }
     assert (pushed, written, rendered, hidden, seen) == (
         True,
-        ["state.json", "status.json"],
+        ["board.html", "state.json", "status.json"],
         ([], [], []),
         KIT_HIDDEN_SENTINELS,
         expected,

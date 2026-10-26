@@ -367,7 +367,6 @@ KIT_REFUSAL_CODES = (
     "fallback-halted",
     "route-missing",
     "route-invalid",
-    "route-bare",
 )
 KIT_BUDGET_SPENT = "budget-spent"
 KIT_FALLBACK_HALTED = "fallback-halted"

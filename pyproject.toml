@@ -359,8 +359,10 @@ ignore = [
 #   PLR0913  write_status, spawn and two helpers take the kit's keyword parameters
 #   PLR2004  literal 2 and 65536 in pin parsing and the git index check
 #   PLW1510  _kill_tree's best-effort taskkill run has no check= argument
+# Version 23 (CS-1354, MEASURED on its bytes): A001 - _run() rebinds its input
+# argument to the encoded bytes it writes to the child's stdin file.
 "ops/fleet_kit/fleet_headless.py" = [
-  "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "FURB167", "N818",
+  "A001", "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "FURB167", "N818",
   "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510",
 ]
 
@@ -395,9 +397,13 @@ ignore = [
 # and RUF023 (fleet_inbox.py's loop append and unsorted __slots__), SLF001
 # (fleet_watch.py's own module-level helpers reach its class's private methods).
 "ops/fleet_kit/fleet_checklist.py" = ["D102", "D107", "D205", "D209", "PLC0415", "PLR2004"]
+# Version 23 (CS-1354, MEASURED on its bytes) adds the v22 worktree reap:
+# FURB188 PTH100 PTH104 RUF005 in the porcelain parser and the rename probe, and
+# PLR0915 for main() with its reap subcommand.
 "ops/fleet_kit/fleet_done.py" = [
-  "D103", "D205", "D209", "FURB167", "PLC0415", "PLR0911", "PLR0912", "PLR2004",
-  "PLW1510", "PTH105", "PTH109", "RUF100", "S110", "UP017", "UP032",
+  "D103", "D205", "D209", "FURB167", "FURB188", "PLC0415", "PLR0911", "PLR0912",
+  "PLR0915", "PLR2004", "PLW1510", "PTH100", "PTH104", "PTH105", "PTH109", "RUF005",
+  "RUF100", "S110", "UP017", "UP032",
 ]
 "ops/fleet_kit/fleet_inbox.py" = [
   "D101", "D102", "D103", "D105", "D107", "D205", "D209", "D403", "FURB167", "N818",
@@ -478,13 +484,17 @@ ignore = [
   "PTH123", "RUF059", "SLF001", "UP032",
 ]
 "ops/fleet_kit/fleet_suite_gate.py" = [
-  "D103", "D105", "D107", "D205", "D209", "D301", "E501", "FURB167", "I001", "N818",
-  "PLC0415", "PLR0913", "PLR1714", "PLR2004", "PLW1510", "PTH100", "PTH105", "PTH109",
-  "PTH117", "PTH123", "RET504", "RUF100", "UP032",
+  "D102", "D103", "D105", "D107", "D205", "D209", "D301", "E501", "FURB167", "I001",
+  "N818", "PLC0415", "PLR0912", "PLR0913", "PLR0915", "PLR1714", "PLR2004", "PLW1510",
+  "PLW2901", "PTH100", "PTH105", "PTH109", "PTH117", "PTH123", "RET504", "RUF100",
+  "UP032",
 ]
 # Version 20 patch 1 (CS-1330, MEASURED on its bytes): fleet_suite_gate.py adds
 # PTH105 (an os.replace); fleet_test_guard.py adds D205 and D209 (two fixture
-# docstrings) and PT022 (the route fixture yields with no teardown).
+# docstrings) and PT022 (the route fixture yields with no teardown). Version 23
+# (CS-1354, MEASURED on its bytes): fleet_suite_gate.py adds D102 (the CPU
+# sampler's methods), PLR0912 and PLR0915 (acquire() and run() with the v21 slot,
+# memory and CPU admission) and PLW2901 (cmd_label() normalising each word).
 "ops/fleet_kit/fleet_test_guard.py" = ["D205", "D209", "PLC0415", "PT022", "RUF100"]
 
 # THE ONE PYTHON MODULE FLEET-KIT VERSION 19 ADDED (CS-1330), the STATUS BOARD
@@ -497,8 +507,11 @@ ignore = [
 #   FURB167  re.I spelling
 #   PLR2004  fmt_eta()'s literal 120 s and 7200 s unit thresholds
 #   PTH105 PTH123   os.replace and builtin open(), upstream's spelling
+# Version 23 (CS-1354, MEASURED on its bytes) adds PERF401 - the local board.html
+# table rows built up with append().
 "ops/fleet_kit/fleet_board.py" = [
-  "C420", "D103", "D205", "D209", "E501", "FURB167", "PLR2004", "PTH105", "PTH123",
+  "C420", "D103", "D205", "D209", "E501", "FURB167", "PERF401", "PLR2004", "PTH105",
+  "PTH123",
 ]
 
 [tool.ruff.lint.isort]
@@ -983,8 +996,12 @@ disable_error_code = ["arg-type", "union-attr", "var-annotated"]
 #                  `platform = "win32"` pin above), and :1052, run()'s
 #                  peak_commit_mb write - `peak = {"mb": None}` is inferred as a
 #                  dict of None, so its not-None branch reads as dead
+# MEASURED on the version 23 bytes (CS-1354), one more:
+#   assignment     fleet_suite_gate.py:618 `extra["need_mb"] = round(...)` in
+#                  acquire() - `extra` is inferred from its first literal, a
+#                  dict of bool, so the float write reads as a mismatch
 module = ["ops.fleet_kit.fleet_suite_gate"]
-disable_error_code = ["arg-type", "union-attr", "var-annotated", "unreachable"]
+disable_error_code = ["arg-type", "union-attr", "var-annotated", "unreachable", "assignment"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_test_guard.py, VENDORED BYTE-IDENTICAL from MAIN's fleet
@@ -1021,6 +1038,20 @@ disable_error_code = ["var-annotated"]
 # ONLY var-annotated IS DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_identity"]
 disable_error_code = ["var-annotated"]
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_done.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
+# and pinned by tests/test_fleet_kit.py; MEASURED clean through version 20
+# patch 1, it takes a block at version 23 (CS-1354, bare `python -m mypy` on
+# its bytes), whose v22 worktree reap raised three errors:
+#   unreachable    fleet_done.py:517, _pid_alive()'s POSIX os.kill probe after
+#                  a win32 branch that returns on every path (under the
+#                  `platform = "win32"` pin above)
+#   var-annotated  fleet_done.py:561 `out = set()` and :590 `out = []`, empty
+#                  literals mypy cannot type
+# ONLY these two codes ARE DISABLED, and only for this module.
+module = ["ops.fleet_kit.fleet_done"]
+disable_error_code = ["unreachable", "var-annotated"]
 
 [[tool.mypy.overrides]]
 # Phase 2 rung. The data layer is the seam every other layer consumes, so an

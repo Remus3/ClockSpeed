@@ -254,15 +254,21 @@ fence in a transcript is gone the moment the session is cleared; a file survives
       path - the timing record included - is named in words, never in backticks.
 - [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file is
       the mechanism; the operator starts the next session with "continue".
-- [ ] THE STATUS BOARD, ONCE, `--final` (FLEET-COMMON item 18, kit v19; MAIN's v19 ORDER
-      section 4 step 4; `docs/OPERATIONS.md` section 12.2). After the hand-off is written
-      and READ BACK on disk, and so before the done marker: pipe the session's last printed
-      checklist block into `python ops/fleet_kit/fleet_board.py calls --final --session <n>`
-      (n is THIS session's number) and make the two tool calls it prints. A failed push is
-      a hand-off line, never a ritual failure: rewrite the hand-off whole with that one line
-      added. It runs HERE, before step 7, because nothing is committed after the push
-      (CS-1321), so the line rides the step 7 commit. In the CS-700 window, or on UNKNOWN,
-      it still runs - it writes nothing in the tree but that line.
+- [ ] THE STATUS BOARD, ONCE, `--final`, LOCAL ONLY (FLEET-COMMON item 18, kit v23; MAIN's
+      v23 ORDER section 5 step 4; `docs/OPERATIONS.md` section 12.2). After the hand-off is
+      written and READ BACK on disk, and so before the done marker: pipe the session's last
+      printed checklist block into
+      `python ops/fleet_kit/fleet_board.py render --final --session <n>` (n is THIS
+      session's number). It writes the gitignored board files and nothing else; there is NO
+      Artifact or ArtifactData call and nothing is pushed to claude.ai. A failed render is a
+      hand-off line, never a ritual failure: rewrite the hand-off whole with that one line
+      added. It runs HERE, before step 7, so the line rides the step 7 commit (CS-1321). In
+      the CS-700 window, or on UNKNOWN, it still runs - it writes nothing tracked but that
+      line.
+- [ ] WORKTREE REAP (kit v22, MAIN's v23 ORDER section 5 step 5), before the step 7 commit:
+      `python ops/fleet_kit/fleet_done.py reap --apply`. It removes only a linked worktree
+      that can lose nothing and LISTS every other with its reason; listed worktrees stay -
+      never `--force`, never `git branch -D`. Record its summary line in the hand-off.
 
 ## 7. Commit everything - BEFORE the push
 

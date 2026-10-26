@@ -1587,7 +1587,7 @@ RUN_GIT_TIMEOUT_SECONDS: float = 120
 # responder's run budget and its lock (fleet_headless.RunBudget) and the inbox
 # task list (ops/loop/inbox_status.py). Trap (a) in SS's 2026-10-08 kit-v12
 # answer. Plus the board render's two state files (FLEET item 18,
-# fleet_board STATE_REL), which a board push rewrites mid-suite (CS-1330).
+# fleet_board STATE_REL), which a board render rewrites mid-suite (CS-1330).
 # ---------------------------------------------------------------------------
 import importlib.util as _cs1290_importlib_util  # noqa: E402 - appended at the foot
 

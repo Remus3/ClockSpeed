@@ -1359,12 +1359,14 @@ def test_the_live_population_is_derived_and_not_empty() -> None:
 #: it covers, which is the whole harm a collision does - and exactly that many
 #: live sites share it, no more and no fewer.
 VENDORED_KEY_COLLISIONS: Final[dict[str, tuple[int, str]]] = {
-    "ops/fleet_kit/fleet_headless.py::spawn::<bare>::Refused::<active>": (
+    "ops/fleet_kit/fleet_headless.py::_run::<bare>::BaseException::<active>": (
         2,
-        "FLEET-KIT version 19's spawn() re-raises a Refused bare from two "
-        "handlers - `except Refused:` around the new stop_sentinel_hit() read, "
-        "and `except Refused as exc:` around the argv build and the governor - "
-        "and the handler's binding is not a key segment, so the two read as one.",
+        "FLEET-KIT version 21's _run() re-raises bare from two `except "
+        "BaseException:` handlers - one closing the job object when Popen "
+        "itself fails, one killing the child tree when communicate() is "
+        "interrupted - and nothing else in the key tells them apart. Version "
+        "21 also gave spawn()'s two Refused re-raises distinct sites, so the "
+        "version 19 spawn::Refused collision no longer occurs (CS-1354).",
     ),
 }
 

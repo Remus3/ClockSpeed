@@ -1082,29 +1082,18 @@ prints the note's sha256. From kit version 18 on MAIN ships no outbox bundle: th
 that way, and every kit file in the payload folder beside it against the sha256 list the
 note itself carries.
 
-### 12.2 The status board - FLEET-COMMON item 18, kit version 19
+### 12.2 The status board - FLEET-COMMON item 18, kit version 23
 
-This tree's board URL, and the dataset version its first push pins, are in
-`ops/status_board.json`. An interactive session pushes the board at session start, after
-every item-13 b reprint, and once at /done with `--final`; a headless run never pushes
-(the kit prints `no push: headless` and writes nothing).
-
-The main session runs no Bash (the SUB-AGENT FIRST banner), so ONE sub-agent makes each
-push:
-
-1. Pipe the checklist block the session just printed into
-   `python ops/fleet_kit/fleet_board.py calls --session <n>` (`--final` at /done).
-2. Make the first call it prints: an Artifact publish of the rendered status.json with
-   `asset: true`, which returns the blob url.
-3. Make the second: an ArtifactData update of `datasets/board`, pinned with the printed
-   `if_version`, its data's `__URL__` replaced by that blob url.
-4. On a version mismatch, `python ops/fleet_kit/fleet_board.py pushed --version <current>`,
-   then redo the second call once.
-
-A failed push is a line in the hand-off, never a ritual failure. The render state lives in
-the gitignored `ops/loop/control/board/`. MAIN's v19 ORDER asks this tree to read its
-board's `datasets/board` version before the first push; the version-mismatch path above
-corrects a stale pin either way.
+LOCAL ONLY since kit version 23 (operator order 2026-10-25, carried by MAIN's v23 ORDER):
+no claude.ai artifact, no Artifact or ArtifactData call, no board URL. An interactive
+session renders its board at session start, after every item-13 b reprint, and once at
+/done with `--final`: pipe the checklist block the session just printed into
+`python ops/fleet_kit/fleet_board.py render --session <n>` (`--final` at /done). It writes
+status.json, state.json and a static, self-contained board.html to the gitignored
+`ops/loop/control/board/` in the MAIN checkout; open board.html in a browser. A headless
+run never renders (`board not rendered: headless`). `ops/status_board.json` is read only
+for its optional "code", the page title. A failed render is a line in the hand-off, never a
+ritual failure.
 
 ### 12.3 The stop sentinels the kit spawn reads
 
@@ -1153,7 +1142,7 @@ Relocated on 2026-10-19 from `CLAUDE.md` section 2.3.1 under CS-1330, for the sa
 **Here:** n is the `SESSION: <n>` line of `CS-NEXT-SESSION.txt`; `/done` writes n+1 and
 its last act is `python ops/fleet_kit/fleet_done.py mark` (`.claude/commands/done.md`);
 the session-start hand-off read prints the block. Kit helper:
-`ops/fleet_kit/fleet_checklist.py`. Board pushes (FLEET item 18): section 12.2.
+`ops/fleet_kit/fleet_checklist.py`. The local board render (FLEET item 18): section 12.2.
 
 ### 12.5 Landing a Dependabot PR
 

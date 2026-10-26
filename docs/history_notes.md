@@ -24,6 +24,22 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## The kit v23 relocation - relocated from `CLAUDE.md` 2026-10-25 by the kit v23 rollout
+
+Moved when the FLEET-KIT version 23 common block took `CLAUDE.md` past its 40 KB budget;
+relocated, not deleted (`CLAUDE.md` section 4). The entries keep their fences and point here.
+
+From the "No lifted datasets" entry: *Do not argue from "it is official":* that is the
+site's standing, not any page's authority, and its save-format pages are a major version
+stale and carry a byte label this project has already measured false.
+
+From the "Product before process" entry, the measurement behind it: over
+2026-09-19..10-03, of 371 commits, 8 touched `clockspeed/` or `shell/`.
+
+In the same move, the reversal clause the section 7 entries repeated word for word is
+stated once at the head of that section as "an operator ADR"; every entry still names it.
+
+
 ## BACKLOG line - relocated from `BACKLOG.md` 2026-10-24 by the session 151 /done
 
 **Moved here because the line is false.** python.org does publish a sha256 for each installer

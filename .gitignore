@@ -285,7 +285,7 @@ shell/NVIDIA Corporation/
 /ops/loop/control/gitlock.jsonl
 /ops/loop/control/identity.jsonl
 # FLEET-KIT v19 STATUS BOARD (FLEET-COMMON 18, CS-1330): ops/fleet_kit/fleet_board.py
-# keeps its render state (state.json, status.json) here. Machine-local runtime
+# keeps its render state (state.json, status.json, and board.html since v23) here. Machine-local runtime
 # state the v19 ORDER says to ignore; covered by the directory line too, named
 # for the same reason.
 /ops/loop/control/board/

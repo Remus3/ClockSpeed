@@ -59,8 +59,8 @@ BOUNDS THAT STILL APPLY:
 
 === THE SINGLE NEXT ACTION - SESSION 153, IN ORDER (session 152's, carried unacted) ===
 0. Print "Session 153 checklist" (FLEET 13a; the box U+2610, never the glyph), then the FLEET 18
-   start board push; session 152 made NO start push. The board waits on MAIN's board note
-   (OPERATOR below); until it lands, a failed push is one line.
+   start board RENDER - LOCAL ONLY since kit v23 (MAIN's v23 ORDER answered the board note):
+   checklist on stdin to `python ops/fleet_kit/fleet_board.py render --session 153`; NO push.
 1. READS before any act: (a) HEAD and `git ls-remote origin` by full SHA - EXACTLY HEAD,
    refs/heads/main and the tag v0.1.0; any other ref is a stray ref: STOP, a distinct
    adjudicator; porcelain --untracked-files=all EMPTY. (b) If the remote is not HEAD, PUSH FIRST
@@ -192,14 +192,15 @@ REFS: remotes exactly origin/HEAD, origin/main and the tag v0.1.0; refs/preserve
   (next free: CS-1353; gated CS-G11).
 THE RESPONDER (CS-InboxResponder) commits and pushes on main when live: read inbox_status.json
   first; a refusal every tick - check the proxy listener (name CLAUDE_HEADLESS_BASE_URL only).
-KIT v20 patch 1 (CS-1330); never edit a kit file; never re-report a sent defect. Every commit and
+KIT v23 (CS-1354; v20 patch 1 under CS-1330 before it); never edit a kit file; never re-report a sent defect. Every commit and
   push through `python ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git
   ...`, every whole suite through fleet_suite_gate.py; pre-push grades the MAIN WORKING TREE.
   SUBAGENT-FIRST is deny; a lane worker runs with it off. A push from the MAIN checkout exports no
   GIT_DIR to other worktrees (CS-968; verified twice in session 151); push from main only.
 THE REMOTE: PUBLIC since 2026-10-18T15:27:06Z; branch protection; PVR, secret scanning, push
   protection ON; CodeQL default setup ON (CS-1338).
-THE BOARD: ops/status_board.json holds the board URL (the operator: it can stay). No board render
+THE BOARD: LOCAL ONLY since kit v23 - no claude.ai push, ever; the claude.ai board artifacts are
+  the operator's to delete, not ours. ops/status_board.json can stay. No board render
   or sentinel change during a main-checkout whole suite (S0b D-D1). Session 151's start and
   --final pushes FAILED (asset upload not_found); session 152 made NO start push; this /done's
   board push (--final, session 152): DONE - asset uploaded; call 2 hit a version mismatch (pin 5,
