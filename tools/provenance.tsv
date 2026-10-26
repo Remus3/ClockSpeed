@@ -415,6 +415,7 @@ tests/save/test_zero_remainder.py	authored	CS-828	first-add:CS-828
 tests/secret_sweep_guard.py	authored	CS-939	first-add:CS-939
 tests/shell/__init__.py	authored	CS-602	first-add:CS-602
 tests/shell/test_shell_assets.py	authored	CS-602	first-add:CS-602
+tests/shell/test_shell_dependency_floor.py	authored	CS-1355	stamped
 tests/solve/__init__.py	authored	CS-1165	first-add:root
 tests/solve/golden/clock.json	authored	CS-1239	stamped
 tests/solve/golden/display.json	authored	CS-1239	stamped
@@ -535,6 +536,7 @@ tests/test_hook_probe_fold.py	authored	CS-815	stamped
 tests/test_hook_toolchain.py	authored	CS-817	stamped
 tests/test_identity_hooks.py	authored	CS-1290	stamped
 tests/test_inbox_watch.py	authored	CS-926	first-add:CS-926
+tests/test_inner_suite_marker.py	authored	CS-1356	stamped
 tests/test_install_hooks.py	authored	CS-925	first-add:CS-925
 tests/test_lane_launcher.py	authored	CS-918	first-add:CS-918
 tests/test_lane_lock.py	authored	CS-918	first-add:CS-918

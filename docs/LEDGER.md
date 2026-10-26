@@ -75,6 +75,41 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-25 - CS-1356 - PARTIAL CLOSE: MAIN's suite-speed ORDER item 1 - the `inner_suite` marker, deselected only by an explicit `-m "not inner_suite"`
+Verification: `tests/test_inner_suite_marker.py` (marker registered; `-m "not inner_suite"`
+deselects MAIN's seven named offenders; default collection keeps them; an environment variable
+changes nothing); the `inner_suite` row of the `pyproject.toml` markers list.
+SCOPE. Answers MAIN ORDER 2026-10-25-2045 (provenance verified). 94 test functions (122
+collected items) that spawn a child pytest or a shell harness are marked; CI and the frozen
+pre-push pass no `-m`, so they still run every test. A first candidate's environment-variable
+opt-in was REFUTED by an adversary (a pushing shell would have dropped 122 tests from pre-push)
+and removed; a second REFUTED pass found a decorator shifting an archived line pointer, repaired
+by applying the two phase-2 gate marks at the module foot. Measured over the 21 marked files,
+`-n 8` through the suite gate: 369 s without the deselect, 299 s with it.
+NOT DONE, stays with MAIN's ORDER: item 2 (session-scoped tree-sweep populations) and item 3
+(`-n 8` for the gated whole suite - its one live site is the frozen `.githooks/pre-push`, which
+needs a section 6 adjudicator grant).
+
+### 2026-10-25 - CS-1355 - CLOSED: MAIN's gh-review FIX - electron 44.9.1 and undici 7.30.1 clear three advisories
+Verification: `tests/shell/test_shell_dependency_floor.py` (lock floors electron >= 44.9.1 and
+undici >= 7.30.1, exact pins, no nested undici below the floor); `shell/package.json` (electron
+exact 44.9.1, `overrides` undici 7.30.1); `npm audit` in `shell/` read 0 vulnerabilities after,
+2 high before; the electron and undici rows of `THIRD_PARTY.md`.
+SCOPE. Answers MAIN FIX 2026-10-25-1935 (provenance verified): GHSA-fw47-9c62-h3vw,
+GHSA-jr5w-w6x2-84p9 and GHSA-xjj6-f33q-929c. The lock diff moves only the root devDependency,
+electron and undici; both integrity hashes re-read equal to the registry by an adversary.
+
+### 2026-10-25 - CS-1354 - CLOSED: fleet kit v23 adopted - status board local only, reap step in /done
+Verification: `tests/test_fleet_kit.py` (version and hash pins, conformance, local board render);
+`ops/fleet_kit/MANIFEST.json` sha256
+f5d82861cce3f5c2d565495dbd3a8cceff3b9d895117a2f6f9d4c83f11ba527c; `.claude/commands/done.md`
+(`fleet_board.py render --final` and `fleet_done.py reap --apply` before the commit).
+SCOPE. Adopts MAIN ORDER 2026-10-25-1926 (provenance verified), cumulative v21 to v23, from the
+diff the 2026-10-25 nightly kept after its foreground suite ceiling. Side effects repinned:
+`ops/loop/queue_loop.py` drops the retired `route-bare` code; `tests/test_subprocess_timeouts.py`
+and `tests/test_chained_cause_census.py` follow moved kit sites; `pyproject.toml` scopes ruff and
+mypy ignores to the vendored kit modules that cannot be edited.
+
 ### 2026-10-25 - CS-1352 - CLOSED: the session 152 worktree sweep - 21 worktrees and 16 orphan work folders retired by content, 7 spent branches deleted
 Verification: `git worktree list` read 5 entries and `git branch --list` 90 local heads, both read
 back by the session 152 /done after the sweep (26 entries and 97 heads at the session 151 /done);
