@@ -809,12 +809,25 @@ def _free_index(directory: Path, lane: Any) -> int | None:
         directory: The lock root.
         lane: The lane, already checked against the roster.
 
+    THE CAP COUNTS EVERY HELD INDEX, not only those below it (kit v25): a lane
+    claimed under a wider cap keeps running after the machine config narrows -
+    it drains, it is never killed - and it still fills a slot. So the claim is
+    refused while the RUNNING locks anywhere in the root number the cap or
+    more, and a new claim only ever lands below the cap.
+
+    Args:
+        directory: The lock root.
+        lane: The lane, already checked against the roster.
+
     Returns:
-        The chosen index, or None when every index inside the cap is held.
+        The chosen index, or None when the held lanes fill the cap.
     """
+    cap = max_slots()
+    if len(_holders(directory, cap)) >= cap:
+        return None
     home = home_index(lane)
-    order = list(range(max_slots()))
-    if home is not None:
+    order = list(range(cap))
+    if home is not None and home < cap:
         order.remove(home)
         order.insert(0, home)
     for index in order:
@@ -824,10 +837,22 @@ def _free_index(directory: Path, lane: Any) -> int | None:
     return None
 
 
-def _holders(directory: Path) -> list[str | None]:
-    """The lane named by every RUNNING lock inside the cap - who a full bucket waits on."""
+def _indices(directory: Path, cap: int) -> list[int]:
+    """``range(cap)`` plus every ``<i>.lock`` already present - the kit's ``_indices``.
+
+    A holder taken under a wider cap sits at an index the narrowed cap no
+    longer reaches; scanning only ``range(cap)`` would not see it.
+    """
+    extra = {p.stem for p in _lock_files(directory)}
+    return sorted(
+        set(range(cap)) | {int(stem) for stem in extra if stem.isascii() and stem.isdigit()}
+    )
+
+
+def _holders(directory: Path, cap: int | None = None) -> list[str | None]:
+    """The lane named by every RUNNING lock at any index - who a full bucket waits on."""
     found: list[str | None] = []
-    for index in range(max_slots()):
+    for index in _indices(directory, max_slots() if cap is None else cap):
         lock = _index_lock(directory, index)
         if lock.exists():
             reading = _reading(lock, None)

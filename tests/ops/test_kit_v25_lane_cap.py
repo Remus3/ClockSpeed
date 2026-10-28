@@ -191,3 +191,64 @@ def test_kit_v25_the_lane_acquire_refuses_below_the_ram_floor(
     )
     written = sorted(p.name for p in root.glob("*.lock")) if root.exists() else []
     assert (claim.get("ok"), claim.get("refused"), written) == (False, "admission", [])
+
+
+def _hold_two_then_narrow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Hold queue-b and queue-c under cap 3, then narrow the machine cap to 1.
+
+    Returns:
+        The lock root, with two RUNNING locks at indices 1 and 2.
+    """
+    config = tmp_path / "lanes.json"
+    config.write_text(json.dumps({"lane_cap_max": KIT_DEFAULT}), encoding="ascii")
+    monkeypatch.setenv("FLEET_LANES_CONFIG", str(config))
+    root = tmp_path / "locks"
+    for lane in lanes.LANES[1:]:
+        tree = tmp_path / f"tree-{lane}"
+        tree.mkdir()
+        held = lanes.try_acquire_lane(lane, run_id=f"r-{lane}", worktree=tree, root=root)
+        assert held.get("ok") is True, f"setup claim for {lane} refused"
+    config.write_text(json.dumps({"lane_cap_max": 1}), encoding="ascii")
+    return root
+
+
+def test_kit_v25_held_lanes_above_a_narrowed_cap_still_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two lanes held above a cap narrowed to 1 fill it: a new claim is lanes_full."""
+    root = _hold_two_then_narrow(tmp_path, monkeypatch)
+    tree = tmp_path / "tree-queue"
+    tree.mkdir()
+    claim = lanes.try_acquire_lane(lanes.LANES[0], run_id="r-new", worktree=tree, root=root)
+    written = sorted(p.name for p in root.glob("*.lock"))
+    holders = sorted(str(h) for h in claim.get("holders") or [])
+    verdict = (claim.get("ok"), claim.get("refused"), holders, written)
+    assert verdict == (
+        False,
+        "lanes_full",
+        sorted(lanes.LANES[1:]),
+        ["1.lock", "2.lock"],
+    ), f"narrowed-cap claim {verdict}"
+
+
+def test_kit_v25_a_drained_slot_above_the_cap_admits_below_it_and_is_never_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """queue-c held at 2, cap narrowed to 2: queue lands at 0, then queue-b is lanes_full."""
+    config = tmp_path / "lanes.json"
+    config.write_text(json.dumps({"lane_cap_max": KIT_DEFAULT}), encoding="ascii")
+    monkeypatch.setenv("FLEET_LANES_CONFIG", str(config))
+    root = tmp_path / "locks"
+    claims = []
+    for step, lane in enumerate((lanes.LANES[2], lanes.LANES[0], lanes.LANES[1])):
+        if step == 1:
+            config.write_text(json.dumps({"lane_cap_max": 2}), encoding="ascii")
+        tree = tmp_path / f"tree-{lane}"
+        tree.mkdir()
+        claim = lanes.try_acquire_lane(lane, run_id=f"r-{lane}", worktree=tree, root=root)
+        claims.append((claim.get("ok"), claim.get("index"), claim.get("refused")))
+    written = sorted(p.name for p in root.glob("*.lock"))
+    assert (claims, written) == (
+        [(True, 2, None), (True, 0, None), (False, None, "lanes_full")],
+        ["0.lock", "2.lock"],
+    ), f"drain claims {claims} locks {written}"
