@@ -41,7 +41,7 @@ payload field and never a file name; and the WORKTREE an index runs in,
 is written anywhere in this repository. Locks written here are on-disk
 compatible with the kit's: its lane widget reads them, its acquirer and this
 one serialise on its one acquire mutex, and a lane either of them claims is
-visible to both. The cap is ``LANE_CAP`` and is DECOUPLED from the roster (MAIN
+visible to both. The cap is ``lane_cap()`` and is DECOUPLED from the roster (MAIN
 2237 section 4a) - the roster says which lanes exist, the cap how many hold a
 slot at once.
 
@@ -185,13 +185,16 @@ def kit_lanes() -> Any:
     own binds: importing a module to read lane STATE must not require the rest
     of the lane on disk. ``ops/loop/claims.py`` imports this file from inside a
     worker's own checkout to answer exactly that question, and reading a lock
-    needs nothing from the kit. Placing a claim and deriving a worktree do, and
-    both reach the kit through here - so a checkout without the kit can READ
-    lanes and cannot CLAIM one, which fails loudly rather than quietly placing
-    a claim no kit acquirer serialises against.
+    (``lane_state``) needs nothing from the kit. Placing a claim, deriving a
+    worktree and anything that needs the CAP - which kit v25 moved into the
+    machine config the kit reads, so ``lock_for_lane``'s where-would-it-go
+    fallback too - reach the kit through here, so a checkout without the kit
+    can read lane state and cannot CLAIM one, which fails loudly rather than
+    quietly placing a claim no kit acquirer serialises against.
 
     VALIDATES THE CAP on the way in: the kit's ``lane_cap`` is the one place the
-    1..LANE_CAP_MAX bound is written, and a cap it would change is refused.
+    cap's bound is written, and a tree cap it rejects (below 1, not an integer)
+    is refused here. A cap above the machine's is CLAMPED by the kit (v25).
 
     Returns:
         The kit's lane module.
@@ -199,12 +202,10 @@ def kit_lanes() -> Any:
     Raises:
         ImportError: The vendored module could not be bound.
         OSError: The vendored file is not on disk.
-        ValueError: ``LANE_CAP`` is outside the kit's bound.
+        ValueError: ``TREE_LANE_CAP`` is not a cap the kit accepts.
     """
     module = _load_kit_lanes()
-    if module.lane_cap(LANE_CAP) != LANE_CAP:
-        message = f"lane cap {LANE_CAP} is not one the kit accepts as given"
-        raise ValueError(message)
+    module.lane_cap(TREE_LANE_CAP)
     return module
 
 
@@ -270,12 +271,34 @@ LANES = ("queue", "queue-b", "queue-c")
 LANE_CODE = "CS"
 
 #: CS-1274 - THE WIDTH IS THE KIT'S LANE CAP, NOT THE ROSTER'S LENGTH (MAIN 2237
-#: section 4a). The value is the kit's ceiling and the cap MAIN 2237 section 3
-#: item 2 sets for every tree without a measured reason for less; this tree has
-#: none recorded. Validated against the kit's own ``lane_cap`` the first time
-#: the kit is bound - see ``kit_lanes`` - so the bound is written in one place.
-LANE_CAP = 3
-MAX_SLOTS: int = LANE_CAP
+#: section 4a). Kit v25 (LANE-CAP) moved the ceiling into the MACHINE config the
+#: kit reads, ``~/.fleet/lanes.json`` (``FLEET_LANES_CONFIG`` names another), so
+#: this tree writes no width of its own: ``TREE_LANE_CAP`` None asks the kit for
+#: the live ``lane_cap_max``, and a number here would only ever be CLAMPED to it
+#: (the v25 rule for a tree wanting fewer lanes than the machine allows). This
+#: tree has no measured reason for less. ``lane_cap`` / ``max_slots`` re-read
+#: the config on every call, so a narrowed or widened machine needs no restart.
+TREE_LANE_CAP: int | None = None
+
+
+def lane_cap() -> int:
+    """The live per-tree lane cap - the kit's ``lane_cap(TREE_LANE_CAP)``, re-read every call.
+
+    Returns:
+        The cap, clamped by the kit to the machine's ``lane_cap_max`` and
+        ``governor_width`` (3 and 3 when no machine config exists).
+    """
+    return int(kit_lanes().lane_cap(TREE_LANE_CAP))
+
+
+def max_slots() -> int:
+    """How many lane indices this tree may hold right now - the live ``lane_cap``.
+
+    Returns:
+        The slot count.
+    """
+    return lane_cap()
+
 
 #: How long an acquire waits on the kit's per-repo acquire mutex before it
 #: refuses. Scan, reclaim and create run under THAT mutex - the kit's own, by
@@ -347,7 +370,7 @@ def home_index(lane: Any) -> int | None:
         ValueError: The lane is not on the roster.
     """
     position = slot_index(lane)
-    return position if position < MAX_SLOTS else None
+    return position if position < max_slots() else None
 
 
 def lane_worktree(index: Any) -> Path:
@@ -371,8 +394,9 @@ def lane_worktree(index: Any) -> Path:
         ValueError: The index is not an integer inside the cap.
     """
     number = None if isinstance(index, bool) else int_or_none(index)
-    if number is None or not 0 <= number < MAX_SLOTS:
-        message = f"lane index {index!r} outside 0..{MAX_SLOTS - 1}"
+    width = max_slots()
+    if number is None or not 0 <= number < width:
+        message = f"lane index {index!r} outside 0..{width - 1}"
         raise ValueError(message)
     return Path(kit_lanes().worktree_path(REPO_ROOT, LANE_CODE, number))
 
@@ -391,7 +415,7 @@ def home_worktree(lane: Any) -> Path:
     """
     home = home_index(lane)
     if home is None:
-        message = f"lane {lane!r} has no home index under the cap of {MAX_SLOTS}"
+        message = f"lane {lane!r} has no home index under the cap of {max_slots()}"
         raise ValueError(message)
     return lane_worktree(home)
 
@@ -789,7 +813,7 @@ def _free_index(directory: Path, lane: Any) -> int | None:
         The chosen index, or None when every index inside the cap is held.
     """
     home = home_index(lane)
-    order = list(range(MAX_SLOTS))
+    order = list(range(max_slots()))
     if home is not None:
         order.remove(home)
         order.insert(0, home)
@@ -803,7 +827,7 @@ def _free_index(directory: Path, lane: Any) -> int | None:
 def _holders(directory: Path) -> list[str | None]:
     """The lane named by every RUNNING lock inside the cap - who a full bucket waits on."""
     found: list[str | None] = []
-    for index in range(MAX_SLOTS):
+    for index in range(max_slots()):
         lock = _index_lock(directory, index)
         if lock.exists():
             reading = _reading(lock, None)
@@ -1332,7 +1356,9 @@ def _busy_refusal() -> dict[str, Any]:
     return {"ok": False, "refused": "acquire_busy", "holder": None, "pid": None}
 
 
-def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None) -> dict[str, Any]:
+def try_acquire_lane(
+    lane: str, *, run_id: Any, worktree: Any, root: Any = None, admit: Any = None
+) -> dict[str, Any]:
     """Claim a lane lock at the lane's home index or any free one, or refuse.
 
     A holder whose pid is dead is reclaimed rather than respected: a crashed
@@ -1357,6 +1383,8 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
         worktree: The working directory the lane will run in, or a callable
             deriving it from the claimed index. Mandatory either way.
         root: The lock root, or None for the default.
+        admit: Kit v25 - a callable returning ``{"free_ram_mb", "cpu_pct"}``
+            for the admission gate, or None for the kit's own readings.
 
     Returns:
         ``{"ok": True, "lane", "run_id", "worktree", "token", "index"}`` on
@@ -1364,7 +1392,8 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
         back - or a refusal: ``lane_held`` when this lane is running,
         ``worktree_in_use`` when another live lane is already in that tree,
         ``lanes_full`` when every index is held, ``acquire_busy`` when the
-        acquire mutex is. Every refusal is a normal answer rather than an error.
+        acquire mutex is, ``admission`` when the machine gate refuses (kit
+        v25). Every refusal is a normal answer rather than an error.
 
     Raises:
         ValueError: The lane is unknown, or the worktree is absent or the main
@@ -1380,6 +1409,14 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
     if early is not None:
         return early
     kit = kit_lanes()
+    # Kit v25 ADMISSION, the kit's own gate: below the machine's free-RAM floor
+    # or above its CPU ceiling a NEW lane is refused, writing nothing - the
+    # driver retries it like ``lanes_full``. An unreadable reading admits, and
+    # under pytest the kit skips the readings unless ``admit`` is passed.
+    # SLF001: the kit's own readings selector, so the pytest rule stays the kit's.
+    gate = kit.admission(None, readings=kit._readings(admit))  # noqa: SLF001
+    if not gate["admit"]:
+        return {"ok": False, "refused": "admission", "holders": []}
     try:
         # SLF001: the KIT'S acquire mutex, deliberately - see ACQUIRE_WAIT_S. A
         # mutex of this module's own would serialise nothing against the kit.

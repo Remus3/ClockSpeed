@@ -784,6 +784,13 @@ _KIT_HALTED_DETAIL = (
 #: `stop_sentinel_hit` - and for a declaration that cannot be read (fail closed).
 #: A stop like the driver's own sentinel names, so it is a success word.
 KIT_HALT_STOP = "kit_halted"
+#: Kit v25 (LANE-CAP) - FAIR RELEASE. The kit's `fleet_lanes.should_yield(<CODE>)`
+#: answered True at a cycle boundary: another tree waits for a governor slot,
+#: none is free, and this tree holds more than its fair share. The night ends
+#: there, BETWEEN cycles - the running worker was never touched (the kit's
+#: should_yield is advisory, and nothing here kills on it). A success word: the
+#: lane ended the way the fleet asked it to.
+FAIR_YIELD_STOP = "fair_yield"
 #: CS-1342 - THE KIT REFUSED THE LANE SPAWN AT ITS PER-CALL HALT_FILE, the lane's
 #: QUEUE_STOP (runner code `queue-stop`). Not a cycle and not a fault: the night
 #: stops on the QUEUE_STOP word itself, exactly as when this driver reads that
@@ -1250,12 +1257,15 @@ def _launch_waited(value: object) -> float | None:
 #: and the value written is this module's own literal at that index. A word this
 #: driver does not hold - a `lanes.py` running ahead of it, an injected fake -
 #: is DISCARDED and the row degrades to the generic refusal it already had.
-_ACQUIRE_REFUSALS = ("lane_held", "worktree_in_use", "lanes_full", "acquire_busy")
+#: Kit v25: `admission` (the machine RAM floor / CPU ceiling refused a new lane)
+#: is handled like `lanes_full` - nothing was written, retry on the next attempt.
+_ACQUIRE_REFUSALS = ("lane_held", "worktree_in_use", "lanes_full", "acquire_busy", "admission")
 _REFUSAL_OUTCOMES = (
     OUTCOME_LANE_HELD,
     OUTCOME_WORKTREE_IN_USE,
     OUTCOME_LANES_FULL,
     OUTCOME_ACQUIRE_BUSY,
+    OUTCOME_LANES_FULL,
 )
 
 #: What a holder outside the lane roster is called. A refusal's `holder` is read
@@ -3208,6 +3218,25 @@ def _cap_frees_epoch(status: object) -> float | None:
     return epoch if math.isfinite(epoch) else None
 
 
+def kit_should_yield() -> bool:
+    """Kit v25 FAIR RELEASE - `fleet_lanes.should_yield` for this tree's lane code.
+
+    ADVISORY AND READ ONLY: True ends the night at the next cycle boundary and
+    nothing else - no worker is stopped, killed or signalled on it. A kit that
+    cannot be bound or read answers False: a broken read must not end a night
+    that the governor never asked to end.
+
+    Returns:
+        True when another tree waits for a slot and this one holds more than
+        its fair share.
+    """
+    lanes_mod = _mod("lanes")
+    try:
+        return bool(lanes_mod.kit_lanes().should_yield(lanes_mod.LANE_CODE))
+    except (ImportError, OSError, ValueError, AttributeError):
+        return False
+
+
 def kit_stop_reason(root) -> str | None:
     """CS-1231 slice C, R1 - `KIT_HALT_STOP` while a sentinel the tree declares stands.
 
@@ -3716,6 +3745,13 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 f"waiting will not free it, one of the two lanes must be "
                 f"re-pointed"
             )
+        elif refusal == OUTCOME_LANES_FULL and (claim or {}).get("refused") == "admission":
+            # Kit v25 - the machine's admission gate, not a held index. The
+            # reading is NOT copied: this module's own words only.
+            detail = (
+                f"the kit's machine admission gate (free RAM floor or CPU ceiling) "
+                f"refused a new lane after {attempts} attempts"
+            )
         elif refusal == OUTCOME_LANES_FULL:
             # No holder of THIS lane exists to name - see OUTCOME_LANES_FULL.
             detail = f"every lane index under the kit's cap was held after {attempts} attempts"
@@ -3916,6 +3952,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     hold=None,
     surface=None,
     kit_halt=None,
+    fair_yield=None,
     sleep=time.sleep,
     clock=time.time,
     monotonic=time.monotonic,
@@ -4006,6 +4043,17 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         if reason:
             stopped_by = reason
             emit(f"queue-loop stop: {reason} present - {len(records)} cycle(s) run")
+            break
+        # Kit v25 FAIR RELEASE - BETWEEN cycles only, so the lane ends after its
+        # current cycle and the worker that ran it is never touched. `fair_yield`
+        # is a zero-argument callable `main` binds to `kit_should_yield`; None,
+        # the default, asks for no read, like `kit_halt`.
+        if cycle > 1 and fair_yield is not None and fair_yield():
+            stopped_by = FAIR_YIELD_STOP
+            emit(
+                f"queue-loop stop: {FAIR_YIELD_STOP} - another tree waits for a governor "
+                f"slot - {len(records)} cycle(s) run"
+            )
             break
         # Minted HERE, not inside run_cycle, so the error record below can name
         # the SAME run as the claim and the worker log. A cycle that faulted
@@ -4624,7 +4672,7 @@ _STOP_EXIT = {
 #:
 #: Membership here is permission to exit 0, NOT a guarantee of it: a run in this
 #: set whose records contain no shipping cycle still returns EXIT_NO_PROGRESS.
-_SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES, KIT_HALT_STOP})
+_SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES, KIT_HALT_STOP, FAIR_YIELD_STOP})
 
 
 #: CS-1342 - the subcommand `ops/loop/run_lane.ps1` starts the kit through.
@@ -4868,6 +4916,8 @@ def _drive(args, singleton) -> int:
                 # CS-1231 slice C, R1 - the declaration the kit reads, read here
                 # through the kit's own reader, before any launch.
                 kit_halt=functools.partial(kit_stop_reason, KIT_ROOT),
+                # Kit v25 FAIR RELEASE, read between cycles.
+                fair_yield=kit_should_yield,
                 repo_root=(None if args.repo_root is None else Path(args.repo_root)),
                 cycle_log=cycle_log,
             )

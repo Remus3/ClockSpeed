@@ -241,6 +241,9 @@ _COPIED_MODULES: Final = (
     "ops/loop/__init__.py",
     "ops/loop/lanes.py",
     "ops/loop/claims.py",
+    # Kit v25: the lane cap is the kit's live config, so where a claim WOULD go
+    # (``lock_for_lane``'s fallback) reads the vendored kit, as a real checkout does.
+    "ops/fleet_kit/fleet_lanes.py",
 )
 
 

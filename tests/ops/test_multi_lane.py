@@ -718,7 +718,7 @@ def test_cs1274_the_cap_is_the_kits_and_is_decoupled_from_the_roster() -> None:
     """
     source = (ROOT / "ops" / "loop" / "lanes.py").read_text(encoding="utf-8")
     recoupled = "MAX_SLOTS = len(LANES)" in source
-    pinned = (lanes.LANE_CAP, lanes.MAX_SLOTS, fleet_lanes.lane_cap(lanes.LANE_CAP))
+    pinned = (lanes.lane_cap(), lanes.max_slots(), fleet_lanes.lane_cap(lanes.TREE_LANE_CAP))
     assert (pinned, fleet_lanes.LANE_CAP_MAX, recoupled) == ((KIT_CAP,) * 3, KIT_CAP, False)
 
 
@@ -733,13 +733,13 @@ def test_cs1274_the_lane_worktree_root_is_derived_from_the_repo_root(
     """
     main = _main_checkout(tmp_path)
     monkeypatch.setattr(lanes, "REPO_ROOT", main)
-    here = [_relative_tree(lanes.lane_worktree(i), main) for i in range(lanes.MAX_SLOTS)]
+    here = [_relative_tree(lanes.lane_worktree(i), main) for i in range(lanes.max_slots())]
     kit = [_relative_tree(fleet_lanes.worktree_path(main, "CS", i), main) for i in range(KIT_CAP)]
     moved = _main_checkout(tmp_path / "elsewhere")
     monkeypatch.setattr(lanes, "REPO_ROOT", moved)
     after = _relative_tree(lanes.lane_worktree(0), moved)
     with pytest.raises(ValueError, match="lane index"):
-        lanes.lane_worktree(lanes.MAX_SLOTS)
+        lanes.lane_worktree(lanes.max_slots())
     expected = ["cs-worktrees/lane-0", "cs-worktrees/lane-1", "cs-worktrees/lane-2"]
     assert (here, kit, after) == (expected, expected, "cs-worktrees/lane-0")
 
@@ -788,12 +788,12 @@ def test_cs1274_the_kits_lane_widget_reads_a_clockspeed_claim(
         "queue-b", run_id=RUN_ID, worktree=lanes.lane_worktree, root=root
     )
     try:
-        rows = fleet_lanes.repo_lane_state(main, lanes.LANE_CAP)
+        rows = fleet_lanes.repo_lane_state(main, lanes.lane_cap())
         seen = [(row["index"], row["state"], row["lane"]) for row in rows]
         widget_tree = _relative_tree(rows[1]["worktree"], main)
     finally:
         _release_all([claim], root)
-    after = [row["state"] for row in fleet_lanes.repo_lane_state(main, lanes.LANE_CAP)]
+    after = [row["state"] for row in fleet_lanes.repo_lane_state(main, lanes.lane_cap())]
     expected = [
         (0, fleet_lanes.FREE, None),
         (1, fleet_lanes.RUNNING, "queue-b"),

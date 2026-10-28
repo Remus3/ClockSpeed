@@ -3124,6 +3124,8 @@ def test_the_success_stop_words_are_a_closed_set():
         "QUEUE_DRAINED",
         # CS-1231 slice C: a sentinel the tree declares in ops/stop_sentinels.json.
         "kit_halted",
+        # Kit v25 FAIR RELEASE: should_yield ended the night between cycles.
+        "fair_yield",
     }
     overlap = set(queue_loop._SUCCESS_STOPS) & set(queue_loop._STOP_EXIT)  # noqa: SLF001
     assert overlap == set(), f"a word both means success and carries a failure code: {overlap}"

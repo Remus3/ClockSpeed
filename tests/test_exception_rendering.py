@@ -334,7 +334,7 @@ VENDORED_RENDER_RESIDUALS = {
         "name only. MEASURED on the v20.1 bytes: the refusals are the "
         "route-invalid kit literals of the rows above. Reversed as those rows."
     ),
-    ("ops/fleet_kit/fleet_lanes.py", "str(exc)", 1101): (
+    ("ops/fleet_kit/fleet_lanes.py", "str(exc)", 1503): (
         "CS-1330, FLEET item 11 - kit v20's LANE-95 command line, main(), prints "
         "a ValueError or an OSError from checkpoint() / resume_point() as its "
         "JSON error, cut to 200 characters. THIS ONE CAN CARRY A PATH: an "

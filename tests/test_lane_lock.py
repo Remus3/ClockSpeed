@@ -284,7 +284,7 @@ def test_the_roster_and_the_slot_it_maps_each_lane_to_are_pinned() -> None:
     # field rather than a file name. The roster position is only a lane's HOME
     # index - where it is placed when that slot is free.
     slots = {lanes.lock_name(lane) for lane in lanes.LANES}
-    counted = (lanes.MAX_SLOTS, lanes.LANE_CAP, len(slots), lanes.LOCK_NAME)
+    counted = (lanes.max_slots(), lanes.lane_cap(), len(slots), lanes.LOCK_NAME)
     assert counted == (lanes.kit_lanes().LANE_CAP_MAX, 3, len(lanes.LANES), "0.lock")
 
 

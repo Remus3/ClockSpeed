@@ -17,7 +17,8 @@ v20.1 ORDER note (2026-10-19 00:01) says. Version 23 supersedes it under MAIN's
 cumulative v23 ORDER note (2026-10-25 19:26), which carries every v21 and v22
 change, so neither was vendored here; it adds no file. The board is LOCAL ONLY
 from v23: render writes it and nothing is pushed. Version 24 supersedes it under MAIN's
-v24 ORDER note (2026-10-26 03:15); it adds no file.
+v24 ORDER note (2026-10-26 03:15); it adds no file. Version 25 supersedes it under MAIN's
+v25 ORDER note (2026-10-27 21:36); it adds no file.
 
 Two arms:
 
@@ -107,10 +108,10 @@ TREE_GUARD_IGNORE = (
 # held exact so the gap cannot grow unseen.
 KIT_HIDDEN_SENTINELS = ("ops/loop/control/lanes/INBOX_STOP",)
 
-# The kit version MAIN's 2026-10-26 03:15 ORDER note names (v24, patch 0).
-KIT_VERSION = 24
+# The kit version MAIN's 2026-10-27 21:36 ORDER note names (v25, patch 0).
+KIT_VERSION = 25
 # The MANIFEST.json digest named in that note.
-MANIFEST_SHA256 = "a41ff08e4c2ace7f48119f9ffec051ce18458184c2417d6806be39f3c8804a7d"
+MANIFEST_SHA256 = "fa04c87ceca7c1e08f853d0447a439143f317fa21b6434c1dcefe1e5d25c1bea"
 # The twenty-three listed kit file digests named in the same note. Spelled as named
 # constants rather than as a JSON-shaped mapping so this pin does not reproduce
 # MANIFEST.json's own lines - the provenance near-duplicate metric
@@ -118,7 +119,7 @@ MANIFEST_SHA256 = "a41ff08e4c2ace7f48119f9ffec051ce18458184c2417d6806be39f3c8804
 COMMON_SHA256 = "886c5f8b1a86928f91412d2800e9dfef3dd8e5b9158d14a06e65d06c22964800"
 LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
 NOTICE_SHA256 = "f4b77ae089fa0be6e16d628786195b04c884ffbc859f79dd7c9eefee8722a18d"
-MODULE_SHA256 = "61e1a8179cfd10d45bec809f7b9efa27cf0e79d37870d82645dccf8db79b26ff"
+MODULE_SHA256 = "c9c1740f41f0a565de6ba0468808b90843570828413fa8728cc314d729f3206e"
 CLI_DISPLAY_SHA256 = "fcd92544574eb2e646c9eed62218e4852a570818a7e3de455151aa27c8c7d4d3"
 BOARD_SHA256 = "07b98c23252435f0d8641bed97012d88ea9a51d39eaa8ea51467ca1adce483a5"
 CHECKLIST_SHA256 = "583d7c2c900d0003a2350eafa8ca703c6f11bf15f5871282a6f4f00bfdacfd8c"
@@ -127,7 +128,7 @@ DONE_SHA256 = "39b1b572894ed5f8b629022a1e8b148ccce8a95e1e6273a3ad024b01657dc7ac"
 GITLOCK_SHA256 = "e46264acc68ce721516f15b63bcb29428217f1b64fa4fa3c5b6226f39e4ae880"
 IDENTITY_SHA256 = "8fc064075adb1b02e08c5df758ac9b4e0a6d53ba44c488659357dafc980f2019"
 INBOX_SHA256 = "42dd431bc71f8cd0a1d54d66a0cab3c97bd5217c45b9601993f57363841065cd"
-LANES_SHA256 = "86a5a5d098fb28e50b320fd1a756cc95fddd91737baad2cab7afc2ab3a897974"
+LANES_SHA256 = "824a59820829cb9c8e3466b23ba352dedcf484c93047176678e4e2e383fae0a7"
 REWRITE_SHA256 = "c40bfcacbf08a3b9be4a4d2de971cd39f0cbbb772d76ba68e962d8c9adf7e97d"
 SECRETS_SHA256 = "4e112c1f22c448fe773155b753fce5c678a09afc878cdf31b258eac5b3f0cf38"
 STATUSLINE_SHA256 = "9cca74653baae70bc5bcfef4482b751681f903e94d13afe7fe93c5a9fc9289eb"
