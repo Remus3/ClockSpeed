@@ -55,6 +55,27 @@ BOUNDS THAT STILL APPLY:
   halt file (CS-1342); `taskkill /F /T /PID <driver pid>` (OPERATIONS 10.5). No lane in the main
   checkout.
 
+=== INBOX RESPONDER CARRY - 2026-11-01 00:26 (two verified MAIN ORDERs; act before the list below) ===
+R1. MAIN ORDER 2026-10-31-2200 FLEET-KIT v26: adopted at 6832706a (MANIFEST sha256 45b5088e...edae
+    read back, conformance() == []). Its ONE ANSWER is STAGED, NOT DELIVERED:
+    moon_sync_outbox/2026-11-01-0026-from-CS-ANSWER-to-MAIN-FLEET-KIT-v26-ADOPTED-6832706a-push-held-
+    CS-1357-ONE-ANSWER-TERMINAL.md. tools/outbound_send.py dry run: gate coverage all MEASURED, then
+    REFUSED "destination MAIN has no moon_sync_inbox directory" (MAIN is not under the default
+    channel root; the responder may not resolve MAIN's path). Deliver it interactively, re-hash the
+    destination copy, report 1/1. The v24 and v25 ANSWERs in the outbox have no delivery record
+    after 2026-10-21 either - check them too.
+R2. MAIN ORDER 2026-10-31-2215 public view + W44 + sweep + UI/UX (sha256 7d31986d...bedab, verified):
+    UNACTED. Nine items: (1) fix CS-1357 pre-push reds, then push main (10 ahead); (2) file and fix
+    the tier2 red since 10-28 (NodeId TypeError, test_cs1172 / test_cs1191), pin the drifting dep;
+    (3) inbox_responder order-kind timeout 1800 s, test pins it; (4) record note SHA-256 after a
+    completed responder run, skip duplicates with a log line, test; (5) remove stale clean worktrees
+    agent-a2d8d154, agent-a3040e24, lane-0 after an owner check; (6) close progress file cs-speed2
+    (running, silent 135 h); (7) CS-FLOW-VIEW Sankey of a solved chain from the rule trace;
+    (8) CS-DISPLAY-BY-ID companion window by display id, fallback to primary, clamp 96 percent;
+    (9) CS-PARSER-XCHECK out-of-tree parser oracle, test-only dev dep. Reply: ONE ANSWER, one line
+    per item DONE / BLOCKED / NA. History rewrites PREPARE ONLY. Full text: the note in
+    moon_sync_inbox.
+
 === THE SINGLE NEXT ACTION - SESSION 153, IN ORDER (session 152's, carried unacted) ===
 0. Print "Session 153 checklist" (FLEET 13a; the box U+2610, never the glyph), then the FLEET 18
    LOCAL start board: checklist on stdin to `python ops/fleet_kit/fleet_board.py render --session
