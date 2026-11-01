@@ -75,6 +75,22 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-01 - CS-1363 - `--to Main` from a checkout reached through a link delivers to the configured root's own inbox and nowhere else
+Verification: `tests/test_outbound_send.py::test_main_route_delivers_through_a_link_to_the_configured_root`,
+`test_main_route_never_picks_a_plain_main_beside_it`, `test_main_route_refuses_any_other_name`,
+`test_main_route_an_invalid_config_refuses_as_today`, `test_main_route_refuses_an_inbox_that_is_a_link`,
+`test_main_route_refuses_a_configured_root_that_is_this_repo`, `test_main_route_still_runs_the_gate`,
+`test_main_route_is_off_under_an_explicit_channel_root`, `test_main_route_a_linked_root_delivers_there_and_never_beside_it`,
+`test_main_route_a_root_named_like_a_sibling_leaves_that_sibling_alone`, `test_main_route_refuses_a_configured_root_inside_this_repo`,
+`test_main_route_any_root_name_receives_the_channel_name_and_only_that`, `test_main_route_rejects_every_other_spelling_of_the_name`
+and `test_main_route_a_link_to_the_plain_main_beside_it_is_refused`. `tools/outbound_send.py::configured_main_root`
+reads the gitignored main-tree config under the main checkout through `tools/main_provenance.py`, and
+`resolve_targets` holds the typed channel code `MAIN_CHANNEL_NAME`, case-insensitively, to exactly that root's
+inbox whatever the root's directory is called, and records it under that code; a root that is this repository
+or inside it refuses. Every other name keeps its rule, except that while a route exists no other typed name may
+resolve to a directory carrying the code. `--all`, the gate and the read-back are unchanged, and `--channel-root`
+turns the route off so no arm in a synthetic root can reach MAIN. Carried by a MAIN FIX note, provenance verified.
+
 ### 2026-11-01 - CS-1357 - the two local pre-push reds are fixed: a usmap read error carries no path, and the drive arm picks a home off the start's drive
 Verification: `tests/save/test_usmap.py::test_no_exception_carries_a_decoded_name_a_raw_byte_or_a_path`
 and `tests/test_flip_checks.py::test_a_home_on_another_drive_is_refused_by_its_location` pass with

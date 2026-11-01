@@ -112,6 +112,36 @@ before. `self_root()` walks up to `.git` and reads the worktree link when it
 finds a file rather than a directory, degrading to the file-relative answer
 when there is no `.git` at all.
 
+MAIN IS THE ONE DESTINATION THAT IS NOT A SIBLING ON DISK (CS-1363). This
+repository is reached through a link and its resolved parent holds other trees
+but no MAIN, whose tree is on another drive, so the default channel root could
+never name it and containment would have refused it anyway. `--to` at MAIN's
+channel code (:data:`MAIN_CHANNEL_NAME`), case-insensitively and with no alias,
+delivers to exactly the own inbox of the root in the gitignored main-tree config
+(:data:`MAIN_CONFIG`), whatever that root's directory is called: the inbox must
+RESOLVE to `<resolved root>/moon_sync_inbox`, so an inbox that is a link pointing
+elsewhere is refused, and so is a root that is this repository or inside it.
+
+THE TYPED NAME SELECTS THE ROUTE AND THE ROOT'S NAME TAKES NO PART. Comparing it
+to the root's directory name was measured wrong: a config root that is a link
+named `Main` resolved to another name, so the route did not match, and the note
+went to a plain `Main` in the channel root with exit 0. The route never falls
+back to a directory of that name in the channel root, and while a route exists no
+other typed name may reach one either. The record and every line name the channel
+code, because the root's directory name is a fragment of its path. The config is
+read through `tools/main_provenance.py`, its one owner, from :data:`SELF_ROOT`,
+because a linked worktree has no copy of a gitignored file. A missing or invalid
+config means no route, so the name is treated like any other. The gate,
+`--allow-unmeasured`, the record and the read-back are the ones every destination
+gets.
+
+THE ROUTE IS OFF UNDER `--channel-root` AND UNDER `--all`. An explicit channel
+root is a statement that the channel is THERE, and it is how a suite stands in a
+synthetic one: a real config in the main checkout must not reroute a `Main`
+inside a tmp root onto MAIN's real inbox, and no production caller passes the
+flag. A broadcast discovers holders under the channel root, and MAIN is
+addressed by name.
+
 WHAT THIS RECORDS AND WHAT IT DOES NOT. One entry per DESTINATION rather than
 one per send, because a pooled entry for two siblings cannot answer the
 reconciler's question about either. It records the destination by NAME and never
@@ -274,6 +304,17 @@ try:
 except OSError:  # pragma: no cover - degrade rather than refuse to start
     SELF_ROOT = REPO_ROOT
 
+#: Who owns reading the configuration naming MAIN's root, and where this
+#: repository keeps that file: under SELF_ROOT, since it is gitignored and a
+#: linked worktree has none. A module attribute, so an arm can point it at a
+#: tmp_path file; the arms that drive a copy need not, its SELF_ROOT is tmp_path.
+MAIN_PROVENANCE = REPO_ROOT / "tools" / "main_provenance.py"
+MAIN_CONFIG = SELF_ROOT / "config" / "main_tree.local.json"
+
+#: MAIN's channel code: the one typed name, in any case, that selects the route
+#: to the configured root, and the name its deliveries are recorded under.
+MAIN_CHANNEL_NAME = "Main"
+
 EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_USAGE = 2
@@ -426,6 +467,34 @@ def channel_root(override: str | None) -> Path:
     the wrong tree.
     """
     return Path(override).resolve() if override else REPO_ROOT.parent
+
+
+def configured_main_root() -> Path | None:
+    """MAIN's RESOLVED root from :data:`MAIN_CONFIG`, or None when there is no route.
+
+    None covers every refusal reason `tools/main_provenance.py` can return and a
+    tree that lacks that tool, a config-free tree being an ordinary thing and no
+    reason to refuse a send to a sibling. The caller then treats the name like
+    any other, which is the refusal it has always had.
+    """
+    name = "clockspeed_main_provenance_for_sender"
+    try:
+        module = sys.modules.get(name)
+        if module is None:
+            spec = importlib.util.spec_from_file_location(name, MAIN_PROVENANCE)
+            if spec is None or spec.loader is None:
+                return None
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            try:
+                spec.loader.exec_module(module)
+            except BaseException:
+                del sys.modules[name]
+                raise
+        found = module._main_root(MAIN_CONFIG)  # noqa: SLF001 - one owner, one spelling
+        return found.resolve() if isinstance(found, Path) else None
+    except (OSError, ValueError, ImportError, AttributeError, SyntaxError):
+        return None
 
 
 def inbox_holders(root: Path) -> list[str]:
@@ -1071,8 +1140,53 @@ def perform_send(
     return EXIT_OK
 
 
+def _main_route(name: str, main_root: Path | None) -> Path | None:
+    """The configured root when ``name`` is MAIN's channel code, in any case."""
+    if main_root is None or name.casefold() != MAIN_CHANNEL_NAME.casefold():
+        return None
+    return main_root
+
+
+def _within_this_repository(path: Path) -> bool:
+    """Whether a resolved ``path`` is this repository, or anywhere inside it."""
+    return any(path == own or own in path.parents for own in (SELF_ROOT, REPO_ROOT))
+
+
+def _containment_fault(
+    inbox: Path, route: Path | None, resolved_root: Path, *, route_live: bool
+) -> str:
+    """Why a resolved inbox may not receive, in words that name nothing, or empty."""
+    if route is not None:
+        # EXACTLY THE ROOT'S OWN INBOX. Comparing the whole path rather than the
+        # parent also refuses a link inside the root at the inbox's name that
+        # points at another directory of that same root.
+        if inbox != route / INBOX or _within_this_repository(route):
+            return (
+                "does not resolve to the configured root's own inbox, or the "
+                "configured root is this repository or inside it"
+            )
+        return ""
+    project = inbox.parent
+    if project.parent != resolved_root or project == SELF_ROOT:
+        return (
+            "does not resolve to a project directly inside the "
+            "channel root, or resolves to this repository itself"
+        )
+    if route_live and project.name.casefold() == MAIN_CHANNEL_NAME.casefold():
+        # A SPELLING WIN32 FOLDS (`Main.`) OR A LINK AT ANOTHER NAME. Either would
+        # land beside the configured root and be recorded under the very name
+        # that means the configured root.
+        return "resolves to a directory beside the configured root that carries its channel code"
+    return ""
+
+
 def resolve_targets(
-    root: Path, names: Sequence[str], note_name: str, *, discovered: bool = False
+    root: Path,
+    names: Sequence[str],
+    note_name: str,
+    *,
+    discovered: bool = False,
+    main_root: Path | None = None,
 ) -> tuple[list[tuple[str, Path]], list[str]]:
     """Turn destination names into targets, collecting every problem found.
 
@@ -1080,6 +1194,14 @@ def resolve_targets(
     per run costs an operator one round trip per destination, and the whole
     point of validating before staging is that the operator learns the full
     story while nothing has been written.
+
+    `main_root` IS THE ONE EXCEPTION TO THE CONTAINMENT BELOW (CS-1363): the
+    resolved root of MAIN, from :func:`configured_main_root`, or None for no
+    route. A typed :data:`MAIN_CHANNEL_NAME`, in any case, goes to that root's
+    own inbox, is held to that alone, and is named by that code rather than by
+    the directory's name. Any other typed name keeps the rule below, except that
+    while a route exists it may not resolve to a directory carrying the channel
+    code, which `--to` at that code would not pick.
 
     THE STRING IS NOT GRADED. THE RESOLVED PATH IS. A destination is accepted
     only when `root / name / INBOX` RESOLVES to a directory whose grandparent is
@@ -1172,8 +1294,13 @@ def resolve_targets(
         if not is_plain_segment(name):
             problems.append("%s is not a plain project name%s" % (which, locate))
             continue
+        # MAIN'S NAME GOES TO MAIN'S ROOT AND NOWHERE ELSE (CS-1363). Decided
+        # here so a refusal below cannot fall through to a directory of that
+        # name in the channel root. `discovered` is never routed: a holder
+        # `--all` found under the channel root is that holder.
+        route = None if discovered else _main_route(name, main_root)
         try:
-            inbox = (root / name / INBOX).resolve()
+            inbox = ((root / name if route is None else route) / INBOX).resolve()
         except OSError:
             # A name the operating system will not even resolve is refused
             # rather than raised on, so one bad destination reports alongside
@@ -1190,11 +1317,11 @@ def resolve_targets(
             problems.append("destination %s has no %s directory" % (_ascii(name), INBOX))
             continue
         project = inbox.parent
-        if project.parent != resolved_root or project == SELF_ROOT:
-            problems.append(
-                "%s does not resolve to a project directly inside the "
-                "channel root, or resolves to this repository itself%s" % (which, locate)
-            )
+        fault = _containment_fault(
+            inbox, route, resolved_root, route_live=main_root is not None and not discovered
+        )
+        if fault:
+            problems.append("%s %s%s" % (which, fault, locate))
             continue
         retired_code = RETIRED_SIBLINGS.get(project.name.casefold())
         if retired_code is not None:
@@ -1210,8 +1337,10 @@ def resolve_targets(
             continue
         claimed[inbox] = position
         # THE NAME IS THE RESOLVED DIRECTORY'S OWN, not the spelling that was
-        # typed. The record must name a directory that exists.
-        candidates.append((which, locate, project.name, inbox))
+        # typed. The record must name a directory that exists. MAIN alone goes
+        # by its channel code: its directory's name is a fragment of its path.
+        real_name = project.name if route is None else MAIN_CHANNEL_NAME
+        candidates.append((which, locate, real_name, inbox))
 
     # PHASE THREE - GRADE THE RESOLVED NAMES, before any message renders one
     # and before the caller can print or record one. This is the value that
@@ -1316,7 +1445,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         targets: list[tuple[str, Path]] = []
         problems = ["no destination was named and none was discovered"]
         if names:
-            targets, problems = resolve_targets(root, names, note.name, discovered=args.all)
+            # Off under `--channel-root`: see the module docstring.
+            main_root = None if args.channel_root else configured_main_root()
+            targets, problems = resolve_targets(
+                root, names, note.name, discovered=args.all, main_root=main_root
+            )
         if problems:
             return _refuse(problems)
 

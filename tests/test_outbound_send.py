@@ -4006,3 +4006,710 @@ def test_a_partial_commit_reports_every_requested_destination_as_m(
 
     assert code == EXIT_INCOMPLETE, f"a partial commit returned {code}"
     assert counts == [(1, 2)], f"a partial commit reported {counts}, not reached 1/2"
+
+
+# --------------------------------------------------------------------------
+# CS-1363 - MAIN IS REACHED THROUGH THE CONFIGURED ROOT, AND ONLY THERE.
+#
+# THIS REPOSITORY IS REACHED THROUGH A LINK AND ITS RESOLVED PARENT HOLDS NO
+# MAIN, so `--to Main` was refused at the default channel root, and containment
+# would have refused a tree on another drive anyway. These arms drive A REAL
+# COPY OF THE SENDER, IN A TREE OF ITS OWN, BY THE DEFAULT ROUTE - no
+# `--channel-root`, nothing patched - because the property is the binding of
+# three derived paths (the entry through the link, the resolved parent, the
+# config under the copy's own root), and a patch that supplied any of them
+# would grade a tautology. See test_the_identity_binding_survives_a_worktree.
+#
+# THEY CANNOT REACH THE REAL CONFIG OR THE REAL INBOX, IN EITHER CHECKOUT. A
+# copy's root is under tmp_path, so its config is the file the arm wrote, in a
+# worktree where config/main_tree.local.json is absent and in the main checkout
+# where it is present alike. Every OTHER arm in this file passes
+# `--channel-root`, which turns the route off (pinned below).
+# --------------------------------------------------------------------------
+
+MAIN_NAME = "Main"
+MAIN_SIBLING = "sibling958"
+ROOT_DIR_NAME = "RealTree958"
+MAIN_REFUSAL_PHRASE = "configured root"
+MISSING_INBOX_PHRASE = "has no " + INBOX + " directory"
+MAIN_TOOLS = (
+    "outbound_send.py",
+    "outbound_gate.py",
+    "precommit_gate.py",
+    "main_provenance.py",
+    "toolpath.py",
+)
+
+
+def install_copy(root: Path) -> None:
+    """Copy the sender and everything it loads into ``root / "tools"``."""
+    (root / "tools").mkdir(parents=True)
+    for name in MAIN_TOOLS:
+        (root / "tools" / name).write_bytes((REPO_ROOT / "tools" / name).read_bytes())
+
+
+def write_main_config(tree: Path, payload: bytes) -> None:
+    """Write a tree's config/main_tree.local.json, bytes as given."""
+    (tree / "config").mkdir(parents=True, exist_ok=True)
+    (tree / "config" / "main_tree.local.json").write_bytes(payload)
+
+
+def main_config_bytes(root: Path) -> bytes:
+    """The valid configuration naming ``root``."""
+    return json.dumps({"main_root": str(root)}).encode("ascii")
+
+
+class LinkedTree:
+    """A checkout reached through a link whose resolved parent holds no MAIN.
+
+    channel is the resolved parent, holding this tree and one sibling, exactly
+    the shape the defect was measured on; main_root sits outside it, standing in
+    for the other drive; entry is the sender as run THROUGH THE LINK.
+    """
+
+    def __init__(self, tmp_path: Path, *, config: bool = True) -> None:
+        """Build the layout under ``tmp_path``, with a valid config unless told not to."""
+        base = tmp_path / "obmain"
+        self.channel = base / "resolved-parent"
+        self.tree = self.channel / "thistree958"
+        self.main_root = base / "other-drive" / MAIN_NAME
+        self.main_inbox = self.main_root / INBOX
+        self.sibling_inbox = self.channel / MAIN_SIBLING / INBOX
+        (self.tree / ".git").mkdir(parents=True)
+        (self.tree / INBOX).mkdir()
+        self.sibling_inbox.mkdir(parents=True)
+        self.main_inbox.mkdir(parents=True)
+        install_copy(self.tree)
+        self.link = base / "entry" / self.tree.name
+        make_directory_link(self.link, self.tree)
+        self.entry = self.link / "tools" / "outbound_send.py"
+        if config:
+            write_main_config(self.tree, main_config_bytes(self.main_root))
+
+
+def run_copy(entry: Path, *args: str, env: dict[str, str]) -> tuple[int, str, str]:
+    """Run a sender COPY by the default route and return (code, stdout, stderr)."""
+    outside = REPO_ROOT not in entry.resolve().parents
+    assert outside, "the entry is the real sender, which could reach the real channel"
+    redirected = env.get(ENV_RECORD, "").endswith(RECORD_NAME)
+    assert redirected, "the delivery record was not redirected out of the repository"
+    # A copy's __pycache__ would otherwise read as a write under the channel.
+    child = {**env, "PYTHONDONTWRITEBYTECODE": "1"}
+    proc = subprocess.run(
+        [sys.executable, str(entry), *args],
+        capture_output=True,
+        env=child,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return proc.returncode, text(proc.stdout), text(proc.stderr)
+
+
+def send_copy(entry: Path, note: Path, *names: str, env: dict[str, str]) -> tuple[int, str, str]:
+    """A real `--send` of ``note`` from a copy to the typed ``names``."""
+    typed = [word for name in names for word in ("--to", name)]
+    return run_copy(entry, "--note", str(note), *typed, "--send", "--allow-unmeasured", env=env)
+
+
+def inbox_files(inbox: Path) -> list[str]:
+    """The sorted file names in an inbox."""
+    return sorted(path.name for path in inbox.iterdir())
+
+
+def test_main_route_delivers_through_a_link_to_the_configured_root(tmp_path: Path) -> None:
+    """CS-1363 - MAIN's acceptance: delivered at the configured root, and recorded.
+
+    Measured red on the unrepaired tool: exit 1, "destination Main has no
+    moon_sync_inbox directory". The channel tree is compared whole, so a copy
+    anywhere under the resolved parent is a finding.
+    """
+    linked = LinkedTree(tmp_path)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(linked.channel)
+
+    code, out, _err = send_copy(linked.entry, note, MAIN_NAME, env=env)
+
+    landed = linked.main_inbox / NOTE_NAME
+    same_bytes = landed.is_file() and landed.read_bytes() == note.read_bytes()
+    changed = changed_paths(before, tree_snapshot(linked.channel))
+    entries = record_entries(env)
+    digest = hashlib.sha256(note.read_bytes()).hexdigest()
+    assert code == EXIT_OK, f"exit {code}; --to Main was not delivered"
+    assert same_bytes, "the configured inbox does not hold the note's bytes"
+    assert changed == [], f"the send also wrote under the resolved parent: {changed}"
+    assert reached_counts(out.encode("ascii")) == [(1, 1)]
+    assert len(entries) == 1, "one destination must leave exactly one record entry"
+    values = entry_values(entries[0])
+    assert MAIN_NAME in values, "the record does not name the channel code"
+    assert digest in values, "the record does not carry the delivered digest"
+    drive_hits = len(DRIVE_LETTER_RE.findall(record_raw(env).decode("ascii")))
+    assert drive_hits == 0, "the record carries an absolute path"
+
+
+@pytest.mark.parametrize("spelling", ["Main", "main", "MAIN", "mAiN"])
+def test_main_route_matches_the_channel_name_in_any_case(tmp_path: Path, spelling: str) -> None:
+    """CS-1363 - case-insensitive on every platform; the record names the channel code.
+
+    The match is on the name, not on the filesystem, so a POSIX runner grades
+    the same thing a case-folding Windows volume does.
+    """
+    linked = LinkedTree(tmp_path)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, _err = send_copy(linked.entry, note, spelling, env=env)
+
+    entries = record_entries(env)
+    assert code == EXIT_OK, f"exit {code}; a case variant was not routed"
+    assert inbox_files(linked.main_inbox) == [NOTE_NAME]
+    assert len(entries) == 1, "the variant did not leave exactly one record entry"
+    assert MAIN_NAME in entry_values(entries[0]), "the record kept the typed spelling"
+
+
+def test_main_route_two_spellings_are_one_delivery_beside_a_sibling(tmp_path: Path) -> None:
+    """CS-1363 - dedup holds, and an ordinary sibling keeps its own rule in one send."""
+    linked = LinkedTree(tmp_path)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, out, _err = send_copy(linked.entry, note, "Main", "main", MAIN_SIBLING, env=env)
+
+    entries = record_entries(env)
+    assert code == EXIT_OK, f"exit {code}"
+    assert reached_counts(out.encode("ascii")) == [(2, 2)]
+    assert inbox_files(linked.main_inbox) == [NOTE_NAME]
+    assert inbox_files(linked.sibling_inbox) == [NOTE_NAME]
+    assert [entry_values(entry).count(MAIN_NAME) for entry in entries].count(1) == 1
+
+
+@pytest.mark.parametrize("name", ["Mainframe", "Mai", "other-drive", "Main."])
+def test_main_route_refuses_any_other_name(tmp_path: Path, name: str) -> None:
+    """CS-1363 - no alias list: only the channel code maps."""
+    linked = LinkedTree(tmp_path)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, err = send_copy(linked.entry, note, name, env=env)
+
+    assert code == EXIT_REFUSED, f"exit {code}; a name that is not the root's was accepted"
+    assert MISSING_INBOX_PHRASE in err, "the refusal is not the one every other name gets"
+    assert inbox_files(linked.main_inbox) == []
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send left a record entry"
+
+
+def test_main_route_a_link_at_another_name_is_still_refused(tmp_path: Path) -> None:
+    """CS-1363 - a name RESOLVING to the configured root is not the configured route.
+
+    Containment still governs every other name: this link sits in the channel
+    root and its target does not, so the ordinary containment refusal stands.
+    """
+    linked = LinkedTree(tmp_path)
+    make_directory_link(linked.channel / "aliasmain958", linked.main_root)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, err = send_copy(linked.entry, note, "aliasmain958", env=env)
+
+    assert code == EXIT_REFUSED, f"exit {code}; a link escaped containment"
+    assert "does not resolve to a project" in err, "containment did not make this refusal"
+    assert inbox_files(linked.main_inbox) == []
+
+
+def test_main_route_never_picks_a_plain_main_beside_it(tmp_path: Path) -> None:
+    """CS-1363 - a `Main` in the channel root is not the destination."""
+    linked = LinkedTree(tmp_path)
+    decoy = linked.channel / MAIN_NAME / INBOX
+    decoy.mkdir(parents=True)
+    note = clean_note(tmp_path)
+
+    code, _out, _err = send_copy(linked.entry, note, MAIN_NAME, env=base_env(tmp_path))
+
+    assert code == EXIT_OK, f"exit {code}"
+    assert inbox_files(linked.main_inbox) == [NOTE_NAME]
+    assert inbox_files(decoy) == [], "the plain directory beside the root was chosen"
+
+
+def test_main_route_does_not_fall_back_when_the_configured_inbox_is_absent(
+    tmp_path: Path,
+) -> None:
+    """CS-1363 - a route that cannot deliver refuses; it never tries the plain name."""
+    linked = LinkedTree(tmp_path)
+    linked.main_inbox.rmdir()
+    decoy = linked.channel / MAIN_NAME / INBOX
+    decoy.mkdir(parents=True)
+    note = clean_note(tmp_path)
+
+    code, _out, err = send_copy(linked.entry, note, MAIN_NAME, env=base_env(tmp_path))
+
+    created = linked.main_inbox.exists()
+    assert code == EXIT_REFUSED, f"exit {code}; the send fell back to the plain directory"
+    assert MISSING_INBOX_PHRASE in err
+    assert inbox_files(decoy) == []
+    assert not created, "the sender created the missing inbox"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        b"{not json",
+        b"[]",
+        b'{"other": "x"}',
+        b'{"main_root": ""}',
+        b'{"main_root": "relative/Main"}',
+    ],
+    ids=["absent", "unparseable", "not-an-object", "no-root", "empty-root", "relative"],
+)
+def test_main_route_an_invalid_config_refuses_as_today(
+    tmp_path: Path, payload: bytes | None
+) -> None:
+    """CS-1363 - MAIN: a missing or invalid config refuses as today, for that name."""
+    linked = LinkedTree(tmp_path, config=False)
+    if payload is not None:
+        write_main_config(linked.tree, payload)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, out, err = send_copy(linked.entry, note, MAIN_NAME, env=env)
+
+    assert code == EXIT_REFUSED, f"exit {code}; an invalid config delivered"
+    assert MISSING_INBOX_PHRASE in err, "the refusal is not today's refusal"
+    assert_path_absent(str(tmp_path), (out.encode("ascii"), err.encode("ascii")))
+    assert inbox_files(linked.main_inbox) == []
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send left a record entry"
+
+
+def test_main_route_an_invalid_config_leaves_other_names_alone(tmp_path: Path) -> None:
+    """CS-1363 - a broken config is that name's fault, not the sibling's."""
+    linked = LinkedTree(tmp_path, config=False)
+    write_main_config(linked.tree, b"{not json")
+    note = clean_note(tmp_path)
+
+    code, _out, _err = send_copy(linked.entry, note, MAIN_SIBLING, env=base_env(tmp_path))
+
+    assert code == EXIT_OK, f"exit {code}; a broken MAIN config stopped a sibling send"
+    assert inbox_files(linked.sibling_inbox) == [NOTE_NAME]
+
+
+@pytest.mark.parametrize("inside_root", [False, True], ids=["outside-root", "inside-root"])
+def test_main_route_refuses_an_inbox_that_is_a_link(tmp_path: Path, *, inside_root: bool) -> None:
+    """CS-1363 - exactly the configured root's inbox, nothing it points at.
+
+    Inside the root too: a target there passes a check on the inbox's parent.
+    """
+    linked = LinkedTree(tmp_path)
+    linked.main_inbox.rmdir()
+    elsewhere = linked.main_root / "held" if inside_root else tmp_path / "obmain" / "elsewhere"
+    elsewhere.mkdir(parents=True)
+    make_directory_link(linked.main_inbox, elsewhere)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, err = send_copy(linked.entry, note, MAIN_NAME, env=env)
+
+    assert code == EXIT_REFUSED, f"exit {code}; a linked inbox was followed"
+    assert MAIN_REFUSAL_PHRASE in err, "this is not the configured-root refusal"
+    assert inbox_files(elsewhere) == []
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send left a record entry"
+
+
+@pytest.mark.parametrize("through_link", [False, True], ids=["plain", "through-link"])
+def test_main_route_refuses_a_configured_root_that_is_this_repo(
+    tmp_path: Path, *, through_link: bool
+) -> None:
+    """CS-1363 - the route never turns this repository into its own destination."""
+    linked = LinkedTree(tmp_path)
+    configured = linked.link if through_link else linked.tree
+    write_main_config(linked.tree, main_config_bytes(configured))
+    note = clean_note(tmp_path)
+
+    code, _out, err = send_copy(linked.entry, note, MAIN_NAME, env=base_env(tmp_path))
+
+    assert code == EXIT_REFUSED, f"exit {code}; delivered into this repository"
+    assert MAIN_REFUSAL_PHRASE in err, "this is not the configured-root refusal"
+    assert inbox_files(linked.tree / INBOX) == []
+
+
+def test_main_route_still_runs_the_gate(tmp_path: Path) -> None:
+    """CS-1363 - the leak gate stands in front of MAIN, as in front of everyone.
+
+    Both tiers: a dirty note is refused, and an unmeasured one needs the flag.
+    The assertion is on the gate's own refusal, so this cannot pass because the
+    route refused; the delivery arm above is the positive control.
+    """
+    linked = LinkedTree(tmp_path)
+    env = base_env(tmp_path)
+    dirty = write_note(
+        tmp_path, NOTE_NAME, ("See " + WINDOWS_HOME_PATH + " for details.\n").encode("ascii")
+    )
+
+    code, out, err = send_copy(linked.entry, dirty, MAIN_NAME, env=env)
+    gated = "the gate refused this note" in out + err
+    assert code == EXIT_REFUSED, f"exit {code}; a dirty note reached MAIN"
+    assert gated, "the gate did not make this refusal"
+    assert inbox_files(linked.main_inbox) == []
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send left a record entry"
+
+    clean = clean_note(tmp_path, SECOND_NOTE_NAME)
+    code, _out, _err = run_copy(
+        linked.entry,
+        "--note",
+        str(clean),
+        "--to",
+        MAIN_NAME,
+        "--send",
+        env=unmeasured_env(tmp_path),
+    )
+    assert code == EXIT_UNMEASURED, f"exit {code}; --allow-unmeasured no longer governs MAIN"
+    assert inbox_files(linked.main_inbox) == []
+
+
+def test_main_route_is_off_under_an_explicit_channel_root(tmp_path: Path) -> None:
+    """CS-1363 - the mechanical safety for every other arm in this file.
+
+    A valid config sits in the copy, exactly as one sits in the main checkout;
+    a run told to stand in a synthetic channel root must not leave it. The
+    `Main` inside that root is delivered to as an ordinary sibling, which is
+    what those arms grade.
+    """
+    linked = LinkedTree(tmp_path)
+    channel = make_channel(tmp_path, with_inbox=(MAIN_NAME,))
+    note = clean_note(tmp_path)
+
+    code, _out, _err = run_copy(
+        linked.entry,
+        "--note",
+        str(note),
+        "--to",
+        MAIN_NAME,
+        "--send",
+        "--allow-unmeasured",
+        "--channel-root",
+        str(channel),
+        env=base_env(tmp_path),
+    )
+
+    assert code == EXIT_OK, f"exit {code}"
+    assert inbox_files(channel / MAIN_NAME / INBOX) == [NOTE_NAME]
+    assert inbox_files(linked.main_inbox) == [], "the route escaped an explicit channel root"
+
+
+def test_main_route_all_discovers_only_what_it_always_did(tmp_path: Path) -> None:
+    """CS-1363 - `--all` is untouched: MAIN is addressed by name, never broadcast.
+
+    A holder discovered under the channel root stays that holder, even one that
+    shares the configured root's name.
+    """
+    linked = LinkedTree(tmp_path)
+    holder = linked.channel / MAIN_NAME / INBOX
+    holder.mkdir(parents=True)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, _err = run_copy(
+        linked.entry, "--note", str(note), "--all", "--send", "--allow-unmeasured", env=env
+    )
+
+    assert code == EXIT_OK, f"exit {code}"
+    assert inbox_files(linked.sibling_inbox) == [NOTE_NAME]
+    assert inbox_files(holder) == [NOTE_NAME]
+    assert inbox_files(linked.main_inbox) == [], "a broadcast reached MAIN"
+
+
+def make_linked_worktree(main_checkout: Path) -> Path:
+    """A worktree-shaped copy of the sender under ``main_checkout``, returned.
+
+    Hand-written `.git` plumbing on purpose: the real binding is graded by
+    test_the_identity_binding_survives_a_worktree, and this arm's subject is
+    only which root the CONFIG is read from.
+    """
+    admin = main_checkout / ".git" / "worktrees" / "wt958"
+    admin.mkdir(parents=True)
+    (admin / "commondir").write_bytes(b"../..\n")
+    worktree = main_checkout / ".claude" / "worktrees" / "wt958"
+    install_copy(worktree)
+    (worktree / ".git").write_bytes(("gitdir: " + str(admin) + "\n").encode("utf-8"))
+    return worktree
+
+
+def test_main_route_reads_the_config_of_the_main_checkout(tmp_path: Path) -> None:
+    """CS-1363 - the main checkout's config governs a run from a linked worktree.
+
+    The file is gitignored, so a worktree never has one. A config read relative
+    to the running file refuses in the shape the work is actually done in; the
+    wrong one planted in the worktree makes that a red rather than a coincidence.
+    """
+    main_root = tmp_path / "other-drive" / MAIN_NAME
+    (main_root / INBOX).mkdir(parents=True)
+    checkout = tmp_path / "resolved-parent" / "thistree958"
+    write_main_config(checkout, main_config_bytes(main_root))
+    worktree = make_linked_worktree(checkout)
+    wrong_root = tmp_path / "wrong-root" / MAIN_NAME
+    (wrong_root / INBOX).mkdir(parents=True)
+    write_main_config(worktree, main_config_bytes(wrong_root))
+    note = clean_note(tmp_path)
+    entry = worktree / "tools" / "outbound_send.py"
+
+    code, _out, _err = send_copy(entry, note, MAIN_NAME, env=base_env(tmp_path))
+
+    assert code == EXIT_OK, f"exit {code}; the worktree read the wrong config"
+    assert inbox_files(main_root / INBOX) == [NOTE_NAME]
+    assert inbox_files(wrong_root / INBOX) == []
+
+
+@pytest.mark.parametrize("below", ["", "sub958"], ids=["itself", "inside"])
+@pytest.mark.parametrize("own_root", ["worktree", "checkout"])
+def test_main_route_from_a_worktree_refuses_either_of_its_own_roots(
+    tmp_path: Path, own_root: str, below: str
+) -> None:
+    """CS-1363 - identity covers the checkout the file sits in AND the main one."""
+    checkout = tmp_path / "resolved-parent" / "thistree958"
+    worktree = make_linked_worktree(checkout)
+    configured = (worktree if own_root == "worktree" else checkout) / below
+    (configured / INBOX).mkdir(parents=True)
+    write_main_config(checkout, main_config_bytes(configured))
+    note = clean_note(tmp_path)
+    entry = worktree / "tools" / "outbound_send.py"
+
+    code, _out, err = send_copy(entry, note, MAIN_NAME, env=base_env(tmp_path))
+
+    assert code == EXIT_REFUSED, f"exit {code}; delivered into this repository"
+    assert MAIN_REFUSAL_PHRASE in err, "this is not the configured-root refusal"
+    assert inbox_files(configured / INBOX) == []
+
+
+def test_main_route_degrades_without_the_provenance_tool(tmp_path: Path) -> None:
+    """CS-1363 - a tree lacking the reader has no route; other names still go."""
+    linked = LinkedTree(tmp_path)
+    (linked.tree / "tools" / "main_provenance.py").unlink()
+    note = clean_note(tmp_path)
+    env = base_env(tmp_path)
+
+    refused, _out, err = send_copy(linked.entry, note, MAIN_NAME, env=env)
+    sibling, _out, _err = send_copy(linked.entry, note, MAIN_SIBLING, env=env)
+
+    assert refused == EXIT_REFUSED, f"exit {refused}"
+    assert MISSING_INBOX_PHRASE in err
+    assert sibling == EXIT_OK, f"exit {sibling}; a missing reader stopped a sibling send"
+
+
+def record_field(entry: object, key: str) -> object:
+    """One field of a record entry, which the record's reader hands back untyped."""
+    assert isinstance(entry, dict), "a record entry is not an object"
+    return entry.get(key)
+
+
+def plain_main_beside(linked: LinkedTree) -> Path:
+    """Plant a plain `Main` holding an inbox under the channel root; its inbox, proven."""
+    decoy = linked.channel / MAIN_NAME / INBOX
+    decoy.mkdir(parents=True)
+    planted = decoy.is_dir() and inbox_files(decoy) == []
+    assert planted, "the plain directory beside the configured root was not planted"
+    return decoy
+
+
+def elsewhere_root(linked: LinkedTree, name: str) -> Path:
+    """A configured-root candidate called ``name``, outside the channel root, inbox made."""
+    root = linked.main_root.parent / name
+    (root / INBOX).mkdir(parents=True)
+    return root
+
+
+@pytest.mark.parametrize("link_name", [MAIN_NAME, "cfglink958"])
+def test_main_route_a_linked_root_delivers_there_and_never_beside_it(
+    tmp_path: Path, link_name: str
+) -> None:
+    """CS-1363 - the adversary's reproduction: a config root that is a real link.
+
+    Measured on the first candidate with the link at `Main`: exit 0, the configured inbox
+    empty, the note in the plain `Main` beside it, recorded as `Main`. The name
+    the link has is irrelevant, and so is the name of what it points at.
+    """
+    linked = LinkedTree(tmp_path, config=False)
+    real = elsewhere_root(linked, ROOT_DIR_NAME)
+    config_link = linked.main_root.parent.parent / "cfg-entry" / link_name
+    make_directory_link(config_link, real)
+    write_main_config(linked.tree, main_config_bytes(config_link))
+    decoy = plain_main_beside(linked)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, out, err = send_copy(linked.entry, note, MAIN_NAME, env=env)
+
+    entries = record_entries(env)
+    assert code == EXIT_OK, f"exit {code}; --to Main was not delivered"
+    assert inbox_files(real / INBOX) == [NOTE_NAME], "the configured inbox did not receive it"
+    assert inbox_files(decoy) == [], "the plain directory beside the root was chosen"
+    assert len(entries) == 1, "one destination must leave exactly one record entry"
+    assert record_field(entries[0], "verified") is True, (
+        "the read-back did not verify this delivery"
+    )
+    assert record_field(entries[0], "destination") == MAIN_NAME, (
+        "the record does not name the channel code"
+    )
+    blobs = (out.encode("ascii"), err.encode("ascii"), record_raw(env))
+    assert_absent_in_any_case(ROOT_DIR_NAME, blobs)
+    assert_path_absent(str(tmp_path), blobs)
+
+
+def test_main_route_a_root_named_like_a_sibling_leaves_that_sibling_alone(
+    tmp_path: Path,
+) -> None:
+    """CS-1363 - no other destination's rule changes, whatever the root is called."""
+    linked = LinkedTree(tmp_path, config=False)
+    root = elsewhere_root(linked, MAIN_SIBLING)
+    write_main_config(linked.tree, main_config_bytes(root))
+    env = base_env(tmp_path)
+    first = clean_note(tmp_path)
+    second = clean_note(tmp_path, SECOND_NOTE_NAME)
+
+    to_sibling, _out, _err = send_copy(linked.entry, first, MAIN_SIBLING, env=env)
+    held_after_sibling_send = inbox_files(root / INBOX)
+    to_main, _out, _err = send_copy(linked.entry, second, MAIN_NAME, env=env)
+
+    assert to_sibling == EXIT_OK, f"exit {to_sibling}; the sibling send failed"
+    assert held_after_sibling_send == [], "the sibling's name was rerouted to the configured root"
+    assert inbox_files(linked.sibling_inbox) == [NOTE_NAME]
+    assert to_main == EXIT_OK, f"exit {to_main}; --to Main was not delivered"
+    assert inbox_files(root / INBOX) == [SECOND_NOTE_NAME]
+
+
+@pytest.mark.parametrize("mode", ["dry-run", "send"])
+@pytest.mark.parametrize("place", [MAIN_NAME, "sub958", "sub958/" + MAIN_NAME])
+@pytest.mark.parametrize("through_link", [False, True], ids=["plain", "through-link"])
+def test_main_route_refuses_a_configured_root_inside_this_repo(
+    tmp_path: Path, mode: str, place: str, *, through_link: bool
+) -> None:
+    """CS-1363 - a subdirectory of this repository is no destination, even in a dry run.
+
+    The first candidate exact match let a root under the tree through: the plain
+    `Main` place passed a dry run with exit 0 and a send delivered there.
+    """
+    linked = LinkedTree(tmp_path)
+    inside = linked.tree / place
+    (inside / INBOX).mkdir(parents=True)
+    configured = (linked.link if through_link else linked.tree) / place
+    write_main_config(linked.tree, main_config_bytes(configured))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    send = ("--send",) if mode == "send" else ()
+
+    code, _out, err = run_copy(
+        linked.entry, "--note", str(note), "--to", MAIN_NAME, "--allow-unmeasured", *send, env=env
+    )
+
+    assert code == EXIT_REFUSED, f"exit {code}; a root inside this repository was accepted"
+    assert MAIN_REFUSAL_PHRASE in err, "this is not the configured-root refusal"
+    assert inbox_files(inside / INBOX) == []
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send left a record entry"
+
+
+def test_main_route_any_root_name_receives_the_channel_name_and_only_that(
+    tmp_path: Path,
+) -> None:
+    """CS-1363 - the route follows the channel code, never the directory's name.
+
+    The root's own directory name is typed second: no name but the channel code
+    routes, even that one. Duplicate detection holds under another spelling, and
+    no line or record renders the root's name, which is a fragment of its path.
+    """
+    linked = LinkedTree(tmp_path, config=False)
+    root = elsewhere_root(linked, ROOT_DIR_NAME)
+    write_main_config(linked.tree, main_config_bytes(root))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, out, _err = send_copy(linked.entry, note, MAIN_NAME, MAIN_NAME.upper(), env=env)
+    by_dir_name, _out, dir_err = send_copy(
+        linked.entry, clean_note(tmp_path, SECOND_NOTE_NAME), ROOT_DIR_NAME, env=env
+    )
+    again, again_out, again_err = send_copy(linked.entry, note, MAIN_NAME.lower(), env=env)
+
+    entries = record_entries(env)
+    assert code == EXIT_OK, f"exit {code}; --to Main was not delivered"
+    assert reached_counts(out.encode("ascii")) == [(1, 1)]
+    assert by_dir_name == EXIT_REFUSED, f"exit {by_dir_name}; the directory's name was routed"
+    assert MISSING_INBOX_PHRASE in dir_err, "the refusal is not the one every other name gets"
+    assert again == EXIT_REFUSED, f"exit {again}; a duplicate was delivered"
+    assert "already holds" in again_err, "the duplicate was not refused as a duplicate"
+    assert inbox_files(root / INBOX) == [NOTE_NAME]
+    assert len(entries) == 1, "the repeat sends must not add a record entry"
+    assert record_field(entries[0], "destination") == MAIN_NAME, (
+        "the record does not name the channel code"
+    )
+    blobs = (out.encode("ascii"), again_out.encode("ascii"), again_err.encode("ascii"))
+    assert_absent_in_any_case(ROOT_DIR_NAME, (*blobs, record_raw(env)))
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Main.",
+        "Main ",
+        "./Main",
+        "..\\Main",
+        "Main/",
+        "Main\\",
+        "Main:x",
+        "Main::$DATA",
+        "MAIN~1",
+        "",
+    ],
+    ids=[
+        "dot",
+        "space",
+        "dot-slash",
+        "up-slash",
+        "slash",
+        "backslash",
+        "stream",
+        "ads",
+        "8.3",
+        "empty",
+    ],
+)
+@pytest.mark.parametrize("decoy", [False, True], ids=["alone", "plain-main-beside"])
+def test_main_route_rejects_every_other_spelling_of_the_name(
+    tmp_path: Path, name: str, *, decoy: bool
+) -> None:
+    """CS-1363 - only the exact channel code routes, and no spelling reaches a neighbour.
+
+    With a plain `Main` planted, Win32 folds `Main.` and `Main ` onto it. Those
+    reached it in the first candidate, exit 0 and recorded as `Main`, beside the root that
+    name means; the record could not tell the two deliveries apart.
+    """
+    linked = LinkedTree(tmp_path)
+    plain = plain_main_beside(linked) if decoy else None
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, _err = send_copy(linked.entry, note, name, env=env)
+
+    assert code == EXIT_REFUSED, f"exit {code}; a spelling of the name was accepted"
+    assert inbox_files(linked.main_inbox) == [], "another spelling was routed"
+    if plain is not None:
+        assert inbox_files(plain) == [], "a spelling reached the plain directory beside the root"
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send left a record entry"
+
+
+def test_main_route_a_link_to_the_plain_main_beside_it_is_refused(tmp_path: Path) -> None:
+    """CS-1363 - an ordinary name cannot reach the directory `--to Main` refuses to pick."""
+    linked = LinkedTree(tmp_path)
+    decoy = plain_main_beside(linked)
+    make_directory_link(linked.channel / "aliasplain958", decoy.parent)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, _out, err = send_copy(linked.entry, note, "aliasplain958", env=env)
+
+    assert code == EXIT_REFUSED, f"exit {code}; a link reached the plain directory"
+    assert MAIN_REFUSAL_PHRASE in err, "this is not the configured-root refusal"
+    assert inbox_files(decoy) == []
+    assert inbox_files(linked.main_inbox) == []
