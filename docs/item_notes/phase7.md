@@ -855,29 +855,6 @@ run when no other slot holder is live, or cap the requirement at the machine's o
 The tree-side half - a stable pre-push command and the tests' margin - is this item. Filed in
 Phase 7 beside CS-1334, whose re-walk it unblocks.
 
-## CS-1357
-
-### Acceptance
-
-`tests/save/test_usmap.py::test_no_exception_carries_a_decoded_name_a_raw_byte_or_a_path` and
-`tests/test_flip_checks.py::test_a_home_on_another_drive_is_refused_by_its_location` pass on this
-machine with the test Temp root on E:, and a `clockspeed/save/usmap.py::load_usmap` read error
-renders no absolute path wherever the file lives. Neither test is weakened to pass.
-
-### Filed 2026-10-26 by the MAIN ORDER U5 inbox pass
-
-**THE GAP.** The pre-push whole suite failed twice on this machine (2 failed, 7848 passed) and
-both failures reproduce alone on the base `c0816233`, untouched by the U5 slice. (1) The usmap
-read error message rendered the full test path under the E: Temp root, which the test's `:/`
-arm catches - the redaction appears to cover home-relative paths only, so a path outside the
-home leaks; the same echo rule as `CLAUDE.md` section 3 rule 12. (2) The flip check does not
-refuse a home on E: by its location. INFERRED, not measured: both turned red when the kit v23
-adoption (CS-1354) moved the Temp root onto E:, the repo's own drive - yet the same base pushed
-green at 2026-10-25 23:35 (0 failed), so the trigger is this run's environment, likely the
-headless spawn's Temp root, not the commit. The U5 commits stay local until a push is green
-(CS-1321 route A, never `--no-verify`).
-
-
 ## CS-1358
 
 ### Acceptance
@@ -896,3 +873,65 @@ further hops.
 MAIN ORDER 2026-10-26 03:15 (SPEED-CS item 2), provenance verified. Measured at filing: 107
 `ls-files` sites across 74 files in `tests/`, too large for one responder pass, and every push is
 held behind CS-1357, so the slice waits for an interactive session.
+
+
+## CS-1359
+
+### Acceptance
+
+One nightly tier2 run on a pushed tip that carries the `pyproject.toml` dev pin `pytest>=9.0,<9.1`
+is read back green with `gh run list --workflow tier2.yml`. The pin moves only deliberately: install
+the newer pytest locally, make `tests/test_cs1172_branch_canaries.py` and
+`tests/test_cs1191_colour_xdist_redaction.py` pass under it, then widen the bound.
+
+### Filed 2026-11-01 by the headless driver (MAIN ORDER 2026-10-31 22:15 item 2)
+
+MEASURED: tier2 green on 2026-10-27 and red every night from 2026-10-28 on the SAME commit, so the
+commit is not the cause. The red run installed pytest 9.2.0 from the unbounded `pytest>=8.0`; this
+machine runs 9.0.3 and passes. The failures: a `TypeError` on a `NodeId` object in the
+clean-checkout probe, forced runs exiting 3 in `test_cs1172_branch_canaries.py`, and zero rendered
+diff markers in `test_cs1191_colour_xdist_redaction.py`. Fix landed: the upper bound. Open only for
+the green nightly read-back.
+
+
+## CS-1360
+
+### Acceptance
+
+MAIN ORDER 2026-10-31 22:15 item 7: one solved chain renders as a read-only flow view with its bottleneck edge marked;
+belt and pipe rates are the edge widths; the view is built from the same rule trace as the advice
+card's tier-3 derivation; a test pins the edge widths to the trace.
+
+### Filed 2026-11-01 by the headless driver
+
+Not started: the driver run's time budget did not cover a feature slice. Next: planner spec, then a
+builder slice in `clockspeed/surface/` that consumes the trace and computes nothing itself.
+
+
+## CS-1361
+
+### Acceptance
+
+MAIN ORDER 2026-10-31 22:15 item 8: the companion window position is saved by display id, not index or raw
+coordinates only; a missing saved display falls back silently to the primary; the bounds clamp,
+DPI-aware, to 96 percent of the work area. A test with the saved display missing lands the window
+on the primary inside its work area.
+
+### Filed 2026-11-01 by the headless driver
+
+Not started: the driver run's time budget did not cover a shell slice. Next: a builder slice in
+`shell/`.
+
+
+## CS-1362
+
+### Acceptance
+
+MAIN ORDER 2026-10-31 22:15 item 9: an out-of-tree save parser runs over the test saves as an oracle for this
+parser's counts, a test-only dev dependency never in the solve path; one test compares the counts
+on every test save.
+
+### Filed 2026-11-01 by the headless driver
+
+Not started: the candidate dependency first needs the `CONVENTIONS.md` section 14 licence gate (a
+`researcher` pass and a `THIRD_PARTY.md` row), and the suite must still run with no game installed.

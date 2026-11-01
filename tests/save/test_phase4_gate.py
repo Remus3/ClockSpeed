@@ -3837,6 +3837,12 @@ _ABSENCE_MITIGATIONS: Final = MappingProxyType(
             "that withhold every string, which is a separate guarantee graded "
             "by tests/save/test_properties.py rather than restated here",
         ),
+        "usmap.py": (
+            (_MITIGATION_PATH_IS_NEVER_RAISED,),
+            "CS-1357. load_usmap takes the mapping path, but its one read "
+            "failure raises the fixed reason alone, from a pathless cause, so "
+            "no raise names the path and the module needs no redactor",
+        ),
         "world.py": (
             (_MITIGATION_PATH_IS_NEVER_RAISED,),
             "the one of the four that DOES take a path, so no-path-reaches-it "

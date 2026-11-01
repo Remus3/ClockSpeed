@@ -87,8 +87,8 @@ off that section rather than from here. See :class:`_NameTable`.
 THE ERROR TAXONOMY, WHICH IS NARROW ON PURPOSE. An exception raised here may
 carry a field name, a byte offset, an expected or actual length or count, a
 version or method integer, and a fixed reason string. It may not carry raw
-bytes, a hex preview, a name decoded out of the file, or an unredacted path -
-paths go through :func:`clockspeed.data.locate.redact`. That keeps every echo
+bytes, a hex preview, a name decoded out of the file, or a path of any
+kind (CS-1357). That keeps every echo
 path clean by construction rather than by review.
 
 A RELATED BUT WEAKER DISCIPLINE COVERS ``__repr__``. :class:`PropertyMap`,
@@ -114,7 +114,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
-from clockspeed.data.locate import redact, resolve_game_dir
+from clockspeed.data.locate import resolve_game_dir
 
 __all__ = [
     "COMPRESSION_NONE",
@@ -1218,7 +1218,9 @@ def load_usmap(path: Path) -> PropertyMap:
     try:
         data = path.read_bytes()
     except OSError as exc:
-        raise UsmapError(f"{_REASON_UNREADABLE}: {redact(path)}") from _pathless_cause(exc)
+        # CS-1357: no path at all - the redactor covers home spellings only, so an
+        # install or scratch path outside the home would otherwise leak whole.
+        raise UsmapError(_REASON_UNREADABLE) from _pathless_cause(exc)
     return parse_usmap(data)
 
 

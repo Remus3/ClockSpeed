@@ -327,16 +327,6 @@ EXEMPT: Final[Mapping[str, str]] = {
         "cleared. What the guard still holds is the SHAPE: drop the wrapper "
         "and the channel is renamed to the bare path, an unexempted key."
     ),
-    "clockspeed/save/usmap.py::UsmapError::redact(path)": (
-        "MEASURED at the one construction site, in load_usmap: the path is "
-        "the property mapping inside the GAME INSTALL rather than a save - "
-        "default_usmap_path resolves it under the install directory - and it "
-        "reaches the message only through the project's single redactor. An "
-        "install path is not personal data on its own, but it can carry a "
-        "home directory when the operator installed the game under one, which "
-        "is what the redactor is there for. Recorded rather than cleared for "
-        "the reason given on the HeaderReadError entry."
-    ),
     "clockspeed/save/workdir.py::DestinationRefusedError::locate.redact(destination)": (
         "MEASURED at the site in _refuse_if_forbidden that fires when "
         "_resolved returns None: the destination is a caller-supplied "

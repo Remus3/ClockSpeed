@@ -111,6 +111,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -153,6 +154,18 @@ BACKOFF_S: Final = 3600.0
 #: suite in the pre-push hook; three hours bounds a wedged worker without
 #: killing an honest one.
 WORKER_TIMEOUT_S: Final = 3 * 3600.0
+
+#: MAIN ORDER 2026-10-31-2215 item 3 (W44): the ceiling of an ORDER pass
+#: (`KIND_ORDER`) alone. Every other kind keeps `WORKER_TIMEOUT_S`; a triage
+#: pass keeps the kit's own triage timeout.
+ORDER_TIMEOUT_S: Final = 1800.0
+
+#: MAIN ORDER 2026-10-31-2215 item 4 (W44): the SHA-256 of every live note a
+#: run that ended ok was started on, gitignored beside the run log. A pass whose
+#: every live note is already recorded logs `OUTCOME_SKIPPED_DUPLICATE` and
+#: starts nothing.
+SEEN_RELPATH: Final = Path("data") / "inbox_responder_seen.json"
+OUTCOME_SKIPPED_DUPLICATE: Final = "skipped_duplicate"
 
 #: CS-1234 clause 3 - the outcomes of a COMPLETED run, the only ones the
 #: "Running Session" ETA is timed on: a worker that EXITED ON ITS OWN, the
@@ -352,7 +365,7 @@ def kit_spawn(
             "effort": effort,
             "bare": not FLOORS_IN_HOOKS,
             "floors_in_hooks": FLOORS_IN_HOOKS,
-            "timeout": WORKER_TIMEOUT_S,
+            "timeout": ORDER_TIMEOUT_S if kind == KIND_ORDER else WORKER_TIMEOUT_S,
         }
     with _worker_env():
         line = kit.spawn(
@@ -403,6 +416,46 @@ def _write_backoff(path: Path, until: float) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_bytes(json.dumps({"until": until}).encode("ascii") + b"\n")
     _replace_with_retry(tmp, path)
+
+
+def _seen(root: Path) -> set[str]:
+    """The recorded note digests; an absent or unreadable record is an empty one."""
+    try:
+        raw = json.loads((root / SEEN_RELPATH).read_bytes().decode("ascii"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return set()
+    listed = raw.get("sha256") if isinstance(raw, dict) else None
+    return {d for d in listed if isinstance(d, str)} if isinstance(listed, list) else set()
+
+
+def _record_seen(root: Path, digests: Sequence[str]) -> None:
+    """Add ``digests`` to the record, atomically."""
+    target = root / SEEN_RELPATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    merged = sorted(_seen(root) | set(digests))
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_bytes((json.dumps({"sha256": merged}) + "\n").encode("ascii"))
+    _replace_with_retry(tmp, target)
+
+
+def live_digests(root: Path, fact: Mapping[str, Any], unread: int) -> list[str] | None:
+    """The SHA-256 of every live note in this pass, or None when one cannot be named.
+
+    None - never a guess - when a live item sits past the listing cap or a
+    listed display does not read as a file under the inbox, so such a pass is
+    never skipped as a duplicate.
+    """
+    if _past_live(fact, unread) > 0:
+        return None
+    inbox = root / inbox_surface.inbox_watch.INBOX_DIRNAME
+    digests: list[str] = []
+    for name in _live(fact):
+        try:
+            data = (inbox / name).read_bytes()
+        except (OSError, ValueError):
+            return None
+        digests.append(hashlib.sha256(data).hexdigest())
+    return digests or None
 
 
 def _log(root: Path, now: float, outcome: str, code: int, **fields: Any) -> None:
@@ -904,6 +957,11 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         _log(root, started, "backoff", EXIT_OK, unread=unread)
         board.show("backoff", "Backing Off", started=held_until - BACKOFF_S)
         return EXIT_OK
+    digests = live_digests(root, fact, unread)
+    if digests is not None and set(digests) <= _seen(root):
+        _log(root, started, OUTCOME_SKIPPED_DUPLICATE, EXIT_OK, unread=unread)
+        board.idle()
+        return EXIT_OK
     try:
         prompt = (root / PROMPT_RELPATH).read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError):
@@ -939,6 +997,8 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         board.show("refused", kit.REFUSED_TASK)
         return EXIT_SPAWN_FAILED
     code, outcome = _finished(root, now, board, line, output, unread, started)
+    if outcome == headless_route.OUTCOME_OK and digests is not None:
+        _record_seen(root, digests)
     progress.ended(outcome)
     return code
 

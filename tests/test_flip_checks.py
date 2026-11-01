@@ -869,7 +869,10 @@ def test_a_home_on_another_drive_is_refused_by_its_location(
 ) -> None:
     """A home in no ``users`` shape, on another drive, is refused by its location alone."""
     _drives_only()
-    home = Path("E:" + "\\") / "Profiles" / "x"
+    # CS-1357: the home must sit on a drive OTHER than the start, wherever the
+    # scratch root lives, or a relative spelling exists and nothing is refused.
+    other = "E:" if tmp_path.drive.lower() != "e:" else "F:"
+    home = Path(other + "\\") / "Profiles" / "x"
     monkeypatch.setattr(flip.Path, "home", staticmethod(lambda: home))
 
     refused = _refused_without_a_path(home / "cs1230-tool.py", tmp_path)

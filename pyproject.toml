@@ -88,7 +88,7 @@ dev = [
   # DELIBERATELY: install the new release, run a bare `python -m mypy` to exit
   # 0 under it, then change this line - in one commit.
   "mypy==2.1.0",
-  "pytest>=8.0",
+  "pytest>=9.0,<9.1",
   # THE WORKFLOW GUARD PARSES YAML RATHER THAN GREPPING IT (CS-896), and that
   # is the whole reason this line exists. `.github/workflows/tier1.yml`
   # documents itself heavily, so its COMMENTS spell every flag and key its live

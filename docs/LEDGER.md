@@ -75,6 +75,14 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-01 - CS-1357 - the two local pre-push reds are fixed: a usmap read error carries no path, and the drive arm picks a home off the start's drive
+Verification: `tests/save/test_usmap.py::test_no_exception_carries_a_decoded_name_a_raw_byte_or_a_path`
+and `tests/test_flip_checks.py::test_a_home_on_another_drive_is_refused_by_its_location` pass with
+the test Temp root on E:. `clockspeed/save/usmap.py::load_usmap` raises the fixed reason alone, so
+its `tests/exception_message_guard.py` exemption is gone; the flip test keeps its subject, a home on
+a drive OTHER than the start, now chosen against `tmp_path` as its lower-case sibling already was.
+Carried by MAIN ORDER 2026-10-31 22:15 item 1.
+
 ### 2026-10-31 - CS-815 - FROZEN-FILE GRANT: `.claude/settings.json` routes the two kit PreToolUse hooks through `ops/fleet_kit/fleet_hook.sh`. NOT A COMPLETION RECORD. CS-815 STAYS OPEN
 Verification: `python tools/main_provenance.py` on MAIN's 2026-10-31 22:00 kit v26 ORDER note,
 exit 0, note sha256 4e4084a6e3068108572ab638616153fb5daf625248a66034af88be421f104290.

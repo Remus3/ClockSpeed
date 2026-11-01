@@ -362,5 +362,8 @@ CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` fai
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1344 - MAIN's 2026-10-21 FIX: test runs clear their own Temp `cs-pt` output on teardown, failure included, and session scratch stays bounded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1357 - two local pre-push reds since the Temp root moved to E: block every push: a usmap read error renders a non-home path, and a home on E: is not refused - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1359 - the nightly tier2 run is red since 2026-10-28 on a drifted pytest (NodeId TypeError, `tests/test_cs1172_branch_canaries.py` and `tests/test_cs1191_colour_xdist_redaction.py`) - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1361 - CS-DISPLAY-BY-ID: the companion window is saved by display id, falls back to the primary, and clamps to 96 percent of the work area - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1362 - CS-PARSER-XCHECK: an out-of-tree save parser as a test-only oracle for this parser's counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

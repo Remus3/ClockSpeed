@@ -1232,6 +1232,9 @@ def test_the_drive_scan_reads_the_repo_root_drive_not_the_clone_drive(
     clone = tmp_path / "Lone"
     repo_root = Path(_unc_path("srv", "share", "Repo"))
     monkeypatch.setattr(census, "drive_scan", spy_scan)
+    # CS-1357: the scratch root may itself sit under a real sidecar folder, which
+    # the ancestor walk would find first; this arm grades the drive scan alone.
+    monkeypatch.setattr(census, "_is_sidecar_root", lambda _candidate: False)
     root, source = census.derive_sidecar_root(clone, repo_root, None)
     want = Path(repo_root.anchor)
     distinct = want != Path(clone.anchor)

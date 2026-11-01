@@ -2183,3 +2183,56 @@ def test_only_a_worker_that_exited_on_its_own_times_the_running_session(
         [ENDING_OUTCOMES[ending]] * 3 + ["ok"],
         [("Running Session", eta)],
     )
+
+
+# --- MAIN ORDER 2026-10-31-2215 items 3 and 4 (W44 corrections) ---------------
+
+
+def test_an_order_pass_times_out_at_1800_s_and_every_other_pass_keeps_three_hours(
+    tree: Path,
+) -> None:
+    """Item 3: the order kind's ceiling is 1800 s; inbox and triage keep the old value."""
+    order_spy, other_spy = RunSpy(), RunSpy()
+    _run(tree, order_spy, surface=_named(ORDER_NOTE))
+    _run(tree, other_spy, surface=_named(LIVE_NOTE))
+    timeouts = (order_spy.calls[0]["timeout"], other_spy.calls[0]["timeout"])
+    assert (inbox_responder.ORDER_TIMEOUT_S, inbox_responder.WORKER_TIMEOUT_S) == (1800.0, 10800.0)
+    assert timeouts == (1800.0, 10800.0)
+
+
+def test_the_same_note_twice_spawns_once_and_logs_one_skip(tree: Path) -> None:
+    """Item 4: a completed run records the note's SHA-256; a repeat is skipped, not spawned."""
+    inbox = tree / inbox_watch.INBOX_DIRNAME
+    inbox.mkdir()
+    (inbox / LIVE_NOTE).write_bytes(b"# a synthetic question\n")
+    spy = RunSpy()
+    first = _run(tree, spy, surface=_named(LIVE_NOTE))
+    second = _run(tree, spy, surface=_named(LIVE_NOTE))
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (first, second, len(spy.calls), outcomes) == (0, 0, 1, ["ok", "skipped_duplicate"])
+
+
+def test_a_changed_note_under_the_same_name_spawns_again(tree: Path) -> None:
+    """Item 4 control: the key is the bytes' SHA-256, never the name."""
+    inbox = tree / inbox_watch.INBOX_DIRNAME
+    inbox.mkdir()
+    note = inbox / LIVE_NOTE
+    note.write_bytes(b"# a synthetic question\n")
+    spy = RunSpy()
+    _run(tree, spy, surface=_named(LIVE_NOTE))
+    note.write_bytes(b"# a synthetic question, revised\n")
+    _run(tree, spy, surface=_named(LIVE_NOTE))
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (len(spy.calls), outcomes) == (2, ["ok", "ok"])
+
+
+def test_a_failed_run_records_nothing_so_the_note_is_retried(tree: Path) -> None:
+    """Item 4 control: only a run that ended ok records its notes as handled."""
+    inbox = tree / inbox_watch.INBOX_DIRNAME
+    inbox.mkdir()
+    (inbox / LIVE_NOTE).write_bytes(b"# a synthetic question\n")
+    spy = RunSpy(returncode=1)
+    _run(tree, spy, surface=_named(LIVE_NOTE))
+    _run(tree, spy, surface=_named(LIVE_NOTE))
+    outcomes = [r.get("outcome") for r in _log_records(tree)]
+    assert (len(spy.calls), outcomes) == (2, ["failed", "failed"])
