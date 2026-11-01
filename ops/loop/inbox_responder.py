@@ -155,10 +155,12 @@ BACKOFF_S: Final = 3600.0
 #: killing an honest one.
 WORKER_TIMEOUT_S: Final = 3 * 3600.0
 
-#: MAIN ORDER 2026-10-31-2215 item 3 (W44): the ceiling of an ORDER pass
-#: (`KIND_ORDER`) alone. Every other kind keeps `WORKER_TIMEOUT_S`; a triage
-#: pass keeps the kit's own triage timeout.
-ORDER_TIMEOUT_S: Final = 1800.0
+#: The ceiling of an ORDER pass (`KIND_ORDER`), the pass most likely to run a
+#: builder, an adversary, the gated whole suite and the pre-push whole suite, each
+#: suite possibly behind another tree's at the gate. 1800 s (MAIN ORDER
+#: 2026-10-31-2215 item 3) killed such a pass before it landed anything; MAIN FIX
+#: 2026-11-01-1127 superseded it. A triage pass keeps the kit's own timeout.
+ORDER_TIMEOUT_S: Final = WORKER_TIMEOUT_S
 
 #: MAIN ORDER 2026-10-31-2215 item 4 (W44): the SHA-256 of every live note a
 #: run that ended ok was started on, gitignored beside the run log. A pass whose

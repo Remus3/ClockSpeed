@@ -2188,16 +2188,16 @@ def test_only_a_worker_that_exited_on_its_own_times_the_running_session(
 # --- MAIN ORDER 2026-10-31-2215 items 3 and 4 (W44 corrections) ---------------
 
 
-def test_an_order_pass_times_out_at_1800_s_and_every_other_pass_keeps_three_hours(
+def test_an_order_pass_shares_the_three_hour_ceiling_of_every_other_pass(
     tree: Path,
 ) -> None:
-    """Item 3: the order kind's ceiling is 1800 s; inbox and triage keep the old value."""
+    """MAIN FIX 2026-11-01-1127: two whole suites cannot fit 1800 s; the ceiling is 3 h."""
     order_spy, other_spy = RunSpy(), RunSpy()
     _run(tree, order_spy, surface=_named(ORDER_NOTE))
     _run(tree, other_spy, surface=_named(LIVE_NOTE))
     timeouts = (order_spy.calls[0]["timeout"], other_spy.calls[0]["timeout"])
-    assert (inbox_responder.ORDER_TIMEOUT_S, inbox_responder.WORKER_TIMEOUT_S) == (1800.0, 10800.0)
-    assert timeouts == (1800.0, 10800.0)
+    assert (inbox_responder.ORDER_TIMEOUT_S, inbox_responder.WORKER_TIMEOUT_S) == (10800.0, 10800.0)
+    assert timeouts == (10800.0, 10800.0)
 
 
 def test_the_same_note_twice_spawns_once_and_logs_one_skip(tree: Path) -> None:

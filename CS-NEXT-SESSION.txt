@@ -76,6 +76,11 @@ R2. MAIN ORDER 2026-10-31-2215 public view + W44 + sweep + UI/UX (sha256 verifie
     per item DONE / BLOCKED / NA. History rewrites PREPARE ONLY. Full text: the note in
     moon_sync_inbox.
 
+R3. MAIN FIX 2026-11-01-1127, MAIN's DRIVE-CS: CS-1363 (sender route to MAIN) and CS-1365 (order pass
+    ceiling) in docs/LEDGER.md; CS-1364 spent, never landed; next free ID CS-1366. Finding, not acted on:
+    a responder pass that ends ok records its note's digest even when it did not handle the note, so
+    that note is never retried (a pass of FIX 1127 did this); weigh it for BACKLOG.
+
 === THE SINGLE NEXT ACTION - SESSION 153, IN ORDER (session 152's, carried unacted) ===
 0. Print "Session 153 checklist" (FLEET 13a; the box U+2610, never the glyph), then the FLEET 18
    LOCAL start board: checklist on stdin to `python ops/fleet_kit/fleet_board.py render --session

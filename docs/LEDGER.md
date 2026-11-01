@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-01 - CS-1365 - an ORDER pass of the inbox responder gets the three-hour worker ceiling, not 1800 s
+Verification: `tests/ops/test_inbox_responder.py::test_an_order_pass_shares_the_three_hour_ceiling_of_every_other_pass`.
+`ops/loop/inbox_responder.py::ORDER_TIMEOUT_S` now equals `WORKER_TIMEOUT_S`. Budget: builder 27 min, adversary
+10, the gated suite 29, the pre-push suite 29, one other tree's suite ahead at each gate 58: 153 min, inside
+180 and past any lower round figure; a kill costs more than the wait, because the pass restarts from nothing.
+Alternative not taken: splitting the pass, because the responder keeps no checkpoint between passes. Carried by
+MAIN FIX 2026-11-01-1127, which supersedes MAIN ORDER 2026-10-31-2215 item 3. CS-1364 is spent on a duplicate
+candidate of CS-1363 that was never landed.
+
 ### 2026-11-01 - CS-1363 - `--to Main` from a checkout reached through a link delivers to the configured root's own inbox and nowhere else
 Verification: `tests/test_outbound_send.py::test_main_route_delivers_through_a_link_to_the_configured_root`,
 `test_main_route_never_picks_a_plain_main_beside_it`, `test_main_route_refuses_any_other_name`,
