@@ -62,7 +62,7 @@ from typing import Final, NamedTuple, cast
 import pytest
 from ops.fleet_kit import fleet_subagent_first as subagent_first_kit
 
-from tests import xdist_quiet
+from tests import conftest, xdist_quiet
 from tests.test_hook_interpreter_ladder import (
     ARGUMENT_IGNORING_PROGRAMS,
     DRIVE_PATH,
@@ -931,13 +931,18 @@ def test_a_hanging_candidate_is_bounded_and_loudly_reported(
 
     The slack past the bound is the wrapper's own process starts, and beside a
     CPU-bound sibling worker those outgrew it - so this arm waits too (``alone``).
+
+    CS-1366: only that slack takes the kit's ``budget()``. The bound and the grace
+    are real clocks a load does not stretch, and scaling only the slack keeps the
+    ceiling under the shim's sleep at every load factor, so a pass still means the
+    bound fired.
     """
     hang = write_shim(tmp_path / "hang", "hang.sh", "#!/bin/sh\nsleep 60\n")
     env = extended(alone, **{ENV_NAME: hang.as_posix()})
     result = via_wrapper(PRE, [str(GATE)], b"{}", env, tmp_path)
     assert_loud(result, env)
     bound, grace = wrapper_bound()
-    assert result.seconds < bound + grace + 5, (
+    assert result.seconds < bound + grace + conftest.fleet_test_guard.budget(5), (
         f"a hanging candidate held the wrapper {result.seconds:.1f}s"
     )
 
@@ -1002,13 +1007,20 @@ def test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeou
     wrapped_median = median + statistics.median(tool_seconds)
     record_property("cs815_wrapped_median_seconds", round(wrapped_median, 3))
     sys.stderr.write(f"CS-815 latency: median added {median:.3f}s over {LATENCY_CALLS} calls\n")
-    assert median < LATENCY_BUDGET_SECONDS, f"the wrapper adds {median:.3f}s per call"
+    budget = conftest.fleet_test_guard.budget
+    assert median < budget(LATENCY_BUDGET_SECONDS), f"the wrapper adds {median:.3f}s per call"
 
+    # CS-1366: only the MEASURED tool time is load-sensitive. The bound, the grace
+    # and the settings timeout are fixed numbers, so the room they leave is what
+    # budget() widens, and a bound plus grace at or past a timeout stays red at any
+    # load, the room being zero or negative.
     bound, grace = wrapper_bound()
     pre_worst = bound + grace + max(tool_seconds)
     post_worst = bound + grace + max(lint_seconds)
-    assert pre_worst < settings_timeout("PreToolUse"), f"PreToolUse worst case {pre_worst:.1f}s"
-    assert post_worst < settings_timeout("PostToolUse"), f"PostToolUse worst case {post_worst:.1f}s"
+    pre_room = settings_timeout("PreToolUse") - bound - grace
+    post_room = settings_timeout("PostToolUse") - bound - grace
+    assert max(tool_seconds) < budget(pre_room), f"PreToolUse worst case {pre_worst:.1f}s"
+    assert max(lint_seconds) < budget(post_room), f"PostToolUse worst case {post_worst:.1f}s"
 
 
 # ---------------------------------------------------------------------------

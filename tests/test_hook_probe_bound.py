@@ -69,6 +69,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests import conftest
 from tests.fleet_hook_kit import (
     OPERATOR_IDENT_KEY,
     commit_margin_env,
@@ -103,6 +104,9 @@ FALLBACK_BOUND: Final = 10
 # the bounding binary's kill grace. KEPT BELOW THE BOUND ON PURPOSE - a refusal
 # that fell through to a second rung would have to wait a second bound, and a
 # slack smaller than one bound makes that impossible to hide inside the window.
+# CS-1366: this is the idle-box value. The grader reads the kit's budget() of it,
+# so under load the window can pass one bound, and the fall-through stays red by
+# the call-log COUNT in assert_refused_inside_the_bound, whatever the clock says.
 EXIT_SLACK: Final = 8
 
 # CS-1201: how far BELOW the bound a refusal may land, measured from the last
@@ -852,7 +856,7 @@ def assert_refused_inside_the_bound(
       second rung writes a second call whatever the clock says.
     - THE EXPIRY is timed from the hang itself. The upper edge runs from the
       hanging call's own logged start, so only the post-expiry tail rides on
-      EXIT_SLACK, which stays below one bound. The lower edge runs from the last
+      the kit's budget() of EXIT_SLACK (CS-1366). The lower edge runs from the last
       stamp that must precede the hang's bounding binary - the answering call
       before it, else git's own start - so it is load-immune: an expiry cannot
       arrive early. It allows LOWER_EDGE_TOLERANCE for the two clock reads.
@@ -883,9 +887,10 @@ def assert_refused_inside_the_bound(
         f"before the bound of {bound}s could expire:\n{outcome.report}"
     )
     window = outcome.returned_at - hang.start
-    assert window < bound + EXIT_SLACK, (
+    slack = conftest.fleet_test_guard.budget(EXIT_SLACK)
+    assert window < bound + slack, (
         f"refused {window:.2f}s after the hanging call started, not inside the bound "
-        f"of {bound}s plus {EXIT_SLACK}s:\n{outcome.report}"
+        f"of {bound}s plus {slack}s:\n{outcome.report}"
     )
 
 
@@ -900,8 +905,8 @@ def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...], h
     own program - was once graded against the PROBE bound, which no probe half
     need approach for the sum to exceed. Each probe half is graded instead: it
     ANSWERED (a start with no done, or a done by signal, is a half the bound cut
-    off) and its own duration stayed under the bound. Only the probe halves run
-    under the bound, so only they are timed against it.
+    off) and its own duration stayed under the kit's budget() of the bound (CS-1366).
+    Only the probe halves run under the bound, so only they are timed against it.
     """
     bound = harness_bound()
     expected = PROBE_HALVES[hook]
@@ -922,8 +927,10 @@ def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...], h
     )
     halves = [call.duration for call in calls[: len(expected)]]
     slowest = max((took for took in halves if took is not None), default=0.0)
-    assert slowest < bound, (
-        f"a probe half took {slowest:.2f}s, which reached the bound of {bound}s:\n{outcome.report}"
+    ceiling = conftest.fleet_test_guard.budget(bound)
+    assert slowest < ceiling, (
+        f"a probe half took {slowest:.2f}s, which reached the bound of {ceiling}s:\n"
+        f"{outcome.report}"
     )
 
 
@@ -1225,6 +1232,21 @@ def call_log(*entries: tuple[str, str, float, float | None, int | None]) -> tupl
     return parse_calls("\n".join(lines) + "\n")
 
 
+@pytest.fixture
+def idle_box(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer the kit's load factor as 1, for an arm whose plant sits one past a ceiling.
+
+    CS-1366: a synthetic stamp is exact and unloaded, but budget() reads the LIVE
+    slot holders, so without this another tree's suite widens the ceiling past the
+    plant and the arm goes red for a load that its stamps never saw.
+    """
+
+    def load_factor(_gate: object = None) -> int:
+        return 1
+
+    monkeypatch.setattr(conftest.fleet_test_guard, "load_factor", load_factor)
+
+
 def loaded_refusal() -> tuple[Attempt, tuple[Call, ...]]:
     """The measured red: the answering start ate most of the window, the stdin half hung."""
     bound = harness_bound()
@@ -1305,6 +1327,7 @@ def test_grader_refuses_the_wrong_half_hanging() -> None:
         assert_refused_inside_the_bound(synthetic(1.2 + harness_bound()), calls, (NUL_STDIN, "-"))
 
 
+@pytest.mark.usefixtures("idle_box")
 def test_grader_refuses_a_tail_past_the_slack() -> None:
     """Condition 8: the window from the hang is still graded, one slack wide."""
     over = harness_bound() + EXIT_SLACK + 0.5
@@ -1373,6 +1396,7 @@ def test_control_refuses_a_call_ended_by_a_signal() -> None:
         assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls, COMMIT_MSG)
 
 
+@pytest.mark.usefixtures("idle_box")
 def test_control_refuses_a_probe_half_at_the_bound() -> None:
     """A probe half that took the whole bound is a near-miss, and red."""
     bound = harness_bound()

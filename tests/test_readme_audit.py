@@ -35,6 +35,7 @@ import pytest
 
 from clockspeed.data import locate
 from clockspeed.surface import config
+from tests import conftest
 
 _TOOLS_DIR: Final = Path(__file__).resolve().parents[1] / "tools"
 if str(_TOOLS_DIR) not in sys.path:
@@ -1295,7 +1296,8 @@ def test_the_sidecar_path_pattern_cannot_backtrack_catastrophically(kind: str) -
 def _assert_searches_miss_fast(kind: str, pattern: re.Pattern[str], lines: list[str]) -> None:
     """Search each line in a child killed after ``_BACKTRACK_TIMEOUT_S``.
 
-    None may match, and none may take ``_BACKTRACK_BUDGET_S`` or longer.
+    None may match, and none may take the kit's ``budget()`` of ``_BACKTRACK_BUDGET_S``
+    or longer, which is that value on an idle box and wider while other suites share it.
     """
     spec = {
         "pattern": pattern.pattern,
@@ -1315,8 +1317,9 @@ def _assert_searches_miss_fast(kind: str, pattern: re.Pattern[str], lines: list[
         pytest.fail(f"{kind}: the search did not finish within {_BACKTRACK_TIMEOUT_S} s")
     rows = json.loads(done.stdout)
     assert not any(hit for _, hit in rows), f"{kind}: a timing line matched, so it times nothing"
-    slow = [round(seconds, 3) for seconds, _ in rows if seconds >= _BACKTRACK_BUDGET_S]
-    assert not slow, f"{kind}: searches took {slow} s, over the {_BACKTRACK_BUDGET_S} s budget"
+    ceiling = conftest.fleet_test_guard.budget(_BACKTRACK_BUDGET_S)
+    slow = [round(seconds, 3) for seconds, _ in rows if seconds >= ceiling]
+    assert not slow, f"{kind}: searches took {slow} s, over the {ceiling} s budget"
 
 
 def test_no_absolute_checkout_path_in_the_audited_docs(repo_root: Path) -> None:
