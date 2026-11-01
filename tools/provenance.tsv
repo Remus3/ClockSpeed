@@ -217,6 +217,7 @@ ops/fleet_kit/fleet_claims.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_done.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_gitlock.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_headless.py	vendored	CS-1231	stamped
+ops/fleet_kit/fleet_hook.sh	vendored	CS-815	stamped
 ops/fleet_kit/fleet_identity.py	vendored	CS-1290	stamped
 ops/fleet_kit/fleet_inbox.py	vendored	CS-1272	stamped
 ops/fleet_kit/fleet_lanes.py	vendored	CS-1272	stamped

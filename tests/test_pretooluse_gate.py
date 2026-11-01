@@ -952,6 +952,10 @@ def test_the_posttooluse_command_opens_its_script_from_a_foreign_cwd(tmp_path: P
     )
 
 
+#: The kit's nonce-checked deny-hook launcher (FLEET-KIT v26).
+KIT_HOOK_LAUNCHER = "/ops/fleet_kit/fleet_hook.sh"
+
+
 def test_no_python_hook_command_anywhere_is_cwd_relative() -> None:
     """Generalised past the two strings this item repaired.
 
@@ -966,7 +970,9 @@ def test_no_python_hook_command_anywhere_is_cwd_relative() -> None:
 
     for event in ("PreToolUse", "PostToolUse"):
         for command in hook_commands(event):
+            previous = ""
             for token in shlex.split(command, posix=True):
+                launcher, previous = previous, token
                 lowered = token.lower()
                 if DRIVE_LETTER_ROOT.match(token) or any(
                     segment in lowered for segment in HOME_SEGMENTS
@@ -975,8 +981,18 @@ def test_no_python_hook_command_anywhere_is_cwd_relative() -> None:
                 if not token.endswith(".py"):
                     continue
                 examined.append(f"{event}: {token}")
+                # FLEET-KIT v26 (MAIN ruling CS-815): the kit's deny-hook
+                # launcher takes a BARE script name and resolves it beside
+                # itself, so the name is anchored exactly when the launcher is.
+                launched = (
+                    "/" not in token
+                    and launcher.startswith(PROJECT_DIR_ANCHOR)
+                    and launcher.endswith(KIT_HOOK_LAUNCHER)
+                )
                 anchored = (
-                    token.startswith(PROJECT_DIR_ANCHOR) or PurePosixPath(token).is_absolute()
+                    launched
+                    or token.startswith(PROJECT_DIR_ANCHOR)
+                    or PurePosixPath(token).is_absolute()
                 )
                 if not anchored:
                     cwd_relative.append(f"{event}: {command}")

@@ -156,10 +156,14 @@ HOOK_EVENT_ORDER: Final = ["PreToolUse", "PostToolUse", "SubagentStop", "Stop"]
 # call. The kit hook denies by the JSON it prints, never by its exit status.
 GATE_MATCHER: Final = "Bash|PowerShell"
 SUBAGENT_FIRST_MATCHER: Final = "Bash|PowerShell|Read|Edit|Write|Grep|Glob|NotebookEdit|MultiEdit"
-SUBAGENT_FIRST_COMMAND: Final = (
-    'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_subagent_first.py" || true'
-)
-SUBAGENT_FIRST_TIMEOUT: Final = 10
+# CS-815 - THE FIFTH GRANT, docs/LEDGER.md "2026-10-31 - CS-815 - FROZEN-FILE
+# GRANT": kit v26 routes both kit PreToolUse hooks through its nonce-checked
+# launcher `ops/fleet_kit/fleet_hook.sh`, timeout 15, no `|| true` - the launcher
+# fails CLOSED (exit 2) on a stub, a missing interpreter or a crash.
+HOOK_LAUNCHER: Final = 'bash "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_hook.sh" '
+HOOK_LAUNCHER_FILE: Final = REPO_ROOT / "ops" / "fleet_kit" / "fleet_hook.sh"
+SUBAGENT_FIRST_COMMAND: Final = HOOK_LAUNCHER + "fleet_subagent_first.py"
+SUBAGENT_FIRST_TIMEOUT: Final = 15
 SUBAGENT_FIRST_KIT_FILE: Final = REPO_ROOT / "ops" / "fleet_kit" / "fleet_subagent_first.py"
 # The inserted bytes, whole, removed by the settings arm exactly as the Stop
 # array is, so the one base digest still pins every byte outside the grants.
@@ -180,9 +184,10 @@ SUBAGENT_FIRST_INSERTION: Final = (
 # and the top-level attribution and includeCoAuthoredBy keys REMOVED: v13 makes
 # both tree_forbidden (FLEET-COMMON 17), and the account settings carry them.
 CLAIMS_MATCHER: Final = "Edit|Write|NotebookEdit|MultiEdit|Bash|PowerShell"
-CLAIMS_COMMAND: Final = 'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py" hook'
+CLAIMS_COMMAND: Final = HOOK_LAUNCHER + "fleet_claims.py hook"
 RELEASE_COMMAND: Final = 'python "$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_claims.py" release-hook'
-CLAIMS_TIMEOUT: Final = 10
+CLAIMS_TIMEOUT: Final = 15
+RELEASE_TIMEOUT: Final = 10
 CLAIMS_KIT_FILE: Final = REPO_ROOT / "ops" / "fleet_kit" / "fleet_claims.py"
 CLAIMS_INSERTION: Final = (
     ",\n      {\n"
@@ -197,7 +202,7 @@ SUBAGENT_STOP_INSERTION: Final = (
     ',\n    "SubagentStop": [\n      {\n        "hooks": [\n          {\n'
     '            "type": "command",\n'
     f'            "command": {json.dumps(RELEASE_COMMAND)},\n'
-    f'            "timeout": {CLAIMS_TIMEOUT}\n'
+    f'            "timeout": {RELEASE_TIMEOUT}\n'
     "          }\n        ]\n      }\n    ]"
 ).encode("ascii")
 # The two top-level lines the grant REMOVED, and the line they followed. The
@@ -616,13 +621,15 @@ def test_settings_wires_exactly_the_granted_subagent_first_hook() -> None:
     hook = hooks[0]
     assert hook["type"] == "command"
     assert hook["command"] == SUBAGENT_FIRST_COMMAND, "the command is not the granted string"
-    assert hook["command"].startswith('python "$CLAUDE_PROJECT_DIR/'), "the anchor was dropped"
-    assert hook["command"].endswith(" || true"), "the grant's || true was dropped"
+    assert hook["command"].startswith(HOOK_LAUNCHER), "the launcher anchor was dropped"
+    assert "|| true" not in hook["command"], "the v26 grant forbids || true"
     timeout = hook["timeout"]
     assert isinstance(timeout, int), "the SUBAGENT-FIRST timeout is not an integer"
     assert timeout == SUBAGENT_FIRST_TIMEOUT
     named = hook["command"].split('"')[1].replace("$CLAUDE_PROJECT_DIR/", "")
-    assert (REPO_ROOT / named).resolve() == SUBAGENT_FIRST_KIT_FILE.resolve()
+    assert (REPO_ROOT / named).resolve() == HOOK_LAUNCHER_FILE.resolve()
+    script = hook["command"].split('"')[2].split()[0]
+    assert (HOOK_LAUNCHER_FILE.parent / script).resolve() == SUBAGENT_FIRST_KIT_FILE.resolve()
     assert SUBAGENT_FIRST_KIT_FILE.is_file(), "the vendored kit hook is missing"
 
 
@@ -634,14 +641,20 @@ def test_settings_wires_exactly_the_granted_claims_hooks() -> None:
     assert sorted(claims) == ["hooks", "matcher"], "the claims entry carries a key beyond the grant"
     assert claims["matcher"] == CLAIMS_MATCHER
     assert [sorted(entry) for entry in release] == [["hooks"]], "SubagentStop is not one entry"
-    for entry, command in ((claims, CLAIMS_COMMAND), (release[0], RELEASE_COMMAND)):
+    for entry, command, timeout in (
+        (claims, CLAIMS_COMMAND, CLAIMS_TIMEOUT),
+        (release[0], RELEASE_COMMAND, RELEASE_TIMEOUT),
+    ):
         hooks = entry["hooks"]
         assert [sorted(hook) for hook in hooks] == [["command", "timeout", "type"]]
         hook = hooks[0]
         assert hook["type"] == "command"
         assert hook["command"] == command, "the command is not the granted string"
-        assert hook["timeout"] == CLAIMS_TIMEOUT
+        assert hook["timeout"] == timeout
         named = hook["command"].split('"')[1].replace("$CLAUDE_PROJECT_DIR/", "")
+        if named.endswith("fleet_hook.sh"):
+            assert (REPO_ROOT / named).resolve() == HOOK_LAUNCHER_FILE.resolve()
+            named = "ops/fleet_kit/" + hook["command"].split('"')[2].split()[0]
         assert (REPO_ROOT / named).resolve() == CLAIMS_KIT_FILE.resolve()
     assert CLAIMS_KIT_FILE.is_file(), "the vendored claims hook is missing"
 

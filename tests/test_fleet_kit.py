@@ -18,14 +18,15 @@ cumulative v23 ORDER note (2026-10-25 19:26), which carries every v21 and v22
 change, so neither was vendored here; it adds no file. The board is LOCAL ONLY
 from v23: render writes it and nothing is pushed. Version 24 supersedes it under MAIN's
 v24 ORDER note (2026-10-26 03:15); it adds no file. Version 25 supersedes it under MAIN's
-v25 ORDER note (2026-10-27 21:36); it adds no file.
+v25 ORDER note (2026-10-27 21:36); it adds no file. Version 26 supersedes it under MAIN's
+v26 ORDER note (2026-10-31 22:00); it adds ``fleet_hook.sh``, the deny-hook launcher.
 
 Two arms:
 
 1. The kit's own ``conformance(REPO_ROOT)`` returns no problems. It covers the
    manifest version, every kit file's digest against MANIFEST.json, and the
    FLEET-COMMON block embedded in CLAUDE.md between its marker lines.
-2. The twenty-three listed files' digests match MANIFEST.json, and MANIFEST.json's
+2. The twenty-four listed files' digests match MANIFEST.json, and MANIFEST.json's
    own digest and version match the values the ordering note pinned. Arm 1
    alone passes when a file AND the manifest are edited together; arm 2 closes
    that locally.
@@ -76,6 +77,7 @@ KIT_REWRITE = KIT_DIR / "fleet_rewrite.py"
 KIT_SECRETS = KIT_DIR / "fleet_secrets.py"
 KIT_STATUSLINE = KIT_DIR / "fleet_statusline.js"
 KIT_SUBAGENT_FIRST = KIT_DIR / "fleet_subagent_first.py"
+KIT_HOOK_LAUNCHER = KIT_DIR / "fleet_hook.sh"
 KIT_SUBAGENT_STATUS = KIT_DIR / "fleet_subagent_status.js"
 KIT_SUITE_GATE = KIT_DIR / "fleet_suite_gate.py"
 KIT_TEST_GUARD = KIT_DIR / "fleet_test_guard.py"
@@ -108,33 +110,34 @@ TREE_GUARD_IGNORE = (
 # held exact so the gap cannot grow unseen.
 KIT_HIDDEN_SENTINELS = ("ops/loop/control/lanes/INBOX_STOP",)
 
-# The kit version MAIN's 2026-10-27 21:36 ORDER note names (v25, patch 0).
-KIT_VERSION = 25
+# The kit version MAIN's 2026-10-31 22:00 ORDER note names (v26, patch 0).
+KIT_VERSION = 26
 # The MANIFEST.json digest named in that note.
-MANIFEST_SHA256 = "fa04c87ceca7c1e08f853d0447a439143f317fa21b6434c1dcefe1e5d25c1bea"
-# The twenty-three listed kit file digests named in the same note. Spelled as named
+MANIFEST_SHA256 = "45b5088e202a0c0c453fb1dc4ca8969783563d60d3b7b02e8d2c5c547fe4edae"
+# The twenty-four listed kit file digests named in the same note. Spelled as named
 # constants rather than as a JSON-shaped mapping so this pin does not reproduce
 # MANIFEST.json's own lines - the provenance near-duplicate metric
 # (tools/provenance_stamp.py) would otherwise grade the pin as a lift of it.
-COMMON_SHA256 = "886c5f8b1a86928f91412d2800e9dfef3dd8e5b9158d14a06e65d06c22964800"
+COMMON_SHA256 = "cacc3ca30125d184e07612d232c2ba3f76338d5ea987d23e7e2addcb74e77dd0"
 LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
-NOTICE_SHA256 = "f4b77ae089fa0be6e16d628786195b04c884ffbc859f79dd7c9eefee8722a18d"
-MODULE_SHA256 = "c9c1740f41f0a565de6ba0468808b90843570828413fa8728cc314d729f3206e"
+NOTICE_SHA256 = "188139c5f285d7184ef8b0ad738bd1c7579de4aaa6b73549ef0e06aa3dec773c"
+MODULE_SHA256 = "65c6fc95efc3550a578e2d16db8045d7ab379d57edcffc487bffe967764dc437"
 CLI_DISPLAY_SHA256 = "fcd92544574eb2e646c9eed62218e4852a570818a7e3de455151aa27c8c7d4d3"
-BOARD_SHA256 = "07b98c23252435f0d8641bed97012d88ea9a51d39eaa8ea51467ca1adce483a5"
-CHECKLIST_SHA256 = "583d7c2c900d0003a2350eafa8ca703c6f11bf15f5871282a6f4f00bfdacfd8c"
-CLAIMS_SHA256 = "cf2a20e7883a8faa3dfe7ae1cbaa8402d94ea46c1337bf02bf89a6ec1bdb8f5e"
-DONE_SHA256 = "39b1b572894ed5f8b629022a1e8b148ccce8a95e1e6273a3ad024b01657dc7ac"
+BOARD_SHA256 = "a03f1db889e74cd22f98537db0d83f716b1072795b1b37fd0d3abbb46aa52e49"
+CHECKLIST_SHA256 = "ff48311a422c46a0ae1ffd288de7e931b2df2b939bed51873d37c2ad2da2f45a"
+CLAIMS_SHA256 = "a08bf77a4229dd6dde4e4918c7da12df306a25ae6b4cc54d9c7e3abcefd676b2"
+DONE_SHA256 = "63008f3b681ce6c378c7174d19da76bb624256c11a2a52c33e88ad464fccd0a5"
 GITLOCK_SHA256 = "e46264acc68ce721516f15b63bcb29428217f1b64fa4fa3c5b6226f39e4ae880"
 IDENTITY_SHA256 = "8fc064075adb1b02e08c5df758ac9b4e0a6d53ba44c488659357dafc980f2019"
 INBOX_SHA256 = "42dd431bc71f8cd0a1d54d66a0cab3c97bd5217c45b9601993f57363841065cd"
-LANES_SHA256 = "824a59820829cb9c8e3466b23ba352dedcf484c93047176678e4e2e383fae0a7"
+LANES_SHA256 = "aae7a4d159ef126bb63c1cec7fed247342b48f616f31f262cefe523f75f39e35"
 REWRITE_SHA256 = "c40bfcacbf08a3b9be4a4d2de971cd39f0cbbb772d76ba68e962d8c9adf7e97d"
 SECRETS_SHA256 = "4e112c1f22c448fe773155b753fce5c678a09afc878cdf31b258eac5b3f0cf38"
 STATUSLINE_SHA256 = "9cca74653baae70bc5bcfef4482b751681f903e94d13afe7fe93c5a9fc9289eb"
-SUBAGENT_FIRST_SHA256 = "e0a7509186824249d1131f59bfa94207c32717cd62bbde3e0f6a8e5a13cf047f"
+SUBAGENT_FIRST_SHA256 = "001336b72adb02dabbf79db8b52380f0b77317c6f33c5d5238f5e8896a7ce198"
+HOOK_LAUNCHER_SHA256 = "08904c316dc1b803dee1a56eae6dc71ece38cd7fcc06895797a1fac878fbb57f"
 SUBAGENT_STATUS_SHA256 = "5da9e04b6a0deed94deb7d4949637b4130df8eaf8aa3a491d3309344199d580b"
-SUITE_GATE_SHA256 = "fcf139f135bb9ee4e3d74f20116f45c66cd1fa8267416f31b3a9db8ebd97b6a2"
+SUITE_GATE_SHA256 = "14a76a87cc00b08bb211d960fb664936f9c0321a66754b8667e89a206fc563fb"
 TEST_GUARD_SHA256 = "6f6c401a077174fd363417d5e83b43d48f2aff1e9535f8af7eabdca829884ecb"
 WATCH_SHA256 = "5685ed7a4abaf0d755c4dd728b7a0dd9e9bb3e6e8ab3c223f99042601d05eb57"
 TOKENS_CSS_SHA256 = "1b25b5251edd77eadfa9627da6814f03a4781f2a23a3f57957b6ec9a0e036810"
@@ -157,6 +160,7 @@ NOTE_FILE_SHA256 = {
     KIT_SECRETS.name: SECRETS_SHA256,
     KIT_STATUSLINE.name: STATUSLINE_SHA256,
     KIT_SUBAGENT_FIRST.name: SUBAGENT_FIRST_SHA256,
+    KIT_HOOK_LAUNCHER.name: HOOK_LAUNCHER_SHA256,
     KIT_SUBAGENT_STATUS.name: SUBAGENT_STATUS_SHA256,
     KIT_SUITE_GATE.name: SUITE_GATE_SHA256,
     KIT_TEST_GUARD.name: TEST_GUARD_SHA256,

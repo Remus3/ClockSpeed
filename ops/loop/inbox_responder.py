@@ -91,8 +91,10 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      responder publishes that word, branching on the refusal's ``code`` -
      "halted" / Halted for a stop sentinel (code "halted", quiet, as the
      responder's own halt), "limit" / Turn Limit Reached for a limit on both
-     routes (code "fallback-halted") or a spent budget, and "blocked" for an
-     outside cause (`kit.Blocked`, an unreachable proxy).
+     routes (code "fallback-halted"), and "blocked" for an outside cause
+     (`kit.Blocked`, an unreachable proxy). A spent budget (code
+     "budget-spent") reads "refused" / Idle since FLEET-KIT v26, which writes a
+     cap hit as refused "run cap".
 
 THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` and
 `<repo>` are resolved at arm time (`(Get-Command pythonw).Source`, the checkout
@@ -178,9 +180,9 @@ KIT_LOCK_BUSY: Final = "budget lock busy"
 
 #: The kit refusal codes whose own status write is not "refused" / Idle
 #: (`fleet_headless.spawn`, `_refused_status`, `_spawn_slotted`): a stop
-#: sentinel writes "halted" / Halted; a limit on both routes and a spent budget
-#: "limit" / Turn Limit Reached. The kit is byte-pinned, so these words move
-#: only with a new kit version; the agreement arms in
+#: sentinel writes "halted" / Halted; a limit on both routes "limit" / Turn
+#: Limit Reached; a spent budget "refused" / Idle (v26 run cap). The kit is
+#: byte-pinned, so these words move only with a new kit version; the agreement arms in
 #: tests/ops/test_inbox_responder.py read the kit's own write as their oracle,
 #: so a moved word reddens there.
 KIT_HALTED: Final = "halted"
@@ -967,16 +969,18 @@ def _refused(root: Path, board: _Board, refused: Exception, unread: int, started
         board.show(state, task, started=_halted_since(board.control, started))
         return EXIT_OK
     if state == "limit":
-        # A spent budget, or a usage limit on the primary AND the armed
-        # fallback route: the kit holds every start until it frees.
-        if getattr(refused, "code", None) == KIT_FALLBACK_HALTED:
-            _log(root, started, "limit", EXIT_OK, unread=unread, reason="fallback halted")
-        else:
-            _log(root, started, "limit", EXIT_OK, unread=unread)
+        # A usage limit on every listed route: the kit holds every start until
+        # the earliest reset.
+        _log(root, started, "limit", EXIT_OK, unread=unread, reason="fallback halted")
         board.show(state, task)
         return EXIT_OK
-    if isinstance(refused, kit.BudgetUnreadable) or is_lock_busy(refused):
+    if (
+        isinstance(refused, kit.BudgetUnreadable)
+        or is_lock_busy(refused)
+        or getattr(refused, "code", None) == KIT_BUDGET_SPENT
+    ):
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
+        # A run-cap hit the kit met first (v26) is refused the same way.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
         board.show(state, task)
         return EXIT_BUDGET_REFUSED
@@ -1000,7 +1004,7 @@ def kit_refusal_state(refused: Exception) -> tuple[str, str]:
     code = getattr(refused, "code", None)
     if code == KIT_HALTED:
         return "halted", "Halted"
-    if code in {KIT_FALLBACK_HALTED, KIT_BUDGET_SPENT}:
+    if code == KIT_FALLBACK_HALTED:
         return "limit", "Turn Limit Reached"
     if isinstance(refused, kit.Blocked):
         return "blocked", kit.REFUSED_TASK

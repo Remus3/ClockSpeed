@@ -712,6 +712,7 @@ def test_a_spawn_is_counted_by_the_kit_and_published_while_it_runs(tree: Path) -
 
 
 def test_at_the_cap_nothing_starts_and_the_limit_is_published(tree: Path) -> None:
+    """FLEET-KIT v26 (KIT-VW-RUNCAP): a cap hit is refused "run cap", never "limit"."""
     starts = [T0 - 3600 + i for i in range(kit.RUNS_CAP)]
     _fill_budget(tree, starts)
     spy = RunSpy()
@@ -721,11 +722,11 @@ def test_at_the_cap_nothing_starts_and_the_limit_is_published(tree: Path) -> Non
     outcomes = [r.get("outcome") for r in _log_records(tree)]
     pair = (status.get("state"), status.get("task"), status.get("runs_in_window"))
     assert (code, len(spy.calls), pair, frees, outcomes) == (
+        inbox_responder.EXIT_BUDGET_REFUSED,
         0,
-        0,
-        ("limit", "Turn Limit Reached", 120),
+        ("refused", kit.REFUSED_TASK, 120),
         T0 - 3600 + 86400,
-        ["limit"],
+        ["budget_refused"],
     )
 
 
@@ -1600,14 +1601,8 @@ def _fallback_halted_route() -> Callable[[], dict[str, Any]]:
     temporary directories is touched.
     """
     now = time.time()
-    state = {
-        "since": now - 60,
-        "until": now + 3600,
-        "from": "split",
-        "to": "single",
-        "halt_until": now + 3600,
-    }
-    kit._write_fallback_state(state)  # noqa: SLF001 - the kit's own state shape
+    rows = [{"entry": entry, "since": now - 60, "until": now + 3600} for entry in (1, 2)]
+    kit._write_fallback_state(rows)  # noqa: SLF001 - the kit's own state shape (v26)
     route = {"version": 1, "mode": "split", "fallback": {"mode": "single", "config_dir": "x"}}
     return lambda: dict(route)
 
@@ -1634,7 +1629,12 @@ def _unreachable(address: Any, timeout: float = 0.0) -> _Socket:
             inbox_responder.EXIT_ROUTE_REFUSED,
             ["kit_refused"],
         ),
-        ("budget-spent", ("limit", "Turn Limit Reached"), 0, ["limit"]),
+        (
+            "budget-spent",
+            ("refused", kit.REFUSED_TASK),
+            inbox_responder.EXIT_BUDGET_REFUSED,
+            ["budget_refused"],
+        ),
     ],
 )
 def test_a_kit_refusal_publishes_the_state_the_kits_own_write_used(

@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-31 - CS-815 - FROZEN-FILE GRANT: `.claude/settings.json` routes the two kit PreToolUse hooks through `ops/fleet_kit/fleet_hook.sh`. NOT A COMPLETION RECORD. CS-815 STAYS OPEN
+Verification: `python tools/main_provenance.py` on MAIN's 2026-10-31 22:00 kit v26 ORDER note,
+exit 0, note sha256 4e4084a6e3068108572ab638616153fb5daf625248a66034af88be421f104290.
+GRANT: operator approval by MAIN's ORDER (FLEET item 6, CLAUDE.md section 6.1), recorded here
+before the edit, as the CS-1282 and CS-1290 grants were. Its section 5 step 2 names the edit
+exactly: the subagent-first and claims PreToolUse commands become `bash
+"$CLAUDE_PROJECT_DIR/ops/fleet_kit/fleet_hook.sh" <script> [hook]`, each with timeout 15 and no
+`|| true`; matchers, the SubagentStop release-hook and the Stop hook unchanged. This meets the
+2026-10-23 deferral's reversal clause - a kit version that makes a probed form conformant (MAIN
+ruling CS-815, the nonce-checked launcher that fails closed).
+SCOPE: those two commands only; no other frozen file is touched.
+Reversed by: a later MAIN kit version that changes the ordered hook form.
+
 ### 2026-10-25 - CS-1356 - PARTIAL CLOSE: MAIN's suite-speed ORDER item 1 - the `inner_suite` marker, deselected only by an explicit `-m "not inner_suite"`
 Verification: `tests/test_inner_suite_marker.py` (marker registered; `-m "not inner_suite"`
 deselects MAIN's seven named offenders; default collection keeps them; an environment variable

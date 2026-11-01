@@ -367,6 +367,10 @@ KIT_REFUSAL_CODES = (
     "fallback-halted",
     "route-missing",
     "route-invalid",
+    # FLEET-KIT v26: `budget reset` refuses inside a headless run and without
+    # the operator's words. A lane never resets, but the vocabulary is the kit's.
+    "reset-headless",
+    "reset-no-reason",
 )
 KIT_BUDGET_SPENT = "budget-spent"
 KIT_FALLBACK_HALTED = "fallback-halted"

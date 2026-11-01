@@ -361,9 +361,11 @@ ignore = [
 #   PLW1510  _kill_tree's best-effort taskkill run has no check= argument
 # Version 23 (CS-1354, MEASURED on its bytes): A001 - _run() rebinds its input
 # argument to the encoded bytes it writes to the child's stdin file.
+# Version 26 (MEASURED on its bytes): SLF001 - `budget show` / `budget reset`
+# reach the kit's own RunBudget._load and _lock.
 "ops/fleet_kit/fleet_headless.py" = [
   "A001", "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "FURB167", "N818",
-  "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510",
+  "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510", "SLF001",
 ]
 
 # THE SIX PYTHON MODULES FLEET-KIT VERSION 9 ADDED (CS-1272), vendored and pinned
@@ -399,11 +401,12 @@ ignore = [
 "ops/fleet_kit/fleet_checklist.py" = ["D102", "D107", "D205", "D209", "PLC0415", "PLR2004"]
 # Version 23 (CS-1354, MEASURED on its bytes) adds the v22 worktree reap:
 # FURB188 PTH100 PTH104 RUF005 in the porcelain parser and the rename probe, and
-# PLR0915 for main() with its reap subcommand.
+# PLR0915 for main() with its reap subcommand. Version 26 (MEASURED on its
+# bytes) adds PTH112 - the ORPHANED-folder check spells os.path.isdir.
 "ops/fleet_kit/fleet_done.py" = [
   "D103", "D205", "D209", "FURB167", "FURB188", "PLC0415", "PLR0911", "PLR0912",
-  "PLR0915", "PLR2004", "PLW1510", "PTH100", "PTH104", "PTH105", "PTH109", "RUF005",
-  "RUF100", "S110", "UP017", "UP032",
+  "PLR0915", "PLR2004", "PLW1510", "PTH100", "PTH104", "PTH105", "PTH109", "PTH112",
+  "RUF005", "RUF100", "S110", "UP017", "UP032",
 ]
 "ops/fleet_kit/fleet_inbox.py" = [
   "D101", "D102", "D103", "D105", "D107", "D205", "D209", "D403", "FURB167", "N818",
@@ -509,10 +512,12 @@ ignore = [
 #   PLR2004  fmt_eta()'s literal 120 s and 7200 s unit thresholds
 #   PTH105 PTH123   os.replace and builtin open(), upstream's spelling
 # Version 23 (CS-1354, MEASURED on its bytes) adds PERF401 - the local board.html
-# table rows built up with append().
+# table rows built up with append(). Version 26 (MEASURED on its bytes) adds
+# PLC0415 and RUF100 - the Lanes card loads fleet_lanes.py by path inside a
+# helper, under a `noqa: BLE001` for a rule this file does not select.
 "ops/fleet_kit/fleet_board.py" = [
-  "C420", "D103", "D205", "D209", "E501", "FURB167", "PERF401", "PLR2004", "PTH105",
-  "PTH123",
+  "C420", "D103", "D205", "D209", "E501", "FURB167", "PERF401", "PLC0415", "PLR2004",
+  "PTH105", "PTH123", "RUF100",
 ]
 
 [tool.ruff.lint.isort]
@@ -1027,9 +1032,14 @@ disable_error_code = ["arg-type", "union-attr"]
 # number is version 20 patch 1's), one error:
 #   var-annotated  fleet_board.py:162 `out = []` in running_progress(), built up
 #                  later
-# ONLY var-annotated IS DISABLED, and only for this module.
+# Version 26 (MEASURED on its bytes) adds three errors in lane_lines(), the
+# Lanes card loader of fleet_lanes.py by path, the same shape as
+# fleet_test_guard.py's block above:
+#   arg-type union-attr   fleet_board.py:360 and 361 - `module_from_spec(spec)`
+#                  and `spec.loader.exec_module(mod)` on an un-narrowed spec
+# ONLY these three codes ARE DISABLED, and only for this module.
 module = ["ops.fleet_kit.fleet_board"]
-disable_error_code = ["var-annotated"]
+disable_error_code = ["arg-type", "union-attr", "var-annotated"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_identity.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
