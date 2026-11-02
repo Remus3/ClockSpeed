@@ -115,6 +115,16 @@
         "CS-1251"
       ],
       "excluded": {}
+    },
+    "product-slices": {
+      "description": "A PRODUCT subject for a queue lane, filed for MAIN ORDER 2026-10-31 22:15 items 7 to 9. WRITE AREA: shell/ (CS-1361's window position saved by display id, its silent fallback to the primary and its DPI-aware clamp) and clockspeed/surface/ (CS-1360's read-only flow view, which consumes the rule trace and computes nothing itself). CS-1361 comes first because a scope follows ROADMAP.md line order and its row sits above CS-1360's. AN ENUMERATION, NOT A PARTITION, graded per member.",
+      "items": [
+        "CS-1361",
+        "CS-1360"
+      ],
+      "excluded": {
+        "CS-1362": "awaits its CONVENTIONS.md section 14 licence gate and a THIRD_PARTY.md row"
+      }
     }
   }
 }
