@@ -513,6 +513,7 @@ tests/test_cs1327_push_suite_runs_in_the_venv.py	authored	CS-1327	stamped
 tests/test_cs1344_temp_teardown.py	authored	CS-1344	stamped
 tests/test_dashboard_probe.py	authored	CS-918	first-add:CS-918
 tests/test_dated_headings.py	authored	CS-840	first-add:CS-840
+tests/test_dev_dependency_bounds.py	authored	CS-1302	stamped
 tests/test_disposition_sites.py	authored	CS-1121	first-add:CS-1121
 tests/test_doc_budget.py	authored	CS-475	first-add:CS-475
 tests/test_doc_sweep.py	authored	CS-1184	stamped
