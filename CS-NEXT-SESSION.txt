@@ -91,9 +91,10 @@ Marked (r): re-read by this /done, 18:03 to 18:08. Unmarked: a sub-agent's reads
   TERMINAL notes 1324 and 1400 read as not unread. This ritual acked nothing.
 
 === MAIN ORDERS CARRIED FROM SESSION 152'S RESPONDERS ===
-R1. KIT: v26 adopted at 6832706a (MANIFEST version re-read 26). v27 (ORDER 2026-10-31-2347) NOT
-    ADOPTED: suite red 8 (pin tables and THIRD_PARTY rows; its 0450 ANSWER lists them); the retry
-    re-pins them in the same commit. MAIN's FIX 1127: the 0026 and 0450 ANSWERs missed MAIN; MAIN
+R1. KIT: v28 adopted by the Maint-KitRollout commit `chore(kit): adopt fleet kit v28` (cumulative
+    over v27, whose 8 reds it re-pinned). v27 step 3 is NOT wired here: nothing in this tree calls
+    fleet_inbox.mark_seen, so the kit's work queue is empty and `fleet_inbox.py pending` lists the
+    whole inbox history as unseen; wiring it needs a seen-ledger backfill first. MAIN's FIX 1127: the 0026 and 0450 ANSWERs missed MAIN; MAIN
     byte-copied both: NEVER RESEND. The delivery record reads the v24, v25, 0310 and 1545 ANSWERs
     verified, 0026 and 0450 absent (r).
 R2. MAIN ORDER 2026-10-31-2215: ACTED, ONE ANSWER sent 0310. Items 1, 3, 4, 5, 6 DONE; 2 (CS-1359)
@@ -206,7 +207,7 @@ REFS: remotes exactly origin/HEAD, origin/main, tag v0.1.0; refs/preserve local 
   unlanded; CS-1367 upward unread; gated CS-G11).
 THE RESPONDER (CS-InboxResponder) commits and pushes on main when live: read its status file first; a
   refusal every tick: check the proxy listener (name CLAUDE_HEADLESS_BASE_URL only).
-KIT v26; never edit a kit file or re-report a sent defect. Commits and pushes through `python
+KIT v28; never edit a kit file or re-report a sent defect. Commits and pushes through `python
   ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git ...`, whole suites through
   fleet_suite_gate.py; pre-push grades the MAIN WORKING TREE. SUBAGENT-FIRST is deny; a lane worker
   runs with it off. A MAIN-checkout push exports no GIT_DIR to other worktrees (CS-968); push from

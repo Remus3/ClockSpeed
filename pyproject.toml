@@ -410,10 +410,10 @@ ignore = [
 ]
 "ops/fleet_kit/fleet_inbox.py" = [
   "D101", "D102", "D103", "D105", "D107", "D205", "D209", "D403", "FURB167", "N818",
-  "PERF401", "PLC0415", "PLR0911", "PLR2004", "PTH109", "RUF023", "UP017",
+  "PERF401", "PLC0415", "PLR0911", "PLR2004", "PTH105", "PTH109", "RUF023", "UP017",
 ]
 "ops/fleet_kit/fleet_lanes.py" = [
-  "D103", "D205", "D209", "D403", "N818", "PLC0415", "PLR0911", "PLR0913",
+  "D103", "D205", "D209", "D403", "N818", "PLC0415", "PLR0911", "PLR0912", "PLR0913",
   "PLR2004", "PLW1510", "RUF100",
 ]
 "ops/fleet_kit/fleet_secrets.py" = ["D105", "D107", "D205", "D209", "N818", "PLW1510"]
@@ -473,7 +473,7 @@ ignore = [
 "ops/fleet_kit/fleet_claims.py" = [
   "ARG001", "B007", "D103", "D205", "D209", "D403", "E501", "FURB167", "FURB188", "PERF102",
   "PLC0415", "PLR0911", "PLR0912", "PLR2004", "PTH100", "PTH109", "PTH111", "PTH123",
-  "SIM114", "UP032",
+  "RUF100", "SIM114", "UP032",
 ]
 "ops/fleet_kit/fleet_gitlock.py" = [
   "D103", "D205", "D209", "D403", "E501", "N818", "PLC0415", "PLR0911", "PLR0913", "PLR2004",
@@ -890,10 +890,16 @@ warn_return_any = false
 #               re-enabling only the codes a version adds never shows it.
 # The bytes are the protocol every fleet tree shares and may not be edited here.
 #
-# ONLY these four codes ARE DISABLED, and only for this module. The rest of the
+# MEASURED on the version 28 bytes (the kit v28 rollout, bare `python -m mypy`),
+# one more; the line number is version 28's:
+#   index       fleet_headless.py:1936 - usage_line, `r.get("session_id")[:64]`
+#               guarded by an isinstance on a repeated call, which mypy does not
+#               narrow, the same shape as the union-attr row above.
+#
+# ONLY these five codes ARE DISABLED, and only for this module. The rest of the
 # gate still reads the file; `exclude` is NOT used, for the reason above.
 module = ["ops.fleet_kit.fleet_headless"]
-disable_error_code = ["union-attr", "arg-type", "assignment", "unreachable"]
+disable_error_code = ["union-attr", "arg-type", "assignment", "unreachable", "index"]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_inbox.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit

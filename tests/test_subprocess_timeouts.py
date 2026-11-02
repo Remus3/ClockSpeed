@@ -308,7 +308,9 @@ EXEMPTION_REASON_MINIMUM: Final = 40
 # moved the suite gate's hand-over into its nested default_runner() as a Popen
 # waited on with no timeout, so that row re-keys onto the Popen site - and the
 # suite gate's to v23 under CS-1354, whose v21 slot bookkeeping moved it down,
-# and to v26 in the kit v26 rollout, whose median admission moved it again)
+# and to v26 in the kit v26 rollout, whose median admission moved it again,
+# and both to v28 in the kit v28 rollout, whose cumulative v27 changes (the
+# rewrite helper's --range, the suite gate's median hold) moved them again)
 # (FLEET item 11: the
 # bytes are MAIN's, pinned by ops/fleet_kit/MANIFEST.json and tests/test_fleet_kit.py,
 # so a line that moves reddens both this table and that pin). Each is the ONE
@@ -320,14 +322,14 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
         " inside the lock, and a push runs this tree's pre-push whole suite for"
         " tens of minutes; a wrapper timeout would kill a healthy push mid-hook."
     ),
-    ("ops/fleet_kit/fleet_suite_gate.py", "default_runner", "subprocess.Popen", 1458): (
-        "VENDORED kit v13-v26 suite gate: runs the caller's WHOLE test suite inside a"
+    ("ops/fleet_kit/fleet_suite_gate.py", "default_runner", "subprocess.Popen", 1477): (
+        "VENDORED kit v13-v28 suite gate: runs the caller's WHOLE test suite inside a"
         " machine-wide slot (v18: a Popen waited on while its commit peak is"
         " sampled); the suite's own length is the caller's to bound, and the"
         " gate's own wait for a slot is already bounded (exit 3)."
     ),
-    ("ops/fleet_kit/fleet_rewrite.py", "run", "subprocess.run", 431): (
-        "VENDORED kit v13-v14 rewrite helper: runs git filter-repo over the whole"
+    ("ops/fleet_kit/fleet_rewrite.py", "run", "subprocess.run", 476): (
+        "VENDORED kit v13-v28 rewrite helper: runs git filter-repo over the whole"
         " history on the operator's explicit confirm; nothing in this tree runs"
         " it, and killing a rewrite mid-way is the damage the bundle guards."
     ),
