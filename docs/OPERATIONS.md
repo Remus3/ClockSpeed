@@ -1168,6 +1168,27 @@ first colon - trailing whitespace trimmed - folds case-insensitively to
 `.githooks/commit-msg` refuses. A plain substring search is NOT this census: it also
 matches prose naming the trailer.
 
+### 12.7 Kit adoption
+
+Filed for CS-1367 and CS-1368. Run it on a branch with the new bytes uncommitted, so `HEAD`
+still holds the previous kit for the matching step.
+
+1. Copy the new `ops/fleet_kit/` bytes in, whole. Never edit one (FLEET item 11).
+2. `python tools/repin_kit.py --expect-manifest-sha <digest>`, the digest copied from MAIN's
+   note: it refuses a manifest that does not hash to it, which is what keeps the pin an
+   independent witness. It re-points the kit rows of `VENDORED_RENDER_RESIDUALS` and
+   `EXEMPTIONS` and rewrites the version and digest pins in `tests/test_fleet_kit.py`. A
+   refusal names the file and key; a new site needs a row with a human reason. `--check` only
+   reports, and `--previous-rev` names the revision holding the old bytes if they are committed.
+3. By hand, what the tool leaves because it is an argument, not a measurement: the prose in the
+   rows and comments it touched, the version history in the `tests/test_fleet_kit.py`
+   docstring, the measured kit codes in `pyproject.toml`, and a FLEET-COMMON re-embed in
+   `CLAUDE.md`.
+4. `python tools/kit_pin_subset.py`: stops on the first pin red in about a minute.
+   `tests/test_mypy_gate.py` is not in it (the tool's docstring has the measurement), so step 5
+   is what grades step 3's `pyproject.toml` codes.
+5. The whole suite through `fleet_suite_gate.py`, then the commit, all of it one adoption commit.
+
 ## 13. Runbook: cutting a milestone tag
 
 Filed on 2026-10-21 under CS-1335, from posture item 1a of MAIN's PUBREPO ORDER (CS-1328

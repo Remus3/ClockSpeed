@@ -309,6 +309,8 @@ gates cite them.
 | `tools/edit_lint_check.py` | `PostToolUse` syntax and lint check on an edited file |
 | `tools/drift_guard.py` | Doc and pin drift detection |
 | `tools/doc_budget.py` | File-size budget enforcement |
+| `tools/repin_kit.py` | Kit adoption: rewrites the kit's line rows, version and digest pins in one command, refusing a site that needs a human reason; `docs/OPERATIONS.md` section 12.7 |
+| `tools/kit_pin_subset.py` | Kit adoption: runs the kit pin tests first, stopping on the first red, before any whole suite; `docs/OPERATIONS.md` section 12.7 |
 | `tools/facts_probe.py` | Live-state fact set. Run BY HAND from `/drift-guard` and `/sync-docs`; NOT a hook |
 | `tools/memory_sync.py` | Mirrors markdown memory into the recall store, idempotent |
 | `tools/provenance_stamp.py` | Stamps each new tracked file into `tools/provenance.tsv`; the manifest arm reddens any file it lacks - CS-1165 |

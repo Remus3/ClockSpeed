@@ -540,6 +540,7 @@ tests/test_identity_hooks.py	authored	CS-1290	stamped
 tests/test_inbox_watch.py	authored	CS-926	first-add:CS-926
 tests/test_inner_suite_marker.py	authored	CS-1356	stamped
 tests/test_install_hooks.py	authored	CS-925	first-add:CS-925
+tests/test_kit_pin_subset.py	authored	CS-1367	stamped
 tests/test_lane_launcher.py	authored	CS-918	first-add:CS-918
 tests/test_lane_lock.py	authored	CS-918	first-add:CS-918
 tests/test_lane_runner_script.py	authored	CS-1165	first-add:root
@@ -574,6 +575,7 @@ tests/test_queue_loop.py	authored	CS-918	first-add:CS-918
 tests/test_queue_loop_ci_specs.py	authored	CS-918	first-add:CS-918
 tests/test_readme_audit.py	authored	CS-1292	stamped
 tests/test_redaction_scope.py	authored	CS-454	first-add:CS-454
+tests/test_repin_kit.py	authored	CS-1368	stamped
 tests/test_repo_config_hygiene.py	authored	CS-968	first-add:CS-968
 tests/test_report_redaction_classes.py	authored	CS-860	first-add:CS-860
 tests/test_repr_rendering.py	authored	CS-852	first-add:CS-852
@@ -618,6 +620,7 @@ tools/freeze_witness.py	authored	CS-1219	stamped
 tools/headless-inbox.md	authored	CS-1226	stamped
 tools/headless-queue.md	authored	CS-918	first-add:CS-918
 tools/inbox_watch.py	authored	CS-926	first-add:CS-926
+tools/kit_pin_subset.py	authored	CS-1367	stamped
 tools/licence_audit.py	authored	CS-1185	stamped
 tools/main_provenance.py	authored	CS-1227	stamped
 tools/measurement_record.py	authored	CS-920	first-add:CS-920
@@ -629,6 +632,7 @@ tools/precommit_gate.py	authored	CS-1165	first-add:root
 tools/pretooluse_gate.py	authored	CS-425	first-add:CS-425
 tools/provenance.tsv	authored	CS-1165	stamped
 tools/provenance_stamp.py	authored	CS-1165	first-add:CS-1165
+tools/repin_kit.py	authored	CS-1368	stamped
 tools/scratch_sweep.py	authored	CS-1344	stamped
 tools/sha_citation_binaries.json	authored	CS-1292	stamped
 tools/sha_citation_gate.py	authored	CS-1222	stamped
