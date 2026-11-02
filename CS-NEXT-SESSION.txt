@@ -1,14 +1,15 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written by the session 153 /done, 2026-11-01. The operator's scope for session 153, own words: "just
-the inbox- not roadmap work at this time." Session 153 closed NO item, authored no note and changed
-no code; every item below is carried, verbatim or tighter (THE 153 BASE). The operator starts with
-"continue".
-COMMIT STATE OF THIS FILE: push of this commit pending at write time; push result and CI UNREAD -
-the next session's first act reads the remote ref against this HEAD and the CI run.
+Written by the session 154 /done paperwork, 2026-11-01, in MAIN's headless closeout drive, before its
+push. Scope of session 154, MAIN's order for the operator's reboot: the two Fleet Insights ORDERS and
+a clean tree, no product slice. Every item below not acted on is carried, verbatim or tighter (THE 154
+BASE). The operator starts with "continue".
+COMMIT STATE OF THIS FILE: push of this commit pending at write time; push result, CI, the ANSWER and
+the acks UNREAD here - the next session's first act reads them (the 1535 AND 2006 block).
 
-SESSION: 154
+SESSION: 155
 
 === NAMES (gitignored paths are named in words; no unpublished SHA is spelled) ===
+THE 154 BASE - `git show 811cef680307ef0727c04b6faf8bd04d7d115574:CS-NEXT-SESSION.txt`, the hand-off session 154 started from.
 T2  f9b877256dd82e8d2844b6d7c876d3ab822ff097, the published flip tip; tag v0.1.0 peels to it.
 THE 153 BASE - `git show 58a97aeeae8c580967c3b36a51625b089a33fcf7:CS-NEXT-SESSION.txt`, the hand-off
   session 153 started from: the FULL wording of every line this file tightened.
@@ -26,28 +27,28 @@ THE RELOCATION - docs/history_notes.md, its "Hand-off blocks - archived 2026-10-
 THE WALK HARNESS - walk1334-s151-harness in the data directory: scripts and both gate logs.
 THE SWEEP ARCHIVE - session 152's sweep archive folder under the gitignored work folder: manifests,
   patch backups, copied scratch; ref refs/archive/s152/s137_cs1308f2_land_wt its one detached HEAD.
-THE 1535 ORDER - moon_sync_inbox, the note 2026-11-01-1535-from-MAIN-ORDER-to-CS-fleet-insights-
-  w44-cs-2-cs-3-fleet-9-ONE-ANSWER.md.
-THE TREES - linked worktrees by id prefix: a772 (the pass's), a232; ae33, afd9 reaped here.
+THE ORDERS - moon_sync_inbox, the MAIN notes 2026-11-01-1535 (CS-2, CS-3, FLEET-9) and 2026-11-01-2006
+  (CS-1, CS-4).
+THE TREES - none linked at this write. Branches kept by id prefix: a232 (CS-1358's ground), a772, a635,
+  ab0d, aea5 (landed by cherry-pick, so they read '+' or '-' by content); ae33, afd9 kept earlier.
 
-=== THE SINGLE NEXT ACTION - SESSION 154, IN ORDER ===
-0. Print "Session 154 checklist" (FLEET 13a; the box U+2610, never the glyph), then the FLEET 18
+=== THE SINGLE NEXT ACTION - SESSION 155, IN ORDER ===
+0. Print "Session 155 checklist" (FLEET 13a; the box U+2610, never the glyph), then the FLEET 18
    LOCAL start board: checklist on stdin to `python ops/fleet_kit/fleet_board.py render --session
-   154`; NO push.
+   155`; NO push.
 1. FIRST ACT: read the remote ref against this HEAD by full SHA (`git ls-remote origin`, `git
    rev-parse HEAD`), the CI run for HEAD's full SHA (`gh run list --commit <full SHA>`) and this
-   ritual's timing record, session_153 key (push figures, blocked_by_flake, scratch_sweep; carry
+   ritual's timing record, session_154 key (push figures, blocked_by_flake, scratch_sweep; carry
    them into your hand-off). Remote not HEAD: PUSH FIRST through fleet_gitlock, before any other
    work - the one gated whole suite for the carried commits; a blocked push can notify exit 0, so
    read "clockspeed pre-push: BLOCKED" and the remote. AFTER that push, if the timing record carries
    blocked_by_flake, file that test as a ROADMAP.md or BACKLOG.md item. A red CI is the top item,
    never rerun green.
-2. THEN READ HOW THE 1535 PASS ENDED (next block): its line in the responder's log and the digest in
-   the responder's seen file (both in the data directory), an ANSWER note for THE 1535 ORDER in
-   moon_sync_outbox with a delivery-record entry, and the a772 tree's state. AN OK EXIT WITH NO ANSWER
-   MEANS THE SESSION MUST ANSWER THE ORDER ITSELF. A timeout means a later tick retries from scratch:
-   read a772 before that tick. ACK 1535 ONLY AFTER AN ANSWER IS SENT AND ITS REACHED-COUNT READ BACK;
-   the responder's retry after a kill depends on the watcher's unread state.
+2. THEN READ THE DRIVE'S END: ops/loop/control/progress/closeout-cs.json (status done, or what stopped
+   it), the ONE ANSWER in moon_sync_outbox with its delivery record, and the inbox watcher. NO ANSWER ON
+   THE RECORD MEANS THE SESSION SENDS IT, per the 1535 AND 2006 block, THEN acks. MAIN holds the machine
+   quiesce (lane cap 1, this tree's task Disabled) until after the reboot; leave both unless MAIN
+   lifts them.
 3. READS before any other act: (a) `git ls-remote origin`: EXACTLY HEAD, refs/heads/main, tag
    v0.1.0; any other ref is stray: STOP, a distinct adjudicator; porcelain --untracked-files=all
    EMPTY, or attribute each dirty path. (b) STOP, INBOX_STOP, QUEUE_STOP, HOLD_MAIN_SPAWN absent;
@@ -58,37 +59,25 @@ THE TREES - linked worktrees by id prefix: a772 (the pass's), a232; ae33, afd9 r
 4. ONE BATCHED OPERATOR ASK (FLEET 1, physical acts only): free host RAM - close the game and other
    heavy apps - so CS-1334's 24 GB gate can pass; the CS-1295 operator-needing findings (item 6).
 5. THE OPEN ITEMS, in the order below, by sub-agents; the lanes only when MAIN releases them (THE
-   LANES). Session 153's inbox-only scope bound that session; if the operator repeats it, stop after
-   THE 1535 ORDER and step 6.
+   LANES). An inbox-only scope, if the operator repeats it, stops after step 2 and step 6.
 6. /done when the operator stops the run, or unprompted when no task remains.
 
-=== THE 1535 ORDER - LIVE IN A PASS AT WRITE TIME, OUTCOME UNREAD ===
-Marked (r): re-read by this /done, 18:03 to 18:08. Unmarked: a sub-agent's reads, 17:54 to 17:59.
-- PROVENANCE (r): tools/main_provenance.py "verified", sha256
-  489fdc150ae40765c817fb50f3006a08cd7995c715da8d11fd81cabdd553d0ca. No deadline.
-- ASKS: the note's "End state" section and "Items". ONE ANSWER note, one line per item (DONE with
-  commit and read-back named / BLOCKED / NA), stating tip, remote tip and worktree list as read back.
-  One whole suite through the gate before the push; tree clean at the end (a dirty tree is refused a
-  coming adoption); land, retire or name each worktree with why. CS-1 and CS-4 stay held for a later
-  MAIN note. CS's lanes stay not relaunched.
-- ANSWER: none for this ORDER in moon_sync_outbox (r).
-- CS-2 (pin subset before the whole suite on kit adoption): not started. CS's v27 ANSWER also shows
-  tests/test_mypy_gate.py red, beyond the 4 files the ORDER lists.
-- CS-3 (fail CI on any unbounded dev dependency): not started; the test must accept mypy's ==.
-- FLEET-9 (suite hermetic under the kit test guard): partly done, UNLANDED, on a772: one commit,
-  subject "test(CS-1366): take every measured timing ceiling from the kit budget", and 16 uncommitted
-  test files, +114/-55 (r).
-- THE TREES (r): reap removed ae33 and afd9 (clean, every commit on main by patch), branches kept, so
-  the ANSWER's list must be read live. a232 stands: 2 commits not on main by patch (tree_population,
-  CS-1358's ground). a772 stands: the pass's, listed dirty. Never edit it while the pass lives.
-- THE PASS (r): unattended responder pass, started 15:41:01, alive at 18:03. ORDER_TIMEOUT_S 10800
-  kills its whole process tree near 18:41:01. A kill logs timeout, records no digest, and a later
-  tick retries from scratch, which can strand a772's uncommitted edits.
+=== THE 1535 AND 2006 ORDERS - WHAT HAPPENED (session 154) ===
+- The responder pass on 1535 timed out at 18:41:01; no digest, no ANSWER. MAIN ruled the work land now.
+- FLEET-9, CS-1366: a772's two commits landed with an adversary's fix (a kill arm's hang inside the
+  scaled window). OPEN ROW: read the gated runs on or after 2026-11-08; residuals in the item note.
+- CS-1 CS-1368 tools/repin_kit.py, CS-2 CS-1367 tools/kit_pin_subset.py (OPERATIONS 12.7), CS-3 CS-1369
+  tests/test_dev_dependency_bounds.py: closed in docs/LEDGER.md. CS-4: scope product-slices committed, 0
+  slices built, launch held; all three rows stay open.
+- a232: disposed by an adjudicator, branch kept; the commit holding the disposition names both tips;
+  CS-1358's note has the measures.
+- THE ANSWER: ONE, HOP: 2, TERMINAL, both ORDERS, by tools/outbound_send.py --to Main, AFTER the push and
+  CI read green; then the acks of 1535, 2006 and the v28 0825 note and bundle by tools/inbox_watch.py
+  --ack-keys (tools/headless-inbox.md), and whatever else the responder's live-note test reads. ACK ONLY
+  AFTER THE REACHED-COUNT READS BACK; the responder's retry depends on the watcher's unread state.
 - R3 CONFIRMED, ops/loop/inbox_responder.py::_locked_pass, its `_record_seen` call: exit 0 records the
   digest whether or not the note was handled, then skipped_duplicate, so an ok exit with no ANSWER
-  means the ORDER never retries by itself. Weigh it for BACKLOG once the pass has ended.
-- INBOX (r): `python tools/inbox_watch.py` listed 1 UNREAD of 592: THE 1535 ORDER alone. The SS
-  TERMINAL notes 1324 and 1400 read as not unread. This ritual acked nothing.
+  means the ORDER never retries by itself. Weigh it for BACKLOG: the pass has ended.
 
 === MAIN ORDERS CARRIED FROM SESSION 152'S RESPONDERS ===
 R1. KIT: v28 adopted by the Maint-KitRollout commit `chore(kit): adopt fleet kit v28` (cumulative
@@ -172,7 +161,8 @@ BOUNDS THAT STILL APPLY:
 14 S0 RULING 3, the kit archive route: owed by the first post-B /done; the next /done that relocates
    a hand-off block rules it first, by a distinct adjudicator (this /done relocated none; it
    tightened). THE U5 RELOCATION ran without it; the ruling may confirm or redo it.
-15 FILED, unstarted: CS-1358 (tree_population; a232 by content), CS-1359 (close on the green tier2
+15 CS-1366 (phase7.md): read FLEET-9 on or after 2026-11-08, then close. FILED, unstarted: CS-1358
+   (tree_population; a232's branch, read the disposition in its note first), CS-1359 (close on the green tier2
    read-back, R2), CS-1360, CS-1361, CS-1362.
  CARRIED: CS-828, CS-829 as filed (CS-1151 owns the stale (14,60) sentence). FROZEN unless it blocks
    product or reddens a suite: CS-1207, CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206,
@@ -181,8 +171,13 @@ BOUNDS THAT STILL APPLY:
    green at M; re-read tier2); the residuals, only on a trigger.
 
 === THE LANES ===
-HELD: THE 1535 ORDER says "CS's lanes stay not relaunched": no lane until MAIN releases it.
-Proven: `queue` cycles, scope advisor-ranking, shipped CS-1244, CS-1245. Next when released:
+HELD: MAIN's ORDERS 1535 and 2006 say "CS's lanes stay not relaunched": no lane until MAIN releases it.
+FIRST WHEN RELEASED, one queue cycle (CS-1361, then CS-1360), ahead of advisor-ranking:
+CLOCKSPEED_LANE_SCOPE_QUEUE=product-slices per process,
+  powershell -NoProfile -ExecutionPolicy Bypass -File ops\loop\launch_queue_loop.ps1 -Lane queue -Cycles 1
+Move CS-1362 into the scope's items when its register row lands (it awaits its licence gate and a
+THIRD_PARTY.md row). An UNSCOPED lane could still take CS-1362: run only scoped until then.
+Proven: `queue` cycles, scope advisor-ranking, shipped CS-1244, CS-1245. Next after that:
 CLOCKSPEED_LANE_SCOPE_QUEUE=advisor-ranking per process,
   powershell -NoProfile -ExecutionPolicy Bypass -File ops\loop\launch_queue_loop.ps1 -Lane queue -Cycles 1
 on CS-1246, CS-1247, CS-1253. Scopes registry-audit (CS-1241, CS-1242, CS-1250) and ratio-settle
@@ -203,11 +198,11 @@ ROOT the E: checkout (ADR 0026), C: a junction. Land by cherry-pick, never merge
   main-tree pushurl; each linked worktree carries the M2 guard.
 REFS: remotes exactly origin/HEAD, origin/main, tag v0.1.0; refs/preserve local (s146, s150, s150b,
   s150c, heads); refs/archive/s152 local (item 12). NEW IDS: re-check `git grep`, `git log --all` and
-  origin/main's ROADMAP.md first; the responder and lanes allocate too (CS-1366 is on the a772 tree,
-  unlanded; CS-1367 upward unread; gated CS-G11).
+  origin/main's ROADMAP.md first; the responder and lanes allocate too (CS-1369 is the highest read;
+  CS-1370 upward unread; gated CS-G11).
 THE RESPONDER (CS-InboxResponder) commits and pushes on main when live: read its status file first; a
   refusal every tick: check the proxy listener (name CLAUDE_HEADLESS_BASE_URL only).
-KIT v28; never edit a kit file or re-report a sent defect. Commits and pushes through `python
+KIT v28; adoption procedure OPERATIONS 12.7; never edit a kit file or re-report a sent defect. Commits and pushes through `python
   ops/fleet_kit/fleet_gitlock.py run --owner <session_id>.<agent_id> -- git ...`, whole suites through
   fleet_suite_gate.py; pre-push grades the MAIN WORKING TREE. SUBAGENT-FIRST is deny; a lane worker
   runs with it off. A MAIN-checkout push exports no GIT_DIR to other worktrees (CS-968); push from
@@ -218,9 +213,10 @@ THE BOARD: LOCAL ONLY since kit v23. No board render or sentinel change during a
   whole suite (S0b D-D1).
 
 === DECISIONS IN FORCE ("Rev:" what reverses it; full wording: THE 153 BASE, U5 BASE, DECISIONS) ===
-- SESSION 153: this /done allocated no ID and filed R3 to no list while a pass that allocates IDs was
-  live (Rev: the pass ended; weigh R3 then). Nothing acked by the ritual (Rev: an ANSWER sent and read
-  back, then ack 1535).
+- SESSION 154: the pre-push suite is the drive's one gated whole suite, the /done precedent (Rev: a
+  push that skips it). A ruff, pytest or drift_guard command from the main thread was denied with no
+  reason; it was not routed around, the gates graded it (Rev: a readable reason). a232 disposed (Rev:
+  CS-1358's work).
 - SESSION 152: CS-1352 kept every branch with a '+' line in `git cherry` rather than force it, a
   squashed landing reading '+' too (Rev: a content check proving that branch landed; item 12).
 - SESSION 151, each in its docs/LEDGER.md record, each "Rev:" at THE 153 BASE, DECISIONS: CS-1291 R6
@@ -276,29 +272,19 @@ THE BOARD: LOCAL ONLY since kit v23. No board render or sentinel change during a
   reboot clear .git/index.lock only by the kit's clear_index_lock.
 
 === THE CHANNEL AND EXTERNAL CONDITIONS ===
-OWED: THE 1535 ORDER's ONE ANSWER (the pass, or NEXT ACTION 2); CS-1344's ONE ANSWER (item 4), CS-1295's
+OWED: the ONE ANSWER to ORDERS 1535 and 2006 if the record lacks it (NEXT ACTION 2); CS-1344's ONE ANSWER (item 4), CS-1295's
 ANSWER (item 6). SENT, never re-send: R1's two, the CS-815 FIX, the W1 ANSWER, the ONE CS-1328 ANSWER,
 the 0420 FIX, the 1312 ANSWER, the 1610 INFORMATION, the 0647 FIX, S5. Sessions 152 and 153 authored
-none. Never answer an answer. MAIN's 13:16 RULING: no reply. Cap 12 a day.
-WAITING ON: MAIN's later note for CS-1 and CS-4; MAIN's kit retry path for v27 (R1); CS-1231's gate, the
+none; session 154 one, that ANSWER. Never answer an answer. MAIN's 13:16 RULING: no reply. Cap 12 a day.
+WAITING ON: MAIN's kit retry path for v27 (R1); CS-1231's gate, the
 0647 FIX for CS-1349's kit half, the 0420 FIX, the CS-815 FIX in a kit version; MAIN's answers to the
 1213 FIX and S5; the CS-1207 ruling; CS-1318's evidence; Ubuntu 26; host RAM for CS-1334 (the operator).
 
-=== SESSION 153 /done - FINAL REPORT (counts observed THIS RUN) ===
-START 2026-11-01T18:03:12-06:00. WINDOW CLOSED (both reads exit 0; HEAD one parent). TIER 0. NO item
-closed; no note authored; no spike contradicted BOOTSTRAP.md.
-STEP 1: `git diff --name-only HEAD -- "*.py"` exit 0, `git ls-files --others --exclude-standard --
-"*.py"` exit 0, both empty: ruff had no target, not run; no pytest at step 1.
-STEP 5, after the record edits: drift_guard exit 0 (11 PASS); doc_budget exit 0 (40 measured, 0 over);
-memory_sync exit 0 (23 leaves); sha_citation_gate exit 0. TARGETED, no whole suite: pytest -n 4 over 20
-literal test files that read the records: exit 0, 2287 passed, 0 failed, 0 skipped; after the last
-edit 4 of them: exit 0, 661 passed.
-STEP 6: reap applied: 2 removed, 0 kept, 2 listed (base main). Board --final: exit 0, rendered.
-PUSH: push of this commit pending at write time; push result and CI UNREAD - the next session's first
-act reads the remote ref against this HEAD and the CI run (its pre-push suite is the ritual's one gated
-whole suite).
-UNVERIFIED: how the pass ended and anything it did after 18:08; the block's unmarked reads; session
-152's Recycle Bin contents and concurrent prune outcome (item 12).
+=== SESSION 154 /done - PAPERWORK BEFORE THE PUSH ===
+Closed CS-1367, CS-1368, CS-1369; CS-4's scope committed; CS-1366 stays open on its 7-day read. No spike
+contradicted BOOTSTRAP.md. Graded so far: the pre-commit gate on every commit, the builders' targeted
+runs in their worktrees. UNREAD HERE: the whole suite, the push, CI, the ANSWER, the acks, the timing
+record and the mark: closeout-cs.json owns them.
 
 === READ FIRST ===
 CLAUDE.md; memory/MEMORY.md; ROADMAP.md; WAKEUP_NOTES.md; docs/ARCHITECTURE.md;

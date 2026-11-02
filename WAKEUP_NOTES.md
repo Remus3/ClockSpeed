@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 154 - 2026-11-01 - MAIN's closeout drive before the operator's reboot: both Fleet Insights ORDERS landed, no product slice
+
+- Shipped: CS-1367, CS-1368, CS-1369 closed; scope product-slices committed, launch held. Detail in docs/LEDGER.md.
+- In flight: CS-1366 stays open for its 7-day read on or after 2026-11-08. The push, CI, the ONE ANSWER and the acks follow this write: ops/loop/control/progress/closeout-cs.json owns them.
+- Decisions: the 2026-10-26 tree_population worktree disposed unlanded by an adjudicator, branch kept for CS-1358. No ADR.
+- Surprises: an adversary found a repin tool that silently re-pointed a reason to a swapped handler, and a kill arm whose planted hang ended inside the budget's scaled window; both fixed with tests. A pass that timed out left its commits safe on its branch. No spike contradicted BOOTSTRAP.md.
+- Failed paths: gitlock refuses `git cherry-pick`; land with `cherry-pick -n`, then gitlock `git commit -C`.
+- Next action: read the drive's progress file, then the remote ref against HEAD by full SHA and CI for that SHA.
+
 ## Session 153 - 2026-11-01 - the operator scoped the session to the inbox; no item closed; MAIN's 15:35 ORDER left in a live responder pass
 
 - Shipped: nothing closed and no code changed. Worktree reap removed two clean trees whose commits are on main by patch, branches kept. Detail in docs/LEDGER.md.
@@ -50,12 +59,3 @@ the line becomes a pointer.
 - Surprises: none. No spike contradicted BOOTSTRAP.md.
 - Failed paths: none abandoned.
 - Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then the carried next action - the step 1 reads, the one batched operator ask (host RAM for CS-1334, the CS-1295 operator-needing findings), then CS-1351 and the open items in order.
-
-## Session 151 - 2026-10-24 - seven items and the lane's CS-1245 shipped, CS-1349 and CS-1344 landed open, the first CS-1295 review run landed partial, and the CS-1334 re-walk never launched on host RAM
-
-- Shipped: CLOSED: CS-1328 (every PUBREPO done criterion re-derived by a distinct verifier), CS-1345 (the push identity step for an outsider's fork, docs/OPERATIONS.md section 1.3), CS-1346 (plan.adopt carries the strategy badge into tier 3; its follow-up filed as CS-1351), CS-1347 (greedy returns the lowest-ranking selection it reached; acceptance amended), CS-1340 and CS-1348 (closed with residual, acceptances amended; the 1.0 phase-cost source gated as CS-G10) and CS-1240 (stable-id unmodelled content and its panel; acceptance amended). The headless queue lane closed CS-1245 in one cycle of about 3h44m (clockspeed/solve/bound.py) and filed CS-1350. LANDED, still open: CS-1349 (the pre-push suite command is stable across pushes, under an adjudicated frozen-file grant; its Sandbox walk clause pends CS-1334) and CS-1344 (a test run removes its own cs-pt output on any exit; tools/scratch_sweep.py wired into the /done ritual). Two pushes landed green. C13: the nine session 150 builder worktrees retired by content. Detail in docs/LEDGER.md.
-- In flight: nothing dirty. CS-1334's re-walk never launched: host free RAM stayed 15.5 to 20.6 GB over two attempts and 150 minutes of checks against its 24 GB gate; the harness and gate logs are in the gitignored data directory. CS-1344 closes on its ONE ANSWER to MAIN, drafted, carrying this /done's scratch sweep result. CS-1295's first review run is a PARTIAL record: 1,041 rows skimmed, CS-1292 and CS-1293 not folded in, its ANSWER to MAIN owed. Eight session 151 builder and review worktrees are landed and retirable by content (their list is in the data directory).
-- Decisions: CS-1291's R6 frozen-file grant DENIED again; CS-815 kept open with its kit-hook half deferred to MAIN (gated as CS-G09, the FIX note delivered 1 of 1); CS-1231 kept open until MAIN's next kit version, its gate committed alone before the lift; CS-1295 counts every file on disk and spawned review-only; CS-1240 rules first-seen as first read since the server started; the forgiven line-pointer ceiling raised from 72 to 73 for CS-1344. No ADR; ADR 0016 amended for CS-1340 and CS-1348.
-- Surprises: a cleanup mutant run with the real conftest emptied every live run's cs-pt folder and errored another builder's whole suite (37 errors); the queue lane's progress file sat stale about 3.5 hours while its builder ran; python.org does publish installer sha256 values, through its release API; CI runs Python 3.14 only, never the 3.13 floor; the CS-1295 spawn needed four switches beyond its ruled command. A push from the main checkout no longer exports GIT_DIR to other worktrees (CS-968). No spike contradicted BOOTSTRAP.md.
-- Failed paths: the CS-1334 re-walk, twice, on host RAM (not retried at a smaller Sandbox: the first walk stalled under memory pressure).
-- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record (with the scratch sweep's result); then CS-1351, the advisor-ranking lane rows, CS-1334's walk after the operator frees host RAM, CS-1344's ONE ANSWER and close, and CS-1295's remainder.
