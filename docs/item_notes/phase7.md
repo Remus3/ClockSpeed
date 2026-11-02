@@ -874,6 +874,14 @@ MAIN ORDER 2026-10-26 03:15 (SPEED-CS item 2), provenance verified. Measured at 
 `ls-files` sites across 74 files in `tests/`, too large for one responder pass, and every push is
 held behind CS-1357, so the slice waits for an interactive session.
 
+### Filed 2026-11-01 by the headless driver, the worktree disposition
+
+An adjudicator disposed the 2026-10-26 worktree unlanded; its branch is kept as ground for this item (the
+commit that removed nothing but filed this names both tips). Measured: 0 merge conflicts; 34 files; 60
+`ls-files` lines left in `tests/`, 13 outside the fixture; no `--durations` or whole-suite read-back; the
+first commit alone doubles peak memory. Needed: a rebase, a ruling on synthetic-repo call sites, the
+durations and a gated suite. The filing's 107 sites did not reproduce: re-count.
+
 
 ## CS-1359
 
@@ -935,3 +943,21 @@ on every test save.
 
 Not started: the candidate dependency first needs the `CONVENTIONS.md` section 14 licence gate (a
 `researcher` pass and a `THIRD_PARTY.md` row), and the suite must still run with no game installed.
+
+
+## CS-1366
+
+### Acceptance
+
+MAIN ORDER 2026-11-01 15:35 item 3 (FLEET-9): on or after 2026-11-08, read the gated runs of the prior 7
+days and find zero live-state failures and zero timing failures. A failure found restarts the 7 days
+after its fix. No ANSWER is owed: the ORDER's ONE ANSWER named what was fixed and this row.
+
+### Filed 2026-11-01 by the headless driver
+
+LANDED: every measured timing ceiling through `fleet_test_guard.budget()`, hard-fail deadlines budgeted
+with each planted hang outliving the largest load factor, and no live log write from the two `run_loop`
+calls in `tests/ops/test_kit_v25_lane_cap.py`. RESIDUAL, not failures: socket timeouts and joins in
+`tests/surface/test_server.py` keep bare constants; `queue_loop.jsonl` sits outside the guard's watch, so
+the guard cannot catch that write coming back; `budget()` reads load at assert time, and its `gate.held()`
+can unlink a stale slot file in the machine gate directory, a kit behaviour reported to MAIN in the ANSWER.

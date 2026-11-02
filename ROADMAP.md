@@ -367,3 +367,4 @@ CS-1359 - the nightly tier2 run is red since 2026-10-28 on a drifted pytest (Nod
 CS-1361 - CS-DISPLAY-BY-ID: the companion window is saved by display id, falls back to the primary, and clamps to 96 percent of the work area - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1362 - CS-PARSER-XCHECK: an out-of-tree save parser as a test-only oracle for this parser's counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

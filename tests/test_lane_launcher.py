@@ -1048,12 +1048,12 @@ def test_cs1274_r3_the_launcher_and_the_driver_kill_with_the_same_argv(
 #: real worker. Both sleeps are bounded so a leak from a red run expires alone.
 _STUB_WRAPPER: Final = (
     "import os, subprocess, sys, time\n"
-    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
     "out = sys.argv[1]\n"
     "with open(out + '.tmp', 'w') as handle:\n"
     "    handle.write(f'{os.getpid()} {child.pid}')\n"
     "os.replace(out + '.tmp', out)\n"
-    "time.sleep(60)\n"
+    "time.sleep(120)\n"
 )
 
 #: How long the stub gets to record its child, and how long a killed process
@@ -1123,7 +1123,7 @@ def test_cs1274_r3_an_untracked_kill_takes_the_wrappers_child_with_it(
         # the whole deadline, and the guard in tests/test_subprocess_timeouts.py
         # finds the Popen bounded where it was started. Timing out is the normal
         # case here - the wrapper is meant to be alive when it is handed back.
-        deadline = time.monotonic() + _STUB_DEADLINE_S
+        deadline = time.monotonic() + conftest.fleet_test_guard.budget(_STUB_DEADLINE_S)
         while not record.exists() and time.monotonic() < deadline:
             try:
                 proc.wait(timeout=_POLL_S)

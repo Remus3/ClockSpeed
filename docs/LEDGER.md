@@ -75,6 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-01 - CS-1367 and CS-1368 and CS-1369 - MAIN Fleet Insights W44 CS-2, CS-1 and CS-3 landed
+Verification: `tests/test_kit_pin_subset.py`, `tests/test_repin_kit.py`, `tests/test_dev_dependency_bounds.py`.
+MAIN ORDERS 2026-11-01 15:35 and 20:06. `tools/kit_pin_subset.py` (MAIN's CS-2) runs the four pin files and
+stops on the first red, measured 43 to 59 s, named in `docs/OPERATIONS.md` section 12.7. `tools/repin_kit.py`
+(MAIN's CS-1) rewrites the line table, the exemption rows, the manifest digest and the byte-pins; a no-op on
+this tree, read back; its digest write refuses without the digest MAIN's note names, so the pin stays a
+witness. An adversary refuted the first cut with three silent re-points (swapped handlers, reordered
+classes, a replaced site); each now refuses, with a test. The dev-bound test (MAIN's CS-3) waives only
+pyyaml's upper bound.
+
 ### 2026-11-01 - CS-1351 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1351 STAYS OPEN: session 153 /done - the operator scoped the session to the inbox, no item closed, MAIN's 15:35 ORDER left in its live responder pass
 Verification: `CS-NEXT-SESSION.txt`, its next-action and 1535 ORDER blocks, and the listing from
 `python tools/inbox_watch.py`, which acknowledges nothing. No item closed, so no test names one;
