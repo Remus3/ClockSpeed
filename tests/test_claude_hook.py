@@ -1236,6 +1236,11 @@ QUIET_CALL: Final = "await_quiet_siblings"
 DEADLOCK_SECONDS: Final = 10.0
 
 
+def deadlock_bound() -> float:
+    """CS-1366: that wait as the kit's ``budget()`` reads it right now."""
+    return float(conftest.fleet_test_guard.budget(DEADLOCK_SECONDS))
+
+
 class ModuleArms(NamedTuple):
     """This module's own functions, read from its source, never from a collection."""
 
@@ -1601,7 +1606,7 @@ def end_waiters(
     clock.stop.set()
     for thread in threads.values():
         if thread.ident is not None:
-            thread.join(DEADLOCK_SECONDS)
+            thread.join(deadlock_bound())
     outlived = sorted(name for name, thread in threads.items() if thread.is_alive())
     for name, session in sessions.items():
         if name not in outlived:
@@ -1637,7 +1642,7 @@ def test_two_waiting_workers_never_wait_on_each_other(stoppable: StoppableClock)
     threads = waiter_threads(worker_run, list(workers))
     stuck = sorted(workers)
     try:
-        start_and_join(threads, DEADLOCK_SECONDS)
+        start_and_join(threads, deadlock_bound())
         stuck = sorted(name for name in workers if name not in returned and name not in crashed)
     finally:
         # A stuck waiter is STOPPED and joined before any descriptor closes.
@@ -1668,8 +1673,8 @@ def test_two_waiters_that_find_the_box_quiet_together_are_let_go_one_at_a_time(
     sessions = {name: SimpleNamespace(config=worker) for name, worker in workers.items()}
     for session in sessions.values():
         xdist_quiet.pytest_sessionstart(cast(pytest.Session, session))
-    both_unlocked = threading.Barrier(len(workers), timeout=DEADLOCK_SECONDS)
-    both_probed = threading.Barrier(len(workers), timeout=DEADLOCK_SECONDS)
+    both_unlocked = threading.Barrier(len(workers), timeout=deadlock_bound())
+    both_probed = threading.Barrier(len(workers), timeout=deadlock_bound())
     first_probe_done: set[str] = set()
     real_names = xdist_quiet.live_sibling_names
 
@@ -1708,7 +1713,7 @@ def test_two_waiters_that_find_the_box_quiet_together_are_let_go_one_at_a_time(
     monkeypatch.setattr(xdist_quiet, "live_sibling_names", probe_in_step)
     threads = waiter_threads(worker_run, list(workers))
     try:
-        start_and_join(threads, 2 * DEADLOCK_SECONDS)
+        start_and_join(threads, 2 * deadlock_bound())
     finally:
         # A stuck waiter is STOPPED and joined before any descriptor closes.
         outlived = end_waiters(stoppable, threads, sessions)
@@ -2051,7 +2056,7 @@ def test_a_waiter_still_waiting_when_its_arm_ends_is_stopped_before_its_files_cl
     thread = threading.Thread(target=wait, daemon=True)
     try:
         thread.start()
-        waiting = stoppable.slept.wait(DEADLOCK_SECONDS)
+        waiting = stoppable.slept.wait(deadlock_bound())
         outlived = end_waiters(stoppable, {"gw0": thread}, {"gw0": session})
     finally:
         release_liveness_lock(sibling)

@@ -34,6 +34,8 @@ from typing import Any, Final
 
 import pytest
 
+from tests import conftest
+
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 TOOL: Final = REPO_ROOT / "tools" / "main_provenance.py"
 WORKER_PROMPT: Final = REPO_ROOT / "tools" / "headless-inbox.md"
@@ -1672,7 +1674,7 @@ def _verify_bounded(w: World, seconds: float = 20.0) -> tuple[bool, str, str]:
     out: list[tuple[bool, str, str]] = []
     runner = threading.Thread(target=lambda: out.append(_verify_in(w)), daemon=True)
     runner.start()
-    runner.join(seconds)
+    runner.join(conftest.fleet_test_guard.budget(seconds))
     hung = runner.is_alive()
     if hung:
         pytest.fail("the check hung on a non-regular note")

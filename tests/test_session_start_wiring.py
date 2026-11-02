@@ -96,6 +96,7 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests import conftest
 from tests.conftest import run_git
 from tests.git_env import REPO_LOCATING, scrubbed_env
 
@@ -448,6 +449,7 @@ def _git(cwd: Path, env: dict[str, str], *args: str) -> None:
     grading without a red. Only an `OSError` - no program to start - skips;
     `test_a_git_timeout_in_a_decoy_tree_fails_rather_than_skips` plants the hang.
     """
+    limit = conftest.fleet_test_guard.budget(GIT_TIMEOUT_SECONDS)
     proc: subprocess.CompletedProcess[str] | None = None
     try:
         proc = subprocess.run(
@@ -457,7 +459,7 @@ def _git(cwd: Path, env: dict[str, str], *args: str) -> None:
             capture_output=True,
             text=True,
             check=False,
-            timeout=GIT_TIMEOUT_SECONDS,
+            timeout=limit,
         )
     except subprocess.TimeoutExpired:
         # Bound outside the handler, so the red carries no chained exception
@@ -467,7 +469,7 @@ def _git(cwd: Path, env: dict[str, str], *args: str) -> None:
         pytest.skip("git is unavailable, so the decoy checkouts cannot be built")
     timed_out = proc is None
     assert not timed_out, (
-        f"git {args[0]} TIMED OUT in a decoy tree after {GIT_TIMEOUT_SECONDS}s -"
+        f"git {args[0]} TIMED OUT in a decoy tree after {limit}s -"
         " a hung git is a failure, never a skip"
     )
     assert proc is not None

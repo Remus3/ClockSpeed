@@ -118,7 +118,8 @@ EXIT_SLACK: Final = 8
 LOWER_EDGE_TOLERANCE: Final = 1
 
 # The outer harness limit beyond the bound. A hook still running at bound plus
-# this is HUNG, and the harness kills its whole process tree.
+# this is HUNG, and the harness kills its whole process tree. CS-1366: harness_limit reads
+# the kit's budget() of it, which stays past that budget() of EXIT_SLACK.
 HARNESS_SLACK: Final = 40
 
 # Plain git calls that set a sandbox up. Generous, bounded.
@@ -134,7 +135,8 @@ PRECONDITION_WAIT: Final = 5
 # unreaped - a one-shot `kill -0` read 2 as alive, and every one was gone within
 # 90ms. Unloaded, 150 of 150 were already gone. One second is the hook's
 # own kill grace, larger than no bound in this module, and a `sleep 600` the
-# bound never killed still outlives it.
+# bound never killed still outlives it. CS-1366: the wait reads the kit's budget()
+# of this, and that `sleep 600` outlives every factor the kit can answer.
 REAP_WAIT: Final = 1
 REAP_POLL: Final = 0.02
 
@@ -557,13 +559,14 @@ def child_env(
 def harness_limit(box: Sandbox) -> float:
     """The outer kill ceiling for one attempt in ``box``.
 
-    CS-1201: the bound plus the harness slack PLUS what the seed commit - an
+    CS-1201: the bound plus the kit's budget() of the harness slack PLUS what the seed commit - an
     accepted commit through the same hook on the same box - measured, so a
     loaded box widens the ceiling by its own measured overhead rather than an
     assumed one. A real hang is ``sleep 600`` or an endless REPL, so this costs
     time only on a genuine regression.
     """
-    return harness_bound() + HARNESS_SLACK + box.seed_elapsed
+    slack = float(conftest.fleet_test_guard.budget(HARNESS_SLACK))
+    return harness_bound() + slack + box.seed_elapsed
 
 
 _PAYLOADS: list[int] = [0]
@@ -750,13 +753,13 @@ def process_alive(pid: str) -> bool:
 
 
 def outlives_the_reap_wait(pid: str) -> bool:
-    """Whether ``pid`` is still alive after polling it for up to REAP_WAIT seconds.
+    """Whether ``pid`` is still alive after polling it for the kit's budget() of REAP_WAIT.
 
     CS-1318: a process the bound signalled can still be running to its exit, or
     be a zombie, when the hook has already returned on a loaded box. A single
     look reads that as a survivor; a bounded poll waits for the death instead.
     """
-    deadline = time.monotonic() + REAP_WAIT
+    deadline = time.monotonic() + conftest.fleet_test_guard.budget(REAP_WAIT)
     while process_alive(pid):
         if time.monotonic() >= deadline:
             return True
@@ -1096,7 +1099,7 @@ def sleeper_env() -> dict[str, str]:
 
 def wait_for_file(path: Path) -> bool:
     """Whether ``path`` holds content before the generous setup bound expires."""
-    deadline = time.monotonic() + GIT_TIMEOUT
+    deadline = time.monotonic() + conftest.fleet_test_guard.budget(GIT_TIMEOUT)
     while time.monotonic() < deadline:
         if path.is_file() and path.stat().st_size:
             return True
@@ -1427,6 +1430,7 @@ def test_call_log_refuses_a_malformed_line() -> None:
         parse_calls("done honest -c 1.0 0\n")
 
 
+@pytest.mark.usefixtures("idle_box")
 def test_the_outer_ceiling_carries_the_seed_commits_measured_time() -> None:
     """A2: the kill ceiling grows by what an accepted commit measured on this box."""
     box = Sandbox(Path(), Path(), Path(), {}, PRE_COMMIT, seed_elapsed=7.5)

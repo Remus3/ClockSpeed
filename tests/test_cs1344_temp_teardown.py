@@ -38,7 +38,7 @@ from typing import Final
 
 import pytest
 
-from tests import own_temp_root
+from tests import conftest, own_temp_root
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 CALL_TIMEOUT: Final = 300
@@ -252,7 +252,7 @@ def test_a_failing_runs_teardown_never_touches_another_runs_directory(tmp_path: 
 
 def _wait_started(inner: Inner, proc: subprocess.Popen[bytes]) -> bool:
     """Whether the hanging inner test signalled it is inside its tmp_path."""
-    deadline = time.monotonic() + START_TIMEOUT
+    deadline = time.monotonic() + conftest.fleet_test_guard.budget(START_TIMEOUT)
     started = inner.directory / STARTED_NAME
     while time.monotonic() < deadline:
         if started.is_file():

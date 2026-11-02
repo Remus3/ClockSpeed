@@ -101,6 +101,7 @@ def test_kit_v25_should_yield_ends_the_night_between_cycles_and_kills_nothing(
     summary = queue_loop.run_loop(
         **loop_seams(
             clock,
+            cycle_log=tmp_path / "cycles.jsonl",
             max_cycles=3,
             launch=launch,
             kill=killed.append,
@@ -161,6 +162,7 @@ def test_kit_v25_an_admission_refusal_is_retried_like_lanes_full(tmp_path: Path)
     summary = queue_loop.run_loop(
         **loop_seams(
             clock,
+            cycle_log=tmp_path / "cycles.jsonl",
             max_cycles=1,
             acquire=acquire,
             acquire_retries=3,

@@ -23,7 +23,7 @@ never ends times out under ANY finite deadline, and a diagnosis prints the
 limit it was handed rather than the time it waited, so neither can pin a
 deadline. Section e swaps ``test_panel_seam``'s ``time``, ``threading`` and
 ``subprocess`` names for scripted ones and reads what ``run_node`` hands each
-blocking wait: the start wait must end at exactly ``started +
+blocking wait: at load factor 1 the start wait must end at exactly ``started +
 NODE_START_TIMEOUT_SECONDS``, the run wait at exactly ``marker + run_timeout``.
 Section d hands all seven sites a recording ``run_node`` and reads the run
 limit each one passes.
@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 
+from tests import conftest
 from tests.surface import (
     panel_harness,
     test_panel_global_scope,
@@ -205,6 +206,7 @@ def diagnosis(
     Returns:
         The ``pytest.fail`` message the site raised.
     """
+    idle_load(monkeypatch)
     monkeypatch.setattr(module, "NODE_TIMEOUT_SECONDS", MODEST_RUN_LIMIT)
     plant_endless_run(tmp_path, monkeypatch)
     with pytest.raises(pytest.fail.Exception) as caught:
@@ -326,10 +328,25 @@ def test_the_global_scope_census_harness_fails_with_a_diagnosis(
 # ---------------------------------------------------------------------------
 
 
+def idle_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer the kit's load factor as 1, for an arm that reads the limit it planted.
+
+    CS-1366: ``run_node`` hands its waits the kit's ``budget()`` of a limit, which
+    reads the LIVE slot holders, so another tree's suite would widen a limit these
+    arms pin exactly.
+    """
+
+    def load_factor(_gate: object = None) -> int:
+        return 1
+
+    monkeypatch.setattr(conftest.fleet_test_guard, "load_factor", load_factor)
+
+
 def test_a_node_that_never_reaches_the_driver_says_the_marker_never_came(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Node spins forever ahead of the marker, so the start budget always fires."""
+    idle_load(monkeypatch)
     monkeypatch.setattr(test_panel_seam, "NODE_START_TIMEOUT_SECONDS", MODEST_START_BUDGET)
     plant_endless_start(tmp_path, monkeypatch)
     with pytest.raises(pytest.fail.Exception) as caught:
@@ -350,6 +367,7 @@ def test_a_driver_that_hangs_after_the_marker_is_read_as_a_hang(
 ) -> None:
     planted = tmp_path / "panel_spins.js"
     planted.write_bytes(b"for (;;) {}\n")
+    idle_load(monkeypatch)
     monkeypatch.setattr(test_panel_solve, "NODE_TIMEOUT_SECONDS", MODEST_RUN_LIMIT)
     with pytest.raises(pytest.fail.Exception) as caught:
         test_panel_solve.drive(
@@ -405,6 +423,7 @@ def test_node_start_up_is_never_charged_to_the_run_limit(
     driver overruns the limit after the marker - is accepted only when the
     diagnosis shows the driver really ran the whole limit.
     """
+    idle_load(monkeypatch)
     plant_slow_start(tmp_path, monkeypatch, SLOW_START_MS)
     startup, ran, ending = startup_reading(quick_driver(tmp_path, LINGER_MS), QUICK_RUN_LIMIT)
     assert ending == CLEAN_RUN or (
@@ -684,6 +703,7 @@ def test_both_deadlines_are_exact_on_a_scripted_clock(
     after the MARKER - not after the spawn, not after the wake-up, and not one
     second more.
     """
+    idle_load(monkeypatch)
     scripted = install_scripted_run(monkeypatch)
     run = test_panel_seam.run_node(
         "node", tmp_path / "scripted.cjs", label="the scripted driver", run_timeout=RUN_LIMIT

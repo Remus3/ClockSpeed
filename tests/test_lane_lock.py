@@ -53,6 +53,7 @@ from typing import Any, Final
 
 import pytest
 
+from tests import conftest
 from tests.git_env import scrubbed_env
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
@@ -1136,16 +1137,17 @@ def _git_read(root: Path, *args: str) -> bytes:
     be a green built on no evidence. git's stderr is NEVER echoed: it names the
     repository path, which can carry a home directory.
     """
+    limit = conftest.fleet_test_guard.budget(GIT_TIMEOUT)
     try:
         proc = subprocess.run(
             ["git", "--no-replace-objects", "-C", str(root), *args],
             capture_output=True,
-            timeout=GIT_TIMEOUT,
+            timeout=limit,
             check=False,
             env=_git_child_env(),
         )
     except subprocess.TimeoutExpired:
-        pytest.fail(f"git {args[0]} timed out after {GIT_TIMEOUT}s - {UNREADABLE}")
+        pytest.fail(f"git {args[0]} timed out after {limit}s - {UNREADABLE}")
     except FileNotFoundError:
         pytest.fail(f"git is not installed, so git {args[0]} could not run - {UNREADABLE}")
     if proc.returncode != 0:
@@ -1232,7 +1234,8 @@ def _history_digests(root: Path) -> tuple[set[str], int]:
             expired.set()
             proc.kill()
 
-        watchdog = threading.Timer(HISTORY_STREAM_TIMEOUT, _expire)
+        stream_limit = conftest.fleet_test_guard.budget(HISTORY_STREAM_TIMEOUT)
+        watchdog = threading.Timer(stream_limit, _expire)
         watchdog.start()
         try:
             stream = proc.stdout
@@ -1251,13 +1254,14 @@ def _history_digests(root: Path) -> tuple[set[str], int]:
             if proc.stdout is not None:
                 proc.stdout.close()
             try:
-                returncode = proc.wait(timeout=GIT_TIMEOUT)
+                exit_limit = conftest.fleet_test_guard.budget(GIT_TIMEOUT)
+                returncode = proc.wait(timeout=exit_limit)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=GIT_TIMEOUT)
-                pytest.fail(f"git cat-file did not exit within {GIT_TIMEOUT}s - {UNREADABLE}")
+                pytest.fail(f"git cat-file did not exit within {exit_limit}s - {UNREADABLE}")
     if expired.is_set():
-        pytest.fail(f"git cat-file ran past {HISTORY_STREAM_TIMEOUT}s - {UNREADABLE}")
+        pytest.fail(f"git cat-file ran past {stream_limit}s - {UNREADABLE}")
     if returncode != 0:
         pytest.fail(f"git cat-file exited {returncode} - {UNREADABLE}")
     if hashed == 0:

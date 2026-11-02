@@ -53,6 +53,7 @@ from ops.loop import queue_loop, ration
 # CS-1104 - the live-channel audit, AUTOUSE by import: any test here that lists or
 # opens `moon_sync_inbox/` or its seen store fails at teardown. One owner of the
 # hook, in tests/test_queue_loop.py; tests/ops has no conftest to share it through.
+from tests import conftest
 from tests.test_queue_loop import channel_audit  # noqa: F401
 
 #: The signal files the two process arms exchange through ``tmp_path``. Declared
@@ -69,8 +70,11 @@ BLOCKING_PROTOCOL = (SIGNAL_ACQUIRED, SIGNAL_GO, SIGNAL_RELEASED)
 
 #: Bounds, so a wedged probe is a failure rather than a hang. Neither is a
 #: budget for anything: the arms finish in well under a second when they pass.
+#: CS-1366: each is read through the kit's budget() where its expiry fails an arm.
 _CHILD_START_TIMEOUT_S = 60.0
 _CHILD_EXIT_TIMEOUT_S = 60.0
+#: How long the holding child waits on each word from the parent before it quits.
+_CHILD_WAIT_S = 120.0
 _POLL_S = 0.02
 
 #: How many times the blocking arm's parent may go round its wait before the
@@ -111,7 +115,7 @@ import sys
 import time
 from pathlib import Path
 
-repo_root, root, acquired, go, released, done = sys.argv[1:7]
+repo_root, root, acquired, go, released, done, wait_s = sys.argv[1:8]
 sys.path.insert(0, repo_root)
 from ops.loop import ration
 
@@ -119,7 +123,7 @@ claim = ration.try_acquire(holder="probe-child", run_id="child", root=root)
 if not claim["ok"]:
     sys.exit(11)
 Path(acquired).write_text(str(os.getpid()), encoding="utf-8")
-deadline = time.monotonic() + 120.0
+deadline = time.monotonic() + float(wait_s)
 while not Path(go).exists():
     if time.monotonic() > deadline:
         sys.exit(12)
@@ -137,7 +141,7 @@ ration.release(claim["token"], root=root)
 # parent in by dying - and an arm that cannot tell a release from a death
 # is green for a child that never released at all. Held open here, the only
 # door into the slot is the release above.
-deadline = time.monotonic() + 120.0
+deadline = time.monotonic() + float(wait_s)
 while not Path(done).exists():
     if time.monotonic() > deadline:
         sys.exit(13)
@@ -194,7 +198,7 @@ def _await_file(path: Path, proc: subprocess.Popen) -> None:
     goes on to parse what it reads. Waiting for a byte closes that window at the
     reader rather than asking every writer to be atomic.
     """
-    deadline = time.monotonic() + _CHILD_START_TIMEOUT_S
+    deadline = time.monotonic() + conftest.fleet_test_guard.budget(_CHILD_START_TIMEOUT_S)
     while not (path.exists() and path.stat().st_size > 0):
         code = proc.poll()
         if code is not None:
@@ -227,6 +231,7 @@ def test_a_waiting_process_enters_the_ration_only_after_the_holder_releases(
             str(go),
             str(released),
             str(done),
+            str(conftest.fleet_test_guard.budget(_CHILD_WAIT_S)),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -301,7 +306,7 @@ def test_a_waiting_process_enters_the_ration_only_after_the_holder_releases(
             f"the ration was still {after} after the block exited, so the next "
             "lane would wait on a slot nobody holds"
         )
-        assert proc.wait(timeout=_CHILD_EXIT_TIMEOUT_S) == 0, (
+        assert proc.wait(timeout=conftest.fleet_test_guard.budget(_CHILD_EXIT_TIMEOUT_S)) == 0, (
             "the child did not exit cleanly, so its half of the protocol is not "
             "evidence about anything"
         )

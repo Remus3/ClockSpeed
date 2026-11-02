@@ -39,6 +39,8 @@ from pathlib import Path
 
 import pytest
 
+from tests import conftest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOL = REPO_ROOT / "tools" / "edit_lint_check.py"
 
@@ -756,7 +758,7 @@ def test_an_explicit_path_never_reads_stdin_at_all(tmp_path: Path) -> None:
         env=base_env(tmp_path),
     )
     try:
-        code = proc.wait(timeout=TIMEOUT)
+        code = proc.wait(timeout=conftest.fleet_test_guard.budget(TIMEOUT))
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait(timeout=30)

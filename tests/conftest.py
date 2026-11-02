@@ -180,16 +180,17 @@ def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None
     directory or data file, named by error field and never the object, which carries the
     path. A non-zero exit is returned for the caller to judge. tests/test_conftest_run_git.py.
     """
+    limit = fleet_test_guard.budget(RUN_GIT_TIMEOUT_SECONDS)  # CS-1366
     proc: subprocess.CompletedProcess[bytes] | None = None
     try:
         proc = subprocess.run(
             [*RUN_GIT_PROGRAM, "-C", str(root), *args],
             capture_output=True,
-            timeout=RUN_GIT_TIMEOUT_SECONDS,
+            timeout=limit,
             check=False,
         )
     except subprocess.TimeoutExpired:  # failed BELOW the handler, so the red chains nothing
-        fault = f"TIMED OUT after {RUN_GIT_TIMEOUT_SECONDS}s"
+        fault = f"TIMED OUT after {limit}s"
     except OSError as error:  # CS-1120 - not found AND unresolvable is the only "no git"
         if isinstance(error, FileNotFoundError) and shutil.which(RUN_GIT_PROGRAM[0]) is None:
             return None

@@ -36,6 +36,7 @@ from clockspeed.advisor.ledger import (
     default_store_dir,
     world_key,
 )
+from tests import conftest
 
 # Invented, synthetic, and shaped like the real thing (BOOTSTRAP.md section 2.4).
 TOKEN_A = "AAAAsyntheticTokenAAAA"  # noqa: S105 - a synthetic world token, not a secret
@@ -508,11 +509,11 @@ def test_two_instances_interleaving_keep_both_cards(
 
     a = threading.Thread(target=write, args=("card-a",))
     a.start()
-    assert a_inside.wait(5)
+    assert a_inside.wait(conftest.fleet_test_guard.budget(5))
     b = threading.Thread(target=write, args=("card-b",))
     b.start()
-    a.join(10)
-    b.join(10)
+    a.join(conftest.fleet_test_guard.budget(10))
+    b.join(conftest.fleet_test_guard.budget(10))
     assert errors == []
     reread = Ledger(tmp_path)
     assert reread.state(TOKEN_A, "card-a", now=0) == CardState.accepted()
@@ -536,7 +537,7 @@ def test_threaded_writers_lose_nothing_silently(tmp_path: Path) -> None:
     for t in threads:
         t.start()
     for t in threads:
-        t.join(30)
+        t.join(conftest.fleet_test_guard.budget(30))
     assert other == []
     reread = Ledger(tmp_path)
     persisted = {c for c in attempted if reread.state(TOKEN_A, c, now=0) == CardState.pinned()}

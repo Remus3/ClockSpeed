@@ -95,7 +95,7 @@ from clockspeed.data import locate
 from clockspeed.save import workdir
 from clockspeed.surface import config, providers, server
 from clockspeed.surface.api import contract, routes
-from tests import chained_cause_guard
+from tests import chained_cause_guard, conftest
 from tests.advisor import test_world_advice as world_fixtures
 from tests.surface import test_map as map_fixtures
 
@@ -602,10 +602,11 @@ def raw_over_tls(port: int, cert: Path, payload: bytes) -> bytes:
     """
     context = client_context(cert)
     chunks: list[bytes] = []
-    deadline = time.monotonic() + CLIENT_TIMEOUT
+    limit = conftest.fleet_test_guard.budget(CLIENT_TIMEOUT)
+    deadline = time.monotonic() + limit
     try:
         with (
-            socket.create_connection((config.LOOPBACK, port), timeout=CLIENT_TIMEOUT) as raw,
+            socket.create_connection((config.LOOPBACK, port), timeout=limit) as raw,
             context.wrap_socket(raw, server_hostname=config.LOOPBACK) as tls,
         ):
             tls.sendall(payload)
@@ -838,7 +839,7 @@ def test_the_sigint_handler_calls_shutdown_off_the_calling_thread() -> None:
     handler: Callable[[int, object], None] = server.shutdown_on_signal(Recorder())  # type: ignore[arg-type,assignment]
     caller = threading.current_thread().name
     handler(2, None)
-    deadline = time.monotonic() + SETTLE_TIMEOUT
+    deadline = time.monotonic() + conftest.fleet_test_guard.budget(SETTLE_TIMEOUT)
     while not recorded and time.monotonic() < deadline:
         time.sleep(0.01)
     calls = len(recorded)

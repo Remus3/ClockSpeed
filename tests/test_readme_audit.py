@@ -1272,7 +1272,8 @@ print(json.dumps(rows))
 def test_the_checkout_path_pattern_cannot_backtrack_catastrophically(kind: str) -> None:
     """Fix round 4: a 40-unit separator run and a tail that completes nothing search fast.
 
-    Each line is searched in a child process killed after ``_BACKTRACK_TIMEOUT_S``, so a
+    Each line is searched in a child killed after the kit's budget() of
+    ``_BACKTRACK_TIMEOUT_S``, so a
     pattern that backtracks exponentially fails this arm rather than hanging the suite.
     """
     lines = [f"{prefix}{_BACKTRACK_RUNS[kind]}x" for prefix in _BACKTRACK_PREFIXES]
@@ -1294,7 +1295,7 @@ def test_the_sidecar_path_pattern_cannot_backtrack_catastrophically(kind: str) -
 
 
 def _assert_searches_miss_fast(kind: str, pattern: re.Pattern[str], lines: list[str]) -> None:
-    """Search each line in a child killed after ``_BACKTRACK_TIMEOUT_S``.
+    """Search each line in a child killed after the budget() of ``_BACKTRACK_TIMEOUT_S``.
 
     None may match, and none may take the kit's ``budget()`` of ``_BACKTRACK_BUDGET_S``
     or longer, which is that value on an idle box and wider while other suites share it.
@@ -1304,6 +1305,7 @@ def _assert_searches_miss_fast(kind: str, pattern: re.Pattern[str], lines: list[
         "flags": int(pattern.flags),
         "lines": lines,
     }
+    limit = conftest.fleet_test_guard.budget(_BACKTRACK_TIMEOUT_S)
     try:
         done = subprocess.run(
             [sys.executable, "-I", "-c", _TIMING_CHILD],
@@ -1311,10 +1313,10 @@ def _assert_searches_miss_fast(kind: str, pattern: re.Pattern[str], lines: list[
             capture_output=True,
             text=True,
             check=True,
-            timeout=_BACKTRACK_TIMEOUT_S,
+            timeout=limit,
         )
     except subprocess.TimeoutExpired:
-        pytest.fail(f"{kind}: the search did not finish within {_BACKTRACK_TIMEOUT_S} s")
+        pytest.fail(f"{kind}: the search did not finish within {limit} s")
     rows = json.loads(done.stdout)
     assert not any(hit for _, hit in rows), f"{kind}: a timing line matched, so it times nothing"
     ceiling = conftest.fleet_test_guard.budget(_BACKTRACK_BUDGET_S)

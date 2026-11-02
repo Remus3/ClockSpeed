@@ -47,6 +47,7 @@ from typing import IO, TYPE_CHECKING, Any, Final
 import pytest
 
 from clockspeed.surface import config, server
+from tests import conftest
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -526,6 +527,7 @@ def _diagnosis(
     started: float,
     ended: float,
     marker_at: float | None,
+    start_limit: float,
     run_timeout: float,
     pipes: _Pipes,
 ) -> str:
@@ -533,7 +535,7 @@ def _diagnosis(
     if marker_at is None:
         fate = (
             "start marker arrived: no - node never reached the driver inside its "
-            f"{NODE_START_TIMEOUT_SECONDS:g} s start budget, so the time went to "
+            f"{start_limit:g} s start budget, so the time went to "
             "node's own start-up, not to the driver"
         )
     else:
@@ -561,9 +563,10 @@ def run_node(
     """Run one node driver in two separately budgeted phases.
 
     START runs from the spawn to the start marker a preload writes when node
-    reaches user code, against :data:`NODE_START_TIMEOUT_SECONDS`. RUN runs
-    from the marker to the exit, against ``run_timeout`` - the calling site's
-    own ``NODE_TIMEOUT_SECONDS``, which this never raises. A timeout in either
+    reaches user code, against the kit's ``budget()`` of
+    :data:`NODE_START_TIMEOUT_SECONDS`. RUN runs from the marker to the exit,
+    against that ``budget()`` of ``run_timeout`` - the calling site's own
+    ``NODE_TIMEOUT_SECONDS``, raised only by the load factor. A timeout in either
     phase fails with :func:`_diagnosis` rather than a bare ``TimeoutExpired``,
     so the next reading tells node's cold start from a driver that hung.
 
@@ -582,6 +585,8 @@ def run_node(
     Returns:
         The exit code, the output (the marker line removed) and both phases.
     """
+    start_limit = conftest.fleet_test_guard.budget(NODE_START_TIMEOUT_SECONDS)
+    run_limit = conftest.fleet_test_guard.budget(run_timeout)
     marker = script.parent / _START_MARKER_NAME
     marker.write_bytes(_START_MARKER_SOURCE.encode("ascii"))
     started = time.monotonic()
@@ -595,7 +600,7 @@ def run_node(
     )
     pipes = _Pipes(process)
     try:
-        if not pipes.settled.wait(NODE_START_TIMEOUT_SECONDS):
+        if not pipes.settled.wait(start_limit):
             ended = time.monotonic()
             _reap(process, pipes)
             pytest.fail(
@@ -605,14 +610,15 @@ def run_node(
                     started=started,
                     ended=ended,
                     marker_at=None,
-                    run_timeout=run_timeout,
+                    start_limit=start_limit,
+                    run_timeout=run_limit,
                     pipes=pipes,
                 )
             )
         marker_at = pipes.marker_at
         run_from = time.monotonic() if marker_at is None else marker_at
         try:
-            process.wait(timeout=max(0.0, run_from + run_timeout - time.monotonic()))
+            process.wait(timeout=max(0.0, run_from + run_limit - time.monotonic()))
         except subprocess.TimeoutExpired:
             ended = time.monotonic()
             _reap(process, pipes)
@@ -623,7 +629,8 @@ def run_node(
                     started=started,
                     ended=ended,
                     marker_at=marker_at,
-                    run_timeout=run_timeout,
+                    start_limit=start_limit,
+                    run_timeout=run_limit,
                     pipes=pipes,
                 )
             )

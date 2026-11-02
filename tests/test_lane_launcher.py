@@ -43,6 +43,8 @@ from typing import Any, Final
 
 import pytest
 
+from tests import conftest
+
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -1062,8 +1064,8 @@ _POLL_S: Final = 0.05
 
 
 def _gone(pid: int) -> bool:
-    """True once ``pid`` reads dead, polled up to the stub deadline."""
-    deadline = time.monotonic() + _STUB_DEADLINE_S
+    """True once ``pid`` reads dead, polled up to the budget() of the stub deadline."""
+    deadline = time.monotonic() + conftest.fleet_test_guard.budget(_STUB_DEADLINE_S)
     while lanes.pid_alive(pid):
         if time.monotonic() > deadline:
             return False
