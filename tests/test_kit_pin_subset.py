@@ -1,8 +1,8 @@
 """CS-1367 - the kit-adoption pin subset stops on a pin red without the whole suite.
 
-The first three arms hold the list and the stop against a REAL nested pytest over a
+Two arms, the pin red and the green run, hold the stop against a REAL nested pytest over a
 fixture tree in tmp_path, so nothing tracked is mutated and a kill mid-arm leaves nothing
-behind. The rest use the injected runner, so they cost no child at all.
+behind. The rest read the list or use the injected runner, so they cost no child at all.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 
 def _load_tool() -> Any:
@@ -55,6 +57,28 @@ def _fixture(tmp_path: Path, first: str) -> tuple[str, str]:
 
 def test_the_pin_file_list_is_pinned() -> None:
     assert kit_pin_subset.PIN_FILES == EXPECTED_FILES
+
+
+def test_the_default_run_executes_every_pinned_file_with_no_pytest_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The constant above says nothing about what a bare run spawns. Names only are kept:
+    # the environment carries credentials, so no value reaches an assertion's rendering.
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-q")
+    monkeypatch.setenv("CS1367_PLANTED", "1")
+    seen_argv: list[str] = []
+    env_names: list[str] = []
+
+    def spy(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        seen_argv.extend(argv)
+        env_names.extend(kwargs["env"])
+        return subprocess.CompletedProcess(argv, 0)
+
+    code = kit_pin_subset.run_subset(runner=spy)
+    absent = [rel for rel in EXPECTED_FILES if rel not in seen_argv]
+    pytest_names = [name for name in env_names if name.startswith("PYTEST_")]
+    assert (code, absent, pytest_names) == (0, [], [])
+    assert "CS1367_PLANTED" in env_names
 
 
 def test_every_pinned_file_exists_in_this_tree() -> None:

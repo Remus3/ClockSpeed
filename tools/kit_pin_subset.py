@@ -9,8 +9,8 @@ suite ever starting. Run it AFTER ``tools/repin_kit.py`` and BEFORE the whole su
 
 WHAT IS LEFT OUT, MEASURED. The v27 adoption also went red in ``tests/test_mypy_gate.py``.
 That file was measured beside the list on 2026-11-01, serial on this machine: the four
-listed files 43 s, the mypy gate file alone 58 s, so about 101 s together. That is not
-"about a minute", so it stays out and the whole suite is what catches a mypy-gate red.
+listed files 43 to 59 s, the mypy gate file alone 58 s, so 101 to 117 s together. That is
+not "about a minute", so it stays out and the whole suite is what catches a mypy-gate red.
 
 BOUNDS. The child carries a timeout, and a timeout is a named nonzero exit rather than a
 traceback. A listed file that does not exist refuses before any spawn: a pytest handed no
@@ -37,7 +37,7 @@ PIN_FILES: Final = (
     "tests/test_exception_rendering.py",
     "tests/test_subprocess_timeouts.py",
 )
-# Measured at 43 s; the bound is a hung-child bound, well clear of a slow machine.
+# Measured at 43 to 59 s; the bound is a hung-child bound, well clear of a slow machine.
 PIN_TIMEOUT_S: Final = 300
 EXIT_REFUSED: Final = 3
 EXIT_TIMEOUT: Final = 4

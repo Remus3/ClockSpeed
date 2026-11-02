@@ -27,12 +27,22 @@ when:
   reason, and a vanished one needs a human to retire its reason;
 - a row does not sit on a measured site of the previous bytes, or those bytes are absent;
 - the rows' functions differ from the sites' functions;
+- a moved site's context differs from its old context: the qualified enclosing name and the
+  source of the nearest ``except`` type, since a reason about one handler or one class's
+  method says nothing about another's, whose source line can read identically;
 - a moved site's source line differs from its old text: its reason was MEASURED on the old
   text, and the same line is what a human checked when re-pointing by hand;
 - a kit file does not hash to the manifest, or the manifest names a file no constant pins,
   or names one a constant no longer has a file for.
 
-A refusal writes nothing. Everything is planned before the first write.
+A refusal writes nothing. Everything is planned before the first write, and each write
+applies to the bytes that plan parsed, never a second read.
+
+TWO NAMED LIMITS. Unmoved rows: a key whose rows' lines already equal its sites' lines is
+not placed, so the function, context and text checks never run on it, and a same-line text
+change repins silently as a no-op. The graders key on the same literals and tolerate it too.
+Indistinguishable sites: two sites of one key agreeing on function, context and text pair in
+line order, so a swap of the two is not seen.
 
 THE WITNESS. ``MANIFEST_SHA256`` is an independent witness only because a human copied it
 from MAIN's note. A tool that derives it from the bytes on disk turns the pin into a
@@ -42,9 +52,10 @@ pinned digest refuses without that flag. ``--check`` needs no flag: it writes no
 
 THE SCANNERS ARE THE TESTS' OWN. ``scan_source`` is imported from the two test modules that
 grade these tables, so the tool cannot measure a different population from its grader. They
-always come from this checkout, never ``--root``, and pytest must be importable. Neither
-``Rendering`` nor ``CallSite`` needs changing; the enclosing function of a render site is
-derived here because ``Rendering`` does not record one.
+always come from this checkout, never ``--root``, and a pytest that cannot be imported is a
+one-line refusal. Neither ``Rendering`` nor ``CallSite`` needs changing; the enclosing
+function of a render site and every site's context are derived here because neither records
+them.
 
 Prints file names and counts only. Exit codes: 0 clean or rewritten, 1 ``--check`` found a
 stale pin, 2 refused.
@@ -61,10 +72,10 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 # `tools` carries no __init__.py, so the sibling is imported under its bare name; the root
@@ -85,6 +96,8 @@ PINS_REL: Final = "tests/test_fleet_kit.py"
 KIT_REL: Final = "ops/fleet_kit"
 MANIFEST_NAME: Final = "MANIFEST.json"
 MODULE_SCOPE: Final = "<module>"
+NO_HANDLER: Final = "<no handler>"
+BARE_HANDLER: Final = "<bare except>"
 COMMON_CONSTANT: Final = "COMMON_SHA256"
 
 EXIT_OK: Final = 0
@@ -133,12 +146,25 @@ class Row:
 
 @dataclass(frozen=True)
 class Site:
-    """One measured site: its key beside the file, enclosing function, line and text."""
+    """One measured site: its key beside the file, enclosing function, line, text, context.
+
+    ``context`` is the qualified enclosing name and the nearest ``except`` type's source,
+    which ``function`` (a bare name, as the subprocess scanner scopes it) cannot tell apart.
+    """
 
     group: tuple[str, ...]
     function: str
     line: int
     text: str
+    context: str
+
+
+@dataclass(frozen=True)
+class FilePlan:
+    """The bytes one file was parsed from, and the splices whose offsets index them."""
+
+    raw: bytes
+    splices: list[Splice]
 
 
 def _parse(raw: bytes, rel: str) -> ast.Module:
@@ -225,13 +251,60 @@ def _enclosing(tree: ast.Module, line: int) -> str:
     return best
 
 
+def _scopes(node: ast.AST, prefix: str) -> Iterator[tuple[str, ast.stmt]]:
+    """Every class and function beneath ``node``, with its dotted qualified name."""
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            yield prefix + child.name, child
+            yield from _scopes(child, prefix + child.name + ".")
+        else:
+            yield from _scopes(child, prefix)
+
+
+def _holds(node: ast.stmt | ast.ExceptHandler, line: int) -> bool:
+    end = node.end_lineno if node.end_lineno is not None else node.lineno
+    return node.lineno <= line <= end
+
+
+def _context(tree: ast.Module, raw: bytes, line: int) -> str:
+    """The qualified scope holding ``line``, and the source of the nearest handler's type."""
+    scope = MODULE_SCOPE
+    scope_line = -1
+    for name, node in _scopes(tree, ""):
+        if _holds(node, line) and node.lineno > scope_line:
+            scope, scope_line = name, node.lineno
+    handler = NO_HANDLER
+    handler_line = -1
+    starts = _line_starts(raw)
+    for candidate in ast.walk(tree):
+        if not isinstance(candidate, ast.ExceptHandler) or not _holds(candidate, line):
+            continue
+        if candidate.lineno > handler_line:
+            handler_line = candidate.lineno
+            handler = BARE_HANDLER
+            if candidate.type is not None:
+                start, end = _span(candidate.type, starts)
+                handler = raw[start:end].decode("utf-8", "replace")
+    return scope + " | " + handler
+
+
 def _source_line(raw: bytes, line: int) -> str:
     return raw.split(b"\n")[line - 1].strip().decode("utf-8", "replace")
 
 
+def _scanner(module: str) -> Any:
+    """A grader module, or a refusal: an import traceback would carry this machine's paths."""
+    try:
+        return importlib.import_module(module)
+    except ImportError:
+        raise RepinRefusedError(
+            module + ": cannot be imported; pytest must be installed to measure sites"
+        ) from None
+
+
 def _render_sites(rel: str, raw: bytes) -> list[Site]:
     """Every caught-exception render in one file, by the grader's own scanner."""
-    scanner = importlib.import_module("tests.test_exception_rendering")
+    scanner = _scanner("tests.test_exception_rendering")
     tree = _parse(raw, rel)
     found = scanner.scan_source(rel, raw.decode("utf-8")).found
     return [
@@ -240,6 +313,7 @@ def _render_sites(rel: str, raw: bytes) -> list[Site]:
             _enclosing(tree, item.lineno),
             item.lineno,
             _source_line(raw, item.lineno),
+            _context(tree, raw, item.lineno),
         )
         for item in found
     ]
@@ -247,14 +321,15 @@ def _render_sites(rel: str, raw: bytes) -> list[Site]:
 
 def _exempt_sites(rel: str, raw: bytes) -> list[Site]:
     """Every unbounded subprocess call in one file, by the grader's own scanner."""
-    scanner = importlib.import_module("tests.test_subprocess_timeouts")
-    _parse(raw, rel)
+    scanner = _scanner("tests.test_subprocess_timeouts")
+    tree = _parse(raw, rel)
     return [
         Site(
             (item.function, item.callee),
             item.function,
             item.lineno,
             _source_line(raw, item.lineno),
+            _context(tree, raw, item.lineno),
         )
         for item in scanner.scan_source(rel, raw.decode("utf-8"))
         if not item.bounded
@@ -288,6 +363,8 @@ def _place_moved(
     placed = sorted(sites, key=_function_then_line)
     if [pair[1].function for pair in pairs] != [site.function for site in placed]:
         raise RepinRefusedError(key + ": the rows' enclosing functions differ from the sites'")
+    if [pair[1].context for pair in pairs] != [site.context for site in placed]:
+        raise RepinRefusedError(key + ": a site's scope or handler changed; a human re-measures it")
     if [pair[1].text for pair in pairs] != [site.text for site in placed]:
         raise RepinRefusedError(key + ": a site's source line changed; a human re-measures it")
     return [(pair[0], site.line) for pair, site in zip(pairs, placed, strict=True)]
@@ -327,7 +404,7 @@ def _table_splices(
     table: tuple[str, int],
     measure: Measure,
     previous: Previous,
-) -> list[Splice]:
+) -> FilePlan:
     """The line-literal splices for one table, over every kit python file."""
     raw = (root / table_rel).read_bytes()
     rows = _table_rows(raw, table_rel, table[0], table[1])
@@ -340,7 +417,7 @@ def _table_splices(
         for row, line in _repoint_file(rel, file_rows, sites, measure, previous):
             if row.line != line:
                 splices.append(_line_splice(raw, row, line, table_rel))
-    return splices
+    return FilePlan(raw, splices)
 
 
 def _line_splice(raw: bytes, row: Row, line: int, table_rel: str) -> Splice:
@@ -437,7 +514,7 @@ def _check_kit_bytes(
         )
 
 
-def _pin_splices(root: Path, expect: str | None, need_witness: bool) -> list[Splice]:
+def _pin_splices(root: Path, expect: str | None, need_witness: bool) -> FilePlan:
     """The version and digest splices of the pin module, checked against the manifest."""
     manifest_raw, version, files, common = _load_manifest(root)
     digest = _sha(manifest_raw)
@@ -465,12 +542,12 @@ def _pin_splices(root: Path, expect: str | None, need_witness: bool) -> list[Spl
     ]
     for name, (constant, node) in sorted(named.items()):
         splices.extend(_literal_splice(raw, node, files[name], PINS_REL, constant))
-    return splices
+    return FilePlan(raw, splices)
 
 
 def plan(
     root: Path, *, expect: str | None, need_witness: bool, previous: Previous
-) -> dict[str, list[Splice]]:
+) -> dict[str, FilePlan]:
     """Every splice this tree needs, per file, or a refusal. Writes nothing."""
     planned = {
         RENDER_REL: _table_splices(
@@ -481,7 +558,7 @@ def plan(
         ),
         PINS_REL: _pin_splices(root, expect, need_witness),
     }
-    return {rel: splices for rel, splices in planned.items() if splices}
+    return {rel: file_plan for rel, file_plan in planned.items() if file_plan.splices}
 
 
 def _apply(raw: bytes, splices: Iterable[Splice]) -> bytes:
@@ -491,20 +568,23 @@ def _apply(raw: bytes, splices: Iterable[Splice]) -> bytes:
     return raw
 
 
-def _write_atomic(path: Path, data: bytes) -> None:
+def write_atomic(path: Path, data: bytes) -> None:
     """Write bytes through a sibling temp and a rename, retrying a Windows share refusal."""
     temp = path.with_name(path.name + ".repin-tmp")
-    temp.write_bytes(data)
-    for attempt in range(REPLACE_ATTEMPTS):
-        try:
-            temp.replace(path)
-        except PermissionError:
-            if attempt == REPLACE_ATTEMPTS - 1:
-                temp.unlink(missing_ok=True)
-                raise
-            time.sleep(REPLACE_BACKOFF_S)
-        else:
-            return
+    try:
+        temp.write_bytes(data)
+        for attempt in range(REPLACE_ATTEMPTS):
+            try:
+                temp.replace(path)
+            except PermissionError:
+                if attempt == REPLACE_ATTEMPTS - 1:
+                    raise
+                time.sleep(REPLACE_BACKOFF_S)
+            else:
+                return
+    except OSError:
+        temp.unlink(missing_ok=True)
+        raise
 
 
 def git_previous(root: Path, rev: str) -> Previous:
@@ -552,12 +632,12 @@ def main(argv: Sequence[str] | None = None, *, previous: Previous | None = None)
             need_witness=not args.check and args.expect_manifest_sha is None,
             previous=reader,
         )
-        for rel, splices in planned.items():
-            count = str(len(splices))
+        for rel, file_plan in planned.items():
+            count = str(len(file_plan.splices))
             if args.check:
                 print("repin_kit: " + rel + ": " + count + " pin(s) stale")
                 continue
-            _write_atomic(root / rel, _apply((root / rel).read_bytes(), splices))
+            write_atomic(root / rel, _apply(file_plan.raw, file_plan.splices))
             print("repin_kit: " + rel + ": " + count + " pin(s) rewritten")
     except RepinRefusedError as refused:
         print("repin_kit: REFUSED: " + refused.problem, file=sys.stderr)

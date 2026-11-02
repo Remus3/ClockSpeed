@@ -14,6 +14,7 @@ import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -39,6 +40,8 @@ PINS_REL = "tests/test_fleet_kit.py"
 ALPHA_REL = "ops/fleet_kit/fleet_alpha.py"
 TEXT_REL = "ops/fleet_kit/notes.txt"
 PAD = "PADDING = 0\n"
+OFF_SITE = "a row is not on a site of the previous bytes"
+MOVED_SCOPE = "scope or handler changed"
 
 ALPHA = """\
 import subprocess
@@ -226,13 +229,16 @@ def test_check_reports_a_moved_row_and_writes_nothing(tmp_path: Path) -> None:
     assert (code, _snapshot(root) == before) == (repin_kit.EXIT_STALE, True)
 
 
-def test_a_pin_row_altered_in_a_fixture_fails_and_writes_nothing(tmp_path: Path) -> None:
+def test_a_pin_row_altered_in_a_fixture_fails_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     root = _tree(tmp_path)
     previous = _previous_of(root)
     (root / RENDER_REL).write_bytes(_render_table(first=FIRST_LINE + 1).encode("ascii"))
     before = _snapshot(root)
     code = repin_kit.main(["--root", str(root), "--check"], previous=previous)
-    assert code != repin_kit.EXIT_OK
+    assert code == repin_kit.EXIT_REFUSED
+    assert OFF_SITE in capsys.readouterr().err
     assert _snapshot(root) == before
 
 
@@ -412,6 +418,213 @@ def test_no_scratch_file_survives_a_rewrite(tmp_path: Path) -> None:
     assert names == sorted(Path(rel).name for rel in (RENDER_REL, EXEMPT_REL, PINS_REL))
 
 
+LAUNCH_BLOCK = 'def launch():\n    return subprocess.run(["x"], check=False)\n'
+HEADER = "import subprocess\n\n\n"
+TWO_HANDLERS = (
+    HEADER + "def first():\n"
+    "    try:\n"
+    "        return 1\n"
+    "    except ValueError as exc:\n"
+    "        return str(exc)\n"
+    "    except KeyError as exc:\n"
+    "        return str(exc)\n\n\n" + LAUNCH_BLOCK
+)
+HANDLERS_SWAPPED = (
+    HEADER + "def first():\n"
+    "    try:\n"
+    "        return 1\n"
+    "    except KeyError as exc:\n"
+    "        return str(exc)\n"
+    "    except ValueError as exc:\n"
+    "        return str(exc)\n\n\n" + LAUNCH_BLOCK
+)
+ALPHA_RUN = (
+    "class Alpha:\n"
+    "    def run(self):\n"
+    "        try:\n"
+    "            return 1\n"
+    "        except ValueError as exc:\n"
+    "            return str(exc)\n\n\n"
+)
+BETA_RUN = ALPHA_RUN.replace("Alpha", "Beta").replace("return 1", "return 2")
+CLASSES_IN_ORDER = HEADER + ALPHA_RUN + BETA_RUN + LAUNCH_BLOCK
+CLASSES_REORDERED = HEADER + BETA_RUN + ALPHA_RUN + LAUNCH_BLOCK
+VALUE_THEN_KEY = (
+    HEADER + "def first():\n"
+    "    try:\n"
+    "        return 1\n"
+    "    except ValueError as exc:\n"
+    "        return str(exc)\n"
+    "    try:\n"
+    "        return 2\n"
+    "    except KeyError as exc:\n"
+    "        return str(exc)\n\n\n" + LAUNCH_BLOCK
+)
+KEY_THEN_OS = (
+    HEADER + "def first():\n"
+    "    try:\n"
+    "        return 2\n"
+    "    except KeyError as exc:\n"
+    "        return str(exc)\n"
+    "    try:\n"
+    "        return 3\n"
+    "    except OSError as exc:\n"
+    "        return str(exc)\n\n\n" + LAUNCH_BLOCK
+)
+
+
+def _lines_holding(source: str, needle: str) -> list[int]:
+    return [number for number, line in enumerate(source.splitlines(), start=1) if needle in line]
+
+
+def _tree_of(tmp_path: Path, source: str) -> Path:
+    """A fixture tree pinned, row by row, to the two handlers and the call of ``source``."""
+    root = _tree(tmp_path)
+    raw = source.encode("ascii")
+    (root / ALPHA_REL).write_bytes(raw)
+    manifest_sha = _reseal(root)
+    first, second = _lines_holding(source, "return str(exc)")
+    (root / RENDER_REL).write_bytes(_render_table(first, second).encode("ascii"))
+    launch = _lines_holding(source, "subprocess.run(")[0]
+    (root / EXEMPT_REL).write_bytes(_exempt_table(launch).encode("ascii"))
+    pins = _pins(manifest_sha, _sha(raw), _sha(b"notes\n"))
+    (root / PINS_REL).write_bytes(pins.encode("ascii"))
+    return root
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param(TWO_HANDLERS, HANDLERS_SWAPPED, id="A-handlers-swapped"),
+        pytest.param(CLASSES_IN_ORDER, CLASSES_REORDERED, id="B-same-named-methods-reordered"),
+        pytest.param(VALUE_THEN_KEY, KEY_THEN_OS, id="C-one-site-out-one-in-count-kept"),
+    ],
+)
+def test_a_re_point_onto_another_scope_or_handler_refuses_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], old: str, new: str
+) -> None:
+    # Same count, same shape, same source line at every site, so only the handler's
+    # exception or the qualified scope tells these rows they would land on the wrong site.
+    root = _tree_of(tmp_path, old)
+    previous = _previous_of(root)
+    new_sha = _move_kit(root, PAD + new)
+    before = _snapshot(root)
+    code = repin_kit.main(
+        ["--root", str(root), "--expect-manifest-sha", new_sha], previous=previous
+    )
+    captured = capsys.readouterr()
+    assert (code, _snapshot(root) == before) == (repin_kit.EXIT_REFUSED, True)
+    assert MOVED_SCOPE in captured.err
+    assert ALPHA_REL in captured.err
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(TWO_HANDLERS, id="A"),
+        pytest.param(CLASSES_IN_ORDER, id="B"),
+        pytest.param(VALUE_THEN_KEY, id="C"),
+    ],
+)
+def test_a_plain_move_of_each_refusal_fixture_still_re_points(tmp_path: Path, source: str) -> None:
+    # The control: each refusal above is the reorder, not the fixture.
+    root = _tree_of(tmp_path, source)
+    previous = _previous_of(root)
+    new_sha = _move_kit(root, PAD + source)
+    code = repin_kit.main(
+        ["--root", str(root), "--expect-manifest-sha", new_sha], previous=previous
+    )
+    first, second = _lines_holding(source, "return str(exc)")
+    assert code == repin_kit.EXIT_OK
+    assert _rows(root, RENDER_REL) == _render_table(first + 1, second + 1)
+
+
+def test_the_write_applies_to_the_planned_bytes_not_a_second_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Offsets belong to the bytes they were parsed from; a second read can shift them.
+    root = _tree(tmp_path)
+    previous = _previous_of(root)
+    new_sha = _move_kit(root, PAD + ALPHA)
+    real_plan = repin_kit.plan
+
+    def plan_then_edit(*args: Any, **kwargs: Any) -> Any:
+        planned = real_plan(*args, **kwargs)
+        target = root / RENDER_REL
+        target.write_bytes(b"# written after the plan\n" + target.read_bytes())
+        return planned
+
+    monkeypatch.setattr(repin_kit, "plan", plan_then_edit)
+    code = repin_kit.main(
+        ["--root", str(root), "--expect-manifest-sha", new_sha], previous=previous
+    )
+    assert code == repin_kit.EXIT_OK
+    assert _rows(root, RENDER_REL) == _render_table(FIRST_LINE + 1, SECOND_LINE + 1)
+
+
+def test_a_failed_temp_write_leaves_no_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "pin.py"
+    target.write_bytes(b"old\n")
+
+    def broken(self: Path, _data: bytes) -> int:
+        with self.open("wb") as handle:
+            handle.write(b"par")
+        raise OSError("no space")
+
+    monkeypatch.setattr(Path, "write_bytes", broken)
+    with pytest.raises(OSError, match="no space"):
+        repin_kit.write_atomic(target, b"new\n")
+    monkeypatch.undo()
+    names = sorted(path.name for path in tmp_path.iterdir())
+    assert (names, target.read_bytes()) == (["pin.py"], b"old\n")
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        pytest.param(OSError("not a share refusal"), id="other-oserror"),
+        pytest.param(PermissionError("still shared"), id="retries-exhausted"),
+    ],
+)
+def test_a_failed_rename_leaves_no_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: OSError
+) -> None:
+    target = tmp_path / "pin.py"
+    target.write_bytes(b"old\n")
+
+    def broken(_self: Path, _target: Path) -> Path:
+        raise failure
+
+    monkeypatch.setattr(Path, "replace", broken)
+    monkeypatch.setattr(repin_kit, "REPLACE_BACKOFF_S", 0)
+    with pytest.raises(OSError, match=r"refusal|shared"):
+        repin_kit.write_atomic(target, b"new\n")
+    monkeypatch.undo()
+    names = sorted(path.name for path in tmp_path.iterdir())
+    assert (names, target.read_bytes()) == (["pin.py"], b"old\n")
+
+
+def test_a_missing_pytest_is_a_one_line_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _tree(tmp_path)
+    before = _snapshot(root)
+
+    def absent(_name: str) -> Any:
+        raise ModuleNotFoundError("No module named 'pytest'", name="pytest")
+
+    monkeypatch.setattr(repin_kit, "importlib", SimpleNamespace(import_module=absent))
+    code = repin_kit.main(["--root", str(root), "--check"], previous=_unchanged)
+    captured = capsys.readouterr()
+    err_lines = captured.err.strip().splitlines()
+    assert (code, _snapshot(root) == before) == (repin_kit.EXIT_REFUSED, True)
+    assert len(err_lines) == 1
+    assert "pytest" in captured.err
+    assert str(tmp_path) not in captured.err
+
+
 def _copy_of_this_tree(tmp_path: Path) -> Path:
     root = tmp_path / "copy"
     source = repin_kit.REPO_ROOT
@@ -437,7 +650,9 @@ def test_todays_tree_is_stable_byte_for_byte_across_two_runs(tmp_path: Path) -> 
     assert (first, second, identical) == (0, 0, (True, True))
 
 
-def test_a_row_altered_in_a_copy_of_todays_tree_fails_check(tmp_path: Path) -> None:
+def test_a_row_altered_in_a_copy_of_todays_tree_fails_check(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     root = _copy_of_this_tree(tmp_path)
     frozen = _previous_of(root)
     target = root / EXEMPT_REL
@@ -447,7 +662,8 @@ def test_a_row_altered_in_a_copy_of_todays_tree_fails_check(tmp_path: Path) -> N
     index = source.index(row) + len(row)
     target.write_bytes(source[:index] + b"1" + source[index:])
     code = repin_kit.main(["--root", str(root), "--check"], previous=frozen)
-    assert code != repin_kit.EXIT_OK
+    assert code == repin_kit.EXIT_REFUSED
+    assert OFF_SITE in capsys.readouterr().err
 
 
 def test_the_live_tree_passes_check() -> None:
