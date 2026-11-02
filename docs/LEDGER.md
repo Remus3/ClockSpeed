@@ -75,6 +75,40 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-01 - CS-1351 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1351 STAYS OPEN: session 153 /done - the operator scoped the session to the inbox, no item closed, MAIN's 15:35 ORDER left in its live responder pass
+Verification: `CS-NEXT-SESSION.txt`, its next-action and 1535 ORDER blocks, and the listing from
+`python tools/inbox_watch.py`, which acknowledges nothing. No item closed, so no test names one;
+the heading names the top of the open list only because the session did not touch it.
+SCOPE. The operator's words for session 153: "just the inbox- not roadmap work at this time." No
+code changed, no note authored, no roadmap work started, closed or re-scoped, none of the ORDER's
+items closed. An unattended inbox-responder pass, started 15:41:01, was working MAIN's 2026-11-01
+15:35 ORDER while this ritual ran; this ritual did not touch it or its worktree. How it ended is
+UNREAD here and is the hand-off's second act.
+STEP 0: start 2026-11-01T18:03:12-06:00. WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD`
+exit 0 with two SHAs (not a merge); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit
+0, four paths, not the citation historical file. Porcelain empty. HEAD equal to origin/main by full
+SHA; CI for it read success, tier1 and CodeQL on its push. Notes authored this session: none, so no
+delivery owed. Highest tier touched: 0.
+STEP 1, tier 0, from the repo root: `git diff --name-only HEAD -- "*.py"` exit 0 and `git ls-files
+--others --exclude-standard -- "*.py"` exit 0, both empty - no changed Python path, so ruff had no
+target and was not run. No pytest ran at step 1.
+STEP 2: this record. STEP 3: `ROADMAP.md` and `BACKLOG.md` unchanged. DECISION: the confirmed
+digest finding (`ops/loop/inbox_responder.py::_locked_pass` records a digest on any ok exit, handled
+or not) is carried by the hand-off rather than filed, and no item id is allocated, because the live
+pass allocates ids too; alternative not taken, a BACKLOG line now, which risks the same id from two
+writers. Reversed by: the pass having ended, when the next session weighs it. STEP 4: session 153
+added to `WAKEUP_NOTES.md`; session 150 relocated verbatim to `docs/history_notes.md`.
+STEP 5, after every ritual edit: `python tools/drift_guard.py` exit 0 (guards 11, PASS 11); `python
+tools/doc_budget.py` exit 0 (measured 40, over budget 0); `python tools/memory_sync.py` exit 0 (23
+leaves, the tracked `memory/` unchanged); `python tools/sha_citation_gate.py` exit 0. TARGETED, no
+whole suite: one pytest run with -n 4 over 20 test files that read the edited records, every path read
+present first (`tests/test_citation_tables.py`, `tests/test_ledger_entry_shape.py`,
+`tests/test_dated_headings.py`, `tests/test_tier1_budget.py`, `tests/test_readme_audit.py` among them):
+exit 0, 2287 passed, 0 failed, 0 skipped; after the last hand-off edit, 4 of those files again: exit 0,
+661 passed, 0 failed, 0 skipped.
+STEP 6: the hand-off rewritten whole, `SESSION: 154`, tightened with no block relocated, so the
+S0 RULING 3 route stays unruled. No licence gate applies.
+
 ### 2026-11-01 - CS-1365 - an ORDER pass of the inbox responder gets the three-hour worker ceiling, not 1800 s
 Verification: `tests/ops/test_inbox_responder.py::test_an_order_pass_shares_the_three_hour_ceiling_of_every_other_pass`.
 `ops/loop/inbox_responder.py::ORDER_TIMEOUT_S` now equals `WORKER_TIMEOUT_S`. Budget: builder 27 min, adversary
