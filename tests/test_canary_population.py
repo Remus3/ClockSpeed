@@ -609,7 +609,12 @@ def _verdict(code: int, output: str, suites: tuple[str, ...]) -> Verdict:
 
 
 def forced_run(
-    workdir: Path, root: Path, suites: tuple[str, ...], *, force: bool = True
+    workdir: Path,
+    root: Path,
+    suites: tuple[str, ...],
+    *,
+    force: bool = True,
+    traced: tuple[str, ...] | None = None,
 ) -> Verdict:
     """Run `suites` (relative to `root`) in a child with every holding helper forced to raise.
 
@@ -637,10 +642,11 @@ def forced_run(
     That file is FROZEN, so this is declared rather than repaired here.
 
     `force` False runs the same child without the forcer, for an arm whose
-    raise is planted by the child itself.
+    raise is planted by the child itself. `traced` names the members whose frames
+    the forcer selects when that is more than the `suites` this child runs.
     """
     workdir.mkdir(parents=True, exist_ok=True)
-    real = [os.path.realpath(root / suite) for suite in suites]
+    real = [os.path.realpath(root / suite) for suite in (traced or suites)]
     real.append(os.path.realpath(OUTBOUND_PATH))
     forcer = ["-p", FORCER_NAME] if force else []
     (workdir / (FORCER_NAME + ".py")).write_text(
@@ -707,7 +713,7 @@ def population_parts(
     parts: list[list[str]] = [[] for _ in range(min(count, len(sized)))]
     loads = [0] * len(parts)
     for suite in sized:
-        lightest = loads.index(min(loads))
+        lightest = min(range(len(parts)), key=lambda index: (loads[index], len(parts[index])))
         parts[lightest].append(suite)
         loads[lightest] += (root / suite).stat().st_size
     return tuple(tuple(sorted(part)) for part in parts)
@@ -719,10 +725,13 @@ def merge_verdicts(suites: tuple[str, ...], runs: list[Verdict]) -> Verdict:
     Keyed by `suites`, not by what the children reported, so a member no child
     ran reads zero and the consumers' "no member ungraded" check goes red. The
     exit is the worst child's: pytest's 1 for a failure outranks 0 for a part
-    with nothing forced, and 2 and above - a crash - outranks both.
+    with nothing forced, and anything else - a usage error, an internal error, a
+    negative signal death on POSIX - outranks both, whatever its sign.
     """
+    codes = [run.code for run in runs]
+    crashes = [code for code in codes if code not in (0, 1)]
     return Verdict(
-        max(run.code for run in runs),
+        crashes[0] if crashes else max(codes),
         sum(run.leaked for run in runs),
         {suite: sum(run.graded.get(suite, 0) for run in runs) for suite in suites},
         {suite: sum(run.forced.get(suite, 0) for run in runs) for suite in suites},
@@ -740,9 +749,13 @@ def forced_population(workdir: Path, root: Path, suites: tuple[str, ...]) -> Ver
     :data:`TIMEOUT`, which does not move. Serial on purpose: the leg's other
     workers run timing-bound hook probes, and parallel children would add load
     beside them where this adds only the extra collections.
+
+    EVERY CHILD TRACES THE WHOLE POPULATION, from an adversary's reproduction: a
+    child tracing only its own part let a member's helper, called from a member
+    in another part, render a canary unforced with the merge reading green.
     """
     runs = [
-        forced_run(workdir / ("part_%d" % index), root, part)
+        forced_run(workdir / ("part_%d" % index), root, part, traced=suites)
         for index, part in enumerate(population_parts(suites, root))
     ]
     return merge_verdicts(suites, runs)
@@ -939,6 +952,17 @@ def test_a_short_population_makes_no_empty_child(tmp_path: Path) -> None:
     assert parts == ((only,),), "%d parts for one member" % len(parts)
 
 
+def test_empty_sources_make_no_empty_child(tmp_path: Path) -> None:
+    """CS-1370, an adversary's input: zero-byte members once left a part with nothing in it."""
+    (tmp_path / "tests").mkdir()
+    sizes = {"a": 100, "b": 0, "c": 0, "d": 0}
+    suites = tuple("tests/test_%s.py" % name for name in sizes)
+    for suite, size in zip(suites, sizes.values(), strict=True):
+        (tmp_path / suite).write_text("x" * size, encoding="ascii")
+    empties = sum(1 for part in population_parts(suites, tmp_path) if not part)
+    assert empties == 0, "%d empty part(s)" % empties
+
+
 def test_a_part_that_never_ran_leaves_its_members_ungraded() -> None:
     """CS-1370: merged over the WHOLE population, so a lost child is a zero and not an absence."""
     suites = ("tests/test_a.py", "tests/test_b.py")
@@ -951,7 +975,15 @@ def test_a_part_that_never_ran_leaves_its_members_ungraded() -> None:
 
 @pytest.mark.parametrize(
     ("codes", "expected"),
-    [((1, 0, 1), 1), ((0, 0, 0), 0), ((1, 3, 0), 3), ((1, 2, 1), 2), ((5, 1, 1), 5)],
+    [
+        ((1, 0, 1), 1),
+        ((0, 0, 0), 0),
+        ((1, 3, 0), 3),
+        ((1, 2, 1), 2),
+        ((5, 1, 1), 5),
+        ((-9, 1, 1), -9),
+        ((1, -11), -11),
+    ],
 )
 def test_the_merged_exit_is_the_worst_child(codes: tuple[int, ...], expected: int) -> None:
     """CS-1370: a clean part beside a red one reads 1; a crash in ANY child stays a crash.
@@ -993,9 +1025,13 @@ def test_forced_population_gives_each_part_its_own_child_and_workdir(
     for suite in suites:
         (tmp_path / suite).write_text("x", encoding="ascii")
     calls: list[tuple[Path, tuple[str, ...]]] = []
+    traced_sets: list[tuple[str, ...]] = []
 
-    def spy(workdir: Path, _root: Path, part: tuple[str, ...]) -> Verdict:
+    def spy(
+        workdir: Path, _root: Path, part: tuple[str, ...], *, traced: tuple[str, ...]
+    ) -> Verdict:
         calls.append((workdir, part))
+        traced_sets.append(traced)
         return _counts(1, 0, dict.fromkeys(part, 1))
 
     monkeypatch.setattr(sys.modules[__name__], "forced_run", spy)
@@ -1007,6 +1043,65 @@ def test_forced_population_gives_each_part_its_own_child_and_workdir(
     assert len(workdirs) == len(calls), "two children share a workdir"
     assert largest < len(suites), "one child carries the whole population"
     assert graded == dict.fromkeys(suites, 1), "the merge lost a member"
+    whole = [traced == suites for traced in traced_sets]
+    assert all(whole), "a child traces less than the whole population"
+
+
+#: A member whose helper holds a canary, and a member in ANOTHER part that alone
+#: calls it - CS-1370, an adversary's reproduction of the first split, which
+#: traced each part's own members and so rendered and forced nothing here.
+CROSS_PART_HELPER = """
+import importlib.util
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("cs1370_outbound", Path(%r))
+module = importlib.util.module_from_spec(spec)
+sys.modules["cs1370_outbound"] = module
+spec.loader.exec_module(module)
+
+
+def held_length():
+    held = module.CREDENTIAL_CANARIES["AWS access key id"]
+    return len(held)
+
+
+def test_the_helper_module_runs_without_calling_it():
+    assert module is not None
+"""
+CROSS_PART_USER = """
+from test_cs1370_helper import held_length
+
+
+def test_a_member_in_another_part_calls_the_helper():
+    assert held_length() > 0
+"""
+
+
+@pytest.mark.inner_suite
+def test_a_helper_called_from_another_part_is_still_forced_forced_red_output(
+    tmp_path: Path,
+) -> None:
+    """CS-1370: a split changes no reach - a child traces the whole population's helpers."""
+    root = tmp_path / "parts"
+    (root / "tests").mkdir(parents=True)
+    sources = {
+        "test_cs1370_helper": CROSS_PART_HELPER % str(OUTBOUND_PATH),
+        "test_cs1370_user": CROSS_PART_USER,
+        "test_cs1370_filler": "def test_filler():\n    assert True\n",
+    }
+    for name, source in sources.items():
+        (root / "tests" / (name + ".py")).write_text(source, encoding="ascii")
+    suites = tuple("tests/%s.py" % name for name in sources)
+    apart = len(population_parts(suites, root))
+    verdict = forced_population(tmp_path / "work", root, suites)
+    code = verdict.code
+    leaked = verdict.leaked
+    forced = verdict.forced["tests/test_cs1370_user.py"]
+    assert apart == len(suites), "the members did not land in separate parts"
+    assert code == 1, "the split did not fail: exit %d" % code
+    assert forced >= 1, "the helper called from another part was not forced"
+    assert leaked >= 1, "the helper called from another part rendered no canary"
 
 
 @DERIVATION_ONLY

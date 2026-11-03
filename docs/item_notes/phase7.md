@@ -969,11 +969,19 @@ dying at exit 3 in 12 to 24 s under pytest 9.2.0, mypy red too. The pin in 4bb37
 
 THE CHANGE. `forced_population` runs `population_parts` (3 parts, largest first by source bytes,
 derived) in serial children and `merge_verdicts` keys the result by the whole population, so a lost
-child reads ungraded. Read at this tree, merged against one whole child: graded 558 and 558, forced 108
-and 108, leaked 0, exit 1, per member equal; parts 24, 30 and 30 s against 85 s.
+child reads ungraded. Read at this tree, merged against one whole child: graded 561 and 561, forced 108
+and 108, leaked 0, exit 1, per member equal; parts 26, 30 and 30 s against 83 s.
 
-RESIDUALS. Serial, so the leg's wall time does not drop; each part has its own 300 s, which is headroom
-by a split and not a faster child. test_tier1_budget forces nothing (0 of 170) and is a member only
+ADVERSARY, on the first commit, REFUTED it and three of its four findings were repaired by test first:
+a helper called from another part went unforced (each child now traces the whole population), a
+negative exit merged to 1, and zero-byte members left an empty part.
+
+RESIDUALS. The fourth finding stands, on MAIN's order naming a split: serial, so the leg's wall time
+does not drop, and the population's bound is now 3 x 300 s under one 300 s child each, inside the 30
+minute job. A slowdown to 800 s across parts passes where one child went red; that is headroom by a
+split and not a faster child. A part dying at exit 0 (`os._exit(0)` in a member) reads as a part with
+nothing forced beside a red part; stopped by cost, no member does it. test_tier1_budget forces nothing
+(0 of 170) and is a member only
 because it calls a loader and names member paths in shard tables (`_imported`): the rule fails closed
 and stays. The CS-1175 child runs the same population in the fill shard, 58 to 124 s at the dispatch.
 
