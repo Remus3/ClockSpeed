@@ -1,13 +1,14 @@
 """CS-1177's two whole-population forced arms, in a module of their own - CS-1193.
 
 WHY A SEPARATE FILE. The ``pristine`` fixture forces the whole derived canary
-population in one child, and the CS-1175 suite forces it again in another.
-Under ``--dist loadfile`` a module is one unit of work, so while both lived
-beside the rest of tests/test_canary_population.py that module was the
-shard's tail on one of CI's two workers. Here, the two big children can land
-on different workers. The membership rule, the forcer and every helper stay
-in tests/test_canary_population.py; this module only runs the arms that
-consume ``pristine``, and its meaning is theirs, unchanged.
+population, and the CS-1175 suite forces it again in a child of its own. Under
+``--dist loadfile`` a module is one unit of work, so while both lived beside
+the rest of tests/test_canary_population.py that module was the shard's tail on
+one of CI's two workers. Here, the two big runs can land on different workers.
+The membership rule, the forcer and every helper stay in
+tests/test_canary_population.py; this module only runs the arms that consume
+``pristine``, and its meaning is theirs, unchanged. CS-1370: ``pristine`` splits
+the population across children, so no one child carries all of it.
 
 THIS MODULE IS ITSELF A MEMBER - it imports the population module, which
 reads a canary table - so the forced children run it. Every arm here spawns a
@@ -18,6 +19,7 @@ ungraded" check requires.
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -29,6 +31,7 @@ from tests.test_canary_population import (
     Verdict,
     canary_suites,
     derived_canary_suites,
+    forced_population,
     forced_run,
 )
 
@@ -36,9 +39,30 @@ from tests.test_canary_population import (
 @pytest.fixture(scope="module")
 def pristine(tmp_path_factory: pytest.TempPathFactory) -> Verdict:
     """The derived population of THIS tree, forced once and shared - counts only."""
-    return forced_run(
+    return forced_population(
         tmp_path_factory.mktemp("cs1177_pristine"), REPO_ROOT, derived_canary_suites()
     )
+
+
+def test_pristine_forces_the_population_through_the_split() -> None:
+    """CS-1370: the fixture calls the split; binding it back to one child is red here.
+
+    No timing arm could say this - a single child is only red on a slow runner -
+    so the binding is read from source, as CS-1177 reads ``CANARY_SUITES``'s.
+    """
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    fixture = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "pristine"
+    )
+    called = {
+        node.func.id
+        for node in ast.walk(fixture)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    split = "forced_population" in called
+    single = "forced_run" in called
+    assert split, "pristine does not force through forced_population"
+    assert not single, "pristine forces the whole population in one child"
 
 
 # --------------------------------------------------------------------------

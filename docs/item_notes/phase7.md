@@ -945,6 +945,38 @@ Not started: the candidate dependency first needs the `CONVENTIONS.md` section 1
 `researcher` pass and a `THIRD_PARTY.md` row), and the suite must still run with no game installed.
 
 
+## CS-1370
+
+### Acceptance
+
+A scheduled tier2 run on a tip carrying `tests/test_canary_population.py::forced_population` reads both
+Windows hooks legs with no `pristine` setup error, every derived member graded and CS-1177's control
+firing. `TIMEOUT` stays 300, and no budget, marker or deselect moved. A red for this cause reopens the
+split, never a raise.
+
+### Filed 2026-11-02 by MAIN's REDS drive
+
+MEASURED. Schedule 41434221665 on 596eb9b5: `pristine` setup 309.97 s and 311.62 s, TimeoutExpired at
+300. Dispatch 41291889116 on 4bb37af3: 136.60 s and 293.24 s on the same legs, 202.69 s and 203.79 s on
+ubuntu. Local, idle gate, the RC drive's box: one child 82 to 85 s, 551 cases, 0.66 MB of output; plain
+(no tracer, no `--showlocals`) 55 s, so neither dominates. Time by member, forced: test_tier1_budget 29
+s, test_outbound_send 22 s, test_cs1172 16 s. The population grew at 596eb9b5: CS-1363's 70 `main_route`
+cases in test_outbound_send, 12 s plain of the 55. LEAD, unmeasured on CI: runner speed explains the
+rest of the spread, since one tree read 137 and 293 on two legs of one run.
+
+THE OTHER RED. Schedules 10-28 to 11-01 on c0816233 are a different cause: 16 of 27 legs, the child
+dying at exit 3 in 12 to 24 s under pytest 9.2.0, mypy red too. The pin in 4bb37af3 (CS-1359) cleared it.
+
+THE CHANGE. `forced_population` runs `population_parts` (3 parts, largest first by source bytes,
+derived) in serial children and `merge_verdicts` keys the result by the whole population, so a lost
+child reads ungraded. Read at this tree, merged against one whole child: graded 558 and 558, forced 108
+and 108, leaked 0, exit 1, per member equal; parts 24, 30 and 30 s against 85 s.
+
+RESIDUALS. Serial, so the leg's wall time does not drop; each part has its own 300 s, which is headroom
+by a split and not a faster child. test_tier1_budget forces nothing (0 of 170) and is a member only
+because it calls a loader and names member paths in shard tables (`_imported`): the rule fails closed
+and stays. The CS-1175 child runs the same population in the fill shard, 58 to 124 s at the dispatch.
+
 ## CS-1366
 
 ### Acceptance

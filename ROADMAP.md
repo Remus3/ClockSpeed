@@ -368,3 +368,4 @@ CS-1361 - CS-DISPLAY-BY-ID: the companion window is saved by display id, falls b
 CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1362 - CS-PARSER-XCHECK: an out-of-tree save parser as a test-only oracle for this parser's counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1370 - tier2 Windows hooks leg: the CS-1177 forced child passed its 300 s timeout, split landed, unproven until the next schedule run - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

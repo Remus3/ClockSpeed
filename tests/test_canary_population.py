@@ -46,7 +46,8 @@ WHERE THE ARMS LIVE - CS-1193. The two arms that force the WHOLE population -
 the ``pristine`` fixture and its consumers - are in
 tests/test_canary_population_forced.py, so ``--dist loadfile`` can hand them
 to a different worker from the CS-1175 suite's own whole-population child.
-The rule, the forcer and every helper stay here.
+The rule, the forcer and every helper stay here. CS-1370: ``pristine`` forces
+the population across several children, see :func:`forced_population`.
 """
 
 from __future__ import annotations
@@ -154,6 +155,7 @@ DERIVATION_ARMS = (
     "test_the_derivation_runs_once_per_process",
     "test_a_child_flag_its_parent_did_not_issue_fails_loudly",
     "test_the_population_is_derived_and_reaches_every_known_reader",
+    "test_no_child_carries_this_trees_whole_population",
 )
 
 
@@ -684,6 +686,68 @@ def forced_run(
     )
 
 
+#: How many children force the whole population between them - CS-1370. The
+#: largest-first split below puts the two heaviest members in children of their
+#: own, and those two hold more than half the population's measured time.
+POPULATION_CHILDREN = 3
+
+
+def population_parts(
+    suites: tuple[str, ...], root: Path, count: int = POPULATION_CHILDREN
+) -> tuple[tuple[str, ...], ...]:
+    """Split `suites` into at most `count` parts, derived from source size - never typed.
+
+    Largest first into the lightest part, so a new member lands somewhere with
+    no edit here. Source bytes stand in for run time because they are known
+    before any child runs and do not vary with the runner; the order is fixed
+    by size and then name, so the split does not depend on how `suites` arrives.
+    A part is never empty: a child given no path would run its whole rootdir.
+    """
+    sized = sorted(suites, key=lambda suite: (-(root / suite).stat().st_size, suite))
+    parts: list[list[str]] = [[] for _ in range(min(count, len(sized)))]
+    loads = [0] * len(parts)
+    for suite in sized:
+        lightest = loads.index(min(loads))
+        parts[lightest].append(suite)
+        loads[lightest] += (root / suite).stat().st_size
+    return tuple(tuple(sorted(part)) for part in parts)
+
+
+def merge_verdicts(suites: tuple[str, ...], runs: list[Verdict]) -> Verdict:
+    """One verdict for `suites` from the children that ran parts of them.
+
+    Keyed by `suites`, not by what the children reported, so a member no child
+    ran reads zero and the consumers' "no member ungraded" check goes red. The
+    exit is the worst child's: pytest's 1 for a failure outranks 0 for a part
+    with nothing forced, and 2 and above - a crash - outranks both.
+    """
+    return Verdict(
+        max(run.code for run in runs),
+        sum(run.leaked for run in runs),
+        {suite: sum(run.graded.get(suite, 0) for run in runs) for suite in suites},
+        {suite: sum(run.forced.get(suite, 0) for run in runs) for suite in suites},
+        sum(run.rederived for run in runs),
+    )
+
+
+def forced_population(workdir: Path, root: Path, suites: tuple[str, ...]) -> Verdict:
+    """Force `suites` across :data:`POPULATION_CHILDREN` children, one after another - CS-1370.
+
+    MEASURED, tier2 on the Windows hooks leg: one child carrying the whole
+    population read 137 to 311 s against :data:`TIMEOUT`, and the same child read
+    82 s on an idle maintainer machine, so a green leg was already at the edge
+    and a grown population or a slow runner tipped it. Each child keeps its own
+    :data:`TIMEOUT`, which does not move. Serial on purpose: the leg's other
+    workers run timing-bound hook probes, and parallel children would add load
+    beside them where this adds only the extra collections.
+    """
+    runs = [
+        forced_run(workdir / ("part_%d" % index), root, part)
+        for index, part in enumerate(population_parts(suites, root))
+    ]
+    return merge_verdicts(suites, runs)
+
+
 # --------------------------------------------------------------------------
 # Arm 1 - the membership rule
 # --------------------------------------------------------------------------
@@ -842,6 +906,122 @@ def test_every_module_is_walked_once(tmp_path: Path, monkeypatch: pytest.MonkeyP
     found = len(members)
     assert found == 0, "plain modules admitted: %d" % found
     assert count == modules, "%d module walks for %d modules" % (count, modules)
+
+
+def _counts(code: int, leaked: int, per_suite: dict[str, int], rederived: int = 0) -> Verdict:
+    """A hand-made verdict for the split's arms, graded and forced both `per_suite`."""
+    return Verdict(code, leaked, per_suite, per_suite, rederived)
+
+
+def test_the_parts_hold_every_member_once_and_separate_the_heaviest(tmp_path: Path) -> None:
+    """CS-1370: the split is derived from source size, drops nothing and repeats nothing."""
+    (tmp_path / "tests").mkdir()
+    sizes = {"a": 900, "b": 800, "c": 700, "d": 30, "e": 20, "f": 10, "g": 5}
+    suites = tuple("tests/test_%s.py" % name for name in sizes)
+    for suite, size in zip(suites, sizes.values(), strict=True):
+        (tmp_path / suite).write_text("x" * size, encoding="ascii")
+    parts = population_parts(suites, tmp_path)
+    flat = sorted(chain.from_iterable(parts))
+    heaviest = [sum(suites[index] in part for index in range(3)) for part in parts]
+    again = population_parts(tuple(reversed(suites)), tmp_path)
+    assert len(parts) == POPULATION_CHILDREN, "%d parts" % len(parts)
+    assert flat == sorted(suites), "a member was dropped or repeated"
+    assert heaviest == [1, 1, 1], "two of the heaviest members share a child"
+    assert again == parts, "the split depends on the order the members arrive in"
+
+
+def test_a_short_population_makes_no_empty_child(tmp_path: Path) -> None:
+    """CS-1370: an empty part would be a child told to run the whole of its rootdir."""
+    (tmp_path / "tests").mkdir()
+    only = "tests/test_only.py"
+    (tmp_path / only).write_text("x", encoding="ascii")
+    parts = population_parts((only,), tmp_path)
+    assert parts == ((only,),), "%d parts for one member" % len(parts)
+
+
+def test_a_part_that_never_ran_leaves_its_members_ungraded() -> None:
+    """CS-1370: merged over the WHOLE population, so a lost child is a zero and not an absence."""
+    suites = ("tests/test_a.py", "tests/test_b.py")
+    merged = merge_verdicts(suites, [_counts(1, 0, {"tests/test_a.py": 2})])
+    graded = merged.graded["tests/test_b.py"]
+    forced = merged.forced["tests/test_b.py"]
+    assert graded == 0, "a member of no child reads %d graded" % graded
+    assert forced == 0, "a member of no child reads %d forced" % forced
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [((1, 0, 1), 1), ((0, 0, 0), 0), ((1, 3, 0), 3), ((1, 2, 1), 2), ((5, 1, 1), 5)],
+)
+def test_the_merged_exit_is_the_worst_child(codes: tuple[int, ...], expected: int) -> None:
+    """CS-1370: a clean part beside a red one reads 1; a crash in ANY child stays a crash.
+
+    An exit of 3 is how the pytest 9.2 child failed in tier2, and the consumers
+    assert exactly 1, so a mean or a "any failed" reduction would hide it.
+    """
+    suites = ("tests/test_a.py",)
+    merged = merge_verdicts(suites, [_counts(code, 0, {suites[0]: 0}) for code in codes])
+    code = merged.code
+    assert code == expected, "exits %r merged to %d" % (codes, code)
+
+
+def test_the_merge_sums_every_count_across_the_children() -> None:
+    """CS-1370: a leak or a re-derivation in one child alone reaches the verdict."""
+    suites = ("tests/test_a.py", "tests/test_b.py")
+    planted = 3
+    merged = merge_verdicts(
+        suites,
+        [
+            _counts(1, 0, {"tests/test_a.py": 2}, 1),
+            _counts(1, planted, {"tests/test_b.py": 4}, 0),
+        ],
+    )
+    leaked = merged.leaked
+    rederived = merged.rederived
+    graded = merged.graded
+    assert leaked == planted, "%d leaked" % leaked
+    assert rederived == 1, "%d rederived" % rederived
+    assert graded == {"tests/test_a.py": 2, "tests/test_b.py": 4}, "graded did not sum"
+
+
+def test_forced_population_gives_each_part_its_own_child_and_workdir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1370: one forced run a part, each under its own TIMEOUT - a spy, no child spawned."""
+    (tmp_path / "tests").mkdir()
+    suites = tuple("tests/test_%s.py" % name for name in "abcde")
+    for suite in suites:
+        (tmp_path / suite).write_text("x", encoding="ascii")
+    calls: list[tuple[Path, tuple[str, ...]]] = []
+
+    def spy(workdir: Path, _root: Path, part: tuple[str, ...]) -> Verdict:
+        calls.append((workdir, part))
+        return _counts(1, 0, dict.fromkeys(part, 1))
+
+    monkeypatch.setattr(sys.modules[__name__], "forced_run", spy)
+    merged = forced_population(tmp_path / "work", tmp_path, suites)
+    workdirs = {workdir for workdir, _ in calls}
+    largest = max(len(part) for _, part in calls)
+    graded = merged.graded
+    assert len(calls) == POPULATION_CHILDREN, "%d children" % len(calls)
+    assert len(workdirs) == len(calls), "two children share a workdir"
+    assert largest < len(suites), "one child carries the whole population"
+    assert graded == dict.fromkeys(suites, 1), "the merge lost a member"
+
+
+@DERIVATION_ONLY
+def test_no_child_carries_this_trees_whole_population() -> None:
+    """CS-1370: on the population as derived, the split holds and no child is the whole.
+
+    MEASURED: the one child read 137 to 311 s on the Windows hooks leg against
+    the 300 s TIMEOUT that stays where it is.
+    """
+    members = derived_canary_suites()
+    parts = population_parts(members, REPO_ROOT)
+    flat = sorted(chain.from_iterable(parts))
+    largest = max(len(part) for part in parts)
+    assert flat == sorted(members), "the split dropped or repeated a member"
+    assert largest < len(members), "one child carries the whole population"
 
 
 def test_the_derivation_arms_are_the_marked_arms() -> None:
