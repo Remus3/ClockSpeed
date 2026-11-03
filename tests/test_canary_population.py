@@ -81,6 +81,11 @@ CANARY_TABLES = frozenset({"CREDENTIAL_CANARIES", "CREDENTIAL_BRANCH_CANARIES"})
 
 TIMEOUT = 300
 
+#: pytest's closing stdout line. A child without it did not finish - CS-1370.
+FINISHED = re.compile(r"^=+ .* in \d+(\.\d+)?s( \(.*\))? =+$")
+#: The code of a child that exited 0 or 1 without that line; pytest uses neither.
+CUT_SHORT = 99
+
 #: The child plugin's module name, and the exception it raises.
 FORCER_NAME = "cs1177_helper_forcer"
 FORCED = "ForcedHelperRaise"
@@ -685,9 +690,13 @@ def forced_run(
         )
     finally:
         held.unlink(missing_ok=True)
+    stdout = proc.stdout.decode("utf-8", "replace")
+    closing = stdout.rstrip().splitlines()[-1:]
+    finished = bool(closing) and FINISHED.match(closing[0]) is not None
+    cut_short = proc.returncode in (0, 1) and not finished
     return _verdict(
-        proc.returncode,
-        proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace"),
+        CUT_SHORT if cut_short else proc.returncode,
+        stdout + proc.stderr.decode("utf-8", "replace"),
         suites,
     )
 
@@ -1102,6 +1111,45 @@ def test_a_helper_called_from_another_part_is_still_forced_forced_red_output(
     assert code == 1, "the split did not fail: exit %d" % code
     assert forced >= 1, "the helper called from another part was not forced"
     assert leaked >= 1, "the helper called from another part rendered no canary"
+
+
+#: A member that grades one test and then dies at the given exit - CS-1370.
+DYING_MEMBER = """
+import os
+
+
+def test_a_passes():
+    assert True
+
+
+def test_b_dies():
+    os._exit(%d)
+"""
+
+
+@pytest.mark.inner_suite
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_a_part_dying_after_a_graded_test_reads_as_a_crash_forced_red_output(
+    tmp_path: Path, exit_code: int
+) -> None:
+    """CS-1370: a child gone at 0 or 1 without pytest's closing line is a crash, not a verdict.
+
+    From MAIN's ruling 2026-11-02: a death in the LAST member of a part leaves
+    no member ungraded, and beside a red part the merge read 1 as if all were well.
+    """
+    root = tmp_path / "parts"
+    (root / "tests").mkdir(parents=True)
+    sources = {
+        "test_cs1370_dying": DYING_MEMBER % exit_code,
+        "test_cs1370_failing": "def test_fails():\n    assert False\n",
+        "test_cs1370_passing": "def test_passes():\n    assert True\n",
+    }
+    for name, source in sources.items():
+        (root / "tests" / (name + ".py")).write_text(source, encoding="ascii")
+    suites = tuple("tests/%s.py" % name for name in sources)
+    verdict = forced_population(tmp_path / "work", root, suites)
+    code = verdict.code
+    assert code == CUT_SHORT, "a dying part merged to exit %d" % code
 
 
 @DERIVATION_ONLY
