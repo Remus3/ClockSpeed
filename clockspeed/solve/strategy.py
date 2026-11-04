@@ -74,11 +74,11 @@ rung through ``references``.
 
 A RANKING'S OWN TOP MEMBER GRADES ITSELF, WHICH IS WHY A CALLER MAY STATE ONE PER RUNG
 ----------------------------------------------------------------------------------------
-Graded against its own ranking, rank one clears every rung, whatever else is in
-the ranking: it scores no more than itself on all three, so its badge claims
-nothing a reader can use. A caller about to advise that plan holds the better
-question, whether it is within the best plan each rung's own direction allows.
-So :func:`rank_plans` takes keyword-only ``references``, one plan per rung, the
+Graded against its own ranking, rank one clears every rung it can be priced on,
+whatever else is in the ranking: it scores no more than itself on each, so its
+badge claims nothing a reader can use. A caller about to advise that plan holds
+the better question, whether it is within the best plan each rung's own direction
+allows. So :func:`rank_plans` takes keyword-only ``references``, one plan per rung, the
 caller having solved them. Every entry stays a published plan-and-badge pair,
 nothing here solves, and an unstated ``references`` is the self-graded ranking
 above, unchanged. A rung's reference of None says that rung had nothing exact to

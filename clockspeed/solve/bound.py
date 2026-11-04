@@ -132,8 +132,11 @@ lexicographic ``(k: int, score: Fraction, positions: tuple[int, ...])`` with k
 OUTERMOST, so a cheaper plan that needs one more recipe than the smallest
 feasible prefix is not chosen. That is the specified behaviour rather than a
 defect, and :class:`TrimRecord` plus :attr:`BoundedResult.chosen_size` are what
-make the trade visible to the caller instead of silent. A caller who wants the
-whole-set optimum calls ``optimize_plan`` and gets the refusal.
+make the trade visible to the caller instead of silent, and a refusal carries the
+same record on :attr:`BoundExhaustedError.record`, because no plan over the kept set
+says nothing about what the cap dropped. :func:`trim_record` states that record
+before any search, for a caller whose ascent ends some other way. A caller who wants
+the whole-set optimum calls ``optimize_plan`` and gets the refusal.
 
 Two narrower consequences, for the same honesty:
 
@@ -177,6 +180,7 @@ __all__ = [
     "TrimRecord",
     "TrimStep",
     "optimize_within_bound",
+    "trim_record",
 ]
 
 #: The trim rule's stable name: direct producers of a requested item are kept
@@ -221,7 +225,7 @@ class TrimStep:
 
 @dataclass(frozen=True)
 class TrimRecord:
-    """Every narrowing applied to reach the returned plan.
+    """Every narrowing applied before the ascent, on a returned plan or on its refusal.
 
     Attributes:
         steps: The applied steps, in the order they were applied. Never empty:
@@ -275,9 +279,14 @@ class BoundExhaustedError(NoFeasibleSelectionError):
             two otherwise, which is a distinguishable and honest answer rather
             than the same refusal as an ascent over candidates that found
             nothing.
+        record: What the bound dropped before the ascent ran, or None when every
+            usable candidate fit under the cap. The refusal is a statement about
+            the kept set only, so what was never asked about travels with it.
     """
 
-    def __init__(self, cap: int, rule: str, tried: int, message: str) -> None:
+    def __init__(
+        self, cap: int, rule: str, tried: int, message: str, *, record: TrimRecord | None = None
+    ) -> None:
         """Record the bound alongside the message.
 
         Args:
@@ -285,11 +294,13 @@ class BoundExhaustedError(NoFeasibleSelectionError):
             rule: The trim rule's name.
             tried: How many prefixes were evaluated.
             message: The full explanation.
+            record: What the bound dropped, or None when nothing was.
         """
         super().__init__(message)
         self.cap = cap
         self.rule = rule
         self.tried = tried
+        self.record = record
 
 
 def _trim_ranking(registry: Registry, request: OptimizeRequest) -> tuple[str, ...]:
@@ -330,6 +341,48 @@ def _trim_ranking(registry: Registry, request: OptimizeRequest) -> tuple[str, ..
     return tuple(sorted(usable, key=rank))
 
 
+def _record_of(registry: Registry, ranked: tuple[str, ...]) -> TrimRecord | None:
+    """Record what the cap drops from one ranking.
+
+    Args:
+        registry: The built registry.
+        ranked: Every usable candidate, as :func:`_trim_ranking` ranks them.
+
+    Returns:
+        The record, or None when every candidate fits under the cap.
+    """
+    if len(ranked) <= MAX_EXHAUSTIVE_CANDIDATES:
+        return None
+    step = TrimStep(
+        rule=TRIM_TARGET_PRODUCERS_FIRST,
+        cap=MAX_EXHAUSTIVE_CANDIDATES,
+        kept=registry_order(registry, ranked[:MAX_EXHAUSTIVE_CANDIDATES]),
+        removed=registry_order(registry, ranked[MAX_EXHAUSTIVE_CANDIDATES:]),
+    )
+    return TrimRecord(steps=(step,))
+
+
+def trim_record(registry: Registry, request: OptimizeRequest) -> TrimRecord | None:
+    """Say what :func:`optimize_within_bound` drops from a request, running no search.
+
+    The trim reads the targets and registry order and never a solve, so a caller
+    can state it whichever way the ascent then ends: the refusals that are not
+    :class:`BoundExhaustedError` propagate carrying no record.
+
+    Args:
+        registry: The built registry.
+        request: The problem, as the caller stated it.
+
+    Returns:
+        The record that ascent would hold, or None when nothing is dropped.
+
+    Raises:
+        ValueError: A candidate names no recipe in this registry, as the ascent's
+            own door refuses it.
+    """
+    return _record_of(registry, _trim_ranking(registry, request))
+
+
 def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> BoundedResult:
     """Trim to the cap by a named rule, then take the smallest prefix that solves.
 
@@ -351,8 +404,9 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
     Raises:
         BoundExhaustedError: No prefix up to the cap yields a plan. Names the
             cap, the rule and how many prefixes were tried, the empty one
-            included. An unrecognized byproduct policy reads this way too, for
-            the reason the module docstring gives.
+            included, and carries the record of what the bound dropped. An
+            unrecognized byproduct policy reads this way too, for the reason the
+            module docstring gives.
         ValueError: A candidate names no recipe in this registry, refused at the
             door before the ascent starts, or an item is declared both raw and a
             target, refused by pillar 1 at the empty prefix. Also pillar 1's
@@ -373,16 +427,7 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
     """
     ranked = _trim_ranking(registry, request)
     limit = min(len(ranked), MAX_EXHAUSTIVE_CANDIDATES)
-
-    record: TrimRecord | None = None
-    if len(ranked) > limit:
-        step = TrimStep(
-            rule=TRIM_TARGET_PRODUCERS_FIRST,
-            cap=MAX_EXHAUSTIVE_CANDIDATES,
-            kept=registry_order(registry, ranked[:limit]),
-            removed=registry_order(registry, ranked[limit:]),
-        )
-        record = TrimRecord(steps=(step,))
+    record = _record_of(registry, ranked)
 
     # The nested chain, smallest first, from the empty prefix S_0 on every
     # request. One loop and no special case: the module docstring's proof and
@@ -406,6 +451,7 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
         "upwards were evaluated and refused. Under the exhaustive backend, whose search of "
         "each prefix is complete, that is the absence of any plan over the kept set; "
         "under the greedy backend, a heuristic, it is not proof that none exists. Either "
-        "way it is a statement about the KEPT set only, and this refusal carries no record "
-        "of what the cap dropped",
+        "way it is a statement about the KEPT set only, and this refusal's record names what "
+        "the cap dropped, None when it dropped nothing",
+        record=record,
     )

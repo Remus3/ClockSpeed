@@ -32,13 +32,17 @@ from the member it compared equal to.
 
 THE SEARCH, IN ORDER.
 
-1. The request is checked: one known direction, one known byproduct policy, and at
-   least one target whose rate is exactly a Fraction above zero. A zero-rate Build
-   card is absurd, and an unknown policy reaches pillar 2 as no selection at all,
-   which would read as a false no-plan.
-2. :func:`clockspeed.solve.bound.optimize_within_bound` answers feasibility and the
-   trim. A real world joins more recipes than the exhaustive backend's cap, so a
-   whole-set search would refuse. ``plan.trimmed`` names what the bound dropped.
+1. The request is checked: one known direction, one known byproduct policy, raw
+   items exactly a tuple of str, and at least one target, every rate exactly a
+   Fraction above zero. A zero-rate Build card is absurd, and an unknown policy or a
+   str of raw items reaches pillar 2 as no selection at all, which would read as a
+   false no-plan.
+2. :func:`clockspeed.solve.bound.optimize_within_bound` answers feasibility over the
+   kept set, and the trim. A real world joins more recipes than the exhaustive
+   backend's cap, so a whole-set search would refuse. ``plan.trimmed`` names what the
+   bound dropped, on every status a search reached: a no-plan speaks only for the
+   kept set, and what the cap drops is a rule over the targets and registry order, so
+   it stays true however the search then ends.
 3. :func:`clockspeed.solve.optimize.optimize_plan` runs once per ladder rung over
    the kept set, each under that rung's one direction. The kept set is the same for
    all three because the trim reads the targets and registry order, never the
@@ -46,13 +50,21 @@ THE SEARCH, IN ORDER.
 4. :func:`clockspeed.solve.strategy.rank_plans` ranks those optima once under the
    asked direction, with each rung's optimum as that rung's reference, and the top
    entry is the offer. Graded against its own ranking the top plan would clear every
-   rung; graded this way its badge says what the plan really gives up.
+   rung it can be priced on; graded this way its badge says what the plan really
+   gives up.
 
 A POWER REFUSAL COSTS ONE RUNG, UNLESS POWER WAS ASKED. A recipe with no exact draw,
 reached by the power search, makes that rung's reference None, which reads as not
 comparable there and
 leaves the other two rungs graded. Asked for by power there is no order to publish,
 so the status is ``power-not-comparable``.
+
+A DEAD-ENDED RUNG SEARCH COSTS ONE RUNG TOO, AND NEVER READS AS NO-PLAN. Under the
+greedy backend, a heuristic that never backtracks, the bound can solve and a rung's
+own search over the kept set then find nothing, although the bound has just shown a
+plan exists. So a rung other than the asked direction takes the power refusal's
+shape, its reference None, and the asked rung itself is ``solve-refused``, which says
+nothing about the target. Only the bound's own refusal is ``no-plan``.
 
 A REFUSAL IS A STATUS, NEVER A CRASH AND NEVER TEXT. Every refusal the solve layer
 raises becomes one word of the closed vocabulary in
@@ -61,9 +73,10 @@ recipe, a rate or an environment value (non-negotiable 13). A real world's searc
 costs seconds, and only a stated request pays it.
 
 SEAMS. This module reads no file, no clock and no environment value of its own; the
-one environment read is pillar 2's backend selection, and it renders nothing. It
-takes the unlock state and never the world model, so the world token cannot reach
-it. NO FLOAT: every rate and figure is an exact Fraction.
+one environment read is pillar 2's backend selection, and it renders nothing:
+``plan.backend`` is the result's own field, never that value. It takes the unlock
+state and never the world model, so the world token cannot reach it. NO FLOAT: every
+rate and figure is an exact Fraction.
 """
 
 from __future__ import annotations
@@ -85,7 +98,7 @@ from clockspeed.advisor.rules.plan import (
 )
 from clockspeed.advisor.trace import RECIPE_UNLOCK_PREFIX, InputValue
 from clockspeed.data.registry import Registry, automated_recipes
-from clockspeed.solve.bound import optimize_within_bound
+from clockspeed.solve.bound import BoundExhaustedError, optimize_within_bound, trim_record
 from clockspeed.solve.exact import ExactArithmeticError, InexactValueError
 from clockspeed.solve.optimize import (
     OBJECTIVES,
@@ -95,7 +108,6 @@ from clockspeed.solve.optimize import (
     OptimizeError,
     OptimizeRequest,
     PowerNotComparableError,
-    UnknownBackendError,
     optimize_plan,
 )
 from clockspeed.solve.ratio import BYPRODUCT_POLICIES, ProductionPlan
@@ -105,11 +117,20 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from clockspeed.save.world import UnlockState
+    from clockspeed.solve.bound import TrimRecord
 
 __all__ = ["PlanRequest", "plan_offer"]
 
 #: The weight a search scores its one direction at.
 _UNIT_WEIGHT: Final = Fraction(1)
+
+
+class _AskedRungDeadEndError(OptimizeError):
+    """The bound solved, and the asked direction's own search then found nothing.
+
+    Not a no-plan: the bound has just found one. Raised and caught in this module,
+    and it holds no text, so nothing it carries can reach a reader.
+    """
 
 
 @dataclass(frozen=True)
@@ -123,7 +144,7 @@ class PlanRequest:
     Attributes:
         targets: Item key to the wanted net rate per minute. Every rate must be
             exactly a Fraction above zero.
-        raw_items: Items available without bound, as pillar 1 takes them.
+        raw_items: Items available without bound, exactly a tuple of str.
         byproduct_policy: One of pillar 1's byproduct policies.
         direction: One member of :data:`clockspeed.solve.optimize.OBJECTIVES`. A
             direction and never a weighted objective: a weighted optimum may clear
@@ -143,10 +164,13 @@ def _well_formed(request: PlanRequest) -> bool:
         request: The request.
 
     Returns:
-        True for one known direction, one known byproduct policy and at least one
-        target, each rate exactly a Fraction above zero.
+        True for one known direction, one known byproduct policy, raw items exactly a
+        tuple of str and at least one target, each rate exactly a Fraction above zero.
     """
     if request.direction not in OBJECTIVES or request.byproduct_policy not in BYPRODUCT_POLICIES:
+        return False
+    raw_items = request.raw_items
+    if type(raw_items) is not tuple or not all(type(item) is str for item in raw_items):
         return False
     rates = tuple(request.targets.values())
     return bool(rates) and all(type(rate) is Fraction and rate > 0 for rate in rates)
@@ -176,11 +200,14 @@ def _rung_optimum(
         asked: The direction the caller asked for.
 
     Returns:
-        The plan, or None when the rung has no exact figure to compare.
+        The plan, or None when the rung has no exact figure to compare, or its own
+        search dead-ended on a set the bound has already solved.
 
     Raises:
         PowerNotComparableError: The rung is the direction the caller asked for,
             so there is no order to publish.
+        _AskedRungDeadEndError: The rung is the direction the caller asked for, and
+            its own search dead-ended.
         OptimizeError, ExactArithmeticError, ValueError: As
             :func:`clockspeed.solve.optimize.optimize_plan` raises them.
     """
@@ -191,40 +218,48 @@ def _rung_optimum(
         if strategy.objective_name == asked:
             raise
         return None
+    except NoFeasibleSelectionError:
+        if strategy.objective_name == asked:
+            raise _AskedRungDeadEndError from None
+        return None
+
+
+def _removed(record: TrimRecord | None) -> tuple[str, ...]:
+    """Every recipe a record says the bound dropped.
+
+    Args:
+        record: The record, or None when nothing was dropped.
+
+    Returns:
+        The recipes in registry order, empty when nothing was dropped.
+    """
+    if record is None:
+        return ()
+    return tuple(name for step in record.steps for name in step.removed)
 
 
 def _ranked_top(
-    registry: Registry, request: PlanRequest, joined: tuple[str, ...]
-) -> tuple[RankedPlan, tuple[str, ...]]:
+    registry: Registry, request: PlanRequest, search: OptimizeRequest
+) -> tuple[RankedPlan, str]:
     """Run the search of the module docstring over the joined recipes.
 
     Args:
         registry: The built registry.
         request: The request, already checked.
-        joined: The automated recipes the world has unlocked, in registry order.
+        search: The request as pillar 2 takes it, over the joined recipes.
 
     Returns:
-        The top ranked entry, and every recipe the bound dropped, in registry order.
+        The top ranked entry, and the name the bound's result carries for the
+        backend that ran.
 
     Raises:
         OptimizeError, ExactArithmeticError, ValueError, KeyError: Whatever the
             solve layer refuses with. :func:`plan_offer` reads each as a status.
     """
-    asked = _direction_objective(request.direction)
-    search = OptimizeRequest(
-        targets=MappingProxyType(dict(request.targets)),
-        candidates=joined,
-        unlocked=joined,
-        raw_items=request.raw_items,
-        byproduct_policy=request.byproduct_policy,
-        objective=asked,
-    )
-    record = optimize_within_bound(registry, search).record
-    trimmed: tuple[str, ...] = ()
+    bounded = optimize_within_bound(registry, search)
     kept = search
-    if record is not None:
-        trimmed = tuple(name for step in record.steps for name in step.removed)
-        survivors = record.steps[-1].kept
+    if bounded.record is not None:
+        survivors = bounded.record.steps[-1].kept
         kept = replace(search, candidates=survivors, unlocked=survivors)
 
     references = {
@@ -236,7 +271,8 @@ def _ranked_top(
     for plan in references.values():
         if plan is not None and plan not in distinct:
             distinct.append(plan)
-    return rank_plans(registry, distinct, objective=asked, references=references)[0], trimmed
+    ranked = rank_plans(registry, distinct, objective=search.objective, references=references)
+    return ranked[0], bounded.result.backend
 
 
 def plan_offer(
@@ -245,7 +281,9 @@ def plan_offer(
     """Answer one request with the inputs the plan family reads.
 
     Reads no file and no clock. Never raises for a solve refusal: each one is a
-    status. A fault that is not a refusal is a bug in this tree, and it raises.
+    status. So does a KeyError or ValueError from anywhere in the search, even one
+    that is a bug in this tree, because neither can be told from a refusal; only a
+    type outside the catches raises.
 
     Args:
         unlocks: The world's unlock state. Its paths are compared and counted, and
@@ -255,8 +293,8 @@ def plan_offer(
 
     Returns:
         A fresh dict of rule inputs: the status alone when no join ran, the status
-        and what the join left out when no plan was ranked, and all of it beside
-        the plan when one was.
+        and what the join and the bound left out when no plan was ranked, and all of
+        it beside the plan when one was.
     """
     if request is None:
         return status_inputs(STATUS_NO_TARGET)
@@ -271,13 +309,26 @@ def plan_offer(
     known = frozenset(recipe.asset_path for recipe in registry.recipes.values())
     unmatched = sum(1 for path in unlocks.recipes if path not in known)
 
+    trimmed: tuple[str, ...] = ()
     try:
-        top, trimmed = _ranked_top(registry, request, joined)
+        search = OptimizeRequest(
+            targets=MappingProxyType(dict(request.targets)),
+            candidates=joined,
+            unlocked=joined,
+            raw_items=request.raw_items,
+            byproduct_policy=request.byproduct_policy,
+            objective=_direction_objective(request.direction),
+        )
+        trimmed = _removed(trim_record(registry, search))
+        top, backend = _ranked_top(registry, request, search)
+    except BoundExhaustedError as refused:
+        status = STATUS_NO_PLAN
+        trimmed = _removed(refused.record)
     except NoFeasibleSelectionError:
         status = STATUS_NO_PLAN
     except PowerNotComparableError:
         status = STATUS_POWER_NOT_COMPARABLE
-    except (ObjectiveUndefinedError, UnknownBackendError, InexactValueError, ValueError):
+    except (ObjectiveUndefinedError, InexactValueError, ValueError):
         status = STATUS_REQUEST_MALFORMED
     except (OptimizeError, ExactArithmeticError, KeyError):
         status = STATUS_SOLVE_REFUSED
@@ -292,5 +343,6 @@ def plan_offer(
             trimmed=trimmed,
             unchecked=unchecked,
             unmatched_unlocks=unmatched,
+            backend=backend,
         )
-    return refused_inputs(status, unchecked=unchecked, unmatched_unlocks=unmatched)
+    return refused_inputs(status, trimmed=trimmed, unchecked=unchecked, unmatched_unlocks=unmatched)

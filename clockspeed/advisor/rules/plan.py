@@ -8,14 +8,14 @@ WHAT THIS MODULE OWNS. One rule and the adapters that feed it:
   :func:`~clockspeed.solve.strategy.rank_plans` call published for it - and,
   when the badge records at least one cleared rung, recommends building the
   plan for its targets. A plan that cleared NO rung against its reference is
-  worse than that reference on every claim the ladder grades, so it is
+  worse than that reference on every claim it could be compared on, so it is
   rejected, never advised, and the rejection settles the rule.
 - :func:`plan_inputs` offers one :class:`~clockspeed.solve.strategy.RankedPlan`
   as the rule's inputs, each sourced to the ranked-plan field it came from,
-  beside the unlock keys its recipes need and what the search left out.
-  :func:`status_inputs` and :func:`refused_inputs` say why no plan is offered.
-  ``clockspeed/advisor/plans.py`` ranks the plan and calls them; this module
-  solves nothing.
+  beside the unlock keys its recipes need, the backend that ran the search and
+  what the search left out. :func:`status_inputs` and :func:`refused_inputs` say
+  why no plan is offered. ``clockspeed/advisor/plans.py`` ranks the plan and calls
+  them; this module solves nothing.
 
 THE BADGE IS TIER 3 ONLY. The rule reads the badge through the engine, so the
 trace carries it as an ``input-read`` step, and
@@ -28,6 +28,12 @@ search left out and, always last, the build caveat, so tier 1 carries nothing of
 the badge and a different badge on the same plan moves tier 3 alone.
 ``clockspeed/advisor/cards.py::Card`` gains no field: the badge reaches the card
 only through the trace it is built from.
+
+THE BACKEND IS TIER 3 ONLY, THE SAME WAY. A derivation differs by backend, and a rung
+cleared against a heuristic's reference is not the claim an exact one makes, so the
+rule reads ``plan.backend`` on the ranked path. It is the name the result itself
+carries, never the environment value, and a name outside the closed vocabulary is a
+rule error. Tier 1, tier 2 and the card id do not move with it.
 
 WHY THE ENGINE ADMITS THESE TYPES. The solve layer declares its plan and badge
 dataclasses frozen but without slots, which
@@ -96,7 +102,7 @@ is unreachable, because the top plan is one rung's own optimum.
 
 NO WORLD TOKEN, NO SAVE PATH, NO FLOAT. Every source names the field a value came
 from, every unlock key is built from the registry's string rather than a save's, and
-every number is an exact ``Fraction``.
+every figure is a ``Fraction``, the one count an ``int``.
 """
 
 from __future__ import annotations
@@ -108,6 +114,7 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.advisor.build import BUILD_INPUTS, build_caveat
 from clockspeed.advisor.cards import render_value
 from clockspeed.advisor.trace import InputValue, Recommendation, RuleContext, RuleSpec
+from clockspeed.solve.backends import available_backends
 from clockspeed.solve.ratio import ProductionPlan
 from clockspeed.solve.strategy import STRATEGY_LADDER, StrategyBadge
 
@@ -120,25 +127,27 @@ DOMAIN: Final = "plan"
 #: The one input every world offers: why a plan is or is not on offer.
 IN_STATUS: Final = "plan.status"
 
-#: What the join left out, offered wherever a join ran.
+#: What the join and the bound left out, offered wherever a join ran.
 IN_UNCHECKED: Final = "plan.unchecked"
 IN_UNMATCHED: Final = "plan.unmatched_unlocks"
+IN_TRIMMED: Final = "plan.trimmed"
 
-#: Input names, each offered by :func:`plan_inputs`.
+#: Input names offered only beside a ranked plan, by :func:`plan_inputs`.
 IN_PLAN: Final = "plan.production"
 IN_BADGE: Final = "plan.badge"
 IN_REQUIRES: Final = "plan.requires"
-IN_TRIMMED: Final = "plan.trimmed"
+IN_BACKEND: Final = "plan.backend"
 
 #: Every input this family adds to the build inputs, in the order it reads them.
 PLAN_INPUTS: Final = (
     IN_STATUS,
     IN_UNCHECKED,
     IN_UNMATCHED,
+    IN_TRIMMED,
     IN_PLAN,
     IN_BADGE,
     IN_REQUIRES,
-    IN_TRIMMED,
+    IN_BACKEND,
 )
 
 #: A plan was ranked and is on offer.
@@ -151,7 +160,9 @@ STATUS_NO_TARGET: Final = "no-target"
 #: that says the request is malformed rather than unanswerable.
 STATUS_REQUEST_MALFORMED: Final = "request-malformed"
 
-#: No selection of the unlocked automated recipes reaches the target.
+#: The search found no plan over the unlocked automated recipes it kept, under the
+#: stated byproduct policy. Nothing beyond that set: what the cap dropped is on
+#: :data:`IN_TRIMMED`, and a capped no-plan and an uncapped one are this one status.
 STATUS_NO_PLAN: Final = "no-plan"
 
 #: The search refused for a reason that is no statement about the target.
@@ -171,6 +182,9 @@ _REQUIRES_SOURCE: Final = _OFFER_SOURCE_PREFIX + "recipe_unlock_join"
 #: The source of what the bound dropped.
 _TRIMMED_SOURCE: Final = "solve.bound.trim_record.removed"
 
+#: The source of the backend's name: the result's own field, never the environment.
+_BACKEND_SOURCE: Final = "solve.optimize.optimize_result.backend"
+
 #: The label of the one number the rule computes.
 LABEL_MACHINES: Final = "plan machine equivalents"
 
@@ -183,13 +197,18 @@ _STATUS_REASONS: Final = MappingProxyType(
     {
         STATUS_NO_TARGET: "no target was stated, so no plan was ranked",
         STATUS_REQUEST_MALFORMED: "the stated target cannot be asked as a question",
-        STATUS_NO_PLAN: "no selection of the unlocked automated recipes reaches the target",
+        STATUS_NO_PLAN: (
+            "the search found no plan over the unlocked automated recipes it kept,"
+            " under the stated byproduct policy"
+        ),
         STATUS_SOLVE_REFUSED: "the search refused, which says nothing about the target",
         STATUS_POWER_NOT_COMPARABLE: "the power search reached a recipe with no exact draw",
     }
 )
 
-#: The two statuses reached before any join, which offer nothing else to read.
+#: The two statuses whose reason needs nothing else read. No target is reached before
+#: any join; a malformed request is too, unless a refusal after the join says so, as a
+#: target declared raw does, and then what is offered beside it stays unread.
 _UNJOINED_STATUSES: Final = (STATUS_NO_TARGET, STATUS_REQUEST_MALFORMED)
 
 #: The comparison the firing path records as undecided.
@@ -217,15 +236,18 @@ def status_inputs(status: str) -> dict[str, InputValue]:
 
 
 def refused_inputs(
-    status: str, *, unchecked: tuple[str, ...], unmatched_unlocks: int
+    status: str, *, trimmed: tuple[str, ...], unchecked: tuple[str, ...], unmatched_unlocks: int
 ) -> dict[str, InputValue]:
-    """Offer a status a search reached without a plan, and what its join left out.
+    """Offer a status a search reached without a plan, and what the search left out.
 
-    A world can read no-plan only because the one route was never asked about, so
-    the trace says what was left out on this path as well.
+    A no-plan speaks only for what the search kept, and the one route may be among
+    what the join or the bound left out, so the trace says what was left out on this
+    path as well.
 
     Args:
         status: One word of the closed vocabulary.
+        trimmed: The recipes the bound dropped, by ClassName in registry order.
+            REQUIRED, with no default: empty says the cap dropped nothing.
         unchecked: The automated recipes carrying no asset path, by ClassName.
         unmatched_unlocks: How many of the world's unlocked paths joined no recipe.
             A count, because each one is a string read out of a save.
@@ -237,6 +259,7 @@ def refused_inputs(
         **status_inputs(status),
         IN_UNCHECKED: InputValue(unchecked, _OFFER_SOURCE_PREFIX + "unchecked"),
         IN_UNMATCHED: InputValue(unmatched_unlocks, _OFFER_SOURCE_PREFIX + "unmatched_unlocks"),
+        IN_TRIMMED: InputValue(trimmed, _TRIMMED_SOURCE),
     }
 
 
@@ -247,6 +270,7 @@ def plan_inputs(
     trimmed: tuple[str, ...],
     unchecked: tuple[str, ...],
     unmatched_unlocks: int,
+    backend: str,
 ) -> dict[str, InputValue]:
     """Offer one ranked plan as rule inputs, each sourced to the field it came from.
 
@@ -262,16 +286,24 @@ def plan_inputs(
         unchecked: The automated recipes carrying no asset path, by ClassName.
         unmatched_unlocks: How many of the world's unlocked paths joined no recipe.
             A count, because each one is a string read out of a save.
+        backend: The name of the backend that ran the search, as the result
+            carries it. REQUIRED, with no default: a derivation differs by backend,
+            so one that names none cannot be reproduced from what it shows.
 
     Returns:
         A fresh dict, so a caller may add inputs from another layer.
     """
     return {
-        **refused_inputs(STATUS_RANKED, unchecked=unchecked, unmatched_unlocks=unmatched_unlocks),
+        **refused_inputs(
+            STATUS_RANKED,
+            trimmed=trimmed,
+            unchecked=unchecked,
+            unmatched_unlocks=unmatched_unlocks,
+        ),
         IN_PLAN: InputValue(ranked.plan, _SOURCE_PREFIX + "plan"),
         IN_BADGE: InputValue(ranked.badge, _SOURCE_PREFIX + "badge"),
         IN_REQUIRES: InputValue(requires, _REQUIRES_SOURCE),
-        IN_TRIMMED: InputValue(trimmed, _TRIMMED_SOURCE),
+        IN_BACKEND: InputValue(backend, _BACKEND_SOURCE),
     }
 
 
@@ -318,10 +350,12 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     if status != STATUS_RANKED and status not in _STATUS_REASONS:
         raise ValueError("a plan status is outside the closed vocabulary")
     unchecked: tuple[str, ...] = ()
+    trimmed: tuple[str, ...] = ()
     if status not in _UNJOINED_STATUSES:
         unchecked = _names(ctx.read(IN_UNCHECKED), "a plan's unchecked recipes")
         if type(ctx.read(IN_UNMATCHED)) is not int:
             raise TypeError("a plan's unmatched unlock count is not an int")
+        trimmed = _names(ctx.read(IN_TRIMMED), "a plan's trimmed recipes")
     if status != STATUS_RANKED:
         ctx.indeterminate(_ADOPT_ALTERNATIVE, _STATUS_REASONS[status])
         return None
@@ -333,7 +367,8 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
         raise TypeError("a badge input is not a StrategyBadge")
     _check_badge(badge)
     requires = _names(ctx.read(IN_REQUIRES), "a plan's unlock keys")
-    trimmed = _names(ctx.read(IN_TRIMMED), "a plan's trimmed recipes")
+    if ctx.read(IN_BACKEND) not in available_backends():
+        raise ValueError("a plan's backend is outside the closed vocabulary")
     targets = tuple(sorted(plan.targets))
     if not targets:
         raise ValueError("a plan names no target")

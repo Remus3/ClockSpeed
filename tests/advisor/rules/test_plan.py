@@ -28,7 +28,8 @@ CS-1351 adds the status: every world offers one, a status other than ranked
 records one indeterminate step and no card, a status outside the vocabulary is a
 rule error, and the firing path records one indeterminate step too, so only the
 rejection of a plan that cleared no rung settles the rule. What the search left
-out reaches tier 2 as a count, ahead of the build caveat, and tier 3 by name.
+out reaches tier 2 as a count, ahead of the build caveat, and tier 3 by name, and a
+refused trace reads it too. The backend that ran reaches tier 3 and nothing else.
 ``tests/advisor/test_plan_world.py`` grades the same rule through ``advise_world``.
 
 EVERY WORLD IS SYNTHETIC. The plans and badges are hand-built from invented
@@ -54,6 +55,7 @@ from clockspeed.advisor.cards import Card, card_for, render_value
 from clockspeed.advisor.ledger import Ledger, MuteStore
 from clockspeed.advisor.rules.plan import (
     ADOPT_RULE,
+    IN_BACKEND,
     IN_BADGE,
     IN_PLAN,
     IN_REQUIRES,
@@ -132,6 +134,10 @@ TOKEN: Final = "PPPPsyntheticTokenPPPP"  # noqa: S105 - a synthetic world token,
 
 #: Words that would mean the badge leaked into a headline.
 BADGE_WORDS: Final = ("badge", "strongest", "cleared", "rung", "within", "bound")
+
+#: The backend names the rule may read, spelled here rather than imported.
+EXHAUSTIVE: Final = "exhaustive"
+GREEDY: Final = "greedy"
 
 
 def _check(name: str, *, cleared: bool, score: Fraction, reference: Fraction) -> ThresholdCheck:
@@ -220,6 +226,7 @@ def _world(
     trimmed: tuple[str, ...] = (),
     unchecked: tuple[str, ...] = (),
     unmatched_unlocks: int = 0,
+    backend: str = EXHAUSTIVE,
 ) -> WorldInputs:
     """A synthetic world offering the build inputs and one ranked plan."""
     offered = pinned_build_inputs(game_pin()) if build is None else build
@@ -229,6 +236,7 @@ def _world(
         trimmed=trimmed,
         unchecked=unchecked,
         unmatched_unlocks=unmatched_unlocks,
+        backend=backend,
     )
     return WorldInputs(values=values, unlocks=unlocks)
 
@@ -271,13 +279,14 @@ def expected_tier3(pin: int) -> str:
             '  7. Read plan.status = "ranked" from advisor.plans.status',
             "  8. Read plan.unchecked = () from advisor.plans.unchecked",
             "  9. Read plan.unmatched_unlocks = 0 from advisor.plans.unmatched_unlocks",
-            "  10. Read plan.production = ProductionPlan(steps=("
+            "  10. Read plan.trimmed = () from solve.bound.trim_record.removed",
+            "  11. Read plan.production = ProductionPlan(steps=("
             'PlanStep(recipe_key="Recipe_SyntheticGadget_C", machines=3.00), '
             'PlanStep(recipe_key="Recipe_SyntheticPlate_C", machines=1.33 (exactly 4/3))), '
             'targets={"Desc_SyntheticGadget_C": 30.00}, '
             'raw_inputs={"Desc_SyntheticOre_C": 120.00}, byproducts={}, excluded=(), '
             'byproduct_policy="balanced") from solve.strategy.ranked_plan.plan',
-            '  11. Read plan.badge = StrategyBadge(strongest="within-power", '
+            '  12. Read plan.badge = StrategyBadge(strongest="within-power", '
             'cleared=("within-buildings", "within-power"), checks=('
             'ThresholdCheck(strategy="within-raw", cleared=false, score=120.00, '
             'reference=60.00, bound=1.00, reason="over-bound"), '
@@ -286,14 +295,14 @@ def expected_tier3(pin: int) -> str:
             'ThresholdCheck(strategy="within-power", cleared=true, score=45.00, '
             'reference=145.33 (exactly 436/3), bound=1.00, reason=""))) '
             "from solve.strategy.ranked_plan.badge",
-            "  12. Read plan.requires = "
+            "  13. Read plan.requires = "
             '("recipe:/Game/Synthetic/Recipe_SyntheticGadget.Recipe_SyntheticGadget_C") '
             "from advisor.plans.recipe_unlock_join",
-            "  13. Read plan.trimmed = () from solve.bound.trim_record.removed",
-            "  14. Computed plan machine equivalents = 4.33 (exactly 13/3)",
-            "  15. Indeterminate compare the plan with what is built:"
+            '  14. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
+            "  15. Computed plan machine equivalents = 4.33 (exactly 13/3)",
+            "  16. Indeterminate compare the plan with what is built:"
             " a plan is ranked for a stated target and never compared with the world",
-            "  16. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
+            "  17. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
         ]
     )
 
@@ -380,7 +389,30 @@ def test_a_different_badge_on_the_same_plan_moves_tier3_and_never_tier1() -> Non
         if old != new
     ]
     assert len(moved_lines) == 1
-    assert moved_lines[0].startswith("  11. Read plan.badge = StrategyBadge(")
+    assert moved_lines[0].startswith("  12. Read plan.badge = StrategyBadge(")
+
+
+def test_the_backend_moves_exactly_its_own_tier3_line_and_never_tier1_or_the_id() -> None:
+    """CS-1351: tier 3 differs by backend, so it names the one that ran, and only tier 3 does."""
+    first = _card(_world(backend=EXHAUSTIVE))
+    second = _card(_world(backend=GREEDY))
+    same_headline = first.tier1 == second.tier1
+    assert same_headline
+    same_reason = first.tier2 == second.tier2
+    assert same_reason
+    same_id = first.id == second.id
+    assert same_id
+    moved = [
+        (old, new)
+        for old, new in zip(first.tier3.splitlines(), second.tier3.splitlines(), strict=True)
+        if old != new
+    ]
+    assert moved == [
+        (
+            '  14. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
+            '  14. Read plan.backend = "greedy" from solve.optimize.optimize_result.backend',
+        )
+    ]
 
 
 def _constructor_names(cls: type) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -486,6 +518,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         trimmed=(PLATE_STEP,),
         unchecked=(GADGET_STEP,),
         unmatched_unlocks=UNMATCHED_THREE,
+        backend=GREEDY,
     )
     assert tuple(offered) == PLAN_INPUTS
     assert offered[IN_STATUS].value == STATUS_RANKED
@@ -495,15 +528,17 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
     assert offered[IN_TRIMMED].value == (PLATE_STEP,)
     assert offered[IN_UNCHECKED].value == (GADGET_STEP,)
     assert offered[IN_UNMATCHED].value == UNMATCHED_THREE
+    assert offered[IN_BACKEND].value == GREEDY
     sources = tuple(offered[name].source for name in PLAN_INPUTS)
     assert sources == (
         "advisor.plans.status",
         "advisor.plans.unchecked",
         "advisor.plans.unmatched_unlocks",
+        "solve.bound.trim_record.removed",
         "solve.strategy.ranked_plan.plan",
         "solve.strategy.ranked_plan.badge",
         "advisor.plans.recipe_unlock_join",
-        "solve.bound.trim_record.removed",
+        "solve.optimize.optimize_result.backend",
     )
 
 
@@ -513,12 +548,16 @@ UNMATCHED_TWO: Final = 2
 
 #: Every status but ranked, and the words its one indeterminate reason carries.
 REFUSED_STATUSES: Final = (
-    (STATUS_NO_PLAN, "no selection of the unlocked automated recipes reaches the target"),
+    (
+        STATUS_NO_PLAN,
+        "the search found no plan over the unlocked automated recipes it kept,"
+        " under the stated byproduct policy",
+    ),
     (STATUS_SOLVE_REFUSED, "the search refused, which says nothing about the target"),
     (STATUS_POWER_NOT_COMPARABLE, "the power search reached a recipe with no exact draw"),
 )
 
-#: The two statuses reached before any join ran, with their reasons.
+#: The two statuses whose reason needs nothing else read, with those reasons.
 UNJOINED_STATUSES: Final = (
     (STATUS_NO_TARGET, "no target was stated, so no plan was ranked"),
     (STATUS_REQUEST_MALFORMED, "the stated target cannot be asked as a question"),
@@ -560,12 +599,32 @@ def test_a_status_before_any_join_reads_the_status_alone(status: str, reason: st
     ("status", "reason"), REFUSED_STATUSES, ids=[s for s, _ in REFUSED_STATUSES]
 )
 def test_a_status_after_a_join_also_reads_what_the_join_left_out(status: str, reason: str) -> None:
-    offered = refused_inputs(status, unchecked=(GADGET_STEP,), unmatched_unlocks=UNMATCHED_TWO)
+    offered = refused_inputs(
+        status,
+        trimmed=(PLATE_STEP,),
+        unchecked=(GADGET_STEP,),
+        unmatched_unlocks=UNMATCHED_TWO,
+    )
     trace = run_rule(ADOPT_RULE, _status_world(offered))
     _assert_undecided(trace, reason)
     reads = {step.subject: step.value for step in trace.steps if step.kind is StepKind.INPUT_READ}
     assert reads[IN_UNCHECKED] == (GADGET_STEP,)
     assert reads[IN_UNMATCHED] == UNMATCHED_TWO
+    assert reads[IN_TRIMMED] == (PLATE_STEP,)
+    # The ranked path's own inputs are not offered here, and a read of one would say so.
+    assert IN_BACKEND not in reads
+    assert IN_PLAN not in reads
+
+
+def test_a_trimmed_of_the_wrong_shape_on_a_refused_path_is_a_rule_error() -> None:
+    values = dict(
+        refused_inputs(STATUS_NO_PLAN, trimmed=(), unchecked=(), unmatched_unlocks=0),
+    )
+    values[IN_TRIMMED] = InputValue(GADGET_STEP, values[IN_TRIMMED].source)
+    trace = run_rule(ADOPT_RULE, _status_world(values))
+    assert card_for(trace) is None
+    errors = [step.subject for step in trace.steps if step.kind is StepKind.RULE_ERROR]
+    assert errors == ["TypeError"]
 
 
 def test_a_status_outside_the_vocabulary_is_a_rule_error() -> None:
@@ -589,8 +648,17 @@ def test_a_status_that_is_not_text_is_a_rule_error() -> None:
         (IN_TRIMMED, GADGET_STEP, "TypeError"),
         (IN_REQUIRES, (Fraction(1),), "TypeError"),
         (IN_UNMATCHED, True, "TypeError"),
+        (IN_BACKEND, "no-such-backend", "ValueError"),
+        (IN_BACKEND, Fraction(1), "ValueError"),
     ],
-    ids=["unchecked", "trimmed", "requires", "unmatched"],
+    ids=[
+        "unchecked",
+        "trimmed",
+        "requires",
+        "unmatched",
+        "backend-outside-the-vocabulary",
+        "backend-not-text",
+    ],
 )
 def test_a_left_out_input_of_the_wrong_shape_is_a_rule_error(
     name: str, wrong: object, error: str
@@ -644,6 +712,20 @@ def test_what_the_search_left_out_precedes_the_caveat_and_never_reaches_tier1(of
     # A count alone in tier 2: the unmatched count is tier 3's, and no name is tier 2's.
     assert "unmatched" not in card.tier2
     assert GADGET_STEP not in card.tier2
+
+
+def test_a_plan_stating_its_targets_out_of_order_is_named_sorted() -> None:
+    """Pillar 1 sorts a solved plan's targets, so only a hand-built plan grades this sort."""
+    plan = replace(
+        _plan(), targets=MappingProxyType({ORE_ITEM: Fraction(5), GADGET_ITEM: Fraction(30)})
+    )
+
+    card = _card(_world(_ranked(plan=plan)))
+
+    assert card.subject_key == "plan:Desc_SyntheticGadget_C+Desc_SyntheticOre_C"
+    assert card.tier1 == (
+        "Build the planned production chain for Desc_SyntheticGadget_C, Desc_SyntheticOre_C"
+    )
 
 
 def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:

@@ -702,6 +702,85 @@ def test_the_refusal_is_a_no_plan_refusal_a_caller_already_handles(corpus: Regis
         optimize_within_bound(corpus, _request((ORPHAN_RECIPE,)))
 
 
+def test_a_refusal_over_the_cap_carries_what_the_bound_dropped() -> None:
+    """CS-1351: a no-plan is about the kept set, so what the cap dropped travels with it.
+
+    Fourteen fillers, none making Relic, so all share the second tier and registry
+    order alone decides: the cap of twelve keeps R_Pad0 to R_Pad11. Named by hand,
+    never read back from the ranking.
+    """
+    added = _padding(14)
+    registry = registry_with(add=added)
+    request = _request(_added_keys(registry, added))
+    usable, _notes = usable_candidates(registry, request)
+
+    assert len(usable) > MAX_EXHAUSTIVE_CANDIDATES
+
+    with pytest.raises(BoundExhaustedError) as caught:
+        optimize_within_bound(registry, request)
+
+    record = caught.value.record
+    assert record is not None
+    assert record.first.removed == ("R_Pad12", "R_Pad13")
+    assert record.first.kept == tuple(f"R_Pad{index}" for index in range(12))
+    assert record.first.rule == TRIM_TARGET_PRODUCERS_FIRST
+    assert record.first.cap == MAX_EXHAUSTIVE_CANDIDATES
+
+
+def test_a_refusal_under_the_cap_carries_no_record(corpus: Registry) -> None:
+    """C7 has one usable candidate, so nothing was dropped and a record would claim otherwise."""
+    with pytest.raises(BoundExhaustedError) as caught:
+        optimize_within_bound(corpus, _request((ORPHAN_RECIPE,)))
+
+    assert caught.value.record is None
+
+
+def test_the_record_is_keyword_only_and_a_refusal_built_without_one_holds_none() -> None:
+    """Additive: the four positional arguments every shipped raise passes still build one."""
+    bare = BoundExhaustedError(MAX_EXHAUSTIVE_CANDIDATES, TRIM_TARGET_PRODUCERS_FIRST, 1, "m")
+
+    assert bare.record is None
+    record = TrimRecord(
+        steps=(
+            TrimStep(
+                rule=TRIM_TARGET_PRODUCERS_FIRST,
+                cap=MAX_EXHAUSTIVE_CANDIDATES,
+                kept=("R_Kept",),
+                removed=("R_Dropped",),
+            ),
+        )
+    )
+    held = BoundExhaustedError(
+        MAX_EXHAUSTIVE_CANDIDATES, TRIM_TARGET_PRODUCERS_FIRST, 1, "m", record=record
+    )
+    assert held.record is record
+    with pytest.raises(TypeError):
+        BoundExhaustedError(  # type: ignore[misc]
+            MAX_EXHAUSTIVE_CANDIDATES, TRIM_TARGET_PRODUCERS_FIRST, 1, "m", record
+        )
+
+
+def test_trim_record_says_what_the_cap_drops_before_any_search(
+    corpus: Registry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rule over the targets and registry order, so it stays true whichever refusal ends one."""
+    added = _padding(14)
+    registry = registry_with(add=added)
+    request = _request(_added_keys(registry, added))
+
+    with pytest.raises(BoundExhaustedError) as caught:
+        optimize_within_bound(registry, request)
+
+    def no_search(*_args: object, **_kwargs: object) -> OptimizeResult:
+        """Refuse every solve, so an answer here cannot have come from one."""
+        raise AssertionError
+
+    monkeypatch.setattr(bound, "optimize_plan", no_search)
+
+    assert bound.trim_record(registry, request) == caught.value.record
+    assert bound.trim_record(corpus, _request((ORPHAN_RECIPE,))) is None
+
+
 # ===========================================================================
 # f. The closed rule vocabulary
 # ===========================================================================
@@ -1038,7 +1117,7 @@ def test_the_refusal_says_what_a_greedy_exhaustion_does_not_prove() -> None:
     assert str(MAX_EXHAUSTIVE_CANDIDATES) in message
     assert TRIM_TARGET_PRODUCERS_FIRST in message
     assert "under the greedy backend, a heuristic, it is not proof that none exists" in message
-    assert "carries no record" in message
+    assert "this refusal's record names what the cap dropped" in message
 
 
 @pytest.mark.parametrize("backend", BOTH_BACKENDS)

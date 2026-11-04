@@ -333,10 +333,11 @@ def _plan_world(*, cleared: bool) -> WorldInputs:
             plan.IN_STATUS: plan.STATUS_RANKED,
             plan.IN_UNCHECKED: (),
             plan.IN_UNMATCHED: 0,
+            plan.IN_TRIMMED: (),
             plan.IN_PLAN: production,
             plan.IN_BADGE: _plan_badge(cleared=cleared),
             plan.IN_REQUIRES: (_PLAN_UNLOCK,),
-            plan.IN_TRIMMED: (),
+            plan.IN_BACKEND: "exhaustive",
         },
         unlocks=(_PLAN_UNLOCK,),
     )

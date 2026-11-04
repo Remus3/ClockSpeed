@@ -924,10 +924,10 @@ class Recipe:
         asset_path: CS-1351. The PATH half of the entry's ``FullName`` verbatim,
             the side of the recipe-to-unlock join this layer owns: a save names
             an unlocked recipe by this object path, compared by the whole string.
-            None when ``FullName`` is absent, silently, because most entries
-            carry none; None and flagged when it is not a string or not exactly
-            one class half and one path half. Never rebuilt from the ClassName
-            and never cut down to a trailing token.
+            None when ``FullName`` is absent, silently, as an optional field reads,
+            and every measured recipe entry carries one; None and flagged when it is
+            not a string or not exactly one class half and one path half. Never
+            rebuilt from the ClassName and never cut down to a trailing token.
     """
 
     key: str

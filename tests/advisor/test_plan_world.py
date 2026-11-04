@@ -34,6 +34,11 @@ only: nothing from a save reaches its assertion, and its helpers hand back ints.
 
 Every other world here is synthetic, hand-built from invented paths. No save or
 install is read by any other arm.
+
+THE REPAIR'S WORLDS, EACH WORKED BY HAND IN ITS OWN DOCSTRING: a route the cap cuts
+in half (:func:`test_a_capped_no_plan_names_what_the_bound_dropped`), a world where
+greedy's raw walk dead-ends (:func:`_dead_end_registry`), and one where the buildings
+and power optima are different plans (:func:`_crossed_optima_registry`).
 """
 
 from __future__ import annotations
@@ -81,7 +86,14 @@ from clockspeed.save.world import (
     WorldModel,
     load_world_from_bytes,
 )
-from clockspeed.solve.bound import BoundExhaustedError
+from clockspeed.solve.backends import BACKEND_EXHAUSTIVE, BACKEND_GREEDY
+from clockspeed.solve.bound import (
+    TRIM_TARGET_PRODUCERS_FIRST,
+    BoundedResult,
+    BoundExhaustedError,
+    TrimRecord,
+    TrimStep,
+)
 from clockspeed.solve.exact import InexactValueError, UndefinedRateError
 from clockspeed.solve.optimize import (
     BACKEND_ENV_VAR,
@@ -183,6 +195,22 @@ NO_PRODUCER: Final = "R_NoProducerRelic"
 
 #: What a raw search pays for 10 Relic when it may use :data:`NO_PRODUCER`.
 NO_PRODUCER_ORE: Final = Fraction(5)
+
+#: A recipe whose second product nothing consumes.
+BYPRODUCT_RECIPE: Final = "R_By"
+
+#: A direct Relic producer naming two buildings, so it has no exact draw.
+UNPRICEABLE_RECIPE: Final = "R_Odd"
+
+#: The three recipes of the world where greedy's raw walk dead-ends.
+DEAD_END_A: Final = "R_A"
+DEAD_END_B: Final = "R_B"
+DEAD_END_C: Final = "R_C"
+
+#: The three recipes of the world whose buildings and power optima differ.
+CROSSED_X: Final = "R_X"
+CROSSED_Y1: Final = "R_Y1"
+CROSSED_Y2: Final = "R_Y2"
 
 #: Each recipe's invented asset path. NONE derives from its ClassName, so a join
 #: that rebuilt a path from a name, or matched a trailing token, joins nothing.
@@ -739,7 +767,12 @@ def _no_rung_world(model: WorldModel, registry: Registry) -> WorldInputs:
     values = dict(_inputs(model, registry, None).values)
     values.update(
         plan_rules.plan_inputs(
-            ranked[0], requires=(), trimmed=(), unchecked=(), unmatched_unlocks=0
+            ranked[0],
+            requires=(),
+            trimmed=(),
+            unchecked=(),
+            unmatched_unlocks=0,
+            backend=BACKEND_EXHAUSTIVE,
         )
     )
     return WorldInputs(values=values, unlocks=unlock_keys(model.unlocks))
@@ -820,12 +853,20 @@ REFUSALS: Final[Mapping[str, tuple[Callable[[], Exception], str]]] = MappingProx
         "value-error": (lambda: ValueError(MARK), STATUS_REQUEST_MALFORMED),
         "inexact-value": (lambda: InexactValueError(MARK), STATUS_REQUEST_MALFORMED),
         "undefined-rate": (lambda: UndefinedRateError(MARK), STATUS_SOLVE_REFUSED),
-        "unknown-backend": (lambda: UnknownBackendError(MARK, MARK), STATUS_REQUEST_MALFORMED),
+        "unknown-backend": (lambda: UnknownBackendError(MARK, MARK), STATUS_SOLVE_REFUSED),
     }
 )
 
 #: The three doors plan_offer reaches solve through.
 SOLVE_DOORS: Final = ("optimize_within_bound", "optimize_plan", "rank_plans")
+
+#: The door a rung search runs through. A no-plan refusal arriving here comes after
+#: the bound has solved, and on the asked rung (:func:`_request` asks by raw, the
+#: first rung), so a plan does exist and no-plan would be false.
+RUNG_SEARCH_DOOR: Final = "optimize_plan"
+
+#: The refusals that say no-plan at every door but that one.
+NO_PLAN_REFUSALS: Final = frozenset({"no-feasible", "bound-exhausted"})
 
 
 @pytest.mark.parametrize("door", SOLVE_DOORS)
@@ -834,6 +875,8 @@ def test_each_solve_refusal_is_a_recorded_step_never_a_crash(
     door: str, refusal: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     make, status = REFUSALS[refusal]
+    if door == RUNG_SEARCH_DOOR and refusal in NO_PLAN_REFUSALS:
+        status = STATUS_SOLVE_REFUSED
 
     def refusing(*_args: object, **_kwargs: object) -> object:
         raise make()
@@ -896,14 +939,548 @@ def test_a_power_refusal_on_the_asked_rung_is_a_recorded_status() -> None:
 def test_an_unknown_backend_in_the_environment_is_a_recorded_step(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The real refusal, through the real door, and its name is never echoed."""
+    """The real refusal, through the real door, and its name is never echoed.
+
+    Solve-refused and never request-malformed: a bad environment value says nothing
+    about the target the caller stated.
+    """
     monkeypatch.setenv(BACKEND_ENV_VAR, MARK)
 
     trace = run_rule(plan_rules.ADOPT_RULE, _inputs(_model(ASCENT_PATHS), _registry(), _request()))
 
-    assert _read(trace, "plan.status") == STATUS_REQUEST_MALFORMED
+    assert _read(trace, "plan.status") == STATUS_SOLVE_REFUSED
     echoed = MARK in _rendered(trace)
     assert not echoed
+
+
+def _capped_entries() -> list[dict[str, str]]:
+    """Fourteen recipes: the two-stage route with twelve fillers between its stages."""
+    two_stages = _ascent_entries()
+    fillers = [
+        _entry(
+            f"{PADDING_PREFIX}{index}",
+            [(SOLVE_ORE_ITEM, 1)],
+            [(SOLVE_ROD_ITEM, 1)],
+            path=_pad_path(index),
+        )
+        for index in range(12)
+    ]
+    return [two_stages[0], *fillers, two_stages[2]]
+
+
+def _capped_paths() -> tuple[str, ...]:
+    """Every unlock path of :func:`_capped_entries`."""
+    return (
+        PATHS[RELIC_FROM_RARE],
+        *(_pad_path(index) for index in range(12)),
+        PATHS[RARE_FROM_ORE],
+    )
+
+
+def _indeterminate_reason(trace: Trace) -> str:
+    """The reason on the one indeterminate step a trace must hold."""
+    found = [step.reason for step in trace.steps if step.kind is StepKind.VERDICT_INDETERMINATE]
+    count = len(found)
+    assert count == 1
+    return found[0]
+
+
+def test_a_capped_no_plan_names_what_the_bound_dropped(tmp_path: Path) -> None:
+    """A route exists among the unlocked recipes and the cap dropped half of it.
+
+    By hand: R_B1Relic is the one direct Relic producer, so it ranks first, and the
+    twelve fillers and R_B3Rare follow in registry order. The cap of twelve keeps
+    R_B1Relic and R_Pad0 to R_Pad10, and drops R_Pad11 and R_B3Rare. Nothing kept
+    makes Rare, so no prefix solves, and the status is a statement about the kept
+    set: the trace has to say what the search never asked about.
+    """
+    advice = _advise(tmp_path, _model(_capped_paths()), _registry_of(_capped_entries()), _request())
+
+    trace = _plan_trace(advice)
+    assert _read(trace, "plan.status") == STATUS_NO_PLAN
+    assert _read(trace, "plan.trimmed") == (f"{PADDING_PREFIX}11", RARE_FROM_ORE)
+    assert _indeterminate_reason(trace) == (
+        "the search found no plan over the unlocked automated recipes it kept,"
+        " under the stated byproduct policy"
+    )
+    assert _plan_cards(advice) == []
+    assert trace.recommendation is None
+    settled = ADOPT_ID in settled_rules(advice.traces)
+    assert not settled
+
+    # The control: the same two unlocked recipes, asked about, do solve.
+    route = (RELIC_FROM_RARE, RARE_FROM_ORE)
+    solved = optimize_plan(
+        _registry_of(_capped_entries()),
+        OptimizeRequest(
+            targets=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_RATE}),
+            candidates=route,
+            unlocked=route,
+            raw_items=(SOLVE_ORE_ITEM,),
+            byproduct_policy=BYPRODUCT_BALANCED,
+            objective=weighted_objective(raw=Fraction(1)),
+        ),
+    )
+    assert [step.recipe_key for step in solved.plan.steps] == list(route)
+    assert solved.plan.raw_inputs[SOLVE_ORE_ITEM] == TWO_STAGE_ORE
+
+
+def test_an_uncapped_no_plan_is_the_same_status_and_names_nothing_dropped() -> None:
+    """One status for both: only what the bound dropped tells them apart."""
+    trace = run_rule(
+        plan_rules.ADOPT_RULE,
+        _inputs(_model((PATHS[RARE_FROM_ORE],)), _registry(), _request()),
+    )
+
+    assert _read(trace, "plan.status") == STATUS_NO_PLAN
+    assert _read(trace, "plan.trimmed") == ()
+    assert card_for(trace) is None
+
+
+def test_a_refusal_reads_what_the_refusal_itself_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The refusal's record is what no-plan names, and the world here trims nothing."""
+    record = TrimRecord(
+        steps=(
+            TrimStep(
+                rule=TRIM_TARGET_PRODUCERS_FIRST,
+                cap=MAX_EXHAUSTIVE_CANDIDATES,
+                kept=(RELIC_FROM_RARE,),
+                removed=(RELIC_DIRECT, RARE_FROM_ORE),
+            ),
+        )
+    )
+
+    def refusing(*_args: object, **_kwargs: object) -> object:
+        raise BoundExhaustedError(MAX_EXHAUSTIVE_CANDIDATES, MARK, 1, MARK, record=record)
+
+    monkeypatch.setattr(plans_module, "optimize_within_bound", refusing)
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), _request())
+
+    assert offered["plan.status"].value == STATUS_NO_PLAN
+    assert offered["plan.trimmed"].value == (RELIC_DIRECT, RARE_FROM_ORE)
+
+
+def test_a_target_declared_raw_is_malformed_after_the_join_and_reads_the_status_alone() -> None:
+    """Pillar 1 refuses it at the empty prefix, so the join ran and its report stays unread."""
+    request = _request(item=SOLVE_ORE_ITEM)
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), request)
+    trace = run_rule(plan_rules.ADOPT_RULE, _inputs(_model(ASCENT_PATHS), _registry(), request))
+
+    assert offered["plan.status"].value == STATUS_REQUEST_MALFORMED
+    assert offered["plan.trimmed"].value == ()
+    reads = [
+        step.subject
+        for step in trace.steps
+        if step.kind is StepKind.INPUT_READ and step.subject.startswith("plan.")
+    ]
+    assert reads == ["plan.status"]
+
+
+def test_a_byproduct_refusal_reads_as_the_stated_policy() -> None:
+    """One recipe does reach the target, refused only for its byproduct.
+
+    By hand: R_By makes 1 Relic and 1 Rare from 1 Ore. Balanced byproducts leave a
+    Rare row nothing consumes, so no plan; sinkable sinks the Rare, at 10 Ore a minute.
+    """
+    entries = [
+        _entry(
+            BYPRODUCT_RECIPE,
+            [(SOLVE_ORE_ITEM, 1)],
+            [(SOLVE_RELIC_ITEM, 1), (SOLVE_RARE_ITEM, 1)],
+            path=PATHS[RELIC_DIRECT],
+        )
+    ]
+    registry = _registry_of(entries)
+    model = _model((PATHS[RELIC_DIRECT],))
+
+    trace = run_rule(plan_rules.ADOPT_RULE, _inputs(model, registry, _request()))
+
+    assert _read(trace, "plan.status") == STATUS_NO_PLAN
+    assert _read(trace, "plan.trimmed") == ()
+    assert "under the stated byproduct policy" in _indeterminate_reason(trace)
+
+    # The control: the same recipe under the other policy is a plan.
+    sinkable = dataclasses.replace(_request(), byproduct_policy=BYPRODUCT_SINKABLE)
+    offered = plan_offer(model.unlocks, registry, sinkable)
+    assert offered["plan.status"].value == STATUS_RANKED
+    plan = offered["plan.production"].value
+    assert plan.raw_inputs[SOLVE_ORE_ITEM] == TWO_STAGE_ORE  # type: ignore[attr-defined]
+
+
+def test_a_refusal_the_bound_never_answered_still_names_the_trim() -> None:
+    """The cap's drop is a rule, so it stays true when the ascent itself refuses.
+
+    By hand: R_Odd names two buildings, so it has no exact draw, and it is the one
+    direct Relic producer. Asked by power, the prefix holding it refuses inside the
+    ascent, with no BoundedResult and no BoundExhaustedError to read a record from.
+    The cap keeps R_Odd and R_Pad0 to R_Pad10, and drops R_Pad11 and R_B3Rare. An
+    empty ``plan.trimmed`` here would say nothing was dropped.
+    """
+    fillers = _capped_entries()[1:-1]
+    odd = _entry(
+        UNPRICEABLE_RECIPE,
+        [(SOLVE_ORE_ITEM, 5)],
+        [(SOLVE_RELIC_ITEM, 1)],
+        path=PATHS[RELIC_FROM_RARE],
+        buildings=(SOLVE_ASSEMBLER_BUILDING, SOLVE_SMELTER_BUILDING),
+    )
+    registry = _registry_of([odd, *fillers, _ascent_entries()[2]])
+
+    trace = run_rule(
+        plan_rules.ADOPT_RULE,
+        _inputs(_model(_capped_paths()), registry, _request(direction=OBJECTIVE_POWER)),
+    )
+
+    assert _read(trace, "plan.status") == STATUS_POWER_NOT_COMPARABLE
+    assert _read(trace, "plan.trimmed") == (f"{PADDING_PREFIX}11", RARE_FROM_ORE)
+
+
+def _dead_end_registry() -> Registry:
+    """A world where greedy's raw walk dead-ends and a plan does exist.
+
+    Every cycle is six seconds, ten a minute, 15 MW a machine. By hand at 10 Relic a
+    minute, balanced:
+
+    - R_A alone, 6 Ore to 1 Relic: 60 Ore, 1 machine, 15 MW. The only plan, because
+    - R_B, 1 Rare to 1 Relic, needs R_C, 1 Ore to 1 Rare and 1 Rod, and nothing
+      consumes the Rod.
+
+    Greedy's raw walk probes R_B at a relaxed raw total of 10 against R_A's 60, commits
+    to it, adds R_C, and has nothing left to add, and no selection it reached solved. Its
+    buildings and power walks tie R_A against R_B and take R_A, first in registry order.
+
+    Returns:
+        The registry, in the order above.
+    """
+    return _registry_of(
+        [
+            _entry(
+                DEAD_END_A, [(SOLVE_ORE_ITEM, 6)], [(SOLVE_RELIC_ITEM, 1)], path=PATHS[ROD_FROM_ORE]
+            ),
+            _entry(
+                DEAD_END_B,
+                [(SOLVE_RARE_ITEM, 1)],
+                [(SOLVE_RELIC_ITEM, 1)],
+                path=PATHS[RELIC_DIRECT],
+            ),
+            _entry(
+                DEAD_END_C,
+                [(SOLVE_ORE_ITEM, 1)],
+                [(SOLVE_RARE_ITEM, 1), (SOLVE_ROD_ITEM, 1)],
+                path=PATHS[RARE_FROM_ORE],
+            ),
+        ]
+    )
+
+
+#: Every unlock path of :func:`_dead_end_registry`.
+DEAD_END_PATHS: Final = (PATHS[ROD_FROM_ORE], PATHS[RELIC_DIRECT], PATHS[RARE_FROM_ORE])
+
+
+def test_a_rung_search_that_dead_ends_on_another_rung_costs_that_rung_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Asked by buildings under greedy: the raw rung reads as not comparable, the plan stands."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_GREEDY)
+
+    offered = plan_offer(
+        _unlocks(DEAD_END_PATHS), _dead_end_registry(), _request(direction=OBJECTIVE_BUILDINGS)
+    )
+
+    assert offered["plan.status"].value == STATUS_RANKED
+    plan = offered["plan.production"].value
+    assert [step.recipe_key for step in plan.steps] == [DEAD_END_A]  # type: ignore[attr-defined]
+    badge = _badge_of(offered)
+    assert _measured(badge) == [
+        (RUNG_WITHIN_RAW, False, None, None, NOT_CLEARED_UNPRICEABLE),
+        (RUNG_WITHIN_BUILDINGS, True, ONE_STAGE_MACHINES, ONE_STAGE_MACHINES, ""),
+        (RUNG_WITHIN_POWER, True, ONE_STAGE_MEGAWATTS, ONE_STAGE_MEGAWATTS, ""),
+    ]
+
+
+def test_a_rung_search_that_dead_ends_on_the_asked_rung_is_solve_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Asked by raw under greedy the bound solved, so no-plan would be false: a plan exists."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_GREEDY)
+
+    trace = run_rule(
+        plan_rules.ADOPT_RULE,
+        _inputs(_model(DEAD_END_PATHS), _dead_end_registry(), _request()),
+    )
+
+    assert _read(trace, "plan.status") == STATUS_SOLVE_REFUSED
+    assert _indeterminate_reason(trace) == "the search refused, which says nothing about the target"
+    assert card_for(trace) is None
+
+
+@pytest.mark.parametrize("direction", [OBJECTIVE_RAW, OBJECTIVE_BUILDINGS, OBJECTIVE_POWER])
+def test_the_dead_end_world_under_exhaustive_clears_every_rung(
+    direction: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control: a complete search finds the one plan on every rung, so no rung dead-ends."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_EXHAUSTIVE)
+
+    offered = plan_offer(
+        _unlocks(DEAD_END_PATHS), _dead_end_registry(), _request(direction=direction)
+    )
+
+    assert offered["plan.status"].value == STATUS_RANKED
+    assert _measured(_badge_of(offered)) == [
+        (RUNG_WITHIN_RAW, True, ONE_STAGE_ORE, ONE_STAGE_ORE, ""),
+        (RUNG_WITHIN_BUILDINGS, True, ONE_STAGE_MACHINES, ONE_STAGE_MACHINES, ""),
+        (RUNG_WITHIN_POWER, True, ONE_STAGE_MEGAWATTS, ONE_STAGE_MEGAWATTS, ""),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("environment", "backend"),
+    [
+        pytest.param(None, BACKEND_EXHAUSTIVE, id="nothing-stated"),
+        pytest.param(BACKEND_EXHAUSTIVE, BACKEND_EXHAUSTIVE, id="exhaustive"),
+        pytest.param(BACKEND_GREEDY, BACKEND_GREEDY, id="greedy"),
+    ],
+)
+def test_tier3_names_the_backend_that_ran(
+    environment: str | None, backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tier 3 differs by backend, so it cannot be reproduced from what it shows without this."""
+    if environment is None:
+        monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
+    else:
+        monkeypatch.setenv(BACKEND_ENV_VAR, environment)
+
+    card = card_for(
+        run_rule(plan_rules.ADOPT_RULE, _inputs(_model(ASCENT_PATHS), _registry(), _request()))
+    )
+
+    assert card is not None
+    named = f'Read plan.backend = "{backend}" from solve.optimize.optimize_result.backend'
+    assert named in card.tier3
+
+
+def test_the_backend_moves_tier3_and_never_tier1_or_the_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both backends top out on the two stages, and only tier 3 tells them apart.
+
+    By hand: greedy's buildings and power walks tie R_B1Relic against R_B2Direct and
+    take R_B1Relic, first in registry order, so their references are the two stages
+    and the badge clears all three rungs where exhaustive's clears within-raw alone.
+    That claim is the reason tier 3 has to name the backend, and it is the one other
+    line that moves.
+    """
+    cards = []
+    for backend in (BACKEND_EXHAUSTIVE, BACKEND_GREEDY):
+        monkeypatch.setenv(BACKEND_ENV_VAR, backend)
+        cards.append(
+            card_for(
+                run_rule(
+                    plan_rules.ADOPT_RULE, _inputs(_model(ASCENT_PATHS), _registry(), _request())
+                )
+            )
+        )
+    first, second = cards
+    assert first is not None
+    assert second is not None
+    same_headline = first.tier1 == second.tier1
+    assert same_headline
+    same_id = first.id == second.id
+    assert same_id
+    moved = [
+        new
+        for old, new in zip(first.tier3.splitlines(), second.tier3.splitlines(), strict=True)
+        if old != new
+    ]
+    badge_line, backend_line = moved
+    assert "Read plan.badge = " in badge_line
+    assert 'cleared=("within-raw", "within-buildings", "within-power")' in badge_line
+    assert 'Read plan.backend = "greedy" from' in backend_line
+
+
+def test_the_backend_is_the_results_field_never_the_environment_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The environment says one name and the result another, and the result is what ran."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_EXHAUSTIVE)
+    real = plans_module.optimize_within_bound
+
+    def relabelled(*args: Any, **kwargs: Any) -> BoundedResult:
+        bounded = real(*args, **kwargs)
+        result = dataclasses.replace(bounded.result, backend=BACKEND_GREEDY)
+        return dataclasses.replace(bounded, result=result)
+
+    monkeypatch.setattr(plans_module, "optimize_within_bound", relabelled)
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), _request())
+
+    assert offered["plan.backend"].value == BACKEND_GREEDY
+    assert offered["plan.backend"].source == "solve.optimize.optimize_result.backend"
+
+
+@pytest.mark.parametrize(
+    "raw_items",
+    [
+        pytest.param(SOLVE_ORE_ITEM, id="a-str"),
+        pytest.param(None, id="none"),
+        pytest.param([SOLVE_ORE_ITEM], id="a-list"),
+        pytest.param((SOLVE_ORE_ITEM, 1), id="a-non-str-member"),
+    ],
+)
+def test_raw_items_that_are_not_a_tuple_of_str_are_malformed(raw_items: Any) -> None:
+    """A str read as no raw item at all, a false no-plan, and None raised out of the offer."""
+    request = dataclasses.replace(_request(), raw_items=raw_items)
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), request)
+
+    assert offered["plan.status"].value == STATUS_REQUEST_MALFORMED
+
+
+def test_no_raw_items_at_all_is_still_a_question() -> None:
+    """An empty tuple is a tuple of str: the search answers it, so this is no-plan."""
+    request = dataclasses.replace(_request(), raw_items=())
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), request)
+
+    assert offered["plan.status"].value == STATUS_NO_PLAN
+
+
+def _crossed_optima_registry() -> Registry:
+    """A world where the buildings and power optima are different plans.
+
+    Every cycle is six seconds, ten a minute. An assembler draws 15 MW and a smelter 4.
+    By hand at 10 Relic a minute:
+
+    - R_X in an assembler, 6 Ore to 1 Relic: 1 machine, 15 MW, 60 Ore;
+    - R_Y1 and R_Y2 in smelters, 1 Rare to 1 Relic and 1 Ore to 1 Rare: 2 machines,
+      8 MW, 10 Ore.
+
+    Returns:
+        The registry.
+    """
+    smelter = (SOLVE_SMELTER_BUILDING,)
+    return _registry_of(
+        [
+            _entry(
+                CROSSED_X, [(SOLVE_ORE_ITEM, 6)], [(SOLVE_RELIC_ITEM, 1)], path=PATHS[RELIC_DIRECT]
+            ),
+            _entry(
+                CROSSED_Y1,
+                [(SOLVE_RARE_ITEM, 1)],
+                [(SOLVE_RELIC_ITEM, 1)],
+                path=PATHS[RELIC_FROM_RARE],
+                buildings=smelter,
+            ),
+            _entry(
+                CROSSED_Y2,
+                [(SOLVE_ORE_ITEM, 1)],
+                [(SOLVE_RARE_ITEM, 1)],
+                path=PATHS[RARE_FROM_ORE],
+                buildings=smelter,
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    ("direction", "steps", "rows"),
+    [
+        pytest.param(
+            OBJECTIVE_BUILDINGS,
+            [CROSSED_X],
+            [
+                (RUNG_WITHIN_RAW, False, Fraction(60), Fraction(10), NOT_CLEARED_OVER_BOUND),
+                (RUNG_WITHIN_BUILDINGS, True, Fraction(1), Fraction(1), ""),
+                (RUNG_WITHIN_POWER, False, Fraction(15), Fraction(8), NOT_CLEARED_OVER_BOUND),
+            ],
+            id=OBJECTIVE_BUILDINGS,
+        ),
+        pytest.param(
+            OBJECTIVE_POWER,
+            [CROSSED_Y1, CROSSED_Y2],
+            [
+                (RUNG_WITHIN_RAW, True, Fraction(10), Fraction(10), ""),
+                (RUNG_WITHIN_BUILDINGS, False, Fraction(2), Fraction(1), NOT_CLEARED_OVER_BOUND),
+                (RUNG_WITHIN_POWER, True, Fraction(8), Fraction(8), ""),
+            ],
+            id=OBJECTIVE_POWER,
+        ),
+    ],
+)
+def test_the_buildings_and_power_rungs_are_graded_apart(
+    direction: str, steps: list[str], rows: list[tuple[str, bool, Fraction, Fraction, str]]
+) -> None:
+    """Each rung against its own optimum: a world where crossing the two cannot pass."""
+    offered = plan_offer(
+        _unlocks(ASCENT_PATHS), _crossed_optima_registry(), _request(direction=direction)
+    )
+
+    plan = offered["plan.production"].value
+    assert [step.recipe_key for step in plan.steps] == steps  # type: ignore[attr-defined]
+    assert _measured(_badge_of(offered)) == rows
+
+
+@pytest.mark.parametrize("door", SOLVE_DOORS)
+def test_a_type_error_from_the_search_raises_out_of_the_offer(
+    door: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A type outside the catches is no refusal, so it never reads as a status."""
+
+    def faulting(*_args: object, **_kwargs: object) -> object:
+        raise TypeError(MARK)
+
+    monkeypatch.setattr(plans_module, door, faulting)
+
+    with pytest.raises(TypeError):
+        plan_offer(_unlocks(ASCENT_PATHS), _registry(), _request())
+
+
+def test_the_unmatched_count_is_read_on_a_refused_path() -> None:
+    """The unlock path the docs do not know is counted on a no-plan as well."""
+    model = _model((PATHS[RARE_FROM_ORE], SAVE_ONLY_PATH))
+
+    trace = run_rule(plan_rules.ADOPT_RULE, _inputs(model, _registry(), _request()))
+
+    assert _read(trace, "plan.status") == STATUS_NO_PLAN
+    assert _read(trace, "plan.unmatched_unlocks") == 1
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        pytest.param((SOLVE_ROD_ITEM, SOLVE_RELIC_ITEM), id="rod-first"),
+        pytest.param((SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM), id="relic-first"),
+    ],
+)
+def test_a_two_target_plan_names_both_sorted_however_they_were_stated(
+    declared: tuple[str, str],
+) -> None:
+    """By hand: 10 Relic over two stages is 2 machines, and 20 Rod is 2 more."""
+    rates = {SOLVE_RELIC_ITEM: RELIC_RATE, SOLVE_ROD_ITEM: Fraction(20)}
+    rod = _entry(
+        ROD_FROM_ORE, [(SOLVE_ORE_ITEM, 1)], [(SOLVE_ROD_ITEM, 1)], path=PATHS[ROD_FROM_ORE]
+    )
+    registry = _registry_of([*_ascent_entries(), rod])
+    model = _model((*ASCENT_PATHS, PATHS[ROD_FROM_ORE]))
+    request = dataclasses.replace(
+        _request(), targets=MappingProxyType({item: rates[item] for item in declared})
+    )
+
+    card = card_for(run_rule(plan_rules.ADOPT_RULE, _inputs(model, registry, request)))
+
+    assert card is not None
+    assert card.subject_key == "plan:Desc_SolveRelic_C+Desc_SolveRod_C"
+    assert card.tier1 == (
+        "Build the planned production chain for Desc_SolveRelic_C, Desc_SolveRod_C"
+    )
+    assert card.tier2 == (
+        "It makes 10.00 per minute of Desc_SolveRelic_C, 20.00 per minute of Desc_SolveRod_C"
+        " with 4.00 machine equivalents"
+    )
 
 
 def test_a_trimmed_search_names_what_it_dropped(tmp_path: Path) -> None:
