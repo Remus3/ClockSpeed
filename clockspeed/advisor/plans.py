@@ -41,12 +41,13 @@ THE SEARCH, IN ORDER.
    kept set, and the trim. A real world joins more recipes than the exhaustive
    backend's cap, so a whole-set search would refuse. ``plan.trimmed`` names what the
    bound dropped, on every status a search reached: a no-plan speaks only for the
-   kept set, and what the cap drops is a rule over the targets and registry order, so
-   it stays true however the search then ends.
+   kept set, and what the cap drops is a rule over the targets, the raw items, the
+   joined recipes and the registry, ranking a target's derived route first, so it
+   stays true however the search then ends.
 3. :func:`clockspeed.solve.optimize.optimize_plan` runs once per ladder rung over
    the kept set, each under that rung's one direction. The kept set is the same for
-   all three because the trim reads the targets and registry order, never the
-   objective.
+   all three because the trim reads the targets, the raw items, the joined recipes
+   and the registry, never the objective.
 4. :func:`clockspeed.solve.strategy.rank_plans` ranks those optima once under the
    asked direction, with each rung's optimum as that rung's reference, and the top
    entry is the offer. Graded against its own ranking the top plan would clear every

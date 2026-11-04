@@ -35,44 +35,117 @@ config there is no floor to fire - the bound still holds, because the trim
 narrows the request either way, but nothing below would catch a trim that did
 not.
 
-THE TRIM RULE, AND WHY TARGET PRODUCERS RANK FIRST
-----------------------------------------------------
-One rule today, named :data:`TRIM_TARGET_PRODUCERS_FIRST` and the sole member of
-the closed vocabulary :data:`TRIM_RULES`, so a second rule cannot arrive
-unnamed. It ranks the usable candidates by the key::
+THE TRIM RULE, AND WHY A TARGET'S DERIVED ROUTE RANKS FIRST
+-------------------------------------------------------------
+The emitted rule is :data:`TRIM_ROUTE_FIRST`, which every step and every refusal
+names. :data:`TRIM_RULES` is the closed vocabulary, so a rule cannot arrive
+unnamed, and it still holds :data:`TRIM_TARGET_PRODUCERS_FIRST`, the rule CS-1245
+shipped, which no path emits any more. The emitted rule ranks the usable candidates
+by the key::
 
-    (0 if the recipe produces any item in request.targets else 1,
-     the recipe's position in registry order)
+    (0, walk index, registry position)   a member of the derived route
+    (1, walk depth, registry position)   the rest of the targets' backward closure
+    (2, 0, registry position)            everything else
 
-and keeps the first ``MAX_EXHAUSTIVE_CANDIDATES`` of that ranking. Both halves
-are ints; no float enters the key.
+and keeps the first ``MAX_EXHAUSTIVE_CANDIDATES`` of that ranking. All three are
+ints, no two candidates share a registry position, so the ranking is one strict order
+and no float enters the key.
 
-The first tier is what keeps a bounded search's feasibility NON-ARBITRARY. A
-bound that dropped every producer of a target would make every prefix
-infeasible, and the refusal that followed would say "no plan" about a request
-the unbounded search might well have answered - a wrong answer dressed as an
-absence. Ranking direct target-producers ahead of everything else means the
-bound never drops a target's last producer while keeping a recipe that cannot
-contribute to a target at all. The second tier is registry order, which is the
-same order the whole determinism claim in ``optimize.py`` rests on.
+THE DERIVED ROUTE is :func:`derived_route`, over what
+:func:`~clockspeed.solve.optimize.usable_candidates` lets through. Each item gets a
+COUNT, an exact pair of ints compared as a tuple, ``(locked on the tree, recipes on
+the tree)``. A raw item counts ``(0, 0)``, and any other item counts the least, over
+its usable producers, of that producer's own cost plus the sum of its inputs' counts,
+where a recipe costs ``(1 if a held set was stated and does not hold it else 0, 1)``.
+With no held set, which is what the trim passes, the first int is always zero and the
+count is recipes on a tree. A tie goes to the lower registry position, and that item's
+CHOSEN PRODUCER is the recipe that won. The walk is breadth first from the targets in
+sorted order, each recipe's inputs as listed, over chosen producers, stopping at raw
+items and at items with no count, each recipe once.
+
+THE COUNT IS THAT RULE'S LEAST FIXED POINT, reached by iterating to convergence from
+nothing but the raw items, so a count only ever comes from a finished tree, each of
+whose leaves is a raw item or a recipe with no inputs. An item no usable recipe reaches
+that way never gets one, which is what makes a cycle safe: a loop no raw item enters has
+no count and no chosen producer, and a loop with a way in takes the way in. A recipe's
+own cost holds a recipe, so its sum sits strictly above each of its inputs' counts, and
+every chosen producer's inputs therefore count strictly below the item it was chosen
+for. Following chosen producers can never come back to an item, so the walk ends on any
+cycle, and it names no recipe twice in any case. The same inequality bounds the
+iteration. Counts only fall, and a least tree repeats no item along a path, so it is no
+higher than the count of items; after that many passes every count is final, and one
+more finds nothing to move. Tied producers are read off the converged counts in a
+separate pass, so no tie is decided by which pass reached it first.
+
+THE COUNT IS OF RECIPES ON A TREE: a recipe feeding two inputs counts twice. So the
+route is deterministic and makes no claim of the fewest distinct recipes, which is a
+harder question this module does not ask.
+
+THE CLOSURE is the same kind of walk over EVERY usable producer rather than the chosen
+one, stopping at raw items, and a recipe's walk depth is the depth of the nearest item
+it makes, a target's producers at zero. It follows inputs and never byproducts. A
+recipe reached only by consuming what a route member leaves over is outside it, so
+under the balanced policy a route whose byproduct nothing kept consumes cannot solve.
+Unless other kept recipes answer the request that reads no-plan, which is scoped to the
+kept set and the stated policy, and the player states the policy.
+
+WHAT THIS KEEPS, AND WHAT THE CAP CAN STILL DROP. The tiers mean a derived route
+within the cap is WHOLLY kept however large the closure around it, and a closure within
+the cap is wholly kept, because each outranks what is outside it. That is the point of
+the order. A bound that dropped a member of such a route can leave every prefix refused
+and say "no plan" about a request a search over the route might well have answered - a
+wrong answer dressed as an absence - and the shipped rule did that, keeping registry
+order behind a target's direct producers whether or not it could feed them. But the cap
+is still a cap, and these remain:
+
+- A route over the cap loses its last members in walk order, so no prefix holds the
+  whole route. Where every member is required that reads no-plan about the kept set, and
+  the record names what fell. The cap does not move to cure it.
+- The walk starts at the targets, so a counted target's chosen producer ranks ahead of
+  every deeper member, and it falls only where the targets' own chosen producers
+  outnumber the cap. A target's OTHER producers are ordinary closure members and can
+  all fall, and so can every producer of a target with no count, once the members and
+  closure ranking ahead of them fill the cap. So this module makes no claim that the
+  bound never drops a target's last producer.
+- Reachability is not feasibility. A route the count finds may still be refused, by a
+  byproduct under the balanced policy above, and a loop with no count may still balance
+  in pillar 1 if the kept set holds it. The count says which recipes to keep first and
+  never whether they solve. That remains the ascent's to find out.
+
+THE ORDER READS LITTLE, ON PURPOSE. The request's targets, by key, its raw items and
+its usable candidates, and the registry. Never the objective, the byproduct policy, a
+rate, a solve, a clock or a float. So one request has one ranking under every direction
+and both policies, and :func:`trim_record` can state the cut before any search.
 
 WHY EVERY ORDER HERE IS A TUPLE AND NEVER A SET
 -------------------------------------------------
 ``clockspeed/advisor/trace.py`` records the reason in its own header: a set's
 iteration order and its repr depend on PYTHONHASHSEED, so two runs would render
 differently. A set is used below ONLY as a private membership test, and never to
-decide an order. :attr:`TrimStep.kept` and :attr:`TrimStep.removed` are tuples,
-in registry order, both of them.
+decide an order; that includes a stated held set, which is never iterated. A mapping
+below is read by key and never walked. :attr:`TrimStep.kept` and
+:attr:`TrimStep.removed` are tuples, in registry order, both of them, and
+:attr:`DerivedRoute.members` and :attr:`DerivedRoute.unmade` are tuples too, in walk
+order and sorted.
 
 THE ASCENT, AND WHY THE FIRST PREFIX THAT SOLVES IS THE SMALLEST
 ------------------------------------------------------------------
-The ranking defines NESTED prefixes S_0 subset S_1 subset ... subset S_K, where
+The ranking is computed once, before the ascent and from nothing a solve can move, so
+it defines one chain of NESTED prefixes S_0 subset S_1 subset ... subset S_K, where
 K is the smaller of the usable count and the cap, and S_k is the first k members
 OF THE TRIM RANKING - not of registry order. The ascent runs k from 0 upwards
 and returns the first prefix that yields a plan. Because the chain is nested,
 that first k IS the smallest k whose prefix solves: every smaller prefix is a
 SUBSET of it, and had any of them solved, the ascent would have reached that
-smaller k first. That is a proof about the chain, not an early-exit heuristic.
+smaller k first. That is a proof about the chain, not an early-exit heuristic, and
+nothing in it depends on which rule ranked the chain.
+
+What the rule adds is where the route sits in it. A route within the cap is exactly
+the prefix of its own length, so under the exhaustive backend, whose search of a prefix
+is complete, a route pillar 1 solves stops the ascent at that length or below. Below is
+reachable: a member chosen for one item can make another as a byproduct, and a shorter
+prefix can then solve, which is why the claim is about the smallest prefix and not about
+the route. The greedy backend is a heuristic, and no such stop is promised under it.
 
 S_0 is the empty prefix, an ordinary member of the chain and a subset of every
 other one. ``exhaustive.py`` enumerates the empty selection as the answer to a
@@ -122,7 +195,14 @@ of it. The whole ascent therefore evaluates at most::
 
 subsets. The single capped search this replaces evaluates (1 << K). So bounding
 by prefixes costs a factor of just under two, and never an unbounded run. For
-K at the shipped cap of twelve that is 8191 subsets against 4096.
+K at the shipped cap of twelve that is 8191 subsets against 4096. An ascent that
+stops at prefix k evaluates (1 << (k + 1)) - 1 of them. That arithmetic holds over any
+ranking, because the bound is on the chain's length and not its order.
+
+The ranking itself evaluates no subset and runs no solve. Its own cost is the count's
+passes, at most one per item and one more as argued above, each over the usable recipes
+and their inputs, one further such pass to read off the ties, then linear walks and a
+sort.
 
 THE CONSEQUENCE, STATED PLAINLY
 ---------------------------------
@@ -156,10 +236,11 @@ Two narrower consequences, for the same honesty:
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, replace
 from typing import Final
 
-from clockspeed.data.registry import Registry
+from clockspeed.data.registry import Recipe, Registry
 from clockspeed.solve.exact import audit_exact
 from clockspeed.solve.optimize import (
     MAX_EXHAUSTIVE_CANDIDATES,
@@ -173,31 +254,77 @@ from clockspeed.solve.optimize import (
 )
 
 __all__ = [
+    "TRIM_ROUTE_FIRST",
     "TRIM_RULES",
     "TRIM_TARGET_PRODUCERS_FIRST",
     "BoundExhaustedError",
     "BoundedResult",
+    "DerivedRoute",
     "TrimRecord",
     "TrimStep",
+    "derived_route",
     "optimize_within_bound",
     "trim_record",
 ]
 
-#: The trim rule's stable name: direct producers of a requested item are kept
-#: ahead of everything else, then registry order decides. The module docstring
-#: argues why that first tier is the one that keeps a bound non-arbitrary.
+#: The trim rule CS-1245 shipped: direct producers of a requested item ahead of
+#: everything else, then registry order. NO PATH EMITS THIS NAME ANY MORE. It stays
+#: a member of :data:`TRIM_RULES` so the vocabulary still names everything it ever
+#: held, and so nothing else can ever be given this name.
 TRIM_TARGET_PRODUCERS_FIRST: Final = "target-producers-first"
 
-#: THE closed vocabulary of trim rules. One member today, stated as a tuple so
-#: that a second rule has to JOIN it rather than arriving unnamed on a step.
-#: ``tests/solve/test_bound.py`` pins the membership.
-TRIM_RULES: Final[tuple[str, ...]] = (TRIM_TARGET_PRODUCERS_FIRST,)
+#: The trim rule every record and every refusal now names: a target's derived route
+#: first, then the rest of its backward closure, then everything else. The module
+#: docstring states the order and what it keeps.
+TRIM_ROUTE_FIRST: Final = "route-first"
 
-#: The trim rule's first tier: the recipe produces at least one requested item.
-_TIER_TARGET_PRODUCER: Final = 0
+#: THE closed vocabulary of trim rules, stated as a tuple so that a rule has to JOIN
+#: it rather than arriving unnamed on a step. No path emits the first member any more;
+#: see its own comment. ``tests/solve/test_bound.py`` pins the membership.
+TRIM_RULES: Final[tuple[str, ...]] = (TRIM_TARGET_PRODUCERS_FIRST, TRIM_ROUTE_FIRST)
 
-#: Its second tier: the recipe produces no requested item.
-_TIER_EVERYTHING_ELSE: Final = 1
+#: The trim rule's first tier: the recipe is a member of the derived route.
+_TIER_ROUTE: Final = 0
+
+#: Its second tier: the rest of the targets' backward closure, stopping at raw items.
+_TIER_CLOSURE: Final = 1
+
+#: Its third tier: everything else, which has no walk to rank by, so its middle key is
+#: this one value and registry position alone decides.
+_TIER_EVERYTHING_ELSE: Final = 2
+_NO_DEPTH: Final = 0
+
+#: A raw item's count: no locked recipe and no recipe on its tree. Every recipe's cost
+#: holds a recipe, so this is below every other count and no recipe displaces it.
+_RAW_COUNT: Final[tuple[int, int]] = (0, 0)
+
+
+@dataclass(frozen=True)
+class DerivedRoute:
+    """One deterministic way to make a request's targets from its raw items.
+
+    A statement about reachability, and never that the route solves: it reads no rate
+    and no byproduct policy, so pillar 1 may still refuse it. It is one route chosen by
+    a stated count and no claim of the fewest distinct recipes. The module docstring
+    states the count, and :func:`derived_route` computes it.
+
+    Attributes:
+        members: The recipes on the route, each once, in breadth-first walk order from
+            the targets in sorted order, each recipe's inputs as listed. Empty when no
+            target has a route.
+        complete: True when every target is a raw item or has a count, so the route
+            reaches all of them. False says some target has none, and :attr:`unmade`
+            names why only where the gap is an item nothing makes; a cycle no raw item
+            enters leaves False here and nothing there.
+        unmade: The items in the targets' backward closure that no usable recipe makes
+            and the raw items lack, sorted. A tuple for the reason the module docstring
+            gives. The closure walks every usable producer, on the route or not, so an
+            item here need not be what a member of the route eats.
+    """
+
+    members: tuple[str, ...]
+    complete: bool
+    unmade: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -303,40 +430,243 @@ class BoundExhaustedError(NoFeasibleSelectionError):
         self.record = record
 
 
+def _tree_cost(
+    recipe: Recipe, counts: dict[str, tuple[int, int]], held: frozenset[str] | None
+) -> tuple[int, int] | None:
+    """What one recipe's tree counts, at the counts known so far.
+
+    Args:
+        recipe: The recipe.
+        counts: The count of every item that has one so far.
+        held: The recipes not to be counted as locked, or None when none is locked. A
+            membership test only.
+
+    Returns:
+        The exact ``(locked on the tree, recipes on the tree)`` pair: the recipe's own
+        cost plus the sum of its inputs' counts. None while any input has no count.
+    """
+    locked = 1 if held is not None and recipe.key not in held else 0
+    recipes = 1
+    for entry in recipe.inputs:
+        count = counts.get(entry.item_key)
+        if count is None:
+            return None
+        locked += count[0]
+        recipes += count[1]
+    return (locked, recipes)
+
+
+def _chosen_producers(
+    registry: Registry,
+    usable: tuple[str, ...],
+    raw_items: tuple[str, ...],
+    held: frozenset[str] | None,
+) -> dict[str, str]:
+    """Each counted item's chosen producer, at the count's least fixed point.
+
+    Args:
+        registry: The built registry.
+        usable: The pool, in registry order.
+        raw_items: The raw items, which count :data:`_RAW_COUNT` and get no producer.
+        held: As :func:`derived_route` takes it.
+
+    Returns:
+        Item to chosen producer, for every item that has a count and is not raw. Read
+        by key only; its insertion order decides nothing.
+    """
+    counts = dict.fromkeys(raw_items, _RAW_COUNT)
+    moved = True
+    while moved:
+        moved = False
+        for key in usable:
+            recipe = registry.recipes[key]
+            cost = _tree_cost(recipe, counts, held)
+            if cost is None:
+                continue
+            for output in recipe.outputs:
+                known = counts.get(output.item_key)
+                if known is None or cost < known:
+                    counts[output.item_key] = cost
+                    moved = True
+
+    # A second pass, over converged counts, so no tie can be decided by what a pass
+    # happened to reach first. The pool is in registry order, so the first recipe
+    # matching an item's count is that count's lowest registry position.
+    chosen: dict[str, str] = {}
+    for key in usable:
+        recipe = registry.recipes[key]
+        cost = _tree_cost(recipe, counts, held)
+        if cost is None:
+            continue
+        for output in recipe.outputs:
+            if output.item_key not in chosen and cost == counts[output.item_key]:
+                chosen[output.item_key] = key
+    return chosen
+
+
+def _route_walk(
+    registry: Registry, targets: tuple[str, ...], chosen: dict[str, str]
+) -> tuple[str, ...]:
+    """Walk the chosen producers back from the targets, breadth first.
+
+    Args:
+        registry: The built registry.
+        targets: The targets, sorted.
+        chosen: As :func:`_chosen_producers` returns it. A raw item and an item with no
+            count are both absent from it, so the walk stops at each.
+
+    Returns:
+        The members in walk order, each recipe once. A chosen producer's inputs count
+        strictly below the item it was chosen for, so no walk here can cycle, and the
+        once-only membership would end one anyway.
+    """
+    members: list[str] = []
+    named: set[str] = set()
+    queue = deque(targets)
+    while queue:
+        key = chosen.get(queue.popleft())
+        if key is None or key in named:
+            continue
+        named.add(key)
+        members.append(key)
+        queue.extend(entry.item_key for entry in registry.recipes[key].inputs)
+    return tuple(members)
+
+
+def _closure_walk(
+    registry: Registry,
+    usable: tuple[str, ...],
+    targets: tuple[str, ...],
+    raw: frozenset[str],
+) -> tuple[dict[str, int], tuple[str, ...]]:
+    """Walk every usable producer back from the targets, stopping at raw items.
+
+    Follows inputs and never byproducts: nothing here reads what a recipe's other
+    outputs might feed, so a recipe reached only through a byproduct is outside it.
+
+    Args:
+        registry: The built registry.
+        usable: The pool, in registry order.
+        targets: The targets, sorted.
+        raw: The raw items. A membership test only.
+
+    Returns:
+        Recipe to its walk depth, the depth of the nearest item it makes, with a
+        target's producers at zero; and the items reached that no usable recipe makes
+        and raw items lack, sorted. The mapping is read by key only.
+    """
+    producers: dict[str, list[str]] = {}
+    for key in usable:
+        for output in registry.recipes[key].outputs:
+            producers.setdefault(output.item_key, []).append(key)
+
+    depths: dict[str, int] = {}
+    unmade: list[str] = []
+    visited: set[str] = set()
+    level = list(targets)
+    depth = 0
+    while level:
+        next_level: list[str] = []
+        for item in level:
+            if item in raw or item in visited:
+                continue
+            visited.add(item)
+            makers = producers.get(item)
+            if makers is None:
+                unmade.append(item)
+                continue
+            for key in makers:
+                if key not in depths:
+                    depths[key] = depth
+                    next_level.extend(entry.item_key for entry in registry.recipes[key].inputs)
+        level = next_level
+        depth += 1
+    return depths, tuple(sorted(unmade))
+
+
+def derived_route(
+    registry: Registry, request: OptimizeRequest, *, held: frozenset[str] | None = None
+) -> DerivedRoute:
+    """Derive one deterministic route to a request's targets, running no search.
+
+    The module docstring states the count and why it ends. The pool is what
+    :func:`~clockspeed.solve.optimize.usable_candidates` lets through, so a recipe the
+    door refuses counts for nothing here.
+
+    Args:
+        registry: The built registry.
+        request: The problem. Only its targets, raw items, candidates and unlocked set
+            are read, and of the targets only the keys.
+        held: The recipes to count as not locked, or None when none is locked, which
+            makes the first int of every count zero. A membership test only and never
+            iterated, so it can decide no order but through the count itself. The trim
+            omits it.
+
+    Returns:
+        The route.
+
+    Raises:
+        ValueError: A candidate names no recipe in this registry, as the door refuses it.
+    """
+    usable, _excluded = usable_candidates(registry, request)
+    targets = tuple(sorted(request.targets))
+    raw = frozenset(request.raw_items)
+    chosen = _chosen_producers(registry, usable, request.raw_items, held)
+    _depths, unmade = _closure_walk(registry, usable, targets, raw)
+    return DerivedRoute(
+        members=_route_walk(registry, targets, chosen),
+        complete=all(item in raw or item in chosen for item in targets),
+        unmade=unmade,
+    )
+
+
 def _trim_ranking(registry: Registry, request: OptimizeRequest) -> tuple[str, ...]:
-    """Rank the usable candidates by :data:`TRIM_TARGET_PRODUCERS_FIRST`.
+    """Rank the usable candidates by :data:`TRIM_ROUTE_FIRST`.
+
+    Reads the request's targets, by key, its raw items and its usable candidates, and
+    the registry. It reads no objective, no byproduct policy and no rate, runs no solve,
+    and asks for no held set, so one request has one ranking however it is then judged.
 
     Args:
         registry: The built registry.
         request: The problem, as the caller stated it.
 
     Returns:
-        Every usable candidate, ranked: direct producers of a requested item
-        first, then registry order within each tier. A tuple, and the only
-        order this module's ascent reads.
+        Every usable candidate exactly once, ranked: the route's members by walk order,
+        then the rest of the targets' backward closure by walk depth, then everything
+        else, registry position deciding within a depth and within the last tier. A
+        tuple, and the only order this module's ascent reads.
 
     Raises:
         ValueError: A candidate names no recipe in this registry, raised by
             :func:`~clockspeed.solve.optimize.usable_candidates` at the door.
     """
     usable, _excluded = usable_candidates(registry, request)
-    # A set, and ONLY as a membership test - it decides no order anywhere.
-    wanted = frozenset(request.targets)
+    route = derived_route(registry, request).members
+    # Both mappings are read by key only, and each builds from a tuple's order.
+    walk_index = {key: index for index, key in enumerate(route)}
+    depths, _unmade = _closure_walk(
+        registry, usable, tuple(sorted(request.targets)), frozenset(request.raw_items)
+    )
     positions = registry_positions(registry)
 
-    def rank(recipe_key: str) -> tuple[int, int]:
+    def rank(recipe_key: str) -> tuple[int, int, int]:
         """Rank one candidate.
 
         Args:
             recipe_key: The candidate's recipe key.
 
         Returns:
-            Its ``(tier, registry position)`` key. Both ints.
+            Its ``(tier, walk index or depth, registry position)`` key. All ints.
         """
-        outputs = registry.recipes[recipe_key].outputs
-        produces_a_target = any(output.item_key in wanted for output in outputs)
-        tier = _TIER_TARGET_PRODUCER if produces_a_target else _TIER_EVERYTHING_ELSE
-        return (tier, positions[recipe_key])
+        position = positions[recipe_key]
+        walked = walk_index.get(recipe_key)
+        if walked is not None:
+            return (_TIER_ROUTE, walked, position)
+        depth = depths.get(recipe_key)
+        if depth is not None:
+            return (_TIER_CLOSURE, depth, position)
+        return (_TIER_EVERYTHING_ELSE, _NO_DEPTH, position)
 
     return tuple(sorted(usable, key=rank))
 
@@ -354,7 +684,7 @@ def _record_of(registry: Registry, ranked: tuple[str, ...]) -> TrimRecord | None
     if len(ranked) <= MAX_EXHAUSTIVE_CANDIDATES:
         return None
     step = TrimStep(
-        rule=TRIM_TARGET_PRODUCERS_FIRST,
+        rule=TRIM_ROUTE_FIRST,
         cap=MAX_EXHAUSTIVE_CANDIDATES,
         kept=registry_order(registry, ranked[:MAX_EXHAUSTIVE_CANDIDATES]),
         removed=registry_order(registry, ranked[MAX_EXHAUSTIVE_CANDIDATES:]),
@@ -365,9 +695,10 @@ def _record_of(registry: Registry, ranked: tuple[str, ...]) -> TrimRecord | None
 def trim_record(registry: Registry, request: OptimizeRequest) -> TrimRecord | None:
     """Say what :func:`optimize_within_bound` drops from a request, running no search.
 
-    The trim reads the targets and registry order and never a solve, so a caller
-    can state it whichever way the ascent then ends: the refusals that are not
-    :class:`BoundExhaustedError` propagate carrying no record.
+    The trim reads the request's targets, raw items and usable candidates and the
+    registry, and never a solve, so a caller can state it whichever way the ascent then
+    ends: the refusals that are not :class:`BoundExhaustedError` propagate carrying no
+    record.
 
     Args:
         registry: The built registry.
@@ -386,10 +717,10 @@ def trim_record(registry: Registry, request: OptimizeRequest) -> TrimRecord | No
 def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> BoundedResult:
     """Trim to the cap by a named rule, then take the smallest prefix that solves.
 
-    The module docstring holds the argument: why the trim is above the seam, why
-    target producers rank first, why the first solving prefix is provably the
-    smallest, the cost bound as arithmetic, and the plans this order
-    deliberately does not return.
+    The module docstring holds the argument: why the trim is above the seam, why a
+    target's derived route ranks first and what the cap can still drop, why the first
+    solving prefix is provably the smallest, the cost bound as arithmetic, and the
+    plans this order deliberately does not return.
 
     Args:
         registry: The built registry. The only input this layer reads.
@@ -443,9 +774,9 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
 
     raise BoundExhaustedError(
         MAX_EXHAUSTIVE_CANDIDATES,
-        TRIM_TARGET_PRODUCERS_FIRST,
+        TRIM_ROUTE_FIRST,
         limit + 1,
-        f"no prefix of the {TRIM_TARGET_PRODUCERS_FIRST} ranking yields a plan. "
+        f"no prefix of the {TRIM_ROUTE_FIRST} ranking yields a plan. "
         f"{len(ranked)} usable candidate(s) were ranked, bounded to a cap of "
         f"{MAX_EXHAUSTIVE_CANDIDATES}, and all {limit + 1} nested prefix(es) from size 0 "
         "upwards were evaluated and refused. Under the exhaustive backend, whose search of "

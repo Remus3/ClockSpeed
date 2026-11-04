@@ -35,10 +35,10 @@ only: nothing from a save reaches its assertion, and its helpers hand back ints.
 Every other world here is synthetic, hand-built from invented paths. No save or
 install is read by any other arm.
 
-THE REPAIR'S WORLDS, EACH WORKED BY HAND IN ITS OWN DOCSTRING: a route the cap cuts
-in half (:func:`test_a_capped_no_plan_names_what_the_bound_dropped`), a world where
-greedy's raw walk dead-ends (:func:`_dead_end_registry`), and one where the buildings
-and power optima are different plans (:func:`_crossed_optima_registry`).
+THE REPAIR'S WORLDS, EACH WORKED BY HAND IN ITS OWN DOCSTRING: a route longer than the
+cap, which the cap cuts short (:func:`test_a_capped_no_plan_names_what_the_bound_dropped`),
+a world where greedy's raw walk dead-ends (:func:`_dead_end_registry`), and one where the
+buildings and power optima are different plans (:func:`_crossed_optima_registry`).
 """
 
 from __future__ import annotations
@@ -46,6 +46,7 @@ from __future__ import annotations
 import ast
 import dataclasses
 import inspect
+import json
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping
@@ -79,7 +80,12 @@ from clockspeed.advisor.trace import (
     unlock_keys,
 )
 from clockspeed.data import locate, version
-from clockspeed.data.registry import Registry, automated_recipes, build_registry_from_bytes
+from clockspeed.data.registry import (
+    Registry,
+    automated_recipes,
+    build_registry,
+    build_registry_from_bytes,
+)
 from clockspeed.save.world import (
     EMPTY_UNLOCK_STATE,
     UnlockState,
@@ -88,7 +94,7 @@ from clockspeed.save.world import (
 )
 from clockspeed.solve.backends import BACKEND_EXHAUSTIVE, BACKEND_GREEDY
 from clockspeed.solve.bound import (
-    TRIM_TARGET_PRODUCERS_FIRST,
+    TRIM_ROUTE_FIRST,
     BoundedResult,
     BoundExhaustedError,
     TrimRecord,
@@ -110,7 +116,12 @@ from clockspeed.solve.optimize import (
     optimize_plan,
     weighted_objective,
 )
-from clockspeed.solve.ratio import BYPRODUCT_BALANCED, BYPRODUCT_SINKABLE
+from clockspeed.solve.ratio import (
+    BYPRODUCT_BALANCED,
+    BYPRODUCT_SINKABLE,
+    RatioRequest,
+    solve_for_targets,
+)
 from clockspeed.solve.strategy import (
     NOT_CLEARED_OVER_BOUND,
     NOT_CLEARED_UNPRICEABLE,
@@ -131,16 +142,22 @@ from tests.advisor.build_fixtures import (
 )
 from tests.data.synthetic import (
     KEY_CLASS_NAME,
+    KEY_CLASSES,
     KEY_DISPLAY_NAME,
     KEY_DURATION,
+    KEY_FORM,
     KEY_FULL_NAME,
     KEY_INGREDIENTS,
+    KEY_NATIVE_CLASS,
     KEY_PRODUCED_IN,
     KEY_PRODUCT,
     amount_blob,
     class_path_blob,
 )
 from tests.solve.synthetic import (
+    DOCS_TEXT,
+    ITEM_GROUP,
+    RECIPE_GROUP,
     SOLVE_ASSEMBLER_BUILDING,
     SOLVE_ORE_ITEM,
     SOLVE_RARE_ITEM,
@@ -149,6 +166,7 @@ from tests.solve.synthetic import (
     SOLVE_ROD_ITEM,
     SOLVE_SMELTER_BUILDING,
     building_path,
+    document_from_groups,
     registry_with,
 )
 
@@ -372,9 +390,9 @@ def _pad_path(index: int) -> str:
 def _padded_registry() -> Registry:
     """The ascent fixture plus enough fillers to pass the cap by one.
 
-    The fillers make Rod, no target, so the trim ranks them behind both Relic
-    producers and, within that tier, by registry order: the one it drops is the
-    last filler, by the rule and never by a solve.
+    The fillers make Rod, which no walk from Relic reads, so the trim ranks them
+    behind all three recipes of the ascent fixture and among themselves by registry
+    position: the one it drops is the last filler, by the rule and never by a solve.
 
     Returns:
         The registry.
@@ -984,44 +1002,152 @@ def _indeterminate_reason(trace: Trace) -> str:
     return found[0]
 
 
-def test_a_capped_no_plan_names_what_the_bound_dropped(tmp_path: Path) -> None:
-    """A route exists among the unlocked recipes and the cap dropped half of it.
+#: One recipe past the cap, each one required, so the cap has to cut a route short.
+CHAIN_STAGES: Final = 13
 
-    By hand: R_B1Relic is the one direct Relic producer, so it ranks first, and the
-    twelve fillers and R_B3Rare follow in registry order. The cap of twelve keeps
-    R_B1Relic and R_Pad0 to R_Pad10, and drops R_Pad11 and R_B3Rare. Nothing kept
-    makes Rare, so no prefix solves, and the status is a statement about the kept
-    set: the trace has to say what the search never asked about.
+#: Ore a minute at 10 Relic a minute: one Ore a cycle, ten cycles a minute at stage 1.
+CHAIN_ORE: Final = Fraction(10)
+
+#: The stage the cap drops, by hand. The route walks down from Relic, so the deepest
+#: stage ranks last. It is the FIRST in registry order, where the shipped order ranked
+#: stage 13 and then registry order, and would have dropped stage 12 instead.
+CHAIN_DROPPED_STAGE: Final = 1
+
+
+def _stage_recipe(stage: int) -> str:
+    """One stage's recipe name, zero-padded so registry and name order agree."""
+    return f"R_Stage{stage:02d}"
+
+
+def _stage_item(stage: int) -> str:
+    """The item one stage makes, each new to the corpus and given its own descriptor."""
+    return f"Desc_SolveStage{stage:02d}_C"
+
+
+def _stage_path(stage: int) -> str:
+    """One stage's invented asset path."""
+    return f"/Game/FactoryGame/Synthetic/Chain/Stage_{stage:02d}.Stage_{stage:02d}_C"
+
+
+def _chain_recipes() -> tuple[str, ...]:
+    """The whole chain in registry order, stage 1 first."""
+    return tuple(_stage_recipe(stage) for stage in range(1, CHAIN_STAGES + 1))
+
+
+def _chain_registry() -> Registry:
+    """A chain longer than the cap: one producer per item, every member required.
+
+    Stage 1 makes the first stage item from Ore, each next stage eats the item before,
+    and the last makes Relic, so no recipe can be left out and no other recipe can stand
+    in. Every cycle is six seconds and every amount one, so 10 Relic a minute runs one
+    machine a stage and draws 10 Ore. Declared stage 1 first, so registry order runs
+    against the walk.
+
+    The corpus holds too few items for this, so each stage item gets its own descriptor
+    through the same text seam the corpus uses, and the registry still builds with no
+    warning: an unknown-item warning would be solving a different factory.
+
+    Returns:
+        The registry, stamped as built from the pinned docs bytes.
     """
-    advice = _advise(tmp_path, _model(_capped_paths()), _registry_of(_capped_entries()), _request())
+    made = [_stage_item(stage) for stage in range(1, CHAIN_STAGES)]
+    eaten = [SOLVE_ORE_ITEM, *made]
+    entries = [
+        _entry(
+            _stage_recipe(stage),
+            [(eaten[stage - 1], 1)],
+            [(made[stage - 1] if stage < CHAIN_STAGES else SOLVE_RELIC_ITEM, 1)],
+            path=_stage_path(stage),
+        )
+        for stage in range(1, CHAIN_STAGES + 1)
+    ]
+    descriptors = [
+        {KEY_CLASS_NAME: item, KEY_DISPLAY_NAME: item, KEY_FORM: "RF_SOLID"} for item in made
+    ]
+    groups = json.loads(DOCS_TEXT)
+    for group in groups:
+        native_class = group[KEY_NATIVE_CLASS]
+        if native_class.endswith(f".{ITEM_GROUP}'"):
+            group[KEY_CLASSES].extend(descriptors)
+        elif native_class.endswith(f".{RECIPE_GROUP}'"):
+            group[KEY_CLASSES] = entries
+    return pinned_source(build_registry(document_from_groups(groups)))
+
+
+def _chain_paths() -> tuple[str, ...]:
+    """Every unlock path of :func:`_chain_registry`."""
+    return tuple(_stage_path(stage) for stage in range(1, CHAIN_STAGES + 1))
+
+
+def test_a_capped_no_plan_names_what_the_bound_dropped(tmp_path: Path) -> None:
+    """A route exists among the unlocked recipes and the cap cut it short.
+
+    Rebuilt under CS-1372, because the two-recipe route this arm used to sit on now
+    ranks. By hand: thirteen recipes, one producer per item, so the derived route is
+    all thirteen and the walk from Relic reads R_Stage13 down to R_Stage01. The cap of
+    twelve keeps R_Stage13 to R_Stage02 and drops R_Stage01, the only way in from Ore.
+    So no prefix solves, and the status is a statement about the kept set: the trace
+    has to say what the search never asked about.
+    """
+    registry = _chain_registry()
+    assert registry.warnings == ()
+    assert len(_chain_recipes()) > MAX_EXHAUSTIVE_CANDIDATES
+
+    advice = _advise(tmp_path, _model(_chain_paths()), registry, _request())
 
     trace = _plan_trace(advice)
     assert _read(trace, "plan.status") == STATUS_NO_PLAN
-    assert _read(trace, "plan.trimmed") == (f"{PADDING_PREFIX}11", RARE_FROM_ORE)
-    assert _indeterminate_reason(trace) == (
-        "the search found no plan over the unlocked automated recipes it kept,"
-        " under the stated byproduct policy"
-    )
+    assert _read(trace, "plan.trimmed") == (_stage_recipe(CHAIN_DROPPED_STAGE),)
     assert _plan_cards(advice) == []
     assert trace.recommendation is None
     settled = ADOPT_ID in settled_rules(advice.traces)
     assert not settled
 
-    # The control: the same two unlocked recipes, asked about, do solve.
-    route = (RELIC_FROM_RARE, RARE_FROM_ORE)
-    solved = optimize_plan(
-        _registry_of(_capped_entries()),
-        OptimizeRequest(
+    # The control: the whole chain, asked about, does solve. Through pillar 1, because
+    # pillar 2's door refuses thirteen candidates, which that refusal shows.
+    route = _chain_recipes()
+    solved = solve_for_targets(
+        registry,
+        RatioRequest(
             targets=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_RATE}),
-            candidates=route,
-            unlocked=route,
+            recipes=route,
             raw_items=(SOLVE_ORE_ITEM,),
             byproduct_policy=BYPRODUCT_BALANCED,
-            objective=weighted_objective(raw=Fraction(1)),
         ),
     )
-    assert [step.recipe_key for step in solved.plan.steps] == list(route)
-    assert solved.plan.raw_inputs[SOLVE_ORE_ITEM] == TWO_STAGE_ORE
+    assert [step.recipe_key for step in solved.steps] == list(route)
+    assert solved.raw_inputs[SOLVE_ORE_ITEM] == CHAIN_ORE
+
+    with pytest.raises(SearchSpaceTooLargeError):
+        optimize_plan(
+            registry,
+            OptimizeRequest(
+                targets=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_RATE}),
+                candidates=route,
+                unlocked=route,
+                raw_items=(SOLVE_ORE_ITEM,),
+                byproduct_policy=BYPRODUCT_BALANCED,
+                objective=weighted_objective(raw=Fraction(1)),
+            ),
+        )
+
+
+def test_a_capped_no_plan_reason_speaks_only_for_the_kept_set() -> None:
+    """The same chain, for the sentence: it claims nothing of what the cap dropped.
+
+    A reason claiming that no selection of the unlocked recipes reaches the target would
+    be false here, by the control in the arm above.
+    """
+    trace = run_rule(
+        plan_rules.ADOPT_RULE, _inputs(_model(_chain_paths()), _chain_registry(), _request())
+    )
+
+    assert _read(trace, "plan.status") == STATUS_NO_PLAN
+    assert _indeterminate_reason(trace) == (
+        "the search found no plan over the unlocked automated recipes it kept,"
+        " under the stated byproduct policy"
+    )
+    assert card_for(trace) is None
 
 
 def test_an_uncapped_no_plan_is_the_same_status_and_names_nothing_dropped() -> None:
@@ -1043,7 +1169,7 @@ def test_a_refusal_reads_what_the_refusal_itself_recorded(
     record = TrimRecord(
         steps=(
             TrimStep(
-                rule=TRIM_TARGET_PRODUCERS_FIRST,
+                rule=TRIM_ROUTE_FIRST,
                 cap=MAX_EXHAUSTIVE_CANDIDATES,
                 kept=(RELIC_FROM_RARE,),
                 removed=(RELIC_DIRECT, RARE_FROM_ORE),
@@ -1116,8 +1242,10 @@ def test_a_refusal_the_bound_never_answered_still_names_the_trim() -> None:
     By hand: R_Odd names two buildings, so it has no exact draw, and it is the one
     direct Relic producer. Asked by power, the prefix holding it refuses inside the
     ascent, with no BoundedResult and no BoundExhaustedError to read a record from.
-    The cap keeps R_Odd and R_Pad0 to R_Pad10, and drops R_Pad11 and R_B3Rare. An
-    empty ``plan.trimmed`` here would say nothing was dropped.
+    R_Odd eats only Ore, so it is the whole route and the whole closure, and every
+    other recipe ranks behind it by registry position: the cap keeps R_Odd and R_Pad0
+    to R_Pad10, and drops R_Pad11 and R_B3Rare. An empty ``plan.trimmed`` here would
+    say nothing was dropped.
     """
     fillers = _capped_entries()[1:-1]
     odd = _entry(
