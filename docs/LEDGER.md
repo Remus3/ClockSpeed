@@ -75,6 +75,80 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-04 - CS-1371 - CLOSED on its amended clause: one panel states a target, plan.adopt fires on a real world, and a no-plan reads a marked route through plan.redesign
+Verification: `clockspeed/surface/api/advice.py`; `clockspeed/surface/api/registry.py`;
+`clockspeed/surface/providers.py::StoreAdviceSource`; `clockspeed/surface/web/panel_advice.js`;
+`clockspeed/advisor/plans.py::plan_request_from`; `clockspeed/advisor/plans.py::plan_parameters`;
+`clockspeed/advisor/rules/plan.py::plan_outcome_of`; `clockspeed/advisor/advise.py::Advice`;
+`clockspeed/data/registry.py::plan_targets`;
+`tests/advisor/test_plan_redesign.py::test_a_target_three_locked_stages_out_reads_a_route_card`,
+`::test_a_recipe_held_with_no_machine_held_reads_no_adopt_card_and_counts_locked`,
+`::test_a_recorded_route_card_is_not_completed_when_the_target_clears_or_moves`;
+`tests/surface/test_advice_source.py::test_a_stated_target_lists_a_plan_adopt_card_and_reads_ranked`,
+`::test_the_same_four_on_the_derivation_return_tier_3_with_the_badges_rungs`,
+`::test_the_same_four_on_the_state_route_record_that_card_through_the_real_ledger`,
+`::test_no_refusal_reflects_what_it_refused`, `::test_two_processes_under_different_hash_seeds_answer_byte_same`;
+`tests/surface/test_advice_golden.py::test_the_no_target_body_is_byte_same_as_the_golden`;
+`tests/advisor/test_plan_world.py::test_the_surface_passes_no_target`; `tests/surface/test_panel_advice.py`;
+`tests/data/test_registry.py::test_plan_targets_on_the_solve_corpus_by_hand`.
+READ BACK ON ONE LIBRARY SAVE, THE SAVE UNNAMED, 42 AUTOMATED RECIPES HELD, 142 SELECTABLE TARGETS, RATE 1,
+DIRECTION RAW, THROUGH `clockspeed/advisor/advise.py::advise_world`. Sinkable: 28 plan.adopt cards, 80
+plan.redesign cards, 34 neither (28 no-route, 6 route-refused). Balanced: 28, 33, 81 (28 no-route, 53
+route-refused). Rule errors 0. A synthetic fixture cannot show that reach; zero neither was not required. A
+distinct adversary read the same figures over a real listener and two more library worlds. So plan.adopt
+now fires on a real world, where the CS-1351 close recorded none.
+RULINGS. The redesign source, the trim order and every clause amendment, each with its alternatives and what
+reverses it, are in the relocated sections of `docs/history_notes.md`. In short: a marked route, not a marked
+bound or pillar 4, whose adjudicator added it and recused, and a distinct adversary did not refute it.
+THE REPAIR ROUND. A distinct adversary on a real world REFUTED the first candidate: plan.adopt told a player to
+build a chain whose only machine the world had not unlocked, on 9 of 43 library worlds that hold such a recipe.
+Adjudicated and repaired through `clockspeed/data/registry.py::build_cost`: a recipe is held only with a machine
+held, on both rules, and its key is in requires. A correctness adversary fuzzed 4000 registries against its own
+oracle with 0 mismatches, killed 96 of 111 mutants, and REFUTED the ranking's test claim, repaired by two arms in
+`tests/solve/test_bound.py`. A refuter on the repair found 0 violations of the recipe-and-machine clause in 1108
+sampled requests over 17 unlock sets, 0 canaries over 171 hostile requests and in unlock paths, and no ledger state
+lost.
+Section 5.4 holds here for recipes and the machines that run them. Raw supply, logistics and power are outside
+requires; plan.adopt fires on a constructed unlock set with no extractor held; CS-1382 carries it. No registered
+rule is in the 5.4 property test.
+NOT DELIVERED, NEVER A PASS: the lens on seams, privacy and determinism on the wire returned no report in over three
+hours. Seams rest on one adjudicator's own read of the surface diff; echo and privacy on the refuter; determinism
+on the arms named above, a second adversary and the verifier.
+LANDED, a distinct adjudicator, by criteria in order. Runner-up NOT LANDED, its best argument: section 5.4 is an
+invariant and not a reach statistic, and plan.adopt still fires on a constructed set with no extractor held. It lost
+because raising the precondition model is new acceptance no clause arm states, and this record says so.
+VERIFIER, a distinct agent, its own clone, the repaired tip: mypy 465 files; ruff check and format clean; drift guard
+11 PASS; advisor, solve, surface, data, audit, progress, save and ops plus 125 top-level guards 18445 passed, 17
+skipped, 0 failed; the golden regenerated at its parent commit, byte-equal. The one gated whole suite is the push's
+pre-push hook, not observed here; tests/shell, CI and Linux not observed here either.
+NOT DELIVERED BY THIS ITEM, EACH FILED: CS-1373, a schematic on the selector; CS-1374, naming the schematic and
+tier; the rows CS-1375, a redesign compared with what is built; CS-1376, the panel's state controls; CS-1378, balanced
+byproduct consumers; CS-1379, display names on cards; CS-1380, the redesign reason on the wire; CS-1381, the score tie;
+and CS-1382, raw supply and the plan rules in the 5.4 property test. `BACKLOG.md`, Session 155 residuals, carries the
+rest.
+
+### 2026-11-04 - CS-1372 - CLOSED: the trim keeps a target's derived route, so a chain within the cap reads a plan even inside a larger closure
+Verification: `clockspeed/solve/bound.py::derived_route`; `clockspeed/solve/bound.py::_trim_ranking`;
+`clockspeed/solve/bound.py::TRIM_ROUTE_FIRST`; `clockspeed/solve/bound.py::TRIM_RULES`;
+`tests/solve/test_bound.py::test_a_derived_route_inside_a_closure_over_the_cap_ranks_a_plan`,
+`::test_the_cap_does_not_move`, `::test_the_count_is_the_least_fixed_point_and_not_the_first_tree_found`,
+`::test_the_closure_ranks_a_recipe_at_the_level_the_walk_first_reached_it`,
+`::test_a_recipe_kept_at_its_first_level_answers_what_its_deepest_would_drop`,
+`::test_one_request_yields_one_ranking_under_every_direction_and_both_policies`,
+`::test_two_processes_rank_one_route_under_different_hash_seeds`;
+`tests/advisor/test_plan_world.py::test_a_capped_no_plan_names_what_the_bound_dropped`,
+`::test_a_capped_no_plan_reason_speaks_only_for_the_kept_set`.
+THE COUNT THE CLAUSE ORDERS, ONE LIBRARY SAVE, THE SAVE UNNAMED. Raw set: the docs' FGResourceDescriptor group, 13
+items. Raw rule: an item is raw only if in that group. Rate 1, direction raw. Over the 25 multi-stage outputs of the
+save's 42 unlocked automated recipes, no-plan went from 15 to 5, under both policies. Over the whole automated list
+of 142 with every recipe held, sinkable went from 112 to 50 and balanced from 117 to 88. A synthetic fixture cannot
+show this, and zero was not required. The cap did not move.
+ORDER RULED, a distinct adjudicator: the route first, then the rest of the closure by depth, then the rest. Runner-up
+closure by depth, whose best argument is simplicity and which ranks 51 of 142 where the route ranks 92. The docstring
+read-back the clause orders was done by a distinct adversary, and its four false lines are corrected, one kept with
+the clause's own wording. Verifier counts: the CS-1371 record above. Residual: seven surviving low mutants across
+both items, in `BACKLOG.md`, Session 155 residuals.
+
 ### 2026-11-03 - CS-1344 - CLOSED: a test run clears its own Temp cs-pt on teardown, failure included, and the /done sweep bounds the session scratchpad; the ONE ANSWER went with one correction, and this session's sweep is still to run
 Verification: `tests/own_temp_root.py::finish`, `::sweep`, `::GRACE_S`, `::STALE_AFTER_S`;
 `tools/scratch_sweep.py::sweep`, `::BOUND_FILES`, wired into `.claude/commands/done.md`;

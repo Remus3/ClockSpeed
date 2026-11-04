@@ -24,6 +24,263 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1372 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-04 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as amended.**
+The closure record is in `docs/LEDGER.md`.
+
+### Acceptance
+
+`clockspeed/solve/bound.py::_trim_ranking` ranks by a new rule, TRIM_ROUTE_FIRST in
+`clockspeed/solve/bound.py`, built on a new public function derived_route there. By exact integer
+arithmetic over the usable candidates and the request's raw items, a raw item counts zero and any
+other item counts the least, over its usable producers, of one plus the counts of that producer's
+inputs, a tie going to the lower registry position; the count is that rule's least fixed point, so
+an item no usable recipe reaches from raw items has no count and no chosen producer, and every
+chosen producer's inputs count strictly below the item it was chosen for; walking those chosen
+producers back from the targets in sorted order, stopping at raw items, gives the derived route. The
+ranking is the route's members in breadth-first walk order, each recipe's inputs as listed, then the
+rest of the targets' backward closure stopping at raw items, by walk depth then registry position,
+then everything else by registry position. So a derived route within
+`clockspeed/solve/optimize.py::MAX_EXHAUSTIVE_CANDIDATES` is wholly kept even inside a larger
+closure, and a closure within the cap is wholly kept. The count is of recipes on a tree, so the
+route is deterministic and no claim of the fewest distinct recipes. The closure does not follow
+byproducts, so under the balanced policy a route whose byproduct, not itself a raw item, nothing kept consumes cannot solve while that member runs a machine, and unless other kept recipes answer the request that reads no-plan, scoped to the kept set and the stated policy. Each of the following has its own arm.
+
+(1) On a synthetic registry with every member unlocked, a target's chain of at least four stages,
+one item on it having two producers and only the second feasible, the closure above the cap and the
+derived route within it, while both `clockspeed/solve/bound.py::TRIM_TARGET_PRODUCERS_FIRST` and a
+keep by walk depth then registry position drop a route member past the cap:
+`clockspeed/solve/bound.py::optimize_within_bound` returns a plan and
+`clockspeed/advisor/plans.py::plan_offer` reads a ranked plan. That arm in
+`tests/solve/test_bound.py` reddens on the shipped order, and the route is named by hand, never read
+back from the ranking.
+
+(2) `MAX_EXHAUSTIVE_CANDIDATES` is pinned at 12: the cap does not move.
+
+(3) The order reads the request's targets, raw items and usable candidates and the registry, never
+the objective, the byproduct policy, a solve, a clock or a float: a spy sees no solve in
+`clockspeed/solve/bound.py::trim_record`, one request yields one ranking under every direction and
+both policies, two targets in either mapping order rank alike, two processes under differing
+PYTHONHASHSEED agree, and a recipe cycle ends and names no recipe twice.
+
+(4) `clockspeed/solve/bound.py::TRIM_RULES` gains the new rule and keeps the shipped name, which no
+path emits any more and a comment says so; `TrimStep.rule` on a returned record and
+`BoundExhaustedError.rule` on a refusal both name the new rule.
+
+(5) A chain of more than the cap's count of recipes, one producer per item, every member required,
+still reads no-plan, its reason scoped to the kept set and plan.trimmed naming what the bound
+dropped, each with its own arm.
+`tests/advisor/test_plan_world.py::test_a_capped_no_plan_names_what_the_bound_dropped` is rebuilt on
+that chain, because its two-recipe route now ranks, and keeps its control through
+`clockspeed/solve/ratio.py::solve_for_targets`, because
+`clockspeed/solve/optimize.py::optimize_plan` refuses a route over the cap.
+
+(6) `tests/solve/test_bound.py::test_an_under_cap_request_is_not_recorded_as_trimmed`,
+`::test_the_chosen_prefix_is_the_smallest_that_passes` and
+`::test_the_ascent_visits_the_empty_prefix_first_on_every_request` pin the shipped order's first
+prefix and are re-derived by hand in the same change, each still grading what it names.
+`::test_a_cap_hit_records_the_cap_the_rule_and_a_conserving_partition`,
+`::test_a_request_no_prefix_can_solve_refuses_and_names_the_cap_and_the_rule`,
+`::test_a_refusal_over_the_cap_carries_what_the_bound_dropped` and
+`::test_the_refusal_says_what_a_greedy_exhaustion_does_not_prove` pin the shipped name and are
+re-pinned to the new rule.
+
+(7) The nested-prefix proof, the first-tier argument and the cost bound in that module's docstring,
+the docstrings of `_trim_ranking`, `trim_record` and `optimize_within_bound`, and
+`clockspeed/advisor/plans.py` items 2 and 3 are re-read and corrected in the same commit and read
+back by the closing adversary, so no docstring claim outlives the behaviour. No test grades prose.
+
+(8) The no-plan count before and after, over every output of the save's unlocked automated recipes
+that no one of them makes from raw items alone, on one library save, the save unnamed, under the raw
+set and raw rule stated in the record, and the same count over the whole automated list, is recorded
+in the closing ledger record. Zero is not required, and the record says a synthetic fixture cannot
+show this.
+
+### Filed 2026-11-03 (session 155) by the CS-1351 close
+
+**MOVED FROM `BACKLOG.md` BECAUSE IT IS PRODUCT WORK.** The trim ranks direct producers of a requested
+item first and everything else in registry order, so a producer of an intermediate can fall past the
+cap, and `clockspeed/advisor/plans.py::plan_offer` then reads no-plan where an unlocked chain exists.
+MEASURED by the CS-1351 run on one save: 11 of 12 no-plans, half the multi-stage targets. The no-plan
+reason is scoped to the kept set, so it is loud and true, not cured. No open row covers it.
+
+### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
+
+**THE ORDER IS RULED: ROUTE FIRST, AND THE CLAUSE WAS AMENDED BEFORE CODE.** A distinct adjudicator ruled it,
+its criteria fixed first: the clause and the nested-prefix proof stay true; targets cured on a world's unlocked
+recipes and on the whole automated list; simplicity and run-time. Measured, sinkable, ranked: whole list 30
+shipped, 51 closure by depth, 92 route first, of 142; 116-recipe save 22, 47, 57 of 79; 42-recipe save 18, 28,
+28 of 33; neither other order ranked anything route first missed. RUNNER-UP, closure by depth then registry
+position. Its best argument: simpler, equal on the 42-recipe save, fewer tests flipped. It lost because cure
+outranks simplicity and the fixed point costs a millisecond. Rejected: route first with byproduct consumers
+next, balanced 52 against 54. Reversed by a library world where the closure order ranks more, or the
+operator's word. LOWERED, stated: the closure follows no byproduct, ground `clockspeed/solve/ratio.py` and that
+measurement, and the player states the policy; a multi-producer closure with a route above the cap states no
+outcome beyond the closed vocabulary, ground such routes solve through plan.redesign. A distinct adversary
+REFUTED most of the first-filed sentences: chain undefined with several producers, and the targets and the
+registry alone false at the first line of the trim. A second adjudicator ruled the second read.
+
+## CS-1371 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-04 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as amended.**
+The closure record is in `docs/LEDGER.md`.
+
+### Acceptance
+
+CS-1372 lands first, because this item reads its route. A new panel module, one new file in
+`PANEL_MODULES` and `ASSET_NAMES` with one registration and no fetch of its own, states a target, a
+rate, a direction and a byproduct policy through one bench of labelled controls and one button, no
+form element, each required and none prefilled, through new doors in
+`clockspeed/surface/web/app.js`. The three routes of `clockspeed/surface/api/advice.py` take those
+four, and `clockspeed/surface/providers.py::StoreAdviceSource` hands
+`clockspeed/advisor/advise.py::advise_world` the `clockspeed/advisor/plans.py::PlanRequest` an
+advisor function builds from them. `clockspeed/data/registry.py` publishes the docs'
+FGResourceDescriptor group as a new fact and that function takes it as raw_items, so no surface
+module chooses a raw item. That group absent or empty is flagged in the registry's warnings and
+reads plan.status request-malformed, never a search over no raw items, because
+`clockspeed/advisor/plans.py::_well_formed` then refuses an empty raw tuple;
+`tests/advisor/test_plan_world.py::test_no_raw_items_at_all_is_request_malformed` pins the opposite
+and is rewritten and renamed in the same change. An item a recipe consumes that is neither in the
+group nor made by an automated recipe is never treated as raw. Each of the following has its own
+arm.
+
+(1) On a synthetic fixture world a stated target on `/api/advice` returns a plan.adopt card, the
+same four parameters on `/api/advice/<id>/derivation` return its tier 3 carrying its
+`clockspeed/solve/strategy.py::StrategyBadge`, and the same four on the state route record that
+card; without them the derivation and state routes answer as they do at the parent commit.
+
+(2) The selector is FREE, per `CLAUDE.md` section 7: a new function plan_targets in
+`clockspeed/data/registry.py` returns every `RecipeIO.item_key` on the outputs of
+`clockspeed/data/registry.py::automated_recipes` except the published group, whose members pillar 1
+refuses as targets. Each is selectable whatever the world's progress, the list served as one new key
+of `/api/registry` so the panel computes nothing, with no default target and no fixed pointer at the
+next milestone. An output no automated recipe makes is not selectable, because no machine makes it;
+`BACKLOG.md` records what that drops. When plan.status reads no-plan, and on no other status,
+`clockspeed/advisor/plans.py::plan_offer` takes derived_route, the CS-1372 function in
+`clockspeed/solve/bound.py`, over every usable automated recipe that carries a path and has a machine joining a build recipe with a path, handed the held
+recipes through a new keyword the trim does not pass, counting locked recipes on the tree first and
+all recipes second, solves that route once with `clockspeed/solve/ratio.py::solve_for_targets` under
+the stated policy, makes no second call of `clockspeed/solve/bound.py::optimize_within_bound` and no
+rung search, and offers the plan to a new rule, plan.redesign, never to plan.adopt. An arm selects a
+target whose every route runs at least three stages of recipes the fixture world has not unlocked
+and reads a plan.redesign card rendered from the trace: action `Plan toward <target>`; tier 2 gives
+the locked and held counts, says, when any is locked, that the locked recipes or the machines that run them must unlock first on this route and, when none is, that this route needs no unlock and the capped search did not find it,
+says the stated direction did not choose this route and it was never compared with what is built,
+and, when plan.unchecked holds any recipe, gives their count as plan.adopt's reason does; requires
+holds only the held recipes the solve gives a machine and, for each, the build recipe of one machine the world holds, by the whole-path join on
+`clockspeed/data/registry.py::Recipe`, and the arm asserts the world's held keys cover it; tier 3
+carries every stage's machine count and reads the locked recipes by ClassName under an input of
+their own, so no locked stage reads as buildable, and tier 1, tier 2 and requires name none of them;
+it carries no StrategyBadge; its subject key has plan.adopt's plan: form, so its id moves with no
+count, rate, policy or direction; every path a world reaches records an indeterminate step, firing
+included, and settles nothing, and an arm shows a recorded card is not completed when the target
+clears or moves. Separate arms: a hand-built offer with a locked key in requires yields
+precondition-unmet and no card; a target ranked over unlocked recipes reaches no route solve and
+gets no plan.redesign card; a route longer than `MAX_EXHAUSTIVE_CANDIDATES` fires, and wholly held
+it reads the no-unlock wording; a longer held route beats a shorter locked one; a stage the solve
+gives zero machines counts as neither held nor locked; a pathless recipe stays off the route and is
+counted in tier 2. A recipe is held only when the world holds its whole path and the whole path of the recipe `clockspeed/data/registry.py::build_cost` names for at least one machine in its produced_in, on the ranked path and the route alike, so a recipe the world holds with no machine held reads no plan.adopt card and counts as locked on plan.redesign, and plan.adopt's requires carries the same machine keys; an automated recipe no machine of which joins a build recipe with a path is off the search and the route and on plan.unchecked. Separate arms: its machine locked; one of two machines held; no build recipe. A fixture shows no tier, so this arm grades locked stages by count.
+
+(3) A refused trace yields no card, so an advisor projection the surface transcribes carries what
+was refused, under one key of the listing body present exactly when a target is stated: plan.status
+always, with its closed-vocabulary reason on every status but ranked; plan.trimmed on every status
+whose offer carries it; the plan.redesign status, one of not-reached, routed, no-route or
+route-refused; on no-route, the items the target's backward closure over the arm 2 recipe set
+reached that no member of it makes and the group lacks. One arm per plan.redesign status, and: a
+no-plan arm reads its reason scoped to the kept set and plan.trimmed, a no-route arm reads the item
+named, and a route-refused arm's same request under the other policy fires.
+
+(4) With no target stated the advice body is byte-same, through
+`clockspeed/surface/api/contract.py::encode`, as a golden captured at the parent commit over a
+synthetic world at a fixed clock, and
+`tests/advisor/test_plan_world.py::test_the_surface_passes_no_target` is rewritten in the same
+change to pin that half beside the new stated-target arm.
+
+(5) A target outside the arm 2 list, a rate at or below zero or malformed, a direction or policy
+outside its closed vocabulary, or any of the four stated without the other three answers that
+route's own 400 shape, echoes nothing and reaches no solve, which a spy shows. A rate, direction,
+policy or partial set is refused before any provider is read, as `clockspeed/surface/api/solve.py`
+does; the membership test runs after the no_save and no_game_install refusals and before the source,
+so a missing save or install still answers its 503. The membership test reads the registry model and
+no surface module chooses a value; this route refuses an unknown key on purpose, which
+`clockspeed/surface/api/solve.py` leaves to the solve layer.
+
+(6) Two requests with the same world, the same four parameters, a fixed clock and no ledger write
+between them return byte-same bodies, and so do two processes under differing PYTHONHASHSEED.
+
+(7) The panel renders the visible cards data.advice already holds, tiers 1 and 2, before any
+request, then the stated request's cards and the (3) key after one, and a button on a card reads
+tier 3 through the derivation route. A null data.advice or data.registry renders a named refusal and
+no bench. `tests/surface/test_web_assets.py` and `tests/surface/test_panel_seam.py` grade the new
+file as they grade every panel.
+
+(8) The docstrings and comments of `clockspeed/advisor/plans.py`,
+`clockspeed/advisor/rules/plan.py`, `clockspeed/advisor/advise.py` and
+`clockspeed/surface/api/advice.py` saying no surface states a target, the listing accepts no
+parameter, an empty raw tuple is a question, the family is one rule or no locked recipe reaches a
+rule are corrected.
+`tests/advisor/rules/test_plan.py::test_the_family_declares_the_build_inputs_ahead_of_its_own`
+widens its pin of the family's rules.
+`tests/advisor/test_plan_world.py::test_every_producer_locked_is_no_plan_no_adopt_card_and_fires_the_route` then
+sits on a world firing a plan.redesign card and is renamed; a test renamed under this item has its
+citation here moved in the same change. `tests/advisor/test_every_rule_fires.py` gains
+plan.redesign, named in `tests/advisor/test_every_rule_fires.py::NEVER_SETTLES_ON_FIRING`, whose
+silent fixture is a hand-built plan with no machine on any step, rejected and settling, which no
+world reaches because a stated rate is above zero. The closing ledger record reads back on one
+library save, the save unnamed, per byproduct policy, how many of the arm 2 list read a plan.adopt
+card, a plan.redesign card and neither. A synthetic fixture cannot show that reach and the record
+says so; zero neither is not required. The record names each filed row and each `BACKLOG.md` line
+this ruling ordered as what this item did not deliver.
+
+### Filed 2026-11-03 (session 155) by the CS-1351 close
+
+**MOVED FROM `BACKLOG.md` BECAUSE IT IS PRODUCT WORK.** CS-1351 made plan.adopt run on every world and
+fire on none: `clockspeed/surface/providers.py` passes no plan_request and the advice endpoint takes
+no parameter. `BOOTSTRAP.md` D3 calls the target selector a first-class control. No open row covers
+it: CS-1046 publishes the `/api/plan` and `/api/audit` bodies, CS-1254 renders a matrix for a target
+it is handed, and neither states one.
+
+**WHAT THE CS-1351 RECORD SETTLED, SO THIS ITEM DOES NOT RE-ARGUE IT.** The target source is a caller
+keyword; the world's phase table, built output and the next milestone were each rejected as a source.
+Its reversal clause, a selector shipping, is this item. Read `docs/LEDGER.md`, 2026-11-03, CS-1351.
+
+**MEASURED, ONE SAVE, AND THE SAVE LIBRARY CAN CHANGE.** With a stated target, one adjudicator's probe
+read 21 of 33 targets firing a card and 0 rule errors. Two lines in `BACKLOG.md` wait on this row being
+taken: the unpriceable power rung and the score tie.
+
+### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
+
+**THE RULING THIS ITEM NEEDED BEFORE CODE IS TAKEN: A MARKED ROUTE, NEW RULE plan.redesign.** A distinct
+adjudicator ruled the source, its criteria fixed before any candidate: the non-negotiables and
+`BOOTSTRAP.md` section 5.4; `CLAUDE.md` section 7 on a real world and not only a fixture; truth; run-time
+and build cost; reuse. On a no-plan, one derived route over every automated recipe with a path, counting
+locked recipes first, solved once by pillar 1, offered to a new rule whose action is doable now and whose
+requires holds held recipes alone. Rejected: pillar 4 alone, which prices a cost and never says what to
+build, with mUnlocks unread, no implementer of its source and the hub tier None on every load; a hybrid
+naming the schematic, whose second half is CS-1374. RUNNER-UP, a marked bound and rung search over the whole
+automated list. Its best argument: it honours the stated direction, carries a badge, reuses the ranking and
+reaches 7 balanced targets the route refuses. It lost because on the sinkable policy its reach is a strict
+subset of the route's, its badge is a claim about an arbitrary 12 of 291, and it costs seconds on the GET.
+Measured on prototypes, one docs build, two saves: 108 of 142 targets read a card on a 42-recipe save
+(28 ranked, 80 routed) and 112 of 142 on a 116-recipe save, sinkable; 61 of 142 balanced. Reversed by a
+closing read-back where the bound reaches more sinkable targets than the route, a recorded need for a
+direction-graded locked plan, or the operator's word. THE ADJUDICATOR ADDED THIS CANDIDATE ITSELF AND
+RECUSED, so a distinct adversary tried to refute it: NOT REFUTED on false plans, a wholly held route, the
+direction, section 5.4, the ledger, balanced reach, unlock honesty or walk termination. It reproduced the
+reach, and found the words this clause now carries. Its residuals stand: on 42 of 86 locked routes on one
+save, must-unlock-first names a hard-drive recipe the target did not need, which CS-1374 carries; a free
+byproduct loop can give a stage zero machines, shared with the ranked path.
+
+**THE CLAUSE WAS AMENDED BEFORE CODE, EVERY CHANGE THROUGH AN ADJUDICATOR.** A distinct adversary tested the
+first-filed text and REFUTED most arms as untestable or impossible: the derivation and state routes refused a
+target, so the card could not be read; no slot on the wire; no named source for raw items; no page element
+rendering advice. A second adjudicator, not the one that wrote this text, ruled the second read. RAISED: the
+panel, the three routes, the raw set, the projection, the golden. LOWERED, each stated: a schematic is not on
+the selector, ground build cost and a missing concrete source, CS-1373; several tiers grades by locked-stage
+count, ground mUnlocks unread, CS-1374; any item the registry produces became machine-made outputs, ground no
+machine makes the rest, `BACKLOG.md`.
+
 ## CS-1344 - item section, relocated from `docs/item_notes/phase7.md` 2026-11-03 on its close
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

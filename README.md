@@ -87,7 +87,7 @@ today", and this section is a summary of it.
   rotation and scale, read straight from the save file.
 - **Advice cards** (`/api/advice`). Your world's cards with headline and one-line reason,
   each card's full derivation, and a per-world card state that refuses with 403 a request
-  without the dashboard's same-origin header. The rules so far cover power headroom; the
+  without the dashboard's same-origin header. The rules so far cover power headroom, fuel and a stated target's plan; the
   dashboard's advice panel draws the cards. Without a save or a game install it answers 503.
 
 **Built, not yet wired to the dashboard**

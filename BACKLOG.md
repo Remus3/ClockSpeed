@@ -1142,11 +1142,9 @@ record). None blocks a product item or reddens a suite.
 
 From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). None reddens a suite.
 
-- A power rung with an unpriceable reference withholds the plan's own exact figure (CS-1351); publish
-  it when tier 3 reaches a player; trigger: CS-1371 is taken.
-- A score tie can put a dominated plan on top: asked by buildings, a 60 ore plan beat a 10 ore plan
-  on registry order at one machine each, with an honest badge; add a dominance tie-break or record a
-  ruling; trigger: CS-1371 is taken.
+- A power rung with an unpriceable reference withholds the plan's own exact figure (CS-1351); publish it when
+  tier 3 reaches a player; 0 unpriced rungs among 46 ranked targets on the richest world at CS-1371's
+  close; trigger: a ranked library card with an unpriced rung.
 - `clockspeed/solve/ratio.py`, `_plan_from` raises ValueError from zip on optimize_plan with no
   targets and a reachable candidate, under greedy or sinkable; it predates CS-1350, and the bound
   now answers first except under greedy with an unrecognized policy, pinned by
@@ -1174,8 +1172,37 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
   of which 28 read no-route on every world measured; trigger: a ruling that a target may be a
   hand-crafted or build-gun output.
 - CS-1371 orders no cache: each stated derivation or state call re-solves the world, seconds on a
-  real save, on a threading server so no other route stalls; trigger: a measured wait on a
-  stated-target click that a player reports.
+  real save, and the threading server does not stop other routes stalling: /api/health read 64 ms
+  idle, 1571 ms median with one stated request in flight, 3671 ms with two, against the companion's
+  2000 ms PROBE_TIMEOUT_MS; trigger: a companion probe off its start path, or a measured wait a
+  player reports.
+- 6 sinkable targets read route-refused: pillar 1 raises InfeasibleChain because
+  Recipe_AluminaSolution_C's silica runs Recipe_Silica_C backwards; trigger: a player reports one,
+  or a ruling that a route may take a second producer.
+- Four 503 no_save from four fresh listeners on one clone, 200 on retry, cause unproven; trigger: one
+  reproduction on a single listener or on the parent commit.
+- CS-1371 surviving mutants, each one row: removed order, negative-machine guard, unmade beside other
+  statuses, blank ClassName in the group, route machine figure, two redesign reason sentences;
+  trigger: the next change to those lines.
+- Plan outcome lines outweigh tier 2; the byproduct select reads 537 wide against 218 at 768; the
+  advice panel sits below a 900-high fold; trigger: the next panel audit.
+- A plan card's id moves with no rate, direction or policy, as CS-1371 clause 2 orders, so a dismissal
+  at one rate hides the card at every other; the body is true, and the panel reads "no visible card
+  answered this request" beside status ranked; trigger: a player reports a dismissed plan that will
+  not return, or the next change to `clockspeed/surface/web/panel_advice.js`.
+- `clockspeed/data/registry.py::build_cost` takes the first of several build recipes for one
+  descriptor, so a mod's machine with two can read locked; 0 on the pinned docs; trigger: a re-pin or
+  mod content with two for one machine.
+- plan_outcome_of carries no plan.unchecked, so a refused stated request never says recipes went
+  unchecked; 0 on the pinned docs; trigger: a re-pin with any automated recipe unchecked.
+- plan_offer runs its recipe join outside its try, so a hand-built registry naming an unmodeled
+  machine can raise instead of reading a status; unreachable on a built registry; trigger: an entry
+  point that skips build_registry.
+- Pillar 1 gives a raw item no row, so a raw byproduct passes the balanced policy and tier 3 shows it
+  as a negative raw input; unmeasured on a real world; trigger: a real chain measured reading this way.
+- Stale prose, none shipped to a player: `tests/surface/test_advice_source.py`'s route-world docstring
+  says the world holds no machine, and `clockspeed/surface/web/panel_scope.js`'s closing note names
+  only the solve bench; trigger: the next edit to either file.
 
 ## Session 155 rulings - filed 2026-11-03 under product before process
 
