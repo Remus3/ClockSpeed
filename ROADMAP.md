@@ -284,6 +284,11 @@ CS-1252 - a freshness stamp and a stale marker on every card, API response and c
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1371 - the target selector: no surface passes a plan_request, so plan.adopt fires on no real world - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1372 - the bound's trim is not chain-aware, so a real multi-stage target can read no-plan where an unlocked chain exists - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1373 - select a schematic as target: its cost items plan as one route - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1374 - a redesign card names each locked recipe's schematic and tech tier - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1375 - a redesign is compared with what is built, dependency-ordered - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1376 - plan panel accept, dismiss, snooze and pin controls through the state route - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1378 - balanced route-refused targets get no card though a recipe eats the byproduct - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

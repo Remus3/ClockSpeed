@@ -1168,6 +1168,14 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
   disagreements, 132 of 157 by either route, one world); trigger: a measured path divergence.
 - `docs/LEDGER.md` pins line numbers in `clockspeed/data/docs_extract.py`, which forced the FullName
   block to that file's foot; trigger: the next reorganisation of that module.
+- CS-1371 lowered "any item the registry produces" in its clause 2, ground no machine makes them:
+  recipe outputs no automated recipe makes are not selectable, 577 of 719 outputs less the resource
+  group (547 building, 16 equipment, 8 vehicle, 4 item and 2 consumable descriptors), leaving 142,
+  of which 28 read no-route on every world measured; trigger: a ruling that a target may be a
+  hand-crafted or build-gun output.
+- CS-1371 orders no cache: each stated derivation or state call re-solves the world, seconds on a
+  real save, on a threading server so no other route stalls; trigger: a measured wait on a
+  stated-target click that a player reports.
 
 ## Session 155 rulings - filed 2026-11-03 under product before process
 
