@@ -5,8 +5,9 @@ WHAT THIS MODULE OWNS (BOOTSTRAP.md sections 5.1 and 5.4). A rule is a
 REQUIRES, and a pure ``evaluate`` function. :func:`run_rule` runs one spec
 against one :class:`WorldInputs` and returns a :class:`Trace` - every input read
 with its source, every number computed, every alternative rejected with its
-reason, every comparison left indeterminate - by an incomplete input, or by a
-figure priced at a build other than the save's own - every unmet
+reason, every comparison left indeterminate - by an incomplete input, by a
+figure priced at a build other than the save's own, or by a plan never compared
+with the world - every unmet
 precondition, and the recommendation if one survived. Cards
 consume the trace; nothing renders advice from anywhere else, which is why
 tier 3 cannot drift from tiers 1 and 2.
@@ -141,6 +142,11 @@ NAME_PATTERN: Final = re.compile(r"[a-z0-9_.:-]+")
 #: because a key embeds an asset path, which carries ``/`` and capitals.
 UNLOCK_PATTERN: Final = re.compile(r"[A-Za-z0-9_.:/-]+")
 
+#: The prefix of a recipe's unlock key, ahead of its asset path. One owner, so
+#: :func:`unlock_keys` and the recipe-to-unlock join in
+#: ``clockspeed/advisor/plans.py`` build the same key rather than two that agree.
+RECIPE_UNLOCK_PREFIX: Final = "recipe:"
+
 #: The ``rule-error`` subject for a recommendation the engine refused.
 _RECOMMENDATION: Final = "recommendation"
 
@@ -156,7 +162,9 @@ class StepKind(enum.Enum):
     #: CS-1271: a comparison the rule could not make because an input is a
     #: floor or absent - or, since CS-1288, because a figure is priced at the
     #: pinned build rather than the save build's own (see
-    #: ``clockspeed/advisor/build.py``). NOT a verdict - the world may still
+    #: ``clockspeed/advisor/build.py``) - or, since CS-1351, because a plan is
+    #: ranked for a stated target and never compared with the world (see
+    #: ``clockspeed/advisor/rules/plan.py``). NOT a verdict - the world may still
     #: hold the problem.
     VERDICT_INDETERMINATE = "verdict-indeterminate"
     PRECONDITION_UNMET = "precondition-unmet"
@@ -468,10 +476,12 @@ class RuleContext:
     def indeterminate(self, alternative: str, reason: str) -> None:
         """Record one comparison the inputs left undecided, and why.
 
-        Either an input is incomplete - a floor or absent (CS-1271) - or a
-        figure is priced at a build other than the save's own (CS-1288, through
-        ``clockspeed/advisor/build.py::build_caveat``). Unlike :meth:`reject`,
-        this is not a verdict: a trace carrying it does not settle its rule.
+        An input is incomplete - a floor or absent (CS-1271) - or a figure is
+        priced at a build other than the save's own (CS-1288, through
+        ``clockspeed/advisor/build.py::build_caveat``), or a plan was never ranked
+        or never compared with the world (CS-1351, through
+        ``clockspeed/advisor/rules/plan.py``). Unlike :meth:`reject`, this is not a
+        verdict: a trace carrying it does not settle its rule.
         """
         self._indeterminate(alternative, reason)
 
@@ -662,6 +672,6 @@ def unlock_keys(state: UnlockState) -> frozenset[str]:
     contributes nothing, so a rule requiring it cannot fire.
     """
     keys = {f"schematic:{path}" for path in state.purchased_schematics}
-    keys.update(f"recipe:{path}" for path in state.recipes)
+    keys.update(f"{RECIPE_UNLOCK_PREFIX}{path}" for path in state.recipes)
     keys.update(f"feature:{name}" for name, held in state.feature_flags.items() if held is True)
     return frozenset(keys)

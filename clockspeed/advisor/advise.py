@@ -8,9 +8,18 @@ a firing trace yields, and each card's resolution against BOTH persistence
 layers. :func:`world_inputs` is the adapter from the audit power balance and
 the unlock state to those inputs, :func:`inputs_of` composes that balance
 from a world model and a registry through the audit constructors (CS-1270),
-adds the fuel audit's inputs over the same machines model (CS-1285 slice D)
-and the build check's (CS-1288) through :func:`merged_inputs`, and
-:func:`advise_world` is the one call a surface makes over a world it holds.
+adds the fuel audit's inputs over the same machines model (CS-1285 slice D),
+the build check's (CS-1288) and the plan offer's (CS-1351) through
+:func:`merged_inputs`, and :func:`advise_world` is the one call a surface makes
+over a world it holds.
+
+A PLAN IS RANKED ONLY FOR A TARGET THE CALLER STATES (CS-1351).
+:func:`inputs_of` and :func:`advise_world` take an optional ``plan_request``, and
+``clockspeed/advisor/plans.py`` answers it. Left None, nothing is solved: the
+offer is the one status input that says no target was stated, so the registered
+plan family records why it is silent rather than halting on an input the world
+lacks. No surface passes one yet, so ``plan.adopt`` runs on every served world and
+fires on none until a target selector ships.
 
 THE PIN IS A PARAMETER, NEVER AN IMPORT (CS-1288, the session 138 ruling F2).
 Every figure a rule prices from a nameplate is the PINNED build's, so
@@ -91,6 +100,7 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.advisor.build import build_inputs, registry_inputs
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
+from clockspeed.advisor.plans import plan_offer
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.fuel import fuel_inputs
 from clockspeed.advisor.rules.power import balance_inputs
@@ -113,6 +123,7 @@ from clockspeed.audit.placement import placement_of
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from clockspeed.advisor.plans import PlanRequest
     from clockspeed.audit.balance import WorldBalance
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import UnlockState, WorldModel
@@ -248,6 +259,7 @@ def inputs_of(
     *,
     pinned_changelist: int | None,
     pinned_docs_sha256: str | None,
+    plan_request: PlanRequest | None = None,
 ) -> WorldInputs:
     """Build the rule inputs for one parsed world against one registry (CS-1270).
 
@@ -272,6 +284,9 @@ def inputs_of(
     very registry priced here beside the pinned docs hash, and its three
     inputs join them. Every registered rule reads all six first.
 
+    THE PLAN OFFER (CS-1351) joins them too. It is handed the model's unlock state
+    and the registry, never the model, so the world token stays out of it.
+
     Args:
         model: The world model the surface holds.
         registry: The normalized registry.
@@ -279,6 +294,8 @@ def inputs_of(
             did not parse - never imported here (ruling F2).
         pinned_docs_sha256: The pinned docs hash, or None or empty when the
             pin carries none - never imported here either.
+        plan_request: The target a caller asks a plan for, or None, which runs
+            no solve and yields no plan card.
 
     Returns:
         The rule inputs.
@@ -299,8 +316,10 @@ def inputs_of(
     fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
     build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
     source = registry_inputs(registry_check_of(registry, pinned_docs_sha256=pinned_docs_sha256))
+    offer = plan_offer(model.unlocks, registry, plan_request)
     return WorldInputs(
-        values=merged_inputs(balanced.values, fuel, build, source), unlocks=balanced.unlocks
+        values=merged_inputs(balanced.values, fuel, build, source, offer),
+        unlocks=balanced.unlocks,
     )
 
 
@@ -355,9 +374,11 @@ def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
     ``input-refused``, ``precondition-unmet`` or ``verdict-indeterminate``
     step - or any kind not yet classified - means the rule raised, was
     refused an input, was never evaluated, or could not decide over an
-    incomplete input or over a figure priced at a build other than the
+    incomplete input, over a figure priced at a build other than the
     save's own (CS-1288: an off-pin or uncompared build records one
-    ``verdict-indeterminate`` step, ``clockspeed/advisor/build.py``). Its
+    ``verdict-indeterminate`` step, ``clockspeed/advisor/build.py``), or over
+    a plan never compared with the world (CS-1351,
+    ``clockspeed/advisor/rules/plan.py``). Its
     silence says nothing about the world, so its cards may not be completed
     (CS-1268, CLAUDE.md non-negotiable 7).
     """
@@ -423,6 +444,7 @@ def advise_world(
     ledger: Ledger,
     mutes: MuteStore,
     now: int,
+    plan_request: PlanRequest | None = None,
 ) -> Advice:
     """Advise over one parsed world: inputs, rules, cards and both stores.
 
@@ -439,6 +461,8 @@ def advise_world(
         ledger: The per-world ledger.
         mutes: The global per-rule mute store.
         now: The current instant, injected.
+        plan_request: The target to rank a plan for, as :func:`inputs_of` takes
+            it. A surface passes none today.
 
     Returns:
         The advice, as :func:`advise` returns it.
@@ -451,5 +475,6 @@ def advise_world(
         registry,
         pinned_changelist=pinned_changelist,
         pinned_docs_sha256=pinned_docs_sha256,
+        plan_request=plan_request,
     )
     return advise(model.token, world, ledger=ledger, mutes=mutes, now=now)

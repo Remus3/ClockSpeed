@@ -3,6 +3,8 @@
 Owns (BOOTSTRAP.md sections 5.3 and 6): the four v1 advice domains - D1 node
 siting and claim order, D2 process onsite versus transport and by what method,
 D3 milestone gap analysis against any target, and D4 power and fuel planning.
+Three families ship: D4's power and fuel, and the plan family, which adopts a
+ranked plan for a target a caller states.
 """
 
 # SEAM DISCIPLINE (BOOTSTRAP.md section 6).
@@ -38,7 +40,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from clockspeed.advisor.rules import fuel, power
+from clockspeed.advisor.rules import fuel, plan, power
 from clockspeed.advisor.trace import RuleSpec
 
 
@@ -57,13 +59,12 @@ def build_registry(families: tuple[tuple[RuleSpec, ...], ...]) -> tuple[RuleSpec
     return tuple(sorted(specs, key=lambda spec: spec.rule_id))
 
 
-#: Every REGISTERED family module's rules, listed by hand. The plan family
-#: (``clockspeed/advisor/rules/plan.py``, CS-1346) is not among them:
-#: ``clockspeed/advisor/advise.py`` offers no plan yet. The fuel family (CS-1285) is
-#: registered in the same change that has ``clockspeed/advisor/advise.py``
-#: offer its inputs, so no registered rule runs on a world that lacks them
-#: (the slice C ruling G6).
-_FAMILIES: Final = (power.RULES, fuel.RULES)
+#: Every REGISTERED family module's rules, listed by hand. A family joins in the
+#: same change that has ``clockspeed/advisor/advise.py`` offer its inputs, so no
+#: registered rule runs on a world that lacks them (the CS-1285 slice C ruling
+#: G6). The plan family (CS-1351) fires only where a caller states a target,
+#: and records why it is silent on every other world.
+_FAMILIES: Final = (power.RULES, fuel.RULES, plan.RULES)
 
 #: The registered rules, sorted by rule id.
 REGISTRY: Final = build_registry(_FAMILIES)

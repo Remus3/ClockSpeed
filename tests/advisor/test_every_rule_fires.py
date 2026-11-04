@@ -49,7 +49,8 @@ directly because no audit model publishes it yet (CS-1059). The fuel family's
 worlds (CS-1285) are one invented burner class burning one invented liquid,
 every figure the rules recompute worked by hand in :func:`_fuel` so the
 recomputation agrees with it; a fixture that disagreed would end in a
-``rule-error``, which the firing and silent arms both refuse. Beside them every
+``rule-error``, which the firing and silent arms both refuse. The plan family's
+worlds (CS-1351) are one invented plan under an invented badge. Beside them every
 world offers the three build inputs of a save the pinned build wrote, built by
 the audit's own build check over a synthetic header and sourced to its fields
 (:mod:`tests.advisor.build_fixtures`), the pin read at test time.
@@ -68,6 +69,13 @@ on either side, still fires and names both builds, and every silent fixture
 swapped off the pin no longer settles its rule. BOTH SIDES, because a save
 OLDER than the pin is the item's motivating case (CS-1288 fix round 1): a
 caveat comparing builds by order would pass on the newer side alone.
+
+ONE RULE NEVER SETTLES WHEN IT FIRES, AND IS NAMED HERE (CS-1351). ``plan.adopt``
+ranks a plan for a stated target and never compares it with the world, so firing
+records an indeterminate step on the pin too, and a recorded card is not completed
+by a target that merely moved. :data:`NEVER_SETTLES_ON_FIRING` holds its id, and
+:func:`test_every_return_site_names_both_builds_off_the_pin` exempts it from the
+on-pin half of its settling check alone. Its SILENT fixture still settles.
 """
 
 from __future__ import annotations
@@ -85,7 +93,7 @@ import pytest
 from clockspeed.advisor.advise import settled_rules
 from clockspeed.advisor.build import BUILD_INPUTS, IN_PINNED_CHANGELIST, IN_SAVE_CHANGELIST
 from clockspeed.advisor.cards import Card, card_for
-from clockspeed.advisor.rules import fuel, power, registered_rules
+from clockspeed.advisor.rules import fuel, plan, power, registered_rules
 from clockspeed.advisor.trace import (
     InputValue,
     Recommendation,
@@ -104,6 +112,15 @@ from clockspeed.audit.fuel import (
     VERDICT_FIRE,
     VERDICT_INDETERMINATE,
     VERDICT_REJECT,
+)
+from clockspeed.solve.ratio import BYPRODUCT_BALANCED, PlanStep, ProductionPlan
+from clockspeed.solve.strategy import (
+    NOT_CLEARED_OVER_BOUND,
+    RUNG_WITHIN_BUILDINGS,
+    RUNG_WITHIN_POWER,
+    RUNG_WITHIN_RAW,
+    StrategyBadge,
+    ThresholdCheck,
 )
 from tests.advisor.build_fixtures import (
     OFF_PIN_OFFSETS,
@@ -277,12 +294,76 @@ def _fuel_undecided() -> WorldInputs:
     )
 
 
+#: The invented recipe, item and unlock key every plan world names.
+_PLAN_RECIPE: Final = "Recipe_SyntheticPlanQx91_C"
+_PLAN_ITEM: Final = "Desc_SyntheticPlanQx91_C"
+_PLAN_UNLOCK: Final = "recipe:/Game/Synthetic/Recipe_SyntheticPlanQx91.Recipe_SyntheticPlanQx91_C"
+
+
+def _plan_badge(*, cleared: bool) -> StrategyBadge:
+    """A badge over all three rungs: within-raw alone cleared, or nothing."""
+    rungs = (RUNG_WITHIN_RAW, RUNG_WITHIN_BUILDINGS, RUNG_WITHIN_POWER)
+    won = (RUNG_WITHIN_RAW,) if cleared else ()
+    checks = tuple(
+        ThresholdCheck(
+            strategy=rung,
+            cleared=rung in won,
+            score=Fraction(2),
+            reference=Fraction(2) if rung in won else Fraction(1),
+            bound=Fraction(1),
+            reason="" if rung in won else NOT_CLEARED_OVER_BOUND,
+        )
+        for rung in rungs
+    )
+    return StrategyBadge(strongest=won[-1] if won else None, cleared=won, checks=checks)
+
+
+def _plan_world(*, cleared: bool) -> WorldInputs:
+    """One synthetic plan world: one invented recipe, ranked, its unlock held."""
+    production = ProductionPlan(
+        steps=(PlanStep(recipe_key=_PLAN_RECIPE, machines=Fraction(2)),),
+        targets=MappingProxyType({_PLAN_ITEM: Fraction(20)}),
+        raw_inputs=MappingProxyType({}),
+        byproducts=MappingProxyType({}),
+        excluded=(),
+        byproduct_policy=BYPRODUCT_BALANCED,
+    )
+    return _world(
+        {
+            plan.IN_STATUS: plan.STATUS_RANKED,
+            plan.IN_UNCHECKED: (),
+            plan.IN_UNMATCHED: 0,
+            plan.IN_PLAN: production,
+            plan.IN_BADGE: _plan_badge(cleared=cleared),
+            plan.IN_REQUIRES: (_PLAN_UNLOCK,),
+            plan.IN_TRIMMED: (),
+        },
+        unlocks=(_PLAN_UNLOCK,),
+    )
+
+
+def _plan_ranked() -> WorldInputs:
+    """A plan that cleared one rung: the rule recommends building it."""
+    return _plan_world(cleared=True)
+
+
+def _plan_no_rung() -> WorldInputs:
+    """A plan that cleared no rung: the rule rejects it."""
+    return _plan_world(cleared=False)
+
+
+#: Rules whose firing records an indeterminate step on the pin, by id, so their
+#: firing never settles. See the module docstring.
+NEVER_SETTLES_ON_FIRING: Final = frozenset({plan.ADOPT_RULE.rule_id})
+
 #: A world in which each registered rule FIRES.
 FIRING: Final[dict[str, WorldBuilder]] = {
     # The burner's supply has no verdict, so its 20 m3 a minute burn is stated.
     fuel.DEMAND_RULE.rule_id: _fuel_undecided,
     # The burner is 100 MW short: 10 m3 a minute of the liquid alone.
     fuel.SUPPLY_RULE.rule_id: _fuel_short,
+    # A ranked plan that cleared one rung.
+    plan.ADOPT_RULE.rule_id: _plan_ranked,
     # Three unpriced machines out of ten: the draw is a floor.
     power.GAP_RULE.rule_id: lambda: _power(
         complete=False,
@@ -309,6 +390,8 @@ SILENT: Final[dict[str, WorldBuilder]] = {
     fuel.DEMAND_RULE.rule_id: _fuel_short,
     # The pooled supply covers the demand over a complete flow.
     fuel.SUPPLY_RULE.rule_id: _fuel_covered,
+    # A ranked plan that cleared no rung is worse than its reference on every claim.
+    plan.ADOPT_RULE.rule_id: _plan_no_rung,
     # Every considered machine is priced, so there is no gap to name.
     power.GAP_RULE.rule_id: lambda: _power(
         complete=True,
@@ -554,7 +637,7 @@ def test_every_fixture_world_offers_the_pinned_build(table_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 #: The rules modules arm 2 covers, by short name.
-RULE_MODULES: Final[dict[str, ModuleType]] = {"fuel": fuel, "power": power}
+RULE_MODULES: Final[dict[str, ModuleType]] = {"fuel": fuel, "plan": plan, "power": power}
 
 #: One firing world per ``Recommendation`` return site, by rules module: the
 #: rule it fires, its builder, and the words only that site's headline opens
@@ -563,6 +646,9 @@ RETURN_SITES: Final[dict[str, dict[str, tuple[str, WorldBuilder, str]]]] = {
     "fuel": {
         "demand": (fuel.DEMAND_RULE.rule_id, _fuel_undecided, "Plan 20.00 m3"),
         "supply": (fuel.SUPPLY_RULE.rule_id, _fuel_short, "Supply 10.00 m3"),
+    },
+    "plan": {
+        "adopt": (plan.ADOPT_RULE.rule_id, _plan_ranked, "Build the planned production chain"),
     },
     "power": {
         "draw-incomplete": (
@@ -698,7 +784,9 @@ def test_every_return_site_names_both_builds_off_the_pin(
     assert same_headline, site
     settled_on = rule_id in settled_rules((on,))
     settled_off = rule_id in settled_rules((off,))
-    assert settled_on, f"{site} does not settle on the pin"
+    assert settled_on == (rule_id not in NEVER_SETTLES_ON_FIRING), (
+        f"{site} does not settle on the pin as its rule states"
+    )
     assert not settled_off, f"{site} settles off the pin, {_side(offset)}"
 
 

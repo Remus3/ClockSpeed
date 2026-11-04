@@ -35,7 +35,7 @@ clockspeed/
     power.py
   audit/          pillar 3 whole-world audit - PLACEMENT AND INVENTORY ONLY
   progress/       pillar 4 milestone routing - PARTLY BUILT
-  advisor/        pillar 5 - trace, cards, ledger and the D4 power and fuel rule families
+  advisor/        pillar 5 - trace, cards, ledger, the D4 power and fuel rule families and the plan family
     trace.py
     cards.py
     ledger.py
@@ -78,7 +78,7 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/advisor/trace.py` | The rule execution trace: declared inputs, the unlock gate, exact reads, and the one engine-held record every explain tier projects from. A faulting rule becomes a `rule-error` step, never a crash. |
 | `clockspeed/advisor/cards.py` | The advice card: a sha256 identity over rule, subject and target, and three read-only tiers projected from one trace. |
 | `clockspeed/advisor/ledger.py` | The per-world ledger, keyed by a digest of the world token, and the global per-rule mute store - two atomically written files. |
-| `clockspeed/advisor/rules/` | One module per rule family. A family is REGISTERED - run by default by `advise()` over every world - only by being listed by hand in `clockspeed/advisor/rules/__init__.py::_FAMILIES`, in the change that has `clockspeed/advisor/advise.py` offer its inputs. The registered families are the D4 ones: power in `clockspeed/advisor/rules/power.py` and fuel in `clockspeed/advisor/rules/fuel.py`. The plan family in `clockspeed/advisor/rules/plan.py` is NOT registered: its rule reads a ranked plan and carries the plan's strategy badge into tier 3, and `clockspeed/advisor/advise.py::advise_world` offers no plan yet, so it runs only where a caller names it. A rule reads only the inputs it declares, handed to it by the trace engine, and opens no file. D1 to D3 have no rule yet; what they will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
+| `clockspeed/advisor/rules/` | One module per rule family. A family is REGISTERED - run by default by `advise()` over every world - only by being listed by hand in `clockspeed/advisor/rules/__init__.py::_FAMILIES`, in the change that has `clockspeed/advisor/advise.py` offer its inputs. The registered families are the D4 ones, power in `clockspeed/advisor/rules/power.py` and fuel in `clockspeed/advisor/rules/fuel.py`, and the plan family in `clockspeed/advisor/rules/plan.py`, whose rule reads a ranked plan and carries the plan's strategy badge into tier 3. The plan family is registered and runs on every world, and it fires only when a caller passes `plan_request` to `clockspeed/advisor/advise.py::advise_world`; the surface passes none, so it fires on no real world until a target selector ships, and on every world it records why it is silent. `clockspeed/advisor/plans.py` ranks that plan: it joins each recipe's published asset path to the world's unlocked recipes by whole string, searches the trimmed set once per ladder rung, and grades the top plan against each rung's own optimum. A rule reads only the inputs it declares, handed to it by the trace engine, and opens no file. D1 to D3 have no rule yet; what they will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
 | `clockspeed/surface/server.py` | The local HTTPS listener and static serving. Port allocation is recorded in `config/ports.json`; see `docs/OPERATIONS.md`. |
 | `clockspeed/surface/api/` | JSON endpoints. Serialization only - no computation. |
 | `clockspeed/surface/web/` | Dashboard assets. |
@@ -262,7 +262,7 @@ cite lines below that table by number, and a row there would move them.
 ### Pillar 5 - The advisor
 
 **Status:** PARTLY BUILT. The trace engine, the card, the ledger, the composition in
-`clockspeed/advisor/advise.py` and the D4 power and fuel rule families ship in `advisor/`;
+`clockspeed/advisor/advise.py`, the D4 power and fuel rule families and the plan family ship in `advisor/`;
 D1 to D3 - node siting and claim order, onsite processing versus transport, and the milestone
 gap, relocated from `README.md` by CS-1333 - have no rule yet. Specified in `BOOTSTRAP.md`
 sections 4 and 5.
@@ -277,7 +277,7 @@ rules over the registry and the world model.
 ## 5. The advice card contract
 
 **Status:** BUILT. `advisor/` ships the trace, the card, the ledger and the rules of the D4
-power and fuel families, in `clockspeed/advisor/rules/`.
+power and fuel families and of the plan family, in `clockspeed/advisor/rules/`.
 Specified in `BOOTSTRAP.md` sections 5.1, 5.2 and 5.4, which own the tier definitions,
 the card identity and the rule-engine constraints.
 

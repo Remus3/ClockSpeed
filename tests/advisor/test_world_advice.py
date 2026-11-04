@@ -40,6 +40,10 @@ names both builds on tier 2 and tier 3, no rule settles, and
 ``advise_and_record`` completes nothing; on the pin no card mentions a build
 and the control completes.
 
+CS-1351: THE PLAN OFFER JOINS THE COMPOSITION. With no target stated it is one
+input, and the oracle adds that by hand as well: ``status_inputs`` of the no-target
+status. ``tests/advisor/test_plan_world.py`` grades the offer itself.
+
 CS-1315: THE REGISTRY CHECK JOINS THE COMPOSITION. :func:`inputs_of` takes the
 pinned docs hash as a second required keyword, runs the audit's
 ``registry_check_of`` over the very registry it prices from, and offers its
@@ -85,6 +89,7 @@ from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.rules import fuel as fuel_rules
 from clockspeed.advisor.rules import power, registered_rules
 from clockspeed.advisor.rules.fuel import fuel_inputs
+from clockspeed.advisor.rules.plan import STATUS_NO_TARGET, status_inputs
 from clockspeed.advisor.rules.power import balance_inputs
 from clockspeed.advisor.trace import (
     InputValue,
@@ -208,10 +213,10 @@ def by_hand(
     """The composition :func:`inputs_of` claims, spelled out through the audit.
 
     The balance and build inputs, then the fuel audit's inputs over the same
-    world, merged by hand. The two name sets are asserted disjoint here, so the
-    oracle can never overwrite one adapter's input with the other's. The
-    overlap is reduced to a count inline, so no local holds the withheld input
-    mapping when the assertion fails (CS-850, CS-851).
+    world and the no-target plan status (CS-1351), merged by hand. The name sets
+    are asserted disjoint here, so the oracle can never overwrite one adapter's
+    input with another's. The overlap is reduced to a count inline, so no local
+    holds the withheld input mapping when the assertion fails (CS-850, CS-851).
     """
     balance = balance_by_hand(
         model,
@@ -220,9 +225,12 @@ def by_hand(
         pinned_docs_sha256=pinned_docs_sha256,
     )
     offered = fuel_inputs(fuel_supply_of(machines_of(model), registry), registry)
-    shared = len(set(balance.values) & set(offered))
+    status = status_inputs(STATUS_NO_TARGET)
+    shared = len(set(balance.values) & set(offered)) + len(
+        (set(balance.values) | set(offered)) & set(status)
+    )
     assert shared == 0
-    return WorldInputs(values={**balance.values, **offered}, unlocks=balance.unlocks)
+    return WorldInputs(values={**balance.values, **offered, **status}, unlocks=balance.unlocks)
 
 
 def off_pin(model: WorldModel) -> WorldModel:

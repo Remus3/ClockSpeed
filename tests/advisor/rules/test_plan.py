@@ -1,4 +1,4 @@
-"""CS-1346: a rule that reads a plan, so a trace carries its strategy badge.
+"""CS-1346 and CS-1351: a rule that reads a plan, so a trace carries its strategy badge.
 
 Graded here, against CS-1346's acceptance in ``docs/item_notes/phase5.md``:
 
@@ -23,6 +23,13 @@ is a rule error and no card; a plan's recipe unlocks travel in
 ``Recommendation.requires`` so the ENGINE refuses a plan over a locked recipe;
 off the pin, tier 2 names both builds and the headline does not move. One arm
 runs a REAL ranking over the synthetic solve corpus end to end.
+
+CS-1351 adds the status: every world offers one, a status other than ranked
+records one indeterminate step and no card, a status outside the vocabulary is a
+rule error, and the firing path records one indeterminate step too, so only the
+rejection of a plan that cleared no rung settles the rule. What the search left
+out reaches tier 2 as a count, ahead of the build caveat, and tier 3 by name.
+``tests/advisor/test_plan_world.py`` grades the same rule through ``advise_world``.
 
 EVERY WORLD IS SYNTHETIC. The plans and badges are hand-built from invented
 recipes, items and exact figures, or solved from ``tests/solve/synthetic.py``'s
@@ -50,9 +57,21 @@ from clockspeed.advisor.rules.plan import (
     IN_BADGE,
     IN_PLAN,
     IN_REQUIRES,
+    IN_STATUS,
+    IN_TRIMMED,
+    IN_UNCHECKED,
+    IN_UNMATCHED,
     PLAN_INPUTS,
     RULES,
+    STATUS_NO_PLAN,
+    STATUS_NO_TARGET,
+    STATUS_POWER_NOT_COMPARABLE,
+    STATUS_RANKED,
+    STATUS_REQUEST_MALFORMED,
+    STATUS_SOLVE_REFUSED,
     plan_inputs,
+    refused_inputs,
+    status_inputs,
 )
 from clockspeed.advisor.trace import InputValue, StepKind, Trace, WorldInputs, run_rule
 from clockspeed.audit.build import WARN_BUILD_MISMATCH
@@ -198,10 +217,19 @@ def _world(
     build: dict[str, InputValue] | None = None,
     requires: tuple[str, ...] = (GADGET_UNLOCK,),
     unlocks: frozenset[str] = frozenset({GADGET_UNLOCK}),
+    trimmed: tuple[str, ...] = (),
+    unchecked: tuple[str, ...] = (),
+    unmatched_unlocks: int = 0,
 ) -> WorldInputs:
     """A synthetic world offering the build inputs and one ranked plan."""
     offered = pinned_build_inputs(game_pin()) if build is None else build
-    values = offered | plan_inputs(_ranked() if ranked is None else ranked, requires=requires)
+    values = offered | plan_inputs(
+        _ranked() if ranked is None else ranked,
+        requires=requires,
+        trimmed=trimmed,
+        unchecked=unchecked,
+        unmatched_unlocks=unmatched_unlocks,
+    )
     return WorldInputs(values=values, unlocks=unlocks)
 
 
@@ -240,13 +268,16 @@ def expected_tier3(pin: int) -> str:
             f'  5. Read build.pinned_docs_sha256 = "{docs}" from'
             " audit.build.registry.pinned_sha256",
             "  6. Read build.registry_warnings = {} from audit.build.registry.warnings",
-            "  7. Read plan.production = ProductionPlan(steps=("
+            '  7. Read plan.status = "ranked" from advisor.plans.status',
+            "  8. Read plan.unchecked = () from advisor.plans.unchecked",
+            "  9. Read plan.unmatched_unlocks = 0 from advisor.plans.unmatched_unlocks",
+            "  10. Read plan.production = ProductionPlan(steps=("
             'PlanStep(recipe_key="Recipe_SyntheticGadget_C", machines=3.00), '
             'PlanStep(recipe_key="Recipe_SyntheticPlate_C", machines=1.33 (exactly 4/3))), '
             'targets={"Desc_SyntheticGadget_C": 30.00}, '
             'raw_inputs={"Desc_SyntheticOre_C": 120.00}, byproducts={}, excluded=(), '
             'byproduct_policy="balanced") from solve.strategy.ranked_plan.plan',
-            '  8. Read plan.badge = StrategyBadge(strongest="within-power", '
+            '  11. Read plan.badge = StrategyBadge(strongest="within-power", '
             'cleared=("within-buildings", "within-power"), checks=('
             'ThresholdCheck(strategy="within-raw", cleared=false, score=120.00, '
             'reference=60.00, bound=1.00, reason="over-bound"), '
@@ -255,11 +286,14 @@ def expected_tier3(pin: int) -> str:
             'ThresholdCheck(strategy="within-power", cleared=true, score=45.00, '
             'reference=145.33 (exactly 436/3), bound=1.00, reason=""))) '
             "from solve.strategy.ranked_plan.badge",
-            "  9. Read plan.requires = "
+            "  12. Read plan.requires = "
             '("recipe:/Game/Synthetic/Recipe_SyntheticGadget.Recipe_SyntheticGadget_C") '
-            "from caller.plan_unlock_keys",
-            "  10. Computed plan machine equivalents = 4.33 (exactly 13/3)",
-            "  11. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
+            "from advisor.plans.recipe_unlock_join",
+            "  13. Read plan.trimmed = () from solve.bound.trim_record.removed",
+            "  14. Computed plan machine equivalents = 4.33 (exactly 13/3)",
+            "  15. Indeterminate compare the plan with what is built:"
+            " a plan is ranked for a stated target and never compared with the world",
+            "  16. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
         ]
     )
 
@@ -273,9 +307,9 @@ def test_the_trace_carries_the_badge_read_by_a_rule_that_reads_a_plan() -> None:
     assert trace.recommendation is not None
     reads = [step for step in trace.steps if step.kind is StepKind.INPUT_READ]
     read_names = tuple(step.subject for step in reads)
-    assert read_names == (*BUILD_INPUTS, IN_PLAN, IN_BADGE, IN_REQUIRES)
-    plan_value = reads[len(BUILD_INPUTS)].value
-    badge_value = reads[len(BUILD_INPUTS) + 1].value
+    assert read_names == (*BUILD_INPUTS, *PLAN_INPUTS)
+    plan_value = reads[read_names.index(IN_PLAN)].value
+    badge_value = reads[read_names.index(IN_BADGE)].value
     assert type(plan_value) is ProductionPlan
     assert plan_value is ranked.plan
     assert type(badge_value) is StrategyBadge
@@ -346,7 +380,7 @@ def test_a_different_badge_on_the_same_plan_moves_tier3_and_never_tier1() -> Non
         if old != new
     ]
     assert len(moved_lines) == 1
-    assert moved_lines[0].startswith("  8. Read plan.badge = StrategyBadge(")
+    assert moved_lines[0].startswith("  11. Read plan.badge = StrategyBadge(")
 
 
 def _constructor_names(cls: type) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -444,19 +478,172 @@ def test_off_the_pin_tier2_names_both_builds_and_the_headline_holds(offset: int)
     assert settled_rules((off_trace,)) == frozenset()
 
 
-def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_callers_unlock_keys() -> None:
+def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys() -> None:
     ranked = _ranked()
-    offered = plan_inputs(ranked, requires=(GADGET_UNLOCK,))
+    offered = plan_inputs(
+        ranked,
+        requires=(GADGET_UNLOCK,),
+        trimmed=(PLATE_STEP,),
+        unchecked=(GADGET_STEP,),
+        unmatched_unlocks=UNMATCHED_THREE,
+    )
     assert tuple(offered) == PLAN_INPUTS
+    assert offered[IN_STATUS].value == STATUS_RANKED
     assert offered[IN_PLAN].value is ranked.plan
     assert offered[IN_BADGE].value is ranked.badge
     assert offered[IN_REQUIRES].value == (GADGET_UNLOCK,)
+    assert offered[IN_TRIMMED].value == (PLATE_STEP,)
+    assert offered[IN_UNCHECKED].value == (GADGET_STEP,)
+    assert offered[IN_UNMATCHED].value == UNMATCHED_THREE
     sources = tuple(offered[name].source for name in PLAN_INPUTS)
     assert sources == (
+        "advisor.plans.status",
+        "advisor.plans.unchecked",
+        "advisor.plans.unmatched_unlocks",
         "solve.strategy.ranked_plan.plan",
         "solve.strategy.ranked_plan.badge",
-        "caller.plan_unlock_keys",
+        "advisor.plans.recipe_unlock_join",
+        "solve.bound.trim_record.removed",
     )
+
+
+#: Unmatched unlock counts these arms offer, named so each reads as a plant.
+UNMATCHED_THREE: Final = 3
+UNMATCHED_TWO: Final = 2
+
+#: Every status but ranked, and the words its one indeterminate reason carries.
+REFUSED_STATUSES: Final = (
+    (STATUS_NO_PLAN, "no selection of the unlocked automated recipes reaches the target"),
+    (STATUS_SOLVE_REFUSED, "the search refused, which says nothing about the target"),
+    (STATUS_POWER_NOT_COMPARABLE, "the power search reached a recipe with no exact draw"),
+)
+
+#: The two statuses reached before any join ran, with their reasons.
+UNJOINED_STATUSES: Final = (
+    (STATUS_NO_TARGET, "no target was stated, so no plan was ranked"),
+    (STATUS_REQUEST_MALFORMED, "the stated target cannot be asked as a question"),
+)
+
+
+def _status_world(offered: dict[str, InputValue]) -> WorldInputs:
+    """A synthetic world offering the build inputs and one status adapter's inputs."""
+    return WorldInputs(
+        values=pinned_build_inputs(game_pin()) | offered, unlocks=frozenset({GADGET_UNLOCK})
+    )
+
+
+def _assert_undecided(trace: Trace, reason: str) -> None:
+    """One indeterminate step with this reason, no card, no fault, and no settling."""
+    assert card_for(trace) is None
+    indeterminate = [s for s in trace.steps if s.kind is StepKind.VERDICT_INDETERMINATE]
+    count = len(indeterminate)
+    assert count == 1
+    assert indeterminate[0].subject == "build the ranked plan"
+    assert indeterminate[0].reason == reason
+    kinds = {step.kind for step in trace.steps}
+    assert kinds == {StepKind.INPUT_READ, StepKind.VERDICT_INDETERMINATE}
+    settled = ADOPT_RULE.rule_id in settled_rules((trace,))
+    assert not settled
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"), UNJOINED_STATUSES, ids=[s for s, _ in UNJOINED_STATUSES]
+)
+def test_a_status_before_any_join_reads_the_status_alone(status: str, reason: str) -> None:
+    trace = run_rule(ADOPT_RULE, _status_world(status_inputs(status)))
+    _assert_undecided(trace, reason)
+    reads = [step.subject for step in trace.steps if step.kind is StepKind.INPUT_READ]
+    assert reads == [*BUILD_INPUTS, IN_STATUS]
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"), REFUSED_STATUSES, ids=[s for s, _ in REFUSED_STATUSES]
+)
+def test_a_status_after_a_join_also_reads_what_the_join_left_out(status: str, reason: str) -> None:
+    offered = refused_inputs(status, unchecked=(GADGET_STEP,), unmatched_unlocks=UNMATCHED_TWO)
+    trace = run_rule(ADOPT_RULE, _status_world(offered))
+    _assert_undecided(trace, reason)
+    reads = {step.subject: step.value for step in trace.steps if step.kind is StepKind.INPUT_READ}
+    assert reads[IN_UNCHECKED] == (GADGET_STEP,)
+    assert reads[IN_UNMATCHED] == UNMATCHED_TWO
+
+
+def test_a_status_outside_the_vocabulary_is_a_rule_error() -> None:
+    trace = run_rule(ADOPT_RULE, _status_world(status_inputs("synthetic-status")))
+    assert trace.recommendation is None
+    errors = [step.subject for step in trace.steps if step.kind is StepKind.RULE_ERROR]
+    assert errors == ["ValueError"]
+
+
+def test_a_status_that_is_not_text_is_a_rule_error() -> None:
+    offered = {IN_STATUS: InputValue(Fraction(1), "synthetic.status")}
+    trace = run_rule(ADOPT_RULE, _status_world(offered))
+    errors = [step.subject for step in trace.steps if step.kind is StepKind.RULE_ERROR]
+    assert errors == ["TypeError"]
+
+
+@pytest.mark.parametrize(
+    ("name", "wrong", "error"),
+    [
+        (IN_UNCHECKED, GADGET_STEP, "TypeError"),
+        (IN_TRIMMED, GADGET_STEP, "TypeError"),
+        (IN_REQUIRES, (Fraction(1),), "TypeError"),
+        (IN_UNMATCHED, True, "TypeError"),
+    ],
+    ids=["unchecked", "trimmed", "requires", "unmatched"],
+)
+def test_a_left_out_input_of_the_wrong_shape_is_a_rule_error(
+    name: str, wrong: object, error: str
+) -> None:
+    values = dict(_world().values)
+    values[name] = InputValue(wrong, values[name].source)
+    trace = run_rule(ADOPT_RULE, WorldInputs(values=values, unlocks=frozenset({GADGET_UNLOCK})))
+    assert trace.recommendation is None
+    errors = [step.subject for step in trace.steps if step.kind is StepKind.RULE_ERROR]
+    assert errors == [error]
+
+
+def test_firing_records_one_indeterminate_step_so_it_settles_nothing() -> None:
+    """A plan is never compared with the world, so its card going says nothing about it."""
+    trace = run_rule(ADOPT_RULE, _world())
+    assert trace.recommendation is not None
+    undecided = [s for s in trace.steps if s.kind is StepKind.VERDICT_INDETERMINATE]
+    count = len(undecided)
+    assert count == 1
+    assert undecided[0].subject == "compare the plan with what is built"
+    assert undecided[0].reason == (
+        "a plan is ranked for a stated target and never compared with the world"
+    )
+    settled = ADOPT_RULE.rule_id in settled_rules((trace,))
+    assert not settled
+
+
+@pytest.mark.parametrize("offset", OFF_PIN_OFFSETS)
+def test_what_the_search_left_out_precedes_the_caveat_and_never_reaches_tier1(offset: int) -> None:
+    pin = game_pin()
+    plain = _card(_world())
+    card = _card(
+        _world(
+            build=off_pin_build_inputs(pin, offset),
+            trimmed=(PLATE_STEP,),
+            unchecked=(GADGET_STEP, PLATE_STEP),
+            unmatched_unlocks=3,
+        )
+    )
+    assert card.tier1 == plain.tier1
+    assert card.tier2 == (
+        plain.tier2
+        + "; the search dropped 1 recipe(s) to fit its cap"
+        + "; 2 automated recipe(s) carry no asset path and were never planned"
+        + f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin},"
+        + f" not the save build {pin + offset}"
+    )
+    assert f'Read plan.trimmed = ("{PLATE_STEP}") from' in card.tier3
+    assert f'Read plan.unchecked = ("{GADGET_STEP}", "{PLATE_STEP}") from' in card.tier3
+    assert "Read plan.unmatched_unlocks = 3 from" in card.tier3
+    # A count alone in tier 2: the unmatched count is tier 3's, and no name is tier 2's.
+    assert "unmatched" not in card.tier2
+    assert GADGET_STEP not in card.tier2
 
 
 def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:
@@ -504,7 +691,7 @@ def test_a_real_ranking_reaches_tier3_through_the_rule_and_never_tier1() -> None
 
 
 def test_advise_with_the_family_named_yields_the_badged_card(tmp_path: Path) -> None:
-    """Unregistered, the family still runs through ``advise(..., rules=...)``."""
+    """The family also runs through ``advise(..., rules=...)``, and a firing settles nothing."""
     advice = advise(
         TOKEN,
         _world(),
@@ -519,4 +706,4 @@ def test_advise_with_the_family_named_yields_the_badged_card(tmp_path: Path) -> 
     derivation = card.tier3
     assert derivation == expected_tier3(game_pin())
     settled = ADOPT_RULE.rule_id in settled_rules(advice.traces)
-    assert settled
+    assert not settled
