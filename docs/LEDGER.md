@@ -75,6 +75,62 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-03 - CS-1295 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1295 STAYS OPEN: the nine findings reclassified, none needs a physical act, password or OAuth grant; cleanups to BACKLOG.md, none this session
+Verification: `docs/_archive/2026-10-24-cs1295-repo-review-findings.md`; the 2026-10-24 CS-1295
+record's operator-needing list; `tools/outbound_send.py::configured_main_root`;
+`clockspeed/save/workdir.py`; `BACKLOG.md`, Session 155 rulings; this record.
+THE RULING, a distinct session 155 adjudicator: none of the nine needs a physical act, a password or
+an OAuth grant. The operator ask is RAM only.
+BY FINDING. Finding F003 is agent-doable: present, ignored, and the LEDGER line naming it is history,
+not a consumer. Finding F011 was denied 2026-10-20 and 2026-10-23 and is held by item CS-1291.
+Finding F019 CORRECTED, no action, never prune: the C: path is the ADR 0026 junction to this repo,
+config/main_tree.local.json names MAIN's live root read by the function cited above, and "stale" was
+false. Finding F021 CORRECTED, agent-doable with limits: "no consumer" is false, LEDGER cites
+data/rulings by sha256 and the harness of item CS-1334 stays. Finding F031 is agent-doable: spare
+queue_loop.jsonl and anything newer than 30 days. Finding F039 CORRECTED, flat top-level files only,
+after finding F040: `clockspeed/save/workdir.py` owns work/ and work/saves, and the sweep archive
+sits there. Finding F042 is gone. Finding F043 is agent-doable.
+BUNDLES CORRECTED. A plus sign from git cherry does not prove unlanded. Of the four session 149
+bundles, the tip of s149-cs1330-kit-v20-1 differs from landed a1701b27 only in LEDGER, and the
+second-listed tip of s149-cs1331-save-shard-dir-fd from landed 5d70a412 only in BACKLOG and LEDGER;
+the tips of s149-cs1231-kit-v19 and s149-cs-kit-v20-1-wip are unproved. Keep the bundles until a
+per-tip proof is recorded.
+KEY PLACEMENT. Finding F015 KEEP in certs/: data/ puts a key among prunable scratch, and a per-user
+default brings home-path and re-mint risk. Reversed by a path exporting ignored files or a second
+local user.
+CLEANUPS DECISION: to BACKLOG, none this session, one line per finding (F003, F021, F031, F039, F043)
+with its precondition, Recycle Bin and a consumer check per group. Alternative lost: run now, because
+nothing blocks product or a suite and three "no consumer" rows were false.
+Reversed by: an operator or MAIN order, a red suite, or disk pressure.
+Common-mode risk: the findings rest on heads and consumer greps; nobody has measured whether E:
+reaches logon cost.
+
+### 2026-11-03 - CS-1344 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1344 STAYS OPEN: clause 2 ruled MET AS WORDED, the sidecar goes in the ANSWER as a disclosed residual
+Verification: the CS-1344 section of `docs/item_notes/phase7.md`; `tests/own_temp_root.py`;
+`tools/scratch_sweep.py`; `BACKLOG.md`, Session 155 rulings, the sidecar line; this record.
+THE RULING, a distinct session 155 adjudicator: clause 2 is MET AS WORDED and the sidecar goes in
+the ANSWER as a disclosed residual. No code fix, no gate, no amendment.
+CRITERIA, in order: the clause text unlowered; MAIN's stated reason; `CLAUDE.md` section 7, product
+before process; FLEET item 11's kit boundary; no overclaim; no further hops.
+WHY. The clause's unit is "per session scratchpad" and MAIN's accept says "the session scratchpad".
+The sidecar tree has 0 directories named scratchpad, is not per session, and postdates the FIX.
+Counts read then: system Temp 11,495 files and 3,120 dirs against the FIX's 113.8k and 43.0k; cs-pt
+0 and 0 on both roots; 15 scratchpads, the largest 24; sweep records s151 48967 to 4687, s152 27 to
+27, s153 38 to 38, s154 exit 2 with no count. The clause forbids claiming the sidecar is bounded,
+and in substance it is not: 32,258 files and 24,835 dirs, cs-fleet9-adv-tmp plus cs-fleet9-adv-clone
+holding 20,082.
+ALTERNATIVES. "Not met, code fix" lost because a sidecar sweeper is new tooling with no product
+block or red suite, and the tree is not attributable per session among live agents; its best
+argument was MAIN's "the fix belongs at the source, in this tree" and "session scratch stays
+bounded" being wider than "scratchpad". "Kit matter, gated" lost because it adds a hop and the
+writers are this tree's agents.
+CLOSE ORDER: a full gated run with a fresh read-back; send the ANSWER; delivery N/M re-hashed; a
+distinct verifier checks the sent bytes; the LEDGER record and BACKLOG line; do not wait for MAIN's
+reply. The BACKLOG line is filed with this record; the run, the ANSWER and its verifier pend, and
+this record closes nothing.
+Reversed by: a MAIN FIX or RULING naming the tree; a measured logon cost from E:; a headless
+scratchpad at 5000 or more.
+
 ### 2026-11-03 - CS-1370 - CLOSED: scheduled tier2 reads both Windows hooks legs with no pristine setup error, and the wall did not drop
 Verification: `tests/test_canary_population.py::forced_population`, `::population_parts`,
 `::merge_verdicts`, `::TIMEOUT`;

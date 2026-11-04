@@ -1111,7 +1111,7 @@ the verifier's corrections, the operator-gated ids and why F028 is not filed, is
 - CS-1295 review F040: four ruling files exist only in gitignored work/ scratch - the session 137
   rulings, whose header says recording pends, and three session 138 rulings for CS-1285 part c,
   CS-1288 part c and CS-1313; confirm each reached `docs/LEDGER.md` or an ADR, else archive it to
-  docs/_archive, before any prune of work/; trigger: any work/ prune (the operator-gated F039),
+  docs/_archive, before any prune of work/; trigger: any work/ prune (F039),
   or a reader needing one of those rulings.
 
 ## Session 151 residuals - filed 2026-10-24 under product before process
@@ -1174,3 +1174,27 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
   disagreements, 132 of 157 by either route, one world); trigger: a measured path divergence.
 - `docs/LEDGER.md` pins line numbers in `clockspeed/data/docs_extract.py`, which forced the FullName
   block to that file's foot; trigger: the next reorganisation of that module.
+
+## Session 155 rulings - filed 2026-11-03 under product before process
+
+From the CS-1344 and CS-1295 rulings (`docs/LEDGER.md`, 2026-11-03). None runs this session and none
+reddens a suite. Every CS-1295 line: a consumer check per group first, Recycle Bin only.
+
+- The sidecar Temp tree is not bounded and not per session: 32,258 files and 24,835 dirs read for the
+  ruling, cs-fleet9-adv-tmp plus cs-fleet9-adv-clone holding 20,082, so clause 2 of CS-1344 does not
+  reach it and the ANSWER discloses it; a sweeper is new tooling; trigger: a MAIN FIX or RULING
+  naming the tree, a measured logon cost from E:, or a headless scratchpad at 5000 or more.
+- CS-1295 review F003: remove the ignored root log adj55_node_floor.log; precondition: it is still
+  present, the LEDGER line naming it is history and not a consumer; trigger: an operator or MAIN
+  order, a red suite, or disk pressure.
+- CS-1295 review F021: prune dated scratch under the ignored data/; precondition: LEDGER cites
+  data/rulings by sha256 and the CS-1334 harness stays, and the session 149 bundles stay until a
+  per-tip proof is recorded; trigger: an operator or MAIN order, a red suite, or disk pressure.
+- CS-1295 review F031: prune old logs under ops/loop/reports; precondition: spare queue_loop.jsonl
+  and anything newer than 30 days; trigger: an operator or MAIN order, a red suite, or disk pressure.
+- CS-1295 review F039: prune work/ scratch, flat top-level files only; precondition: F040 settled
+  first, and `clockspeed/save/workdir.py` owns work/ and work/saves, and the sweep archive sits
+  there; trigger: an operator or MAIN order, a red suite, or disk pressure.
+- CS-1295 review F043: remove the three stray scratch files the first review run left in a system
+  Temp folder; precondition: they are still those three; trigger: an operator or MAIN order, a red
+  suite, or disk pressure.
