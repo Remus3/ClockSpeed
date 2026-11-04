@@ -66,13 +66,35 @@ in registry order, both of them.
 
 THE ASCENT, AND WHY THE FIRST PREFIX THAT SOLVES IS THE SMALLEST
 ------------------------------------------------------------------
-The ranking defines NESTED prefixes S_1 subset S_2 subset ... subset S_K, where
+The ranking defines NESTED prefixes S_0 subset S_1 subset ... subset S_K, where
 K is the smaller of the usable count and the cap, and S_k is the first k members
-OF THE TRIM RANKING - not of registry order. The ascent runs k from 1 upwards
+OF THE TRIM RANKING - not of registry order. The ascent runs k from 0 upwards
 and returns the first prefix that yields a plan. Because the chain is nested,
-that first k IS the smallest k whose prefix solves: a smaller prefix is a SUBSET
-of it, and had any subset of it solved, the ascent would have reached that
+that first k IS the smallest k whose prefix solves: every smaller prefix is a
+SUBSET of it, and had any of them solved, the ascent would have reached that
 smaller k first. That is a proof about the chain, not an early-exit heuristic.
+
+S_0 is the empty prefix, an ordinary member of the chain and a subset of every
+other one. ``exhaustive.py`` enumerates the empty selection as the answer to a
+target rate of zero, so a well-formed request whose targets are all zero stops at
+S_0 with the empty selection, whatever the usable set holds. When the usable set
+is empty S_0 is the whole chain, and the plan it returns there is the one
+``optimize_plan`` returns for the original request. A nonzero target in a
+well-formed request is refused at S_0 with ``NoFeasibleSelectionError`` by both
+shipped backends, which the ascent absorbs as it does at any prefix. So no request
+needs a rule of its own, and the proof above and the arithmetic below hold with no
+exemption.
+
+WELL-FORMED is carrying weight there. An inexact rate, an item declared both raw
+and a target, or an unregistered backend is refused at S_0 instead, as
+:func:`optimize_within_bound` lists. An unrecognized byproduct policy is the odd
+one out, because it does not surface as a shape refusal: pillar 1 raises a
+``RatioError``, ``optimize.solve_selection`` reads every ``RatioError`` as "not
+this selection", so every prefix refuses and the caller sees
+:class:`BoundExhaustedError` even when every target is zero. The exception to that
+is the greedy backend with no targets at all over a reachable candidate: its probe
+solves under the sinkable policy whatever the request says, so the walk at size
+one reaches pillar 1's crash, named under THE CONSEQUENCE below.
 
 (Each narrowed request may hand its prefix over in any order, because
 ``optimize.usable_candidates`` sorts the door into registry order itself. The
@@ -88,18 +110,19 @@ reached (CS-1347). This module changes neither.
 Only ``NoFeasibleSelectionError`` is absorbed as "not this
 prefix", on exactly ``relax.py``'s reasoning: every other refusal says the
 request is malformed or unanswerable as asked rather than infeasible, so it is a
-shape bug every prefix would hit and swallowing it would turn one into a plan.
+shape bug rather than that prefix's answer, and swallowing it would turn one
+into a plan.
 
 THE COST BOUND, AS ARITHMETIC
 -------------------------------
 Prefix S_k has k members, so the exhaustive backend evaluates (1 << k) subsets
 of it. The whole ascent therefore evaluates at most::
 
-    (1 << 1) + (1 << 2) + ... + (1 << K)  ==  (1 << (K + 1)) - 2
+    (1 << 0) + (1 << 1) + ... + (1 << K)  ==  (1 << (K + 1)) - 1
 
 subsets. The single capped search this replaces evaluates (1 << K). So bounding
 by prefixes costs a factor of just under two, and never an unbounded run. For
-K at the shipped cap of twelve that is 8190 subsets against 4096.
+K at the shipped cap of twelve that is 8191 subsets against 4096.
 
 THE CONSEQUENCE, STATED PLAINLY
 ---------------------------------
@@ -114,15 +137,18 @@ whole-set optimum calls ``optimize_plan`` and gets the refusal.
 
 Two narrower consequences, for the same honesty:
 
-- The EMPTY prefix is not in the chain, so the ascent starts at k = 1. A request
-  whose usable set is empty is refused with :class:`BoundExhaustedError` having
-  tried nothing, where ``optimize_plan`` would have answered a zero target rate
-  with the empty selection.
 - The returned :attr:`~clockspeed.solve.optimize.OptimizeResult.excluded` notes
   describe the NARROWED request, so candidates the caller named but the door
-  excluded - locked, or zero duration - are not listed on it. The trim record
-  names what the BOUND dropped; what the DOOR dropped is read by calling
-  ``optimize.usable_candidates`` on the original request.
+  excluded - locked, or zero duration - are not listed on it, including on a
+  request the door left empty, where the plan is the one ``optimize_plan`` returns
+  and the notes are not. The trim record names what the BOUND dropped; what the
+  DOOR dropped is read by calling ``optimize.usable_candidates`` on the original
+  request.
+- On ``targets={}`` over a non-empty usable set this function returns the empty
+  plan at S_0 where ``optimize_plan`` can crash with a ``ValueError`` from
+  ``ratio.py``'s ``_plan_from`` - under the greedy backend, or under the sinkable
+  policy on either backend, once a selection leaves its system with no balance
+  row - and the empty plan is the right answer and the crash is pillar 1's.
 """
 
 from __future__ import annotations
@@ -222,10 +248,11 @@ class BoundedResult:
             the module docstring.
         record: What the bound dropped, or None when every usable candidate fit
             under the cap and nothing was dropped.
-        chosen_size: The size of the winning prefix. ALWAYS present, including
-            when :attr:`record` is None, because it describes the ascent rather
-            than the trim. Together with the record it is what makes the
-            smallest-prefix trade visible instead of silent.
+        chosen_size: The size of the winning prefix, 0 when the empty prefix
+            answers the request. ALWAYS present, including when :attr:`record`
+            is None, because it describes the ascent rather than the trim.
+            Together with the record it is what makes the smallest-prefix trade
+            visible instead of silent.
     """
 
     result: OptimizeResult
@@ -243,9 +270,11 @@ class BoundExhaustedError(NoFeasibleSelectionError):
     Attributes:
         cap: The cap the ascent was bounded by.
         rule: The trim rule that ranked the prefixes.
-        tried: How many prefixes were evaluated. Zero when the usable set was
-            empty, which is a distinguishable and honest answer rather than the
-            same refusal as a full ascent that found nothing.
+        tried: How many prefixes were evaluated, the empty prefix included, so
+            never zero. Exactly one when the usable set was empty and at least
+            two otherwise, which is a distinguishable and honest answer rather
+            than the same refusal as an ascent over candidates that found
+            nothing.
     """
 
     def __init__(self, cap: int, rule: str, tried: int, message: str) -> None:
@@ -321,12 +350,22 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
 
     Raises:
         BoundExhaustedError: No prefix up to the cap yields a plan. Names the
-            cap, the rule and how many prefixes were tried.
-        ValueError: A candidate names no recipe in this registry.
-        ObjectiveUndefinedError, PowerNotComparableError, UnknownBackendError:
-            As :func:`~clockspeed.solve.optimize.optimize_plan` raises them, at
-            whichever prefix they arise. None of them means infeasible, so none
-            is absorbed.
+            cap, the rule and how many prefixes were tried, the empty one
+            included. An unrecognized byproduct policy reads this way too, for
+            the reason the module docstring gives.
+        ValueError: A candidate names no recipe in this registry, refused at the
+            door before the ascent starts, or an item is declared both raw and a
+            target, refused by pillar 1 at the empty prefix. Also pillar 1's
+            crash, on the one unrecognized-policy request the module docstring
+            names.
+        InexactValueError, UnknownBackendError: As
+            :func:`~clockspeed.solve.optimize.optimize_plan` raises them, at the
+            empty prefix, which every request the door admits reaches - an empty
+            usable set included, so neither reads as exhaustion there. Neither
+            means infeasible, so neither is absorbed.
+        ObjectiveUndefinedError, PowerNotComparableError: As ``optimize_plan``
+            raises them, at whichever prefix they arise. Neither means
+            infeasible, so neither is absorbed.
         SearchSpaceTooLargeError: Only reachable if the trim above were wrong,
             since every prefix is at most ``MAX_EXHAUSTIVE_CANDIDATES`` long. It
             is left to propagate deliberately - the module docstring's safety
@@ -345,9 +384,10 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
         )
         record = TrimRecord(steps=(step,))
 
-    # The nested chain, smallest first. The empty prefix is not a member; the
-    # module docstring states what that costs.
-    for size in range(1, limit + 1):
+    # The nested chain, smallest first, from the empty prefix S_0 on every
+    # request. One loop and no special case: the module docstring's proof and
+    # cost bound both cover S_0 as an ordinary member of the chain.
+    for size in range(limit + 1):
         try:
             result = optimize_plan(registry, replace(request, candidates=ranked[:size]))
         except NoFeasibleSelectionError:
@@ -359,12 +399,13 @@ def optimize_within_bound(registry: Registry, request: OptimizeRequest) -> Bound
     raise BoundExhaustedError(
         MAX_EXHAUSTIVE_CANDIDATES,
         TRIM_TARGET_PRODUCERS_FIRST,
-        limit,
+        limit + 1,
         f"no prefix of the {TRIM_TARGET_PRODUCERS_FIRST} ranking yields a plan. "
         f"{len(ranked)} usable candidate(s) were ranked, bounded to a cap of "
-        f"{MAX_EXHAUSTIVE_CANDIDATES}, and all {limit} nested prefix(es) from size 1 "
-        "upwards were evaluated and refused. Because the prefixes are nested, this is "
-        "the absence of any plan over the kept set rather than the failure of one "
-        "search - but it is a statement about the KEPT set only, and the record names "
-        "what the bound dropped",
+        f"{MAX_EXHAUSTIVE_CANDIDATES}, and all {limit + 1} nested prefix(es) from size 0 "
+        "upwards were evaluated and refused. Under the exhaustive backend, whose search of "
+        "each prefix is complete, that is the absence of any plan over the kept set; "
+        "under the greedy backend, a heuristic, it is not proof that none exists. Either "
+        "way it is a statement about the KEPT set only, and this refusal carries no record "
+        "of what the cap dropped",
     )
