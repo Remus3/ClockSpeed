@@ -2,11 +2,11 @@
 
 Per docs/ARCHITECTURE.md section 1.1, nothing else in Clockspeed is allowed to
 open that file. This module sniffs its encoding, decodes it, loads its group
-structure, and flags what it does not recognize. It deliberately stops there:
-it does not normalize, join, convert or compute - ``clockspeed/data/registry.py``
-owns all of that - and it does not locate the install - ``clockspeed/data/locate.py``
-owns that, which is why every entry point here takes a Path or bytes argument
-and this module imports neither.
+structure, and flags what it does not recognize. It deliberately stops there, its
+one FullName split aside (at the foot): it does not normalize, join, convert or
+compute - ``clockspeed/data/registry.py`` owns all of that - and it does not locate
+the install - ``clockspeed/data/locate.py`` owns that, which is why every entry
+point here takes a Path or bytes argument and this module imports neither.
 
 WHY THE ENCODING SNIFF IS BYTE-PATTERN ONLY, NEVER A TRIAL DECODE
 -----------------------------------------------------------------
@@ -116,9 +116,9 @@ _CODE_UNIT_PAIR: Final = 2
 KEY_NATIVE_CLASS: Final = "NativeClass"
 KEY_CLASSES: Final = "Classes"
 
-#: The measured primary key. Unique across all 2868 entries with zero
-#: collisions and zero entries lacking it. FullName is NOT universal - only
-#: 1552 entries carry one - so nothing may key on it.
+#: The measured primary key, unique across all 2868 entries, none lacking it. FullName
+#: is NOT universal - only 1552 entries carry one - so nothing may key on it. ClassName
+#: stays the key; a FullName's path half is only a JOIN: :func:`full_name_path_half`.
 KEY_CLASS_NAME: Final = "ClassName"
 
 # --- the known-group table --------------------------------------------------
@@ -685,3 +685,59 @@ def index_by_short_name(groups: Sequence[DocsGroup]) -> Mapping[str, DocsGroup]:
             continue
         index[group.short_name] = group
     return index
+
+
+# --- the FullName grammar ---------------------------------------------------
+#
+# AT THE FOOT, BECAUSE docs/LEDGER.md CITES LINES ABOVE IT BY NUMBER. Everything
+# above this block stands on the line it stood on before the block arrived.
+#
+# ONE OWNER, CS-1351. FullName is read by clockspeed/data/registry.py and by its
+# sibling clockspeed/data/schematics.py, and tests/data/test_phase2_gate.py pins
+# each of them to importing only blobs and this module, so neither may own the
+# grammar for the other. The key, the split and the warning code are written here
+# once, and the split returns the path half as it found it and joins nothing.
+
+#: A class half, one space and a path half -
+#: ``BlueprintGeneratedClass /Game/<package>.<ClassName>``.
+KEY_FULL_NAME: Final = "FullName"
+
+#: The one character a FullName separates its class half from its path half with.
+_FULL_NAME_SEPARATOR: Final = " "
+
+#: A readable FullName is exactly this many non-empty halves around that
+#: separator: the class half, then the path half.
+_FULL_NAME_HALVES: Final = 2
+
+#: The warning code either reader flags an unreadable FullName under, one
+#: spelling so a consumer branching on the code reads both.
+WARN_UNREADABLE_FULL_NAME: Final = "unreadable-full-name"
+
+#: The detail either reader publishes with that code. It names the field and
+#: never the value it refused.
+UNREADABLE_FULL_NAME_DETAIL: Final = (
+    f"{KEY_FULL_NAME} is not one class half and one path half around one "
+    "separator; asset path unknown, never guessed"
+)
+
+
+def full_name_path_half(full_name: str) -> str | None:
+    """Split a FullName value and return its PATH half verbatim.
+
+    Split on the separator and nothing else: no ``.`` is parsed and the path
+    half is never cut down to a trailing token, because reducing a path to its
+    trailing token is the name-matching heuristic a join against a save must not
+    use (CS-1343).
+
+    Args:
+        full_name: The FullName value, already known to be a string.
+
+    Returns:
+        The path half, or None when the value is not exactly two non-empty
+        halves around one separator. The caller flags that under
+        :data:`WARN_UNREADABLE_FULL_NAME`.
+    """
+    halves = full_name.split(_FULL_NAME_SEPARATOR)
+    if len(halves) != _FULL_NAME_HALVES or not all(halves):
+        return None
+    return halves[1]

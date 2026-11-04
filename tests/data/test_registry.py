@@ -41,7 +41,9 @@ from typing import Any
 
 import pytest
 
+from clockspeed.data import docs_extract as docs_extract_module
 from clockspeed.data import registry as registry_module
+from clockspeed.data import schematics as schematics_module
 from clockspeed.data import version as version_module
 from clockspeed.data.blobs import (
     BlobParseError,
@@ -2168,3 +2170,124 @@ def test_docs_that_are_not_exactly_bytes_are_refused(raw: object) -> None:
     """A decoded text has no byte source to hash, so it never yields a hash."""
     with pytest.raises(TypeError):
         registry_module.build_registry_from_bytes(raw)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# CS-1351: a recipe publishes the path half of its FullName, read and never guessed
+# ---------------------------------------------------------------------------
+#
+# A save's unlocked recipes are object paths and the registry keys a recipe by its
+# ClassName, so the advisor's recipe-to-unlock join needs the path the docs entry
+# itself carries. ClassName stays the key: this is a published field, never a
+# second key, and it is the same one-owner grammar the schematic catalog reads.
+
+#: The path half of the FullName these arms plant. Its trailing token is NOT the
+#: entry's ClassName, so a reader that cut the path down or rebuilt it from the
+#: ClassName cannot pass.
+PLANTED_RECIPE_PATH = "/Game/Synth/Recipes/Recipe_Elsewhere.Recipe_Elsewhere_C"
+
+#: The class half, one space, then the path half: the measured shape.
+PLANTED_FULL_NAME = f"BlueprintGeneratedClass {PLANTED_RECIPE_PATH}"
+
+#: Every shape that is not exactly one class half and one path half around one
+#: space. A verbatim split of any of them would publish a wrong path.
+MALFORMED_FULL_NAMES = {
+    "path-half-alone": PLANTED_RECIPE_PATH,
+    "class-half-alone": "BlueprintGeneratedClass",
+    "empty": "",
+    "empty-class-half": f" {PLANTED_RECIPE_PATH}",
+    "empty-path-half": "BlueprintGeneratedClass ",
+    "tab-separator": f"BlueprintGeneratedClass\t{PLANTED_RECIPE_PATH}",
+    "double-space": f"BlueprintGeneratedClass  {PLANTED_RECIPE_PATH}",
+    "three-halves": f"BlueprintGeneratedClass {PLANTED_RECIPE_PATH} extra",
+}
+
+
+def registry_with_full_name(class_name: str, value: object) -> Registry:
+    """Rebuild the corpus with one entry's FullName set to any JSON value.
+
+    Args:
+        class_name: The ClassName of the entry to patch.
+        value: The value to carry, which need not be a string.
+
+    Returns:
+        A registry built from the patched copy, through the real seam.
+    """
+    groups = synthetic.docs_json()
+    entries = [
+        entry
+        for group in groups
+        if isinstance(group.get(synthetic.KEY_CLASSES), list)
+        for entry in group[synthetic.KEY_CLASSES]
+        if isinstance(entry, dict) and entry.get(synthetic.KEY_CLASS_NAME) == class_name
+    ]
+    assert len(entries) == 1, class_name
+    entries[0][synthetic.KEY_FULL_NAME] = value
+    return build_registry(synthetic.document_from(groups))
+
+
+def test_a_recipe_publishes_the_whole_path_half_of_its_full_name() -> None:
+    built = registry_with_full_name(WIDGET_RECIPE, PLANTED_FULL_NAME)
+    assert built.recipes[WIDGET_RECIPE].asset_path == PLANTED_RECIPE_PATH
+    # A measured shape flags nothing, and the key does not move.
+    assert warned_subjects(built, docs_extract_module.WARN_UNREADABLE_FULL_NAME) == set()
+    assert WIDGET_RECIPE in built.recipes
+
+
+def test_a_recipe_with_no_full_name_publishes_none_and_flags_nothing(registry: Registry) -> None:
+    # Absent is silent: only about half the shipped entries carry the key, so a
+    # warning here would be one row per stock entry. The corpus's own recipes
+    # carry none, which is what makes this arm read the absent path.
+    recipe = registry.recipes[WIDGET_RECIPE]
+    assert recipe.asset_path is None
+    named = [warning for warning in registry.warnings if "FullName" in warning.detail]
+    assert named == []
+
+
+@pytest.mark.parametrize("shape", sorted(MALFORMED_FULL_NAMES))
+def test_a_malformed_full_name_publishes_none_and_is_flagged(shape: str) -> None:
+    built = registry_with_full_name(WIDGET_RECIPE, MALFORMED_FULL_NAMES[shape])
+    assert built.recipes[WIDGET_RECIPE].asset_path is None
+    flagged = warnings_with(built, docs_extract_module.WARN_UNREADABLE_FULL_NAME)
+    assert [warning.subject for warning in flagged] == [WIDGET_RECIPE]
+    assert "FullName" in flagged[0].detail
+    # The detail names the field and never the value it refused.
+    assert PLANTED_RECIPE_PATH not in flagged[0].detail
+
+
+@pytest.mark.parametrize("value", [["a", "b"], {"k": "v"}, 7], ids=["list", "mapping", "number"])
+def test_a_non_string_full_name_publishes_none_and_is_flagged(value: object) -> None:
+    built = registry_with_full_name(WIDGET_RECIPE, value)
+    assert built.recipes[WIDGET_RECIPE].asset_path is None
+    assert WIDGET_RECIPE in warned_subjects(built, WARN_NON_STRING_VALUE)
+
+
+def test_the_asset_path_is_appended_last_with_a_none_default() -> None:
+    fields = dataclasses.fields(Recipe)
+    assert fields[-1].name == "asset_path"
+    assert fields[-1].default is None
+    assert [field.name for field in fields][-2] == "unresolved_produced_in"
+
+
+def test_the_full_name_grammar_has_one_owner() -> None:
+    """The key, the split and the warning code are written once, in docs_extract."""
+    # Read as an attribute, so a shared OBJECT rather than a shared spelling.
+    assert schematics_module.KEY_FULL_NAME is docs_extract_module.KEY_FULL_NAME
+    assert schematics_module.WARN_UNREADABLE_FULL_NAME is (
+        docs_extract_module.WARN_UNREADABLE_FULL_NAME
+    )
+    assert registry_module.WARN_UNREADABLE_FULL_NAME is (
+        docs_extract_module.WARN_UNREADABLE_FULL_NAME
+    )
+    literals = (docs_extract_module.KEY_FULL_NAME, docs_extract_module.WARN_UNREADABLE_FULL_NAME)
+    for module in (registry_module, schematics_module):
+        restated = sorted(code_string_constants(module) & set(literals))
+        assert restated == [], module.__name__
+
+
+def test_the_one_split_refuses_every_shape_but_the_measured_one() -> None:
+    """Both readers call this split, so the shapes are graded where they are decided."""
+    split = docs_extract_module.full_name_path_half
+    assert split(PLANTED_FULL_NAME) == PLANTED_RECIPE_PATH
+    refused = sorted(shape for shape, text in MALFORMED_FULL_NAMES.items() if split(text) is None)
+    assert refused == sorted(MALFORMED_FULL_NAMES)

@@ -100,7 +100,14 @@ from types import MappingProxyType
 from typing import Final, NamedTuple
 
 from clockspeed.data.blobs import BlobParseError, parse_class_paths, parse_item_amounts
-from clockspeed.data.docs_extract import KEY_CLASS_NAME, DocsDocument
+from clockspeed.data.docs_extract import (
+    KEY_CLASS_NAME,
+    KEY_FULL_NAME,
+    UNREADABLE_FULL_NAME_DETAIL,
+    WARN_UNREADABLE_FULL_NAME,
+    DocsDocument,
+    full_name_path_half,
+)
 
 __all__ = [
     "KEY_COST",
@@ -162,14 +169,6 @@ KEY_DEPENDENCY_SCHEMATICS: Final = "mSchematics"
 KEY_REQUIRE_ALL: Final = "mRequireAllSchematicsToBePurchased"
 KEY_GAME_PHASE: Final = "mGamePhase"
 KEY_ONLY_IN_SELECTED_PHASE: Final = "mOnlyAllowInSelectedPhase"
-KEY_FULL_NAME: Final = "FullName"
-
-#: The one character a FullName separates its class half from its path half
-#: with - ``BlueprintGeneratedClass /Game/<package>.<ClassName>``.
-_FULL_NAME_SEPARATOR: Final = " "
-#: A readable FullName is exactly this many non-empty halves around that
-#: separator: the class half, then the path half.
-_FULL_NAME_HALVES: Final = 2
 
 #: The class token a purchased-schematics dependency's ``Class`` path ends in.
 PURCHASED_DEPENDENCY_CLASS: Final = "BP_SchematicPurchasedDependency_C"
@@ -254,7 +253,6 @@ WARN_UNPARSABLE_TIER: Final = "unparsable-tier"
 WARN_UNREADABLE_COST: Final = "unreadable-cost"
 WARN_UNREADABLE_DEPENDENCIES: Final = "unreadable-dependencies"
 WARN_UNREADABLE_DEPENDENCY: Final = "unreadable-dependency"
-WARN_UNREADABLE_FULL_NAME: Final = "unreadable-full-name"
 
 
 class SchematicIntegrityError(Exception):
@@ -561,11 +559,7 @@ def _type_token(entry: Mapping[str, object], subject: str, log: _WarningLog) -> 
 
 
 def _asset_path(entry: Mapping[str, object], subject: str, log: _WarningLog) -> str | None:
-    """Read the PATH half of FullName verbatim.
-
-    Split on the separator and nothing else: no ``.`` is parsed and the path
-    half is never cut down to a trailing token, because reducing a path to its
-    trailing token is the name-matching heuristic the join must not use.
+    """Read the PATH half of FullName verbatim, through the one split docs_extract owns.
 
     Args:
         entry: The entry mapping.
@@ -579,16 +573,10 @@ def _asset_path(entry: Mapping[str, object], subject: str, log: _WarningLog) -> 
     text = _text(entry, KEY_FULL_NAME, subject, log)
     if text is None:
         return None
-    halves = text.split(_FULL_NAME_SEPARATOR)
-    if len(halves) != _FULL_NAME_HALVES or not all(halves):
-        log.add(
-            WARN_UNREADABLE_FULL_NAME,
-            subject,
-            f"{KEY_FULL_NAME} is not one class half and one path half around one "
-            "separator; asset path unknown, never guessed",
-        )
-        return None
-    return halves[1]
+    path = full_name_path_half(text)
+    if path is None:
+        log.add(WARN_UNREADABLE_FULL_NAME, subject, UNREADABLE_FULL_NAME_DETAIL)
+    return path
 
 
 def _cost(

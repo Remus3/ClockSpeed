@@ -172,7 +172,10 @@ passes its own tests, so each is handled explicitly and each has a named test.
   like a typo in this file rather than in the game's.
 
 - **``ClassName`` is the key.** It is unique across all 2868 measured entries.
-  ``FullName`` is on barely half of them, so nothing may key on it.
+  ``FullName`` is on barely half of them, so nothing may key on it. A recipe's
+  ``FullName`` is still read, for its path half alone: :attr:`Recipe.asset_path`
+  is the join to a save's unlocked-recipe paths and never a second key
+  (CS-1351).
 
 FLAG AND SKIP, NEVER FATAL AND NEVER SILENT (non-negotiable 7)
 --------------------------------------------------------------
@@ -240,9 +243,13 @@ from clockspeed.data.blobs import (
 )
 from clockspeed.data.docs_extract import (
     KEY_CLASS_NAME,
+    KEY_FULL_NAME,
+    UNREADABLE_FULL_NAME_DETAIL,
+    WARN_UNREADABLE_FULL_NAME,
     DocsDocument,
     DocsGroup,
     decode_docs_bytes,
+    full_name_path_half,
     load_document,
 )
 
@@ -268,6 +275,7 @@ __all__ = [
     "KEY_FORM",
     "KEY_FUEL",
     "KEY_FUEL_CLASS",
+    "KEY_FULL_NAME",
     "KEY_INGREDIENTS",
     "KEY_ITEMS_PER_CYCLE",
     "KEY_MAX_POTENTIAL",
@@ -306,6 +314,7 @@ __all__ = [
     "WARN_UNPARSABLE_NUMBER",
     "WARN_UNREADABLE_ALLOWED_RESOURCES",
     "WARN_UNREADABLE_FUELS",
+    "WARN_UNREADABLE_FULL_NAME",
     "WARN_UNRESOLVED_PRODUCED_IN",
     "Building",
     "Extractor",
@@ -912,6 +921,13 @@ class Recipe:
             models, kept verbatim. Six of the seventeen measured tokens
             resolve to nothing, and erasing them would erase the evidence that
             the recipe was ever producible at all.
+        asset_path: CS-1351. The PATH half of the entry's ``FullName`` verbatim,
+            the side of the recipe-to-unlock join this layer owns: a save names
+            an unlocked recipe by this object path, compared by the whole string.
+            None when ``FullName`` is absent, silently, because most entries
+            carry none; None and flagged when it is not a string or not exactly
+            one class half and one path half. Never rebuilt from the ClassName
+            and never cut down to a trailing token.
     """
 
     key: str
@@ -923,6 +939,10 @@ class Recipe:
     variable_power_constant: Fraction | None
     variable_power_factor: Fraction | None
     unresolved_produced_in: tuple[str, ...] = ()
+    # CS-1351. Appended with a default, for the reason
+    # Building.unsharded_clock_base states; None is "no path", which a join
+    # reads as never matching.
+    asset_path: str | None = None
 
 
 #: The empty, read-only extractor mapping :class:`Registry` defaults to.
@@ -1846,6 +1866,28 @@ def _produced_in(
     return tuple(resolved), tuple(unresolved)
 
 
+def _recipe_asset_path(entry: Mapping[str, object], key: str, log: _WarningLog) -> str | None:
+    """Read the PATH half of a recipe's FullName, through the one split docs_extract owns.
+
+    Args:
+        entry: The recipe entry.
+        key: The recipe's ClassName, for the warning.
+        log: The warning log.
+
+    Returns:
+        The path half verbatim. None when FullName is absent - silent, as
+        :func:`_text` leaves an optional field - and None and flagged when it
+        is present but unreadable.
+    """
+    text = _text(entry, KEY_FULL_NAME, key, log)
+    if text is None:
+        return None
+    path = full_name_path_half(text)
+    if path is None:
+        log.add(WARN_UNREADABLE_FULL_NAME, key, UNREADABLE_FULL_NAME_DETAIL)
+    return path
+
+
 def _recipe(
     entry: Mapping[str, object],
     key: str,
@@ -1905,6 +1947,7 @@ def _recipe(
         variable_power_constant=_optional_fraction(entry, KEY_VARIABLE_POWER_CONSTANT, key, log),
         variable_power_factor=_optional_fraction(entry, KEY_VARIABLE_POWER_FACTOR, key, log),
         unresolved_produced_in=unresolved,
+        asset_path=_recipe_asset_path(entry, key, log),
     )
 
 
