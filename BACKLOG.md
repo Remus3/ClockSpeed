@@ -1142,17 +1142,11 @@ record). None blocks a product item or reddens a suite.
 
 From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). None reddens a suite.
 
-- plan.adopt fires on no real world because no surface passes plan_request (CS-1351); ship a target
-  selector, which must also render plan.status and plan.trimmed on a refused path, since a refused
-  trace yields no card; trigger: D3 selector work opens.
-- The bound's trim is not chain-aware, so plan_offer reads no-plan where an unlocked chain exists (11
-  of 12 no-plans on one save, half the multi-stage targets); the reason is now scoped to the kept
-  set, so it is loud and true, not cured; trigger: the selector row opens.
 - A power rung with an unpriceable reference withholds the plan's own exact figure (CS-1351); publish
-  it when tier 3 reaches a player; trigger: the selector row opens.
+  it when tier 3 reaches a player; trigger: CS-1371 is taken.
 - A score tie can put a dominated plan on top: asked by buildings, a 60 ore plan beat a 10 ore plan
   on registry order at one machine each, with an honest badge; add a dominance tie-break or record a
-  ruling; trigger: the selector row opens.
+  ruling; trigger: CS-1371 is taken.
 - `clockspeed/solve/ratio.py`, `_plan_from` raises ValueError from zip on optimize_plan with no
   targets and a reachable candidate, under greedy or sinkable; it predates CS-1350, and the bound
   now answers first except under greedy with an unrecognized policy, pinned by

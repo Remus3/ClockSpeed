@@ -428,3 +428,76 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
+
+## CS-1371
+
+### Acceptance
+
+The dashboard states a target through one control, the advice endpoint in
+`clockspeed/surface/api/advice.py` takes it, and
+`clockspeed/surface/providers.py::StoreAdviceSource` hands
+`clockspeed/advisor/advise.py::advise_world` the `clockspeed/advisor/plans.py::PlanRequest` it names.
+Each of the following has its own arm. (1) On a synthetic fixture world served through that endpoint,
+a stated target returns a plan.adopt card whose tier-3 derivation carries its
+`clockspeed/solve/strategy.py::StrategyBadge`. (2) The selector is FREE, per `CLAUDE.md` section 7: any
+item the registry produces is selectable whatever the world's progress, the list derived from the
+registry, with no default target and no fixed pointer at the next milestone. An arm selects a target
+several tiers past the fixture world's unlocks and reads a redesign plan, rendered from the trace:
+what to build and what must unlock first, never a locked recipe offered as buildable now. (3) A
+refused trace yields no card, so plan.status and plan.trimmed reach the player on every refused path;
+an arm reads both on a no-plan response, its reason scoped to the kept set. (4) With no target stated
+the advice body is byte-same as before this item, and
+`tests/advisor/test_plan_world.py::test_the_surface_passes_no_target` is rewritten in the same change
+to pin that half beside the new stated-target arm. (5) A target the registry does not know, or a
+malformed rate, answers the endpoint's own refusal shape and reaches no solve; `clockspeed/surface/`
+computes nothing. (6) Two requests with the same world and the same target return byte-same bodies.
+
+### Filed 2026-11-03 (session 155) by the CS-1351 close
+
+**MOVED FROM `BACKLOG.md` BECAUSE IT IS PRODUCT WORK.** CS-1351 made plan.adopt run on every world and
+fire on none: `clockspeed/surface/providers.py` passes no plan_request and the advice endpoint takes
+no parameter. `BOOTSTRAP.md` D3 calls the target selector a first-class control. No open row covers
+it: CS-1046 publishes the `/api/plan` and `/api/audit` bodies, CS-1254 renders a matrix for a target
+it is handed, and neither states one.
+
+**WHAT THE CS-1351 RECORD SETTLED, SO THIS ITEM DOES NOT RE-ARGUE IT.** The target source is a caller
+keyword; the world's phase table, built output and the next milestone were each rejected as a source.
+Its reversal clause, a selector shipping, is this item. Read `docs/LEDGER.md`, 2026-11-03, CS-1351.
+
+**ONE RULING THIS ITEM NEEDS BEFORE CODE.** `clockspeed/advisor/plans.py::plan_offer` searches only
+recipes the world has unlocked, so a target several tiers out reads no-plan today and clause 2's
+redesign arm cannot pass on that search alone. Whether the redesign plan comes from a marked search
+over locked recipes or from pillar 4 in `clockspeed/progress/` goes to a distinct adjudicator before
+the slice starts. `BOOTSTRAP.md` section 5.4 holds either way: no rule recommends an action whose
+preconditions are unmet.
+
+**MEASURED, ONE SAVE, AND THE SAVE LIBRARY CAN CHANGE.** With a stated target, one adjudicator's probe
+read 21 of 33 targets firing a card and 0 rule errors. Two lines in `BACKLOG.md` wait on this row being
+taken: the unpriceable power rung and the score tie.
+
+## CS-1372
+
+### Acceptance
+
+`clockspeed/solve/bound.py::_trim_ranking` keeps a target's chain in the kept set. On a synthetic
+registry where a target needs a multi-stage chain, every member unlocked and the whole chain fitting
+within `clockspeed/solve/optimize.py::MAX_EXHAUSTIVE_CANDIDATES`, while the shipped
+`clockspeed/solve/bound.py::TRIM_TARGET_PRODUCERS_FIRST` order drops a member past the cap,
+`clockspeed/solve/bound.py::optimize_within_bound` returns a plan and
+`clockspeed/advisor/plans.py::plan_offer` reads a ranked plan; that arm in `tests/solve/test_bound.py`
+reddens on the shipped order. The cap does not move. The order reads the targets and the registry
+alone, never a solve, a clock or a float, and one request yields one ranking on every run. The new
+rule joins `clockspeed/solve/bound.py::TRIM_RULES` and the trim record names it. A chain too large
+for the cap still reads no-plan, its reason scoped to the kept set and plan.trimmed naming what the
+bound dropped, each with its own arm. The nested-prefix proof and the cost bound in that module's
+docstring are re-read and corrected in the same commit, so no docstring claim outlives the behaviour.
+The no-plan count over the CS-1351 probe's multi-stage targets on one library save is read back before
+and after and recorded in the closing ledger record, the save unnamed; zero is not required.
+
+### Filed 2026-11-03 (session 155) by the CS-1351 close
+
+**MOVED FROM `BACKLOG.md` BECAUSE IT IS PRODUCT WORK.** The trim ranks direct producers of a requested
+item first and everything else in registry order, so a producer of an intermediate can fall past the
+cap, and `clockspeed/advisor/plans.py::plan_offer` then reads no-plan where an unlocked chain exists.
+MEASURED by the CS-1351 run on one save: 11 of 12 no-plans, half the multi-stage targets. The no-plan
+reason is scoped to the kept set, so it is loud and true, not cured. No open row covers it.

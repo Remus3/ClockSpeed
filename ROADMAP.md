@@ -282,6 +282,8 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1371 - the target selector: no surface passes a plan_request, so plan.adopt fires on no real world - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1372 - the bound's trim is not chain-aware, so a real multi-stage target can read no-plan where an unlocked chain exists - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
