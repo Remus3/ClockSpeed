@@ -82,6 +82,12 @@ A stage the solve gives no machine count is neither held nor locked. The result 
 ``plan.redesign``, never to ``plan.adopt``: this is the one path where a recipe the world does
 not hold reaches a rule as a stage of a plan, and it is named in the derivation alone.
 
+THE NAMES OF THE TARGETS (CS-1379). A rule reads no registry, so :func:`_target_names` reads
+each target's display name off ``registry.items`` and the offer carries it beside the plan
+and beside the route, for tiers 1 and 2 to say a target by. An item the registry does not hold
+and an empty name are each offered as None, and whether any other name can be printed is the
+rule's to say. No join, no search and no card identity reads a name.
+
 A POWER REFUSAL COSTS ONE RUNG, UNLESS POWER WAS ASKED. A recipe with no exact draw,
 reached by the power search, makes that rung's reference None, which reads as not
 comparable there and
@@ -536,6 +542,26 @@ def _unlock_keys(
     )
 
 
+def _target_names(
+    registry: Registry, targets: Mapping[str, Fraction]
+) -> MappingProxyType[str, str | None]:
+    """Read each target's display name off the registry, which no rule can read itself.
+
+    Args:
+        registry: The normalized registry.
+        targets: A plan's targets. Their rates are not read.
+
+    Returns:
+        Target ClassName to its display name, verbatim, read by key only. An item the
+        registry does not hold and an empty display name each read None. Whether a name can
+        be printed is the rule's to say.
+    """
+    items = registry.items
+    return MappingProxyType(
+        {key: (items[key].display_name or None) if key in items else None for key in targets}
+    )
+
+
 def _route_inputs(
     registry: Registry, plan: ProductionPlan, join: _RecipeJoin
 ) -> dict[str, InputValue]:
@@ -563,6 +589,7 @@ def _route_inputs(
         held=held,
         locked=tuple(key for key in stages if key not in holds),
         requires=_unlock_keys(registry, held, join),
+        target_names=_target_names(registry, plan.targets),
     )
 
 
@@ -630,9 +657,9 @@ def plan_offer(
     Returns:
         A fresh dict of rule inputs: the status alone when no join ran, the status
         and what the join and the bound left out when no plan was ranked, and all of
-        it beside the plan when one was. Every path offers the marked route's inputs
-        beside those, reading not reached on every status but no-plan, which alone
-        runs the route.
+        it beside the plan and its targets' names when one was. Every path offers the
+        marked route's inputs beside those, reading not reached on every status but
+        no-plan, which alone runs the route.
     """
     if request is None:
         return status_inputs(STATUS_NO_TARGET)
@@ -679,6 +706,7 @@ def plan_offer(
                 unchecked=join.unchecked,
                 unmatched_unlocks=unmatched,
                 backend=backend,
+                target_names=_target_names(registry, top.plan.targets),
             ),
             **redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None),
         }

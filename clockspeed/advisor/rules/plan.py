@@ -1,4 +1,4 @@
-"""CS-1346, CS-1351 and CS-1371: the plan family - two rules that read a plan.
+"""CS-1346, CS-1351, CS-1371 and CS-1379: the plan family - two rules that read a plan.
 
 WHAT THIS MODULE OWNS. Two rules and the adapters that feed them:
 
@@ -16,7 +16,8 @@ WHAT THIS MODULE OWNS. Two rules and the adapters that feed them:
 - :func:`plan_inputs` offers one :class:`~clockspeed.solve.strategy.RankedPlan`
   as ``plan.adopt``'s inputs, each sourced to the ranked-plan field it came from,
   beside the unlock keys its recipes and their machines need, the backend that ran
-  the search and what the search left out. :func:`status_inputs` and :func:`refused_inputs` say
+  the search, the display names of its targets and what the search left out.
+  :func:`status_inputs` and :func:`refused_inputs` say
   why no plan is offered. :func:`redesign_inputs` and :func:`redesign_status_inputs`
   offer the route, or why there is none, and :func:`plan_outcome_of` projects the offer
   for a surface to transcribe. ``clockspeed/advisor/plans.py`` ranks the plan, solves
@@ -27,10 +28,11 @@ trace carries it as an ``input-read`` step, and
 :func:`clockspeed.advisor.cards.render_value` renders it field by field into
 the derivation - the strongest rung, every cleared rung, and each rung's
 verdict with both scores and the bound - generated from the trace and never
-hand-written (non-negotiable 8). The headline is built from the plan's target
-items alone and the reason from its target rates, its machine total, what the
-search left out and, always last, the build caveat, so tier 1 carries nothing of
-the badge and a different badge on the same plan moves tier 3 alone.
+hand-written (non-negotiable 8). The headline is built from the labels of the
+plan's target items alone (CS-1379, below) and the reason from those labels, their
+rates, its machine total, what the search left out and, always last, the build caveat,
+so tier 1 carries nothing of the badge and a different badge on the same plan moves
+tier 3 alone.
 ``clockspeed/advisor/cards.py::Card`` gains no field: the badge reaches the card
 only through the trace it is built from.
 
@@ -40,6 +42,21 @@ cleared against a heuristic's reference is not the claim an exact one makes, so
 carries, never the environment value, and a name outside the closed vocabulary is a
 rule error. It never reaches tier 1, tier 2 or the card id: on one plan the name moves
 none of them; a different backend can rank a different plan, which moves tier 2.
+
+A TARGET READS BY ITS DISPLAY NAME AND IS KEYED BY ITS CLASSNAME (CS-1379). A ClassName
+is an internal identifier, and it can name a different item from the one a player knows,
+so where a rule's tier 1 or tier 2 says a target it says that target's label: the display
+name when it is printable ASCII with a visible character, the engine's own test of a
+card's text, and otherwise the ClassName. A rule reads only through the engine, so the
+names arrive as an input sourced to the registry field, :data:`IN_TARGET_NAMES` on the
+ranked path and :data:`IN_REDESIGN_TARGET_NAMES` on the route, which
+``clockspeed/advisor/plans.py`` fills, and a mapping whose keys are not exactly the plan's
+targets is a rule error. A fallback records one indeterminate step and never a rejection,
+which would settle the rule, and it records that on the firing path alone, because a step
+beside a rejection would unsettle it. The subject key, the card id and the order of the
+targets stay by ClassName, so a renamed item orphans no recorded card. Tier 3 keeps every
+ClassName in its steps; only its Advice and Because lines, which quote tiers 1 and 2, read
+a label, so the derivation stays generated from the trace (non-negotiable 8).
 
 WHY THE ENGINE ADMITS THESE TYPES. The solve layer declares its plan and badge
 dataclasses frozen but without slots, which
@@ -167,6 +184,7 @@ IN_PLAN: Final = "plan.production"
 IN_BADGE: Final = "plan.badge"
 IN_REQUIRES: Final = "plan.requires"
 IN_BACKEND: Final = "plan.backend"
+IN_TARGET_NAMES: Final = "plan.target_names"
 
 #: Every input :data:`ADOPT_RULE` adds to the build inputs, in the order it reads them.
 PLAN_INPUTS: Final = (
@@ -178,6 +196,7 @@ PLAN_INPUTS: Final = (
     IN_BADGE,
     IN_REQUIRES,
     IN_BACKEND,
+    IN_TARGET_NAMES,
 )
 
 #: Input names of the marked route, offered on every world and read by
@@ -188,6 +207,7 @@ IN_REDESIGN_HELD: Final = "plan.redesign.held"
 IN_REDESIGN_LOCKED: Final = "plan.redesign.locked"
 IN_REDESIGN_REQUIRES: Final = "plan.redesign.requires"
 IN_REDESIGN_UNMADE: Final = "plan.redesign.unmade"
+IN_REDESIGN_TARGET_NAMES: Final = "plan.redesign.target_names"
 
 #: Every input the marked route offers, in the order the rule reads them. Apart from
 #: :data:`PLAN_INPUTS`: the ranked path and the route never share a name.
@@ -198,6 +218,7 @@ REDESIGN_INPUTS: Final = (
     IN_REDESIGN_LOCKED,
     IN_REDESIGN_REQUIRES,
     IN_REDESIGN_UNMADE,
+    IN_REDESIGN_TARGET_NAMES,
 )
 
 #: The search did not read no-plan, so no route was derived. Every world but a no-plan.
@@ -247,6 +268,9 @@ _TRIMMED_SOURCE: Final = "solve.bound.trim_record.removed"
 #: The source of the backend's name: the result's own field, never the environment.
 _BACKEND_SOURCE: Final = "solve.optimize.optimize_result.backend"
 
+#: The source of a target's display name: the registry field it is read from.
+_TARGET_NAME_SOURCE: Final = "registry.items.display_name"
+
 #: The label of the one number the rule computes.
 LABEL_MACHINES: Final = "plan machine equivalents"
 
@@ -278,8 +302,13 @@ _COMPARE_ALTERNATIVE: Final = "compare the plan with what is built"
 _COMPARE_REASON: Final = "a plan is ranked for a stated target and never compared with the world"
 
 #: Subject keys are this prefix and the plan's sorted target items, so a card's
-#: identity names WHAT the plan makes and never a figure that may move.
+#: identity names WHAT the plan makes and never a figure or a display name that may move.
 SUBJECT_PREFIX: Final = "plan:"
+
+#: What a target with no usable display name records, whichever target and however many. Fixed,
+#: so it names no value.
+_NAME_ALTERNATIVE: Final = "name every target by its display name"
+_NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
 
 #: The rung names in ladder order, which every badge's checks must follow.
 _LADDER_NAMES: Final = tuple(strategy.name for strategy in STRATEGY_LADDER)
@@ -394,7 +423,8 @@ def redesign_status_inputs(status: str, *, unmade: tuple[str, ...] | None) -> di
 
     Returns:
         A fresh dict of every input of :data:`REDESIGN_INPUTS`. What was never solved
-        reads None, because empty would read as a route with nothing locked on it.
+        reads None, because empty would read as a route with nothing locked on it, and so
+        do the target names, which name a plan's targets, and here there is no plan.
     """
     return {
         IN_REDESIGN_STATUS: InputValue(status, _REDESIGN_SOURCE_PREFIX + "status"),
@@ -403,6 +433,7 @@ def redesign_status_inputs(status: str, *, unmade: tuple[str, ...] | None) -> di
         IN_REDESIGN_LOCKED: InputValue(None, _REDESIGN_SOURCE_PREFIX + "locked"),
         IN_REDESIGN_REQUIRES: InputValue(None, _ROUTE_REQUIRES_SOURCE),
         IN_REDESIGN_UNMADE: InputValue(unmade, _ROUTE_UNMADE_SOURCE),
+        IN_REDESIGN_TARGET_NAMES: InputValue(None, _TARGET_NAME_SOURCE),
     }
 
 
@@ -412,6 +443,7 @@ def redesign_inputs(
     held: tuple[str, ...],
     locked: tuple[str, ...],
     requires: tuple[str, ...],
+    target_names: MappingProxyType[str, str | None],
 ) -> dict[str, InputValue]:
     """Offer one solved route as rule inputs, each sourced to where it came from.
 
@@ -426,6 +458,8 @@ def redesign_inputs(
         requires: The unlock keys of ``held`` and of the machine each one runs on.
             REQUIRED, for the reason :func:`plan_inputs` gives: an invented empty tuple
             would advise recipes nobody checked.
+        target_names: Each of the plan's targets by ClassName, to its display name or None.
+            REQUIRED, for the reason :func:`plan_inputs` gives.
 
     Returns:
         A fresh dict of every input of :data:`REDESIGN_INPUTS`.
@@ -436,6 +470,7 @@ def redesign_inputs(
         IN_REDESIGN_HELD: InputValue(held, _REDESIGN_SOURCE_PREFIX + "held"),
         IN_REDESIGN_LOCKED: InputValue(locked, _REDESIGN_SOURCE_PREFIX + "locked"),
         IN_REDESIGN_REQUIRES: InputValue(requires, _ROUTE_REQUIRES_SOURCE),
+        IN_REDESIGN_TARGET_NAMES: InputValue(target_names, _TARGET_NAME_SOURCE),
     }
 
 
@@ -493,6 +528,7 @@ def plan_inputs(
     unchecked: tuple[str, ...],
     unmatched_unlocks: int,
     backend: str,
+    target_names: MappingProxyType[str, str | None],
 ) -> dict[str, InputValue]:
     """Offer one ranked plan as rule inputs, each sourced to the field it came from.
 
@@ -512,6 +548,9 @@ def plan_inputs(
         backend: The name of the backend that ran the search, as the result
             carries it. REQUIRED, with no default: a derivation differs by backend,
             so one that names none cannot be reproduced from what it shows.
+        target_names: Each of the plan's targets by ClassName, to its display name or None.
+            REQUIRED, with no default: a rule reads no registry, so a default here would say
+            no target has a name when nobody looked.
 
     Returns:
         A fresh dict, so a caller may add inputs from another layer.
@@ -527,6 +566,7 @@ def plan_inputs(
         IN_BADGE: InputValue(ranked.badge, _SOURCE_PREFIX + "badge"),
         IN_REQUIRES: InputValue(requires, _REQUIRES_SOURCE),
         IN_BACKEND: InputValue(backend, _BACKEND_SOURCE),
+        IN_TARGET_NAMES: InputValue(target_names, _TARGET_NAME_SOURCE),
     }
 
 
@@ -565,6 +605,62 @@ def _names(value: object, what: str) -> tuple[str, ...]:
     return value
 
 
+def _checked_target_names(value: object, targets: tuple[str, ...]) -> Mapping[str, str | None]:
+    """Refuse names that are not exactly one str or None for each of a plan's targets.
+
+    Args:
+        value: The value read.
+        targets: The plan's targets, sorted.
+
+    Returns:
+        The mapping.
+
+    Raises:
+        TypeError: It is not a read-only mapping, or a name in it is neither a str nor None.
+        ValueError: Its keys are not exactly the plan's targets, so a name is missing or is
+            some other item's.
+    """
+    if type(value) is not MappingProxyType:
+        raise TypeError("a plan's target names are not a read-only mapping")
+    if tuple(sorted(value)) != targets:
+        raise ValueError("a plan's target names disagree with its targets")
+    if not all(name is None or type(name) is str for name in value.values()):
+        raise TypeError("a plan's target name is neither a str nor None")
+    return value
+
+
+def _target_labels(
+    ctx: RuleContext, names: Mapping[str, str | None], targets: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Say what tiers 1 and 2 call each target: its display name, or else its ClassName.
+
+    A name must pass the engine's own test of a card's text, printable ASCII with a visible
+    character, because :func:`clockspeed.advisor.trace.run_rule` would otherwise drop the
+    whole card as a rule error. Any fallback records one indeterminate step.
+
+    Args:
+        ctx: The rule's context. Called on the firing path alone, because a step recorded
+            beside a rejection would unsettle it.
+        names: The checked names.
+        targets: The plan's targets, sorted.
+
+    Returns:
+        One label per target, in the order of ``targets``, whatever the names sort as.
+    """
+    labels: list[str] = []
+    fell_back = False
+    for key in targets:
+        name = names[key]
+        if name is not None and name.strip(" ") != "" and all(" " <= ch <= "~" for ch in name):
+            labels.append(name)
+        else:
+            labels.append(key)
+            fell_back = True
+    if fell_back:
+        ctx.indeterminate(_NAME_ALTERNATIVE, _NAME_REASON)
+    return tuple(labels)
+
+
 def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     caveat = build_caveat(ctx)
     status = ctx.read(IN_STATUS)
@@ -595,6 +691,7 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     targets = tuple(sorted(plan.targets))
     if not targets:
         raise ValueError("a plan names no target")
+    names = _checked_target_names(ctx.read(IN_TARGET_NAMES), targets)
     machines = ctx.compute(
         LABEL_MACHINES, sum((step.machines for step in plan.steps), start=Fraction(0))
     )
@@ -602,14 +699,16 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
         ctx.reject(_ADOPT_ALTERNATIVE, "the plan cleared no strategy rung against its reference")
         return None
     ctx.indeterminate(_COMPARE_ALTERNATIVE, _COMPARE_REASON)
+    labels = _target_labels(ctx, names, targets)
     rates = ", ".join(
-        f"{render_value(plan.targets[item])} per minute of {item}" for item in targets
+        f"{render_value(plan.targets[item])} per minute of {label}"
+        for item, label in zip(targets, labels, strict=True)
     )
     # Counts only: tier 3 names them. The caveat stays last, whatever precedes it.
     trim = f"; the search dropped {len(trimmed)} recipe(s) to fit its cap" if trimmed else ""
     return Recommendation(
         subject_key=SUBJECT_PREFIX + "+".join(targets),
-        action="Build the planned production chain for " + ", ".join(targets),
+        action="Build the planned production chain for " + ", ".join(labels),
         reason=(
             f"It makes {rates} with {render_value(machines)} machine equivalents"
             f"{trim}{_unchecked_clause(unchecked)}{caveat}"
@@ -619,13 +718,13 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
 
 
 def _check_no_route_offered(
-    status: str, *, offered: tuple[object, object, object, object], unmade: object
+    status: str, *, offered: tuple[object, object, object, object, object], unmade: object
 ) -> None:
     """Refuse a status with no route that nonetheless carries one.
 
     Args:
         status: The marked route's status, never routed.
-        offered: The plan, held, locked and requires values read.
+        offered: The plan, held, locked, requires and target names values read.
         unmade: The unmade value read.
 
     Raises:
@@ -688,10 +787,13 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     locked = ctx.read(IN_REDESIGN_LOCKED)
     requires = ctx.read(IN_REDESIGN_REQUIRES)
     unmade = ctx.read(IN_REDESIGN_UNMADE)
+    names = ctx.read(IN_REDESIGN_TARGET_NAMES)
     if (ctx.read(IN_STATUS) == STATUS_NO_PLAN) == (status == REDESIGN_NOT_REACHED):
         raise ValueError("a plan.redesign status disagrees with the plan status")
     if status != REDESIGN_ROUTED:
-        _check_no_route_offered(status, offered=(plan, held, locked, requires), unmade=unmade)
+        _check_no_route_offered(
+            status, offered=(plan, held, locked, requires, names), unmade=unmade
+        )
         ctx.indeterminate(_REDESIGN_ALTERNATIVE, _REDESIGN_REASONS[status])
         return None
     if type(plan) is not ProductionPlan:
@@ -705,6 +807,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     targets = tuple(sorted(plan.targets))
     if not targets:
         raise ValueError("a route's plan names no target")
+    target_names = _checked_target_names(names, targets)
     _check_stages(plan, held, locked)
     ctx.compute(LABEL_MACHINES, sum((step.machines for step in plan.steps), start=Fraction(0)))
     if not held and not locked:
@@ -714,9 +817,10 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     # Counts only, so no locked recipe reads as buildable: tier 3 names them under an input
     # of their own. The caveat stays last, whatever precedes it.
     unlock = _MUST_UNLOCK_CLAUSE if locked else _NO_UNLOCK_CLAUSE
+    labels = _target_labels(ctx, target_names, targets)
     return Recommendation(
         subject_key=SUBJECT_PREFIX + "+".join(targets),
-        action="Plan toward " + ", ".join(targets),
+        action="Plan toward " + ", ".join(labels),
         reason=(
             f"This route runs {len(locked)} locked and {len(held)} held recipe(s)"
             f"{unlock}{_NOT_CHOSEN_CLAUSE}{_unchecked_clause(unchecked)}{caveat}"

@@ -33,6 +33,10 @@ refused trace reads it too. The backend that ran reaches tier 3 and nothing else
 ``tests/advisor/test_plan_world.py`` grades the same rule through ``advise_world``.
 ``tests/advisor/test_plan_redesign.py`` grades the family's second rule (CS-1371).
 
+CS-1379 adds the names: every plan here offers its targets' display names, so tiers 1 and 2
+read those and the pinned derivation carries them, and a mapping that disagrees with the plan's
+targets is a rule error. ``tests/advisor/test_plan_world.py`` grades the name from a registry.
+
 EVERY WORLD IS SYNTHETIC. The plans and badges are hand-built from invented
 recipes, items and exact figures, or solved from ``tests/solve/synthetic.py``'s
 invented registry; the build inputs are ``tests/advisor/build_fixtures.py``'s,
@@ -61,6 +65,7 @@ from clockspeed.advisor.rules.plan import (
     IN_PLAN,
     IN_REQUIRES,
     IN_STATUS,
+    IN_TARGET_NAMES,
     IN_TRIMMED,
     IN_UNCHECKED,
     IN_UNMATCHED,
@@ -128,6 +133,9 @@ GADGET_ITEM: Final = "Desc_SyntheticGadget_C"
 ORE_ITEM: Final = "Desc_SyntheticOre_C"
 GADGET_STEP: Final = "Recipe_SyntheticGadget_C"
 PLATE_STEP: Final = "Recipe_SyntheticPlate_C"
+
+#: The display names the hand-built plans' items carry. Any other target offers None.
+TARGET_NAMES: Final = MappingProxyType({GADGET_ITEM: "Synthetic Gadget", ORE_ITEM: "Synthetic Ore"})
 
 #: The unlock key the hand-built plan's caller says its recipes need.
 GADGET_UNLOCK: Final = "recipe:/Game/Synthetic/Recipe_SyntheticGadget.Recipe_SyntheticGadget_C"
@@ -231,15 +239,22 @@ def _world(
     unmatched_unlocks: int = 0,
     backend: str = EXHAUSTIVE,
 ) -> WorldInputs:
-    """A synthetic world offering the build inputs and one ranked plan."""
+    """A synthetic world offering the build inputs and one ranked plan.
+
+    Its names are :data:`TARGET_NAMES`, read for that plan's own targets.
+    """
+    chosen = _ranked() if ranked is None else ranked
     offered = pinned_build_inputs(game_pin()) if build is None else build
     values = offered | plan_inputs(
-        _ranked() if ranked is None else ranked,
+        chosen,
         requires=requires,
         trimmed=trimmed,
         unchecked=unchecked,
         unmatched_unlocks=unmatched_unlocks,
         backend=backend,
+        target_names=MappingProxyType(
+            {item: TARGET_NAMES.get(item) for item in chosen.plan.targets}
+        ),
     )
     return WorldInputs(values=values, unlocks=unlocks)
 
@@ -267,8 +282,8 @@ def expected_tier3(pin: int) -> str:
     return "\n".join(
         [
             "Derivation of rule plan.adopt (domain plan)",
-            "Advice: Build the planned production chain for Desc_SyntheticGadget_C",
-            "Because: It makes 30.00 per minute of Desc_SyntheticGadget_C with"
+            "Advice: Build the planned production chain for Synthetic Gadget",
+            "Because: It makes 30.00 per minute of Synthetic Gadget with"
             " 4.33 (exactly 13/3) machine equivalents",
             "Target milestone: none",
             "Steps:",
@@ -302,10 +317,12 @@ def expected_tier3(pin: int) -> str:
             '("recipe:/Game/Synthetic/Recipe_SyntheticGadget.Recipe_SyntheticGadget_C") '
             "from advisor.plans.recipe_unlock_join",
             '  14. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
-            "  15. Computed plan machine equivalents = 4.33 (exactly 13/3)",
-            "  16. Indeterminate compare the plan with what is built:"
+            '  15. Read plan.target_names = {"Desc_SyntheticGadget_C": "Synthetic Gadget"}'
+            " from registry.items.display_name",
+            "  16. Computed plan machine equivalents = 4.33 (exactly 13/3)",
+            "  17. Indeterminate compare the plan with what is built:"
             " a plan is ranked for a stated target and never compared with the world",
-            "  17. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
+            "  18. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
         ]
     )
 
@@ -485,6 +502,22 @@ def test_an_input_of_the_wrong_type_is_a_rule_error() -> None:
         assert errors == ["TypeError"], name
 
 
+def test_a_rejected_plan_reads_its_names_and_records_no_fallback() -> None:
+    """A fallback step would unsettle the one path that settles, so it waits for a card."""
+    nameless = MappingProxyType({GADGET_ITEM: None})
+    values = dict(_world(_ranked(_no_rung_badge())).values)
+    values[IN_TARGET_NAMES] = InputValue(nameless, values[IN_TARGET_NAMES].source)
+
+    trace = run_rule(ADOPT_RULE, WorldInputs(values=values, unlocks=frozenset({GADGET_UNLOCK})))
+
+    assert trace.recommendation is None
+    undecided = sum(1 for step in trace.steps if step.kind is StepKind.VERDICT_INDETERMINATE)
+    assert undecided == 0
+    read = [step.value for step in trace.steps if step.subject == IN_TARGET_NAMES]
+    assert read == [nameless]
+    assert settled_rules((trace,)) == frozenset({ADOPT_RULE.rule_id})
+
+
 def test_a_plan_over_a_locked_recipe_is_refused_by_the_engine() -> None:
     held = run_rule(ADOPT_RULE, _world())
     assert held.recommendation is not None
@@ -522,6 +555,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         unchecked=(GADGET_STEP,),
         unmatched_unlocks=UNMATCHED_THREE,
         backend=GREEDY,
+        target_names=TARGET_NAMES,
     )
     assert tuple(offered) == PLAN_INPUTS
     assert offered[IN_STATUS].value == STATUS_RANKED
@@ -532,6 +566,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
     assert offered[IN_UNCHECKED].value == (GADGET_STEP,)
     assert offered[IN_UNMATCHED].value == UNMATCHED_THREE
     assert offered[IN_BACKEND].value == GREEDY
+    assert offered[IN_TARGET_NAMES].value is TARGET_NAMES
     sources = tuple(offered[name].source for name in PLAN_INPUTS)
     assert sources == (
         "advisor.plans.status",
@@ -542,6 +577,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         "solve.strategy.ranked_plan.badge",
         "advisor.plans.recipe_unlock_join",
         "solve.optimize.optimize_result.backend",
+        "registry.items.display_name",
     )
 
 
@@ -617,6 +653,7 @@ def test_a_status_after_a_join_also_reads_what_the_join_left_out(status: str, re
     # The ranked path's own inputs are not offered here, and a read of one would say so.
     assert IN_BACKEND not in reads
     assert IN_PLAN not in reads
+    assert IN_TARGET_NAMES not in reads
 
 
 def test_a_trimmed_of_the_wrong_shape_on_a_refused_path_is_a_rule_error() -> None:
@@ -653,6 +690,12 @@ def test_a_status_that_is_not_text_is_a_rule_error() -> None:
         (IN_UNMATCHED, True, "TypeError"),
         (IN_BACKEND, "no-such-backend", "ValueError"),
         (IN_BACKEND, Fraction(1), "ValueError"),
+        (IN_TARGET_NAMES, None, "TypeError"),
+        (IN_TARGET_NAMES, ("Synthetic Gadget",), "TypeError"),
+        (IN_TARGET_NAMES, MappingProxyType({}), "ValueError"),
+        (IN_TARGET_NAMES, MappingProxyType({ORE_ITEM: "Synthetic Ore"}), "ValueError"),
+        (IN_TARGET_NAMES, TARGET_NAMES, "ValueError"),
+        (IN_TARGET_NAMES, MappingProxyType({GADGET_ITEM: Fraction(1)}), "TypeError"),
     ],
     ids=[
         "unchecked",
@@ -661,6 +704,12 @@ def test_a_status_that_is_not_text_is_a_rule_error() -> None:
         "unmatched",
         "backend-outside-the-vocabulary",
         "backend-not-text",
+        "names-none",
+        "names-not-a-mapping",
+        "names-lack-the-target",
+        "names-hold-another-target-alone",
+        "names-hold-another-target-too",
+        "name-not-text",
     ],
 )
 def test_a_left_out_input_of_the_wrong_shape_is_a_rule_error(
@@ -726,9 +775,7 @@ def test_a_plan_stating_its_targets_out_of_order_is_named_sorted() -> None:
     card = _card(_world(_ranked(plan=plan)))
 
     assert card.subject_key == "plan:Desc_SyntheticGadget_C+Desc_SyntheticOre_C"
-    assert card.tier1 == (
-        "Build the planned production chain for Desc_SyntheticGadget_C, Desc_SyntheticOre_C"
-    )
+    assert card.tier1 == "Build the planned production chain for Synthetic Gadget, Synthetic Ore"
 
 
 def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:

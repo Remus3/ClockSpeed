@@ -66,7 +66,7 @@ from clockspeed.advisor.advise import (
     inputs_of,
     settled_rules,
 )
-from clockspeed.advisor.cards import Card, card_for, render_value
+from clockspeed.advisor.cards import Card, card_for, card_id, render_value
 from clockspeed.advisor.ledger import Ledger, MuteStore
 from clockspeed.advisor.plans import PlanRequest, plan_offer
 from clockspeed.advisor.rules import plan as plan_rules
@@ -200,6 +200,24 @@ NOW: Final = 1000
 
 #: Relic a minute, for every target here.
 RELIC_RATE: Final = Fraction(10)
+
+#: The display names ``tests/solve/synthetic.py`` gives its Relic and its Rod, spelled here so
+#: a change there reddens here.
+RELIC_NAME: Final = "Solve Relic"
+ROD_NAME: Final = "Solve Rod"
+
+#: A second display name for the Relic, so two registries can differ in that alone.
+RENAMED_RELIC: Final = "Renamed Relic"
+
+#: The one step a target with no usable display name records, spelled so a rewording reddens.
+NAME_ALTERNATIVE: Final = "name every target by its display name"
+NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
+
+#: The step the firing path records whatever the names say.
+COMPARE_STEP: Final = (
+    "compare the plan with what is built",
+    "a plan is ranked for a stated target and never compared with the world",
+)
 
 #: The hand-worked figures of the module docstring, as literals.
 TWO_STAGE_ORE: Final = Fraction(10)
@@ -585,10 +603,8 @@ def test_advise_world_ranks_a_plan_and_fires_plan_adopt(tmp_path: Path) -> None:
     card = _plan_card(advice)
     shown = [advised.card.id for advised in advice.shown]
     assert card.id in shown
-    assert card.tier1 == "Build the planned production chain for Desc_SolveRelic_C"
-    assert (
-        card.tier2 == "It makes 10.00 per minute of Desc_SolveRelic_C with 2.00 machine equivalents"
-    )
+    assert card.tier1 == "Build the planned production chain for Solve Relic"
+    assert card.tier2 == "It makes 10.00 per minute of Solve Relic with 2.00 machine equivalents"
     derivation = card.tier3
     assert (
         'Read plan.badge = StrategyBadge(strongest="within-raw", cleared=("within-raw"), checks=('
@@ -603,6 +619,185 @@ def test_advise_world_ranks_a_plan_and_fires_plan_adopt(tmp_path: Path) -> None:
     headline = card.tier1.lower()
     leaked = [rung.name for rung in STRATEGY_LADDER if rung.name in headline]
     assert leaked == []
+
+
+# ---------------------------------------------------------------------------
+# CS-1379: tiers 1 and 2 read the display name, and the identity stays the ClassName
+# ---------------------------------------------------------------------------
+
+
+def _with_item_name(registry: Registry, item: str, name: str) -> Registry:
+    """The same registry with one item's display name replaced, and nothing else.
+
+    Args:
+        registry: The registry.
+        item: The item's ClassName.
+        name: Its new display name, verbatim.
+
+    Returns:
+        The registry, every other field the same.
+    """
+    entry = dataclasses.replace(registry.items[item], display_name=name)
+    return dataclasses.replace(registry, items=MappingProxyType({**registry.items, item: entry}))
+
+
+def _without_item(registry: Registry, item: str) -> Registry:
+    """The same registry holding no descriptor for one item, and nothing else changed."""
+    kept = {key: entry for key, entry in registry.items.items() if key != item}
+    return dataclasses.replace(registry, items=MappingProxyType(kept))
+
+
+def _two_target_world() -> tuple[WorldModel, Registry, PlanRequest]:
+    """10 Relic and 20 Rod a minute, every recipe held, stated Rod first."""
+    rod = _entry(
+        ROD_FROM_ORE, [(SOLVE_ORE_ITEM, 1)], [(SOLVE_ROD_ITEM, 1)], path=PATHS[ROD_FROM_ORE]
+    )
+    request = dataclasses.replace(
+        _request(),
+        targets=MappingProxyType({SOLVE_ROD_ITEM: Fraction(20), SOLVE_RELIC_ITEM: RELIC_RATE}),
+    )
+    return (
+        _model((*ASCENT_PATHS, PATHS[ROD_FROM_ORE])),
+        _registry_of([*_ascent_entries(), rod]),
+        request,
+    )
+
+
+def _adopt_card(model: WorldModel, registry: Registry, request: PlanRequest) -> Card:
+    """The plan.adopt card one world's own offer yields, which must fire."""
+    card = card_for(run_rule(plan_rules.ADOPT_RULE, _inputs(model, registry, request)))
+    assert card is not None
+    return card
+
+
+def _undecided(card: Card) -> list[tuple[str, str]]:
+    """Every indeterminate step of a card's trace, as subject and reason, in order."""
+    return [
+        (step.subject, step.reason)
+        for step in card.trace.steps
+        if step.kind is StepKind.VERDICT_INDETERMINATE
+    ]
+
+
+def _split_derivation(derivation: str) -> tuple[str, str]:
+    """A derivation's headers, whose Advice and Because quote tiers 1 and 2, and its steps."""
+    headers, marker, steps = derivation.partition("\nSteps:\n")
+    assert marker != ""
+    return headers, steps
+
+
+def test_adopt_tiers_read_the_display_name_with_the_id_unchanged(tmp_path: Path) -> None:
+    model = _model(ASCENT_PATHS)
+    registry = _registry()
+    other = _with_item_name(registry, SOLVE_RELIC_ITEM, RENAMED_RELIC)
+
+    card = _plan_card(_advise(tmp_path / "named", model, registry, _request()))
+    renamed = _plan_card(_advise(tmp_path / "renamed", model, other, _request()))
+
+    assert card.tier1 == "Build the planned production chain for Solve Relic"
+    assert card.tier2 == "It makes 10.00 per minute of Solve Relic with 2.00 machine equivalents"
+    assert renamed.tier1 == "Build the planned production chain for Renamed Relic"
+    assert renamed.tier2 == (
+        "It makes 10.00 per minute of Renamed Relic with 2.00 machine equivalents"
+    )
+    # Two registries differing only in the name: one identity, and it is the ClassName's.
+    assert card.subject_key == "plan:Desc_SolveRelic_C"
+    assert renamed.subject_key == card.subject_key
+    assert card.id == card_id(ADOPT_ID, "plan:Desc_SolveRelic_C", None)
+    assert renamed.id == card.id
+    # A name that reads is no fallback: the firing path's own step stands alone.
+    assert _undecided(card) == [COMPARE_STEP]
+
+
+@pytest.mark.parametrize("absent", [False, True], ids=["empty-name", "item-absent"])
+def test_adopt_no_display_name_reads_the_classname(absent: bool) -> None:
+    model = _model(ASCENT_PATHS)
+    registry = _registry()
+    named = _adopt_card(model, registry, _request())
+    nameless = (
+        _without_item(registry, SOLVE_RELIC_ITEM)
+        if absent
+        else _with_item_name(registry, SOLVE_RELIC_ITEM, "")
+    )
+
+    card = _adopt_card(model, nameless, _request())
+
+    assert card.tier1 == "Build the planned production chain for Desc_SolveRelic_C"
+    assert card.tier2 == (
+        "It makes 10.00 per minute of Desc_SolveRelic_C with 2.00 machine equivalents"
+    )
+    assert _card_read(card, plan_rules.IN_TARGET_NAMES) == {SOLVE_RELIC_ITEM: None}
+    assert card.id == named.id
+    assert card.subject_key == named.subject_key
+    # One fixed step says so, and it is no rejection: only a rejection settles the rule.
+    assert _undecided(card) == [COMPARE_STEP, (NAME_ALTERNATIVE, NAME_REASON)]
+    rejected = StepKind.ALTERNATIVE_REJECTED in _kinds(card.trace)
+    assert not rejected
+    settled = ADOPT_ID in settled_rules((card.trace,))
+    assert not settled
+
+
+def test_adopt_tier3_steps_keep_the_classname() -> None:
+    """The headers quote tiers 1 and 2, so only the steps can carry either ClassName."""
+    card = _adopt_card(*_two_target_world())
+
+    headers, steps = _split_derivation(card.tier3)
+
+    # The control: both headers are there and read the names, so the split is what grades this.
+    assert f"Advice: {card.tier1}" in headers
+    assert f"Because: {card.tier2}" in headers
+    assert RELIC_NAME in headers
+    assert ROD_NAME in headers
+    named_in_headers = [item for item in (SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM) if item in headers]
+    assert named_in_headers == []
+    # Each ClassName in the plan's own read and on the fired line, not just as a name's key.
+    production = next(line for line in steps.splitlines() if "Read plan.production = " in line)
+    assert f'targets={{"{SOLVE_RELIC_ITEM}": 10.00, "{SOLVE_ROD_ITEM}": 20.00}}' in production
+    assert f"Rule plan.adopt fired for plan:{SOLVE_RELIC_ITEM}+{SOLVE_ROD_ITEM}" in steps
+    assert (
+        f'Read plan.target_names = {{"{SOLVE_RELIC_ITEM}": "{RELIC_NAME}",'
+        f' "{SOLVE_ROD_ITEM}": "{ROD_NAME}"}} from registry.items.display_name'
+    ) in steps
+
+
+def test_two_targets_keep_the_classname_order_whatever_their_names_sort_as() -> None:
+    """The names here sort Rod first, and both tiers still read Relic first, by its ClassName."""
+    model, registry, request = _two_target_world()
+    named = _adopt_card(model, registry, request)
+    renamed = _with_item_name(
+        _with_item_name(registry, SOLVE_RELIC_ITEM, "Zeta Relic"), SOLVE_ROD_ITEM, "Alpha Rod"
+    )
+
+    card = _adopt_card(model, renamed, request)
+
+    assert card.tier1 == "Build the planned production chain for Zeta Relic, Alpha Rod"
+    assert card.tier2 == (
+        "It makes 10.00 per minute of Zeta Relic, 20.00 per minute of Alpha Rod"
+        " with 4.00 machine equivalents"
+    )
+    assert card.subject_key == "plan:Desc_SolveRelic_C+Desc_SolveRod_C"
+    assert card.id == named.id
+
+
+@pytest.mark.parametrize(
+    ("nameless", "headline"),
+    [
+        ((SOLVE_ROD_ITEM,), f"{RELIC_NAME}, {SOLVE_ROD_ITEM}"),
+        ((SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM), f"{SOLVE_RELIC_ITEM}, {SOLVE_ROD_ITEM}"),
+    ],
+    ids=["one-of-two", "both"],
+)
+def test_one_fallback_step_says_so_however_many_targets_have_no_name(
+    nameless: tuple[str, ...], headline: str
+) -> None:
+    model, registry, request = _two_target_world()
+    for item in nameless:
+        registry = _with_item_name(registry, item, "")
+
+    card = _adopt_card(model, registry, request)
+
+    assert card.tier1 == f"Build the planned production chain for {headline}"
+    assert _undecided(card) == [COMPARE_STEP, (NAME_ALTERNATIVE, NAME_REASON)]
 
 
 def test_the_badge_is_graded_against_each_rungs_own_optimum() -> None:
@@ -826,6 +1021,7 @@ def _no_rung_world(model: WorldModel, registry: Registry) -> WorldInputs:
             unchecked=(),
             unmatched_unlocks=0,
             backend=BACKEND_EXHAUSTIVE,
+            target_names=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME}),
         )
     )
     return WorldInputs(values=values, unlocks=unlock_keys(model.unlocks))
@@ -1537,13 +1733,8 @@ def test_a_different_backend_can_rank_a_different_plan_which_moves_tier2(
     assert second is not None
     same_id = first.id == second.id
     assert same_id
-    assert (
-        first.tier2
-        == "It makes 10.00 per minute of Desc_SolveRelic_C with 1.00 machine equivalents"
-    )
-    assert second.tier2 == (
-        "It makes 10.00 per minute of Desc_SolveRelic_C with 2.00 machine equivalents"
-    )
+    assert first.tier2 == "It makes 10.00 per minute of Solve Relic with 1.00 machine equivalents"
+    assert second.tier2 == "It makes 10.00 per minute of Solve Relic with 2.00 machine equivalents"
 
 
 def test_the_backend_is_the_results_field_never_the_environment_value(
@@ -1772,11 +1963,9 @@ def test_a_two_target_plan_names_both_sorted_however_they_were_stated(
 
     assert card is not None
     assert card.subject_key == "plan:Desc_SolveRelic_C+Desc_SolveRod_C"
-    assert card.tier1 == (
-        "Build the planned production chain for Desc_SolveRelic_C, Desc_SolveRod_C"
-    )
+    assert card.tier1 == "Build the planned production chain for Solve Relic, Solve Rod"
     assert card.tier2 == (
-        "It makes 10.00 per minute of Desc_SolveRelic_C, 20.00 per minute of Desc_SolveRod_C"
+        "It makes 10.00 per minute of Solve Relic, 20.00 per minute of Solve Rod"
         " with 4.00 machine equivalents"
     )
 

@@ -302,6 +302,7 @@ def _fuel_undecided() -> WorldInputs:
 _PLAN_RECIPE: Final = "Recipe_SyntheticPlanQx91_C"
 _PLAN_ITEM: Final = "Desc_SyntheticPlanQx91_C"
 _PLAN_UNLOCK: Final = "recipe:/Game/Synthetic/Recipe_SyntheticPlanQx91.Recipe_SyntheticPlanQx91_C"
+_PLAN_NAMES: Final = MappingProxyType({_PLAN_ITEM: "Synthetic Plan Qx91"})
 
 
 def _plan_badge(*, cleared: bool) -> StrategyBadge:
@@ -342,6 +343,7 @@ def _plan_world(*, cleared: bool) -> WorldInputs:
             plan.IN_BADGE: _plan_badge(cleared=cleared),
             plan.IN_REQUIRES: (_PLAN_UNLOCK,),
             plan.IN_BACKEND: "exhaustive",
+            plan.IN_TARGET_NAMES: _PLAN_NAMES,
         },
         unlocks=(_PLAN_UNLOCK,),
     )
@@ -386,6 +388,7 @@ def _route_world(*, machines: Fraction) -> WorldInputs:
             plan.IN_REDESIGN_LOCKED: (),
             plan.IN_REDESIGN_REQUIRES: (_PLAN_UNLOCK,) if runs else (),
             plan.IN_REDESIGN_UNMADE: None,
+            plan.IN_REDESIGN_TARGET_NAMES: _PLAN_NAMES,
         },
         unlocks=(_PLAN_UNLOCK,),
     )

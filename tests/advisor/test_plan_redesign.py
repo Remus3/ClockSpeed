@@ -61,6 +61,7 @@ from clockspeed.advisor.rules.plan import (
     IN_REDESIGN_PLAN,
     IN_REDESIGN_REQUIRES,
     IN_REDESIGN_STATUS,
+    IN_REDESIGN_TARGET_NAMES,
     IN_REDESIGN_UNMADE,
     IN_STATUS,
     IN_UNCHECKED,
@@ -179,6 +180,24 @@ ROUTE_REFUSED_REASON: Final = (
 
 #: The instant every resolution here reads. Injected, never a clock.
 NOW: Final = 1000
+
+#: The display names ``tests/solve/synthetic.py`` gives its Relic and its Rod, spelled here so
+#: a change there reddens here.
+RELIC_NAME: Final = "Solve Relic"
+ROD_NAME: Final = "Solve Rod"
+
+#: A second display name for the Relic, so two registries can differ in that alone.
+RENAMED_RELIC: Final = "Renamed Relic"
+
+#: The one step a target with no usable display name records, spelled so a rewording reddens.
+NAME_ALTERNATIVE: Final = "name every target by its display name"
+NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
+
+#: The step the firing path records whatever the names say.
+COMPARE_STEP: Final = (
+    "compare the route with what is built",
+    "a route is derived for a stated target and never compared with the world",
+)
 
 #: The tier 2 clauses, spelled here so a rewording reddens.
 MUST_UNLOCK: Final = (
@@ -644,11 +663,157 @@ def _rejected_world() -> WorldInputs:
         values={
             **pinned_build_inputs(game_pin()),
             **plan_rules.status_inputs(NO_PLAN),
-            **plan_rules.redesign_inputs(plan, held=(), locked=(), requires=()),
+            **plan_rules.redesign_inputs(
+                plan,
+                held=(),
+                locked=(),
+                requires=(),
+                target_names=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME}),
+            ),
             IN_UNCHECKED: InputValue((), "synthetic.unchecked"),
         },
         unlocks=frozenset(),
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1379: tier 1 reads the display name, and the identity stays the ClassName
+# ---------------------------------------------------------------------------
+
+
+def _with_item_name(registry: Registry, item: str, name: str) -> Registry:
+    """The same registry with one item's display name replaced, and nothing else.
+
+    Args:
+        registry: The registry.
+        item: The item's ClassName.
+        name: Its new display name, verbatim.
+
+    Returns:
+        The registry, every other field the same.
+    """
+    entry = dataclasses.replace(registry.items[item], display_name=name)
+    return dataclasses.replace(registry, items=MappingProxyType({**registry.items, item: entry}))
+
+
+def _without_item(registry: Registry, item: str) -> Registry:
+    """The same registry holding no descriptor for one item, and nothing else changed."""
+    kept = {key: entry for key, entry in registry.items.items() if key != item}
+    return dataclasses.replace(registry, items=MappingProxyType(kept))
+
+
+def _undecided(card: Card) -> list[tuple[str, str]]:
+    """Every indeterminate step of a card's trace, as subject and reason, in order."""
+    return [
+        (step.subject, step.reason)
+        for step in card.trace.steps
+        if step.kind is StepKind.VERDICT_INDETERMINATE
+    ]
+
+
+def _split_derivation(derivation: str) -> tuple[str, str]:
+    """A derivation's headers, whose Advice and Because quote tiers 1 and 2, and its steps."""
+    headers, marker, steps = derivation.partition("\nSteps:\n")
+    assert marker != ""
+    return headers, steps
+
+
+def _two_target_route() -> Card:
+    """10 Relic and 20 Rod a minute, stated Rod first, over two recipes neither of them held."""
+    registry = _registry(
+        [
+            _recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]),
+            _recipe("R_Rod", [SOLVE_ORE_ITEM], [SOLVE_ROD_ITEM]),
+        ]
+    )
+    request = dataclasses.replace(
+        _request(registry),
+        targets=MappingProxyType({SOLVE_ROD_ITEM: Fraction(20), SOLVE_RELIC_ITEM: Fraction(10)}),
+    )
+    return _route_card((), registry, request)
+
+
+def test_redesign_tiers_read_the_display_name_with_the_id_unchanged(tmp_path: Path) -> None:
+    """Tier 2 names no target, so a name moves tier 1 alone, and neither the subject nor the id."""
+    model = _model([HELD_STAGE])
+    registry = _three_locked_registry()
+    other = _with_item_name(registry, SOLVE_RELIC_ITEM, RENAMED_RELIC)
+
+    (card,) = _cards(_advise(tmp_path / "named", model, registry, _request(registry)), REDESIGN_ID)
+    (renamed,) = _cards(_advise(tmp_path / "renamed", model, other, _request(other)), REDESIGN_ID)
+
+    assert card.tier1 == "Plan toward Solve Relic"
+    assert renamed.tier1 == "Plan toward Renamed Relic"
+    # Tier 2 said no target before this item, and says none now, under either name.
+    assert card.tier2 == f"This route runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert renamed.tier2 == card.tier2
+    # Two registries differing only in the name: one identity, and it is the ClassName's.
+    assert card.subject_key == "plan:Desc_SolveRelic_C"
+    assert renamed.subject_key == card.subject_key
+    assert card.id == card_id(REDESIGN_ID, "plan:Desc_SolveRelic_C", None)
+    assert renamed.id == card.id
+    # A name that reads is no fallback: the firing path's own step stands alone.
+    assert _undecided(card) == [COMPARE_STEP]
+
+
+@pytest.mark.parametrize("absent", [False, True], ids=["empty-name", "item-absent"])
+def test_redesign_no_display_name_reads_the_classname(absent: bool) -> None:
+    registry = _three_locked_registry()
+    named = _route_card([HELD_STAGE], registry, _request(registry))
+    nameless = (
+        _without_item(registry, SOLVE_RELIC_ITEM)
+        if absent
+        else _with_item_name(registry, SOLVE_RELIC_ITEM, "")
+    )
+
+    card = _route_card([HELD_STAGE], nameless, _request(registry))
+
+    assert card.tier1 == "Plan toward Desc_SolveRelic_C"
+    assert _card_read(card, IN_REDESIGN_TARGET_NAMES) == {SOLVE_RELIC_ITEM: None}
+    assert card.id == named.id
+    assert card.subject_key == named.subject_key
+    # One fixed step says so, and it is no rejection: only a rejection settles the rule.
+    assert _undecided(card) == [COMPARE_STEP, (NAME_ALTERNATIVE, NAME_REASON)]
+    rejected = any(step.kind is StepKind.ALTERNATIVE_REJECTED for step in card.trace.steps)
+    assert not rejected
+    settled = REDESIGN_ID in settled_rules((card.trace,))
+    assert not settled
+
+
+def test_redesign_tier3_steps_keep_the_classname() -> None:
+    """The headers quote tiers 1 and 2, so only the steps can carry either ClassName."""
+    card = _two_target_route()
+
+    headers, steps = _split_derivation(card.tier3)
+
+    # The control: both headers are there and read the names, so the split is what grades this.
+    assert f"Advice: {card.tier1}" in headers
+    assert f"Because: {card.tier2}" in headers
+    assert card.tier1 == f"Plan toward {RELIC_NAME}, {ROD_NAME}"
+    named_in_headers = [item for item in (SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM) if item in headers]
+    assert named_in_headers == []
+    # Each ClassName in the plan's own read and on the fired line, not just as a name's key.
+    production = next(line for line in steps.splitlines() if "Read plan.redesign.plan = " in line)
+    assert f'targets={{"{SOLVE_RELIC_ITEM}": 10.00, "{SOLVE_ROD_ITEM}": 20.00}}' in production
+    assert f"Rule plan.redesign fired for plan:{SOLVE_RELIC_ITEM}+{SOLVE_ROD_ITEM}" in steps
+    assert (
+        f'Read plan.redesign.target_names = {{"{SOLVE_RELIC_ITEM}": "{RELIC_NAME}",'
+        f' "{SOLVE_ROD_ITEM}": "{ROD_NAME}"}} from registry.items.display_name'
+    ) in steps
+
+
+def test_a_rejected_route_reads_its_names_and_records_no_fallback() -> None:
+    """A fallback step would unsettle the one path that settles, so it waits for a card."""
+    world = _with_value(
+        _rejected_world(), IN_REDESIGN_TARGET_NAMES, MappingProxyType({SOLVE_RELIC_ITEM: None})
+    )
+
+    trace = run_rule(REDESIGN_RULE, world)
+
+    assert card_for(trace) is None
+    assert _indeterminate_count(trace) == 0
+    assert _read(trace, IN_REDESIGN_TARGET_NAMES) == {SOLVE_RELIC_ITEM: None}
+    assert settled_rules((trace,)) == frozenset({REDESIGN_ID})
 
 
 # ---------------------------------------------------------------------------
@@ -664,7 +829,7 @@ def test_a_target_three_locked_stages_out_reads_a_route_card(tmp_path: Path) -> 
     (card,) = _cards(advice, REDESIGN_ID)
     shown = [advised.card.id for advised in advice.shown]
     assert card.id in shown
-    assert card.tier1 == f"Plan toward {SOLVE_RELIC_ITEM}"
+    assert card.tier1 == f"Plan toward {RELIC_NAME}"
     assert card.tier2 == f"This route runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
     assert _card_read(card, IN_STATUS) == NO_PLAN
 
@@ -1300,7 +1465,7 @@ def test_a_target_whose_only_recipe_has_no_machine_to_check_is_no_route_never_fa
 
     # The control: a Smelter that can be shown unlocked makes the same recipe a route.
     built = _smelter_registry(MACHINE_BUILD_ENTRIES, two_stages=False)
-    assert _route_card((), built, _request(built)).tier1 == f"Plan toward {SOLVE_RELIC_ITEM}"
+    assert _route_card((), built, _request(built)).tier1 == f"Plan toward {RELIC_NAME}"
 
 
 @pytest.mark.parametrize(
@@ -1574,7 +1739,7 @@ def test_a_route_refused_outcome_fires_under_the_other_policy() -> None:
 
     # The same request under the other policy fires.
     card = _route_card((), registry, _request(registry, policy=SINKABLE))
-    assert card.tier1 == f"Plan toward {SOLVE_RELIC_ITEM}"
+    assert card.tier1 == f"Plan toward {RELIC_NAME}"
     plan = _plan_of(_card_read(card, IN_REDESIGN_PLAN))
     assert plan.byproducts == {SOLVE_RARE_ITEM: Fraction(10)}
 
@@ -1782,6 +1947,7 @@ def test_the_redesign_inputs_stay_out_of_the_plan_inputs() -> None:
         "plan.redesign.locked",
         "plan.redesign.requires",
         "plan.redesign.unmade",
+        "plan.redesign.target_names",
     )
 
 
@@ -1795,6 +1961,7 @@ def test_each_redesign_input_names_the_field_it_came_from() -> None:
         IN_REDESIGN_LOCKED: "advisor.plans.redesign.locked",
         IN_REDESIGN_REQUIRES: "advisor.plans.redesign.recipe_unlock_join",
         IN_REDESIGN_UNMADE: "solve.bound.derived_route.unmade",
+        IN_REDESIGN_TARGET_NAMES: "registry.items.display_name",
     }
 
 
@@ -1833,6 +2000,22 @@ def _forged(change: Mapping[str, object]) -> Trace:
         ({IN_REDESIGN_REQUIRES: None}, "TypeError"),
         ({IN_REDESIGN_UNMADE: ()}, "TypeError"),
         ({IN_UNCHECKED: None}, "TypeError"),
+        ({IN_REDESIGN_TARGET_NAMES: None}, "TypeError"),
+        ({IN_REDESIGN_TARGET_NAMES: (RELIC_NAME,)}, "TypeError"),
+        ({IN_REDESIGN_TARGET_NAMES: MappingProxyType({})}, "ValueError"),
+        (
+            {
+                IN_REDESIGN_TARGET_NAMES: MappingProxyType(
+                    {SOLVE_RELIC_ITEM: RELIC_NAME, SOLVE_ROD_ITEM: ROD_NAME}
+                )
+            },
+            "ValueError",
+        ),
+        ({IN_REDESIGN_TARGET_NAMES: MappingProxyType({SOLVE_ROD_ITEM: ROD_NAME})}, "ValueError"),
+        (
+            {IN_REDESIGN_TARGET_NAMES: MappingProxyType({SOLVE_RELIC_ITEM: Fraction(1)})},
+            "TypeError",
+        ),
         # Beside a status that says a plan was ranked, no route can have been reached.
         ({IN_STATUS: RANKED}, "ValueError"),
         # A list that disagrees with the plan's own machines.
@@ -1854,6 +2037,12 @@ def _forged(change: Mapping[str, object]) -> Trace:
         "requires-none",
         "unmade-on-routed",
         "unchecked-none",
+        "names-none",
+        "names-not-a-mapping",
+        "names-lack-the-target",
+        "names-hold-another-target",
+        "names-hold-another-target-alone",
+        "name-not-text",
         "routed-beside-ranked",
         "held-short",
         "locked-short",
@@ -1874,6 +2063,18 @@ def test_a_redesign_offer_that_disagrees_with_itself_is_a_rule_error(
 
     assert card_for(trace) is None
     assert _errors(trace) == [error]
+
+
+@pytest.mark.parametrize("status", [NOT_REACHED, NO_ROUTE, ROUTE_REFUSED])
+def test_a_status_with_no_route_offers_no_names_and_refuses_any(status: str) -> None:
+    world = _worlds_per_status()[status]
+    assert _offered(world, IN_REDESIGN_TARGET_NAMES) is None
+    assert _errors(run_rule(REDESIGN_RULE, world)) == []
+
+    named = MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME})
+    trace = run_rule(REDESIGN_RULE, _with_value(world, IN_REDESIGN_TARGET_NAMES, named))
+
+    assert _errors(trace) == ["TypeError"]
 
 
 def test_a_no_route_offer_must_carry_its_items() -> None:
