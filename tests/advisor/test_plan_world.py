@@ -173,6 +173,9 @@ from tests.solve.synthetic import (
 #: The one rule this file grades, by its stable id.
 ADOPT_ID: Final = "plan.adopt"
 
+#: The rule a no-plan offers its route to, which ``tests/advisor/test_plan_redesign.py`` grades.
+REDESIGN_ID: Final = "plan.redesign"
+
 #: The closed status vocabulary, spelled here rather than imported from the module
 #: under test, so a rename there is red here rather than carried along.
 STATUS_RANKED: Final = "ranked"
@@ -549,6 +552,7 @@ def _measured(badge: StrategyBadge) -> list[tuple[str, bool, object, object, str
 def test_the_plan_family_is_registered() -> None:
     ids = [spec.rule_id for spec in registered_rules()]
     assert ADOPT_ID in ids
+    assert REDESIGN_ID in ids
     listed = any(family is plan_rules.RULES for family in rules_module._FAMILIES)  # noqa: SLF001
     assert listed
 
@@ -672,9 +676,10 @@ def test_the_join_is_the_whole_path_never_its_trailing_token() -> None:
 @pytest.mark.parametrize(
     "unlocked", [(), (PATHS[RARE_FROM_ORE],)], ids=["nothing-unlocked", "only-the-first-stage"]
 )
-def test_every_producer_locked_is_no_plan_no_card_and_unsettled(
+def test_every_producer_locked_is_no_plan_no_adopt_card_and_fires_the_route(
     tmp_path: Path, unlocked: tuple[str, ...]
 ) -> None:
+    """plan.adopt stays silent and unsettled, and the route goes to plan.redesign (CS-1371)."""
     advice = _advise(tmp_path, _model(unlocked), _registry(), _request())
 
     trace = _plan_trace(advice)
@@ -682,8 +687,11 @@ def test_every_producer_locked_is_no_plan_no_card_and_unsettled(
     assert _plan_cards(advice) == []
     assert trace.recommendation is None
     assert _kinds(trace).count(StepKind.VERDICT_INDETERMINATE) == 1
-    settled = ADOPT_ID in settled_rules(advice.traces)
-    assert not settled
+    settled = settled_rules(advice.traces)
+    assert ADOPT_ID not in settled
+    assert REDESIGN_ID not in settled
+    fired = [advised.card.rule_id for advised in advice.cards]
+    assert fired == [REDESIGN_ID]
 
 
 def test_a_recipe_with_no_asset_path_is_flagged_and_never_planned(tmp_path: Path) -> None:
@@ -875,8 +883,11 @@ REFUSALS: Final[Mapping[str, tuple[Callable[[], Exception], str]]] = MappingProx
     }
 )
 
-#: The three doors plan_offer reaches solve through.
+#: The three doors the ranked path reaches solve through.
 SOLVE_DOORS: Final = ("optimize_within_bound", "optimize_plan", "rank_plans")
+
+#: The two doors a no-plan's marked route reaches through, and no other status (CS-1371).
+ROUTE_DOORS: Final = ("derived_route", "solve_for_targets")
 
 #: The door a rung search runs through. A no-plan refusal arriving here comes after
 #: the bound has solved, so a plan does exist and no-plan would be false.
@@ -1589,13 +1600,22 @@ def test_targets_that_are_not_a_mapping_keyed_by_str_are_malformed(
     assert offered["plan.status"].value == STATUS_REQUEST_MALFORMED
 
 
-def test_no_raw_items_at_all_is_still_a_question() -> None:
-    """An empty tuple is a tuple of str: the search answers it, so this is no-plan."""
+def test_no_raw_items_at_all_is_request_malformed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty tuple is a tuple of str, and names nothing to start from (CS-1371).
+
+    A search over no raw items would read no-plan and speak for the kept set about a question
+    nobody can answer, so it never runs: every door stands closed, and none is reached.
+    """
+    _refuse_every_door(monkeypatch)
     request = dataclasses.replace(_request(), raw_items=())
 
     offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), request)
 
-    assert offered["plan.status"].value == STATUS_NO_PLAN
+    assert offered["plan.status"].value == STATUS_REQUEST_MALFORMED
+    assert offered["plan.redesign.status"].value == "not-reached"
+    # The control: one raw item, and the same closed door is reached.
+    with pytest.raises(_DoorReachedError):
+        plan_offer(_unlocks(ASCENT_PATHS), _registry(), _request())
 
 
 def _crossed_optima_registry() -> Registry:
@@ -1832,7 +1852,7 @@ def _refuse_every_door(monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(*_args: object, **_kwargs: object) -> object:
         raise _DoorReachedError
 
-    for door in SOLVE_DOORS:
+    for door in (*SOLVE_DOORS, *ROUTE_DOORS):
         monkeypatch.setattr(plans_module, door, refuse)
 
 

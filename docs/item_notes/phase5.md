@@ -445,7 +445,7 @@ FGResourceDescriptor group as a new fact and that function takes it as raw_items
 module chooses a raw item. That group absent or empty is flagged in the registry's warnings and
 reads plan.status request-malformed, never a search over no raw items, because
 `clockspeed/advisor/plans.py::_well_formed` then refuses an empty raw tuple;
-`tests/advisor/test_plan_world.py::test_no_raw_items_at_all_is_still_a_question` pins the opposite
+`tests/advisor/test_plan_world.py::test_no_raw_items_at_all_is_request_malformed` pins the opposite
 and is rewritten and renamed in the same change. An item a recipe consumes that is neither in the
 group nor made by an automated recipe is never treated as raw. Each of the following has its own
 arm.
@@ -528,7 +528,7 @@ parameter, an empty raw tuple is a question, the family is one rule or no locked
 rule are corrected.
 `tests/advisor/rules/test_plan.py::test_the_family_declares_the_build_inputs_ahead_of_its_own`
 widens its pin of the family's rules.
-`tests/advisor/test_plan_world.py::test_every_producer_locked_is_no_plan_no_card_and_unsettled` then
+`tests/advisor/test_plan_world.py::test_every_producer_locked_is_no_plan_no_adopt_card_and_fires_the_route` then
 sits on a world firing a plan.redesign card and is renamed; a test renamed under this item has its
 citation here moved in the same change. `tests/advisor/test_every_rule_fires.py` gains
 plan.redesign, named in `tests/advisor/test_every_rule_fires.py::NEVER_SETTLES_ON_FIRING`, whose

@@ -50,7 +50,8 @@ worlds (CS-1285) are one invented burner class burning one invented liquid,
 every figure the rules recompute worked by hand in :func:`_fuel` so the
 recomputation agrees with it; a fixture that disagreed would end in a
 ``rule-error``, which the firing and silent arms both refuse. The plan family's
-worlds (CS-1351) are one invented plan under an invented badge. Beside them every
+worlds (CS-1351, CS-1371) are one invented plan under an invented badge, and one
+invented route with no badge. Beside them every
 world offers the three build inputs of a save the pinned build wrote, built by
 the audit's own build check over a synthetic header and sourced to its fields
 (:mod:`tests.advisor.build_fixtures`), the pin read at test time.
@@ -70,12 +71,15 @@ swapped off the pin no longer settles its rule. BOTH SIDES, because a save
 OLDER than the pin is the item's motivating case (CS-1288 fix round 1): a
 caveat comparing builds by order would pass on the newer side alone.
 
-ONE RULE NEVER SETTLES WHEN IT FIRES, AND IS NAMED HERE (CS-1351). ``plan.adopt``
-ranks a plan for a stated target and never compares it with the world, so firing
-records an indeterminate step on the pin too, and a recorded card is not completed
-by a target that merely moved. :data:`NEVER_SETTLES_ON_FIRING` holds its id, and
-:func:`test_every_return_site_names_both_builds_off_the_pin` exempts it from the
-on-pin half of its settling check alone. Its SILENT fixture still settles.
+TWO RULES NEVER SETTLE WHEN THEY FIRE, AND ARE NAMED HERE (CS-1351, CS-1371).
+``plan.adopt`` ranks a plan for a stated target and ``plan.redesign`` derives a route for
+one, and neither compares it with the world, so firing records an indeterminate step on
+the pin too, and a recorded card is not completed by a target that merely moved.
+:data:`NEVER_SETTLES_ON_FIRING` holds their ids, and
+:func:`test_every_return_site_names_both_builds_off_the_pin` exempts them from the
+on-pin half of its settling check alone. Their SILENT fixtures still settle. Neither is
+reachable from a world: a top plan clears its own rung, and a stated rate above zero gives
+some recipe a machine.
 """
 
 from __future__ import annotations
@@ -353,9 +357,53 @@ def _plan_no_rung() -> WorldInputs:
     return _plan_world(cleared=False)
 
 
+def _route_world(*, machines: Fraction) -> WorldInputs:
+    """One synthetic route over one invented recipe, its unlock held when it runs a machine.
+
+    Args:
+        machines: The recipe's machine count. Zero is the plan no world reaches, because a
+            stated rate is above zero.
+
+    Returns:
+        A world whose search read no-plan and whose route pillar 1 solved.
+    """
+    runs = machines != 0
+    production = ProductionPlan(
+        steps=(PlanStep(recipe_key=_PLAN_RECIPE, machines=machines),),
+        targets=MappingProxyType({_PLAN_ITEM: machines * 10}),
+        raw_inputs=MappingProxyType({}),
+        byproducts=MappingProxyType({}),
+        excluded=(),
+        byproduct_policy=BYPRODUCT_BALANCED,
+    )
+    return _world(
+        {
+            plan.IN_STATUS: plan.STATUS_NO_PLAN,
+            plan.IN_UNCHECKED: (),
+            plan.IN_REDESIGN_STATUS: plan.REDESIGN_ROUTED,
+            plan.IN_REDESIGN_PLAN: production,
+            plan.IN_REDESIGN_HELD: (_PLAN_RECIPE,) if runs else (),
+            plan.IN_REDESIGN_LOCKED: (),
+            plan.IN_REDESIGN_REQUIRES: (_PLAN_UNLOCK,) if runs else (),
+            plan.IN_REDESIGN_UNMADE: None,
+        },
+        unlocks=(_PLAN_UNLOCK,),
+    )
+
+
+def _route_runs() -> WorldInputs:
+    """A route whose one recipe runs two machines: the rule offers it."""
+    return _route_world(machines=Fraction(2))
+
+
+def _route_runs_nothing() -> WorldInputs:
+    """A route with no machine on any step: the rule rejects it, which settles it."""
+    return _route_world(machines=Fraction(0))
+
+
 #: Rules whose firing records an indeterminate step on the pin, by id, so their
 #: firing never settles. See the module docstring.
-NEVER_SETTLES_ON_FIRING: Final = frozenset({plan.ADOPT_RULE.rule_id})
+NEVER_SETTLES_ON_FIRING: Final = frozenset({plan.ADOPT_RULE.rule_id, plan.REDESIGN_RULE.rule_id})
 
 #: A world in which each registered rule FIRES.
 FIRING: Final[dict[str, WorldBuilder]] = {
@@ -365,6 +413,8 @@ FIRING: Final[dict[str, WorldBuilder]] = {
     fuel.SUPPLY_RULE.rule_id: _fuel_short,
     # A ranked plan that cleared one rung.
     plan.ADOPT_RULE.rule_id: _plan_ranked,
+    # A no-plan whose route pillar 1 solved, its one recipe held.
+    plan.REDESIGN_RULE.rule_id: _route_runs,
     # Three unpriced machines out of ten: the draw is a floor.
     power.GAP_RULE.rule_id: lambda: _power(
         complete=False,
@@ -393,6 +443,8 @@ SILENT: Final[dict[str, WorldBuilder]] = {
     fuel.SUPPLY_RULE.rule_id: _fuel_covered,
     # A ranked plan that cleared no rung is worse than its reference on every claim.
     plan.ADOPT_RULE.rule_id: _plan_no_rung,
+    # A route with no machine on any step has nothing to offer.
+    plan.REDESIGN_RULE.rule_id: _route_runs_nothing,
     # Every considered machine is priced, so there is no gap to name.
     power.GAP_RULE.rule_id: lambda: _power(
         complete=True,
@@ -650,6 +702,7 @@ RETURN_SITES: Final[dict[str, dict[str, tuple[str, WorldBuilder, str]]]] = {
     },
     "plan": {
         "adopt": (plan.ADOPT_RULE.rule_id, _plan_ranked, "Build the planned production chain"),
+        "redesign": (plan.REDESIGN_RULE.rule_id, _route_runs, "Plan toward"),
     },
     "power": {
         "draw-incomplete": (

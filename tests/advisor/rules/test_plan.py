@@ -31,6 +31,7 @@ rejection of a plan that cleared no rung settles the rule. What the search left
 out reaches tier 2 as a count, ahead of the build caveat, and tier 3 by name, and a
 refused trace reads it too. The backend that ran reaches tier 3 and nothing else.
 ``tests/advisor/test_plan_world.py`` grades the same rule through ``advise_world``.
+``tests/advisor/test_plan_redesign.py`` grades the family's second rule (CS-1371).
 
 EVERY WORLD IS SYNTHETIC. The plans and badges are hand-built from invented
 recipes, items and exact figures, or solved from ``tests/solve/synthetic.py``'s
@@ -64,6 +65,8 @@ from clockspeed.advisor.rules.plan import (
     IN_UNCHECKED,
     IN_UNMATCHED,
     PLAN_INPUTS,
+    REDESIGN_INPUTS,
+    REDESIGN_RULE,
     RULES,
     STATUS_NO_PLAN,
     STATUS_NO_TARGET,
@@ -729,9 +732,15 @@ def test_a_plan_stating_its_targets_out_of_order_is_named_sorted() -> None:
 
 
 def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:
-    assert RULES == (ADOPT_RULE,)
+    assert RULES == (ADOPT_RULE, REDESIGN_RULE)
     assert ADOPT_RULE.inputs == (*BUILD_INPUTS, *PLAN_INPUTS)
     assert ADOPT_RULE.unlocks == ()
+    # CS-1371: the marked route reads the build inputs first too, its own next, and of the
+    # ranked path's only the two a route's derivation states. No plan input is its own.
+    assert REDESIGN_RULE.inputs == (*BUILD_INPUTS, *REDESIGN_INPUTS, IN_STATUS, IN_UNCHECKED)
+    assert REDESIGN_RULE.unlocks == ()
+    assert REDESIGN_RULE.domain == ADOPT_RULE.domain
+    assert sorted(set(REDESIGN_INPUTS) & set(PLAN_INPUTS)) == []
 
 
 # --- end to end over a real ranking --------------------------------------------

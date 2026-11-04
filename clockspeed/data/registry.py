@@ -9,6 +9,12 @@ is why :func:`build_registry` takes an already-loaded
 machinery at all. That is what lets the whole model be proven against a
 hand-authored synthetic corpus on a machine with no game installed.
 
+THE RAW ITEMS ARE A FACT THE DOCS STATE (CS-1371). :attr:`Registry.resource_items`
+publishes the ClassNames the docs' FGResourceDescriptor group declares, and
+:func:`plan_targets` lists what a plan may be stated for: what an automated recipe
+makes, less that group. A group absent or naming nothing is flagged, never fatal
+(non-negotiable 7).
+
 PROVENANCE (CS-1315). :func:`build_registry_from_bytes` takes the docs file's
 raw BYTES - still never a path - and records their sha256 on
 :attr:`Registry.source_sha256`, computed exactly as
@@ -295,6 +301,7 @@ __all__ = [
     "POWER_MARKER_KEYS",
     "RECIPE_GROUP_SHORT_NAMES",
     "RESOURCE_FORMS",
+    "RESOURCE_GROUP_SHORT_NAME",
     "UNMODELED_GROUP_SHORT_NAMES",
     "WARN_DUPLICATE_CLASS_NAME",
     "WARN_EMPTY_DISPLAY_NAME",
@@ -307,6 +314,7 @@ __all__ = [
     "WARN_MISSING_POWER",
     "WARN_MISSING_PRODUCTION",
     "WARN_NON_STRING_VALUE",
+    "WARN_NO_RESOURCE_GROUP",
     "WARN_UNKNOWN_GROUP",
     "WARN_UNKNOWN_ITEM",
     "WARN_UNKNOWN_RESOURCE_FORM",
@@ -329,6 +337,7 @@ __all__ = [
     "automated_recipes",
     "build_registry",
     "build_registry_from_bytes",
+    "plan_targets",
 ]
 
 # ---------------------------------------------------------------------------
@@ -491,6 +500,10 @@ GENERATION_MARKER_KEYS: Final = (
     KEY_VARIABLE_PRODUCTION_FACTOR,
 )
 
+#: CS-1371. The docs group whose entries are the raw resources. Read as a fact of its
+#: own for :attr:`Registry.resource_items`, beside its place in the floor below.
+RESOURCE_GROUP_SHORT_NAME: Final = "FGResourceDescriptor"
+
 #: The measured descriptor groups, kept ONLY as a floor beneath the mForm test.
 #: Their purpose is the entry that a future patch ships into one of them with
 #: no mForm at all: it is still a real item some recipe names, so it is kept
@@ -502,7 +515,7 @@ GENERATION_MARKER_KEYS: Final = (
 ITEM_GROUP_SHORT_NAMES: Final = frozenset(
     {
         "FGItemDescriptor",
-        "FGResourceDescriptor",
+        RESOURCE_GROUP_SHORT_NAME,
         "FGBuildingDescriptor",
         "FGVehicleDescriptor",
     }
@@ -604,6 +617,10 @@ WARN_UNREADABLE_FUELS: Final = "unreadable-fuels"
 #: code is counted toward the recipe grammar canary, and this one is not a
 #: recipe.
 WARN_UNREADABLE_ALLOWED_RESOURCES: Final = "unreadable-allowed-resources"
+#: CS-1371. The docs' resource group is absent or names no item, so no plan has a
+#: raw item to start from. Subject is the group's short name. The advisor reads an
+#: empty :attr:`Registry.resource_items` as a malformed request, never as a search.
+WARN_NO_RESOURCE_GROUP: Final = "no-resource-group"
 
 
 class RegistryError(Exception):
@@ -990,6 +1007,12 @@ class Registry:
             this registry was built from, computed as the pin computes its
             ``docs_sha256``, or None when it had no byte source - built from
             a loaded document or by hand. Recorded, never compared here.
+        resource_items: CS-1371. The ClassNames the docs' FGResourceDescriptor
+            group declares, in document order, each once. Those are the items a
+            plan takes as raw, and nothing else makes an item raw: an item a
+            recipe consumes that this group does not hold is not raw, even
+            when nothing makes it. Empty when the group is absent or names
+            nothing, which :data:`WARN_NO_RESOURCE_GROUP` flags.
     """
 
     items: Mapping[str, Item]
@@ -1009,6 +1032,9 @@ class Registry:
     # CS-1315. Appended with a default on the same terms: None is "no byte
     # source", which the audit reads as unverified, never as a match.
     source_sha256: str | None = None
+    # CS-1371. Appended with a default on the same terms: an empty tuple is "no raw
+    # items", which the advisor refuses as a malformed request, never a search.
+    resource_items: tuple[str, ...] = ()
 
 
 class _WarningLog:
@@ -2036,6 +2062,39 @@ def _build_items(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Ite
     return items
 
 
+def _resource_items(
+    groups: Sequence[DocsGroup], items: Mapping[str, Item], log: _WarningLog
+) -> tuple[str, ...]:
+    """Publish what the docs' resource group declares, and flag a group with nothing (CS-1371).
+
+    The group's entries are folded into the items by :func:`_build_items`, which flags
+    an entry it could not key, so this pass adds no second count of the same entry.
+
+    Args:
+        groups: The recognized groups.
+        items: The built items. An entry only counts when it names one.
+        log: The warning log.
+
+    Returns:
+        The ClassNames in document order, each once. Empty when the group is absent
+        or names no item, which is flagged, because no plan then has a raw item.
+    """
+    named = [
+        name
+        for group in groups
+        if group.short_name == RESOURCE_GROUP_SHORT_NAME
+        for entry in group.entries
+        if isinstance(name := entry.get(KEY_CLASS_NAME), str) and name in items
+    ]
+    if not named:
+        log.add(
+            WARN_NO_RESOURCE_GROUP,
+            RESOURCE_GROUP_SHORT_NAME,
+            "the docs declare no resource item, so no plan has a raw item to start from",
+        )
+    return tuple(dict.fromkeys(named))
+
+
 def _build_buildings(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Building]:
     """Build every power-consuming buildable, in document order.
 
@@ -2272,6 +2331,7 @@ def build_registry(document: DocsDocument) -> Registry:
         log.add(WARN_MALFORMED_GROUP, str(skipped.index), skipped.reason)
     unknown = _unknown_groups(document, log)
     items = _build_items(document.groups, log)
+    resource_items = _resource_items(document.groups, items, log)
     buildings = _build_buildings(document.groups, log)
     extractors = _build_extractors(document.groups, items, log)
     generators = _build_generators(document.groups, items, log)
@@ -2286,6 +2346,7 @@ def build_registry(document: DocsDocument) -> Registry:
         extractors=MappingProxyType(extractors),
         generators=MappingProxyType(generators),
         declared_classes=_declared_classes(document.groups),
+        resource_items=resource_items,
     )
 
 
@@ -2335,6 +2396,27 @@ def automated_recipes(registry: Registry) -> tuple[Recipe, ...]:
         The automated recipes, in registry order.
     """
     return tuple(recipe for recipe in registry.recipes.values() if recipe.produced_in)
+
+
+def plan_targets(registry: Registry) -> tuple[str, ...]:
+    """Every item a plan may be stated for (CS-1371).
+
+    An item is selectable when an automated recipe makes it, whatever a world has
+    unlocked: the milestone target is a free selector (CLAUDE.md section 7). The
+    published resource group is left out because pillar 1 refuses a raw item as a
+    target. An output no automated recipe makes is left out because no machine makes
+    it, which ``BACKLOG.md`` records as what this list drops.
+
+    Args:
+        registry: The built registry.
+
+    Returns:
+        The item keys, sorted and distinct. Sorted, so no set decides the order.
+    """
+    # Two sets, and ONLY for membership and distinctness: the sort decides the order.
+    raw = frozenset(registry.resource_items)
+    made = {output.item_key for recipe in automated_recipes(registry) for output in recipe.outputs}
+    return tuple(sorted(item for item in made if item not in raw))
 
 
 #: The substring every measured build-gun producer token carries. It is a

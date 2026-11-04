@@ -16,10 +16,12 @@ over a world it holds.
 A PLAN IS RANKED ONLY FOR A TARGET THE CALLER STATES (CS-1351).
 :func:`inputs_of` and :func:`advise_world` take an optional ``plan_request``, and
 ``clockspeed/advisor/plans.py`` answers it. Left None, nothing is solved: the
-offer is the one status input that says no target was stated, so the registered
-plan family records why it is silent rather than halting on an input the world
-lacks. No surface passes one yet, so ``plan.adopt`` runs on every served world and
-fires on none until a target selector ships.
+offer is the status that says no target was stated and a marked route that says none
+was reached, so the registered plan family records why it is silent rather than
+halting on an input the world lacks. No surface passes one yet, so the family runs on
+every served world and fires on none until a target selector ships. Stated, what the
+request came to is also on :attr:`Advice.plan_outcome` (CS-1371), because a refused
+trace yields no card and a surface has nothing else to read why from.
 
 THE PIN IS A PARAMETER, NEVER AN IMPORT (CS-1288, the session 138 ruling F2).
 Every figure a rule prices from a nameplate is the PINNED build's, so
@@ -94,7 +96,7 @@ renders it, a tier text or an input value.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor.build import build_inputs, registry_inputs
@@ -103,6 +105,7 @@ from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.plans import plan_offer
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.fuel import fuel_inputs
+from clockspeed.advisor.rules.plan import plan_outcome_of
 from clockspeed.advisor.rules.power import balance_inputs
 from clockspeed.advisor.trace import (
     InputValue,
@@ -124,6 +127,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from clockspeed.advisor.plans import PlanRequest
+    from clockspeed.advisor.rules.plan import PlanOutcome
     from clockspeed.audit.balance import WorldBalance
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import UnlockState, WorldModel
@@ -196,6 +200,11 @@ class Advice:
             always empty from the read-only :func:`advise`.
         reopened: The card ids this run moved from ``completed`` back to
             ``new``, sorted - always empty from the read-only :func:`advise`.
+        plan_outcome: What a stated plan request came to (CS-1371), set by
+            :func:`advise_world` alone and only when a request was stated. A
+            refused trace yields no card, so this is what a surface transcribes
+            to say why. None with no request, so a caller stating no target has
+            nothing new to carry.
     """
 
     traces: tuple[Trace, ...]
@@ -203,6 +212,7 @@ class Advice:
     new_world: bool
     completed: tuple[str, ...] = ()
     reopened: tuple[str, ...] = ()
+    plan_outcome: PlanOutcome | None = None
 
     @property
     def shown(self) -> tuple[AdvisedCard, ...]:
@@ -377,7 +387,7 @@ def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
     incomplete input, over a figure priced at a build other than the
     save's own (CS-1288: an off-pin or uncompared build records one
     ``verdict-indeterminate`` step, ``clockspeed/advisor/build.py``), or over
-    a plan never compared with the world (CS-1351,
+    a plan or a route never compared with the world (CS-1351, CS-1371,
     ``clockspeed/advisor/rules/plan.py``). Its
     silence says nothing about the world, so its cards may not be completed
     (CS-1268, CLAUDE.md non-negotiable 7).
@@ -465,7 +475,8 @@ def advise_world(
             it. A surface passes none today.
 
     Returns:
-        The advice, as :func:`advise` returns it.
+        The advice, as :func:`advise` returns it, carrying
+        :attr:`Advice.plan_outcome` when a request was stated.
 
     Raises:
         clockspeed.advisor.ledger.StoreError: as :func:`advise` raises it.
@@ -477,4 +488,7 @@ def advise_world(
         pinned_docs_sha256=pinned_docs_sha256,
         plan_request=plan_request,
     )
-    return advise(model.token, world, ledger=ledger, mutes=mutes, now=now)
+    advice = advise(model.token, world, ledger=ledger, mutes=mutes, now=now)
+    if plan_request is None:
+        return advice
+    return replace(advice, plan_outcome=plan_outcome_of(world.values))

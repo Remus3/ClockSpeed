@@ -76,6 +76,7 @@ from clockspeed.data.registry import (
     WARN_MISSING_DURATION,
     WARN_MISSING_FORM,
     WARN_MISSING_POWER,
+    WARN_NO_RESOURCE_GROUP,
     WARN_NON_STRING_VALUE,
     WARN_UNKNOWN_GROUP,
     WARN_UNKNOWN_ITEM,
@@ -92,6 +93,7 @@ from clockspeed.data.registry import (
     RegistryWarning,
     automated_recipes,
     build_registry,
+    plan_targets,
 )
 from clockspeed.data.version import (
     CENSUS_KEY_BUILDING_FIELD_PRESENCE,
@@ -143,7 +145,25 @@ from tests.data.synthetic import (
     WIDGET_ITEM,
     WIDGET_RECIPE,
     WORKBENCH_CLASS,
+    amount_blob,
+    class_path_blob,
 )
+from tests.solve.synthetic import (
+    SOLVE_ASSEMBLER_BUILDING,
+    SOLVE_FLUID_ITEM,
+    SOLVE_GADGET_ITEM,
+    SOLVE_ORE_ITEM,
+    SOLVE_ORPHAN_ITEM,
+    SOLVE_PLATE_ITEM,
+    SOLVE_RELIC_ITEM,
+    SOLVE_RESIDUE_ITEM,
+    SOLVE_ROD_ITEM,
+    SOLVE_TRINKET_ITEM,
+    SOLVE_TWIN_ITEM,
+    building_path,
+    solve_registry,
+)
+from tests.solve.synthetic import registry_with as solve_registry_with
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
@@ -2036,12 +2056,14 @@ def test_the_slice_a_fields_are_appended_with_defaults() -> None:
     ):
         fields = dataclasses.fields(klass)
         assert fields[-1].name == name, klass.__name__
-    # CS-1315 appended source_sha256 after declared_classes, on the same terms.
-    registry_tail = [field.name for field in dataclasses.fields(Registry)][-2:]
-    assert registry_tail == ["declared_classes", "source_sha256"]
+    # CS-1315 appended source_sha256 after declared_classes, on the same terms, and
+    # CS-1371 appended resource_items after that.
+    registry_tail = [field.name for field in dataclasses.fields(Registry)][-3:]
+    assert registry_tail == ["declared_classes", "source_sha256", "resource_items"]
     bare = Registry(items={}, recipes={}, buildings={}, warnings=(), unknown_groups=())
     assert bare.declared_classes == frozenset()
     assert bare.source_sha256 is None
+    assert bare.resource_items == ()
     generator = Generator("Build_X_C", "X", Fraction(1), None, None, False)
     assert generator.accepted_fuels is None
     extractor = Extractor("Build_Y_C", "Y", None, None, frozenset())
@@ -2291,3 +2313,174 @@ def test_the_one_split_refuses_every_shape_but_the_measured_one() -> None:
     assert split(PLANTED_FULL_NAME) == PLANTED_RECIPE_PATH
     refused = sorted(shape for shape, text in MALFORMED_FULL_NAMES.items() if split(text) is None)
     assert refused == sorted(MALFORMED_FULL_NAMES)
+
+
+# ---------------------------------------------------------------------------
+# CS-1371: the docs' resource group, published, and what a plan may be stated for
+# ---------------------------------------------------------------------------
+
+
+def _is_resource_group(group: Any) -> bool:
+    """Whether one docs group is the resource descriptor group."""
+    return synthetic.RESOURCE_GROUP in str(group.get(synthetic.KEY_NATIVE_CLASS))
+
+
+def _groups_with_resources(entries: list[dict[str, str]]) -> list[Any]:
+    """The whole corpus with the resource group's entries replaced."""
+    groups = synthetic.docs_json()
+    for group in groups:
+        if _is_resource_group(group):
+            group[synthetic.KEY_CLASSES] = entries
+    return groups
+
+
+def _no_resource_group(shape: str) -> Registry:
+    """The corpus with its resource group absent, emptied, or holding nothing nameable."""
+    if shape == "absent":
+        groups = [group for group in synthetic.docs_json() if not _is_resource_group(group)]
+    elif shape == "empty":
+        groups = _groups_with_resources([])
+    else:
+        groups = _groups_with_resources([{synthetic.KEY_DISPLAY_NAME: "No ClassName"}])
+    return build_registry(synthetic.document_from(groups))
+
+
+def test_the_resource_group_is_published_in_document_order(fuel_registry: Registry) -> None:
+    assert fuel_registry.resource_items == (
+        synthetic.CRUDE_RESOURCE,
+        synthetic.BRINE_RESOURCE,
+        synthetic.MIST_RESOURCE,
+        synthetic.STONE_RESOURCE,
+    )
+
+
+def test_both_synthetic_corpora_hold_exactly_their_one_resource(registry: Registry) -> None:
+    assert registry.resource_items == (ORE_ITEM,)
+    assert solve_registry().resource_items == (SOLVE_ORE_ITEM,)
+    # The solve corpus still builds clean: the group's presence raises nothing.
+    assert solve_registry().warnings == ()
+
+
+def test_an_item_nothing_makes_is_not_raw_unless_the_group_holds_it() -> None:
+    """An orphan is consumed, unmade and absent from the group: it is never raw.
+
+    Shape, not role: no reading of what a recipe consumes or of what nothing makes can
+    publish it, so the group is the whole source.
+    """
+    built = solve_registry()
+    consumed = {entry.item_key for recipe in built.recipes.values() for entry in recipe.inputs}
+    made = {entry.item_key for recipe in built.recipes.values() for entry in recipe.outputs}
+    # The control: the orphan really is what a raw rule would have swept up.
+    assert SOLVE_ORPHAN_ITEM in consumed
+    assert SOLVE_ORPHAN_ITEM not in made
+    assert SOLVE_ORPHAN_ITEM not in built.resource_items
+
+
+def test_a_resource_named_twice_is_listed_once() -> None:
+    twice = [
+        {
+            synthetic.KEY_CLASS_NAME: ORE_ITEM,
+            synthetic.KEY_DISPLAY_NAME: "Synthetic Ore",
+            synthetic.KEY_FORM: "RF_SOLID",
+        }
+    ] * 2
+    built = build_registry(synthetic.document_from(_groups_with_resources(twice)))
+    assert built.resource_items == (ORE_ITEM,)
+    assert ORE_ITEM in warned_subjects(built, WARN_DUPLICATE_CLASS_NAME)
+
+
+def test_a_resource_with_no_class_name_is_dropped_from_the_group_and_flagged() -> None:
+    entries = [
+        {synthetic.KEY_DISPLAY_NAME: "No ClassName"},
+        {
+            synthetic.KEY_CLASS_NAME: ORE_ITEM,
+            synthetic.KEY_DISPLAY_NAME: "Synthetic Ore",
+            synthetic.KEY_FORM: "RF_SOLID",
+        },
+    ]
+    built = build_registry(synthetic.document_from(_groups_with_resources(entries)))
+    assert built.resource_items == (ORE_ITEM,)
+    assert synthetic.RESOURCE_GROUP in warned_subjects(built, WARN_MISSING_CLASS_NAME)
+    # One entry still names a resource, so the group is not reported missing.
+    assert warned_subjects(built, WARN_NO_RESOURCE_GROUP) == set()
+
+
+@pytest.mark.parametrize("shape", ["absent", "empty", "nameless"])
+def test_a_group_absent_or_empty_is_flagged_in_the_warnings(registry: Registry, shape: str) -> None:
+    built = _no_resource_group(shape)
+    assert built.resource_items == ()
+    assert warned_subjects(built, WARN_NO_RESOURCE_GROUP) == {synthetic.RESOURCE_GROUP}
+    # The control: the same corpus holding its group raises no such warning.
+    assert warned_subjects(registry, WARN_NO_RESOURCE_GROUP) == set()
+
+
+def test_the_missing_group_warning_names_no_value() -> None:
+    (flagged,) = warnings_with(_no_resource_group("absent"), WARN_NO_RESOURCE_GROUP)
+    assert flagged.count == 1
+    assert ORE_ITEM not in flagged.detail
+
+
+def test_the_warning_code_and_the_new_function_are_published() -> None:
+    assert "WARN_NO_RESOURCE_GROUP" in registry_module.__all__
+    assert "plan_targets" in registry_module.__all__
+    assert "RESOURCE_GROUP_SHORT_NAME" in registry_module.__all__
+    assert registry_module.RESOURCE_GROUP_SHORT_NAME == synthetic.RESOURCE_GROUP
+    assert registry_module.RESOURCE_GROUP_SHORT_NAME in ITEM_GROUP_SHORT_NAMES
+
+
+def test_plan_targets_on_the_solve_corpus_by_hand() -> None:
+    """Every automated output, by hand from the corpus's recipe list, sorted and distinct.
+
+    Two recipes make Trinket and two make Fluid and two make Twin, so distinct is graded.
+    R_ZeroDuration makes the smelter descriptor and names no building, so it is not here.
+    """
+    assert plan_targets(solve_registry()) == tuple(
+        sorted(
+            (
+                SOLVE_FLUID_ITEM,
+                SOLVE_GADGET_ITEM,
+                SOLVE_PLATE_ITEM,
+                SOLVE_RELIC_ITEM,
+                SOLVE_RESIDUE_ITEM,
+                SOLVE_ROD_ITEM,
+                SOLVE_TRINKET_ITEM,
+                SOLVE_TWIN_ITEM,
+            )
+        )
+    )
+
+
+def test_plan_targets_reads_no_sink_value(registry: Registry) -> None:
+    """A target is what a machine makes. Absent, zero and real sink points all stay on it."""
+    targets = plan_targets(registry)
+    assert targets == tuple(sorted((GADGET_ITEM, VAPOR_ITEM, WATER_ITEM, WIDGET_ITEM)))
+    sink_values = [registry.items[item].sink_points for item in (WATER_ITEM, VAPOR_ITEM)]
+    assert sink_values == [None, 0]
+    assert registry.items[WIDGET_ITEM].sink_points == int(synthetic.WIDGET_SINK_POINTS)
+
+
+def test_an_output_no_automated_recipe_makes_is_not_a_target(registry: Registry) -> None:
+    built_by_gun = registry.recipes[BUILD_GUN_RECIPE].outputs[0].item_key
+    assert built_by_gun in registry.items
+    assert built_by_gun not in plan_targets(registry)
+
+
+def test_a_group_member_a_machine_makes_is_refused_as_a_target() -> None:
+    """Pillar 1 refuses a raw item as a target, so the list never offers one."""
+    made_ore = {
+        synthetic.KEY_CLASS_NAME: "R_MadeOre",
+        synthetic.KEY_DISPLAY_NAME: "Made Ore",
+        synthetic.KEY_DURATION: "6.000000",
+        synthetic.KEY_INGREDIENTS: amount_blob([(SOLVE_PLATE_ITEM, 1)]),
+        synthetic.KEY_PRODUCT: amount_blob([(SOLVE_ORE_ITEM, 1)]),
+        synthetic.KEY_PRODUCED_IN: class_path_blob([building_path(SOLVE_ASSEMBLER_BUILDING)]),
+    }
+    built = solve_registry_with(add=[made_ore])
+    assert SOLVE_ORE_ITEM not in plan_targets(built)
+    # The control: only the published group took it off.
+    assert SOLVE_ORE_ITEM in plan_targets(dataclasses.replace(built, resource_items=()))
+
+
+def test_a_registry_with_no_group_still_lists_every_target() -> None:
+    """The list is the recipes', and the empty group refuses in the advisor, never here."""
+    assert plan_targets(_no_resource_group("absent"))
