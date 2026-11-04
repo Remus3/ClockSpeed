@@ -33,7 +33,8 @@ THE BACKEND IS TIER 3 ONLY, THE SAME WAY. A derivation differs by backend, and a
 cleared against a heuristic's reference is not the claim an exact one makes, so the
 rule reads ``plan.backend`` on the ranked path. It is the name the result itself
 carries, never the environment value, and a name outside the closed vocabulary is a
-rule error. Tier 1, tier 2 and the card id do not move with it.
+rule error. It never reaches tier 1, tier 2 or the card id: on one plan the name moves
+none of them; a different backend can rank a different plan, which moves tier 2.
 
 WHY THE ENGINE ADMITS THESE TYPES. The solve layer declares its plan and badge
 dataclasses frozen but without slots, which
@@ -156,8 +157,8 @@ STATUS_RANKED: Final = "ranked"
 #: The caller stated no target. Every served world, today.
 STATUS_NO_TARGET: Final = "no-target"
 
-#: The question cannot be asked: a bad rate, direction or policy, or a refusal
-#: that says the request is malformed rather than unanswerable.
+#: The question cannot be asked: bad targets, a bad rate, direction, policy or raw
+#: items, or a refusal that says the request is malformed rather than unanswerable.
 STATUS_REQUEST_MALFORMED: Final = "request-malformed"
 
 #: The search found no plan over the unlocked automated recipes it kept, under the
@@ -196,7 +197,7 @@ _ADOPT_ALTERNATIVE: Final = "build the ranked plan"
 _STATUS_REASONS: Final = MappingProxyType(
     {
         STATUS_NO_TARGET: "no target was stated, so no plan was ranked",
-        STATUS_REQUEST_MALFORMED: "the stated target cannot be asked as a question",
+        STATUS_REQUEST_MALFORMED: "the stated request cannot be asked as a question",
         STATUS_NO_PLAN: (
             "the search found no plan over the unlocked automated recipes it kept,"
             " under the stated byproduct policy"

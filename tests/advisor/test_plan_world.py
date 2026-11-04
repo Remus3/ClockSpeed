@@ -861,8 +861,7 @@ REFUSALS: Final[Mapping[str, tuple[Callable[[], Exception], str]]] = MappingProx
 SOLVE_DOORS: Final = ("optimize_within_bound", "optimize_plan", "rank_plans")
 
 #: The door a rung search runs through. A no-plan refusal arriving here comes after
-#: the bound has solved, and on the asked rung (:func:`_request` asks by raw, the
-#: first rung), so a plan does exist and no-plan would be false.
+#: the bound has solved, so a plan does exist and no-plan would be false.
 RUNG_SEARCH_DOOR: Final = "optimize_plan"
 
 #: The refusals that say no-plan at every door but that one.
@@ -1181,41 +1180,76 @@ def _dead_end_registry() -> Registry:
 DEAD_END_PATHS: Final = (PATHS[ROD_FROM_ORE], PATHS[RELIC_DIRECT], PATHS[RARE_FROM_ORE])
 
 
-def test_a_rung_search_that_dead_ends_on_another_rung_costs_that_rung_alone(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("direction", [OBJECTIVE_RAW, OBJECTIVE_BUILDINGS, OBJECTIVE_POWER])
+def test_any_rung_search_that_dead_ends_is_solve_refused(
+    direction: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Asked by buildings under greedy: the raw rung reads as not comparable, the plan stands."""
-    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_GREEDY)
+    """Greedy's raw walk dead-ends whichever direction was asked, and a plan exists.
 
-    offered = plan_offer(
-        _unlocks(DEAD_END_PATHS), _dead_end_registry(), _request(direction=OBJECTIVE_BUILDINGS)
-    )
-
-    assert offered["plan.status"].value == STATUS_RANKED
-    plan = offered["plan.production"].value
-    assert [step.recipe_key for step in plan.steps] == [DEAD_END_A]  # type: ignore[attr-defined]
-    badge = _badge_of(offered)
-    assert _measured(badge) == [
-        (RUNG_WITHIN_RAW, False, None, None, NOT_CLEARED_UNPRICEABLE),
-        (RUNG_WITHIN_BUILDINGS, True, ONE_STAGE_MACHINES, ONE_STAGE_MACHINES, ""),
-        (RUNG_WITHIN_POWER, True, ONE_STAGE_MEGAWATTS, ONE_STAGE_MEGAWATTS, ""),
-    ]
-
-
-def test_a_rung_search_that_dead_ends_on_the_asked_rung_is_solve_refused(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Asked by raw under greedy the bound solved, so no-plan would be false: a plan exists."""
+    No-plan would be false, because the bound has just solved. Not comparable would
+    be false too: that plan's raw score is exactly 60, and a None reference says a rung
+    has no exact figure to compare. So the search refused, and no card is built on it.
+    """
     monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_GREEDY)
 
     trace = run_rule(
         plan_rules.ADOPT_RULE,
-        _inputs(_model(DEAD_END_PATHS), _dead_end_registry(), _request()),
+        _inputs(_model(DEAD_END_PATHS), _dead_end_registry(), _request(direction=direction)),
     )
 
     assert _read(trace, "plan.status") == STATUS_SOLVE_REFUSED
     assert _indeterminate_reason(trace) == "the search refused, which says nothing about the target"
     assert card_for(trace) is None
+
+
+def test_a_power_rung_that_dead_ends_is_refused_though_every_recipe_prices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every recipe here has an exact draw, so an unpriceable power rung would be false.
+
+    By hand at 10 Relic a minute, balanced: R_A in an assembler, 6 Ore to 1 Relic, is the
+    only plan, at 60 Ore, 1 machine, 15 MW. R_B in a smelter, 7 Rare to 1 Relic, needs
+    R_C in a smelter, 1 Ore to 1 Rare and 1 Rod, and nothing consumes the Rod. Greedy's
+    raw walk probes R_A at 60 against R_B's relaxed 70, and its buildings walk ties them
+    and takes R_A first, so both solve. Its power walk probes R_B at 4 MW against R_A's
+    15, commits to it, adds R_C, and no selection it reached solved.
+    """
+    smelter = (SOLVE_SMELTER_BUILDING,)
+    registry = _registry_of(
+        [
+            _entry(
+                DEAD_END_A, [(SOLVE_ORE_ITEM, 6)], [(SOLVE_RELIC_ITEM, 1)], path=PATHS[ROD_FROM_ORE]
+            ),
+            _entry(
+                DEAD_END_B,
+                [(SOLVE_RARE_ITEM, 7)],
+                [(SOLVE_RELIC_ITEM, 1)],
+                path=PATHS[RELIC_DIRECT],
+                buildings=smelter,
+            ),
+            _entry(
+                DEAD_END_C,
+                [(SOLVE_ORE_ITEM, 1)],
+                [(SOLVE_RARE_ITEM, 1), (SOLVE_ROD_ITEM, 1)],
+                path=PATHS[RARE_FROM_ORE],
+                buildings=smelter,
+            ),
+        ]
+    )
+    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_GREEDY)
+
+    offered = plan_offer(_unlocks(DEAD_END_PATHS), registry, _request())
+
+    assert offered["plan.status"].value == STATUS_SOLVE_REFUSED
+
+    # The control: a complete search prices the one plan on all three rungs.
+    monkeypatch.setenv(BACKEND_ENV_VAR, BACKEND_EXHAUSTIVE)
+    complete = plan_offer(_unlocks(DEAD_END_PATHS), registry, _request())
+    assert _measured(_badge_of(complete)) == [
+        (RUNG_WITHIN_RAW, True, ONE_STAGE_ORE, ONE_STAGE_ORE, ""),
+        (RUNG_WITHIN_BUILDINGS, True, ONE_STAGE_MACHINES, ONE_STAGE_MACHINES, ""),
+        (RUNG_WITHIN_POWER, True, ONE_STAGE_MEGAWATTS, ONE_STAGE_MEGAWATTS, ""),
+    ]
 
 
 @pytest.mark.parametrize("direction", [OBJECTIVE_RAW, OBJECTIVE_BUILDINGS, OBJECTIVE_POWER])
@@ -1302,6 +1336,48 @@ def test_the_backend_moves_tier3_and_never_tier1_or_the_id(
     assert 'Read plan.backend = "greedy" from' in backend_line
 
 
+def test_a_different_backend_can_rank_a_different_plan_which_moves_tier2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Across backends the name is not all that moves, so tier 2 can differ on one card id.
+
+    By hand at 10 Relic a minute: R_D alone, 2 Ore to 1 Relic, is 1 machine at 20 Ore,
+    the raw optimum exhaustive finds. Greedy's raw walk probes R_B, 1 Rare to 1 Relic, at
+    a relaxed raw total of 10 against R_D's 20, commits to it, and adds R_C, 5 Ore to 1
+    Rare: 2 machines at 50 Ore. Its other walks tie and take R_A, 6 Ore to 1 Relic, at
+    60 Ore, so the top of its ranking under raw is the 50 Ore plan.
+    """
+    registry = _registry_of(
+        [
+            _entry("R_A", [(SOLVE_ORE_ITEM, 6)], [(SOLVE_RELIC_ITEM, 1)], path=PATHS[ROD_FROM_ORE]),
+            _entry(
+                "R_B", [(SOLVE_RARE_ITEM, 1)], [(SOLVE_RELIC_ITEM, 1)], path=PATHS[RELIC_DIRECT]
+            ),
+            _entry("R_C", [(SOLVE_ORE_ITEM, 5)], [(SOLVE_RARE_ITEM, 1)], path=PATHS[RARE_FROM_ORE]),
+            _entry("R_D", [(SOLVE_ORE_ITEM, 2)], [(SOLVE_RELIC_ITEM, 1)], path=PATHS[NO_PRODUCER]),
+        ]
+    )
+    model = _model((*DEAD_END_PATHS, PATHS[NO_PRODUCER]))
+    cards = []
+    for backend in (BACKEND_EXHAUSTIVE, BACKEND_GREEDY):
+        monkeypatch.setenv(BACKEND_ENV_VAR, backend)
+        cards.append(
+            card_for(run_rule(plan_rules.ADOPT_RULE, _inputs(model, registry, _request())))
+        )
+    first, second = cards
+    assert first is not None
+    assert second is not None
+    same_id = first.id == second.id
+    assert same_id
+    assert (
+        first.tier2
+        == "It makes 10.00 per minute of Desc_SolveRelic_C with 1.00 machine equivalents"
+    )
+    assert second.tier2 == (
+        "It makes 10.00 per minute of Desc_SolveRelic_C with 2.00 machine equivalents"
+    )
+
+
 def test_the_backend_is_the_results_field_never_the_environment_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1322,6 +1398,18 @@ def test_the_backend_is_the_results_field_never_the_environment_value(
     assert offered["plan.backend"].source == "solve.optimize.optimize_result.backend"
 
 
+class _ItemsTuple(tuple[str, ...]):
+    """A tuple by inheritance and not exactly one, as a request's raw items may not be."""
+
+    __slots__ = ()
+
+
+class _ItemKey(str):
+    """A str by inheritance and not exactly one, as an item key may not be."""
+
+    __slots__ = ()
+
+
 @pytest.mark.parametrize(
     "raw_items",
     [
@@ -1329,11 +1417,44 @@ def test_the_backend_is_the_results_field_never_the_environment_value(
         pytest.param(None, id="none"),
         pytest.param([SOLVE_ORE_ITEM], id="a-list"),
         pytest.param((SOLVE_ORE_ITEM, 1), id="a-non-str-member"),
+        pytest.param(_ItemsTuple((SOLVE_ORE_ITEM,)), id="a-tuple-subclass"),
+        pytest.param((_ItemKey(SOLVE_ORE_ITEM),), id="a-str-subclass-member"),
     ],
 )
-def test_raw_items_that_are_not_a_tuple_of_str_are_malformed(raw_items: Any) -> None:
-    """A str read as no raw item at all, a false no-plan, and None raised out of the offer."""
+def test_raw_items_that_are_not_a_tuple_of_str_are_malformed(
+    raw_items: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A str read as no raw item at all, a false no-plan, and None raised out of the offer.
+
+    Refused before any solve, for the reason the targets arm below gives.
+    """
+    _refuse_every_door(monkeypatch)
     request = dataclasses.replace(_request(), raw_items=raw_items)
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), request)
+
+    assert offered["plan.status"].value == STATUS_REQUEST_MALFORMED
+
+
+@pytest.mark.parametrize(
+    "targets",
+    [
+        pytest.param(None, id="none"),
+        pytest.param([SOLVE_RELIC_ITEM], id="a-list"),
+        pytest.param({1: RELIC_RATE}, id="a-non-str-key"),
+        pytest.param({_ItemKey(SOLVE_RELIC_ITEM): RELIC_RATE}, id="a-str-subclass-key"),
+    ],
+)
+def test_targets_that_are_not_a_mapping_keyed_by_str_are_malformed(
+    targets: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A status and never a crash, because inputs_of does not catch what plan_offer raises.
+
+    Refused before any solve: a str subclass does read malformed from the exact audit's
+    own refusal further down, so only the door standing closed shows this check answered.
+    """
+    _refuse_every_door(monkeypatch)
+    request = dataclasses.replace(_request(), targets=targets)
 
     offered = plan_offer(_unlocks(ASCENT_PATHS), _registry(), request)
 

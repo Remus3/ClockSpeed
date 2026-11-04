@@ -33,10 +33,10 @@ from the member it compared equal to.
 THE SEARCH, IN ORDER.
 
 1. The request is checked: one known direction, one known byproduct policy, raw
-   items exactly a tuple of str, and at least one target, every rate exactly a
-   Fraction above zero. A zero-rate Build card is absurd, and an unknown policy or a
-   str of raw items reaches pillar 2 as no selection at all, which would read as a
-   false no-plan.
+   items exactly a tuple of str, and a mapping of at least one target, every key
+   exactly a str and every rate exactly a Fraction above zero. A zero-rate Build card
+   is absurd, an unknown policy or a str of raw items reaches pillar 2 as no selection
+   at all, which would read as a false no-plan, and targets of any other shape raise.
 2. :func:`clockspeed.solve.bound.optimize_within_bound` answers feasibility over the
    kept set, and the trim. A real world joins more recipes than the exhaustive
    backend's cap, so a whole-set search would refuse. ``plan.trimmed`` names what the
@@ -59,12 +59,14 @@ comparable there and
 leaves the other two rungs graded. Asked for by power there is no order to publish,
 so the status is ``power-not-comparable``.
 
-A DEAD-ENDED RUNG SEARCH COSTS ONE RUNG TOO, AND NEVER READS AS NO-PLAN. Under the
-greedy backend, a heuristic that never backtracks, the bound can solve and a rung's
-own search over the kept set then find nothing, although the bound has just shown a
-plan exists. So a rung other than the asked direction takes the power refusal's
-shape, its reference None, and the asked rung itself is ``solve-refused``, which says
-nothing about the target. Only the bound's own refusal is ``no-plan``.
+A DEAD-ENDED RUNG SEARCH IS A REFUSED SEARCH, NEVER NO-PLAN AND NEVER NOT COMPARABLE.
+Under the greedy backend, a heuristic that never backtracks, the bound can solve and a
+rung's own search over the kept set then find nothing, although the bound has just
+shown a plan exists. No-plan would be false, and so would a None reference, which
+arises from a power refusal alone and says a rung has no exact figure, when a dead end
+says only that this search found nothing to compare with. So any rung's dead end is
+``solve-refused``, which says nothing about the target. Only the bound's own refusal
+is ``no-plan``.
 
 A REFUSAL IS A STATUS, NEVER A CRASH AND NEVER TEXT. Every refusal the solve layer
 raises becomes one word of the closed vocabulary in
@@ -81,6 +83,7 @@ rate and figure is an exact Fraction.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
@@ -114,8 +117,6 @@ from clockspeed.solve.ratio import BYPRODUCT_POLICIES, ProductionPlan
 from clockspeed.solve.strategy import STRATEGY_LADDER, RankedPlan, Strategy, rank_plans
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from clockspeed.save.world import UnlockState
     from clockspeed.solve.bound import TrimRecord
 
@@ -125,8 +126,8 @@ __all__ = ["PlanRequest", "plan_offer"]
 _UNIT_WEIGHT: Final = Fraction(1)
 
 
-class _AskedRungDeadEndError(OptimizeError):
-    """The bound solved, and the asked direction's own search then found nothing.
+class _RungDeadEndError(OptimizeError):
+    """The bound solved, and one rung's own search then found nothing.
 
     Not a no-plan: the bound has just found one. Raised and caught in this module,
     and it holds no text, so nothing it carries can reach a reader.
@@ -142,8 +143,8 @@ class PlanRequest:
     be this module saying something the caller never said.
 
     Attributes:
-        targets: Item key to the wanted net rate per minute. Every rate must be
-            exactly a Fraction above zero.
+        targets: A mapping of item key to the wanted net rate per minute. Every key
+            must be exactly a str and every rate exactly a Fraction above zero.
         raw_items: Items available without bound, exactly a tuple of str.
         byproduct_policy: One of pillar 1's byproduct policies.
         direction: One member of :data:`clockspeed.solve.optimize.OBJECTIVES`. A
@@ -165,14 +166,18 @@ def _well_formed(request: PlanRequest) -> bool:
 
     Returns:
         True for one known direction, one known byproduct policy, raw items exactly a
-        tuple of str and at least one target, each rate exactly a Fraction above zero.
+        tuple of str and a mapping of at least one target, each key exactly a str and
+        each rate exactly a Fraction above zero.
     """
     if request.direction not in OBJECTIVES or request.byproduct_policy not in BYPRODUCT_POLICIES:
         return False
     raw_items = request.raw_items
     if type(raw_items) is not tuple or not all(type(item) is str for item in raw_items):
         return False
-    rates = tuple(request.targets.values())
+    targets = request.targets
+    if not isinstance(targets, Mapping) or not all(type(item) is str for item in targets):
+        return False
+    rates = tuple(targets.values())
     return bool(rates) and all(type(rate) is Fraction and rate > 0 for rate in rates)
 
 
@@ -200,14 +205,14 @@ def _rung_optimum(
         asked: The direction the caller asked for.
 
     Returns:
-        The plan, or None when the rung has no exact figure to compare, or its own
-        search dead-ended on a set the bound has already solved.
+        The plan, or None when the power search refused and the caller asked another
+        direction: the rung has no exact figure to compare.
 
     Raises:
         PowerNotComparableError: The rung is the direction the caller asked for,
             so there is no order to publish.
-        _AskedRungDeadEndError: The rung is the direction the caller asked for, and
-            its own search dead-ended.
+        _RungDeadEndError: The rung's own search found nothing, on a set the bound
+            has already solved.
         OptimizeError, ExactArithmeticError, ValueError: As
             :func:`clockspeed.solve.optimize.optimize_plan` raises them.
     """
@@ -219,9 +224,7 @@ def _rung_optimum(
             raise
         return None
     except NoFeasibleSelectionError:
-        if strategy.objective_name == asked:
-            raise _AskedRungDeadEndError from None
-        return None
+        raise _RungDeadEndError from None
 
 
 def _removed(record: TrimRecord | None) -> tuple[str, ...]:
@@ -281,7 +284,7 @@ def plan_offer(
     """Answer one request with the inputs the plan family reads.
 
     Reads no file and no clock. Never raises for a solve refusal: each one is a
-    status. So does a KeyError or ValueError from anywhere in the search, even one
+    status. So is a KeyError or ValueError from anywhere in the search, even one
     that is a bug in this tree, because neither can be told from a refusal; only a
     type outside the catches raises.
 

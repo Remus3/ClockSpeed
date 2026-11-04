@@ -393,7 +393,7 @@ def test_a_different_badge_on_the_same_plan_moves_tier3_and_never_tier1() -> Non
 
 
 def test_the_backend_moves_exactly_its_own_tier3_line_and_never_tier1_or_the_id() -> None:
-    """CS-1351: tier 3 differs by backend, so it names the one that ran, and only tier 3 does."""
+    """CS-1351: on one plan the backend's name moves exactly its own tier 3 line."""
     first = _card(_world(backend=EXHAUSTIVE))
     second = _card(_world(backend=GREEDY))
     same_headline = first.tier1 == second.tier1
@@ -560,7 +560,7 @@ REFUSED_STATUSES: Final = (
 #: The two statuses whose reason needs nothing else read, with those reasons.
 UNJOINED_STATUSES: Final = (
     (STATUS_NO_TARGET, "no target was stated, so no plan was ranked"),
-    (STATUS_REQUEST_MALFORMED, "the stated target cannot be asked as a question"),
+    (STATUS_REQUEST_MALFORMED, "the stated request cannot be asked as a question"),
 )
 
 

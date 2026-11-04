@@ -735,6 +735,26 @@ def test_a_refusal_under_the_cap_carries_no_record(corpus: Registry) -> None:
     assert caught.value.record is None
 
 
+def test_exactly_at_the_cap_nothing_is_dropped_so_there_is_no_record() -> None:
+    """Twelve fillers fit a cap of twelve: a record there would remove nothing.
+
+    :class:`TrimRecord` says an empty narrowing gets no record at all, so the off-by-one
+    that builds one with ``removed=()`` is the shape this boundary rules out.
+    """
+    added = _padding(MAX_EXHAUSTIVE_CANDIDATES)
+    registry = registry_with(add=added)
+    request = _request(_added_keys(registry, added))
+    usable, _notes = usable_candidates(registry, request)
+
+    assert len(usable) == MAX_EXHAUSTIVE_CANDIDATES
+    assert bound.trim_record(registry, request) is None
+
+    with pytest.raises(BoundExhaustedError) as caught:
+        optimize_within_bound(registry, request)
+
+    assert caught.value.record is None
+
+
 def test_the_record_is_keyword_only_and_a_refusal_built_without_one_holds_none() -> None:
     """Additive: the four positional arguments every shipped raise passes still build one."""
     bare = BoundExhaustedError(MAX_EXHAUSTIVE_CANDIDATES, TRIM_TARGET_PRODUCERS_FIRST, 1, "m")
