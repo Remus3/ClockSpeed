@@ -29,6 +29,7 @@ docstring is one string constant and its contents are never identifiers.
 from __future__ import annotations
 
 import ast
+import inspect
 import re
 from dataclasses import replace
 from fractions import Fraction
@@ -613,6 +614,217 @@ def test_ranking_nothing_publishes_nothing_rather_than_inventing_a_reference(
 ) -> None:
     """An empty ranking has no top member, so there is no badge to fabricate."""
     assert rank_plans(registry, (), objective=weighted_objective(raw=UNIT)) == ()
+
+
+# ---------------------------------------------------------------------------
+# CS-1351 - a ranking graded against each rung's own reference
+# ---------------------------------------------------------------------------
+#
+# rank_plans grades every entry against its own top member, so rank one always
+# clears every rung against itself and its badge claims nothing. An advisor needs
+# the top plan graded against the best plan each rung's own direction allows, so
+# the caller may hand one reference per rung. The solving stays the caller's.
+
+
+def _rung_references(
+    raw: ProductionPlan | None,
+    buildings: ProductionPlan | None,
+    power: ProductionPlan | None,
+) -> dict[str, ProductionPlan | None]:
+    """One reference per ladder rung, spelled by rung so no arm can cross them."""
+    return {
+        RUNG_WITHIN_RAW: raw,
+        RUNG_WITHIN_BUILDINGS: buildings,
+        RUNG_WITHIN_POWER: power,
+    }
+
+
+def test_each_rung_is_graded_against_its_own_reference(registry: Registry) -> None:
+    """C3 is the raw optimum and C5 the buildings and power optimum: one rung clears.
+
+    Assembled from the corpus's own hand-derived figures, never read back from a
+    solve: 60 Ore against 60, 6 machines against 3, 436/3 MW against 45.
+    """
+    c3 = _c3(registry)
+    c5 = _c5(registry)
+
+    ranked = rank_plans(
+        registry,
+        (c3,),
+        objective=weighted_objective(raw=UNIT),
+        references=_rung_references(c3, c5, c5),
+    )
+
+    badge = ranked[0].badge
+    assert badge.cleared == (RUNG_WITHIN_RAW,)
+    assert badge.strongest == RUNG_WITHIN_RAW
+    measured = [
+        (check.strategy, check.cleared, check.score, check.reference, check.reason)
+        for check in badge.checks
+    ]
+    assert measured == [
+        (RUNG_WITHIN_RAW, True, C3_ORE_DEMAND, C3_ORE_DEMAND, ""),
+        (RUNG_WITHIN_BUILDINGS, False, C3_MACHINES, C5_STD_MACHINES, NOT_CLEARED_OVER_BOUND),
+        (RUNG_WITHIN_POWER, False, C3_POWER_MW, C5_POWER_MW, NOT_CLEARED_OVER_BOUND),
+    ]
+
+
+def test_references_grade_rung_by_rung_and_never_by_position(registry: Registry) -> None:
+    """Crossed, each check carries the figure of the reference handed to ITS rung."""
+    c3 = _c3(registry)
+    c5 = _c5(registry)
+
+    crossed = rank_plans(
+        registry,
+        (c3,),
+        objective=weighted_objective(raw=UNIT),
+        references=_rung_references(c5, c3, c3),
+    )
+
+    assert crossed[0].badge.cleared == (RUNG_WITHIN_RAW, RUNG_WITHIN_BUILDINGS, RUNG_WITHIN_POWER)
+    assert [check.reference for check in crossed[0].badge.checks] == [
+        C5_ORE_DEMAND,
+        C3_MACHINES,
+        C3_POWER_MW,
+    ]
+
+
+def test_a_rung_whose_reference_is_none_is_unpriceable_and_keeps_the_rest(
+    registry: Registry,
+) -> None:
+    """None says no optimum could be priced for that rung, so it cannot clear."""
+    c3 = _c3(registry)
+
+    ranked = rank_plans(
+        registry,
+        (c3,),
+        objective=weighted_objective(raw=UNIT),
+        references=_rung_references(c3, c3, None),
+    )
+
+    badge = ranked[0].badge
+    power = badge.checks[2]
+    assert power.strategy == RUNG_WITHIN_POWER
+    assert power.cleared is False
+    assert power.score is None
+    assert power.reference is None
+    assert power.bound == UNIT
+    assert power.reason == NOT_CLEARED_UNPRICEABLE
+    assert badge.cleared == (RUNG_WITHIN_RAW, RUNG_WITHIN_BUILDINGS)
+    assert badge.strongest == RUNG_WITHIN_BUILDINGS
+
+
+def test_a_none_reference_on_every_rung_earns_no_badge(registry: Registry) -> None:
+    c3 = _c3(registry)
+    ranked = rank_plans(
+        registry,
+        (c3,),
+        objective=weighted_objective(raw=UNIT),
+        references=_rung_references(None, None, None),
+    )
+    badge = ranked[0].badge
+    assert badge.strongest is None
+    assert badge.cleared == ()
+    assert [check.reason for check in badge.checks] == [NOT_CLEARED_UNPRICEABLE] * 3
+
+
+@pytest.mark.parametrize(
+    "rung", [RUNG_WITHIN_RAW, RUNG_WITHIN_BUILDINGS, RUNG_WITHIN_POWER], ids=str
+)
+def test_a_missing_rung_is_refused_never_graded_as_unpriceable(
+    registry: Registry, rung: str
+) -> None:
+    """Absent is not None: the caller forgot, and no verdict may be invented for it."""
+    c3 = _c3(registry)
+    references = _rung_references(c3, c3, c3)
+    del references[rung]
+
+    with pytest.raises(StrategyUndefinedError, match=rung):
+        rank_plans(
+            registry,
+            (c3,),
+            objective=weighted_objective(raw=UNIT),
+            references=references,
+        )
+
+
+def test_a_rung_outside_the_ladder_is_refused(registry: Registry) -> None:
+    """A reference nothing would read is a claim the caller believes is in force."""
+    c3 = _c3(registry)
+    references = {**_rung_references(c3, c3, c3), "within-nothing": c3}
+
+    with pytest.raises(StrategyUndefinedError, match="within-nothing"):
+        rank_plans(
+            registry,
+            (c3,),
+            objective=weighted_objective(raw=UNIT),
+            references=references,
+        )
+
+
+def test_an_unstated_references_is_the_shipped_self_graded_ranking(registry: Registry) -> None:
+    """The default is byte-for-byte what a ranking published before the keyword existed."""
+    plans = _corpus(registry)
+    objective = weighted_objective(raw=UNIT)
+
+    stated = rank_plans(registry, plans, objective=objective, references=None)
+    unstated = rank_plans(registry, plans, objective=objective)
+
+    assert repr(stated) == repr(unstated)
+    top = unstated[0].plan
+    assert [entry.badge for entry in unstated] == [
+        badge_for(registry, entry.plan, top) for entry in unstated
+    ]
+
+
+def test_references_move_only_the_badges_never_the_order_or_the_keys(registry: Registry) -> None:
+    """The order, the plans, the scores and the keys are the same two rankings'."""
+    plans = _corpus(registry)
+    objective = weighted_objective(raw=UNIT)
+    c5 = plans[3]
+
+    plain = rank_plans(registry, plans, objective=objective)
+    graded = rank_plans(
+        registry, plans, objective=objective, references=_rung_references(c5, c5, c5)
+    )
+
+    assert _places(graded, plans) == _places(plain, plans)
+    assert [(entry.rank, entry.score, entry.key) for entry in graded] == [
+        (entry.rank, entry.score, entry.key) for entry in plain
+    ]
+    assert graded[0].badge != plain[0].badge
+    assert plain[0].badge.cleared == tuple(rung.name for rung in STRATEGY_LADDER)
+
+
+def test_references_is_keyword_only_and_defaults_to_none() -> None:
+    parameter = inspect.signature(rank_plans).parameters["references"]
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is None
+
+
+def test_a_refused_references_is_refused_over_an_empty_ranking_too(registry: Registry) -> None:
+    """The check is on the question, so an empty ranking cannot pass a malformed one."""
+    with pytest.raises(StrategyUndefinedError):
+        rank_plans(registry, (), objective=weighted_objective(raw=UNIT), references={})
+
+
+def test_a_graded_ranking_reaches_no_solve_at_runtime_either(
+    registry: Registry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Handing references over solves nothing: the caller solved them."""
+    plans = _corpus(registry)
+    references = _rung_references(plans[1], plans[3], plans[3])
+    objective = weighted_objective(raw=UNIT)
+
+    monkeypatch.setattr(ratio, "solve_for_targets", _refuse)
+    monkeypatch.setattr(ratio, "solve_for_supply", _refuse)
+    monkeypatch.setattr(optimize, "solve_for_targets", _refuse)
+    monkeypatch.setattr(optimize, "evaluate_selection", _refuse)
+    monkeypatch.setattr(optimize, "optimize_plan", _refuse)
+
+    ranked = rank_plans(registry, plans, objective=objective, references=references)
+
+    assert len(ranked) == len(plans)
 
 
 # ---------------------------------------------------------------------------

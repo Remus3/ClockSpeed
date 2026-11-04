@@ -69,7 +69,22 @@ winner - is worse than absent. It would make a badge cost a whole search, and
 it would REFUSE outright above ``optimize.py``'s exhaustive candidate cap, so a
 plan's badge would depend on how many candidates were in play rather than on
 the plan. :func:`rank_plans` has a reference it did not have to invent, its own
-top-ranked member, and passes it explicitly.
+top-ranked member, and passes it explicitly, unless its caller states one per
+rung through ``references``.
+
+A RANKING'S OWN TOP MEMBER GRADES ITSELF, WHICH IS WHY A CALLER MAY STATE ONE PER RUNG
+----------------------------------------------------------------------------------------
+Graded against its own ranking, rank one clears every rung, whatever else is in
+the ranking: it scores no more than itself on all three, so its badge claims
+nothing a reader can use. A caller about to advise that plan holds the better
+question, whether it is within the best plan each rung's own direction allows.
+So :func:`rank_plans` takes keyword-only ``references``, one plan per rung, the
+caller having solved them. Every entry stays a published plan-and-badge pair,
+nothing here solves, and an unstated ``references`` is the self-graded ranking
+above, unchanged. A rung's reference of None says that rung had nothing exact to
+compare with, and reads as :data:`NOT_CLEARED_UNPRICEABLE`. A missing rung is
+refused rather than read as None: absent is the caller's oversight, and grading
+it would publish a verdict nobody asked for.
 
 THE LADDER ORDER IS WEAKEST CLAIM FIRST
 -----------------------------------------
@@ -330,7 +345,8 @@ class RankedPlan:
             plan's own fields, so a reader cannot otherwise see why two plans
             with equal scores came out in the order they did.
         badge: The plan's badge against the top-ranked member of this same
-            ranking.
+            ranking or, when the ranking was handed ``references``, against
+            each rung's own reference.
     """
 
     rank: int
@@ -354,11 +370,13 @@ class StrategyUndefinedError(StrategyError):
     """A rung does not state a threshold that can be evaluated.
 
     Covers a bound below one, a bound that is not exactly a
-    :class:`~fractions.Fraction`, and a rung naming an objective outside
-    :data:`~clockspeed.solve.optimize.OBJECTIVES`. Each produces a check that
+    :class:`~fractions.Fraction`, a rung naming an objective outside
+    :data:`~clockspeed.solve.optimize.OBJECTIVES`, and a ``references`` mapping
+    that does not name exactly the ladder's rungs. Each produces a check that
     grades nothing: a bound below one asks a plan to BEAT the reference while
     the rung's prose says "within", an inexact bound converts every value
-    derived from it, and an unmodeled objective name has no arithmetic at all.
+    derived from it, an unmodeled objective name has no arithmetic at all, and a
+    rung with no stated reference has nothing to be graded against.
     """
 
 
@@ -443,6 +461,28 @@ def _single_objective(strategy: Strategy) -> Objective:
     return Objective(weights=MappingProxyType({strategy.objective_name: _RUNG_WEIGHT}))
 
 
+def _unpriceable_check(strategy: Strategy) -> ThresholdCheck:
+    """The verdict of a rung with no exact figure to compare.
+
+    Args:
+        strategy: The rung, already checked.
+
+    Returns:
+        The rung not cleared under :data:`NOT_CLEARED_UNPRICEABLE`, with no
+        score. Audited exact.
+    """
+    unpriceable = ThresholdCheck(
+        strategy=strategy.name,
+        cleared=False,
+        score=None,
+        reference=None,
+        bound=strategy.bound,
+        reason=NOT_CLEARED_UNPRICEABLE,
+    )
+    audit_exact(unpriceable, path="check")
+    return unpriceable
+
+
 def check_threshold(
     registry: Registry,
     plan: ProductionPlan,
@@ -483,16 +523,7 @@ def check_threshold(
         score = score_plan(registry, plan, objective)
         reference_score = score_plan(registry, reference, objective)
     except PowerNotComparableError:
-        unpriceable = ThresholdCheck(
-            strategy=strategy.name,
-            cleared=False,
-            score=None,
-            reference=None,
-            bound=strategy.bound,
-            reason=NOT_CLEARED_UNPRICEABLE,
-        )
-        audit_exact(unpriceable, path="check")
-        return unpriceable
+        return _unpriceable_check(strategy)
 
     cleared = score <= strategy.bound * reference_score
     check = ThresholdCheck(
@@ -505,6 +536,31 @@ def check_threshold(
     )
     audit_exact(check, path="check")
     return check
+
+
+def _badge_of(checks: tuple[ThresholdCheck, ...]) -> StrategyBadge:
+    """Publish the badge one verdict per rung adds up to.
+
+    The one statement of the rule, shared by :func:`badge_for` and a ranking
+    graded against ``references``, so the two cannot disagree on what strongest
+    means.
+
+    Args:
+        checks: One verdict per member of :data:`STRATEGY_LADDER`, in ladder
+            order.
+
+    Returns:
+        The badge, its ``strongest`` the highest-index cleared rung. Audited
+        exact.
+    """
+    cleared = tuple(check.strategy for check in checks if check.cleared)
+    badge = StrategyBadge(
+        strongest=cleared[-1] if cleared else None,
+        cleared=cleared,
+        checks=checks,
+    )
+    audit_exact(badge, path="badge")
+    return badge
 
 
 def badge_for(registry: Registry, plan: ProductionPlan, reference: ProductionPlan) -> StrategyBadge:
@@ -528,17 +584,65 @@ def badge_for(registry: Registry, plan: ProductionPlan, reference: ProductionPla
         KeyError: The power rung's pricing reaches a recipe this registry does
             not model, as :func:`check_threshold` documents.
     """
-    checks = tuple(
-        check_threshold(registry, plan, reference, strategy) for strategy in STRATEGY_LADDER
+    return _badge_of(
+        tuple(check_threshold(registry, plan, reference, strategy) for strategy in STRATEGY_LADDER)
     )
-    cleared = tuple(check.strategy for check in checks if check.cleared)
-    badge = StrategyBadge(
-        strongest=cleared[-1] if cleared else None,
-        cleared=cleared,
-        checks=checks,
-    )
-    audit_exact(badge, path="badge")
-    return badge
+
+
+def _check_references(references: Mapping[str, ProductionPlan | None]) -> None:
+    """Refuse a ``references`` mapping that does not name exactly the ladder's rungs.
+
+    Args:
+        references: Rung name to the plan that rung is graded against.
+
+    Raises:
+        StrategyUndefinedError: A rung has no entry, or an entry names no rung.
+            The message names rungs, never a plan.
+    """
+    ladder = tuple(strategy.name for strategy in STRATEGY_LADDER)
+    missing = [name for name in ladder if name not in references]
+    if missing:
+        raise StrategyUndefinedError(
+            f"references names no plan for {', '.join(missing)}. None states that a rung has "
+            "nothing exact to compare with, and an absent rung states nothing"
+        )
+    strays = sorted(name for name in references if name not in ladder)
+    if strays:
+        raise StrategyUndefinedError(
+            f"references names {', '.join(strays)}, which the ladder does not hold, so nothing "
+            "would ever read it"
+        )
+
+
+def _badge_against(
+    registry: Registry,
+    plan: ProductionPlan,
+    references: Mapping[str, ProductionPlan | None],
+) -> StrategyBadge:
+    """Grade a plan on every rung against that rung's own reference.
+
+    Args:
+        registry: The built registry.
+        plan: The plan being graded.
+        references: Rung name to its reference, already checked. None reads as
+            :data:`NOT_CLEARED_UNPRICEABLE` for that rung.
+
+    Returns:
+        The badge, as :func:`badge_for` publishes one. Audited exact.
+
+    Raises:
+        StrategyUndefinedError, ObjectiveUndefinedError, KeyError: As
+            :func:`check_threshold` raises them.
+    """
+    checks: list[ThresholdCheck] = []
+    for strategy in STRATEGY_LADDER:
+        reference = references[strategy.name]
+        if reference is None:
+            check_strategy(strategy)
+            checks.append(_unpriceable_check(strategy))
+        else:
+            checks.append(check_threshold(registry, plan, reference, strategy))
+    return _badge_of(tuple(checks))
 
 
 def _plan_selection(plan: ProductionPlan) -> tuple[str, ...]:
@@ -578,12 +682,18 @@ def _plan_rank_key(
 
 
 def rank_plans(
-    registry: Registry, plans: Sequence[ProductionPlan], *, objective: Objective
+    registry: Registry,
+    plans: Sequence[ProductionPlan],
+    *,
+    objective: Objective,
+    references: Mapping[str, ProductionPlan | None] | None = None,
 ) -> tuple[RankedPlan, ...]:
     """Rank plans under one objective by RE-SCORING them, never by re-solving.
 
     The reference for every badge is this ranking's own top-ranked member,
-    which is the one reference this function does not have to invent.
+    which is the one reference this function does not have to invent, unless
+    the caller states one per rung through ``references``. The module docstring
+    holds why a caller about to advise a plan states them.
 
     Args:
         registry: The built registry.
@@ -591,6 +701,10 @@ def rank_plans(
             each :attr:`RankedPlan.plan` is the object that was handed in.
         objective: What to rank by. Switching it changes the ORDER and nothing
             else, because no plan arithmetic is reachable from here.
+        references: Rung name to the plan that rung grades every entry against,
+            None for a rung with nothing exact to compare with. It moves the
+            badges and nothing else. Left None, every badge is graded against
+            the top-ranked member.
 
     Returns:
         The plans in rank order, best first, each with its score, its full
@@ -599,6 +713,8 @@ def rank_plans(
         Audited exact.
 
     Raises:
+        StrategyUndefinedError: ``references`` does not name exactly the ladder's
+            rungs. Refused whatever ``plans`` holds, the empty input included.
         ObjectiveUndefinedError: The objective names no usable direction.
         PowerNotComparableError: The objective weights power and some used
             recipe has no exact draw. NOT absorbed here: the caller asked for a
@@ -610,6 +726,8 @@ def rank_plans(
             the position half of the key, which looks every step up in
             :func:`~clockspeed.solve.optimize.registry_positions`.
     """
+    if references is not None:
+        _check_references(references)
     if not plans:
         return ()
 
@@ -624,7 +742,11 @@ def rank_plans(
             plan=plan,
             score=score,
             key=_plan_rank_key(registry_index, plan, score),
-            badge=badge_for(registry, plan, reference),
+            badge=(
+                badge_for(registry, plan, reference)
+                if references is None
+                else _badge_against(registry, plan, references)
+            ),
         )
         for place, (score, plan) in enumerate(ordered, start=1)
     )
