@@ -75,6 +75,36 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-03 - CS-1370 - CLOSED: scheduled tier2 reads both Windows hooks legs with no pristine setup error, and the wall did not drop
+Verification: `tests/test_canary_population.py::forced_population`, `::population_parts`,
+`::merge_verdicts`, `::TIMEOUT`;
+`tests/test_canary_population_forced.py::test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output`,
+`::test_pristine_forces_the_population_through_the_split`; scheduled tier2 run 41622922784, read
+with `gh run view`.
+CLAUSE BY CLAUSE, a distinct verifier's grade at 88877c94, re-read by this closer from that run's
+own log. Scheduled: event schedule, tip 88877c94, which carries the split; conclusion success, 27 of
+27 jobs. Both Windows hooks legs with no pristine setup error: full suite 272.49 s setup and 12.23 s
+call, 722 passed and 3 skipped; clean-checkout probe 317.35 s setup and 14.37 s call, 722 passed and
+3 skipped. 0 FAILED or ERROR in the 24 suite legs. Every derived member graded, and the control for
+item CS-1177 firing: the legs run -q and print no count, so both are proven by the arm's pass ONLY,
+through the ungraded, control_forced and control_leaked assertions of the first test named above.
+TIMEOUT stays 300. No budget, marker or deselect moved: the item's commits touch only the two test
+modules, `ROADMAP.md` and `docs/item_notes/phase7.md`.
+Residual: whole-population setup across the three children still reads 317.35 s on this run's probe
+leg and 353.38 s on the same leg of dispatch 41564500401 at 88877c94, so the wall did not drop. Each
+child has its own 300 s, which is headroom by a split and not a faster child, as MAIN's 2026-11-02
+ruling in the item's relocated section says. A red for this cause reopens the split, never a raise.
+
+### 2026-11-03 - CS-1359 - CLOSED: scheduled tier2 is green on a tip carrying the pytest pin, pytest-9.0.3 on all 24 installs
+Verification: the `pyproject.toml` dev pin pytest>=9.0,<9.1; `tests/test_dev_dependency_bounds.py`;
+`tests/test_cs1172_branch_canaries.py`; `tests/test_cs1191_colour_xdist_redaction.py`; scheduled
+tier2 run 41622922784 on 88877c94, read back with `gh run list --workflow tier2.yml`.
+It closes on that schedule, NOT on dispatch run 41291889116, which was green on 4bb37af3 and was not
+nightly. The first scheduled run with the pin, 41434221665 on 596eb9b5, failed, for the cause that
+item CS-1370 owns and not this one. Read from run 41622922784's own log: pytest-9.0.3 on all 24
+installs, 0 NodeId or INTERNALERROR hits. The pin moves only deliberately, as the relocated clause says:
+install the newer pytest locally, make those two test modules pass under it, then widen the bound.
+
 ### 2026-11-03 - CS-1351 - CLOSED on its clause: advise_world ranks a plan for a stated target and plan.adopt fires; it fires on no real world until a selector ships
 Verification: `clockspeed/advisor/advise.py::advise_world`; `clockspeed/advisor/plans.py::plan_offer`;
 `clockspeed/advisor/rules/__init__.py::_FAMILIES`; `clockspeed/data/registry.py::Recipe`;
