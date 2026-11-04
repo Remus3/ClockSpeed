@@ -111,9 +111,17 @@ lost.
 Section 5.4 holds here for recipes and the machines that run them. Raw supply, logistics and power are outside
 requires; plan.adopt fires on a constructed unlock set with no extractor held; CS-1382 carries it. No registered
 rule is in the 5.4 property test.
-NOT DELIVERED, NEVER A PASS: the lens on seams, privacy and determinism on the wire returned no report in over three
-hours. Seams rest on one adjudicator's own read of the surface diff; echo and privacy on the refuter; determinism
-on the arms named above, a second adversary and the verifier.
+THE LATE LENS on seams, privacy and determinism on the wire returned after about 12.4 hours, after this close and
+before the push, reading NOT REFUTED on synthetic worlds only, at the landing before the machine-join repair. That
+repair touched no file under `clockspeed/surface/`, so its holding at this tip is an inference, not a re-run. 144
+hostile requests, 0 body echoes, 0 canary log lines; 178 no-target entries byte-same against the parent, with
+/api/registry differing only by plan_targets; identical across 4 seeds, 7 worlds and all 6 direction and policy
+pairs. Four LOW findings, no HIGH: three are new lines in `BACKLOG.md`, Session 155 residuals, and one was already
+there as dismissal scope. No adjudicator read it before landing; the ruling was that a late report is read if it
+arrives before the push. Not reached: a real save or install, the panel in a browser,
+`tests/surface/test_panel_advice.py` under plants, pathological registries. The landing itself rested, without this
+lens, on one adjudicator's own read of the surface diff for seams; on the refuter for echo and privacy; and on the
+arms named above, a second adversary and the verifier for determinism.
 LANDED, a distinct adjudicator, by criteria in order. Runner-up NOT LANDED, its best argument: section 5.4 is an
 invariant and not a reach statistic, and plan.adopt still fires on a constructed set with no extractor held. It lost
 because raising the precondition model is new acceptance no clause arm states, and this record says so.
@@ -145,9 +153,16 @@ of 142 with every recipe held, sinkable went from 112 to 50 and balanced from 11
 show this, and zero was not required. The cap did not move.
 ORDER RULED, a distinct adjudicator: the route first, then the rest of the closure by depth, then the rest. Runner-up
 closure by depth, whose best argument is simplicity and which ranks 51 of 142 where the route ranks 92. The docstring
-read-back the clause orders was done by a distinct adversary, and its four false lines are corrected, one kept with
-the clause's own wording. Verifier counts: the CS-1371 record above. Residual: seven surviving low mutants across
-both items, in `BACKLOG.md`, Session 155 residuals.
+read-back the clause orders was done by a distinct adversary at the landing before the machine-join repair. It found
+four false lines and that repair changed all four. Three now read true: the mapping sentence in
+`clockspeed/solve/bound.py`, and the rate-spelling comment and the no-route line in `clockspeed/advisor/plans.py`.
+The fourth, that first module's balanced-byproduct sentence, took the adversary's words, and a later adjudicator gave
+the clause longer ones, so the two differ: the clause excepts a byproduct that is itself a raw item and the docstring
+does not. At this tip one recipe whose byproduct is declared raw solves under balanced at 1 machine, nothing consuming
+it, and the same recipe with that byproduct not raw reads no plan, so the docstring sentence is still false in that
+case and is not corrected here. The behaviour is the raw-byproduct line in `BACKLOG.md`, Session 155 residuals.
+Verifier counts: the CS-1371 record above. Residual: seven surviving low mutants across both items, in `BACKLOG.md`,
+Session 155 residuals.
 
 ### 2026-11-03 - CS-1344 - CLOSED: a test run clears its own Temp cs-pt on teardown, failure included, and the /done sweep bounds the session scratchpad; the ONE ANSWER went with one correction, and this session's sweep is still to run
 Verification: `tests/own_temp_root.py::finish`, `::sweep`, `::GRACE_S`, `::STALE_AFTER_S`;

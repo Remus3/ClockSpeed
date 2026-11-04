@@ -1203,6 +1203,14 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
 - Stale prose, none shipped to a player: `tests/surface/test_advice_source.py`'s route-world docstring
   says the world holds no machine, and `clockspeed/surface/web/panel_scope.js`'s closing note names
   only the solve bench; trigger: the next edit to either file.
+- `/api/advice` has no test on multi-card order: a card sort planted in `_listing` survives
+  test_advice.py, test_advice_source.py and test_advice_golden.py; trigger: the next change to that
+  function.
+- a hardcoded direction check planted in `_stated_plan` survives, against the module's no-vocabulary
+  claim; add a spy source accepting an off-list direction; trigger: the next change to that function.
+- a cross-site GET to `/api/advice` with the four parameters runs the solve and can be repeated,
+  unreadable there and the same class as `/api/solve` and `/api/optimize`; trigger: a ruling on a
+  Sec-Fetch-Site refusal for all solver doors.
 
 ## Session 155 rulings - filed 2026-11-03 under product before process
 
