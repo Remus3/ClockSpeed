@@ -19,6 +19,9 @@ was filed, so CS-1270's acceptance clause "no ``clockspeed/surface`` module
 imports ``clockspeed.audit``" is false on the base this item started from and
 is recorded as awaiting a ruling rather than met. A new importer reddens here.
 
+A STATED TARGET (CS-1371) has its own section at the end of this file: all three routes,
+through the real route table, the real source, the real advisor and the real ledger.
+
 Every token, id and number here is invented. No save and no install is read;
 every store lives in a temporary directory.
 """
@@ -26,14 +29,18 @@ every store lives in a temporary directory.
 from __future__ import annotations
 
 import ast
+import itertools
+import subprocess
+import sys
 from dataclasses import replace
+from fractions import Fraction
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import pytest
 
-from clockspeed.advisor.advise import settled_rules
+from clockspeed.advisor.advise import advise_world, settled_rules
 from clockspeed.advisor.ledger import (
     LEDGER_FILENAME,
     MUTES_FILENAME,
@@ -46,22 +53,34 @@ from clockspeed.advisor.rules import power, registered_rules
 from clockspeed.advisor.trace import StepKind, run_rules
 from clockspeed.audit.build import WARN_BUILD_MISMATCH
 from clockspeed.audit.machines import PROPERTY_OVERCLOCK, PROPERTY_PRODUCING
+from clockspeed.data.registry import plan_targets
 from clockspeed.save.world import WorldProperties
+from clockspeed.surface import providers as providers_module
 from clockspeed.surface import server
 from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, pending, routes
 from clockspeed.surface.providers import StoreAdviceSource
+from tests.advisor import test_plan_redesign as redesign_fixtures
+from tests.advisor import test_plan_world as plan_fixtures
 from tests.advisor import test_world_advice as world_fixtures
 from tests.advisor.build_fixtures import OFF_PIN_OFFSETS, docs_pin, game_pin
 from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
+from tests.solve.synthetic import (
+    SOLVE_ORE_ITEM,
+    SOLVE_ORPHAN_ITEM,
+    SOLVE_RARE_ITEM,
+    SOLVE_RELIC_ITEM,
+    SOLVE_ROD_ITEM,
+)
 from tests.surface import test_map as map_fixtures
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterator, Mapping
 
     from clockspeed.advisor.advise import Advice
+    from clockspeed.advisor.plans import PlanRequest
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import WorldModel
 
@@ -1069,3 +1088,1142 @@ def test_on_the_pin_the_listing_and_derivation_name_no_build(
     )
     assert served > 0
     assert mentioning == 0
+
+
+# ---------------------------------------------------------------------------
+# CS-1371: a stated target through the real route table and the real advisor
+# ---------------------------------------------------------------------------
+#
+# THE CLAIM. The three routes take a target, a rate, a direction and a byproduct policy.
+# Stated, the listing carries a plan card and what the request came to, the derivation
+# carries that card's tier 3 and the state route records that card, each through the same
+# stated advice. Not stated, each route answers as it did before this item. Every arm here
+# runs through ``routes.build_routes``, the real ``StoreAdviceSource``, the real advisor and
+# the real ledger, over the synthetic worlds of ``tests/advisor/test_plan_world.py`` and
+# ``tests/advisor/test_plan_redesign.py``, whose figures are worked by hand there.
+#
+# THE ORDER. Unknown name, then a partial set, then a bad rate, direction or policy, all
+# before any provider is read; then no save and no install; then the target's membership;
+# then the advice. A refused value reaches no solve and comes back in no byte.
+#
+# THE CONTROL. A 400 from a route that answers 400 to everything grades nothing, so
+# :func:`control_card` shows the four good values answer 200 on all three routes, on the
+# same world, before any refusal below is believed.
+
+#: The rules a stated target can fire, spelled so a rename reddens here.
+ADOPT_ID: Final = "plan.adopt"
+REDESIGN_ID: Final = "plan.redesign"
+
+#: The wire spelling of the four parameters, spelled for the same reason.
+TARGET: Final = "target"
+RATE: Final = "rate"
+DIRECTION: Final = "direction"
+POLICY: Final = "byproduct_policy"
+FOUR: Final = (TARGET, RATE, DIRECTION, POLICY)
+
+#: The three routes, by what they are for.
+LISTING: Final = "listing"
+DERIVATION: Final = "derivation"
+STATE: Final = "state"
+ROUTE_NAMES: Final = (LISTING, DERIVATION, STATE)
+
+#: The kind the state arms record.
+ACCEPTED: Final = "accepted"
+
+#: The closed-vocabulary reasons the wire reads, spelled so a rewording reddens here.
+NO_PLAN_REASON: Final = (
+    "the search found no plan over the unlocked automated recipes it kept,"
+    " under the stated byproduct policy"
+)
+MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
+
+#: The tier 2 clauses of a route card, spelled for the same reason.
+MUST_UNLOCK: Final = "; the locked recipes must unlock first on this route"
+NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
+NOT_CHOSEN: Final = (
+    "; the stated direction did not choose this route and it was never compared with what is built"
+)
+
+#: The badge's whole read in the derivation of the ascent world's card, worked by hand in
+#: ``tests/advisor/test_plan_world.py``: it clears within-raw and neither other rung.
+BADGE_READ: Final = (
+    'Read plan.badge = StrategyBadge(strongest="within-raw", cleared=("within-raw"), checks=('
+    'ThresholdCheck(strategy="within-raw", cleared=true, score=10.00, reference=10.00, '
+    'bound=1.00, reason=""), '
+    'ThresholdCheck(strategy="within-buildings", cleared=false, score=2.00, reference=1.00, '
+    'bound=1.00, reason="over-bound"), '
+    'ThresholdCheck(strategy="within-power", cleared=false, score=30.00, reference=15.00, '
+    'bound=1.00, reason="over-bound"))) from solve.strategy.ranked_plan.badge'
+)
+
+#: A value carried in every position a refusal could reflect it from.
+PLANTED: Final = "zqxjplanted1371"
+
+#: Every rate refused, none of them above zero in an admitted spelling.
+BAD_RATES: Final = (
+    "0",
+    "0.0",
+    "00",
+    "0/5",
+    "-1",
+    "-0.5",
+    "-1/2",
+    "1/0",
+    "1e3",
+    "1E3",
+    "abc",
+    "",
+    " 10",
+    "10 ",
+    "10\n",
+    "+10",
+    "1.5.5",
+    "1/2/3",
+    ".5",
+    "5.",
+    "0x10",
+    "NaN",
+    "inf",
+    "1_000",
+    NON_ASCII_DIGITS,
+    "9" * 65,
+)
+
+#: Every direction refused: near misses of the closed vocabulary, by case and by padding.
+BAD_DIRECTIONS: Final = ("", "RAW", "raw ", "sideways", "weighted", "raw,power")
+
+#: Every policy refused, for the same reason.
+BAD_POLICIES: Final = ("", "BALANCED", "balanced ", "whatever", "sink")
+
+#: Each proper non-empty subset of the four: every way of stating some without the rest.
+PARTIAL_SETS: Final = tuple(
+    names for size in range(1, len(FOUR)) for names in itertools.combinations(FOUR, size)
+)
+
+#: How many ways there are of stating some of the four, by hand: four ones, six twos and
+#: four threes.
+PARTIAL_SET_COUNT: Final = 14
+
+#: The provider reads of a request that got as far as the membership test: one of each.
+ONE_WORLD_AND_ONE_REGISTRY: Final = 2
+
+#: What the determinism children print.
+CHILD_SOURCE: Final = """
+import sys
+from pathlib import Path
+
+from tests.surface.test_advice_source import stated_bodies
+
+print(stated_bodies(Path(sys.argv[1])))
+"""
+
+#: The two hash seeds the determinism arm compares.
+HASH_SEEDS: Final = ("0", "1")
+
+#: Child process bound. Generous: each child builds registries and runs two searches.
+CHILD_TIMEOUT_SECONDS: Final = 300
+
+#: The repository root, each child's working directory.
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
+
+
+def _stated(
+    target: str = SOLVE_RELIC_ITEM,
+    *,
+    rate: str = "10",
+    direction: str = "raw",
+    policy: str = "balanced",
+) -> dict[str, str]:
+    """The four parameters, as a query carries them."""
+    return {TARGET: target, RATE: rate, DIRECTION: direction, POLICY: policy}
+
+
+class _CountedProviders:
+    """A world and a registry provider in one, either possibly absent, counting each read."""
+
+    def __init__(self, model: WorldModel | None, registry: Registry | None) -> None:
+        """Hold what to answer.
+
+        Args:
+            model: The world, or None for a machine with no save.
+            registry: The registry, or None for a machine with no install.
+        """
+        self._model = model
+        self._registry = registry
+        self.reads = 0
+
+    def world(self) -> WorldModel | None:
+        """Answer with the held world, counting the read."""
+        self.reads += 1
+        return self._model
+
+    def registry(self) -> Registry | None:
+        """Answer with the held registry, counting the read."""
+        self.reads += 1
+        return self._registry
+
+
+class _CountedSource(StoreAdviceSource):
+    """The real source, counting each time advice is computed."""
+
+    def __init__(self, directory: Path) -> None:
+        """Wire the real source to one store directory and the fixed clock.
+
+        Args:
+            directory: Where both stores live.
+        """
+        super().__init__(directory, clock=lambda: NOW)
+        self.computed = 0
+
+    def advice(
+        self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
+    ) -> Advice | None:
+        """Count the call and run the real advisor."""
+        self.computed += 1
+        return super().advice(world, registry, plan_request=plan_request)
+
+
+def _counted_table(
+    directory: Path, model: WorldModel | None, registry: Registry | None
+) -> tuple[Mapping[tuple[str, str], contract.Handler], _CountedProviders, _CountedSource]:
+    """The real route table over counted providers and a counted real source."""
+    counted = _CountedProviders(model, registry)
+    source = _CountedSource(directory)
+    built = routes.build_routes(counted, counted, source)
+    return {(route.method, route.template): route.handler for route in built}, counted, source
+
+
+def _ascent() -> tuple[WorldModel, Registry]:
+    """The world whose stated Relic ranks, every recipe unlocked."""
+    return (
+        plan_fixtures._model(plan_fixtures.ASCENT_PATHS),  # noqa: SLF001
+        plan_fixtures._registry(),  # noqa: SLF001
+    )
+
+
+def _route_world(held: tuple[str, ...]) -> WorldModel:
+    """A world holding these recipes of the marked-route fixtures, and no machine."""
+    return redesign_fixtures._model(held)  # noqa: SLF001
+
+
+def _three_locked() -> tuple[WorldModel, Registry]:
+    """The world whose every route to Relic runs at least three locked stages."""
+    held = (redesign_fixtures.HELD_STAGE,)
+    return _route_world(held), redesign_fixtures._three_locked_registry()  # noqa: SLF001
+
+
+def _listing(
+    table: Mapping[tuple[str, str], contract.Handler], parameters: Mapping[str, str]
+) -> Mapping[str, object]:
+    """The body the listing answers, which must be 200."""
+    return _data(table["GET", advice_endpoint.ENDPOINT](parameters))
+
+
+def _cards_of(data: Mapping[str, object], rule_id: str) -> list[Mapping[str, object]]:
+    """Every card one rule has on a listing body."""
+    cards = data["cards"]
+    assert isinstance(cards, list)
+    return [card for card in cards if card["rule_id"] == rule_id]
+
+
+def _one_card(data: Mapping[str, object], rule_id: str) -> Mapping[str, object]:
+    """The one card one rule has on a listing body."""
+    cards = _cards_of(data, rule_id)
+    count = len(cards)
+    assert count == 1
+    return cards[0]
+
+
+def _card_id(data: Mapping[str, object], rule_id: str) -> str:
+    """The id of the one card one rule has on a listing body."""
+    found = _one_card(data, rule_id)["id"]
+    assert isinstance(found, str)
+    return found
+
+
+def _outcome_on(data: Mapping[str, object]) -> Mapping[str, object]:
+    """What a stated listing says the request came to, read from the wire body."""
+    assert frozenset(data) == advice_endpoint.STATED_DATA_KEYS
+    outcome = data["plan_outcome"]
+    assert isinstance(outcome, dict)
+    return outcome
+
+
+def _derivation_text(
+    table: Mapping[tuple[str, str], contract.Handler],
+    card_id: str,
+    parameters: Mapping[str, str],
+) -> str:
+    """The tier 3 the derivation route answers, which must be 200, read from the wire body."""
+    data = _data(
+        table["GET", advice_endpoint.DERIVATION_ENDPOINT](
+            {advice_endpoint.ID_PARAMETER: card_id, **parameters}
+        )
+    )
+    assert frozenset(data) == advice_endpoint.DERIVATION_KEYS
+    text = data["derivation"]
+    assert isinstance(text, str)
+    return text
+
+
+def _ask(
+    table: Mapping[tuple[str, str], contract.Handler],
+    route: str,
+    card_id: str,
+    parameters: Mapping[str, str],
+) -> contract.Response:
+    """Ask one of the three routes, with what that route needs beside these parameters."""
+    if route == LISTING:
+        return table["GET", advice_endpoint.ENDPOINT](parameters)
+    if route == DERIVATION:
+        return table["GET", advice_endpoint.DERIVATION_ENDPOINT](
+            {advice_endpoint.ID_PARAMETER: card_id, **parameters}
+        )
+    return table["POST", advice_endpoint.STATE_ENDPOINT](
+        {
+            advice_endpoint.ID_PARAMETER: card_id,
+            advice_endpoint.STATE_PARAMETER: ACCEPTED,
+            **parameters,
+        }
+    )
+
+
+def _recorded_kind(directory: Path, model: WorldModel, card_id: str) -> str:
+    """The state a FRESH ledger over the directory reads back from disk."""
+    return Ledger(directory).state(model.token, card_id, now=NOW).kind
+
+
+@pytest.fixture(scope="module")
+def control_card(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """The four good values answer 200 on all three routes, so a 400 below is the value's.
+
+    Returns:
+        The id of the ascent world's stated card, so a refusal can name a card that is really
+        on the stated listing and only the parameter can be what refused it.
+    """
+    table, _counted, _source = _counted_table(tmp_path_factory.mktemp("control"), *_ascent())
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+    answered = [
+        _ask(table, route, card_id, _stated()).http_status == contract.HTTP_OK
+        for route in ROUTE_NAMES
+    ]
+    assert answered == [True, True, True]
+    return card_id
+
+
+def _refused_before_any_provider(
+    response: contract.Response,
+    reason: str,
+    counted: _CountedProviders,
+    source: _CountedSource,
+    directory: Path,
+) -> None:
+    """A 400 of this reason, reaching no provider, no advice and no store."""
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == reason
+    problems = len(contract.contract_problems(response))
+    assert problems == 0
+    assert counted.reads == 0
+    assert source.computed == 0
+    _state_assert_nothing_written(directory)
+
+
+# ---------------------------------------------------------------------------
+# Arm 1: the three routes read one stated card
+# ---------------------------------------------------------------------------
+
+
+def test_a_stated_target_lists_a_plan_adopt_card_and_reads_ranked(tmp_path: Path) -> None:
+    model, registry = _ascent()
+
+    data = _listing(_table(tmp_path, model, registry), _stated())
+
+    card = _one_card(data, ADOPT_ID)
+    assert frozenset(card) == advice_endpoint.CARD_KEYS
+    assert card["headline"] == f"Build the planned production chain for {SOLVE_RELIC_ITEM}"
+    assert card["reason"] == (
+        f"It makes 10.00 per minute of {SOLVE_RELIC_ITEM} with 2.00 machine equivalents"
+    )
+    assert card["state"] == "new"
+    assert card["visible"] is True
+    assert _outcome_on(data) == {"status": "ranked", "redesign": "not-reached", "trimmed": []}
+
+
+def test_the_same_four_on_the_derivation_return_tier_3_with_the_badges_rungs(
+    tmp_path: Path,
+) -> None:
+    model, registry = _ascent()
+    table = _table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+
+    derivation = _derivation_text(table, card_id, _stated())
+
+    carried = BADGE_READ in derivation
+    assert carried
+    opened = derivation.startswith("Derivation of rule plan.adopt")
+    assert opened
+
+
+def test_the_same_four_on_the_state_route_record_that_card_through_the_real_ledger(
+    tmp_path: Path,
+) -> None:
+    model, registry = _ascent()
+    table = _table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+
+    response = _ask(table, STATE, card_id, _stated())
+
+    data = _data(response)
+    assert frozenset(data) == advice_endpoint.STATE_KEYS
+    assert data["state"] == ACCEPTED
+    assert data["snoozed_until"] is None
+    assert _recorded_kind(tmp_path, model, card_id) == ACCEPTED
+    # And the next stated listing reads it, so the ledger's card is the listing's card.
+    relisted = _one_card(_listing(table, _stated()), ADOPT_ID)
+    assert relisted["state"] == ACCEPTED
+
+
+def test_a_snooze_on_a_stated_card_records_its_instant(tmp_path: Path) -> None:
+    model, registry = _ascent()
+    table = _table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+    until = NOW + SNOOZE_SPAN
+
+    response = table["POST", advice_endpoint.STATE_ENDPOINT](
+        {
+            advice_endpoint.ID_PARAMETER: card_id,
+            advice_endpoint.STATE_PARAMETER: "snoozed",
+            advice_endpoint.UNTIL_PARAMETER: str(until),
+            **_stated(),
+        }
+    )
+
+    assert _data(response)["snoozed_until"] == until
+    assert _recorded_kind(tmp_path, model, card_id) == "snoozed"
+
+
+def test_the_state_route_resolves_one_world_for_the_card_and_the_write(tmp_path: Path) -> None:
+    """The same rule as with no target: the record lands where the card was checked."""
+    model, registry = _ascent()
+    table, counted, _source = _counted_table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+    before = counted.reads
+
+    _data(_ask(table, STATE, card_id, _stated()))
+
+    # Nothing asked a provider a second time, so the card checked is the world recorded in.
+    assert counted.reads - before == ONE_WORLD_AND_ONE_REGISTRY
+
+
+@pytest.mark.parametrize("route", [DERIVATION, STATE])
+def test_without_the_four_the_card_is_400_and_the_same_request_with_them_answers(
+    tmp_path: Path, route: str
+) -> None:
+    """Pinned against the same request: only the four move the answer.
+
+    Without them the advice is the no-target advice, which lists no plan card, so this is the
+    parent commit's refusal of a card the current advice does not carry.
+    """
+    model, registry = _ascent()
+    table = _table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+
+    without = _ask(table, route, card_id, {})
+
+    _state_assert_refused(without, contract.REASON_INVALID_PARAMETER, card_id)
+    _state_assert_nothing_written(tmp_path)
+    _data(_ask(table, route, card_id, _stated()))
+
+
+def test_a_no_target_listing_on_the_same_world_reads_no_plan_card_and_no_outcome_key(
+    tmp_path: Path,
+) -> None:
+    model, registry = _ascent()
+
+    response = _table(tmp_path, model, registry)["GET", advice_endpoint.ENDPOINT]({})
+
+    data = _data(response)
+    assert frozenset(data) == advice_endpoint.DATA_KEYS
+    assert _cards_of(data, ADOPT_ID) == []
+    assert _cards_of(data, REDESIGN_ID) == []
+    named = b"plan_outcome" in contract.encode(response.payload)
+    assert named is False
+
+
+def test_a_card_another_family_fires_answers_with_and_without_the_four(tmp_path: Path) -> None:
+    """A stated target adds a plan family answer, and takes no other family's card away."""
+    registry = world_fixtures.fuel_registry()
+    table = _table(tmp_path, world_fixtures.fuel_world(), registry)
+    targets = plan_targets(registry)
+    count = len(targets)
+    assert count > 0
+    card_id = _fuel_cards(tmp_path)[fuel_rules.SUPPLY_RULE.rule_id]["id"]
+    assert isinstance(card_id, str)
+
+    without = _data(_ask(table, DERIVATION, card_id, {}))
+    stated = _data(_ask(table, DERIVATION, card_id, _stated(targets[0])))
+
+    same = stated == without
+    assert same
+
+
+# ---------------------------------------------------------------------------
+# Arm 3: what the request came to, one arm per marked-route status
+# ---------------------------------------------------------------------------
+
+
+def test_a_ranked_request_reads_not_reached_and_no_route_card(tmp_path: Path) -> None:
+    model, registry = _ascent()
+
+    data = _listing(_table(tmp_path, model, registry), _stated())
+
+    assert _outcome_on(data)["redesign"] == "not-reached"
+    assert _cards_of(data, REDESIGN_ID) == []
+
+
+def test_a_routed_request_reads_its_card_through_the_listing_and_the_derivation(
+    tmp_path: Path,
+) -> None:
+    model, registry = _three_locked()
+    table = _table(tmp_path, model, registry)
+
+    data = _listing(table, _stated())
+
+    assert _outcome_on(data) == {
+        "status": "no-plan",
+        "reason": NO_PLAN_REASON,
+        "redesign": "routed",
+        "trimmed": [],
+    }
+    assert _cards_of(data, ADOPT_ID) == []
+    card = _one_card(data, REDESIGN_ID)
+    headline = card["headline"]
+    reason = card["reason"]
+    assert headline == f"Plan toward {SOLVE_RELIC_ITEM}"
+    assert reason == f"This route runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert isinstance(headline, str)
+    assert isinstance(reason, str)
+    named = [name for name in redesign_fixtures.LOCKED_STAGES if name in headline + reason]
+    assert named == []
+
+    card_id = card["id"]
+    assert isinstance(card_id, str)
+    derivation = _derivation_text(table, card_id, _stated())
+    locked_line = (
+        'Read plan.redesign.locked = ("R_A2", "R_A3", "R_A4") from advisor.plans.redesign.locked'
+    )
+    carried = locked_line in derivation
+    assert carried
+    every_stage = (redesign_fixtures.HELD_STAGE, *redesign_fixtures.LOCKED_STAGES)
+    absent = [
+        stage
+        for stage in every_stage
+        if f'PlanStep(recipe_key="{stage}", machines=1.00)' not in derivation
+    ]
+    assert absent == []
+    badge = "StrategyBadge" in derivation
+    assert not badge
+
+
+def test_a_route_card_records_through_the_state_route(tmp_path: Path) -> None:
+    model, registry = _three_locked()
+    table = _table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), REDESIGN_ID)
+
+    _data(_ask(table, STATE, card_id, _stated()))
+
+    assert _recorded_kind(tmp_path, model, card_id) == ACCEPTED
+
+
+def test_a_no_route_request_names_the_item_on_the_wire(tmp_path: Path) -> None:
+    registry = redesign_fixtures._orphan_registry()  # noqa: SLF001
+
+    data = _listing(_table(tmp_path, _route_world(()), registry), _stated())
+
+    assert _outcome_on(data) == {
+        "status": "no-plan",
+        "reason": NO_PLAN_REASON,
+        "redesign": "no-route",
+        "trimmed": [],
+        "unmade": [SOLVE_ORPHAN_ITEM],
+    }
+    assert _cards_of(data, REDESIGN_ID) == []
+    assert _cards_of(data, ADOPT_ID) == []
+
+
+def test_the_same_no_route_request_fires_where_the_group_holds_the_item(tmp_path: Path) -> None:
+    """The control for the arm above: only the group's word moves it, so the arm is live."""
+    registry = redesign_fixtures._orphan_registry(orphan_raw=True)  # noqa: SLF001
+
+    data = _listing(_table(tmp_path, _route_world(()), registry), _stated())
+
+    assert _outcome_on(data)["redesign"] == "routed"
+    _one_card(data, REDESIGN_ID)
+
+
+def test_a_route_refused_request_fires_under_the_other_policy_on_the_wire(tmp_path: Path) -> None:
+    registry = redesign_fixtures._byproduct_registry()  # noqa: SLF001
+    table = _table(tmp_path, _route_world(()), registry)
+
+    refused = _listing(table, _stated(policy="balanced"))
+    fired = _listing(table, _stated(policy="sinkable"))
+
+    assert _outcome_on(refused) == {
+        "status": "no-plan",
+        "reason": NO_PLAN_REASON,
+        "redesign": "route-refused",
+        "trimmed": [],
+    }
+    assert _cards_of(refused, REDESIGN_ID) == []
+    assert _outcome_on(fired)["redesign"] == "routed"
+    _one_card(fired, REDESIGN_ID)
+
+
+def test_a_no_plan_reads_its_reason_scoped_to_the_kept_set_and_the_trim_on_the_wire(
+    tmp_path: Path,
+) -> None:
+    """Thirteen required stages, all held. The cap keeps twelve, so the search reads no-plan."""
+    registry = redesign_fixtures._chain_registry()  # noqa: SLF001
+    names = redesign_fixtures._chain_names()  # noqa: SLF001
+
+    data = _listing(_table(tmp_path, _route_world(names), registry), _stated())
+
+    assert _outcome_on(data) == {
+        "status": "no-plan",
+        "reason": NO_PLAN_REASON,
+        "redesign": "routed",
+        "trimmed": [names[0]],
+    }
+    scoped = "it kept" in NO_PLAN_REASON
+    assert scoped
+    assert _one_card(data, REDESIGN_ID)["reason"] == (
+        f"This route runs 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    )
+
+
+def test_an_empty_resource_group_reads_request_malformed_with_no_trim_key(tmp_path: Path) -> None:
+    """No search ran, so the offer carries no word on what the bound dropped."""
+    registry = redesign_fixtures._registry(  # noqa: SLF001
+        [redesign_fixtures._recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],  # noqa: SLF001
+        resources=(),
+    )
+
+    data = _listing(_table(tmp_path, _route_world(("R_Direct",)), registry), _stated())
+
+    assert _outcome_on(data) == {
+        "status": "request-malformed",
+        "reason": MALFORMED_REASON,
+        "redesign": "not-reached",
+    }
+    assert _cards_of(data, ADOPT_ID) == []
+    assert _cards_of(data, REDESIGN_ID) == []
+
+
+def test_a_save_path_reaches_no_body_and_neither_does_the_world_token(tmp_path: Path) -> None:
+    """Every stated body, ranked and routed, against a path the save holds and the token."""
+    save_only = redesign_fixtures.SAVE_ONLY_PATH
+    model, registry = _three_locked()
+    unlocks = replace(model.unlocks, recipes=model.unlocks.recipes | {save_only})
+    held = replace(model, unlocks=unlocks)
+    table = _table(tmp_path, held, registry)
+    listing = table["GET", advice_endpoint.ENDPOINT](_stated())
+    card_id = _card_id(_data(listing), REDESIGN_ID)
+    derivation = table["GET", advice_endpoint.DERIVATION_ENDPOINT](
+        {advice_endpoint.ID_PARAMETER: card_id, **_stated()}
+    )
+    state = _ask(table, STATE, card_id, _stated())
+    bodies = [contract.encode(response.payload) for response in (listing, derivation, state)]
+
+    needles = (save_only.encode("ascii"), held.token.encode("ascii"))
+    leaked = sum(1 for body in bodies for needle in needles if needle in body)
+
+    assert leaked == 0
+    planted = contract.encode({"status": "ok", "planted": save_only})
+    detected = needles[0] in planted
+    assert detected
+
+
+# ---------------------------------------------------------------------------
+# Arm 5: every refusal, in its order
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+def test_an_unknown_name_beside_the_four_is_400_and_reads_no_provider(
+    tmp_path: Path, route: str, control_card: str
+) -> None:
+    table, counted, source = _counted_table(tmp_path, *_ascent())
+
+    response = _ask(table, route, control_card, {**_stated(), PLANTED: "1"})
+
+    _refused_before_any_provider(
+        response, contract.REASON_UNKNOWN_PARAMETER, counted, source, tmp_path
+    )
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize("names", PARTIAL_SETS, ids="+".join)
+def test_some_of_the_four_without_the_rest_is_missing_and_reads_no_provider(
+    tmp_path: Path, route: str, names: tuple[str, ...], control_card: str
+) -> None:
+    table, counted, source = _counted_table(tmp_path, *_ascent())
+    stated = _stated()
+
+    response = _ask(table, route, control_card, {name: stated[name] for name in names})
+
+    _refused_before_any_provider(
+        response, contract.REASON_MISSING_PARAMETER, counted, source, tmp_path
+    )
+
+
+def test_every_partial_set_is_graded() -> None:
+    """Counted by hand, so a shrunken sweep cannot pass."""
+    assert len(PARTIAL_SETS) == PARTIAL_SET_COUNT
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize("rate", BAD_RATES)
+def test_a_bad_rate_is_invalid_and_reads_no_provider(
+    tmp_path: Path, route: str, rate: str, control_card: str
+) -> None:
+    table, counted, source = _counted_table(tmp_path, *_ascent())
+
+    response = _ask(table, route, control_card, _stated(rate=rate))
+
+    _refused_before_any_provider(
+        response, contract.REASON_INVALID_PARAMETER, counted, source, tmp_path
+    )
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize("direction", BAD_DIRECTIONS)
+def test_a_bad_direction_is_invalid_and_reads_no_provider(
+    tmp_path: Path, route: str, direction: str, control_card: str
+) -> None:
+    table, counted, source = _counted_table(tmp_path, *_ascent())
+
+    response = _ask(table, route, control_card, _stated(direction=direction))
+
+    _refused_before_any_provider(
+        response, contract.REASON_INVALID_PARAMETER, counted, source, tmp_path
+    )
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize("policy", BAD_POLICIES)
+def test_a_bad_policy_is_invalid_and_reads_no_provider(
+    tmp_path: Path, route: str, policy: str, control_card: str
+) -> None:
+    table, counted, source = _counted_table(tmp_path, *_ascent())
+
+    response = _ask(table, route, control_card, _stated(policy=policy))
+
+    _refused_before_any_provider(
+        response, contract.REASON_INVALID_PARAMETER, counted, source, tmp_path
+    )
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+def test_a_bad_rate_is_400_with_no_save_and_no_install_either(
+    tmp_path: Path, route: str, control_card: str
+) -> None:
+    """The precedent of ``clockspeed/surface/api/solve.py``: the shape first, then the providers."""
+    table, counted, source = _counted_table(tmp_path, None, None)
+
+    response = _ask(table, route, control_card, _stated(rate="-1"))
+
+    _refused_before_any_provider(
+        response, contract.REASON_INVALID_PARAMETER, counted, source, tmp_path
+    )
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize(
+    "target",
+    [SOLVE_ORE_ITEM, SOLVE_ROD_ITEM, "Desc_NeverHeardOf_C", "", plan_fixtures.RELIC_FROM_RARE],
+    ids=["raw-item", "unmade-item", "unknown-item", "blank", "a-recipe-name"],
+)
+def test_a_target_off_the_list_is_invalid_after_the_providers_and_computes_nothing(
+    tmp_path: Path, route: str, target: str, control_card: str
+) -> None:
+    model, registry = _ascent()
+    listed = target in plan_targets(registry)
+    assert not listed
+    table, counted, source = _counted_table(tmp_path, model, registry)
+
+    response = _ask(table, route, control_card, _stated(target))
+
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+    problems = len(contract.contract_problems(response))
+    assert problems == 0
+    assert counted.reads == ONE_WORLD_AND_ONE_REGISTRY
+    assert source.computed == 0
+    _state_assert_nothing_written(tmp_path)
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize(
+    ("has_world", "has_registry", "reason", "reads"),
+    [
+        (False, True, contract.REASON_NO_SAVE, 1),
+        (True, False, contract.REASON_NO_GAME_INSTALL, 2),
+    ],
+    ids=["no-save", "no-install"],
+)
+def test_a_good_rate_and_an_unknown_target_still_answer_the_missing_inputs_503(
+    tmp_path: Path, route: str, has_world: bool, has_registry: bool, reason: str, reads: int
+) -> None:
+    model, registry = _ascent()
+    table, counted, source = _counted_table(
+        tmp_path, model if has_world else None, registry if has_registry else None
+    )
+
+    response = _ask(table, route, UNKNOWN_CARD_ID, _stated("Desc_NeverHeardOf_C"))
+
+    assert response.http_status == contract.HTTP_UNAVAILABLE
+    assert response.payload["reason"] == reason
+    assert counted.reads == reads
+    assert source.computed == 0
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+def test_a_corrupt_ledger_on_a_stated_request_is_the_store_refusal(
+    tmp_path: Path, route: str, control_card: str
+) -> None:
+    corrupt = b"{not json"
+    (tmp_path / LEDGER_FILENAME).write_bytes(corrupt)
+    table = _table(tmp_path, *_ascent())
+
+    response = _ask(table, route, control_card, _stated())
+
+    assert response.http_status == contract.HTTP_UNAVAILABLE
+    assert response.payload["reason"] == contract.REASON_ADVICE_STORE_UNREADABLE
+    unchanged = (tmp_path / LEDGER_FILENAME).read_bytes() == corrupt
+    assert unchanged
+
+
+def _planted_requests() -> Iterator[tuple[str, dict[str, str]]]:
+    """Every shape of refused request, each carrying the planted value somewhere it could echo."""
+    yield "unknown-name", {**_stated(), PLANTED: "1"}
+    yield "unknown-value", {**_stated(), PLANTED: PLANTED}
+    yield "rate", _stated(rate=PLANTED)
+    yield "direction", _stated(direction=PLANTED)
+    yield "policy", _stated(policy=PLANTED)
+    yield "target", _stated(PLANTED)
+    yield "partial", {TARGET: PLANTED}
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+@pytest.mark.parametrize(
+    "parameters",
+    [parameters for _name, parameters in _planted_requests()],
+    ids=[name for name, _parameters in _planted_requests()],
+)
+def test_no_refusal_reflects_what_it_refused(
+    tmp_path: Path, route: str, parameters: dict[str, str], control_card: str
+) -> None:
+    table = _table(tmp_path, *_ascent())
+
+    response = _ask(table, route, control_card, parameters)
+
+    _state_assert_refused(response, str(response.payload["reason"]), PLANTED)
+    _state_assert_nothing_written(tmp_path)
+
+
+def test_the_reflection_detector_detects_the_planted_value() -> None:
+    """The control for the arm above: this needle in a body is seen, so its absence means one."""
+    planted = contract.encode({"status": "ok", "planted": PLANTED})
+    detected = PLANTED.encode("ascii") in planted
+    assert detected
+
+
+@pytest.mark.parametrize("route", ROUTE_NAMES)
+def test_a_refused_request_reaches_no_solve_and_the_good_one_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str, control_card: str
+) -> None:
+    """Every door out of the advisor's plan module refuses, so reaching one cannot be mistaken."""
+    redesign_fixtures._refuse_every_door(monkeypatch)  # noqa: SLF001
+    table = _table(tmp_path, *_ascent())
+    refused = [parameters for _name, parameters in _planted_requests()]
+    refused.append(_stated(rate="0"))
+
+    statuses = [_ask(table, route, control_card, parameters).http_status for parameters in refused]
+
+    wrong = sum(1 for status in statuses if status != contract.HTTP_BAD_REQUEST)
+    assert wrong == 0
+    with pytest.raises(redesign_fixtures._DoorReachedError):  # noqa: SLF001
+        _ask(table, route, control_card, _stated())
+
+
+def test_no_target_reaches_no_solve(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    redesign_fixtures._refuse_every_door(monkeypatch)  # noqa: SLF001
+    table = _table(tmp_path, *_ascent())
+
+    data = _listing(table, {})
+
+    assert frozenset(data) == advice_endpoint.DATA_KEYS
+
+
+@pytest.mark.parametrize(
+    ("rate", "exact"),
+    [("10", Fraction(10)), ("0.1", Fraction(1, 10)), ("1/3", Fraction(1, 3))],
+)
+def test_a_stated_rate_reaches_the_request_exact_and_never_through_a_float(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rate: str, exact: Fraction
+) -> None:
+    """A tenth through a float would read 3602879701896397/36028797018963968, not one tenth."""
+    seen: list[PlanRequest | None] = []
+
+    def spy(*args: Any, **kwargs: Any) -> Advice:
+        seen.append(kwargs["plan_request"])
+        return advise_world(*args, **kwargs)
+
+    monkeypatch.setattr(providers_module, "advise_world", spy)
+    model, registry = _ascent()
+
+    _listing(_table(tmp_path, model, registry), _stated(rate=rate))
+
+    count = len(seen)
+    assert count == 1
+    request = seen[0]
+    assert request is not None
+    held = request.targets[SOLVE_RELIC_ITEM]
+    assert held == exact
+    exact_type = type(held) is Fraction
+    assert exact_type
+    assert Fraction(0.1) != Fraction(1, 10)
+
+
+def test_the_request_holds_what_was_stated_and_the_groups_raw_items(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No surface module chooses a raw item: the group is the only source there is."""
+    seen: list[PlanRequest | None] = []
+
+    def spy(*args: Any, **kwargs: Any) -> Advice:
+        seen.append(kwargs["plan_request"])
+        return advise_world(*args, **kwargs)
+
+    monkeypatch.setattr(providers_module, "advise_world", spy)
+    model, registry = _ascent()
+
+    _listing(
+        _table(tmp_path, model, registry),
+        _stated(SOLVE_RARE_ITEM, direction="buildings", policy="sinkable"),
+    )
+
+    request = seen[0]
+    assert request is not None
+    assert dict(request.targets) == {SOLVE_RARE_ITEM: Fraction(10)}
+    assert request.raw_items == registry.resource_items
+    assert request.raw_items == (SOLVE_ORE_ITEM,)
+    assert request.direction == "buildings"
+    assert request.byproduct_policy == "sinkable"
+
+
+def test_the_source_doors_read_no_clock_and_no_store(tmp_path: Path) -> None:
+    """The two checking doors run before and beside the providers, and touch neither store."""
+    reads: list[int] = []
+
+    def clock() -> int:
+        reads.append(NOW)
+        return NOW
+
+    source = StoreAdviceSource(tmp_path, clock=clock)
+    parameters = source.plan_parameters(rate="10", direction="raw", byproduct_policy="balanced")
+    assert parameters is not None
+    _model, registry = _ascent()
+
+    request = source.plan_request(registry, SOLVE_RELIC_ITEM, parameters)
+
+    assert request is not None
+    off_list = source.plan_request(registry, SOLVE_ORE_ITEM, parameters)
+    assert off_list is None
+    refused = source.plan_parameters(rate="0", direction="raw", byproduct_policy="balanced")
+    assert refused is None
+    assert reads == []
+    _state_assert_nothing_written(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Arm 6: byte-same, two requests and two processes
+# ---------------------------------------------------------------------------
+
+
+def stated_bodies(directory: Path) -> str:
+    """Every stated body over the two worlds where an order could come from a set.
+
+    Public because :data:`CHILD_SOURCE` imports it, so the children build this very world.
+
+    Args:
+        directory: Where the advice stores live. Empty, and nothing here writes one.
+
+    Returns:
+        The listing and the derivation of a ranked world holding save-only unlock paths and a
+        recipe past the cap, then of a world whose route holds several recipes, as text.
+    """
+    save_only = redesign_fixtures.SAVE_ONLY_PATH
+    ranked = plan_fixtures._model(  # noqa: SLF001
+        (*plan_fixtures._padded_paths(), save_only, save_only + "A", save_only + "B")  # noqa: SLF001
+    )
+    routed = _route_world((redesign_fixtures.HELD_STAGE, "R_B1", "R_B2"))
+    worlds = (
+        (ranked, plan_fixtures._padded_registry(), ADOPT_ID),  # noqa: SLF001
+        (routed, redesign_fixtures._three_locked_registry(), REDESIGN_ID),  # noqa: SLF001
+    )
+    bodies: list[bytes] = []
+    for model, registry, rule_id in worlds:
+        table = _table(directory, model, registry)
+        listing = table["GET", advice_endpoint.ENDPOINT](_stated())
+        derivation = table["GET", advice_endpoint.DERIVATION_ENDPOINT](
+            {advice_endpoint.ID_PARAMETER: _card_id(_data(listing), rule_id), **_stated()}
+        )
+        bodies.extend(contract.encode(response.payload) for response in (listing, derivation))
+    return b"\n".join(bodies).decode("ascii")
+
+
+def test_two_requests_with_no_ledger_write_between_them_are_byte_same(tmp_path: Path) -> None:
+    model, registry = _ascent()
+    table = _table(tmp_path, model, registry)
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+
+    listings = [
+        contract.encode(table["GET", advice_endpoint.ENDPOINT](_stated()).payload) for _ in range(2)
+    ]
+    derivations = [
+        contract.encode(_ask(table, DERIVATION, card_id, _stated()).payload) for _ in range(2)
+    ]
+
+    same_listing = listings[0] == listings[1]
+    assert same_listing
+    same_derivation = derivations[0] == derivations[1]
+    assert same_derivation
+    _state_assert_nothing_written(tmp_path)
+
+
+def test_a_second_table_over_the_same_world_answers_byte_same(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+
+    same = stated_bodies(first) == stated_bodies(second)
+
+    assert same
+    _state_assert_nothing_written(first)
+    _state_assert_nothing_written(second)
+
+
+def test_a_ledger_write_between_two_requests_moves_the_body(tmp_path: Path) -> None:
+    """The control for byte-same: the state on a body is read, so the arm above can go red."""
+    model, registry = _ascent()
+    table = _table(tmp_path, model, registry)
+    before = table["GET", advice_endpoint.ENDPOINT](_stated())
+    card_id = _card_id(_data(before), ADOPT_ID)
+
+    _data(_ask(table, STATE, card_id, _stated()))
+    after = table["GET", advice_endpoint.ENDPOINT](_stated())
+
+    moved = contract.encode(before.payload) != contract.encode(after.payload)
+    assert moved
+
+
+def test_two_processes_under_different_hash_seeds_answer_byte_same(tmp_path: Path) -> None:
+    """A set deciding an order is stable within a process, so this takes two."""
+    printed: list[str] = []
+    for seed in HASH_SEEDS:
+        directory = tmp_path / seed
+        directory.mkdir()
+        child = subprocess.run(
+            [sys.executable, "-s", "-B", "-c", CHILD_SOURCE, str(directory)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=CHILD_TIMEOUT_SECONDS,
+            env={"PYTHONHASHSEED": seed, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
+            check=False,
+        )
+        # Bound to a plain int first: pytest would otherwise render the whole
+        # CompletedProcess, whose argv holds absolute paths.
+        exit_code = child.returncode
+        assert exit_code == 0, f"the child under PYTHONHASHSEED={seed} failed"
+        printed.append(child.stdout.strip())
+        _state_assert_nothing_written(directory)
+
+    opened = printed[0].startswith("{")
+    assert opened
+    agreed = printed[0] == printed[1]
+    assert agreed
+
+
+def test_the_hash_seed_bodies_hold_what_a_set_could_order(tmp_path: Path) -> None:
+    """The control for the arm above: a trim, a route and held recipes are on those bodies."""
+    text = stated_bodies(tmp_path)
+
+    trimmed = '"trimmed":["R_Pad9"]' in text
+    assert trimmed
+    # Holding R_B1 and R_B2 moves the route to R_B, by hand in test_plan_redesign.py, and the
+    # encoded body escapes each quote.
+    route_held = 'plan.redesign.held = (\\"R_B2\\", \\"R_B1\\")' in text
+    assert route_held
+    both_rules = '"rule_id":"plan.adopt"' in text and '"rule_id":"plan.redesign"' in text
+    assert both_rules
+
+
+# ---------------------------------------------------------------------------
+# The seam the stated path crosses
+# ---------------------------------------------------------------------------
+
+
+def _run_time_imports(node: ast.AST) -> Iterator[str]:
+    """Every module a tree imports when it runs: an ``if TYPE_CHECKING`` block names types only."""
+    for child in ast.iter_child_nodes(node):
+        if (
+            isinstance(child, ast.If)
+            and isinstance(child.test, ast.Name)
+            and child.test.id == "TYPE_CHECKING"
+        ):
+            continue
+        if isinstance(child, ast.Import):
+            yield from (alias.name for alias in child.names)
+        elif isinstance(child, ast.ImportFrom) and child.module is not None:
+            yield child.module
+        else:
+            yield from _run_time_imports(child)
+
+
+def test_the_run_time_import_reader_tells_a_typing_import_from_a_real_one() -> None:
+    typing_only = "if TYPE_CHECKING:\n    from clockspeed.advisor.plans import PlanRequest\n"
+    real = "def f():\n    from clockspeed.advisor.plans import plan_offer\n"
+    assert frozenset(_run_time_imports(ast.parse(typing_only))) == frozenset()
+    assert frozenset(_run_time_imports(ast.parse(real))) == {"clockspeed.advisor.plans"}
+
+
+def test_the_advice_endpoint_reaches_the_advisor_only_through_the_source() -> None:
+    """The advisor import stays in ``providers.py``: this module names its models for typing."""
+    tree = ast.parse((SURFACE_ROOT / "api" / "advice.py").read_bytes().decode("ascii"))
+    imported = frozenset(_run_time_imports(tree))
+    assert imported == {"__future__", "typing", "clockspeed.surface.api"}
+
+
+def test_the_registry_endpoint_imports_the_data_layers_one_function() -> None:
+    tree = ast.parse((SURFACE_ROOT / "api" / "registry.py").read_bytes().decode("ascii"))
+    imported = frozenset(_run_time_imports(tree))
+    assert imported == {
+        "__future__",
+        "typing",
+        "clockspeed.surface.api",
+        "clockspeed.data.registry",
+    }
+    # Named one at a time, so the build step this module may not run stays out of reach.
+    froms = [
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "clockspeed.data.registry"
+        for alias in node.names
+    ]
+    assert "plan_targets" in froms
+    assert "build_registry" not in froms

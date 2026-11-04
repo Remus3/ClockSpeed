@@ -63,6 +63,12 @@ be this layer deciding something its neighbour already decided - and would make
 the page's list disagree with the solver's. Two builds of one document produce
 the same order, so the wire stays byte-deterministic (CLAUDE.md section 1).
 
+WHAT A PLAN MAY BE STATED FOR IS READ, NOT CHOSEN (CS-1371). ``plan_targets`` is
+:func:`clockspeed.data.registry.plan_targets`' answer, in its order, so the plan panel
+computes nothing and this module holds no opinion on what is selectable. It answers for
+the registry alone, whatever a world has unlocked, because the milestone target is a free
+selector (CLAUDE.md section 7).
+
 UNMODELLED CONTENT IS PUBLISHED, NOT HIDDEN. ``warnings`` and ``unknown_groups``
 cross the wire for the reason non-negotiable 7 exists: a body that served the
 clean half and dropped the flagged half is a quiet partial answer wearing a
@@ -91,12 +97,15 @@ split in ``clockspeed/surface/api/contract.py``, which must not collapse.
 # `clockspeed.data.registry`'s types are named ONLY under TYPE_CHECKING, to
 # parameterise `contract.RegistryProvider` at the use site the way that
 # protocol's docstring directs. That is naming the neighbour's model rather than
-# reaching past it, and a typing-only import costs no runtime reach at all.
+# reaching past it, and a typing-only import costs no runtime reach at all. The
+# one run-time import from it is `plan_targets`, a pure read of a registry this
+# module was already handed: the rule stays in the layer that owns it.
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.data.registry import plan_targets
 from clockspeed.surface.api import contract
 
 if TYPE_CHECKING:
@@ -113,12 +122,14 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "BODY_KEYS",
     "BUILDING_KEYS",
     "COUNT_KEYS",
     "DATA_KEYS",
     "ENDPOINT",
     "ITEM_KEYS",
     "METHOD_GET",
+    "PLAN_TARGETS_KEY",
     "RECIPE_IO_KEYS",
     "RECIPE_KEYS",
     "WARNING_KEYS",
@@ -137,9 +148,17 @@ ENDPOINT: Final = "/api/registry"
 #: its method too, as ``clockspeed/surface/api/solve.py`` already does.
 METHOD_GET: Final = "GET"
 
+#: The top-level keys of the registry itself: its collections and their counts, which
+#: ``tests/surface/test_panel_registry.py`` binds that panel and its fixture to.
+DATA_KEYS: Final = ("items", "recipes", "buildings", "counts", "warnings", "unknown_groups")
+
+#: The list of items a plan may be stated for (CS-1371), one key beside :data:`DATA_KEYS`
+#: because the plan panel reads it and the registry panel does not.
+PLAN_TARGETS_KEY: Final = "plan_targets"
+
 #: Exactly the top-level keys a success body carries. Published so a test can
 #: bind the shape to the builder and so neither can drift from the other.
-DATA_KEYS: Final = ("items", "recipes", "buildings", "counts", "warnings", "unknown_groups")
+BODY_KEYS: Final = (*DATA_KEYS, PLAN_TARGETS_KEY)
 
 #: One item's keys. ``form`` is served BESIDE ``is_fluid`` rather than being
 #: reduced to it, because ``RF_INVALID`` is neither solid nor fluid and a
@@ -307,8 +326,9 @@ def _body(registry: Registry) -> dict[str, object]:
         registry: The normalized registry.
 
     Returns:
-        The body, keyed by :data:`DATA_KEYS`. Each collection is served in the
-        registry's own order - see the module docstring on why it is not sorted.
+        The body, keyed by :data:`BODY_KEYS`. Each collection is served in the
+        registry's own order - see the module docstring on why it is not sorted -
+        and the plan targets in the order the data layer answers them.
     """
     return {
         "items": [_item(item) for item in registry.items.values()],
@@ -317,6 +337,7 @@ def _body(registry: Registry) -> dict[str, object]:
         "counts": _counts(registry),
         "warnings": [_warning(warning) for warning in registry.warnings],
         "unknown_groups": list(registry.unknown_groups),
+        PLAN_TARGETS_KEY: list(plan_targets(registry)),
     }
 
 

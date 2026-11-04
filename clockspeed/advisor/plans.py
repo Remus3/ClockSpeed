@@ -7,9 +7,10 @@ the rule inputs :mod:`clockspeed.advisor.rules.plan` reads.
 :func:`clockspeed.advisor.advise.inputs_of` calls it on every world; with no request it does
 no work beyond naming the status.
 
-THE TARGET IS THE CALLER'S, AND NO SURFACE STATES ONE YET. Nothing here chooses
-what to plan for: a world has no single target, and the milestone target is a free
-selector (CLAUDE.md section 7). A request carries one direction from
+THE TARGET IS THE CALLER'S. Nothing here chooses what to plan for: a world has no single
+target, and the milestone target is a free selector (CLAUDE.md section 7). The advice routes
+of ``clockspeed/surface/api/advice.py`` state one through
+:func:`plan_parameters` and :func:`plan_request_from`. A request carries one direction from
 :data:`clockspeed.solve.optimize.OBJECTIVES` and no weighted objective, so the top
 plan is always one rung's own optimum and clears that rung.
 

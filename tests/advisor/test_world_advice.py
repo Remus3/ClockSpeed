@@ -40,9 +40,10 @@ names both builds on tier 2 and tier 3, no rule settles, and
 ``advise_and_record`` completes nothing; on the pin no card mentions a build
 and the control completes.
 
-CS-1351: THE PLAN OFFER JOINS THE COMPOSITION. With no target stated it is one
-input, and the oracle adds that by hand as well: ``status_inputs`` of the no-target
-status. ``tests/advisor/test_plan_world.py`` grades the offer itself.
+CS-1351: THE PLAN OFFER JOINS THE COMPOSITION. With no target stated it is the status and
+the marked route's inputs reading not reached, and the oracle adds those by hand as well:
+``status_inputs`` of the no-target status. ``tests/advisor/test_plan_world.py`` grades the
+offer itself.
 
 CS-1315: THE REGISTRY CHECK JOINS THE COMPOSITION. :func:`inputs_of` takes the
 pinned docs hash as a second required keyword, runs the audit's

@@ -3,8 +3,9 @@
 Owns (BOOTSTRAP.md section 7.1): the READ routes of the advisor.
 ``/api/advice`` carries every card with explain tier 1 (the headline) and tier
 2 (the one-line reason), plus the card's resolved per-world ledger state and
-its global mute flag. ``/api/advice/<id>/derivation`` carries tier 3, the full
-derivation, for one card.
+its global mute flag, and what a stated plan request came to.
+``/api/advice/<id>/derivation`` carries tier 3, the full derivation, for one
+card.
 
 THIS MODULE TRANSCRIBES; IT DOES NOT COMPUTE. Every field is read off an
 :class:`clockspeed.advisor.advise.Advice` that the layer below produced. The
@@ -22,8 +23,32 @@ THE REFUSALS ARE THE OTHER ROUTES' REFUSALS. No world is 503 ``no_save``; no
 install is 503 ``no_game_install`` - the power balance prices built machines
 against the registry, and pricing them against nothing would be silently wrong;
 a store the source could not read is 503 ``advice_store_unreadable``. A
-parameter this route does not take is 400, and a card id the current advice
+parameter a route does not take is 400, and a card id the current advice
 does not carry is 400 ``invalid_parameter``. No 400 reflects what it refused.
+
+A STATED TARGET (CS-1371). Every route here takes :data:`TARGET_PARAMETER`,
+:data:`RATE_PARAMETER`, :data:`DIRECTION_PARAMETER` and
+:data:`BYPRODUCT_POLICY_PARAMETER`, all four or none. Stated, the source asks the advisor
+for that plan, so a plan card is on the listing, its id hits the derivation route and the
+state route records it; the listing also carries ``plan_outcome``, because a refused trace
+yields no card and a reader has nothing else to read why from. It is copied field by field
+off :attr:`clockspeed.advisor.advise.Advice.plan_outcome`, absent rather than null when
+no target was stated, so that body is what it was before this item. Not stated, the derivation
+and state routes answer as they did before it, so a plan card's id is 400 there.
+
+THE ORDER OF A REFUSAL IS THE CONTRACT. An unknown name is 400 ``unknown_parameter``; any of
+the four without the other three is 400 ``missing_parameter``; a rate, direction or policy
+the source refuses is 400 ``invalid_parameter``. All of that comes before any provider is
+read, as ``clockspeed/surface/api/solve.py`` refuses a request's shape first. Then no world
+and no install answer their 503s, so a missing save still says so however the request was
+worded, and only then is the target tested against the registry and refused 400
+``invalid_parameter``, before any advice is computed. THIS ROUTE REFUSES AN UNKNOWN KEY ON
+PURPOSE, which ``clockspeed/surface/api/solve.py`` leaves to the solve layer: what may be
+stated is published on ``/api/registry``, so a key off that list is a malformed request and
+never a question for a search, and it reaches no solve. Which values pass is the advisor's
+to say, through the source: this module tests no vocabulary, and parses no rate, which stays
+text until the advisor reads it, so no float can come of it. It catches no exception, so it
+reads no exception's message.
 
 PRIVACY. The world token is handed to the source with the world and is not
 read here at all. No field below is the token, a save path or a world name.
@@ -40,8 +65,9 @@ one card's state in the per-world ledger: ``accepted``, ``dismissed``,
 ``pinned``, ``new`` (which restores a hidden card) or ``snoozed`` with an
 ``until`` instant that must lie after now. The state and the instant arrive as
 query parameters, because a handler is handed query parameters and the path
-capture only. The card must be one the CURRENT advice lists, so the advice is
-resolved first and the id compared against it; the write itself is the bound
+capture only. The card must be one the CURRENT advice lists, the stated advice when
+the four are stated, so the advice is resolved first and the id compared against it; the
+write itself is the bound
 :class:`AdviceStore`'s, which hands it to the advisor's ledger. ``completed`` is
 not recordable here - a card is completed by the world, not by a click.
 
@@ -64,9 +90,10 @@ request the server has already admitted.
 # surface/ never computes. A layer that reaches past its neighbor is a
 # design bug.
 #
-# The stated model consumed here is clockspeed.advisor.advise.Advice, named
-# under TYPE_CHECKING only. This module opens no file and imports no store: the
-# source bound in is what reads the ledger and the mutes.
+# The stated models consumed here are clockspeed.advisor.advise.Advice and the two
+# clockspeed.advisor.plans request models, named under TYPE_CHECKING only. This
+# module opens no file, imports no store and calls no advisor function: the source
+# bound in is what reads the ledger and the mutes and what checks a stated request.
 
 from __future__ import annotations
 
@@ -78,24 +105,33 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from clockspeed.advisor.advise import Advice, AdvisedCard
+    from clockspeed.advisor.plans import PlanParameters, PlanRequest
+    from clockspeed.advisor.rules.plan import PlanOutcome
     from clockspeed.data.registry import Registry
     from clockspeed.save.world import WorldModel
 
 __all__ = [
+    "BYPRODUCT_POLICY_PARAMETER",
     "CARD_KEYS",
     "DATA_KEYS",
     "DERIVATION_ENDPOINT",
     "DERIVATION_KEYS",
+    "DIRECTION_PARAMETER",
     "ENDPOINT",
     "ID_PARAMETER",
     "MAX_UNTIL_DIGITS",
     "METHOD_GET",
     "METHOD_POST",
+    "PLAN_OUTCOME_KEYS",
+    "PLAN_PARAMETERS",
+    "RATE_PARAMETER",
     "RECORDABLE_STATES",
     "SNOOZED",
+    "STATED_DATA_KEYS",
     "STATE_ENDPOINT",
     "STATE_KEYS",
     "STATE_PARAMETER",
+    "TARGET_PARAMETER",
     "UNTIL_PARAMETER",
     "AdviceSource",
     "AdviceStore",
@@ -128,6 +164,26 @@ STATE_PARAMETER: Final = "state"
 #: seconds since the epoch - the unit the advice source's clock answers in.
 UNTIL_PARAMETER: Final = "until"
 
+#: What a stated plan is for, one item key off ``/api/registry``'s ``plan_targets``.
+TARGET_PARAMETER: Final = "target"
+
+#: How much of it a minute: an integer, an exact decimal or ``num/den``, read as text.
+RATE_PARAMETER: Final = "rate"
+
+#: Which rung the stated plan is graded under.
+DIRECTION_PARAMETER: Final = "direction"
+
+#: What the stated plan may do with a byproduct.
+BYPRODUCT_POLICY_PARAMETER: Final = "byproduct_policy"
+
+#: The four that state a plan, on every route here: all of them or none.
+PLAN_PARAMETERS: Final = (
+    TARGET_PARAMETER,
+    RATE_PARAMETER,
+    DIRECTION_PARAMETER,
+    BYPRODUCT_POLICY_PARAMETER,
+)
+
 #: The one recordable kind that carries an ``until``.
 SNOOZED: Final = "snoozed"
 
@@ -148,8 +204,15 @@ STATE_KEYS: Final = frozenset({"id", "state", "snoozed_until"})
 #: overwrites any query parameter of the same name.
 ID_PARAMETER: Final = "id"
 
-#: The listing body's keys.
+#: The listing body's keys with no plan stated.
 DATA_KEYS: Final = frozenset({"new_world", "cards"})
+
+#: The listing body's keys with a plan stated.
+STATED_DATA_KEYS: Final = DATA_KEYS | {"plan_outcome"}
+
+#: The keys ``plan_outcome`` may carry. ``status`` and ``redesign`` always; each of the others
+#: only where the outcome holds it, and absent rather than null where it does not.
+PLAN_OUTCOME_KEYS: Final = frozenset({"status", "redesign", "reason", "trimmed", "unmade"})
 
 #: One listed card's keys. ``headline`` is tier 1 and ``reason`` tier 2;
 #: ``snoozed_until`` is the snooze instant, null for every other state.
@@ -175,12 +238,29 @@ DERIVATION_KEYS: Final = frozenset({"id", "rule_id", "derivation"})
 class AdviceSource(Protocol):
     """Whatever turns one world and one registry into resolved advice.
 
-    Returns None when the advice stores could not be read - the endpoint turns
-    that into a 503 rather than an empty listing that would read as "no advice".
+    :meth:`advice` returns None when the advice stores could not be read - the endpoint
+    turns that into a 503 rather than an empty listing that would read as "no advice".
+    :meth:`plan_parameters` and :meth:`plan_request` are the advisor's own checks on what a
+    caller stated, so this module holds no opinion on which values pass. Each answers None
+    to refuse, with no text, so nothing a caller typed can come back out of one.
     """
 
-    def advice(self, world: WorldModel, registry: Registry) -> Advice | None:
+    def advice(
+        self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
+    ) -> Advice | None:
         """Run the advisor over one world, or None when a store is unreadable."""
+        ...
+
+    def plan_parameters(
+        self, *, rate: str, direction: str, byproduct_policy: str
+    ) -> PlanParameters | None:
+        """Check a stated rate, direction and policy, reading no provider, or refuse them."""
+        ...
+
+    def plan_request(
+        self, registry: Registry, target: str, parameters: PlanParameters
+    ) -> PlanRequest | None:
+        """Build the request a target and checked parameters ask, or refuse the target."""
         ...
 
 
@@ -223,11 +303,87 @@ def _card(advised: AdvisedCard) -> dict[str, object]:
     }
 
 
+def _outcome(outcome: PlanOutcome) -> dict[str, object]:
+    """Transcribe what a stated request came to, field by field.
+
+    Args:
+        outcome: The advisor's own projection. Every word in it is the advisor's.
+
+    Returns:
+        The outcome, keyed by :data:`PLAN_OUTCOME_KEYS`. A field the outcome does not hold
+        is absent, never null, so "no such word" cannot read as an empty one.
+    """
+    body: dict[str, object] = {"status": outcome.status, "redesign": outcome.redesign}
+    if outcome.reason is not None:
+        body["reason"] = outcome.reason
+    if outcome.trimmed is not None:
+        body["trimmed"] = list(outcome.trimmed)
+    if outcome.unmade is not None:
+        body["unmade"] = list(outcome.unmade)
+    return body
+
+
+def _listing(found: Advice) -> dict[str, object]:
+    """Transcribe the listing body.
+
+    Args:
+        found: The advice.
+
+    Returns:
+        The body, keyed by :data:`DATA_KEYS`, or by :data:`STATED_DATA_KEYS` when the advice
+        carries an outcome, which the advisor sets exactly when a request was stated.
+    """
+    body: dict[str, object] = {
+        "new_world": found.new_world,
+        "cards": [_card(advised) for advised in found.cards],
+    }
+    if found.plan_outcome is not None:
+        body["plan_outcome"] = _outcome(found.plan_outcome)
+    return body
+
+
+def _stated_plan(
+    endpoint: str,
+    query: Mapping[str, str],
+    source: AdviceSource,
+    *,
+    own: tuple[str, ...],
+) -> tuple[str, PlanParameters] | contract.Response | None:
+    """Refuse what can be refused before any provider is read, and name what was stated.
+
+    Args:
+        endpoint: The template the refusal names.
+        query: The path capture and the query parameters.
+        source: The advice source, whose door checks the rate, the direction and the policy.
+        own: The route's own parameters, beside the four.
+
+    Returns:
+        The target and the checked parameters; None when none of the four is stated; or
+        the 400 that refuses the request, which names nothing it refused.
+    """
+    if any(name not in own and name not in PLAN_PARAMETERS for name in query):
+        return contract.bad_request(endpoint, contract.REASON_UNKNOWN_PARAMETER)
+    stated = sum(1 for name in PLAN_PARAMETERS if name in query)
+    if stated == 0:
+        return None
+    if stated != len(PLAN_PARAMETERS):
+        return contract.bad_request(endpoint, contract.REASON_MISSING_PARAMETER)
+    parameters = source.plan_parameters(
+        rate=query[RATE_PARAMETER],
+        direction=query[DIRECTION_PARAMETER],
+        byproduct_policy=query[BYPRODUCT_POLICY_PARAMETER],
+    )
+    if parameters is None:
+        return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    return query[TARGET_PARAMETER], parameters
+
+
 def _resolve(
     endpoint: str,
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceSource,
+    stated: tuple[str, PlanParameters] | None,
 ) -> Advice | contract.Response:
     """Fetch the advice, or the refusal that stands in for it.
 
@@ -236,11 +392,12 @@ def _resolve(
         worlds: The world provider.
         registries: The registry provider.
         source: The advice source.
+        stated: What :func:`_stated_plan` read, or None when no plan is stated.
 
     Returns:
-        The advice, or a 503 naming what was missing.
+        The advice, or the refusal naming what was missing or off the list.
     """
-    resolved = _resolve_in_world(endpoint, worlds, registries, source)
+    resolved = _resolve_in_world(endpoint, worlds, registries, source, stated)
     if isinstance(resolved, contract.Response):
         return resolved
     return resolved[1]
@@ -251,21 +408,26 @@ def _resolve_in_world(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceSource,
+    stated: tuple[str, PlanParameters] | None,
 ) -> tuple[WorldModel, Advice] | contract.Response:
     """Fetch the world and its advice together, or the refusal for either.
 
     The state route needs the SAME world the advice was resolved over, so the
     record lands in the ledger of the world whose card was checked rather than
-    of whatever a second provider read would hand back.
+    of whatever a second provider read would hand back. A stated target is tested
+    here, after both providers and before the advice, because the list it is tested
+    against is the registry's and a missing save or install still says so first.
 
     Args:
         endpoint: The template the refusal names.
         worlds: The world provider.
         registries: The registry provider.
         source: The advice source.
+        stated: What :func:`_stated_plan` read, or None when no plan is stated.
 
     Returns:
-        (world, advice), or a 503 naming what was missing.
+        (world, advice), or a 503 naming what was missing, or the 400 refusing a target
+        off the list, which names nothing it refused.
     """
     model = worlds.world()
     if model is None:
@@ -273,7 +435,13 @@ def _resolve_in_world(
     registry = registries.registry()
     if registry is None:
         return contract.unavailable(endpoint, contract.REASON_NO_GAME_INSTALL)
-    found = source.advice(model, registry)
+    plan_request = None
+    if stated is not None:
+        target, parameters = stated
+        plan_request = source.plan_request(registry, target, parameters)
+        if plan_request is None:
+            return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    found = source.advice(model, registry, plan_request=plan_request)
     if found is None:
         return contract.unavailable(endpoint, contract.REASON_ADVICE_STORE_UNREADABLE)
     return model, found
@@ -299,19 +467,27 @@ def _instant(raw: str) -> int | None:
     return int(raw)
 
 
-def _state_request(query: Mapping[str, str]) -> tuple[str, str, int | None] | contract.Response:
+def _state_request(
+    query: Mapping[str, str], source: AdviceSource
+) -> tuple[str, str, int | None, tuple[str, PlanParameters] | None] | contract.Response:
     """Validate a state request's parameters before any world is read.
 
     Args:
         query: The path capture and the query parameters.
+        source: The advice source, whose door checks a stated plan's values.
 
     Returns:
-        (card id, kind, until), or the 400 that refuses the request. No 400
-        names the value it refused.
+        (card id, kind, until, what :func:`_stated_plan` read), or the 400 that
+        refuses the request. No 400 names the value it refused.
     """
-    allowed = (ID_PARAMETER, STATE_PARAMETER, UNTIL_PARAMETER)
-    if any(name not in allowed for name in query):
-        return contract.bad_request(STATE_ENDPOINT, contract.REASON_UNKNOWN_PARAMETER)
+    stated = _stated_plan(
+        STATE_ENDPOINT,
+        query,
+        source,
+        own=(ID_PARAMETER, STATE_PARAMETER, UNTIL_PARAMETER),
+    )
+    if isinstance(stated, contract.Response):
+        return stated
     card_id = query.get(ID_PARAMETER)
     kind = query.get(STATE_PARAMETER)
     if card_id is None or kind is None:
@@ -321,7 +497,7 @@ def _state_request(query: Mapping[str, str]) -> tuple[str, str, int | None] | co
     until = _until_for(kind, query.get(UNTIL_PARAMETER))
     if isinstance(until, contract.Response):
         return until
-    return card_id, kind, until
+    return card_id, kind, until, stated
 
 
 def _until_for(kind: str, raw_until: str | None) -> int | None | contract.Response:
@@ -364,19 +540,14 @@ def make_handler(
     """
 
     def handle(query: Mapping[str, str]) -> contract.Response:
-        """Answer one request. This endpoint accepts no parameter."""
-        if query:
-            return contract.bad_request(ENDPOINT, contract.REASON_UNKNOWN_PARAMETER)
-        found = _resolve(ENDPOINT, worlds, registries, source)
+        """Answer one request. Takes the four of a stated plan, or nothing at all."""
+        stated = _stated_plan(ENDPOINT, query, source, own=())
+        if isinstance(stated, contract.Response):
+            return stated
+        found = _resolve(ENDPOINT, worlds, registries, source, stated)
         if isinstance(found, contract.Response):
             return found
-        return contract.ok(
-            ENDPOINT,
-            {
-                "new_world": found.new_world,
-                "cards": [_card(advised) for advised in found.cards],
-            },
-        )
+        return contract.ok(ENDPOINT, _listing(found))
 
     return handle
 
@@ -398,13 +569,14 @@ def make_derivation_handler(
     """
 
     def handle(query: Mapping[str, str]) -> contract.Response:
-        """Answer one request. Takes exactly the ``id`` path capture."""
-        if any(name != ID_PARAMETER for name in query):
-            return contract.bad_request(DERIVATION_ENDPOINT, contract.REASON_UNKNOWN_PARAMETER)
+        """Answer one request: the ``id`` capture, and the four of a stated plan or none."""
+        stated = _stated_plan(DERIVATION_ENDPOINT, query, source, own=(ID_PARAMETER,))
+        if isinstance(stated, contract.Response):
+            return stated
         wanted = query.get(ID_PARAMETER)
         if wanted is None:
             return contract.bad_request(DERIVATION_ENDPOINT, contract.REASON_MISSING_PARAMETER)
-        found = _resolve(DERIVATION_ENDPOINT, worlds, registries, source)
+        found = _resolve(DERIVATION_ENDPOINT, worlds, registries, source, stated)
         if isinstance(found, contract.Response):
             return found
         for advised in found.cards:
@@ -437,12 +609,12 @@ def make_state_handler(
     """
 
     def handle(query: Mapping[str, str]) -> contract.Response:
-        """Answer one request: the ``id`` capture, ``state`` and maybe ``until``."""
-        asked = _state_request(query)
+        """Answer one request: the ``id`` capture, ``state``, maybe ``until``, and the four."""
+        asked = _state_request(query, source)
         if isinstance(asked, contract.Response):
             return asked
-        wanted, kind, until = asked
-        resolved = _resolve_in_world(STATE_ENDPOINT, worlds, registries, source)
+        wanted, kind, until, stated = asked
+        resolved = _resolve_in_world(STATE_ENDPOINT, worlds, registries, source, stated)
         if isinstance(resolved, contract.Response):
             return resolved
         model, found = resolved

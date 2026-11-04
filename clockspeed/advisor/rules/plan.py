@@ -102,8 +102,9 @@ REGISTERED, AND THEY FIRE ONLY WHERE A CALLER STATES A TARGET (CS-1351). The fam
 is in ``clockspeed/advisor/rules/__init__.py::_FAMILIES``, and
 ``clockspeed/advisor/advise.py::inputs_of`` offers its inputs on every world, so
 the CS-1285 slice C ruling G6 holds: no registered rule runs on a world that lacks
-them. A caller states a target through ``plan_request``. No surface passes one yet,
-so on a served world each rule records why it is silent and yields no card.
+them. A caller states a target through ``plan_request``, as the advice routes of
+``clockspeed/surface/api/advice.py`` do when asked (CS-1371). With none stated each
+rule records why it is silent and yields no card.
 
 NO TARGET IS NOT A MISSING INPUT, AND NO PLAN IS NOT A VERDICT. Every world offers
 :data:`IN_STATUS` and :data:`REDESIGN_INPUTS`. A status other than :data:`STATUS_RANKED`
@@ -210,7 +211,7 @@ REDESIGN_ROUTE_REFUSED: Final = "route-refused"
 #: A plan was ranked and is on offer.
 STATUS_RANKED: Final = "ranked"
 
-#: The caller stated no target. Every served world, today.
+#: The caller stated no target, which is every request that does not name the four.
 STATUS_NO_TARGET: Final = "no-target"
 
 #: The question cannot be asked: bad targets, a bad rate, direction, policy or raw

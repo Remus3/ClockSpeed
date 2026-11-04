@@ -18,9 +18,9 @@ A PLAN IS RANKED ONLY FOR A TARGET THE CALLER STATES (CS-1351).
 ``clockspeed/advisor/plans.py`` answers it. Left None, nothing is solved: the
 offer is the status that says no target was stated and a marked route that says none
 was reached, so the registered plan family records why it is silent rather than
-halting on an input the world lacks. No surface passes one yet, so the family runs on
-every served world and fires on none until a target selector ships. Stated, what the
-request came to is also on :attr:`Advice.plan_outcome` (CS-1371), because a refused
+halting on an input the world lacks. So the family runs on every served world, and it
+fires where ``clockspeed/surface/api/advice.py`` is asked for a target (CS-1371). Stated,
+what the request came to is also on :attr:`Advice.plan_outcome`, because a refused
 trace yields no card and a surface has nothing else to read why from.
 
 THE PIN IS A PARAMETER, NEVER AN IMPORT (CS-1288, the session 138 ruling F2).
@@ -472,7 +472,7 @@ def advise_world(
         mutes: The global per-rule mute store.
         now: The current instant, injected.
         plan_request: The target to rank a plan for, as :func:`inputs_of` takes
-            it. A surface passes none today.
+            it, or None when none is stated.
 
     Returns:
         The advice, as :func:`advise` returns it, carrying

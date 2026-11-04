@@ -58,6 +58,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Final
 
+from clockspeed.advisor import plans
 from clockspeed.advisor.advise import advise_world
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
 from clockspeed.data import locate, registry, version
@@ -81,6 +82,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from clockspeed.advisor.advise import Advice
+    from clockspeed.advisor.plans import PlanParameters, PlanRequest
     from clockspeed.data.registry import Registry
 
 __all__ = [
@@ -566,12 +568,19 @@ class StoreAdviceSource:
     registry to :func:`clockspeed.advisor.advise.advise_world`, which composes
     the audit models, runs the rules and resolves every card. No surface module
     imports ``clockspeed.audit``; the advisor is the layer that consumes it.
-    The one thing handed over beside them is the pin,
+    Handed over beside them are the plan request below and the pin,
     ``clockspeed.data.version.GAME_CHANGELIST`` as it reads at call time, so
     every card on a save another build wrote names both builds (CS-1288), and
     ``clockspeed.data.version.DOCS_SHA256`` the same way, so every card priced
     from a registry built from other docs bytes - or from none - says so
     (CS-1315). Both are values read and passed on; nothing here compares them.
+
+    A STATED TARGET IS THE ADVISOR'S TO CHECK AND ANSWER (CS-1371). :meth:`plan_parameters`
+    and :meth:`plan_request` call the advisor's own doors, so no surface module decides
+    which rate, direction, policy or target passes, or chooses a raw item. Neither reads a
+    store, the clock or a provider. :meth:`advice` hands the request on to
+    :func:`clockspeed.advisor.advise.advise_world` unchanged and, with no target stated,
+    hands on None, the one spelling of no request, which runs no solve.
 
     :meth:`advice` ONLY READS. The ledger and the mute store are read whole in
     one open, and every writer replaces the file atomically, so a read never
@@ -607,12 +616,15 @@ class StoreAdviceSource:
         self._directory = directory
         self._clock = clock
 
-    def advice(self, world: WorldModel, registry: Registry) -> Advice | None:
+    def advice(
+        self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
+    ) -> Advice | None:
         """The advice for one world, or None when a store could not be read.
 
         Args:
             world: The world model the server holds.
             registry: The normalized registry.
+            plan_request: What :meth:`plan_request` built, or None when no target is stated.
 
         Returns:
             The advice, or None when either store is corrupt or unreadable -
@@ -627,9 +639,43 @@ class StoreAdviceSource:
                 ledger=Ledger(self._directory),
                 mutes=MuteStore(self._directory),
                 now=self._clock(),
+                plan_request=plan_request,
             )
         except StoreError:
             return None
+
+    def plan_parameters(
+        self, *, rate: str, direction: str, byproduct_policy: str
+    ) -> PlanParameters | None:
+        """Check a stated rate, direction and policy, through the advisor's own door.
+
+        Args:
+            rate: The rate as received, as text.
+            direction: The direction as received.
+            byproduct_policy: The policy as received.
+
+        Returns:
+            The checked parameters, or None when any of the three is refused.
+        """
+        return plans.plan_parameters(
+            rate=rate, direction=direction, byproduct_policy=byproduct_policy
+        )
+
+    def plan_request(
+        self, registry: Registry, target: str, parameters: PlanParameters
+    ) -> PlanRequest | None:
+        """Build the request a stated target asks, through the advisor's own door.
+
+        Args:
+            registry: The normalized registry, whose published list the target is tested
+                against and whose published group supplies the raw items.
+            target: The target as received.
+            parameters: What :meth:`plan_parameters` checked.
+
+        Returns:
+            The request, or None when the target is not on the list. Runs no solve.
+        """
+        return plans.plan_request_from(registry, target, parameters)
 
     def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
         """Record one card's state in the world's ledger.

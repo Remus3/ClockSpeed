@@ -42,6 +42,10 @@ e. THE TENTH ROUTE IS A BIJECTION MEMBER, NOT AN EXTRA.
    ``clockspeed/surface/api/routes.py`` refuses a surplus route AT IMPORT, so a
    route table that carried this endpoint without ``health.ENDPOINT_TEMPLATES``
    naming it would not import at all.
+f. CS-1371: ONE MORE KEY, READ AND NOT CHOSEN. ``plan_targets`` lists what a plan may be
+   stated for. :func:`clockspeed.data.registry.plan_targets` owns the rule and
+   ``tests/data/test_registry.py`` grades it; these arms grade that the wire carries that
+   answer, and that this module holds no opinion about it.
 
 Test-quality discipline (CONVENTIONS.md section 7.2, and this package's own
 ``__init__``): every sweep binds a scalar before it is asserted, and every
@@ -534,7 +538,127 @@ def test_the_body_invents_no_identifier_the_registry_does_not_hold(
 def test_the_body_carries_exactly_the_keys_the_module_publishes(
     body: Mapping[str, object],
 ) -> None:
-    assert frozenset(body) == frozenset(endpoint.DATA_KEYS), sorted(body)
+    assert frozenset(body) == frozenset(endpoint.BODY_KEYS), sorted(body)
+
+
+# ---------------------------------------------------------------------------
+# CS-1371 arm 2: the body lists what a plan may be stated for
+# ---------------------------------------------------------------------------
+
+#: What the hand-authored corpus lets a plan be stated for, named by hand from the corpus's
+#: automated recipes in ``tests/solve/synthetic.py``, sorted. Ore is absent because the resource
+#: group holds it, and the Smelter because only the build gun makes it.
+CORPUS_PLAN_TARGETS: Final = (
+    "Desc_SolveFluid_C",
+    "Desc_SolveGadget_C",
+    "Desc_SolvePlate_C",
+    "Desc_SolveRelic_C",
+    "Desc_SolveResidue_C",
+    "Desc_SolveRod_C",
+    "Desc_SolveTrinket_C",
+    "Desc_SolveTwin_C",
+)
+
+#: The corpus's one published raw item, and the one output no machine makes.
+CORPUS_RAW_ITEM: Final = "Desc_SolveOre_C"
+CORPUS_HAND_MADE_ITEM: Final = "Desc_SolveSmelter_C"
+CORPUS_HAND_MADE_RECIPE: Final = "R_BuildGun"
+
+
+def test_the_body_lists_every_item_a_plan_may_be_stated_for(body: Mapping[str, object]) -> None:
+    served = body[endpoint.PLAN_TARGETS_KEY]
+    assert served == list(CORPUS_PLAN_TARGETS)
+
+
+def test_the_plan_targets_key_is_spelled_as_the_panel_reads_it() -> None:
+    assert endpoint.PLAN_TARGETS_KEY == "plan_targets"
+    separate = endpoint.PLAN_TARGETS_KEY not in endpoint.DATA_KEYS
+    assert separate
+    assert (*endpoint.DATA_KEYS, "plan_targets") == endpoint.BODY_KEYS
+
+
+def test_a_raw_item_is_published_as_an_item_and_never_as_a_plan_target(
+    body: Mapping[str, object], corpus: Registry
+) -> None:
+    held = CORPUS_RAW_ITEM in corpus.resource_items
+    assert held, "the corpus holds no such raw item, so the absence below would grade nothing"
+    published = CORPUS_RAW_ITEM in published_keys(body, "items")
+    assert published
+    listed = CORPUS_RAW_ITEM in targets_of(body)
+    assert not listed
+
+
+def test_an_output_no_automated_recipe_makes_is_not_a_plan_target(
+    body: Mapping[str, object],
+) -> None:
+    recipe = by_key(body, "recipes")[CORPUS_HAND_MADE_RECIPE]
+    outputs = [side["item_key"] for side in sides(recipe, "outputs")]
+    assert outputs == [CORPUS_HAND_MADE_ITEM]
+    assert producers_of(recipe) == ()
+    listed = CORPUS_HAND_MADE_ITEM in targets_of(body)
+    assert not listed
+
+
+def targets_of(data: Mapping[str, object]) -> list[str]:
+    """The plan targets the body serves, narrowed to the list of str they are.
+
+    Args:
+        data: The ``data`` object.
+
+    Returns:
+        The item keys, in the order served.
+    """
+    served = data[endpoint.PLAN_TARGETS_KEY]
+    assert isinstance(served, list), type(served).__name__
+    named = sum(1 for key in served if type(key) is str)
+    assert named == len(served), "a plan target is a bare item key"
+    return served
+
+
+def test_the_endpoint_serves_the_data_layers_list_and_chooses_nothing(
+    monkeypatch: pytest.MonkeyPatch, corpus: Registry
+) -> None:
+    """Whatever the data layer answers is what crosses: this module holds no opinion.
+
+    A planted list, in an order no sort gives, so a re-sort or a filter here would show.
+    """
+    planted = ("Zzz_NotARealTarget_C", "Aaa_NotARealTarget_C")
+    handed: list[object] = []
+
+    def plant(registry: Registry) -> tuple[str, ...]:
+        handed.append(registry)
+        return planted
+
+    monkeypatch.setattr(endpoint, "plan_targets", plant)
+
+    served = body_of(endpoint.make_handler(_StubRegistryProvider(corpus))({}))
+
+    assert served[endpoint.PLAN_TARGETS_KEY] == list(planted)
+    same = len(handed) == 1 and handed[0] is corpus
+    assert same
+
+
+def test_every_plan_target_is_selectable_whatever_a_world_has_unlocked() -> None:
+    """The free selector: this route binds a registry and nothing a world could narrow."""
+    bound = tuple(inspect.signature(endpoint.make_handler).parameters)
+    assert bound == ("registries",)
+
+
+def test_the_flawed_corpus_still_serves_its_plan_targets_as_a_list_of_str(
+    flawed: Registry,
+) -> None:
+    served = body_of(endpoint.make_handler(_StubRegistryProvider(flawed))({}))
+    count = len(targets_of(served))
+    assert count > 0, "the flawed corpus lists no target, so this arm would grade nothing"
+
+
+def test_a_registry_with_no_automated_recipe_serves_an_empty_list_not_a_gap(
+    corpus: Registry,
+) -> None:
+    """An empty list says nothing can be stated; a missing key would read as a broken body."""
+    bare = dataclasses.replace(corpus, recipes=MappingProxyType({}))
+    served = body_of(endpoint.make_handler(_StubRegistryProvider(bare))({}))
+    assert served[endpoint.PLAN_TARGETS_KEY] == []
 
 
 def test_every_entry_carries_exactly_the_keys_its_own_shape_publishes(

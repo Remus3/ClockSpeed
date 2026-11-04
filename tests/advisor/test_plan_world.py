@@ -133,6 +133,8 @@ from clockspeed.solve.strategy import (
     rank_plans,
 )
 from clockspeed.surface import providers
+from clockspeed.surface.api import advice as advice_endpoint
+from clockspeed.surface.api import contract, routes
 from tests.advisor.build_fixtures import (
     docs_pin,
     game_pin,
@@ -169,6 +171,7 @@ from tests.solve.synthetic import (
     document_from_groups,
     registry_with,
 )
+from tests.surface import test_map as map_fixtures
 
 #: The one rule this file grades, by its stable id.
 ADOPT_ID: Final = "plan.adopt"
@@ -1912,10 +1915,15 @@ def test_two_processes_under_different_hash_seeds_render_one_derivation() -> Non
 
 
 def test_the_surface_passes_no_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Honest about the headline: the rule runs on every served world and fires on none.
+    """With no target stated the surface asks for no plan; stated, it asks for that one.
 
-    Pinned so the selector that changes it has to say so here. Until one ships,
-    plan.adopt fires only where a caller states a target.
+    Both halves through the real route table, so the spy sees what the routes hand over.
+
+    THE DECISION THIS PINS (CS-1371 arm 4). The source hands ``plan_request`` on every time,
+    and with no target stated its value is None, which is the one spelling of no request:
+    one call path, and no branch deciding which keyword an advisor call carries. So the no
+    target half reads the keyword and finds None, and the stated half reads a request built
+    by the advisor's own door.
     """
     seen: list[Mapping[str, object]] = []
     real = providers.advise_world
@@ -1926,17 +1934,59 @@ def test_the_surface_passes_no_target(tmp_path: Path, monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(providers, "advise_world", spy)
     source = providers.StoreAdviceSource(tmp_path, clock=lambda: NOW)
+    model = _model(ASCENT_PATHS)
+    registry = _registry()
+    built = routes.build_routes(
+        map_fixtures._Worlds(model),  # noqa: SLF001
+        map_fixtures._Registries(registry),  # noqa: SLF001
+        source,
+    )
+    listing = next(route.handler for route in built if route.template == advice_endpoint.ENDPOINT)
 
-    found = source.advice(_model(ASCENT_PATHS), _registry())
+    # No target: the rule runs and fires nothing, and the spy sees no request.
+    silent = listing({})
 
-    assert found is not None
+    assert silent.http_status == contract.HTTP_OK
     calls = len(seen)
     assert calls == 1
-    named = "plan_request" in seen[0]
-    assert not named
+    no_request = seen[0]["plan_request"] is None
+    assert no_request
     assert inspect.signature(advise_world).parameters["plan_request"].default is None
+    silent_body = contract.encode(silent.payload)
+    assert ADOPT_ID.encode("ascii") not in silent_body
+    assert b"plan_outcome" not in silent_body
+
+    found = source.advice(model, registry)
+
+    assert found is not None
+    no_request_either = seen[1]["plan_request"] is None
+    assert no_request_either
     assert _read(_plan_trace(found), "plan.status") == STATUS_NO_TARGET
     assert _plan_cards(found) == []
+
+    # Stated: the same route, the same spy, and the rule fires on what the spy saw.
+    before = len(seen)
+    stated = listing(
+        {
+            advice_endpoint.TARGET_PARAMETER: SOLVE_RELIC_ITEM,
+            advice_endpoint.RATE_PARAMETER: str(RELIC_RATE),
+            advice_endpoint.DIRECTION_PARAMETER: OBJECTIVE_RAW,
+            advice_endpoint.BYPRODUCT_POLICY_PARAMETER: BYPRODUCT_BALANCED,
+        }
+    )
+
+    assert stated.http_status == contract.HTTP_OK
+    calls = len(seen) - before
+    assert calls == 1
+    request = seen[-1]["plan_request"]
+    assert type(request) is PlanRequest
+    assert dict(request.targets) == {SOLVE_RELIC_ITEM: RELIC_RATE}
+    assert request.raw_items == registry.resource_items
+    assert request.direction == OBJECTIVE_RAW
+    assert request.byproduct_policy == BYPRODUCT_BALANCED
+    stated_body = contract.encode(stated.payload)
+    assert ADOPT_ID.encode("ascii") in stated_body
+    assert b"plan_outcome" in stated_body
 
 
 # ---------------------------------------------------------------------------
