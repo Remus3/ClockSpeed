@@ -238,8 +238,8 @@ RUNG_WITHIN_POWER: Final = "within-power"
 #: above the bound times the reference. An ordinary, informative failure.
 NOT_CLEARED_OVER_BOUND: Final = "over-bound"
 
-#: The reason recorded for a rung that could not be evaluated exactly at all,
-#: because some used recipe has no exact draw. Flagged and skipped, never fatal.
+#: The reason for a rung with no exact evaluation: a used recipe, or one its reference's search
+#: reached, has no exact draw. Flagged and skipped, never fatal.
 NOT_CLEARED_UNPRICEABLE: Final = "power-not-comparable"
 
 #: The weight every rung scores its single objective at. One, because a rung
