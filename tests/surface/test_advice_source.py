@@ -1613,7 +1613,10 @@ def test_a_routed_request_reads_its_card_through_the_listing_and_the_derivation(
     headline = card["headline"]
     reason = card["reason"]
     assert headline == f"Plan toward {plan_fixtures.RELIC_NAME}"
-    assert reason == f"This route runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert reason == (
+        f"This route to {plan_fixtures.RELIC_NAME} runs 3 locked and 1 held recipe(s)"
+        f"{MUST_UNLOCK}{NOT_CHOSEN}"
+    )
     assert isinstance(headline, str)
     assert isinstance(reason, str)
     named = [name for name in redesign_fixtures.LOCKED_STAGES if name in headline + reason]
@@ -1774,7 +1777,8 @@ def test_a_no_plan_reads_its_reason_scoped_to_the_kept_set_and_the_trim_on_the_w
     scoped = "it kept" in NO_PLAN_REASON
     assert scoped
     assert _one_card(data, REDESIGN_ID)["reason"] == (
-        f"This route runs 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+        f"This route to {plan_fixtures.RELIC_NAME} runs 0 locked and 13 held recipe(s)"
+        f"{NO_UNLOCK}{NOT_CHOSEN}"
     )
 
 

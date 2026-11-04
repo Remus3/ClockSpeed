@@ -269,12 +269,10 @@ class _Stated:
     Attributes:
         rule: The rule that fires on it.
         names_input: The name input it reads, and the only input a rename may move.
-        tier2_names_the_target: Whether its tier 2 says the target at all.
     """
 
     rule: RuleSpec
     names_input: str
-    tier2_names_the_target: bool
 
     def parts(self) -> tuple[WorldModel, Registry, PlanRequest]:
         """The world, the registry and the request, built fresh for this rule."""
@@ -295,8 +293,8 @@ class _Stated:
 #: One stated world for each rule of the plan family.
 STATED_WORLDS: Final = MappingProxyType(
     {
-        "adopt": _Stated(plan_rules.ADOPT_RULE, plan_rules.IN_TARGET_NAMES, True),
-        "redesign": _Stated(plan_rules.REDESIGN_RULE, plan_rules.IN_REDESIGN_TARGET_NAMES, False),
+        "adopt": _Stated(plan_rules.ADOPT_RULE, plan_rules.IN_TARGET_NAMES),
+        "redesign": _Stated(plan_rules.REDESIGN_RULE, plan_rules.IN_REDESIGN_TARGET_NAMES),
     }
 )
 
@@ -400,8 +398,8 @@ def test_a_rename_on_a_stated_world_moves_the_wording_and_never_the_id(
     assert plan_worlds.RELIC_NAME in before.tier1
     named = RENAME_PREFIX + plan_worlds.RELIC_NAME
     assert named in after.tier1
-    assert (named in after.tier2) is stated.tier2_names_the_target
-    assert (before.tier2 != after.tier2) is stated.tier2_names_the_target
+    assert plan_worlds.RELIC_NAME in before.tier2
+    assert named in after.tier2
     assert after.id == before.id
     assert after.subject_key == before.subject_key
     assert _card_ids(after_advice) == _card_ids(before_advice)

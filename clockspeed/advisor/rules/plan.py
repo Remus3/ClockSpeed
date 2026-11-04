@@ -104,9 +104,10 @@ machine count, and a machine the world holds for each, so the engine's check sti
 applies. Locked recipes do reach this rule, a recipe held with no machine held among
 them, by ClassName, under :data:`IN_REDESIGN_LOCKED`, an input of their own: tier 3 reads
 them, and tier 1, tier 2 and ``requires`` name none of them, so no locked stage reads as
-buildable. A route with none locked needs no recipe and no machine unlocked. Tier 2 gives
-counts and says what the route is: the stated direction did not
-choose it, and it was never compared with what is built. The card carries no badge,
+buildable. A route with none locked needs no recipe and no machine unlocked. Tier 2 says
+the targets by label, counts the stages and names none of them, and says what the route is:
+the stated direction did not choose it, and it was never compared with what is built. The
+card carries no badge,
 because no ranking saw the route. A list that disagrees with the plan's own machines, a
 status outside the closed vocabulary, and a status that disagrees with ``plan.status`` are
 each a rule error. Its inputs stay out of :data:`PLAN_INPUTS`, so the ranked path and the
@@ -814,15 +815,15 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         ctx.reject(_REDESIGN_ALTERNATIVE, _NO_MACHINE_REASON)
         return None
     ctx.indeterminate(_ROUTE_COMPARE_ALTERNATIVE, _ROUTE_COMPARE_REASON)
-    # Counts only, so no locked recipe reads as buildable: tier 3 names them under an input
-    # of their own. The caveat stays last, whatever precedes it.
+    # The targets' labels and counts of stages, so no locked recipe reads as buildable: tier 3
+    # names the stages under an input of their own. The caveat stays last, whatever precedes it.
     unlock = _MUST_UNLOCK_CLAUSE if locked else _NO_UNLOCK_CLAUSE
-    labels = _target_labels(ctx, target_names, targets)
+    labels = ", ".join(_target_labels(ctx, target_names, targets))
     return Recommendation(
         subject_key=SUBJECT_PREFIX + "+".join(targets),
-        action="Plan toward " + ", ".join(labels),
+        action="Plan toward " + labels,
         reason=(
-            f"This route runs {len(locked)} locked and {len(held)} held recipe(s)"
+            f"This route to {labels} runs {len(locked)} locked and {len(held)} held recipe(s)"
             f"{unlock}{_NOT_CHOSEN_CLAUSE}{_unchecked_clause(unchecked)}{caveat}"
         ),
         requires=requires,
