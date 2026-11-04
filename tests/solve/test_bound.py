@@ -49,9 +49,10 @@ because ``Fraction(1, 2) == 0.5`` is True.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import FrozenInstanceError, replace
 from fractions import Fraction
 from pathlib import Path
@@ -61,7 +62,7 @@ from typing import Any, Final
 import pytest
 
 from clockspeed.advisor.plans import PlanRequest, plan_offer
-from clockspeed.data.registry import Registry
+from clockspeed.data.registry import Registry, build_registry
 from clockspeed.save.world import EMPTY_UNLOCK_STATE
 from clockspeed.solve import bound
 from clockspeed.solve import optimize as optimize_module
@@ -99,10 +100,13 @@ from clockspeed.solve.optimize import (
 from clockspeed.solve.ratio import BYPRODUCT_BALANCED, BYPRODUCT_POLICIES, BYPRODUCT_SINKABLE
 from tests.data.synthetic import (
     KEY_CLASS_NAME,
+    KEY_CLASSES,
     KEY_DISPLAY_NAME,
     KEY_DURATION,
+    KEY_FORM,
     KEY_FULL_NAME,
     KEY_INGREDIENTS,
+    KEY_NATIVE_CLASS,
     KEY_PRODUCED_IN,
     KEY_PRODUCT,
     amount_blob,
@@ -112,10 +116,14 @@ from tests.solve.synthetic import (
     ALT_GADGET_RECIPE,
     C3_GADGET_TARGET,
     C5_TRINKET_TARGET,
+    DOCS_TEXT,
     FLUID_RECIPE,
     GADGET_RECIPE,
+    ITEM_GROUP,
+    MACHINE_BUILD_PATHS,
     ORPHAN_RECIPE,
     PLATE_RECIPE,
+    RECIPE_GROUP,
     RECLAIM_RECIPE,
     RECOVER_RECIPE,
     SOLVE_ASSEMBLER_BUILDING,
@@ -134,6 +142,7 @@ from tests.solve.synthetic import (
     STD_GADGET_RECIPE,
     ZERO_DURATION_RECIPE,
     building_path,
+    document_from_groups,
     reclaim_registry,
     registry_with,
     solve_registry,
@@ -1650,9 +1659,17 @@ def test_a_derived_route_inside_a_closure_over_the_cap_ranks_a_plan() -> None:
     assert bounded.record.first.removed == ROUTE_ORDER_REMOVED
     audit_exact(bounded, path="bounded")
 
+    # The same chain beside every machine's build recipe, which the unlock join reads and the
+    # bound does not. Its one warning is the build gun's, so the pin above stays on the rest.
+    with_machines = registry_with(
+        add=_closure_entries(), drop=frozenset(SOLVE_RECIPES), machine_builds=True
+    )
     offered = plan_offer(
-        replace(EMPTY_UNLOCK_STATE, recipes=frozenset(_path_of(name) for name in usable)),
-        registry,
+        replace(
+            EMPTY_UNLOCK_STATE,
+            recipes=frozenset((*(_path_of(name) for name in usable), *MACHINE_BUILD_PATHS)),
+        ),
+        with_machines,
         PlanRequest(
             targets=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_TARGET}),
             raw_items=(SOLVE_ORE_ITEM,),
@@ -1692,6 +1709,178 @@ def test_the_chain_fixtures_route_and_its_gaps_are_the_hand_derived_ones() -> No
     assert type(route.members) is tuple
     assert type(route.unmade) is tuple
     assert route.complete is True
+
+
+def _walk_item(name: str) -> str:
+    """One invented item of the walk fixtures.
+
+    Args:
+        name: The item's short name.
+
+    Returns:
+        Its ClassName.
+    """
+    return f"Desc_Walk{name}_C"
+
+
+def _walk_registry(entries: list[dict[str, str]], items: tuple[str, ...]) -> Registry:
+    """A registry holding exactly these recipes, each invented item given a descriptor.
+
+    Args:
+        entries: The recipe entries, replacing the corpus's own.
+        items: The invented items, by short name.
+
+    Returns:
+        The registry, through the same text seam the corpus uses, with no warning.
+    """
+    groups = json.loads(DOCS_TEXT)
+    for group in groups:
+        native_class = group[KEY_NATIVE_CLASS]
+        if native_class.endswith(f".{ITEM_GROUP}'"):
+            group[KEY_CLASSES].extend(
+                {
+                    KEY_CLASS_NAME: _walk_item(item),
+                    KEY_DISPLAY_NAME: item,
+                    KEY_FORM: "RF_SOLID",
+                }
+                for item in items
+            )
+        elif native_class.endswith(f".{RECIPE_GROUP}'"):
+            group[KEY_CLASSES] = entries
+    return build_registry(document_from_groups(groups))
+
+
+def _revisited_entries() -> list[dict[str, str]]:
+    """A recipe the walk reaches at level zero and again at level eleven.
+
+    R_X makes the target, and Y beside it, and Y feeds the long way back to the target
+    through R_D10, R_D9 and on down to R_Alt, so the walk comes to R_X again as Y's maker.
+
+    Returns:
+        The entries, in the order they take in registry order.
+    """
+    item = _walk_item
+    return [
+        _one_each("R_Top", (item("A"), item("B")), (item("T"),)),
+        _entry("R_A", [(SOLVE_ORE_ITEM, 1)], [(item("A"), 1), (item("B"), 2)]),
+        _one_each("R_X", (item("B"), item("C")), (item("T"), item("Y"))),
+        _one_each("R_C", (SOLVE_ORE_ITEM,), (item("C"),)),
+        _one_each("R_Alt", (item("D1"),), (item("T"),)),
+        *(
+            _one_each(f"R_D{level}", (item(f"D{level + 1}"),), (item(f"D{level}"),))
+            for level in range(1, 10)
+        ),
+        _one_each("R_D10", (item("Y"),), (item("D10"),)),
+    ]
+
+
+#: The items of :func:`_revisited_entries`, by short name.
+REVISITED_ITEMS: Final = ("T", "A", "B", "C", "Y", *(f"D{level}" for level in range(1, 11)))
+
+#: The target of every walk fixture, by short name.
+WALK_TARGET: Final = "T"
+
+#: Its whole ranking, by hand. The count ties R_Top and R_X at three recipes and registry
+#: position gives R_Top, whose inputs are both R_A's, so the route is those two. Then the
+#: closure by level: R_X and R_Alt at zero, the target's other makers, kept at zero though the
+#: walk comes back to R_X as Y's maker; R_C and R_D1 at one; each next R_D a level down, to
+#: R_D10 at ten.
+REVISITED_RANKING: Final = (
+    "R_Top",
+    "R_A",
+    "R_X",
+    "R_Alt",
+    "R_C",
+    *(f"R_D{level}" for level in range(1, 11)),
+)
+
+
+#: The first prefix of that ranking that solves, by hand: the first to hold R_X and R_C.
+REVISITED_PREFIX: Final = 5
+
+
+def _level_tie_entries() -> list[dict[str, str]]:
+    """Two makers on one level, the item walked first declared second.
+
+    Returns:
+        The entries, in the order they take in registry order.
+    """
+    item = _walk_item
+    return [
+        _one_each("R_Top", (SOLVE_ORE_ITEM,), (item("T"),)),
+        _one_each("R_Dead", (item("X"), item("Y")), (item("T"),)),
+        _one_each("R_MakeY", (SOLVE_ORPHAN_ITEM,), (item("Y"),)),
+        _one_each("R_MakeX", (SOLVE_ORPHAN_ITEM,), (item("X"),)),
+    ]
+
+
+def _loop_entries() -> list[dict[str, str]]:
+    """A loop no raw item enters, its level order against its registry order.
+
+    Returns:
+        The entries, in the order they take in registry order.
+    """
+    item = _walk_item
+    return [
+        _one_each("R_Top", (item("Mid"),), (item("T"),)),
+        _one_each("R_Mid", (SOLVE_ORE_ITEM,), (item("Mid"),)),
+        _one_each("R_Both", (SOLVE_ORE_ITEM, item("Rare")), (item("T"), item("Plate"))),
+        _one_each("R_Plate", (item("Rare"),), (item("Plate"),)),
+        _one_each("R_RareA", (item("Plate"),), (item("Rare"),)),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("entries", "items", "ranking"),
+    [
+        (_revisited_entries, REVISITED_ITEMS, REVISITED_RANKING),
+        # R_Top is the route, and R_Dead the target's other maker, with no count. X and Y are one
+        # level, so registry position decides between their makers, whichever the walk read first.
+        (_level_tie_entries, ("T", "X", "Y"), ("R_Top", "R_Dead", "R_MakeY", "R_MakeX")),
+        # R_Top and R_Mid are the route. R_Both is the target's other maker, at level zero, kept
+        # there though it makes Plate too. R_RareA makes Rare at level one and R_Plate makes Plate
+        # at level two, so the level orders them against their registry position.
+        (
+            _loop_entries,
+            ("T", "Mid", "Rare", "Plate"),
+            ("R_Top", "R_Mid", "R_Both", "R_RareA", "R_Plate"),
+        ),
+    ],
+    ids=["revisited-recipe", "two-makers-on-one-level", "loop-behind-the-route"],
+)
+def test_the_closure_ranks_a_recipe_at_the_level_the_walk_first_reached_it(
+    entries: Callable[[], list[dict[str, str]]], items: tuple[str, ...], ranking: tuple[str, ...]
+) -> None:
+    """The ranking's closure half, each ranking named by hand and never read back."""
+    built = entries()
+    registry = _walk_registry(built, items)
+
+    assert registry.warnings == ()
+    request = _route_request(built, _walk_item(WALK_TARGET))
+    assert _ranking(registry, request) == ranking
+
+
+def test_a_recipe_kept_at_its_first_level_answers_what_its_deepest_would_drop() -> None:
+    """What that level is for: the cap falls past R_X, and R_X is what the plan needs.
+
+    By hand, at 10 of the target a minute, every cycle ten a minute, on the sinkable policy.
+    R_A's two B a cycle overfeed R_Top alone, and nothing else eats B without R_X and R_C, so
+    the first prefix that solves is five long, R_Alt idle in it. R_Top and R_X split the target,
+    half a machine each. Half a machine of R_A then gives 5 A and 10 B, half a machine of R_C
+    gives 5 C, and R_X leaves 5 Y to sink. That is 10 Ore a minute.
+    """
+    built = _revisited_entries()
+    registry = _walk_registry(built, REVISITED_ITEMS)
+    request = _route_request(built, _walk_item(WALK_TARGET), byproduct_policy=BYPRODUCT_SINKABLE)
+
+    bounded = optimize_within_bound(registry, request)
+
+    assert bounded.chosen_size == REVISITED_PREFIX
+    assert bounded.result.selection == ("R_Top", "R_A", "R_X", "R_C")
+    assert bounded.result.score == Fraction(10)
+    assert bounded.result.plan.byproducts == {_walk_item("Y"): Fraction(5)}
+    assert bounded.record is not None
+    assert bounded.record.first.removed == ("R_D8", "R_D9", "R_D10")
 
 
 def test_the_ranking_is_the_route_then_the_closure_by_depth_on_the_chain() -> None:

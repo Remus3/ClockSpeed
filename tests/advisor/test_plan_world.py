@@ -81,8 +81,10 @@ from clockspeed.advisor.trace import (
 )
 from clockspeed.data import locate, version
 from clockspeed.data.registry import (
+    WARN_UNRESOLVED_PRODUCED_IN,
     Registry,
     automated_recipes,
+    build_cost,
     build_registry,
     build_registry_from_bytes,
 )
@@ -157,8 +159,12 @@ from tests.data.synthetic import (
     class_path_blob,
 )
 from tests.solve.synthetic import (
+    BUILDING_DESCRIPTOR_GROUP,
     DOCS_TEXT,
     ITEM_GROUP,
+    MACHINE_BUILD_ENTRIES,
+    MACHINE_BUILD_PATHS,
+    MACHINE_DESCRIPTOR_ENTRIES,
     RECIPE_GROUP,
     SOLVE_ASSEMBLER_BUILDING,
     SOLVE_ORE_ITEM,
@@ -169,6 +175,7 @@ from tests.solve.synthetic import (
     SOLVE_SMELTER_BUILDING,
     building_path,
     document_from_groups,
+    machine_build_path,
     registry_with,
 )
 from tests.surface import test_map as map_fixtures
@@ -247,6 +254,10 @@ PATHS: Final[Mapping[str, str]] = MappingProxyType(
         NO_PRODUCER: "/Game/FactoryGame/Synthetic/Epsilon/By_Hand.By_Hand_C",
     }
 )
+
+#: The unlock key of the one machine every recipe here runs on, which a plan's requires name
+#: beside its first recipe. Spelled through the fixture's path, never read back from a plan.
+ASSEMBLER_KEY: Final = "recipe:" + machine_build_path(SOLVE_ASSEMBLER_BUILDING)
 
 #: The three recipes of the ascent shape, in registry order.
 ASCENT: Final = (RELIC_FROM_RARE, RELIC_DIRECT, RARE_FROM_ORE)
@@ -363,6 +374,7 @@ def _registry_of(entries: list[dict[str, str]]) -> Registry:
 
     The corpus's own recipes are dropped because they carry no FullName, and
     would otherwise fill every arm's unchecked list with recipes it is not about.
+    Each machine's build recipe is added, so every recipe here has a machine to check.
 
     Args:
         entries: The recipe entries.
@@ -370,7 +382,9 @@ def _registry_of(entries: list[dict[str, str]]) -> Registry:
     Returns:
         The registry, stamped as built from the pinned docs bytes.
     """
-    return pinned_source(registry_with(add=entries, drop=frozenset(SOLVE_RECIPES)))
+    return pinned_source(
+        registry_with(add=entries, drop=frozenset(SOLVE_RECIPES), machine_builds=True)
+    )
 
 
 def _registry() -> Registry:
@@ -425,13 +439,18 @@ def _request(*, direction: str = OBJECTIVE_RAW, item: str = SOLVE_RELIC_ITEM) ->
     )
 
 
-def _unlocks(unlocked: Iterable[str]) -> UnlockState:
-    """An unlock state holding exactly these recipe paths."""
-    return dataclasses.replace(EMPTY_UNLOCK_STATE, recipes=frozenset(unlocked))
+def _unlocks(
+    unlocked: Iterable[str], *, machines: Iterable[str] = MACHINE_BUILD_PATHS
+) -> UnlockState:
+    """An unlock state holding these recipe paths and these machines' build recipe paths.
+
+    Every machine unless told otherwise, so an arm's locks are the recipes it names.
+    """
+    return dataclasses.replace(EMPTY_UNLOCK_STATE, recipes=frozenset((*unlocked, *machines)))
 
 
 def _model(unlocked: Iterable[str]) -> WorldModel:
-    """A synthetic world of the pinned build, holding no machine, with these recipes."""
+    """A synthetic world of the pinned build, placing no machine, with these recipes unlocked."""
     return dataclasses.replace(synthetic_world(game_pin()), unlocks=_unlocks(unlocked))
 
 
@@ -624,6 +643,7 @@ def test_the_requires_are_the_join_not_a_supplied_tuple() -> None:
     requires = offered["plan.requires"].value
     assert requires == (
         "recipe:/Game/FactoryGame/Synthetic/Alpha/Stage_Two.Stage_Two_C",
+        ASSEMBLER_KEY,
         "recipe:/Game/FactoryGame/Synthetic/Gamma/Stage_One.Stage_One_C",
     )
     assert offered["plan.requires"].source == "advisor.plans.recipe_unlock_join"
@@ -646,6 +666,7 @@ def test_the_engine_refuses_the_joined_keys_over_a_world_lacking_them() -> None:
     assert card_for(trace) is None
     assert trace.unmet == (
         "recipe:/Game/FactoryGame/Synthetic/Alpha/Stage_Two.Stage_Two_C",
+        ASSEMBLER_KEY,
         "recipe:/Game/FactoryGame/Synthetic/Gamma/Stage_One.Stage_One_C",
     )
 
@@ -659,7 +680,7 @@ def test_a_locked_recipe_cannot_enter_the_plan(tmp_path: Path) -> None:
     plan = _card_read(card, "plan.production")
     assert [step.recipe_key for step in plan.steps] == [RELIC_DIRECT]  # type: ignore[attr-defined]
     assert plan.raw_inputs[SOLVE_ORE_ITEM] == ONE_STAGE_ORE  # type: ignore[attr-defined]
-    assert _card_read(card, "plan.requires") == ("recipe:" + PATHS[RELIC_DIRECT],)
+    assert _card_read(card, "plan.requires") == ("recipe:" + PATHS[RELIC_DIRECT], ASSEMBLER_KEY)
     locked_named = RARE_FROM_ORE in card.tier3 or PATHS[RARE_FROM_ORE] in card.tier3
     assert not locked_named
 
@@ -672,7 +693,7 @@ def test_the_join_is_the_whole_path_never_its_trailing_token() -> None:
 
     offered = plan_offer(_unlocks(unlocked), _registry(), _request())
 
-    assert offered["plan.requires"].value == ("recipe:" + PATHS[RELIC_DIRECT],)
+    assert offered["plan.requires"].value == ("recipe:" + PATHS[RELIC_DIRECT], ASSEMBLER_KEY)
     assert offered["plan.unmatched_unlocks"].value == 1
 
 
@@ -706,10 +727,13 @@ def test_a_recipe_with_no_asset_path_is_flagged_and_never_planned(tmp_path: Path
     # Under power the unknown route would have won, at 15 MW against 30.
     assert _card_read(card, "plan.requires") == (
         "recipe:" + PATHS[RELIC_FROM_RARE],
+        ASSEMBLER_KEY,
         "recipe:" + PATHS[RARE_FROM_ORE],
     )
     assert _card_read(card, "plan.unchecked") == (RELIC_DIRECT,)
-    flagged = "; 1 automated recipe(s) carry no asset path and were never planned" in card.tier2
+    flagged = (
+        "; 1 automated recipe(s) carry no unlock path to check and were never planned" in card.tier2
+    )
     assert flagged
     assert 'Read plan.unchecked = ("R_B2Direct") from advisor.plans.unchecked' in card.tier3
 
@@ -1058,8 +1082,8 @@ def _chain_registry() -> Registry:
     against the walk.
 
     The corpus holds too few items for this, so each stage item gets its own descriptor
-    through the same text seam the corpus uses, and the registry still builds with no
-    warning: an unknown-item warning would be solving a different factory.
+    through the same text seam the corpus uses, and the registry builds with no warning
+    but the build gun's: an unknown-item warning would be solving a different factory.
 
     Returns:
         The registry, stamped as built from the pinned docs bytes.
@@ -1083,8 +1107,10 @@ def _chain_registry() -> Registry:
         native_class = group[KEY_NATIVE_CLASS]
         if native_class.endswith(f".{ITEM_GROUP}'"):
             group[KEY_CLASSES].extend(descriptors)
+        elif native_class.endswith(f".{BUILDING_DESCRIPTOR_GROUP}'"):
+            group[KEY_CLASSES].extend(MACHINE_DESCRIPTOR_ENTRIES)
         elif native_class.endswith(f".{RECIPE_GROUP}'"):
-            group[KEY_CLASSES] = entries
+            group[KEY_CLASSES] = [*entries, *MACHINE_BUILD_ENTRIES]
     return pinned_source(build_registry(document_from_groups(groups)))
 
 
@@ -1104,7 +1130,7 @@ def test_a_capped_no_plan_names_what_the_bound_dropped(tmp_path: Path) -> None:
     has to say what the search never asked about.
     """
     registry = _chain_registry()
-    assert registry.warnings == ()
+    assert [warning.code for warning in registry.warnings] == [WARN_UNRESOLVED_PRODUCED_IN]
     assert len(_chain_recipes()) > MAX_EXHAUSTIVE_CANDIDATES
 
     advice = _advise(tmp_path, _model(_chain_paths()), registry, _request())
@@ -2043,7 +2069,10 @@ def test_the_requires_come_from_the_registry_never_from_the_save() -> None:
     A key built from the member the join compared equal to would format it and
     raise here. Built from the registry's own string, nothing touches it.
     """
-    state = _unlocks(_SavePath(path) for path in (*ASCENT_PATHS, SAVE_ONLY_PATH))
+    state = _unlocks(
+        (_SavePath(path) for path in (*ASCENT_PATHS, SAVE_ONLY_PATH)),
+        machines=tuple(_SavePath(path) for path in MACHINE_BUILD_PATHS),
+    )
     # The control: the plant does fire when a path is rendered.
     with pytest.raises(_SavePathRenderedError):
         f"{next(iter(state.recipes))}"
@@ -2052,6 +2081,7 @@ def test_the_requires_come_from_the_registry_never_from_the_save() -> None:
 
     assert offered["plan.requires"].value == (
         "recipe:" + PATHS[RELIC_FROM_RARE],
+        ASSEMBLER_KEY,
         "recipe:" + PATHS[RARE_FROM_ORE],
     )
     assert offered["plan.unmatched_unlocks"].value == 1
@@ -2207,11 +2237,32 @@ def _library_unlocks(saves: tuple[Path, ...]) -> UnlockState | None:
     return None
 
 
+def _a_machine_is_held(
+    registry: Registry, buildings: tuple[str, ...], unlocks: UnlockState
+) -> bool:
+    """Whether the world holds the build recipe of any of these machines, by whole path.
+
+    Args:
+        registry: The installed docs' registry.
+        buildings: A recipe's machines.
+        unlocks: The world's unlock state.
+
+    Returns:
+        A bool, so nothing from the save leaves this helper.
+    """
+    costs = (build_cost(registry, building) for building in buildings)
+    return any(
+        cost is not None and registry.recipes[cost.recipe_key].asset_path in unlocks.recipes
+        for cost in costs
+    )
+
+
 def _join_counts(registry: Registry, unlocks: UnlockState) -> _JoinCounts:
     """Count the join over one real world, and offer one real plan.
 
     The target is the first joined recipe made wholly of raw items - no automated
-    recipe produces them - so a plan exists and no chain has to survive the trim.
+    recipe produces them - that a machine the world holds runs, so a plan exists and
+    no chain has to survive the trim. A world can hold such a recipe with no machine.
 
     Args:
         registry: The installed docs' registry.
@@ -2228,7 +2279,9 @@ def _join_counts(registry: Registry, unlocks: UnlockState) -> _JoinCounts:
     simple = [
         recipe
         for recipe in automated
-        if recipe.inputs and all(entry.item_key in raw for entry in recipe.inputs)
+        if recipe.inputs
+        and all(entry.item_key in raw for entry in recipe.inputs)
+        and _a_machine_is_held(registry, recipe.produced_in, unlocks)
     ]
     status = ""
     requires = unmet = 0

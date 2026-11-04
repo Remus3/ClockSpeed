@@ -24,14 +24,25 @@ only if it is automated too: a recipe no machine runs cannot be built by a plan,
 and a raw search picks one wherever it is cheapest, because raw consumption never
 asks what runs a recipe.
 
+A RECIPE IS HELD ONLY WITH A MACHINE TO RUN IT (``BOOTSTRAP.md`` section 5.4). A world can
+hold a recipe and no machine in its ``produced_in``, and advice to build that chain could
+not be followed. A machine unlocks the way a recipe does, by the build-gun recipe
+:func:`clockspeed.data.registry.build_cost` names for it, so the same whole-string
+comparison reads that recipe's path. A recipe is HELD when the world holds its whole path
+and that path of at least one of its machines. One it holds with no machine held counts as
+locked, on the search and on the route alike. The unlock keys a plan requires are each
+recipe's own and, for each, the key of the first of its machines the world holds, every
+key once, in the order first seen.
+
 WHAT THE JOIN LEAVES OUT IS SAID, NOT DROPPED (non-negotiable 7). An automated
-recipe with no path can never be shown unlocked, so it never enters a search or a
-route and is named on ``plan.unchecked``, so no plan can cover a recipe nobody checked. An
-unlocked path that joins no recipe is COUNTED on ``plan.unmatched_unlocks``, and
-that count is all that crosses: a save's own path never reaches an input, a step,
-a card, a repr or an exception (non-negotiables 11 and 12). The unlock keys a plan
-requires are built from the REGISTRY's string, which a reader may see, and never
-from the member it compared equal to.
+recipe with no path, or no machine of which joins a build recipe with a path, can never be
+shown held. Treating it as held would be silently wrong and as locked would state a lock
+nothing lifts, so it never enters a search or a route and is named on ``plan.unchecked``,
+so no plan can cover a recipe nobody checked. An unlocked path that joins no recipe is
+COUNTED on ``plan.unmatched_unlocks``, and that count is all that crosses: a save's own
+path never reaches an input, a step, a card, a repr or an exception (non-negotiables 11
+and 12). The unlock keys a plan requires are built from the REGISTRY's string, which a
+reader may see, and never from the member it compared equal to.
 
 THE SEARCH, IN ORDER.
 
@@ -62,14 +73,14 @@ THE MARKED ROUTE, ON A NO-PLAN AND ON NOTHING ELSE (CS-1371). A no-plan speaks o
 what the search kept, and a target is a free selector, so a world holding none of a chain
 would otherwise read nothing at all. :func:`_redesign_offer`, the whole of the route the
 item ruled and swappable as one function, takes
-:func:`clockspeed.solve.bound.derived_route` over every automated recipe carrying a path,
-counting what the world has not joined first and all recipes second, and solves that route
-once with
+:func:`clockspeed.solve.bound.derived_route` over every automated recipe the join could
+check, counting what the world does not hold first and all recipes second, so a recipe held
+with no machine held cannot tie a route that runs now, and solves that route once with
 :func:`clockspeed.solve.ratio.solve_for_targets` under the stated policy. It makes no second
 bound call and no rung search, so no direction chooses the route and no badge can grade it.
-A stage the solve gives no machine is neither held nor locked. The result goes to
-``plan.redesign``, never to ``plan.adopt``: this is the one path where a recipe the world has
-not unlocked reaches a rule as a stage of a plan, and it is named in the derivation alone.
+A stage the solve gives no machine count is neither held nor locked. The result goes to
+``plan.redesign``, never to ``plan.adopt``: this is the one path where a recipe the world does
+not hold reaches a rule as a stage of a plan, and it is named in the derivation alone.
 
 A POWER REFUSAL COSTS ONE RUNG, UNLESS POWER WAS ASKED. A recipe with no exact draw,
 reached by the power search, makes that rung's reference None, which reads as not
@@ -124,7 +135,7 @@ from clockspeed.advisor.rules.plan import (
     status_inputs,
 )
 from clockspeed.advisor.trace import RECIPE_UNLOCK_PREFIX, InputValue
-from clockspeed.data.registry import Registry, automated_recipes, plan_targets
+from clockspeed.data.registry import Recipe, Registry, automated_recipes, build_cost, plan_targets
 from clockspeed.solve.bound import (
     BoundExhaustedError,
     derived_route,
@@ -167,9 +178,9 @@ __all__ = [
 _UNIT_WEIGHT: Final = Fraction(1)
 
 #: A stated rate's spellings: an integer, an exact decimal or ``num/den``, in ASCII digits.
-#: These are the spellings ``clockspeed/surface/api/solve.py`` admits, which this layer
-#: may not import, less its minus sign, because a rate at or below zero is refused anyway.
-#: THE EXPONENT FORM IS ABSENT for the reason that module states. Applied with
+#: These are an ASCII-digit subset of the spellings ``clockspeed/surface/api/solve.py`` admits,
+#: which this layer may not import, less its minus sign, because a rate at or below zero is
+#: refused anyway. THE EXPONENT FORM IS ABSENT for the reason that module states. Applied with
 #: ``fullmatch``, so a trailing newline cannot smuggle anything past it.
 _RATE_SPELLING: Final = re.compile(r"[0-9]+(?:\.[0-9]+|/[0-9]+)?")
 
@@ -184,6 +195,27 @@ class _RungDeadEndError(OptimizeError):
     Not a no-plan: the bound has just found one. Raised and caught in this module,
     and it holds no text, so nothing it carries can reach a reader.
     """
+
+
+@dataclass(frozen=True)
+class _RecipeJoin:
+    """What one world's unlocks make of the automated recipes: the join the module states.
+
+    Holds the REGISTRY's strings alone, so nothing read out of a save reaches a repr.
+
+    Attributes:
+        held: The recipes the world holds, each with a machine to run it, in registry order.
+        checked: The recipes the join could ask about, held or not, in registry order. The
+            pool the marked route is derived from.
+        unchecked: The rest, in registry order, which no search and no route sees.
+        machine_of: For each held recipe, the whole path of the build recipe of the first of
+            its machines the world holds. Read by key only.
+    """
+
+    held: tuple[str, ...]
+    checked: tuple[str, ...]
+    unchecked: tuple[str, ...]
+    machine_of: Mapping[str, str]
 
 
 @dataclass(frozen=True)
@@ -421,39 +453,123 @@ def _ranked_top(
     return ranked[0], bounded.result.backend
 
 
+def _machine_paths(registry: Registry, automated: tuple[Recipe, ...]) -> dict[str, str]:
+    """Read the whole path of each machine's build recipe, once per machine.
+
+    The name join :func:`clockspeed.data.registry.build_cost` publishes, which walks the
+    registry on every call, so each machine is asked about once. A ``produced_in`` names
+    modeled buildings alone, so its refusal of an unmodeled one cannot arise here.
+
+    Args:
+        registry: The normalized registry.
+        automated: The automated recipes.
+
+    Returns:
+        Machine ClassName to path, the REGISTRY's string, for each machine with both a build
+        recipe and a path on it. Read by key only, so its insertion order decides nothing.
+    """
+    paths: dict[str, str] = {}
+    for building in dict.fromkeys(name for recipe in automated for name in recipe.produced_in):
+        cost = build_cost(registry, building)
+        path = None if cost is None else registry.recipes[cost.recipe_key].asset_path
+        if path is not None:
+            paths[building] = path
+    return paths
+
+
+def _recipe_join(registry: Registry, unlocks: UnlockState) -> _RecipeJoin:
+    """Join the automated recipes against one world's unlocks, as the module docstring states.
+
+    Args:
+        registry: The normalized registry.
+        unlocks: The world's unlock state. Its paths are compared by whole string, and none
+            of them is kept.
+
+    Returns:
+        The join.
+    """
+    automated = automated_recipes(registry)
+    machine_paths = _machine_paths(registry, automated)
+    held: list[str] = []
+    checked: list[str] = []
+    unchecked: list[str] = []
+    machine_of: dict[str, str] = {}
+    for recipe in automated:
+        # In produced_in's own order, so the first one held is read off the recipe.
+        paths = tuple(machine_paths[name] for name in recipe.produced_in if name in machine_paths)
+        if recipe.asset_path is None or not paths:
+            unchecked.append(recipe.key)
+            continue
+        checked.append(recipe.key)
+        machine = next((path for path in paths if path in unlocks.recipes), None)
+        if machine is not None and recipe.asset_path in unlocks.recipes:
+            held.append(recipe.key)
+            machine_of[recipe.key] = machine
+    return _RecipeJoin(
+        held=tuple(held),
+        checked=tuple(checked),
+        unchecked=tuple(unchecked),
+        machine_of=MappingProxyType(machine_of),
+    )
+
+
+def _unlock_keys(
+    registry: Registry, recipes: tuple[str, ...], join: _RecipeJoin
+) -> tuple[str, ...]:
+    """Name what some held recipes need unlocked: each one's key and its machine's.
+
+    Args:
+        registry: The normalized registry.
+        recipes: Held recipes, in the order to read them.
+        join: The join that found them held.
+
+    Returns:
+        The keys, each built from the REGISTRY's string and each once, in the order first
+        seen. A mapping dedupes them, so no set decides that order.
+    """
+    return tuple(
+        dict.fromkeys(
+            f"{RECIPE_UNLOCK_PREFIX}{path}"
+            for key in recipes
+            for path in (registry.recipes[key].asset_path, join.machine_of[key])
+        )
+    )
+
+
 def _route_inputs(
-    registry: Registry, plan: ProductionPlan, joined: tuple[str, ...]
+    registry: Registry, plan: ProductionPlan, join: _RecipeJoin
 ) -> dict[str, InputValue]:
     """Sort a solved route's stages into held and locked, and offer it.
 
-    A stage the solve gives no machine is neither: nothing has to be built or unlocked for
-    it, however the route's count reached it. Every list follows the plan's registry order.
+    A stage the solve gives no machine count is neither: nothing has to be built or unlocked
+    for it, however the route's count reached it. Every list follows the plan's registry
+    order.
 
     Args:
         registry: The normalized registry.
         plan: What pillar 1 solved for the route.
-        joined: The recipes the world holds.
+        join: The world's join.
 
     Returns:
-        The marked route's inputs. Its unlock keys are built from the REGISTRY's string by
-        the whole path, as on the ranked path, and of the held recipes alone.
+        The marked route's inputs. Its unlock keys are built as on the ranked path, of the
+        held recipes alone, so a recipe locked by its machine names no key.
     """
     # A set, and ONLY as a membership test: the plan's order decides every order here.
-    holds = frozenset(joined)
+    holds = frozenset(join.held)
     stages = tuple(step.recipe_key for step in plan.steps if step.machines != 0)
     held = tuple(key for key in stages if key in holds)
     return redesign_inputs(
         plan,
         held=held,
         locked=tuple(key for key in stages if key not in holds),
-        requires=tuple(f"{RECIPE_UNLOCK_PREFIX}{registry.recipes[key].asset_path}" for key in held),
+        requires=_unlock_keys(registry, held, join),
     )
 
 
 def _redesign_offer(
-    registry: Registry, search: OptimizeRequest, *, joined: tuple[str, ...]
+    registry: Registry, search: OptimizeRequest, *, join: _RecipeJoin
 ) -> dict[str, InputValue]:
-    """Derive one route over every automated recipe with a path, and solve it once.
+    """Derive one route over every automated recipe the join could check, and solve it once.
 
     The route CS-1371 ruled, kept whole in this function so it stays swappable: the marked
     route of the module docstring. It reads what :func:`plan_offer` searched for, and makes
@@ -463,23 +579,21 @@ def _redesign_offer(
         registry: The normalized registry.
         search: The request the search ran on, whose targets, raw items and policy the
             route takes. Its rates are exact: :func:`_well_formed` has checked them.
-        joined: The recipes the world holds, which the route's count prefers.
+        join: The world's join: its checked recipes are the pool, and the route's count
+            prefers its held ones, each of which has a machine the world holds.
 
     Returns:
         The marked route's inputs. Every refusal is a status, read by no message: no route
-        when the count reaches no target, and refused when pillar 1 refuses the route.
+        when the count misses some target, and refused when pillar 1 refuses the route.
         The catches are :func:`plan_offer`'s, for the reason it gives, and ``RatioError``
         beside them, because this calls pillar 1 itself where the search reaches it through
         pillar 2, which reads that refusal as no selection.
     """
-    pathed = tuple(
-        recipe.key for recipe in automated_recipes(registry) if recipe.asset_path is not None
-    )
     try:
         route = derived_route(
             registry,
-            replace(search, candidates=pathed, unlocked=pathed),
-            held=frozenset(joined),
+            replace(search, candidates=join.checked, unlocked=join.checked),
+            held=frozenset(join.held),
         )
         if not route.complete:
             return redesign_status_inputs(REDESIGN_NO_ROUTE, unmade=route.unmade)
@@ -494,7 +608,7 @@ def _redesign_offer(
         )
     except (RatioError, OptimizeError, ExactArithmeticError, ValueError, KeyError):
         return redesign_status_inputs(REDESIGN_ROUTE_REFUSED, unmade=None)
-    return _route_inputs(registry, plan, joined)
+    return _route_inputs(registry, plan, join)
 
 
 def plan_offer(
@@ -525,9 +639,7 @@ def plan_offer(
     if not _well_formed(request):
         return status_inputs(STATUS_REQUEST_MALFORMED)
 
-    automated = automated_recipes(registry)
-    joined = tuple(recipe.key for recipe in automated if recipe.asset_path in unlocks.recipes)
-    unchecked = tuple(recipe.key for recipe in automated if recipe.asset_path is None)
+    join = _recipe_join(registry, unlocks)
     # A set, and ONLY as a membership test. A path joining any recipe, automated or
     # not, is not unmatched: the count is of paths the docs do not know.
     known = frozenset(recipe.asset_path for recipe in registry.recipes.values())
@@ -537,8 +649,8 @@ def plan_offer(
     try:
         search = OptimizeRequest(
             targets=MappingProxyType(dict(request.targets)),
-            candidates=joined,
-            unlocked=joined,
+            candidates=join.held,
+            unlocked=join.held,
             raw_items=request.raw_items,
             byproduct_policy=request.byproduct_policy,
             objective=_direction_objective(request.direction),
@@ -557,27 +669,27 @@ def plan_offer(
     except (OptimizeError, ExactArithmeticError, KeyError):
         status = STATUS_SOLVE_REFUSED
     else:
-        requires = tuple(
-            f"{RECIPE_UNLOCK_PREFIX}{registry.recipes[step.recipe_key].asset_path}"
-            for step in top.plan.steps
-        )
         return {
             **plan_inputs(
                 top,
-                requires=requires,
+                requires=_unlock_keys(
+                    registry, tuple(step.recipe_key for step in top.plan.steps), join
+                ),
                 trimmed=trimmed,
-                unchecked=unchecked,
+                unchecked=join.unchecked,
                 unmatched_unlocks=unmatched,
                 backend=backend,
             ),
             **redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None),
         }
     route = (
-        _redesign_offer(registry, search, joined=joined)
+        _redesign_offer(registry, search, join=join)
         if status == STATUS_NO_PLAN
         else redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None)
     )
     return {
-        **refused_inputs(status, trimmed=trimmed, unchecked=unchecked, unmatched_unlocks=unmatched),
+        **refused_inputs(
+            status, trimmed=trimmed, unchecked=join.unchecked, unmatched_unlocks=unmatched
+        ),
         **route,
     }

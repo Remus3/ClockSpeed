@@ -13,6 +13,10 @@ so raw items only ever come from the fixture's resource group.
 A FIXTURE SHOWS NO TIER. The clause grades "several tiers out" by a count of locked stages,
 because a synthetic world has no progression to read.
 
+EVERY WORLD HOLDS EVERY MACHINE UNLESS IT SAYS OTHERWISE, and every machine has its build
+recipe, so a world's locks are the ones its arm names. The arms under "A recipe is held only
+with a machine to run it" take each of those away.
+
 THE SHAPE OF A NEGATIVE. Every arm that says something did not fire or did not run carries a
 control where it does, on the same fixture, so an empty fixture or a blind oracle cannot pass it.
 """
@@ -112,19 +116,26 @@ from tests.data.synthetic import (
     class_path_blob,
 )
 from tests.solve.synthetic import (
+    BUILDING_DESCRIPTOR_GROUP,
     DOCS_TEXT,
     ITEM_GROUP,
+    MACHINE_BUILD_ENTRIES,
+    MACHINE_DESCRIPTOR_ENTRIES,
     RECIPE_GROUP,
     RESOURCE_GROUP,
     SOLVE_ASSEMBLER_BUILDING,
+    SOLVE_BUILDINGS,
     SOLVE_ORE_ITEM,
     SOLVE_ORPHAN_ITEM,
     SOLVE_RARE_ITEM,
+    SOLVE_REFINERY_BUILDING,
     SOLVE_RELIC_ITEM,
     SOLVE_ROD_ITEM,
     SOLVE_SMELTER_BUILDING,
     building_path,
     document_from_groups,
+    machine_build_entry,
+    machine_build_path,
 )
 
 #: The rule this file grades, spelled rather than imported so a rename reddens here.
@@ -160,12 +171,20 @@ MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
 NOW: Final = 1000
 
 #: The tier 2 clauses, spelled here so a rewording reddens.
-MUST_UNLOCK: Final = "; the locked recipes must unlock first on this route"
+MUST_UNLOCK: Final = (
+    "; the locked recipes or the machines that run them must unlock first on this route"
+)
 NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
 NOT_CHOSEN: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
 )
-ONE_UNCHECKED: Final = "; 1 automated recipe(s) carry no asset path and were never planned"
+ONE_UNCHECKED: Final = (
+    "; 1 automated recipe(s) carry no unlock path to check and were never planned"
+)
+
+#: The unlock key of each machine's build recipe, which a held recipe's requires name.
+ASSEMBLER_KEY: Final = f"recipe:{machine_build_path(SOLVE_ASSEMBLER_BUILDING)}"
+SMELTER_KEY: Final = f"recipe:{machine_build_path(SOLVE_SMELTER_BUILDING)}"
 
 #: The stage count of the world longer than the cap, each stage required.
 CHAIN_STAGES: Final = MAX_EXHAUSTIVE_CANDIDATES + 1
@@ -250,14 +269,18 @@ def _registry(
     *,
     items: Iterable[str] = (),
     resources: tuple[str, ...] | None = None,
+    builds: Iterable[Mapping[str, str]] = MACHINE_BUILD_ENTRIES,
 ) -> Registry:
-    """A verified registry holding exactly these recipes.
+    """A verified registry holding exactly these recipes, and each machine's build recipe.
 
     Args:
         entries: The recipe entries, replacing the corpus's own.
         items: Invented items to give descriptors.
         resources: The items the resource group declares. None keeps the corpus's Ore. Empty
             leaves the group empty.
+        builds: The machines' build recipes, declared after ``entries``. Every machine has
+            one unless told otherwise, because a recipe no machine of which joins a build
+            recipe is flagged and never planned.
 
     Returns:
         The registry, stamped as built from the pinned docs bytes.
@@ -267,8 +290,10 @@ def _registry(
         native_class = group[KEY_NATIVE_CLASS]
         if native_class.endswith(f".{ITEM_GROUP}'"):
             group[KEY_CLASSES].extend(_descriptor(item) for item in items)
+        elif native_class.endswith(f".{BUILDING_DESCRIPTOR_GROUP}'"):
+            group[KEY_CLASSES].extend(MACHINE_DESCRIPTOR_ENTRIES)
         elif native_class.endswith(f".{RECIPE_GROUP}'"):
-            group[KEY_CLASSES] = entries
+            group[KEY_CLASSES] = [*entries, *builds]
         elif native_class.endswith(f".{RESOURCE_GROUP}'") and resources is not None:
             group[KEY_CLASSES] = [_descriptor(item) for item in resources]
     return pinned_source(build_registry(document_from_groups(groups)))
@@ -325,21 +350,25 @@ def _stage_item(stage: int) -> str:
     return _item(f"Stage{stage:02d}")
 
 
-def _chain_entries() -> tuple[list[dict[str, str]], list[str]]:
+def _chain_entries(
+    *, buildings: tuple[str, ...] = (SOLVE_ASSEMBLER_BUILDING,)
+) -> tuple[list[dict[str, str]], list[str]]:
     """A chain one recipe past the cap, one producer per item, every member required."""
     made = [_stage_item(stage) for stage in range(1, CHAIN_STAGES)]
     eaten = [SOLVE_ORE_ITEM, *made]
     outputs = [*made, SOLVE_RELIC_ITEM]
     entries = [
-        _recipe(_stage_name(stage), [eaten[stage - 1]], [outputs[stage - 1]])
+        _recipe(_stage_name(stage), [eaten[stage - 1]], [outputs[stage - 1]], buildings=buildings)
         for stage in range(1, CHAIN_STAGES + 1)
     ]
     return entries, made
 
 
-def _chain_registry(*extra: dict[str, str]) -> Registry:
-    """The chain, and any extra recipes declared after it."""
-    entries, made = _chain_entries()
+def _chain_registry(
+    *extra: dict[str, str], buildings: tuple[str, ...] = (SOLVE_ASSEMBLER_BUILDING,)
+) -> Registry:
+    """The chain, each stage on these machines, and any extra recipes declared after it."""
+    entries, made = _chain_entries(buildings=buildings)
     return _registry([*entries, *extra], items=made)
 
 
@@ -407,14 +436,24 @@ def _request(
     return request
 
 
-def _unlocks(held: Iterable[str]) -> UnlockState:
-    """An unlock state holding these recipes by asset path."""
-    return dataclasses.replace(EMPTY_UNLOCK_STATE, recipes=frozenset(_path(name) for name in held))
+def _unlocks(held: Iterable[str], *, machines: Iterable[str] = SOLVE_BUILDINGS) -> UnlockState:
+    """An unlock state holding these recipes and these machines' build recipes, by asset path.
+
+    Every machine is held unless told otherwise, so a world's locks are the ones it names.
+    """
+    return dataclasses.replace(
+        EMPTY_UNLOCK_STATE,
+        recipes=frozenset(
+            (*(_path(name) for name in held), *(machine_build_path(name) for name in machines))
+        ),
+    )
 
 
-def _model(held: Iterable[str]) -> WorldModel:
-    """A synthetic world of the pinned build, holding no machine, with these recipes."""
-    return dataclasses.replace(synthetic_world(game_pin()), unlocks=_unlocks(held))
+def _model(held: Iterable[str], *, machines: Iterable[str] = SOLVE_BUILDINGS) -> WorldModel:
+    """A synthetic world of the pinned build, none placed, unlocking these recipes and machines."""
+    return dataclasses.replace(
+        synthetic_world(game_pin()), unlocks=_unlocks(held, machines=machines)
+    )
 
 
 def _inputs(model: WorldModel, registry: Registry, request: PlanRequest | None) -> WorldInputs:
@@ -692,7 +731,7 @@ def test_requires_holds_only_held_recipes_by_the_whole_path_join() -> None:
     assert card is not None
 
     requires = _requires(card)
-    assert requires == (f"recipe:{_path(HELD_STAGE)}",)
+    assert requires == (f"recipe:{_path(HELD_STAGE)}", ASSEMBLER_KEY)
     # The world's own held keys cover it, as the engine's check needs.
     uncovered = len(set(requires) - world.unlocks)
     assert uncovered == 0
@@ -907,7 +946,7 @@ def test_a_route_longer_than_the_cap_fires_wholly_held_with_the_no_unlock_wordin
     assert card is not None
     assert card.tier2 == f"This route runs 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
     unlocks = sorted(_requires(card))
-    assert unlocks == sorted(f"recipe:{_path(name)}" for name in names)
+    assert unlocks == sorted((ASSEMBLER_KEY, *(f"recipe:{_path(name)}" for name in names)))
     assert _machines(card) == [(name, Fraction(1)) for name in names]
 
 
@@ -1015,6 +1054,370 @@ def test_off_the_pin_the_build_caveat_is_last_and_nothing_settles() -> None:
 
 
 # ---------------------------------------------------------------------------
+# A recipe is held only with a machine to run it (BOOTSTRAP.md section 5.4)
+# ---------------------------------------------------------------------------
+
+
+def _one_recipe_registry(*, buildings: tuple[str, ...] = (SOLVE_ASSEMBLER_BUILDING,)) -> Registry:
+    """R_Direct, Ore to Relic, on these machines: one machine at 10 Relic a minute."""
+    return _registry(
+        [_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM], buildings=buildings)]
+    )
+
+
+def test_a_recipe_held_with_no_machine_held_reads_no_adopt_card_and_counts_locked(
+    tmp_path: Path,
+) -> None:
+    """The real-world defect, on one recipe: told to build a chain its machine cannot run."""
+    registry = _one_recipe_registry()
+    locked = _model(["R_Direct"], machines=())
+
+    advice = _advise(tmp_path, locked, registry, _request(registry))
+
+    assert _cards(advice, ADOPT_ID) == []
+    (card,) = _cards(advice, REDESIGN_ID)
+    assert card.tier2 == f"This route runs 1 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    no_unlock_named = NO_UNLOCK in card.tier2
+    assert not no_unlock_named
+    assert _card_read(card, IN_STATUS) == NO_PLAN
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Direct",)
+    assert _card_read(card, IN_REDESIGN_HELD) == ()
+    assert _requires(card) == ()
+
+    # The control: the same recipe with its machine held ranks, and reaches no route.
+    held = _advise(
+        tmp_path,
+        _model(["R_Direct"], machines=[SOLVE_ASSEMBLER_BUILDING]),
+        registry,
+        _request(registry),
+    )
+    assert _cards(held, REDESIGN_ID) == []
+    (adopt,) = _cards(held, ADOPT_ID)
+    assert _requires(adopt) == (f"recipe:{_path('R_Direct')}", ASSEMBLER_KEY)
+
+
+def test_a_held_machine_alone_does_not_hold_its_recipe() -> None:
+    """The other half of the join: every machine held, and the recipe's own path is not."""
+    registry = _one_recipe_registry()
+    card = _route_card((), registry, _request(registry))
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Direct",)
+    assert _requires(card) == ()
+    # The control: the recipe's own path lifts it, every machine held as before.
+    world = _inputs(_model(["R_Direct"]), registry, _request(registry))
+    assert _offered(world, IN_STATUS) == RANKED
+
+
+def test_two_recipes_on_one_held_machine_name_its_key_once() -> None:
+    """Deduped in first-seen order: each recipe's own key, its machine's beside the first."""
+    registry = _registry(
+        [
+            _recipe("R_Two", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
+            _recipe("R_One", [SOLVE_ORE_ITEM], [SOLVE_RARE_ITEM]),
+        ]
+    )
+    world = _inputs(_model(("R_Two", "R_One")), registry, _request(registry))
+    assert _offered(world, IN_PLAN) is not None
+    assert _offered(world, "plan.requires") == (
+        f"recipe:{_path('R_Two')}",
+        ASSEMBLER_KEY,
+        f"recipe:{_path('R_One')}",
+    )
+
+    # The control: two recipes on two machines name both, each beside its first recipe.
+    two_machines = _registry(
+        [
+            _recipe("R_Two", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
+            _recipe(
+                "R_One", [SOLVE_ORE_ITEM], [SOLVE_RARE_ITEM], buildings=(SOLVE_SMELTER_BUILDING,)
+            ),
+        ]
+    )
+    both = _inputs(_model(("R_Two", "R_One")), two_machines, _request(two_machines))
+    assert _offered(both, "plan.requires") == (
+        f"recipe:{_path('R_Two')}",
+        ASSEMBLER_KEY,
+        f"recipe:{_path('R_One')}",
+        SMELTER_KEY,
+    )
+
+
+def test_every_stage_of_a_route_on_one_held_machine_names_its_key_once() -> None:
+    registry = _chain_registry()
+    names = _chain_names()
+    card = _route_card(names, registry, _request(registry))
+    named = _requires(card).count(ASSEMBLER_KEY)
+    assert named == 1
+    # First-seen order: the first stage of the plan, then its machine, then the rest.
+    assert _requires(card)[:2] == (f"recipe:{_path(names[0])}", ASSEMBLER_KEY)
+    assert len(_requires(card)) == len(names) + 1
+
+
+@pytest.mark.parametrize(
+    ("buildings", "machines", "first"),
+    [
+        (
+            (SOLVE_ASSEMBLER_BUILDING, SOLVE_SMELTER_BUILDING),
+            (SOLVE_SMELTER_BUILDING,),
+            SMELTER_KEY,
+        ),
+        (
+            (SOLVE_ASSEMBLER_BUILDING, SOLVE_SMELTER_BUILDING),
+            (SOLVE_ASSEMBLER_BUILDING,),
+            ASSEMBLER_KEY,
+        ),
+        (
+            (SOLVE_ASSEMBLER_BUILDING, SOLVE_SMELTER_BUILDING),
+            (SOLVE_ASSEMBLER_BUILDING, SOLVE_SMELTER_BUILDING),
+            ASSEMBLER_KEY,
+        ),
+        (
+            (SOLVE_SMELTER_BUILDING, SOLVE_ASSEMBLER_BUILDING),
+            (SOLVE_ASSEMBLER_BUILDING, SOLVE_SMELTER_BUILDING),
+            SMELTER_KEY,
+        ),
+    ],
+    ids=["second-held", "first-held", "both-held", "both-held-declared-the-other-way"],
+)
+def test_of_two_machines_a_recipe_names_the_first_the_world_holds_and_that_one_alone(
+    buildings: tuple[str, ...], machines: tuple[str, ...], first: str
+) -> None:
+    """The recipe's own produced_in decides which is first, never the world or a sort."""
+    ranked = _one_recipe_registry(buildings=buildings)
+    world = _inputs(_model(["R_Direct"], machines=machines), ranked, _request(ranked))
+    assert _offered(world, "plan.requires") == (f"recipe:{_path('R_Direct')}", first)
+
+    # The same on the route, over a chain the cap cuts, so no ranked plan reads it.
+    chain = _chain_registry(buildings=buildings)
+    names = _chain_names()
+    routed = _inputs(_model(names, machines=machines), chain, _request(chain))
+    card = card_for(run_rule(REDESIGN_RULE, routed))
+    assert card is not None
+    machine_keys = [key for key in _requires(card) if key in (ASSEMBLER_KEY, SMELTER_KEY)]
+    assert machine_keys == [first]
+
+
+#: The two shapes a machine with no unlock to check takes, each graded below.
+_SMELTER_BUILD_SHAPES: Final[Mapping[str, tuple[Mapping[str, str], ...]]] = MappingProxyType(
+    {
+        "no-build-recipe": (),
+        "pathless-build-recipe": (machine_build_entry(SOLVE_SMELTER_BUILDING, pathless=True),),
+    }
+)
+
+
+def _smelter_builds(shape: str) -> tuple[Mapping[str, str], ...]:
+    """Every machine's build recipe, with the Smelter's in one of those shapes."""
+    return (
+        machine_build_entry(SOLVE_ASSEMBLER_BUILDING),
+        machine_build_entry(SOLVE_REFINERY_BUILDING),
+        *_SMELTER_BUILD_SHAPES[shape],
+    )
+
+
+def _smelter_registry(builds: Iterable[Mapping[str, str]], *, two_stages: bool = True) -> Registry:
+    """R_Direct runs on the Smelter; R_Two and R_One on the Assembler.
+
+    Under the power direction R_Direct would win, at 4 MW against 30, so a search that kept it
+    could not hide. Off the search and off the route the two stages are all there is.
+    """
+    direct = _recipe(
+        "R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM], buildings=(SOLVE_SMELTER_BUILDING,)
+    )
+    stages = [
+        _recipe("R_Two", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
+        _recipe("R_One", [SOLVE_ORE_ITEM], [SOLVE_RARE_ITEM]),
+    ]
+    return _registry([direct, *stages] if two_stages else [direct], builds=builds)
+
+
+@pytest.mark.parametrize("shape", sorted(_SMELTER_BUILD_SHAPES))
+def test_a_recipe_no_machine_of_which_joins_a_build_recipe_is_flagged_and_off_the_route(
+    shape: str,
+) -> None:
+    registry = _smelter_registry(_smelter_builds(shape))
+    request = _request(registry, direction=POWER)
+
+    # The world holds its own path and every machine, and still it is held nowhere.
+    card = _route_card(("R_Direct",), registry, request)
+
+    assert [stage for stage, _machine_count in _machines(card)] == ["R_Two", "R_One"]
+    assert _card_read(card, IN_UNCHECKED) == ("R_Direct",)
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Two", "R_One")
+    assert _card_read(card, IN_REDESIGN_HELD) == ()
+    assert card.tier2 == (
+        f"This route runs 2 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}{ONE_UNCHECKED}"
+    )
+
+    # Off the search too: with the two stages held they rank under power, and it stays flagged.
+    ranked = _inputs(_model(("R_Direct", "R_Two", "R_One")), registry, request)
+    plan = _plan_of(_offered(ranked, IN_PLAN))
+    assert [step.recipe_key for step in plan.steps] == ["R_Two", "R_One"]
+    assert _offered(ranked, IN_UNCHECKED) == ("R_Direct",)
+    adopt = card_for(run_rule(plan_rules.ADOPT_RULE, ranked))
+    assert adopt is not None
+    stated = adopt.tier2.endswith(ONE_UNCHECKED)
+    assert stated
+    assert _offered(ranked, "plan.requires") == (
+        f"recipe:{_path('R_Two')}",
+        ASSEMBLER_KEY,
+        f"recipe:{_path('R_One')}",
+    )
+
+    # The control: with a build recipe carrying a path it wins that search, at 4 MW.
+    control = _smelter_registry(MACHINE_BUILD_ENTRIES)
+    won = _inputs(
+        _model(("R_Direct", "R_Two", "R_One")), control, _request(control, direction=POWER)
+    )
+    assert [step.recipe_key for step in _plan_of(_offered(won, IN_PLAN)).steps] == ["R_Direct"]
+    assert _offered(won, IN_UNCHECKED) == ()
+
+
+@pytest.mark.parametrize("shape", sorted(_SMELTER_BUILD_SHAPES))
+def test_a_target_whose_only_recipe_has_no_machine_to_check_is_no_route_never_fatal(
+    shape: str,
+) -> None:
+    """Flagged and skipped: no lock nothing could lift, no silent hold, and nothing raises."""
+    registry = _smelter_registry(_smelter_builds(shape), two_stages=False)
+    world = _inputs(_model(("R_Direct",)), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, IN_REDESIGN_STATUS) == NO_ROUTE
+    assert _offered(world, IN_REDESIGN_UNMADE) == (SOLVE_RELIC_ITEM,)
+    assert _offered(world, IN_UNCHECKED) == ("R_Direct",)
+    trace = run_rule(REDESIGN_RULE, world)
+    assert card_for(trace) is None
+    assert _errors(trace) == []
+
+    # The control: a Smelter that can be shown unlocked makes the same recipe a route.
+    built = _smelter_registry(MACHINE_BUILD_ENTRIES, two_stages=False)
+    assert _route_card((), built, _request(built)).tier1 == f"Plan toward {SOLVE_RELIC_ITEM}"
+
+
+@pytest.mark.parametrize(
+    ("machines", "fires_with"),
+    [((SOLVE_ASSEMBLER_BUILDING,), ASSEMBLER_KEY), ((), None)],
+    ids=["other-machine-held", "no-machine-held"],
+)
+def test_one_machine_with_no_build_recipe_leaves_the_recipe_checkable_through_the_other(
+    machines: tuple[str, ...], fires_with: str | None
+) -> None:
+    """At least one is enough: this recipe joins, so it is held or locked and never flagged."""
+    registry = _registry(
+        [
+            _recipe(
+                "R_Direct",
+                [SOLVE_ORE_ITEM],
+                [SOLVE_RELIC_ITEM],
+                buildings=(SOLVE_SMELTER_BUILDING, SOLVE_ASSEMBLER_BUILDING),
+            )
+        ],
+        builds=(machine_build_entry(SOLVE_ASSEMBLER_BUILDING),),
+    )
+    world = _inputs(_model(["R_Direct"], machines=machines), registry, _request(registry))
+
+    assert _offered(world, IN_UNCHECKED) == ()
+    if fires_with is None:
+        assert _offered(world, IN_STATUS) == NO_PLAN
+        assert _offered(world, IN_REDESIGN_LOCKED) == ("R_Direct",)
+    else:
+        assert _offered(world, IN_STATUS) == RANKED
+        assert _offered(world, "plan.requires") == (f"recipe:{_path('R_Direct')}", fires_with)
+
+
+def test_the_engine_sees_the_machine_key_on_plan_adopt() -> None:
+    """The second gate does not trust the first: the same offer, a world lacking the machine."""
+    registry = _one_recipe_registry()
+    world = _inputs(_model(["R_Direct"]), registry, _request(registry))
+    # The control: the offer as built fires, over the world it was built for.
+    assert run_rule(plan_rules.ADOPT_RULE, world).recommendation is not None
+
+    bare = WorldInputs(values=world.values, unlocks=world.unlocks - {ASSEMBLER_KEY})
+    trace = run_rule(plan_rules.ADOPT_RULE, bare)
+
+    assert trace.recommendation is None
+    assert card_for(trace) is None
+    assert trace.unmet == (ASSEMBLER_KEY,)
+    last = trace.steps[-1].kind
+    assert last is StepKind.PRECONDITION_UNMET
+
+
+def test_the_engine_sees_the_machine_key_on_plan_redesign() -> None:
+    registry = _chain_registry()
+    world = _inputs(_model(_chain_names()), registry, _request(registry))
+    # The control: the offer as built fires, over the world it was built for.
+    assert run_rule(REDESIGN_RULE, world).recommendation is not None
+
+    bare = WorldInputs(values=world.values, unlocks=world.unlocks - {ASSEMBLER_KEY})
+    trace = run_rule(REDESIGN_RULE, bare)
+
+    assert trace.recommendation is None
+    assert card_for(trace) is None
+    assert trace.unmet == (ASSEMBLER_KEY,)
+    last = trace.steps[-1].kind
+    assert last is StepKind.PRECONDITION_UNMET
+
+
+def test_a_machine_locked_recipe_cannot_tie_a_route_that_runs_now() -> None:
+    """By hand: R_Short counts (1, 1), machine locked, and the held chain (0, 13) beats it.
+
+    Held by its recipe path alone, R_Short would count (0, 1) and take the route: the player
+    would read a route needing an unlock where one that runs now exists.
+    """
+    short = _recipe(
+        "R_Short", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM], buildings=(SOLVE_SMELTER_BUILDING,)
+    )
+    registry = _chain_registry(short)
+    names = _chain_names()
+    world = _inputs(
+        _model((*names, "R_Short"), machines=[SOLVE_ASSEMBLER_BUILDING]),
+        registry,
+        _request(registry),
+    )
+    assert _offered(world, IN_STATUS) == NO_PLAN
+
+    card = card_for(run_rule(REDESIGN_RULE, world))
+
+    assert card is not None
+    assert [stage for stage, _machine_count in _machines(card)] == list(names)
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ()
+    assert card.tier2 == f"This route runs 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    uncovered = len(set(_requires(card)) - world.unlocks)
+    assert uncovered == 0
+
+    # The control: with its machine held R_Short ranks, so the machine alone decided above.
+    ranked = _inputs(
+        _model((*names, "R_Short"), machines=SOLVE_BUILDINGS), registry, _request(registry)
+    )
+    assert _offered(ranked, IN_STATUS) == RANKED
+    plan = _plan_of(_offered(ranked, IN_PLAN))
+    assert [step.recipe_key for step in plan.steps] == ["R_Short"]
+
+
+def test_the_machine_join_is_the_whole_path_never_its_trailing_token() -> None:
+    """A path sharing only the trailing token is another asset, and holds no machine (CS-1343)."""
+    real = machine_build_path(SOLVE_ASSEMBLER_BUILDING)
+    elsewhere = real.replace("/Placed/", "/Elsewhere/")
+    assert elsewhere != real
+    assert elsewhere.rpartition(".")[2] == real.rpartition(".")[2]
+    registry = _one_recipe_registry()
+    held = dataclasses.replace(
+        EMPTY_UNLOCK_STATE, recipes=frozenset({_path("R_Direct"), elsewhere})
+    )
+
+    offered = plan_offer(held, registry, _request(registry))
+
+    assert offered[IN_STATUS].value == NO_PLAN
+    assert offered[IN_REDESIGN_LOCKED].value == ("R_Direct",)
+    assert offered["plan.unmatched_unlocks"].value == 1
+
+    # The control: the whole string joins, and a machine's path is no unmatched path.
+    whole = dataclasses.replace(EMPTY_UNLOCK_STATE, recipes=frozenset({_path("R_Direct"), real}))
+    joined = plan_offer(whole, registry, _request(registry))
+    assert joined[IN_STATUS].value == RANKED
+    assert joined["plan.unmatched_unlocks"].value == 0
+
+
+# ---------------------------------------------------------------------------
 # One bound, no rung search, one solve
 # ---------------------------------------------------------------------------
 
@@ -1036,11 +1439,13 @@ def test_the_route_path_makes_one_bound_call_no_rung_call_and_one_solve(
         "derived_route": 1,
         "solve_for_targets": 1,
     }
-    # What the route was asked over: every automated recipe carrying a path, in registry order.
+    # What the route was asked over: every automated recipe the join could check, by hand, in
+    # registry order, so no machine's build recipe, which the registry also holds.
+    every_stage = ("R_B4", "R_B3", "R_B2", "R_B1", "R_A1", "R_A2", "R_A3", "R_A4")
     (args,) = calls["derived_route"]
     asked = args[1]
-    assert asked.candidates == tuple(registry.recipes)
-    assert asked.unlocked == tuple(registry.recipes)
+    assert asked.candidates == every_stage
+    assert asked.unlocked == every_stage
     # What the solve was handed: the route, the stated policy, the group, and no float.
     (solve_args,) = calls["solve_for_targets"]
     ratio = solve_args[1]
@@ -1587,9 +1992,8 @@ def test_the_parameters_take_no_registry_so_no_provider_is_read_first() -> None:
 
 def test_a_save_path_reaches_no_input_on_the_route_path() -> None:
     registry = _three_locked_registry()
-    state = dataclasses.replace(
-        EMPTY_UNLOCK_STATE, recipes=frozenset({_path(HELD_STAGE), SAVE_ONLY_PATH})
-    )
+    held = _unlocks([HELD_STAGE])
+    state = dataclasses.replace(held, recipes=held.recipes | {SAVE_ONLY_PATH})
     model = dataclasses.replace(synthetic_world(game_pin()), unlocks=state)
     world = _inputs(model, registry, _request(registry))
 

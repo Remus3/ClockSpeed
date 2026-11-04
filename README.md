@@ -23,8 +23,8 @@ Build a second smelter line on the north iron node
 
 One line of instruction. One line of reason. The complete chain of reasoning one keystroke
 away, generated from the rule trace rather than written by hand. The card above shows the
-intended format; `/api/advice` serves cards in it today, and the dashboard does not draw
-them yet - see Status.
+intended format; `/api/advice` serves cards in it today, and the dashboard's advice panel
+draws them.
 
 ## At a glance
 
@@ -88,7 +88,7 @@ today", and this section is a summary of it.
 - **Advice cards** (`/api/advice`). Your world's cards with headline and one-line reason,
   each card's full derivation, and a per-world card state that refuses with 403 a request
   without the dashboard's same-origin header. The rules so far cover power headroom; the
-  dashboard does not draw the cards yet. Without a save or a game install it answers 503.
+  dashboard's advice panel draws the cards. Without a save or a game install it answers 503.
 
 **Built, not yet wired to the dashboard**
 

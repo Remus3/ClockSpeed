@@ -15,8 +15,8 @@ WHAT THIS MODULE OWNS. Two rules and the adapters that feed them:
   solves, and recommends planning toward its targets. See THE MARKED ROUTE below.
 - :func:`plan_inputs` offers one :class:`~clockspeed.solve.strategy.RankedPlan`
   as ``plan.adopt``'s inputs, each sourced to the ranked-plan field it came from,
-  beside the unlock keys its recipes need, the backend that ran the search and
-  what the search left out. :func:`status_inputs` and :func:`refused_inputs` say
+  beside the unlock keys its recipes and their machines need, the backend that ran
+  the search and what the search left out. :func:`status_inputs` and :func:`refused_inputs` say
   why no plan is offered. :func:`redesign_inputs` and :func:`redesign_status_inputs`
   offer the route, or why there is none, and :func:`plan_outcome_of` projects the offer
   for a surface to transcribe. ``clockspeed/advisor/plans.py`` ranks the plan, solves
@@ -66,25 +66,29 @@ card: advice is never built on a forged claim.
 
 UNLOCKS TRAVEL THROUGH THE ENGINE. A plan names recipes by registry ClassName,
 and the unlock state holds asset paths. The join between the two is
-``clockspeed/advisor/plans.py``, which fills ``plan.requires``, and that is why
-it is a REQUIRED keyword of :func:`plan_inputs` with no default: inventing an
-empty tuple here would advise a plan over recipes nobody checked. The rule reads
-the keys and hands them to ``Recommendation.requires``, where
-:func:`clockspeed.advisor.trace.run_rule` checks each against the world's
-unlocks, so a plan over a locked recipe yields a ``precondition-unmet`` step
-and no card. From ``advise_world`` no locked recipe reaches ``plan.adopt``, because
-the search excludes it first; the engine's check is the second gate, and it does not
-trust the first. The rule itself declares no unlock: "build this plan" needs only
-what the plan's own recipes need.
+``clockspeed/advisor/plans.py``, which fills ``plan.requires`` with each recipe's key
+and the key of a machine the world holds to run it, and that is why it is a REQUIRED
+keyword of :func:`plan_inputs` with no default: inventing an empty tuple here would
+advise a plan over recipes nobody checked. The rule reads the keys and hands them to
+``Recommendation.requires``, where :func:`clockspeed.advisor.trace.run_rule` checks
+each against the world's unlocks, so a plan over a locked recipe, or over a machine the
+world does not hold, yields a ``precondition-unmet`` step and no card. From
+``advise_world`` no such recipe reaches ``plan.adopt``, because the search excludes it
+first; the engine's check is the second gate, and it does not trust the first. The rule
+itself declares no unlock, because what a plan needs depends on that plan: "build this
+plan" needs what the plan's own recipes and the machines that run them need, and the
+join says so per plan.
 
 THE MARKED ROUTE (CS-1371). A no-plan speaks only for what the search kept, so
-``clockspeed/advisor/plans.py`` then derives one route over every automated recipe
-carrying a path and solves it once. :data:`REDESIGN_RULE` reads the result. Its action
+``clockspeed/advisor/plans.py`` then derives one route over every automated recipe the
+join could check and solves it once. :data:`REDESIGN_RULE` reads the result. Its action
 is doable now, because its ``requires`` holds only the held recipes the solve gives a
-machine, so the engine's check still applies. Locked recipes do reach this rule, by
-ClassName, under :data:`IN_REDESIGN_LOCKED`, an input of their own: tier 3 reads them,
-and tier 1, tier 2 and ``requires`` name none of them, so no locked stage reads as
-buildable. Tier 2 gives counts and says what the route is: the stated direction did not
+machine count, and a machine the world holds for each, so the engine's check still
+applies. Locked recipes do reach this rule, a recipe held with no machine held among
+them, by ClassName, under :data:`IN_REDESIGN_LOCKED`, an input of their own: tier 3 reads
+them, and tier 1, tier 2 and ``requires`` name none of them, so no locked stage reads as
+buildable. A route with none locked needs no recipe and no machine unlocked. Tier 2 gives
+counts and says what the route is: the stated direction did not
 choose it, and it was never compared with what is built. The card carries no badge,
 because no ranking saw the route. A list that disagrees with the plan's own machines, a
 status outside the closed vocabulary, and a status that disagrees with ``plan.status`` are
@@ -202,7 +206,7 @@ REDESIGN_NOT_REACHED: Final = "not-reached"
 #: The route was derived and pillar 1 solved it, so it is on offer.
 REDESIGN_ROUTED: Final = "routed"
 
-#: The count found no route to some target, over every automated recipe with a path.
+#: The count found no route to some target, over every automated recipe the join could check.
 REDESIGN_NO_ROUTE: Final = "no-route"
 
 #: A route was derived and pillar 1 refused it, under the stated byproduct policy.
@@ -301,7 +305,7 @@ _REDESIGN_REASONS: Final = MappingProxyType(
         REDESIGN_NOT_REACHED: "the search did not read no-plan, so no route was derived",
         REDESIGN_NO_ROUTE: (
             "the count found no route to the target from the raw items, over every"
-            " automated recipe with a path, which does not prove no plan exists"
+            " automated recipe with an unlock path to check, which does not prove no plan exists"
         ),
         REDESIGN_ROUTE_REFUSED: (
             "pillar 1 refused the derived route, solved once under the stated byproduct policy"
@@ -319,7 +323,9 @@ _ROUTE_COMPARE_REASON: Final = (
 _NO_MACHINE_REASON: Final = "the route gives no recipe a machine"
 
 #: What a route's reason says about unlocking, by whether any stage is locked.
-_MUST_UNLOCK_CLAUSE: Final = "; the locked recipes must unlock first on this route"
+_MUST_UNLOCK_CLAUSE: Final = (
+    "; the locked recipes or the machines that run them must unlock first on this route"
+)
 _NO_UNLOCK_CLAUSE: Final = "; this route needs no unlock and the capped search did not find it"
 
 #: What a route's reason says on every path: a count chose it, and no comparison did.
@@ -400,13 +406,15 @@ def redesign_inputs(
 
     Args:
         plan: The plan pillar 1 solved for the route.
-        held: The route's recipes the solve gives a machine and the world holds, by
-            ClassName. REQUIRED, with no default: empty says none is held.
-        locked: The route's recipes the solve gives a machine and the world does not
-            hold, by ClassName. REQUIRED, with no default: empty says none is locked.
-        requires: The unlock keys of ``held``. REQUIRED, for the reason
-            :func:`plan_inputs` gives: an invented empty tuple would advise recipes
-            nobody checked.
+        held: The route's recipes the solve gives a machine count and the world holds,
+            with a machine to run them, by ClassName. REQUIRED, with no default: empty
+            says none is held.
+        locked: The route's recipes the solve gives a machine count and the world does
+            not hold, a recipe with no machine held among them, by ClassName. REQUIRED,
+            with no default: empty says none is locked.
+        requires: The unlock keys of ``held`` and of the machine each one runs on.
+            REQUIRED, for the reason :func:`plan_inputs` gives: an invented empty tuple
+            would advise recipes nobody checked.
 
     Returns:
         A fresh dict of every input of :data:`REDESIGN_INPUTS`.
@@ -449,7 +457,8 @@ def refused_inputs(
         status: One word of the closed vocabulary.
         trimmed: The recipes the bound dropped, by ClassName in registry order.
             REQUIRED, with no default: empty says the cap dropped nothing.
-        unchecked: The automated recipes carrying no asset path, by ClassName.
+        unchecked: The automated recipes the join could not check, carrying no asset path
+            or no machine joining a build recipe with one, by ClassName.
         unmatched_unlocks: How many of the world's unlocked paths joined no recipe.
             A count, because each one is a string read out of a save.
 
@@ -479,13 +488,14 @@ def plan_inputs(
     Args:
         ranked: One entry of a :func:`~clockspeed.solve.strategy.rank_plans`
             result. Its plan and its badge are offered together.
-        requires: The unlock keys the plan's recipes need, in the form
+        requires: The unlock keys the plan's recipes and their machines need, in the form
             :func:`clockspeed.advisor.trace.unlock_keys` builds. REQUIRED, with no
             default: ``clockspeed/advisor/plans.py`` holds the join from a recipe
             ClassName to its asset path, and inventing an empty tuple here would
             advise a plan over recipes nobody checked.
         trimmed: The recipes the bound dropped to reach the plan, by ClassName.
-        unchecked: The automated recipes carrying no asset path, by ClassName.
+        unchecked: The automated recipes the join could not check, carrying no asset path
+            or no machine joining a build recipe with one, by ClassName.
         unmatched_unlocks: How many of the world's unlocked paths joined no recipe.
             A count, because each one is a string read out of a save.
         backend: The name of the backend that ran the search, as the result
@@ -642,14 +652,17 @@ def _unchecked_clause(unchecked: tuple[str, ...]) -> str:
     """Say how many automated recipes no plan could be asked about, or nothing.
 
     Args:
-        unchecked: The automated recipes carrying no asset path.
+        unchecked: The automated recipes the join could not check.
 
     Returns:
         A count and no name, because tier 3 names them, or the empty string.
     """
     if not unchecked:
         return ""
-    return f"; {len(unchecked)} automated recipe(s) carry no asset path and were never planned"
+    return (
+        f"; {len(unchecked)} automated recipe(s) carry no unlock path to check"
+        " and were never planned"
+    )
 
 
 def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:

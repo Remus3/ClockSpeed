@@ -68,6 +68,12 @@ Each is a shape that breaks a solver which passes its own tests.
   its best, by a recipe with no building to price a draw from. A VARIANT,
   through :func:`reclaim_registry`.
 
+EACH MACHINE'S BUILD RECIPE IS A VARIANT TOO, asked for through
+``registry_with(machine_builds=True)``. ``clockspeed.advisor.plans`` holds a recipe only
+when the world holds a machine to run it, so a fixture reaching that join needs machines
+that can be unlocked. The build gun resolves to no modeled building, which flags a warning
+on every registry naming it, and the main corpus builds with none.
+
 WHERE THIS CORPUS DEPARTS FROM ITS BRIEF, AND WHY
 ---------------------------------------------------
 C5's two competing recipes were specified as producing the C3 Gadget. They
@@ -97,6 +103,7 @@ from tests.data.synthetic import (
     KEY_DISPLAY_NAME,
     KEY_DURATION,
     KEY_FORM,
+    KEY_FULL_NAME,
     KEY_INGREDIENTS,
     KEY_MAX_POTENTIAL,
     KEY_NATIVE_CLASS,
@@ -669,6 +676,93 @@ def _recipe_entry(
     }
 
 
+def machine_descriptor(building: str) -> str:
+    """Name the descriptor one machine's build recipe makes.
+
+    Args:
+        building: A building ClassName.
+
+    Returns:
+        The product :func:`clockspeed.data.registry.build_cost` looks for.
+    """
+    return f"Desc_{building.removeprefix('Build_')}"
+
+
+def machine_build_recipe(building: str) -> str:
+    """Name one machine's build recipe.
+
+    Args:
+        building: A building ClassName.
+
+    Returns:
+        The recipe's ClassName.
+    """
+    return f"Recipe_{building.removeprefix('Build_')}"
+
+
+def machine_build_path(building: str) -> str:
+    """Name the invented asset path of one machine's build recipe.
+
+    Args:
+        building: A building ClassName.
+
+    Returns:
+        The path, which derives from neither ClassName, so a join rebuilt from a name, or
+        matching a trailing token, joins nothing.
+    """
+    stem = building.removeprefix("Build_Solve").removesuffix("_C")
+    return f"/Game/FactoryGame/Synthetic/Placed/Gun_{stem}.Gun_{stem}_C"
+
+
+def machine_build_entry(building: str, *, pathless: bool = False) -> dict[str, str]:
+    """Build one machine's build recipe, the measured build-gun shape.
+
+    Zero duration and a producer token no modeled building answers to, so it is no
+    automated recipe, and it makes the machine's descriptor, which is the name join
+    :func:`clockspeed.data.registry.build_cost` reads.
+
+    Args:
+        building: A building ClassName.
+        pathless: Carry no FullName, so nothing can say whether a world holds it.
+
+    Returns:
+        The entry mapping.
+    """
+    entry = {
+        **_recipe_entry(
+            machine_build_recipe(building),
+            ZERO_DURATION,
+            [(SOLVE_PLATE_ITEM, 1)],
+            [(machine_descriptor(building), 1)],
+            None,
+        ),
+        KEY_PRODUCED_IN: class_path_blob([SOLVE_BUILD_GUN_PATH]),
+    }
+    if not pathless:
+        entry[KEY_FULL_NAME] = f"BlueprintGeneratedClass {machine_build_path(building)}"
+    return entry
+
+
+#: The producer a build recipe names. No modeled building, so the registry keeps it as an
+#: unresolved token and flags it once: the one warning ``machine_builds`` adds.
+SOLVE_BUILD_GUN_PATH: Final = "/Game/Solve/BP_SolveBuildGun.BP_SolveBuildGun_C"
+
+#: Every machine's build recipe, for a fixture building its own document. Reach them
+#: otherwise through ``registry_with(machine_builds=True)``.
+MACHINE_BUILD_ENTRIES: Final = tuple(machine_build_entry(name) for name in SOLVE_BUILDINGS)
+
+#: The whole asset path of each of those, which a world holding every machine holds.
+MACHINE_BUILD_PATHS: Final = tuple(machine_build_path(name) for name in SOLVE_BUILDINGS)
+
+#: The descriptors those recipes make that the main corpus does not declare: it declares the
+#: smelter's alone, for C6. Kept out of the main corpus so its items stay what they were.
+MACHINE_DESCRIPTOR_ENTRIES: Final = tuple(
+    _item_entry(machine_descriptor(name), name.removeprefix("Build_"), "RF_INVALID")
+    for name in SOLVE_BUILDINGS
+    if machine_descriptor(name) != SOLVE_SMELTER_DESCRIPTOR
+)
+
+
 _ITEM_ENTRIES: Final = [
     _item_entry(SOLVE_PLATE_ITEM, "Solve Plate"),
     _item_entry(SOLVE_ROD_ITEM, "Solve Rod"),
@@ -823,11 +917,14 @@ RECLAIM_ENTRY: Final = _recipe_entry(
 )
 
 
-def _document(recipes: Sequence[Mapping[str, Any]]) -> list[Any]:
+def _document(
+    recipes: Sequence[Mapping[str, Any]], *, machine_descriptors: Sequence[Mapping[str, Any]] = ()
+) -> list[Any]:
     """Assemble the whole corpus around a recipe list.
 
     Args:
         recipes: The recipe entries to carry.
+        machine_descriptors: Building descriptors beyond the main corpus's own.
 
     Returns:
         The top-level group list. Every group name is inside the docs_extract
@@ -836,7 +933,7 @@ def _document(recipes: Sequence[Mapping[str, Any]]) -> list[Any]:
     return [
         _group(ITEM_GROUP, _ITEM_ENTRIES),
         _group(RESOURCE_GROUP, _RESOURCE_ENTRIES),
-        _group(BUILDING_DESCRIPTOR_GROUP, _BUILDING_DESCRIPTOR_ENTRIES),
+        _group(BUILDING_DESCRIPTOR_GROUP, [*_BUILDING_DESCRIPTOR_ENTRIES, *machine_descriptors]),
         _group(MANUFACTURER_GROUP, _BUILDING_ENTRIES),
         _group(RECIPE_GROUP, list(recipes)),
     ]
@@ -886,6 +983,7 @@ def registry_with(
     replace: Mapping[str, Mapping[str, Any]] | None = None,
     add: Sequence[Mapping[str, Any]] = (),
     drop: frozenset[str] = frozenset(),
+    machine_builds: bool = False,
 ) -> Registry:
     """Build a VARIANT registry with the recipe list mutated.
 
@@ -905,6 +1003,9 @@ def registry_with(
             would silently reorder the corpus.
         add: Extra recipe entries, appended after the existing ones.
         drop: Recipe ClassNames to remove entirely.
+        machine_builds: Append every machine's build recipe, after ``add``, and declare
+            what they make. Asked for, because the build gun flags a warning and a variant
+            asking for nothing else stays clean, as C9 pins.
 
     Returns:
         The built variant registry.
@@ -917,7 +1018,12 @@ def registry_with(
             continue
         recipes.append(replacements.get(key, entry))
     recipes.extend(add)
-    return build_registry(document_from_groups(_document(recipes)))
+    if not machine_builds:
+        return build_registry(document_from_groups(_document(recipes)))
+    recipes.extend(MACHINE_BUILD_ENTRIES)
+    return build_registry(
+        document_from_groups(_document(recipes, machine_descriptors=MACHINE_DESCRIPTOR_ENTRIES))
+    )
 
 
 def rich_recovery_registry() -> Registry:

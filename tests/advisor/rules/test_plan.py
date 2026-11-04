@@ -705,7 +705,7 @@ def test_what_the_search_left_out_precedes_the_caveat_and_never_reaches_tier1(of
     assert card.tier2 == (
         plain.tier2
         + "; the search dropped 1 recipe(s) to fit its cap"
-        + "; 2 automated recipe(s) carry no asset path and were never planned"
+        + "; 2 automated recipe(s) carry no unlock path to check and were never planned"
         + f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin},"
         + f" not the save build {pin + offset}"
     )

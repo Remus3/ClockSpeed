@@ -1138,7 +1138,9 @@ NO_PLAN_REASON: Final = (
 MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
 
 #: The tier 2 clauses of a route card, spelled for the same reason.
-MUST_UNLOCK: Final = "; the locked recipes must unlock first on this route"
+MUST_UNLOCK: Final = (
+    "; the locked recipes or the machines that run them must unlock first on this route"
+)
 NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
 NOT_CHOSEN: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"

@@ -85,7 +85,8 @@ THE CLOSURE is the same kind of walk over EVERY usable producer rather than the 
 one, stopping at raw items, and a recipe's walk depth is the depth of the nearest item
 it makes, a target's producers at zero. It follows inputs and never byproducts. A
 recipe reached only by consuming what a route member leaves over is outside it, so
-under the balanced policy a route whose byproduct nothing kept consumes cannot solve.
+under the balanced policy a route whose byproduct nothing kept consumes cannot solve
+while that member runs a machine.
 Unless other kept recipes answer the request that reads no-plan, which is scoped to the
 kept set and the stated policy, and the player states the policy.
 
@@ -123,7 +124,7 @@ WHY EVERY ORDER HERE IS A TUPLE AND NEVER A SET
 iteration order and its repr depend on PYTHONHASHSEED, so two runs would render
 differently. A set is used below ONLY as a private membership test, and never to
 decide an order; that includes a stated held set, which is never iterated. A mapping
-below is read by key and never walked. :attr:`TrimStep.kept` and
+below is read by key, or sorted before it is walked. :attr:`TrimStep.kept` and
 :attr:`TrimStep.removed` are tuples, in registry order, both of them, and
 :attr:`DerivedRoute.members` and :attr:`DerivedRoute.unmade` are tuples too, in walk
 order and sorted.
