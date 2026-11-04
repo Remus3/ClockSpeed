@@ -1137,3 +1137,40 @@ record). None blocks a product item or reddens a suite.
   --prompt-file, bypassPermissions and --floors-in-hooks; write the working command into the
   CS-1295 section of `docs/item_notes/phase7.md` before the next run; trigger: the next CS-1295
   review run.
+
+## Session 155 residuals - filed 2026-11-03 under product before process
+
+From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). None reddens a suite.
+
+- plan.adopt fires on no real world because no surface passes plan_request (CS-1351); ship a target
+  selector, which must also render plan.status and plan.trimmed on a refused path, since a refused
+  trace yields no card; trigger: D3 selector work opens.
+- The bound's trim is not chain-aware, so plan_offer reads no-plan where an unlocked chain exists (11
+  of 12 no-plans on one save, half the multi-stage targets); the reason is now scoped to the kept
+  set, so it is loud and true, not cured; trigger: the selector row opens.
+- A power rung with an unpriceable reference withholds the plan's own exact figure (CS-1351); publish
+  it when tier 3 reaches a player; trigger: the selector row opens.
+- A score tie can put a dominated plan on top: asked by buildings, a 60 ore plan beat a 10 ore plan
+  on registry order at one machine each, with an honest badge; add a dominance tie-break or record a
+  ruling; trigger: the selector row opens.
+- `clockspeed/solve/ratio.py`, `_plan_from` raises ValueError from zip on optimize_plan with no
+  targets and a reachable candidate, under greedy or sinkable; it predates CS-1350, and the bound
+  now answers first except under greedy with an unrecognized policy, pinned by
+  `tests/solve/test_bound.py::test_no_targets_over_a_usable_set_answer_where_optimize_plan_crashes`;
+  trigger: the next edit to that function.
+- Under greedy a no-plan's trace names no backend, and 52 of 780 fuzzed greedy no-plans had a plan by
+  brute oracle; the reason stays true of the search; trigger: greedy becoming a default.
+- A zero-duration automated recipe drops at the door with no flag on the plan path; 0 of 291 on the
+  real docs; trigger: a real count above zero.
+- The plan subject key joins targets with a plus sign, so an item key holding one could share a card
+  id; by reading only, 0 such item keys in the real docs; trigger: a mod item key with a plus sign.
+- `docs/ARCHITECTURE.md` sections 2, 3 and 5 still read pillars 3 to 5 as not built, with no
+  advisor-to-solve edge, and its tree omits `clockspeed/advisor/advise.py`,
+  `clockspeed/advisor/build.py` and `clockspeed/advisor/plans.py`; rewrite to the built state;
+  trigger: the next structural edit to that file.
+- `clockspeed/solve/relax.py`'s docstring still says the advisor holds no rule trace; trigger: the
+  next edit to that module.
+- `clockspeed/audit/machines.py` joins unlocks by trailing token beside the whole-path rule (0
+  disagreements, 132 of 157 by either route, one world); trigger: a measured path divergence.
+- `docs/LEDGER.md` pins line numbers in `clockspeed/data/docs_extract.py`, which forced the FullName
+  block to that file's foot; trigger: the next reorganisation of that module.

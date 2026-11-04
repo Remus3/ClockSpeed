@@ -75,6 +75,81 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-03 - CS-1351 - CLOSED on its clause: advise_world ranks a plan for a stated target and plan.adopt fires; it fires on no real world until a selector ships
+Verification: `clockspeed/advisor/advise.py::advise_world`; `clockspeed/advisor/plans.py::plan_offer`;
+`clockspeed/advisor/rules/__init__.py::_FAMILIES`; `clockspeed/data/registry.py::Recipe`;
+`clockspeed/solve/strategy.py::rank_plans`; the rule-family row of `docs/ARCHITECTURE.md`;
+`tests/advisor/test_plan_world.py::test_the_plan_family_is_registered`,
+`::test_advise_world_ranks_a_plan_and_fires_plan_adopt`,
+`::test_the_badge_is_graded_against_each_rungs_own_optimum`,
+`::test_the_requires_are_the_join_not_a_supplied_tuple`,
+`::test_the_engine_refuses_the_joined_keys_over_a_world_lacking_them`,
+`::test_a_capped_no_plan_names_what_the_bound_dropped`,
+`::test_any_rung_search_that_dead_ends_is_solve_refused`,
+`::test_the_surface_passes_no_target`, `::test_the_join_holds_on_a_library_world`;
+`tests/solve/test_strategy.py`; `tests/data/test_registry.py`.
+HEADLINE AGAINST CLAUSE, PLAINLY. The clause names a synthetic fixture world and is met there: the
+card asserted on is one that advise_world call returned, and the rung names are read off its tier
+3. The filed headline's "runs on no world" is half cured. plan.adopt now RUNS on every world and
+FIRES on no real world, because `clockspeed/surface/providers.py` passes no plan_request and the
+advice endpoint takes no parameter, pinned by test_the_surface_passes_no_target. With a stated
+target on one save, one adjudicator's probe read 21 of 33 targets firing a card and 0 rule errors.
+That is one save, the raw list was the probe's own, and the save library can change.
+RULINGS, a distinct adjudicator, before any code. Target source: a caller keyword, optional default
+None. Rejected: the world's phase table, which no 1.0 save measured writes and which as sole source
+is the fixed pointer `CLAUDE.md` section 7 refuses; built output, whose figures are nominal; the
+next milestone, refused by section 7. Reversed by a selector shipping. No target: an always-offered
+plan.status and one verdict-indeterminate step, and the firing path records one too, so a card
+whose target moved is never falsely completed. Rejected: input-missing, which ruling G6 refuses;
+ctx.reject, which settles a rule that did not decide. Reversed by per-subject settlement in the
+ledger. Join: Recipe.asset_path, the path half of FullName, whole-string equality, its key and split
+owned once by `clockspeed/data/docs_extract.py`. Rejected: a trailing token, forbidden by the
+work under CS-1343, and a locked recipe would yield no key. Reversed by a measured path divergence between
+docs and save. Badge: the top plan graded per rung against that rung's own kept-set optimum, through
+keyword-only references on rank_plans, whose default None is the shipped behaviour. Rejected: rank
+one's self-badge, measured clearing all three rungs at 30 MW with a 15 MW plan in the same ranking.
+Runner-up badge_against_references, best argument that RankedPlan.badge keeps one meaning, lost
+because it needs a hand-built pair. Reversed by a second caller needing a re-grade without a
+ranking. PlanRequest carries one direction and no weighted objective, because a weighted optimum may
+clear no rung. Reversed by a rung or rule text that states a trade-off.
+REFUTATION. Three lenses on the first candidate, each by an agent that built none of it: correctness
+and vacuity, seams and privacy and regression, document truth and siblings. All three REFUTED it on
+one defect, each with its own reproduction, and none on the clause: a no-plan reason claiming no
+selection of the unlocked recipes reaches the target, when the cap had dropped the route. Repaired:
+the reason covers the kept set and the stated byproduct policy, BoundExhaustedError carries its trim
+record, and plan.trimmed is offered and read on refused paths. A fourth lens on the repair REFUTED
+a new false rung label under greedy; the adjudicator ruled that any rung's dead end reads
+solve-refused, and it does. Then LAND. The loop stopped by cost against risk, since the plan path has
+no production caller. Measured beside it: with no request 255 of 255 synthetic cases and 85 of 85
+wire bodies byte-same as the parent, 0 canary hits in 560 rendered strings, no solve reached.
+VERIFIER, a distinct agent, from its own output. Code-complete tip: mypy 462 files, ruff clean,
+drift guard 11 PASS; advisor, solve, surface and the top-level guards 12700 passed, 0 failed, 16
+skipped. One repair earlier: the same set with data, audit and progress 14848 passed, 16 skipped;
+save, ops and shell 3020 passed, 1 skipped. Library arm: unlocked 157, joined 132, automated 42,
+status ranked, unmet 0. The one gated whole suite is the push's pre-push hook, not observed here.
+Residual: `BACKLOG.md`, Session 155 residuals. Above all the selector, and the trim not being
+chain-aware, so a real multi-stage target can read no-plan, loud and scoped to the kept set.
+
+### 2026-11-03 - CS-1350 - CLOSED: optimize_within_bound starts its chain at the empty prefix, so an empty usable set with zero targets answers as optimize_plan does
+Verification: `clockspeed/solve/bound.py::optimize_within_bound`;
+`tests/solve/test_bound.py::test_an_empty_usable_set_with_zero_targets_returns_what_optimize_plan_returns`,
+`::test_zero_targets_over_a_usable_set_stop_at_the_empty_prefix`,
+`::test_an_empty_usable_set_with_a_nonzero_target_counts_the_empty_prefix`,
+`::test_exhaustion_counts_every_prefix`,
+`::test_the_ascent_visits_the_empty_prefix_first_on_every_request`,
+`::test_the_cost_bound_arithmetic_is_what_the_ascent_evaluates`.
+One loop from k = 0 and no special case, as the item's note ordered. The acceptance arm reddens 18 of
+18 on the shipped refusal. Behaviour and the corrected cost-bound and k = 1 sentences landed in one
+commit; `tried` now counts the empty prefix, so it is exactly one on an empty usable set and never
+zero. The cost bound is (1 << (K + 1)) - 1, measured by a spy: 15 at K = 3 and 8191 at K = 12.
+REFUTATION, one lens, correctness and vacuity, NOT REFUTED: a 48324-request differential raised 0
+alarms, and every named mutant was killed. Its gaps were repaired before landing: a mirror divergence
+on empty targets stated and pinned, over-cap exhaustion pinned, and a refusal message that claimed
+too much under greedy reworded per backend. The later CS-1351 repair added BoundExhaustedError.record
+and `clockspeed/solve/bound.py::trim_record`, and the adjudicator re-read this clause as still met.
+Verifier counts: the CS-1351 record above. Residual: the pillar 1 crash on empty targets, in
+`BACKLOG.md`, Session 155 residuals.
+
 ### 2026-11-01 - CS-1367 and CS-1368 and CS-1369 - MAIN Fleet Insights W44 CS-2, CS-1 and CS-3 landed
 Verification: `tests/test_kit_pin_subset.py`, `tests/test_repin_kit.py`, `tests/test_dev_dependency_bounds.py`.
 MAIN ORDERS 2026-11-01 15:35 and 20:06. `tools/kit_pin_subset.py` (MAIN's CS-2) runs the four pin files and

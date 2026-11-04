@@ -63,7 +63,7 @@ A DEAD-ENDED RUNG SEARCH IS A REFUSED SEARCH, NEVER NO-PLAN AND NEVER NOT COMPAR
 Under the greedy backend, a heuristic that never backtracks, the bound can solve and a
 rung's own search over the kept set then find nothing, although the bound has just
 shown a plan exists. No-plan would be false, and so would a None reference, which
-arises from a power refusal alone and says a rung has no exact figure, when a dead end
+arises from a power refusal alone and says a rung has no exact figure to compare, when a dead end
 says only that this search found nothing to compare with. So any rung's dead end is
 ``solve-refused``, which says nothing about the target. Only the bound's own refusal
 is ``no-plan``.

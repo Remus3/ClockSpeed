@@ -24,6 +24,74 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1351 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-03 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+### Filed 2026-10-24 (session 151) by the CS-1346 close
+
+**THE RULE SHIPS AND RUNS ON NO WORLD.** CS-1346 shipped `clockspeed/advisor/rules/plan.py`,
+whose `plan.adopt` rule reads one ranked plan and carries its
+`clockspeed/solve/strategy.py::StrategyBadge` into the tier-3 derivation from the trace. It is
+NOT registered in `clockspeed/advisor/rules/__init__.py::_FAMILIES`:
+`clockspeed/advisor/advise.py::advise_world` ranks no plan for a world, so it offers the rule no
+inputs, and the CS-1285 slice C ruling G6 registers a family only in the change that has the
+advisor offer its inputs. Until then the rule runs only where a caller names it, through
+`clockspeed/advisor/trace.py::run_rule` or `clockspeed/advisor/advise.py::advise` with its
+`rules` argument.
+
+**ITS REQUIRES HAVE NO PRODUCER EITHER.** A plan names recipes by registry ClassName and the
+unlock state holds asset paths, and no join between the two ships, so
+`clockspeed/advisor/rules/plan.py::plan_inputs` takes the unlock keys a plan's recipes need as a
+REQUIRED keyword from its caller. A production caller has nothing true to pass there until that
+join exists, which is why the headline names both halves.
+
+**WHAT CS-1346 LEFT DONE, SO THIS ITEM DOES NOT REDO IT.** The rule and its adapter, the
+engine's admission of the solve types `clockspeed/advisor/trace.py::PLAN_TYPES` names, and the
+tier-3 rendering through `clockspeed/advisor/cards.py::render_value`, each with its arm in
+`tests/advisor/rules/test_plan.py`.
+
+### Acceptance
+
+`clockspeed/advisor/advise.py::advise_world` ranks a plan for a synthetic fixture world and `plan.adopt` fires on it, its `clockspeed/solve/strategy.py::StrategyBadge` reaching the tier-3 derivation of a real card that call returns, with the unlock keys the plan's recipes need filled by a recipe-to-unlock join rather than supplied by hand; the plan family is registered in `clockspeed/advisor/rules/__init__.py::_FAMILIES` in that same change; and the rule-family row of `docs/ARCHITECTURE.md` names the plan family as registered
+
+
+## CS-1350 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-03 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+### Filed 2026-10-23 by the CS-1245 close
+
+**THE DIVERGENCE IS DOCUMENTED RATHER THAN HIDDEN, WHICH IS WHY IT IS A ROW AND NOT A BUG
+REPORT.** `clockspeed/solve/bound.py`'s ascent builds the nested prefixes S_1 to S_K and starts
+at k = 1, so a request whose usable set is EMPTY has no prefix at all and is refused with
+`BoundExhaustedError` having tried nothing. `clockspeed/solve/backends/exhaustive.py` enumerates
+the empty subset deliberately - its docstring says the empty selection is a real selection and
+is the answer to a target rate of zero - so `optimize_plan` ANSWERS exactly the request
+`optimize_within_bound` refuses. The module docstring states the divergence under THE
+CONSEQUENCE, STATED PLAINLY; this row is to remove it.
+
+**IT IS NARROW AND IT IS LOUD.** The refusal is an exception, never a wrong plan, and it is
+reachable only when the door leaves nothing usable. That is why it shipped rather than held the
+CS-1245 close: no measured arm of CS-1245's acceptance touches it.
+
+**DO NOT FIX IT BY SPECIAL-CASING AN EMPTY USABLE SET.** Starting the chain at k = 0 covers it
+with the chain the module already proves things about, and S_0 is a subset of every other
+prefix so the smallest-passing proof still holds. A special case is a second rule that the
+cost-bound arithmetic and the nestedness proof in that docstring would both then have to
+exempt.
+
+### Acceptance
+
+`clockspeed/solve/bound.py::optimize_within_bound` on a request whose usable candidate set is
+empty and whose targets are all zero returns the same plan `clockspeed/solve/optimize.py::optimize_plan` returns for it, with `chosen_size` 0 and no trim record, and an arm in
+`tests/solve/test_bound.py` reddens on the shipped refusal; the cost-bound arithmetic and the
+k = 1 sentences in that module's docstring are corrected in the same commit, so no docstring
+claim outlives the behaviour it described
+
+
 ## The kit v23 relocation - relocated from `CLAUDE.md` 2026-10-25 by the kit v23 rollout
 
 Moved when the FLEET-KIT version 23 common block took `CLAUDE.md` past its 40 KB budget;
