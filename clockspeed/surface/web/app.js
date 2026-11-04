@@ -29,18 +29,19 @@
   panel becomes mouse-only, invisibly." Refresh is the button in the header and
   nothing else repaints this page.
 
-  WHY THIS PAGE ISSUES EXACTLY THREE ON-DEMAND REQUESTS, WHICH IS A COUNT AND
+  WHY THIS PAGE ISSUES EXACTLY FIVE ON-DEMAND REQUESTS, WHICH IS A COUNT AND
   NOT AN ABSENCE. This block used to say the page issued none at all and that
   the question did not arise; then it said exactly one POST. Both were true when
   written. The honest answer is a BOUND rather than a zero, and the bound is now
-  three: the solve bench asks /api/solve, the optimize bench asks /api/optimize
-  and the power bench asks /api/power. Two are POSTs and one is a GET, because
-  the verb belongs to the route rather than to this page.
+  five: the solve bench asks /api/solve, the optimize bench asks /api/optimize,
+  the power bench asks /api/power, and the advice panel asks /api/advice and
+  /api/advice/<id>/derivation. Two are POSTs and three are GETs, because the
+  verb belongs to the route rather than to this page.
 
   WHAT THE BOUND BUYS IS UNCHANGED BY THE COUNT. Each is reachable only from a
-  panel's own click handler; each can ask for one path and no other, because
+  panel's own click handler; each can ask for one route and no other, because
   app.js - never the panel - builds the query string from a fixed table of the
-  names that endpoint takes; and one shared flag means at most one of the three
+  names that endpoint takes; and one shared flag means at most one of the five
   is ever outstanding. A panel cannot smuggle an unnamed parameter through any
   of them, cannot redirect one, and cannot start a second while one is running.
 
@@ -55,7 +56,9 @@
   card id. /api/advice now answers 200 with a card list and this page probes
   it on a repaint, but the probe table takes no id from that body, so there is
   no id to put in the path. Asking with an invented one would be asking about
-  a card that does not exist. The other three take a parameter this page has nothing to put in
+  a card that does not exist. The derivation route IS asked since CS-1371, on a
+  click on a card, with that card's own id out of a listing the panel holds; a
+  repaint still has no id to ask with. The other three take a parameter this page has nothing to put in
   on a repaint, and the table below is a map of what this page may safely ask
   for on a REPAINT: /api/solve, /api/optimize and /api/power are each asked on
   a click and answer into the panel that clicked, so their rows still have no
@@ -664,17 +667,21 @@ function panelData(probes) {
       a list of nouns and invited the next reader to expect a solve RESULT
       here, which no repaint has and no repaint will.
 
-      THREE DOORS AND NOT ONE, because three published routes take a parameter
+      FIVE DOORS AND NOT ONE, because five published questions take a parameter
       a repaint cannot supply: /api/solve and /api/optimize want a target
-      basket, /api/power wants a building. Each was reachable from this page
-      only by adding its door - /api/optimize answered 200 against real data for
-      as long as the page never called it, which is the same "written and
-      unreachable" fault /api/power's whole route was filed for.
+      basket, /api/power wants a building, /api/advice answers a stated target
+      only when one is stated, and /api/advice/<id>/derivation wants a card. Each
+      was reachable from this page only by adding its door - /api/optimize
+      answered 200 against real data for as long as the page never called it,
+      which is the same "written and unreachable" fault /api/power's whole route
+      was filed for.
     */
     actions: {
       requestSolve: requestSolve,
       requestOptimize: requestOptimize,
-      requestPower: requestPower
+      requestPower: requestPower,
+      requestAdvice: requestAdvice,
+      requestDerivation: requestDerivation
     }
   };
 }
@@ -748,12 +755,23 @@ var OPTIMIZE_PARAMS = [
 var OPTIMIZE_OPTIONAL = ["backend"];
 var POWER_PARAMS = ["building"];
 var POWER_OPTIONAL = ["clock", "recipe"];
+/*
+  THE LISTING DOOR REQUIRES ALL FOUR AND THE DERIVATION DOOR ANY OF THEM. A
+  listing with nothing stated is the repaint's question, so a door for the stated
+  one has nothing to offer a short request. A derivation is asked with the four
+  that produced its card, which is none at all for a card the repaint listed.
+  The server refuses a partial set either way; this table only decides what this
+  page is able to send.
+*/
+var ADVICE_PARAMS = ["target", "rate", "direction", "byproduct_policy"];
+var DERIVATION_PARAMS = ["id"];
 
 /*
   One row per door a panel may knock on: where it goes, what verb it answers,
   and which names it takes. THE VERB IS PER ROUTE AND NOT PER PAGE - the two
   solver doors answer POST because a request carries a target basket, and
-  /api/power answers GET because it carries one building identifier.
+  /api/power answers GET because it carries one building identifier. The two
+  advice doors answer GET because a stated plan is read and nothing is written.
 */
 var REQUESTS = {
   solve: { path: "/api/solve", method: "POST", required: SOLVE_PARAMS, optional: [] },
@@ -763,14 +781,21 @@ var REQUESTS = {
     required: OPTIMIZE_PARAMS,
     optional: OPTIMIZE_OPTIONAL
   },
-  power: { path: "/api/power", method: "GET", required: POWER_PARAMS, optional: POWER_OPTIONAL }
+  power: { path: "/api/power", method: "GET", required: POWER_PARAMS, optional: POWER_OPTIONAL },
+  advice: { path: "/api/advice", method: "GET", required: ADVICE_PARAMS, optional: [] },
+  derivation: {
+    path: "/api/advice/<id>/derivation",
+    method: "GET",
+    required: DERIVATION_PARAMS,
+    optional: ADVICE_PARAMS
+  }
 };
 
 /*
-  Whether a request is already in flight. ONE FLAG FOR ALL THREE DOORS, not one
+  Whether a request is already in flight. ONE FLAG FOR ALL THE DOORS, not one
   each. The sibling of repainting below, and it exists for the same reason: one
-  request at a time, refused rather than queued. A flag per door would let three
-  panels have three requests outstanding at once, which is the concurrency this
+  request at a time, refused rather than queued. A flag per door would let several
+  panels have several requests outstanding at once, which is the concurrency this
   page's whole sequential-probe discipline exists to avoid.
 */
 var asking = false;
@@ -833,22 +858,28 @@ function requestQuery(spec, params) {
   return parts.join("&");
 }
 
-function requestFetch(spec, query) {
+function requestFetch(spec, query, params) {
   /*
-    THE THREE REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
+    THE FIVE REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
     ITS VERB AS LITERALS. Every one of them could be reached from spec.path and
     spec.method in a single call, and that shape was written first and rejected:
     it makes "which URLs can this page reach, with which verbs" a question only
     answerable by following a table indirection, and it defeats the static arm
     in tests/surface/test_web_assets.py that counts the page's non-GET requests
     and pins each to a path. A security-relevant control that a refactor
-    silently blinds is worse than three visible lines.
+    silently blinds is worse than five visible lines.
 
     NO BODY KEY ON ANY OF THEM. clockspeed/surface/server.py parses the query
     string and reads a request body nowhere at all, so a body would be ignored
     on arrival - and an unread body on a kept-alive HTTP/1.1 connection desyncs
     whatever request follows it on that socket. Omitting the key sends
     Content-Length: 0.
+
+    THE DERIVATION'S ID IS ENCODED INTO ITS OWN PATH SEGMENT, so an id holding a
+    slash or a question mark cannot step out into another route. It also rides
+    in the query, because the table builds the query from every name it takes;
+    the server overwrites a query parameter with the path capture of the same
+    name, so the path is the one that counts.
   */
   if (spec === REQUESTS.solve) {
     return fetch("/api/solve?" + query, {
@@ -864,6 +895,20 @@ function requestFetch(spec, query) {
       cache: "no-store"
     });
   }
+  if (spec === REQUESTS.advice) {
+    return fetch("/api/advice?" + query, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      cache: "no-store"
+    });
+  }
+  if (spec === REQUESTS.derivation) {
+    return fetch("/api/advice/" + encodeURIComponent(params.id) + "/derivation?" + query, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      cache: "no-store"
+    });
+  }
   return fetch("/api/power?" + query, {
     method: "GET",
     headers: { "Accept": "application/json" },
@@ -871,7 +916,7 @@ function requestFetch(spec, query) {
   });
 }
 
-async function runRequest(spec, query, onSettled, generation) {
+async function runRequest(spec, query, params, onSettled, generation) {
   /*
     The requests this page issues that are not repaints, folded into the same
     outcome shape probeRoute returns - with one difference that is load-bearing.
@@ -881,7 +926,7 @@ async function runRequest(spec, query, onSettled, generation) {
   */
   var outcome = { reached: false, http: null, body: null };
   try {
-    var response = await requestFetch(spec, query);
+    var response = await requestFetch(spec, query, params);
     var payload = null;
     try {
       payload = await response.json();
@@ -947,11 +992,11 @@ function makeDoor(spec) {
     REFUSED WHILE A REPAINT IS IN FLIGHT, because a repaint is about to empty
     and remount every section including the one that would receive this answer.
 
-    ONE BUILDER RATHER THAN THREE HAND-WRITTEN DOORS. Each door differs only in
-    its row of REQUESTS, so writing them out separately would be three copies of
-    the generation gate, three copies of the busy flag and three chances for one
-    of them to drift out of step with the other two - and the one that drifted
-    would be the one that silently wrote an answer into a discarded node.
+    ONE BUILDER RATHER THAN A HAND-WRITTEN DOOR PER ROUTE. Each door differs only
+    in its row of REQUESTS, so writing them out separately would be a copy each of
+    the generation gate and of the busy flag, and a chance each for one of them
+    to drift out of step with the others - and the one that drifted would be the
+    one that silently wrote an answer into a discarded node.
   */
   return function door(params, onSettled) {
     if (repainting || asking) {
@@ -973,7 +1018,7 @@ function makeDoor(spec) {
       the nodes this caller was holding WHEN IT ASKED are the nodes still on the
       page.
     */
-    runRequest(spec, query, onSettled, panelGeneration);
+    runRequest(spec, query, params, onSettled, panelGeneration);
     return true;
   };
 }
@@ -981,6 +1026,30 @@ function makeDoor(spec) {
 var requestSolve = makeDoor(REQUESTS.solve);
 var requestOptimize = makeDoor(REQUESTS.optimize);
 var requestPower = makeDoor(REQUESTS.power);
+var requestAdvice = makeDoor(REQUESTS.advice);
+var askDerivation = makeDoor(REQUESTS.derivation);
+
+function requestDerivation(id, params, onSettled) {
+  /*
+    Read one card's tier 3: the card, then the statement that produced it.
+
+    THE ID IS ITS OWN ARGUMENT because it is which card and not something asked
+    about it, the same split the server draws between a path capture and a query.
+    It goes through the one builder like every other name, so a non-string id and
+    a name outside the table are refused exactly as they are at the other doors:
+    false, and onSettled never called.
+  */
+  if (!params || typeof params !== "object") {
+    return false;
+  }
+  var stated = {};
+  var names = Object.keys(params);
+  for (var index = 0; index < names.length; index += 1) {
+    stated[names[index]] = params[names[index]];
+  }
+  stated.id = id;
+  return askDerivation(stated, onSettled);
+}
 
 /* --- one repaint, on demand, never on a schedule ------------------------ */
 

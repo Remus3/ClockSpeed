@@ -36,14 +36,17 @@ import re
 import socket
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, NamedTuple
+from urllib.parse import urlencode
 
 import pytest
 
+from clockspeed.advisor.rules import plan as plan_rules
 from clockspeed.data import version
 from clockspeed.save.header import MASK_DIGEST_CHARACTERS, MASK_PREFIX, masked_token
+from clockspeed.solve import optimize, ratio
 from clockspeed.surface import config, server
 from clockspeed.surface.api import advice as advice_endpoint
-from clockspeed.surface.api import contract, health, pending, solve, world
+from clockspeed.surface.api import contract, health, pending, registry, solve, world
 from clockspeed.surface.api import power as power_endpoint
 from tests.surface import audit_harness
 
@@ -72,6 +75,7 @@ SCRIPT: Final = "app.js"
 #: itself - ``registerPanel`` and the mount loop - stays in ``app.js``, which is
 #: why that file is still named apart from these four.
 PANEL_MODULES: Final = (
+    "panel_advice.js",
     "panel_registry.js",
     "panel_scope.js",
     "panel_solve.js",
@@ -686,9 +690,9 @@ def test_the_harness_answers_every_route_it_publishes_as_live() -> None:
 
     THE WHOLE SUITE STAYED GREEN THROUGH THAT, which is the point of this arm.
     A template carrying a path parameter is exempt for the reason the harness
-    module docstring gives - the table is keyed by exact path and the page asks
-    for neither - and that exemption is derived from the template rather than
-    listed, so it cannot quietly cover a parameterless route.
+    module docstring gives - the table is keyed by exact path, so a template is
+    never one of its keys - and that exemption is derived from the template rather
+    than listed, so it cannot quietly cover a parameterless route.
     """
     answered = {path for _method, path in audit_harness.CANNED}
     live = {
@@ -2615,6 +2619,18 @@ def test_the_page_issues_exactly_two_posts_and_no_form() -> None:
     asked = tuple(call.target for call in calls if call.target.startswith('"/api/power?'))
     assert len(asked) == 1, f"the page names /api/power in {len(asked)} fetch call(s)"
 
+    # THE TWO ADVICE DOORS ARE GETS TOO, WHICH IS WHY THE COUNT ABOVE DID NOT MOVE
+    # (CS-1371). Pinned for the reason the power door is, and to the verb as well: a
+    # stated plan is read, and a POST here would be a third state-changing request
+    # the count above would then have to admit.
+    advice = tuple(call for call in calls if call.target.startswith('"/api/advice'))
+    assert sorted(call.target for call in advice) == [
+        '"/api/advice/" + encodeURIComponent(params.id) + "/derivation?" + query',
+        '"/api/advice?" + query',
+    ], advice
+    advice_verbs = tuple(call.method for call in advice)
+    assert advice_verbs == ("GET", "GET"), advice_verbs
+
     carried = tuple(f"{call.method} {call.target}" for call in calls if call.sends_body)
     assert not carried, f"a fetch carries a request body the server never reads: {carried}"
 
@@ -2847,17 +2863,18 @@ def test_the_harness_refuses_a_path_it_does_not_publish(
     assert payload["endpoint"] == contract.ENDPOINT_UNROUTED, payload
 
 
-def test_the_harness_serves_no_stand_in_path_for_either_id_template(
+def test_the_harness_answers_a_made_up_id_on_either_template_with_a_404(
     harness: audit_harness.AuditHarness,
 ) -> None:
-    """Neither ``<id>`` template gets a concrete path here, so both 404.
+    """An id no canned card carries is a 404 on both ``<id>`` templates.
 
     WHAT THIS DOES AND DOES NOT CLAIM. It verifies ONE thing: the harness's
-    exact-path table carries no invented id, so a request for one is the
-    contract's 404. It does NOT claim production cannot route these - production
-    routes both and answers 501, which is the opposite of what the justification
-    on this arm used to say. The reason the stand-in still serves neither is that
-    the audited page asks for neither, and that premise is pinned separately by
+    exact-path table holds a concrete path for a canned card's derivation and for
+    nothing else, so a request for any other id is the contract's 404. It does NOT
+    claim production cannot route these - production matches every id against the
+    template, which is the opposite of what the justification on this arm once
+    said. The canned ones exist because the advice panel asks on a click with an id
+    out of a listing; no repaint asks at all, and that half is pinned separately by
     :func:`test_the_page_asks_for_no_concrete_path_on_either_id_template` rather
     than restated here. ``tests/surface/audit_harness.py`` carries the whole
     reasoning.
@@ -2900,13 +2917,18 @@ def probe_paths(text: str) -> dict[str, str | None]:
 def test_the_page_asks_for_no_concrete_path_on_either_id_template() -> None:
     """The premise the harness's three-not-five decision rests on, pinned.
 
-    THIS IS THE ARM THAT MAKES THAT DECISION FALSIFIABLE. The harness serves no
-    stand-in id because the page requests neither ``<id>`` route - so both rows
-    read from ``/api/health`` and adding canned answers would change no rendered
-    byte. That is a fact about ``app.js``, and a fact stated only in a docstring
-    is one that goes stale silently; the justification on the sibling arm above
-    already did exactly that once. The day either row gains a probe path, this
-    goes red and the harness has to be revisited.
+    THIS IS THE ARM THAT MAKES THAT DECISION FALSIFIABLE. No REPAINT requests
+    either ``<id>`` route - so both rows read from ``/api/health`` and the canned
+    card ids change no rendered byte of that table. That is a fact about ``app.js``,
+    and a fact stated only in a docstring is one that goes stale silently; the
+    justification on the sibling arm above already did exactly that once. The day
+    either row gains a probe path, this goes red and the harness has to be revisited.
+
+    IT PINS THE PROBE COLUMN AND ONLY THAT. Since CS-1371 the advice panel reads
+    ``/api/advice/<id>/derivation`` on a click, through ``requestDerivation`` and
+    with an id out of a listing the panel holds. That request has no row in this
+    table, so it is not graded here; ``tests/surface/test_panel_advice.py`` grades
+    it, and the arm counting this page's requests above pins its literal.
     """
     routes = probe_paths(code_only(read_asset(SCRIPT)))
     published = len(routes)
@@ -2986,7 +3008,7 @@ def test_every_canned_body_satisfies_the_shipped_contract_checker(
     assert harness.port > 0
     findings = {
         key: contract.contract_problems(response)
-        for key, response in audit_harness.CANNED.items()
+        for key, response in audit_harness.EVERY_ANSWER.items()
         if contract.contract_problems(response)
     }
     total = len(findings)
@@ -2999,7 +3021,8 @@ def test_every_canned_body_encodes_as_seven_bit_ascii_with_no_float(
     """Each canned payload survives ``contract.encode``, which refuses both."""
     assert harness.port > 0
     encoded = {
-        key: contract.encode(response.payload) for key, response in audit_harness.CANNED.items()
+        key: contract.encode(response.payload)
+        for key, response in audit_harness.EVERY_ANSWER.items()
     }
     assert encoded, "the harness publishes no canned bodies at all"
 
@@ -3117,6 +3140,216 @@ def test_the_harness_world_refuses_a_pin_that_carries_no_changelist(
         audit_harness._world_data()  # noqa: SLF001 - the seam under test
 
 
+# --- the populated advice states the audit reads (CS-1371) --------------------
+
+#: Which stated target reaches which state: the target, the outcome's two words and the
+#: rules whose cards it lists. Graded through a real socket against what the harness
+#: serves, and spelled from each word's owner, so the audit's account of a state is the
+#: one the advisor publishes.
+AUDIT_STATES: Final = (
+    (
+        audit_harness.TARGET_RANKED,
+        plan_rules.STATUS_RANKED,
+        plan_rules.REDESIGN_NOT_REACHED,
+        (plan_rules.ADOPT_RULE.rule_id,),
+    ),
+    (
+        audit_harness.TARGET_ROUTED,
+        plan_rules.STATUS_NO_PLAN,
+        plan_rules.REDESIGN_ROUTED,
+        (plan_rules.REDESIGN_RULE.rule_id,),
+    ),
+    (
+        audit_harness.TARGET_NO_ROUTE,
+        plan_rules.STATUS_NO_PLAN,
+        plan_rules.REDESIGN_NO_ROUTE,
+        (),
+    ),
+    (
+        audit_harness.TARGET_ROUTE_REFUSED,
+        plan_rules.STATUS_NO_PLAN,
+        plan_rules.REDESIGN_ROUTE_REFUSED,
+        (),
+    ),
+)
+
+#: A stated request the real door passes, with its target left to the caller.
+_GOOD_PLAN_VALUES: Final = {
+    advice_endpoint.RATE_PARAMETER: "1/3",
+    advice_endpoint.DIRECTION_PARAMETER: optimize.OBJECTIVES[0],
+    advice_endpoint.BYPRODUCT_POLICY_PARAMETER: ratio.BYPRODUCT_POLICIES[0],
+}
+
+
+def stated_path(target: str, **overrides: str) -> str:
+    """The listing path stating this target, with a good statement otherwise.
+
+    Args:
+        target: The stated target.
+        **overrides: Parameters replacing the good ones.
+
+    Returns:
+        The request path and query.
+    """
+    values = {advice_endpoint.TARGET_PARAMETER: target, **_GOOD_PLAN_VALUES, **overrides}
+    return f"{advice_endpoint.ENDPOINT}?{urlencode(values)}"
+
+
+def advice_listing(port: int, path: str) -> dict[str, object]:
+    """One listing the harness answers, which must be 200.
+
+    Args:
+        port: The harness's bound port.
+        path: The request path and query.
+
+    Returns:
+        The data object.
+    """
+    code, body, _type = get(port, path)
+    assert code == HTTP_OK, f"{path} answered {code}"
+    data = json.loads(body)["data"]
+    assert isinstance(data, dict), path
+    return data
+
+
+def cards_on(data: dict[str, object]) -> list[dict[str, object]]:
+    """The cards one listing body carries.
+
+    Args:
+        data: The data object.
+
+    Returns:
+        The cards.
+    """
+    cards = data["cards"]
+    assert isinstance(cards, list), data
+    return cards
+
+
+def test_the_harness_lists_visible_and_hidden_cards_before_a_request(
+    harness: audit_harness.AuditHarness,
+) -> None:
+    """Enough to see a list and to see a hidden card stay off it, shaped as the route is."""
+    data = advice_listing(harness.port, advice_endpoint.ENDPOINT)
+    assert set(data) == set(advice_endpoint.DATA_KEYS), sorted(data)
+    cards = cards_on(data)
+    visible = sum(1 for card in cards if card["visible"] is True)
+    hidden = sum(1 for card in cards if card["visible"] is False)
+    minimum_visible = 2
+    assert visible >= minimum_visible, cards
+    assert hidden >= 1, cards
+    off_shape = tuple(str(card["id"]) for card in cards if set(card) != advice_endpoint.CARD_KEYS)
+    assert off_shape == (), off_shape
+
+
+@pytest.mark.parametrize(("target", "status", "redesign", "rules"), AUDIT_STATES)
+def test_each_stated_target_reaches_its_audit_state(
+    target: str,
+    status: str,
+    redesign: str,
+    rules: tuple[str, ...],
+    harness: audit_harness.AuditHarness,
+) -> None:
+    data = advice_listing(harness.port, stated_path(target))
+    assert set(data) == set(advice_endpoint.STATED_DATA_KEYS), sorted(data)
+    outcome = data["plan_outcome"]
+    assert isinstance(outcome, dict), data
+    assert (outcome["status"], outcome["redesign"]) == (status, redesign), outcome
+    assert set(outcome) <= advice_endpoint.PLAN_OUTCOME_KEYS, sorted(outcome)
+    cards = cards_on(data)
+    assert tuple(card["rule_id"] for card in cards) == rules, cards
+    # A REASON IS THE ADVISOR'S WORD, on every status but ranked, and absent on that one.
+    assert ("reason" in outcome) == (status != plan_rules.STATUS_RANKED), outcome
+
+
+def test_the_routed_state_carries_trimmed_recipes(harness: audit_harness.AuditHarness) -> None:
+    data = advice_listing(harness.port, stated_path(audit_harness.TARGET_ROUTED))
+    outcome = data["plan_outcome"]
+    assert isinstance(outcome, dict), data
+    assert outcome["trimmed"], outcome
+
+
+def test_the_no_route_state_carries_unmade_items(harness: audit_harness.AuditHarness) -> None:
+    data = advice_listing(harness.port, stated_path(audit_harness.TARGET_NO_ROUTE))
+    outcome = data["plan_outcome"]
+    assert isinstance(outcome, dict), data
+    assert outcome["unmade"], outcome
+
+
+def test_every_canned_card_has_a_canned_derivation(harness: audit_harness.AuditHarness) -> None:
+    """Every card on every listing answers its button, whichever listing it came from.
+
+    THE COUNT IS THE CONTROL. A walk over no listing would find every derivation present.
+    """
+    paths = (
+        advice_endpoint.ENDPOINT,
+        *(stated_path(target) for target, *_rest in AUDIT_STATES),
+    )
+    cards = [card for path in paths for card in cards_on(advice_listing(harness.port, path))]
+    walked = len(cards)
+    minimum_cards = 5
+    assert walked >= minimum_cards, cards
+    for card in cards:
+        template = advice_endpoint.DERIVATION_ENDPOINT
+        path = template.replace(f"<{advice_endpoint.ID_PARAMETER}>", str(card["id"]))
+        code, body, _type = get(harness.port, path)
+        assert code == HTTP_OK, f"{path} answered {code}"
+        data = json.loads(body)["data"]
+        assert set(data) == set(advice_endpoint.DERIVATION_KEYS), sorted(data)
+        assert data["id"] == card["id"]
+        assert data["rule_id"] == card["rule_id"]
+        assert "\n" in data["derivation"], "tier 3 reads as lines, and this is one"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "drop", "reason"),
+    [
+        ({}, advice_endpoint.RATE_PARAMETER, contract.REASON_MISSING_PARAMETER),
+        ({"objective": "power=1"}, "", contract.REASON_UNKNOWN_PARAMETER),
+        ({advice_endpoint.RATE_PARAMETER: "abc"}, "", contract.REASON_INVALID_PARAMETER),
+        ({advice_endpoint.DIRECTION_PARAMETER: "up"}, "", contract.REASON_INVALID_PARAMETER),
+        ({advice_endpoint.BYPRODUCT_POLICY_PARAMETER: "x"}, "", contract.REASON_INVALID_PARAMETER),
+    ],
+    ids=["partial", "unknown-name", "bad-rate", "bad-direction", "bad-policy"],
+)
+def test_the_harness_refuses_a_statement_as_the_route_does(
+    overrides: dict[str, str],
+    drop: str,
+    reason: str,
+    harness: audit_harness.AuditHarness,
+) -> None:
+    """A refusal the panel can be shown, whose body is the shipped constructor's exactly."""
+    values = {
+        advice_endpoint.TARGET_PARAMETER: audit_harness.TARGET_RANKED,
+        **_GOOD_PLAN_VALUES,
+        **overrides,
+    }
+    values.pop(drop, None)
+    code, body, _type = get(harness.port, f"{advice_endpoint.ENDPOINT}?{urlencode(values)}")
+    assert code == contract.HTTP_BAD_REQUEST, code
+    expected = contract.bad_request(advice_endpoint.ENDPOINT, reason)
+    assert json.loads(body) == expected.payload, body
+
+
+def test_the_harness_refuses_a_target_off_its_list(harness: audit_harness.AuditHarness) -> None:
+    code, body, _type = get(harness.port, stated_path("Item_NotOnTheList_C"))
+    assert code == contract.HTTP_BAD_REQUEST, code
+    assert json.loads(body)["reason"] == contract.REASON_INVALID_PARAMETER, body
+    # The value is the caller's and comes back in no byte, as the real route's refusal.
+    assert b"NotOnTheList" not in body, body
+
+
+def test_the_harness_registry_body_is_keyed_as_the_route_keys_it(
+    harness: audit_harness.AuditHarness,
+) -> None:
+    code, body, _type = get(harness.port, registry.ENDPOINT)
+    assert code == HTTP_OK, code
+    data = json.loads(body)["data"]
+    assert set(data) == set(registry.BODY_KEYS), sorted(data)
+    assert tuple(data[registry.PLAN_TARGETS_KEY]) == audit_harness.AUDIT_TARGETS
+    assert tuple(target for target, *_rest in AUDIT_STATES) == audit_harness.AUDIT_TARGETS
+
+
 def personal_data_findings(blob: str) -> tuple[str, ...]:
     """Every personal-data shape present in one blob of served text.
 
@@ -3153,7 +3386,7 @@ def test_no_canned_body_carries_anything_that_could_be_personal_data(
     """Every canned byte is swept for the classes CLAUDE.md names."""
     assert harness.port > 0
     blob = b"\n".join(
-        contract.encode(response.payload) for response in audit_harness.CANNED.values()
+        contract.encode(response.payload) for response in audit_harness.EVERY_ANSWER.values()
     ).decode("ascii")
     assert blob, "there is nothing to sweep"
 

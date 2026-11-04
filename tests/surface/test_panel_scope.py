@@ -122,7 +122,12 @@ ENVELOPE_ONLY: Final = tuple(sorted(contract.PAYLOAD_KEYS_REFUSAL - contract.PAY
 #: a refusal envelope of their own to render. Sorted, because ``_renders``
 #: returns its matches sorted and an order written by hand here would be a
 #: second fact about the same set.
-REFUSAL_PRINTING_BENCHES: Final = ("panel_optimize.js", "panel_power.js", "panel_solve.js")
+REFUSAL_PRINTING_BENCHES: Final = (
+    "panel_advice.js",
+    "panel_optimize.js",
+    "panel_power.js",
+    "panel_solve.js",
+)
 
 #: Every browser asset the page loads, read off disk rather than listed, so an
 #: asset added to the directory is scanned without an edit here.

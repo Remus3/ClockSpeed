@@ -253,10 +253,10 @@ registerPanel("scope", function mountScope(root, data) {
       + " else.",
     "/api/registry - produced_in tokens that resolve to no modelled building:"
       + " the warning list carries them flagged instead.",
-    "every route but /api/solve - the reason code of a refusal: a repaint"
+    "every route a repaint probes - the reason code of a refusal: a repaint"
       + " reduces a body to its data object before a panel sees it, and app.js"
-      + " prints no reason of its own. Only the solve bench, which is handed a"
-      + " whole envelope, prints one."
+      + " prints no reason of its own. Only a panel that asked for itself, which"
+      + " is handed a whole envelope, prints one."
   ]);
 
   add(

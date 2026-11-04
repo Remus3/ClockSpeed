@@ -1056,3 +1056,87 @@ tbody td:first-child:not(.empty) {
 .map-legend li {
   margin: 0.15rem 0;
 }
+
+/* --- CS-1371, the Advice panel --------------------------------------------
+
+  THE BENCH, THE CONTROLS AND THE ANSWER REGION ARE THE SOLVE BENCH'S RULES.
+  A select takes .bench-input as an input does, which is also what carries its
+  target box. The rules below are only what nothing else on the sheet says.
+
+  THE STATUS LINE RESERVES ITS OWN HEIGHT, because a request in flight may not
+  move what it is about to replace: docs/hud_doctrine.md, section 2, no reflow
+  when data is absent. 3em is two lines at the 1.5 line-height the page sets,
+  and every line this panel writes there fits two lines at the narrowest width
+  the page is audited at. The cap .note carries is lifted, or the line would be
+  narrow enough to share a row with the button beside it and change places with
+  it as the window narrows.
+
+  THE DERIVATION IS TIER 3 AS THE SERVER WROTE IT, SO IT KEEPS ITS LINE BREAKS AND
+  WRAPS RATHER THAN SCROLLS: a second sideways scroller inside a card would need
+  the measured-overflow tab stop for a box that holds nothing but text.
+
+  A LONG TOKEN WRAPS INSIDE THE ANSWER, OR IT WIDENS THE WHOLE PAGE. .bench-result is
+  a flex item, so it takes the min-content width of what it holds, and a .note has no
+  way of breaking an unbroken class name or a long rate the server accepted. Measured
+  by the rendered audit at a 390 wide window, before this rule: a 39-character token
+  took the page's scroll width to 396, and a valid 60-digit rate to 437.
+
+  TIER 1 OUTRANKS TIER 2 BY SIZE AND WEIGHT. The audit measured the two at one size and
+  one colour, where 600 against 500 paints nothing a reader can see.
+*/
+
+.bench-status {
+  flex: 1 1 100%;
+  min-height: 3em;
+  max-width: none;
+  margin: 0;
+}
+
+.bench-result .note {
+  overflow-wrap: anywhere;
+}
+
+.bench-result > h3:first-child {
+  margin-top: 0;
+}
+
+#panel-advice .bench-field {
+  flex: 1 1 11rem;
+}
+
+.advice-card {
+  margin: 0.75rem 0 0;
+}
+
+.advice-headline {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.advice-card .note:not(.advice-headline) {
+  font-weight: 400;
+}
+
+.advice-read {
+  margin: 0.6rem 0 0;
+}
+
+.advice-read button {
+  font-size: 15px;
+}
+
+.advice-derivation {
+  max-width: 75ch;
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.6rem;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas",
+    "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

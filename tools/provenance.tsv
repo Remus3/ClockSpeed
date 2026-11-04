@@ -117,6 +117,7 @@ clockspeed/surface/server.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/web/app.css	authored	CS-601	first-add:CS-601
 clockspeed/surface/web/app.js	authored	CS-601	first-add:CS-601
 clockspeed/surface/web/index.html	authored	CS-601	first-add:CS-601
+clockspeed/surface/web/panel_advice.js	authored	CS-1371	stamped
 clockspeed/surface/web/panel_map.js	authored	CS-977	first-add:CS-977
 clockspeed/surface/web/panel_optimize.js	authored	CS-962	first-add:CS-962
 clockspeed/surface/web/panel_power.js	authored	CS-962	first-add:CS-962
@@ -458,6 +459,7 @@ tests/surface/test_endpoint_opens_no_file_live.py	authored	CS-1171	first-add:CS-
 tests/surface/test_health.py	authored	CS-601	first-add:CS-601
 tests/surface/test_map.py	authored	CS-977	first-add:CS-977
 tests/surface/test_map_vocabulary.py	authored	CS-1189	stamped
+tests/surface/test_panel_advice.py	authored	CS-1371	stamped
 tests/surface/test_panel_global_scope.py	authored	CS-1026	stamped
 tests/surface/test_panel_map.py	authored	CS-977	first-add:CS-977
 tests/surface/test_panel_map_withheld.py	authored	CS-1189	stamped

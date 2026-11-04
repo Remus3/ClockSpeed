@@ -38,8 +38,9 @@ Hand-writing the JSON would have made this module a second description of the
 wire format, and CLAUDE.md section 4 names a restated fact as one that drifts.
 
 WHAT IT DELIBERATELY DOES NOT SERVE, AND NOT FOR THE REASON THIS PARAGRAPH USED
-TO GIVE. ``/api/advice/<id>/derivation`` and ``/api/advice/<id>/state`` get no
-concrete path here. The reason recorded until now was that ``server.routing``
+TO GIVE. ``/api/advice/<id>/state`` gets no concrete path here, and
+``/api/advice/<id>/derivation`` gets one per canned card and no other. The reason
+recorded until now was that ``server.routing``
 REFUSED to register a template carrying a path parameter, that dispatch matched a
 request path EXACTLY, and that therefore neither endpoint had a concrete path in
 production. ALL THREE ARE NOW FALSE. ``routing`` registers both, ``match_route``
@@ -49,8 +50,9 @@ CS-1269 - 403 without the same-origin proof - and 405 for ``GET .../state``. A
 stale justification is worse than a red test,
 because an arm resting on it keeps passing and reads as verified.
 
-WHY THREE AND NOT FIVE, ON A REASON THAT IS TRUE TODAY. The audit grades ONE
-page, and that page asks for neither template. ``clockspeed/surface/web/app.js``
+WHY NO TEMPLATE IS PROBED, ON A REASON THAT IS TRUE TODAY. The audit grades ONE
+page, and no repaint of that page asks for either template.
+``clockspeed/surface/web/app.js``
 publishes every route each with the concrete path - if there is one - it may
 safely GET, and both ``<id>`` rows carry none; each therefore reports the
 liveness ``/api/health`` already publishes for it and names that as the source in
@@ -68,20 +70,34 @@ to make about being pinned was also wrong: the arm it named pins only the two
 ``<id>`` rows, and it was a DIFFERENT row gaining a probe path that falsified
 the sentence.
 
-AND AN INVENTED ID WOULD BE A NEW DIVERGENCE RATHER THAN A SMALLER ONE. The
-page reads no card identifier out of ``/api/advice`` - no panel consumes that
-body yet, though CS-1270 made it live and it is canned below - so the only
-concrete path available is one this file would make up, and :data:`CANNED` is
-keyed by exact path, so it would answer that single invented id and 404 every
-other, where production matches EVERY id against the template. The state
-route's 501 body is still built and published in :data:`PENDING_BODIES`, so the
-walking skeleton knows what blocks it even where nothing here asks.
+THE DERIVATION'S IDS ARE THE CANNED CARDS' OWN, AND THAT IS ALL THE DIVERGENCE THERE IS.
+Since CS-1371 the advice panel reads a card identifier out of ``/api/advice`` and asks
+the derivation route with it on a click, so each canned card has a derivation under its
+own id. :data:`CANNED` is keyed by exact path, so any other id is a 404 here where
+production answers 400; the panel only ever asks with an id it was listed, so no audited
+press reaches that difference. The ids are words and not production's 64-hex digest,
+because ``test_web_assets.py``'s personal-data sweep reads a digest that long as a hex
+account id. The state route's 501 body is still built and published in
+:data:`PENDING_BODIES`, so the walking skeleton knows what blocks it even where nothing
+here asks.
+
+THE ADVICE PANEL'S STATES, FOR THE AUDIT (CS-1371). Before a request ``/api/advice``
+lists :data:`HELD_CARDS`, two visible and one hidden. A stated request answers by its
+target alone: :data:`TARGET_RANKED` a plan.adopt card and ``ranked``,
+:data:`TARGET_ROUTED` a plan.redesign card and ``no-plan``/``routed`` with trimmed
+recipes, :data:`TARGET_NO_ROUTE` no card and ``no-plan``/``no-route`` with unmade items,
+:data:`TARGET_ROUTE_REFUSED` no card and ``no-plan``/``route-refused``. The rate, the
+direction and the policy go through the real checks and move nothing else, so typing a
+bad rate shows the panel a real refusal. A canned listing holds only what its state is
+named for, where a real one would also hold the world's own cards: that is what makes
+the no-card state reachable here at all. :func:`main` prints this table too.
 
 RUNNING IT STANDALONE, which is how the merger drives the audit::
 
     python -m tests.surface.audit_harness
 
-It prints the URL it bound and serves until interrupted. The port is whatever
+It prints the URL it bound, then the routes and the stated targets, and serves until
+interrupted. The port is whatever
 the operating system hands out: ``config/ports.json`` owns the dashboard's
 allocation and a test server must never claim from it.
 """
@@ -97,8 +113,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
+from urllib.parse import parse_qsl
 
 import clockspeed
+from clockspeed.advisor.rules import fuel as fuel_rules
+from clockspeed.advisor.rules import plan as plan_rules
+from clockspeed.advisor.rules import power as power_rules
 from clockspeed.audit import placement
 from clockspeed.data import version
 from clockspeed.data.registry import Building, Recipe
@@ -117,9 +137,10 @@ from clockspeed.surface.api import contract, health, pending, registry, solve
 from clockspeed.surface.api import map as map_endpoint
 from clockspeed.surface.api import power as power_endpoint
 from clockspeed.surface.api import world as world_endpoint
+from clockspeed.surface.providers import StoreAdviceSource
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
 __all__ = [
     "CANNED",
@@ -687,6 +708,19 @@ def _plan_data() -> dict[str, object]:
     }
 
 
+#: The four stated targets the audit reaches the advice panel's states by, one each. All
+#: four are keys this file already serves. The first two have a display name in the
+#: registry stand-in below and the last two have none, so the target list shows the
+#: panel's fallback beside its names.
+TARGET_RANKED: Final = "Item_ExamplePlate_C"
+TARGET_ROUTED: Final = "Item_ExampleOre_C"
+TARGET_NO_ROUTE: Final = "Desc_ExamplePlate_C"
+TARGET_ROUTE_REFUSED: Final = "Desc_ExampleOre_C"
+
+#: Every stated target, in the order the registry stand-in serves them.
+AUDIT_TARGETS: Final = (TARGET_RANKED, TARGET_ROUTED, TARGET_NO_ROUTE, TARGET_ROUTE_REFUSED)
+
+
 def _registry_data() -> dict[str, object]:
     """Build the ``/api/registry`` data object.
 
@@ -698,14 +732,14 @@ def _registry_data() -> dict[str, object]:
     draft of this docstring carried two of them here in the same change that
     removed them from `app.js` for being exactly that.
 
-    Keyed by :data:`registry.DATA_KEYS`, with every rational served through
+    Keyed by :data:`registry.BODY_KEYS`, with every rational served through
     ``contract.rational`` because ``contract`` refuses a float at any
     depth and ``json.dumps`` cannot encode a ``Fraction`` at all.
 
     Returns:
         The body, keyed exactly as ``clockspeed/surface/api/registry.py`` keys it.
     """
-    return {
+    body: dict[str, object] = {
         "items": [
             {
                 "key": "Item_ExampleOre_C",
@@ -748,7 +782,13 @@ def _registry_data() -> dict[str, object]:
         },
         "warnings": [],
         "unknown_groups": [],
+        # CS-1371: what the advice panel's target list reads. Not what the real function
+        # would answer over these rows, which is the one plate: the stand-in lists a key
+        # per state the audit has to reach, and no canned recipe makes the others.
+        registry.PLAN_TARGETS_KEY: list(AUDIT_TARGETS),
     }
+    _assert_keys_match("registry body", body, registry.BODY_KEYS)
+    return body
 
 
 #: A building key for the canned power answer. AUTHORED IN THIS FILE, like every
@@ -980,20 +1020,259 @@ def _assert_keys_match(what: str, section: object, key_tuple: tuple[str, ...]) -
         raise AssertionError(message)
 
 
-def _advice_data() -> dict[str, object]:
-    """One advice listing for a world with nothing to advise.
+def _advice_card(
+    card_id: str,
+    *,
+    rule_id: str,
+    domain: str,
+    headline: str,
+    reason: str,
+    visible: bool = True,
+) -> dict[str, object]:
+    """One listed card, keyed exactly as the endpoint keys one.
 
-    EMPTY ON PURPOSE, AND ONLY HERE. On a BACKED route an empty listing is a
-    true answer rather than the plausible lie ``pending.py`` refuses, and no
-    panel reads this body yet. A canned card would carry production's 64-hex
-    card id, which the personal-data sweep in ``test_web_assets.py`` reads as a
-    hex account id - widening that detector belongs to the item that first
-    renders a card, not to a stand-in nothing consumes.
+    THE ID IS A WORD, NOT production's 64-hex digest. See the module docstring.
+
+    Args:
+        card_id: The id, lowercase, which the derivation's path carries.
+        rule_id: The rule, read off its spec by the caller so a rename reddens here.
+        domain: The rule's domain, read the same way.
+        headline: Tier 1, authored here over synthetic names.
+        reason: Tier 2, the same.
+        visible: Whether the listing flags it visible. A hidden card reads as dismissed.
+
+    Returns:
+        The card.
+    """
+    card: dict[str, object] = {
+        "id": card_id,
+        "rule_id": rule_id,
+        "domain": domain,
+        "headline": headline,
+        "reason": reason,
+        "state": "new" if visible else "dismissed",
+        "snoozed_until": None,
+        "muted": False,
+        "visible": visible,
+    }
+    _assert_keys_match("advice card", card, tuple(advice_endpoint.CARD_KEYS))
+    return card
+
+
+#: The two visible cards a world's listing holds before anything is stated.
+_CARD_DRAW: Final = _advice_card(
+    "audit-card-power-draw",
+    rule_id=power_rules.GAP_RULE.rule_id,
+    domain=power_rules.GAP_RULE.domain,
+    headline="Resolve 1 unpriced machine before planning power",
+    reason="The clocked draw is a floor of 4.00 to 4.00 MW: 0 clocks unread and 1 machine"
+    " unmodeled, of 2",
+)
+
+_CARD_SUPPLY: Final = _advice_card(
+    "audit-card-fuel-supply",
+    rule_id=fuel_rules.SUPPLY_RULE.rule_id,
+    domain=fuel_rules.SUPPLY_RULE.domain,
+    headline="Supply 10.00 m3 more Synthetic Example Fuel per minute to Synthetic Example"
+    " Generator x1",
+    reason="Synthetic Example Generator x1 burns 10.00 m3 per minute and none reaches it",
+)
+
+#: Listed flagged hidden, which is what the panel has to leave off the page.
+_CARD_DISMISSED: Final = _advice_card(
+    "audit-card-fuel-demand",
+    rule_id=fuel_rules.DEMAND_RULE.rule_id,
+    domain=fuel_rules.DEMAND_RULE.domain,
+    headline="Plan 15.00 items of Synthetic Example Coal per minute for Synthetic Example"
+    " Burner x1",
+    reason="This card was dismissed, so nothing on the page should read this sentence",
+    visible=False,
+)
+
+#: What a world's listing holds before anything is stated.
+HELD_CARDS: Final = (_CARD_DRAW, _CARD_SUPPLY, _CARD_DISMISSED)
+
+_CARD_ADOPT: Final = _advice_card(
+    "audit-card-plan-adopt",
+    rule_id=plan_rules.ADOPT_RULE.rule_id,
+    domain=plan_rules.ADOPT_RULE.domain,
+    headline=f"Build the planned production chain for {TARGET_RANKED}",
+    reason=f"It makes 10.00 per minute of {TARGET_RANKED} with 2.00 machine equivalents",
+)
+
+_CARD_REDESIGN: Final = _advice_card(
+    "audit-card-plan-redesign",
+    rule_id=plan_rules.REDESIGN_RULE.rule_id,
+    domain=plan_rules.REDESIGN_RULE.domain,
+    headline=f"Plan toward {TARGET_ROUTED}",
+    reason="This route runs 3 locked and 1 held recipe(s); the locked recipes must unlock"
+    " first on this route; the stated direction did not choose this route and it was never"
+    " compared with what is built",
+)
+
+#: Every step line each card's derivation reads, by id. Long lines on purpose, in the
+#: shape the real derivation has, so an audit sees how tier 3 wraps.
+_DERIVATION_STEPS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "audit-card-power-draw": (
+            "Read power.clocked_draw.complete = false from audit.balance.clocked_draw.complete",
+            "Read power.clocked_draw.floor = 4.00 from audit.balance.clocked_draw.floor",
+            "Decide the draw is a floor, so no gap figure is offered",
+        ),
+        "audit-card-fuel-supply": (
+            'Read fuel.verdict = FuelVerdict(generator="Build_ExampleSmelter_C", demand=10.00,'
+            " supplied=0.00) from audit.fuel.verdicts.verdict",
+            "Compute the shortfall as 10.00 - 0.00 = 10.00 m3 per minute",
+        ),
+        "audit-card-fuel-demand": (
+            'Read fuel.verdict = FuelVerdict(generator="Build_ExampleSmelter_C", demand=15.00,'
+            " supplied=0.00) from audit.fuel.verdicts.verdict",
+        ),
+        "audit-card-plan-adopt": (
+            'Read plan.status = "ranked" from advisor.plans.status',
+            'Read plan.badge = StrategyBadge(strongest="within-raw", cleared=("within-raw"),'
+            ' checks=(ThresholdCheck(strategy="within-raw", cleared=true, score=10.00,'
+            ' reference=10.00, bound=1.00, reason=""))) from solve.strategy.ranked_plan.badge',
+            'Read plan.selection = ("Recipe_ExamplePlate_C") from solve.strategy.ranked_plan',
+            "Compute plan machine equivalents as 2.00",
+        ),
+        "audit-card-plan-redesign": (
+            'Read plan.redesign.status = "routed" from advisor.plans.redesign.status',
+            "Read plan.redesign.plan = ProductionPlan(steps=(PlanStep(recipe_key="
+            '"Recipe_ExamplePlate_C", machines=1.00), PlanStep(recipe_key="Recipe_ExampleRod_C",'
+            ' machines=1.00), PlanStep(recipe_key="Recipe_ExampleIngot_C", machines=1.00)))'
+            " from solve.ratio.solve_for_targets",
+            'Read plan.redesign.locked = ("Recipe_ExampleRod_C", "Recipe_ExampleIngot_C") from'
+            " advisor.plans.redesign.locked",
+            'Read plan.redesign.held = ("Recipe_ExamplePlate_C") from advisor.plans.redesign.held',
+        ),
+    }
+)
+
+
+def _derivation_answer(card: Mapping[str, object]) -> contract.Response:
+    """The derivation route's answer for one canned card, in the real text's shape.
+
+    THE ONE DEPARTURE IS THE STEP COUNT IN "Steps (n):". The real text's bare "Steps:" then
+    a line break encodes as a letter, a colon and a backslash, which is the shape the
+    personal-data sweep in ``test_web_assets.py`` exists to read as a drive-lettered path.
+
+    Args:
+        card: A canned card.
+
+    Returns:
+        The 200, built by the shipped constructor.
+    """
+    steps = _DERIVATION_STEPS[str(card["id"])]
+    lines = (
+        f"Derivation of rule {card['rule_id']} (domain {card['domain']})",
+        f"Advice: {card['headline']}",
+        f"Because: {card['reason']}",
+        "Target milestone: none",
+        f"Steps ({len(steps)}):",
+        *(f"  {number}. {step}" for number, step in enumerate(steps, start=1)),
+    )
+    body: dict[str, object] = {
+        "id": card["id"],
+        "rule_id": card["rule_id"],
+        "derivation": "\n".join(lines),
+    }
+    _assert_keys_match("advice derivation", body, tuple(advice_endpoint.DERIVATION_KEYS))
+    return contract.ok(advice_endpoint.DERIVATION_ENDPOINT, body)
+
+
+def _derivation_path(card: Mapping[str, object]) -> str:
+    """The concrete path one canned card's derivation answers on.
+
+    Args:
+        card: A canned card.
+
+    Returns:
+        The path, with the id in the template's one parameter.
+    """
+    return advice_endpoint.DERIVATION_ENDPOINT.replace(
+        f"<{advice_endpoint.ID_PARAMETER}>", str(card["id"])
+    )
+
+
+def _advice_data() -> dict[str, object]:
+    """The advice listing before anything is stated: two visible cards and one hidden.
 
     Returns:
         The data object, shaped as ``clockspeed/surface/api/advice.py`` shapes it.
     """
-    return {"new_world": True, "cards": []}
+    body: dict[str, object] = {"new_world": True, "cards": list(HELD_CARDS)}
+    _assert_keys_match("advice listing", body, tuple(advice_endpoint.DATA_KEYS))
+    return body
+
+
+def _stated_answer(
+    cards: Sequence[dict[str, object]],
+    status: str,
+    redesign: str,
+    *,
+    trimmed: tuple[str, ...] = (),
+    unmade: tuple[str, ...] | None = None,
+) -> contract.Response:
+    """The listing one stated request answers, with what it came to.
+
+    THE OUTCOME IS THE REAL ONE, PROJECTED AND TRANSCRIBED BY ITS OWNERS: the advisor's
+    function reads the inputs an offer would carry and picks the reason, and the endpoint's
+    transcribes it. A reason is a fact the advisor owns, so none is typed here, and a field
+    the outcome does not hold is absent as it is on the wire.
+
+    Args:
+        cards: The cards this state lists.
+        status: The ``plan.status`` word.
+        redesign: The ``plan.redesign.status`` word.
+        trimmed: What the bound dropped. A search ran on every state here, so this is
+            never absent, and empty says it dropped nothing.
+        unmade: What nothing makes, on ``no-route``, and None on every other state.
+
+    Returns:
+        The 200, built by the shipped constructor.
+    """
+    outcome = plan_rules.plan_outcome_of(
+        {
+            **plan_rules.refused_inputs(status, trimmed=trimmed, unchecked=(), unmatched_unlocks=0),
+            **plan_rules.redesign_status_inputs(redesign, unmade=unmade),
+        }
+    )
+    body: dict[str, object] = {
+        "new_world": False,
+        "cards": list(cards),
+        "plan_outcome": advice_endpoint._outcome(outcome),  # noqa: SLF001 - the real transcription
+    }
+    _assert_keys_match("stated advice listing", body, tuple(advice_endpoint.STATED_DATA_KEYS))
+    return contract.ok(advice_endpoint.ENDPOINT, body)
+
+
+#: What each stated target answers. See the module docstring for why by target alone.
+STATED_ANSWERS: Final[Mapping[str, contract.Response]] = MappingProxyType(
+    {
+        TARGET_RANKED: _stated_answer(
+            (_CARD_ADOPT,), plan_rules.STATUS_RANKED, plan_rules.REDESIGN_NOT_REACHED
+        ),
+        TARGET_ROUTED: _stated_answer(
+            (_CARD_REDESIGN,),
+            plan_rules.STATUS_NO_PLAN,
+            plan_rules.REDESIGN_ROUTED,
+            trimmed=("Recipe_ExampleAlt_C", "Recipe_ExampleIngot_C"),
+        ),
+        TARGET_NO_ROUTE: _stated_answer(
+            (),
+            plan_rules.STATUS_NO_PLAN,
+            plan_rules.REDESIGN_NO_ROUTE,
+            unmade=("Item_ExampleOre_C", "Desc_ExampleOre_C"),
+        ),
+        TARGET_ROUTE_REFUSED: _stated_answer(
+            (), plan_rules.STATUS_NO_PLAN, plan_rules.REDESIGN_ROUTE_REFUSED
+        ),
+    }
+)
+
+#: Every canned card, each of which answers a derivation.
+_ALL_CARDS: Final = (*HELD_CARDS, _CARD_ADOPT, _CARD_REDESIGN)
 
 
 def _canned() -> dict[tuple[str, str], contract.Response]:
@@ -1029,10 +1308,12 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
             },
         ),
     }
+    for card in _ALL_CARDS:
+        table["GET", _derivation_path(card)] = _derivation_answer(card)
     for method, template in pending.UNBACKED:
         # A TEMPLATE CARRYING A PARAMETER IS SKIPPED BECAUSE THIS TABLE IS KEYED
-        # BY EXACT PATH AND THE PAGE ASKS FOR NEITHER - not because production
-        # cannot route one. It can, and does. See the module docstring.
+        # BY EXACT PATH - not because production cannot route one. It can, and does.
+        # See the module docstring.
         if "<" not in template:
             table[method, template] = PENDING_BODIES[template]
     return table
@@ -1044,10 +1325,70 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
 LIVENESS: Final[Mapping[str, str]] = MappingProxyType(_liveness())
 
 #: The routable answers, keyed by exact path. A path absent from here is a
-#: contract 404, and the two path-parameter templates are absent on purpose -
-#: see the module docstring for the reason, which is about what the PAGE asks
-#: for and not about what production can route.
+#: contract 404. The two path-parameter templates are absent as templates, and each
+#: canned card's derivation is here under its own concrete path - see the module
+#: docstring for the reason, which is about what the PAGE asks for and not about
+#: what production can route.
 CANNED: Final[Mapping[tuple[str, str], contract.Response]] = MappingProxyType(_canned())
+
+#: Every body this harness can serve, by a label naming how it is reached, so the arms
+#: sweeping canned bodies reach the ones a query selects as well as the ones a path does.
+EVERY_ANSWER: Final[Mapping[str, contract.Response]] = MappingProxyType(
+    {
+        **{f"{method} {path}": response for (method, path), response in CANNED.items()},
+        **{
+            f"GET {advice_endpoint.ENDPOINT}?{advice_endpoint.TARGET_PARAMETER}={target}": answer
+            for target, answer in STATED_ANSWERS.items()
+        },
+    }
+)
+
+#: Reads no store and no clock: only its doors on a statement are ever called here, and
+#: those are the advisor's own checks of a rate, a direction and a policy.
+_PLAN_DOORS: Final = StoreAdviceSource()
+
+#: How each stated target reads, which :func:`main` prints for whoever drives the audit.
+AUDIT_STATE_LABELS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        TARGET_RANKED: "plan.adopt card, ranked",
+        TARGET_ROUTED: "plan.redesign card, no-plan/routed, trimmed recipes",
+        TARGET_NO_ROUTE: "no card, no-plan/no-route, unmade items",
+        TARGET_ROUTE_REFUSED: "no card, no-plan/route-refused",
+    }
+)
+
+
+def advice_answer(raw_query: str) -> contract.Response:
+    """Answer ``/api/advice`` for one query string, refusing as the real route refuses.
+
+    THE ORDER IS THE ROUTE'S OWN, BECAUSE THIS CALLS IT. An unknown name, a partial set and a
+    value the advisor refuses all come out of the endpoint's own function through the
+    advisor's own door, so a refusal the panel is shown here is the one it would be shown
+    there. Only a target off this file's list is answered here, as the route does.
+
+    Args:
+        raw_query: What follows the question mark.
+
+    Returns:
+        The listing a statement selects, or the refusal.
+    """
+    endpoint = advice_endpoint.ENDPOINT
+    try:
+        query = dict(
+            parse_qsl(raw_query, keep_blank_values=True, strict_parsing=True, errors="strict")
+        )
+    except ValueError:
+        return contract.bad_request(endpoint, contract.REASON_MALFORMED_QUERY)
+    stated = advice_endpoint._stated_plan(endpoint, query, _PLAN_DOORS, own=())  # noqa: SLF001
+    if isinstance(stated, contract.Response):
+        return stated
+    if stated is None:
+        return CANNED["GET", endpoint]
+    answer = STATED_ANSWERS.get(stated[0])
+    if answer is None:
+        return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    return answer
+
 
 #: Every path this table answers under at least one method.
 _KNOWN_PATHS: Final = frozenset(path for _method, path in CANNED)
@@ -1162,12 +1503,20 @@ class _Handler(BaseHTTPRequestHandler):
         self._emit(HTTPStatus.OK, body, content_type, csp=filename.endswith(".html"))
 
     def _dispatch(self) -> None:
-        """Match the request against the two closed tables and answer it."""
-        raw_path, _mark, _raw_query = self.path.partition("?")
+        """Match the request against the closed tables and answer it.
+
+        The one row a query selects is the advice listing, and only on a GET carrying one;
+        every other row is an exact path, whose query is not read.
+        """
+        raw_path, _mark, raw_query = self.path.partition("?")
 
         static = server.STATIC_ROUTES.get(raw_path)
         if static is not None and self.command in {"GET", "HEAD"}:
             self._serve_asset(*static)
+            return
+
+        if self.command == "GET" and raw_path == advice_endpoint.ENDPOINT and raw_query:
+            self._respond(advice_answer(raw_query))
             return
 
         response = CANNED.get((self.command, raw_path))
@@ -1303,6 +1652,7 @@ def main() -> int:
     sys.stdout.write(f"{harness.url}\n")
     sys.stdout.write(f"assets: {', '.join(sorted(server.ASSET_NAMES))}\n")
     sys.stdout.write(f"canned: {json.dumps(published)}\n")
+    sys.stdout.write(f"stated targets: {json.dumps(dict(AUDIT_STATE_LABELS))}\n")
     sys.stdout.write("interrupt to stop\n")
     sys.stdout.flush()
     try:

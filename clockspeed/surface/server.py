@@ -209,6 +209,7 @@ STATIC_ROUTES: Final[Mapping[str, tuple[str, str]]] = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.css": ("app.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/panel_advice.js": ("panel_advice.js", "text/javascript; charset=utf-8"),
     "/panel_registry.js": ("panel_registry.js", "text/javascript; charset=utf-8"),
     "/panel_scope.js": ("panel_scope.js", "text/javascript; charset=utf-8"),
     "/panel_solve.js": ("panel_solve.js", "text/javascript; charset=utf-8"),

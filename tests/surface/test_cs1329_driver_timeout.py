@@ -6,7 +6,7 @@ with a bare ``subprocess.TimeoutExpired`` at 60 s - the module's first node
 spawn. A bare timeout cannot tell node's cold start from a driver that hung,
 so the reading named neither and the next one would not either.
 
-WHAT EVERY ARM BELOW HOLDS A SPAWN SITE TO. Each of the seven node spawn sites
+WHAT EVERY ARM BELOW HOLDS A SPAWN SITE TO. Each of the eight node spawn sites
 in ``tests/surface/`` runs its driver through ONE shared helper, so a timeout in
 either phase fails with a message naming the elapsed seconds, whether the
 driver's start marker arrived, and the partial stdout and stderr. Each site is
@@ -25,7 +25,7 @@ deadline. Section e swaps ``test_panel_seam``'s ``time``, ``threading`` and
 ``subprocess`` names for scripted ones and reads what ``run_node`` hands each
 blocking wait: at load factor 1 the start wait must end at exactly ``started +
 NODE_START_TIMEOUT_SECONDS``, the run wait at exactly ``marker + run_timeout``.
-Section d hands all seven sites a recording ``run_node`` and reads the run
+Section d hands all eight sites a recording ``run_node`` and reads the run
 limit each one passes.
 """
 
@@ -46,6 +46,7 @@ import pytest
 from tests import conftest
 from tests.surface import (
     panel_harness,
+    test_panel_advice,
     test_panel_global_scope,
     test_panel_optimize,
     test_panel_power,
@@ -244,7 +245,7 @@ def test_a_solve_driver_past_its_run_limit_fails_with_a_diagnosis(
 
 
 # ---------------------------------------------------------------------------
-# b. The six sibling sites, each through its own run limit
+# b. The seven sibling sites, each through its own run limit
 # ---------------------------------------------------------------------------
 
 
@@ -292,6 +293,18 @@ def test_the_optimize_bench_driver_fails_with_a_diagnosis(
     text = diagnosis(
         test_panel_optimize,
         lambda: test_panel_optimize.drive(tmp_path, panel_harness.null_payload()),
+        tmp_path,
+        monkeypatch,
+    )
+    assert_run_phase_diagnosis(text)
+
+
+def test_the_advice_bench_driver_fails_with_a_diagnosis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    text = diagnosis(
+        test_panel_advice,
+        lambda: test_panel_advice.drive(tmp_path, panel_harness.null_payload()),
         tmp_path,
         monkeypatch,
     )
@@ -499,7 +512,7 @@ class HandedOffError(Exception):
 #: A run limit no site carries, to show each site hands over its OWN constant.
 SENTINEL_RUN_LIMIT: float = 47.0
 
-#: The seven node spawn sites, each bound to its arguments.
+#: The eight node spawn sites, each bound to its arguments.
 SITES = (
     pytest.param(
         test_panel_solve,
@@ -525,6 +538,11 @@ SITES = (
         test_panel_optimize,
         lambda tmp: test_panel_optimize.drive(tmp, panel_harness.null_payload()),
         id="optimize-drive",
+    ),
+    pytest.param(
+        test_panel_advice,
+        lambda tmp: test_panel_advice.drive(tmp, panel_harness.null_payload()),
+        id="advice-drive",
     ),
     pytest.param(
         test_panel_global_scope,

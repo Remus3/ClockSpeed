@@ -2934,6 +2934,7 @@ def test_the_static_surface_is_exactly_the_names_the_page_loads() -> None:
         "app.css",
         "app.js",
         "index.html",
+        "panel_advice.js",
         "panel_map.js",
         "panel_optimize.js",
         "panel_power.js",

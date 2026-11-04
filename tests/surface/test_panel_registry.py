@@ -909,9 +909,10 @@ def test_the_panel_reads_no_wire_key_the_endpoint_does_not_serve() -> None:
     this one binds the PANEL to it. Without this half a panel could read a key
     the endpoint never serves and render "not declared" on the live page while
     every fixture arm stayed green, because no fixture would carry the key
-    either. The closing assertion runs the other way - every top-level key the
-    endpoint serves must actually be read, so a field the panel quietly stops
-    rendering reddens instead of vanishing.
+    either. The closing assertion runs the other way - every key of
+    ``api_registry.DATA_KEYS`` must actually be read, so a field the panel quietly
+    stops rendering reddens instead of vanishing. ``plan_targets`` is served beside
+    that table and read by the advice panel instead.
     """
     served = (
         set(api_registry.DATA_KEYS)
