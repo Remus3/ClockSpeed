@@ -75,6 +75,52 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-03 - CS-1344 - CLOSED: a test run clears its own Temp cs-pt on teardown, failure included, and the /done sweep bounds the session scratchpad; the ONE ANSWER went with one correction, and this session's sweep is still to run
+Verification: `tests/own_temp_root.py::finish`, `::sweep`, `::GRACE_S`, `::STALE_AFTER_S`;
+`tools/scratch_sweep.py::sweep`, `::BOUND_FILES`, wired into `.claude/commands/done.md`;
+`tests/test_cs1344_temp_teardown.py::test_a_top_level_run_leaves_no_output_under_the_root_whatever_its_outcome`,
+`::test_a_failing_runs_teardown_never_touches_another_runs_directory`,
+`::test_a_killed_run_leaves_only_its_own_directory_and_the_next_run_sweeps_it`;
+`tests/test_own_temp_root.py::test_finish_never_touches_another_runs_directory`;
+`tests/test_scratch_sweep.py::test_recycle_raises_and_keeps_the_directory_when_the_bin_cannot_take_it`,
+`::test_a_sweep_stops_at_the_first_directory_the_bin_cannot_take`,
+`::test_an_apply_is_refused_while_any_agent_may_be_live`;
+`ops/fleet_kit/fleet_headless.py::child_env`; `BACKLOG.md`, Session 155 rulings, the sidecar line.
+The item's section, which the records below name in `docs/item_notes/phase7.md`, now sits in
+`docs/history_notes.md`.
+THE RULING is the 2026-11-03 DECISION RECORD below this one: clause 2 is MET AS WORDED, its unit the
+per-session scratchpad, met at /done; the sidecar tree is a disclosed residual and is not claimed
+bounded.
+THE ANSWER went to Main, 1 of 1 re-hashed, gate CLEAN, and waits on no reply. Filename:
+2026-11-03-2211-from-CS-ANSWER-to-MAIN-1609-2246-s8-CS-1344-LANDED-CS-1295-run-label-ONE-ANSWER-TERMINAL.md
+sha256 f7f7d0fe7e0784aa7ceb3fa8df2c54bab8406e69df82b2318ea6fa1624d7024f. Its system Temp read-back,
+measured at 22:01:49 right after the push's gated whole suite, stands: cs-pt 0 entries, 0 files, 0
+dirs.
+THE VERIFIER, a distinct agent reading those sent bytes: SENT BYTES FAIL on line 36 only, plus one
+stale total, neither flipping a clause. Line 36, "Sidecar Temp cs-pt: absent", is wrong, because that
+read looked at a path no run claims. The system Temp total of 11,495 files and 3,120 dirs was a
+recorded figure, stale at send.
+THE CORRECTION, because a sent note is not silently fixed, went to Main, 1 of 1 re-hashed, gate
+CLEAN, HOP 2, TERMINAL. Filename:
+2026-11-03-2226-from-CS-ANSWER-to-MAIN-1609-CS-1344-CORRECTION-of-2211-TERMINAL.md
+sha256 06417b6205902f1aff418f8475f4260a978015cb85db40aa1276e5b2df46c2c5.
+THE REAL SIDECAR ROOT. The function cited above sets a headless child's temp root to Temp/claude
+under the sidecar, so a run there claims Temp/claude/cs-pt. This closer's read, by scandir with no
+symlinks followed, at 2026-11-03T22:24:05-06:00: Temp/claude/cs-pt present, 0 entries, 0 files, 0
+dirs, mtime 2026-11-01T19:59:05-06:00; Temp/cs-pt under the sidecar absent; system Temp cs-pt 0
+entries, 0 files, 0 dirs. Builders were running and the suite gate read 0 of 2 slots held, so this
+read claims nothing about other runs being live.
+THE CURRENT TOTAL, read 2026-11-03T22:24:06-06:00: system Temp 60,603 files and 4,696 dirs, 48,644 of
+those files in this session's scratchpad.
+THIS SESSION'S /done SWEEP IS STILL TO RUN, so this session's scratchpad stands over
+`tools/scratch_sweep.py::BOUND_FILES` at this close and no count is claimed for it here. The recorded
+sweeps are the ones the ruling lists.
+RESIDUALS. The sidecar tree is unbounded and nothing prunes it, 32,258 files and 24,835 dirs at this
+read: a `BACKLOG.md` line, cited above. A killed run's directory waits for a later run on the same
+temp root: off Windows until `tests/own_temp_root.py::STALE_AFTER_S`, 6 h; on Windows one inside
+`::GRACE_S`, 120 s, is left for a later run. The bin-refusal path is tested with the shell stubbed,
+never against a real full bin.
+
 ### 2026-11-03 - CS-1295 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1295 STAYS OPEN: the nine findings reclassified, none needs a physical act, password or OAuth grant; cleanups to BACKLOG.md, none this session
 Verification: `docs/_archive/2026-10-24-cs1295-repo-review-findings.md`; the 2026-10-24 CS-1295
 record's operator-needing list; `tools/outbound_send.py::configured_main_root`;
