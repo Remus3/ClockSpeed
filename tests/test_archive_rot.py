@@ -403,13 +403,24 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: applied: the archive declares itself HISTORICAL, the citation was RIGHT WHEN
 #: WRITTEN, and the module moved underneath it - rot by construction. NO
 #: COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above.
+#: `_ROT_EMPTY` 4 TO 3 AND `_ROT_FORM` 14 TO 15, 2026-11-03 BY CS-1351, AND IT IS
+#: THE SAME ONE POINTER AGAIN. The CS-963 slip table's line of
+#: `tests/data/test_registry.py` landed on the blank line above the recipe-IO
+#: helper. CS-1351 added TWO import lines near the top of that module, sorted
+#: into place beside `registry_module`, so every line below shifted by two and
+#: the pointer now lands on the last code line of the fixture above that helper.
+#: NO NEW ROT ARRIVED, nothing in the archive was edited, and the total across
+#: the two arms is unmoved at eighteen. THE RECORDED REASON COVERS THIS SITE on
+#: the same check: the archive declares itself HISTORICAL, the citation was RIGHT
+#: WHEN WRITTEN, and the module moved underneath it. NO COLON-NUMBER SHAPE
+#: APPEARS IN THIS COMMENT, per the note above.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 9,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 4,
+    _ROT_EMPTY: 3,
     _ROT_NAME: 3,
     _ROT_PATH: 6,
-    _ROT_FORM: 14,
+    _ROT_FORM: 15,
 }
 
 

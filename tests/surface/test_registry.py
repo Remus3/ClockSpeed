@@ -838,6 +838,9 @@ WITHHELD_FIELDS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             "variable_power_constant",
             "variable_power_factor",
             "unresolved_produced_in",
+            # CS-1351. Read for the advisor's recipe-to-unlock join; no surface
+            # consumer asks for it, so it is withheld until one does.
+            "asset_path",
         ),
         "Building": (
             "power_consumption",
