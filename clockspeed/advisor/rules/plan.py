@@ -47,8 +47,10 @@ none of them; a different backend can rank a different plan, which moves tier 2.
 A TARGET READS BY ITS DISPLAY NAME AND IS KEYED BY ITS CLASSNAME (CS-1379). A ClassName
 is an internal identifier, and it can name a different item from the one a player knows,
 so where a rule's tier 1 or tier 2 says a target it says that target's label: the display
-name when it is printable ASCII with a visible character, the engine's own test of a
-card's text, and otherwise the ClassName. A rule reads only through the engine, so the
+name when it is printable ASCII with a visible character, the engine's own test of a card's
+text, holds no semicolon and no comma, which a tier reads as its own clause and target
+separators, and is at most :data:`_MAX_NAME_LENGTH` characters, and otherwise the ClassName.
+A rule reads only through the engine, so the
 names arrive as an input sourced to the registry field, :data:`IN_TARGET_NAMES` on the
 ranked path and :data:`IN_REDESIGN_TARGET_NAMES` on the route, which
 ``clockspeed/advisor/plans.py`` fills, and a mapping whose keys are not exactly the plan's
@@ -167,7 +169,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, TypeGuard
 
 from clockspeed.advisor.build import BUILD_INPUTS, build_caveat
 from clockspeed.advisor.cards import render_value
@@ -327,6 +329,9 @@ SUBJECT_PREFIX: Final = "plan:"
 #: so it names no value.
 _NAME_ALTERNATIVE: Final = "name every target by its display name"
 _NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
+
+#: The longest display name a tier reads. Far past any the pinned docs carry.
+_MAX_NAME_LENGTH: Final = 64
 
 #: The rung names in ladder order, which every badge's checks must follow.
 _LADDER_NAMES: Final = tuple(strategy.name for strategy in STRATEGY_LADDER)
@@ -676,6 +681,24 @@ def _checked_target_names(value: object, targets: tuple[str, ...]) -> Mapping[st
     return value
 
 
+def _usable_name(name: str | None) -> TypeGuard[str]:
+    """Whether a tier may splice a display name in, undelimited as it reads there.
+
+    Args:
+        name: The display name, or None when the registry offers none.
+
+    Returns:
+        True when it is printable ASCII with a visible character, holds no semicolon and no
+        comma, and is at most :data:`_MAX_NAME_LENGTH` characters.
+    """
+    return (
+        name is not None
+        and len(name) <= _MAX_NAME_LENGTH
+        and name.strip(" ") != ""
+        and all(" " <= ch <= "~" and ch not in ";," for ch in name)
+    )
+
+
 def _target_labels(
     ctx: RuleContext, names: Mapping[str, str | None], targets: tuple[str, ...]
 ) -> tuple[str, ...]:
@@ -683,7 +706,9 @@ def _target_labels(
 
     A name must pass the engine's own test of a card's text, printable ASCII with a visible
     character, because :func:`clockspeed.advisor.trace.run_rule` would otherwise drop the
-    whole card as a rule error. Any fallback records one indeterminate step.
+    whole card as a rule error. It must also hold neither of a tier's own separators and stay
+    short, because a mod's name would otherwise read as a clause, as a second target, or as the
+    whole headline. Any fallback records one indeterminate step.
 
     Args:
         ctx: The rule's context. Called on the firing path alone, because a step recorded
@@ -698,7 +723,7 @@ def _target_labels(
     fell_back = False
     for key in targets:
         name = names[key]
-        if name is not None and name.strip(" ") != "" and all(" " <= ch <= "~" for ch in name):
+        if _usable_name(name):
             labels.append(name)
         else:
             labels.append(key)

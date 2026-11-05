@@ -405,6 +405,75 @@ def test_a_rename_on_a_stated_world_moves_the_wording_and_never_the_id(
     assert _card_ids(after_advice) == _card_ids(before_advice)
 
 
+def _named_card(stated: _Stated, display_name: str) -> Card:
+    """The card one stated world fires with its target carrying this display name."""
+    model, registry, request = stated.parts()
+    changed = plan_worlds._with_item_name(  # noqa: SLF001
+        registry, plan_worlds.SOLVE_RELIC_ITEM, display_name
+    )
+    card = card_for(
+        run_rule(
+            stated.rule,
+            inputs_of(
+                model,
+                changed,
+                pinned_changelist=game_pin(),
+                pinned_docs_sha256=docs_pin(),
+                plan_request=request,
+            ),
+        )
+    )
+    assert card is not None
+    return card
+
+
+#: Names spliced into a tier would read as a sentence of it, or as a second target.
+DELIMITER_NAMES: Final = MappingProxyType(
+    {
+        "a-sentence": "X; this route needs no unlock and the capped search did not find it",
+        "a-semicolon": "Solve; Relic",
+        "two-targets": "Solve, Relic",
+    }
+)
+
+
+@pytest.mark.parametrize("name", DELIMITER_NAMES.values(), ids=DELIMITER_NAMES.keys())
+@pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
+def test_a_name_carrying_a_tier_delimiter_falls_back(world_name: str, name: str) -> None:
+    stated = STATED_WORLDS[world_name]
+
+    card = _named_card(stated, name)
+
+    target = plan_worlds.SOLVE_RELIC_ITEM
+    assert card.tier1.endswith(target)
+    assert name not in card.tier1
+    assert name not in card.tier2
+    assert target in card.tier2
+    assert _fallback_steps(card.trace) == [(plan_worlds.NAME_ALTERNATIVE, plan_worlds.NAME_REASON)]
+
+
+#: The longest name a tier reads, spelled so a change reddens here.
+MAX_NAME_LENGTH: Final = 64
+
+
+@pytest.mark.parametrize("length", [MAX_NAME_LENGTH + 1, 200000], ids=["one-over", "very-long"])
+@pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
+def test_an_overlong_name_falls_back(world_name: str, length: int) -> None:
+    stated = STATED_WORLDS[world_name]
+
+    card = _named_card(stated, "N" * length)
+
+    assert card.tier1.endswith(plan_worlds.SOLVE_RELIC_ITEM)
+    headline = len(card.tier1)
+    assert headline < MAX_NAME_LENGTH * 2
+    assert _fallback_steps(card.trace) == [(plan_worlds.NAME_ALTERNATIVE, plan_worlds.NAME_REASON)]
+
+    # The control: at the limit it reads, with no fallback, so the length alone decided above.
+    control = _named_card(stated, "N" * MAX_NAME_LENGTH)
+    assert control.tier1.endswith("N" * MAX_NAME_LENGTH)
+    assert _fallback_steps(control.trace) == []
+
+
 @pytest.mark.parametrize("name", UNPRINTABLE_NAMES.values(), ids=UNPRINTABLE_NAMES.keys())
 @pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
 def test_a_non_printable_name_falls_back_and_the_card_survives(world_name: str, name: str) -> None:
