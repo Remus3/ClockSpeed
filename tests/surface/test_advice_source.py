@@ -1136,6 +1136,14 @@ NO_PLAN_REASON: Final = (
     " under the stated byproduct policy"
 )
 MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
+NO_ROUTE_REASON: Final = (
+    "the count found no route to the target from the raw items, over every"
+    " automated recipe with an unlock path to check, which does not prove no plan exists"
+)
+ROUTE_REFUSED_REASON: Final = (
+    "pillar 1 refused the derived route, solved once under the stated byproduct policy,"
+    " which does not prove no plan exists"
+)
 
 #: The tier 2 clauses of a route card, spelled for the same reason.
 MUST_UNLOCK: Final = (
@@ -1304,7 +1312,11 @@ def _ascent() -> tuple[WorldModel, Registry]:
 
 
 def _route_world(held: tuple[str, ...]) -> WorldModel:
-    """A world holding these recipes of the marked-route fixtures, and no machine."""
+    """A world holding these recipes of the marked-route fixtures, and every machine.
+
+    Holding a machine is holding its build recipe, as ``redesign_fixtures._model`` offers it,
+    so a recipe named here is held with a machine to run it. Nothing is placed.
+    """
     return redesign_fixtures._model(held)  # noqa: SLF001
 
 
@@ -1646,6 +1658,7 @@ def test_a_no_route_request_names_the_item_on_the_wire(tmp_path: Path) -> None:
         "status": "no-plan",
         "reason": NO_PLAN_REASON,
         "redesign": "no-route",
+        "redesign_reason": NO_ROUTE_REASON,
         "trimmed": [],
         "unmade": [SOLVE_ORPHAN_ITEM],
     }
@@ -1674,11 +1687,74 @@ def test_a_route_refused_request_fires_under_the_other_policy_on_the_wire(tmp_pa
         "status": "no-plan",
         "reason": NO_PLAN_REASON,
         "redesign": "route-refused",
+        "redesign_reason": ROUTE_REFUSED_REASON,
         "trimmed": [],
     }
     assert _cards_of(refused, REDESIGN_ID) == []
     assert _outcome_on(fired)["redesign"] == "routed"
     _one_card(fired, REDESIGN_ID)
+
+
+def test_a_no_route_outcome_carries_its_redesign_reason(tmp_path: Path) -> None:
+    """The whole sentence beside the word, through the real route, so a rewording reddens."""
+    registry = redesign_fixtures._orphan_registry()  # noqa: SLF001
+
+    outcome = _outcome_on(_listing(_table(tmp_path, _route_world(()), registry), _stated()))
+
+    assert outcome["redesign"] == "no-route"
+    assert outcome["redesign_reason"] == NO_ROUTE_REASON
+
+
+def test_a_route_refused_outcome_carries_its_redesign_reason(tmp_path: Path) -> None:
+    """The whole sentence beside the word, through the real route, so a rewording reddens."""
+    registry = redesign_fixtures._byproduct_registry()  # noqa: SLF001
+    table = _table(tmp_path, _route_world(()), registry)
+
+    outcome = _outcome_on(_listing(table, _stated(policy="balanced")))
+
+    assert outcome["redesign"] == "route-refused"
+    assert outcome["redesign_reason"] == ROUTE_REFUSED_REASON
+
+
+def _empty_group() -> tuple[WorldModel, Registry]:
+    """The world whose empty resource group reads request-malformed, so no search ran."""
+    registry = redesign_fixtures._registry(  # noqa: SLF001
+        [redesign_fixtures._recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],  # noqa: SLF001
+        resources=(),
+    )
+    return _route_world(("R_Direct",)), registry
+
+
+#: One world per way a stated request reaches a marked-route status with no reason to carry,
+#: with the two words it must read. Not-reached is reached with a search and without one.
+OTHER_REDESIGN_WORLDS: Final[
+    Mapping[str, tuple[Callable[[], tuple[WorldModel, Registry]], str, str]]
+] = MappingProxyType(
+    {
+        "routed": (_three_locked, "no-plan", "routed"),
+        "not-reached-ranked": (_ascent, "ranked", "not-reached"),
+        "not-reached-malformed": (_empty_group, "request-malformed", "not-reached"),
+    }
+)
+
+
+@pytest.mark.parametrize("case", OTHER_REDESIGN_WORLDS)
+def test_every_other_redesign_status_carries_no_redesign_reason(case: str, tmp_path: Path) -> None:
+    """Absent rather than null, on the parsed body and on the bytes a client gets.
+
+    The first assertion is the control: the world did reach the status the case names. The
+    two arms above are the control on the key: the same route carries it on the other two.
+    """
+    world, status, redesign = OTHER_REDESIGN_WORLDS[case]
+    model, registry = world()
+
+    response = _table(tmp_path, model, registry)["GET", advice_endpoint.ENDPOINT](_stated())
+
+    outcome = _outcome_on(_data(response))
+    assert (outcome["status"], outcome["redesign"]) == (status, redesign)
+    assert "redesign_reason" not in outcome
+    named = b"redesign_reason" in contract.encode(response.payload)
+    assert named is False
 
 
 def test_a_no_plan_reads_its_reason_scoped_to_the_kept_set_and_the_trim_on_the_wire(

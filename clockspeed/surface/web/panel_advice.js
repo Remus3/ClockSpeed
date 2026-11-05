@@ -317,6 +317,7 @@ function renderPlanOutcome(region, planOutcome) {
   addFieldLine(region, "plan status", planOutcome.status);
   addFieldLine(region, "reason", planOutcome.reason);
   addFieldLine(region, "redesign", planOutcome.redesign);
+  addFieldLine(region, "redesign reason", planOutcome.redesign_reason);
   addFieldList(region, "trimmed recipes", planOutcome.trimmed);
   addFieldList(region, "unmade items", planOutcome.unmade);
 }

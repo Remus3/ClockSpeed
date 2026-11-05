@@ -299,7 +299,8 @@ _ROUTE_UNMADE_SOURCE: Final = "solve.bound.derived_route.unmade"
 #: The alternative the marked route records as undecided or, with no machine, as lost.
 _REDESIGN_ALTERNATIVE: Final = "offer the derived route"
 
-#: Why each status but routed offers no route: the closed vocabulary a trace reads.
+#: Why each status but routed offers no route: the closed vocabulary a trace reads, and a
+#: surface too on :data:`_EXPLAINED_REDESIGN_STATUSES`.
 _REDESIGN_REASONS: Final = MappingProxyType(
     {
         REDESIGN_NOT_REACHED: "the search did not read no-plan, so no route was derived",
@@ -308,10 +309,16 @@ _REDESIGN_REASONS: Final = MappingProxyType(
             " automated recipe with an unlock path to check, which does not prove no plan exists"
         ),
         REDESIGN_ROUTE_REFUSED: (
-            "pillar 1 refused the derived route, solved once under the stated byproduct policy"
+            "pillar 1 refused the derived route, solved once under the stated byproduct policy,"
+            " which does not prove no plan exists"
         ),
     }
 )
+
+#: The two statuses whose reason :class:`PlanOutcome` carries beside the word (CS-1380). A
+#: search read no-plan on each and no card follows, so a bare word would read as proof that no
+#: plan exists, which neither status is.
+_EXPLAINED_REDESIGN_STATUSES: Final = (REDESIGN_NO_ROUTE, REDESIGN_ROUTE_REFUSED)
 
 #: The comparison the firing path records as undecided.
 _ROUTE_COMPARE_ALTERNATIVE: Final = "compare the route with what is built"
@@ -346,6 +353,9 @@ class PlanOutcome:
         status: The ``plan.status`` word.
         reason: Why that status offers no plan, or None on ``ranked``.
         redesign: The ``plan.redesign.status`` word.
+        redesign_reason: Why that word offers no route, on ``no-route`` and ``route-refused``
+            alone, and None on every other status (CS-1380). The sentence the trace records,
+            which says neither word proves no plan exists.
         trimmed: What the bound dropped, by ClassName, or None when this offer carries no
             such word because no search ran. Empty says the bound dropped nothing.
         unmade: What the target's closure reached that no recipe in it makes and the raw
@@ -356,6 +366,7 @@ class PlanOutcome:
     status: str
     reason: str | None
     redesign: str
+    redesign_reason: str | None
     trimmed: tuple[str, ...] | None
     unmade: tuple[str, ...] | None
 
@@ -742,6 +753,9 @@ def plan_outcome_of(values: Mapping[str, InputValue]) -> PlanOutcome:
         status=status,
         reason=None if status == STATUS_RANKED else _STATUS_REASONS[status],
         redesign=redesign,
+        redesign_reason=(
+            _REDESIGN_REASONS[redesign] if redesign in _EXPLAINED_REDESIGN_STATUSES else None
+        ),
         trimmed=None if trimmed is None else _names(trimmed.value, "a plan's trimmed recipes"),
         unmade=None if unmade is None else _names(unmade, "a route's unmade items"),
     )

@@ -485,6 +485,11 @@ REQUEST: Final = PlanRequest(
 #: A reason no module owns, so an endpoint that looked one up rather than copying it shows.
 PLANTED_REASON: Final = "cs1371 planted reason the surface copies and never rewords"
 
+#: A second planted word, apart from the first, so the two fields cannot be swapped unseen.
+PLANTED_REDESIGN_REASON: Final = (
+    "cs1380 planted redesign reason the surface copies and never rewords"
+)
+
 #: The three route templates, each as the ``(method, template)`` the table keys it by.
 LISTING: Final = (advice_endpoint.METHOD_GET, advice_endpoint.ENDPOINT)
 DERIVATION: Final = (advice_endpoint.METHOD_GET, advice_endpoint.DERIVATION_ENDPOINT)
@@ -700,7 +705,7 @@ def test_a_no_target_listing_asks_for_no_plan_and_carries_no_outcome_key(tmp_pat
 
 def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
     assert advice_endpoint.DATA_KEYS | {"plan_outcome"} == advice_endpoint.STATED_DATA_KEYS
-    wire_keys = frozenset({"status", "redesign", "reason", "trimmed", "unmade"})
+    wire_keys = frozenset({"status", "redesign", "reason", "redesign_reason", "trimmed", "unmade"})
     assert wire_keys == advice_endpoint.PLAN_OUTCOME_KEYS
 
 
@@ -709,7 +714,12 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
     [
         (
             PlanOutcome(
-                status="ranked", reason=None, redesign="not-reached", trimmed=(), unmade=None
+                status="ranked",
+                reason=None,
+                redesign="not-reached",
+                redesign_reason=None,
+                trimmed=(),
+                unmade=None,
             ),
             {"status": "ranked", "redesign": "not-reached", "trimmed": []},
         ),
@@ -718,6 +728,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 status="no-plan",
                 reason=PLANTED_REASON,
                 redesign="routed",
+                redesign_reason=None,
                 trimmed=("R_Dropped", "R_AlsoDropped"),
                 unmade=None,
             ),
@@ -733,6 +744,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 status="no-plan",
                 reason=PLANTED_REASON,
                 redesign="no-route",
+                redesign_reason=PLANTED_REDESIGN_REASON,
                 trimmed=(),
                 unmade=("Desc_Unmade_C",),
             ),
@@ -740,20 +752,44 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 "status": "no-plan",
                 "redesign": "no-route",
                 "reason": PLANTED_REASON,
+                "redesign_reason": PLANTED_REDESIGN_REASON,
                 "trimmed": [],
                 "unmade": ["Desc_Unmade_C"],
             },
         ),
         (
             PlanOutcome(
-                status="no-plan", reason=PLANTED_REASON, redesign="no-route", trimmed=(), unmade=()
+                status="no-plan",
+                reason=PLANTED_REASON,
+                redesign="no-route",
+                redesign_reason=PLANTED_REDESIGN_REASON,
+                trimmed=(),
+                unmade=(),
             ),
             {
                 "status": "no-plan",
                 "redesign": "no-route",
                 "reason": PLANTED_REASON,
+                "redesign_reason": PLANTED_REDESIGN_REASON,
                 "trimmed": [],
                 "unmade": [],
+            },
+        ),
+        (
+            PlanOutcome(
+                status="no-plan",
+                reason=PLANTED_REASON,
+                redesign="route-refused",
+                redesign_reason=PLANTED_REDESIGN_REASON,
+                trimmed=(),
+                unmade=None,
+            ),
+            {
+                "status": "no-plan",
+                "redesign": "route-refused",
+                "reason": PLANTED_REASON,
+                "redesign_reason": PLANTED_REDESIGN_REASON,
+                "trimmed": [],
             },
         ),
         (
@@ -761,6 +797,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 status="request-malformed",
                 reason=PLANTED_REASON,
                 redesign="not-reached",
+                redesign_reason=None,
                 trimmed=None,
                 unmade=None,
             ),
@@ -771,6 +808,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 status="solve-refused",
                 reason=PLANTED_REASON,
                 redesign="not-reached",
+                redesign_reason=None,
                 trimmed=("R_Dropped",),
                 unmade=None,
             ),
@@ -786,6 +824,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 status="power-not-comparable",
                 reason=PLANTED_REASON,
                 redesign="not-reached",
+                redesign_reason=None,
                 trimmed=(),
                 unmade=None,
             ),
@@ -797,7 +836,16 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
             },
         ),
     ],
-    ids=["ranked", "no-plan", "no-route", "no-route-empty", "malformed", "refused", "power"],
+    ids=[
+        "ranked",
+        "no-plan",
+        "no-route",
+        "no-route-empty",
+        "route-refused",
+        "malformed",
+        "refused",
+        "power",
+    ],
 )
 def test_the_outcome_is_transcribed_field_by_field_and_absent_is_never_null(
     outcome: PlanOutcome, wire: Mapping[str, object]
@@ -819,7 +867,12 @@ def test_the_outcome_is_transcribed_field_by_field_and_absent_is_never_null(
 def test_only_the_listing_carries_the_outcome(key: tuple[str, str]) -> None:
     """The control is the arm above: the same advice's outcome is on the listing."""
     outcome = PlanOutcome(
-        status="ranked", reason=None, redesign="not-reached", trimmed=(), unmade=None
+        status="ranked",
+        reason=None,
+        redesign="not-reached",
+        redesign_reason=None,
+        trimmed=(),
+        unmade=None,
     )
     log: list[str] = []
     source = _Source(_bare_advice(outcome), parameters=PARAMETERS, request=REQUEST, log=log)

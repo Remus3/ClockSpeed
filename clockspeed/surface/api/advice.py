@@ -33,7 +33,9 @@ for that plan, so a plan card is on the listing, its id hits the derivation rout
 state route records it; the listing also carries ``plan_outcome``, because a refused trace
 yields no card and a reader has nothing else to read why from. It is copied field by field
 off :attr:`clockspeed.advisor.advise.Advice.plan_outcome`, absent rather than null when
-no target was stated, so that body is what it was before this item. Not stated, the derivation
+no target was stated, so that body is what it was before this item. On ``no-route`` and
+``route-refused`` it carries that word's reason as ``redesign_reason`` (CS-1380), because a
+bare word would read as proof that no plan exists. Not stated, the derivation
 and state routes answer as they did before it, so a plan card's id is 400 there.
 
 THE ORDER OF A REFUSAL IS THE CONTRACT. An unknown name is 400 ``unknown_parameter``; any of
@@ -212,7 +214,9 @@ STATED_DATA_KEYS: Final = DATA_KEYS | {"plan_outcome"}
 
 #: The keys ``plan_outcome`` may carry. ``status`` and ``redesign`` always; each of the others
 #: only where the outcome holds it, and absent rather than null where it does not.
-PLAN_OUTCOME_KEYS: Final = frozenset({"status", "redesign", "reason", "trimmed", "unmade"})
+PLAN_OUTCOME_KEYS: Final = frozenset(
+    {"status", "redesign", "reason", "redesign_reason", "trimmed", "unmade"}
+)
 
 #: One listed card's keys. ``headline`` is tier 1 and ``reason`` tier 2;
 #: ``snoozed_until`` is the snooze instant, null for every other state.
@@ -316,6 +320,8 @@ def _outcome(outcome: PlanOutcome) -> dict[str, object]:
     body: dict[str, object] = {"status": outcome.status, "redesign": outcome.redesign}
     if outcome.reason is not None:
         body["reason"] = outcome.reason
+    if outcome.redesign_reason is not None:
+        body["redesign_reason"] = outcome.redesign_reason
     if outcome.trimmed is not None:
         body["trimmed"] = list(outcome.trimmed)
     if outcome.unmade is not None:

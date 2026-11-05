@@ -167,6 +167,16 @@ NO_PLAN_REASON: Final = (
 )
 MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
 
+#: The words of the reason each status a listing explains reads, spelled so a rewording reddens.
+NO_ROUTE_REASON: Final = (
+    "the count found no route to the target from the raw items, over every"
+    " automated recipe with an unlock path to check, which does not prove no plan exists"
+)
+ROUTE_REFUSED_REASON: Final = (
+    "pillar 1 refused the derived route, solved once under the stated byproduct policy,"
+    " which does not prove no plan exists"
+)
+
 #: The instant every resolution here reads. Injected, never a clock.
 NOW: Final = 1000
 
@@ -1491,7 +1501,12 @@ def test_a_ranked_outcome_has_no_reason_and_reads_not_reached() -> None:
     registry = _ascent_registry()
     outcome = _outcome(("R_Two", "R_Direct", "R_One"), registry, _request(registry))
     assert outcome == PlanOutcome(
-        status=RANKED, reason=None, redesign=NOT_REACHED, trimmed=(), unmade=None
+        status=RANKED,
+        reason=None,
+        redesign=NOT_REACHED,
+        redesign_reason=None,
+        trimmed=(),
+        unmade=None,
     )
 
 
@@ -1502,6 +1517,7 @@ def test_a_no_plan_outcome_reads_its_reason_scoped_to_the_kept_set_and_the_trim(
         status=NO_PLAN,
         reason=NO_PLAN_REASON,
         redesign=ROUTED,
+        redesign_reason=None,
         trimmed=(_stage_name(1),),
         unmade=None,
     )
@@ -1514,6 +1530,7 @@ def test_a_no_route_outcome_names_the_item_nothing_makes() -> None:
         status=NO_PLAN,
         reason=NO_PLAN_REASON,
         redesign=NO_ROUTE,
+        redesign_reason=NO_ROUTE_REASON,
         trimmed=(),
         unmade=(SOLVE_ORPHAN_ITEM,),
     )
@@ -1549,6 +1566,7 @@ def test_a_route_refused_outcome_fires_under_the_other_policy() -> None:
         status=NO_PLAN,
         reason=NO_PLAN_REASON,
         redesign=ROUTE_REFUSED,
+        redesign_reason=ROUTE_REFUSED_REASON,
         trimmed=(),
         unmade=None,
     )
@@ -1559,6 +1577,23 @@ def test_a_route_refused_outcome_fires_under_the_other_policy() -> None:
     assert card.tier1 == f"Plan toward {SOLVE_RELIC_ITEM}"
     plan = _plan_of(_card_read(card, IN_REDESIGN_PLAN))
     assert plan.byproducts == {SOLVE_RARE_ITEM: Fraction(10)}
+
+
+@pytest.mark.parametrize(
+    ("status", "sentence"),
+    [(NO_ROUTE, NO_ROUTE_REASON), (ROUTE_REFUSED, ROUTE_REFUSED_REASON)],
+    ids=[NO_ROUTE, ROUTE_REFUSED],
+)
+def test_the_outcome_reads_the_one_sentence_the_trace_records(status: str, sentence: str) -> None:
+    """A surface reads the sentence the rule records, so the wire and the trace cannot differ."""
+    world = _worlds_per_status()[status]
+    assert _offered(world, IN_REDESIGN_STATUS) == status
+
+    trace = run_rule(REDESIGN_RULE, world)
+
+    recorded = [step.reason for step in trace.steps if step.kind is StepKind.VERDICT_INDETERMINATE]
+    assert recorded == [sentence]
+    assert plan_outcome_of(world.values).redesign_reason == sentence
 
 
 @pytest.mark.parametrize(
@@ -1655,6 +1690,7 @@ def test_no_target_projects_the_status_alone_and_runs_nothing(
     offered = plan_offer(_unlocks(()), registry, None)
     assert plan_outcome_of(offered).status == NO_TARGET
     assert plan_outcome_of(offered).redesign == NOT_REACHED
+    assert plan_outcome_of(offered).redesign_reason is None
     assert plan_outcome_of(offered).trimmed is None
     assert plan_outcome_of(offered).unmade is None
 
@@ -1673,7 +1709,12 @@ def test_an_empty_group_reads_request_malformed_and_reaches_no_search(
     outcome = _outcome((), registry, request)
 
     assert outcome == PlanOutcome(
-        status=MALFORMED, reason=MALFORMED_REASON, redesign=NOT_REACHED, trimmed=None, unmade=None
+        status=MALFORMED,
+        reason=MALFORMED_REASON,
+        redesign=NOT_REACHED,
+        redesign_reason=None,
+        trimmed=None,
+        unmade=None,
     )
     # The control: the same request with the group's one item stands the door open.
     with_group = dataclasses.replace(request, raw_items=(SOLVE_ORE_ITEM,))
@@ -1708,7 +1749,12 @@ def test_advice_carries_the_outcome_only_when_a_target_is_stated(tmp_path: Path)
     silent = _advise(tmp_path, model, registry, None)
 
     assert _outcome_of(stated) == PlanOutcome(
-        status=NO_PLAN, reason=NO_PLAN_REASON, redesign=ROUTED, trimmed=(), unmade=None
+        status=NO_PLAN,
+        reason=NO_PLAN_REASON,
+        redesign=ROUTED,
+        redesign_reason=None,
+        trimmed=(),
+        unmade=None,
     )
     no_outcome = silent.plan_outcome is None
     assert no_outcome

@@ -163,12 +163,13 @@ STATED: Final[Mapping[str, str]] = {
 #: The one key a plan_outcome always carries that this file does not vary.
 OUTCOME_STATUS_KEY: Final = "status"
 
-#: The four keys a plan_outcome may carry beside its status, each with a value and the
+#: The five keys a plan_outcome may carry beside its status, each with a value and the
 #: label it renders under. Only ever rendered when present. An arm below binds the keys to
 #: ``clockspeed/surface/api/advice.py::PLAN_OUTCOME_KEYS``.
 OUTCOME_FIELDS: Final[Mapping[str, tuple[Any, str]]] = {
     "reason": ("reason-word-of-the-outcome", "reason"),
     "redesign": ("redesign-word-of-the-outcome", "redesign"),
+    "redesign_reason": ("redesign-reason-word-of-the-outcome", "redesign reason"),
     "trimmed": (["Recipe_TrimmedOne_C", "Recipe_TrimmedTwo_C"], "trimmed recipes"),
     "unmade": (["Desc_UnmadeOne_C"], "unmade items"),
 }
@@ -2405,6 +2406,57 @@ def test_the_panel_renders_what_the_real_route_answers(case: str, tmp_path: Path
         assert row["reason"] in answer, answer
     if not rules:
         assert "no visible card" in answer, answer
+
+
+def _real_answer(case: str, tmp_path: Path) -> tuple[Mapping[str, Any], str]:
+    """One stated request through the real route, and what the panel drew of its answer.
+
+    Args:
+        case: A key of :data:`REAL_WORLDS`.
+        tmp_path: Where the stores and the driver's files live.
+
+    Returns:
+        The outcome the wire carried and the answer region's text.
+    """
+    table = real_table(case, tmp_path)
+    stated = source_fixtures._stated()  # noqa: SLF001
+    response = table["GET", advice_endpoint.ENDPOINT](stated)
+    report = drive(
+        tmp_path,
+        real_payload(table),
+        steps=[
+            *fills(stated),
+            press_ask(),
+            {"settle": {"call": 0, "outcome": delivered(response)}},
+        ],
+    )
+    return data_of(response)["plan_outcome"], text_of(report, ANSWER_ID)
+
+
+def test_a_no_route_outcome_draws_its_redesign_reason(tmp_path: Path) -> None:
+    """The real body's sentence, on a labelled line of its own, right after the word."""
+    outcome, answer = _real_answer("no-route", tmp_path)
+    assert outcome["redesign_reason"] == source_fixtures.NO_ROUTE_REASON, outcome
+    drawn = f"redesign: no-route redesign reason: {source_fixtures.NO_ROUTE_REASON}"
+    assert drawn in answer, answer
+
+
+def test_a_route_refused_outcome_draws_its_redesign_reason(tmp_path: Path) -> None:
+    """The real body's sentence, on a labelled line of its own, right after the word."""
+    outcome, answer = _real_answer("route-refused", tmp_path)
+    assert outcome["redesign_reason"] == source_fixtures.ROUTE_REFUSED_REASON, outcome
+    drawn = f"redesign: route-refused redesign reason: {source_fixtures.ROUTE_REFUSED_REASON}"
+    assert drawn in answer, answer
+
+
+@pytest.mark.parametrize("case", ["ranked", "routed"])
+def test_an_outcome_with_no_redesign_reason_draws_no_such_line(case: str, tmp_path: Path) -> None:
+    outcome, answer = _real_answer(case, tmp_path)
+    # THE CONTROL: the outcome was drawn, and the wire held no such key to draw.
+    word_line = "redesign: " + outcome["redesign"]
+    assert word_line in answer, answer
+    assert "redesign_reason" not in outcome, outcome
+    assert "redesign reason" not in answer, answer
 
 
 def test_a_real_ranked_answer_reads_nothing_trimmed_rather_than_an_empty_label(
