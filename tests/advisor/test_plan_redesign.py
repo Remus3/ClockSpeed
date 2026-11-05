@@ -15,7 +15,9 @@ because a synthetic world has no progression to read.
 
 EVERY WORLD HOLDS EVERY MACHINE UNLESS IT SAYS OTHERWISE, and every machine has its build
 recipe, so a world's locks are the ones its arm names. The arms under "A recipe is held only
-with a machine to run it" take each of those away.
+with a machine to run it" take each of those away. THE MINER STANDS APART, on a parameter of its
+own, so a world holding no machine can still be supplied Ore, and the arms under "A raw item is
+supplied only with a machine to extract it" take that away.
 
 THE SHAPE OF A NEGATIVE. Every arm that says something did not fire or did not run carries a
 control where it does, on the same fixture, so an empty fixture or a blind oracle cannot pass it.
@@ -122,10 +124,12 @@ from tests.solve.synthetic import (
     ITEM_GROUP,
     MACHINE_BUILD_ENTRIES,
     MACHINE_DESCRIPTOR_ENTRIES,
+    MINER_BUILD_PATH,
     RECIPE_GROUP,
     RESOURCE_GROUP,
     SOLVE_ASSEMBLER_BUILDING,
     SOLVE_BUILDINGS,
+    SOLVE_MINER_BUILDING,
     SOLVE_ORE_ITEM,
     SOLVE_ORPHAN_ITEM,
     SOLVE_RARE_ITEM,
@@ -135,6 +139,9 @@ from tests.solve.synthetic import (
     SOLVE_SMELTER_BUILDING,
     building_path,
     document_from_groups,
+    extractor_descriptor,
+    extractor_entry,
+    extractor_group,
     machine_build_entry,
     machine_build_path,
 )
@@ -164,7 +171,7 @@ SINKABLE: Final = "sinkable"
 #: The words of the reason a no-plan reads, scoped to the kept set.
 NO_PLAN_REASON: Final = (
     "the search found no plan over the unlocked automated recipes it kept,"
-    " under the stated byproduct policy"
+    " from the raw items a held extractor supplies, under the stated byproduct policy"
 )
 MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
 
@@ -215,6 +222,24 @@ ONE_UNCHECKED: Final = (
 #: The unlock key of each machine's build recipe, which a held recipe's requires name.
 ASSEMBLER_KEY: Final = f"recipe:{machine_build_path(SOLVE_ASSEMBLER_BUILDING)}"
 SMELTER_KEY: Final = f"recipe:{machine_build_path(SOLVE_SMELTER_BUILDING)}"
+
+#: The unlock key of the miner's build recipe, which a plan eating Ore requires.
+MINER_KEY: Final = f"recipe:{MINER_BUILD_PATH}"
+
+#: The input naming the route's locked extractors, spelled so a rename reddens.
+LOCKED_EXTRACTORS: Final = "plan.redesign.locked_extractors"
+
+#: The input naming the raw items no extractor joins, for the same reason.
+RAW_UNKNOWN: Final = "plan.raw_unknown"
+
+#: A second extractor, restricted to Rare, for a world with two raw items apart.
+DRILL_BUILDING: Final = "Build_SolveDrill_C"
+DRILL_KEY: Final = f"recipe:{machine_build_path(DRILL_BUILDING)}"
+
+#: What tier 2 says of a route needing an extractor, spelled so a rewording reddens.
+NEEDS_ONE: Final = " and needs 1 locked extractor(s)"
+MUST_EXTRACT: Final = "; the locked extractors must unlock first on this route"
+ONE_RAW_UNKNOWN: Final = "; 1 raw item(s) have no known extractor and were never supplied"
 
 #: The stage count of the world longer than the cap, each stage required.
 CHAIN_STAGES: Final = MAX_EXHAUSTIVE_CANDIDATES + 1
@@ -300,6 +325,8 @@ def _registry(
     items: Iterable[str] = (),
     resources: tuple[str, ...] | None = None,
     builds: Iterable[Mapping[str, str]] = MACHINE_BUILD_ENTRIES,
+    extractors: Iterable[Mapping[str, str]] = (extractor_entry(SOLVE_MINER_BUILDING),),
+    extractor_builds: Iterable[Mapping[str, str]] = (machine_build_entry(SOLVE_MINER_BUILDING),),
 ) -> Registry:
     """A verified registry holding exactly these recipes, and each machine's build recipe.
 
@@ -311,10 +338,15 @@ def _registry(
         builds: The machines' build recipes, declared after ``entries``. Every machine has
             one unless told otherwise, because a recipe no machine of which joins a build
             recipe is flagged and never planned.
+        extractors: The extractors' entries. The miner, unless told otherwise, so Ore has a
+            machine the docs say extracts it.
+        extractor_builds: Their build recipes, declared after ``builds``, kept apart so an
+            arm can take either kind of build recipe away without the other.
 
     Returns:
         The registry, stamped as built from the pinned docs bytes.
     """
+    extractor_entries = list(extractors)
     groups = json.loads(DOCS_TEXT)
     for group in groups:
         native_class = group[KEY_NATIVE_CLASS]
@@ -322,10 +354,15 @@ def _registry(
             group[KEY_CLASSES].extend(_descriptor(item) for item in items)
         elif native_class.endswith(f".{BUILDING_DESCRIPTOR_GROUP}'"):
             group[KEY_CLASSES].extend(MACHINE_DESCRIPTOR_ENTRIES)
+            group[KEY_CLASSES].extend(
+                extractor_descriptor(entry[KEY_CLASS_NAME]) for entry in extractor_entries
+            )
         elif native_class.endswith(f".{RECIPE_GROUP}'"):
-            group[KEY_CLASSES] = [*entries, *builds]
+            group[KEY_CLASSES] = [*entries, *builds, *extractor_builds]
         elif native_class.endswith(f".{RESOURCE_GROUP}'") and resources is not None:
             group[KEY_CLASSES] = [_descriptor(item) for item in resources]
+    if extractor_entries:
+        groups.append(extractor_group(*extractor_entries))
     return pinned_source(build_registry(document_from_groups(groups)))
 
 
@@ -466,23 +503,40 @@ def _request(
     return request
 
 
-def _unlocks(held: Iterable[str], *, machines: Iterable[str] = SOLVE_BUILDINGS) -> UnlockState:
+def _unlocks(
+    held: Iterable[str],
+    *,
+    machines: Iterable[str] = SOLVE_BUILDINGS,
+    extractors: Iterable[str] = (SOLVE_MINER_BUILDING,),
+) -> UnlockState:
     """An unlock state holding these recipes and these machines' build recipes, by asset path.
 
-    Every machine is held unless told otherwise, so a world's locks are the ones it names.
+    Every machine and the miner are held unless told otherwise, so a world's locks are the ones
+    it names. An extractor is on its own parameter, so ``machines=()`` still means no machine
+    runs a recipe here and says nothing of what supplies the Ore.
     """
     return dataclasses.replace(
         EMPTY_UNLOCK_STATE,
         recipes=frozenset(
-            (*(_path(name) for name in held), *(machine_build_path(name) for name in machines))
+            (
+                *(_path(name) for name in held),
+                *(machine_build_path(name) for name in machines),
+                *(machine_build_path(name) for name in extractors),
+            )
         ),
     )
 
 
-def _model(held: Iterable[str], *, machines: Iterable[str] = SOLVE_BUILDINGS) -> WorldModel:
+def _model(
+    held: Iterable[str],
+    *,
+    machines: Iterable[str] = SOLVE_BUILDINGS,
+    extractors: Iterable[str] = (SOLVE_MINER_BUILDING,),
+) -> WorldModel:
     """A synthetic world of the pinned build, none placed, unlocking these recipes and machines."""
     return dataclasses.replace(
-        synthetic_world(game_pin()), unlocks=_unlocks(held, machines=machines)
+        synthetic_world(game_pin()),
+        unlocks=_unlocks(held, machines=machines, extractors=extractors),
     )
 
 
@@ -513,14 +567,26 @@ def _advise(
     )
 
 
-def _route_trace(held: Iterable[str], registry: Registry, request: PlanRequest) -> Trace:
+def _route_trace(
+    held: Iterable[str],
+    registry: Registry,
+    request: PlanRequest,
+    *,
+    extractors: Iterable[str] = (SOLVE_MINER_BUILDING,),
+) -> Trace:
     """The plan.redesign trace of one world."""
-    return run_rule(REDESIGN_RULE, _inputs(_model(held), registry, request))
+    return run_rule(REDESIGN_RULE, _inputs(_model(held, extractors=extractors), registry, request))
 
 
-def _route_card(held: Iterable[str], registry: Registry, request: PlanRequest) -> Card:
+def _route_card(
+    held: Iterable[str],
+    registry: Registry,
+    request: PlanRequest,
+    *,
+    extractors: Iterable[str] = (SOLVE_MINER_BUILDING,),
+) -> Card:
     """The plan.redesign card of one world, which must fire."""
-    card = card_for(_route_trace(held, registry, request))
+    card = card_for(_route_trace(held, registry, request, extractors=extractors))
     assert card is not None
     return card
 
@@ -668,10 +734,12 @@ def _rejected_world() -> WorldInputs:
                 plan,
                 held=(),
                 locked=(),
+                locked_extractors=(),
                 requires=(),
                 target_names=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME}),
             ),
             IN_UNCHECKED: InputValue((), "synthetic.unchecked"),
+            RAW_UNKNOWN: InputValue((), "synthetic.raw_unknown"),
         },
         unlocks=frozenset(),
     )
@@ -912,7 +980,7 @@ def test_requires_holds_only_held_recipes_by_the_whole_path_join() -> None:
     assert card is not None
 
     requires = _requires(card)
-    assert requires == (f"recipe:{_path(HELD_STAGE)}", ASSEMBLER_KEY)
+    assert requires == (f"recipe:{_path(HELD_STAGE)}", ASSEMBLER_KEY, MINER_KEY)
     # The world's own held keys cover it, as the engine's check needs.
     uncovered = len(set(requires) - world.unlocks)
     assert uncovered == 0
@@ -1127,7 +1195,9 @@ def test_a_route_longer_than_the_cap_fires_wholly_held_with_the_no_unlock_wordin
     assert card is not None
     assert card.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
     unlocks = sorted(_requires(card))
-    assert unlocks == sorted((ASSEMBLER_KEY, *(f"recipe:{_path(name)}" for name in names)))
+    assert unlocks == sorted(
+        (ASSEMBLER_KEY, MINER_KEY, *(f"recipe:{_path(name)}" for name in names))
+    )
     assert _machines(card) == [(name, Fraction(1)) for name in names]
 
 
@@ -1263,7 +1333,8 @@ def test_a_recipe_held_with_no_machine_held_reads_no_adopt_card_and_counts_locke
     assert _card_read(card, IN_STATUS) == NO_PLAN
     assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Direct",)
     assert _card_read(card, IN_REDESIGN_HELD) == ()
-    assert _requires(card) == ()
+    # The miner alone: this world holds the one machine that digs what the route consumes.
+    assert _requires(card) == (MINER_KEY,)
 
     # The control: the same recipe with its machine held ranks, and reaches no route.
     held = _advise(
@@ -1274,7 +1345,7 @@ def test_a_recipe_held_with_no_machine_held_reads_no_adopt_card_and_counts_locke
     )
     assert _cards(held, REDESIGN_ID) == []
     (adopt,) = _cards(held, ADOPT_ID)
-    assert _requires(adopt) == (f"recipe:{_path('R_Direct')}", ASSEMBLER_KEY)
+    assert _requires(adopt) == (f"recipe:{_path('R_Direct')}", ASSEMBLER_KEY, MINER_KEY)
 
 
 def test_a_held_machine_alone_does_not_hold_its_recipe() -> None:
@@ -1282,7 +1353,7 @@ def test_a_held_machine_alone_does_not_hold_its_recipe() -> None:
     registry = _one_recipe_registry()
     card = _route_card((), registry, _request(registry))
     assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Direct",)
-    assert _requires(card) == ()
+    assert _requires(card) == (MINER_KEY,)
     # The control: the recipe's own path lifts it, every machine held as before.
     world = _inputs(_model(["R_Direct"]), registry, _request(registry))
     assert _offered(world, IN_STATUS) == RANKED
@@ -1302,6 +1373,7 @@ def test_two_recipes_on_one_held_machine_name_its_key_once() -> None:
         f"recipe:{_path('R_Two')}",
         ASSEMBLER_KEY,
         f"recipe:{_path('R_One')}",
+        MINER_KEY,
     )
 
     # The control: two recipes on two machines name both, each beside its first recipe.
@@ -1319,6 +1391,7 @@ def test_two_recipes_on_one_held_machine_name_its_key_once() -> None:
         ASSEMBLER_KEY,
         f"recipe:{_path('R_One')}",
         SMELTER_KEY,
+        MINER_KEY,
     )
 
 
@@ -1330,7 +1403,9 @@ def test_every_stage_of_a_route_on_one_held_machine_names_its_key_once() -> None
     assert named == 1
     # First-seen order: the first stage of the plan, then its machine, then the rest.
     assert _requires(card)[:2] == (f"recipe:{_path(names[0])}", ASSEMBLER_KEY)
-    assert len(_requires(card)) == len(names) + 1
+    # Every stage's own, the one machine's, and the miner's, read last.
+    assert len(_requires(card)) == len(names) + 2
+    assert _requires(card)[-1] == MINER_KEY
 
 
 @pytest.mark.parametrize(
@@ -1365,7 +1440,7 @@ def test_of_two_machines_a_recipe_names_the_first_the_world_holds_and_that_one_a
     """The recipe's own produced_in decides which is first, never the world or a sort."""
     ranked = _one_recipe_registry(buildings=buildings)
     world = _inputs(_model(["R_Direct"], machines=machines), ranked, _request(ranked))
-    assert _offered(world, "plan.requires") == (f"recipe:{_path('R_Direct')}", first)
+    assert _offered(world, "plan.requires") == (f"recipe:{_path('R_Direct')}", first, MINER_KEY)
 
     # The same on the route, over a chain the cap cuts, so no ranked plan reads it.
     chain = _chain_registry(buildings=buildings)
@@ -1442,6 +1517,7 @@ def test_a_recipe_no_machine_of_which_joins_a_build_recipe_is_flagged_and_off_th
         f"recipe:{_path('R_Two')}",
         ASSEMBLER_KEY,
         f"recipe:{_path('R_One')}",
+        MINER_KEY,
     )
 
     # The control: with a build recipe carrying a path it wins that search, at 4 MW.
@@ -1502,7 +1578,641 @@ def test_one_machine_with_no_build_recipe_leaves_the_recipe_checkable_through_th
         assert _offered(world, IN_REDESIGN_LOCKED) == ("R_Direct",)
     else:
         assert _offered(world, IN_STATUS) == RANKED
-        assert _offered(world, "plan.requires") == (f"recipe:{_path('R_Direct')}", fires_with)
+        assert _offered(world, "plan.requires") == (
+            f"recipe:{_path('R_Direct')}",
+            fires_with,
+            MINER_KEY,
+        )
+
+
+# ---------------------------------------------------------------------------
+# A raw item is supplied only with a machine to extract it (CS-1382)
+# ---------------------------------------------------------------------------
+
+
+def test_an_unsupplied_raw_reads_no_adopt_card_and_counts_its_machine_locked(
+    tmp_path: Path,
+) -> None:
+    """The clause's constructed set: recipe and machine held, and nothing that digs the Ore."""
+    registry = _one_recipe_registry()
+    unsupplied = _model(["R_Direct"], extractors=())
+
+    advice = _advise(tmp_path / "unsupplied", unsupplied, registry, _request(registry))
+
+    assert _cards(advice, ADOPT_ID) == []
+    (card,) = _cards(advice, REDESIGN_ID)
+    assert _card_read(card, IN_STATUS) == NO_PLAN
+    assert _card_read(card, IN_REDESIGN_HELD) == ("R_Direct",)
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ()
+    assert _card_read(card, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING,)
+
+    # The control: the same world holding the miner ranks, so the miner alone decided above.
+    supplied = _advise(tmp_path / "supplied", _model(["R_Direct"]), registry, _request(registry))
+    assert _cards(supplied, REDESIGN_ID) == []
+    (adopt,) = _cards(supplied, ADOPT_ID)
+    assert _requires(adopt) == (f"recipe:{_path('R_Direct')}", ASSEMBLER_KEY, MINER_KEY)
+
+
+def _two_raw_registry(
+    entries: list[dict[str, str]],
+    *,
+    items: Iterable[str] = (),
+    resources: tuple[str, ...] = (SOLVE_ORE_ITEM, SOLVE_RARE_ITEM),
+    drill_first: bool = False,
+) -> Registry:
+    """These recipes, Ore dug only by the miner and Rare only by the drill.
+
+    Args:
+        entries: The recipes.
+        items: Invented items to give descriptors.
+        resources: The items the resource group declares, in that order.
+        drill_first: Declare the drill ahead of the miner, so an order that followed the
+            document rather than the plan's raw items would show.
+
+    Returns:
+        The registry.
+    """
+    miner = extractor_entry(SOLVE_MINER_BUILDING, only=(SOLVE_ORE_ITEM,))
+    drill = extractor_entry(DRILL_BUILDING, only=(SOLVE_RARE_ITEM,))
+    return _registry(
+        entries,
+        items=items,
+        resources=resources,
+        extractors=(drill, miner) if drill_first else (miner, drill),
+        extractor_builds=(
+            machine_build_entry(SOLVE_MINER_BUILDING),
+            machine_build_entry(DRILL_BUILDING),
+        ),
+    )
+
+
+def _both_raw_registry(*, drill_first: bool = False) -> Registry:
+    """R_Both eats Rare and Ore and makes Relic: one machine at 10 Relic a minute."""
+    return _two_raw_registry(
+        [_recipe("R_Both", [SOLVE_RARE_ITEM, SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],
+        drill_first=drill_first,
+    )
+
+
+def test_no_unlock_never_reads_beside_an_unsupplied_raw() -> None:
+    """Every stage held, past the cap, so only the miner parts the two sentences."""
+    registry = _chain_registry()
+    names = _chain_names()
+
+    card = _route_card(names, registry, _request(registry), extractors=())
+
+    assert card.tier2 == (
+        f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NEEDS_ONE}{MUST_EXTRACT}{NOT_CHOSEN}"
+    )
+    no_unlock_named = NO_UNLOCK in card.tier2
+    assert not no_unlock_named
+    assert _card_read(card, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING,)
+
+    # The control, and the byte-same half of the ruling: the miner held reads the sentence as
+    # it read before raw supply was asked about, and names the miner on what the engine checks.
+    held = _route_card(names, registry, _request(registry))
+    assert held.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert _card_read(held, LOCKED_EXTRACTORS) == ()
+    named = _requires(held).count(MINER_KEY)
+    assert named == 1
+
+
+def test_a_locked_stage_and_a_locked_extractor_each_say_so() -> None:
+    """Both clauses, stages first, and no third sentence between them."""
+    registry = _chain_registry()
+    names = _chain_names()
+
+    card = _route_card(names[:-1], registry, _request(registry), extractors=())
+
+    assert card.tier2 == (
+        f"{ROUTE_RUNS} 1 locked and 12 held recipe(s){NEEDS_ONE}"
+        f"{MUST_UNLOCK}{MUST_EXTRACT}{NOT_CHOSEN}"
+    )
+
+
+def test_locked_stages_and_locked_machines_never_reach_requires() -> None:
+    registry = _one_recipe_registry()
+
+    card = _route_card((), registry, _request(registry), extractors=())
+
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Direct",)
+    assert _card_read(card, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING,)
+    assert _requires(card) == ()
+    assert card.tier2 == (
+        f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){NEEDS_ONE}"
+        f"{MUST_UNLOCK}{MUST_EXTRACT}{NOT_CHOSEN}"
+    )
+    # Tier 3 names the machine through the read, and tier 1 and tier 2 do not.
+    named = (
+        f'Read plan.redesign.locked_extractors = ("{SOLVE_MINER_BUILDING}") from'
+        " advisor.plans.redesign.locked_extractors"
+    ) in card.tier3
+    assert named
+    in_tiers = SOLVE_MINER_BUILDING in card.tier1 + card.tier2
+    assert not in_tiers
+
+
+def test_a_held_converter_still_ranks() -> None:
+    """The Rare is declared raw and nothing digs it, and a held recipe makes it from Ore.
+
+    By hand: R_Two eats Rare, R_One eats Ore and makes Rare, one machine each at 10 Relic a
+    minute, 10 Ore a minute. The narrowed search takes the Rare as an ordinary item.
+    """
+    registry = _two_raw_registry(
+        [
+            _recipe("R_Two", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
+            _recipe("R_One", [SOLVE_ORE_ITEM], [SOLVE_RARE_ITEM]),
+        ]
+    )
+
+    world = _inputs(_model(("R_Two", "R_One")), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == RANKED
+    plan = _plan_of(_offered(world, IN_PLAN))
+    assert [(step.recipe_key, step.machines) for step in plan.steps] == [
+        ("R_Two", Fraction(1)),
+        ("R_One", Fraction(1)),
+    ]
+    assert plan.raw_inputs == {SOLVE_ORE_ITEM: Fraction(10)}
+    assert _offered(world, "plan.requires") == (
+        f"recipe:{_path('R_Two')}",
+        ASSEMBLER_KEY,
+        f"recipe:{_path('R_One')}",
+        MINER_KEY,
+    )
+    assert run_rule(plan_rules.ADOPT_RULE, world).recommendation is not None
+
+
+def test_a_held_converter_never_wins_the_route() -> None:
+    """The stated cost: the route takes the Rare as raw, and says to unlock the drill.
+
+    By hand: R_One is held, R_Two is locked, so the search reads no-plan. Making the Rare would
+    cost (0, 1) and digging it (1, 0), and a raw item is never displaced by a producer.
+    """
+    registry = _two_raw_registry(
+        [
+            _recipe("R_Two", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
+            _recipe("R_One", [SOLVE_ORE_ITEM], [SOLVE_RARE_ITEM]),
+        ]
+    )
+
+    card = _route_card(("R_One",), registry, _request(registry))
+
+    assert [stage for stage, _count in _machines(card)] == ["R_Two"]
+    assert _card_read(card, LOCKED_EXTRACTORS) == (DRILL_BUILDING,)
+    # Nothing the route consumes is on the held list, so R_One names no key.
+    assert _requires(card) == ()
+
+
+def test_a_target_declared_raw_and_unsupplied_stays_malformed() -> None:
+    """Pillar 1 refuses the question, so no narrowing can turn it into a false no-plan."""
+    registry = _one_recipe_registry()
+    request = dataclasses.replace(
+        _request(registry), targets=MappingProxyType({SOLVE_ORE_ITEM: Fraction(10)})
+    )
+
+    unsupplied = plan_offer(_unlocks(["R_Direct"], extractors=()), registry, request)
+
+    assert unsupplied[IN_STATUS].value == MALFORMED
+    assert unsupplied[IN_REDESIGN_STATUS].value == NOT_REACHED
+    # The control: the same request with the miner held reads the same, so supply decides nothing.
+    supplied = plan_offer(_unlocks(["R_Direct"]), registry, request)
+    assert supplied[IN_STATUS].value == MALFORMED
+
+    # A target no extractor joins is the same question, from the other side of the join.
+    relic = dataclasses.replace(_request(registry), raw_items=(SOLVE_ORE_ITEM, SOLVE_RELIC_ITEM))
+    declared = plan_offer(_unlocks(["R_Direct"]), registry, relic)
+    assert declared[IN_STATUS].value == MALFORMED
+    assert declared[RAW_UNKNOWN].value == (SOLVE_RELIC_ITEM,)
+
+
+def test_a_net_zero_raw_needs_no_extractor() -> None:
+    """R_Up eats Ore and R_Down gives it back, so the plan's net Ore is zero.
+
+    By hand at 10 Relic a minute: R_Down makes 10 Relic and 10 Ore on one machine, and R_Up turns
+    that Ore into the 10 Feed R_Down eats on one machine.
+    """
+    feed = _item("Feed")
+    registry = _registry(
+        [
+            _recipe("R_Down", [feed], [SOLVE_ORE_ITEM, SOLVE_RELIC_ITEM]),
+            _recipe("R_Up", [SOLVE_ORE_ITEM], [feed]),
+        ],
+        items=[feed],
+    )
+
+    world = _inputs(_model(("R_Down", "R_Up")), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == RANKED
+    plan = _plan_of(_offered(world, IN_PLAN))
+    assert plan.raw_inputs == {SOLVE_ORE_ITEM: Fraction(0)}
+    assert _offered(world, "plan.requires") == (
+        f"recipe:{_path('R_Down')}",
+        ASSEMBLER_KEY,
+        f"recipe:{_path('R_Up')}",
+    )
+
+    # The control: a plan that does eat Ore names the miner, so its absence above is the rate's.
+    direct = _one_recipe_registry()
+    eats = _inputs(_model(["R_Direct"]), direct, _request(direct))
+    assert _offered(eats, "plan.requires") == (
+        f"recipe:{_path('R_Direct')}",
+        ASSEMBLER_KEY,
+        MINER_KEY,
+    )
+
+
+@pytest.mark.parametrize("extractors", [(SOLVE_MINER_BUILDING,), ()], ids=["held", "not-held"])
+def test_a_route_stage_at_no_machine_needs_no_extractor(extractors: tuple[str, ...]) -> None:
+    """The route's half of the same rate: the feeder runs at zero, and eats no Ore."""
+    registry = _free_loop_registry()
+
+    card = _route_card((), registry, _request(registry), extractors=extractors)
+
+    plan = _plan_of(_card_read(card, IN_REDESIGN_PLAN))
+    assert plan.raw_inputs == {SOLVE_ORE_ITEM: Fraction(0)}
+    assert _card_read(card, LOCKED_EXTRACTORS) == ()
+    assert _requires(card) == ()
+
+
+#: The three ways a registry can name no extractor a world could be shown to hold.
+_NO_EXTRACTOR_SHAPES: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
+    {
+        "no-extractor-at-all": {"extractors": (), "extractor_builds": ()},
+        "no-build-recipe": {"extractor_builds": ()},
+        "pathless-build-recipe": {
+            "extractor_builds": (machine_build_entry(SOLVE_MINER_BUILDING, pathless=True),)
+        },
+    }
+)
+
+
+@pytest.mark.parametrize("shape", sorted(_NO_EXTRACTOR_SHAPES))
+def test_a_registry_with_no_extractor_flags_every_raw(shape: str, tmp_path: Path) -> None:
+    """Flagged, skipped and never fatal: no-plan, then no-route, and it says which items."""
+    registry = _registry(
+        [_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])], **_NO_EXTRACTOR_SHAPES[shape]
+    )
+    model = _model(["R_Direct"], extractors=())
+
+    world = _inputs(model, registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, IN_REDESIGN_STATUS) == NO_ROUTE
+    assert _offered(world, IN_REDESIGN_UNMADE) == (SOLVE_ORE_ITEM,)
+    assert _offered(world, RAW_UNKNOWN) == (SOLVE_ORE_ITEM,)
+    for rule in plan_rules.RULES:
+        trace = run_rule(rule, world)
+        assert card_for(trace) is None
+        assert _errors(trace) == []
+    advice = _advise(tmp_path, model, registry, _request(registry))
+    assert _outcome_of(advice) == PlanOutcome(
+        status=NO_PLAN,
+        reason=NO_PLAN_REASON,
+        redesign=NO_ROUTE,
+        redesign_reason=NO_ROUTE_REASON,
+        trimmed=(),
+        unmade=(SOLVE_ORE_ITEM,),
+        raw_unknown=(SOLVE_ORE_ITEM,),
+    )
+
+
+def test_a_raw_item_no_extractor_joins_reads_in_tier_2_and_tier_3() -> None:
+    """The Rare is declared and nothing can dig it: a count beside the plan, the name in tier 3."""
+    registry = _registry(
+        [_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],
+        resources=(SOLVE_ORE_ITEM, SOLVE_RARE_ITEM),
+        extractors=(extractor_entry(SOLVE_MINER_BUILDING, only=(SOLVE_ORE_ITEM,)),),
+    )
+
+    world = _inputs(_model(["R_Direct"]), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == RANKED
+    assert _offered(world, RAW_UNKNOWN) == (SOLVE_RARE_ITEM,)
+    assert _source_of(world, RAW_UNKNOWN) == "advisor.plans.raw_unknown"
+    adopt = card_for(run_rule(plan_rules.ADOPT_RULE, world))
+    assert adopt is not None
+    assert adopt.tier2 == (
+        f"It makes 10.00 per minute of Solve Relic with 1.00 machine equivalents{ONE_RAW_UNKNOWN}"
+    )
+    read = (
+        f'Read plan.raw_unknown = ("{SOLVE_RARE_ITEM}") from advisor.plans.raw_unknown'
+    ) in adopt.tier3
+    assert read
+
+    # The route reads the same input on its own path, the clause after the unchecked one.
+    route = _route_card((), registry, _request(registry))
+    assert route.tier2 == (
+        f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}{ONE_RAW_UNKNOWN}"
+    )
+    assert _card_read(route, RAW_UNKNOWN) == (SOLVE_RARE_ITEM,)
+
+    # The control: with an extractor joined, nothing is flagged and nothing is said.
+    control = _one_recipe_registry()
+    clean = _inputs(_model(["R_Direct"]), control, _request(control))
+    assert _offered(clean, RAW_UNKNOWN) == ()
+    plain = card_for(run_rule(plan_rules.ADOPT_RULE, clean))
+    assert plain is not None
+    flagged = ONE_RAW_UNKNOWN in plain.tier2
+    assert not flagged
+
+
+def test_a_raw_item_no_extractor_joins_is_never_treated_as_supplied() -> None:
+    """R_Rare eats the Rare and nothing can dig it: no search, and no route either."""
+    registry = _registry(
+        [_recipe("R_Rare", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM])],
+        resources=(SOLVE_ORE_ITEM, SOLVE_RARE_ITEM),
+        extractors=(extractor_entry(SOLVE_MINER_BUILDING, only=(SOLVE_ORE_ITEM,)),),
+    )
+
+    world = _inputs(_model(["R_Rare"]), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, IN_REDESIGN_STATUS) == NO_ROUTE
+    assert _offered(world, IN_REDESIGN_UNMADE) == (SOLVE_RARE_ITEM,)
+    assert _offered(world, RAW_UNKNOWN) == (SOLVE_RARE_ITEM,)
+
+
+def test_the_engine_drops_a_card_whose_extractor_is_not_held() -> None:
+    """The second gate does not trust the first: the same offer, a world lacking the miner."""
+    registry = _one_recipe_registry()
+    world = _inputs(_model(["R_Direct"]), registry, _request(registry))
+    # The control: the offer as built fires, over the world it was built for.
+    assert run_rule(plan_rules.ADOPT_RULE, world).recommendation is not None
+
+    bare = WorldInputs(values=world.values, unlocks=world.unlocks - {MINER_KEY})
+    trace = run_rule(plan_rules.ADOPT_RULE, bare)
+
+    assert trace.recommendation is None
+    assert card_for(trace) is None
+    assert trace.unmet == (MINER_KEY,)
+    last = trace.steps[-1].kind
+    assert last is StepKind.PRECONDITION_UNMET
+
+    # The route's half: its no-unlock sentence rests on the same check.
+    chain = _chain_registry()
+    routed = _inputs(_model(_chain_names()), chain, _request(chain))
+    assert run_rule(REDESIGN_RULE, routed).recommendation is not None
+    gated = run_rule(
+        REDESIGN_RULE, WorldInputs(values=routed.values, unlocks=routed.unlocks - {MINER_KEY})
+    )
+    assert card_for(gated) is None
+    assert gated.unmet == (MINER_KEY,)
+
+
+def test_a_world_holding_no_extractor_reads_no_plan_and_a_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Narrowed to no raw items at all, and only the stated tuple can read malformed."""
+    calls = _count_calls(monkeypatch)
+    registry = _one_recipe_registry()
+    request = _request(registry)
+    assert request.raw_items == (SOLVE_ORE_ITEM,)
+
+    offered = plan_offer(_unlocks(["R_Direct"], extractors=()), registry, request)
+
+    assert offered[IN_STATUS].value == NO_PLAN
+    assert offered[IN_REDESIGN_STATUS].value == ROUTED
+    assert offered[LOCKED_EXTRACTORS].value == (SOLVE_MINER_BUILDING,)
+    (bound_args,) = calls["optimize_within_bound"]
+    assert bound_args[1].raw_items == ()
+    # The route is not narrowed: it starts from the one raw item, whose machine it names.
+    (route_args,) = calls["derived_route"]
+    assert route_args[1].raw_items == (SOLVE_ORE_ITEM,)
+    (ratio_args,) = calls["solve_for_targets"]
+    assert ratio_args[1].raw_items == (SOLVE_ORE_ITEM,)
+
+    # The control: an empty tuple as STATED is what reads malformed, and reaches no search.
+    stated = dataclasses.replace(request, raw_items=())
+    assert plan_offer(_unlocks(["R_Direct"]), registry, stated)[IN_STATUS].value == MALFORMED
+
+
+def test_the_search_keeps_the_stated_order_of_the_supplied_raw_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The group's own order, not the docs' extractor order, and no set decides it."""
+    calls = _count_calls(monkeypatch)
+    registry = _two_raw_registry(
+        [_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],
+        resources=(SOLVE_RARE_ITEM, SOLVE_ORE_ITEM),
+    )
+
+    plan_offer(
+        _unlocks(["R_Direct"], extractors=(SOLVE_MINER_BUILDING, DRILL_BUILDING)),
+        registry,
+        _request(registry),
+    )
+
+    (bound_args,) = calls["optimize_within_bound"]
+    assert bound_args[1].raw_items == (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM)
+
+    # The narrowing's half: with the drill not held the Rare is off the list and the Ore stays.
+    plan_offer(_unlocks(["R_Direct"]), registry, _request(registry))
+    (_both, narrowed) = calls["optimize_within_bound"]
+    assert narrowed[1].raw_items == (SOLVE_ORE_ITEM,)
+
+
+def test_the_route_counts_an_unsupplied_raw_as_one_locked_thing() -> None:
+    """By hand: R_Rare and R_Ore each one locked recipe, and only the Ore can be dug now.
+
+    Declared R_Rare first, so a tie would go to it. Counted (2, 1) against (1, 1), it loses.
+    """
+    registry = _two_raw_registry(
+        [
+            _recipe("R_Rare", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
+            _recipe("R_Ore", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]),
+        ]
+    )
+
+    card = _route_card((), registry, _request(registry))
+
+    assert [stage for stage, _count in _machines(card)] == ["R_Ore"]
+    assert _card_read(card, LOCKED_EXTRACTORS) == ()
+    assert _requires(card) == (MINER_KEY,)
+
+    # The control: with the drill held too the tie stands, and the first recipe takes it.
+    both = _route_card(
+        (), registry, _request(registry), extractors=(SOLVE_MINER_BUILDING, DRILL_BUILDING)
+    )
+    assert [stage for stage, _count in _machines(both)] == ["R_Rare"]
+    assert _requires(both) == (DRILL_KEY,)
+
+
+def test_one_machine_is_named_once_for_two_raw_items_it_extracts() -> None:
+    registry = _registry(
+        [_recipe("R_Both", [SOLVE_RARE_ITEM, SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],
+        resources=(SOLVE_ORE_ITEM, SOLVE_RARE_ITEM),
+    )
+
+    card = _route_card((), registry, _request(registry), extractors=())
+
+    assert _card_read(card, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING,)
+    stated = NEEDS_ONE in card.tier2
+    assert stated
+
+
+@pytest.mark.parametrize("drill_first", [False, True], ids=["miner-first", "drill-first"])
+def test_locked_extractors_read_in_the_plans_raw_order(drill_first: bool) -> None:
+    """Sorted by raw item, as pillar 1 publishes them, whichever the document declares first."""
+    registry = _both_raw_registry(drill_first=drill_first)
+
+    card = _route_card((), registry, _request(registry), extractors=())
+
+    assert _card_read(card, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING, DRILL_BUILDING)
+    stated = " and needs 2 locked extractor(s)" in card.tier2
+    assert stated
+
+
+def test_a_held_extractor_joins_requires_beside_a_locked_one() -> None:
+    registry = _both_raw_registry()
+
+    card = _route_card((), registry, _request(registry), extractors=(DRILL_BUILDING,))
+
+    assert _card_read(card, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING,)
+    assert _requires(card) == (DRILL_KEY,)
+
+
+def test_a_ranked_plan_names_each_raw_items_machine_sorted_by_raw_item() -> None:
+    registry = _both_raw_registry(drill_first=True)
+
+    world = _inputs(
+        _model(["R_Both"], extractors=(SOLVE_MINER_BUILDING, DRILL_BUILDING)),
+        registry,
+        _request(registry),
+    )
+
+    assert _offered(world, "plan.requires") == (
+        f"recipe:{_path('R_Both')}",
+        ASSEMBLER_KEY,
+        MINER_KEY,
+        DRILL_KEY,
+    )
+
+
+#: Two unrestricted miners, for the arms over which of them a raw item names.
+_SECOND_MINER: Final = "Build_SolveMinerTwo_C"
+_SECOND_MINER_KEY: Final = f"recipe:{machine_build_path(_SECOND_MINER)}"
+
+
+def _two_miner_registry(*, first_builds: bool = True, reversed_order: bool = False) -> Registry:
+    """R_Direct on Ore, and two miners that can each dig it.
+
+    Args:
+        first_builds: Give the first miner a build recipe.
+        reversed_order: Declare the second miner first.
+
+    Returns:
+        The registry.
+    """
+    entries = (extractor_entry(SOLVE_MINER_BUILDING), extractor_entry(_SECOND_MINER))
+    builds = (machine_build_entry(SOLVE_MINER_BUILDING), machine_build_entry(_SECOND_MINER))
+    return _registry(
+        [_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],
+        extractors=entries[::-1] if reversed_order else entries,
+        extractor_builds=builds if first_builds else builds[1:],
+    )
+
+
+@pytest.mark.parametrize(
+    ("held", "reversed_order", "key"),
+    [
+        ((SOLVE_MINER_BUILDING,), False, MINER_KEY),
+        ((_SECOND_MINER,), False, _SECOND_MINER_KEY),
+        ((SOLVE_MINER_BUILDING, _SECOND_MINER), False, MINER_KEY),
+        ((SOLVE_MINER_BUILDING, _SECOND_MINER), True, _SECOND_MINER_KEY),
+    ],
+    ids=["first-held", "second-held", "both-held", "both-held-declared-the-other-way"],
+)
+def test_of_two_extractors_a_plan_names_the_first_the_world_holds_and_that_one_alone(
+    held: tuple[str, ...], reversed_order: bool, key: str
+) -> None:
+    registry = _two_miner_registry(reversed_order=reversed_order)
+
+    world = _inputs(_model(["R_Direct"], extractors=held), registry, _request(registry))
+
+    assert _offered(world, "plan.requires") == (f"recipe:{_path('R_Direct')}", ASSEMBLER_KEY, key)
+
+
+def test_a_locked_machine_named_is_the_first_that_can_be_shown_held() -> None:
+    """A first miner with no build recipe would state a lock nothing could ever lift."""
+    registry = _two_miner_registry(first_builds=False)
+    card = _route_card((), registry, _request(registry), extractors=())
+    assert _card_read(card, LOCKED_EXTRACTORS) == (_SECOND_MINER,)
+
+    # The control: with its build recipe the first miner is the one named.
+    built = _two_miner_registry()
+    named = _route_card((), built, _request(built), extractors=())
+    assert _card_read(named, LOCKED_EXTRACTORS) == (SOLVE_MINER_BUILDING,)
+
+
+def test_an_extractor_held_by_a_trailing_token_alone_supplies_nothing() -> None:
+    """A path sharing only the trailing token is another asset, and digs no Ore (CS-1343)."""
+    real = MINER_BUILD_PATH
+    elsewhere = real.replace("/Placed/", "/Elsewhere/")
+    assert elsewhere != real
+    assert elsewhere.rpartition(".")[2] == real.rpartition(".")[2]
+    registry = _one_recipe_registry()
+    held = _unlocks(["R_Direct"], extractors=())
+
+    near = dataclasses.replace(held, recipes=held.recipes | {elsewhere})
+    assert plan_offer(near, registry, _request(registry))[IN_STATUS].value == NO_PLAN
+
+    # The control: the whole string supplies it.
+    whole = dataclasses.replace(held, recipes=held.recipes | {real})
+    assert plan_offer(whole, registry, _request(registry))[IN_STATUS].value == RANKED
+
+
+def test_an_unsupplied_raw_byproduct_meets_the_stated_policy() -> None:
+    """Accepted and filed, no case added to pillar 1: R_By makes Relic and leaves Rare over.
+
+    With the drill held the Rare is raw, so nothing balances it. Unheld it is an ordinary item
+    with a row, which balanced refuses and sinkable reports.
+    """
+    registry = _two_raw_registry(
+        [_recipe("R_By", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM])]
+    )
+    both = (SOLVE_MINER_BUILDING, DRILL_BUILDING)
+
+    balanced = _inputs(_model(["R_By"]), registry, _request(registry))
+    assert _offered(balanced, IN_STATUS) == NO_PLAN
+    # The route takes the Rare as raw, at a rate below zero, so nothing it consumes is locked and
+    # it reads the no-unlock sentence: true of what it needs, and what the merger's filed line
+    # on this ruling is about. Pinned, not endorsed.
+    route = card_for(run_rule(REDESIGN_RULE, balanced))
+    assert route is not None
+    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert _card_read(route, LOCKED_EXTRACTORS) == ()
+
+    sinkable = _inputs(_model(["R_By"]), registry, _request(registry, policy=SINKABLE))
+    assert _offered(sinkable, IN_STATUS) == RANKED
+    assert _plan_of(_offered(sinkable, IN_PLAN)).byproducts == {SOLVE_RARE_ITEM: Fraction(10)}
+
+    # The control: the drill held makes it raw, so balanced ranks, the Rare at a negative rate.
+    supplied = _inputs(_model(["R_By"], extractors=both), registry, _request(registry))
+    assert _offered(supplied, IN_STATUS) == RANKED
+    assert _plan_of(_offered(supplied, IN_PLAN)).raw_inputs == {
+        SOLVE_ORE_ITEM: Fraction(10),
+        SOLVE_RARE_ITEM: Fraction(-10),
+    }
+    assert _offered(supplied, "plan.requires") == (
+        f"recipe:{_path('R_By')}",
+        ASSEMBLER_KEY,
+        MINER_KEY,
+    )
+
+
+def test_the_no_plan_reason_says_what_the_search_started_from() -> None:
+    """The exact sentence, spelled here and read off the offer the rule reads it from."""
+    registry = _one_recipe_registry()
+    world = _inputs(_model(["R_Direct"], extractors=()), registry, _request(registry))
+
+    trace = run_rule(plan_rules.ADOPT_RULE, world)
+
+    recorded = [step.reason for step in trace.steps if step.kind is StepKind.VERDICT_INDETERMINATE]
+    assert recorded == [
+        "the search found no plan over the unlocked automated recipes it kept,"
+        " from the raw items a held extractor supplies, under the stated byproduct policy"
+    ]
 
 
 def test_the_engine_sees_the_machine_key_on_plan_adopt() -> None:
@@ -1582,7 +2292,7 @@ def test_the_machine_join_is_the_whole_path_never_its_trailing_token() -> None:
     assert elsewhere.rpartition(".")[2] == real.rpartition(".")[2]
     registry = _one_recipe_registry()
     held = dataclasses.replace(
-        EMPTY_UNLOCK_STATE, recipes=frozenset({_path("R_Direct"), elsewhere})
+        EMPTY_UNLOCK_STATE, recipes=frozenset({_path("R_Direct"), elsewhere, MINER_BUILD_PATH})
     )
 
     offered = plan_offer(held, registry, _request(registry))
@@ -1592,7 +2302,9 @@ def test_the_machine_join_is_the_whole_path_never_its_trailing_token() -> None:
     assert offered["plan.unmatched_unlocks"].value == 1
 
     # The control: the whole string joins, and a machine's path is no unmatched path.
-    whole = dataclasses.replace(EMPTY_UNLOCK_STATE, recipes=frozenset({_path("R_Direct"), real}))
+    whole = dataclasses.replace(
+        EMPTY_UNLOCK_STATE, recipes=frozenset({_path("R_Direct"), real, MINER_BUILD_PATH})
+    )
     joined = plan_offer(whole, registry, _request(registry))
     assert joined[IN_STATUS].value == RANKED
     assert joined["plan.unmatched_unlocks"].value == 0
@@ -1678,6 +2390,7 @@ def test_a_ranked_outcome_has_no_reason_and_reads_not_reached() -> None:
         redesign_reason=None,
         trimmed=(),
         unmade=None,
+        raw_unknown=(),
     )
 
 
@@ -1691,6 +2404,7 @@ def test_a_no_plan_outcome_reads_its_reason_scoped_to_the_kept_set_and_the_trim(
         redesign_reason=None,
         trimmed=(_stage_name(1),),
         unmade=None,
+        raw_unknown=(),
     )
 
 
@@ -1704,6 +2418,7 @@ def test_a_no_route_outcome_names_the_item_nothing_makes() -> None:
         redesign_reason=NO_ROUTE_REASON,
         trimmed=(),
         unmade=(SOLVE_ORPHAN_ITEM,),
+        raw_unknown=(),
     )
 
 
@@ -1740,6 +2455,7 @@ def test_a_route_refused_outcome_fires_under_the_other_policy() -> None:
         redesign_reason=ROUTE_REFUSED_REASON,
         trimmed=(),
         unmade=None,
+        raw_unknown=(),
     )
     assert card_for(_route_trace((), registry, _request(registry, policy=BALANCED))) is None
 
@@ -1864,6 +2580,7 @@ def test_no_target_projects_the_status_alone_and_runs_nothing(
     assert plan_outcome_of(offered).redesign_reason is None
     assert plan_outcome_of(offered).trimmed is None
     assert plan_outcome_of(offered).unmade is None
+    assert plan_outcome_of(offered).raw_unknown is None
 
 
 def test_an_empty_group_reads_request_malformed_and_reaches_no_search(
@@ -1886,6 +2603,7 @@ def test_an_empty_group_reads_request_malformed_and_reaches_no_search(
         redesign_reason=None,
         trimmed=None,
         unmade=None,
+        raw_unknown=None,
     )
     # The control: the same request with the group's one item stands the door open.
     with_group = dataclasses.replace(request, raw_items=(SOLVE_ORE_ITEM,))
@@ -1926,6 +2644,7 @@ def test_advice_carries_the_outcome_only_when_a_target_is_stated(tmp_path: Path)
         redesign_reason=None,
         trimmed=(),
         unmade=None,
+        raw_unknown=(),
     )
     no_outcome = silent.plan_outcome is None
     assert no_outcome
@@ -1951,6 +2670,7 @@ def test_the_redesign_inputs_stay_out_of_the_plan_inputs() -> None:
         "plan.redesign.plan",
         "plan.redesign.held",
         "plan.redesign.locked",
+        "plan.redesign.locked_extractors",
         "plan.redesign.requires",
         "plan.redesign.unmade",
         "plan.redesign.target_names",
@@ -1965,6 +2685,7 @@ def test_each_redesign_input_names_the_field_it_came_from() -> None:
         IN_REDESIGN_PLAN: "solve.ratio.solve_for_targets",
         IN_REDESIGN_HELD: "advisor.plans.redesign.held",
         IN_REDESIGN_LOCKED: "advisor.plans.redesign.locked",
+        LOCKED_EXTRACTORS: "advisor.plans.redesign.locked_extractors",
         IN_REDESIGN_REQUIRES: "advisor.plans.redesign.recipe_unlock_join",
         IN_REDESIGN_UNMADE: "solve.bound.derived_route.unmade",
         IN_REDESIGN_TARGET_NAMES: "registry.items.display_name",
@@ -2003,9 +2724,12 @@ def _forged(change: Mapping[str, object]) -> Trace:
         ({IN_REDESIGN_PLAN: None}, "TypeError"),
         ({IN_REDESIGN_HELD: "R_A1"}, "TypeError"),
         ({IN_REDESIGN_LOCKED: None}, "TypeError"),
+        ({LOCKED_EXTRACTORS: None}, "TypeError"),
+        ({LOCKED_EXTRACTORS: SOLVE_MINER_BUILDING}, "TypeError"),
         ({IN_REDESIGN_REQUIRES: None}, "TypeError"),
         ({IN_REDESIGN_UNMADE: ()}, "TypeError"),
         ({IN_UNCHECKED: None}, "TypeError"),
+        ({RAW_UNKNOWN: None}, "TypeError"),
         ({IN_REDESIGN_TARGET_NAMES: None}, "TypeError"),
         ({IN_REDESIGN_TARGET_NAMES: (RELIC_NAME,)}, "TypeError"),
         ({IN_REDESIGN_TARGET_NAMES: MappingProxyType({})}, "ValueError"),
@@ -2040,9 +2764,12 @@ def _forged(change: Mapping[str, object]) -> Trace:
         "plan-none",
         "held-not-a-tuple",
         "locked-none",
+        "locked-extractors-none",
+        "locked-extractors-not-a-tuple",
         "requires-none",
         "unmade-on-routed",
         "unchecked-none",
+        "raw-unknown-none",
         "names-none",
         "names-not-a-mapping",
         "names-lack-the-target",
@@ -2079,6 +2806,18 @@ def test_a_status_with_no_route_offers_no_names_and_refuses_any(status: str) -> 
 
     named = MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME})
     trace = run_rule(REDESIGN_RULE, _with_value(world, IN_REDESIGN_TARGET_NAMES, named))
+
+    assert _errors(trace) == ["TypeError"]
+
+
+@pytest.mark.parametrize("status", [NOT_REACHED, NO_ROUTE, ROUTE_REFUSED])
+def test_a_status_with_no_route_offers_no_locked_extractors_and_refuses_any(status: str) -> None:
+    world = _worlds_per_status()[status]
+    assert _offered(world, LOCKED_EXTRACTORS) is None
+    assert _errors(run_rule(REDESIGN_RULE, world)) == []
+
+    planted = (SOLVE_MINER_BUILDING,)
+    trace = run_rule(REDESIGN_RULE, _with_value(world, LOCKED_EXTRACTORS, planted))
 
     assert _errors(trace) == ["TypeError"]
 

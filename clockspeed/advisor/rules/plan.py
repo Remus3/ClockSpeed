@@ -1,4 +1,4 @@
-"""CS-1346, CS-1351, CS-1371 and CS-1379: the plan family - two rules that read a plan.
+"""CS-1346, CS-1351, CS-1371, CS-1379 and CS-1382: the plan family - two rules that read a plan.
 
 WHAT THIS MODULE OWNS. Two rules and the adapters that feed them:
 
@@ -15,8 +15,9 @@ WHAT THIS MODULE OWNS. Two rules and the adapters that feed them:
   solves, and recommends planning toward its targets. See THE MARKED ROUTE below.
 - :func:`plan_inputs` offers one :class:`~clockspeed.solve.strategy.RankedPlan`
   as ``plan.adopt``'s inputs, each sourced to the ranked-plan field it came from,
-  beside the unlock keys its recipes and their machines need, the backend that ran
-  the search, the display names of its targets and what the search left out.
+  beside the unlock keys its recipes, their machines and its raw items' extractors need,
+  the backend that ran the search, the display names of its targets and what the search
+  left out.
   :func:`status_inputs` and :func:`refused_inputs` say
   why no plan is offered. :func:`redesign_inputs` and :func:`redesign_status_inputs`
   offer the route, or why there is none, and :func:`plan_outcome_of` projects the offer
@@ -83,35 +84,46 @@ card: advice is never built on a forged claim.
 
 UNLOCKS TRAVEL THROUGH THE ENGINE. A plan names recipes by registry ClassName,
 and the unlock state holds asset paths. The join between the two is
-``clockspeed/advisor/plans.py``, which fills ``plan.requires`` with each recipe's key
-and the key of a machine the world holds to run it, and that is why it is a REQUIRED
-keyword of :func:`plan_inputs` with no default: inventing an empty tuple here would
-advise a plan over recipes nobody checked. The rule reads the keys and hands them to
+``clockspeed/advisor/plans.py``, which fills ``plan.requires`` with each recipe's key,
+the key of a machine the world holds to run it and, for each raw item the plan consumes,
+the key of a machine the world holds to extract it (CS-1382), and that is why it is a
+REQUIRED keyword of :func:`plan_inputs` with no default: inventing an empty tuple here
+would advise a plan over recipes nobody checked. The rule reads the keys and hands them to
 ``Recommendation.requires``, where :func:`clockspeed.advisor.trace.run_rule` checks
-each against the world's unlocks, so a plan over a locked recipe, or over a machine the
-world does not hold, yields a ``precondition-unmet`` step and no card. From
-``advise_world`` no such recipe reaches ``plan.adopt``, because the search excludes it
-first; the engine's check is the second gate, and it does not trust the first. The rule
-itself declares no unlock, because what a plan needs depends on that plan: "build this
-plan" needs what the plan's own recipes and the machines that run them need, and the
-join says so per plan.
+each against the world's unlocks, so a plan over a locked recipe, over a machine the world
+does not hold or over an extractor it does not hold yields a ``precondition-unmet`` step
+and no card. From ``advise_world`` no such plan reaches ``plan.adopt``, because the search
+excludes the recipe and takes no such raw item first; the engine's check is the second
+gate, and it does not trust the first. The rule itself declares no unlock, because what a
+plan needs depends on that plan: "build this plan" needs what the plan's own recipes, the
+machines that run them and the machines that extract its raw items need, and the join says
+so per plan.
 
 THE MARKED ROUTE (CS-1371). A no-plan speaks only for what the search kept, so
 ``clockspeed/advisor/plans.py`` then derives one route over every automated recipe the
-join could check and solves it once. :data:`REDESIGN_RULE` reads the result. Its action
-is doable now, because its ``requires`` holds only the held recipes the solve gives a
-machine count, and a machine the world holds for each, so the engine's check still
+join could check and solves it once. :data:`REDESIGN_RULE` reads the result. What it
+requires is doable now, because its ``requires`` holds only the held recipes the solve
+gives a machine count, a machine the world holds for each, and a machine the world holds
+for each raw item the route consumes where it holds one, so the engine's check still
 applies. Locked recipes do reach this rule, a recipe held with no machine held among
 them, by ClassName, under :data:`IN_REDESIGN_LOCKED`, an input of their own: tier 3 reads
 them, and tier 1, tier 2 and ``requires`` name none of them, so no locked stage reads as
-buildable. A route with none locked needs no recipe and no machine unlocked. Tier 2 says
-the targets by label, counts the stages and names none of them, and says what the route is:
-the stated direction did not choose it, and it was never compared with what is built. The
-card carries no badge,
-because no ranking saw the route. A list that disagrees with the plan's own machines, a
+buildable. A machine the route needs to extract a raw item the world cannot, and must
+unlock first, travels the same way under :data:`IN_REDESIGN_LOCKED_EXTRACTORS`. Tier 2
+says the targets by label, counts the stages and those machines and names none of them, and
+says what the route is: the stated direction did not choose it, and it was never compared
+with what is built. ONLY A ROUTE WITH NO LOCKED STAGE AND NO LOCKED EXTRACTOR says it needs
+no unlock (CS-1382), and only then is everything it names in ``requires``, which the engine
+checks, so the sentence cannot read over something the world does not hold. The card carries
+no badge, because no ranking saw the route. A list that disagrees with the plan's own machines, a
 status outside the closed vocabulary, and a status that disagrees with ``plan.status`` are
 each a rule error. Its inputs stay out of :data:`PLAN_INPUTS`, so the ranked path and the
 route never share a name.
+
+A RAW ITEM NO EXTRACTOR JOINS IS SAID, NOT DROPPED (non-negotiable 7). The join leaves such
+an item out of the search and off the route, so :data:`IN_RAW_UNKNOWN` names it wherever
+:data:`IN_UNCHECKED` names a recipe the join could not check, and each rule reads it on the
+same paths, a count in tier 2 and the names in tier 3.
 
 EVERY FIGURE IS PRICED AT THE PINNED BUILD (CS-1288). A plan's machine counts
 are solved from registry recipes, and the registry is the pinned build's. So
@@ -177,6 +189,7 @@ IN_STATUS: Final = "plan.status"
 
 #: What the join and the bound left out, offered wherever a join ran.
 IN_UNCHECKED: Final = "plan.unchecked"
+IN_RAW_UNKNOWN: Final = "plan.raw_unknown"
 IN_UNMATCHED: Final = "plan.unmatched_unlocks"
 IN_TRIMMED: Final = "plan.trimmed"
 
@@ -191,6 +204,7 @@ IN_TARGET_NAMES: Final = "plan.target_names"
 PLAN_INPUTS: Final = (
     IN_STATUS,
     IN_UNCHECKED,
+    IN_RAW_UNKNOWN,
     IN_UNMATCHED,
     IN_TRIMMED,
     IN_PLAN,
@@ -206,6 +220,7 @@ IN_REDESIGN_STATUS: Final = "plan.redesign.status"
 IN_REDESIGN_PLAN: Final = "plan.redesign.plan"
 IN_REDESIGN_HELD: Final = "plan.redesign.held"
 IN_REDESIGN_LOCKED: Final = "plan.redesign.locked"
+IN_REDESIGN_LOCKED_EXTRACTORS: Final = "plan.redesign.locked_extractors"
 IN_REDESIGN_REQUIRES: Final = "plan.redesign.requires"
 IN_REDESIGN_UNMADE: Final = "plan.redesign.unmade"
 IN_REDESIGN_TARGET_NAMES: Final = "plan.redesign.target_names"
@@ -217,6 +232,7 @@ REDESIGN_INPUTS: Final = (
     IN_REDESIGN_PLAN,
     IN_REDESIGN_HELD,
     IN_REDESIGN_LOCKED,
+    IN_REDESIGN_LOCKED_EXTRACTORS,
     IN_REDESIGN_REQUIRES,
     IN_REDESIGN_UNMADE,
     IN_REDESIGN_TARGET_NAMES,
@@ -244,9 +260,10 @@ STATUS_NO_TARGET: Final = "no-target"
 #: items, or a refusal that says the request is malformed rather than unanswerable.
 STATUS_REQUEST_MALFORMED: Final = "request-malformed"
 
-#: The search found no plan over the unlocked automated recipes it kept, under the
-#: stated byproduct policy. Nothing beyond that set: what the cap dropped is on
-#: :data:`IN_TRIMMED`, and a capped no-plan and an uncapped one are this one status.
+#: The search found no plan over the unlocked automated recipes it kept, from the raw
+#: items a held extractor supplies, under the stated byproduct policy. Nothing beyond that:
+#: what the cap dropped is on :data:`IN_TRIMMED`, and a capped no-plan and an uncapped one
+#: are this one status.
 STATUS_NO_PLAN: Final = "no-plan"
 
 #: The search refused for a reason that is no statement about the target.
@@ -286,7 +303,7 @@ _STATUS_REASONS: Final = MappingProxyType(
         STATUS_REQUEST_MALFORMED: "the stated request cannot be asked as a question",
         STATUS_NO_PLAN: (
             "the search found no plan over the unlocked automated recipes it kept,"
-            " under the stated byproduct policy"
+            " from the raw items a held extractor supplies, under the stated byproduct policy"
         ),
         STATUS_SOLVE_REFUSED: "the search refused, which says nothing about the target",
         STATUS_POWER_NOT_COMPARABLE: "the power search reached a recipe with no exact draw",
@@ -359,10 +376,11 @@ _ROUTE_COMPARE_REASON: Final = (
 #: The rejection only a hand-built offer reaches: a stated rate is above zero.
 _NO_MACHINE_REASON: Final = "the route gives no recipe a machine"
 
-#: What a route's reason says about unlocking, by whether any stage is locked.
+#: What a route's reason says about unlocking: its stages, its extractors, or neither.
 _MUST_UNLOCK_CLAUSE: Final = (
     "; the locked recipes or the machines that run them must unlock first on this route"
 )
+_EXTRACTOR_UNLOCK_CLAUSE: Final = "; the locked extractors must unlock first on this route"
 _NO_UNLOCK_CLAUSE: Final = "; this route needs no unlock and the capped search did not find it"
 
 #: What a route's reason says on every path: a count chose it, and no comparison did.
@@ -391,6 +409,9 @@ class PlanOutcome:
         unmade: What the target's closure reached that no recipe in it makes and the raw
             items lack, on ``no-route`` alone, and None on every other status. Empty on
             ``no-route`` where the gap is a loop no raw item enters.
+        raw_unknown: The declared raw items no extractor joins, which neither the search
+            nor the route may start from, by ClassName, or None when this offer carries no
+            such word because no join ran (CS-1382). Empty says every one joined.
     """
 
     status: str
@@ -399,6 +420,7 @@ class PlanOutcome:
     redesign_reason: str | None
     trimmed: tuple[str, ...] | None
     unmade: tuple[str, ...] | None
+    raw_unknown: tuple[str, ...] | None
 
 
 def _status_input(status: str) -> dict[str, InputValue]:
@@ -432,6 +454,9 @@ def redesign_status_inputs(status: str, *, unmade: tuple[str, ...] | None) -> di
         IN_REDESIGN_PLAN: InputValue(None, _ROUTE_PLAN_SOURCE),
         IN_REDESIGN_HELD: InputValue(None, _REDESIGN_SOURCE_PREFIX + "held"),
         IN_REDESIGN_LOCKED: InputValue(None, _REDESIGN_SOURCE_PREFIX + "locked"),
+        IN_REDESIGN_LOCKED_EXTRACTORS: InputValue(
+            None, _REDESIGN_SOURCE_PREFIX + "locked_extractors"
+        ),
         IN_REDESIGN_REQUIRES: InputValue(None, _ROUTE_REQUIRES_SOURCE),
         IN_REDESIGN_UNMADE: InputValue(unmade, _ROUTE_UNMADE_SOURCE),
         IN_REDESIGN_TARGET_NAMES: InputValue(None, _TARGET_NAME_SOURCE),
@@ -443,6 +468,7 @@ def redesign_inputs(
     *,
     held: tuple[str, ...],
     locked: tuple[str, ...],
+    locked_extractors: tuple[str, ...],
     requires: tuple[str, ...],
     target_names: MappingProxyType[str, str | None],
 ) -> dict[str, InputValue]:
@@ -456,9 +482,14 @@ def redesign_inputs(
         locked: The route's recipes the solve gives a machine count and the world does
             not hold, a recipe with no machine held among them, by ClassName. REQUIRED,
             with no default: empty says none is locked.
-        requires: The unlock keys of ``held`` and of the machine each one runs on.
-            REQUIRED, for the reason :func:`plan_inputs` gives: an invented empty tuple
-            would advise recipes nobody checked.
+        locked_extractors: For each raw item the route consumes and no held machine extracts,
+            the machine that must unlock first, by ClassName, each once. REQUIRED, with no
+            default: empty says the world extracts everything this route consumes, which is
+            half of what lets its reason say it needs no unlock.
+        requires: The unlock keys of ``held``, of the machine each one runs on and of a held
+            machine for each raw item the route consumes where it holds one. REQUIRED, for the
+            reason :func:`plan_inputs` gives: an invented empty tuple would advise recipes
+            nobody checked. A locked stage and a locked extractor never reach it.
         target_names: Each of the plan's targets by ClassName, to its display name or None.
             REQUIRED, for the reason :func:`plan_inputs` gives.
 
@@ -470,6 +501,9 @@ def redesign_inputs(
         IN_REDESIGN_PLAN: InputValue(plan, _ROUTE_PLAN_SOURCE),
         IN_REDESIGN_HELD: InputValue(held, _REDESIGN_SOURCE_PREFIX + "held"),
         IN_REDESIGN_LOCKED: InputValue(locked, _REDESIGN_SOURCE_PREFIX + "locked"),
+        IN_REDESIGN_LOCKED_EXTRACTORS: InputValue(
+            locked_extractors, _REDESIGN_SOURCE_PREFIX + "locked_extractors"
+        ),
         IN_REDESIGN_REQUIRES: InputValue(requires, _ROUTE_REQUIRES_SOURCE),
         IN_REDESIGN_TARGET_NAMES: InputValue(target_names, _TARGET_NAME_SOURCE),
     }
@@ -492,7 +526,12 @@ def status_inputs(status: str) -> dict[str, InputValue]:
 
 
 def refused_inputs(
-    status: str, *, trimmed: tuple[str, ...], unchecked: tuple[str, ...], unmatched_unlocks: int
+    status: str,
+    *,
+    trimmed: tuple[str, ...],
+    unchecked: tuple[str, ...],
+    raw_unknown: tuple[str, ...],
+    unmatched_unlocks: int,
 ) -> dict[str, InputValue]:
     """Offer a status a search reached without a plan, and what the search left out.
 
@@ -506,6 +545,8 @@ def refused_inputs(
             REQUIRED, with no default: empty says the cap dropped nothing.
         unchecked: The automated recipes the join could not check, carrying no asset path
             or no machine joining a build recipe with one, by ClassName.
+        raw_unknown: The declared raw items no extractor joining a build recipe with a path
+            extracts, by ClassName. REQUIRED, with no default: empty says every one joined.
         unmatched_unlocks: How many of the world's unlocked paths joined no recipe.
             A count, because each one is a string read out of a save.
 
@@ -516,6 +557,7 @@ def refused_inputs(
     return {
         **_status_input(status),
         IN_UNCHECKED: InputValue(unchecked, _OFFER_SOURCE_PREFIX + "unchecked"),
+        IN_RAW_UNKNOWN: InputValue(raw_unknown, _OFFER_SOURCE_PREFIX + "raw_unknown"),
         IN_UNMATCHED: InputValue(unmatched_unlocks, _OFFER_SOURCE_PREFIX + "unmatched_unlocks"),
         IN_TRIMMED: InputValue(trimmed, _TRIMMED_SOURCE),
     }
@@ -527,6 +569,7 @@ def plan_inputs(
     requires: tuple[str, ...],
     trimmed: tuple[str, ...],
     unchecked: tuple[str, ...],
+    raw_unknown: tuple[str, ...],
     unmatched_unlocks: int,
     backend: str,
     target_names: MappingProxyType[str, str | None],
@@ -536,7 +579,8 @@ def plan_inputs(
     Args:
         ranked: One entry of a :func:`~clockspeed.solve.strategy.rank_plans`
             result. Its plan and its badge are offered together.
-        requires: The unlock keys the plan's recipes and their machines need, in the form
+        requires: The unlock keys the plan's recipes, their machines and its raw items'
+            extractors need, in the form
             :func:`clockspeed.advisor.trace.unlock_keys` builds. REQUIRED, with no
             default: ``clockspeed/advisor/plans.py`` holds the join from a recipe
             ClassName to its asset path, and inventing an empty tuple here would
@@ -544,6 +588,7 @@ def plan_inputs(
         trimmed: The recipes the bound dropped to reach the plan, by ClassName.
         unchecked: The automated recipes the join could not check, carrying no asset path
             or no machine joining a build recipe with one, by ClassName.
+        raw_unknown: As :func:`refused_inputs` takes it.
         unmatched_unlocks: How many of the world's unlocked paths joined no recipe.
             A count, because each one is a string read out of a save.
         backend: The name of the backend that ran the search, as the result
@@ -561,6 +606,7 @@ def plan_inputs(
             STATUS_RANKED,
             trimmed=trimmed,
             unchecked=unchecked,
+            raw_unknown=raw_unknown,
             unmatched_unlocks=unmatched_unlocks,
         ),
         IN_PLAN: InputValue(ranked.plan, _SOURCE_PREFIX + "plan"),
@@ -670,9 +716,11 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     if status != STATUS_RANKED and status not in _STATUS_REASONS:
         raise ValueError("a plan status is outside the closed vocabulary")
     unchecked: tuple[str, ...] = ()
+    raw_unknown: tuple[str, ...] = ()
     trimmed: tuple[str, ...] = ()
     if status not in _UNJOINED_STATUSES:
         unchecked = _names(ctx.read(IN_UNCHECKED), "a plan's unchecked recipes")
+        raw_unknown = _names(ctx.read(IN_RAW_UNKNOWN), "a plan's raw items with no extractor")
         if type(ctx.read(IN_UNMATCHED)) is not int:
             raise TypeError("a plan's unmatched unlock count is not an int")
         trimmed = _names(ctx.read(IN_TRIMMED), "a plan's trimmed recipes")
@@ -712,20 +760,19 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
         action="Build the planned production chain for " + ", ".join(labels),
         reason=(
             f"It makes {rates} with {render_value(machines)} machine equivalents"
-            f"{trim}{_unchecked_clause(unchecked)}{caveat}"
+            f"{trim}{_unchecked_clause(unchecked)}{_raw_unknown_clause(raw_unknown)}{caveat}"
         ),
         requires=requires,
     )
 
 
-def _check_no_route_offered(
-    status: str, *, offered: tuple[object, object, object, object, object], unmade: object
-) -> None:
+def _check_no_route_offered(status: str, *, offered: tuple[object, ...], unmade: object) -> None:
     """Refuse a status with no route that nonetheless carries one.
 
     Args:
         status: The marked route's status, never routed.
-        offered: The plan, held, locked, requires and target names values read.
+        offered: The plan, held, locked, locked extractors, requires and target names values
+            read.
         unmade: The unmade value read.
 
     Raises:
@@ -776,6 +823,36 @@ def _unchecked_clause(unchecked: tuple[str, ...]) -> str:
     )
 
 
+def _raw_unknown_clause(raw_unknown: tuple[str, ...]) -> str:
+    """Say how many declared raw items no extractor joins, or nothing.
+
+    Args:
+        raw_unknown: The raw items, which neither a search nor a route may start from.
+
+    Returns:
+        A count and no name, because tier 3 names them, or the empty string.
+    """
+    if not raw_unknown:
+        return ""
+    return f"; {len(raw_unknown)} raw item(s) have no known extractor and were never supplied"
+
+
+def _route_unlock_clause(locked: tuple[str, ...], locked_extractors: tuple[str, ...]) -> str:
+    """Say what a route needs unlocked first: its stages, its extractors, or nothing at all.
+
+    Args:
+        locked: The route's locked stages.
+        locked_extractors: The machines the route needs to extract a raw item.
+
+    Returns:
+        The clause. It says no unlock is needed only when both lists are empty.
+    """
+    clause = (_MUST_UNLOCK_CLAUSE if locked else "") + (
+        _EXTRACTOR_UNLOCK_CLAUSE if locked_extractors else ""
+    )
+    return clause or _NO_UNLOCK_CLAUSE
+
+
 def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     caveat = build_caveat(ctx)
     status = ctx.read(IN_REDESIGN_STATUS)
@@ -786,6 +863,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     plan = ctx.read(IN_REDESIGN_PLAN)
     held = ctx.read(IN_REDESIGN_HELD)
     locked = ctx.read(IN_REDESIGN_LOCKED)
+    extractors = ctx.read(IN_REDESIGN_LOCKED_EXTRACTORS)
     requires = ctx.read(IN_REDESIGN_REQUIRES)
     unmade = ctx.read(IN_REDESIGN_UNMADE)
     names = ctx.read(IN_REDESIGN_TARGET_NAMES)
@@ -793,7 +871,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         raise ValueError("a plan.redesign status disagrees with the plan status")
     if status != REDESIGN_ROUTED:
         _check_no_route_offered(
-            status, offered=(plan, held, locked, requires, names), unmade=unmade
+            status, offered=(plan, held, locked, extractors, requires, names), unmade=unmade
         )
         ctx.indeterminate(_REDESIGN_ALTERNATIVE, _REDESIGN_REASONS[status])
         return None
@@ -801,10 +879,12 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         raise TypeError("a route's plan is not a ProductionPlan")
     held = _names(held, "a route's held recipes")
     locked = _names(locked, "a route's locked recipes")
+    extractors = _names(extractors, "a route's locked extractors")
     requires = _names(requires, "a route's unlock keys")
     if unmade is not None:
         raise TypeError("a routed offer names unmade items")
     unchecked = _names(ctx.read(IN_UNCHECKED), "a plan's unchecked recipes")
+    raw_unknown = _names(ctx.read(IN_RAW_UNKNOWN), "a plan's raw items with no extractor")
     targets = tuple(sorted(plan.targets))
     if not targets:
         raise ValueError("a route's plan names no target")
@@ -815,16 +895,18 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         ctx.reject(_REDESIGN_ALTERNATIVE, _NO_MACHINE_REASON)
         return None
     ctx.indeterminate(_ROUTE_COMPARE_ALTERNATIVE, _ROUTE_COMPARE_REASON)
-    # The targets' labels and counts of stages, so no locked recipe reads as buildable: tier 3
-    # names the stages under an input of their own. The caveat stays last, whatever precedes it.
-    unlock = _MUST_UNLOCK_CLAUSE if locked else _NO_UNLOCK_CLAUSE
+    # The targets' labels and counts of stages and extractors, so no locked recipe or machine
+    # reads as buildable: tier 3 names them under inputs of their own. The caveat stays last,
+    # whatever precedes it.
     labels = ", ".join(_target_labels(ctx, target_names, targets))
+    needs = f" and needs {len(extractors)} locked extractor(s)" if extractors else ""
     return Recommendation(
         subject_key=SUBJECT_PREFIX + "+".join(targets),
         action="Plan toward " + labels,
         reason=(
             f"This route to {labels} runs {len(locked)} locked and {len(held)} held recipe(s)"
-            f"{unlock}{_NOT_CHOSEN_CLAUSE}{_unchecked_clause(unchecked)}{caveat}"
+            f"{needs}{_route_unlock_clause(locked, extractors)}{_NOT_CHOSEN_CLAUSE}"
+            f"{_unchecked_clause(unchecked)}{_raw_unknown_clause(raw_unknown)}{caveat}"
         ),
         requires=requires,
     )
@@ -853,6 +935,7 @@ def plan_outcome_of(values: Mapping[str, InputValue]) -> PlanOutcome:
     ):
         raise ValueError("a plan.redesign status is outside the closed vocabulary")
     trimmed = values.get(IN_TRIMMED)
+    raw_unknown = values.get(IN_RAW_UNKNOWN)
     unmade = values[IN_REDESIGN_UNMADE].value
     return PlanOutcome(
         status=status,
@@ -863,6 +946,11 @@ def plan_outcome_of(values: Mapping[str, InputValue]) -> PlanOutcome:
         ),
         trimmed=None if trimmed is None else _names(trimmed.value, "a plan's trimmed recipes"),
         unmade=None if unmade is None else _names(unmade, "a route's unmade items"),
+        raw_unknown=(
+            None
+            if raw_unknown is None
+            else _names(raw_unknown.value, "a plan's raw items with no extractor")
+        ),
     )
 
 
@@ -877,7 +965,7 @@ ADOPT_RULE: Final = RuleSpec(
 REDESIGN_RULE: Final = RuleSpec(
     rule_id="plan.redesign",
     domain=DOMAIN,
-    inputs=(*BUILD_INPUTS, *REDESIGN_INPUTS, IN_STATUS, IN_UNCHECKED),
+    inputs=(*BUILD_INPUTS, *REDESIGN_INPUTS, IN_STATUS, IN_UNCHECKED, IN_RAW_UNKNOWN),
     unlocks=(),
     evaluate=_evaluate_redesign,
 )

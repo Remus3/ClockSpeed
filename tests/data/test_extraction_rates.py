@@ -63,11 +63,16 @@ from clockspeed.data.registry import (
     WARN_MISSING_EXTRACTION_RATE,
     WARN_NON_STRING_VALUE,
     WARN_UNKNOWN_RESOURCE_FORM,
+    WARN_UNPARSABLE_FLAG,
     WARN_UNPARSABLE_NUMBER,
+    WARN_UNREADABLE_ALLOWED_RESOURCES,
     Extractor,
     Registry,
+    build_cost,
     build_registry,
+    extractors_of,
 )
+from tests.data.synthetic import resource_blob
 
 # ---------------------------------------------------------------------------
 # The key spellings, as LITERALS. See the module docstring.
@@ -547,3 +552,228 @@ def test_the_extractors_mapping_is_read_only(registry: Registry) -> None:
 def test_the_extractor_model_is_frozen(registry: Registry) -> None:
     with pytest.raises(dataclasses.FrozenInstanceError):
         registry.extractors[SOLID_MINER].items_per_cycle = Fraction(99)  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# CS-1382: which modeled buildings the docs say extract an item
+# ---------------------------------------------------------------------------
+
+LITERAL_ONLY_ALLOW_CERTAIN_RESOURCES: Final = "mOnlyAllowCertainResources"
+LITERAL_ALLOWED_RESOURCES: Final = "mAllowedResources"
+GROUP_RESOURCE_DESCRIPTOR: Final = "FGResourceDescriptor"
+
+SUPPLY_ORE: Final = "Desc_SynthSupplyOre_C"
+SUPPLY_COAL: Final = "Desc_SynthSupplyCoal_C"
+SUPPLY_WATER: Final = "Desc_SynthSupplyWater_C"
+SUPPLY_CRUDE: Final = "Desc_SynthSupplyCrude_C"
+SUPPLY_GAS: Final = "Desc_SynthSupplyGas_C"
+
+#: Solid, and outside the resource group: an unrestricted miner cannot be told it yields this.
+SUPPLY_INGOT: Final = "Desc_SynthSupplyIngot_C"
+
+#: The token one measured form list carries beside a readable resource list.
+INVALID_FORM_LIST: Final = "(RF_LIQUID,RF_GAS,(INVALID))"
+
+#: Every restriction a restricted extractor's list cannot be read from, shape to value.
+UNREADABLE_LISTS: Final[Mapping[str, object]] = {
+    "absent": None,
+    "empty": "",
+    "not-the-grammar": "Desc_SynthSupplyWater_C",
+    "not-a-string": 7,
+}
+
+
+def _supply_extractor(
+    class_name: str,
+    forms: str,
+    *,
+    powered: bool = True,
+    flag: object = None,
+    resources: object = None,
+) -> dict[str, Any]:
+    """One extractor entry, its rate readable so it flags nothing of its own.
+
+    Args:
+        class_name: The entry's ClassName.
+        forms: Its mAllowedResourceForms, verbatim.
+        powered: Carry a power draw, so a model carries it as a building too.
+        flag: Its mOnlyAllowCertainResources, or None to omit the key.
+        resources: Its mAllowedResources, or None to omit the key.
+
+    Returns:
+        The entry.
+    """
+    entry: dict[str, Any] = {
+        KEY_CLASS_NAME: class_name,
+        KEY_DISPLAY_NAME: class_name,
+        LITERAL_ITEMS_PER_CYCLE: "1",
+        LITERAL_EXTRACT_CYCLE_TIME: "1.000000",
+        LITERAL_ALLOWED_RESOURCE_FORMS: forms,
+    }
+    if powered:
+        entry[KEY_POWER_CONSUMPTION] = "5.000000"
+    if flag is not None:
+        entry[LITERAL_ONLY_ALLOW_CERTAIN_RESOURCES] = flag
+    if resources is not None:
+        entry[LITERAL_ALLOWED_RESOURCES] = resources
+    return entry
+
+
+def _supply_registry(*extractors: dict[str, Any]) -> Registry:
+    """A registry holding four resource items, an ingot, and exactly these extractors.
+
+    Args:
+        *extractors: The entries, in the order the document declares them.
+
+    Returns:
+        The registry.
+    """
+    resources = (
+        (SUPPLY_ORE, FORM_SOLID),
+        (SUPPLY_COAL, FORM_SOLID),
+        (SUPPLY_WATER, FORM_LIQUID),
+        (SUPPLY_CRUDE, FORM_LIQUID),
+        (SUPPLY_GAS, FORM_GAS),
+    )
+    document = [
+        group(
+            GROUP_RESOURCE_DESCRIPTOR,
+            [
+                {KEY_CLASS_NAME: key, KEY_DISPLAY_NAME: key, KEY_FORM: form}
+                for key, form in resources
+            ],
+        ),
+        group(
+            GROUP_ITEM_DESCRIPTOR,
+            [{KEY_CLASS_NAME: SUPPLY_INGOT, KEY_DISPLAY_NAME: "Ingot", KEY_FORM: FORM_SOLID}],
+        ),
+        group(GROUP_RESOURCE_EXTRACTOR, list(extractors)),
+    ]
+    return build_registry(load_document(json.dumps(document)))
+
+
+def test_extractors_of_skips_an_unmodeled_extractor() -> None:
+    """The measured portable miner: it extracts by the docs, and nothing models it to build."""
+    built = _supply_registry(
+        _supply_extractor(SOLID_MINER, "(RF_SOLID)"),
+        _supply_extractor(DISPENSER, "(RF_SOLID)", powered=False),
+    )
+    assert DISPENSER in built.extractors
+    assert DISPENSER not in built.buildings
+
+    named = extractors_of(built, SUPPLY_ORE)
+
+    assert named == (SOLID_MINER,)
+    # So build_cost, which refuses what no model carries, cannot raise on anything returned.
+    assert [build_cost(built, key) for key in named] == [None]
+    with pytest.raises(KeyError):
+        build_cost(built, DISPENSER)
+    # The control: the same entry with a power draw is named, so the model alone decided.
+    powered = _supply_registry(
+        _supply_extractor(SOLID_MINER, "(RF_SOLID)"),
+        _supply_extractor(DISPENSER, "(RF_SOLID)"),
+    )
+    assert extractors_of(powered, SUPPLY_ORE) == (SOLID_MINER, DISPENSER)
+
+
+@pytest.mark.parametrize("shape", sorted(UNREADABLE_LISTS))
+def test_extractors_of_reads_nothing_from_a_flagged_restricted_entry(shape: str) -> None:
+    """None means unrestricted or unknown, and the flag is what says which."""
+    built = _supply_registry(
+        _supply_extractor(
+            LIQUID_PUMP, "(RF_LIQUID)", flag="True", resources=UNREADABLE_LISTS[shape]
+        )
+    )
+    assert built.extractors[LIQUID_PUMP].allowed_resources is None
+    assert LIQUID_PUMP in warned_subjects(built, WARN_UNREADABLE_ALLOWED_RESOURCES)
+
+    assert extractors_of(built, SUPPLY_WATER) == ()
+
+    # Control one: its list read whole answers. Control two: the same None with no flag reads
+    # the entry's forms, so the warning alone decided above, and never the field.
+    readable = _supply_registry(
+        _supply_extractor(
+            LIQUID_PUMP, "(RF_LIQUID)", flag="True", resources=resource_blob([SUPPLY_WATER])
+        )
+    )
+    assert extractors_of(readable, SUPPLY_WATER) == (LIQUID_PUMP,)
+    unrestricted = _supply_registry(_supply_extractor(LIQUID_PUMP, "(RF_LIQUID)", flag="False"))
+    assert unrestricted.extractors[LIQUID_PUMP].allowed_resources is None
+    assert extractors_of(unrestricted, SUPPLY_WATER) == (LIQUID_PUMP,)
+
+
+@pytest.mark.parametrize(
+    ("flag", "code"),
+    [("Maybe", WARN_UNPARSABLE_FLAG), (["True"], WARN_NON_STRING_VALUE)],
+    ids=["neither-spelling", "not-a-string"],
+)
+def test_extractors_of_reads_nothing_beside_a_flag_it_cannot_read(flag: object, code: str) -> None:
+    """The sibling of the flagged list: this None is unknown too, so nothing is supplied."""
+    built = _supply_registry(_supply_extractor(LIQUID_PUMP, "(RF_LIQUID)", flag=flag))
+    assert built.extractors[LIQUID_PUMP].allowed_resources is None
+    assert LIQUID_PUMP in warned_subjects(built, code)
+
+    assert extractors_of(built, SUPPLY_WATER) == ()
+
+
+def test_extractors_of_reads_nothing_from_an_unknown_form_with_no_list() -> None:
+    """A token outside the vocabulary may admit anything, so it is never guessed at."""
+    built = _supply_registry(_supply_extractor(WELL_ACTIVATOR, INVALID_FORM_LIST))
+    assert built.extractors[WELL_ACTIVATOR].unrecognized_forms == (NESTED_INVALID_FORM,)
+
+    assert extractors_of(built, SUPPLY_WATER) == ()
+    assert extractors_of(built, SUPPLY_GAS) == ()
+
+
+def test_extractors_of_reads_a_list_beside_an_unknown_form() -> None:
+    """The measured shape: the same token and a readable list, which answers on its own."""
+    built = _supply_registry(
+        _supply_extractor(
+            WELL_ACTIVATOR,
+            INVALID_FORM_LIST,
+            flag="True",
+            resources=resource_blob([SUPPLY_CRUDE, SUPPLY_GAS]),
+        )
+    )
+    assert extractors_of(built, SUPPLY_CRUDE) == (WELL_ACTIVATOR,)
+    assert extractors_of(built, SUPPLY_GAS) == (WELL_ACTIVATOR,)
+    assert extractors_of(built, SUPPLY_WATER) == ()
+
+
+def test_extractors_of_takes_a_list_over_the_forms() -> None:
+    """The measured oil pump: its forms admit every liquid and its list holds one."""
+    built = _supply_registry(
+        _supply_extractor(
+            LIQUID_PUMP, "(RF_LIQUID)", flag="True", resources=resource_blob([SUPPLY_CRUDE])
+        )
+    )
+    assert extractors_of(built, SUPPLY_CRUDE) == (LIQUID_PUMP,)
+    assert extractors_of(built, SUPPLY_WATER) == ()
+
+
+def test_extractors_of_keeps_the_documents_order() -> None:
+    """Whichever is declared first reads first, so no sort and no set decides it."""
+    first = _supply_registry(
+        _supply_extractor(SOLID_MINER, "(RF_SOLID)"),
+        _supply_extractor(FASTER_MINER, "(RF_SOLID)"),
+    )
+    second = _supply_registry(
+        _supply_extractor(FASTER_MINER, "(RF_SOLID)"),
+        _supply_extractor(SOLID_MINER, "(RF_SOLID)"),
+    )
+    assert extractors_of(first, SUPPLY_COAL) == (SOLID_MINER, FASTER_MINER)
+    assert extractors_of(second, SUPPLY_COAL) == (FASTER_MINER, SOLID_MINER)
+
+
+def test_an_unrestricted_extractor_answers_only_for_the_resource_group() -> None:
+    """A solid form says nothing of a solid item the group leaves out, or of an unknown one."""
+    built = _supply_registry(_supply_extractor(SOLID_MINER, "(RF_SOLID)"))
+    assert extractors_of(built, SUPPLY_ORE) == (SOLID_MINER,)
+    assert extractors_of(built, SUPPLY_INGOT) == ()
+    assert extractors_of(built, "Desc_SynthNeverDeclared_C") == ()
+    assert extractors_of(built, SUPPLY_WATER) == ()
+
+
+def test_extractors_of_reads_nothing_from_a_registry_with_no_extractor() -> None:
+    built = _supply_registry()
+    assert extractors_of(built, SUPPLY_ORE) == ()

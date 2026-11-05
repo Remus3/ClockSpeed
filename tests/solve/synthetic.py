@@ -74,6 +74,12 @@ when the world holds a machine to run it, so a fixture reaching that join needs 
 that can be unlocked. The build gun resolves to no modeled building, which flags a warning
 on every registry naming it, and the main corpus builds with none.
 
+SO DOES THE ONE EXTRACTOR, CS-1382. That join supplies a raw item only when the world holds
+a machine the docs say extracts it, so the same variant declares :data:`SOLVE_MINER_BUILDING`,
+which extracts every solid resource, Ore among them. :func:`extractor_entry` builds another
+for a fixture that wants one. It stays out of :data:`SOLVE_BUILDINGS`, which names the machines
+recipes run on.
+
 WHERE THIS CORPUS DEPARTS FROM ITS BRIEF, AND WHY
 ---------------------------------------------------
 C5's two competing recipes were specified as producing the C3 Gadget. They
@@ -98,21 +104,27 @@ from typing import Any, Final
 from clockspeed.data.docs_extract import DocsDocument, load_document
 from clockspeed.data.registry import Registry, build_registry
 from tests.data.synthetic import (
+    KEY_ALLOWED_RESOURCE_FORMS,
+    KEY_ALLOWED_RESOURCES,
     KEY_CLASS_NAME,
     KEY_CLASSES,
     KEY_DISPLAY_NAME,
     KEY_DURATION,
+    KEY_EXTRACT_CYCLE_TIME,
     KEY_FORM,
     KEY_FULL_NAME,
     KEY_INGREDIENTS,
+    KEY_ITEMS_PER_CYCLE,
     KEY_MAX_POTENTIAL,
     KEY_NATIVE_CLASS,
+    KEY_ONLY_ALLOW_CERTAIN_RESOURCES,
     KEY_POWER_CONSUMPTION,
     KEY_POWER_EXPONENT,
     KEY_PRODUCED_IN,
     KEY_PRODUCT,
     amount_blob,
     class_path_blob,
+    resource_blob,
 )
 
 # ---------------------------------------------------------------------------
@@ -138,6 +150,7 @@ ITEM_GROUP: Final = "FGItemDescriptor"
 RESOURCE_GROUP: Final = "FGResourceDescriptor"
 BUILDING_DESCRIPTOR_GROUP: Final = "FGBuildingDescriptor"
 MANUFACTURER_GROUP: Final = "FGBuildableManufacturer"
+EXTRACTOR_GROUP: Final = "FGBuildableResourceExtractor"
 RECIPE_GROUP: Final = "FGRecipe"
 
 # ---------------------------------------------------------------------------
@@ -219,9 +232,13 @@ SOLVE_BUILDINGS: Final = (
     SOLVE_REFINERY_BUILDING,
 )
 
+#: The corpus's one extractor, unrestricted over every solid resource. No recipe runs on it.
+SOLVE_MINER_BUILDING: Final = "Build_SolveMiner_C"
+
 SMELTER_POWER_MW: Final = Fraction(4)
 ASSEMBLER_POWER_MW: Final = Fraction(15)
 REFINERY_POWER_MW: Final = Fraction(30)
+EXTRACTOR_POWER_MW: Final = Fraction(5)
 
 #: The clock exponent, as the document carries it and as the registry publishes
 #: it. Not representable in binary floating point, which is the point: float()
@@ -763,6 +780,59 @@ MACHINE_DESCRIPTOR_ENTRIES: Final = tuple(
 )
 
 
+def extractor_entry(
+    building: str, *, forms: str = "(RF_SOLID)", only: Sequence[str] | None = None
+) -> dict[str, str]:
+    """Build one powered extractor, so a model carries it and it can supply a raw item.
+
+    Args:
+        building: Its ClassName.
+        forms: Its mAllowedResourceForms, verbatim.
+        only: The resources it is restricted to, or None for no restriction at all.
+
+    Returns:
+        The entry mapping. The rate reads whole, so it flags no warning.
+    """
+    entry = {
+        **_building_entry(building, building.removeprefix("Build_"), EXTRACTOR_POWER_MW),
+        KEY_ITEMS_PER_CYCLE: "1",
+        KEY_EXTRACT_CYCLE_TIME: "1.000000",
+        KEY_ALLOWED_RESOURCE_FORMS: forms,
+    }
+    if only is not None:
+        entry[KEY_ONLY_ALLOW_CERTAIN_RESOURCES] = "True"
+        entry[KEY_ALLOWED_RESOURCES] = resource_blob(only)
+    return entry
+
+
+def extractor_group(*entries: Mapping[str, Any]) -> dict[str, Any]:
+    """Wrap extractor entries in the group the docs keep them in.
+
+    Args:
+        *entries: The entries, as :func:`extractor_entry` builds them.
+
+    Returns:
+        The group.
+    """
+    return _group(EXTRACTOR_GROUP, entries)
+
+
+def extractor_descriptor(building: str) -> dict[str, str]:
+    """Declare the descriptor one extractor's build recipe makes.
+
+    Args:
+        building: A building ClassName.
+
+    Returns:
+        The entry for the building descriptor group.
+    """
+    return _item_entry(machine_descriptor(building), building.removeprefix("Build_"), "RF_INVALID")
+
+
+#: The miner's unlock, the one path a world holds to be supplied Ore.
+MINER_BUILD_PATH: Final = machine_build_path(SOLVE_MINER_BUILDING)
+
+
 _ITEM_ENTRIES: Final = [
     _item_entry(SOLVE_PLATE_ITEM, "Solve Plate"),
     _item_entry(SOLVE_ROD_ITEM, "Solve Rod"),
@@ -918,13 +988,17 @@ RECLAIM_ENTRY: Final = _recipe_entry(
 
 
 def _document(
-    recipes: Sequence[Mapping[str, Any]], *, machine_descriptors: Sequence[Mapping[str, Any]] = ()
+    recipes: Sequence[Mapping[str, Any]],
+    *,
+    machine_descriptors: Sequence[Mapping[str, Any]] = (),
+    extractors: Sequence[Mapping[str, Any]] = (),
 ) -> list[Any]:
     """Assemble the whole corpus around a recipe list.
 
     Args:
         recipes: The recipe entries to carry.
         machine_descriptors: Building descriptors beyond the main corpus's own.
+        extractors: Extractor entries. The main corpus declares none.
 
     Returns:
         The top-level group list. Every group name is inside the docs_extract
@@ -936,6 +1010,7 @@ def _document(
         _group(BUILDING_DESCRIPTOR_GROUP, [*_BUILDING_DESCRIPTOR_ENTRIES, *machine_descriptors]),
         _group(MANUFACTURER_GROUP, _BUILDING_ENTRIES),
         _group(RECIPE_GROUP, list(recipes)),
+        *([extractor_group(*extractors)] if extractors else []),
     ]
 
 
@@ -1004,8 +1079,8 @@ def registry_with(
         add: Extra recipe entries, appended after the existing ones.
         drop: Recipe ClassNames to remove entirely.
         machine_builds: Append every machine's build recipe, after ``add``, and declare
-            what they make. Asked for, because the build gun flags a warning and a variant
-            asking for nothing else stays clean, as C9 pins.
+            what they make, and declare the miner with its own. Asked for, because the build
+            gun flags a warning and a variant asking for nothing else stays clean, as C9 pins.
 
     Returns:
         The built variant registry.
@@ -1021,8 +1096,18 @@ def registry_with(
     if not machine_builds:
         return build_registry(document_from_groups(_document(recipes)))
     recipes.extend(MACHINE_BUILD_ENTRIES)
+    recipes.append(machine_build_entry(SOLVE_MINER_BUILDING))
     return build_registry(
-        document_from_groups(_document(recipes, machine_descriptors=MACHINE_DESCRIPTOR_ENTRIES))
+        document_from_groups(
+            _document(
+                recipes,
+                machine_descriptors=(
+                    *MACHINE_DESCRIPTOR_ENTRIES,
+                    extractor_descriptor(SOLVE_MINER_BUILDING),
+                ),
+                extractors=(extractor_entry(SOLVE_MINER_BUILDING),),
+            )
+        )
     )
 
 

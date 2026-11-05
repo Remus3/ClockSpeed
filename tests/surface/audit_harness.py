@@ -1105,9 +1105,9 @@ _CARD_REDESIGN: Final = _advice_card(
     rule_id=plan_rules.REDESIGN_RULE.rule_id,
     domain=plan_rules.REDESIGN_RULE.domain,
     headline=f"Plan toward {TARGET_ROUTED}",
-    reason="This route runs 3 locked and 1 held recipe(s); the locked recipes must unlock"
-    " first on this route; the stated direction did not choose this route and it was never"
-    " compared with what is built",
+    reason=f"This route to {TARGET_ROUTED} runs 3 locked and 1 held recipe(s); the locked"
+    " recipes or the machines that run them must unlock first on this route; the stated direction"
+    " did not choose this route and it was never compared with what is built",
 )
 
 #: Every step line each card's derivation reads, by id. Long lines on purpose, in the
@@ -1234,7 +1234,9 @@ def _stated_answer(
     """
     outcome = plan_rules.plan_outcome_of(
         {
-            **plan_rules.refused_inputs(status, trimmed=trimmed, unchecked=(), unmatched_unlocks=0),
+            **plan_rules.refused_inputs(
+                status, trimmed=trimmed, unchecked=(), raw_unknown=(), unmatched_unlocks=0
+            ),
             **plan_rules.redesign_status_inputs(redesign, unmade=unmade),
         }
     )

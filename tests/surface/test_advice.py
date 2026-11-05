@@ -705,7 +705,9 @@ def test_a_no_target_listing_asks_for_no_plan_and_carries_no_outcome_key(tmp_pat
 
 def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
     assert advice_endpoint.DATA_KEYS | {"plan_outcome"} == advice_endpoint.STATED_DATA_KEYS
-    wire_keys = frozenset({"status", "redesign", "reason", "redesign_reason", "trimmed", "unmade"})
+    wire_keys = frozenset(
+        {"status", "redesign", "reason", "redesign_reason", "trimmed", "unmade", "raw_unknown"}
+    )
     assert wire_keys == advice_endpoint.PLAN_OUTCOME_KEYS
 
 
@@ -720,6 +722,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=None,
                 trimmed=(),
                 unmade=None,
+                raw_unknown=(),
             ),
             {"status": "ranked", "redesign": "not-reached", "trimmed": []},
         ),
@@ -731,6 +734,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=None,
                 trimmed=("R_Dropped", "R_AlsoDropped"),
                 unmade=None,
+                raw_unknown=(),
             ),
             {
                 "status": "no-plan",
@@ -747,6 +751,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=PLANTED_REDESIGN_REASON,
                 trimmed=(),
                 unmade=("Desc_Unmade_C",),
+                raw_unknown=(),
             ),
             {
                 "status": "no-plan",
@@ -765,6 +770,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=PLANTED_REDESIGN_REASON,
                 trimmed=(),
                 unmade=(),
+                raw_unknown=(),
             ),
             {
                 "status": "no-plan",
@@ -783,6 +789,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=PLANTED_REDESIGN_REASON,
                 trimmed=(),
                 unmade=None,
+                raw_unknown=(),
             ),
             {
                 "status": "no-plan",
@@ -794,12 +801,30 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
         ),
         (
             PlanOutcome(
+                status="ranked",
+                reason=None,
+                redesign="not-reached",
+                redesign_reason=None,
+                trimmed=(),
+                unmade=None,
+                raw_unknown=("Desc_Unknown_C", "Desc_AlsoUnknown_C"),
+            ),
+            {
+                "status": "ranked",
+                "redesign": "not-reached",
+                "trimmed": [],
+                "raw_unknown": ["Desc_Unknown_C", "Desc_AlsoUnknown_C"],
+            },
+        ),
+        (
+            PlanOutcome(
                 status="request-malformed",
                 reason=PLANTED_REASON,
                 redesign="not-reached",
                 redesign_reason=None,
                 trimmed=None,
                 unmade=None,
+                raw_unknown=None,
             ),
             {"status": "request-malformed", "redesign": "not-reached", "reason": PLANTED_REASON},
         ),
@@ -811,6 +836,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=None,
                 trimmed=("R_Dropped",),
                 unmade=None,
+                raw_unknown=(),
             ),
             {
                 "status": "solve-refused",
@@ -827,6 +853,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
                 redesign_reason=None,
                 trimmed=(),
                 unmade=None,
+                raw_unknown=(),
             ),
             {
                 "status": "power-not-comparable",
@@ -842,6 +869,7 @@ def test_the_stated_keys_are_the_listing_keys_and_the_one_outcome_key() -> None:
         "no-route",
         "no-route-empty",
         "route-refused",
+        "raw-unknown",
         "malformed",
         "refused",
         "power",
@@ -873,6 +901,7 @@ def test_only_the_listing_carries_the_outcome(key: tuple[str, str]) -> None:
         redesign_reason=None,
         trimmed=(),
         unmade=None,
+        raw_unknown=(),
     )
     log: list[str] = []
     source = _Source(_bare_advice(outcome), parameters=PARAMETERS, request=REQUEST, log=log)

@@ -68,11 +68,13 @@ from tests.audit import test_balance as balance_fixtures
 from tests.audit import test_fuel as fuel_fixtures
 from tests.audit import test_production as production_fixtures
 from tests.solve.synthetic import (
+    SOLVE_MINER_BUILDING,
     SOLVE_ORE_ITEM,
     SOLVE_ORPHAN_ITEM,
     SOLVE_RARE_ITEM,
     SOLVE_RELIC_ITEM,
     SOLVE_ROD_ITEM,
+    extractor_entry,
 )
 from tests.surface import test_map as map_fixtures
 
@@ -1133,7 +1135,7 @@ ACCEPTED: Final = "accepted"
 #: The closed-vocabulary reasons the wire reads, spelled so a rewording reddens here.
 NO_PLAN_REASON: Final = (
     "the search found no plan over the unlocked automated recipes it kept,"
-    " under the stated byproduct policy"
+    " from the raw items a held extractor supplies, under the stated byproduct policy"
 )
 MALFORMED_REASON: Final = "the stated request cannot be asked as a question"
 NO_ROUTE_REASON: Final = (
@@ -1676,6 +1678,47 @@ def test_the_same_no_route_request_fires_where_the_group_holds_the_item(tmp_path
 
     assert _outcome_on(data)["redesign"] == "routed"
     _one_card(data, REDESIGN_ID)
+
+
+def test_a_raw_item_no_extractor_joins_is_named_on_the_wire(tmp_path: Path) -> None:
+    """Named only where it is not empty: every other outcome pinned here carries no such key."""
+    registry = redesign_fixtures._registry(  # noqa: SLF001
+        [redesign_fixtures._recipe("R_Rare", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM])],  # noqa: SLF001
+        resources=(SOLVE_ORE_ITEM, SOLVE_RARE_ITEM),
+        extractors=(extractor_entry(SOLVE_MINER_BUILDING, only=(SOLVE_ORE_ITEM,)),),
+    )
+
+    data = _listing(_table(tmp_path, _route_world(("R_Rare",)), registry), _stated())
+
+    assert _outcome_on(data) == {
+        "status": "no-plan",
+        "reason": NO_PLAN_REASON,
+        "redesign": "no-route",
+        "redesign_reason": NO_ROUTE_REASON,
+        "trimmed": [],
+        "unmade": [SOLVE_RARE_ITEM],
+        "raw_unknown": [SOLVE_RARE_ITEM],
+    }
+
+
+def test_an_unsupplied_raw_says_so_on_the_wire_and_no_adopt_card_reads(tmp_path: Path) -> None:
+    """The clause's constructed world, through the three routes' own listing."""
+    registry = redesign_fixtures._one_recipe_registry()  # noqa: SLF001
+    unsupplied = redesign_fixtures._model(("R_Direct",), extractors=())  # noqa: SLF001
+
+    data = _listing(_table(tmp_path, unsupplied, registry), _stated())
+
+    assert _cards_of(data, ADOPT_ID) == []
+    reason = _one_card(data, REDESIGN_ID)["reason"]
+    assert reason == (
+        f"This route to {plan_fixtures.RELIC_NAME} runs 0 locked and 1 held recipe(s)"
+        " and needs 1 locked extractor(s); the locked extractors must unlock first on this route"
+        f"{NOT_CHOSEN}"
+    )
+    # The control: the miner held ranks through the same door.
+    held = redesign_fixtures._model(("R_Direct",))  # noqa: SLF001
+    ranked = _listing(_table(tmp_path, held, registry), _stated())
+    _one_card(ranked, ADOPT_ID)
 
 
 def test_a_route_refused_request_fires_under_the_other_policy_on_the_wire(tmp_path: Path) -> None:

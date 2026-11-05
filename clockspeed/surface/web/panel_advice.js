@@ -320,6 +320,7 @@ function renderPlanOutcome(region, planOutcome) {
   addFieldLine(region, "redesign reason", planOutcome.redesign_reason);
   addFieldList(region, "trimmed recipes", planOutcome.trimmed);
   addFieldList(region, "unmade items", planOutcome.unmade);
+  addFieldList(region, "raw items with no known extractor", planOutcome.raw_unknown);
 }
 
 registerPanel("advice", function mountAdvice(root, data) {

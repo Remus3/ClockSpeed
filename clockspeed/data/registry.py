@@ -13,7 +13,8 @@ THE RAW ITEMS ARE A FACT THE DOCS STATE (CS-1371). :attr:`Registry.resource_item
 publishes the ClassNames the docs' FGResourceDescriptor group declares, and
 :func:`plan_targets` lists what a plan may be stated for: what an automated recipe
 makes, less that group. A group absent or naming nothing is flagged, never fatal
-(non-negotiable 7).
+(non-negotiable 7). :func:`extractors_of` names the modeled buildings the docs say extract
+one of them (CS-1382), so that no layer above restates a list.
 
 PROVENANCE (CS-1315). :func:`build_registry_from_bytes` takes the docs file's
 raw BYTES - still never a path - and records their sha256 on
@@ -337,6 +338,7 @@ __all__ = [
     "automated_recipes",
     "build_registry",
     "build_registry_from_bytes",
+    "extractors_of",
     "plan_targets",
 ]
 
@@ -1009,7 +1011,8 @@ class Registry:
             a loaded document or by hand. Recorded, never compared here.
         resource_items: CS-1371. The ClassNames the docs' FGResourceDescriptor
             group declares, in document order, each once. Those are the items a
-            plan takes as raw, and nothing else makes an item raw: an item a
+            plan may take as raw, where a world holds a machine to extract them
+            (:func:`extractors_of`), and nothing else makes an item raw: an item a
             recipe consumes that this group does not hold is not raw, even
             when nothing makes it. Empty when the group is absent or names
             nothing, which :data:`WARN_NO_RESOURCE_GROUP` flags.
@@ -2419,6 +2422,12 @@ def plan_targets(registry: Registry) -> tuple[str, ...]:
     return tuple(sorted(item for item in made if item not in raw))
 
 
+#: The warnings that make an extractor's None restriction unknown rather than unrestricted,
+#: each naming the entry as its subject: :func:`extractors_of` reads nothing from such an entry.
+_RESTRICTION_UNKNOWN_WARNINGS: Final = frozenset(
+    {WARN_UNREADABLE_ALLOWED_RESOURCES, WARN_UNPARSABLE_FLAG, WARN_NON_STRING_VALUE}
+)
+
 #: The substring every measured build-gun producer token carries. It is a
 #: MARKER rather than a transcription on purpose: the pinned build ships
 #: ``BP_BuildGun_C`` on 549 recipes and ``FGBuildGun`` on exactly one, and a
@@ -2529,6 +2538,55 @@ def build_cost(registry: Registry, building_key: str) -> BuildCost | None:
                 ingredients=recipe.inputs,
             )
     return None
+
+
+def extractors_of(registry: Registry, item_key: str) -> tuple[str, ...]:
+    """Name the modeled buildings the docs say extract one item (CS-1382).
+
+    AN EXTRACTOR NO MODEL CARRIES IS SKIPPED, so :func:`build_cost`, which refuses an
+    unmodeled building, cannot raise on anything this returns. A restricted extractor
+    answers by its own list, whatever its forms say, on the terms
+    :attr:`Extractor.allowed_resources` states. With no list the answer is its forms over
+    the resource group, unless the entry leaves that unknown:
+
+    - a form token outside the vocabulary may admit anything, so it reads nothing;
+    - None MEANS UNRESTRICTED OR UNKNOWN, and a warning naming the entry tells the two
+      apart: a restricted entry whose list is unreadable, a restriction flag that is neither
+      spelling, and a value present but not a string. The last two can be about another of
+      the entry's fields, and a warning does not say which, so each reads nothing rather
+      than guess. Reading nothing leaves the item to be flagged by whoever asked, where
+      treating the entry as unrestricted would supply an item the document may exclude.
+
+    Whether a world holds one, or a node to put it on, is no question for this layer.
+
+    Args:
+        registry: The built registry.
+        item_key: An item's ClassName. One the registry does not hold yields nothing.
+
+    Returns:
+        The ClassNames in document order, the order of :attr:`Registry.extractors`. Empty
+        says the docs name no modeled extractor for it. Never raises for any str.
+    """
+    # A set, and ONLY as a membership test: the extractors' own order decides the result.
+    unknown = frozenset(
+        warning.subject
+        for warning in registry.warnings
+        if warning.code in _RESTRICTION_UNKNOWN_WARNINGS
+    )
+    item = registry.items.get(item_key) if item_key in registry.resource_items else None
+    named: list[str] = []
+    for key, extractor in registry.extractors.items():
+        if key not in registry.buildings:
+            continue
+        if extractor.allowed_resources is not None:
+            extracts = item_key in extractor.allowed_resources
+        elif extractor.unrecognized_forms or key in unknown:
+            extracts = False
+        else:
+            extracts = item is not None and item.form in extractor.allowed_forms
+        if extracts:
+            named.append(key)
+    return tuple(named)
 
 
 def buildings_without_build_cost(registry: Registry) -> tuple[str, ...]:

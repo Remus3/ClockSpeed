@@ -8,6 +8,9 @@ Graded here, each against a control that shows the arm can see the defect:
   evaluated;
 - over generated world states, no recommendation carries an unmet
   precondition - the property-test invariant of section 5.4;
+- CS-1382: over generated unlock sets, the two plan rules as they ship, read by an oracle
+  that imports no join, hold the same invariant, the arm that names a stage or a raw item with
+  a machine held and the arm that names only what the world holds;
 - a float input is refused (non-negotiable 6);
 - a declared input the world does not carry is flagged and skipped, never
   raised (non-negotiable 7).
@@ -17,12 +20,17 @@ from __future__ import annotations
 
 import contextlib
 import enum
-from dataclasses import dataclass
+from collections import Counter
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType, SimpleNamespace
+from typing import Final
 
 import pytest
 
+from clockspeed.advisor.plans import plan_offer, plan_parameters, plan_request_from
+from clockspeed.advisor.rules.plan import RULES as PLAN_RULES
 from clockspeed.advisor.trace import (
     InputRefusedError,
     InputValue,
@@ -37,7 +45,8 @@ from clockspeed.advisor.trace import (
     run_rules,
     unlock_keys,
 )
-from clockspeed.save.world import UnlockState
+from clockspeed.data.registry import Registry
+from clockspeed.save.world import EMPTY_UNLOCK_STATE, UnlockState
 from clockspeed.solve.ratio import ExclusionNote, PlanStep, ProductionPlan
 from clockspeed.solve.strategy import (
     NOT_CLEARED_OVER_BOUND,
@@ -47,7 +56,18 @@ from clockspeed.solve.strategy import (
     StrategyBadge,
     ThresholdCheck,
 )
-from tests.advisor.worlds import SYNTHETIC_RULES, UNLOCK_UNIVERSE, generate_worlds
+from tests.advisor.build_fixtures import game_pin, pinned_build_inputs
+from tests.advisor.worlds import (
+    PLAN_WORLD_BUILD_PATHS,
+    PLAN_WORLD_EXTRACTORS,
+    PLAN_WORLD_RECIPES,
+    SYNTHETIC_RULES,
+    UNLOCK_UNIVERSE,
+    PlanWorldCase,
+    generate_plan_world_cases,
+    generate_worlds,
+    plan_world_registry,
+)
 
 _OVERCLOCK = "feature:synthetic-overclock"
 
@@ -220,6 +240,379 @@ def test_the_generated_rules_would_recommend_without_the_gate() -> None:
     none = [t.rule_id for t in run_rules(SYNTHETIC_RULES, locked) if t.recommendation]
     assert full == sorted(spec.rule_id for spec in SYNTHETIC_RULES)
     assert none == ["synthetic.rebalance"]
+
+
+# --- the plan rules, over generated unlock sets (CS-1382) --------------------
+
+#: How many unlock sets the property test draws, and from what. Past the 400 the ruling asks
+#: for, because a route with nothing locked is the rarest thing it counts.
+PLAN_WORLD_SEED: Final = 1382
+PLAN_WORLD_COUNT: Final = 1000
+
+#: The input each rule reads its plan from, by rule.
+_PLAN_INPUT: Final = {"plan.adopt": "plan.production", "plan.redesign": "plan.redesign.plan"}
+
+#: The sentence the ruling lets read only with both of a route's lists empty.
+_NO_UNLOCK: Final = "this route needs no unlock"
+
+#: Each recipe by name, read off the fixture's own table.
+_PLAN_WORLD_BY_NAME: Final = {recipe.name: recipe for recipe in PLAN_WORLD_RECIPES}
+
+
+def _read_value(trace: Trace, name: str) -> object:
+    """What a trace read for one input, which it must have read exactly once."""
+    (value,) = (
+        step.value
+        for step in trace.steps
+        if step.kind is StepKind.INPUT_READ and step.subject == name
+    )
+    return value
+
+
+def _names_read(trace: Trace, name: str) -> tuple[str, ...]:
+    """A tuple of names a trace read, typed so the oracle can compare it."""
+    value = _read_value(trace, name)
+    if type(value) is not tuple:
+        raise TypeError(name)
+    return value
+
+
+def _plan_read(trace: Trace) -> ProductionPlan:
+    """The plan a rule's trace read, whichever rule it was."""
+    value = _read_value(trace, _PLAN_INPUT[trace.rule_id])
+    if type(value) is not ProductionPlan:
+        raise TypeError(trace.rule_id)
+    return value
+
+
+def _held_keys(machines: tuple[str, ...], unlocked: tuple[str, ...]) -> frozenset[str]:
+    """The unlock keys of those of these machines the world holds, from the fixture's table."""
+    return frozenset(
+        f"recipe:{PLAN_WORLD_BUILD_PATHS[name]}"
+        for name in machines
+        if PLAN_WORLD_BUILD_PATHS[name] in unlocked
+    )
+
+
+def _is_held(recipe_name: str, unlocked: tuple[str, ...]) -> bool:
+    """Whether the world holds a recipe's path and one of its machines, off the fixture's tables."""
+    recipe = _PLAN_WORLD_BY_NAME[recipe_name]
+    return recipe.path in unlocked and bool(_held_keys(recipe.machines, unlocked))
+
+
+def _stage_faults(
+    plan: ProductionPlan, requires: tuple[str, ...], unlocked: tuple[str, ...]
+) -> list[str]:
+    """Grade every stage with a machine against what a route or a plan requires.
+
+    A plan's every such stage must be held, because the search takes no other. A route's may be
+    locked, which its rule then answers for by naming no key of it.
+
+    Args:
+        plan: The plan the rule read.
+        requires: The keys its recommendation requires.
+        unlocked: The world's paths.
+
+    Returns:
+        What is wrong, by name, in plan order.
+    """
+    faults: list[str] = []
+    for step in plan.steps:
+        if step.machines == 0:
+            continue
+        recipe = _PLAN_WORLD_BY_NAME[step.recipe_key]
+        machines = _held_keys(recipe.machines, unlocked)
+        key = f"recipe:{recipe.path}"
+        if _is_held(recipe.name, unlocked):
+            if key not in requires:
+                faults.append(f"a held stage's key is not required: {recipe.name}")
+            if not machines & set(requires):
+                faults.append(f"a held stage's machine is not required: {recipe.name}")
+        elif key in requires:
+            faults.append(f"a locked stage's key is required: {recipe.name}")
+    return faults
+
+
+def _adopt_faults(trace: Trace, unlocked: tuple[str, ...]) -> list[str]:
+    """Grade one fired plan.adopt against the fixture's own tables.
+
+    Args:
+        trace: The trace, which fired.
+        unlocked: The world's paths.
+
+    Returns:
+        What is wrong, by name.
+    """
+    assert trace.recommendation is not None
+    requires = trace.recommendation.requires
+    plan = _plan_read(trace)
+    faults = _stage_faults(plan, requires, unlocked)
+    for step in plan.steps:
+        recipe = _PLAN_WORLD_BY_NAME[step.recipe_key]
+        if step.machines != 0 and f"recipe:{recipe.path}" not in requires:
+            faults.append(f"a plan's stage is not required: {recipe.name}")
+    for item, rate in plan.raw_inputs.items():
+        if rate > 0 and not _held_keys(PLAN_WORLD_EXTRACTORS[item], unlocked) & set(requires):
+            faults.append(f"a consumed raw item has no held extractor required: {item}")
+    return faults
+
+
+def _route_faults(trace: Trace, unlocked: tuple[str, ...]) -> list[str]:
+    """Grade one fired plan.redesign against the fixture's own tables.
+
+    Args:
+        trace: The trace, which fired.
+        unlocked: The world's paths.
+
+    Returns:
+        What is wrong, by name.
+    """
+    assert trace.recommendation is not None
+    requires = trace.recommendation.requires
+    plan = _plan_read(trace)
+    locked = _names_read(trace, "plan.redesign.locked")
+    extractors = _names_read(trace, "plan.redesign.locked_extractors")
+    faults = _stage_faults(plan, requires, unlocked)
+    for item, rate in plan.raw_inputs.items():
+        if rate <= 0:
+            continue
+        known = PLAN_WORLD_EXTRACTORS[item]
+        held = _held_keys(known, unlocked)
+        if held and not held & set(requires):
+            faults.append(f"a held extractor is not required: {item}")
+        if not held and not set(known) & set(extractors):
+            faults.append(f"a consumed raw item names no machine: {item}")
+    for name in extractors:
+        if f"recipe:{PLAN_WORLD_BUILD_PATHS[name]}" in requires:
+            faults.append(f"a locked machine is required: {name}")
+    # Read off the tables too, and not off the rule's own lists, or a rule that forgot a machine
+    # would agree with itself.
+    needs_a_stage = any(
+        step.machines != 0 and not _is_held(step.recipe_key, unlocked) for step in plan.steps
+    )
+    needs_a_machine = any(
+        rate > 0 and not _held_keys(PLAN_WORLD_EXTRACTORS[item], unlocked)
+        for item, rate in plan.raw_inputs.items()
+    )
+    says_none = _NO_UNLOCK in trace.recommendation.reason
+    if says_none and (needs_a_stage or needs_a_machine or locked or extractors):
+        faults.append("the no-unlock sentence reads beside something locked")
+    if not says_none and not (needs_a_stage or needs_a_machine):
+        faults.append("the no-unlock sentence is missing with nothing locked")
+    return faults
+
+
+def _plan_world_faults(trace: Trace, world: WorldInputs, unlocked: tuple[str, ...]) -> list[str]:
+    """Grade one plan rule's trace, which reads nothing but the fixture's tables and the trace.
+
+    THE ORACLE IMPORTS NO JOIN. No helper of ``clockspeed/advisor/plans.py``, no
+    ``build_cost`` and no ``extractors_of``: the tables say what a machine's unlock is and which
+    machine digs what, so a join that got either wrong cannot grade itself.
+
+    Args:
+        trace: The trace of one rule.
+        world: The world it ran over, whose unlocks the engine's own gate read.
+        unlocked: The world's paths.
+
+    Returns:
+        What is wrong, by name. Empty for a rule that fired nothing.
+    """
+    if trace.recommendation is None:
+        return []
+    faults = (
+        _adopt_faults(trace, unlocked)
+        if trace.rule_id == "plan.adopt"
+        else _route_faults(trace, unlocked)
+    )
+    faults.extend(
+        f"a required key is not held: {key}"
+        for key in trace.recommendation.requires
+        if key not in world.unlocks
+    )
+    return faults
+
+
+def _plan_world_offer(
+    registry: Registry, case: PlanWorldCase, *, extra: tuple[str, ...] = ()
+) -> Mapping[str, InputValue]:
+    """The offer one case reads, through the published doors, on these paths and any extra."""
+    parameters = plan_parameters(rate="10", direction=case.direction, byproduct_policy=case.policy)
+    assert parameters is not None
+    request = plan_request_from(registry, case.target, parameters)
+    assert request is not None
+    state = replace(EMPTY_UNLOCK_STATE, recipes=frozenset((*case.unlocked, *extra)))
+    return plan_offer(state, registry, request)
+
+
+def _plan_world_world(case: PlanWorldCase, offered: Mapping[str, InputValue]) -> WorldInputs:
+    """The world a rule reads for one case: that offer, on the pin, over the case's own paths."""
+    state = replace(EMPTY_UNLOCK_STATE, recipes=frozenset(case.unlocked))
+    return WorldInputs(
+        values={**pinned_build_inputs(game_pin()), **offered}, unlocks=unlock_keys(state)
+    )
+
+
+def _holds_a_stage_and_no_extractor(case: PlanWorldCase) -> bool:
+    """The clause's constructed set: a recipe making the target held with its machine, nothing dug.
+
+    Args:
+        case: The case.
+
+    Returns:
+        True when some recipe making the target is held with a machine and holds no extractor
+        of anything it eats, and the world holds no extractor of any raw item at all.
+    """
+    if any(
+        PLAN_WORLD_BUILD_PATHS[name] in case.unlocked
+        for machines in PLAN_WORLD_EXTRACTORS.values()
+        for name in machines
+    ):
+        return False
+    return any(
+        case.target in recipe.makes
+        and recipe.path in case.unlocked
+        and _held_keys(recipe.machines, case.unlocked)
+        and set(recipe.eats) <= set(PLAN_WORLD_EXTRACTORS)
+        for recipe in PLAN_WORLD_RECIPES
+    )
+
+
+def test_the_plan_rules_hold_the_precondition_over_generated_unlock_sets() -> None:
+    """CS-1382 reading, not amendment: literal is self-contradictory for plan.redesign.
+
+    Over generated unlock sets, the oracle importing no join: plan.adopt, every stage with a
+    machine and one held machine for it in requires; plan.redesign, the same for held stages, no
+    locked stage's recipe key in requires, each consumed raw a held extractor key in requires or
+    its machine on plan.redesign.locked_extractors; a locked route fires. Plus: plan.adopt, a held
+    extractor's key in requires per raw with rate above zero; and no-unlock reads only with both
+    lists empty. The rules run as they ship, on the offer :func:`plan_offer` makes.
+    """
+    cases = generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT)
+    assert cases == generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT)
+    registry = plan_world_registry()
+
+    seen: Counter[str] = Counter()
+    for case in cases:
+        world = _plan_world_world(case, _plan_world_offer(registry, case))
+        traces = run_rules(PLAN_RULES, world)
+        for trace in traces:
+            errors = [step.subject for step in trace.steps if step.kind is StepKind.RULE_ERROR]
+            assert errors == [], case.target
+            faults = _plan_world_faults(trace, world, case.unlocked)
+            assert faults == [], case.target
+            assert StepKind.PRECONDITION_UNMET not in _kinds(trace), case.target
+        adopt, route = traces
+        if adopt.recommendation is not None:
+            seen["adopt fired"] += 1
+        elif _holds_a_stage_and_no_extractor(case):
+            seen["no adopt card with a stage held and no extractor held"] += 1
+        if route.recommendation is not None:
+            if _names_read(route, "plan.redesign.locked"):
+                seen["route fired with a locked stage"] += 1
+            if _names_read(route, "plan.redesign.locked_extractors"):
+                seen["route fired with a locked extractor"] += 1
+            if _NO_UNLOCK in route.recommendation.reason:
+                seen["the no-unlock sentence read"] += 1
+
+    # Anti-vacuity, by name: the population must reach each side the clause speaks of.
+    for reached in (
+        "adopt fired",
+        "no adopt card with a stage held and no extractor held",
+        "route fired with a locked stage",
+        "route fired with a locked extractor",
+        "the no-unlock sentence read",
+    ):
+        assert seen[reached] > 0, reached
+
+
+def _fired_faults(
+    cases: tuple[PlanWorldCase, ...],
+    offer: Callable[[PlanWorldCase], Mapping[str, InputValue]],
+) -> list[str]:
+    """Every fault the oracle reads over these cases, with each case's offer as given."""
+    faults: list[str] = []
+    for case in cases:
+        world = _plan_world_world(case, offer(case))
+        for trace in run_rules(PLAN_RULES, world):
+            faults.extend(_plan_world_faults(trace, world, case.unlocked))
+    return faults
+
+
+def _with_requires_filtered(
+    offered: Mapping[str, InputValue], keep: Callable[[str], bool]
+) -> dict[str, InputValue]:
+    """The same offer with each rule's requires holding only the keys kept."""
+    changed = dict(offered)
+    for name in ("plan.requires", "plan.redesign.requires"):
+        if name in changed and changed[name].value is not None:
+            value = changed[name].value
+            assert type(value) is tuple
+            changed[name] = InputValue(
+                tuple(key for key in value if keep(key)), changed[name].source
+            )
+    return changed
+
+
+def test_the_plan_oracle_sees_a_bypassed_extractor_join() -> None:
+    """The control: every extractor read held, and nothing required of them, is the defect.
+
+    This is what the search did before CS-1382: it drew from every raw item, and no key said so.
+    The engine has nothing to refuse, so the card fires, and only the oracle can object.
+    """
+    registry = plan_world_registry()
+    extractors = tuple(
+        PLAN_WORLD_BUILD_PATHS[name] for names in PLAN_WORLD_EXTRACTORS.values() for name in names
+    )
+    keys = frozenset(f"recipe:{path}" for path in extractors)
+
+    def bypassed(case: PlanWorldCase) -> dict[str, InputValue]:
+        offered = _plan_world_offer(registry, case, extra=extractors)
+        return _with_requires_filtered(offered, lambda key: key not in keys)
+
+    faults = _fired_faults(
+        generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT), bypassed
+    )
+
+    wrong = sorted({fault.partition(":")[0] for fault in faults})
+    assert "a consumed raw item has no held extractor required" in wrong
+
+
+def test_the_plan_oracle_sees_a_requires_that_lost_a_machine() -> None:
+    """The control: the join's own offer, with every machine's key taken off what it requires."""
+    registry = plan_world_registry()
+    machines = frozenset(f"recipe:{path}" for path in PLAN_WORLD_BUILD_PATHS.values())
+
+    faults = _fired_faults(
+        generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT),
+        lambda case: _with_requires_filtered(
+            _plan_world_offer(registry, case), lambda key: key not in machines
+        ),
+    )
+
+    machine_faults = sum(1 for fault in faults if "machine is not required" in fault)
+    assert machine_faults > 0
+
+
+def test_the_plan_oracle_sees_a_no_unlock_sentence_beside_a_locked_extractor() -> None:
+    """The control: a route whose locked extractors are planted empty reads the sentence."""
+    registry = plan_world_registry()
+
+    def forgotten(case: PlanWorldCase) -> dict[str, InputValue]:
+        offered = dict(_plan_world_offer(registry, case))
+        name = "plan.redesign.locked_extractors"
+        if offered[name].value is not None:
+            offered[name] = InputValue((), offered[name].source)
+        return offered
+
+    faults = _fired_faults(
+        generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT), forgotten
+    )
+
+    wrong = sorted({fault.partition(":")[0] for fault in faults})
+    assert wrong == [
+        "a consumed raw item names no machine",
+        "the no-unlock sentence reads beside something locked",
+    ]
 
 
 # --- exactness ------------------------------------------------------------

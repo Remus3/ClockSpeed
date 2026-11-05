@@ -63,6 +63,7 @@ from clockspeed.advisor.rules.plan import (
     IN_BACKEND,
     IN_BADGE,
     IN_PLAN,
+    IN_RAW_UNKNOWN,
     IN_REQUIRES,
     IN_STATUS,
     IN_TARGET_NAMES,
@@ -250,6 +251,7 @@ def _world(
         requires=requires,
         trimmed=trimmed,
         unchecked=unchecked,
+        raw_unknown=(),
         unmatched_unlocks=unmatched_unlocks,
         backend=backend,
         target_names=MappingProxyType(
@@ -296,15 +298,16 @@ def expected_tier3(pin: int) -> str:
             "  6. Read build.registry_warnings = {} from audit.build.registry.warnings",
             '  7. Read plan.status = "ranked" from advisor.plans.status',
             "  8. Read plan.unchecked = () from advisor.plans.unchecked",
-            "  9. Read plan.unmatched_unlocks = 0 from advisor.plans.unmatched_unlocks",
-            "  10. Read plan.trimmed = () from solve.bound.trim_record.removed",
-            "  11. Read plan.production = ProductionPlan(steps=("
+            "  9. Read plan.raw_unknown = () from advisor.plans.raw_unknown",
+            "  10. Read plan.unmatched_unlocks = 0 from advisor.plans.unmatched_unlocks",
+            "  11. Read plan.trimmed = () from solve.bound.trim_record.removed",
+            "  12. Read plan.production = ProductionPlan(steps=("
             'PlanStep(recipe_key="Recipe_SyntheticGadget_C", machines=3.00), '
             'PlanStep(recipe_key="Recipe_SyntheticPlate_C", machines=1.33 (exactly 4/3))), '
             'targets={"Desc_SyntheticGadget_C": 30.00}, '
             'raw_inputs={"Desc_SyntheticOre_C": 120.00}, byproducts={}, excluded=(), '
             'byproduct_policy="balanced") from solve.strategy.ranked_plan.plan',
-            '  12. Read plan.badge = StrategyBadge(strongest="within-power", '
+            '  13. Read plan.badge = StrategyBadge(strongest="within-power", '
             'cleared=("within-buildings", "within-power"), checks=('
             'ThresholdCheck(strategy="within-raw", cleared=false, score=120.00, '
             'reference=60.00, bound=1.00, reason="over-bound"), '
@@ -313,16 +316,16 @@ def expected_tier3(pin: int) -> str:
             'ThresholdCheck(strategy="within-power", cleared=true, score=45.00, '
             'reference=145.33 (exactly 436/3), bound=1.00, reason=""))) '
             "from solve.strategy.ranked_plan.badge",
-            "  13. Read plan.requires = "
+            "  14. Read plan.requires = "
             '("recipe:/Game/Synthetic/Recipe_SyntheticGadget.Recipe_SyntheticGadget_C") '
             "from advisor.plans.recipe_unlock_join",
-            '  14. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
-            '  15. Read plan.target_names = {"Desc_SyntheticGadget_C": "Synthetic Gadget"}'
+            '  15. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
+            '  16. Read plan.target_names = {"Desc_SyntheticGadget_C": "Synthetic Gadget"}'
             " from registry.items.display_name",
-            "  16. Computed plan machine equivalents = 4.33 (exactly 13/3)",
-            "  17. Indeterminate compare the plan with what is built:"
+            "  17. Computed plan machine equivalents = 4.33 (exactly 13/3)",
+            "  18. Indeterminate compare the plan with what is built:"
             " a plan is ranked for a stated target and never compared with the world",
-            "  18. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
+            "  19. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
         ]
     )
 
@@ -409,7 +412,7 @@ def test_a_different_badge_on_the_same_plan_moves_tier3_and_never_tier1() -> Non
         if old != new
     ]
     assert len(moved_lines) == 1
-    assert moved_lines[0].startswith("  12. Read plan.badge = StrategyBadge(")
+    assert moved_lines[0].startswith("  13. Read plan.badge = StrategyBadge(")
 
 
 def test_the_backend_moves_exactly_its_own_tier3_line_and_never_tier1_or_the_id() -> None:
@@ -429,8 +432,8 @@ def test_the_backend_moves_exactly_its_own_tier3_line_and_never_tier1_or_the_id(
     ]
     assert moved == [
         (
-            '  14. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
-            '  14. Read plan.backend = "greedy" from solve.optimize.optimize_result.backend',
+            '  15. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
+            '  15. Read plan.backend = "greedy" from solve.optimize.optimize_result.backend',
         )
     ]
 
@@ -553,6 +556,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         requires=(GADGET_UNLOCK,),
         trimmed=(PLATE_STEP,),
         unchecked=(GADGET_STEP,),
+        raw_unknown=(ORE_ITEM,),
         unmatched_unlocks=UNMATCHED_THREE,
         backend=GREEDY,
         target_names=TARGET_NAMES,
@@ -564,6 +568,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
     assert offered[IN_REQUIRES].value == (GADGET_UNLOCK,)
     assert offered[IN_TRIMMED].value == (PLATE_STEP,)
     assert offered[IN_UNCHECKED].value == (GADGET_STEP,)
+    assert offered[IN_RAW_UNKNOWN].value == (ORE_ITEM,)
     assert offered[IN_UNMATCHED].value == UNMATCHED_THREE
     assert offered[IN_BACKEND].value == GREEDY
     assert offered[IN_TARGET_NAMES].value is TARGET_NAMES
@@ -571,6 +576,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
     assert sources == (
         "advisor.plans.status",
         "advisor.plans.unchecked",
+        "advisor.plans.raw_unknown",
         "advisor.plans.unmatched_unlocks",
         "solve.bound.trim_record.removed",
         "solve.strategy.ranked_plan.plan",
@@ -590,7 +596,7 @@ REFUSED_STATUSES: Final = (
     (
         STATUS_NO_PLAN,
         "the search found no plan over the unlocked automated recipes it kept,"
-        " under the stated byproduct policy",
+        " from the raw items a held extractor supplies, under the stated byproduct policy",
     ),
     (STATUS_SOLVE_REFUSED, "the search refused, which says nothing about the target"),
     (STATUS_POWER_NOT_COMPARABLE, "the power search reached a recipe with no exact draw"),
@@ -642,12 +648,14 @@ def test_a_status_after_a_join_also_reads_what_the_join_left_out(status: str, re
         status,
         trimmed=(PLATE_STEP,),
         unchecked=(GADGET_STEP,),
+        raw_unknown=(ORE_ITEM,),
         unmatched_unlocks=UNMATCHED_TWO,
     )
     trace = run_rule(ADOPT_RULE, _status_world(offered))
     _assert_undecided(trace, reason)
     reads = {step.subject: step.value for step in trace.steps if step.kind is StepKind.INPUT_READ}
     assert reads[IN_UNCHECKED] == (GADGET_STEP,)
+    assert reads[IN_RAW_UNKNOWN] == (ORE_ITEM,)
     assert reads[IN_UNMATCHED] == UNMATCHED_TWO
     assert reads[IN_TRIMMED] == (PLATE_STEP,)
     # The ranked path's own inputs are not offered here, and a read of one would say so.
@@ -658,7 +666,9 @@ def test_a_status_after_a_join_also_reads_what_the_join_left_out(status: str, re
 
 def test_a_trimmed_of_the_wrong_shape_on_a_refused_path_is_a_rule_error() -> None:
     values = dict(
-        refused_inputs(STATUS_NO_PLAN, trimmed=(), unchecked=(), unmatched_unlocks=0),
+        refused_inputs(
+            STATUS_NO_PLAN, trimmed=(), unchecked=(), raw_unknown=(), unmatched_unlocks=0
+        ),
     )
     values[IN_TRIMMED] = InputValue(GADGET_STEP, values[IN_TRIMMED].source)
     trace = run_rule(ADOPT_RULE, _status_world(values))
@@ -685,6 +695,7 @@ def test_a_status_that_is_not_text_is_a_rule_error() -> None:
     ("name", "wrong", "error"),
     [
         (IN_UNCHECKED, GADGET_STEP, "TypeError"),
+        (IN_RAW_UNKNOWN, ORE_ITEM, "TypeError"),
         (IN_TRIMMED, GADGET_STEP, "TypeError"),
         (IN_REQUIRES, (Fraction(1),), "TypeError"),
         (IN_UNMATCHED, True, "TypeError"),
@@ -699,6 +710,7 @@ def test_a_status_that_is_not_text_is_a_rule_error() -> None:
     ],
     ids=[
         "unchecked",
+        "raw-unknown",
         "trimmed",
         "requires",
         "unmatched",
@@ -742,12 +754,17 @@ def test_firing_records_one_indeterminate_step_so_it_settles_nothing() -> None:
 def test_what_the_search_left_out_precedes_the_caveat_and_never_reaches_tier1(offset: int) -> None:
     pin = game_pin()
     plain = _card(_world())
+    world = _world(
+        build=off_pin_build_inputs(pin, offset),
+        trimmed=(PLATE_STEP,),
+        unchecked=(GADGET_STEP, PLATE_STEP),
+        unmatched_unlocks=3,
+    )
+    source = world.values[IN_RAW_UNKNOWN].source
     card = _card(
-        _world(
-            build=off_pin_build_inputs(pin, offset),
-            trimmed=(PLATE_STEP,),
-            unchecked=(GADGET_STEP, PLATE_STEP),
-            unmatched_unlocks=3,
+        WorldInputs(
+            values={**world.values, IN_RAW_UNKNOWN: InputValue((ORE_ITEM,), source)},
+            unlocks=world.unlocks,
         )
     )
     assert card.tier1 == plain.tier1
@@ -755,11 +772,13 @@ def test_what_the_search_left_out_precedes_the_caveat_and_never_reaches_tier1(of
         plain.tier2
         + "; the search dropped 1 recipe(s) to fit its cap"
         + "; 2 automated recipe(s) carry no unlock path to check and were never planned"
+        + "; 1 raw item(s) have no known extractor and were never supplied"
         + f"; {WARN_BUILD_MISMATCH}: priced at the pinned build {pin},"
         + f" not the save build {pin + offset}"
     )
     assert f'Read plan.trimmed = ("{PLATE_STEP}") from' in card.tier3
     assert f'Read plan.unchecked = ("{GADGET_STEP}", "{PLATE_STEP}") from' in card.tier3
+    assert f'Read plan.raw_unknown = ("{ORE_ITEM}") from' in card.tier3
     assert "Read plan.unmatched_unlocks = 3 from" in card.tier3
     # A count alone in tier 2: the unmatched count is tier 3's, and no name is tier 2's.
     assert "unmatched" not in card.tier2
@@ -783,8 +802,14 @@ def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:
     assert ADOPT_RULE.inputs == (*BUILD_INPUTS, *PLAN_INPUTS)
     assert ADOPT_RULE.unlocks == ()
     # CS-1371: the marked route reads the build inputs first too, its own next, and of the
-    # ranked path's only the two a route's derivation states. No plan input is its own.
-    assert REDESIGN_RULE.inputs == (*BUILD_INPUTS, *REDESIGN_INPUTS, IN_STATUS, IN_UNCHECKED)
+    # ranked path's only the three a route's derivation states. No plan input is its own.
+    assert REDESIGN_RULE.inputs == (
+        *BUILD_INPUTS,
+        *REDESIGN_INPUTS,
+        IN_STATUS,
+        IN_UNCHECKED,
+        IN_RAW_UNKNOWN,
+    )
     assert REDESIGN_RULE.unlocks == ()
     assert REDESIGN_RULE.domain == ADOPT_RULE.domain
     assert sorted(set(REDESIGN_INPUTS) & set(PLAN_INPUTS)) == []

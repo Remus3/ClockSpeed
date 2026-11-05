@@ -53,6 +53,7 @@ from urllib.parse import parse_qsl
 import pytest
 
 from clockspeed.advisor.cards import card_id
+from clockspeed.advisor.plans import plan_offer
 from clockspeed.advisor.rules import plan as plan_rules
 from clockspeed.solve import optimize, ratio
 from clockspeed.surface import server
@@ -60,6 +61,13 @@ from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import registry as api_registry
 from tests.advisor import test_plan_redesign as redesign_fixtures
+from tests.solve.synthetic import (
+    SOLVE_MINER_BUILDING,
+    SOLVE_ORE_ITEM,
+    SOLVE_RARE_ITEM,
+    SOLVE_RELIC_ITEM,
+    extractor_entry,
+)
 from tests.surface import audit_harness, panel_harness
 from tests.surface import test_advice_source as source_fixtures
 from tests.surface.test_panel_solve import division_sites
@@ -163,7 +171,7 @@ STATED: Final[Mapping[str, str]] = {
 #: The one key a plan_outcome always carries that this file does not vary.
 OUTCOME_STATUS_KEY: Final = "status"
 
-#: The five keys a plan_outcome may carry beside its status, each with a value and the
+#: The six keys a plan_outcome may carry beside its status, each with a value and the
 #: label it renders under. Only ever rendered when present. An arm below binds the keys to
 #: ``clockspeed/surface/api/advice.py::PLAN_OUTCOME_KEYS``.
 OUTCOME_FIELDS: Final[Mapping[str, tuple[Any, str]]] = {
@@ -172,6 +180,7 @@ OUTCOME_FIELDS: Final[Mapping[str, tuple[Any, str]]] = {
     "redesign_reason": ("redesign-reason-word-of-the-outcome", "redesign reason"),
     "trimmed": (["Recipe_TrimmedOne_C", "Recipe_TrimmedTwo_C"], "trimmed recipes"),
     "unmade": (["Desc_UnmadeOne_C"], "unmade items"),
+    "raw_unknown": (["Desc_RawUnknownOne_C"], "raw items with no known extractor"),
 }
 
 #: The stand-in, the recording doors and the step loop. It is deliberately not a
@@ -2431,6 +2440,38 @@ def _real_answer(case: str, tmp_path: Path) -> tuple[Mapping[str, Any], str]:
         ],
     )
     return data_of(response)["plan_outcome"], text_of(report, ANSWER_ID)
+
+
+def test_a_raw_item_no_extractor_joins_draws_its_list_line(tmp_path: Path) -> None:
+    """From a real offer and a real transcription, so the panel reads what the wire carries."""
+    registry = redesign_fixtures._registry(  # noqa: SLF001
+        [redesign_fixtures._recipe("R_Rare", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM])],  # noqa: SLF001
+        resources=(SOLVE_ORE_ITEM, SOLVE_RARE_ITEM),
+        extractors=(extractor_entry(SOLVE_MINER_BUILDING, only=(SOLVE_ORE_ITEM,)),),
+    )
+    outcome = plan_rules.plan_outcome_of(
+        plan_offer(
+            redesign_fixtures._unlocks(()),  # noqa: SLF001
+            registry,
+            redesign_fixtures._request(registry),  # noqa: SLF001
+        )
+    )
+    wire = advice_endpoint._outcome(outcome)  # noqa: SLF001 - the real transcription
+    assert wire["raw_unknown"] == [SOLVE_RARE_ITEM]
+
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *fills(),
+            press_ask(),
+            {"settle": {"call": 0, "outcome": answered(listing(plan_outcome=wire))}},
+        ],
+    )
+
+    answer = text_of(report, ANSWER_ID)
+    assert "raw items with no known extractor" in answer, answer
+    assert SOLVE_RARE_ITEM in answer, answer
 
 
 def test_a_no_route_outcome_draws_its_redesign_reason(tmp_path: Path) -> None:

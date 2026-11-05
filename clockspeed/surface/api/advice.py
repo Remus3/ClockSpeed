@@ -35,7 +35,8 @@ yields no card and a reader has nothing else to read why from. It is copied fiel
 off :attr:`clockspeed.advisor.advise.Advice.plan_outcome`, absent rather than null when
 no target was stated, so that body is what it was before this item. On ``no-route`` and
 ``route-refused`` it carries that word's reason as ``redesign_reason`` (CS-1380), because a
-bare word would read as proof that no plan exists. Not stated, the derivation
+bare word would read as proof that no plan exists, and it names any raw item no extractor
+joins as ``raw_unknown`` (CS-1382). Not stated, the derivation
 and state routes answer as they did before it, so a plan card's id is 400 there.
 
 THE ORDER OF A REFUSAL IS THE CONTRACT. An unknown name is 400 ``unknown_parameter``; any of
@@ -213,9 +214,10 @@ DATA_KEYS: Final = frozenset({"new_world", "cards"})
 STATED_DATA_KEYS: Final = DATA_KEYS | {"plan_outcome"}
 
 #: The keys ``plan_outcome`` may carry. ``status`` and ``redesign`` always; each of the others
-#: only where the outcome holds it, and absent rather than null where it does not.
+#: only where the outcome holds it, and absent rather than null where it does not, and
+#: ``raw_unknown`` only where it names an item.
 PLAN_OUTCOME_KEYS: Final = frozenset(
-    {"status", "redesign", "reason", "redesign_reason", "trimmed", "unmade"}
+    {"status", "redesign", "reason", "redesign_reason", "trimmed", "unmade", "raw_unknown"}
 )
 
 #: One listed card's keys. ``headline`` is tier 1 and ``reason`` tier 2;
@@ -315,7 +317,9 @@ def _outcome(outcome: PlanOutcome) -> dict[str, object]:
 
     Returns:
         The outcome, keyed by :data:`PLAN_OUTCOME_KEYS`. A field the outcome does not hold
-        is absent, never null, so "no such word" cannot read as an empty one.
+        is absent, never null, so "no such word" cannot read as an empty one. ``raw_unknown``
+        is absent when it is empty too, so a body stays what it was until the docs name a raw
+        item no extractor joins, which the pinned docs do not.
     """
     body: dict[str, object] = {"status": outcome.status, "redesign": outcome.redesign}
     if outcome.reason is not None:
@@ -326,6 +330,8 @@ def _outcome(outcome: PlanOutcome) -> dict[str, object]:
         body["trimmed"] = list(outcome.trimmed)
     if outcome.unmade is not None:
         body["unmade"] = list(outcome.unmade)
+    if outcome.raw_unknown:
+        body["raw_unknown"] = list(outcome.raw_unknown)
     return body
 
 

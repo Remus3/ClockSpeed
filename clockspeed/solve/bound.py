@@ -57,11 +57,23 @@ COUNT, an exact pair of ints compared as a tuple, ``(locked on the tree, recipes
 the tree)``. A raw item counts ``(0, 0)``, and any other item counts the least, over
 its usable producers, of that producer's own cost plus the sum of its inputs' counts,
 where a recipe costs ``(1 if a held set was stated and does not hold it else 0, 1)``.
-With no held set, which is what the trim passes, the first int is always zero and the
-count is recipes on a tree. A tie goes to the lower registry position, and that item's
+With no held set and nothing unsupplied, which is what the trim passes, the first int is
+always zero and the count is recipes on a tree. A tie goes to the lower registry position,
+and that item's
 CHOSEN PRODUCER is the recipe that won. The walk is breadth first from the targets in
 sorted order, each recipe's inputs as listed, over chosen producers, stopping at raw
 items and at items with no count, each recipe once.
+
+A STATED UNSUPPLIED RAW ITEM COUNTS ``(1, 0)`` INSTEAD (CS-1382). The caller names the
+raw items no held machine extracts, so a route that runs now wins a tie against one that
+first needs a machine unlocked. Like every raw item it stays raw. A producer's ``(0, n)``
+sorts below ``(1, 0)``, and the count refuses it the raw item's place, because pillar 1
+would then hold the raw item and its producer on one route and refuse a family, a false
+refusal of a route that runs. At ``(0, 0)`` the same guard does nothing: every recipe's
+cost holds a recipe, so no cost can sort below that. THE COST, SAID: a held converter
+making an unsupplied raw item never wins the route, though a search over that converter
+still offers it. The trim passes neither a held set nor an unsupplied one, so one request
+has one ranking whatever a world holds.
 
 THE COUNT IS THAT RULE'S LEAST FIXED POINT, reached by iterating to convergence from
 nothing but the raw items, so a count only ever comes from a finished tree, each of
@@ -123,8 +135,9 @@ WHY EVERY ORDER HERE IS A TUPLE AND NEVER A SET
 ``clockspeed/advisor/trace.py`` records the reason in its own header: a set's
 iteration order and its repr depend on PYTHONHASHSEED, so two runs would render
 differently. A set is used below ONLY as a private membership test, and never to
-decide an order; that includes a stated held set, which is never iterated. A mapping
-below is read by key, or sorted before it is walked. :attr:`TrimStep.kept` and
+decide an order; that includes a stated held set and a stated unsupplied set, neither
+ever iterated. A mapping below is read by key, or sorted before it is walked.
+:attr:`TrimStep.kept` and
 :attr:`TrimStep.removed` are tuples, in registry order, both of them, and
 :attr:`DerivedRoute.members` and :attr:`DerivedRoute.unmade` are tuples too, in walk
 order and sorted.
@@ -296,8 +309,12 @@ _TIER_EVERYTHING_ELSE: Final = 2
 _NO_DEPTH: Final = 0
 
 #: A raw item's count: no locked recipe and no recipe on its tree. Every recipe's cost
-#: holds a recipe, so this is below every other count and no recipe displaces it.
+#: holds a recipe, so this is below every other count.
 _RAW_COUNT: Final[tuple[int, int]] = (0, 0)
+
+#: A stated unsupplied raw item's count: one locked thing and no recipe on its tree. A recipe's
+#: cost can sort below this, and :func:`_chosen_producers` refuses it the raw item's place.
+_UNSUPPLIED_RAW_COUNT: Final[tuple[int, int]] = (1, 0)
 
 
 @dataclass(frozen=True)
@@ -462,20 +479,27 @@ def _chosen_producers(
     usable: tuple[str, ...],
     raw_items: tuple[str, ...],
     held: frozenset[str] | None,
+    unsupplied: frozenset[str],
 ) -> dict[str, str]:
     """Each counted item's chosen producer, at the count's least fixed point.
 
     Args:
         registry: The built registry.
         usable: The pool, in registry order.
-        raw_items: The raw items, which count :data:`_RAW_COUNT` and get no producer.
+        raw_items: The raw items, each counting :data:`_RAW_COUNT` or, if unsupplied,
+            :data:`_UNSUPPLIED_RAW_COUNT`, and none of them ever getting a producer.
         held: As :func:`derived_route` takes it.
+        unsupplied: As :func:`derived_route` takes it.
 
     Returns:
         Item to chosen producer, for every item that has a count and is not raw. Read
         by key only; its insertion order decides nothing.
     """
-    counts = dict.fromkeys(raw_items, _RAW_COUNT)
+    # A set, and ONLY as a membership test.
+    raw = frozenset(raw_items)
+    counts = {
+        item: _UNSUPPLIED_RAW_COUNT if item in unsupplied else _RAW_COUNT for item in raw_items
+    }
     moved = True
     while moved:
         moved = False
@@ -485,6 +509,9 @@ def _chosen_producers(
             if cost is None:
                 continue
             for output in recipe.outputs:
+                # A raw item stays raw at either count, as the module docstring argues.
+                if output.item_key in raw:
+                    continue
                 known = counts.get(output.item_key)
                 if known is None or cost < known:
                     counts[output.item_key] = cost
@@ -586,7 +613,11 @@ def _closure_walk(
 
 
 def derived_route(
-    registry: Registry, request: OptimizeRequest, *, held: frozenset[str] | None = None
+    registry: Registry,
+    request: OptimizeRequest,
+    *,
+    held: frozenset[str] | None = None,
+    unsupplied: frozenset[str] = frozenset(),
 ) -> DerivedRoute:
     """Derive one deterministic route to a request's targets, running no search.
 
@@ -599,9 +630,12 @@ def derived_route(
         request: The problem. Only its targets, raw items, candidates and unlocked set
             are read, and of the targets only the keys.
         held: The recipes to count as not locked, or None when none is locked, which
-            makes the first int of every count zero. A membership test only and never
-            iterated, so it can decide no order but through the count itself. The trim
-            omits it.
+            with nothing unsupplied makes the first int of every count zero. A membership
+            test only and never iterated, so it can decide no order but through the count
+            itself. The trim omits it.
+        unsupplied: The raw items no held machine extracts, each then counting one locked
+            thing, so a route that runs now wins a tie. Empty, the default, moves no count.
+            A membership test only and never iterated, and the trim omits it too.
 
     Returns:
         The route.
@@ -612,7 +646,7 @@ def derived_route(
     usable, _excluded = usable_candidates(registry, request)
     targets = tuple(sorted(request.targets))
     raw = frozenset(request.raw_items)
-    chosen = _chosen_producers(registry, usable, request.raw_items, held)
+    chosen = _chosen_producers(registry, usable, request.raw_items, held, unsupplied)
     _depths, unmade = _closure_walk(registry, usable, targets, raw)
     return DerivedRoute(
         members=_route_walk(registry, targets, chosen),

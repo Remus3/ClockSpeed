@@ -87,6 +87,7 @@ from clockspeed.data.registry import (
     build_cost,
     build_registry,
     build_registry_from_bytes,
+    extractors_of,
 )
 from clockspeed.save.world import (
     EMPTY_UNLOCK_STATE,
@@ -165,8 +166,10 @@ from tests.solve.synthetic import (
     MACHINE_BUILD_ENTRIES,
     MACHINE_BUILD_PATHS,
     MACHINE_DESCRIPTOR_ENTRIES,
+    MINER_BUILD_PATH,
     RECIPE_GROUP,
     SOLVE_ASSEMBLER_BUILDING,
+    SOLVE_MINER_BUILDING,
     SOLVE_ORE_ITEM,
     SOLVE_RARE_ITEM,
     SOLVE_RECIPES,
@@ -175,6 +178,10 @@ from tests.solve.synthetic import (
     SOLVE_SMELTER_BUILDING,
     building_path,
     document_from_groups,
+    extractor_descriptor,
+    extractor_entry,
+    extractor_group,
+    machine_build_entry,
     machine_build_path,
     registry_with,
 )
@@ -276,6 +283,9 @@ PATHS: Final[Mapping[str, str]] = MappingProxyType(
 #: The unlock key of the one machine every recipe here runs on, which a plan's requires name
 #: beside its first recipe. Spelled through the fixture's path, never read back from a plan.
 ASSEMBLER_KEY: Final = "recipe:" + machine_build_path(SOLVE_ASSEMBLER_BUILDING)
+
+#: The unlock key of the miner that digs the Ore, which a plan's requires name after its recipes.
+MINER_KEY: Final = "recipe:" + MINER_BUILD_PATH
 
 #: The three recipes of the ascent shape, in registry order.
 ASCENT: Final = (RELIC_FROM_RARE, RELIC_DIRECT, RARE_FROM_ORE)
@@ -458,13 +468,19 @@ def _request(*, direction: str = OBJECTIVE_RAW, item: str = SOLVE_RELIC_ITEM) ->
 
 
 def _unlocks(
-    unlocked: Iterable[str], *, machines: Iterable[str] = MACHINE_BUILD_PATHS
+    unlocked: Iterable[str],
+    *,
+    machines: Iterable[str] = MACHINE_BUILD_PATHS,
+    extractors: Iterable[str] = (MINER_BUILD_PATH,),
 ) -> UnlockState:
     """An unlock state holding these recipe paths and these machines' build recipe paths.
 
-    Every machine unless told otherwise, so an arm's locks are the recipes it names.
+    Every machine and the miner unless told otherwise, so an arm's locks are the recipes it
+    names. The extractors are apart, so an arm taking the machines away still has its Ore.
     """
-    return dataclasses.replace(EMPTY_UNLOCK_STATE, recipes=frozenset((*unlocked, *machines)))
+    return dataclasses.replace(
+        EMPTY_UNLOCK_STATE, recipes=frozenset((*unlocked, *machines, *extractors))
+    )
 
 
 def _model(unlocked: Iterable[str]) -> WorldModel:
@@ -840,6 +856,7 @@ def test_the_requires_are_the_join_not_a_supplied_tuple() -> None:
         "recipe:/Game/FactoryGame/Synthetic/Alpha/Stage_Two.Stage_Two_C",
         ASSEMBLER_KEY,
         "recipe:/Game/FactoryGame/Synthetic/Gamma/Stage_One.Stage_One_C",
+        MINER_KEY,
     )
     assert offered["plan.requires"].source == "advisor.plans.recipe_unlock_join"
     # Each key is exactly one the engine's own flattening of the state builds, so
@@ -863,6 +880,7 @@ def test_the_engine_refuses_the_joined_keys_over_a_world_lacking_them() -> None:
         "recipe:/Game/FactoryGame/Synthetic/Alpha/Stage_Two.Stage_Two_C",
         ASSEMBLER_KEY,
         "recipe:/Game/FactoryGame/Synthetic/Gamma/Stage_One.Stage_One_C",
+        MINER_KEY,
     )
 
 
@@ -875,7 +893,11 @@ def test_a_locked_recipe_cannot_enter_the_plan(tmp_path: Path) -> None:
     plan = _card_read(card, "plan.production")
     assert [step.recipe_key for step in plan.steps] == [RELIC_DIRECT]  # type: ignore[attr-defined]
     assert plan.raw_inputs[SOLVE_ORE_ITEM] == ONE_STAGE_ORE  # type: ignore[attr-defined]
-    assert _card_read(card, "plan.requires") == ("recipe:" + PATHS[RELIC_DIRECT], ASSEMBLER_KEY)
+    assert _card_read(card, "plan.requires") == (
+        "recipe:" + PATHS[RELIC_DIRECT],
+        ASSEMBLER_KEY,
+        MINER_KEY,
+    )
     locked_named = RARE_FROM_ORE in card.tier3 or PATHS[RARE_FROM_ORE] in card.tier3
     assert not locked_named
 
@@ -888,7 +910,11 @@ def test_the_join_is_the_whole_path_never_its_trailing_token() -> None:
 
     offered = plan_offer(_unlocks(unlocked), _registry(), _request())
 
-    assert offered["plan.requires"].value == ("recipe:" + PATHS[RELIC_DIRECT], ASSEMBLER_KEY)
+    assert offered["plan.requires"].value == (
+        "recipe:" + PATHS[RELIC_DIRECT],
+        ASSEMBLER_KEY,
+        MINER_KEY,
+    )
     assert offered["plan.unmatched_unlocks"].value == 1
 
 
@@ -924,6 +950,7 @@ def test_a_recipe_with_no_asset_path_is_flagged_and_never_planned(tmp_path: Path
         "recipe:" + PATHS[RELIC_FROM_RARE],
         ASSEMBLER_KEY,
         "recipe:" + PATHS[RARE_FROM_ORE],
+        MINER_KEY,
     )
     assert _card_read(card, "plan.unchecked") == (RELIC_DIRECT,)
     flagged = (
@@ -1019,6 +1046,7 @@ def _no_rung_world(model: WorldModel, registry: Registry) -> WorldInputs:
             requires=(),
             trimmed=(),
             unchecked=(),
+            raw_unknown=(),
             unmatched_unlocks=0,
             backend=BACKEND_EXHAUSTIVE,
             target_names=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME}),
@@ -1304,9 +1332,16 @@ def _chain_registry() -> Registry:
         if native_class.endswith(f".{ITEM_GROUP}'"):
             group[KEY_CLASSES].extend(descriptors)
         elif native_class.endswith(f".{BUILDING_DESCRIPTOR_GROUP}'"):
-            group[KEY_CLASSES].extend(MACHINE_DESCRIPTOR_ENTRIES)
+            group[KEY_CLASSES].extend(
+                (*MACHINE_DESCRIPTOR_ENTRIES, extractor_descriptor(SOLVE_MINER_BUILDING))
+            )
         elif native_class.endswith(f".{RECIPE_GROUP}'"):
-            group[KEY_CLASSES] = [*entries, *MACHINE_BUILD_ENTRIES]
+            group[KEY_CLASSES] = [
+                *entries,
+                *MACHINE_BUILD_ENTRIES,
+                machine_build_entry(SOLVE_MINER_BUILDING),
+            ]
+    groups.append(extractor_group(extractor_entry(SOLVE_MINER_BUILDING)))
     return pinned_source(build_registry(document_from_groups(groups)))
 
 
@@ -1381,7 +1416,7 @@ def test_a_capped_no_plan_reason_speaks_only_for_the_kept_set() -> None:
     assert _read(trace, "plan.status") == STATUS_NO_PLAN
     assert _indeterminate_reason(trace) == (
         "the search found no plan over the unlocked automated recipes it kept,"
-        " under the stated byproduct policy"
+        " from the raw items a held extractor supplies, under the stated byproduct policy"
     )
     assert card_for(trace) is None
 
@@ -1439,6 +1474,19 @@ def test_a_target_declared_raw_is_malformed_after_the_join_and_reads_the_status_
         if step.kind is StepKind.INPUT_READ and step.subject.startswith("plan.")
     ]
     assert reads == ["plan.status"]
+
+
+def test_a_target_declared_raw_is_malformed_with_nothing_extracted_too() -> None:
+    """No supply to read: a target stays in the search's raw items, so pillar 1 still refuses."""
+    request = _request(item=SOLVE_ORE_ITEM)
+
+    offered = plan_offer(_unlocks(ASCENT_PATHS, extractors=()), _registry(), request)
+
+    assert offered["plan.status"].value == STATUS_REQUEST_MALFORMED
+    assert offered["plan.trimmed"].value == ()
+    # The control: the same world asked for Relic has nothing to start from, and reads no-plan.
+    control = plan_offer(_unlocks(ASCENT_PATHS, extractors=()), _registry(), _request())
+    assert control["plan.status"].value == STATUS_NO_PLAN
 
 
 def test_a_byproduct_refusal_reads_as_the_stated_policy() -> None:
@@ -2261,6 +2309,7 @@ def test_the_requires_come_from_the_registry_never_from_the_save() -> None:
     state = _unlocks(
         (_SavePath(path) for path in (*ASCENT_PATHS, SAVE_ONLY_PATH)),
         machines=tuple(_SavePath(path) for path in MACHINE_BUILD_PATHS),
+        extractors=(_SavePath(MINER_BUILD_PATH),),
     )
     # The control: the plant does fire when a path is rendered.
     with pytest.raises(_SavePathRenderedError):
@@ -2272,6 +2321,7 @@ def test_the_requires_come_from_the_registry_never_from_the_save() -> None:
         "recipe:" + PATHS[RELIC_FROM_RARE],
         ASSEMBLER_KEY,
         "recipe:" + PATHS[RARE_FROM_ORE],
+        MINER_KEY,
     )
     assert offered["plan.unmatched_unlocks"].value == 1
 
@@ -2341,6 +2391,7 @@ class _JoinCounts(NamedTuple):
         unlocked: Recipe paths the world holds.
         joined: Of those, how many equal a registry recipe's whole path.
         automated: Automated recipes the join admits.
+        supplied: Resource items a machine the world holds extracts.
         status: The offer's status over one recipe made of raw items, or empty
             when the world holds no such recipe.
         requires: The keys that offer requires.
@@ -2351,6 +2402,7 @@ class _JoinCounts(NamedTuple):
     unlocked: int
     joined: int
     automated: int
+    supplied: int
     status: str
     requires: int
     unmet: int
@@ -2449,9 +2501,10 @@ def _a_machine_is_held(
 def _join_counts(registry: Registry, unlocks: UnlockState) -> _JoinCounts:
     """Count the join over one real world, and offer one real plan.
 
-    The target is the first joined recipe made wholly of raw items - no automated
-    recipe produces them - that a machine the world holds runs, so a plan exists and
-    no chain has to survive the trim. A world can hold such a recipe with no machine.
+    The target is what the first joined recipe makes, where a machine the world holds
+    extracts every item it eats and a machine the world holds runs it, so a plan exists and no
+    chain has to survive the trim. A world can hold such a recipe with no machine, and a recipe
+    eating a raw item with no machine to extract it (CS-1382), and neither is asked about.
 
     Args:
         registry: The installed docs' registry.
@@ -2463,13 +2516,16 @@ def _join_counts(registry: Registry, unlocks: UnlockState) -> _JoinCounts:
     paths = {recipe.asset_path for recipe in registry.recipes.values()}
     automated_all = automated_recipes(registry)
     automated = [recipe for recipe in automated_all if recipe.asset_path in unlocks.recipes]
-    produced = {output.item_key for recipe in automated_all for output in recipe.outputs}
-    raw = sorted(item for item in registry.items if item not in produced)
+    raw = registry.resource_items
+    supplied = [
+        item for item in raw if _a_machine_is_held(registry, extractors_of(registry, item), unlocks)
+    ]
     simple = [
         recipe
         for recipe in automated
         if recipe.inputs
-        and all(entry.item_key in raw for entry in recipe.inputs)
+        and all(entry.item_key in supplied for entry in recipe.inputs)
+        and recipe.outputs[0].item_key not in raw
         and _a_machine_is_held(registry, recipe.produced_in, unlocks)
     ]
     status = ""
@@ -2480,7 +2536,7 @@ def _join_counts(registry: Registry, unlocks: UnlockState) -> _JoinCounts:
             registry,
             PlanRequest(
                 targets=MappingProxyType({simple[0].outputs[0].item_key: Fraction(1)}),
-                raw_items=tuple(raw),
+                raw_items=raw,
                 byproduct_policy=BYPRODUCT_SINKABLE,
                 direction=OBJECTIVE_RAW,
             ),
@@ -2495,6 +2551,7 @@ def _join_counts(registry: Registry, unlocks: UnlockState) -> _JoinCounts:
         unlocked=len(unlocks.recipes),
         joined=sum(1 for path in unlocks.recipes if path in paths),
         automated=len(automated),
+        supplied=len(supplied),
         status=status,
         requires=requires,
         unmet=unmet,
@@ -2518,7 +2575,7 @@ def _library_join() -> _JoinCounts | None:
     try:
         return _join_counts(registry, unlocks)
     except (Exception, SystemExit) as exc:
-        return _JoinCounts(0, 0, 0, "", 0, 0, type(exc).__name__)
+        return _JoinCounts(0, 0, 0, 0, "", 0, 0, type(exc).__name__)
 
 
 def test_the_join_holds_on_a_library_world() -> None:
@@ -2529,6 +2586,7 @@ def test_the_join_holds_on_a_library_world() -> None:
     assert counts.failure == ""
     print(  # noqa: T201 - counts only, the arm's stated report
         f"unlocked {counts.unlocked} joined {counts.joined} automated {counts.automated} "
+        f"supplied {counts.supplied} "
         f"status {counts.status} requires {counts.requires} unmet {counts.unmet}"
     )
     if counts.unlocked == 0:
@@ -2536,7 +2594,7 @@ def test_the_join_holds_on_a_library_world() -> None:
     assert counts.joined > 0
     assert counts.automated > 0
     if counts.status == "":
-        pytest.skip("the newest readable world unlocked no recipe made of raw items")
+        pytest.skip("the newest readable world unlocked no recipe made of supplied raw items")
     assert counts.status == STATUS_RANKED
     assert counts.requires > 0
     assert counts.unmet == 0
