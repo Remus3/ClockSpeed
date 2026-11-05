@@ -85,8 +85,8 @@ THE CLOSURE is the same kind of walk over EVERY usable producer rather than the 
 one, stopping at raw items, and a recipe's walk depth is the depth of the nearest item
 it makes, a target's producers at zero. It follows inputs and never byproducts. A
 recipe reached only by consuming what a route member leaves over is outside it, so
-under the balanced policy a route whose byproduct nothing kept consumes cannot solve
-while that member runs a machine.
+under the balanced policy a route whose byproduct, not itself a raw item, nothing kept
+consumes cannot solve while that member runs a machine.
 Unless other kept recipes answer the request that reads no-plan, which is scoped to the
 kept set and the stated policy, and the player states the policy.
 
