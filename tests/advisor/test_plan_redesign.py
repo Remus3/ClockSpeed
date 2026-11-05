@@ -2215,6 +2215,69 @@ def test_the_no_plan_reason_says_what_the_search_started_from() -> None:
     ]
 
 
+#: A path the engine's text test refuses, spelled in escapes so this file stays ASCII.
+_ACCENTED_PATH: Final = "/Game/FactoryGame/Synthetic/Placed/Gun_\u00e9.Gun_\u00e9_C"
+
+
+def _accented(entry: Mapping[str, str]) -> dict[str, str]:
+    """The same recipe entry at :data:`_ACCENTED_PATH`."""
+    return {**entry, KEY_FULL_NAME: f"BlueprintGeneratedClass {_ACCENTED_PATH}"}
+
+
+def _holding_the_accented_path(held: Iterable[str]) -> WorldModel:
+    """A world holding these recipes, every machine, the miner and the accented path too."""
+    model = _model(held)
+    state = dataclasses.replace(model.unlocks, recipes=model.unlocks.recipes | {_ACCENTED_PATH})
+    return dataclasses.replace(model, unlocks=state)
+
+
+def _no_rule_errors(world: WorldInputs) -> list[str]:
+    """Every rule error either plan rule records over a world, and no card may hide one."""
+    return [error for rule in plan_rules.RULES for error in _errors(run_rule(rule, world))]
+
+
+def test_a_non_ascii_extractor_path_reads_raw_unknown_with_no_rule_error() -> None:
+    """No requires key can carry the path, so the machine joins nothing and the item is flagged."""
+    registry = _registry(
+        [_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])],
+        extractor_builds=(_accented(machine_build_entry(SOLVE_MINER_BUILDING)),),
+    )
+
+    world = _inputs(_holding_the_accented_path(["R_Direct"]), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, RAW_UNKNOWN) == (SOLVE_ORE_ITEM,)
+    assert _offered(world, IN_REDESIGN_STATUS) == NO_ROUTE
+    assert _no_rule_errors(world) == []
+
+
+def test_a_non_ascii_machine_path_reads_unchecked_with_no_rule_error() -> None:
+    """The same path on the machine a recipe runs on: no key, so that recipe cannot be checked."""
+    builds = tuple(
+        _accented(machine_build_entry(name)) if name == SOLVE_ASSEMBLER_BUILDING else entry
+        for name, entry in zip(SOLVE_BUILDINGS, MACHINE_BUILD_ENTRIES, strict=True)
+    )
+    registry = _registry([_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])], builds=builds)
+
+    world = _inputs(_holding_the_accented_path(["R_Direct"]), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, IN_UNCHECKED) == ("R_Direct",)
+    assert _offered(world, IN_REDESIGN_STATUS) == NO_ROUTE
+    assert _no_rule_errors(world) == []
+
+
+def test_a_non_ascii_recipe_path_reads_unchecked_with_no_rule_error() -> None:
+    """A recipe's own path fails the same test, and reads the same way."""
+    registry = _registry([_accented(_recipe("R_Direct", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]))])
+
+    world = _inputs(_holding_the_accented_path(()), registry, _request(registry))
+
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, IN_UNCHECKED) == ("R_Direct",)
+    assert _no_rule_errors(world) == []
+
+
 def test_the_engine_sees_the_machine_key_on_plan_adopt() -> None:
     """The second gate does not trust the first: the same offer, a world lacking the machine."""
     registry = _one_recipe_registry()

@@ -53,7 +53,9 @@ unlock keys gain, after its recipes' and machines', the key of the first machine
 holds for each raw item the plan consumes, every key once. ``raw_inputs`` is net and published
 sorted by key, so that order is sorted, and a loop giving back what it eats needs no extractor.
 
-WHAT THE JOIN LEAVES OUT IS SAID, NOT DROPPED (non-negotiable 7). An automated
+WHAT THE JOIN LEAVES OUT IS SAID, NOT DROPPED (non-negotiable 7). A path that is not
+printable ASCII counts here as no path, because no unlock key can carry it: the engine would
+refuse the whole recommendation as a rule error. An automated
 recipe with no path, or no machine of which joins a build recipe with a path, can never be
 shown held. Treating it as held would be silently wrong and as locked would state a lock
 nothing lifts, so it never enters a search or a route and is named on ``plan.unchecked``,
@@ -151,7 +153,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, TypeGuard
 
 from clockspeed.advisor.rules.plan import (
     REDESIGN_NO_ROUTE,
@@ -522,6 +524,18 @@ def _ranked_top(
     return ranked[0], bounded.result.backend
 
 
+def _keyable(path: str | None) -> TypeGuard[str]:
+    """Whether an unlock key can carry a path: the engine's own test of a recommendation's text.
+
+    Args:
+        path: A recipe's asset path, or None when it carries none.
+
+    Returns:
+        True when it is printable ASCII with a visible character.
+    """
+    return path is not None and path.strip(" ") != "" and all(" " <= ch <= "~" for ch in path)
+
+
 def _machine_paths(registry: Registry, machines: Iterable[str]) -> dict[str, str]:
     """Read the whole path of each machine's build recipe, once per machine.
 
@@ -536,13 +550,14 @@ def _machine_paths(registry: Registry, machines: Iterable[str]) -> dict[str, str
 
     Returns:
         Machine ClassName to path, the REGISTRY's string, for each machine with both a build
-        recipe and a path on it. Read by key only, so its insertion order decides nothing.
+        recipe and a path on it that an unlock key can carry. Read by key only, so its insertion
+        order decides nothing.
     """
     paths: dict[str, str] = {}
     for building in dict.fromkeys(machines):
         cost = build_cost(registry, building)
         path = None if cost is None else registry.recipes[cost.recipe_key].asset_path
-        if path is not None:
+        if _keyable(path):
             paths[building] = path
     return paths
 
@@ -569,7 +584,7 @@ def _recipe_join(registry: Registry, unlocks: UnlockState) -> _RecipeJoin:
     for recipe in automated:
         # In produced_in's own order, so the first one held is read off the recipe.
         paths = tuple(machine_paths[name] for name in recipe.produced_in if name in machine_paths)
-        if recipe.asset_path is None or not paths:
+        if not _keyable(recipe.asset_path) or not paths:
             unchecked.append(recipe.key)
             continue
         checked.append(recipe.key)
