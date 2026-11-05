@@ -105,8 +105,7 @@ bound call and no rung search, so no direction chooses the route and no badge ca
 A stage the solve gives no machine count is neither held nor locked. ITS RAW ITEMS ARE NOT THE
 SEARCH'S: it starts from every stated item some extractor joining a build recipe with a path
 can extract, supplied or not, so a world missing a machine reads what to unlock rather than
-nothing. An unsupplied one counts as one locked thing, so a route that runs now wins a tie.
-For each raw item the route consumes, the first machine the world holds goes in the route's
+nothing. For each raw item the route consumes, the first machine the world holds goes in the route's
 unlock keys, and where it holds none the first that joins goes on
 ``plan.redesign.locked_extractors``, once each, sorted as ``raw_inputs`` is. The result goes to
 ``plan.redesign``, never to ``plan.adopt``: this is the one path where a recipe the world does
@@ -787,8 +786,7 @@ def _redesign_offer(
             supplied ones alone, so the route never reads them.
         join: The world's join: its checked recipes are the pool, and the route's count
             prefers its held ones, each of which has a machine the world holds.
-        supply: The world's supply: the route starts from its route items, and its count
-            prefers those a machine the world holds extracts.
+        supply: The world's supply: the route starts from its route items, supplied or not.
 
     Returns:
         The marked route's inputs. Every refusal is a status, read by no message: no route
@@ -802,7 +800,6 @@ def _redesign_offer(
             registry,
             replace(search, candidates=join.checked, unlocked=join.checked, raw_items=supply.route),
             held=frozenset(join.held),
-            unsupplied=frozenset(supply.locked_machine_of),
         )
         if not route.complete:
             return redesign_status_inputs(REDESIGN_NO_ROUTE, unmade=route.unmade)

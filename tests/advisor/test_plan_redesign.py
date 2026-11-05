@@ -1743,27 +1743,6 @@ def test_a_held_converter_still_ranks() -> None:
     assert run_rule(plan_rules.ADOPT_RULE, world).recommendation is not None
 
 
-def test_a_held_converter_never_wins_the_route() -> None:
-    """The stated cost: the route takes the Rare as raw, and says to unlock the drill.
-
-    By hand: R_One is held, R_Two is locked, so the search reads no-plan. Making the Rare would
-    cost (0, 1) and digging it (1, 0), and a raw item is never displaced by a producer.
-    """
-    registry = _two_raw_registry(
-        [
-            _recipe("R_Two", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
-            _recipe("R_One", [SOLVE_ORE_ITEM], [SOLVE_RARE_ITEM]),
-        ]
-    )
-
-    card = _route_card(("R_One",), registry, _request(registry))
-
-    assert [stage for stage, _count in _machines(card)] == ["R_Two"]
-    assert _card_read(card, LOCKED_EXTRACTORS) == (DRILL_BUILDING,)
-    # Nothing the route consumes is on the held list, so R_One names no key.
-    assert _requires(card) == ()
-
-
 def test_a_target_declared_raw_and_unsupplied_stays_malformed() -> None:
     """Pillar 1 refuses the question, so no narrowing can turn it into a false no-plan."""
     registry = _one_recipe_registry()
@@ -2010,32 +1989,6 @@ def test_the_search_keeps_the_stated_order_of_the_supplied_raw_items(
     plan_offer(_unlocks(["R_Direct"]), registry, _request(registry))
     (_both, narrowed) = calls["optimize_within_bound"]
     assert narrowed[1].raw_items == (SOLVE_ORE_ITEM,)
-
-
-def test_the_route_counts_an_unsupplied_raw_as_one_locked_thing() -> None:
-    """By hand: R_Rare and R_Ore each one locked recipe, and only the Ore can be dug now.
-
-    Declared R_Rare first, so a tie would go to it. Counted (2, 1) against (1, 1), it loses.
-    """
-    registry = _two_raw_registry(
-        [
-            _recipe("R_Rare", [SOLVE_RARE_ITEM], [SOLVE_RELIC_ITEM]),
-            _recipe("R_Ore", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]),
-        ]
-    )
-
-    card = _route_card((), registry, _request(registry))
-
-    assert [stage for stage, _count in _machines(card)] == ["R_Ore"]
-    assert _card_read(card, LOCKED_EXTRACTORS) == ()
-    assert _requires(card) == (MINER_KEY,)
-
-    # The control: with the drill held too the tie stands, and the first recipe takes it.
-    both = _route_card(
-        (), registry, _request(registry), extractors=(SOLVE_MINER_BUILDING, DRILL_BUILDING)
-    )
-    assert [stage for stage, _count in _machines(both)] == ["R_Rare"]
-    assert _requires(both) == (DRILL_KEY,)
 
 
 def test_one_machine_is_named_once_for_two_raw_items_it_extracts() -> None:
