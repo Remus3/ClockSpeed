@@ -7175,6 +7175,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 152 - archived 2026-11-04 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 152 - 2026-10-25 - the operator's worktree request: CS-1352 swept 21 worktrees, 16 orphan work folders and 7 spent branches by content; the hand-off's queue not started
+
+- Shipped: CLOSED: CS-1352 (tier 0; the sweep changed no tracked file): 6 worktrees already in main removed, 2 stale locks held by a dead process unlocked, 11 superseded worktrees removed with their branches kept, 4 dirty worktrees and 16 orphan work folders sent to the Recycle Bin after patch backups and a consumer check, and 7 branches with an empty `git cherry` deleted; about 558 MB recycled; `git worktree list` 5 entries and `git branch --list` 90 heads when this /done read them. Detail in docs/LEDGER.md.
+- In flight: nothing dirty. The hand-off's next action - the step 1 reads, the one batched operator ask, then the open items - was NOT acted on and is carried whole; the session-start status board push was not made. The sweep's backups and manifest are in the session 152 sweep archive folder under the gitignored work folder; one detached HEAD is kept at refs/archive/s152/s137_cs1308f2_land_wt. A second branch and worktree prune, on the operator's order, ran concurrently with the /done (refs and worktrees only); its outcome is in the second manifest in that archive folder, and the hand-off says to read it before any branch work.
+- Decisions: kept on purpose - the two CS-1318 worktrees, the lane-0 tree, and the session 151 CS-1295 review tree (unique gitignored review data); a branch with any '+' line in `git cherry` is kept, never forced, because a squashed landing reads '+' too. No ADR.
+- Surprises: none. No spike contradicted BOOTSTRAP.md.
+- Failed paths: none abandoned.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then the carried next action - the step 1 reads, the one batched operator ask (host RAM for CS-1334, the CS-1295 operator-needing findings), then CS-1351 and the open items in order.
+
 ## Session 151 - archived 2026-11-01 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 151 - 2026-10-24 - seven items and the lane's CS-1245 shipped, CS-1349 and CS-1344 landed open, the first CS-1295 review run landed partial, and the CS-1334 re-walk never launched on host RAM

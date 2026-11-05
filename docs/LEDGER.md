@@ -75,6 +75,42 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-04 - CS-1334 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1334 STAYS OPEN: session 155 /done - the operator stopped the run, CS-1379 and CS-1382 stay built and unlanded, and host RAM still blocks the walk
+Verification: `CS-NEXT-SESSION.txt`, its next-action and open-items blocks; the sections of CS-1379 and CS-1382 in
+`docs/item_notes/phase5.md`. This record closes nothing, so no test names one; the heading names the item whose
+reading it records.
+SCOPE. The operator typed /done with one orchestrated run live. Its merger was told to start no new slice, to let
+the three live adversaries finish inside a 30 minute cap and to land only what no refutation still held. All three
+finished inside the cap and none was stopped. The CS-1380 close and the bound.py docstring landed, the first with its
+own record below. The CS-1379 and CS-1382 candidates stay on a local branch, unlanded, with their findings in the
+sections named above. No whole suite has read this landing: this ritual's push is the first.
+STEP 0: start 2026-11-04T19:05:23-06:00. WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0 with two
+SHAs (not a merge); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit 0, five paths, not the citation
+historical file. Porcelain empty. HEAD three commits ahead of the remote, carried by step 8. Notes authored this
+session: two, the 2211 ANSWER and its 2226 correction, both read in the delivery record at their sent sha256,
+destination Main, gate verdict CLEAN; neither re-sent. Items closed this session, each with its own record, number
+eight: CS-1350, CS-1351, CS-1370, CS-1359, CS-1344, CS-1372, CS-1371 and CS-1380. Highest tier touched: 2.
+STEP 1, tier 2, from the repo root, each run once, no whole suite: `python -m mypy` exit 0, 466 source files;
+`python -m ruff check .` exit 0; `python -m ruff format --check .` exit 0, 449 files; `python -m pytest tests/surface
+tests/advisor tests/solve tests/data tests/test_archive_rot.py tests/test_canary_population.py
+tests/test_canary_population_forced.py -q -n auto -p no:cacheprovider` exit 0, 5321 passed, 0 failed, 0 skipped, the
+modules this session's diff changed, every path read present first.
+STEP 2: this record; all eight closes read present, none duplicated. STEP 3: `ROADMAP.md` and the item notes hold none
+of the eight. `BACKLOG.md` takes one line, the digest finding the session 153 record carried to its hand-off, weighed
+now that the pass has ended (`ops/loop/inbox_responder.py::_locked_pass`), filed rather than opened under product
+before process. An id gap, not a lost row: CS-1377 was never allocated, with no row, citation or commit, and is not
+reused. STEP 4: session 155 added to `WAKEUP_NOTES.md`; session 152 relocated verbatim to `docs/history_notes.md`.
+STEP 5, after every ritual edit: `python tools/drift_guard.py` exit 0 (guards 11, PASS 11); `python tools/doc_budget.py` exit 0
+(measured 40, over budget 0); `python tools/memory_sync.py` exit 0; `python tools/sha_citation_gate.py` exit 0.
+TARGETED, no whole suite: one pytest run with -n 4 over 20 test files that read the edited records, every path read
+present first (`tests/test_citation_tables.py`, `tests/test_ledger_entry_shape.py`, `tests/test_dated_headings.py`,
+`tests/test_tier1_budget.py`, `tests/test_readme_audit.py` among them): exit 0, 3632 passed, 0 failed, 0 skipped.
+STEP 6: the hand-off rewritten whole, `SESSION: 156`, tightened with no block relocated, so the S0 RULING 3 route stays
+unruled. REAP, `python ops/fleet_kit/fleet_done.py reap --apply`: 1 removed, 0 kept, 2 listed, base main; the removed
+tree's commit is on main by patch and its branch stays. The three kept branches and their commits read back present. Host RAM read once at this
+ritual: 21.7 of 31.6 GB free against the 24 GB gate, so the walk did not launch, the Sandbox was not shrunk and the
+gate was not lowered. No licence gate applies. No spike contradicted `BOOTSTRAP.md`.
+
 ### 2026-11-04 - CS-1380 - CLOSED: plan_outcome carries the plan.redesign reason beside its word, on no-route and route-refused, and the panel draws it
 Verification: `clockspeed/advisor/rules/plan.py::PlanOutcome`; `clockspeed/advisor/rules/plan.py::plan_outcome_of`;
 `clockspeed/surface/api/advice.py::PLAN_OUTCOME_KEYS`; `clockspeed/surface/web/panel_advice.js`;

@@ -1216,6 +1216,10 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
 - `clockspeed/audit/fuel.py::_extractable_by` reads forms on an entry whose resource restriction is unknown
   (empty, garbage or a flag of Maybe), and counts the portable miner and non-resource solids where a
   supply join would not; 0 disagreements over the pinned resource items; trigger: a fuel figure wrong on one.
+- Weighed at the session 155 /done: `ops/loop/inbox_responder.py::_locked_pass` records a note's digest on
+  any exit 0, handled or not, so an ok exit with no ANSWER never retries that ORDER by itself; read in
+  session 153, no note lost so far (the 1535 pass timed out, no digest); trigger: an ORDER found
+  unanswered after an ok exit.
 
 ## Session 155 rulings - filed 2026-11-03 under product before process
 
