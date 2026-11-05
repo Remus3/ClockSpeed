@@ -288,7 +288,6 @@ CS-1375 - a redesign is compared with what is built, dependency-ordered - accept
 CS-1376 - plan panel accept, dismiss, snooze and pin controls through the state route - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1378 - balanced route-refused targets get no card though a recipe eats the byproduct - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1379 - the plan family's tiers 1 and 2 name a target by ClassName; read the registry display name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1380 - the outcome key carries the plan.redesign word alone, so no-route and route-refused read bare - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1381 - a score tie on the asked direction breaks by the other two rung scores before registry order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1382 - a plan's raw inputs need an extractor the world holds, and the plan rules join the 5.4 property test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 

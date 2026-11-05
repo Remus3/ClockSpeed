@@ -1182,14 +1182,15 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
 - Four 503 no_save from four fresh listeners on one clone, 200 on retry, cause unproven; trigger: one
   reproduction on a single listener or on the parent commit.
 - CS-1371 surviving mutants, each one row: removed order, negative-machine guard, unmade beside other
-  statuses, blank ClassName in the group, route machine figure, two redesign reason sentences;
+  statuses, blank ClassName in the group, route machine figure;
   trigger: the next change to those lines.
 - Plan outcome lines outweigh tier 2; the byproduct select reads 537 wide against 218 at 768; the
   advice panel sits below a 900-high fold; trigger: the next panel audit.
 - A plan card's id moves with no rate, direction or policy, as CS-1371 clause 2 orders, so a dismissal
   at one rate hides the card at every other; the body is true, and the panel reads "no visible card
-  answered this request" beside status ranked; trigger: a player reports a dismissed plan that will
-  not return, or the next change to `clockspeed/surface/web/panel_advice.js`.
+  answered this request" beside status ranked; CS-1380's panel line fired the old trigger, and an
+  adjudicator re-filed it, a product defect CS-1371 clause 2 orders; trigger: a player reports a
+  dismissed plan that will not return, or the next change to dismissal code.
 - `clockspeed/data/registry.py::build_cost` takes the first of several build recipes for one
   descriptor, so a mod's machine with two can read locked; 0 on the pinned docs; trigger: a re-pin or
   mod content with two for one machine.
@@ -1200,9 +1201,8 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
   point that skips build_registry.
 - Pillar 1 gives a raw item no row, so a raw byproduct passes the balanced policy and tier 3 shows it
   as a negative raw input; unmeasured on a real world; trigger: a real chain measured reading this way.
-- Stale prose, none shipped to a player: `tests/surface/test_advice_source.py`'s route-world docstring
-  says the world holds no machine, and `clockspeed/surface/web/panel_scope.js`'s closing note names
-  only the solve bench; trigger: the next edit to either file.
+- Stale prose, none shipped to a player: `clockspeed/surface/web/panel_scope.js`'s closing note names
+  only the solve bench; trigger: the next edit to that file.
 - `/api/advice` has no test on multi-card order: a card sort planted in `_listing` survives
   test_advice.py, test_advice_source.py and test_advice_golden.py; trigger: the next change to that
   function.
@@ -1211,6 +1211,11 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
 - a cross-site GET to `/api/advice` with the four parameters runs the solve and can be repeated,
   unreadable there and the same class as `/api/solve` and `/api/optimize`; trigger: a ruling on a
   Sec-Fetch-Site refusal for all solver doors.
+- The plan outcome's trimmed and unmade lines read ClassNames, outside CS-1379's clause, which is tiers 1
+  and 2 alone; trigger: a player reports one, or the next panel audit.
+- `clockspeed/audit/fuel.py::_extractable_by` reads forms on an entry whose resource restriction is unknown
+  (empty, garbage or a flag of Maybe), and counts the portable miner and non-resource solids where a
+  supply join would not; 0 disagreements over the pinned resource items; trigger: a fuel figure wrong on one.
 
 ## Session 155 rulings - filed 2026-11-03 under product before process
 

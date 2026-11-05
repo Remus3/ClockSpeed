@@ -24,6 +24,21 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1380 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-04 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+### Acceptance
+
+The listing's plan_outcome carries the closed-vocabulary reason of its plan.redesign status beside the word, on no-route and route-refused, with an arm each, and the advice panel draws
+it. The no-target body stays byte-same against `tests/surface/golden/advice_no_target.json`. Why: on a fuzz of 2200 requests no-route fired on at least 60 where a plan exists and
+route-refused on at least 52; the proviso that neither proves no plan exists lives only in a trace that makes no card, so the wire reads a bare word.
+
+### Filed 2026-11-04 (session 155) by the CS-1371 close
+
+Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
+
 ## CS-1372 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-04 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as amended.**

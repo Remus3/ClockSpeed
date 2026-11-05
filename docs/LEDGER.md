@@ -75,6 +75,30 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-04 - CS-1380 - CLOSED: plan_outcome carries the plan.redesign reason beside its word, on no-route and route-refused, and the panel draws it
+Verification: `clockspeed/advisor/rules/plan.py::PlanOutcome`; `clockspeed/advisor/rules/plan.py::plan_outcome_of`;
+`clockspeed/surface/api/advice.py::PLAN_OUTCOME_KEYS`; `clockspeed/surface/web/panel_advice.js`;
+`tests/surface/test_advice_source.py::test_a_no_route_outcome_carries_its_redesign_reason`,
+`::test_a_route_refused_outcome_carries_its_redesign_reason`,
+`::test_every_other_redesign_status_carries_no_redesign_reason`;
+`tests/surface/test_panel_advice.py::test_a_no_route_outcome_draws_its_redesign_reason`,
+`::test_a_route_refused_outcome_draws_its_redesign_reason`,
+`::test_an_outcome_with_no_redesign_reason_draws_no_such_line`;
+`tests/advisor/test_plan_redesign.py::test_the_outcome_reads_the_one_sentence_the_trace_records`;
+`tests/surface/test_advice_golden.py::test_the_no_target_body_is_byte_same_as_the_golden`.
+The wire key is redesign_reason, absent on routed and not-reached as trimmed and unmade are absent where they do not
+apply. The golden file did not move: its blob is the same at the parent and here.
+RULED BEFORE CODE, a distinct adjudicator. The route-refused sentence gains the proviso the clause's Why states, that
+it does not prove no plan exists, because at the tip only no-route said so; an exact-sentence arm now pins each of the
+two. Lost: rewriting the Why. Reversed by: proof that a refusal implies no plan. Editing the panel fired the dismissal
+line in `BACKLOG.md`, Session 155 residuals: re-filed and not acted on, because CS-1371 clause 2 orders that id.
+ADVERSARIES on a frozen stack that also held CS-1379 and CS-1382. A surface lens read the wire keys on nine outcomes
+with their exact sentences, the golden at both commits under three hash seeds, two seeds byte-same, and killed 10
+mutants; it found nothing against this item, and a last re-check on a tree with neither of the other two read NOT REFUTED: no name reaches redesign_reason and the golden is byte-same. Its other findings, and the REFUTED of a real-world lens
+and a correctness lens, are against CS-1379 and CS-1382, and their sections in `docs/item_notes/phase5.md` hold them.
+NOT GRADED AFTER THE BUILD: an operator /done stopped the run and ordered no new adjudicator, so the rulings above came
+before code and no adjudicator read the built item. VERIFIER, a distinct agent, its own clone, this landing with the bound.py docstring beside it: mypy 465 files, ruff check and format clean, drift guard 11 PASS, top-level guards then tests/surface and tests/advisor stopped at its budget at 96 percent with 12142 passed, 15 skipped, 0 failed, so no totals or exit code; the last 4 percent went unread there. The builder read its targeted files at 955 passed. The one gated whole suite is the push's pre-push hook, not observed here. Not reached: a browser, tests/shell, CI, Linux.
+
 ### 2026-11-04 - CS-1371 - CLOSED on its amended clause: one panel states a target, plan.adopt fires on a real world, and a no-plan reads a marked route through plan.redesign
 Verification: `clockspeed/surface/api/advice.py`; `clockspeed/surface/api/registry.py`;
 `clockspeed/surface/providers.py::StoreAdviceSource`; `clockspeed/surface/web/panel_advice.js`;

@@ -506,17 +506,31 @@ player, while the selector already labels by display name.
 
 Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
 
-## CS-1380
+### Filed 2026-11-04 (session 155) by the /done that stopped its candidate
 
-### Acceptance
+Still OPEN. A built candidate sits unlanded on a local worktree branch: find it with `git log --all --grep=CS-1379`. Its
+three commits cherry-picked clean in a dry run with the CS-1380 landing beneath them.
 
-The listing's plan_outcome carries the closed-vocabulary reason of its plan.redesign status beside the word, on no-route and route-refused, with an arm each, and the advice panel draws
-it. The no-target body stays byte-same against `tests/surface/golden/advice_no_target.json`. Why: on a fuzz of 2200 requests no-route fired on at least 60 where a plan exists and
-route-refused on at least 52; the proviso that neither proves no plan exists lives only in a trace that makes no card, so the wire reads a bare word.
+RULED, a distinct adjudicator, before code, for the close to carry, on "Tier 3 keeps ClassNames": Tier 3 keeps every
+ClassName in its steps; Advice and Because quote tiers 1 and 2. Non-negotiable 8 holds because those two lines quote the
+recommendation. Lost: a field on `clockspeed/advisor/cards.py::Card`. Reversed by: an arm finding a ClassName only in a
+header. The clause says tier 2 of plan.redesign names the target, and at the first build it named none, so that sentence
+now opens "This route to", on the merger's order and with no clause amendment.
 
-### Filed 2026-11-04 (session 155) by the CS-1371 close
+WHY IT DID NOT LAND. A surface lens returned REFUTED, LOW, in two opposite directions, both on names the pinned docs do
+not hold. The first build spliced a display name undelimited, so a mod's name could hold a clause, a comma that reads as a
+second target, or 200000 characters. The repair reads a name holding a semicolon or a comma, or over 64 characters, by its
+ClassName through the existing fallback step, 0 of 142 selectable targets falling back; and an item named `A, B` then
+reads its ClassName, against the clause's "name the target by that display name". A residual on the same lens: a name
+equal to a recipe key prints that key in tier 1 beside "name none of them", 0 pinned names equal to a key. NEXT: a ruling
+between delimiting the name, for instance quoting it, and that fallback, with any clause change through an adjudicator;
+then the lens re-run, a verifier, an adjudicator on the built item, and landing.
 
-Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
+WHAT THE CANDIDATE HELD. A real-world lens on 8 unlock sets of the stack that also held CS-1382: card ids equal to the
+parent's with 0 mismatches, Desc_SteelPlate_C reads Steel Beam with its ClassName kept in the steps, rule errors 0. On 19
+hostile names the id held and an unprintable name fell back; the ledger holds no name and a dismissal survives a rename.
+Not reached: a browser, a re-read on a save without CS-1382, the whole suite. Its printable test is a copy of the one in
+`clockspeed/advisor/trace.py`, as `clockspeed/advisor/rules/fuel.py` keeps one.
 
 ## CS-1381
 
@@ -544,3 +558,59 @@ the queue.
 ### Filed 2026-11-04 (session 155) by the CS-1371 close
 
 Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
+
+### Filed 2026-11-04 (session 155) by the /done that stopped its candidate
+
+Still OPEN. A built candidate sits unlanded on a local worktree branch: find it with `git log --all --grep=CS-1382`.
+
+THE JOIN IS SETTLED, FROM DATA. The shipped docs publish it: `mAllowedResources` under `mOnlyAllowCertainResources`,
+else `mAllowedResourceForms` over the forms of the resource group's items. Every resource item on the pinned docs has a
+modeled machine. The portable miner entry is no modeled building, so it supplies nothing. No adjudicator was needed for
+the join, nothing is hardcoded and nothing is lifted. Any-of is ruled on the Resource Well pair: both build recipes sit
+in one schematic, and pairing them in code would be a hardcoded list; file a line with a re-pin that splits them as its
+trigger.
+
+RULINGS, a distinct adjudicator, before code, for the close to carry:
+- Reading, not amendment: literal is self-contradictory for plan.redesign. Over generated unlock sets, the oracle
+  importing no join: plan.adopt, every stage with a machine and one held machine for it in requires; plan.redesign, the
+  same for held stages, no locked stage's recipe key in requires, each consumed raw a held extractor key in requires or
+  its machine on plan.redesign.locked_extractors; a locked route fires. Reversed by: the engine not gating requires.
+- Held extractor keys join plan.redesign's requires. Reversed by: re-ruling the reading above.
+- Search raw: the stated items with a held extractor plus any that is a target. Route raw: those with a known extractor.
+  An item with neither reads plan.raw_unknown. Reversed by: a real-world refutation.
+- An unsupplied raw byproduct refuses balanced where a supplied one passes, accepted as a pillar 1 matter; the wording
+  beside it was not ruled and is the first finding below.
+- THE ROUTE'S COUNT, REVERSED BY THAT CLAUSE. An unsupplied raw item counted (1, 0) was ruled, and a real-world lens
+  refuted it: 7 early-world targets went route-refused under sinkable, InfeasibleChain with Recipe_Silica_C run backwards
+  beside Recipe_AluminaSolution_C, and the charge is per leaf, so 6 of 8 changed routes asked for more locked recipes.
+  The branch has removed it, so a route that runs now does not win a tie on raw supply; the clause does not ask that.
+  That removal's re-read on a save, the same lens at the branch's tip: NOT REFUTED, early world, sinkable, nine targets,
+  cards 9 of 9 with ids, routes and locked counts equal to the parent's, rule errors 0, the no-unlock sentence 0 of 9, the
+  locked machine named on all 9. Other targets, policies and worlds were not re-run.
+
+MUST BE REPAIRED BEFORE THIS LANDS:
+- MEDIUM, tier 2 false. Resources Ore and Water, a held extractor for Ore alone, recipe Ore to A plus Water, recipe and
+  machine held, balanced, target A: no-plan, routed, nothing trimmed, and the reason says the capped search did not find
+  the route. Nothing was capped, and the parent ranks this. The clause's condition itself holds. The builder's fixture
+  reads it 4 times in 1000 cases, and its oracle matches only the sentence's prefix.
+- LOW. The docstring sentence that a world supplying none reads a no-plan is false beside a held zero-input recipe, which
+  ranks. The sentence that an item the registry does not hold yields nothing is false for a restricted list naming a
+  token with no descriptor, reachable only by a hand-built request.
+- LOW. A mod display name may hold words: `this route needs no unlock` as a name reads beside a locked extractor,
+  as CS-1379's section says. The branch repairs a non-printable machine or extractor path into plan.unchecked and
+  plan.raw_unknown; its sentence "no known extractor" is loose there. A loop W to A plus W with no extractor held fires
+  plan.adopt, as its docstring accepts.
+- `docs/ARCHITECTURE.md` near line 81 needs the raw-supply join once this lands.
+
+WHAT THE CANDIDATE HELD, on its first frozen commit. Correctness: 7600 requests against an independent oracle, 0
+mismatches and 0 rule errors, two hash seeds identical, 39 plants with no survivor. The property test's oracle imports no
+join, and it shares one registry and one docs shape with its fixture. Real world: 43 saves, 17 unlock sets, Mk1 16,
+Mk2 4, water 10, oil 3, Mk3 and the Resource Well pair 0; a built extractor without its recipe on 0 of 40 and 0 of 31
+saves; the set holding none is a true absence, adopt 0 on both commits; the rich world moved 0 of 123 targets; 4
+constructed sets over 58 rows, 0 rule errors. Not reached: the rest of the unlock sets compared in full, Mk3 and the
+Resource Well paths on a real save. The adjudicator's common-mode risk stands: a held build recipe is taken as supply,
+with no node, power or built check.
+
+STILL OWED AT THE CLOSE: an adjudicator on the built candidate, which /done stopped before it ran, and a verifier. On the
+first frozen commit a verifier read 17604 passed, 14 skipped, 0 failed at 94 percent, killed at its budget, so its top
+level census guards went unread there. Whole suite not run on the branch.
