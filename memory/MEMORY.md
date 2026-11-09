@@ -17,6 +17,7 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
 - [Full authority - adjudicate, do not ask](full-authority-adjudicate-do-not-ask.md) -
   operator directive 2026-09-13, every session shape; a blocked decision goes to an
   adjudicator and the best recommendation is taken immediately, never to the operator.
+- [Model and effort fit the task](feedback_model_and_effort_fit_the_task.md) - pick model + effort per task/run/spawn
 
 ## Hard rules and mechanisms
 
