@@ -6,6 +6,12 @@ COMMIT STATE OF THIS FILE: push of this commit pending at write time; push resul
 
 SESSION: 156
 
+RESPONDER 2026-11-08 (headless, after this file was written): pushes are BLOCKED by drift guard (h) - the
+game was patched (live build differs from the pin; census unchanged), so the pre-push suite fails
+tests/data/test_drift_guard_data.py ("the real tree carries DRIFT in ['h']"). Commit b1038120 and this
+note's commit sit LOCAL, unpushed. First act: re-pin by `python tools/drift_guard.py --re-extract` as a
+section 5 slice (adversary on the frozen SHA, LEDGER line), then push; then the lane cycle (THE LANES).
+
 === NAMES (gitignored paths are named in words; no unpublished SHA is spelled) ===
 THE 155 BASE - `git show 1f79895ea777d801e0d58d7966d094c203dc8242:CS-NEXT-SESSION.txt`, the hand-off
   session 155 started from; it names THE 154 BASE and holds the 1535 AND 2006 block in full.
