@@ -12,6 +12,13 @@ tests/data/test_drift_guard_data.py ("the real tree carries DRIFT in ['h']"). Co
 note's commit sit LOCAL, unpushed. First act: re-pin by `python tools/drift_guard.py --re-extract` as a
 section 5 slice (adversary on the frozen SHA, LEDGER line), then push; then the lane cycle (THE LANES).
 
+RESPONDER 2026-11-12 (headless): MAIN ORDER 2026-11-12-0345 FLEET-KIT v30 - answered NOT ADOPTED at
+04:42 (outbox note ...FLEET-KIT-v30-NOT-ADOPTED-red-baseline...). The adoption is now BUILT as ONE commit on
+local branch kit-v30-adopt (worktree agent-a6bd09c1878877bd8): kit 25/25 hashed, conformance [], CLAUDE.md
+40938 B, ruff/mypy clean at the pins. Not adversaried, not landed: main's suite is red on 41 pre-existing tests
+(drift (h) pin, usmap enums, provenance row, unpublished-SHA citation, pytest/ruff/mypy above the pins). Once
+the baseline is green: adversary on the branch tip, cherry-pick, gated suite, push, then ANSWER MAIN `CS OK v30`.
+
 === NAMES (gitignored paths are named in words; no unpublished SHA is spelled) ===
 THE 155 BASE - `git show 1f79895ea777d801e0d58d7966d094c203dc8242:CS-NEXT-SESSION.txt`, the hand-off
   session 155 started from; it names THE 154 BASE and holds the 1535 AND 2006 block in full.
