@@ -2459,18 +2459,19 @@ class UsmapEvidence:
     detail: str
 
 
-#: Measured 2026-08-15 (CS-404) against one file of the pinned build. Every
-#: number below was observed, not carried forward from a document.
+#: Measured 2026-08-15 (CS-404) against one file of the pinned build, and
+#: re-measured under CS-1383 after the game patch moved the pin. Every number
+#: below was observed, not carried forward from a document.
 USMAP_EVIDENCE: Final[tuple[UsmapEvidence, ...]] = (
     UsmapEvidence(
         "enum section encoding",
         USMAP_BASIS_REBUILD,
-        "all 2603 real enums re-emit byte-identically from this builder",
+        "all 2602 real enums re-emit byte-identically from this builder",
     ),
     UsmapEvidence(
         "schema section encoding",
         USMAP_BASIS_REBUILD,
-        "13697 of 13792 real schemas re-emit byte-identically; the 95 "
+        "13706 of 13801 real schemas re-emit byte-identically; the 95 "
         "exceptions are exactly those with property_count != serializable "
         "count, which this builder cannot express - see UsmapSchema",
     ),
@@ -2478,25 +2479,25 @@ USMAP_EVIDENCE: Final[tuple[UsmapEvidence, ...]] = (
         "type-26 field order (inner descriptor BEFORE the name index)",
         USMAP_BASIS_REBUILD,
         "NOT settled by landing: writing the name first consumes identical "
-        "bytes and lands on the same tag at 1896914. It is settled by the "
+        "bytes and lands on the same tag at 1897717. It is settled by the "
         "rebuild, and separately by in-bounds validation - name-first puts a "
-        "type-26 name index outside the 57985-entry table on the real file. "
-        "3113 such descriptors across 1873 schemas, nesting included",
+        "type-26 name index outside the 58010-entry table on the real file. "
+        "3112 such descriptors across 1873 schemas, nesting included",
     ),
     UsmapEvidence(
         "name/enum/schema counts and widths, payload shapes",
         USMAP_BASIS_LANDING,
         "38 single-field perturbations were run across two sessions and all 38 "
         "fail to land on the trailing tag; the unperturbed walk consumes "
-        "1896914 with 784830 trailing",
+        "1897717 with 785115 trailing",
     ),
     UsmapEvidence(
         "entry field ORDER: slot before array_size",
         USMAP_BASIS_DISTRIBUTION,
         "landing does NOT discriminate this - swapping the two lands "
-        "byte-identically at 1896914. Settled only by value distribution: slot "
-        "equals the loop index in 9725 of 9795 non-empty schemas, and "
-        "array_size is 1 in 48075 of 48223 entries",
+        "byte-identically at 1897717. Settled only by value distribution: slot "
+        "equals the loop index in 9733 of 9803 non-empty schemas, and "
+        "array_size is 1 in 48105 of 48253 entries",
     ),
     UsmapEvidence(
         "MAX_KNOWN_PROPERTY_TYPE = 29",
@@ -2556,7 +2557,7 @@ class UsmapSchema:
     """One schema for :func:`build_usmap`'s shipped-grammar mode.
 
     TWO REAL SHAPES THIS STRUCTURALLY CANNOT EMIT, stated here rather than
-    discovered later. Both are the same 95 schemas of the shipped file's 13792:
+    discovered later. Both are the same 95 schemas of the shipped file's 13801:
 
     - ``property_count != serializable_count``. This writes the two counts
       equal, because it has one property list. 95 real schemas declare more
@@ -2681,7 +2682,7 @@ def usmap_name_table(names: Sequence[str]) -> Mapping[str, int]:
     Public because the shipped-bytes rebuild audit needs to build it ONCE and
     reuse it across thousands of entries. Duplicate names resolve to the LAST
     position, which is a real difference from the file for a name table that
-    repeats - the shipped file's 57985 names are all distinct, measured.
+    repeats - the shipped file's 58010 names are all distinct, measured.
 
     Args:
         names: The name table, in file order.
@@ -2730,8 +2731,8 @@ def build_usmap_schema_entry(schema: UsmapSchema, table: Mapping[str, int]) -> b
     """Write ONE schema in the shipped grammar, with no section count prefix.
 
     The property count and the serializable count are written equal, and the
-    slot is written as the loop index. MEASURED: the two counts agree on 13697
-    of the shipped file's 13792 schemas and the slots are sequential in all of
+    slot is written as the loop index. MEASURED: the two counts agree on 13706
+    of the shipped file's 13801 schemas and the slots are sequential in all of
     those, so both shortfalls are the same 95 schemas - see
     :class:`UsmapSchema`. The entry loop is driven by the SERIALIZABLE count;
     walking on the property count instead desynchronises the real file.
