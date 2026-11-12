@@ -859,6 +859,10 @@ def _unchecked_clause(unchecked: tuple[str, ...]) -> str:
 def _raw_unknown_clause(raw_unknown: tuple[str, ...]) -> str:
     """Say how many declared raw items no extractor joins, or nothing.
 
+    KNOWN MEANS JOINED. The sentence's known extractor is one the docs name whose build recipe
+    has a path an unlock key can carry, so an item whose every extractor's path is not
+    printable ASCII counts here beside one the docs name no extractor for.
+
     Args:
         raw_unknown: The raw items, which neither a search nor a route may start from.
 

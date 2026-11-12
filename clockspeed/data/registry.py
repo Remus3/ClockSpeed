@@ -2561,7 +2561,9 @@ def extractors_of(registry: Registry, item_key: str) -> tuple[str, ...]:
 
     Args:
         registry: The built registry.
-        item_key: An item's ClassName. One the registry does not hold yields nothing.
+        item_key: An item's ClassName. One the registry does not hold has no form to read, so
+            it yields only a restricted extractor whose own list names it, which only a
+            hand-built request can ask about: the resource group names no such item.
 
     Returns:
         The ClassNames in document order, the order of :attr:`Registry.extractors`. Empty
