@@ -1378,3 +1378,104 @@ def test_r1_a_fast_kit_ending_through_the_real_launcher_and_runner(
     aborted = len(logs) == 1 and b"lane abort " in logs[0].read_bytes()
     assert aborted, "the real launcher did not append its abort line to the runner's log"
     assert summary["stopped_by"] != queue_loop.STOPPED_BY_LAUNCH_FAILED
+
+
+# ---------------------------------------------------------------------------
+# Kit v30 PAUSE REASONS (MAIN ORDER 2026-11-12, section 6 "ALL WITH A DRIVER"):
+# where the driver holds itself back it records why through the kit's
+# `fleet_lanes.note_pause`, so the kit's `pause_state` names the reason a tree
+# sat idle instead of answering `none_recorded`. Graded through the `pause`
+# seam: a two-argument (reason, detail) callable `main` binds to the kit.
+# ---------------------------------------------------------------------------
+
+
+def _pause_recorder() -> tuple[list[Any], Any]:
+    """A `pause` seam that records (reason, detail) in call order."""
+    said: list[Any] = []
+
+    def pause(reason: str, detail: str) -> None:
+        said.append((reason, detail))
+
+    return said, pause
+
+
+def test_kit30_a_usage_limit_back_off_records_a_limit_pause_before_it_waits(
+    tmp_path: Path,
+) -> None:
+    """THE ARM: a usage-limit back-off writes one `limit` pause, then waits.
+
+    The row lands BEFORE the hour's first poll, so a status read during the
+    wait already names the limit. Nothing the worker wrote reaches the detail.
+    """
+    events: list[Any] = []
+
+    def pause(reason: str, detail: str) -> None:
+        events.append(("pause", reason, detail))
+
+    def sleep(seconds: float) -> None:
+        events.append(("sleep", float(seconds)))
+
+    results: list[dict[str, Any] | None] = [REFUSAL, ORDINARY_SUCCESS, ORDINARY_SUCCESS]
+    summary, _, _, _, _, _ = _drive(tmp_path, results, budget=2, pause=pause, sleep=sleep)
+    paused = [event for event in events if event[0] == "pause"]
+    assert [event[1] for event in paused] == ["limit"], f"pauses {paused}"
+    assert events[0][0] == "pause", f"the back-off waited before its pause row: {events[:2]}"
+    assert NEEDLE not in paused[0][2], "the worker's text reached the pause detail"
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+
+
+def test_kit30_a_one_attempt_night_ended_by_a_limit_records_a_limit_pause(tmp_path: Path) -> None:
+    """`--once` ends on the refusal with no back-off: the stop records the limit."""
+    said, pause = _pause_recorder()
+    summary, _, _, _, _, _ = _drive(tmp_path, [REFUSAL], budget=1, pause=pause)
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_USAGE_LIMIT
+    assert [reason for reason, _ in said] == ["limit"], f"pauses {said}"
+
+
+def test_kit30_a_budget_back_off_records_a_budget_pause(tmp_path: Path) -> None:
+    """A spent run budget is the same outside "no": its back-off records `budget`."""
+    control = tmp_path / "control"
+    _status(control, frees_in=5000)
+    logs = [
+        _ending_log(tmp_path / "r.log", _refused_tail(_BUDGET_CODE)),
+        _ok_log(tmp_path / "ok1.log"),
+        _ok_log(tmp_path / "ok2.log"),
+    ]
+    launch, _ = _launches(list(logs))
+    said, pause = _pause_recorder()
+    summary, _, _, _, _, _ = _drive(tmp_path, [], budget=2, launch=launch, pause=pause)
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+    assert [reason for reason, _ in said] == ["budget"], f"pauses {said}"
+
+
+def test_kit30_an_operator_stop_during_a_back_off_records_limit_then_operator(
+    tmp_path: Path,
+) -> None:
+    """A QUEUE_STOP dropped mid back-off ends the night on the operator's gate."""
+    control = tmp_path / "control"
+    stop = control / "lanes" / "QUEUE_STOP"
+
+    def sleep(_seconds: float) -> None:
+        stop.parent.mkdir(parents=True, exist_ok=True)
+        stop.write_bytes(b"synthetic stop\n")
+
+    said, pause = _pause_recorder()
+    summary, _, _, _, _, _ = _drive(
+        tmp_path,
+        [REFUSAL, ORDINARY_SUCCESS],
+        budget=2,
+        sleep=sleep,
+        control_dir=control,
+        pause=pause,
+    )
+    assert summary["stopped_by"] == "QUEUE_STOP", summary["stopped_by"]
+    assert [reason for reason, _ in said] == ["limit", "operator"], f"pauses {said}"
+
+
+def test_kit30_control_a_night_with_no_gate_records_no_pause(tmp_path: Path) -> None:
+    """THE CONTROL: runs that happened, ending on the budget, hold nothing back."""
+    said, pause = _pause_recorder()
+    results: list[dict[str, Any] | None] = [ORDINARY_SUCCESS, ORDINARY_FAILURE]
+    summary, _, _, _, _, _ = _drive(tmp_path, results, budget=2, pause=pause)
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+    assert said == [], f"a night with no gate recorded {said}"

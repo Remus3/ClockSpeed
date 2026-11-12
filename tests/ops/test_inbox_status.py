@@ -77,7 +77,7 @@ def test_the_constants_match_the_order() -> None:
 
 
 def test_publish_writes_schema_one_exactly(tmp_path: Path) -> None:
-    window = inbox_status.Window(count=3, frees_at=T0 + 10)
+    window = inbox_status.Window(count=3, frees_at=T0 + 10, cap=kit.RUNS_CAP)
     inbox_status.publish(
         tmp_path,
         now=T0,
@@ -118,7 +118,7 @@ def test_publish_holds_no_path(tmp_path: Path) -> None:
         task_started=T0,
         eta_s=4,
         next_tick=None,
-        window=inbox_status.Window(count=0, frees_at=None),
+        window=inbox_status.Window(count=0, frees_at=None, cap=kit.RUNS_CAP),
     )
     raw = (tmp_path / inbox_status.STATUS_NAME).read_bytes().decode("ascii")
     no_sep = "\\" not in raw and "/" not in raw
@@ -137,12 +137,12 @@ def test_publish_refuses_a_name_outside_the_sets(tmp_path: Path, state: str, tas
             task_started=T0,
             eta_s=None,
             next_tick=None,
-            window=inbox_status.Window(count=0, frees_at=None),
+            window=inbox_status.Window(count=0, frees_at=None, cap=kit.RUNS_CAP),
         )
 
 
 def test_refresh_keeps_the_task_and_moves_updated(tmp_path: Path) -> None:
-    window = inbox_status.Window(count=1, frees_at=T0 + DAY)
+    window = inbox_status.Window(count=1, frees_at=T0 + DAY, cap=kit.RUNS_CAP)
     inbox_status.publish(
         tmp_path,
         now=T0,
@@ -162,7 +162,7 @@ def test_refresh_keeps_the_task_and_moves_updated(tmp_path: Path) -> None:
 
 
 def test_refresh_without_a_status_file_writes_nothing(tmp_path: Path) -> None:
-    window = inbox_status.Window(count=0, frees_at=None)
+    window = inbox_status.Window(count=0, frees_at=None, cap=kit.RUNS_CAP)
     refreshed = inbox_status.refresh(tmp_path, now=T0, next_tick=None, window=window)
     assert (refreshed, (tmp_path / inbox_status.STATUS_NAME).exists()) == (False, False)
 
@@ -242,6 +242,25 @@ def test_the_published_cap_and_window_are_the_kits() -> None:
     assert numbers == (kit.RUNS_CAP, kit.WINDOW_S, set(kit.STATES))
 
 
+def test_the_published_cap_is_the_windows_never_the_constant(tmp_path: Path) -> None:
+    """Kit v30: a bare RunBudget resolves the MACHINE cap, so RUNS_CAP is no longer it.
+
+    The window carries the budget's own `.cap`; publishing the 120 constant
+    would show a tree with a raised machine cap as full at 120.
+    """
+    inbox_status.publish(
+        tmp_path,
+        now=T0,
+        state="idle",
+        task="Idle",
+        task_started=T0,
+        eta_s=None,
+        next_tick=None,
+        window=inbox_status.Window(count=0, frees_at=None, cap=300),
+    )
+    assert _read(tmp_path)["runs_cap"] == 300  # noqa: PLR2004 - the planted cap
+
+
 def test_publish_accepts_the_kits_blocked_state(tmp_path: Path) -> None:
     """FLEET-KIT v14 (CS-1299) adds "blocked" to the kit's STATES; the schema publishes it."""
     inbox_status.publish(
@@ -252,7 +271,7 @@ def test_publish_accepts_the_kits_blocked_state(tmp_path: Path) -> None:
         task_started=T0 - 5,
         eta_s=None,
         next_tick=None,
-        window=inbox_status.Window(count=0, frees_at=None),
+        window=inbox_status.Window(count=0, frees_at=None, cap=kit.RUNS_CAP),
     )
     assert _read(tmp_path)["state"] == "blocked"
 

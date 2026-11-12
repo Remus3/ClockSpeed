@@ -20,9 +20,11 @@ own `RunBudget`; it was retired when the responder moved onto FLEET-KIT v4's
 spawn, which counts every headless start in the tree against ONE budget under
 its lock and refuses every start on an unreadable one. Two counters would show
 two different windows, so the responder reads the kit's budget for the
-`runs_in_window` and `cap_frees_at` it publishes here. `RUNS_CAP` and
-`WINDOW_S` below are the schema's published numbers and are pinned equal to the
-kit's by the tests. The state names are the kit's `STATES`.
+`runs_in_window`, `runs_cap` and `cap_frees_at` it publishes here. From
+FLEET-KIT v30 a bare budget resolves the MACHINE cap, so `runs_cap` is the
+budget's own `.cap` carried on the `Window`, never `RUNS_CAP`. `RUNS_CAP` and
+`WINDOW_S` below stay pinned equal to the kit's constants by the tests. The
+state names are the kit's `STATES`.
 """
 
 from __future__ import annotations
@@ -92,10 +94,15 @@ _TASK_NS: Final = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 
 @dataclass(frozen=True)
 class Window:
-    """The starts inside the kit's rolling window, and when the count next drops."""
+    """The starts in the kit's rolling window, when the count drops, and the cap.
+
+    The cap is the budget's own `.cap` - from kit v30 the machine cap, not
+    always `RUNS_CAP`.
+    """
 
     count: int
     frees_at: float | None
+    cap: int
 
 
 def iso(epoch: float) -> str:
@@ -276,7 +283,7 @@ def _record(
         "task_eta_s": eta_s,
         "next_tick": None if next_tick is None else iso(next_tick),
         "runs_in_window": int(window.count),
-        "runs_cap": RUNS_CAP,
+        "runs_cap": int(window.cap),
         "window_s": WINDOW_S,
         "cap_frees_at": None if window.frees_at is None else iso(window.frees_at),
     }

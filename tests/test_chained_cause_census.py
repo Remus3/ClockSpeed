@@ -1368,6 +1368,15 @@ VENDORED_KEY_COLLISIONS: Final[dict[str, tuple[int, str]]] = {
         "21 also gave spawn()'s two Refused re-raises distinct sites, so the "
         "version 19 spawn::Refused collision no longer occurs (CS-1354).",
     ),
+    "ops/fleet_kit/fleet_headless.py::spawn::<bare>::Refused::<active>": (
+        2,
+        "FLEET-KIT version 30 (DRIVE-REAPER) brings the spawn::Refused collision "
+        "back: spawn() re-reads a drive's room after the governor wait in a "
+        "second `except Refused` handler (room_exc) that, like the first "
+        "(the pre-slot checks), publishes the refusal status and re-raises "
+        "bare; nothing else in the key tells the two apart. Both forward the "
+        "kit's own Refused unchanged.",
+    ),
 }
 
 

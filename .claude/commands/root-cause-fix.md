@@ -10,9 +10,10 @@ argument-hint: <bug, e.g. CS-033 registry drops recipes with an empty ingredient
 FLEET-KIT v10, carried at v11 (MAIN's 2026-10-08 08:39 ORDER, item 4; the FLEET-COMMON banner; CS-1282, CS-1287):
 the main session does NOT run these steps. It dispatches the WHOLE of this command -
 every step below, with this file's text and the arguments as the prompt - to ONE
-sub-agent (the Agent tool, in the background by default), waits for that sub-agent's
-completion notification, and relays ONLY its final line, the command's one-line result,
-to chat. The sub-agent runs every step itself and never re-dispatches the whole command.
+sub-agent (the Agent tool, in the background by default), supervises it per FLEET
+item 12 - bounded slices to a deadline, never ending its turn waiting on one event -
+and relays ONLY its final line, the command's one-line result, to chat. The sub-agent
+runs every step itself and never re-dispatches the whole command.
 The kit's PreToolUse hook `ops/fleet_kit/fleet_subagent_first.py` denies Bash,
 PowerShell, Read, Edit, Write, Grep, Glob and NotebookEdit in the main thread once its
 mode is deny, so a step run there stops at its first tool call.

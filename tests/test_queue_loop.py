@@ -5140,3 +5140,138 @@ def test_cs1342_a_relative_control_dir_exports_an_absolute_queue_stop(tmp_path, 
     absolute = one_run and Path(str(seen[0])).is_absolute()
     matches = one_run and Path(str(seen[0])) == expected
     assert (one_run, absolute, matches) == (True, True, True)
+
+
+# ---------------------------------------------------------------------------
+# Kit v30 PAUSE REASONS (MAIN ORDER 2026-11-12, section 6 "ALL WITH A DRIVER"):
+# a night the operator's gate ends records `operator` through the kit's
+# `fleet_lanes.note_pause`, so `pause_state` names why the tree sat idle. A
+# drained queue and a governor yield are not an operator's gate and record
+# nothing. The back-off reasons (limit, budget) are graded beside their
+# fixtures in tests/ops/test_usage_limit_refusal.py.
+# ---------------------------------------------------------------------------
+
+
+def _kit30_pauses():
+    """A `pause` seam that records (reason, detail) in call order."""
+    said: list = []
+
+    def pause(reason, detail):
+        said.append((reason, detail))
+
+    return said, pause
+
+
+@pytest.mark.parametrize(
+    ("rel", "expected"),
+    [
+        ("STOP", ["operator"]),
+        ("lanes/QUEUE_STOP", ["operator"]),
+        ("lanes/QUEUE_DRAINED", []),
+    ],
+    ids=["stop", "queue-stop", "drained-is-no-gate"],
+)
+def test_kit30_an_operator_sentinel_stop_records_an_operator_pause(tmp_path, rel, expected):
+    """The driver's own operator sentinels end the night with an `operator` row."""
+    control = tmp_path / "control"
+    sentinel = control / rel
+    sentinel.parent.mkdir(parents=True, exist_ok=True)
+    sentinel.write_text("halt", encoding="utf-8")
+    said, pause = _kit30_pauses()
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            max_cycles=3,
+            control_dir=control,
+            cycle_log=tmp_path / "l.jsonl",
+            hold=NullHold(),
+            pause=pause,
+        )
+    )
+    assert summary["stopped_by"] == Path(rel).name
+    assert [reason for reason, _ in said] == expected, f"pauses {said}"
+
+
+def test_kit30_a_declared_sentinel_stop_records_an_operator_pause(tmp_path):
+    """A sentinel the tree declares (kit_halted) is the operator's gate too."""
+    said, pause = _kit30_pauses()
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            max_cycles=3,
+            control_dir=tmp_path / "control",
+            kit_halt=lambda: "kit_halted",
+            pause=pause,
+        )
+    )
+    assert summary["stopped_by"] == "kit_halted"
+    assert [reason for reason, _ in said] == ["operator"], f"pauses {said}"
+
+
+def test_kit30_control_a_governor_yield_records_no_pause(tmp_path):
+    """THE CONTROL: a fair-release yield is the governor's, not an operator's gate."""
+    said, pause = _kit30_pauses()
+    head_sha, tree_sha = _lane_push()
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            max_cycles=3,
+            control_dir=tmp_path / "control",
+            cycle_log=tmp_path / "l.jsonl",
+            hold=NullHold(),
+            head_sha=head_sha,
+            tree_sha=tree_sha,
+            ci_gate=False,
+            fair_yield=lambda: True,
+            pause=pause,
+        )
+    )
+    assert summary["stopped_by"] == "fair_yield"
+    assert said == [], f"a yield recorded {said}"
+
+
+def test_kit30_the_cli_binds_the_kits_pause_writer_to_this_tree_and_lane(monkeypatch):
+    """Production writes the REAL log: `main` binds `kit_note_pause` to the tree and lane."""
+    called = _no_night(monkeypatch)
+    queue_loop.main(["--once"], singleton=FakeSingleton())
+    bound = called[0].get("pause") if called else None
+    writer = getattr(queue_loop, "kit_note_pause", None)
+    shape = (
+        writer is not None and getattr(bound, "func", None) is writer,
+        getattr(bound, "args", None) == (queue_loop.KIT_ROOT, queue_loop.LANE),
+    )
+    assert shape == (True, True), f"the night was handed {shape}"
+
+
+def test_kit30_a_sandboxed_night_is_handed_no_pause_writer(tmp_path, monkeypatch):
+    """`--control-dir` points the night at a sandbox, so it writes no live pause row."""
+    called = _no_night(monkeypatch)
+    queue_loop.main(
+        ["--once", "--control-dir", str(tmp_path / "control")], singleton=FakeSingleton()
+    )
+    assert called, "the night never ran"
+    assert called[0].get("pause") is None, "a sandboxed night was handed the live pause log"
+
+
+def test_kit30_kit_note_pause_writes_the_kits_row_for_this_tree(tmp_path):
+    """The writer goes through the vendored kit: one row, this tree's code, this lane."""
+    queue_loop.kit_note_pause(tmp_path, queue_loop.LANE, "limit", "synthetic back-off")
+    log = tmp_path / "ops" / "loop" / "control" / "lanes" / "pause.jsonl"
+    rows = [json.loads(line) for line in log.read_text(encoding="ascii").splitlines()]
+    shape = [(row["tree"], row["lane"], row["reason"]) for row in rows]
+    assert shape == [(lanes.LANE_CODE, queue_loop.LANE, "limit")], f"rows {shape}"
+
+
+def test_kit30_kit_note_pause_never_raises_when_the_kit_cannot_be_bound(monkeypatch, tmp_path):
+    """A pause row never blocks a night: a kit that cannot be bound is swallowed."""
+
+    class _Unbound:
+        LANE_CODE = "CS"
+
+        @staticmethod
+        def kit_lanes():
+            raise ImportError("synthetic unbound kit")
+
+    monkeypatch.setattr(queue_loop, "lanes", _Unbound, raising=False)
+    queue_loop.kit_note_pause(tmp_path, queue_loop.LANE, "operator", "synthetic")
+    assert not (tmp_path / "ops").exists(), "an unbound kit still wrote a row"

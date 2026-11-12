@@ -363,9 +363,12 @@ ignore = [
 # argument to the encoded bytes it writes to the child's stdin file.
 # Version 26 (MEASURED on its bytes): SLF001 - `budget show` / `budget reset`
 # reach the kit's own RunBudget._load and _lock.
+# Version 30 (MEASURED on its bytes): RUF100 - five `noqa: BLE001` comments in
+# the pinned-proxy probe and the drive RAM and suite-gate reads, a rule this file does not select.
 "ops/fleet_kit/fleet_headless.py" = [
   "A001", "A002", "D102", "D103", "D107", "D205", "D209", "D403", "D415", "FURB167", "N818",
-  "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510", "SLF001",
+  "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "PLW1510", "RUF100",
+  "SLF001",
 ]
 
 # THE SIX PYTHON MODULES FLEET-KIT VERSION 9 ADDED (CS-1272), vendored and pinned
@@ -412,9 +415,11 @@ ignore = [
   "D101", "D102", "D103", "D105", "D107", "D205", "D209", "D403", "FURB167", "N818",
   "PERF401", "PLC0415", "PLR0911", "PLR2004", "PTH105", "PTH109", "RUF023", "UP017",
 ]
+# Version 30 (MEASURED on its bytes): fleet_lanes.py adds S110 - lane_model()'s
+# best-effort try/except/pass: an unreadable lane_model key names no model.
 "ops/fleet_kit/fleet_lanes.py" = [
   "D103", "D205", "D209", "D403", "N818", "PLC0415", "PLR0911", "PLR0912", "PLR0913",
-  "PLR2004", "PLW1510", "RUF100",
+  "PLR2004", "PLW1510", "RUF100", "S110",
 ]
 "ops/fleet_kit/fleet_secrets.py" = ["D105", "D107", "D205", "D209", "N818", "PLW1510"]
 "ops/fleet_kit/fleet_watch.py" = [
@@ -483,9 +488,11 @@ ignore = [
   "B905", "D103", "D205", "D209", "D301", "D403", "FURB167", "PERF401", "PLR2004", "PLW1510",
   "PLW2901", "PTH109", "PTH123", "UP032",
 ]
+# Version 30 (MEASURED on its bytes): fleet_rewrite.py adds PLR2004 (a literal 2
+# in the ref-line split) and PTH101 and PTH118 (rehearse's os.chmod(os.path.join(...))).
 "ops/fleet_kit/fleet_rewrite.py" = [
-  "D103", "D205", "D209", "D403", "E501", "FURB188", "N818", "PLR0912", "PLW1510",
-  "PTH123", "RUF059", "SLF001", "UP032",
+  "D103", "D205", "D209", "D403", "E501", "FURB188", "N818", "PLR0912", "PLR2004",
+  "PLW1510", "PTH101", "PTH118", "PTH123", "RUF059", "SLF001", "UP032",
 ]
 "ops/fleet_kit/fleet_suite_gate.py" = [
   "D102", "D103", "D105", "D107", "D205", "D209", "D301", "E501", "FURB167", "I001",
@@ -514,10 +521,12 @@ ignore = [
 # Version 23 (CS-1354, MEASURED on its bytes) adds PERF401 - the local board.html
 # table rows built up with append(). Version 26 (MEASURED on its bytes) adds
 # PLC0415 and RUF100 - the Lanes card loads fleet_lanes.py by path inside a
-# helper, under a `noqa: BLE001` for a rule this file does not select.
+# helper, under a `noqa: BLE001` for a rule this file does not select. Version 30
+# (MEASURED on its bytes) adds PLR0912 (build() with the 20-row overflow)
+# and PLR0913 and PLR0917 (render()'s nine parameters).
 "ops/fleet_kit/fleet_board.py" = [
-  "C420", "D103", "D205", "D209", "E501", "FURB167", "PERF401", "PLC0415", "PLR2004",
-  "PTH105", "PTH123", "RUF100",
+  "C420", "D103", "D205", "D209", "E501", "FURB167", "PERF401", "PLC0415", "PLR0912",
+  "PLR0913", "PLR0917", "PLR2004", "PTH105", "PTH123", "RUF100",
 ]
 
 [tool.ruff.lint.isort]
@@ -896,10 +905,19 @@ warn_return_any = false
 #               guarded by an isinstance on a repeated call, which mypy does not
 #               narrow, the same shape as the union-attr row above.
 #
-# ONLY these five codes ARE DISABLED, and only for this module. The rest of the
+# MEASURED on the version 30 bytes (the kit v30 rollout, bare `python -m mypy`
+# under the pinned mypy), one more; the line numbers are version 30's:
+#   operator    fleet_headless.py:1429 and 1434 - _rejected_7d(), `u7 >= 1.0`
+#               and `reset / 1000` on `q.get(...)` values typed `Any | None`,
+#               each guarded by `_num()` on the same name, a predicate mypy
+#               does not narrow through.
+#
+# ONLY these six codes ARE DISABLED, and only for this module. The rest of the
 # gate still reads the file; `exclude` is NOT used, for the reason above.
 module = ["ops.fleet_kit.fleet_headless"]
-disable_error_code = ["union-attr", "arg-type", "assignment", "unreachable", "index"]
+disable_error_code = [
+  "union-attr", "arg-type", "assignment", "unreachable", "index", "operator",
+]
 
 [[tool.mypy.overrides]]
 # ops/fleet_kit/fleet_inbox.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit

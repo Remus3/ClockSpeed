@@ -19,9 +19,8 @@ MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and 
 `THIRD_PARTY.md` row for `ops/fleet_kit/FLEET-COMMON.md`.
 
 **Precedence - where this file and the FLEET-COMMON block differ, `CLAUDE.md` governs
-this tree.** Specifically: (a) section 2.3's rule never to poll a background task in
-one-line turns governs over FLEET item 12's periodic check - wait for the completion
-notification; (b) retired at kit v9, whose item 13 carries the checklist section 2.3.1
+this tree.** Specifically: (a) retired at kit v30, whose item 12 supervision section 2.3
+now follows; (b) retired at kit v9, whose item 13 carries the checklist section 2.3.1
 applies; (c) retired by CS-1231 slice C - FLEET item 10 holds with no exception; (d) FLEET
 item 5's rule that every do-not-re-litigate entry states what would reverse it is met by the
 *Reversed by:* clause on each section 7 entry. Section 6.1's repository-public/remote
@@ -123,6 +122,12 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     so the main session can see percent, time to completion and status mid-run
     instead of waiting for 0-to-100 at the end. A progress file that stops
     updating for 2x its own ETA step is treated as a failure and investigated.
+    A running row past 1.5x its ETA reads OVERRUN on the status line and agent
+    panel (kit v29). Whoever supervises a long run polls in bounded slices to a
+    deadline (2x the ETA) until the run exits and reads the outcome, because
+    rc 0 is not success; it never ends its turn waiting on one event. Before
+    any status answer it reads the progress files (`fleet_checklist.py
+    stale`); a row past 2x reads STALE and is acted on.
     The file lives in the MAIN checkout even when written from a linked
     worktree (resolved via the git common dir; `fleet_headless.write_progress`
     does it), and a worktree-isolated agent's only write outside its worktree
@@ -147,9 +152,12 @@ edit. Tree-specific rules go BELOW this block, never inside it.
        without it reads `<pct>% ~<rem> Remain`). Rendered by fleet_checklist
        (render / Checklist), never hand-typed ETA prose; the item-13 b
        reprint, status answers, the status line and the agent panel show the
-       same. <box> is U+2610. The last line is `<box> /done`. At most ONE
-       trailing sentence, and only for an ordering constraint ("X waits until
-       Y lands because ..."). NO summary, review, what-went-wrong or history.
+       same. <box> is U+2610. The last line is `<box> /done`. Past 20 rows
+       the kit prints one overflow line, `(+<N> more past the 20-row cap:
+       <IDs>)`, directly above it; that line is the kit's, not the trailing
+       sentence, and no tree writes its own. At most ONE trailing sentence,
+       and only for an ordering constraint ("X waits until Y lands because
+       ..."). NO summary, review, what-went-wrong or history.
     b. After every 4 or more completed tasks, print the REMAINING tasks only,
        newly added ones marked `+` before the ID. Never list completed ones.
     c. When no task remains, run /done automatically, without a prompt.
@@ -175,8 +183,9 @@ edit. Tree-specific rules go BELOW this block, never inside it.
        new work.
     e. Every headless run logs a usage line to
        `ops/loop/control/headless_usage.jsonl` via the kit, with `kind`
-       build / inbox / triage and a non-empty note label. MAIN reports the
-       weekly build-vs-inbox split in its insights report.
+       build / order / inbox / triage / report / probe and a non-empty note
+       label. MAIN reports the weekly build-vs-inbox split in its insights
+       report.
 15. CLI DISPLAY (kit v9; the fleet UI/UX standard ruled 2026-10-07). Display
     keys live only in the two account settings, from the kit's
     cli_display.json; a tree sets none. Status surfaces use the kit state
@@ -324,8 +333,8 @@ or write verbose output to a file. Operator directive, 2026-09-06.
 - Put the step description in the tool call's own `description` field - it renders as the
   visible label and costs nothing in the response body.
 - Long findings go to a file, a ledger entry or an item note, never into chat.
-- **Do NOT poll a background task in a loop of one-line turns.** Each poll is a whole turn.
-  Wait for the completion notification.
+- **Do NOT poll a background task in a loop of one-line turns.** Each poll is a whole turn;
+  supervise a long run per FLEET item 12, saying nothing between its bounded slices.
 
 Why: `docs/history_notes.md`, "From section 2.3".
 
@@ -426,10 +435,9 @@ Rules that follow from the table:
   after a provenance verb records only when the text was filed, moved or measured, and
   marks status not at all - so a live document is free to carry one. **A file carrying
   dated headings declares its own status in its header** - `Section status: LIVE` or
-  `HISTORICAL` - and a status date inside a file declaring itself LIVE is drift. The
-  declaration lives inside the file it describes, so the two cannot drift apart the way
-  a list held in code does. `tools/drift_guard.py` guard (g) owns the closed idiom
-  vocabulary and FAILS on either fault.
+  `HISTORICAL` - and a status date inside a file declaring itself LIVE is drift.
+  `tools/drift_guard.py` guard (g) owns the closed idiom vocabulary and the why, and
+  FAILS on either fault.
 - When a size budget is hit, **relocate, do not delete.** Move detail to a sub-index or an
   archive file and leave a one-line pointer.
 
@@ -505,9 +513,9 @@ untouched: no red suite ships, the failing test still comes first, and nothing i
 done that its acceptance says is not.
 
 **Nothing stays uncommitted or unpushed.** Batch commits and pushes so CI waits overlap
-with other work - remembering that CI runs only the TIP of a push, so a batch leaves its
-intermediate commits untested. It and FLEET items 4 and 5 yield here only to the /done
-cases `.claude/commands/done.md` names (CS-1321, CS-1323).
+with other work; CI grades only a push's tip (that memory file, "The commit and push
+clause"). It and FLEET items 4 and 5 yield here only to the /done cases
+`.claude/commands/done.md` names (CS-1321, CS-1323).
 
 **A status request is answered with the section 2.3.1 checklist**, not prose.
 
@@ -519,11 +527,10 @@ exception above. The grant and the provenance check: `docs/OPERATIONS.md` sectio
 
 ## 7. Settled - decided, do not re-litigate
 
-Each entry records what was decided AND specifically what not to re-pitch. A settled entry
-that records only the conclusion invites someone to rebuild the argument. The fence is the
-point. *An operator ADR* below means only the operator's own words in
-the main session (section 6.1 - no adjudicator and no MAIN note stands in), then recorded
-as an ADR in `docs/adr/`.
+Each entry records what was decided AND what not to re-pitch; the fence is the point
+(why, and the kit v30 relocation: `docs/history_notes.md`). *An operator ADR* below means
+only the operator's own words in the main session (section 6.1 - no adjudicator and no
+MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 
 **The two that matter most are the zero-language-model rule and the never-write rule.**
 
@@ -571,8 +578,7 @@ as an ADR in `docs/adr/`.
   tolerated, unmodeled content flagged, feature-flag registry from phase 0. *Do not
   re-pitch:* opening mod content work before phase 6 completes.
   *Reversed by:* phase 6 completing opens mod content work; the architecture half only by
-  the operator's own words in the main session (section 6.1 - no adjudicator and no MAIN
-  note stands in), then recorded as an ADR in `docs/adr/`.
+  an operator ADR.
 - **Dedicated Server API is out of scope for v1.** The docs are on disk and free to read,
   but single-player saves are the world-state source. *Do not re-pitch:* it as a
   world-state source. Revisit only if the operator starts running a dedicated server.
@@ -584,17 +590,14 @@ as an ADR in `docs/adr/`.
   *Reversed by:* all three conditions above met, with a CLEARED gate row in
   `THIRD_PARTY.md`.
 - **No lifted datasets, including from the OFFICIAL wiki.** Both sanctioned paths - the
-  save itself, or extraction from the shipped assets - are cleaner. The official wiki is
-  CC BY-NC-SA 4.0, so vendoring any part of it would relicense this project and conflict
-  with `LICENSE`; the gate result and the reasoning are in `docs/LEDGER.md` under CS-485.
-  Reading it and citing a URL is CLEARED and carries no obligation. *Do not re-pitch:*
+  save itself, or extraction from the shipped assets - are cleaner. The official wiki's
+  licence conflicts with `LICENSE` (`docs/LEDGER.md`, CS-485). Reading it and citing a URL is CLEARED and carries no obligation. *Do not re-pitch:*
   lifting a node dataset, a table or a data dump from any wiki or community source; nor an
   automated poller against the wiki, which its platform terms appear to forbid. Why "it is
   official" does not change this: `docs/history_notes.md`, the kit v23 relocation.
   *Reversed by:* a named source whose licence CLEARS the `CONVENTIONS.md` section 14
-  gate in `THIRD_PARTY.md`, plus only the operator's own words in the main session (section
-  6.1 - no adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/` -
-  never the CC BY-NC-SA wiki under `LICENSE`.
+  gate in `THIRD_PARTY.md`, plus an operator ADR - never the CC BY-NC-SA wiki under
+  `LICENSE`.
 - **The reference world is the operator-pinned development world** - vanilla, no creative
   mode, no modifiers, onboarding active - snapshotted into a gitignored corpus as it
   grows. *Do not re-pitch:* switching reference worlds without recording why. Its name

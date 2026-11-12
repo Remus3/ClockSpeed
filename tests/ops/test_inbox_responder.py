@@ -775,6 +775,14 @@ def test_the_lock_busy_words_are_the_vendored_kits_own(tmp_path: Path) -> None:
     assert matched is True
 
 
+def test_the_board_window_carries_the_budgets_own_cap(tmp_path: Path) -> None:
+    """Kit v30: the cap the board publishes is the kit budget's `.cap`, never RUNS_CAP."""
+    board = inbox_responder._Board(tmp_path, lambda: 0.0, lambda _at: None)  # noqa: SLF001
+    board.budget = kit.RunBudget(tmp_path / "budget.json", cap=300)
+    cap = board.window(0.0).cap
+    assert cap == 300  # noqa: PLR2004 - the planted cap
+
+
 def test_a_backoff_is_published(tree: Path) -> None:
     _run(tree, RunSpy(returncode=1, output=USAGE_LIMIT_OUTPUT))
     first = _status(tree)
@@ -787,7 +795,7 @@ def test_a_backoff_is_published(tree: Path) -> None:
 
 
 def test_a_held_lock_refreshes_the_running_status(tree: Path) -> None:
-    window = inbox_status.Window(count=1, frees_at=T0 + 86400)
+    window = inbox_status.Window(count=1, frees_at=T0 + 86400, cap=kit.RUNS_CAP)
     inbox_status.publish(
         _control(tree),
         now=T0,
@@ -2236,3 +2244,229 @@ def test_a_failed_run_records_nothing_so_the_note_is_retried(tree: Path) -> None
     _run(tree, spy, surface=_named(LIVE_NOTE))
     outcomes = [r.get("outcome") for r in _log_records(tree)]
     assert (len(spy.calls), outcomes) == (2, ["failed", "failed"])
+
+
+# ---------------------------------------------------------------------------
+# Kit v30 PAUSE REASONS (MAIN ORDER 2026-11-12, section 6 "ALL WITH A DRIVER"):
+# where the responder holds itself back it records why through the kit's
+# `fleet_lanes.note_pause`, the seam ops/loop/queue_loop.py carries: "limit"
+# for a usage-limit refusal, every pass its back-off holds and the kit's limit
+# on every route; "budget" for the kit's spent run budget; "operator" for a
+# stop sentinel, the responder's own or one the tree declares. Graded through
+# the `pause` seam of `run_once`: a (reason, detail) callable `main` binds to
+# `kit_note_pause`. Every other pass - a run that happened, a quiet channel, a
+# fault - holds nothing back and records nothing.
+# ---------------------------------------------------------------------------
+
+
+def _pauses() -> tuple[list[tuple[str, str]], Callable[[str, str], None]]:
+    """A `pause` seam that records (reason, detail) in call order."""
+    said: list[tuple[str, str]] = []
+
+    def pause(reason: str, detail: str) -> None:
+        said.append((reason, detail))
+
+    return said, pause
+
+
+def _clean_detail(tree: Path, detail: str) -> bool:
+    """No path, no planted marker: the detail is the responder's own words and numbers."""
+    planted = (str(tree), ENV_MARKER, BODY_MARKER, "/", "\\")
+    return not any(part in detail for part in planted)
+
+
+def test_kit30_a_usage_limit_and_every_pass_its_back_off_holds_record_a_limit_pause(
+    tree: Path,
+) -> None:
+    """THE ARM: the 429 that writes the back-off records `limit`, and so does the held pass."""
+    said, pause = _pauses()
+    _run(tree, RunSpy(returncode=1, output=USAGE_LIMIT_OUTPUT), pause=pause)
+    held = RunSpy()
+    _run(tree, held, now=lambda: T0 + 60.0, pause=pause)
+    reasons = [reason for reason, _ in said]
+    clean = all(_clean_detail(tree, detail) for _, detail in said)
+    assert (reasons, len(held.calls), clean) == (["limit", "limit"], 0, True)
+
+
+@pytest.mark.parametrize("sentinel", inbox_responder.STOP_RELPATHS)
+def test_kit30_the_responders_own_stop_sentinel_records_an_operator_pause(
+    tree: Path, sentinel: str
+) -> None:
+    """STOP and INBOX_STOP are the operator's gate: the halted pass records `operator`."""
+    (_control(tree) / sentinel).write_bytes(b"")
+    said, pause = _pauses()
+    code = _run(tree, RunSpy(), pause=pause)
+    clean = all(_clean_detail(tree, detail) for _, detail in said)
+    assert (code, [reason for reason, _ in said], clean) == (0, ["operator"], True)
+
+
+@pytest.mark.parametrize("declaration", ["standing", "unreadable"])
+def test_kit30_a_declared_stop_sentinel_records_an_operator_pause(
+    tree: Path, declaration: str
+) -> None:
+    """A declared sentinel, or a declaration that cannot be read, halts as the operator's."""
+    if declaration == "standing":
+        _declare(tree)
+        _plant(tree, "ops/loop/control/HOLD_MAIN_SPAWN")
+    else:
+        _declare(tree, b"{garbled")
+    said, pause = _pauses()
+    spy = RunSpy()
+    code = _run(tree, spy, pause=pause)
+    reasons = [reason for reason, _ in said]
+    assert (code, len(spy.calls), reasons) == (0, 0, ["operator"])
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("halted", ["operator"]),
+        ("fallback-halted", ["limit"]),
+        ("budget-spent", ["budget"]),
+        ("blocked", []),
+        ("refused", []),
+    ],
+)
+def test_kit30_a_kit_refusal_records_the_pause_its_cause_names(
+    tree: Path, path: str, expected: list[str]
+) -> None:
+    """The REAL kit refuses: a sentinel, a limit on every route and a spent budget are recorded.
+
+    An unreachable proxy and a missing proxy URL are outside faults, not a hold
+    the driver places on itself, and record nothing.
+    """
+    spy = RunSpy()
+    seams = _seams(spy)
+    surface = _surface(2)
+    if path == "halted":
+        _declare(tree)
+        surface = _racing_surface(tree)
+    elif path == "fallback-halted":
+        seams = _seams(spy, route_source=_fallback_halted_route())
+    elif path == "blocked":
+        seams = _seams(spy, connect=_unreachable)
+    elif path == "refused":
+        seams = _seams(spy, url_source=lambda: None)
+    else:
+        _fill_budget(tree, [T0 - 3600 + i for i in range(kit.RUNS_CAP)])
+    said, pause = _pauses()
+    _run(tree, spy, seams=seams, surface=surface, pause=pause)
+    clean = all(_clean_detail(tree, detail) for _, detail in said)
+    assert ([reason for reason, _ in said], len(spy.calls), clean) == (expected, 0, True)
+
+
+def _busy(*_args: Any, **_kwargs: Any) -> tuple[dict[str, Any], str]:
+    """A spawn the kit refuses because its budget lock stayed busy."""
+    raise kit.Refused(inbox_responder.KIT_LOCK_BUSY)
+
+
+def _control_pass(tree: Path, path: str, pause: Callable[[str, str], None]) -> None:
+    """Drive one pass that holds nothing back down the named path."""
+    overrides: dict[str, Any] = {"pause": pause}
+    spy = RunSpy()
+    if path == "failed":
+        spy = RunSpy(returncode=1, output="crash")
+    elif path == "quiet":
+        overrides["surface"] = _surface(0)
+    elif path == "damped":
+        overrides["surface"] = _named(OWN_NOTE, RETIRED_NOTE)
+    elif path == "lock-held":
+        overrides["lock"] = _held_lock
+    elif path == "unmeasured":
+        overrides["surface"] = _surface("UNMEASURED")
+    elif path == "budget-unreadable":
+        _budget_file(tree).write_bytes(b"{garbled")
+    elif path == "lock-busy":
+        overrides["spawn"] = _busy
+    _run(tree, spy, **overrides)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "ok",
+        "failed",
+        "quiet",
+        "damped",
+        "lock-held",
+        "unmeasured",
+        "budget-unreadable",
+        "lock-busy",
+    ],
+)
+def test_kit30_control_a_pass_with_no_hold_records_no_pause(tree: Path, path: str) -> None:
+    """THE CONTROL: a run that happened, a quiet channel or a counting fault holds nothing back."""
+    said, pause = _pauses()
+    _control_pass(tree, path, pause)
+    assert said == [], f"a {path} pass recorded {said}"
+
+
+def test_kit30_the_cli_binds_the_kits_pause_writer_to_this_tree_and_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production writes the REAL log: `main` binds `kit_note_pause` to the tree and lane."""
+    called: list[dict[str, Any]] = []
+
+    def recorder(**kw: Any) -> int:
+        called.append(kw)
+        return 0
+
+    monkeypatch.setattr(inbox_responder, "run_once", recorder)
+    inbox_responder.main(["--once"])
+    bound = called[0].get("pause") if called else None
+    writer = getattr(inbox_responder, "kit_note_pause", None)
+    expected = (
+        getattr(inbox_responder, "KIT_ROOT", None),
+        getattr(inbox_responder, "PAUSE_LANE", None),
+    )
+    shape = (
+        writer is not None and getattr(bound, "func", None) is writer,
+        getattr(bound, "args", None) == expected,
+    )
+    assert shape == (True, True), f"the pass was handed {shape}"
+
+
+def test_kit30_a_pass_without_the_seam_reaches_no_live_pause_writer(
+    tree: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`run_once` with no `pause` - every other arm in this file - never reaches the live log.
+
+    Only `main` binds the writer, so a pass a test drives cannot append to the
+    MAIN checkout's pause log, whatever it holds back.
+    """
+    reached: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        inbox_responder, "kit_note_pause", lambda *args: reached.append(args), raising=False
+    )
+    (_control(tree) / inbox_responder.STOP_RELPATHS[0]).write_bytes(b"")
+    _run(tree, RunSpy())
+    (_control(tree) / inbox_responder.STOP_RELPATHS[0]).unlink()
+    _run(tree, RunSpy(returncode=1, output=USAGE_LIMIT_OUTPUT))
+    _run(tree, RunSpy(), now=lambda: T0 + 60.0)
+    assert reached == [], "a pass with no pause seam reached the live pause writer"
+
+
+def test_kit30_kit_note_pause_writes_the_kits_row_for_this_tree(tmp_path: Path) -> None:
+    """The writer goes through the vendored kit: one row, this tree's code, this lane."""
+    lane = inbox_responder.PAUSE_LANE
+    inbox_responder.kit_note_pause(tmp_path, lane, "limit", "synthetic back-off")
+    log = tmp_path / "ops" / "loop" / "control" / "lanes" / "pause.jsonl"
+    rows = [json.loads(line) for line in log.read_text(encoding="ascii").splitlines()]
+    shape = [(row["tree"], row["lane"], row["reason"]) for row in rows]
+    assert shape == [(inbox_status.CODE, lane, "limit")], f"rows {shape}"
+
+
+def test_kit30_kit_note_pause_never_raises_when_the_kit_cannot_be_bound(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pause row never blocks a pass: a kit that cannot be bound is swallowed."""
+
+    class _Unbound:
+        @staticmethod
+        def kit_lanes() -> Any:
+            msg = "synthetic unbound kit"
+            raise ImportError(msg)
+
+    monkeypatch.setattr(inbox_responder, "lanes", _Unbound, raising=False)
+    inbox_responder.kit_note_pause(tmp_path, inbox_responder.PAUSE_LANE, "operator", "synthetic")
+    assert not (tmp_path / "ops").exists(), "an unbound kit still wrote a row"

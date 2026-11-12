@@ -24,6 +24,35 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## The kit v30 relocation - relocated from `CLAUDE.md` 2026-11-12 by the kit v30 adoption
+
+Moved when the FLEET-KIT version 30 common block (+680 B) took `CLAUDE.md` past its 40 KB
+budget; relocated, not deleted (`CLAUDE.md` section 4). The entries keep their fences.
+
+From the head of section 7, why each entry carries its fence: a settled entry that
+records only the conclusion invites someone to rebuild the argument.
+
+From the "No lifted datasets" entry: the official wiki is CC BY-NC-SA 4.0, so vendoring
+any part of it would relicense this project and conflict with `LICENSE`; the gate result
+and the reasoning are in `docs/LEDGER.md` under CS-485.
+
+Finishing the kit v23 move below, the reversal clauses still spelled out word for word -
+the "Mods" architecture half and the "No lifted datasets" entry - now name "an operator
+ADR", defined once at the head of section 7. The "reference world" and "Product before
+process" clauses, which owe no ADR, keep their whole fence, "no adjudicator and no MAIN
+note stands in" included: the first build of this adoption cut it there, and an
+adversary pass restored it.
+
+The same repair retired precedence clause (a) - section 2.3's "wait for the completion
+notification" had governed over FLEET item 12's periodic check, and v30's item 12 now
+orders bounded-slice supervision that never ends a turn on one event - and narrowed
+section 2.3's polling bullet to that item. To keep the budget it moved two restated
+details to their owners: section 4's why a status declaration cannot drift
+(`tools/drift_guard.py`, guard (g)), and section 6.1's CI-tip caveat
+(`memory/full-authority-adjudicate-do-not-ask.md`, "The commit and push clause"), cut to
+one clause and a pointer.
+
+
 ## CS-1380 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-04 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed.**

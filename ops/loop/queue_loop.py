@@ -371,6 +371,10 @@ KIT_REFUSAL_CODES = (
     # the operator's words. A lane never resets, but the vocabulary is the kit's.
     "reset-headless",
     "reset-no-reason",
+    # FLEET-KIT v30 DRIVE-REAPER: spawn(min_free_ram_mb=, suite_idle=) refuses a
+    # drive as Blocked. This lane passes neither, but the vocabulary is the kit's.
+    "low-ram",
+    "suite-busy",
 )
 KIT_BUDGET_SPENT = "budget-spent"
 KIT_FALLBACK_HALTED = "fallback-halted"
@@ -795,6 +799,17 @@ KIT_HALT_STOP = "kit_halted"
 #: should_yield is advisory, and nothing here kills on it). A success word: the
 #: lane ended the way the fleet asked it to.
 FAIR_YIELD_STOP = "fair_yield"
+#: Kit v30 PAUSE REASONS (MAIN ORDER 2026-11-12, section 6 "ALL WITH A DRIVER") -
+#: the words of the kit's `fleet_lanes.PAUSE_REASONS` this driver writes when it
+#: holds itself back: a usage-limit back-off or stop, a spent run budget's, and
+#: a night an operator's gate ended.
+PAUSE_LIMIT = "limit"
+PAUSE_BUDGET = "budget"
+PAUSE_OPERATOR = "operator"
+#: The stop words that are an OPERATOR'S GATE: the driver's own STOP and
+#: QUEUE_STOP, and a sentinel the tree declares (`kit_halted`). QUEUE_DRAINED is
+#: the worker's "no work" and `fair_yield` the governor's - neither is recorded.
+OPERATOR_STOP_WORDS = frozenset({STOP_NAMES[0], QUEUE_STOP_NAME, KIT_HALT_STOP})
 #: CS-1342 - THE KIT REFUSED THE LANE SPAWN AT ITS PER-CALL HALT_FILE, the lane's
 #: QUEUE_STOP (runner code `queue-stop`). Not a cycle and not a fault: the night
 #: stops on the QUEUE_STOP word itself, exactly as when this driver reads that
@@ -3241,6 +3256,27 @@ def kit_should_yield() -> bool:
         return False
 
 
+def kit_note_pause(root, lane: str, reason: str, detail: str) -> None:
+    """Kit v30 PAUSE REASONS - one row in the kit's pause log for this tree's lane.
+
+    WRITTEN THROUGH THE KIT'S OWN `fleet_lanes.note_pause`, which resolves the
+    MAIN checkout from `root`, dedupes one lane and reason per hour, and never
+    raises. Binding the kit can raise, and a pause row must never block a
+    night, so that is swallowed here. Nothing is read back or rendered.
+
+    Args:
+        root: The tree whose log takes the row - `KIT_ROOT` in production.
+        lane: This night's lane name.
+        reason: One of the kit's `PAUSE_REASONS`.
+        detail: A line this driver composed from its own words and numbers.
+    """
+    try:
+        lanes_mod = _mod("lanes")
+        lanes_mod.kit_lanes().note_pause(root, lanes_mod.LANE_CODE, lane, reason, detail)
+    except (ImportError, OSError, ValueError, AttributeError):
+        return
+
+
 def kit_stop_reason(root) -> str | None:
     """CS-1231 slice C, R1 - `KIT_HALT_STOP` while a sentinel the tree declares stands.
 
@@ -3957,6 +3993,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     surface=None,
     kit_halt=None,
     fair_yield=None,
+    pause=None,
     sleep=time.sleep,
     clock=time.time,
     monotonic=time.monotonic,
@@ -4024,6 +4061,16 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             return own
         # THE DRIVER'S OWN LITERAL, whatever the seam answered.
         return KIT_HALT_STOP if kit_halt is not None and kit_halt() else None
+
+    def held_back(reason: str, detail: str) -> None:
+        """Kit v30 PAUSE REASONS - record why the driver holds itself back.
+
+        `pause` - a (reason, detail) callable `main` binds to `kit_note_pause`
+        over this tree and lane. None, the default, asks for no write, for the
+        reason `kit_halt` defaults to None.
+        """
+        if pause is not None:
+            pause(reason, detail)
 
     records: list = []
     stopped_by = None
@@ -4473,6 +4520,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             break
         if refused:
             consecutive_usage_refusals += 1
+            # Kit v30 PAUSE REASONS - which outside "no" holds the lane back.
+            held = PAUSE_BUDGET if record["outcome"] == OUTCOME_BUDGET_SPENT else PAUSE_LIMIT
+            refusal_count = f"{consecutive_usage_refusals}/{usage_refusal_limit}"
             if total == 1 or consecutive_usage_refusals >= usage_refusal_limit:
                 stopped_by = STOPPED_BY_USAGE_LIMIT
                 emit(
@@ -4480,6 +4530,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     f"limit or run budget refusal(s) - not re-arming against a limit "
                     f"that has not lifted"
                 )
+                held_back(held, f"{held} refusal {refusal_count} - the queue night ends")
                 break
             if record["outcome"] == OUTCOME_BUDGET_SPENT:
                 wait_s = _budget_back_off_s(_kit_status(control_dir), clock())
@@ -4495,6 +4546,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     f"{usage_refusal_limit} - waiting {USAGE_LIMIT_BACKOFF_S}s in "
                     f"{USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
                 )
+            # Written BEFORE the wait, so a status read during it names the reason.
+            held_back(held, f"{held} refusal {refusal_count} - backing off {wait_s:g}s")
             with _phase("back_off", cycle):
                 interrupted = _back_off(sleep, control_dir, wait_s, stopping)
             if interrupted:
@@ -4623,6 +4676,10 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 sleep(settle_s)
     if stopped_by is None:
         stopped_by = STOPPED_BY_MAX_CYCLES
+    # Kit v30 PAUSE REASONS - every path that ends the night on an operator's
+    # gate (top of loop, before a claim, the kit's halt, mid back-off) lands here.
+    if stopped_by in OPERATOR_STOP_WORDS:
+        held_back(PAUSE_OPERATOR, f"the queue night stopped on {stopped_by}")
     # CS-1178 - A REFUSED RUN IS NOT A CYCLE, and the summary says so: the
     # refusals are counted apart rather than folded into `cycles_run`.
     refusals = sum(1 for record in records if record["outcome"] == OUTCOME_USAGE_REFUSED)
@@ -4922,6 +4979,14 @@ def _drive(args, singleton) -> int:
                 kit_halt=functools.partial(kit_stop_reason, KIT_ROOT),
                 # Kit v25 FAIR RELEASE, read between cycles.
                 fair_yield=kit_should_yield,
+                # Kit v30 PAUSE REASONS - the kit's live pause log, written only
+                # for a night on the tree's own control plane: a --control-dir
+                # sandbox does not own the tree's log.
+                pause=(
+                    functools.partial(kit_note_pause, KIT_ROOT, args.lane)
+                    if control_dir is None
+                    else None
+                ),
                 repo_root=(None if args.repo_root is None else Path(args.repo_root)),
                 cycle_log=cycle_log,
             )

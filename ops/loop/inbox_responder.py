@@ -95,6 +95,15 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      (`kit.Blocked`, an unreachable proxy). A spent budget (code
      "budget-spent") reads "refused" / Idle since FLEET-KIT v26, which writes a
      cap hit as refused "run cap".
+  9. Kit v30 PAUSE REASONS (MAIN ORDER 2026-11-12, section 6 "ALL WITH A
+     DRIVER"): where the responder holds itself back it records why through the
+     kit's own `fleet_lanes.note_pause`, the seam `ops/loop/queue_loop.py`
+     carries - "limit" for a usage-limit refusal, every pass its back-off holds
+     and the kit's limit on every route; "budget" for the kit's spent run
+     budget; "operator" for a stop sentinel, the responder's own, one the tree
+     declares or one the kit read first. `run_once` takes the writer as its
+     `pause` seam, None by default, so a pass a test drives writes no live row;
+     only `main` binds it, to `kit_note_pause`.
 
 THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` and
 `<repo>` are resolved at arm time (`(Get-Command pythonw).Source`, the checkout
@@ -111,6 +120,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import hashlib
 import json
 import os
@@ -129,7 +139,7 @@ if str(_REPO_ROOT) not in sys.path:
 from ops.fleet_kit import fleet_checklist  # noqa: E402
 from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from ops.fleet_kit import fleet_inbox as inbox_kit  # noqa: E402
-from ops.loop import headless_route, inbox_status, inbox_surface, winmutex  # noqa: E402
+from ops.loop import headless_route, inbox_status, inbox_surface, lanes, winmutex  # noqa: E402
 
 #: The control directory and the responder's OWN sentinels, relative to it - a
 #: floor, never lifted. Every path the tree declares in `kit.SENTINELS_REL`
@@ -287,6 +297,22 @@ PROGRESS_TASK: Final = "inbox-responder"
 #: The checklist row id of the items past the listing cap, which have no name.
 MORE_ROW_ID: Final = "MORE"
 
+#: Kit v30 PAUSE REASONS - the words of the kit's `fleet_lanes.PAUSE_REASONS`
+#: this responder writes when it holds itself back, the same three
+#: `ops/loop/queue_loop.py` writes.
+PAUSE_LIMIT: Final = "limit"
+PAUSE_BUDGET: Final = "budget"
+PAUSE_OPERATOR: Final = "operator"
+#: This responder's lane in the kit's pause log: the kit dedupes one lane and
+#: reason per hour, so a back-off held every fifteen minutes writes one row.
+PAUSE_LANE: Final = "inbox"
+#: The tree whose pause log takes the rows. The kit resolves the MAIN checkout
+#: from it, as it does for the queue driver's `KIT_ROOT`.
+KIT_ROOT: Final = _REPO_ROOT
+
+#: A (reason, detail) pause writer - `kit_note_pause` bound to a tree and lane.
+PauseWriter = Callable[[str, str], None]
+
 _RENAME_ATTEMPTS: Final = 5
 _RENAME_PAUSE_S: Final = 0.2
 
@@ -298,6 +324,31 @@ KitSpawn = Callable[..., tuple[dict[str, Any], str]]
 
 def _default_lock() -> Any:
     return winmutex.hold(MUTEX_NAME, timeout=0.0)
+
+
+def kit_note_pause(root: Path, lane: str, reason: str, detail: str) -> None:
+    """Kit v30 PAUSE REASONS - one row in the kit's pause log for this responder.
+
+    WRITTEN THROUGH THE KIT'S OWN `fleet_lanes.note_pause`, which resolves the
+    MAIN checkout from `root`, dedupes one lane and reason per hour, and never
+    raises. Binding the kit can raise, and a pause row must never block a pass,
+    so that is swallowed here. Nothing is read back or rendered.
+
+    Args:
+        root: The tree whose log takes the row - `KIT_ROOT` in production.
+        lane: The responder's lane name, `PAUSE_LANE`.
+        reason: One of the kit's `PAUSE_REASONS`.
+        detail: A line this responder composed from its own words and numbers.
+    """
+    try:
+        lanes.kit_lanes().note_pause(root, inbox_status.CODE, lane, reason, detail)
+    except (ImportError, OSError, ValueError, AttributeError):
+        return
+
+
+def _no_pause(reason: str, detail: str) -> None:
+    """The writer of a pass handed no `pause` seam: nothing is written."""
+    del reason, detail
 
 
 @contextlib.contextmanager
@@ -532,6 +583,15 @@ def _halted_since(control: Path, fallback: float) -> float:
         with contextlib.suppress(OSError):
             stamps.append(os.lstat(path).st_mtime)
     return min(stamps) if stamps else fallback
+
+
+def _halt_detail(control: Path) -> str:
+    """The pause detail of a halt: the standing sentinel's own file name, never its path."""
+    standing = _standing(control)
+    if standing is None:
+        return "the stop sentinel declaration cannot be read - the responder starts nothing"
+    names = sorted({path.name for path in standing})
+    return f"stop sentinel {','.join(names) or 'gone'} - the responder starts nothing"
 
 
 def _canonical_sender(name: str) -> str | None:
@@ -821,7 +881,11 @@ class _Board:
         self.budget.clock = lambda: at
         count = int(self.budget.used())
         frees = self.budget.frees_at()
-        return inbox_status.Window(count=count, frees_at=None if frees is None else float(frees))
+        return inbox_status.Window(
+            count=count,
+            frees_at=None if frees is None else float(frees),
+            cap=int(self.budget.cap),
+        )
 
     def show(self, state: str, task: str, *, started: float | None = None) -> None:
         at = self.now()
@@ -868,7 +932,7 @@ def _outcome_exit(outcome: str) -> int:
     }.get(outcome, EXIT_WORKER_FAILED)
 
 
-def run_once(
+def run_once(  # noqa: PLR0913 - every outward seam is injected, the pause writer too
     *,
     root: Path | None = None,
     control_dir: Path | None = None,
@@ -878,6 +942,7 @@ def run_once(
     spawn: KitSpawn | None = None,
     kit_seams: Mapping[str, Any] | None = None,
     next_tick: Callable[[float], float | None] | None = None,
+    pause: PauseWriter | None = None,
 ) -> int:
     """One responder pass. See the module docstring for the order.
 
@@ -894,17 +959,24 @@ def run_once(
             the kit's fail-closed default.
         next_tick: The scheduler's next fire after an epoch, or None for the
             real query of `inbox_status.TASK_NAME`.
+        pause: Kit v30 PAUSE REASONS - a (reason, detail) writer `main` binds
+            to `kit_note_pause` over `KIT_ROOT` and `PAUSE_LANE`. None, the
+            default, writes nothing, so a pass a test drives never reaches the
+            live pause log.
 
     Returns:
         The process exit code.
     """
     control = CONTROL if control_dir is None else Path(control_dir)
     board = _Board(control, now, inbox_status.query_next_tick if next_tick is None else next_tick)
+    held_back = _no_pause if pause is None else pause
     if _stopped(control):
         # QUIET in the log, like a quiet channel: a standing sentinel would
         # otherwise write 96 identical lines a day. The STATUS is still
         # published, so the widget shows a halt rather than no signal.
         board.show("halted", "Halted", started=_halted_since(control, now()))
+        # Kit v30 - an operator's gate; the kit keeps it to one row an hour.
+        held_back(PAUSE_OPERATOR, _halt_detail(control))
         return EXIT_OK
     main_root = inbox_surface.channel_root() if root is None else Path(root)
     take = _default_lock if lock is None else lock
@@ -917,6 +989,7 @@ def run_once(
                 kit_spawn if spawn is None else spawn,
                 dict(kit_seams or {}),
                 board,
+                held_back,
             )
     except winmutex.MutexTimeout:
         # The run holding the lock owns the status; only its age is refreshed,
@@ -933,6 +1006,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
     spawn: KitSpawn,
     seams: dict[str, Any],
     board: _Board,
+    held_back: PauseWriter,
 ) -> int:
     """Everything after the lock is held."""
     checking = now()
@@ -958,6 +1032,8 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
     if started < held_until:
         _log(root, started, "backoff", EXIT_OK, unread=unread)
         board.show("backoff", "Backing Off", started=held_until - BACKOFF_S)
+        left = held_until - started
+        held_back(PAUSE_LIMIT, f"usage-limit back-off - {left:.0f}s of {BACKOFF_S:g}s left")
         return EXIT_OK
     digests = live_digests(root, fact, unread)
     if digests is not None and set(digests) <= _seen(root):
@@ -989,7 +1065,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
             **seams,
         )
     except kit.Refused as refused:
-        return _refused(root, board, refused, unread, started)
+        return _refused(root, board, refused, unread, started, held_back)
     except OSError:
         # The worker never started: no completed run, so no duration (CS-1234 clause 3).
         finished = now()
@@ -998,7 +1074,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
         progress.ended("spawn_failed")
         board.show("refused", kit.REFUSED_TASK)
         return EXIT_SPAWN_FAILED
-    code, outcome = _finished(root, now, board, line, output, unread, started)
+    code, outcome = _finished(root, now, board, line, output, unread, started, held_back)
     if outcome == headless_route.OUTCOME_OK and digests is not None:
         _record_seen(root, digests)
     progress.ended(outcome)
@@ -1016,12 +1092,21 @@ def is_lock_busy(refused: Exception) -> bool:
     return refused.args == (KIT_LOCK_BUSY,)
 
 
-def _refused(root: Path, board: _Board, refused: Exception, unread: int, started: float) -> int:
+def _refused(
+    root: Path,
+    board: _Board,
+    refused: Exception,
+    unread: int,
+    started: float,
+    held_back: PauseWriter,
+) -> int:
     """The kit refused before anything started. Nothing ran, so no duration is recorded.
 
     The published state is the one the kit's own status write used for the
     refusal (CS-1234 S5), decided on the refusal's ``code`` and class, so the
-    board never contradicts the kit a moment after it wrote.
+    board never contradicts the kit a moment after it wrote. Kit v30: a
+    sentinel, a limit on every route and a spent budget record their pause
+    reason; an outside fault and a counting fault hold nothing back.
     """
     state, task = kit_refusal_state(refused)
     if state == "halted":
@@ -1029,22 +1114,24 @@ def _refused(root: Path, board: _Board, refused: Exception, unread: int, started
         # placed since. QUIET, as the responder's own halt; the next tick halts
         # before the lock.
         board.show(state, task, started=_halted_since(board.control, started))
+        held_back(PAUSE_OPERATOR, "the kit refused the start on a stop sentinel")
         return EXIT_OK
     if state == "limit":
         # A usage limit on every listed route: the kit holds every start until
         # the earliest reset.
         _log(root, started, "limit", EXIT_OK, unread=unread, reason="fallback halted")
         board.show(state, task)
+        held_back(PAUSE_LIMIT, "the kit refused the start - a usage limit on every route")
         return EXIT_OK
-    if (
-        isinstance(refused, kit.BudgetUnreadable)
-        or is_lock_busy(refused)
-        or getattr(refused, "code", None) == KIT_BUDGET_SPENT
-    ):
+    spent = getattr(refused, "code", None) == KIT_BUDGET_SPENT
+    if isinstance(refused, kit.BudgetUnreadable) or is_lock_busy(refused) or spent:
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         # A run-cap hit the kit met first (v26) is refused the same way.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
         board.show(state, task)
+        if spent:
+            # Only a SPENT budget is a hold; an unreadable one or a busy lock is a fault.
+            held_back(PAUSE_BUDGET, "the kit refused the start - its run budget is spent")
         return EXIT_BUDGET_REFUSED
     # The proxy, the door or the executable - "blocked" for an outside cause,
     # else "refused". The kit's words are not logged: the outcome word is the
@@ -1081,6 +1168,7 @@ def _finished(
     output: str,
     unread: int,
     started: float,
+    held_back: PauseWriter,
 ) -> tuple[int, str]:
     """Classify the finished run, publish and log it. Returns the exit code and outcome word."""
     finished = now()
@@ -1108,17 +1196,20 @@ def _finished(
     )
     if outcome == headless_route.OUTCOME_USAGE_LIMIT:
         board.show("backoff", "Backing Off", started=finished)
+        held_back(PAUSE_LIMIT, f"usage-limit refusal - backing off {BACKOFF_S:g}s")
     else:
         board.idle()
     return code, outcome
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse ``--once`` and run one pass."""
+    """Parse ``--once`` and run one pass, writing its pause rows to the tree's live log."""
     parser = argparse.ArgumentParser(description="CS-1226 one-shot inbox responder")
     parser.add_argument("--once", action="store_true", required=True, help="run one pass")
     parser.parse_args(argv)
-    return run_once()
+    # Kit v30 PAUSE REASONS - bound here only: production's pass owns the tree's
+    # control plane, and a pass any other caller drives writes no live row.
+    return run_once(pause=functools.partial(kit_note_pause, KIT_ROOT, PAUSE_LANE))
 
 
 if __name__ == "__main__":
