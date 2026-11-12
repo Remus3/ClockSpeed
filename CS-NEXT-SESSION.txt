@@ -14,7 +14,7 @@ section 5 slice (adversary on the frozen SHA, LEDGER line), then push; then the 
 
 RESPONDER 2026-11-12 (headless): MAIN ORDER 2026-11-12-0345 FLEET-KIT v30 - answered NOT ADOPTED at
 04:42 (outbox note ...FLEET-KIT-v30-NOT-ADOPTED-red-baseline...). The adoption is now BUILT as ONE commit on
-local branch kit-v30-adopt (worktree agent-a6bd09c1878877bd8): kit 25/25 hashed, conformance [], CLAUDE.md
+local branch kit-v30-adopt (see git worktree list): kit 25/25 hashed, conformance [], CLAUDE.md
 40938 B, ruff/mypy clean at the pins. Not adversaried, not landed: main's suite is red on 41 pre-existing tests
 (drift (h) pin, usmap enums, provenance row, unpublished-SHA citation, pytest/ruff/mypy above the pins). Once
 the baseline is green: adversary on the branch tip, cherry-pick, gated suite, push, then ANSWER MAIN `CS OK v30`.
@@ -179,7 +179,7 @@ BOUNDS THAT STILL APPLY:
   (OPERATIONS 10.5). No lane in the main checkout.
 
 === THE LANES ===
-RELEASED by MAIN ORDER 2026-11-08-2024 (verified, sha256 f1b927e3...e31): run ONE queue cycle, scope
+RELEASED by MAIN ORDER 2026-11-08-2024 (verified by sha256): run ONE queue cycle, scope
 product-slices, CS-1361 first, NOW, before other work - the headless responder could not launch it (it
 starts no headless run itself). ACCEPT: the cycle log names product-slices and CS-1361 and its result
 (kept commit or blocked); MAIN is owed a follow-up ANSWER line with that result. Then lane policy.
