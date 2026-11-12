@@ -264,8 +264,10 @@ THE BOARD: LOCAL ONLY since kit v23. No board render or sentinel change during a
   tests/test_pathless_clone_agreement.py; subjects at most 72 characters, Conventional Commits. Line
   pointers and census guards show only in the integration suite.
 - A MUTANT OF CLEANUP CODE runs only with every temp root redirected into tmp_path, asserted first.
-- Each agent names its own progress, log, scratch files; `python -B` in mutant harnesses; no pip into
-  the base interpreter; owner id literal in gitlock commands; `git -C`, not `cd`; a doc agent never
+- Each agent names its own progress, log, scratch files; `python -B` in mutant harnesses; suites, ruff
+  and mypy run as .venv/Scripts/python -m ...; pip installs only into .venv, never into base; pushes
+  run from a shell with .venv activated (or CLOCKSPEED_PYTHON naming .venv/Scripts/python, per
+  CS-1327); owner id literal in gitlock commands; `git -C`, not `cd`; a doc agent never
   shares a staging worktree; verify write-lists by `git ls-files`; worktree agents start stale.
 - Never in a tracked line: a backticked gitignored path, a drive root ending in this folder's name or
   the sidecar root (<repo>, <sidecars>), a worktree agent id, an unpublished SHA. LEDGER headings join
