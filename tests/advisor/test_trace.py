@@ -47,6 +47,7 @@ from clockspeed.advisor.trace import (
 )
 from clockspeed.data.registry import Registry
 from clockspeed.save.world import EMPTY_UNLOCK_STATE, UnlockState
+from clockspeed.solve.optimize import MAX_EXHAUSTIVE_CANDIDATES
 from clockspeed.solve.ratio import ExclusionNote, PlanStep, ProductionPlan
 from clockspeed.solve.strategy import (
     NOT_CLEARED_OVER_BOUND,
@@ -255,6 +256,14 @@ _PLAN_INPUT: Final = {"plan.adopt": "plan.production", "plan.redesign": "plan.re
 #: The sentence the ruling lets read only with both of a route's lists empty.
 _NO_UNLOCK: Final = "this route needs no unlock"
 
+#: That clause whole, as a search the cap cut nothing from reads it, which in a world with no
+#: more recipes than the cap is every search. Read whole, never by its prefix alone, so a
+#: clause that blamed a cap nothing cut reddens (CS-1382 F1).
+_UNCAPPED_NO_UNLOCK: Final = (
+    "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
+    " did not find it from the raw items a held extractor supplies"
+)
+
 #: Each recipe by name, read off the fixture's own table.
 _PLAN_WORLD_BY_NAME: Final = {recipe.name: recipe for recipe in PLAN_WORLD_RECIPES}
 
@@ -399,6 +408,8 @@ def _route_faults(trace: Trace, unlocked: tuple[str, ...]) -> list[str]:
         faults.append("the no-unlock sentence reads beside something locked")
     if not says_none and not (needs_a_stage or needs_a_machine):
         faults.append("the no-unlock sentence is missing with nothing locked")
+    if says_none and _UNCAPPED_NO_UNLOCK not in trace.recommendation.reason:
+        faults.append("the no-unlock sentence blames a cap that cut nothing")
     return faults
 
 
@@ -485,11 +496,14 @@ def test_the_plan_rules_hold_the_precondition_over_generated_unlock_sets() -> No
     locked stage's recipe key in requires, each consumed raw a held extractor key in requires or
     its machine on plan.redesign.locked_extractors; a locked route fires. Plus: plan.adopt, a held
     extractor's key in requires per raw with rate above zero; and no-unlock reads only with both
-    lists empty. The rules run as they ship, on the offer :func:`plan_offer` makes.
+    lists empty, and whole, naming no cap in a world no cap can cut (CS-1382 F1). The rules run as
+    they ship, on the offer :func:`plan_offer` makes.
     """
     cases = generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT)
     assert cases == generate_plan_world_cases(seed=PLAN_WORLD_SEED, count=PLAN_WORLD_COUNT)
     registry = plan_world_registry()
+    # What lets the oracle read the uncapped clause whole: no search here can drop a recipe.
+    assert len(PLAN_WORLD_RECIPES) <= MAX_EXHAUSTIVE_CANDIDATES
 
     seen: Counter[str] = Counter()
     for case in cases:

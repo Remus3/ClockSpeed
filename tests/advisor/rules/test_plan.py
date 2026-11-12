@@ -802,13 +802,15 @@ def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:
     assert ADOPT_RULE.inputs == (*BUILD_INPUTS, *PLAN_INPUTS)
     assert ADOPT_RULE.unlocks == ()
     # CS-1371: the marked route reads the build inputs first too, its own next, and of the
-    # ranked path's only the three a route's derivation states. No plan input is its own.
+    # ranked path's only those a route's derivation states: the trim last, which its no-unlock
+    # sentence rests on (CS-1382 F1). No plan input is its own.
     assert REDESIGN_RULE.inputs == (
         *BUILD_INPUTS,
         *REDESIGN_INPUTS,
         IN_STATUS,
         IN_UNCHECKED,
         IN_RAW_UNKNOWN,
+        IN_TRIMMED,
     )
     assert REDESIGN_RULE.unlocks == ()
     assert REDESIGN_RULE.domain == ADOPT_RULE.domain

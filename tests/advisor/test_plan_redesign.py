@@ -212,6 +212,11 @@ MUST_UNLOCK: Final = (
     "; the locked recipes or the machines that run them must unlock first on this route"
 )
 NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
+#: The same clause where the bound dropped nothing, so no cap can be why (CS-1382 F1).
+UNCAPPED_NO_UNLOCK: Final = (
+    "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
+    " did not find it from the raw items a held extractor supplies"
+)
 NOT_CHOSEN: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
 )
@@ -2129,11 +2134,12 @@ def test_an_unsupplied_raw_byproduct_meets_the_stated_policy() -> None:
     balanced = _inputs(_model(["R_By"]), registry, _request(registry))
     assert _offered(balanced, IN_STATUS) == NO_PLAN
     # The route takes the Rare as raw, at a rate below zero, so nothing it consumes is locked and
-    # it reads the no-unlock sentence: true of what it needs, and what the merger's filed line
-    # on this ruling is about. Pinned, not endorsed.
+    # it reads the no-unlock sentence. The bound dropped nothing, so it never says capped.
     route = card_for(run_rule(REDESIGN_RULE, balanced))
     assert route is not None
-    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert route.tier2 == (
+        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{NOT_CHOSEN}"
+    )
     assert _card_read(route, LOCKED_EXTRACTORS) == ()
 
     sinkable = _inputs(_model(["R_By"]), registry, _request(registry, policy=SINKABLE))
@@ -2152,6 +2158,36 @@ def test_an_unsupplied_raw_byproduct_meets_the_stated_policy() -> None:
         ASSEMBLER_KEY,
         MINER_KEY,
     )
+
+
+def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
+    """CS-1382 F1: Ore dug, Rare not, R_By makes Relic and Rare, all held, balanced, Relic.
+
+    The search reads no-plan with nothing dropped, so the no-unlock clause may not say a capped
+    search missed the route, and the trace reads the word the clause rests on. The control
+    plants what a cap dropped beside the same route, and the capped sentence reads again.
+    """
+    registry = _two_raw_registry(
+        [_recipe("R_By", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM])]
+    )
+    world = _inputs(_model(["R_By"]), registry, _request(registry))
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, "plan.trimmed") == ()
+
+    route = card_for(run_rule(REDESIGN_RULE, world))
+
+    assert route is not None
+    capped = "capped" in route.tier2
+    assert not capped
+    assert route.tier2 == (
+        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{NOT_CHOSEN}"
+    )
+    assert _card_read(route, "plan.trimmed") == ()
+
+    planted = _with_value(world, "plan.trimmed", ("R_Dropped",))
+    control = card_for(run_rule(REDESIGN_RULE, planted))
+    assert control is not None
+    assert control.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
 
 
 def test_the_no_plan_reason_says_what_the_search_started_from() -> None:

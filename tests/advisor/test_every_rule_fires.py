@@ -384,6 +384,7 @@ def _route_world(*, machines: Fraction) -> WorldInputs:
             plan.IN_STATUS: plan.STATUS_NO_PLAN,
             plan.IN_UNCHECKED: (),
             plan.IN_RAW_UNKNOWN: (),
+            plan.IN_TRIMMED: (),
             plan.IN_REDESIGN_STATUS: plan.REDESIGN_ROUTED,
             plan.IN_REDESIGN_PLAN: production,
             plan.IN_REDESIGN_HELD: (_PLAN_RECIPE,) if runs else (),
