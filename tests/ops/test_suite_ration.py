@@ -41,6 +41,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -76,6 +77,9 @@ _CHILD_EXIT_TIMEOUT_S = 60.0
 #: How long the holding child waits on each word from the parent before it quits.
 _CHILD_WAIT_S = 120.0
 _POLL_S = 0.02
+#: A hard kill that skips the holder's `finally`: SIGKILL, or on Windows - where
+#: os.kill with any other signal is TerminateProcess - SIGTERM.
+_KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 #: How many times the blocking arm's parent may go round its wait before the
 #: arm calls the child dead. `hold_suite_slot` takes no ceiling here BY
@@ -329,6 +333,7 @@ def test_a_killed_holder_leaves_the_suite_ration_acquirable(tmp_path: Path) -> N
         stderr=subprocess.STDOUT,
         text=True,
     )
+    child_pid: int | None = None
     try:
         _await_file(acquired, proc)
 
@@ -348,7 +353,15 @@ def test_a_killed_holder_leaves_the_suite_ration_acquirable(tmp_path: Path) -> N
             "would not be killing the holder"
         )
     finally:
-        proc.kill()
+        # Under a Windows venv, proc.pid is the python.exe LAUNCHER and the slot
+        # names the interpreter it starts as a child. Killing the launcher lets
+        # wait() return while the holder still lives. Kill the holder itself:
+        # the launcher waits on it, so wait() returns only once it is gone.
+        if child_pid is None:
+            proc.kill()
+        else:
+            with contextlib.suppress(OSError):
+                os.kill(child_pid, _KILL_SIGNAL)
         proc.wait(timeout=_CHILD_EXIT_TIMEOUT_S)
 
     # A HARD KILL SKIPS THE `finally`. The slot file is therefore still on disk,

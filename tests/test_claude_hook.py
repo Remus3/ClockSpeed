@@ -42,11 +42,13 @@ non-negotiables 3 and 12).
 from __future__ import annotations
 
 import ast
+import contextlib
 import errno
 import hashlib
 import json
 import os
 import re
+import signal
 import statistics
 import subprocess
 import sys
@@ -1161,6 +1163,11 @@ def test_a_sibling_deleted_mid_collection_never_reaches_the_nested_run(tmp_path:
     assert status == 0, f"the nested run failed: exit {status}, lstat named: {named}"
 
 
+#: A hard kill that skips every cleanup: SIGKILL, or on Windows - where os.kill
+#: with any other signal is TerminateProcess - SIGTERM.
+KILL_SIGNAL: Final = getattr(signal, "SIGKILL", signal.SIGTERM)
+
+
 def test_a_sibling_holding_its_lock_is_live_until_its_process_dies(tmp_path: Path) -> None:
     """The lock, not a marker file, is the liveness signal - a killed worker frees it.
 
@@ -1171,11 +1178,12 @@ def test_a_sibling_holding_its_lock_is_live_until_its_process_dies(tmp_path: Pat
     directory = tmp_path / "live"
     own = hold_liveness_lock(directory, "gw0")
     child_source = (
+        "import os\n"
         "import sys\n"
         "from pathlib import Path\n"
         "from tests.xdist_quiet import hold_liveness_lock\n"
         "hold_liveness_lock(Path(sys.argv[1]), 'gw1')\n"
-        "sys.stdout.write('held\\n')\n"
+        "sys.stdout.write(f'held {os.getpid()}\\n')\n"
         "sys.stdout.flush()\n"
         "sys.stdin.read()\n"
     )
@@ -1185,13 +1193,26 @@ def test_a_sibling_holding_its_lock_is_live_until_its_process_dies(tmp_path: Pat
         stdout=subprocess.PIPE,
         cwd=str(REPO_ROOT),
     )
+    holder: int | None = None
     try:
-        ready = child.stdout is not None and child.stdout.readline().strip() == b"held"
+        said = child.stdout.readline() if child.stdout is not None else b""
+        word, _, pid = said.strip().partition(b" ")
+        ready = word == b"held" and pid.isdigit()
         assert ready, "the child never took its lock"
+        holder = int(pid)
         live_while_held = live_sibling_count(directory, "gw0")
         assert live_while_held == 1, "a held sibling lock was not counted live"
     finally:
-        child.kill()
+        # Under a Windows venv, Popen.pid is the python.exe LAUNCHER and the
+        # lock is held by the interpreter it starts as a child. Killing the
+        # launcher lets wait() return while that child still holds the lock.
+        # Kill the holder itself: the launcher waits on it, so wait() returns
+        # only after the holder is gone. Without a launcher the pids agree.
+        if holder is None:
+            child.kill()
+        else:
+            with contextlib.suppress(OSError):
+                os.kill(holder, KILL_SIGNAL)
         child.wait(timeout=CALL_TIMEOUT)
     live_after_death = live_sibling_count(directory, "gw0")
     assert live_after_death == 0, "a dead sibling's lock was still counted live"

@@ -28,7 +28,9 @@ no assertion renders a path or an environment value.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -91,16 +93,23 @@ INNER_BODIES: Final = {
     ),
     "interrupted": "raise RuntimeError('planted collection error')\n",
     "hangs": (
+        "import os\n"
         "import time\n"
         "from pathlib import Path\n"
         "\n"
         "\n"
         "def test_hangs(tmp_path):\n"
         "    (tmp_path / 'work.txt').write_bytes(b'work')\n"
-        "    (Path(__file__).parent / " + repr(STARTED_NAME) + ").write_bytes(b'')\n"
+        "    here = Path(__file__).parent\n"
+        "    (here / 'started.tmp').write_text(str(os.getpid()), encoding='ascii')\n"
+        "    os.replace(here / 'started.tmp', here / " + repr(STARTED_NAME) + ")\n"
         "    time.sleep(" + str(int(CALL_TIMEOUT)) + ")\n"
     ),
 }
+
+#: A hard kill that skips every cleanup: SIGKILL, or on Windows - where os.kill
+#: with any other signal is TerminateProcess - SIGTERM.
+KILL_SIGNAL: Final = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 #: The exit status each outcome's inner run must report - the proof that the
 #: arm drove the outcome it names, and not a run that broke some other way.
@@ -288,10 +297,21 @@ def test_a_killed_run_leaves_only_its_own_directory_and_the_next_run_sweeps_it(
         stderr=subprocess.DEVNULL,
         env=_inner_env(killed.temp),
     )
+    holder: int | None = None
     try:
         started = _wait_started(killed, proc)
+        if started:
+            holder = int((killed.directory / STARTED_NAME).read_text(encoding="ascii"))
     finally:
-        proc.kill()
+        # Under a Windows venv, proc.pid is the python.exe LAUNCHER; the inner
+        # run, and the marker it holds open, live in the interpreter it starts
+        # as a child. Kill that holder: the launcher waits on it, so wait()
+        # returns only once the marker is free. Without a launcher the pids agree.
+        if holder is None:
+            proc.kill()
+        else:
+            with contextlib.suppress(OSError):
+                os.kill(holder, KILL_SIGNAL)
         proc.wait(timeout=CALL_TIMEOUT)
     assert started, "the hanging inner run never reached its test"
     own = killed.claimed()
