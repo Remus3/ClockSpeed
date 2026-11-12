@@ -916,3 +916,34 @@ calls in `tests/ops/test_kit_v25_lane_cap.py`. RESIDUAL, not failures: socket ti
 `tests/surface/test_server.py` keep bare constants; `queue_loop.jsonl` sits outside the guard's watch, so
 the guard cannot catch that write coming back; `budget()` reads load at assert time, and its `gate.held()`
 can unlink a stale slot file in the machine gate directory, a kit behaviour reported to MAIN in the ANSWER.
+
+### Recorded 2026-11-12 by the session 156 read of the three exit-1 runs
+
+The responder's 2026-11-08 read counted 16 gated runs since 11-01, 13 exit 0 and 3 exit 1, and the suite
+gate's durations log names no cause. Each cause below was read from the transcript of the agent that
+launched the run, matched on start time, command digest and hold. Times are local, the start of the hold.
+VERDICT: none of the three is a live-state failure or a timing failure, so none restarts the 7 days. The
+item stays open for the 7-day read itself. Not read here: gated exit-nonzero rows dated after 2026-11-04.
+
+- 2026-11-03 18:30:43, digest d4c25ff2, 967 s, the CS-1351 verifier's whole-tree run, 2 failed and 14807
+  passed. CLASS: deterministic regression from the work under test, caught by the gate before it landed.
+  `tests/surface/test_registry.py::test_every_upstream_field_is_either_published_or_withheld_on_the_record`
+  named `Recipe.asset_path` as undecided, and
+  `tests/test_archive_rot.py::test_the_deep_archives_rot_is_measured_and_pinned_per_arm` read 15 and 3
+  against pins of 14 and 4. A bisect over the four commits passed at 041a7de2 and failed from 981fbb92 on,
+  and the two arms failed again alone at the tip. Cleared by 822a47df.
+- 2026-11-04 00:59:35, digest ebd4a151, 90 s, a CS-1371 builder's `tests/advisor tests/data` run, 2 failed
+  and 1990 passed. CLASS: deterministic work-in-progress state. The arm
+  `tests/data/test_drift_guard_data.py::test_the_walk_reaches_every_tracked_file_in_this_repository` listed
+  exactly the slice's three new files, and
+  `tests/data/test_phase2_gate.py::test_the_data_layer_suite_passes_with_the_install_unresolvable` failed on
+  its child run of the data suite, whose one failing test the transcript does not name. The builder staged
+  its write-list and ran the same command again at 01:01:23: exit 0, 1992 passed, 89 s.
+- 2026-11-04 01:51:29 (queued 44 s), digest 653d77b1, 55 s, a CS-1371 builder's `tests/surface` run, 18
+  errors and failures, each `make_cert exited 1` because openssl was not on that agent shell's PATH. CLASS:
+  environment, the missing tool. The same two sampled tests failed the same way on a clean export of the
+  parent commit 4487f886, and the re-run with Git's openssl directory on PATH at 01:53:19 exited 0, 2244
+  passed.
+
+COUNT FOR MAIN: 3 exit-1 runs, 0 live-state, 0 timing, 1 regression the gate caught, 1 unstaged-files
+state, 1 environment.
