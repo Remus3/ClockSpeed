@@ -48,12 +48,15 @@ A TARGET READS BY ITS DISPLAY NAME AND IS KEYED BY ITS CLASSNAME (CS-1379). A Cl
 is an internal identifier, and it can name a different item from the one a player knows,
 so where a rule's tier 1 or tier 2 says a target it says that target's label. When the
 display name is printable ASCII with a visible character, the engine's own test of a card's
-text, and is at most :data:`_MAX_NAME_LENGTH` characters, the label is that name inside
-double quotes, a double quote or backslash in it escaped by a backslash, so a semicolon or a
-comma in it, which a tier reads as its own clause and target separators, reads as part of
-one name and the quote that closes it cannot be forged. Otherwise the label is the ClassName,
-unquoted, so a quoted label is always a display name; the cap stays because a quoted name
-the length of a page would still read as the whole headline. A rule reads only through the
+text, is whitespace-normal, with no leading or trailing space and no run of two, and is at
+most :data:`_MAX_NAME_LENGTH` characters, the label is that name inside double quotes, a
+double quote or backslash in it escaped by a backslash, so a semicolon or a comma in it,
+which a tier reads as its own clause and target separators, reads as part of one name and
+the quote that closes it cannot be forged. Otherwise the label is the ClassName, unquoted, so
+a quoted label is always a display name; a card's tiers collapse every whitespace run, so a
+name that is not whitespace-normal would read as one the registry does not hold, and the cap
+stays because a quoted name the length of a page would still read as the whole headline. A
+rule reads only through the
 engine, so the names arrive as an input sourced to the registry field, :data:`IN_TARGET_NAMES`
 on the ranked path and :data:`IN_REDESIGN_TARGET_NAMES` on the route, which
 ``clockspeed/advisor/plans.py`` fills, and a mapping whose keys are not exactly the plan's
@@ -699,15 +702,18 @@ def _usable_name(name: str | None) -> TypeGuard[str]:
         name: The display name, or None when the registry offers none.
 
     Returns:
-        True when it is printable ASCII with a visible character and is at most
-        :data:`_MAX_NAME_LENGTH` characters. A separator or a quote in it is no bar: the
-        label quotes and escapes it.
+        True when it is printable ASCII with a visible character, is whitespace-normal - no
+        leading or trailing space and no run of two, which a card's tiers would collapse into
+        a name the registry does not hold - and is at most :data:`_MAX_NAME_LENGTH`
+        characters, measured on the name and never on its escaped text. A separator or a
+        quote in it is no bar: the label quotes and escapes it.
     """
     return (
         name is not None
         and len(name) <= _MAX_NAME_LENGTH
         and name.strip(" ") != ""
         and all(" " <= ch <= "~" for ch in name)
+        and " ".join(name.split()) == name
     )
 
 
@@ -732,8 +738,10 @@ def _target_labels(
 
     A name must pass the engine's own test of a card's text, printable ASCII with a visible
     character, because :func:`clockspeed.advisor.trace.run_rule` would otherwise drop the
-    whole card as a rule error, and stay short, because a mod's name would otherwise read as
-    the whole headline. A usable name is quoted and escaped, so a tier's own separators in it
+    whole card as a rule error, be whitespace-normal, because a card's tiers collapse every
+    whitespace run and would say a name the registry does not hold, and stay short, because a
+    mod's name would otherwise read as the whole headline. A usable name is quoted and
+    escaped, so a tier's own separators in it
     read as part of one name, never as a clause or a second target; a ClassName stays bare,
     so a quoted label always says a display name. Any fallback records one indeterminate step.
 

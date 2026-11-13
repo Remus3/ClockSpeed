@@ -463,11 +463,14 @@ def test_a_name_carrying_a_tier_delimiter_reads_quoted(world_name: str, name: st
 
 #: A name holding the quote or the escape itself, beside the label it must read as. "both"
 #: holds a backslash before a quote, so escaping the quote first would double the backslash.
+#: "two-of-each" holds two quotes and two backslashes, so escaping only the first of each
+#: leaves a bare quote and a bare backslash in the label.
 ESCAPED_NAMES: Final = MappingProxyType(
     {
         "a-quote": ('6" Pipe', '"6\\" Pipe"'),
         "a-backslash": ("C:\\", '"C:\\\\"'),
         "both": ('A\\"B', '"A\\\\\\"B"'),
+        "two-of-each": ('A"B"C\\D\\E', '"A\\"B\\"C\\\\D\\\\E"'),
     }
 )
 
@@ -488,6 +491,13 @@ def test_a_quote_or_backslash_in_a_name_reads_escaped(
     # The escaping is the tiers' own: the input the trace read holds the name verbatim.
     (read,) = [step.value for step in card.trace.steps if step.subject == stated.names_input]
     assert read == {plan_worlds.SOLVE_RELIC_ITEM: name}
+    # Every quote and every backslash is escaped, none left bare: a label's only bare quotes
+    # are the two that delimit it.
+    body = label[1:-1]
+    bare_quotes = body.replace("\\\\", "").replace('\\"', "").count('"')
+    assert bare_quotes == 0
+    escapes = body.count('\\"') + body.count("\\\\")
+    assert escapes == name.count('"') + name.count("\\")
 
 
 #: The longest name a tier reads, spelled so a change reddens here.
@@ -512,6 +522,59 @@ def test_an_overlong_name_falls_back(world_name: str, length: int) -> None:
     control = _named_card(stated, "N" * MAX_NAME_LENGTH)
     assert control.tier1.endswith(' "' + "N" * MAX_NAME_LENGTH + '"')
     assert _fallback_steps(control.trace) == []
+
+
+@pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
+def test_the_cap_measures_the_name_and_never_its_escaped_text(world_name: str) -> None:
+    """A name at the cap holding a quote reads quoted, though its escaped text is longer."""
+    stated = STATED_WORLDS[world_name]
+    name = '6" ' + "N" * (MAX_NAME_LENGTH - 3)
+    at_cap = len(name)
+    assert at_cap == MAX_NAME_LENGTH
+
+    card = _named_card(stated, name)
+
+    label = '"6\\" ' + "N" * (MAX_NAME_LENGTH - 3) + '"'
+    assert card.tier1.endswith(" " + label)
+    assert label in card.tier2
+    assert plan_worlds.SOLVE_RELIC_ITEM not in card.tier1
+    assert _fallback_steps(card.trace) == []
+
+
+#: Names that are printable ASCII and within the cap but not whitespace-normal. A card's
+#: tiers collapse every whitespace run to one space, so quoted they would read as a name the
+#: registry does not hold.
+UNNORMAL_NAMES: Final = MappingProxyType(
+    {
+        "a-double-space": "Solve  Relic",
+        "a-leading-space": " Solve Relic",
+        "a-trailing-space": "Solve Relic ",
+    }
+)
+
+
+@pytest.mark.parametrize("name", UNNORMAL_NAMES.values(), ids=UNNORMAL_NAMES.keys())
+@pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
+def test_a_name_not_whitespace_normal_falls_back(world_name: str, name: str) -> None:
+    stated = STATED_WORLDS[world_name]
+
+    card = _named_card(stated, name)
+
+    # The ClassName reads bare, and no tier says the collapsed name the registry lacks.
+    assert card.tier1.endswith(" " + plan_worlds.SOLVE_RELIC_ITEM)
+    assert '"' not in card.tier1
+    assert '"' not in card.tier2
+    assert _fallback_steps(card.trace) == [(plan_worlds.NAME_ALTERNATIVE, plan_worlds.NAME_REASON)]
+    (read,) = [step.value for step in card.trace.steps if step.subject == stated.names_input]
+    assert read == {plan_worlds.SOLVE_RELIC_ITEM: name}
+
+    # The control: the same words, whitespace-normal, read quoted with no fallback, so the
+    # whitespace alone decided above.
+    normal = " ".join(name.split())
+    control = _named_card(stated, normal)
+    assert control.tier1.endswith(' "' + normal + '"')
+    assert _fallback_steps(control.trace) == []
+    assert control.id == card.id
 
 
 @pytest.mark.parametrize("name", UNPRINTABLE_NAMES.values(), ids=UNPRINTABLE_NAMES.keys())

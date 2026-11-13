@@ -555,6 +555,17 @@ costs a pair of quotes on every plan card's tier 1 and tier 2. The fuel cards st
 CS-1384, outside this clause. Reversed by: an arm finding a quoted label that reads as more than one display name, or a
 usable name that falls back.
 
+RATIFIED 2026-11-13 by the session 156 adjudicator on c8424c3c, no amendment: rules 4, 7, 8 and 11-12 hold, and the 64 cap is over twice the pinned maximum of 29.
+
+AMENDED, on an adversary's LOW finding against c8424c3c: a card's tiers collapse every whitespace run, so `A  B` read as
+`"A B"`, a name the registry does not hold. Decision: a name that is not whitespace-normal - leading or trailing
+whitespace, or a run of two or more spaces, so that `" ".join(name.split()) != name` - reads the bare ClassName and
+records the existing indeterminate step. Alternative rejected: amending "verbatim" in this ruling, because advice could
+then render text the registry does not hold. Why: the pinned docs hold no such name, so nothing visible is lost.
+
+RESIDUAL, recorded and not repaired: a name over the cap still prints in full in the tier 3 input line. Accepted because
+names come from the shipped docs file, where the longest is 29 characters.
+
 ## CS-1381
 
 ### Acceptance
@@ -647,7 +658,7 @@ display name in double quotes, a double quote or backslash inside it escaped by 
 printable ASCII or over 64 characters reads its key unquoted, through the fallback step the rule records today. Tier 3 keeps every key in its steps, generated from the trace. Each case
 reddens on its own arm first: a comma, a semicolon, a double quote, a backslash, the cap and one over it.
 
-### Filed 2026-11-12 by the CS-1379 quoting ruling
+### Filed 2026-11-13 by the CS-1379 quoting ruling
 
 The residual of the ruling that quotes a plan target's display name in tiers 1 and 2. `clockspeed/advisor/rules/fuel.py`
 still splices a class's or a fuel's display name unquoted and with no length cap, so a mod's name holding a comma or a
