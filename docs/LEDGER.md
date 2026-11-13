@@ -200,6 +200,38 @@ WHAT IS STILL NOT GRADED BY EXECUTION: `shell/main.js` requires electron, so no 
 wiring is graded by source-text arms over the two call sites, and those arms are themselves graded against three
 sabotages. That is the house idiom - `shell/lib/verdict.js` exists because a mapping inside `main.js` was
 ungraded - and this item moved both halves of its own mapping out to shrink what the idiom has to cover.
+ADVERSARY PASS, REPAIRED BEFORE LANDING. An adversary agent that produced none of the work refuted five claims
+of this item by mutants run against a frozen copy, and every repair below landed with this entry, before the
+item reached `main`.
+(1) MEDIUM, REPAIRED. The acceptance arm could not fail on the clamp: its 1920x1080 primary already holds the
+1100x800 defaults, so a fallback that centred the raw defaults with no clamp and no minimum passed every geometry
+arm. `shell/test/geometry.test.js::CS-1361 acceptance - a missing saved display on a primary smaller than the defaults is clamped inside it`
+uses a 1280x680 primary - a 1080p panel at 150 percent, less its taskbar - and asserts the clamped 652-row height
+and all four edges inside the work area. It was seen RED against that mutant in a scratch copy, for the right
+reason (`height: 800` and `y: -60` against the expected 652 and 14), and green on the shipped code; the
+pre-repair test file passed the same mutant.
+(2) LOW, REPAIRED. "Not a warning" was a comment and nothing checked it. Both acceptance arms now replace
+`console.warn` and `console.error` with spies and assert zero calls; a mutant that warns or errors on the
+fallback is red on both.
+(3) LOW, REPAIRED. Three comments still carried the refuted double-counting rationale - `displaysFrom`'s docblock
+in `shell/lib/geometry.js`, `::the 96 percent clamp is DPI aware - the same physical cap at scaleFactor 1 and 2`
+and `::displaysFrom drops scaleFactor and every other electron field`. All three now give the two reasons that
+stand, purity and a clause that asks for a work-area-relative cap. Comment text only.
+(4) KNOWN GAP, LOW, NOT REPAIRED. The `main.js` seam arms, `::main.js wires the display id through both halves
+of the round trip` and its sabotage arm, match source TEXT at the two call sites. So a `main.js` that zeroes
+`saved.displayId` before the call - by rebuilding `saved` at the top of `openWindow`, say - passes them while
+forwarding no id at all. Closing it needs an electron harness, which this item deliberately does not build; it is
+one more instance of WHAT IS STILL NOT GRADED BY EXECUTION above.
+(5) STATED EXCEPTION, LOW. The minimum window outranks the 96 percent cap. On a work area too short for the
+minimum under the cap - 853x440, a 720p panel at 150 percent less its taskbar - the window is 480 rows tall in a
+440-row work area, its top pinned to the work area's own top so the title bar stays reachable. That is
+`fitSize`'s documented priority, not a defect, and
+`::the minimum outranks the 96 percent cap - a stated exception, pinned on both paths` pins it on the fallback
+and the saved-size paths; a cap made to outrank the minimum is red there.
+Counts observed THIS repair's run, each written to a file and read back: `cd shell && node --test` exit 0,
+verbatim `tests 391`, `pass 391`, `fail 0`; `python -m pytest tests/shell -q` through the kit suite gate exit 0,
+verbatim `141 passed, 1 warning`. NO VERIFIER OR ADVERSARY HAS GRADED THIS REPAIR; the builder's own mutant
+re-runs are all that grade it so far.
 
 ### 2026-11-12 - CS-1383 - CLOSED: the version pin re-pinned to the patched game build; the docs bytes and the census are unchanged, so only the build string and the integrity digest moved
 Verification: merged file `clockspeed/data/version.py` (`_PIN_JSON`: game_build and integrity only;

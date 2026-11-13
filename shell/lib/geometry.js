@@ -411,9 +411,13 @@ function resolveBounds(options) {
  * a display object. The caller supplies screen.getPrimaryDisplay().id and the
  * comparison happens once, here, rather than being repeated by every caller.
  *
- * scaleFactor IS DELIBERATELY NOT FORWARDED - see USABLE_FRACTION above. A
- * scale factor reaching resolveBounds could only invite the double-counting
- * rescale that comment rejects.
+ * scaleFactor IS DELIBERATELY NOT FORWARDED - see USABLE_FRACTION above. The
+ * cap needs none, because work areas and window bounds are both device
+ * independent pixels. The only use a scale factor could be put to is the
+ * savedScale / currentScale rescale that comment declines, for its two
+ * standing reasons: it preserves a physical size across a scale change, which
+ * is a different feature from the work-area-relative cap the clause asks for,
+ * and taking a scale factor would cost resolveBounds its purity.
  *
  * A malformed entry is PASSED THROUGH rather than dropped. resolveBounds
  * already drops an entry with no usable work area and has the test that pins

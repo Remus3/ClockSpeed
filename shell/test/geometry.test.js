@@ -359,10 +359,12 @@ test("the 96 percent clamp is DPI aware - the same physical cap at scaleFactor 1
   // every scale factor.
   //
   // NO scaleFactor IS PASSED TO THE MODULE, and that is correct rather than an
-  // omission. There is nothing for one to do - rescaling the remembered size
-  // by savedScale / currentScale would double count, because raising a
-  // display's scale factor already shrinks its DIP work area by that same
-  // ratio. geometry.js records that rejection next to the clamp.
+  // omission. The cap needs none, as the arithmetic below shows. Rescaling the
+  // remembered size by savedScale / currentScale would preserve a physical
+  // size across a scale change, which is a different feature from the
+  // work-area-relative cap the clause asks for, and taking a scale factor
+  // would cost the module its purity. geometry.js records that rejection, and
+  // those two reasons, next to the clamp.
   const oversized = { x: 0, y: 0, width: 4000, height: 2400 };
 
   // scaleFactor 1: the DIP work area is the whole 3840x2160.
@@ -432,13 +434,19 @@ test("every returned bound is an integer on an odd sized work area under the cla
 
 // --- CS-1361: home is chosen by saved display id ----------------------------
 
-test("CS-1361 acceptance - a missing saved display lands the window on the primary inside its work area", () => {
+test("CS-1361 acceptance - a missing saved display lands the window on the primary inside its work area", (t) => {
   // MAIN ORDER 2026-10-31 22:15 item 8, the acceptance clause itself.
   //
   // THE PRIMARY IS DELIBERATELY NOT INDEX 0. "It fell back to the primary"
   // would otherwise be satisfied by "it took the first entry in the list",
   // which is a different claim and the one that was true before display ids
   // existed.
+  //
+  // The console is spied BEFORE the call, so "not a warning" below is a
+  // measurement rather than a comment. The stand-ins swallow the text, so a
+  // regression fails here instead of printing into the test output.
+  const warn = t.mock.method(console, "warn", () => {});
+  const error = t.mock.method(console, "error", () => {});
   const displays = [
     { id: 11, workArea: { x: 0, y: 0, width: 1280, height: 720 }, primary: false },
     { id: 22, workArea: { x: 1280, y: 0, width: 1920, height: 1080 }, primary: true },
@@ -447,6 +455,8 @@ test("CS-1361 acceptance - a missing saved display lands the window on the prima
 
   // Silent: a reason, not a throw and not a warning.
   assert.equal(result.reason, REASONS.DISPLAY_ID_GONE);
+  assert.equal(warn.mock.callCount(), 0, "the missing-display fallback wrote a console warning");
+  assert.equal(error.mock.callCount(), 0, "the missing-display fallback wrote a console error");
 
   // The defaults centred on the primary work area, which begins at x 1280.
   // Width 1100 is under the cap of floor(1920 * 0.96) = 1843 and height 800 is
@@ -473,6 +483,100 @@ test("CS-1361 acceptance - a missing saved display lands the window on the prima
   // And explicitly NOT centred on index 0, which is the 1280x720 monitor and
   // would have produced { x: 90, y: 15, width: 1100, height: 691 }.
   assert.notDeepEqual(result.bounds, { x: 90, y: 15, width: 1100, height: 691 });
+});
+
+test("CS-1361 acceptance - a missing saved display on a primary smaller than the defaults is clamped inside it", (t) => {
+  // WHY THIS ARM EXISTS: the CS-1361 adversary measured the arm above as
+  // unable to fail on the clamp. Its 1920x1080 primary already holds the
+  // 1100x800 defaults with room to spare, so a fallback that centred the raw
+  // defaults with no clamp and no minimum passed it - and every other arm in
+  // this file - unchanged.
+  //
+  // This primary is 1280x680 device independent pixels: a 1920x1080 panel at
+  // 150 percent scaling is 1280x720, less a 40 pixel taskbar. Its 680 rows
+  // cannot hold the 800 row default, so only a fallback that really clamps can
+  // land the window inside it.
+  const warn = t.mock.method(console, "warn", () => {});
+  const error = t.mock.method(console, "error", () => {});
+
+  // The primary is again NOT index 0, and index 0 is the LARGER monitor, so a
+  // fallback centring on the first entry would find the defaults fit there and
+  // would never have to clamp at all.
+  const displays = [
+    { id: 11, workArea: { x: 0, y: 0, width: 1920, height: 1080 }, primary: false },
+    { id: 22, workArea: { x: 1920, y: 0, width: 1280, height: 680 }, primary: true },
+  ];
+  const primary = displays[1].workArea;
+  assert.ok(DEFAULTS.height > primary.height, "the fixture must be shorter than the defaults");
+
+  const result = resolveWith({ x: 100, y: 100, width: 1100, height: 800, displayId: 99 }, displays);
+  assert.equal(result.reason, REASONS.DISPLAY_ID_GONE);
+
+  // Width: floor(1280 * 0.96) = 1228, and the 1100 default is under it, so it
+  // stands. Height: 680 * 0.96 = 652.8, floor 652, which cuts the 800 default
+  // and is still above the 480 minimum. Centring on the FULL work area:
+  // 1920 + (1280 - 1100) / 2 = 1920 + 90 = 2010, and (680 - 652) / 2 = 14.
+  assert.deepEqual(result.bounds, { x: 2010, y: 14, width: 1100, height: 652 });
+
+  // Wholly inside the primary's work area, by its own four edges. The raw 800
+  // row default is taller than the whole work area, so no unclamped window
+  // could pass the bottom edge check.
+  const b = result.bounds;
+  assert.ok(b.x >= primary.x, `left edge ${b.x} against ${primary.x}`);
+  assert.ok(b.y >= primary.y, `top edge ${b.y} against ${primary.y}`);
+  assert.ok(
+    b.x + b.width <= primary.x + primary.width,
+    `right edge ${b.x + b.width} against ${primary.x + primary.width}`
+  );
+  assert.ok(
+    b.y + b.height <= primary.y + primary.height,
+    `bottom edge ${b.y + b.height} against ${primary.y + primary.height}`
+  );
+
+  // Silent here as well, measured on the path that had to clamp.
+  assert.equal(warn.mock.callCount(), 0, "the clamped fallback wrote a console warning");
+  assert.equal(error.mock.callCount(), 0, "the clamped fallback wrote a console error");
+});
+
+test("the minimum outranks the 96 percent cap - a stated exception, pinned on both paths", () => {
+  // A STATED EXCEPTION to the cap, recorded in CS-1361's ledger entry because
+  // the CS-1361 adversary found it undocumented. fitSize applies the minimum
+  // AFTER the cap, so on a work area too short for the minimum window the
+  // window comes out taller than the work area itself. 853x440 device
+  // independent pixels is a 1280x720 panel at 150 percent, less a 40 pixel
+  // taskbar.
+  //
+  // Width: 853 * 0.96 = 818.88, floor 818 - under the 1100 default and above
+  // the 640 minimum, so the cap holds on this axis.
+  // Height: 440 * 0.96 = 422.4, floor 422 - BELOW the 480 minimum, so the
+  // minimum wins at 480, which is 40 rows MORE than the whole work area.
+  const tiny = { id: 5, workArea: { x: 0, y: 0, width: 853, height: 440 }, primary: true };
+  const area = tiny.workArea;
+
+  // The fallback path, a saved display that is not attached. x centres to
+  // round((853 - 818) / 2) = round(17.5) = 18. y would centre to
+  // (440 - 480) / 2 = -20, above the work area, and is pinned to its origin
+  // instead, so the title bar stays reachable and all the overflow is at the
+  // bottom.
+  const gone = resolveWith({ x: 0, y: 0, width: 1100, height: 800, displayId: 99 }, [tiny]);
+  assert.equal(gone.reason, REASONS.DISPLAY_ID_GONE);
+  assert.deepEqual(gone.bounds, { x: 18, y: 0, width: 818, height: 480 });
+
+  // The saved-size path, homed on that same display by id. Both axes shrink,
+  // so CLAMPED, and the saved 0,0 is already inside on both axes.
+  const homed = resolveWith({ x: 0, y: 0, width: 1100, height: 800, displayId: 5 }, [tiny]);
+  assert.equal(homed.reason, REASONS.CLAMPED);
+  assert.deepEqual(homed.bounds, { x: 0, y: 0, width: 818, height: 480 });
+
+  // The exception, as the inequalities it is. Should the cap ever be made to
+  // outrank the minimum, these fail and the ledger exception must be revised.
+  for (const result of [gone, homed]) {
+    assert.equal(result.bounds.height, MINIMUM.height);
+    assert.ok(result.bounds.height > area.height, "the minimum window no longer overflows the work area");
+    assert.equal(result.bounds.y, area.y, "the overflow must leave the top edge on the work area");
+    assert.ok(818 / 853 <= 0.96 && 819 / 853 > 0.96, "818 is the width cap at 853");
+    assert.equal(result.bounds.width, 818);
+  }
 });
 
 test("a saved display id with zero overlap still wins - the window slides back onto it", () => {
@@ -870,9 +974,11 @@ test("displaysFrom maps electron displays onto the id, work area and primary", (
 
 test("displaysFrom drops scaleFactor and every other electron field", () => {
   // The module is DPI aware by working in device independent pixels, so a
-  // scaleFactor reaching resolveBounds could only tempt someone into the
-  // double-counting rescale that USABLE_FRACTION's comment rejects. It is not
-  // forwarded, and this arm is what keeps it unforwarded.
+  // scaleFactor has no job in resolveBounds. The only use one could be put to
+  // is the savedScale / currentScale rescale USABLE_FRACTION's comment
+  // declines - a physical-size feature the clause does not ask for, and one
+  // that would cost the module its purity. It is not forwarded, and this arm
+  // is what keeps it unforwarded.
   const mapped = geometry.displaysFrom([{ id: 9, workArea: WA_PRIMARY, scaleFactor: 1.5 }], 9);
   assert.deepEqual(Object.keys(mapped[0]).sort(), ["id", "primary", "workArea"]);
 });
