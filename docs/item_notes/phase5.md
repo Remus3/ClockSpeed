@@ -649,6 +649,30 @@ STILL OWED AT THE CLOSE: an adjudicator on the built candidate, which /done stop
 first frozen commit a verifier read 17604 passed, 14 skipped, 0 failed at 94 percent, killed at its budget, so its top
 level census guards went unread there. Whole suite not run on the branch.
 
+### Recorded 2026-11-13 by the F1 repair round
+
+The four points under MUST BE REPAIRED, each read on THE STACK's branch above the CS-1379 repairs:
+- F1 MEDIUM, REPAIRED by the stack's commit `fix(CS-1382): name a cap in the no-unlock clause only when it cut`, in
+  `clockspeed/advisor/rules/plan.py::_route_unlock_clause`: the no-unlock clause says the capped search missed the route
+  only when plan.trimmed is not empty, and with nothing dropped says the search, which dropped no recipe to fit its cap,
+  did not find it from the raw items a held extractor supplies. plan.redesign declares plan.trimmed. Arm:
+  `tests/advisor/test_plan_redesign.py` test_a_route_no_cap_cut_never_says_the_capped_search_missed_it, with a
+  planted-trim control; with the clause reverted to the old spelling in a scratch copy it fails at `assert not capped`.
+  The no-plan beside it stands as ruled, a pillar 1 matter.
+- LOW, a world supplying none: the stack's docstring commit replaced the sentence with one still false three ways,
+  measured here: a held recipe eating nothing a stage below the target ranks, a loop giving back what it eats ranks, and
+  a free recipe's byproduct under balanced reads no-plan. `clockspeed/advisor/plans.py` now says a plan ranks only if it
+  consumes no raw item, fed either way, within the stated byproduct policy. Arm:
+  test_a_world_supplying_none_ranks_only_a_plan_eating_no_raw_item, five cases, sinkable the byproduct's control.
+- LOW, `clockspeed/data/registry.py::extractors_of`: repaired by the docstring commit, re-read here against the code and
+  holding.
+- LOW, the raw-unknown wording: its docstring's KNOWN MEANS JOINED paragraph says what known means, and a name holding
+  the clause's words now reads quoted under CS-1379's ruling.
+- `docs/ARCHITECTURE.md`: the join landed with the docstring commit; this round drops "from the supplied raw items
+  alone", which a target stated raw falsifies, and names the first extractor that joins as the one the route names.
+
+STILL OWED: the rest of the real-world comparison re-read, an adjudicator on the built item, a verifier, the landing.
+
 ## CS-1384
 
 ### Acceptance

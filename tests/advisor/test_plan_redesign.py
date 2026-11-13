@@ -1976,6 +1976,60 @@ def test_a_world_holding_no_extractor_reads_no_plan_and_a_route(
     assert plan_offer(_unlocks(["R_Direct"]), registry, stated)[IN_STATUS].value == MALFORMED
 
 
+#: An invented item a free recipe makes: the chain's middle stage, or the byproduct.
+_SPARE: Final = _item("Spare")
+
+#: Worlds no raw item can feed, each its recipes and the ones it holds. The loop is
+#: :func:`_free_loop_registry`'s, holding R_Main alone.
+_FREE_WORLDS: Final = {
+    "direct": ([_recipe("R_Free", [], [SOLVE_RELIC_ITEM])], ["R_Free"]),
+    "chain": (
+        [_recipe("R_Seed", [], [_SPARE]), _recipe("R_Up", [_SPARE], [SOLVE_RELIC_ITEM])],
+        ["R_Seed", "R_Up"],
+    ),
+    "byproduct": ([_recipe("R_FreeBy", [], [SOLVE_RELIC_ITEM, _SPARE])], ["R_FreeBy"]),
+}
+
+
+@pytest.mark.parametrize(
+    ("shape", "policy", "status"),
+    [
+        ("direct", BALANCED, RANKED),
+        ("chain", BALANCED, RANKED),
+        ("loop", BALANCED, RANKED),
+        ("byproduct", BALANCED, NO_PLAN),
+        ("byproduct", SINKABLE, RANKED),
+    ],
+)
+def test_a_world_supplying_none_ranks_only_a_plan_eating_no_raw_item(
+    shape: str, policy: str, status: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The module docstring's sentence on a world supplying none, measured (CS-1382, LOW).
+
+    No miner is held, so the search starts from no raw item. A plan ranks fed by a held recipe
+    eating nothing, making the target or a stage below it, or by a loop giving back what it
+    eats, and a free recipe's byproduct still meets the stated policy: balanced reads no-plan
+    where sinkable ranks the same world. The sentence this corrects read no-plan for the chain
+    and the loop, and a rank for the byproduct under balanced.
+    """
+    calls = _count_calls(monkeypatch)
+    if shape == "loop":
+        registry, held = _free_loop_registry(), ["R_Main"]
+    else:
+        entries, held = _FREE_WORLDS[shape]
+        registry = _registry(entries, items=[_SPARE])
+    request = _request(registry, policy=policy)
+    assert request.raw_items == (SOLVE_ORE_ITEM,)
+
+    offered = plan_offer(_unlocks(held, extractors=()), registry, request)
+
+    assert offered[IN_STATUS].value == status
+    bound_raw = [args[1].raw_items for args in calls["optimize_within_bound"]]
+    assert bound_raw == [()]
+    if status == RANKED:
+        assert _plan_of(offered[IN_PLAN].value).raw_inputs == {}
+
+
 def test_the_search_keeps_the_stated_order_of_the_supplied_raw_items(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

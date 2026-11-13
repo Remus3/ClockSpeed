@@ -45,11 +45,13 @@ and nothing here asks after a node, power or a machine already built.
 
 The search starts from the stated raw items that are supplied, in the stated order, and from
 any stated item that is a target, so pillar 1 still refuses that question as malformed
-whatever the world holds. A world supplying none narrows to no raw items at all, which the
-bound answers as a no-plan unless a held recipe eating nothing makes the targets, and that one
-ranks: only the stated tuple can make a request malformed. An item taken
-out of the raw items this way is an ordinary item to the search, so a held recipe making it
-can still rank, and one a plan leaves over meets the stated byproduct policy. A ranked plan's
+whatever the world holds. A world supplying none, a target stated raw aside, narrows to no raw
+items at all, and the search runs as on any other: a plan can rank only if it consumes no raw
+item, fed by held recipes eating nothing or by a loop giving back what it eats, within the
+stated byproduct policy, and where the kept set holds no such plan the bound answers a
+no-plan. Only the stated tuple can make a request malformed. An item taken out of the raw
+items this way is an ordinary item to the search, so a held recipe making it can still rank,
+and one a plan leaves over meets the stated byproduct policy. A ranked plan's
 unlock keys gain, after its recipes' and machines', the key of the first machine the world
 holds for each raw item the plan consumes, every key once. ``raw_inputs`` is net and published
 sorted by key, so that order is sorted, and a loop giving back what it eats needs no extractor.
