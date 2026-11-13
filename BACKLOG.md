@@ -64,6 +64,13 @@ the first: a consumer actually needs to follow a component to its parent.**
   what that shows; the moved tier2 legs go in `PENDING_FIRST_RECORD`, never renamed back in
   `tools/tier2_durations.json` - TRIGGER: GitHub announces the 24.04 image retirement, or a
   fill-shard log shows the 26.04 coreutils.
+- CS-1387 - `tests/conftest.py::redact_personal_data` raises TypeError under pytest 9.2: the
+  terminal reporter hands the redaction hooks a NodeId object, not a str. The global
+  interpreter carries pytest 9.2.0 while `pyproject.toml` pins `<9.1` (`.venv` satisfies it),
+  so a hook falling back to the global `python` crashes
+  `tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary` (child exit
+  3) and blocks the push - TRIGGER: the pyproject pin admits pytest 9.2, or a hook run without
+  `CLOCKSPEED_PYTHON` reaches the global interpreter again.
 
 ## Mod content support
 
