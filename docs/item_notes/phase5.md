@@ -499,7 +499,7 @@ Filed by the rulings recorded under CS-1371, so that what CS-1371 did not delive
 ### Acceptance
 
 On a synthetic registry whose item carries a display name, tier 1 and tier 2 of plan.adopt and plan.redesign name the target by that display name in double quotes, a double quote or
-backslash inside it escaped by a backslash, the subject key and the card id unchanged; an item whose name is absent, blank, not printable ASCII or over 64 characters reads its ClassName
+backslash inside it escaped by a backslash, the subject key and the card id unchanged; an item whose name is absent, blank, not printable ASCII, not whitespace-normal (a leading or trailing space, or two spaces in a row) or over 64 characters reads its ClassName
 unquoted. Tier 3 keeps ClassNames, each with its own arm. Measured on one docs build: Desc_SteelPlate_C reads as a Steel Beam to a player, while the selector already labels by display
 name.
 
@@ -536,9 +536,9 @@ Not reached: a browser, a re-read on a save without CS-1382, the whole suite. It
 ### Recorded 2026-11-13 by the quoting ruling
 
 RULED, before the repair's code, between the two directions the surface lens refuted: a display name that is printable
-ASCII with a visible character and 64 characters or fewer reads in tiers 1 and 2 inside double quotes, a double quote
-or backslash inside it escaped by a backslash; any other name - absent, blank, not printable ASCII or over 64 - reads
-the bare ClassName and records the existing fixed indeterminate step, never a rejection. The acceptance above carries
+ASCII with a visible character, whitespace-normal (amended below) and 64 characters or fewer reads in tiers 1 and 2
+inside double quotes, a double quote or backslash inside it escaped by a backslash; any other name - absent, blank, not
+printable ASCII, not whitespace-normal (amended below) or over 64 - reads the bare ClassName and records the existing fixed indeterminate step, never a rejection. The acceptance above carries
 the clause change.
 
 ALTERNATIVES. The repair's fallback, a semicolon or a comma reading the ClassName: lost, because `A, B` then reads its
@@ -547,13 +547,13 @@ then forges a clause or a second target. Rewriting the separators out of a name:
 name the registry does not hold. Dropping the 64 cap once quoted: lost, because a quoted page still reads as the whole
 headline. Quoting the ClassName too: lost, because a quoted label would then no longer always say a display name.
 
-WHY. Quoting keeps every printable name verbatim and makes a separator inside it part of one name; escaping the
+WHY. Quoting keeps every usable name verbatim and makes a separator inside it part of one name; escaping the
 backslash first, then the quote, leaves no name able to forge the closing quote. The bare ClassName keeps the two
 readable apart, which also answers the lens's residual: a name equal to a recipe key now reads quoted, as a name. Tier
 3 keeps every ClassName in its steps and the name input holds the name verbatim, so non-negotiable 8 is untouched. It
 costs a pair of quotes on every plan card's tier 1 and tier 2. The fuel cards still splice a name unquoted: filed as
 CS-1384, outside this clause. Reversed by: an arm finding a quoted label that reads as more than one display name, or a
-usable name that falls back.
+name the amended clause calls usable that falls back.
 
 RATIFIED 2026-11-13 by the session 156 adjudicator on c8424c3c, no amendment: rules 4, 7, 8 and 11-12 hold, and the 64 cap is over twice the pinned maximum of 29.
 
@@ -565,6 +565,8 @@ then render text the registry does not hold. Why: the pinned docs hold no such n
 
 RESIDUAL, recorded and not repaired: a name over the cap still prints in full in the tier 3 input line. Accepted because
 names come from the shipped docs file, where the longest is 29 characters.
+
+CLAUSE AMENDED 2026-11-13 by the session 156 adjudicator on 4bb42884: a fifth fallback, not whitespace-normal, matching _usable_name; 0 of 750 docs names affected. Lost: keeping whitespace in cards.py, a shared renderer outside this clause.
 
 ## CS-1381
 
@@ -688,3 +690,5 @@ The residual of the ruling that quotes a plan target's display name in tiers 1 a
 still splices a class's or a fuel's display name unquoted and with no length cap, so a mod's name holding a comma or a
 semicolon reads as a second item or a clause of the card, and a long one as the whole headline. Out of CS-1379, whose
 clause names the plan family alone.
+
+Open: the CS-1379 whitespace-normal fallback (amended 2026-11-13) applies here too; amend this clause through an adjudicator before build.

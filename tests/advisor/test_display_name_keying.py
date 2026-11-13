@@ -491,9 +491,13 @@ def test_a_quote_or_backslash_in_a_name_reads_escaped(
     # The escaping is the tiers' own: the input the trace read holds the name verbatim.
     (read,) = [step.value for step in card.trace.steps if step.subject == stated.names_input]
     assert read == {plan_worlds.SOLVE_RELIC_ITEM: name}
-    # Every quote and every backslash is escaped, none left bare: a label's only bare quotes
-    # are the two that delimit it.
-    body = label[1:-1]
+    # Every quote and every backslash the card renders is escaped, none left bare: a rendered
+    # label's only bare quotes are the two that delimit it. Read off tier 1 itself, from its
+    # first quote, so the count grades what the card says and never the label spelled above.
+    rendered = card.tier1[card.tier1.index('"') :]
+    delimited = rendered != '"' and rendered.endswith('"')
+    assert delimited
+    body = rendered[1:-1]
     bare_quotes = body.replace("\\\\", "").replace('\\"', "").count('"')
     assert bare_quotes == 0
     escapes = body.count('\\"') + body.count("\\\\")
