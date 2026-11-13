@@ -393,11 +393,12 @@ _MUST_UNLOCK_CLAUSE: Final = (
 )
 _EXTRACTOR_UNLOCK_CLAUSE: Final = "; the locked extractors must unlock first on this route"
 
-#: What it says with neither locked where the bound dropped nothing (CS-1382 F1), so the search
-#: kept every recipe it was given and no cap is named. Where the bound dropped some,
-#: :func:`_route_unlock_clause` names the cap and the count instead. Either way the clause names
-#: the search's own starting point: the route may take as raw an item the world extracts nothing
-#: for, which the search treats as an ordinary item, not a raw one.
+#: What it says with neither locked where the bound dropped nothing (CS-1382 F1), so no cap is
+#: named. Of the cap it claims only that no recipe was dropped to fit it: the door has already
+#: excluded a held recipe of zero duration, which the bound never saw. Where the bound dropped
+#: some, :func:`_route_unlock_clause` names the cap and the count instead. Either way the clause
+#: names the search's own starting point: the route may take as raw an item the world extracts
+#: nothing for, which the search treats as an ordinary item, not a raw one.
 _UNCAPPED_NO_UNLOCK_CLAUSE: Final = (
     "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
     " did not find it from the raw items a held extractor supplies"

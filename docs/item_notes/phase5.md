@@ -654,13 +654,15 @@ level census guards went unread there. Whole suite not run on the branch.
 ### Recorded 2026-11-13 by the F1 repair round
 
 The four points under MUST BE REPAIRED, each read on THE STACK's branch above the CS-1379 repairs:
-- F1 MEDIUM, REPAIRED by the stack's commit `fix(CS-1382): name a cap in the no-unlock clause only when it cut`, in
-  `clockspeed/advisor/rules/plan.py::_route_unlock_clause`: the no-unlock clause says the capped search missed the route
-  only when plan.trimmed is not empty, and with nothing dropped says the search, which dropped no recipe to fit its cap,
-  did not find it from the raw items a held extractor supplies. plan.redesign declares plan.trimmed. Arm:
-  `tests/advisor/test_plan_redesign.py` test_a_route_no_cap_cut_never_says_the_capped_search_missed_it, with a
-  planted-trim control; with the clause reverted to the old spelling in a scratch copy it fails at `assert not capped`.
-  The no-plan beside it stands as ruled, a pillar 1 matter.
+- F1 MEDIUM, REPAIRED by the stack's commit `fix(CS-1382): name a cap in the no-unlock clause only when it cut`, its
+  wording since `fix(CS-1382): state the cap as a fact in the clause, never a cause`, in
+  `clockspeed/advisor/rules/plan.py::_route_unlock_clause`: with plan.trimmed not empty the no-unlock clause says the
+  search dropped N held recipe(s) to fit its cap and found no route within it, and claims no cause; with nothing
+  dropped it says the search, which dropped no recipe to fit its cap, did not find it from the raw items a held
+  extractor supplies. plan.redesign declares plan.trimmed. Arm: `tests/advisor/test_plan_redesign.py`
+  test_a_route_no_cap_cut_never_says_the_capped_search_missed_it, with planted-trim controls of one and two held
+  recipes; with the clause reverted to the old spelling in a scratch copy it fails at its first tier 2 equality,
+  `assert route.tier2 ==`, the uncapped expectation. The no-plan beside it stands as ruled, a pillar 1 matter.
 - F1 DECIDED by the merger after a second adversary refuted the route-stage test (world K: 12 byproduct recipes then R_Alt, 13 held, R_Alt dropped though it ranks within the cap, read uncapped): the no-unlock clause states facts only and claims no cause - with plan.trimmed non-empty it names the cap and how many held recipes it dropped and says the search found no route within it, with plan.trimmed empty it says the search dropped no recipe. Alternatives rejected: the route-stage test, refuted by world K; the causal capped sentence on any trim, refuted by the first adversary's 13-recipe world; a counterfactual search past the cap, which defeats the cap's bound on search cost. Arms: test_a_cap_cut_off_the_plan_reads_the_same_fact, test_a_cap_cut_beside_the_route_reads_the_cap_as_a_fact, test_a_cap_cut_into_the_route_reads_the_same_fact and test_a_route_no_cap_cut_never_says_the_capped_search_missed_it.
 - LOW, a world supplying none: the stack's docstring commit replaced the sentence with one still false three ways,
   measured here: a held recipe eating nothing a stage below the target ranks, a loop giving back what it eats ranks, and

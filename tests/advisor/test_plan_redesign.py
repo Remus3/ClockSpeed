@@ -2239,7 +2239,7 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
 
     The search reads no-plan with nothing dropped, so the no-unlock clause may not name a cap,
     and the trace reads the word the clause rests on. The controls plant what a cap dropped
-    beside the same route: the route's own stage, or two recipes it never runs, and the clause
+    beside the same route: the route's own stage, or two held recipes it never runs, and the clause
     names the cap and the count either way.
     """
     registry = _two_raw_registry(
@@ -2264,7 +2264,16 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     assert control is not None
     assert control.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
 
-    two = _with_value(world, "plan.trimmed", ("R_Dropped", "R_DroppedToo"))
+    # F1's world holding two more recipes beside R_By, so the planted trim names recipes it holds.
+    beside_registry, beside_held = _by_world_beside(2)
+    beside_model = _model(beside_held)
+    beside = _inputs(beside_model, beside_registry, _request(beside_registry))
+    assert _offered(beside, IN_STATUS) == NO_PLAN
+    assert _offered(beside, "plan.trimmed") == ()
+    dropped = beside_held[1:]
+    held_all = all(_path(name) in beside_model.unlocks.recipes for name in dropped)
+    assert held_all
+    two = _with_value(beside, "plan.trimmed", dropped)
     elsewhere = card_for(run_rule(REDESIGN_RULE, two))
     assert elsewhere is not None
     assert elsewhere.tier2 == (
@@ -2272,9 +2281,36 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     )
 
 
+#: What ties the miss to a cause: a causal word ("because", "caused"), or the search named by
+#: its cap, which makes the cap the reason it missed. Neither shipped no-unlock clause holds one.
+_CAUSAL_PHRASES: Final = ("cause", "due to", "owing to", "capped search")
+#: The no-unlock clause before the CS-1382 F1 repair, on every route with nothing locked.
+OLD_CAUSAL_NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
+
+
 def _claims_a_cause(tier2: str) -> bool:
-    """Whether a tier 2 says why the search missed, which the no-unlock clause never may."""
-    return any(word in tier2 for word in ("cause", "did not find", "capped search", "missed"))
+    """Whether a tier 2 gives a cause for the miss, which the no-unlock clause never may.
+
+    It reads the link, never the miss alone: both shipped clauses say the search found no route
+    within its cap or did not find it, and read False, while the old wording "the capped search
+    did not find it" names the search by its cap and reads True.
+    """
+    return any(phrase in tier2 for phrase in _CAUSAL_PHRASES)
+
+
+def test_the_cause_reader_reads_the_link_not_the_miss() -> None:
+    """CS-1382: the reader the cap-cut arms lean on, on both shipped clauses and the old one.
+
+    False on the capped clause at either count and on the uncapped one, each in its full tier 2,
+    and True on the old causal clause, so an arm calling it goes red on a clause blaming the cap.
+    """
+    old = f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){OLD_CAUSAL_NO_UNLOCK}{NOT_CHOSEN}"
+    old_blames = _claims_a_cause(old)
+    assert old_blames
+    for clause in (NO_UNLOCK, _capped_no_unlock(2), UNCAPPED_NO_UNLOCK):
+        tier2 = f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){clause}{NOT_CHOSEN}"
+        blames = _claims_a_cause(tier2)
+        assert not blames
 
 
 def _by_world_beside(extra: int) -> tuple[Registry, tuple[str, ...]]:
@@ -2300,7 +2336,7 @@ def test_a_cap_cut_beside_the_route_reads_the_cap_as_a_fact() -> None:
     """CS-1382, the first adversary's world: F1's world beside 12 unrelated recipes, 13 held.
 
     The bound keeps R_By, the route's one stage, and drops the last unrelated recipe. The clause
-    names the cap and the one recipe it dropped, which is true, and claims no cause: the control
+    names the cap and how many it dropped, 1, which is true, and claims no cause: the control
     holds the drill, and the same world ranks under the same trim, so the cap was not the cause
     here and a clause blaming it would be false.
     """
@@ -2351,7 +2387,7 @@ def test_a_cap_cut_off_the_plan_reads_the_same_fact() -> None:
     """CS-1382, the second adversary's world K: 12 byproduct recipes, then R_Alt, 13 held.
 
     The bound drops R_Alt, the one recipe that ranks under balanced, and keeps R_By00, the
-    route's one stage. The clause names the cap and the one recipe it dropped, as beside the
+    route's one stage. The clause names the cap and how many it dropped, 1, as beside the
     first adversary's world, and claims no cause: the controls rank with 12 held and with R_Alt
     alone, so the cap was the cause here and a clause denying it would be false.
     """
