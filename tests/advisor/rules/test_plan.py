@@ -284,8 +284,8 @@ def expected_tier3(pin: int) -> str:
     return "\n".join(
         [
             "Derivation of rule plan.adopt (domain plan)",
-            "Advice: Build the planned production chain for Synthetic Gadget",
-            "Because: It makes 30.00 per minute of Synthetic Gadget with"
+            'Advice: Build the planned production chain for "Synthetic Gadget"',
+            'Because: It makes 30.00 per minute of "Synthetic Gadget" with'
             " 4.33 (exactly 13/3) machine equivalents",
             "Target milestone: none",
             "Steps:",
@@ -794,7 +794,9 @@ def test_a_plan_stating_its_targets_out_of_order_is_named_sorted() -> None:
     card = _card(_world(_ranked(plan=plan)))
 
     assert card.subject_key == "plan:Desc_SyntheticGadget_C+Desc_SyntheticOre_C"
-    assert card.tier1 == "Build the planned production chain for Synthetic Gadget, Synthetic Ore"
+    assert card.tier1 == (
+        'Build the planned production chain for "Synthetic Gadget", "Synthetic Ore"'
+    )
 
 
 def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:

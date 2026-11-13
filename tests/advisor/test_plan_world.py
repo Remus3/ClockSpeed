@@ -216,6 +216,11 @@ ROD_NAME: Final = "Solve Rod"
 #: A second display name for the Relic, so two registries can differ in that alone.
 RENAMED_RELIC: Final = "Renamed Relic"
 
+#: How tiers 1 and 2 read each name: in double quotes (CS-1379), spelled so a change reddens.
+RELIC_LABEL: Final = '"Solve Relic"'
+ROD_LABEL: Final = '"Solve Rod"'
+RENAMED_LABEL: Final = '"Renamed Relic"'
+
 #: The one step a target with no usable display name records, spelled so a rewording reddens.
 NAME_ALTERNATIVE: Final = "name every target by its display name"
 NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
@@ -619,8 +624,10 @@ def test_advise_world_ranks_a_plan_and_fires_plan_adopt(tmp_path: Path) -> None:
     card = _plan_card(advice)
     shown = [advised.card.id for advised in advice.shown]
     assert card.id in shown
-    assert card.tier1 == "Build the planned production chain for Solve Relic"
-    assert card.tier2 == "It makes 10.00 per minute of Solve Relic with 2.00 machine equivalents"
+    assert card.tier1 == f"Build the planned production chain for {RELIC_LABEL}"
+    assert card.tier2 == (
+        f"It makes 10.00 per minute of {RELIC_LABEL} with 2.00 machine equivalents"
+    )
     derivation = card.tier3
     assert (
         'Read plan.badge = StrategyBadge(strongest="within-raw", cleared=("within-raw"), checks=('
@@ -710,11 +717,13 @@ def test_adopt_tiers_read_the_display_name_with_the_id_unchanged(tmp_path: Path)
     card = _plan_card(_advise(tmp_path / "named", model, registry, _request()))
     renamed = _plan_card(_advise(tmp_path / "renamed", model, other, _request()))
 
-    assert card.tier1 == "Build the planned production chain for Solve Relic"
-    assert card.tier2 == "It makes 10.00 per minute of Solve Relic with 2.00 machine equivalents"
-    assert renamed.tier1 == "Build the planned production chain for Renamed Relic"
+    assert card.tier1 == f"Build the planned production chain for {RELIC_LABEL}"
+    assert card.tier2 == (
+        f"It makes 10.00 per minute of {RELIC_LABEL} with 2.00 machine equivalents"
+    )
+    assert renamed.tier1 == f"Build the planned production chain for {RENAMED_LABEL}"
     assert renamed.tier2 == (
-        "It makes 10.00 per minute of Renamed Relic with 2.00 machine equivalents"
+        f"It makes 10.00 per minute of {RENAMED_LABEL} with 2.00 machine equivalents"
     )
     # Two registries differing only in the name: one identity, and it is the ClassName's.
     assert card.subject_key == "plan:Desc_SolveRelic_C"
@@ -762,8 +771,8 @@ def test_adopt_tier3_steps_keep_the_classname() -> None:
     # The control: both headers are there and read the names, so the split is what grades this.
     assert f"Advice: {card.tier1}" in headers
     assert f"Because: {card.tier2}" in headers
-    assert RELIC_NAME in headers
-    assert ROD_NAME in headers
+    assert RELIC_LABEL in headers
+    assert ROD_LABEL in headers
     named_in_headers = [item for item in (SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM) if item in headers]
     assert named_in_headers == []
     # Each ClassName in the plan's own read and on the fired line, not just as a name's key.
@@ -786,9 +795,9 @@ def test_two_targets_keep_the_classname_order_whatever_their_names_sort_as() -> 
 
     card = _adopt_card(model, renamed, request)
 
-    assert card.tier1 == "Build the planned production chain for Zeta Relic, Alpha Rod"
+    assert card.tier1 == 'Build the planned production chain for "Zeta Relic", "Alpha Rod"'
     assert card.tier2 == (
-        "It makes 10.00 per minute of Zeta Relic, 20.00 per minute of Alpha Rod"
+        'It makes 10.00 per minute of "Zeta Relic", 20.00 per minute of "Alpha Rod"'
         " with 4.00 machine equivalents"
     )
     assert card.subject_key == "plan:Desc_SolveRelic_C+Desc_SolveRod_C"
@@ -798,7 +807,7 @@ def test_two_targets_keep_the_classname_order_whatever_their_names_sort_as() -> 
 @pytest.mark.parametrize(
     ("nameless", "headline"),
     [
-        ((SOLVE_ROD_ITEM,), f"{RELIC_NAME}, {SOLVE_ROD_ITEM}"),
+        ((SOLVE_ROD_ITEM,), f"{RELIC_LABEL}, {SOLVE_ROD_ITEM}"),
         ((SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM), f"{SOLVE_RELIC_ITEM}, {SOLVE_ROD_ITEM}"),
     ],
     ids=["one-of-two", "both"],
@@ -1781,8 +1790,12 @@ def test_a_different_backend_can_rank_a_different_plan_which_moves_tier2(
     assert second is not None
     same_id = first.id == second.id
     assert same_id
-    assert first.tier2 == "It makes 10.00 per minute of Solve Relic with 1.00 machine equivalents"
-    assert second.tier2 == "It makes 10.00 per minute of Solve Relic with 2.00 machine equivalents"
+    assert first.tier2 == (
+        f"It makes 10.00 per minute of {RELIC_LABEL} with 1.00 machine equivalents"
+    )
+    assert second.tier2 == (
+        f"It makes 10.00 per minute of {RELIC_LABEL} with 2.00 machine equivalents"
+    )
 
 
 def test_the_backend_is_the_results_field_never_the_environment_value(
@@ -2011,9 +2024,9 @@ def test_a_two_target_plan_names_both_sorted_however_they_were_stated(
 
     assert card is not None
     assert card.subject_key == "plan:Desc_SolveRelic_C+Desc_SolveRod_C"
-    assert card.tier1 == "Build the planned production chain for Solve Relic, Solve Rod"
+    assert card.tier1 == f"Build the planned production chain for {RELIC_LABEL}, {ROD_LABEL}"
     assert card.tier2 == (
-        "It makes 10.00 per minute of Solve Relic, 20.00 per minute of Solve Rod"
+        f"It makes 10.00 per minute of {RELIC_LABEL}, 20.00 per minute of {ROD_LABEL}"
         " with 4.00 machine equivalents"
     )
 

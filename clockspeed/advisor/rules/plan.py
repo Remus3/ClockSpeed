@@ -46,13 +46,16 @@ none of them; a different backend can rank a different plan, which moves tier 2.
 
 A TARGET READS BY ITS DISPLAY NAME AND IS KEYED BY ITS CLASSNAME (CS-1379). A ClassName
 is an internal identifier, and it can name a different item from the one a player knows,
-so where a rule's tier 1 or tier 2 says a target it says that target's label: the display
-name when it is printable ASCII with a visible character, the engine's own test of a card's
-text, holds no semicolon and no comma, which a tier reads as its own clause and target
-separators, and is at most :data:`_MAX_NAME_LENGTH` characters, and otherwise the ClassName.
-A rule reads only through the engine, so the
-names arrive as an input sourced to the registry field, :data:`IN_TARGET_NAMES` on the
-ranked path and :data:`IN_REDESIGN_TARGET_NAMES` on the route, which
+so where a rule's tier 1 or tier 2 says a target it says that target's label. When the
+display name is printable ASCII with a visible character, the engine's own test of a card's
+text, and is at most :data:`_MAX_NAME_LENGTH` characters, the label is that name inside
+double quotes, a double quote or backslash in it escaped by a backslash, so a semicolon or a
+comma in it, which a tier reads as its own clause and target separators, reads as part of
+one name and the quote that closes it cannot be forged. Otherwise the label is the ClassName,
+unquoted, so a quoted label is always a display name; the cap stays because a quoted name
+the length of a page would still read as the whole headline. A rule reads only through the
+engine, so the names arrive as an input sourced to the registry field, :data:`IN_TARGET_NAMES`
+on the ranked path and :data:`IN_REDESIGN_TARGET_NAMES` on the route, which
 ``clockspeed/advisor/plans.py`` fills, and a mapping whose keys are not exactly the plan's
 targets is a rule error. A fallback records one indeterminate step and never a rejection,
 which would settle the rule, and it records that on the firing path alone, because a step
@@ -690,33 +693,49 @@ def _checked_target_names(value: object, targets: tuple[str, ...]) -> Mapping[st
 
 
 def _usable_name(name: str | None) -> TypeGuard[str]:
-    """Whether a tier may splice a display name in, undelimited as it reads there.
+    """Whether a tier may quote a display name in.
 
     Args:
         name: The display name, or None when the registry offers none.
 
     Returns:
-        True when it is printable ASCII with a visible character, holds no semicolon and no
-        comma, and is at most :data:`_MAX_NAME_LENGTH` characters.
+        True when it is printable ASCII with a visible character and is at most
+        :data:`_MAX_NAME_LENGTH` characters. A separator or a quote in it is no bar: the
+        label quotes and escapes it.
     """
     return (
         name is not None
         and len(name) <= _MAX_NAME_LENGTH
         and name.strip(" ") != ""
-        and all(" " <= ch <= "~" and ch not in ";," for ch in name)
+        and all(" " <= ch <= "~" for ch in name)
     )
+
+
+def _quoted(name: str) -> str:
+    """Quote a usable display name, a backslash or double quote in it escaped by a backslash.
+
+    The backslash is escaped first, so the backslash that escapes a quote is never doubled.
+
+    Args:
+        name: A name :func:`_usable_name` passed.
+
+    Returns:
+        The name inside double quotes.
+    """
+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _target_labels(
     ctx: RuleContext, names: Mapping[str, str | None], targets: tuple[str, ...]
 ) -> tuple[str, ...]:
-    """Say what tiers 1 and 2 call each target: its display name, or else its ClassName.
+    """Say what tiers 1 and 2 call each target: its display name quoted, or else its ClassName.
 
     A name must pass the engine's own test of a card's text, printable ASCII with a visible
     character, because :func:`clockspeed.advisor.trace.run_rule` would otherwise drop the
-    whole card as a rule error. It must also hold neither of a tier's own separators and stay
-    short, because a mod's name would otherwise read as a clause, as a second target, or as the
-    whole headline. Any fallback records one indeterminate step.
+    whole card as a rule error, and stay short, because a mod's name would otherwise read as
+    the whole headline. A usable name is quoted and escaped, so a tier's own separators in it
+    read as part of one name, never as a clause or a second target; a ClassName stays bare,
+    so a quoted label always says a display name. Any fallback records one indeterminate step.
 
     Args:
         ctx: The rule's context. Called on the firing path alone, because a step recorded
@@ -732,7 +751,7 @@ def _target_labels(
     for key in targets:
         name = names[key]
         if _usable_name(name):
-            labels.append(name)
+            labels.append(_quoted(name))
         else:
             labels.append(key)
             fell_back = True

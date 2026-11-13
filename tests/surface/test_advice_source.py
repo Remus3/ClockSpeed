@@ -1456,7 +1456,7 @@ def test_a_stated_target_lists_a_plan_adopt_card_and_reads_ranked(tmp_path: Path
 
     card = _one_card(data, ADOPT_ID)
     assert frozenset(card) == advice_endpoint.CARD_KEYS
-    relic = plan_fixtures.RELIC_NAME
+    relic = plan_fixtures.RELIC_LABEL
     assert card["headline"] == f"Build the planned production chain for {relic}"
     assert card["reason"] == f"It makes 10.00 per minute of {relic} with 2.00 machine equivalents"
     assert card["state"] == "new"
@@ -1614,9 +1614,9 @@ def test_a_routed_request_reads_its_card_through_the_listing_and_the_derivation(
     card = _one_card(data, REDESIGN_ID)
     headline = card["headline"]
     reason = card["reason"]
-    assert headline == f"Plan toward {plan_fixtures.RELIC_NAME}"
+    assert headline == f"Plan toward {plan_fixtures.RELIC_LABEL}"
     assert reason == (
-        f"This route to {plan_fixtures.RELIC_NAME} runs 3 locked and 1 held recipe(s)"
+        f"This route to {plan_fixtures.RELIC_LABEL} runs 3 locked and 1 held recipe(s)"
         f"{MUST_UNLOCK}{NOT_CHOSEN}"
     )
     assert isinstance(headline, str)
@@ -1711,7 +1711,7 @@ def test_an_unsupplied_raw_says_so_on_the_wire_and_no_adopt_card_reads(tmp_path:
     assert _cards_of(data, ADOPT_ID) == []
     reason = _one_card(data, REDESIGN_ID)["reason"]
     assert reason == (
-        f"This route to {plan_fixtures.RELIC_NAME} runs 0 locked and 1 held recipe(s)"
+        f"This route to {plan_fixtures.RELIC_LABEL} runs 0 locked and 1 held recipe(s)"
         " and needs 1 locked extractor(s); the locked extractors must unlock first on this route"
         f"{NOT_CHOSEN}"
     )
@@ -1820,7 +1820,7 @@ def test_a_no_plan_reads_its_reason_scoped_to_the_kept_set_and_the_trim_on_the_w
     scoped = "it kept" in NO_PLAN_REASON
     assert scoped
     assert _one_card(data, REDESIGN_ID)["reason"] == (
-        f"This route to {plan_fixtures.RELIC_NAME} runs 0 locked and 13 held recipe(s)"
+        f"This route to {plan_fixtures.RELIC_LABEL} runs 0 locked and 13 held recipe(s)"
         f"{NO_UNLOCK}{NOT_CHOSEN}"
     )
 

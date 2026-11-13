@@ -17,6 +17,12 @@ through the fixtures ``tests/advisor/test_plan_world.py`` and
 ``tests/advisor/test_plan_redesign.py`` grade, and a rename there moves tier 1,
 tier 2 where it names a target, and the one name input, and never a card id.
 
+THE QUOTED LABEL (CS-1379, ruled). A usable name reads in double quotes, a double quote
+or backslash inside it escaped by a backslash, so a comma or a semicolon in it reads as
+part of one name; any other target reads its ClassName unquoted. The expected labels
+below are spelled out, so the escaping is graded against text and never against a copy
+of the rule.
+
 The worlds and registries are the advisor suite's own synthetic fixtures; every
 store lives in ``tmp_path`` and every instant is injected.
 """
@@ -395,10 +401,11 @@ def test_a_rename_on_a_stated_world_moves_the_wording_and_never_the_id(
     before, before_advice = _stated_card(stated, tmp_path / "before", rename=False)
     after, after_advice = _stated_card(stated, tmp_path / "after", rename=True)
 
-    assert plan_worlds.RELIC_NAME in before.tier1
-    named = RENAME_PREFIX + plan_worlds.RELIC_NAME
+    quoted = '"' + plan_worlds.RELIC_NAME + '"'
+    assert quoted in before.tier1
+    named = '"' + RENAME_PREFIX + plan_worlds.RELIC_NAME + '"'
     assert named in after.tier1
-    assert plan_worlds.RELIC_NAME in before.tier2
+    assert quoted in before.tier2
     assert named in after.tier2
     assert after.id == before.id
     assert after.subject_key == before.subject_key
@@ -427,10 +434,11 @@ def _named_card(stated: _Stated, display_name: str) -> Card:
     return card
 
 
-#: Names spliced into a tier would read as a sentence of it, or as a second target.
+#: Names holding a tier's own separators, each within the length cap: quoted, a sentence in
+#: one reads as part of a name, and a comma in one as no second target.
 DELIMITER_NAMES: Final = MappingProxyType(
     {
-        "a-sentence": "X; this route needs no unlock and the capped search did not find it",
+        "a-sentence": "X; this route needs no unlock",
         "a-semicolon": "Solve; Relic",
         "two-targets": "Solve, Relic",
     }
@@ -439,17 +447,47 @@ DELIMITER_NAMES: Final = MappingProxyType(
 
 @pytest.mark.parametrize("name", DELIMITER_NAMES.values(), ids=DELIMITER_NAMES.keys())
 @pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
-def test_a_name_carrying_a_tier_delimiter_falls_back(world_name: str, name: str) -> None:
+def test_a_name_carrying_a_tier_delimiter_reads_quoted(world_name: str, name: str) -> None:
     stated = STATED_WORLDS[world_name]
 
     card = _named_card(stated, name)
 
+    quoted = '"' + name + '"'
+    assert card.tier1.endswith(" " + quoted)
+    assert quoted in card.tier2
     target = plan_worlds.SOLVE_RELIC_ITEM
-    assert card.tier1.endswith(target)
-    assert name not in card.tier1
-    assert name not in card.tier2
-    assert target in card.tier2
-    assert _fallback_steps(card.trace) == [(plan_worlds.NAME_ALTERNATIVE, plan_worlds.NAME_REASON)]
+    assert target not in card.tier1
+    assert target not in card.tier2
+    assert _fallback_steps(card.trace) == []
+
+
+#: A name holding the quote or the escape itself, beside the label it must read as. "both"
+#: holds a backslash before a quote, so escaping the quote first would double the backslash.
+ESCAPED_NAMES: Final = MappingProxyType(
+    {
+        "a-quote": ('6" Pipe', '"6\\" Pipe"'),
+        "a-backslash": ("C:\\", '"C:\\\\"'),
+        "both": ('A\\"B', '"A\\\\\\"B"'),
+    }
+)
+
+
+@pytest.mark.parametrize(("name", "label"), ESCAPED_NAMES.values(), ids=ESCAPED_NAMES.keys())
+@pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
+def test_a_quote_or_backslash_in_a_name_reads_escaped(
+    world_name: str, name: str, label: str
+) -> None:
+    stated = STATED_WORLDS[world_name]
+
+    card = _named_card(stated, name)
+
+    assert card.tier1.endswith(" " + label)
+    assert label in card.tier2
+    assert plan_worlds.SOLVE_RELIC_ITEM not in card.tier1
+    assert _fallback_steps(card.trace) == []
+    # The escaping is the tiers' own: the input the trace read holds the name verbatim.
+    (read,) = [step.value for step in card.trace.steps if step.subject == stated.names_input]
+    assert read == {plan_worlds.SOLVE_RELIC_ITEM: name}
 
 
 #: The longest name a tier reads, spelled so a change reddens here.
@@ -463,14 +501,16 @@ def test_an_overlong_name_falls_back(world_name: str, length: int) -> None:
 
     card = _named_card(stated, "N" * length)
 
-    assert card.tier1.endswith(plan_worlds.SOLVE_RELIC_ITEM)
+    # The ClassName reads bare: a quoted ClassName would read as a display name.
+    assert card.tier1.endswith(" " + plan_worlds.SOLVE_RELIC_ITEM)
+    assert '"' not in card.tier1
     headline = len(card.tier1)
     assert headline < MAX_NAME_LENGTH * 2
     assert _fallback_steps(card.trace) == [(plan_worlds.NAME_ALTERNATIVE, plan_worlds.NAME_REASON)]
 
     # The control: at the limit it reads, with no fallback, so the length alone decided above.
     control = _named_card(stated, "N" * MAX_NAME_LENGTH)
-    assert control.tier1.endswith("N" * MAX_NAME_LENGTH)
+    assert control.tier1.endswith(' "' + "N" * MAX_NAME_LENGTH + '"')
     assert _fallback_steps(control.trace) == []
 
 
@@ -498,14 +538,15 @@ def test_a_non_printable_name_falls_back_and_the_card_survives(world_name: str, 
     # The control: a printable name reads, with no fallback step, on the same world.
     control = card_for(trace_for(plan_worlds.RENAMED_RELIC))
     assert control is not None
-    assert plan_worlds.RENAMED_RELIC in control.tier1
+    assert '"' + plan_worlds.RENAMED_RELIC + '"' in control.tier1
     assert _fallback_steps(control.trace) == []
 
     trace = trace_for(name)
 
     card = card_for(trace)
     assert card is not None
-    assert target in card.tier1
+    assert card.tier1.endswith(" " + target)
+    assert '"' not in card.tier1
     assert card.id == control.id
     errors = [step for step in trace.steps if step.kind is StepKind.RULE_ERROR]
     assert errors == []

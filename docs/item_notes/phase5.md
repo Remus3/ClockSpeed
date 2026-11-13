@@ -498,9 +498,10 @@ Filed by the rulings recorded under CS-1371, so that what CS-1371 did not delive
 
 ### Acceptance
 
-On a synthetic registry whose item carries a display name, tier 1 and tier 2 of plan.adopt and plan.redesign name the target by that display name, the subject key and the card id
-unchanged, and an item with no display name reads its ClassName. Tier 3 keeps ClassNames, each with its own arm. Measured on one docs build: Desc_SteelPlate_C reads as a Steel Beam to a
-player, while the selector already labels by display name.
+On a synthetic registry whose item carries a display name, tier 1 and tier 2 of plan.adopt and plan.redesign name the target by that display name in double quotes, a double quote or
+backslash inside it escaped by a backslash, the subject key and the card id unchanged; an item whose name is absent, blank, not printable ASCII or over 64 characters reads its ClassName
+unquoted. Tier 3 keeps ClassNames, each with its own arm. Measured on one docs build: Desc_SteelPlate_C reads as a Steel Beam to a player, while the selector already labels by display
+name.
 
 ### Filed 2026-11-04 (session 155) by the CS-1371 close
 
@@ -531,6 +532,28 @@ parent's with 0 mismatches, Desc_SteelPlate_C reads Steel Beam with its ClassNam
 hostile names the id held and an unprintable name fell back; the ledger holds no name and a dismissal survives a rename.
 Not reached: a browser, a re-read on a save without CS-1382, the whole suite. Its printable test is a copy of the one in
 `clockspeed/advisor/trace.py`, as `clockspeed/advisor/rules/fuel.py` keeps one.
+
+### Recorded 2026-11-13 by the quoting ruling
+
+RULED, before the repair's code, between the two directions the surface lens refuted: a display name that is printable
+ASCII with a visible character and 64 characters or fewer reads in tiers 1 and 2 inside double quotes, a double quote
+or backslash inside it escaped by a backslash; any other name - absent, blank, not printable ASCII or over 64 - reads
+the bare ClassName and records the existing fixed indeterminate step, never a rejection. The acceptance above carries
+the clause change.
+
+ALTERNATIVES. The repair's fallback, a semicolon or a comma reading the ClassName: lost, because `A, B` then reads its
+ClassName against "name the target by that display name". The first build's undelimited splice: lost, because a name
+then forges a clause or a second target. Rewriting the separators out of a name: lost, because a tier would then say a
+name the registry does not hold. Dropping the 64 cap once quoted: lost, because a quoted page still reads as the whole
+headline. Quoting the ClassName too: lost, because a quoted label would then no longer always say a display name.
+
+WHY. Quoting keeps every printable name verbatim and makes a separator inside it part of one name; escaping the
+backslash first, then the quote, leaves no name able to forge the closing quote. The bare ClassName keeps the two
+readable apart, which also answers the lens's residual: a name equal to a recipe key now reads quoted, as a name. Tier
+3 keeps every ClassName in its steps and the name input holds the name verbatim, so non-negotiable 8 is untouched. It
+costs a pair of quotes on every plan card's tier 1 and tier 2. The fuel cards still splice a name unquoted: filed as
+CS-1384, outside this clause. Reversed by: an arm finding a quoted label that reads as more than one display name, or a
+usable name that falls back.
 
 ## CS-1381
 
@@ -614,3 +637,19 @@ with no node, power or built check.
 STILL OWED AT THE CLOSE: an adjudicator on the built candidate, which /done stopped before it ran, and a verifier. On the
 first frozen commit a verifier read 17604 passed, 14 skipped, 0 failed at 94 percent, killed at its budget, so its top
 level census guards went unread there. Whole suite not run on the branch.
+
+## CS-1384
+
+### Acceptance
+
+On a synthetic registry whose generator class and fuel item carry display names, tier 1 and tier 2 of power.fuel_supply and power.fuel_demand name each class and each fuel by that
+display name in double quotes, a double quote or backslash inside it escaped by a backslash, the subject key and the card id unchanged; a class or fuel whose name is absent, blank, not
+printable ASCII or over 64 characters reads its key unquoted, through the fallback step the rule records today. Tier 3 keeps every key in its steps, generated from the trace. Each case
+reddens on its own arm first: a comma, a semicolon, a double quote, a backslash, the cap and one over it.
+
+### Filed 2026-11-12 by the CS-1379 quoting ruling
+
+The residual of the ruling that quotes a plan target's display name in tiers 1 and 2. `clockspeed/advisor/rules/fuel.py`
+still splices a class's or a fuel's display name unquoted and with no length cap, so a mod's name holding a comma or a
+semicolon reads as a second item or a clause of the card, and a long one as the whole headline. Out of CS-1379, whose
+clause names the plan family alone.

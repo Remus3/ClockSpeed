@@ -196,6 +196,11 @@ ROD_NAME: Final = "Solve Rod"
 #: A second display name for the Relic, so two registries can differ in that alone.
 RENAMED_RELIC: Final = "Renamed Relic"
 
+#: How tiers 1 and 2 read each name: in double quotes (CS-1379), spelled so a change reddens.
+RELIC_LABEL: Final = '"Solve Relic"'
+ROD_LABEL: Final = '"Solve Rod"'
+RENAMED_LABEL: Final = '"Renamed Relic"'
+
 #: The one step a target with no usable display name records, spelled so a rewording reddens.
 NAME_ALTERNATIVE: Final = "name every target by its display name"
 NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
@@ -207,7 +212,7 @@ COMPARE_STEP: Final = (
 )
 
 #: The opening and the clauses of tier 2, spelled here so a rewording reddens.
-ROUTE_RUNS: Final = f"This route to {RELIC_NAME} runs"
+ROUTE_RUNS: Final = f"This route to {RELIC_LABEL} runs"
 MUST_UNLOCK: Final = (
     "; the locked recipes or the machines that run them must unlock first on this route"
 )
@@ -816,13 +821,13 @@ def test_redesign_tiers_read_the_display_name_with_the_id_unchanged(tmp_path: Pa
     (card,) = _cards(_advise(tmp_path / "named", model, registry, _request(registry)), REDESIGN_ID)
     (renamed,) = _cards(_advise(tmp_path / "renamed", model, other, _request(other)), REDESIGN_ID)
 
-    assert card.tier1 == "Plan toward Solve Relic"
-    assert renamed.tier1 == "Plan toward Renamed Relic"
+    assert card.tier1 == f"Plan toward {RELIC_LABEL}"
+    assert renamed.tier1 == f"Plan toward {RENAMED_LABEL}"
     assert card.tier2 == (
-        f"This route to Solve Relic runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+        f"This route to {RELIC_LABEL} runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
     )
     assert renamed.tier2 == (
-        f"This route to Renamed Relic runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+        f"This route to {RENAMED_LABEL} runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
     )
     # Two registries differing only in the name: one identity, and it is the ClassName's.
     assert card.subject_key == "plan:Desc_SolveRelic_C"
@@ -867,8 +872,8 @@ def test_redesign_tier3_steps_keep_the_classname() -> None:
     # The control: both headers are there and read the names, so the split is what grades this.
     assert f"Advice: {card.tier1}" in headers
     assert f"Because: {card.tier2}" in headers
-    assert card.tier1 == f"Plan toward {RELIC_NAME}, {ROD_NAME}"
-    assert card.tier2.startswith(f"This route to {RELIC_NAME}, {ROD_NAME} runs 2 locked")
+    assert card.tier1 == f"Plan toward {RELIC_LABEL}, {ROD_LABEL}"
+    assert card.tier2.startswith(f"This route to {RELIC_LABEL}, {ROD_LABEL} runs 2 locked")
     named_in_headers = [item for item in (SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM) if item in headers]
     assert named_in_headers == []
     # Each ClassName in the plan's own read and on the fired line, not just as a name's key.
@@ -908,7 +913,7 @@ def test_a_target_three_locked_stages_out_reads_a_route_card(tmp_path: Path) -> 
     (card,) = _cards(advice, REDESIGN_ID)
     shown = [advised.card.id for advised in advice.shown]
     assert card.id in shown
-    assert card.tier1 == f"Plan toward {RELIC_NAME}"
+    assert card.tier1 == f"Plan toward {RELIC_LABEL}"
     assert card.tier2 == f"{ROUTE_RUNS} 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
     assert _card_read(card, IN_STATUS) == NO_PLAN
 
@@ -1552,7 +1557,7 @@ def test_a_target_whose_only_recipe_has_no_machine_to_check_is_no_route_never_fa
 
     # The control: a Smelter that can be shown unlocked makes the same recipe a route.
     built = _smelter_registry(MACHINE_BUILD_ENTRIES, two_stages=False)
-    assert _route_card((), built, _request(built)).tier1 == f"Plan toward {RELIC_NAME}"
+    assert _route_card((), built, _request(built)).tier1 == f"Plan toward {RELIC_LABEL}"
 
 
 @pytest.mark.parametrize(
@@ -1877,7 +1882,7 @@ def test_a_raw_item_no_extractor_joins_reads_in_tier_2_and_tier_3() -> None:
     adopt = card_for(run_rule(plan_rules.ADOPT_RULE, world))
     assert adopt is not None
     assert adopt.tier2 == (
-        f"It makes 10.00 per minute of Solve Relic with 1.00 machine equivalents{ONE_RAW_UNKNOWN}"
+        f"It makes 10.00 per minute of {RELIC_LABEL} with 1.00 machine equivalents{ONE_RAW_UNKNOWN}"
     )
     read = (
         f'Read plan.raw_unknown = ("{SOLVE_RARE_ITEM}") from advisor.plans.raw_unknown'
@@ -2513,7 +2518,7 @@ def test_a_route_refused_outcome_fires_under_the_other_policy() -> None:
 
     # The same request under the other policy fires.
     card = _route_card((), registry, _request(registry, policy=SINKABLE))
-    assert card.tier1 == f"Plan toward {RELIC_NAME}"
+    assert card.tier1 == f"Plan toward {RELIC_LABEL}"
     plan = _plan_of(_card_read(card, IN_REDESIGN_PLAN))
     assert plan.byproducts == {SOLVE_RARE_ITEM: Fraction(10)}
 

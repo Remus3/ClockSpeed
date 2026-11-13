@@ -290,6 +290,7 @@ CS-1378 - balanced route-refused targets get no card though a recipe eats the by
 CS-1379 - the plan family's tiers 1 and 2 name a target by ClassName; read the registry display name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1381 - a score tie on the asked direction breaks by the other two rung scores before registry order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1382 - a plan's raw inputs need an extractor the world holds, and the plan rules join the 5.4 property test - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1384 - the fuel cards splice a display name into tiers 1 and 2 unquoted; quote it as the plan family does - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
