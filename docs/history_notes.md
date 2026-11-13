@@ -24,6 +24,192 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1379 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-13 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as amended.**
+The closure record is in `docs/LEDGER.md`. Its commit names are the images the landing's rebase onto main
+gave the commits its rulings read, each patch-identical by `git range-diff`, rewritten in the leaf before the
+move because a commit main cannot reach is no citation.
+
+### Acceptance
+
+On a synthetic registry whose item carries a display name, tier 1 and tier 2 of plan.adopt and plan.redesign name the target by that display name in double quotes, a double quote or
+backslash inside it escaped by a backslash, the subject key and the card id unchanged; an item whose name is absent, blank, not printable ASCII, not whitespace-normal (a leading or trailing space, or two spaces in a row) or over 64 characters reads its ClassName
+unquoted. Tier 3 keeps ClassNames, each with its own arm. Measured on one docs build: Desc_SteelPlate_C reads as a Steel Beam to a player, while the selector already labels by display
+name.
+
+### Filed 2026-11-04 (session 155) by the CS-1371 close
+
+Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
+
+### Filed 2026-11-04 (session 155) by the /done that stopped its candidate
+
+Still OPEN. A built candidate sits unlanded on a local worktree branch: find it with `git log --all --grep=CS-1379`. Its
+three commits cherry-picked clean in a dry run with the CS-1380 landing beneath them.
+
+RULED, a distinct adjudicator, before code, for the close to carry, on "Tier 3 keeps ClassNames": Tier 3 keeps every
+ClassName in its steps; Advice and Because quote tiers 1 and 2. Non-negotiable 8 holds because those two lines quote the
+recommendation. Lost: a field on `clockspeed/advisor/cards.py::Card`. Reversed by: an arm finding a ClassName only in a
+header. The clause says tier 2 of plan.redesign names the target, and at the first build it named none, so that sentence
+now opens "This route to", on the merger's order and with no clause amendment.
+
+WHY IT DID NOT LAND. A surface lens returned REFUTED, LOW, in two opposite directions, both on names the pinned docs do
+not hold. The first build spliced a display name undelimited, so a mod's name could hold a clause, a comma that reads as a
+second target, or 200000 characters. The repair reads a name holding a semicolon or a comma, or over 64 characters, by its
+ClassName through the existing fallback step, 0 of 142 selectable targets falling back; and an item named `A, B` then
+reads its ClassName, against the clause's "name the target by that display name". A residual on the same lens: a name
+equal to a recipe key prints that key in tier 1 beside "name none of them", 0 pinned names equal to a key. NEXT: a ruling
+between delimiting the name, for instance quoting it, and that fallback, with any clause change through an adjudicator;
+then the lens re-run, a verifier, an adjudicator on the built item, and landing.
+
+WHAT THE CANDIDATE HELD. A real-world lens on 8 unlock sets of the stack that also held CS-1382: card ids equal to the
+parent's with 0 mismatches, Desc_SteelPlate_C reads Steel Beam with its ClassName kept in the steps, rule errors 0. On 19
+hostile names the id held and an unprintable name fell back; the ledger holds no name and a dismissal survives a rename.
+Not reached: a browser, a re-read on a save without CS-1382, the whole suite. Its printable test is a copy of the one in
+`clockspeed/advisor/trace.py`, as `clockspeed/advisor/rules/fuel.py` keeps one.
+
+### Recorded 2026-11-13 by the quoting ruling
+
+RULED, before the repair's code, between the two directions the surface lens refuted: a display name that is printable
+ASCII with a visible character, whitespace-normal (amended below) and 64 characters or fewer reads in tiers 1 and 2
+inside double quotes, a double quote or backslash inside it escaped by a backslash; any other name - absent, blank, not
+printable ASCII, not whitespace-normal (amended below) or over 64 - reads the bare ClassName and records the existing fixed indeterminate step, never a rejection. The acceptance above carries
+the clause change.
+
+ALTERNATIVES. The repair's fallback, a semicolon or a comma reading the ClassName: lost, because `A, B` then reads its
+ClassName against "name the target by that display name". The first build's undelimited splice: lost, because a name
+then forges a clause or a second target. Rewriting the separators out of a name: lost, because a tier would then say a
+name the registry does not hold. Dropping the 64 cap once quoted: lost, because a quoted page still reads as the whole
+headline. Quoting the ClassName too: lost, because a quoted label would then no longer always say a display name.
+
+WHY. Quoting keeps every usable name verbatim and makes a separator inside it part of one name; escaping the
+backslash first, then the quote, leaves no name able to forge the closing quote. The bare ClassName keeps the two
+readable apart, which also answers the lens's residual: a name equal to a recipe key now reads quoted, as a name. Tier
+3 keeps every ClassName in its steps and the name input holds the name verbatim, so non-negotiable 8 is untouched. It
+costs a pair of quotes on every plan card's tier 1 and tier 2. The fuel cards still splice a name unquoted: filed as
+CS-1384, outside this clause. Reversed by: an arm finding a quoted label that reads as more than one display name, or a
+name the amended clause calls usable that falls back.
+
+RATIFIED 2026-11-13 by the session 156 adjudicator on f2416e5a, no amendment: rules 4, 7, 8 and 11-12 hold, and the 64 cap is over twice the pinned maximum of 29.
+
+AMENDED, on an adversary's LOW finding against f2416e5a: a card's tiers collapse every whitespace run, so `A  B` read as
+`"A B"`, a name the registry does not hold. Decision: a name that is not whitespace-normal - leading or trailing
+whitespace, or a run of two or more spaces, so that `" ".join(name.split()) != name` - reads the bare ClassName and
+records the existing indeterminate step. Alternative rejected: amending "verbatim" in this ruling, because advice could
+then render text the registry does not hold. Why: the pinned docs hold no such name, so nothing visible is lost.
+
+RESIDUAL, recorded and not repaired: a name over the cap still prints in full in the tier 3 input line. Accepted because
+names come from the shipped docs file, where the longest is 29 characters.
+
+CLAUSE AMENDED 2026-11-13 by the session 156 adjudicator on b2bd569c: a fifth fallback, not whitespace-normal, matching _usable_name; 0 of 750 docs names affected. Lost: keeping whitespace in cards.py, a shared renderer outside this clause.
+
+ADJUDICATED 2026-11-13 by the session 156 adjudicator on 7b090f80: LAND; clause and `_usable_name` agree; name code unchanged since 4b4aeffc.
+
+## CS-1382 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-13 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as amended.**
+The closure record is in `docs/LEDGER.md`. Its commit names are the images the landing's rebase onto main
+gave the commits its rulings read, each patch-identical by `git range-diff`, rewritten in the leaf before the
+move because a commit main cannot reach is no citation.
+
+### Acceptance
+
+A raw input is supplied only when the world holds the build recipe of a machine the docs say extracts it, read from data and never a hardcoded list, an item with no known extractor
+flagged and never fatal. Unsupplied, plan.adopt reads no card and plan.redesign counts that machine as locked, so this route needs no unlock cannot read beside it. plan.adopt and
+plan.redesign join the generated-worlds property test over generated unlock sets, asserting every stage with a machine and one machine for it are in requires. Measured at the CS-1371
+close, unproven until this row's first step settles the join: 0 of 17 library unlock sets hold a recipe eating a raw item with no extractor held; a constructed set fires a plan.adopt card;
+189 of 478 sampled plan.redesign rows run a raw item with no extractor held and their tier 2 is true but not exhaustive. A library world reaching that state moves this row to the head of
+the queue.
+
+### Filed 2026-11-04 (session 155) by the CS-1371 close
+
+Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
+
+### Filed 2026-11-04 (session 155) by the /done that stopped its candidate
+
+Still OPEN. A built candidate sits unlanded on a local worktree branch: find it with `git log --all --grep=CS-1382`.
+
+THE JOIN IS SETTLED, FROM DATA. The shipped docs publish it: `mAllowedResources` under `mOnlyAllowCertainResources`,
+else `mAllowedResourceForms` over the forms of the resource group's items. Every resource item on the pinned docs has a
+modeled machine. The portable miner entry is no modeled building, so it supplies nothing. No adjudicator was needed for
+the join, nothing is hardcoded and nothing is lifted. Any-of is ruled on the Resource Well pair: both build recipes sit
+in one schematic, and pairing them in code would be a hardcoded list; file a line with a re-pin that splits them as its
+trigger.
+
+RULINGS, a distinct adjudicator, before code, for the close to carry:
+- Reading, not amendment: literal is self-contradictory for plan.redesign. Over generated unlock sets, the oracle
+  importing no join: plan.adopt, every stage with a machine and one held machine for it in requires; plan.redesign, the
+  same for held stages, no locked stage's recipe key in requires, each consumed raw a held extractor key in requires or
+  its machine on plan.redesign.locked_extractors; a locked route fires. Reversed by: the engine not gating requires.
+- Held extractor keys join plan.redesign's requires. Reversed by: re-ruling the reading above.
+- Search raw: the stated items with a held extractor plus any that is a target. Route raw: those with a known extractor.
+  An item with neither reads plan.raw_unknown. Reversed by: a real-world refutation.
+- An unsupplied raw byproduct refuses balanced where a supplied one passes, accepted as a pillar 1 matter; the wording
+  beside it was not ruled and is the first finding below.
+- THE ROUTE'S COUNT, REVERSED BY THAT CLAUSE. An unsupplied raw item counted (1, 0) was ruled, and a real-world lens
+  refuted it: 7 early-world targets went route-refused under sinkable, InfeasibleChain with Recipe_Silica_C run backwards
+  beside Recipe_AluminaSolution_C, and the charge is per leaf, so 6 of 8 changed routes asked for more locked recipes.
+  The branch has removed it, so a route that runs now does not win a tie on raw supply; the clause does not ask that.
+  That removal's re-read on a save, the same lens at the branch's tip: NOT REFUTED, early world, sinkable, nine targets,
+  cards 9 of 9 with ids, routes and locked counts equal to the parent's, rule errors 0, the no-unlock sentence 0 of 9, the
+  locked machine named on all 9. Other targets, policies and worlds were not re-run.
+
+MUST BE REPAIRED BEFORE THIS LANDS:
+- MEDIUM, tier 2 false. Resources Ore and Water, a held extractor for Ore alone, recipe Ore to A plus Water, recipe and
+  machine held, balanced, target A: no-plan, routed, nothing trimmed, and the reason says the capped search did not find
+  the route. Nothing was capped, and the parent ranks this. The clause's condition itself holds. The builder's fixture
+  reads it 4 times in 1000 cases, and its oracle matches only the sentence's prefix.
+- LOW. The docstring sentence that a world supplying none reads a no-plan is false beside a held zero-input recipe, which
+  ranks. The sentence that an item the registry does not hold yields nothing is false for a restricted list naming a
+  token with no descriptor, reachable only by a hand-built request.
+- LOW. A mod display name may hold words: `this route needs no unlock` as a name reads beside a locked extractor,
+  as CS-1379's section says. The branch repairs a non-printable machine or extractor path into plan.unchecked and
+  plan.raw_unknown; its sentence "no known extractor" is loose there. A loop W to A plus W with no extractor held fires
+  plan.adopt, as its docstring accepts.
+- `docs/ARCHITECTURE.md` near line 81 needs the raw-supply join once this lands.
+
+WHAT THE CANDIDATE HELD, on its first frozen commit. Correctness: 7600 requests against an independent oracle, 0
+mismatches and 0 rule errors, two hash seeds identical, 39 plants with no survivor. The property test's oracle imports no
+join, and it shares one registry and one docs shape with its fixture. Real world: 43 saves, 17 unlock sets, Mk1 16,
+Mk2 4, water 10, oil 3, Mk3 and the Resource Well pair 0; a built extractor without its recipe on 0 of 40 and 0 of 31
+saves; the set holding none is a true absence, adopt 0 on both commits; the rich world moved 0 of 123 targets; 4
+constructed sets over 58 rows, 0 rule errors. Not reached: the rest of the unlock sets compared in full, Mk3 and the
+Resource Well paths on a real save. The adjudicator's common-mode risk stands: a held build recipe is taken as supply,
+with no node, power or built check.
+
+STILL OWED AT THE CLOSE: an adjudicator on the built candidate, which /done stopped before it ran, and a verifier. On the
+first frozen commit a verifier read 17604 passed, 14 skipped, 0 failed at 94 percent, killed at its budget, so its top
+level census guards went unread there. Whole suite not run on the branch.
+
+### Recorded 2026-11-13 by the F1 repair round
+
+The four points under MUST BE REPAIRED, each read on THE STACK's branch above the CS-1379 repairs:
+- F1 MEDIUM, REPAIRED by the stack's commit `fix(CS-1382): name a cap in the no-unlock clause only when it cut`, its
+  wording since `fix(CS-1382): state the cap as a fact in the clause, never a cause`, in
+  `clockspeed/advisor/rules/plan.py::_route_unlock_clause`: with plan.trimmed not empty the no-unlock clause says the
+  search dropped N held recipe(s) to fit its cap and found no route within it, and claims no cause; with nothing
+  dropped it says the search, which dropped no recipe to fit its cap, did not find it from the raw items a held
+  extractor supplies. plan.redesign declares plan.trimmed. Arm: `tests/advisor/test_plan_redesign.py`
+  test_a_route_no_cap_cut_never_says_the_capped_search_missed_it, with planted-trim controls of one and two held
+  recipes; with the clause reverted to the old spelling in a scratch copy it fails at its first tier 2 equality,
+  `assert route.tier2 ==`, the uncapped expectation. The no-plan beside it stands as ruled, a pillar 1 matter.
+- F1 DECIDED by the merger after a second adversary refuted the route-stage test (world K: 12 byproduct recipes then R_Alt, 13 held, R_Alt dropped though it ranks within the cap, read uncapped): the no-unlock clause states facts only and claims no cause - with plan.trimmed non-empty it names the cap and how many held recipes it dropped and says the search found no route within it, with plan.trimmed empty it says the search dropped no recipe. Alternatives rejected: the route-stage test, refuted by world K; the causal capped sentence on any trim, refuted by the first adversary's 13-recipe world; a counterfactual search past the cap, which defeats the cap's bound on search cost. Arms: test_a_cap_cut_off_the_plan_reads_the_same_fact, test_a_cap_cut_beside_the_route_reads_the_cap_as_a_fact, test_a_cap_cut_into_the_route_reads_the_same_fact and test_a_route_no_cap_cut_never_says_the_capped_search_missed_it.
+- LOW, a world supplying none: the stack's docstring commit replaced the sentence with one still false three ways,
+  measured here: a held recipe eating nothing a stage below the target ranks, a loop giving back what it eats ranks, and
+  a free recipe's byproduct under balanced reads no-plan. `clockspeed/advisor/plans.py` now says a plan ranks only if it
+  consumes no raw item, fed either way, within the stated byproduct policy. Arm:
+  test_a_world_supplying_none_ranks_only_a_plan_eating_no_raw_item, five cases, sinkable the byproduct's control.
+- LOW, `clockspeed/data/registry.py::extractors_of`: repaired by the docstring commit, re-read here against the code and
+  holding.
+- LOW, the raw-unknown wording: its docstring's KNOWN MEANS JOINED paragraph says what known means, and a name holding
+  the clause's words now reads quoted under CS-1379's ruling.
+- `docs/ARCHITECTURE.md`: the join landed with the docstring commit; this round drops "from the supplied raw items
+  alone", which a target stated raw falsifies, and names the first extractor that joins as the one the route names.
+
+STILL OWED: the rest of the real-world comparison re-read, an adjudicator on the built item, a verifier, the landing.
+
+ADJUDICATED 2026-11-13 by the session 156 adjudicator on 7b090f80: LAND; factual cap clause ratified under rules 7 and 8; owed library comparison is BACKLOG CS-1388.
+
 ## The kit v30 relocation - relocated from `CLAUDE.md` 2026-11-12 by the kit v30 adoption
 
 Moved when the FLEET-KIT version 30 common block (+680 B) took `CLAUDE.md` past its 40 KB

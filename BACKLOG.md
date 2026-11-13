@@ -1228,6 +1228,10 @@ From the CS-1350 and CS-1351 orchestrated run (`docs/LEDGER.md`, 2026-11-03). No
   Sec-Fetch-Site refusal for all solver doors.
 - The plan outcome's trimmed and unmade lines read ClassNames, outside CS-1379's clause, which is tiers 1
   and 2 alone; trigger: a player reports one, or the next panel audit.
+- CS-1388 - CS-1382's owed real-world re-read: every library unlock set, every target and every byproduct
+  policy; plan.adopt and plan.redesign card ids, routes and locked counts compared with the pre-CS-1382
+  parent; rule errors 0; every difference traced to an extractor the world does not hold - TRIGGER: a
+  library save holds a Mk3 miner or Resource Well recipe, or `plans.py` supply or `bound.py` changes.
 - `clockspeed/audit/fuel.py::_extractable_by` reads forms on an entry whose resource restriction is unknown
   (empty, garbage or a flag of Maybe), and counts the portable miner and non-resource solids where a
   supply join would not; 0 disagreements over the pinned resource items; trigger: a fuel figure wrong on one.

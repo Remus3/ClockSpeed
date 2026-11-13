@@ -75,6 +75,50 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-13 - CS-1382 - CLOSED: a raw input is supplied only with a held machine the docs say extracts it, and the plan rules join the 5.4 property test
+Verification: `clockspeed/data/registry.py::extractors_of`; `clockspeed/advisor/plans.py`;
+`clockspeed/advisor/rules/plan.py::_route_unlock_clause`; `clockspeed/surface/api/advice.py`;
+`clockspeed/surface/web/panel_advice.js`; `tests/advisor/worlds.py`;
+`tests/advisor/test_trace.py::test_the_plan_rules_hold_the_precondition_over_generated_unlock_sets`,
+`::test_the_plan_oracle_sees_a_bypassed_extractor_join`;
+`tests/advisor/test_plan_redesign.py::test_an_unsupplied_raw_reads_no_adopt_card_and_counts_its_machine_locked`,
+`::test_no_unlock_never_reads_beside_an_unsupplied_raw`, `::test_a_registry_with_no_extractor_flags_every_raw`,
+`::test_a_route_no_cap_cut_never_says_the_capped_search_missed_it`, `::test_a_cap_cut_off_the_plan_reads_the_same_fact`,
+`::test_a_cap_cut_beside_the_route_reads_the_cap_as_a_fact`, `::test_a_cap_cut_into_the_route_reads_the_same_fact`,
+`::test_the_cause_reader_reads_the_link_not_the_miss`,
+`::test_a_world_supplying_none_ranks_only_a_plan_eating_no_raw_item`;
+`tests/data/test_extraction_rates.py::test_extractors_of_takes_a_list_over_the_forms`,
+`::test_extractors_of_skips_an_unmodeled_extractor`;
+`tests/surface/test_advice_source.py::test_an_unsupplied_raw_says_so_on_the_wire_and_no_adopt_card_reads`,
+`::test_a_raw_item_no_extractor_joins_is_named_on_the_wire`;
+`tests/surface/test_panel_advice.py::test_a_raw_item_no_extractor_joins_draws_its_list_line`.
+The join is read from the shipped docs, never a hardcoded list. The F1 repair states the cap as a fact and claims no
+cause: with plan.trimmed not empty the no-unlock clause names the cap and how many held recipes it dropped, with it
+empty it says the search dropped none. ADJUDICATED LAND by the session 156 adjudicator on the frozen stack, after
+adversaries and verifiers: the factual cap clause is ratified under non-negotiables 7 and 8. The rulings, the repair
+round and what the candidate held are in the relocated section in `docs/history_notes.md`. OWED, NOT DONE HERE: the
+real-world re-read over every library unlock set, target and byproduct policy, filed as CS-1388 in `BACKLOG.md`.
+
+### 2026-11-13 - CS-1379 - CLOSED: the plan family's tiers 1 and 2 name a target by its quoted display name, else its ClassName
+Verification: `clockspeed/advisor/rules/plan.py::_usable_name`; `clockspeed/advisor/rules/plan.py::_quoted`;
+`clockspeed/advisor/rules/plan.py::_target_labels`; `clockspeed/advisor/plans.py::_target_names`;
+`tests/advisor/test_plan_world.py::test_adopt_tiers_read_the_display_name_with_the_id_unchanged`,
+`::test_adopt_no_display_name_reads_the_classname`, `::test_adopt_tier3_steps_keep_the_classname`;
+`tests/advisor/test_plan_redesign.py::test_redesign_tiers_read_the_display_name_with_the_id_unchanged`,
+`::test_redesign_no_display_name_reads_the_classname`, `::test_redesign_tier3_steps_keep_the_classname`;
+`tests/advisor/test_display_name_keying.py::test_a_name_carrying_a_tier_delimiter_reads_quoted`,
+`::test_a_quote_or_backslash_in_a_name_reads_escaped`, `::test_an_overlong_name_falls_back`,
+`::test_a_non_printable_name_falls_back_and_the_card_survives`, `::test_a_name_not_whitespace_normal_falls_back`,
+`::test_the_cap_measures_the_name_and_never_its_escaped_text`,
+`::test_a_rename_on_a_stated_world_moves_the_wording_and_never_the_id`.
+A usable name - printable ASCII with a visible character, whitespace-normal and 64 characters or fewer - reads in
+double quotes, a double quote or backslash inside it escaped; any other reads the bare ClassName through the existing
+fallback step. The subject key and the card id are unchanged, and tier 3 keeps every ClassName in its steps. The
+clause was amended on the adjudicator route by the quoting ruling and the whitespace-normal fallback, each recorded in
+the relocated section in `docs/history_notes.md`. ADJUDICATED LAND by the session 156 adjudicator on the frozen stack,
+after adversaries and verifiers: the clause and `_usable_name` agree. The fuel cards' unquoted names are CS-1384,
+outside this clause.
+
 ### 2026-11-13 - CS-1385 - CLOSED: the ubuntu test jobs pinned to `ubuntu-24.04`, the image every recorded green ran on
 Verification: merged files `.github/workflows/tier1.yml` (six `runs-on`), `.github/workflows/tier2.yml` (three
 matrix `os` lists), `tools/tier1_concentration.py::RUNNER_WORKERS` (`ubuntu-24.04`: 2) and
