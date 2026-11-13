@@ -260,8 +260,8 @@ _NO_UNLOCK: Final = "this route needs no unlock"
 #: more recipes than the cap is every search. Read whole, never by its prefix alone, so a
 #: clause that blamed a cap nothing cut reddens (CS-1382 F1).
 _UNCAPPED_NO_UNLOCK: Final = (
-    "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
-    " did not find it from the raw items a held extractor supplies"
+    "; this route needs no unlock and the search, which dropped no recipe on this route to fit"
+    " its cap, did not find it from the raw items a held extractor supplies"
 )
 
 #: Each recipe by name, read off the fixture's own table.

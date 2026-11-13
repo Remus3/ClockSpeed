@@ -661,6 +661,7 @@ The four points under MUST BE REPAIRED, each read on THE STACK's branch above th
   `tests/advisor/test_plan_redesign.py` test_a_route_no_cap_cut_never_says_the_capped_search_missed_it, with a
   planted-trim control; with the clause reverted to the old spelling in a scratch copy it fails at `assert not capped`.
   The no-plan beside it stands as ruled, a pillar 1 matter.
+- F1 RE-REPAIRED on an adversary's MEDIUM (13 held, only an unrelated recipe dropped, read capped): the clause names the cap only when plan.trimmed holds a plan.redesign.held stage. Arms: test_a_cap_cut_beside_the_route_never_says_the_capped_search_missed_it, red on the prior code at `assert not capped`, and test_a_cap_cut_into_the_route_still_says_the_capped_search_missed_it.
 - LOW, a world supplying none: the stack's docstring commit replaced the sentence with one still false three ways,
   measured here: a held recipe eating nothing a stage below the target ranks, a loop giving back what it eats ranks, and
   a free recipe's byproduct under balanced reads no-plan. `clockspeed/advisor/plans.py` now says a plan ranks only if it
