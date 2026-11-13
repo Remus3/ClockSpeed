@@ -1151,7 +1151,12 @@ ROUTE_REFUSED_REASON: Final = (
 MUST_UNLOCK: Final = (
     "; the locked recipes or the machines that run them must unlock first on this route"
 )
-NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
+#: The no-unlock clause beside a bound that dropped one recipe: the cap and the count, facts
+#: only, claiming no cause (CS-1382).
+NO_UNLOCK: Final = (
+    "; this route needs no unlock and the search, which dropped 1 held recipe(s) to fit its cap,"
+    " found no route within it from the raw items a held extractor supplies"
+)
 NOT_CHOSEN: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
 )

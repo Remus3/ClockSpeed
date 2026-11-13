@@ -216,12 +216,26 @@ ROUTE_RUNS: Final = f"This route to {RELIC_LABEL} runs"
 MUST_UNLOCK: Final = (
     "; the locked recipes or the machines that run them must unlock first on this route"
 )
-NO_UNLOCK: Final = "; this route needs no unlock and the capped search did not find it"
-#: The same clause where the bound dropped no stage of the route, so no cap can be why (CS-1382
-#: F1): nothing at all, or only recipes the route does not run.
+
+
+def _capped_no_unlock(dropped: int) -> str:
+    """The no-unlock clause beside a bound that dropped this many recipes (CS-1382).
+
+    The cap and the count, facts only: it says neither that the cap caused the miss nor that
+    it did not.
+    """
+    return (
+        f"; this route needs no unlock and the search, which dropped {dropped} held recipe(s) to"
+        " fit its cap, found no route within it from the raw items a held extractor supplies"
+    )
+
+
+#: That clause beside the one recipe each world past the cap here drops.
+NO_UNLOCK: Final = _capped_no_unlock(1)
+#: The same clause where the bound dropped nothing, so it names no cap (CS-1382 F1).
 UNCAPPED_NO_UNLOCK: Final = (
-    "; this route needs no unlock and the search, which dropped no recipe on this route to fit"
-    " its cap, did not find it from the raw items a held extractor supplies"
+    "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
+    " did not find it from the raw items a held extractor supplies"
 )
 NOT_CHOSEN: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
@@ -2223,10 +2237,10 @@ def test_an_unsupplied_raw_byproduct_meets_the_stated_policy() -> None:
 def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     """CS-1382 F1: Ore dug, Rare not, R_By makes Relic and Rare, all held, balanced, Relic.
 
-    The search reads no-plan with nothing dropped, so the no-unlock clause may not say a capped
-    search missed the route, and the trace reads the word the clause rests on. The control
-    plants the route's own stage as what a cap dropped, and the capped sentence reads again; a
-    planted recipe the route does not run leaves it unsaid.
+    The search reads no-plan with nothing dropped, so the no-unlock clause may not name a cap,
+    and the trace reads the word the clause rests on. The controls plant what a cap dropped
+    beside the same route: the route's own stage, or two recipes it never runs, and the clause
+    names the cap and the count either way.
     """
     registry = _two_raw_registry(
         [_recipe("R_By", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM])]
@@ -2238,7 +2252,7 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     route = card_for(run_rule(REDESIGN_RULE, world))
 
     assert route is not None
-    capped = "capped" in route.tier2
+    capped = "held recipe(s) to fit its cap" in route.tier2
     assert not capped
     assert route.tier2 == (
         f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{NOT_CHOSEN}"
@@ -2250,11 +2264,17 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     assert control is not None
     assert control.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
 
-    elsewhere = card_for(
-        run_rule(REDESIGN_RULE, _with_value(world, "plan.trimmed", ("R_Dropped",)))
-    )
+    two = _with_value(world, "plan.trimmed", ("R_Dropped", "R_DroppedToo"))
+    elsewhere = card_for(run_rule(REDESIGN_RULE, two))
     assert elsewhere is not None
-    assert elsewhere.tier2 == route.tier2
+    assert elsewhere.tier2 == (
+        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){_capped_no_unlock(2)}{NOT_CHOSEN}"
+    )
+
+
+def _claims_a_cause(tier2: str) -> bool:
+    """Whether a tier 2 says why the search missed, which the no-unlock clause never may."""
+    return any(word in tier2 for word in ("cause", "did not find", "capped search", "missed"))
 
 
 def _by_world_beside(extra: int) -> tuple[Registry, tuple[str, ...]]:
@@ -2276,13 +2296,13 @@ def _by_world_beside(extra: int) -> tuple[Registry, tuple[str, ...]]:
     return _two_raw_registry(entries, items=made), ("R_By", *beside)
 
 
-def test_a_cap_cut_beside_the_route_never_says_the_capped_search_missed_it() -> None:
-    """CS-1382, the adversary's MEDIUM on F1's repair: F1's world beside 12 unrelated recipes.
+def test_a_cap_cut_beside_the_route_reads_the_cap_as_a_fact() -> None:
+    """CS-1382, the first adversary's world: F1's world beside 12 unrelated recipes, 13 held.
 
-    Thirteen held, one past the cap. The bound keeps R_By, the route's one stage, and drops the
-    last unrelated recipe, so the cap cut nothing the route runs and the clause may not name it.
-    The control holds the drill: the same world ranks under the same trim, so the cap was never
-    what stood between the search and a plan.
+    The bound keeps R_By, the route's one stage, and drops the last unrelated recipe. The clause
+    names the cap and the one recipe it dropped, which is true, and claims no cause: the control
+    holds the drill, and the same world ranks under the same trim, so the cap was not the cause
+    here and a clause blaming it would be false.
     """
     registry, held = _by_world_beside(MAX_EXHAUSTIVE_CANDIDATES)
     count = len(held)
@@ -2291,16 +2311,14 @@ def test_a_cap_cut_beside_the_route_never_says_the_capped_search_missed_it() -> 
     assert _offered(world, IN_STATUS) == NO_PLAN
     dropped = held[-1]
     assert _offered(world, "plan.trimmed") == (dropped,)
+    assert _offered(world, IN_REDESIGN_HELD) == ("R_By",)
 
     route = card_for(run_rule(REDESIGN_RULE, world))
 
     assert route is not None
-    assert _card_read(route, IN_REDESIGN_HELD) == ("R_By",)
-    capped = "capped" in route.tier2
-    assert not capped
-    assert route.tier2 == (
-        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{NOT_CHOSEN}"
-    )
+    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    blames = _claims_a_cause(route.tier2)
+    assert not blames
     assert _card_read(route, "plan.trimmed") == (dropped,)
     read = f'Read plan.trimmed = ("{dropped}") from solve.bound.trim_record.removed'
     shown = read in route.tier3
@@ -2312,28 +2330,80 @@ def test_a_cap_cut_beside_the_route_never_says_the_capped_search_missed_it() -> 
     assert _offered(supplied, "plan.trimmed") == (dropped,)
 
 
-def test_a_cap_cut_into_the_route_still_says_the_capped_search_missed_it() -> None:
-    """The other side, from the planner and no plant: the chain one past the cap, all held.
+def _world_k(by_count: int) -> tuple[Registry, tuple[str, ...]]:
+    """This many recipes making Relic with a Rare over, then R_Alt making Relic alone, last.
+
+    Args:
+        by_count: How many byproduct recipes come first.
+
+    Returns:
+        The registry, and every recipe, in registry order.
+    """
+    names = [f"R_By{index:02d}" for index in range(by_count)]
+    entries = [
+        _recipe(name, [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM]) for name in names
+    ]
+    entries.append(_recipe("R_Alt", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]))
+    return _two_raw_registry(entries), (*names, "R_Alt")
+
+
+def test_a_cap_cut_off_the_plan_reads_the_same_fact() -> None:
+    """CS-1382, the second adversary's world K: 12 byproduct recipes, then R_Alt, 13 held.
+
+    The bound drops R_Alt, the one recipe that ranks under balanced, and keeps R_By00, the
+    route's one stage. The clause names the cap and the one recipe it dropped, as beside the
+    first adversary's world, and claims no cause: the controls rank with 12 held and with R_Alt
+    alone, so the cap was the cause here and a clause denying it would be false.
+    """
+    registry, held = _world_k(MAX_EXHAUSTIVE_CANDIDATES)
+    count = len(held)
+    assert count == MAX_EXHAUSTIVE_CANDIDATES + 1
+    world = _inputs(_model(held), registry, _request(registry))
+    assert _offered(world, IN_STATUS) == NO_PLAN
+    assert _offered(world, "plan.trimmed") == ("R_Alt",)
+    assert _offered(world, IN_REDESIGN_HELD) == ("R_By00",)
+
+    route = card_for(run_rule(REDESIGN_RULE, world))
+
+    assert route is not None
+    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    blames = _claims_a_cause(route.tier2)
+    assert not blames
+    assert _card_read(route, "plan.trimmed") == ("R_Alt",)
+
+    fewer_registry, fewer = _world_k(MAX_EXHAUSTIVE_CANDIDATES - 1)
+    within = _inputs(_model(fewer), fewer_registry, _request(fewer_registry))
+    assert _offered(within, IN_STATUS) == RANKED
+    assert _offered(within, "plan.trimmed") == ()
+    alone = _inputs(_model(["R_Alt"]), registry, _request(registry))
+    assert _offered(alone, IN_STATUS) == RANKED
+
+
+def test_a_cap_cut_into_the_route_reads_the_same_fact() -> None:
+    """The chain one past the cap, all held, from the planner and no plant.
 
     The bound drops a stage the route runs, read off the trim and the route's held list the
-    planner offers, so the capped sentence is the true one.
+    planner offers, and the clause says what it says beside the two worlds above: the cap and
+    the count, and no cause.
     """
     registry = _chain_registry()
     world = _inputs(_model(_chain_names()), registry, _request(registry))
     assert _offered(world, IN_STATUS) == NO_PLAN
     trimmed = _offered(world, "plan.trimmed")
-
-    route = card_for(run_rule(REDESIGN_RULE, world))
-
-    assert route is not None
-    held = _card_read(route, IN_REDESIGN_HELD)
+    held = _offered(world, IN_REDESIGN_HELD)
     assert isinstance(trimmed, tuple)
     assert isinstance(held, tuple)
     cut = sum(1 for name in trimmed if name in held)
     assert cut == 1
+
+    route = card_for(run_rule(REDESIGN_RULE, world))
+
+    assert route is not None
     assert route.tier2 == (
         f"{ROUTE_RUNS} 0 locked and {CHAIN_STAGES} held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
     )
+    blames = _claims_a_cause(route.tier2)
+    assert not blames
 
 
 def test_the_no_plan_reason_says_what_the_search_started_from() -> None:

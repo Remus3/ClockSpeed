@@ -392,15 +392,15 @@ _MUST_UNLOCK_CLAUSE: Final = (
     "; the locked recipes or the machines that run them must unlock first on this route"
 )
 _EXTRACTOR_UNLOCK_CLAUSE: Final = "; the locked extractors must unlock first on this route"
-_NO_UNLOCK_CLAUSE: Final = "; this route needs no unlock and the capped search did not find it"
 
-#: The same, where the bound dropped no stage of the route (CS-1382 F1): it may have dropped
-#: recipes the route does not run, but the search kept every one the route does, so no cap is
-#: named and the search's own starting point is. The route may take as raw an item the world
-#: extracts nothing for, which the search treats as an ordinary item, not a raw one.
+#: What it says with neither locked where the bound dropped nothing (CS-1382 F1), so the search
+#: kept every recipe it was given and no cap is named. Where the bound dropped some,
+#: :func:`_route_unlock_clause` names the cap and the count instead. Either way the clause names
+#: the search's own starting point: the route may take as raw an item the world extracts nothing
+#: for, which the search treats as an ordinary item, not a raw one.
 _UNCAPPED_NO_UNLOCK_CLAUSE: Final = (
-    "; this route needs no unlock and the search, which dropped no recipe on this route to fit"
-    " its cap, did not find it from the raw items a held extractor supplies"
+    "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
+    " did not find it from the raw items a held extractor supplies"
 )
 
 #: What a route's reason says on every path: a count chose it, and no comparison did.
@@ -903,25 +903,24 @@ def _raw_unknown_clause(raw_unknown: tuple[str, ...]) -> str:
 
 
 def _route_unlock_clause(
-    ctx: RuleContext,
-    held: tuple[str, ...],
-    locked: tuple[str, ...],
-    locked_extractors: tuple[str, ...],
+    ctx: RuleContext, locked: tuple[str, ...], locked_extractors: tuple[str, ...]
 ) -> str:
     """Say what a route needs unlocked first: its stages, its extractors, or nothing at all.
 
     Args:
         ctx: The rule's context. What the bound dropped is read here, on the one path a
             sentence rests on it, so the derivation shows the word the sentence says.
-        held: The route's held stages, which with nothing locked are every stage it runs.
         locked: The route's locked stages.
         locked_extractors: The machines the route needs to extract a raw item.
 
     Returns:
-        The clause. It says no unlock is needed only when both lists are empty, and it says a
-        capped search missed the route only when the bound dropped one of the route's held
-        stages (CS-1382 F1). A cap that dropped only recipes the route does not run left the
-        search every stage of it, so that sentence would name a cause that was not one.
+        The clause. It says no unlock is needed only when both lists are empty. Beside that it
+        states what the bound did and claims no cause (CS-1382): how many held recipes it
+        dropped to fit its cap and that the search found no route within it, or that it
+        dropped none. A dropped recipe the route never runs can still be the one a plan
+        needed, and the search can still find no plan over a route whose every stage the bound
+        kept, so only a second search past the cap could tell, which is the cost the cap exists
+        to bound.
     """
     clause = (_MUST_UNLOCK_CLAUSE if locked else "") + (
         _EXTRACTOR_UNLOCK_CLAUSE if locked_extractors else ""
@@ -929,10 +928,13 @@ def _route_unlock_clause(
     if clause:
         return clause
     trimmed = _names(ctx.read(IN_TRIMMED), "a plan's trimmed recipes")
-    # A set, and ONLY as a membership test: the answer is one bool, so no order can leak.
-    stages = frozenset(held)
-    cut = any(name in stages for name in trimmed)
-    return _NO_UNLOCK_CLAUSE if cut else _UNCAPPED_NO_UNLOCK_CLAUSE
+    if not trimmed:
+        return _UNCAPPED_NO_UNLOCK_CLAUSE
+    return (
+        f"; this route needs no unlock and the search, which dropped {len(trimmed)} held"
+        " recipe(s) to fit its cap, found no route within it from the raw items a held"
+        " extractor supplies"
+    )
 
 
 def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
@@ -987,7 +989,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         action="Plan toward " + labels,
         reason=(
             f"This route to {labels} runs {len(locked)} locked and {len(held)} held recipe(s)"
-            f"{needs}{_route_unlock_clause(ctx, held, locked, extractors)}{_NOT_CHOSEN_CLAUSE}"
+            f"{needs}{_route_unlock_clause(ctx, locked, extractors)}{_NOT_CHOSEN_CLAUSE}"
             f"{_unchecked_clause(unchecked)}{_raw_unknown_clause(raw_unknown)}{caveat}"
         ),
         requires=requires,
