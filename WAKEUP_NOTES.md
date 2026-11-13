@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 156 - 2026-11-13 - the red baseline repaired, kit v30 adopted, and CS-1361, CS-1379 and CS-1382 landed after an account-limit recovery
+
+- Shipped: CS-1383 (re-pin to the patched game build), CS-1389 (kit v30), CS-1385 (CI ubuntu jobs pinned to 24.04), CS-1361 (the companion window saved by display id), CS-1379 (quoted display-name targets in tiers 1 and 2), CS-1382 (raw supply only with a held extractor, a factual cap clause) closed; a CS-484 decision record; CS-1366's three exit-1 runs classified. Three notes to MAIN, each 1 of 1. Detail in docs/LEDGER.md.
+- In flight: nothing dirty. CS-1366 stays open: 21 gated exit-nonzero rows after 2026-11-04 are unclassified (its phase7.md section). CS-1384 filed: the fuel cards splice names unquoted, and its fallback ruling goes through an adjudicator before build. CS-1334 waits on host RAM, 22.4 of 31.6 GB free at this /done. CS-1295 stays open on its PARTIAL answer. The one lane cycle MAIN's 2024 ORDER released ran (CS-1361); further cycles follow this tree's lane policy, CS-1360 next.
+- Decisions: no ADR. CI pinned to ubuntu-24.04 with 39 duration rows relabelled; pushes run with CLOCKSPEED_PYTHON on the .venv interpreter, the global python left above the pins; CS-1382's cap clause states facts only; the owed library re-read does not block CS-1382 (CS-1388). Each in docs/LEDGER.md or the hand-off.
+- Surprises: a game patch moved the build and reddened guard (h), blocking every push from 2026-11-08 to 2026-11-12. An installed ruff 0.17.3 against a declared range below 0.16 cost the precommit gate its file naming and raised 31 findings. The global python carries pytest 9.2.0 and mypy 2.4.1, which redden the pre-push canary and crash the conftest redactor (CS-1387). Every CI red from 2026-11-12 ran on ubuntu-26.04. The earlier attempt at this session on the second account stopped on its weekly limit mid-build. No spike contradicted BOOTSTRAP.md.
+- Failed paths: for CS-1382's cap, the route-stage test (refuted by world K), causal wording on any trim (refuted by a 13-recipe world) and an uncapped counterfactual re-run (it defeats the cap). A precommit parser for both ruff output shapes was denied: one branch could not be exercised.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then classify CS-1366's 21 rows and rule CS-1384's fallback.
+
 ## Session 155 - 2026-11-04 - a stated target reaches plan.adopt on a real world; eight items closed, and the operator's /done stopped CS-1379 and CS-1382 built and unlanded
 
 - Shipped: CS-1350, CS-1351, CS-1370, CS-1359, CS-1344, CS-1372, CS-1371, CS-1380 closed; the bound.py byproduct docstring corrected; two decision records, CS-1344 clause 2 and CS-1295's nine findings; two notes to MAIN, 1 of 1 each. Detail in docs/LEDGER.md.
@@ -50,12 +59,3 @@ the line becomes a pointer.
 - Surprises: an adversary found a repin tool that silently re-pointed a reason to a swapped handler, and a kill arm whose planted hang ended inside the budget's scaled window; both fixed with tests. A pass that timed out left its commits safe on its branch. No spike contradicted BOOTSTRAP.md.
 - Failed paths: gitlock refuses `git cherry-pick`; land with `cherry-pick -n`, then gitlock `git commit -C`.
 - Next action: read the drive's progress file, then the remote ref against HEAD by full SHA and CI for that SHA.
-
-## Session 153 - 2026-11-01 - the operator scoped the session to the inbox; no item closed; MAIN's 15:35 ORDER left in a live responder pass
-
-- Shipped: nothing closed and no code changed. Worktree reap removed two clean trees whose commits are on main by patch, branches kept. Detail in docs/LEDGER.md.
-- In flight: an unattended inbox-responder pass on MAIN's 2026-11-01 15:35 ORDER (CS-2, CS-3, FLEET-9), started 15:41:01, its order ceiling kills it near 18:41:01; outcome UNREAD at this /done. FLEET-9 partly done and unlanded on the pass's worktree (one commit, 16 uncommitted test files at the last read). CS-2 and CS-3 not started. The ORDER stays unread in the inbox on purpose; a retry depends on it.
-- Decisions: the digest finding stays in the hand-off, unfiled, and no id is allocated while a pass that allocates ids is live. No ADR.
-- Surprises: a responder pass that exits ok records its note's digest whether or not it handled the note, confirmed by reading `ops/loop/inbox_responder.py::_locked_pass`; an ok exit with no ANSWER never retries by itself. MAIN's ORDER holds the lanes ("CS's lanes stay not relaunched"). No spike contradicted BOOTSTRAP.md.
-- Failed paths: none abandoned.
-- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then how the pass ended (its log line, the digest, an ANSWER for the ORDER, its worktree). An ok exit with no ANSWER means the session answers the ORDER itself; ack the ORDER only after an ANSWER is sent and its reached-count read back.

@@ -7390,6 +7390,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 153 - archived 2026-11-13 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 153 - 2026-11-01 - the operator scoped the session to the inbox; no item closed; MAIN's 15:35 ORDER left in a live responder pass
+
+- Shipped: nothing closed and no code changed. Worktree reap removed two clean trees whose commits are on main by patch, branches kept. Detail in docs/LEDGER.md.
+- In flight: an unattended inbox-responder pass on MAIN's 2026-11-01 15:35 ORDER (CS-2, CS-3, FLEET-9), started 15:41:01, its order ceiling kills it near 18:41:01; outcome UNREAD at this /done. FLEET-9 partly done and unlanded on the pass's worktree (one commit, 16 uncommitted test files at the last read). CS-2 and CS-3 not started. The ORDER stays unread in the inbox on purpose; a retry depends on it.
+- Decisions: the digest finding stays in the hand-off, unfiled, and no id is allocated while a pass that allocates ids is live. No ADR.
+- Surprises: a responder pass that exits ok records its note's digest whether or not it handled the note, confirmed by reading `ops/loop/inbox_responder.py::_locked_pass`; an ok exit with no ANSWER never retries by itself. MAIN's ORDER holds the lanes ("CS's lanes stay not relaunched"). No spike contradicted BOOTSTRAP.md.
+- Failed paths: none abandoned.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then how the pass ended (its log line, the digest, an ANSWER for the ORDER, its worktree). An ok exit with no ANSWER means the session answers the ORDER itself; ack the ORDER only after an ANSWER is sent and its reached-count read back.
+
 ## Session 152 - archived 2026-11-04 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 152 - 2026-10-25 - the operator's worktree request: CS-1352 swept 21 worktrees, 16 orphan work folders and 7 spent branches by content; the hand-off's queue not started

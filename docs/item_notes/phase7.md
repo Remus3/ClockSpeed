@@ -932,3 +932,15 @@ item stays open for the 7-day read itself. Not read here: gated exit-nonzero row
 
 COUNT FOR MAIN: 3 exit-1 runs, 0 live-state, 0 timing, 1 regression the gate caught, 1 unstaged-files
 state, 1 environment.
+
+### Recorded 2026-11-13 by the session 156 /done
+
+The suite gate's durations log, every Clockspeed row with an exit since 2026-11-01, read at this /done: after
+the last run classified above, 21 rows exit non-zero and none is classified - one on 2026-11-08 at 20:28 (the
+responder's push, which its hand-off records blocked by guard (h) on the game patch, cleared by CS-1383),
+fifteen on 2026-11-12 and five on 2026-11-13. No 7-day window ending on or after 2026-11-08 is read clean, so
+the clause is NOT MET and CS-1366 STAYS OPEN. NEXT: classify those rows from each launching transcript, matched
+on start, command digest and hold, and have a distinct adjudicator rule whether a guard (h) red on a game patch,
+a test reading the live install's build, is a live-state failure; a failure found restarts the 7 days after
+its fix. Between the ORDER and the 2026-11-08 push this read counts 19 rows, 16 exit 0 and 3 exit 1, against
+the responder's 16, 13 and 3; the three exit-1 rows are the ones classified above.

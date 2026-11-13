@@ -75,6 +75,24 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-13 - CS-1389 - CLOSED: fleet kit v30 adopted - item 12 bounded-slice supervision, the pause seam, the budget's own run cap
+Verification: `ops/fleet_kit/MANIFEST.json` sha256
+d2ac40250bd0efc071f0eb11c1e92ae04af88d750de200cf8ed4dc5714d07ea2, version 30;
+`tests/test_fleet_kit.py::test_fleet_kit_conformance` and that file's v30 version and hash pins;
+`tests/test_queue_loop.py::test_kit30_kit_note_pause_writes_the_kits_row_for_this_tree`;
+`tests/ops/test_inbox_responder.py::test_kit30_a_kit_refusal_records_the_pause_its_cause_names`;
+`tests/ops/test_usage_limit_refusal.py::test_kit30_a_budget_back_off_records_a_budget_pause`.
+SCOPE. Adopts MAIN ORDER 2026-11-12-0345 FLEET-KIT v30, provenance verified by `tools/main_provenance.py`,
+cumulative over the undelivered v29, as the one commit "chore(kit): adopt fleet kit v30", landed on main
+2026-11-12 once the red baseline was repaired (the CS-1383 re-pin among it). `CLAUDE.md` re-embeds the
+FLEET-COMMON block and retires precedence clause (a); the nine `.claude/commands/` preambles supervise a
+dispatched sub-agent per FLEET item 12; the moved `CLAUDE.md` text is in `docs/history_notes.md`, "The kit
+v30 relocation". `ops/loop/queue_loop.py::run_loop` and `ops/loop/inbox_responder.py::run_once` gain the
+`pause` seam, and the responder and its status file publish the kit budget's own cap. The ANSWER went to
+MAIN in the 2026-11-13 09:05 note, read 1 of 1 verified in the delivery record at this /done. Item id:
+CS-1389, allocated at the session 156 /done, the next free id (`git grep` and `git log --all` read none
+above CS-1388).
+
 ### 2026-11-13 - CS-1382 - CLOSED: a raw input is supplied only with a held machine the docs say extracts it, and the plan rules join the 5.4 property test
 Verification: `clockspeed/data/registry.py::extractors_of`; `clockspeed/advisor/plans.py`;
 `clockspeed/advisor/rules/plan.py::_route_unlock_clause`; `clockspeed/surface/api/advice.py`;
