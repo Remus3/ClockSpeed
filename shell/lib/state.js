@@ -18,6 +18,36 @@
 // payload key by key from a fixed list, so an extra field a caller passes in is
 // dropped rather than persisted.
 //
+// CS-1361 - displayId JOINS THAT SCHEMA WITHOUT WIDENING IT. MAIN's order of
+// 2026-10-31 asks that the companion window be remembered by display rather
+// than by raw coordinates alone, because the bare rectangle from a monitor
+// since unplugged names a place no desktop is. An Electron display id is a
+// positive integer, so the new field is a number like every other value in the
+// file and the paragraph above is as strong as it was.
+//
+// 0 IS THE SENTINEL FOR "NO DISPLAY WAS RECORDED" - not null, and not an
+// absent key. null would break the property outright, since typeof null is
+// "object" and the arms that pin "a number or a boolean, never a string" grade
+// exactly that; an absent key is not available either, because the payload is
+// rebuilt from the fixed list and therefore always carries every one of them.
+// 0 is free for the purpose precisely because a real display id never is. It
+// covers both cases that need covering: a state file written before this field
+// existed, and a save made when the display could not be identified.
+//
+// WHAT THIS MODULE DOES NOT DO IS INTERPRET IT. The id is stored and handed
+// back opaquely; which display it names, whether that display is still
+// attached and where on it the window belongs are all decided a layer up. This
+// module never learns what a display is - the same line it already holds for
+// the geometry, and the reason MAX_DIMENSION below is an absolute ceiling
+// rather than a measured one.
+//
+// SCHEMA_VERSION IS NOT BUMPED FOR IT, and that was decided rather than
+// overlooked. The schema check in validate is an exact equality, so a bump
+// would make every state file written before this field existed fail it and
+// discard a window position the operator chose - and there is nothing to
+// migrate in exchange, because the field is purely additive and its absence is
+// a legal value that reads as the sentinel.
+//
 // WRITES ARE ATOMIC, AND THE CLAIM HOLDS FOR MANY WRITERS (CLAUDE.md
 // non-negotiable 5). The payload is written to a staging sibling, flushed, and
 // renamed into place. A reader therefore sees either the previous file or the
@@ -59,7 +89,12 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
-/** Bumped only when the meaning of a field changes. A mismatch is a reset. */
+/**
+ * Bumped only when the MEANING of a field changes. A mismatch is a reset.
+ *
+ * An added field is not that, and CS-1361 is the worked example: see the
+ * header's closing paragraph for why displayId arrived without a bump.
+ */
 const SCHEMA_VERSION = 1;
 
 const STATE_FILENAME = "window-state.json";
@@ -82,7 +117,7 @@ const PARTIAL_SUFFIX = ".partial";
 const PARTIAL_STALE_MS = 60 * 1000;
 
 /** Every key the file may contain, in the order it is written. */
-const STATE_KEYS = Object.freeze(["schema", "x", "y", "width", "height", "alwaysOnTop"]);
+const STATE_KEYS = Object.freeze(["schema", "x", "y", "width", "height", "displayId", "alwaysOnTop"]);
 
 /** The four that describe the rectangle. */
 const GEOMETRY_KEYS = Object.freeze(["x", "y", "width", "height"]);
@@ -103,12 +138,28 @@ const MAX_DIMENSION = 30000;
 // overflowed or garbage value shows itself.
 const MAX_COORDINATE = 100000;
 
+// "No display was recorded." An Electron display id is a positive integer, so
+// this value can never collide with a real one - see the header for why the
+// sentinel is an integer and not null.
+const DISPLAY_ID_NONE = 0;
+
+// An id is accepted only as a SAFE non-negative integer. Non-negative because
+// a display id is positive and the sentinel is 0; SAFE rather than merely
+// integral because a value past 2^53-1 does not survive the JSON round trip
+// unchanged, so persisting one would store a number the file cannot represent
+// and hand back a different id than was saved. Nothing else is judged: the id
+// is opaque here, and 7 is as plausible to this module as 2528732444.
+function isDisplayId(value) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
 const DEFAULTS = Object.freeze({
   schema: SCHEMA_VERSION,
   x: 0,
   y: 0,
   width: 1100,
   height: 800,
+  displayId: DISPLAY_ID_NONE,
   alwaysOnTop: false,
 });
 
@@ -373,6 +424,10 @@ function defaultsFrom(options) {
     y: Number.isInteger(base.y) ? base.y : DEFAULTS.y,
     width: Number.isInteger(base.width) ? base.width : DEFAULTS.width,
     height: Number.isInteger(base.height) ? base.height : DEFAULTS.height,
+    // Present on the defaults too, because load()'s caller is entitled to one
+    // object shape whatever happened to the file - several arms grade the
+    // returned key set against STATE_KEYS in both directions.
+    displayId: isDisplayId(base.displayId) ? base.displayId : DEFAULTS.displayId,
     alwaysOnTop: base.alwaysOnTop === true,
   };
 }
@@ -390,6 +445,12 @@ function serialize(input) {
     const value = Object.hasOwn(source, key) ? source[key] : DEFAULTS[key];
     out[key] = Number.isInteger(value) ? value : DEFAULTS[key];
   }
+  // As strict as the identity check below, and for the same reason: a caller's
+  // "5", 5.5, NaN, null or undefined is REFUSED onto the sentinel rather than
+  // coerced into an id. Coercion is how a string would otherwise reach the
+  // file, which is the one thing this schema exists to make impossible.
+  const displayId = Object.hasOwn(source, "displayId") ? source.displayId : undefined;
+  out.displayId = isDisplayId(displayId) ? displayId : DISPLAY_ID_NONE;
   // Strict identity, never truthiness. "false" and 0 and null must all land on
   // false rather than on whatever a loose check would make of them.
   out.alwaysOnTop = Object.hasOwn(source, "alwaysOnTop") && source.alwaysOnTop === true;
@@ -466,6 +527,19 @@ function validate(parsed, defaults, options) {
   // would have to hunt, and the safe direction is unmistakably down.
   const rawOnTop = Object.hasOwn(parsed, "alwaysOnTop") ? parsed.alwaysOnTop : undefined;
   const softFaults = [];
+
+  // CS-1361 - AND NOR DOES A JUNK displayId. It is soft for the same reason
+  // alwaysOnTop is, with a sharper consequence if it were not: discarding the
+  // rectangle would MOVE a window the operator deliberately placed, every
+  // launch, because one unreadable integer sat beside four good ones. The
+  // geometry layer already falls back for a display it cannot find, so an id
+  // that reads as the sentinel costs only that fallback. A MISSING key is the
+  // same case and not a lesser one - it is what every state file written
+  // before this field existed looks like, and it must restore its position.
+  const rawDisplayId = Object.hasOwn(parsed, "displayId") ? parsed.displayId : undefined;
+  if (!isDisplayId(rawDisplayId)) {
+    softFaults.push("displayId was not a non-negative integer and fell back to 0");
+  }
   if (typeof rawOnTop !== "boolean") {
     softFaults.push("alwaysOnTop was not a boolean and fell back to false");
   }
@@ -477,6 +551,7 @@ function validate(parsed, defaults, options) {
       y: geometry.y,
       width: geometry.width,
       height: geometry.height,
+      displayId: isDisplayId(rawDisplayId) ? rawDisplayId : DISPLAY_ID_NONE,
       alwaysOnTop: rawOnTop === true,
     },
     restored: true,

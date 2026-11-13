@@ -871,21 +871,6 @@ Not started: the driver run's time budget did not cover a feature slice. Next: p
 builder slice in `clockspeed/surface/` that consumes the trace and computes nothing itself.
 
 
-## CS-1361
-
-### Acceptance
-
-MAIN ORDER 2026-10-31 22:15 item 8: the companion window position is saved by display id, not index or raw
-coordinates only; a missing saved display falls back silently to the primary; the bounds clamp,
-DPI-aware, to 96 percent of the work area. A test with the saved display missing lands the window
-on the primary inside its work area.
-
-### Filed 2026-11-01 by the headless driver
-
-Not started: the driver run's time budget did not cover a shell slice. Next: a builder slice in
-`shell/`.
-
-
 ## CS-1362
 
 ### Acceptance

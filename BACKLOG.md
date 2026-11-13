@@ -1259,3 +1259,18 @@ reddens a suite. Every CS-1295 line: a consumer check per group first, Recycle B
 - CS-1295 review F043: remove the three stray scratch files the first review run left in a system
   Temp folder; precondition: they are still those three; trigger: an operator or MAIN order, a red
   suite, or disk pressure.
+- CS-1361 residual: `isDisplayId` exists twice with two definitions - `shell/lib/geometry.js` takes an integer
+  above 0, `shell/lib/state.js` takes a safe integer at or above 0. No live fault, because `serialize` refuses
+  an unsafe integer to the 0 sentinel; one rule in two places is how the two come to disagree. Trigger: a third
+  copy appearing, or either module changing its predicate.
+- CS-1361 residual: `shell/main.js` passes only `displays` now, so `resolveBounds`'s documented `workAreas`
+  fallback is unexercised by the application and lives only under test. Trigger: a second caller appearing, or
+  a decision to drop the dual argument.
+- CS-1361 residual: `main.js` never reads `placement.reason`, so all six of `geometry.js`'s reasons serve tests
+  only and `DISPLAY_ID_GONE` has no production consumer - the module's own doctrine is that the reason is what
+  makes it testable rather than merely exercised. Trigger: a diagnostic surface that would show the operator
+  why the window moved.
+- CS-1361 residual: that `screen.getDisplayMatching(bounds).id` draws from the same id space as
+  `screen.getAllDisplays()[].id` is true of electron's API and unreachable in CI, and the whole saved-id round
+  trip rests on it. Trigger: a launched-application check becoming cheap, or a report of a window forgetting
+  its monitor.

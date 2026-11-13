@@ -14,6 +14,13 @@
 //   account id, a world name or the Windows account name, no matter what a
 //   later caller tries to persist through it. The key-set arm below is what
 //   reddens the day somebody adds "lastUrl".
+//
+// CS-1361 adds displayId, and it adds a field rather than a field TYPE on
+// purpose: an Electron display id is a positive integer, so remembering WHICH
+// display a window was on costs the schema nothing and keeps the guarantee
+// above exactly as strong. The arms under "displayId" below re-prove the
+// number-or-boolean property with the new field populated rather than trusting
+// that the arms written before it cover a key they could not have seen.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -79,8 +86,28 @@ const GOOD = Object.freeze({
   y: 60,
   width: 1100,
   height: 800,
+  // A positive id, never 0, so the round-trip arms would still redden if the
+  // field were persisted as the "not recorded" sentinel instead of as itself.
+  displayId: 2528732444,
   alwaysOnTop: true,
 });
+
+/**
+ * Plant a good rectangle with displayId as a RAW JSON literal, or absent.
+ *
+ * literal === null omits the key entirely, which is the state file every
+ * launch before CS-1361 wrote. Everything else goes in verbatim, so a value
+ * JSON can express but JavaScript cannot hold - 1e999, say - is driven through
+ * the real parse rather than constructed on this side of it.
+ */
+function plantDisplayId(dir, literal) {
+  const parts = ['"schema":1', '"x":10', '"y":20', '"width":1100', '"height":800'];
+  if (literal !== null) {
+    parts.push(`"displayId":${literal}`);
+  }
+  parts.push('"alwaysOnTop":false');
+  plant(dir, `{${parts.join(",")}}`);
+}
 
 test.after(() => {
   for (const dir of MADE) {
@@ -127,10 +154,17 @@ test("save refuses to persist a string field smuggled in by a caller", () => {
 
 test("STATE_KEYS carries the schema field and no string-shaped field", () => {
   assert.ok(STATE_KEYS.includes("schema"));
-  for (const key of ["x", "y", "width", "height", "alwaysOnTop"]) {
+  for (const key of ["x", "y", "width", "height", "displayId", "alwaysOnTop"]) {
     assert.ok(STATE_KEYS.includes(key), `${key} missing from STATE_KEYS`);
   }
-  assert.equal(STATE_KEYS.length, 6);
+  assert.equal(STATE_KEYS.length, 7);
+});
+
+test("STATE_KEYS names displayId after the geometry and before alwaysOnTop", () => {
+  // The list documents the ORDER the file is written in, and serialize writes
+  // alwaysOnTop last, so the order is pinned here rather than left to whoever
+  // appends the next field.
+  assert.deepEqual([...STATE_KEYS], ["schema", "x", "y", "width", "height", "displayId", "alwaysOnTop"]);
 });
 
 test("state.js embeds no path literal and computes no directory itself", () => {
@@ -330,6 +364,181 @@ test("a missing alwaysOnTop falls back to false while geometry still restores", 
   assert.equal(loaded.width, 1100);
 });
 
+// --- CS-1361: displayId, an opaque integer that fails safe ------------------
+//
+// WHY THE FIELD EXISTS. MAIN's order of 2026-10-31 asks that the companion
+// window be remembered by DISPLAY, not by raw coordinates alone: unplug the
+// monitor the window was on and the bare rectangle puts it somewhere no
+// desktop is. Which display a saved id names, and what to do when it is gone,
+// is decided a layer up - this module stores the integer and judges nothing
+// about it, exactly as it never learns what a display is for the geometry it
+// already holds.
+//
+// WHY 0 IS THE SENTINEL AND null IS NOT. The schema's guarantee is that every
+// value in the file is a number or a boolean, and typeof null is "object", so
+// a null displayId would break the property these arms exist to hold. An
+// Electron display id is a positive integer, which leaves 0 free to mean "no
+// display was recorded" - the value a state file written before this field
+// existed reads as, and the value a save makes when the display could not be
+// identified.
+//
+// WHY A JUNK displayId KEEPS THE RECTANGLE. A remembered position is still
+// worth restoring when only the id is unreadable: the geometry layer's own
+// fallback already handles a display it cannot find, whereas discarding the
+// rectangle would MOVE a window the operator deliberately placed. So every
+// arm below asserts restored stays true and the rectangle survives.
+
+test("a positive displayId round trips through the file and back out of load", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const parsed = JSON.parse(fs.readFileSync(statePath(dir), "utf8"));
+  assert.equal(parsed.displayId, GOOD.displayId);
+  assert.equal(typeof parsed.displayId, "number");
+  assert.equal(load(dir).displayId, GOOD.displayId);
+  const report = inspect(dir);
+  assert.equal(report.restored, true);
+  assert.deepEqual(report.faults, [], "a good displayId reported a fault");
+});
+
+test("the serialized key set still equals STATE_KEYS exactly with a displayId set", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const parsed = JSON.parse(fs.readFileSync(statePath(dir), "utf8"));
+  assert.ok(Object.hasOwn(parsed, "displayId"), "displayId never reached the file");
+  assert.deepEqual(Object.keys(parsed).sort(), [...STATE_KEYS].sort());
+});
+
+test("every serialized value is a number or a boolean with a displayId set", () => {
+  // Re-proving the property with the new field populated, rather than assuming
+  // the arm written before displayId existed covers a key it could not see.
+  const dir = tempDir();
+  save(dir, GOOD);
+  const raw = fs.readFileSync(statePath(dir), "utf8");
+  const parsed = JSON.parse(raw);
+  assert.notEqual(parsed.displayId, 0, "the arm needs a populated displayId to measure anything");
+  for (const [key, value] of Object.entries(parsed)) {
+    const kind = typeof value;
+    assert.ok(kind === "number" || kind === "boolean", `${key} serialized as ${kind}`);
+  }
+  assert.equal(raw.match(/:\s*"/g), null, "a string value reached the state file");
+});
+
+test("a displayId smuggled in as a string never reaches the file as a string", () => {
+  const dir = tempDir();
+  save(dir, { ...GOOD, displayId: "2528732444" });
+  const raw = fs.readFileSync(statePath(dir), "utf8");
+  const parsed = JSON.parse(raw);
+  assert.equal(typeof parsed.displayId, "number");
+  assert.equal(parsed.displayId, 0, "a string displayId was coerced instead of refused");
+  assert.equal(raw.match(/:\s*"/g), null, "a string value reached the state file");
+});
+
+// Serialize is strict in the same way the alwaysOnTop identity check is: a
+// value that is not already a non-negative safe integer lands on 0 rather than
+// being coerced into one. Driven through save(), so what is graded is the file.
+const CALLER_DISPLAY_ID_JUNK = [
+  ["a string", "5"],
+  ["a float", 5.5],
+  ["NaN", Number.NaN],
+  ["Infinity", Number.POSITIVE_INFINITY],
+  ["null", null],
+  ["undefined", undefined],
+  ["true", true],
+  ["an object", {}],
+  ["a negative integer", -1],
+  ["an integer too large to round trip", 1e21],
+];
+
+for (const [label, value] of CALLER_DISPLAY_ID_JUNK) {
+  test(`save writes displayId 0 rather than ${label}`, () => {
+    const dir = tempDir();
+    save(dir, { ...GOOD, displayId: value });
+    const parsed = JSON.parse(fs.readFileSync(statePath(dir), "utf8"));
+    assert.equal(parsed.displayId, 0, `${label} reached the file as ${JSON.stringify(parsed.displayId)}`);
+    assert.equal(typeof parsed.displayId, "number");
+    // The rest of the payload is untouched by a bad id.
+    assert.equal(parsed.x, GOOD.x);
+    assert.equal(parsed.width, GOOD.width);
+  });
+}
+
+test("a state file with no displayId still restores its rectangle, reporting a soft fault", () => {
+  // The state file every launch before CS-1361 wrote. SCHEMA_VERSION is NOT
+  // bumped for it: a bump would fail the exact-equality schema check and throw
+  // away a position the operator chose, and there is nothing to migrate.
+  const dir = tempDir();
+  plantDisplayId(dir, null);
+  const report = inspect(dir);
+  assert.equal(report.restored, true, "an old state file lost its remembered position");
+  assert.equal(report.state.displayId, 0);
+  assert.equal(report.state.x, 10);
+  assert.equal(report.state.width, 1100);
+  assert.ok(
+    report.faults.some((fault) => fault.includes("displayId")),
+    `the faults named no displayId: ${JSON.stringify(report.faults)}`,
+  );
+  const loaded = load(dir);
+  assert.equal(loaded.displayId, 0);
+  assert.deepEqual(Object.keys(loaded).sort(), [...STATE_KEYS].sort());
+});
+
+// Each way a displayId in the FILE can be wrong. Every one keeps the rectangle.
+const DISPLAY_ID_JUNK = [
+  ["a string", '"5"'],
+  ["a float", "5.5"],
+  ["null", "null"],
+  ["Infinity via a JSON literal", "1e999"],
+  ["true", "true"],
+  ["an object", "{}"],
+  ["an array", "[]"],
+  ["a negative integer", "-1"],
+  ["an integer too large to round trip", "1e21"],
+];
+
+for (const [label, literal] of DISPLAY_ID_JUNK) {
+  test(`displayId falls back to 0 without discarding the rectangle for ${label}`, () => {
+    const dir = tempDir();
+    plantDisplayId(dir, literal);
+    const report = inspect(dir);
+    assert.equal(report.restored, true, `${label} discarded a good rectangle`);
+    assert.equal(report.state.displayId, 0);
+    assert.equal(report.state.x, 10);
+    assert.equal(report.state.y, 20);
+    assert.equal(report.state.width, 1100);
+    assert.equal(report.state.height, 800);
+    assert.ok(
+      report.faults.some((fault) => fault.includes("displayId")),
+      `the faults named no displayId: ${JSON.stringify(report.faults)}`,
+    );
+    assert.equal(load(dir).displayId, 0);
+  });
+}
+
+test("displayId 0 in the file is the recorded sentinel, not a fault", () => {
+  // The control for the arms above: 0 is a LEGAL value - it is what "no display
+  // was recorded" is written as - so it must not report a fault of its own, or
+  // every launch after an unidentified display would carry a permanent one.
+  const dir = tempDir();
+  plantDisplayId(dir, "0");
+  const report = inspect(dir);
+  assert.equal(report.restored, true);
+  assert.equal(report.state.displayId, 0);
+  assert.deepEqual(report.faults, [], `displayId 0 reported ${JSON.stringify(report.faults)}`);
+});
+
+test("a junk displayId and a junk alwaysOnTop both fail safe at once", () => {
+  // Two soft fields, two faults, one intact rectangle. A fallback that returned
+  // early on the first soft fault would lose the second.
+  const dir = tempDir();
+  plant(dir, '{"schema":1,"x":10,"y":20,"width":1100,"height":800,"displayId":"5","alwaysOnTop":"yes"}');
+  const report = inspect(dir);
+  assert.equal(report.restored, true);
+  assert.equal(report.state.displayId, 0);
+  assert.equal(report.state.alwaysOnTop, false);
+  assert.equal(report.state.x, 10);
+  assert.equal(report.faults.length, 2, `the faults were ${JSON.stringify(report.faults)}`);
+});
+
 // --- prototype pollution ----------------------------------------------------
 
 // MEASURED on node v24.15.0 in this worktree:
@@ -373,6 +582,27 @@ test("a planted __proto__ never reaches the returned object's prototype", () => 
   assert.equal(loaded.polluted, undefined);
   assert.equal(Object.getPrototypeOf(loaded), Object.prototype);
   assert.deepEqual(Object.keys(loaded).sort(), [...STATE_KEYS].sort());
+});
+
+test("the new displayId key is not a path for a planted __proto__", () => {
+  // CS-1361 - the pollution arm re-run with the new key present, both ways
+  // round. An inherited displayId must not be read as a field value, and a
+  // real displayId beside a __proto__ payload must not drag the payload in.
+  const dir = tempDir();
+  plant(dir, '{"__proto__":{"displayId":99,"polluted":1},"schema":1,"x":10,"y":20,"width":1100,"height":800,"alwaysOnTop":false}');
+  const inherited = load(dir);
+  assert.equal(inherited.displayId, 0, "an inherited displayId was read as the field");
+  assert.equal(inherited.polluted, undefined);
+  assert.equal(Object.getPrototypeOf(inherited), Object.prototype);
+  assert.deepEqual(Object.keys(inherited).sort(), [...STATE_KEYS].sort());
+
+  const other = tempDir();
+  plant(other, '{"__proto__":{"polluted":1},"schema":1,"x":10,"y":20,"width":1100,"height":800,"displayId":7,"alwaysOnTop":false}');
+  const loaded = load(other);
+  assert.equal(loaded.displayId, 7);
+  assert.equal(loaded.polluted, undefined);
+  assert.equal(Object.getPrototypeOf(loaded), Object.prototype);
+  assert.equal({}.polluted, undefined);
 });
 
 test("a planted __proto__ does not pollute Object.prototype globally", () => {
@@ -445,7 +675,9 @@ test("a truncated partial never becomes the real file", () => {
 test("a save over an existing state file replaces it wholly", () => {
   const dir = tempDir();
   save(dir, GOOD);
-  const next = { schema: SCHEMA_VERSION, x: 5, y: 6, width: 700, height: 500, alwaysOnTop: false };
+  // displayId 0 here, deliberately: the sentinel is a legal saved value, so a
+  // replacement payload that records no display must still round trip whole.
+  const next = { schema: SCHEMA_VERSION, x: 5, y: 6, width: 700, height: 500, displayId: 0, alwaysOnTop: false };
   save(dir, next);
   assert.deepEqual(load(dir), next);
   const parsed = JSON.parse(fs.readFileSync(statePath(dir), "utf8"));
@@ -502,8 +734,10 @@ test("inspect names the fault it found rather than only reporting failure", () =
 // neither did this module's own header. These arms hold the claim to the case
 // it actually makes.
 
-const WRITER_A = Object.freeze({ schema: 1, x: 11, y: 22, width: 900, height: 700, alwaysOnTop: false });
-const WRITER_B = Object.freeze({ schema: 1, x: 33, y: 44, width: 1000, height: 750, alwaysOnTop: true });
+// Two different displayIds, so an arm that grades WHICH payload won also
+// grades that the whole payload won rather than a merge of the two.
+const WRITER_A = Object.freeze({ schema: 1, x: 11, y: 22, width: 900, height: 700, displayId: 11, alwaysOnTop: false });
+const WRITER_B = Object.freeze({ schema: 1, x: 33, y: 44, width: 1000, height: 750, displayId: 22, alwaysOnTop: true });
 
 test("a second writer's staging cannot empty a first writer's staged payload", () => {
   const dir = tempDir();

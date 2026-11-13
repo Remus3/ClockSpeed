@@ -87,6 +87,68 @@ with the workflows pinned and the tools untouched, green after. Cause: every red
 on ubuntu-26.04 and failed one probe test only, unreproduced under WSL Ubuntu 26.04.1; follow-up CS-1386 in
 `BACKLOG.md`. Item id: CS-1385, the next free id (CS-1384 is held by an unlanded worktree's ROADMAP.md).
 
+### 2026-11-12 - CS-1361 - CLOSED. CS-DISPLAY-BY-ID: the companion window is saved by display id, falls back silently to the primary, and caps its size at 96 percent of the work area
+Verification: `shell/lib/geometry.js` plus `shell/test/geometry.test.js::CS-1361 acceptance - a missing saved
+display lands the window on the primary inside its work area`; `shell/lib/state.js` plus
+`shell/test/state.test.js::a state file with no displayId still restores its rectangle, reporting a soft fault`;
+the wiring by `shell/test/geometry.test.js::main.js wires the display id through both halves of the round trip`
+and `::the main.js seam arms fail on each sabotage the verifier built`.
+DEFECT. The companion window remembered only a rectangle, so its monitor was re-derived from coordinates on every
+launch. A desktop rearranged between launches made those coordinates name a different monitor or none, and the
+window either moved or was treated as adrift. Nothing recorded WHICH display the operator had put it on.
+ROOT CAUSE, AND IT WAS A SEAM, NOT AN ALGORITHM. `geometry.js` had a correct largest-overlap rule and no notion
+of display identity at all, and `state.js`'s schema had no field that could carry one - so there was nothing for
+a caller to save and nothing for it to match. The fix adds the field, matches on it first, and caps size at
+`USABLE_FRACTION` of the work area.
+SIBLING SWEEP. One sibling, found by the verifier and swept with a test: the read half of the electron mapping
+was moved out of `main.js` into `geometry.displaysFrom` so a test could reach it, and the write half was left in
+`main.js` - the same fault one line apart, in the same slice. `geometry.displayIdFrom` now owns the write half's
+sanitation, `main.js` keeps only the electron call, and `::displayIdFrom and displaysFrom agree on what an id is`
+pins the one predicate both use. No other site in the tree re-derives a display from coordinates (`shell/` is the
+only consumer of either module).
+TIER 2 PAID, for a persisted-schema change and two new public functions on a module seam. Counts observed THIS
+run, in this worktree, each written to a file and read back: `cd shell && node --test` exit 0, verbatim
+`tests 389`, `pass 389`, `fail 0`, `skipped 0`; `python -m pytest tests/shell -q` through the kit suite gate exit
+0, verbatim `141 passed, 1 warning in 0.56s`. 47 of the node cases are new or re-derived. `python -m ruff check .` exits 0,
+`All checks passed!`. IT DID NOT WHEN THIS WORK WAS WRITTEN: it then reported 31 findings, every one of them
+pre-existing in python files this item does not touch, and the pre-push suite was RED on
+`tests/test_precommit_gate.py`. Both were one cause - an installed ruff outside the range `pyproject.toml`
+declares - and neither was this item's. The adjudicated repair and the frozen-file denial it produced are
+recorded under CS-484 in this file; this item's push waited on them.
+SCHEMA_VERSION STAYS 1, DELIBERATELY. `displayId` is additive and its absence is a legal value, so an existing
+state file still restores the position the operator chose; a bump would have discarded every one of them to
+migrate nothing. A missing or junk `displayId` is a SOFT fault that never discards a good rectangle, and its
+"not recorded" sentinel is the integer 0 rather than null, because this schema's own safety property is that
+every value is a number or a boolean and so it cannot carry a world name.
+DPI. The 96 percent cap is computed against electron's `workArea`, which is device-independent pixels, as
+`BrowserWindow` bounds are - so it is a 96 percent cap in physical pixels at every scale factor. The verifier
+measured that at seven scale factors from 1 to 3: 95.938 to 95.996 percent physical, never above 96.
+A CORRECTION LANDED IN THIS SAME COMMIT, and it is the one claim of this item that was REFUTED. The
+`USABLE_FRACTION` comment first fenced off a savedScale/currentScale rescale as "double counting". That argument
+is FALSE and the verifier disproved it: below the cap the clamp does not act, so a rescale would be the only
+change rather than a second one, and at the cap the two merely agree. The decision not to take a `scaleFactor`
+stands on the two reasons that survive - purity, and a clause that asks for a work-area-relative cap and not for
+physical-size preservation - and the false argument is recorded in place rather than deleted, because a
+do-not-re-pitch fence nobody can reproduce is worse than no fence.
+VERIFIER: CONFIRMED WITH CORRECTIONS, by a verifier agent that produced none of the work, against a tree frozen
+by `tools/freeze_witness.py` at `e89deafcb3b65a70f6922fc3963b00d1e8bbdd450e4bbac89c0faa0d7bfbcf30`, 654 files,
+read back `unmoved - tree and bytecode match the record`. It graded all four sentences of the acceptance clause
+MET from the shipped code and by its own execution probes, re-derived the three changed expectations
+independently, and found no pre-existing expectation weakened or deleted (every `test()` name at HEAD survives
+verbatim; the two files went 23 to 47 and 55 to 66 cases).
+TWO HONEST LIMITS ON THAT VERDICT, STATED BECAUSE A CAVEAT LEFT IN A CYCLE REPORT DID NOT SURVIVE THE CYCLE.
+First, the verifier's own re-run of `tests/shell` was REFUSED by the suite gate, exit 3, because this session
+held an uncommitted-edit claim in the tree; it replicated that module's arms by direct read-only probe instead,
+and the 141-passed count above is this session's own run, not an independent one. Second, the two repairs the
+verifier directed - the comment correction and the `displayIdFrom` sweep - landed AFTER its verdict, so no
+verifier graded them; what grades them is the suite above and the sabotage arm, which was written because the
+verifier measured the three source-text arms it replaced as worthless, building a `main.js` that passed every one
+while falling back to the first display and remembering no id at all.
+WHAT IS STILL NOT GRADED BY EXECUTION: `shell/main.js` requires electron, so no test in CI can load it. Its
+wiring is graded by source-text arms over the two call sites, and those arms are themselves graded against three
+sabotages. That is the house idiom - `shell/lib/verdict.js` exists because a mapping inside `main.js` was
+ungraded - and this item moved both halves of its own mapping out to shrink what the idiom has to cover.
+
 ### 2026-11-12 - CS-1383 - CLOSED: the version pin re-pinned to the patched game build; the docs bytes and the census are unchanged, so only the build string and the integrity digest moved
 Verification: merged file `clockspeed/data/version.py` (`_PIN_JSON`: game_build and integrity only;
 docs_sha256, docs_bytes and the census unchanged), regenerated by `python tools/drift_guard.py --re-extract`

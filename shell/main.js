@@ -394,9 +394,19 @@ function installVerifyProc(pinnedDer) {
 }
 
 function openWindow(saved) {
+  // CS-1361 - saved.displayId IS FORWARDED, and the displays carry their ids.
+  // This call used to rebuild `saved` with exactly four keys and hand over bare
+  // work areas, which left geometry.js's whole display-id path unreachable in
+  // the running application however well its own tests passed.
   const placement = geometry.resolveBounds({
-    saved: { x: saved.x, y: saved.y, width: saved.width, height: saved.height },
-    workAreas: screen.getAllDisplays().map((display) => display.workArea),
+    saved: {
+      x: saved.x,
+      y: saved.y,
+      width: saved.width,
+      height: saved.height,
+      displayId: saved.displayId,
+    },
+    displays: geometry.displaysFrom(screen.getAllDisplays(), screen.getPrimaryDisplay()?.id),
     defaults: { width: state.DEFAULTS.width, height: state.DEFAULTS.height },
     minimum: { width: windowLib.MIN_WIDTH, height: windowLib.MIN_HEIGHT },
   });
@@ -456,6 +466,16 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
         y: bounds.y,
         width: bounds.width,
         height: bounds.height,
+        // CS-1361 - the display the window is on, so the next launch can put
+        // it back on THAT monitor rather than inferring one from coordinates a
+        // rearranged desktop has already invalidated. getDisplayMatching is
+        // electron's own answer to "which monitor is this window on"; deriving
+        // it from the rectangle here would put geometry.js's largest-overlap
+        // rule in a second place, where the two can disagree. A toolkit that
+        // throws here is caught below with every other save fault, and one
+        // that answers nothing usable yields the 0 sentinel rather than
+        // costing the operator the whole saved position.
+        displayId: geometry.displayIdFrom(screen.getDisplayMatching(bounds)),
         alwaysOnTop: persistedAlwaysOnTop,
       }, { renameDeadlineMs });
     } catch {
