@@ -8816,10 +8816,11 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
 
     Gating the decode on resolution would in fact decode nothing that matters:
     the shipped mapping carries NO ``Build_*`` schema and only 2 blueprint
-    generated schemas out of 13792, so every one of the 24314 building records
-    in this library resolves to nothing. Buildings are exactly what pillar 3
-    audits, and a reader that refused them would be permanently empty where it
-    is most needed.
+    generated schemas out of the whole schema section (its measured size is in
+    ``USMAP_EVIDENCE`` in ``tests/save/synthetic.py``), so every one of the
+    24314 building records in this library resolves to nothing. Buildings are
+    exactly what pillar 3 audits, and a reader that refused them would be
+    permanently empty where it is most needed.
 
     So ``resolved`` and the decode are reported INDEPENDENTLY. An unresolved
     class is still flagged - non-negotiable 7 - and its self-describing
