@@ -104,7 +104,7 @@ env:
 jobs:
   fast:
     name: gates, lint, types, tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # THE RUNAWAY CUTOFF, AND IT IS NOT A BUDGET. A hung step must stop burning
     # metered minutes rather than reach the six-hour default. It CANCELS, and a
     # cancelled run is evidence of NOTHING: nothing failed, nothing was
@@ -596,7 +596,7 @@ jobs:
   # the same bytes twice and pay twice for it. They belong to the job above.
   save:
     name: tests (save shard)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # THE SAME CUTOFF AS THE JOB ABOVE, for the same reason, and guard (k) pins this
     # one too. A shard is not a licence to run long.
     timeout-minutes: 10
@@ -932,7 +932,7 @@ jobs:
   # running them again in this job would measure the same bytes twice and pay twice.
   guards:
     name: tests (guard shard)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
     # not a licence to run long.
     timeout-minutes: 10
@@ -1171,7 +1171,7 @@ jobs:
   # NO GATES HERE, for the reason the save shard already states.
   hooks:
     name: tests (hook shard)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
     # not a licence to run long.
     timeout-minutes: 10
@@ -1354,7 +1354,7 @@ jobs:
   # NO GATES HERE, for the reason the save shard already states.
   fill:
     name: tests (fill shard)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
     # not a licence to run long.
     timeout-minutes: 10
@@ -1598,7 +1598,7 @@ jobs:
   # NO GATES HERE, for the reason the save shard already states.
   scan:
     name: tests (scan shard)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
     # not a licence to run long.
     timeout-minutes: 10

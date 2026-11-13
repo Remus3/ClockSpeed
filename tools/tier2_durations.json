@@ -11,7 +11,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "clean-checkout probe (ubuntu-latest, hooks shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, hooks shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:23:46Z"
@@ -19,7 +19,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "full suite (ubuntu-latest, save shard)",
+      "job": "full suite (ubuntu-24.04, save shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:26:15Z"
@@ -27,7 +27,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "clean-checkout probe (ubuntu-latest, fast shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, fast shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:23:34Z"
@@ -51,7 +51,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "shell suite (ubuntu-latest)",
+      "job": "shell suite (ubuntu-24.04)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:20:54Z"
@@ -59,7 +59,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "clean-checkout probe (ubuntu-latest, scan shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, scan shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:24:26Z"
@@ -75,7 +75,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "full suite (ubuntu-latest, fast shard)",
+      "job": "full suite (ubuntu-24.04, fast shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:23:21Z"
@@ -91,7 +91,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "clean-checkout probe (ubuntu-latest, guards shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, guards shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:24:08Z"
@@ -107,7 +107,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "full suite (ubuntu-latest, guards shard)",
+      "job": "full suite (ubuntu-24.04, guards shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:24:52Z"
@@ -123,7 +123,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "full suite (ubuntu-latest, scan shard)",
+      "job": "full suite (ubuntu-24.04, scan shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:22:57Z"
@@ -131,7 +131,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "full suite (ubuntu-latest, hooks shard)",
+      "job": "full suite (ubuntu-24.04, hooks shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:24:46Z"
@@ -147,7 +147,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "clean-checkout probe (ubuntu-latest, fill shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, fill shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:26:02Z"
@@ -171,7 +171,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "full suite (ubuntu-latest, fill shard)",
+      "job": "full suite (ubuntu-24.04, fill shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:27:46Z"
@@ -211,7 +211,7 @@
     {
       "run_id": 39526765992,
       "head_sha": "f9b877256dd82e8d2844b6d7c876d3ab822ff097",
-      "job": "clean-checkout probe (ubuntu-latest, save shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, save shard)",
       "conclusion": "success",
       "started_at": "2026-10-21T01:20:47Z",
       "completed_at": "2026-10-21T01:26:13Z"
@@ -219,7 +219,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "shell suite (ubuntu-latest)",
+      "job": "shell suite (ubuntu-24.04)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:32:57Z"
@@ -227,7 +227,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "clean-checkout probe (ubuntu-latest, fast shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, fast shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:35:21Z"
@@ -243,7 +243,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "clean-checkout probe (ubuntu-latest, hooks shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, hooks shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:36:51Z"
@@ -259,7 +259,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "full suite (ubuntu-latest, scan shard)",
+      "job": "full suite (ubuntu-24.04, scan shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:36:33Z"
@@ -275,7 +275,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "clean-checkout probe (ubuntu-latest, save shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, save shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:36:53Z"
@@ -283,7 +283,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "full suite (ubuntu-latest, hooks shard)",
+      "job": "full suite (ubuntu-24.04, hooks shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:36:09Z"
@@ -291,7 +291,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "full suite (ubuntu-latest, fast shard)",
+      "job": "full suite (ubuntu-24.04, fast shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:35:09Z"
@@ -299,7 +299,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "clean-checkout probe (ubuntu-latest, guards shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, guards shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:35:49Z"
@@ -315,7 +315,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "full suite (ubuntu-latest, save shard)",
+      "job": "full suite (ubuntu-24.04, save shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:38:17Z"
@@ -355,7 +355,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "full suite (ubuntu-latest, guards shard)",
+      "job": "full suite (ubuntu-24.04, guards shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:49Z",
       "completed_at": "2026-10-20T08:37:00Z"
@@ -403,7 +403,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "clean-checkout probe (ubuntu-latest, fill shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, fill shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:40:01Z"
@@ -411,7 +411,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "full suite (ubuntu-latest, fill shard)",
+      "job": "full suite (ubuntu-24.04, fill shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:39:58Z"
@@ -419,7 +419,7 @@
     {
       "run_id": 39394172124,
       "head_sha": "fa61bbc90a53d10507ba31466bdfe206322b4db6",
-      "job": "clean-checkout probe (ubuntu-latest, scan shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, scan shard)",
       "conclusion": "success",
       "started_at": "2026-10-20T08:32:48Z",
       "completed_at": "2026-10-20T08:34:58Z"
@@ -435,7 +435,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "shell suite (ubuntu-latest)",
+      "job": "shell suite (ubuntu-24.04)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:53:21Z"
@@ -459,7 +459,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "clean-checkout probe (ubuntu-latest, guards shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, guards shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:57:22Z"
@@ -483,7 +483,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "clean-checkout probe (ubuntu-latest, fill shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, fill shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:58:31Z"
@@ -499,7 +499,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "clean-checkout probe (ubuntu-latest, fast shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, fast shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:55:28Z"
@@ -515,7 +515,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "clean-checkout probe (ubuntu-latest, hooks shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, hooks shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:15Z",
       "completed_at": "2026-10-19T08:57:22Z"
@@ -523,7 +523,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "clean-checkout probe (ubuntu-latest, save shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, save shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:56:02Z"
@@ -531,7 +531,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "clean-checkout probe (ubuntu-latest, scan shard)",
+      "job": "clean-checkout probe (ubuntu-24.04, scan shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:56:16Z"
@@ -547,7 +547,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "full suite (ubuntu-latest, hooks shard)",
+      "job": "full suite (ubuntu-24.04, hooks shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:15Z",
       "completed_at": "2026-10-19T08:57:22Z"
@@ -587,7 +587,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "full suite (ubuntu-latest, save shard)",
+      "job": "full suite (ubuntu-24.04, save shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:58:32Z"
@@ -603,7 +603,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "full suite (ubuntu-latest, fill shard)",
+      "job": "full suite (ubuntu-24.04, fill shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T09:00:19Z"
@@ -611,7 +611,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "full suite (ubuntu-latest, guards shard)",
+      "job": "full suite (ubuntu-24.04, guards shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:14Z",
       "completed_at": "2026-10-19T08:57:14Z"
@@ -619,7 +619,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "full suite (ubuntu-latest, fast shard)",
+      "job": "full suite (ubuntu-24.04, fast shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:15Z",
       "completed_at": "2026-10-19T08:55:23Z"
@@ -627,7 +627,7 @@
     {
       "run_id": 39225962083,
       "head_sha": "67b6d7c6f81100c4a3f0f7442c35a16d5572f655",
-      "job": "full suite (ubuntu-latest, scan shard)",
+      "job": "full suite (ubuntu-24.04, scan shard)",
       "conclusion": "success",
       "started_at": "2026-10-19T08:53:15Z",
       "completed_at": "2026-10-19T08:56:09Z"

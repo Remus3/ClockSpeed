@@ -122,15 +122,18 @@ CEILING_KEY = "TIER1_CEILING_SECONDS"
 # echo: a value a run printed is a reading of one run, and a grader that takes its
 # own denominator from the subject it grades moves with the subject.
 #
-# BASIS FOR THE ONE ENTRY. `docs/item_notes/phase4-followups-900.md` records the
+# BASIS FOR THE ENTRIES. `docs/item_notes/phase4-followups-900.md` records the
 # tier1 runner profile taken on the runner itself: GitHub `ubuntu-latest`,
 # `nproc` 2, 7938 MB. GitHub's hosted standard Linux runner is a 2-core machine.
+# `ubuntu-24.04` is that same runner by its pinned label (CS-1385): every recorded
+# ubuntu tier2 job logged `Image: ubuntu-24.04` while `ubuntu-latest` named it.
 #
 # A LABEL THAT IS NOT HERE IS AN ERROR, NOT A DEFAULT. Defaulting an unknown
 # runner to any number would make the hard level a guess wearing a measurement's
 # clothes, and the guess would be invisible. `worker_counts` raises instead.
 RUNNER_WORKERS = {
     "ubuntu-latest": 2,
+    "ubuntu-24.04": 2,
 }
 
 #: The step whose wall clock is the denominator. See the module docstring.

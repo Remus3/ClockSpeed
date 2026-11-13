@@ -112,7 +112,7 @@ jobs:
         # PowerShell 5.1 ANSI-decoding a BOM-less .ps1, LF-to-CRLF conversion in
         # write_text, and backslash paths in JSON config. ubuntu-latest is the
         # cheap canary and the portability check.
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
         # The tier1.yml job ids, one leg each. Each value selects exactly one
         # suite step below by its `if:`, and tests/test_tier1_budget.py is red
         # on a value with no step, a step with no value, or a second step.
@@ -326,7 +326,7 @@ jobs:
         # the other classic trap - measured 2026-08-13 as tolerated by Git for
         # Windows' bundled bash, but dash and ash on this POSIX runner are stricter,
         # which is exactly why the probe runs on both platforms.
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
         # The same six values as job 1, graded by the same arm.
         shard: [fast, save, guards, hooks, fill, scan]
     defaults:
@@ -1017,7 +1017,7 @@ jobs:
       # target. Never let one abort the other.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     defaults:
       run:
         # One script for both platforms, as everywhere else in this file.

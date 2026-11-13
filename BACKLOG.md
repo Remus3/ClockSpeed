@@ -56,6 +56,14 @@ the first: a consumer actually needs to follow a component to its parent.**
   from 2026-10-19, and every tier1 job and the ubuntu leg of each tier2 matrix run on
   `ubuntu-latest`, so the image changes under an unchanged workflow - TRIGGER: the first tier1
   or tier2 run on Ubuntu 26 fails, or 2026-10-19 passes: re-read tier1 and tier2.
+- CS-1386 - move the ubuntu test jobs off the CS-1385 `ubuntu-24.04` pin to Ubuntu 26.04:
+  every 26.04 run from 2026-11-12 failed only
+  `tests/test_probe_refusal_output.py::test_a_slow_starting_stubborn_sleep_still_ends_by_the_kill`
+  (exit 124, 137 expected) yet it passed 6 of 6 under WSL Ubuntu 26.04.1, so first log
+  `timeout --version` and `env --version` in the fill shard and adapt the test or its shim to
+  what that shows; the moved tier2 legs go in `PENDING_FIRST_RECORD`, never renamed back in
+  `tools/tier2_durations.json` - TRIGGER: GitHub announces the 24.04 image retirement, or a
+  fill-shard log shows the 26.04 coreutils.
 
 ## Mod content support
 
