@@ -1263,7 +1263,7 @@ reddens a suite. Every CS-1295 line: a consumer check per group first, Recycle B
   compares the two, which is the part still open. Measured 2026-11-12 by the lane: installed 0.17.3
   against a declared `ruff>=0.13,<0.16`, with TWO symptoms from ONE cause - 31 `ruff check .` findings,
   13 of them inside the byte-pinned `ops/fleet_kit/`, AND a RED suite at
-  `tests/test_precommit_gate.py:3956`, the arm that plants a dirty file and asserts the gate NAMES it.
+  `tests/test_precommit_gate.py::test_the_format_finding_names_the_repo_relative_label_and_leaks_no_path`, the arm that plants a dirty file and asserts the gate NAMES it.
   `tools/precommit_gate.py` matches the prefix `Would reformat: `; 0.17 prints a different shape, so the
   gate still BLOCKED correctly - its verdict is ruff's EXIT CODE, never the message - but could match no
   filename. That red blocked every push from every tree, the lane's included.

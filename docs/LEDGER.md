@@ -92,7 +92,7 @@ Verification: `BACKLOG.md`, the ruff entry, which carries every read-back value;
 148, the governing fence; `tests/test_precommit_gate.py` exit 0 at 161 passed, and `python -m ruff check .`
 exit 0 reading `All checks passed!`, both observed after the repair.
 WHY A LANE CYCLE ADJUDICATED THIS. CS-1361's push was refused: the pre-push hook runs the whole suite with -x
-and `tests/test_precommit_gate.py:3956` was RED. The red was PRE-EXISTING - that cycle's diff touched five
+and `tests/test_precommit_gate.py::test_the_format_finding_names_the_repo_relative_label_and_leaks_no_path` was RED. The red was PRE-EXISTING - that cycle's diff touched five
 files under `shell/` and four markdown docs, and none of `tools/precommit_gate.py`, its test,
 `pyproject.toml` or any ruff configuration. No push of any kind could land from any tree while it stood, so
 it was not a thing one row could defer.
