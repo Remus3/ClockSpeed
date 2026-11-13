@@ -1259,6 +1259,36 @@ reddens a suite. Every CS-1295 line: a consumer check per group first, Recycle B
 - CS-1295 review F043: remove the three stray scratch files the first review run left in a system
   Temp folder; precondition: they are still those three; trigger: an operator or MAIN order, a red
   suite, or disk pressure.
+- The installed ruff drifted OUT of the range `pyproject.toml` declares and nothing on this machine
+  compares the two, which is the part still open. Measured 2026-11-12 by the lane: installed 0.17.3
+  against a declared `ruff>=0.13,<0.16`, with TWO symptoms from ONE cause - 31 `ruff check .` findings,
+  13 of them inside the byte-pinned `ops/fleet_kit/`, AND a RED suite at
+  `tests/test_precommit_gate.py:3956`, the arm that plants a dirty file and asserts the gate NAMES it.
+  `tools/precommit_gate.py` matches the prefix `Would reformat: `; 0.17 prints a different shape, so the
+  gate still BLOCKED correctly - its verdict is ruff's EXIT CODE, never the message - but could match no
+  filename. That red blocked every push from every tree, the lane's included.
+  REPAIRED INTO THE BASE ENVIRONMENT, and that is disclosed rather than buried: the lane ran
+  `pip install "ruff>=0.13,<0.16"` (0.17.3 out, 0.15.22 in) inside a `fleet_suite_gate --exclusive` slot.
+  The session 156 hand-off has SINCE ruled that pip installs go only into `.venv` and never into base, and
+  that ruling was not in the lane's tree when it acted. The outcome is benign and was checked: the main
+  checkout's `.venv` already carries ruff 0.15.22, so base now matches the venv rather than diverging from
+  it. A session following the hand-off is unaffected either way; the lane worktree has no `.venv` and runs
+  base python, which is why base was what blocked it.
+  Read back after the repair: `ruff check .` exit 0 `All checks passed!` - so all 31 were the skew and none
+  was a real fault; `ruff format --check .` exit 0 over 449 files; `pytest tests/test_precommit_gate.py`
+  exit 0 at 161 passed; `scripts/verify_env.py` VERDICT PASS. `pip check` reports one unrelated
+  pre-existing conflict, pyinstxtractor-ng against xdis, not ruff.
+  THE FENCE THIS CONFIRMS RATHER THAN CHALLENGES: `pyproject.toml` lines 132 to 148 already record this
+  exact incident and say DO NOT WIDEN THIS BACK, because 0.16 reworded that very line. The upper bound is
+  load-bearing; the in-range version is the contract.
+  WHAT IS STILL OPEN. `scripts/verify_env.py` asserts only that ruff is importable, and
+  `tests/test_dev_dependency_bounds.py` grades the declared STRING, so neither compares the INSTALLED
+  version to the bound. CI installs the dev extra, resolves in range, and can never see the skew - which is
+  why a 2026-11-05 install sat unnoticed for a week and why any `pip install -U ruff` reinstates it
+  silently. The `.venv` ruling narrows the exposure without closing it, exactly as the bound narrows CS-484
+  without closing it. The durable repair belongs to CS-484, whose own note already nominates
+  `scripts/verify_env.py` as the site: an arm asserting the installed ruff falls inside the
+  `pyproject.toml` range. Trigger: CS-484 being worked, or the skew recurring.
 - CS-1361 residual: `isDisplayId` exists twice with two definitions - `shell/lib/geometry.js` takes an integer
   above 0, `shell/lib/state.js` takes a safe integer at or above 0. No live fault, because `serialize` refuses
   an unsafe integer to the 0 sentinel; one rule in two places is how the two come to disagree. Trigger: a third

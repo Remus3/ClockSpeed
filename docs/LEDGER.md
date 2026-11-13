@@ -87,6 +87,58 @@ with the workflows pinned and the tools untouched, green after. Cause: every red
 on ubuntu-26.04 and failed one probe test only, unreproduced under WSL Ubuntu 26.04.1; follow-up CS-1386 in
 `BACKLOG.md`. Item id: CS-1385, the next free id (CS-1384 is held by an unlanded worktree's ROADMAP.md).
 
+### 2026-11-12 - CS-484 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-484 STAYS OPEN: an installed ruff outside the declared range was repaired, and a frozen-file edit to `tools/precommit_gate.py` was DENIED by the adjudicator who could have granted it
+Verification: `BACKLOG.md`, the ruff entry, which carries every read-back value; `pyproject.toml` lines 132 to
+148, the governing fence; `tests/test_precommit_gate.py` exit 0 at 161 passed, and `python -m ruff check .`
+exit 0 reading `All checks passed!`, both observed after the repair.
+WHY A LANE CYCLE ADJUDICATED THIS. CS-1361's push was refused: the pre-push hook runs the whole suite with -x
+and `tests/test_precommit_gate.py:3956` was RED. The red was PRE-EXISTING - that cycle's diff touched five
+files under `shell/` and four markdown docs, and none of `tools/precommit_gate.py`, its test,
+`pyproject.toml` or any ruff configuration. No push of any kind could land from any tree while it stood, so
+it was not a thing one row could defer.
+ROOT CAUSE, ONE CAUSE WITH TWO SYMPTOMS. Installed ruff 0.17.3 against a declared `ruff>=0.13,<0.16`.
+`tools/precommit_gate.py` matches the prefix `Would reformat: ` to name the offending file; 0.17 prints a
+different shape, so the gate blocked correctly on the exit code but could name no file. The same skew
+produced 31 `ruff check .` findings, 13 inside the byte-pinned `ops/fleet_kit/` that no tree may edit.
+RULING: repair the MACHINE, not the repository, because the deviation was the machine's.
+`pip install "ruff>=0.13,<0.16"` resolved 0.15.22, run inside a `fleet_suite_gate --exclusive` slot so it
+could not land under the live suite then running in the main checkout. All 31 findings cleared, which settles
+the one thing the adjudicator refused to predict: the measured count after the swap is 0.
+WHAT THE LANE DID NOT KNOW WHEN IT ACTED, DISCLOSED BECAUSE THE RECORD IS WORTH LESS WITHOUT IT. The install
+went into the BASE environment. Session 156's hand-off has since ruled that pip installs go only into
+`.venv` and never into base; that ruling landed in `origin/main` while this cycle was running and was not in
+the lane's tree. The outcome was checked rather than assumed: the main checkout's `.venv` already carries
+ruff 0.15.22, so base now MATCHES the venv instead of diverging from it, and a session following the
+hand-off is unaffected either way. The lane worktree has no `.venv` and runs base python, which is why base
+was what blocked it. A future lane should install into a venv it owns, or run the hand-off's interpreter.
+FROZEN-FILE DENIAL, recorded here because the lane's FENCE 3 is where a future cycle looks. An edit to
+`tools/precommit_gate.py` teaching its parser both output shapes was DENIED. It loses on a measurable ground,
+not on taste: a dual-shape parser has two branches and only ONE could be exercised while the in-range ruff
+was absent, so the old-prefix branch would ship unexercised under a green suite - the same shape as the
+CS-1291 denial, a grant whose condition cannot be honestly met. It would also edit a tier-0 gate to make the
+repository quietly support a version its own `pyproject.toml` forbids, and it would have left all 31 lint
+findings standing. THREE CONDITIONS WOULD MAKE A FUTURE GRANT HONEST, ALL REQUIRED: (a) ruff in declared
+range with the old-prefix branch seen green under it; (b) the bound in `pyproject.toml` moved DELIBERATELY
+in the same commit, with `ruff format --check .` re-run over the tree first, so the repo stops declaring a
+version it does not support; (c) a red test for the 0.17 shape seen red for the right reason, the parser
+proven to take only the path out of that output and never to re-emit the diff body - which prints source
+lines verbatim and is therefore a non-negotiable 12 echo path - with an arm asserting a source fragment
+absent. (a) and (c) are now honestly meetable; (b) is a deliberate toolchain bump, which is
+operator-or-CI-evidence work under this item and never a lane cycle's call.
+THE LASTING FINDING, AND IT IS WHY THIS RECORD EXISTS AT ALL. Nothing on this machine compares the INSTALLED
+ruff to the DECLARED bound. `scripts/verify_env.py` asserts only that ruff imports;
+`tests/test_dev_dependency_bounds.py` grades the declared string; CI installs the dev extra, resolves in
+range, and can never see the skew. A 2026-11-05 install therefore sat unnoticed for a week, and any
+`pip install -U ruff` reinstates it silently. The repair restored the STATE, not the INVARIANT, and the
+`.venv` ruling narrows the exposure without closing it. That assertion belongs to this item, at the site its
+own note already nominates.
+NO ITEM WAS OPENED AND NONE WAS MOVED. The skew is filed in `BACKLOG.md` and local-versus-declared
+divergence is already this item's; a lane cycle has no standing to move an item between files, and product
+before process permitted acting here only because that entry's own trigger - a lint step going red - had
+fired, as a measured local suite red.
+TIER 1, and no verifier pass graded it: the lane's one bounded refutation round was spent on CS-1361, the act
+authored no tracked byte and is one reversible command, and what grades it is the read-backs above.
+
 ### 2026-11-12 - CS-1361 - CLOSED. CS-DISPLAY-BY-ID: the companion window is saved by display id, falls back silently to the primary, and caps its size at 96 percent of the work area
 Verification: `shell/lib/geometry.js` plus `shell/test/geometry.test.js::CS-1361 acceptance - a missing saved
 display lands the window on the primary inside its work area`; `shell/lib/state.js` plus
