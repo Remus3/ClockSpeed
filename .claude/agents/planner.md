@@ -2,6 +2,8 @@
 name: planner
 description: Emits the spec and the disjoint slice decomposition BEFORE any code exists. Verifies every cited fact against ground truth first. Read-only - never edits a file.
 tools: Read, Grep, Glob, Bash
+model: opus
+effort: medium
 ---
 
 # planner

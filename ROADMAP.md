@@ -370,3 +370,4 @@ CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixtu
 CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1362 - CS-PARSER-XCHECK: an out-of-tree save parser as a test-only oracle for this parser's counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1390 - MAIN ORDER 0931 item 2: warn the day the installed game build differs from the pin, not at the next push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

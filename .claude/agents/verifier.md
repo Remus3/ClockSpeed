@@ -2,6 +2,8 @@
 name: verifier
 description: Ground-truth re-check. Re-runs the suite clean, confirms every cited file exists, cross-checks every claim against the artifact. Reports a verdict and NEVER edits.
 tools: Read, Grep, Glob, Bash
+model: sonnet
+effort: medium
 ---
 
 # verifier

@@ -1308,3 +1308,20 @@ reddens a suite. Every CS-1295 line: a consumer check per group first, Recycle B
   `screen.getAllDisplays()[].id` is true of electron's API and unreachable in CI, and the whole saved-id round
   trip rests on it. Trigger: a launched-application check becoming cheap, or a report of a window forgetting
   its monitor.
+
+## MAIN ORDER 0931 - filed 2026-11-14 under product before process
+
+MAIN ORDER 2026-11-14 09:31 items 1, 3 and 4 open new tooling or guard work that neither blocks a product
+item nor reddens a suite, so CLAUDE.md section 7 files them here; a MAIN note does not reverse that fence.
+Trigger for all three: the operator's own words in the main session, or a measured product block.
+
+- CS-1391 - ORDER item 1: the lane prompt template stops a build at 40 minutes, suite-gate waits included,
+  after committing and writing its item-12 progress file per slice; the queue respawns the same item as
+  the next slice, which reads that file. The kit spawn timeout stays 3600 s. Acceptance: the template read
+  back with the stop line, and a test that a stopped slice respawns the same item.
+- CS-1392 - ORDER item 3, the check half (the relocation half landed 2026-11-14): /done runs wc -c on
+  the hand-off and above 25000 prints the five largest sections with byte counts and stops until one is
+  relocated to docs/history_notes.md.
+- CS-1393 - ORDER item 4: a new session-start reads script (MAIN names it session_start_reads) prints one line - remote equals HEAD or not, the
+  CI conclusion for the full SHA, the timing record's blocked_by_flake - called from act 1 of the
+  hand-off.

@@ -57,12 +57,7 @@ THE KEPT REFS - branches lane0-cs1361, cs1361-land (its tree aff4, locked), back
 4. THE OPEN ITEMS, in the order below, by sub-agents; lane cycles by this tree's lane policy (THE LANES).
 5. /done when the operator stops the run, or unprompted when no task remains.
 
-=== SESSION 156 - CLOSED (docs/LEDGER.md owns each record) ===
-CS-1383 re-pin to the patched game build. CS-1389 kit v30 (id allocated at this /done). CS-1385 CI ubuntu
-pinned to 24.04. CS-1361 window saved by display id, after an adversary repair. CS-1379 quoted display-name
-targets. CS-1382 raw supply only with a held extractor, a factual cap clause; CS-1379 and CS-1382 adjudicated
-LAND, sections relocated to docs/history_notes.md. Also: the CS-484 decision record and its citation fix;
-CS-1366's three exit-1 runs classified, the count sent to MAIN.
+=== SESSION 156 - CLOSED and its /done REPORT: in docs/history_notes.md (MAIN ORDER 0931) ===
 TO SEE IT: `python -m clockspeed.surface`, the Advice panel: target, rate, direction, policy, "Ask for advice",
 "Read derivation". No human has seen it in a browser.
 
@@ -146,9 +141,7 @@ R1. KIT: v30 adopted (CS-1389), drift clean per the 09:05 ANSWER. v27 step 3 is 
     seen-ledger backfill first. MAIN byte-copied the 0026 and 0450 ANSWERs: NEVER RESEND.
 R2. CS-1360 to CS-1362 filed by ORDER 2026-10-31-2215: CS-1361 closed, CS-1360 open, CS-1362 waits on the
     licence gate.
-TIMING CARRY, the record's session_155 key: push exit 0, tip 0301c018, remote equal, 18603 passed, 0 failed,
-13 skipped, 1276.26 s; gate wait 0.003 s, hold 1277.847 s; wall 2282 s; scratch sweep exit 0, 141209 files
-to 4805, 36 directories to the Recycle Bin; tier1 41950432575 success. SESSION 156'S PUSHES: fb99961a (tier1
+TIMING CARRY (session_155): docs/history_notes.md. SESSION 156'S PUSHES: fb99961a (tier1
 43330982284 failure, the ubuntu-26.04 red CS-1385 cured), 47ed0c2f (tier1 43456137235 success), 28ecdd25
 (tier1 43475465307 success), 6d943b29 (tier1 43514540437 success). The 2026-11-08 responder push was blocked
 by guard (h).
@@ -195,7 +188,7 @@ ROOT the E: checkout (ADR 0026), C: a junction. Land by cherry-pick, never merge
   main-tree pushurl; each linked worktree carries the M2 guard.
 REFS: remotes exactly origin/HEAD, origin/main, tag v0.1.0; refs/preserve local (s146, s150, s150b,
   s150c, heads); refs/archive/s152 local (item 13). NEW IDS: re-check `git grep`, `git log --all` and
-  origin/main's ROADMAP.md first; the responder and lanes allocate too (CS-1389 is the highest filed;
+  origin/main's ROADMAP.md first; the responder and lanes allocate too (CS-1393 is the highest filed;
   CS-1377 unallocated; gated CS-G11).
 THE RESPONDER (CS-InboxResponder) commits and pushes on main when live: read its status file first; a
   refusal every tick: check the proxy listener (name CLAUDE_HEADLESS_BASE_URL only).
@@ -300,26 +293,6 @@ CHANNEL, never re-send. Never answer an answer. MAIN's 13:16 RULING: no reply. C
 WAITING ON: MAIN's kit retry path for v27 (R1); CS-1231's gate, the 0647 FIX for CS-1349's kit half, the
 0420 FIX, the CS-815 FIX in a kit version; MAIN's answers to the 1213 FIX and S5; the CS-1207 ruling;
 CS-1318's evidence; host RAM for CS-1334 (the operator); the next scheduled tier2 on the pinned image.
-
-=== SESSION 156 /done - REPORT, BEFORE THE PUSH ===
-START 2026-11-13T15:59:53-06:00. CS-700 WINDOW SIGNAL: CLOSED. Highest tier touched: 2.
-STEP 1, each run once with the .venv interpreter, no whole suite: `python -m mypy` exit 0, 466 source files.
-`python -m ruff check .` exit 0. `python -m ruff format --check .` exit 0, 449 files. `python -m pytest
-tests/advisor tests/data tests/surface tests/solve tests/shell tests/ops` plus 13 named root test files
-`-q -n auto -p no:cacheprovider` exit 0, 8810 passed, 0 failed, 1 skipped (it runs only off Windows). `node --test` in shell exit 0, 391 tests,
-391 pass, 0 fail, 0 skipped.
-STEP 5: drift_guard exit 0 (11 PASS), doc_budget exit 0, memory_sync exit 0 (one frontmatter finding, D8),
-sha_citation_gate exit 0; 24 record-reading test files (citation tables, docs
-citations, dated headings, ledger shape, archive rot, item notes index, lane scope, drift guard data and
-the rest), over the final records with this hand-off, exit 0, 2305 passed, 0 failed, 0 skipped.
-REAP: `python ops/fleet_kit/fleet_done.py reap --apply` exit 0: "4 removed, 2 kept, 0 listed (base main)" -
-removed a08f, a6bd, aa9b, ae3e (clean, every commit on main by patch; the kit deleted aa9b's branch, merged
-by ancestry, and kept the other three); kept aff4 (cs1361-land, its lock owner pid alive) and lane-0.
-BOARD: `python ops/fleet_kit/fleet_board.py render --final --session 156` exit 0, 16 rows, all in the done group,
-CS-1379, CS-1361 and CS-1382 among them; local only, nothing tracked written.
-No spike contradicted BOOTSTRAP.md.
-PUSH: push of this commit pending at write time; push result and CI UNREAD - the next session's first act reads the remote ref against this HEAD and the CI run. Its pre-push suite is the ritual's one gated whole suite.
-UNVERIFIED: THE UNVERIFIED block; no browser; the three sent notes read only through the delivery record.
 
 === READ FIRST ===
 CLAUDE.md; memory/MEMORY.md; ROADMAP.md; WAKEUP_NOTES.md; docs/ARCHITECTURE.md; .claude/commands/done.md;

@@ -2,6 +2,8 @@
 name: adjudicator
 description: Picks between competing outputs against stated criteria, and grants or denies frozen-file modifications. Never produced the work it judges. Read-only - never edits.
 tools: Read, Grep, Glob, Bash
+model: opus
+effort: medium
 ---
 
 # adjudicator

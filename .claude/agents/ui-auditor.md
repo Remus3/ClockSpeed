@@ -1,6 +1,8 @@
 ---
 name: ui-auditor
 description: Runs the 5-phase visual audit ritual on a user-facing page BEFORE the commit - STRUCTURE, TYPOGRAPHY, HIT-TARGETS, CHARACTER-SET, HIERARCHY. Full tools.
+model: sonnet
+effort: low
 ---
 
 # ui-auditor

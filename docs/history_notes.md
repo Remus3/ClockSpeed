@@ -23878,3 +23878,52 @@ ritual's one gated whole suite). UNVERIFIED: the sweep was done by other sub-age
 re-read its counts live (worktrees 5, heads 90, porcelain empty, the archive ref, the manifest),
 not the Recycle Bin's contents; the concurrent prune's outcome is UNREAD by this ritual.
 ```
+
+## Hand-off blocks - relocated from `CS-NEXT-SESSION.txt` 2026-11-14 by MAIN ORDER 0931 item 3, verbatim
+
+**Moved here when MAIN ORDER 0931 item 3 brought the session 157 hand-off from 27499 bytes to
+under 25000.** Nothing below is current. Each block is quoted verbatim inside a text fence; the
+full pre-trim file is the published commit 9d142266 (the session 156 hand-off commit).
+
+### From the session 157 hand-off: SESSION 156 - CLOSED
+
+```text
+=== SESSION 156 - CLOSED (docs/LEDGER.md owns each record) ===
+CS-1383 re-pin to the patched game build. CS-1389 kit v30 (id allocated at this /done). CS-1385 CI ubuntu
+pinned to 24.04. CS-1361 window saved by display id, after an adversary repair. CS-1379 quoted display-name
+targets. CS-1382 raw supply only with a held extractor, a factual cap clause; CS-1379 and CS-1382 adjudicated
+LAND, sections relocated to docs/history_notes.md. Also: the CS-484 decision record and its citation fix;
+CS-1366's three exit-1 runs classified, the count sent to MAIN.
+```
+
+### From the session 157 hand-off: SESSION 156 /done - REPORT, BEFORE THE PUSH
+
+```text
+=== SESSION 156 /done - REPORT, BEFORE THE PUSH ===
+START 2026-11-13T15:59:53-06:00. CS-700 WINDOW SIGNAL: CLOSED. Highest tier touched: 2.
+STEP 1, each run once with the .venv interpreter, no whole suite: `python -m mypy` exit 0, 466 source files.
+`python -m ruff check .` exit 0. `python -m ruff format --check .` exit 0, 449 files. `python -m pytest
+tests/advisor tests/data tests/surface tests/solve tests/shell tests/ops` plus 13 named root test files
+`-q -n auto -p no:cacheprovider` exit 0, 8810 passed, 0 failed, 1 skipped (it runs only off Windows). `node --test` in shell exit 0, 391 tests,
+391 pass, 0 fail, 0 skipped.
+STEP 5: drift_guard exit 0 (11 PASS), doc_budget exit 0, memory_sync exit 0 (one frontmatter finding, D8),
+sha_citation_gate exit 0; 24 record-reading test files (citation tables, docs
+citations, dated headings, ledger shape, archive rot, item notes index, lane scope, drift guard data and
+the rest), over the final records with this hand-off, exit 0, 2305 passed, 0 failed, 0 skipped.
+REAP: `python ops/fleet_kit/fleet_done.py reap --apply` exit 0: "4 removed, 2 kept, 0 listed (base main)" -
+removed a08f, a6bd, aa9b, ae3e (clean, every commit on main by patch; the kit deleted aa9b's branch, merged
+by ancestry, and kept the other three); kept aff4 (cs1361-land, its lock owner pid alive) and lane-0.
+BOARD: `python ops/fleet_kit/fleet_board.py render --final --session 156` exit 0, 16 rows, all in the done group,
+CS-1379, CS-1361 and CS-1382 among them; local only, nothing tracked written.
+No spike contradicted BOOTSTRAP.md.
+PUSH: push of this commit pending at write time; push result and CI UNREAD - the next session's first act reads the remote ref against this HEAD and the CI run. Its pre-push suite is the ritual's one gated whole suite.
+UNVERIFIED: THE UNVERIFIED block; no browser; the three sent notes read only through the delivery record.
+```
+
+### From the session 157 hand-off: MAIN ORDERS AND TIMING CARRIED, the session_155 timing sentence
+
+```text
+TIMING CARRY, the record's session_155 key: push exit 0, tip 0301c018, remote equal, 18603 passed, 0 failed,
+13 skipped, 1276.26 s; gate wait 0.003 s, hold 1277.847 s; wall 2282 s; scratch sweep exit 0, 141209 files
+to 4805, 36 directories to the Recycle Bin; tier1 41950432575 success.
+```

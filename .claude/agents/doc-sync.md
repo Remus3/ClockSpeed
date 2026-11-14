@@ -1,6 +1,8 @@
 ---
 name: doc-sync
 description: Reconciles every markdown doc against a single canonical fact set and fixes drift. One owner per fact, no restated numbers. Full tools.
+model: sonnet
+effort: low
 ---
 
 # doc-sync

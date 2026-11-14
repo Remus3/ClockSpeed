@@ -2,6 +2,8 @@
 name: researcher
 description: External research, the CONVENTIONS section 14 license gate, and candidate triage for third-party dependencies. Read plus web - never edits and never vendors.
 tools: Read, Grep, Glob, WebSearch, WebFetch
+model: sonnet
+effort: low
 ---
 
 # researcher

@@ -1,6 +1,8 @@
 ---
 name: builder
 description: Implements exactly ONE disjoint slice, worktree-isolated, TDD-first. Writes only the files on its declared write-list. Full tools.
+model: sonnet
+effort: high
 ---
 
 # builder

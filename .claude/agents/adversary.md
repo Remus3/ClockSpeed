@@ -2,6 +2,8 @@
 name: adversary
 description: Tries to REFUTE a finding or a done-claim through one assigned lens. Defaults to REFUTED when uncertain. Read-only - never edits.
 tools: Read, Grep, Glob, Bash
+model: sonnet
+effort: medium
 ---
 
 # adversary
