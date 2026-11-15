@@ -472,9 +472,9 @@ one, and until it closes this close does not discharge the CS-1371 lowering grou
 **LOWERING** against `CLAUDE.md` section 7 and `BOOTSTRAP.md` pillar 4, by CS-1371 offering items and no
 schematic on its selector; ground build cost and a missing concrete source.
 
-Ruled 2026-11-14 (session 157 adjudicator): a schematic statement takes no rate (each cost item's rate is milestone_requirement's); the panel selector split to CS-1394; 39 of 42 is provenance, read back at close; the concrete source is InstalledSchematicSource in surface/providers.py. Rejected: a user time horizon; a rate scale; one id with two slices; a source in clockspeed/data/.
+Ruled 2026-11-14 (session 157 adjudicator): a schematic statement takes no rate (each cost item's rate is milestone_requirement's); the panel selector split to CS-1396; 39 of 42 is provenance, read back at close; the concrete source is InstalledSchematicSource in surface/providers.py. Rejected: a user time horizon; a rate scale; one id with two slices; a source in clockspeed/data/.
 
-## CS-1394
+## CS-1396
 
 ### Acceptance
 
