@@ -51,6 +51,7 @@ from clockspeed.advisor.ledger import (
     MuteStore,
     WorldTokenError,
 )
+from clockspeed.advisor.plans import PlanRequest
 from clockspeed.advisor.rules import power, registered_rules
 from clockspeed.advisor.rules.plan import IN_REDESIGN_UNLOCKS, RedesignUnlocks
 from clockspeed.advisor.trace import (
@@ -68,10 +69,13 @@ from clockspeed.audit.balance import (
     WorldDraw,
     WorldStarvation,
 )
+from clockspeed.data.registry import Registry
 from clockspeed.data.schematics import SchematicCatalog, normalize_schematics
-from clockspeed.save.world import UnlockState
+from clockspeed.save.world import UnlockState, WorldModel
 from tests.advisor import test_plan_redesign as worlds
-from tests.advisor.build_fixtures import game_pin, pinned_build_inputs
+from tests.advisor import test_plan_world as plan_fixtures
+from tests.advisor import test_world_advice as world_fixtures
+from tests.advisor.build_fixtures import docs_pin, game_pin, pinned_build_inputs
 from tests.data.test_schematics import schematic_document, schematic_entry
 
 TOKEN_A = "AAAAsyntheticTokenAAAA"  # noqa: S105 - a synthetic world token, not a secret
@@ -360,7 +364,7 @@ def test_the_world_inputs_adapter_offers_the_balance_and_the_unlock_keys() -> No
     assert offers_keys
 
 
-@pytest.mark.parametrize("function", ["inputs_of", "advise_world"])
+@pytest.mark.parametrize("function", ["inputs_of", "advise_world", "advise_world_and_record"])
 def test_the_pin_is_a_required_keyword_of_every_world_entry_point(function: str) -> None:
     """CS-1288 ruling F2: the caller names the pin; the advisor never imports it.
 
@@ -1063,3 +1067,159 @@ def test_inputs_of_offers_the_unlock_reading_only_when_it_is_handed_a_source() -
     assert _unlock_reading_type(handed) is RedesignUnlocks
     assert source.calls == 1
     assert _unlock_reading_type(withheld) is type(None)
+
+
+# ---------------------------------------------------------------------------
+# CS-1397: advise_world_and_record - one advice ACT over a parsed world
+# ---------------------------------------------------------------------------
+#
+# The recording door a served act reaches. It sits beside ``advise_world`` (which only
+# reads), builds its inputs through the SAME private helper, calls ``advise_and_record``
+# once, and re-attaches ``plan_outcome`` when a request was stated.
+
+
+def _act_fixtures() -> tuple[WorldModel, Registry]:
+    """A world firing one quick card, and the registry that prices its buildings."""
+    return world_fixtures.gap_world(), world_fixtures.synthetic_registry()
+
+
+def _act(directory: Path, *, plan_request: PlanRequest | None = None, now: int = NOW) -> Advice:
+    """One act through the recording door, over the invented world and fresh stores."""
+    model, registry = _act_fixtures()
+    return advise_mod.advise_world_and_record(
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=now,
+        plan_request=plan_request,
+    )
+
+
+def _read(directory: Path, *, plan_request: PlanRequest | None = None) -> Advice:
+    """One READ through the sibling door, over the same world and the same pin."""
+    model, registry = _act_fixtures()
+    return advise_mod.advise_world(
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=NOW,
+        plan_request=plan_request,
+    )
+
+
+def test_an_act_records_the_world_it_advised_in_the_ledger_keyed_by_its_own_token(
+    tmp_path: Path,
+) -> None:
+    model, _registry = _act_fixtures()
+
+    first = _act(tmp_path)
+
+    recorded = Ledger(tmp_path).recorded(model.token)
+    count = len(recorded)
+    assert count == len(first.cards)
+    assert count > 0
+    assert first.new_world is True
+
+
+def test_a_read_of_the_same_world_records_nothing(tmp_path: Path) -> None:
+    _read(tmp_path)
+
+    created = len(list(tmp_path.iterdir()))
+    assert created == 0
+
+
+def test_an_act_never_writes_the_mute_store(tmp_path: Path) -> None:
+    _act(tmp_path)
+    _act(tmp_path)
+
+    assert not (tmp_path / MUTES_FILENAME).exists()
+    assert (tmp_path / LEDGER_FILENAME).is_file()
+
+
+def test_an_act_hands_the_ledger_one_reconcile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[int] = []
+    real = Ledger.reconcile
+
+    def counted(self: Ledger, *args: object, **kwargs: object) -> object:
+        calls.append(1)
+        return real(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Ledger, "reconcile", counted)
+
+    _act(tmp_path)
+
+    count = len(calls)
+    assert count == 1
+
+
+def test_an_acts_advice_carries_the_post_record_deferrals_the_ledger_holds(
+    tmp_path: Path,
+) -> None:
+    model, _registry = _act_fixtures()
+    _act(tmp_path)
+
+    second = _act(tmp_path)
+
+    same = dict(second.deferrals) == dict(Ledger(tmp_path).deferrals(model.token))
+    assert same
+
+
+def test_an_act_and_a_read_build_their_inputs_through_the_one_helper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two doors, one helper: a copy of the composition in either would drift."""
+    built: list[tuple[str, object]] = []
+    real = advise_mod._world_inputs_for  # noqa: SLF001
+
+    def spy(*args: object, **kwargs: object) -> object:
+        made = real(*args, **kwargs)  # type: ignore[arg-type]
+        built.append((str(sorted(kwargs)), made))
+        return made
+
+    monkeypatch.setattr(advise_mod, "_world_inputs_for", spy)
+
+    _read(tmp_path)
+    _act(tmp_path)
+
+    count = len(built)
+    expected_builds = 2
+    assert count == expected_builds
+    assert built[0][0] == built[1][0]
+    same_inputs = built[0][1] == built[1][1]
+    assert same_inputs
+
+
+def test_an_act_with_no_request_carries_no_plan_outcome(tmp_path: Path) -> None:
+    absent = _act(tmp_path).plan_outcome is None
+
+    assert absent
+
+
+def test_an_act_with_a_stated_request_re_attaches_the_plan_outcome(tmp_path: Path) -> None:
+    model = plan_fixtures._model(plan_fixtures.ASCENT_PATHS)  # noqa: SLF001
+    registry = plan_fixtures._registry()  # noqa: SLF001
+    request = plan_fixtures._request()  # noqa: SLF001
+
+    found = advise_mod.advise_world_and_record(
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=docs_pin(),
+        ledger=Ledger(tmp_path),
+        mutes=MuteStore(tmp_path),
+        now=NOW,
+        plan_request=request,
+    )
+
+    status = getattr(found.plan_outcome, "status", None)
+    assert status == "ranked"
+    recorded = len(Ledger(tmp_path).recorded(model.token))
+    assert recorded == len(found.cards)

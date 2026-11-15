@@ -2296,6 +2296,8 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         advice_endpoint.DERIVATION_ENDPOINT: advice_endpoint.METHOD_GET,
         # CS-1269: the state write left ``pending.UNBACKED`` for its owner too.
         advice_endpoint.STATE_ENDPOINT: advice_endpoint.METHOD_POST,
+        # CS-1397: so is the act, which records what a run implies in the same ledger.
+        advice_endpoint.ACT_ENDPOINT: advice_endpoint.METHOD_POST,
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 
@@ -2552,20 +2554,29 @@ def fetch_calls(code: str) -> tuple[FetchCall, ...]:
 #: against real data for as long as nothing on the page called it, and the fix
 #: for that was necessarily a second POST. It moved from two to three when the
 #: advice panel's cards got accept, dismiss, snooze and pin (CS-1376): the clause
-#: has the panel POST a card's state, so the third is that state post.
-EXPECTED_NON_GET_FETCHES: Final = 3
+#: has the panel POST a card's state, so the third is that state post. It moved from
+#: three to four when the panel's two presses of "advise" went through ``POST
+#: /api/advice/act`` (CS-1397): the act records what a run implies in the ledger, which
+#: no GET may do, so the fourth is that act post.
+EXPECTED_NON_GET_FETCHES: Final = 4
 NON_GET_TARGETS: Final = (
     '"/api/solve?" + query',
     '"/api/optimize?" + query',
     '"/api/advice/" + encodeURIComponent(params.id) + "/state?" + query',
+    '"/api/advice/act?" + query',
 )
 
 
 def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
-    """Three non-GET requests, each pinned to a path, no body and still no form.
+    """Four non-GET requests, each pinned to a path, no body and still no form.
 
-    The three are the solve and optimize POSTs and the advice panel's state post
-    (CS-1376), which records one card's state through ``/api/advice/<id>/state``.
+    The four are the solve and optimize POSTs, the advice panel's state post
+    (CS-1376), which records one card's state through ``/api/advice/<id>/state``, and its
+    act post (CS-1397), which records one advice act through ``/api/advice/act``.
+
+    THE FUNCTION NAME STILL SAYS THREE. CS-1029's rule is that a name stating a count moves
+    with it, and ``tests/test_citation_tables.py`` cites this name as the RENAMED target of the
+    two-post arm, a file CS-1397's slice does not own; the rename waits on that table.
 
     THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
     RIGHT UNTIL THE OPERATOR RULED OTHERWISE. That arm asserted the page named
@@ -2600,7 +2611,7 @@ def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
 
     verbs = re.findall(r"method: \"([A-Z]+)\"", table.group(0))
     posts = tuple(verb for verb in verbs if verb == "POST")
-    expected_posts = 3
+    expected_posts = 4
     assert len(posts) == expected_posts, f"the route table names {len(posts)} POST verb(s)"
 
     calls = fetch_calls(code)
@@ -2642,6 +2653,10 @@ def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
     ], advice
     state = tuple(call for call in calls if call.target.endswith('"/state?" + query'))
     assert tuple(call.method for call in state) == ("POST",), state
+    # THE ACT DOOR (CS-1397) IS THE OTHER POST THAT WRITES THE LEDGER, pinned to its verb and
+    # to the one literal path, so a GET on it - which would write from a read - is red.
+    act = tuple(call for call in calls if call.target == '"/api/advice/act?" + query')
+    assert tuple(call.method for call in act) == ("POST",), act
 
     carried = tuple(f"{call.method} {call.target}" for call in calls if call.sends_body)
     assert not carried, f"a fetch carries a request body the server never reads: {carried}"

@@ -10,8 +10,9 @@ the unlock state to those inputs, :func:`inputs_of` composes that balance
 from a world model and a registry through the audit constructors (CS-1270),
 adds the fuel audit's inputs over the same machines model (CS-1285 slice D),
 the build check's (CS-1288) and the plan offer's (CS-1351) through
-:func:`merged_inputs`, and :func:`advise_world` is the one call a surface makes
-over a world it holds.
+:func:`merged_inputs`, :func:`advise_world` is the call a surface READ makes over a
+world it holds, and :func:`advise_world_and_record` is the call a surface ACT makes
+(CS-1397).
 
 A PLAN IS RANKED ONLY FOR A TARGET THE CALLER STATES (CS-1351).
 :func:`inputs_of` and :func:`advise_world` take an optional ``plan_request``, and
@@ -81,6 +82,12 @@ nothing; a
 ``dismissed``, ``snoozed`` and ``pinned`` are never changed. Both transitions
 are surfaced on :attr:`Advice.completed` and :attr:`Advice.reopened`. It never
 writes the mute store.
+
+THE SURFACE'S ACT (CS-1397). :func:`advise_world_and_record` is :func:`advise_and_record` over
+a parsed world: the same inputs as :func:`advise_world`, built by one private helper both
+call, so a read and an act cannot advise over different worlds. ``POST /api/advice/act``
+(``clockspeed/surface/api/advice.py``) is the one served path to it, and it calls it once
+per admitted request: one served act is one :meth:`Ledger.reconcile`.
 
 SEAMS. This module consumes the audit models, the unlock state, the rule
 registry and the stores. It opens no save, reads no docs file and renders
@@ -508,6 +515,32 @@ def advise_and_record(
     )
 
 
+def _world_inputs_for(
+    model: WorldModel,
+    registry: Registry,
+    *,
+    pinned_changelist: int | None,
+    pinned_docs_sha256: str | None,
+    plan_request: PlanRequest | None,
+    schematics: SchematicSource | None,
+) -> WorldInputs:
+    """The inputs both world entry points advise over, built in exactly one place (CS-1397).
+
+    :func:`advise_world` reads and :func:`advise_world_and_record` acts, and the two must
+    never advise over different inputs, so neither builds them: both call this, handing the
+    schematic source on exactly as :func:`inputs_of` takes it (CS-1374). Reads no file and no
+    store.
+    """
+    return inputs_of(
+        model,
+        registry,
+        pinned_changelist=pinned_changelist,
+        pinned_docs_sha256=pinned_docs_sha256,
+        plan_request=plan_request,
+        schematics=schematics,
+    )
+
+
 def advise_world(  # noqa: PLR0913 - the one surface call: stores, pins, request, source
     model: WorldModel,
     registry: Registry,
@@ -522,8 +555,9 @@ def advise_world(  # noqa: PLR0913 - the one surface call: stores, pins, request
 ) -> Advice:
     """Advise over one parsed world: inputs, rules, cards and both stores.
 
-    The one advisor call a surface makes (CS-1270). The world token is the
-    model's own header token, handed to the ledger and nowhere else.
+    The advisor call a surface READ makes (CS-1270). The world token is the
+    model's own header token, handed to the ledger and nowhere else. It writes
+    nothing; :func:`advise_world_and_record` is the act that does.
 
     Args:
         model: The world model the surface holds.
@@ -546,7 +580,7 @@ def advise_world(  # noqa: PLR0913 - the one surface call: stores, pins, request
     Raises:
         clockspeed.advisor.ledger.StoreError: as :func:`advise` raises it.
     """
-    world = inputs_of(
+    world = _world_inputs_for(
         model,
         registry,
         pinned_changelist=pinned_changelist,
@@ -555,6 +589,48 @@ def advise_world(  # noqa: PLR0913 - the one surface call: stores, pins, request
         schematics=schematics,
     )
     advice = advise(model.token, world, ledger=ledger, mutes=mutes, now=now)
+    if plan_request is None:
+        return advice
+    return replace(advice, plan_outcome=plan_outcome_of(world.values))
+
+
+def advise_world_and_record(  # noqa: PLR0913 - the surface act: stores, pins, request, source
+    model: WorldModel,
+    registry: Registry,
+    *,
+    pinned_changelist: int | None,
+    pinned_docs_sha256: str | None,
+    ledger: Ledger,
+    mutes: MuteStore,
+    now: int,
+    plan_request: PlanRequest | None = None,
+    schematics: SchematicSource | None = None,
+) -> Advice:
+    """Advise over one parsed world and record what the run implies - one advice ACT (CS-1397).
+
+    The advisor call a surface ACT makes, beside :func:`advise_world`, which only reads. Its
+    inputs come from the same private helper, so the two cannot drift. It calls
+    :func:`advise_and_record` exactly once, so one act is one :meth:`Ledger.reconcile`, and it
+    never writes the mute store. Arguments are :func:`advise_world`'s, the schematic source
+    included (CS-1374).
+
+    Returns:
+        The advice :func:`advise_and_record` returns - transitions on :attr:`Advice.completed`
+        and :attr:`Advice.reopened`, and the post-record :attr:`Advice.deferrals` - carrying
+        :attr:`Advice.plan_outcome` when a request was stated.
+
+    Raises:
+        clockspeed.advisor.ledger.StoreError: as :func:`advise_and_record` raises it.
+    """
+    world = _world_inputs_for(
+        model,
+        registry,
+        pinned_changelist=pinned_changelist,
+        pinned_docs_sha256=pinned_docs_sha256,
+        plan_request=plan_request,
+        schematics=schematics,
+    )
+    advice = advise_and_record(model.token, world, ledger=ledger, mutes=mutes, now=now)
     if plan_request is None:
         return advice
     return replace(advice, plan_outcome=plan_outcome_of(world.values))

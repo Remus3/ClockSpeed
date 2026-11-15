@@ -29,20 +29,21 @@
   panel becomes mouse-only, invisibly." Refresh is the button in the header and
   nothing else repaints this page.
 
-  WHY THIS PAGE ISSUES EXACTLY SIX ON-DEMAND REQUESTS, WHICH IS A COUNT AND
+  WHY THIS PAGE ISSUES EXACTLY SEVEN ON-DEMAND REQUESTS, WHICH IS A COUNT AND
   NOT AN ABSENCE. This block used to say the page issued none at all and that
   the question did not arise; then it said exactly one POST. Both were true when
   written. The honest answer is a BOUND rather than a zero, and the bound is now
-  six: the solve bench asks /api/solve, the optimize bench asks /api/optimize,
+  seven: the solve bench asks /api/solve, the optimize bench asks /api/optimize,
   the power bench asks /api/power, and the advice panel asks /api/advice,
-  /api/advice/<id>/derivation and (CS-1376) posts a card's state to
-  /api/advice/<id>/state. Three are POSTs and three are GETs, because the
-  verb belongs to the route rather than to this page.
+  /api/advice/<id>/derivation, (CS-1376) posts a card's state to
+  /api/advice/<id>/state and (CS-1397) posts one advice act to /api/advice/act.
+  Four are POSTs and three are GETs, because the verb belongs to the route
+  rather than to this page.
 
   WHAT THE BOUND BUYS IS UNCHANGED BY THE COUNT. Each is reachable only from a
   panel's own click handler; each can ask for one route and no other, because
   app.js - never the panel - builds the query string from a fixed table of the
-  names that endpoint takes; and one shared flag means at most one of the six
+  names that endpoint takes; and one shared flag means at most one of the seven
   is ever outstanding. A panel cannot smuggle an unnamed parameter through any
   of them, cannot redirect one, and cannot start a second while one is running.
 
@@ -53,7 +54,7 @@
   connection desyncs whatever request follows it on that socket. The fetch
   therefore carries no body key, which sends Content-Length: 0.
 
-  WHY FIVE ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
+  WHY SIX ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
   card id. /api/advice now answers 200 with a card list and this page probes
   it on a repaint, but the probe table takes no id from that body, so there is
   no id to put in the path. Asking with an invented one would be asking about
@@ -71,7 +72,9 @@
   paragraph is about PARAMETERS rather than about verbs: it requires a building
   identifier, and a repaint has no building to name. Inventing one would ask
   about a building the operator did not choose.
-  For those five the page prints what /api/health says and names that as the
+  /api/advice/act is a POST that records, so a repaint never sends it: it is asked on
+  a press, with the statement the press carries or none.
+  For those six the page prints what /api/health says and names that as the
   source, rather than inventing a transport code it never observed.
 
   WHY /api/registry IS PROBED EVEN THOUGH ITS BODY IS LARGE. The four rows
@@ -110,6 +113,7 @@ var ROUTES = [
   { template: "/api/advice", method: "GET", probe: "/api/advice" },
   { template: "/api/advice/<id>/derivation", method: "GET", probe: null },
   { template: "/api/advice/<id>/state", method: "POST", probe: null },
+  { template: "/api/advice/act", method: "POST", probe: null },
   { template: "/api/solve", method: "POST", probe: null },
   { template: "/api/optimize", method: "POST", probe: null },
   { template: "/api/audit", method: "GET", probe: "/api/audit" },
@@ -687,7 +691,13 @@ function panelData(probes) {
         CS-1376 - THE SIXTH DOOR, AND THE ONE THAT WRITES. It posts one card's state
         through /api/advice/<id>/state; see requestState for what it carries.
       */
-      requestState: requestState
+      requestState: requestState,
+      /*
+        CS-1397 - THE SEVENTH DOOR, AND THE OTHER ONE THAT WRITES. It posts one advice act
+        through /api/advice/act: the world is advised and the ledger records what the run
+        implies, once. It carries the four of a stated plan, or none; see requestAct.
+      */
+      requestAct: requestAct
     }
   };
 }
@@ -786,7 +796,8 @@ var STATE_OPTIONAL = ["duration"].concat(ADVICE_PARAMS);
   solver doors answer POST because a request carries a target basket, and
   /api/power answers GET because it carries one building identifier. The two
   advice reads answer GET because a stated plan is read and nothing is written;
-  the state door answers POST because it records a card's state in the ledger.
+  the state door answers POST because it records a card's state in the ledger, and
+  the act door (CS-1397) answers POST because one act records what a run implies in it.
 */
 var REQUESTS = {
   solve: { path: "/api/solve", method: "POST", required: SOLVE_PARAMS, optional: [] },
@@ -809,7 +820,8 @@ var REQUESTS = {
     method: "POST",
     required: STATE_PARAMS,
     optional: STATE_OPTIONAL
-  }
+  },
+  act: { path: "/api/advice/act", method: "POST", required: [], optional: ADVICE_PARAMS }
 };
 
 /*
@@ -881,14 +893,14 @@ function requestQuery(spec, params) {
 
 function requestFetch(spec, query, params) {
   /*
-    THE SIX REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
+    THE SEVEN REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
     ITS VERB AS LITERALS. Every one of them could be reached from spec.path and
     spec.method in a single call, and that shape was written first and rejected:
     it makes "which URLs can this page reach, with which verbs" a question only
     answerable by following a table indirection, and it defeats the static arm
     in tests/surface/test_web_assets.py that counts the page's non-GET requests
     and pins each to a path. A security-relevant control that a refactor
-    silently blinds is worse than six visible lines.
+    silently blinds is worse than seven visible lines.
 
     NO BODY KEY ON ANY OF THEM. clockspeed/surface/server.py parses the query
     string and reads a request body nowhere at all, so a body would be ignored
@@ -932,6 +944,18 @@ function requestFetch(spec, query, params) {
       the reason the derivation's is.
     */
     return fetch("/api/advice/" + encodeURIComponent(params.id) + "/state?" + query, {
+      method: "POST",
+      headers: { "Accept": "application/json", "X-Clockspeed-Request": "1" },
+      cache: "no-store"
+    });
+  }
+  if (spec === REQUESTS.act) {
+    /*
+      THE OTHER REQUEST THAT CHANGES THE LEDGER, AND IT CARRIES THE PROOF FOR THE SAME REASON
+      THE STATE POST DOES. No id: an act is about a world, not a card. The statement, when one
+      is stated, rides in the query like every other name, and there is no body.
+    */
+    return fetch("/api/advice/act?" + query, {
       method: "POST",
       headers: { "Accept": "application/json", "X-Clockspeed-Request": "1" },
       cache: "no-store"
@@ -1064,6 +1088,7 @@ var requestPower = makeDoor(REQUESTS.power);
 var requestAdvice = makeDoor(REQUESTS.advice);
 var askDerivation = makeDoor(REQUESTS.derivation);
 var askState = makeDoor(REQUESTS.state);
+var requestAct = makeDoor(REQUESTS.act);
 
 function requestDerivation(id, params, onSettled) {
   /*

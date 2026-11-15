@@ -48,6 +48,7 @@ from clockspeed.advisor.ledger import (
     CardState,
     Ledger,
     MuteStore,
+    StoreWriteError,
 )
 from clockspeed.advisor.rules import fuel as fuel_rules
 from clockspeed.advisor.rules import power, registered_rules
@@ -692,6 +693,7 @@ NON_SAFE_ROUTES: Final = frozenset(
         ("POST", "/api/solve", False),
         ("POST", "/api/optimize", False),
         ("POST", "/api/advice/<id>/state", True),
+        ("POST", "/api/advice/act", True),
     }
 )
 
@@ -708,9 +710,14 @@ def test_every_non_safe_published_route_has_decided_whether_it_mutates() -> None
     assert non_safe == NON_SAFE_ROUTES
 
 
-def test_the_state_route_is_the_one_the_server_guards() -> None:
+def test_the_state_and_act_routes_are_the_two_the_server_guards() -> None:
     guarded = server.mutating_routes(routes.SERVING_ROUTES)
-    assert guarded == frozenset({(advice_endpoint.METHOD_POST, advice_endpoint.STATE_ENDPOINT)})
+    assert guarded == frozenset(
+        {
+            (advice_endpoint.METHOD_POST, advice_endpoint.STATE_ENDPOINT),
+            (advice_endpoint.METHOD_POST, advice_endpoint.ACT_ENDPOINT),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2586,3 +2593,104 @@ def test_the_real_source_is_a_duration_store_and_its_door_reads_the_injected_clo
     assert isinstance(source, advice_endpoint.DurationAdviceStore)
     assert source.snooze_until(MAPPED_TOKEN) == NOW + SNOOZE_DURATIONS[MAPPED_TOKEN]
     assert source.snooze_until(UNMAPPED_DURATION) is None
+
+
+# ---------------------------------------------------------------------------
+# CS-1397: StoreAdviceSource.act only hands over, and a refusal is a word
+# ---------------------------------------------------------------------------
+
+
+def _act_world() -> tuple[WorldModel, Registry]:
+    return world_fixtures.gap_world(), world_fixtures.synthetic_registry()
+
+
+def test_the_source_is_an_acting_advice_source(tmp_path: Path) -> None:
+    assert isinstance(_source(tmp_path), advice_endpoint.ActingAdviceSource)
+
+
+def test_the_acting_words_are_the_endpoints_words() -> None:
+    assert providers_module.SOURCE_UNREADABLE == advice_endpoint.ACT_UNREADABLE
+    assert providers_module.SOURCE_UNWRITABLE == advice_endpoint.ACT_UNWRITABLE
+
+
+def test_act_answers_the_post_record_advice_and_writes_the_ledger(tmp_path: Path) -> None:
+    model, registry = _act_world()
+
+    first = _source(tmp_path).act(model, registry)
+    second = _source(tmp_path).act(model, registry)
+
+    assert not isinstance(first, str)
+    assert not isinstance(second, str)
+    assert first.new_world is True
+    assert second.new_world is False
+    assert (tmp_path / LEDGER_FILENAME).is_file()
+    assert not (tmp_path / MUTES_FILENAME).exists()
+
+
+def test_act_reads_the_injected_clock_once(tmp_path: Path) -> None:
+    model, registry = _act_world()
+    reads: list[int] = []
+
+    def clock() -> int:
+        reads.append(NOW)
+        return NOW
+
+    StoreAdviceSource(tmp_path, clock=clock).act(model, registry)
+
+    count = len(reads)
+    assert count == 1
+
+
+@pytest.mark.parametrize("name", [LEDGER_FILENAME, MUTES_FILENAME])
+def test_act_over_a_corrupt_store_is_the_unreadable_word_and_changes_no_byte(
+    tmp_path: Path, name: str
+) -> None:
+    model, registry = _act_world()
+    corrupt = b"{not json"
+    (tmp_path / name).write_bytes(corrupt)
+
+    answer = _source(tmp_path).act(model, registry)
+
+    assert answer == providers_module.SOURCE_UNREADABLE
+    unchanged = (tmp_path / name).read_bytes() == corrupt
+    assert unchanged
+
+
+def test_act_over_a_token_that_is_no_world_token_is_the_unreadable_word(tmp_path: Path) -> None:
+    model, registry = _act_world()
+
+    answer = _source(tmp_path).act(replace(model, token=""), registry)
+
+    assert answer == providers_module.SOURCE_UNREADABLE
+    created = len(list(tmp_path.iterdir()))
+    assert created == 0
+
+
+def test_act_maps_a_store_that_cannot_be_written_to_the_unwritable_word(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model, registry = _act_world()
+
+    def refuse(*_args: object, **_kwargs: object) -> object:
+        raise StoreWriteError("synthetic")
+
+    monkeypatch.setattr(Ledger, "reconcile", refuse)
+
+    answer = _source(tmp_path).act(model, registry)
+
+    assert answer == providers_module.SOURCE_UNWRITABLE
+    assert not (tmp_path / LEDGER_FILENAME).exists()
+
+
+def test_act_does_not_swallow_an_error_that_is_no_store_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model, registry = _act_world()
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("synthetic")
+
+    monkeypatch.setattr(Ledger, "reconcile", boom)
+
+    with pytest.raises(RuntimeError):
+        _source(tmp_path).act(model, registry)

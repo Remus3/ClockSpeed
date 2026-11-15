@@ -59,8 +59,15 @@ import time
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor import plans
-from clockspeed.advisor.advise import advise_world
-from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError, snooze_end
+from clockspeed.advisor.advise import advise_world, advise_world_and_record
+from clockspeed.advisor.ledger import (
+    CardState,
+    Ledger,
+    MuteStore,
+    StoreError,
+    StoreWriteError,
+    snooze_end,
+)
 from clockspeed.data import locate, registry, schematics, version
 from clockspeed.data.docs_extract import (
     DocsExtractError,
@@ -93,6 +100,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "FORBIDDEN_IN_AN_ASSET_NAME",
+    "SOURCE_UNREADABLE",
+    "SOURCE_UNWRITABLE",
     "InstalledRegistryProvider",
     "InstalledSchematicSource",
     "SaveWorldProvider",
@@ -104,6 +113,15 @@ __all__ = [
 #: from a frozen table rather than from a request, so this can only fire if that
 #: stops being true - which is exactly when it needs to.
 FORBIDDEN_IN_AN_ASSET_NAME: Final = ("/", "\\", "..", ":")
+
+#: What :meth:`StoreAdviceSource.act` answers when a store could not be read: corrupt,
+#: unreadable, or a token that is not a world token. A word and not an exception, so an
+#: endpoint reads no exception's message (CLAUDE.md non-negotiable 13). The endpoint module
+#: spells the same word and ``tests/surface/test_advice_act.py`` binds the two.
+SOURCE_UNREADABLE: Final = "unreadable"
+
+#: What :meth:`StoreAdviceSource.act` answers when the ledger could not be written.
+SOURCE_UNWRITABLE: Final = "unwritable"
 
 
 class SaveWorldProvider:
@@ -658,7 +676,9 @@ class StoreAdviceSource:
 
     :meth:`advice` ONLY READS. The ledger and the mute store are read whole in
     one open, and every writer replaces the file atomically, so a read never
-    sees a half-written store - a GET never writes.
+    sees a half-written store - a GET never writes. :meth:`act` is the other
+    advisor door (CS-1397): the same call over the recording entry point, reached
+    only through ``POST /api/advice/act``.
 
     :meth:`record` IS THE ONE WRITE (CS-1269), and it is the advisor's own
     ``Ledger.set_state`` or ``Ledger.snooze``: the surface hands over the world
@@ -725,6 +745,43 @@ class StoreAdviceSource:
             )
         except StoreError:
             return None
+
+    def act(
+        self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
+    ) -> Advice | str:
+        """One advice ACT: the advice for a world, and the record of what the run implies (CS-1397).
+
+        ONLY HANDS OVER. The world, the registry, the pin and the injected clock go to the
+        advisor's own :func:`clockspeed.advisor.advise.advise_world_and_record`, which calls
+        the ledger's one write path once; nothing here decides what a run implies. The mute
+        store is read and never written. Reached only through ``POST /api/advice/act``,
+        which the server admits only with a same-origin proof.
+
+        Args:
+            world: The world model the server holds. Its header token keys the ledger.
+            registry: The normalized registry.
+            plan_request: What :meth:`plan_request` built, or None when no target is stated.
+
+        Returns:
+            The post-record advice, or :data:`SOURCE_UNWRITABLE` when the ledger could not be
+            written, or :data:`SOURCE_UNREADABLE` when a store is corrupt or unreadable or
+            the token is not a world token. A refusal leaves both stores as they were.
+        """
+        try:
+            return advise_world_and_record(
+                world,
+                registry,
+                pinned_changelist=version.GAME_CHANGELIST,
+                pinned_docs_sha256=version.DOCS_SHA256,
+                ledger=Ledger(self._directory),
+                mutes=MuteStore(self._directory),
+                now=self._clock(),
+                plan_request=plan_request,
+            )
+        except StoreWriteError:
+            return SOURCE_UNWRITABLE
+        except StoreError:
+            return SOURCE_UNREADABLE
 
     def plan_parameters(
         self, *, rate: str, direction: str, byproduct_policy: str

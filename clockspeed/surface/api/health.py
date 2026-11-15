@@ -135,6 +135,12 @@ LIVENESS_WORDS: Final = (LIVE, NOT_LIVE)
 #: clock or the un-sharded base in any body, so the whole power half of the
 #: solve layer was live and unaskable at once - which is the same fault CS-912
 #: and CS-977 each found, wearing a third face.
+#:
+#: ``/api/advice/act`` ARRIVED UNDER THE SAME WORD (CS-1397) AND SITS BESIDE THE OTHER ROUTE
+#: THAT WRITES THE LEDGER. ``clockspeed/advisor/advise.py``'s ``advise_and_record`` was written,
+#: tested and reachable from NO route: MEASURED ZERO of the templates then published reached
+#: ``Ledger.reconcile``, so ``completed``, ``reopened`` and the deferral counts the aging guard
+#: reads were recorded in tests alone. It follows ``/api/advice/<id>/state``.
 ENDPOINT_TEMPLATES: Final = (
     "/api/health",
     "/api/world",
@@ -142,6 +148,7 @@ ENDPOINT_TEMPLATES: Final = (
     "/api/advice",
     "/api/advice/<id>/derivation",
     "/api/advice/<id>/state",
+    "/api/advice/act",
     "/api/solve",
     "/api/optimize",
     "/api/audit",

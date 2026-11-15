@@ -1,6 +1,7 @@
 """Pillar 5 on the wire: ``/api/advice`` and ``/api/advice/<id>/derivation``.
 
-Owns (BOOTSTRAP.md section 7.1): the READ routes of the advisor.
+Owns (BOOTSTRAP.md section 7.1): the READ routes of the advisor, the card state route and
+the act route.
 ``/api/advice`` carries every card with explain tier 1 (the headline) and tier
 2 (the one-line reason), plus the card's resolved per-world ledger state and
 its global mute flag, and what a stated plan request came to.
@@ -105,6 +106,22 @@ answers ``contract.method_not_allowed``. It is published apart from
 :func:`routes` because the aggregate table is read keyed by template, and a
 second entry under one template would be silently dropped by that read.
 
+THE ACT ROUTE IS HERE SINCE CS-1397. ``POST /api/advice/act`` is one advice ACT: the advisor runs
+over the world and the ledger records what the run implies - ``completed``, ``reopened`` and the
+shown-and-deferred counts the CS-1246 aging guard reads - exactly once. It is a POST because it
+writes the per-world ledger, which no GET ever does, and it is ``mutates`` so the server admits it
+only with a same-origin proof. THE STATEMENT IS THE LISTING'S: the query string takes the four of a
+stated plan, or ``schematic`` with its two companions, or nothing, refused in the same order as the
+listing refuses them, and there is no body. The success body is exactly :func:`_listing` of the
+POST-RECORD advice, so it is what ``GET /api/advice`` gives under the same statement. ONE ADMITTED
+REQUEST IS ONE ACT: the handler calls the source's recording door and no other, so a single call
+either reads or acts and never both, and there is no nonce - a repeated request is a further act,
+which is the unit the aging guard counts. The first act that records a card records it at zero, so
+the threshold counts further acts. THE SOURCE'S REFUSALS ARE WORDS, not exceptions: a store it could
+not read is 503 ``advice_store_unreadable`` and one it could not write is 503
+``advice_store_unwritable``, and either leaves both stores as they were. A never-seen world token is
+a new world, never a refusal. A GET on the template is 405.
+
 THE CROSS-ORIGIN REFUSAL IS NOT HERE. A handler sees query parameters only and
 cannot tell the dashboard from a cross-site form posting to the loopback port.
 ``clockspeed/surface/server.py`` refuses every mutating request that carries no
@@ -140,6 +157,9 @@ if TYPE_CHECKING:
     from clockspeed.save.world import WorldModel
 
 __all__ = [
+    "ACT_ENDPOINT",
+    "ACT_UNREADABLE",
+    "ACT_UNWRITABLE",
     "BYPRODUCT_POLICY_PARAMETER",
     "CARD_KEYS",
     "DATA_KEYS",
@@ -164,11 +184,13 @@ __all__ = [
     "STATE_PARAMETER",
     "TARGET_PARAMETER",
     "UNTIL_PARAMETER",
+    "ActingAdviceSource",
     "AdviceSource",
     "AdviceStore",
     "DurationAdviceStore",
     "SchematicAdviceSource",
     "SchematicCatalogs",
+    "make_act_handler",
     "make_derivation_handler",
     "make_handler",
     "make_state_handler",
@@ -185,10 +207,19 @@ DERIVATION_ENDPOINT: Final = "/api/advice/<id>/derivation"
 #: Accept, dismiss, snooze, pin or restore one card (CS-1269). MUTATING.
 STATE_ENDPOINT: Final = "/api/advice/<id>/state"
 
+#: Record one advice act (CS-1397). MUTATING.
+ACT_ENDPOINT: Final = "/api/advice/act"
+
+#: What a source's act answers for a store it could not read, and for one it could not write.
+#: Spelled here and in ``clockspeed/surface/providers.py``, which this layer never imports;
+#: ``tests/surface/test_advice_act.py`` binds the two spellings.
+ACT_UNREADABLE: Final = "unreadable"
+ACT_UNWRITABLE: Final = "unwritable"
+
 #: The listing and the derivation are reads.
 METHOD_GET: Final = "GET"
 
-#: The state route mutates the ledger.
+#: The state route and the act route mutate the ledger.
 METHOD_POST: Final = "POST"
 
 #: The state route's query parameter naming the state to record.
@@ -311,6 +342,26 @@ class AdviceSource(Protocol):
         self, registry: Registry, target: str, parameters: PlanParameters
     ) -> PlanRequest | None:
         """Build the request a target and checked parameters ask, or refuse the target."""
+        ...
+
+
+@runtime_checkable
+class ActingAdviceSource(AdviceSource, Protocol):
+    """An advice source that can also record one advice ACT (CS-1397).
+
+    Apart from :class:`AdviceSource` so a source written before it stays an advice source. A
+    source that is not one cannot act, which the route answers as a store that could not be
+    written.
+    """
+
+    def act(
+        self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
+    ) -> Advice | str:
+        """Run the advisor over one world and record what the run implies, once.
+
+        Returns the post-record advice, or :data:`ACT_UNWRITABLE` or :data:`ACT_UNREADABLE`.
+        Answers a word and never an exception, so nothing a caller typed can come back out.
+        """
         ...
 
 
@@ -621,8 +672,14 @@ def _resolve_in_world(
     source: AdviceSource,
     stated: _Stated | None,
     schematics: SchematicCatalogs[SchematicCatalog] | None,
+    *,
+    act: bool = False,
 ) -> tuple[WorldModel, Advice] | contract.Response:
     """Fetch the world and its advice together, or the refusal for either.
+
+    ONE DOOR PER CALL (CS-1397). ``act`` False reads through :meth:`AdviceSource.advice`;
+    True acts through :meth:`ActingAdviceSource.act`. Exactly one of the two is called, never
+    both, so a request that acts records once and a request that reads writes nothing.
 
     The state route needs the SAME world the advice was resolved over, so the
     record lands in the ledger of the world whose card was checked rather than
@@ -638,10 +695,12 @@ def _resolve_in_world(
         stated: What :func:`_stated_plan` read, or None when no plan is stated.
         schematics: The catalog provider, or None for one that publishes none. Read only for
             a stated schematic, and only after the world and the registry.
+        act: True to record the act through the source's acting door instead of reading.
 
     Returns:
-        (world, advice), or a 503 naming what was missing, or the 400 refusing a target or a
-        schematic off the list, which names nothing it refused.
+        (world, advice), or a 503 naming what was missing or a store that could not be read
+        or written, or the 400 refusing a target or a schematic off the list, which names
+        nothing it refused.
     """
     model = worlds.world()
     if model is None:
@@ -655,10 +714,57 @@ def _resolve_in_world(
         if isinstance(asked, contract.Response):
             return asked
         plan_request = asked
-    found = source.advice(model, registry, plan_request=plan_request)
-    if found is None:
-        return contract.unavailable(endpoint, contract.REASON_ADVICE_STORE_UNREADABLE)
+    found = _through_one_door(endpoint, source, model, registry, plan_request, act=act)
+    if isinstance(found, contract.Response):
+        return found
     return model, found
+
+
+#: The 503 reason each word of a refused act is, and the one a source that cannot act reads as.
+_ACT_REASONS: Final = {
+    ACT_UNREADABLE: contract.REASON_ADVICE_STORE_UNREADABLE,
+    ACT_UNWRITABLE: contract.REASON_ADVICE_STORE_UNWRITABLE,
+}
+_ACT_UNWRITABLE_REASON: Final = contract.REASON_ADVICE_STORE_UNWRITABLE
+
+
+def _through_one_door(
+    endpoint: str,
+    source: AdviceSource,
+    model: WorldModel,
+    registry: Registry,
+    plan_request: PlanRequest | None,
+    *,
+    act: bool,
+) -> Advice | contract.Response:
+    """Put the request to exactly one door of the source: the read, or the act (CS-1397).
+
+    Args:
+        endpoint: The template a refusal names.
+        source: The advice source.
+        model: The world, read already.
+        registry: The normalized registry, read already.
+        plan_request: The checked request, or None when no plan is stated.
+        act: True for the recording door, False for the read.
+
+    Returns:
+        The advice, or the 503 for a store the door could not read, or could not write. A
+        source with no acting door answers as one that could not write: it cannot record,
+        so nothing was recorded.
+    """
+    if not act:
+        read = source.advice(model, registry, plan_request=plan_request)
+        if read is None:
+            return contract.unavailable(endpoint, contract.REASON_ADVICE_STORE_UNREADABLE)
+        return read
+    acted = (
+        source.act(model, registry, plan_request=plan_request)
+        if isinstance(source, ActingAdviceSource)
+        else ACT_UNWRITABLE
+    )
+    if isinstance(acted, str):
+        return contract.unavailable(endpoint, _ACT_REASONS.get(acted, _ACT_UNWRITABLE_REASON))
+    return acted
 
 
 def _request_for(
@@ -944,20 +1050,60 @@ def make_state_handler(
     return handle
 
 
+def make_act_handler(
+    worlds: contract.WorldProvider[WorldModel],
+    registries: contract.RegistryProvider[Registry],
+    source: AdviceSource,
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
+) -> contract.Handler:
+    """Bind the providers and return the act handler (CS-1397).
+
+    Args:
+        worlds: Whatever hands over the current world, or says there is not one.
+        registries: Whatever hands over the registry, or says there is not one.
+        source: Whatever runs the advisor, reads the stores and records an act.
+        schematics: As :func:`make_handler` takes it.
+
+    Returns:
+        The handler. It is reached only through a request the server admitted past its
+        same-origin refusal, and it calls the source's recording door once and nothing else.
+    """
+
+    def handle(query: Mapping[str, str]) -> contract.Response:
+        """Answer one act: the four of a stated plan, or the schematic's three, or nothing."""
+        stated = _stated_plan(ACT_ENDPOINT, query, source, own=())
+        if isinstance(stated, contract.Response):
+            return stated
+        resolved = _resolve_in_world(
+            ACT_ENDPOINT, worlds, registries, source, stated, schematics, act=True
+        )
+        if isinstance(resolved, contract.Response):
+            return resolved
+        return contract.ok(ACT_ENDPOINT, _listing(resolved[1]))
+
+    return handle
+
+
 def method_boundary_routes() -> tuple[contract.Route, ...]:
-    """The GET on the state template, answering 405 rather than 404.
+    """The GETs on the state and act templates, answering 405 rather than 404.
 
     Published apart from :func:`routes` - see the module docstring for why.
     Provider-free, so every route table shares it.
 
     Returns:
-        The one method-boundary route.
+        The state template's method-boundary route, then the act template's.
     """
 
-    def handle(_query: Mapping[str, str]) -> contract.Response:
+    def state(_query: Mapping[str, str]) -> contract.Response:
         return contract.method_not_allowed(STATE_ENDPOINT)
 
-    return (contract.Route(method=METHOD_GET, template=STATE_ENDPOINT, handler=handle),)
+    def act(_query: Mapping[str, str]) -> contract.Response:
+        return contract.method_not_allowed(ACT_ENDPOINT)
+
+    return (
+        contract.Route(method=METHOD_GET, template=STATE_ENDPOINT, handler=state),
+        contract.Route(method=METHOD_GET, template=ACT_ENDPOINT, handler=act),
+    )
 
 
 def routes(
@@ -966,7 +1112,7 @@ def routes(
     source: AdviceStore,
     schematics: SchematicCatalogs[SchematicCatalog] | None = None,
 ) -> tuple[contract.Route, ...]:
-    """Publish the listing, derivation and state routes, with the providers bound in.
+    """Publish the listing, derivation, state and act routes, with the providers bound in.
 
     Args:
         worlds: Whatever hands over the current world, or says there is not one.
@@ -976,7 +1122,7 @@ def routes(
             publishes none (CS-1373).
 
     Returns:
-        The listing route, the derivation route, then the state route.
+        The listing route, the derivation route, the state route, then the act route.
     """
     return (
         contract.Route(
@@ -993,6 +1139,12 @@ def routes(
             method=METHOD_POST,
             template=STATE_ENDPOINT,
             handler=make_state_handler(worlds, registries, source, schematics),
+            mutates=True,
+        ),
+        contract.Route(
+            method=METHOD_POST,
+            template=ACT_ENDPOINT,
+            handler=make_act_handler(worlds, registries, source, schematics),
             mutates=True,
         ),
     )

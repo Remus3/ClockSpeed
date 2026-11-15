@@ -118,7 +118,9 @@ PENDING_ROUTES: Final = frozenset(
 #: The one route that exists only to say a verb is wrong. Its own class, because
 #: collapsing it into either of the other two loses exactly the distinction
 #: arm (b) is about.
-METHOD_BOUNDARY_ROUTES: Final = frozenset({("GET", "/api/advice/<id>/state")})
+METHOD_BOUNDARY_ROUTES: Final = frozenset(
+    {("GET", "/api/advice/<id>/state"), ("GET", "/api/advice/act")}
+)
 
 #: Which open item each pending template blames, written out as DATA so the
 #: arm below grades ``pending.BLOCKERS`` rather than reading it back. CS-1046 is
@@ -132,7 +134,7 @@ EXPECTED_BLOCKERS: Final[Mapping[str, str]] = {
 #: What the solve, pending and method-boundary accessors publish between them
 #: today. Asserted BEFORE the sweep iterates: a sweep over an empty route table
 #: is green and proves nothing.
-EXPECTED_PUBLISHED_ROUTES: Final = 5
+EXPECTED_PUBLISHED_ROUTES: Final = 6
 
 #: Just the pending set, for the arm that grades it alone.
 EXPECTED_PENDING_ROUTES: Final = 2

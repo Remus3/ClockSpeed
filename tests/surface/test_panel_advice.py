@@ -108,6 +108,7 @@ FIELD_LABELS: Final[Mapping[str, str]] = {
 
 #: The one bench button, the live line it answers on and the region an answer lands in.
 ASK_ID: Final = "advice-ask"
+ACT_ID: Final = "advice-act"
 STATUS_ID: Final = "advice-status"
 ANSWER_ID: Final = "advice-answer"
 
@@ -486,6 +487,12 @@ function stubAdvice(params, onSettled) {
   return answerOf();
 }
 
+function stubAct(params, onSettled) {
+  doorCalls.push({ door: "act", params: copyOf(params) });
+  settlers.push(onSettled);
+  return answerOf();
+}
+
 function stubDerivation(id, params, onSettled) {
   doorCalls.push({ door: "derivation", id: id, params: copyOf(params) });
   settlers.push(onSettled);
@@ -507,12 +514,20 @@ if (request.door === "live") {
   */
   globalThis.repainting = false;
   liveFetch = true;
-  data.actions = { requestAdvice: requestAdvice, requestDerivation: requestDerivation };
+  data.actions = {
+    requestAdvice: requestAdvice,
+    requestDerivation: requestDerivation,
+    requestAct: requestAct
+  };
   if (!request.no_state_door) {
     data.actions.requestState = requestState;
   }
 } else if (request.door === "stub") {
-  data.actions = { requestAdvice: stubAdvice, requestDerivation: stubDerivation };
+  data.actions = {
+    requestAdvice: stubAdvice,
+    requestDerivation: stubDerivation,
+    requestAct: stubAct
+  };
   if (!request.no_state_door) {
     data.actions.requestState = stubState;
   }
@@ -636,6 +651,8 @@ function runStep(spec) {
     };
     if (spec.ask.door === "advice") {
       step.accepted = requestAdvice(spec.ask.params, noop);
+    } else if (spec.ask.door === "act") {
+      step.accepted = requestAct(spec.ask.params, noop);
     } else if (spec.ask.door === "state") {
       step.accepted = requestState(spec.ask.id, spec.ask.params, noop);
     } else {
@@ -1145,7 +1162,7 @@ def test_the_bench_survives_a_press_with_no_door_on_the_shared_stand_in(tmp_path
 # ---------------------------------------------------------------------------
 
 
-def test_the_bench_is_labelled_controls_and_one_button_and_no_form(tmp_path: Path) -> None:
+def test_the_bench_is_labelled_controls_and_two_buttons_and_no_form(tmp_path: Path) -> None:
     report = drive(tmp_path, payload())
     rows = report["nodes"]
     assert row_of(rows, FIELD_IDS["target"])["tag"] == "SELECT"
@@ -1158,10 +1175,11 @@ def test_the_bench_is_labelled_controls_and_one_button_and_no_form(tmp_path: Pat
     assert label_count == EXPECTED_CONTROLS, labels
     assert set(labels) == set(FIELD_IDS.values()), labels
 
-    # ONE BUTTON BEFORE ANY CARD IS LISTED. This payload lists none, so every button in
-    # the dump is the bench's.
+    # TWO BUTTONS BEFORE ANY CARD IS LISTED (CS-1397): the stated press and the unstated
+    # "Advise on this world". This payload lists no card, so every button in the dump is
+    # the bench's.
     buttons = tuple(row["id"] for row in rows if row["tag"] == "BUTTON")
-    assert buttons == (ASK_ID,), buttons
+    assert buttons == (ASK_ID, ACT_ID), buttons
     assert "FORM" not in tags(report)
     # THE CONTROL: the tag scan does read the page, or it could not have seen these.
     assert {"SELECT", "INPUT", "BUTTON"} <= tags(report)
@@ -1229,7 +1247,7 @@ def test_one_empty_field_is_refused_by_its_name_and_reaches_no_door(
 def test_a_whole_statement_is_not_refused_by_the_panel(tmp_path: Path) -> None:
     # The control for the two arms above: the same press with all four reaches the door.
     report = drive(tmp_path, payload(), steps=[*fills(), press_ask()])
-    count = len(door_calls(report, "advice"))
+    count = len(door_calls(report, "act"))
     assert count == 1, report["door_calls"]
 
 
@@ -1325,11 +1343,11 @@ def test_no_plan_outcome_is_rendered_before_a_request(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_stated_request_reads_through_one_door_call_with_exactly_four_parameters(
+def test_a_stated_request_acts_through_one_door_call_with_exactly_four_parameters(
     tmp_path: Path,
 ) -> None:
     report = drive(tmp_path, payload(), steps=[*fills(), press_ask()])
-    calls = door_calls(report, "advice")
+    calls = door_calls(report, "act")
     count = len(calls)
     assert count == 1, calls
     assert calls[0]["params"] == dict(STATED), calls[0]["params"]
@@ -1344,7 +1362,7 @@ def test_the_rate_reaches_the_door_as_the_text_typed(rate: str, tmp_path: Path) 
     validated it would be a second, drifting copy of the server's grammar.
     """
     report = drive(tmp_path, payload(), steps=[*fills({**STATED, "rate": rate}), press_ask()])
-    assert door_calls(report, "advice")[0]["params"]["rate"] == rate
+    assert door_calls(report, "act")[0]["params"]["rate"] == rate
 
 
 def test_a_request_replaces_the_listing_with_its_own_visible_cards(tmp_path: Path) -> None:
@@ -1505,7 +1523,7 @@ def test_a_400_renders_the_reason_word_and_no_value(tmp_path: Path) -> None:
             {"settle": {"call": 0, "outcome": delivered(response)}},
         ],
     )
-    assert door_calls(report, "advice")[0]["params"]["rate"] == planted
+    assert door_calls(report, "act")[0]["params"]["rate"] == planted
     text = text_of(report, STATUS_ID) + text_of(report, ANSWER_ID)
     assert contract.REASON_INVALID_PARAMETER in text, text
     assert str(contract.HTTP_BAD_REQUEST) in text, text
@@ -1564,7 +1582,7 @@ def test_a_door_that_refuses_says_so_and_a_later_press_still_asks(tmp_path: Path
         accepts=[False, True],
         steps=[*fills(), press_ask(), press_ask()],
     )
-    count = len(door_calls(report, "advice"))
+    count = len(door_calls(report, "act"))
     expected = 2
     assert count == expected, "the first refusal latched the bench"
     refusal_step = report["steps"][-2]["nodes"]
@@ -1578,7 +1596,7 @@ def test_a_door_that_throws_puts_none_of_its_text_on_the_page(tmp_path: Path) ->
     # An exception's text on this machine can carry an absolute path under a home directory.
     report = drive(tmp_path, payload(), door_throws=True, steps=[*fills(), press_ask()])
     assert report["steps"][-1]["threw"] is None, report["steps"][-1]["threw"]
-    count = len(door_calls(report, "advice"))
+    count = len(door_calls(report, "act"))
     assert count == 1, "the door was never reached, so this grades nothing"
     assert "planted-door-failure-text" not in panel_text(report), panel_text(report)
     assert "nothing was sent" in text_of(report, STATUS_ID), text_of(report, STATUS_ID)
@@ -1586,7 +1604,7 @@ def test_a_door_that_throws_puts_none_of_its_text_on_the_page(tmp_path: Path) ->
 
 def test_a_page_with_no_door_says_so_at_the_press(tmp_path: Path) -> None:
     report = drive(tmp_path, payload(), door=DOOR_NONE, steps=[*fills(), press_ask()])
-    assert "no advice door" in text_of(report, STATUS_ID), text_of(report, STATUS_ID)
+    assert "no act door" in text_of(report, STATUS_ID), text_of(report, STATUS_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -1641,7 +1659,7 @@ def test_a_second_press_in_flight_asks_nothing_and_the_flag_comes_down(tmp_path:
             press_ask(),
         ],
     )
-    count = len(door_calls(report, "advice"))
+    count = len(door_calls(report, "act"))
     expected = 2
     assert count == expected, report["door_calls"]
     settled = report["steps"][-2]["nodes"]
@@ -1958,14 +1976,19 @@ def test_the_panel_is_wrapped_so_it_cannot_capture_a_siblings_globals() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_advice_door_asks_one_get_with_the_four_encoded(tmp_path: Path) -> None:
-    """The rate leaves as encoded text, in the table's order, whatever the bench built."""
+def test_the_ask_press_posts_one_act_with_the_four_encoded(tmp_path: Path) -> None:
+    """The rate leaves as encoded text, in the table's order, whatever the bench built.
+
+    CS-1397: the stated press records an act, so it is a POST that carries the same-origin
+    proof, and it is no longer a read.
+    """
     report = drive(tmp_path, payload(), door=DOOR_LIVE, steps=[*fills(), press_ask()])
     calls = report["fetch_calls"]
     count = len(calls)
     assert count == 1, calls
-    assert calls[0]["url"] == f"{advice_endpoint.ENDPOINT}?{stated_query()}", calls[0]["url"]
-    assert calls[0]["method"] == "GET"
+    assert calls[0]["url"] == f"{advice_endpoint.ACT_ENDPOINT}?{stated_query()}", calls[0]["url"]
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["headers"].get(PROOF_HEADER) == "1"
     assert calls[0]["has_body"] is False
 
 
@@ -2585,7 +2608,12 @@ def test_what_the_doors_send_is_what_the_real_routes_answer(case: str, tmp_path:
     expected_urls = 2
     count = len(urls)
     assert count == expected_urls, urls
-    assert contract.encode(replay(table, urls[0]).payload) == contract.encode(listed.payload)
+    methods = tuple(call["method"] for call in report["fetch_calls"])
+    assert methods == ("POST", "GET"), methods
+    acted = replay_as(table, "POST", urls[0])
+    # THE BODY, NOT THE ENVELOPE: the act answers the listing's body under its own endpoint.
+    same_body = acted.payload["data"] == listed.payload["data"]
+    assert same_body
     assert contract.encode(replay(table, urls[1]).payload) == contract.encode(derivation.payload)
     assert text_of(report, derivation_id(0)) == data_of(derivation)["derivation"]
 
@@ -2620,7 +2648,7 @@ def test_a_real_route_refusal_renders_its_word_and_no_value(tmp_path: Path) -> N
         ],
     )
     # THE CONTROL: the value did go out, so its absence below is the refusal not echoing it.
-    assert door_calls(report, "advice")[0]["params"][advice_endpoint.RATE_PARAMETER] == planted
+    assert door_calls(report, "act")[0]["params"][advice_endpoint.RATE_PARAMETER] == planted
     status = text_of(report, STATUS_ID)
     assert contract.REASON_INVALID_PARAMETER in status, status
     assert planted not in panel_text(report), panel_text(report)
@@ -2673,7 +2701,7 @@ def test_each_audit_state_is_selectable_and_renders_through_the_panel(
             {"settle": {"call": 0, "outcome": delivered(answer)}},
         ],
     )
-    assert door_calls(report, "advice")[0]["params"] == statement
+    assert door_calls(report, "act")[0]["params"] == statement
     text = text_of(report, ANSWER_ID)
     outcome = data_of(answer)["plan_outcome"]
     for value in outcome.values():
@@ -2926,11 +2954,12 @@ def test_a_recorded_state_re_reads_the_listing_under_the_same_statement(
             {"settle": {"call": 1, "outcome": recorded("dismissed")}},
         ],
     )
+    acted = len(door_calls(report, "act"))
+    assert acted == 1, report["door_calls"]
     asked = door_calls(report, "advice")
-    expected_asks = 2
     count = len(asked)
-    assert count == expected_asks, asked
-    assert asked[1]["params"] == dict(STATED), asked[1]
+    assert count == 1, asked
+    assert asked[0]["params"] == dict(STATED), asked[0]
 
 
 def test_the_re_read_listing_decides_what_the_page_shows(tmp_path: Path) -> None:
@@ -2977,7 +3006,7 @@ def test_a_refused_state_names_its_word_on_the_card_and_re_reads_nothing(
     assert contract.REASON_INVALID_PARAMETER in line, line
     assert PICKED_TOKEN not in line, line
     count = len(door_calls(report, "advice"))
-    assert count == 1, "a refused state must not repaint the listing"
+    assert count == 0, "a refused state must not repaint the listing"
 
 
 def test_a_state_door_that_refuses_says_so_on_the_card(tmp_path: Path) -> None:
@@ -3244,11 +3273,20 @@ def test_each_control_over_the_real_routes_records_and_re_reads(
     expected_calls = 3
     count = len(calls)
     assert count == expected_calls, calls
-    assert [call["method"] for call in calls] == ["GET", "POST", "GET"]
+    assert [call["method"] for call in calls] == ["POST", "POST", "GET"]
+    assert calls[0]["headers"].get(PROOF_HEADER) == "1"
     assert calls[1]["headers"].get(PROOF_HEADER) == "1"
+    # THE RE-READ STAYS A GET (CS-1397): a listing writes nothing.
+    reread_query = "&".join(f"{name}={stated[name].replace('/', '%2F')}" for name in FIELD_NAMES)
+    assert calls[2]["url"] == f"{advice_endpoint.ENDPOINT}?{reread_query}", calls[2]["url"]
     fresh = real_table("ranked", tmp_path / "replay")
     for call, wanted in zip(calls, (listed, state_answer, relisted), strict=True):
         got = replay_as(fresh, call["method"], call["url"])
+        if call["method"] == "POST" and call["url"].startswith(advice_endpoint.ACT_ENDPOINT):
+            # The act answers the listing's body under its own endpoint name.
+            same_body = got.payload["data"] == wanted.payload["data"]
+            assert same_body, call["url"]
+            continue
         assert contract.encode(got.payload) == contract.encode(wanted.payload), call["url"]
 
     answer = data_of(state_answer)
@@ -3262,3 +3300,165 @@ def test_each_control_over_the_real_routes_records_and_re_reads(
         assert f"state: {kind}" in shown, shown
     else:
         assert adopt["headline"] not in shown, shown
+
+
+# ---------------------------------------------------------------------------
+# p. CS-1397: "Advise on this world" is an act with no statement
+# ---------------------------------------------------------------------------
+
+
+def press_act() -> dict[str, Any]:
+    """The step pressing the unstated button.
+
+    Returns:
+        The step.
+    """
+    return {"click": ACT_ID}
+
+
+def acted(data: Mapping[str, Any]) -> dict[str, Any]:
+    """A settled 200 of the act route, built by the shipped constructor.
+
+    Args:
+        data: The listing body the act answers.
+
+    Returns:
+        The outcome shape ``app.js`` hands a callback.
+    """
+    response = contract.ok(advice_endpoint.ACT_ENDPOINT, data)
+    return {"reached": True, "http": response.http_status, "body": dict(response.payload)}
+
+
+def test_the_seam_publishes_the_act_door(tmp_path: Path) -> None:
+    report = drive(tmp_path, panel_harness.null_payload(), door=DOOR_NONE)
+    published = set(report["published_doors"])
+    assert "requestAct" in published, sorted(published)
+
+
+def test_the_unstated_press_calls_the_act_door_with_no_parameters(tmp_path: Path) -> None:
+    report = drive(tmp_path, payload(), steps=[press_act()])
+    calls = door_calls(report, "act")
+    count = len(calls)
+    assert count == 1, report["door_calls"]
+    assert calls[0]["params"] == {}, calls[0]
+    assert door_calls(report, "advice") == ()
+
+
+def test_the_unstated_press_needs_no_field_filled_in(tmp_path: Path) -> None:
+    # The stated press names what is empty and sends nothing; this one states nothing.
+    report = drive(tmp_path, payload(), steps=[press_act()])
+    status = text_of(report, STATUS_ID)
+    named = tuple(label for label in FIELD_LABELS.values() if label in status)
+    assert named == (), status
+
+
+def test_an_unstated_answer_lists_its_cards_and_says_no_target_was_stated(
+    tmp_path: Path,
+) -> None:
+    body = listing(card("Unstated answer", "unstated reason"))
+    report = drive(
+        tmp_path,
+        payload(card("Before the act", "before reason")),
+        steps=[press_act(), {"settle": {"call": 0, "outcome": acted(body)}}],
+    )
+    answer = text_of(report, ANSWER_ID)
+    assert "Unstated answer" in answer, answer
+    assert "no target stated" in answer, answer
+    assert "Before the act" not in answer, answer
+    # A CARD NO STATEMENT PRODUCED CARRIES NO STATE CONTROL, and no plan outcome was asked for.
+    ids = tuple(row["id"] for row in report["nodes"])
+    assert control_id("accept", 0) not in ids, ids
+    assert "plan status" not in answer, answer
+    assert "Plan outcome" not in answer, answer
+
+
+def test_a_page_with_no_act_door_says_so_at_the_unstated_press(tmp_path: Path) -> None:
+    report = drive(tmp_path, payload(), door=DOOR_NONE, steps=[press_act()])
+    assert "no act door" in text_of(report, STATUS_ID), text_of(report, STATUS_ID)
+
+
+def test_an_unstated_act_in_flight_marks_its_own_button_and_refuses_a_second_press(
+    tmp_path: Path,
+) -> None:
+    report = drive(tmp_path, payload(), steps=[press_act(), press_act()])
+    during = report["steps"][-1]["nodes"]
+    assert row_of(during, ACT_ID)["attributes"].get("aria-disabled") == "true"
+    assert "aria-disabled" not in row_of(during, ASK_ID)["attributes"]
+    assert row_of(during, ANSWER_ID)["attributes"].get("aria-busy") == "true"
+    count = len(door_calls(report, "act"))
+    assert count == 1, report["door_calls"]
+
+
+def test_a_settled_unstated_act_lowers_its_flag_and_a_later_press_asks_again(
+    tmp_path: Path,
+) -> None:
+    body = listing(card("Unstated answer", "unstated reason"))
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            {"focus": ACT_ID},
+            press_act(),
+            {"settle": {"call": 0, "outcome": acted(body)}},
+            press_act(),
+        ],
+    )
+    settled = report["steps"][-2]["nodes"]
+    assert "aria-disabled" not in row_of(settled, ACT_ID)["attributes"]
+    assert "aria-busy" not in row_of(settled, ANSWER_ID)["attributes"]
+    count = len(door_calls(report, "act"))
+    expected_acts = 2
+    assert count == expected_acts, report["door_calls"]
+
+
+def test_a_refused_unstated_act_names_its_word_and_leaves_no_earlier_card(
+    tmp_path: Path,
+) -> None:
+    refusal = contract.unavailable(advice_endpoint.ACT_ENDPOINT, contract.REASON_NO_SAVE)
+    report = drive(
+        tmp_path,
+        payload(card("Before the act", "before reason")),
+        steps=[press_act(), {"settle": {"call": 0, "outcome": delivered(refusal)}}],
+    )
+    assert contract.REASON_NO_SAVE in text_of(report, STATUS_ID), text_of(report, STATUS_ID)
+    assert "Before the act" not in panel_text(report), panel_text(report)
+
+
+def test_the_unstated_press_posts_one_act_with_no_query_and_the_proof(tmp_path: Path) -> None:
+    report = drive(tmp_path, payload(), door=DOOR_LIVE, steps=[press_act()])
+    calls = report["fetch_calls"]
+    count = len(calls)
+    assert count == 1, calls
+    assert calls[0]["url"] == f"{advice_endpoint.ACT_ENDPOINT}?", calls[0]["url"]
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["headers"].get(PROOF_HEADER) == "1"
+    assert calls[0]["has_body"] is False
+
+
+def test_the_unstated_press_reaches_the_real_route_and_draws_what_it_answers(
+    tmp_path: Path,
+) -> None:
+    table = source_fixtures._table(tmp_path)  # noqa: SLF001
+    # The real listing in a panel that has a target list to offer: the bench is what carries
+    # the press, and the synthetic registry serves no plan_targets.
+    held = panel_harness.null_payload(
+        advice=data_of(table["GET", advice_endpoint.ENDPOINT]({})), registry=registry_body()
+    )
+    answer = table["POST", advice_endpoint.ACT_ENDPOINT]({})
+    assert answer.http_status == contract.HTTP_OK, answer.payload
+
+    report = drive(
+        tmp_path / "drive",
+        held,
+        door=DOOR_LIVE,
+        steps=[
+            press_act(),
+            {"resolve": {"call": 0, "status": answer.http_status, "body": answer.payload}},
+        ],
+    )
+
+    url = report["fetch_calls"][0]["url"]
+    replayed = replay_as(table, "POST", url)
+    assert replayed.http_status == contract.HTTP_OK, replayed.payload
+    first = visible_cards(data_of(answer))[0]
+    assert first["headline"] in text_of(report, ANSWER_ID), text_of(report, ANSWER_ID)

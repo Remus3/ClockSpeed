@@ -62,7 +62,7 @@ NOW: Final = 1000
 
 #: The listing and the derivation, then the state write CS-1269 added - graded
 #: in ``tests/surface/test_advice_source.py``.
-EXPECTED_ROUTES: Final = 3
+EXPECTED_ROUTES: Final = 4
 
 #: A card id no advice here carries. Well formed, so only membership refuses it.
 UNKNOWN_CARD_ID: Final = "0" * 64
@@ -239,7 +239,7 @@ def _cards(data: Mapping[str, object]) -> list[Mapping[str, object]]:
 # ---------------------------------------------------------------------------
 
 
-def test_the_module_publishes_the_two_reads_as_gets_and_the_write_as_a_post() -> None:
+def test_the_module_publishes_the_two_reads_as_gets_and_the_two_writes_as_posts() -> None:
     published = advice_endpoint.routes(
         map_fixtures._Worlds(None),  # noqa: SLF001
         map_fixtures._Registries(None),  # noqa: SLF001
@@ -252,6 +252,7 @@ def test_the_module_publishes_the_two_reads_as_gets_and_the_write_as_a_post() ->
         ("GET", "/api/advice"),
         ("GET", "/api/advice/<id>/derivation"),
         ("POST", "/api/advice/<id>/state"),
+        ("POST", "/api/advice/act"),
     ]
 
 
@@ -1114,3 +1115,120 @@ def test_a_snooze_with_neither_is_missing_parameter_and_the_door_is_never_asked(
 
 def test_the_duration_parameter_is_published_by_the_name_the_page_sends() -> None:
     assert advice_endpoint.DURATION_PARAMETER == "duration"
+
+
+# ---------------------------------------------------------------------------
+# CS-1397: POST /api/advice/act - one door per call, and a refusal that is a word
+# ---------------------------------------------------------------------------
+
+
+class _ActingSource(_Source):
+    """A source with an acting door, counting each time it acts."""
+
+    def __init__(self, value: Advice | None, answer: Advice | str) -> None:
+        """Hold what the acting door answers.
+
+        Args:
+            value: What the read door answers.
+            answer: What :meth:`act` answers - the post-record advice, or a refusal word.
+        """
+        super().__init__(value)
+        self._answer = answer
+        self.acts = 0
+        self.act_requests: list[PlanRequest | None] = []
+
+    def act(
+        self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
+    ) -> Advice | str:
+        """Count the act and answer with the held answer."""
+        del world, registry
+        self.acts += 1
+        self.act_requests.append(plan_request)
+        return self._answer
+
+
+def _act_handler(
+    source: _Source, *, with_world: bool = True, with_registry: bool = True
+) -> contract.Handler:
+    published = advice_endpoint.routes(
+        map_fixtures._Worlds(map_fixtures.empty_world() if with_world else None),  # noqa: SLF001
+        map_fixtures._Registries(solve_synthetic.solve_registry() if with_registry else None),  # noqa: SLF001
+        source,
+    )
+    return {route.template: route.handler for route in published}[advice_endpoint.ACT_ENDPOINT]
+
+
+def test_the_act_handler_calls_the_acting_door_once_and_never_the_read_door(
+    tmp_path: Path,
+) -> None:
+    found = _advice_on(tmp_path)
+    source = _ActingSource(None, found)
+
+    response = _act_handler(source)({})
+
+    assert response.http_status == contract.HTTP_OK
+    assert source.acts == 1
+    assert source.calls == 0
+
+
+def test_the_act_body_is_the_listing_of_the_advice_the_door_answered(tmp_path: Path) -> None:
+    found = _advice_on(tmp_path)
+    source = _ActingSource(None, found)
+    listing, _derivation = _handlers(_Source(found))
+
+    acted = _data(_act_handler(source)({}))
+    read = _data(listing({}))
+
+    same = acted == read
+    assert same
+
+
+def test_a_source_with_no_acting_door_is_503_unwritable_and_reads_nothing(
+    tmp_path: Path,
+) -> None:
+    source = _Source(_advice_on(tmp_path))
+
+    response = _act_handler(source)({})
+
+    assert response.http_status == contract.HTTP_UNAVAILABLE
+    assert response.payload["reason"] == contract.REASON_ADVICE_STORE_UNWRITABLE
+    assert source.calls == 0
+
+
+@pytest.mark.parametrize(
+    ("word", "reason"),
+    [
+        (advice_endpoint.ACT_UNREADABLE, contract.REASON_ADVICE_STORE_UNREADABLE),
+        (advice_endpoint.ACT_UNWRITABLE, contract.REASON_ADVICE_STORE_UNWRITABLE),
+        ("a-word-no-door-answers", contract.REASON_ADVICE_STORE_UNWRITABLE),
+    ],
+)
+def test_a_refusal_word_is_a_503_of_its_own_reason_and_an_unknown_word_fails_closed(
+    word: str, reason: str
+) -> None:
+    source = _ActingSource(None, word)
+
+    response = _act_handler(source)({})
+
+    assert response.http_status == contract.HTTP_UNAVAILABLE
+    assert response.payload["reason"] == reason
+    assert source.acts == 1
+    problems = len(contract.contract_problems(response))
+    assert problems == 0
+    # A word the door answered is never echoed; the reason it maps to is the only text left.
+    body = contract.encode(response.payload).replace(reason.encode("ascii"), b"")
+    assert word.encode("ascii") not in body
+
+
+def test_no_save_and_no_install_are_503_before_the_acting_door(tmp_path: Path) -> None:
+    found = _advice_on(tmp_path)
+    no_world = _ActingSource(None, found)
+    no_registry = _ActingSource(None, found)
+
+    saved = _act_handler(no_world, with_world=False)({})
+    installed = _act_handler(no_registry, with_registry=False)({})
+
+    assert saved.payload["reason"] == contract.REASON_NO_SAVE
+    assert installed.payload["reason"] == contract.REASON_NO_GAME_INSTALL
+    assert no_world.acts == 0
+    assert no_registry.acts == 0

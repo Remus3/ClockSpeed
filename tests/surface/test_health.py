@@ -65,8 +65,9 @@ if TYPE_CHECKING:
 #: route ``/api/solve`` and ``/api/optimize`` were unreachable without - and FROM
 #: 10 TO 11 BY CS-977, which added ``/api/map``: ``/api/world`` counts nodes and
 #: never lists them, so nothing published a coordinate and no surface could draw
-#: the world.
-EXPECTED_ENDPOINTS: Final = 12
+#: the world. MOVED FROM 12 TO 13 BY CS-1397, which added ``/api/advice/act``: the ledger's
+#: recording path was reachable from no route, so nothing served ever recorded an act.
+EXPECTED_ENDPOINTS: Final = 13
 
 #: The backticked route in the section 7.1 sentence. ``/api/plan?target=...``
 #: carries a query string, which ``contract.ENDPOINT_PATTERN`` refuses outright,

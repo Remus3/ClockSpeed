@@ -23,10 +23,17 @@
   tests/surface/test_panel_advice.py binds each one to the Python constant it
   copies, which nothing does for panel_optimize.js's two lists.
 
-  NO FETCH IN THIS FILE. data.actions.requestAdvice,
-  data.actions.requestDerivation and (CS-1376) data.actions.requestState are the
+  NO FETCH IN THIS FILE. data.actions.requestAdvice, data.actions.requestDerivation,
+  (CS-1376) data.actions.requestState and (CS-1397) data.actions.requestAct are the
   only ways out, and app.js builds every query from its own tables, so this panel
   chooses the values and never the names, the path or the verb.
+
+  CS-1397 - TWO PRESSES RECORD AN ACT, AND NO READ DOES. "Ask for advice" (a stated target)
+  and "Advise on this world" (no statement) both go through requestAct, which POSTs
+  /api/advice/act: the advisor runs and the ledger records what the run implies, once, which
+  is the act the aging guard counts. The listing is a GET and writes nothing, so the first
+  paint, the derivation reads and the listing asked again after a state was recorded stay
+  reads. The act answers with the listing body, so it is drawn exactly as a listing is.
 
   CS-1376 - FOUR CONTROLS ON A STATED CARD: accept, dismiss, snooze and pin. Each posts
   one state through the state door with the card id and the four that PRODUCED the card,
@@ -92,6 +99,7 @@ var ASKING_LINE = "asking; what is below stays until the answer lands.";
 var BUSY_LINE = "that press found a request running; nothing was sent.";
 var NOT_SENT_LINE = "nothing was sent: a repaint or a request was running.";
 var NO_ADVICE_DOOR_LINE = "this page published no advice door; nothing was sent.";
+var NO_ACT_DOOR_LINE = "this page published no act door; nothing was sent.";
 var NO_READ_DOOR_LINE = "this page published no derivation door; nothing was sent.";
 var NO_STATE_DOOR_LINE = "this page published no state door; nothing was sent.";
 var UNREACHABLE_LINE = "no answer: unreachable.";
@@ -437,6 +445,7 @@ registerPanel("advice", function mountAdvice(root, data) {
     actions && typeof actions.requestDerivation === "function" ? actions.requestDerivation : null;
   var stateDoor =
     actions && typeof actions.requestState === "function" ? actions.requestState : null;
+  var actDoor = actions && typeof actions.requestAct === "function" ? actions.requestAct : null;
 
   var heading = document.createElement("h2");
   heading.id = "h-panel-advice";
@@ -765,6 +774,12 @@ registerPanel("advice", function mountAdvice(root, data) {
   button.textContent = "Ask for advice";
   bench.appendChild(button);
 
+  var actButton = document.createElement("button");
+  actButton.id = "advice-act";
+  actButton.setAttribute("type", "button");
+  actButton.textContent = "Advise on this world";
+  bench.appendChild(actButton);
+
   var statusLine = addLine(bench, "p", "note bench-status", IDLE_LINE);
   statusLine.id = "advice-status";
   statusLine.setAttribute("aria-live", "polite");
@@ -786,6 +801,12 @@ registerPanel("advice", function mountAdvice(root, data) {
     }
     var listing = dataOf(outcome);
     sayStatus("the endpoint answered " + textOf(outcome.http) + ".");
+    if (!statement) {
+      /* An act with no statement: this world's own cards, and no plan was asked for. */
+      addNote(region, "answering: this world, with no target stated.");
+      renderCards(region, listing, null);
+      return;
+    }
     addNote(
       region,
       "answering: "
@@ -802,7 +823,7 @@ registerPanel("advice", function mountAdvice(root, data) {
     renderPlanOutcome(region, listing.plan_outcome);
   }
 
-  function renderAnswer(outcome, statement) {
+  function renderAnswer(outcome, statement, focusTarget) {
     /*
       THE REGION IS ONLY EVER REWRITTEN HERE, ON A SETTLED ANSWER, so a request in
       flight moves nothing it is about to replace. A refusal replaces it too: a card
@@ -820,7 +841,7 @@ registerPanel("advice", function mountAdvice(root, data) {
     clearNode(region);
     fillAnswer(outcome, statement);
     if (keepFocus) {
-      button.focus();
+      (focusTarget || button).focus();
     }
   }
 
@@ -875,8 +896,8 @@ registerPanel("advice", function mountAdvice(root, data) {
       sayStatus("still empty: " + missing.join(", ") + ".");
       return;
     }
-    if (!askDoor) {
-      sayStatus(NO_ADVICE_DOOR_LINE);
+    if (!actDoor) {
+      sayStatus(NO_ACT_DOOR_LINE);
       return;
     }
     ask(
@@ -885,7 +906,7 @@ registerPanel("advice", function mountAdvice(root, data) {
       ASKING_LINE,
       function (settled) {
         region.setAttribute("aria-busy", "true");
-        return askDoor(statement, settled);
+        return actDoor(statement, settled);
       },
       function (outcome) {
         renderAnswer(outcome, statement);
@@ -893,6 +914,32 @@ registerPanel("advice", function mountAdvice(root, data) {
     );
     if (!waiting) {
       /* Refused, or settled synchronously: either way nothing is outstanding. */
+      region.removeAttribute("aria-busy");
+    }
+  });
+
+  actButton.addEventListener("click", function onAct() {
+    /*
+      NO STATEMENT, so the door is handed an empty one and the answer is drawn with none: the
+      cards this world holds, each carrying no statement of its own.
+    */
+    if (!actDoor) {
+      sayStatus(NO_ACT_DOOR_LINE);
+      return;
+    }
+    ask(
+      actButton,
+      sayStatus,
+      ASKING_LINE,
+      function (settled) {
+        region.setAttribute("aria-busy", "true");
+        return actDoor({}, settled);
+      },
+      function (outcome) {
+        renderAnswer(outcome, null, actButton);
+      }
+    );
+    if (!waiting) {
       region.removeAttribute("aria-busy");
     }
   });

@@ -37,10 +37,10 @@ looking - a failed import - instead of as a 404 on one endpoint that nobody
 drives until later.
 
 THE 405 BOUNDARY ROUTES ARE PUBLISHED APART FROM THE REST, and that separation is
-load-bearing rather than tidy. ``/api/advice/<id>/state`` answers POST; a GET on
-it is a wrong verb on a real resource, which is 405 and not 501. That boundary
-needs a second route on a template the published set already carries, so folding
-the two sets together would produce a table with one more entry than there are
+load-bearing rather than tidy. ``/api/advice/<id>/state`` and ``/api/advice/act``
+answer POST (CS-1397); a GET on either is a wrong verb on a real resource, which is 405
+and not 501. That boundary needs a second route on a template the published set already
+carries, so folding the two sets together would produce a table with one more entry than there are
 templates, in which one template appears twice. Anything reading the table as
 ``{route.template: route.method}`` - which is how the acceptance module reads it
 - would silently keep whichever of the two iteration reached last, and the count
@@ -106,6 +106,7 @@ BACKED_TEMPLATES: Final = (
     advice_endpoint.ENDPOINT,
     advice_endpoint.DERIVATION_ENDPOINT,
     advice_endpoint.STATE_ENDPOINT,
+    advice_endpoint.ACT_ENDPOINT,
 )
 
 #: What the server says about its own route table, in the two words
