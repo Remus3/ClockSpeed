@@ -65,6 +65,7 @@ from clockspeed.advisor.rules.plan import (
     IN_PLAN,
     IN_RAW_UNKNOWN,
     IN_REQUIRES,
+    IN_SCHEMATIC,
     IN_STATUS,
     IN_TARGET_NAMES,
     IN_TRIMMED,
@@ -301,13 +302,14 @@ def expected_tier3(pin: int) -> str:
             "  9. Read plan.raw_unknown = () from advisor.plans.raw_unknown",
             "  10. Read plan.unmatched_unlocks = 0 from advisor.plans.unmatched_unlocks",
             "  11. Read plan.trimmed = () from solve.bound.trim_record.removed",
-            "  12. Read plan.production = ProductionPlan(steps=("
+            "  12. Read plan.schematic = none from advisor.plans.schematic",
+            "  13. Read plan.production = ProductionPlan(steps=("
             'PlanStep(recipe_key="Recipe_SyntheticGadget_C", machines=3.00), '
             'PlanStep(recipe_key="Recipe_SyntheticPlate_C", machines=1.33 (exactly 4/3))), '
             'targets={"Desc_SyntheticGadget_C": 30.00}, '
             'raw_inputs={"Desc_SyntheticOre_C": 120.00}, byproducts={}, excluded=(), '
             'byproduct_policy="balanced") from solve.strategy.ranked_plan.plan',
-            '  13. Read plan.badge = StrategyBadge(strongest="within-power", '
+            '  14. Read plan.badge = StrategyBadge(strongest="within-power", '
             'cleared=("within-buildings", "within-power"), checks=('
             'ThresholdCheck(strategy="within-raw", cleared=false, score=120.00, '
             'reference=60.00, bound=1.00, reason="over-bound"), '
@@ -316,16 +318,16 @@ def expected_tier3(pin: int) -> str:
             'ThresholdCheck(strategy="within-power", cleared=true, score=45.00, '
             'reference=145.33 (exactly 436/3), bound=1.00, reason=""))) '
             "from solve.strategy.ranked_plan.badge",
-            "  14. Read plan.requires = "
+            "  15. Read plan.requires = "
             '("recipe:/Game/Synthetic/Recipe_SyntheticGadget.Recipe_SyntheticGadget_C") '
             "from advisor.plans.recipe_unlock_join",
-            '  15. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
-            '  16. Read plan.target_names = {"Desc_SyntheticGadget_C": "Synthetic Gadget"}'
+            '  16. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
+            '  17. Read plan.target_names = {"Desc_SyntheticGadget_C": "Synthetic Gadget"}'
             " from registry.items.display_name",
-            "  17. Computed plan machine equivalents = 4.33 (exactly 13/3)",
-            "  18. Indeterminate compare the plan with what is built:"
+            "  18. Computed plan machine equivalents = 4.33 (exactly 13/3)",
+            "  19. Indeterminate compare the plan with what is built:"
             " a plan is ranked for a stated target and never compared with the world",
-            "  19. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
+            "  20. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
         ]
     )
 
@@ -412,7 +414,7 @@ def test_a_different_badge_on_the_same_plan_moves_tier3_and_never_tier1() -> Non
         if old != new
     ]
     assert len(moved_lines) == 1
-    assert moved_lines[0].startswith("  13. Read plan.badge = StrategyBadge(")
+    assert moved_lines[0].startswith("  14. Read plan.badge = StrategyBadge(")
 
 
 def test_the_backend_moves_exactly_its_own_tier3_line_and_never_tier1_or_the_id() -> None:
@@ -432,8 +434,8 @@ def test_the_backend_moves_exactly_its_own_tier3_line_and_never_tier1_or_the_id(
     ]
     assert moved == [
         (
-            '  15. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
-            '  15. Read plan.backend = "greedy" from solve.optimize.optimize_result.backend',
+            '  16. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
+            '  16. Read plan.backend = "greedy" from solve.optimize.optimize_result.backend',
         )
     ]
 
@@ -579,6 +581,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         "advisor.plans.raw_unknown",
         "advisor.plans.unmatched_unlocks",
         "solve.bound.trim_record.removed",
+        "advisor.plans.schematic",
         "solve.strategy.ranked_plan.plan",
         "solve.strategy.ranked_plan.badge",
         "advisor.plans.recipe_unlock_join",
@@ -813,6 +816,7 @@ def test_the_family_declares_the_build_inputs_ahead_of_its_own() -> None:
         IN_UNCHECKED,
         IN_RAW_UNKNOWN,
         IN_TRIMMED,
+        IN_SCHEMATIC,
     )
     assert REDESIGN_RULE.unlocks == ()
     assert REDESIGN_RULE.domain == ADOPT_RULE.domain
