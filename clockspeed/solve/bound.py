@@ -760,7 +760,8 @@ def route_with_consumers(
         picks += 1
         inputs = tuple(entry.item_key for entry in registry.recipes[pick].inputs)
         consumed.update(inputs)
-        brought = _route_walk(registry, tuple(i for i in inputs if i != item), chosen)
+        others = tuple(sorted(i for i in inputs if i != item))
+        brought = _route_walk(registry, others, chosen)
         for key in (pick, *brought):
             if key not in named:
                 named.add(key)

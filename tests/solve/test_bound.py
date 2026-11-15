@@ -2788,6 +2788,103 @@ def test_leftovers_are_asked_for_in_sorted_item_order(monkeypatch: pytest.Monkey
     assert asked == sorted(leftovers)
 
 
+def test_an_item_a_route_member_eats_is_no_leftover_though_an_off_route_recipe_eats_it() -> None:
+    """An item a member makes and another member eats gets no consumer.
+
+    By hand: R_Top eats Rod and R_MakeRod makes it, so the route is both and Rod is made and
+    eaten on it. R_EatRod, off the route, also eats Rod and Ore. Relic's other maker ties
+    R_Top at 2 and is declared later. Nothing is left over, so the step refuses.
+    """
+    added = [
+        _one_each("R_Top", (SOLVE_ROD_ITEM,), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_MakeRod", (SOLVE_ORE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_EatRod", (SOLVE_ROD_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+    ]
+
+    assert _route_of(added).members == ("R_Top", "R_MakeRod")
+    with pytest.raises(bound.NoByproductConsumerError):
+        _consumers_of(added)
+
+
+def test_a_consumers_rank_reads_the_held_set_through_its_other_inputs_counts() -> None:
+    """Two consumers tie on their own cost until an other input's producer is held.
+
+    By hand, R_By, R_C1, R_C2 and R_MakePlate held and R_MakeRod locked: R_C1 counts
+    (1, 2) through Rod, R_C2 counts (0, 2) through Plate, so R_C2 wins although R_C1 is
+    declared first. With every count read as if nothing were locked they tie at 2 and
+    R_C1 would win.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_C1", (SOLVE_RARE_ITEM, SOLVE_ROD_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_C2", (SOLVE_RARE_ITEM, SOLVE_PLATE_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_MakeRod", (SOLVE_ORE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_MakePlate", (SOLVE_ORE_ITEM,), (SOLVE_PLATE_ITEM,)),
+    ]
+    held = frozenset({"R_By", "R_C1", "R_C2", "R_MakePlate"})
+
+    assert _consumers_of(added, held=held) == ("R_By", "R_C2", "R_MakePlate")
+    # The control: every recipe held, so no count is locked and the tie goes to R_C1.
+    assert _consumers_of(added, held=held | {"R_MakeRod"}) == ("R_By", "R_C1", "R_MakeRod")
+
+
+def test_a_brought_input_takes_the_producer_the_route_would_walk_held_first() -> None:
+    """A brought input's producer is the held count's choice, not the plain recipe count's.
+
+    By hand, R_RodLong and R_MakePlate held, R_RodShort locked: Rod counts (1, 1) through
+    R_RodShort and (0, 2) through R_RodLong, so the walk takes R_RodLong and Plate's maker.
+    With nothing counted locked R_RodShort wins at 1 and is brought instead.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_Use", (SOLVE_RARE_ITEM, SOLVE_ROD_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_RodShort", (SOLVE_ORE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_RodLong", (SOLVE_PLATE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_MakePlate", (SOLVE_ORE_ITEM,), (SOLVE_PLATE_ITEM,)),
+    ]
+    held = frozenset({"R_By", "R_Use", "R_RodLong", "R_MakePlate"})
+
+    assert _consumers_of(added, held=held) == ("R_By", "R_Use", "R_RodLong", "R_MakePlate")
+    # The control: with no held set the shorter producer is the one brought.
+    assert _consumers_of(added) == ("R_By", "R_Use", "R_RodShort")
+
+
+def test_the_leftover_itself_is_never_walked_for_a_brought_producer() -> None:
+    """Only a consumer's OTHER inputs bring producers.
+
+    By hand: R_RareAlt is declared before R_By and counts 1 for Rare like it, so Rare's
+    chosen producer is R_RareAlt, which is not the member that makes the leftover. Walking
+    the leftover itself would bring R_RareAlt onto the route.
+    """
+    added = [
+        _one_each("R_RareAlt", (SOLVE_ORE_ITEM,), (SOLVE_RARE_ITEM,)),
+        *_BY_AND_USE,
+    ]
+
+    names = _consumers_of(added)
+
+    assert names == ("R_By", "R_Use")
+    assert "R_RareAlt" not in names
+
+
+def test_a_consumers_other_inputs_are_walked_in_sorted_item_order() -> None:
+    """The walk's starting items are sorted, as ``_route_walk`` documents, not as listed.
+
+    By hand: R_Brings lists Rod before Plate, which sorts the other way, so the producer of
+    Plate is brought first.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each(
+            "R_Brings", (SOLVE_RARE_ITEM, SOLVE_ROD_ITEM, SOLVE_PLATE_ITEM), (SOLVE_RELIC_ITEM,)
+        ),
+        _one_each("R_MakeRod", (SOLVE_ORE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_MakePlate", (SOLVE_ORE_ITEM,), (SOLVE_PLATE_ITEM,)),
+    ]
+
+    assert _consumers_of(added) == ("R_By", "R_Brings", "R_MakePlate", "R_MakeRod")
+
+
 def test_one_hop_a_consumers_own_leftover_is_never_chased() -> None:
     """One hop: a consumer's own leftover is never chased.
 
