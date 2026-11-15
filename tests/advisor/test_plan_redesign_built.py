@@ -615,3 +615,27 @@ def test_a_world_with_no_machines_model_offers_no_comparison_and_says_what_it_di
     offered = plan_offer(worlds._unlocks(()), registry, _request(registry))  # noqa: SLF001
 
     assert offered[IN_REDESIGN_BUILT].value is None
+
+
+def test_stages_released_by_one_feeder_keep_registry_order_not_the_alphabet() -> None:
+    """One feeder releases two consumers, declared Zeta before Alpha; the feeder is declared last.
+
+    Both consumers wait on the feeder alone, so both are released in one step and only the tie
+    rule orders them: registry order, which here is the reverse of the alphabet.
+    """
+    x, a, b = (worlds._item(name) for name in ("TieX", "TieA", "TieB"))  # noqa: SLF001
+    registry = worlds._registry(  # noqa: SLF001
+        [
+            worlds._recipe("R_Zeta", [x], [a]),  # noqa: SLF001
+            worlds._recipe("R_Alpha", [x], [b]),  # noqa: SLF001
+            worlds._recipe("R_Feed", [SOLVE_ORE_ITEM], [x]),  # noqa: SLF001
+        ],
+        items=[x, a, b],
+    )
+    plan = _plan(("R_Zeta", 1), ("R_Alpha", 1), ("R_Feed", 1))
+
+    built = plans_module._compare_built(registry, plan, _machines(_state("R_Feed")))  # noqa: SLF001
+
+    assert _order(built) == ("R_Feed", "R_Zeta", "R_Alpha")
+    # Control: the order is not the alphabet, which would put Alpha before Zeta.
+    assert _order(built) != tuple(sorted(_order(built)))
