@@ -814,14 +814,14 @@ HALTING_KINDS: Final = frozenset(
 
 #: The supply card's headline on the fuel world: 10 m3 a minute short.
 FUEL_SUPPLY_HEADLINE: Final = (
-    f"Supply 10.00 m3 more Synthetic {fuel_fixtures.FUEL} per minute"
-    f" to Synthetic {fuel_fixtures.GEN_FUEL} x1"
+    f'Supply 10.00 m3 more "Synthetic {fuel_fixtures.FUEL}" per minute'
+    f' to "Synthetic {fuel_fixtures.GEN_FUEL}" x1'
 )
 
 #: The demand card's headline on the fuel world: 15 items a minute of coal.
 FUEL_DEMAND_HEADLINE: Final = (
-    f"Plan 15.00 items of Synthetic {fuel_fixtures.COAL} per minute"
-    f" for Synthetic {fuel_fixtures.GEN_COAL} x1"
+    f'Plan 15.00 items of "Synthetic {fuel_fixtures.COAL}" per minute'
+    f' for "Synthetic {fuel_fixtures.GEN_COAL}" x1'
 )
 
 #: The audit field the fuel rules' verdict input is sourced to.
@@ -963,7 +963,7 @@ def test_no_rule_halts_on_a_served_world(tmp_path: Path, world_name: str) -> Non
 # demand card names both, and says how many were never read - never "x1" and
 # never "x0".
 
-_UNREAD_COAL: Final = f"Synthetic {fuel_fixtures.GEN_COAL}"
+_UNREAD_COAL: Final = f'"Synthetic {fuel_fixtures.GEN_COAL}"'
 
 
 @pytest.mark.parametrize(

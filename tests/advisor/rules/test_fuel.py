@@ -878,8 +878,8 @@ def test_tier3_converts_the_shortfall_into_a_rate_for_every_accepted_fuel() -> N
 @pytest.mark.parametrize(
     ("order", "headline"),
     [
-        ((FUEL, TURBO), "Supply 14.00 m3 more Qx Fuel per minute to Qx Alpha Generator x2"),
-        ((TURBO, FUEL), "Supply 5.25 m3 more Qx Turbo per minute to Qx Alpha Generator x2"),
+        ((FUEL, TURBO), 'Supply 14.00 m3 more "Qx Fuel" per minute to "Qx Alpha Generator" x2'),
+        ((TURBO, FUEL), 'Supply 5.25 m3 more "Qx Turbo" per minute to "Qx Alpha Generator" x2'),
     ],
     ids=["fuel-first", "turbo-first"],
 )
@@ -893,8 +893,8 @@ def test_the_headline_fuel_is_the_first_in_mfuel_order(
 
 
 SUPPLY_REASON = (
-    "Qx Alpha Generator x2 demand 500.00 MW but the pooled supply of every accepted fuel"
-    " yields 325.00 MW: 175.00 MW short, which is 14.00 m3 of Qx Fuel per minute alone"
+    '"Qx Alpha Generator" x2 demand 500.00 MW but the pooled supply of every accepted fuel'
+    ' yields 325.00 MW: 175.00 MW short, which is 14.00 m3 of "Qx Fuel" per minute alone'
 )
 
 
@@ -902,7 +902,7 @@ def test_tiers_1_and_2_name_fuel_figure_and_generator_count() -> None:
     card = card_for(_run(SUPPLY_RULE, _alpha_fire()))
 
     assert card is not None
-    assert card.tier1 == "Supply 14.00 m3 more Qx Fuel per minute to Qx Alpha Generator x2"
+    assert card.tier1 == 'Supply 14.00 m3 more "Qx Fuel" per minute to "Qx Alpha Generator" x2'
     assert card.tier2 == SUPPLY_REASON
     for tier in (card.tier1, card.tier2):
         assert FUEL_NAME in tier
@@ -990,7 +990,7 @@ def test_several_fire_classes_headline_the_first_by_key_under_the_sorted_set() -
 
     assert card is not None
     assert card.subject_key == f"power:fuel-supply:{GEN_ALPHA},{GEN_BRAVO}"
-    assert card.tier1 == "Supply 14.00 m3 more Qx Fuel per minute to Qx Alpha Generator x2"
+    assert card.tier1 == 'Supply 14.00 m3 more "Qx Fuel" per minute to "Qx Alpha Generator" x2'
     assert card.tier2 == SUPPLY_REASON + "; 1 other generator class is short too"
     computed = _computed(trace)
     assert computed[f"shortfall MW of {GEN_BRAVO}, demand less pooled supply"] == Fraction(50)
@@ -1158,7 +1158,8 @@ def _renamed(generator: str | None = None, fuel: str | None = None) -> Registry:
 
 
 FALLBACK_REASON: Final = (
-    "the display name is empty, blank or not printable ASCII text, so the key names it"
+    "the display name is absent, empty, blank, not printable ASCII, not whitespace-normal"
+    " or over 64 characters, so the key names it"
 )
 
 
@@ -1167,22 +1168,22 @@ FALLBACK_REASON: Final = (
     [
         (
             _renamed(generator=""),
-            f"Supply 14.00 m3 more Qx Fuel per minute to {GEN_ALPHA} x2",
+            f'Supply 14.00 m3 more "Qx Fuel" per minute to {GEN_ALPHA} x2',
             GEN_ALPHA,
         ),
         (
             _renamed(generator="   "),
-            f"Supply 14.00 m3 more Qx Fuel per minute to {GEN_ALPHA} x2",
+            f'Supply 14.00 m3 more "Qx Fuel" per minute to {GEN_ALPHA} x2',
             GEN_ALPHA,
         ),
         (
             _renamed(fuel="Qx Fu\u00e9l"),
-            f"Supply 14.00 m3 more {FUEL} per minute to Qx Alpha Generator x2",
+            f'Supply 14.00 m3 more {FUEL} per minute to "Qx Alpha Generator" x2',
             FUEL,
         ),
         (
             _renamed(fuel=" "),
-            f"Supply 14.00 m3 more {FUEL} per minute to Qx Alpha Generator x2",
+            f'Supply 14.00 m3 more {FUEL} per minute to "Qx Alpha Generator" x2',
             FUEL,
         ),
     ],
@@ -1205,6 +1206,173 @@ def test_a_display_name_that_is_not_text_falls_back_to_the_key_on_record(
     assert SUPPLY_ID in settled_rules((trace,))
 
 
+# CS-1384: tier 1 and tier 2 quote a usable display name, as the plan family does.
+#
+# Three card branches name a class or a fuel: the supply card, the demand card with a burn and
+# the demand card with none. The last names no fuel. Every expected label below is spelled out,
+# so the escaping is graded against text and never against a copy of the rule.
+
+#: Per branch: its rule, a class that fires it, and its tier 1 given the class label and the
+#: fuel label it names.
+BRANCHES: Final[
+    Mapping[str, tuple[RuleSpec, Callable[[], tuple[FuelVerdict, FuelDemand]], Callable[..., str]]]
+] = MappingProxyType(
+    {
+        "supply": (
+            SUPPLY_RULE,
+            _alpha_fire,
+            lambda gen, fuel: f"Supply 14.00 m3 more {fuel} per minute to {gen} x2",
+        ),
+        "demand-burn": (
+            DEMAND_RULE,
+            lambda: _undecided(REASON_FLOW_INCOMPLETE),
+            lambda gen, fuel: f"Plan 40.00 m3 of {fuel} per minute for {gen} x2",
+        ),
+        "demand-no-burn": (
+            DEMAND_RULE,
+            lambda: _undecided(REASON_PRODUCTION_GAP),
+            lambda gen, _fuel: f"Resolve the fuel burn of {gen} x2 before planning its fuel",
+        ),
+    }
+)
+
+#: The (branch, which name changes) pairs: the no-burn card names no fuel.
+NAMED: Final = tuple(
+    (branch, subject)
+    for branch in BRANCHES
+    for subject in ("generator", "fuel")
+    if (branch, subject) != ("demand-no-burn", "fuel")
+)
+
+#: The longest name a tier reads, spelled so a change reddens here.
+MAX_NAME: Final = 64
+
+#: Names a tier reads quoted, beside the label each must read as. "both" holds a backslash
+#: before a quote, so escaping the quote first would double the backslash. The last holds a
+#: quote at the cap, so a cap measured on the escaped text would refuse it.
+QUOTED: Final = MappingProxyType(
+    {
+        "a-comma": ("Qx, Alpha", '"Qx, Alpha"'),
+        "a-semicolon": ("Qx; Alpha", '"Qx; Alpha"'),
+        "a-quote": ('Qx "Alpha"', '"Qx \\"Alpha\\""'),
+        "a-backslash": ("Qx\\Alpha", '"Qx\\\\Alpha"'),
+        "both": ('A\\"B', '"A\\\\\\"B"'),
+        "exactly-64": ("N" * MAX_NAME, '"' + "N" * MAX_NAME + '"'),
+        "quote-at-the-cap": ('"' + "N" * (MAX_NAME - 1), '"\\"' + "N" * (MAX_NAME - 1) + '"'),
+    }
+)
+
+#: Names a tier reads as the key: not usable as a quoted display name.
+FALLEN: Final = MappingProxyType(
+    {
+        "one-over-the-cap": "N" * (MAX_NAME + 1),
+        "a-leading-space": " Qx Alpha",
+        "a-trailing-space": "Qx Alpha ",
+        "two-spaces-in-a-row": "Qx  Alpha",
+        "empty": "",
+        "blank": "   ",
+        "non-ascii": "Qx Fu\u00e9l",
+    }
+)
+
+
+def _branch_card(branch: str, registry: Registry) -> tuple[Trace, Card]:
+    rule, make, _ = BRANCHES[branch]
+    trace = run_rule(rule, _inputs(_world_fuel(make()), registry))
+    card = card_for(trace)
+    assert card is not None
+    return trace, card
+
+
+def _tier1(branch: str, generator: str, fuel: str) -> str:
+    return BRANCHES[branch][2](generator, fuel)
+
+
+def _name_steps(trace: Trace) -> list[tuple[str, str]]:
+    return [
+        (step.subject, step.reason)
+        for step in trace.steps
+        if step.kind is StepKind.ALTERNATIVE_REJECTED and step.subject.startswith("name ")
+    ]
+
+
+def _changed(subject: str, name: str) -> Registry:
+    return _renamed(generator=name) if subject == "generator" else _renamed(fuel=name)
+
+
+DEFAULT_GENERATOR: Final = '"' + ALPHA_NAME + '"'
+DEFAULT_FUEL: Final = '"' + FUEL_NAME + '"'
+
+
+@pytest.mark.parametrize(("name", "label"), QUOTED.values(), ids=QUOTED.keys())
+@pytest.mark.parametrize(("branch", "subject"), NAMED, ids=[f"{b}-{s}" for b, s in NAMED])
+def test_a_usable_display_name_reads_quoted_and_escaped(
+    branch: str, subject: str, name: str, label: str
+) -> None:
+    trace, card = _branch_card(branch, _changed(subject, name))
+    control_trace, control = _branch_card(branch, REGISTRY)
+
+    generator = label if subject == "generator" else DEFAULT_GENERATOR
+    fuel = label if subject == "fuel" else DEFAULT_FUEL
+    assert card.tier1 == _tier1(branch, generator, fuel)
+    assert label in card.tier2
+    assert _name_steps(trace) == []
+    # The key and the card id never move, and the tier 3 steps keep every key.
+    assert card.subject_key == control.subject_key
+    assert card.id == control.id
+    assert GEN_ALPHA in card.tier3
+    assert settled_rules((trace,)) == settled_rules((control_trace,))
+
+
+@pytest.mark.parametrize("name", FALLEN.values(), ids=FALLEN.keys())
+@pytest.mark.parametrize(("branch", "subject"), NAMED, ids=[f"{b}-{s}" for b, s in NAMED])
+def test_a_name_that_is_not_usable_reads_its_key_through_the_rejected_alternative(
+    branch: str, subject: str, name: str
+) -> None:
+    trace, card = _branch_card(branch, _changed(subject, name))
+    control_trace, control = _branch_card(branch, REGISTRY)
+
+    key = GEN_ALPHA if subject == "generator" else FUEL
+    generator = key if subject == "generator" else DEFAULT_GENERATOR
+    fuel = key if subject == "fuel" else DEFAULT_FUEL
+    assert card.tier1 == _tier1(branch, generator, fuel)
+    assert _name_steps(trace) == [(f"name {key} by its display name", FALLBACK_REASON)]
+    # Settlement is the control's, and the card is the control's card.
+    assert settled_rules((trace,)) == settled_rules((control_trace,))
+    assert card.id == control.id
+    assert [s for s in trace.steps if s.kind is StepKind.RULE_ERROR] == []
+
+
+@pytest.mark.parametrize("cause", ["absent", "empty", "blank", "not printable ASCII"])
+def test_the_fallback_reason_names_every_cause(cause: str) -> None:
+    trace, _ = _branch_card("supply", _renamed(generator=""))
+    ((_, reason),) = _name_steps(trace)
+
+    assert cause in reason
+
+
+@pytest.mark.parametrize("cause", ["not whitespace-normal", "over 64 characters"])
+def test_the_fallback_reason_names_the_new_causes(cause: str) -> None:
+    trace, _ = _branch_card("supply", _renamed(generator=" Qx"))
+    ((_, reason),) = _name_steps(trace)
+
+    assert cause in reason
+
+
+@pytest.mark.parametrize("names", [IN_CLASS_NAMES, IN_FUEL_NAMES], ids=["class", "fuel"])
+def test_an_absent_display_name_reads_its_key(names: str) -> None:
+    offered = _inputs(_world_fuel(_alpha_fire()))
+    emptied = dict(offered.values)
+    emptied[names] = InputValue(MappingProxyType({}), offered.values[names].source)
+    trace = run_rule(SUPPLY_RULE, WorldInputs(values=emptied, unlocks=offered.unlocks))
+    card = card_for(trace)
+
+    key = GEN_ALPHA if names == IN_CLASS_NAMES else FUEL
+    assert card is not None
+    assert key in card.tier1
+    assert _name_steps(trace) == [(f"name {key} by its display name", FALLBACK_REASON)]
+
+
 def expected_supply_tier3(pin: int) -> str:
     """The whole on-pin derivation of Alpha's supply card, the pin read at test time.
 
@@ -1215,7 +1383,7 @@ def expected_supply_tier3(pin: int) -> str:
     return "\n".join(
         [
             "Derivation of rule power.fuel_supply (domain power)",
-            "Advice: Supply 14.00 m3 more Qx Fuel per minute to Qx Alpha Generator x2",
+            'Advice: Supply 14.00 m3 more "Qx Fuel" per minute to "Qx Alpha Generator" x2',
             "Because: " + SUPPLY_REASON,
             "Target milestone: none",
             "Steps:",
@@ -1333,7 +1501,7 @@ def test_the_demand_card_fires_on_every_indeterminate_reason(reason: str) -> Non
         # The omitted fixture builds a third generator the save never read.
         built = "x3 (1 never read)" if reason == REASON_INSTANCES_OMITTED else "x2"
         assert card.tier1 == (
-            f"Resolve the fuel burn of Qx Alpha Generator {built} before planning its fuel"
+            f'Resolve the fuel burn of "Qx Alpha Generator" {built} before planning its fuel'
         )
     else:
         assert card.tier1.startswith("Plan ")
@@ -1354,7 +1522,7 @@ def test_the_demand_card_states_each_burn_per_accepted_fuel() -> None:
         label = f"burn per minute of {burn.item_key} for {GEN_ALPHA}"
         assert computed[label] == ALPHA_DEMAND * SIXTY / energy
         assert computed[label] == burn.burn_per_minute
-    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert card.tier1 == 'Plan 40.00 m3 of "Qx Fuel" per minute for "Qx Alpha Generator" x2'
 
 
 def test_the_demand_card_never_fires_where_the_supply_rule_decides_every_class() -> None:
@@ -1375,7 +1543,7 @@ def test_the_demand_card_covers_only_the_undecided_classes() -> None:
 
     assert card is not None
     assert card.subject_key == f"power:fuel-demand:{GEN_BRAVO}"
-    assert card.tier1 == "Plan 12.00 m3 of Qx Bio per minute for Qx Bravo Generator x2"
+    assert card.tier1 == 'Plan 12.00 m3 of "Qx Bio" per minute for "Qx Bravo Generator" x2'
     named = [
         subject
         for subject in _subjects(trace, StepKind.ALTERNATIVE_REJECTED)
@@ -1401,9 +1569,9 @@ def test_an_unknown_burn_is_indeterminate_never_zero() -> None:
     card = card_for(trace)
 
     assert card is not None
-    assert card.tier1 == "Resolve the fuel burn of Qx Alpha Generator x2 before planning its fuel"
+    assert card.tier1 == 'Resolve the fuel burn of "Qx Alpha Generator" x2 before planning its fuel'
     assert card.tier2 == (
-        "The burn of Qx Alpha Generator x2 is unknown, never zero, with no supply verdict: "
+        'The burn of "Qx Alpha Generator" x2 is unknown, never zero, with no supply verdict: '
         + REASON_DETAIL[REASON_PRODUCTION_GAP]
     )
     undecided = [
@@ -1440,7 +1608,7 @@ def test_a_known_burn_takes_the_headline_from_an_earlier_unknown_one() -> None:
     card = card_for(trace)
 
     assert card is not None
-    assert card.tier1 == "Plan 6.00 m3 of Qx Bio per minute for Qx Bravo Generator x1"
+    assert card.tier1 == 'Plan 6.00 m3 of "Qx Bio" per minute for "Qx Bravo Generator" x1'
     assert card.tier2.endswith("; 1 other generator class is undecided too")
     assert card.subject_key == f"power:fuel-demand:{GEN_ALPHA},{GEN_BRAVO}"
     assert f"state the burn of {FUEL} for {GEN_ALPHA}" in _subjects(
@@ -1467,7 +1635,7 @@ def test_the_demand_card_id_is_the_sorted_fired_set() -> None:
 
 
 DEMAND_REASON: Final = (
-    "Qx Alpha Generator x2 burn 40.00 m3 of Qx Fuel per minute at a demand of 500.00 MW,"
+    '"Qx Alpha Generator" x2 burn 40.00 m3 of "Qx Fuel" per minute at a demand of 500.00 MW,'
     " with no supply verdict: the production flow is incomplete, so the fuel supply is a"
     " floor and not a measurement"
 )
@@ -1483,7 +1651,7 @@ def expected_demand_tier3(pin: int) -> str:
     return "\n".join(
         [
             "Derivation of rule power.fuel_demand (domain power)",
-            "Advice: Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2",
+            'Advice: Plan 40.00 m3 of "Qx Fuel" per minute for "Qx Alpha Generator" x2',
             "Because: " + DEMAND_REASON,
             "Target milestone: none",
             "Steps:",
@@ -1649,9 +1817,9 @@ def test_the_demand_headline_is_the_first_class_by_key_with_a_known_burn() -> No
 
     assert card is not None
     assert card.subject_key == f"power:fuel-demand:{GEN_ALPHA},{GEN_CHARLIE}"
-    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert card.tier1 == 'Plan 40.00 m3 of "Qx Fuel" per minute for "Qx Alpha Generator" x2'
     assert card.tier2 == (
-        "Qx Alpha Generator x2 burn 40.00 m3 of Qx Fuel per minute at a demand of 500.00 MW,"
+        '"Qx Alpha Generator" x2 burn 40.00 m3 of "Qx Fuel" per minute at a demand of 500.00 MW,'
         f" with no supply verdict: {FLOW_LINE}; 1 other generator class is undecided too"
     )
     burn = _computed(trace)[f"burn per minute of {COAL} for {GEN_CHARLIE}"]
@@ -1665,9 +1833,9 @@ def test_the_burn_unknown_headline_is_the_first_class_by_key() -> None:
     card = card_for(run_rule(DEMAND_RULE, _inputs(world)))
 
     assert card is not None
-    assert card.tier1 == "Resolve the fuel burn of Qx Alpha Generator x2 before planning its fuel"
+    assert card.tier1 == 'Resolve the fuel burn of "Qx Alpha Generator" x2 before planning its fuel'
     assert card.tier2 == (
-        "The burn of Qx Alpha Generator x2 is unknown, never zero, with no supply verdict:"
+        'The burn of "Qx Alpha Generator" x2 is unknown, never zero, with no supply verdict:'
         f" {CLOCK_LINE}; 1 other generator class is undecided too"
     )
 
@@ -1690,7 +1858,7 @@ def test_an_unknown_burn_beside_a_known_one_keeps_the_demand_rule_unsettled() ->
     card = card_for(trace)
 
     assert card is not None
-    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert card.tier1 == 'Plan 40.00 m3 of "Qx Fuel" per minute for "Qx Alpha Generator" x2'
     assert _computed(trace)[f"burn per minute of {FUEL} for {GEN_ALPHA}"] == Fraction(40)
     assert _pairs(trace, StepKind.VERDICT_INDETERMINATE, "state the burn") == [
         (f"state the burn of {DUD} for {GEN_ALPHA}", REASON_DETAIL[REASON_ENERGY_UNKNOWN])
@@ -1740,7 +1908,7 @@ def test_classes_are_taken_in_key_order_whatever_order_they_are_offered_in(
     if spec is DEMAND_RULE:
         card = card_for(trace)
         assert card is not None
-        assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+        assert card.tier1 == 'Plan 40.00 m3 of "Qx Fuel" per minute for "Qx Alpha Generator" x2'
 
 
 @pytest.mark.parametrize("spec", RULES, ids=lambda spec: spec.rule_id)
@@ -1792,10 +1960,10 @@ def test_one_class_with_an_unread_generator_states_the_built_count() -> None:
     trace, card = _demand_card(_census_world([_gen(GEN_CHARLIE)], charlie=1))
 
     assert card.tier1 == (
-        "Resolve the fuel burn of Qx Charlie Generator x2 (1 never read) before planning its fuel"
+        'Resolve the fuel burn of "Qx Charlie Generator" x2 (1 never read) before planning its fuel'
     )
     assert card.tier2 == (
-        "The burn of Qx Charlie Generator x2 is unknown, never zero, with no supply verdict:"
+        'The burn of "Qx Charlie Generator" x2 is unknown, never zero, with no supply verdict:'
         f" {OMITTED_LINE}; 1 built generator was never read"
     )
     assert (
@@ -1809,9 +1977,9 @@ def test_two_classes_count_an_unread_generator_beside_the_headline() -> None:
     world = _census_world([_gen(GEN_ALPHA), _gen(GEN_ALPHA), _gen(GEN_CHARLIE)], charlie=1)
     _, card = _demand_card(world)
 
-    assert card.tier1 == "Plan 40.00 m3 of Qx Fuel per minute for Qx Alpha Generator x2"
+    assert card.tier1 == 'Plan 40.00 m3 of "Qx Fuel" per minute for "Qx Alpha Generator" x2'
     assert card.tier2 == (
-        "Qx Alpha Generator x2 burn 40.00 m3 of Qx Fuel per minute at a demand of 500.00 MW,"
+        '"Qx Alpha Generator" x2 burn 40.00 m3 of "Qx Fuel" per minute at a demand of 500.00 MW,'
         f" with no supply verdict: {FLOW_LINE}; 1 other generator class is undecided too;"
         " 1 built generator was never read"
     )
@@ -1822,10 +1990,10 @@ def test_two_classes_each_with_an_unread_generator_count_them_all() -> None:
     _, card = _demand_card(world)
 
     assert card.tier1 == (
-        "Resolve the fuel burn of Qx Alpha Generator x2 (1 never read) before planning its fuel"
+        'Resolve the fuel burn of "Qx Alpha Generator" x2 (1 never read) before planning its fuel'
     )
     assert card.tier2 == (
-        "The burn of Qx Alpha Generator x2 is unknown, never zero, with no supply verdict:"
+        'The burn of "Qx Alpha Generator" x2 is unknown, never zero, with no supply verdict:'
         f" {OMITTED_LINE}; 1 other generator class is undecided too;"
         " 2 built generators were never read"
     )
@@ -1835,10 +2003,10 @@ def test_a_class_whose_every_generator_is_unread_never_reads_x0() -> None:
     _, card = _demand_card(_census_world([], charlie=2))
 
     assert card.tier1 == (
-        "Resolve the fuel burn of Qx Charlie Generator x2 (2 never read) before planning its fuel"
+        'Resolve the fuel burn of "Qx Charlie Generator" x2 (2 never read) before planning its fuel'
     )
     assert card.tier2 == (
-        "The burn of Qx Charlie Generator x2 is unknown, never zero, with no supply verdict:"
+        'The burn of "Qx Charlie Generator" x2 is unknown, never zero, with no supply verdict:'
         f" {OMITTED_LINE}; 2 built generators were never read"
     )
     assert "x0" not in card.tier1 + card.tier2
@@ -1898,19 +2066,19 @@ FUEL_SITES: Final[
         "supply-short": (
             SUPPLY_RULE,
             lambda build: _inputs(_world_fuel(_alpha_fire()), build=build),
-            "Supply 14.00 m3 more Qx Fuel",
+            'Supply 14.00 m3 more "Qx Fuel"',
             True,
         ),
         "demand-known-burn": (
             DEMAND_RULE,
             lambda build: _inputs(_world_fuel(_undecided(REASON_FLOW_INCOMPLETE)), build=build),
-            "Plan 40.00 m3 of Qx Fuel",
+            'Plan 40.00 m3 of "Qx Fuel"',
             True,
         ),
         "demand-unknown-burn": (
             DEMAND_RULE,
             lambda build: _inputs(_world_fuel(_undecided(REASON_ENERGY_UNKNOWN)), build=build),
-            "Resolve the fuel burn of Qx Alpha Generator",
+            'Resolve the fuel burn of "Qx Alpha Generator"',
             False,
         ),
     }

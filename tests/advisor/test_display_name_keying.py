@@ -45,6 +45,7 @@ from tests.advisor import test_plan_redesign as route_worlds
 from tests.advisor import test_plan_world as plan_worlds
 from tests.advisor import test_world_advice as worlds
 from tests.advisor.build_fixtures import docs_pin, game_pin
+from tests.advisor.rules import test_fuel as fuel_worlds
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -625,3 +626,70 @@ def test_a_non_printable_name_falls_back_and_the_card_survives(world_name: str, 
     assert read == {target: name}
     printable = card.tier1.isascii() and card.tier2.isascii() and card.tier3.isascii()
     assert printable
+
+
+#: One hostile-name set, beside the label each reads as in BOTH families, or None where it
+#: reads as its key. Spelled out, so the shared rule is graded against text and never against
+#: a copy of either family's code (CS-1384: one display-name rule governs the plan family and
+#: the fuel family).
+PARITY_NAMES: Final = MappingProxyType(
+    {
+        "a-comma": ("Qx, Alpha", '"Qx, Alpha"'),
+        "a-semicolon": ("Qx; Alpha", '"Qx; Alpha"'),
+        "a-quote": ('Qx "Alpha"', '"Qx \\"Alpha\\""'),
+        "a-backslash": ("Qx\\Alpha", '"Qx\\\\Alpha"'),
+        "exactly-64": ("N" * MAX_NAME_LENGTH, '"' + "N" * MAX_NAME_LENGTH + '"'),
+        "quote-at-the-cap": (
+            '"' + "N" * (MAX_NAME_LENGTH - 1),
+            '"\\"' + "N" * (MAX_NAME_LENGTH - 1) + '"',
+        ),
+        "one-over-the-cap": ("N" * (MAX_NAME_LENGTH + 1), None),
+        "a-leading-space": (" Qx Alpha", None),
+        "a-trailing-space": ("Qx Alpha ", None),
+        "two-spaces-in-a-row": ("Qx  Alpha", None),
+        "empty": ("", None),
+        "blank": ("   ", None),
+        "non-ascii": ("Qx Fu\u00e9l", None),
+        "a-tab": ("Qx\tAlpha", None),
+        "a-newline": ("Qx\nAlpha", None),
+        "a-nul": ("Qx\x00Alpha", None),
+        "a-del": ("Qx\x7fAlpha", None),
+    }
+)
+
+
+@pytest.mark.parametrize(("name", "label"), PARITY_NAMES.values(), ids=PARITY_NAMES.keys())
+@pytest.mark.parametrize("world_name", sorted(STATED_WORLDS))
+def test_one_display_name_rule_governs_the_plan_and_the_fuel_family(
+    world_name: str, name: str, label: str | None
+) -> None:
+    plan_card = _named_card(STATED_WORLDS[world_name], name)
+    plan_fell_back = _fallback_steps(plan_card.trace) != []
+
+    fuel_fell_back: list[bool] = []
+    fuel_read: list[str] = []
+    for subject, key, frame in (
+        ("generator", fuel_worlds.GEN_ALPHA, " to {} x2"),
+        ("fuel", fuel_worlds.FUEL, " more {} per minute"),
+    ):
+        trace, card = fuel_worlds._branch_card(  # noqa: SLF001
+            "supply",
+            fuel_worlds._changed(subject, name),  # noqa: SLF001
+        )
+        steps = fuel_worlds._name_steps(trace)  # noqa: SLF001
+        fuel_fell_back.append(steps != [])
+        read = label if label is not None else key
+        fuel_read.append(read)
+        assert frame.format(read) in card.tier1
+
+    # The same usable-or-fallback split in every place a name is read.
+    expected = label is None
+    assert plan_fell_back is expected
+    assert fuel_fell_back == [expected, expected]
+    # The same quoted text, or the same bare key, in both families.
+    if label is not None:
+        assert plan_card.tier1.endswith(" " + label)
+        assert fuel_read == [label, label]
+    else:
+        assert plan_card.tier1.endswith(" " + plan_worlds.SOLVE_RELIC_ITEM)
+        assert '"' not in plan_card.tier1

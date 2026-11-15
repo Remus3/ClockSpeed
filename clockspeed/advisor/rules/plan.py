@@ -49,8 +49,9 @@ is an internal identifier, and it can name a different item from the one a playe
 so where a rule's tier 1 or tier 2 says a target it says that target's label. When the
 display name is printable ASCII with a visible character, the engine's own test of a card's
 text, is whitespace-normal, with no leading or trailing space and no run of two, and is at
-most :data:`_MAX_NAME_LENGTH` characters, the label is that name inside double quotes, a
-double quote or backslash in it escaped by a backslash, so a semicolon or a comma in it,
+most :data:`~clockspeed.advisor.rules.display_names.MAX_NAME_LENGTH` characters, the label is
+that name inside double quotes, a double quote or backslash in it escaped by a backslash, so a
+semicolon or a comma in it,
 which a tier reads as its own clause and target separators, reads as part of one name and
 the quote that closes it cannot be forged. Otherwise the label is the ClassName, unquoted, so
 a quoted label is always a display name; a card's tiers collapse every whitespace run, so a
@@ -175,10 +176,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, TypeGuard
+from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor.build import BUILD_INPUTS, build_caveat
 from clockspeed.advisor.cards import render_value
+from clockspeed.advisor.rules.display_names import quoted, usable_name
 from clockspeed.advisor.trace import InputValue, Recommendation, RuleContext, RuleSpec
 from clockspeed.solve.backends import available_backends
 from clockspeed.solve.ratio import ProductionPlan
@@ -335,9 +337,6 @@ SUBJECT_PREFIX: Final = "plan:"
 #: so it names no value.
 _NAME_ALTERNATIVE: Final = "name every target by its display name"
 _NAME_REASON: Final = "a target has no usable display name, so its ClassName names it"
-
-#: The longest display name a tier reads. Far past any the pinned docs carry.
-_MAX_NAME_LENGTH: Final = 64
 
 #: The rung names in ladder order, which every badge's checks must follow.
 _LADDER_NAMES: Final = tuple(strategy.name for strategy in STRATEGY_LADDER)
@@ -697,42 +696,6 @@ def _checked_target_names(value: object, targets: tuple[str, ...]) -> Mapping[st
     return value
 
 
-def _usable_name(name: str | None) -> TypeGuard[str]:
-    """Whether a tier may quote a display name in.
-
-    Args:
-        name: The display name, or None when the registry offers none.
-
-    Returns:
-        True when it is printable ASCII with a visible character, is whitespace-normal - no
-        leading or trailing space and no run of two, which a card's tiers would collapse into
-        a name the registry does not hold - and is at most :data:`_MAX_NAME_LENGTH`
-        characters, measured on the name and never on its escaped text. A separator or a
-        quote in it is no bar: the label quotes and escapes it.
-    """
-    return (
-        name is not None
-        and len(name) <= _MAX_NAME_LENGTH
-        and name.strip(" ") != ""
-        and all(" " <= ch <= "~" for ch in name)
-        and " ".join(name.split()) == name
-    )
-
-
-def _quoted(name: str) -> str:
-    """Quote a usable display name, a backslash or double quote in it escaped by a backslash.
-
-    The backslash is escaped first, so the backslash that escapes a quote is never doubled.
-
-    Args:
-        name: A name :func:`_usable_name` passed.
-
-    Returns:
-        The name inside double quotes.
-    """
-    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
 def _target_labels(
     ctx: RuleContext, names: Mapping[str, str | None], targets: tuple[str, ...]
 ) -> tuple[str, ...]:
@@ -760,8 +723,8 @@ def _target_labels(
     fell_back = False
     for key in targets:
         name = names[key]
-        if _usable_name(name):
-            labels.append(_quoted(name))
+        if usable_name(name):
+            labels.append(quoted(name))
         else:
             labels.append(key)
             fell_back = True

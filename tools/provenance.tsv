@@ -51,6 +51,7 @@ clockspeed/advisor/cards.py	authored	CS-500	stamped
 clockspeed/advisor/ledger.py	authored	CS-500	stamped
 clockspeed/advisor/plans.py	authored	CS-1351	stamped
 clockspeed/advisor/rules/__init__.py	authored	CS-1165	first-add:root
+clockspeed/advisor/rules/display_names.py	authored	CS-1384	stamped
 clockspeed/advisor/rules/fuel.py	authored	CS-1285	stamped
 clockspeed/advisor/rules/plan.py	authored	CS-1346	stamped
 clockspeed/advisor/rules/power.py	authored	CS-500	stamped

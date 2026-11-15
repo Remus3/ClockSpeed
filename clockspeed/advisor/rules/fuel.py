@@ -65,11 +65,17 @@ recorded as indeterminate with its demand reasons' fixed lines. When no fired
 class has a known burn the demand card still fires, its headline asking for
 the burn to be resolved.
 
-DISPLAY NAMES FALL BACK ON RECORD (G4). :func:`fuel_inputs` offers each
-registry display name verbatim; a rule naming a class or a fuel in advice text
-uses the class or fuel key instead when the name is empty, blank (spaces
-only) or not printable ASCII text - the registry carries empty names - and
-records that fallback as a rejected alternative.
+DISPLAY NAMES READ QUOTED, AND FALL BACK ON RECORD (G4, CS-1384). :func:`fuel_inputs`
+offers each registry display name verbatim; a rule naming a class or a fuel in
+advice text says its display name inside double quotes, a double quote or
+backslash in it escaped by a backslash, so a comma or a semicolon in it reads as
+part of one name. The rule is the plan family's own, one shared module
+(:mod:`clockspeed.advisor.rules.display_names`). The class or fuel key, bare,
+stands in when the name is absent, empty, blank (spaces only), not printable
+ASCII text, not whitespace-normal or over 64 characters - the registry carries
+empty names - and that fallback is recorded as a rejected alternative, so
+settlement is unchanged. The key stays in tier 3's steps and in the card's
+subject and id.
 
 THE BUILT COUNT (fix round 2). A card counts every BUILT generator of its
 headline class - those the save recorded as running machines plus those it
@@ -120,6 +126,7 @@ from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor.build import BUILD_INPUTS, build_caveat
 from clockspeed.advisor.cards import render_value
+from clockspeed.advisor.rules.display_names import quoted, usable_name
 from clockspeed.advisor.trace import InputValue, Recommendation, RuleContext, RuleSpec
 from clockspeed.audit.fuel import (
     EXCLUSION_DETAIL,
@@ -237,7 +244,8 @@ _VERDICT_WORDS: Final = frozenset({VERDICT_FIRE, VERDICT_REJECT, VERDICT_INDETER
 
 _NO_CLASS: Final = "no built fuel generator class"
 _NAME_FALLBACK: Final = (
-    "the display name is empty, blank or not printable ASCII text, so the key names it"
+    "the display name is absent, empty, blank, not printable ASCII, not whitespace-normal"
+    " or over 64 characters, so the key names it"
 )
 
 
@@ -473,14 +481,16 @@ def _unit(values: Mapping[str, object], fuel: str) -> str:
 
 
 def _name(ctx: RuleContext, values: Mapping[str, object], names: str, key: str) -> str:
-    """A class's or a fuel's display name, or its key - the fallback on record (G4).
+    """A class's or a fuel's display name quoted, or its key - the fallback on record (G4).
 
-    A blank name - spaces only - is no name: :func:`_printable` wants a
-    visible character.
+    A name :func:`~clockspeed.advisor.rules.display_names.usable_name` refuses - absent,
+    empty, blank, not printable ASCII, not whitespace-normal or over the length cap - is no
+    name: the key reads bare and the rejected alternative records it. A usable name reads
+    in double quotes, escaped, by the plan family's own rule.
     """
     name = _mapping(values[names]).get(key)
-    if _printable(name):
-        return str(name)
+    if type(name) is str and usable_name(name):
+        return quoted(name)
     ctx.reject(f"name {key} by its display name", _NAME_FALLBACK)
     return key
 
