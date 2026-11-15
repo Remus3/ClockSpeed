@@ -126,6 +126,20 @@ A SERIAL WHOLE-TREE RUN DOES NOT FIT A CYCLE. The hand-run `python -m pytest tes
 percent in 40 minutes and was killed at the Bash ceiling, having found nothing; the hook's parallel run of the same
 tree took 18 minutes. A cycle that wants whole-tree evidence should push for it rather than run it by hand.
 
+### 2026-11-15 - CS-1384 - CLOSED: the fuel cards quote a class or fuel display name by the plan family's rule, one shared module
+Verification: `clockspeed/advisor/rules/display_names.py::usable_name`;
+`clockspeed/advisor/rules/display_names.py::quoted`; `clockspeed/advisor/rules/fuel.py::_name`;
+`tests/advisor/rules/test_fuel.py::test_a_usable_display_name_reads_quoted_and_escaped`,
+`::test_a_name_that_is_not_usable_reads_its_key_through_the_rejected_alternative`,
+`::test_the_fallback_reason_names_every_cause`;
+`tests/advisor/test_display_name_keying.py::test_one_display_name_rule_governs_the_plan_and_the_fuel_family`.
+The fuel family's tiers 1 and 2 quote a class or fuel display name by the plan family's own rule, moved unchanged out
+of plan.py into one shared module; an unusable name reads its key through the rejected alternative, so settlement and
+tier 3 are unchanged. The moved helpers' closed CS-1379 citations are forgiven by two RENAMED rows, the ceiling argued
+to 75. GRADED: an adversary NOT REFUTED, about 35 mutants killed. ADJUDICATED LAND by the session 157 adjudicator on
+the clause and code commits, the citation route re-graded PASS by a verifier. RESIDUAL: the rule's control-character
+and "~" boundary tests, filed in `BACKLOG.md`.
+
 ### 2026-11-15 - CS-1381 - CLOSED: a score tie breaks by each unweighted ladder rung in ladder order before registry order
 Verification: `clockspeed/solve/strategy.py::rank_plans`; `clockspeed/solve/strategy.py::RankedPlan`;
 `tests/solve/test_strategy.py::test_a_raw_tie_does_not_let_registry_order_top_a_plan_dominated_on_the_other_rungs`,

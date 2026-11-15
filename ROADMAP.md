@@ -288,7 +288,6 @@ CS-1374 - a redesign card names each locked recipe's schematic and tech tier - a
 CS-1375 - a redesign is compared with what is built, dependency-ordered - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1376 - plan panel accept, dismiss, snooze and pin controls through the state route - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1378 - balanced route-refused targets get no card though a recipe eats the byproduct - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1384 - the fuel cards splice a display name into tiers 1 and 2 unquoted; quote it as the plan family does - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

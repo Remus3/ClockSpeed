@@ -1325,3 +1325,11 @@ Trigger for all three: the operator's own words in the main session, or a measur
 - CS-1393 - ORDER item 4: a new session-start reads script (MAIN names it session_start_reads) prints one line - remote equals HEAD or not, the
   CI conclusion for the full SHA, the timing record's blocked_by_flake - called from act 1 of the
   hand-off.
+
+## Session 157 residuals - filed 2026-11-15 under product before process
+
+From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
+
+- Display-name rule boundary tests: add \x01, \x08, \x0e, \x1b (refused) and "~" (quoted) to PARITY_NAMES in
+  tests/advisor/test_display_name_keying.py; kills the CS-1384 adversary's surviving bound mutants in
+  clockspeed/advisor/rules/display_names.py::usable_name.
