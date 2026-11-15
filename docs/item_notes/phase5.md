@@ -605,13 +605,22 @@ Filed by the rulings recorded under CS-1371, so that what CS-1371 did not delive
 
 ### Acceptance
 
-In `clockspeed/solve/strategy.py::rank_plans`, plans tied on the asked direction's score break by the other two rung scores before registry order, the documented tie-break corrected in the
-same commit; an arm on a synthetic fixture reddens where a dominated plan tops the ranking today. Measured by badge scores on one world: Desc_Motor_C asked by raw has a top dominated by
-both other rung tops, 1 of 46 ranked targets; another world read 0 of 28. Out of the CS-1371 repair round because the badge is honest and the card true.
+In `clockspeed/solve/strategy.py::rank_plans`, plans tied on the objective's score break by the score of each ladder rung whose direction the objective does not weight, in `STRATEGY_LADDER`
+order, each scored by `score_plan` at the rung's unit weight, before registry order. A weighted direction never breaks its own tie: a one-direction objective breaks by the other two rungs, a
+two-direction one by the third alone, and one weighting all three by registry order alone, as today. On a tie-break power rung a plan with no exact draw raises nothing and sorts after every
+plan with one, and two such plans tie there; an objective weighting power still raises `PowerNotComparableError`. `RankedPlan.key` publishes the whole key sorted on, tie-break included;
+`optimize.ranking_key` and every backend are untouched. The module and `rank_plans` docstrings that call a second tie-break a restatement of `optimize.py`'s rule are corrected in the same
+commit. Each case reddens on its own synthetic arm first, no install: a raw-asked tie where registry order tops a plan dominated on buildings and power; a raw-asked tie where buildings and
+power disagree and registry order tops the plan power prefers, buildings deciding; a raw-asked tie on raw and buildings where registry order tops the plan with no exact draw; a
+raw-and-buildings tie that registry order tops with the higher draw, power deciding and neither weighted component. A permuted input stays byte-identical, and
+`tests/solve/golden/strategy.json`, which holds no ranking case, does not move. Measured by badge scores on one world: Desc_Motor_C asked by raw has a top dominated by both other rung tops,
+1 of 46 ranked targets; another world read 0 of 28. Out of the CS-1371 repair round because the badge is honest and the card true.
 
 ### Filed 2026-11-04 (session 155) by the CS-1371 close
 
 Filed by the adjudicator that graded CS-1371, so that what the close did not deliver is a row.
+
+Ruled 2026-11-14 (session 157 adjudicator): tie-break by unweighted rungs only, ladder order; an unpriceable plan sorts last on the power tie-break rung. Rejected: every rung; refusing mixed objectives; strongest-rung-first; dropping the power rung for all once any plan is unpriceable.
 
 ## CS-1384
 
