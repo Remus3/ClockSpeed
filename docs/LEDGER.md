@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1376 - CLOSED: the plan panel accepts, dismisses, snoozes and pins a card through the state route, a snooze's length a closed token resolved on the injected clock
+Verification: the ten touched suites passed on the landed tree, serial, 1119 passed: `tests/advisor/test_ledger.py`,
+`tests/advisor/test_advise.py`, `tests/advisor/test_ranking.py`, `tests/surface/test_advice.py`,
+`tests/surface/test_advice_source.py`, `tests/surface/test_panel_advice.py`, `tests/surface/test_web_assets.py`,
+`tests/test_repr_rendering.py`, `tests/test_assertion_rendering.py` and `tests/test_locals_rendering.py`; ruff, ruff
+format --check and mypy exit 0; base app.js under the candidate tests reddens 30.
+Closed CS-1376: `SNOOZE_DURATIONS` and `snooze_end` in `clockspeed/advisor/ledger.py`; duration on
+`POST /api/advice/<id>/state` via `DurationAdviceStore` in `clockspeed/surface/api/advice.py`, implemented by
+`StoreAdviceSource.snooze_until` in `clockspeed/surface/providers.py`; accept, dismiss, snooze and pin controls in
+`clockspeed/surface/web/panel_advice.js` through the `requestState` door in `clockspeed/surface/web/app.js`.
+Web-asset pins widened from two POSTs to three as the clause requires; the detector still fires on a fourth non-GET
+and on a body. GRADED: adversary NOT REFUTED, 22 mutants, 21 killed; ADJUDICATED: LAND, session 157. RESIDUAL: no arm
+pins each token's seconds (a 3600 to 3601 mutant survives); a ui-auditor pass on the panel's new controls is owed.
+
 ### 2026-11-15 - CS-1373 - CLOSED: a schematic may be stated as a plan target, its cost items planned as one route at the requirement's own rates
 Verification: `tests/advisor/test_plan_schematic_target.py` and `tests/surface/test_schematic_source.py`;
 `tests/advisor/test_plan_schematic_target.py::test_a_cost_item_off_plan_targets_is_named_never_dropped`,

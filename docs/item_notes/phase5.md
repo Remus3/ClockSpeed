@@ -543,28 +543,3 @@ a two-stage loop named. Not a lowering of the CS-1371 clause: a `BOOTSTRAP.md` p
 Filed by the rulings recorded under CS-1371, so that what CS-1371 did not deliver is a row.
 
 Ruled 2026-11-14 (session 157 adjudicator): made concrete, not re-scoped - built is WorldMachines by recipe at exact overclock; more is an exact shortfall, replace is an off-route producer of a route-stage output listed first; producers-first order. Rejected: machine-tier upgrades; target-first order.
-
-## CS-1376
-
-### Acceptance
-
-Phase 5, tier 2. The plan panel gains accept, dismiss, snooze and pin controls on each card a
-statement produced, posting through `POST /api/advice/<id>/state` (`BOOTSTRAP.md` section 5.2) with
-that card's statement, by data.actions in `clockspeed/surface/web/app.js`; `panel_advice.js` still
-fetches nothing and computes nothing. Snooze names a token from `SNOOZE_DURATIONS`, a closed mapping
-in `clockspeed/advisor/ledger.py` of at least one token to a positive whole number of seconds, sent
-as `duration`; the advisor resolves it against the advice source's injected clock and the success
-body's `snoozed_until` is that clock plus the token's seconds. A snooze carries exactly one of
-`until` and `duration`: both is 400 invalid_parameter, neither stays 400 missing_parameter, a
-`duration` on any other state or a token off the mapping is 400 invalid_parameter. The panel spells
-its tokens as literals and a test binds them to the mapping. Each reddens on its own arm first on a
-stated-target card over a synthetic world: each of the four controls posts its state with the card
-id and the statement; the re-read listing serves that state and the visible flag the advisor
-resolves; a snooze's instant equals the injected clock plus the token; each refusal above. Waits on
-CS-1360 landing in app.js; not concurrent with the schematic-selector item. Not a lowering.
-
-### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
-
-Filed by the rulings recorded under CS-1371, so that what CS-1371 did not deliver is a row.
-
-Ruled 2026-11-14 (session 157 adjudicator): snooze names a token from SNOOZE_DURATIONS in advisor/ledger.py, resolved server-side against the injected clock. Rejected: Date.now() in the page (computes in surface, clock skew); one server default with until omitted (breaks the missing_parameter arm).

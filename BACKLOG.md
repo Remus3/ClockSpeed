@@ -1340,3 +1340,7 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
 - CS-1373 arm gap: no fixture item has a recipe but no automated maker, so the clause's 'an item no automated recipe
   makes' case is reached only through plan_targets marking it raw; add one such item to the synthetic plan world and
   an arm naming it.
+- CS-1376 token seconds: pin each SNOOZE_DURATIONS token to a literal number of seconds in
+  tests/advisor/test_ledger.py; kills the surviving 3600 to 3601 mutant.
+- CS-1376 comment: clockspeed/surface/web/app.js near the actions object still says "FIVE DOORS AND NOT ONE" with six
+  doors present; correct it.
