@@ -2567,16 +2567,17 @@ NON_GET_TARGETS: Final = (
 )
 
 
-def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
+def test_the_page_issues_exactly_the_pinned_posts_and_no_form() -> None:
     """Four non-GET requests, each pinned to a path, no body and still no form.
 
     The four are the solve and optimize POSTs, the advice panel's state post
     (CS-1376), which records one card's state through ``/api/advice/<id>/state``, and its
     act post (CS-1397), which records one advice act through ``/api/advice/act``.
 
-    THE FUNCTION NAME STILL SAYS THREE. CS-1029's rule is that a name stating a count moves
-    with it, and ``tests/test_citation_tables.py`` cites this name as the RENAMED target of the
-    two-post arm, a file CS-1397's slice does not own; the rename waits on that table.
+    THE NAME CARRIES NO NUMBER, ON PURPOSE (CS-1397). CS-1029's rule is that a name stating a
+    count moves with it, and this arm was renamed for two, then three; the pinned set is
+    ``NON_GET_TARGETS`` and its size is ``EXPECTED_NON_GET_FETCHES``, so a later POST edits
+    those and never this name, which ``tests/test_citation_tables.py`` cites.
 
     THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
     RIGHT UNTIL THE OPERATOR RULED OTHERWISE. That arm asserted the page named
@@ -2589,11 +2590,11 @@ def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
     is a stronger statement than an absence that any later slice could quietly
     spend.
 
-    THE NAME CARRIES THE COUNT THE BODY ASSERTS (CS-1029). It read "exactly one
+    A NAME THAT STATES A COUNT MUST MOVE WITH IT (CS-1029). It read "exactly one
     post" for as long as the body asserted two, because the docstring moved
     with the second door and the function name did not - and a reader greps the
-    name, not the body. When ``EXPECTED_NON_GET_FETCHES`` moves, rename this
-    function in the same change.
+    name, not the body. CS-1397 ended that chore by removing the number from the
+    name: when ``EXPECTED_NON_GET_FETCHES`` moves, nothing is renamed.
 
     AND THE PARAMETERS RIDE IN THE QUERY STRING, WHICH IS WHY THE BODY LEG IS
     HERE. ``clockspeed/surface/server.py`` parses the query and reads the

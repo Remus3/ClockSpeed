@@ -1014,18 +1014,19 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1379 cited it live in plan.py; CS-1384 moved and renamed it. Not a record defect.",
         ("164588bd3372:60ed2224aec4:0",),
     ),
-    # --- the record was RIGHT when written; CS-1376 RENAMED the arm. The page now
-    # issues three POSTs - the panel's state post joined the two it already
-    # sent - so the CS-1029 closure's two-post arm says three, as its own
-    # CS-1029 rule requires of a name that states a count.
+    # --- the record was RIGHT when written; CS-1376 RENAMED the arm for the count
+    # of three, and CS-1397 renamed it again, count-agnostically, when the act
+    # post made four. The ONE closed citation is the CS-1029 closure's two-post
+    # arm, so this row is re-pointed at the live name rather than chained through
+    # the dead three-post one, which no closed record cites.
     (
         LEDGER,
         "tests/surface/test_web_assets.py::test_the_page_issues_exactly_two_posts_and_no_form",
     ): Disposition(
         RENAMED,
-        "tests/surface/test_web_assets.py::test_the_page_issues_exactly_three_posts_and_no_form",
+        "tests/surface/test_web_assets.py::test_the_page_issues_exactly_the_pinned_posts_and_no_form",
         "CS-1029 cited it live as the two-post arm; CS-1376 widened the pin to three and"
-        " renamed it. Not a record defect.",
+        " renamed it, and CS-1397 renamed it again for the pinned set. Not a record defect.",
         ("7924277c521c:dd27e076f6db:0",),
     ),
 }
@@ -1405,6 +1406,12 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: written and dead now, in an append-only carrier, with a live target - the row
 #: in DISPOSITIONS is RENAMED, pinned by its one site and checked in all three
 #: directions every run.
+#:
+#: UNMOVED AT 76 BY CS-1397, WHICH RENAMED THAT ARM AGAIN. The page's POST pin now
+#: counts four and its name carries no number, so no later POST renames it. The one
+#: closed citation is still the CS-1029 closure's, so the row above was RE-POINTED
+#: at the live name and nothing new is forgiven: a second row for the dead
+#: three-post name would pin no site, since no closed record cites it.
 FORGIVEN_LINE_POINTER_CEILING: Final = 76
 
 
