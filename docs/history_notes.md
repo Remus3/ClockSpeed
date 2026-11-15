@@ -46,8 +46,8 @@ query carries no rate. Waits on CS-1373 and CS-1360; not concurrent with CS-1376
 
 Split out of CS-1373 so a finished core is not held behind the CS-1360 lane.
 
-ADJUDICATED 2026-11-15 by the session 157 adjudicator: DO NOT LAND at c57a90ae, the registry route opened the docs
-file during a request; LAND at 733273e1 once the route bound no default catalog source.
+ADJUDICATED 2026-11-15 by the session 157 adjudicator: DO NOT LAND at the first candidate, the registry route opened the docs
+file during a request; LAND at the repaired candidate once the route bound no default catalog source.
 
 ## CS-1375 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 

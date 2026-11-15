@@ -88,7 +88,7 @@ schematic, direction and byproduct policy, never a rate, through the act door. D
 ground (items and no schematic on the selector): the plan panel now offers every catalog schematic as a free
 selector.
 GRADED: adversary REFUTED round one on three door and selector survivors, then killed by live-door arms;
-ADJUDICATED: DO NOT LAND at c57a90ae, then LAND at 733273e1, session 157. RESIDUAL: four follow-ups in BACKLOG.
+ADJUDICATED: DO NOT LAND at the first candidate, then LAND at the repaired candidate, session 157. RESIDUAL: four follow-ups in BACKLOG.
 
 ### 2026-11-15 - CS-1375 - CLOSED: the plan.redesign card compares its route with what is built, producers first, a stage reading more, enough or unmeasured and an off-route producer reading replace
 Verification: `tests/advisor/test_plan_redesign_built.py`, 24 passed on the landed tree serial; the thirteen suites of
