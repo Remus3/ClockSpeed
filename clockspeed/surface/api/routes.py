@@ -211,8 +211,9 @@ def build_routes(
         registries: Whatever hands up the registry, or says there is no install.
         advice_source: Whatever runs the advisor and reads its stores, or None
             for the store-reading default.
-        schematics: Whatever hands up the schematic catalog, or None for the installed
-            one (CS-1373), which reads nothing until a schematic is stated.
+        schematics: Whatever hands up the schematic catalog. None binds the installed
+            one to the advice routes (CS-1373), which reads nothing until a schematic is
+            stated, and binds none to ``/api/registry``, which then lists no schematic.
 
     Returns:
         One route per published template, in ``BOOTSTRAP.md`` section 7.1's order.
@@ -220,9 +221,6 @@ def build_routes(
     Raises:
         RouteAssemblyError: The table is not a bijection onto the published set.
     """
-    # ONE SOURCE, TWO READERS (CS-1396): the registry route lists its ClassNames and the
-    # advice routes read its catalog, so a schematic the panel offers is one they hold.
-    catalogs = InstalledSchematicSource() if schematics is None else schematics
     assembled = (
         contract.Route(
             method=METHOD_GET,
@@ -234,7 +232,13 @@ def build_routes(
             template=world.ENDPOINT,
             handler=world.make_handler(worlds),
         ),
-        *registry_endpoint.routes(registries, catalogs),
+        # THE REGISTRY ROUTE LISTS SCHEMATICS ONLY FROM A SOURCE THE CALLER BOUND (CS-1396).
+        # A source bound here is the very object the advice routes read, so a schematic the
+        # panel offers is one they hold. Left unbound it lists none: defaulting it to the
+        # installed source would open the docs file on every registry request, which
+        # CS-1171 forbids of an endpoint, and `clockspeed/surface/__main__.py` binds the
+        # installed source explicitly, so the served table lists the catalog.
+        *registry_endpoint.routes(registries, schematics),
         # THE ONE ROUTE BESIDES HEALTH THAT TAKES BOTH PROVIDERS. A map is a
         # world joined against the registry - the display names and the
         # extraction rates come from one, everything else from the other -
@@ -254,7 +258,7 @@ def build_routes(
             worlds,
             registries,
             StoreAdviceSource() if advice_source is None else advice_source,
-            catalogs,
+            InstalledSchematicSource() if schematics is None else schematics,
         ),
         *pending.routes(),
     )

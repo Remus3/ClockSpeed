@@ -60,6 +60,7 @@ import inspect
 import json
 import re
 from fractions import Fraction
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
@@ -69,6 +70,7 @@ from clockspeed.data import registry as data_registry
 from clockspeed.data.registry import build_registry
 from clockspeed.data.schematics import normalize_schematics
 from clockspeed.solve import ratio
+from clockspeed.surface import server
 from clockspeed.surface.api import contract, health
 from clockspeed.surface.api import registry as endpoint
 from clockspeed.surface.api import solve as solve_endpoint
@@ -76,6 +78,7 @@ from clockspeed.surface.api.routes import ENDPOINT_STATUS, ROUTES, build_routes
 from tests.data import synthetic as rich
 from tests.data.test_schematics import schematic_document, schematic_entry
 from tests.solve import synthetic
+from tests.surface.test_endpoint_opens_no_file_live import _recording
 from tests.surface.test_health import HOME_SHAPED, planted_reflection, reflected_in
 
 if TYPE_CHECKING:
@@ -1510,3 +1513,63 @@ class _StubWorlds:
             None.
         """
         return
+
+
+# --- CS-1396 round 4: the registry route opens no file, with a catalog or without ----------
+
+
+def _first_request_opens(source: object | None, corpus: Registry) -> tuple[list[str], object]:
+    """Serve ``/api/registry`` once through the server's own table, recording every open.
+
+    Args:
+        corpus: The registry the route serves.
+        source: The schematic source the table is built with, or None for the default.
+
+    Returns:
+        The channels the recorder saw during that FIRST request, and the served list.
+    """
+    table = server.routing(
+        build_routes(
+            _StubWorlds(),
+            _StubRegistryProvider(corpus),
+            None,
+            source,  # type: ignore[arg-type]
+        )
+    )
+    matched = server.match_route(table, endpoint.ENDPOINT)
+    assert matched is not None
+    with _recording() as seen:
+        response = table[matched[0]]["GET"]({})
+    return list(seen), body_of(response)[endpoint.PLAN_SCHEMATICS_KEY]
+
+
+def test_the_first_registry_request_with_a_held_catalog_opens_no_file(corpus: Registry) -> None:
+    seen, served = _first_request_opens(_StubCatalogs(_synthetic_catalog()), corpus)
+    assert served == SCHEMATIC_SORTED, "the catalog was not served, so the silence grades nothing"
+    assert seen == [], seen
+
+
+def test_the_first_registry_request_with_no_source_bound_opens_no_file(corpus: Registry) -> None:
+    seen, served = _first_request_opens(None, corpus)
+    assert served == []
+    assert seen == [], seen
+
+
+class _OpeningCatalogs(_StubCatalogs):
+    """A source whose catalog opens a file when asked: the recorder's positive control."""
+
+    def catalog(self) -> object | None:
+        """Open this module's own source, then publish the catalog.
+
+        Returns:
+            The catalog.
+        """
+        with Path(__file__).open("rb"):
+            pass
+        return super().catalog()
+
+
+def test_the_open_recorder_sees_a_source_that_opens_during_the_request(corpus: Registry) -> None:
+    seen, served = _first_request_opens(_OpeningCatalogs(_synthetic_catalog()), corpus)
+    assert served == SCHEMATIC_SORTED
+    assert seen, "the recorder saw nothing, so the two arms above prove nothing"
