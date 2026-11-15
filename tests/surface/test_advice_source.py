@@ -1165,9 +1165,20 @@ NO_UNLOCK: Final = (
     "; this route needs no unlock and the search, which dropped 1 held recipe(s) to fit its cap,"
     " found no route within it from the raw items a held extractor supplies"
 )
-NOT_CHOSEN: Final = (
-    "; the stated direction did not choose this route and it was never compared with what is built"
-)
+
+
+def _not_chosen(stages: int) -> str:
+    """The direction clause with a machines model read and no recipe tagged (CS-1375).
+
+    The comparison ran and read unmeasured, so tier 2 says so and states the counts.
+    """
+    return (
+        "; the stated direction did not choose this route"
+        "; the comparison read unmeasured, as no machine names a recipe"
+        "; against what is built 0 stage(s) read more, 0 recipe(s) read replace"
+        f" and {stages} stage(s) read unmeasured"
+    )
+
 
 #: The badge's whole read in the derivation of the ascent world's card, worked by hand in
 #: ``tests/advisor/test_plan_world.py``: it clears within-raw and neither other rung.
@@ -1630,7 +1641,7 @@ def test_a_routed_request_reads_its_card_through_the_listing_and_the_derivation(
     assert headline == f"Plan toward {plan_fixtures.RELIC_LABEL}"
     assert reason == (
         f"This route to {plan_fixtures.RELIC_LABEL} runs 3 locked and 1 held recipe(s)"
-        f"{MUST_UNLOCK}{NOT_CHOSEN}"
+        f"{MUST_UNLOCK}{_not_chosen(4)}"
     )
     assert isinstance(headline, str)
     assert isinstance(reason, str)
@@ -1726,7 +1737,7 @@ def test_an_unsupplied_raw_says_so_on_the_wire_and_no_adopt_card_reads(tmp_path:
     assert reason == (
         f"This route to {plan_fixtures.RELIC_LABEL} runs 0 locked and 1 held recipe(s)"
         " and needs 1 locked extractor(s); the locked extractors must unlock first on this route"
-        f"{NOT_CHOSEN}"
+        f"{_not_chosen(1)}"
     )
     # The control: the miner held ranks through the same door.
     held = redesign_fixtures._model(("R_Direct",))  # noqa: SLF001
@@ -1834,7 +1845,7 @@ def test_a_no_plan_reads_its_reason_scoped_to_the_kept_set_and_the_trim_on_the_w
     assert scoped
     assert _one_card(data, REDESIGN_ID)["reason"] == (
         f"This route to {plan_fixtures.RELIC_LABEL} runs 0 locked and 13 held recipe(s)"
-        f"{NO_UNLOCK}{NOT_CHOSEN}"
+        f"{NO_UNLOCK}{_not_chosen(13)}"
     )
 
 

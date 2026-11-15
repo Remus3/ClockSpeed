@@ -542,10 +542,30 @@ def test_tier_two_counts_a_stage_that_reads_unmeasured_apart_from_more(
     assert "0 stage(s) read more, 1 recipe(s) read replace and 1 stage(s) read unmeasured" in reason
 
 
-def test_with_nothing_measured_tier_two_keeps_saying_the_route_was_never_compared(
+def test_with_nothing_measured_tier_two_still_states_the_counts_and_says_unmeasured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     reason = _reason_of(_card(_world(_machines(), monkeypatch)))
+
+    # The comparison ran and read unmeasured, so it was compared: no never-compared sentence.
+    assert "the comparison read unmeasured, as no machine names a recipe" in reason
+    assert (
+        "against what is built 0 stage(s) read more, 0 recipe(s) read replace"
+        " and 3 stage(s) read unmeasured"
+    ) in reason
+    assert "never compared with what is built" not in reason
+
+
+def test_with_no_machines_model_at_all_tier_two_keeps_saying_the_route_was_never_compared() -> None:
+    registry = _chain()
+    offered = plan_offer(worlds._unlocks(()), registry, _request(registry))  # noqa: SLF001
+    world = worlds._with_value(  # noqa: SLF001
+        worlds._inputs(worlds._model(()), registry, _request(registry)),  # noqa: SLF001
+        IN_REDESIGN_BUILT,
+        offered[IN_REDESIGN_BUILT].value,
+    )
+
+    reason = _reason_of(_card(world))
 
     assert "it was never compared with what is built" in reason
     assert "stage(s) read more" not in reason

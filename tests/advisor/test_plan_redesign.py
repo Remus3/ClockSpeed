@@ -211,8 +211,9 @@ NAME_REASON: Final = "a target has no usable display name, so its ClassName name
 
 #: The step the firing path records whatever the names say.
 COMPARE_STEP: Final = (
-    "compare the route with what is built",
-    "a route is derived for a stated target and never compared with the world",
+    "settle the route's card on what is built",
+    "a route is derived for a stated target,"
+    " so its card going away says nothing about what is built",
 )
 
 #: The opening and the clauses of tier 2, spelled here so a rewording reddens.
@@ -241,9 +242,22 @@ UNCAPPED_NO_UNLOCK: Final = (
     "; this route needs no unlock and the search, which dropped no recipe to fit its cap,"
     " did not find it from the raw items a held extractor supplies"
 )
-NOT_CHOSEN: Final = (
-    "; the stated direction did not choose this route and it was never compared with what is built"
-)
+
+
+def _not_chosen(stages: int) -> str:
+    """The direction clause of tier 2 with a machines model read and no recipe tagged (CS-1375).
+
+    The comparison ran and read unmeasured, so tier 2 says that and states the counts: no stage
+    reads more, no recipe reads replace, and every stage with a machine count reads unmeasured.
+    """
+    return (
+        "; the stated direction did not choose this route"
+        "; the comparison read unmeasured, as no machine names a recipe"
+        "; against what is built 0 stage(s) read more, 0 recipe(s) read replace"
+        f" and {stages} stage(s) read unmeasured"
+    )
+
+
 ONE_UNCHECKED: Final = (
     "; 1 automated recipe(s) carry no unlock path to check and were never planned"
 )
@@ -843,10 +857,12 @@ def test_redesign_tiers_read_the_display_name_with_the_id_unchanged(tmp_path: Pa
     assert card.tier1 == f"Plan toward {RELIC_LABEL}"
     assert renamed.tier1 == f"Plan toward {RENAMED_LABEL}"
     assert card.tier2 == (
-        f"This route to {RELIC_LABEL} runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+        f"This route to {RELIC_LABEL} runs 3 locked and 1 held recipe(s)"
+        f"{MUST_UNLOCK}{_not_chosen(4)}"
     )
     assert renamed.tier2 == (
-        f"This route to {RENAMED_LABEL} runs 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+        f"This route to {RENAMED_LABEL} runs 3 locked and 1 held recipe(s)"
+        f"{MUST_UNLOCK}{_not_chosen(4)}"
     )
     # Two registries differing only in the name: one identity, and it is the ClassName's.
     assert card.subject_key == "plan:Desc_SolveRelic_C"
@@ -933,7 +949,7 @@ def test_a_target_three_locked_stages_out_reads_a_route_card(tmp_path: Path) -> 
     shown = [advised.card.id for advised in advice.shown]
     assert card.id in shown
     assert card.tier1 == f"Plan toward {RELIC_LABEL}"
-    assert card.tier2 == f"{ROUTE_RUNS} 3 locked and 1 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert card.tier2 == f"{ROUTE_RUNS} 3 locked and 1 held recipe(s){MUST_UNLOCK}{_not_chosen(4)}"
     assert _card_read(card, IN_STATUS) == NO_PLAN
 
 
@@ -1222,7 +1238,7 @@ def test_a_route_longer_than_the_cap_fires_wholly_held_with_the_no_unlock_wordin
     card = card_for(run_rule(REDESIGN_RULE, world))
 
     assert card is not None
-    assert card.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert card.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{_not_chosen(13)}"
     unlocks = sorted(_requires(card))
     assert unlocks == sorted(
         (ASSEMBLER_KEY, MINER_KEY, *(f"recipe:{_path(name)}" for name in names))
@@ -1235,7 +1251,9 @@ def test_one_locked_stage_on_the_same_chain_reads_the_must_unlock_wording() -> N
     registry = _chain_registry()
     names = _chain_names()
     card = _route_card(names[:-1], registry, _request(registry))
-    assert card.tier2 == f"{ROUTE_RUNS} 1 locked and 12 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert (
+        card.tier2 == f"{ROUTE_RUNS} 1 locked and 12 held recipe(s){MUST_UNLOCK}{_not_chosen(13)}"
+    )
     assert _card_read(card, IN_REDESIGN_LOCKED) == (names[-1],)
 
 
@@ -1271,7 +1289,7 @@ def test_a_stage_the_solve_gives_no_machine_is_neither_held_nor_locked(
     assert _card_read(card, IN_REDESIGN_HELD) == ()
     assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Main",)
     assert _requires(card) == ()
-    assert card.tier2 == f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert card.tier2 == f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{_not_chosen(1)}"
 
 
 def test_a_pathless_recipe_stays_off_the_route_and_is_counted_in_tier_2() -> None:
@@ -1280,7 +1298,7 @@ def test_a_pathless_recipe_stays_off_the_route_and_is_counted_in_tier_2() -> Non
     assert [stage for stage, _machine_count in _machines(card)] == ["R_Two", "R_One"]
     assert _card_read(card, IN_UNCHECKED) == ("R_Direct",)
     assert card.tier2 == (
-        f"{ROUTE_RUNS} 2 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}{ONE_UNCHECKED}"
+        f"{ROUTE_RUNS} 2 locked and 0 held recipe(s){MUST_UNLOCK}{_not_chosen(2)}{ONE_UNCHECKED}"
     )
     # The control: carrying a path, that recipe is the whole route and nothing is unchecked.
     pathed = _ascent_registry()
@@ -1356,7 +1374,7 @@ def test_a_recipe_held_with_no_machine_held_reads_no_adopt_card_and_counts_locke
 
     assert _cards(advice, ADOPT_ID) == []
     (card,) = _cards(advice, REDESIGN_ID)
-    assert card.tier2 == f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}"
+    assert card.tier2 == f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{_not_chosen(1)}"
     no_unlock_named = NO_UNLOCK in card.tier2
     assert not no_unlock_named
     assert _card_read(card, IN_STATUS) == NO_PLAN
@@ -1530,7 +1548,7 @@ def test_a_recipe_no_machine_of_which_joins_a_build_recipe_is_flagged_and_off_th
     assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Two", "R_One")
     assert _card_read(card, IN_REDESIGN_HELD) == ()
     assert card.tier2 == (
-        f"{ROUTE_RUNS} 2 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}{ONE_UNCHECKED}"
+        f"{ROUTE_RUNS} 2 locked and 0 held recipe(s){MUST_UNLOCK}{_not_chosen(2)}{ONE_UNCHECKED}"
     )
 
     # Off the search too: with the two stages held they rank under power, and it stays flagged.
@@ -1691,7 +1709,7 @@ def test_no_unlock_never_reads_beside_an_unsupplied_raw() -> None:
     card = _route_card(names, registry, _request(registry), extractors=())
 
     assert card.tier2 == (
-        f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NEEDS_ONE}{MUST_EXTRACT}{NOT_CHOSEN}"
+        f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NEEDS_ONE}{MUST_EXTRACT}{_not_chosen(13)}"
     )
     no_unlock_named = NO_UNLOCK in card.tier2
     assert not no_unlock_named
@@ -1700,7 +1718,7 @@ def test_no_unlock_never_reads_beside_an_unsupplied_raw() -> None:
     # The control, and the byte-same half of the ruling: the miner held reads the sentence as
     # it read before raw supply was asked about, and names the miner on what the engine checks.
     held = _route_card(names, registry, _request(registry))
-    assert held.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert held.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{_not_chosen(13)}"
     assert _card_read(held, LOCKED_EXTRACTORS) == ()
     named = _requires(held).count(MINER_KEY)
     assert named == 1
@@ -1715,7 +1733,7 @@ def test_a_locked_stage_and_a_locked_extractor_each_say_so() -> None:
 
     assert card.tier2 == (
         f"{ROUTE_RUNS} 1 locked and 12 held recipe(s){NEEDS_ONE}"
-        f"{MUST_UNLOCK}{MUST_EXTRACT}{NOT_CHOSEN}"
+        f"{MUST_UNLOCK}{MUST_EXTRACT}{_not_chosen(13)}"
     )
 
 
@@ -1729,7 +1747,7 @@ def test_locked_stages_and_locked_machines_never_reach_requires() -> None:
     assert _requires(card) == ()
     assert card.tier2 == (
         f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){NEEDS_ONE}"
-        f"{MUST_UNLOCK}{MUST_EXTRACT}{NOT_CHOSEN}"
+        f"{MUST_UNLOCK}{MUST_EXTRACT}{_not_chosen(1)}"
     )
     # Tier 3 names the machine through the read, and tier 1 and tier 2 do not.
     named = (
@@ -1911,7 +1929,7 @@ def test_a_raw_item_no_extractor_joins_reads_in_tier_2_and_tier_3() -> None:
     # The route reads the same input on its own path, the clause after the unchecked one.
     route = _route_card((), registry, _request(registry))
     assert route.tier2 == (
-        f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{NOT_CHOSEN}{ONE_RAW_UNKNOWN}"
+        f"{ROUTE_RUNS} 1 locked and 0 held recipe(s){MUST_UNLOCK}{_not_chosen(1)}{ONE_RAW_UNKNOWN}"
     )
     assert _card_read(route, RAW_UNKNOWN) == (SOLVE_RARE_ITEM,)
 
@@ -2216,7 +2234,7 @@ def test_an_unsupplied_raw_byproduct_meets_the_stated_policy() -> None:
     route = card_for(run_rule(REDESIGN_RULE, balanced))
     assert route is not None
     assert route.tier2 == (
-        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{NOT_CHOSEN}"
+        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{_not_chosen(1)}"
     )
     assert _card_read(route, LOCKED_EXTRACTORS) == ()
 
@@ -2259,14 +2277,14 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     capped = "held recipe(s) to fit its cap" in route.tier2
     assert not capped
     assert route.tier2 == (
-        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{NOT_CHOSEN}"
+        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){UNCAPPED_NO_UNLOCK}{_not_chosen(1)}"
     )
     assert _card_read(route, "plan.trimmed") == ()
 
     planted = _with_value(world, "plan.trimmed", ("R_By",))
     control = card_for(run_rule(REDESIGN_RULE, planted))
     assert control is not None
-    assert control.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert control.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{_not_chosen(1)}"
 
     # F1's world holding two more recipes beside R_By, so the planted trim names recipes it holds.
     beside_registry, beside_held = _by_world_beside(2)
@@ -2281,7 +2299,7 @@ def test_a_route_no_cap_cut_never_says_the_capped_search_missed_it() -> None:
     elsewhere = card_for(run_rule(REDESIGN_RULE, two))
     assert elsewhere is not None
     assert elsewhere.tier2 == (
-        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){_capped_no_unlock(2)}{NOT_CHOSEN}"
+        f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){_capped_no_unlock(2)}{_not_chosen(1)}"
     )
 
 
@@ -2308,11 +2326,11 @@ def test_the_cause_reader_reads_the_link_not_the_miss() -> None:
     False on the capped clause at either count and on the uncapped one, each in its full tier 2,
     and True on the old causal clause, so an arm calling it goes red on a clause blaming the cap.
     """
-    old = f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){OLD_CAUSAL_NO_UNLOCK}{NOT_CHOSEN}"
+    old = f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){OLD_CAUSAL_NO_UNLOCK}{_not_chosen(1)}"
     old_blames = _claims_a_cause(old)
     assert old_blames
     for clause in (NO_UNLOCK, _capped_no_unlock(2), UNCAPPED_NO_UNLOCK):
-        tier2 = f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){clause}{NOT_CHOSEN}"
+        tier2 = f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){clause}{_not_chosen(1)}"
         blames = _claims_a_cause(tier2)
         assert not blames
 
@@ -2356,7 +2374,7 @@ def test_a_cap_cut_beside_the_route_reads_the_cap_as_a_fact() -> None:
     route = card_for(run_rule(REDESIGN_RULE, world))
 
     assert route is not None
-    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{_not_chosen(1)}"
     blames = _claims_a_cause(route.tier2)
     assert not blames
     assert _card_read(route, "plan.trimmed") == (dropped,)
@@ -2406,7 +2424,7 @@ def test_a_cap_cut_off_the_plan_reads_the_same_fact() -> None:
     route = card_for(run_rule(REDESIGN_RULE, world))
 
     assert route is not None
-    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert route.tier2 == f"{ROUTE_RUNS} 0 locked and 1 held recipe(s){NO_UNLOCK}{_not_chosen(1)}"
     blames = _claims_a_cause(route.tier2)
     assert not blames
     assert _card_read(route, "plan.trimmed") == ("R_Alt",)
@@ -2440,7 +2458,8 @@ def test_a_cap_cut_into_the_route_reads_the_same_fact() -> None:
 
     assert route is not None
     assert route.tier2 == (
-        f"{ROUTE_RUNS} 0 locked and {CHAIN_STAGES} held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+        f"{ROUTE_RUNS} 0 locked and {CHAIN_STAGES} held recipe(s)"
+        f"{NO_UNLOCK}{_not_chosen(CHAIN_STAGES)}"
     )
     blames = _claims_a_cause(route.tier2)
     assert not blames
@@ -2579,7 +2598,7 @@ def test_a_machine_locked_recipe_cannot_tie_a_route_that_runs_now() -> None:
     assert card is not None
     assert [stage for stage, _machine_count in _machines(card)] == list(names)
     assert _card_read(card, IN_REDESIGN_LOCKED) == ()
-    assert card.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{NOT_CHOSEN}"
+    assert card.tier2 == f"{ROUTE_RUNS} 0 locked and 13 held recipe(s){NO_UNLOCK}{_not_chosen(13)}"
     uncovered = len(set(_requires(card)) - world.unlocks)
     assert uncovered == 0
 

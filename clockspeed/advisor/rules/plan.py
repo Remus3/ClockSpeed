@@ -481,9 +481,13 @@ _NOT_CHOSEN_CLAUSE: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
 )
 
-#: What it says instead where the route was compared with what is built and something measured
-#: (CS-1375): the direction still did not choose it, and the counts of the comparison follow.
+#: What it says instead wherever a machines model was handed to the offer (CS-1375): the
+#: direction still did not choose the route, and the counts of the comparison follow.
 _DIRECTION_ONLY_CLAUSE: Final = "; the stated direction did not choose this route"
+
+#: Said beside those counts where the comparison ran and no machine names any recipe, so it
+#: read unmeasured throughout. It ran, so the route was compared and the reading is unknown.
+_UNMEASURED_CLAUSE: Final = "; the comparison read unmeasured, as no machine names a recipe"
 
 #: The one clause naming a replace as the expensive change, said only where one reads.
 _REPLACE_COSTS_CLAUSE: Final = "; replacing a built recipe is the expensive change"
@@ -1374,16 +1378,18 @@ def _built_clause(built: RedesignBuilt | None) -> str:
         built: The checked comparison, or None where none was offered.
 
     Returns:
-        With nothing measured, the clause that says the route was never compared. Otherwise
-        that the direction did not choose the route, how many stages read more, how many
-        recipes read replace and how many stages read unmeasured, and that a replace is the
-        expensive change where one reads. Counts only: tier 3 names the recipes.
+        Where no machines model was handed over, the clause that says the route was never
+        compared. Wherever one was, that the direction did not choose the route, that the
+        comparison read unmeasured where no machine names a recipe, how many stages read more,
+        how many recipes read replace and how many stages read unmeasured, and that a replace
+        is the expensive change where one reads. Counts only: tier 3 names the recipes.
     """
-    if built is None or not built.measured:
+    if built is None:
         return _NOT_CHOSEN_CLAUSE
     more, replaced, unmeasured = _built_counts(built)
     return (
-        f"{_DIRECTION_ONLY_CLAUSE}; against what is built {more} stage(s) read more,"
+        f"{_DIRECTION_ONLY_CLAUSE}{'' if built.measured else _UNMEASURED_CLAUSE}"
+        f"; against what is built {more} stage(s) read more,"
         f" {replaced} recipe(s) read replace and {unmeasured} stage(s) read unmeasured"
         f"{_REPLACE_COSTS_CLAUSE if replaced else ''}"
     )
@@ -1508,7 +1514,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     if not held and not locked:
         ctx.reject(_REDESIGN_ALTERNATIVE, _NO_MACHINE_REASON)
         return None
-    if compared is not None and compared.measured:
+    if compared is not None:
         ctx.indeterminate(_BUILT_COMPARE_ALTERNATIVE, _BUILT_COMPARE_REASON)
     else:
         ctx.indeterminate(_ROUTE_COMPARE_ALTERNATIVE, _ROUTE_COMPARE_REASON)
