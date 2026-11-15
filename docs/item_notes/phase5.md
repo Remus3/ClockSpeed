@@ -352,13 +352,15 @@ ledger's shown-and-deferred record, never from a timer.
 
 The lane's CLOSED record is superseded; see the NOT A COMPLETION record of 2026-11-15 in docs/LEDGER.md.
 
+Session 157 adjudicator: POST /api/advice/act; one admitted POST is one act (no nonce); the act takes the listing's optional statement; the first recording act records a card at zero, so the threshold counts further acts.
+
 ### Acceptance
 
 a fixture with one large and several small cards brings the large card to the top after the
 configured number of evaluations; the same ledger state gives the same order. The evaluations
 are served advice acts through the stated act CS-1397 wires, never a test-only call: the card
 list the surface serves for that world reads the large card first after `AGING_EVALUATIONS` acts
-and not after one fewer. The configured number is
+beyond the act that first records it, and not after one fewer. The configured number is
 `clockspeed/advisor/ranking.py::AGING_EVALUATIONS` with its per-call override; no config file is
 required. Arms, green on the build and red under the mutant named: a fixture where
 `Advice.shown` and `Advice.ranked_shown` lead with different cards clears the ranked leader's
@@ -379,13 +381,13 @@ count above zero to read in production. Whether a GET may write a store at all i
 decision this item has to make first; a read endpoint that mutates the ledger is a
 different thing from a surface act that does.
 
+### Amended and filed 2026-11-15 by adjudication
+
+Session 157 adjudicator: POST /api/advice/act; one admitted POST is one act (no nonce); the act takes the listing's optional statement; the first recording act records a card at zero, so the threshold counts further acts.
+
 ### Acceptance
 
-a served world records what the run implies exactly once per advice act, through a stated act
-rather than a read, reached from `clockspeed/surface/` and proved by an arm that drives the
-surface rather than calling `advise_and_record` directly; a fixture proves a card shown below
-the top card on `AGING_EVALUATIONS` successive acts reaches that threshold in the store; no
-read-only path writes either store
+a served world records what the run implies exactly once per advice act - one admitted `POST /api/advice/act` is one act and calls the recording door once, and a refused request records nothing - through a stated act rather than a read, reached from `clockspeed/surface/` and proved by an arm that drives the surface rather than calling `advise_and_record` directly; a fixture proves a card first recorded by one act and then shown below the top card on `AGING_EVALUATIONS` further successive acts reaches that threshold in the store; no read-only path writes either store
 
 ## CS-1398
 
