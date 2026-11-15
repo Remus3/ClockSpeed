@@ -354,7 +354,9 @@ def inputs_of(
     inputs join them. Every registered rule reads all six first.
 
     THE PLAN OFFER (CS-1351) joins them too. It is handed the model's unlock state
-    and the registry, never the model, so the world token stays out of it.
+    and the registry, never the model, so the world token stays out of it. It is handed the
+    SAME machines model read above, beside the unlock state, so a redesign is compared with
+    what is built (CS-1375); ``solve/`` sees no machine.
 
     Args:
         model: The world model the surface holds.
@@ -389,7 +391,9 @@ def inputs_of(
     fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
     build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
     source = registry_inputs(registry_check_of(registry, pinned_docs_sha256=pinned_docs_sha256))
-    offer = plan_offer_with_schematics(model.unlocks, registry, plan_request, schematics)
+    offer = plan_offer_with_schematics(
+        model.unlocks, registry, plan_request, schematics, machines=machines
+    )
     return WorldInputs(
         values=merged_inputs(balanced.values, fuel, build, source, offer),
         unlocks=balanced.unlocks,

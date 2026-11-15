@@ -53,7 +53,12 @@ from clockspeed.advisor.ledger import (
 )
 from clockspeed.advisor.plans import PlanRequest
 from clockspeed.advisor.rules import power, registered_rules
-from clockspeed.advisor.rules.plan import IN_REDESIGN_UNLOCKS, RedesignUnlocks
+from clockspeed.advisor.rules.plan import (
+    IN_REDESIGN_BUILT,
+    IN_REDESIGN_UNLOCKS,
+    RedesignBuilt,
+    RedesignUnlocks,
+)
 from clockspeed.advisor.trace import (
     InputValue,
     Recommendation,
@@ -69,6 +74,7 @@ from clockspeed.audit.balance import (
     WorldDraw,
     WorldStarvation,
 )
+from clockspeed.audit.machines import WorldMachines
 from clockspeed.data.registry import Registry
 from clockspeed.data.schematics import SchematicCatalog, normalize_schematics
 from clockspeed.save.world import UnlockState, WorldModel
@@ -963,8 +969,9 @@ class _AskedSource:
 def _plan_offer_spy(seen: list[object]) -> object:
     """A stand-in for ``plan_offer_with_schematics`` that records the source it was handed."""
 
-    def spy(*offered: object) -> dict[str, InputValue]:
-        # (unlocks, registry, request, schematics): only the source is recorded.
+    def spy(*offered: object, **_keywords: object) -> dict[str, InputValue]:
+        # (unlocks, registry, request, schematics): only the source is recorded. The machines
+        # model rides beside them as a keyword (CS-1375).
         seen.append(offered[3])
         return {}
 
@@ -1223,3 +1230,70 @@ def test_an_act_with_a_stated_request_re_attaches_the_plan_outcome(tmp_path: Pat
     assert status == "ranked"
     recorded = len(Ledger(tmp_path).recorded(model.token))
     assert recorded == len(found.cards)
+
+
+# ---------------------------------------------------------------------------
+# The machines model rides through to the plan offer (CS-1375)
+# ---------------------------------------------------------------------------
+
+
+def _empty_machines() -> WorldMachines:
+    """A real machines model with nothing in it, which is not the one ``machines_of`` reads."""
+    return WorldMachines(
+        machines=(),
+        producing_available=False,
+        recipe_available=False,
+        overclock_available=False,
+        records_considered=0,
+        unread_payload_count=0,
+        refused_overclock_count=0,
+        refused_recipe_count=0,
+        warnings=(),
+    )
+
+
+def test_inputs_of_hands_the_machines_model_it_composed_to_the_plan_offer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handed = _empty_machines()
+    seen: list[object] = []
+
+    def spy(*_offered: object, machines: object = None) -> dict[str, InputValue]:
+        seen.append(machines)
+        return {}
+
+    monkeypatch.setattr(advise_mod, "machines_of", lambda _model: handed)
+    monkeypatch.setattr(advise_mod, "plan_offer_with_schematics", spy)
+
+    advise_mod.inputs_of(
+        worlds._model(()),  # noqa: SLF001
+        worlds._three_locked_registry(),  # noqa: SLF001
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+    )
+
+    # The very object the balance and the fuel audit read, never a second read of the model.
+    assert len(seen) == 1
+    assert seen[0] is handed
+
+
+def test_inputs_of_offers_the_route_comparison_end_to_end() -> None:
+    """With no stand-in: the world's own machines model reaches a comparison on a routed world."""
+    registry = worlds._three_locked_registry()  # noqa: SLF001
+    world = advise_mod.inputs_of(
+        worlds._model((worlds.HELD_STAGE,)),  # noqa: SLF001
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+        plan_request=worlds._request(registry),  # noqa: SLF001
+    )
+
+    # A synthetic world has no machine, so no recipe is tagged and the whole reading is
+    # unmeasured. Read through scalars, so no assertion renders the withheld mapping.
+    assert _built_reading(world) == (RedesignBuilt, False)
+
+
+def _built_reading(world: WorldInputs) -> tuple[type, bool | None]:
+    """The type of the comparison a world offers and whether it measured, as plain scalars."""
+    value = world.values[IN_REDESIGN_BUILT].value
+    return type(value), value.measured if type(value) is RedesignBuilt else None

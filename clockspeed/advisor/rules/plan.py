@@ -263,6 +263,10 @@ IN_REDESIGN_TARGET_NAMES: Final = "plan.redesign.target_names"
 #: no route was solved or no schematic catalog was read.
 IN_REDESIGN_UNLOCKS: Final = "plan.redesign.unlocks"
 
+#: The route compared with what is built (CS-1375): a :class:`RedesignBuilt`, or None where no
+#: route was solved or no machines model was handed to the plan offer.
+IN_REDESIGN_BUILT: Final = "plan.redesign.built"
+
 #: Every input the marked route offers, in the order the rule reads them. Apart from
 #: :data:`PLAN_INPUTS`: the ranked path and the route never share a name.
 REDESIGN_INPUTS: Final = (
@@ -275,6 +279,7 @@ REDESIGN_INPUTS: Final = (
     IN_REDESIGN_UNMADE,
     IN_REDESIGN_TARGET_NAMES,
     IN_REDESIGN_UNLOCKS,
+    IN_REDESIGN_BUILT,
 )
 
 #: The search did not read no-plan, so no route was derived. Every world but a no-plan.
@@ -417,6 +422,10 @@ _ROUTE_UNMADE_SOURCE: Final = "solve.bound.derived_route.unmade"
 #: The source of the route's unlockers: the join of the schematic catalog and the registry.
 _ROUTE_UNLOCKS_SOURCE: Final = _REDESIGN_SOURCE_PREFIX + "schematic_unlock_join"
 
+#: The source of the route's comparison with what is built (CS-1375): the audit machines model
+#: read against the solved route.
+_ROUTE_BUILT_SOURCE: Final = _REDESIGN_SOURCE_PREFIX + "built_comparison"
+
 #: The alternative the marked route records as undecided or, with no machine, as lost.
 _REDESIGN_ALTERNATIVE: Final = "offer the derived route"
 
@@ -470,6 +479,21 @@ _UNCAPPED_NO_UNLOCK_CLAUSE: Final = (
 #: What a route's reason says on every path: a count chose it, and no comparison did.
 _NOT_CHOSEN_CLAUSE: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
+)
+
+#: What it says instead where the route was compared with what is built and something measured
+#: (CS-1375): the direction still did not choose it, and the counts of the comparison follow.
+_DIRECTION_ONLY_CLAUSE: Final = "; the stated direction did not choose this route"
+
+#: The one clause naming a replace as the expensive change, said only where one reads.
+_REPLACE_COSTS_CLAUSE: Final = "; replacing a built recipe is the expensive change"
+
+#: The step the firing path records where the route was compared with what is built: the card
+#: still settles nothing, because the target is the caller's and moves with a question.
+_BUILT_COMPARE_ALTERNATIVE: Final = "settle the route's card on what is built"
+_BUILT_COMPARE_REASON: Final = (
+    "a route is derived for a stated target,"
+    " so its card going away says nothing about what is built"
 )
 
 
@@ -534,6 +558,72 @@ class RedesignUnlocks:
 
     locked: tuple[LockedUnlock, ...]
     unmatched: int
+
+
+#: What one row of the route-against-built comparison reads (CS-1375). ``more``: the route's
+#: machine count for the stage exceeds the built capacity on its recipe, by the exact shortfall.
+#: ``enough``: it does not. ``unmeasured``: the capacity of some machine on that recipe is
+#: unknown, or no machine names any recipe at all. ``replace``: a recipe off the route that built
+#: machines run makes an output of a route stage.
+BUILT_MORE: Final = "more"
+BUILT_ENOUGH: Final = "enough"
+BUILT_UNMEASURED: Final = "unmeasured"
+BUILT_REPLACE: Final = "replace"
+
+#: Every word a comparison row may carry.
+BUILT_READINGS: Final = (BUILT_MORE, BUILT_ENOUGH, BUILT_UNMEASURED, BUILT_REPLACE)
+
+
+@dataclass(frozen=True, slots=True)
+class BuiltRow:
+    """One row of the route compared with what is built (CS-1375).
+
+    Slotted, so the engine admits it. Every figure is an exact ``Fraction`` or a count.
+
+    Attributes:
+        recipe: The recipe's ClassName.
+        reading: One of :data:`BUILT_READINGS`.
+        route_machines: The route's machine count for a stage, at clock 1, or None on a
+            ``replace`` row, which is no stage of the route.
+        built_machines: How many built machines name this recipe, whatever their capacity.
+        built_capacity: The sum of those machines' exact capacities, on ``more`` and ``enough``
+            alone: None where any capacity is unknown, and on ``replace``.
+        shortfall: ``route_machines`` minus ``built_capacity``, on ``more`` alone, so above zero.
+        unknown_capacity: How many of those machines have an unknown capacity: an overclock
+            that was never read, or a production boost tagged.
+    """
+
+    recipe: str
+    reading: str
+    route_machines: Fraction | None
+    built_machines: int
+    built_capacity: Fraction | None
+    shortfall: Fraction | None
+    unknown_capacity: int
+
+
+@dataclass(frozen=True, slots=True)
+class RedesignBuilt:
+    """The marked route compared with what is built, dependency-ordered (CS-1375).
+
+    Attributes:
+        rows: The ``replace`` rows first, then one row per stage of the route with a nonzero
+            machine count, producers first.
+        measured: Whether any built machine names a recipe at all. False reads every stage
+            ``unmeasured`` and offers no ``replace`` row.
+        cycles: Each loop among the stages, its members in registry order. A stage in one is
+            listed after every predecessor outside it.
+        refused_recipe_tags: How many recipe tags the machines reader refused, counted.
+        unregistered_machines: How many machines name a recipe the registry does not hold.
+        untagged_machines: How many machines carry no recipe tag.
+    """
+
+    rows: tuple[BuiltRow, ...]
+    measured: bool
+    cycles: tuple[tuple[str, ...], ...]
+    refused_recipe_tags: int
+    unregistered_machines: int
+    untagged_machines: int
 
 
 @dataclass(frozen=True)
@@ -653,6 +743,7 @@ def redesign_status_inputs(status: str, *, unmade: tuple[str, ...] | None) -> di
         IN_REDESIGN_UNMADE: InputValue(unmade, _ROUTE_UNMADE_SOURCE),
         IN_REDESIGN_TARGET_NAMES: InputValue(None, _TARGET_NAME_SOURCE),
         IN_REDESIGN_UNLOCKS: InputValue(None, _ROUTE_UNLOCKS_SOURCE),
+        IN_REDESIGN_BUILT: InputValue(None, _ROUTE_BUILT_SOURCE),
     }
 
 
@@ -665,6 +756,7 @@ def redesign_inputs(
     requires: tuple[str, ...],
     target_names: MappingProxyType[str, str | None],
     unlocks: RedesignUnlocks | None = None,
+    built: RedesignBuilt | None = None,
 ) -> dict[str, InputValue]:
     """Offer one solved route as rule inputs, each sourced to where it came from.
 
@@ -688,6 +780,8 @@ def redesign_inputs(
             REQUIRED, for the reason :func:`plan_inputs` gives.
         unlocks: What unlocks each locked stage, or None where no schematic catalog was read,
             which says nothing about any stage and is not an empty list.
+        built: The route compared with what is built, or None where no machines model was
+            handed to the offer, which says nothing about any stage (CS-1375).
 
     Returns:
         A fresh dict of every input of :data:`REDESIGN_INPUTS`.
@@ -703,6 +797,7 @@ def redesign_inputs(
         IN_REDESIGN_REQUIRES: InputValue(requires, _ROUTE_REQUIRES_SOURCE),
         IN_REDESIGN_TARGET_NAMES: InputValue(target_names, _TARGET_NAME_SOURCE),
         IN_REDESIGN_UNLOCKS: InputValue(unlocks, _ROUTE_UNLOCKS_SOURCE),
+        IN_REDESIGN_BUILT: InputValue(built, _ROUTE_BUILT_SOURCE),
     }
 
 
@@ -1106,6 +1201,194 @@ def _check_unlocks(value: object, locked: tuple[str, ...]) -> RedesignUnlocks | 
     return value
 
 
+#: The fewest stages a loop can have: one stage feeding itself is no loop (CS-1375).
+_MIN_LOOP: Final = 2
+
+
+def _is_count(value: object) -> bool:
+    """Whether a value is exactly an int that is not negative."""
+    return type(value) is int and value >= 0
+
+
+def _check_built_figures(row: BuiltRow) -> None:
+    """Refuse a comparison row whose parts are not the types this module declares.
+
+    Args:
+        row: A row, already known to be a BuiltRow.
+
+    Raises:
+        TypeError: A name is not a str, a count is not a whole number or a figure is not an
+            exact Fraction.
+        ValueError: The reading is outside the closed vocabulary, or more machines have an
+            unknown capacity than were built.
+    """
+    if type(row.recipe) is not str or type(row.reading) is not str:
+        raise TypeError("a route's built row names a recipe or reading that is not a str")
+    if row.reading not in BUILT_READINGS:
+        raise ValueError("a route's built reading is outside the closed vocabulary")
+    if not _is_count(row.built_machines) or not _is_count(row.unknown_capacity):
+        raise TypeError("a route's built row counts machines that are not whole numbers")
+    if row.unknown_capacity > row.built_machines:
+        raise ValueError("a route's built row has more unknown machines than machines")
+    for figure in (row.route_machines, row.built_capacity, row.shortfall):
+        if figure is not None and type(figure) is not Fraction:
+            raise TypeError("a route's built figure is not an exact Fraction")
+
+
+def _check_stage_row(row: BuiltRow, count: Fraction, *, measured: bool) -> None:
+    """Refuse a stage's row whose reading disagrees with its own figures (CS-1375).
+
+    Args:
+        row: A row for a stage of the route, whose parts have the declared types.
+        count: The route's machine count for that stage.
+        measured: Whether the comparison says some machine names a recipe.
+
+    Raises:
+        ValueError: The reading and the figures disagree: an unmeasured row that carries a
+            figure, a measured row that carries none, or a shortfall that is not exactly the
+            route's count minus the built capacity.
+    """
+    capacity = row.built_capacity
+    if row.reading == BUILT_UNMEASURED:
+        if capacity is not None or row.shortfall is not None:
+            raise ValueError("a route's unmeasured row carries a figure")
+        if (row.unknown_capacity == 0) != (not measured):
+            raise ValueError("a route's unmeasured row disagrees with its comparison")
+        return
+    if capacity is None or row.unknown_capacity != 0 or not measured:
+        raise ValueError("a route's measured row carries no capacity")
+    gap = count - capacity
+    more = row.reading == BUILT_MORE
+    if more != (gap > 0) or row.shortfall != (gap if more else None):
+        raise ValueError("a route's built row disagrees with its own figures")
+
+
+def _check_built_row(row: object, counts: Mapping[str, Fraction], *, measured: bool) -> BuiltRow:
+    """Refuse one comparison row that is not honest, and return it as a row.
+
+    Args:
+        row: One member of the comparison's rows.
+        counts: The route's stages with a machine count, by ClassName.
+        measured: Whether the comparison says some machine names a recipe.
+
+    Returns:
+        The row.
+
+    Raises:
+        TypeError: A part is not exactly the type this module declares.
+        ValueError: The row disagrees with the plan, with its own reading, or with the
+            comparison it sits in. A forged claim is refused (non-negotiable 7).
+    """
+    if type(row) is not BuiltRow:
+        raise TypeError("a route's built rows are not BuiltRow entries")
+    _check_built_figures(row)
+    if row.reading == BUILT_REPLACE:
+        if (
+            row.recipe in counts
+            or row.route_machines is not None
+            or row.built_capacity is not None
+            or row.shortfall is not None
+            or row.built_machines == 0
+        ):
+            raise ValueError("a route's replace row is not an off-route recipe with machines")
+        return row
+    if row.recipe not in counts or row.route_machines != counts[row.recipe]:
+        raise ValueError("a route's built row disagrees with its plan")
+    _check_stage_row(row, counts[row.recipe], measured=measured)
+    return row
+
+
+def _check_built(value: object, plan: ProductionPlan) -> RedesignBuilt | None:
+    """Refuse a comparison that is not exactly one honest row per stage of its plan (CS-1375).
+
+    Args:
+        value: What :data:`IN_REDESIGN_BUILT` read.
+        plan: The route's plan, whose stages with a machine count the rows must be.
+
+    Returns:
+        The comparison, or None where no machines model was handed to the offer.
+
+    Raises:
+        TypeError: A part is not exactly the type this module declares.
+        ValueError: A row is missing or invented, a reading disagrees with its figures, a
+            replace row follows another kind, or a loop names a recipe that is no stage.
+    """
+    if value is None:
+        return None
+    if type(value) is not RedesignBuilt:
+        raise TypeError("a route's built comparison is not a RedesignBuilt")
+    if type(value.rows) is not tuple or type(value.cycles) is not tuple:
+        raise TypeError("a route's built rows and cycles are not tuples")
+    if type(value.measured) is not bool:
+        raise TypeError("a route's built comparison says neither measured nor not")
+    if not all(
+        _is_count(count)
+        for count in (
+            value.refused_recipe_tags,
+            value.unregistered_machines,
+            value.untagged_machines,
+        )
+    ):
+        raise TypeError("a route's built counts are not whole numbers")
+    counts = {step.recipe_key: step.machines for step in plan.steps if step.machines != 0}
+    rows = tuple(_check_built_row(row, counts, measured=value.measured) for row in value.rows)
+    replaced = [row for row in rows if row.reading == BUILT_REPLACE]
+    staged = [row for row in rows if row.reading != BUILT_REPLACE]
+    if rows != (*replaced, *staged):
+        raise ValueError("a route's replace rows do not come first")
+    if not value.measured and replaced:
+        raise ValueError("a route's comparison reads replace with nothing measured")
+    if sorted(row.recipe for row in staged) != sorted(counts):
+        raise ValueError("a route's built rows disagree with its stages")
+    if len({row.recipe for row in rows}) != len(rows):
+        raise ValueError("a route's built rows name a recipe twice")
+    for loop in value.cycles:
+        if (
+            type(loop) is not tuple
+            or len(loop) < _MIN_LOOP
+            or not all(name in counts for name in loop)
+        ):
+            raise ValueError("a route's built loops disagree with its stages")
+    return value
+
+
+def _built_counts(built: RedesignBuilt) -> tuple[int, int, int]:
+    """Count the rows of a checked comparison that read more, replace and unmeasured.
+
+    Args:
+        built: A comparison :func:`_check_built` returned.
+
+    Returns:
+        How many stages read more, how many recipes read replace and how many stages read
+        unmeasured.
+    """
+    more = sum(1 for row in built.rows if row.reading == BUILT_MORE)
+    replaced = sum(1 for row in built.rows if row.reading == BUILT_REPLACE)
+    return more, replaced, sum(1 for row in built.rows if row.reading == BUILT_UNMEASURED)
+
+
+def _built_clause(built: RedesignBuilt | None) -> str:
+    """Say what the route's reading of what is built came to, from the checked comparison.
+
+    Args:
+        built: The checked comparison, or None where none was offered.
+
+    Returns:
+        With nothing measured, the clause that says the route was never compared. Otherwise
+        that the direction did not choose the route, how many stages read more, how many
+        recipes read replace and how many stages read unmeasured, and that a replace is the
+        expensive change where one reads. Counts only: tier 3 names the recipes.
+    """
+    if built is None or not built.measured:
+        return _NOT_CHOSEN_CLAUSE
+    more, replaced, unmeasured = _built_counts(built)
+    return (
+        f"{_DIRECTION_ONLY_CLAUSE}; against what is built {more} stage(s) read more,"
+        f" {replaced} recipe(s) read replace and {unmeasured} stage(s) read unmeasured"
+        f"{_REPLACE_COSTS_CLAUSE if replaced else ''}"
+    )
+
+
 def _unchecked_clause(unchecked: tuple[str, ...]) -> str:
     """Say how many automated recipes no plan could be asked about, or nothing.
 
@@ -1191,12 +1474,13 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     unmade = ctx.read(IN_REDESIGN_UNMADE)
     names = ctx.read(IN_REDESIGN_TARGET_NAMES)
     unlocks = ctx.read(IN_REDESIGN_UNLOCKS)
+    built = ctx.read(IN_REDESIGN_BUILT)
     if (ctx.read(IN_STATUS) == STATUS_NO_PLAN) == (status == REDESIGN_NOT_REACHED):
         raise ValueError("a plan.redesign status disagrees with the plan status")
     if status != REDESIGN_ROUTED:
         _check_no_route_offered(
             status,
-            offered=(plan, held, locked, extractors, requires, names, unlocks),
+            offered=(plan, held, locked, extractors, requires, names, unlocks, built),
             unmade=unmade,
         )
         ctx.indeterminate(_REDESIGN_ALTERNATIVE, _REDESIGN_REASONS[status])
@@ -1208,6 +1492,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     extractors = _names(extractors, "a route's locked extractors")
     requires = _names(requires, "a route's unlock keys")
     _check_unlocks(unlocks, locked)
+    compared = _check_built(built, plan)
     if unmade is not None:
         raise TypeError("a routed offer names unmade items")
     unchecked = _names(ctx.read(IN_UNCHECKED), "a plan's unchecked recipes")
@@ -1223,7 +1508,10 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     if not held and not locked:
         ctx.reject(_REDESIGN_ALTERNATIVE, _NO_MACHINE_REASON)
         return None
-    ctx.indeterminate(_ROUTE_COMPARE_ALTERNATIVE, _ROUTE_COMPARE_REASON)
+    if compared is not None and compared.measured:
+        ctx.indeterminate(_BUILT_COMPARE_ALTERNATIVE, _BUILT_COMPARE_REASON)
+    else:
+        ctx.indeterminate(_ROUTE_COMPARE_ALTERNATIVE, _ROUTE_COMPARE_REASON)
     # The targets' labels and counts of stages and extractors, so no locked recipe or machine
     # reads as buildable: tier 3 names them under inputs of their own. The caveat stays last,
     # whatever precedes it.
@@ -1234,7 +1522,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         action="Plan toward " + labels,
         reason=(
             f"This route to {labels} runs {len(locked)} locked and {len(held)} held recipe(s)"
-            f"{needs}{_route_unlock_clause(ctx, locked, extractors)}{_NOT_CHOSEN_CLAUSE}"
+            f"{needs}{_route_unlock_clause(ctx, locked, extractors)}{_built_clause(compared)}"
             f"{_unchecked_clause(unchecked)}{_raw_unknown_clause(raw_unknown)}{caveat}"
         ),
         target_milestone=milestone,

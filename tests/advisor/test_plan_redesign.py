@@ -58,6 +58,7 @@ from clockspeed.advisor.plans import (
 from clockspeed.advisor.rules import plan as plan_rules
 from clockspeed.advisor.rules.plan import (
     IN_PLAN,
+    IN_REDESIGN_BUILT,
     IN_REDESIGN_HELD,
     IN_REDESIGN_LOCKED,
     IN_REDESIGN_PLAN,
@@ -3246,6 +3247,7 @@ def test_the_redesign_inputs_stay_out_of_the_plan_inputs() -> None:
         "plan.redesign.unmade",
         "plan.redesign.target_names",
         "plan.redesign.unlocks",
+        "plan.redesign.built",
     )
 
 
@@ -3262,6 +3264,7 @@ def test_each_redesign_input_names_the_field_it_came_from() -> None:
         IN_REDESIGN_UNMADE: "solve.bound.derived_route.unmade",
         IN_REDESIGN_TARGET_NAMES: "registry.items.display_name",
         IN_REDESIGN_UNLOCKS: "advisor.plans.redesign.schematic_unlock_join",
+        IN_REDESIGN_BUILT: "advisor.plans.redesign.built_comparison",
     }
 
 

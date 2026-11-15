@@ -396,6 +396,7 @@ def _route_world(*, machines: Fraction) -> WorldInputs:
             plan.IN_REDESIGN_UNMADE: None,
             plan.IN_REDESIGN_TARGET_NAMES: _PLAN_NAMES,
             plan.IN_REDESIGN_UNLOCKS: plan.RedesignUnlocks(locked=(), unmatched=0),
+            plan.IN_REDESIGN_BUILT: None,
         },
         unlocks=(_PLAN_UNLOCK,),
     )

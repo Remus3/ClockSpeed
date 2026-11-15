@@ -186,6 +186,7 @@ rate and figure is an exact Fraction.
 
 from __future__ import annotations
 
+import heapq
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
@@ -194,6 +195,10 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, TypeGuard
 
 from clockspeed.advisor.rules.plan import (
+    BUILT_ENOUGH,
+    BUILT_MORE,
+    BUILT_REPLACE,
+    BUILT_UNMEASURED,
     REASON_EMPTY_COST,
     REASON_ITEM_NOT_PLANNABLE,
     REDESIGN_NO_ROUTE,
@@ -209,7 +214,9 @@ from clockspeed.advisor.rules.plan import (
     UNLOCK_NONE,
     UNLOCK_UNKNOWN,
     UNPLANNABLE_REASONS,
+    BuiltRow,
     LockedUnlock,
+    RedesignBuilt,
     RedesignUnlocks,
     SchematicStatement,
     UnlockingSchematic,
@@ -259,6 +266,7 @@ from clockspeed.solve.ratio import (
 from clockspeed.solve.strategy import STRATEGY_LADDER, RankedPlan, Strategy, rank_plans
 
 if TYPE_CHECKING:
+    from clockspeed.audit.machines import MachineState, WorldMachines
     from clockspeed.data.schematics import Schematic, SchematicCatalog
     from clockspeed.progress.milestones import MilestoneRequirement, SchematicSource
     from clockspeed.save.world import UnlockState
@@ -1030,6 +1038,7 @@ def _route_inputs(
     join: _RecipeJoin,
     supply: _RawSupply,
     catalog: SchematicCatalog | None = None,
+    machines: WorldMachines | None = None,
 ) -> dict[str, InputValue]:
     """Sort a solved route's stages into held and locked, and offer it.
 
@@ -1044,6 +1053,8 @@ def _route_inputs(
         supply: The world's supply.
         catalog: The schematic catalog, or None where none was read, which offers no unlock
             reading and leaves the locked stages in the plan's registry order.
+        machines: The audit machines model, or None where none was handed to the offer, which
+            offers no comparison with what is built (CS-1375).
 
     Returns:
         The marked route's inputs. Its unlock keys are built as on the ranked path, of the
@@ -1071,6 +1082,215 @@ def _route_inputs(
         requires=_plan_keys(registry, held, plan, join, supply),
         target_names=_target_names(registry, plan.targets),
         unlocks=unlocks,
+        built=None if machines is None else _compare_built(registry, plan, machines),
+    )
+
+
+def _capacity_of(state: MachineState) -> Fraction | None:
+    """Read one built machine's capacity, which is its exact overclock where that is known.
+
+    Args:
+        state: The machine, as the audit publishes it.
+
+    Returns:
+        None when a production boost is tagged, whatever the clock, because a boost changes what
+        a clock means and none is modeled; the exact overclock where one was read; 1 where the
+        overclock was elided, which is the shape the serializer writes for the class default;
+        and None where it was never read. An overclock that is not exactly a non-negative
+        Fraction is unknown, never coerced.
+    """
+    if state.production_boost_tagged:
+        return None
+    clock = state.overclock
+    if clock is not None:
+        return clock if type(clock) is Fraction and clock >= 0 else None
+    return Fraction(1) if state.overclock_elided else None
+
+
+def _components(successors: list[list[int]]) -> list[list[int]]:
+    """Group a graph's nodes into strongly connected components, each sorted ascending.
+
+    Iterative Tarjan, so a long chain cannot overflow the stack.
+
+    Args:
+        successors: For each node, the nodes it points at.
+
+    Returns:
+        The components, a single node on none of its own cycles being a component of one.
+    """
+    size = len(successors)
+    number = [-1] * size
+    low = [0] * size
+    open_ = [False] * size
+    stack: list[int] = []
+    found: list[list[int]] = []
+    counter = 0
+    for root in range(size):
+        if number[root] != -1:
+            continue
+        work = [(root, 0)]
+        while work:
+            node, start = work.pop()
+            if start == 0:
+                number[node] = low[node] = counter
+                counter += 1
+                stack.append(node)
+                open_[node] = True
+            descended = False
+            for position in range(start, len(successors[node])):
+                nxt = successors[node][position]
+                if number[nxt] == -1:
+                    work.append((node, position + 1))
+                    work.append((nxt, 0))
+                    descended = True
+                    break
+                if open_[nxt]:
+                    low[node] = min(low[node], number[nxt])
+            if descended:
+                continue
+            if low[node] == number[node]:
+                members: list[int] = []
+                while True:
+                    member = stack.pop()
+                    open_[member] = False
+                    members.append(member)
+                    if member == node:
+                        break
+                found.append(sorted(members))
+            if work:
+                parent = work[-1][0]
+                low[parent] = min(low[parent], low[node])
+    return found
+
+
+def _producers_first(
+    registry: Registry, stages: tuple[str, ...]
+) -> tuple[tuple[str, ...], tuple[tuple[str, ...], ...]]:
+    """Order a route's stages so each precedes every stage consuming one of its outputs.
+
+    A stage consuming its own output is no edge: it precedes nothing by it. Ties go to the
+    stage listed first in ``stages``, which is the route's registry order. A loop's members
+    stay together, in that same order, after every stage outside the loop that feeds it.
+
+    Args:
+        registry: The normalized registry, whose recipes name each stage's items.
+        stages: The stages, in registry order.
+
+    Returns:
+        The stages producers first, then each loop of more than one stage, its members in
+        registry order, in the order the loops appear in the first.
+    """
+    # Sets, and ONLY as a membership test: an intersection is read for being empty or not.
+    makes = [frozenset(io.item_key for io in registry.recipes[key].outputs) for key in stages]
+    eats = [frozenset(io.item_key for io in registry.recipes[key].inputs) for key in stages]
+    successors = [
+        [other for other in range(len(stages)) if other != node and makes[node] & eats[other]]
+        for node in range(len(stages))
+    ]
+    components = _components(successors)
+    owner = {member: number for number, members in enumerate(components) for member in members}
+    # Sorted, so the order never rests on a hash.
+    edges = sorted(
+        {
+            (owner[node], owner[other])
+            for node, others in enumerate(successors)
+            for other in others
+            if owner[node] != owner[other]
+        }
+    )
+    waiting = [0] * len(components)
+    follows: list[list[int]] = [[] for _ in components]
+    for before, after in edges:
+        waiting[after] += 1
+        follows[before].append(after)
+    ready = [
+        (components[number][0], number) for number in range(len(components)) if not waiting[number]
+    ]
+    heapq.heapify(ready)
+    order: list[int] = []
+    while ready:
+        _first, number = heapq.heappop(ready)
+        order.append(number)
+        for after in follows[number]:
+            waiting[after] -= 1
+            if not waiting[after]:
+                heapq.heappush(ready, (components[after][0], after))
+    keys = tuple(stages[member] for number in order for member in components[number])
+    loops = tuple(
+        tuple(stages[member] for member in components[number])
+        for number in order
+        if len(components[number]) > 1
+    )
+    return keys, loops
+
+
+def _compare_built(
+    registry: Registry, plan: ProductionPlan, machines: WorldMachines
+) -> RedesignBuilt:
+    """Read a solved route against the machines the world has built (CS-1375).
+
+    A stage is a step of the route with a nonzero machine count. Its built capacity is the sum
+    of the exact capacities of the machines naming its recipe, and the route's count is at clock
+    1, so the shortfall is the one minus the other. ``solve/`` sees no machine: this runs after
+    the route is solved, on its result.
+
+    Args:
+        registry: The normalized registry.
+        plan: What pillar 1 solved for the route.
+        machines: The audit machines model. Read, never kept.
+
+    Returns:
+        The rows, replace first and then the stages producers first, and the counts of what was
+        read and not compared. With no recipe tag on any machine every stage reads unmeasured
+        and no recipe reads replace: nothing is known of what is built, and an empty answer
+        would read as a world with nothing built.
+    """
+    built: dict[str, list[Fraction | None]] = {}
+    untagged = 0
+    unregistered = 0
+    for state in machines.machines:
+        name = state.recipe_class_name
+        if name is None:
+            untagged += 1
+        elif name not in registry.recipes:
+            unregistered += 1
+        else:
+            built.setdefault(name, []).append(_capacity_of(state))
+    measured = untagged < len(machines.machines)
+    counts = {step.recipe_key: step.machines for step in plan.steps if step.machines != 0}
+    ordered, loops = _producers_first(registry, tuple(counts))
+    # A set, and ONLY as a membership test: registry order decides every order here.
+    outputs = frozenset(io.item_key for key in ordered for io in registry.recipes[key].outputs)
+    rows: list[BuiltRow] = []
+    for key, recipe in registry.recipes.items():
+        if (
+            key in built
+            and key not in counts
+            and any(io.item_key in outputs for io in recipe.outputs)
+        ):
+            rows.append(BuiltRow(key, BUILT_REPLACE, None, len(built[key]), None, None, 0))
+    for key in ordered:
+        capacities = built.get(key, [])
+        unknown = sum(1 for capacity in capacities if capacity is None)
+        count = counts[key]
+        if not measured or unknown:
+            rows.append(
+                BuiltRow(key, BUILT_UNMEASURED, count, len(capacities), None, None, unknown)
+            )
+            continue
+        capacity = sum((c for c in capacities if c is not None), start=Fraction(0))
+        shortfall = count - capacity
+        if shortfall > 0:
+            rows.append(BuiltRow(key, BUILT_MORE, count, len(capacities), capacity, shortfall, 0))
+        else:
+            rows.append(BuiltRow(key, BUILT_ENOUGH, count, len(capacities), capacity, None, 0))
+    return RedesignBuilt(
+        rows=tuple(rows),
+        measured=measured,
+        cycles=loops,
+        refused_recipe_tags=machines.refused_recipe_count,
+        unregistered_machines=unregistered,
+        untagged_machines=untagged,
     )
 
 
@@ -1129,6 +1349,7 @@ def _redesign_offer(
     join: _RecipeJoin,
     supply: _RawSupply,
     schematics: SchematicSource | None = None,
+    machines: WorldMachines | None = None,
 ) -> dict[str, InputValue]:
     """Derive one route over every automated recipe the join could check, and solve it.
 
@@ -1149,6 +1370,8 @@ def _redesign_offer(
         schematics: Where the schematic catalog comes from, or None. Asked here and nowhere
             else, once. Its catalog yields the preferred set the route breaks a tie by and the
             reading of what unlocks each locked stage; none yields neither (CS-1374).
+        machines: The audit machines model the route is compared with, or None for no
+            comparison (CS-1375). Read, never kept.
 
     Returns:
         The marked route's inputs. Every refusal is a status, read by no message: no route
@@ -1178,7 +1401,7 @@ def _redesign_offer(
             plan = _solve_route(registry, search, members, supply)
     except (RatioError, OptimizeError, ExactArithmeticError, ValueError, KeyError):
         return redesign_status_inputs(REDESIGN_ROUTE_REFUSED, unmade=None)
-    return _route_inputs(registry, plan, join, supply, catalog)
+    return _route_inputs(registry, plan, join, supply, catalog, machines)
 
 
 def plan_offer(
@@ -1186,8 +1409,8 @@ def plan_offer(
 ) -> dict[str, InputValue]:
     """Answer one request as :func:`plan_offer_with_schematics` does, with no schematic source.
 
-    The unchanged three-argument door: it offers no unlock reading and prefers no recipe, so
-    the route is the one CS-1371 ruled.
+    The unchanged three-argument door: it offers no unlock reading, prefers no recipe and
+    compares nothing with what is built, so the route is the one CS-1371 ruled.
 
     Args:
         unlocks: The world's unlock state.
@@ -1205,6 +1428,8 @@ def plan_offer_with_schematics(
     registry: Registry,
     request: PlanRequest | None,
     schematics: SchematicSource | None,
+    *,
+    machines: WorldMachines | None = None,
 ) -> dict[str, InputValue]:
     """Answer one request with the inputs the plan family reads, and the schematic it names.
 
@@ -1219,6 +1444,9 @@ def plan_offer_with_schematics(
         schematics: Where the schematic catalog comes from, or None for none. Asked only where
             a route is derived (CS-1374), so a ranked plan, a refusal and a request with no
             target never read it.
+        machines: The audit machines model the marked route is compared with (CS-1375), or None
+            for no comparison. ``solve/`` never sees it: the comparison is made here, after the
+            route is solved.
 
     Returns:
         As :func:`_offer` returns, beside the schematic input.
@@ -1227,7 +1455,7 @@ def plan_offer_with_schematics(
     if statement is not None and statement.unplannable is not None:
         offered = status_inputs(STATUS_SCHEMATIC_UNPLANNABLE)
     else:
-        offered = _offer(unlocks, registry, request, schematics)
+        offered = _offer(unlocks, registry, request, schematics, machines)
     return {**offered, **schematic_inputs(statement)}
 
 
@@ -1236,6 +1464,7 @@ def _offer(
     registry: Registry,
     request: PlanRequest | None,
     schematics: SchematicSource | None,
+    machines: WorldMachines | None = None,
 ) -> dict[str, InputValue]:
     """Answer one request with the inputs the plan family reads.
 
@@ -1251,6 +1480,7 @@ def _offer(
         request: The question, or None when the caller stated none.
         schematics: Where the schematic catalog comes from, or None. Passed to the route and
             asked nowhere else.
+        machines: The audit machines model, passed to the route and read nowhere else.
 
     Returns:
         A fresh dict of rule inputs: the status alone when no join ran, the status
@@ -1315,7 +1545,14 @@ def _offer(
             **redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None),
         }
     route = (
-        _redesign_offer(registry, search, join=join, supply=supply, schematics=schematics)
+        _redesign_offer(
+            registry,
+            search,
+            join=join,
+            supply=supply,
+            schematics=schematics,
+            machines=machines,
+        )
         if status == STATUS_NO_PLAN
         else redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None)
     )

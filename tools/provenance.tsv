@@ -293,6 +293,7 @@ tests/advisor/test_display_name_keying.py	authored	CS-1240	stamped
 tests/advisor/test_every_rule_fires.py	authored	CS-500	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped
 tests/advisor/test_plan_redesign.py	authored	CS-1371	stamped
+tests/advisor/test_plan_redesign_built.py	authored	CS-1375	stamped
 tests/advisor/test_plan_redesign_unlocks.py	authored	CS-1374	stamped
 tests/advisor/test_plan_schematic_target.py	authored	CS-1373	stamped
 tests/advisor/test_plan_world.py	authored	CS-1351	stamped
