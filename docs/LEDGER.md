@@ -75,6 +75,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1247 - CLOSED: a deterministic domain interleave, a pure door above the effort order, with golden cases
+Verification: `clockspeed/advisor/ranking.py::interleave_domains` and `tests/advisor/test_interleave.py`, including
+`test_acceptance_both_milestone_cards_read_in_the_top_five_past_ten_power_cards`,
+`test_acceptance_the_fixture_has_one_golden_order`,
+`test_the_base_order_alone_monopolises_the_top_five_with_one_domain` (the control),
+`test_three_domains_round_robin_in_their_arrival_order`,
+`test_an_exhausted_domain_is_skipped_rather_than_holding_its_slot`,
+`test_the_tie_break_is_the_arrival_index_in_every_round_not_only_the_first`,
+`test_the_head_of_the_input_is_the_head_of_the_output` and
+`test_the_aging_promotion_still_leads_once_the_interleave_is_applied`.
+THE DEFECT. `order_cards` orders by effort then identity, so a domain holding many cheap cards took every leading
+place: ten power cards and two milestone cards read as ten then two, and the milestone domain was never in the window a
+player looks at. ROOT CAUSE: the showing order had one axis, and effort alone cannot express "spread the domains".
+THE FIX. A separate pure door, `interleave_domains`, that round-robins an ordered list across advice domains. Per
+place it takes the next card of the domain that has given the FEWEST so far, breaking a tie on the arrival index of
+that domain's next card; an exhausted domain is skipped. It is NOT folded into `order_cards`, because CS-1246's
+documented tie-break is phrased against the effort order and burying a second rule inside it would leave that
+tie-break describing a list nobody computes. The first card in is always the first card out, so the CS-1246 aging
+promotion survives the composition - asserted, not assumed. There is no N parameter: every PREFIX is balanced, so the
+N a surface shows stays the surface's slice.
+TDD. Red-first was behavioural, not an import error: an identity stub returned the input unchanged and the acceptance
+arm failed `assert 0 == 2`, the top five reading `('power', 'power', 'power', 'power', 'power')`, while the control arm
+passed - so the fixture had the fault before the fix removed it.
+SIBLING SWEEP. One site shares the root cause and it is the composition point, not a second instance: the served
+showing order. It is NOT shipped here and that is the item's disclosed residual, filed as CS-1401 with its measurement
+rather than as a hypothesis - composing the interleave into both `Advice.ranked` and `Advice.ranked_shown` was built
+and run on this tree, and three arms reddened, every one in `tests/surface/test_advice_aging.py`. Two of them carry a
+NAME stating the order CS-1247 supersedes, and the 2026-11-15 CS-1246 closure record above cites one of those names in
+its Verification line, so re-pinning them means choosing between a false arm name and a citation this append-only file
+cannot repair. That is a ruling, and `tools/headless-queue.md` section 5 puts a row needing one outside a lane's reach.
+TIER 2 PAID, for a public interface on the advisor engine. Whole tree, distributed, on the tree before the one arm
+added after the verifier pass: "19476 passed, 18 skipped, 9 warnings in 1116.47s (0:18:36)", exit 0. On the SHIPPED
+tree, `tests/advisor tests/surface tests/ops` serial: "4853 passed, 1 skipped, 1 warning in 211.32s (0:03:31)", exit 0.
+`ruff check`, `ruff format --check` and `tools/drift_guard.py` exit 0; the drift guard read 11 guards PASS, 0 WARN,
+0 FAIL.
+GRADED: verifier CONFIRM against the acceptance clause, at a witnessed freeze. It found no false claim and one
+COVERAGE GAP, which this cycle then closed rather than disclosing: the arrival-index tie-break was untested beyond the
+first round, so an implementation breaking ties on the grouping's insertion order passed every arm. The added arm was
+proved to kill it by a snapshot-and-restore mutant of `key = (cursor, indices[cursor])`, which reddened that arm alone
+- "1 failed, 16 passed" - and `clockspeed/advisor/ranking.py` was then restored from the byte snapshot taken before
+the plant, the restore verified by re-hashing the file against that snapshot and not by a clean `git status`, before
+anything else ran. RECORDED: the gap was repaired AFTER the verdict, so the verifier did not
+see it discharged; only `tests/advisor/test_interleave.py` changed, by one added arm and one renamed arm.
+CI: recorded by the driver's report row, not observed by this worker.
+ID COLLISION, recorded because it is a repeat of a measured class and not a one-off: this cycle filed the
+residual as CS-1399 against a tree where that id was free, and a concurrent session 157 /done allocated CS-1399
+and CS-1400 while the cycle ran. The rebase surfaced it as a docs/LEDGER.md conflict, both sides were kept, and
+the residual was re-filed as CS-1401 - max ALLOCATED plus one, re-derived after the fetch, zero prior hits.
+RESIDUAL: the served showing order, filed as CS-1401. `clockspeed/advisor/advise.py` and `cards.py` are BYTE-UNCHANGED,
+and `config/lane_scopes.json` carries that credit correction.
 ### 2026-11-15 - CS-1400 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1400 STAYS OPEN: session 157 /done - the UI-157 browser audit of the advice panel reads BLOCKED on five majors, filed here, and every closed item's record reads present
 Verification: `docs/item_notes/phase5.md`, the CS-1400 section and its acceptance; `CS-NEXT-SESSION.txt`, its
 next-action and open-items blocks. This record closes nothing, so no test names one; the heading names the item whose

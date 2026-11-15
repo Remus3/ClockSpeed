@@ -291,6 +291,7 @@ tests/advisor/test_build.py	authored	CS-1288	stamped
 tests/advisor/test_cards.py	authored	CS-500	stamped
 tests/advisor/test_display_name_keying.py	authored	CS-1240	stamped
 tests/advisor/test_every_rule_fires.py	authored	CS-500	stamped
+tests/advisor/test_interleave.py	authored	CS-1247	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped
 tests/advisor/test_plan_redesign.py	authored	CS-1371	stamped
 tests/advisor/test_plan_redesign_built.py	authored	CS-1375	stamped

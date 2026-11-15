@@ -24,6 +24,16 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1247 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. A pure function over the four advice domains.
+
+### Acceptance
+
+a fixture with ten power cards and two milestone cards shows both milestone cards in the top five; the interleave is a pure function with golden cases
+
 ## CS-1396 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**

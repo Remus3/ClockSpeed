@@ -1,4 +1,8 @@
-"""CS-1246: quick-win card ordering with an aging guard read from deferral counts.
+"""Card ordering: CS-1246's quick wins and CS-1247's domain interleave.
+
+CS-1246 orders by effort with an aging guard read from deferral counts, and
+CS-1247 adds a separate door that round-robins an ordered list across advice
+domains. They compose; neither is folded into the other.
 
 WHAT THIS MODULE OWNS. The order a surface shows resolved cards in. It sits
 ABOVE :mod:`clockspeed.advisor.advise` and changes nothing there: an
@@ -20,6 +24,26 @@ gives. On top of it the aging guard moves EXACTLY ONE card to the front: the
 most starved card whose deferral count has reached the threshold
 (:data:`AGING_EVALUATIONS`, overridable per call). Everything else keeps the
 base order.
+
+CS-1247 ADDS A SECOND, SEPARATE DOOR ABOVE THAT ONE.
+:func:`interleave_domains` takes an ordered list and round-robins it across
+advice domains, so a domain holding many cheap cards cannot take every leading
+place. It is NOT folded into :func:`order_cards`, deliberately and for a
+measured reason: the effort order and the domain spread answer different
+questions, and CS-1246's own tie-break is phrased against the effort order, so
+burying a second rule inside it would leave that tie-break describing a list
+nobody computes. The two compose by a caller calling both, and the first card
+of what the interleave is handed is always the first card out, so the aging
+promotion survives the composition (asserted, not assumed).
+
+THE INTERLEAVE IS NOT YET THE SERVED SHOWING ORDER, and this paragraph is the
+only honest thing to say about that. :attr:`clockspeed.advisor.advise.Advice.ranked`
+still returns :func:`order_cards` alone, so a served listing is not interleaved
+today. Composing it in was measured on the tree - 4067 passed and exactly three
+arms red, all three in `tests/surface/test_advice_aging.py` - and two of those
+arms carry a NAME stating the order CS-1247 changes, one of which an adjudicated
+CS-1246 closure record cites by that name. Resolving that is CS-1401, not a
+lane's call.
 
 WHY ONE CARD AND NOT A BAND, because a band was built first and measured
 wrong. Lifting every aged card above every unaged one fails twice: in steady
@@ -58,9 +82,11 @@ synthetic rule in someone else's fixture - ranks as the MIDDLE class
 (:func:`effort_of`), because refusing to order would make the advisor fail over
 a world rather than advise about it (CLAUDE.md non-negotiable 7).
 
-DETERMINISM. The sort is stable and its key holds only ints and strings from
-the arguments. No set is iterated, ``hash()`` is never used and no clock is
-read, so one ledger state gives one order. That order is independent of the
+DETERMINISM OF THE EFFORT ORDER - the interleave argues its own, in its own
+docstring, because it is a different mechanism. The sort is stable and its key
+holds only ints and strings from the arguments. No set is iterated, ``hash()``
+is never used in it and no clock is read, so one ledger state gives one order.
+That order is independent of the
 input sequence as far as the key separates the cards: two cards sharing a rule
 id AND a card id are the same advice twice, and a stable sort then keeps them in
 the order they arrived, which is the only sequence dependence left.
@@ -207,6 +233,74 @@ def _most_starved(
         if best is None or candidate > best:
             best = candidate
     return None if best is None else best[1]
+
+
+def interleave_domains(advised: Iterable[AdvisedCard]) -> tuple[AdvisedCard, ...]:
+    """CS-1247: round-robin one ordered card list across its advice domains.
+
+    THE FAULT IT FIXES. :func:`order_cards` orders by effort then identity, so a
+    domain holding many cheap cards takes every one of the leading places and a
+    domain holding a few dearer ones is read past the end of what a player looks
+    at. Ten power cards and two milestone cards read as ten then two.
+
+    THE RULE, which is the whole of it. Group the cards by domain, keeping each
+    domain's cards in the order they arrived. Then fill the places one at a
+    time: take the next card of the domain that has given the FEWEST so far,
+    and among domains tied on that, the one whose next card arrived EARLIEST.
+    A domain with nothing left to give is skipped rather than holding its slot.
+
+    WHY THERE IS NO N, even though the item that asked for this names a top-N
+    list. Every PREFIX of the result is balanced, not one chosen window, so the
+    N a surface shows is the surface's slice of this order and never a parameter
+    of it. A parameter would be a second owner of the page size.
+
+    WHY THE INPUT'S HEAD SURVIVES, which is what lets this compose with the
+    CS-1246 aging guard. At the first place every domain has given nothing, so
+    the tie-break alone decides it, and the domain holding arrival index 0 has
+    the lowest next-arrival index there is. The first card in is therefore
+    always the first card out, and a promoted starved card keeps the top spot.
+
+    DETERMINISM. The selection key is ``(cards already taken from the domain,
+    the arrival index of its next card)``. Arrival indices are unique, so no two
+    candidates can tie and the answer does not depend on the grouping's
+    iteration order. No clock is read, no file is opened and no set is iterated.
+
+    SEQUENCE DEPENDENCE IS DELIBERATE AND IS NOT IMPURITY. The arrival order is
+    both the within-domain order and the cross-domain tie-break, so this is a
+    pure function OF THE SEQUENCE: one sequence gives one answer, for ever. It
+    is meant to be handed an order that already means something - the CS-1246
+    showing order - and to spread that order's domains without re-deciding it.
+
+    VISIBILITY IS NOT THIS FUNCTION'S BUSINESS. A hidden card is interleaved
+    like any other; :func:`order_shown` is what drops one, before ordering.
+
+    Args:
+        advised: The cards to interleave, in the order they are to keep within
+            each domain.
+
+    Returns:
+        A permutation of the same cards as a tuple.
+    """
+    cards = tuple(advised)
+    groups: dict[str, list[int]] = {}
+    for index, item in enumerate(cards):
+        groups.setdefault(item.card.domain, []).append(index)
+    taken = dict.fromkeys(groups, 0)
+    order: list[AdvisedCard] = []
+    while len(order) < len(cards):
+        best: tuple[int, int] | None = None
+        chosen = ""
+        for domain, indices in groups.items():
+            cursor = taken[domain]
+            if cursor == len(indices):
+                continue
+            key = (cursor, indices[cursor])
+            if best is None or key < best:
+                best = key
+                chosen = domain
+        order.append(cards[groups[chosen][taken[chosen]]])
+        taken[chosen] += 1
+    return tuple(order)
 
 
 def order_cards(

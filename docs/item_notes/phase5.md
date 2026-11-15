@@ -367,15 +367,19 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a synthetic map fixture with three nodes and one gated region excludes the gated node until the unlock flag is set; distances are exact rationals or integers; claims rank by reachability band, then yield
 
-## CS-1247
+## CS-1401
 
-### Filed 2026-10-04 by the inspiration ingest
+### Filed 2026-11-15 by the queue lane, on the measurement CS-1247 left behind
 
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. A pure function over the four advice domains.
+CS-1247 shipped `interleave_domains` in `clockspeed/advisor/ranking.py` with its golden cases. It is NOT the served showing order: `Advice.ranked` still returns `order_cards` alone, so a served listing is not interleaved.
+
+THE CUTOVER WAS BUILT AND MEASURED BEFORE BEING FILED, so this row is a measurement rather than a hypothesis. Composing the interleave into both `Advice.ranked` and `Advice.ranked_shown` - both, because the order a turn is credited against must be the order the player was shown - ran `tests/advisor` and `tests/surface` to 4067 passed with exactly three red, every one of them in `tests/surface/test_advice_aging.py`. The three-card fixture's served order moves from `[QUICK, SECOND_SMALL, LARGE]` to `[QUICK, LARGE, SECOND_SMALL]`, which is the item's whole point and not a regression.
+
+WHY A LANE COULD NOT FINISH IT, and the part that needs an adjudicated session. Two of those three arms carry a NAME stating the order CS-1247 supersedes - `test_the_three_card_fixture_leads_with_the_small_cards_and_ends_with_the_large_one` and `test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards` - so re-pinning the literal and keeping the name leaves a test whose name is false, and renaming it breaks a citation: the 2026-11-15 adjudicated CS-1246 closure record cites the second arm BY THAT NAME in its Verification line, and `docs/LEDGER.md` is append-only. The third arm's name stays true and only its pre-threshold literal moves. Choosing between a false arm name and an unrepairable citation is a ruling, not a lane's call.
 
 ### Acceptance
 
-a fixture with ten power cards and two milestone cards shows both milestone cards in the top five; the interleave is a pure function with golden cases
+`Advice.ranked` and `Advice.ranked_shown` both compose `interleave_domains` over the CS-1246 order; a served listing of the three-card aging fixture reads the large card SECOND, not last; each of the three `tests/surface/test_advice_aging.py` arms named in this section is re-pinned with a name that is true of the order it asserts; and the record resolves, in a new append-only entry, how the CS-1246 closure record's by-name citation of a renamed arm is to be read
 
 ## CS-1248
 
