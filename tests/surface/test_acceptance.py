@@ -107,9 +107,9 @@ from tests.test_make_cert import CERT_STUB, KEY_STUB, cert_pair
 #: NOT NAMED FOR ITS VALUE. It was spelled as the count itself until CS-912 added
 #: ``/api/registry`` and made the specification name ten, at which point a
 #: constant whose NAME was its value either had to be renamed or had to start
-#: lying. The count moves - CS-977's ``/api/map`` moved it again - and what it
-#: MEANS does not.
-PUBLISHED_ENDPOINTS: Final = 12
+#: lying. The count moves - CS-977's ``/api/map`` moved it again, and CS-1397's
+#: ``/api/advice/act`` once more - and what it MEANS does not.
+PUBLISHED_ENDPOINTS: Final = 13
 
 #: The endpoint set, TRANSCRIBED BY HAND from the "Endpoints, minimum:" sentence
 #: of ``BOOTSTRAP.md`` section 7.1, in the order that sentence lists them. The
@@ -128,6 +128,7 @@ BOOTSTRAP_ENDPOINTS: Final = (
     "/api/advice",
     "/api/advice/<id>/derivation",
     "/api/advice/<id>/state",
+    "/api/advice/act",
     "/api/solve",
     "/api/optimize",
     "/api/audit",
@@ -166,6 +167,9 @@ BACKED: Final = (
     # ledger, behind the server's same-origin refusal, so the state write
     # answers rather than refuses.
     "/api/advice/<id>/state",
+    # CS-1397. ``advise_world_and_record`` records one advice act through the same ledger,
+    # behind the same same-origin refusal, so the act answers rather than refuses.
+    "/api/advice/act",
 )
 
 #: A3, the other half. These have no published body yet and must say so with a

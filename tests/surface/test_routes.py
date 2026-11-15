@@ -71,8 +71,9 @@ from tests.test_make_cert import cert_pair
 #: spelled as the count itself until ``/api/registry`` made the specification
 #: name ten, at which point a constant whose NAME was its value either had to be
 #: renamed or had to start lying. A count changes; what it MEANS does not - and
-#: CS-977's ``/api/map`` moved it again, which is exactly what the name allows.
-PUBLISHED_ENDPOINTS: Final = 12
+#: CS-977's ``/api/map`` moved it again, which is exactly what the name allows, and
+#: CS-1397's ``/api/advice/act`` moved it once more.
+PUBLISHED_ENDPOINTS: Final = 13
 
 #: The sentence the endpoint set lives in. Anchoring on the sentence rather than
 #: on the section heading means a section renumbering does not silently empty

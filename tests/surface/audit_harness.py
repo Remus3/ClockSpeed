@@ -1299,6 +1299,11 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
         ("GET", power_endpoint.ENDPOINT): contract.ok(power_endpoint.ENDPOINT, _power_data()),
         # CS-1270: the advice listing is live, so the stand-in answers it.
         ("GET", advice_endpoint.ENDPOINT): contract.ok(advice_endpoint.ENDPOINT, _advice_data()),
+        # CS-1397: the act answers the listing's body, so the stand-in answers it the same
+        # unstated body, and a stated one through :func:`advice_answer` below.
+        ("POST", advice_endpoint.ACT_ENDPOINT): contract.ok(
+            advice_endpoint.ACT_ENDPOINT, _advice_data()
+        ),
         ("POST", solve.SOLVE_ENDPOINT): contract.ok(solve.SOLVE_ENDPOINT, _plan_data()),
         ("POST", solve.OPTIMIZE_ENDPOINT): contract.ok(
             solve.OPTIMIZE_ENDPOINT,
@@ -1519,7 +1524,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._serve_asset(*static)
             return
 
-        if self.command == "GET" and raw_path == advice_endpoint.ENDPOINT and raw_query:
+        stated_read = self.command == "GET" and raw_path == advice_endpoint.ENDPOINT
+        stated_act = self.command == "POST" and raw_path == advice_endpoint.ACT_ENDPOINT
+        if (stated_read or stated_act) and raw_query:
             self._respond(advice_answer(raw_query))
             return
 
