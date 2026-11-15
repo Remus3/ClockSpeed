@@ -75,6 +75,31 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1378 - CLOSED: a balanced route refused with a RatioError gets one consumer per leftover byproduct, one hop
+Verification: `clockspeed/solve/bound.py::route_with_consumers`;
+`clockspeed/solve/bound.py::NoByproductConsumerError`; `clockspeed/solve/bound.py::_converged_counts`;
+`clockspeed/advisor/plans.py::_solve_route`, the balanced-only consumer retry;
+`tests/advisor/test_plan_redesign.py::test_a_byproduct_a_recipe_off_the_route_eats_reads_a_route_card_with_its_count`,
+`::test_an_unchecked_consumer_is_never_picked`,
+`::test_a_consumer_whose_output_only_a_second_recipe_eats_still_reads_route_refused`;
+`tests/solve/test_bound.py::test_one_hop_a_consumers_own_leftover_is_never_chased`,
+`::test_an_item_a_route_member_eats_is_no_leftover_though_an_off_route_recipe_eats_it`,
+`::test_a_consumers_rank_reads_the_held_set_through_its_other_inputs_counts`,
+`::test_a_brought_input_takes_the_producer_the_route_would_walk_held_first`,
+`::test_the_leftover_itself_is_never_walked_for_a_brought_producer`.
+A balanced route refused with a RatioError gets one consumer per leftover byproduct from the route's own pool, least
+count first, one hop; derived_route, the trim ranking, sinkable and the route-refused sentence are unchanged.
+READ BACK AT CLOSE ON ONE SAVE FROM THE GITIGNORED CORPUS, THE SAVE UNNAMED, RATE 1, DIRECTION RAW, THROUGH
+`clockspeed/advisor/advise.py::advise_world`: 0 of the 142 arm 2 targets now read a route card. Balanced still reads 22
+plan.adopt, 39 plan.redesign and 81 neither (28 no-route, 53 route-refused), rule errors 0, every row equal to the
+pre-landing tree, whose neither split matches the CS-1371 record. Of the 53, 50 get a consumer and the second solve
+still refuses (48 unsolvable, 2 running a recipe backwards) and 3 find none. Plastic and Rubber pick
+Recipe_ResidualFuel_C, whose Fuel nothing on the route eats, so the residue balance stays unmet under one hop. The
+clause's measured 7 did not reproduce on this save; zero is not required.
+GRADED: adversary REFUTED round one on four surviving mutants, NOT REFUTED round two after four arms; ADJUDICATED:
+LAND, merged-tree run 2444 passed, session 157. RESIDUAL: the nothing-consumes fence is killed at bound level only;
+two fence arms' non-vacuity controls need the feature, so they read red at base.
+
 ### 2026-11-15 - CS-1360 - NOT A COMPLETION RECORD. CS-1360 STAYS OPEN: a read-only flow view of a solved chain ships from the rule trace, with its widths pinned, its boundary edges only and its mark named highest-rate
 Verification: `tests/surface/test_flow_view.py::test_every_edge_width_is_the_rational_the_trace_step_carries`, the
 clause's fourth conjunct; the section `## CS-1360` of `docs/item_notes/phase7.md`. This record closes nothing, so the

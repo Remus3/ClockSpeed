@@ -24,6 +24,49 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1378 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**
+The closure record is in `docs/LEDGER.md`.
+
+
+### Acceptance
+
+Phase 5, tier 2. When pillar 1 refuses the derived route with a RatioError under a stated balanced
+policy, the route path derives one consumer per leftover byproduct - an item a route member makes
+that no member consumes, neither a target nor a route raw item - in sorted item order, skipping one
+an earlier pick consumes, and solves the route plus those consumers once more. The pool is the
+route's own: the join's checked recipes through the usable-candidates door, less the route's
+members; a locked one is admitted and offered locked, an unchecked one never. A consumer qualifies
+when every other input it eats has a count, and brings its inputs' chosen producers, walked as the
+route walks them. The least count wins - its own recipe cost plus its other inputs' counts, the
+join's held recipes counted held - and a tie goes to the lower registry position. One hop: a
+consumer's own leftovers are never chased. The derivation is a new function in
+`clockspeed/solve/bound.py`; `derived_route`, the trim ranking, a route pillar 1 solves on the first
+try, everything under sinkable and the route-refused reason sentence stay unchanged. On synthetic
+registries, no install, each case reddens on its own arm first: a balanced request whose byproduct a
+recipe off the route consumes reads a plan.redesign card whose tier 3 carries that consumer's exact
+machine count, where at CS-1371 it reads route-refused; of two qualifying consumers the lower count
+wins though later in registry order; a count tie goes to the earlier; a locked consumer is offered
+locked. Fence arms, green before and after and red under the mutant named: a byproduct nothing
+consumes still reads route-refused; a consumer whose output only a second recipe eats still reads
+route-refused (mutant: chasing leftovers); an unchecked consumer is never picked (mutant:
+whole-registry pool); under sinkable the byproduct sinks and no consumer runs; a route solved first
+try never reaches the new function (a spy); each refusal the new function raises reads
+route-refused and echoes nothing. At close, not as a build arm, the ledger record reads back the
+count on one library save, the save unnamed; zero is not required. Measured: 7 of the 142 arm 2
+targets on one save, Plastic and Rubber among them. Not a lowering: CS-1371 arm 3 states the
+refusal.
+
+Ruled 2026-11-14 (session 157 adjudicator): one hop; least count wins, registry position breaks ties; pool is the route's own checked recipes. Rejected: fixed-point cascade (sprawls, invented cap); extending before the first solve; plain registry order; whole-registry pool; held-only pool.
+
+### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
+
+Filed by the rulings recorded under CS-1371, so that what CS-1371 did not deliver is a row.
+
+ADJUDICATED 2026-11-15 by the session 157 adjudicator: LAND after a second adversary round; four
+arms added for the round-one survivors.
+
 ## CS-1384 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as amended.**
