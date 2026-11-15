@@ -118,6 +118,21 @@ its usable candidates, and the registry. Never the objective, the byproduct poli
 rate, a solve, a clock or a float. So one request has one ranking under every direction
 and both policies, and :func:`trim_record` can state the cut before any search.
 
+THE BYPRODUCT CONSUMERS (CS-1378) are :func:`route_with_consumers`, a second step a caller
+takes only after pillar 1 has refused the derived route under the balanced policy. Nothing
+above changes: :func:`derived_route`, the trim ranking and the closure are as stated, and a
+route pillar 1 solves on the first try never reaches it. A LEFTOVER is an item a route member
+makes that no member eats, neither a target nor a raw item. For each, in sorted item order,
+and skipping one an earlier pick eats, it picks one consumer from the request's own pool, the
+usable candidates less the route's members. A consumer qualifies when every OTHER input it
+eats has a count, and the least count wins: its own recipe cost plus those inputs' counts,
+the held set counted first as above, and a tie to the lower registry position. It brings its
+other inputs' chosen producers, walked as the route is walked. ONE HOP: a consumer's own
+leftovers are never chased, so the second solve may be refused again and the caller reads
+that as it read the first. A route with no leftover, or none with a consumer, raises
+:class:`NoByproductConsumerError`, whose text names nothing. The step reads no policy, no
+rate and no solve, and the only sets in it are membership tests.
+
 WHY EVERY ORDER HERE IS A TUPLE AND NEVER A SET
 -------------------------------------------------
 ``clockspeed/advisor/trace.py`` records the reason in its own header: a set's
@@ -261,10 +276,12 @@ __all__ = [
     "BoundExhaustedError",
     "BoundedResult",
     "DerivedRoute",
+    "NoByproductConsumerError",
     "TrimRecord",
     "TrimStep",
     "derived_route",
     "optimize_within_bound",
+    "route_with_consumers",
     "trim_record",
 ]
 
@@ -457,6 +474,41 @@ def _tree_cost(
     return (locked, recipes)
 
 
+def _converged_counts(
+    registry: Registry,
+    usable: tuple[str, ...],
+    raw_items: tuple[str, ...],
+    held: frozenset[str] | None,
+) -> dict[str, tuple[int, int]]:
+    """Every item's count, at the count's least fixed point.
+
+    Args:
+        registry: The built registry.
+        usable: The pool, in registry order.
+        raw_items: The raw items, which count :data:`_RAW_COUNT`.
+        held: As :func:`derived_route` takes it.
+
+    Returns:
+        Item to its exact count, for every item that has one. Read by key only; its
+        insertion order decides nothing.
+    """
+    counts = dict.fromkeys(raw_items, _RAW_COUNT)
+    moved = True
+    while moved:
+        moved = False
+        for key in usable:
+            recipe = registry.recipes[key]
+            cost = _tree_cost(recipe, counts, held)
+            if cost is None:
+                continue
+            for output in recipe.outputs:
+                known = counts.get(output.item_key)
+                if known is None or cost < known:
+                    counts[output.item_key] = cost
+                    moved = True
+    return counts
+
+
 def _chosen_producers(
     registry: Registry,
     usable: tuple[str, ...],
@@ -475,20 +527,7 @@ def _chosen_producers(
         Item to chosen producer, for every item that has a count and is not raw. Read
         by key only; its insertion order decides nothing.
     """
-    counts = dict.fromkeys(raw_items, _RAW_COUNT)
-    moved = True
-    while moved:
-        moved = False
-        for key in usable:
-            recipe = registry.recipes[key]
-            cost = _tree_cost(recipe, counts, held)
-            if cost is None:
-                continue
-            for output in recipe.outputs:
-                known = counts.get(output.item_key)
-                if known is None or cost < known:
-                    counts[output.item_key] = cost
-                    moved = True
+    counts = _converged_counts(registry, usable, raw_items, held)
 
     # A second pass, over converged counts, so no tie can be decided by what a pass
     # happened to reach first. The pool is in registry order, so the first recipe
@@ -619,6 +658,116 @@ def derived_route(
         complete=all(item in raw or item in chosen for item in targets),
         unmade=unmade,
     )
+
+
+class NoByproductConsumerError(NoFeasibleSelectionError):
+    """No leftover byproduct of a route has a consumer to bring in.
+
+    Raised by :func:`route_with_consumers` when it would hand back the route unchanged,
+    so a second solve could only repeat the first refusal. The message is fixed and
+    names no item and no recipe, so nothing a registry or a save holds can reach a
+    reader through it.
+    """
+
+
+def _cheapest_consumer(
+    registry: Registry,
+    pool: tuple[str, ...],
+    item: str,
+    counts: dict[str, tuple[int, int]],
+    held: frozenset[str] | None,
+) -> str | None:
+    """The recipe in a pool that eats one item at the least count, a tie to the lower position.
+
+    Args:
+        registry: The built registry.
+        pool: The recipes to choose among, in registry order, so the first of equal
+            counts is the lowest registry position.
+        item: The leftover byproduct to consume.
+        counts: As :func:`_converged_counts` returns them.
+        held: As :func:`derived_route` takes it.
+
+    Returns:
+        The recipe, or None when none eats the item with every other input counted.
+    """
+    # The item itself counts nothing here: the consumer is being brought in to eat it.
+    fed = dict(counts)
+    fed[item] = _RAW_COUNT
+    best: str | None = None
+    best_cost: tuple[int, int] | None = None
+    for key in pool:
+        recipe = registry.recipes[key]
+        if all(entry.item_key != item for entry in recipe.inputs):
+            continue
+        cost = _tree_cost(recipe, fed, held)
+        if cost is not None and (best_cost is None or cost < best_cost):
+            best, best_cost = key, cost
+    return best
+
+
+def route_with_consumers(
+    registry: Registry,
+    request: OptimizeRequest,
+    route: DerivedRoute,
+    *,
+    held: frozenset[str] | None = None,
+) -> tuple[str, ...]:
+    """Add one consumer for each leftover byproduct of a route, and name the whole.
+
+    The module docstring section on byproduct consumers states the rule. Reads no
+    policy and runs no solve: the caller solves what this names, once, under the policy
+    it stated. A leftover is an item a route member makes that no member eats, neither a
+    target nor a raw item. Each, in sorted item order and skipping one an earlier pick
+    eats, gets the recipe in the pool that eats it at the least count, with that
+    recipe's other inputs' chosen producers brought in beside it. One hop: a consumer's
+    own leftovers are never chased.
+
+    Args:
+        registry: The built registry.
+        request: The request the route was derived over. Only its targets, raw items,
+            candidates and unlocked set are read.
+        route: The derived route, whose members are the route.
+        held: As :func:`derived_route` takes it. A membership test only.
+
+    Returns:
+        The route's members in their own order, then each consumer followed by the
+        producers it brought, each recipe once.
+
+    Raises:
+        NoByproductConsumerError: No leftover has a qualifying consumer, which includes a
+            route with no leftover. Fixed text, naming nothing.
+        ValueError: A candidate names no recipe in this registry, as the door refuses it.
+    """
+    usable, _excluded = usable_candidates(registry, request)
+    on_route = frozenset(route.members)
+    made = {out.item_key for key in route.members for out in registry.recipes[key].outputs}
+    eaten = {entry.item_key for key in route.members for entry in registry.recipes[key].inputs}
+    leftovers = sorted(made - eaten - frozenset(request.targets) - frozenset(request.raw_items))
+
+    counts = _converged_counts(registry, usable, request.raw_items, held)
+    chosen = _chosen_producers(registry, usable, request.raw_items, held)
+    pool = tuple(key for key in usable if key not in on_route)
+    names = list(route.members)
+    named = set(names)
+    consumed: set[str] = set()
+    picks = 0
+    for item in leftovers:
+        if item in consumed:
+            continue
+        pick = _cheapest_consumer(registry, pool, item, counts, held)
+        if pick is None:
+            continue
+        picks += 1
+        inputs = tuple(entry.item_key for entry in registry.recipes[pick].inputs)
+        consumed.update(inputs)
+        brought = _route_walk(registry, tuple(i for i in inputs if i != item), chosen)
+        for key in (pick, *brought):
+            if key not in named:
+                named.add(key)
+                names.append(key)
+    if picks == 0:
+        raise NoByproductConsumerError("no recipe off the route eats a leftover byproduct")
+    return tuple(names)
 
 
 def _trim_ranking(registry: Registry, request: OptimizeRequest) -> tuple[str, ...]:

@@ -2593,3 +2593,292 @@ def test_two_processes_rank_one_route_under_different_hash_seeds() -> None:
 
     assert printed[0].startswith(repr(TWO_TARGET_RANKING))
     assert printed[0] == printed[1]
+
+
+# ===========================================================================
+# l. Byproduct consumers (CS-1378) - one hop, the least count, the route's own pool
+# ===========================================================================
+
+
+def _consumers_of(
+    entries: list[dict[str, str]],
+    *,
+    held: frozenset[str] | None = None,
+    candidates: tuple[str, ...] | None = None,
+    targets: tuple[str, ...] = (),
+    raw_items: tuple[str, ...] = (SOLVE_ORE_ITEM,),
+) -> tuple[str, ...]:
+    """The route a bare registry derives, then that route and its byproduct consumers.
+
+    Args:
+        entries: The recipe entries, every one a candidate and unlocked unless told.
+        held: As ``derived_route`` and the new function take it.
+        candidates: The names the request may use, where not every entry.
+        targets: The target items, Relic alone when none is named.
+        raw_items: The request's raw items.
+
+    Returns:
+        What :func:`clockspeed.solve.bound.route_with_consumers` returns.
+    """
+    registry = _bare_registry(entries)
+    request = _route_request(entries, *targets, raw_items=raw_items)
+    if candidates is not None:
+        request = replace(request, candidates=candidates, unlocked=candidates)
+    route = derived_route(registry, request, held=held)
+    return bound.route_with_consumers(registry, request, route, held=held)
+
+
+#: R_By makes Relic, and Rare beside it that no member eats. R_Use eats the Rare and Ore.
+_BY_AND_USE: Final[list[dict[str, str]]] = [
+    _one_each("R_By", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM)),
+    _one_each("R_Use", (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+]
+
+
+def test_a_recipe_off_the_route_that_eats_the_leftover_joins_the_route() -> None:
+    """A recipe off the route that eats the leftover joins the route.
+
+    By hand: Relic counts (0, 1) through R_By, so the route is R_By alone, and Rare is
+    the one item a member makes that nothing eats. R_Use eats Rare and Ore, which counts zero.
+    """
+    assert derived_route(_bare_registry(_BY_AND_USE), _route_request(_BY_AND_USE)).members == (
+        "R_By",
+    )
+
+    assert _consumers_of(_BY_AND_USE) == ("R_By", "R_Use")
+
+
+def test_of_two_consumers_the_lower_count_wins_though_later_in_registry_order() -> None:
+    """Of two consumers the lower count wins though it is later in registry order.
+
+    By hand: R_Dear eats Rod, made by R_MakeRod, so its consumer count is 2, and R_Cheap's
+    is 1. Registry order alone would take R_Dear, which is declared first.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_Dear", (SOLVE_RARE_ITEM, SOLVE_ROD_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_MakeRod", (SOLVE_ORE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_Cheap", (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+    ]
+
+    assert _consumers_of(added) == ("R_By", "R_Cheap")
+
+
+@pytest.mark.parametrize(
+    ("declared", "chosen"),
+    [
+        pytest.param(("R_TieAlpha", "R_TieBeta"), "R_TieAlpha", id="name-order"),
+        pytest.param(("R_TieBeta", "R_TieAlpha"), "R_TieBeta", id="against-name-order"),
+    ],
+)
+def test_a_count_tie_between_consumers_goes_to_the_lower_registry_position(
+    declared: tuple[str, str], chosen: str
+) -> None:
+    """Registry position and never the name: the two params swap declaration order."""
+    added = [
+        _BY_AND_USE[0],
+        *(
+            _one_each(name, (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,))
+            for name in declared
+        ),
+    ]
+
+    assert _consumers_of(added) == ("R_By", chosen)
+
+
+def test_the_held_set_counts_first_so_a_held_consumer_beats_a_cheaper_locked_one() -> None:
+    """A held consumer beats a cheaper locked one, the held set counting first.
+
+    By hand, R_By, R_HeldDear and R_MakeRod held: R_HeldDear counts (0, 2), R_LockedCheap
+    (1, 1), and the first int is compared first.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_LockedCheap", (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_HeldDear", (SOLVE_RARE_ITEM, SOLVE_ROD_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_MakeRod", (SOLVE_ORE_ITEM,), (SOLVE_ROD_ITEM,)),
+    ]
+
+    held = frozenset({"R_By", "R_HeldDear", "R_MakeRod"})
+
+    assert _consumers_of(added, held=held) == ("R_By", "R_HeldDear", "R_MakeRod")
+    assert _consumers_of(added) == ("R_By", "R_LockedCheap")
+
+
+def test_a_consumer_brings_its_other_inputs_chosen_producers_once_each() -> None:
+    """A consumer brings its other inputs' chosen producers, once each.
+
+    By hand: R_Brings eats Rare and Rod, and Rod's one producer eats Plate, made from Ore.
+    They follow it in the walk, and a producer already on the route is not named twice.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_Brings", (SOLVE_RARE_ITEM, SOLVE_ROD_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_MakeRod", (SOLVE_PLATE_ITEM,), (SOLVE_ROD_ITEM,)),
+        _one_each("R_MakePlate", (SOLVE_ORE_ITEM,), (SOLVE_PLATE_ITEM,)),
+    ]
+
+    names = _consumers_of(added)
+
+    assert names == ("R_By", "R_Brings", "R_MakeRod", "R_MakePlate")
+    assert len(set(names)) == len(names)
+
+
+def test_a_consumer_with_an_input_that_has_no_count_does_not_qualify() -> None:
+    """A consumer with an input that has no count does not qualify.
+
+    By hand: Orphan is made by nothing and is no raw item, so R_NoCount cannot be fed, and
+    the later R_Use qualifies although R_NoCount is declared first.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_NoCount", (SOLVE_RARE_ITEM, SOLVE_ORPHAN_ITEM), (SOLVE_RELIC_ITEM,)),
+        _BY_AND_USE[1],
+    ]
+
+    assert _consumers_of(added) == ("R_By", "R_Use")
+    with pytest.raises(bound.NoByproductConsumerError):
+        _consumers_of(added[:2])
+
+
+def test_a_leftover_an_earlier_pick_consumes_gets_no_consumer_of_its_own() -> None:
+    """A leftover an earlier pick consumes gets no consumer of its own.
+
+    By hand: R_By makes Rare and Twin, and the items sort Rare before Twin. R_Both eats both
+    and is the only recipe eating Rare, so it is picked first. Twin is then consumed, and
+    R_OnlyTwin, which would count lower for it, is never picked.
+    """
+    added = [
+        _one_each("R_By", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM, SOLVE_TWIN_ITEM)),
+        _one_each("R_Both", (SOLVE_RARE_ITEM, SOLVE_TWIN_ITEM), (SOLVE_RELIC_ITEM,)),
+        _one_each("R_OnlyTwin", (SOLVE_TWIN_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+    ]
+
+    assert _consumers_of(added) == ("R_By", "R_Both")
+
+
+def test_leftovers_are_asked_for_in_sorted_item_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Five leftovers, so a hash order would match the sorted one one run in a hundred.
+
+    R_By makes Plate, Rare, Rod, Trinket and Twin beside the Relic, and only R_Use eats one of
+    them. The step asks for a consumer of each, in sorted item order, which a spy on the
+    chooser reads off.
+    """
+    leftovers = (
+        SOLVE_PLATE_ITEM,
+        SOLVE_RARE_ITEM,
+        SOLVE_ROD_ITEM,
+        SOLVE_TRINKET_ITEM,
+        SOLVE_TWIN_ITEM,
+    )
+    added = [
+        _one_each("R_By", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM, *leftovers)),
+        _one_each("R_Use", (SOLVE_ROD_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+    ]
+    asked: list[str] = []
+    real = bound._cheapest_consumer  # noqa: SLF001 - the seam under test
+
+    def recording(registry: Registry, pool: tuple[str, ...], item: str, *rest: Any) -> str | None:
+        asked.append(item)
+        return real(registry, pool, item, *rest)
+
+    monkeypatch.setattr(bound, "_cheapest_consumer", recording)
+
+    assert _consumers_of(added) == ("R_By", "R_Use")
+    assert asked == sorted(leftovers)
+
+
+def test_one_hop_a_consumers_own_leftover_is_never_chased() -> None:
+    """One hop: a consumer's own leftover is never chased.
+
+    By hand: R_Use2 turns Rare into Twin, which only R_Chase eats. The Twin is the
+    consumer's own leftover, so R_Chase stays off.
+    """
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_Use2", (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_TWIN_ITEM,)),
+        _one_each("R_Chase", (SOLVE_TWIN_ITEM,), (SOLVE_RELIC_ITEM,)),
+    ]
+
+    assert _consumers_of(added) == ("R_By", "R_Use2")
+
+
+def test_the_pool_is_the_requests_own_so_a_recipe_the_door_refuses_is_never_picked() -> None:
+    """The control is the same fixture with R_Use a candidate."""
+    assert _consumers_of(_BY_AND_USE, candidates=("R_By", "R_Use")) == ("R_By", "R_Use")
+    with pytest.raises(bound.NoByproductConsumerError):
+        _consumers_of(_BY_AND_USE, candidates=("R_By",))
+
+
+def test_a_byproduct_nothing_consumes_refuses_and_the_refusal_names_nothing() -> None:
+    """By hand: R_Decoy eats Twin, not Rare, so no recipe eats the leftover."""
+    added = [
+        _BY_AND_USE[0],
+        _one_each("R_Decoy", (SOLVE_TWIN_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+    ]
+
+    with pytest.raises(bound.NoByproductConsumerError) as refused:
+        _consumers_of(added)
+
+    text = str(refused.value)
+    assert isinstance(refused.value, NoFeasibleSelectionError)
+    named = [
+        name for name in (*_entry_names(added), SOLVE_RARE_ITEM, SOLVE_TWIN_ITEM) if name in text
+    ]
+    assert named == []
+
+
+def _entry_names(entries: list[dict[str, str]]) -> tuple[str, ...]:
+    """Every recipe name in a fixture."""
+    return tuple(entry[KEY_CLASS_NAME] for entry in entries)
+
+
+def test_a_route_with_no_leftover_byproduct_refuses_too() -> None:
+    """Nothing to consume, so a second solve would repeat the first."""
+    added = [_one_each("R_Top", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM,))]
+
+    with pytest.raises(bound.NoByproductConsumerError):
+        _consumers_of(added)
+
+
+def test_a_target_is_never_a_leftover() -> None:
+    """A target is never a leftover.
+
+    By hand: R_By makes Relic and Rare, both asked for, so nothing is left over. R_Use eats
+    Rare, and is a consumer only when Rare is not itself a target.
+    """
+    assert _consumers_of(_BY_AND_USE) == ("R_By", "R_Use")
+    with pytest.raises(bound.NoByproductConsumerError):
+        _consumers_of(_BY_AND_USE, targets=(SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM))
+
+
+def test_a_raw_item_is_never_a_leftover() -> None:
+    """A raw item is never a leftover.
+
+    By hand: R_Mix makes Relic and Rod from Ore, and R_EatRod eats Rod. Rod is a leftover
+    unless the request names it raw.
+    """
+    added = [
+        _one_each("R_Mix", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM, SOLVE_ROD_ITEM)),
+        _one_each("R_EatRod", (SOLVE_ROD_ITEM, SOLVE_ORE_ITEM), (SOLVE_RELIC_ITEM,)),
+    ]
+
+    assert _consumers_of(added) == ("R_Mix", "R_EatRod")
+    with pytest.raises(bound.NoByproductConsumerError):
+        _consumers_of(added, raw_items=(SOLVE_ORE_ITEM, SOLVE_ROD_ITEM))
+
+
+def test_the_new_function_reads_no_set_order_and_leaves_the_route_alone() -> None:
+    """A held set is a membership test only, and the route it was given is unchanged."""
+    registry = _bare_registry(_BY_AND_USE)
+    request = _route_request(_BY_AND_USE)
+    route = derived_route(registry, request)
+
+    names = bound.route_with_consumers(
+        registry, request, route, held=_MembershipOnly({"R_By", "R_Use"})
+    )
+
+    assert names == ("R_By", "R_Use")
+    assert route.members == ("R_By",)
+    assert "route_with_consumers" in bound.__all__
+    assert "NoByproductConsumerError" in bound.__all__

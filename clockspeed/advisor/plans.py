@@ -105,6 +105,12 @@ check, counting what the world does not hold first and all recipes second, so a 
 with no machine held cannot tie a route that runs now, and solves that route once with
 :func:`clockspeed.solve.ratio.solve_for_targets` under the stated policy. It makes no second
 bound call and no rung search, so no direction chooses the route and no badge can grade it.
+WHERE PILLAR 1 REFUSES THAT ROUTE UNDER THE BALANCED POLICY (CS-1378),
+:func:`clockspeed.solve.bound.route_with_consumers` adds one consumer per leftover byproduct
+from the same pool, the route's own checked recipes, and the route plus those is solved once
+more. A refusal of some other kind is refused again, and reads as the first did. A consumer the
+world has not unlocked is offered locked, as any stage is, and a route solved on the first try
+never reaches that step.
 A stage the solve gives no machine count is neither held nor locked. ITS RAW ITEMS ARE NOT THE
 SEARCH'S: it starts from every stated item some extractor joining a build recipe with a path
 can extract, supplied or not, so a world missing a machine reads what to unlock rather than
@@ -184,6 +190,7 @@ from clockspeed.solve.bound import (
     BoundExhaustedError,
     derived_route,
     optimize_within_bound,
+    route_with_consumers,
     trim_record,
 )
 from clockspeed.solve.exact import ExactArithmeticError, InexactValueError, to_exact
@@ -198,6 +205,7 @@ from clockspeed.solve.optimize import (
     optimize_plan,
 )
 from clockspeed.solve.ratio import (
+    BYPRODUCT_BALANCED,
     BYPRODUCT_POLICIES,
     ProductionPlan,
     RatioError,
@@ -773,14 +781,44 @@ def _route_inputs(
     )
 
 
+def _solve_route(
+    registry: Registry, search: OptimizeRequest, members: tuple[str, ...], supply: _RawSupply
+) -> ProductionPlan:
+    """Solve these recipes once, for the search's targets and policy, from the route's raw items.
+
+    Args:
+        registry: The normalized registry.
+        search: The request the search ran on, whose targets and policy are read.
+        members: The recipes to solve, in the order to hand pillar 1.
+        supply: The world's supply: the solve starts from its route items.
+
+    Returns:
+        What pillar 1 solved.
+
+    Raises:
+        RatioError: Pillar 1 refuses the recipes, as :func:`solve_for_targets` raises it.
+    """
+    return solve_for_targets(
+        registry,
+        RatioRequest(
+            targets=search.targets,
+            recipes=members,
+            raw_items=supply.route,
+            byproduct_policy=search.byproduct_policy,
+        ),
+    )
+
+
 def _redesign_offer(
     registry: Registry, search: OptimizeRequest, *, join: _RecipeJoin, supply: _RawSupply
 ) -> dict[str, InputValue]:
-    """Derive one route over every automated recipe the join could check, and solve it once.
+    """Derive one route over every automated recipe the join could check, and solve it.
 
     The route CS-1371 ruled, kept whole in this function so it stays swappable: the marked
     route of the module docstring. It reads what :func:`plan_offer` searched for, and makes
-    no second bound call and no rung search.
+    no second bound call and no rung search. Where pillar 1 refuses that route under the
+    balanced policy it solves once more, over the route and one consumer per leftover
+    byproduct (CS-1378); any other route is solved the once.
 
     Args:
         registry: The normalized registry.
@@ -793,28 +831,28 @@ def _redesign_offer(
 
     Returns:
         The marked route's inputs. Every refusal is a status, read by no message: no route
-        when the count misses some target, and refused when pillar 1 refuses the route.
-        The catches are :func:`plan_offer`'s, for the reason it gives, and ``RatioError``
-        beside them, because this calls pillar 1 itself where the search reaches it through
-        pillar 2, which reads that refusal as no selection.
+        when the count misses some target, and refused when pillar 1 refuses the route, or
+        refuses it again with its consumers, or the consumer step finds none. The catches
+        are :func:`plan_offer`'s, for the reason it gives, and ``RatioError`` beside them,
+        because this calls pillar 1 itself where the search reaches it through pillar 2,
+        which reads that refusal as no selection.
     """
     try:
-        route = derived_route(
-            registry,
-            replace(search, candidates=join.checked, unlocked=join.checked, raw_items=supply.route),
-            held=frozenset(join.held),
+        asked = replace(
+            search, candidates=join.checked, unlocked=join.checked, raw_items=supply.route
         )
+        held = frozenset(join.held)
+        route = derived_route(registry, asked, held=held)
         if not route.complete:
             return redesign_status_inputs(REDESIGN_NO_ROUTE, unmade=route.unmade)
-        plan = solve_for_targets(
-            registry,
-            RatioRequest(
-                targets=search.targets,
-                recipes=route.members,
-                raw_items=supply.route,
-                byproduct_policy=search.byproduct_policy,
-            ),
-        )
+        try:
+            plan = _solve_route(registry, search, route.members, supply)
+        except RatioError:
+            if search.byproduct_policy != BYPRODUCT_BALANCED:
+                raise
+            # CS-1378: one consumer per leftover byproduct, then one more solve.
+            members = route_with_consumers(registry, asked, route, held=held)
+            plan = _solve_route(registry, search, members, supply)
     except (RatioError, OptimizeError, ExactArithmeticError, ValueError, KeyError):
         return redesign_status_inputs(REDESIGN_ROUTE_REFUSED, unmade=None)
     return _route_inputs(registry, plan, join, supply)

@@ -132,11 +132,13 @@ from tests.solve.synthetic import (
     SOLVE_MINER_BUILDING,
     SOLVE_ORE_ITEM,
     SOLVE_ORPHAN_ITEM,
+    SOLVE_PLATE_ITEM,
     SOLVE_RARE_ITEM,
     SOLVE_REFINERY_BUILDING,
     SOLVE_RELIC_ITEM,
     SOLVE_ROD_ITEM,
     SOLVE_SMELTER_BUILDING,
+    SOLVE_TWIN_ITEM,
     building_path,
     document_from_groups,
     extractor_descriptor,
@@ -2770,6 +2772,264 @@ def test_a_route_refused_outcome_fires_under_the_other_policy() -> None:
     assert plan.byproducts == {SOLVE_RARE_ITEM: Fraction(10)}
 
 
+# ---------------------------------------------------------------------------
+# CS-1378: a balanced route pillar 1 refuses gets one consumer per leftover byproduct
+# ---------------------------------------------------------------------------
+
+#: 20 Relic a minute: R_By and one consumer share it, one machine each, by the hand work below.
+CONSUMER_RATE: Final = "20"
+
+#: The consumer step's own door out of ``plans.py``.
+CONSUMER_DOOR: Final = "route_with_consumers"
+
+
+def _by_entry() -> dict[str, str]:
+    """R_By makes Relic and, beside it, a Rare nothing on the route eats."""
+    return _recipe("R_By", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM])
+
+
+def _eats_rare(
+    name: str, *, also: str = SOLVE_ORE_ITEM, makes: str = SOLVE_RELIC_ITEM, pathless: bool = False
+) -> dict[str, str]:
+    """A recipe eating one Rare and one more item, and making one of an item."""
+    return _recipe(name, [SOLVE_RARE_ITEM, also], [makes], pathless=pathless)
+
+
+def _consumer_request(registry: Registry, *, policy: str = BALANCED) -> PlanRequest:
+    """The request every arm below asks, at :data:`CONSUMER_RATE`."""
+    return _request(registry, rate=CONSUMER_RATE, policy=policy)
+
+
+def _consumer_outcome(held: Iterable[str], registry: Registry) -> PlanOutcome:
+    """The projection of one world's offer under the balanced policy."""
+    return _outcome(held, registry, _consumer_request(registry))
+
+
+def _consumer_card(held: Iterable[str], registry: Registry, *, policy: str = BALANCED) -> Card:
+    """The plan.redesign card of one world, which must fire."""
+    return _route_card(held, registry, _consumer_request(registry, policy=policy))
+
+
+def _stage_machines(card: Card) -> dict[str, Fraction]:
+    """Each stage of a card's plan with its machine count, read by recipe."""
+    return dict(_machines(card))
+
+
+def test_a_byproduct_a_recipe_off_the_route_eats_reads_a_route_card_with_its_count() -> None:
+    """A byproduct a recipe off the route eats reads a route card with its count.
+
+    By hand: R_By makes 10 Relic and 10 Rare per machine, R_Use eats 10 Rare and 10 Ore and
+    makes 10 Relic. Rare: 10 x = 10 y, Relic: 10 x + 10 y = 20, so x = y = 1.
+
+    R_Use is held and R_By is not, so no ranked plan exists and the route path runs. At
+    CS-1371 the Rare left a row nothing cancelled and the route read route-refused.
+    """
+    registry = _registry([_by_entry(), _eats_rare("R_Use")])
+
+    outcome = _consumer_outcome(("R_Use",), registry)
+    card = _consumer_card(("R_Use",), registry)
+
+    assert outcome.status == NO_PLAN
+    assert outcome.redesign == ROUTED
+    assert _stage_machines(card) == {"R_By": Fraction(1), "R_Use": Fraction(1)}
+    assert 'PlanStep(recipe_key="R_Use", machines=1.00)' in card.tier3
+    assert _card_read(card, IN_REDESIGN_HELD) == ("R_Use",)
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_By",)
+
+
+def test_of_two_qualifying_consumers_the_lower_count_wins_though_later_in_registry_order() -> None:
+    """By hand: R_Dear also eats Rod, made by R_MakeRod, so it counts 2 against R_Cheap's 1.
+
+    R_Dear is declared first, so plain registry order would take it and run R_MakeRod too.
+    """
+    registry = _registry(
+        [
+            _by_entry(),
+            _eats_rare("R_Dear", also=SOLVE_ROD_ITEM),
+            _recipe("R_MakeRod", [SOLVE_ORE_ITEM], [SOLVE_ROD_ITEM]),
+            _eats_rare("R_Cheap"),
+        ]
+    )
+
+    card = _consumer_card(("R_By",), registry)
+
+    assert _stage_machines(card) == {"R_By": Fraction(1), "R_Cheap": Fraction(1)}
+
+
+@pytest.mark.parametrize(
+    ("declared", "chosen"),
+    [
+        pytest.param(("R_TieA", "R_TieB"), "R_TieA", id="name-order"),
+        pytest.param(("R_TieB", "R_TieA"), "R_TieB", id="against-name-order"),
+    ],
+)
+def test_a_count_tie_between_consumers_goes_to_the_earlier_in_the_registry(
+    declared: tuple[str, str], chosen: str
+) -> None:
+    """Both count 1, so only registry position decides, and the two params swap it."""
+    registry = _registry([_by_entry(), *(_eats_rare(name) for name in declared)])
+
+    card = _consumer_card(("R_By",), registry)
+
+    assert _stage_machines(card) == {"R_By": Fraction(1), chosen: Fraction(1)}
+
+
+def test_a_locked_consumer_is_admitted_and_offered_locked() -> None:
+    """A locked consumer is admitted and offered locked.
+
+    The pool is the join's checked recipes, held or not, so a consumer the world has not
+    unlocked is offered as a locked stage beside the held producer.
+    """
+    registry = _registry([_by_entry(), _eats_rare("R_Use")])
+
+    card = _consumer_card(("R_By",), registry)
+
+    assert _card_read(card, IN_REDESIGN_HELD) == ("R_By",)
+    assert _card_read(card, IN_REDESIGN_LOCKED) == ("R_Use",)
+    assert _stage_machines(card) == {"R_By": Fraction(1), "R_Use": Fraction(1)}
+
+
+def test_a_byproduct_nothing_eats_still_reads_route_refused_beside_a_recipe_that_could_not() -> (
+    None
+):
+    """The fence: R_Decoy eats Plate, never Rare, so no recipe consumes the leftover.
+
+    The control is the same world with a real consumer, which routes.
+    """
+    decoy = _recipe("R_Decoy", [SOLVE_PLATE_ITEM, SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM])
+    refused = _registry([_by_entry(), decoy])
+    routed = _registry([_by_entry(), decoy, _eats_rare("R_Use")])
+
+    assert _consumer_outcome(("R_By",), refused).redesign == ROUTE_REFUSED
+    assert _consumer_outcome(("R_By",), routed).redesign == ROUTED
+
+
+def test_a_consumer_whose_output_only_a_second_recipe_eats_still_reads_route_refused() -> None:
+    """A consumer's own leftover is never chased.
+
+    The fence, one hop: R_Turn makes Twin from Rare, and only R_Chase eats Twin. The Twin is
+    the consumer's own leftover and is never chased, so the second solve is refused as the
+    first was.
+    """
+    registry = _registry(
+        [
+            _by_entry(),
+            _eats_rare("R_Turn", makes=SOLVE_TWIN_ITEM),
+            _recipe("R_Chase", [SOLVE_TWIN_ITEM], [SOLVE_RELIC_ITEM]),
+        ]
+    )
+
+    assert _consumer_outcome(("R_By",), registry).redesign == ROUTE_REFUSED
+
+
+def test_an_unchecked_consumer_is_never_picked() -> None:
+    """An unchecked consumer is never picked.
+
+    The fence: the pool is the join's checked recipes. R_Use has no path, so nothing could
+    show it held, and it is named unchecked and kept off the route. The control gives it one.
+    """
+    registry = _registry([_by_entry(), _eats_rare("R_Use", pathless=True)])
+    checked = _registry([_by_entry(), _eats_rare("R_Use")])
+
+    refused = _consumer_outcome(("R_By",), registry)
+
+    assert refused.redesign == ROUTE_REFUSED
+    assert _consumer_outcome(("R_By",), checked).redesign == ROUTED
+
+
+def test_under_sinkable_the_byproduct_sinks_and_no_consumer_runs() -> None:
+    """The fence: the policy sinks the Rare, so the first solve stands and R_Use stays off."""
+    registry = _registry([_by_entry(), _eats_rare("R_Use")])
+
+    card = _consumer_card((), registry, policy=SINKABLE)
+
+    assert _stage_machines(card) == {"R_By": Fraction(2)}
+    assert _plan_of(_card_read(card, IN_REDESIGN_PLAN)).byproducts == {
+        SOLVE_RARE_ITEM: Fraction(20)
+    }
+
+
+def _spy_on_the_consumer_step(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, ...]]:
+    """Record each call into the consumer step and pass it through."""
+    calls: list[tuple[Any, ...]] = []
+    real = plans_module.route_with_consumers
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        calls.append(args)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(plans_module, CONSUMER_DOOR, recording)
+    return calls
+
+
+def test_a_route_solved_first_try_never_reaches_the_consumer_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three first-try worlds, then the control on which the spy does see a call."""
+    calls = _spy_on_the_consumer_step(monkeypatch)
+    consumer = _registry([_by_entry(), _eats_rare("R_Use")])
+    three = _three_locked_registry()
+
+    plan_offer(_unlocks(()), consumer, _consumer_request(consumer, policy=SINKABLE))
+    plan_offer(_unlocks([HELD_STAGE]), three, _request(three))
+    plan_offer(
+        _unlocks(("R_Two", "R_Direct", "R_One")), _ascent_registry(), _request(_ascent_registry())
+    )
+    assert calls == []
+
+    plan_offer(_unlocks(("R_By",)), consumer, _consumer_request(consumer))
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("policy", "reached"), [(SINKABLE, 0), (BALANCED, 1)], ids=[SINKABLE, BALANCED]
+)
+def test_a_refusal_reaches_the_consumer_step_under_the_balanced_policy_alone(
+    monkeypatch: pytest.MonkeyPatch, policy: str, reached: int
+) -> None:
+    """The step is for a balanced refusal, so the same refusal under sinkable stops there.
+
+    A solve stood in for with a refusal, so the policy is the one thing that differs. Both
+    read route-refused, and only the balanced one runs the step.
+    """
+    calls = _spy_on_the_consumer_step(monkeypatch)
+
+    def refuse(*_args: object, **_kwargs: object) -> object:
+        raise RatioError(MARK)
+
+    monkeypatch.setattr(plans_module, "solve_for_targets", refuse)
+    registry = _registry([_by_entry(), _eats_rare("R_Use")])
+
+    outcome = plan_outcome_of(
+        plan_offer(_unlocks(()), registry, _consumer_request(registry, policy=policy))
+    )
+
+    assert outcome.redesign == ROUTE_REFUSED
+    assert len(calls) == reached
+
+
+def test_a_refusal_from_the_consumer_step_reads_route_refused_and_echoes_nothing() -> None:
+    """The consumer step's own refusal reads route-refused and echoes nothing.
+
+    The step's own refusal, raised for real: nothing eats the Rare. Neither the status the
+    rule reads nor anything the trace renders holds an item or a recipe key.
+    """
+    registry = _registry([_by_entry(), _recipe("R_Decoy", [SOLVE_PLATE_ITEM], [SOLVE_RELIC_ITEM])])
+    world = _inputs(_model(("R_By",)), registry, _consumer_request(registry))
+
+    trace = run_rule(REDESIGN_RULE, world)
+
+    assert _offered(world, IN_REDESIGN_STATUS) == ROUTE_REFUSED
+    assert card_for(trace) is None
+    assert _indeterminate_count(trace) == 1
+    assert _errors(trace) == []
+    rendered = _rendered(trace)
+    named = [
+        key for key in ("R_By", "R_Decoy", SOLVE_RARE_ITEM, SOLVE_PLATE_ITEM) if key in rendered
+    ]
+    assert named == []
+
+
 @pytest.mark.parametrize(
     ("status", "sentence"),
     [(NO_ROUTE, NO_ROUTE_REASON), (ROUTE_REFUSED, ROUTE_REFUSED_REASON)],
@@ -2831,8 +3091,14 @@ ROUTE_REFUSALS: Final[Mapping[str, Callable[[], Exception]]] = MappingProxyType(
     }
 )
 
-#: The route path's two doors.
-ROUTE_DOORS: Final = ("derived_route", "solve_for_targets")
+#: The route path's doors. The last is reached only once pillar 1 refuses the route under the
+#: balanced policy, so its arms take the fixture that does.
+ROUTE_DOORS: Final = ("derived_route", "solve_for_targets", "route_with_consumers")
+
+
+def _door_registry(door: str) -> Registry:
+    """The world whose route path reaches this door: the routable one, or one pillar 1 refuses."""
+    return _byproduct_registry() if door == "route_with_consumers" else _ascent_registry()
 
 
 @pytest.mark.parametrize("door", ROUTE_DOORS)
@@ -2844,7 +3110,7 @@ def test_each_refusal_on_the_route_path_reads_route_refused_and_echoes_nothing(
         raise ROUTE_REFUSALS[refusal]()
 
     monkeypatch.setattr(plans_module, door, refuse)
-    registry = _ascent_registry()
+    registry = _door_registry(door)
     world = _inputs(_model(()), registry, _request(registry))
 
     trace = run_rule(REDESIGN_RULE, world)
@@ -2868,7 +3134,7 @@ def test_a_type_error_from_the_route_raises_out_of_the_offer(
         raise TypeError(MARK)
 
     monkeypatch.setattr(plans_module, door, refuse)
-    registry = _ascent_registry()
+    registry = _door_registry(door)
     with pytest.raises(TypeError):
         plan_offer(_unlocks(()), registry, _request(registry))
 
