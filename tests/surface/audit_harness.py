@@ -720,6 +720,10 @@ TARGET_ROUTE_REFUSED: Final = "Desc_ExampleOre_C"
 #: Every stated target, in the order the registry stand-in serves them.
 AUDIT_TARGETS: Final = (TARGET_RANKED, TARGET_ROUTED, TARGET_NO_ROUTE, TARGET_ROUTE_REFUSED)
 
+#: The schematics the stand-in registry lists for the advice panel's second selector
+#: (CS-1396), in an order no sort gives and none of them a ClassName the real catalog holds.
+AUDIT_SCHEMATICS: Final = ("Schematic_ExampleSecond_C", "Schematic_ExampleFirst_C")
+
 
 def _registry_data() -> dict[str, object]:
     """Build the ``/api/registry`` data object.
@@ -786,6 +790,7 @@ def _registry_data() -> dict[str, object]:
         # would answer over these rows, which is the one plate: the stand-in lists a key
         # per state the audit has to reach, and no canned recipe makes the others.
         registry.PLAN_TARGETS_KEY: list(AUDIT_TARGETS),
+        registry.PLAN_SCHEMATICS_KEY: list(AUDIT_SCHEMATICS),
     }
     _assert_keys_match("registry body", body, registry.BODY_KEYS)
     return body

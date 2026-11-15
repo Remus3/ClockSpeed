@@ -69,6 +69,13 @@ computes nothing and this module holds no opinion on what is selectable. It answ
 the registry alone, whatever a world has unlocked, because the milestone target is a free
 selector (CLAUDE.md section 7).
 
+WHICH SCHEMATICS A PLAN MAY BE STATED FOR IS THE CATALOG'S (CS-1396). ``plan_schematics`` is
+every ClassName the CS-1373 schematic source's catalog holds, sorted here and nowhere else
+because the catalog keeps document order and carries no opinion on one, and the empty list
+when the source publishes none: no install, or no source bound. The key names are read off
+the catalog and nothing is parsed, so this module opens no docs and builds no catalog. Like
+the plan targets it is a free selector, whatever a world has bought.
+
 UNMODELLED CONTENT IS PUBLISHED, NOT HIDDEN. ``warnings`` and ``unknown_groups``
 cross the wire for the reason non-negotiable 7 exists: a body that served the
 clean half and dropped the flagged half is a quiet partial answer wearing a
@@ -120,6 +127,8 @@ if TYPE_CHECKING:
         Registry,
         RegistryWarning,
     )
+    from clockspeed.data.schematics import SchematicCatalog
+    from clockspeed.surface.api.advice import SchematicCatalogs
 
 __all__ = [
     "BODY_KEYS",
@@ -129,6 +138,7 @@ __all__ = [
     "ENDPOINT",
     "ITEM_KEYS",
     "METHOD_GET",
+    "PLAN_SCHEMATICS_KEY",
     "PLAN_TARGETS_KEY",
     "RECIPE_IO_KEYS",
     "RECIPE_KEYS",
@@ -156,9 +166,12 @@ DATA_KEYS: Final = ("items", "recipes", "buildings", "counts", "warnings", "unkn
 #: because the plan panel reads it and the registry panel does not.
 PLAN_TARGETS_KEY: Final = "plan_targets"
 
+#: The schematics a plan may be stated for (CS-1396), the catalog's own ClassNames.
+PLAN_SCHEMATICS_KEY: Final = "plan_schematics"
+
 #: Exactly the top-level keys a success body carries. Published so a test can
 #: bind the shape to the builder and so neither can drift from the other.
-BODY_KEYS: Final = (*DATA_KEYS, PLAN_TARGETS_KEY)
+BODY_KEYS: Final = (*DATA_KEYS, PLAN_TARGETS_KEY, PLAN_SCHEMATICS_KEY)
 
 #: One item's keys. ``form`` is served BESIDE ``is_fluid`` rather than being
 #: reduced to it, because ``RF_INVALID`` is neither solid nor fluid and a
@@ -319,16 +332,39 @@ def _counts(registry: Registry) -> dict[str, int]:
     }
 
 
-def _body(registry: Registry) -> dict[str, object]:
+def _plan_schematics(schematics: SchematicCatalogs[SchematicCatalog] | None) -> list[str]:
+    """List the catalog's ClassNames, sorted, or nothing when no catalog is published.
+
+    Args:
+        schematics: Whatever hands up the schematic catalog, or None for no source at all.
+
+    Returns:
+        Every ClassName the catalog holds, sorted, and the empty list when there is no
+        source or the source publishes no catalog. Never an exception for either, because
+        a machine with no install is a state of the world and not a fault of this route.
+    """
+    if schematics is None:
+        return []
+    catalog = schematics.catalog()
+    if catalog is None:
+        return []
+    return sorted(catalog.schematics)
+
+
+def _body(
+    registry: Registry, schematics: SchematicCatalogs[SchematicCatalog] | None
+) -> dict[str, object]:
     """Build the success body by naming every field it carries.
 
     Args:
         registry: The normalized registry.
+        schematics: Whatever hands up the schematic catalog, or None for no source at all.
 
     Returns:
         The body, keyed by :data:`BODY_KEYS`. Each collection is served in the
         registry's own order - see the module docstring on why it is not sorted -
-        and the plan targets in the order the data layer answers them.
+        the plan targets in the order the data layer answers them, and the plan
+        schematics sorted.
     """
     return {
         "items": [_item(item) for item in registry.items.values()],
@@ -338,10 +374,14 @@ def _body(registry: Registry) -> dict[str, object]:
         "warnings": [_warning(warning) for warning in registry.warnings],
         "unknown_groups": list(registry.unknown_groups),
         PLAN_TARGETS_KEY: list(plan_targets(registry)),
+        PLAN_SCHEMATICS_KEY: _plan_schematics(schematics),
     }
 
 
-def make_handler(registries: contract.RegistryProvider[Registry]) -> contract.Handler:
+def make_handler(
+    registries: contract.RegistryProvider[Registry],
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
+) -> contract.Handler:
     """Bind a registry provider and return the handler that answers this route.
 
     THE PROVIDER IS BOUND BY CLOSURE RATHER THAN PASSED PER REQUEST, which is the
@@ -351,6 +391,8 @@ def make_handler(registries: contract.RegistryProvider[Registry]) -> contract.Ha
 
     Args:
         registries: Whatever hands over the registry, or says there is not one.
+        schematics: Whatever hands over the schematic catalog, or None for no source at
+            all, which serves no schematic. Asked only once a registry is in hand.
 
     Returns:
         The handler.
@@ -373,18 +415,26 @@ def make_handler(registries: contract.RegistryProvider[Registry]) -> contract.Ha
         registry = registries.registry()
         if registry is None:
             return contract.unavailable(ENDPOINT, contract.REASON_NO_GAME_INSTALL)
-        return contract.ok(ENDPOINT, _body(registry))
+        return contract.ok(ENDPOINT, _body(registry, schematics))
 
     return handle
 
 
-def routes(registries: contract.RegistryProvider[Registry]) -> tuple[contract.Route, ...]:
+def routes(
+    registries: contract.RegistryProvider[Registry],
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
+) -> tuple[contract.Route, ...]:
     """Every route this module publishes, with the provider already bound.
 
     Args:
         registries: Whatever hands this endpoint the registry.
+        schematics: Whatever hands this endpoint the schematic catalog, or None for none.
 
     Returns:
         The one GET route.
     """
-    return (contract.Route(method=METHOD_GET, template=ENDPOINT, handler=make_handler(registries)),)
+    return (
+        contract.Route(
+            method=METHOD_GET, template=ENDPOINT, handler=make_handler(registries, schematics)
+        ),
+    )

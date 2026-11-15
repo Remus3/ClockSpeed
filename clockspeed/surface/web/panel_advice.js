@@ -11,8 +11,16 @@
   and it refuses that by leaving the press inert and naming the field. Everything
   else about a statement is the server's to refuse.
 
+  CS-1396 - A SECOND FREE SELECTOR BESIDE THE TARGETS: plan_schematics, every ClassName the
+  schematic catalog holds, in the order the registry body served it and starting empty like
+  every other control. A press with a schematic chosen states the schematic, a direction and a
+  policy and NEVER A RATE - each cost item's rate is the one its requirement publishes, which
+  this page never sees. A schematic and a target chosen together leave the press inert and
+  name both fields. A body serving no schematic says so by the key's name and offers no
+  selector, and the target bench beside it stands.
+
   NOTHING IS COMPUTED HERE. plan_targets arrives on the registry body in the order
-  it was served and is listed in that order. A card's headline and reason are tier
+  it was served and is listed in that order, and plan_schematics the same. A card's headline and reason are tier
   1 and tier 2 as the listing carries them, and tier 3 is shown as the text the
   derivation route answered, never parsed. The rate is what the reader typed, in
   the spelling the API takes - an integer, an exact decimal or num/den, per minute
@@ -104,6 +112,10 @@ var NO_READ_DOOR_LINE = "this page published no derivation door; nothing was sen
 var NO_STATE_DOOR_LINE = "this page published no state door; nothing was sent.";
 var UNREACHABLE_LINE = "no answer: unreachable.";
 var NO_OUTCOME_LINE = "the page returned no outcome at all, so nothing landed.";
+/* Names both fields, and fits the two reserved lines. */
+var BOTH_CHOSEN_LINE = "choose a target or a schematic, not both; nothing was sent.";
+var NO_SCHEMATICS_LINE =
+  "/api/registry served no plan_schematics, so there is no schematic to state here.";
 
 var STATE_IDLE_LINE = "state not changed.";
 var RECORDING_LINE = "recording the state ...";
@@ -332,6 +344,15 @@ function displayNames(registry) {
 function nameOf(names, key) {
   /* The display name where the registry holds one, the key where it does not. */
   return names[key] === undefined ? String(key) : names[key];
+}
+
+function schematicChoices(schematics) {
+  /* The served list in its served order, each its own ClassName. No sort, no filter. */
+  var choices = [];
+  for (var index = 0; index < schematics.length; index += 1) {
+    choices.push({ value: String(schematics[index]), label: String(schematics[index]) });
+  }
+  return choices;
 }
 
 function targetChoices(targets, names) {
@@ -564,12 +585,15 @@ registerPanel("advice", function mountAdvice(root, data) {
         sayState(NO_STATE_DOOR_LINE);
         return;
       }
-      var params = {
-        target: statement.target,
-        rate: statement.rate,
-        direction: statement.direction,
-        byproduct_policy: statement.byproduct_policy
-      };
+      /*
+        THE STATEMENT'S OWN NAMES, copied as they stand: the four of an item statement or
+        the three of a schematic's, and never a name the card's statement did not state.
+      */
+      var params = {};
+      var names = Object.keys(statement);
+      for (var at = 0; at < names.length; at += 1) {
+        params[names[at]] = statement[names[at]];
+      }
       params.state = kind;
       if (length !== null) {
         params.duration = length;
@@ -730,6 +754,7 @@ registerPanel("advice", function mountAdvice(root, data) {
 
   var names = displayNames(registry);
   var targets = Array.isArray(registry.plan_targets) ? registry.plan_targets : [];
+  var schematics = Array.isArray(registry.plan_schematics) ? registry.plan_schematics : [];
   var region = document.createElement("div");
   region.id = "advice-answer";
   region.className = "bench-result";
@@ -740,7 +765,7 @@ registerPanel("advice", function mountAdvice(root, data) {
     plan_targets can only come from a server older than this page, and an empty one
     leaves nothing to select. Neither is a reason to hide advice already held.
   */
-  if (targets.length === 0) {
+  if (targets.length === 0 && schematics.length === 0) {
     addNote(root, "/api/registry served no plan_targets, so there is no target to state here.");
     root.appendChild(region);
     renderCards(region, advice, null);
@@ -754,11 +779,24 @@ registerPanel("advice", function mountAdvice(root, data) {
     "All four are required and none starts filled in: there is no default target and no pointer at the next milestone. The rate is per minute: an integer, an exact decimal or num/den."
   );
 
+  if (targets.length === 0) {
+    addNote(root, "/api/registry served no plan_targets, so there is no target to state here.");
+  }
+  if (schematics.length === 0) {
+    addNote(root, NO_SCHEMATICS_LINE);
+  }
+
   var bench = document.createElement("div");
   bench.className = "bench";
   root.appendChild(bench);
 
   var targetControl = addSelect(bench, "target", "target", targetChoices(targets, names));
+  var schematicControl = null;
+  if (schematics.length > 0) {
+    schematicControl = addSelect(bench, "schematic", "schematic", schematicChoices(schematics));
+    /* One of target and schematic is stated, so neither is required on its own. */
+    schematicControl.removeAttribute("aria-required");
+  }
   var rateControl = addRateInput(bench, "rate", "rate per minute");
   var directionControl = addSelect(bench, "direction", "direction", plainChoices(DIRECTION_VALUES));
   var policyControl = addSelect(
@@ -805,6 +843,21 @@ registerPanel("advice", function mountAdvice(root, data) {
       /* An act with no statement: this world's own cards, and no plan was asked for. */
       addNote(region, "answering: this world, with no target stated.");
       renderCards(region, listing, null);
+      return;
+    }
+    if (isPresent(statement.schematic)) {
+      addNote(
+        region,
+        "answering: schematic "
+          + statement.schematic
+          + ", direction "
+          + statement.direction
+          + ", byproduct policy "
+          + statement.byproduct_policy
+          + "."
+      );
+      renderCards(region, listing, statement);
+      renderPlanOutcome(region, listing.plan_outcome);
       return;
     }
     addNote(
@@ -871,7 +924,58 @@ registerPanel("advice", function mountAdvice(root, data) {
     }
   }
 
+  function askSchematic(schematic) {
+    /*
+      A SCHEMATIC STATEMENT: the schematic, a direction and a policy, and no rate and no
+      target whatever the rate field holds. Read fresh on every press like the item's.
+    */
+    var stated = {
+      schematic: schematic,
+      direction: readField(directionControl),
+      byproduct_policy: readField(policyControl)
+    };
+    var absent = [];
+    if (stated.direction === "") {
+      absent.push("direction");
+    }
+    if (stated.byproduct_policy === "") {
+      absent.push("byproduct policy");
+    }
+    if (absent.length) {
+      sayStatus("still empty: " + absent.join(", ") + ".");
+      return;
+    }
+    if (!actDoor) {
+      sayStatus(NO_ACT_DOOR_LINE);
+      return;
+    }
+    ask(
+      button,
+      sayStatus,
+      ASKING_LINE,
+      function (settled) {
+        region.setAttribute("aria-busy", "true");
+        return actDoor(stated, settled);
+      },
+      function (outcome) {
+        renderAnswer(outcome, stated);
+      }
+    );
+    if (!waiting) {
+      region.removeAttribute("aria-busy");
+    }
+  }
+
   button.addEventListener("click", function onAsk() {
+    var schematic = schematicControl === null ? "" : readField(schematicControl);
+    if (schematic !== "") {
+      if (readField(targetControl) !== "") {
+        sayStatus(BOTH_CHOSEN_LINE);
+        return;
+      }
+      askSchematic(schematic);
+      return;
+    }
     /* A statement is read fresh on every press and is never changed afterwards. */
     var statement = {
       target: readField(targetControl),

@@ -780,6 +780,15 @@ var POWER_OPTIONAL = ["clock", "recipe"];
   page is able to send.
 */
 var ADVICE_PARAMS = ["target", "rate", "direction", "byproduct_policy"];
+/*
+  CS-1396 - A SCHEMATIC STATEMENT IS THREE NAMES AND NEVER A RATE: the schematic, a direction
+  and a policy, because each cost item's rate is the one its requirement publishes and this
+  page never sees it. The listing door takes it as an ALTERNATIVE to the four, so a request
+  holding both shapes at once is refused here rather than spent on a round trip; the doors
+  whose four are optional take the one extra name.
+*/
+var SCHEMATIC_PARAMS = ["schematic", "direction", "byproduct_policy"];
+var STATEMENT_NAMES = ADVICE_PARAMS.concat(["schematic"]);
 var DERIVATION_PARAMS = ["id"];
 /*
   CS-1376 - THE STATE DOOR REQUIRES THE CARD AND THE STATE AND TAKES A SNOOZE'S
@@ -788,7 +797,7 @@ var DERIVATION_PARAMS = ["id"];
   advisor resolves a duration token against its own injected clock instead.
 */
 var STATE_PARAMS = ["id", "state"];
-var STATE_OPTIONAL = ["duration"].concat(ADVICE_PARAMS);
+var STATE_OPTIONAL = ["duration"].concat(STATEMENT_NAMES);
 
 /*
   One row per door a panel may knock on: where it goes, what verb it answers,
@@ -808,12 +817,18 @@ var REQUESTS = {
     optional: OPTIMIZE_OPTIONAL
   },
   power: { path: "/api/power", method: "GET", required: POWER_PARAMS, optional: POWER_OPTIONAL },
-  advice: { path: "/api/advice", method: "GET", required: ADVICE_PARAMS, optional: [] },
+  advice: {
+    path: "/api/advice",
+    method: "GET",
+    required: ADVICE_PARAMS,
+    alternative: SCHEMATIC_PARAMS,
+    optional: []
+  },
   derivation: {
     path: "/api/advice/<id>/derivation",
     method: "GET",
     required: DERIVATION_PARAMS,
-    optional: ADVICE_PARAMS
+    optional: STATEMENT_NAMES
   },
   state: {
     path: "/api/advice/<id>/state",
@@ -821,7 +836,7 @@ var REQUESTS = {
     required: STATE_PARAMS,
     optional: STATE_OPTIONAL
   },
-  act: { path: "/api/advice/act", method: "POST", required: [], optional: ADVICE_PARAMS }
+  act: { path: "/api/advice/act", method: "POST", required: [], optional: STATEMENT_NAMES }
 };
 
 /*
@@ -833,9 +848,29 @@ var REQUESTS = {
 */
 var asking = false;
 
-function nameIsTaken(spec, name) {
-  /* Whether this door's table names the parameter at all. */
-  return spec.required.indexOf(name) >= 0 || spec.optional.indexOf(name) >= 0;
+function namesAll(params, names) {
+  /* Whether the caller's object states every one of these names. */
+  for (var at = 0; at < names.length; at += 1) {
+    if (!Object.prototype.hasOwnProperty.call(params, names[at])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function requiredShape(spec, params) {
+  /*
+    The names this request must state, or null when it states neither shape. A door with an
+    ALTERNATIVE (CS-1396) takes the schematic's three in place of its required four; the
+    required shape is tried first so a request that fits both is read as it always was.
+  */
+  if (namesAll(params, spec.required)) {
+    return spec.required;
+  }
+  if (spec.alternative && namesAll(params, spec.alternative)) {
+    return spec.alternative;
+  }
+  return null;
 }
 
 function requestQuery(spec, params) {
@@ -862,20 +897,19 @@ function requestQuery(spec, params) {
     return null;
   }
 
+  var shape = requiredShape(spec, params);
+  if (shape === null) {
+    return null;
+  }
+  var ordered = shape.concat(spec.optional);
   var stated = Object.keys(params);
   var index;
   for (index = 0; index < stated.length; index += 1) {
-    if (!nameIsTaken(spec, stated[index])) {
-      return null;
-    }
-  }
-  for (index = 0; index < spec.required.length; index += 1) {
-    if (!Object.prototype.hasOwnProperty.call(params, spec.required[index])) {
+    if (ordered.indexOf(stated[index]) < 0) {
       return null;
     }
   }
 
-  var ordered = spec.required.concat(spec.optional);
   var parts = [];
   for (index = 0; index < ordered.length; index += 1) {
     var name = ordered[index];

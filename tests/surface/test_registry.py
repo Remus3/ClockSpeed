@@ -67,12 +67,14 @@ import pytest
 
 from clockspeed.data import registry as data_registry
 from clockspeed.data.registry import build_registry
+from clockspeed.data.schematics import normalize_schematics
 from clockspeed.solve import ratio
 from clockspeed.surface.api import contract, health
 from clockspeed.surface.api import registry as endpoint
 from clockspeed.surface.api import solve as solve_endpoint
-from clockspeed.surface.api.routes import ENDPOINT_STATUS, ROUTES
+from clockspeed.surface.api.routes import ENDPOINT_STATUS, ROUTES, build_routes
 from tests.data import synthetic as rich
+from tests.data.test_schematics import schematic_document, schematic_entry
 from tests.solve import synthetic
 from tests.surface.test_health import HOME_SHAPED, planted_reflection, reflected_in
 
@@ -574,7 +576,7 @@ def test_the_plan_targets_key_is_spelled_as_the_panel_reads_it() -> None:
     assert endpoint.PLAN_TARGETS_KEY == "plan_targets"
     separate = endpoint.PLAN_TARGETS_KEY not in endpoint.DATA_KEYS
     assert separate
-    assert (*endpoint.DATA_KEYS, "plan_targets") == endpoint.BODY_KEYS
+    assert (*endpoint.DATA_KEYS, "plan_targets", "plan_schematics") == endpoint.BODY_KEYS
 
 
 def test_a_raw_item_is_published_as_an_item_and_never_as_a_plan_target(
@@ -641,7 +643,7 @@ def test_the_endpoint_serves_the_data_layers_list_and_chooses_nothing(
 def test_every_plan_target_is_selectable_whatever_a_world_has_unlocked() -> None:
     """The free selector: this route binds a registry and nothing a world could narrow."""
     bound = tuple(inspect.signature(endpoint.make_handler).parameters)
-    assert bound == ("registries",)
+    assert bound == ("registries", "schematics")
 
 
 def test_the_flawed_corpus_still_serves_its_plan_targets_as_a_list_of_str(
@@ -1364,3 +1366,147 @@ def test_a_served_amount_reads_back_as_the_fraction_the_registry_holds(
     )
     count = len(wrong)
     assert count == 0, f"{count} recipe(s) did not read back exactly: {wrong}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1396: the body lists the schematics a plan may be stated for
+# ---------------------------------------------------------------------------
+
+#: Three ClassNames in an order no sort gives: the catalog keeps file order, so a body that
+#: served the catalog as it stands, or any other list, would read as these three unsorted.
+SCHEMATIC_FILE_ORDER: Final = ("Schematic_Zeta_C", "Schematic_Alpha_C", "Schematic_Mid_C")
+
+#: The same three, sorted by hand.
+SCHEMATIC_SORTED: Final = ["Schematic_Alpha_C", "Schematic_Mid_C", "Schematic_Zeta_C"]
+
+
+class _StubCatalogs:
+    """Hands back one schematic catalog, or None, and counts how often it was asked."""
+
+    def __init__(self, held: object | None) -> None:
+        """Record what this source will publish.
+
+        Args:
+            held: The catalog, or None for a source with no install behind it.
+        """
+        self._held = held
+        self.asked = 0
+
+    def catalog(self) -> object | None:
+        """Publish the catalog this stub was built with, and count the ask.
+
+        Returns:
+            The catalog, or None.
+        """
+        self.asked += 1
+        return self._held
+
+
+def _synthetic_catalog() -> object:
+    """A catalog of the three file-order ClassNames, built through the real normalizer.
+
+    Returns:
+        The catalog.
+    """
+    entries = [schematic_entry(name) for name in SCHEMATIC_FILE_ORDER]
+    return normalize_schematics(schematic_document(entries))
+
+
+def _served_schematics(corpus: Registry, source: object | None) -> object:
+    """The ``plan_schematics`` value one handler serves over the corpus and this source.
+
+    Args:
+        corpus: The registry to serve.
+        source: The schematic source, or None for the default of no source at all.
+
+    Returns:
+        The served value, which the arms below narrow.
+    """
+    handler = endpoint.make_handler(_StubRegistryProvider(corpus), source)  # type: ignore[arg-type]
+    return body_of(handler({}))[endpoint.PLAN_SCHEMATICS_KEY]
+
+
+def test_the_plan_schematics_key_is_spelled_as_the_panel_reads_it() -> None:
+    assert endpoint.PLAN_SCHEMATICS_KEY == "plan_schematics"
+    assert endpoint.PLAN_SCHEMATICS_KEY not in endpoint.DATA_KEYS
+
+
+def test_the_served_list_equals_the_catalogs_sorted_keys(corpus: Registry) -> None:
+    catalog = _synthetic_catalog()
+    held = tuple(catalog.schematics)  # type: ignore[attr-defined]
+    assert held == SCHEMATIC_FILE_ORDER, "the catalog was not built in the order this arm assumes"
+
+    served = _served_schematics(corpus, _StubCatalogs(catalog))
+
+    assert served == SCHEMATIC_SORTED
+
+
+def test_the_served_list_is_the_catalogs_and_never_the_registrys(corpus: Registry) -> None:
+    served = _served_schematics(corpus, _StubCatalogs(_synthetic_catalog()))
+    assert isinstance(served, list), type(served).__name__
+    leaked = sorted(set(served) & set(CORPUS_PLAN_TARGETS))
+    assert leaked == [], leaked
+    assert served != list(CORPUS_PLAN_TARGETS)
+
+
+def test_a_source_publishing_no_catalog_serves_the_empty_list(corpus: Registry) -> None:
+    source = _StubCatalogs(None)
+    served = _served_schematics(corpus, source)
+    assert served == []
+    assert source.asked == 1, "the source was not asked, so its None was never read"
+
+
+def test_no_source_at_all_serves_the_empty_list(corpus: Registry) -> None:
+    assert _served_schematics(corpus, None) == []
+
+
+def test_a_catalog_holding_no_schematic_serves_the_empty_list(corpus: Registry) -> None:
+    empty = normalize_schematics(schematic_document([]))
+    assert len(empty.schematics) == 0
+    assert _served_schematics(corpus, _StubCatalogs(empty)) == []
+
+
+def test_no_registry_is_still_unavailable_whatever_the_catalog_holds() -> None:
+    handler = endpoint.make_handler(
+        _StubRegistryProvider(None),
+        _StubCatalogs(_synthetic_catalog()),  # type: ignore[arg-type]
+    )
+    response = handler({})
+    assert response.http_status == contract.HTTP_UNAVAILABLE
+
+
+def test_the_routes_helper_binds_the_same_source(corpus: Registry) -> None:
+    source = _StubCatalogs(_synthetic_catalog())
+    published = endpoint.routes(_StubRegistryProvider(corpus), source)  # type: ignore[arg-type]
+    assert len(published) == 1
+    served = body_of(published[0].handler({}))[endpoint.PLAN_SCHEMATICS_KEY]
+    assert served == SCHEMATIC_SORTED
+
+
+def test_the_route_table_binds_the_one_schematic_source_the_advice_routes_get(
+    corpus: Registry,
+) -> None:
+    """The listing a panel offers and the source the advice routes read are ONE source."""
+    source = _StubCatalogs(_synthetic_catalog())
+    table = build_routes(
+        _StubWorlds(),
+        _StubRegistryProvider(corpus),
+        None,
+        source,  # type: ignore[arg-type]
+    )
+    served = tuple(route for route in table if route.template == endpoint.ENDPOINT)
+    assert len(served) == 1
+    assert body_of(served[0].handler({}))[endpoint.PLAN_SCHEMATICS_KEY] == SCHEMATIC_SORTED
+    assert source.asked == 1
+
+
+class _StubWorlds:
+    """A world provider holding no world; the registry route never asks it."""
+
+    def world(self) -> None:
+        """No world.
+
+        Returns:
+            None.
+        """
+        return

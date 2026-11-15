@@ -71,6 +71,7 @@ from tests.solve.synthetic import (
 )
 from tests.surface import audit_harness, panel_harness
 from tests.surface import test_advice_source as source_fixtures
+from tests.surface import test_schematic_source as schematic_fixtures
 from tests.surface.test_panel_solve import division_sites
 
 if TYPE_CHECKING:
@@ -1087,7 +1088,11 @@ def test_the_card_fixture_is_keyed_as_the_endpoint_serves_it() -> None:
     assert {OUTCOME_STATUS_KEY, *OUTCOME_FIELDS} == set(advice_endpoint.PLAN_OUTCOME_KEYS)
     body = {"id": "x", "rule_id": plan_rules.ADOPT_RULE.rule_id, "derivation": "text", "flow": None}
     assert set(body) == set(advice_endpoint.DERIVATION_KEYS)
-    served = {*api_registry.DATA_KEYS, api_registry.PLAN_TARGETS_KEY}
+    served = {
+        *api_registry.DATA_KEYS,
+        api_registry.PLAN_TARGETS_KEY,
+        api_registry.PLAN_SCHEMATICS_KEY,
+    }
     assert served == set(api_registry.BODY_KEYS), sorted(served)
 
 
@@ -3462,3 +3467,308 @@ def test_the_unstated_press_reaches_the_real_route_and_draws_what_it_answers(
     assert replayed.http_status == contract.HTTP_OK, replayed.payload
     first = visible_cards(data_of(answer))[0]
     assert first["headline"] in text_of(report, ANSWER_ID), text_of(report, ANSWER_ID)
+
+
+# ---------------------------------------------------------------------------
+# p. CS-1396: the catalog's schematics, a second free selector beside the targets
+# ---------------------------------------------------------------------------
+#
+# THE CLAIM. ``/api/registry`` serves ``plan_schematics`` and the panel lists it in served
+# order, starting empty. A press with a schematic chosen sends ``schematic``, ``direction``
+# and ``byproduct_policy`` through the act door and never a rate, and a schematic beside a
+# target leaves the press inert naming both fields. The panel computes nothing: the served
+# list is deliberately in an order no sort gives, so a panel that sorted it reads as sorted.
+
+#: The id of the schematic selector, built as every other control's is.
+SCHEMATIC_ID: Final = "advice-schematic"
+
+#: The route's own name for the schematic statement.
+SCHEMATIC_NAME: Final = "schematic"
+
+#: A served schematic list in an order no sort gives.
+SERVED_SCHEMATICS: Final = ("Schematic_Zeta_C", "Schematic_Alpha_C", "Schematic_Mid_C")
+
+#: One complete schematic statement, in the spelling the door takes.
+SCHEMATIC_STATED: Final[Mapping[str, str]] = {
+    SCHEMATIC_NAME: "Schematic_Alpha_C",
+    advice_endpoint.DIRECTION_PARAMETER: optimize.OBJECTIVE_POWER,
+    advice_endpoint.BYPRODUCT_POLICY_PARAMETER: ratio.BYPRODUCT_SINKABLE,
+}
+
+#: The word the panel names an empty or absent schematic list by: the served key itself.
+EMPTY_SCHEMATICS_WORD: Final = "plan_schematics"
+
+
+def schematic_payload(
+    *cards: Mapping[str, Any], schematics: Sequence[str] | None = SERVED_SCHEMATICS
+) -> dict[str, Any]:
+    """A payload whose registry serves these schematics, or none at all.
+
+    Args:
+        *cards: The cards ``data.advice`` holds.
+        schematics: The served list, or None for a registry body with no such key.
+
+    Returns:
+        The payload.
+    """
+    registered = registry_body()
+    if schematics is not None:
+        registered[api_registry.PLAN_SCHEMATICS_KEY] = list(schematics)
+    return panel_harness.null_payload(advice=listing(*cards), registry=registered)
+
+
+def schematic_fills(values: Mapping[str, str] = SCHEMATIC_STATED) -> list[dict[str, Any]]:
+    """The steps that state these values on the bench.
+
+    Args:
+        values: Name to value.
+
+    Returns:
+        One ``fill`` step per name.
+    """
+    ids = {**FIELD_IDS, SCHEMATIC_NAME: SCHEMATIC_ID}
+    return [{"fill": {"id": ids[name], "value": value}} for name, value in values.items()]
+
+
+def test_the_registry_fixture_key_is_the_routes_own() -> None:
+    assert api_registry.PLAN_SCHEMATICS_KEY == "plan_schematics"
+
+
+def test_the_schematic_list_is_the_served_list_in_served_order(tmp_path: Path) -> None:
+    report = drive(tmp_path, schematic_payload())
+    options = options_of(report, SCHEMATIC_ID)
+    values = tuple(value for value, _text in options)
+    assert values == ("", *SERVED_SCHEMATICS), values
+    labels = tuple(text for _value, text in options)
+    assert labels == ("", *SERVED_SCHEMATICS), labels
+
+
+def test_the_schematic_selector_starts_empty_and_is_never_defaulted(tmp_path: Path) -> None:
+    report = drive(tmp_path, schematic_payload())
+    shown = row_of(report["nodes"], SCHEMATIC_ID)
+    assert shown["tag"] == "SELECT"
+    assert shown["value"] == "", shown["value"]
+    marked = [row for row in report["nodes"] if row["tag"] == "OPTION" and row["selected"]]
+    assert marked == []
+
+
+@pytest.mark.parametrize("served", [None, ()], ids=["key-absent", "empty-list"])
+def test_a_registry_serving_no_schematic_offers_no_selector_and_says_so(
+    served: Sequence[str] | None, tmp_path: Path
+) -> None:
+    report = drive(tmp_path, schematic_payload(schematics=served))
+    assert EMPTY_SCHEMATICS_WORD in panel_text(report), panel_text(report)
+    ids = {str(row["id"]) for row in report["nodes"]}
+    assert SCHEMATIC_ID not in ids
+    # THE CONTROL: the target bench beside it still stands, so the note is not a refusal of all.
+    assert FIELD_IDS["target"] in ids
+
+
+def test_a_registry_serving_schematics_does_not_name_their_absence(tmp_path: Path) -> None:
+    report = drive(tmp_path, schematic_payload())
+    assert EMPTY_SCHEMATICS_WORD not in panel_text(report), panel_text(report)
+
+
+def test_a_schematic_press_sends_exactly_three_names_through_the_act_door(tmp_path: Path) -> None:
+    report = drive(tmp_path, schematic_payload(), steps=[*schematic_fills(), press_ask()])
+    calls = door_calls(report, "act")
+    count = len(calls)
+    assert count == 1, calls
+    assert calls[0]["params"] == dict(SCHEMATIC_STATED), calls[0]["params"]
+    assert door_calls(report, "advice") == ()
+
+
+def test_a_schematic_press_sends_no_rate_even_with_one_typed(tmp_path: Path) -> None:
+    typed = {**SCHEMATIC_STATED, advice_endpoint.RATE_PARAMETER: "999"}
+    report = drive(tmp_path, schematic_payload(), steps=[*schematic_fills(typed), press_ask()])
+    sent = door_calls(report, "act")[0]["params"]
+    assert advice_endpoint.RATE_PARAMETER not in sent, sent
+    assert advice_endpoint.TARGET_PARAMETER not in sent, sent
+    assert sorted(sent) == sorted(SCHEMATIC_STATED), sent
+
+
+def test_a_schematic_press_needs_no_rate_and_no_target(tmp_path: Path) -> None:
+    report = drive(tmp_path, schematic_payload(), steps=[*schematic_fills(), press_ask()])
+    status = text_of(report, STATUS_ID)
+    assert "still empty" not in status, status
+    assert FIELD_LABELS["rate"] not in status, status
+
+
+@pytest.mark.parametrize(
+    "missing", [advice_endpoint.DIRECTION_PARAMETER, advice_endpoint.BYPRODUCT_POLICY_PARAMETER]
+)
+def test_a_schematic_press_with_a_companion_empty_names_it_and_reaches_no_door(
+    missing: str, tmp_path: Path
+) -> None:
+    partial = {name: value for name, value in SCHEMATIC_STATED.items() if name != missing}
+    report = drive(tmp_path, schematic_payload(), steps=[*schematic_fills(partial), press_ask()])
+    status = text_of(report, STATUS_ID)
+    assert FIELD_LABELS[missing] in status, status
+    assert report["door_calls"] == []
+
+
+def test_a_schematic_and_an_item_together_leave_the_press_inert_naming_both(
+    tmp_path: Path,
+) -> None:
+    both = {**SCHEMATIC_STATED, **STATED}
+    report = drive(tmp_path, schematic_payload(), steps=[*schematic_fills(both), press_ask()])
+    assert report["door_calls"] == []
+    status = text_of(report, STATUS_ID)
+    assert FIELD_LABELS["target"] in status, status
+    assert SCHEMATIC_NAME in status, status
+    # THE CONTROL: either one alone reaches the door, so the inertness above is the pair's.
+    alone = drive(tmp_path, schematic_payload(), steps=[*schematic_fills(), press_ask()])
+    assert len(door_calls(alone, "act")) == 1
+    item = drive(tmp_path, schematic_payload(), steps=[*fills(), press_ask()])
+    assert len(door_calls(item, "act")) == 1
+
+
+def test_a_target_press_with_no_schematic_chosen_is_what_it_was(tmp_path: Path) -> None:
+    report = drive(tmp_path, schematic_payload(), steps=[*fills(), press_ask()])
+    sent = door_calls(report, "act")[0]["params"]
+    assert sent == dict(STATED), sent
+
+
+def test_the_schematic_answer_names_the_schematic_and_no_rate(tmp_path: Path) -> None:
+    body = listing(card("A plan card", "its reason"), plan_outcome={"status": "ranked"})
+    report = drive(
+        tmp_path,
+        schematic_payload(),
+        steps=[
+            *schematic_fills(),
+            press_ask(),
+            {"settle": {"call": 0, "outcome": answered(body)}},
+        ],
+    )
+    answer = text_of(report, ANSWER_ID)
+    assert "Schematic_Alpha_C" in answer, answer
+    assert " per minute" not in answer, answer
+    assert "A plan card" in answer, answer
+
+
+def test_a_schematic_card_reads_its_derivation_under_the_schematic_statement(
+    tmp_path: Path,
+) -> None:
+    body = listing(card("A plan card", "its reason"), plan_outcome={"status": "ranked"})
+    report = drive(
+        tmp_path,
+        schematic_payload(),
+        steps=[
+            *schematic_fills(),
+            press_ask(),
+            {"settle": {"call": 0, "outcome": answered(body)}},
+            {"click": read_id(0)},
+        ],
+    )
+    reads = door_calls(report, "derivation")
+    assert len(reads) == 1, reads
+    assert reads[0]["params"] == dict(SCHEMATIC_STATED), reads[0]["params"]
+
+
+def test_a_schematic_card_posts_its_state_under_the_schematic_statement(tmp_path: Path) -> None:
+    body = listing(card("A plan card", "its reason"), plan_outcome={"status": "ranked"})
+    report = drive(
+        tmp_path,
+        schematic_payload(),
+        steps=[
+            *schematic_fills(),
+            press_ask(),
+            {"settle": {"call": 0, "outcome": answered(body)}},
+            {"click": control_id("pin", 0)},
+        ],
+    )
+    posted = door_calls(report, "state")
+    assert len(posted) == 1, posted
+    assert posted[0]["params"] == {**SCHEMATIC_STATED, "state": "pinned"}, posted[0]["params"]
+
+
+def test_the_act_door_sends_a_schematic_with_no_rate_and_the_proof(tmp_path: Path) -> None:
+    report = drive(
+        tmp_path, schematic_payload(), door=DOOR_LIVE, steps=[*schematic_fills(), press_ask()]
+    )
+    calls = report["fetch_calls"]
+    assert len(calls) == 1, calls
+    names = "&".join(
+        f"{name}={SCHEMATIC_STATED[name]}"
+        for name in (
+            advice_endpoint.DIRECTION_PARAMETER,
+            advice_endpoint.BYPRODUCT_POLICY_PARAMETER,
+            SCHEMATIC_NAME,
+        )
+    )
+    assert calls[0]["url"] == f"{advice_endpoint.ACT_ENDPOINT}?{names}", calls[0]["url"]
+    assert "rate=" not in calls[0]["url"], calls[0]["url"]
+    assert "target=" not in calls[0]["url"], calls[0]["url"]
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["headers"].get(PROOF_HEADER) == "1"
+    assert calls[0]["has_body"] is False
+
+
+def test_the_advice_door_takes_the_schematic_shape_and_no_mixture(tmp_path: Path) -> None:
+    taken = drive(
+        tmp_path,
+        schematic_payload(),
+        door=DOOR_LIVE,
+        steps=[{"ask": {"door": "advice", "params": dict(SCHEMATIC_STATED)}}],
+    )
+    assert taken["steps"][-1]["accepted"] is True
+    assert len(taken["fetch_calls"]) == 1, taken["fetch_calls"]
+    for params in (
+        {**SCHEMATIC_STATED, advice_endpoint.RATE_PARAMETER: "1"},
+        {**SCHEMATIC_STATED, advice_endpoint.TARGET_PARAMETER: "x"},
+        {SCHEMATIC_NAME: "x", advice_endpoint.DIRECTION_PARAMETER: "power"},
+    ):
+        refused = drive(
+            tmp_path,
+            schematic_payload(),
+            door=DOOR_LIVE,
+            steps=[{"ask": {"door": "advice", "params": params}}],
+        )
+        assert refused["steps"][-1]["accepted"] is False, params
+        assert refused["fetch_calls"] == []
+
+
+def test_the_schematic_press_over_the_real_routes_lists_and_acts(tmp_path: Path) -> None:
+    """The registry route's list, the page's press and the act route, as one chain.
+
+    The page is handed the body the real registry route served over a synthetic catalog,
+    the press goes through ``app.js``'s own door, and the URL it fetched is replayed through
+    the server's own matcher: a name the act route would not take answers 400 here.
+    """
+    name = schematic_fixtures.SCHEMATIC
+    table = schematic_fixtures._table(tmp_path)  # noqa: SLF001
+    served = data_of(table["GET", api_registry.ENDPOINT]({}))[api_registry.PLAN_SCHEMATICS_KEY]
+    assert served == [name], served
+    stated = {
+        SCHEMATIC_NAME: name,
+        advice_endpoint.DIRECTION_PARAMETER: schematic_fixtures.OBJECTIVE_RAW,
+        advice_endpoint.BYPRODUCT_POLICY_PARAMETER: schematic_fixtures.BYPRODUCT_BALANCED,
+    }
+    listed = table["GET", advice_endpoint.ENDPOINT](stated)
+    assert listed.http_status == contract.HTTP_OK, listed.payload
+
+    report = drive(
+        tmp_path,
+        real_payload(table),
+        door=DOOR_LIVE,
+        steps=[
+            *schematic_fills(stated),
+            press_ask(),
+            {"resolve": {"call": 0, "status": listed.http_status, "body": listed.payload}},
+        ],
+    )
+
+    options = tuple(value for value, _text in options_of(report, SCHEMATIC_ID))
+    assert options == ("", name), options
+    urls = tuple(call["url"] for call in report["fetch_calls"])
+    assert len(urls) == 1, urls
+    acted = replay_as(table, "POST", urls[0])
+    assert acted.http_status == contract.HTTP_OK, acted.payload
+    assert acted.payload["data"] == listed.payload["data"]
+
+
+def test_the_panel_orders_nothing_it_lists() -> None:
+    """No sort, no filter and no comparison on the schematic list: it is drawn as served."""
+    code = code_only(read_asset(MODULE))
+    reached = tuple(token for token in (".sort(", ".reverse(", "localeCompare") if token in code)
+    assert reached == (), reached

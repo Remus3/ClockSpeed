@@ -220,6 +220,9 @@ def build_routes(
     Raises:
         RouteAssemblyError: The table is not a bijection onto the published set.
     """
+    # ONE SOURCE, TWO READERS (CS-1396): the registry route lists its ClassNames and the
+    # advice routes read its catalog, so a schematic the panel offers is one they hold.
+    catalogs = InstalledSchematicSource() if schematics is None else schematics
     assembled = (
         contract.Route(
             method=METHOD_GET,
@@ -231,7 +234,7 @@ def build_routes(
             template=world.ENDPOINT,
             handler=world.make_handler(worlds),
         ),
-        *registry_endpoint.routes(registries),
+        *registry_endpoint.routes(registries, catalogs),
         # THE ONE ROUTE BESIDES HEALTH THAT TAKES BOTH PROVIDERS. A map is a
         # world joined against the registry - the display names and the
         # extraction rates come from one, everything else from the other -
@@ -251,7 +254,7 @@ def build_routes(
             worlds,
             registries,
             StoreAdviceSource() if advice_source is None else advice_source,
-            InstalledSchematicSource() if schematics is None else schematics,
+            catalogs,
         ),
         *pending.routes(),
     )
