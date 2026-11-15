@@ -61,8 +61,12 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.advisor import plans
 from clockspeed.advisor.advise import advise_world
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
-from clockspeed.data import locate, registry, version
-from clockspeed.data.docs_extract import DocsExtractError, load_document
+from clockspeed.data import locate, registry, schematics, version
+from clockspeed.data.docs_extract import (
+    DocsExtractError,
+    decode_docs_bytes,
+    load_document,
+)
 from clockspeed.save import sightings, workdir
 from clockspeed.save.world import (
     READER_REFUSAL_TYPES,
@@ -82,12 +86,14 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from clockspeed.advisor.advise import Advice
-    from clockspeed.advisor.plans import PlanParameters, PlanRequest
+    from clockspeed.advisor.plans import PlanParameters, PlanRequest, SchematicParameters
     from clockspeed.data.registry import Registry
+    from clockspeed.data.schematics import SchematicCatalog
 
 __all__ = [
     "FORBIDDEN_IN_AN_ASSET_NAME",
     "InstalledRegistryProvider",
+    "InstalledSchematicSource",
     "SaveWorldProvider",
     "StaticAssets",
     "StoreAdviceSource",
@@ -553,6 +559,68 @@ class InstalledRegistryProvider:
             return None
 
 
+class InstalledSchematicSource(InstalledRegistryProvider):
+    """Hands up the normalized schematic catalog, or says there is no install (CS-1373).
+
+    Satisfies ``clockspeed.progress.milestones.SchematicSource`` structurally, in the same
+    direction as :class:`InstalledRegistryProvider`, and reads the SAME docs file it reads BY
+    INHERITING ITS WIRING: the constructor, the install resolution, the
+    ``version.DOCS_RELATIVE_PARTS`` join and the raw-bytes reader are that class's own, so the
+    two can never read different files or fail differently on one machine. CS-1046 consumes it
+    and builds no second one. It inherits :meth:`~InstalledRegistryProvider.registry` too, which
+    nothing asks of it.
+
+    PUBLISHES NONE ON EACH FAILURE :class:`InstalledRegistryProvider` ANSWERS NONE ON: no
+    install, an install lookup that raises ``OSError``, a read that raises ``OSError`` or
+    ``ValueError``, and bytes or text that will not decode or parse. A coding bug raises:
+    a ``TypeError`` from a reader that returns the wrong type, and the catalog's own
+    ``SchematicIntegrityError``, which is deliberately no ``ValueError``, never read as "no
+    install".
+
+    NOT A DATACLASS, for the reason :class:`SaveWorldProvider` states: no generated ``__repr__``
+    may render a path.
+    """
+
+    def catalog(self) -> schematics.SchematicCatalog | None:
+        """The normalized schematic catalog, or None when this machine has no install.
+
+        Returns:
+            The catalog, or None for any failure the class docstring names.
+        """
+        try:
+            install, _label = self._find_install()
+        except OSError:
+            return None
+        if install is None:
+            return None
+        docs = install.joinpath(*version.DOCS_RELATIVE_PARTS)
+        try:
+            text = self._read_docs(docs) if self._read_docs else self._decoded(docs)
+        except (DocsExtractError, OSError, ValueError):
+            return None
+        try:
+            return schematics.normalize_schematics(load_document(text))
+        except (DocsExtractError, ValueError):
+            return None
+
+    def _decoded(self, docs: Path) -> str:
+        """Read the docs file's bytes and decode them.
+
+        Args:
+            docs: The docs file.
+
+        Returns:
+            The decoded text.
+
+        Raises:
+            TypeError: The byte reader returned something that is not exactly ``bytes``.
+        """
+        raw = self._read_docs_bytes(docs)
+        if type(raw) is not bytes:
+            raise TypeError("docs bytes must be exactly bytes, not " + type(raw).__name__)
+        return decode_docs_bytes(raw)
+
+
 def _wall_clock_seconds() -> int:
     """The current instant in whole seconds since the epoch - the default clock."""
     return int(time.time())
@@ -581,6 +649,11 @@ class StoreAdviceSource:
     store, the clock or a provider. :meth:`advice` hands the request on to
     :func:`clockspeed.advisor.advise.advise_world` unchanged and, with no target stated,
     hands on None, the one spelling of no request, which runs no solve.
+
+    A STATED SCHEMATIC IS THE ADVISOR'S TOO (CS-1373). :meth:`schematic_parameters` and
+    :meth:`schematic_request` call the advisor's doors for it, and the one request they build
+    is handed on to :meth:`advice` as any other. The cost, the rates and the one request are
+    the advisor's: nothing here reads a cost or derives a rate.
 
     :meth:`advice` ONLY READS. The ledger and the mute store are read whole in
     one open, and every writer replaces the file atomically, so a read never
@@ -676,6 +749,43 @@ class StoreAdviceSource:
             The request, or None when the target is not on the list. Runs no solve.
         """
         return plans.plan_request_from(registry, target, parameters)
+
+    def schematic_parameters(
+        self, *, direction: str, byproduct_policy: str
+    ) -> SchematicParameters | None:
+        """Check a stated direction and policy beside a schematic, through the advisor's door.
+
+        Args:
+            direction: The direction as received.
+            byproduct_policy: The policy as received.
+
+        Returns:
+            The checked parameters, or None when either is refused.
+        """
+        return plans.schematic_parameters(direction=direction, byproduct_policy=byproduct_policy)
+
+    def schematic_request(
+        self,
+        catalog: SchematicCatalog,
+        registry: Registry,
+        world: WorldModel,
+        schematic: str,
+        parameters: SchematicParameters,
+    ) -> PlanRequest | None:
+        """Build the one request a stated schematic asks, through the advisor's own door.
+
+        Args:
+            catalog: The normalized schematic catalog the schematic is tested against.
+            registry: The normalized registry.
+            world: The world, whose unlock state is handed on and nothing else of it.
+            schematic: The schematic as received.
+            parameters: What :meth:`schematic_parameters` checked.
+
+        Returns:
+            The request, or None when the catalog does not hold the schematic. Runs no solve,
+            and reads no cost: the advisor reads the requirement.
+        """
+        return plans.schematic_request_from(catalog, registry, world.unlocks, schematic, parameters)
 
     def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
         """Record one card's state in the world's ledger.

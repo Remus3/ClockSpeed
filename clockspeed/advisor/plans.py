@@ -1,4 +1,4 @@
-"""CS-1351, CS-1371 and CS-1382: answer a stated target, with a ranked plan or a marked route.
+"""CS-1351, CS-1371, CS-1373 and CS-1382: answer a stated target, with a plan or a marked route.
 
 WHAT THIS MODULE OWNS. :class:`PlanRequest`, the question a caller states;
 :func:`plan_parameters` and :func:`plan_request_from`, the door a stated rate, direction,
@@ -13,6 +13,20 @@ of ``clockspeed/surface/api/advice.py`` state one through
 :func:`plan_parameters` and :func:`plan_request_from`. A request carries one direction from
 :data:`clockspeed.solve.optimize.OBJECTIVES` and no weighted objective, so the top
 plan is always one rung's own optimum and clears that rung.
+
+A SCHEMATIC IS A TARGET THE CATALOG STATES (CS-1373). :func:`schematic_parameters` and
+:func:`schematic_request_from` are the door a stated schematic, direction and policy come in
+through: no rate is stated, because each cost item's rate is the one
+``clockspeed.progress.milestones.milestone_requirement`` publishes, its cost over the
+completion budget, and it is read from that requirement and never recomputed, scaled or
+rounded here. The request is ONE :class:`SchematicRequest`, a :class:`PlanRequest` whose targets
+are all the cost items at those rates, so the search and a no-plan's route each run once for the
+whole schematic. A schematic whose requirement publishes no rates, an empty cost, or a cost item
+off :func:`clockspeed.data.registry.plan_targets` is still a request, carrying no targets and the
+reason, and :func:`plan_offer` answers it with
+:data:`clockspeed.advisor.rules.plan.STATUS_SCHEMATIC_UNPLANNABLE` before any join: an item is
+named, never dropped to make the rest plannable. :func:`plan_offer` offers the statement beside
+every other input, None where none was stated, so the rules read it on every world.
 
 THE JOIN. A plan names recipes by registry ClassName and a save names unlocked
 recipes by asset path. The registry publishes each recipe's path, the path half of
@@ -164,6 +178,8 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, TypeGuard
 
 from clockspeed.advisor.rules.plan import (
+    REASON_EMPTY_COST,
+    REASON_ITEM_NOT_PLANNABLE,
     REDESIGN_NO_ROUTE,
     REDESIGN_NOT_REACHED,
     REDESIGN_ROUTE_REFUSED,
@@ -171,11 +187,15 @@ from clockspeed.advisor.rules.plan import (
     STATUS_NO_TARGET,
     STATUS_POWER_NOT_COMPARABLE,
     STATUS_REQUEST_MALFORMED,
+    STATUS_SCHEMATIC_UNPLANNABLE,
     STATUS_SOLVE_REFUSED,
+    UNPLANNABLE_REASONS,
+    SchematicStatement,
     plan_inputs,
     redesign_inputs,
     redesign_status_inputs,
     refused_inputs,
+    schematic_inputs,
     status_inputs,
 )
 from clockspeed.advisor.trace import RECIPE_UNLOCK_PREFIX, InputValue
@@ -186,6 +206,7 @@ from clockspeed.data.registry import (
     extractors_of,
     plan_targets,
 )
+from clockspeed.progress.milestones import milestone_requirement
 from clockspeed.solve.bound import (
     BoundExhaustedError,
     derived_route,
@@ -215,15 +236,21 @@ from clockspeed.solve.ratio import (
 from clockspeed.solve.strategy import STRATEGY_LADDER, RankedPlan, Strategy, rank_plans
 
 if TYPE_CHECKING:
+    from clockspeed.data.schematics import SchematicCatalog
+    from clockspeed.progress.milestones import MilestoneRequirement
     from clockspeed.save.world import UnlockState
     from clockspeed.solve.bound import TrimRecord
 
 __all__ = [
     "PlanParameters",
     "PlanRequest",
+    "SchematicParameters",
+    "SchematicRequest",
     "plan_offer",
     "plan_parameters",
     "plan_request_from",
+    "schematic_parameters",
+    "schematic_request_from",
 ]
 
 #: The weight a search scores its one direction at.
@@ -338,6 +365,36 @@ class PlanParameters:
     byproduct_policy: str
 
 
+@dataclass(frozen=True)
+class SchematicParameters:
+    """A stated direction and byproduct policy for a schematic, each already checked.
+
+    A schematic states no rate: each cost item's rate is its requirement's (CS-1373).
+
+    Attributes:
+        direction: One member of :data:`clockspeed.solve.optimize.OBJECTIVES`.
+        byproduct_policy: One of pillar 1's byproduct policies.
+    """
+
+    direction: str
+    byproduct_policy: str
+
+
+@dataclass(frozen=True)
+class SchematicRequest(PlanRequest):
+    """One stated question about a whole schematic: its cost items as one route (CS-1373).
+
+    A :class:`PlanRequest`, so every door that takes one takes this. ``targets`` are the cost
+    items at the requirement's rates, and EMPTY on an unplannable statement, which
+    :func:`plan_offer` answers before any join.
+
+    Attributes:
+        statement: What the schematic is, what it costs and what its requirement published.
+    """
+
+    statement: SchematicStatement
+
+
 def _stated_rate(rate: object) -> Fraction | None:
     """Read a stated rate as an exact value, or refuse it.
 
@@ -373,14 +430,48 @@ def plan_parameters(*, rate: str, direction: str, byproduct_policy: str) -> Plan
     Returns:
         The checked parameters, or None when any of the three is refused.
     """
-    if type(direction) is not str or direction not in OBJECTIVES:
-        return None
-    if type(byproduct_policy) is not str or byproduct_policy not in BYPRODUCT_POLICIES:
+    if not _known_mode(direction, byproduct_policy):
         return None
     exact = _stated_rate(rate)
     if exact is None:
         return None
     return PlanParameters(rate=exact, direction=direction, byproduct_policy=byproduct_policy)
+
+
+def _known_mode(direction: object, byproduct_policy: object) -> bool:
+    """Whether a direction and a byproduct policy are each exactly a known str.
+
+    Args:
+        direction: As stated.
+        byproduct_policy: As stated.
+
+    Returns:
+        True for a member of :data:`clockspeed.solve.optimize.OBJECTIVES` and a member of
+        pillar 1's policies, each exactly a str.
+    """
+    return (
+        type(direction) is str
+        and direction in OBJECTIVES
+        and type(byproduct_policy) is str
+        and byproduct_policy in BYPRODUCT_POLICIES
+    )
+
+
+def schematic_parameters(*, direction: str, byproduct_policy: str) -> SchematicParameters | None:
+    """Check what a caller stated beside a schematic, before any provider is read (CS-1373).
+
+    A refusal is None and only None, as :func:`plan_parameters` refuses.
+
+    Args:
+        direction: One member of :data:`clockspeed.solve.optimize.OBJECTIVES`.
+        byproduct_policy: One of pillar 1's byproduct policies.
+
+    Returns:
+        The checked parameters, or None when either is refused.
+    """
+    if not _known_mode(direction, byproduct_policy):
+        return None
+    return SchematicParameters(direction=direction, byproduct_policy=byproduct_policy)
 
 
 def plan_request_from(
@@ -409,6 +500,89 @@ def plan_request_from(
         raw_items=registry.resource_items,
         byproduct_policy=parameters.byproduct_policy,
         direction=parameters.direction,
+    )
+
+
+def _statement_of(
+    registry: Registry, schematic: str, requirement: MilestoneRequirement
+) -> SchematicStatement | None:
+    """State a schematic from its requirement, naming why it is unplannable where it is.
+
+    Reads the requirement's cost and rates as published and derives neither.
+
+    Args:
+        registry: The normalized registry, whose ``plan_targets`` the cost items are tested
+            against.
+        schematic: The ClassName the caller stated.
+        requirement: What ``milestone_requirement`` published for it.
+
+    Returns:
+        The statement, or None when the requirement names a reason outside the closed
+        vocabulary, which includes the target being unknown to the catalog.
+    """
+    cost = None if requirement.cost is None else MappingProxyType(dict(requirement.cost))
+    rates = None if requirement.rates is None else MappingProxyType(dict(requirement.rates))
+
+    def stated(reason: str | None, items: tuple[str, ...] = ()) -> SchematicStatement:
+        return SchematicStatement(
+            schematic=schematic,
+            tech_tier=requirement.tech_tier,
+            cost=cost,
+            budget_minutes=requirement.budget_minutes,
+            rates=None if reason is not None else rates,
+            unplannable=reason,
+            unplannable_items=items,
+        )
+
+    if requirement.reason is not None:
+        return stated(requirement.reason) if requirement.reason in UNPLANNABLE_REASONS else None
+    if rates is None or not rates:
+        return stated(REASON_EMPTY_COST)
+    # A set, and ONLY as a membership test: the sort decides the order of what is named.
+    listed = frozenset(plan_targets(registry))
+    off = tuple(sorted(item for item in rates if item not in listed))
+    if off:
+        return stated(REASON_ITEM_NOT_PLANNABLE, off)
+    return stated(None)
+
+
+def schematic_request_from(
+    catalog: SchematicCatalog,
+    registry: Registry,
+    unlocks: UnlockState,
+    schematic: str,
+    parameters: SchematicParameters,
+) -> SchematicRequest | None:
+    """Build the one request a stated schematic asks (CS-1373).
+
+    Every cost item's rate is the requirement's, read and never recomputed or scaled, and every
+    item is one target of the one request.
+
+    Args:
+        catalog: The normalized schematic catalog.
+        registry: The normalized registry, whose published raw items the request takes and whose
+            ``plan_targets`` the cost items are tested against.
+        unlocks: The world's unlock state, which the requirement reads the HUB tier from and
+            nothing else.
+        schematic: The schematic's ClassName. Refused unless exactly a str the catalog holds.
+        parameters: The checked direction and policy.
+
+    Returns:
+        The request, or None when the catalog does not hold the schematic. An unplannable
+        schematic is a request carrying its reason and no targets. Runs no solve.
+    """
+    if type(schematic) is not str or schematic not in catalog.schematics:
+        return None
+    requirement = milestone_requirement(catalog, registry, unlocks, schematic)
+    statement = _statement_of(registry, schematic, requirement)
+    if statement is None:
+        return None
+    return SchematicRequest(
+        targets=MappingProxyType({} if statement.rates is None else dict(statement.rates)),
+        raw_items=registry.resource_items,
+        byproduct_policy=parameters.byproduct_policy,
+        direction=parameters.direction,
+        statement=statement,
     )
 
 
@@ -859,6 +1033,31 @@ def _redesign_offer(
 
 
 def plan_offer(
+    unlocks: UnlockState, registry: Registry, request: PlanRequest | None
+) -> dict[str, InputValue]:
+    """Answer one request with the inputs the plan family reads, and the schematic it names.
+
+    A :class:`SchematicRequest` is answered as the :class:`PlanRequest` it is, or, where its
+    statement is unplannable, with the status that says so and no join (CS-1373). Every answer
+    carries :data:`clockspeed.advisor.rules.plan.IN_SCHEMATIC`, None where none was stated.
+
+    Args:
+        unlocks: The world's unlock state.
+        registry: The normalized registry.
+        request: The question, or None when the caller stated none.
+
+    Returns:
+        As :func:`_offer` returns, beside the schematic input.
+    """
+    statement = request.statement if isinstance(request, SchematicRequest) else None
+    if statement is not None and statement.unplannable is not None:
+        offered = status_inputs(STATUS_SCHEMATIC_UNPLANNABLE)
+    else:
+        offered = _offer(unlocks, registry, request)
+    return {**offered, **schematic_inputs(statement)}
+
+
+def _offer(
     unlocks: UnlockState, registry: Registry, request: PlanRequest | None
 ) -> dict[str, InputValue]:
     """Answer one request with the inputs the plan family reads.

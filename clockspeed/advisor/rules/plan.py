@@ -1,4 +1,6 @@
-"""CS-1346, CS-1351, CS-1371, CS-1379 and CS-1382: the plan family - two rules that read a plan.
+"""CS-1346, CS-1351, CS-1371, CS-1373, CS-1379 and CS-1382: the plan family.
+
+Two rules that read a plan.
 
 WHAT THIS MODULE OWNS. Two rules and the adapters that feed them:
 
@@ -166,6 +168,22 @@ rejection settles either rule: of a plan that cleared no rung, and of a route wi
 machine on any step. From a world both are unreachable, because the top plan is one rung's
 own optimum and a stated rate is above zero.
 
+A PLAN MAY BE STATED FOR A SCHEMATIC (CS-1373). The question is still one :class:`PlanRequest`
+whose targets are the schematic's cost items at the rates ``milestone_requirement`` publishes,
+so both rules above answer it unchanged and a no-plan reads ONE marked route, never one per
+item. What the schematic adds is :data:`IN_SCHEMATIC`, one input ``clockspeed/advisor/plans.py``
+offers on every world: None where the caller stated no schematic, else a
+:class:`SchematicStatement` naming it, its tier, each cost item's amount, the completion budget
+and each derived rate. Both rules read it, so tier 3 names every one of them from the trace and
+nothing is hand-written (non-negotiable 8), and a firing card takes the schematic's ClassName as
+its ``target_milestone``, which is the third member of the BOOTSTRAP.md section 5.2 card id: the
+same schematic reads the same id over any save, and an item statement at the same targets and
+rates, with no milestone, reads another. A statement whose rates are not exactly the plan's
+targets is a rule error, so a card cannot name a schematic it was not planned for. A schematic
+with no rates reads :data:`STATUS_SCHEMATIC_UNPLANNABLE` before any join: both rules record why
+they are silent, and :func:`plan_outcome_of` carries the reason word and names any cost
+item off ``plan_targets`` in it, so no item is dropped from a request to make it plannable.
+
 NO WORLD TOKEN, NO SAVE PATH, NO FLOAT. Every source names the field a value came
 from, every unlock key is built from the registry's string rather than a save's, and
 every figure is a ``Fraction``, the one count an ``int``.
@@ -210,6 +228,11 @@ IN_REQUIRES: Final = "plan.requires"
 IN_BACKEND: Final = "plan.backend"
 IN_TARGET_NAMES: Final = "plan.target_names"
 
+#: The schematic a plan was stated for (CS-1373): None when none was. Every adapter that offers
+#: a status offers it beside, so a world offers it whatever it was asked, and both rules read it
+#: where :data:`PLAN_INPUTS` lists it: after the join's words and before the plan.
+IN_SCHEMATIC: Final = "plan.schematic"
+
 #: Every input :data:`ADOPT_RULE` adds to the build inputs, in the order it reads them.
 PLAN_INPUTS: Final = (
     IN_STATUS,
@@ -217,6 +240,7 @@ PLAN_INPUTS: Final = (
     IN_RAW_UNKNOWN,
     IN_UNMATCHED,
     IN_TRIMMED,
+    IN_SCHEMATIC,
     IN_PLAN,
     IN_BADGE,
     IN_REQUIRES,
@@ -265,6 +289,31 @@ STATUS_RANKED: Final = "ranked"
 
 #: The caller stated no target, which is every request that does not name the four.
 STATUS_NO_TARGET: Final = "no-target"
+
+#: The caller stated a schematic whose requirement publishes no rates, or whose cost names an
+#: item no plan can be stated for (CS-1373). Reached before any join, so no search ran.
+STATUS_SCHEMATIC_UNPLANNABLE: Final = "schematic-unplannable"
+
+#: Why a schematic is unplannable, each a word of this closed vocabulary. The first three are
+#: ``clockspeed/progress/milestones.py``'s own reason words, spelled here so a rule reads no
+#: progress module; a test holds each equal to its owner's.
+REASON_COST_UNREADABLE: Final = "cost-unreadable"
+REASON_NONPOSITIVE_COST: Final = "nonpositive-cost"
+REASON_UNRESOLVED_COST_ITEM: Final = "unresolved-cost-item"
+#: The schematic costs nothing, so there is nothing to plan.
+REASON_EMPTY_COST: Final = "empty-cost"
+#: A cost item is a raw resource, or no automated recipe makes it: off
+#: ``clockspeed/data/registry.py::plan_targets``. The items are named beside it.
+REASON_ITEM_NOT_PLANNABLE: Final = "item-not-plannable"
+
+#: Every reason word a statement may carry.
+UNPLANNABLE_REASONS: Final = (
+    REASON_COST_UNREADABLE,
+    REASON_NONPOSITIVE_COST,
+    REASON_UNRESOLVED_COST_ITEM,
+    REASON_EMPTY_COST,
+    REASON_ITEM_NOT_PLANNABLE,
+)
 
 #: The question cannot be asked: bad targets, a bad rate, direction, policy or raw
 #: items, or a refusal that says the request is malformed rather than unanswerable.
@@ -317,13 +366,20 @@ _STATUS_REASONS: Final = MappingProxyType(
         ),
         STATUS_SOLVE_REFUSED: "the search refused, which says nothing about the target",
         STATUS_POWER_NOT_COMPARABLE: "the power search reached a recipe with no exact draw",
+        STATUS_SCHEMATIC_UNPLANNABLE: (
+            "the stated schematic publishes no rates a plan can be stated for, so no search ran"
+        ),
     }
 )
 
 #: The two statuses whose reason needs nothing else read. No target is reached before
 #: any join; a malformed request is too, unless a refusal after the join says so, as a
 #: target declared raw does, and then what is offered beside it stays unread.
-_UNJOINED_STATUSES: Final = (STATUS_NO_TARGET, STATUS_REQUEST_MALFORMED)
+_UNJOINED_STATUSES: Final = (
+    STATUS_NO_TARGET,
+    STATUS_REQUEST_MALFORMED,
+    STATUS_SCHEMATIC_UNPLANNABLE,
+)
 
 #: The comparison the firing path records as undecided.
 _COMPARE_ALTERNATIVE: Final = "compare the plan with what is built"
@@ -419,7 +475,11 @@ class PlanOutcome:
 
     Attributes:
         status: The ``plan.status`` word.
-        reason: Why that status offers no plan, or None on ``ranked``.
+        reason: Why that status offers no plan, or None on ``ranked``. Where status is
+            ``schematic-unplannable`` it is the statement's reason word (CS-1373) and nothing
+            else, except on ``item-not-plannable``, where it is that word, a colon and a space,
+            then each cost item off ``plan_targets`` by ClassName, sorted and comma-separated:
+            a cost item is named and never dropped from the request to make it plannable.
         redesign: The ``plan.redesign.status`` word.
         redesign_reason: Why that word offers no route, on ``no-route`` and ``route-refused``
             alone, and None on every other status (CS-1380). The sentence the trace records,
@@ -441,6 +501,47 @@ class PlanOutcome:
     trimmed: tuple[str, ...] | None
     unmade: tuple[str, ...] | None
     raw_unknown: tuple[str, ...] | None
+
+
+@dataclass(frozen=True, slots=True)
+class SchematicStatement:
+    """The schematic a plan was stated for, as a rule may read it (CS-1373).
+
+    Slotted, so the engine admits it, and every part an exact value. Built by
+    ``clockspeed/advisor/plans.py`` from one ``milestone_requirement``; this module reads it
+    and computes none of it.
+
+    Attributes:
+        schematic: The schematic's ClassName, which is the card's target milestone.
+        tech_tier: The tier the catalog read, or None when it read none.
+        cost: Item ClassName to its total amount as written, or None when the requirement
+            publishes none.
+        budget_minutes: The completion budget the rates were derived over.
+        rates: Item ClassName to the rate a minute the requirement published, or None when it
+            published none. The plan's targets, exactly, on a plannable statement.
+        unplannable: None on a plannable statement, else one of :data:`UNPLANNABLE_REASONS`.
+        unplannable_items: The items named by ``item-not-plannable``, sorted, else empty.
+    """
+
+    schematic: str
+    tech_tier: int | None
+    cost: MappingProxyType[str, Fraction] | None
+    budget_minutes: Fraction
+    rates: MappingProxyType[str, Fraction] | None
+    unplannable: str | None
+    unplannable_items: tuple[str, ...]
+
+
+def schematic_inputs(statement: SchematicStatement | None) -> dict[str, InputValue]:
+    """Offer the stated schematic, or None where none was stated.
+
+    Args:
+        statement: What the caller stated, or None.
+
+    Returns:
+        A fresh dict holding :data:`IN_SCHEMATIC`.
+    """
+    return {IN_SCHEMATIC: InputValue(statement, _OFFER_SOURCE_PREFIX + "schematic")}
 
 
 def _status_input(status: str) -> dict[str, InputValue]:
@@ -542,6 +643,7 @@ def status_inputs(status: str) -> dict[str, InputValue]:
     return {
         **_status_input(status),
         **redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None),
+        **schematic_inputs(None),
     }
 
 
@@ -580,6 +682,7 @@ def refused_inputs(
         IN_RAW_UNKNOWN: InputValue(raw_unknown, _OFFER_SOURCE_PREFIX + "raw_unknown"),
         IN_UNMATCHED: InputValue(unmatched_unlocks, _OFFER_SOURCE_PREFIX + "unmatched_unlocks"),
         IN_TRIMMED: InputValue(trimmed, _TRIMMED_SOURCE),
+        **schematic_inputs(None),
     }
 
 
@@ -733,6 +836,50 @@ def _target_labels(
     return tuple(labels)
 
 
+def _read_statement(ctx: RuleContext) -> SchematicStatement | None:
+    """Read the stated schematic, which must be None or exactly a statement.
+
+    Args:
+        ctx: The rule's context. Reads :data:`IN_SCHEMATIC` once.
+
+    Returns:
+        The statement, or None when none was stated.
+
+    Raises:
+        TypeError: The input is neither None nor a :class:`SchematicStatement`.
+    """
+    statement = ctx.read(IN_SCHEMATIC)
+    if statement is not None and type(statement) is not SchematicStatement:
+        raise TypeError("a plan's schematic is not a SchematicStatement")
+    return statement
+
+
+def _milestone_of(statement: SchematicStatement | None, plan: ProductionPlan) -> str | None:
+    """Say which milestone a card serves, after checking the statement against its plan.
+
+    Args:
+        statement: What :func:`_read_statement` read.
+        plan: The plan the card is for.
+
+    Returns:
+        The schematic's ClassName, or None when none was stated.
+
+    Raises:
+        TypeError: The schematic's name is not a str.
+        ValueError: The statement is unplannable, or its rates are not exactly the plan's
+            targets, so the card would name a schematic it was not planned for.
+    """
+    if statement is None:
+        return None
+    if statement.unplannable is not None or statement.rates is None:
+        raise ValueError("an unplannable schematic reached a plan")
+    if type(statement.schematic) is not str:
+        raise TypeError("a plan's schematic name is not a str")
+    if dict(statement.rates) != dict(plan.targets):
+        raise ValueError("a schematic's rates disagree with the plan's targets")
+    return statement.schematic
+
+
 def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     caveat = build_caveat(ctx)
     status = ctx.read(IN_STATUS)
@@ -752,6 +899,7 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     if status != STATUS_RANKED:
         ctx.indeterminate(_ADOPT_ALTERNATIVE, _STATUS_REASONS[status])
         return None
+    statement = _read_statement(ctx)
     plan = ctx.read(IN_PLAN)
     if type(plan) is not ProductionPlan:
         raise TypeError("a plan input is not a ProductionPlan")
@@ -766,6 +914,7 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     if not targets:
         raise ValueError("a plan names no target")
     names = _checked_target_names(ctx.read(IN_TARGET_NAMES), targets)
+    milestone = _milestone_of(statement, plan)
     machines = ctx.compute(
         LABEL_MACHINES, sum((step.machines for step in plan.steps), start=Fraction(0))
     )
@@ -787,6 +936,7 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
             f"It makes {rates} with {render_value(machines)} machine equivalents"
             f"{trim}{_unchecked_clause(unchecked)}{_raw_unknown_clause(raw_unknown)}{caveat}"
         ),
+        target_milestone=milestone,
         requires=requires,
     )
 
@@ -933,10 +1083,12 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
         raise TypeError("a routed offer names unmade items")
     unchecked = _names(ctx.read(IN_UNCHECKED), "a plan's unchecked recipes")
     raw_unknown = _names(ctx.read(IN_RAW_UNKNOWN), "a plan's raw items with no extractor")
+    statement = _read_statement(ctx)
     targets = tuple(sorted(plan.targets))
     if not targets:
         raise ValueError("a route's plan names no target")
     target_names = _checked_target_names(names, targets)
+    milestone = _milestone_of(statement, plan)
     _check_stages(plan, held, locked)
     ctx.compute(LABEL_MACHINES, sum((step.machines for step in plan.steps), start=Fraction(0)))
     if not held and not locked:
@@ -956,8 +1108,40 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
             f"{needs}{_route_unlock_clause(ctx, locked, extractors)}{_NOT_CHOSEN_CLAUSE}"
             f"{_unchecked_clause(unchecked)}{_raw_unknown_clause(raw_unknown)}{caveat}"
         ),
+        target_milestone=milestone,
         requires=requires,
     )
+
+
+def _outcome_reason(values: Mapping[str, InputValue], status: str) -> str | None:
+    """The reason an outcome carries (CS-1373).
+
+    Args:
+        values: A world's inputs.
+        status: The checked plan status.
+
+    Returns:
+        Where the schematic is unplannable, its reason word, with the items named after it on
+        ``item-not-plannable``; otherwise the status's own sentence, or None on ranked.
+
+    Raises:
+        ValueError: The statement is missing, is not a statement, or carries a reason outside
+            :data:`UNPLANNABLE_REASONS`. The message names no value.
+    """
+    if status == STATUS_RANKED:
+        return None
+    if status != STATUS_SCHEMATIC_UNPLANNABLE:
+        return _STATUS_REASONS[status]
+    statement = values[IN_SCHEMATIC].value
+    if (
+        type(statement) is not SchematicStatement
+        or statement.unplannable not in UNPLANNABLE_REASONS
+    ):
+        raise ValueError("an unplannable schematic carries no reason word")
+    if statement.unplannable != REASON_ITEM_NOT_PLANNABLE:
+        return statement.unplannable
+    items = _names(statement.unplannable_items, "a schematic's items")
+    return statement.unplannable + ": " + ", ".join(items)
 
 
 def plan_outcome_of(values: Mapping[str, InputValue]) -> PlanOutcome:
@@ -987,7 +1171,7 @@ def plan_outcome_of(values: Mapping[str, InputValue]) -> PlanOutcome:
     unmade = values[IN_REDESIGN_UNMADE].value
     return PlanOutcome(
         status=status,
-        reason=None if status == STATUS_RANKED else _STATUS_REASONS[status],
+        reason=_outcome_reason(values, status),
         redesign=redesign,
         redesign_reason=(
             _REDESIGN_REASONS[redesign] if redesign in _EXPLAINED_REDESIGN_STATUSES else None
@@ -1013,7 +1197,15 @@ ADOPT_RULE: Final = RuleSpec(
 REDESIGN_RULE: Final = RuleSpec(
     rule_id="plan.redesign",
     domain=DOMAIN,
-    inputs=(*BUILD_INPUTS, *REDESIGN_INPUTS, IN_STATUS, IN_UNCHECKED, IN_RAW_UNKNOWN, IN_TRIMMED),
+    inputs=(
+        *BUILD_INPUTS,
+        *REDESIGN_INPUTS,
+        IN_STATUS,
+        IN_UNCHECKED,
+        IN_RAW_UNKNOWN,
+        IN_TRIMMED,
+        IN_SCHEMATIC,
+    ),
     unlocks=(),
     evaluate=_evaluate_redesign,
 )

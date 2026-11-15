@@ -59,6 +59,7 @@ from clockspeed.surface.api import power as power_endpoint
 from clockspeed.surface.api import registry as registry_endpoint
 from clockspeed.surface.providers import (
     InstalledRegistryProvider,
+    InstalledSchematicSource,
     SaveWorldProvider,
     StoreAdviceSource,
 )
@@ -67,6 +68,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from clockspeed.data.registry import Registry
+    from clockspeed.data.schematics import SchematicCatalog
     from clockspeed.save.world import WorldModel
 
 __all__ = [
@@ -168,6 +170,7 @@ def build_routes(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     advice_source: advice_endpoint.AdviceStore | None = None,
+    schematics: advice_endpoint.SchematicCatalogs[SchematicCatalog] | None = None,
 ) -> tuple[contract.Route, ...]:
     """Assemble one route per published template, with the providers bound in.
 
@@ -207,6 +210,8 @@ def build_routes(
         registries: Whatever hands up the registry, or says there is no install.
         advice_source: Whatever runs the advisor and reads its stores, or None
             for the store-reading default.
+        schematics: Whatever hands up the schematic catalog, or None for the installed
+            one (CS-1373), which reads nothing until a schematic is stated.
 
     Returns:
         One route per published template, in ``BOOTSTRAP.md`` section 7.1's order.
@@ -245,6 +250,7 @@ def build_routes(
             worlds,
             registries,
             StoreAdviceSource() if advice_source is None else advice_source,
+            InstalledSchematicSource() if schematics is None else schematics,
         ),
         *pending.routes(),
     )

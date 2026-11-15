@@ -19,7 +19,9 @@ A PLAN IS RANKED ONLY FOR A TARGET THE CALLER STATES (CS-1351).
 offer is the status that says no target was stated and a marked route that says none
 was reached, so the registered plan family records why it is silent rather than
 halting on an input the world lacks. So the family runs on every served world, and it
-fires where ``clockspeed/surface/api/advice.py`` is asked for a target (CS-1371). Stated,
+fires where ``clockspeed/surface/api/advice.py`` is asked for a target (CS-1371). A request
+may also be a :class:`clockspeed.advisor.plans.SchematicRequest` (CS-1373): the same call, the
+same one search, and a card whose target milestone is the schematic. Stated,
 what the request came to is also on :attr:`Advice.plan_outcome`, because a refused
 trace yields no card and a surface has nothing else to read why from.
 

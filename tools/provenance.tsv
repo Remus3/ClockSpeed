@@ -293,6 +293,7 @@ tests/advisor/test_display_name_keying.py	authored	CS-1240	stamped
 tests/advisor/test_every_rule_fires.py	authored	CS-500	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped
 tests/advisor/test_plan_redesign.py	authored	CS-1371	stamped
+tests/advisor/test_plan_schematic_target.py	authored	CS-1373	stamped
 tests/advisor/test_plan_world.py	authored	CS-1351	stamped
 tests/advisor/test_ranking.py	authored	CS-1246	stamped
 tests/advisor/test_trace.py	authored	CS-500	stamped
@@ -485,6 +486,7 @@ tests/surface/test_registry_provider_pin.py	authored	CS-1315	stamped
 tests/surface/test_registry_state_served.py	authored	CS-1315	stamped
 tests/surface/test_route_table_binding.py	authored	CS-1165	first-add:root
 tests/surface/test_routes.py	authored	CS-601	first-add:CS-601
+tests/surface/test_schematic_source.py	authored	CS-1373	stamped
 tests/surface/test_server.py	authored	CS-601	first-add:CS-601
 tests/surface/test_solve.py	authored	CS-601	first-add:CS-601
 tests/surface/test_web_assets.py	authored	CS-601	first-add:CS-601

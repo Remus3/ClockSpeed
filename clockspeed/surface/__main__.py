@@ -44,7 +44,12 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.surface import server
 from clockspeed.surface.api.routes import METHOD_BOUNDARY_ROUTES, build_routes
 from clockspeed.surface.config import ConfigError, config_refusal, load_config
-from clockspeed.surface.providers import InstalledRegistryProvider, SaveWorldProvider, StaticAssets
+from clockspeed.surface.providers import (
+    InstalledRegistryProvider,
+    InstalledSchematicSource,
+    SaveWorldProvider,
+    StaticAssets,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -211,6 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     routes = build_routes(
         world_provider(auto_detect=args.auto_detect_world),
         InstalledRegistryProvider(),
+        schematics=InstalledSchematicSource(),
     )
     assets = StaticAssets(config.web_dir, server.ASSET_NAMES)
     return server.run(config, routes + METHOD_BOUNDARY_ROUTES, assets)

@@ -53,6 +53,22 @@ to say, through the source: this module tests no vocabulary, and parses no rate,
 text until the advisor reads it, so no float can come of it. It catches no exception, so it
 reads no exception's message.
 
+A STATED SCHEMATIC (CS-1373). :data:`SCHEMATIC_PARAMETER` with :data:`DIRECTION_PARAMETER` and
+:data:`BYPRODUCT_POLICY_PARAMETER` states a plan for a schematic's whole cost, in place of
+:data:`TARGET_PARAMETER` and :data:`RATE_PARAMETER`: a schematic states no rate, because each
+cost item's rate is the one its requirement publishes, which the advisor reads and this module
+never sees. A ``target`` or a ``rate`` beside ``schematic`` is 400 ``invalid_parameter``, and a
+direction or policy missing is 400 ``missing_parameter``, both before any provider is read. Then
+no world and no install answer their 503s, and a catalog the schematic source publishes none of
+is 503 ``no_game_install``; only then is the schematic put to the advisor through
+:meth:`SchematicAdviceSource.schematic_request`, and one the catalog does not hold is 400
+``invalid_parameter``. The catalog arrives through a :class:`SchematicCatalogs` provider the
+routes are bound with, a source that publishes none when it is not. One request is handed to
+the advisor whatever the schematic costs, so the listing carries one plan card, never one per
+cost item. A schematic whose requirement publishes no rates reads ``plan_outcome`` status
+``schematic-unplannable`` with its reason word in ``reason``, which names after the word any cost
+item no plan can be stated for, and no plan card.
+
 PRIVACY. The world token is handed to the source with the world and is not
 read here at all. No field below is the token, a save path or a world name.
 
@@ -108,9 +124,10 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from clockspeed.advisor.advise import Advice, AdvisedCard
-    from clockspeed.advisor.plans import PlanParameters, PlanRequest
+    from clockspeed.advisor.plans import PlanParameters, PlanRequest, SchematicParameters
     from clockspeed.advisor.rules.plan import PlanOutcome
     from clockspeed.data.registry import Registry
+    from clockspeed.data.schematics import SchematicCatalog
     from clockspeed.save.world import WorldModel
 
 __all__ = [
@@ -129,6 +146,7 @@ __all__ = [
     "PLAN_PARAMETERS",
     "RATE_PARAMETER",
     "RECORDABLE_STATES",
+    "SCHEMATIC_PARAMETER",
     "SNOOZED",
     "STATED_DATA_KEYS",
     "STATE_ENDPOINT",
@@ -138,6 +156,8 @@ __all__ = [
     "UNTIL_PARAMETER",
     "AdviceSource",
     "AdviceStore",
+    "SchematicAdviceSource",
+    "SchematicCatalogs",
     "make_derivation_handler",
     "make_handler",
     "make_state_handler",
@@ -186,6 +206,13 @@ PLAN_PARAMETERS: Final = (
     DIRECTION_PARAMETER,
     BYPRODUCT_POLICY_PARAMETER,
 )
+
+#: A schematic a plan is stated for (CS-1373): one ClassName off the catalog, in place of
+#: ``target`` and ``rate``, which are refused beside it.
+SCHEMATIC_PARAMETER: Final = "schematic"
+
+#: What a schematic statement carries beside the schematic itself.
+SCHEMATIC_COMPANIONS: Final = (DIRECTION_PARAMETER, BYPRODUCT_POLICY_PARAMETER)
 
 #: The one recordable kind that carries an ``until``.
 SNOOZED: Final = "snoozed"
@@ -269,6 +296,59 @@ class AdviceSource(Protocol):
     ) -> PlanRequest | None:
         """Build the request a target and checked parameters ask, or refuse the target."""
         ...
+
+
+@runtime_checkable
+class SchematicAdviceSource(AdviceSource, Protocol):
+    """An advice source that can also state a plan for a schematic (CS-1373).
+
+    Apart from :class:`AdviceSource` so a source written before it stays an advice source.
+    Each answers None to refuse, with no text.
+    """
+
+    def schematic_parameters(
+        self, *, direction: str, byproduct_policy: str
+    ) -> SchematicParameters | None:
+        """Check a stated direction and policy beside a schematic, or refuse them."""
+        ...
+
+    def schematic_request(
+        self,
+        catalog: SchematicCatalog,
+        registry: Registry,
+        world: WorldModel,
+        schematic: str,
+        parameters: SchematicParameters,
+    ) -> PlanRequest | None:
+        """Build the one request a schematic asks, or refuse a schematic the catalog lacks."""
+        ...
+
+
+class SchematicCatalogs[CatalogT](Protocol):
+    """Whatever hands an endpoint the schematic catalog, or says there is not one.
+
+    Generic for the same reason :class:`contract.RegistryProvider` is, and ``None`` means the
+    same thing: no game installation was found, which is a 503 rather than a failure.
+    """
+
+    def catalog(self) -> CatalogT | None:
+        """The normalized catalog, or None when this machine has no install."""
+        ...
+
+
+class _StatedSchematic(tuple[str, "SchematicParameters"]):
+    """A stated schematic and its checked direction and policy, as the pair (schematic, parameters).
+
+    Index 0 is the ClassName as received, tested against the catalog and never rendered, and
+    index 1 is what the source's door checked. A tuple, so it reads as the item statement's
+    pair does, and a class of its own only so :func:`_request_for` can tell the two apart; it
+    declares no field, so no generated ``__repr__`` and no census population member is made.
+    """
+
+    __slots__ = ()
+
+
+type _Stated = tuple[str, PlanParameters] | _StatedSchematic
 
 
 @runtime_checkable
@@ -367,21 +447,27 @@ def _stated_plan(
     source: AdviceSource,
     *,
     own: tuple[str, ...],
-) -> tuple[str, PlanParameters] | contract.Response | None:
+) -> _Stated | contract.Response | None:
     """Refuse what can be refused before any provider is read, and name what was stated.
 
     Args:
         endpoint: The template the refusal names.
         query: The path capture and the query parameters.
         source: The advice source, whose door checks the rate, the direction and the policy.
-        own: The route's own parameters, beside the four.
+        own: The route's own parameters, beside the four and the schematic's.
 
     Returns:
-        The target and the checked parameters; None when none of the four is stated; or
-        the 400 that refuses the request, which names nothing it refused.
+        The target and the checked parameters, or the schematic and its checked parameters;
+        None when no plan is stated; or the 400 that refuses the request, which names nothing
+        it refused.
     """
-    if any(name not in own and name not in PLAN_PARAMETERS for name in query):
+    if any(
+        name not in own and name not in PLAN_PARAMETERS and name != SCHEMATIC_PARAMETER
+        for name in query
+    ):
         return contract.bad_request(endpoint, contract.REASON_UNKNOWN_PARAMETER)
+    if SCHEMATIC_PARAMETER in query:
+        return _stated_schematic(endpoint, query, source)
     stated = sum(1 for name in PLAN_PARAMETERS if name in query)
     if stated == 0:
         return None
@@ -395,6 +481,37 @@ def _stated_plan(
     if parameters is None:
         return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
     return query[TARGET_PARAMETER], parameters
+
+
+def _stated_schematic(
+    endpoint: str, query: Mapping[str, str], source: AdviceSource
+) -> _StatedSchematic | contract.Response:
+    """Refuse what can be refused of a stated schematic before any provider is read.
+
+    Args:
+        endpoint: The template the refusal names.
+        query: The path capture and the query parameters, ``schematic`` among them.
+        source: The advice source, whose door checks the direction and the policy.
+
+    Returns:
+        The schematic and the checked parameters, or the 400 that refuses the request. A
+        ``target`` or a ``rate`` beside the schematic is ``invalid_parameter``, a companion
+        missing is ``missing_parameter``, and a source that cannot state a schematic refuses
+        it as it refuses any value it does not take.
+    """
+    if TARGET_PARAMETER in query or RATE_PARAMETER in query:
+        return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    if any(name not in query for name in SCHEMATIC_COMPANIONS):
+        return contract.bad_request(endpoint, contract.REASON_MISSING_PARAMETER)
+    if not isinstance(source, SchematicAdviceSource):
+        return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    parameters = source.schematic_parameters(
+        direction=query[DIRECTION_PARAMETER],
+        byproduct_policy=query[BYPRODUCT_POLICY_PARAMETER],
+    )
+    if parameters is None:
+        return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    return _StatedSchematic((query[SCHEMATIC_PARAMETER], parameters))
 
 
 class _SeenRegistry:
@@ -442,7 +559,8 @@ def _resolve(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceSource,
-    stated: tuple[str, PlanParameters] | None,
+    stated: _Stated | None,
+    schematics: SchematicCatalogs[SchematicCatalog] | None,
 ) -> Advice | contract.Response:
     """Fetch the advice, or the refusal that stands in for it.
 
@@ -452,11 +570,12 @@ def _resolve(
         registries: The registry provider.
         source: The advice source.
         stated: What :func:`_stated_plan` read, or None when no plan is stated.
+        schematics: The catalog provider, or None for one that publishes none.
 
     Returns:
         The advice, or the refusal naming what was missing or off the list.
     """
-    resolved = _resolve_in_world(endpoint, worlds, registries, source, stated)
+    resolved = _resolve_in_world(endpoint, worlds, registries, source, stated, schematics)
     if isinstance(resolved, contract.Response):
         return resolved
     return resolved[1]
@@ -467,7 +586,8 @@ def _resolve_in_world(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceSource,
-    stated: tuple[str, PlanParameters] | None,
+    stated: _Stated | None,
+    schematics: SchematicCatalogs[SchematicCatalog] | None,
 ) -> tuple[WorldModel, Advice] | contract.Response:
     """Fetch the world and its advice together, or the refusal for either.
 
@@ -483,10 +603,12 @@ def _resolve_in_world(
         registries: The registry provider.
         source: The advice source.
         stated: What :func:`_stated_plan` read, or None when no plan is stated.
+        schematics: The catalog provider, or None for one that publishes none. Read only for
+            a stated schematic, and only after the world and the registry.
 
     Returns:
-        (world, advice), or a 503 naming what was missing, or the 400 refusing a target
-        off the list, which names nothing it refused.
+        (world, advice), or a 503 naming what was missing, or the 400 refusing a target or a
+        schematic off the list, which names nothing it refused.
     """
     model = worlds.world()
     if model is None:
@@ -496,14 +618,51 @@ def _resolve_in_world(
         return contract.unavailable(endpoint, contract.REASON_NO_GAME_INSTALL)
     plan_request = None
     if stated is not None:
-        target, parameters = stated
-        plan_request = source.plan_request(registry, target, parameters)
-        if plan_request is None:
-            return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+        asked = _request_for(endpoint, stated, model, registry, source, schematics)
+        if isinstance(asked, contract.Response):
+            return asked
+        plan_request = asked
     found = source.advice(model, registry, plan_request=plan_request)
     if found is None:
         return contract.unavailable(endpoint, contract.REASON_ADVICE_STORE_UNREADABLE)
     return model, found
+
+
+def _request_for(
+    endpoint: str,
+    stated: _Stated,
+    model: WorldModel,
+    registry: Registry,
+    source: AdviceSource,
+    schematics: SchematicCatalogs[SchematicCatalog] | None,
+) -> PlanRequest | contract.Response:
+    """Put a stated target or schematic to the advisor, or refuse it.
+
+    Args:
+        endpoint: The template the refusal names.
+        stated: What :func:`_stated_plan` read.
+        model: The world, read already. Handed on and not read here.
+        registry: The normalized registry, read already.
+        source: The advice source.
+        schematics: The catalog provider, or None for one that publishes none.
+
+    Returns:
+        The request, or the 400 refusing a target or schematic off the list, or the 503 when
+        a stated schematic meets no catalog.
+    """
+    if not isinstance(stated, _StatedSchematic):
+        target, parameters = stated
+        asked = source.plan_request(registry, target, parameters)
+    else:
+        catalog = None if schematics is None else schematics.catalog()
+        if catalog is None:
+            return contract.unavailable(endpoint, contract.REASON_NO_GAME_INSTALL)
+        if not isinstance(source, SchematicAdviceSource):
+            return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+        asked = source.schematic_request(catalog, registry, model, stated[0], stated[1])
+    if asked is None:
+        return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
+    return asked
 
 
 def _instant(raw: str) -> int | None:
@@ -528,7 +687,7 @@ def _instant(raw: str) -> int | None:
 
 def _state_request(
     query: Mapping[str, str], source: AdviceSource
-) -> tuple[str, str, int | None, tuple[str, PlanParameters] | None] | contract.Response:
+) -> tuple[str, str, int | None, _Stated | None] | contract.Response:
     """Validate a state request's parameters before any world is read.
 
     Args:
@@ -586,6 +745,7 @@ def make_handler(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceSource,
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
 ) -> contract.Handler:
     """Bind the providers and return the listing handler.
 
@@ -593,6 +753,8 @@ def make_handler(
         worlds: Whatever hands over the current world, or says there is not one.
         registries: Whatever hands over the registry, or says there is not one.
         source: Whatever runs the advisor and reads the stores.
+        schematics: Whatever hands over the schematic catalog, or None for a source that
+            publishes none, which makes a stated schematic 503 ``no_game_install``.
 
     Returns:
         The handler.
@@ -603,7 +765,7 @@ def make_handler(
         stated = _stated_plan(ENDPOINT, query, source, own=())
         if isinstance(stated, contract.Response):
             return stated
-        found = _resolve(ENDPOINT, worlds, registries, source, stated)
+        found = _resolve(ENDPOINT, worlds, registries, source, stated, schematics)
         if isinstance(found, contract.Response):
             return found
         return contract.ok(ENDPOINT, _listing(found))
@@ -615,6 +777,7 @@ def make_derivation_handler(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceSource,
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
 ) -> contract.Handler:
     """Bind the providers and return the derivation handler.
 
@@ -622,6 +785,7 @@ def make_derivation_handler(
         worlds: Whatever hands over the current world, or says there is not one.
         registries: Whatever hands over the registry, or says there is not one.
         source: Whatever runs the advisor and reads the stores.
+        schematics: As :func:`make_handler` takes it.
 
     Returns:
         The handler.
@@ -636,7 +800,7 @@ def make_derivation_handler(
         if wanted is None:
             return contract.bad_request(DERIVATION_ENDPOINT, contract.REASON_MISSING_PARAMETER)
         seen = _SeenRegistry(registries)
-        found = _resolve(DERIVATION_ENDPOINT, worlds, seen, source, stated)
+        found = _resolve(DERIVATION_ENDPOINT, worlds, seen, source, stated, schematics)
         if isinstance(found, contract.Response):
             return found
         for advised in found.cards:
@@ -660,6 +824,7 @@ def make_state_handler(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceStore,
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
 ) -> contract.Handler:
     """Bind the providers and return the state-recording handler (CS-1269).
 
@@ -667,6 +832,7 @@ def make_state_handler(
         worlds: Whatever hands over the current world, or says there is not one.
         registries: Whatever hands over the registry, or says there is not one.
         source: Whatever runs the advisor, reads the stores and records a state.
+        schematics: As :func:`make_handler` takes it.
 
     Returns:
         The handler. It is reached only through a request the server admitted
@@ -679,7 +845,7 @@ def make_state_handler(
         if isinstance(asked, contract.Response):
             return asked
         wanted, kind, until, stated = asked
-        resolved = _resolve_in_world(STATE_ENDPOINT, worlds, registries, source, stated)
+        resolved = _resolve_in_world(STATE_ENDPOINT, worlds, registries, source, stated, schematics)
         if isinstance(resolved, contract.Response):
             return resolved
         model, found = resolved
@@ -719,6 +885,7 @@ def routes(
     worlds: contract.WorldProvider[WorldModel],
     registries: contract.RegistryProvider[Registry],
     source: AdviceStore,
+    schematics: SchematicCatalogs[SchematicCatalog] | None = None,
 ) -> tuple[contract.Route, ...]:
     """Publish the listing, derivation and state routes, with the providers bound in.
 
@@ -726,6 +893,8 @@ def routes(
         worlds: Whatever hands over the current world, or says there is not one.
         registries: Whatever hands over the registry, or says there is not one.
         source: Whatever runs the advisor, reads the stores and records a state.
+        schematics: Whatever hands over the schematic catalog, or None for a source that
+            publishes none (CS-1373).
 
     Returns:
         The listing route, the derivation route, then the state route.
@@ -734,17 +903,17 @@ def routes(
         contract.Route(
             method=METHOD_GET,
             template=ENDPOINT,
-            handler=make_handler(worlds, registries, source),
+            handler=make_handler(worlds, registries, source, schematics),
         ),
         contract.Route(
             method=METHOD_GET,
             template=DERIVATION_ENDPOINT,
-            handler=make_derivation_handler(worlds, registries, source),
+            handler=make_derivation_handler(worlds, registries, source, schematics),
         ),
         contract.Route(
             method=METHOD_POST,
             template=STATE_ENDPOINT,
-            handler=make_state_handler(worlds, registries, source),
+            handler=make_state_handler(worlds, registries, source, schematics),
             mutates=True,
         ),
     )
