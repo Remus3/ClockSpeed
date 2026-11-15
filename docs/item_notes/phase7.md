@@ -971,6 +971,21 @@ a test reading the live install's build, is a live-state failure; a failure foun
 its fix. Between the ORDER and the 2026-11-08 push this read counts 19 rows, 16 exit 0 and 3 exit 1, against
 the responder's 16, 13 and 3; the three exit-1 rows are the ones classified above.
 
+### Recorded 2026-11-14 by the session 157 adjudicator, the 22 exit-nonzero rows after 2026-11-04 01:51:29
+
+CLASSES: live-state 0, timing 1, guard (h) on the game patch 6, toolchain or other 3, work under edit 5, unreadable 7.
+The timing row, 2026-11-12 16:32:07, is the venv-launcher death race in
+`tests/test_claude_hook.py::test_a_sibling_holding_its_lock_is_live_until_its_process_dies`, fixed by
+bdeddf77464e2e77f2f496c923eb25ce9dc25260 (on origin 2026-11-12 17:41:34); six later venv pre-push suites exited
+0. RULED: a guard (h) red is a READ of the install, neither live-state nor timing, so not a failure here;
+CS-1390 owns the next patch. An unreadable row cannot count toward zero, and a short -x hold does not exclude
+the session guard, so the window opens after the last one: 2026-11-12 18:48:37 local. Earliest closing read: on
+or after 2026-11-19 18:48:37 local. In-window rows to date read work-under-edit or toolchain, none restarts it.
+Every later exit-nonzero row must cite failing ids from a log kept at the time; one without restarts the window
+from the end of its hold.
+The full row classification is kept gitignored in the data directory, CS-1366 classify file, sha256
+895b1b9e1a50b79c3fe31229099b8cafddea181318fd8bc7e6c89127df56c8ea.
+
 ## CS-1390
 
 ### Acceptance
