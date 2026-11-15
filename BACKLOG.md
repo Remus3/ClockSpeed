@@ -1333,3 +1333,7 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
 - Display-name rule boundary tests: add \x01, \x08, \x0e, \x1b (refused) and "~" (quoted) to PARITY_NAMES in
   tests/advisor/test_display_name_keying.py; kills the CS-1384 adversary's surviving bound mutants in
   clockspeed/advisor/rules/display_names.py::usable_name.
+- CS-1378 multi-hop consumer: the one-hop rule read 0 of 142 arm 2 targets gaining a route card on one library save
+  (50 got a consumer but the second solve still refused, 3 found none; Plastic and Rubber need the consumer's own
+  leftover eaten). Trigger: a product need for those targets; the session 157 adjudicator ruled a multi-hop follow-up
+  belongs here only if the read-back read zero.
