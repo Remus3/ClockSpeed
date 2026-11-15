@@ -107,7 +107,9 @@ its Verification line, so re-pinning them means choosing between a false arm nam
 cannot repair. That is a ruling, and `tools/headless-queue.md` section 5 puts a row needing one outside a lane's reach.
 TIER 2 PAID, for a public interface on the advisor engine. Whole tree, distributed, on the tree before the one arm
 added after the verifier pass: "19476 passed, 18 skipped, 9 warnings in 1116.47s (0:18:36)", exit 0. On the SHIPPED
-tree, `tests/advisor tests/surface tests/ops` serial: "4853 passed, 1 skipped, 1 warning in 211.32s (0:03:31)", exit 0.
+tree BEFORE the rebase, `tests/advisor tests/surface tests/ops` serial: "4853 passed, 1 skipped, 1 warning in
+211.32s (0:03:31)", exit 0. The rebase landed this commit on top of session 157's own, so the tier was re-run on the
+SHIPPED tree with the four doc-record arms added: "5446 passed, 1 skipped, 1 warning in 317.21s (0:05:17)", exit 0.
 `ruff check`, `ruff format --check` and `tools/drift_guard.py` exit 0; the drift guard read 11 guards PASS, 0 WARN,
 0 FAIL.
 GRADED: verifier CONFIRM against the acceptance clause, at a witnessed freeze. It found no false claim and one
