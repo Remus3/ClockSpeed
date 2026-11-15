@@ -285,6 +285,12 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/world.py::WorldLoadError",
     "clockspeed/save/world.py::WorldModel",
     "clockspeed/save/world.py::WorldWarning",
+    # CS-1360: graded inherited - a plain class, not a dataclass, so
+    # object.__repr__ renders no attribute at all and neither the provider it
+    # holds nor the registry it remembers can reach a rendering. The
+    # clockspeed/surface/providers.py classes above are in the population on the
+    # same terms.
+    "clockspeed/surface/api/advice.py::_SeenRegistry",
     "clockspeed/surface/api/contract.py::Route",
     "clockspeed/surface/api/power.py::_PowerParameterError",
     "clockspeed/surface/api/solve.py::_ParameterError",
