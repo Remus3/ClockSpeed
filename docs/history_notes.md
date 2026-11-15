@@ -24,6 +24,54 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1374 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**
+The closure record is in `docs/LEDGER.md`.
+
+
+### Acceptance
+
+Phase 5, tier 2. `clockspeed/data/schematics.py` reads `mUnlocks`: each element whose keyset and
+class token match the measured recipe-unlock shape publishes its recipe paths whole, in source
+order, on `Schematic.unlocked_recipes`; an element of another measured shape is read past; an
+element of an unknown shape carrying a recipe list, or any unreadable element, is flagged and sets
+`Schematic.unlocks_complete` False, never a short list passing for the whole. A recipe joins a
+schematic by whole-string equality of an unlocked path with `Recipe.asset_path`, never by trailing
+token; an unlocked path joining no recipe is counted, never dropped. A recipe is a hard-drive
+alternate when every schematic unlocking it carries the alternate `mType` token, named once as a
+constant in that module; it is preferred when at least one schematic unlocking it carries a read
+token that is not that one. `clockspeed/solve/bound.py::derived_route` takes the preferred set as a
+membership-only frozenset beside `held`, never the catalog, and counts
+`(locked, locked and not preferred, recipes)`, so preference breaks only a tie in locked count; None
+keeps today's count. The plan.redesign card's tier 3, generated from the trace, names for each
+locked recipe every schematic unlocking it with its tech tier - for a recipe the world holds with no
+machine held, the schematics unlocking that machine's build recipe - in ascending tech tier, an
+unknown tier last, then ClassName, and lists the locked recipes in ascending order of their lowest
+naming tier, unknown last, then the route's registry order. A locked recipe no schematic unlocks
+reads none, or unknown when any schematic's unlocks are incomplete. On a synthetic catalog and
+registry each case reddens on its own arm first: two locked producers of a target tie on locked
+count with the alternate first in registry order, and the route takes the preferred one; an
+alternate with fewer locked recipes is still taken; a recipe two schematics unlock names both, lower
+tier first; the locked list orders by ascending tier with unknown last; a stage held with its
+machine locked names the machine's schematic; an unknown-shape element carrying recipes flags and
+reads unknown; an unlocked path joining no recipe is counted. The closing ledger record reads back
+on the installed catalog the joined-recipe count, how many recipes more than one schematic unlocks
+and how many schematics carry the alternate token; no value is required. Waits on CS-1373's concrete
+SchematicSource.
+
+### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
+
+**LOWERING** against "several tiers" in the CS-1371 clause 2 as first filed, whose arm now grades locked
+stages by count; ground mUnlocks unread.
+
+Ruled 2026-11-14 (session 157 adjudicator): name every unlocking schematic, lowest tier first; a hard-drive alternate is identified by its schematics' mType token (a named constant; the token confirmed at close); ascending orders the tier-3 unlock list only; solve/ receives a membership-only preferred frozenset, preference breaking only a locked-count tie. Rejected: picking one schematic; a Recipe_Alternate_ name prefix; ranking the route by tier; preference ahead of locked count.
+
+ADJUDICATED 2026-11-15 by the session 157 adjudicator: LAND after one adversary round and three
+survivor arms; the first build was inert in production until a read-only probe of the installed docs
+showed the object-reference wrapper; tier 3's unlock line is the engine's render_value of the trace
+read.
+
 ## CS-1376 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**

@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1374 - CLOSED: a redesign card names each locked recipe's schematic and tech tier, the unlock shapes read whole and a hard-drive alternate breaking only a locked-count tie
+Verification: `tests/advisor/test_plan_redesign_unlocks.py`, `tests/data/test_schematics.py`,
+`tests/solve/test_bound.py` and `tests/surface/test_advice_source_schematics.py`; the nineteen suites of the landed
+tree's verification run passed serial, 1743 passed; ruff, ruff format --check and mypy exit 0.
+Closed CS-1374: `clockspeed/data/schematics.py` reads `mUnlocks` by whole shape (the measured `BP_UnlockRecipe_C` and
+`BP_UnlockBlueprints_C` on `Class` and `mRecipes`, 21 other measured shapes read past, unknown shapes flagged) and joins
+recipes by whole unwrapped asset path; `clockspeed/solve/bound.py::derived_route` breaks a locked-count tie toward a
+membership-only preferred set; the `plan.redesign` card's tier 3 names each locked stage's schematics by tier.
+READ BACK at close on the installed catalog: 872 of 872 registry recipes joined, 30 with more than one unlocking
+schematic, 109 schematics carry EST_Alternate, 106 unlocked paths join no recipe. GRADED: adversary NOT REFUTED, 40
+mutants, three survivors then killed by added arms; ADJUDICATED: LAND, session 157. RECORDED LAPSE: the two
+StoreAdviceSource arms were written after the plumbing. RESIDUAL: multi-machine schematic choice and tier-3 prose, filed
+in BACKLOG.
+
 ### 2026-11-15 - CS-1246 - NOT A COMPLETION RECORD. CS-1246 STAYS OPEN: the lane's closure is SUPERSEDED by adjudication, its aging guard never fires in production
 Verification: `ROADMAP.md`; the CS-1246 section of `docs/item_notes/phase5.md`; `clockspeed/surface/providers.py` imports `advise_world` only.
 SUPERSEDED: the record below headed "CS-1246 - CLOSED: quick-win card ordering" is not a

@@ -1344,3 +1344,8 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
   tests/advisor/test_ledger.py; kills the surviving 3600 to 3601 mutant.
 - CS-1376 comment: clockspeed/surface/web/app.js near the actions object still says "FIVE DOORS AND NOT ONE" with six
   doors present; correct it.
+- CS-1374 follow-up: pin the machine choice for a held stage that several machines run (amend the clause with "where
+  several machines run it, the first in its produced_in order that joins a build recipe with a path") with one arm; no
+  installed case today.
+- CS-1374 follow-up: render plan.redesign.unlocks in tier 3 as one line per locked stage, still generated from the
+  trace.
