@@ -35,13 +35,18 @@ from clockspeed.advisor.ledger import (
     StoreWriteError,
 )
 from clockspeed.advisor.rules import power
+from clockspeed.advisor.rules.plan import RedesignUnlocks
+from clockspeed.data.schematics import normalize_schematics
 from clockspeed.surface import server
 from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, health, routes
 from clockspeed.surface.providers import StoreAdviceSource
+from tests.advisor import test_plan_redesign as redesign_fixtures
 from tests.advisor import test_world_advice as world_fixtures
 from tests.audit import test_balance as balance_fixtures
+from tests.data.test_schematics import schematic_document, schematic_entry
 from tests.surface import test_advice_source as source_fixtures
+from tests.surface import test_advice_source_schematics as schematic_fixtures
 from tests.surface import test_map as map_fixtures
 
 # The listener fixtures are the server suite's own; importing them registers them here.
@@ -656,3 +661,42 @@ def test_a_post_with_the_proof_records_one_act_over_a_real_listener(
         )
     assert status == contract.HTTP_OK
     assert (store / LEDGER_FILENAME).is_file()
+
+
+# ---------------------------------------------------------------------------
+# The schematic source rides through the act exactly as it rides through the read (CS-1374)
+# ---------------------------------------------------------------------------
+
+
+def test_a_served_act_and_a_served_read_build_identical_inputs_under_a_schematic_source(
+    tmp_path: Path,
+) -> None:
+    """The act hands the schematic source on, or its route-unlocks read goes dark.
+
+    One world whose redesign route runs locked stages, one registry and one schematic source
+    each door is given. Each door must ask its source once and read the route unlocks as the
+    advisor's own value, and the two must come to the same cards. An act that dropped the source
+    reads the unlocks as nothing and never asks it.
+    """
+    catalog = normalize_schematics(schematic_document([schematic_entry("Schematic_One_C")]))
+    registry = redesign_fixtures._three_locked_registry()  # noqa: SLF001
+    model = redesign_fixtures._model((redesign_fixtures.HELD_STAGE,))  # noqa: SLF001
+    request_ = redesign_fixtures._request(registry)  # noqa: SLF001
+    read_source = schematic_fixtures._Source(catalog)  # noqa: SLF001
+    act_source = schematic_fixtures._Source(catalog)  # noqa: SLF001
+    (tmp_path / "read").mkdir()
+    (tmp_path / "act").mkdir()
+    reader = StoreAdviceSource(tmp_path / "read", clock=lambda: NOW, schematics=read_source)
+    actor = StoreAdviceSource(tmp_path / "act", clock=lambda: NOW, schematics=act_source)
+
+    read = reader.advice(model, registry, plan_request=request_)
+    acted = actor.act(model, registry, plan_request=request_)
+
+    assert read is not None
+    assert not isinstance(acted, str)
+    assert schematic_fixtures._unlock_read_types(read) == [RedesignUnlocks]  # noqa: SLF001
+    assert schematic_fixtures._unlock_read_types(acted) == [RedesignUnlocks]  # noqa: SLF001
+    assert read_source.calls == 1
+    assert act_source.calls == 1
+    same_cards = [a.card.id for a in read.cards] == [a.card.id for a in acted.cards]
+    assert same_cards

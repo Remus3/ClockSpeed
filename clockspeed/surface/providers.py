@@ -751,7 +751,8 @@ class StoreAdviceSource:
     ) -> Advice | str:
         """One advice ACT: the advice for a world, and the record of what the run implies (CS-1397).
 
-        ONLY HANDS OVER. The world, the registry, the pin and the injected clock go to the
+        ONLY HANDS OVER. The world, the registry, the pin, the injected clock and the schematic
+        source (CS-1374, as :meth:`advice` hands it) go to the
         advisor's own :func:`clockspeed.advisor.advise.advise_world_and_record`, which calls
         the ledger's one write path once; nothing here decides what a run implies. The mute
         store is read and never written. Reached only through ``POST /api/advice/act``,
@@ -777,6 +778,7 @@ class StoreAdviceSource:
                 mutes=MuteStore(self._directory),
                 now=self._clock(),
                 plan_request=plan_request,
+                schematics=self._schematics,
             )
         except StoreWriteError:
             return SOURCE_UNWRITABLE
