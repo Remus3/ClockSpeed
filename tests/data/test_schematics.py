@@ -1105,3 +1105,39 @@ def test_the_measured_tokens_are_the_modules() -> None:
     assert schematics_module.BLUEPRINT_UNLOCK_CLASS == "BP_UnlockBlueprints_C"
     assert schematics_module.ALTERNATE_TYPE_TOKEN == "EST_Alternate"  # noqa: S105 - an enum token
     assert len(schematics_module.OTHER_UNLOCK_SHAPES) == MEASURED_OTHER_SHAPES
+
+
+def test_a_new_class_token_on_the_recipe_keyset_is_flagged_never_read_as_a_recipe_unlock() -> None:
+    # The keyset is exactly the measured one, {Class, mRecipes}; only the class token is new.
+    element = {
+        KEY_UNLOCK_CLASS: "/Game/Synth/Unlock/BP_UnlockSynthNovel.BP_UnlockSynthNovel_C",
+        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([unlock_reference("Novel")]),
+    }
+    assert frozenset(element) == frozenset({KEY_UNLOCK_CLASS, KEY_UNLOCK_RECIPES})
+    catalog = unlocks_catalog([recipe_unlock("A"), element])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    # Control: the measured class token on the same keyset is read, so the keyset alone is not
+    # what flagged it.
+    assert schematic.unlocked_recipes == (unlock_path("A"),)
+    assert schematic.unlocks_complete is False
+    assert len(warnings_of(catalog, schematics_module.WARN_UNKNOWN_UNLOCK, SCHEMATIC_ONE)) == 1
+
+
+def test_a_path_a_schematic_lists_twice_names_that_schematic_once_for_the_recipe() -> None:
+    catalog = normalize_schematics(
+        schematic_document(
+            [
+                schematic_entry(
+                    SCHEMATIC_ONE,
+                    **{KEY_UNLOCKS: [recipe_unlock("Twice", "Twice"), recipe_unlock("Twice")]},
+                ),
+                schematic_entry(SCHEMATIC_TWO, **{KEY_UNLOCKS: [recipe_unlock("Twice")]}),
+            ]
+        )
+    )
+    # Control: the reading itself keeps every occurrence, in source order.
+    assert catalog.schematics[SCHEMATIC_ONE].unlocked_recipes == (unlock_path("Twice"),) * 3
+
+    unlockers = schematics_module.unlockers_by_path(catalog)
+
+    assert [s.class_name for s in unlockers[unlock_path("Twice")]] == [SCHEMATIC_ONE, SCHEMATIC_TWO]

@@ -632,3 +632,47 @@ def test_a_status_that_offers_no_route_offers_no_unlock_reading() -> None:
 
     assert trace.recommendation is None
     assert _errors(trace) != []
+
+
+# ---------------------------------------------------------------------------
+# The byproduct-consumer step counts as the route does
+# ---------------------------------------------------------------------------
+
+
+def _consumer_registry() -> Registry:
+    """R_By leaves Rare over, and two locked consumers of it tie, the alternate first.
+
+    By hand, balanced and nothing held: R_By alone makes the Relic and leaves Rare nothing
+    eats, so pillar 1 refuses it. R_EatAlt and R_EatPref each eat that Rare and an Ore for a
+    Relic, so either one balances the route at five machines of each.
+    """
+    return worlds._registry(  # noqa: SLF001
+        [
+            worlds._recipe(  # noqa: SLF001
+                "R_By", [SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM]
+            ),
+            worlds._recipe(  # noqa: SLF001
+                "R_EatAlt", [SOLVE_RARE_ITEM, SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]
+            ),
+            worlds._recipe(  # noqa: SLF001
+                "R_EatPref", [SOLVE_RARE_ITEM, SOLVE_ORE_ITEM], [SOLVE_RELIC_ITEM]
+            ),
+        ]
+    )
+
+
+def test_a_balanced_route_refused_once_takes_the_preferred_consumer() -> None:
+    registry = _consumer_registry()
+    request = worlds._request(registry)  # noqa: SLF001
+    catalog = _catalog(
+        _schematic("Schematic_Alt_C", kind=ALTERNATE_TYPE_TOKEN, recipes=("R_EatAlt",)),
+        _schematic("Schematic_Pref_C", recipes=("R_By", "R_EatPref")),
+    )
+
+    # Control: with no source the consumer tie goes to registry order, the alternate.
+    control = _world((), registry, request, None)
+    assert _locked_of(control) == ("R_By", "R_EatAlt")
+
+    chosen = _world((), registry, request, _Source(catalog))
+
+    assert _locked_of(chosen) == ("R_By", "R_EatPref")
