@@ -605,10 +605,14 @@ Filed by the rulings recorded under CS-1371, so that what CS-1371 did not delive
 
 ### Acceptance
 
-On a synthetic registry whose generator class and fuel item carry display names, tier 1 and tier 2 of power.fuel_supply and power.fuel_demand name each class and each fuel by that
-display name in double quotes, a double quote or backslash inside it escaped by a backslash, the subject key and the card id unchanged; a class or fuel whose name is absent, blank, not
-printable ASCII or over 64 characters reads its key unquoted, through the fallback step the rule records today. Tier 3 keeps every key in its steps, generated from the trace. Each case
-reddens on its own arm first: a comma, a semicolon, a double quote, a backslash, the cap and one over it.
+On a synthetic registry whose generator class and fuel item carry display names, tier 1 and tier 2 of power.fuel_supply and power.fuel_demand - the demand card's burn and no-burn
+branches both - name each class and each fuel by that display name in double quotes, a double quote or backslash inside it escaped by a backslash, the backslash first, the subject key
+and the card id unchanged; a class or fuel whose name is absent, empty, blank, not printable ASCII, not whitespace-normal (a leading or trailing space, or two spaces in a row, so that
+" ".join(name.split()) != name) or over 64 characters, measured on the name and never on its escaped text, reads its key unquoted, through the rejected alternative the rule records today, so settlement
+is unchanged, its fixed reason naming every one of those causes. Tier 3 keeps every key in its steps, generated from the trace. Each new case reddens on its own arm first: a comma, a
+semicolon, a double quote, a backslash, a name of exactly 64 characters read quoted and one of 65 read as its key, a leading space, a trailing space and two spaces in a row; the empty,
+blank and non-ASCII arms stay green. One arm feeds one hostile-name set to both this family and the plan family (CS-1379) and asserts the same usable-or-fallback split and the same
+quoted text, so one display-name rule governs both.
 
 ### Filed 2026-11-13 by the CS-1379 quoting ruling
 
@@ -617,4 +621,6 @@ still splices a class's or a fuel's display name unquoted and with no length cap
 semicolon reads as a second item or a clause of the card, and a long one as the whole headline. Out of CS-1379, whose
 clause names the plan family alone.
 
-Open: the CS-1379 whitespace-normal fallback (amended 2026-11-13; CS-1379's section, relocated on its close, is in `docs/history_notes.md`) applies here too; amend this clause through an adjudicator before build.
+Ruled 2026-11-14 (session 157 adjudicator): AMEND for parity with CS-1379's ratified clause, fifth fallback included. Alternatives rejected: leave as is (fuel would show a name the
+registry does not hold); switch fuel to the plan family's indeterminate step (changes settlement, re-opens the fuel ruling G4); require a shared helper in the clause (a build choice;
+the parity arm covers it).
