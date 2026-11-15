@@ -681,7 +681,12 @@ function panelData(probes) {
       requestOptimize: requestOptimize,
       requestPower: requestPower,
       requestAdvice: requestAdvice,
-      requestDerivation: requestDerivation
+      requestDerivation: requestDerivation,
+      /*
+        CS-1376 - THE SIXTH DOOR, AND THE ONE THAT WRITES. It posts one card's state
+        through /api/advice/<id>/state; see requestState for what it carries.
+      */
+      requestState: requestState
     }
   };
 }
@@ -765,6 +770,14 @@ var POWER_OPTIONAL = ["clock", "recipe"];
 */
 var ADVICE_PARAMS = ["target", "rate", "direction", "byproduct_policy"];
 var DERIVATION_PARAMS = ["id"];
+/*
+  CS-1376 - THE STATE DOOR REQUIRES THE CARD AND THE STATE AND TAKES A SNOOZE'S
+  LENGTH AND THE FOUR BESIDE THEM. There is no name for an until instant here, on
+  purpose: a page that could send one would have to read a clock to build it, and the
+  advisor resolves a duration token against its own injected clock instead.
+*/
+var STATE_PARAMS = ["id", "state"];
+var STATE_OPTIONAL = ["duration"].concat(ADVICE_PARAMS);
 
 /*
   One row per door a panel may knock on: where it goes, what verb it answers,
@@ -788,6 +801,12 @@ var REQUESTS = {
     method: "GET",
     required: DERIVATION_PARAMS,
     optional: ADVICE_PARAMS
+  },
+  state: {
+    path: "/api/advice/<id>/state",
+    method: "POST",
+    required: STATE_PARAMS,
+    optional: STATE_OPTIONAL
   }
 };
 
@@ -899,6 +918,20 @@ function requestFetch(spec, query, params) {
     return fetch("/api/advice?" + query, {
       method: "GET",
       headers: { "Accept": "application/json" },
+      cache: "no-store"
+    });
+  }
+  if (spec === REQUESTS.state) {
+    /*
+      THE ONE REQUEST THAT CHANGES THE LEDGER, AND THE ONE THAT CARRIES THE PROOF.
+      The server admits a state-changing request only with this header, which a
+      cross-site form cannot set and a cross-site fetch cannot send without a
+      preflight the server refuses. The id is encoded into its own path segment for
+      the reason the derivation's is.
+    */
+    return fetch("/api/advice/" + encodeURIComponent(params.id) + "/state?" + query, {
+      method: "POST",
+      headers: { "Accept": "application/json", "X-Clockspeed-Request": "1" },
       cache: "no-store"
     });
   }
@@ -1028,6 +1061,7 @@ var requestOptimize = makeDoor(REQUESTS.optimize);
 var requestPower = makeDoor(REQUESTS.power);
 var requestAdvice = makeDoor(REQUESTS.advice);
 var askDerivation = makeDoor(REQUESTS.derivation);
+var askState = makeDoor(REQUESTS.state);
 
 function requestDerivation(id, params, onSettled) {
   /*
@@ -1049,6 +1083,29 @@ function requestDerivation(id, params, onSettled) {
   }
   stated.id = id;
   return askDerivation(stated, onSettled);
+}
+
+function requestState(id, params, onSettled) {
+  /*
+    Record one card's state: the card, then the state, a snooze's duration token and the
+    statement that produced the card.
+
+    THE ID IS ITS OWN ARGUMENT for the reason requestDerivation gives, and it goes through
+    the one builder, so a non-string id and a name outside STATE_OPTIONAL are refused as
+    they are at every other door: false, and onSettled never called. THE STATEMENT RIDES
+    BESIDE THE STATE because a card id only means something under the statement that
+    listed it, which is what the route resolves the advice under before it records.
+  */
+  if (!params || typeof params !== "object") {
+    return false;
+  }
+  var stated = {};
+  var names = Object.keys(params);
+  for (var index = 0; index < names.length; index += 1) {
+    stated[names[index]] = params[names[index]];
+  }
+  stated.id = id;
+  return askState(stated, onSettled);
 }
 
 /* --- one repaint, on demand, never on a schedule ------------------------ */

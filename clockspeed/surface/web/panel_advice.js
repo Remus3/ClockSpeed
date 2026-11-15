@@ -23,10 +23,19 @@
   tests/surface/test_panel_advice.py binds each one to the Python constant it
   copies, which nothing does for panel_optimize.js's two lists.
 
-  NO FETCH IN THIS FILE. data.actions.requestAdvice and
-  data.actions.requestDerivation are the only ways out, and app.js builds both
-  queries from its own tables, so this panel chooses the values and never the
-  names, the path or the verb.
+  NO FETCH IN THIS FILE. data.actions.requestAdvice,
+  data.actions.requestDerivation and (CS-1376) data.actions.requestState are the
+  only ways out, and app.js builds every query from its own tables, so this panel
+  chooses the values and never the names, the path or the verb.
+
+  CS-1376 - FOUR CONTROLS ON A STATED CARD: accept, dismiss, snooze and pin. Each posts
+  one state through the state door with the card id and the four that PRODUCED the card,
+  and a card no statement produced carries none. A SNOOZE NAMES A LENGTH AS A TOKEN, never
+  an instant: the page reads no clock and adds nothing, and the advisor resolves the token
+  against its own injected clock. A recorded state is not shown on the strength of the
+  click: the panel asks the listing again under the same four and draws what the advisor
+  now resolves, so a card the advisor hides leaves the page and one it keeps reads its
+  served state.
 
   A CARD REMEMBERS THE STATEMENT THAT PRODUCED IT. The bench stays editable after an
   answer lands, and a card id only means something under the statement it was
@@ -58,6 +67,18 @@ var DIRECTION_VALUES = ["buildings", "power", "raw"];
 /* clockspeed/solve/ratio.py, BYPRODUCT_POLICIES. */
 var POLICY_VALUES = ["balanced", "sinkable"];
 
+/*
+  clockspeed/advisor/ledger.py, SNOOZE_DURATIONS: the tokens a snooze may name, as the
+  mapping's keys. A test binds this list to the mapping exactly, so a token added there
+  and not here reads as a missing choice.
+*/
+var SNOOZE_CHOICES = [
+  { value: "1h", label: "1 hour" },
+  { value: "4h", label: "4 hours" },
+  { value: "1d", label: "1 day" },
+  { value: "1w", label: "1 week" }
+];
+
 /* --- the lines this panel can write ------------------------------------- */
 
 /*
@@ -72,8 +93,14 @@ var BUSY_LINE = "that press found a request running; nothing was sent.";
 var NOT_SENT_LINE = "nothing was sent: a repaint or a request was running.";
 var NO_ADVICE_DOOR_LINE = "this page published no advice door; nothing was sent.";
 var NO_READ_DOOR_LINE = "this page published no derivation door; nothing was sent.";
+var NO_STATE_DOOR_LINE = "this page published no state door; nothing was sent.";
 var UNREACHABLE_LINE = "no answer: unreachable.";
 var NO_OUTCOME_LINE = "the page returned no outcome at all, so nothing landed.";
+
+var STATE_IDLE_LINE = "state not changed.";
+var RECORDING_LINE = "recording the state ...";
+var RECORDED_LINE = "state recorded; reading the listing again.";
+var NO_LENGTH_LINE = "still empty: snooze length.";
 
 var READING_LINE = "reading the derivation ...";
 var UNREAD_LINE = "derivation not read.";
@@ -408,6 +435,8 @@ registerPanel("advice", function mountAdvice(root, data) {
   var askDoor = actions && typeof actions.requestAdvice === "function" ? actions.requestAdvice : null;
   var readDoor =
     actions && typeof actions.requestDerivation === "function" ? actions.requestDerivation : null;
+  var stateDoor =
+    actions && typeof actions.requestState === "function" ? actions.requestState : null;
 
   var heading = document.createElement("h2");
   heading.id = "h-panel-advice";
@@ -493,11 +522,110 @@ registerPanel("advice", function mountAdvice(root, data) {
 
   /* --- the cards -------------------------------------------------------- */
 
-  function renderCard(region, card, position, statement) {
+  function addPlainControl(row, card, position, stem, label, onPress) {
+    /* One state button, named for its card so a screen reader can tell four rows apart. */
+    var control = document.createElement("button");
+    control.id = "advice-" + stem + "-" + String(position);
+    control.setAttribute("type", "button");
+    control.setAttribute("aria-label", label + ": " + textOf(card.headline));
+    control.textContent = label;
+    control.addEventListener("click", onPress);
+    row.appendChild(control);
+    return control;
+  }
+
+  function renderControls(box, card, position, statement) {
+    /*
+      THE FOUR CONTROLS OF A STATED CARD, and the line they answer on. The statement is
+      the one that produced the card and is copied field by field into every press, never
+      read from the bench again.
+    */
+    var row = document.createElement("div");
+    row.className = "advice-read advice-controls";
+    var line = addLine(box, "p", "lede", STATE_IDLE_LINE);
+    line.id = "advice-state-status-" + String(position);
+    line.setAttribute("aria-live", "polite");
+
+    function sayState(message) {
+      line.textContent = message;
+    }
+
+    function record(control, kind, length) {
+      if (!stateDoor) {
+        sayState(NO_STATE_DOOR_LINE);
+        return;
+      }
+      var params = {
+        target: statement.target,
+        rate: statement.rate,
+        direction: statement.direction,
+        byproduct_policy: statement.byproduct_policy
+      };
+      params.state = kind;
+      if (length !== null) {
+        params.duration = length;
+      }
+      ask(
+        control,
+        sayState,
+        RECORDING_LINE,
+        function (settled) {
+          return stateDoor(card.id, params, settled);
+        },
+        function (outcome) {
+          var refusal = refusalWord(outcome);
+          if (refusal !== null) {
+            sayState(refusal);
+            return;
+          }
+          sayState(RECORDED_LINE);
+          rereadStated(statement);
+        }
+      );
+    }
+
+    var accept = addPlainControl(row, card, position, "accept", "Accept", function onAccept() {
+      record(accept, "accepted", null);
+    });
+    var dismiss = addPlainControl(row, card, position, "dismiss", "Dismiss", function onDismiss() {
+      record(dismiss, "dismissed", null);
+    });
+    var pin = addPlainControl(row, card, position, "pin", "Pin", function onPin() {
+      record(pin, "pinned", null);
+    });
+
+    var picker = document.createElement("select");
+    picker.id = "advice-snooze-for-" + String(position);
+    picker.className = "bench-input";
+    picker.setAttribute("name", "duration");
+    picker.setAttribute("autocomplete", "off");
+    picker.setAttribute("aria-label", "Snooze length: " + textOf(card.headline));
+    addOption(picker, "", "");
+    for (var index = 0; index < SNOOZE_CHOICES.length; index += 1) {
+      addOption(picker, SNOOZE_CHOICES[index].value, SNOOZE_CHOICES[index].label);
+    }
+    row.appendChild(picker);
+
+    var snooze = addPlainControl(row, card, position, "snooze", "Snooze", function onSnooze() {
+      var length = readField(picker);
+      if (length === "") {
+        sayState(NO_LENGTH_LINE);
+        return;
+      }
+      record(snooze, "snoozed", length);
+    });
+    box.appendChild(row);
+  }
+
+  function renderCard(region, card, position, statement, stated) {
     var box = document.createElement("div");
     box.className = "hud-card advice-card";
     addLine(box, "p", "note advice-headline", textOf(card.headline));
     addLine(box, "p", "note", textOf(card.reason));
+    if (stated) {
+      /* The state the advisor served, as served: the page decides nothing about it. */
+      addLine(box, "p", "note", "state: " + textOf(card.state));
+    }
 
     var row = document.createElement("div");
     row.className = "advice-read";
@@ -565,6 +693,10 @@ registerPanel("advice", function mountAdvice(root, data) {
       );
     });
 
+    if (stated) {
+      renderControls(box, card, position, statement);
+    }
+
     region.appendChild(box);
   }
 
@@ -576,7 +708,7 @@ registerPanel("advice", function mountAdvice(root, data) {
       var card = objectOrNull(rows[index]);
       /* Strictly true. A hidden card is served so a surface can restore it, not list it. */
       if (card && card.visible === true) {
-        renderCard(region, card, shown, statement || {});
+        renderCard(region, card, shown, statement || {}, Boolean(statement));
         shown += 1;
       }
     }
@@ -689,6 +821,32 @@ registerPanel("advice", function mountAdvice(root, data) {
     fillAnswer(outcome, statement);
     if (keepFocus) {
       button.focus();
+    }
+  }
+
+  function rereadStated(statement) {
+    /*
+      THE LISTING ASKED AGAIN UNDER THE STATEMENT THAT PRODUCED THE CARDS, after a state
+      was recorded. Drawn through renderAnswer like any answer, so what stays and what
+      leaves is the advisor's visible flag and nothing this panel works out.
+    */
+    if (!askDoor) {
+      return;
+    }
+    ask(
+      button,
+      sayStatus,
+      ASKING_LINE,
+      function (settled) {
+        region.setAttribute("aria-busy", "true");
+        return askDoor(statement, settled);
+      },
+      function (outcome) {
+        renderAnswer(outcome, statement);
+      }
+    );
+    if (!waiting) {
+      region.removeAttribute("aria-busy");
     }
   }
 

@@ -60,7 +60,7 @@ from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor import plans
 from clockspeed.advisor.advise import advise_world
-from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError
+from clockspeed.advisor.ledger import CardState, Ledger, MuteStore, StoreError, snooze_end
 from clockspeed.data import locate, registry, schematics, version
 from clockspeed.data.docs_extract import (
     DocsExtractError,
@@ -786,6 +786,21 @@ class StoreAdviceSource:
             and reads no cost: the advisor reads the requirement.
         """
         return plans.schematic_request_from(catalog, registry, world.unlocks, schematic, parameters)
+
+    def snooze_until(self, duration: str) -> int | None:
+        """The instant a snooze of this token ends, on this source's injected clock.
+
+        The advisor's own door, ``clockspeed.advisor.ledger.snooze_end``: the vocabulary and
+        the addition are the advisor's, and this method only hands over the clock.
+
+        Args:
+            duration: The token as received.
+
+        Returns:
+            The injected clock's instant plus the token's seconds, or None when the token is
+            off the advisor's mapping.
+        """
+        return snooze_end(duration, now=self._clock())
 
     def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
         """Record one card's state in the world's ledger.

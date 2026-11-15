@@ -53,6 +53,7 @@ from urllib.parse import parse_qsl
 import pytest
 
 from clockspeed.advisor.cards import card_id
+from clockspeed.advisor.ledger import SNOOZE_DURATIONS
 from clockspeed.advisor.plans import plan_offer
 from clockspeed.advisor.rules import plan as plan_rules
 from clockspeed.solve import optimize, ratio
@@ -399,7 +400,8 @@ globalThis.fetch = function (target, init) {
   fetchCalls.push({
     url: String(target),
     method: init && init.method ? String(init.method) : null,
-    has_body: Boolean(init && Object.prototype.hasOwnProperty.call(init, "body"))
+    has_body: Boolean(init && Object.prototype.hasOwnProperty.call(init, "body")),
+    headers: init && init.headers ? Object.assign({}, init.headers) : {}
   });
   return new Promise(function (resolve, reject) {
     pendingFetches.push({ resolve: resolve, reject: reject });
@@ -490,6 +492,12 @@ function stubDerivation(id, params, onSettled) {
   return answerOf();
 }
 
+function stubState(id, params, onSettled) {
+  doorCalls.push({ door: "state", id: id, params: copyOf(params) });
+  settlers.push(onSettled);
+  return answerOf();
+}
+
 var data = request.data;
 if (request.door === "live") {
   /*
@@ -500,8 +508,14 @@ if (request.door === "live") {
   globalThis.repainting = false;
   liveFetch = true;
   data.actions = { requestAdvice: requestAdvice, requestDerivation: requestDerivation };
+  if (!request.no_state_door) {
+    data.actions.requestState = requestState;
+  }
 } else if (request.door === "stub") {
   data.actions = { requestAdvice: stubAdvice, requestDerivation: stubDerivation };
+  if (!request.no_state_door) {
+    data.actions.requestState = stubState;
+  }
 }
 
 /* --- stepping ------------------------------------------------------------ */
@@ -617,14 +631,16 @@ function runStep(spec) {
   if (spec.ask) {
     step.kind = "ask";
     step.matched = 1;
-    step.accepted =
-      spec.ask.door === "advice"
-        ? requestAdvice(spec.ask.params, function () {
-            return undefined;
-          })
-        : requestDerivation(spec.ask.id, spec.ask.params, function () {
-            return undefined;
-          });
+    var noop = function () {
+      return undefined;
+    };
+    if (spec.ask.door === "advice") {
+      step.accepted = requestAdvice(spec.ask.params, noop);
+    } else if (spec.ask.door === "state") {
+      step.accepted = requestState(spec.ask.id, spec.ask.params, noop);
+    } else {
+      step.accepted = requestDerivation(spec.ask.id, spec.ask.params, noop);
+    }
     return Promise.resolve(step);
   }
   step.kind = "resolve";
@@ -729,6 +745,7 @@ def drive(
     door: str = DOOR_STUB,
     accepts: Sequence[bool] = (),
     door_throws: bool = False,
+    no_state_door: bool = False,
     steps: Sequence[Mapping[str, Any]] = (),
 ) -> Mapping[str, Any]:
     """Mount the shipped module under the local driver and run the steps.
@@ -740,6 +757,7 @@ def drive(
         accepts: What a stub door returns for call 0, call 1 and so on. A call past
             the end of this sequence is accepted.
         door_throws: Whether a stub door throws rather than answering.
+        no_state_door: Whether the actions leave out the state door (CS-1376).
         steps: ``fill``, ``click``, ``settle``, ``ask`` and ``resolve`` entries.
 
     Returns:
@@ -768,6 +786,7 @@ def drive(
                 "door": door,
                 "accepts": list(accepts),
                 "door_throws": door_throws,
+                "no_state_door": no_state_door,
                 "steps": [dict(step) for step in steps],
             }
         ).encode("ascii")
@@ -2683,3 +2702,563 @@ def test_the_audit_listing_shows_its_visible_cards_and_hides_the_dismissed_one(
     assert absent == (), text
     leaked = tuple(headline for headline in hidden if headline in text)
     assert leaked == (), text
+
+
+# ---------------------------------------------------------------------------
+# p. CS-1376 - accept, dismiss, snooze and pin, through the state door
+# ---------------------------------------------------------------------------
+#
+# THE CRITERION. ``docs/item_notes/phase5.md``, ``## CS-1376``, ``### Acceptance``: each
+# card a statement produced carries four controls posting its state through
+# ``POST /api/advice/<id>/state`` with that card's statement, by ``data.actions`` in
+# ``app.js``; the panel fetches nothing and computes nothing; a snooze names a token from
+# ``clockspeed/advisor/ledger.py::SNOOZE_DURATIONS``, which the panel spells as literals
+# and a test here binds to the mapping.
+
+#: The state each plain control records, keyed by the control's id stem.
+PLAIN_CONTROLS: Final[Mapping[str, str]] = {
+    "accept": "accepted",
+    "dismiss": "dismissed",
+    "pin": "pinned",
+}
+
+#: The snooze control's id stem, and its length select's.
+SNOOZE_STEM: Final = "snooze"
+SNOOZE_FOR_STEM: Final = "snooze-for"
+
+#: The one mapped token an arm picks when it needs only one.
+PICKED_TOKEN: Final = min(SNOOZE_DURATIONS, key=SNOOZE_DURATIONS.__getitem__)
+
+#: The header the server's same-origin refusal requires on a state-changing request.
+PROOF_HEADER: Final = "X-Clockspeed-Request"
+
+
+def control_id(stem: str, index: int) -> str:
+    """The id of one control of the card at this listed position.
+
+    Args:
+        stem: ``accept``, ``dismiss``, ``pin``, ``snooze`` or ``snooze-for``.
+        index: The card's position among the listed cards.
+
+    Returns:
+        Its element id.
+    """
+    return f"advice-{stem}-{index}"
+
+
+def state_status_id(index: int) -> str:
+    """The state line of the card at this listed position."""
+    return f"advice-state-status-{index}"
+
+
+def stated_steps(*cards: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The steps that state the fixture request and let it answer with these cards.
+
+    Args:
+        *cards: The cards the answer lists.
+
+    Returns:
+        The steps.
+    """
+    body = listing(*cards, plan_outcome={"status": "ranked"})
+    return [
+        *fills(),
+        press_ask(),
+        {"settle": {"call": 0, "outcome": answered(body)}},
+    ]
+
+
+def recorded(state: str, **extra: str) -> dict[str, Any]:
+    """A settled 200 of the state route, built by the shipped constructor.
+
+    Args:
+        state: The state the body names.
+        **extra: Further body keys.
+
+    Returns:
+        The outcome shape ``app.js`` hands a callback.
+    """
+    body = {"id": "x", "state": state, "snoozed_until": None, **extra}
+    response = contract.ok(advice_endpoint.STATE_ENDPOINT, body)
+    return {"reached": True, "http": response.http_status, "body": dict(response.payload)}
+
+
+@pytest.mark.parametrize(("stem", "kind"), sorted(PLAIN_CONTROLS.items()))
+def test_each_plain_control_posts_its_state_with_the_card_id_and_the_statement(
+    stem: str, kind: str, tmp_path: Path
+) -> None:
+    """The statement that PRODUCED the card, whatever the bench holds by the time of the press."""
+    answer_card = card("Answer shown", "Answer reason")
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *stated_steps(answer_card),
+            {"fill": {"id": FIELD_IDS["rate"], "value": "999"}},
+            {"click": control_id(stem, 0)},
+        ],
+    )
+    calls = door_calls(report, "state")
+    count = len(calls)
+    assert count == 1, calls
+    assert calls[0]["id"] == answer_card["id"]
+    assert calls[0]["params"] == {**STATED, advice_endpoint.STATE_PARAMETER: kind}, calls[0]
+
+
+@pytest.mark.parametrize("token", sorted(SNOOZE_DURATIONS))
+def test_the_snooze_control_posts_the_picked_token_as_a_duration(
+    token: str, tmp_path: Path
+) -> None:
+    answer_card = card("Answer shown", "Answer reason")
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *stated_steps(answer_card),
+            {"fill": {"id": control_id(SNOOZE_FOR_STEM, 0), "value": token}},
+            {"click": control_id(SNOOZE_STEM, 0)},
+        ],
+    )
+    calls = door_calls(report, "state")
+    count = len(calls)
+    assert count == 1, calls
+    assert calls[0]["id"] == answer_card["id"]
+    assert calls[0]["params"] == {
+        **STATED,
+        advice_endpoint.STATE_PARAMETER: advice_endpoint.SNOOZED,
+        advice_endpoint.DURATION_PARAMETER: token,
+    }, calls[0]
+
+
+def test_a_snooze_with_no_length_picked_reaches_no_door_and_names_the_field(
+    tmp_path: Path,
+) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[*stated_steps(card("Answer shown", "r")), {"click": control_id(SNOOZE_STEM, 0)}],
+    )
+    assert door_calls(report, "state") == ()
+    line = text_of(report, state_status_id(0))
+    assert "snooze length" in line, line
+
+
+def test_each_card_of_a_stated_answer_carries_its_own_four_controls(tmp_path: Path) -> None:
+    first, second = card("First", "first reason"), card("Second", "second reason")
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[*stated_steps(first, second), {"click": control_id("dismiss", 1)}],
+    )
+    for index in (0, 1):
+        for stem in (*PLAIN_CONTROLS, SNOOZE_STEM, SNOOZE_FOR_STEM):
+            assert row_of(report["nodes"], control_id(stem, index))
+    calls = door_calls(report, "state")
+    assert [call["id"] for call in calls] == [second["id"]]
+
+
+def test_a_card_held_before_any_request_carries_no_controls(tmp_path: Path) -> None:
+    """A card no statement produced is not one this item's controls are for."""
+    held = card("Held", "held reason")
+    report = drive(tmp_path, payload(held))
+    ids = {row["id"] for row in report["nodes"]}
+    assert read_id(0) in ids, "the card did not render, so this grades nothing"
+    leaked = {control_id(stem, 0) for stem in (*PLAIN_CONTROLS, SNOOZE_STEM)} & ids
+    assert leaked == set(), sorted(leaked)
+
+
+def test_the_four_controls_are_buttons_named_for_their_card_and_one_select(
+    tmp_path: Path,
+) -> None:
+    answer_card = card("Answer shown", "Answer reason")
+    report = drive(tmp_path, payload(), steps=stated_steps(answer_card))
+    for stem in (*PLAIN_CONTROLS, SNOOZE_STEM):
+        row = row_of(report["nodes"], control_id(stem, 0))
+        assert row["tag"] == "BUTTON"
+        assert row["attributes"]["type"] == "button"
+        assert "Answer shown" in row["attributes"]["aria-label"], row["attributes"]
+        assert "click" in row["listens"]
+    assert row_of(report["nodes"], control_id(SNOOZE_FOR_STEM, 0))["tag"] == "SELECT"
+    assert "FORM" not in tags(report)
+
+
+def test_the_snooze_lengths_are_literals_bound_to_the_advisors_mapping(tmp_path: Path) -> None:
+    """The picker offers exactly the tokens ``SNOOZE_DURATIONS`` holds, blank first."""
+    report = drive(tmp_path, payload(), steps=stated_steps(card("Answer shown", "r")))
+    options = options_of(report, control_id(SNOOZE_FOR_STEM, 0))
+    values = tuple(value for value, _text in options)
+    assert values[0] == "", "the picker did not start blank"
+    assert sorted(values[1:]) == sorted(SNOOZE_DURATIONS), values
+
+
+def test_the_panels_spelled_names_are_the_routes_own() -> None:
+    """The kinds and the two parameter names the panel writes are the endpoint's constants."""
+    source = read_asset(MODULE)
+    for kind in ("accepted", "dismissed", "pinned", advice_endpoint.SNOOZED):
+        assert f'"{kind}"' in source, kind
+        assert kind in advice_endpoint.RECORDABLE_STATES
+    assert f"params.{advice_endpoint.STATE_PARAMETER} = " in source
+    assert f"params.{advice_endpoint.DURATION_PARAMETER} = " in source
+
+
+def test_the_panel_reads_no_clock() -> None:
+    """A snooze's instant is the advisor's: no date, no timer and no performance clock."""
+    code = code_only(read_asset(MODULE))
+    reached = tuple(
+        name for name in ("Date", "performance", "setTimeout", "setInterval") if name in code
+    )
+    assert reached == (), reached
+    planted = code_only("var until = Date.now() + 3600;\n")
+    assert "Date" in planted
+
+
+def test_a_recorded_state_re_reads_the_listing_under_the_same_statement(
+    tmp_path: Path,
+) -> None:
+    """The panel shows what the advisor resolves, so it asks again rather than deciding."""
+    answer_card = card("Answer shown", "Answer reason")
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *stated_steps(answer_card),
+            {"click": control_id("dismiss", 0)},
+            {"settle": {"call": 1, "outcome": recorded("dismissed")}},
+        ],
+    )
+    asked = door_calls(report, "advice")
+    expected_asks = 2
+    count = len(asked)
+    assert count == expected_asks, asked
+    assert asked[1]["params"] == dict(STATED), asked[1]
+
+
+def test_the_re_read_listing_decides_what_the_page_shows(tmp_path: Path) -> None:
+    """A card the advisor now flags hidden leaves the page, and a visible one reads its state."""
+    kept, dropped = card("Kept card", "kept reason"), card("Dropped card", "dropped reason")
+    reread = listing(
+        {**kept, "state": "pinned"},
+        {**dropped, "state": "dismissed", "visible": False},
+        plan_outcome={"status": "ranked"},
+    )
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *stated_steps(kept, dropped),
+            {"click": control_id("dismiss", 1)},
+            {"settle": {"call": 1, "outcome": recorded("dismissed")}},
+            {"settle": {"call": 2, "outcome": answered(reread)}},
+        ],
+    )
+    text = text_of(report, ANSWER_ID)
+    assert "Kept card" in text, text
+    assert "state: pinned" in text, text
+    assert "Dropped card" not in text, text
+
+
+def test_a_refused_state_names_its_word_on_the_card_and_re_reads_nothing(
+    tmp_path: Path,
+) -> None:
+    refusal = contract.bad_request(
+        advice_endpoint.STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER
+    )
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *stated_steps(card("Answer shown", "r")),
+            {"fill": {"id": control_id(SNOOZE_FOR_STEM, 0), "value": PICKED_TOKEN}},
+            {"click": control_id(SNOOZE_STEM, 0)},
+            {"settle": {"call": 1, "outcome": delivered(refusal)}},
+        ],
+    )
+    line = text_of(report, state_status_id(0))
+    assert contract.REASON_INVALID_PARAMETER in line, line
+    assert PICKED_TOKEN not in line, line
+    count = len(door_calls(report, "advice"))
+    assert count == 1, "a refused state must not repaint the listing"
+
+
+def test_a_state_door_that_refuses_says_so_on_the_card(tmp_path: Path) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        accepts=[True, False],
+        steps=[*stated_steps(card("Answer shown", "r")), {"click": control_id("pin", 0)}],
+    )
+    line = text_of(report, state_status_id(0))
+    assert "nothing was sent" in line, line
+
+
+def test_a_refused_state_press_leaves_no_flag_up_so_a_later_press_still_asks(
+    tmp_path: Path,
+) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        accepts=[True, False, True],
+        steps=[
+            *stated_steps(card("Answer shown", "r")),
+            {"click": control_id("pin", 0)},
+            {"click": control_id("pin", 0)},
+        ],
+    )
+    count = len(door_calls(report, "state"))
+    expected_presses = 2
+    assert count == expected_presses, "a refused press left the flag up and blocked the next"
+
+
+def test_a_page_with_no_state_door_says_so_on_the_card(tmp_path: Path) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        no_state_door=True,
+        steps=[*stated_steps(card("Answer shown", "r")), {"click": control_id("accept", 0)}],
+    )
+    line = text_of(report, state_status_id(0))
+    assert "no state door" in line, line
+    assert door_calls(report, "state") == ()
+
+
+def test_a_control_pressed_while_a_request_runs_asks_nothing(tmp_path: Path) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        steps=[
+            *stated_steps(card("Answer shown", "r")),
+            {"click": control_id("accept", 0)},
+            {"click": control_id("pin", 0)},
+        ],
+    )
+    count = len(door_calls(report, "state"))
+    assert count == 1, door_calls(report, "state")
+
+
+# --- what leaves the page, through app.js's own state door ------------------
+
+
+def test_the_state_door_posts_with_the_proof_header_the_server_requires(
+    tmp_path: Path,
+) -> None:
+    held = card("Held", "held reason")
+    answer = answered(listing(held, plan_outcome={"status": "ranked"}))
+    report = drive(
+        tmp_path,
+        payload(),
+        door=DOOR_LIVE,
+        steps=[
+            *fills(),
+            press_ask(),
+            {"resolve": {"call": 0, "status": answer["http"], "body": answer["body"]}},
+            {"click": control_id("dismiss", 0)},
+        ],
+    )
+    calls = report["fetch_calls"]
+    expected_calls = 2
+    count = len(calls)
+    assert count == expected_calls, calls
+    card_key = held["id"]
+    state_name = advice_endpoint.STATE_PARAMETER
+    id_name = advice_endpoint.ID_PARAMETER
+    assert calls[1]["url"] == (
+        f"{advice_endpoint.ENDPOINT}/{card_key}/state?{id_name}={card_key}"
+        f"&{state_name}=dismissed&{stated_query()}"
+    ), calls[1]["url"]
+    assert calls[1]["method"] == "POST"
+    assert calls[1]["has_body"] is False
+    assert calls[1]["headers"].get(PROOF_HEADER) == "1", calls[1]["headers"]
+
+
+def test_the_state_door_refuses_what_its_table_does_not_take(tmp_path: Path) -> None:
+    # An until instant has no name at this door: a page sending one would read a clock.
+    for card_key, params in (
+        ("abc", {"state": "snoozed", "until": "5"}),
+        (7, {"state": "pinned"}),
+        ("abc", {"state": "pinned", "duration": 3600}),
+        ("abc", None),
+    ):
+        report = drive(
+            tmp_path,
+            payload(),
+            door=DOOR_LIVE,
+            steps=[{"ask": {"door": "state", "id": card_key, "params": params}}],
+        )
+        assert report["steps"][-1]["accepted"] is False, (card_key, params)
+        assert report["fetch_calls"] == []
+    # THE CONTROL: the same door fetches for what its table does take.
+    taken = drive(
+        tmp_path,
+        payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {
+                "ask": {
+                    "door": "state",
+                    "id": "abc",
+                    "params": {"state": "snoozed", "duration": PICKED_TOKEN},
+                }
+            }
+        ],
+    )
+    assert taken["steps"][-1]["accepted"] is True
+    count = len(taken["fetch_calls"])
+    assert count == 1, taken["fetch_calls"]
+
+
+def test_the_state_door_shares_the_one_in_flight_flag(tmp_path: Path) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {"ask": {"door": "state", "id": "abc", "params": {"state": "pinned"}}},
+            {"ask": {"door": "advice", "params": dict(STATED)}},
+        ],
+    )
+    assert report["steps"][-2]["accepted"] is True
+    assert report["steps"][-1]["accepted"] is False
+    count = len(report["fetch_calls"])
+    assert count == 1, report["fetch_calls"]
+
+
+def test_an_id_cannot_step_out_of_the_state_path_segment(tmp_path: Path) -> None:
+    report = drive(
+        tmp_path,
+        payload(),
+        door=DOOR_LIVE,
+        steps=[{"ask": {"door": "state", "id": "../x?y=", "params": {"state": "pinned"}}}],
+    )
+    url = report["fetch_calls"][0]["url"]
+    assert url.startswith("/api/advice/..%2Fx%3Fy%3D/state?"), url
+
+
+# --- the real routes, so the stubs cannot drift ------------------------------
+
+
+def replay_as(
+    table: Mapping[tuple[str, str], contract.Handler], method: str, url: str
+) -> contract.Response:
+    """Answer a URL this page fetched as the server's own dispatch would, for any verb.
+
+    Args:
+        table: The real route table.
+        method: The verb the page named.
+        url: A URL out of the driver's ``fetch_calls``.
+
+    Returns:
+        What the route answers.
+    """
+    raw_path, _mark, raw_query = url.partition("?")
+    by_template: dict[str, dict[str, contract.Handler]] = {}
+    for (verb, template), handler in table.items():
+        by_template.setdefault(template, {})[verb] = handler
+    matched = server.match_route(by_template, raw_path)
+    assert matched is not None, url
+    template, captured = matched
+    params = dict(
+        parse_qsl(raw_query, keep_blank_values=True, strict_parsing=True, errors="strict")
+    )
+    params.update(captured)
+    return table[method, template](params)
+
+
+#: Each control, as its steps before the press and the state the route then reports.
+REAL_CONTROLS: Final = (
+    ("accept", "accepted", None),
+    ("dismiss", "dismissed", None),
+    ("pin", "pinned", None),
+    *(("snooze", "snoozed", token) for token in sorted(SNOOZE_DURATIONS)),
+)
+
+
+@pytest.mark.parametrize(
+    ("stem", "kind", "token"),
+    REAL_CONTROLS,
+    ids=[f"{stem}-{token}" if token else stem for stem, _kind, token in REAL_CONTROLS],
+)
+def test_each_control_over_the_real_routes_records_and_re_reads(
+    stem: str, kind: str, token: str | None, tmp_path: Path
+) -> None:
+    """The ascent world's stated plan card, the real source with its clock fixed.
+
+    THE RESPONSES ARE PRECOMPUTED IN THE ORDER THE PAGE ASKS, and the page's own URLs are then
+    replayed against a FRESH store in that order and compared byte for byte, so a door that
+    spelled a name the route does not take, or lost the statement, answers another body.
+    """
+    for name in ("live", "replay", "drive"):
+        (tmp_path / name).mkdir()
+    table = real_table("ranked", tmp_path / "live")
+    stated = source_fixtures._stated()  # noqa: SLF001
+    listed = table["GET", advice_endpoint.ENDPOINT](stated)
+    adopt = next(
+        row
+        for row in visible_cards(data_of(listed))
+        if row["rule_id"] == plan_rules.ADOPT_RULE.rule_id
+    )
+    asked: dict[str, str] = {
+        advice_endpoint.ID_PARAMETER: str(adopt["id"]),
+        advice_endpoint.STATE_PARAMETER: kind,
+        **stated,
+    }
+    if token is not None:
+        asked[advice_endpoint.DURATION_PARAMETER] = token
+    state_answer = table["POST", advice_endpoint.STATE_ENDPOINT](asked)
+    assert state_answer.http_status == contract.HTTP_OK, state_answer.payload
+    relisted = table["GET", advice_endpoint.ENDPOINT](stated)
+    adopt_index = [
+        row["rule_id"] == plan_rules.ADOPT_RULE.rule_id for row in visible_cards(data_of(listed))
+    ].index(True)
+    prefix: list[dict[str, Any]] = []
+    if token is not None:
+        prefix.append({"fill": {"id": control_id(SNOOZE_FOR_STEM, adopt_index), "value": token}})
+
+    report = drive(
+        tmp_path / "drive",
+        real_payload(table),
+        door=DOOR_LIVE,
+        steps=[
+            *fills(stated),
+            press_ask(),
+            {"resolve": {"call": 0, "status": listed.http_status, "body": listed.payload}},
+            *prefix,
+            {"click": control_id(stem, adopt_index)},
+            {
+                "resolve": {
+                    "call": 1,
+                    "status": state_answer.http_status,
+                    "body": state_answer.payload,
+                }
+            },
+            {
+                "resolve": {
+                    "call": 2,
+                    "status": relisted.http_status,
+                    "body": relisted.payload,
+                }
+            },
+        ],
+    )
+
+    calls = report["fetch_calls"]
+    expected_calls = 3
+    count = len(calls)
+    assert count == expected_calls, calls
+    assert [call["method"] for call in calls] == ["GET", "POST", "GET"]
+    assert calls[1]["headers"].get(PROOF_HEADER) == "1"
+    fresh = real_table("ranked", tmp_path / "replay")
+    for call, wanted in zip(calls, (listed, state_answer, relisted), strict=True):
+        got = replay_as(fresh, call["method"], call["url"])
+        assert contract.encode(got.payload) == contract.encode(wanted.payload), call["url"]
+
+    answer = data_of(state_answer)
+    if token is not None:
+        assert answer["snoozed_until"] == source_fixtures.NOW + SNOOZE_DURATIONS[token]
+    else:
+        assert answer["snoozed_until"] is None
+    shown = text_of(report, ANSWER_ID)
+    if kind in {"accepted", "pinned"}:
+        assert adopt["headline"] in shown, shown
+        assert f"state: {kind}" in shown, shown
+    else:
+        assert adopt["headline"] not in shown, shown

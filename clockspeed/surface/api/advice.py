@@ -90,6 +90,15 @@ write itself is the bound
 :class:`AdviceStore`'s, which hands it to the advisor's ledger. ``completed`` is
 not recordable here - a card is completed by the world, not by a click.
 
+A SNOOZE'S LENGTH IS A TOKEN (CS-1376). A snooze carries exactly one of ``until`` and
+``duration``: ``duration`` names a token off the advisor's closed mapping
+(``clockspeed.advisor.ledger.SNOOZE_DURATIONS``) and the bound :class:`DurationAdviceStore`
+resolves it against its injected clock, so the success body's ``snoozed_until`` is the
+instant the source answered and this module adds nothing to anything. Both is 400
+``invalid_parameter``, neither stays 400 ``missing_parameter``, and a ``duration`` on any
+other state, or a token the source does not hold, is 400 ``invalid_parameter`` - all before
+any provider is read.
+
 WHY A GET ON IT IS 405 RATHER THAN 404 OR 501. The path is real and only the
 verb is wrong, so :func:`method_boundary_routes` publishes a GET route that
 answers ``contract.method_not_allowed``. It is published apart from
@@ -137,6 +146,7 @@ __all__ = [
     "DERIVATION_ENDPOINT",
     "DERIVATION_KEYS",
     "DIRECTION_PARAMETER",
+    "DURATION_PARAMETER",
     "ENDPOINT",
     "ID_PARAMETER",
     "MAX_UNTIL_DIGITS",
@@ -156,6 +166,7 @@ __all__ = [
     "UNTIL_PARAMETER",
     "AdviceSource",
     "AdviceStore",
+    "DurationAdviceStore",
     "SchematicAdviceSource",
     "SchematicCatalogs",
     "make_derivation_handler",
@@ -186,6 +197,11 @@ STATE_PARAMETER: Final = "state"
 #: The state route's query parameter carrying a snooze's end instant, in whole
 #: seconds since the epoch - the unit the advice source's clock answers in.
 UNTIL_PARAMETER: Final = "until"
+
+#: The state route's query parameter naming a snooze LENGTH as a token off the advisor's
+#: closed mapping (CS-1376), the alternative to :data:`UNTIL_PARAMETER`: exactly one of the
+#: two. The advisor resolves it against the source's injected clock.
+DURATION_PARAMETER: Final = "duration"
 
 #: What a stated plan is for, one item key off ``/api/registry``'s ``plan_targets``.
 TARGET_PARAMETER: Final = "target"
@@ -364,6 +380,23 @@ class AdviceStore(AdviceSource, Protocol):
 
     def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
         """Record one card's state in the world's ledger."""
+        ...
+
+
+@runtime_checkable
+class DurationAdviceStore(AdviceStore, Protocol):
+    """An advice store that resolves a snooze's duration token to an instant (CS-1376).
+
+    Apart from :class:`AdviceStore` so a store written before it stays one. The token's
+    vocabulary and the clock are the advisor side's: this module holds neither, adds no
+    seconds to anything and transcribes the instant the door answers.
+    """
+
+    def snooze_until(self, duration: str) -> int | None:
+        """The instant a snooze of this token ends, or None for a token off the mapping.
+
+        Answers None with no text, so nothing a caller typed can come back out of it.
+        """
         ...
 
 
@@ -702,7 +735,7 @@ def _state_request(
         STATE_ENDPOINT,
         query,
         source,
-        own=(ID_PARAMETER, STATE_PARAMETER, UNTIL_PARAMETER),
+        own=(ID_PARAMETER, STATE_PARAMETER, UNTIL_PARAMETER, DURATION_PARAMETER),
     )
     if isinstance(stated, contract.Response):
         return stated
@@ -712,33 +745,79 @@ def _state_request(
         return contract.bad_request(STATE_ENDPOINT, contract.REASON_MISSING_PARAMETER)
     if kind not in RECORDABLE_STATES:
         return contract.bad_request(STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
-    until = _until_for(kind, query.get(UNTIL_PARAMETER))
+    until = _until_for(kind, query.get(UNTIL_PARAMETER), query.get(DURATION_PARAMETER), source)
     if isinstance(until, contract.Response):
         return until
     return card_id, kind, until, stated
 
 
-def _until_for(kind: str, raw_until: str | None) -> int | None | contract.Response:
+def _until_for(
+    kind: str, raw_until: str | None, raw_duration: str | None, source: AdviceSource
+) -> int | None | contract.Response:
     """The ``until`` a kind needs: required for a snooze, refused on anything else.
+
+    A snooze carries EXACTLY ONE of ``until`` and ``duration`` (CS-1376). Both is
+    ``invalid_parameter``, neither is ``missing_parameter``, and a ``duration`` on any other
+    kind is ``invalid_parameter``. A duration is a token the SOURCE resolves against its own
+    injected clock, so this module adds no seconds and reads no clock; a source with no such
+    door, or a token it refuses, is ``invalid_parameter`` too. All of it comes before any
+    provider is read.
 
     Args:
         kind: A recordable kind.
         raw_until: The ``until`` parameter as received, or None when absent.
+        raw_duration: The ``duration`` parameter as received, or None when absent.
+        source: The advice store, whose door resolves a duration token.
 
     Returns:
-        The instant for a snooze, None for any other kind, or the 400 refusing
-        a missing, misplaced or malformed ``until``.
+        The instant for a snooze, None for any other kind, or the 400 refusing a missing,
+        misplaced, doubled or malformed ``until`` or ``duration``.
     """
     if kind != SNOOZED:
-        if raw_until is None:
+        if raw_until is None and raw_duration is None:
             return None
         return contract.bad_request(STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
+    if raw_until is not None and raw_duration is not None:
+        return contract.bad_request(STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
+    if raw_duration is not None:
+        return _resolved_duration(raw_duration, source)
     if raw_until is None:
         return contract.bad_request(STATE_ENDPOINT, contract.REASON_MISSING_PARAMETER)
+    return _stated_until(raw_until)
+
+
+def _stated_until(raw_until: str) -> int | contract.Response:
+    """Parse a stated ``until``, or refuse it.
+
+    Args:
+        raw_until: The parameter as received. Never rendered.
+
+    Returns:
+        The instant, or the 400 refusing one that is not a bounded decimal.
+    """
     until = _instant(raw_until)
     if until is None:
         return contract.bad_request(STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
     return until
+
+
+def _resolved_duration(duration: str, source: AdviceSource) -> int | contract.Response:
+    """Put a duration token to the source's door, or refuse it.
+
+    Args:
+        duration: The token as received. Never rendered.
+        source: The advice store.
+
+    Returns:
+        The instant the source answered, or the 400 refusing a source with no such door
+        or a token it does not hold.
+    """
+    if not isinstance(source, DurationAdviceStore):
+        return contract.bad_request(STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
+    resolved = source.snooze_until(duration)
+    if resolved is None:
+        return contract.bad_request(STATE_ENDPOINT, contract.REASON_INVALID_PARAMETER)
+    return resolved
 
 
 def make_handler(

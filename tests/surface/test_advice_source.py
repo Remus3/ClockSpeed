@@ -44,6 +44,7 @@ from clockspeed.advisor.advise import advise_world, settled_rules
 from clockspeed.advisor.ledger import (
     LEDGER_FILENAME,
     MUTES_FILENAME,
+    SNOOZE_DURATIONS,
     CardState,
     Ledger,
     MuteStore,
@@ -2356,3 +2357,232 @@ def test_the_registry_endpoint_imports_the_data_layers_one_function() -> None:
     ]
     assert "plan_targets" in froms
     assert "build_registry" not in froms
+
+
+# ---------------------------------------------------------------------------
+# CS-1376: the four card controls, through the real state route
+# ---------------------------------------------------------------------------
+#
+# THE CLAIM. A snooze names a TOKEN from the advisor's closed mapping, sent as ``duration``,
+# and the advisor resolves it against the source's INJECTED clock, so the success body's
+# ``snoozed_until`` is that clock plus the token's seconds. Every arm runs the real table over
+# the real source and advisor with the ascent world's stated plan card, the clock fixed at
+# NOW, so a resolution that read the wall clock, or that the surface computed, reads as an
+# instant a long way from NOW plus the mapping's seconds.
+
+#: A token off the mapping, distinctive so a reflection would show.
+UNMAPPED_DURATION: Final = "zqxjduration1376"
+
+#: The states a duration may not ride on: every recordable kind but the snooze.
+NON_SNOOZE_KINDS: Final = ("accepted", "dismissed", "pinned", "new")
+
+#: What the listing's visible flag reads for each of the four controls' states.
+CONTROL_VISIBILITY: Final = {"accepted": True, "dismissed": False, "pinned": True, "snoozed": False}
+
+#: One mapped token, the shortest, so an arm needs no loop to have one.
+MAPPED_TOKEN: Final = min(SNOOZE_DURATIONS, key=SNOOZE_DURATIONS.__getitem__, default="")
+
+
+def _stated_card(
+    directory: Path,
+) -> tuple[WorldModel, Mapping[tuple[str, str], contract.Handler], str]:
+    """The ascent world, its real table and the id of its stated plan card."""
+    model, registry = _ascent()
+    table = _table(directory, model, registry)
+    return model, table, _card_id(_listing(table, _stated()), ADOPT_ID)
+
+
+def _post_state(
+    table: Mapping[tuple[str, str], contract.Handler],
+    card_id: str,
+    kind: str,
+    extra: Mapping[str, str] | None = None,
+) -> contract.Response:
+    """The state route, with the card id, the kind, these extras and the statement."""
+    return table["POST", advice_endpoint.STATE_ENDPOINT](
+        {
+            advice_endpoint.ID_PARAMETER: card_id,
+            advice_endpoint.STATE_PARAMETER: kind,
+            **(extra or {}),
+            **_stated(),
+        }
+    )
+
+
+def _duration(token: str) -> dict[str, str]:
+    """The one extra a duration snooze carries."""
+    return {advice_endpoint.DURATION_PARAMETER: token}
+
+
+def _refusal_of(response: contract.Response, reason: str, *planted: str) -> None:
+    """A 400 of this reason that reflects nothing it was handed."""
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == reason
+    problems = len(contract.contract_problems(response))
+    assert problems == 0
+    body = contract.encode(response.payload)
+    reflected = sum(1 for value in planted if value and value.encode("ascii") in body)
+    assert reflected == 0
+
+
+def test_the_published_mapping_holds_a_token_so_the_arms_below_ran() -> None:
+    held = len(SNOOZE_DURATIONS)
+    assert held >= 1
+    assert MAPPED_TOKEN in SNOOZE_DURATIONS
+
+
+@pytest.mark.parametrize("token", sorted(SNOOZE_DURATIONS))
+def test_a_duration_snooze_ends_at_the_injected_clock_plus_the_tokens_seconds(
+    tmp_path: Path, token: str
+) -> None:
+    model, table, card_id = _stated_card(tmp_path)
+    expected = NOW + SNOOZE_DURATIONS[token]
+
+    response = _post_state(table, card_id, "snoozed", _duration(token))
+
+    data = _data(response)
+    assert frozenset(data) == advice_endpoint.STATE_KEYS
+    assert data["snoozed_until"] == expected
+    assert data["state"] == "snoozed"
+    stored = Ledger(tmp_path).state(model.token, card_id, now=NOW)
+    assert stored == CardState.snoozed(expected)
+
+
+@pytest.mark.parametrize("kind", sorted(CONTROL_VISIBILITY))
+def test_each_control_posts_a_state_the_stated_listing_serves_back_with_its_visible_flag(
+    tmp_path: Path, kind: str
+) -> None:
+    """Accept, dismiss, snooze and pin, each through the route and then re-read."""
+    _model, table, card_id = _stated_card(tmp_path)
+    extra = _duration(MAPPED_TOKEN) if kind == "snoozed" else None
+
+    response = _post_state(table, card_id, kind, extra)
+
+    assert response.http_status == contract.HTTP_OK
+    relisted = _one_card(_listing(table, _stated()), ADOPT_ID)
+    assert relisted["state"] == kind
+    assert relisted["visible"] is CONTROL_VISIBILITY[kind]
+    if kind == "snoozed":
+        assert relisted["snoozed_until"] == NOW + SNOOZE_DURATIONS[MAPPED_TOKEN]
+    else:
+        assert relisted["snoozed_until"] is None
+
+
+def test_a_snooze_carrying_both_until_and_duration_is_400_and_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    _model, table, card_id = _stated_card(tmp_path)
+    # THE CONTROL: each alone is accepted, so the refusal below is the pairing's.
+    alone = _post_state(table, card_id, "snoozed", _duration(MAPPED_TOKEN))
+    assert alone.http_status == contract.HTTP_OK
+    until_alone = _post_state(
+        table, card_id, "snoozed", {advice_endpoint.UNTIL_PARAMETER: str(NOW + SNOOZE_SPAN)}
+    )
+    assert until_alone.http_status == contract.HTTP_OK
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    _model2, table2, card2 = _stated_card(fresh)
+
+    response = _post_state(
+        table2,
+        card2,
+        "snoozed",
+        {**_duration(MAPPED_TOKEN), advice_endpoint.UNTIL_PARAMETER: str(NOW + SNOOZE_SPAN)},
+    )
+
+    _refusal_of(response, contract.REASON_INVALID_PARAMETER, MAPPED_TOKEN)
+    _state_assert_nothing_written(fresh)
+
+
+def test_a_snooze_carrying_neither_until_nor_duration_stays_missing_parameter(
+    tmp_path: Path,
+) -> None:
+    _model, table, card_id = _stated_card(tmp_path)
+    before = sorted(path.name for path in tmp_path.iterdir())
+
+    response = _post_state(table, card_id, "snoozed")
+
+    _refusal_of(response, contract.REASON_MISSING_PARAMETER)
+    assert sorted(path.name for path in tmp_path.iterdir()) == before
+
+
+@pytest.mark.parametrize("kind", NON_SNOOZE_KINDS)
+def test_a_duration_on_any_other_state_is_400_and_writes_nothing(tmp_path: Path, kind: str) -> None:
+    _model, table, card_id = _stated_card(tmp_path)
+    # THE CONTROL: the same kind without a duration is recorded.
+    assert _post_state(table, card_id, kind).http_status == contract.HTTP_OK
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    _model2, table2, card2 = _stated_card(fresh)
+
+    response = _post_state(table2, card2, kind, _duration(MAPPED_TOKEN))
+
+    _refusal_of(response, contract.REASON_INVALID_PARAMETER, MAPPED_TOKEN)
+    _state_assert_nothing_written(fresh)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [UNMAPPED_DURATION, "", "1H", " 1h", "3600", "constructor"],
+    ids=["unmapped", "empty", "case", "padded", "bare-number", "member-name"],
+)
+def test_a_token_off_the_mapping_is_400_reflects_nothing_and_writes_nothing(
+    tmp_path: Path, token: str
+) -> None:
+    _model, table, card_id = _stated_card(tmp_path)
+    # THE CONTROL: a token on the mapping is recorded.
+    mapped = _post_state(table, card_id, "snoozed", _duration(MAPPED_TOKEN))
+    assert mapped.http_status == contract.HTTP_OK
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    _model2, table2, card2 = _stated_card(fresh)
+
+    response = _post_state(table2, card2, "snoozed", _duration(token))
+
+    _refusal_of(response, contract.REASON_INVALID_PARAMETER, token)
+    _state_assert_nothing_written(fresh)
+
+
+def test_a_duration_refusal_reaches_no_provider_and_no_advice(tmp_path: Path) -> None:
+    """Refused with the shape errors, before the world, the registry or the advisor."""
+    model, registry = _ascent()
+    table, counted, source = _counted_table(tmp_path, model, registry)
+
+    response = table["POST", advice_endpoint.STATE_ENDPOINT](
+        {
+            advice_endpoint.ID_PARAMETER: "any",
+            advice_endpoint.STATE_PARAMETER: "snoozed",
+            **_duration(UNMAPPED_DURATION),
+            **_stated(),
+        }
+    )
+
+    _refused_before_any_provider(
+        response, contract.REASON_INVALID_PARAMETER, counted, source, tmp_path
+    )
+
+
+def test_the_duration_resolves_on_the_clock_the_source_was_given(tmp_path: Path) -> None:
+    """A source built on another injected instant answers that instant plus the seconds."""
+    model, registry = _ascent()
+    other_now = NOW + 10 * SNOOZE_SPAN
+    built = routes.build_routes(
+        map_fixtures._Worlds(model),  # noqa: SLF001
+        map_fixtures._Registries(registry),  # noqa: SLF001
+        StoreAdviceSource(tmp_path, clock=lambda: other_now),
+    )
+    table = {(route.method, route.template): route.handler for route in built}
+    card_id = _card_id(_listing(table, _stated()), ADOPT_ID)
+
+    response = _post_state(table, card_id, "snoozed", _duration(MAPPED_TOKEN))
+
+    assert _data(response)["snoozed_until"] == other_now + SNOOZE_DURATIONS[MAPPED_TOKEN]
+
+
+def test_the_real_source_is_a_duration_store_and_its_door_reads_the_injected_clock(
+    tmp_path: Path,
+) -> None:
+    source = StoreAdviceSource(tmp_path, clock=lambda: NOW)
+    assert isinstance(source, advice_endpoint.DurationAdviceStore)
+    assert source.snooze_until(MAPPED_TOKEN) == NOW + SNOOZE_DURATIONS[MAPPED_TOKEN]
+    assert source.snooze_until(UNMAPPED_DURATION) is None

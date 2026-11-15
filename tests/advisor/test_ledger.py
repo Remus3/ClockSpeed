@@ -1140,3 +1140,71 @@ def test_no_token_reaches_the_count_surface(tmp_path: Path) -> None:
     renderings.extend(p.name for p in tmp_path.iterdir())
     leaked = any(TOKEN_A in text for text in renderings)
     assert not leaked
+
+
+# --- CS-1376: the closed snooze durations -------------------------------------
+
+#: Spellings no token owns: case, padding, a bare number, an inherited member name.
+OFF_MAPPING_TOKENS = ("", "1H", " 1h", "1h ", "3600", "0h", "forever", "constructor", "__len__")
+
+#: The injected instant a duration is added to. A literal, never a clock.
+SNOOZE_NOW = 1_000
+
+
+def test_the_snooze_durations_are_a_closed_mapping_of_tokens_to_positive_whole_seconds() -> None:
+    durations = ledger_mod.SNOOZE_DURATIONS
+    held = len(durations)
+    assert held >= 1
+    bad_keys = [key for key in durations if type(key) is not str or not key or not key.isascii()]
+    assert bad_keys == []
+    bad_values = [
+        key for key, seconds in durations.items() if type(seconds) is not int or seconds < 1
+    ]
+    assert bad_values == []
+
+
+def test_the_snooze_durations_cannot_be_widened_in_place() -> None:
+    refused = False
+    try:
+        ledger_mod.SNOOZE_DURATIONS["zqxj"] = 1  # type: ignore[index]
+    except TypeError:
+        refused = True
+    assert refused
+
+
+def test_a_token_resolves_to_the_injected_instant_plus_its_seconds() -> None:
+    durations = ledger_mod.SNOOZE_DURATIONS
+    assert len(durations) >= 1, "no token is published, so nothing below was resolved"
+    wrong = [
+        token
+        for token, seconds in durations.items()
+        if ledger_mod.snooze_end(token, now=SNOOZE_NOW) != SNOOZE_NOW + seconds
+    ]
+    assert wrong == []
+
+
+def test_a_resolved_snooze_ends_after_now_and_the_ledger_takes_it(tmp_path: Path) -> None:
+    token = next(iter(ledger_mod.SNOOZE_DURATIONS), None)
+    assert token is not None
+    until = ledger_mod.snooze_end(token, now=SNOOZE_NOW)
+    assert until is not None
+    Ledger(tmp_path).snooze(TOKEN_A, "c", until=until, now=SNOOZE_NOW)
+    assert Ledger(tmp_path).state(TOKEN_A, "c", now=SNOOZE_NOW) == CardState.snoozed(until)
+
+
+@pytest.mark.parametrize("token", OFF_MAPPING_TOKENS)
+def test_a_token_off_the_mapping_resolves_to_nothing(token: str) -> None:
+    # THE CONTROL: a token on the mapping does resolve, so None is the refusal and not a
+    # function that answers None for everything.
+    published = next(iter(ledger_mod.SNOOZE_DURATIONS), None)
+    assert published is not None
+    assert ledger_mod.snooze_end(published, now=SNOOZE_NOW) is not None
+    assert ledger_mod.snooze_end(token, now=SNOOZE_NOW) is None
+
+
+@pytest.mark.parametrize("now", [True, 1.5, "1000", None])
+def test_a_clock_that_is_not_a_whole_instant_is_refused(now: object) -> None:
+    published = next(iter(ledger_mod.SNOOZE_DURATIONS), None)
+    assert published is not None
+    with pytest.raises(TypeError):
+        ledger_mod.snooze_end(published, now=now)  # type: ignore[arg-type]

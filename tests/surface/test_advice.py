@@ -924,3 +924,193 @@ def test_the_listing_serves_the_cards_in_the_advisors_showing_order(tmp_path: Pa
     assert served == ranked
     moved = served != identity
     assert moved
+
+
+# ---------------------------------------------------------------------------
+# CS-1376: a snooze's length arrives as a token the source resolves
+# ---------------------------------------------------------------------------
+#
+# THE CLAIM. The state route TRANSCRIBES the instant the source's door answers for a
+# ``duration`` token: it adds no seconds, reads no clock and holds no vocabulary. The double's
+# door answers an instant that is no clock plus anything, so a handler that computed one
+# would read as a different number.
+
+#: What the double's door answers for its one known token: no clock plus a span.
+PLANTED_INSTANT: Final = 7_777_777
+
+#: The one token the double's door resolves, and one it refuses.
+KNOWN_LENGTH: Final = "zqxjtoken1376"
+UNKNOWN_LENGTH: Final = "zqxjother1376"
+
+
+class _DurationSource(_Source):
+    """A source that also resolves a snooze token, and records what it was asked to write."""
+
+    def __init__(self, value: Advice | None, *, log: list[str]) -> None:
+        """Hold the advice and the shared log.
+
+        Args:
+            value: The advice the double answers.
+            log: Where each call names itself.
+        """
+        super().__init__(value, log=log)
+        self.resolved: list[str] = []
+        self.written: list[tuple[str, str, int | None]] = []
+
+    def snooze_until(self, duration: str) -> int | None:
+        """Answer the planted instant for the known token and refuse every other.
+
+        Args:
+            duration: The token as received.
+
+        Returns:
+            The planted instant, or None.
+        """
+        self.resolved.append(duration)
+        self.log.append("snooze_until")
+        return PLANTED_INSTANT if duration == KNOWN_LENGTH else None
+
+    def record(self, world: WorldModel, card_id: str, kind: str, until: int | None) -> bool | None:
+        """Record what was handed over and say it was written.
+
+        Returns:
+            True.
+        """
+        del world
+        self.written.append((card_id, kind, until))
+        self.log.append("record")
+        return True
+
+
+def _state_post(
+    source: _Source, log: list[str], card_id: str, parameters: Mapping[str, str]
+) -> contract.Response:
+    """The state route over the double, with exactly these parameters and the id."""
+    providers = _LoggedProviders(log)
+    table = {
+        (route.method, route.template): route.handler
+        for route in advice_endpoint.routes(providers, providers, source)
+    }
+    return table[STATE]({advice_endpoint.ID_PARAMETER: card_id, **parameters})
+
+
+def _snooze_parameters(**extra: str) -> dict[str, str]:
+    return {advice_endpoint.STATE_PARAMETER: "snoozed", **extra}
+
+
+def test_the_state_route_transcribes_the_instant_the_source_resolves_a_token_to(
+    tmp_path: Path,
+) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _DurationSource(found, log=log)
+    card_id = _gap_card_id(found)
+
+    response = _state_post(source, log, card_id, _snooze_parameters(duration=KNOWN_LENGTH))
+
+    data = _data(response)
+    assert data["snoozed_until"] == PLANTED_INSTANT
+    assert data["state"] == "snoozed"
+    assert source.written == [(card_id, "snoozed", PLANTED_INSTANT)]
+    assert source.resolved == [KNOWN_LENGTH]
+
+
+def test_the_token_is_resolved_before_any_provider_is_read(tmp_path: Path) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _DurationSource(found, log=log)
+
+    _state_post(source, log, _gap_card_id(found), _snooze_parameters(duration=KNOWN_LENGTH))
+
+    assert log == ["snooze_until", "world", "registry", "advice", "record"]
+
+
+def test_a_token_the_source_refuses_is_400_before_any_provider_and_nothing_is_written(
+    tmp_path: Path,
+) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _DurationSource(found, log=log)
+
+    response = _state_post(
+        source, log, _gap_card_id(found), _snooze_parameters(duration=UNKNOWN_LENGTH)
+    )
+
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+    reflected = UNKNOWN_LENGTH.encode("ascii") in contract.encode(response.payload)
+    assert not reflected
+    assert log == ["snooze_until"]
+    assert source.written == []
+
+
+def test_a_source_with_no_duration_door_refuses_a_duration_and_reads_nothing(
+    tmp_path: Path,
+) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _Source(found, log=log)
+    assert not hasattr(source, "snooze_until"), "the double was meant to have no door"
+
+    response = _state_post(source, log, _gap_card_id(found), _snooze_parameters(duration="x"))
+
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+    assert log == []
+
+
+def test_until_and_duration_together_are_400_and_the_door_is_never_asked(
+    tmp_path: Path,
+) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _DurationSource(found, log=log)
+
+    response = _state_post(
+        source,
+        log,
+        _gap_card_id(found),
+        _snooze_parameters(duration=KNOWN_LENGTH, until=str(NOW + 5)),
+    )
+
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+    assert log == []
+
+
+@pytest.mark.parametrize("kind", ["accepted", "dismissed", "pinned", "new"])
+def test_a_duration_on_a_state_that_is_not_a_snooze_is_400_and_the_door_is_never_asked(
+    tmp_path: Path, kind: str
+) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _DurationSource(found, log=log)
+
+    response = _state_post(
+        source,
+        log,
+        _gap_card_id(found),
+        {advice_endpoint.STATE_PARAMETER: kind, "duration": KNOWN_LENGTH},
+    )
+
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+    assert log == []
+
+
+def test_a_snooze_with_neither_is_missing_parameter_and_the_door_is_never_asked(
+    tmp_path: Path,
+) -> None:
+    log: list[str] = []
+    found = _advice_on(tmp_path)
+    source = _DurationSource(found, log=log)
+
+    response = _state_post(source, log, _gap_card_id(found), _snooze_parameters())
+
+    assert response.http_status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_MISSING_PARAMETER
+    assert log == []
+
+
+def test_the_duration_parameter_is_published_by_the_name_the_page_sends() -> None:
+    assert advice_endpoint.DURATION_PARAMETER == "duration"

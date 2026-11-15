@@ -114,6 +114,41 @@ CARD_STATE_KINDS: Final = frozenset(
     {"new", "accepted", "dismissed", "snoozed", "pinned", "completed"}
 )
 
+#: The snooze lengths a client may name (CS-1376): a closed mapping of token to a positive
+#: whole number of seconds. A client states the TOKEN and never an instant, so the page
+#: reads no clock and adds nothing; :func:`snooze_end` resolves it against the injected
+#: ``now``. Read-only, so the vocabulary cannot be widened by a caller.
+SNOOZE_DURATIONS: Final[Mapping[str, int]] = MappingProxyType(
+    {"1h": 3600, "4h": 14400, "1d": 86400, "1w": 604800}
+)
+
+
+def snooze_end(duration: str, *, now: int) -> int | None:
+    """Resolve a snooze duration token against an injected instant.
+
+    The advisor's own door for a duration, so no surface module adds seconds to an
+    instant. Reads no clock: ``now`` is handed in, as every read in this module takes it.
+
+    Args:
+        duration: A token as received. Anything not a key of :data:`SNOOZE_DURATIONS` is
+            refused, whatever it is.
+        now: The current instant in whole seconds since the epoch.
+
+    Returns:
+        ``now`` plus the token's seconds, or None when the token is off the mapping.
+
+    Raises:
+        TypeError: ``now`` is not a whole int.
+    """
+    instant = _check_instant(now)
+    if type(duration) is not str:
+        return None
+    seconds = SNOOZE_DURATIONS.get(duration)
+    if seconds is None:
+        return None
+    return instant + seconds
+
+
 #: The recorded kinds a run completes when their rule stops firing (CS-1268).
 #: The player's own ``dismissed``, ``snoozed`` and ``pinned`` are never in it.
 _COMPLETABLE_KINDS: Final = frozenset({"new", "accepted"})
