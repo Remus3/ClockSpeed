@@ -912,11 +912,17 @@ warn_return_any = false
 #               each guarded by `_num()` on the same name, a predicate mypy
 #               does not narrow through.
 #
-# ONLY these six codes ARE DISABLED, and only for this module. The rest of the
+# MEASURED on the version 31 bytes (the kit v31 rollout, `python -m mypy` under
+# the pinned mypy), one more code; the line numbers are version 31's:
+#   var-annotated  fleet_headless.py:2557 and 2576 - the MF-4 agent-file
+#               reader's `keys = {}` and `out = []`, built up later.
+#
+# ONLY these seven codes ARE DISABLED, and only for this module. The rest of the
 # gate still reads the file; `exclude` is NOT used, for the reason above.
 module = ["ops.fleet_kit.fleet_headless"]
 disable_error_code = [
   "union-attr", "arg-type", "assignment", "unreachable", "index", "operator",
+  "var-annotated",
 ]
 
 [[tool.mypy.overrides]]

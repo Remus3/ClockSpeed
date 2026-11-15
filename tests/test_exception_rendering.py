@@ -318,7 +318,7 @@ PARAMETER_RENDER_RESIDUALS = {
 # calls already present at v28 - are outside its shapes, so a row for one would
 # match no site and redden the exactly-one-site arm; none was written.
 VENDORED_RENDER_RESIDUALS = {
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 793): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 807): (
         "CS-1330, FLEET item 11 - kit v20's _check_fallback re-raises a fallback "
         "block's Refused route-invalid with its reason. MEASURED on the v20.1 "
         "bytes: every route-invalid reason is a kit literal or ROUTE_VERSION "
@@ -326,20 +326,20 @@ VENDORED_RENDER_RESIDUALS = {
         "OSError reading the route renders only its class name. Reversed if a "
         "route-invalid reason is found naming a path or a config value."
     ),
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1008): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 1022): (
         "CS-1330, FLEET item 11 - kit v19.1/v20 route_show() returns a Refused "
         "route-missing or route-invalid as its reason, cut to 200 characters. "
         "MEASURED on the v20.1 bytes: the same kit-literal reasons as the row "
         "above, and the missing-file reason names the command, not the path. "
         "Reversed as the row above."
     ),
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 3422): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 3552): (
         "CS-1330, FLEET item 11 - the `route set` command line prints a Refused "
         "from write_route() as its JSON error; an OSError there prints its class "
         "name only. MEASURED on the v20.1 bytes: the refusals are the "
         "route-invalid kit literals of the rows above. Reversed as those rows."
     ),
-    ("ops/fleet_kit/fleet_lanes.py", "str(exc)", 1986): (
+    ("ops/fleet_kit/fleet_lanes.py", "str(exc)", 1997): (
         "CS-1330, FLEET item 11 - kit v20's LANE-95 command line, main(), prints "
         "a ValueError or an OSError from checkpoint() / resume_point() as its "
         "JSON error, cut to 200 characters. THIS ONE CAN CARRY A PATH: an "
@@ -350,7 +350,7 @@ VENDORED_RENDER_RESIDUALS = {
         "name, as the route CLI beside it does. Reversed by a kit version that "
         "renders a field, or by any caller in this tree."
     ),
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 3480): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 3610): (
         "CS-1282, FLEET item 11 - the kit's command-line entry, main(), renders "
         "a Refused whole into its one JSON stdout line. Reported to MAIN as kit "
         "defect 5 and REJECTED in kit version 11's ORDER (CS-1287): with the "
@@ -372,7 +372,7 @@ VENDORED_RENDER_RESIDUALS = {
         "stop-sentinel entry exactly as this tree's own ops/stop_sentinels.json "
         "declares it - relative paths, echoed back."
     ),
-    ("ops/fleet_kit/fleet_headless.py", "str(sentinel_exc)", 3088): (
+    ("ops/fleet_kit/fleet_headless.py", "str(sentinel_exc)", 3202): (
         "Kit v23 rollout, FLEET item 11 - kit v21 (CS 2356 item 5) gives spawn()'s "
         "stop-sentinel refusal its own re-raise site: a Refused from "
         "stop_sentinel_hit() is re-raised with code halted and its message. "
@@ -383,7 +383,7 @@ VENDORED_RENDER_RESIDUALS = {
         "Reversed if stop_sentinel_hit() is found raising text the declaration "
         "did not supply."
     ),
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 768): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 782): (
         "Kit v26 rollout, FLEET item 11 - v26's version-2 route reader re-raises "
         "a config entry's _check_primary refusal as route-invalid with its "
         "reason. MEASURED on the v26 bytes: those reasons are the route-invalid "
@@ -391,7 +391,7 @@ VENDORED_RENDER_RESIDUALS = {
         "a directory, no credentials file) - no message names the path. "
         "Reversed as the fallback row."
     ),
-    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 3440): (
+    ("ops/fleet_kit/fleet_headless.py", "str(exc)", 3570): (
         "Kit v26 rollout, FLEET item 11 - the new `budget show` / `budget reset` "
         "command line prints a Refused as its JSON refusal, cut to 200 "
         "characters. MEASURED on the v26 bytes: the refusals are budget_reset's "

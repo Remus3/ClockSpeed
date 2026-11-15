@@ -275,6 +275,11 @@ fence in a transcript is gone the moment the session is cleared; a file survives
       `python ops/fleet_kit/fleet_done.py reap --apply`. It removes only a linked worktree
       that can lose nothing and LISTS every other with its reason; listed worktrees stay -
       never `--force`, never `git branch -D`. Record its summary line in the hand-off.
+- [ ] HAND-OFF ARCHIVE (kit v31, MAIN's v31 ORDER section 4), after the hand-off is written
+      and before the step 7 commit: `python ops/fleet_kit/fleet_done.py archive --auto`. It
+      applies only at 27648 B or more (else it prints `archive skipped`), moving older STATE
+      OBSERVED blocks to `docs/handoff-archive/`; the step 7 commit then carries the
+      hand-off and the archive file. In the CS-700 window, or on UNKNOWN, it does not run.
 
 ## 7. Commit everything - BEFORE the push
 
