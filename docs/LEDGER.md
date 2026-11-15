@@ -126,6 +126,22 @@ A SERIAL WHOLE-TREE RUN DOES NOT FIT A CYCLE. The hand-run `python -m pytest tes
 percent in 40 minutes and was killed at the Bash ceiling, having found nothing; the hook's parallel run of the same
 tree took 18 minutes. A cycle that wants whole-tree evidence should push for it rather than run it by hand.
 
+### 2026-11-15 - CS-1381 - CLOSED: a score tie breaks by each unweighted ladder rung in ladder order before registry order
+Verification: `clockspeed/solve/strategy.py::rank_plans`; `clockspeed/solve/strategy.py::RankedPlan`;
+`tests/solve/test_strategy.py::test_a_raw_tie_does_not_let_registry_order_top_a_plan_dominated_on_the_other_rungs`,
+`::test_a_raw_tie_breaks_by_buildings_before_power_where_the_two_disagree`,
+`::test_a_raw_and_buildings_tie_is_decided_by_power_alone`,
+`::test_an_unpriceable_plan_sorts_after_every_priced_one_on_the_power_tie_break`,
+`::test_a_weighted_direction_never_breaks_its_own_tie`,
+`::test_a_permuted_input_ranks_byte_identically_through_every_tie_break_arm`;
+`tests/advisor/rules/test_plan.py`, whose fixture key now matches the published three-part key.
+`rank_plans` breaks a score tie by each unweighted ladder rung in `STRATEGY_LADDER` order before registry order; an
+unpriceable plan sorts last on the power tie-break rung and `RankedPlan.key` publishes the whole three-part key.
+`optimize.ranking_key`, the backends and the golden file are unchanged. GRADED: an adversary on the correctness and
+mutation lens NOT REFUTED, about 20 mutants killed and one equivalent. ADJUDICATED LAND by the session 157 adjudicator
+at the frozen candidate, landed on main by cherry-pick. RESIDUAL: the 1 of 46 and 0 of 28 world figures in the clause
+are provenance, unread without an install. The section is relocated to `docs/history_notes.md`.
+
 ### 2026-11-13 - CS-1389 - CLOSED: fleet kit v30 adopted - item 12 bounded-slice supervision, the pause seam, the budget's own run cap
 Verification: `ops/fleet_kit/MANIFEST.json` sha256
 d2ac40250bd0efc071f0eb11c1e92ae04af88d750de200cf8ed4dc5714d07ea2, version 30;
