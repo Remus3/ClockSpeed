@@ -1349,3 +1349,5 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
   installed case today.
 - CS-1374 follow-up: render plan.redesign.unlocks in tier 3 as one line per locked stage, still generated from the
   trace.
+- CS-1397 panel: the no-target "Advise on this world" press is hidden when /api/registry serves no plan_targets, though an act needs no target.
+- CS-1246: AGING_EVALUATIONS has no value pin by design, because the clause names the constant; pin it only if a stated reason ever fixes the value.

@@ -75,6 +75,37 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1246 - CLOSED: the aging guard fires in production through served advice acts
+Verification: `tests/surface/test_advice_aging.py` including
+`test_the_large_card_reads_first_past_two_small_cards_and_the_second_small_card_ages_too`,
+`test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards`,
+`test_the_act_that_reaches_the_threshold_answers_large_first_past_two_small_cards`,
+`test_a_further_act_clears_the_ranked_leader_and_ages_the_card_below_it` and
+`test_the_advice_an_act_returns_carries_nonzero_deferrals_equal_to_the_ledgers`; plus
+`tests/advisor/test_advise.py::test_the_same_ledger_state_gives_the_same_order` and `tests/advisor/test_ranking.py`.
+SUPERSEDES both the lane's record headed "CS-1246 - CLOSED: quick-win card ordering" and the 2026-11-15 NOT A
+COMPLETION RECORD: the guard's counts are now written by CS-1397's served act. With one large and two small cards the
+served listing reads the large card first after AGING_EVALUATIONS acts beyond the first recording act and not one
+fewer; mutant (a), Advice.shown handed to Ledger.reconcile, and mutant (b), deferrals= dropped, each reddened the aging
+arms in the adjudicator's own run against a pristine floor of zero failures. "Configured" stays ruled met by the named
+constant with its per-call override. ADJUDICATED: CLOSE, session 157.
+RESIDUAL: no value pin on AGING_EVALUATIONS, by design, since the clause names the constant; filed in BACKLOG.
+
+### 2026-11-15 - CS-1397 - CLOSED: one admitted POST /api/advice/act is one advice act and one Ledger.reconcile; no GET writes either store
+Verification: `tests/surface/test_advice_act.py` including
+`test_a_served_act_and_a_served_read_build_identical_inputs_under_a_schematic_source`, `tests/surface/test_advice_aging.py`,
+`tests/advisor/test_advise.py`, `tests/surface/test_panel_advice.py` and `tests/surface/test_web_assets.py`; on the
+landed-equivalent tree tests/surface, tests/advisor, tests/data and tests/solve passed serial through the suite gate,
+6000 passed; ruff, ruff format --check, drift_guard and mypy exit 0.
+Closed CS-1397: `clockspeed/surface/api/advice.py::make_act_handler` calls the source's recording door once per admitted
+request, refuses a missing proof with the store untouched, and answers 405 to GET; `clockspeed/advisor/advise.py`
+builds read and act inputs through `_world_inputs_for`, with the CS-1374 schematic source threaded through
+`advise_world_and_record` and `StoreAdviceSource.act`; both panel presses POST through requestAct.
+GRADED: adversary NOT REFUTED at the rebuilt tip; adjudicator re-ran mutants in memory: handler-reads, door-twice and
+act-drops-schematics each reddened an act arm against a pristine floor. ADJUDICATED: LAND, session 157.
+RECORDED LAPSE: red-first was an AttributeError on a missing name, not a behavioural red; behaviour was proved by
+mutants afterwards. RESIDUAL: the no-target press hidden without plan_targets, filed in BACKLOG.
+
 ### 2026-11-15 - CS-1374 - CLOSED: a redesign card names each locked recipe's schematic and tech tier, the unlock shapes read whole and a hard-drive alternate breaking only a locked-count tie
 Verification: `tests/advisor/test_plan_redesign_unlocks.py`, `tests/data/test_schematics.py`,
 `tests/solve/test_bound.py` and `tests/surface/test_advice_source_schematics.py`; the nineteen suites of the landed
