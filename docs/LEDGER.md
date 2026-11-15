@@ -112,8 +112,19 @@ SUCCESSORS FILED, both tier 2, both in `ROADMAP.md` and `docs/item_notes/phase7.
 throughput published by the registry, unblocking the capacity and so a true saturation mark) and CS-1395
 (`ProductionPlan` publishes producer-to-consumer edges, unblocking the internal edges). A later cycle takes both first
 and returns to CS-1360. `config/lane_scopes.json` `product-slices` lists both.
-The whole tree is paid by the pre-push hook, whose result the merger reports. The CI verdict is recorded by the driver
-and was not observed by this worker.
+WHOLE TREE, read back by the merger at the push that landed this work: the `.githooks/pre-push` run printed
+`18831 passed, 18 skipped, 9 warnings in 1083.51s (0:18:03)` and the push exited 0 with the remote moving
+`e5c4926e..3fe09148`. The CI verdict is recorded by the driver and was not observed by this worker.
+THE FIRST PUSH WAS BLOCKED, and the cause is the reusable finding of this cycle: a new class in `clockspeed/surface/`
+enters the graded population of `tests/test_repr_rendering.py`, whose membership is asserted in BOTH directions, so
+`test_the_population_membership_is_pinned_in_both_directions` reddened on `_SeenRegistry` after every scoped run of
+`tests/surface` had passed. No scoped run can see it. Confirmed before recording rather than merely counted: the class
+is plain, not a dataclass, so `object.__repr__` renders no attribute and neither the provider it holds nor the
+registry it remembers can reach a rendering - the footing the `clockspeed/surface/providers.py` members already sit
+on. Read back: `tests/test_repr_rendering.py`, 80 passed, exit 0.
+A SERIAL WHOLE-TREE RUN DOES NOT FIT A CYCLE. The hand-run `python -m pytest tests -q` without `-n auto` reached 30
+percent in 40 minutes and was killed at the Bash ceiling, having found nothing; the hook's parallel run of the same
+tree took 18 minutes. A cycle that wants whole-tree evidence should push for it rather than run it by hand.
 
 ### 2026-11-13 - CS-1389 - CLOSED: fleet kit v30 adopted - item 12 bounded-slice supervision, the pause seam, the budget's own run cap
 Verification: `ops/fleet_kit/MANIFEST.json` sha256
