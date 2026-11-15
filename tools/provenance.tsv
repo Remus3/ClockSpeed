@@ -457,6 +457,7 @@ tests/surface/panel_harness.py	authored	CS-962	first-add:CS-962
 tests/surface/test_acceptance.py	authored	CS-601	first-add:CS-601
 tests/surface/test_advice.py	authored	CS-1270	stamped
 tests/surface/test_advice_act.py	authored	CS-1397	stamped
+tests/surface/test_advice_aging.py	authored	CS-1246	stamped
 tests/surface/test_advice_golden.py	authored	CS-1371	stamped
 tests/surface/test_advice_source.py	authored	CS-1270	stamped
 tests/surface/test_advice_source_schematics.py	authored	CS-1374	stamped
