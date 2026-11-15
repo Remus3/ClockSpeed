@@ -282,6 +282,7 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1400 - UI-157: the advice panel's five browser-audit majors - flow legend, snooze label, button gap, focus kept on a state press, no stale refusal beside the inert line - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

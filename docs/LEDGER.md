@@ -75,6 +75,60 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1400 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1400 STAYS OPEN: session 157 /done - the UI-157 browser audit of the advice panel reads BLOCKED on five majors, filed here, and every closed item's record reads present
+Verification: `docs/item_notes/phase5.md`, the CS-1400 section and its acceptance; `CS-NEXT-SESSION.txt`, its
+next-action and open-items blocks. This record closes nothing, so no test names one; the heading names the item whose
+filing it records.
+SCOPE. The session 157 /done, run by one sub-agent while a detached advisor-ranking lane driver was live (2 cycles,
+CS-1247 claimed first). That driver pushes straight to origin/main and was not touched. The UI-157 audit (0 blocker,
+5 major, 9 minor) and its screenshots were copied into a gitignored folder of the data directory, every file
+re-hashed equal, before the scratch sweep.
+STEP 0: start 2026-11-15T14:23:28-06:00. WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0 with two
+SHAs (not a merge); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit 0, two paths, not the citation
+historical file. Porcelain empty. HEAD equal to the remote by full SHA, and tier1 for it a success. One stale
+progress row, a CS-1374 builder that finished and never marked itself, marked done. Notes authored this session:
+one, the 2026-11-15 05:17 ANSWER, read in the delivery record at its sent sha256 (destination Main, gate verdict
+CLEAN, verified) and re-hashed equal in MAIN's inbox; not re-sent. The ritual's brief called that note unrecorded,
+and this read refutes it. Items closed this session, each with its own record, number eleven: CS-1384, CS-1381,
+CS-1378, CS-1373, CS-1376, CS-1374, CS-1397, CS-1246, CS-1375, CS-1396 and CS-1399, the last given its id at this
+step because the kit v31 adoption had none. Highest tier touched: 2.
+STEP 1, tier 2, from the repo root, each run once on the .venv interpreter, no whole suite: `python -m mypy` exit 0,
+478 source files; `python -m ruff check .` exit 0; `python -m ruff format --check .` exit 0, 461 files; `python -m
+pytest tests/advisor tests/surface tests/solve tests/data -q -n 0 -p no:cacheprovider` exit 0, 6064 passed, 0
+failed, 0 skipped, 384.6 s serial, every path read present first.
+STEP 2: this record and the CS-1399 record; the ten product closes read present, none duplicated. STEP 3:
+`ROADMAP.md` and the item notes hold none of the eleven. CS-1400 filed in Phase 5, tier 2, with its section in
+`docs/item_notes/phase5.md`, the next free id after CS-1399: `git grep`, `git log --all`, origin/main's `ROADMAP.md`
+and every linked worktree, the lane's included, read none above CS-1398 before either was allocated. `BACKLOG.md`
+takes two lines under the session 157 residuals: the audit harness's missing states, and lane governance.
+STEP 4: session 157 added to `WAKEUP_NOTES.md`; session 154 relocated verbatim to `docs/history_notes.md`.
+STEP 5, after every ritual edit: `python tools/drift_guard.py` exit 0 (guards 11,
+PASS 11); `python tools/doc_budget.py` exit 0 (measured 41, over budget 0); `python tools/memory_sync.py` exit 0,
+its one frontmatter finding the one the session 156 hand-off holds; `python tools/sha_citation_gate.py` exit 0.
+TARGETED, no whole suite: one serial pytest run over 27 test files that read the edited records, every path read
+present first (`tests/test_citation_tables.py`, `tests/test_ledger_entry_shape.py`, `tests/test_dated_headings.py`,
+`tests/test_docs_citations.py` and `tests/test_fleet_kit.py` among them): exit 0, 2409 passed, 0 failed, 0 skipped.
+STEP 6: the hand-off rewritten whole, `SESSION: 158`. REAP, `python ops/fleet_kit/fleet_done.py reap --apply`: 5
+removed, 4 kept, 3 listed, base main; the lane worktree kept; the kit deleted the branches of two removed trees as
+merged by ancestry and kept three. Host RAM read once at this ritual: 20.9 of 31.6 GB free against CS-1334's 24 GB
+gate, so the walk did not launch. No licence gate applies. No spike contradicted `BOOTSTRAP.md`.
+
+### 2026-11-15 - CS-1399 - CLOSED: fleet kit v31 adopted - the hand-off archive step in /done, cumulative over v30
+Verification: `ops/fleet_kit/MANIFEST.json` sha256
+6359f695363438cec3e75c241f6ceda3b2f27bceb8c0ac2c20f310c899a3829d, version 31, its 24 files re-hashed equal at the
+session 157 /done; `tests/test_fleet_kit.py::test_fleet_kit_conformance` and that file's KIT_VERSION 31 and hash
+pins; `.claude/commands/done.md`, step 6, HAND-OFF ARCHIVE.
+SCOPE. Adopts MAIN ORDER 2026-11-14-0936 FLEET-KIT v31 (cumulative), provenance verified by
+`tools/main_provenance.py`, as the one commit "chore(kit): adopt fleet kit v31", landed on main 2026-11-15 after its
+first push was refused non-fast-forward because a lane commit reached the remote first.
+`tests/test_exception_rendering.py` re-pins the vendored render residual rows, and `pyproject.toml`'s mypy override
+for the vendored fleet_headless module gains var-annotated. The FLEET-COMMON block is unchanged since v30. The ANSWER
+went to MAIN in the 2026-11-15 05:17 note, before that push landed, so it says push pending; read 1 of 1 at the
+session 157 /done: the delivery record holds it (destination Main, gate verdict CLEAN, verified) and MAIN's inbox
+copy re-hashes to 353ed12db4f15b75565c0f6eb4c3998cc0cbcdb9e3ad9f3df919432eeb71c659. Item id: CS-1399, allocated at
+the session 157 /done (its step 0: an item with no id gets one), the next free id: `git grep`, `git log --all`,
+origin/main's `ROADMAP.md` and every linked worktree read none above CS-1398.
+
 ### 2026-11-15 - CS-1396 - CLOSED: the plan panel offers every catalog schematic as a second free selector, and a schematic press sends schematic, direction and byproduct policy, never a rate
 Verification: `clockspeed/surface/api/registry.py::_plan_schematics`;
 `clockspeed/surface/api/routes.py::build_routes`, which binds the registry route only to a source the caller

@@ -7764,6 +7764,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 154 - archived 2026-11-15 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 154 - 2026-11-01 - MAIN's closeout drive before the operator's reboot: both Fleet Insights ORDERS landed, no product slice
+
+- Shipped: CS-1367, CS-1368, CS-1369 closed; scope product-slices committed, launch held. Detail in docs/LEDGER.md.
+- In flight: CS-1366 stays open for its 7-day read on or after 2026-11-08. The push, CI, the ONE ANSWER and the acks follow this write: ops/loop/control/progress/closeout-cs.json owns them.
+- Decisions: the 2026-10-26 tree_population worktree disposed unlanded by an adjudicator, branch kept for CS-1358. No ADR.
+- Surprises: an adversary found a repin tool that silently re-pointed a reason to a swapped handler, and a kill arm whose planted hang ended inside the budget's scaled window; both fixed with tests. A pass that timed out left its commits safe on its branch. No spike contradicted BOOTSTRAP.md.
+- Failed paths: gitlock refuses `git cherry-pick`; land with `cherry-pick -n`, then gitlock `git commit -C`.
+- Next action: read the drive's progress file, then the remote ref against HEAD by full SHA and CI for that SHA.
+
 ## Session 153 - archived 2026-11-13 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 153 - 2026-11-01 - the operator scoped the session to the inbox; no item closed; MAIN's 15:35 ORDER left in a live responder pass

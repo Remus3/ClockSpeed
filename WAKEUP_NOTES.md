@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 157 - 2026-11-15 - ten product items closed, each through planner, adjudicator, builder, adversary and adjudicator; kit v31 adopted; a lane's false close reopened and re-closed
+
+- Shipped: CS-1384, CS-1381, CS-1378, CS-1373, CS-1376, CS-1374, CS-1397, CS-1246, CS-1375 and CS-1396 closed; kit v31 adopted, given CS-1399 at this /done. CS-1366's 22 rows classified, the item left open. Detail in docs/LEDGER.md.
+- In flight: nothing dirty. A detached advisor-ranking lane driver is live at this /done (2 cycles, CS-1247 claimed first, about 4 h a cycle) and pushes straight to origin/main; the next session grades its landings after the fact. CS-1400 filed from the UI-157 browser audit of the advice panel, BLOCKED on 5 majors. CS-1360 stays open on CS-1394, CS-1395 and two adversary gaps. CS-1366's earliest closing read is 2026-11-19 18:48:37 local. CS-1334 still waits on host RAM.
+- Decisions: no ADR. Seven decisions, each with its fence, in the hand-off's SESSION 157 block: an argued ceiling raise for a renamed target, a false LEDGER close corrected only by a later record, the act route's one-POST-one-act design, CS-1366's row rules, no correction note to MAIN, no default schematic source on the registry route, and no clause built before its gaps are adjudicated.
+- Surprises: CS-1374's first build was inert in production until a read-only install probe found the object-reference wrapper. The lane closed CS-1246 on an aging guard that never fired in production. Two builders' narrower test runs missed a whole-directory red. Builder worktrees were cut at a stale base. One pre-push was blocked by memory pressure under load, another by the published-SHA citation gate. No spike contradicted BOOTSTRAP.md.
+- Failed paths: citing a candidate by its slice SHA in landing text, which the citation gate refuses; cite candidates by role. Trusting a lane's own close record without grading it.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then the lane driver's exit and an adversary on CS-1247's landing.
+
 ## Session 156 - 2026-11-13 - the red baseline repaired, kit v30 adopted, and CS-1361, CS-1379 and CS-1382 landed after an account-limit recovery
 
 - Shipped: CS-1383 (re-pin to the patched game build), CS-1389 (kit v30), CS-1385 (CI ubuntu jobs pinned to 24.04), CS-1361 (the companion window saved by display id), CS-1379 (quoted display-name targets in tiers 1 and 2), CS-1382 (raw supply only with a held extractor, a factual cap clause) closed; a CS-484 decision record; CS-1366's three exit-1 runs classified. Three notes to MAIN, each 1 of 1. Detail in docs/LEDGER.md.
@@ -50,12 +59,3 @@ the line becomes a pointer.
 - Surprises: a parent agent's completion notice waits on its live children, and one straggling adversary hid a finished report for 8.5 hours. A read-back in a sent note read a path no run claims, so the note went out wrong and a correction followed. The carried hand-off called nine CS-1295 findings operator-needing, and a reader and an adjudicator found none is. The hand-off's CS-1359 evidence run was a workflow_dispatch, not nightly. No spike contradicted BOOTSTRAP.md.
 - Failed paths: CS-1379's ClassName fallback for undelimited names was refuted in the opposite direction, since `A, B` then reads its ClassName; the next attempt rules on quoting the name. CS-1382's ruled (1, 0) raw-supply count was reversed by its own real-world clause: 7 early-world targets went false route-refused.
 - Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then rule CS-1379's naming, land it, and repair CS-1382's F1.
-
-## Session 154 - 2026-11-01 - MAIN's closeout drive before the operator's reboot: both Fleet Insights ORDERS landed, no product slice
-
-- Shipped: CS-1367, CS-1368, CS-1369 closed; scope product-slices committed, launch held. Detail in docs/LEDGER.md.
-- In flight: CS-1366 stays open for its 7-day read on or after 2026-11-08. The push, CI, the ONE ANSWER and the acks follow this write: ops/loop/control/progress/closeout-cs.json owns them.
-- Decisions: the 2026-10-26 tree_population worktree disposed unlanded by an adjudicator, branch kept for CS-1358. No ADR.
-- Surprises: an adversary found a repin tool that silently re-pointed a reason to a swapped handler, and a kill arm whose planted hang ended inside the budget's scaled window; both fixed with tests. A pass that timed out left its commits safe on its branch. No spike contradicted BOOTSTRAP.md.
-- Failed paths: gitlock refuses `git cherry-pick`; land with `cherry-pick -n`, then gitlock `git commit -C`.
-- Next action: read the drive's progress file, then the remote ref against HEAD by full SHA and CI for that SHA.
