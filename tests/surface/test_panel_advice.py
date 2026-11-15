@@ -3772,3 +3772,126 @@ def test_the_panel_orders_nothing_it_lists() -> None:
     code = code_only(read_asset(MODULE))
     reached = tuple(token for token in (".sort(", ".reverse(", "localeCompare") if token in code)
     assert reached == (), reached
+
+
+# --- CS-1396 round 3: the LIVE derivation and state doors carry the schematic -----------
+
+
+#: The requests a live schematic press then one card click make: the act, then the card's own.
+EXPECTED_AFTER_ANSWER: Final = 2
+
+
+def _live_schematic_answer(tmp_path: Path, *clicks: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Press a schematic statement through the live doors, answer it, then take these clicks.
+
+    Args:
+        tmp_path: A directory the driver may write scratch files into.
+        *clicks: The steps after the answer lands.
+
+    Returns:
+        The driver's report, whose ``fetch_calls`` are what app.js really issued.
+    """
+    answer = answered(listing(card("A plan card", "its reason"), plan_outcome={"status": "ranked"}))
+    return drive(
+        tmp_path,
+        schematic_payload(),
+        door=DOOR_LIVE,
+        steps=[
+            *schematic_fills(),
+            press_ask(),
+            {"resolve": {"call": 0, "status": answer["http"], "body": answer["body"]}},
+            *clicks,
+        ],
+    )
+
+
+def _schematic_query() -> str:
+    """:data:`SCHEMATIC_STATED` as the live doors encode it: the table's own order."""
+    return "&".join(
+        f"{name}={SCHEMATIC_STATED[name]}"
+        for name in (
+            advice_endpoint.DIRECTION_PARAMETER,
+            advice_endpoint.BYPRODUCT_POLICY_PARAMETER,
+            SCHEMATIC_NAME,
+        )
+    )
+
+
+def test_a_schematic_cards_live_derivation_request_carries_the_schematic(tmp_path: Path) -> None:
+    report = _live_schematic_answer(tmp_path, {"click": read_id(0)})
+    calls = report["fetch_calls"]
+    count = len(calls)
+    assert count == EXPECTED_AFTER_ANSWER, calls
+    key = card("A plan card", "its reason")["id"]
+    assert calls[1]["url"] == (
+        f"{advice_endpoint.ENDPOINT}/{key}/derivation?"
+        f"{advice_endpoint.ID_PARAMETER}={key}&{_schematic_query()}"
+    ), calls[1]["url"]
+    assert calls[1]["method"] == "GET"
+    assert "rate=" not in calls[1]["url"], calls[1]["url"]
+
+
+def test_a_schematic_cards_live_state_request_carries_the_schematic(tmp_path: Path) -> None:
+    report = _live_schematic_answer(tmp_path, {"click": control_id("pin", 0)})
+    calls = report["fetch_calls"]
+    count = len(calls)
+    assert count == EXPECTED_AFTER_ANSWER, calls
+    key = card("A plan card", "its reason")["id"]
+    assert calls[1]["url"] == (
+        f"{advice_endpoint.ENDPOINT}/{key}/state?{advice_endpoint.ID_PARAMETER}={key}"
+        f"&{advice_endpoint.STATE_PARAMETER}=pinned&{_schematic_query()}"
+    ), calls[1]["url"]
+    assert calls[1]["method"] == "POST"
+    assert calls[1]["has_body"] is False
+    assert calls[1]["headers"].get(PROOF_HEADER) == "1", calls[1]["headers"]
+    assert "rate=" not in calls[1]["url"], calls[1]["url"]
+
+
+def test_zero_targets_with_some_schematics_still_offers_the_schematic_selector(
+    tmp_path: Path,
+) -> None:
+    registered = {**registry_body(), api_registry.PLAN_TARGETS_KEY: []}
+    registered[api_registry.PLAN_SCHEMATICS_KEY] = list(SERVED_SCHEMATICS)
+    data = panel_harness.null_payload(advice=listing(), registry=registered)
+    report = drive(tmp_path, data, steps=[*schematic_fills(), press_ask()])
+    options = tuple(value for value, _text in options_of(report, SCHEMATIC_ID))
+    assert options == ("", *SERVED_SCHEMATICS), options
+    # THE CONTROL: the press from that bench reaches the act door, so the selector is live.
+    sent = door_calls(report, "act")
+    assert len(sent) == 1, sent
+    assert sent[0]["params"] == dict(SCHEMATIC_STATED), sent
+    # And the empty target list is still named, beside the selector it did not hide.
+    assert "plan_targets" in panel_text(report), panel_text(report)
+
+
+def test_the_hint_names_both_shapes_only_where_the_schematic_selector_shows(
+    tmp_path: Path,
+) -> None:
+    with_selector = panel_text(drive(tmp_path, schematic_payload()))
+    without = panel_text(drive(tmp_path, schematic_payload(schematics=None)))
+    assert "All four are required" not in with_selector, with_selector
+    assert "a schematic with a direction and a byproduct policy and no rate" in with_selector
+    assert "All four are required" in without, without
+
+
+def test_an_unstated_cards_answer_carries_no_state_control_and_posts_no_state(
+    tmp_path: Path,
+) -> None:
+    """The statement-copying ``record`` has no unstated caller: no control, so no post."""
+    answer = answered(listing(card("An unstated card", "r")))
+    report = drive(
+        tmp_path,
+        schematic_payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {"click": ACT_ID},
+            {"resolve": {"call": 0, "status": answer["http"], "body": answer["body"]}},
+        ],
+    )
+    ids = {str(row["id"]) for row in report["nodes"]}
+    assert read_id(0) in ids, "the card did not render, so this grades nothing"
+    leaked = {control_id(stem, 0) for stem in (*PLAIN_CONTROLS, SNOOZE_STEM)} & ids
+    assert leaked == set(), sorted(leaked)
+    posts = tuple(call for call in report["fetch_calls"] if call["url"].endswith("/state"))
+    assert posts == ()
+    assert tuple(call["method"] for call in report["fetch_calls"]) == ("POST",)
