@@ -998,6 +998,22 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1319 cited it live; CS-1344 removed the retention and renamed it. Not a record defect.",
         ("d964b6da9d1e:f9e82b15d005:0",),
     ),
+    # --- the record was RIGHT when written; CS-1384 MOVED the two name helpers and
+    # renamed each without its leading underscore, because the plan and fuel
+    # families now import them across modules. The CS-1379 closure cites both at
+    # plan.py, where they lived; the live targets are in the shared module.
+    (LEDGER, "clockspeed/advisor/rules/plan.py::_usable_name"): Disposition(
+        RENAMED,
+        "clockspeed/advisor/rules/display_names.py::usable_name",
+        "CS-1379 cited it live in plan.py; CS-1384 moved and renamed it. Not a record defect.",
+        ("164588bd3372:60ed2224aec4:0",),
+    ),
+    (LEDGER, "clockspeed/advisor/rules/plan.py::_quoted"): Disposition(
+        RENAMED,
+        "clockspeed/advisor/rules/display_names.py::quoted",
+        "CS-1379 cited it live in plan.py; CS-1384 moved and renamed it. Not a record defect.",
+        ("164588bd3372:60ed2224aec4:0",),
+    ),
 }
 
 
@@ -1360,7 +1376,15 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: every failed run reclaimed, the newest included. Right-when-written and dead
 #: now, in an append-only carrier, with a live target - the row in DISPOSITIONS
 #: is RENAMED, pinned by its one site and checked in all three directions.
-FORGIVEN_LINE_POINTER_CEILING: Final = 73
+#:
+#: RAISED TO 75 BY CS-1384, FOR A MOVE. The CS-1379 closure cites the plan
+#: family's usable-name test and quoting helper by path and symbol; CS-1384 gave
+#: the plan and fuel families one display-name rule and moved both into a shared
+#: module, each renamed without its leading underscore because it is now
+#: imported across modules. Right-when-written and dead now, in an append-only
+#: carrier, with a live target - the two rows in DISPOSITIONS are RENAMED, each
+#: pinned by its one site and checked in all three directions every run.
+FORGIVEN_LINE_POINTER_CEILING: Final = 75
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
