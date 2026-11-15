@@ -85,7 +85,7 @@ from clockspeed.save.header import WORLD_TOKEN_LENGTH
 from clockspeed.surface.api import contract
 from clockspeed.surface.api.routes import ROUTES
 from clockspeed.surface.config import ServerConfig
-from clockspeed.surface.providers import InstalledRegistryProvider
+from clockspeed.surface.providers import InstalledRegistryProvider, InstalledSchematicSource
 from clockspeed.surface.server import serve
 from tests.conftest import (
     CLASS_ACCOUNT_ID,
@@ -463,10 +463,30 @@ def game_content_runs() -> frozenset[str]:
     for warning in registry.warnings:
         text.extend((warning.code, warning.subject))
     text.extend(registry.unknown_groups)
+    text.extend(schematic_class_names())
     found: set[str] = set()
     for value in text:
         found.update(_SAVE_IDENTIFIER.findall(value))
     return frozenset(found)
+
+
+def schematic_class_names() -> tuple[str, ...]:
+    """Every schematic ClassName this machine's shipped docs hold, read independently.
+
+    CS-1396 put ``plan_schematics`` on ``/api/registry``: the catalog's own ClassNames, which
+    are public game content like every item and recipe key above. MEASURED on this machine,
+    exactly one of them is as long as a save identifier and drawn from its character class, so
+    the detector read the catalog as a leaked token. The source is the install's own docs file
+    through :class:`InstalledSchematicSource`, never the ``/api/registry`` body under test, for
+    the reason :func:`game_content_runs` gives, and no save byte can reach it.
+
+    Returns:
+        The ClassNames, or an empty tuple on a machine with no game installed.
+    """
+    catalog = InstalledSchematicSource().catalog()
+    if catalog is None:
+        return ()
+    return tuple(catalog.schematics)
 
 
 #: THE CHARACTER EVERY NON-PLAIN SPELLING BELOW IS DERIVED FROM. Named rather
@@ -1537,6 +1557,28 @@ def test_the_registry_subtraction_does_not_swallow_a_planted_token() -> None:
 
     classes = _personal_data_classes(f" {plant} ")
     assert CLASS_SAVE_IDENTIFIER in classes, classes
+
+
+def test_a_token_shaped_catalog_class_name_is_game_content_and_a_plant_beside_it_is_not() -> None:
+    """CS-1396: the catalog's ClassNames are admitted, and admitting them blinds nothing.
+
+    Both halves in one arm. Every token-shaped run inside a real catalog key is in the
+    subtraction, so ``/api/registry`` serving ``plan_schematics`` is not read as a leak; and a
+    run of the same shape that is NOT a catalog key, planted inside a name spelled like one,
+    still reads as a save identifier. The plant is asserted absent from the catalog BEFORE it
+    is asserted found, so a catalog holding it could not make this arm agree with itself.
+    """
+    names = schematic_class_names()
+    runs = frozenset(run for name in names for run in _SAVE_IDENTIFIER.findall(name))
+    assert runs <= game_content_runs(), sorted(runs - game_content_runs())
+
+    plant = "Qz" + "9876543210zyxwvutsrq"
+    assert len(plant) == WORLD_TOKEN_LENGTH, len(plant)
+    assert plant not in runs, "the plant collides with a real catalog ClassName"
+    assert plant not in game_content_runs(), "the plant collides with real game content"
+    assert plant not in KNOWN_SAFE_RUNS, "the plant collides with the published vocabulary"
+    body = f' {{"plan_schematics": ["{plant}"]}} '
+    assert CLASS_SAVE_IDENTIFIER in _personal_data_classes(body), body
 
 
 def test_an_exact_fraction_of_token_length_is_not_a_save_identifier() -> None:
