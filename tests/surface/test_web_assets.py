@@ -2551,11 +2551,15 @@ def fetch_calls(code: str) -> tuple[FetchCall, ...]:
 #: to two when the optimize bench got a door: ``/api/optimize`` answered 200
 #: against real data for as long as nothing on the page called it, and the fix
 #: for that was necessarily a second POST.
-EXPECTED_NON_GET_FETCHES: Final = 2
-NON_GET_TARGETS: Final = ('"/api/solve?" + query', '"/api/optimize?" + query')
+EXPECTED_NON_GET_FETCHES: Final = 3
+NON_GET_TARGETS: Final = (
+    '"/api/solve?" + query',
+    '"/api/optimize?" + query',
+    '"/api/advice/" + encodeURIComponent(params.id) + "/state?" + query',
+)
 
 
-def test_the_page_issues_exactly_two_posts_and_no_form() -> None:
+def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
     """Two non-GET requests, each pinned to a path, no body and still no form.
 
     THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
@@ -2623,13 +2627,16 @@ def test_the_page_issues_exactly_two_posts_and_no_form() -> None:
     # (CS-1371). Pinned for the reason the power door is, and to the verb as well: a
     # stated plan is read, and a POST here would be a third state-changing request
     # the count above would then have to admit.
-    advice = tuple(call for call in calls if call.target.startswith('"/api/advice'))
+    # CS-1376: the state door is the one advice request that POSTs, and it is counted above.
+    advice = tuple(
+        call for call in calls if call.target.startswith('"/api/advice') and call.method == "GET"
+    )
     assert sorted(call.target for call in advice) == [
         '"/api/advice/" + encodeURIComponent(params.id) + "/derivation?" + query',
         '"/api/advice?" + query',
     ], advice
-    advice_verbs = tuple(call.method for call in advice)
-    assert advice_verbs == ("GET", "GET"), advice_verbs
+    state = tuple(call for call in calls if call.target.endswith('"/state?" + query'))
+    assert tuple(call.method for call in state) == ("POST",), state
 
     carried = tuple(f"{call.method} {call.target}" for call in calls if call.sends_body)
     assert not carried, f"a fetch carries a request body the server never reads: {carried}"
