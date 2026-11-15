@@ -24,6 +24,31 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1396 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**
+The closure record is in `docs/LEDGER.md`.
+
+
+### Acceptance
+
+Phase 5, tier 2. The plan panel offers the catalog's schematics as a second free selector beside
+plan_targets: `/api/registry` serves `plan_schematics`, every ClassName the CS-1373
+`SchematicSource` catalog holds, sorted, and the empty list when the source publishes none.
+`clockspeed/surface/web/panel_advice.js` lists it in served order, starts empty, and a press with a
+schematic chosen sends `schematic`, `direction` and `byproduct_policy` through data.actions, never a
+rate; the panel computes nothing. Each reddens on its own arm first on a synthetic catalog: the
+served list equals the catalog's sorted keys; no catalog serves the empty list and the panel names
+that; a schematic and an item chosen together leave the press inert and name both fields; the sent
+query carries no rate. Waits on CS-1373 and CS-1360; not concurrent with CS-1376.
+
+### Filed 2026-11-14 (session 157) by the CS-1373 adjudication
+
+Split out of CS-1373 so a finished core is not held behind the CS-1360 lane.
+
+ADJUDICATED 2026-11-15 by the session 157 adjudicator: DO NOT LAND at c57a90ae, the registry route opened the docs
+file during a request; LAND at 733273e1 once the route bound no default catalog source.
+
 ## CS-1375 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**

@@ -1355,3 +1355,7 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
 - CS-1375 follow-up: a fresh world with zero machines reads unmeasured rather than more by the whole count; revisit if the operator wants that told apart.
 - CS-1375 follow-up: a refused recipe tag is counted in both refused_recipe_tags and untagged_machines; decide whether tier 3 says the two overlap.
 - CS-1375 follow-up: no real-save check yet that recipe_class_name and overclock_elided mean what the fixtures assume; add one to the gitignored-corpus probe.
+- CS-1396 follow-up: neither installed provider (registry or schematic catalog) caches, so /api/registry and every advice request stating a schematic re-parse the docs file each time (about +40 ms measured); no budget is stated in BOOTSTRAP.md or docs/hud_doctrine.md.
+- CS-1396 follow-up: the CS-1171 no-open twin does not cover the advice routes; widening it is a guard, so it waits under product before process.
+- CS-1396 follow-up: red-first rests on the builder's report; the adjudicator re-measured only the repair mutant.
+- Session 157 push: the first pre-push of the session batch was BLOCKED by memory pressure under load (MemoryError in tests/save/test_trailing_run.py::test_the_sweep_reaches_every_pair_this_item_covers, WinError 1455 in tests/test_claude_hook.py::test_the_settings_commands_run_under_a_shell_like_the_harness); both passed alone and on a quiet-box retry. Trigger: a repeat under load.

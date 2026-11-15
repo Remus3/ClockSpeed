@@ -75,6 +75,21 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1396 - CLOSED: the plan panel offers every catalog schematic as a second free selector, and a schematic press sends schematic, direction and byproduct policy, never a rate
+Verification: `clockspeed/surface/api/registry.py::_plan_schematics`;
+`clockspeed/surface/api/routes.py::build_routes`, which binds the registry route only to a source the caller
+passes; `tests/surface/test_registry.py::test_the_served_list_equals_the_catalogs_sorted_keys`,
+`::test_the_first_registry_request_with_no_source_bound_opens_no_file`;
+`tests/surface/test_panel_advice.py::test_a_schematic_and_an_item_together_leave_the_press_inert_naming_both`,
+`::test_a_schematic_press_sends_no_rate_even_with_one_typed`. Production lists the catalog through the explicit
+binding in `clockspeed/surface/__main__.py`. Landed tree: tests/surface serial, 2651 passed.
+Closed CS-1396: the plan panel offers every catalog schematic as a second free selector; a schematic press sends
+schematic, direction and byproduct policy, never a rate, through the act door. Discharges the CS-1371 lowering
+ground (items and no schematic on the selector): the plan panel now offers every catalog schematic as a free
+selector.
+GRADED: adversary REFUTED round one on three door and selector survivors, then killed by live-door arms;
+ADJUDICATED: DO NOT LAND at c57a90ae, then LAND at 733273e1, session 157. RESIDUAL: four follow-ups in BACKLOG.
+
 ### 2026-11-15 - CS-1375 - CLOSED: the plan.redesign card compares its route with what is built, producers first, a stage reading more, enough or unmeasured and an off-route producer reading replace
 Verification: `tests/advisor/test_plan_redesign_built.py`, 24 passed on the landed tree serial; the thirteen suites of
 the landed tree's verification run passed serial, 1205 passed; the adjudicator froze the candidate and ran tests/advisor

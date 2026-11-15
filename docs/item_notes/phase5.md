@@ -436,21 +436,3 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
-
-## CS-1396
-
-### Acceptance
-
-Phase 5, tier 2. The plan panel offers the catalog's schematics as a second free selector beside
-plan_targets: `/api/registry` serves `plan_schematics`, every ClassName the CS-1373
-`SchematicSource` catalog holds, sorted, and the empty list when the source publishes none.
-`clockspeed/surface/web/panel_advice.js` lists it in served order, starts empty, and a press with a
-schematic chosen sends `schematic`, `direction` and `byproduct_policy` through data.actions, never a
-rate; the panel computes nothing. Each reddens on its own arm first on a synthetic catalog: the
-served list equals the catalog's sorted keys; no catalog serves the empty list and the panel names
-that; a schematic and an item chosen together leave the press inert and name both fields; the sent
-query carries no rate. Waits on CS-1373 and CS-1360; not concurrent with CS-1376.
-
-### Filed 2026-11-14 (session 157) by the CS-1373 adjudication
-
-Split out of CS-1373 so a finished core is not held behind the CS-1360 lane.
