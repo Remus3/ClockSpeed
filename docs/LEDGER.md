@@ -75,6 +75,27 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1373 - CLOSED: a schematic may be stated as a plan target, its cost items planned as one route at the requirement's own rates
+Verification: `tests/advisor/test_plan_schematic_target.py` and `tests/surface/test_schematic_source.py`;
+`tests/advisor/test_plan_schematic_target.py::test_a_cost_item_off_plan_targets_is_named_never_dropped`,
+`::test_the_card_id_is_the_section_5_2_hash_with_the_schematic_as_its_milestone`,
+`::test_tier_3_names_the_schematic_its_tier_each_amount_the_budget_and_each_rate`,
+`::test_a_no_plan_route_card_has_the_schematic_as_its_milestone_and_the_5_2_id`;
+`tests/surface/test_schematic_source.py::test_build_routes_with_no_schematics_serves_the_installed_source`.
+Closed CS-1373: merged `clockspeed/advisor/plans.py`, `clockspeed/advisor/rules/plan.py`,
+`clockspeed/surface/providers.py`, `clockspeed/surface/api/advice.py`, `clockspeed/surface/api/routes.py` and
+`clockspeed/surface/__main__.py`; one SchematicRequest per schematic at the requirement's own rates,
+InstalledSchematicSource wired by default. READ BACK AT CLOSE ON THE INSTALLED CATALOG AND ONE LIBRARY SAVE, THE SAVE
+UNNAMED, DIRECTION RAW, THROUGH `clockspeed/advisor/plans.py::schematic_request_from` AND
+`clockspeed/advisor/advise.py::advise_world`: 574 catalog schematics, every one a request. Balanced: 35 read a plan
+card, 28 a route card, 462 schematic-unplannable (230 empty-cost, 179 unresolved-cost-item, 52 item-not-plannable, 1
+cost-unreadable) and 49 no card (no-plan with 14 no-route and 35 route-refused). Sinkable: 35 plan cards, 57 route
+cards, the same 462 schematic-unplannable and 20 no card (14 no-route, 6 route-refused). Rule errors 0 under both; no
+value is required. GRADED: adversary REFUTED round one on three unguarded arms, NOT REFUTED round two; ADJUDICATED:
+LAND, session 157. RESIDUAL: red-first was ImportError only, compensated by three independent mutant sets; no arm uses
+an item with a recipe but no automated maker (BACKLOG); the CS-1371 lowering ground stays undischarged until CS-1396
+closes.
+
 ### 2026-11-15 - CS-1246 - CLOSED: quick-win card ordering, with an aging guard read from the ledger's shown-and-deferred record
 Verification: `clockspeed/advisor/ranking.py::order_cards`, `::order_shown`,
 `::EFFORT_BY_RULE`, `::undeclared_rule_ids`, `::AGING_EVALUATIONS`;

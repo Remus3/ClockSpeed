@@ -283,7 +283,6 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1373 - select a schematic as target: its cost items plan as one route - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1396 - the plan panel offers catalog schematics as a second free selector - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1374 - a redesign card names each locked recipe's schematic and tech tier - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1375 - a redesign is compared with what is built, dependency-ordered - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

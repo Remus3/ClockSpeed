@@ -24,6 +24,58 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1373 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**
+The closure record is in `docs/LEDGER.md`.
+
+
+### Acceptance
+
+Phase 5, tier 2, open before v1. A plan may be stated for a schematic: `GET /api/advice` and
+`POST /api/advice/<id>/state` admit `schematic` with `direction` and `byproduct_policy` in place of
+`target` and `rate`. A schematic statement carries no rate: each cost item's rate is the rate
+`clockspeed/progress/milestones.py::milestone_requirement` publishes, its cost over
+`COMPLETION_BUDGET_MINUTES`, read from the requirement and never recomputed or scaled. The catalog
+arrives through a concrete `SchematicSource`, `InstalledSchematicSource` in
+`clockspeed/surface/providers.py`, which reads the docs file `InstalledRegistryProvider` reads and
+publishes None on each failure that provider answers None on; CS-1046 consumes it and builds no
+second one. The statement is built through an advisor door in `clockspeed/advisor/plans.py`, so no
+surface module reads a cost or derives a rate. On a synthetic catalog and registry, with no install,
+each case reddens on its own arm first:
+
+1. A schematic costing two plannable items reads ONE plan card whose plan targets hold both items at
+   exactly the requirement's rates - one request, one search and, on no-plan, one marked route -
+   never one card per cost item.
+2. The card id is the BOOTSTRAP.md section 5.2 hash with the schematic's ClassName as its target
+   milestone: the same schematic over two saves reads the same id, and an item statement at the same
+   targets and rates reads a different one.
+3. A `rate` or a `target` stated beside `schematic` is 400 invalid_parameter; a schematic the
+   catalog does not hold is 400 invalid_parameter, after both providers; a source publishing no
+   catalog answers 503 no_game_install.
+4. A schematic whose requirement publishes no rates - cost-unreadable, nonpositive-cost or
+   unresolved-cost-item - reads plan_outcome status `schematic-unplannable` with that reason word
+   and no plan card; an empty cost reads the same status with reason `empty-cost`; a cost item off
+   `clockspeed/data/registry.py::plan_targets` (a raw resource, or an item no automated recipe
+   makes) reads the same status naming each such item, never a request with that item dropped.
+5. Tier 3, generated from the trace, names the schematic, its tech tier, each cost item's amount,
+   the completion budget and each derived rate; tiers 1 and 2 stay one line each.
+
+The closing ledger record reads back, on the installed catalog and one library save, the save
+unnamed, how many catalog schematics read a plan card and how many read schematic-unplannable; no
+value is required. The schematic selector on the plan panel is the separate item filed beside this
+one, and until it closes this close does not discharge the CS-1371 lowering ground recorded below.
+
+### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
+
+**LOWERING** against `CLAUDE.md` section 7 and `BOOTSTRAP.md` pillar 4, by CS-1371 offering items and no
+schematic on its selector; ground build cost and a missing concrete source.
+
+Ruled 2026-11-14 (session 157 adjudicator): a schematic statement takes no rate (each cost item's rate is milestone_requirement's); the panel selector split to CS-1396; 39 of 42 is provenance, read back at close; the concrete source is InstalledSchematicSource in surface/providers.py. Rejected: a user time horizon; a rate scale; one id with two slices; a source in clockspeed/data/.
+
+ADJUDICATED 2026-11-15 by the session 157 adjudicator: LAND after a second adversary round; the
+off-plan item names ride the reason field; red-first was ImportError only, compensated by mutation.
+
 ## CS-1246 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as filed.**
@@ -40,7 +92,6 @@ ledger's shown-and-deferred record, never from a timer.
 
 a fixture with one large and several small cards brings the large card to the top after the
 configured number of evaluations; the same ledger state gives the same order
-
 
 ## CS-1378 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 

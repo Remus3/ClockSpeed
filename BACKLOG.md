@@ -1337,3 +1337,6 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
   (50 got a consumer but the second solve still refused, 3 found none; Plastic and Rubber need the consumer's own
   leftover eaten). Trigger: a product need for those targets; the session 157 adjudicator ruled a multi-hop follow-up
   belongs here only if the read-back read zero.
+- CS-1373 arm gap: no fixture item has a recipe but no automated maker, so the clause's 'an item no automated recipe
+  makes' case is reached only through plan_targets marking it raw; add one such item to the synthetic plan world and
+  an arm naming it.
