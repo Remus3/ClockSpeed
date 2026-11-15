@@ -896,6 +896,18 @@ Not met, each a measurement:
 Blocked on CS-1394 (capacity, hence saturation) and CS-1395 (internal edges): a later cycle takes those two FIRST
 and returns here.
 
+### Recorded 2026-11-15 by the session 157 adversary, the post-landing pass over the lane's flow view
+
+NOT REFUTED; SHIPPED-PARTIAL is honest and CS-1394 and CS-1395 scope the throughput and internal-edge gaps. Two
+gaps they do not cover, owed before CS-1360 closes: (1) the highest-rate mark in
+`clockspeed/surface/api/flow_view.py` compares one rate across raw inputs, targets and byproducts, and a fluid's
+rate is in cubic metres a minute where a solid's is items a minute, so the mark can compare unlike units - confirm
+the plan's fluid rate unit and either mark within one unit or state the unit in the reason; (2) the panel writes a
+bare star for the marked edge with no label, so a reader cannot tell it means highest rate. Arms owed: the
+step-kind check in `flow_view.py` (replacing it with True passes all 25 tests) and whole-number rate rendering in
+`panel_advice.js` `rateText` (den 1 versus den 0 passes). Seam note: `panel_advice.js` `barOf` multiplies served
+integers for bar widths, presentation only, against a header that says nothing is computed there.
+
 
 ## CS-1362
 
