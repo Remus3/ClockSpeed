@@ -224,7 +224,7 @@ def _ranked(badge: StrategyBadge | None = None, plan: ProductionPlan | None = No
         rank=2,
         plan=_plan() if plan is None else plan,
         score=Fraction(120),
-        key=(Fraction(120), (0, 1)),
+        key=(Fraction(120), (), (0, 1)),
         badge=_badge() if badge is None else badge,
     )
 
