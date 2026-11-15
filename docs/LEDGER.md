@@ -75,6 +75,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1246 - NOT A COMPLETION RECORD. CS-1246 STAYS OPEN: the lane's closure is SUPERSEDED by adjudication, its aging guard never fires in production
+Verification: `ROADMAP.md`; the CS-1246 section of `docs/item_notes/phase5.md`; `clockspeed/surface/providers.py` imports `advise_world` only.
+SUPERSEDED: the record below headed "CS-1246 - CLOSED: quick-win card ordering" is not a
+completion. The only writer of deferral counts, `advise_and_record`, has no production
+caller, so every served count is zero and the guard cannot fire; a disclosed residual
+that zeroes the item's whole effect is the item not done. Two mutants survived the
+advisor and advice suites: `Advice.shown` for `Advice.ranked_shown` in the reconcile call,
+and `deferrals=` dropped from the returned Advice. "Configured" is ruled met by the named
+constant with its per-call override. Alternatives rejected: a LANDED-NOT-CLOSED state (not
+a section 5 state); keeping the item closed and folding its gap into CS-1397 (a false
+completion left standing). The relocated history_notes section stays as history; the live
+section returns to its leaf with an amended clause. The item now waits on CS-1397.
+
+### 2026-11-15 - CS-1397 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1397 STAYS OPEN: clause amended so the recording act is reached from the surface and counts to the named threshold
+Verification: the CS-1397 section of `docs/item_notes/phase5.md`.
+Amended by adjudication: "three" becomes `AGING_EVALUATIONS`, and the arm must drive
+`clockspeed/surface/` rather than call `advise_and_record` directly. Rejected: leaving the
+clause as filed, which a test-only caller can still meet.
+
 ### 2026-11-15 - CS-1376 - CLOSED: the plan panel accepts, dismisses, snoozes and pins a card through the state route, a snooze's length a closed token resolved on the injected clock
 Verification: the ten touched suites passed on the landed tree, serial, 1119 passed: `tests/advisor/test_ledger.py`,
 `tests/advisor/test_advise.py`, `tests/advisor/test_ranking.py`, `tests/surface/test_advice.py`,
