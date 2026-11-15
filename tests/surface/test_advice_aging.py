@@ -25,11 +25,20 @@ Every token, id and number is invented. No save and no install is read.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor import ranking
 from clockspeed.advisor.ledger import Ledger
+from clockspeed.advisor.rules import fuel as fuel_rules
+from clockspeed.audit.machines import PROPERTY_OVERCLOCK, PROPERTY_PRODUCING
+from clockspeed.save.world import WorldProperties
 from clockspeed.surface.api import advice as advice_endpoint
+from clockspeed.surface.api import contract
+from tests.advisor import test_world_advice as world_fixtures
+from tests.audit import test_balance as balance_fixtures
+from tests.audit import test_fuel as fuel_audit_fixtures
 from tests.surface import test_advice_act as act_fixtures
 
 if TYPE_CHECKING:
@@ -37,6 +46,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from clockspeed.advisor.advise import Advice
+    from clockspeed.data.registry import Registry
+    from clockspeed.save.world import WorldModel
 
 LARGE: Final = act_fixtures.LARGE_RULE
 QUICK: Final = act_fixtures.QUICK_RULE
@@ -189,3 +200,132 @@ def test_a_further_act_clears_the_ranked_leader_and_ages_the_card_below_it(
 
 def test_the_act_template_is_the_one_these_arms_drive() -> None:
     assert advice_endpoint.ACT_ENDPOINT == "/api/advice/act"
+
+
+# ---------------------------------------------------------------------------
+# One large card beside TWO small ones: the second small card ages too (CS-1246)
+# ---------------------------------------------------------------------------
+
+#: The second small card the three-card fixture adds: a solid burner with no supply read.
+SECOND_SMALL: Final = fuel_rules.DEMAND_RULE.rule_id
+
+#: The three cards the fixture holds.
+THREE_CARDS: Final = 3
+
+
+def _large_and_two_small() -> tuple[WorldModel, Registry]:
+    """The stated plan card, the unpriced-machine card and a solid burner's fuel-demand card."""
+    plan_model, plan_registry = act_fixtures.source_fixtures._ascent()  # noqa: SLF001
+    fuel_registry = world_fixtures.fuel_registry()
+    registry = replace(
+        plan_registry,
+        items=MappingProxyType({**plan_registry.items, **fuel_registry.items}),
+        buildings=MappingProxyType(
+            {
+                **plan_registry.buildings,
+                **dict(balance_fixtures.whole_world_registry()),
+                **fuel_registry.buildings,
+            }
+        ),
+        generators=MappingProxyType({**plan_registry.generators, **fuel_registry.generators}),
+    )
+    base = balance_fixtures.world_of(
+        balance_fixtures.FIXED_WHOLE, world_fixtures.UNPRICED_MACHINE, fuel_audit_fixtures.GEN_COAL
+    )
+    entries = dict(base.properties.by_record_index)
+    entries[1] = replace(entries[1], values=MappingProxyType({PROPERTY_PRODUCING: True}))
+    entries[2] = replace(
+        entries[2],
+        values=MappingProxyType({PROPERTY_PRODUCING: True, PROPERTY_OVERCLOCK: 1.0}),
+    )
+    model = replace(
+        base,
+        properties=WorldProperties(by_record_index=MappingProxyType(entries)),
+        unlocks=plan_model.unlocks,
+    )
+    return model, registry
+
+
+def _three_table(directory: Path) -> Mapping[tuple[str, str], contract.Handler]:
+    model, registry = _large_and_two_small()
+    return act_fixtures._table(directory, model, registry)  # noqa: SLF001
+
+
+def _three_acts(directory: Path, count: int) -> list[list[str]]:
+    """The rule-id order each of ``count`` stated acts answers over the three-card world."""
+    table = _three_table(directory)
+    return [
+        _act_order(act_fixtures._data(act_fixtures._act(table, act_fixtures._stated())))  # noqa: SLF001
+        for _ in range(count)
+    ]
+
+
+def _three_listed(directory: Path) -> list[str]:
+    data = act_fixtures._listing(_three_table(directory), act_fixtures._stated())  # noqa: SLF001
+    cards = data["cards"]
+    assert isinstance(cards, list)
+    assert len(cards) == THREE_CARDS
+    assert all(card["visible"] is True and card["state"] == "new" for card in cards)
+    return _act_order(data)
+
+
+def _three_counts(directory: Path) -> dict[str, int]:
+    """Rule id to deferral count, read from a fresh ledger over the three-card world."""
+    model, registry = _large_and_two_small()
+    source = act_fixtures._source(directory)  # noqa: SLF001
+    parameters = source.plan_parameters(rate="10", direction="raw", byproduct_policy="balanced")
+    assert parameters is not None
+    request = source.plan_request(
+        registry, act_fixtures.source_fixtures.SOLVE_RELIC_ITEM, parameters
+    )
+    found = source.advice(model, registry, plan_request=request)
+    assert found is not None
+    held = dict(Ledger(directory).deferrals(model.token))
+    return {advised.card.rule_id: held.get(advised.card.id, 0) for advised in found.cards}
+
+
+def test_the_three_card_fixture_leads_with_the_small_cards_and_ends_with_the_large_one(
+    tmp_path: Path,
+) -> None:
+    # The control for the arms below: the large card is LAST until it ages.
+    first = _three_acts(tmp_path, 1)[0]
+
+    assert first == [QUICK, SECOND_SMALL, LARGE]
+
+
+def test_the_large_card_reads_first_past_two_small_cards_and_the_second_small_card_ages_too(
+    tmp_path: Path,
+) -> None:
+    _three_acts(tmp_path, 1 + ranking.AGING_EVALUATIONS)
+
+    listed = _three_listed(tmp_path)
+    counts = _three_counts(tmp_path)
+
+    # The second small card reached the threshold beside the large one and was NOT promoted:
+    # one card moves, the most starved, and a tie goes to the one the base order put lowest.
+    assert counts[SECOND_SMALL] == ranking.AGING_EVALUATIONS
+    assert counts[LARGE] == ranking.AGING_EVALUATIONS
+    assert counts[QUICK] == 0
+    assert listed == [LARGE, QUICK, SECOND_SMALL]
+
+
+def test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards(
+    tmp_path: Path,
+) -> None:
+    _three_acts(tmp_path, 1 + ranking.AGING_EVALUATIONS - 1)
+
+    listed = _three_listed(tmp_path)
+    counts = _three_counts(tmp_path)
+
+    assert counts[SECOND_SMALL] == ranking.AGING_EVALUATIONS - 1
+    assert counts[LARGE] == ranking.AGING_EVALUATIONS - 1
+    assert listed == [QUICK, SECOND_SMALL, LARGE]
+
+
+def test_the_act_that_reaches_the_threshold_answers_large_first_past_two_small_cards(
+    tmp_path: Path,
+) -> None:
+    orders = _three_acts(tmp_path, 1 + ranking.AGING_EVALUATIONS)
+
+    assert orders[ranking.AGING_EVALUATIONS - 1] == [QUICK, SECOND_SMALL, LARGE]
+    assert orders[ranking.AGING_EVALUATIONS] == [LARGE, QUICK, SECOND_SMALL]
