@@ -49,10 +49,12 @@ from clockspeed.solve.optimize import (
     OBJECTIVES,
     Objective,
     ObjectiveUndefinedError,
+    PowerNotComparableError,
     weighted_objective,
 )
 from clockspeed.solve.ratio import (
     BYPRODUCT_BALANCED,
+    PlanStep,
     ProductionPlan,
     RatioRequest,
     SupplyRequest,
@@ -84,6 +86,7 @@ from tests.data.synthetic import (
     class_path_blob,
 )
 from tests.solve.synthetic import (
+    ALT_GADGET_RECIPE,
     C1_ORE_DEMAND,
     C1_PLATE_MACHINES,
     C1_POWER_MW,
@@ -115,6 +118,7 @@ from tests.solve.synthetic import (
     STD_GADGET_RECIPE,
     TWIN_A_RECIPE,
     TWIN_B_RECIPE,
+    ZERO_DURATION_RECIPE,
     registry_with,
     solve_registry,
 )
@@ -598,7 +602,11 @@ def test_the_top_ranked_member_is_the_reference_every_badge_is_graded_against(
 
 
 def test_a_published_score_and_key_agree_with_the_optimizer(registry: Registry) -> None:
-    """Each entry's score is ``score_plan``'s and its key is ``ranking_key``'s."""
+    """Each entry's score is ``score_plan``'s and its key is the whole key sorted on.
+
+    The key is the objective's score, then each unweighted rung's score in
+    ladder order, then ``ranking_key``'s position half - CS-1381.
+    """
     plans = _corpus(registry)
     objective = weighted_objective(raw=UNIT)
     positions = optimize.registry_positions(registry)
@@ -606,7 +614,12 @@ def test_a_published_score_and_key_agree_with_the_optimizer(registry: Registry) 
     for entry in rank_plans(registry, plans, objective=objective):
         selection = tuple(step.recipe_key for step in entry.plan.steps)
         assert entry.score == optimize.score_plan(registry, entry.plan, objective)
-        assert entry.key == optimize.ranking_key(entry.score, selection, positions)
+        assert entry.key == _whole_key(registry, entry.plan, objective)
+        # The first and last members are ``ranking_key``'s own, so the optimizer's
+        # score-then-position rule is still half of what is published.
+        score_half, position_half = optimize.ranking_key(entry.score, selection, positions)
+        assert entry.key[0] == score_half
+        assert entry.key[2] == position_half
 
 
 def test_ranking_nothing_publishes_nothing_rather_than_inventing_a_reference(
@@ -881,9 +894,311 @@ def test_equal_score_twins_rank_on_the_documented_stable_key_in_either_input_ord
         assert ranked[0].plan is twin_a
         assert ranked[1].plan is twin_b
         assert [entry.key for entry in ranked] == [
-            optimize.ranking_key(tied, (TWIN_A_RECIPE,), positions),
-            optimize.ranking_key(tied, (TWIN_B_RECIPE,), positions),
+            _whole_key(registry, twin_a, objective),
+            _whole_key(registry, twin_b, objective),
         ]
+        # The position half is still ``optimize.ranking_key``'s, member for member.
+        assert [entry.key[2] for entry in ranked] == [
+            optimize.ranking_key(tied, (TWIN_A_RECIPE,), positions)[1],
+            optimize.ranking_key(tied, (TWIN_B_RECIPE,), positions)[1],
+        ]
+
+
+# ---------------------------------------------------------------------------
+# CS-1381 - a score tie breaks by the unweighted rungs before registry order
+# ---------------------------------------------------------------------------
+#
+# Every plan below is hand-assembled over recipes of the synthetic corpus, because
+# a tie on one rung and a spread on the others is a shape no solved chain makes.
+# ``rank_plans`` reads only a plan's steps and raw inputs, so a hand-assembled plan
+# is graded exactly as a solved one is. A recipe's per-machine draw is its
+# building's: Alt_Gadget and R_TwinA 15 MW (assembler), R_Plate 4 MW (smelter),
+# R_Fluid 30 MW (refinery); R_BuildGun is produced in no building and has no draw.
+# Registry order is Alt_Gadget, then R_Plate, R_Fluid, R_BuildGun, R_TwinA. Each
+# arm pins its own premises with ``score_plan`` instead of trusting this comment.
+# Each arm is a (loser, winner) pair: ``loser`` is the plan registry order alone
+# tops, ``winner`` the plan the tie-break must put first. Raw scores rise arm by
+# arm so the arms can share one ranking.
+
+
+def _hand_plan(raw: Fraction, steps: tuple[tuple[str, Fraction], ...]) -> ProductionPlan:
+    """Assemble a plan from its raw demand and its steps alone.
+
+    Args:
+        raw: The Ore rate consumed per minute.
+        steps: Each step's recipe key and exact machine count, in plan order.
+
+    Returns:
+        The plan, with no target, byproduct or exclusion, which a ranking never reads.
+    """
+    return ProductionPlan(
+        steps=tuple(PlanStep(recipe_key=key, machines=machines) for key, machines in steps),
+        targets=MappingProxyType({}),
+        raw_inputs=MappingProxyType({SOLVE_ORE_ITEM: raw}),
+        byproducts=MappingProxyType({}),
+        excluded=(),
+        byproduct_policy=BYPRODUCT_BALANCED,
+    )
+
+
+def _arm_dominated() -> tuple[ProductionPlan, ProductionPlan]:
+    """Raw ties at 10; the loser is dominated on buildings (5 v 3) and power (75 v 12 MW)."""
+    return (
+        _hand_plan(Fraction(10), ((ALT_GADGET_RECIPE, Fraction(5)),)),
+        _hand_plan(Fraction(10), ((PLATE_RECIPE, Fraction(3)),)),
+    )
+
+
+def _arm_buildings_decide() -> tuple[ProductionPlan, ProductionPlan]:
+    """Raw ties at 20; buildings (3 v 2) and power (45 v 60 MW) disagree, buildings first."""
+    return (
+        _hand_plan(Fraction(20), ((ALT_GADGET_RECIPE, Fraction(3)),)),
+        _hand_plan(Fraction(20), ((FLUID_RECIPE, Fraction(2)),)),
+    )
+
+
+def _arm_unpriceable_loses() -> tuple[ProductionPlan, ProductionPlan]:
+    """Raw and buildings tie (30; 2); the loser uses a recipe with no exact draw."""
+    return (
+        _hand_plan(Fraction(30), ((ZERO_DURATION_RECIPE, Fraction(2)),)),
+        _hand_plan(Fraction(30), ((TWIN_A_RECIPE, Fraction(2)),)),
+    )
+
+
+def _arm_power_decides() -> tuple[ProductionPlan, ProductionPlan]:
+    """Raw and buildings tie (40; 4); power (60 v 16 MW) is the only rung left to decide."""
+    return (
+        _hand_plan(Fraction(40), ((ALT_GADGET_RECIPE, Fraction(4)),)),
+        _hand_plan(Fraction(40), ((PLATE_RECIPE, Fraction(4)),)),
+    )
+
+
+def _unit_objective(name: str) -> Objective:
+    """The objective weighting one direction at the rung's unit weight."""
+    return Objective(weights=MappingProxyType({name: UNIT}))
+
+
+def _whole_key(
+    built: Registry, plan: ProductionPlan, objective: Objective
+) -> tuple[Fraction, tuple[tuple[int, Fraction], ...], tuple[int, ...]]:
+    """Derive the key a plan sorts on from the optimizer's own functions.
+
+    The objective's score; then, for each ladder rung whose direction the
+    objective does not weight, in ladder order, ``(0, score at unit weight)`` or
+    ``(1, 0)`` where the rung is power and the plan has no exact draw; then the
+    selection's registry positions.
+
+    Args:
+        built: The built registry.
+        plan: The plan.
+        objective: What the ranking ran under.
+
+    Returns:
+        The expected key.
+    """
+    positions = optimize.registry_positions(built)
+    score = optimize.score_plan(built, plan, objective)
+    tie_break: list[tuple[int, Fraction]] = []
+    for rung in STRATEGY_LADDER:
+        if rung.objective_name in objective.weights:
+            continue
+        try:
+            rung_score = optimize.score_plan(built, plan, _unit_objective(rung.objective_name))
+        except PowerNotComparableError:
+            tie_break.append((1, Fraction(0)))
+        else:
+            tie_break.append((0, rung_score))
+    selection = tuple(step.recipe_key for step in plan.steps)
+    return (score, tuple(tie_break), optimize.ranking_key(score, selection, positions)[1])
+
+
+def _rung_scores(
+    built: Registry, plan: ProductionPlan
+) -> tuple[Fraction, Fraction, Fraction | None]:
+    """Score a plan on raw, buildings and power at unit weight; None where power is unpriced."""
+    raw = optimize.score_plan(built, plan, _unit_objective(OBJECTIVE_RAW))
+    buildings = optimize.score_plan(built, plan, _unit_objective(OBJECTIVE_BUILDINGS))
+    try:
+        power: Fraction | None = optimize.score_plan(built, plan, _unit_objective(OBJECTIVE_POWER))
+    except PowerNotComparableError:
+        power = None
+    return (raw, buildings, power)
+
+
+def _assert_winner_ranks_first(
+    built: Registry,
+    pair: tuple[ProductionPlan, ProductionPlan],
+    objective: Objective,
+) -> None:
+    """Rank the pair in both input orders and require the winner first, then the loser."""
+    loser, winner = pair
+    positions = optimize.registry_positions(built)
+    # The control every arm shares: registry order alone WOULD top the loser.
+    assert tuple(positions[step.recipe_key] for step in loser.steps) < tuple(
+        positions[step.recipe_key] for step in winner.steps
+    )
+    for handed_in in ((loser, winner), (winner, loser)):
+        ranked = rank_plans(built, handed_in, objective=objective)
+
+        assert ranked[0].plan is winner
+        assert ranked[1].plan is loser
+
+
+def test_a_raw_tie_does_not_let_registry_order_top_a_plan_dominated_on_the_other_rungs(
+    registry: Registry,
+) -> None:
+    """CS-1381 arm one: registry order tops a plan worse on buildings AND on power."""
+    pair = _arm_dominated()
+    loser, winner = pair
+    raw = weighted_objective(raw=UNIT)
+
+    loser_scores = _rung_scores(registry, loser)
+    winner_scores = _rung_scores(registry, winner)
+    assert loser_scores[0] == winner_scores[0]
+    assert loser_scores[1] > winner_scores[1]
+    assert loser_scores[2] is not None
+    assert winner_scores[2] is not None
+    assert loser_scores[2] > winner_scores[2]
+
+    _assert_winner_ranks_first(registry, pair, raw)
+
+
+def test_a_raw_tie_breaks_by_buildings_before_power_where_the_two_disagree(
+    registry: Registry,
+) -> None:
+    """CS-1381 arm two: power prefers the registry-first plan, buildings the other."""
+    pair = _arm_buildings_decide()
+    loser, winner = pair
+    raw = weighted_objective(raw=UNIT)
+
+    loser_scores = _rung_scores(registry, loser)
+    winner_scores = _rung_scores(registry, winner)
+    assert loser_scores[0] == winner_scores[0]
+    assert loser_scores[1] > winner_scores[1]
+    assert loser_scores[2] is not None
+    assert winner_scores[2] is not None
+    assert loser_scores[2] < winner_scores[2]
+
+    _assert_winner_ranks_first(registry, pair, raw)
+
+
+def test_an_unpriceable_plan_sorts_after_every_priced_one_on_the_power_tie_break(
+    registry: Registry,
+) -> None:
+    """CS-1381 arm three: a plan with no exact draw raises nothing and loses a power tie-break."""
+    pair = _arm_unpriceable_loses()
+    loser, winner = pair
+    raw = weighted_objective(raw=UNIT)
+
+    loser_scores = _rung_scores(registry, loser)
+    winner_scores = _rung_scores(registry, winner)
+    assert loser_scores[:2] == winner_scores[:2]
+    assert loser_scores[2] is None
+    assert winner_scores[2] is not None
+
+    _assert_winner_ranks_first(registry, pair, raw)
+    ranked = rank_plans(registry, pair, objective=raw)
+    assert [entry.key[1][1] for entry in ranked] == [(0, winner_scores[2]), (1, Fraction(0))]
+
+
+def test_two_unpriceable_plans_tie_on_the_power_tie_break_and_registry_order_decides(
+    registry: Registry,
+) -> None:
+    """Two plans with no exact draw tie there, so the position half decides, as before."""
+    # The longer selection carries a zero-machine step, so raw and buildings tie
+    # and the shorter position tuple (7,) sorts before (7, 10) by length.
+    shorter = _hand_plan(Fraction(30), ((ZERO_DURATION_RECIPE, Fraction(2)),))
+    longer = _hand_plan(
+        Fraction(30), ((ZERO_DURATION_RECIPE, Fraction(2)), (TWIN_B_RECIPE, Fraction(0)))
+    )
+    raw = weighted_objective(raw=UNIT)
+
+    assert _rung_scores(registry, shorter)[:2] == _rung_scores(registry, longer)[:2]
+    assert _rung_scores(registry, shorter)[2] is None
+    assert _rung_scores(registry, longer)[2] is None
+
+    for handed_in in ((shorter, longer), (longer, shorter)):
+        ranked = rank_plans(registry, handed_in, objective=raw)
+
+        assert [entry.key[1][1] for entry in ranked] == [(1, Fraction(0)), (1, Fraction(0))]
+        assert ranked[0].plan is shorter
+        assert ranked[1].plan is longer
+
+
+def test_a_raw_and_buildings_tie_is_decided_by_power_alone(registry: Registry) -> None:
+    """CS-1381 arm four: registry order tops the higher draw; power is neither weighted rung."""
+    pair = _arm_power_decides()
+    loser, winner = pair
+    raw = weighted_objective(raw=UNIT)
+
+    loser_scores = _rung_scores(registry, loser)
+    winner_scores = _rung_scores(registry, winner)
+    assert loser_scores[:2] == winner_scores[:2]
+    assert loser_scores[2] is not None
+    assert winner_scores[2] is not None
+    assert loser_scores[2] > winner_scores[2]
+
+    _assert_winner_ranks_first(registry, pair, raw)
+    ranked = rank_plans(registry, pair, objective=raw)
+    # The published key, hand-derived: raw 40, buildings 4, power 16 MW or 60 MW,
+    # and the position of R_Plate (2) or of Alt_Gadget (0).
+    assert ranked[0].key == (Fraction(40), ((0, Fraction(4)), (0, Fraction(16))), (2,))
+    assert ranked[1].key == (Fraction(40), ((0, Fraction(4)), (0, Fraction(60))), (0,))
+
+
+def test_a_weighted_direction_never_breaks_its_own_tie(registry: Registry) -> None:
+    """Raw and buildings weighted: a tie on their sum is broken by power alone."""
+    # The sum ties at 15: X is raw 10 with 5 buildings, Y is raw 12 with 3. A
+    # weighted rung that broke its own tie would put Y first (3 < 5 buildings),
+    # and so would registry order. Power (20 MW against 45 MW) must decide.
+    plate_x = _hand_plan(Fraction(10), ((PLATE_RECIPE, Fraction(5)),))
+    alt_y = _hand_plan(Fraction(12), ((ALT_GADGET_RECIPE, Fraction(3)),))
+    objective = weighted_objective(raw=UNIT, buildings=UNIT)
+    assert optimize.score_plan(registry, plate_x, objective) == optimize.score_plan(
+        registry, alt_y, objective
+    )
+    positions = optimize.registry_positions(registry)
+    assert positions[ALT_GADGET_RECIPE] < positions[PLATE_RECIPE]
+
+    for handed_in in ((plate_x, alt_y), (alt_y, plate_x)):
+        ranked = rank_plans(registry, handed_in, objective=objective)
+
+        assert ranked[0].plan is plate_x
+        assert ranked[1].plan is alt_y
+        assert [entry.key[1] for entry in ranked] == [((0, Fraction(20)),), ((0, Fraction(45)),)]
+
+
+def test_an_objective_weighting_all_three_breaks_by_registry_order_alone(
+    registry: Registry,
+) -> None:
+    """With no unweighted rung the tie-break part is empty and registry order decides, as today."""
+    # Registry-first A: raw 10, 1 building, 15 MW (total 26). B: raw 6, 4 buildings, 16 MW
+    # (total 26). Raw alone would pick B; only registry order picks A.
+    plan_a = _hand_plan(Fraction(10), ((ALT_GADGET_RECIPE, Fraction(1)),))
+    plan_b = _hand_plan(Fraction(6), ((PLATE_RECIPE, Fraction(4)),))
+    objective = weighted_objective(raw=UNIT, buildings=UNIT, power=UNIT)
+    assert optimize.score_plan(registry, plan_a, objective) == optimize.score_plan(
+        registry, plan_b, objective
+    )
+
+    for handed_in in ((plan_a, plan_b), (plan_b, plan_a)):
+        ranked = rank_plans(registry, handed_in, objective=objective)
+
+        assert ranked[0].plan is plan_a
+        assert ranked[1].plan is plan_b
+        assert [entry.key[1] for entry in ranked] == [(), ()]
+
+
+def test_an_objective_weighting_power_still_refuses_an_unpriceable_plan(
+    registry: Registry,
+) -> None:
+    """The control for the unpriceable arm: the power-weighted refusal is not absorbed."""
+    unpriced, priced = _arm_unpriceable_loses()
+
+    with pytest.raises(PowerNotComparableError):
+        rank_plans(registry, (unpriced, priced), objective=weighted_objective(power=UNIT))
+    with pytest.raises(PowerNotComparableError):
+        rank_plans(registry, (unpriced, priced), objective=weighted_objective(raw=UNIT, power=UNIT))
 
 
 # ---------------------------------------------------------------------------
@@ -1277,6 +1592,36 @@ def test_a_permuted_input_names_the_same_winner(registry: Registry) -> None:
 
     assert [entry.plan for entry in forwards] == [entry.plan for entry in backwards]
     assert [entry.key for entry in forwards] == [entry.key for entry in backwards]
+
+
+def test_a_permuted_input_ranks_byte_identically_through_every_tie_break_arm(
+    registry: Registry,
+) -> None:
+    """CS-1381: every handed-in order of the tie arms' plans publishes one ranking.
+
+    All four CS-1381 pairs go in one input, under raw, so the tie-break rungs
+    decide among them, and the repr is compared rather than the order alone: a
+    key that varied with the input order would show in the repr and nowhere
+    else.
+    """
+    pairs = (
+        _arm_dominated(),
+        _arm_buildings_decide(),
+        _arm_unpriceable_loses(),
+        _arm_power_decides(),
+    )
+    plans = tuple(plan for pair in pairs for plan in pair)
+    objective = weighted_objective(raw=UNIT)
+
+    reference = repr(rank_plans(registry, plans, objective=objective))
+    for handed_in in (tuple(reversed(plans)), plans[1:] + plans[:1], plans[3:] + plans[:3]):
+        assert repr(rank_plans(registry, handed_in, objective=objective)) == reference
+    # The anti-vacuity control: the arms' raw scores rise arm by arm, so the
+    # order is each arm's winner then its registry-topped loser, in arm order.
+    ranked = rank_plans(registry, plans, objective=objective)
+    assert tuple(entry.plan for entry in ranked) == tuple(
+        plan for loser, winner in pairs for plan in (winner, loser)
+    )
 
 
 def test_every_numeric_leaf_is_an_exact_fraction(registry: Registry) -> None:

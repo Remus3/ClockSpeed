@@ -13,15 +13,16 @@ WHY THIS IS A SIBLING MODULE RATHER THAN MORE OF optimize.py
 ``clockspeed/solve/optimize.py`` states that it owns the OBJECTIVE and the
 INTERFACE and deliberately owns no search. Ranking SEVERAL plans against each
 other, and grading one against a reference, is neither of those: it consumes
-the objective arithmetic and the one documented tie-break key that module
-publishes, and adds a policy on top of them. ``clockspeed/solve/relax.py`` is
+the objective arithmetic and the position half of the documented tie-break key
+that module publishes, and adds a policy on top of them - among others, a
+tie-break across the ladder's rungs. ``clockspeed/solve/relax.py`` is
 the standing precedent for a consumer sibling inside ``clockspeed/solve/`` -
 one data table, a fixed order, and a structured record of what the table
 decided.
 
-Nothing here imports ``clockspeed/solve/backends/``. The tie-break rule lives
-one layer up in ``optimize.py`` on purpose, and a module in ``clockspeed/solve/``
-reaching into ``clockspeed/solve/backends/`` for a rule is the CLAUDE.md
+Nothing here imports ``clockspeed/solve/backends/``. The position half of the
+tie-break rule lives one layer up in ``optimize.py`` on purpose, and a module in
+``clockspeed/solve/`` reaching into ``clockspeed/solve/backends/`` for a rule is the CLAUDE.md
 section 2.1 reach-past-your-neighbor bug. :func:`~clockspeed.solve.optimize.ranking_key`
 takes a score rather than a result for exactly this caller's sake, so a plan can
 be ranked under an objective it was never solved under.
@@ -170,15 +171,41 @@ reachable from here. Every published number goes through
 :func:`~clockspeed.solve.exact.audit_exact` on the way out, as ``relax.py``
 does.
 
+WHAT A SCORE TIE BREAKS BY (CS-1381)
+--------------------------------------
+Plans tied on the objective's score do not fall straight to registry order,
+because registry order is arbitrary where the other rungs are not: a plan that
+sorts first only by its recipes' place in the registry can be worse than the
+plan it tops on every direction the objective did not weight. So the key
+:func:`rank_plans` sorts on is three parts::
+
+    (objective score, tie-break rungs, selection positions)
+
+The tie-break part holds one entry per ladder rung whose direction the objective
+does NOT weight, in :data:`STRATEGY_LADDER` order, each the plan's score on that
+rung's single direction at unit weight, from
+:func:`~clockspeed.solve.optimize.score_plan`. A weighted direction never breaks
+its own tie: a one-direction objective is broken by the other two rungs, a
+two-direction one by the third, and one weighting all three has no tie-break
+rung and falls to registry order alone. Each entry is a pair, ``(0, score)`` or,
+where the rung is power and the plan has no exact draw, ``(1, 0)``: such a plan
+raises nothing there, sorts after every plan that has a draw, and ties with
+another plan that has none. An objective that WEIGHTS power still raises
+:class:`~clockspeed.solve.optimize.PowerNotComparableError`, because then the
+score itself has no value. The position half is
+:func:`~clockspeed.solve.optimize.ranking_key`'s, unchanged, and that function
+and every backend are untouched: the tie-break between rungs is this module's
+policy for ranking plans it did not solve, and a backend choosing a selection
+under one objective has no such second objective to consult.
+
 A bare plan carries no ``selection`` field, so the key's position half is taken
 from the plan's own step keys in plan order - pillar 1 publishes steps in
 REGISTRY order, and ``optimize.py`` guarantees a canonical result's selection
 equals its plan's step keys in that same order. The residual, stated rather
-than left implied: the key is a total order on DISTINCT selections, so two
-plans with the same selection AND the same score are indistinguishable here and
-keep their input order. Nothing exact and order-free separates them, and
-inventing a second tie-break would be a second statement of a rule
-``optimize.py`` owns.
+than left implied: the whole key is a total order on DISTINCT selections, so two
+plans with the same selection, the same score and the same rung scores are
+indistinguishable here and keep their input order. Nothing exact and order-free
+separates them.
 """
 
 from __future__ import annotations
@@ -339,9 +366,13 @@ class RankedPlan:
         plan: The plan, exactly as it was handed in. Never re-solved and never
             rebuilt, which is what makes the third acceptance clause provable.
         score: The plan's exact score under the objective the ranking ran at.
-        key: The full :func:`~clockspeed.solve.optimize.ranking_key` this plan
-            sorted on - the score paired with its selection's registry
-            positions. Published because the position half is invisible in a
+        key: The whole key this plan sorted on - the score, then one
+            ``(flag, score)`` pair per ladder rung the objective does not weight
+            in ladder order (flag 1 and score zero where the plan has no exact
+            power draw, which sorts after every plan that has one), then its
+            selection's registry positions, the half
+            :func:`~clockspeed.solve.optimize.ranking_key` owns. Published
+            because neither the rung scores nor the positions are visible in a
             plan's own fields, so a reader cannot otherwise see why two plans
             with equal scores came out in the order they did.
         badge: The plan's badge against the top-ranked member of this same
@@ -352,7 +383,7 @@ class RankedPlan:
     rank: int
     plan: ProductionPlan
     score: Fraction
-    key: tuple[Fraction, tuple[int, ...]]
+    key: tuple[Fraction, tuple[tuple[int, Fraction], ...], tuple[int, ...]]
     badge: StrategyBadge
 
 
@@ -664,21 +695,72 @@ def _plan_selection(plan: ProductionPlan) -> tuple[str, ...]:
     return tuple(step.recipe_key for step in plan.steps)
 
 
-def _plan_rank_key(
-    registry_index: Mapping[str, int], plan: ProductionPlan, score: Fraction
-) -> tuple[Fraction, tuple[int, ...]]:
-    """Build one plan's ranking key under a score it was handed.
+def _tie_break_rungs(objective: Objective) -> tuple[Strategy, ...]:
+    """Pick the rungs a score tie is broken by: those the objective does not weight.
 
     Args:
+        objective: What the ranking runs under.
+
+    Returns:
+        Each ladder rung whose direction the objective carries no weight for, in
+        :data:`STRATEGY_LADDER` order. Empty where the objective weights all
+        three directions.
+    """
+    return tuple(
+        strategy for strategy in STRATEGY_LADDER if strategy.objective_name not in objective.weights
+    )
+
+
+def _tie_break_entry(
+    registry: Registry, plan: ProductionPlan, strategy: Strategy
+) -> tuple[int, Fraction]:
+    """Score a plan on one tie-break rung at unit weight, or sort it last there.
+
+    Args:
+        registry: The built registry.
+        plan: The plan.
+        strategy: A tie-break rung, one whose direction the ranking's objective
+            does not weight.
+
+    Returns:
+        ``(0, score)``, or ``(1, 0)`` where the rung is power and some recipe the
+        plan uses has no exact draw. The flag sorts such a plan after every plan
+        with a draw, and two such plans compare equal.
+
+    Raises:
+        KeyError: The plan names a recipe this registry does not model.
+    """
+    try:
+        return (0, score_plan(registry, plan, _single_objective(strategy)))
+    except PowerNotComparableError:
+        return (1, Fraction(0))
+
+
+def _plan_rank_key(
+    registry: Registry,
+    registry_index: Mapping[str, int],
+    plan: ProductionPlan,
+    score: Fraction,
+    tie_break: Sequence[Strategy],
+) -> tuple[Fraction, tuple[tuple[int, Fraction], ...], tuple[int, ...]]:
+    """Build one plan's whole ranking key under a score it was handed.
+
+    Args:
+        registry: The built registry.
         registry_index: A position mapping, as
             :func:`~clockspeed.solve.optimize.ranking_key` documents it.
         plan: The plan.
         score: Its exact score under the ranking's objective.
+        tie_break: The rungs a score tie is broken by, as
+            :func:`_tie_break_rungs` returns them.
 
     Returns:
-        The key. Lower wins.
+        The key: the score, one entry per tie-break rung, then the position half
+        :func:`~clockspeed.solve.optimize.ranking_key` builds. Lower wins.
     """
-    return ranking_key(score, _plan_selection(plan), registry_index)
+    entries = tuple(_tie_break_entry(registry, plan, strategy) for strategy in tie_break)
+    _, positions = ranking_key(score, _plan_selection(plan), registry_index)
+    return (score, entries, positions)
 
 
 def rank_plans(
@@ -695,6 +777,13 @@ def rank_plans(
     the caller states one per rung through ``references``. The module docstring
     holds why a caller about to advise a plan states them.
 
+    Plans tied on the objective's score break by the score of each ladder rung
+    whose direction the objective does not weight, in ladder order, before
+    registry order. A weighted direction never breaks its own tie, and a plan
+    with no exact power draw sorts after every plan with one on the power
+    tie-break rung. The module docstring, "WHAT A SCORE TIE BREAKS BY", holds
+    the rule whole.
+
     Args:
         registry: The built registry.
         plans: The plans to rank, in any order. Not mutated and not rebuilt;
@@ -707,8 +796,8 @@ def rank_plans(
             the top-ranked member.
 
     Returns:
-        The plans in rank order, best first, each with its score, its full
-        ranking key and its badge. Empty for an empty input - a badge needs a
+        The plans in rank order, best first, each with its score, its whole
+        ranking key (tie-break included) and its badge. Empty for an empty input - a badge needs a
         reference and an empty ranking has none, so there is nothing to invent.
         Audited exact.
 
@@ -723,7 +812,8 @@ def rank_plans(
         KeyError: Some plan names a recipe this registry does not model.
             Whatever the objective, unless a refusal above is reached first:
             an objective whose scoring looks no recipe up is still followed by
-            the position half of the key, which looks every step up in
+            the tie-break rungs, whose power rung looks a recipe up, and by the
+            position half of the key, which looks every step up in
             :func:`~clockspeed.solve.optimize.registry_positions`.
     """
     if references is not None:
@@ -732,23 +822,27 @@ def rank_plans(
         return ()
 
     registry_index = registry_positions(registry)
-    scored = [(score_plan(registry, plan, objective), plan) for plan in plans]
-    ordered = sorted(scored, key=lambda entry: _plan_rank_key(registry_index, entry[1], entry[0]))
+    tie_break = _tie_break_rungs(objective)
+    keyed = []
+    for plan in plans:
+        score = score_plan(registry, plan, objective)
+        keyed.append((_plan_rank_key(registry, registry_index, plan, score, tie_break), plan))
+    ordered = sorted(keyed, key=lambda entry: entry[0])
     reference = ordered[0][1]
 
     ranked = tuple(
         RankedPlan(
             rank=place,
             plan=plan,
-            score=score,
-            key=_plan_rank_key(registry_index, plan, score),
+            score=key[0],
+            key=key,
             badge=(
                 badge_for(registry, plan, reference)
                 if references is None
                 else _badge_against(registry, plan, references)
             ),
         )
-        for place, (score, plan) in enumerate(ordered, start=1)
+        for place, (key, plan) in enumerate(ordered, start=1)
     )
     audit_exact(ranked, path="ranked")
     return ranked
