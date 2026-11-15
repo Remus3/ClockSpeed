@@ -1351,3 +1351,7 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
   trace.
 - CS-1397 panel: the no-target "Advise on this world" press is hidden when /api/registry serves no plan_targets, though an act needs no target.
 - CS-1246: AGING_EVALUATIONS has no value pin by design, because the clause names the constant; pin it only if a stated reason ever fixes the value.
+- CS-1375 follow-up: a plan step with zero machines whose recipe has built machines reads replace as if off the route; pin whether a zero-count step counts as on the route.
+- CS-1375 follow-up: a fresh world with zero machines reads unmeasured rather than more by the whole count; revisit if the operator wants that told apart.
+- CS-1375 follow-up: a refused recipe tag is counted in both refused_recipe_tags and untagged_machines; decide whether tier 3 says the two overlap.
+- CS-1375 follow-up: no real-save check yet that recipe_class_name and overclock_elided mean what the fixtures assume; add one to the gitignored-corpus probe.

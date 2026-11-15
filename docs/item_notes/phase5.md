@@ -454,33 +454,3 @@ query carries no rate. Waits on CS-1373 and CS-1360; not concurrent with CS-1376
 ### Filed 2026-11-14 (session 157) by the CS-1373 adjudication
 
 Split out of CS-1373 so a finished core is not held behind the CS-1360 lane.
-
-## CS-1375
-
-### Acceptance
-
-Phase 5, tier 2. The plan.redesign card compares its route with what is built, from the audit
-machines model `clockspeed/advisor/advise.py` already composes, handed to the plan offer beside the
-unlock state; `solve/` sees no machine. A machine's capacity is its exact overclock, 1 when its
-overclock was elided, and unknown when unread or when production_boost_tagged. For each route stage
-with a nonzero machine count the card reads `more` with the exact shortfall, the stage's machine
-count minus the built capacity on that recipe, when it is above zero, `enough` when it is not, and
-`unmeasured` when any machine on that recipe has unknown capacity. A recipe off the route that built
-machines run and that makes an output of a route stage reads `replace` with its machine count,
-listed before every `more` and named as the expensive change. With no recipe tag on any machine the
-whole comparison reads unmeasured; refused recipe tags, and machines naming no registry recipe, are
-counted, never dropped. Stages are listed producers first: a stage precedes every stage consuming
-one of its outputs, ties in the route's registry order, and a cycle's members in registry order
-after their predecessors, the cycle named. Tier 3 carries the rows, generated from the trace; tier 2
-states how many stages read more and how many recipes read replace. All arithmetic is exact
-Fraction. On a synthetic registry and a hand-built machines model each case reddens on its own arm
-first: a shortfall at clock 1; an overclocked machine closing it; an elided overclock as 1; an
-unread overclock as unmeasured; a boosted machine as unmeasured; an off-route producer of a stage
-output as replace; no recipe tag as unmeasured whole; producers-first order on a three-stage chain;
-a two-stage loop named. Not a lowering of the CS-1371 clause: a `BOOTSTRAP.md` pillar 4 residual.
-
-### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
-
-Filed by the rulings recorded under CS-1371, so that what CS-1371 did not deliver is a row.
-
-Ruled 2026-11-14 (session 157 adjudicator): made concrete, not re-scoped - built is WorldMachines by recipe at exact overclock; more is an exact shortfall, replace is an off-route producer of a route-stage output listed first; producers-first order. Rejected: machine-tier upgrades; target-first order.

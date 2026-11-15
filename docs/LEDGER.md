@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1375 - CLOSED: the plan.redesign card compares its route with what is built, producers first, a stage reading more, enough or unmeasured and an off-route producer reading replace
+Verification: `tests/advisor/test_plan_redesign_built.py`, 24 passed on the landed tree serial; the thirteen suites of
+the landed tree's verification run passed serial, 1205 passed; the adjudicator froze the candidate and ran tests/advisor
+and tests/surface serial, 3922 passed; ten per-arm mutants of `clockspeed/advisor/plans.py` each killed by a distinct
+arm; ruff, ruff format --check and mypy exit 0.
+Closed CS-1375: the plan.redesign card compares its route with what is built, from the audit machines model the advisor
+composes: a stage reads more with the exact shortfall, enough or unmeasured; an off-route producer of a stage output
+reads replace, listed first; stages are producers first, ties in registry order, a loop named; tier 3 carries the rows
+from the trace and tier 2 states the counts whenever a machines model was read.
+GRADED: adversary NOT REFUTED, 24 mutants, the released-tie survivor then killed by an added arm; ADJUDICATED: LAND,
+session 157. RECORDED LAPSE: red-first was a None stub, superseded by mutation evidence. RESIDUAL: four follow-ups filed
+in BACKLOG.
+
 ### 2026-11-15 - CS-1246 - CLOSED: the aging guard fires in production through served advice acts
 Verification: `tests/surface/test_advice_aging.py` including
 `test_the_large_card_reads_first_past_two_small_cards_and_the_second_small_card_ages_too`,
