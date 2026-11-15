@@ -102,7 +102,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
-from clockspeed.surface.api import contract
+from clockspeed.surface.api import contract, flow_view
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -236,8 +236,9 @@ CARD_KEYS: Final = frozenset(
     }
 )
 
-#: The derivation body's keys. ``derivation`` is tier 3.
-DERIVATION_KEYS: Final = frozenset({"id", "rule_id", "derivation"})
+#: The derivation body's keys. ``derivation`` is tier 3. ``flow`` is the CS-1360 boundary
+#: flow view of the plan the card's trace holds, or null for a card whose trace holds none.
+DERIVATION_KEYS: Final = frozenset({"id", "rule_id", "derivation", "flow"})
 
 
 @runtime_checkable
@@ -388,6 +389,46 @@ def _stated_plan(
     if parameters is None:
         return contract.bad_request(endpoint, contract.REASON_INVALID_PARAMETER)
     return query[TARGET_PARAMETER], parameters
+
+
+class _SeenRegistry:
+    """A registry provider that remembers the one registry it handed over.
+
+    The derivation handler needs the items' verbatim forms for the flow view, and
+    :func:`_resolve_in_world` already reads the registry once and warns against a
+    second provider read. This wrapper is that one read: it forwards the call and
+    keeps the answer, so the handler reads the forms off what the resolution saw
+    and the provider is asked exactly once per request.
+    """
+
+    def __init__(self, provider: contract.RegistryProvider[Registry]) -> None:
+        """Hold the provider.
+
+        Args:
+            provider: The registry provider the handler was bound with.
+        """
+        self._provider = provider
+        self._seen: Registry | None = None
+
+    def registry(self) -> Registry | None:
+        """Forward the read and remember its answer.
+
+        Returns:
+            The registry, or None when this machine has no install.
+        """
+        self._seen = self._provider.registry()
+        return self._seen
+
+    def forms(self) -> dict[str, str] | None:
+        """Item key to verbatim ``mForm`` over the registry the read returned.
+
+        Returns:
+            The mapping, or None when no registry was read - every transport then
+            reads unknown.
+        """
+        if self._seen is None:
+            return None
+        return {key: item.form for key, item in self._seen.items.items()}
 
 
 def _resolve(
@@ -588,7 +629,8 @@ def make_derivation_handler(
         wanted = query.get(ID_PARAMETER)
         if wanted is None:
             return contract.bad_request(DERIVATION_ENDPOINT, contract.REASON_MISSING_PARAMETER)
-        found = _resolve(DERIVATION_ENDPOINT, worlds, registries, source, stated)
+        seen = _SeenRegistry(registries)
+        found = _resolve(DERIVATION_ENDPOINT, worlds, seen, source, stated)
         if isinstance(found, contract.Response):
             return found
         for advised in found.cards:
@@ -596,7 +638,12 @@ def make_derivation_handler(
             if card.id == wanted:
                 return contract.ok(
                     DERIVATION_ENDPOINT,
-                    {"id": card.id, "rule_id": card.rule_id, "derivation": card.tier3},
+                    {
+                        "id": card.id,
+                        "rule_id": card.rule_id,
+                        "derivation": card.tier3,
+                        "flow": flow_view.view_of(card.trace, forms=seen.forms()),
+                    },
                 )
         return contract.bad_request(DERIVATION_ENDPOINT, contract.REASON_INVALID_PARAMETER)
 

@@ -102,6 +102,7 @@ clockspeed/surface/__main__.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/__init__.py	authored	CS-1165	first-add:root
 clockspeed/surface/api/advice.py	authored	CS-1270	stamped
 clockspeed/surface/api/contract.py	authored	CS-601	first-add:CS-601
+clockspeed/surface/api/flow_view.py	authored	CS-1360	stamped
 clockspeed/surface/api/health.py	authored	CS-601	first-add:CS-601
 clockspeed/surface/api/map.py	authored	CS-977	first-add:CS-977
 clockspeed/surface/api/pending.py	authored	CS-601	first-add:CS-601
@@ -457,6 +458,7 @@ tests/surface/test_config.py	authored	CS-601	first-add:CS-601
 tests/surface/test_contract.py	authored	CS-601	first-add:CS-601
 tests/surface/test_cs1329_driver_timeout.py	authored	CS-1329	stamped
 tests/surface/test_endpoint_opens_no_file_live.py	authored	CS-1171	first-add:CS-1171
+tests/surface/test_flow_view.py	authored	CS-1360	stamped
 tests/surface/test_health.py	authored	CS-601	first-add:CS-601
 tests/surface/test_map.py	authored	CS-977	first-add:CS-977
 tests/surface/test_map_vocabulary.py	authored	CS-1189	stamped

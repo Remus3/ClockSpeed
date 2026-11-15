@@ -124,6 +124,79 @@ function addGroup(parent, label, lines) {
   parent.appendChild(list);
 }
 
+/*
+  CS-1360 - THE BOUNDARY FLOW, AS TEXT. The derivation body's flow object is
+  transcribed one line per edge and never re-derived: the rate is the num/den the
+  server served, the transport is the server's word, and the starred edge is the one
+  the server marked. The bar is presentation only - a run of one ASCII character whose
+  length is the edge's width over the marked width, counted up by multiplying the served
+  integers, so no float and no quotient enters. NO CAPACITY IS SHOWN OR IMPLIED: the mark means the
+  highest rate, and this file says nothing about a limit.
+*/
+var FLOW_BAR_CELLS = 20;
+var FLOW_BAR_CHAR = "#";
+
+function rateText(rate) {
+  /* A served {num, den} as text: a whole number bare, anything else as num/den. */
+  var ratio = objectOrNull(rate);
+  if (!ratio || !Number.isInteger(ratio.num) || !Number.isInteger(ratio.den) || ratio.den < 1) {
+    return "-";
+  }
+  return ratio.den === 1 ? String(ratio.num) : String(ratio.num) + "/" + String(ratio.den);
+}
+
+function barOf(width, widest) {
+  /*
+    The longest run k, at most FLOW_BAR_CELLS, with k * widest <= cells * width, tried
+    by multiplying and comparing the served integers. This panel parses no number and
+    divides nothing (tests/surface/test_panel_advice.py sweeps for both), so the bar is
+    counted up rather than quotiented, and a rate above zero always earns one cell.
+  */
+  var edge = objectOrNull(width);
+  var top = objectOrNull(widest);
+  if (!edge || !top || !Number.isInteger(edge.num) || !Number.isInteger(edge.den)) {
+    return "";
+  }
+  if (!Number.isInteger(top.num) || !Number.isInteger(top.den) || top.num < 1 || edge.num < 1) {
+    return "";
+  }
+  var cells = 1;
+  while (
+    cells < FLOW_BAR_CELLS &&
+    (cells + 1) * edge.den * top.num <= FLOW_BAR_CELLS * edge.num * top.den
+  ) {
+    cells += 1;
+  }
+  return FLOW_BAR_CHAR.repeat(cells);
+}
+
+function flowLines(flow) {
+  /* One text line per edge, or null when the body carries no flow or no edge. */
+  var view = objectOrNull(flow);
+  if (!view || !Array.isArray(view.edges) || view.edges.length === 0) {
+    return null;
+  }
+  var widest = null;
+  for (var seek = 0; seek < view.edges.length; seek += 1) {
+    var candidate = objectOrNull(view.edges[seek]);
+    if (candidate && candidate.marked === true) {
+      widest = candidate.width;
+    }
+  }
+  var lines = [];
+  for (var index = 0; index < view.edges.length; index += 1) {
+    var edge = objectOrNull(view.edges[index]);
+    if (edge) {
+      lines.push(
+        (edge.marked === true ? "* " : "  ") +
+          textOf(edge.item) + " " + textOf(edge.role) + " " + rateText(edge.width) +
+          " per min on " + textOf(edge.transport) + " " + barOf(edge.width, widest)
+      );
+    }
+  }
+  return lines.length === 0 ? null : lines;
+}
+
 function isPresent(value) {
   /* The wire omits a field that has nothing to say; null reads the same way. */
   return value !== null && value !== undefined;
@@ -448,6 +521,11 @@ registerPanel("advice", function mountAdvice(root, data) {
     tier3.id = "advice-derivation-" + String(position);
     tier3.hidden = true;
 
+    /* CS-1360: the boundary flow, hidden until the body carries one. */
+    var flowBox = addLine(box, "pre", "advice-derivation", "");
+    flowBox.id = "advice-flow-" + String(position);
+    flowBox.hidden = true;
+
     function say(message) {
       status.textContent = message;
     }
@@ -458,11 +536,16 @@ registerPanel("advice", function mountAdvice(root, data) {
         /* An earlier reading under a refusal would read as this request's answer. */
         tier3.textContent = "";
         tier3.hidden = true;
+        flowBox.textContent = "";
+        flowBox.hidden = true;
         say(refusal);
         return;
       }
       tier3.textContent = textOf(dataOf(outcome).derivation);
       tier3.hidden = false;
+      var flow = flowLines(dataOf(outcome).flow);
+      flowBox.textContent = flow === null ? "" : flow.join(String.fromCharCode(10));
+      flowBox.hidden = flow === null;
       say(READ_LINE);
     }
 

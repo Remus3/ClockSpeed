@@ -1049,7 +1049,7 @@ def test_the_card_fixture_is_keyed_as_the_endpoint_serves_it() -> None:
     assert set(listing()) == set(advice_endpoint.DATA_KEYS)
     assert set(listing(plan_outcome={})) == set(advice_endpoint.STATED_DATA_KEYS)
     assert {OUTCOME_STATUS_KEY, *OUTCOME_FIELDS} == set(advice_endpoint.PLAN_OUTCOME_KEYS)
-    body = {"id": "x", "rule_id": plan_rules.ADOPT_RULE.rule_id, "derivation": "text"}
+    body = {"id": "x", "rule_id": plan_rules.ADOPT_RULE.rule_id, "derivation": "text", "flow": None}
     assert set(body) == set(advice_endpoint.DERIVATION_KEYS)
     served = {*api_registry.DATA_KEYS, api_registry.PLAN_TARGETS_KEY}
     assert served == set(api_registry.BODY_KEYS), sorted(served)

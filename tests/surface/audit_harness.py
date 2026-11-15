@@ -1176,6 +1176,8 @@ def _derivation_answer(card: Mapping[str, object]) -> contract.Response:
         "id": card["id"],
         "rule_id": card["rule_id"],
         "derivation": "\n".join(lines),
+        # CS-1360: a canned card holds no plan, so the endpoint's answer for it is null.
+        "flow": None,
     }
     _assert_keys_match("advice derivation", body, tuple(advice_endpoint.DERIVATION_KEYS))
     return contract.ok(advice_endpoint.DERIVATION_ENDPOINT, body)

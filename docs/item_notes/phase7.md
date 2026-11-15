@@ -871,6 +871,32 @@ Not started: the driver run's time budget did not cover a feature slice. Next: p
 builder slice in `clockspeed/surface/` that consumes the trace and computes nothing itself.
 
 
+### Recorded 2026-11-15 by the lane-0 queue cycle
+
+SHIPPED-PARTIAL. The row stays open. Landed: `clockspeed/surface/api/flow_view.py` (`view_of`, a pure read-only
+projection of the `plan.adopt` rule trace: a node per plan step, an edge per published boundary flow, each width the
+`contract.rational` of the plan's own Fraction, transport read from the verbatim `mForm` and `unknown` where it is
+absent or invalid), `DERIVATION_KEYS` gaining `flow` in `clockspeed/surface/api/advice.py` so the view reaches the
+wire on the existing derivation route, the flow lines in `clockspeed/surface/web/panel_advice.js`, and
+`tests/surface/test_flow_view.py`, whose arm
+`test_every_edge_width_is_the_rational_the_trace_step_carries` is the clause's fourth conjunct.
+
+Not met, each a measurement:
+1. Belt and pipe rates are the edge widths only as the rate carried on each edge with its belt-or-pipe label. No
+   module publishes conveyor or pipeline throughput: `clockspeed/audit/flow.py` says it knows nothing about belts,
+   `belt_topology_available` in `clockspeed/audit/balance.py` is a topology flag, and the registry's only
+   throughput is the extractor's.
+2. The mark ships as the HIGHEST-RATE edge, named `highest-rate` in the payload. With no capacity model
+   saturation cannot be computed, and the payload must not claim it (non-negotiable 7). Do NOT rename it to
+   saturated or bottleneck until CS-1394 lands.
+3. The view is a boundary flow view. `PlanStep` in `clockspeed/solve/ratio.py` carries `recipe_key` and
+   `machines` only, `ProductionPlan` publishes boundary rates only, and the per-edge arithmetic is private to that
+   module. Deriving internal edges inside `surface/` is barred by the seam.
+
+Blocked on CS-1394 (capacity, hence saturation) and CS-1395 (internal edges): a later cycle takes those two FIRST
+and returns here.
+
+
 ## CS-1362
 
 ### Acceptance
@@ -959,3 +985,33 @@ with a matching id writes nothing. No live install is read by the test (fixtures
 Why it is product work under CLAUDE.md section 7: guard (h) refused every push from the 2026-11-08 game
 patch to the 2026-11-12 re-pin (CS-1383), so landing product work was blocked for four days. Reuse the
 installed-build read guard (h) already does; do not add a second reader.
+
+
+## CS-1394
+
+### Acceptance
+
+The registry publishes, for every conveyor belt and pipeline class the shipped docs declare, that class's
+items-per-minute throughput as an exact Fraction, unknown rather than zero where either operand is missing (the
+extractor precedent in `clockspeed/data/registry.py`); a test over a synthetic registry pins each published rate and
+pins the unknown case; no live install is read by the test.
+
+### Filed 2026-11-15 by the lane-0 queue cycle
+
+Filed as the remainder of CS-1360. It unblocks that row's capacity conjunct, and so the saturation mark now shipped
+as `highest-rate`.
+
+
+## CS-1395
+
+### Acceptance
+
+`clockspeed/solve/ratio.py` publishes, per solved plan, an edge per (producer recipe, item, consumer recipe) with
+its exact per-minute rate, summing to the same boundary totals the plan already reports; a test pins the edges of a
+two-stage synthetic chain and pins that the edge rates reconcile with `raw_inputs`, `targets` and `byproducts`; the
+arithmetic stays in the one owner of per-minute conversion that module already uses.
+
+### Filed 2026-11-15 by the lane-0 queue cycle
+
+Filed as the remainder of CS-1360. It unblocks that row's internal-edges conjunct: the view renders the chain, not
+only its boundary.

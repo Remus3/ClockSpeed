@@ -75,6 +75,46 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1360 - NOT A COMPLETION RECORD. CS-1360 STAYS OPEN: a read-only flow view of a solved chain ships from the rule trace, with its widths pinned, its boundary edges only and its mark named highest-rate
+Verification: `tests/surface/test_flow_view.py::test_every_edge_width_is_the_rational_the_trace_step_carries`, the
+clause's fourth conjunct; the section `## CS-1360` of `docs/item_notes/phase7.md`. This record closes nothing, so the
+heading names the item whose reading it records.
+SCOPE. Shipped: `clockspeed/surface/api/flow_view.py` (`view_of(trace, *, forms=None)`, a pure projection of the
+`plan.adopt` trace: a node per plan step in plan order, an edge per published boundary flow, each width the
+`contract.rational` of the plan's exact Fraction, transport from the verbatim `mForm`, `unknown` for `RF_INVALID`, an
+empty form, an unlisted item or no forms); `DERIVATION_KEYS` gains `flow` in `clockspeed/surface/api/advice.py`, so the
+view is built from the SAME trace as the tier-3 derivation on the EXISTING route (no new route, no
+`health.ENDPOINT_TEMPLATES` change, no `BOOTSTRAP.md` edit), with a per-request `_SeenRegistry` holding the registry
+read to one; `clockspeed/surface/web/panel_advice.js` renders one line per edge with a proportional bar and no number
+parse or division; `tests/surface/test_flow_view.py`. The width arm pins every width over non-terminating Fractions so
+a float or an integer fails. Other arms: nodes in plan order including the zero-machine step, a trace with no plan
+step yields None, the mark is the maximum with a first-wins tie, the transport table, a recursive payload walk finding
+no float and neither forbidden word, and the endpoint arm asserting one registry read. `tests/surface/audit_harness.py`
+and `tests/surface/test_panel_advice.py` each gained `"flow": None` in a canned body to keep the key set equal to
+`DERIVATION_KEYS`; no assertion was weakened. Both new paths stamped `authored CS-1360`, `python
+tools/provenance_stamp.py check` exit 0. Tier 2: the derivation payload is a published interface.
+NOT MET, each a measurement. (1) Belt and pipe rates are the edge widths only as the rate carried with a belt-or-pipe
+label: no module publishes conveyor or pipeline throughput - `clockspeed/audit/flow.py` says it knows nothing about
+belts, `belt_topology_available` in `clockspeed/audit/balance.py` is a topology flag, the registry's only throughput is
+the extractor's, and the conveyor and pipeline native classes appear in `clockspeed/data/docs_extract.py` and
+`clockspeed/data/version.py` as names and counts only. (2) The bottleneck mark ships as the HIGHEST-RATE edge, named
+`highest-rate`: with no capacity model saturation cannot be computed and the payload must not claim it (non-negotiable
+7); an arm pins that no value carries "saturated" or "bottleneck". (3) The view is a boundary view: `PlanStep` in
+`clockspeed/solve/ratio.py` carries `recipe_key` and `machines` only, `ProductionPlan` publishes boundary rates only,
+and `_net_per_minute` is private and absent from that module's `__all__`; deriving internal edges in `surface/` is
+barred by the seam.
+VERIFIED by an agent that did not produce the work: verdict CONFIRM. Its gated `python -m pytest tests/surface -q`
+through `ops/fleet_kit/fleet_suite_gate.py` printed `2426 passed, 1 warning in 98.92s (0:01:38)`, exit 0;
+`python -m ruff check .` exit 0; `python -m ruff format --check .` exit 0; bare `python -m mypy` exit 0; every changed
+file 0 CR bytes, max byte 125. Mutations of a scratch copy outside the repo: all 13 `flow_view.py` mutations killed
+and both `advice.py` mutations killed (a second registry read, forms forced to None).
+SUCCESSORS FILED, both tier 2, both in `ROADMAP.md` and `docs/item_notes/phase7.md`: CS-1394 (conveyor and pipeline
+throughput published by the registry, unblocking the capacity and so a true saturation mark) and CS-1395
+(`ProductionPlan` publishes producer-to-consumer edges, unblocking the internal edges). A later cycle takes both first
+and returns to CS-1360. `config/lane_scopes.json` `product-slices` lists both.
+The whole tree is paid by the pre-push hook, whose result the merger reports. The CI verdict is recorded by the driver
+and was not observed by this worker.
+
 ### 2026-11-13 - CS-1389 - CLOSED: fleet kit v30 adopted - item 12 bounded-slice supervision, the pause seam, the budget's own run cap
 Verification: `ops/fleet_kit/MANIFEST.json` sha256
 d2ac40250bd0efc071f0eb11c1e92ae04af88d750de200cf8ed4dc5714d07ea2, version 30;
