@@ -48,14 +48,14 @@
   and a card no statement produced carries none. A SNOOZE NAMES A LENGTH AS A TOKEN, never
   an instant: the page reads no clock and adds nothing, and the advisor resolves the token
   against its own injected clock. A recorded state is not shown on the strength of the
-  click: the panel asks the listing again under the same four and draws what the advisor
+  click: the panel asks the listing again under the same statement and draws what the advisor
   now resolves, so a card the advisor hides leaves the page and one it keeps reads its
   served state.
 
   A CARD REMEMBERS THE STATEMENT THAT PRODUCED IT. The bench stays editable after an
   answer lands, and a card id only means something under the statement it was
-  listed for, so a derivation button closes over those four and never reads the
-  fields again. A card a repaint listed was produced by no statement and asks with
+  listed for, so a derivation button closes over that statement - the four of an item or
+  the three of a schematic - and never reads the fields again. A card a repaint listed was produced by no statement and asks with
   none, which is the question the route answered before this item.
 
   NO FORM ELEMENT. The page's content security policy sets form-action to none, so
@@ -776,7 +776,9 @@ registerPanel("advice", function mountAdvice(root, data) {
     root,
     "p",
     "lede",
-    "All four are required and none starts filled in: there is no default target and no pointer at the next milestone. The rate is per minute: an integer, an exact decimal or num/den."
+    schematics.length === 0
+      ? "All four are required and none starts filled in: there is no default target and no pointer at the next milestone. The rate is per minute: an integer, an exact decimal or num/den."
+      : "State a target with all four, or a schematic with a direction and a byproduct policy and no rate. None starts filled in: there is no default and no pointer at the next milestone. The rate is per minute: an integer, an exact decimal or num/den."
   );
 
   if (targets.length === 0) {
