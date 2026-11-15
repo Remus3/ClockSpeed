@@ -29,19 +29,20 @@
   panel becomes mouse-only, invisibly." Refresh is the button in the header and
   nothing else repaints this page.
 
-  WHY THIS PAGE ISSUES EXACTLY FIVE ON-DEMAND REQUESTS, WHICH IS A COUNT AND
+  WHY THIS PAGE ISSUES EXACTLY SIX ON-DEMAND REQUESTS, WHICH IS A COUNT AND
   NOT AN ABSENCE. This block used to say the page issued none at all and that
   the question did not arise; then it said exactly one POST. Both were true when
   written. The honest answer is a BOUND rather than a zero, and the bound is now
-  five: the solve bench asks /api/solve, the optimize bench asks /api/optimize,
-  the power bench asks /api/power, and the advice panel asks /api/advice and
-  /api/advice/<id>/derivation. Two are POSTs and three are GETs, because the
+  six: the solve bench asks /api/solve, the optimize bench asks /api/optimize,
+  the power bench asks /api/power, and the advice panel asks /api/advice,
+  /api/advice/<id>/derivation and (CS-1376) posts a card's state to
+  /api/advice/<id>/state. Three are POSTs and three are GETs, because the
   verb belongs to the route rather than to this page.
 
   WHAT THE BOUND BUYS IS UNCHANGED BY THE COUNT. Each is reachable only from a
   panel's own click handler; each can ask for one route and no other, because
   app.js - never the panel - builds the query string from a fixed table of the
-  names that endpoint takes; and one shared flag means at most one of the five
+  names that endpoint takes; and one shared flag means at most one of the six
   is ever outstanding. A panel cannot smuggle an unnamed parameter through any
   of them, cannot redirect one, and cannot start a second while one is running.
 
@@ -784,7 +785,8 @@ var STATE_OPTIONAL = ["duration"].concat(ADVICE_PARAMS);
   and which names it takes. THE VERB IS PER ROUTE AND NOT PER PAGE - the two
   solver doors answer POST because a request carries a target basket, and
   /api/power answers GET because it carries one building identifier. The two
-  advice doors answer GET because a stated plan is read and nothing is written.
+  advice reads answer GET because a stated plan is read and nothing is written;
+  the state door answers POST because it records a card's state in the ledger.
 */
 var REQUESTS = {
   solve: { path: "/api/solve", method: "POST", required: SOLVE_PARAMS, optional: [] },
@@ -879,14 +881,14 @@ function requestQuery(spec, params) {
 
 function requestFetch(spec, query, params) {
   /*
-    THE FIVE REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
+    THE SIX REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
     ITS VERB AS LITERALS. Every one of them could be reached from spec.path and
     spec.method in a single call, and that shape was written first and rejected:
     it makes "which URLs can this page reach, with which verbs" a question only
     answerable by following a table indirection, and it defeats the static arm
     in tests/surface/test_web_assets.py that counts the page's non-GET requests
     and pins each to a path. A security-relevant control that a refactor
-    silently blinds is worse than five visible lines.
+    silently blinds is worse than six visible lines.
 
     NO BODY KEY ON ANY OF THEM. clockspeed/surface/server.py parses the query
     string and reads a request body nowhere at all, so a body would be ignored

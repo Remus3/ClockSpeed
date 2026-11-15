@@ -2550,7 +2550,9 @@ def fetch_calls(code: str) -> tuple[FetchCall, ...]:
 #: this arm rather than relaxing it when the first POST landed. It moved from one
 #: to two when the optimize bench got a door: ``/api/optimize`` answered 200
 #: against real data for as long as nothing on the page called it, and the fix
-#: for that was necessarily a second POST.
+#: for that was necessarily a second POST. It moved from two to three when the
+#: advice panel's cards got accept, dismiss, snooze and pin (CS-1376): the clause
+#: has the panel POST a card's state, so the third is that state post.
 EXPECTED_NON_GET_FETCHES: Final = 3
 NON_GET_TARGETS: Final = (
     '"/api/solve?" + query',
@@ -2560,7 +2562,10 @@ NON_GET_TARGETS: Final = (
 
 
 def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
-    """Two non-GET requests, each pinned to a path, no body and still no form.
+    """Three non-GET requests, each pinned to a path, no body and still no form.
+
+    The three are the solve and optimize POSTs and the advice panel's state post
+    (CS-1376), which records one card's state through ``/api/advice/<id>/state``.
 
     THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
     RIGHT UNTIL THE OPERATOR RULED OTHERWISE. That arm asserted the page named
@@ -2569,7 +2574,7 @@ def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
     bench. CS-962 does not relax the claim, it re-aims it: the question a CSRF
     reader needs answered is not "does this page ever POST" but "how many
     state-changing requests can it make, where do they go, and what do they
-    carry". A count pinned to a path set - two POSTs, one to each named path -
+    carry". A count pinned to a path set - three POSTs, one to each named path -
     is a stronger statement than an absence that any later slice could quietly
     spend.
 
@@ -2619,15 +2624,15 @@ def test_the_page_issues_exactly_three_posts_and_no_form() -> None:
     # THE POWER DOOR IS A GET AND IS STILL PINNED. It is not state-changing, so
     # it is outside the count above - but leaving it ungraded would mean the one
     # request this page can aim at a NEW path went unmeasured, so its literal is
-    # required to be present exactly as the other two are.
+    # required to be present exactly as the other three are.
     asked = tuple(call.target for call in calls if call.target.startswith('"/api/power?'))
     assert len(asked) == 1, f"the page names /api/power in {len(asked)} fetch call(s)"
 
-    # THE TWO ADVICE DOORS ARE GETS TOO, WHICH IS WHY THE COUNT ABOVE DID NOT MOVE
+    # THE TWO ADVICE READS ARE GETS, WHICH IS WHY THE COUNT ABOVE DID NOT MOVE FOR THEM
     # (CS-1371). Pinned for the reason the power door is, and to the verb as well: a
-    # stated plan is read, and a POST here would be a third state-changing request
-    # the count above would then have to admit.
-    # CS-1376: the state door is the one advice request that POSTs, and it is counted above.
+    # stated plan is read, and a POST on either would be one more state-changing request
+    # the count above would then have to admit. The state door (CS-1376) is the one
+    # advice request that POSTs, and it is counted above.
     advice = tuple(
         call for call in calls if call.target.startswith('"/api/advice') and call.method == "GET"
     )
