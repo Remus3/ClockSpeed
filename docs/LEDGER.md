@@ -75,6 +75,76 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1253 - CLOSED: a versioned per-world ledger and mute store - schema 4 stamps the tool that wrote it
+Verification: `clockspeed/advisor/ledger.py::SCHEMA_VERSION` (now 4), `Ledger._save`, `MuteStore._save` and
+`_read_doc`, with `tests/advisor/test_ledger.py` including
+`test_the_current_schema_is_version_four`,
+`test_a_written_ledger_records_the_tool_version_that_wrote_it`,
+`test_a_written_mute_store_records_the_tool_version_that_wrote_it`,
+`test_an_older_store_is_read_with_an_unknown_writer_and_rewritten_as_four`,
+`test_a_version_four_store_naming_another_writer_is_read_and_restamped` (the control),
+`test_an_older_version_carrying_the_tool_version_is_corrupt_and_unchanged`,
+`test_a_version_four_store_missing_the_tool_version_is_corrupt_and_unchanged`,
+`test_a_malformed_tool_version_is_corrupt_and_unchanged` and
+`test_a_version_two_ledger_is_read_with_zero_counts_and_rewritten_as_four`.
+THE ACCEPTANCE, verbatim, because this record replaces the item's section rather than copying it: "a v1 fixture loads
+under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store
+records its schema version and the tool version that wrote it". The item was filed 2026-10-04 by the inspiration
+ingest - an untracked external survey whose items were IDEAS ONLY, nothing fetched, copied or lifted - with two
+fences: both persistence layers stay separate (`CLAUDE.md` section 7) and writes stay atomic (non-negotiable 5). Both
+held and neither was touched. Its "waits on CS-500's ledger" dependency was satisfied by the 2026-10-04 CS-500 close.
+THE MEASURED GAP. Two of the three limbs were ALREADY MET before this cycle and are recorded here so a reader does not
+mistake them for this cycle's work: versions 1 to 3 were already read with declared defaults
+(`test_a_version_one_ledger_still_loads_and_is_rewritten_as_two`,
+`test_a_version_one_mute_store_still_loads`), and corrupt refusal with unchanged bytes was already covered
+(`test_a_corrupt_store_is_refused_and_unchanged` and its siblings). The UNMET limb was the second half of the third:
+neither store recorded the TOOL VERSION that wrote it. Both `_save` sites wrote `{schema_version, payload_key}` and
+nothing else, so a store could not be attributed to the build that produced it.
+THE FIX. Schema version 4 adds a document-level `tool_version` to BOTH stores, carrying `clockspeed.__version__` -
+the project's declared single source of truth for its own version, which `clockspeed/surface/api/health.py` already
+consumes - and NOT `clockspeed/data/version.py`, which pins the GAME build and would have attributed the writer to
+the wrong thing. The migration mirrors the existing `_DEFERRED_VERSION` pattern exactly rather than inventing a
+second convention: a version below 4 carrying the key is refused, a version 4 missing it is refused, the stored value
+must be a non-empty ASCII `str`, and a version 1, 2 or 3 document is read with the DECLARED DEFAULT `None` - the
+writer unknown - and rewritten as version 4 on the next write. `_read_doc` now validates the version BEFORE the key
+set, because the expected key set depends on the version.
+TDD. Red-first was behavioural, not an import error: the new arms ran against the unmodified module as "7 failed, 13
+passed", the first failure line `E       assert 3 == 4` from the schema pin and the writer arms failing
+`E       KeyError: 'tool_version'` - the written document carried no stamp. THREE of the refusal arms PASSED before
+the fix, for the wrong reason: version 4 was simply unknown and refused anyway. That vacuity was closed by the
+control arm `test_a_version_four_store_naming_another_writer_is_read_and_restamped`, which requires version 4 to be
+READABLE and so fails before the fix - the refusals can no longer pass for a reason unrelated to their subject.
+SIBLING SWEEP. Exactly three sites share the root cause and all three were swept: `Ledger._save`, `MuteStore._save`
+and the single read gate `_read_doc`. The prediction was three and the measurement was three. No fourth exists:
+`advise.py` and `clockspeed/surface/providers.py` construct the two stores and call their methods but never build or
+shape-check a document, and no other code references either store filename.
+DOCSTRING ROT REPAIRED IN THE SAME COMMIT. The module docstring's CORRUPTION paragraph carried two sentences that
+this change falsified - "the next write rewrites it as version 2" and "a version 2 document is read and rewritten as
+version 3 on the next write" - because every write now lands at the current version. Both were reduced to the shape
+fact each one actually owns, leaving the version 4 sentence the single owner of the rewrite-target rule rather than
+restating it three times. The same paragraph's "Wider migration belongs to CS-1253" was replaced, that sentence being
+this item's own forward pointer.
+ONE TEST RENAMED, ONE DELIBERATELY NOT. The version 2 zero-counts arm asserted version 4 under a name ending in
+"as_three", and was cited nowhere in the tree, so it was renamed to
+`test_a_version_two_ledger_is_read_with_zero_counts_and_rewritten_as_four`. That dead name is deliberately not
+spelled here: writing it would plant a bare identifier this tree no longer binds.
+`test_a_version_one_ledger_still_loads_and_is_rewritten_as_two` asserts version 4 under a name saying two and was
+KEPT: its name is this file's own CS-1268 citation, and this file is append-only so renaming it would dangle a
+citation that can never be repaired where it stands. A comment at the test says exactly that, so the name is
+explained at the only place a reader meets it.
+TIER 2 PAID, for a schema version bump on a persisted public interface. Whole tree, distributed, on the shipped tree:
+"19497 passed, 18 skipped, 9 warnings in 1340.44s (0:22:20)", exit 0 - a summary line parsed AND the exit code read
+from the log file, not from a pipe. `tests/advisor/test_ledger.py` alone: "157 passed in 1.93s", exit 0.
+`ruff check .` "All checks passed!" exit 0 and `ruff format --check .` "462 files already formatted" exit 0.
+GRADED: verifier CONFIRM against the acceptance clause, at a witnessed `tools/freeze_witness.py` freeze over the
+candidate's 668 files, its digest recorded in the cycle's freeze witness rather than quoted here, because a
+SHA-shaped token in this file is read as a commit citation and this candidate's tree hash names no commit. It graded each limb MET, re-ran the suites itself, confirmed the unchanged-bytes arms compare
+RAW BYTES rather than a parsed document or an mtime, confirmed the inserted default key reaches no consumer, and
+refuted nothing. Its one reservation was that it reasoned about vacuity from the code rather than running mutants,
+and it is recorded here rather than only in the cycle report. ONE refutation round, per the lane's bounded-refutation
+rule; nothing was filed.
+CI: recorded by the driver, not observed by this worker.
+
 ### 2026-11-15 - CS-1247 - CLOSED: a deterministic domain interleave, a pure door above the effort order, with golden cases
 Verification: `clockspeed/advisor/ranking.py::interleave_domains` and `tests/advisor/test_interleave.py`, including
 `test_acceptance_both_milestone_cards_read_in_the_top_five_past_ten_power_cards`,

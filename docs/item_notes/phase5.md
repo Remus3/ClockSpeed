@@ -431,16 +431,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a fixture with a newer save on disk sets the stale flag in the API payload; a moved build pin sets it too; the stamp contains no world name or path
 
-## CS-1253
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Both layers stay separate (section 7); writes stay atomic (non-negotiable 5). Waits on CS-500's ledger.
-
-### Acceptance
-
-a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
-
 ## CS-1400
 
 ### Filed 2026-11-15 by the session 157 /done, from the UI-157 audit

@@ -59,14 +59,18 @@ other than the exact shape this version writes, is REFUSED with
 proceeds over a store it could not read. Every document carries
 ``schema_version`` from its first write. Version 2 (CS-1268) adds a stored
 ``new`` card and each card's ``rule``; a version 1 document is still READ, and
-the next write rewrites it as version 2, so a version 1 reader refuses it
-visibly by its version. Version 3 (CS-1246) adds each card's ``deferred``
-count - the number of runs in which the card was shown BELOW the top card and
-still fired, which the quick-win aging guard reads; an absent key is zero, the
-key is never written when it is zero, and a stored zero is refused as a shape
-this version never writes. A version below 3 refuses a record that carries it, and a version 2
-document is read and rewritten as version 3 on the next write. Wider migration
-belongs to CS-1253.
+a version 1 reader refuses a later document visibly by its version. Version 3
+(CS-1246) adds each card's ``deferred`` count - the number of runs in which the
+card was shown BELOW the top card and still fired, which the quick-win aging
+guard reads; an absent key is zero, the key is never written when it is zero,
+and a stored zero is refused as a shape this version never writes. A version
+below 3 refuses a record that carries it, and a version 2 document is still
+READ. Version 4 (CS-1253) adds ``tool_version`` to the document itself, in both
+stores: the version of Clockspeed that wrote it, a non-empty ASCII string and
+always present at version 4. A version below 4 refuses a document that carries
+it, and a version 1, 2 or 3 document is read with the declared default -
+``None``, the writer unknown - and rewritten as version 4, stamped with the
+running tool's version, on the next write.
 
 ERRORS. Every error this module raises carries a fixed message and is raised
 outside any ``except`` block, so it has no ``__cause__`` and no
@@ -89,20 +93,27 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
+# The package root imports nothing, so this cannot form a cycle.
+import clockspeed
+
 #: The version every document this module writes carries from its first write.
 #: Version 2 (CS-1268) stores a shown ``new`` card and the rule each card came from.
 #: Version 3 (CS-1246) stores each card's shown-and-deferred count.
-SCHEMA_VERSION: Final = 3
+#: Version 4 (CS-1253) stores the tool version that wrote the document.
+SCHEMA_VERSION: Final = 4
 
 #: Every version this module reads. Version 1 lacks ``new`` records and ``rule``;
-#: versions 1 and 2 lack the ``deferred`` count.
-_READABLE_VERSIONS: Final = frozenset({1, 2, 3})
+#: versions 1 and 2 lack the ``deferred`` count; versions 1 to 3 lack ``tool_version``.
+_READABLE_VERSIONS: Final = frozenset({1, 2, 3, 4})
 
 #: The first version that stores a ``new`` card and a card's ``rule``.
 _RULE_VERSION: Final = 2
 
 #: The first version that stores a card's ``deferred`` count (CS-1246).
 _DEFERRED_VERSION: Final = 3
+
+#: The first version whose document carries ``tool_version`` (CS-1253).
+_TOOL_VERSION_VERSION: Final = 4
 
 #: One recorded card: its state, the rule id it came from when known, and the
 #: number of runs it was shown below the top card and still fired - the aging
@@ -179,6 +190,9 @@ MAX_STORE_BYTES = 16 * 1024 * 1024
 
 # The per-card record key of the shown-and-deferred count (CS-1246).
 _DEFERRED_KEY: Final = "deferred"
+
+# The document key of the tool version that wrote it (CS-1253).
+_TOOL_VERSION_KEY: Final = "tool_version"
 
 # A world key is a SHA-256 hex digest, exactly as world_key writes it.
 _WORLD_KEY_RE: Final = re.compile(r"[0-9a-f]{64}")
@@ -419,12 +433,26 @@ def _read_doc(target: Path, payload_key: str) -> dict[str, object] | None:
         doc = json.loads(raw.decode("ascii"), object_pairs_hook=_unique_pairs)
     except (UnicodeDecodeError, ValueError, RecursionError):
         corrupt = True
-    if corrupt or not isinstance(doc, dict) or set(doc) != {"schema_version", payload_key}:
+    if corrupt or not isinstance(doc, dict):
         raise StoreCorruptError(_MSG_CORRUPT)
-    version = doc["schema_version"]
+    version = doc.get("schema_version")
     # bool and float compare equal to 1 but are not a version this wrote.
     if type(version) is not int or version not in _READABLE_VERSIONS:
         raise StoreCorruptError(_MSG_CORRUPT)
+    # The key set is exactly what THIS version writes: a version below 4 refuses a
+    # document that carries ``tool_version``, and version 4 refuses one without it.
+    expected = {"schema_version", payload_key}
+    if version >= _TOOL_VERSION_VERSION:
+        expected.add(_TOOL_VERSION_KEY)
+    if set(doc) != expected:
+        raise StoreCorruptError(_MSG_CORRUPT)
+    if version >= _TOOL_VERSION_VERSION:
+        stamp = doc[_TOOL_VERSION_KEY]
+        if type(stamp) is not str or not stamp or not stamp.isascii():
+            raise StoreCorruptError(_MSG_CORRUPT)
+    else:
+        # The declared default: an older document never named its writer.
+        doc[_TOOL_VERSION_KEY] = None
     return doc
 
 
@@ -653,7 +681,14 @@ class Ledger(_Store):
             for key, cards in worlds.items()
             if cards
         }
-        _write_doc(self._path(), {"schema_version": SCHEMA_VERSION, "worlds": payload})
+        _write_doc(
+            self._path(),
+            {
+                "schema_version": SCHEMA_VERSION,
+                _TOOL_VERSION_KEY: clockspeed.__version__,
+                "worlds": payload,
+            },
+        )
 
     def knows_world(self, token: str) -> bool:
         """Return whether anything has been recorded for this world."""
@@ -866,7 +901,14 @@ class MuteStore(_Store):
         return _check_id(rule_id) in self.muted()
 
     def _save(self, rules: frozenset[str]) -> None:
-        _write_doc(self._path(), {"schema_version": SCHEMA_VERSION, "rules": sorted(rules)})
+        _write_doc(
+            self._path(),
+            {
+                "schema_version": SCHEMA_VERSION,
+                _TOOL_VERSION_KEY: clockspeed.__version__,
+                "rules": sorted(rules),
+            },
+        )
 
     def mute(self, rule_id: str) -> None:
         """Mute a rule across every world."""

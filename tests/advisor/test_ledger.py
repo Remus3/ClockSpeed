@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+import clockspeed
 from clockspeed.advisor import ledger as ledger_mod
 from clockspeed.advisor.ledger import (
     LEDGER_FILENAME,
@@ -45,6 +46,9 @@ TOKEN_LENGTH = 22
 SHA256_HEX_LENGTH = 64
 VERSION_TWO = 2  # CS-1268: stores a shown new card and its rule
 VERSION_THREE = 3  # CS-1246: stores the shown-and-deferred count the aging guard reads
+VERSION_FOUR = 4  # CS-1253: stores the tool version that wrote the document
+TOOL_VERSION = clockspeed.__version__
+TOOL_VERSION_KEY = "tool_version"
 
 
 def _chain_hidden(exc: BaseException) -> bool:
@@ -98,7 +102,7 @@ def test_first_write_carries_schema_version(tmp_path: Path) -> None:
     for name in (LEDGER_FILENAME, MUTES_FILENAME):
         doc = json.loads((tmp_path / name).read_bytes())
         assert doc["schema_version"] == SCHEMA_VERSION
-    assert SCHEMA_VERSION == VERSION_THREE  # CS-1246
+    assert SCHEMA_VERSION == VERSION_FOUR  # CS-1253
 
 
 CORRUPT_PAYLOADS = [
@@ -735,13 +739,13 @@ def _v1(record: bytes) -> bytes:
 def test_a_shown_new_card_is_stored_with_its_rule_at_the_current_schema(tmp_path: Path) -> None:
     Ledger(tmp_path).reconcile(TOKEN_A, firing={"c": "x.rule"}, settled=(), shown_new=("c",))
     doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
-    assert (SCHEMA_VERSION, doc["schema_version"]) == (VERSION_THREE, VERSION_THREE)
+    assert (SCHEMA_VERSION, doc["schema_version"]) == (VERSION_FOUR, VERSION_FOUR)
     assert doc["worlds"][world_key(TOKEN_A)]["c"] == {"state": "new", "rule": "x.rule"}
 
 
 def test_a_version_one_ledger_still_loads_and_is_rewritten_as_two(tmp_path: Path) -> None:
-    # The name is docs/LEDGER.md's CS-1268 citation and stays; since CS-1246 the
-    # rewrite lands at the CURRENT schema, version 3, which this arm asserts.
+    # The name is docs/LEDGER.md's CS-1268 citation and stays; since CS-1253 the
+    # rewrite lands at the CURRENT schema, version 4, which this arm asserts.
     (tmp_path / LEDGER_FILENAME).write_bytes(
         b'{"schema_version": 1, "worlds": {"'
         + world_key(TOKEN_A).encode()
@@ -750,7 +754,7 @@ def test_a_version_one_ledger_still_loads_and_is_rewritten_as_two(tmp_path: Path
     assert Ledger(tmp_path).recorded(TOKEN_A) == (("c", CardState.accepted()),)
     Ledger(tmp_path).set_state(TOKEN_A, "d", CardState.pinned())
     doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
-    assert doc["schema_version"] == VERSION_THREE
+    assert doc["schema_version"] == VERSION_FOUR
     assert Ledger(tmp_path).recorded(TOKEN_A) == (
         ("c", CardState.accepted()),
         ("d", CardState.pinned()),
@@ -994,10 +998,10 @@ def test_a_version_three_document_round_trips(tmp_path: Path) -> None:
     led = Ledger(tmp_path)
     assert dict(led.deferrals(TOKEN_A)) == {"c": 4}
     assert led.recorded(TOKEN_A) == (("c", CardState.new()),)
-    # A write of some other card carries the count through unchanged, as version 3.
+    # A write of some other card carries the count through unchanged, as version 4.
     led.set_state(TOKEN_A, "d", CardState.pinned())
     doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
-    assert doc["schema_version"] == VERSION_THREE
+    assert doc["schema_version"] == VERSION_FOUR
     assert doc["worlds"][world_key(TOKEN_A)]["c"] == {
         "state": "new",
         "rule": RULE_X,
@@ -1006,7 +1010,7 @@ def test_a_version_three_document_round_trips(tmp_path: Path) -> None:
     assert dict(Ledger(tmp_path).deferrals(TOKEN_A)) == {"c": 4}
 
 
-def test_a_version_two_ledger_is_read_with_zero_counts_and_rewritten_as_three(
+def test_a_version_two_ledger_is_read_with_zero_counts_and_rewritten_as_four(
     tmp_path: Path,
 ) -> None:
     (tmp_path / LEDGER_FILENAME).write_bytes(_versioned(2, b'{"state": "new", "rule": "x.rule"}'))
@@ -1014,7 +1018,7 @@ def test_a_version_two_ledger_is_read_with_zero_counts_and_rewritten_as_three(
     assert dict(led.deferrals(TOKEN_A)) == {}
     led.set_state(TOKEN_A, "d", CardState.pinned())
     doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
-    assert doc["schema_version"] == VERSION_THREE
+    assert doc["schema_version"] == VERSION_FOUR
 
 
 def test_a_document_with_no_deferrals_differs_from_version_two_only_by_its_version(
@@ -1025,7 +1029,13 @@ def test_a_document_with_no_deferrals_differs_from_version_two_only_by_its_versi
     led.set_state(TOKEN_A, "b", CardState.pinned())
     _run(led, firing=("c",), shown=("c",))
     written = (tmp_path / LEDGER_FILENAME).read_bytes()
-    as_two = written.replace(b'"schema_version": 3', b'"schema_version": 2')
+    # Since CS-1253 the document also carries ``tool_version``, which version 2 refuses.
+    # The version 2 rendering is the same document with that key dropped as well.
+    as_two_doc = json.loads(written)
+    assert as_two_doc["schema_version"] == VERSION_FOUR
+    as_two_doc["schema_version"] = VERSION_TWO
+    del as_two_doc[TOOL_VERSION_KEY]
+    as_two = json.dumps(as_two_doc, sort_keys=True, indent=2).encode("ascii") + b"\n"
     assert as_two != written
     assert DEFERRED_KEY.encode("ascii") not in written
     # The version 2 rendering of the same document is read back identically.
@@ -1140,6 +1150,125 @@ def test_no_token_reaches_the_count_surface(tmp_path: Path) -> None:
     renderings.extend(p.name for p in tmp_path.iterdir())
     leaked = any(TOKEN_A in text for text in renderings)
     assert not leaked
+
+
+# --- CS-1253: schema version 4 stores the tool version that wrote the document ------
+
+OTHER_WRITER = b'"9.9.9-an-other-writer"'
+
+
+def _both_at(version: int, stamp: bytes | None) -> tuple[bytes, bytes]:
+    """Return the exact ledger and mute documents at ``version``.
+
+    ``stamp`` is the raw JSON value of ``tool_version``, or None to leave the key out.
+    """
+    extra = b"" if stamp is None else b', "tool_version": ' + stamp
+    head = b'{"schema_version": ' + str(version).encode("ascii") + extra
+    return head + b', "worlds": {}}', head + b', "rules": ["x.rule"]}'
+
+
+def _put_both(directory: Path, payloads: tuple[bytes, bytes]) -> None:
+    (directory / LEDGER_FILENAME).write_bytes(payloads[0])
+    (directory / MUTES_FILENAME).write_bytes(payloads[1])
+
+
+def _assert_both_corrupt_and_unchanged(directory: Path, payloads: tuple[bytes, bytes]) -> None:
+    with pytest.raises(StoreCorruptError):
+        Ledger(directory).state(TOKEN_A, "card-1", now=0)
+    with pytest.raises(StoreCorruptError):
+        Ledger(directory).set_state(TOKEN_A, "card-1", CardState.accepted())
+    with pytest.raises(StoreCorruptError):
+        MuteStore(directory).muted()
+    with pytest.raises(StoreCorruptError):
+        MuteStore(directory).mute("power.headroom")
+    assert (directory / LEDGER_FILENAME).read_bytes() == payloads[0]
+    assert (directory / MUTES_FILENAME).read_bytes() == payloads[1]
+    assert sorted(p.name for p in directory.iterdir()) == sorted([LEDGER_FILENAME, MUTES_FILENAME])
+
+
+def test_the_current_schema_is_version_four() -> None:
+    assert SCHEMA_VERSION == VERSION_FOUR
+
+
+def test_a_written_ledger_records_the_tool_version_that_wrote_it(tmp_path: Path) -> None:
+    Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.completed())
+    # The bytes off the disk, not the API: the version is a property of the document.
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert doc[TOOL_VERSION_KEY] == TOOL_VERSION
+    assert (type(TOOL_VERSION), bool(TOOL_VERSION)) == (str, True)
+
+
+def test_a_written_mute_store_records_the_tool_version_that_wrote_it(tmp_path: Path) -> None:
+    MuteStore(tmp_path).mute("power.headroom")
+    doc = json.loads((tmp_path / MUTES_FILENAME).read_bytes())
+    assert doc[TOOL_VERSION_KEY] == TOOL_VERSION
+    assert doc["schema_version"] == VERSION_FOUR
+
+
+@pytest.mark.parametrize("version", [1, VERSION_TWO, VERSION_THREE])
+def test_an_older_store_is_read_with_an_unknown_writer_and_rewritten_as_four(
+    tmp_path: Path, version: int
+) -> None:
+    _put_both(tmp_path, _both_at(version, None))
+    assert Ledger(tmp_path).state(TOKEN_A, "card-1", now=0) == CardState.new()
+    assert MuteStore(tmp_path).is_muted("x.rule")
+    # The declared default for a writer the document never named is None.
+    for name, key in ((LEDGER_FILENAME, "worlds"), (MUTES_FILENAME, "rules")):
+        doc = ledger_mod._read_doc(tmp_path / name, key)  # noqa: SLF001 - the default has no public reader
+        assert doc is not None
+        assert doc[TOOL_VERSION_KEY] is None
+    Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    MuteStore(tmp_path).mute("y.rule")
+    for name in (LEDGER_FILENAME, MUTES_FILENAME):
+        written = json.loads((tmp_path / name).read_bytes())
+        assert (written["schema_version"], written[TOOL_VERSION_KEY]) == (
+            VERSION_FOUR,
+            TOOL_VERSION,
+        )
+    assert MuteStore(tmp_path).muted() == frozenset({"x.rule", "y.rule"})
+
+
+def test_a_version_four_store_naming_another_writer_is_read_and_restamped(tmp_path: Path) -> None:
+    # Control for the refusals below: a well-formed stamp at version 4 is READ, so
+    # those arms are refused for their stamp and for nothing else.
+    _put_both(tmp_path, _both_at(VERSION_FOUR, OTHER_WRITER))
+    assert Ledger(tmp_path).state(TOKEN_A, "card-1", now=0) == CardState.new()
+    assert MuteStore(tmp_path).is_muted("x.rule")
+    for name, key in ((LEDGER_FILENAME, "worlds"), (MUTES_FILENAME, "rules")):
+        doc = ledger_mod._read_doc(tmp_path / name, key)  # noqa: SLF001 - the default has no public reader
+        assert doc is not None
+        assert doc[TOOL_VERSION_KEY] == OTHER_WRITER.decode("ascii").strip('"')
+    Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    MuteStore(tmp_path).mute("y.rule")
+    for name in (LEDGER_FILENAME, MUTES_FILENAME):
+        assert json.loads((tmp_path / name).read_bytes())[TOOL_VERSION_KEY] == TOOL_VERSION
+
+
+@pytest.mark.parametrize("version", [1, VERSION_TWO, VERSION_THREE])
+def test_an_older_version_carrying_the_tool_version_is_corrupt_and_unchanged(
+    tmp_path: Path, version: int
+) -> None:
+    payloads = _both_at(version, OTHER_WRITER)
+    _put_both(tmp_path, payloads)
+    _assert_both_corrupt_and_unchanged(tmp_path, payloads)
+
+
+def test_a_version_four_store_missing_the_tool_version_is_corrupt_and_unchanged(
+    tmp_path: Path,
+) -> None:
+    payloads = _both_at(VERSION_FOUR, None)
+    _put_both(tmp_path, payloads)
+    _assert_both_corrupt_and_unchanged(tmp_path, payloads)
+
+
+@pytest.mark.parametrize(
+    "stamp",
+    [b'""', b"3", b"1.0", b"true", b"false", b"null", b'["0.1.0"]', b"{}", b'"caf\\u00e9"'],
+)
+def test_a_malformed_tool_version_is_corrupt_and_unchanged(tmp_path: Path, stamp: bytes) -> None:
+    payloads = _both_at(VERSION_FOUR, stamp)
+    _put_both(tmp_path, payloads)
+    _assert_both_corrupt_and_unchanged(tmp_path, payloads)
 
 
 # --- CS-1376: the closed snooze durations -------------------------------------
