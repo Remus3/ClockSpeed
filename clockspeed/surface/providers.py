@@ -89,6 +89,7 @@ if TYPE_CHECKING:
     from clockspeed.advisor.plans import PlanParameters, PlanRequest, SchematicParameters
     from clockspeed.data.registry import Registry
     from clockspeed.data.schematics import SchematicCatalog
+    from clockspeed.progress.milestones import SchematicSource
 
 __all__ = [
     "FORBIDDEN_IN_AN_ASSET_NAME",
@@ -678,16 +679,23 @@ class StoreAdviceSource:
         directory: Path | None = None,
         *,
         clock: Callable[[], int] = _wall_clock_seconds,
+        schematics: SchematicSource | None = None,
     ) -> None:
-        """Wire the source to one store directory and one clock.
+        """Wire the source to one store directory, one clock and one schematic source.
 
         Args:
             directory: Where both stores live, or None for the advisor's own
                 default - the gitignored ``data/`` directory.
             clock: Answers the current instant. Never read at construction.
+            schematics: Where the schematic catalog comes from, or None for the installed
+                one. Only handed on, and asked by the advisor on the one path that names what
+                unlocks a locked stage (CS-1374); construction reads nothing.
         """
         self._directory = directory
         self._clock = clock
+        self._schematics: SchematicSource = (
+            InstalledSchematicSource() if schematics is None else schematics
+        )
 
     def advice(
         self, world: WorldModel, registry: Registry, *, plan_request: PlanRequest | None = None
@@ -713,6 +721,7 @@ class StoreAdviceSource:
                 mutes=MuteStore(self._directory),
                 now=self._clock(),
                 plan_request=plan_request,
+                schematics=self._schematics,
             )
         except StoreError:
             return None

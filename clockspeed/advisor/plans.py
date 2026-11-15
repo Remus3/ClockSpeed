@@ -1,4 +1,4 @@
-"""CS-1351, CS-1371, CS-1373 and CS-1382: answer a stated target, with a plan or a marked route.
+"""CS-1351, CS-1371, CS-1373, CS-1374, CS-1382: answer a stated target with a plan or a route.
 
 WHAT THIS MODULE OWNS. :class:`PlanRequest`, the question a caller states;
 :func:`plan_parameters` and :func:`plan_request_from`, the door a stated rate, direction,
@@ -125,6 +125,22 @@ from the same pool, the route's own checked recipes, and the route plus those is
 more. A refusal of some other kind is refused again, and reads as the first did. A consumer the
 world has not unlocked is offered locked, as any stage is, and a route solved on the first try
 never reaches that step.
+WHAT UNLOCKS A LOCKED STAGE (CS-1374). A schematic source handed to :func:`plan_offer` is asked
+on this path alone, and its catalog does two things, both by WHOLE-STRING equality of an unlocked
+recipe path with :attr:`clockspeed.data.registry.Recipe.asset_path` and never by a trailing token.
+It names the PREFERRED recipes, those some schematic unlocking them carries a read ``mType`` token
+that is not the hard-drive alternate's, and hands only that membership set to
+:func:`clockspeed.solve.bound.derived_route`, never the catalog, so the route breaks a tie in
+locked count toward them and no further. And it names, for each locked stage of the solved route,
+every schematic unlocking it with its tech tier: the recipe's own where the world does not hold the
+recipe, and where the world holds the recipe and no machine that runs it, the schematics
+unlocking the first such machine's build recipe. The stages list in ascending order of the lowest
+tier naming each, a stage naming no known tier last, then the plan's registry order, on
+``plan.redesign.locked`` and ``plan.redesign.unlocks`` alike. A stage no schematic unlocks reads
+``none``, or ``unknown`` where some schematic's unlocks could not be read in full, and an unlocked
+path that joins no recipe is counted, never dropped. With no source, or one that publishes no
+catalog, the route is today's and no reading is offered.
+
 A stage the solve gives no machine count is neither held nor locked. ITS RAW ITEMS ARE NOT THE
 SEARCH'S: it starts from every stated item some extractor joining a build recipe with a path
 can extract, supplied or not, so a world missing a machine reads what to unlock rather than
@@ -172,7 +188,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, TypeGuard
@@ -189,8 +205,14 @@ from clockspeed.advisor.rules.plan import (
     STATUS_REQUEST_MALFORMED,
     STATUS_SCHEMATIC_UNPLANNABLE,
     STATUS_SOLVE_REFUSED,
+    UNLOCK_NAMED,
+    UNLOCK_NONE,
+    UNLOCK_UNKNOWN,
     UNPLANNABLE_REASONS,
+    LockedUnlock,
+    RedesignUnlocks,
     SchematicStatement,
+    UnlockingSchematic,
     plan_inputs,
     redesign_inputs,
     redesign_status_inputs,
@@ -206,6 +228,7 @@ from clockspeed.data.registry import (
     extractors_of,
     plan_targets,
 )
+from clockspeed.data.schematics import is_preferred, unlockers_by_path
 from clockspeed.progress.milestones import milestone_requirement
 from clockspeed.solve.bound import (
     BoundExhaustedError,
@@ -236,8 +259,8 @@ from clockspeed.solve.ratio import (
 from clockspeed.solve.strategy import STRATEGY_LADDER, RankedPlan, Strategy, rank_plans
 
 if TYPE_CHECKING:
-    from clockspeed.data.schematics import SchematicCatalog
-    from clockspeed.progress.milestones import MilestoneRequirement
+    from clockspeed.data.schematics import Schematic, SchematicCatalog
+    from clockspeed.progress.milestones import MilestoneRequirement, SchematicSource
     from clockspeed.save.world import UnlockState
     from clockspeed.solve.bound import TrimRecord
 
@@ -247,6 +270,7 @@ __all__ = [
     "SchematicParameters",
     "SchematicRequest",
     "plan_offer",
+    "plan_offer_with_schematics",
     "plan_parameters",
     "plan_request_from",
     "schematic_parameters",
@@ -289,12 +313,18 @@ class _RecipeJoin:
         unchecked: The rest, in registry order, which no search and no route sees.
         machine_of: For each held recipe, the whole path of the build recipe of the first of
             its machines the world holds. Read by key only.
+        machine_locked: For each checked recipe the world holds and holds no machine of, the
+            ClassName of the first machine that runs it and joins a build recipe with a path,
+            and that build recipe's whole path (CS-1374). Read by key only.
     """
 
     held: tuple[str, ...]
     checked: tuple[str, ...]
     unchecked: tuple[str, ...]
     machine_of: Mapping[str, str]
+    machine_locked: Mapping[str, tuple[str, str]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
 
 @dataclass(frozen=True)
@@ -765,22 +795,28 @@ def _recipe_join(registry: Registry, unlocks: UnlockState) -> _RecipeJoin:
     checked: list[str] = []
     unchecked: list[str] = []
     machine_of: dict[str, str] = {}
+    machine_locked: dict[str, tuple[str, str]] = {}
     for recipe in automated:
         # In produced_in's own order, so the first one held is read off the recipe.
-        paths = tuple(machine_paths[name] for name in recipe.produced_in if name in machine_paths)
-        if not _keyable(recipe.asset_path) or not paths:
+        joined = tuple(
+            (name, machine_paths[name]) for name in recipe.produced_in if name in machine_paths
+        )
+        if not _keyable(recipe.asset_path) or not joined:
             unchecked.append(recipe.key)
             continue
         checked.append(recipe.key)
-        machine = next((path for path in paths if path in unlocks.recipes), None)
+        machine = next((path for _name, path in joined if path in unlocks.recipes), None)
         if machine is not None and recipe.asset_path in unlocks.recipes:
             held.append(recipe.key)
             machine_of[recipe.key] = machine
+        elif machine is None and recipe.asset_path in unlocks.recipes:
+            machine_locked[recipe.key] = joined[0]
     return _RecipeJoin(
         held=tuple(held),
         checked=tuple(checked),
         unchecked=tuple(unchecked),
         machine_of=MappingProxyType(machine_of),
+        machine_locked=MappingProxyType(machine_locked),
     )
 
 
@@ -914,8 +950,86 @@ def _target_names(
     )
 
 
+def _tier_rank(tier: int | None) -> tuple[bool, int]:
+    """Order a tech tier ascending with an unknown tier after every known one.
+
+    Args:
+        tier: A schematic's tier, or None when none was read.
+
+    Returns:
+        ``(unknown, tier)``. An unknown tier is never treated as zero.
+    """
+    return (tier is None, 0 if tier is None else tier)
+
+
+def _naming(
+    unlockers: Mapping[str, tuple[Schematic, ...]], path: str | None
+) -> tuple[UnlockingSchematic, ...]:
+    """Name every schematic unlocking one recipe path, lowest tier first.
+
+    Args:
+        unlockers: As :func:`clockspeed.data.schematics.unlockers_by_path` builds them, keyed by
+            whole path.
+        path: The recipe's whole asset path, or None when it has none.
+
+    Returns:
+        Each schematic with its tier, in ascending tier, an unknown tier last, then ClassName.
+        Empty when none unlocks it.
+    """
+    if path is None:
+        return ()
+    named = (UnlockingSchematic(s.class_name, s.tech_tier) for s in unlockers.get(path, ()))
+    return tuple(sorted(named, key=lambda item: (*_tier_rank(item.tech_tier), item.schematic)))
+
+
+def _route_unlocks(
+    registry: Registry,
+    catalog: SchematicCatalog,
+    join: _RecipeJoin,
+    locked: tuple[str, ...],
+) -> RedesignUnlocks:
+    """Name what unlocks each locked stage of a route, and count what joins no recipe.
+
+    Args:
+        registry: The normalized registry.
+        catalog: The schematic catalog.
+        join: The world's join, whose ``machine_locked`` says which stages are locked by their
+            machine alone.
+        locked: The route's locked stages, in the plan's registry order.
+
+    Returns:
+        One entry per stage, ordered by the lowest known tier among the schematics naming it,
+        a stage naming none last, ties kept in ``locked``'s own order.
+    """
+    unlockers = unlockers_by_path(catalog)
+    # A set, and ONLY as a membership test: a path any recipe carries is matched, and the count
+    # is of the distinct paths no recipe carries.
+    known = frozenset(recipe.asset_path for recipe in registry.recipes.values())
+    unmatched = sum(1 for path in unlockers if path not in known)
+    incomplete = any(not schematic.unlocks_complete for schematic in catalog.schematics.values())
+    entries: list[LockedUnlock] = []
+    for key in locked:
+        by_machine = join.machine_locked.get(key)
+        machine = None if by_machine is None else by_machine[0]
+        path = registry.recipes[key].asset_path if by_machine is None else by_machine[1]
+        named = _naming(unlockers, path)
+        reading = UNLOCK_NAMED if named else UNLOCK_UNKNOWN if incomplete else UNLOCK_NONE
+        entries.append(LockedUnlock(key, machine, reading, named))
+
+    def lowest(index: int) -> tuple[bool, int, int]:
+        tiers = [item.tech_tier for item in entries[index].schematics if item.tech_tier is not None]
+        return (*_tier_rank(min(tiers) if tiers else None), index)
+
+    order = sorted(range(len(entries)), key=lowest)
+    return RedesignUnlocks(locked=tuple(entries[index] for index in order), unmatched=unmatched)
+
+
 def _route_inputs(
-    registry: Registry, plan: ProductionPlan, join: _RecipeJoin, supply: _RawSupply
+    registry: Registry,
+    plan: ProductionPlan,
+    join: _RecipeJoin,
+    supply: _RawSupply,
+    catalog: SchematicCatalog | None = None,
 ) -> dict[str, InputValue]:
     """Sort a solved route's stages into held and locked, and offer it.
 
@@ -928,6 +1042,8 @@ def _route_inputs(
         plan: What pillar 1 solved for the route.
         join: The world's join.
         supply: The world's supply.
+        catalog: The schematic catalog, or None where none was read, which offers no unlock
+            reading and leaves the locked stages in the plan's registry order.
 
     Returns:
         The marked route's inputs. Its unlock keys are built as on the ranked path, of the
@@ -939,10 +1055,12 @@ def _route_inputs(
     holds = frozenset(join.held)
     stages = tuple(step.recipe_key for step in plan.steps if step.machines != 0)
     held = tuple(key for key in stages if key in holds)
+    locked = tuple(key for key in stages if key not in holds)
+    unlocks = None if catalog is None else _route_unlocks(registry, catalog, join, locked)
     return redesign_inputs(
         plan,
         held=held,
-        locked=tuple(key for key in stages if key not in holds),
+        locked=locked if unlocks is None else tuple(entry.recipe for entry in unlocks.locked),
         locked_extractors=tuple(
             dict.fromkeys(
                 supply.locked_machine_of[item]
@@ -952,6 +1070,7 @@ def _route_inputs(
         ),
         requires=_plan_keys(registry, held, plan, join, supply),
         target_names=_target_names(registry, plan.targets),
+        unlocks=unlocks,
     )
 
 
@@ -983,8 +1102,33 @@ def _solve_route(
     )
 
 
+def _preferred(registry: Registry, catalog: SchematicCatalog, join: _RecipeJoin) -> frozenset[str]:
+    """Name the checked recipes to prefer: some schematic unlocking each carries a read other token.
+
+    Args:
+        registry: The normalized registry.
+        catalog: The schematic catalog.
+        join: The world's join, whose checked recipes are the pool.
+
+    Returns:
+        The membership set :func:`derived_route` takes, joined by whole path.
+    """
+    unlockers = unlockers_by_path(catalog)
+    return frozenset(
+        key
+        for key in join.checked
+        if (path := registry.recipes[key].asset_path) is not None
+        and is_preferred(unlockers.get(path, ()))
+    )
+
+
 def _redesign_offer(
-    registry: Registry, search: OptimizeRequest, *, join: _RecipeJoin, supply: _RawSupply
+    registry: Registry,
+    search: OptimizeRequest,
+    *,
+    join: _RecipeJoin,
+    supply: _RawSupply,
+    schematics: SchematicSource | None = None,
 ) -> dict[str, InputValue]:
     """Derive one route over every automated recipe the join could check, and solve it.
 
@@ -1002,6 +1146,9 @@ def _redesign_offer(
         join: The world's join: its checked recipes are the pool, and the route's count
             prefers its held ones, each of which has a machine the world holds.
         supply: The world's supply: the route starts from its route items, supplied or not.
+        schematics: Where the schematic catalog comes from, or None. Asked here and nowhere
+            else, once. Its catalog yields the preferred set the route breaks a tie by and the
+            reading of what unlocks each locked stage; none yields neither (CS-1374).
 
     Returns:
         The marked route's inputs. Every refusal is a status, read by no message: no route
@@ -1016,7 +1163,9 @@ def _redesign_offer(
             search, candidates=join.checked, unlocked=join.checked, raw_items=supply.route
         )
         held = frozenset(join.held)
-        route = derived_route(registry, asked, held=held)
+        catalog = None if schematics is None else schematics.catalog()
+        preferred = None if catalog is None else _preferred(registry, catalog, join)
+        route = derived_route(registry, asked, held=held, preferred=preferred)
         if not route.complete:
             return redesign_status_inputs(REDESIGN_NO_ROUTE, unmade=route.unmade)
         try:
@@ -1025,15 +1174,37 @@ def _redesign_offer(
             if search.byproduct_policy != BYPRODUCT_BALANCED:
                 raise
             # CS-1378: one consumer per leftover byproduct, then one more solve.
-            members = route_with_consumers(registry, asked, route, held=held)
+            members = route_with_consumers(registry, asked, route, held=held, preferred=preferred)
             plan = _solve_route(registry, search, members, supply)
     except (RatioError, OptimizeError, ExactArithmeticError, ValueError, KeyError):
         return redesign_status_inputs(REDESIGN_ROUTE_REFUSED, unmade=None)
-    return _route_inputs(registry, plan, join, supply)
+    return _route_inputs(registry, plan, join, supply, catalog)
 
 
 def plan_offer(
     unlocks: UnlockState, registry: Registry, request: PlanRequest | None
+) -> dict[str, InputValue]:
+    """Answer one request as :func:`plan_offer_with_schematics` does, with no schematic source.
+
+    The unchanged three-argument door: it offers no unlock reading and prefers no recipe, so
+    the route is the one CS-1371 ruled.
+
+    Args:
+        unlocks: The world's unlock state.
+        registry: The normalized registry.
+        request: The question, or None when the caller stated none.
+
+    Returns:
+        As :func:`plan_offer_with_schematics` returns it with None for the source.
+    """
+    return plan_offer_with_schematics(unlocks, registry, request, None)
+
+
+def plan_offer_with_schematics(
+    unlocks: UnlockState,
+    registry: Registry,
+    request: PlanRequest | None,
+    schematics: SchematicSource | None,
 ) -> dict[str, InputValue]:
     """Answer one request with the inputs the plan family reads, and the schematic it names.
 
@@ -1045,6 +1216,9 @@ def plan_offer(
         unlocks: The world's unlock state.
         registry: The normalized registry.
         request: The question, or None when the caller stated none.
+        schematics: Where the schematic catalog comes from, or None for none. Asked only where
+            a route is derived (CS-1374), so a ranked plan, a refusal and a request with no
+            target never read it.
 
     Returns:
         As :func:`_offer` returns, beside the schematic input.
@@ -1053,12 +1227,15 @@ def plan_offer(
     if statement is not None and statement.unplannable is not None:
         offered = status_inputs(STATUS_SCHEMATIC_UNPLANNABLE)
     else:
-        offered = _offer(unlocks, registry, request)
+        offered = _offer(unlocks, registry, request, schematics)
     return {**offered, **schematic_inputs(statement)}
 
 
 def _offer(
-    unlocks: UnlockState, registry: Registry, request: PlanRequest | None
+    unlocks: UnlockState,
+    registry: Registry,
+    request: PlanRequest | None,
+    schematics: SchematicSource | None,
 ) -> dict[str, InputValue]:
     """Answer one request with the inputs the plan family reads.
 
@@ -1072,6 +1249,8 @@ def _offer(
             none of them is kept or rendered.
         registry: The normalized registry.
         request: The question, or None when the caller stated none.
+        schematics: Where the schematic catalog comes from, or None. Passed to the route and
+            asked nowhere else.
 
     Returns:
         A fresh dict of rule inputs: the status alone when no join ran, the status
@@ -1136,7 +1315,7 @@ def _offer(
             **redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None),
         }
     route = (
-        _redesign_offer(registry, search, join=join, supply=supply)
+        _redesign_offer(registry, search, join=join, supply=supply, schematics=schematics)
         if status == STATUS_NO_PLAN
         else redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None)
     )

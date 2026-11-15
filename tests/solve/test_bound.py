@@ -2979,3 +2979,121 @@ def test_the_new_function_reads_no_set_order_and_leaves_the_route_alone() -> Non
     assert route.members == ("R_By",)
     assert "route_with_consumers" in bound.__all__
     assert "NoByproductConsumerError" in bound.__all__
+
+
+# ===========================================================================
+# m. Preferred recipes (CS-1374) - a membership-only set that breaks a tie in locked count
+# ===========================================================================
+
+
+#: Two locked producers of Relic that tie on locked count, the hard-drive alternate first in
+#: registry order. By hand, with every recipe locked (held empty): each counts (1, 1) on the
+#: first two ints, so only the preferred set can tell them apart.
+_TIE_FIXTURE: Final[list[dict[str, str]]] = [
+    _one_each("R_AltFirst", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM,)),
+    _one_each("R_PrefSecond", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM,)),
+]
+
+#: An alternate with ONE locked recipe on its tree, against a preferred route of TWO.
+_FEWER_FIXTURE: Final[list[dict[str, str]]] = [
+    _one_each("R_AltShort", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM,)),
+    _one_each("R_PrefTop", (SOLVE_RARE_ITEM,), (SOLVE_RELIC_ITEM,)),
+    _one_each("R_PrefRare", (SOLVE_ORE_ITEM,), (SOLVE_RARE_ITEM,)),
+]
+
+_ALL_LOCKED: Final = frozenset[str]()
+
+
+def test_the_preferred_producer_breaks_a_tie_in_locked_count() -> None:
+    """Two locked producers tie on locked count, the alternate first, and the route takes the other.
+
+    By hand: both count (1, 1, 1) before the preference, so a tie goes to the lower registry
+    position, R_AltFirst. With R_PrefSecond preferred it counts (1, 0, 1) and ranks ahead.
+    """
+    registry = _bare_registry(_TIE_FIXTURE)
+    request = _route_request(_TIE_FIXTURE)
+
+    # Control: with no preferred set the count is today's and the alternate wins the tie.
+    assert derived_route(registry, request, held=_ALL_LOCKED).members == ("R_AltFirst",)
+    assert derived_route(registry, request, held=_ALL_LOCKED, preferred=None).members == (
+        "R_AltFirst",
+    )
+    preferred = derived_route(
+        registry, request, held=_ALL_LOCKED, preferred=frozenset({"R_PrefSecond"})
+    )
+    assert preferred.members == ("R_PrefSecond",)
+
+
+def test_an_alternate_with_fewer_locked_recipes_is_still_taken() -> None:
+    """Preference breaks only a tie in locked count: it never outranks it.
+
+    By hand: R_AltShort counts (1, 1, 1) and the preferred route counts (2, 0, 2) with both of
+    its recipes preferred, so the first int decides it for the alternate.
+    """
+    registry = _bare_registry(_FEWER_FIXTURE)
+    request = _route_request(_FEWER_FIXTURE)
+    preferred = frozenset({"R_PrefTop", "R_PrefRare"})
+
+    route = derived_route(registry, request, held=_ALL_LOCKED, preferred=preferred)
+
+    assert route.members == ("R_AltShort",)
+
+
+def test_a_preferred_set_with_no_held_set_changes_nothing() -> None:
+    """Nothing is locked where no held set was stated, so nothing is locked and not preferred."""
+    registry = _bare_registry(_TIE_FIXTURE)
+    request = _route_request(_TIE_FIXTURE)
+
+    route = derived_route(registry, request, preferred=frozenset({"R_PrefSecond"}))
+
+    assert route.members == ("R_AltFirst",)
+
+
+def test_a_held_recipe_never_counts_against_preference() -> None:
+    """A held alternate is not locked, so a preferred locked rival does not displace it."""
+    registry = _bare_registry(_TIE_FIXTURE)
+    request = _route_request(_TIE_FIXTURE)
+
+    route = derived_route(
+        registry,
+        request,
+        held=frozenset({"R_AltFirst"}),
+        preferred=frozenset({"R_PrefSecond"}),
+    )
+
+    assert route.members == ("R_AltFirst",)
+
+
+def test_the_preferred_set_is_a_membership_test_and_is_never_iterated() -> None:
+    """Its iteration order would differ between processes, so nothing may read it."""
+    registry = _bare_registry(_TIE_FIXTURE)
+    request = _route_request(_TIE_FIXTURE)
+
+    route = derived_route(
+        registry, request, held=_ALL_LOCKED, preferred=_MembershipOnly({"R_PrefSecond"})
+    )
+
+    assert route.members == ("R_PrefSecond",)
+
+
+#: R_By leaves Rare over, and two locked consumers of it tie, the alternate first.
+_CONSUMER_TIE: Final[list[dict[str, str]]] = [
+    _one_each("R_By", (SOLVE_ORE_ITEM,), (SOLVE_RELIC_ITEM, SOLVE_RARE_ITEM)),
+    _one_each("R_EatAlt", (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_ORPHAN_ITEM,)),
+    _one_each("R_EatPref", (SOLVE_RARE_ITEM, SOLVE_ORE_ITEM), (SOLVE_ORPHAN_ITEM,)),
+]
+
+
+def test_the_byproduct_consumer_step_breaks_its_tie_by_the_same_preferred_set() -> None:
+    """The consumer step counts as the route does, so a tie goes to the preferred consumer."""
+    registry = _bare_registry(_CONSUMER_TIE)
+    request = _route_request(_CONSUMER_TIE)
+    route = derived_route(registry, request, held=_ALL_LOCKED)
+
+    control = bound.route_with_consumers(registry, request, route, held=_ALL_LOCKED)
+    chosen = bound.route_with_consumers(
+        registry, request, route, held=_ALL_LOCKED, preferred=frozenset({"R_EatPref"})
+    )
+
+    assert control == ("R_By", "R_EatAlt")
+    assert chosen == ("R_By", "R_EatPref")

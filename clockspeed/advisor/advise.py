@@ -122,7 +122,7 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.advisor.build import build_inputs, registry_inputs
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
-from clockspeed.advisor.plans import plan_offer
+from clockspeed.advisor.plans import plan_offer_with_schematics
 from clockspeed.advisor.ranking import order_cards, order_shown
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.fuel import fuel_inputs
@@ -151,6 +151,7 @@ if TYPE_CHECKING:
     from clockspeed.advisor.rules.plan import PlanOutcome
     from clockspeed.audit.balance import WorldBalance
     from clockspeed.data.registry import Registry
+    from clockspeed.progress.milestones import SchematicSource
     from clockspeed.save.world import UnlockState, WorldModel
 
 #: The ALLOWLIST (CS-1268): the trace steps a definite verdict is made of. A
@@ -320,6 +321,7 @@ def inputs_of(
     pinned_changelist: int | None,
     pinned_docs_sha256: str | None,
     plan_request: PlanRequest | None = None,
+    schematics: SchematicSource | None = None,
 ) -> WorldInputs:
     """Build the rule inputs for one parsed world against one registry (CS-1270).
 
@@ -356,6 +358,10 @@ def inputs_of(
             pin carries none - never imported here either.
         plan_request: The target a caller asks a plan for, or None, which runs
             no solve and yields no plan card.
+        schematics: Where the schematic catalog comes from, or None for none. Handed to
+            :func:`~clockspeed.advisor.plans.plan_offer_with_schematics`, which asks it only
+            on the one path that names what unlocks a locked stage (CS-1374), so no other
+            call reads it.
 
     Returns:
         The rule inputs.
@@ -376,7 +382,7 @@ def inputs_of(
     fuel = fuel_inputs(fuel_supply_of(machines, registry), registry)
     build = build_inputs(build_check_of(model, pinned_changelist=pinned_changelist))
     source = registry_inputs(registry_check_of(registry, pinned_docs_sha256=pinned_docs_sha256))
-    offer = plan_offer(model.unlocks, registry, plan_request)
+    offer = plan_offer_with_schematics(model.unlocks, registry, plan_request, schematics)
     return WorldInputs(
         values=merged_inputs(balanced.values, fuel, build, source, offer),
         unlocks=balanced.unlocks,
@@ -502,7 +508,7 @@ def advise_and_record(
     )
 
 
-def advise_world(
+def advise_world(  # noqa: PLR0913 - the one surface call: stores, pins, request, source
     model: WorldModel,
     registry: Registry,
     *,
@@ -512,6 +518,7 @@ def advise_world(
     mutes: MuteStore,
     now: int,
     plan_request: PlanRequest | None = None,
+    schematics: SchematicSource | None = None,
 ) -> Advice:
     """Advise over one parsed world: inputs, rules, cards and both stores.
 
@@ -530,6 +537,7 @@ def advise_world(
         now: The current instant, injected.
         plan_request: The target to rank a plan for, as :func:`inputs_of` takes
             it, or None when none is stated.
+        schematics: The schematic source, as :func:`inputs_of` takes it.
 
     Returns:
         The advice, as :func:`advise` returns it, carrying
@@ -544,6 +552,7 @@ def advise_world(
         pinned_changelist=pinned_changelist,
         pinned_docs_sha256=pinned_docs_sha256,
         plan_request=plan_request,
+        schematics=schematics,
     )
     advice = advise(model.token, world, ledger=ledger, mutes=mutes, now=now)
     if plan_request is None:

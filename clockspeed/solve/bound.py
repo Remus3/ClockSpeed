@@ -53,15 +53,19 @@ and no float enters the key.
 
 THE DERIVED ROUTE is :func:`derived_route`, over what
 :func:`~clockspeed.solve.optimize.usable_candidates` lets through. Each item gets a
-COUNT, an exact pair of ints compared as a tuple, ``(locked on the tree, recipes on
-the tree)``. A raw item counts ``(0, 0)``, and any other item counts the least, over
-its usable producers, of that producer's own cost plus the sum of its inputs' counts,
-where a recipe costs ``(1 if a held set was stated and does not hold it else 0, 1)``.
-With no held set, which is what the trim passes, the first int is always zero and the
-count is recipes on a tree. A tie goes to the lower registry position, and that item's
-CHOSEN PRODUCER is the recipe that won. The walk is breadth first from the targets in
-sorted order, each recipe's inputs as listed, over chosen producers, stopping at raw
-items and at items with no count, each recipe once.
+COUNT, an exact triple of ints compared as a tuple, ``(locked on the tree, locked and not
+preferred on the tree, recipes on the tree)``. A raw item counts ``(0, 0, 0)``, and any other
+item counts the least, over its usable producers, of that producer's own cost plus the sum of
+its inputs' counts, where a recipe costs ``(1 if a held set was stated and does not hold it
+else 0, 1 if it is locked so and a preferred set was stated and does not hold it else 0, 1)``.
+With no held set, which is what the trim passes, the first two ints are always zero and the
+count is recipes on a tree. THE PREFERRED SET (CS-1374) is a membership test and is never
+iterated, and it sits BEHIND the locked count: it can only break a tie in the first int, so a
+route with fewer locked recipes is taken whatever it is made of. None, which is what the trim
+passes, keeps the count as it was, the second int always zero. A tie goes to the lower
+registry position, and that item's CHOSEN PRODUCER is the recipe that won. The walk is
+breadth first from the targets in sorted order, each recipe's inputs as listed, over chosen
+producers, stopping at raw items and at items with no count, each recipe once.
 
 THE COUNT IS THAT RULE'S LEAST FIXED POINT, reached by iterating to convergence from
 nothing but the raw items, so a count only ever comes from a finished tree, each of
@@ -312,9 +316,13 @@ _TIER_CLOSURE: Final = 1
 _TIER_EVERYTHING_ELSE: Final = 2
 _NO_DEPTH: Final = 0
 
+#: An item's count: ``(locked, locked and not preferred, recipes)`` on its tree. See THE DERIVED
+#: ROUTE in the module docstring for the order, and why preference sits behind locked.
+Count = tuple[int, int, int]
+
 #: A raw item's count: no locked recipe and no recipe on its tree. Every recipe's cost
 #: holds a recipe, so this is below every other count and no recipe displaces it.
-_RAW_COUNT: Final[tuple[int, int]] = (0, 0)
+_RAW_COUNT: Final[Count] = (0, 0, 0)
 
 
 @dataclass(frozen=True)
@@ -449,8 +457,11 @@ class BoundExhaustedError(NoFeasibleSelectionError):
 
 
 def _tree_cost(
-    recipe: Recipe, counts: dict[str, tuple[int, int]], held: frozenset[str] | None
-) -> tuple[int, int] | None:
+    recipe: Recipe,
+    counts: dict[str, Count],
+    held: frozenset[str] | None,
+    preferred: frozenset[str] | None,
+) -> Count | None:
     """What one recipe's tree counts, at the counts known so far.
 
     Args:
@@ -458,20 +469,24 @@ def _tree_cost(
         counts: The count of every item that has one so far.
         held: The recipes not to be counted as locked, or None when none is locked. A
             membership test only.
+        preferred: The recipes to prefer among locked ones, or None when none is preferred. A
+            membership test only.
 
     Returns:
-        The exact ``(locked on the tree, recipes on the tree)`` pair: the recipe's own
-        cost plus the sum of its inputs' counts. None while any input has no count.
+        The exact ``(locked, locked and not preferred, recipes)`` triple on the tree: the
+        recipe's own cost plus the sum of its inputs' counts. None while any input has no count.
     """
     locked = 1 if held is not None and recipe.key not in held else 0
+    unpreferred = 1 if locked and preferred is not None and recipe.key not in preferred else 0
     recipes = 1
     for entry in recipe.inputs:
         count = counts.get(entry.item_key)
         if count is None:
             return None
         locked += count[0]
-        recipes += count[1]
-    return (locked, recipes)
+        unpreferred += count[1]
+        recipes += count[2]
+    return (locked, unpreferred, recipes)
 
 
 def _converged_counts(
@@ -479,7 +494,8 @@ def _converged_counts(
     usable: tuple[str, ...],
     raw_items: tuple[str, ...],
     held: frozenset[str] | None,
-) -> dict[str, tuple[int, int]]:
+    preferred: frozenset[str] | None,
+) -> dict[str, Count]:
     """Every item's count, at the count's least fixed point.
 
     Args:
@@ -487,6 +503,7 @@ def _converged_counts(
         usable: The pool, in registry order.
         raw_items: The raw items, which count :data:`_RAW_COUNT`.
         held: As :func:`derived_route` takes it.
+        preferred: As :func:`derived_route` takes it.
 
     Returns:
         Item to its exact count, for every item that has one. Read by key only; its
@@ -498,7 +515,7 @@ def _converged_counts(
         moved = False
         for key in usable:
             recipe = registry.recipes[key]
-            cost = _tree_cost(recipe, counts, held)
+            cost = _tree_cost(recipe, counts, held, preferred)
             if cost is None:
                 continue
             for output in recipe.outputs:
@@ -514,6 +531,7 @@ def _chosen_producers(
     usable: tuple[str, ...],
     raw_items: tuple[str, ...],
     held: frozenset[str] | None,
+    preferred: frozenset[str] | None,
 ) -> dict[str, str]:
     """Each counted item's chosen producer, at the count's least fixed point.
 
@@ -522,12 +540,13 @@ def _chosen_producers(
         usable: The pool, in registry order.
         raw_items: The raw items, which count :data:`_RAW_COUNT` and get no producer.
         held: As :func:`derived_route` takes it.
+        preferred: As :func:`derived_route` takes it.
 
     Returns:
         Item to chosen producer, for every item that has a count and is not raw. Read
         by key only; its insertion order decides nothing.
     """
-    counts = _converged_counts(registry, usable, raw_items, held)
+    counts = _converged_counts(registry, usable, raw_items, held, preferred)
 
     # A second pass, over converged counts, so no tie can be decided by what a pass
     # happened to reach first. The pool is in registry order, so the first recipe
@@ -535,7 +554,7 @@ def _chosen_producers(
     chosen: dict[str, str] = {}
     for key in usable:
         recipe = registry.recipes[key]
-        cost = _tree_cost(recipe, counts, held)
+        cost = _tree_cost(recipe, counts, held, preferred)
         if cost is None:
             continue
         for output in recipe.outputs:
@@ -625,7 +644,11 @@ def _closure_walk(
 
 
 def derived_route(
-    registry: Registry, request: OptimizeRequest, *, held: frozenset[str] | None = None
+    registry: Registry,
+    request: OptimizeRequest,
+    *,
+    held: frozenset[str] | None = None,
+    preferred: frozenset[str] | None = None,
 ) -> DerivedRoute:
     """Derive one deterministic route to a request's targets, running no search.
 
@@ -641,6 +664,11 @@ def derived_route(
             makes the first int of every count zero. A membership test only and never
             iterated, so it can decide no order but through the count itself. The trim
             omits it.
+        preferred: The recipes to prefer where two locked routes tie on locked count, or None
+            when none is preferred, which makes the second int of every count zero and the
+            count today's. A membership test only and never iterated, and never the catalog
+            it came from. It is read only where a recipe is locked, so it never outranks a
+            fewer-locked route. The trim omits it.
 
     Returns:
         The route.
@@ -651,7 +679,7 @@ def derived_route(
     usable, _excluded = usable_candidates(registry, request)
     targets = tuple(sorted(request.targets))
     raw = frozenset(request.raw_items)
-    chosen = _chosen_producers(registry, usable, request.raw_items, held)
+    chosen = _chosen_producers(registry, usable, request.raw_items, held, preferred)
     _depths, unmade = _closure_walk(registry, usable, targets, raw)
     return DerivedRoute(
         members=_route_walk(registry, targets, chosen),
@@ -674,8 +702,9 @@ def _cheapest_consumer(
     registry: Registry,
     pool: tuple[str, ...],
     item: str,
-    counts: dict[str, tuple[int, int]],
+    counts: dict[str, Count],
     held: frozenset[str] | None,
+    preferred: frozenset[str] | None,
 ) -> str | None:
     """The recipe in a pool that eats one item at the least count, a tie to the lower position.
 
@@ -686,6 +715,7 @@ def _cheapest_consumer(
         item: The leftover byproduct to consume.
         counts: As :func:`_converged_counts` returns them.
         held: As :func:`derived_route` takes it.
+        preferred: As :func:`derived_route` takes it.
 
     Returns:
         The recipe, or None when none eats the item with every other input counted.
@@ -694,12 +724,12 @@ def _cheapest_consumer(
     fed = dict(counts)
     fed[item] = _RAW_COUNT
     best: str | None = None
-    best_cost: tuple[int, int] | None = None
+    best_cost: Count | None = None
     for key in pool:
         recipe = registry.recipes[key]
         if all(entry.item_key != item for entry in recipe.inputs):
             continue
-        cost = _tree_cost(recipe, fed, held)
+        cost = _tree_cost(recipe, fed, held, preferred)
         if cost is not None and (best_cost is None or cost < best_cost):
             best, best_cost = key, cost
     return best
@@ -711,6 +741,7 @@ def route_with_consumers(
     route: DerivedRoute,
     *,
     held: frozenset[str] | None = None,
+    preferred: frozenset[str] | None = None,
 ) -> tuple[str, ...]:
     """Add one consumer for each leftover byproduct of a route, and name the whole.
 
@@ -728,6 +759,7 @@ def route_with_consumers(
             candidates and unlocked set are read.
         route: The derived route, whose members are the route.
         held: As :func:`derived_route` takes it. A membership test only.
+        preferred: As :func:`derived_route` takes it, so a consumer is counted as the route is.
 
     Returns:
         The route's members in their own order, then each consumer followed by the
@@ -744,8 +776,8 @@ def route_with_consumers(
     eaten = {entry.item_key for key in route.members for entry in registry.recipes[key].inputs}
     leftovers = sorted(made - eaten - frozenset(request.targets) - frozenset(request.raw_items))
 
-    counts = _converged_counts(registry, usable, request.raw_items, held)
-    chosen = _chosen_producers(registry, usable, request.raw_items, held)
+    counts = _converged_counts(registry, usable, request.raw_items, held, preferred)
+    chosen = _chosen_producers(registry, usable, request.raw_items, held, preferred)
     pool = tuple(key for key in usable if key not in on_route)
     names = list(route.members)
     named = set(names)
@@ -754,7 +786,7 @@ def route_with_consumers(
     for item in leftovers:
         if item in consumed:
             continue
-        pick = _cheapest_consumer(registry, pool, item, counts, held)
+        pick = _cheapest_consumer(registry, pool, item, counts, held, preferred)
         if pick is None:
             continue
         picks += 1

@@ -806,3 +806,217 @@ def test_a_full_name_that_is_not_one_class_and_one_path_half_is_flagged(case: st
     # so no half is guessed at.
     assert catalog.schematics[ASSET_SCHEMATIC].asset_path is None
     assert len(warnings_of(catalog, WARN_UNREADABLE_FULL_NAME, ASSET_SCHEMATIC)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Unlocks (CS-1374)
+# ---------------------------------------------------------------------------
+
+#: The recipe-unlock shape the module reads: ``Class`` and ``mRecipes`` and nothing else. Spelled
+#: here, so a key or class token the module misspells reddens an arm. UNMEASURED IN THE TREE until
+#: the item's closing read-back confirms it on the installed catalog, so the arms below name the
+#: shape and the module flags every other.
+KEY_UNLOCK_CLASS: Final = "Class"
+KEY_UNLOCK_RECIPES: Final = "mRecipes"
+RECIPE_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockRecipe.BP_UnlockRecipe_C"
+#: An element of another shape, carrying no recipe list at all.
+OTHER_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockSynthInfo.BP_UnlockSynthInfo_C"
+#: An element of a shape the module does not know, carrying a recipe list under another key.
+UNKNOWN_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockSynthNew.BP_UnlockSynthNew_C"
+UNKNOWN_RECIPES_KEY: Final = "mRecipesToGrant"
+
+SCHEMATIC_ONE: Final = "Schematic_SynthUnlockOne_C"
+SCHEMATIC_TWO: Final = "Schematic_SynthUnlockTwo_C"
+SCHEMATIC_THREE: Final = "Schematic_SynthUnlockThree_C"
+
+
+def unlock_path(name: str) -> str:
+    """One invented recipe's whole asset path, which neither equals nor ends in its class token."""
+    return f"/Game/Synth/UnlockRecipes/Asset_{name}.Asset_{name}_C"
+
+
+def recipe_unlock(*names: str) -> dict[str, str]:
+    """One recipe-unlock element in the shape the module reads."""
+    return {
+        KEY_UNLOCK_CLASS: RECIPE_UNLOCK_CLASS_PATH,
+        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([unlock_path(name) for name in names]),
+    }
+
+
+def other_unlock() -> dict[str, str]:
+    """One element of another shape, which carries no recipe."""
+    return {KEY_UNLOCK_CLASS: OTHER_UNLOCK_CLASS_PATH, "mUnlockSynthNote": "x"}
+
+
+def unknown_unlock(*names: str) -> dict[str, str]:
+    """One element of an unknown shape that carries a recipe list under another key."""
+    return {
+        KEY_UNLOCK_CLASS: UNKNOWN_UNLOCK_CLASS_PATH,
+        UNKNOWN_RECIPES_KEY: synthetic.class_path_blob([unlock_path(name) for name in names]),
+    }
+
+
+def unlocks_catalog(unlocks: object, class_name: str = SCHEMATIC_ONE) -> SchematicCatalog:
+    """One schematic carrying this ``mUnlocks`` value, normalized."""
+    return normalize_schematics(
+        schematic_document([schematic_entry(class_name, **{KEY_UNLOCKS: unlocks})])
+    )
+
+
+def test_recipe_unlock_elements_publish_their_paths_whole_in_source_order() -> None:
+    catalog = unlocks_catalog([recipe_unlock("B", "A"), other_unlock(), recipe_unlock("C")])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    # Whole paths, never a trailing token, in the order read: B before A, then C.
+    assert schematic.unlocked_recipes == (unlock_path("B"), unlock_path("A"), unlock_path("C"))
+    assert schematic.unlocks_complete is True
+    assert catalog.warnings == ()
+
+
+def test_an_element_of_another_measured_shape_is_read_past_without_a_flag() -> None:
+    catalog = unlocks_catalog([other_unlock(), recipe_unlock("A"), other_unlock()])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    assert schematic.unlocked_recipes == (unlock_path("A"),)
+    assert schematic.unlocks_complete is True
+    assert catalog.warnings == ()
+
+
+def test_an_empty_unlock_list_is_a_complete_empty_reading() -> None:
+    schematic = unlocks_catalog([]).schematics[SCHEMATIC_ONE]
+    assert schematic.unlocked_recipes == ()
+    assert schematic.unlocks_complete is True
+
+
+def test_an_unknown_shape_carrying_a_recipe_list_is_flagged_and_reads_incomplete() -> None:
+    catalog = unlocks_catalog([recipe_unlock("A"), unknown_unlock("B")])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    # Never a short list passing for the whole: the readable remainder is published and the
+    # reading says it is a remainder.
+    assert schematic.unlocks_complete is False
+    assert schematic.unlocked_recipes == (unlock_path("A"),)
+    assert len(warnings_of(catalog, schematics_module.WARN_UNKNOWN_UNLOCK, SCHEMATIC_ONE)) == 1
+
+
+def test_a_recipe_class_with_an_extra_key_is_an_unknown_shape() -> None:
+    element = {**recipe_unlock("A"), "mSynthExtra": "x"}
+    catalog = unlocks_catalog([element])
+    assert catalog.schematics[SCHEMATIC_ONE].unlocks_complete is False
+    assert len(warnings_of(catalog, schematics_module.WARN_UNKNOWN_UNLOCK, SCHEMATIC_ONE)) == 1
+
+
+@pytest.mark.parametrize(
+    "element",
+    [
+        "not a mapping",
+        {"mRecipes": "()"},
+        {KEY_UNLOCK_CLASS: 3},
+        {KEY_UNLOCK_CLASS: RECIPE_UNLOCK_CLASS_PATH, KEY_UNLOCK_RECIPES: "not a class path blob"},
+        {KEY_UNLOCK_CLASS: RECIPE_UNLOCK_CLASS_PATH, KEY_UNLOCK_RECIPES: 5},
+    ],
+)
+def test_an_unreadable_element_is_flagged_and_reads_incomplete(element: object) -> None:
+    catalog = unlocks_catalog([recipe_unlock("A"), element])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    assert schematic.unlocks_complete is False
+    assert schematic.unlocked_recipes == (unlock_path("A"),)
+    flagged = [
+        warning
+        for warning in catalog.warnings
+        if warning.code
+        in (schematics_module.WARN_UNREADABLE_UNLOCK, schematics_module.WARN_UNKNOWN_UNLOCK)
+    ]
+    assert len(flagged) == 1
+
+
+@pytest.mark.parametrize("value", [None, "text", {"a": 1}, 3])
+def test_an_absent_or_non_list_unlock_field_is_unknown_never_empty(value: object) -> None:
+    catalog = unlocks_catalog(value)
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    assert schematic.unlocks_complete is False
+    assert schematic.unlocked_recipes == ()
+    flagged = warnings_of(catalog, schematics_module.WARN_UNREADABLE_UNLOCKS, SCHEMATIC_ONE)
+    assert len(flagged) == 1
+
+
+def test_a_flagged_unlock_never_echoes_a_value_and_never_stops_the_cost_accounting() -> None:
+    catalog = unlocks_catalog([unknown_unlock("SecretRecipeName")])
+    assert catalog.schematics[SCHEMATIC_ONE].unlocks_complete is False
+    assert not [warning for warning in catalog.warnings if "SecretRecipeName" in warning.detail]
+    assert catalog.costs_parsed + catalog.costs_flagged == len(catalog.schematics)
+
+
+def test_the_alternate_token_is_named_once_in_the_module() -> None:
+    token = schematics_module.ALTERNATE_TYPE_TOKEN
+    assert type(token) is str
+    assert token != TYPE_MILESTONE
+    source = Path(schematics_module.__file__).read_text(encoding="utf-8")
+    literals = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Constant) and node.value == token
+    ]
+    assert len(literals) == 1
+
+
+def unlocking_catalog() -> SchematicCatalog:
+    """Three schematics over one shared recipe: alternate-only, ordinary and unread type."""
+    return normalize_schematics(
+        schematic_document(
+            [
+                schematic_entry(
+                    SCHEMATIC_ONE,
+                    mType=schematics_module.ALTERNATE_TYPE_TOKEN,
+                    **{KEY_UNLOCKS: [recipe_unlock("Shared", "OnlyAlt")]},
+                ),
+                schematic_entry(
+                    SCHEMATIC_TWO,
+                    mType=TYPE_MILESTONE,
+                    **{KEY_UNLOCKS: [recipe_unlock("Shared", "Ordinary")]},
+                ),
+                schematic_entry(
+                    SCHEMATIC_THREE,
+                    mType=None,
+                    **{KEY_UNLOCKS: [recipe_unlock("Unread")]},
+                ),
+            ]
+        )
+    )
+
+
+def test_unlockers_are_keyed_by_whole_path_in_catalog_order_never_by_trailing_token() -> None:
+    catalog = unlocking_catalog()
+    unlockers = schematics_module.unlockers_by_path(catalog)
+    assert [s.class_name for s in unlockers[unlock_path("Shared")]] == [
+        SCHEMATIC_ONE,
+        SCHEMATIC_TWO,
+    ]
+    assert [s.class_name for s in unlockers[unlock_path("OnlyAlt")]] == [SCHEMATIC_ONE]
+    # The trailing class token joins nothing: a join by it would find the first one.
+    assert class_name_of_path(unlock_path("Shared")) not in unlockers
+    assert "Shared" not in unlockers
+    assert sorted(unlockers) == sorted(
+        unlock_path(name) for name in ("Shared", "OnlyAlt", "Ordinary", "Unread")
+    )
+
+
+def test_a_recipe_is_an_alternate_only_when_every_unlocker_carries_the_token() -> None:
+    unlockers = schematics_module.unlockers_by_path(unlocking_catalog())
+    is_alternate = schematics_module.is_alternate
+    assert is_alternate(unlockers[unlock_path("OnlyAlt")]) is True
+    # Control: one ordinary unlocker among them makes it no alternate.
+    assert is_alternate(unlockers[unlock_path("Shared")]) is False
+    assert is_alternate(unlockers[unlock_path("Ordinary")]) is False
+    # An unread type token is not the alternate token, and no unlocker at all is no alternate.
+    assert is_alternate(unlockers[unlock_path("Unread")]) is False
+    assert is_alternate(()) is False
+
+
+def test_a_recipe_is_preferred_when_one_unlocker_carries_a_read_non_alternate_token() -> None:
+    unlockers = schematics_module.unlockers_by_path(unlocking_catalog())
+    is_preferred = schematics_module.is_preferred
+    assert is_preferred(unlockers[unlock_path("Shared")]) is True
+    assert is_preferred(unlockers[unlock_path("Ordinary")]) is True
+    # Control: the alternate-only recipe is not.
+    assert is_preferred(unlockers[unlock_path("OnlyAlt")]) is False
+    # An UNREAD token is no evidence of preference, and no unlocker is none either.
+    assert is_preferred(unlockers[unlock_path("Unread")]) is False
+    assert is_preferred(()) is False

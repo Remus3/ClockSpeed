@@ -259,6 +259,10 @@ IN_REDESIGN_REQUIRES: Final = "plan.redesign.requires"
 IN_REDESIGN_UNMADE: Final = "plan.redesign.unmade"
 IN_REDESIGN_TARGET_NAMES: Final = "plan.redesign.target_names"
 
+#: What unlocks each locked stage of the route (CS-1374): a :class:`RedesignUnlocks`, or None where
+#: no route was solved or no schematic catalog was read.
+IN_REDESIGN_UNLOCKS: Final = "plan.redesign.unlocks"
+
 #: Every input the marked route offers, in the order the rule reads them. Apart from
 #: :data:`PLAN_INPUTS`: the ranked path and the route never share a name.
 REDESIGN_INPUTS: Final = (
@@ -270,6 +274,7 @@ REDESIGN_INPUTS: Final = (
     IN_REDESIGN_REQUIRES,
     IN_REDESIGN_UNMADE,
     IN_REDESIGN_TARGET_NAMES,
+    IN_REDESIGN_UNLOCKS,
 )
 
 #: The search did not read no-plan, so no route was derived. Every world but a no-plan.
@@ -409,6 +414,9 @@ _ROUTE_REQUIRES_SOURCE: Final = _REDESIGN_SOURCE_PREFIX + "recipe_unlock_join"
 #: The source of what the route's closure reached that nothing makes.
 _ROUTE_UNMADE_SOURCE: Final = "solve.bound.derived_route.unmade"
 
+#: The source of the route's unlockers: the join of the schematic catalog and the registry.
+_ROUTE_UNLOCKS_SOURCE: Final = _REDESIGN_SOURCE_PREFIX + "schematic_unlock_join"
+
 #: The alternative the marked route records as undecided or, with no machine, as lost.
 _REDESIGN_ALTERNATIVE: Final = "offer the derived route"
 
@@ -463,6 +471,69 @@ _UNCAPPED_NO_UNLOCK_CLAUSE: Final = (
 _NOT_CHOSEN_CLAUSE: Final = (
     "; the stated direction did not choose this route and it was never compared with what is built"
 )
+
+
+#: What one locked stage's unlockers read as (CS-1374). ``named``: at least one schematic unlocks
+#: it, and the schematics are listed. ``none``: no schematic of a catalog every one of whose
+#: unlock lists was read in full unlocks it. ``unknown``: no schematic read unlocks it, and some
+#: schematic's unlocks could not be read in full, so one of those may.
+UNLOCK_NAMED: Final = "named"
+UNLOCK_NONE: Final = "none"
+UNLOCK_UNKNOWN: Final = "unknown"
+
+#: Every word an unlock reading may carry.
+UNLOCK_READINGS: Final = (UNLOCK_NAMED, UNLOCK_NONE, UNLOCK_UNKNOWN)
+
+
+@dataclass(frozen=True, slots=True)
+class UnlockingSchematic:
+    """One schematic that unlocks a recipe, with its tech tier (CS-1374).
+
+    Slotted, so the engine admits it.
+
+    Attributes:
+        schematic: The schematic's ClassName.
+        tech_tier: Its tier, or None when the catalog read none: an unknown tier is never zero.
+    """
+
+    schematic: str
+    tech_tier: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class LockedUnlock:
+    """What unlocks one locked stage of the marked route (CS-1374).
+
+    Attributes:
+        recipe: The locked stage, by ClassName.
+        machine: None when the schematics unlock the recipe itself. The ClassName of the machine
+            when the world holds the recipe and no machine that runs it, and the schematics
+            unlock that machine's build recipe.
+        reading: One of :data:`UNLOCK_READINGS`.
+        schematics: Every schematic unlocking it, lowest tier first, an unknown tier last, then
+            by ClassName. Empty unless the reading is ``named``.
+    """
+
+    recipe: str
+    machine: str | None
+    reading: str
+    schematics: tuple[UnlockingSchematic, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RedesignUnlocks:
+    """What unlocks every locked stage of the marked route, and what the join left out (CS-1374).
+
+    Attributes:
+        locked: One entry per locked stage, in ascending order of the lowest tier among the
+            schematics naming it, an entry naming no known tier last, then the route's registry
+            order.
+        unmatched: How many distinct recipe paths a schematic unlocks that join no recipe of the
+            registry. A count, never dropped.
+    """
+
+    locked: tuple[LockedUnlock, ...]
+    unmatched: int
 
 
 @dataclass(frozen=True)
@@ -581,6 +652,7 @@ def redesign_status_inputs(status: str, *, unmade: tuple[str, ...] | None) -> di
         IN_REDESIGN_REQUIRES: InputValue(None, _ROUTE_REQUIRES_SOURCE),
         IN_REDESIGN_UNMADE: InputValue(unmade, _ROUTE_UNMADE_SOURCE),
         IN_REDESIGN_TARGET_NAMES: InputValue(None, _TARGET_NAME_SOURCE),
+        IN_REDESIGN_UNLOCKS: InputValue(None, _ROUTE_UNLOCKS_SOURCE),
     }
 
 
@@ -592,6 +664,7 @@ def redesign_inputs(
     locked_extractors: tuple[str, ...],
     requires: tuple[str, ...],
     target_names: MappingProxyType[str, str | None],
+    unlocks: RedesignUnlocks | None = None,
 ) -> dict[str, InputValue]:
     """Offer one solved route as rule inputs, each sourced to where it came from.
 
@@ -613,6 +686,8 @@ def redesign_inputs(
             nobody checked. A locked stage and a locked extractor never reach it.
         target_names: Each of the plan's targets by ClassName, to its display name or None.
             REQUIRED, for the reason :func:`plan_inputs` gives.
+        unlocks: What unlocks each locked stage, or None where no schematic catalog was read,
+            which says nothing about any stage and is not an empty list.
 
     Returns:
         A fresh dict of every input of :data:`REDESIGN_INPUTS`.
@@ -627,6 +702,7 @@ def redesign_inputs(
         ),
         IN_REDESIGN_REQUIRES: InputValue(requires, _ROUTE_REQUIRES_SOURCE),
         IN_REDESIGN_TARGET_NAMES: InputValue(target_names, _TARGET_NAME_SOURCE),
+        IN_REDESIGN_UNLOCKS: InputValue(unlocks, _ROUTE_UNLOCKS_SOURCE),
     }
 
 
@@ -981,6 +1057,55 @@ def _check_stages(plan: ProductionPlan, held: tuple[str, ...], locked: tuple[str
         raise ValueError("a route's held and locked recipes disagree with its plan")
 
 
+def _check_unlocks(value: object, locked: tuple[str, ...]) -> RedesignUnlocks | None:
+    """Refuse an unlock reading that is not exactly one honest entry per locked stage.
+
+    A short list passing for the whole is the failure this exists to refuse (non-negotiable 7):
+    an entry missing for a locked stage, or one for a stage the route does not lock, is a
+    forged claim.
+
+    Args:
+        value: What :data:`IN_REDESIGN_UNLOCKS` read.
+        locked: The route's locked stages.
+
+    Returns:
+        The reading, or None where no catalog was read.
+
+    Raises:
+        TypeError: A part is not exactly the type this module declares, or a name is not a str.
+        ValueError: The entries are not exactly the locked stages, each once and in the
+            locked list's own order, a word is outside
+            :data:`UNLOCK_READINGS`, an entry's schematics disagree with its word, or the
+            unmatched count is negative.
+    """
+    if value is None:
+        return None
+    if type(value) is not RedesignUnlocks:
+        raise TypeError("a route's unlocks are not a RedesignUnlocks")
+    entries = value.locked
+    if type(entries) is not tuple or not all(type(entry) is LockedUnlock for entry in entries):
+        raise TypeError("a route's unlock entries are not a tuple of LockedUnlock")
+    if type(value.unmatched) is not int or value.unmatched < 0:
+        raise ValueError("a route's unmatched unlock count is not a whole number")
+    if tuple(entry.recipe for entry in entries) != locked:
+        raise ValueError("a route's unlock entries disagree with its locked recipes")
+    for entry in entries:
+        if type(entry.reading) is not str or entry.reading not in UNLOCK_READINGS:
+            raise ValueError("a route's unlock reading is outside the closed vocabulary")
+        if entry.machine is not None and type(entry.machine) is not str:
+            raise TypeError("a route's unlock machine is not a str")
+        if type(entry.schematics) is not tuple or not all(
+            type(named) is UnlockingSchematic
+            and type(named.schematic) is str
+            and (named.tech_tier is None or type(named.tech_tier) is int)
+            for named in entry.schematics
+        ):
+            raise TypeError("a route's unlocking schematics are not a tuple of UnlockingSchematic")
+        if bool(entry.schematics) != (entry.reading == UNLOCK_NAMED):
+            raise ValueError("a route's unlock reading disagrees with its schematics")
+    return value
+
+
 def _unchecked_clause(unchecked: tuple[str, ...]) -> str:
     """Say how many automated recipes no plan could be asked about, or nothing.
 
@@ -1065,11 +1190,14 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     requires = ctx.read(IN_REDESIGN_REQUIRES)
     unmade = ctx.read(IN_REDESIGN_UNMADE)
     names = ctx.read(IN_REDESIGN_TARGET_NAMES)
+    unlocks = ctx.read(IN_REDESIGN_UNLOCKS)
     if (ctx.read(IN_STATUS) == STATUS_NO_PLAN) == (status == REDESIGN_NOT_REACHED):
         raise ValueError("a plan.redesign status disagrees with the plan status")
     if status != REDESIGN_ROUTED:
         _check_no_route_offered(
-            status, offered=(plan, held, locked, extractors, requires, names), unmade=unmade
+            status,
+            offered=(plan, held, locked, extractors, requires, names, unlocks),
+            unmade=unmade,
         )
         ctx.indeterminate(_REDESIGN_ALTERNATIVE, _REDESIGN_REASONS[status])
         return None
@@ -1079,6 +1207,7 @@ def _evaluate_redesign(ctx: RuleContext) -> Recommendation | None:
     locked = _names(locked, "a route's locked recipes")
     extractors = _names(extractors, "a route's locked extractors")
     requires = _names(requires, "a route's unlock keys")
+    _check_unlocks(unlocks, locked)
     if unmade is not None:
         raise TypeError("a routed offer names unmade items")
     unchecked = _names(ctx.read(IN_UNCHECKED), "a plan's unchecked recipes")

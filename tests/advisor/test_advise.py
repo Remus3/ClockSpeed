@@ -68,6 +68,7 @@ from clockspeed.audit.balance import (
     WorldStarvation,
 )
 from clockspeed.save.world import UnlockState
+from tests.advisor import test_plan_redesign as worlds
 from tests.advisor.build_fixtures import game_pin, pinned_build_inputs
 
 TOKEN_A = "AAAAsyntheticTokenAAAA"  # noqa: S105 - a synthetic world token, not a secret
@@ -938,3 +939,75 @@ def test_an_advice_built_without_deferrals_still_orders_rather_than_not_at_all()
     assert empty
     none_ranked = built.ranked == ()
     assert none_ranked
+
+
+# ---------------------------------------------------------------------------
+# The schematic source rides through to the plan offer (CS-1374)
+# ---------------------------------------------------------------------------
+
+
+class _AskedSource:
+    """A schematic source that publishes nothing and records that it exists."""
+
+    def catalog(self) -> None:
+        """Publish no catalog."""
+
+
+def _plan_offer_spy(seen: list[object]) -> object:
+    """A stand-in for ``plan_offer_with_schematics`` that records the source it was handed."""
+
+    def spy(*offered: object) -> dict[str, InputValue]:
+        # (unlocks, registry, request, schematics): only the source is recorded.
+        seen.append(offered[3])
+        return {}
+
+    return spy
+
+
+def test_inputs_of_hands_its_schematic_source_to_the_plan_offer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[object] = []
+    monkeypatch.setattr(advise_mod, "plan_offer_with_schematics", _plan_offer_spy(seen))
+    source = _AskedSource()
+    registry = worlds._three_locked_registry()  # noqa: SLF001
+
+    advise_mod.inputs_of(
+        worlds._model(()),  # noqa: SLF001
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+        schematics=source,
+    )
+    advise_mod.inputs_of(
+        worlds._model(()),  # noqa: SLF001
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+    )
+
+    # The source itself reaches it, and a call that names none hands on None.
+    assert [value is source for value in seen] == [True, False]
+    assert seen[1] is None
+
+
+def test_advise_world_hands_its_schematic_source_on_to_inputs_of(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: list[object] = []
+    monkeypatch.setattr(advise_mod, "plan_offer_with_schematics", _plan_offer_spy(seen))
+    source = _AskedSource()
+    ledger, mutes = _stores(tmp_path)
+
+    advise_mod.advise_world(
+        worlds._model(()),  # noqa: SLF001
+        worlds._three_locked_registry(),  # noqa: SLF001
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+        ledger=ledger,
+        mutes=mutes,
+        now=NOW,
+        schematics=source,
+    )
+
+    assert [value is source for value in seen] == [True]

@@ -64,6 +64,7 @@ from clockspeed.advisor.rules.plan import (
     IN_REDESIGN_REQUIRES,
     IN_REDESIGN_STATUS,
     IN_REDESIGN_TARGET_NAMES,
+    IN_REDESIGN_UNLOCKS,
     IN_REDESIGN_UNMADE,
     IN_STATUS,
     IN_UNCHECKED,
@@ -3244,6 +3245,7 @@ def test_the_redesign_inputs_stay_out_of_the_plan_inputs() -> None:
         "plan.redesign.requires",
         "plan.redesign.unmade",
         "plan.redesign.target_names",
+        "plan.redesign.unlocks",
     )
 
 
@@ -3259,6 +3261,7 @@ def test_each_redesign_input_names_the_field_it_came_from() -> None:
         IN_REDESIGN_REQUIRES: "advisor.plans.redesign.recipe_unlock_join",
         IN_REDESIGN_UNMADE: "solve.bound.derived_route.unmade",
         IN_REDESIGN_TARGET_NAMES: "registry.items.display_name",
+        IN_REDESIGN_UNLOCKS: "advisor.plans.redesign.schematic_unlock_join",
     }
 
 

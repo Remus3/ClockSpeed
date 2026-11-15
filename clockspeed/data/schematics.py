@@ -26,6 +26,13 @@ THE MEASURED SHAPES THIS READS, BY NAME
   game-phase dependency (``Class``, ``mGamePhase``,
   ``mOnlyAllowInSelectedPhase``). ``mSchematics`` is a quoted class-path blob,
   the grammar :func:`~clockspeed.data.blobs.parse_class_paths` owns.
+- ``mUnlocks`` is a JSON list of mappings. The RECIPE-UNLOCK shape is exactly the keyset
+  ``Class`` and ``mRecipes`` with a ``Class`` path ending in :data:`RECIPE_UNLOCK_CLASS`, and its
+  ``mRecipes`` is a quoted class-path blob, the grammar
+  :func:`~clockspeed.data.blobs.parse_class_paths` owns. Its paths are published WHOLE, in source
+  order, on :attr:`Schematic.unlocked_recipes` (CS-1374). The shape is not measured anywhere in
+  this tree; the item's closing read-back confirms it on the installed catalog, and until then
+  every element of another shape that carries a recipe list is flagged, never trusted.
 - ``FullName`` is a class half, one space and a path half -
   ``BlueprintGeneratedClass /Game/<package>.<ClassName>``. The path half is
   published as :attr:`Schematic.asset_path`, the join key CS-1343 names for a
@@ -64,6 +71,17 @@ FLAG AND SKIP, NEVER FATAL AND NEVER SILENTLY WRONG (non-negotiable 7)
   path is never rebuilt from the ClassName and never reduced with
   :func:`class_name_of_path`: matching on a trailing token is the
   name-matching heuristic the join must not use.
+- **A short unlock list is a wrong answer too**, so :attr:`Schematic.unlocks_complete` is
+  published False, with the readable remainder on :attr:`Schematic.unlocked_recipes`, when any
+  element could not be read in full: an element of an unknown shape that carries a recipe list
+  (a key naming a recipe, or the recipe-unlock class token on another keyset), an element that is
+  no mapping or has no readable ``Class``, and a recipe blob that does not match the class-path
+  grammar. An element of ANOTHER shape - a ``Class`` token that is not the recipe-unlock one, on
+  a keyset naming no recipe - is read past without a flag, because it carries nothing to lose.
+  An ABSENT or non-list ``mUnlocks`` is unknown, not "unlocks nothing": flagged and incomplete.
+- **A recipe joins a schematic by whole-string equality**, never by trailing token. The join key
+  is the recipe path as published, and :func:`unlockers_by_path` is the one place it is built.
+  A path joining no recipe is the advisor's to COUNT: this layer imports no registry.
 - **A field outside the measured keyset is flagged and read past**, aggregated
   by field name so one new field on every entry is one warning row with a
   count rather than one row per schematic.
@@ -110,6 +128,7 @@ from clockspeed.data.docs_extract import (
 )
 
 __all__ = [
+    "ALTERNATE_TYPE_TOKEN",
     "KEY_COST",
     "KEY_DEPENDENCIES",
     "KEY_DEPENDENCY_CLASS",
@@ -120,9 +139,13 @@ __all__ = [
     "KEY_REQUIRE_ALL",
     "KEY_TECH_TIER",
     "KEY_TYPE",
+    "KEY_UNLOCKS",
+    "KEY_UNLOCK_CLASS",
+    "KEY_UNLOCK_RECIPES",
     "KNOWN_SCHEMATIC_FIELDS",
     "PHASE_DEPENDENCY_CLASS",
     "PURCHASED_DEPENDENCY_CLASS",
+    "RECIPE_UNLOCK_CLASS",
     "SCHEMATIC_GROUP_SHORT_NAMES",
     "WARN_COST_WITHOUT_AMOUNT",
     "WARN_DUPLICATE_CLASS_NAME",
@@ -134,12 +157,15 @@ __all__ = [
     "WARN_REPEATED_PHASE_DEPENDENCY",
     "WARN_UNKNOWN_DEPENDENCY",
     "WARN_UNKNOWN_FIELD",
+    "WARN_UNKNOWN_UNLOCK",
     "WARN_UNPARSABLE_FLAG",
     "WARN_UNPARSABLE_TIER",
     "WARN_UNREADABLE_COST",
     "WARN_UNREADABLE_DEPENDENCIES",
     "WARN_UNREADABLE_DEPENDENCY",
     "WARN_UNREADABLE_FULL_NAME",
+    "WARN_UNREADABLE_UNLOCK",
+    "WARN_UNREADABLE_UNLOCKS",
     "CostLine",
     "PhaseDependency",
     "PurchaseDependency",
@@ -148,7 +174,10 @@ __all__ = [
     "SchematicIntegrityError",
     "SchematicWarning",
     "class_name_of_path",
+    "is_alternate",
+    "is_preferred",
     "normalize_schematics",
+    "unlockers_by_path",
     "verify_accounting",
 ]
 
@@ -163,6 +192,9 @@ SCHEMATIC_GROUP_SHORT_NAMES: Final = frozenset({"FGSchematic"})
 KEY_COST: Final = "mCost"
 KEY_TECH_TIER: Final = "mTechTier"
 KEY_TYPE: Final = "mType"
+KEY_UNLOCKS: Final = "mUnlocks"
+KEY_UNLOCK_CLASS: Final = "Class"
+KEY_UNLOCK_RECIPES: Final = "mRecipes"
 KEY_DEPENDENCIES: Final = "mSchematicDependencies"
 KEY_DEPENDENCY_CLASS: Final = "Class"
 KEY_DEPENDENCY_SCHEMATICS: Final = "mSchematics"
@@ -174,6 +206,11 @@ KEY_ONLY_IN_SELECTED_PHASE: Final = "mOnlyAllowInSelectedPhase"
 PURCHASED_DEPENDENCY_CLASS: Final = "BP_SchematicPurchasedDependency_C"
 #: The class token a game-phase dependency's ``Class`` path ends in.
 PHASE_DEPENDENCY_CLASS: Final = "BP_GamePhaseReachedDependency_C"
+#: The class token a recipe-unlock element's ``Class`` path ends in.
+RECIPE_UNLOCK_CLASS: Final = "BP_UnlockRecipe_C"
+#: The ``mType`` token a hard-drive alternate's schematic carries. NAMED ONCE, here, and every
+#: other reader goes through it. CS-1374 ruled that it be a constant and not a name prefix.
+ALTERNATE_TYPE_TOKEN: Final = "EST_Alternate"  # noqa: S105 - an enum token, not a secret
 
 # A dependency is recognized by its keyset AND its class token together - an
 # allowlist of whole shapes. A new dependency class wearing an old keyset is a
@@ -185,6 +222,12 @@ _PURCHASED_DEPENDENCY_KEYS: Final = frozenset(
 _PHASE_DEPENDENCY_KEYS: Final = frozenset(
     {KEY_DEPENDENCY_CLASS, KEY_GAME_PHASE, KEY_ONLY_IN_SELECTED_PHASE}
 )
+
+_RECIPE_UNLOCK_KEYS: Final = frozenset({KEY_UNLOCK_CLASS, KEY_UNLOCK_RECIPES})
+
+#: An element whose keys name a recipe is taken to carry a recipe list. Matched on the key, never
+#: the value, and case-folded, so a renamed list under a new class is flagged and not read past.
+_RECIPE_KEY_MARK: Final = "recipe"
 
 #: Every field the pinned build's schematic entries were measured to carry.
 #: Fields outside it are flagged under WARN_UNKNOWN_FIELD and read past; fields
@@ -253,6 +296,9 @@ WARN_UNPARSABLE_TIER: Final = "unparsable-tier"
 WARN_UNREADABLE_COST: Final = "unreadable-cost"
 WARN_UNREADABLE_DEPENDENCIES: Final = "unreadable-dependencies"
 WARN_UNREADABLE_DEPENDENCY: Final = "unreadable-dependency"
+WARN_UNKNOWN_UNLOCK: Final = "unknown-unlock-shape"
+WARN_UNREADABLE_UNLOCK: Final = "unreadable-unlock"
+WARN_UNREADABLE_UNLOCKS: Final = "unreadable-unlocks"
 
 
 class SchematicIntegrityError(Exception):
@@ -341,6 +387,13 @@ class Schematic:
             trailing token. Defaulted to None, the unknown reading, only so a
             hand-built Schematic stays constructible;
             :func:`normalize_schematics` always passes it.
+        unlocked_recipes: Every recipe path the recipe-unlock elements of ``mUnlocks`` name,
+            each WHOLE and verbatim, in source order. When :attr:`unlocks_complete` is False it
+            is the readable remainder and never the whole.
+        unlocks_complete: False when any element of ``mUnlocks`` could not be read in full, or
+            the field was absent or not a list - flagged. Defaulted to False, the unknown
+            reading, only so a hand-built Schematic stays constructible;
+            :func:`normalize_schematics` always passes it.
     """
 
     class_name: str
@@ -351,6 +404,8 @@ class Schematic:
     phase_dependency: PhaseDependency | None
     dependencies_complete: bool
     asset_path: str | None = None
+    unlocked_recipes: tuple[str, ...] = ()
+    unlocks_complete: bool = False
 
     @property
     def dependency_schematics(self) -> tuple[str, ...]:
@@ -776,6 +831,148 @@ def _dependencies(entry: Mapping[str, object], subject: str, log: _WarningLog) -
     return state
 
 
+@dataclass
+class _Unlocks:
+    """The working state of one schematic's unlock read."""
+
+    paths: list[str]
+    complete: bool = True
+
+
+def _unlock_shape(raw: object) -> str:
+    """Name which kind of ``mUnlocks`` element a raw element is.
+
+    Args:
+        raw: One element of the unlock list.
+
+    Returns:
+        ``"recipe"`` when the keyset and the class token BOTH match the recipe-unlock shape;
+        ``"other"`` for a mapping with a ``Class`` token that is not the recipe-unlock one and
+        no key naming a recipe; ``"carrying"`` for any other mapping that carries a recipe list
+        or wears the recipe-unlock class on another keyset; ``"unreadable"`` for anything with
+        no readable ``Class``.
+    """
+    if not isinstance(raw, dict):
+        return "unreadable"
+    token = raw.get(KEY_UNLOCK_CLASS)
+    if not isinstance(token, str):
+        return "unreadable"
+    is_recipe_class = class_name_of_path(token) == RECIPE_UNLOCK_CLASS
+    if frozenset(raw) == _RECIPE_UNLOCK_KEYS and is_recipe_class:
+        return "recipe"
+    names_recipes = any(isinstance(key, str) and _RECIPE_KEY_MARK in key.casefold() for key in raw)
+    if is_recipe_class or names_recipes:
+        return "carrying"
+    return "other"
+
+
+def _unlocks(entry: Mapping[str, object], subject: str, log: _WarningLog) -> _Unlocks:
+    """Read mUnlocks, element by element.
+
+    Args:
+        entry: The entry mapping.
+        subject: The owning ClassName.
+        log: The warning log.
+
+    Returns:
+        The recipe paths read in full, with ``complete`` False if anything was not.
+    """
+    state = _Unlocks(paths=[])
+    raw_list = entry.get(KEY_UNLOCKS)
+    if not isinstance(raw_list, list):
+        log.add(
+            WARN_UNREADABLE_UNLOCKS,
+            subject,
+            f"{KEY_UNLOCKS} is absent or not a list; unlocks unknown, never none",
+        )
+        state.complete = False
+        return state
+    for raw in raw_list:
+        shape = _unlock_shape(raw)
+        if shape == "other":
+            continue
+        if shape == "carrying":
+            log.add(
+                WARN_UNKNOWN_UNLOCK,
+                subject,
+                "an unlock matches no measured shape and carries a recipe list; unlocks incomplete",
+            )
+            state.complete = False
+        elif shape == "unreadable":
+            log.add(
+                WARN_UNREADABLE_UNLOCK,
+                subject,
+                f"an unlock has no readable {KEY_UNLOCK_CLASS}; unlocks incomplete",
+            )
+            state.complete = False
+        else:
+            blob = raw.get(KEY_UNLOCK_RECIPES) if isinstance(raw, dict) else None
+            paths: tuple[str, ...] | None = None
+            if isinstance(blob, str):
+                try:
+                    paths = parse_class_paths(blob)
+                except BlobParseError:
+                    paths = None
+            if paths is None:
+                log.add(
+                    WARN_UNREADABLE_UNLOCK,
+                    subject,
+                    f"{KEY_UNLOCK_RECIPES} does not match the class-path grammar; "
+                    "unlocks incomplete",
+                )
+                state.complete = False
+            else:
+                state.paths.extend(paths)
+    return state
+
+
+def unlockers_by_path(catalog: SchematicCatalog) -> Mapping[str, tuple[Schematic, ...]]:
+    """Index a catalog's schematics by each recipe path they unlock, by whole string.
+
+    The one place the recipe join is built. A key is a path exactly as the document wrote it,
+    so a join by a trailing class token finds nothing here.
+
+    Args:
+        catalog: The catalog.
+
+    Returns:
+        Recipe path to the schematics unlocking it, each once, in the catalog's order. Read by
+        key only. A path some schematic names and no recipe carries is still a key: counting
+        what joins no recipe is the caller's, who holds the registry.
+    """
+    found: dict[str, list[Schematic]] = {}
+    for schematic in catalog.schematics.values():
+        for path in dict.fromkeys(schematic.unlocked_recipes):
+            found.setdefault(path, []).append(schematic)
+    return MappingProxyType({path: tuple(named) for path, named in found.items()})
+
+
+def is_alternate(unlockers: tuple[Schematic, ...]) -> bool:
+    """Whether a recipe is a hard-drive alternate: every schematic unlocking it carries the token.
+
+    Args:
+        unlockers: The schematics unlocking one recipe, as :func:`unlockers_by_path` lists them.
+
+    Returns:
+        True when there is at least one and each carries :data:`ALTERNATE_TYPE_TOKEN`. A recipe
+        no schematic unlocks is no alternate, and an unread type token is not the token.
+    """
+    return bool(unlockers) and all(s.type_token == ALTERNATE_TYPE_TOKEN for s in unlockers)
+
+
+def is_preferred(unlockers: tuple[Schematic, ...]) -> bool:
+    """Whether a recipe is preferred: some schematic unlocking it carries another READ token.
+
+    Args:
+        unlockers: The schematics unlocking one recipe, as :func:`unlockers_by_path` lists them.
+
+    Returns:
+        True when at least one carries a type token that was read and is not
+        :data:`ALTERNATE_TYPE_TOKEN`. An unread token is no evidence either way.
+    """
+    return any(s.type_token is not None and s.type_token != ALTERNATE_TYPE_TOKEN for s in unlockers)
+
+
 def _flag_unknown_fields(entry: Mapping[str, object], log: _WarningLog) -> None:
     """Flag every field outside the measured keyset, aggregated by field name.
 
@@ -868,6 +1065,7 @@ def normalize_schematics(document: DocsDocument) -> SchematicCatalog:
             else:
                 parsed += 1
             dependencies = _dependencies(entry, name, log)
+            unlocks = _unlocks(entry, name, log)
             built[name] = Schematic(
                 class_name=name,
                 tech_tier=_tech_tier(entry, name, log),
@@ -877,6 +1075,8 @@ def normalize_schematics(document: DocsDocument) -> SchematicCatalog:
                 phase_dependency=dependencies.phase,
                 dependencies_complete=dependencies.complete,
                 asset_path=_asset_path(entry, name, log),
+                unlocked_recipes=tuple(unlocks.paths),
+                unlocks_complete=unlocks.complete,
             )
     catalog = SchematicCatalog(
         schematics=MappingProxyType(built),
