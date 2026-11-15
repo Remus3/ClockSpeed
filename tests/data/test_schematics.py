@@ -812,15 +812,20 @@ def test_a_full_name_that_is_not_one_class_and_one_path_half_is_flagged(case: st
 # Unlocks (CS-1374)
 # ---------------------------------------------------------------------------
 
-#: The recipe-unlock shape the module reads: ``Class`` and ``mRecipes`` and nothing else. Spelled
-#: here, so a key or class token the module misspells reddens an arm. UNMEASURED IN THE TREE until
-#: the item's closing read-back confirms it on the installed catalog, so the arms below name the
-#: shape and the module flags every other.
+#: The recipe-unlock shape the module reads: ``Class`` and ``mRecipes`` and nothing else, as a
+#: read-only probe of the installed docs file MEASURED it. Spelled here, so a key or class token
+#: the module misspells reddens an arm. The class paths are synthetic; the tokens and key names
+#: are the measured ones, and the entries of ``mRecipes`` are the measured object references.
 KEY_UNLOCK_CLASS: Final = "Class"
 KEY_UNLOCK_RECIPES: Final = "mRecipes"
 RECIPE_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockRecipe.BP_UnlockRecipe_C"
-#: An element of another shape, carrying no recipe list at all.
-OTHER_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockSynthInfo.BP_UnlockSynthInfo_C"
+#: The one other measured element that carries ``mRecipes``, on the same keyset.
+BLUEPRINT_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockBlueprints.BP_UnlockBlueprints_C"
+#: The type path an ``mRecipes`` entry's object reference opens with, as measured.
+REFERENCE_TYPE: Final = "/Script/Engine.BlueprintGeneratedClass"
+#: An element of a measured other shape, carrying no recipe list at all.
+OTHER_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockGiveItem.BP_UnlockGiveItem_C"
+OTHER_UNLOCK_KEY: Final = "mItemsToGive"
 #: An element of a shape the module does not know, carrying a recipe list under another key.
 UNKNOWN_UNLOCK_CLASS_PATH: Final = "/Game/Synth/Unlock/BP_UnlockSynthNew.BP_UnlockSynthNew_C"
 UNKNOWN_RECIPES_KEY: Final = "mRecipesToGrant"
@@ -835,24 +840,29 @@ def unlock_path(name: str) -> str:
     return f"/Game/Synth/UnlockRecipes/Asset_{name}.Asset_{name}_C"
 
 
+def unlock_reference(name: str) -> str:
+    """One recipe as an ``mRecipes`` entry reads: the type path, then the asset path quoted."""
+    return f"{REFERENCE_TYPE}'{unlock_path(name)}'"
+
+
 def recipe_unlock(*names: str) -> dict[str, str]:
     """One recipe-unlock element in the shape the module reads."""
     return {
         KEY_UNLOCK_CLASS: RECIPE_UNLOCK_CLASS_PATH,
-        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([unlock_path(name) for name in names]),
+        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([unlock_reference(name) for name in names]),
     }
 
 
 def other_unlock() -> dict[str, str]:
-    """One element of another shape, which carries no recipe."""
-    return {KEY_UNLOCK_CLASS: OTHER_UNLOCK_CLASS_PATH, "mUnlockSynthNote": "x"}
+    """One element of a measured other shape, which carries no recipe."""
+    return {KEY_UNLOCK_CLASS: OTHER_UNLOCK_CLASS_PATH, OTHER_UNLOCK_KEY: "x"}
 
 
 def unknown_unlock(*names: str) -> dict[str, str]:
     """One element of an unknown shape that carries a recipe list under another key."""
     return {
         KEY_UNLOCK_CLASS: UNKNOWN_UNLOCK_CLASS_PATH,
-        UNKNOWN_RECIPES_KEY: synthetic.class_path_blob([unlock_path(name) for name in names]),
+        UNKNOWN_RECIPES_KEY: synthetic.class_path_blob([unlock_reference(name) for name in names]),
     }
 
 
@@ -1020,3 +1030,78 @@ def test_a_recipe_is_preferred_when_one_unlocker_carries_a_read_non_alternate_to
     # An UNREAD token is no evidence of preference, and no unlocker is none either.
     assert is_preferred(unlockers[unlock_path("Unread")]) is False
     assert is_preferred(()) is False
+
+
+def test_the_blueprint_unlock_shape_publishes_its_paths_like_the_recipe_one() -> None:
+    element = {
+        KEY_UNLOCK_CLASS: BLUEPRINT_UNLOCK_CLASS_PATH,
+        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([unlock_reference("Blueprint")]),
+    }
+    catalog = unlocks_catalog([element, recipe_unlock("A")])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    assert schematic.unlocked_recipes == (unlock_path("Blueprint"), unlock_path("A"))
+    assert schematic.unlocks_complete is True
+    assert catalog.warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("token", "keys"),
+    [
+        ("BP_UnlockInfoOnly_C", {}),
+        ("BP_UnlockInventorySlot_C", {"mNumInventorySlotsToUnlock": "1"}),
+        (
+            "BP_UnlockScannableResource_C",
+            {"mResourcePairsToAddToScanner": "x", "mResourcesToAddToScanner": "y"},
+        ),
+    ],
+)
+def test_measured_other_shapes_are_read_past_without_a_flag(
+    token: str, keys: dict[str, str]
+) -> None:
+    element = {KEY_UNLOCK_CLASS: f"/Game/Synth/Unlock/{token}.{token}", **keys}
+    # Control: the sample really is one of the measured shapes and the module's table holds it.
+    assert schematics_module.OTHER_UNLOCK_SHAPES[token] == frozenset(element)
+    catalog = unlocks_catalog([element, recipe_unlock("A")])
+    assert catalog.schematics[SCHEMATIC_ONE].unlocked_recipes == (unlock_path("A"),)
+    assert catalog.schematics[SCHEMATIC_ONE].unlocks_complete is True
+    assert catalog.warnings == ()
+
+
+def test_an_unmeasured_class_whose_keys_name_no_recipe_is_read_past() -> None:
+    element = {KEY_UNLOCK_CLASS: "/Game/Synth/Unlock/BP_UnlockSynthFuture.BP_UnlockSynthFuture_C"}
+    catalog = unlocks_catalog([element, recipe_unlock("A")])
+    assert catalog.schematics[SCHEMATIC_ONE].unlocks_complete is True
+    assert catalog.warnings == ()
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "/Game/Synth/UnlockRecipes/Asset_A.Asset_A_C",
+        "Asset_A_C",
+        f"{REFERENCE_TYPE}'{unlock_path('A')}",
+        f"{REFERENCE_TYPE}''",
+        f"'{unlock_path('A')}'",
+    ],
+)
+def test_an_entry_that_is_no_object_reference_is_flagged_never_read_as_a_path(entry: str) -> None:
+    element = {
+        KEY_UNLOCK_CLASS: RECIPE_UNLOCK_CLASS_PATH,
+        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([entry]),
+    }
+    catalog = unlocks_catalog([element])
+    schematic = catalog.schematics[SCHEMATIC_ONE]
+    assert schematic.unlocks_complete is False
+    assert schematic.unlocked_recipes == ()
+    assert len(warnings_of(catalog, schematics_module.WARN_UNREADABLE_UNLOCK, SCHEMATIC_ONE)) == 1
+
+
+#: How many other ``mUnlocks`` shapes the probe MEASURED beside the two that carry recipes.
+MEASURED_OTHER_SHAPES: Final = 21
+
+
+def test_the_measured_tokens_are_the_modules() -> None:
+    assert schematics_module.RECIPE_UNLOCK_CLASS == "BP_UnlockRecipe_C"
+    assert schematics_module.BLUEPRINT_UNLOCK_CLASS == "BP_UnlockBlueprints_C"
+    assert schematics_module.ALTERNATE_TYPE_TOKEN == "EST_Alternate"  # noqa: S105 - an enum token
+    assert len(schematics_module.OTHER_UNLOCK_SHAPES) == MEASURED_OTHER_SHAPES

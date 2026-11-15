@@ -49,7 +49,9 @@ from tests.data.test_schematics import (
     KEY_UNLOCK_RECIPES,
     KEY_UNLOCKS,
     OTHER_UNLOCK_CLASS_PATH,
+    OTHER_UNLOCK_KEY,
     RECIPE_UNLOCK_CLASS_PATH,
+    REFERENCE_TYPE,
     UNKNOWN_RECIPES_KEY,
     UNKNOWN_UNLOCK_CLASS_PATH,
     schematic_document,
@@ -80,11 +82,16 @@ class _Source:
         return self._catalog
 
 
+def _reference(path: str) -> str:
+    """One asset path as an ``mRecipes`` entry reads it: the measured type path, then it quoted."""
+    return f"{REFERENCE_TYPE}'{path}'"
+
+
 def _unlock(paths: Iterable[str]) -> dict[str, str]:
-    """One recipe-unlock element naming these whole paths."""
+    """One recipe-unlock element naming these whole asset paths, each as an object reference."""
     return {
         KEY_UNLOCK_CLASS: RECIPE_UNLOCK_CLASS_PATH,
-        KEY_UNLOCK_RECIPES: synthetic.class_path_blob(list(paths)),
+        KEY_UNLOCK_RECIPES: synthetic.class_path_blob([_reference(path) for path in paths]),
     }
 
 
@@ -419,7 +426,7 @@ def _unknown_shape_unlock(recipes: Iterable[str]) -> list[dict[str, str]]:
         {
             KEY_UNLOCK_CLASS: UNKNOWN_UNLOCK_CLASS_PATH,
             UNKNOWN_RECIPES_KEY: synthetic.class_path_blob(
-                [worlds._path(recipe) for recipe in recipes]  # noqa: SLF001
+                [_reference(worlds._path(recipe)) for recipe in recipes]  # noqa: SLF001
             ),
         }
     ]
@@ -443,7 +450,10 @@ def test_an_unknown_shape_element_carrying_recipes_reads_unknown_never_none() ->
 def test_with_every_unlock_list_read_in_full_an_unnamed_recipe_reads_none() -> None:
     entries = (
         _schematic("Schematic_Two_C", tier="2", recipes=("R_A3",)),
-        _schematic("Schematic_Info_C", unlocks=[{KEY_UNLOCK_CLASS: OTHER_UNLOCK_CLASS_PATH}]),
+        _schematic(
+            "Schematic_Info_C",
+            unlocks=[{KEY_UNLOCK_CLASS: OTHER_UNLOCK_CLASS_PATH, OTHER_UNLOCK_KEY: "x"}],
+        ),
     )
 
     reading = _unlocks_of(_three_world(*entries))

@@ -52,6 +52,7 @@ from clockspeed.advisor.ledger import (
     WorldTokenError,
 )
 from clockspeed.advisor.rules import power, registered_rules
+from clockspeed.advisor.rules.plan import IN_REDESIGN_UNLOCKS, RedesignUnlocks
 from clockspeed.advisor.trace import (
     InputValue,
     Recommendation,
@@ -67,9 +68,11 @@ from clockspeed.audit.balance import (
     WorldDraw,
     WorldStarvation,
 )
+from clockspeed.data.schematics import SchematicCatalog, normalize_schematics
 from clockspeed.save.world import UnlockState
 from tests.advisor import test_plan_redesign as worlds
 from tests.advisor.build_fixtures import game_pin, pinned_build_inputs
+from tests.data.test_schematics import schematic_document, schematic_entry
 
 TOKEN_A = "AAAAsyntheticTokenAAAA"  # noqa: S105 - a synthetic world token, not a secret
 TOKEN_B = "BBBBsyntheticTokenBBBB"  # noqa: S105 - a synthetic world token, not a secret
@@ -1011,3 +1014,52 @@ def test_advise_world_hands_its_schematic_source_on_to_inputs_of(
     )
 
     assert [value is source for value in seen] == [True]
+
+
+class _CatalogSource:
+    """A schematic source over one tiny catalog, which counts how often it is asked."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def catalog(self) -> SchematicCatalog:
+        """Publish a one-schematic catalog, and count the ask."""
+        self.calls += 1
+        return normalize_schematics(schematic_document([schematic_entry("Schematic_Arm_C")]))
+
+
+def _unlock_reading_type(world: WorldInputs) -> type:
+    """The type of the route's unlock reading a world offers, so no value is rendered."""
+    return type(world.values[IN_REDESIGN_UNLOCKS].value)
+
+
+def test_inputs_of_offers_the_unlock_reading_only_when_it_is_handed_a_source() -> None:
+    """End to end and with no stand-in: a source reaches the reading, and none leaves it None.
+
+    The world reads no-plan, so a route is derived and the source is the only thing that can
+    make the reading exist. A call that drops the source on its way to the offer reads None.
+    """
+    registry = worlds._three_locked_registry()  # noqa: SLF001
+    request = worlds._request(registry)  # noqa: SLF001
+    model = worlds._model((worlds.HELD_STAGE,))  # noqa: SLF001
+    source = _CatalogSource()
+
+    handed = advise_mod.inputs_of(
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+        plan_request=request,
+        schematics=source,
+    )
+    withheld = advise_mod.inputs_of(
+        model,
+        registry,
+        pinned_changelist=game_pin(),
+        pinned_docs_sha256=None,
+        plan_request=request,
+    )
+
+    assert _unlock_reading_type(handed) is RedesignUnlocks
+    assert source.calls == 1
+    assert _unlock_reading_type(withheld) is type(None)

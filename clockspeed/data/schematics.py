@@ -26,13 +26,21 @@ THE MEASURED SHAPES THIS READS, BY NAME
   game-phase dependency (``Class``, ``mGamePhase``,
   ``mOnlyAllowInSelectedPhase``). ``mSchematics`` is a quoted class-path blob,
   the grammar :func:`~clockspeed.data.blobs.parse_class_paths` owns.
-- ``mUnlocks`` is a JSON list of mappings. The RECIPE-UNLOCK shape is exactly the keyset
-  ``Class`` and ``mRecipes`` with a ``Class`` path ending in :data:`RECIPE_UNLOCK_CLASS`, and its
-  ``mRecipes`` is a quoted class-path blob, the grammar
-  :func:`~clockspeed.data.blobs.parse_class_paths` owns. Its paths are published WHOLE, in source
-  order, on :attr:`Schematic.unlocked_recipes` (CS-1374). The shape is not measured anywhere in
-  this tree; the item's closing read-back confirms it on the installed catalog, and until then
-  every element of another shape that carries a recipe list is flagged, never trusted.
+- ``mUnlocks`` is a JSON list of mappings, MEASURED on the installed docs file by a read-only
+  probe (CS-1374): 23 distinct ``(Class token, keyset)`` shapes. TWO carry recipe paths, each
+  exactly the keyset ``Class`` and ``mRecipes`` - the recipe-unlock class
+  :data:`RECIPE_UNLOCK_CLASS` and the blueprint-unlock class :data:`BLUEPRINT_UNLOCK_CLASS` -
+  and ``mRecipes`` is a quoted class-path blob, the grammar
+  :func:`~clockspeed.data.blobs.parse_class_paths` owns, whose every entry is an object
+  REFERENCE, ``<type path>'<asset path>'`` (MEASURED: the type path is
+  ``/Script/Engine.BlueprintGeneratedClass``). The asset path inside the single quotes is what
+  :attr:`Recipe.asset_path` holds, so it is published WHOLE, in source order, on
+  :attr:`Schematic.unlocked_recipes` - never the reference and never a trailing token. An entry
+  that is no such reference is flagged and leaves the reading incomplete. A blueprint path that
+  joins no recipe is COUNTED by the advisor and never dropped. The other 21 shapes carry no
+  recipe list and are :data:`OTHER_UNLOCK_SHAPES`, read past. On the pinned build every
+  schematic carries the list and every element is a mapping, so an absent or non-list field,
+  or an element that is no mapping, is unreadable content and is flagged.
 - ``FullName`` is a class half, one space and a path half -
   ``BlueprintGeneratedClass /Game/<package>.<ClassName>``. The path half is
   published as :attr:`Schematic.asset_path`, the join key CS-1343 names for a
@@ -74,10 +82,10 @@ FLAG AND SKIP, NEVER FATAL AND NEVER SILENTLY WRONG (non-negotiable 7)
 - **A short unlock list is a wrong answer too**, so :attr:`Schematic.unlocks_complete` is
   published False, with the readable remainder on :attr:`Schematic.unlocked_recipes`, when any
   element could not be read in full: an element of an unknown shape that carries a recipe list
-  (a key naming a recipe, or the recipe-unlock class token on another keyset), an element that is
+  (a key naming a recipe, or a recipe-list class token on another keyset), an element that is
   no mapping or has no readable ``Class``, and a recipe blob that does not match the class-path
-  grammar. An element of ANOTHER shape - a ``Class`` token that is not the recipe-unlock one, on
-  a keyset naming no recipe - is read past without a flag, because it carries nothing to lose.
+  grammar. An element of a measured OTHER shape is read past without a flag, and so is an
+  unmeasured one whose keys name no recipe, because it carries nothing to lose.
   An ABSENT or non-list ``mUnlocks`` is unknown, not "unlocks nothing": flagged and incomplete.
 - **A recipe joins a schematic by whole-string equality**, never by trailing token. The join key
   is the recipe path as published, and :func:`unlockers_by_path` is the one place it is built.
@@ -129,6 +137,7 @@ from clockspeed.data.docs_extract import (
 
 __all__ = [
     "ALTERNATE_TYPE_TOKEN",
+    "BLUEPRINT_UNLOCK_CLASS",
     "KEY_COST",
     "KEY_DEPENDENCIES",
     "KEY_DEPENDENCY_CLASS",
@@ -143,6 +152,7 @@ __all__ = [
     "KEY_UNLOCK_CLASS",
     "KEY_UNLOCK_RECIPES",
     "KNOWN_SCHEMATIC_FIELDS",
+    "OTHER_UNLOCK_SHAPES",
     "PHASE_DEPENDENCY_CLASS",
     "PURCHASED_DEPENDENCY_CLASS",
     "RECIPE_UNLOCK_CLASS",
@@ -206,10 +216,15 @@ KEY_ONLY_IN_SELECTED_PHASE: Final = "mOnlyAllowInSelectedPhase"
 PURCHASED_DEPENDENCY_CLASS: Final = "BP_SchematicPurchasedDependency_C"
 #: The class token a game-phase dependency's ``Class`` path ends in.
 PHASE_DEPENDENCY_CLASS: Final = "BP_GamePhaseReachedDependency_C"
-#: The class token a recipe-unlock element's ``Class`` path ends in.
+#: The class token a recipe-unlock element's ``Class`` path ends in. MEASURED.
 RECIPE_UNLOCK_CLASS: Final = "BP_UnlockRecipe_C"
-#: The ``mType`` token a hard-drive alternate's schematic carries. NAMED ONCE, here, and every
-#: other reader goes through it. CS-1374 ruled that it be a constant and not a name prefix.
+#: The class token of the one other measured element that carries ``mRecipes``. MEASURED.
+BLUEPRINT_UNLOCK_CLASS: Final = "BP_UnlockBlueprints_C"
+#: The ``mType`` token a hard-drive alternate's schematic carries. MEASURED on the installed
+#: docs file (the eight values it carries: ``EST_ResourceSink``, ``EST_MAM``, this one,
+#: ``EST_Custom``, ``EST_Milestone``, ``EST_Customization``, ``EST_Tutorial``, ``EST_HardDrive``).
+#: NAMED ONCE, here, and every other reader goes through it. CS-1374 ruled that it be a constant
+#: and not a name prefix.
 ALTERNATE_TYPE_TOKEN: Final = "EST_Alternate"  # noqa: S105 - an enum token, not a secret
 
 # A dependency is recognized by its keyset AND its class token together - an
@@ -224,6 +239,43 @@ _PHASE_DEPENDENCY_KEYS: Final = frozenset(
 )
 
 _RECIPE_UNLOCK_KEYS: Final = frozenset({KEY_UNLOCK_CLASS, KEY_UNLOCK_RECIPES})
+
+#: The class tokens whose measured shape is exactly :data:`_RECIPE_UNLOCK_KEYS` and carries recipes.
+_RECIPE_LIST_CLASSES: Final = frozenset({RECIPE_UNLOCK_CLASS, BLUEPRINT_UNLOCK_CLASS})
+
+#: Every other ``mUnlocks`` shape MEASURED on the installed docs file, a ``Class`` token to its
+#: whole keyset. None carries a recipe list: each is read past without a flag.
+OTHER_UNLOCK_SHAPES: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {
+        token: frozenset({KEY_UNLOCK_CLASS, *keys})
+        for token, keys in {
+            "BP_UnlockArmEquipmentSlot_C": ("mNumArmEquipmentSlotsToUnlock",),
+            "BP_UnlockBuildEfficiency_C": (),
+            "BP_UnlockBuildOverclock_C": (),
+            "BP_UnlockBuildProductionBoost_C": (),
+            "BP_UnlockCentralStorageItemLimit_C": ("mItemStackLimitIncrease",),
+            "BP_UnlockCentralStorageUploadSlots_C": ("mNumSlotsToUnlock",),
+            "BP_UnlockCentralStorageUploadSpeed_C": ("mUploadSpeedPercentageDecrease",),
+            "BP_UnlockCheckmark_C": (),
+            "BP_UnlockCircuitDaisyChaining_C": (),
+            "BP_UnlockCustomizer_C": (),
+            "BP_UnlockEmote_C": ("mEmotes",),
+            "BP_UnlockGiveItem_C": ("mItemsToGive",),
+            "BP_UnlockInfoOnly_C": (),
+            "BP_UnlockInventorySlot_C": ("mNumInventorySlotsToUnlock",),
+            "BP_UnlockItemDescriptor_C": ("mItemDescriptors",),
+            "BP_UnlockMap_C": (),
+            "BP_UnlockScannableObject_C": ("mScannableObjects",),
+            "BP_UnlockScannableResource_C": (
+                "mResourcePairsToAddToScanner",
+                "mResourcesToAddToScanner",
+            ),
+            "BP_UnlockSchematic_C": ("mSchematics",),
+            "FGUnlockCustomization": ("mCustomizationUnlocks",),
+            "FGUnlockTape": ("mTapeUnlocks",),
+        }.items()
+    }
+)
 
 #: An element whose keys name a recipe is taken to carry a recipe list. Matched on the key, never
 #: the value, and case-folded, so a renamed list under a new class is flagged and not read past.
@@ -270,6 +322,11 @@ KNOWN_SCHEMATIC_FIELDS: Final = frozenset(
 # rather than sharing one with an arbitrary malformed blob. Anchored end to end
 # and tiled the way the parser tiles, so only that exact shape matches.
 _AMOUNTLESS_COST_RE: Final = re.compile(r'\(\(ItemClass="[^"]*"\)(?:,\(ItemClass="[^"]*"\))*\)')
+
+# An unlocked recipe is an object reference: a type path, then the asset path between single
+# quotes, and nothing after the closing quote. Anchored end to end, so only that shape matches,
+# and the asset path is taken whole - never cut at a dot or reduced to a class token.
+_OBJECT_REFERENCE_RE: Final = re.compile(r"[^'\"]+'([^'\"]+)'")
 
 # A tier is ASCII digits and nothing else. ``int()`` alone is too lenient: it
 # accepts surrounding whitespace, a sign, underscores and non-ASCII digits.
@@ -846,9 +903,10 @@ def _unlock_shape(raw: object) -> str:
         raw: One element of the unlock list.
 
     Returns:
-        ``"recipe"`` when the keyset and the class token BOTH match the recipe-unlock shape;
-        ``"other"`` for a mapping with a ``Class`` token that is not the recipe-unlock one and
-        no key naming a recipe; ``"carrying"`` for any other mapping that carries a recipe list
+        ``"recipe"`` when the keyset and the class token BOTH match a measured recipe-list
+        shape; ``"other"`` for a measured other shape, or a mapping with a ``Class`` token that
+        is no recipe-list one and no key naming a recipe; ``"carrying"`` for any other mapping that
+        carries a recipe list
         or wears the recipe-unlock class on another keyset; ``"unreadable"`` for anything with
         no readable ``Class``.
     """
@@ -857,9 +915,12 @@ def _unlock_shape(raw: object) -> str:
     token = raw.get(KEY_UNLOCK_CLASS)
     if not isinstance(token, str):
         return "unreadable"
-    is_recipe_class = class_name_of_path(token) == RECIPE_UNLOCK_CLASS
+    name = class_name_of_path(token)
+    is_recipe_class = name in _RECIPE_LIST_CLASSES
     if frozenset(raw) == _RECIPE_UNLOCK_KEYS and is_recipe_class:
         return "recipe"
+    if OTHER_UNLOCK_SHAPES.get(name) == frozenset(raw):
+        return "other"
     names_recipes = any(isinstance(key, str) and _RECIPE_KEY_MARK in key.casefold() for key in raw)
     if is_recipe_class or names_recipes:
         return "carrying"
@@ -921,8 +982,17 @@ def _unlocks(entry: Mapping[str, object], subject: str, log: _WarningLog) -> _Un
                     "unlocks incomplete",
                 )
                 state.complete = False
-            else:
-                state.paths.extend(paths)
+                continue
+            references = [_OBJECT_REFERENCE_RE.fullmatch(path) for path in paths]
+            state.paths.extend(match.group(1) for match in references if match is not None)
+            if None in references:
+                log.add(
+                    WARN_UNREADABLE_UNLOCK,
+                    subject,
+                    f"{KEY_UNLOCK_RECIPES} holds an entry that is no object reference; "
+                    "unlocks incomplete",
+                )
+                state.complete = False
     return state
 
 
