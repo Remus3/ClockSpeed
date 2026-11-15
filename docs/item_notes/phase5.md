@@ -433,51 +433,158 @@ a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused
 
 ### Acceptance
 
-Phase 5, tier 2, open before v1. A selected schematic plans its cost items' rates through
-`clockspeed/progress/milestones.py::milestone_requirement` as one request and one route, on a
-concrete `SchematicSource`, which CS-1046 also names; an arm on a synthetic catalog reads that
-route's card. Measured route solve: 39 of 42 milestones sinkable, 11 balanced, 16 above the cap.
+Phase 5, tier 2, open before v1. A plan may be stated for a schematic: `GET /api/advice` and
+`POST /api/advice/<id>/state` admit `schematic` with `direction` and `byproduct_policy` in place of
+`target` and `rate`. A schematic statement carries no rate: each cost item's rate is the rate
+`clockspeed/progress/milestones.py::milestone_requirement` publishes, its cost over
+`COMPLETION_BUDGET_MINUTES`, read from the requirement and never recomputed or scaled. The catalog
+arrives through a concrete `SchematicSource`, `InstalledSchematicSource` in
+`clockspeed/surface/providers.py`, which reads the docs file `InstalledRegistryProvider` reads and
+publishes None on each failure that provider answers None on; CS-1046 consumes it and builds no
+second one. The statement is built through an advisor door in `clockspeed/advisor/plans.py`, so no
+surface module reads a cost or derives a rate. On a synthetic catalog and registry, with no install,
+each case reddens on its own arm first:
+
+1. A schematic costing two plannable items reads ONE plan card whose plan targets hold both items at
+   exactly the requirement's rates - one request, one search and, on no-plan, one marked route -
+   never one card per cost item.
+2. The card id is the BOOTSTRAP.md section 5.2 hash with the schematic's ClassName as its target
+   milestone: the same schematic over two saves reads the same id, and an item statement at the same
+   targets and rates reads a different one.
+3. A `rate` or a `target` stated beside `schematic` is 400 invalid_parameter; a schematic the
+   catalog does not hold is 400 invalid_parameter, after both providers; a source publishing no
+   catalog answers 503 no_game_install.
+4. A schematic whose requirement publishes no rates - cost-unreadable, nonpositive-cost or
+   unresolved-cost-item - reads plan_outcome status `schematic-unplannable` with that reason word
+   and no plan card; an empty cost reads the same status with reason `empty-cost`; a cost item off
+   `clockspeed/data/registry.py::plan_targets` (a raw resource, or an item no automated recipe
+   makes) reads the same status naming each such item, never a request with that item dropped.
+5. Tier 3, generated from the trace, names the schematic, its tech tier, each cost item's amount,
+   the completion budget and each derived rate; tiers 1 and 2 stay one line each.
+
+The closing ledger record reads back, on the installed catalog and one library save, the save
+unnamed, how many catalog schematics read a plan card and how many read schematic-unplannable; no
+value is required. The schematic selector on the plan panel is the separate item filed beside this
+one, and until it closes this close does not discharge the CS-1371 lowering ground recorded below.
 
 ### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
 
 **LOWERING** against `CLAUDE.md` section 7 and `BOOTSTRAP.md` pillar 4, by CS-1371 offering items and no
 schematic on its selector; ground build cost and a missing concrete source.
 
+Ruled 2026-11-14 (session 157 adjudicator): a schematic statement takes no rate (each cost item's rate is milestone_requirement's); the panel selector split to CS-1394; 39 of 42 is provenance, read back at close; the concrete source is InstalledSchematicSource in surface/providers.py. Rejected: a user time horizon; a rate scale; one id with two slices; a source in clockspeed/data/.
+
+## CS-1394
+
+### Acceptance
+
+Phase 5, tier 2. The plan panel offers the catalog's schematics as a second free selector beside
+plan_targets: `/api/registry` serves `plan_schematics`, every ClassName the CS-1373
+`SchematicSource` catalog holds, sorted, and the empty list when the source publishes none.
+`clockspeed/surface/web/panel_advice.js` lists it in served order, starts empty, and a press with a
+schematic chosen sends `schematic`, `direction` and `byproduct_policy` through data.actions, never a
+rate; the panel computes nothing. Each reddens on its own arm first on a synthetic catalog: the
+served list equals the catalog's sorted keys; no catalog serves the empty list and the panel names
+that; a schematic and an item chosen together leave the press inert and name both fields; the sent
+query carries no rate. Waits on CS-1373 and CS-1360; not concurrent with CS-1376.
+
+### Filed 2026-11-14 (session 157) by the CS-1373 adjudication
+
+Split out of CS-1373 so a finished core is not held behind the CS-1360 lane.
+
 ## CS-1374
 
 ### Acceptance
 
-Phase 5, tier 2. A redesign card names the schematic and tech tier for each locked recipe, its route
-prefers what a milestone unlocks over a hard-drive alternate, and an arm grades ascending tech tier.
-Measured: whole-path join 291 of 291 automated recipes, 19 by more than one schematic. After the machine join, one 11-recipe world's route to Desc_IronPlateReinforced_C takes hard-drive Recipe_Alternate_ReinforcedIronPlate_2_C though the world holds the plain recipe: both count 1 locked.
+Phase 5, tier 2. `clockspeed/data/schematics.py` reads `mUnlocks`: each element whose keyset and
+class token match the measured recipe-unlock shape publishes its recipe paths whole, in source
+order, on `Schematic.unlocked_recipes`; an element of another measured shape is read past; an
+element of an unknown shape carrying a recipe list, or any unreadable element, is flagged and sets
+`Schematic.unlocks_complete` False, never a short list passing for the whole. A recipe joins a
+schematic by whole-string equality of an unlocked path with `Recipe.asset_path`, never by trailing
+token; an unlocked path joining no recipe is counted, never dropped. A recipe is a hard-drive
+alternate when every schematic unlocking it carries the alternate `mType` token, named once as a
+constant in that module; it is preferred when at least one schematic unlocking it carries a read
+token that is not that one. `clockspeed/solve/bound.py::derived_route` takes the preferred set as a
+membership-only frozenset beside `held`, never the catalog, and counts
+`(locked, locked and not preferred, recipes)`, so preference breaks only a tie in locked count; None
+keeps today's count. The plan.redesign card's tier 3, generated from the trace, names for each
+locked recipe every schematic unlocking it with its tech tier - for a recipe the world holds with no
+machine held, the schematics unlocking that machine's build recipe - in ascending tech tier, an
+unknown tier last, then ClassName, and lists the locked recipes in ascending order of their lowest
+naming tier, unknown last, then the route's registry order. A locked recipe no schematic unlocks
+reads none, or unknown when any schematic's unlocks are incomplete. On a synthetic catalog and
+registry each case reddens on its own arm first: two locked producers of a target tie on locked
+count with the alternate first in registry order, and the route takes the preferred one; an
+alternate with fewer locked recipes is still taken; a recipe two schematics unlock names both, lower
+tier first; the locked list orders by ascending tier with unknown last; a stage held with its
+machine locked names the machine's schematic; an unknown-shape element carrying recipes flags and
+reads unknown; an unlocked path joining no recipe is counted. The closing ledger record reads back
+on the installed catalog the joined-recipe count, how many recipes more than one schematic unlocks
+and how many schematics carry the alternate token; no value is required. Waits on CS-1373's concrete
+SchematicSource.
 
 ### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
 
 **LOWERING** against "several tiers" in the CS-1371 clause 2 as first filed, whose arm now grades locked
 stages by count; ground mUnlocks unread.
 
+Ruled 2026-11-14 (session 157 adjudicator): name every unlocking schematic, lowest tier first; a hard-drive alternate is identified by its schematics' mType token (a named constant; the token confirmed at close); ascending orders the tier-3 unlock list only; solve/ receives a membership-only preferred frozenset, preference breaking only a locked-count tie. Rejected: picking one schematic; a Recipe_Alternate_ name prefix; ranking the route by tier; preference ahead of locked count.
+
 ## CS-1375
 
 ### Acceptance
 
-Phase 5, tier 2. A redesign is compared with what is built, dependency-ordered, and separates
-needing more from replacing; an arm on a synthetic world with machines built reads both. Not a
-lowering of the CS-1371 clause: a `BOOTSTRAP.md` pillar 4 residual.
+Phase 5, tier 2. The plan.redesign card compares its route with what is built, from the audit
+machines model `clockspeed/advisor/advise.py` already composes, handed to the plan offer beside the
+unlock state; `solve/` sees no machine. A machine's capacity is its exact overclock, 1 when its
+overclock was elided, and unknown when unread or when production_boost_tagged. For each route stage
+with a nonzero machine count the card reads `more` with the exact shortfall, the stage's machine
+count minus the built capacity on that recipe, when it is above zero, `enough` when it is not, and
+`unmeasured` when any machine on that recipe has unknown capacity. A recipe off the route that built
+machines run and that makes an output of a route stage reads `replace` with its machine count,
+listed before every `more` and named as the expensive change. With no recipe tag on any machine the
+whole comparison reads unmeasured; refused recipe tags, and machines naming no registry recipe, are
+counted, never dropped. Stages are listed producers first: a stage precedes every stage consuming
+one of its outputs, ties in the route's registry order, and a cycle's members in registry order
+after their predecessors, the cycle named. Tier 3 carries the rows, generated from the trace; tier 2
+states how many stages read more and how many recipes read replace. All arithmetic is exact
+Fraction. On a synthetic registry and a hand-built machines model each case reddens on its own arm
+first: a shortfall at clock 1; an overclocked machine closing it; an elided overclock as 1; an
+unread overclock as unmeasured; a boosted machine as unmeasured; an off-route producer of a stage
+output as replace; no recipe tag as unmeasured whole; producers-first order on a three-stage chain;
+a two-stage loop named. Not a lowering of the CS-1371 clause: a `BOOTSTRAP.md` pillar 4 residual.
 
 ### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
 
 Filed by the rulings recorded under CS-1371, so that what CS-1371 did not deliver is a row.
+
+Ruled 2026-11-14 (session 157 adjudicator): made concrete, not re-scoped - built is WorldMachines by recipe at exact overclock; more is an exact shortfall, replace is an off-route producer of a route-stage output listed first; producers-first order. Rejected: machine-tier upgrades; target-first order.
 
 ## CS-1376
 
 ### Acceptance
 
-Phase 5, tier 2. The plan panel gains accept, dismiss, snooze and pin controls through the state
-route (`BOOTSTRAP.md` section 5.2), each with an arm on a stated-target card. Not a lowering.
+Phase 5, tier 2. The plan panel gains accept, dismiss, snooze and pin controls on each card a
+statement produced, posting through `POST /api/advice/<id>/state` (`BOOTSTRAP.md` section 5.2) with
+that card's statement, by data.actions in `clockspeed/surface/web/app.js`; `panel_advice.js` still
+fetches nothing and computes nothing. Snooze names a token from `SNOOZE_DURATIONS`, a closed mapping
+in `clockspeed/advisor/ledger.py` of at least one token to a positive whole number of seconds, sent
+as `duration`; the advisor resolves it against the advice source's injected clock and the success
+body's `snoozed_until` is that clock plus the token's seconds. A snooze carries exactly one of
+`until` and `duration`: both is 400 invalid_parameter, neither stays 400 missing_parameter, a
+`duration` on any other state or a token off the mapping is 400 invalid_parameter. The panel spells
+its tokens as literals and a test binds them to the mapping. Each reddens on its own arm first on a
+stated-target card over a synthetic world: each of the four controls posts its state with the card
+id and the statement; the re-read listing serves that state and the visible flag the advisor
+resolves; a snooze's instant equals the injected clock plus the token; each refusal above. Waits on
+CS-1360 landing in app.js; not concurrent with the schematic-selector item. Not a lowering.
 
 ### Filed 2026-11-03 (session 155) by the CS-1371 clause ruling
 
 Filed by the rulings recorded under CS-1371, so that what CS-1371 did not deliver is a row.
+
+Ruled 2026-11-14 (session 157 adjudicator): snooze names a token from SNOOZE_DURATIONS in advisor/ledger.py, resolved server-side against the injected clock. Rejected: Date.now() in the page (computes in surface, clock skew); one server default with until omitted (breaks the missing_parameter arm).
 
 ## CS-1378
 
