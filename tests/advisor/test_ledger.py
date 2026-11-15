@@ -44,6 +44,7 @@ TOKEN_B = "BBBBsyntheticTokenBBBB"  # noqa: S105 - a synthetic world token, not 
 TOKEN_LENGTH = 22
 SHA256_HEX_LENGTH = 64
 VERSION_TWO = 2  # CS-1268: stores a shown new card and its rule
+VERSION_THREE = 3  # CS-1246: stores the shown-and-deferred count the aging guard reads
 
 
 def _chain_hidden(exc: BaseException) -> bool:
@@ -97,7 +98,7 @@ def test_first_write_carries_schema_version(tmp_path: Path) -> None:
     for name in (LEDGER_FILENAME, MUTES_FILENAME):
         doc = json.loads((tmp_path / name).read_bytes())
         assert doc["schema_version"] == SCHEMA_VERSION
-    assert SCHEMA_VERSION == VERSION_TWO  # CS-1268
+    assert SCHEMA_VERSION == VERSION_THREE  # CS-1246
 
 
 CORRUPT_PAYLOADS = [
@@ -731,14 +732,16 @@ def _v1(record: bytes) -> bytes:
     )
 
 
-def test_the_schema_is_version_two(tmp_path: Path) -> None:
+def test_a_shown_new_card_is_stored_with_its_rule_at_the_current_schema(tmp_path: Path) -> None:
     Ledger(tmp_path).reconcile(TOKEN_A, firing={"c": "x.rule"}, settled=(), shown_new=("c",))
     doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
-    assert (SCHEMA_VERSION, doc["schema_version"]) == (2, 2)
+    assert (SCHEMA_VERSION, doc["schema_version"]) == (VERSION_THREE, VERSION_THREE)
     assert doc["worlds"][world_key(TOKEN_A)]["c"] == {"state": "new", "rule": "x.rule"}
 
 
 def test_a_version_one_ledger_still_loads_and_is_rewritten_as_two(tmp_path: Path) -> None:
+    # The name is docs/LEDGER.md's CS-1268 citation and stays; since CS-1246 the
+    # rewrite lands at the CURRENT schema, version 3, which this arm asserts.
     (tmp_path / LEDGER_FILENAME).write_bytes(
         b'{"schema_version": 1, "worlds": {"'
         + world_key(TOKEN_A).encode()
@@ -747,7 +750,7 @@ def test_a_version_one_ledger_still_loads_and_is_rewritten_as_two(tmp_path: Path
     assert Ledger(tmp_path).recorded(TOKEN_A) == (("c", CardState.accepted()),)
     Ledger(tmp_path).set_state(TOKEN_A, "d", CardState.pinned())
     doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
-    assert doc["schema_version"] == VERSION_TWO
+    assert doc["schema_version"] == VERSION_THREE
     assert Ledger(tmp_path).recorded(TOKEN_A) == (
         ("c", CardState.accepted()),
         ("d", CardState.pinned()),
@@ -785,3 +788,355 @@ def test_a_malformed_rule_is_corrupt(tmp_path: Path, rule: bytes) -> None:
     with pytest.raises(StoreCorruptError):
         Ledger(tmp_path).recorded(TOKEN_A)
     assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+
+
+# --- CS-1246: schema version 3 stores a card's shown-and-deferred count ----------
+
+DEFERRED_KEY = "deferred"
+RULE_X = "x.rule"
+TWICE_DEFERRED = 2  # three runs of one card: shown new once, then deferred twice
+# The card that holds the top spot in every showing order below that wants a deferred
+# card under it (CS-1246): the first id in ``shown`` is cleared, never aged, so a card
+# only ages when something else leads. It is never in ``firing``, so it is never recorded.
+LEADER = "lead"
+
+
+def _versioned(version: int, record: bytes) -> bytes:
+    """One world, one card ``c`` with ``record``, at ``version``."""
+    return (
+        b'{"schema_version": '
+        + str(version).encode("ascii")
+        + b', "worlds": {"'
+        + world_key(TOKEN_A).encode("ascii")
+        + b'": {"c": '
+        + record
+        + b"}}}"
+    )
+
+
+def _run(led: Ledger, *, firing: tuple[str, ...], shown: tuple[str, ...]) -> None:
+    """One advice run in which every ``firing`` card is shown as ``new``."""
+    led.reconcile(
+        TOKEN_A,
+        firing=dict.fromkeys(firing, RULE_X),
+        settled=(RULE_X,),
+        shown_new=firing,
+        shown=shown,
+    )
+
+
+def test_a_deferred_card_ages_once_per_run_it_is_shown_and_still_firing(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 1}
+    _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 2}
+    # Firing but not shown this run: the player did not see it, so it does not age.
+    _run(led, firing=("c",), shown=())
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 2}
+
+
+def test_a_card_that_stops_firing_is_not_aged(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    _run(led, firing=("c", "d"), shown=(LEADER, "c", "d"))
+    _run(led, firing=("c", "d"), shown=(LEADER, "c", "d"))
+    # c stops firing but is still named as shown; only d, which fires, ages.
+    _run(led, firing=("d",), shown=(LEADER, "c", "d"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 1, "d": 2}
+    assert dict(led.recorded(TOKEN_A)) == {"c": CardState.completed(), "d": CardState.new()}
+
+
+def test_the_top_card_is_cleared_not_aged(tmp_path: Path) -> None:
+    """A card whose count reached 3 reads 0 once it leads the showing order."""
+    led = Ledger(tmp_path)
+    for _ in range(4):
+        _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 3}
+    _run(led, firing=("c",), shown=("c",))
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    # Cleared is not forgotten: the card is still recorded, and its count key is gone.
+    assert dict(led.recorded(TOKEN_A)) == {"c": CardState.new()}
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert DEFERRED_KEY not in doc["worlds"][world_key(TOKEN_A)]["c"]
+
+
+def test_a_leader_with_no_record_invents_nothing(tmp_path: Path) -> None:
+    """An id that leads ``shown`` with no recorded card leaves the store byte-identical."""
+    led = Ledger(tmp_path)
+    for _ in range(3):
+        _run(led, firing=("c",), shown=(LEADER, "c"))
+    before = (tmp_path / LEDGER_FILENAME).read_bytes()
+    led.reconcile(TOKEN_A, firing={"ghost": RULE_X}, settled=(), shown_new=(), shown=("ghost",))
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == before
+    assert [cid for cid, _ in led.recorded(TOKEN_A)] == ["c"]
+    # Leading a list that holds a recorded card still ages that card and records no leader.
+    led.reconcile(
+        TOKEN_A,
+        firing={"ghost": RULE_X, "c": RULE_X},
+        settled=(),
+        shown_new=(),
+        shown=("ghost", "c"),
+    )
+    assert [cid for cid, _ in led.recorded(TOKEN_A)] == ["c"]
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 3}
+
+
+def test_the_showing_order_is_load_bearing(tmp_path: Path) -> None:
+    """The same id set in two showing orders leaves two different count mappings."""
+    counts = []
+    for name, order in (("one", ("c", "d")), ("two", ("d", "c"))):
+        led = Ledger(tmp_path / name)
+        # Both cards recorded at zero and not shown, so the store starts identical.
+        _run(led, firing=("c", "d"), shown=())
+        _run(led, firing=("c", "d"), shown=order)
+        counts.append(dict(led.deferrals(TOKEN_A)))
+    # Only the card below the top one is passed over; swapping the order swaps who ages.
+    assert counts == [{"d": 1}, {"c": 1}]
+    assert counts[0] != counts[1]
+
+
+def test_a_card_recorded_this_run_starts_at_zero(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    _run(led, firing=("c",), shown=("c",))
+    assert [cid for cid, _ in led.recorded(TOKEN_A)] == ["c"]
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert DEFERRED_KEY not in doc["worlds"][world_key(TOKEN_A)]["c"]
+
+
+def test_a_shown_id_with_no_record_is_never_invented(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    led.reconcile(TOKEN_A, firing={"c": RULE_X}, settled=(), shown_new=(), shown=("c",))
+    assert led.recorded(TOKEN_A) == ()
+    assert not (tmp_path / LEDGER_FILENAME).exists()
+
+
+def test_the_store_is_written_only_when_something_changed_with_shown(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    # Nothing recorded and nothing newly shown: no write, so no file at all.
+    led.reconcile(TOKEN_A, firing={"c": RULE_X}, settled=(), shown_new=(), shown=())
+    assert not (tmp_path / LEDGER_FILENAME).exists()
+    # Shown and still firing but with no record: still nothing to write.
+    led.reconcile(TOKEN_A, firing={"c": RULE_X}, settled=(), shown_new=(), shown=("c",))
+    assert not (tmp_path / LEDGER_FILENAME).exists()
+
+
+def test_reconcile_keeps_its_return_shape_with_shown(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    _run(led, firing=("c",), shown=("c",))
+    assert led.reconcile(
+        TOKEN_A, firing={"c": RULE_X}, settled=(RULE_X,), shown_new=("c",), shown=("c",)
+    ) == ((), ())
+    assert led.reconcile(TOKEN_A, firing={}, settled=(RULE_X,), shown_new=(), shown=("c",)) == (
+        ("c",),
+        (),
+    )
+
+
+@pytest.mark.parametrize("bad", ["", 3, None])
+def test_a_bad_shown_id_is_refused(tmp_path: Path, bad: object) -> None:
+    with pytest.raises(ValueError, match="card id"):
+        Ledger(tmp_path).reconcile(
+            TOKEN_A,
+            firing={"c": RULE_X},
+            settled=(),
+            shown_new=(),
+            shown=(bad,),  # type: ignore[arg-type]
+        )
+
+
+def test_set_state_resets_the_count(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(3):
+        _run(led, firing=("c", "d"), shown=(LEADER, "c", "d"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 2, "d": 2}
+    led.set_state(TOKEN_A, "c", CardState.accepted())
+    # Another card's count survives the read-modify-write; the player-touched one resets.
+    assert dict(led.deferrals(TOKEN_A)) == {"d": 2}
+    assert dict(led.recorded(TOKEN_A))["c"] == CardState.accepted()
+    # The card's rule is still kept, as before.
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert doc["worlds"][world_key(TOKEN_A)]["c"] == {"state": "accepted", "rule": RULE_X}
+
+
+def test_recording_new_forgets_the_count_with_the_card(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(2):
+        _run(led, firing=("c",), shown=("c",))
+    led.set_state(TOKEN_A, "c", CardState.new())
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    _run(led, firing=("c",), shown=("c",))
+    assert dict(led.deferrals(TOKEN_A)) == {}
+
+
+def test_a_reopened_card_starts_over(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(3):
+        _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 2}
+    _run(led, firing=(), shown=())
+    assert dict(led.recorded(TOKEN_A)) == {"c": CardState.completed()}
+    # It fires again and is shown in the very run that reopens it: a fresh start, not 3.
+    completed, reopened = led.reconcile(
+        TOKEN_A, firing={"c": RULE_X}, settled=(RULE_X,), shown_new=("c",), shown=(LEADER, "c")
+    )
+    assert (completed, reopened) == ((), ("c",))
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 1}
+
+
+def test_a_version_three_document_round_trips(tmp_path: Path) -> None:
+    payload = _versioned(3, b'{"state": "new", "rule": "x.rule", "deferred": 4}')
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    led = Ledger(tmp_path)
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 4}
+    assert led.recorded(TOKEN_A) == (("c", CardState.new()),)
+    # A write of some other card carries the count through unchanged, as version 3.
+    led.set_state(TOKEN_A, "d", CardState.pinned())
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert doc["schema_version"] == VERSION_THREE
+    assert doc["worlds"][world_key(TOKEN_A)]["c"] == {
+        "state": "new",
+        "rule": RULE_X,
+        DEFERRED_KEY: 4,
+    }
+    assert dict(Ledger(tmp_path).deferrals(TOKEN_A)) == {"c": 4}
+
+
+def test_a_version_two_ledger_is_read_with_zero_counts_and_rewritten_as_three(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / LEDGER_FILENAME).write_bytes(_versioned(2, b'{"state": "new", "rule": "x.rule"}'))
+    led = Ledger(tmp_path)
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    led.set_state(TOKEN_A, "d", CardState.pinned())
+    doc = json.loads((tmp_path / LEDGER_FILENAME).read_bytes())
+    assert doc["schema_version"] == VERSION_THREE
+
+
+def test_a_document_with_no_deferrals_differs_from_version_two_only_by_its_version(
+    tmp_path: Path,
+) -> None:
+    led = Ledger(tmp_path)
+    led.set_state(TOKEN_A, "a", CardState.snoozed(9))
+    led.set_state(TOKEN_A, "b", CardState.pinned())
+    _run(led, firing=("c",), shown=("c",))
+    written = (tmp_path / LEDGER_FILENAME).read_bytes()
+    as_two = written.replace(b'"schema_version": 3', b'"schema_version": 2')
+    assert as_two != written
+    assert DEFERRED_KEY.encode("ascii") not in written
+    # The version 2 rendering of the same document is read back identically.
+    (tmp_path / "two").mkdir()
+    (tmp_path / "two" / LEDGER_FILENAME).write_bytes(as_two)
+    assert Ledger(tmp_path / "two").recorded(TOKEN_A) == led.recorded(TOKEN_A)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_an_older_version_carrying_the_count_is_corrupt_and_unchanged(
+    tmp_path: Path, version: int
+) -> None:
+    record = b'{"state": "pinned", "deferred": 1}'
+    if version == VERSION_TWO:
+        record = b'{"state": "new", "rule": "x.rule", "deferred": 1}'
+    payload = _versioned(version, record)
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).deferrals(TOKEN_A)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).set_state(TOKEN_A, "d", CardState.pinned())
+    with pytest.raises(StoreCorruptError):
+        _run(Ledger(tmp_path), firing=("c",), shown=("c",))
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+    assert sorted(p.name for p in tmp_path.iterdir()) == [LEDGER_FILENAME]
+
+
+@pytest.mark.parametrize(
+    "count", [b"-1", b"0", b"true", b"false", b"1.0", b"2.5", b"null", b'"1"', b"[]"]
+)
+def test_a_malformed_count_is_corrupt_and_unchanged(tmp_path: Path, count: bytes) -> None:
+    payload = _versioned(3, b'{"state": "new", "rule": "x.rule", "deferred": ' + count + b"}")
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).deferrals(TOKEN_A)
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+
+
+def test_the_count_may_sit_on_a_snoozed_card(tmp_path: Path) -> None:
+    payload = _versioned(3, b'{"state": "snoozed", "until": 5, "deferred": 2}')
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    led = Ledger(tmp_path)
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 2}
+    assert led.recorded(TOKEN_A) == (("c", CardState.snoozed(5)),)
+
+
+def test_an_unseen_world_has_no_deferrals(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    assert dict(led.deferrals(TOKEN_A)) == {}
+    for _ in range(2):
+        _run(led, firing=("c",), shown=(LEADER, "c"))
+    assert dict(led.deferrals(TOKEN_B)) == {}
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 1}
+    # Reading creates nothing for the unseen world.
+    assert not led.knows_world(TOKEN_B)
+
+
+def test_deferrals_reads_no_clock_and_is_ordered_by_card_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(2):
+        _run(led, firing=("zz", "aa", "mm"), shown=(LEADER, "zz", "aa", "mm"))
+
+    def no_clock() -> float:
+        raise AssertionError("deferrals read the clock")
+
+    monkeypatch.setattr(time, "time", no_clock)
+    assert list(led.deferrals(TOKEN_A)) == ["aa", "mm", "zz"]
+
+
+def test_deferrals_answers_a_fresh_immutable_mapping(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(2):
+        _run(led, firing=("c",), shown=(LEADER, "c"))
+    answer = led.deferrals(TOKEN_A)
+    with pytest.raises(TypeError):
+        answer["c"] = 99  # type: ignore[index]
+    assert dict(led.deferrals(TOKEN_A)) == {"c": 1}
+
+
+def test_deferrals_is_deterministic_over_the_same_store(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(3):
+        _run(led, firing=("b", "a"), shown=(LEADER, "b", "a"))
+    assert led.deferrals(TOKEN_A) == led.deferrals(TOKEN_A)
+    assert list(led.deferrals(TOKEN_A).items()) == [("a", 2), ("b", 2)]
+
+
+def test_two_identical_runs_write_identical_bytes(tmp_path: Path) -> None:
+    def build(directory: Path) -> bytes:
+        led = Ledger(directory)
+        for _ in range(3):
+            _run(led, firing=("z", "a"), shown=("z", "a"))
+        led.set_state(TOKEN_A, "m", CardState.snoozed(7))
+        return (directory / LEDGER_FILENAME).read_bytes()
+
+    first = build(tmp_path / "one")
+    second = build(tmp_path / "two")
+    assert first == second
+    assert b"\r" not in first
+    first.decode("ascii")
+    assert json.dumps(json.loads(first), sort_keys=True, indent=2).encode("ascii") + b"\n" == first
+    assert json.loads(first)["worlds"][world_key(TOKEN_A)]["a"][DEFERRED_KEY] == TWICE_DEFERRED
+
+
+def test_no_token_reaches_the_count_surface(tmp_path: Path) -> None:
+    led = Ledger(tmp_path)
+    for _ in range(2):
+        _run(led, firing=("c",), shown=("c",))
+    renderings = [repr(led.deferrals(TOKEN_A)), (tmp_path / LEDGER_FILENAME).read_text("ascii")]
+    renderings.extend(p.name for p in tmp_path.iterdir())
+    leaked = any(TOKEN_A in text for text in renderings)
+    assert not leaked

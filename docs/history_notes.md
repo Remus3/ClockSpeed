@@ -24,6 +24,24 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1246 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as filed.**
+The closure record is in `docs/LEDGER.md`.
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are
+IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived under
+section 3 and section 7 of `CLAUDE.md`. Waits on CS-500's ledger; aging is derived from the
+ledger's shown-and-deferred record, never from a timer.
+
+### Acceptance
+
+a fixture with one large and several small cards brings the large card to the top after the
+configured number of evaluations; the same ledger state gives the same order
+
+
 ## CS-1378 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 **Moved here from `docs/item_notes/phase5.md` when the item closed, its clause as ruled.**

@@ -31,10 +31,12 @@ from pathlib import Path
 import pytest
 
 from clockspeed.advisor import advise as advise_mod
+from clockspeed.advisor import ranking
 from clockspeed.advisor.advise import (
     SETTLED_STEP_KINDS,
     UNDECIDED_STEP_KINDS,
     Advice,
+    AdvisedCard,
     advise,
     advise_and_record,
     settled_rules,
@@ -785,3 +787,154 @@ def test_an_accepted_card_keeps_its_rule_across_a_player_write(tmp_path: Path) -
     assert _recorded(tmp_path)[card] == CardState.completed()
     completed = second.completed == (card,)
     assert completed
+
+
+# ---------------------------------------------------------------------------
+# CS-1246: the showing order - quick wins first, with an aging guard read from
+# the ledger's shown-and-deferred record.
+#
+# Acceptance (docs/item_notes/phase5.md, CS-1246): "a fixture with one large
+# and several small cards brings the large card to the top after the configured
+# number of evaluations; the same ledger state gives the same order".
+#
+# The four synthetic rules below carry REAL registered rule ids, because
+# clockspeed/advisor/ranking.py declares effort per rule id. Two of them are
+# LARGE and they sit at OPPOSITE ends of the identity order (plan.adopt first,
+# power.headroom last), so neither half of the acceptance can pass by accident:
+# the unaged order has to move plan.adopt DOWN off the identity order's front,
+# and the aged order has to bring power.headroom UP off its back.
+
+#: One LARGE card that leads the identity order, two QUICK ones, and one LARGE
+#: card that trails it.
+RANK_LEAD_LARGE = "plan.adopt"
+RANK_QUICK_ONE = "power.draw_incomplete"
+RANK_QUICK_TWO = "power.fuel_demand"
+RANK_TRAIL_LARGE = "power.headroom"
+
+#: Every one of them, in the identity order cards_for gives: rule id, card id.
+RANK_RULES = (RANK_LEAD_LARGE, RANK_QUICK_ONE, RANK_QUICK_TWO, RANK_TRAIL_LARGE)
+
+
+def _rank_specs() -> tuple[RuleSpec, ...]:
+    """Four firing rules, one per effort-bearing rule id above."""
+    return tuple(_spec(rule_id, fires=True) for rule_id in RANK_RULES)
+
+
+def _rank_advise(directory: Path) -> Advice:
+    """One READ-ONLY load over the ranking fixture. Records nothing."""
+    return advise(
+        TOKEN_A,
+        WORLD,
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=NOW,
+        rules=_rank_specs(),
+    )
+
+
+def _rank_record(directory: Path) -> Advice:
+    """One load over the ranking fixture, through the stated write path."""
+    return advise_and_record(
+        TOKEN_A,
+        WORLD,
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=NOW,
+        rules=_rank_specs(),
+    )
+
+
+def _rules_in_order(found: Advice, order: tuple[AdvisedCard, ...]) -> tuple[str, ...]:
+    """The rule ids of one ordering, read back through the advice's own cards."""
+    listed = {advised.card.id: advised.card.rule_id for advised in found.cards}
+    return tuple(listed[advised.card.id] for advised in order)
+
+
+def test_a_shown_card_that_keeps_firing_ages_by_one_evaluation_per_run(tmp_path: Path) -> None:
+    """A deferral is a run the card was shown in and the player passed it over."""
+    first = _rank_record(tmp_path)
+    card = _card_id(first, RANK_TRAIL_LARGE)
+    counts = [Ledger(tmp_path).deferrals(TOKEN_A).get(card, 0)]
+    for _ in range(3):
+        _rank_record(tmp_path)
+        counts.append(Ledger(tmp_path).deferrals(TOKEN_A).get(card, 0))
+    assert counts == [0, 1, 2, 3]
+
+
+def test_the_quick_wins_lead_the_showing_order_while_nothing_has_aged(tmp_path: Path) -> None:
+    """Identity order leads with a LARGE card; the showing order must not."""
+    found = _rank_record(tmp_path)
+    identity = _rules_in_order(found, found.cards)
+    assert identity == RANK_RULES
+    ranked = _rules_in_order(found, found.ranked)
+    assert ranked == (RANK_QUICK_ONE, RANK_QUICK_TWO, RANK_LEAD_LARGE, RANK_TRAIL_LARGE)
+
+
+def test_a_large_card_reaches_the_top_after_the_configured_evaluations(tmp_path: Path) -> None:
+    """The acceptance arm: the large card the quick wins kept pushing down leads."""
+    card = _card_id(_rank_record(tmp_path), RANK_TRAIL_LARGE)
+    for _ in range(ranking.AGING_EVALUATIONS):
+        _rank_record(tmp_path)
+    reached = Ledger(tmp_path).deferrals(TOKEN_A)[card] >= ranking.AGING_EVALUATIONS
+    assert reached
+    found = _rank_advise(tmp_path)
+    ranked = _rules_in_order(found, found.ranked)
+    assert ranked == (RANK_TRAIL_LARGE, RANK_QUICK_ONE, RANK_QUICK_TWO, RANK_LEAD_LARGE)
+
+
+def test_one_evaluation_short_of_the_threshold_promotes_nothing(tmp_path: Path) -> None:
+    """The off-by-one fence: the guard fires AT the configured count, not before."""
+    _rank_record(tmp_path)
+    for _ in range(ranking.AGING_EVALUATIONS - 1):
+        _rank_record(tmp_path)
+    found = _rank_advise(tmp_path)
+    card = _card_id(found, RANK_TRAIL_LARGE)
+    short = found.deferrals[card] == ranking.AGING_EVALUATIONS - 1
+    assert short
+    ranked = _rules_in_order(found, found.ranked)
+    assert ranked == (RANK_QUICK_ONE, RANK_QUICK_TWO, RANK_LEAD_LARGE, RANK_TRAIL_LARGE)
+
+
+def test_the_same_ledger_state_gives_the_same_order(tmp_path: Path) -> None:
+    """Determinism: two reads of one stored state give one order, ids and all."""
+    _rank_record(tmp_path)
+    _rank_record(tmp_path)
+    reads = [_rank_advise(tmp_path), _rank_advise(tmp_path)]
+    orders = [tuple(advised.card.id for advised in found.ranked) for found in reads]
+    same = orders[0] == orders[1]
+    assert same
+    counts = [dict(found.deferrals) for found in reads]
+    equal_counts = counts[0] == counts[1]
+    assert equal_counts
+
+
+def test_the_shown_order_is_the_ranked_order_without_the_hidden_cards(tmp_path: Path) -> None:
+    """ranked_shown is the ranked order filtered, never a second ordering."""
+    found = _rank_record(tmp_path)
+    hidden = _card_id(found, RANK_QUICK_ONE)
+    Ledger(tmp_path).set_state(TOKEN_A, hidden, CardState.dismissed())
+    after = _rank_advise(tmp_path)
+    ranked = tuple(advised.card.id for advised in after.ranked if advised.card.id != hidden)
+    shown = tuple(advised.card.id for advised in after.ranked_shown)
+    assert shown == ranked
+
+
+def test_a_player_write_clears_the_aging_the_deferrals_had_built(tmp_path: Path) -> None:
+    """The count measures deferral; acting on a card is not deferring it."""
+    card = _card_id(_rank_record(tmp_path), RANK_TRAIL_LARGE)
+    for _ in range(ranking.AGING_EVALUATIONS):
+        _rank_record(tmp_path)
+    aged = Ledger(tmp_path).deferrals(TOKEN_A)[card] >= ranking.AGING_EVALUATIONS
+    assert aged
+    Ledger(tmp_path).set_state(TOKEN_A, card, CardState.accepted())
+    cleared = card not in Ledger(tmp_path).deferrals(TOKEN_A)
+    assert cleared
+
+
+def test_an_advice_built_without_deferrals_still_orders_rather_than_not_at_all() -> None:
+    """The default is empty counts, never an empty order."""
+    built = Advice(traces=(), cards=(), new_world=True)
+    empty = dict(built.deferrals) == {}
+    assert empty
+    none_ranked = built.ranked == ()
+    assert none_ranked

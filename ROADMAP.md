@@ -274,8 +274,9 @@ CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never 
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1246 - quick-win card ordering with an aging guard computed from the per-world ledger - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1247 - a deterministic domain interleave in the top-N card list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1397 - the advice write path is wired in tests only, so no deferral is ever recorded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1398 - effort is declared per rule, not per recommendation magnitude - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1248 - unit-tagged quantities and a single raw-versus-display boundary - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1249 - recipe-graph cycles detected explicitly, with a test that reddens on a new unhandled cycle shape - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1250 - no-double-count invariant: each built object contributes to audit totals exactly once - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

@@ -339,6 +339,12 @@ def _outcome(outcome: PlanOutcome) -> dict[str, object]:
 def _listing(found: Advice) -> dict[str, object]:
     """Transcribe the listing body.
 
+    THE LIST ORDER IS THE ADVISOR'S SHOWING ORDER (CS-1246):
+    :attr:`clockspeed.advisor.advise.Advice.ranked`, quick wins first with an aged
+    card brought to the top, not the identity order of ``cards``. Every card is
+    listed either way - a hidden one with ``visible`` false - so the order changes
+    what a reader meets first and never what the body holds.
+
     Args:
         found: The advice.
 
@@ -348,7 +354,7 @@ def _listing(found: Advice) -> dict[str, object]:
     """
     body: dict[str, object] = {
         "new_world": found.new_world,
-        "cards": [_card(advised) for advised in found.cards],
+        "cards": [_card(advised) for advised in found.ranked],
     }
     if found.plan_outcome is not None:
         body["plan_outcome"] = _outcome(found.plan_outcome)

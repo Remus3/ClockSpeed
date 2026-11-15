@@ -89,20 +89,39 @@ placement, machines, network, balance and fuel here, over the already-parsed
 model - never over save or docs bytes. NO CLOCK: ``now`` is injected. NO LANGUAGE MODEL: every
 word of every tier comes from :mod:`clockspeed.advisor.cards`.
 
+THE ORDER A SURFACE SHOWS (CS-1246). :attr:`Advice.cards` keeps the identity
+order :func:`clockspeed.advisor.cards.cards_for` gives, because a card id is
+what the stores are keyed by and that order must not move under them.
+:attr:`Advice.ranked` is the SHOWING order, computed by
+:mod:`clockspeed.advisor.ranking` over :attr:`Advice.deferrals`: the quick wins
+lead, and the one most starved card - passed over the configured number of
+times while something stood above it - is moved to the top for that run. The
+counts come from the per-world ledger's shown-and-deferred record, NEVER from a
+timer, so the order is a pure function of the stored state: :func:`advise` reads
+them, and :func:`advise_and_record` records this run's deferrals and then
+re-reads them, so the order it returns is the one the next run starts from. What
+it records is measured against :attr:`Advice.ranked_shown`, the order the player
+was actually shown, so the card that held the top spot is credited with its turn
+rather than counted as passed over.
+
 PRIVACY. The world token is personal data. It is handed to the ledger and
 held nowhere else: :class:`Advice` does not carry it, and no ``repr`` here
-renders it, a tier text or an input value.
+renders it, a tier text or an input value. A deferral count is keyed by card
+id, a salt-free digest of the identity triple that encodes nothing of the
+world, so :attr:`Advice.deferrals` carries no personal data either.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.advisor.build import build_inputs, registry_inputs
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.plans import plan_offer
+from clockspeed.advisor.ranking import order_cards, order_shown
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.fuel import fuel_inputs
 from clockspeed.advisor.rules.plan import plan_outcome_of
@@ -159,6 +178,10 @@ UNDECIDED_STEP_KINDS: Final = frozenset(
 #: The ledger state kinds under which an unmuted card is shown.
 VISIBLE_KINDS: Final = frozenset({"new", "accepted", "pinned"})
 
+#: The counts an :class:`Advice` carries when no deferral record was read.
+#: Immutable, so the default is shared safely by every instance.
+_NO_DEFERRALS: Final[Mapping[str, int]] = MappingProxyType({})
+
 
 @dataclass(frozen=True, eq=False)
 class AdvisedCard:
@@ -205,6 +228,14 @@ class Advice:
             refused trace yields no card, so this is what a surface transcribes
             to say why. None with no request, so a caller stating no target has
             nothing new to carry.
+        deferrals: How many times each card was shown and deferred in this
+            world, keyed by card id, as
+            :meth:`clockspeed.advisor.ledger.Ledger.deferrals` records it
+            (CS-1246). The aging guard of :attr:`ranked` reads it and nothing
+            else does. Empty by default, so an instance built without it still
+            orders by effort and identity rather than not at all. Card ids are
+            digests and carry no world identity, so this mapping is not
+            personal data.
     """
 
     traces: tuple[Trace, ...]
@@ -213,11 +244,28 @@ class Advice:
     completed: tuple[str, ...] = ()
     reopened: tuple[str, ...] = ()
     plan_outcome: PlanOutcome | None = None
+    deferrals: Mapping[str, int] = _NO_DEFERRALS
 
     @property
     def shown(self) -> tuple[AdvisedCard, ...]:
-        """The visible cards, in card order."""
+        """The visible cards, in card order - the identity order of :attr:`cards`."""
         return tuple(advised for advised in self.cards if advised.visible)
+
+    @property
+    def ranked(self) -> tuple[AdvisedCard, ...]:
+        """Every card in the CS-1246 order: aged first, then quick wins, then identity.
+
+        The same cards as :attr:`cards`, reordered by
+        :func:`clockspeed.advisor.ranking.order_cards` over
+        :attr:`deferrals`. Computed on access from this instance alone, so
+        one advice state gives one order.
+        """
+        return order_cards(self.cards, self.deferrals)
+
+    @property
+    def ranked_shown(self) -> tuple[AdvisedCard, ...]:
+        """The visible cards in the CS-1246 order - what a surface renders."""
+        return order_shown(self.cards, self.deferrals)
 
     def __repr__(self) -> str:
         """Render counts and the new-world flag only."""
@@ -373,7 +421,12 @@ def advise(
         )
         for card in cards_for(traces)
     )
-    return Advice(traces=traces, cards=advised, new_world=new_world)
+    return Advice(
+        traces=traces,
+        cards=advised,
+        new_world=new_world,
+        deferrals=ledger.deferrals(token),
+    )
 
 
 def settled_rules(traces: tuple[Trace, ...]) -> frozenset[str]:
@@ -428,6 +481,7 @@ def advise_and_record(
         firing={advised.card.id: advised.card.rule_id for advised in advice.cards},
         settled=settled_rules(advice.traces),
         shown_new=(advised.card.id for advised in advice.shown if advised.state.kind == "new"),
+        shown=tuple(advised.card.id for advised in advice.ranked_shown),
     )
     back = frozenset(reopened)
     cards = tuple(
@@ -442,6 +496,7 @@ def advise_and_record(
         new_world=advice.new_world,
         completed=completed,
         reopened=reopened,
+        deferrals=ledger.deferrals(token),
     )
 
 

@@ -60,7 +60,13 @@ proceeds over a store it could not read. Every document carries
 ``schema_version`` from its first write. Version 2 (CS-1268) adds a stored
 ``new`` card and each card's ``rule``; a version 1 document is still READ, and
 the next write rewrites it as version 2, so a version 1 reader refuses it
-visibly by its version. Wider migration belongs to CS-1253.
+visibly by its version. Version 3 (CS-1246) adds each card's ``deferred``
+count - the number of runs in which the card was shown BELOW the top card and
+still fired, which the quick-win aging guard reads; an absent key is zero, the
+key is never written when it is zero, and a stored zero is refused as a shape
+this version never writes. A version below 3 refuses a record that carries it, and a version 2
+document is read and rewritten as version 3 on the next write. Wider migration
+belongs to CS-1253.
 
 ERRORS. Every error this module raises carries a fixed message and is raised
 outside any ``except`` block, so it has no ``__cause__`` and no
@@ -80,20 +86,28 @@ import threading
 import time
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 #: The version every document this module writes carries from its first write.
 #: Version 2 (CS-1268) stores a shown ``new`` card and the rule each card came from.
-SCHEMA_VERSION: Final = 2
+#: Version 3 (CS-1246) stores each card's shown-and-deferred count.
+SCHEMA_VERSION: Final = 3
 
-#: Every version this module reads. Version 1 lacks ``new`` records and ``rule``.
-_READABLE_VERSIONS: Final = frozenset({1, 2})
+#: Every version this module reads. Version 1 lacks ``new`` records and ``rule``;
+#: versions 1 and 2 lack the ``deferred`` count.
+_READABLE_VERSIONS: Final = frozenset({1, 2, 3})
 
 #: The first version that stores a ``new`` card and a card's ``rule``.
 _RULE_VERSION: Final = 2
 
-#: One recorded card: its state and the rule id it came from, when known.
-_Entry = tuple["CardState", "str | None"]
+#: The first version that stores a card's ``deferred`` count (CS-1246).
+_DEFERRED_VERSION: Final = 3
+
+#: One recorded card: its state, the rule id it came from when known, and the
+#: number of runs it was shown below the top card and still fired - the aging
+#: guard's input. A run at the top clears it: that card has had its turn.
+_Entry = tuple["CardState", "str | None", int]
 
 #: The six card states of BOOTSTRAP.md section 5.2.
 CARD_STATE_KINDS: Final = frozenset(
@@ -127,6 +141,9 @@ LOCK_STALE_SECONDS: Final = 30
 #: larger one is not a document this module wrote, and reading it whole would
 #: be an unbounded allocation.
 MAX_STORE_BYTES = 16 * 1024 * 1024
+
+# The per-card record key of the shown-and-deferred count (CS-1246).
+_DEFERRED_KEY: Final = "deferred"
 
 # A world key is a SHA-256 hex digest, exactly as world_key writes it.
 _WORLD_KEY_RE: Final = re.compile(r"[0-9a-f]{64}")
@@ -386,17 +403,27 @@ def _entry_from_record(doc: object, version: int) -> _Entry:
         if version < _RULE_VERSION or type(rule) is not str or not rule:
             raise StoreCorruptError(_MSG_CORRUPT)
         doc = {name: value for name, value in doc.items() if name != "rule"}
+    deferred = 0
+    if _DEFERRED_KEY in doc:
+        # A stored zero is refused: this version never writes one, so an absent
+        # key is the only spelling of zero. bool and float are not an exact int.
+        deferred = doc[_DEFERRED_KEY]
+        if version < _DEFERRED_VERSION or type(deferred) is not int or deferred < 1:
+            raise StoreCorruptError(_MSG_CORRUPT)
+        doc = {name: value for name, value in doc.items() if name != _DEFERRED_KEY}
     state = CardState.from_record(doc)
     if version < _RULE_VERSION and state.kind == "new":
         raise StoreCorruptError(_MSG_CORRUPT)
-    return state, rule if isinstance(rule, str) else None
+    return state, rule if isinstance(rule, str) else None, deferred
 
 
 def _entry_record(entry: _Entry) -> dict[str, object]:
-    state, rule = entry
+    state, rule, deferred = entry
     doc = state.as_record()
     if rule is not None:
         doc["rule"] = rule
+    if deferred:
+        doc[_DEFERRED_KEY] = deferred
     return doc
 
 
@@ -617,7 +644,9 @@ class Ledger(_Store):
         """Record a card's state in a world. Recording ``new`` forgets the card.
 
         Forgetting is the player's restore: the card reads ``new`` again, and
-        :meth:`reconcile` records it once more the next time it is shown.
+        :meth:`reconcile` records it once more the next time it is shown. Any
+        recorded state is a player act and starts the card's shown-and-deferred
+        count over (CS-1246), so the aging guard never outlives a decision.
         """
         key = world_key(token)
         _check_id(card_id)
@@ -631,7 +660,7 @@ class Ledger(_Store):
             else:
                 # The card's rule is kept: a player write changes the state only.
                 known = cards.get(card_id)
-                cards[card_id] = (state, None if known is None else known[1])
+                cards[card_id] = (state, None if known is None else known[1], 0)
             self._save(worlds)
 
     def recorded(self, token: str) -> tuple[tuple[str, CardState], ...]:
@@ -643,6 +672,31 @@ class Ledger(_Store):
         cards = self._worlds().get(world_key(token), {})
         return tuple(sorted(cards.items()))
 
+    def deferrals(self, token: str) -> Mapping[str, int]:
+        """Answer one world's shown-and-deferred counts, ordered by card id (CS-1246).
+
+        A count is the number of runs in which the card was shown BELOW the top
+        card and still fired, which :meth:`reconcile` records. Three things
+        reset it: a player act, a reopening, and a run in which the card itself
+        held the top spot - see :meth:`reconcile`, which clears the leader
+        because it has had its turn. A card with a zero count is omitted, and an
+        unseen world answers an empty mapping. This reads no clock: aging is
+        derived from the record, never from a timer.
+
+        Args:
+            token: The world token.
+
+        Returns:
+            A fresh read-only mapping of card id to a positive count, in card
+            id order.
+
+        Raises:
+            StoreCorruptError: The store is not a document this version wrote.
+            StoreReadError: The store exists but could not be read.
+        """
+        cards = self._entries().get(world_key(token), {})
+        return MappingProxyType({cid: entry[2] for cid, entry in sorted(cards.items()) if entry[2]})
+
     def reconcile(
         self,
         token: str,
@@ -650,6 +704,7 @@ class Ledger(_Store):
         firing: Mapping[str, str],
         settled: Iterable[str],
         shown_new: Iterable[str],
+        shown: Iterable[str] = (),
     ) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """Record what one advice run implies for a world - the CS-1268 write path.
 
@@ -666,7 +721,18 @@ class Ledger(_Store):
           the world no longer satisfies it;
         - a card in ``shown_new`` and ``firing`` with nothing recorded is
           recorded ``new``, so it can be completed on a later run;
-        - every recorded card in ``firing`` records the rule it fired from.
+        - every recorded card in ``firing`` records the rule it fired from;
+        - ``shown`` is the SHOWING ORDER, and deferral is measured against it
+          (CS-1246). Its FIRST id held the top spot: that card has had its turn,
+          so its shown-and-deferred count is cleared. Every later id in it that
+          is also in ``firing`` was passed over with something above it, so its
+          count rises by one - the count the quick-win aging guard reads. A card
+          recorded this run starts at zero, a card reopened this run starts over
+          at zero, and an id with no recorded card is never invented a record by
+          ``shown``. Counting the top card as deferred too would age every shown
+          card at one rate, which is the defect this clause replaces: the whole
+          list would cross the threshold together and the guard would promote
+          nothing.
 
         ``dismissed``, ``snoozed`` - lapsed or not - and ``pinned`` are the
         player's own and their state is never changed here. The store is written
@@ -677,6 +743,9 @@ class Ledger(_Store):
             firing: Every card id that fires this run, mapped to its rule id.
             settled: The rule ids that reached a definite verdict this run.
             shown_new: The ids of the cards shown in state ``new`` this run.
+            shown: Every card id shown to the player this run, IN THE ORDER
+                they were shown. Order is load-bearing: the first had the top
+                spot. Empty by default, which ages nothing.
 
         Returns:
             The ids completed and the ids reopened, each sorted.
@@ -685,28 +754,33 @@ class Ledger(_Store):
         live = {_check_id(cid): _check_id(rule) for cid, rule in firing.items()}
         decided = frozenset(_check_id(rule) for rule in settled)
         seen = frozenset(_check_id(cid) for cid in shown_new)
+        order = [_check_id(cid) for cid in shown]
+        # The top card had its turn; only the cards below it were passed over.
+        led = order[0] if order else None
+        deferred = frozenset(order[1:]) & set(live)
         with _locked(self._path()):
             worlds = self._entries()
             cards = worlds.setdefault(key, {})
             completed: list[str] = []
             reopened: list[str] = []
             changed = False
-            for cid, (state, rule) in sorted(cards.items()):
-                if cid in live:
-                    kind = "new" if state.kind == "completed" else state.kind
-                    if kind != state.kind:
-                        reopened.append(cid)
-                    entry = (CardState.new() if kind != state.kind else state, live[cid])
+            for cid, (state, rule, count) in sorted(cards.items()):
+                if cid in live and state.kind == "completed":
+                    reopened.append(cid)
+                    entry = (CardState.new(), live[cid], 0)
+                elif cid in live:
+                    aged = count + 1 if cid in deferred else count
+                    entry = (state, live[cid], 0 if cid == led else aged)
                 elif rule in decided and state.kind in _COMPLETABLE_KINDS:
                     completed.append(cid)
-                    entry = (CardState.completed(), rule)
+                    entry = (CardState.completed(), rule, count)
                 else:
                     continue
-                if entry != (state, rule):
+                if entry != (state, rule, count):
                     cards[cid] = entry
                     changed = True
             for cid in sorted(seen & set(live) - set(cards)):
-                cards[cid] = (CardState.new(), live[cid])
+                cards[cid] = (CardState.new(), live[cid], 0)
                 changed = True
             if changed:
                 self._save(worlds)

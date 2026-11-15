@@ -75,6 +75,76 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-15 - CS-1246 - CLOSED: quick-win card ordering, with an aging guard read from the ledger's shown-and-deferred record
+Verification: `clockspeed/advisor/ranking.py::order_cards`, `::order_shown`,
+`::EFFORT_BY_RULE`, `::undeclared_rule_ids`, `::AGING_EVALUATIONS`;
+`clockspeed/advisor/ledger.py::Ledger.deferrals`, `::Ledger.reconcile` (the `shown` order),
+schema version 3; `clockspeed/advisor/advise.py::Advice.ranked`, `::Advice.ranked_shown`,
+`::Advice.deferrals`; `clockspeed/surface/api/advice.py::_listing`, whose card list is now
+the ranked order;
+`tests/advisor/test_ranking.py::test_acceptance_one_large_card_and_several_small_ones_the_large_one_ages_to_the_top`,
+`::test_only_the_most_starved_card_is_promoted_and_the_rest_keep_the_base_order`,
+`::test_equal_counts_promote_the_card_the_base_order_placed_lowest`,
+`::test_a_count_one_below_the_threshold_does_not_promote`,
+`::test_every_registered_rule_declares_an_effort`;
+`tests/advisor/test_advise.py::test_a_large_card_reaches_the_top_after_the_configured_evaluations`,
+`::test_a_shown_card_that_keeps_firing_ages_by_one_evaluation_per_run`,
+`::test_the_quick_wins_lead_the_showing_order_while_nothing_has_aged`,
+`::test_one_evaluation_short_of_the_threshold_promotes_nothing`,
+`::test_the_same_ledger_state_gives_the_same_order`,
+`::test_a_player_write_clears_the_aging_the_deferrals_had_built`;
+`tests/advisor/test_ledger.py::test_the_top_card_is_cleared_not_aged`,
+`::test_the_showing_order_is_load_bearing`,
+`::test_a_leader_with_no_record_invents_nothing`;
+`tests/surface/test_advice.py::test_the_listing_serves_the_cards_in_the_advisors_showing_order`.
+Cards are ordered cheapest effort first - the quick wins - then by the identity order
+`cards_for` already gives, and the aging guard moves EXACTLY ONE card to the front: the
+most starved card whose deferral count has reached `AGING_EVALUATIONS`, highest count
+first and among equal counts the one the base order placed lowest. Effort is DECLARED per
+rule id in `EFFORT_BY_RULE`, one entry per registered rule, because the rule that proposes
+an action is the authority on how big it is; `undeclared_rule_ids` is the census seam that
+reddens when a family lands without one. `Card` and `cards_for` are BYTE-UNCHANGED, on the
+CS-1244 precedent that a field on the frozen card would have had no producer.
+TWO DESIGNS WERE BUILT AND MEASURED WRONG BEFORE THIS ONE, and both faults are fenced by
+an arm rather than by a comment. First, a BAND - every aged card above every unaged one -
+inverts the list to large-first in steady state and reproduces the cheapest-effort order
+inside the band, so the large card the guard exists for is starved there too; one
+promotion is a rotation instead. Second, counting every shown card as deferred ages the
+whole list at one rate, so four cards shown together cross the threshold on the same run;
+that was caught by the end-to-end arm, not by the unit arms, which had hand-written counts
+where only the large card aged. Deferral is now measured against the SHOWING ORDER
+(`Advice.ranked_shown`): the first id held the top spot, so its count is CLEARED - it has
+had its turn - and the ids below it age. That clause was proved load-bearing by a bounded
+mutation: dropping it reddens `::test_the_showing_order_is_load_bearing` and
+`::test_the_top_card_is_cleared_not_aged`, with the file restored from a byte snapshot and
+its sha256 read back equal. The acceptance arm itself survives that mutant, so the record
+says plainly that the leader clause is what makes the promotion ROTATE rather than stick
+on one card, and is not what the acceptance grades.
+Ledger schema 3 stores the count as an absent-means-zero `deferred` key; a stored zero and
+a version-2 document carrying the key are both refused as shapes this version never wrote,
+with the bytes unchanged. A player write clears a card's aging - acting on a card is not
+deferring it. No clock is read anywhere in the path.
+Tier 2 (a store schema change and a public interface). 58 test functions added across five
+modules; suite this run: "19050 passed, 15 skipped, 9 warnings in 1416.52s (0:23:36)", exit 0, through the kit's
+suite gate; ruff check clean, ruff format clean.
+RESIDUAL, filed not fixed: CS-1397 - `advise_and_record` is the stated write path and is
+wired in TESTS ONLY, so in production (`advise_world` -> `advise`, read-only) no deferral
+is ever recorded and the guard never fires, though the READ side orders on every call.
+CS-1398 - effort is declared per RULE, so one rule's one-machine and forty-machine advice
+carry one class; a per-recommendation effort needs the quantity model CS-1248 owns.
+GRADED: one verifier pass over the frozen tree (`tools/freeze_witness.py freeze`),
+verdict CONFIRM, with three findings it called non-acceptance. All three were repaired
+rather than filed, because all three were cheap and two were record defects: the
+`Ledger.deferrals` docstring named only the player act and the reopening as resets and
+omitted the top-spot clear; the `ranking.py` determinism sentence claimed independence from
+the input sequence without the one exception a stable sort leaves (two cards sharing a rule
+id AND a card id are the same advice twice); and the unit acceptance arm compared two calls
+on one input sequence, which is a tautology - deleted, with the shuffle beside it left as
+the arm that carries the claim. THE VERDICT COVERS THE FROZEN TREE AND NOT THOSE THREE
+EDITS: they are two docstring paragraphs, one comment and one deleted assertion, no
+behaviour, re-run green at "304 passed in 3.18s", exit 0, over the four cited test modules.
+CI: recorded by the driver, not observed by this worker.
+
 ### 2026-11-15 - CS-1378 - CLOSED: a balanced route refused with a RatioError gets one consumer per leftover byproduct, one hop
 Verification: `clockspeed/solve/bound.py::route_with_consumers`;
 `clockspeed/solve/bound.py::NoByproductConsumerError`; `clockspeed/solve/bound.py::_converged_counts`;

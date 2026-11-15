@@ -912,3 +912,15 @@ def test_only_the_listing_carries_the_outcome(key: tuple[str, str]) -> None:
     assert response.http_status == contract.HTTP_BAD_REQUEST
     named = b"plan_outcome" in contract.encode(response.payload)
     assert named is False
+
+
+def test_the_listing_serves_the_cards_in_the_advisors_showing_order(tmp_path: Path) -> None:
+    """CS-1246: the payload's order is Advice.ranked, not the identity order."""
+    found = advise_fixtures._rank_record(tmp_path)  # noqa: SLF001 - the shared ranking fixture
+    listing, _ = _handlers(_Source(found))
+    served = tuple(str(row["id"]) for row in _cards(_data(listing({}))))
+    ranked = tuple(advised.card.id for advised in found.ranked)
+    identity = tuple(advised.card.id for advised in found.cards)
+    assert served == ranked
+    moved = served != identity
+    assert moved
