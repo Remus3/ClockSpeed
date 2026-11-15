@@ -36,6 +36,7 @@ from clockspeed.advisor.plans import (
     schematic_parameters,
     schematic_request_from,
 )
+from clockspeed.advisor.trace import StepKind
 from clockspeed.data.schematics import CostLine, Schematic, SchematicCatalog
 from clockspeed.progress import milestones
 from clockspeed.solve.optimize import OBJECTIVE_RAW
@@ -404,3 +405,53 @@ def test_an_item_request_offers_no_schematic_and_reads_none() -> None:
     offered: Mapping[str, object] = plan_offer(model.unlocks, registry, pw._request())  # noqa: SLF001
 
     assert offered["plan.schematic"].value is None  # type: ignore[attr-defined]
+
+
+# --- the route card carries the milestone too -----------------------------------------------
+
+
+def test_a_no_plan_route_card_has_the_schematic_as_its_milestone_and_the_5_2_id(
+    tmp_path: Path,
+) -> None:
+    model = pw._model(())  # noqa: SLF001
+    registry = pw._registry()  # noqa: SLF001
+
+    found = _advise(tmp_path, model, registry, _request(_two_item_catalog(), model, registry))
+
+    cards = _plan_cards(found)
+    assert [card.rule_id for card in cards] == [REDESIGN]
+    subject = f"plan:{SOLVE_RARE_ITEM}+{SOLVE_RELIC_ITEM}"
+    assert cards[0].target_milestone == SCHEMATIC
+    assert cards[0].id == card_id(REDESIGN, subject, SCHEMATIC)
+
+
+# --- an unplannable schematic is silent without a missing or refused read ----------------------
+
+
+def _quiet_through_status(found: Advice, rule: str) -> tuple[bool, bool]:
+    """Whether a rule's trace holds only reads and indeterminate steps, and one of the latter.
+
+    Reduced to two bools inside this frame, so no caller's frame holds the withheld traces.
+    """
+    (trace,) = [t for t in found.traces if t.rule_id == rule]
+    kinds = {step.kind for step in trace.steps}
+    allowed = {StepKind.INPUT_READ, StepKind.VERDICT_INDETERMINATE}
+    return kinds <= allowed, StepKind.VERDICT_INDETERMINATE in kinds
+
+
+def test_an_unplannable_schematic_leaves_both_traces_clean_of_missing_reads(
+    tmp_path: Path,
+) -> None:
+    """Both rules go quiet through their status word, never through an input they lack.
+
+    The unplannable offer carries no join words, so a rule that read them anyway would record
+    a missing input and an error instead of the one indeterminate step.
+    """
+    model = pw._model(pw.ASCENT_PATHS)  # noqa: SLF001
+    registry = pw._registry()  # noqa: SLF001
+    found = _advise(tmp_path, model, registry, _request(_catalog(_schematic([])), model, registry))
+
+    for rule in (ADOPT, REDESIGN):
+        clean, silent = _quiet_through_status(found, rule)
+        assert clean, rule
+        assert silent, rule

@@ -510,3 +510,81 @@ def test_an_item_statement_still_needs_the_four_and_reaches_no_catalog(tmp_path:
 
     assert item.http_status == contract.HTTP_OK
     assert catalogs.reads == 0
+
+
+# --- production wiring: the installed source is what a server serves with ----------------------
+
+
+class _SpySource(_Catalogs):
+    """A stand-in for the installed source, built with no arguments, counting its reads."""
+
+    built: list[_SpySource] = []  # noqa: RUF012 - reset by each arm that reads it
+
+    def __init__(self) -> None:
+        super().__init__(_catalog())
+        type(self).built.append(self)
+
+
+def test_build_routes_with_no_schematics_serves_the_installed_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Left unbound, the route table must build the installed source and ask it for the catalog.
+
+    A default that left the catalog unbound would answer every schematic request 503, which
+    only a table built WITHOUT a catalog argument can show.
+    """
+    _SpySource.built = []
+    monkeypatch.setattr(routes, "InstalledSchematicSource", _SpySource)
+    source = providers.StoreAdviceSource(tmp_path, clock=lambda: pw.NOW)
+    built = routes.build_routes(
+        _Worlds(pw._model(pw.ASCENT_PATHS)),  # noqa: SLF001
+        _Registries(pw._registry()),  # noqa: SLF001
+        source,
+    )
+    listing = next(route.handler for route in built if route.template == ENDPOINT)
+
+    response = listing(_query())
+
+    assert response.http_status == contract.HTTP_OK
+    made = len(_SpySource.built)
+    assert made == 1
+    assert _SpySource.built[0].reads == 1
+
+
+def test_the_default_route_table_binds_the_real_installed_source() -> None:
+    """The table the server module builds reads its catalog from the real installed source."""
+    bound = [
+        cell.cell_contents
+        for route in routes.ROUTES
+        if route.template == ENDPOINT
+        for cell in (route.handler.__closure__ or ())
+        if isinstance(cell.cell_contents, InstalledSchematicSource)
+    ]
+    count = len(bound)
+    assert count == 1
+
+
+def test_main_builds_its_routes_with_the_installed_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``main`` hands the route build an InstalledSchematicSource, and starts no listener."""
+    from clockspeed.surface import __main__ as entry  # noqa: PLC0415
+
+    seen: dict[str, object] = {}
+    real = entry.build_routes
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    def not_serving(*_args: object, **_kwargs: object) -> int:
+        return 0
+
+    monkeypatch.setattr(entry, "build_routes", recording)
+    monkeypatch.setattr(entry.server, "run", not_serving)
+
+    code = entry.main(["--port", "8999", "--cert-dir", str(tmp_path), entry.NO_WORLD_FLAG])
+
+    assert code == 0
+    wired = isinstance(seen.get("schematics"), InstalledSchematicSource)
+    assert wired
