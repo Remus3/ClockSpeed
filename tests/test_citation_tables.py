@@ -1014,6 +1014,20 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1379 cited it live in plan.py; CS-1384 moved and renamed it. Not a record defect.",
         ("164588bd3372:60ed2224aec4:0",),
     ),
+    # --- the record was RIGHT when written; CS-1376 RENAMED the arm. The page now
+    # issues three POSTs - the panel's state post joined the two it already
+    # sent - so the CS-1029 closure's two-post arm says three, as its own
+    # CS-1029 rule requires of a name that states a count.
+    (
+        LEDGER,
+        "tests/surface/test_web_assets.py::test_the_page_issues_exactly_two_posts_and_no_form",
+    ): Disposition(
+        RENAMED,
+        "tests/surface/test_web_assets.py::test_the_page_issues_exactly_three_posts_and_no_form",
+        "CS-1029 cited it live as the two-post arm; CS-1376 widened the pin to three and"
+        " renamed it. Not a record defect.",
+        ("7924277c521c:dd27e076f6db:0",),
+    ),
 }
 
 
@@ -1384,7 +1398,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: imported across modules. Right-when-written and dead now, in an append-only
 #: carrier, with a live target - the two rows in DISPOSITIONS are RENAMED, each
 #: pinned by its one site and checked in all three directions every run.
-FORGIVEN_LINE_POINTER_CEILING: Final = 75
+#:
+#: RAISED TO 76 BY CS-1376, FOR A RENAME. The CS-1029 closure cites the page's
+#: two-post arm by path and name; CS-1376 added the panel's state post as the
+#: third POST and the arm was renamed for the count it now pins. Right-when-
+#: written and dead now, in an append-only carrier, with a live target - the row
+#: in DISPOSITIONS is RENAMED, pinned by its one site and checked in all three
+#: directions every run.
+FORGIVEN_LINE_POINTER_CEILING: Final = 76
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
