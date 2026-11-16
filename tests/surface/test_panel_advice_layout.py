@@ -322,3 +322,52 @@ def test_s2_the_label_stacks_above_the_select_and_button_on_a_narrow_card() -> N
     assert style(".advice-snooze .bench-label", "flex", context) == "1 0 100%"
     # The wide rule is untouched: one nowrap row.
     assert style(".advice-snooze", "flex-wrap") == "nowrap"
+
+
+# ---------------------------------------------------------------------------
+# S2 re-audit 2 - a full-width button rule never takes the Snooze button off its row
+# ---------------------------------------------------------------------------
+
+
+def specificity(selector: str) -> tuple[int, int, int]:
+    """The (ids, classes, types) of a simple selector, enough for the rules this sheet writes.
+
+    Args:
+        selector: A compound or descendant selector with no pseudo-element or ``:not``.
+
+    Returns:
+        The three counts, compared as a tuple.
+    """
+    ids = len(re.findall(r"#[\w-]+", selector))
+    classes = len(re.findall(r"\.[\w-]+|\[[^\]]*\]|:[\w-]+", selector))
+    stripped = re.sub(r"#[\w-]+|\.[\w-]+|\[[^\]]*\]|:[\w-]+", " ", selector)
+    types = len(re.findall(r"(?<![\w-])[a-zA-Z][\w-]*", stripped))
+    return (ids, classes, types)
+
+
+def test_the_specificity_reader_orders_the_two_selectors_it_compares() -> None:
+    # Control: the descendant rule outranks the bare type, and a class outranks a type.
+    assert specificity(".advice-snooze button") == (0, 1, 1)
+    assert specificity("button") == (0, 0, 1)
+    assert specificity(".advice-snooze button") > specificity("button")
+
+
+def test_s2_every_full_width_button_block_gives_the_snooze_button_back_its_width() -> None:
+    """The re-audit read the Snooze button full width at 34rem, wrapped under its select."""
+    rules = parse_rules(served(STYLESHEET))
+    full = [
+        context
+        for selectors, declared, context in rules
+        if "button" in selectors and declared.get("width") == "100%"
+    ]
+    # Control: the global rule exists, so the loop below grades at least one real block.
+    assert full != [], "no media block sets button width to 100%"
+    for context in full:
+        assert context != "", "a top-level button width of 100% takes every button off its row"
+        winner = ".advice-snooze button"
+        assert specificity(winner) >= specificity("button")
+        assert style(winner, "width", context) == "auto", context
+        flex = style(winner, "flex", context)
+        assert flex is not None, context
+        grow, shrink = flex.split()[:2]
+        assert (grow, shrink) == ("0", "0"), flex

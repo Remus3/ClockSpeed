@@ -692,6 +692,16 @@ tbody td:first-child:not(.empty) {
   }
 
   /*
+    THE SNOOZE BUTTON STAYS BESIDE ITS SELECT: .advice-snooze button outranks the bare
+    type selector above, so the group's button keeps its own width and does not wrap to
+    a line of its own.
+  */
+  .advice-snooze button {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  /*
     A PIN THAT EATS THE SCROLLPORT HAS TAKEN AWAY WHAT THE SCROLL WAS FOR.
     The route column is nowrap monospace sized to its longest string,
     /api/advice/<id>/derivation, which measured 247px inside a 293px container -
