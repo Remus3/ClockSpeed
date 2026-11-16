@@ -1126,6 +1126,38 @@ tbody td:first-child:not(.empty) {
   font-size: 15px;
 }
 
+/*
+  CS-1400 H1: THE CARD'S CONTROLS STAND APART. Accept, Dismiss and Pin are siblings
+  with no whitespace between them, so without a gap they touch. The row wraps rather
+  than scrolls, and the snooze group below is one more item in it.
+*/
+.advice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+/*
+  CS-1400 S2: THE SNOOZE LENGTH, ITS LABEL AND ITS BUTTON ARE ONE ROW. The select
+  takes .bench-input, which is full width for the bench, so here it is auto and
+  capped; it may still shrink (min-width comes from .bench-input) so the group
+  never forces a sideways scroll at the narrowest width. The rule is more specific
+  than .bench-input, so it wins whatever order the two sit in.
+*/
+.advice-snooze {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.advice-snooze .bench-input {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 10rem;
+}
+
 .advice-derivation {
   max-width: 75ch;
   margin: 0.6rem 0 0;
