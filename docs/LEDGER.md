@@ -75,6 +75,94 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-484 - CLOSED: verify_env grades the installed ruff against the range pyproject.toml declares, and an out-of-range ruff turns that row RED locally before a push
+Verification: `scripts/verify_env.py::declared_range_row` (with `declared_specifier`, `_read_declared_bound`,
+`_clauses`, `_satisfies` and `_installed_version`), appended to the dependency table as the HARD row "ruff within
+declared range"; `tests/test_verify_env.py::test_an_installed_ruff_inside_the_declared_range_passes`,
+`::test_an_installed_ruff_above_the_upper_bound_fails_naming_both`,
+`::test_an_installed_ruff_below_the_floor_fails_naming_both`,
+`::test_the_bounds_are_inclusive_below_and_exclusive_above`,
+`::test_the_range_is_read_from_pyproject_and_not_hard_coded`,
+`::test_an_out_of_range_ruff_fails_the_run_and_the_verdict`, `::test_an_absent_ruff_is_flagged_and_does_not_crash`,
+`::test_an_unreadable_installed_version_is_flagged_and_does_not_crash`,
+`::test_an_undeclared_or_unparseable_bound_is_flagged_and_does_not_crash`,
+`::test_a_missing_pyproject_is_flagged_and_does_not_crash`, `::test_the_range_row_prints_no_path`,
+`::test_the_declared_specifier_comes_from_the_dev_extra_of_the_real_pyproject`. Post-merge on main, the merger's run
+of `tests/test_verify_env.py` and `tests/test_verify_env_ladder.py`: 77 passed, exit 0.
+ACCEPTANCE, quoted verbatim from the item's leaf section: "running the documented local gate set on a tree CI will
+reject turns something RED locally first, with the reproduction recorded"
+FILED, carried here so the leaf section can leave: filed 2026-08-19 (session 21) when a CI tier1 run failed `ruff
+check` on FURB192 in a test line a blocked push had never shown CI, while the same command passed locally - the rule
+was PREVIEW on the local ruff and STABLE on the newer one CI resolved, so running both `ruff check` and `ruff format
+--check` still did not reproduce CI: the divergence was the ruff VERSION, not the command. Measured 2026-08-20
+(session 24) from a tier1 log: CI on ruff 0.16.3, this machine on 0.15.12. Pinning and bumping deliberately was the
+nominated repair; enabling preview locally was refused as an over-approximation of CI in the other direction. The
+upper bound since declared in `pyproject.toml` narrowed the drift without closing it, and the 2026-11-12 CS-484
+decision record below named the lasting gap: nothing compared the INSTALLED ruff to the DECLARED bound, so an
+out-of-range install blocked every push unseen.
+BUILT in one slice, two files: a HARD row in `scripts/verify_env.py` that reads the bound `pyproject.toml` declares at
+run time with a minimal specifier parser and compares the version `importlib.metadata` reports for the interpreter
+running the script. Out of range fails naming both the version and the bound; an absent ruff is flagged HARD; an
+unevaluable bound or version is SOFT and UNVERIFIED, never a crash; the row prints no path. `tools/precommit_gate.py`
+is not touched.
+GRADED. Adversary: REFUTED-UNCERTAIN on one ground only, that the acceptance was not yet met because no reproduction
+had been recorded; it found the arm itself correct. A distinct adjudicator ruled MERGE-WITH-NOTES, and ruled that a
+recorded reproduction closes the item: `python scripts/verify_env.py` is in the command table of `docs/OPERATIONS.md`
+section 2, so the row is part of the documented local gate set.
+REPRODUCTION, on the merged tree, run from the main checkout in a throwaway virtual environment made for it and
+deleted afterwards - never the project `.venv`, never the base interpreter. Python 3.14.4 with pytest 9.0.3;
+CLOCKSPEED_PYTHON named that interpreter for each command only, so the hooks' interpreter-ladder row graded the same
+interpreter and the ruff row was the only HARD row in question. Command: `python scripts/verify_env.py`. Row text is
+quoted with its column padding collapsed.
+- RED, ruff 0.16.10 installed (above the declared bound): `HARD ruff within declared range MISSING 0.16.10 is outside
+  the declared ruff>=0.13,<0.16`, its advice line `ruff within declared range: the local gate does not reproduce CI on
+  this version. Install the declared range into this interpreter: python -m pip install "ruff>=0.13,<0.16"`, then
+  `VERDICT: FAIL - missing HARD dependencies: ruff within declared range` and exit 1.
+- GREEN control, ruff 0.15.22 reinstalled in the same environment: `HARD ruff within declared range FOUND 0.15.22
+  satisfies the declared ruff>=0.13,<0.16`, then `VERDICT: PASS - every HARD dependency is present` and exit 0.
+- WHY THE RED MATTERS, measured on the same tree with the same two versions: under 0.15.22 `ruff check .` read `All
+  checks passed!` and `ruff format --check .` exited 0; under 0.16.10 `ruff check .` exited 1 on 31 findings (FURB192
+  16, PLR0917 13, RUF036 2) and `ruff format --check .` exited 1 on one file, because 0.16 also formats Python blocks
+  inside markdown and would rewrap one in `docs/history_notes.md`. The two versions disagree on this very tree, and
+  the row now says so before a push rather than after it.
+RESIDUAL: the three conditions the 2026-11-12 decision record set for any future `tools/precommit_gate.py` grant - (a)
+ruff in the declared range with the old-prefix branch seen green, (b) the bound moved deliberately in the same commit
+after `ruff format --check .` over the tree, (c) a red test for the 0.17 output shape seen red for the right reason,
+with an arm asserting no source fragment is re-emitted - were not exercised. That frozen file is untouched and no
+grant was sought. The row grades ruff only; no other toolchain member is range-checked against `pyproject.toml`.
+
+### 2026-11-16 - CS-1362 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1362 is GATED as CS-G11 on an operator ADR allowing a dev-only, test-only Node tool beside the Electron shell
+Verification: `docs/GATED.md`, the CS-G11 section, and the classification block's `gate: CS-1362 MENTIONED` line,
+which `ops/loop/scope.py::gate_classification` reads - MENTIONED and not BLOCKED because a BLOCKED id that is not a
+live row fences nothing
+(`tests/ops/test_lane_scope.py::test_the_live_blocked_set_is_the_one_row_a_gate_actually_blocks`); `CLAUDE.md` section
+7, the "Python core" entry; the 2026-09-11 CS-980 licence gate record and the 2026-09-09 save-parser licence gate
+record below; `config/lane_scopes.json`, CS-1362 kept in the `product-slices` scope's `excluded`.
+ACCEPTANCE, quoted verbatim from the item's leaf section, carried here and into the gate so the leaf section can
+leave: "MAIN ORDER 2026-10-31 22:15 item 9: an out-of-tree save parser runs over the test saves as an oracle for this
+parser's counts, a test-only dev dependency never in the solve path; one test compares the counts on every test save."
+FILED 2026-11-01 by the headless driver, never started: the candidate first needed the `CONVENTIONS.md` section 14
+licence gate (a `researcher` pass and a `THIRD_PARTY.md` row), and the suite must still run with no game installed.
+RULING, session 158, by a distinct adjudicator:
+- The GPL Python parsers, `satisfactory-save` 0.11.0 on PyPI and `sat_sav_parse`, are REFUSED again: GPL-3.0, and no
+  named grantor offers other terms. The earlier ledger verdicts stand.
+- The MIT TypeScript parser, `etothepii4/satisfactory-file-parser`, which the 2026-09-09 record cleared with a
+  condition, is CLEARED by licence to run as an external tool, and is DO-NOT-VENDOR. Running it crosses the Node
+  fence: `CLAUDE.md` section 7 settles that Node exists solely for the Electron shell, reversed only by an operator
+  ADR, so a dev-only, test-only Node tool beside the shell waits for one.
+- A second counter written in this repository is REJECTED: it is neither independent of this parser nor out of tree,
+  and the acceptance asks for both.
+- No `THIRD_PARTY.md` row until a package is pinned.
+- Not product work under `CLAUDE.md` section 7, "Product before process": deferred behind CS-400 and the Phase 5
+  advisor.
+WHY GATED AND NOT OPEN: every route that meets the clause is closed from inside the repository - the licence-clear
+candidate waits on the operator ADR, the GPL candidates are refused, and an in-repo counter does not meet the clause.
+The row moves from `ROADMAP.md` to `docs/GATED.md` as CS-G11 and its leaf section is deleted, the acceptance carried
+by this record and by the gate.
+RESIDUAL: the MIT parser's npm 4.1.2 manifest, its publish date and its canonical upstream were not read; the licence
+clearance rests on the 2026-09-09 reading of the repository, and the first pin reads all three before a
+`THIRD_PARTY.md` row is written.
+
 ### 2026-11-16 - CS-1400 - CLOSED: the advice panel's five UI-157 majors each reddened on its own arm first and are green, and the ui-auditor re-audit reads no major open
 Verification: `clockspeed/surface/web/panel_advice.js` (`FLOW_LABEL_TEXT`, `FLOW_LEGEND_TEXT`, the `advice-snooze`
 group, the in-place re-read after a recorded state, the inert both-chosen press) and `clockspeed/surface/web/app.css`

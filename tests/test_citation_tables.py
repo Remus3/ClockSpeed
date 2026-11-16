@@ -1126,7 +1126,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ): "c6f4b966d451",
     ("docs/item_notes/phase4.md", "tests/data/test_locate.py", 858): "7b83ed5742f3",
     ("docs/item_notes/phase4.md", "tests/save/synthetic.py", 1093): "b260445518a9",
-    ("docs/item_notes/phase4.md", "tests/save/test_byte_order_status.py", 878): "5d5874e29659",
     ("docs/item_notes/phase4.md", "tests/save/test_objects.py", 834): "98fb3674bec1",
     ("docs/item_notes/phase4.md", "tests/save/test_phase4_gate.py", 2108): "d2973a15655f",
 }
@@ -1412,7 +1411,12 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: closed citation is still the CS-1029 closure's, so the row above was RE-POINTED
 #: at the live name and nothing new is forgiven: a second row for the dead
 #: three-post name would pin no site, since no closed record cites it.
-FORGIVEN_LINE_POINTER_CEILING: Final = 76
+#:
+#: LOWERED TO 75 BY THE CS-484 CLOSE, FOR A DELETION. Closing CS-484 deleted its
+#: leaf section in `docs/item_notes/phase4.md`, and with it the one line pointer
+#: into `tests/save/test_byte_order_status.py` that UNVERIFIED_LINE_POINTERS
+#: grandfathered. That pin left the table, so the budget falls by one.
+FORGIVEN_LINE_POINTER_CEILING: Final = 75
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

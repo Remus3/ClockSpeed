@@ -246,7 +246,6 @@ CS-804 - The cross-module EXPORT SET carries only names a sibling's functions CA
 CS-805 - The container-FIELD personal-data shape is not walked as a wrapper - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-807 - No ordinary module gains a reach declaration it does not need - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-808 - the reach and wrap name caches are keyed on a `Path`, so a stale parse answers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-484 - The local lint gate cannot reproduce CI's unbounded `ruff` pin - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-981 - CS-G05 is discharged and CS-829 is still filed as gated behind it, so the chain that answers "what am I holding" is unrouted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-983 - `CS-G05` is decided out of `docs/GATED.md` and its body has not moved - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-984 - a decoded struct interior reaches no consumer, because the world model publishes none - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -360,6 +359,5 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1362 - CS-PARSER-XCHECK: an out-of-tree save parser as a test-only oracle for this parser's counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1390 - MAIN ORDER 0931 item 2: warn the day the installed game build differs from the pin, not at the next push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

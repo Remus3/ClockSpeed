@@ -75,6 +75,11 @@ operator confirmation those notes require be typed into the main session,
 not by a fence in this file, and MENTIONED leaves the lane's scope exactly as it was
 before the notes named the id.
 
+CS-1362 is MENTIONED because CS-G11 holds it out of `ROADMAP.md` altogether, and a BLOCKED
+line for an id that is not a live row fences nothing. What keeps a lane off it is its
+`excluded` entry in `config/lane_scopes.json`; what keeps it from being re-filed
+unexamined is CS-G11's own section.
+
 The four rows carried at the end of the block are MENTIONED here **on purpose and with
 nothing else riding on it**. They are the four that commit `7fbe529` unfenced by deleting
 their numbers from gate prose; naming and classifying them pins that decision in a form a
@@ -118,6 +123,7 @@ gate: CS-1272 MENTIONED
 gate: CS-1274 MENTIONED
 gate: CS-1275 MENTIONED
 gate: CS-1279 MENTIONED
+gate: CS-1362 MENTIONED
 CLOCKSPEED-GATE-CLASSIFICATION END
 ```
 
@@ -759,6 +765,37 @@ changes when the verdict lands.
 
 **Filed 2026-10-24** (session 151) by the close of the item that wired the save phase-cost
 source.
+
+### CS-G11 - An out-of-tree save-parser oracle that needs a Node tool beside the Electron shell
+
+**One line:** CS-1362's oracle - an out-of-tree save parser run over the test saves as a test-only check on this
+parser's counts - has one licence-clear candidate, and it runs on Node, which `CLAUDE.md` section 7 reserves for the
+Electron shell.
+
+**Unblocked by:** an operator ADR - the operator's own words in the main session, recorded in `docs/adr/` - allowing a
+dev-only, test-only Node tool beside the Electron shell. The "Python core" entry in `CLAUDE.md` section 7 settles that
+Node exists solely for the shell and names an operator ADR as the only reversal, so no adjudicator, no MAIN note and
+no amount of work inside this repo reaches it.
+
+**The blocked row:** CS-1362, moved here from `ROADMAP.md`, its leaf section deleted. Its acceptance, verbatim: "MAIN
+ORDER 2026-10-31 22:15 item 9: an out-of-tree save parser runs over the test saves as an oracle for this parser's
+counts, a test-only dev dependency never in the solve path; one test compares the counts on every test save." The
+suite must still run with no game installed.
+
+**Every other route is closed, so it is not re-pitched.** The GPL Python parsers, `satisfactory-save` 0.11.0 and
+`sat_sav_parse`, are refused: GPL-3.0 with no named grantor, the earlier ledger verdicts standing. A second counter
+written in this repository is rejected: it is neither independent of this parser nor out of tree, and the acceptance
+asks for both. The MIT TypeScript parser is cleared by licence only to RUN as an external tool, and is never vendored.
+
+**DRAIN - blocked until the ADR:** installing and running that parser over the test saves, and the one test comparing
+its counts with this parser's.
+
+**PREP - workable, deliberately not opened:** this is not product work, so under "Product before process" in
+`CLAUDE.md` section 7 it waits behind the next product items that section names. Pinning a package comes first, and it
+reads the npm 4.1.2 manifest, the publish date and the canonical upstream - all three unread - before a
+`THIRD_PARTY.md` row is written; no row exists until then.
+
+**Filed 2026-11-16** (session 158) from the session 158 adjudicator ruling recorded under CS-1362 in `docs/LEDGER.md`.
 
 ---
 

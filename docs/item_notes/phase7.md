@@ -928,20 +928,6 @@ This item stays OPEN: the wave-2 closing slice, which shows the unit on each flo
 progress, and the item closes only once that slice is graded and merged.
 
 
-## CS-1362
-
-### Acceptance
-
-MAIN ORDER 2026-10-31 22:15 item 9: an out-of-tree save parser runs over the test saves as an oracle for this
-parser's counts, a test-only dev dependency never in the solve path; one test compares the counts
-on every test save.
-
-### Filed 2026-11-01 by the headless driver
-
-Not started: the candidate dependency first needs the `CONVENTIONS.md` section 14 licence gate (a
-`researcher` pass and a `THIRD_PARTY.md` row), and the suite must still run with no game installed.
-
-
 ## CS-1366
 
 ### Acceptance
