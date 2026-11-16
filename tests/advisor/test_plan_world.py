@@ -1059,6 +1059,7 @@ def _no_rung_world(model: WorldModel, registry: Registry) -> WorldInputs:
             unmatched_unlocks=0,
             backend=BACKEND_EXHAUSTIVE,
             target_names=MappingProxyType({SOLVE_RELIC_ITEM: RELIC_NAME}),
+            carry=None,
         )
     )
     return WorldInputs(values=values, unlocks=unlock_keys(model.unlocks))

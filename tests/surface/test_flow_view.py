@@ -326,6 +326,26 @@ def test_an_internal_link_can_be_the_bottleneck() -> None:
     assert not any(edge["marked"] for edge in view["edges"])
 
 
+def test_a_row_with_a_carry_row_takes_its_unit_from_it_not_from_the_forms() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(900), "item", None),
+        PlanEdge(MAKE_PLATE, ACID, None, Fraction(30), "m3", "target"),
+        raw_inputs={ORE: Fraction(900)},
+        targets={ACID: Fraction(30)},
+    )
+    for forms in (None, {}, {ORE: LIQUID, ACID: SOLID}):  # none, absent, or contradicting
+        view = _carried_view(plan, FLEET, forms=forms)
+        assert view["marked_edge"]["unit"] == "item"
+        by_item = _by_item(view["edges"])
+        assert by_item[ORE]["unit"] == "item"
+        assert by_item[ORE]["marked"] is True
+        assert by_item[ACID]["unit"] == "m3"
+    # THE CONTROL: an edge with no carry row (no capacity) still reads its unit from the forms.
+    bare = _carried_view(plan, None, forms={ORE: SOLID, ACID: LIQUID})
+    assert [e["unit"] for e in bare["edges"]] == ["item", "m3"]
+    assert bare["marked_edge"] is None
+
+
 def test_a_byproduct_edge_can_be_the_bottleneck_and_reads_as_a_byproduct() -> None:
     plan = _plan_of_edges(
         PlanEdge(None, ORE, MAKE_PLATE, Fraction(60), "item", None),

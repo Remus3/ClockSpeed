@@ -31,6 +31,10 @@ boundary and internal. ``marked_edge`` names it and the one row it is flagged ``
 When the trace records no carry, or a carry with no bottleneck, nothing is marked: no
 capacity was known, and the view does not fall back to a rate.
 
+A row with a recorded carry row reads its unit from that row, which is the unit the carry was
+computed in; only an edge nothing was recorded for reads it from ``forms``, so a caller with
+no forms still shows the marked edge's real unit.
+
 A boundary edge here is one (item, role) total, and the plan may split one item's boundary
 flow across several consumers. Such a total carries no carrier or utilisation of its own, since
 the figures belong to its pieces, but it is flagged ``marked`` when one of its pieces is the
@@ -304,7 +308,7 @@ def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | N
                     "role": role,
                     "direction": "in" if role == ROLE_RAW_INPUT else "out",
                     "transport": _transport_of(key, forms),
-                    "unit": _unit_of(key, forms),
+                    "unit": pieces[0].unit if pieces else _unit_of(key, forms),
                     "width": contract.rational(rates[key]),  # type: ignore[arg-type]
                     "marked": bottleneck is not None and bottleneck in pieces,
                     **_figures(pieces[0] if len(pieces) == 1 else None),

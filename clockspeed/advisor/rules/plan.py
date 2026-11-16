@@ -883,7 +883,7 @@ def plan_inputs(  # noqa: PLR0913 - one offer: the plan, its joins, its names an
     unmatched_unlocks: int,
     backend: str,
     target_names: MappingProxyType[str, str | None],
-    carry: CarryReport | None = None,
+    carry: CarryReport | None,
 ) -> dict[str, InputValue]:
     """Offer one ranked plan as rule inputs, each sourced to the field it came from.
 
@@ -910,9 +910,11 @@ def plan_inputs(  # noqa: PLR0913 - one offer: the plan, its joins, its names an
             no target has a name when nobody looked.
         carry: CS-1360. The plan's edges set against the registry's transports by
             :func:`clockspeed.solve.carry.carry_of`, which ``clockspeed/advisor/plans.py``
-            calls over the registry it holds. None says no comparison was made, which the
-            rule records as no bottleneck; a report with no rows says one was made and no
-            carrier was known. A hand-built offer that names none gets the first.
+            calls over the registry it holds. REQUIRED, with no default: a rule reads no
+            registry, so a default would say no capacity is known when nobody looked. A
+            caller that genuinely has none passes None, which the rule records as no
+            bottleneck; a report with no rows says a comparison was made and no carrier
+            was known.
 
     Returns:
         A fresh dict, so a caller may add inputs from another layer.

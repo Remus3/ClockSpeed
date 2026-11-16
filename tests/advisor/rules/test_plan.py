@@ -572,6 +572,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         unmatched_unlocks=UNMATCHED_THREE,
         backend=GREEDY,
         target_names=TARGET_NAMES,
+        carry=None,
     )
     assert tuple(offered) == PLAN_INPUTS
     assert offered[IN_STATUS].value == STATUS_RANKED
@@ -1083,3 +1084,31 @@ def test_the_live_advice_path_records_a_bottleneck_for_a_registry_with_carriers(
     assert named[0].value == carry.rows[carry.bottleneck].utilisation
     (card,) = world_fixtures._plan_cards(advice)  # noqa: SLF001
     assert LABEL_BOTTLENECK in card.tier3
+
+
+def test_plan_inputs_requires_the_carry_explicitly() -> None:
+    """A rule reads no registry, so a default would say no capacity is known unasked."""
+    with pytest.raises(TypeError, match="carry"):
+        plan_inputs(  # type: ignore[call-arg]
+            _ranked(),
+            requires=(),
+            trimmed=(),
+            unchecked=(),
+            raw_unknown=(),
+            unmatched_unlocks=0,
+            backend=EXHAUSTIVE,
+            target_names=TARGET_NAMES,
+        )
+    # THE CONTROL: stating that no capacity is known is allowed, and is recorded as such.
+    offered = plan_inputs(
+        _ranked(),
+        requires=(),
+        trimmed=(),
+        unchecked=(),
+        raw_unknown=(),
+        unmatched_unlocks=0,
+        backend=EXHAUSTIVE,
+        target_names=TARGET_NAMES,
+        carry=None,
+    )
+    assert offered[IN_CARRY].value is None

@@ -609,6 +609,7 @@ def _tier3(plan: ratio.ProductionPlan) -> str:
             unmatched_unlocks=0,
             backend="exhaustive",
             target_names=MappingProxyType(dict.fromkeys(plan.targets)),
+            carry=None,
         ),
         unlocks=frozenset(),
     )
