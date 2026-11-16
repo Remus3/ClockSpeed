@@ -122,6 +122,7 @@ import argparse
 import contextlib
 import functools
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -349,6 +350,30 @@ def kit_note_pause(root: Path, lane: str, reason: str, detail: str) -> None:
 def _no_pause(reason: str, detail: str) -> None:
     """The writer of a pass handed no `pause` seam: nothing is written."""
     del reason, detail
+
+
+def build_pin_watch_tick(root: Path) -> None:
+    """CS-1390 - run the build-pin watch against the hand-off of `root`.
+
+    The watch is `tools/build_pin_watch.py`: one marker line in the hand-off the
+    day the installed game build differs from the pin. Loaded on use so a pass
+    that never binds it never imports it. It never raises and prints nothing.
+    """
+    tools = str(Path(root) / "tools")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    watch = importlib.import_module("build_pin_watch")
+    watch.run(Path(root) / "CS-NEXT-SESSION.txt")
+
+
+def _no_build_pin() -> None:
+    """The build-pin seam of a pass handed none: nothing is read and nothing is written."""
+
+
+def _fail_soft(probe: Callable[[], object]) -> None:
+    """Run a side probe that must never fail or delay the pass: every fault is dropped."""
+    with contextlib.suppress(Exception):
+        probe()
 
 
 @contextlib.contextmanager
@@ -943,6 +968,7 @@ def run_once(  # noqa: PLR0913 - every outward seam is injected, the pause write
     kit_seams: Mapping[str, Any] | None = None,
     next_tick: Callable[[float], float | None] | None = None,
     pause: PauseWriter | None = None,
+    build_pin: Callable[[], object] | None = None,
 ) -> int:
     """One responder pass. See the module docstring for the order.
 
@@ -963,6 +989,12 @@ def run_once(  # noqa: PLR0913 - every outward seam is injected, the pause write
             to `kit_note_pause` over `KIT_ROOT` and `PAUSE_LANE`. None, the
             default, writes nothing, so a pass a test drives never reaches the
             live pause log.
+        build_pin: CS-1390 - a zero-argument build-pin check `main` binds to
+            `build_pin_watch_tick` over `KIT_ROOT`. None, the default, is a
+            no-op, so a pass a test drives never reads the live install or
+            writes the live hand-off. It runs once per pass, after the stop
+            sentinel and the mutex and before the zero-unread return, and a
+            fault in it never changes the pass's outcome.
 
     Returns:
         The process exit code.
@@ -982,6 +1014,7 @@ def run_once(  # noqa: PLR0913 - every outward seam is injected, the pause write
     take = _default_lock if lock is None else lock
     try:
         with take():
+            _fail_soft(_no_build_pin if build_pin is None else build_pin)
             return _locked_pass(
                 main_root,
                 now,
@@ -1209,7 +1242,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.parse_args(argv)
     # Kit v30 PAUSE REASONS - bound here only: production's pass owns the tree's
     # control plane, and a pass any other caller drives writes no live row.
-    return run_once(pause=functools.partial(kit_note_pause, KIT_ROOT, PAUSE_LANE))
+    return run_once(
+        pause=functools.partial(kit_note_pause, KIT_ROOT, PAUSE_LANE),
+        build_pin=functools.partial(build_pin_watch_tick, KIT_ROOT),
+    )
 
 
 if __name__ == "__main__":
