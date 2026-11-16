@@ -344,6 +344,7 @@ tests/data/test_locate.py	authored	CS-1165	first-add:root
 tests/data/test_phase2_gate.py	authored	CS-1165	first-add:root
 tests/data/test_registry.py	authored	CS-1165	first-add:root
 tests/data/test_schematics.py	authored	CS-1043	stamped
+tests/data/test_transport_rates.py	authored	CS-1394	stamped
 tests/data/test_version.py	authored	CS-1165	first-add:root
 tests/exception_message_guard.py	authored	CS-852	first-add:CS-852
 tests/fleet_hook_kit.py	authored	CS-1290	stamped
@@ -446,6 +447,7 @@ tests/solve/test_exponent_owner.py	authored	CS-1030	stamped
 tests/solve/test_golden.py	authored	CS-1239	stamped
 tests/solve/test_optimize.py	authored	CS-300	first-add:CS-300
 tests/solve/test_phase3_gate.py	authored	CS-300	first-add:CS-300
+tests/solve/test_plan_edges.py	authored	CS-1395	stamped
 tests/solve/test_power.py	authored	CS-300	first-add:CS-300
 tests/solve/test_ratio.py	authored	CS-300	first-add:CS-300
 tests/solve/test_relax.py	authored	CS-1237	stamped
@@ -473,6 +475,8 @@ tests/surface/test_health.py	authored	CS-601	first-add:CS-601
 tests/surface/test_map.py	authored	CS-977	first-add:CS-977
 tests/surface/test_map_vocabulary.py	authored	CS-1189	stamped
 tests/surface/test_panel_advice.py	authored	CS-1371	stamped
+tests/surface/test_panel_advice_layout.py	authored	CS-1400	stamped
+tests/surface/test_panel_advice_ui157.py	authored	CS-1400	stamped
 tests/surface/test_panel_global_scope.py	authored	CS-1026	stamped
 tests/surface/test_panel_map.py	authored	CS-977	first-add:CS-977
 tests/surface/test_panel_map_withheld.py	authored	CS-1189	stamped
