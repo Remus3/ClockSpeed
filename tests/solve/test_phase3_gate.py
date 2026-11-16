@@ -195,6 +195,7 @@ SOLVE_TEST_SOURCES: tuple[str, ...] = (
     "test_exponent_owner.py",
     "test_golden.py",
     "test_optimize.py",
+    "test_plan_edges.py",
     "test_power.py",
     "test_ratio.py",
     "test_relax.py",
