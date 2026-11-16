@@ -39,6 +39,14 @@ CSS_COMMENT: Final = re.compile(r"/\*[\s\S]*?\*/")
 #: One CSS length: a number and its unit, or a bare zero.
 LENGTH: Final = re.compile(r"^(-?\d*\.?\d+)([a-z%]*)$")
 
+#: Room, in ch, a select needs beyond its longest label for its padding, border and arrow.
+#: The bench input pads 0.6rem a side and a native arrow takes about 1.5rem, which is about 5ch.
+CHROME_CH: Final = 5
+
+#: The viewport width, in rem, the snooze group must already have stacked its label by.
+#: 420px is the widest the re-audit read the select squeezed at, at 16px to the rem.
+NARROW_REM: Final = 26.25
+
 #: The units a bounded width may be written in. Relative to type, so it scales with it.
 BOUNDED_UNITS: Final = ("rem", "ch", "em")
 
@@ -55,18 +63,19 @@ def served(name: str) -> str:
     return (panel_harness.WEB_DIR / name).read_bytes().decode("ascii")
 
 
-def parse_rules(sheet: str) -> list[tuple[tuple[str, ...], dict[str, str]]]:
-    """Every rule in a sheet, flattened out of any at-rule around it.
+def parse_rules(sheet: str) -> list[tuple[tuple[str, ...], dict[str, str], str]]:
+    """Every rule in a sheet, each with the at-rule prelude it sits inside.
 
     Args:
         sheet: The stylesheet text.
 
     Returns:
-        ``(selectors, declarations)`` per rule, in sheet order. A property declared twice in
-        one rule keeps the later value.
+        ``(selectors, declarations, context)`` per rule, in sheet order. The context is the
+        enclosing at-rule's prelude (``@media (max-width: 30rem)``) and empty at top level. A
+        property declared twice in one rule keeps the later value.
     """
     text = CSS_COMMENT.sub(" ", sheet)
-    rules: list[tuple[tuple[str, ...], dict[str, str]]] = []
+    rules: list[tuple[tuple[str, ...], dict[str, str], str]] = []
     stack: list[str] = []
     buf = ""
     for char in text:
@@ -77,7 +86,8 @@ def parse_rules(sheet: str) -> list[tuple[tuple[str, ...], dict[str, str]]]:
             opener = stack.pop() if stack else ""
             if buf.strip() and not opener.startswith("@"):
                 selectors = tuple(" ".join(part.split()) for part in opener.split(","))
-                rules.append((selectors, declarations_of(buf)))
+                context = " ".join(part for part in stack if part.startswith("@"))
+                rules.append((selectors, declarations_of(buf), " ".join(context.split())))
             buf = ""
         else:
             buf += char
@@ -101,25 +111,26 @@ def declarations_of(body: str) -> dict[str, str]:
     return found
 
 
-def value_of(sheet: str, selector: str, prop: str) -> str | None:
-    """The last value any rule naming this exact selector gives a property.
+def value_of(sheet: str, selector: str, prop: str, context: str = "") -> str | None:
+    """The last value a rule naming this exact selector gives a property in one context.
 
     Args:
         sheet: The stylesheet text.
         selector: One selector, as the sheet spells it.
         prop: The property name.
+        context: The enclosing at-rule prelude, or empty for the top level.
 
     Returns:
         The value, or None when no rule naming the selector declares it.
     """
     value: str | None = None
-    for selectors, declared in parse_rules(sheet):
-        if selector in selectors and prop in declared:
+    for selectors, declared, within in parse_rules(sheet):
+        if within == context and selector in selectors and prop in declared:
             value = declared[prop]
     return value
 
 
-def style(selector: str, prop: str) -> str | None:
+def style(selector: str, prop: str, context: str = "") -> str | None:
     """The shipped sheet's value for a selector and property.
 
     Bound here so a failed assertion renders the two names and the value, never the sheet.
@@ -127,11 +138,24 @@ def style(selector: str, prop: str) -> str | None:
     Args:
         selector: One selector, as the sheet spells it.
         prop: The property name.
+        context: The enclosing at-rule prelude, or empty for the top level.
 
     Returns:
         The value, or None when the shipped sheet gives none.
     """
-    return value_of(served(STYLESHEET), selector, prop)
+    return value_of(served(STYLESHEET), selector, prop, context)
+
+
+def snooze_labels() -> list[str]:
+    """The labels of the snooze choices, read from the shipped script.
+
+    Returns:
+        Each ``label`` of the ``SNOOZE_CHOICES`` array, in the order the script lists them.
+    """
+    script = served(SCRIPT)
+    block = re.search(r"var SNOOZE_CHOICES = \[([\s\S]*?)\];", script)
+    assert block is not None, "no SNOOZE_CHOICES array"
+    return re.findall(r'label:\s*"([^"]+)"', block.group(1))
 
 
 def lengths(value: str) -> list[float]:
@@ -171,8 +195,9 @@ PLANTED: Final = """
 def test_the_parser_reads_a_selector_list_an_at_rule_and_a_comment() -> None:
     assert value_of(PLANTED, ".b", "gap") == "0.5rem"
     assert value_of(PLANTED, ".b", "display") == "flex"
-    # The later rule, inside the at-rule, wins for .a.
-    assert value_of(PLANTED, ".a", "gap") == "1rem 2rem"
+    # The rule inside the at-rule is read only under its own context, never as the top level.
+    assert value_of(PLANTED, ".a", "gap") == "0.5rem"
+    assert value_of(PLANTED, ".a", "gap", "@media (max-width: 40rem)") == "1rem 2rem"
     # A commented-out rule is no rule, and a repeat in one rule keeps the later.
     assert value_of(PLANTED, ".advice-controls", "gap") is None
     assert value_of(PLANTED, ".c", "gap") == "3rem"
@@ -247,3 +272,53 @@ def test_the_new_rules_carry_no_float_or_fixed_height_that_would_reflow(selector
     assert style(selector, "height") is None
     # Control: the selector is really declared, so the two Nones above are about the rule.
     assert style(selector, "display") is not None
+
+
+# ---------------------------------------------------------------------------
+# S2 re-audit - the select never shrinks below its longest label
+# ---------------------------------------------------------------------------
+
+
+def test_s2_the_choice_labels_are_read_from_the_script_not_assumed() -> None:
+    # Control for the arm below: the reader found the real labels, so its longest is real.
+    labels = snooze_labels()
+    assert labels != [], labels
+    assert "1 week" in labels, labels
+
+
+def test_s2_the_snooze_select_cannot_shrink_below_its_longest_label() -> None:
+    """The re-audit read "1 week" squeezed to "1": the select shrank to 54px at 420px."""
+    select = ".advice-snooze .bench-input"
+    longest = max(len(label) for label in snooze_labels())
+    flex = style(select, "flex")
+    assert flex is not None, "no flex on the snooze select"
+    # flex: grow shrink basis - the shrink factor is the middle one, and it is zero.
+    assert flex.split()[1] == "0", flex
+    floor = style(select, "min-width")
+    assert floor is not None, "no min-width on the snooze select"
+    match = LENGTH.match(floor)
+    assert match is not None, floor
+    assert match.group(2) == "ch", floor
+    assert float(match.group(1)) >= longest + CHROME_CH, (floor, longest)
+
+
+def test_s2_the_label_stacks_above_the_select_and_button_on_a_narrow_card() -> None:
+    narrow = f"@media (max-width: {NARROW_REM:g}rem)"
+    breakpoints = [
+        context
+        for selectors, declared, context in parse_rules(served(STYLESHEET))
+        if ".advice-snooze" in selectors and "flex-wrap" in declared and context
+    ]
+    # Control: the narrow rule exists, so the checks below grade a real one.
+    assert len(breakpoints) == 1, breakpoints
+    found = re.fullmatch(r"@media \(max-width: ([0-9.]+)rem\)", breakpoints[0])
+    assert found is not None, breakpoints
+    assert float(found.group(1)) >= NARROW_REM, breakpoints
+    context = breakpoints[0]
+    assert narrow.startswith("@media")
+    # The group wraps and the label takes the whole first line, so the select and the
+    # Snooze button stay adjacent on the second.
+    assert style(".advice-snooze", "flex-wrap", context) == "wrap"
+    assert style(".advice-snooze .bench-label", "flex", context) == "1 0 100%"
+    # The wide rule is untouched: one nowrap row.
+    assert style(".advice-snooze", "flex-wrap") == "nowrap"

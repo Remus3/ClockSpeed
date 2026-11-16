@@ -1141,8 +1141,7 @@ tbody td:first-child:not(.empty) {
 /*
   CS-1400 S2: THE SNOOZE LENGTH, ITS LABEL AND ITS BUTTON ARE ONE ROW. The select
   takes .bench-input, which is full width for the bench, so here it is auto and
-  capped; it may still shrink (min-width comes from .bench-input) so the group
-  never forces a sideways scroll at the narrowest width. The rule is more specific
+  capped. The rule is more specific
   than .bench-input, so it wins whatever order the two sit in.
 */
 .advice-snooze {
@@ -1153,9 +1152,27 @@ tbody td:first-child:not(.empty) {
 }
 
 .advice-snooze .bench-input {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   width: auto;
+  min-width: 12ch;
   max-width: 10rem;
+}
+
+/*
+  THE SELECT NEVER SHRINKS BELOW ITS LONGEST LABEL: the re-audit read "1 week" squeezed
+  to "1" at 420px, which a reader takes for "1 hour". 12ch is the longest choice, 7
+  characters, and the padding and arrow around it. When the row cannot hold a label, a
+  select and a button, the LABEL goes on a line above and the select and the button stay
+  adjacent.
+*/
+@media (max-width: 30rem) {
+  .advice-snooze {
+    flex-wrap: wrap;
+  }
+
+  .advice-snooze .bench-label {
+    flex: 1 0 100%;
+  }
 }
 
 .advice-derivation {

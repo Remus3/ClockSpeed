@@ -737,6 +737,8 @@ registerPanel("advice", function mountAdvice(root, data) {
     flowLabel.hidden = true;
     var flowBox = addLine(box, "pre", "advice-derivation", "");
     flowBox.id = "advice-flow-" + String(position);
+    /* A pre has no role that takes a name, so aria-labelledby alone is ignored. */
+    flowBox.setAttribute("role", "group");
     flowBox.setAttribute("aria-labelledby", flowLabel.id);
     flowBox.hidden = true;
     var flowLegend = addLine(box, "p", "note advice-flow-legend", FLOW_LEGEND_TEXT);

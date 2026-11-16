@@ -110,6 +110,18 @@ def test_s1_a_shown_flow_carries_its_own_label_and_a_legend_for_the_star(tmp_pat
     assert leaked == (), leaked
 
 
+def test_s1_the_flow_block_has_a_role_that_accepts_the_name_the_label_gives_it(
+    tmp_path: Path,
+) -> None:
+    """A role-less ``pre`` ignores ``aria-labelledby``: the re-audit read the flow unnamed."""
+    report = _held_flow_report(tmp_path, _flow(_edge("Desc_Ore_C", 25, 3, marked=True)))
+    pre = _row(report, FLOW_ID.format(0))
+    # THE CONTROL: the block is shown and still carries the name's source.
+    assert pre["hidden"] is False
+    assert pre["attributes"].get("aria-labelledby") == FLOW_LABEL_ID.format(0)
+    assert pre["attributes"].get("role") == "group", pre["attributes"]
+
+
 def test_s1_the_label_and_legend_sit_under_the_derivation_not_above_it(tmp_path: Path) -> None:
     report = _held_flow_report(tmp_path, _flow(_edge("Desc_Ore_C", 1, 1, marked=True)))
     derivation = _row(report, panel.derivation_id(0))
