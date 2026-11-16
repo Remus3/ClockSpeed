@@ -990,7 +990,7 @@ def _bottleneck_label(row: EdgeCarry) -> str:
     noun = "belt" if row.unit == "item" else "pipe"
     return (
         f"{LABEL_BOTTLENECK} {row.item} from {source} to {sink}, its share of the"
-        f" fastest known {noun}"
+        f" fastest known {noun}, {row.best_name}"
     )
 
 

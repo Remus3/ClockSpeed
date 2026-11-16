@@ -198,21 +198,35 @@ def _figures(row: EdgeCarry | None) -> dict:
         row: The row, or None when nothing was recorded for the edge.
 
     Returns:
-        ``{"capacity", "utilisation", "percent", "saturated"}``, each transcribed from the
-        row. The percent is the carry's own display figure: this layer prints no quotient.
+        ``{"capacity", "fastest", "utilisation", "percent", "saturated"}``, each transcribed
+        from the row. ``capacity`` is the smallest carrier that holds the rate and ``fastest``
+        the one the utilisation and percent are shares of; both carry the short name the carry
+        recorded. The percent is the carry's own display figure: this layer prints no quotient.
     """
     if row is None:
-        return {"capacity": None, "utilisation": None, "percent": None, "saturated": None}
+        return {
+            "capacity": None,
+            "fastest": None,
+            "utilisation": None,
+            "percent": None,
+            "saturated": None,
+        }
     capacity = (
         None
         if row.carrier is None or row.carrier_per_minute is None
         else {
             "carrier": row.carrier,
+            "name": row.carrier_name,
             "per_minute": contract.rational(row.carrier_per_minute),
         }
     )
     return {
         "capacity": capacity,
+        "fastest": {
+            "carrier": row.best_carrier,
+            "name": row.best_name,
+            "per_minute": contract.rational(row.best),
+        },
         "utilisation": contract.rational(row.utilisation),
         "percent": row.percent,
         "saturated": row.saturated,

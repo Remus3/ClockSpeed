@@ -197,7 +197,9 @@ def test_every_number_is_an_exact_fraction_and_an_inexact_one_is_refused() -> No
                 unit=UNIT_ITEM,
                 carrier=None,
                 carrier_per_minute=None,
+                carrier_name=None,
                 best_carrier=BELT1,
+                best_name="Belt1",
                 best=Fraction(1),
                 utilisation=0.5,  # type: ignore[arg-type]
                 percent=50,
@@ -250,3 +252,34 @@ def test_the_display_percent_is_the_utilisation_rounded_half_up_exactly(
     assert row.percent == expected, (rate, row.utilisation)
     # The percent is a presentation of the utilisation, which stays exact beside it.
     assert row.utilisation == rate / Fraction(1200)
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("Build_ConveyorBeltMk1_C", "ConveyorBeltMk1"),
+        ("Build_PipelineMK2_C", "PipelineMK2"),
+        ("Plain", "Plain"),
+        ("Build_", "Build_"),  # nothing left once the prefix goes: the key stands
+        ("Build_X", "X"),
+        ("X_C", "X"),
+    ],
+)
+def test_a_carrier_short_name_drops_the_build_prefix_and_class_suffix(
+    key: str, expected: str
+) -> None:
+    fleet = _carriers(_transport(key, Fraction(100)))
+    (row,) = carry.carry_of([_edge("Desc_Ore_C", Fraction(10))], fleet).rows
+    assert row.carrier_name == expected
+    assert row.best_name == expected
+
+
+def test_a_row_names_the_smallest_and_the_fastest_carrier_in_short_form() -> None:
+    fleet = _carriers(
+        _transport("Build_ConveyorBeltMk1_C", Fraction(600)),
+        _transport("Build_ConveyorBeltMk2_C", Fraction(1200)),
+    )
+    (row,) = carry.carry_of([_edge("Desc_Ore_C", Fraction(100))], fleet).rows
+    assert (row.carrier_name, row.best_name) == ("ConveyorBeltMk1", "ConveyorBeltMk2")
+    (over,) = carry.carry_of([_edge("Desc_Ore_C", Fraction(5000))], fleet).rows
+    assert (over.carrier, over.carrier_name, over.best_name) == (None, None, "ConveyorBeltMk2")

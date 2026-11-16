@@ -608,6 +608,7 @@ def test_the_view_is_ascii_and_its_keys_are_closed() -> None:
         "width",
         "marked",
         "capacity",
+        "fastest",
         "utilisation",
         "percent",
         "saturated",
@@ -733,6 +734,7 @@ def test_the_internal_links_are_the_plan_edges_that_have_both_ends() -> None:
             "width": contract.rational(Fraction(45)),
             "marked": False,
             "capacity": None,
+            "fastest": None,
             "utilisation": None,
             "percent": None,
             "saturated": None,
@@ -778,7 +780,16 @@ def test_a_link_reads_its_unit_from_the_plan_edge_and_its_transport_from_the_for
 def test_each_row_carries_the_recorded_carrier_utilisation_and_saturation() -> None:
     view = _carried_view(_chain(), FLEET)
     ore = _by_item(view["edges"])[ORE]
-    assert ore["capacity"] == {"carrier": MK1.key, "per_minute": contract.rational(Fraction(600))}
+    assert ore["capacity"] == {
+        "carrier": MK1.key,
+        "name": "Belt1",
+        "per_minute": contract.rational(Fraction(600)),
+    }
+    assert ore["fastest"] == {
+        "carrier": MK2.key,
+        "name": "Belt2",
+        "per_minute": contract.rational(Fraction(1200)),
+    }
     assert ore["utilisation"] == contract.rational(Fraction(90, 1200))
     assert ore["percent"] == PERCENT_7_5  # 7.5 exactly: half rounds up; the view only transcribes
     assert ore["saturated"] is False
@@ -794,6 +805,7 @@ def test_a_saturated_row_with_no_single_carrier_names_none() -> None:
     ore = _by_item(_carried_view(plan, FLEET)["edges"])[ORE]
     assert ore["saturated"] is True
     assert ore["capacity"] is None
+    assert ore["fastest"]["name"] == "Belt2"  # the share is of this one, whatever fits
     assert ore["utilisation"] == contract.rational(Fraction(1201, 1200))
     assert ore["percent"] == PERCENT_OVER_FULL
 
@@ -882,14 +894,25 @@ def _flow_edge(item: str, role: str, num: int, den: int, *, marked: bool) -> dic
 
 
 def _with_utilisation(
-    edge: dict, num: int, den: int, percent: int, *, carrier: str | None = None
+    edge: dict, num: int, den: int, percent: int, *, carrier: str | None = "Build_Belt1_C"
 ) -> dict:
     edge["utilisation"] = {"num": num, "den": den}
     edge["percent"] = percent
     edge["saturated"] = num >= den
     edge["capacity"] = (
-        None if carrier is None else {"carrier": carrier, "per_minute": {"num": 120, "den": 1}}
+        None
+        if carrier is None
+        else {
+            "carrier": carrier,
+            "name": carrier.removeprefix("Build_").removesuffix("_C"),
+            "per_minute": {"num": 120, "den": 1},
+        }
     )
+    edge["fastest"] = {
+        "carrier": "Build_Belt2_C",
+        "name": "Belt2",
+        "per_minute": {"num": 1200, "den": 1},
+    }
     return edge
 
 
@@ -931,19 +954,27 @@ def test_the_panel_writes_one_line_per_edge_starred_and_barred_by_utilisation(
     )
     lines = _panel_flow_lines(tmp_path, flow)
     assert lines == [
-        "* Desc_Ore_C raw-input 25/3 item per min on belt " + "#" * 18 + " 90%",
-        "  Desc_Half_C target 25/6 item per min on belt " + "#" * 10 + " 50%",
-        "  <b>Desc_Tiny_C</b> byproduct 1/1000 item per min on belt # 1%",
+        "* Desc_Ore_C raw-input 25/3 item per min on belt "
+        + "#" * 18
+        + " fits Belt1; 90% of Belt2",
+        "  Desc_Half_C target 25/6 item per min on belt " + "#" * 10 + " fits Belt1; 50% of Belt2",
+        "  <b>Desc_Tiny_C</b> byproduct 1/1000 item per min on belt # fits Belt1; 1% of Belt2",
     ]
 
 
 def test_a_utilisation_above_one_is_capped_and_a_row_with_none_has_no_bar(
     tmp_path: object,
 ) -> None:
-    over = _with_utilisation(_flow_edge("Desc_Big_C", "target", 5, 1, marked=True), 3, 2, 150)
+    over = _with_utilisation(
+        _flow_edge("Desc_Big_C", "target", 5, 1, marked=True), 3, 2, 150, carrier=None
+    )
     plain = _flow_edge("Desc_Plain_C", "target", 1, 1, marked=False)
     lines = _panel_flow_lines(tmp_path, _flow(over, plain))
-    assert lines[0] == "* Desc_Big_C target 5 item per min on belt " + "#" * 20 + " 150% saturated"
+    assert lines[0] == (
+        "* Desc_Big_C target 5 item per min on belt "
+        + "#" * 20
+        + " fits none; 150% of Belt2 saturated"
+    )
     assert lines[1] == "  Desc_Plain_C target 1 item per min on belt "
 
 
@@ -975,7 +1006,7 @@ def test_a_starred_line_names_its_unit_and_a_fluid_is_not_an_item(tmp_path: obje
     fluid["unit"] = "m3"
     _with_utilisation(fluid, 3, 4, 75)
     assert _panel_flow_lines(tmp_path, _flow(fluid)) == [
-        "* Desc_Water_C raw-input 9/2 m3 per min on pipe " + "#" * 15 + " 75%"
+        "* Desc_Water_C raw-input 9/2 m3 per min on pipe " + "#" * 15 + " fits Belt1; 75% of Belt2"
     ]
 
 
@@ -991,18 +1022,26 @@ def test_the_panel_transcribes_the_carrier_and_the_saturated_flag(tmp_path: obje
     carried = _with_utilisation(
         _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True), 3, 4, 75, carrier="Build_Belt2_C"
     )
-    full = _with_utilisation(_flow_edge("Desc_Big_C", "target", 500, 1, marked=False), 5, 4, 125)
+    full = _with_utilisation(
+        _flow_edge("Desc_Big_C", "target", 500, 1, marked=False), 5, 4, 125, carrier=None
+    )
     unknown = _flow_edge("Desc_Odd_C", "target", 1, 1, marked=False)
     lines = _panel_flow_lines(tmp_path, _flow(carried, full, unknown))
     assert lines[0].startswith("* Desc_Ore_C raw-input 90 item per min on belt ")
-    assert lines[0].endswith(" carrier Build_Belt2_C 120 per min")
+    assert lines[0].endswith(" fits Belt2; 75% of Belt2")
     assert "saturated" not in lines[0]
-    assert lines[1].endswith(" saturated")
-    assert "carrier" not in lines[1]
+    assert lines[1].endswith(" fits none; 125% of Belt2 saturated")
     assert lines[2] == "  Desc_Odd_C target 1 item per min on belt "
 
 
-def _link(*, marked: bool, percent: int = 75, num: int = 3, den: int = 4) -> dict:
+def _link(
+    *,
+    marked: bool,
+    percent: int = 75,
+    num: int = 3,
+    den: int = 4,
+    carrier: str | None = "Build_Belt1_C",
+) -> dict:
     link = {
         "producer": "Recipe_Plate_C",
         "consumer": "Recipe_Ingot_C",
@@ -1012,7 +1051,7 @@ def _link(*, marked: bool, percent: int = 75, num: int = 3, den: int = 4) -> dic
         "width": {"num": 45, "den": 1},
         "marked": marked,
     }
-    return _with_utilisation(link, num, den, percent, carrier="Build_Belt1_C")
+    return _with_utilisation(link, num, den, percent, carrier=carrier)
 
 
 CHAIN_LABEL_ID: Final = "advice-flow-chain-label-{}"
@@ -1041,7 +1080,7 @@ def test_a_chain_link_line_shows_its_utilisation_bar_and_percent(tmp_path: objec
     assert links["text"] == (
         "* Recipe_Plate_C -> Recipe_Ingot_C Desc_Plate_C 45 item per min on belt "
         + "#" * 15
-        + " 75% carrier Build_Belt1_C 120 per min"
+        + " fits Belt1; 75% of Belt2"
     )
 
 
@@ -1049,10 +1088,10 @@ def test_a_link_over_one_hundred_percent_prints_the_number_whatever_its_bar(
     tmp_path: object,
 ) -> None:
     edge = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=False)
-    over = _link(marked=False, percent=150, num=3, den=2)
+    over = _link(marked=False, percent=150, num=3, den=2, carrier=None)
     report = _panel_report(tmp_path, _flow(edge, links=[over]))
     text = panel.row_of(report["nodes"], CHAIN_ID.format(0))["text"]
-    assert "#" * 20 + " 150% " in text + " "
+    assert "#" * 20 + " fits none; 150% of Belt2" in text
     assert "#" * 21 not in text
 
 
@@ -1096,3 +1135,28 @@ def test_the_panel_has_no_highest_rate_wording_left() -> None:
     text = (REPO_ROOT / "clockspeed/surface/web/panel_advice.js").read_text(encoding="utf-8")
     assert "highest rate" not in text.lower()
     assert "highest-rate" not in text.lower()
+
+
+def test_every_line_names_the_fastest_carrier_beside_its_percent(tmp_path: object) -> None:
+    """A fitting carrier beside a percent of another would read as that carrier's share."""
+    edge = _with_utilisation(
+        _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True), 3, 40, 8, carrier="Build_Belt1_C"
+    )
+    report = _panel_report(tmp_path, _flow(edge, links=[_link(marked=False)]))
+    boundary = panel.row_of(report["nodes"], "advice-flow-0")["text"]
+    chain = panel.row_of(report["nodes"], CHAIN_ID.format(0))["text"]
+    assert "fits Belt1; 8% of Belt2" in boundary
+    assert "fits Belt1; 75% of Belt2" in chain
+    for text in (boundary, chain):
+        assert "carrier " not in text
+
+
+def test_an_unmarked_chain_line_has_no_leading_indent_and_a_marked_one_has_the_star(
+    tmp_path: object,
+) -> None:
+    """A two-space lead wraps to a blank-looking first line at narrow widths."""
+    edge = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=False)
+    report = _panel_report(tmp_path, _flow(edge, links=[_link(marked=False), _link(marked=True)]))
+    first, second = panel.row_of(report["nodes"], CHAIN_ID.format(0))["text"].split(chr(10))
+    assert first.startswith("Recipe_Plate_C ->"), first
+    assert second.startswith("* Recipe_Plate_C ->"), second

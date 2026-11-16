@@ -242,21 +242,26 @@ function barSuffix(edge) {
 }
 
 function capacityText(edge) {
-  /* The server's carrier and saturated flag as a line suffix, or the empty string. */
+  /*
+    The server's figures as a line suffix: the smallest carrier that fits, and the whole
+    percent of the FASTEST carrier of the unit, each by the name the server gave it, so a
+    fitting carrier is never read as the one the percent is a share of. The percent is
+    printed as served and never capped: over 100 shows. Then the saturated flag.
+  */
   var text = "";
+  var hasPercent = Number.isInteger(edge.percent) && edge.percent >= 0;
+  var fastest = objectOrNull(edge.fastest);
   var capacity = objectOrNull(edge.capacity);
-  if (capacity && typeof capacity.carrier === "string") {
-    text += " carrier " + textOf(capacity.carrier) + " " + rateText(capacity.per_minute) + " per min";
+  if (hasPercent && fastest && typeof fastest.name === "string") {
+    var fits = capacity && typeof capacity.name === "string" ? textOf(capacity.name) : "none";
+    text += " fits " + fits + "; " + String(edge.percent) + "% of " + textOf(fastest.name);
+  } else if (hasPercent) {
+    text += " " + String(edge.percent) + "%";
   }
   if (edge.saturated === true) {
     text += " saturated";
   }
   return text;
-}
-
-function percentText(edge) {
-  /* The server's whole percent, printed as served and never capped: over 100 shows. */
-  return Number.isInteger(edge.percent) && edge.percent >= 0 ? " " + String(edge.percent) + "%" : "";
 }
 
 function unitText(edge) {
@@ -276,11 +281,10 @@ function linkLines(flow) {
     var link = objectOrNull(links[index]);
     if (link) {
       lines.push(
-        (link.marked === true ? "* " : "  ") + textOf(link.producer) + " -> " +
+        (link.marked === true ? "* " : "") + textOf(link.producer) + " -> " +
           textOf(link.consumer) + " " +
           textOf(link.item) + " " + rateText(link.width) + " " + unitText(link) +
-          " per min on " + textOf(link.transport) + barSuffix(link) + percentText(link) +
-          capacityText(link)
+          " per min on " + textOf(link.transport) + barSuffix(link) + capacityText(link)
       );
     }
   }
@@ -301,7 +305,7 @@ function flowLines(flow) {
         (edge.marked === true ? "* " : "  ") +
           textOf(edge.item) + " " + textOf(edge.role) + " " + rateText(edge.width) + " " +
           unitText(edge) + " per min on " + textOf(edge.transport) + " " +
-          barOf(edge.utilisation, FLOW_FULL_BAR) + percentText(edge) + capacityText(edge)
+          barOf(edge.utilisation, FLOW_FULL_BAR) + capacityText(edge)
       );
     }
   }

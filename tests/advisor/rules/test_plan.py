@@ -946,7 +946,7 @@ def test_adopt_tier3_names_the_bottleneck_and_its_utilisation() -> None:
     assert named[0].value == Fraction(3, 4)
     assert named[0].subject == (
         f"{LABEL_BOTTLENECK} {ORE_ITEM} from supply to {PLATE_STEP},"
-        " its share of the fastest known belt"
+        " its share of the fastest known belt, ConveyorBeltMk2"
     )
     lines = [line for line in card.tier3.splitlines() if LABEL_BOTTLENECK in line]
     assert len(lines) == 1
@@ -971,7 +971,7 @@ def test_adopt_names_the_first_row_of_greatest_utilisation_among_equals() -> Non
     named = [s for s in trace.steps if s.subject.startswith(LABEL_BOTTLENECK)]
     assert [s.subject for s in named] == [
         f"{LABEL_BOTTLENECK} {ORE_ITEM} from supply to {PLATE_STEP},"
-        " its share of the fastest known belt"
+        " its share of the fastest known belt, ConveyorBeltMk2"
     ]
 
 

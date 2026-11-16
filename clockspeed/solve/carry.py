@@ -62,8 +62,11 @@ class EdgeCarry:
         carrier: The ClassName of the smallest carrier whose rate holds the edge's rate, the
             first by ClassName among equals, or None when no single carrier holds it.
         carrier_per_minute: That carrier's published per-minute rate, or None with it.
+        carrier_name: ``carrier`` in short form (see :func:`_short_name`), or None with it.
         best_carrier: The ClassName of the fastest carrier of the unit, the first by
             ClassName among equals.
+        best_name: ``best_carrier`` in short form. ``utilisation`` and ``percent`` are shares
+            of THIS carrier, not of ``carrier``, so a surface names it beside the figure.
         best: That carrier's published per-minute rate, an exact Fraction above zero.
         utilisation: The edge's rate over ``best``, an exact unitless Fraction; above one when no
             single carrier holds the rate.
@@ -81,7 +84,9 @@ class EdgeCarry:
     unit: str
     carrier: str | None
     carrier_per_minute: Fraction | None
+    carrier_name: str | None
     best_carrier: str
+    best_name: str
     best: Fraction
     utilisation: Fraction
     percent: int
@@ -100,6 +105,24 @@ class CarryReport:
 
     rows: tuple[EdgeCarry, ...]
     bottleneck: int | None
+
+
+def _short_name(key: str) -> str:
+    """A carrier's ClassName without its ``Build_`` prefix and ``_C`` suffix.
+
+    Args:
+        key: The ClassName, e.g. ``Build_ConveyorBeltMk1_C``.
+
+    Returns:
+        ``ConveyorBeltMk1``. A part is dropped only when something remains, so a key that is
+        nothing but the affix stands as it is.
+    """
+    name = key
+    if name.startswith("Build_") and len(name) > len("Build_"):
+        name = name[len("Build_") :]
+    if name.endswith("_C") and len(name) > len("_C"):
+        name = name[: -len("_C")]
+    return name
 
 
 def _percent(utilisation: Fraction) -> int:
@@ -176,7 +199,9 @@ def carry_of(edges: Iterable[PlanEdge], transports: Mapping[str, Transport]) -> 
                 unit=edge.unit,
                 carrier=None if holds is None else holds[1],
                 carrier_per_minute=None if holds is None else holds[0],
+                carrier_name=None if holds is None else _short_name(holds[1]),
                 best_carrier=best_key,
+                best_name=_short_name(best_key),
                 best=best,
                 utilisation=utilisation,
                 percent=_percent(utilisation),
