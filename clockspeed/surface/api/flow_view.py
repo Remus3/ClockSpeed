@@ -198,10 +198,11 @@ def _figures(row: EdgeCarry | None) -> dict:
         row: The row, or None when nothing was recorded for the edge.
 
     Returns:
-        ``{"capacity", "utilisation", "saturated"}``, each transcribed from the row.
+        ``{"capacity", "utilisation", "percent", "saturated"}``, each transcribed from the
+        row. The percent is the carry's own display figure: this layer prints no quotient.
     """
     if row is None:
-        return {"capacity": None, "utilisation": None, "saturated": None}
+        return {"capacity": None, "utilisation": None, "percent": None, "saturated": None}
     capacity = (
         None
         if row.carrier is None or row.carrier_per_minute is None
@@ -213,6 +214,7 @@ def _figures(row: EdgeCarry | None) -> dict:
     return {
         "capacity": capacity,
         "utilisation": contract.rational(row.utilisation),
+        "percent": row.percent,
         "saturated": row.saturated,
     }
 
@@ -324,6 +326,7 @@ def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | N
             "role": _role_of(bottleneck),
             "unit": bottleneck.unit,
             "utilisation": contract.rational(bottleneck.utilisation),
+            "percent": bottleneck.percent,
             "reason": MARK_BOTTLENECK,
         }
     )

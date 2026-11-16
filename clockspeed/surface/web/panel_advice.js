@@ -198,7 +198,7 @@ function addGroup(parent, label, lines) {
 */
 var FLOW_BAR_CELLS = 20;
 var FLOW_BAR_CHAR = "#";
-var FLOW_CHAIN_HEADING = "chain, allocated not routed:";
+var FLOW_CHAIN_HEADING = "chain, allocated not routed";
 var FLOW_UNIT_UNKNOWN = "unknown";
 
 function rateText(rate) {
@@ -235,6 +235,12 @@ function barOf(width, widest) {
   return FLOW_BAR_CHAR.repeat(cells);
 }
 
+function barSuffix(edge) {
+  /* A space and the bar, or nothing when the edge has no utilisation to draw. */
+  var bar = barOf(edge.utilisation, FLOW_FULL_BAR);
+  return bar === "" ? "" : " " + bar;
+}
+
 function capacityText(edge) {
   /* The server's carrier and saturated flag as a line suffix, or the empty string. */
   var text = "";
@@ -248,14 +254,21 @@ function capacityText(edge) {
   return text;
 }
 
+function percentText(edge) {
+  /* The server's whole percent, printed as served and never capped: over 100 shows. */
+  return Number.isInteger(edge.percent) && edge.percent >= 0 ? " " + String(edge.percent) + "%" : "";
+}
+
 function unitText(edge) {
   /* The server's unit word, or unknown when the body carries none. */
   return typeof edge.unit === "string" && edge.unit !== "" ? textOf(edge.unit) : FLOW_UNIT_UNKNOWN;
 }
 
-function linkLines(links) {
-  /* The chain's internal links, one line each, under the allocation heading; none, none. */
+function linkLines(flow) {
+  /* The chain's internal links, one line each; none when the body carries none. */
   var lines = [];
+  var view = objectOrNull(flow);
+  var links = view ? view.links : null;
   if (!Array.isArray(links)) {
     return lines;
   }
@@ -266,11 +279,12 @@ function linkLines(links) {
         (link.marked === true ? "* " : "  ") + textOf(link.producer) + " -> " +
           textOf(link.consumer) + " " +
           textOf(link.item) + " " + rateText(link.width) + " " + unitText(link) +
-          " per min on " + textOf(link.transport) + capacityText(link)
+          " per min on " + textOf(link.transport) + barSuffix(link) + percentText(link) +
+          capacityText(link)
       );
     }
   }
-  return lines.length === 0 ? lines : [FLOW_CHAIN_HEADING].concat(lines);
+  return lines;
 }
 
 function flowLines(flow) {
@@ -287,11 +301,11 @@ function flowLines(flow) {
         (edge.marked === true ? "* " : "  ") +
           textOf(edge.item) + " " + textOf(edge.role) + " " + rateText(edge.width) + " " +
           unitText(edge) + " per min on " + textOf(edge.transport) + " " +
-          barOf(edge.utilisation, FLOW_FULL_BAR) + capacityText(edge)
+          barOf(edge.utilisation, FLOW_FULL_BAR) + percentText(edge) + capacityText(edge)
       );
     }
   }
-  return lines.length === 0 ? null : lines.concat(linkLines(view.links));
+  return lines.length === 0 ? null : lines;
 }
 
 function hasStar(lines) {
@@ -781,6 +795,15 @@ registerPanel("advice", function mountAdvice(root, data) {
     flowBox.setAttribute("role", "group");
     flowBox.setAttribute("aria-labelledby", flowLabel.id);
     flowBox.hidden = true;
+    /* CS-1360: the chain's internal links, under a heading of their own, hidden with them. */
+    var chainLabel = addLine(box, "p", "note advice-flow-label", FLOW_CHAIN_HEADING);
+    chainLabel.id = "advice-flow-chain-label-" + String(position);
+    chainLabel.hidden = true;
+    var chainBox = addLine(box, "pre", "advice-derivation", "");
+    chainBox.id = "advice-flow-links-" + String(position);
+    chainBox.setAttribute("role", "group");
+    chainBox.setAttribute("aria-labelledby", chainLabel.id);
+    chainBox.hidden = true;
     var flowLegend = addLine(box, "p", "note advice-flow-legend", FLOW_LEGEND_TEXT);
     flowLegend.id = "advice-flow-legend-" + String(position);
     flowLegend.hidden = true;
@@ -798,6 +821,9 @@ registerPanel("advice", function mountAdvice(root, data) {
         flowBox.textContent = "";
         flowBox.hidden = true;
         flowLabel.hidden = true;
+        chainBox.textContent = "";
+        chainBox.hidden = true;
+        chainLabel.hidden = true;
         flowLegend.hidden = true;
         say(refusal);
         return;
@@ -808,8 +834,13 @@ registerPanel("advice", function mountAdvice(root, data) {
       flowBox.textContent = flow === null ? "" : flow.join(String.fromCharCode(10));
       flowBox.hidden = flow === null;
       flowLabel.hidden = flow === null;
+      var chain = flow === null ? [] : linkLines(dataOf(outcome).flow);
+      chainBox.textContent = chain.join(String.fromCharCode(10));
+      chainBox.hidden = chain.length === 0;
+      chainLabel.hidden = chain.length === 0;
       /* The key to a star beside one, the reason there is none when there is none. */
-      flowLegend.textContent = flow !== null && hasStar(flow) ? FLOW_LEGEND_TEXT : FLOW_NO_MARK_TEXT;
+      flowLegend.textContent =
+        flow !== null && (hasStar(flow) || hasStar(chain)) ? FLOW_LEGEND_TEXT : FLOW_NO_MARK_TEXT;
       flowLegend.hidden = flow === null;
       say(READ_LINE);
     }

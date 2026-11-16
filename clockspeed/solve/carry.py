@@ -67,6 +67,10 @@ class EdgeCarry:
         best: That carrier's published per-minute rate, an exact Fraction above zero.
         utilisation: The edge's rate over ``best``, an exact unitless Fraction; above one when no
             single carrier holds the rate.
+        percent: ``utilisation`` times one hundred rounded to a whole number, HALF UP, on
+            the exact Fraction: the integer ``(2 * 100 * numerator + denominator) // (2 *
+            denominator)``. It exists so a surface can print the figure without computing it,
+            and it is NOT capped: above one hundred means no single carrier holds the rate.
         saturated: Whether ``utilisation`` is at least one.
     """
 
@@ -80,6 +84,7 @@ class EdgeCarry:
     best_carrier: str
     best: Fraction
     utilisation: Fraction
+    percent: int
     saturated: bool
 
 
@@ -95,6 +100,19 @@ class CarryReport:
 
     rows: tuple[EdgeCarry, ...]
     bottleneck: int | None
+
+
+def _percent(utilisation: Fraction) -> int:
+    """A utilisation as a whole percent, rounded half up on the exact Fraction.
+
+    Args:
+        utilisation: An exact non-negative Fraction.
+
+    Returns:
+        ``floor(utilisation * 100 + 1/2)`` by integer arithmetic alone.
+    """
+    scaled = utilisation.numerator * 100
+    return (2 * scaled + utilisation.denominator) // (2 * utilisation.denominator)
 
 
 def _rated(transports: Mapping[str, Transport]) -> dict[str, list[tuple[Fraction, str]]]:
@@ -161,6 +179,7 @@ def carry_of(edges: Iterable[PlanEdge], transports: Mapping[str, Transport]) -> 
                 best_carrier=best_key,
                 best=best,
                 utilisation=utilisation,
+                percent=_percent(utilisation),
                 saturated=utilisation >= 1,
             )
         )

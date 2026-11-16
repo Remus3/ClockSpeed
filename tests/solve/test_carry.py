@@ -200,6 +200,7 @@ def test_every_number_is_an_exact_fraction_and_an_inexact_one_is_refused() -> No
                 best_carrier=BELT1,
                 best=Fraction(1),
                 utilisation=0.5,  # type: ignore[arg-type]
+                percent=50,
                 saturated=False,
             ),
         ),
@@ -224,3 +225,28 @@ def test_the_module_source_has_no_float_literal_round_or_float_call() -> None:
     planted = ast.parse("x = 0.5")
     seen = next(n for n in ast.walk(planted) if isinstance(n, ast.Constant))
     assert type(seen.value) is float
+
+
+@pytest.mark.parametrize(
+    ("rate", "expected"),
+    [
+        (Fraction(3, 2) * 1200, 150),  # above one: the figure shows it, nothing caps it
+        (Fraction(1200), 100),
+        (Fraction(1199), 100),  # 99.9166..: rounds up
+        (Fraction(1194), 100),  # 99.5 exactly: half rounds UP
+        (Fraction(1193), 99),  # 99.4166..: rounds down
+        (Fraction(600), 50),
+        (Fraction(400), 33),  # 33.33..
+        (Fraction(1, 2), 0),  # 0.0416..%
+        (Fraction(6), 1),  # 0.5 exactly: half rounds UP
+        (Fraction(5), 0),  # 0.4166..%
+    ],
+)
+def test_the_display_percent_is_the_utilisation_rounded_half_up_exactly(
+    rate: Fraction, expected: int
+) -> None:
+    (row,) = carry.carry_of([_edge("Desc_Ore_C", rate)], FLEET).rows
+    assert type(row.percent) is int
+    assert row.percent == expected, (rate, row.utilisation)
+    # The percent is a presentation of the utilisation, which stays exact beside it.
+    assert row.utilisation == rate / Fraction(1200)
