@@ -29,7 +29,7 @@ for _dir in (ROOT, TOOLS_DIR):
 
 import drift_guard  # noqa: E402
 
-from clockspeed.data import locate  # noqa: E402
+from clockspeed.data import locate, version  # noqa: E402
 
 #: Synthetic build strings, never a real game build.
 PINNED: Final = "1.0.0.0-100"
@@ -81,8 +81,22 @@ def test_a_differing_build_writes_one_line_carrying_the_repin_command(handoff: P
     assert handoff.read_bytes().startswith(HANDOFF_TEXT)
 
 
-def test_the_default_command_is_the_public_one_guard_h_publishes() -> None:
-    assert _watch().repin_command() == drift_guard.RE_EXTRACT_COMMAND
+def test_the_default_command_is_the_pin_modules_public_one() -> None:
+    assert _watch().repin_command() == version.REGENERATE_COMMAND
+
+
+def test_the_pin_modules_command_is_the_one_guard_h_publishes() -> None:
+    """Two equal literals, bound here: the walk-visible tool reads only the pin module's."""
+    assert version.REGENERATE_COMMAND == drift_guard.RE_EXTRACT_COMMAND
+
+
+def test_the_public_command_survives_a_re_extract_of_the_generated_block() -> None:
+    """The name sits outside the BEGIN/END markers the rewriter replaces."""
+    source = Path(version.__file__).read_bytes().decode("ascii")
+    payload = version.extract_pin_block(source)
+    rewritten = version.rewrite_pin_source(source, {**payload, "game_build": "9.9.9.9-1"})
+    assert rewritten != source
+    assert "REGENERATE_COMMAND: Final = _REGENERATE_COMMAND" in rewritten.splitlines()
 
 
 def test_a_matching_build_writes_nothing(handoff: Path) -> None:

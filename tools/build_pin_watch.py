@@ -20,7 +20,7 @@ pair is REPLACED, never joined by a second.
 WHAT IT READS. The installed build comes through `scripts/verify_env.py`'s
 `read_build_string`, the reader guard (h) already uses - there is no second
 reader. The pin is `clockspeed.data.version.GAME_BUILD`. The re-pin command is
-the public one guard (h) publishes, `drift_guard.RE_EXTRACT_COMMAND`. Nothing
+the pin module's public `version.REGENERATE_COMMAND`. Nothing
 under the game install or the save directory is written, and no path is printed.
 
 NEVER FATAL. `run` swallows every fault and returns an outcome word, because the
@@ -59,10 +59,10 @@ _PRINTABLE: Final = frozenset(range(0x20, 0x7F))
 
 
 def repin_command() -> str:
-    """The re-pin command - guard (h)'s public one, never a second literal."""
-    import drift_guard  # noqa: PLC0415 - loaded on use, so importing this tool stays cheap
+    """The re-pin command - the pin module's public one, never a second literal."""
+    from clockspeed.data import version  # noqa: PLC0415 - loaded on use
 
-    command: str = drift_guard.RE_EXTRACT_COMMAND
+    command: str = version.REGENERATE_COMMAND
     return command
 
 

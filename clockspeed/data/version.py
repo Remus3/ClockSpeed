@@ -72,6 +72,7 @@ __all__ = [
     "OVERCLOCK_POTENTIAL_SHARD_SLOTS",
     "PIN_BEGIN_MARKER",
     "PIN_END_MARKER",
+    "REGENERATE_COMMAND",
     "SCHEMA",
     "PinError",
     "PinFormatError",
@@ -248,6 +249,11 @@ PIN_BEGIN_MARKER: Final = "# --- BEGIN GENERATED PIN ---"
 PIN_END_MARKER: Final = "# --- END GENERATED PIN ---"
 
 _REGENERATE_COMMAND: Final = "python tools/drift_guard.py --re-extract"
+
+#: The public name of the re-pin command, for a reader outside this module (the
+#: CS-1390 build-pin watch). Kept OUTSIDE the generated block, which a re-extract
+#: rewrites; `tests/test_build_pin_watch.py` binds it to guard (h)'s own literal.
+REGENERATE_COMMAND: Final = _REGENERATE_COMMAND
 
 # --- BEGIN GENERATED PIN ---
 # Generated from the live install. Do not hand-edit: every field below is

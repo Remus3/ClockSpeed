@@ -77,7 +77,8 @@ SENDER_STEMS: Final = frozenset({"outbound_send", "outbound_gate"})
 #: THE ALLOWLIST, per the four-denylists lesson. A `tools/` module reached from
 #: any lane module must be argued into this set, so a FUTURE sender under a name
 #: nobody thought to deny is red by default rather than green by omission.
-LANE_TOOLS_ALLOWED: Final = frozenset({"toolpath", "inbox_watch"})
+# "build_pin_watch" (CS-1390): the responder's one build-pin check, reaching no sender.
+LANE_TOOLS_ALLOWED: Final = frozenset({"toolpath", "inbox_watch", "build_pin_watch"})
 
 #: The watcher's READ API - the only attributes of it the surface may touch.
 #: Also an allowlist: `save_seen`, `write_report`, `capped`, `render`, `main`
