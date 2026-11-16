@@ -43,11 +43,13 @@ from __future__ import annotations
 
 import ast
 import errno
+import importlib.metadata
 import importlib.util
 import json
 import os
 import platform
 import sys
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
@@ -1658,3 +1660,250 @@ def test_the_missing_plugin_is_named_in_the_soft_line_and_not_the_verdict(
         " HARD in effect whatever its scope column says"
     )
     assert code == 0, f"the printed verdict and the exit code {code} disagree"
+
+
+# ---------------------------------------------------------------------------
+# CS-484 - the INSTALLED ruff against the range pyproject.toml DECLARES
+# ---------------------------------------------------------------------------
+#
+# THE FIFTH SUBJECT IN THIS FILE. Nothing compared the installed ruff to the
+# declared bound: this script asserted only that ruff imports, the dependency
+# bounds test grades the declared string, and CI installs the dev extra and so
+# resolves in range and can never see the skew. A 2026-11-05 install of an
+# out-of-range ruff sat unnoticed for a week and blocked every push.
+#
+# THE DECLARED RANGE IS WRITTEN INTO A TEMPORARY pyproject.toml IN EVERY ARM,
+# and the installed version is injected at importlib.metadata.version, the one
+# call the script reads it through. No version number is read off this machine
+# and none is compared against a copy of the real range, so these arms cannot
+# agree with the script by sharing a stale constant.
+
+RUFF_RANGE_ROW_NAME = "ruff within declared range"
+RUFF_DECLARED_RANGE = ">=0.13,<0.16"
+
+_REAL_METADATA_VERSION = importlib.metadata.version
+
+
+def write_declared_range(root: Path, specifier: str | None) -> None:
+    """Write a minimal pyproject.toml declaring ruff at ``specifier``.
+
+    Args:
+        root: The checkout root.
+        specifier: The bound text after the name, or None to declare no ruff.
+    """
+    other = '"pytest>=8"'
+    entries = other if specifier is None else f'{other}, "ruff{specifier}"'
+    text = f"[project]\nname = 'synthetic'\n\n[project.optional-dependencies]\ndev = [{entries}]\n"
+    (root / "pyproject.toml").write_bytes(text.encode("ascii"))
+
+
+def inject_installed_ruff(monkeypatch: pytest.MonkeyPatch, installed: str | None) -> None:
+    """Make importlib.metadata answer ``installed`` for ruff and nothing else.
+
+    Args:
+        monkeypatch: The patcher, scoped to the calling test.
+        installed: The version to report, or None for a distribution that is
+            not installed at all.
+    """
+
+    def version(name: str) -> str:
+        if name.lower() != "ruff":
+            return _REAL_METADATA_VERSION(name)
+        if installed is None:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return installed
+
+    monkeypatch.setattr(importlib.metadata, "version", version)
+
+
+def ruff_range_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    installed: str | None,
+    declared: str | None = RUFF_DECLARED_RANGE,
+    checkout_name: str = "range",
+) -> tuple[Path, dict]:
+    """Collect the rows for one installed-versus-declared scenario.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        monkeypatch: The patcher, scoped to the calling test.
+        installed: The ruff version importlib.metadata reports, or None.
+        declared: The bound pyproject.toml declares, or None for no ruff entry.
+        checkout_name: The checkout directory name.
+
+    Returns:
+        The checkout root, and the single row the arm grades.
+    """
+    root = parallel_lane_checkout(
+        tmp_path, monkeypatch, importable=set(MODULE_BACKED_TOOLS), checkout_name=checkout_name
+    )
+    write_declared_range(root, declared)
+    inject_installed_ruff(monkeypatch, installed)
+    rows, _port_rows, _facts = verify_env.collect_rows(root)
+    matching = [entry for entry in rows if entry["name"] == RUFF_RANGE_ROW_NAME]
+    assert len(matching) == 1, (
+        f"expected exactly one row named {RUFF_RANGE_ROW_NAME}, found {len(matching)}; "
+        "nothing compares the installed ruff to the declared bound"
+    )
+    row: dict = matching[0]
+    return root, row
+
+
+def test_an_installed_ruff_inside_the_declared_range_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE POSITIVE CONTROL: in range reads FOUND, HARD, and names both sides."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed="0.15.22")
+
+    assert row["ok"] is True, "an in-range ruff was reported out of range"
+    assert row["scope"] == "HARD", "the range row stopped being a HARD dependency"
+    assert "0.15.22" in row["value"], "the row does not name the installed version"
+    assert RUFF_DECLARED_RANGE in row["value"], "the row does not name the declared range"
+
+
+def test_an_installed_ruff_above_the_upper_bound_fails_naming_both(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The measured 2026-11-05 shape: a newer ruff than the declared bound allows."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed="0.17.3")
+
+    assert row["ok"] is False, "an out-of-range ruff was reported in range"
+    assert row["scope"] == "HARD"
+    assert "0.17.3" in row["value"], "the failure does not name the installed version"
+    assert "<0.16" in row["value"], "the failure does not name the bound that was crossed"
+
+
+def test_an_installed_ruff_below_the_floor_fails_naming_both(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other direction: an old ruff is as unreproducible as a new one."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed="0.12.9")
+
+    assert row["ok"] is False, "a ruff below the floor was reported in range"
+    assert "0.12.9" in row["value"]
+    assert ">=0.13" in row["value"], "the failure does not name the floor"
+
+
+@pytest.mark.parametrize(
+    ("installed", "expected_ok"),
+    [("0.13", True), ("0.13.0", True), ("0.15.99", True), ("0.16", False), ("0.16.0", False)],
+)
+def test_the_bounds_are_inclusive_below_and_exclusive_above(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, installed: str, expected_ok: bool
+) -> None:
+    """The edges, including a version spelled with fewer components than the bound."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed=installed)
+
+    assert row["ok"] is expected_ok, f"{installed} graded the wrong way at a bound"
+
+
+def test_the_range_is_read_from_pyproject_and_not_hard_coded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Move the declared range and the verdict for ONE installed version flips."""
+    _root, old = ruff_range_row(
+        tmp_path, monkeypatch, installed="0.15.22", declared=">=0.13,<0.16", checkout_name="old"
+    )
+    _root, moved = ruff_range_row(
+        tmp_path, monkeypatch, installed="0.15.22", declared=">=0.20,<0.21", checkout_name="moved"
+    )
+
+    assert old["ok"] is True, "the control did not pass, so the flip below proves nothing"
+    assert moved["ok"] is False, "the verdict ignored the declared range - it is hard-coded"
+    assert ">=0.20" in moved["value"], "the failure names a bound pyproject.toml does not declare"
+
+
+def test_an_out_of_range_ruff_fails_the_run_and_the_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """HARD MEANS THE EXIT CODE, with the in-range run as the control."""
+    _root, control = ruff_range_row(
+        tmp_path, monkeypatch, installed="0.15.22", checkout_name="control"
+    )
+    assert control["ok"] is True, "the control is out of range, so the 1 below is not the row"
+    control_code = verify_env.main([])
+    capsys.readouterr()
+
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed="0.17.3", checkout_name="skew")
+    assert row["ok"] is False
+    code = verify_env.main([])
+    rendered = capsys.readouterr().out
+    named_in_verdict = RUFF_RANGE_ROW_NAME in next(
+        (line for line in rendered.splitlines() if line.startswith("VERDICT")), ""
+    )
+
+    assert control_code == 0, f"the in-range control exited {control_code}"
+    assert code == 1, f"an out-of-range ruff exited {code}, so the row is not binding"
+    assert named_in_verdict, "the VERDICT line does not name the failing range row"
+
+
+def test_an_absent_ruff_is_flagged_and_does_not_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Not installed is a reported state, never a PackageNotFoundError out of the table."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed=None)
+
+    assert row["ok"] is False, "an absent ruff was reported inside the range"
+    assert "not installed" in row["value"], "the row does not say ruff is absent"
+    assert RUFF_DECLARED_RANGE in row["value"], "the row hides the range that is unmet"
+
+
+def test_an_unreadable_installed_version_is_flagged_and_does_not_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A version string the comparison cannot parse is UNVERIFIED, never a guess."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed="not-a-version")
+
+    assert row["ok"] is False, "an unparseable version was reported inside the range"
+    assert row["scope"] == "SOFT", "an UNVERIFIED comparison must not read as a HARD failure"
+
+
+@pytest.mark.parametrize("declared", [None, ">=0.13,~~0.16", ">=0.13,<0.16.*"])
+def test_an_undeclared_or_unparseable_bound_is_flagged_and_does_not_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, declared: str | None
+) -> None:
+    """No ruff entry, or an operator the parser does not know, is UNVERIFIED."""
+    _root, row = ruff_range_row(tmp_path, monkeypatch, installed="0.15.22", declared=declared)
+
+    assert row["ok"] is False, "an unevaluable range was reported as met"
+    assert row["scope"] == "SOFT", "an UNVERIFIED comparison must not read as a HARD failure"
+
+
+def test_a_missing_pyproject_is_flagged_and_does_not_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A checkout with no pyproject.toml at all is reported, not raised."""
+    root, _row = ruff_range_row(tmp_path, monkeypatch, installed="0.15.22")
+    (root / "pyproject.toml").unlink()
+
+    rows, _port_rows, _facts = verify_env.collect_rows(root)
+    row = next(entry for entry in rows if entry["name"] == RUFF_RANGE_ROW_NAME)
+
+    assert row["ok"] is False
+    assert row["scope"] == "SOFT"
+
+
+def test_the_range_row_prints_no_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-negotiable 12: the row carries two versions and a bound, and no location."""
+    root, row = ruff_range_row(
+        tmp_path, monkeypatch, installed="0.17.3", checkout_name=SYNTHETIC_HOME_SEGMENT
+    )
+
+    leaked = str(tmp_path) in row["value"] or root.name in row["value"] + row["note"]
+    assert not leaked, "the range row rendered the checkout location"
+
+
+def test_the_declared_specifier_comes_from_the_dev_extra_of_the_real_pyproject() -> None:
+    """The reader agrees with an independent tomllib scan of THIS tree's pyproject."""
+    parsed = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    dev = parsed["project"]["optional-dependencies"]["dev"]
+    declared = [entry for entry in dev if entry.replace(" ", "").startswith("ruff")]
+    assert len(declared) == 1, "the dev extra no longer declares exactly one ruff entry"
+
+    read = verify_env.declared_specifier(parsed, "ruff")
+
+    assert read is not None, "the reader found no ruff bound in this tree's pyproject.toml"
+    assert declared[0].replace(" ", "") == "ruff" + read.replace(" ", ""), (
+        "the reader's specifier does not match what pyproject.toml declares"
+    )

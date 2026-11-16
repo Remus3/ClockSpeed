@@ -40,6 +40,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import os
 import re
@@ -1004,6 +1005,215 @@ def ladder_row(root: Path, env: dict[str, str] | None = None) -> dict:
     return _grade_ladder(ran)
 
 
+# --- CS-484: the INSTALLED version against the DECLARED range -----------------
+#
+# THE LASTING FINDING OF CS-484. The rows above prove ruff IMPORTS under the
+# interpreter that runs the gates; none asks whether it is the version
+# pyproject.toml declares. CI installs the dev extra, resolves inside the range
+# and so can never see a machine that drifted, and `pip install -U ruff` puts an
+# out-of-range linter back silently - which once blocked every push for a week.
+#
+# NO VERSION NUMBER IS WRITTEN HERE. The range is read from pyproject.toml at
+# run time, the installed version from the interpreter running this script, so
+# the two cannot drift from the file that owns them.
+#
+# THE SPECIFIER PARSER IS MINIMAL ON PURPOSE. This script runs in a fresh clone
+# before anything is installed (see the sys.path note at the top), so it cannot
+# lean on `packaging`. It speaks the plain release-number operators and refuses
+# the rest: an operator, wildcard or pre-release it cannot evaluate yields an
+# UNVERIFIED SOFT row, never a guess and never a crash.
+
+RANGE_DISTRIBUTION = "ruff"
+RANGE_ROW_SUFFIX = "within declared range"
+PYPROJECT_NAME = "pyproject.toml"
+RANGE_INSTALL_ADVICE = 'python -m pip install -e ".[dev]"'
+
+_REQUIREMENT_RE = re.compile(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*([^;]*)")
+_CLAUSE_RE = re.compile(r"(>=|<=|==|!=|>|<)(\d+(?:\.\d+)*)")
+_RELEASE_RE = re.compile(r"\d+(?:\.\d+)*")
+_NAME_FOLD_RE = re.compile(r"[-_.]+")
+
+
+def _release(text: str) -> tuple[int, ...] | None:
+    """Parse a plain release number such as ``0.15.22``, or None for anything else."""
+    stripped = text.strip()
+    if not _RELEASE_RE.fullmatch(stripped):
+        return None
+    return tuple(int(part) for part in stripped.split("."))
+
+
+def _padded(left: tuple[int, ...], right: tuple[int, ...]) -> tuple[tuple[int, ...], ...]:
+    """Zero-pad two releases to one length, so ``0.16`` and ``0.16.0`` compare equal."""
+    width = max(len(left), len(right))
+    return left + (0,) * (width - len(left)), right + (0,) * (width - len(right))
+
+
+def _requirement_strings(parsed: dict) -> list[str]:
+    """Every requirement string the project declares, in any table that holds them."""
+    project = parsed.get("project") or {}
+    found: list[object] = list(project.get("dependencies") or [])
+    for table in (project.get("optional-dependencies") or {}).values():
+        found.extend(table or [])
+    for table in (parsed.get("dependency-groups") or {}).values():
+        found.extend(table or [])
+    return [entry for entry in found if isinstance(entry, str)]
+
+
+def declared_specifier(parsed: dict, name: str) -> str | None:
+    """Return the version bound pyproject.toml declares for ``name``, or None.
+
+    Args:
+        parsed: The parsed pyproject.toml.
+        name: The distribution name.
+
+    Returns:
+        The bound with its whitespace removed (``>=0.13,<0.16``), possibly empty
+        when the distribution is named with no bound, or None when it is not
+        declared at all. A name declared in several places has every bound
+        applied together.
+    """
+    wanted = _NAME_FOLD_RE.sub("-", name).lower()
+    bounds: list[str] = []
+    seen = False
+    for entry in _requirement_strings(parsed):
+        match = _REQUIREMENT_RE.match(entry)
+        if match is None or _NAME_FOLD_RE.sub("-", match.group(1)).lower() != wanted:
+            continue
+        seen = True
+        bound = "".join(match.group(2).split())
+        if bound:
+            bounds.append(bound)
+    return ",".join(bounds) if seen else None
+
+
+def _clauses(specifier: str) -> list[tuple[str, tuple[int, ...]]] | None:
+    """Parse ``>=0.13,<0.16`` into (operator, release) pairs, or None if it cannot."""
+    clauses: list[tuple[str, tuple[int, ...]]] = []
+    for text in filter(None, specifier.split(",")):
+        match = _CLAUSE_RE.fullmatch(text)
+        if match is None:
+            return None
+        release = _release(match.group(2))
+        if release is None:
+            return None
+        clauses.append((match.group(1), release))
+    return clauses
+
+
+def _satisfies(installed: tuple[int, ...], clauses: list[tuple[str, tuple[int, ...]]]) -> bool:
+    """Whether a release meets every clause."""
+    for operator, bound in clauses:
+        have, want = _padded(installed, bound)
+        met = {
+            ">=": have >= want,
+            "<=": have <= want,
+            ">": have > want,
+            "<": have < want,
+            "==": have == want,
+            "!=": have != want,
+        }[operator]
+        if not met:
+            return False
+    return True
+
+
+def _installed_version(distribution: str) -> str | None:
+    """Read the installed version from the interpreter running this script."""
+    try:
+        return importlib.metadata.version(distribution)
+    except (importlib.metadata.PackageNotFoundError, OSError, ValueError):
+        return None
+
+
+def _range_unverified(name: str, value: str) -> dict:
+    """SOFT: the comparison could not be made, which is not the same as it failing."""
+    return _row(
+        "SOFT",
+        name,
+        False,
+        value,
+        "the installed version is UNVERIFIED against the declared range - compare it by hand",
+    )
+
+
+def _read_declared_bound(root: Path, distribution: str) -> tuple[str | None, str]:
+    """Read the bound pyproject.toml declares, or say why it cannot be read.
+
+    Returns:
+        ``(bound, "")``, or ``(None, reason)``. The reason never carries a path.
+    """
+    try:
+        # PLC0415: tomllib arrived in 3.11. This script runs in a fresh clone on
+        # whatever interpreter is first on PATH, possibly below MIN_PYTHON, and a
+        # top-level import would kill it before it could print that very row.
+        import tomllib  # noqa: PLC0415
+    except ImportError:
+        return None, "this interpreter has no tomllib to read pyproject.toml"
+    try:
+        parsed = tomllib.loads((root / PYPROJECT_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, f"{PYPROJECT_NAME} unreadable: {_exc_reason(exc)}"
+    bound = declared_specifier(parsed, distribution)
+    if bound is None:
+        return None, f"{PYPROJECT_NAME} declares no {distribution} entry"
+    return bound, ""
+
+
+def declared_range_row(root: Path, distribution: str = RANGE_DISTRIBUTION) -> dict:
+    """Grade the installed ``distribution`` against the range pyproject.toml declares.
+
+    HARD when the comparison can be made and fails, or the tool is absent; SOFT
+    and UNVERIFIED when it cannot be made at all, because an undetermined
+    comparison is not evidence the install is wrong.
+
+    Nothing printed carries a path or an environment value: the row holds two
+    versions and a bound.
+
+    Args:
+        root: The repository root whose pyproject.toml declares the range.
+        distribution: The distribution to grade.
+
+    Returns:
+        One dependency row.
+    """
+    name = f"{distribution} {RANGE_ROW_SUFFIX}"
+    bound, reason = _read_declared_bound(root, distribution)
+    if bound is None:
+        return _range_unverified(name, reason)
+    clauses = _clauses(bound)
+    if clauses is None:
+        return _range_unverified(
+            name, f"cannot evaluate the declared bound {distribution}{bound} (unsupported syntax)"
+        )
+
+    installed = _installed_version(distribution)
+    if installed is None:
+        return _row(
+            "HARD",
+            name,
+            False,
+            f"{distribution} not installed in the interpreter running this script "
+            f"(declared {distribution}{bound})",
+            f"install the toolchain into this interpreter: {RANGE_INSTALL_ADVICE}",
+        )
+    release = _release(installed)
+    if release is None:
+        return _range_unverified(
+            name, f"installed {distribution} version is not a plain release number"
+        )
+
+    if _satisfies(release, clauses):
+        return _row("HARD", name, True, f"{installed} satisfies the declared {distribution}{bound}")
+    return _row(
+        "HARD",
+        name,
+        False,
+        f"{installed} is outside the declared {distribution}{bound}",
+        "the local gate does not reproduce CI on this version. Install the declared range "
+        f'into this interpreter: python -m pip install "{distribution}{bound}"',
+    )
+
+
 def _hard_rows(root: Path, facts: dict) -> list[dict]:
     version = ".".join(str(part) for part in sys.version_info[:3])
     minimum = ".".join(str(part) for part in MIN_PYTHON)
@@ -1118,6 +1328,9 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
     )
 
     rows.extend(_module_backed_tool_row("HARD", name) for name in ("pytest", "ruff"))
+
+    # CS-484: ruff importing is not ruff being the version the repo declares.
+    rows.append(declared_range_row(root))
 
     # CS-818: the rows above grade THIS interpreter; this one proves it is the
     # interpreter the hooks will actually gate under.
