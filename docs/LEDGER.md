@@ -75,6 +75,47 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-1401 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1401 STAYS OPEN: session 158 /done - every closed item's record reads present, CS-1401 is the next product action, and the CS-1362 record's scope pointer is corrected here
+Verification: `docs/item_notes/phase5.md`, the CS-1401 section and its acceptance; `CS-NEXT-SESSION.txt`, its
+next-action and open-items blocks. This record closes nothing, so no test names one; the heading names the item the
+hand-off makes the next product action.
+SCOPE. The session 158 /done, run by one sub-agent after the advisor-ranking lane driver had exited (2 of 2 cycles,
+stopped by its cycle count) and with no other agent live: every progress file but this ritual's read done.
+STEP 0: start 2026-11-16T15:34:12-06:00. WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0 with two
+SHAs (not a merge); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit 0, four paths, not the citation
+historical file. Porcelain empty. HEAD equal to the remote by full SHA at the start. No note was authored into the
+outbox this session, so none was owed a delivery read. Closed this session, each with its own record read present
+below and none duplicated: the lane's two landings, CS-1247 and CS-1253, confirmed; then CS-1400, CS-1394, the
+CS-1395, CS-1360, CS-1390 and CS-484 closes; and CS-1362 gated as CS-G11 by its own NOT A COMPLETION record.
+Highest tier touched: 2.
+STEP 1, tier 2, from the repo root, each run once on the .venv interpreter, no whole suite: `python -m mypy` exit 0,
+488 source files; `python -m ruff check .` exit 0; `python -m ruff format --check .` exit 0, 471 files; `python -m
+pytest tests/advisor tests/data tests/solve tests/surface tests/ops tests/test_build_pin_watch.py
+tests/test_verify_env.py tests/test_citation_tables.py -q -n 0 -p no:cacheprovider` with CLOCKSPEED_PYTHON on the
+.venv interpreter, exit 0, 7149 passed, 0 failed, 1 skipped, 411.93 s serial, every path read present first. The
+skip is `tests/ops/test_headless_route.py::test_off_windows_the_store_is_unreadable`, the off-Windows twin of a
+Windows arm that ran.
+STEP 2: this record; the nine session 158 records below read present. CORRECTION to the 2026-11-16 CS-1362
+record: it cites `config/lane_scopes.json` as keeping CS-1362 in the product-slices scope's excluded list, and the
+close of CS-1360 later removed that scope whole, so no scope names CS-1362. Nothing is exposed by it: lanes claim
+only the ids a scope lists, and CS-1362 is out of `ROADMAP.md` under CS-G11. STEP 3: `ROADMAP.md`, `docs/GATED.md`
+and the item leaves read right: none of the nine ids has a ROADMAP line or a leaf section, CS-1362 sits under
+CS-G11, and CS-1401 is filed with its section. No new id was allocated at this ritual. STEP 4: session 158 added to
+`WAKEUP_NOTES.md`; session 155 relocated verbatim to `docs/history_notes.md`.
+STEP 5, after every ritual edit: `python tools/drift_guard.py` exit 0 (guards 11, PASS 11); `python tools/doc_budget.py`
+exit 0 (measured 41, over budget 0); `python tools/memory_sync.py` exit 0, its one frontmatter finding the one the
+session 156 hand-off holds; `python tools/sha_citation_gate.py` exit 0. TARGETED, no whole suite: one serial pytest
+run over 30 test files that read the edited records, every path read present first (`tests/test_citation_tables.py`,
+`tests/test_ledger_entry_shape.py`, `tests/test_dated_headings.py`, `tests/test_docs_citations.py`,
+`tests/test_done_ritual_arms.py` and `tests/test_build_pin_watch.py` among them): exit 0, 4426 passed, 0 failed, 0
+skipped, 710.1 s.
+STEP 6: the hand-off rewritten whole, `SESSION: 159`. REAP, `python ops/fleet_kit/fleet_done.py reap --apply` exit 0:
+7 removed, 4 kept, 4 listed, base main; every removed tree's branch kept as not merged by ancestry; three trees kept
+because their owner process was alive; the four listed trees hold 8 commits not on main by patch. ARCHIVE, `python ops/fleet_kit/fleet_done.py archive --auto` exit 0: archive skipped, the
+hand-off under 27648 B, so no block relocated and S0 RULING 3 stays carried. Host
+RAM read once after step 1: 22.5 of 31.6 GB free against CS-1334's 24 GB gate, so the walk did not launch. No licence
+gate applies. No spike contradicted `BOOTSTRAP.md`.
+
 ### 2026-11-16 - CS-1390 - CLOSED: the day the installed game build differs from the pin, the inbox responder's tick writes one hand-off line carrying the re-pin command, not the next push
 Verification: `tools/build_pin_watch.py` (`check`, `upsert`, `repin_line`, `installed_build`, `repin_command`,
 `default_claimed`, `run`, `MARKER`), which reads the installed build through `scripts/verify_env.py`'s

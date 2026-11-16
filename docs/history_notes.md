@@ -7774,6 +7774,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 155 - archived 2026-11-16 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 155 - 2026-11-04 - a stated target reaches plan.adopt on a real world; eight items closed, and the operator's /done stopped CS-1379 and CS-1382 built and unlanded
+
+- Shipped: CS-1350, CS-1351, CS-1370, CS-1359, CS-1344, CS-1372, CS-1371, CS-1380 closed; the bound.py byproduct docstring corrected; two decision records, CS-1344 clause 2 and CS-1295's nine findings; two notes to MAIN, 1 of 1 each. Detail in docs/LEDGER.md.
+- In flight: CS-1379 and CS-1382 are built on one kept local worktree branch, each with an adversary's refutation unrepaired, unlanded: `git log --all --grep=CS-1382` finds it, and each item's section in docs/item_notes/phase5.md says what is owed. CS-1334 waits on host RAM, 21.7 of 31.6 GB free at this /done against its 24 GB gate. CS-1295 stays open with its result ANSWER owed to MAIN. The lanes stay held by MAIN's 1535 and 2006 ORDERS, though the machine quiesce reads lifted with no MAIN note saying so.
+- Decisions: no ADR. The rulings are in docs/LEDGER.md and the item sections. CS-1380 landed on its adversary pass and a verifier that stopped at its budget, with no adjudicator on the built item, because the operator's /done came first.
+- Surprises: a parent agent's completion notice waits on its live children, and one straggling adversary hid a finished report for 8.5 hours. A read-back in a sent note read a path no run claims, so the note went out wrong and a correction followed. The carried hand-off called nine CS-1295 findings operator-needing, and a reader and an adjudicator found none is. The hand-off's CS-1359 evidence run was a workflow_dispatch, not nightly. No spike contradicted BOOTSTRAP.md.
+- Failed paths: CS-1379's ClassName fallback for undelimited names was refuted in the opposite direction, since `A, B` then reads its ClassName; the next attempt rules on quoting the name. CS-1382's ruled (1, 0) raw-supply count was reversed by its own real-world clause: 7 early-world targets went false route-refused.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then rule CS-1379's naming, land it, and repair CS-1382's F1.
+
 ## Session 154 - archived 2026-11-15 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 154 - 2026-11-01 - MAIN's closeout drive before the operator's reboot: both Fleet Insights ORDERS landed, no product slice
