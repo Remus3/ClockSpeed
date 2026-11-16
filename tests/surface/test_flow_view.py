@@ -179,12 +179,13 @@ def test_the_marked_edge_is_the_maximum_rate_compared_exactly() -> None:
     # 25/3 is the greatest; 8333/1000 is a float-close neighbour that a float or a
     # serialised comparison could tie with or swap, and an exact one cannot.
     plan = _plan(raw_inputs={"Desc_Ore_C": Fraction(25, 3), "Desc_Near_C": Fraction(8333, 1000)})
-    view = _view(plan)
+    view = _view(plan, {"Desc_Ore_C": SOLID, "Desc_Near_C": SOLID, "Desc_Zeta_C": SOLID})
     marked = [edge for edge in view["edges"] if edge["marked"]]
     assert [(e["item"], e["role"]) for e in marked] == [("Desc_Ore_C", "raw-input")]
     assert view["marked_edge"] == {
         "item": "Desc_Ore_C",
         "role": "raw-input",
+        "unit": flow_view.UNIT_ITEM,
         "reason": flow_view.MARK_HIGHEST_RATE,
     }
     assert flow_view.MARK_HIGHEST_RATE == "highest-rate"
@@ -196,14 +197,159 @@ def test_a_tie_marks_the_first_edge_in_published_order_and_only_one() -> None:
         targets={"Desc_A_C": Fraction(4, 3)},
         byproducts={"Desc_C_C": Fraction(4, 3)},
     )
-    view = _view(plan)
+    view = _view(plan, {"Desc_A_C": SOLID, "Desc_B_C": SOLID, "Desc_C_C": SOLID})
     marked = [(e["role"], e["item"]) for e in view["edges"] if e["marked"] is True]
     assert marked == [("raw-input", "Desc_B_C")]
     assert view["marked_edge"] == {
         "item": "Desc_B_C",
         "role": "raw-input",
+        "unit": flow_view.UNIT_ITEM,
         "reason": flow_view.MARK_HIGHEST_RATE,
     }
+
+
+# ---------------------------------------------------------------------------
+# the mark is taken within one unit (CS-1360 gap 1, ruling Q6)
+# ---------------------------------------------------------------------------
+
+
+def _marked(view: Mapping[str, object]) -> list[tuple[str, str]]:
+    edges = view["edges"]
+    assert isinstance(edges, list)
+    return [(e["role"], e["item"]) for e in edges if e["marked"] is True]
+
+
+def test_a_fluid_edge_never_outranks_a_solid_edge_across_units() -> None:
+    # A fluid byproduct is 5 cubic metres a minute, a solid target 1/3 of an item a
+    # minute: 5 > 1/3 numerically, and the two are not the same unit.
+    plan = _plan(
+        raw_inputs={},
+        targets={"Desc_Plate_C": Fraction(1, 3)},
+        byproducts={"Desc_Water_C": Fraction(5)},
+    )
+    view = _view(plan, {"Desc_Plate_C": SOLID, "Desc_Water_C": LIQUID})
+    assert _marked(view) == [("target", "Desc_Plate_C")]
+    assert view["marked_edge"] == {
+        "item": "Desc_Plate_C",
+        "role": "target",
+        "unit": "item",
+        "reason": flow_view.MARK_HIGHEST_RATE,
+    }
+
+
+def test_a_solid_larger_than_every_fluid_is_marked() -> None:
+    plan = _plan(
+        raw_inputs={"Desc_Ore_C": Fraction(25, 3)},
+        targets={"Desc_Plate_C": Fraction(1, 3)},
+        byproducts={"Desc_Water_C": Fraction(2, 3)},
+    )
+    view = _view(plan, {"Desc_Ore_C": SOLID, "Desc_Plate_C": SOLID, "Desc_Water_C": GAS})
+    assert _marked(view) == [("raw-input", "Desc_Ore_C")]
+
+
+def test_a_plan_of_fluids_only_marks_the_largest_fluid_in_cubic_metres() -> None:
+    plan = _plan(
+        raw_inputs={"Desc_Water_C": Fraction(2, 3)},
+        targets={"Desc_Acid_C": Fraction(10, 3)},
+        byproducts={"Desc_Gas_C": Fraction(5, 2)},
+    )
+    forms = {"Desc_Water_C": LIQUID, "Desc_Acid_C": LIQUID, "Desc_Gas_C": GAS}
+    view = _view(plan, forms)
+    assert _marked(view) == [("target", "Desc_Acid_C")]
+    assert view["marked_edge"] == {
+        "item": "Desc_Acid_C",
+        "role": "target",
+        "unit": flow_view.UNIT_VOLUME,
+        "reason": flow_view.MARK_HIGHEST_RATE,
+    }
+    assert flow_view.UNIT_VOLUME == "m3"
+
+
+def test_a_plan_of_solids_only_marks_the_largest_solid_in_items() -> None:
+    plan = _plan(
+        raw_inputs={"Desc_Ore_C": Fraction(2, 3)},
+        targets={"Desc_Plate_C": Fraction(10, 3)},
+        byproducts={"Desc_Slag_C": Fraction(5, 2)},
+    )
+    forms = {"Desc_Ore_C": SOLID, "Desc_Plate_C": SOLID, "Desc_Slag_C": SOLID}
+    view = _view(plan, forms)
+    assert _marked(view) == [("target", "Desc_Plate_C")]
+    assert {e["unit"] for e in view["edges"]} == {"item"}
+
+
+def test_an_unknown_unit_edge_is_never_marked_however_large() -> None:
+    plan = _plan(
+        raw_inputs={"Desc_Mystery_C": Fraction(900)},
+        targets={"Desc_Plate_C": Fraction(1, 3)},
+        byproducts={"Desc_Blank_C": Fraction(800), "Desc_Water_C": Fraction(700)},
+    )
+    forms = {"Desc_Plate_C": SOLID, "Desc_Blank_C": "", "Desc_Water_C": LIQUID}
+    view = _view(plan, forms)
+    assert _marked(view) == [("target", "Desc_Plate_C")]
+    # With no solid at all the largest KNOWN-unit edge, a fluid, is the one marked.
+    fluid_only = _view(plan, {"Desc_Water_C": LIQUID, "Desc_Blank_C": INVALID})
+    assert _marked(fluid_only) == [("byproduct", "Desc_Water_C")]
+    assert fluid_only["marked_edge"]["unit"] == "m3"
+
+
+def test_a_plan_whose_every_unit_is_unknown_marks_nothing() -> None:
+    for forms in (None, {"Desc_Ore_C": INVALID, "Desc_Zeta_C": "RF_PLASMA"}):
+        view = _view(_plan(), forms)
+        assert view["edges"]
+        assert [e["unit"] for e in view["edges"]] == ["unknown"] * len(view["edges"])
+        assert _marked(view) == []
+        assert view["marked_edge"] is None
+
+
+def test_a_tie_within_a_unit_marks_the_first_and_never_ties_across_units() -> None:
+    plan = _plan(
+        raw_inputs={"Desc_Water_C": Fraction(4, 3)},
+        targets={"Desc_Plate_C": Fraction(4, 3), "Desc_Rod_C": Fraction(4, 3)},
+        byproducts={},
+    )
+    view = _view(plan, {"Desc_Water_C": LIQUID, "Desc_Plate_C": SOLID, "Desc_Rod_C": SOLID})
+    # The fluid is published first and ties the solids numerically; the solid unit wins
+    # and, within it, the first in published order.
+    assert _marked(view) == [("target", "Desc_Plate_C")]
+    assert [e["marked"] for e in view["edges"]].count(True) == 1
+
+
+@pytest.mark.parametrize(
+    ("form", "expected"),
+    [
+        (SOLID, "item"),
+        (LIQUID, "m3"),
+        (GAS, "m3"),
+        (INVALID, "unknown"),
+        ("", "unknown"),
+        ("rf_solid", "unknown"),
+    ],
+)
+def test_every_edge_carries_the_unit_of_its_verbatim_form(form: str, expected: str) -> None:
+    plan = _plan(raw_inputs={"Desc_Ore_C": Fraction(1, 3)}, targets={}, byproducts={})
+    view = _view(plan, {"Desc_Ore_C": form})
+    assert [edge["unit"] for edge in view["edges"]] == [expected]
+    assert (flow_view.UNIT_ITEM, flow_view.UNIT_VOLUME, flow_view.UNIT_UNKNOWN) == (
+        "item",
+        "m3",
+        "unknown",
+    )
+
+
+def test_a_step_of_another_kind_with_the_plan_subject_is_not_read() -> None:
+    plan = _plan()
+    only_a_rule = Trace(
+        rule_id="synthetic.plan",
+        domain="plan",
+        steps=(
+            TraceStep(kind=StepKind.RULE_FIRED, subject=flow_view.PLAN_SUBJECT, value=plan),
+            TraceStep(kind=StepKind.INPUT_READ, subject="plan.status", value="ranked"),
+        ),
+        recommendation=Recommendation(subject_key="s", action="Build it", reason="why"),
+    )
+    assert flow_view.view_of(only_a_rule) is None
+    # The control: the same plan as an input-read step is read.
+    assert flow_view.view_of(_trace(plan)) is not None
 
 
 def test_a_plan_with_no_edge_marks_none() -> None:
@@ -281,9 +427,10 @@ def test_the_view_is_ascii_and_its_keys_are_closed() -> None:
     view = _view(_plan(), {"Desc_Ore_C": SOLID})
     assert frozenset(view) == {"rule_id", "nodes", "edges", "marked_edge"}
     assert all(
-        frozenset(edge) == {"item", "role", "direction", "transport", "width", "marked"}
+        frozenset(edge) == {"item", "role", "direction", "transport", "unit", "width", "marked"}
         for edge in view["edges"]
     )
+    assert frozenset(view["marked_edge"]) == {"item", "role", "unit", "reason"}
     assert contract.encode({"flow": view}).isascii()
 
 
@@ -335,6 +482,8 @@ def test_the_derivation_endpoint_serves_the_flow_of_a_plan_card_over_one_registr
     assert data["flow"] == flow_view.view_of(_trace(plan), forms=forms)
     transport = {e["item"]: e["transport"] for e in data["flow"]["edges"]}
     assert transport == {ore: "belt", fluid: "pipe", "Desc_Unlisted_C": "unknown"}
+    units = {e["item"]: e["unit"] for e in data["flow"]["edges"]}
+    assert units == {ore: "item", fluid: "m3", "Desc_Unlisted_C": "unknown"}
     assert log.count("registry") == 1
 
 
@@ -416,3 +565,26 @@ def test_the_panel_shows_no_flow_region_when_the_body_carries_none(tmp_path: obj
     for absent in absents:
         text, hidden = _panel_flow_text(tmp_path, absent)
         assert (text, hidden) == ("", True)
+
+
+def test_a_whole_rate_renders_bare_and_a_zero_denominator_renders_dash(tmp_path: object) -> None:
+    # The unmodified rateText, driven in node: den 1 reads as the bare numerator, den 0
+    # (never a rate) as a dash, and an ordinary ratio as num/den. Each differs from the
+    # next, so a `den === 1` slipped to `den === 0` or `den < 1` slipped to `den < 0` fails.
+    flow = {
+        "rule_id": "x",
+        "nodes": [],
+        "marked_edge": None,
+        "edges": [
+            _flow_edge("Desc_Whole_C", "target", 3, 1, marked=False),
+            _flow_edge("Desc_Zero_C", "target", 3, 0, marked=False),
+            _flow_edge("Desc_Ratio_C", "target", 3, 2, marked=False),
+        ],
+    }
+    text, hidden = _panel_flow_text(tmp_path, flow)
+    assert hidden is False
+    assert text.split(chr(10)) == [
+        "  Desc_Whole_C target 3 per min on belt ",
+        "  Desc_Zero_C target - per min on belt ",
+        "  Desc_Ratio_C target 3/2 per min on belt ",
+    ]

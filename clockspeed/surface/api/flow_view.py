@@ -22,6 +22,12 @@ view makes is therefore named for what it measures - :data:`MARK_HIGHEST_RATE`, 
 with the greatest width - and says nothing about a limit. A successor that lands a
 capacity owns the claim.
 
+THE MARK IS TAKEN WITHIN ONE UNIT. A solid's rate is items a minute and a fluid's is
+cubic metres a minute, so the two are never compared: the mark goes to the greatest
+solid edge when one exists, else the greatest fluid edge, and an edge of unknown unit
+is never marked. Selecting that maximum is the existing seam - this module already
+chose the one maximum - and no arithmetic is added to it.
+
 A form this layer cannot classify is :data:`TRANSPORT_UNKNOWN`, never a belt: ``RF_INVALID``
 is a third case in the registry and not a synonym for a solid, an empty form is a missing
 one, and a key the caller did not supply is a fact nobody stated.
@@ -49,6 +55,9 @@ __all__ = [
     "TRANSPORT_BELT",
     "TRANSPORT_PIPE",
     "TRANSPORT_UNKNOWN",
+    "UNIT_ITEM",
+    "UNIT_UNKNOWN",
+    "UNIT_VOLUME",
     "view_of",
 ]
 
@@ -66,6 +75,12 @@ ROLES: Final = (ROLE_RAW_INPUT, ROLE_TARGET, ROLE_BYPRODUCT)
 TRANSPORT_BELT: Final = "belt"
 TRANSPORT_PIPE: Final = "pipe"
 TRANSPORT_UNKNOWN: Final = "unknown"
+
+#: The unit an edge's rate is counted in: a solid in items a minute, a liquid or a gas in
+#: cubic metres a minute. The two are never compared; unknown is never marked.
+UNIT_ITEM: Final = "item"
+UNIT_VOLUME: Final = "m3"
+UNIT_UNKNOWN: Final = "unknown"
 
 #: The one mark this view makes, and what it measures.
 MARK_HIGHEST_RATE: Final = "highest-rate"
@@ -119,6 +134,47 @@ def _transport_of(item_key: str, forms: Mapping[str, str] | None) -> str:
     return TRANSPORT_UNKNOWN
 
 
+def _unit_of(item_key: str, forms: Mapping[str, str] | None) -> str:
+    """Classify the unit one item's rate is counted in, from the same verbatim form.
+
+    Args:
+        item_key: The item's ClassName.
+        forms: Item key to verbatim ``mForm``, or None when none was supplied.
+
+    Returns:
+        Items for a solid, cubic metres for a liquid or a gas, otherwise unknown.
+    """
+    transport = _transport_of(item_key, forms)
+    if transport == TRANSPORT_BELT:
+        return UNIT_ITEM
+    if transport == TRANSPORT_PIPE:
+        return UNIT_VOLUME
+    return UNIT_UNKNOWN
+
+
+def _marked_position(exact: list[tuple[str, str, Fraction]], units: list[str]) -> int | None:
+    """The position of the highest-rate edge within one known unit, or None.
+
+    Args:
+        exact: The edges as (item, role, exact rate), in published order.
+        units: The unit of each edge, in the same order.
+
+    Returns:
+        The first greatest rate among the solid edges when any exists, else among the
+        fluid edges, else None. Unknown-unit edges never compete.
+    """
+    for unit in (UNIT_ITEM, UNIT_VOLUME):
+        marked: int | None = None
+        for position, (_key, _role, rate) in enumerate(exact):
+            if units[position] != unit:
+                continue
+            if marked is None or rate > exact[marked][2]:
+                marked = position
+        if marked is not None:
+            return marked
+    return None
+
+
 def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | None:
     """Project the trace's plan into nodes, edges and the one marked edge.
 
@@ -142,25 +198,31 @@ def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | N
     for role, attribute in _ROLE_FIELDS:
         rates: Mapping[str, Fraction] = getattr(plan, attribute)
         exact.extend((key, role, rates[key]) for key in sorted(rates))
+    units = [_unit_of(key, forms) for key, _role, _rate in exact]
     # Selected on the exact rates, first wins a tie; the serialised dicts are never compared.
-    marked = 0
-    for position in range(1, len(exact)):
-        if exact[position][2] > exact[marked][2]:
-            marked = position
+    # Only edges of ONE unit compete: items when any solid edge exists, else cubic metres.
+    # An edge of unknown unit never competes, so a plan with none known marks nothing.
+    marked = _marked_position(exact, units)
     edges = [
         {
             "item": key,
             "role": role,
             "direction": "in" if role == ROLE_RAW_INPUT else "out",
             "transport": _transport_of(key, forms),
+            "unit": units[position],
             "width": contract.rational(rate),
             "marked": position == marked,
         }
         for position, (key, role, rate) in enumerate(exact)
     ]
     marked_edge = (
-        {"item": exact[marked][0], "role": exact[marked][1], "reason": MARK_HIGHEST_RATE}
-        if exact
+        {
+            "item": exact[marked][0],
+            "role": exact[marked][1],
+            "unit": units[marked],
+            "reason": MARK_HIGHEST_RATE,
+        }
+        if marked is not None
         else None
     )
     return {
