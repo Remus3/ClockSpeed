@@ -353,6 +353,7 @@ tests/git_env.py	authored	CS-968	first-add:CS-968
 tests/liveness.py	authored	CS-846	first-add:CS-846
 tests/locals_rendering_guard.py	authored	CS-1165	first-add:root
 tests/ops/__init__.py	authored	CS-1000	first-add:CS-1000
+tests/ops/test_build_pin_watch_tick.py	authored	CS-1390	stamped
 tests/ops/test_driver_log_per_night.py	authored	CS-1018	stamped
 tests/ops/test_driver_module_binding.py	authored	CS-1165	first-add:root
 tests/ops/test_headless_route.py	authored	CS-1225	stamped
@@ -511,6 +512,7 @@ tests/test_architecture_attributions.py	authored	CS-928	first-add:CS-928
 tests/test_archive_rot.py	authored	CS-1165	first-add:root
 tests/test_assertion_rendering.py	authored	CS-850	first-add:CS-850
 tests/test_bare_path_citations.py	authored	CS-891	first-add:CS-891
+tests/test_build_pin_watch.py	authored	CS-1390	stamped
 tests/test_canary_population.py	authored	CS-1177	stamped
 tests/test_canary_population_forced.py	authored	CS-1193	stamped
 tests/test_canary_temp_roots.py	authored	CS-1297	stamped
@@ -635,6 +637,7 @@ tests/tier2_jobs_payload.json	authored	CS-1124	first-add:CS-1124
 tests/toolpath_guard.py	authored	CS-910	first-add:CS-910
 tests/xdist_quiet.py	authored	CS-1233	stamped
 tools/action_runtimes.py	authored	CS-990	first-add:CS-990
+tools/build_pin_watch.py	authored	CS-1390	stamped
 tools/census_axis.py	authored	CS-1328	stamped
 tools/claude_hook.sh	authored	CS-815	stamped
 tools/dashboard_probe.py	authored	CS-918	first-add:CS-918
