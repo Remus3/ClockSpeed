@@ -247,3 +247,106 @@ def test_run_never_raises_and_prints_nothing(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+# ---- CS-1390 repair: the write is a read-modify-write of a TRACKED shared file, so it
+# yields to a live claim and to a concurrent writer, and never invalidates a done marker.
+
+
+SECOND_PROBE: Final = 2
+
+
+def _unclaimed(_paths: list[str]) -> list[Any]:
+    return []
+
+
+def _tmps(path: Path) -> list[Path]:
+    return [p for p in path.parent.iterdir() if p.name.endswith(".tmp")]
+
+
+def _check_with(path: Path, claimed: Any) -> str:
+    outcome: str = _watch().check(
+        path,
+        installed=lambda: OTHER,
+        pinned=PINNED,
+        command=drift_guard.RE_EXTRACT_COMMAND,
+        today=TODAY,
+        claimed=claimed,
+    )
+    return outcome
+
+
+def test_a_foreign_claim_holds_the_write_and_leaves_the_file_untouched(handoff: Path) -> None:
+    probed: list[list[str]] = []
+
+    def claimed(paths: list[str]) -> list[Any]:
+        probed.append(list(paths))
+        return [(paths[0], 3.0)]
+
+    assert _check_with(handoff, claimed) == "held"
+    assert probed
+    assert handoff.read_bytes() == HANDOFF_TEXT
+    assert _tmps(handoff) == []
+
+
+def test_a_probe_that_raises_holds_the_write(handoff: Path) -> None:
+    def claimed(_paths: list[str]) -> list[Any]:
+        raise OSError("planted fault")
+
+    assert _check_with(handoff, claimed) == "held"
+    assert handoff.read_bytes() == HANDOFF_TEXT
+    assert _tmps(handoff) == []
+
+
+def test_a_writer_between_the_read_and_the_rename_wins_and_the_write_is_dropped(
+    handoff: Path,
+) -> None:
+    other_writer: Final = HANDOFF_TEXT + b"another writer's line\n"
+    calls: list[int] = []
+
+    def claimed(_paths: list[str]) -> list[Any]:
+        calls.append(1)
+        if len(calls) == SECOND_PROBE:  # the second probe runs after the read, before the rename
+            handoff.write_bytes(other_writer)
+        return []
+
+    assert _check_with(handoff, claimed) == "raced"
+    assert handoff.read_bytes() == other_writer
+    assert _tmps(handoff) == []
+
+
+def test_control_unclaimed_and_unchanged_still_writes(handoff: Path) -> None:
+    assert _check_with(handoff, _unclaimed) == "written"
+    assert len(_marked(handoff)) == 1
+    assert _tmps(handoff) == []
+
+
+def test_the_default_probe_is_the_kits_foreign_claims() -> None:
+    from ops.fleet_kit import fleet_claims  # noqa: PLC0415
+
+    assert _watch().default_claimed() is fleet_claims.foreign_claims
+
+
+def _write_marker(root: Path, handoff: Path, *, digest: str | None = None) -> None:
+    import hashlib  # noqa: PLC0415
+    import json  # noqa: PLC0415
+
+    sha = digest or hashlib.sha256(handoff.read_bytes()).hexdigest()
+    marker = root / "ops" / "loop" / "control" / "session_done.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(
+        json.dumps({"schema": 1, "status": "done", "handoff": handoff.name, "handoff_sha256": sha}),
+        encoding="ascii",
+    )
+
+
+def test_a_fresh_done_marker_holds_the_write_so_it_stays_valid(handoff: Path) -> None:
+    """`fleet_done.validate` hashes the hand-off: a later write reads as work after /done."""
+    _write_marker(handoff.parent, handoff)
+    assert _check_with(handoff, _unclaimed) == "held"
+    assert handoff.read_bytes() == HANDOFF_TEXT
+
+
+def test_a_stale_done_marker_does_not_hold_the_write(handoff: Path) -> None:
+    _write_marker(handoff.parent, handoff, digest="0" * 64)
+    assert _check_with(handoff, _unclaimed) == "written"

@@ -122,22 +122,72 @@ def _replace_with_retry(tmp: Path, target: Path) -> None:
             return
 
 
-def upsert(path: Path, line: str) -> bool:
-    """Put `line` in the hand-off as its one marker line. True when a byte was written.
+def default_claimed() -> Callable[[list[str]], list[object]]:
+    """The kit's claim probe: `fleet_claims.foreign_claims`, loaded on use, never copied."""
+    from ops.fleet_kit import fleet_claims  # noqa: PLC0415
 
-    A marker line carrying the same two builds is left alone, so a repeat run
-    writes nothing. Otherwise every marker line is dropped and the new one is
-    appended, so the file never holds two. Written temp-then-rename.
+    probe: Callable[[list[str]], list[object]] = fleet_claims.foreign_claims
+    return probe
+
+
+def _held_by_claim(claimed: Callable[[list[str]], list[object]], path: Path) -> bool:
+    """True when another live agent claims `path`, or the probe cannot say."""
+    try:
+        return bool(claimed([str(path.resolve())]))
+    except Exception:  # DELIBERATE: a probe that cannot look is a hold, never a write
+        return True
+
+
+def _done_marker_pins(path: Path, raw: bytes) -> bool:
+    """True when a valid /done marker hashes THIS hand-off, so a write would void it.
+
+    `fleet_done.validate` compares the on-disk hand-off sha256 with the marker's,
+    so any later write reads as work after /done and silences the Stop hook.
+    An unreadable or foreign marker pins nothing.
     """
-    raw = path.read_bytes().decode("ascii")
+    try:
+        import hashlib  # noqa: PLC0415
+
+        from ops.fleet_kit import fleet_done  # noqa: PLC0415
+
+        doc = fleet_done.read_marker(path.parent)
+        if not doc or doc.get("status") != "done" or doc.get("handoff") != path.name:
+            return False
+        return bool(doc.get("handoff_sha256") == hashlib.sha256(raw).hexdigest())
+    except Exception:  # DELIBERATE: a marker that cannot be read pins nothing
+        return False
+
+
+def upsert(
+    path: Path, line: str, *, claimed: Callable[[list[str]], list[object]] | None = None
+) -> str:
+    """Put `line` in the hand-off as its one marker line. Returns the outcome word.
+
+    The hand-off is tracked and shared, so this read-modify-write yields rather
+    than races: probe the claims, read, build, probe again, re-read and compare,
+    then rename. A live claim or a probe fault is `held`, a changed byte between
+    the read and the rename is `raced`, a valid /done marker over these bytes is
+    `held`; each writes nothing and the next tick retries. `unchanged` when the
+    same two builds are already there, `written` otherwise. Temp-then-rename.
+    """
+    probe = default_claimed() if claimed is None else claimed
+    if _held_by_claim(probe, path):
+        return "held"
+    before = path.read_bytes()
     kept: list[str] = []
     olds: list[str] = []
-    for existing in raw.splitlines():
+    for existing in before.decode("ascii").splitlines():
         (olds if existing.startswith(MARKER) else kept).append(existing)
     if len(olds) == 1 and _same_pair(olds[0], line):
-        return False
+        return "unchanged"
+    if _done_marker_pins(path, before):
+        return "held"
     body = "\n".join(kept)
     text = (body + "\n" if body else "") + line + "\n"
+    if _held_by_claim(probe, path):
+        return "held"
+    if path.read_bytes() != before:
+        return "raced"
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     try:
         tmp.write_bytes(text.encode("ascii"))
@@ -145,7 +195,7 @@ def upsert(path: Path, line: str) -> bool:
     finally:
         with contextlib.suppress(OSError):
             tmp.unlink()
-    return True
+    return "written"
 
 
 def check(
@@ -155,11 +205,14 @@ def check(
     pinned: str,
     command: str,
     today: str,
+    claimed: Callable[[list[str]], list[object]] | None = None,
 ) -> str:
     """Compare the installed build with the pin and record a difference. Returns the outcome.
 
-    Outcomes: `written`, `unchanged` (the line is already there), `match`,
-    `unpinned`, `unreadable`, `no_handoff`. Only `written` changes a byte.
+    Outcomes: `written`, `unchanged` (the line is already there), `held` (a live
+    claim, a probe fault or a valid /done marker), `raced` (another writer got
+    there first), `match`, `unpinned`, `unreadable`, `no_handoff`. Only `written`
+    changes a byte.
     """
     if not pinned.strip():
         return "unpinned"
@@ -176,7 +229,7 @@ def check(
         return "unreadable"
     if not handoff.is_file():
         return "no_handoff"
-    return "written" if upsert(handoff, line) else "unchanged"
+    return upsert(handoff, line, claimed=claimed)
 
 
 def run(handoff: Path | None = None) -> str:
