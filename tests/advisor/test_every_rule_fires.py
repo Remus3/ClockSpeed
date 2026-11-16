@@ -346,6 +346,7 @@ def _plan_world(*, cleared: bool) -> WorldInputs:
             plan.IN_REQUIRES: (_PLAN_UNLOCK,),
             plan.IN_BACKEND: "exhaustive",
             plan.IN_TARGET_NAMES: _PLAN_NAMES,
+            plan.IN_CARRY: None,
         },
         unlocks=(_PLAN_UNLOCK,),
     )

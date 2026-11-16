@@ -1,16 +1,22 @@
-"""CS-1360 - the boundary flow view of a solved chain, a projection of one rule trace.
+"""CS-1360 - the flow view of a solved chain, a projection of one rule trace.
 
 A derivation for a plan card carries the ProductionPlan the rule read, as the value of
-its ``plan.production`` input-read step. This module turns that plan into a small
-read-only picture: the recipe nodes with their exact machine counts, and the edges that
-cross the plan's BOUNDARY - what it eats (raw inputs), what it makes (targets) and what
-falls out (byproducts) - each with its exact per-minute rate as the edge width.
+its ``plan.production`` input-read step, and the CarryReport the advisor set against the
+registry's transports, as the value of its ``plan.carry`` input-read step. This module turns
+the two into a small read-only picture: the recipe nodes with their exact machine counts, the
+edges that cross the plan's BOUNDARY - what it eats (raw inputs), what it makes (targets) and
+what falls out (byproducts) - the chain's INTERNAL links, and the one edge the trace names as
+the BOTTLENECK. Every width is the plan's own exact per-minute rate.
 
 THIS IS A PROJECTION AND NOTHING ELSE. It opens no file, imports nothing from
 ``clockspeed/data``, ``clockspeed/solve`` or ``clockspeed/advisor`` at run time (the
 types are named under TYPE_CHECKING only), reads the registry not at all - the caller
-hands over a ``forms`` mapping - and computes nothing beyond selecting a maximum and
-transcribing. Fractions cross the wire through :func:`contract.rational`.
+hands over a ``forms`` mapping - and COMPUTES NOTHING: it selects and transcribes what the
+trace recorded. Fractions cross the wire through :func:`contract.rational`. A number that
+first existed here would be a number with no trace behind it, so the carrier of each edge, its
+utilisation, whether it saturates and which edge is the bottleneck are all decided by
+``clockspeed/solve/carry.py``, offered to the rule by ``clockspeed/advisor/plans.py`` and
+recorded by ``plan.adopt``; this module reads the record.
 
 THE CHAIN, NOT ONLY ITS BOUNDARY (CS-1395). ``ProductionPlan.edges`` publishes one exact
 flow per (producer recipe, item, consumer recipe), and the edges with both ends are the
@@ -19,26 +25,16 @@ width the plan's own Fraction. A link is an ALLOCATION and never a route - where
 recipes make an item and several use it, nothing says which machine feeds which - and
 the panel says so.
 
-CAPACITY AND SATURATION (CS-1394). The caller may hand over the registry's transports,
-each a belt, lift or pipeline class with its published per-minute rate and unit. Every
-edge and link then names the SMALLEST carrier whose rate holds its width, and says
-whether it is SATURATED. The plan chooses no belt tier, so saturated means one thing
-only: the width reaches the best carrier of its unit the registry knows, so no single
-carrier has room to spare. Choosing the carrier is a comparison of exact Fractions and
-no arithmetic is added. A claim needs a capacity to compare against, so both fields
-read None - never False, never a free pass - when no transports were supplied, when the
-edge's unit is unknown, or when no carrier of its unit publishes a rate (non-negotiable
-7).
+THE MARK IS THE BOTTLENECK (CS-1394). The recorded bottleneck is the edge using the
+largest share of the fastest known belt or pipe for its unit, over every edge of the plan,
+boundary and internal. ``marked_edge`` names it and the one row it is flagged ``marked``.
+When the trace records no carry, or a carry with no bottleneck, nothing is marked: no
+capacity was known, and the view does not fall back to a rate.
 
-THE MARK IS STILL THE HIGHEST RATE. The one mark this view makes is named for what it
-measures, :data:`MARK_HIGHEST_RATE`, the boundary edge with the greatest width within
-one unit, and capacity moves neither it nor any width.
-
-THE MARK IS TAKEN WITHIN ONE UNIT. A solid's rate is items a minute and a fluid's is
-cubic metres a minute, so the two are never compared: the mark goes to the greatest
-solid edge when one exists, else the greatest fluid edge, and an edge of unknown unit
-is never marked. Selecting that maximum is the existing seam - this module already
-chose the one maximum - and no arithmetic is added to it.
+A boundary edge here is one (item, role) total, and the plan may split one item's boundary
+flow across several consumers. Such a total carries no carrier or utilisation of its own, since
+the figures belong to its pieces, but it is flagged ``marked`` when one of its pieces is the
+bottleneck, and ``marked_edge`` names the piece.
 
 A form this layer cannot classify is :data:`TRANSPORT_UNKNOWN`, never a belt: ``RF_INVALID``
 is a third case in the registry and not a synonym for a solid, an empty form is a missing
@@ -53,17 +49,18 @@ from clockspeed.surface.api import contract
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
-    from fractions import Fraction
 
     from clockspeed.advisor.trace import Trace
-    from clockspeed.data.registry import Transport
+    from clockspeed.solve.carry import CarryReport, EdgeCarry
     from clockspeed.solve.ratio import PlanEdge
 
 __all__ = [
-    "MARK_HIGHEST_RATE",
+    "CARRY_SUBJECT",
+    "MARK_BOTTLENECK",
     "PLAN_SUBJECT",
     "ROLES",
     "ROLE_BYPRODUCT",
+    "ROLE_INTERNAL",
     "ROLE_RAW_INPUT",
     "ROLE_TARGET",
     "TRANSPORT_BELT",
@@ -79,9 +76,15 @@ __all__ = [
 #: ``clockspeed/advisor/rules/plan.py``, ``IN_PLAN``. A test binds the two.
 PLAN_SUBJECT: Final = "plan.production"
 
+#: The trace step subject that carries the CarryReport, ``IN_CARRY`` there. A test binds them.
+CARRY_SUBJECT: Final = "plan.carry"
+
 ROLE_RAW_INPUT: Final = "raw-input"
 ROLE_TARGET: Final = "target"
 ROLE_BYPRODUCT: Final = "byproduct"
+
+#: The role of an edge with a producer recipe and a consumer recipe: a chain link.
+ROLE_INTERNAL: Final = "internal"
 
 #: The published edge order: a role, then the item key within it.
 ROLES: Final = (ROLE_RAW_INPUT, ROLE_TARGET, ROLE_BYPRODUCT)
@@ -91,13 +94,13 @@ TRANSPORT_PIPE: Final = "pipe"
 TRANSPORT_UNKNOWN: Final = "unknown"
 
 #: The unit an edge's rate is counted in: a solid in items a minute, a liquid or a gas in
-#: cubic metres a minute. The two are never compared; unknown is never marked.
+#: cubic metres a minute.
 UNIT_ITEM: Final = "item"
 UNIT_VOLUME: Final = "m3"
 UNIT_UNKNOWN: Final = "unknown"
 
-#: The one mark this view makes, and what it measures.
-MARK_HIGHEST_RATE: Final = "highest-rate"
+#: What the one mark means: the bottleneck the trace records.
+MARK_BOTTLENECK: Final = "bottleneck"
 
 #: The verbatim ``mForm`` spellings, from ``clockspeed/data/registry.py`` ``FORM_SOLID``,
 #: ``FORM_LIQUID`` and ``FORM_GAS``. A test binds each to its constant. Only these three
@@ -113,17 +116,18 @@ _ROLE_FIELDS: Final = (
 )
 
 
-def _plan_of(trace: Trace) -> object | None:
-    """The value of the first input-read step whose subject is the plan's, or None.
+def _input_of(trace: Trace, subject: str) -> object | None:
+    """The value of the first input-read step with this subject, or None.
 
     Args:
         trace: The rule's trace.
+        subject: The input's name.
 
     Returns:
         The value, or None when no such step exists.
     """
     for step in trace.steps:
-        if step.kind.value == "input-read" and step.subject == PLAN_SUBJECT:
+        if step.kind.value == "input-read" and step.subject == subject:
             return step.value
     return None
 
@@ -166,96 +170,73 @@ def _unit_of(item_key: str, forms: Mapping[str, str] | None) -> str:
     return UNIT_UNKNOWN
 
 
-def _marked_position(exact: list[tuple[str, str, Fraction]], units: list[str]) -> int | None:
-    """The position of the highest-rate edge within one known unit, or None.
+def _role_of(row: EdgeCarry) -> str:
+    """The role one recorded row plays: where it enters or leaves the plan, or inside it.
 
     Args:
-        exact: The edges as (item, role, exact rate), in published order.
-        units: The unit of each edge, in the same order.
+        row: One row of the recorded carry.
 
     Returns:
-        The first greatest rate among the solid edges when any exists, else among the
-        fluid edges, else None. Unknown-unit edges never compete.
+        Raw input for a row with no producer, byproduct or target for a row with no
+        consumer by its sink, otherwise internal.
     """
-    for unit in (UNIT_ITEM, UNIT_VOLUME):
-        marked: int | None = None
-        for position, (_key, _role, rate) in enumerate(exact):
-            if units[position] != unit:
-                continue
-            if marked is None or rate > exact[marked][2]:
-                marked = position
-        if marked is not None:
-            return marked
-    return None
+    if row.producer is None:
+        return ROLE_RAW_INPUT
+    if row.consumer is None:
+        return ROLE_BYPRODUCT if row.sink == ROLE_BYPRODUCT else ROLE_TARGET
+    return ROLE_INTERNAL
 
 
-def _rated_carriers(
-    transports: Mapping[str, Transport] | None,
-) -> dict[str, list[tuple[Fraction, str]]]:
-    """The carriers that publish a rate, by unit, each list in ascending rate then key.
+def _figures(row: EdgeCarry | None) -> dict:
+    """The recorded carrier, utilisation and saturation of one row, or all three None.
 
     Args:
-        transports: Class key to transport, or None when the caller has none.
+        row: The row, or None when nothing was recorded for the edge.
 
     Returns:
-        Unit to ``(per_minute, key)`` pairs. A class whose rate is unpublished is left
-        out: it carries nothing as far as this layer can say.
+        ``{"capacity", "utilisation", "saturated"}``, each transcribed from the row.
     """
-    by_unit: dict[str, list[tuple[Fraction, str]]] = {}
-    for key, transport in (transports or {}).items():
-        if transport.per_minute is not None:
-            by_unit.setdefault(transport.unit, []).append((transport.per_minute, key))
-    for carriers in by_unit.values():
-        carriers.sort()
-    return by_unit
-
-
-def _capacity_of(
-    rate: Fraction, unit: str, carriers: Mapping[str, list[tuple[Fraction, str]]]
-) -> tuple[dict | None, bool | None]:
-    """The smallest carrier that holds this rate, and whether the rate saturates the best.
-
-    Args:
-        rate: The edge's exact width.
-        unit: The edge's unit.
-        carriers: :func:`_rated_carriers`.
-
-    Returns:
-        ``(carrier, saturated)``. Both None when the unit is unknown or no carrier of the
-        unit publishes a rate. Otherwise ``saturated`` is whether ``rate`` reaches the
-        best carrier, and ``carrier`` is None when no single carrier holds the rate.
-    """
-    known = carriers.get(unit)
-    if not known:
-        return None, None
-    saturated = rate >= known[-1][0]
-    for per_minute, key in known:
-        if per_minute >= rate:
-            return {"carrier": key, "per_minute": contract.rational(per_minute)}, saturated
-    return None, saturated
+    if row is None:
+        return {"capacity": None, "utilisation": None, "saturated": None}
+    capacity = (
+        None
+        if row.carrier is None or row.carrier_per_minute is None
+        else {
+            "carrier": row.carrier,
+            "per_minute": contract.rational(row.carrier_per_minute),
+        }
+    )
+    return {
+        "capacity": capacity,
+        "utilisation": contract.rational(row.utilisation),
+        "saturated": row.saturated,
+    }
 
 
 def _links_of(
     plan: object,
     forms: Mapping[str, str] | None,
-    carriers: Mapping[str, list[tuple[Fraction, str]]],
+    rows: tuple[EdgeCarry, ...],
+    bottleneck: EdgeCarry | None,
 ) -> list[dict]:
     """The plan's internal flows, one entry per edge that has both a producer and a consumer.
 
     Args:
         plan: The ProductionPlan the trace held.
         forms: Item key to its verbatim ``mForm``, or None.
-        carriers: :func:`_rated_carriers`.
+        rows: The recorded carry's rows.
+        bottleneck: The recorded bottleneck row, or None.
 
     Returns:
         The links in the plan's own edge order. A plan that published no edges has none.
     """
+    by_triple = {(row.producer, row.item, row.consumer): row for row in rows}
     plan_edges: Iterable[PlanEdge] = getattr(plan, "edges", ())
     links: list[dict] = []
     for edge in plan_edges:
         if edge.producer is None or edge.consumer is None:
             continue
-        capacity, saturated = _capacity_of(edge.rate, edge.unit, carriers)
+        row = by_triple.get((edge.producer, edge.item, edge.consumer))
         links.append(
             {
                 "producer": edge.producer,
@@ -264,81 +245,88 @@ def _links_of(
                 "transport": _transport_of(edge.item, forms),
                 "unit": edge.unit,
                 "width": contract.rational(edge.rate),
-                "capacity": capacity,
-                "saturated": saturated,
+                "marked": row is not None and row == bottleneck,
+                **_figures(row),
             }
         )
     return links
 
 
-def view_of(
-    trace: Trace,
-    *,
-    forms: Mapping[str, str] | None = None,
-    transports: Mapping[str, Transport] | None = None,
-) -> dict | None:
-    """Project the trace's plan into nodes, edges, links and the one marked edge.
+def _recorded(trace: Trace) -> tuple[tuple[EdgeCarry, ...], EdgeCarry | None]:
+    """The carry rows the trace recorded and the one it names the bottleneck.
+
+    Args:
+        trace: The rule's trace.
+
+    Returns:
+        ``(rows, bottleneck)``. Without a recorded carry, or one with no bottleneck, the rows
+        are what was recorded and the bottleneck is None.
+    """
+    report = _input_of(trace, CARRY_SUBJECT)
+    if report is None:
+        return (), None
+    carry: CarryReport = report  # type: ignore[assignment]
+    rows = tuple(carry.rows)
+    index = carry.bottleneck
+    if index is None or not 0 <= index < len(rows):
+        return rows, None
+    return rows, rows[index]
+
+
+def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | None:
+    """Project the trace's plan and recorded carry into nodes, edges, links and the mark.
 
     Args:
         trace: The rule's trace.
         forms: Item key to its verbatim ``mForm``, or None when the caller has none.
-        transports: The registry's transport classes by key, or None when the caller has
-            none, in which case no edge names a carrier or a saturation.
 
     Returns:
         ``{"rule_id", "nodes", "edges", "links", "marked_edge"}``, or None when the trace
         holds no plan - flagged and skipped, never an empty view that would read as "this
         chain has no flow". Every number is a ``{"num", "den"}`` object.
     """
-    plan = _plan_of(trace)
+    plan = _input_of(trace, PLAN_SUBJECT)
     if plan is None:
         return None
+    rows, bottleneck = _recorded(trace)
     nodes = [
         {"recipe": step.recipe_key, "machines": contract.rational(step.machines)}
         for step in plan.steps  # type: ignore[attr-defined]
     ]
-    exact: list[tuple[str, str, Fraction]] = []
+    edges: list[dict] = []
     for role, attribute in _ROLE_FIELDS:
-        rates: Mapping[str, Fraction] = getattr(plan, attribute)
-        exact.extend((key, role, rates[key]) for key in sorted(rates))
-    units = [_unit_of(key, forms) for key, _role, _rate in exact]
-    carriers = _rated_carriers(transports)
-    capacities = [
-        _capacity_of(rate, units[position], carriers)
-        for position, (_key, _role, rate) in enumerate(exact)
-    ]
-    # Selected on the exact rates, first wins a tie; the serialised dicts are never compared.
-    # Only edges of ONE unit compete: items when any solid edge exists, else cubic metres.
-    # An edge of unknown unit never competes, so a plan with none known marks nothing.
-    marked = _marked_position(exact, units)
-    edges = [
-        {
-            "item": key,
-            "role": role,
-            "direction": "in" if role == ROLE_RAW_INPUT else "out",
-            "transport": _transport_of(key, forms),
-            "unit": units[position],
-            "width": contract.rational(rate),
-            "marked": position == marked,
-            "capacity": capacities[position][0],
-            "saturated": capacities[position][1],
-        }
-        for position, (key, role, rate) in enumerate(exact)
-    ]
+        rates: Mapping[str, object] = getattr(plan, attribute)
+        for key in sorted(rates):
+            pieces = [row for row in rows if _role_of(row) == role and row.item == key]
+            edges.append(
+                {
+                    "item": key,
+                    "role": role,
+                    "direction": "in" if role == ROLE_RAW_INPUT else "out",
+                    "transport": _transport_of(key, forms),
+                    "unit": _unit_of(key, forms),
+                    "width": contract.rational(rates[key]),  # type: ignore[arg-type]
+                    "marked": bottleneck is not None and bottleneck in pieces,
+                    **_figures(pieces[0] if len(pieces) == 1 else None),
+                }
+            )
     marked_edge = (
-        {
-            "item": exact[marked][0],
-            "role": exact[marked][1],
-            "unit": units[marked],
-            "reason": MARK_HIGHEST_RATE,
+        None
+        if bottleneck is None
+        else {
+            "producer": bottleneck.producer,
+            "item": bottleneck.item,
+            "consumer": bottleneck.consumer,
+            "role": _role_of(bottleneck),
+            "unit": bottleneck.unit,
+            "utilisation": contract.rational(bottleneck.utilisation),
+            "reason": MARK_BOTTLENECK,
         }
-        if marked is not None
-        else None
     )
     return {
         "rule_id": trace.rule_id,
         "nodes": nodes,
         "edges": edges,
-        "links": _links_of(plan, forms, carriers),
+        "links": _links_of(plan, forms, rows, bottleneck),
         "marked_edge": marked_edge,
     }

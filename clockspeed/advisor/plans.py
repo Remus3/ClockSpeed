@@ -244,6 +244,7 @@ from clockspeed.solve.bound import (
     route_with_consumers,
     trim_record,
 )
+from clockspeed.solve.carry import carry_of
 from clockspeed.solve.exact import ExactArithmeticError, InexactValueError, to_exact
 from clockspeed.solve.optimize import (
     OBJECTIVES,
@@ -1541,6 +1542,7 @@ def _offer(
                 unmatched_unlocks=unmatched,
                 backend=backend,
                 target_names=_target_names(registry, top.plan.targets),
+                carry=carry_of(top.plan.edges, registry.transports),
             ),
             **redesign_status_inputs(REDESIGN_NOT_REACHED, unmade=None),
         }

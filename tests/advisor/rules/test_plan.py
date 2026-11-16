@@ -58,10 +58,12 @@ from clockspeed.advisor.advise import advise, settled_rules
 from clockspeed.advisor.build import BUILD_INPUTS
 from clockspeed.advisor.cards import Card, card_for, render_value
 from clockspeed.advisor.ledger import Ledger, MuteStore
+from clockspeed.advisor.plans import plan_offer
 from clockspeed.advisor.rules.plan import (
     ADOPT_RULE,
     IN_BACKEND,
     IN_BADGE,
+    IN_CARRY,
     IN_PLAN,
     IN_RAW_UNKNOWN,
     IN_REQUIRES,
@@ -71,6 +73,7 @@ from clockspeed.advisor.rules.plan import (
     IN_TRIMMED,
     IN_UNCHECKED,
     IN_UNMATCHED,
+    LABEL_BOTTLENECK,
     PLAN_INPUTS,
     REDESIGN_INPUTS,
     REDESIGN_RULE,
@@ -87,9 +90,12 @@ from clockspeed.advisor.rules.plan import (
 )
 from clockspeed.advisor.trace import InputValue, StepKind, Trace, WorldInputs, run_rule
 from clockspeed.audit.build import WARN_BUILD_MISMATCH
+from clockspeed.data.registry import Transport
+from clockspeed.solve.carry import CarryReport, carry_of
 from clockspeed.solve.optimize import weighted_objective
 from clockspeed.solve.ratio import (
     BYPRODUCT_BALANCED,
+    PlanEdge,
     PlanStep,
     ProductionPlan,
     RatioRequest,
@@ -106,6 +112,7 @@ from clockspeed.solve.strategy import (
     ThresholdCheck,
     rank_plans,
 )
+from tests.advisor import test_plan_world as world_fixtures
 from tests.advisor.build_fixtures import (
     OFF_PIN_OFFSETS,
     docs_pin,
@@ -230,7 +237,7 @@ def _ranked(badge: StrategyBadge | None = None, plan: ProductionPlan | None = No
     )
 
 
-def _world(
+def _world(  # noqa: PLR0913 - one synthetic world: every offer a rule reads, by keyword
     ranked: RankedPlan | None = None,
     *,
     build: dict[str, InputValue] | None = None,
@@ -240,6 +247,7 @@ def _world(
     unchecked: tuple[str, ...] = (),
     unmatched_unlocks: int = 0,
     backend: str = EXHAUSTIVE,
+    carry: CarryReport | None = None,
 ) -> WorldInputs:
     """A synthetic world offering the build inputs and one ranked plan.
 
@@ -258,6 +266,7 @@ def _world(
         target_names=MappingProxyType(
             {item: TARGET_NAMES.get(item) for item in chosen.plan.targets}
         ),
+        carry=carry,
     )
     return WorldInputs(values=values, unlocks=unlocks)
 
@@ -324,10 +333,11 @@ def expected_tier3(pin: int) -> str:
             '  16. Read plan.backend = "exhaustive" from solve.optimize.optimize_result.backend',
             '  17. Read plan.target_names = {"Desc_SyntheticGadget_C": "Synthetic Gadget"}'
             " from registry.items.display_name",
-            "  18. Computed plan machine equivalents = 4.33 (exactly 13/3)",
-            "  19. Indeterminate compare the plan with what is built:"
+            "  18. Read plan.carry = none from solve.carry.carry_of",
+            "  19. Computed plan machine equivalents = 4.33 (exactly 13/3)",
+            "  20. Indeterminate compare the plan with what is built:"
             " a plan is ranked for a stated target and never compared with the world",
-            "  20. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
+            "  21. Rule plan.adopt fired for plan:Desc_SyntheticGadget_C",
         ]
     )
 
@@ -587,6 +597,7 @@ def test_the_adapter_offers_the_ranked_plan_its_badge_and_the_joined_unlock_keys
         "advisor.plans.recipe_unlock_join",
         "solve.optimize.optimize_result.backend",
         "registry.items.display_name",
+        "solve.carry.carry_of",
     )
 
 
@@ -878,3 +889,197 @@ def test_advise_with_the_family_named_yields_the_badged_card(tmp_path: Path) -> 
     assert derivation == expected_tier3(game_pin())
     settled = ADOPT_RULE.rule_id in settled_rules(advice.traces)
     assert not settled
+
+
+# --- CS-1360: the bottleneck the carry records, and the tier-3 line that names it -------
+
+BELT_SLOW: Final = "Build_ConveyorBeltMk1_C"
+BELT_FAST: Final = "Build_ConveyorBeltMk2_C"
+
+
+def _belt(key: str, per_minute: Fraction | None) -> Transport:
+    return Transport(
+        key=key,
+        group="FGBuildableConveyorBelt",
+        kind="belt",
+        unit="item",
+        numeric=per_minute,
+        stated=per_minute,
+        per_minute=per_minute,
+    )
+
+
+def _edged_plan() -> ProductionPlan:
+    """The hand-built plan with the three edges a Plate-to-Gadget chain publishes."""
+    return replace(
+        _plan(),
+        edges=(
+            PlanEdge(None, ORE_ITEM, PLATE_STEP, Fraction(120), "item", None),
+            PlanEdge(PLATE_STEP, "Desc_SyntheticPlate_C", GADGET_STEP, Fraction(60), "item", None),
+            PlanEdge(GADGET_STEP, GADGET_ITEM, None, Fraction(30), "item", "target"),
+        ),
+    )
+
+
+def _fleet() -> dict[str, Transport]:
+    return {
+        BELT_SLOW: _belt(BELT_SLOW, Fraction(80)),
+        BELT_FAST: _belt(BELT_FAST, Fraction(160)),
+    }
+
+
+def _carried_world(report: CarryReport | None) -> WorldInputs:
+    return _world(_ranked(plan=_edged_plan()), carry=report)
+
+
+def test_adopt_tier3_names_the_bottleneck_and_its_utilisation() -> None:
+    plan = _edged_plan()
+    report = carry_of(plan.edges, _fleet())
+    assert report.bottleneck == 0  # the ore edge: 120 of the fastest belt's 160
+    trace = run_rule(ADOPT_RULE, _carried_world(report))
+    card = card_for(trace)
+    assert card is not None
+    computed = [step for step in trace.steps if step.kind is StepKind.COMPUTED]
+    named = [step for step in computed if step.subject.startswith(LABEL_BOTTLENECK)]
+    assert len(named) == 1
+    assert named[0].value == Fraction(3, 4)
+    assert named[0].subject == (
+        f"{LABEL_BOTTLENECK} {ORE_ITEM} from supply to {PLATE_STEP},"
+        " its share of the fastest known belt"
+    )
+    lines = [line for line in card.tier3.splitlines() if LABEL_BOTTLENECK in line]
+    assert len(lines) == 1
+    assert lines[0].endswith("= 0.75"), lines[0]
+    assert f"{ORE_ITEM} from supply to {PLATE_STEP}" in lines[0]
+    # THE CONTROL: the whole report, the line's source, is in the trace beside it.
+    read = [s for s in trace.steps if s.kind is StepKind.INPUT_READ and s.subject == IN_CARRY]
+    assert [step.value for step in read] == [report]
+
+
+def test_adopt_names_the_first_row_of_greatest_utilisation_among_equals() -> None:
+    plan = _edged_plan()
+    tied = replace(
+        plan,
+        edges=(
+            PlanEdge(None, ORE_ITEM, PLATE_STEP, Fraction(80), "item", None),
+            PlanEdge(PLATE_STEP, "Desc_SyntheticPlate_C", GADGET_STEP, Fraction(80), "item", None),
+        ),
+    )
+    report = carry_of(tied.edges, _fleet())
+    trace = run_rule(ADOPT_RULE, _world(_ranked(plan=tied), carry=report))
+    named = [s for s in trace.steps if s.subject.startswith(LABEL_BOTTLENECK)]
+    assert [s.subject for s in named] == [
+        f"{LABEL_BOTTLENECK} {ORE_ITEM} from supply to {PLATE_STEP},"
+        " its share of the fastest known belt"
+    ]
+
+
+def test_no_carry_and_an_empty_carry_add_no_bottleneck_line() -> None:
+    for report in (None, carry_of(_edged_plan().edges, {})):
+        trace = run_rule(ADOPT_RULE, _carried_world(report))
+        card = card_for(trace)
+        assert card is not None
+        assert LABEL_BOTTLENECK not in card.tier3
+        assert f"Read {IN_CARRY} = " in card.tier3  # the record is there either way
+    # THE CONTROL: a carry with a bottleneck does add the line.
+    full = run_rule(ADOPT_RULE, _carried_world(carry_of(_edged_plan().edges, _fleet())))
+    assert LABEL_BOTTLENECK in (card_for(full) or pytest.fail("no card")).tier3
+
+
+def test_a_carry_the_plan_does_not_bear_out_is_a_rule_error_and_no_card() -> None:
+    plan = _edged_plan()
+    honest = carry_of(plan.edges, _fleet())
+    wrong_index = replace(honest, bottleneck=2)
+    no_rows_named = CarryReport(rows=(), bottleneck=0)
+    foreign_row = replace(honest.rows[0], item="Desc_Invented_C")
+    foreign = CarryReport(rows=(foreign_row, *honest.rows[1:]), bottleneck=0)
+    for forged in (wrong_index, no_rows_named, foreign):
+        trace = run_rule(ADOPT_RULE, _carried_world(forged))
+        assert trace.recommendation is None
+        assert StepKind.RULE_ERROR in {step.kind for step in trace.steps}
+    # THE CONTROL: the honest report on the same plan fires.
+    assert run_rule(ADOPT_RULE, _carried_world(honest)).recommendation is not None
+
+
+def test_a_carry_input_that_is_not_a_report_is_a_rule_error() -> None:
+    world = _carried_world(None)
+    values = dict(world.values)
+    values[IN_CARRY] = InputValue((), "solve.carry.carry_of")
+    trace = run_rule(ADOPT_RULE, WorldInputs(values=values, unlocks=world.unlocks))
+    assert trace.recommendation is None
+    assert StepKind.RULE_ERROR in {step.kind for step in trace.steps}
+
+
+def test_the_carry_is_the_last_plan_input_and_the_adapter_offers_it_by_name() -> None:
+    assert PLAN_INPUTS[-1] == IN_CARRY == "plan.carry"
+    report = carry_of(_edged_plan().edges, _fleet())
+    offered = plan_inputs(
+        _ranked(plan=_edged_plan()),
+        requires=(),
+        trimmed=(),
+        unchecked=(),
+        raw_unknown=(),
+        unmatched_unlocks=0,
+        backend=EXHAUSTIVE,
+        target_names=TARGET_NAMES,
+        carry=report,
+    )
+    assert offered[IN_CARRY].value is report
+    assert offered[IN_CARRY].source == "solve.carry.carry_of"
+
+
+def test_plan_offer_records_the_carry_of_the_plan_it_ranked_over_the_registrys_transports() -> None:
+    registry = dataclasses.replace(
+        world_fixtures._registry(),  # noqa: SLF001 - the shared ascent fixture
+        transports=_fleet(),
+    )
+    offered = plan_offer(
+        world_fixtures._unlocks(world_fixtures.ASCENT_PATHS),  # noqa: SLF001
+        registry,
+        world_fixtures._request(),  # noqa: SLF001
+    )
+    plan = offered[IN_PLAN].value
+    carry = offered[IN_CARRY].value
+    assert type(plan) is ProductionPlan
+    assert carry == carry_of(plan.edges, registry.transports)
+    # THE CONTROL: the comparison found something to compare, so equality is not two empties.
+    assert type(carry) is CarryReport
+    assert carry.rows
+    assert carry.bottleneck is not None
+    assert offered[IN_CARRY].source == "solve.carry.carry_of"
+    # With the registry's own (empty) transports the same plan records a carry with no row.
+    bare = plan_offer(
+        world_fixtures._unlocks(world_fixtures.ASCENT_PATHS),  # noqa: SLF001
+        world_fixtures._registry(),  # noqa: SLF001
+        world_fixtures._request(),  # noqa: SLF001
+    )
+    assert bare[IN_CARRY].value == CarryReport(rows=(), bottleneck=None)
+
+
+def test_the_live_advice_path_records_a_bottleneck_for_a_registry_with_carriers(
+    tmp_path: Path,
+) -> None:
+    """A forgotten ``carry`` argument in the production caller would drop the mark here."""
+    registry = dataclasses.replace(
+        world_fixtures._registry(),  # noqa: SLF001 - the shared ascent fixture
+        transports=_fleet(),
+    )
+    advice = world_fixtures._advise(  # noqa: SLF001
+        tmp_path,
+        world_fixtures._model(world_fixtures.ASCENT_PATHS),  # noqa: SLF001
+        registry,
+        world_fixtures._request(),  # noqa: SLF001
+    )
+    trace = world_fixtures._plan_trace(advice)  # noqa: SLF001
+    carry = world_fixtures._read(trace, IN_CARRY)  # noqa: SLF001
+    assert type(carry) is CarryReport
+    assert carry.bottleneck is not None
+    named = [
+        step
+        for step in trace.steps
+        if step.kind is StepKind.COMPUTED and step.subject.startswith(LABEL_BOTTLENECK)
+    ]
+    assert len(named) == 1
+    assert named[0].value == carry.rows[carry.bottleneck].utilisation
+    (card,) = world_fixtures._plan_cards(advice)  # noqa: SLF001
+    assert LABEL_BOTTLENECK in card.tier3

@@ -29,9 +29,13 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from pathlib import Path
 
-#: The words a saturation or capacity claim would need. The legend names the star by what
-#: it measures, the highest rate, and no layer in this tree publishes a limit.
-CAPACITY_WORDS: Final = ("capacity", "limit", "saturat", "full", "maximum", "max ")
+#: The legend's two readings, word for word (ruling 158, CS-1360 E): the key to a star, and
+#: the reason there is none. The star is the bottleneck the server computed.
+LEGEND_STARRED: Final = (
+    "* marks the bottleneck - the edge using the largest share of the fastest known belt or pipe"
+    " for its unit"
+)
+LEGEND_UNMARKED: Final = "no bottleneck marked - no belt or pipe capacity known for these edges"
 
 #: The ids this slice publishes, built as the panel builds every card's.
 FLOW_ID: Final = "advice-flow-{}"
@@ -103,11 +107,7 @@ def test_s1_a_shown_flow_carries_its_own_label_and_a_legend_for_the_star(tmp_pat
     assert label["parent"] == pre["parent"] == legend["parent"]
     assert label["index"] < pre["index"] < legend["index"]
 
-    key = str(legend["text"]).lower()
-    assert "*" in str(legend["text"])
-    assert "highest rate" in key, key
-    leaked = tuple(word for word in CAPACITY_WORDS if word in key)
-    assert leaked == (), leaked
+    assert legend["text"] == LEGEND_STARRED, legend["text"]
 
 
 def test_s1_the_flow_block_has_a_role_that_accepts_the_name_the_label_gives_it(
@@ -149,17 +149,42 @@ def test_s1_a_body_with_no_flow_hides_the_label_and_the_legend_with_the_block(
         assert _row(report, stem.format(0))["hidden"] is True, stem
 
 
-def test_s1_a_flow_with_no_starred_edge_shows_its_label_and_no_legend_for_a_star(
-    tmp_path: Path,
-) -> None:
-    """A key to a mark nothing carries would describe an absence."""
+def test_s1_a_flow_with_no_starred_edge_says_why_nothing_is_marked(tmp_path: Path) -> None:
+    """A key to a mark nothing carries would describe an absence, so it gives the reason."""
     flow = _flow(_edge("Desc_Ore_C", 25, 3, marked=False))
     report = _held_flow_report(tmp_path, flow)
     pre = _row(report, FLOW_ID.format(0))
     assert pre["hidden"] is False
     assert "*" not in str(pre["text"])
     assert _row(report, FLOW_LABEL_ID.format(0))["hidden"] is False
-    assert _row(report, FLOW_LEGEND_ID.format(0))["hidden"] is True
+    legend = _row(report, FLOW_LEGEND_ID.format(0))
+    assert legend["hidden"] is False
+    assert legend["text"] == LEGEND_UNMARKED, legend["text"]
+    assert "*" not in str(legend["text"])
+
+
+def test_s1_the_legend_follows_the_latest_reading(tmp_path: Path) -> None:
+    held = panel.card("Held", "held reason")
+    marked = _flow(_edge("Desc_Ore_C", 25, 3, marked=True))
+    unmarked = _flow(_edge("Desc_Ore_C", 25, 3, marked=False))
+
+    def body(flow: object) -> dict[str, Any]:
+        return {"id": held["id"], "rule_id": held["rule_id"], "derivation": "t", "flow": flow}
+
+    report = panel.drive(
+        tmp_path,
+        panel.payload(held),
+        steps=[
+            {"click": panel.read_id(0)},
+            {"settle": {"call": 0, "outcome": panel.answered(body(marked))}},
+            {"click": panel.read_id(0)},
+            {"settle": {"call": 1, "outcome": panel.answered(body(unmarked))}},
+        ],
+    )
+    # THE CONTROL: the first reading did show the key to a star.
+    first = panel.row_of(report["steps"][1]["nodes"], FLOW_LEGEND_ID.format(0))
+    assert first["text"] == LEGEND_STARRED
+    assert _row(report, FLOW_LEGEND_ID.format(0))["text"] == LEGEND_UNMARKED
 
 
 def test_s1_a_refused_re_read_hides_the_label_and_the_legend_with_the_block(

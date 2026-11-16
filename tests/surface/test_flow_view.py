@@ -6,17 +6,21 @@ a trace. Nothing re-solves: an edge width that equalled a re-solve would agree w
 solver by construction and could never catch a view that dropped the trace's own number.
 
 WHAT THE VIEW IS. The boundary edges (raw inputs, targets, byproducts) and the chain's
-internal links, each carrying the exact rate as its width and, when the caller hands over the
-registry's transports, the smallest belt or pipe class that carries it. The plan names no
-belt tier, so SATURATED means the rate reaches the best carrier the registry knows, and it is
-unknown, never false, whenever no capacity was supplied. The mark stays named for what it
-measures, the highest rate.
+internal links, each carrying the exact rate as its width. The BOTTLENECK mark, the carrier of
+each edge, its utilisation and whether it saturates are not computed here: the advisor records
+them as one input of the plan rule (``plan.carry``), and the view transcribes that record from
+the trace. The arms that build a carry build it with the real ``solve.carry.carry_of`` and
+record it as the rule would, so a view that computed its own would be told apart by an arm
+whose recorded bottleneck disagrees with the rates.
 """
 
 from __future__ import annotations
 
+import ast
 import dataclasses
+import inspect
 from fractions import Fraction
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import pytest
@@ -27,6 +31,7 @@ from clockspeed.advisor.ledger import CardState
 from clockspeed.advisor.rules import plan as plan_rules
 from clockspeed.advisor.trace import Recommendation, StepKind, Trace, TraceStep
 from clockspeed.data import registry as registry_module
+from clockspeed.solve import carry as carry_module
 from clockspeed.solve.ratio import PlanEdge, PlanStep, ProductionPlan
 from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, flow_view
@@ -45,6 +50,7 @@ GAS: Final = "RF_GAS"
 INVALID: Final = "RF_INVALID"
 
 THIRD: Final = Fraction(10, 3)
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
 
 
 def _plan(
@@ -178,143 +184,277 @@ def test_the_first_plan_step_is_the_one_read() -> None:
     assert [edge["item"] for edge in view["edges"]] == ["Desc_First_C"]
 
 
-def test_the_marked_edge_is_the_maximum_rate_compared_exactly() -> None:
-    # 25/3 is the greatest; 8333/1000 is a float-close neighbour that a float or a
-    # serialised comparison could tie with or swap, and an exact one cannot.
-    plan = _plan(raw_inputs={"Desc_Ore_C": Fraction(25, 3), "Desc_Near_C": Fraction(8333, 1000)})
-    view = _view(plan, {"Desc_Ore_C": SOLID, "Desc_Near_C": SOLID, "Desc_Zeta_C": SOLID})
-    marked = [edge for edge in view["edges"] if edge["marked"]]
-    assert [(e["item"], e["role"]) for e in marked] == [("Desc_Ore_C", "raw-input")]
-    assert view["marked_edge"] == {
-        "item": "Desc_Ore_C",
-        "role": "raw-input",
-        "unit": flow_view.UNIT_ITEM,
-        "reason": flow_view.MARK_HIGHEST_RATE,
-    }
-    assert flow_view.MARK_HIGHEST_RATE == "highest-rate"
+ORE: Final = "Desc_Ore_C"
+PLATE: Final = "Desc_Plate_C"
+INGOT: Final = "Desc_Ingot_C"
+WATER: Final = "Desc_Water_C"
+ACID: Final = "Desc_Acid_C"
+MAKE_PLATE: Final = "Recipe_Plate_C"
+MAKE_INGOT: Final = "Recipe_Ingot_C"
+MAKE_ACID: Final = "Recipe_Acid_C"
+CHAIN_FORMS: Final = {ORE: SOLID, PLATE: SOLID, INGOT: SOLID, WATER: LIQUID, ACID: LIQUID}
 
 
-def test_a_tie_marks_the_first_edge_in_published_order_and_only_one() -> None:
-    plan = _plan(
-        raw_inputs={"Desc_B_C": Fraction(4, 3)},
-        targets={"Desc_A_C": Fraction(4, 3)},
-        byproducts={"Desc_C_C": Fraction(4, 3)},
+def _transport(
+    key: str, per_minute: Fraction | None, *, kind: str = "belt", unit: str = "item"
+) -> registry_module.Transport:
+    """One synthetic transport class, built the way the registry builds it."""
+    return registry_module.Transport(
+        key=key,
+        group="FGBuildableConveyorBelt" if kind == "belt" else "FGBuildablePipeline",
+        kind=kind,
+        unit=unit,
+        numeric=per_minute,
+        stated=per_minute,
+        per_minute=per_minute,
     )
-    view = _view(plan, {"Desc_A_C": SOLID, "Desc_B_C": SOLID, "Desc_C_C": SOLID})
-    marked = [(e["role"], e["item"]) for e in view["edges"] if e["marked"] is True]
-    assert marked == [("raw-input", "Desc_B_C")]
-    assert view["marked_edge"] == {
-        "item": "Desc_B_C",
-        "role": "raw-input",
-        "unit": flow_view.UNIT_ITEM,
-        "reason": flow_view.MARK_HIGHEST_RATE,
-    }
 
 
-# ---------------------------------------------------------------------------
-# the mark is taken within one unit (CS-1360 gap 1, ruling Q6)
-# ---------------------------------------------------------------------------
+def _carriers(*members: registry_module.Transport) -> dict[str, registry_module.Transport]:
+    return {member.key: member for member in members}
 
 
-def _marked(view: Mapping[str, object]) -> list[tuple[str, str]]:
-    edges = view["edges"]
-    assert isinstance(edges, list)
-    return [(e["role"], e["item"]) for e in edges if e["marked"] is True]
+MK1 = _transport("Build_Belt1_C", Fraction(600))
+MK2 = _transport("Build_Belt2_C", Fraction(1200))
+PIPE1 = _transport("Build_Pipe1_C", Fraction(300), kind="pipe", unit="m3")
+PIPE2 = _transport("Build_Pipe2_C", Fraction(600), kind="pipe", unit="m3")
+FLEET: Final = _carriers(MK1, MK2, PIPE1, PIPE2)
 
 
-def test_a_fluid_edge_never_outranks_a_solid_edge_across_units() -> None:
-    # A fluid byproduct is 5 cubic metres a minute, a solid target 1/3 of an item a
-    # minute: 5 > 1/3 numerically, and the two are not the same unit.
-    plan = _plan(
-        raw_inputs={},
-        targets={"Desc_Plate_C": Fraction(1, 3)},
-        byproducts={"Desc_Water_C": Fraction(5)},
+def _plan_of_edges(
+    *edges: PlanEdge,
+    raw_inputs: Mapping[str, Fraction] | None = None,
+    targets: Mapping[str, Fraction] | None = None,
+    byproducts: Mapping[str, Fraction] | None = None,
+) -> ProductionPlan:
+    """A plan whose boundary totals are the ones given and whose edges are exactly these."""
+    return ProductionPlan(
+        steps=(PlanStep(MAKE_PLATE, Fraction(3)), PlanStep(MAKE_INGOT, Fraction(2))),
+        targets={} if targets is None else targets,
+        raw_inputs={} if raw_inputs is None else raw_inputs,
+        byproducts={} if byproducts is None else byproducts,
+        excluded=(),
+        byproduct_policy="sinkable",
+        edges=edges,
     )
-    view = _view(plan, {"Desc_Plate_C": SOLID, "Desc_Water_C": LIQUID})
-    assert _marked(view) == [("target", "Desc_Plate_C")]
+
+
+def _with_carry(plan: ProductionPlan, transports: Mapping[str, object] | None) -> Trace:
+    """The trace the rule would record: the plan, then the carry the advisor computed for it."""
+    base = _trace(plan)
+    if transports is None:
+        return base
+    report = carry_module.carry_of(plan.edges, transports)  # type: ignore[arg-type]
+    return Trace(
+        rule_id=base.rule_id,
+        domain=base.domain,
+        steps=(
+            *base.steps[:-1],
+            TraceStep(
+                kind=StepKind.INPUT_READ,
+                subject="plan.carry",
+                source="solve.carry.carry_of",
+                value=report,
+            ),
+            *base.steps[-1:],
+        ),
+        recommendation=base.recommendation,
+    )
+
+
+def _carried_view(
+    plan: ProductionPlan,
+    transports: Mapping[str, object] | None = None,
+    forms: Mapping[str, str] | None = CHAIN_FORMS,
+) -> dict:
+    view = flow_view.view_of(_with_carry(plan, transports), forms=forms)
+    assert view is not None
+    return view
+
+
+def _by_item(rows: list[dict]) -> dict[str, dict]:
+    return {row["item"]: row for row in rows}
+
+
+def _every_marked(view: Mapping[str, object]) -> list[tuple[str, str]]:
+    """Every row of the view flagged marked, as (kind, item), edges before links."""
+    found: list[tuple[str, str]] = []
+    for kind in ("edges", "links"):
+        rows = view[kind]
+        assert isinstance(rows, list)
+        found.extend((kind, row["item"]) for row in rows if row["marked"] is True)
+    return found
+
+
+def test_the_mark_is_the_highest_utilisation_not_the_highest_rate() -> None:
+    # A solid at 600 a minute is 1/2 of the best belt (1200); a fluid at 540 is 9/10 of the
+    # best pipe (600). The solid has the greater rate and the fluid the greater utilisation.
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(600), "item", None),
+        PlanEdge(MAKE_ACID, ACID, None, Fraction(540), "m3", "target"),
+        raw_inputs={ORE: Fraction(600)},
+        targets={ACID: Fraction(540)},
+    )
+    view = _carried_view(plan, FLEET)
+    assert _every_marked(view) == [("edges", ACID)]
     assert view["marked_edge"] == {
-        "item": "Desc_Plate_C",
+        "producer": MAKE_ACID,
+        "item": ACID,
+        "consumer": None,
         "role": "target",
-        "unit": "item",
-        "reason": flow_view.MARK_HIGHEST_RATE,
+        "unit": "m3",
+        "utilisation": {"num": 9, "den": 10},
+        "reason": "bottleneck",
+    }
+    assert flow_view.MARK_BOTTLENECK == "bottleneck"
+
+
+def test_an_internal_link_can_be_the_bottleneck() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(300), "item", None),
+        PlanEdge(MAKE_PLATE, PLATE, MAKE_INGOT, Fraction(1140), "item", None),
+        PlanEdge(MAKE_INGOT, INGOT, None, Fraction(30), "item", "target"),
+        raw_inputs={ORE: Fraction(300)},
+        targets={INGOT: Fraction(30)},
+    )
+    view = _carried_view(plan, FLEET)
+    assert _every_marked(view) == [("links", PLATE)]
+    assert view["marked_edge"]["item"] == PLATE
+    assert view["marked_edge"]["role"] == "internal"
+    assert view["marked_edge"]["utilisation"] == {"num": 19, "den": 20}
+    # THE CONTROL: no boundary edge is flagged, so the link is the only mark.
+    assert not any(edge["marked"] for edge in view["edges"])
+
+
+def test_a_byproduct_edge_can_be_the_bottleneck_and_reads_as_a_byproduct() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(60), "item", None),
+        PlanEdge(MAKE_PLATE, INGOT, None, Fraction(30), "item", "target"),
+        PlanEdge(MAKE_PLATE, PLATE, None, Fraction(1080), "item", "byproduct"),
+        raw_inputs={ORE: Fraction(60)},
+        targets={INGOT: Fraction(30)},
+        byproducts={PLATE: Fraction(1080)},
+    )
+    view = _carried_view(plan, FLEET)
+    assert _every_marked(view) == [("edges", PLATE)]
+    assert view["marked_edge"]["role"] == "byproduct"
+    assert view["marked_edge"]["utilisation"] == {"num": 9, "den": 10}
+    by_role = {(e["role"], e["item"]): e["marked"] for e in view["edges"]}
+    assert by_role == {
+        ("raw-input", ORE): False,
+        ("target", INGOT): False,
+        ("byproduct", PLATE): True,
     }
 
 
-def test_a_solid_larger_than_every_fluid_is_marked() -> None:
-    plan = _plan(
-        raw_inputs={"Desc_Ore_C": Fraction(25, 3)},
-        targets={"Desc_Plate_C": Fraction(1, 3)},
-        byproducts={"Desc_Water_C": Fraction(2, 3)},
+def test_no_known_capacity_marks_nothing() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(600), "item", None),
+        PlanEdge(MAKE_PLATE, INGOT, None, Fraction(30), "item", "target"),
+        raw_inputs={ORE: Fraction(600)},
+        targets={INGOT: Fraction(30)},
     )
-    view = _view(plan, {"Desc_Ore_C": SOLID, "Desc_Plate_C": SOLID, "Desc_Water_C": GAS})
-    assert _marked(view) == [("raw-input", "Desc_Ore_C")]
-
-
-def test_a_plan_of_fluids_only_marks_the_largest_fluid_in_cubic_metres() -> None:
-    plan = _plan(
-        raw_inputs={"Desc_Water_C": Fraction(2, 3)},
-        targets={"Desc_Acid_C": Fraction(10, 3)},
-        byproducts={"Desc_Gas_C": Fraction(5, 2)},
-    )
-    forms = {"Desc_Water_C": LIQUID, "Desc_Acid_C": LIQUID, "Desc_Gas_C": GAS}
-    view = _view(plan, forms)
-    assert _marked(view) == [("target", "Desc_Acid_C")]
-    assert view["marked_edge"] == {
-        "item": "Desc_Acid_C",
-        "role": "target",
-        "unit": flow_view.UNIT_VOLUME,
-        "reason": flow_view.MARK_HIGHEST_RATE,
-    }
-    assert flow_view.UNIT_VOLUME == "m3"
-
-
-def test_a_plan_of_solids_only_marks_the_largest_solid_in_items() -> None:
-    plan = _plan(
-        raw_inputs={"Desc_Ore_C": Fraction(2, 3)},
-        targets={"Desc_Plate_C": Fraction(10, 3)},
-        byproducts={"Desc_Slag_C": Fraction(5, 2)},
-    )
-    forms = {"Desc_Ore_C": SOLID, "Desc_Plate_C": SOLID, "Desc_Slag_C": SOLID}
-    view = _view(plan, forms)
-    assert _marked(view) == [("target", "Desc_Plate_C")]
-    assert {e["unit"] for e in view["edges"]} == {"item"}
-
-
-def test_an_unknown_unit_edge_is_never_marked_however_large() -> None:
-    plan = _plan(
-        raw_inputs={"Desc_Mystery_C": Fraction(900)},
-        targets={"Desc_Plate_C": Fraction(1, 3)},
-        byproducts={"Desc_Blank_C": Fraction(800), "Desc_Water_C": Fraction(700)},
-    )
-    forms = {"Desc_Plate_C": SOLID, "Desc_Blank_C": "", "Desc_Water_C": LIQUID}
-    view = _view(plan, forms)
-    assert _marked(view) == [("target", "Desc_Plate_C")]
-    # With no solid at all the largest KNOWN-unit edge, a fluid, is the one marked.
-    fluid_only = _view(plan, {"Desc_Water_C": LIQUID, "Desc_Blank_C": INVALID})
-    assert _marked(fluid_only) == [("byproduct", "Desc_Water_C")]
-    assert fluid_only["marked_edge"]["unit"] == "m3"
-
-
-def test_a_plan_whose_every_unit_is_unknown_marks_nothing() -> None:
-    for forms in (None, {"Desc_Ore_C": INVALID, "Desc_Zeta_C": "RF_PLASMA"}):
-        view = _view(_plan(), forms)
-        assert view["edges"]
-        assert [e["unit"] for e in view["edges"]] == ["unknown"] * len(view["edges"])
-        assert _marked(view) == []
+    for transports in (None, {}, _carriers(_transport("Build_Belt9_C", None))):
+        view = _carried_view(plan, transports)
+        assert view["edges"]  # THE CONTROL: there is a flow to mark and nothing marks it
         assert view["marked_edge"] is None
+        assert _every_marked(view) == []
 
 
-def test_a_tie_within_a_unit_marks_the_first_and_never_ties_across_units() -> None:
-    plan = _plan(
-        raw_inputs={"Desc_Water_C": Fraction(4, 3)},
-        targets={"Desc_Plate_C": Fraction(4, 3), "Desc_Rod_C": Fraction(4, 3)},
-        byproducts={},
+def test_the_view_transcribes_the_recorded_bottleneck() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(900), "item", None),
+        PlanEdge(MAKE_PLATE, INGOT, None, Fraction(60), "item", "target"),
+        raw_inputs={ORE: Fraction(900)},
+        targets={INGOT: Fraction(60)},
     )
-    view = _view(plan, {"Desc_Water_C": LIQUID, "Desc_Plate_C": SOLID, "Desc_Rod_C": SOLID})
-    # The fluid is published first and ties the solids numerically; the solid unit wins
-    # and, within it, the first in published order.
-    assert _marked(view) == [("target", "Desc_Plate_C")]
-    assert [e["marked"] for e in view["edges"]].count(True) == 1
+    honest = carry_module.carry_of(plan.edges, FLEET)
+    assert honest.bottleneck == 0  # the rates favour the ore edge
+    named = dataclasses.replace(honest, bottleneck=1)  # the trace names the ingot edge
+    base = _trace(plan)
+    trace = Trace(
+        rule_id=base.rule_id,
+        domain=base.domain,
+        steps=(
+            *base.steps[:-1],
+            TraceStep(kind=StepKind.INPUT_READ, subject="plan.carry", value=named),
+            *base.steps[-1:],
+        ),
+        recommendation=base.recommendation,
+    )
+    view = flow_view.view_of(trace, forms=CHAIN_FORMS)
+    assert view is not None
+    assert _every_marked(view) == [("edges", INGOT)]
+    assert view["marked_edge"]["utilisation"] == contract.rational(Fraction(60, 1200))
+    # The view computes no carrier of its own: it takes no transports.
+    assert "transports" not in inspect.signature(flow_view.view_of).parameters
+
+
+def test_the_view_does_no_capacity_arithmetic_of_its_own() -> None:
+    source = Path(flow_view.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    banned = {"_capacity_of", "_rated_carriers", "_marked_position", "MARK_HIGHEST_RATE"}
+    named = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id in banned}
+    defined = {
+        n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name in banned
+    }
+    divisions = [
+        n for n in ast.walk(tree) if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Div)
+    ]
+    assert named == set()
+    assert defined == set()
+    assert divisions == []
+    # THE CONTROL: the same walk does see a planted division and a planted definition.
+    planted = ast.parse("def _capacity_of(a, b):\n    return a / b\n")
+    assert [n for n in ast.walk(planted) if isinstance(n, ast.BinOp)]
+    assert [n for n in ast.walk(planted) if isinstance(n, ast.FunctionDef)]
+
+
+def test_a_recorded_report_with_no_bottleneck_marks_nothing() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(600), "item", None),
+        raw_inputs={ORE: Fraction(600)},
+    )
+    base = _trace(plan)
+    empty = carry_module.CarryReport(rows=(), bottleneck=None)
+    trace = Trace(
+        rule_id=base.rule_id,
+        domain=base.domain,
+        steps=(
+            *base.steps[:-1],
+            TraceStep(kind=StepKind.INPUT_READ, subject="plan.carry", value=empty),
+            *base.steps[-1:],
+        ),
+        recommendation=base.recommendation,
+    )
+    view = flow_view.view_of(trace, forms=CHAIN_FORMS)
+    assert view is not None
+    assert view["marked_edge"] is None
+    assert _every_marked(view) == []
+
+
+def test_a_carry_step_of_another_kind_is_not_read() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, Fraction(600), "item", None),
+        raw_inputs={ORE: Fraction(600)},
+    )
+    report = carry_module.carry_of(plan.edges, FLEET)
+    base = _trace(plan)
+    trace = Trace(
+        rule_id=base.rule_id,
+        domain=base.domain,
+        steps=(
+            *base.steps[:-1],
+            TraceStep(kind=StepKind.RULE_FIRED, subject="plan.carry", value=report),
+            *base.steps[-1:],
+        ),
+        recommendation=base.recommendation,
+    )
+    view = flow_view.view_of(trace, forms=CHAIN_FORMS)
+    assert view is not None
+    assert view["marked_edge"] is None
+    # THE CONTROL: the same report as an input-read step does mark.
+    assert _carried_view(plan, FLEET)["marked_edge"] is not None
 
 
 @pytest.mark.parametrize(
@@ -433,24 +573,34 @@ def test_no_value_is_a_float_and_none_names_saturation() -> None:
 
 
 def test_the_view_is_ascii_and_its_keys_are_closed() -> None:
-    view = _view(_plan(), {"Desc_Ore_C": SOLID})
+    view = _carried_view(_chain(), FLEET)
     assert frozenset(view) == {"rule_id", "nodes", "edges", "links", "marked_edge"}
+    edge_keys = {
+        "item",
+        "role",
+        "direction",
+        "transport",
+        "unit",
+        "width",
+        "marked",
+        "capacity",
+        "utilisation",
+        "saturated",
+    }
+    assert all(frozenset(edge) == edge_keys for edge in view["edges"])
     assert all(
-        frozenset(edge)
-        == {
-            "item",
-            "role",
-            "direction",
-            "transport",
-            "unit",
-            "width",
-            "marked",
-            "capacity",
-            "saturated",
-        }
-        for edge in view["edges"]
+        frozenset(link) == (edge_keys - {"role", "direction"}) | {"producer", "consumer"}
+        for link in view["links"]
     )
-    assert frozenset(view["marked_edge"]) == {"item", "role", "unit", "reason"}
+    assert frozenset(view["marked_edge"]) == {
+        "producer",
+        "item",
+        "consumer",
+        "role",
+        "unit",
+        "utilisation",
+        "reason",
+    }
     assert contract.encode({"flow": view}).isascii()
 
 
@@ -459,8 +609,10 @@ def test_the_view_is_ascii_and_its_keys_are_closed() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _plan_card_advice(plan: ProductionPlan | None) -> tuple[Advice, str]:
-    card = Card(_trace(plan))
+def _plan_card_advice(
+    plan: ProductionPlan | None, transports: Mapping[str, object] | None = None
+) -> tuple[Advice, str]:
+    card = Card(_trace(plan) if plan is None else _with_carry(plan, transports))
     advice = Advice(
         traces=(),
         cards=(AdvisedCard(card=card, state=CardState("new"), muted=False),),
@@ -528,6 +680,161 @@ def test_the_closed_spellings_are_bound_to_their_owners() -> None:
 
 
 # ---------------------------------------------------------------------------
+# internal links and the carriers the trace recorded
+# ---------------------------------------------------------------------------
+
+
+def _chain(*, ore: Fraction = Fraction(90)) -> ProductionPlan:
+    """Ore into plates into ingots: one raw input, one internal link, one target."""
+    return _plan_of_edges(
+        PlanEdge(None, ORE, MAKE_PLATE, ore, "item", None),
+        PlanEdge(MAKE_PLATE, PLATE, MAKE_INGOT, Fraction(45), "item", None),
+        PlanEdge(MAKE_INGOT, INGOT, None, Fraction(30), "item", "target"),
+        raw_inputs={ORE: ore},
+        targets={INGOT: Fraction(30)},
+    )
+
+
+def test_the_internal_links_are_the_plan_edges_that_have_both_ends() -> None:
+    view = _carried_view(_chain())
+    assert view["links"] == [
+        {
+            "producer": MAKE_PLATE,
+            "consumer": MAKE_INGOT,
+            "item": PLATE,
+            "transport": "belt",
+            "unit": "item",
+            "width": contract.rational(Fraction(45)),
+            "marked": False,
+            "capacity": None,
+            "utilisation": None,
+            "saturated": None,
+        }
+    ]
+    # THE CONTROL: the boundary edges are still the boundary, once each, and not links.
+    assert [(edge["item"], edge["role"]) for edge in view["edges"]] == [
+        (ORE, "raw-input"),
+        (INGOT, "target"),
+    ]
+
+
+def test_a_plan_with_no_published_edges_serves_no_links() -> None:
+    assert _view(_plan())["links"] == []
+
+
+def test_every_allocated_link_of_a_shared_item_is_served_in_the_plan_edge_order() -> None:
+    rates = {
+        ("P1", "C1"): Fraction(1, 3),
+        ("P1", "C2"): Fraction(2, 3),
+        ("P2", "C1"): Fraction(5, 7),
+        ("P2", "C2"): Fraction(10, 7),
+    }
+    plan = _plan_of_edges(
+        *(
+            PlanEdge(producer, PLATE, consumer, rate, "item", None)
+            for (producer, consumer), rate in rates.items()
+        )
+    )
+    links = _carried_view(plan)["links"]
+    assert [(link["producer"], link["consumer"]) for link in links] == list(rates)
+    assert [link["width"] for link in links] == [contract.rational(r) for r in rates.values()]
+
+
+def test_a_link_reads_its_unit_from_the_plan_edge_and_its_transport_from_the_form() -> None:
+    plan = _plan_of_edges(PlanEdge("P", WATER, "C", Fraction(7, 3), "m3", None))
+    (link,) = _carried_view(plan)["links"]
+    assert (link["unit"], link["transport"]) == ("m3", "pipe")
+    (unformed,) = _carried_view(plan, forms=None)["links"]
+    assert (unformed["unit"], unformed["transport"]) == ("m3", "unknown")
+
+
+def test_each_row_carries_the_recorded_carrier_utilisation_and_saturation() -> None:
+    view = _carried_view(_chain(), FLEET)
+    ore = _by_item(view["edges"])[ORE]
+    assert ore["capacity"] == {"carrier": MK1.key, "per_minute": contract.rational(Fraction(600))}
+    assert ore["utilisation"] == contract.rational(Fraction(90, 1200))
+    assert ore["saturated"] is False
+    (link,) = view["links"]
+    assert link["capacity"]["carrier"] == MK1.key
+    assert link["utilisation"] == contract.rational(Fraction(45, 1200))
+    assert link["saturated"] is False
+
+
+def test_a_saturated_row_with_no_single_carrier_names_none() -> None:
+    plan = _chain(ore=Fraction(1201))
+    ore = _by_item(_carried_view(plan, FLEET)["edges"])[ORE]
+    assert ore["saturated"] is True
+    assert ore["capacity"] is None
+    assert ore["utilisation"] == contract.rational(Fraction(1201, 1200))
+
+
+def test_a_boundary_item_split_across_consumers_carries_no_single_row() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, ORE, "C1", Fraction(300), "item", None),
+        PlanEdge(None, ORE, "C2", Fraction(900), "item", None),
+        raw_inputs={ORE: Fraction(1200)},
+    )
+    view = _carried_view(plan, FLEET)
+    (edge,) = view["edges"]
+    # The aggregated edge is the sum; the piece that is the bottleneck marks it, and its own
+    # figures are not the sum's, so none are shown against it.
+    assert edge["marked"] is True
+    assert (edge["capacity"], edge["utilisation"], edge["saturated"]) == (None, None, None)
+    assert view["marked_edge"]["consumer"] == "C2"
+    assert view["marked_edge"]["utilisation"] == contract.rational(Fraction(3, 4))
+
+
+def test_an_unknown_unit_edge_has_no_row_and_no_mark() -> None:
+    plan = _plan_of_edges(
+        PlanEdge(None, "Desc_Mystery_C", MAKE_PLATE, Fraction(10**6), "unknown", None),
+        PlanEdge(MAKE_PLATE, INGOT, None, Fraction(30), "item", "target"),
+        raw_inputs={"Desc_Mystery_C": Fraction(10**6)},
+        targets={INGOT: Fraction(30)},
+    )
+    view = _carried_view(plan, FLEET, forms={INGOT: SOLID})
+    assert _every_marked(view) == [("edges", INGOT)]
+    mystery = _by_item(view["edges"])["Desc_Mystery_C"]
+    assert (mystery["capacity"], mystery["utilisation"], mystery["saturated"]) == (None, None, None)
+
+
+def test_supplying_capacity_moves_no_width() -> None:
+    plan = _chain()
+    bare = _carried_view(plan)
+    rated = _carried_view(plan, FLEET)
+    assert [(e["item"], e["width"]) for e in rated["edges"]] == [
+        (e["item"], e["width"]) for e in bare["edges"]
+    ]
+    assert contract.encode({"flow": rated}).isascii()
+    assert [leaf for leaf in _walk(rated) if isinstance(leaf, float)] == []
+
+
+def test_the_carry_spellings_are_bound_to_their_owners() -> None:
+    assert flow_view.CARRY_SUBJECT == plan_rules.IN_CARRY == "plan.carry"
+    assert registry_module.TRANSPORT_UNIT_ITEM == flow_view.UNIT_ITEM
+    assert registry_module.TRANSPORT_UNIT_CUBIC_METRE == flow_view.UNIT_VOLUME
+    assert registry_module.TRANSPORT_KIND_BELT == flow_view.TRANSPORT_BELT
+    assert registry_module.TRANSPORT_KIND_PIPE == flow_view.TRANSPORT_PIPE
+    assert plan_rules.PLAN_INPUTS[-1] == plan_rules.IN_CARRY
+
+
+def test_the_endpoint_serves_the_view_of_the_recorded_trace_and_takes_no_transports() -> None:
+    registry = solve_synthetic.solve_registry()
+    plan = _chain()
+    found, card_id = _plan_card_advice(plan, FLEET)
+    log: list[str] = []
+    response = _derivation(advice_fixtures._Source(found, log=log), log, card_id)  # noqa: SLF001
+    assert response.http_status == contract.HTTP_OK
+    data = response.payload["data"]
+    assert isinstance(data, dict)
+    forms = {key: item.form for key, item in registry.items.items()}
+    assert data["flow"] == flow_view.view_of(_with_carry(plan, FLEET), forms=forms)
+    # THE CONTROL: the served flow carries a mark, so equality is not two Nones.
+    assert data["flow"]["marked_edge"] is not None
+    assert not hasattr(advice_endpoint._SeenRegistry, "transports")  # noqa: SLF001
+    assert log.count("registry") == 1
+
+
+# ---------------------------------------------------------------------------
 # the panel
 # ---------------------------------------------------------------------------
 
@@ -542,6 +849,15 @@ def _flow_edge(item: str, role: str, num: int, den: int, *, marked: bool) -> dic
         "width": {"num": num, "den": den},
         "marked": marked,
     }
+
+
+def _with_utilisation(edge: dict, num: int, den: int, *, carrier: str | None = None) -> dict:
+    edge["utilisation"] = {"num": num, "den": den}
+    edge["saturated"] = num >= den
+    edge["capacity"] = (
+        None if carrier is None else {"carrier": carrier, "per_minute": {"num": 120, "den": 1}}
+    )
+    return edge
 
 
 def _panel_flow_text(tmp_path: object, flow: object) -> tuple[str, bool]:
@@ -560,24 +876,56 @@ def _panel_flow_text(tmp_path: object, flow: object) -> tuple[str, bool]:
     return region["text"], region["hidden"]
 
 
-def test_the_panel_writes_one_line_per_edge_starred_and_barred(tmp_path: object) -> None:
-    flow = {
-        "rule_id": "x",
-        "nodes": [],
-        "marked_edge": None,
-        "edges": [
-            _flow_edge("Desc_Ore_C", "raw-input", 25, 3, marked=True),
-            _flow_edge("Desc_Half_C", "target", 25, 6, marked=False),
-            _flow_edge("<b>Desc_Tiny_C</b>", "byproduct", 1, 1000, marked=False),
-        ],
-    }
+def _panel_flow_lines(tmp_path: object, flow: object) -> list[str]:
     text, hidden = _panel_flow_text(tmp_path, flow)
     assert hidden is False
-    lines = text.split(chr(10))
+    return text.split(chr(10))
+
+
+def _flow(*edges: dict, links: list[dict] | None = None) -> dict:
+    return {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": list(edges), "links": links}
+
+
+def test_the_panel_writes_one_line_per_edge_starred_and_barred_by_utilisation(
+    tmp_path: object,
+) -> None:
+    flow = _flow(
+        _with_utilisation(_flow_edge("Desc_Ore_C", "raw-input", 25, 3, marked=True), 9, 10),
+        _with_utilisation(_flow_edge("Desc_Half_C", "target", 25, 6, marked=False), 1, 2),
+        _with_utilisation(
+            _flow_edge("<b>Desc_Tiny_C</b>", "byproduct", 1, 1000, marked=False), 1, 100
+        ),
+    )
+    lines = _panel_flow_lines(tmp_path, flow)
     assert lines == [
-        "* Desc_Ore_C raw-input 25/3 item per min on belt " + "#" * 20,
+        "* Desc_Ore_C raw-input 25/3 item per min on belt " + "#" * 18,
         "  Desc_Half_C target 25/6 item per min on belt " + "#" * 10,
         "  <b>Desc_Tiny_C</b> byproduct 1/1000 item per min on belt #",
+    ]
+
+
+def test_a_utilisation_above_one_is_capped_and_a_row_with_none_has_no_bar(
+    tmp_path: object,
+) -> None:
+    over = _with_utilisation(_flow_edge("Desc_Big_C", "target", 5, 1, marked=True), 3, 2)
+    plain = _flow_edge("Desc_Plain_C", "target", 1, 1, marked=False)
+    lines = _panel_flow_lines(tmp_path, _flow(over, plain))
+    assert lines[0] == "* Desc_Big_C target 5 item per min on belt " + "#" * 20 + " saturated"
+    assert lines[1] == "  Desc_Plain_C target 1 item per min on belt "
+
+
+def test_a_whole_rate_renders_bare_and_a_zero_denominator_renders_dash(tmp_path: object) -> None:
+    # The unmodified rateText, driven in node: den 1 reads as the bare numerator, den 0
+    # (never a rate) as a dash, and an ordinary ratio as num/den.
+    flow = _flow(
+        _flow_edge("Desc_Whole_C", "target", 3, 1, marked=False),
+        _flow_edge("Desc_Zero_C", "target", 3, 0, marked=False),
+        _flow_edge("Desc_Ratio_C", "target", 3, 2, marked=False),
+    )
+    assert _panel_flow_lines(tmp_path, flow) == [
+        "  Desc_Whole_C target 3 item per min on belt ",
+        "  Desc_Zero_C target - item per min on belt ",
+        "  Desc_Ratio_C target 3/2 item per min on belt ",
     ]
 
 
@@ -588,338 +936,37 @@ def test_the_panel_shows_no_flow_region_when_the_body_carries_none(tmp_path: obj
         assert (text, hidden) == ("", True)
 
 
-def test_a_whole_rate_renders_bare_and_a_zero_denominator_renders_dash(tmp_path: object) -> None:
-    # The unmodified rateText, driven in node: den 1 reads as the bare numerator, den 0
-    # (never a rate) as a dash, and an ordinary ratio as num/den. Each differs from the
-    # next, so a `den === 1` slipped to `den === 0` or `den < 1` slipped to `den < 0` fails.
-    flow = {
-        "rule_id": "x",
-        "nodes": [],
-        "marked_edge": None,
-        "edges": [
-            _flow_edge("Desc_Whole_C", "target", 3, 1, marked=False),
-            _flow_edge("Desc_Zero_C", "target", 3, 0, marked=False),
-            _flow_edge("Desc_Ratio_C", "target", 3, 2, marked=False),
-        ],
-    }
-    text, hidden = _panel_flow_text(tmp_path, flow)
-    assert hidden is False
-    assert text.split(chr(10)) == [
-        "  Desc_Whole_C target 3 item per min on belt ",
-        "  Desc_Zero_C target - item per min on belt ",
-        "  Desc_Ratio_C target 3/2 item per min on belt ",
-    ]
-
-
-# ---------------------------------------------------------------------------
-# CS-1360 closure - internal links, capacity and saturation
-# ---------------------------------------------------------------------------
-
-ORE: Final = "Desc_Ore_C"
-PLATE: Final = "Desc_Plate_C"
-INGOT: Final = "Desc_Ingot_C"
-WATER: Final = "Desc_Water_C"
-MAKE_PLATE: Final = "Recipe_Plate_C"
-MAKE_INGOT: Final = "Recipe_Ingot_C"
-CHAIN_FORMS: Final = {ORE: SOLID, PLATE: SOLID, INGOT: SOLID, WATER: LIQUID}
-
-
-def _transport(
-    key: str, per_minute: Fraction | None, *, kind: str = "belt", unit: str = "item"
-) -> registry_module.Transport:
-    """One synthetic transport class, built the way the registry builds it."""
-    return registry_module.Transport(
-        key=key,
-        group="FGBuildableConveyorBelt" if kind == "belt" else "FGBuildablePipeline",
-        kind=kind,
-        unit=unit,
-        numeric=per_minute,
-        stated=per_minute,
-        per_minute=per_minute,
-    )
-
-
-def _carriers(*members: registry_module.Transport) -> dict[str, registry_module.Transport]:
-    return {member.key: member for member in members}
-
-
-MK1 = _transport("Build_Belt1_C", Fraction(60))
-MK2 = _transport("Build_Belt2_C", Fraction(120))
-PIPE1 = _transport("Build_Pipe1_C", Fraction(300), kind="pipe", unit="m3")
-
-
-def _chain(*, ore: Fraction = Fraction(90)) -> ProductionPlan:
-    """Ore into plates into ingots: one raw input, one internal link, one target."""
-    return ProductionPlan(
-        steps=(PlanStep(MAKE_PLATE, Fraction(3)), PlanStep(MAKE_INGOT, Fraction(2))),
-        targets={INGOT: Fraction(30)},
-        raw_inputs={ORE: ore},
-        byproducts={},
-        excluded=(),
-        byproduct_policy="sinkable",
-        edges=(
-            PlanEdge(None, ORE, MAKE_PLATE, ore, "item", None),
-            PlanEdge(MAKE_PLATE, PLATE, MAKE_INGOT, Fraction(45), "item", None),
-            PlanEdge(MAKE_INGOT, INGOT, None, Fraction(30), "item", "target"),
-        ),
-    )
-
-
-def _capacity_view(
-    plan: ProductionPlan, *members: registry_module.Transport, forms: Mapping[str, str] | None
-) -> dict:
-    view = flow_view.view_of(_trace(plan), forms=forms, transports=_carriers(*members))
-    assert view is not None
-    return view
-
-
-def _by_item(rows: list[dict]) -> dict[str, dict]:
-    return {row["item"]: row for row in rows}
-
-
-def _empty_plan(
-    edges: tuple[PlanEdge, ...] = (), raw_inputs: Mapping[str, Fraction] | None = None
-) -> ProductionPlan:
-    return ProductionPlan(
-        steps=(),
-        targets={},
-        raw_inputs={} if raw_inputs is None else raw_inputs,
-        byproducts={},
-        excluded=(),
-        byproduct_policy="sinkable",
-        edges=edges,
-    )
-
-
-def test_the_internal_links_are_the_plan_edges_that_have_both_ends() -> None:
-    view = _view(_chain(), CHAIN_FORMS)
-    assert view["links"] == [
-        {
-            "producer": MAKE_PLATE,
-            "consumer": MAKE_INGOT,
-            "item": PLATE,
-            "transport": "belt",
-            "unit": "item",
-            "width": contract.rational(Fraction(45)),
-            "capacity": None,
-            "saturated": None,
-        }
-    ]
-    # THE CONTROL: the boundary edges are still the boundary, once each, and not links.
-    assert [(edge["item"], edge["role"]) for edge in view["edges"]] == [
-        (ORE, "raw-input"),
-        (INGOT, "target"),
-    ]
-
-
-def test_a_plan_with_no_published_edges_serves_no_links() -> None:
-    assert _view(_plan())["links"] == []
-
-
-def test_every_allocated_link_of_a_shared_item_is_served_in_the_plan_edge_order() -> None:
-    # Two producers and two consumers of one item: four allocations, none merged.
-    rates = {
-        ("P1", "C1"): Fraction(1, 3),
-        ("P1", "C2"): Fraction(2, 3),
-        ("P2", "C1"): Fraction(5, 7),
-        ("P2", "C2"): Fraction(10, 7),
-    }
-    plan = _empty_plan(
-        tuple(
-            PlanEdge(producer, PLATE, consumer, rate, "item", None)
-            for (producer, consumer), rate in rates.items()
-        )
-    )
-    links = _view(plan, CHAIN_FORMS)["links"]
-    assert [(link["producer"], link["consumer"]) for link in links] == list(rates)
-    assert [link["width"] for link in links] == [contract.rational(r) for r in rates.values()]
-
-
-def test_a_link_reads_its_unit_from_the_plan_edge_and_its_transport_from_the_form() -> None:
-    plan = _empty_plan((PlanEdge("P", WATER, "C", Fraction(7, 3), "m3", None),))
-    (link,) = _view(plan, CHAIN_FORMS)["links"]
-    assert (link["unit"], link["transport"]) == ("m3", "pipe")
-    (unformed,) = _view(plan, None)["links"]
-    assert (unformed["unit"], unformed["transport"]) == ("m3", "unknown")
-
-
-def test_each_edge_names_the_smallest_carrier_that_holds_its_rate() -> None:
-    view = _capacity_view(_chain(), MK1, MK2, forms=CHAIN_FORMS)
-    ore = _by_item(view["edges"])[ORE]
-    assert ore["capacity"] == {"carrier": MK2.key, "per_minute": contract.rational(Fraction(120))}
-    assert ore["saturated"] is False
-    ingot = _by_item(view["edges"])[INGOT]
-    assert ingot["capacity"]["carrier"] == MK1.key
-    (link,) = view["links"]
-    assert link["capacity"]["carrier"] == MK1.key
-    assert link["saturated"] is False
-
-
-def test_a_rate_at_or_above_the_best_known_carrier_is_saturated() -> None:
-    def edges_at(ore: Fraction) -> dict[str, dict]:
-        return _by_item(_capacity_view(_chain(ore=ore), MK1, MK2, forms=CHAIN_FORMS)["edges"])
-
-    at_best = edges_at(Fraction(120))
-    assert at_best[ORE]["saturated"] is True
-    assert at_best[ORE]["capacity"]["carrier"] == MK2.key
-    above = edges_at(Fraction(361, 3))
-    assert above[ORE]["saturated"] is True
-    assert above[ORE]["capacity"] is None  # no single carrier holds it
-    # THE CONTROL: just under the best is not saturated, so the boundary is exact.
-    assert edges_at(Fraction(359, 3))[ORE]["saturated"] is False
-
-
-def test_a_link_can_be_saturated_while_the_boundary_is_not() -> None:
-    plan = _chain()
-    internal = PlanEdge(MAKE_PLATE, PLATE, MAKE_INGOT, Fraction(500), "item", None)
-    plan = dataclasses.replace(plan, edges=(plan.edges[0], internal, plan.edges[2]))
-    view = _capacity_view(plan, MK1, MK2, forms=CHAIN_FORMS)
-    assert _by_item(view["edges"])[ORE]["saturated"] is False
-    (link,) = view["links"]
-    assert (link["saturated"], link["capacity"]) == (True, None)
-
-
-def test_a_fluid_edge_is_carried_by_a_pipe_never_a_belt() -> None:
-    plan = _empty_plan(raw_inputs={WATER: Fraction(250)})
-    water = _by_item(_capacity_view(plan, MK1, MK2, PIPE1, forms=CHAIN_FORMS)["edges"])[WATER]
-    assert water["capacity"]["carrier"] == PIPE1.key
-    assert water["saturated"] is False
-    # Only belts supplied: nothing carries a fluid, which is UNKNOWN, never a free pass.
-    only_belts = _by_item(_capacity_view(plan, MK1, MK2, forms=CHAIN_FORMS)["edges"])[WATER]
-    assert (only_belts["capacity"], only_belts["saturated"]) == (None, None)
-
-
-def test_an_unknown_unit_and_an_unpublished_rate_read_unknown_never_saturated() -> None:
-    plan = _chain()
-    unformed = _by_item(_capacity_view(plan, MK1, MK2, forms=None)["edges"])
-    assert {row["saturated"] for row in unformed.values()} == {None}
-    withdrawn = _transport("Build_Belt9_C", None)
-    unrated = _by_item(_capacity_view(plan, withdrawn, forms=CHAIN_FORMS)["edges"])
-    assert {(row["capacity"], row["saturated"]) for row in unrated.values()} == {(None, None)}
-    # THE CONTROL: with a real carrier the same plan does answer.
-    rated = _by_item(_capacity_view(plan, withdrawn, MK2, forms=CHAIN_FORMS)["edges"])
-    assert rated[ORE]["capacity"]["carrier"] == MK2.key
-
-
-def test_equal_capacity_classes_resolve_to_the_first_key() -> None:
-    twin_b = _transport("Build_Z_C", Fraction(120))
-    twin_a = _transport("Build_A_C", Fraction(120))
-    ore = _by_item(_capacity_view(_chain(), twin_b, twin_a, forms=CHAIN_FORMS)["edges"])[ORE]
-    assert ore["capacity"]["carrier"] == "Build_A_C"
-
-
-def test_supplying_capacity_moves_no_width_and_no_mark() -> None:
-    plan = _chain()
-    bare = _view(plan, CHAIN_FORMS)
-    rated = _capacity_view(plan, MK1, MK2, PIPE1, forms=CHAIN_FORMS)
-    assert [(e["item"], e["width"], e["marked"]) for e in rated["edges"]] == [
-        (e["item"], e["width"], e["marked"]) for e in bare["edges"]
-    ]
-    assert rated["marked_edge"] == bare["marked_edge"]
-    assert contract.encode({"flow": rated}).isascii()
-    assert [leaf for leaf in _walk(rated) if isinstance(leaf, float)] == []
-
-
-def test_the_transport_spellings_are_bound_to_their_owners() -> None:
-    assert registry_module.TRANSPORT_UNIT_ITEM == flow_view.UNIT_ITEM
-    assert registry_module.TRANSPORT_UNIT_CUBIC_METRE == flow_view.UNIT_VOLUME
-    assert registry_module.TRANSPORT_KIND_BELT == flow_view.TRANSPORT_BELT
-    assert registry_module.TRANSPORT_KIND_PIPE == flow_view.TRANSPORT_PIPE
-
-
-def test_the_derivation_endpoint_hands_the_registrys_transports_to_the_view() -> None:
-    ore_rate = Fraction(90)
-    registry = solve_synthetic.solve_registry()
-    rated = dataclasses.replace(registry, transports=_carriers(MK1, MK2, PIPE1))
-    # The registry knows the synthetic ore, so the boundary edge reads its form as a solid.
-    ore = solve_synthetic.SOLVE_ORE_ITEM
-    chain = _chain(ore=ore_rate)
-    plan = dataclasses.replace(
-        chain,
-        raw_inputs={ore: ore_rate},
-        edges=(PlanEdge(None, ore, MAKE_PLATE, ore_rate, "item", None), *chain.edges[1:]),
-    )
-    found, card_id = _plan_card_advice(plan)
-    log: list[str] = []
-    providers = advice_fixtures._LoggedProviders(log)  # noqa: SLF001 - the shared stub
-    providers._registry = rated  # noqa: SLF001 - a registry that carries transports
-    source = advice_fixtures._Source(found, log=log)  # noqa: SLF001
-    published = advice_endpoint.routes(providers, providers, source)
-    handler = {r.template: r.handler for r in published}[advice_endpoint.DERIVATION_ENDPOINT]
-    response = handler({advice_endpoint.ID_PARAMETER: card_id})
-    assert response.http_status == contract.HTTP_OK
-    forms = {key: item.form for key, item in rated.items.items()}
-    expected = flow_view.view_of(_trace(plan), forms=forms, transports=rated.transports)
-    data = response.payload["data"]
-    assert isinstance(data, dict)
-    assert data["flow"] == expected
-    # THE CONTROL: the expectation itself carries a carrier, so equality is not two Nones.
-    assert expected is not None
-    assert _by_item(expected["edges"])[ore]["capacity"]["carrier"] == MK2.key
-    assert expected["links"][0]["capacity"]["carrier"] == MK1.key
-    assert log.count("registry") == 1
-
-
-def test_the_endpoint_serves_no_capacity_when_the_registry_publishes_no_transport() -> None:
-    plan = _chain()
-    found, card_id = _plan_card_advice(plan)
-    log: list[str] = []
-    response = _derivation(advice_fixtures._Source(found, log=log), log, card_id)  # noqa: SLF001
-    data = response.payload["data"]
-    assert isinstance(data, dict)
-    assert {edge["saturated"] for edge in data["flow"]["edges"]} == {None}
-
-
-# ---------------------------------------------------------------------------
-# the panel, closure
-# ---------------------------------------------------------------------------
-
-
-def _panel_flow_lines(tmp_path: object, flow: object) -> list[str]:
-    text, hidden = _panel_flow_text(tmp_path, flow)
-    assert hidden is False
-    return text.split(chr(10))
-
-
 def test_a_starred_line_names_its_unit_and_a_fluid_is_not_an_item(tmp_path: object) -> None:
     fluid = _flow_edge("Desc_Water_C", "raw-input", 9, 2, marked=True)
     fluid["transport"] = "pipe"
     fluid["unit"] = "m3"
-    lines = _panel_flow_lines(
-        tmp_path, {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [fluid]}
-    )
-    assert lines == ["* Desc_Water_C raw-input 9/2 m3 per min on pipe " + "#" * 20]
+    _with_utilisation(fluid, 3, 4)
+    assert _panel_flow_lines(tmp_path, _flow(fluid)) == [
+        "* Desc_Water_C raw-input 9/2 m3 per min on pipe " + "#" * 15
+    ]
 
 
 def test_an_edge_with_no_unit_reads_unknown_on_the_panel(tmp_path: object) -> None:
     edge = _flow_edge("Desc_Ore_C", "raw-input", 5, 1, marked=False)
     del edge["unit"]
-    lines = _panel_flow_lines(
-        tmp_path, {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [edge]}
-    )
-    assert lines == ["  Desc_Ore_C raw-input 5 unknown per min on belt "]
+    assert _panel_flow_lines(tmp_path, _flow(edge)) == [
+        "  Desc_Ore_C raw-input 5 unknown per min on belt "
+    ]
 
 
 def test_the_panel_transcribes_the_carrier_and_the_saturated_flag(tmp_path: object) -> None:
-    carried = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True)
-    carried["capacity"] = {"carrier": "Build_Belt2_C", "per_minute": {"num": 120, "den": 1}}
-    carried["saturated"] = False
-    full = _flow_edge("Desc_Big_C", "target", 500, 1, marked=False)
-    full["capacity"] = None
-    full["saturated"] = True
-    unknown = _flow_edge("Desc_Odd_C", "target", 1, 1, marked=False)
-    unknown["capacity"] = None
-    unknown["saturated"] = None
-    lines = _panel_flow_lines(
-        tmp_path,
-        {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [carried, full, unknown]},
+    carried = _with_utilisation(
+        _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True), 3, 4, carrier="Build_Belt2_C"
     )
+    full = _with_utilisation(_flow_edge("Desc_Big_C", "target", 500, 1, marked=False), 5, 4)
+    unknown = _flow_edge("Desc_Odd_C", "target", 1, 1, marked=False)
+    lines = _panel_flow_lines(tmp_path, _flow(carried, full, unknown))
     assert lines[0].startswith("* Desc_Ore_C raw-input 90 item per min on belt ")
     assert lines[0].endswith(" carrier Build_Belt2_C 120 per min")
     assert "saturated" not in lines[0]
     assert lines[1].endswith(" saturated")
     assert "carrier" not in lines[1]
-    assert lines[2] == "  Desc_Odd_C target 1 item per min on belt #"
+    assert lines[2] == "  Desc_Odd_C target 1 item per min on belt "
 
 
 def test_the_panel_lists_the_chain_links_under_one_allocation_heading(tmp_path: object) -> None:
@@ -930,19 +977,22 @@ def test_the_panel_lists_the_chain_links_under_one_allocation_heading(tmp_path: 
         "transport": "belt",
         "unit": "item",
         "width": {"num": 45, "den": 1},
-        "capacity": {"carrier": "Build_Belt1_C", "per_minute": {"num": 60, "den": 1}},
-        "saturated": False,
+        "marked": True,
     }
-    edge = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True)
-    lines = _panel_flow_lines(
-        tmp_path,
-        {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [edge], "links": [link]},
-    )
-    assert lines[0].startswith("* Desc_Ore_C")
+    _with_utilisation(link, 3, 4, carrier="Build_Belt1_C")
+    edge = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=False)
+    lines = _panel_flow_lines(tmp_path, _flow(edge, links=[link]))
+    assert lines[0].startswith("  Desc_Ore_C")
     assert lines[1:] == [
         "chain, allocated not routed:",
-        "  Recipe_Plate_C -> Recipe_Ingot_C Desc_Plate_C 45 item per min on belt"
-        " carrier Build_Belt1_C 60 per min",
+        "* Recipe_Plate_C -> Recipe_Ingot_C Desc_Plate_C 45 item per min on belt"
+        " carrier Build_Belt1_C 120 per min",
     ]
     # No links, no heading: the boundary reads as before.
-    assert len(_panel_flow_lines(tmp_path, {"edges": [edge], "links": []})) == 1
+    assert len(_panel_flow_lines(tmp_path, _flow(edge, links=[]))) == 1
+
+
+def test_the_panel_has_no_highest_rate_wording_left() -> None:
+    text = (REPO_ROOT / "clockspeed/surface/web/panel_advice.js").read_text(encoding="utf-8")
+    assert "highest rate" not in text.lower()
+    assert "highest-rate" not in text.lower()

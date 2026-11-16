@@ -130,10 +130,14 @@ var READ_LINE = "derivation read.";
 
 /*
   CS-1400 S1: the flow block's own heading and the key to its leading star. The legend
-  names the mark by what it measures, the highest rate, and says nothing about a limit.
+  names the mark by what the server computed, the bottleneck, and says what that is. With no
+  mark it says there was no capacity to mark against, and that is the only claim it makes.
 */
 var FLOW_LABEL_TEXT = "Flow";
-var FLOW_LEGEND_TEXT = "* marks the edge with the highest rate.";
+var FLOW_LEGEND_TEXT =
+  "* marks the bottleneck - the edge using the largest share of the fastest known belt or pipe for its unit";
+var FLOW_NO_MARK_TEXT = "no bottleneck marked - no belt or pipe capacity known for these edges";
+var FLOW_FULL_BAR = { num: 1, den: 1 };
 var SNOOZE_LABEL_TEXT = "Snooze length";
 
 var NO_CARD_STATED = "no visible card answered this request.";
@@ -185,11 +189,11 @@ function addGroup(parent, label, lines) {
   CS-1360 - THE FLOW, AS TEXT. The derivation body's flow object is transcribed one
   line per edge and never re-derived: the rate is the num/den the server served, the
   unit and the transport are the server's words, and the starred edge is the one the
-  server marked. The carrier and the saturated flag are likewise the server's: this
-  file compares no rate to any capacity and says nothing the body did not. The bar is
-  presentation only - a run of one ASCII character whose length is the edge's width
-  over the marked width, counted up by multiplying the served integers, so no float
-  and no quotient enters. The chain's internal links follow the boundary under a
+  server marked as the bottleneck. The carrier, the utilisation and the saturated flag
+  are likewise the server's: this file compares no rate to any capacity and says nothing
+  the body did not. The bar is presentation only - a run of one ASCII character whose
+  length is the edge's served utilisation over one, counted up by multiplying the served
+  integers, so no float and no quotient enters, and an edge with no utilisation has none. The chain's internal links follow the boundary under a
   heading that says they are an allocation and not a route.
 */
 var FLOW_BAR_CELLS = 20;
@@ -259,7 +263,8 @@ function linkLines(links) {
     var link = objectOrNull(links[index]);
     if (link) {
       lines.push(
-        "  " + textOf(link.producer) + " -> " + textOf(link.consumer) + " " +
+        (link.marked === true ? "* " : "  ") + textOf(link.producer) + " -> " +
+          textOf(link.consumer) + " " +
           textOf(link.item) + " " + rateText(link.width) + " " + unitText(link) +
           " per min on " + textOf(link.transport) + capacityText(link)
       );
@@ -274,13 +279,6 @@ function flowLines(flow) {
   if (!view || !Array.isArray(view.edges) || view.edges.length === 0) {
     return null;
   }
-  var widest = null;
-  for (var seek = 0; seek < view.edges.length; seek += 1) {
-    var candidate = objectOrNull(view.edges[seek]);
-    if (candidate && candidate.marked === true) {
-      widest = candidate.width;
-    }
-  }
   var lines = [];
   for (var index = 0; index < view.edges.length; index += 1) {
     var edge = objectOrNull(view.edges[index]);
@@ -289,7 +287,7 @@ function flowLines(flow) {
         (edge.marked === true ? "* " : "  ") +
           textOf(edge.item) + " " + textOf(edge.role) + " " + rateText(edge.width) + " " +
           unitText(edge) + " per min on " + textOf(edge.transport) + " " +
-          barOf(edge.width, widest) + capacityText(edge)
+          barOf(edge.utilisation, FLOW_FULL_BAR) + capacityText(edge)
       );
     }
   }
@@ -810,8 +808,9 @@ registerPanel("advice", function mountAdvice(root, data) {
       flowBox.textContent = flow === null ? "" : flow.join(String.fromCharCode(10));
       flowBox.hidden = flow === null;
       flowLabel.hidden = flow === null;
-      /* The key to a star is shown only beside one: the first character of a starred line. */
-      flowLegend.hidden = flow === null || !hasStar(flow);
+      /* The key to a star beside one, the reason there is none when there is none. */
+      flowLegend.textContent = flow !== null && hasStar(flow) ? FLOW_LEGEND_TEXT : FLOW_NO_MARK_TEXT;
+      flowLegend.hidden = flow === null;
       say(READ_LINE);
     }
 

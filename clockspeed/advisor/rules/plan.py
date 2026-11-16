@@ -201,6 +201,7 @@ from clockspeed.advisor.cards import render_value
 from clockspeed.advisor.rules.display_names import quoted, usable_name
 from clockspeed.advisor.trace import InputValue, Recommendation, RuleContext, RuleSpec
 from clockspeed.solve.backends import available_backends
+from clockspeed.solve.carry import CARRY_SOURCE, CarryReport, EdgeCarry
 from clockspeed.solve.ratio import ProductionPlan
 from clockspeed.solve.strategy import STRATEGY_LADDER, StrategyBadge
 
@@ -228,6 +229,12 @@ IN_REQUIRES: Final = "plan.requires"
 IN_BACKEND: Final = "plan.backend"
 IN_TARGET_NAMES: Final = "plan.target_names"
 
+#: CS-1360. The carrier, utilisation and bottleneck of every plan edge, set against the
+#: registry's transports by ``clockspeed/solve/carry.py`` and offered by
+#: ``clockspeed/advisor/plans.py``. A rule reads no registry, so the comparison is made
+#: before the rule and the rule records its result; the flow view reads the record.
+IN_CARRY: Final = "plan.carry"
+
 #: The schematic a plan was stated for (CS-1373): None when none was. Every adapter that offers
 #: a status offers it beside, so a world offers it whatever it was asked, and both rules read it
 #: where :data:`PLAN_INPUTS` lists it: after the join's words and before the plan.
@@ -246,6 +253,7 @@ PLAN_INPUTS: Final = (
     IN_REQUIRES,
     IN_BACKEND,
     IN_TARGET_NAMES,
+    IN_CARRY,
 )
 
 #: Input names of the marked route, offered on every world and read by
@@ -358,8 +366,12 @@ _BACKEND_SOURCE: Final = "solve.optimize.optimize_result.backend"
 #: The source of a target's display name: the registry field it is read from.
 _TARGET_NAME_SOURCE: Final = "registry.items.display_name"
 
-#: The label of the one number the rule computes.
+#: The label of the first number the rule computes.
 LABEL_MACHINES: Final = "plan machine equivalents"
+
+#: The label prefix of the second, computed only when the carry names a bottleneck: the
+#: edge using the largest share of the fastest known belt or pipe for its unit.
+LABEL_BOTTLENECK: Final = "bottleneck edge"
 
 #: The alternative a plan that cleared no rung loses as, and the one a status
 #: other than ranked leaves undecided.
@@ -861,7 +873,7 @@ def refused_inputs(
     }
 
 
-def plan_inputs(
+def plan_inputs(  # noqa: PLR0913 - one offer: the plan, its joins, its names and its carry
     ranked: RankedPlan,
     *,
     requires: tuple[str, ...],
@@ -871,6 +883,7 @@ def plan_inputs(
     unmatched_unlocks: int,
     backend: str,
     target_names: MappingProxyType[str, str | None],
+    carry: CarryReport | None = None,
 ) -> dict[str, InputValue]:
     """Offer one ranked plan as rule inputs, each sourced to the field it came from.
 
@@ -895,6 +908,11 @@ def plan_inputs(
         target_names: Each of the plan's targets by ClassName, to its display name or None.
             REQUIRED, with no default: a rule reads no registry, so a default here would say
             no target has a name when nobody looked.
+        carry: CS-1360. The plan's edges set against the registry's transports by
+            :func:`clockspeed.solve.carry.carry_of`, which ``clockspeed/advisor/plans.py``
+            calls over the registry it holds. None says no comparison was made, which the
+            rule records as no bottleneck; a report with no rows says one was made and no
+            carrier was known. A hand-built offer that names none gets the first.
 
     Returns:
         A fresh dict, so a caller may add inputs from another layer.
@@ -912,7 +930,66 @@ def plan_inputs(
         IN_REQUIRES: InputValue(requires, _REQUIRES_SOURCE),
         IN_BACKEND: InputValue(backend, _BACKEND_SOURCE),
         IN_TARGET_NAMES: InputValue(target_names, _TARGET_NAME_SOURCE),
+        IN_CARRY: InputValue(carry, CARRY_SOURCE),
     }
+
+
+def _check_carry(value: object, plan: ProductionPlan) -> CarryReport | None:
+    """Refuse a carry report the plan does not bear out.
+
+    A report that names a row the plan has no edge for, or a bottleneck that is not the
+    first row of greatest utilisation, is a forged claim, and advice is never built on one.
+
+    Args:
+        value: The value read.
+        plan: The plan the report was made for.
+
+    Returns:
+        The report, or None when none was offered.
+
+    Raises:
+        TypeError: It is neither a report nor None, or a row is not a row.
+        ValueError: A row names no edge of the plan, or the bottleneck is not the greatest.
+    """
+    if value is None:
+        return None
+    if type(value) is not CarryReport:
+        raise TypeError("a carry input is not a CarryReport")
+    edges = {(edge.producer, edge.item, edge.consumer, edge.sink) for edge in plan.edges}
+    for row in value.rows:
+        if type(row) is not EdgeCarry:
+            raise TypeError("a carry row is not an EdgeCarry")
+        if (row.producer, row.item, row.consumer, row.sink) not in edges:
+            raise ValueError("a carry row names an edge the plan does not have")
+    if not value.rows:
+        if value.bottleneck is not None:
+            raise ValueError("a carry names a bottleneck among no rows")
+        return value
+    greatest = 0
+    for index, row in enumerate(value.rows):
+        if row.utilisation > value.rows[greatest].utilisation:
+            greatest = index
+    if value.bottleneck != greatest:
+        raise ValueError("a carry's bottleneck is not its first row of greatest utilisation")
+    return value
+
+
+def _bottleneck_label(row: EdgeCarry) -> str:
+    """The generated words of the one computed line that names the bottleneck.
+
+    Args:
+        row: The bottleneck row.
+
+    Returns:
+        The label: the edge by item, producer and consumer, and what its share is of.
+    """
+    source = "supply" if row.producer is None else row.producer
+    sink = row.sink or "sink" if row.consumer is None else row.consumer
+    noun = "belt" if row.unit == "item" else "pipe"
+    return (
+        f"{LABEL_BOTTLENECK} {row.item} from {source} to {sink}, its share of the"
+        f" fastest known {noun}"
+    )
 
 
 def _check_badge(badge: StrategyBadge) -> None:
@@ -1089,10 +1166,14 @@ def _evaluate_adopt(ctx: RuleContext) -> Recommendation | None:
     if not targets:
         raise ValueError("a plan names no target")
     names = _checked_target_names(ctx.read(IN_TARGET_NAMES), targets)
+    carry = _check_carry(ctx.read(IN_CARRY), plan)
     milestone = _milestone_of(statement, plan)
     machines = ctx.compute(
         LABEL_MACHINES, sum((step.machines for step in plan.steps), start=Fraction(0))
     )
+    if carry is not None and carry.bottleneck is not None:
+        row = carry.rows[carry.bottleneck]
+        ctx.compute(_bottleneck_label(row), row.utilisation)
     if badge.strongest is None:
         ctx.reject(_ADOPT_ALTERNATIVE, "the plan cleared no strategy rung against its reference")
         return None

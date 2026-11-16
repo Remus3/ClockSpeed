@@ -152,7 +152,7 @@ if TYPE_CHECKING:
     from clockspeed.advisor.advise import Advice, AdvisedCard
     from clockspeed.advisor.plans import PlanParameters, PlanRequest, SchematicParameters
     from clockspeed.advisor.rules.plan import PlanOutcome
-    from clockspeed.data.registry import Registry, Transport
+    from clockspeed.data.registry import Registry
     from clockspeed.data.schematics import SchematicCatalog
     from clockspeed.save.world import WorldModel
 
@@ -311,8 +311,8 @@ CARD_KEYS: Final = frozenset(
 )
 
 #: The derivation body's keys. ``derivation`` is tier 3. ``flow`` is the CS-1360 flow view
-#: (boundary edges, internal links, carriers) of the plan the card's trace holds, or null for
-#: a card whose trace holds none.
+#: (boundary edges, internal links and the recorded bottleneck) of the plan the card's trace
+#: holds, or null for a card whose trace holds none.
 DERIVATION_KEYS: Final = frozenset({"id", "rule_id", "derivation", "flow"})
 
 
@@ -637,17 +637,6 @@ class _SeenRegistry:
         if self._seen is None:
             return None
         return {key: item.form for key, item in self._seen.items.items()}
-
-    def transports(self) -> Mapping[str, Transport] | None:
-        """The transport classes of the registry the read returned.
-
-        Returns:
-            The registry's belts, lifts and pipelines by key, or None when no registry
-            was read - no edge then names a carrier or a saturation.
-        """
-        if self._seen is None:
-            return None
-        return self._seen.transports
 
 
 def _resolve(
@@ -1009,9 +998,7 @@ def make_derivation_handler(
                         "id": card.id,
                         "rule_id": card.rule_id,
                         "derivation": card.tier3,
-                        "flow": flow_view.view_of(
-                            card.trace, forms=seen.forms(), transports=seen.transports()
-                        ),
+                        "flow": flow_view.view_of(card.trace, forms=seen.forms()),
                     },
                 )
         return contract.bad_request(DERIVATION_ENDPOINT, contract.REASON_INVALID_PARAMETER)
