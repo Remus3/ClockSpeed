@@ -303,9 +303,15 @@ __all__ = [
     "RECIPE_GROUP_SHORT_NAMES",
     "RESOURCE_FORMS",
     "RESOURCE_GROUP_SHORT_NAME",
+    "TRANSPORT_GROUP_SHORT_NAMES",
+    "TRANSPORT_KIND_BELT",
+    "TRANSPORT_KIND_PIPE",
+    "TRANSPORT_UNIT_CUBIC_METRE",
+    "TRANSPORT_UNIT_ITEM",
     "UNMODELED_GROUP_SHORT_NAMES",
     "WARN_DUPLICATE_CLASS_NAME",
     "WARN_EMPTY_DISPLAY_NAME",
+    "WARN_INCONSISTENT_TRANSPORT_RATE",
     "WARN_MALFORMED_BLOB",
     "WARN_MALFORMED_GROUP",
     "WARN_MISSING_CLASS_NAME",
@@ -314,6 +320,7 @@ __all__ = [
     "WARN_MISSING_FORM",
     "WARN_MISSING_POWER",
     "WARN_MISSING_PRODUCTION",
+    "WARN_MISSING_TRANSPORT_RATE",
     "WARN_NON_STRING_VALUE",
     "WARN_NO_RESOURCE_GROUP",
     "WARN_UNKNOWN_GROUP",
@@ -335,6 +342,7 @@ __all__ = [
     "RegistryError",
     "RegistryIntegrityError",
     "RegistryWarning",
+    "Transport",
     "automated_recipes",
     "build_registry",
     "build_registry_from_bytes",
@@ -623,6 +631,63 @@ WARN_UNREADABLE_ALLOWED_RESOURCES: Final = "unreadable-allowed-resources"
 #: raw item to start from. Subject is the group's short name. The advisor reads an
 #: empty :attr:`Registry.resource_items` as a malformed request, never as a search.
 WARN_NO_RESOURCE_GROUP: Final = "no-resource-group"
+#: CS-1394. A transport class whose stated per-minute capacity or numeric speed
+#: field is absent, unreadable or not above zero, so its rate is published as
+#: unknown. Subject is the class's ClassName.
+WARN_MISSING_TRANSPORT_RATE: Final = "missing-transport-rate"
+#: CS-1394. A transport group whose classes' stated-to-numeric ratios are not
+#: one exact value, so no class of that group publishes a rate. Subject is the
+#: ClassName of each class that read both operands.
+WARN_INCONSISTENT_TRANSPORT_RATE: Final = "inconsistent-transport-rate"
+
+# ---------------------------------------------------------------------------
+# Transport classes (CS-1394)
+# ---------------------------------------------------------------------------
+
+KEY_DESCRIPTION: Final = "mDescription"
+KEY_SPEED: Final = "mSpeed"
+KEY_FLOW_LIMIT: Final = "mFlowLimit"
+
+TRANSPORT_KIND_BELT: Final = "belt"
+TRANSPORT_KIND_PIPE: Final = "pipe"
+#: The unit a transport's per-minute rate is in. A solid belt or lift moves
+#: items, a pipe moves cubic metres of fluid as the docs state it; the two are
+#: never added or compared with each other.
+TRANSPORT_UNIT_ITEM: Final = "item"
+TRANSPORT_UNIT_CUBIC_METRE: Final = "m3"
+
+#: The measured groups that are a conveyor belt, a conveyor lift or a pipeline,
+#: each with its kind, the numeric field it carries and its rate unit. Hypertubes,
+#: pumps, valves, junctions, splitters and the conveyor monitor carry no stated
+#: capacity of this form and are deliberately absent.
+_TRANSPORT_GROUPS: Final[Mapping[str, tuple[str, str, str]]] = MappingProxyType(
+    {
+        "FGBuildableConveyorBelt": (TRANSPORT_KIND_BELT, KEY_SPEED, TRANSPORT_UNIT_ITEM),
+        "FGBuildableConveyorLift": (TRANSPORT_KIND_BELT, KEY_SPEED, TRANSPORT_UNIT_ITEM),
+        "FGBuildablePipeline": (
+            TRANSPORT_KIND_PIPE,
+            KEY_FLOW_LIMIT,
+            TRANSPORT_UNIT_CUBIC_METRE,
+        ),
+    }
+)
+
+#: The group short names whose classes publish a transport rate.
+TRANSPORT_GROUP_SHORT_NAMES: Final = frozenset(_TRANSPORT_GROUPS)
+
+# The stated capacity in a class's own description. The number is separated from
+# its words by an ordinary space, U+00A0 or U+202F, and a pipe's unit carries
+# U+00B3 (the cube sign); all are spelled as escapes so this file stays ASCII.
+# An ASCII digit class, never \d, so no other script's digits are read. Any text
+# outside this exact English form - a localized docs file, a number with a
+# thousands separator, a different period - does not match, and the rate is
+# published as unknown rather than guessed.
+_STATED_BELT_RATE: Final = re.compile(
+    r"up to[ \u00a0\u202f]+([0-9]+(?:\.[0-9]+)?)[ \u00a0\u202f]+resources per minute"
+)
+_STATED_PIPE_RATE: Final = re.compile(
+    r"Capacity:[ \u00a0\u202f]*([0-9]+(?:\.[0-9]+)?)[ \u00a0\u202f]*m\u00b3 of fluid per minute"
+)
 
 
 class RegistryError(Exception):
@@ -915,6 +980,47 @@ class Generator:
     accepted_fuels: tuple[str, ...] | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Transport:
+    """One conveyor belt, conveyor lift or pipeline class and its throughput (CS-1394).
+
+    The shipped docs STATE each class's per-minute capacity in its own
+    ``mDescription``. That stated rate is what :attr:`per_minute` publishes, and
+    only when the description and the numeric field (``mSpeed`` for a belt or a
+    lift, ``mFlowLimit`` for a pipe) both read, both exceed zero, and the
+    stated-to-numeric ratio is one exact value across every class of the group.
+    A description left stale on a patch therefore reads as unknown and flagged,
+    never as a confident wrong number (non-negotiable 7). No conversion factor
+    is authored anywhere on the path: the numeric field is a consistency check,
+    not a multiplicand.
+
+    Attributes:
+        key: The entry's ClassName.
+        group: The docs group short name the class came from, e.g.
+            ``FGBuildableConveyorLift``. A lift is a conveyor class and shares
+            the belt kind.
+        kind: :data:`TRANSPORT_KIND_BELT` or :data:`TRANSPORT_KIND_PIPE`.
+        unit: :data:`TRANSPORT_UNIT_ITEM` or :data:`TRANSPORT_UNIT_CUBIC_METRE`,
+            the unit :attr:`per_minute` is in.
+        numeric: The class's own ``mSpeed`` or ``mFlowLimit`` as an exact
+            Fraction, verbatim, or None when absent, unreadable or not above
+            zero.
+        stated: The per-minute capacity parsed from ``mDescription`` as an exact
+            Fraction, or None on the same terms.
+        per_minute: The published rate, an exact Fraction, or None when either
+            operand is missing or the group's ratios disagree. NEVER zero: an
+            unknown rate is not a throughput claim of zero.
+    """
+
+    key: str
+    group: str
+    kind: str
+    unit: str
+    numeric: Fraction | None
+    stated: Fraction | None
+    per_minute: Fraction | None
+
+
 @dataclass(frozen=True)
 class Recipe:
     """One production recipe, joined against items and buildings.
@@ -972,6 +1078,9 @@ _NO_EXTRACTORS: Final[Mapping[str, Extractor]] = MappingProxyType({})
 #: The empty, read-only generator mapping, on the terms _NO_EXTRACTORS states.
 _NO_GENERATORS: Final[Mapping[str, Generator]] = MappingProxyType({})
 
+#: The empty, read-only transport mapping, on the terms _NO_EXTRACTORS states.
+_NO_TRANSPORTS: Final[Mapping[str, Transport]] = MappingProxyType({})
+
 
 @dataclass(frozen=True)
 class Registry:
@@ -1016,6 +1125,10 @@ class Registry:
             recipe consumes that this group does not hold is not raw, even
             when nothing makes it. Empty when the group is absent or names
             nothing, which :data:`WARN_NO_RESOURCE_GROUP` flags.
+        transports: CS-1394. Every conveyor belt, conveyor lift and pipeline
+            class the docs declare, by ClassName, read-only. Each carries its
+            stated per-minute rate as an exact Fraction, or None when unknown
+            (:class:`Transport`). Empty when no such group is present.
     """
 
     items: Mapping[str, Item]
@@ -1038,6 +1151,9 @@ class Registry:
     # CS-1371. Appended with a default on the same terms: an empty tuple is "no raw
     # items", which the advisor refuses as a malformed request, never a search.
     resource_items: tuple[str, ...] = ()
+    # CS-1394. Appended with a default on the same terms: an empty read-only
+    # mapping is "no transport class declared", never a shared mutable default.
+    transports: Mapping[str, Transport] = _NO_TRANSPORTS
 
 
 class _WarningLog:
@@ -2174,6 +2290,127 @@ def _build_generators(
     return generators
 
 
+def _stated_rate(kind: str, description: str) -> Fraction | None:
+    """Parse the per-minute capacity a class's own description states (CS-1394).
+
+    Args:
+        kind: :data:`TRANSPORT_KIND_BELT` or :data:`TRANSPORT_KIND_PIPE`, which
+            picks the form the capacity is stated in.
+        description: The verbatim ``mDescription``.
+
+    Returns:
+        The stated capacity as an exact Fraction, parsed straight from the digits
+        and never via ``float``, or None when the text is not the one measured
+        English form. A zero or other unreadable statement is the caller's to
+        refuse; this parse only reads.
+    """
+    pattern = _STATED_PIPE_RATE if kind == TRANSPORT_KIND_PIPE else _STATED_BELT_RATE
+    found = pattern.search(description)
+    if found is None:
+        return None
+    return _fraction(found.group(1))
+
+
+def _transport(
+    entry: Mapping[str, object], key: str, group_name: str, log: _WarningLog
+) -> Transport:
+    """Build one transport class from its buildable entry (CS-1394).
+
+    Args:
+        entry: The entry mapping.
+        key: Its ClassName.
+        group_name: The group's short name, one of :data:`TRANSPORT_GROUP_SHORT_NAMES`.
+        log: The warning log.
+
+    Returns:
+        The transport. Either operand may be None - absent, unparsable, not a
+        string, or not above zero - and the rate is then None, flagged, and
+        never replaced by a number or by zero. When both read, ``per_minute`` is
+        the STATED capacity provisionally; :func:`_reconcile_group` withdraws it
+        when the group's classes disagree.
+    """
+    kind, numeric_key, unit = _TRANSPORT_GROUPS[group_name]
+    numeric = _optional_fraction(entry, numeric_key, key, log)
+    description = _text(entry, KEY_DESCRIPTION, key, log)
+    stated = None if description is None else _stated_rate(kind, description)
+    if numeric is not None and numeric <= 0:
+        numeric = None
+    if stated is not None and stated <= 0:
+        stated = None
+    if numeric is None or stated is None:
+        log.add(
+            WARN_MISSING_TRANSPORT_RATE,
+            key,
+            f"no readable positive {numeric_key} and stated per-minute capacity pair; "
+            "the rate is published as unknown rather than as zero",
+        )
+        return Transport(key, group_name, kind, unit, numeric, stated, None)
+    return Transport(key, group_name, kind, unit, numeric, stated, stated)
+
+
+def _reconcile_group(members: Mapping[str, Transport], log: _WarningLog) -> dict[str, Transport]:
+    """Withdraw a group's rates when its classes disagree (CS-1394).
+
+    The stated-to-numeric ratio of every class that read both operands must be
+    ONE exact value. Two ratios mean at least one description is stale and
+    nothing says which, so no class of the group publishes a rate and each one
+    that read both is flagged. The check is constant-free: it compares the group
+    with itself.
+
+    Args:
+        members: One group's transports by ClassName.
+        log: The warning log.
+
+    Returns:
+        The group's transports, rates withdrawn where the ratios disagree.
+    """
+    ratios = {
+        transport.stated / transport.numeric
+        for transport in members.values()
+        if transport.stated is not None and transport.numeric is not None
+    }
+    if len(ratios) <= 1:
+        return dict(members)
+    reconciled: dict[str, Transport] = {}
+    for key, transport in members.items():
+        if transport.per_minute is None:
+            reconciled[key] = transport
+            continue
+        log.add(
+            WARN_INCONSISTENT_TRANSPORT_RATE,
+            key,
+            "the group's stated capacities are not one exact multiple of its speed "
+            "field; the rate is published as unknown rather than guessed",
+        )
+        reconciled[key] = replace(transport, per_minute=None)
+    return reconciled
+
+
+def _build_transports(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Transport]:
+    """Build every conveyor belt, lift and pipeline class, in document order (CS-1394).
+
+    Args:
+        groups: The recognized groups.
+        log: The warning log.
+
+    Returns:
+        Transports by ClassName, rate reconciled per docs group.
+    """
+    transports: dict[str, Transport] = {}
+    for group in groups:
+        if group.short_name not in _TRANSPORT_GROUPS:
+            continue
+        members: dict[str, Transport] = {}
+        for entry in group.entries:
+            key = _entry_key(entry, group.short_name, transports, log)
+            if key is not None:
+                transport = _transport(entry, key, group.short_name, log)
+                members[key] = transport
+                transports[key] = transport
+        transports.update(_reconcile_group(members, log))
+    return transports
+
+
 def _declared_classes(groups: Sequence[DocsGroup]) -> frozenset[str]:
     """Collect every ClassName the recognized groups declare (CS-1285).
 
@@ -2338,6 +2575,7 @@ def build_registry(document: DocsDocument) -> Registry:
     buildings = _build_buildings(document.groups, log)
     extractors = _build_extractors(document.groups, items, log)
     generators = _build_generators(document.groups, items, log)
+    transports = _build_transports(document.groups, log)
     recipes = _build_recipes(document.groups, items, buildings, log)
     _assert_grammar_intact(_recipe_entry_count(document.groups), len(recipes), log)
     return Registry(
@@ -2350,6 +2588,7 @@ def build_registry(document: DocsDocument) -> Registry:
         generators=MappingProxyType(generators),
         declared_classes=_declared_classes(document.groups),
         resource_items=resource_items,
+        transports=MappingProxyType(transports),
     )
 
 

@@ -2056,10 +2056,10 @@ def test_the_slice_a_fields_are_appended_with_defaults() -> None:
     ):
         fields = dataclasses.fields(klass)
         assert fields[-1].name == name, klass.__name__
-    # CS-1315 appended source_sha256 after declared_classes, on the same terms, and
-    # CS-1371 appended resource_items after that.
-    registry_tail = [field.name for field in dataclasses.fields(Registry)][-3:]
-    assert registry_tail == ["declared_classes", "source_sha256", "resource_items"]
+    # CS-1315 appended source_sha256 after declared_classes, on the same terms,
+    # CS-1371 appended resource_items after that and CS-1394 appended transports.
+    registry_tail = [field.name for field in dataclasses.fields(Registry)][-4:]
+    assert registry_tail == ["declared_classes", "source_sha256", "resource_items", "transports"]
     bare = Registry(items={}, recipes={}, buildings={}, warnings=(), unknown_groups=())
     assert bare.declared_classes == frozenset()
     assert bare.source_sha256 is None
