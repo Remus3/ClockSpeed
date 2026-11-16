@@ -12,15 +12,27 @@ types are named under TYPE_CHECKING only), reads the registry not at all - the c
 hands over a ``forms`` mapping - and computes nothing beyond selecting a maximum and
 transcribing. Fractions cross the wire through :func:`contract.rational`.
 
-WHY THE WORDS "saturated" AND "bottleneck" ARE ABSENT FROM THE PAYLOAD. No layer in this
-tree publishes a belt or pipeline capacity (``clockspeed/audit/flow.py`` knows nothing
-about belts, and the registry's only throughput is the extractor's), and the plan
-publishes no internal edge: ``PlanStep`` carries a recipe and a machine count only. A
-saturation claim needs a capacity to compare a rate against, so it cannot be computed,
-and naming one would be a confident wrong answer (non-negotiable 7). The one mark this
-view makes is therefore named for what it measures - :data:`MARK_HIGHEST_RATE`, the edge
-with the greatest width - and says nothing about a limit. A successor that lands a
-capacity owns the claim.
+THE CHAIN, NOT ONLY ITS BOUNDARY (CS-1395). ``ProductionPlan.edges`` publishes one exact
+flow per (producer recipe, item, consumer recipe), and the edges with both ends are the
+chain's INTERNAL links: they are served as ``links``, in the plan's own order, each
+width the plan's own Fraction. A link is an ALLOCATION and never a route - where several
+recipes make an item and several use it, nothing says which machine feeds which - and
+the panel says so.
+
+CAPACITY AND SATURATION (CS-1394). The caller may hand over the registry's transports,
+each a belt, lift or pipeline class with its published per-minute rate and unit. Every
+edge and link then names the SMALLEST carrier whose rate holds its width, and says
+whether it is SATURATED. The plan chooses no belt tier, so saturated means one thing
+only: the width reaches the best carrier of its unit the registry knows, so no single
+carrier has room to spare. Choosing the carrier is a comparison of exact Fractions and
+no arithmetic is added. A claim needs a capacity to compare against, so both fields
+read None - never False, never a free pass - when no transports were supplied, when the
+edge's unit is unknown, or when no carrier of its unit publishes a rate (non-negotiable
+7).
+
+THE MARK IS STILL THE HIGHEST RATE. The one mark this view makes is named for what it
+measures, :data:`MARK_HIGHEST_RATE`, the boundary edge with the greatest width within
+one unit, and capacity moves neither it nor any width.
 
 THE MARK IS TAKEN WITHIN ONE UNIT. A solid's rate is items a minute and a fluid's is
 cubic metres a minute, so the two are never compared: the mark goes to the greatest
@@ -40,10 +52,12 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.surface.api import contract
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
     from fractions import Fraction
 
     from clockspeed.advisor.trace import Trace
+    from clockspeed.data.registry import Transport
+    from clockspeed.solve.ratio import PlanEdge
 
 __all__ = [
     "MARK_HIGHEST_RATE",
@@ -175,16 +189,105 @@ def _marked_position(exact: list[tuple[str, str, Fraction]], units: list[str]) -
     return None
 
 
-def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | None:
-    """Project the trace's plan into nodes, edges and the one marked edge.
+def _rated_carriers(
+    transports: Mapping[str, Transport] | None,
+) -> dict[str, list[tuple[Fraction, str]]]:
+    """The carriers that publish a rate, by unit, each list in ascending rate then key.
+
+    Args:
+        transports: Class key to transport, or None when the caller has none.
+
+    Returns:
+        Unit to ``(per_minute, key)`` pairs. A class whose rate is unpublished is left
+        out: it carries nothing as far as this layer can say.
+    """
+    by_unit: dict[str, list[tuple[Fraction, str]]] = {}
+    for key, transport in (transports or {}).items():
+        if transport.per_minute is not None:
+            by_unit.setdefault(transport.unit, []).append((transport.per_minute, key))
+    for carriers in by_unit.values():
+        carriers.sort()
+    return by_unit
+
+
+def _capacity_of(
+    rate: Fraction, unit: str, carriers: Mapping[str, list[tuple[Fraction, str]]]
+) -> tuple[dict | None, bool | None]:
+    """The smallest carrier that holds this rate, and whether the rate saturates the best.
+
+    Args:
+        rate: The edge's exact width.
+        unit: The edge's unit.
+        carriers: :func:`_rated_carriers`.
+
+    Returns:
+        ``(carrier, saturated)``. Both None when the unit is unknown or no carrier of the
+        unit publishes a rate. Otherwise ``saturated`` is whether ``rate`` reaches the
+        best carrier, and ``carrier`` is None when no single carrier holds the rate.
+    """
+    known = carriers.get(unit)
+    if not known:
+        return None, None
+    saturated = rate >= known[-1][0]
+    for per_minute, key in known:
+        if per_minute >= rate:
+            return {"carrier": key, "per_minute": contract.rational(per_minute)}, saturated
+    return None, saturated
+
+
+def _links_of(
+    plan: object,
+    forms: Mapping[str, str] | None,
+    carriers: Mapping[str, list[tuple[Fraction, str]]],
+) -> list[dict]:
+    """The plan's internal flows, one entry per edge that has both a producer and a consumer.
+
+    Args:
+        plan: The ProductionPlan the trace held.
+        forms: Item key to its verbatim ``mForm``, or None.
+        carriers: :func:`_rated_carriers`.
+
+    Returns:
+        The links in the plan's own edge order. A plan that published no edges has none.
+    """
+    plan_edges: Iterable[PlanEdge] = getattr(plan, "edges", ())
+    links: list[dict] = []
+    for edge in plan_edges:
+        if edge.producer is None or edge.consumer is None:
+            continue
+        capacity, saturated = _capacity_of(edge.rate, edge.unit, carriers)
+        links.append(
+            {
+                "producer": edge.producer,
+                "consumer": edge.consumer,
+                "item": edge.item,
+                "transport": _transport_of(edge.item, forms),
+                "unit": edge.unit,
+                "width": contract.rational(edge.rate),
+                "capacity": capacity,
+                "saturated": saturated,
+            }
+        )
+    return links
+
+
+def view_of(
+    trace: Trace,
+    *,
+    forms: Mapping[str, str] | None = None,
+    transports: Mapping[str, Transport] | None = None,
+) -> dict | None:
+    """Project the trace's plan into nodes, edges, links and the one marked edge.
 
     Args:
         trace: The rule's trace.
         forms: Item key to its verbatim ``mForm``, or None when the caller has none.
+        transports: The registry's transport classes by key, or None when the caller has
+            none, in which case no edge names a carrier or a saturation.
 
     Returns:
-        ``{"rule_id", "nodes", "edges", "marked_edge"}``, or None when the trace holds
-        no plan - flagged and skipped, never an empty view that would read as "this
+        ``{"rule_id", "nodes", "edges", "links", "marked_edge"}``, or None when the trace
+        holds no plan - flagged and skipped, never an empty view that would read as "this
         chain has no flow". Every number is a ``{"num", "den"}`` object.
     """
     plan = _plan_of(trace)
@@ -199,6 +302,11 @@ def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | N
         rates: Mapping[str, Fraction] = getattr(plan, attribute)
         exact.extend((key, role, rates[key]) for key in sorted(rates))
     units = [_unit_of(key, forms) for key, _role, _rate in exact]
+    carriers = _rated_carriers(transports)
+    capacities = [
+        _capacity_of(rate, units[position], carriers)
+        for position, (_key, _role, rate) in enumerate(exact)
+    ]
     # Selected on the exact rates, first wins a tie; the serialised dicts are never compared.
     # Only edges of ONE unit compete: items when any solid edge exists, else cubic metres.
     # An edge of unknown unit never competes, so a plan with none known marks nothing.
@@ -212,6 +320,8 @@ def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | N
             "unit": units[position],
             "width": contract.rational(rate),
             "marked": position == marked,
+            "capacity": capacities[position][0],
+            "saturated": capacities[position][1],
         }
         for position, (key, role, rate) in enumerate(exact)
     ]
@@ -229,5 +339,6 @@ def view_of(trace: Trace, *, forms: Mapping[str, str] | None = None) -> dict | N
         "rule_id": trace.rule_id,
         "nodes": nodes,
         "edges": edges,
+        "links": _links_of(plan, forms, carriers),
         "marked_edge": marked_edge,
     }

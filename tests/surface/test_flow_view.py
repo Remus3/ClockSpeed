@@ -5,14 +5,17 @@ here builds a plan by hand with Fractions that do not terminate and reads it bac
 a trace. Nothing re-solves: an edge width that equalled a re-solve would agree with the
 solver by construction and could never catch a view that dropped the trace's own number.
 
-WHAT THE VIEW IS NOT. No layer in this tree publishes a belt or pipe capacity, and the
-plan carries no internal edge, so these arms pin a BOUNDARY view (raw inputs, targets,
-byproducts) and a mark named for what it measures, the highest rate. The arm that walks
-the payload for the words a saturation claim would need is the control for that.
+WHAT THE VIEW IS. The boundary edges (raw inputs, targets, byproducts) and the chain's
+internal links, each carrying the exact rate as its width and, when the caller hands over the
+registry's transports, the smallest belt or pipe class that carries it. The plan names no
+belt tier, so SATURATED means the rate reaches the best carrier the registry knows, and it is
+unknown, never false, whenever no capacity was supplied. The mark stays named for what it
+measures, the highest rate.
 """
 
 from __future__ import annotations
 
+import dataclasses
 from fractions import Fraction
 from typing import TYPE_CHECKING, Final
 
@@ -24,7 +27,7 @@ from clockspeed.advisor.ledger import CardState
 from clockspeed.advisor.rules import plan as plan_rules
 from clockspeed.advisor.trace import Recommendation, StepKind, Trace, TraceStep
 from clockspeed.data import registry as registry_module
-from clockspeed.solve.ratio import PlanStep, ProductionPlan
+from clockspeed.solve.ratio import PlanEdge, PlanStep, ProductionPlan
 from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract, flow_view
 from tests.solve import synthetic as solve_synthetic
@@ -411,12 +414,18 @@ def test_no_value_is_a_float_and_none_names_saturation() -> None:
     assert leaves  # the walk reached something
     floats = [leaf for leaf in leaves if isinstance(leaf, float)]
     assert floats == []
+    # A claim is a VALUE: no string leaf names one, and with no capacity supplied every
+    # saturated field is unknown, never false. The keys are the schema, not a claim.
     words = [
         leaf
         for leaf in leaves
         if isinstance(leaf, str) and ("saturated" in leaf.lower() or "bottleneck" in leaf.lower())
     ]
-    assert words == []
+    assert words == ["saturated" for _edge in view["edges"]], (
+        "only the schema key, once per edge, may spell the word"
+    )
+    assert [edge["saturated"] for edge in view["edges"]] == [None] * len(view["edges"])
+    assert [edge["capacity"] for edge in view["edges"]] == [None] * len(view["edges"])
     # The control: the walker does see a planted word and a planted float.
     assert _walk({"k": ["bottleneck", 1.5]}) == ["k", "bottleneck", 1.5]
     # And the wire accepts the whole thing, which refuses a float.
@@ -425,9 +434,20 @@ def test_no_value_is_a_float_and_none_names_saturation() -> None:
 
 def test_the_view_is_ascii_and_its_keys_are_closed() -> None:
     view = _view(_plan(), {"Desc_Ore_C": SOLID})
-    assert frozenset(view) == {"rule_id", "nodes", "edges", "marked_edge"}
+    assert frozenset(view) == {"rule_id", "nodes", "edges", "links", "marked_edge"}
     assert all(
-        frozenset(edge) == {"item", "role", "direction", "transport", "unit", "width", "marked"}
+        frozenset(edge)
+        == {
+            "item",
+            "role",
+            "direction",
+            "transport",
+            "unit",
+            "width",
+            "marked",
+            "capacity",
+            "saturated",
+        }
         for edge in view["edges"]
     )
     assert frozenset(view["marked_edge"]) == {"item", "role", "unit", "reason"}
@@ -518,6 +538,7 @@ def _flow_edge(item: str, role: str, num: int, den: int, *, marked: bool) -> dic
         "role": role,
         "direction": "in" if role == "raw-input" else "out",
         "transport": "belt",
+        "unit": "item",
         "width": {"num": num, "den": den},
         "marked": marked,
     }
@@ -554,9 +575,9 @@ def test_the_panel_writes_one_line_per_edge_starred_and_barred(tmp_path: object)
     assert hidden is False
     lines = text.split(chr(10))
     assert lines == [
-        "* Desc_Ore_C raw-input 25/3 per min on belt " + "#" * 20,
-        "  Desc_Half_C target 25/6 per min on belt " + "#" * 10,
-        "  <b>Desc_Tiny_C</b> byproduct 1/1000 per min on belt #",
+        "* Desc_Ore_C raw-input 25/3 item per min on belt " + "#" * 20,
+        "  Desc_Half_C target 25/6 item per min on belt " + "#" * 10,
+        "  <b>Desc_Tiny_C</b> byproduct 1/1000 item per min on belt #",
     ]
 
 
@@ -584,7 +605,344 @@ def test_a_whole_rate_renders_bare_and_a_zero_denominator_renders_dash(tmp_path:
     text, hidden = _panel_flow_text(tmp_path, flow)
     assert hidden is False
     assert text.split(chr(10)) == [
-        "  Desc_Whole_C target 3 per min on belt ",
-        "  Desc_Zero_C target - per min on belt ",
-        "  Desc_Ratio_C target 3/2 per min on belt ",
+        "  Desc_Whole_C target 3 item per min on belt ",
+        "  Desc_Zero_C target - item per min on belt ",
+        "  Desc_Ratio_C target 3/2 item per min on belt ",
     ]
+
+
+# ---------------------------------------------------------------------------
+# CS-1360 closure - internal links, capacity and saturation
+# ---------------------------------------------------------------------------
+
+ORE: Final = "Desc_Ore_C"
+PLATE: Final = "Desc_Plate_C"
+INGOT: Final = "Desc_Ingot_C"
+WATER: Final = "Desc_Water_C"
+MAKE_PLATE: Final = "Recipe_Plate_C"
+MAKE_INGOT: Final = "Recipe_Ingot_C"
+CHAIN_FORMS: Final = {ORE: SOLID, PLATE: SOLID, INGOT: SOLID, WATER: LIQUID}
+
+
+def _transport(
+    key: str, per_minute: Fraction | None, *, kind: str = "belt", unit: str = "item"
+) -> registry_module.Transport:
+    """One synthetic transport class, built the way the registry builds it."""
+    return registry_module.Transport(
+        key=key,
+        group="FGBuildableConveyorBelt" if kind == "belt" else "FGBuildablePipeline",
+        kind=kind,
+        unit=unit,
+        numeric=per_minute,
+        stated=per_minute,
+        per_minute=per_minute,
+    )
+
+
+def _carriers(*members: registry_module.Transport) -> dict[str, registry_module.Transport]:
+    return {member.key: member for member in members}
+
+
+MK1 = _transport("Build_Belt1_C", Fraction(60))
+MK2 = _transport("Build_Belt2_C", Fraction(120))
+PIPE1 = _transport("Build_Pipe1_C", Fraction(300), kind="pipe", unit="m3")
+
+
+def _chain(*, ore: Fraction = Fraction(90)) -> ProductionPlan:
+    """Ore into plates into ingots: one raw input, one internal link, one target."""
+    return ProductionPlan(
+        steps=(PlanStep(MAKE_PLATE, Fraction(3)), PlanStep(MAKE_INGOT, Fraction(2))),
+        targets={INGOT: Fraction(30)},
+        raw_inputs={ORE: ore},
+        byproducts={},
+        excluded=(),
+        byproduct_policy="sinkable",
+        edges=(
+            PlanEdge(None, ORE, MAKE_PLATE, ore, "item", None),
+            PlanEdge(MAKE_PLATE, PLATE, MAKE_INGOT, Fraction(45), "item", None),
+            PlanEdge(MAKE_INGOT, INGOT, None, Fraction(30), "item", "target"),
+        ),
+    )
+
+
+def _capacity_view(
+    plan: ProductionPlan, *members: registry_module.Transport, forms: Mapping[str, str] | None
+) -> dict:
+    view = flow_view.view_of(_trace(plan), forms=forms, transports=_carriers(*members))
+    assert view is not None
+    return view
+
+
+def _by_item(rows: list[dict]) -> dict[str, dict]:
+    return {row["item"]: row for row in rows}
+
+
+def _empty_plan(
+    edges: tuple[PlanEdge, ...] = (), raw_inputs: Mapping[str, Fraction] | None = None
+) -> ProductionPlan:
+    return ProductionPlan(
+        steps=(),
+        targets={},
+        raw_inputs={} if raw_inputs is None else raw_inputs,
+        byproducts={},
+        excluded=(),
+        byproduct_policy="sinkable",
+        edges=edges,
+    )
+
+
+def test_the_internal_links_are_the_plan_edges_that_have_both_ends() -> None:
+    view = _view(_chain(), CHAIN_FORMS)
+    assert view["links"] == [
+        {
+            "producer": MAKE_PLATE,
+            "consumer": MAKE_INGOT,
+            "item": PLATE,
+            "transport": "belt",
+            "unit": "item",
+            "width": contract.rational(Fraction(45)),
+            "capacity": None,
+            "saturated": None,
+        }
+    ]
+    # THE CONTROL: the boundary edges are still the boundary, once each, and not links.
+    assert [(edge["item"], edge["role"]) for edge in view["edges"]] == [
+        (ORE, "raw-input"),
+        (INGOT, "target"),
+    ]
+
+
+def test_a_plan_with_no_published_edges_serves_no_links() -> None:
+    assert _view(_plan())["links"] == []
+
+
+def test_every_allocated_link_of_a_shared_item_is_served_in_the_plan_edge_order() -> None:
+    # Two producers and two consumers of one item: four allocations, none merged.
+    rates = {
+        ("P1", "C1"): Fraction(1, 3),
+        ("P1", "C2"): Fraction(2, 3),
+        ("P2", "C1"): Fraction(5, 7),
+        ("P2", "C2"): Fraction(10, 7),
+    }
+    plan = _empty_plan(
+        tuple(
+            PlanEdge(producer, PLATE, consumer, rate, "item", None)
+            for (producer, consumer), rate in rates.items()
+        )
+    )
+    links = _view(plan, CHAIN_FORMS)["links"]
+    assert [(link["producer"], link["consumer"]) for link in links] == list(rates)
+    assert [link["width"] for link in links] == [contract.rational(r) for r in rates.values()]
+
+
+def test_a_link_reads_its_unit_from_the_plan_edge_and_its_transport_from_the_form() -> None:
+    plan = _empty_plan((PlanEdge("P", WATER, "C", Fraction(7, 3), "m3", None),))
+    (link,) = _view(plan, CHAIN_FORMS)["links"]
+    assert (link["unit"], link["transport"]) == ("m3", "pipe")
+    (unformed,) = _view(plan, None)["links"]
+    assert (unformed["unit"], unformed["transport"]) == ("m3", "unknown")
+
+
+def test_each_edge_names_the_smallest_carrier_that_holds_its_rate() -> None:
+    view = _capacity_view(_chain(), MK1, MK2, forms=CHAIN_FORMS)
+    ore = _by_item(view["edges"])[ORE]
+    assert ore["capacity"] == {"carrier": MK2.key, "per_minute": contract.rational(Fraction(120))}
+    assert ore["saturated"] is False
+    ingot = _by_item(view["edges"])[INGOT]
+    assert ingot["capacity"]["carrier"] == MK1.key
+    (link,) = view["links"]
+    assert link["capacity"]["carrier"] == MK1.key
+    assert link["saturated"] is False
+
+
+def test_a_rate_at_or_above_the_best_known_carrier_is_saturated() -> None:
+    def edges_at(ore: Fraction) -> dict[str, dict]:
+        return _by_item(_capacity_view(_chain(ore=ore), MK1, MK2, forms=CHAIN_FORMS)["edges"])
+
+    at_best = edges_at(Fraction(120))
+    assert at_best[ORE]["saturated"] is True
+    assert at_best[ORE]["capacity"]["carrier"] == MK2.key
+    above = edges_at(Fraction(361, 3))
+    assert above[ORE]["saturated"] is True
+    assert above[ORE]["capacity"] is None  # no single carrier holds it
+    # THE CONTROL: just under the best is not saturated, so the boundary is exact.
+    assert edges_at(Fraction(359, 3))[ORE]["saturated"] is False
+
+
+def test_a_link_can_be_saturated_while_the_boundary_is_not() -> None:
+    plan = _chain()
+    internal = PlanEdge(MAKE_PLATE, PLATE, MAKE_INGOT, Fraction(500), "item", None)
+    plan = dataclasses.replace(plan, edges=(plan.edges[0], internal, plan.edges[2]))
+    view = _capacity_view(plan, MK1, MK2, forms=CHAIN_FORMS)
+    assert _by_item(view["edges"])[ORE]["saturated"] is False
+    (link,) = view["links"]
+    assert (link["saturated"], link["capacity"]) == (True, None)
+
+
+def test_a_fluid_edge_is_carried_by_a_pipe_never_a_belt() -> None:
+    plan = _empty_plan(raw_inputs={WATER: Fraction(250)})
+    water = _by_item(_capacity_view(plan, MK1, MK2, PIPE1, forms=CHAIN_FORMS)["edges"])[WATER]
+    assert water["capacity"]["carrier"] == PIPE1.key
+    assert water["saturated"] is False
+    # Only belts supplied: nothing carries a fluid, which is UNKNOWN, never a free pass.
+    only_belts = _by_item(_capacity_view(plan, MK1, MK2, forms=CHAIN_FORMS)["edges"])[WATER]
+    assert (only_belts["capacity"], only_belts["saturated"]) == (None, None)
+
+
+def test_an_unknown_unit_and_an_unpublished_rate_read_unknown_never_saturated() -> None:
+    plan = _chain()
+    unformed = _by_item(_capacity_view(plan, MK1, MK2, forms=None)["edges"])
+    assert {row["saturated"] for row in unformed.values()} == {None}
+    withdrawn = _transport("Build_Belt9_C", None)
+    unrated = _by_item(_capacity_view(plan, withdrawn, forms=CHAIN_FORMS)["edges"])
+    assert {(row["capacity"], row["saturated"]) for row in unrated.values()} == {(None, None)}
+    # THE CONTROL: with a real carrier the same plan does answer.
+    rated = _by_item(_capacity_view(plan, withdrawn, MK2, forms=CHAIN_FORMS)["edges"])
+    assert rated[ORE]["capacity"]["carrier"] == MK2.key
+
+
+def test_equal_capacity_classes_resolve_to_the_first_key() -> None:
+    twin_b = _transport("Build_Z_C", Fraction(120))
+    twin_a = _transport("Build_A_C", Fraction(120))
+    ore = _by_item(_capacity_view(_chain(), twin_b, twin_a, forms=CHAIN_FORMS)["edges"])[ORE]
+    assert ore["capacity"]["carrier"] == "Build_A_C"
+
+
+def test_supplying_capacity_moves_no_width_and_no_mark() -> None:
+    plan = _chain()
+    bare = _view(plan, CHAIN_FORMS)
+    rated = _capacity_view(plan, MK1, MK2, PIPE1, forms=CHAIN_FORMS)
+    assert [(e["item"], e["width"], e["marked"]) for e in rated["edges"]] == [
+        (e["item"], e["width"], e["marked"]) for e in bare["edges"]
+    ]
+    assert rated["marked_edge"] == bare["marked_edge"]
+    assert contract.encode({"flow": rated}).isascii()
+    assert [leaf for leaf in _walk(rated) if isinstance(leaf, float)] == []
+
+
+def test_the_transport_spellings_are_bound_to_their_owners() -> None:
+    assert registry_module.TRANSPORT_UNIT_ITEM == flow_view.UNIT_ITEM
+    assert registry_module.TRANSPORT_UNIT_CUBIC_METRE == flow_view.UNIT_VOLUME
+    assert registry_module.TRANSPORT_KIND_BELT == flow_view.TRANSPORT_BELT
+    assert registry_module.TRANSPORT_KIND_PIPE == flow_view.TRANSPORT_PIPE
+
+
+def test_the_derivation_endpoint_hands_the_registrys_transports_to_the_view() -> None:
+    ore_rate = Fraction(90)
+    registry = solve_synthetic.solve_registry()
+    rated = dataclasses.replace(registry, transports=_carriers(MK1, MK2, PIPE1))
+    # The registry knows the synthetic ore, so the boundary edge reads its form as a solid.
+    ore = solve_synthetic.SOLVE_ORE_ITEM
+    chain = _chain(ore=ore_rate)
+    plan = dataclasses.replace(
+        chain,
+        raw_inputs={ore: ore_rate},
+        edges=(PlanEdge(None, ore, MAKE_PLATE, ore_rate, "item", None), *chain.edges[1:]),
+    )
+    found, card_id = _plan_card_advice(plan)
+    log: list[str] = []
+    providers = advice_fixtures._LoggedProviders(log)  # noqa: SLF001 - the shared stub
+    providers._registry = rated  # noqa: SLF001 - a registry that carries transports
+    source = advice_fixtures._Source(found, log=log)  # noqa: SLF001
+    published = advice_endpoint.routes(providers, providers, source)
+    handler = {r.template: r.handler for r in published}[advice_endpoint.DERIVATION_ENDPOINT]
+    response = handler({advice_endpoint.ID_PARAMETER: card_id})
+    assert response.http_status == contract.HTTP_OK
+    forms = {key: item.form for key, item in rated.items.items()}
+    expected = flow_view.view_of(_trace(plan), forms=forms, transports=rated.transports)
+    data = response.payload["data"]
+    assert isinstance(data, dict)
+    assert data["flow"] == expected
+    # THE CONTROL: the expectation itself carries a carrier, so equality is not two Nones.
+    assert expected is not None
+    assert _by_item(expected["edges"])[ore]["capacity"]["carrier"] == MK2.key
+    assert expected["links"][0]["capacity"]["carrier"] == MK1.key
+    assert log.count("registry") == 1
+
+
+def test_the_endpoint_serves_no_capacity_when_the_registry_publishes_no_transport() -> None:
+    plan = _chain()
+    found, card_id = _plan_card_advice(plan)
+    log: list[str] = []
+    response = _derivation(advice_fixtures._Source(found, log=log), log, card_id)  # noqa: SLF001
+    data = response.payload["data"]
+    assert isinstance(data, dict)
+    assert {edge["saturated"] for edge in data["flow"]["edges"]} == {None}
+
+
+# ---------------------------------------------------------------------------
+# the panel, closure
+# ---------------------------------------------------------------------------
+
+
+def _panel_flow_lines(tmp_path: object, flow: object) -> list[str]:
+    text, hidden = _panel_flow_text(tmp_path, flow)
+    assert hidden is False
+    return text.split(chr(10))
+
+
+def test_a_starred_line_names_its_unit_and_a_fluid_is_not_an_item(tmp_path: object) -> None:
+    fluid = _flow_edge("Desc_Water_C", "raw-input", 9, 2, marked=True)
+    fluid["transport"] = "pipe"
+    fluid["unit"] = "m3"
+    lines = _panel_flow_lines(
+        tmp_path, {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [fluid]}
+    )
+    assert lines == ["* Desc_Water_C raw-input 9/2 m3 per min on pipe " + "#" * 20]
+
+
+def test_an_edge_with_no_unit_reads_unknown_on_the_panel(tmp_path: object) -> None:
+    edge = _flow_edge("Desc_Ore_C", "raw-input", 5, 1, marked=False)
+    del edge["unit"]
+    lines = _panel_flow_lines(
+        tmp_path, {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [edge]}
+    )
+    assert lines == ["  Desc_Ore_C raw-input 5 unknown per min on belt "]
+
+
+def test_the_panel_transcribes_the_carrier_and_the_saturated_flag(tmp_path: object) -> None:
+    carried = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True)
+    carried["capacity"] = {"carrier": "Build_Belt2_C", "per_minute": {"num": 120, "den": 1}}
+    carried["saturated"] = False
+    full = _flow_edge("Desc_Big_C", "target", 500, 1, marked=False)
+    full["capacity"] = None
+    full["saturated"] = True
+    unknown = _flow_edge("Desc_Odd_C", "target", 1, 1, marked=False)
+    unknown["capacity"] = None
+    unknown["saturated"] = None
+    lines = _panel_flow_lines(
+        tmp_path,
+        {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [carried, full, unknown]},
+    )
+    assert lines[0].startswith("* Desc_Ore_C raw-input 90 item per min on belt ")
+    assert lines[0].endswith(" carrier Build_Belt2_C 120 per min")
+    assert "saturated" not in lines[0]
+    assert lines[1].endswith(" saturated")
+    assert "carrier" not in lines[1]
+    assert lines[2] == "  Desc_Odd_C target 1 item per min on belt #"
+
+
+def test_the_panel_lists_the_chain_links_under_one_allocation_heading(tmp_path: object) -> None:
+    link = {
+        "producer": "Recipe_Plate_C",
+        "consumer": "Recipe_Ingot_C",
+        "item": "Desc_Plate_C",
+        "transport": "belt",
+        "unit": "item",
+        "width": {"num": 45, "den": 1},
+        "capacity": {"carrier": "Build_Belt1_C", "per_minute": {"num": 60, "den": 1}},
+        "saturated": False,
+    }
+    edge = _flow_edge("Desc_Ore_C", "raw-input", 90, 1, marked=True)
+    lines = _panel_flow_lines(
+        tmp_path,
+        {"rule_id": "x", "nodes": [], "marked_edge": None, "edges": [edge], "links": [link]},
+    )
+    assert lines[0].startswith("* Desc_Ore_C")
+    assert lines[1:] == [
+        "chain, allocated not routed:",
+        "  Recipe_Plate_C -> Recipe_Ingot_C Desc_Plate_C 45 item per min on belt"
+        " carrier Build_Belt1_C 60 per min",
+    ]
+    # No links, no heading: the boundary reads as before.
+    assert len(_panel_flow_lines(tmp_path, {"edges": [edge], "links": []})) == 1

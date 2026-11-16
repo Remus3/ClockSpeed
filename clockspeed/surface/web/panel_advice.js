@@ -132,7 +132,7 @@ var READ_LINE = "derivation read.";
   CS-1400 S1: the flow block's own heading and the key to its leading star. The legend
   names the mark by what it measures, the highest rate, and says nothing about a limit.
 */
-var FLOW_LABEL_TEXT = "Boundary flow";
+var FLOW_LABEL_TEXT = "Flow";
 var FLOW_LEGEND_TEXT = "* marks the edge with the highest rate.";
 var SNOOZE_LABEL_TEXT = "Snooze length";
 
@@ -182,16 +182,20 @@ function addGroup(parent, label, lines) {
 }
 
 /*
-  CS-1360 - THE BOUNDARY FLOW, AS TEXT. The derivation body's flow object is
-  transcribed one line per edge and never re-derived: the rate is the num/den the
-  server served, the transport is the server's word, and the starred edge is the one
-  the server marked. The bar is presentation only - a run of one ASCII character whose
-  length is the edge's width over the marked width, counted up by multiplying the served
-  integers, so no float and no quotient enters. NO CAPACITY IS SHOWN OR IMPLIED: the mark means the
-  highest rate, and this file says nothing about a limit.
+  CS-1360 - THE FLOW, AS TEXT. The derivation body's flow object is transcribed one
+  line per edge and never re-derived: the rate is the num/den the server served, the
+  unit and the transport are the server's words, and the starred edge is the one the
+  server marked. The carrier and the saturated flag are likewise the server's: this
+  file compares no rate to any capacity and says nothing the body did not. The bar is
+  presentation only - a run of one ASCII character whose length is the edge's width
+  over the marked width, counted up by multiplying the served integers, so no float
+  and no quotient enters. The chain's internal links follow the boundary under a
+  heading that says they are an allocation and not a route.
 */
 var FLOW_BAR_CELLS = 20;
 var FLOW_BAR_CHAR = "#";
+var FLOW_CHAIN_HEADING = "chain, allocated not routed:";
+var FLOW_UNIT_UNKNOWN = "unknown";
 
 function rateText(rate) {
   /* A served {num, den} as text: a whole number bare, anything else as num/den. */
@@ -227,6 +231,43 @@ function barOf(width, widest) {
   return FLOW_BAR_CHAR.repeat(cells);
 }
 
+function capacityText(edge) {
+  /* The server's carrier and saturated flag as a line suffix, or the empty string. */
+  var text = "";
+  var capacity = objectOrNull(edge.capacity);
+  if (capacity && typeof capacity.carrier === "string") {
+    text += " carrier " + textOf(capacity.carrier) + " " + rateText(capacity.per_minute) + " per min";
+  }
+  if (edge.saturated === true) {
+    text += " saturated";
+  }
+  return text;
+}
+
+function unitText(edge) {
+  /* The server's unit word, or unknown when the body carries none. */
+  return typeof edge.unit === "string" && edge.unit !== "" ? textOf(edge.unit) : FLOW_UNIT_UNKNOWN;
+}
+
+function linkLines(links) {
+  /* The chain's internal links, one line each, under the allocation heading; none, none. */
+  var lines = [];
+  if (!Array.isArray(links)) {
+    return lines;
+  }
+  for (var index = 0; index < links.length; index += 1) {
+    var link = objectOrNull(links[index]);
+    if (link) {
+      lines.push(
+        "  " + textOf(link.producer) + " -> " + textOf(link.consumer) + " " +
+          textOf(link.item) + " " + rateText(link.width) + " " + unitText(link) +
+          " per min on " + textOf(link.transport) + capacityText(link)
+      );
+    }
+  }
+  return lines.length === 0 ? lines : [FLOW_CHAIN_HEADING].concat(lines);
+}
+
 function flowLines(flow) {
   /* One text line per edge, or null when the body carries no flow or no edge. */
   var view = objectOrNull(flow);
@@ -246,12 +287,13 @@ function flowLines(flow) {
     if (edge) {
       lines.push(
         (edge.marked === true ? "* " : "  ") +
-          textOf(edge.item) + " " + textOf(edge.role) + " " + rateText(edge.width) +
-          " per min on " + textOf(edge.transport) + " " + barOf(edge.width, widest)
+          textOf(edge.item) + " " + textOf(edge.role) + " " + rateText(edge.width) + " " +
+          unitText(edge) + " per min on " + textOf(edge.transport) + " " +
+          barOf(edge.width, widest) + capacityText(edge)
       );
     }
   }
-  return lines.length === 0 ? null : lines;
+  return lines.length === 0 ? null : lines.concat(linkLines(view.links));
 }
 
 function hasStar(lines) {
