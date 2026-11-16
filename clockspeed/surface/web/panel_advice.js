@@ -120,11 +120,21 @@ var NO_SCHEMATICS_LINE =
 var STATE_IDLE_LINE = "state not changed.";
 var RECORDING_LINE = "recording the state ...";
 var RECORDED_LINE = "state recorded; reading the listing again.";
+/* CS-1400: what that line becomes once the listing was read and the card stayed in place. */
+var RECORDED_SHOWN_LINE = "state recorded.";
 var NO_LENGTH_LINE = "still empty: snooze length.";
 
 var READING_LINE = "reading the derivation ...";
 var UNREAD_LINE = "derivation not read.";
 var READ_LINE = "derivation read.";
+
+/*
+  CS-1400 S1: the flow block's own heading and the key to its leading star. The legend
+  names the mark by what it measures, the highest rate, and says nothing about a limit.
+*/
+var FLOW_LABEL_TEXT = "Boundary flow";
+var FLOW_LEGEND_TEXT = "* marks the edge with the highest rate.";
+var SNOOZE_LABEL_TEXT = "Snooze length";
 
 var NO_CARD_STATED = "no visible card answered this request.";
 var NO_CARD_HELD = "this world's advice holds no visible card.";
@@ -242,6 +252,16 @@ function flowLines(flow) {
     }
   }
   return lines.length === 0 ? null : lines;
+}
+
+function hasStar(lines) {
+  /* Whether any line of a flow starts with the mark flowLines writes for the marked edge. */
+  for (var index = 0; index < lines.length; index += 1) {
+    if (lines[index].charAt(0) === "*") {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isPresent(value) {
@@ -504,6 +524,15 @@ registerPanel("advice", function mountAdvice(root, data) {
   */
   var waiting = false;
 
+  /*
+    CS-1400. WHAT THE REGION HOLDS, kept as references and compared by id only. standing is
+    the cards the last renderCards wrote, each with its box and its state line; answerStands
+    says whether the region holds a request's answer or refusal rather than the mount
+    listing.
+  */
+  var standing = [];
+  var answerStands = false;
+
   function ask(control, say, askingLine, call, settle) {
     /*
       One request through one door, from the press that made it to what landed.
@@ -612,7 +641,9 @@ registerPanel("advice", function mountAdvice(root, data) {
             return;
           }
           sayState(RECORDED_LINE);
-          rereadStated(statement);
+          rereadStated(statement, function onShownInPlace() {
+            sayState(RECORDED_SHOWN_LINE);
+          });
         }
       );
     }
@@ -627,19 +658,31 @@ registerPanel("advice", function mountAdvice(root, data) {
       record(pin, "pinned", null);
     });
 
+    /*
+      CS-1400 S2: THE SNOOZE LENGTH, ITS VISIBLE LABEL AND ITS BUTTON ARE ONE GROUP, so the
+      three stay on one line and the select reads as the length the button uses. The
+      accessible name still opens with the visible text, so a speech user who says what
+      they see reaches it.
+    */
+    var group = document.createElement("div");
+    group.className = "advice-snooze";
+    var pickerId = "advice-snooze-for-" + String(position);
+    var pickerLabel = addLine(group, "label", "bench-label", SNOOZE_LABEL_TEXT);
+    pickerLabel.id = "advice-snooze-label-" + String(position);
+    pickerLabel.setAttribute("for", pickerId);
     var picker = document.createElement("select");
-    picker.id = "advice-snooze-for-" + String(position);
+    picker.id = pickerId;
     picker.className = "bench-input";
     picker.setAttribute("name", "duration");
     picker.setAttribute("autocomplete", "off");
-    picker.setAttribute("aria-label", "Snooze length: " + textOf(card.headline));
+    picker.setAttribute("aria-label", SNOOZE_LABEL_TEXT + ": " + textOf(card.headline));
     addOption(picker, "", "");
     for (var index = 0; index < SNOOZE_CHOICES.length; index += 1) {
       addOption(picker, SNOOZE_CHOICES[index].value, SNOOZE_CHOICES[index].label);
     }
-    row.appendChild(picker);
+    group.appendChild(picker);
 
-    var snooze = addPlainControl(row, card, position, "snooze", "Snooze", function onSnooze() {
+    var snooze = addPlainControl(group, card, position, "snooze", "Snooze", function onSnooze() {
       var length = readField(picker);
       if (length === "") {
         sayState(NO_LENGTH_LINE);
@@ -647,6 +690,7 @@ registerPanel("advice", function mountAdvice(root, data) {
       }
       record(snooze, "snoozed", length);
     });
+    row.appendChild(group);
     box.appendChild(row);
   }
 
@@ -655,9 +699,10 @@ registerPanel("advice", function mountAdvice(root, data) {
     box.className = "hud-card advice-card";
     addLine(box, "p", "note advice-headline", textOf(card.headline));
     addLine(box, "p", "note", textOf(card.reason));
+    var stateLine = null;
     if (stated) {
       /* The state the advisor served, as served: the page decides nothing about it. */
-      addLine(box, "p", "note", "state: " + textOf(card.state));
+      stateLine = addLine(box, "p", "note", "state: " + textOf(card.state));
     }
 
     var row = document.createElement("div");
@@ -682,10 +727,21 @@ registerPanel("advice", function mountAdvice(root, data) {
     tier3.id = "advice-derivation-" + String(position);
     tier3.hidden = true;
 
-    /* CS-1360: the boundary flow, hidden until the body carries one. */
+    /*
+      CS-1360: the boundary flow, hidden until the body carries one. CS-1400 S1: it carries
+      a heading of its own, which the block is labelled by, and under it the key to the
+      leading star. The three show and hide together.
+    */
+    var flowLabel = addLine(box, "p", "note advice-flow-label", FLOW_LABEL_TEXT);
+    flowLabel.id = "advice-flow-label-" + String(position);
+    flowLabel.hidden = true;
     var flowBox = addLine(box, "pre", "advice-derivation", "");
     flowBox.id = "advice-flow-" + String(position);
+    flowBox.setAttribute("aria-labelledby", flowLabel.id);
     flowBox.hidden = true;
+    var flowLegend = addLine(box, "p", "note advice-flow-legend", FLOW_LEGEND_TEXT);
+    flowLegend.id = "advice-flow-legend-" + String(position);
+    flowLegend.hidden = true;
 
     function say(message) {
       status.textContent = message;
@@ -699,6 +755,8 @@ registerPanel("advice", function mountAdvice(root, data) {
         tier3.hidden = true;
         flowBox.textContent = "";
         flowBox.hidden = true;
+        flowLabel.hidden = true;
+        flowLegend.hidden = true;
         say(refusal);
         return;
       }
@@ -707,6 +765,9 @@ registerPanel("advice", function mountAdvice(root, data) {
       var flow = flowLines(dataOf(outcome).flow);
       flowBox.textContent = flow === null ? "" : flow.join(String.fromCharCode(10));
       flowBox.hidden = flow === null;
+      flowLabel.hidden = flow === null;
+      /* The key to a star is shown only beside one: the first character of a starred line. */
+      flowLegend.hidden = flow === null || !hasStar(flow);
       say(READ_LINE);
     }
 
@@ -731,17 +792,20 @@ registerPanel("advice", function mountAdvice(root, data) {
     }
 
     region.appendChild(box);
+    return { id: card.id, box: box, stateLine: stateLine };
   }
 
   function renderCards(region, listing, statement) {
     addLine(region, "h3", "", "Cards");
     var rows = Array.isArray(listing.cards) ? listing.cards : [];
     var shown = 0;
+    /* The cards on the page now, in their order, so a re-read can be matched to them by id. */
+    standing = [];
     for (var index = 0; index < rows.length; index += 1) {
       var card = objectOrNull(rows[index]);
       /* Strictly true. A hidden card is served so a surface can restore it, not list it. */
       if (card && card.visible === true) {
-        renderCard(region, card, shown, statement || {}, Boolean(statement));
+        standing.push(renderCard(region, card, shown, statement || {}, Boolean(statement)));
         shown += 1;
       }
     }
@@ -895,12 +959,84 @@ registerPanel("advice", function mountAdvice(root, data) {
     region.removeAttribute("aria-busy");
     clearNode(region);
     fillAnswer(outcome, statement);
+    answerStands = true;
     if (keepFocus) {
       (focusTarget || button).focus();
     }
   }
 
-  function rereadStated(statement) {
+  function reconcileInPlace(outcome) {
+    /*
+      CS-1400 H2. A RE-READ AFTER A RECORDED STATE IS DRAWN WITHOUT REPAINTING THE ANSWER
+      WHEN IT IS THE SAME CARDS, so the pressed control keeps focus and a derivation the
+      reader opened stays open (hud_doctrine section 2: fixed positions, no reflow).
+      Returns false when it cannot, and the caller draws the whole answer as before.
+
+      EQUALITY ONLY. The re-read's visible ids must be exactly the standing ids that are
+      still visible, in the standing order. A card the page does not hold, a changed order,
+      a refusal or no visible card at all cannot be reconciled and is not tried. What changes
+      in place is a kept card's state line, as served, and a card the advisor no longer
+      lists leaves by removeChild of the box this panel built.
+    */
+    var listing = dataOf(outcome);
+    if (refusalWord(outcome) !== null || !listing || standing.length === 0) {
+      return false;
+    }
+    var rows = Array.isArray(listing.cards) ? listing.cards : [];
+    var visible = [];
+    for (var at = 0; at < rows.length; at += 1) {
+      var row = objectOrNull(rows[at]);
+      if (row && row.visible === true) {
+        visible.push(row);
+      }
+    }
+    if (visible.length === 0) {
+      return false;
+    }
+    var listed = Object.create(null);
+    for (var mark = 0; mark < visible.length; mark += 1) {
+      listed[String(visible[mark].id)] = true;
+    }
+    var kept = [];
+    for (var held = 0; held < standing.length; held += 1) {
+      if (listed[String(standing[held].id)] === true) {
+        kept.push(standing[held]);
+      }
+    }
+    if (kept.length !== visible.length) {
+      return false;
+    }
+    for (var same = 0; same < kept.length; same += 1) {
+      if (String(kept[same].id) !== String(visible[same].id)) {
+        return false;
+      }
+    }
+
+    var keepFocus = region.contains(document.activeElement);
+    var still = [];
+    for (var each = 0; each < standing.length; each += 1) {
+      if (listed[String(standing[each].id)] === true) {
+        still.push(standing[each]);
+      } else {
+        region.removeChild(standing[each].box);
+      }
+    }
+    for (var state = 0; state < still.length; state += 1) {
+      if (still[state].stateLine) {
+        still[state].stateLine.textContent = "state: " + textOf(visible[state].state);
+      }
+    }
+    standing = still;
+    region.removeAttribute("aria-busy");
+    sayStatus("the endpoint answered " + textOf(outcome.http) + ".");
+    /* The pressed card may be the one that left: a reader there lands on the button that asked. */
+    if (keepFocus && !region.contains(document.activeElement)) {
+      button.focus();
+    }
+    return true;
+  }
+
+  function rereadStated(statement, onShownInPlace) {
     /*
       THE LISTING ASKED AGAIN UNDER THE STATEMENT THAT PRODUCED THE CARDS, after a state
       was recorded. Drawn through renderAnswer like any answer, so what stays and what
@@ -918,11 +1054,35 @@ registerPanel("advice", function mountAdvice(root, data) {
         return askDoor(statement, settled);
       },
       function (outcome) {
+        if (reconcileInPlace(outcome)) {
+          onShownInPlace();
+          return;
+        }
         renderAnswer(outcome, statement);
       }
     );
     if (!waiting) {
       region.removeAttribute("aria-busy");
+    }
+  }
+
+  function dropStandingAnswer() {
+    /*
+      CS-1400 Y1. THE INERT PRESS SENDS NOTHING, SO NO EARLIER ANSWER OR REFUSAL MAY STAND
+      BESIDE ITS LINE. What a request wrote is cleared and the mount listing is drawn again
+      with no statement, which is the state the page was in before any press; no door is
+      called. A region holding only the mount listing is left exactly as it is.
+    */
+    if (!answerStands) {
+      return;
+    }
+    var keepFocus = region.contains(document.activeElement);
+    region.removeAttribute("aria-busy");
+    clearNode(region);
+    renderCards(region, advice, null);
+    answerStands = false;
+    if (keepFocus) {
+      button.focus();
     }
   }
 
@@ -972,6 +1132,7 @@ registerPanel("advice", function mountAdvice(root, data) {
     var schematic = schematicControl === null ? "" : readField(schematicControl);
     if (schematic !== "") {
       if (readField(targetControl) !== "") {
+        dropStandingAnswer();
         sayStatus(BOTH_CHOSEN_LINE);
         return;
       }
