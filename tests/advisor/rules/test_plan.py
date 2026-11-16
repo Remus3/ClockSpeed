@@ -308,7 +308,7 @@ def expected_tier3(pin: int) -> str:
             'PlanStep(recipe_key="Recipe_SyntheticPlate_C", machines=1.33 (exactly 4/3))), '
             'targets={"Desc_SyntheticGadget_C": 30.00}, '
             'raw_inputs={"Desc_SyntheticOre_C": 120.00}, byproducts={}, excluded=(), '
-            'byproduct_policy="balanced") from solve.strategy.ranked_plan.plan',
+            'byproduct_policy="balanced", edges=()) from solve.strategy.ranked_plan.plan',
             '  14. Read plan.badge = StrategyBadge(strongest="within-power", '
             'cleared=("within-buildings", "within-power"), checks=('
             'ThresholdCheck(strategy="within-raw", cleared=false, score=120.00, '

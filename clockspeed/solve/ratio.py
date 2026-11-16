@@ -120,7 +120,7 @@ from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
 
-from clockspeed.data.registry import Recipe, Registry
+from clockspeed.data.registry import FORM_SOLID, Recipe, Registry
 from clockspeed.solve.exact import (
     OUTCOME_INCONSISTENT,
     OUTCOME_UNDERDETERMINED,
@@ -137,9 +137,15 @@ __all__ = [
     "BYPRODUCT_POLICIES",
     "BYPRODUCT_SINKABLE",
     "EXCLUDED_ZERO_DURATION",
+    "SINK_BYPRODUCT",
+    "SINK_TARGET",
+    "UNIT_ITEM",
+    "UNIT_M3",
+    "UNIT_UNKNOWN",
     "ByproductPolicyRequired",
     "ExclusionNote",
     "InfeasibleChain",
+    "PlanEdge",
     "PlanStep",
     "ProductionPlan",
     "RatioError",
@@ -172,6 +178,27 @@ BYPRODUCT_POLICIES: Final = (BYPRODUCT_BALANCED, BYPRODUCT_SINKABLE)
 
 #: The reason recorded for a recipe dropped for a measured zero duration.
 EXCLUDED_ZERO_DURATION: Final = "zero-duration"
+
+# ---------------------------------------------------------------------------
+# Plan edges (CS-1395)
+# ---------------------------------------------------------------------------
+
+#: A :class:`PlanEdge` unit: a solid item, counted in items per minute.
+UNIT_ITEM: Final = "item"
+
+#: A :class:`PlanEdge` unit: a liquid or gas, in cubic metres per minute - the plan's one
+#: fluid unit, already converted from litres by the registry.
+UNIT_M3: Final = "m3"
+
+#: A :class:`PlanEdge` unit for an item whose form the registry cannot place: no descriptor,
+#: no ``mForm``, or ``RF_INVALID``. Never guessed as a solid, so a reader never compares it.
+UNIT_UNKNOWN: Final = "unknown"
+
+#: A :class:`PlanEdge` ``sink`` value: the edge delivers a requested target.
+SINK_TARGET: Final = "target"
+
+#: A :class:`PlanEdge` ``sink`` value: the edge carries an unconsumed byproduct away.
+SINK_BYPRODUCT: Final = "byproduct"
 
 
 class RatioError(Exception):
@@ -302,6 +329,44 @@ class PlanStep:
     machines: Fraction
 
 
+@dataclass(frozen=True, slots=True)
+class PlanEdge:
+    """One item flow from a producer recipe to a consumer recipe, or across the boundary.
+
+    An ALLOCATION and not a route: when several recipes make an item and several use it,
+    nothing says which machine feeds which, so the flow is split in exact proportion,
+    ``rate(p, c) = out_p * in_c / total``. The split reconciles in both directions - each
+    producer's edges sum to what it makes and each consumer's to what it uses - and a
+    reader must not read it as belts.
+
+    BOUNDARY edges are included so the totals reconcile with the plan's own: a raw input has
+    no producer recipe (``producer`` is None), and a target or an unconsumed byproduct has no
+    consumer recipe (``consumer`` is None, ``sink`` says which).
+
+    Frozen with slots on purpose: the advice trace admits a frozen slotted dataclass without
+    an allowlist entry, so this type needs no change outside this module.
+
+    Attributes:
+        producer: The producing recipe's ClassName, or None for a raw supply.
+        item: The item's ClassName.
+        consumer: The consuming recipe's ClassName, or None for a sink.
+        rate: The exact flow per minute, in ``unit``. Always positive and always a
+            Fraction; a zero flow has no edge.
+        unit: One of :data:`UNIT_ITEM`, :data:`UNIT_M3` or :data:`UNIT_UNKNOWN`, read from
+            the item's form, so a fluid rate and a solid rate are never mistaken for one
+            unit.
+        sink: :data:`SINK_TARGET` or :data:`SINK_BYPRODUCT` when ``consumer`` is None for
+            an item the plan delivers or sinks, else None.
+    """
+
+    producer: str | None
+    item: str
+    consumer: str | None
+    rate: Fraction
+    unit: str
+    sink: str | None
+
+
 @dataclass(frozen=True)
 class ExclusionNote:
     """One recipe the caller asked for that the solve could not use, and why.
@@ -344,6 +409,10 @@ class ProductionPlan:
             reason, in registry order.
         byproduct_policy: The policy this plan was solved under, carried so the
             plan can be read without its request.
+        edges: CS-1395. One :class:`PlanEdge` per ``(producer, item, consumer)`` with a
+            positive flow, sorted by item, then producer, then consumer. Together they sum
+            to the same totals as ``raw_inputs``, ``targets`` and ``byproducts``. Empty by
+            default so a plan built by hand keeps working.
     """
 
     steps: tuple[PlanStep, ...]
@@ -352,6 +421,7 @@ class ProductionPlan:
     byproducts: Mapping[str, Fraction]
     excluded: tuple[ExclusionNote, ...]
     byproduct_policy: str
+    edges: tuple[PlanEdge, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -663,7 +733,98 @@ def _name_unsatisfiable_item(system: _System) -> str:
     return system.rows[0]
 
 
+def _unit_of(registry: Registry, item: str) -> str:
+    """Name the unit a flow of ``item`` is stated in.
+
+    Args:
+        registry: The registry the plan was solved against.
+        item: An item ClassName.
+
+    Returns:
+        :data:`UNIT_M3` for a fluid and :data:`UNIT_ITEM` for a solid. Anything the
+        registry cannot place - no descriptor, no form, ``RF_INVALID`` - is
+        :data:`UNIT_UNKNOWN` rather than a guess.
+    """
+    entry = registry.items.get(item)
+    if entry is None:
+        return UNIT_UNKNOWN
+    if entry.is_fluid:
+        return UNIT_M3
+    if entry.form == FORM_SOLID:
+        return UNIT_ITEM
+    return UNIT_UNKNOWN
+
+
+def _edges_from(
+    registry: Registry,
+    system: _System,
+    values: Sequence[Fraction],
+    targets: Mapping[str, Fraction],
+    byproducts: Mapping[str, Fraction],
+) -> tuple[PlanEdge, ...]:
+    """Split every item's flow into producer-to-consumer edges, boundary included.
+
+    Per item the supply side is each producing recipe plus a raw supply for any shortfall,
+    and the demand side is each consuming recipe plus a sink for any surplus. The two sides
+    carry the same total by the item's balance, and each pair gets ``supply * demand /
+    total``, so every producer's edges sum to what it makes and every consumer's to what it
+    uses. Every rate comes from ``system.rates``, which :func:`_net_per_minute` built through
+    the one per-minute owner; nothing here converts a unit.
+
+    Args:
+        registry: The registry the plan was solved against, read only for item forms.
+        system: The system that was solved.
+        values: The solution, in variable order.
+        targets: The plan's achieved target rates, which name a surplus a target.
+        byproducts: The plan's sunk byproducts, which name a surplus a byproduct.
+
+    Returns:
+        The edges, sorted by item, producer and consumer, with absent ends sorting first.
+    """
+    out: dict[str, dict[str | None, Fraction]] = {}
+    use: dict[str, dict[str | None, Fraction]] = {}
+    for key, machines in zip(system.recipes, values, strict=True):
+        for item, rate in system.rates[key].items():
+            flow = machines * rate
+            if flow > 0:
+                out.setdefault(item, {})[key] = flow
+            elif flow < 0:
+                use.setdefault(item, {})[key] = -flow
+
+    edges: list[PlanEdge] = []
+    for item in sorted(set(out) | set(use)):
+        makers: dict[str | None, Fraction] = dict(out.get(item, {}))
+        users: dict[str | None, Fraction] = dict(use.get(item, {}))
+        net = sum(makers.values(), Fraction(0)) - sum(users.values(), Fraction(0))
+        sink: str | None = None
+        if net < 0:
+            makers[None] = -net
+        elif net > 0:
+            users[None] = net
+            if item in targets:
+                sink = SINK_TARGET
+            elif item in byproducts:
+                sink = SINK_BYPRODUCT
+        total = sum(makers.values(), Fraction(0))
+        unit = _unit_of(registry, item)
+        for producer, made in makers.items():
+            for consumer, taken in users.items():
+                edges.append(
+                    PlanEdge(
+                        producer=producer,
+                        item=item,
+                        consumer=consumer,
+                        rate=made * taken / total,
+                        unit=unit,
+                        sink=sink if consumer is None else None,
+                    )
+                )
+    edges.sort(key=lambda edge: (edge.item, edge.producer or "", edge.consumer or ""))
+    return tuple(edges)
+
+
 def _plan_from(
+    registry: Registry,
     system: _System,
     values: Sequence[Fraction],
     excluded: tuple[ExclusionNote, ...],
@@ -672,6 +833,7 @@ def _plan_from(
     """Read a solved vector back into a plan, refusing a negative machine count.
 
     Args:
+        registry: The registry the plan was solved against.
         system: The system that was solved.
         values: The unique solution, in variable order.
         excluded: The exclusion notes to carry.
@@ -698,6 +860,7 @@ def _plan_from(
     targets = {
         item: _net_of(system, values, item) for item in sorted(system.rows[system.balance_count :])
     }
+    byproducts = {item: _net_of(system, values, item) for item in system.sunk}
     return ProductionPlan(
         steps=tuple(
             PlanStep(recipe_key=key, machines=machines)
@@ -707,9 +870,10 @@ def _plan_from(
         raw_inputs=MappingProxyType(
             {item: -_net_of(system, values, item) for item in system.raw_present}
         ),
-        byproducts=MappingProxyType({item: _net_of(system, values, item) for item in system.sunk}),
+        byproducts=MappingProxyType(byproducts),
         excluded=excluded,
         byproduct_policy=policy,
+        edges=_edges_from(registry, system, values, targets, byproducts),
     )
 
 
@@ -791,7 +955,7 @@ def solve_for_targets(registry: Registry, request: RatioRequest) -> ProductionPl
             f"solve_linear reported {solution.outcome!r}, an outcome this module does not model"
         )
 
-    plan = _plan_from(system, solution.values, excluded, request.byproduct_policy)
+    plan = _plan_from(registry, system, solution.values, excluded, request.byproduct_policy)
     audit_exact(plan, path="plan")
     return plan
 
