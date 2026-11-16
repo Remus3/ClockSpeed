@@ -35,9 +35,14 @@ from typing import Any, Final
 
 import pytest
 
-from clockspeed.advisor.trace import _inexact_reason
+from clockspeed.advisor.cards import card_for, render_value
+from clockspeed.advisor.rules.plan import ADOPT_RULE, plan_inputs
+from clockspeed.advisor.trace import WorldInputs, _inexact_reason, run_rule
 from clockspeed.data.registry import Recipe, Registry
 from clockspeed.solve import ratio
+from clockspeed.solve.optimize import weighted_objective
+from clockspeed.solve.strategy import rank_plans
+from tests.advisor.build_fixtures import game_pin, pinned_build_inputs
 from tests.data.synthetic import (
     KEY_CLASS_NAME,
     KEY_DISPLAY_NAME,
@@ -59,6 +64,12 @@ _RAW: Final = tuple(sorted(synthetic.SOLVE_RAW_ITEMS))
 PLATE_B_RECIPE: Final = "R_PlateB"
 TRINKET_RECIPE: Final = "R_TrinketFromPlate"
 SMELTER_PART_RECIPE: Final = "R_SmelterPart"
+
+#: Two invented recipes that PRODUCE Ore, a raw item, so it is both imported and made.
+#: Each turns a Plate back into Ore and a Twin; the second makes two Ore per Plate, so it
+#: yields more Ore than the smelter takes back and leaves a SURPLUS.
+UNPLATE_RECIPE: Final = "R_Unplate"
+UNPLATE_RICH_RECIPE: Final = "R_UnplateRich"
 
 
 def _entry(
@@ -108,6 +119,18 @@ _EXTRA_ENTRIES: Final[tuple[Mapping[str, Any], ...]] = (
         6,
         [(synthetic.SOLVE_PLATE_ITEM, 1)],
         [(synthetic.SOLVE_SMELTER_DESCRIPTOR, 1)],
+    ),
+    _entry(
+        UNPLATE_RECIPE,
+        6,
+        [(synthetic.SOLVE_PLATE_ITEM, 1)],
+        [(synthetic.SOLVE_ORE_ITEM, 1), (synthetic.SOLVE_TWIN_ITEM, 1)],
+    ),
+    _entry(
+        UNPLATE_RICH_RECIPE,
+        6,
+        [(synthetic.SOLVE_PLATE_ITEM, 1)],
+        [(synthetic.SOLVE_ORE_ITEM, 2), (synthetic.SOLVE_TWIN_ITEM, 1)],
     ),
 )
 
@@ -236,7 +259,8 @@ def _assert_reconciles(registry: Registry, plan: ratio.ProductionPlan) -> None:
                 seen[edge.item] = seen.get(edge.item, Fraction(0)) + edge.rate
         assert seen == {item: rate for item, rate in expected.items() if rate > 0}, sink
     for edge in plan.edges:
-        assert (edge.consumer is None) == (edge.sink is not None)
+        if edge.sink is not None:
+            assert edge.consumer is None
 
 
 # ---------------------------------------------------------------------------
@@ -450,3 +474,170 @@ def test_no_edge_rate_is_a_float_or_zero(registry: Registry) -> None:
         for edge in plan.edges:
             assert type(edge.rate) is Fraction
             assert edge.rate > 0
+
+
+# ---------------------------------------------------------------------------
+# Order, an item both imported and produced, and the printed derivation
+# ---------------------------------------------------------------------------
+
+
+def _order_plan(
+    registry: Registry,
+    targets: dict[str, Fraction],
+    recipes: tuple[str, ...],
+    raw: tuple[str, ...],
+) -> ratio.ProductionPlan:
+    """Solve with the caller's own ordering of every tuple and mapping it supplies.
+
+    Args:
+        registry: The registry to solve against.
+        targets: The targets, in the order the caller wants them iterated.
+        recipes: The selected recipe keys, in the order the caller wants them.
+        raw: The raw items, in the order the caller wants them.
+
+    Returns:
+        The plan.
+    """
+    return ratio.solve_for_targets(
+        registry,
+        ratio.RatioRequest(
+            targets=targets,
+            recipes=recipes,
+            raw_items=raw,
+            byproduct_policy=ratio.BYPRODUCT_BALANCED,
+        ),
+    )
+
+
+def test_a_permuted_request_yields_a_byte_identical_edges_tuple(registry: Registry) -> None:
+    # Plate is a target AND an ingredient, so it has an internal edge and a sink edge. That
+    # pair is what the final keyed sort orders: unsorted, the sink (consumer None) falls
+    # last, because the consumers are walked in registry order with the sink appended; sorted,
+    # an absent end sorts first. A permutation alone cannot show it, because every other
+    # order in the solve already runs in registry order, so the literal order is pinned too.
+    rod = synthetic.SOLVE_ROD_ITEM
+    plate = synthetic.SOLVE_PLATE_ITEM
+    twin = synthetic.SOLVE_TWIN_ITEM
+    forward = _order_plan(
+        registry,
+        {rod: Fraction(50), plate: Fraction(10)},
+        (synthetic.ROD_RECIPE, synthetic.PLATE_RECIPE),
+        (synthetic.SOLVE_ORE_ITEM, twin),
+    )
+    permuted = _order_plan(
+        registry,
+        {plate: Fraction(10), rod: Fraction(50)},
+        (synthetic.PLATE_RECIPE, synthetic.ROD_RECIPE, synthetic.PLATE_RECIPE),
+        (twin, synthetic.SOLVE_ORE_ITEM),
+    )
+    assert forward.edges == permuted.edges
+    assert repr(forward.edges) == repr(permuted.edges)
+    assert [(e.producer, e.item, e.consumer, e.sink) for e in forward.edges] == [
+        (None, synthetic.SOLVE_ORE_ITEM, synthetic.PLATE_RECIPE, None),
+        (synthetic.PLATE_RECIPE, plate, None, ratio.SINK_TARGET),
+        (synthetic.PLATE_RECIPE, plate, synthetic.ROD_RECIPE, None),
+        (synthetic.ROD_RECIPE, rod, None, ratio.SINK_TARGET),
+    ]
+    _assert_reconciles(registry, forward)
+
+
+def test_an_item_both_imported_and_produced_reconciles_its_raw_shortfall(
+    registry: Registry,
+) -> None:
+    ore = synthetic.SOLVE_ORE_ITEM
+    plan = _order_plan(
+        registry,
+        {synthetic.SOLVE_ROD_ITEM: Fraction(30), synthetic.SOLVE_TWIN_ITEM: Fraction(10)},
+        (synthetic.PLATE_RECIPE, synthetic.ROD_RECIPE, UNPLATE_RECIPE),
+        _RAW,
+    )
+    ore_edges = {(e.producer, e.consumer): e for e in plan.edges if e.item == ore}
+    assert set(ore_edges) == {
+        (None, synthetic.PLATE_RECIPE),
+        (UNPLATE_RECIPE, synthetic.PLATE_RECIPE),
+    }
+    raw_edge = ore_edges[(None, synthetic.PLATE_RECIPE)]
+    assert raw_edge.producer is None
+    assert raw_edge.sink is None
+    assert raw_edge.rate == plan.raw_inputs[ore]
+    assert raw_edge.rate > 0
+    made = ore_edges[(UNPLATE_RECIPE, synthetic.PLATE_RECIPE)]
+    assert made.rate + raw_edge.rate == sum(
+        (e.rate for e in plan.edges if e.item == ore and e.consumer is not None), Fraction(0)
+    )
+    _assert_reconciles(registry, plan)
+
+
+def test_an_item_both_imported_and_produced_sinks_its_surplus_with_no_sink_kind(
+    registry: Registry,
+) -> None:
+    ore = synthetic.SOLVE_ORE_ITEM
+    plan = _order_plan(
+        registry,
+        {synthetic.SOLVE_TWIN_ITEM: Fraction(10)},
+        (synthetic.PLATE_RECIPE, UNPLATE_RICH_RECIPE),
+        _RAW,
+    )
+    # The plan makes more Ore than it takes back, so its own raw input is NEGATIVE.
+    assert plan.raw_inputs[ore] < 0
+    surplus = [e for e in plan.edges if e.item == ore and e.consumer is None]
+    assert [(e.producer, e.sink) for e in surplus] == [(UNPLATE_RICH_RECIPE, None)]
+    assert surplus[0].rate == -plan.raw_inputs[ore]
+    assert not [e for e in plan.edges if e.producer is None]
+    _assert_reconciles(registry, plan)
+
+
+def _tier3(plan: ratio.ProductionPlan) -> str:
+    """Render a solved plan's tier-3 derivation through the real rule and engine.
+
+    Args:
+        plan: A plan solved against the main corpus.
+
+    Returns:
+        The card's tier-3 text.
+    """
+    corpus = synthetic.solve_registry()
+    ranked = rank_plans(corpus, (plan,), objective=weighted_objective(raw=Fraction(1)))[0]
+    world = WorldInputs(
+        values=pinned_build_inputs(game_pin())
+        | plan_inputs(
+            ranked,
+            requires=(),
+            trimmed=(),
+            unchecked=(),
+            raw_unknown=(),
+            unmatched_unlocks=0,
+            backend="exhaustive",
+            target_names=MappingProxyType(dict.fromkeys(plan.targets)),
+        ),
+        unlocks=frozenset(),
+    )
+    card = card_for(run_rule(ADOPT_RULE, world))
+    assert card is not None
+    return card.tier3
+
+
+def test_a_solved_plans_derivation_prints_its_edges_ascii_and_stable() -> None:
+    def solved() -> ratio.ProductionPlan:
+        return ratio.solve_for_targets(
+            synthetic.solve_registry(),
+            ratio.RatioRequest(
+                targets={synthetic.SOLVE_ROD_ITEM: synthetic.C1_ROD_TARGET},
+                recipes=(synthetic.ROD_RECIPE, synthetic.PLATE_RECIPE),
+                raw_items=_RAW,
+                byproduct_policy=ratio.BYPRODUCT_BALANCED,
+            ),
+        )
+
+    first = solved()
+    first_text = _tier3(first)
+    second_text = _tier3(solved())
+    assert first.edges
+    line = next(row for row in first_text.splitlines() if "plan.production = " in row)
+    assert f"edges={render_value(first.edges)}" in line
+    assert (
+        'PlanEdge(producer=none, item="Desc_SolveOre_C", consumer="R_Plate", rate=50.00, ' in line
+    )
+    assert line.isascii()
+    assert first_text.isascii()
+    assert first_text == second_text
