@@ -76,9 +76,9 @@ not by a fence in this file, and MENTIONED leaves the lane's scope exactly as it
 before the notes named the id.
 
 CS-1362 is MENTIONED because CS-G11 holds it out of `ROADMAP.md` altogether, and a BLOCKED
-line for an id that is not a live row fences nothing. What keeps a lane off it is its
-`excluded` entry in `config/lane_scopes.json`; what keeps it from being re-filed
-unexamined is CS-G11's own section.
+line for an id that is not a live row fences nothing. What keeps a lane off it is that it
+is not a row: a lane only takes rows that `ROADMAP.md` lists. What keeps it from being
+re-filed unexamined is CS-G11's own section.
 
 The four rows carried at the end of the block are MENTIONED here **on purpose and with
 nothing else riding on it**. They are the four that commit `7fbe529` unfenced by deleting

@@ -358,6 +358,5 @@ CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` fai
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1390 - MAIN ORDER 0931 item 2: warn the day the installed game build differs from the pin, not at the next push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

@@ -75,6 +75,86 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-1360 - CLOSED: one solved chain renders as a read-only flow view with its bottleneck edge marked, the edge of greatest utilisation of the fastest known carrier of its unit, its edge widths pinned to the rule trace
+Verification: `clockspeed/solve/carry.py` (`carry_of`, `CarryReport`, `EdgeCarry`, `CARRY_SOURCE`);
+`clockspeed/advisor/plans.py`, which offers `carry_of(top.plan.edges, registry.transports)` to `plan_inputs`;
+`clockspeed/advisor/rules/plan.py` (`IN_CARRY`, `plan_inputs` taking `carry` with no default, `_check_carry`, and the
+one generated `plan.adopt` tier-3 line naming the bottleneck edge and its utilisation);
+`clockspeed/surface/api/flow_view.py` (`view_of`, `MARK_BOTTLENECK`, which transcribes the recorded report and computes
+nothing); `clockspeed/surface/api/advice.py`; `clockspeed/surface/web/panel_advice.js` (`FLOW_LABEL_TEXT`,
+`FLOW_LEGEND_TEXT`, `FLOW_NO_MARK_TEXT`, `FLOW_CHAIN_HEADING`). Proving arms:
+`tests/solve/test_carry.py::test_the_bottleneck_is_the_highest_utilisation_not_the_highest_rate`,
+`::test_a_tie_goes_to_the_first_edge_in_plan_order`, `::test_an_unknown_unit_and_an_unrated_unit_are_ineligible`,
+`::test_the_module_source_has_no_float_literal_round_or_float_call`,
+`::test_the_display_percent_is_the_utilisation_rounded_half_up_exactly`,
+`::test_a_row_names_the_smallest_and_the_fastest_carrier_in_short_form`;
+`tests/surface/test_flow_view.py::test_every_edge_width_is_the_rational_the_trace_step_carries`,
+`::test_the_mark_is_the_highest_utilisation_not_the_highest_rate`, `::test_an_internal_link_can_be_the_bottleneck`,
+`::test_no_known_capacity_marks_nothing`, `::test_the_view_transcribes_the_recorded_bottleneck`,
+`::test_the_view_does_no_capacity_arithmetic_of_its_own`,
+`::test_a_chain_link_line_shows_its_utilisation_bar_and_percent`,
+`::test_every_line_names_the_fastest_carrier_beside_its_percent`;
+`tests/advisor/rules/test_plan.py::test_adopt_tier3_names_the_bottleneck_and_its_utilisation`, and the live-path arm
+`::test_the_live_advice_path_records_a_bottleneck_for_a_registry_with_carriers`. Post-merge on main, the merger's run of
+`tests/solve/test_carry.py`, `tests/solve/test_plan_edges.py`, `tests/solve/test_phase3_gate.py`,
+`tests/advisor/rules/test_plan.py`, `tests/advisor/test_every_rule_fires.py`, `tests/advisor/test_plan_world.py`,
+`tests/surface/test_flow_view.py`, `tests/surface/test_panel_advice.py`, `tests/surface/test_panel_advice_ui157.py`,
+`tests/surface/test_panel_advice_layout.py` and `tests/test_provenance_manifest.py`: 808 passed, exit 0.
+ACCEPTANCE, quoted verbatim from the item's leaf section: "MAIN ORDER 2026-10-31 22:15 item 7: one solved chain renders
+as a read-only flow view with its bottleneck edge marked; belt and pipe rates are the edge widths; the view is built
+from the same rule trace as the advice card's tier-3 derivation; a test pins the edge widths to the trace."
+FILED, carried here so the leaf section can leave: filed 2026-11-01 by the headless driver and not started, the driver
+run's time budget not covering a feature slice. On 2026-11-15 the lane-0 queue cycle landed it SHIPPED-PARTIAL:
+`view_of`, a pure projection of the `plan.adopt` rule trace with a node per plan step and an edge per published boundary
+flow, each width the `contract.rational` of the plan's own Fraction; `DERIVATION_KEYS` gaining `flow` in
+`clockspeed/surface/api/advice.py`; the panel's flow lines; and
+`tests/surface/test_flow_view.py::test_every_edge_width_is_the_rational_the_trace_step_carries`, the clause's fourth
+conjunct. Not met then, each measured: no module published conveyor or pipeline throughput (CS-1394), the mark shipped
+as the HIGHEST-RATE edge, and the view showed boundary flows only (CS-1395). The session 157 adversary found
+SHIPPED-PARTIAL honest and owed two more gaps: (1) the highest-rate mark compared one rate across items a minute and
+cubic metres a minute; (2) the panel wrote a bare star with no legend. In session 158 gap (1) closed by the flow-view
+unit rule (ruling Q6, slice PC), gap (2) by CS-1400's star legend, and CS-1394 and CS-1395 each closed with its own
+record below.
+BUILT as wave-2 slice E and its repair, five commits on one branch, merged as five cherry-picks. The first served the
+plan's internal edges as chain links (an allocation, not a route), the smallest holding carrier per line and a saturated
+flag. The repair moved every capacity number out of `surface/`: the new pure `clockspeed/solve/carry.py` sets
+`ProductionPlan.edges` against `Registry.transports` in exact Fractions; `clockspeed/advisor/plans.py` records its
+report in the trace as a sourced rule input; `plan.adopt` tier 3 gains one generated line, on the live path for example
+`= 0.08 (exactly 3/40)`; `clockspeed/surface/api/flow_view.py` lost its carrier sort, its capacity comparison, its rate
+maximum and its `transports` keyword, and only reads and transcribes. Each panel line prints its utilisation as a
+percent carried from `carry.py` (rounded half up, uncapped, so an edge over one reads above 100%), a bar capped at full,
+the carrier that fits it and the fastest carrier of its unit; the chain links sit under their own sub-heading, hidden
+with no link. The flow block's label changed from "Boundary flow" to "Flow" after the CS-1400 re-audit, because the view
+now shows internal links; the CS-1400 record truly records what that re-audit saw at its SHA and needs no correction.
+GRADED. The first adversary REFUTED slice E as first built: its mark was the highest-rate edge, not the bottleneck, and
+its carrier and saturation arithmetic first existed in `clockspeed/surface/api/flow_view.py`, a number with no trace
+behind it (`docs/ARCHITECTURE.md` section 3, surface/ never computes). A distinct adjudicator ruled the repair route:
+the eligible edges are every plan edge, boundary and internal, whose unit is known and for whose unit at least one
+transport publishes a per-minute rate; utilisation is the edge's rate over the fastest known carrier of its unit, an
+exact unitless Fraction that may exceed one; the bottleneck is the eligible edge of greatest utilisation, a tie going to
+the first in the plan's edge order; no eligible edge gives no mark, never a highest-rate fallback. That supersedes
+ruling Q6's within-unit restriction for the mark only, because a ratio over the same unit's capacity compares across
+units without being silently wrong. A fresh adversary REFUTED on one ground only, `carry` defaulting to None on
+`plan_inputs`; it was made required. A distinct adjudicator ruled MERGE. The ui-auditor read BLOCKED on one MUST-FIX,
+chain link lines showing no utilisation; repaired, its re-audit read AUDIT: PASS with no truncation from 1100 to 320px,
+the legend exact and ASCII only. The adjudicator extended MERGE with a read-only live probe on the real docs file and
+the pinned development world: the iron plate card served 3 boundary edges and 1 link, and the bottleneck was the iron
+ingot link. A wording fix so each line names both the carrier that fits it and the fastest carrier followed, re-probed,
+the marked line reading "fits ConveyorBeltMk2; 8% of ConveyorBeltMk6", and the adjudicator ruled MERGE.
+RUNNER-UP, from the session 158 repair ruling: calling `carry.py` straight from `clockspeed/surface/api/advice.py` with
+no advisor change, half the blast radius and no tier-3 churn, lost because the mark would still not be in the trace, so
+the third conjunct fails for the one thing the view claims; and the highest rate within one unit, relabelled, lost as
+the refuted status quo once capacity existed.
+COMMON-MODE RISK: the carrier capacities come from the same transport registry the fixtures copy, the per-minute rate
+parsed from the docs file's English description prose (CS-1394); nothing checks them against the running game, so a
+mis-parse would move the mark silently.
+RESIDUAL: the flow results in the panel are UNVERIFIED-LIVE in a browser: the ui-auditor's harness mocks the flow in the
+page, so they were graded against the mock plus the live probe's text, never the real server's output rendered. The
+denominator is the fastest carrier the registry publishes, not the fastest the world has unlocked. Two layout minors
+from the audit and the world-aware denominator are filed in BACKLOG under the session 158 residuals.
+`clockspeed/solve/carry.py` gets no row in `docs/ARCHITECTURE.md` section 1.1's module map, which the CS-1244 BACKLOG
+entry records as held against new rows by line-number pointers; the module's own docstring states its role.
+
 ### 2026-11-16 - CS-484 - CLOSED: verify_env grades the installed ruff against the range pyproject.toml declares, and an out-of-range ruff turns that row RED locally before a push
 Verification: `scripts/verify_env.py::declared_range_row` (with `declared_specifier`, `_read_declared_bound`,
 `_clauses`, `_satisfies` and `_installed_version`), appended to the dependency table as the HARD row "ruff within
