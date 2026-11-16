@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-1390 - CLOSED: the day the installed game build differs from the pin, the inbox responder's tick writes one hand-off line carrying the re-pin command, not the next push
+Verification: `tools/build_pin_watch.py` (`check`, `upsert`, `repin_line`, `installed_build`, `repin_command`,
+`default_claimed`, `run`, `MARKER`), which reads the installed build through `scripts/verify_env.py`'s
+`read_build_string`, the reader guard (h) already uses, and writes one `BUILD PIN DRIFT:` line into the hand-off file;
+`ops/loop/inbox_responder.py` (`build_pin_watch_tick`, `_fail_soft`, and the `build_pin` seam of `run_once`, which
+`main` binds); `clockspeed/data/version.py` (`REGENERATE_COMMAND`, the public re-pin command, outside the generated pin
+block); `tests/ops/test_lane_inbox_surface.py`, whose `LANE_TOOLS_ALLOWED` gains `build_pin_watch`; and the
+`tools/provenance.tsv` rows for the three new files. Proving arms:
+`tests/test_build_pin_watch.py::test_a_differing_build_writes_one_line_carrying_the_repin_command`,
+`::test_a_matching_build_writes_nothing`, `::test_no_live_install_is_read_when_the_reader_is_injected`,
+`::test_a_second_run_the_same_day_writes_no_second_line`,
+`::test_a_newer_installed_build_replaces_the_line_and_never_adds_one`, `::test_an_unreadable_build_writes_nothing`,
+`::test_the_real_reader_is_the_one_guard_h_reads_through`,
+`::test_the_pin_modules_command_is_the_one_guard_h_publishes`,
+`::test_the_public_command_survives_a_re_extract_of_the_generated_block`, `::test_run_never_raises_and_prints_nothing`,
+`::test_a_foreign_claim_holds_the_write_and_leaves_the_file_untouched`,
+`::test_a_writer_between_the_read_and_the_rename_wins_and_the_write_is_dropped`, `::test_fresh_done_marker_still_pins`,
+`::test_stale_done_marker_does_not_pin`; `tests/ops/test_build_pin_watch_tick.py::test_a_quiet_run_calls_the_check_exactly_once`,
+`::test_a_halted_run_does_not_call_the_check`, `::test_a_run_that_lost_the_lock_does_not_call_the_check`,
+`::test_a_check_that_raises_never_fails_the_run`, `::test_a_run_given_no_seam_calls_no_check`,
+`::test_the_cli_binds_the_real_check_to_this_tree`. Post-merge on main, the merger's run of
+`tests/test_build_pin_watch.py`, `tests/ops/test_build_pin_watch_tick.py`, `tests/ops/test_lane_inbox_surface.py`,
+`tests/ops/test_inbox_responder.py`, `tests/data/test_version.py` and `tests/test_provenance_manifest.py`: 429 passed,
+exit 0.
+ACCEPTANCE, quoted verbatim from the item's leaf section: "MAIN ORDER 2026-11-14 09:31 item 2: a check in
+`tools/drift_guard.py` or a scheduled probe compares the installed build id with the pin in `clockspeed/data/version.py`
+and, the day they differ, writes one ROADMAP or hand-off line carrying the re-pin command. A test with a differing id
+writes the line; a test with a matching id writes nothing. No live install is read by the test (fixtures only)."
+FILED, carried here so the leaf section can leave: filed 2026-11-14 by the inbox responder from MAIN's 09:31 ORDER, as
+product work under CLAUDE.md section 7 because guard (h) refused every push from the 2026-11-08 game patch to the
+2026-11-12 re-pin (CS-1383), blocking product work for four days; the leaf said to reuse the installed-build read guard
+(h) already does and add no second reader.
+PLANNED. The session 158 plan ruling: Q7, the line goes into the hand-off; Q8, the check is hooked once per
+inbox-responder run, after the stop sentinel and the mutex, can never fail the run, and every test drives the pass with
+a no-op in its place; Q11, the re-pin command comes from a public name in the pin module.
+BUILT as one slice and its repairs, five commits on one branch, merged as five cherry-picks.
+GRADED. The first build turned two lane-fence arms of `tests/ops/test_lane_inbox_surface.py` red: the lane walk reached
+`tools/drift_guard.py` and `tools/doc_budget.py`. A distinct adjudicator ruled RESTRUCTURE: a public
+`version.REGENERATE_COMMAND` alias outside the generated pin block, so it survives a re-extract; only `build_pin_watch`
+allowed in `LANE_TOOLS_ALLOWED`; the planted drift_guard control arm unchanged. The first adversary REFUTED, at
+UNCERTAIN, an unlocked read-modify-write of the tracked hand-off. A distinct adjudicator ruled a guard: a claim probe
+through the kit's `fleet_claims.foreign_claims` (the hand-off is not in its `EXEMPT` set), a re-read and compare as the
+last step before the atomic rename, and `held` and `raced` outcomes that write nothing. The builder then found that an
+upsert after `fleet_done.py mark` changes the bytes the done marker hashes and so invalidates it, and added a marker
+pin. The second adversary REFUTED that pin: it held from one /done to the next, whatever the marker's age. A distinct
+adjudicator ruled option A: pin only on a done marker that names this hand-off, matches its bytes and is under 1800 s
+old, the clock injectable. The final adjudicator ruled MERGE-WITH-NOTES: 429 passed; the never-fails harness held
+across six exception kinds; no environment value or path leaks; the re-pin command survives `rewrite_pin_source`; the
+raced and the stale-marker mutants were killed.
+COMMON-MODE RISK: every arm reads the installed build through an injected reader; no arm runs `read_build_string`
+against a real install layout, so a layout the reader mis-reads would show only as an unreadable build that writes
+nothing.
+RESIDUAL: the `0 <= age` mutant survives, so a future-dated done marker is untested; a write can still race in the
+microseconds between the final compare and the rename; and the Q11 departure: `version.REGENERATE_COMMAND` is a second
+name for guard (h)'s own literal, held equal to `drift_guard.RE_EXTRACT_COMMAND` by an equality test, not read from
+one source.
+
 ### 2026-11-16 - CS-1360 - CLOSED: one solved chain renders as a read-only flow view with its bottleneck edge marked, the edge of greatest utilisation of the fastest known carrier of its unit, its edge widths pinned to the rule trace
 Verification: `clockspeed/solve/carry.py` (`carry_of`, `CarryReport`, `EdgeCarry`, `CARRY_SOURCE`);
 `clockspeed/advisor/plans.py`, which offers `carry_of(top.plan.edges, registry.transports)` to `plan_inputs`;

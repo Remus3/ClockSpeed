@@ -1126,6 +1126,8 @@ sentinel; an unreadable declaration halts it too (fail closed, as the kit's spaw
 declaration lifts `STOP` or `INBOX_STOP`. So `HOLD_MAIN_SPAWN` no longer reaches the kit: no
 `kit_refused` line, no `refused` / Idle and no exit 3 while it stands. A
 sentinel placed after that check, which the kit then reads, also shows `halted` and exits 0.
+A pass past that read and its lock also checks the installed game build against the pin, once, and
+may write one warning line into the hand-off; a fault in that check never fails the pass (CS-1390).
 The queue lane honours the hold too (CS-1231 slice C): its driver reads every declared path
 through the kit's own `stop_sentinel_hit` before each cycle and each claim, and stops the night
 on `kit_halted` - an unreadable declaration stops it too, fail closed. A hold placed after that

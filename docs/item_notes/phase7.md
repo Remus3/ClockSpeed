@@ -931,18 +931,3 @@ Every later exit-nonzero row must cite failing ids from a log kept at the time; 
 from the end of its hold.
 The full row classification is kept gitignored in the data directory, CS-1366 classify file, sha256
 895b1b9e1a50b79c3fe31229099b8cafddea181318fd8bc7e6c89127df56c8ea.
-
-## CS-1390
-
-### Acceptance
-
-MAIN ORDER 2026-11-14 09:31 item 2: a check in `tools/drift_guard.py` or a scheduled probe compares the
-installed build id with the pin in `clockspeed/data/version.py` and, the day they differ, writes one
-ROADMAP or hand-off line carrying the re-pin command. A test with a differing id writes the line; a test
-with a matching id writes nothing. No live install is read by the test (fixtures only).
-
-### Filed 2026-11-14 by the inbox responder
-
-Why it is product work under CLAUDE.md section 7: guard (h) refused every push from the 2026-11-08 game
-patch to the 2026-11-12 re-pin (CS-1383), so landing product work was blocked for four days. Reuse the
-installed-build read guard (h) already does; do not add a second reader.
