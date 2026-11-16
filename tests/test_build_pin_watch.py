@@ -264,6 +264,9 @@ def _tmps(path: Path) -> list[Path]:
     return [p for p in path.parent.iterdir() if p.name.endswith(".tmp")]
 
 
+NOW: Final = 1_800_000_000.0  # the injected clock: a fixed epoch, never the real one
+
+
 def _check_with(path: Path, claimed: Any) -> str:
     outcome: str = _watch().check(
         path,
@@ -272,6 +275,7 @@ def _check_with(path: Path, claimed: Any) -> str:
         command=drift_guard.RE_EXTRACT_COMMAND,
         today=TODAY,
         claimed=claimed,
+        now=lambda: NOW,
     )
     return outcome
 
@@ -327,26 +331,60 @@ def test_the_default_probe_is_the_kits_foreign_claims() -> None:
     assert _watch().default_claimed() is fleet_claims.foreign_claims
 
 
-def _write_marker(root: Path, handoff: Path, *, digest: str | None = None) -> None:
+def _write_marker(
+    root: Path,
+    handoff: Path,
+    *,
+    digest: str | None = None,
+    age_s: float | None = 60.0,
+    at: Any = None,
+) -> None:
+    """A /done marker over `handoff`, written `age_s` before the injected clock."""
+    import datetime  # noqa: PLC0415
     import hashlib  # noqa: PLC0415
     import json  # noqa: PLC0415
 
     sha = digest or hashlib.sha256(handoff.read_bytes()).hexdigest()
+    doc: dict[str, Any] = {
+        "schema": 1,
+        "status": "done",
+        "handoff": handoff.name,
+        "handoff_sha256": sha,
+    }
+    if at is not None:
+        doc["at"] = at
+    elif age_s is not None:
+        stamp = datetime.datetime.fromtimestamp(NOW - age_s, datetime.UTC)
+        doc["at"] = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
     marker = root / "ops" / "loop" / "control" / "session_done.json"
     marker.parent.mkdir(parents=True)
-    marker.write_text(
-        json.dumps({"schema": 1, "status": "done", "handoff": handoff.name, "handoff_sha256": sha}),
-        encoding="ascii",
-    )
+    marker.write_text(json.dumps(doc), encoding="ascii")
 
 
-def test_a_fresh_done_marker_holds_the_write_so_it_stays_valid(handoff: Path) -> None:
+def test_fresh_done_marker_still_pins(handoff: Path) -> None:
     """`fleet_done.validate` hashes the hand-off: a later write reads as work after /done."""
-    _write_marker(handoff.parent, handoff)
+    _write_marker(handoff.parent, handoff, age_s=60.0)
     assert _check_with(handoff, _unclaimed) == "held"
     assert handoff.read_bytes() == HANDOFF_TEXT
 
 
-def test_a_stale_done_marker_does_not_hold_the_write(handoff: Path) -> None:
+def test_stale_done_marker_does_not_pin(handoff: Path) -> None:
+    """A marker the session left behind hours ago must not mute the warning for good."""
+    _write_marker(handoff.parent, handoff, age_s=7200.0)
+    assert _check_with(handoff, _unclaimed) == "written"
+
+
+@pytest.mark.parametrize("at", ["not a time", 12345, "2026-13-45T99:99:99Z", ""])
+def test_a_marker_with_an_unparseable_at_pins_nothing(handoff: Path, at: Any) -> None:
+    _write_marker(handoff.parent, handoff, at=at)
+    assert _check_with(handoff, _unclaimed) == "written"
+
+
+def test_a_marker_with_no_at_pins_nothing(handoff: Path) -> None:
+    _write_marker(handoff.parent, handoff, age_s=None)
+    assert _check_with(handoff, _unclaimed) == "written"
+
+
+def test_a_marker_over_other_bytes_pins_nothing(handoff: Path) -> None:
     _write_marker(handoff.parent, handoff, digest="0" * 64)
     assert _check_with(handoff, _unclaimed) == "written"

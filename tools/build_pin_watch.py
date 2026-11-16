@@ -36,7 +36,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
@@ -53,6 +53,9 @@ HANDOFF_NAME: Final = "CS-NEXT-SESSION.txt"
 MARKER: Final = "BUILD PIN DRIFT:"
 
 _JOINER: Final = " installed game build "
+#: A /done marker pins the hand-off only while it is younger than this.
+_MARKER_FRESH_S: Final = 1800.0
+_MARKER_AT_FORMAT: Final = "%Y-%m-%dT%H:%M:%SZ"
 _RENAME_ATTEMPTS: Final = 5
 _RENAME_PAUSE_S: Final = 0.2
 _PRINTABLE: Final = frozenset(range(0x20, 0x7F))
@@ -138,12 +141,27 @@ def _held_by_claim(claimed: Callable[[list[str]], list[object]], path: Path) -> 
         return True
 
 
-def _done_marker_pins(path: Path, raw: bytes) -> bool:
-    """True when a valid /done marker hashes THIS hand-off, so a write would void it.
+def _marker_age_s(doc: dict[str, object], now: float) -> float | None:
+    """Seconds since the marker's `at` (UTC, `%Y-%m-%dT%H:%M:%SZ`), or None if unreadable."""
+    at = doc.get("at")
+    if not isinstance(at, str):
+        return None
+    try:
+        stamp = datetime.strptime(at, _MARKER_AT_FORMAT).replace(tzinfo=UTC)
+    except ValueError:
+        return None
+    return now - stamp.timestamp()
+
+
+def _done_marker_pins(path: Path, raw: bytes, now: float) -> bool:
+    """True when a FRESH valid /done marker hashes THIS hand-off, so a write would void it.
 
     `fleet_done.validate` compares the on-disk hand-off sha256 with the marker's,
-    so any later write reads as work after /done and silences the Stop hook.
-    An unreadable or foreign marker pins nothing.
+    so a write right after /done reads as work after /done and silences the Stop
+    hook. The pin holds only while the marker is done, names this hand-off, hashes
+    these exact bytes and is under `_MARKER_FRESH_S` old: a marker left behind by
+    a finished session must not mute the warning for good. An unreadable marker,
+    a missing or unparseable `at`, and a future-dated one pin nothing.
     """
     try:
         import hashlib  # noqa: PLC0415
@@ -153,13 +171,20 @@ def _done_marker_pins(path: Path, raw: bytes) -> bool:
         doc = fleet_done.read_marker(path.parent)
         if not doc or doc.get("status") != "done" or doc.get("handoff") != path.name:
             return False
-        return bool(doc.get("handoff_sha256") == hashlib.sha256(raw).hexdigest())
+        if doc.get("handoff_sha256") != hashlib.sha256(raw).hexdigest():
+            return False
+        age = _marker_age_s(doc, now)
+        return age is not None and 0 <= age < _MARKER_FRESH_S
     except Exception:  # DELIBERATE: a marker that cannot be read pins nothing
         return False
 
 
 def upsert(
-    path: Path, line: str, *, claimed: Callable[[list[str]], list[object]] | None = None
+    path: Path,
+    line: str,
+    *,
+    claimed: Callable[[list[str]], list[object]] | None = None,
+    now: Callable[[], float] = time.time,
 ) -> str:
     """Put `line` in the hand-off as its one marker line. Returns the outcome word.
 
@@ -180,7 +205,7 @@ def upsert(
         (olds if existing.startswith(MARKER) else kept).append(existing)
     if len(olds) == 1 and _same_pair(olds[0], line):
         return "unchanged"
-    if _done_marker_pins(path, before):
+    if _done_marker_pins(path, before, now()):
         return "held"
     body = "\n".join(kept)
     text = (body + "\n" if body else "") + line + "\n"
@@ -206,6 +231,7 @@ def check(
     command: str,
     today: str,
     claimed: Callable[[list[str]], list[object]] | None = None,
+    now: Callable[[], float] = time.time,
 ) -> str:
     """Compare the installed build with the pin and record a difference. Returns the outcome.
 
@@ -229,7 +255,7 @@ def check(
         return "unreadable"
     if not handoff.is_file():
         return "no_handoff"
-    return upsert(handoff, line, claimed=claimed)
+    return upsert(handoff, line, claimed=claimed, now=now)
 
 
 def run(handoff: Path | None = None) -> str:
