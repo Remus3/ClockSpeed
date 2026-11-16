@@ -56,6 +56,13 @@ def _pipe_text(rate: str) -> str:
     return f"Synthetic pipe.{NBSP}Capacity:{NBSP}{rate}{NNBSP}m{CUBE} of fluid per minute."
 
 
+def _real_pipe_text(rate: str) -> str:
+    # The measured shipped shape, with synthetic numbers: an ordinary space after
+    # the colon, a NARROW NO-BREAK SPACE before the unit and a NO-BREAK SPACE
+    # between the cube sign and "of".
+    return f"Capacity: {rate}{NNBSP}m{CUBE}{NBSP}of fluid per minute."
+
+
 def _entry(class_name: str | None, **fields: Any) -> dict[str, Any]:
     entry: dict[str, Any] = dict(fields)
     if class_name is not None:
@@ -380,3 +387,73 @@ def test_the_rate_path_source_has_no_float_and_no_authored_factor() -> None:
                 assert sub.value not in (60, 1000), (node.name, sub.value)
             if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name):
                 assert sub.func.id != "float", node.name
+
+
+# ---------------------------------------------------------------------------
+# The measured shipped shape, and the robustness arms (CS-1394 repair)
+# ---------------------------------------------------------------------------
+
+
+def test_the_measured_pipe_shape_with_a_no_break_space_before_of_publishes() -> None:
+    # Ratio 20 again, never a game value. The text carries U+202F before the unit
+    # and U+00A0 between the cube sign and "of"; a pattern that wants a plain space
+    # there reads every real pipeline class as unknown.
+    pipes = [
+        {"ClassName": "Build_RealA_C", "mFlowLimit": "0.25", "mDescription": _real_pipe_text("5")},
+        {"ClassName": "Build_RealB_C", "mFlowLimit": "0.5", "mDescription": _real_pipe_text("10")},
+    ]
+    registry = _registry(_group(PIPE_GROUP, pipes))
+    assert registry.transports["Build_RealA_C"].per_minute == Fraction(5)
+    assert registry.transports["Build_RealB_C"].per_minute == Fraction(10)
+    assert (WARN_MISSING_TRANSPORT_RATE, "Build_RealA_C") not in _warning_rows(registry)
+
+
+def test_every_unicode_space_and_ascii_space_spelling_publishes_the_same_rate() -> None:
+    for gap in (" ", NBSP, NNBSP, " " + NBSP):
+        belt = f"Transports up to{gap}10{gap}resources per minute."
+        pipe = f"Capacity:{gap}5{gap}m{CUBE}{gap}of fluid per minute."
+        registry = _registry(
+            _group(BELT_GROUP, [{"ClassName": "Build_B_C", "mSpeed": "30", "mDescription": belt}]),
+            _group(
+                PIPE_GROUP, [{"ClassName": "Build_P_C", "mFlowLimit": "1", "mDescription": pipe}]
+            ),
+        )
+        assert registry.transports["Build_B_C"].per_minute == Fraction(10), repr(gap)
+        assert registry.transports["Build_P_C"].per_minute == Fraction(5), repr(gap)
+
+
+def test_a_thousands_separator_is_unknown_and_flagged_never_a_wrong_number() -> None:
+    belts = [
+        {"ClassName": "Build_Comma_C", "mSpeed": "30", "mDescription": _belt_text("1,200")},
+        {
+            "ClassName": "Build_Thin_C",
+            "mSpeed": "30",
+            "mDescription": _belt_text("1" + NNBSP + "200"),
+        },
+    ]
+    pipes = [
+        {"ClassName": "Build_PComma_C", "mFlowLimit": "1", "mDescription": _real_pipe_text("1,200")}
+    ]
+    registry = _registry(_group(BELT_GROUP, belts), _group(PIPE_GROUP, pipes))
+    for key in ("Build_Comma_C", "Build_Thin_C", "Build_PComma_C"):
+        assert registry.transports[key].per_minute is None, key
+        assert (WARN_MISSING_TRANSPORT_RATE, key) in _warning_rows(registry), key
+
+
+def test_a_description_with_two_rate_phrases_is_refused_not_first_matched() -> None:
+    # Decision: REFUSE. Two stated rates in one text means the prose is not the
+    # measured one-sentence form, and picking the first would publish a number the
+    # text contradicts. Unknown plus the warning, for belts and pipes alike.
+    two_belt = _belt_text("10") + " " + _belt_text("20")
+    two_pipe = _real_pipe_text("5") + " " + _real_pipe_text("7")
+    registry = _registry(
+        _group(
+            BELT_GROUP, [{"ClassName": "Build_Two_C", "mSpeed": "30", "mDescription": two_belt}]
+        ),
+        _group(
+            PIPE_GROUP, [{"ClassName": "Build_PTwo_C", "mFlowLimit": "1", "mDescription": two_pipe}]
+        ),
+    )
+    for key in ("Build_Two_C", "Build_PTwo_C"):
+        assert registry.transports[key].per_minute is None, key
+        assert (WARN_MISSING_TRANSPORT_RATE, key) in _warning_rows(registry), key

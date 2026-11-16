@@ -675,18 +675,18 @@ _TRANSPORT_GROUPS: Final[Mapping[str, tuple[str, str, str]]] = MappingProxyType(
 #: The group short names whose classes publish a transport rate.
 TRANSPORT_GROUP_SHORT_NAMES: Final = frozenset(_TRANSPORT_GROUPS)
 
-# The stated capacity in a class's own description. The number is separated from
-# its words by an ordinary space, U+00A0 or U+202F, and a pipe's unit carries
-# U+00B3 (the cube sign); all are spelled as escapes so this file stays ASCII.
-# An ASCII digit class, never \d, so no other script's digits are read. Any text
-# outside this exact English form - a localized docs file, a number with a
-# thousands separator, a different period - does not match, and the rate is
-# published as unknown rather than guessed.
-_STATED_BELT_RATE: Final = re.compile(
-    r"up to[ \u00a0\u202f]+([0-9]+(?:\.[0-9]+)?)[ \u00a0\u202f]+resources per minute"
-)
+# The stated capacity in a class's own description. Every gap in the phrase is
+# Unicode whitespace (\s on a str pattern), because the shipped text spells them
+# as a plain space, U+00A0 and U+202F in no fixed order - the measured pipe text
+# has U+202F before the unit and U+00A0 between the cube sign and "of". The cube
+# sign is spelled as an escape so this file stays ASCII. An ASCII digit class,
+# never \d, so no other script's digits are read. Any text outside this exact
+# English form - a localized docs file, a number with a thousands separator, a
+# different period - does not match, and the rate is published as unknown rather
+# than guessed.
+_STATED_BELT_RATE: Final = re.compile(r"up\sto\s+([0-9]+(?:\.[0-9]+)?)\s+resources\s+per\s+minute")
 _STATED_PIPE_RATE: Final = re.compile(
-    r"Capacity:[ \u00a0\u202f]*([0-9]+(?:\.[0-9]+)?)[ \u00a0\u202f]*m\u00b3 of fluid per minute"
+    r"Capacity:\s*([0-9]+(?:\.[0-9]+)?)\s*m\u00b3\s+of\s+fluid\s+per\s+minute"
 )
 
 
@@ -2305,10 +2305,12 @@ def _stated_rate(kind: str, description: str) -> Fraction | None:
         refuse; this parse only reads.
     """
     pattern = _STATED_PIPE_RATE if kind == TRANSPORT_KIND_PIPE else _STATED_BELT_RATE
-    found = pattern.search(description)
-    if found is None:
+    found = pattern.findall(description)
+    if len(found) != 1:
+        # None, or two phrases: the prose is not the measured one-sentence form,
+        # and taking the first of two would publish a number the text contradicts.
         return None
-    return _fraction(found.group(1))
+    return _fraction(found[0])
 
 
 def _transport(
