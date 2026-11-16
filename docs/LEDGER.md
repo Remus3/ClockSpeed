@@ -75,6 +75,158 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-1400 - CLOSED: the advice panel's five UI-157 majors each reddened on its own arm first and are green, and the ui-auditor re-audit reads no major open
+Verification: `clockspeed/surface/web/panel_advice.js` (`FLOW_LABEL_TEXT`, `FLOW_LEGEND_TEXT`, the `advice-snooze`
+group, the in-place re-read after a recorded state, the inert both-chosen press) and `clockspeed/surface/web/app.css`
+(`.advice-controls`, `.advice-snooze`, `.advice-snooze button`);
+`tests/surface/test_panel_advice_ui157.py::test_s1_a_shown_flow_carries_its_own_label_and_a_legend_for_the_star`,
+`::test_s1_the_flow_block_has_a_role_that_accepts_the_name_the_label_gives_it`,
+`::test_s2_the_snooze_select_has_a_visible_label_bound_to_it_beside_its_button`,
+`::test_h2_a_successful_state_press_keeps_focus_and_the_read_derivation`,
+`::test_h2_a_pressed_card_the_reread_hides_leaves_and_focus_lands_on_ask`,
+`::test_y1_both_chosen_after_an_answer_leaves_no_answer_standing`,
+`::test_y1_both_chosen_after_a_refusal_leaves_no_refusal_standing`;
+`tests/surface/test_panel_advice_layout.py::test_h1_the_card_controls_stand_apart_by_a_non_zero_gap`,
+`::test_s2_the_snooze_select_width_is_bounded_and_its_group_is_one_row`,
+`::test_s2_the_snooze_select_cannot_shrink_below_its_longest_label`,
+`::test_s2_every_full_width_button_block_gives_the_snooze_button_back_its_width`. Post-merge on main after the
+re-audit repairs, the merger's targeted run: 337 passed, exit 0.
+ACCEPTANCE, quoted verbatim from the item's leaf section: "each of the five majors reddens on its own arm FIRST,
+against the panel as served, and is green after the fix: S1 the flow block under the derivation carries a visible
+label or heading of its own and a legend for its leading star; S2 the snooze select has a visible bound label and a
+bounded width, and sits beside its Snooze button; H1 Accept, Dismiss and Pin stand apart by a non-zero gap; H2 a
+successful state press keeps focus on the pressed control and keeps the derivation and flow text shown, with no
+wholesale repaint of the answer; Y1 the inert both-chosen line clears any earlier refusal or answer, so the page never
+says nothing was sent beside an answer; then a ui-auditor re-audit of the panel reads no major open"
+FILED, carried here so the leaf section can leave: the UI-157 browser audit of the dashboard advice panel
+(`#panel-advice`) at the session 157 main tip read BLOCKED, 0 blocker, 5 major, 9 minor. It drove installed Chrome
+through Python Playwright against `tests/surface/audit_harness.py` over plain HTTP loopback; the flow view, the
+schematic card and every state press result were rendered from in-page mocks, because the harness serves no state
+route, serves the flow as null and refuses a schematic act with 400 (BACKLOG, session 157 residuals). The audit, its
+two scripts, its raw results and its screenshots are kept in a gitignored folder of the data directory, the audit
+file's sha256 0798a0e753a644c64c0e8cd82c15c22e6d4c85cc4756ec4099e8acb3aef132a0. The nine minors (S3, S4, T1 to T3, Y2
+to Y4 and an empty `--panel` token) stay in that audit and were not this item; Y4, the unit mix in the highest-rate
+mark, is CS-1360's gap (1). Doctrine broken: `docs/hud_doctrine.md` section 2, "Every renderer idempotent" and its
+fixed learnable positions; `CONVENTIONS.md` section 13.3, focus survival across a repaint.
+BUILT in two slices on disjoint files. Slice B, the panel script and its node-driver arms over the served script: S1
+the flow block's own visible label and a legend for its leading star, the legend shown only with a starred edge; S2
+the snooze select's visible label bound to it inside one group with its Snooze button; H2 a re-read after a recorded
+state reconciled in place by card id, focus kept on the pressed control and the derivation and flow kept, focus to Ask
+when the pressed card leaves; Y1 the inert both-chosen press restoring the mount listing with no further door call.
+Slice A, the sheet and its sheet arms over the served sheet: H1 a non-zero gap between Accept, Dismiss and Pin; S2 a
+bounded snooze select width and a one-row group. Red-first on each major's own arm rests on the builders' reports.
+GRADED. Slice B: adversary NOT REFUTED, five scratch mutants each red; a distinct adjudicator ruled MERGE-WITH-NOTES.
+Slice A: adversary NOT REFUTED, its selectors match exactly what slice B emits, sheet lines added and none removed, no
+colour literal; a distinct adjudicator ruled MERGE-WITH-NOTES, its merged A-plus-B run and the post-merge run on main
+each 331 passed, exit 0. Adjudicator notes: (a) the in-place reconcile is by card id only, so text can go stale only
+if the save changes between the press and the re-read, which ruling Q3 permits; (b) `aria-labelledby` on a role-less
+`pre` is ignored by browsers, closed by the first re-audit repair below; (c) the star legend merged ahead of CS-1360
+gap (1), and the unit text comes with CS-1360's wave-2 slice.
+RE-AUDIT HISTORY. The first ui-auditor re-audit read BLOCKED: at 420px and narrower the snooze select was truncated to
+"1" for "1 week", a MAJOR. Repair 1 kept the select's option text readable and named the flow block by giving its
+`pre` the group role, but broke S2's adjacency: a global narrow-media full-width button rule put Snooze on a line of
+its own. Repair 2 scoped `.advice-snooze button` back to auto width
+(`tests/surface/test_panel_advice_layout.py::test_s2_every_full_width_button_block_gives_the_snooze_button_back_its_width`).
+The final re-audit read AUDIT: PASS at 1100, 600, 420, 380 and 360px, the flow group named "Boundary flow" in the
+accessibility tree, S1, H1, H2 and Y1 unchanged PASS. The earlier sideways page scroll at 360px and narrower did not
+reproduce.
+UNVERIFIED-LIVE: the H2 result and the S1 flow result. The audit harness mocks the state press, the derivation, the
+flow and the re-read in the page, so both were graded against mocks and not against the real server's output. Ruling
+Q7 accepted that and did not widen the harness: the audit that found the majors used the same mocks, so the re-audit
+grades like for like.
+RUNNER-UP, from the session 158 plan ruling: Q3, a keyed diff with insertion instead of an in-place reconcile on an
+equal id order, lost because it needs `insertBefore`, absent from the stand-in surface, and widening that is barred by
+a pinned arm; Q7, widening the audit harness to serve state and flow, lost on a write collision with CS-1395's golden
+repin and on like-for-like grading; Q2, focus to the next card when the pressed card leaves, lost because it invents a
+position rule `docs/hud_doctrine.md` section 2 does not state.
+COMMON-MODE RISK: the builders and the adversaries both tested through the stand-in page; only the ui-auditor re-audit
+drove a real browser, and it mocks the state and flow routes.
+RESIDUAL: two minors, both filed in BACKLOG under the session 158 residuals: at 320px the Snooze button wraps below
+its select, visible and usable; the "Boundary flow" label is a body-weight `p.note`. Slice A's sheet arms pass any
+positive gap for H1, check the max-width unit only loosely, and never measured the nowrap snooze group at the
+narrowest width; the re-audit owned that and measured it. Discharges CS-1360 gap (2), the bare star, per ruling Q6;
+CS-1360 stays open.
+
+### 2026-11-16 - CS-1395 - CLOSED: a solved plan publishes one exact edge per producer recipe, item and consumer recipe, reconciling with its boundary totals
+Verification: `clockspeed/solve/ratio.py::PlanEdge` and `clockspeed/solve/ratio.py::_edges_from`, which builds
+`ProductionPlan.edges` from `system.rates`, the rates `_net_per_minute` built, so the per-minute arithmetic stays in
+that module's one owner;
+`tests/solve/test_plan_edges.py::test_a_two_stage_chain_publishes_its_producer_to_consumer_edges`,
+`::test_the_edge_rates_reconcile_with_the_boundary_totals`, `::test_a_shared_item_splits_in_proportion_exactly`,
+`::test_an_uneven_split_stays_an_exact_fraction`, `::test_a_byproduct_is_a_sink_edge_that_reconciles`,
+`::test_a_cycle_publishes_edges_around_the_loop`, `::test_every_edge_carries_the_unit_of_its_item`,
+`::test_a_plan_edge_is_frozen_slotted_and_admitted_by_the_trace`, `::test_no_edge_rate_is_a_float_or_zero`,
+`::test_a_permuted_request_yields_a_byte_identical_edges_tuple`,
+`::test_an_item_both_imported_and_produced_reconciles_its_raw_shortfall`,
+`::test_an_item_both_imported_and_produced_sinks_its_surplus_with_no_sink_kind`,
+`::test_a_solved_plans_derivation_prints_its_edges_ascii_and_stable`; `tests/solve/test_phase3_gate.py` lists the new
+test file; `tests/advisor/rules/test_plan.py` carries the one plan repr golden repinned. Post-merge on main: the
+targeted files 238 passed and the census run 2581 passed, 1 skipped, each exit 0.
+ACCEPTANCE, quoted verbatim from the item's leaf section: "`clockspeed/solve/ratio.py` publishes, per solved plan, an
+edge per (producer recipe, item, consumer recipe) with its exact per-minute rate, summing to the same boundary totals
+the plan already reports; a test pins the edges of a two-stage synthetic chain and pins that the edge rates reconcile
+with `raw_inputs`, `targets` and `byproducts`; the arithmetic stays in the one owner of per-minute conversion that
+module already uses."
+FILED by the lane-0 queue cycle as the remainder of CS-1360, unblocking that row's internal-edges conjunct: the view
+renders the chain, not only its boundary.
+DESIGN, per the session 158 plan ruling: a product shared by several consumers splits in proportion, edge(p,c) = out_p
+times in_c over total_i, exact, documented as an allocation and not a route (Q4); boundary edges are published, a
+producer of None for raw supply and a consumer of None for a sink target or a byproduct (Q5); `PlanEdge` is frozen
+with slots and carries its unit and sink kind; edge order is deterministic, registry order plus a total final sort.
+GRADED: adversary NOT REFUTED - reconciliation both ways including a 2x2 many-to-many, a byproduct and a cycle; one
+hand-built golden repinned and nothing hidden. A distinct adjudicator ruled MERGE-WITH-NOTES. Three test-only gaps
+were closed before the merge by the third commit: the edge order pinned (a mutant removing the final sort goes red),
+an item both imported and produced reconciles with a None producer and a None sink, and a solver-built plan's tier-3
+edges line is ASCII and stable.
+RUNNER-UP, from the session 158 plan ruling: one aggregated edge per item (Q4), lost because the clause demands one
+edge per (producer, item, consumer); internal edges only (Q5), lost because reconciliation with `raw_inputs`,
+`targets` and `byproducts` is otherwise unmeasurable.
+COMMON-MODE RISK: a synthetic registry only, with no real item forms.
+RESIDUAL: none beyond the common-mode risk was recorded by the adversary or the adjudicator. The plan ruling's open
+question, the edge count of the largest redesign plan against the trace's `MAX_EXACT_NODES` budget, was not
+re-measured by this record.
+
+### 2026-11-16 - CS-1394 - CLOSED: the registry publishes every conveyor belt, conveyor lift and pipeline class's per-minute throughput, read exact from its own shipped description, unknown and never zero
+Verification: `clockspeed/data/registry.py::Transport`, `clockspeed/data/registry.py::_build_transports` and
+`clockspeed/data/registry.py::_reconcile_group`, published as `Registry.transports`;
+`tests/data/test_transport_rates.py::test_every_declared_belt_and_pipe_class_publishes_an_exact_per_minute_rate`,
+`::test_the_published_rate_is_the_stated_one_not_a_constant_times_the_field`,
+`::test_the_included_transport_groups_are_pinned`, `::test_a_missing_operand_is_unknown_never_zero`,
+`::test_an_unreadable_description_is_unknown_and_flagged`,
+`::test_disagreeing_ratios_in_a_group_publish_nothing_and_warn`, `::test_no_published_rate_is_a_float`,
+`::test_the_measured_pipe_shape_with_a_no_break_space_before_of_publishes`,
+`::test_every_unicode_space_and_ascii_space_spelling_publishes_the_same_rate`,
+`::test_a_description_with_two_rate_phrases_is_refused_not_first_matched`; `tests/data/test_registry.py`, its pin of
+the Registry's last fields, a value change only. Post-merge on main, those two files: 214 passed, exit 0.
+ACCEPTANCE, quoted verbatim from the item's leaf section: "The registry publishes, for every conveyor belt and
+pipeline class the shipped docs declare, that class's items-per-minute throughput as an exact Fraction, unknown rather
+than zero where either operand is missing (the extractor precedent in `clockspeed/data/registry.py`); a test over a
+synthetic registry pins each published rate and pins the unknown case; no live install is read by the test."
+FILED by the lane-0 queue cycle as the remainder of CS-1360, unblocking that row's capacity conjunct, and so the
+saturation mark shipped as `highest-rate`.
+DESIGN, per the session 158 plan ruling: a `Transport` carries two operands from the class's own docs entry, the
+numeric field verbatim (`mSpeed` or `mFlowLimit`) and the per-minute capacity its `mDescription` states; the published
+rate is the stated capacity, only when both parse and the stated-to-numeric ratio is one exact value across the
+class's group, else None plus a warning code, never zero; no conversion constant is authored, so a pipe publishes the
+docs-stated cubic metres a minute with no data-side 60 (Q1, Q2); conveyor lifts are included, and the neighbouring
+monitor, pump, junction, hypertube and splitter groups stay out, the group set pinned (Q3).
+GRADED: the first adversary pass REFUTED the build - on the live docs 0 of 4 pipes published, because the shipped text
+separates with U+202F and U+00A0 where the fixtures used ASCII spaces. The repair accepts any Unicode whitespace and
+refuses a description carrying two rate phrases. The re-attack read NOT REFUTED, and a live read-only probe published
+16 of 16 classes (belts and lifts six tiers each, pipes two tiers, in cubic metres). A distinct adjudicator ruled
+MERGE-WITH-NOTES and proved the no-break-space arm fails on its own assertion against the pre-repair code.
+RUNNER-UP, from the session 158 plan ruling (Q1): a named one-half constant times `mSpeed`. Its best argument: numeric
+fields are more stable than prose, and the relation holds on all twelve conveyor entries. It lost because the same
+docs state the rate directly, so the constant is an unsourced restatement of a shipped fact, and the ratio check keeps
+the numeric field load-bearing.
+COMMON-MODE RISK: the fixtures copy the measured text shape, so a reworded future patch falls back to unknown plus a
+warning rather than a wrong number.
+RESIDUAL: the rate pattern has no sentence anchor, so a stray rate phrase in unrelated description prose would be
+read; it is refused when two phrases appear and withdrawn when the group's ratios disagree (BACKLOG, session 158
+residuals). The stated-capacity parse depends on English prose, so a localized docs file reads unknown, flagged and
+not wrong. The `tests/conftest.py::redact_personal_data` NodeId TypeError under a global pytest 9.2.0 is CS-1387, not
+this item.
+
 ### 2026-11-16 - CS-1253 - CLOSED, CONFIRMED: the session 158 adversary did not refute the lane's cycle-2 closure, and a distinct adjudicator ruled LAND with no must-fix
 Verification: `clockspeed/advisor/ledger.py::Ledger` and `clockspeed/advisor/ledger.py::MuteStore`, whose `_save`
 methods stamp `schema_version` and `clockspeed.__version__` through `clockspeed/advisor/ledger.py::_write_doc`;

@@ -908,6 +908,25 @@ step-kind check in `flow_view.py` (replacing it with True passes all 25 tests) a
 `panel_advice.js` `rateText` (den 1 versus den 0 passes). Seam note: `panel_advice.js` `barOf` multiplies served
 integers for bar widths, presentation only, against a header that says nothing is computed there.
 
+### NOTE - filed 2026-11-16 by the session 158 merger
+
+Gap (1) of the session 157 adversary record above is CLOSED by the flow-view unit rule:
+`clockspeed/surface/api/flow_view.py` marks the highest-rate edge within one unit only - items a minute when any solid
+edge exists, else cubic metres a minute - an edge of unknown unit is never marked, and every edge and the marked edge
+carry their unit (`tests/surface/test_flow_view.py::test_a_fluid_edge_never_outranks_a_solid_edge_across_units`,
+`tests/surface/test_flow_view.py::test_an_unknown_unit_edge_is_never_marked_however_large`). The two arms that record
+owed landed with it: `tests/surface/test_flow_view.py::test_a_step_of_another_kind_with_the_plan_subject_is_not_read`
+and `tests/surface/test_flow_view.py::test_a_whole_rate_renders_bare_and_a_zero_denominator_renders_dash`.
+
+Gap (2) is CLOSED by CS-1400's star legend: the panel gives the flow block its own label and keys its leading star as
+the highest-rate edge
+(`tests/surface/test_panel_advice_ui157.py::test_s1_a_shown_flow_carries_its_own_label_and_a_legend_for_the_star`),
+recorded in CS-1400's CLOSED record in `docs/LEDGER.md`. CS-1394 and CS-1395, the capacity and internal-edge
+remainders, are CLOSED too, each with its own record there.
+
+This item stays OPEN: the wave-2 closing slice, which shows the unit on each flow line and in the legend, is in
+progress, and the item closes only once that slice is graded and merged.
+
 
 ## CS-1362
 
@@ -1012,33 +1031,3 @@ with a matching id writes nothing. No live install is read by the test (fixtures
 Why it is product work under CLAUDE.md section 7: guard (h) refused every push from the 2026-11-08 game
 patch to the 2026-11-12 re-pin (CS-1383), so landing product work was blocked for four days. Reuse the
 installed-build read guard (h) already does; do not add a second reader.
-
-
-## CS-1394
-
-### Acceptance
-
-The registry publishes, for every conveyor belt and pipeline class the shipped docs declare, that class's
-items-per-minute throughput as an exact Fraction, unknown rather than zero where either operand is missing (the
-extractor precedent in `clockspeed/data/registry.py`); a test over a synthetic registry pins each published rate and
-pins the unknown case; no live install is read by the test.
-
-### Filed 2026-11-15 by the lane-0 queue cycle
-
-Filed as the remainder of CS-1360. It unblocks that row's capacity conjunct, and so the saturation mark now shipped
-as `highest-rate`.
-
-
-## CS-1395
-
-### Acceptance
-
-`clockspeed/solve/ratio.py` publishes, per solved plan, an edge per (producer recipe, item, consumer recipe) with
-its exact per-minute rate, summing to the same boundary totals the plan already reports; a test pins the edges of a
-two-stage synthetic chain and pins that the edge rates reconcile with `raw_inputs`, `targets` and `byproducts`; the
-arithmetic stays in the one owner of per-minute conversion that module already uses.
-
-### Filed 2026-11-15 by the lane-0 queue cycle
-
-Filed as the remainder of CS-1360. It unblocks that row's internal-edges conjunct: the view renders the chain, not
-only its boundary.

@@ -434,30 +434,3 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a fixture with a newer save on disk sets the stale flag in the API payload; a moved build pin sets it too; the stamp contains no world name or path
-
-## CS-1400
-
-### Filed 2026-11-15 by the session 157 /done, from the UI-157 audit
-
-The UI-157 browser audit of the dashboard advice panel (`#panel-advice`) at main 20e352a1 read BLOCKED: 0
-blocker, 5 major, 9 minor. It drove installed Chrome through Python Playwright against
-`tests/surface/audit_harness.py` over plain HTTP loopback. The flow view, the schematic card and every state
-press result were rendered from in-page mocks, because the harness serves no state route, serves the flow as
-null and refuses a schematic act with 400 (BACKLOG, session 157 residuals), so a mocked state is not the real
-server's output. The audit, its two scripts, its raw results and its screenshots are kept in a gitignored folder
-of the data directory, the audit file's sha256
-0798a0e753a644c64c0e8cd82c15c22e6d4c85cc4756ec4099e8acb3aef132a0. The nine minors (S3, S4, T1 to T3, Y2 to Y4
-and an empty `--panel` token) stay in that audit and are not this item; Y4, the unit mix in the highest-rate
-mark, is one of the two gaps CS-1360's section records. Doctrine broken: `docs/hud_doctrine.md` section 2,
-"Every renderer idempotent" and its fixed learnable positions; `CONVENTIONS.md` section 13.3, focus survival
-across a repaint.
-
-### Acceptance
-
-each of the five majors reddens on its own arm FIRST, against the panel as served, and is green after the fix:
-S1 the flow block under the derivation carries a visible label or heading of its own and a legend for its
-leading star; S2 the snooze select has a visible bound label and a bounded width, and sits beside its Snooze
-button; H1 Accept, Dismiss and Pin stand apart by a non-zero gap; H2 a successful state press keeps focus on the
-pressed control and keeps the derivation and flow text shown, with no wholesale repaint of the answer; Y1 the
-inert both-chosen line clears any earlier refusal or answer, so the page never says nothing was sent beside an
-answer; then a ui-auditor re-audit of the panel reads no major open

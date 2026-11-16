@@ -281,7 +281,6 @@ CS-1249 - recipe-graph cycles detected explicitly, with a test that reddens on a
 CS-1250 - no-double-count invariant: each built object contributes to audit totals exactly once - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1400 - UI-157: the advice panel's five browser-audit majors - flow legend, snooze label, button gap, focus kept on a state press, no stale refusal beside the inert line - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -361,8 +360,6 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1360 - CS-FLOW-VIEW: a read-only flow view of a solved chain, edge widths from the rule trace, the saturated edge marked - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1394 - CS-TRANSPORT-RATES: publish conveyor and pipeline throughput from the shipped docs so a flow edge can be graded against a capacity - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1395 - CS-PLAN-EDGES: `ProductionPlan` publishes the producer-to-consumer item edges of a solved chain so a flow view can render the chain and not only its boundary - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1362 - CS-PARSER-XCHECK: an out-of-tree save parser as a test-only oracle for this parser's counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1390 - MAIN ORDER 0931 item 2: warn the day the installed game build differs from the pin, not at the next push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
