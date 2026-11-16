@@ -377,6 +377,10 @@ THE CUTOVER WAS BUILT AND MEASURED BEFORE BEING FILED, so this row is a measurem
 
 WHY A LANE COULD NOT FINISH IT, and the part that needs an adjudicated session. Two of those three arms carry a NAME stating the order CS-1247 supersedes - `test_the_three_card_fixture_leads_with_the_small_cards_and_ends_with_the_large_one` and `test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards` - so re-pinning the literal and keeping the name leaves a test whose name is false, and renaming it breaks a citation: the 2026-11-15 adjudicated CS-1246 closure record cites the second arm BY THAT NAME in its Verification line, and `docs/LEDGER.md` is append-only. The third arm's name stays true and only its pre-threshold literal moves. Choosing between a false arm name and an unrepairable citation is a ruling, not a lane's call.
 
+### NOTE - filed 2026-11-16 by the session 158 adjudicator
+
+As part of CS-1401, repoint the `tests/advisor/test_interleave.py` module docstring's citation "phase5.md, CS-1247 acceptance" at the CS-1247 CLOSED record in `docs/LEDGER.md`, because that section has left this leaf; and the acceptance below should name the surface page size the "top five" maps to, the CS-1247 adjudicator's common-mode risk being that the builder and the adversary judged one synthetic fixture and nobody checked "top five" against any surface's page size.
+
 ### Acceptance
 
 `Advice.ranked` and `Advice.ranked_shown` both compose `interleave_domains` over the CS-1246 order; a served listing of the three-card aging fixture reads the large card SECOND, not last; each of the three `tests/surface/test_advice_aging.py` arms named in this section is re-pinned with a name that is true of the order it asserts; and the record resolves, in a new append-only entry, how the CS-1246 closure record's by-name citation of a renamed arm is to be read

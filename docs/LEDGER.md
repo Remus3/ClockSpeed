@@ -75,6 +75,44 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-1253 - CLOSED, CONFIRMED: the session 158 adversary did not refute the lane's cycle-2 closure, and a distinct adjudicator ruled LAND with no must-fix
+Verification: `clockspeed/advisor/ledger.py::Ledger` and `clockspeed/advisor/ledger.py::MuteStore`, whose `_save`
+methods stamp `schema_version` and `clockspeed.__version__` through `clockspeed/advisor/ledger.py::_write_doc`;
+`tests/advisor/test_ledger.py`, 157 passed on the adjudicator's run, including the raw `schema_version` 1 fixtures
+for both stores, `::test_a_version_one_ledger_still_loads_and_is_rewritten_as_two` and
+`::test_a_version_one_mute_store_still_loads`; the older-store test parametrized over versions 1 to 3,
+`::test_an_older_store_is_read_with_an_unknown_writer_and_rewritten_as_four`; the helper
+`tests/advisor/test_ledger.py::_assert_both_corrupt_and_unchanged`; and the control
+`::test_a_version_four_store_naming_another_writer_is_read_and_restamped`. The closure graded is the 2026-11-15
+CS-1253 CLOSED record below; this record adds the session 158 grading and changes none of it.
+GRADED: the lane's two cycle-2 commits, by an adversary and then a distinct adjudicator, neither of whom produced
+the work. ADVERSARY: NOT REFUTED. ADJUDICATED: LAND, no must-fix. The adjudicator closed the adversary's open gaps
+itself: no non-ASCII byte in the six files the cycle touched, and only `clockspeed/advisor/advise.py` and
+`clockspeed/surface/providers.py` read the two stores, both through the two classes. The cycle's scope repair to
+`config/lane_scopes.json` is a real fix, and `tests/ops/test_lane_scope.py` was not weakened.
+RUNNER-UP: NOT A COMPLETION, because the clause says "under v2" and two of its three parts pre-existed. It lost:
+"v2" is a stale label, and the missing part is now built and tested.
+RESIDUAL: none.
+
+### 2026-11-16 - CS-1247 - CLOSED, CONFIRMED: the session 158 adversary did not refute the lane's cycle-1 closure, and a distinct adjudicator ruled LAND
+Verification: `clockspeed/advisor/ranking.py::interleave_domains`; `tests/advisor/test_interleave.py`, 17 passed on
+the adjudicator's run, with
+`tests/advisor/test_interleave.py::test_acceptance_both_milestone_cards_read_in_the_top_five_past_ten_power_cards`
+and its control arm `::test_the_base_order_alone_monopolises_the_top_five_with_one_domain`. The closure graded is
+the 2026-11-15 CS-1247 CLOSED record below; this record adds the session 158 grading and changes none of it.
+GRADED: the lane's two cycle-1 commits, by an adversary and then a distinct adjudicator, neither of whom produced
+the work. ADVERSARY: NOT REFUTED. ADJUDICATED: LAND. Deciding words: the acceptance clause, "a fixture with ten
+power cards and two milestone cards shows both milestone cards in the top five; the interleave is a pure function
+with golden cases", names a pure function, not the served list; the item's Acceptance heading in its leaf owned
+that clause, and its `ROADMAP.md` headline did not.
+RUNNER-UP: NOT A COMPLETION, because the `ROADMAP.md` line said "in the top-N card list". It lost because the
+headline is not the clause.
+COMMON-MODE RISK: the builder and the adversary judged one synthetic fixture; nobody checked "top five" against any
+surface's page size. Carried to the CS-1401 section of `docs/item_notes/phase5.md`.
+RESIDUAL: the served list is unchanged until CS-1401.
+The cycle-1 commit body names its residual by an id it does not hold; the ID COLLISION paragraph of the 2026-11-15
+CS-1247 CLOSED record below explains that misnumber, and it is not restated here.
+
 ### 2026-11-15 - CS-1253 - CLOSED: a versioned per-world ledger and mute store - schema 4 stamps the tool that wrote it
 Verification: `clockspeed/advisor/ledger.py::SCHEMA_VERSION` (now 4), `Ledger._save`, `MuteStore._save` and
 `_read_doc`, with `tests/advisor/test_ledger.py` including
