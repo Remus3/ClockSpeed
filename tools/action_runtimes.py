@@ -50,10 +50,22 @@ SUPPORTED_RUNTIMES = frozenset({"node24"})
 # Add a row by probing the tag, never by pattern-matching a sibling action's
 # numbering - that assumption is exactly what the first cut of this module got wrong.
 OBSERVED_RUNTIMES: dict[str, dict[int, str]] = {
-    "actions/checkout": {3: "node16", 4: "node20", 5: "node24", 6: "node24"},
+    "actions/checkout": {3: "node16", 4: "node20", 5: "node24", 6: "node24", 7: "node24"},
     "actions/setup-python": {3: "node16", 4: "node16", 5: "node20", 6: "node24"},
     "actions/setup-node": {3: "node16", 4: "node20", 5: "node24", 6: "node24"},
     "actions/upload-artifact": {4: "node20", 5: "node20", 6: "node24", 7: "node24"},
+}
+
+# CS-1403 - a FULL COMMIT SHA names no runtime by itself, so a SHA pin grades by the
+# tag that exact commit was OBSERVED to carry, never by the comment beside it in the
+# workflow. Each row is re-measurable with:
+#
+#     curl -sS https://api.github.com/repos/<owner>/<repo>/git/ref/tags/<tag>
+#
+# whose object sha must equal the key's. MEASURED 2026-11-17; the commit's own
+# action.yml declared node24. A SHA with no row stays a loud offence.
+OBSERVED_SHA_TAGS: dict[str, str] = {
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "v7.0.1",
 }
 
 
@@ -98,7 +110,7 @@ def pins_by_parse(text: str) -> list[str]:
 SLUG_LINE = re.compile(
     r"^[^\S\n]*-?[^\S\n]*[A-Za-z_][A-Za-z0-9_-]*:[^\S\n]*"
     r"([A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)"
-    r"[^\S\n]*$",
+    r"(?:[^\S\n]+#[^\n]*)?[^\S\n]*$",
     re.MULTILINE,
 )
 
@@ -167,7 +179,7 @@ def grade_pin(pin: Pin) -> str | None:
             "tools/action_runtimes.py OBSERVED_RUNTIMES does not name, so its runtime "
             "is ungraded. Probe that major's action.yml and add what it declares."
         )
-    match = _MAJOR.match(pin.ref)
+    match = _MAJOR.match(OBSERVED_SHA_TAGS.get(pin.spelling, pin.ref))
     if match is None:
         return (
             f"{pin.workflow} pins {pin.spelling}, whose ref carries no major version, "

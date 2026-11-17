@@ -485,9 +485,11 @@ ignore = [
   "PLW1510", "PTH109", "PTH123", "RUF059", "SLF001", "UP032",
 ]
 "ops/fleet_kit/fleet_identity.py" = [
-  "B905", "D103", "D205", "D209", "D301", "D403", "FURB167", "PERF401", "PLR2004", "PLW1510",
-  "PLW2901", "PTH109", "PTH123", "UP032",
+  "B905", "D103", "D205", "D209", "D301", "D403", "FURB167", "PERF401", "PLR0911", "PLR2004",
+  "PLW1510", "PLW2901", "PTH109", "PTH123", "UP032",
 ]
+# Version 32 (MEASURED on its bytes): fleet_identity.py adds PLR0911 (main()'s
+# return ladder, which gains the ci-check subcommand).
 # Version 30 (MEASURED on its bytes): fleet_rewrite.py adds PLR2004 (a literal 2
 # in the ref-line split) and PTH101 and PTH118 (rehearse's os.chmod(os.path.join(...))).
 "ops/fleet_kit/fleet_rewrite.py" = [

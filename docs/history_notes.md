@@ -594,6 +594,32 @@ STILL OWED: the rest of the real-world comparison re-read, an adjudicator on the
 
 ADJUDICATED 2026-11-13 by the session 156 adjudicator on 7b090f80: LAND; factual cap clause ratified under rules 7 and 8; owed library comparison is BACKLOG CS-1388.
 
+## The kit v32 relocation - relocated from `CLAUDE.md` 2026-11-17 by the kit v32 adoption
+
+Moved when the FLEET-KIT version 32 common block (+457 B, items 17 and 18) took `CLAUDE.md`
+past its 40 KB budget; relocated, not deleted (`CLAUDE.md` section 4). No rule changed.
+
+From the precedence paragraph, two retired clauses: (a) retired at kit v30, whose item 12
+supervision section 2.3 now follows; (b) retired at kit v9, whose item 13 carries the
+checklist section 2.3.1 applies. Clause (c) stays in place, since a test reads its span.
+
+From section 6.1, a restatement of FLEET item 3 and section 2.3.1, which own it: a status
+request is answered with the section 2.3.1 checklist, not prose.
+
+From section 3, rule 13's provenance: it has no `BOOTSTRAP.md` source; it was filed for
+CS-814.
+
+From section 4, why dated artifacts go to `docs/_archive/`: excluded from search, they
+never pollute a search for current truth.
+
+From section 5, the supporting facts `CONVENTIONS.md` sections 5.1 to 5.3 own: agreement
+between two agents is not evidence, distinct refuter lenses, probe every subagent claim,
+never predict a pending result, spec before code.
+
+From section 7's "Dedicated Server API" entry: the server docs are on disk and free to
+read; single-player saves remain the world-state source.
+
+
 ## The kit v30 relocation - relocated from `CLAUDE.md` 2026-11-12 by the kit v30 adoption
 
 Moved when the FLEET-KIT version 30 common block (+680 B) took `CLAUDE.md` past its 40 KB

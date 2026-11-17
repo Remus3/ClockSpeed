@@ -19,9 +19,8 @@ MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and 
 `THIRD_PARTY.md` row for `ops/fleet_kit/FLEET-COMMON.md`.
 
 **Precedence - where this file and the FLEET-COMMON block differ, `CLAUDE.md` governs
-this tree.** Specifically: (a) retired at kit v30, whose item 12 supervision section 2.3
-now follows; (b) retired at kit v9, whose item 13 carries the checklist section 2.3.1
-applies; (c) retired by CS-1231 slice C - FLEET item 10 holds with no exception; (d) FLEET
+this tree.** Specifically: (a) and (b) are retired (`docs/history_notes.md`, the kit v32
+relocation); (c) retired by CS-1231 slice C - FLEET item 10 holds with no exception; (d) FLEET
 item 5's rule that every do-not-re-litigate entry states what would reverse it is met by the
 *Reversed by:* clause on each section 7 entry. Section 6.1's repository-public/remote
 safety floor holds whatever FLEET item 1 says.
@@ -224,14 +223,20 @@ edit. Tree-specific rules go BELOW this block, never inside it.
     strips, pre-push refuses; operator identity only from local git config
     `fleet.operatorIdent`), fleet_gitlock and the account attribution keys.
     A history rewrite runs only on MAIN's ORDER, via `fleet_rewrite.py`.
-18. STATUS BOARD (kit v23; operator order 2026-10-25). LOCAL ONLY: no
-    claude.ai artifact, no Artifact or ArtifactData call, no board URL.
-    Why: operator views it locally; the artifact push wasted tokens. An
-    interactive session renders its board ONLY at session start, after
-    every item-13 b reprint and at /done (`--final`):
-    `fleet_board.py render --session <n>` (checklist on stdin) writes
-    status.json and board.html to ops/loop/control/board/ in the MAIN
-    checkout; open board.html in a browser. Headless runs never render.
+    Server side (v32): the kit's fleet_identity_guard.yml is a required
+    check. Dependabot PRs are never merged on GitHub: the lane re-applies
+    the bump locally as an operator commit, pushes, and closes the PR with
+    a one-line comment. Dependabot alerts and security updates stay on.
+18. STATUS BOARD (kit v32; operator orders 2026-10-25, 2026-11-16).
+    OPT-IN per tree: only a tree whose tracked ops/status_board.json holds
+    "opt_in": true renders; elsewhere the call is a silent no-op (rc 0).
+    LOCAL ONLY: no claude.ai artifact, no Artifact or ArtifactData call, no
+    board URL. Why: operator views it locally; the artifact push wasted
+    tokens, and not every tree needs a board. An opted-in interactive
+    session renders ONLY at session start, after every item-13 b reprint
+    and at /done (`--final`): `fleet_board.py render --session <n>`
+    (checklist on stdin) writes status.json and board.html to
+    ops/loop/control/board/ in the MAIN checkout. Headless runs never render.
 19. NO WIDTH-DEPENDENT LAYOUT IN CHAT (kit v24; operator order 2026-10-25).
     Chat is read in console panes of any width and on a phone. No markdown
     tables, box-drawing frames, ASCII art or space-aligned columns in chat:
@@ -382,8 +387,7 @@ account and player-display-name strings in plaintext inside an options string:
     it. Error messages, debug dumps, hex previews, log lines and exception context all
     count as echo paths.
 
-Owned here, with no `BOOTSTRAP.md` source - filed for CS-814, the same echo rule one
-domain over:
+Owned here (CS-814), the same echo rule one domain over:
 
 13. The environment every hook inherits carries live credentials, so any path that
     renders it leaks them. No hook, gate, test assertion or error path echoes an
@@ -431,8 +435,7 @@ Rules that follow from the table:
 - **Do not restate a measured number in prose.** Counts, coverage, versions and item
   totals belong in exactly one machine-checked place with a drift guard. A hardcoded count
   in a doc is a lie with a timestamp on it. If a doc must display one, generate it.
-- Dated artifacts go to `docs/_archive/`, excluded from search, so they never pollute a
-  search for current truth.
+- Dated artifacts go to `docs/_archive/`, excluded from search.
 - A doc heading whose date LEADS the heading marks its own section historical; a date
   after a provenance verb records only when the text was filed, moved or measured, and
   marks status not at all - so a live document is free to carry one. **A file carrying
@@ -468,9 +471,7 @@ The only exception is genuinely trivial work: a one-line cosmetic edit, a doc ty
 single string, a conversational answer. Substance decides, not file count. A one-file
 engine change is substantive; a five-file rename is not.
 
-Supporting facts - agreement between two agents is not evidence, distinct refuter lenses,
-probe every subagent claim, never predict a pending result, spec before code - are owned by
-`CONVENTIONS.md` sections 5.1 to 5.3.
+Supporting facts are owned by `CONVENTIONS.md` sections 5.1 to 5.3.
 
 Work-item states, one per item, one file each: OPEN in `ROADMAP.md`, ASPIRATIONAL in
 `BACKLOG.md`, GATED in `docs/GATED.md`, CLOSED in `docs/LEDGER.md` plus a Settled line
@@ -518,8 +519,6 @@ done that its acceptance says is not.
 with other work; CI grades only a push's tip (that memory file, "The commit and push
 clause"). It and FLEET items 4 and 5 yield here only to the /done cases
 `.claude/commands/done.md` names (CS-1321, CS-1323).
-
-**A status request is answered with the section 2.3.1 checklist**, not prose.
 
 **MAIN SPEAKS FOR THE OPERATOR (FLEET item 6), granted here 2026-10-02.** Safety floors
 MAIN cannot lift include section 3, the outbound leak gate, and the repository-public/remote
@@ -581,8 +580,8 @@ MAIN note stands in), then recorded as an ADR in `docs/adr/`.
   re-pitch:* opening mod content work before phase 6 completes.
   *Reversed by:* phase 6 completing opens mod content work; the architecture half only by
   an operator ADR.
-- **Dedicated Server API is out of scope for v1.** The docs are on disk and free to read,
-  but single-player saves are the world-state source. *Do not re-pitch:* it as a
+- **Dedicated Server API is out of scope for v1.** Single-player saves are the
+  world-state source. *Do not re-pitch:* it as a
   world-state source. Revisit only if the operator starts running a dedicated server.
   *Reversed by:* once the operator runs a dedicated server, an operator ADR.
 - **No external optimizer dependency in phase 3.** Interface first, dependency later and

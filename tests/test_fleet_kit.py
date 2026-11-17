@@ -1,7 +1,7 @@
 """CS-1330 - the vendored FLEET-KIT version 23, byte-pinned and conformance-checked.
 
 ``ops/fleet_kit/`` is VENDORED from MAIN, not authored here: the same
-twenty-four files sit at the same path in every fleet repository and only a MAIN
+twenty-five files sit at the same path in every fleet repository and only a MAIN
 note named ``FLEET-KIT-vN`` changes them. Same rule as ``docs/CHANNEL.md``: a
 guard that refuses a kit file gets an EXEMPTION in the guard, never a byte of
 the kit. The kit is Apache-2.0; its LICENSE and NOTICE ship beside it and its
@@ -25,14 +25,16 @@ carries every v27 change - v27 was never vendored here; it adds no file.
 Version 30 supersedes it under MAIN's cumulative v30 ORDER note (2026-11-12 03:45), which
 carries every v29 change - v29 was never delivered; it adds no file.
 Version 31 supersedes it under MAIN's cumulative v31 ORDER note (2026-11-14 09:36); it
-adds no file.
+adds no file. Version 32 supersedes it under MAIN's cumulative v32 ORDER note (2026-11-16
+19:47); it adds ``fleet_identity_guard.yml``, the server-side identity workflow template,
+and makes the board opt-in per tree.
 
 Two arms:
 
 1. The kit's own ``conformance(REPO_ROOT)`` returns no problems. It covers the
    manifest version, every kit file's digest against MANIFEST.json, and the
    FLEET-COMMON block embedded in CLAUDE.md between its marker lines.
-2. The twenty-four listed files' digests match MANIFEST.json, and MANIFEST.json's
+2. The twenty-five listed files' digests match MANIFEST.json, and MANIFEST.json's
    own digest and version match the values the ordering note pinned. Arm 1
    alone passes when a file AND the manifest are edited together; arm 2 closes
    that locally.
@@ -90,6 +92,9 @@ KIT_TEST_GUARD = KIT_DIR / "fleet_test_guard.py"
 KIT_WATCH = KIT_DIR / "fleet_watch.py"
 KIT_TOKENS_CSS = KIT_DIR / "tokens.css"
 KIT_TOKENS_JSON = KIT_DIR / "tokens.json"
+KIT_IDENTITY_GUARD = KIT_DIR / "fleet_identity_guard.yml"
+# v32 Additions G1: the byte copy GitHub runs, pinned by the same digest.
+IDENTITY_GUARD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "fleet-identity-guard.yml"
 # This tree's stop-sentinel declaration (authored here, read by the kit's
 # stop_sentinel_hit()), and the three paths it declares, in order. QUEUE_STOP
 # is NOT one of them (CS-1342, MAIN ruling 2026-10-21): it stops queue work
@@ -116,25 +121,25 @@ TREE_GUARD_IGNORE = (
 # held exact so the gap cannot grow unseen.
 KIT_HIDDEN_SENTINELS = ("ops/loop/control/lanes/INBOX_STOP",)
 
-# The kit version MAIN's 2026-11-14 09:36 ORDER note names (v31, patch 0).
-KIT_VERSION = 31
+# The kit version MAIN's 2026-11-16 19:47 ORDER note names (v32, patch 0).
+KIT_VERSION = 32
 # The MANIFEST.json digest named in that note.
-MANIFEST_SHA256 = "6359f695363438cec3e75c241f6ceda3b2f27bceb8c0ac2c20f310c899a3829d"
-# The twenty-four listed kit file digests named in the same note. Spelled as named
+MANIFEST_SHA256 = "cede0b7c8a80ca6ece410c07b572e4ac9dabe0bf7769d9c82d692bb1858c757d"
+# The twenty-five listed kit file digests named in the same note. Spelled as named
 # constants rather than as a JSON-shaped mapping so this pin does not reproduce
 # MANIFEST.json's own lines - the provenance near-duplicate metric
 # (tools/provenance_stamp.py) would otherwise grade the pin as a lift of it.
-COMMON_SHA256 = "6205943cb187258bdd72f9799fd03cbd90354562d8f561ccf2e4c19fbedea5ee"
+COMMON_SHA256 = "0dbee15df74d42c2b50747c8194c9afd0d09c8ac7e03659515b9b3df7eca40a1"
 LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
-NOTICE_SHA256 = "188139c5f285d7184ef8b0ad738bd1c7579de4aaa6b73549ef0e06aa3dec773c"
-MODULE_SHA256 = "fa4a605c607cf79d4a8caf9727b446fe1635e42395abb2f1d909b9df7c404b83"
+NOTICE_SHA256 = "b10c8f01fd6343472b4fb17ef62f983624f15c7a133e752fd29f5c53895d16a2"
+MODULE_SHA256 = "31472c57218a393a22257123d2b7e7f24176ec7b640976aba5ddeca0c20d9737"
 CLI_DISPLAY_SHA256 = "fcd92544574eb2e646c9eed62218e4852a570818a7e3de455151aa27c8c7d4d3"
-BOARD_SHA256 = "23563b138312d1a7bc0ed68e4690d2aededba6dc5d058d5f15c27c50efb9bcde"
+BOARD_SHA256 = "41075979b2fd619493d2b011cd342b8012f1a38dfd91522bc50e618e3614baa0"
 CHECKLIST_SHA256 = "aa87b1dc14080065d0039142b6c15aa34726d02b4586696c61b44e2a2da22e96"
 CLAIMS_SHA256 = "b17e11206281acfbe9fd76cd24a43f6959f23d458318df9c81ee52e94c83162b"
 DONE_SHA256 = "91a59fd6f779acffdb1e216926d1b5e894003c10d64f8db69ad0a64caf4eb07a"
 GITLOCK_SHA256 = "e46264acc68ce721516f15b63bcb29428217f1b64fa4fa3c5b6226f39e4ae880"
-IDENTITY_SHA256 = "27c6aa2964d247fe2caf80d4b5ca5b3511dc4845ca04b1a8a33262c38a96e570"
+IDENTITY_SHA256 = "35beb63073ac3060ad981d8fe1cbe16b4bcff84011c43fb8ae48368a6894c410"
 INBOX_SHA256 = "fdf48a367fcdd94316bc3a5fd7cef406fe6c01e7951b6894470f57bf72e540df"
 LANES_SHA256 = "9e31d1d1b55a0cb3297a499699efb0ff2a319095c119b2c861c2d9bb21d7524a"
 REWRITE_SHA256 = "2122332a9adf9d9cac15824e2259dd013e3b8a0ad2fc968003828a20e2fd2bd9"
@@ -148,6 +153,7 @@ TEST_GUARD_SHA256 = "1e8931545e4c50b7d5f06c3d4fd517bcf49b96482429c3f015527a60386
 WATCH_SHA256 = "5685ed7a4abaf0d755c4dd728b7a0dd9e9bb3e6e8ab3c223f99042601d05eb57"
 TOKENS_CSS_SHA256 = "1b25b5251edd77eadfa9627da6814f03a4781f2a23a3f57957b6ec9a0e036810"
 TOKENS_JSON_SHA256 = "83b728f000d4928f1ed09ed6b37662bc8927f72369a394bc1a436b6067624ff0"
+IDENTITY_GUARD_SHA256 = "262be842e373a3888295751fbeeff8f5b34a76addbd6fc3847997577d56f72ef"
 NOTE_FILE_SHA256 = {
     KIT_COMMON.name: COMMON_SHA256,
     KIT_LICENSE.name: LICENSE_SHA256,
@@ -173,6 +179,7 @@ NOTE_FILE_SHA256 = {
     KIT_WATCH.name: WATCH_SHA256,
     KIT_TOKENS_CSS.name: TOKENS_CSS_SHA256,
     KIT_TOKENS_JSON.name: TOKENS_JSON_SHA256,
+    KIT_IDENTITY_GUARD.name: IDENTITY_GUARD_SHA256,
 }
 
 
@@ -239,6 +246,12 @@ def test_every_kit_file_on_disk_is_named_by_the_manifest() -> None:
     assert on_disk == expected
 
 
+def test_the_identity_guard_workflow_is_a_byte_copy_of_the_kit_template() -> None:
+    """v32 Additions G1: the workflow GitHub runs is the kit template, byte for byte."""
+    same = IDENTITY_GUARD_WORKFLOW.read_bytes() == KIT_IDENTITY_GUARD.read_bytes()
+    assert same, "the workflow copy differs from ops/fleet_kit/fleet_identity_guard.yml"
+
+
 def test_stop_sentinel_declaration_holds_the_two_stops_and_the_main_spawn_hold(
     tmp_path: Path,
 ) -> None:
@@ -288,7 +301,8 @@ def test_the_suite_guard_ignores_the_board_render_state_and_still_sees_a_stop(
     config = tmp_path / "ops" / "status_board.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps({"url": "https://example.invalid/board", "dataset_version": 1}) + "\n",
+        json.dumps({"url": "https://example.invalid/board", "dataset_version": 1, "opt_in": True})
+        + "\n",
         encoding="ascii",
     )
     before = guard.snapshot(tmp_path, ignore=conftest.GUARD_IGNORE)

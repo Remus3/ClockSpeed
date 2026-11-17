@@ -75,6 +75,26 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-17 - CS-1403 - CLOSED: fleet kit v32 adopted - board opt-in per tree, server-side identity guard workflow
+Verification: `ops/fleet_kit/MANIFEST.json` sha256 cede0b7c8a80ca6ece410c07b572e4ac9dabe0bf7769d9c82d692bb1858c757d,
+version 32, its 25 files re-hashed equal to MAIN's 2026-11-16 19:47 ORDER note section 1;
+`tests/test_fleet_kit.py::test_fleet_kit_conformance` and that file's KIT_VERSION 32 and hash pins;
+`.github/workflows/fleet-identity-guard.yml` hashing equal to `ops/fleet_kit/fleet_identity_guard.yml`.
+SCOPE. Adopts MAIN ORDER 2026-11-16-1947 FLEET-KIT v32 (cumulative over v31), provenance verified by
+`tools/main_provenance.py`, as the one commit "chore(kit): adopt fleet kit v32". FLEET-COMMON block re-embedded
+(items 17 and 18); conformance() == []. To hold `CLAUDE.md` under its 40 KB budget five passages moved, not deleted,
+to `docs/history_notes.md`, "The kit v32 relocation". Section 4 pins: `tests/test_fleet_kit.py` (version, digests,
+the new file's pin, the board fixture opted in), `tests/test_exception_rendering.py` re-pinned by
+`tools/repin_kit.py`; `pyproject.toml` gains the measured PLR0911 for the vendored identity module; `THIRD_PARTY.md`
+and `tools/provenance.tsv` rows for the two new files. The workflow pins `actions/checkout` by full SHA, which
+`tools/action_runtimes.py` refused as naming no major: it now grades a SHA by the tag recorded for that exact commit
+in `OBSERVED_SHA_TAGS` (probed 2026-11-17: tag v7.0.1, node24), its scan sees a trailing comment, and an unrecorded
+SHA stays a loud offence (`tests/test_action_runtimes.py::test_a_recorded_full_sha_pin_grades_by_the_tag_it_was_observed_at`,
+`::test_an_unrecorded_full_sha_pin_is_a_loud_offence`, `::test_both_enumerations_see_a_pin_carrying_a_trailing_comment`).
+Board: this tree stays OPTED OUT (no `opt_in` key), the kit
+default. Item id: CS-1403, the next free id; `git log --all`, every branch and every linked worktree read none above
+CS-1402.
+
 ### 2026-11-16 - CS-1402 - Scratch, temp and worktree paths are never authored at a drive root; the scratch root is a rule, a test and a refusal
 Verification: `tests/test_no_drive_root_scratch.py::test_no_drive_root_scratch_path_is_authored`,
 `::test_no_driveless_rooted_temp_path_is_authored`, `::test_lane_worktrees_derive_under_the_sidecar_root` and

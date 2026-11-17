@@ -323,3 +323,48 @@ def test_both_enumerations_see_a_planted_pin(green_tree: Path) -> None:
     expected = PLANTED_COPIES * GREEN_WORKFLOW_PINS
     assert sum(by_parse.values()) == expected, f"enumeration one read {by_parse}"
     assert by_parse == by_scan, f"parser {by_parse} against scan {by_scan}"
+
+
+# CS-1403 - the fleet kit v32 workflow pins actions/checkout by full commit SHA with
+# its tag in a trailing comment. A SHA names no runtime by itself, so the grade reads
+# the tag the record OBSERVED for that exact SHA; any other SHA stays a loud offence.
+RECORDED_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+UNRECORDED_SHA = "0" * 40
+
+
+def test_a_recorded_full_sha_pin_grades_by_the_tag_it_was_observed_at(
+    green_tree: Path,
+) -> None:
+    """A SHA THE RECORD HAS READ grades by its observed major, trailing comment and all."""
+    pinned = GREEN_WORKFLOW.replace("checkout@v5", f"checkout@{RECORDED_SHA} # v7.0.1")
+    plant(green_tree, "planted.yml", pinned)
+
+    found = action_runtimes.offences(green_tree)
+    pins = action_runtimes.derive_pins(green_tree)
+
+    assert found == [], f"a recorded SHA pin on a supported runtime was refused: {found}"
+    assert any(pin.ref == RECORDED_SHA for pin in pins), f"the SHA pin was never graded: {pins}"
+
+
+def test_an_unrecorded_full_sha_pin_is_a_loud_offence(green_tree: Path) -> None:
+    """A SHA THE RECORD HAS NOT READ names no runtime, whatever its comment claims."""
+    pinned = GREEN_WORKFLOW.replace("checkout@v5", f"checkout@{UNRECORDED_SHA} # v7.0.1")
+    plant(green_tree, "planted.yml", pinned)
+
+    found = action_runtimes.offences(green_tree)
+
+    assert any(UNRECORDED_SHA in offence for offence in found), (
+        f"an unrecorded SHA passed the grade: {found}"
+    )
+
+
+def test_both_enumerations_see_a_pin_carrying_a_trailing_comment(green_tree: Path) -> None:
+    """A TRAILING COMMENT must not hide a pin from the scan the parser still resolves."""
+    pinned = GREEN_WORKFLOW.replace("checkout@v5", f"checkout@{RECORDED_SHA} # v7.0.1")
+    plant(green_tree, "planted.yml", pinned)
+
+    by_parse = Counter(action_runtimes.derive_pins(green_tree))
+    by_scan = Counter(action_runtimes.derive_pins_independently(green_tree))
+
+    assert sum(by_parse.values()) == GREEN_WORKFLOW_PINS, f"enumeration one read {by_parse}"
+    assert by_parse == by_scan, f"parser {by_parse} against scan {by_scan}"
