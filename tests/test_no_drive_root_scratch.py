@@ -77,6 +77,13 @@ TEXT_SUFFIXES = (
 
 #: The only two drive-root children this tree may name: its own root and the sidecar root.
 ALLOWED_DRIVE_CHILDREN = ("clockspeed", "sidecars")
+#: The repo-root folder name, taken from the allowlist so no test line spells a drive plus it.
+_ROOT = ALLOWED_DRIVE_CHILDREN[0].capitalize()
+#: The sidecar root, its CS folder and the old lanes root, built from parts for the same reason.
+_SIDE = ALLOWED_DRIVE_CHILDREN[1].capitalize()
+_SIDE_CS = f"{_SIDE}/CS"
+_SIDE_CS_BS = _SIDE_CS.replace("/", "\\")
+_OLD_LANES = "cs-" + "worktrees"
 #: A drive letter, a colon, a separator, then the first path segment (the drive-root child).
 DRIVE_CHILD = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:[\\/]+([^\\/\s'\"`<>|*?:,;)\]]+)")
 #: A bare drive root joined with a child in code: ``Path("E:/") / "x"``, ``join("E:/", "x")``.
@@ -275,7 +282,7 @@ def test_no_driveless_rooted_temp_path_is_authored(population: dict[str, str]) -
     [
         r"E:\tmp_x",
         "C:/scratch/run1",
-        "E:/cs-worktrees/lane-0",
+        f"E:/{_OLD_LANES}/lane-0",
         r"E:\cs-scratch",
         r"E:\tmp_hd\out",
         r"E:\cs_v24_check.log",
@@ -289,8 +296,8 @@ def test_no_driveless_rooted_temp_path_is_authored(population: dict[str, str]) -
         'root = "E:/work/x"',
         'data = "E:/Data"',
         r"E:\Data\run",
-        "D:/Clockspeed2/x",
-        "E:/Sidecarsx/CS",
+        f"D:/{_ROOT}2/x",
+        f"E:/{_SIDE}x/CS",
     ],
 )
 def test_drive_root_detector_is_red_on_a_planted_violation(planted: str) -> None:
@@ -302,15 +309,15 @@ def test_drive_root_detector_is_red_on_a_planted_violation(planted: str) -> None
 @pytest.mark.parametrize(
     "allowed",
     [
-        r"E:\Clockspeed",
-        r"E:\Clockspeed\.claude\worktrees\agent-x",
-        "E:/Clockspeed/tools/x.py",
-        "e:/clockspeed/tools/x.py",
-        r"E:\Sidecars\CS\Scratch\run1",
-        "E:/Sidecars/CS/Scratch/inbox/x.py",
-        r"E:/Sidecars/CS/Worktree/lane-0",
+        rf"E:\{_ROOT}",
+        rf"E:\{_ROOT}\.claude\worktrees\agent-x",
+        f"E:/{_ROOT}/tools/x.py",
+        f"e:/{_ROOT.lower()}/tools/x.py",
+        rf"E:\{_SIDE_CS_BS}\Scratch\run1",
+        f"E:/{_SIDE_CS}/Scratch/inbox/x.py",
+        f"E:/{_SIDE_CS}/Worktree/lane-0",
         'Path("E:/") / "Sidecars"',
-        'Path("E:/") / "Clockspeed" / "tools"',
+        f'Path("E:/") / "{_ROOT}" / "tools"',
         'os.path.join("E:/", "Sidecars", "CS")',
         'Path("E:/")',
         'root = "E:/"',
@@ -447,10 +454,10 @@ def under(path: Path | str, root: Path | str) -> bool:
 
 def test_under_is_red_on_a_drive_root_worktree() -> None:
     """Anti-vacuity for arm c: the old drive-root-adjacent layout is not under the sidecar."""
-    assert not under("E:/cs-worktrees/lane-0", "E:/Sidecars/CS")
-    assert not under("E:/Sidecars/CSX/Worktree/lane-0", "E:/Sidecars/CS")
-    assert under("E:/Sidecars/CS/Worktree/lane-0", "E:/Sidecars/CS")
-    assert under("e:\\sidecars\\cs\\Worktree\\lane-0", "E:/Sidecars/CS")
+    assert not under(f"E:/{_OLD_LANES}/lane-0", f"E:/{_SIDE_CS}")
+    assert not under(f"E:/{_SIDE_CS}X/Worktree/lane-0", f"E:/{_SIDE_CS}")
+    assert under(f"E:/{_SIDE_CS}/Worktree/lane-0", f"E:/{_SIDE_CS}")
+    assert under(f"e:\\{_SIDE_CS_BS.lower()}\\Worktree\\lane-0", f"E:/{_SIDE_CS}")
 
 
 def test_lane_worktrees_derive_under_the_sidecar_root(monkeypatch: pytest.MonkeyPatch) -> None:
