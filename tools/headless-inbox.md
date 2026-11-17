@@ -92,6 +92,9 @@ all (section 4).
   spawn helper in `ops/fleet_kit/fleet_headless.py` (FLEET item 10), the only path that
   starts one. Every subagent you dispatch through your own tools inherits your routed
   environment; nothing else is permitted.
+- Scratch, temp files and logs go under `<sidecars>\CS\Scratch` ONLY - never a drive root, never a rooted
+  path with no drive letter (a Users or Windows Temp path minus its drive) handed to Windows Python. An output path is
+  absolute or repo-relative, never relative to a cwd that may be a drive root (CS-1402).
 - Print an environment value, a home path, an account id or a world name anywhere.
 
 ## 5. Final banner

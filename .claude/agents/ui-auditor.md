@@ -42,6 +42,9 @@ Shipping a page ahead of its audit is a process failure.
   includes the Python interpreter path - invoke it as `python`, NEVER `py -3`
   (BOOTSTRAP.md section 2.5). A dashboard must never RENDER any of these either - check the page, not just the
   source.
+- Scratch, temp files and logs go under `<sidecars>\CS\Scratch` ONLY - never a drive root, never a rooted
+  path with no drive letter (a Users or Windows Temp path minus its drive) handed to Windows Python. An output path is
+  absolute or repo-relative, never relative to a cwd that may be a drive root (CS-1402).
 
 ## Tool scoping (CONVENTIONS.md R1-R3) - a scoping rule, not a ban
 

@@ -585,6 +585,7 @@ tests/test_make_shortcut.py	authored	CS-909	first-add:CS-909
 tests/test_measurement_record.py	authored	CS-920	first-add:CS-920
 tests/test_memory_sync_link_derivation.py	authored	CS-892	first-add:CS-892
 tests/test_mypy_gate.py	authored	CS-411	first-add:CS-411
+tests/test_no_drive_root_scratch.py	authored	CS-1402	stamped
 tests/test_outbound_gate.py	authored	CS-957	first-add:CS-957
 tests/test_outbound_send.py	authored	CS-958	first-add:CS-958
 tests/test_own_temp_root.py	authored	CS-1319	stamped

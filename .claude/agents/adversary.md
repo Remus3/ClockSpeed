@@ -45,6 +45,9 @@ collaborator. You are trying to break the claim.
   id, a world name, a machine name, or any absolute path under a user home directory. That
   includes the Python interpreter path - invoke it as `python`, NEVER `py -3`
   (BOOTSTRAP.md section 2.5).
+- Scratch, temp files and logs go under `<sidecars>\CS\Scratch` ONLY - never a drive root, never a rooted
+  path with no drive letter (a Users or Windows Temp path minus its drive) handed to Windows Python. An output path is
+  absolute or repo-relative, never relative to a cwd that may be a drive root (CS-1402).
 - A save file is a personal-data-bearing artifact. Never commit one, never place one in a
   fixture directory, never echo raw header bytes.
 

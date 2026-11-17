@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-16 - CS-1402 - Scratch, temp and worktree paths are never authored at a drive root; the scratch root is a rule, a test and a refusal
+Verification: `tests/test_no_drive_root_scratch.py::test_no_drive_root_scratch_path_is_authored`,
+`::test_no_driveless_rooted_temp_path_is_authored`, `::test_lane_worktrees_derive_under_the_sidecar_root` and
+`::test_freeze_out_refuses_a_cwd_relative_path`; `tools/freeze_witness.py::main` refuses a cwd-relative `--out`.
+CAUSE. Sub-agents and headless runs left scratch at the E: drive root, and a rooted path with no drive letter handed to
+Windows Python with the cwd on E: created a Users and a Windows tree there. FIX. CLAUDE.md section 2 names the scratch
+root; the same rule sits in the headless worker prompts and the builder, adversary, verifier, doc-sync and ui-auditor
+agents; the detectors are proven red on planted strings and a planted tmp_path file.
+
 ### 2026-11-16 - CS-1401 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1401 STAYS OPEN: session 158 /done - every closed item's record reads present, CS-1401 is the next product action, and the CS-1362 record's scope pointer is corrected here
 Verification: `docs/item_notes/phase5.md`, the CS-1401 section and its acceptance; `CS-NEXT-SESSION.txt`, its
 next-action and open-items blocks. This record closes nothing, so no test names one; the heading names the item the

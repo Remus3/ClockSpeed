@@ -44,6 +44,9 @@ and you do not restate measured numbers.
   (BOOTSTRAP.md section 2.5). If you
   find one already in a doc, that is a PII finding: report it and replace it with the
   auto-detection wording.
+- Scratch, temp files and logs go under `<sidecars>\CS\Scratch` ONLY - never a drive root, never a rooted
+  path with no drive letter (a Users or Windows Temp path minus its drive) handed to Windows Python. An output path is
+  absolute or repo-relative, never relative to a cwd that may be a drive root (CS-1402).
 
 ## Ownership map - every fact has exactly ONE owner file
 

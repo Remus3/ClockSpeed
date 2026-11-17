@@ -50,9 +50,10 @@ writes its ``.pyc``, and the bytecode half then differs from a record taken
 before it. So FREEZE AFTER the tree has been imported or collected once; a move
 reported over a tree that was never imported is that write, not a swap.
 
-WHERE THE RECORD LIVES. Wherever the caller says (``--out``), or stdout. Put it
-in a scratch path or the gitignored ``data/`` tree: a record written inside the
-population would itself move the tree it witnesses.
+WHERE THE RECORD LIVES. Wherever the caller says (``--out``, an ABSOLUTE
+path - a relative one is refused, CS-1402), or stdout. Put it in a scratch path
+(``<sidecars>/CS/Scratch``) or the gitignored ``data/`` tree: a record written inside
+the population would itself move the tree it witnesses.
 
 CLI (``--root`` defaults to this repository; exit 0 unmoved, 1 moved, 2 refused)::
 
@@ -295,6 +296,9 @@ def main(argv: list[str] | None = None) -> int:
     root = args.root.resolve()
     try:
         if args.cmd == "freeze":
+            if args.out is not None and not args.out.is_absolute():
+                # CS-1402: a cwd-relative path landed at a drive root when the cwd was one.
+                raise WitnessError("--out must be an absolute path, never cwd-relative")
             payload = (json.dumps(freeze(root), indent=2, sort_keys=True) + "\n").encode("ascii")
             if args.out is None:
                 sys.stdout.write(payload.decode("ascii"))

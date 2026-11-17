@@ -285,6 +285,9 @@ section 1.2.
 **Port allocation:** recorded in `config/ports.json`. That file is the owner; no other
 file restates the numbers.
 
+**Scratch: `<sidecars>\CS\Scratch`** only - never a drive root or a drive-less rooted path; output paths
+are absolute or repo-relative (CS-1402).
+
 ### 2.1 Module map - one line each, detail in `docs/ARCHITECTURE.md`
 
 | Path | Owns |
@@ -330,8 +333,7 @@ or write verbose output to a file. Operator directive, 2026-09-06.
 
 - Speak to ask for a ruling, to notify, or to answer a direct question. Otherwise act.
 - No narration between tool calls, and never restate what a tool just printed.
-- Put the step description in the tool call's own `description` field - it renders as the
-  visible label and costs nothing in the response body.
+- Put step descriptions in the tool call's `description` field, not the reply.
 - Long findings go to a file, a ledger entry or an item note, never into chat.
 - **Do NOT poll a background task in a loop of one-line turns.** Each poll is a whole turn;
   supervise a long run per FLEET item 12, saying nothing between its bounded slices.

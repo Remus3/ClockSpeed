@@ -779,6 +779,10 @@ clean and `git stash list` empty.
 
 - Do NOT run a second refutation round on a claim already refuted once. FILE it.
 - Do NOT batch two rows in one cycle, and do NOT loop internally. One row, ship, exit.
+- Do NOT put scratch anywhere but the scratch root.
+  Scratch, temp files and logs go under `<sidecars>\CS\Scratch` ONLY - never a drive root, never a rooted
+  path with no drive letter (a Users or Windows Temp path minus its drive) handed to Windows Python. An output path is
+  absolute or repo-relative, never relative to a cwd that may be a drive root (CS-1402).
 - Do NOT block on CI, poll a run, or wait out a suite you do not own.
 - Do NOT open an interactive question. The operator is away.
 - Do NOT take a phase gate row, a `docs/GATED.md` row, or anything on the do-not-redo set.
