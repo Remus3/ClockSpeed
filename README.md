@@ -48,7 +48,7 @@ from the same inputs - two runs on one save that disagree are a bug.
 |---|---|
 | **Runs** | Entirely on your machine. No account, no API key, no external network service; the dashboard listens on loopback only. |
 | **Reads** | Your game install and your newest save, both found automatically. |
-| **Writes** | Never to the game install and never to a save file. Its own files - the work-directory copy of a save, the advice ledger and the local dashboard certificate - stay in its own data locations, by default under the repository and gitignored. |
+| **Writes** | Never to the game install and never to a save file. Its own files - such as the work-directory copy of a save, the advice ledger and the local dashboard certificate - stay in its own data locations, by default under the repository and gitignored. |
 | **Language models** | None, anywhere in the advice path. |
 | **Not a mod** | Nothing is installed into the game, and the game process is never injected into, hooked or read from memory. |
 | **Interface** | A local HTTPS dashboard, plus an optional Electron companion window. |
