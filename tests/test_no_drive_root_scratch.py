@@ -134,7 +134,7 @@ EXEMPT_LINES: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "ops/loop/slots.py",
-        'DEFAULT_ROOT = Path(r"C:\\ProgramData\\lw-loop\\slots")',
+        'DEFAULT_ROOT = Path(r"C:\\ProgramData\\',
         "the machine-wide slot-lease directory the fleet kit shares across trees; ProgramData "
         "is the system's shared-state root, not scratch, and a per-user path cannot be shared",
     ),
