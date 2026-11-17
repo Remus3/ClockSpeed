@@ -26,6 +26,10 @@ only exception is genuinely trivial work - a one-line cosmetic edit, a doc typo,
 string, a conversational answer. SUBSTANCE decides, not file count: a one-file engine change
 is substantive, a five-file rename is not.
 
+Scratch, temp files and logs go under `<sidecars>\CS\Scratch` ONLY - never a drive root, never a rooted
+path with no drive letter (a Users or Windows Temp path minus its drive) handed to Windows Python. An output path is
+absolute or repo-relative, never relative to a cwd that may be a drive root (CS-1402).
+
 ## Phase 0 - recall before building
 
 - [ ] Query the memory store with the task IN YOUR OWN WORDS, through the projection tool

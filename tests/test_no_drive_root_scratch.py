@@ -10,7 +10,9 @@ absolute or repo-relative, never relative to whatever the cwd happens to be.
 
 WHAT IS GRADED, one arm each:
 
-a. the authored code, prompts and helper scripts name no drive-root scratch path;
+a. the authored code, config, shell sources, git hooks, prompts and helper scripts name
+   no path whose parent is a drive root, bar the repo root and the sidecar root (an
+   allowlist on the PARENT, not a name heuristic on the child);
 b. they name no drive-less rooted path into a temp directory;
 c. the lane worktree this tree derives lies under the sidecar root (skipped, with
    its reason, where that directory does not exist, e.g. CI);
@@ -43,17 +45,44 @@ SCOPE_PREFIXES = (
     "ops/loop/",
     "tools/",
     "scripts/",
+    "config/",
+    "shell/",
+    ".githooks/",
     ".claude/agents/",
     ".claude/commands/",
 )
 SCOPE_FILES = ("CLAUDE.md",)
 EXCLUDED_PREFIXES = ("ops/fleet_kit/",)
-TEXT_SUFFIXES = (".py", ".md", ".ps1", ".sh", ".cmd", ".bat", ".txt", ".json", ".toml", ".yml")
+#: Vendored or generated directories (anywhere in the path) and generated files.
+EXCLUDED_PARTS = ("/node_modules/", "/dist/", "/out/", "/build/", "/coverage/")
+#: A lockfile carries registry URLs and hashes: generated, not authored.
+EXCLUDED_NAMES = ("package-lock.json",)
+#: Extensionless files under these prefixes (the git hooks) are authored text.
+EXTENSIONLESS_PREFIXES = (".githooks/",)
+TEXT_SUFFIXES = (
+    ".py",
+    ".md",
+    ".ps1",
+    ".sh",
+    ".cmd",
+    ".bat",
+    ".txt",
+    ".json",
+    ".toml",
+    ".yml",
+    ".js",
+    ".cjs",
+    ".mjs",
+)
 
+#: The only two drive-root children this tree may name: its own root and the sidecar root.
+ALLOWED_DRIVE_CHILDREN = ("clockspeed", "sidecars")
 #: A drive letter, a colon, a separator, then the first path segment (the drive-root child).
 DRIVE_CHILD = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:[\\/]+([^\\/\s'\"`<>|*?:,;)\]]+)")
-#: A drive-root child that is scratch, temp or worktree space (or a log dropped there).
-SCRATCHY = re.compile(r"(?i)(tmp|temp|scratch|worktree|^cs[-_]|_hd$|\.log$)")
+#: A bare drive root joined with a child in code: ``Path("E:/") / "x"``, ``join("E:/", "x")``.
+DRIVE_JOIN = re.compile(
+    r"""(?:Path\(\s*|join\(\s*)[rR]?(['"])[A-Za-z]:[\\/]*\1\s*(?:\)\s*/|,)\s*[rR]?(['"])([^'"\\/]+)\2"""
+)
 #: A rooted path with NO drive letter into a temp dir. The lookbehind refuses a segment
 #: inside a longer path (``a/tmp``), a drive path (``C:\tmp`` is arm a), ``~/`` and ``$``.
 ROOTED_TEMP = re.compile(
@@ -61,20 +90,93 @@ ROOTED_TEMP = re.compile(
     r"(?:Users[\\/][^\s'\"`]*?[\\/]Temp|Windows[\\/]Temp|tmp|temp|var[\\/]tmp)(?![\w.-])"
 )
 
-#: (path, substring) lines that match a detector and are KNOWN legitimate. Each carries
-#: its reason; a new entry needs one.
+#: (path, substring, reason) LINES that match a detector and are KNOWN legitimate. The whole
+#: line is skipped, so keep the substring specific. Each carries its reason; a new entry
+#: needs one, and ``test_exempt_entries_are_all_live`` keeps each matching a real line that
+#: a detector still flags (a dead waiver, or a line that no longer hits, fails there).
 EXEMPT_LINES: tuple[tuple[str, str, str], ...] = (
     (
         "tools/precommit_gate.py",
         "under /tmp on Linux",
         "a comment about where a Linux home may sit; frozen file (CLAUDE.md section 6)",
     ),
+    (
+        ".claude/commands/drift-guard.md",
+        "path-string keying - `C:\\X`,",
+        "prose naming placeholder paths to explain a config-keying defect; nothing is created",
+    ),
+    (
+        ".claude/commands/drift-guard.md",
+        "`C:/X` and `C:/x` are three separate",
+        "prose naming placeholder paths to explain a config-keying defect; nothing is created",
+    ),
+    (
+        "clockspeed/surface/config.py",
+        "KeyError('C:/Users/<account>/...')",
+        "a comment quoting a redacted exception text; the path is a placeholder",
+    ),
+    (
+        "clockspeed/surface/config.py",
+        "WindowsPath('C:/Users/<account>/...')",
+        "a docstring quoting a redacted exception text; the path is a placeholder",
+    ),
+    (
+        "ops/loop/launch_queue_loop.ps1",
+        "can't open file 'C:\\Riot'",
+        "a comment quoting an error message from a mis-split path; the path is only read",
+    ),
+    (
+        "ops/loop/slots.py",
+        'DEFAULT_ROOT = Path(r"C:\\ProgramData\\lw-loop\\slots")',
+        "the machine-wide slot-lease directory the fleet kit shares across trees; ProgramData "
+        "is the system's shared-state root, not scratch, and a per-user path cannot be shared",
+    ),
+    (
+        "scripts/install_hooks.py",
+        "path-string keying (C:\\\\X and C:/x are",
+        "a message naming placeholder paths; frozen file (CLAUDE.md section 6)",
+    ),
+    (
+        "tools/census_axis.py",
+        "character: K:\\X, k:/x and the JSON-escaped",
+        "a docstring giving placeholder drive-path examples for a census axis",
+    ),
+    (
+        "tools/outbound_send.py",
+        '"C:/b"` yields `C:/b` - but it is a fast rejection',
+        "a comment explaining pathlib join semantics with placeholder paths",
+    ),
+    (
+        "tools/outbound_send.py",
+        'onto the channel root, and `Path("/a") / "C:/b"` yields',
+        "a comment explaining pathlib join semantics with placeholder paths",
+    ),
+    (
+        "shell/test/endpoint.test.js",
+        '"/tmp/anything",',
+        "a NEGATIVE fixture: arbitrary path text the endpoint verdict must refuse; never opened",
+    ),
 )
 
 
 def drive_root_scratch(text: str) -> list[str]:
-    """Drive-root children of ``text`` that are scratch, temp or worktree space."""
-    return [m.group(0) for m in DRIVE_CHILD.finditer(text) if SCRATCHY.search(m.group(1))]
+    r"""Every path in ``text`` whose parent is a drive root, bar the repo root and the sidecars.
+
+    The allowlist is the PARENT: a child of ``E:\`` is a violation unless it is the repo
+    root (``Clockspeed``) or ``Sidecars``, whatever its name looks like. A bare drive
+    root with nothing joined to it names no child and is not a hit.
+    """
+    hits = [
+        m.group(0)
+        for m in DRIVE_CHILD.finditer(text)
+        if m.group(1).lower() not in ALLOWED_DRIVE_CHILDREN
+    ]
+    hits.extend(
+        m.group(0)
+        for m in DRIVE_JOIN.finditer(text)
+        if m.group(3).lower() not in ALLOWED_DRIVE_CHILDREN
+    )
+    return hits
 
 
 def rooted_temp(text: str) -> list[str]:
@@ -84,10 +186,16 @@ def rooted_temp(text: str) -> list[str]:
 
 def in_scope(rel: str) -> bool:
     """True when ``rel`` (a repo-relative POSIX path) is authored scratch-bearing text."""
-    if rel.startswith(EXCLUDED_PREFIXES):
+    if rel.startswith(EXCLUDED_PREFIXES) or rel.rsplit("/", 1)[-1] in EXCLUDED_NAMES:
         return False
+    if any(part in "/" + rel for part in EXCLUDED_PARTS):
+        return False
+    if rel.startswith(EXTENSIONLESS_PREFIXES):
+        return True
     if not rel.endswith(TEXT_SUFFIXES):
         return False
+    if rel.startswith("ops/") and rel.count("/") == 1:
+        return rel.endswith(".json")  # ops/*.json; ops/__init__.py is not scratch-bearing
     return rel in SCOPE_FILES or rel.startswith(SCOPE_PREFIXES)
 
 
@@ -133,17 +241,24 @@ def test_population_is_not_empty_and_names_the_known_surfaces(population: dict[s
         "tools/headless-queue.md",
         "tools/headless-inbox.md",
         ".claude/agents/builder.md",
+        ".claude/commands/orchestrated-run.md",
         "tools/freeze_witness.py",
         "ops/loop/lanes.py",
+        "config/ports.json",
+        "shell/main.js",
+        ".githooks/pre-commit",
+        "ops/status_board.json",
     ):
         assert needed in population
     assert not any(rel.startswith("ops/fleet_kit/") for rel in population)
+    assert not any("node_modules" in rel for rel in population)
+    assert "shell/package-lock.json" not in population
 
 
 def test_no_drive_root_scratch_path_is_authored(population: dict[str, str]) -> None:
-    """Arm a: nothing tracked names a scratch, temp or worktree folder at a drive root."""
+    """Arm a: nothing tracked names a drive-root child, bar the repo root and the sidecars."""
     hits = scan(population, drive_root_scratch)
-    assert hits == [], "drive-root scratch path authored: " + "; ".join(hits)
+    assert hits == [], "drive-root path authored: " + "; ".join(hits)
 
 
 def test_no_driveless_rooted_temp_path_is_authored(population: dict[str, str]) -> None:
@@ -166,10 +281,20 @@ def test_no_driveless_rooted_temp_path_is_authored(population: dict[str, str]) -
         r"E:\cs_v24_check.log",
         "output goes to e:/Scratch and is read back",
         r"cd E:\worktrees && run",
+        'cs_tmp = Path("E:/") / "cs-tmp"',
+        'Path("E:/")/"cs-tmp"',
+        "Path('E:\\\\') / 'cs-tmp'",
+        'os.path.join("E:/", "run1")',
+        'out = "E:/foo_out"',
+        'root = "E:/work/x"',
+        'data = "E:/Data"',
+        r"E:\Data\run",
+        "D:/Clockspeed2/x",
+        "E:/Sidecarsx/CS",
     ],
 )
 def test_drive_root_detector_is_red_on_a_planted_violation(planted: str) -> None:
-    """Arm a is live: each planted drive-root scratch string is found."""
+    """Arm a is live: each planted path whose parent is a drive root is found."""
     assert drive_root_scratch(planted) != []
     assert scan({"tools/planted.py": planted}, drive_root_scratch) != []
 
@@ -179,17 +304,24 @@ def test_drive_root_detector_is_red_on_a_planted_violation(planted: str) -> None
     [
         r"E:\Clockspeed",
         r"E:\Clockspeed\.claude\worktrees\agent-x",
+        "E:/Clockspeed/tools/x.py",
+        "e:/clockspeed/tools/x.py",
         r"E:\Sidecars\CS\Scratch\run1",
+        "E:/Sidecars/CS/Scratch/inbox/x.py",
         r"E:/Sidecars/CS/Worktree/lane-0",
+        'Path("E:/") / "Sidecars"',
+        'Path("E:/") / "Clockspeed" / "tools"',
+        'os.path.join("E:/", "Sidecars", "CS")',
+        'Path("E:/")',
+        'root = "E:/"',
+        "C:/",
         r"<sidecars>\CS\Scratch",
-        r"C:\Users\<account>",
-        "C:/x",
-        "see the Windows Temp rule at C:/Windows",
+        "see the Windows Temp rule",
         "no path here at all",
     ],
 )
 def test_drive_root_detector_is_quiet_on_legitimate_text(allowed: str) -> None:
-    """The detector is narrow: the repo root, the sidecars root and placeholders pass."""
+    """The arm allowlists the PARENT: the repo root, the sidecars root and a bare root pass."""
     assert drive_root_scratch(allowed) == []
 
 
@@ -229,6 +361,41 @@ def test_rooted_temp_detector_is_quiet_on_legitimate_text(allowed: str) -> None:
     assert rooted_temp(allowed) == []
 
 
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "CLAUDE.md",
+        "config/ports.json",
+        "shell/main.js",
+        "shell/lib/state.js",
+        ".githooks/pre-commit",
+        ".githooks/pre-push",
+        "ops/status_board.json",
+        ".claude/commands/orchestrated-run.md",
+    ],
+)
+def test_scope_includes_the_surface(rel: str) -> None:
+    """Config, the shell sources, the git hooks and ops/*.json are scanned."""
+    assert in_scope(rel)
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "shell/node_modules/x/index.js",
+        "shell/dist/main.js",
+        "shell/package-lock.json",
+        "ops/fleet_kit/fleet_lanes.py",
+        "ops/__init__.py",
+        "docs/LEDGER.md",
+        "tests/test_x.py",
+    ],
+)
+def test_scope_excludes_vendored_generated_and_record_files(rel: str) -> None:
+    """Vendored, generated, record and test files are not scanned."""
+    assert not in_scope(rel)
+
+
 def test_scan_is_red_on_a_planted_file_and_ignores_out_of_scope_files(tmp_path: Path) -> None:
     """A planted file in a tmp_path population is found; records, tests and the kit are not."""
     planted = r"scratch = 'E:\cs-scratch'" + "\n" + "tmp = '/tmp/x'\n"
@@ -241,6 +408,7 @@ def test_scan_is_red_on_a_planted_file_and_ignores_out_of_scope_files(tmp_path: 
         "docs/_archive/old.md": planted,
         "tests/test_planted.py": planted,
         "ops/fleet_kit/fleet_lanes.py": planted,
+        "shell/node_modules/x/y.js": planted,
     }
     a = scan(files, drive_root_scratch)
     b = scan(files, rooted_temp)
@@ -248,14 +416,23 @@ def test_scan_is_red_on_a_planted_file_and_ignores_out_of_scope_files(tmp_path: 
     assert b == ["tools/planted.py:2: /tmp"]
 
 
+def test_scan_flags_a_planted_hook_and_a_planted_shell_file() -> None:
+    """The widened scope is live: an extensionless hook and a shell source are graded."""
+    hook = {".githooks/pre-commit": 'WORK="E:/foo_out"\n'}
+    shell = {"shell/lib/x.js": 'const p = "E:/work/x";\n'}
+    assert scan(hook, drive_root_scratch) == [".githooks/pre-commit:1: E:/foo_out"]
+    assert scan(shell, drive_root_scratch) == ["shell/lib/x.js:1: E:/work"]
+
+
 def test_exempt_entries_are_all_live() -> None:
-    """Every EXEMPT_LINES entry still matches a real line, so none is a dead waiver."""
+    """Every EXEMPT_LINES entry still matches real lines, each of which a detector flags."""
     for rel, sub, why in EXEMPT_LINES:
         assert why
         text = (REPO_ROOT / rel).read_text(encoding="utf-8")
         live = [line for line in text.splitlines() if sub in line]
-        assert live, rel
-        assert rooted_temp(live[0]), rel
+        assert live, (rel, sub)
+        for line in live:
+            assert drive_root_scratch(line) or rooted_temp(line), (rel, sub)
 
 
 # --- arm c: the derived lane worktree ----------------------------------------------------
