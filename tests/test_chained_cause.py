@@ -128,6 +128,10 @@ THREE_HOPS: Final = 3
 #: SHAPE the shipped retry sites are written in rather than a timing test.
 DEFERRED_ATTEMPTS: Final = 2
 
+#: The fixed stand-in for ``workdir._partial_token`` while a forcer plants a
+#: directory at the partial's name (CS-914 made that name random per copy).
+PINNED_PARTIAL_NAME_PART: Final = "0123456789abcdef0123456789abcdef"
+
 #: What a forcing function hands back: the exception it caught, and the root
 #: whose redactability is that arm's needle control.
 Forced = tuple[BaseException, Path]
@@ -343,7 +347,8 @@ def force_workdir_stream_copy(tmp: Path) -> Forced:
     """Force the ``_stream_copy`` handler in ``clockspeed/save/workdir.py``.
 
     The partial file's name is pre-created as a DIRECTORY, so opening it for
-    write raises OSError inside the shipped copy loop. Nothing is patched.
+    write raises OSError inside the shipped copy loop. Only the random partial
+    token is pinned, so the directory can be planted at the name it will use.
 
     Args:
         tmp: The temporary root.
@@ -355,10 +360,14 @@ def force_workdir_stream_copy(tmp: Path) -> Forced:
     root = tmp / "work_root"
     copies = root / workdir.COPIES_DIR_NAME
     copies.mkdir(parents=True)
-    partial = copies / (source.stem + workdir.COPY_SUFFIX + workdir.PARTIAL_SUFFIX)
+    # CS-914: the partial's name carries a random token per copy, so the token is
+    # pinned for this forcing and the directory is planted at the pinned name.
+    token = PINNED_PARTIAL_NAME_PART
+    partial = copies / f"{source.stem}.{token}{workdir.COPY_SUFFIX}{workdir.PARTIAL_SUFFIX}"
     partial.mkdir()
     try:
-        copy_for_read(source, work_root=root)
+        with patch.object(workdir, "_partial_token", return_value=token):
+            copy_for_read(source, work_root=root)
     except WorkDirError as exc:
         return exc, tmp
     pytest.fail("clockspeed/save/workdir.py::copy_for_read opened a directory for write")
