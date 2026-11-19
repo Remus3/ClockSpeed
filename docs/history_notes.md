@@ -24,6 +24,447 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-425 - item section, relocated from `docs/item_notes/phase4.md` 2026-11-19 on its close
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: **FROZEN-FILE GRANT ISSUED BY THE OPERATOR 2026-08-15 for `.claude/settings.json`, recorded in `docs/LEDGER.md` BEFORE any edit.** NOTE: the cause is MEASURED rather than reasoned. FULL ENTRY relocated to this file under **CS-425 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+**FROZEN-FILE GRANT ISSUED BY THE OPERATOR 2026-08-15 for `.claude/settings.json`, recorded in `docs/LEDGER.md` BEFORE any edit.** NOTE: the cause is MEASURED rather than reasoned. The `PreToolUse` hook runs `python tools/precommit_gate.py --text-stdin` on matcher `Bash|PowerShell`, so it spawns a console-subsystem `python.exe` on EVERY shell tool call, timed at ~106 ms per spawn; Claude Code is a GUI parent holding no console, so Windows allocates a fresh one per child and it flashes for the life of the process. `PostToolUse` (`tools/edit_lint_check.py`) and the wired git hooks - `core.hooksPath` resolves to `.githooks` - are the same mechanism at lower frequency. **THE DEFECT IS COSMETIC AND THE FILE IS A TIER-0 PROTECTION PATH, so the ordering of those two facts is the whole item:** coverage may NOT be reduced to buy a cosmetic win, which specifically forbids narrowing the matcher or the scanned surface. `pythonw.exe` is the candidate worth testing first because it allocates no console, but it is NOT obviously safe - the hook reports through stdout and an exit code, and whether both survive a parent-supplied pipe under `pythonw` must be PROVEN rather than argued, since the failure mode is a gate that silently stops reporting. **A legitimate outcome of this item is that the file is left byte-identical**, because the real fix may be the parent's `CREATE_NO_WINDOW` spawn flag, which belongs to Claude Code and not to this repo. Record that as the finding rather than reaching for a worse in-repo change; an unused grant is a fine result and a weakened gate is not. **AMENDED 2026-08-15 (session 8) - THE ITEM IS NO LONGER COSMETIC, AND THE MERGER CONDITION "COVERAGE MAY NOT BE REDUCED" IS VOID BECAUSE THERE IS NO COVERAGE ON THAT PATH TO REDUCE.** Three measurements, each executed, established that the Claude-side hook cannot DENY (the protocol denies on exit code 2 and the gate exits 1), probably cannot SEE the command (the JSON envelope escapes a non-ASCII byte into a pure-ASCII sequence the charset scan cannot find, and the flag expects raw text), and demonstrably did NOT block end to end. **THE AUTHORITATIVE GATE IS UNAFFECTED AND WAS PROVEN GOOD** by a real staged violation and a real commit attempt, so the repo is not exposed and CLAUDE.md's "the Claude hooks are a convenience layer" is exactly right. What is wrong is that the convenience layer provides no convenience while costing a process spawn per shell call. The measurement detail is relocated to `docs/history_notes.md`. **OPERATOR RULING 2026-08-15: make it actually work** - parse the envelope so it sees the real command, and exit 2 so it genuinely denies. **Stated consequence, accepted deliberately:** shell commands carrying an em-dash, a smart quote or a secret will be REFUSED mid-session. **Do NOT take the `pythonw` route as a substitute** - it was measured a faithful drop-in (identical rc 3/0/1, identical stdout, identical BLOCKED diagnostic through a real pipe-and-wait, the earlier PowerShell result being an artifact of PowerShell not waiting on a GUI-subsystem binary), but shipping it ALONE would kill the flash while preserving a hook that silently does nothing, which is the false-guarantee class this project rates worse than the bug.
+
+### Acceptance
+
+a session's Bash and PowerShell tool calls allocate no visible console, AND the gate is proven to still BLOCK end to end - stage a real violation, attempt a real `git commit`, assert exit 1 and HEAD unchanged - both before and after the change, with the before-transcript recorded so the after-transcript means something
+
+## CS-448 - item section, relocated from `docs/item_notes/phase4.md` 2026-11-19 on its close
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: detail relocated 2026-08-22 (session 32) to this file under **CS-448 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+### Relocated 2026-08-22 (session 32) from `ROADMAP.md` - the CS-448 NOTE, verbatim
+
+Moved for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`, which now
+carries a one-line pointer here.
+
+**ROOT-CAUSED 2026-08-16 (session 12) AND STILL OPEN.** The mechanism is the CHECKOUT LOCATION, not contention: a checkout sharing a large ancestor with the temp root makes pytest's rootdir climb, so collection walks the whole temp tree. Still open: whether tier-2 CI is actually exposed - measure `rootdir` inside a real job. **ONE ATTEMPT MADE AND IT FAILED FOR A NAMED REASON 2026-08-16, recorded so the next session does not repeat it:** a tier-2 `workflow_dispatch` on `8620238` went green on all five jobs INCLUDING both `full suite` jobs, which run under `-n auto` when xdist is available - so the flake did not fire that run. But the log carries **ZERO** occurrences of `rootdir` across 332 KB, because the lane invokes `pytest tests -q` and `-q` suppresses the header line that prints it. **A GREEN RUN IS NOT THE MEASUREMENT THIS ITEM ASKS FOR.** To actually measure it, the job needs a step that prints the rootdir the innermost probe computes - not a rerun of the suite. FULL ENTRY relocated to this file under **CS-448 - detail**; read it before taking this item.
+
+
+NOTE: filed 2026-08-16 by the final adversary auditing merged main, and it is a LIVE TIER-2 CI RISK. **IT IS PRE-EXISTING AND NOT INTRODUCED BY THIS SESSION, WHICH IS ESTABLISHED RATHER THAN ASSUMED:** measured 1 failure in 3 runs at `76f6c82` AND 1 in 3 at `ee36d0d`, the same test both times, and `git diff --name-only 76f6c82 ee36d0d -- tests/save/test_synthetic.py` is empty. The tier-2 lane runs `-n auto`, so this is the lane that flakes. Mechanism as far as it was traced: the gate spawns a nested child pytest run, and that child fails at `tests/save/test_synthetic.py::test_a_failing_builder_call_renders_its_arguments` with a collection error in its own SUB-subprocess, taking 61 seconds against 28 warm. So it is a three-level process nest under parallel load, and the honest reading is contention rather than a logic fault. DO NOT close this by raising a timeout or by marking the test flaky - a nested run that fails under load is telling you the nesting is the cost, and CS-426 already wants a no-install path that runs everywhere. Note the interaction to check first: this session's CS-428 added report hooks that fire in every worker AND controller-side, so re-measure at a revision before and after that commit even though the flake predates it. **SOLVED 2026-08-16 (session 12). THE MECHANISM IS MEASURED AND IT IS NOT CONTENTION - IT IS THE CHECKOUT LOCATION.** The merger first reported 32 runs with 0 failures and concluded it did not reproduce. **AN ADVERSARY REFUTED THAT AND REPRODUCED IT SIX TIMES**, at BOTH cited revisions, with a signature byte-identical to the original evidence: 3 failures in 10 runs at `a267705`, 3 of 4 at `ee36d0d`. **THE MERGER'S 32 RUNS WERE ALL EXECUTED IN THE TWO LOCATIONS ON THIS MACHINE WHERE THE FAILURE IS STRUCTURALLY IMPOSSIBLE**, so they were a control rather than a null result - as were a further 460 runs the adversary took there, junit-verified to confirm the gate testcase actually ran in 20 of 20. **THE CHAIN, each link measured.** When the checkout shares a large ancestor with `tempfile.gettempdir()`, pytest's rootdir for the innermost probe climbs to the TEMP ROOT, and collection then walks the whole temp tree: the same probe with only the cwd varied took 0.4s from three ordinary locations and **42.7s from a clone under the temp root, 107x from checkout location alone**. During that walk a sibling xdist worker creates and destroys `%TEMP%\clockspeed_gate_*` directories through `tools/precommit_gate.py`, `os.lstat` on the vanished entry raises `FileNotFoundError`, collection is Interrupted, the sentinel is never printed, the level-2 child exits 1 and the gate goes red. **xdist supplies only the concurrent creator and deleter - it is NOT CPU contention, and the 42.7s walk happens single-process with nothing else running.** THE MERGER'S FIRST MECHANISM STORY WAS WRONG in both halves and its fixture count was wrong too - that file defines 12 sandbox spawns, not the seven the merger wrote. **WHAT SURVIVED THE REFUTATION:** the CI-history reading is confirmed independently - 7 tier-2 runs is the COMPLETE history rather than a first page, the one red was a different test, and the gate is NOT skipped on hosted runners. **WHAT IS STILL OPEN, and it is the only thing left:** whether tier-2 CI is actually exposed is UNSETTLED, because a hosted workspace probably does not share a large ancestor with its temp directory - but that is inference from this machine, which is the same species of inference this entry criticised. **Measure `rootdir` inside a real tier-2 job before closing.** Housekeeping that feeds the defect and should be fixed regardless: the temp tree held hundreds of stale `pytest-of-*` entries, and the bigger it grows the longer the walk and the wider the race window. Do not close by raising a timeout; the fix is to stop the rootdir climbing, which also removes the 100-second walk.
+
+### Acceptance
+
+`tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save` either passes deterministically under `-n auto` across repeated runs, or its nested child run is made robust against the contention that breaks it, with the mechanism named rather than the timeout raised
+
+## CS-614 - item section, relocated from `docs/item_notes/phase6.md` 2026-11-19 on its close
+
+### Relocated from `ROADMAP.md` 2026-09-01
+
+The arm is
+`test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else`.
+
+**THE MECHANISM.** It asserts over EVERY thread in the process whose name contains
+`serve`, and CPython folds a target's function name into the DEFAULT thread name. So a
+thread another test started with `serve_forever` as its target and never joined carries
+`serve` in its name through no intent of anyone, and this arm counts it.
+
+**WHY THE FAILURE IS WORSE THAN THE FLAKE.** The arm's message blames a failed bind. A
+reader of the red therefore investigates the bind path, which is not where the fault is.
+The acceptance asks the arm to count only the threads its own call created, or to
+distinguish a pre-existing one and NAME it - either remedy makes the message true.
+
+### Acceptance
+
+the arm counts only the threads its own call created, or it distinguishes a pre-existing one and names it, proven by an arm that plants a lingering serve_forever thread and fails for a reason naming the plant rather than the bind
+
+## CS-701 - item section, relocated from `docs/item_notes/phase7.md` 2026-11-19 on its close
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that slice's diff for leaked personal data and correctly classified it as a PRE-EXISTING FALSE POSITIVE rather than a finding against the slice. FULL ENTRY relocated to this file under **CS-701 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that slice's diff for leaked personal data and correctly classified it as a PRE-EXISTING FALSE POSITIVE rather than a finding against the slice. Measured: the operator git author line coincides with one 4-character world name on this machine, and it is present identically on `8b3fb9d` and `1009681` - `author-line hits: 1, body hits: 0` on every revision checked. **NOTHING IS LEAKED BY THIS TODAY** - the world name is not disclosed by the author line, the coincidence runs the other way. The problem is mechanical and arrives later: **a world-name-keyed PII scan will trip on EVERY COMMIT IN THE REPO**, and a scan that is red on correct history is a scan someone switches off. CS-700's checklist includes a full-history PII scan across tracked files and commit messages, so settle the exemption rule before that gate runs rather than while it is failing. Note the CS-209 precedent: narrowing a PII blocklist by default to pre-empt a collision was DENIED BY MEASUREMENT, so an exemption here must be a named, recorded exception rather than a shortened matcher.
+
+### Identity axis hardening - filed 2026-10-04 from an adversary pass
+
+Check `I` in `tools/flip_checks.py` reads the RAW commit objects: every git call there that
+names no environment runs with replace objects off, and a shallow or grafted repository is
+refused by name rather than walked - in the identity walk and in checks 1, 2 and 4. The arms
+are multi-commit synthetic histories (tip-only, first-parent, malformed-skip and case-fold
+mutants killed); the record is in `docs/LEDGER.md`. The trailer axis, check `T`, now gets the
+same treatment in `tools/trailer_census.py`: every git call runs with replace objects off, and
+`walk` refuses a shallow or grafted repository by name (exit 2). It is a mirror, not an import,
+because `tools/flip_checks.py` imports the census. CI DEPTH: the tier-1 job that runs the
+census checks out with `fetch-depth: 0`, so the refusal is unconditional and cannot redden it;
+`tests/test_trailer_routes.py` already pins that depth. Arms: replace by content, replace
+`--graft`, shallow and grafts over a three-commit history; the record is in `docs/LEDGER.md`.
+
+### Acceptance
+
+the tier-3 PII scan over tracked files AND commit messages runs clean, or the collision is recorded as a known-accepted false positive with the exact matching rule that exempts it
+
+## CS-839 - item section, relocated from `docs/item_notes/phase4-followups.md` 2026-11-19 on its close
+
+### NOTE - filed 2026-08-23 by the merger
+
+MEASURED 2026-08-23 on one commit, not reasoned. The same tree, the same pytest
+invocation, two shells:
+
+- Git Bash - `tests/test_hook_interpreter_ladder.py` green.
+- PowerShell - 6 failed, 75 passed, 6 skipped, exit 1.
+
+The cause is a module-scope constant: `DEFAULT_SHELL` is resolved from the interpreter's
+PATH at import time, and PowerShell's PATH lacks the directory that carries `sh`, so it
+resolves to nothing and every arm that needs a shell asserts instead of skipping. The
+module was UNTOUCHED between the session's base commit and the measurement, so this is a
+standing property of the repo rather than session damage.
+
+**WHY IT IS TIER 1 AND NOT COSMETIC.** The failures name a missing shell, which reads as a
+broken machine rather than as a harness artifact. An operator or an agent checking their
+work from the wrong shell sees six red and hunts a regression that does not exist - and
+the reverse is worse, because a green run proves less than it appears to. This is the
+standing "a green local suite is evidence about ONE toolchain" trap made concrete and
+reproducible.
+
+**DO NOT FIX IT BY WIDENING THE PATH.** That makes the measurement agree by changing the
+machine, not by changing the property. The two honest routes are in the acceptance: make
+the sets identical, or make the dependency a declared skip that names its requirement. A
+skip that says why is evidence; an assertion failure that says `no /bin/sh on this
+machine` is not.
+
+### Acceptance
+
+the pass/fail SET is identical under Git Bash and PowerShell on one commit, or the dependency is recorded as a shipped SKIP criterion naming what it requires, proven by a test that goes RED when the interpreter cannot resolve the shell and the module reports FAILURES instead of skips
+
+## CS-840 - item section, relocated from `docs/item_notes/phase4-followups.md` 2026-11-19 on its close
+
+### NOTE - filed 2026-08-23 by the merger, on an operator ruling
+
+**RULED BY THE OPERATOR 2026-08-23, ASKED DIRECTLY: file it, do not resolve it.** The
+relocate slice that surfaced it was told to leave every dated heading exactly as it stood,
+and did.
+
+The contradiction, both sides tracked and both live: `CLAUDE.md` states that a doc heading
+carrying an explicit date marks its own section HISTORICAL. `docs/item_notes.md` states
+that a block in it is a LIVE INSTRUCTION. The drift guard's dated-heading arm reports the
+population in that file rather than failing on it, so nothing is red and both sentences
+stay shipped.
+
+**THE REPORT-ONLY ARM IS WHY THIS SURVIVED.** A guard that reports cannot lose, so the
+contradiction has no cost until someone acts on the wrong half of it. The acceptance asks
+for an arm that FAILS, because that is the only version that settles which sentence is
+true.
+
+### Measured 2026-09-01, and NOT acted on
+
+**BOTH HALVES OF THE CONTRADICTION ABOVE READ AS RESOLVED ON THE SHIPPED TREE, AND
+THIS ITEM WAS STILL LEFT OPEN.** `guard_dated` in `tools/drift_guard.py` returns
+FAIL - not a report - when a file carrying dated headings declares no status, when a
+status date sits inside a file declaring itself LIVE, or when a heading fits neither
+idiom. `CLAUDE.md` section 4 now states the position rule and names guard (g) as the
+owner of the closed idiom vocabulary, which is the stated criterion this item's
+acceptance asks for. So the sentence above - that the arm reports rather than fails -
+is stale, and the paragraph is kept unedited because bodies here are verbatim.
+
+**WHY IT IS STILL OPEN.** Closing needs a `docs/LEDGER.md` entry, and the doc-sync
+pass that measured this had no write access to that file. Rewording the ROADMAP line
+to something true would have laundered a stale item into a current-looking one, so
+the line was left exactly as it stood. **WHOEVER CLOSES THIS MUST RE-MEASURE RATHER
+THAN TRUST THIS BLOCK**, and must check the acceptance's second half - a guard arm
+that goes RED when a section is dated under whichever rule survives.
+
+**DO NOT RESOLVE IT BY DATING FEWER HEADINGS.** Stripping a date from a section changes
+what an outside reader believes about that section's status, which is a semantic change
+wearing a formatting hat. Whichever rule survives, it is a ruling about the topology and
+belongs to whoever makes it, not to a sweep.
+
+### Acceptance
+
+the two agree - either the rule carves out that file against a stated criterion, or the file stops dating live headings - proven by a guard arm that FAILS rather than reports, and that goes RED when a section is dated under whichever rule survives
+
+## CS-841 - item section, relocated from `docs/item_notes/phase4-followups.md` 2026-11-19 on its close
+
+### NOTE - filed 2026-08-23 by the merger, required by CS-838's grant
+
+**FILED BECAUSE CONDITION FOURTEEN OF CS-838's FROZEN-FILE GRANT REQUIRES IT.** That grant
+is recorded in `docs/LEDGER.md`. The implementer reported the condition as only PARTIALLY
+met precisely because this item did not exist and none of the files that could hold it
+were on its write-list. This section is the discharge.
+
+MEASURED during CS-838, by two agents independently: `tools/edit_lint_check.py` builds its
+work unit without a disk path and passes no root, so every unit is staged to a temporary
+directory where ruff discovers no project configuration. Line length then falls back to
+ruff's default instead of the project's, and the great majority of this repo's tracked
+Python "would be reformatted" - a false positive on nearly every file. CS-838 therefore
+SKIPS its format check when no configuration resolves. That mitigation is correct and
+shipping without it would have been worse than the defect it fixes.
+
+**THE RESIDUAL HAS TWO PROPERTIES AND BOTH MATTER.**
+
+It is SILENT: notes print only under a verbose flag, and the hook entry that invokes this
+path passes none. So on the one path the mitigation targets, the skip is never rendered.
+This is NOT a coverage reduction - there is no format coverage there today - but it is a
+permanent disablement that no output discloses.
+
+It is SELF-ARMING: `tools/edit_lint_check.py` is NOT a frozen file. A later one-line change
+passing a root would activate a blocking check on that path with no grant and no review,
+and the first sign of it would be an operator's edit being refused.
+
+**DO NOT ABSORB THIS INTO CS-838.** The grant says so, and the reason is that the repair
+belongs to a file the grant does not cover.
+
+### Acceptance
+
+that path either resolves a config and blocks a genuine format violation, or its skip is visible without `--verbose`, proven by a test that goes RED when a `root` reaches it and arms a blocking check on a non-frozen file with no grant
+
+## CS-842 - item section, relocated from `docs/item_notes/phase4-followups.md` 2026-11-19 on its close
+
+### NOTE - filed 2026-08-23 by the merger, from CS-837's adversary
+
+MEASURED by the adversary that graded CS-837, and recorded here rather than repaired,
+because the item's acceptance was MET and this is a property of the record it produced.
+
+CS-837 closed on its second acceptance arm: the exclusion of a module from the CS-420
+quantifier fence is recorded against a derived criterion rather than the module being
+fenced. The criterion itself - the literal deliverable of that arm - is prose in
+`tests/save/test_absolute_claims.py`.
+
+**THE COUPLING RUNS ONE WAY ONLY.** Deleting the live TEST does not go quiet: the criterion
+prose backs its own quantifiers with a citation naming that exact test, so the citation
+stops resolving and a different arm turns red. Deleting the criterion PROSE leaves the
+suite green. The record is guarded against the test disappearing and not against itself
+disappearing.
+
+**THE SECOND HALF OF THE ACCEPTANCE IS THE HARDER HALF, AND IT IS WHY THIS IS NOT A
+ONE-LINE FIX.** The same adversary measured that the LIVE test alone cannot tell a derived
+qualifying set from a restatement of the list it is compared against - substituting the
+fenced tuple for the derivation leaves the live test green, and only a synthetic control
+catches it. That control is load-bearing. Any repair that couples the prose in must not
+weaken it, or this item trades one unguarded direction for another.
+
+Two further residuals from the same grading, recorded so they are not rediscovered: a
+PARTIAL repair of the excluded module leaves the criterion green, so the obligation is
+all-or-nothing and is releasable by writing one quantifier back; and the first red will
+most likely fire on a package docstring nobody associates with this item, because the
+nearest unfenced modules are boilerplate `__init__.py` files a single future sweep would
+flip.
+
+### Acceptance
+
+deleting the recorded criterion turns a test RED, proven by that deletion, WITHOUT weakening the synthetic control that is currently the only guard against the derivation being replaced by a restatement of the list it is compared against
+
+## CS-941 - item section, relocated from `docs/item_notes/phase4-followups-900.md` 2026-11-19 on its close
+
+### FILED 2026-09-07 (session 72), from a sibling's finding re-measured here
+
+RC asked every project on the channel whether its watcher fires on a WITHDRAWAL.
+Clockspeed's does not, and this was probed rather than reasoned: acknowledge two
+notes, delete one, and the banner reports no unread items while naming the
+survivor as the entire inbox. An entire deliverable left the channel in silence.
+
+RC is the project that proved this matters, by pulling a 50-file drop from four
+inboxes in one night while every arrival-keyed watcher on the channel reported
+nothing.
+
+THE SUBTLETY THAT MAKES THE OBVIOUS FIX WRONG, and it came from RC rather than
+from here: once keys carry digests, an EDIT and a WITHDRAWAL both move the key.
+A report computed by comparing raw keys therefore files one edited note in two
+contradictory sections, as an arrival and as a retraction. The comparison has to
+strip the digest and match the stable NAME - an edit keeps its name, a
+retraction loses it.
+
+### THE FENCE
+
+Do not close this by unioning the seen set instead of rewriting it. The rewrite
+is a deliberate property with its own arm, and a union grows without bound as
+notes are renamed or edited.
+
+### FILED 2026-09-07 (session 72), as an amendment from a sibling's correction
+
+LW shipped this property, sent the construction to four repos, and corrected
+itself twenty minutes later. The defect is in the construction, so it is
+recorded here BEFORE the implementation rather than after.
+
+LW derived the withdrawal set from `reported | seen` while the acknowledgement
+pruned only the SEEN record. A withdrawn name therefore sat in the report record,
+re-derived itself on every run, and could never be cleared by anything. That is
+not cosmetic: it is a permanent line reporting an event the operator has already
+acted on, in the one section of the report with no artifact left on disk to
+check it against, and a report the reader cannot clear trains the reader to skip
+it.
+
+TWO THINGS TO CARRY INTO THE IMPLEMENTATION HERE:
+
+  1. THE BASELINE IS `reported | seen`, NOT `seen` ALONE. The motivating
+     incident was notes LISTED at session start and pulled before anyone ran the
+     acknowledgement - those exist in the report record only, so a seen-only
+     baseline scores the exact case the feature exists for as a non-event.
+  2. WHATEVER THE BASELINE READS, THE ACKNOWLEDGEMENT MUST PRUNE. Three arms,
+     not one: an unacknowledged withdrawal survives to the next session, an
+     acknowledged one does not come back, and the pruning cannot become a second
+     acknowledgement path that quietly consumes unread mail.
+
+HOW IT WAS FOUND IS THE TRANSFERABLE HALF, and it is not a test. Every arm
+passed, including four new withdrawal arms - they asserted that a withdrawal
+REPORTS and never that it STOPS reporting. It was found by running the shipped
+command on the live inbox: report, acknowledge, report again. AN ARM THAT PROVES
+A THING APPEARS IS NOT THE ARM THAT PROVES IT CAN GO AWAY.
+
+### Acceptance
+
+a departure is reported as its own state, compared on the STABLE NAME with the digest stripped, and the ACK prunes the report record too, proven by three arms plus a report-acknowledge-report check
+
+## CS-976 - item section, relocated from `docs/item_notes/phase4-followups-960.md` 2026-11-19 on its close
+
+### FILED 2026-09-11 by the CS-962 merger, from an adjudicated finding
+
+**WHAT WAS MEASURED, AT 098bf1f.** `panel_registry.js`, `panel_scope.js` and
+`panel_warnings.js` declare ZERO top-level names - each scopes itself in a
+closure or inside its mount function. `panel_solve.js` declares TWENTY-SIX,
+among them `FIELDS`, `POLICY_FIELD`, `PAIR_MARK`, `textOf`, `isWholeNumber`,
+`exactPair`, `clearNode`, `addNote`, `addGroup`, `readField` and
+`renderOutcome`. All four are classic scripts, not modules, so every one of
+those is a property of the one global the page shares with `app.js`.
+
+**THERE IS NO COLLISION TODAY AND THAT IS A MEASUREMENT, NOT A HOPE.** Both name
+sets were derived at 098bf1f - `app.js`'s thirty-six top-level names against
+`panel_solve.js`'s twenty-six - and the intersection is empty. An adjudicator
+ruled this a follow-up rather than a blocker on exactly that basis.
+
+**WHY IT IS STILL WORTH AN ITEM.** `registerPanel` refuses a duplicate panel
+ID, which reads as collision protection and is not: it compares the id only and
+never notices a duplicate top-level FUNCTION name. A fifth panel, or a later
+`app.js` helper, taking a name `panel_solve.js` already holds wins by load order
+and the screen says only that one panel did not render. Nothing in the suite
+grades it, so the first symptom would be a panel that stopped working for a
+reason no test names.
+
+**THE GRADER THE ADJUDICATOR NAMED**, and it is cheap: load all four panel
+modules plus `app.js` into one global, collect the own-property additions each
+makes, and assert the union contains no duplicate. Plant a duplicate name to
+prove the arm fires - an arm that has never been red proves nothing.
+
+**DO NOT RE-PITCH** converting the panels to ES modules as the fix for this. The
+seam's whole premise is that a panel is a plain script the server already
+serves and `index.html` already loads, and `tests/surface/test_server.py` pins
+the static surface by name. A module rewrite is a different item with a
+different blast radius; this one asks only that a collision be detectable.
+
+### Acceptance
+
+an arm loads all four panel modules plus `app.js` into one global and asserts the union of own-property additions contains no duplicate, shown load-bearing by a planted duplicate name that reddens it
+
+### Full headline
+
+the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves while `panel_solve.js` publishes twenty-six top-level names into it - no collision exists today, measured by re-deriving both name sets at 098bf1f and finding the intersection empty, but `registerPanel` compares only the panel id, so a fifth panel or a later `app.js` addition redefining a name like `textOf` or `FIELDS` wins by load order and the page says only that one panel did not render
+
+## CS-981 - item section, relocated from `docs/item_notes/phase4-followups-960.md` 2026-11-19 on its close
+
+### Measured 2026-09-12 by session 86 - one third of this item's stated population is false
+
+**NEITHER CS-830 NOR CS-831 IS GATED, AND NEITHER WAS GATED WHEN THIS ITEM WAS
+FILED.** The first paragraph of the `Filed 2026-09-11` block below opens "CS-829, CS-830 and CS-831 are filed
+in `docs/GATED.md`". **That sentence is WRONG.** It is left standing rather than edited,
+because the block below is the record of what was believed when the item was filed; the
+correction is this block, and the live statement of scope - the item LINE in `ROADMAP.md` -
+is amended. `CLAUDE.md` section 8 for ground truth beating the document, section 4 for
+relocate-never-delete. What is true, each measured this session against the tree:
+
+- `docs/GATED.md` carries a section for CS-829 and for no other `CS-8nn` item at all. Its
+  remaining sections are the `CS-G` series.
+- CS-830 is CLOSED NARROWED, recorded in `docs/LEDGER.md` under the heading "CS-830 -
+  CLOSED NARROWED. Container element EXTENTS are read over the whole library; the internal
+  PARTITION is recorded as undiscriminated, after an adversary refuted the first close".
+- CS-831 is CLOSED, recorded in `docs/LEDGER.md` under the heading "CS-831 - CLOSED. A
+  record's cross-references RESOLVE to the records they name; the acceptance was AMENDED by
+  the operator the same day and the amended wording is preserved here". Those headings are
+  cited rather than line numbers: an append-only file's line numbers rot, its headings do
+  not.
+- Neither CS-830 nor CS-831 carries an open item line in `ROADMAP.md`.
+- `tools/headless-queue.md` already said so in terms - "that chain runs CS-831 and CS-830,
+  both closed, then CS-829". The false premise and its own contradiction were sitting in the
+  tree at the same time, which is the argument for grepping a premise rather than inheriting
+  it.
+
+**WHAT THE CORRECTION DOES NOT TOUCH.** The `/api/map` half of the acceptance stands
+unchanged: a non-empty `inventory` for the pinned development world, graded against a
+synthetic model. The chain behind it is shorter than the item line claimed - two of its
+three layers were already built - and that makes the remaining work smaller, not different.
+
+**WHAT WAS ROUTED THIS SESSION.** CS-829 is moved out of `docs/GATED.md`: its body, every
+fence verbatim, is in `docs/item_notes/phase4-followups.md` under CS-829, and its item LINE
+is back in `ROADMAP.md` under Phase 4 carrying its pre-gate acceptance clause word for word.
+The clause was NOT rewritten and the population was NOT narrowed. CS-G05's own disposition -
+decided out of `docs/GATED.md`, with the execution gap named - is written into a STATUS
+block at the head of its section in `docs/GATED.md`. **This item does not close on any of
+that**; the acceptance turns on `/api/map`, and no measurement of it was taken here.
+
+### Filed 2026-09-11
+
+**WHY THIS IS A ROUTING ITEM AND NOT AN INVENTORY ITEM.** CS-829, CS-830 and CS-831 are
+filed in `docs/GATED.md`, and CS-829's entry names its unblocking condition as "CS-G05
+clearing", on an operator ruling taken against the item's own acceptance clause. CS-G05 is
+discharged - see the CS-980 entry in `docs/LEDGER.md`, and the STATUS block at the head of
+CS-G05's section in `docs/GATED.md`. So three items sit in the file for externally blocked
+work while their condition no longer holds, and `docs/GATED.md` says in its own opening
+that merely unstarted is not gated.
+
+THE AGENT THAT DISCHARGED THE GATE DECLINED TO ROUTE THEM, deliberately and correctly: a
+decomposition question is not something a decode slice answers in passing, and CS-829's
+acceptance clause has already been rewritten twice for unsatisfiability and refuted five
+times. This item is that decomposition question, filed so it is answered once and on
+purpose.
+
+**READ CS-829's FENCES BEFORE TOUCHING ANY OF THE THREE.** They are in `docs/GATED.md`
+under its section, they are LIVE instructions, and the first of them is the one that bears
+on the operator's actual request:
+
+- DO NOT re-pitch CS-829 as the inventory item. No building record carries an
+  `InventoryStack`. A building holds an `ObjectProperty` REFERENCE to a separate inventory
+  component and the stacks live over there inside a container property. So inventory sits
+  behind the cross-record join (CS-831), the container element framing (CS-830), and only
+  then the struct interior (CS-829). Answering "what am I holding" is three items, not one,
+  and an operator ruling was once obtained on the false premise that it was one.
+- DO NOT hand-write a struct vocabulary. Derive the population.
+- DO NOT define the population by the decoder's own success. That is an identity.
+- A restated acceptance clause is a SCOPE CHANGE and closes as one, with its own record.
+  It is not the gate clearing. Narrowing the graded population to the reachable sites and
+  declaring the clause met is the synthetic close CS-829's own entry names in advance.
+
+**WHAT CHANGED UNDERNEATH THEM, MEASURED.** Every walked payload of the pinned development
+world now reads, where none did. Container values are published where none were. Struct
+INTERIORS are still not read: the decode slice deliberately did not carry the new tag
+grammar into the interior reader, and instead let the struct word come from the type name
+so it cannot be read off a wrong offset. CS-829's DRAIN half - the population its clause
+calls unreachable - is what the discharge makes reachable, and whether the clause is now
+satisfiable AS WRITTEN is the first thing to measure rather than assume.
+
+**THE VISIBLE CONSEQUENCE, so the next session knows what "done" looks like.** The Map
+panel's "WHAT I HAVE" section prints an empty total plus the warning that says why. That is
+correct behaviour for an empty answer and it is not the answer the operator asked for. The
+acceptance above is written against `/api/map` for that reason - the chain is only finished
+when the panel shows something.
+
+### Acceptance
+
+`CS-829` is moved out of `docs/GATED.md` or re-gated on a condition that is actually outside the repo, with the CS-829 fences carried rather than dropped, and `/api/map` then serves a non-empty `inventory` for the pinned development world graded against a synthetic model
+
+## CS-1119 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its close
+
+### Acceptance
+
+EITHER shape is read with every width taken from the bytes or from a shipped constant and never from `declared_end - terminator_end`, with the carrying classes DERIVED off the body rather than transcribed, proven by a skip-if-absent real-library test reporting COUNTS ONLY plus an arm that REFUSES the same bytes when the declared end is moved past what the prefixes describe; a partition of either shape that sums to the declared end closes by arithmetic, cannot fail, and is the defect that refuted CS-830 after it had merged
+
+### Full headline
+
+two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar: a four-byte all-zero residual that is BYTE-IDENTICAL to an empty item list, so no reading of the run can tell a class that carries an empty list from one that carries no list at all (the CS-1068 root cause, restated on the other side); and one class whose remainder is a large nested structure whose width nothing in the run describes
+
 ## CS-1247 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-15 on its close
 
 ### Filed 2026-10-04 by the inspiration ingest

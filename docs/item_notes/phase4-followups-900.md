@@ -360,68 +360,6 @@ the watcher is reachable from a fresh clone through a TRACKED path, or the boots
 the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher and the standing directive to review the channel has no mechanism behind it
 
 
-## CS-941
-
-### FILED 2026-09-07 (session 72), from a sibling's finding re-measured here
-
-RC asked every project on the channel whether its watcher fires on a WITHDRAWAL.
-Clockspeed's does not, and this was probed rather than reasoned: acknowledge two
-notes, delete one, and the banner reports no unread items while naming the
-survivor as the entire inbox. An entire deliverable left the channel in silence.
-
-RC is the project that proved this matters, by pulling a 50-file drop from four
-inboxes in one night while every arrival-keyed watcher on the channel reported
-nothing.
-
-THE SUBTLETY THAT MAKES THE OBVIOUS FIX WRONG, and it came from RC rather than
-from here: once keys carry digests, an EDIT and a WITHDRAWAL both move the key.
-A report computed by comparing raw keys therefore files one edited note in two
-contradictory sections, as an arrival and as a retraction. The comparison has to
-strip the digest and match the stable NAME - an edit keeps its name, a
-retraction loses it.
-
-### THE FENCE
-
-Do not close this by unioning the seen set instead of rewriting it. The rewrite
-is a deliberate property with its own arm, and a union grows without bound as
-notes are renamed or edited.
-
-### FILED 2026-09-07 (session 72), as an amendment from a sibling's correction
-
-LW shipped this property, sent the construction to four repos, and corrected
-itself twenty minutes later. The defect is in the construction, so it is
-recorded here BEFORE the implementation rather than after.
-
-LW derived the withdrawal set from `reported | seen` while the acknowledgement
-pruned only the SEEN record. A withdrawn name therefore sat in the report record,
-re-derived itself on every run, and could never be cleared by anything. That is
-not cosmetic: it is a permanent line reporting an event the operator has already
-acted on, in the one section of the report with no artifact left on disk to
-check it against, and a report the reader cannot clear trains the reader to skip
-it.
-
-TWO THINGS TO CARRY INTO THE IMPLEMENTATION HERE:
-
-  1. THE BASELINE IS `reported | seen`, NOT `seen` ALONE. The motivating
-     incident was notes LISTED at session start and pulled before anyone ran the
-     acknowledgement - those exist in the report record only, so a seen-only
-     baseline scores the exact case the feature exists for as a non-event.
-  2. WHATEVER THE BASELINE READS, THE ACKNOWLEDGEMENT MUST PRUNE. Three arms,
-     not one: an unacknowledged withdrawal survives to the next session, an
-     acknowledged one does not come back, and the pruning cannot become a second
-     acknowledgement path that quietly consumes unread mail.
-
-HOW IT WAS FOUND IS THE TRANSFERABLE HALF, and it is not a test. Every arm
-passed, including four new withdrawal arms - they asserted that a withdrawal
-REPORTS and never that it STOPS reporting. It was found by running the shipped
-command on the live inbox: report, acknowledge, report again. AN ARM THAT PROVES
-A THING APPEARS IS NOT THE ARM THAT PROVES IT CAN GO AWAY.
-
-### Acceptance
-
-a departure is reported as its own state, compared on the STABLE NAME with the digest stripped, and the ACK prunes the report record too, proven by three arms plus a report-acknowledge-report check
-
-
 ## CS-942
 
 ### FILED 2026-09-07 (session 72), measured in the session that filed it

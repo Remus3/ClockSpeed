@@ -20,34 +20,6 @@ leaf. That move is what keeps this file live.
 
 ---
 
-## CS-701
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that slice's diff for leaked personal data and correctly classified it as a PRE-EXISTING FALSE POSITIVE rather than a finding against the slice. FULL ENTRY relocated to this file under **CS-701 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that slice's diff for leaked personal data and correctly classified it as a PRE-EXISTING FALSE POSITIVE rather than a finding against the slice. Measured: the operator git author line coincides with one 4-character world name on this machine, and it is present identically on `8b3fb9d` and `1009681` - `author-line hits: 1, body hits: 0` on every revision checked. **NOTHING IS LEAKED BY THIS TODAY** - the world name is not disclosed by the author line, the coincidence runs the other way. The problem is mechanical and arrives later: **a world-name-keyed PII scan will trip on EVERY COMMIT IN THE REPO**, and a scan that is red on correct history is a scan someone switches off. CS-700's checklist includes a full-history PII scan across tracked files and commit messages, so settle the exemption rule before that gate runs rather than while it is failing. Note the CS-209 precedent: narrowing a PII blocklist by default to pre-empt a collision was DENIED BY MEASUREMENT, so an exemption here must be a named, recorded exception rather than a shortened matcher.
-
-### Identity axis hardening - filed 2026-10-04 from an adversary pass
-
-Check `I` in `tools/flip_checks.py` reads the RAW commit objects: every git call there that
-names no environment runs with replace objects off, and a shallow or grafted repository is
-refused by name rather than walked - in the identity walk and in checks 1, 2 and 4. The arms
-are multi-commit synthetic histories (tip-only, first-parent, malformed-skip and case-fold
-mutants killed); the record is in `docs/LEDGER.md`. The trailer axis, check `T`, now gets the
-same treatment in `tools/trailer_census.py`: every git call runs with replace objects off, and
-`walk` refuses a shallow or grafted repository by name (exit 2). It is a mirror, not an import,
-because `tools/flip_checks.py` imports the census. CI DEPTH: the tier-1 job that runs the
-census checks out with `fetch-depth: 0`, so the refusal is unconditional and cannot redden it;
-`tests/test_trailer_routes.py` already pins that depth. Arms: replace by content, replace
-`--graft`, shallow and grafts over a three-commit history; the record is in `docs/LEDGER.md`.
-
-### Acceptance
-
-the tier-3 PII scan over tracked files AND commit messages runs clean, or the collision is recorded as a known-accepted false positive with the exact matching rule that exempts it
-
 ## CS-815
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23

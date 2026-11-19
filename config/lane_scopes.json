@@ -65,7 +65,6 @@
         "CS-610": "conftest redaction of a skip report; test harness, not the surface",
         "CS-611": "a POSIX socket-rebind question about the server, not what it serves",
         "CS-612": "a key-permission arm that may be tautological; TLS plumbing, not a panel",
-        "CS-614": "a thread-counting oracle defect in a bind-failure arm",
         "CS-615": "the pooled tier-2 count floor; a CI gate, not the surface",
         "CS-616": "an Electron session-scope question for the companion shell",
         "CS-619": "shell/main.js and preload.js coverage; the companion, not the dashboard",

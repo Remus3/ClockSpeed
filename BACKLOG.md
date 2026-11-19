@@ -1377,3 +1377,15 @@ From the CS-1384 close (`docs/LEDGER.md`, 2026-11-15). None reddens a suite.
 - CS-1360 follow-up: in the advice flow block a wrapped line restarts at column 0, so at narrow widths its continuation reads as a new edge line; it needs a CSS continuation indent (a hanging indent on the flow pre). Measured by the session 158 ui-auditor. Trigger: the next panel typography pass.
 - CS-1360 follow-up: flow line legibility at 320px - each line now carries its unit, percent, fitting carrier and fastest carrier, and at narrow widths the chain block opens on a blank-looking wrapped first line. Trigger: a phone-width pass over the panel.
 - CS-1360 follow-up: the bottleneck's denominator is the fastest carrier the registry publishes for the unit, not the fastest the world has unlocked; a world-aware denominator needs the unlock state among clockspeed/solve/carry.py's inputs. Trigger: a marked line names a carrier the world cannot yet build.
+
+## Wave 0 close-check sweep residuals - filed 2026-11-19 under product before process
+
+Each is a residual of an item the wave 0 close-check sweep CLOSED; the close records are in
+`docs/LEDGER.md`.
+
+- CS-425 residual - no visible console on hook spawns (sh, bash kit launcher) is human-eyes only; trigger: an observed flash; kit-hook part goes to MAIN's next kit version.
+- CS-448 residual - a checkout cloned under the temp root re-arms the rootdir climb; trigger: test_the_save_suite_passes_with_no_install_and_no_save red with FileNotFoundError.
+- CS-614 residual (closed as a duplicate of CS-987) - the planted lingering serve thread proof is manual (LEAKPLANT), not a committed arm; trigger: CS-600 roll-up requires it.
+- CS-839 residual - a shell that resolves but does not work is not graded; trigger: a two-shell divergence with sh on PATH.
+- CS-842 residual (closed narrowed per D87) - the criterion check is a substring floor, not a reader; adversary loop stopped by cost; trigger: a reworded criterion passes.
+- CS-941 residual - an item listed, never acknowledged, then pulled has no arm; trigger: a pulled deliverable not reported.

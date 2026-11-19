@@ -50,28 +50,6 @@ The headline this item carried before its line was cut to the one-liner the
 the spellings are derived from what the running platform can actually produce, or the collapse is recorded at the point of use so a reader of a green run knows what went unmeasured
 
 
-## CS-614
-
-### Relocated from `ROADMAP.md` 2026-09-01
-
-The arm is
-`test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else`.
-
-**THE MECHANISM.** It asserts over EVERY thread in the process whose name contains
-`serve`, and CPython folds a target's function name into the DEFAULT thread name. So a
-thread another test started with `serve_forever` as its target and never joined carries
-`serve` in its name through no intent of anyone, and this arm counts it.
-
-**WHY THE FAILURE IS WORSE THAN THE FLAKE.** The arm's message blames a failed bind. A
-reader of the red therefore investigates the bind path, which is not where the fault is.
-The acceptance asks the arm to count only the threads its own call created, or to
-distinguish a pre-existing one and NAME it - either remedy makes the message true.
-
-### Acceptance
-
-the arm counts only the threads its own call created, or it distinguishes a pre-existing one and names it, proven by an arm that plants a lingering serve_forever thread and fails for a reason naming the plant rather than the bind
-
-
 ## CS-615
 
 ### Relocated from `ROADMAP.md` 2026-09-01

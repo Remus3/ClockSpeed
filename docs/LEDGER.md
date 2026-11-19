@@ -75,6 +75,132 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-815 - DECISION RECORD (U-155). NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD: CS-G09 is DISCHARGED by the kit launcher; CS-815 stays on HOLD
+Verification: `.claude/settings.json` (the two kit PreToolUse hook commands, each run through
+`ops/fleet_kit/fleet_hook.sh`); `ops/fleet_kit/fleet_hook.sh`; the 2026-10-31 CS-815 FROZEN-FILE GRANT record below;
+`docs/GATED.md` under CS-G09.
+SCOPE. Wave 0 unit U-155 of THE PLAN (CLOCKSPEED-MASTER-PLAN.md on the operator's Desktop, planning session 159), one
+read-only adjudication under plan rulings D81 and IC-CS-815, made by a distinct adjudicator at
+d99b8efe2e2a302c73d3b68f3d785a4606d35f77 and landed by the merger. DECISION: CS-G09 is DISCHARGED. Its condition
+was a MAIN ruling or kit version making a probed form of the subagent-first and claims hook commands conformant;
+the kit launcher now runs both, and it fails closed. Recorded in place in `docs/GATED.md` as CS-G05's discharge was;
+the id is never reused. CS-815 STAYS ON HOLD per IC-CS-815 (no builder slice, no note to MAIN; the FIX note was sent
+1 of 1 and is never re-sent). Under D81, an arm pointing the kit launcher at an argument-ignoring program is CS-815's
+own remaining proof. ALTERNATIVES: keep CS-G09 open until a kit newer than v32 names it (rejected: the launcher
+already meets the condition); thaw CS-815 (rejected: the hold is binding).
+
+### 2026-11-19 - CS-489, CS-492, CS-938, CS-993, CS-1007, CS-1255, CS-1259 - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD: wave 0 close-check sweep, seven rows KEEP OPEN with the gap named
+Verification: each row's `### Acceptance` in its `docs/item_notes/` leaf, read at
+d99b8efe2e2a302c73d3b68f3d785a4606d35f77; the CS-1007 docstring site is `ops/loop/queue_loop.py`.
+SCOPE. THE PLAN's wave 0 close-check sweep (runbook D87): 23 rows read by read-only verifiers that did not plan
+them, then ruled by a distinct adjudicator at that full SHA. This record carries the seven rows that could not be
+confirmed; each goes back to DO with its missing part named (runbook point 2) and stays for the next wave's entry.
+No code or test edit is made by this slice.
+CS-489: no arm turns red when a region-table entry's classification prose goes false.
+CS-492: KEEP OPEN; the adjudicator's ruling as handed to the merger named no gap for this row, so its acceptance
+stands unconfirmed as filed.
+CS-938: no joint D91 adjudication.
+CS-993: no dead-holder arm on `ops/fleet_kit/fleet_suite_gate.py`.
+CS-1007: back to DO; its close needs the driver docstring edit in `ops/loop/queue_loop.py`, NOT made in this sweep,
+so the SUPERSEDED close D87 names is not taken.
+CS-1255: no keystroke or panel-fraction arm.
+CS-1259: no offline-render arm.
+THE REST OF THE 23: twelve rows close in the records below; U-155 is the decision record above; U-001, U-113 and
+U-139 are plan-internal and discharged by THE PLAN itself (no tracked write; named in the wave 0 END record).
+
+### 2026-11-19 - CS-1119 - CLOSED: a trailing-run remainder shape is read; the nested-structure remainder stays with CS-828
+Verification: `tests/save/test_zero_remainder.py::test_the_value_is_read_out_of_the_bytes` and that file;
+`clockspeed/save/objects.py` (read_zero_remainder, derive_zero_remainder_classes).
+Wave 0 close-check sweep, a read-only verifier read the acceptance at d99b8efe2e2a302c73d3b68f3d785a4606d35f77 and a
+distinct adjudicator ruled CLOSE (plan ruling IC-CS-1119): the acceptance is met by EITHER shape being read. The
+nested-structure remainder stays under CS-828 and is never built under CS-1119. Soft edges to CS-1149 and CS-1150
+are dropped here; both stay open under their own ids, CS-1150 first of the residual cluster. Leaf section moved to
+`docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-981 - CLOSED: CS-829's routing out of the discharged CS-G05 is recorded; this closes neither CS-G05 nor CS-829
+Verification: `tests/surface/test_map_vocabulary.py`; `docs/GATED.md` under CS-G05 (the CS-829 routing status
+block); `tools/headless-queue.md` (the CS-829 routing fence).
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77,
+after its live /api/map count read (plan rulings IC-CS-981 and IC-CS-981-2). THIS RECORD CLOSES NEITHER CS-G05 NOR
+CS-829: CS-829 stays CARRIED as filed, CS-984 stays DO, and the CS-G05 move stays owed by CS-983. Soft edges to
+CS-829, CS-847, CS-983 and CS-984 are dropped; no hard edge to CS-829 exists. Leaf section moved to
+`docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-976 - CLOSED: no panel module adds a global beside app.js
+Verification: `tests/surface/test_panel_global_scope.py::test_no_panel_module_adds_a_global`.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77
+(plan ruling IC-CS-976): the arm grades a stronger property than CS-976 asks, with planted-collision proof. Plan rows
+R-features-portfolio-11, R-glanceability-11 and R-performance-5 are re-hosted on CS-962 (open), which each of their
+relations already names; they are unfiled plan rows, so the re-host is recorded here and carried by the filing.
+Leaf section moved to `docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-941 - CLOSED: the inbox watcher reports a WITHDRAWAL instead of going silent
+Verification: `tests/test_inbox_watch.py::test_a_withdrawn_item_is_reported`,
+`tests/test_inbox_watch.py::test_reporting_a_withdrawal_never_acknowledges_it` and that file's other withdrawal arms;
+`tools/inbox_watch.py`.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77.
+RESIDUAL to `BACKLOG.md`: an item listed, never acknowledged, then pulled has no arm. Leaf section moved to
+`docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-842 - CLOSED NARROWED (plan ruling D87): CS-837's recorded exclusion criterion is graded present and still true
+Verification: `tests/save/test_absolute_claims.py::test_the_recorded_exclusion_criterion_is_present_and_still_true`.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE NARROWED at
+d99b8efe2e2a302c73d3b68f3d785a4606d35f77. RESIDUAL to `BACKLOG.md`: the criterion check is a substring floor, not a
+reader; the adversary loop was stopped by cost (CLAUDE.md section 7, product before process). Leaf section moved to
+`docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-841 - CLOSED: the edit-lint path discloses its skipped format check and arms on a root
+Verification: `tests/test_edit_lint_check.py::test_the_format_skip_is_disclosed_without_verbose`,
+`tests/test_edit_lint_check.py::test_a_root_reaching_this_tool_would_arm_a_blocking_format_check`;
+`tools/edit_lint_check.py`.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77
+(plan ruling IC-CS-841, re-pointing D87's "with CS-848's landing"). The soft edge to CS-848 is dropped; the adversary
+residue stays filed as CS-848 and CS-849 under their own dispositions. Leaf section moved to `docs/history_notes.md`;
+ROADMAP line removed.
+
+### 2026-11-19 - CS-840 - CLOSED: a dated heading classifies, and a live file may not mark itself historical
+Verification: `tests/test_dated_headings.py::test_a_status_date_in_a_live_file_turns_the_guard_red` and that file;
+`tools/drift_guard.py` guard (g).
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77.
+Leaf section moved to `docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-839 - CLOSED: a shell resolved at import time skips with a reason, never asserts
+Verification:
+`tests/test_hook_interpreter_ladder.py::test_no_arm_needing_an_import_time_shell_fails_when_it_cannot_be_resolved`.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77.
+RESIDUAL to `BACKLOG.md`: a shell that resolves but does not work is not graded. Leaf section moved to
+`docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-701 - CLOSED: the operator git identity and world-name collision is resolved under CS-700
+Verification: the 2026-10-21 CS-700 CLOSED record in this file ("every section 17 gate item passed at T2") and the
+identity-axis work it records.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77.
+Leaf section moved to `docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-614 - CLOSED AS A DUPLICATE OF CS-987: the bind-failure arm's thread oracle
+Verification: `tests/surface/test_server.py::test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else` and
+that file; the 2026-09-12 CS-987 CLOSED record in this file.
+Wave 0 close-check sweep, verifier read and distinct adjudicator CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77
+(plan ruling IC-CS-614): same arm, same defect, already closed under CS-987. RESIDUAL to `BACKLOG.md`: the planted
+lingering serve thread proof is manual (LEAKPLANT), not a committed arm. CS-614 leaves the dashboard scope's
+excluded map in `config/lane_scopes.json` (it is no longer a takeable row). Leaf section moved to
+`docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-448 - CLOSED: the no-install save-suite flake is root-caused and the probe sandbox pins its rootdir
+Verification: `tests/save/test_synthetic.py::test_the_probe_sandbox_pins_the_child_rootdir_at_itself`.
+Wave 0 close-check sweep, a read-only verifier read the ledger chain (the CS-448 mechanism record, the CS-906 rootdir
+pin, the CS-896 absent precondition) and a distinct adjudicator ruled CLOSE at
+d99b8efe2e2a302c73d3b68f3d785a4606d35f77 (plan ruling IC-CS-448). RESIDUAL to `BACKLOG.md`: a checkout cloned under
+the temp root re-arms the rootdir climb. Leaf section moved to `docs/history_notes.md`; ROADMAP line removed.
+
+### 2026-11-19 - CS-425 - CLOSED: hook spawns run windowless; the PreToolUse leg runs pythonw
+Verification: `tests/test_claude_hook.py::test_the_pretooluse_leg_runs_pythonw_beside_the_winner` and
+`tests/test_pretooluse_gate.py`; `tools/pretooluse_gate.py`.
+Wave 0 close-check sweep, a read-only verifier read the console-flash half under the current wiring and a distinct
+adjudicator ruled CLOSE at d99b8efe2e2a302c73d3b68f3d785a4606d35f77 (plan ruling IC-CS-425). RESIDUAL to
+`BACKLOG.md`: no visible console on hook spawns (sh, the bash kit launcher) is human-eyes only; the kit-hook part goes
+to MAIN's next kit version, no note sent now. Leaf section moved to `docs/history_notes.md`; ROADMAP line removed.
+
 ### 2026-11-19 - WAVE 0 W0a ENTRY AND U-158 COPY - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
 Verification: `gh run view 44550757085` (tier1) and `gh run view 44550757006` (CodeQL) at
 a5c9b4961e56d21cd03c23be8b46ac4a98e39081; `git ls-remote origin main`; `CS-NEXT-SESSION.txt`; `ops/loop/queue_loop.py`

@@ -737,6 +737,14 @@ be a cross-file edit this filing does not make.
 
 **Filed 2026-10-23** (session 151) from that record.
 
+**DISCHARGED - the wave 0 U-155 decision record in `docs/LEDGER.md` (session 160). NOTHING
+CLOSED BY IT.** The kit launcher now runs both hook commands: `.claude/settings.json` routes
+the subagent-first and claims PreToolUse hooks through `ops/fleet_kit/fleet_hook.sh`, which
+fails closed, under the 2026-10-31 CS-815 FROZEN-FILE GRANT record in `docs/LEDGER.md`. The
+gate's condition no longer holds, so it gates nothing. CS-815 stays on HOLD in `ROADMAP.md`
+(plan ruling IC-CS-815); its own remaining proof, under plan ruling D81, is an arm pointing
+the kit launcher at an argument-ignoring program. The id CS-G09 is never reused.
+
 ### CS-G10 - 1.0 phase costs from the shipped GP_ phase assets (UFGGamePhase::mCosts)
 
 **One line:** the milestone-gap advice domain needs each space-elevator phase's cost on a

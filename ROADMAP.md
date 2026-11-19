@@ -91,7 +91,6 @@ CS-1152 - the save shard's most expensive test warns at both ends of the CS-900 
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-936 - the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-941 - the watcher is SILENT on a WITHDRAWAL, so a deliverable that leaves the channel simply stops appearing - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-942 - the watcher runs only at `SessionStart`, which fires ONCE, so a note arriving mid-session is invisible until the next start - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-943 - `save_seen` returns nothing and an `OSError` on write escapes as a traceback out of a session-start hook, so a locked store crashes the watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-944 - ten test modules walk the tree with `rglob` and one excludes the worktree directory - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -134,7 +133,6 @@ CS-1078 - the two arms that stop `tools/memory_sync.py` re-growing a copy of the
 CS-1129 - the leaf membership rule grammar in `tools/drift_guard.py` is closed only at the positions its residue plants perturb - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1130 - a relocated acceptance clause is never compared against what its line carried, so a later truncation of a section's `### Acceptance` body is undetectable - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1131 - guard (i) is blind to an id that exists in NO state - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -152,17 +150,12 @@ CS-1143 - the citation site identity derives a markdown heading chain from files
 CS-1144 - `docs/LEDGER.md` cites `.github/workflows/tier1.yml` by a line the workflow has since grown past, and the carrier is append-only - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-958 - the outbound gate graded nothing because nothing called it, and the channel had no sender at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-951 - nobody watches their own OUTBOUND withdrawals, so a drop this repo pulls from a sibling's inbox is invisible to every watcher on the channel including this one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-877 - no arm enumerates the shell's `insertCSS` call sites, so a second injection is invisible - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-876 - no caller reads the independent oracle's final offset, so a stale reading passes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-864 - the static seam arms in `tests/save/test_independent_table.py` scan syntax, not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-865 - `_UNEXPLAINED_WORD_CEILING` is a fitted bound with zero headroom and no skip - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-839 - the suite's verdict depends on which shell invokes it - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-840 - `CLAUDE.md` and `docs/item_notes.md` conflict on the dated-heading rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-841 - `tools/edit_lint_check.py` passes `root=None`, so CS-838's check skips - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-842 - CS-837's recorded exclusion criterion is deletable with the suite green - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-843 - an element region with no grammar is partitioned by the declared count alone - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-844 - an owner recorded against a shipped table is checked for the `CS-` prefix only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-846 - a control whose body becomes an early return stays green - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -185,7 +178,6 @@ CS-825 - `UInt32Property`'s byte order is recorded as inseparable by any oracle 
 CS-826 - `IntProperty` and `FloatProperty` carry `anchored_not_unique`, not a settlement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-426 - Give the width discriminators a synthetic payload fixture so they run on a machine with no game - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-432 - Remove the corpus-coupled false red in the usmap join oracle - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-425 - Stop the hook configuration spawning a visible console window on every shell tool call - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-412 - Record the nine remaining opaque spans as resumable DATA rather than as prose - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-401 - Assert world-token stability across a save and reload cycle, and tolerate an unseen token - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
@@ -199,7 +191,6 @@ CS-445 - Bring the ADR 0008 tier-1 violations outside the fenced modules under a
 CS-446 - Make the writer write-surface pin detect a DUPLICATE mutating call, not only a new one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-447 - Close or bound the two report channels CS-428's redaction does not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
-CS-448 - Find the root cause of the `-n auto` flake in the no-install save-suite gate - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 CS-449 - Close the same fail-open one seam BELOW CS-444, in `locate.resolve_save_root()` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-450 - Decide whether a named FIELD of a caught exception is a rendering - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -246,7 +237,6 @@ CS-804 - The cross-module EXPORT SET carries only names a sibling's functions CA
 CS-805 - The container-FIELD personal-data shape is not walked as a wrapper - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-807 - No ordinary module gains a reach declaration it does not need - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-808 - the reach and wrap name caches are keyed on a `Path`, so a stale parse answers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-981 - CS-G05 is discharged and CS-829 is still filed as gated behind it, so the chain that answers "what am I holding" is unrouted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-983 - `CS-G05` is decided out of `docs/GATED.md` and its body has not moved - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-984 - a decoded struct interior reaches no consumer, because the world model publishes none - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-985 - the suite writes copies of the operator's real saves into the live `work/saves/` rather than into a temp root - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -294,7 +284,6 @@ CS-610 - `tests/conftest.py` leaves a skip report unredacted - acceptance: in de
 CS-611 - `allow_reuse_address = False` rests on a Windows measurement and is untested on POSIX - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-612 - `test_the_generated_key_is_restricted_to_this_account` may be tautological - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-613 - every TLS arm sits behind `cert_pair`, so no openssl means no coverage - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-614 - a bind-failure arm asserts over every thread whose name contains `serve` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-615 - the tier-2 count floor is pooled, so one-test stubs leave every lane green - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-616 - three shipped statements about `callback(0)` cannot all hold - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-618 - `shell/lib/state.js` interpolates untrusted state into its fault strings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -332,7 +321,6 @@ CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writ
 
 ## Phase 7 - public flip gate
 
-CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

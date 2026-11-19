@@ -711,15 +711,6 @@ every row form refuses a doubled space, a case change and a zero-padded number a
 
 the leaf membership rule grammar in `tools/drift_guard.py` is closed only at the positions its residue plants perturb: MEASURED 2026-09-17 by the CS-1079 re-adversary, nine in-memory loosenings in the MIDDLE of the older row forms (for example `ID BELOW\s+the`, `at\s+or above`, `Phase\s+`, `(?i:ID) in the`) each left `tests/data/test_item_notes_index.py` at 125 passed while accepting a row the pristine grammar refuses; a zero-padded phase number such as `Phase 05` still parses; and the parser accepts an empty or inverted range without a problem (`CS-0nn` block at or above CS-1000 gives low 1000, high 100)
 
-## CS-1119
-
-### Acceptance
-
-EITHER shape is read with every width taken from the bytes or from a shipped constant and never from `declared_end - terminator_end`, with the carrying classes DERIVED off the body rather than transcribed, proven by a skip-if-absent real-library test reporting COUNTS ONLY plus an arm that REFUSES the same bytes when the declared end is moved past what the prefixes describe; a partition of either shape that sums to the declared end closes by arithmetic, cannot fail, and is the defect that refuted CS-830 after it had merged
-
-### Full headline
-
-two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar: a four-byte all-zero residual that is BYTE-IDENTICAL to an empty item list, so no reading of the run can tell a class that carries an empty list from one that carries no list at all (the CS-1068 root cause, restated on the other side); and one class whose remainder is a large nested structure whose width nothing in the run describes
 ## CS-1089
 
 ### Acceptance
