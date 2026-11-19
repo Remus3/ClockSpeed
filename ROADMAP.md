@@ -158,7 +158,6 @@ CS-864 - the static seam arms in `tests/save/test_independent_table.py` scan syn
 CS-865 - `_UNEXPLAINED_WORD_CEILING` is a fitted bound with zero headroom and no skip - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-843 - an element region with no grammar is partitioned by the declared count alone - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-844 - an owner recorded against a shipped table is checked for the `CS-` prefix only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-846 - a control whose body becomes an early return stays green - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-847 - an ownership hand-off written as prose is invisible to the owner-id guard - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-848 - the CS-841 tripwire is evaded by any narrower arming predicate - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-849 - the CS-841 fixture creates the repository's work directory on every machine - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -174,8 +173,6 @@ CS-860 - the pytest report redactor covers neither the account id nor the world 
 CS-861 - `clockspeed/data/locate.py`'s `redact()` misses the `%r`-escaped account id - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-854 - Three siblings of the select-by-reader-word defect are unswept - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-832 - `TextProperty` and `Int64Property` are refused on no stated criterion - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-825 - `UInt32Property`'s byte order is recorded as inseparable by any oracle - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-826 - `IntProperty` and `FloatProperty` carry `anchored_not_unique`, not a settlement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-426 - Give the width discriminators a synthetic payload fixture so they run on a machine with no game - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-432 - Remove the corpus-coupled false red in the usmap join oracle - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-412 - Record the nine remaining opaque spans as resumable DATA rather than as prose - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -201,7 +198,6 @@ CS-456 - Settle the FAMILY of declines recorded on a criterion `WIDTH_SHIPPING_R
 CS-457 - Read `#:` doc-comments in the citation checker, which is blind to them today - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-458 - Bring the ungoverned cursor-advancing widths under the width rule - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-459 - Make the evidence table's tie to the oracles bidirectional, since only over-claiming is caught - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-827 - the evidence vocabulary is not pinned by literal the way byte-order's is - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-460 - Narrow the `any()` claim in `tests/save/test_decode_oracles.py` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 CS-462 - Auto-detect an account directory whose name is not all digits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -220,11 +216,6 @@ CS-499 - A self-exemption keyed on the guard's FULL PATH is undetected - accepta
 CS-492 - Close the reach routes that travel through an OBJECT rather than a name binding - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-489 - Grade the PROSE inside `objects.UNMEASURED_PAYLOAD_REGIONS` entries - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-483 - `tests/save/test_synthetic.py::test_a_failing_builder_call_renders_its_arguments` is load-sensitive - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-800 - A hand-back resolves a SPELLING only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-801 - A `__getattr__` serving a locator is closed only at MODULE scope and only in the SAME file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-802 - A store whose attribute NAME is not a literal is not read - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-803 - A closure built by a nested `def` is not read as serving what it closes over - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-804 - The cross-module EXPORT SET carries only names a sibling's functions CALL - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-805 - The container-FIELD personal-data shape is not walked as a wrapper - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-807 - No ordinary module gains a reach declaration it does not need - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-808 - the reach and wrap name caches are keyed on a `Path`, so a stale parse answers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

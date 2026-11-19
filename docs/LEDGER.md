@@ -75,6 +75,41 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.2: seven rows cut to BACKLOG, two folded
+Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
+SCOPE. Wave 0 unit U-052.2 of THE PLAN, part 2 of 6 of the open-row disposition sweep filed as CS-1406, batch
+`docs/item_notes/phase4-followups.md` under plan rulings D76, D88, D89, D102 and D103. Nothing is closed. Each leaf
+section moved to `docs/history_notes.md` byte-for-byte (SHA-256 of the body read before and after, equal for all
+nine); no row is deleted.
+RELOCATED TO BACKLOG (7): CS-800 (D89, D76), CS-802 (D89, D76), CS-803 (D89, D102, IC-CS-803), CS-804 (D89, D102,
+D76), CS-825 (IC-CS-825, D-P4-43), CS-826 (D76, IC-CS-825) and CS-846 (D103, D76, IC-CS-846). Riders in the lines:
+CS-801 and CS-804 share ONE line and one trigger (D88, D89); CS-825 carries the CS-826 order (CS-826 is taken first
+and the two never run in parallel); CS-846 names `tests/liveness.py`, `tests/test_liveness.py`, its leaf heading and
+the conftest collection-hook trigger, with the unlanded-branch finding as its resume pointer.
+FOLDED (2, NOT A COMPLETION): CS-801 into the CS-804 line and CS-827 into CS-459 (D88). CS-804's section carries a
+dated NOTE quoting CS-801's acceptance verbatim and CS-459's section in `docs/item_notes/phase4.md` carries a dated
+NOTE quoting CS-827's; each is graded separately at its survivor's close with its own ledger record. The folded
+ROADMAP lines are gone.
+CS-846 PARTIAL WORK AND CONDITION (IC-CS-846, D103). The partial work already landed is `tests/liveness.py` and
+`tests/test_liveness.py`; silent guttings went from 8 of 20 to 1 of 20, and that one residual stays open in the
+BACKLOG line. This is a cut, not a close: the acceptance word is 'every', which a population-wide control is not yet.
+Reopen trigger: a real gutted control found shipping, with the conftest collection-hook route recorded as the route to
+take. CONDITION READ BACK TRUE: the wave 0 ref classifier cleared refs/backup (71 refs), refs/preserve (103), refs/wip
+(53) and refs/archive (1), and refs/heads (87), by a path-limited walk and path-limited stable patch-ids over the two
+liveness files, then by content: 5 commits touching them have no patch-equivalent on main, and none is CS-846 work
+still to land (Slice F has all but 8 of 2429 added lines present at the base, CS-900 all 136, Slice D, the first
+version Slice F superseded, 949 of 1066, and two belong to the CS-1358 tree_population branch and the CS-1289 kit
+adoption); the 11 commits with CS-846 in the subject on those refs and not on main are those two Slices, four
+pre-rewrite twins of main commits, and five merge or documentation commits. FATE OF EVERY REF: kept, classified by
+content, never deleted.
+RIGHT-REASON RED. Restoring the batch's pre-state with only the CS-800 ROADMAP line removed turned
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names` red with `CS-800
+in phase4-followups.md` under 'these carry detail but no OPEN line in ROADMAP.md'; the batch's own state is green. The
+working-tree bytes were restored and read back equal.
+READ BACK: `ROADMAP.md` item lines 232 before, 223 after (nine removed); ROADMAP bytes freed by the nine lines 1284.
+Each of the seven cut ids is found by grep in `BACKLOG.md`; CS-801 and CS-827 are found only in
+`docs/history_notes.md` and in the survivors' NOTEs.
+
 ### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.1: seven rows cut to BACKLOG, two folded, the sweep filed
 Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tests/test_citation_tables.py::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
 SCOPE. Wave 0 unit U-052.1 of THE PLAN (planning session 159), part 1 of 6 of the open-row disposition sweep: it FILES

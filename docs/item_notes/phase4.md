@@ -332,6 +332,16 @@ different and is CS-827.
 
 an oracle that scores a type the table does not mark turns a test RED, proven by a mutant that scores `UInt32Property` while leaving the table untouched, with the scored population DERIVED from the oracles rather than transcribed beside them
 
+### Recorded 2026-11-19 by wave 0 unit U-052.2: CS-827 folded into this row (plan ruling D88), NOT A COMPLETION RECORD
+
+The folded row CS-827 (headline: the evidence vocabulary is not pinned by literal the way byte-order's is) was folded
+into CS-459 by wave 0 unit U-052.2. Its ROADMAP line is gone and its leaf section is in `docs/history_notes.md` under
+its id. Its acceptance, quoted verbatim, and graded separately at this row's close with its own ledger record (D88):
+
+> changing the STRING value of any member of the evidence vocabulary turns a test RED, proven by a mutant that renames one while leaving every symbol reference untouched
+
+The folded row takes whatever disposition this row receives and reopens only with it (D88, D92).
+
 
 ## CS-460
 
