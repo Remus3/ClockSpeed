@@ -97,10 +97,9 @@
       "excluded": {}
     },
     "registry-audit": {
-      "description": "A PRODUCT subject for the queue-b lane, filed in session 150: registry integrity and audit totals. WRITE AREA: clockspeed/data/registry.py, docs_extract.py and version.py (CS-1241's build-aware variants and decisions table, CS-1242's extraction census against the pinned build) and clockspeed/audit/ (CS-1250's count-once invariant). CS-1250 IS HERE because CS-1242's docs-versus-save agreement can only sit where the registry and the world model meet, which is clockspeed/audit/, and both rows would then edit that package's export list. AN ENUMERATION, NOT A PARTITION, graded per member.",
+      "description": "A PRODUCT subject for the queue-b lane, filed in session 150: registry integrity and audit totals. WRITE AREA: clockspeed/data/registry.py, docs_extract.py and version.py (CS-1241's build-aware variants and decisions table, CS-1242's extraction census against the pinned build) and clockspeed/audit/ (CS-1250's count-once invariant). CS-1250 IS HERE for the audit package's count-once invariant; the docs-versus-save agreement of CS-1242, the reason this scope first gave, is in BACKLOG now that CS-1242 is cut. AN ENUMERATION, NOT A PARTITION, graded per member.",
       "items": [
         "CS-1241",
-        "CS-1242",
         "CS-1250"
       ],
       "excluded": {}

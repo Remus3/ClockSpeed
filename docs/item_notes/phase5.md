@@ -209,67 +209,6 @@ a new arm module under `tests/advisor/` asserts an annotated purity is never rep
 
 node purity is structurally absent from every save and the in-game map is rendered live rather than shipped, so the underlay and the purity variant have no derivation and the only dishonest move available is to invent one, and nothing records an operator's own knowledge of a node - THE FOG AND UNDERLAY HALF WAS SPLIT OUT TO CS-1061 IN SESSION 95 because its subject is absent from the code and its registration clause has nothing to register without it
 
-## CS-1061
-
-### Filed 2026-09-14, split out of CS-1048
-
-**ITS SUBJECT IS ABSENT FROM THE CODE, AND THAT WAS VERIFIED RATHER THAN INHERITED.**
-`mFogOfWarRawData` has ZERO hits in any `.py` file in the primary checkout. Its only
-non-doc hit anywhere is a GENERATED header-index artifact under the gitignored `data/`
-directory of a stale agent worktree - the artifact of the 2026-09-13 probe that proved the raster is exactly a 1024
-by 1024 byte square. **The structural proof was real; it simply never landed in a
-module.** A shipped reader does not exist and the raster does not cross the save seam.
-
-**THE FENCE IS DELIBERATE AND IT IS GRADED.** `clockspeed/save/world.py` states that
-neither published type declares a `bytes` or a `Path` field, and gives the reason: a
-retained payload is the one thing no higher layer may hold. It is asserted by
-`tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field`. A
-1024 by 1024 raster is 1048576 bytes of exactly that. So this is not an oversight to
-route around.
-
-**THE SEAM QUESTION COMES FIRST AND IT IS A DESIGN DECISION, NOT AN IMPLEMENTATION.**
-Either the raster is carried by a published type that is not a world property value, or
-the fence is amended for this one carrier with a named reason and its arm updated in the
-same diff. **IT IS NEVER QUIETLY WIDENED.** Route the choice to an adjudicator before any
-file is scaffolded.
-
-**DO NOT INJECT SYNTHETIC BYTES PAST THE SEAM AND CALL IT MEASURED.** An arm over bytes
-handed straight to the underlay module grades the fixture and says nothing about any
-save. That is the shape session 94 caught reading zero records on every real save while
-3153 tests stayed green.
-
-**WHY THE REGISTRATION HALF CAME WITH IT RATHER THAN STAYING IN CS-1048.** The item note
-at HEAD proposed keeping the bounds clause in CS-1048 on the grounds that `WorldBounds`
-exists and is reachable - true, `clockspeed/audit/placement.py::WorldBounds` via
-`WorldPlacement.bounds`. But the transform's whole SUBJECT is the underlay's own grid, so
-without the raster that clause has nothing to register either. Splitting there would have
-left CS-1048 carrying a second clause with no subject, which is the defect being repaired
-rather than a smaller version of it.
-
-**THE REGISTRATION FENCE SURVIVES THE SPLIT INTACT.** `WorldBounds` bounds THIS world's
-placements and moves every time the operator builds anything, so a transform fitted to it
-drifts under their own hands and must NEVER be built. The honest registration is the
-raster's own fixed square grid plus a config-overridable world origin and scale, DECLARED
-estimated. The arm must redden if a bounds field is read at all.
-
-**ASSUMED, NOT MEASURED:** that the raster is spatial rather than an opaque blob that
-happens to be that size. The structural proof shows only its LENGTH. Publish it as bytes
-with declared dimensions and claim NO orientation and NO origin until one is measured.
-
-**DEPENDS ON:** CS-1039. Phase 6 consumes this for the underlay and its registration -
-see the panel item's `DEPENDS ON` line, which names this item rather than CS-1048 for
-that half.
-
----
-
-### Acceptance
-
-the raster crosses the save seam by whichever route is adjudicated, a new arm module under `tests/audit/` asserts its declared dimensions are derived from its own byte length rather than stated, and asserts the published transform names a config origin and scale rather than any `WorldBounds` field and reddens if a bounds field is read at all - that box bounds THIS world's placements and moves whenever the operator builds, so a transform fitted to it drifts under their hands - and the orientation and origin stay DECLARED ESTIMATED until one is measured
-
-### Full headline
-
-the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square but has ZERO hits in any shipped module, it does not cross the save seam, and `clockspeed/save/world.py` fences every published world type off `bytes` and `Path` fields with a stated reason - a retained payload is the one thing no higher layer may hold - graded by `tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field`, so an arm over synthetic bytes injected past that seam would be a statement about the fixture and never about the save - THE SEAM QUESTION COMES FIRST AND IS A DESIGN DECISION FOR AN ADJUDICATOR, not an implementation: either the raster is carried by a published type that is not a world property value, or the fence is amended for this one carrier with a named reason and its arm updated in the same diff, and IT IS NEVER QUIETLY WIDENED
-
 ## CS-1064
 
 ### NOTE - filed 2026-09-14 under CS-301
@@ -328,16 +267,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 ### Acceptance
 
 a synthetic two-build fixture where one recipe changed yields different solves per pinned build; the decisions table has no row without a test
-
-## CS-1242
-
-### Filed 2026-10-04 by the inspiration ingest
-
-From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Generated, never hand-written (section 4 rule on measured numbers). Sources are the shipped docs file and the save only.
-
-### Acceptance
-
-the census is generated by the extraction step and compared against the pinned build's census, a change being reported rather than absorbed; a fixture with a missing required field fails the build step naming the field
 
 ## CS-1398
 

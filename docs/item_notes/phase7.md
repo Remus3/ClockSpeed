@@ -756,50 +756,23 @@ execution policy there.
 The first walk ran and was graded PARTIAL, clause 11 NOT MET. The record, the grade's sha256 and
 what a re-walk needs: `docs/LEDGER.md`, 2026-10-22, CS-1334. The suite stall it names is CS-1349.
 
-## CS-1349
+### Recorded 2026-11-19 by wave 0 unit U-052.5: CS-1349 folded into this row (plan ruling D84, D88), NOT A COMPLETION RECORD
 
-### Acceptance
+The folded row CS-1349 (headline: the pre-push suite never matches its own gate history, so a small machine waits on
+the 8 GiB default) was folded into CS-1334 by wave 0 unit U-052.5. Its ROADMAP line is gone and its leaf section is in
+`docs/history_notes.md` under its id. Its acceptance, quoted verbatim, and graded separately at this row's close with
+its own ledger record (D84, D88):
 
-The command `.githooks/pre-push` hands `ops/fleet_kit/fleet_suite_gate.py` is stable across
-pushes, so the gate's history for that command can match; that is a frozen-file change, so an
-adjudicated grant is recorded in `docs/LEDGER.md` before the edit is made. The tests that drive a
-real push set the gate's margin variable, `ops/fleet_kit/fleet_suite_gate.py::ENV_COMMIT_MARGIN`,
-to 0 in their own environment, naming the variable and never its value. A fresh 8 GB Windows
-Sandbox walk's pre-push suite starts. The kit half goes to MAIN; no file under `ops/fleet_kit/`
-is edited here.
+> The command `.githooks/pre-push` hands `ops/fleet_kit/fleet_suite_gate.py` is stable across
+> pushes, so the gate's history for that command can match; that is a frozen-file change, so an
+> adjudicated grant is recorded in `docs/LEDGER.md` before the edit is made. The tests that drive a
+> real push set the gate's margin variable, `ops/fleet_kit/fleet_suite_gate.py::ENV_COMMIT_MARGIN`,
+> to 0 in their own environment, naming the variable and never its value. A fresh 8 GB Windows
+> Sandbox walk's pre-push suite starts. The kit half goes to MAIN; no file under `ops/fleet_kit/`
+> is edited here.
 
-### Filed 2026-10-22 by the session 150 CS-1334 walk
-
-**THE GAP.** `.githooks/pre-push` (FROZEN, `CLAUDE.md` section 6) runs its whole suite through
-`ops/fleet_kit/fleet_suite_gate.py`, and the command it hands the gate ends with `--junitxml` and
-a report path inside a fresh `mktemp -d` directory, new on every push.
-`ops/fleet_kit/fleet_suite_gate.py::cmd_hash` covers every command word, so a pre-push run never
-matches the gate's own history: `ops/fleet_kit/fleet_suite_gate.py::required_commit_mb` falls
-back to `COMMIT_DEFAULT_MB`, and `ops/fleet_kit/fleet_suite_gate.py::run` adds
-`ops/fleet_kit/fleet_suite_gate.py::commit_margin_mb`, whose default is `COMMIT_MARGIN_MB` -
-12288 MB of free commit charge on every push. On a machine with less,
-`ops/fleet_kit/fleet_suite_gate.py::acquire` takes no slot, waits `WAIT_S` (3600 s) and raises
-`GateRefused`, which `ops/fleet_kit/fleet_suite_gate.py::main` returns as exit 3: the push fails
-closed.
-
-**THE TESTS LEAVE THE MARGIN AT ITS DEFAULT.** The tests that drive a real push -
-`tests/test_cs1327_push_suite_runs_in_the_venv.py`, `tests/test_hook_env_echo.py`,
-`tests/test_hook_interpreter_ladder.py`, `tests/test_hook_probe_bound.py`,
-`tests/test_identity_hooks.py`, `tests/test_pre_push_ref_race.py`,
-`tests/test_pre_push_suite_floor.py` and `tests/test_probe_refusal_output.py` - move only the
-slot directory, through `tests/fleet_hook_kit.py::suite_dir_env`, and never set the margin
-variable. A fresh slot directory holds no history either, so each push they drive needs the same
-default.
-
-**THE EVIDENCE, AND WHAT IS INFERRED.** The CS-1334 walk's suite, in a fresh 8 GB Windows Sandbox,
-stalled at about 70 percent with 0 failures (`docs/LEDGER.md`, 2026-10-22, CS-1334). That this
-admission rule caused it is INFERRED from the constants above, and was not measured inside the
-Sandbox.
-
-**THE KIT HALF IS REPORTED TO MAIN** (FLEET item 11), in a FIX note of 2026-10-22 06:47: admit a
-run when no other slot holder is live, or cap the requirement at the machine's own commit limit.
-The tree-side half - a stable pre-push command and the tests' margin - is this item. Filed in
-Phase 7 beside CS-1334, whose re-walk it unblocks.
+It reopens with CS-1334 through ask D84 (the operator frees host RAM and the session itself reads 24 GB free with no
+builder running); the walk's adjudicator rules this row's 8 GB wording before the walk (D84).
 
 ## CS-1358
 

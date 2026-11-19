@@ -220,11 +220,9 @@ CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on N
 
 CS-1058 - nothing can say which belt feeds which machine or which connections share a power circuit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1048 - node purity is structurally absent from every save and the in-game map is rendered live rather than shipped - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1061 - the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1064 - `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never written back - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1242 - an extraction census: counts per category, a zero-tolerance missing-field audit, docs-versus-save agreement - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1401 - the domain interleave is not the served showing order, and the cutover re-pins three CS-1246 arms - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1398 - effort is declared per rule, not per recommendation magnitude - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -307,7 +305,6 @@ CS-1295 - REPO-REVIEW: queue one headless full-tree review driver through the ki
 CS-1304 - a CS-1301 forced run read "did not fail: exit 2" under memory load, its cause untraced - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` failed tier1's hook shard on a docs-only commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1406 - rows already ruled to leave the roadmap are still filed as open work, and no open row states its execution class - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
