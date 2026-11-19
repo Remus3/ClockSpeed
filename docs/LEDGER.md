@@ -75,6 +75,38 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.3: four rows cut to BACKLOG, CS-865 folded, five D77 rows pending
+Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
+SCOPE. Wave 0 unit U-052.3 of THE PLAN, part 3 of 6 of the open-row disposition sweep filed as CS-1406, batches
+`docs/item_notes/phase4-followups-850.md` (five PENDING notes and one fold) and
+`docs/item_notes/phase4-followups-900.md` (four cuts) under plan rulings D73, D76, D77, D88, D91 and D92. Nothing is
+closed. Each moved leaf section is in `docs/history_notes.md` byte-for-byte (SHA-256 of the body read before and
+after, equal for all five); no row is deleted.
+RELOCATED TO BACKLOG (4): CS-942 (D91, D102, D78, D92, IC-CS-942), with the trigger `a mid-session note the loop tick
+did not surface` - it is NOT A COMPLETION and never a CLOSED record, superseded by the loop-tick inbox handling (FLEET
+item 14a), and the tracked `.claude/settings.json` route stays refused; CS-947 (D76, IC-CS-947), recorded as CUT, NOT
+CLOSED - its acceptance, the hook proven firing, is not met and D76 rules no amended-acceptance close; CS-948 (D76, no
+verbatim payload owed under the operator ruling of 2026-09-07); and CS-951 (D73, D92 class 3, the reconciler scoped to
+a presence and digest read of own-delivered paths).
+PENDING, NOT MOVED (5, RELOCATE-PENDING under D77): CS-850, CS-851, CS-853, CS-857 and CS-858. The conditions cannot
+be read back true in wave 0: CS-850, CS-851 and CS-853 wait on ONE STOPPED BY COST record written after CS-860 lands
+and after CS-850's one recorded live finding is repaired or measured clean-on-content; CS-857 waits on a read-only
+verifier confirming measured-leak 0 outside the frozen files at HEAD; CS-858 is cut with CS-857. Each of the five leaf
+sections gained a dated NOTE naming the ruling and the unmet condition, the five ROADMAP lines stay, and no BACKLOG
+line is written. Their owner (the doc-sync slice of the wave after CS-860's second part lands, or the last process
+wave if CS-860 is refuted or cut) is named in the CS-860 section's NOTE of this sweep's first part. The line-pointer
+pin on `tests/test_redaction_scope.py` held inside the CS-857 section does NOT move here and is unchanged.
+FOLDED (1, NOT A COMPLETION): CS-865 into CS-829 (D88). The CS-829 section in `docs/item_notes/phase4-followups.md`
+gained a dated NOTE quoting CS-865's acceptance verbatim, graded separately at CS-829's close with its own ledger
+record. The folded ROADMAP line is gone.
+RIGHT-REASON RED. With the batch's pre-state restored and only the CS-942 ROADMAP line removed,
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names` went red with
+`CS-942 in phase4-followups-900.md` under 'these carry detail but no OPEN line in ROADMAP.md'; the batch's own state
+is green and the working-tree bytes were restored and read back equal.
+READ BACK: `ROADMAP.md` item lines 223 before, 218 after (five removed); ROADMAP bytes freed by the five lines 1007.
+Each of the four cut ids is found by grep in `BACKLOG.md`; CS-865 only in `docs/history_notes.md` and in the CS-829
+NOTE. The five pending ids are still `ROADMAP.md` lines.
+
 ### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.2: seven rows cut to BACKLOG, two folded
 Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
 SCOPE. Wave 0 unit U-052.2 of THE PLAN, part 2 of 6 of the open-row disposition sweep filed as CS-1406, batch

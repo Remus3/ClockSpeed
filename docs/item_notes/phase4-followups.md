@@ -645,6 +645,15 @@ header - so the standing instructions live here, where the item now does:
 
 EVERY record carrying a struct type word the shipped vocabulary names yields a decoded interior, asserted as an EQUALITY over that population and not as a floor, with the vocabulary DERIVED from the library rather than transcribed, proven by a skip-if-absent real-library test reporting COUNTS ONLY
 
+### Recorded 2026-11-19 by wave 0 unit U-052.3: CS-865 folded into this row (plan ruling D88), NOT A COMPLETION RECORD
+
+The folded row CS-865 (headline: `_UNEXPLAINED_WORD_CEILING` is a fitted bound with zero headroom and no skip) was
+folded into CS-829 by wave 0 unit U-052.3. Its ROADMAP line is gone and its leaf section is in `docs/history_notes.md`
+under its id. Its acceptance, quoted verbatim, and graded separately at this row's close with its own ledger record
+(D88):
+
+> the per-word residue is graded against evidence independent of which saves are present, so the bound survives every legitimate subset, proven by the existing subset re-aggregation covering this arm and reddening when a reading word is refused outright
+
 
 ## CS-843
 

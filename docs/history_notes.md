@@ -24,6 +24,159 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-942 - item section, relocated from `docs/item_notes/phase4-followups-900.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### FILED 2026-09-07 (session 72), measured in the session that filed it
+
+`SessionStart` fires once. Two notes arrived in `moon_sync_inbox/` while this
+session was running - the inbox went from 66 notes to 68 - and neither surfaced,
+because the only path that reports them had already run. RC measured the same
+defect in their tree and shipped a second, report-only hook on the operator's
+turn: their figure is 97 ms including interpreter startup and hashing 3.2 MB.
+
+THE PART THAT MUST NOT BE LOST IN THE COPY. That second path REPORTS and never
+acknowledges. LL measured why: a hook that marks seen fires for every subagent
+start too, so the first subagent consumes the operator's queue and the
+operator's own next start then honestly reports nothing new. Listing and
+acknowledging stay separate acts, which is already this tool's oldest property.
+
+The wiring lands in the same frozen settings file as CS-938 and needs the same
+adjudicated grant, so the two travel together.
+
+### Acceptance
+
+a report-only path runs on each operator turn and never advances the seen set, proven by an arm that reddens if it writes to the store and one that reddens when a note planted mid-run goes unreported - NOTE shares the CS-938 frozen-file grant
+
+
+## CS-947 - item section, relocated from `docs/item_notes/phase4-followups-900.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### FILED 2026-09-07 (session 72), on an operator ruling
+
+CAVEMAN ULTRA is adopted. It is a `SessionStart` hook imposing a terse output
+dialect, and this project has never had one - a grep of the tree returns nothing
+but two note filenames in a gitignored store.
+
+TWO THINGS MUST BE RECORDED BEFORE THE EDIT. The wiring lands in
+`.claude/settings.json`, which `CLAUDE.md` section 6 freezes, so it needs its own
+adjudicated grant routed the way CS-935's was. And it needs a stated interaction
+with `CLAUDE.md` section 2.3, which already constrains output length here for a
+different reason - operator attention across parallel sessions rather than a
+fleet dialect. Two rules governing the same surface, both live, is the drift shape
+section 4 exists to prevent.
+
+The acceptance is FIRING, not declared. A hook proven by its configuration is the
+class of evidence this channel has refuted three times this week.
+
+### Acceptance
+
+the grant is recorded before the edit and the hook is proven FIRING, proven by an arm that runs the declared command
+
+
+## CS-948 - item section, relocated from `docs/item_notes/phase4-followups-900.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### FILED 2026-09-07 (session 72), on an operator ruling
+
+The operator ruled that this project reciprocates verbatim payloads. It has no
+manifest producer and no scrub attestation, and a note from RC credits it as
+already shipping `MANIFEST.sha256` - a credit that cannot be re-derived from this
+tree, so it is recorded as unverified rather than accepted.
+
+THE RISK IS ASYMMETRIC AND IS THE REASON THIS IS AN ITEM RATHER THAN A SCRIPT.
+Non-negotiable 3 forbids the account id, the world name, the Windows user and any
+home path leaving this tree, and non-negotiables 11 and 12 make a save-derived
+artifact personal data. An outbound payload is the one surface where a scrub
+defect is unrecoverable, because the bytes are in four other repositories before
+anyone re-reads them. RC pulled a 50-file drop from four inboxes for exactly this
+reason after this project's own sweep found account names in 19 of 48 files.
+
+The attestation must name HOW the scrub was verified, not that it was, and the
+refusal must never echo the string it caught.
+
+TWO SIBLINGS HAVE ASKED THE CHANNEL FOR PROSE RATHER THAN SOURCE. The ruling
+stands for the channel as a whole; delivery is per-recipient, and nobody who
+asked not to receive bytes gets them.
+
+### FILED 2026-09-07 (session 73), on a measurement and an operator ruling that narrow this item
+
+**THE CREDIT IS NO LONGER UNVERIFIED, AND THE HONEST DISPOSITION IS SPLIT.** RC
+measured the delivered `MANIFEST.sha256` sitting in its own inbox: 69 rows,
+`sha256sum -c` reporting 69 of 69 OK days after delivery, with the only two
+unlisted files being the manifest itself and its covering note. So the ARTIFACT
+is verified and the PRODUCER still does not exist here - a reproducibility gap
+rather than a false credit. This project asked for the credit to be marked
+UNVERIFIED and has withdrawn that request. RC separately withdrew the inference
+it had drawn from the artifact, that this project keys its watcher on a manifest;
+it does not, and a sender-supplied manifest is never the key.
+
+**THE PREMISE NARROWED.** The operator ruled 2026-09-07 that prose only is this
+project's STANDING DEFAULT to the whole channel, not an LL-specific exception.
+Two siblings asked; the ruling covers all four. No verbatim payload is owed to
+anyone, and none will be sent unless a sibling asks for a specific named file.
+The reciprocation this item was opened to make safe is therefore not scheduled.
+
+**WHAT SURVIVES THAT.** The producer half still earns its place, because the
+artifact this project already shipped cannot be regenerated from this tree, and
+a per-file request is still an outbound payload with the same asymmetric risk.
+The scrub attestation and the planted-leak proof are unchanged. What is gone is
+the deadline.
+
+### Acceptance
+
+a tool emits the payload with a digest manifest and a scrub attestation naming HOW it was verified, CONSUMING CS-957's per-class verdict rather than re-deriving the refusal, and quoting its coverage table as the attestation body, proven by a planted leak
+
+
+## CS-951 - item section, relocated from `docs/item_notes/phase4-followups-900.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### FILED 2026-09-07 (session 73), on a measured channel failure
+
+A watcher reports what leaves ITS OWN inbox. A drop pulled from someone else's
+inbox is invisible to the puller by construction, and that is not hypothetical:
+on 2026-09-07 a sibling withdrew a payload from five inboxes, then cited it in
+two later notes, and no watcher on the channel said the bytes were gone. This
+project lost work to it - reasoning about a delivery it could not read and
+unable to tell "never arrived" from "arrived and was pulled" from the inside.
+The answer had to come from two other repositories reading their own disks.
+
+**CS-949 fixed the INBOUND half here and does not touch this one.** Every
+participant now reports what left its own inbox; nobody reports what they
+removed from someone else's. Four repositories have named this gap and none has
+proposed a mechanism.
+
+THE HARD PART IS NOT THE RECORD, IT IS OWNING THE DELIVERY. A record of what
+this repo sent is only as good as the guarantee that every delivery goes through
+the thing that writes it. A hand-run copy leaves no record, and a record with
+holes in it reports a withdrawal that never happened or misses one that did.
+
+### Acceptance
+
+a delivery made from here is recorded, and a later run REPORTS that a recorded delivery is no longer present at its destination, proven by an arm that delivers to a scratch destination, removes it, and goes RED if the run is silent
+
+### Full headline
+
+nobody watches their own OUTBOUND withdrawals, so a drop this repo pulls from a sibling's inbox is invisible to every watcher on the channel including this one - the RECORD half is built by CS-958; what remains is the RECONCILER
+
+
+## CS-865 - item section, relocated from `docs/item_notes/phase4-followups-850.md` 2026-11-19 on its fold into CS-829 (NOT A COMPLETION)
+
+### Filed 2026-08-30 (session 50), from the CS-829 adjudication
+
+**A FITTED BOUND WITH ZERO HEADROOM.** `_UNEXPLAINED_WORD_CEILING` is 1 and the library
+sits at exactly 1. Per version pair one subset alone gives 2. It is deliberately NOT
+skipped, and that decision is measured rather than assumed: skipping its excess was built
+and REVERTED in an earlier round because an in-process mutant refusing the weakest reading
+word at `objects._decode_struct_interior` is caught by that arm and NO OTHER, so the skip
+that spared the subset also spared a real defect.
+
+**WHAT THIS ITEM IS NOT.** It is not a request to raise the bound, and it is not a request
+to skip it. Both have been tried and both are recorded as wrong. It is a request to ground
+the per-word residue in evidence that does not depend on which saves the operator's library
+happens to hold at the moment the suite runs.
+
+### Acceptance
+
+the per-word residue is graded against evidence independent of which saves are present, so the bound survives every legitimate subset, proven by the existing subset re-aggregation covering this arm and reddening when a reading word is refused outright
+
+
 ## CS-800 - item section, relocated from `docs/item_notes/phase4-followups.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23

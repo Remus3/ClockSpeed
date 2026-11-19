@@ -91,13 +91,10 @@ CS-1152 - the save shard's most expensive test warns at both ends of the CS-900 
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-936 - the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-942 - the watcher runs only at `SessionStart`, which fires ONCE, so a note arriving mid-session is invisible until the next start - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-943 - `save_seen` returns nothing and an `OSError` on write escapes as a traceback out of a session-start hook, so a locked store crashes the watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-944 - ten test modules walk the tree with `rglob` and one excludes the worktree directory - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-945 - local branches hold single-copy work that is on no remote and one `git branch -D` from loss, and a sibling was told this was fixed - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-946 - charter v4 is ADOPTED and the `cs` lane slot ACCEPTED, reversing ADR-0017 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-947 - CAVEMAN ULTRA is ADOPTED and needs an adjudicated grant against the frozen `.claude/settings.json` plus a stated interaction with `CLAUDE.md` 2.3 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-948 - CS owes a reciprocal verbatim payload and has no manifest producer, and an unscrubbed outbound payload is unrecoverable once sent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-965 - four shipped `__repr__` methods render a QUANTITY derived from the player's save while withholding its bytes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-966 - CS-210's census claims to count the REGISTRY-PUBLISHED buildings, and two independent routes let that population drift from what `clockspeed/data/registry.py` actually publishes without any arm reddening - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-967 - a worker told to pay the whole suite locally reaches for `-n auto` and gets a RED tree that the push hook does not reproduce - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -151,11 +148,9 @@ CS-1144 - `docs/LEDGER.md` cites `.github/workflows/tier1.yml` by a line the wor
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-958 - the outbound gate graded nothing because nothing called it, and the channel had no sender at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-951 - nobody watches their own OUTBOUND withdrawals, so a drop this repo pulls from a sibling's inbox is invisible to every watcher on the channel including this one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-877 - no arm enumerates the shell's `insertCSS` call sites, so a second injection is invisible - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-876 - no caller reads the independent oracle's final offset, so a stale reading passes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-864 - the static seam arms in `tests/save/test_independent_table.py` scan syntax, not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-865 - `_UNEXPLAINED_WORD_CEILING` is a fitted bound with zero headroom and no skip - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-843 - an element region with no grammar is partitioned by the declared count alone - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-844 - an owner recorded against a shipped table is checked for the `CS-` prefix only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-847 - an ownership hand-off written as prose is invisible to the owner-id guard - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

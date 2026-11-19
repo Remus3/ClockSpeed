@@ -176,6 +176,16 @@ than repaired. `REPR_RAISING_HOLDERS` is one bidirectionally-pinned allowance, n
 
 no shipped assertion can render a save-derived name, a home path or an account directory into a failure report, proven by forcing a representative arm of each guarded module to FAIL and grepping the rendered output for a planted sensitive token, with the population DERIVED from the shipped assertions rather than listed
 
+### Recorded 2026-11-19 by wave 0 unit U-052.3: RELOCATE-PENDING under plan ruling D77, NOT A COMPLETION RECORD
+
+RELOCATE-PENDING, not moved: ruling D77 stops the echo-guard family by cost with ONE STOPPED BY COST record written in
+the wave after CS-860 lands (CS-860's parts are in waves 63 and 65 of the plan). UNMET CONDITIONS: CS-860 has not
+landed, and CS-850's one recorded live finding is not yet repaired or measured clean-on-content. D77 triggers that
+keep the row open: a personal-data value seen in a kept log or CI log through the assertion or locals channel;
+`addopts`, a hook or CI gaining `-l` or `--showlocals`; or CS-860 refuted or cut. OWNER of the move: the doc-sync
+slice of the wave after CS-860's second part lands, or the last process wave if CS-860 is refuted or cut (see the
+CS-860 section's NOTE of 2026-11-19); the row stays OPEN in `ROADMAP.md` and in the class record of CS-1406.
+
 
 ## CS-851
 
@@ -279,6 +289,14 @@ live-flagged scopes over 9 modules have no assert in scope, one of them
 ### Acceptance
 
 no shipped assertion's enclosing scope holds a save-derived name, a home path or an account directory in a local at the moment it fails, proven by FORCING a representative arm under `--showlocals` and grepping the RENDERED output for a planted token, with the population DERIVED from the shipped bindings rather than listed, and the check STAYING GREEN on a tree that has none
+
+### Recorded 2026-11-19 by wave 0 unit U-052.3: RELOCATE-PENDING under plan ruling D77, NOT A COMPLETION RECORD
+
+RELOCATE-PENDING, not moved: ruling D77, the same STOPPED BY COST record as CS-850 and the same preconditions. UNMET
+CONDITIONS: CS-860 has not landed, and CS-850's recorded live finding is not yet repaired or measured
+clean-on-content. The D77 triggers are CS-850's. OWNER of the move: the doc-sync slice of the wave after CS-860's
+second part lands, or the last process wave if CS-860 is refuted or cut (see the CS-860 section's NOTE of 2026-11-19);
+the row stays OPEN in `ROADMAP.md` and in the class record of CS-1406.
 
 
 ## CS-852
@@ -584,6 +602,14 @@ see `memory/a-proof-can-require-the-defect.md`.
 ### Acceptance
 
 no shipped fixture returns a value that renders a save-derived name, a home path or an account directory into a failure header, proven by FORCING a representative arm and grepping the rendered HEADER for a planted token, with the population DERIVED from the shipped fixture return annotations, and the check STAYING GREEN on a tree that has none
+
+### Recorded 2026-11-19 by wave 0 unit U-052.3: RELOCATE-PENDING under plan ruling D77, NOT A COMPLETION RECORD
+
+RELOCATE-PENDING, not moved: ruling D77, the unstarted tail of the echo-guard family, cut with CS-850 under the same
+record and preconditions. UNMET CONDITIONS: CS-860 has not landed, and CS-850's recorded live finding is not yet
+repaired or measured clean-on-content. The D77 triggers are CS-850's. OWNER of the move: the doc-sync slice of the
+wave after CS-860's second part lands, or the last process wave if CS-860 is refuted or cut (see the CS-860 section's
+NOTE of 2026-11-19); the row stays OPEN in `ROADMAP.md` and in the class record of CS-1406.
 
 
 ## CS-855
@@ -965,6 +991,16 @@ now misstate the raise form they describe.
 
 no shipped chained raise renders a home path, an account directory or a save-derived name into a DEFAULT traceback outside pytest, with the chained-raise sites DERIVED rather than listed or each recorded against a stated exemption, and every exemption reason calling the cause "deliberately never rendered" corrected
 
+### Recorded 2026-11-19 by wave 0 unit U-052.3: RELOCATE-PENDING under plan ruling D77, NOT A COMPLETION RECORD
+
+RELOCATE-PENDING, not moved: ruling D77 (and D127, IC-CS-858), stopped by cost with the conjunct kept word for word.
+UNMET CONDITION: one read-only verifier has not yet confirmed measured-leak 0 outside the frozen files at HEAD (any
+non-frozen measured-leak site is repaired first). Trigger that keeps the row open: an adjudicator ruling on a
+population that can see a callee raise. The line-pointer pin on `tests/test_redaction_scope.py` held inside THIS
+section does not move with U-052.3; it travels with the later D77 slice that moves this section. OWNER of the move:
+the doc-sync slice of the wave after CS-860's second part lands, or the last process wave if CS-860 is refuted or cut
+(see the CS-860 section's NOTE of 2026-11-19); the row stays OPEN in `ROADMAP.md` and in the class record of CS-1406.
+
 
 ## CS-858
 
@@ -1036,6 +1072,14 @@ one of them carries filed as CS-878. Do not widen this item to absorb them.
 ### Acceptance
 
 each of them either carries a stated exemption or is graded by the same runtime measurement `clockspeed/` gets, with the population DERIVED, and the frozen-file route through an adjudicator recorded before any edit
+
+### Recorded 2026-11-19 by wave 0 unit U-052.3: RELOCATE-PENDING under plan ruling D77, NOT A COMPLETION RECORD
+
+RELOCATE-PENDING, not moved: ruling D77 (and D127, IC-CS-858), cut with CS-857 and WAITS-DEP on it. UNMET CONDITION:
+CS-857's own precondition above. Trigger that keeps the row open: a frozen site is shown able to render a
+personal-data class, then the no-edit route, with any grant routed in that wave. OWNER of the move: the doc-sync slice
+of the wave after CS-860's second part lands, or the last process wave if CS-860 is refuted or cut (see the CS-860
+section's NOTE of 2026-11-19); the row stays OPEN in `ROADMAP.md` and in the class record of CS-1406.
 
 
 ## CS-859
@@ -1423,27 +1467,6 @@ the static seam arms in `tests/save/test_independent_table.py` scan syntax rathe
 ### Acceptance
 
 the arms grade what they claim or their claim is narrowed to what they grade, proven by mutants for the two-level reach and the `getattr` route that each redden
-
-
-## CS-865
-
-### Filed 2026-08-30 (session 50), from the CS-829 adjudication
-
-**A FITTED BOUND WITH ZERO HEADROOM.** `_UNEXPLAINED_WORD_CEILING` is 1 and the library
-sits at exactly 1. Per version pair one subset alone gives 2. It is deliberately NOT
-skipped, and that decision is measured rather than assumed: skipping its excess was built
-and REVERTED in an earlier round because an in-process mutant refusing the weakest reading
-word at `objects._decode_struct_interior` is caught by that arm and NO OTHER, so the skip
-that spared the subset also spared a real defect.
-
-**WHAT THIS ITEM IS NOT.** It is not a request to raise the bound, and it is not a request
-to skip it. Both have been tried and both are recorded as wrong. It is a request to ground
-the per-word residue in evidence that does not depend on which saves the operator's library
-happens to hold at the moment the suite runs.
-
-### Acceptance
-
-the per-word residue is graded against evidence independent of which saves are present, so the bound survives every legitimate subset, proven by the existing subset re-aggregation covering this arm and reddening when a reading word is refused outright
 
 
 ## CS-896
