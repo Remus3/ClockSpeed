@@ -117,6 +117,7 @@ def test_the_dev_world_pin_path_defaults_under_the_gitignored_data_directory(
         [git, "check-ignore", "-q", "--no-index", relative],
         cwd=repo_root,
         capture_output=True,
+        timeout=30,
         check=False,
     )
     assert ignored.returncode == 0
