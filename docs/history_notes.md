@@ -24359,3 +24359,71 @@ TIMING CARRY, the record's session_155 key: push exit 0, tip 0301c018, remote eq
 13 skipped, 1276.26 s; gate wait 0.003 s, hold 1277.847 s; wall 2282 s; scratch sweep exit 0, 141209 files
 to 4805, 36 directories to the Recycle Bin; tier1 41950432575 success.
 ```
+
+## Hand-off blocks - relocated from `CS-NEXT-SESSION.txt` 2026-11-19 by the session 159 /done, verbatim
+
+**Moved here when the session 159 /done took 3544 bytes out of the 24996-byte hand-off that session 159
+started from, to make room for its adoption of the session 159 master plan.** Nothing below is current.
+Each block is quoted verbatim inside a text fence, byte for byte as extracted; the first two fences keep
+their block's closing blank line. The full pre-relocation file is THE 159 BASE, the published commit
+69151dfb79c55c26fbd0ffd60c4c785d9843c772 (the session 158 /done's hand-off commit). The route - verbatim
+fences appended to this file, never the kit's archive step and never a new file - was ruled by a distinct
+adjudicator before the move; the commit that wrote this section records that ruling's decision, its
+alternatives and its reasons.
+
+### From the session 158 hand-off: SESSION 158 - CLOSED
+
+```text
+=== SESSION 158 - CLOSED (each with its docs/LEDGER.md record; ROADMAP lines removed, sections relocated) ===
+CS-1247, CS-1253: the lane's cycle landings, each NOT REFUTED by an adversary and LAND by a distinct adjudicator.
+CS-1400 UI-157's five majors, each red first; ui-auditor re-audit PASS (H2 and the flow mocked: unverified-live).
+CS-1394 belt, lift and pipeline rates from each class's shipped description (first build 0 of 4 pipes live; repair
+16 of 16). CS-1395 one exact plan edge per producer, item and consumer. CS-1360 the flow view's bottleneck by
+utilisation (solve/carry.py, in the trace; the label now "Flow"). CS-1390 the responder's tick writes one BUILD PIN
+DRIFT hand-off line the day the build differs. CS-484 verify_env grades the installed ruff against the declared
+range. GATED: CS-1362 as CS-G11 (docs/GATED.md). FILED by the lane: CS-1401. BACKLOG: six session 158 residuals.
+
+```
+
+### From the session 158 hand-off: THIS /done's REPORT (session 158)
+
+```text
+=== THIS /done's REPORT (session 158; step detail in its docs/LEDGER.md CS-1401 record) ===
+STEP 0: start 2026-11-16T15:34:12-06:00; window CLOSED; porcelain empty; HEAD equalled the remote by full SHA; no
+outbox note this session; nine records present (eight closes and the CS-1362 gate), none duplicated; highest tier 2.
+STEP 1 (.venv, serial, no whole suite): `python -m mypy` exit 0, 488 files; `python -m ruff check .` exit 0;
+`python -m ruff format --check .` exit 0, 471 files; pytest over tests/advisor, data, solve, surface, ops and three
+root test files exit 0, 7149 passed, 0 failed, 1 skipped (the off-Windows store twin), 411.9 s.
+STEPS 2 TO 4: LEDGER the CS-1401 /done record, which corrects the CS-1362 record's scope pointer (the CS-1360 close
+removed the product-slices scope); ROADMAP, GATED and leaves verified, no new id; WAKEUP 158 added, 155 relocated.
+STEP 5: drift_guard exit 0 (11 PASS); doc_budget exit 0 (41 measured, 0 over); memory_sync exit 0 (the held 156 D8
+finding); sha_citation_gate exit 0; 30 doc-test files, serial, exit 0, 4426 passed, 0 failed, 0 skipped.
+STEP 6: REAP 7 removed, 4 kept (three trees whose owner process was alive, the lane tree), 4 listed (8 commits not on
+main by patch: item 12); every branch kept.
+ARCHIVE: archive --auto skipped (under 27648 B); S0R3 carried.
+PUSH: push of this commit pending at write time; push result and CI UNREAD - the next session's first act reads the
+remote ref against this HEAD and the CI run (its pre-push suite is the ritual's one gated whole suite).
+UNVERIFIED: the mocked audit states above.
+
+```
+
+### From the session 158 hand-off: MAIN ORDERS AND TIMING CARRIED - R2, R3 and the TIMING lines
+
+```text
+R2. ORDER 2026-10-31-2215: CS-1361 closed, CS-1360 now closed, CS-1362 GATED as CS-G11 (its licence-clear candidate
+    runs on Node; CLAUDE.md section 7 "Python core" needs an operator ADR).
+R3. MAIN 0931: item 2 is CS-1390, now CLOSED; items 1, 3's check half and 4 are CS-1391 to CS-1393 (BACKLOG); item 5
+    and 3's relocation DONE; ANSWERED 2026-11-14 11:30.
+TIMING: session_157 (timing record): pre-push 19462 passed 15 skipped 1183.97 s, gate wait 1052.2 s (the lane held the
+tree's slot), hold 1186.5 s, tip 4b1ca1e3. SESSION 158 PUSHES: 222e3434
+(first BLOCKED: the global python's NodeId TypeError, CS-1387; retry 19500 passed), 306c06a3 (first BLOCKED by the
+provenance census on new test files, not a flake; retry 19589), 9fca83b6 19595, 2f83ff9d 19613, 46e4f877 19683,
+db41b8f0 19734 passed 15 skipped, each 1085-1206 s. origin/main db41b8f0 at this ritual's start, CI green.
+```
+
+### From the session 158 hand-off: OPEN ITEMS - item 13, the C14 RESIDUALS
+
+```text
+13 C14 RESIDUALS (S148 COPY, C14): A-S12a R1-R6, A-S10 R1-R4, A-DONE R1-R5, A-432 R1-R4, D-W2 - nothing to do: each
+   closed or measured 0; relocate, never delete.
+```
