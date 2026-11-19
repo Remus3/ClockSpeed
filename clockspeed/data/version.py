@@ -1005,10 +1005,41 @@ def rewrite_pin_source(source: str, payload: Mapping[str, Any]) -> str:
     return "\n".join([*lines[: begin + 1], render_pin_block(payload), *lines[end:]])
 
 
-#: Windows can hold a brief share-violation on a file another process just
-#: read, so the replace is retried rather than failing the whole re-extract.
-_RENAME_ATTEMPTS: Final = 5
+#: Windows denies a replace while another writer's replace holds the target, and
+#: a scanner can hold a file just closed, so a PermissionError is retried against
+#: a TIME budget. A count of attempts is not a budget: with the pause at zero, or
+#: under load, five attempts are spent in microseconds and the write fails.
+_RENAME_BUDGET_SECONDS: Final = 10.0
 _RENAME_PAUSE_SECONDS: Final = 0.05
+_RENAME_PAUSE_CAP_SECONDS: Final = 0.5
+
+
+def _read_pin_source(path: Path) -> str:
+    """Read the version module, retrying while a concurrent replace holds it.
+
+    The open of a file another writer is replacing is denied on Windows for an
+    instant, so a PermissionError is retried against the same time budget as
+    the replace. Every other OSError propagates at once.
+
+    Args:
+        path: The version module.
+
+    Returns:
+        Its text.
+
+    Raises:
+        OSError: The file could not be read within the budget.
+    """
+    deadline = time.monotonic() + _RENAME_BUDGET_SECONDS
+    attempt = 0
+    while True:
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            attempt += 1
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(min(_RENAME_PAUSE_SECONDS * attempt, _RENAME_PAUSE_CAP_SECONDS))
 
 
 def write_pin(path: Path, payload: Mapping[str, Any]) -> None:
@@ -1032,7 +1063,7 @@ def write_pin(path: Path, payload: Mapping[str, Any]) -> None:
             write here would be found later by a gate rather than now.
         OSError: The file could not be read, written or replaced.
     """
-    updated = rewrite_pin_source(path.read_text(encoding="utf-8"), payload)
+    updated = rewrite_pin_source(_read_pin_source(path), payload)
     data = updated.encode("ascii")
     # A NAME OF THIS CALL'S OWN, CREATED EXCLUSIVELY (CS-914). The temporary used
     # to be ``<name>.pin-tmp`` and opened truncating, so two writers of one module
@@ -1047,14 +1078,20 @@ def write_pin(path: Path, payload: Mapping[str, Any]) -> None:
             handle.close()
             temporary.unlink(missing_ok=True)
             raise
-    last: OSError | None = None
-    for attempt in range(_RENAME_ATTEMPTS):
-        try:
-            temporary.replace(path)
-        except OSError as exc:
-            last = exc
-            time.sleep(_RENAME_PAUSE_SECONDS * (attempt + 1))
-        else:
-            return
-    temporary.unlink(missing_ok=True)
-    raise last if last is not None else OSError("replace failed with no error recorded")
+    deadline = time.monotonic() + _RENAME_BUDGET_SECONDS
+    attempt = 0
+    landed = False
+    try:
+        while not landed:
+            try:
+                temporary.replace(path)
+            except PermissionError:
+                attempt += 1
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(min(_RENAME_PAUSE_SECONDS * attempt, _RENAME_PAUSE_CAP_SECONDS))
+            else:
+                landed = True
+    finally:
+        if not landed:
+            temporary.unlink(missing_ok=True)

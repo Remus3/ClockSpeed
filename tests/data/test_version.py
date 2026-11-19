@@ -818,6 +818,51 @@ def test_two_interleaved_pin_writes_both_succeed(
     assert sorted(path.name for path in tmp_path.iterdir()) == ["version.py"]
 
 
+def test_pin_replace_outlasts_a_denial_longer_than_five_attempts(
+    tmp_path: Path, synthetic_pin: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A replace denied many times in a row still lands: the budget is time, not a count."""
+    target = pin_target(tmp_path)
+    monkeypatch.setattr(version_module, "_RENAME_PAUSE_SECONDS", 0)
+    real_replace = Path.replace
+    denials = {"left": 25}
+
+    def denying_replace(self: Path, destination: Path) -> Path:
+        if self.name.endswith(".pin-tmp") and denials["left"] > 0:
+            denials["left"] -= 1
+            raise PermissionError(13, "denied")
+        return real_replace(self, destination)
+
+    monkeypatch.setattr(Path, "replace", denying_replace)
+    write_pin(target, synthetic_pin)
+
+    assert denials["left"] == 0, "the denials were never consumed, so nothing was graded"
+    assert extract_pin_block(target.read_text(encoding="utf-8")) == synthetic_pin
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["version.py"]
+
+
+def test_pin_read_outlasts_a_denial_while_another_writer_replaces(
+    tmp_path: Path, synthetic_pin: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The read of the module before the rewrite is denied for an instant mid-replace."""
+    target = pin_target(tmp_path)
+    monkeypatch.setattr(version_module, "_RENAME_PAUSE_SECONDS", 0)
+    real_read_text = Path.read_text
+    denials = {"left": 25}
+
+    def denying_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self == target and denials["left"] > 0:
+            denials["left"] -= 1
+            raise PermissionError(13, "denied")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", denying_read_text)
+    write_pin(target, synthetic_pin)
+
+    assert denials["left"] == 0, "the denials were never consumed, so nothing was graded"
+    assert extract_pin_block(real_read_text(target, encoding="utf-8")) == synthetic_pin
+
+
 def test_many_threads_writing_one_pin_all_succeed(
     tmp_path: Path, synthetic_pin: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
