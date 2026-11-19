@@ -112,6 +112,9 @@ TYPE_FIELDS: Final = 2
 #: width means the stream has desynchronised and every later read is garbage.
 BATCH_HEADER_FIELDS: Final = 3
 
+#: Fields before the tab in one ``git ls-tree`` entry: mode, type and object.
+LS_TREE_FIELDS: Final = 3
+
 BlobReader = Callable[[Sequence[str]], Iterable[tuple[str, bytes]]]
 Check = Callable[[str, str, bytes], list[str]]
 
@@ -287,6 +290,29 @@ def reachable_blobs() -> tuple[tuple[str, str], ...]:
         return ()
     blobs = {sha for sha, kind in _batch_check(sorted(named)) if kind == "blob"}
     return tuple(sorted((sha, named[sha]) for sha in blobs))
+
+
+@cache
+def tracked_blob_shas() -> tuple[str, ...]:
+    """The distinct blobs HEAD's tree names, the floor the walk must contain.
+
+    A blob stored at several paths is ONE object, so this can be shorter than
+    :func:`tracked_paths` (CS-1404). Submodule commits are not blobs and are
+    left out.
+
+    Returns:
+        The blob shas, sorted, each once.
+
+    Raises:
+        RuntimeError: Through :func:`_git`, when the tree cannot be listed.
+    """
+    listed = _git(["ls-tree", "-r", "-z", "HEAD"]).decode("utf-8", errors="replace")
+    shas: set[str] = set()
+    for entry in listed.split(chr(0)):
+        fields = entry.partition("\t")[0].split()
+        if len(fields) == LS_TREE_FIELDS and fields[1] == "blob":
+            shas.add(fields[2])
+    return tuple(sorted(shas))
 
 
 def reachable_blob_shas() -> tuple[str, ...]:

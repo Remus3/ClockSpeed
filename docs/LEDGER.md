@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1404 - CLOSED: the secret-sweep blob floor counts distinct tree blobs, not tracked paths, so a depth-1 checkout is green
+Verification: `tests/test_secret_sweep.py::test_the_blob_population_covers_at_least_the_tracked_tree` and
+`tests/secret_sweep_guard.py::tracked_blob_shas`.
+CAUSE. Tier1 run 44544008155 at 97ca1f8f0600ef9673688838cea652df360b98f8 failed only its fill shard, on this arm
+(assert 679 >= 680). The arm floored the reachable-blob walk on the `git ls-files` path count, but two paths with
+identical bytes are one object: kit v32 tracks `.github/workflows/fleet-identity-guard.yml` and
+`ops/fleet_kit/fleet_identity_guard.yml` as one blob, so a depth-1 checkout honestly reaches one blob fewer than it
+tracks paths. RED FIRST: the unchanged arm on a depth-1 clone of 97ca1f8f read the same 679 >= 680; the rewritten arm
+then failed on the missing helper. FIX. The floor is now every distinct blob HEAD's tree names (`git ls-tree -r`), each
+required inside the walk, plus a non-empty check. GREEN: `tests/test_secret_sweep.py` 13 passed on the depth-1 clone
+and 13 passed on full history; a planted walk missing one tree blob is caught. SIBLINGS: no other arm floors a blob
+count on a path count (`grep` over `tests/` for `len(tracked`). Recorded as a difference from THE PLAN: this repair
+ran ahead of wave 0 by the session 159 hand-off's next action 4, not by a plan unit.
+
 ### 2026-11-17 - CS-1403 - CLOSED: fleet kit v32 adopted - board opt-in per tree, server-side identity guard workflow
 Verification: `ops/fleet_kit/MANIFEST.json` sha256 cede0b7c8a80ca6ece410c07b572e4ac9dabe0bf7769d9c82d692bb1858c757d,
 version 32, its 25 files re-hashed equal to MAIN's 2026-11-16 19:47 ORDER note section 1;

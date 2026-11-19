@@ -931,18 +931,3 @@ Every later exit-nonzero row must cite failing ids from a log kept at the time; 
 from the end of its hold.
 The full row classification is kept gitignored in the data directory, CS-1366 classify file, sha256
 895b1b9e1a50b79c3fe31229099b8cafddea181318fd8bc7e6c89127df56c8ea.
-
-## CS-1404
-
-### Acceptance
-
-`tests/test_secret_sweep.py::test_the_blob_population_covers_at_least_the_tracked_tree` passes on a depth-1
-checkout of a tree that tracks one blob at two paths, and still fails when the walk misses a blob HEAD's
-tree names. It is red first on a depth-1 clone of 97ca1f8f, for the right reason (679 blobs against 680
-paths). Tier1 on the push that carries the fix is read back by the next session's first act, never assumed.
-
-### Filed 2026-11-19 by the session 160 next action 4
-
-Tier1 run 44544008155 at 97ca1f8f: fill shard failed only this arm (1 failed, 1573 passed); the other five
-jobs passed. The arm floored the blob walk on `git ls-files` path count, but the identity-guard workflow and
-its kit source are one blob at two paths, so a depth-1 checkout reaches one blob fewer than it tracks paths.

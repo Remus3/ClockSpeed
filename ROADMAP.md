@@ -359,4 +359,3 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1404 - tier1 fill shard is red: the secret-sweep blob floor counts tracked paths, and kit v32 tracks one blob at two paths - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

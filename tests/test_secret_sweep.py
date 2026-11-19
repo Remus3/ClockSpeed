@@ -267,11 +267,15 @@ def test_no_reachable_blob_carries_a_byte_outside_the_charset_rule() -> None:
 def test_the_blob_population_covers_at_least_the_tracked_tree() -> None:
     """Anti-vacuity for the blob leg, floored on a population git must reach.
 
-    Every tracked file's current content is a blob reachable from HEAD, so the
-    blob count can never honestly fall below the tracked-file count - and a
-    walk that returned nothing fails here rather than rendering clean.
+    Every blob in HEAD's tree is reachable from HEAD, so the walk must contain
+    each one - and a walk that returned nothing fails here rather than
+    rendering clean. CS-1404: the floor is the tree's DISTINCT blobs, never
+    its path count. Two paths with identical bytes are one object (kit v32
+    vendors one workflow at two paths), so on a depth-1 checkout the walk
+    honestly reaches fewer blobs than there are tracked paths.
     """
-    blobs = sweep.reachable_blobs()
-    tracked = sweep.tracked_paths()
+    reachable = set(sweep.reachable_blob_shas())
+    floor = set(sweep.tracked_blob_shas())
 
-    assert len(blobs) >= len(tracked), (len(blobs), len(tracked))
+    assert floor, "HEAD's tree names no blob; the floor would be vacuous"
+    assert floor - reachable == set(), sorted(floor - reachable)
