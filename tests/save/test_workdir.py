@@ -45,10 +45,11 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final
+from typing import Any, Final
 
 import pytest
 
@@ -2182,6 +2183,26 @@ def plant_link_at(name: Path, kind: str, save_file: Path, account: Path) -> None
         pytest.skip(f"this platform will not create a {kind} here: {type(exc).__name__}")
 
 
+#: The token the partial-name tests pin, so they can plant an entry at the very
+#: name the next copy will stage to. The shipped token is random per copy
+#: (CS-914), which is what stops a hostile or stale entry being waiting there;
+#: pinning it is the only way to put one there on purpose.
+PINNED_STAGE_ID: Final = "0123456789abcdef0123456789abcdef"
+
+
+@pytest.fixture
+def pinned_partial_token(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Make every copy in the test stage to one known partial name."""
+    monkeypatch.setattr(workdir, "_partial_token", lambda: PINNED_STAGE_ID)
+    return PINNED_STAGE_ID
+
+
+def partial_name_for(copies: Path, source: Path) -> Path:
+    """The partial a copy of ``source`` stages to while the token is pinned."""
+    return copies / f"{source.stem}.{PINNED_STAGE_ID}{workdir.COPY_SUFFIX}{workdir.PARTIAL_SUFFIX}"
+
+
+@pytest.mark.usefixtures("pinned_partial_token")
 @pytest.mark.parametrize("kind", ["hardlink", "symlink", "dangling-symlink", "junction"])
 def test_a_link_left_at_the_partial_name_is_removed_not_written_through(
     pretend_save_root: Path,
@@ -2191,23 +2212,26 @@ def test_a_link_left_at_the_partial_name_is_removed_not_written_through(
     monkeypatch: pytest.MonkeyPatch,
     kind: str,
 ) -> None:
-    """A link planted at the predictable partial name is unlinked, never followed (CS-1312).
+    """A link planted at the partial name is unlinked, never followed (CS-1312).
 
-    The copy streams to ``<stem>.copy.sav.partial`` before renaming it into
-    place, and that name is predictable. Measured by the fix-round-2 landing
-    check: a hard link or a symlink already sitting there was FOLLOWED by the
-    write open - the save it reached was truncated and overwritten - and a
-    dangling symlink created its target in the save directory. The leftover is
-    now removed AS A LINK before the stream, so the copy SUCCEEDS into a fresh
-    partial file and nothing behind the link is touched. Every file under the
-    pretend save root is asserted byte-identical BEFORE the outcome.
+    The copy streams to a partial before renaming it into place. The name was
+    predictable until CS-914 and is random per copy now, so the token is PINNED
+    here to put an entry where the next copy will stage - the defence in depth
+    that stays if the token source is ever weakened. Measured by the
+    fix-round-2 landing check: a hard link or a symlink already sitting there
+    was FOLLOWED by the write open - the save it reached was truncated and
+    overwritten - and a dangling symlink created its target in the save
+    directory. The leftover is now removed AS A LINK before the stream, so the
+    copy SUCCEEDS into a fresh partial file and nothing behind the link is
+    touched. Every file under the pretend save root is asserted byte-identical
+    BEFORE the outcome.
     """
     monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
     monkeypatch.setenv(ENV_ACCOUNT_DIR, str(pretend_account_dir))
     victim, save_file = plant_save_directory(pretend_account_dir)
     copies = work / workdir.COPIES_DIR_NAME
     copies.mkdir(parents=True)
-    partial = copies / (pretend_source.stem + workdir.COPY_SUFFIX + workdir.PARTIAL_SUFFIX)
+    partial = partial_name_for(copies, pretend_source)
     plant_link_at(partial, kind, save_file, pretend_account_dir)
     before = hashes_under(pretend_save_root)
 
@@ -2249,6 +2273,7 @@ SURVIVING_ENTRIES: Final[Mapping[str, str | None]] = MappingProxyType(
 )
 
 
+@pytest.mark.usefixtures("pinned_partial_token")
 @pytest.mark.parametrize("kind", list(SURVIVING_ENTRIES))
 def test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_through(
     pretend_save_root: Path,
@@ -2270,10 +2295,9 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_thr
     the classification reads the link itself, not what it reaches. The plain
     directory is the one entry NOT refused by that check, by design: no open
     can write through it, so it must STILL reach the open and fail there, in
-    the handler ``tests/test_chained_cause.py`` forces through this same
-    shape - a refusal that swallowed it too would leave that arm grading
-    something else. Every file under the pretend save root is asserted
-    byte-identical, with none new, BEFORE the verdict.
+    the destination-open handler - a refusal that swallowed it too would
+    leave that arm grading something else. Every file under the pretend save
+    root is asserted byte-identical, with none new, BEFORE the verdict.
     """
     link_kind = SURVIVING_ENTRIES[kind]
     if link_kind is not None and os.chmod not in os.supports_follow_symlinks:
@@ -2284,7 +2308,7 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_thr
     copies = work / workdir.COPIES_DIR_NAME
     copies.mkdir(parents=True)
     final = copies / (pretend_source.stem + workdir.COPY_SUFFIX)
-    partial = final.with_name(final.name + workdir.PARTIAL_SUFFIX)
+    partial = partial_name_for(copies, pretend_source)
     if link_kind is None:
         partial.mkdir()
     else:
@@ -2303,9 +2327,9 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_thr
         except workdir.DestinationRefusedError:
             refusal = "refused as a destination"
         except workdir.SourceUnreadableError:
-            refusal = "failed at the open"
+            refusal = "blamed the source"
         except workdir.WorkDirError:
-            refusal = "failed elsewhere"
+            refusal = "failed at the destination open"
         else:
             refusal = "went ahead"
         after = hashes_under(pretend_save_root)
@@ -2313,9 +2337,9 @@ def test_an_entry_that_survives_removal_at_the_partial_name_is_never_written_thr
         release_planted_links(partial, final)
 
     assert after == before, "the save directory changed"
-    # The source here is readable, so the source error can only come from the
-    # handler around the open - the route the chained-cause guard forces.
-    expected = "failed at the open" if link_kind is None else "refused as a destination"
+    # The source here is readable, so a failure at the open is the DESTINATION's
+    # and is reported as one, never as an unreadable source (CS-914).
+    expected = "failed at the destination open" if link_kind is None else "refused as a destination"
     assert refusal == expected, "the entry left at the partial name was not handled as designed"
 
 
@@ -2388,6 +2412,7 @@ def test_the_lstat_denial_takes_every_keyword_the_real_lstat_takes(
         assert os.path.samestat(relative, expected), "a real dir_fd did not reach the real lstat"
 
 
+@pytest.mark.usefixtures("pinned_partial_token")
 @pytest.mark.parametrize("kind", ["symlink", "dangling-symlink"])
 def test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused(
     pretend_save_root: Path,
@@ -2414,7 +2439,7 @@ def test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused(
     _victim, save_file = plant_save_directory(pretend_account_dir)
     copies = work / workdir.COPIES_DIR_NAME
     copies.mkdir(parents=True)
-    partial = copies / (pretend_source.stem + workdir.COPY_SUFFIX + workdir.PARTIAL_SUFFIX)
+    partial = partial_name_for(copies, pretend_source)
     plant_link_at(partial, kind, save_file, pretend_account_dir)
     refuse(monkeypatch, "unlink", partial)
     deny_stat_of(monkeypatch, partial)
@@ -2432,6 +2457,276 @@ def test_an_entry_at_the_partial_name_whose_lstat_is_denied_is_refused(
     after = hashes_under(pretend_save_root)
     assert after == before, "the save directory changed"
     assert refusal == "refused as a destination", "an entry that would not stat was not refused"
+
+
+# ===========================================================================
+# Concurrent copies (CS-914)
+# ===========================================================================
+#
+# The copy used to stage through a partial whose name was a pure function of
+# the destination and to open it truncating, so two copies of one save - two
+# dashboard requests, or two processes sharing a work root - shared one file.
+# Each arm below interleaves two copies on purpose and fails on that shape.
+
+#: A block small enough that the synthetic save streams in several reads, so a
+#: copy can be stopped part-way through its source.
+INTERLEAVE_BLOCK_BYTES: Final = 64
+
+
+class PausingReader:
+    """A source handle that runs one callback after its first block, then carries on.
+
+    Stands in for the read handle of ONE copy. The callback runs while that
+    copy is part-way through the source, which is exactly the window a second
+    copy of the same save has to land in. Single-threaded on purpose: the
+    interleaving is then the same every run, where a thread race is not.
+    """
+
+    def __init__(self, inner: Any, between: Callable[[], None]) -> None:
+        """Wrap ``inner``; ``between`` runs once, after its first block is read."""
+        self._inner = inner
+        self._between = between
+        self._fired = False
+
+    def __enter__(self) -> PausingReader:
+        """Enter as the wrapped handle does."""
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        """Close the wrapped handle."""
+        self._inner.close()
+
+    def read(self, size: int = -1) -> bytes:
+        """Read from the wrapped handle, pausing the copy once after the first block."""
+        block: bytes = self._inner.read(size)
+        if block and not self._fired:
+            self._fired = True
+            self._between()
+        return block
+
+
+def interleave_two_copies(
+    source: Path, work: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, object]:
+    """Copy ``source`` twice, the second copy running whole inside the first.
+
+    Returns:
+        ``first`` and ``second``, each the copy's path or the WorkDirError it
+        raised, and ``before`` and ``after``, the destination's bytes (or None)
+        as the second copy started and finished. ``second`` is absent when the
+        interleave never fired.
+    """
+    monkeypatch.setattr(workdir, "_COPY_BLOCK_BYTES", INTERLEAVE_BLOCK_BYTES)
+    destination = work / workdir.COPIES_DIR_NAME / (source.stem + workdir.COPY_SUFFIX)
+    outcomes: dict[str, object] = {}
+    opened = {"count": 0}
+    real_open = Path.open
+
+    def run_second() -> None:
+        outcomes["before"] = destination.read_bytes() if destination.is_file() else None
+        try:
+            outcomes["second"] = workdir.copy_for_read(source, work_root=work)
+        except workdir.WorkDirError as exc:
+            outcomes["second"] = exc
+        outcomes["after"] = destination.read_bytes() if destination.is_file() else None
+
+    def spying_open(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        handle = real_open(self, mode, *args, **kwargs)
+        if mode == "rb" and self.name == source.name and not opened["count"]:
+            opened["count"] += 1
+            return PausingReader(handle, run_second)
+        return handle
+
+    monkeypatch.setattr(Path, "open", spying_open)
+    try:
+        outcomes["first"] = workdir.copy_for_read(source, work_root=work)
+    except workdir.WorkDirError as exc:
+        outcomes["first"] = exc
+    monkeypatch.setattr(Path, "open", real_open)
+    return outcomes
+
+
+@pytest.mark.parametrize("seeded", [False, True], ids=["no-earlier-copy", "earlier-copy-in-place"])
+def test_two_interleaved_copies_both_succeed_and_publish_the_whole_save(
+    pretend_source: Path, work: Path, monkeypatch: pytest.MonkeyPatch, seeded: bool
+) -> None:
+    """A copy begun while another is part-way through neither fails nor publishes a stub.
+
+    The second copy runs to completion inside the first, one block into its
+    read. Every observation is of the whole save: the destination before the
+    second copy, after it, and after the first finishes. ``seeded`` puts an
+    earlier full copy at the destination first, so the destination is never
+    absent and a truncating open would show as a short file rather than a
+    missing one.
+    """
+    whole = pretend_source.read_bytes()
+    if seeded:
+        workdir.copy_for_read(pretend_source, work_root=work)
+    outcomes = interleave_two_copies(pretend_source, work, monkeypatch)
+
+    fired = "second" in outcomes
+    assert fired, "the interleave never fired, so nothing was graded"
+    for name in ("second", "first"):
+        outcome = outcomes[name]
+        completed = isinstance(outcome, Path)
+        assert completed, f"the {name} copy failed with {type(outcome).__name__}"
+        assert isinstance(outcome, Path)
+        assert outcome.read_bytes() == whole, f"the {name} copy is not the whole save"
+    assert outcomes["before"] in (None, whole), "a truncated destination was visible mid-copy"
+    assert outcomes["after"] == whole, "the second copy published something else than the save"
+    leftovers = sorted(p.name for p in (work / workdir.COPIES_DIR_NAME).glob("*.partial"))
+    assert leftovers == [], "a partial was left behind"
+
+
+def test_many_threads_copying_one_save_all_succeed(
+    pretend_source: Path, work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same property under real threads, as the dashboard's request threads run it.
+
+    NOT the proof - a thread race is not repeatable, which is why the
+    interleave above is single-threaded. This is the sibling that shows the
+    property holds where the race is real, rather than only on a staged one.
+    """
+    monkeypatch.setattr(workdir, "_COPY_BLOCK_BYTES", INTERLEAVE_BLOCK_BYTES)
+    whole = pretend_source.read_bytes()
+    threads = 8
+    rounds = 6
+    barrier = threading.Barrier(threads)
+    results: list[object] = []
+
+    def worker() -> None:
+        for _ in range(rounds):
+            barrier.wait(timeout=60)
+            try:
+                results.append(workdir.copy_for_read(pretend_source, work_root=work))
+            except workdir.WorkDirError as exc:
+                results.append(exc)
+
+    pool = [threading.Thread(target=worker) for _ in range(threads)]
+    for thread in pool:
+        thread.start()
+    for thread in pool:
+        thread.join(timeout=120)
+
+    assert len(results) == threads * rounds, "a worker did not finish"
+    failures = sorted({type(r).__name__ for r in results if not isinstance(r, Path)})
+    assert failures == [], f"concurrent copies failed with {failures}"
+    wrong_count = sum(1 for r in results if isinstance(r, Path) and r.read_bytes() != whole)
+    assert wrong_count == 0, "a concurrent copy handed back something else than the save"
+    leftovers = sorted(p.name for p in (work / workdir.COPIES_DIR_NAME).glob("*.partial"))
+    assert leftovers == [], "a partial was left behind"
+
+
+#: The copies the test below makes, and so the write-intent opens it expects.
+COPIES_MADE: Final = 2
+
+
+def test_two_copies_of_one_save_open_two_different_partials(
+    pretend_source: Path, work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each copy stages to a name of its own, one write-intent open apiece.
+
+    The unique name is what keeps two copies apart: the open is a plain
+    create-or-truncate, so a shared name is exactly the shared file this item
+    removed. The records are of every write-intent open the two copies make.
+    """
+    real_open = Path.open
+    opened: list[tuple[str, str]] = []
+
+    def recording_open(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if set(mode) & set("wax+"):
+            opened.append((self.name, mode))
+        return real_open(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", recording_open)
+    workdir.copy_for_read(pretend_source, work_root=work)
+    workdir.copy_for_read(pretend_source, work_root=work)
+
+    assert len(opened) == COPIES_MADE, "each copy opens exactly one file for write"
+    assert len({name for name, _mode in opened}) == COPIES_MADE, "two copies shared a partial"
+    suffix = workdir.COPY_SUFFIX + workdir.PARTIAL_SUFFIX
+    assert all(name.endswith(suffix) for name, _mode in opened), "a partial lost its suffix"
+
+
+def test_the_partial_token_is_unpredictable_and_never_repeats() -> None:
+    """Many tokens, no repeat, and enough width that guessing one is not a plan."""
+    tokens = [workdir._partial_token() for _ in range(256)]  # noqa: SLF001
+
+    assert len(set(tokens)) == len(tokens), "a token repeated"
+    assert all(re.fullmatch(r"[0-9a-f]{32}", token) for token in tokens), "a token is too narrow"
+
+
+def test_purge_removes_a_partial_a_crashed_copy_left_under_its_own_name(
+    pretend_source: Path, work: Path
+) -> None:
+    """A unique partial is swept like any other, so a crash leaves nothing permanent.
+
+    Unique names stop an interrupted copy being overwritten by the next one,
+    which is what used to tidy it. The purge has to be what removes it now.
+    """
+    copies = work / workdir.COPIES_DIR_NAME
+    copies.mkdir(parents=True)
+    leftover = partial_name_for(copies, pretend_source)
+    leftover.write_bytes(b"half a copy")
+
+    removed = workdir.purge_work_dir(work_root=work)
+
+    assert removed == 1, "the purge missed the leftover partial"
+    assert not leftover.exists(), "the leftover partial is still there"
+
+
+def test_a_failure_to_open_the_destination_is_not_reported_as_an_unreadable_source(
+    pretend_source: Path, work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The source is fine and the destination will not open: say so (CS-914).
+
+    The one handler around the stream said "source unreadable" for every
+    failure inside it, and the dashboard's provider collapses that to a world
+    that does not exist - so the operator was told a fact about their save
+    that was a fact about this directory. Nothing is left behind and the
+    message still carries no path. A failure to WRITE a block is the stated
+    residual and has no arm: it shares a census key with the open's raise.
+    """
+    real_open = Path.open
+
+    def denied_open(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if self.name.endswith(workdir.PARTIAL_SUFFIX):
+            raise PermissionError(errno.EACCES, "Access is denied", str(self))
+        return real_open(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", denied_open)
+    with pytest.raises(workdir.WorkDirError) as caught:
+        workdir.copy_for_read(pretend_source, work_root=work)
+
+    blamed_the_source = isinstance(caught.value, workdir.SourceUnreadableError)
+    assert not blamed_the_source, "a destination failure was reported as an unreadable source"
+    message = str(caught.value)
+    assert PRETEND_ACCOUNT not in message, "the message leaks the account directory"
+    assert "\\" not in message, "the message was not passed through redact()"
+    cause = caught.value.__cause__
+    assert getattr(cause, "filename", None) is None, "the cause still carries the path"
+    monkeypatch.setattr(Path, "open", real_open)
+    assert sorted(p.name for p in (work / workdir.COPIES_DIR_NAME).iterdir()) == []
+
+
+def test_a_failure_to_read_the_source_is_still_reported_as_an_unreadable_source(
+    pretend_source: Path, work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control for the two arms above: the source's own failure keeps its own name.
+
+    Without it, those arms would be satisfied by a handler that stopped saying
+    "source" at all.
+    """
+    real_open = Path.open
+
+    def denied_open(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if mode == "rb" and self.name == pretend_source.name:
+            raise PermissionError(errno.EACCES, "Access is denied", str(self))
+        return real_open(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", denied_open)
+    with pytest.raises(workdir.SourceUnreadableError):
+        workdir.copy_for_read(pretend_source, work_root=work)
 
 
 # ===========================================================================
@@ -2985,6 +3280,32 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
             "writes two files into tmp_path and opens tmp_path itself as a "
             "directory descriptor, to lstat those files through the CS-1331 "
             "stand-in, never a save directory "
+        ),
+        "interleave_two_copies": (
+            "replaces Path.open to pause one copy part-way and run a second inside it; "
+            "the source and work root are files this test built under tmp_path, and the "
+            "replacement hands every open on to the real method "
+        ),
+        "test_a_failure_to_open_the_destination_is_not_reported_as_an_unreadable_source": (
+            "replaces Path.open so the copy's partial refuses to open, on a source and "
+            "work root built under tmp_path; other opens are handed on to the real "
+            "method "
+        ),
+        "test_a_failure_to_read_the_source_is_still_reported_as_an_unreadable_source": (
+            "replaces Path.open so the synthetic source refuses to open, a file this "
+            "test wrote under tmp_path; other opens are handed on to the real method "
+        ),
+        "test_many_threads_copying_one_save_all_succeed": (
+            "copies a synthetic save this test wrote under tmp_path from several "
+            "threads into a work root under tmp_path, and reads the copies back "
+        ),
+        "test_two_copies_of_one_save_open_two_different_partials": (
+            "records the write-intent opens of two copies of a synthetic save this test "
+            "wrote under tmp_path; the opens are handed on to the real method "
+        ),
+        "test_two_interleaved_copies_both_succeed_and_publish_the_whole_save": (
+            "copies a synthetic save this test wrote under tmp_path twice into a work "
+            "root under tmp_path, and reads the destination back "
         ),
         "test_workdir_is_the_only_save_module_that_can_write": (
             "globs THIS REPO's own clockspeed/save sources to prove no "

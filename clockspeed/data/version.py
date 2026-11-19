@@ -1,8 +1,7 @@
 """The game build pin, the docs content hash, and the pin's own integrity field.
 
-`CLAUDE.md` section 4 names this file the owner of the game build pin and the
-content hash. Nothing else in the project restates a build string or a docs
-hash; a restated fact is a fact that will drift.
+`CLAUDE.md` section 4 names this file the owner of the game build pin and the content hash.
+Nothing else restates a build string or a docs hash; a restated fact is a fact that will drift.
 
 WHY THE PIN CARRIES A CHECKSUM OVER ITS OWN FIELDS
 --------------------------------------------------
@@ -49,6 +48,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import re
 import time
 from collections import Counter
@@ -1034,8 +1034,19 @@ def write_pin(path: Path, payload: Mapping[str, Any]) -> None:
     """
     updated = rewrite_pin_source(path.read_text(encoding="utf-8"), payload)
     data = updated.encode("ascii")
-    temporary = path.with_name(path.name + ".pin-tmp")
-    temporary.write_bytes(data)
+    # A NAME OF THIS CALL'S OWN, CREATED EXCLUSIVELY (CS-914). The temporary used
+    # to be ``<name>.pin-tmp`` and opened truncating, so two writers of one module
+    # shared it: the second's write landed on the first's bytes and the first's
+    # rename then found its source already moved. Random bytes rather than a pid
+    # or a clock, because neither is unique across two processes.
+    temporary = path.with_name(f"{path.name}.{os.urandom(8).hex()}.pin-tmp")
+    with temporary.open("xb") as handle:
+        try:
+            handle.write(data)
+        except OSError:
+            handle.close()
+            temporary.unlink(missing_ok=True)
+            raise
     last: OSError | None = None
     for attempt in range(_RENAME_ATTEMPTS):
         try:

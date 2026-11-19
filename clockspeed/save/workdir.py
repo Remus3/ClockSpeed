@@ -110,10 +110,10 @@ COPIES_DIR_NAME = "saves"
 # mistaken for one of ours.
 COPY_SUFFIX = ".copy.sav"
 
-# A partially written copy. Never handed to a caller: the copy is streamed to
-# this name and renamed into place, so a reader never sees a half-written file
-# (CLAUDE.md non-negotiable 5 - atomic writes for anything another process may
-# read).
+# A partially written copy, staged under a name of its own (CS-914) and never
+# handed to a caller: it is renamed into place, so a reader never sees a
+# half-written file (CLAUDE.md non-negotiable 5 - atomic writes for anything
+# another process may read).
 PARTIAL_SUFFIX = ".partial"
 
 SAVE_SUFFIX = ".sav"
@@ -588,10 +588,16 @@ def _make_dir(path: Path) -> None:
 def _stream_copy(source: Path, destination: Path) -> int:
     """Copy bytes from ``source`` to ``destination``. THE ONLY WRITE.
 
-    The source is opened ``rb`` and the destination ``wb`` - binary both ways,
-    because a save is binary and a text-mode copy would rewrite every 0x0A on
-    Windows. The source handle is acquired first, so a missing or locked source
-    fails before the destination is created rather than after.
+    Binary both ways: text mode rewrites every 0x0A on Windows. The source opens first, so a
+    missing one fails before the destination exists. A failure to OPEN the DESTINATION raises
+    :class:`WorkDirError` here, so the caller's handler, which blames
+    the source for any OSError it sees, never reports it as an unreadable source (CS-914).
+    The open is a plain create-or-truncate on a name no other copy shares, so it needs no lock.
+
+    RESIDUAL, stated rather than claimed away: a failure while WRITING a block - a full disk -
+    is not told apart from a failed read here, so it still reaches the caller's source handler.
+    Telling them apart takes a second raise site with the same census key as the open's, which
+    the chained-cause census refuses, so it is left for an item that owns that census.
 
     Args:
         source: The file to read.
@@ -599,15 +605,22 @@ def _stream_copy(source: Path, destination: Path) -> int:
 
     Returns:
         The number of bytes copied.
+
+    Raises:
+        WorkDirError: The destination would not open.
     """
     copied = 0
-    with source.open("rb") as reader, destination.open("wb") as writer:
-        while True:
-            block = reader.read(_COPY_BLOCK_BYTES)
-            if not block:
-                break
-            writer.write(block)
-            copied += len(block)
+    with source.open("rb") as reader:
+        try:
+            writer = destination.open("wb")
+        except OSError as exc:
+            raise WorkDirError(
+                f"cannot open the copy for writing: errno {exc.errno}"
+            ) from _pathless_cause(exc)
+        with writer:
+            while block := reader.read(_COPY_BLOCK_BYTES):
+                writer.write(block)
+                copied += len(block)
     return copied
 
 
@@ -656,19 +669,6 @@ def _remove_quietly(path: Path) -> bool:
 
 
 # --- the public surface -----------------------------------------------------
-
-
-def _mtime_ns(path: Path) -> int:
-    """Return a modification time in nanoseconds, or 0 for anything unreadable.
-
-    Nanoseconds rather than the float seconds ``locate`` uses, because two
-    saves written in the same second are ordinary and a whole-second field
-    cannot tell them apart.
-    """
-    try:
-        return path.stat().st_mtime_ns
-    except OSError:
-        return 0
 
 
 def _save_files(directory: Path) -> SaveListing:
@@ -730,6 +730,19 @@ def _save_files(directory: Path) -> SaveListing:
         if S_ISREG(mode):
             found.append(entry)
     return SaveListing(tuple(found), tuple(problems))
+
+
+def _mtime_ns(path: Path) -> int:
+    """Return a modification time in nanoseconds, or 0 for anything unreadable.
+
+    Nanoseconds rather than the float seconds ``locate`` uses, because two
+    saves written in the same second are ordinary and a whole-second field
+    cannot tell them apart.
+    """
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return 0
 
 
 def ranked_saves(
@@ -814,6 +827,25 @@ def latest_save(
     return ranked[0] if ranked else None
 
 
+def _partial_token() -> str:
+    """Return a fresh token for ONE copy's partial name: 128 random bits as hex.
+
+    WHY A TOKEN AT ALL (CS-914). The partial's name used to be a pure function
+    of the destination and its open truncated, so two copies of one save - two
+    dashboard request threads, or two processes sharing a work root - wrote one
+    file, and the second's cleanup, rename or truncation landed on the first's
+    bytes, on the default path. A name of its own per copy removes the shared
+    file rather than making the
+    collision unlikely, and an unguessable one is also what a planted link
+    cannot be waiting at. Random bytes rather than a counter, a pid or a clock,
+    because none of those is unique across two processes.
+
+    Returns:
+        32 lowercase hex digits.
+    """
+    return os.urandom(16).hex()
+
+
 def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     """Copy a save into the work directory and return the copy's path.
 
@@ -837,8 +869,10 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
             not be read through.
         DestinationRefusedError: The copy would land inside the save root, the
             account directory or the game install.
-        WorkDirError: The work directory could not be created, or the finished
-            copy could not be renamed into place.
+        WorkDirError: The work directory could not be created, the copy could
+            not be written there, or the finished copy could not be renamed
+            into place. A failure on the destination's side is never reported
+            as an unreadable source (CS-914).
     """
     resolved_source = _readable_source(source)
     copies = _copies_dir(_resolve_work_root(work_root))
@@ -851,13 +885,18 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     _refuse_if_forbidden(copies)
 
     destination = copies / (resolved_source.stem + COPY_SUFFIX)
-    partial = destination.with_name(destination.name + PARTIAL_SUFFIX)
+    # A NAME OF THIS COPY'S OWN (CS-914). Two copies of one save used to stage
+    # through one shared partial, so one's cleanup, rename or truncation landed
+    # on the other's bytes. The token also leaves no name for anything to be
+    # waiting at, which is what the plain create-or-truncate open relies on.
+    partial = copies / f"{resolved_source.stem}.{_partial_token()}{COPY_SUFFIX}{PARTIAL_SUFFIX}"
 
     # A LINK LEFT AT THE PARTIAL NAME IS REMOVED, NEVER WRITTEN THROUGH
-    # (CS-1312 fix rounds 2 to 4). The name is predictable and the open below
-    # is a plain create-or-truncate that follows links, so a hard link or a
-    # symlink already sitting here pointed the write - and its truncation - at
-    # the file it reached, and a dangling symlink created its target. The one
+    # (CS-1312 fix rounds 2 to 4), now DEFENCE IN DEPTH behind the token: when
+    # the name was predictable and the open a create-or-truncate that follows
+    # links, a hard link or a symlink already sitting here pointed the write -
+    # and its truncation - at the file it reached, and a dangling symlink
+    # created its target. The one
     # remove call unlinks the ENTRY itself, measured on Windows to remove a
     # hard link, a live or dangling symlink, a junction and a directory symlink
     # without touching what each reached. It does NOT remove everything: a
@@ -868,13 +907,10 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     # here, before any open - including an entry whose lstat is denied, which
     # ``os.path.lexists`` had reported as absent. A plain directory is let
     # through because no open can write through it: the open fails on it and
-    # copy_for_read's own handler reports that, the route the chained-cause
-    # guard forces to measure that handler.
+    # _stream_copy reports that as a failure of the destination.
     # RESIDUAL, in the J9 class: a hostile process re-planting a link between
-    # this check and the open is still followed. An exclusive create would not
-    # close that alone - measured on Windows, an exclusive create refuses a
-    # live symlink and a hard link but FOLLOWS a dangling symlink and creates
-    # its target - and this open's mode is pinned by the write-surface test.
+    # this check and the open, at a name it would first have to guess. The open
+    # follows links, so the 128 random bits in the name are what close that.
     _remove_quietly(partial)
     if _left_at(partial):
         raise DestinationRefusedError(
@@ -886,6 +922,11 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
 
     try:
         _stream_copy(resolved_source, partial)
+    except WorkDirError:
+        # The copy's own file would not open or take a write: the destination's
+        # failure, already named as one, and never to be blamed on the source.
+        _remove_quietly(partial)
+        raise
     except OSError as exc:
         _remove_quietly(partial)
         raise SourceUnreadableError(
