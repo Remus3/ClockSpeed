@@ -2022,17 +2022,21 @@ def test_the_adversarys_cut_of_a_real_filed_headline_is_caught() -> None:
     An adversary cut CS-1012's line mid-clause against its own filed full headline and the
     tree stayed green. The cut is rebuilt here from whatever that item's section holds now,
     so the arm cannot rot into a test about a stale string.
+
+    CS-1012 left the roadmap when the wave 0 sweep cut it to BACKLOG, taking its section to the
+    archive, so the arm now plants the same cut against CS-1196, an open row that holds exactly
+    one filed full headline.
     """
     roadmap = (REPO_ROOT / ROADMAP_RELATIVE).read_text(encoding="ascii")
     headlines = drift_guard.roadmap_headlines(roadmap)
     sections = {
         item: leaf
         for item, leaf in drift_guard.item_notes_sections(REPO_ROOT)[0].items()
-        if item == "CS-1012"
+        if item == "CS-1196"
     }
     texts = drift_guard.item_notes_section_texts(REPO_ROOT, sections)
-    filed = drift_guard.item_notes_headline_texts(texts["CS-1012"])
-    assert len(filed) == 1, "CS-1012 files no full headline, so this arm measures nothing"
+    filed = drift_guard.item_notes_headline_texts(texts["CS-1196"])
+    assert len(filed) == 1, "CS-1196 files no full headline, so this arm measures nothing"
 
     assert drift_guard.item_notes_headline_problems(headlines, texts) == [], "the live pair"
 
@@ -2043,9 +2047,9 @@ def test_the_adversarys_cut_of_a_real_filed_headline_is_caught() -> None:
         "the rebuilt cut stops at a clause break, so it would not plant the defect"
     )
     planted = dict(headlines)
-    planted["CS-1012"] = cut
+    planted["CS-1196"] = cut
     problems = drift_guard.item_notes_headline_problems(planted, texts)
-    assert "  CS-1012 carries a headline cut part-way through its filed full headline" in (
+    assert "  CS-1196 carries a headline cut part-way through its filed full headline" in (
         problems
     ), problems
 

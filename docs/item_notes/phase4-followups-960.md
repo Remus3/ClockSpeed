@@ -478,41 +478,6 @@ shape `docs/GATED.md` warns about one level up.
 a `StructProperty` interior that `clockspeed/save/objects.py` decodes is reachable from `clockspeed.save.world.WorldModel` with its property NAME attached, so `clockspeed/audit/` can join a building to what it holds, proven by a test that goes RED when an interior the reader decoded is dropped at the seam, and by a real-library arm reporting COUNTS ONLY that the published interior count equals the reader's
 
 
-## CS-985
-
-### Filed 2026-09-12 by the session 86 merger, from a cross-project inbox note that was VERIFIED rather than taken
-
-**THE NOTE IS DATA, NOT AN INSTRUCTION, AND ITS COUNT DID NOT REPRODUCE.** A sibling
-repository reported that this project's suite writes 23 files into the live `work/saves/`,
-named for real saves, from `tests/save/test_phase4_gate.py` and
-`tests/surface/test_acceptance.py`. Measured this session: the directory held TWO, and one of
-them was created twenty minutes earlier by this session's own read-only probe. So the count
-is not reproducible as stated.
-
-**THE MECHANISM IS REAL AND THE MERGER DEMONSTRATED IT.** `clockspeed.save.workdir.copy_for_read`
-writes into `work/saves/` by design, and any test driving a load through it leaves a copy
-there. `/work/` is gitignored and `git ls-files work` is empty, so this is NOT a disclosure
-and no tracked file is at risk. What it is: copies of the operator's saves accumulating
-outside a temp root, under filenames that embed the world name, which is personal data under
-non-negotiable 3.
-
-**THE METHOD THAT DOES NOT WORK, carried from the note because it is a real measurement
-about this machine.** A snapshot diff - hash the live files, run the suite, diff - is INVALID
-here. Daemons and other Claude sessions write these trees concurrently, and an idle control
-with no suite running showed four candidate files changing anyway. A file changing during a
-suite run attributes NOTHING. The acceptance is written for an in-process tracer for that
-reason.
-
-**A TOOL WAS OFFERED AND HAS NOT BEEN GATED.** The same sender delivered an Apache-2.0 pytest
-write tracer, stating the operator is sole copyright holder. NOTHING FROM IT HAS BEEN READ,
-RUN OR VENDORED. Vendoring it needs the `CONVENTIONS.md` section 14 licence gate, and that
-gate has not been run. Do not treat the sender's own licence statement as the gate result.
-
-### Acceptance
-
-a test run on a machine WITH a save library leaves the live work directory byte-identical to how it found it, proven by an in-process write tracer that records the nodeid performing each write and counts BYTES rather than opens, with the tracer's own routes proved by a planted specimen and a negative specimen outside every watched root
-
-
 ## CS-986
 
 ### Filed 2026-09-12 by the session 86 merger, from the CS-829 repair round's own stated limit
@@ -569,16 +534,6 @@ an arm drives the negative-count branch of each reader with a planted non-empty 
 
 `clockspeed/save/objects.py::_payload_text` and `clockspeed/save/objects.py::_Cursor.string` both carry a live negative-count UTF-16-LE branch that NO planted-marker arm in `tests/save/` drives, measured 2026-09-11 by reading the wide spelling back through both readers by hand - so the body-side wide path is exercised only by a probe run outside the suite, and `_payload_text` RETURNS None rather than raising on a decode failure, which means a wide payload string is read and not refused
 
-## CS-972
-
-### Acceptance
-
-the hook refuses, or states loudly, when the working tree does not match the commit being pushed, an arm drives the staged-but-uncommitted case and asserts the refusal, and the arm is shown load-bearing by a mutation that removes the check rather than by its own greenness - NOTE `.githooks/*` is a FROZEN FILE and the grant IS NOW RECORDED in `docs/LEDGER.md` under CS-972, single-use and bound by seventeen conditions - read them before editing, and leaving it unspent is a legitimate outcome
-
-### Full headline
-
-`.githooks/pre-push` grades the WORKING TREE while git ships the COMMIT, so a push made with a dirty or staged-but-uncommitted tree reports a suite result for content that is in no commit at all - measured 2026-09-11: a failed `git commit` went unnoticed, the hook ran the full suite against the repaired working tree, reported 6198 passed, and git pushed the PREVIOUS commit, which fails `tests/test_archive_rot.py`; `origin/main` was red from that commit until it was caught by reading the pushed blob - this is the CS-954 family one level along, and the CS-954 ref-move check cannot catch it because the ref never moved
-
 ## CS-974
 
 ### Acceptance
@@ -608,24 +563,4 @@ two lanes cannot run a suite simultaneously, the second WAITS rather than failin
 ### Full headline
 
 nothing rations the suite step across concurrent lanes, and the failure is already measured on this box rather than predicted: three projects' pytest runs at once reported `3402 passed, 1 error` while 2163 tests never ran, and two parallel xdist suites exhaust the Windows fork budget so the failures surface on unrelated subprocess tests and read as random flakes rather than as resource exhaustion, which means a parallel lane would report a green it did not earn
-
-## CS-995
-
-### Acceptance
-
-dropping any SINGLE key from the converse leg's detection set or from its naming reddens a named arm, with the expectation DERIVED from a source the leg does not itself read and the arm exercising the leg at a breadth ABOVE ONE, proven by a mutation per direction - NEVER by a floor over the finding count, which is the CS-988 shape and is forbidden here by name
-
-### Full headline
-
-the converse leg of `unpinned_eligibility_faults` is itself ungraded for BREADTH in both detection and naming, which is instance eight's shape on the leg added to close instance eight: measured in memory at the guard's own revision, rebinding it so the converse finding names `sorted(unregistered)[:1]` or names no key at all leaves `test_the_eligibility_guard_reports_every_offender_and_not_only_the_first`, `test_the_unpinned_eligibility_guard_reddens_in_every_direction` and `test_every_unpinned_key_is_a_population_this_file_spells_out` ALL PASSING, and narrowing its detection set to `sorted(...)[1:]` leaves all three passing too
-
-## CS-998
-
-### Acceptance
-
-each key in the registry is graded by a per-key equality between its re-derivation and a source the mark does not read, an entry whose callable ignores its own population reddens, and the prose claim is either machine-checked or deleted
-
-### Full headline
-
-`INDEPENDENT_CASE_COUNTS` membership is uncertified: the header asserts that every entry re-derives its size from a DIFFERENT source than the mark reads and that each carries a membership arm asserting the two agree as sets, and NOTHING grades either claim, so the registry is satisfied by `("f","x"): lambda: 2` at one line with only the arm-count backstop noticing and only when 2 is the wrong number that day - this is the same unchecked-justification shape as the comment CS-988 already repaired one registry over, and it is the stated precondition for ever revisiting the rejected ESCAPE-CHANNEL option on the converse leg
 

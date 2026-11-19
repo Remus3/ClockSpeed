@@ -75,6 +75,50 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.4: ten rows cut to BACKLOG, four folded
+Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
+SCOPE. Wave 0 unit U-052.4 of THE PLAN, part 4 of 6 of the open-row disposition sweep filed as CS-1406, batches
+`docs/item_notes/phase4-followups-960.md` and `docs/item_notes/phase4-followups-1000.md` under plan rulings D76, D78,
+D88, D91 and D92. The two leaves were re-read at the base that follows the close-check sweep commit
+7e7ac373777ada4167f16643971c9a439dd78bd9, which had already edited both. Nothing is closed. Each moved leaf section is
+in `docs/history_notes.md` byte-for-byte (SHA-256 of the body read before and after, equal for all fourteen); no row
+is deleted.
+RELOCATED TO BACKLOG (10): CS-972 (D78, D92, D-P4-44), recorded with the 2026-09-11 grant UNSPENT, not expired, and
+the workaround of never staging, editing or landing in the main tree while a pre-push runs; CS-1012, CS-1122, CS-1140
+and CS-1143 (D76); and the five tier 1 conditional rows CS-1134, CS-1136, CS-1138, CS-1139 and CS-1144 (D76,
+IC-CS-1138, IC-CS-1139, D91). CS-1144 carries D91's route in its line: on reopen a process row of class 2 (last,
+lane-eligible after the product rows of its wave) or it stays in BACKLOG, with no `.claude/settings.json` edit in any
+branch.
+FOLDED (4, NOT A COMPLETION): CS-985 into CS-1055 (`docs/item_notes/phase4-followups-1000.md`), CS-995 and CS-998 into CS-988 (`docs/item_notes/phase6.md`) and CS-1148 into CS-1149 (`docs/item_notes/phase4-followups-1000.md`), all under
+D88. Each survivor's leaf section gained a dated NOTE quoting the folded acceptance verbatim, graded separately at the
+survivor's close with its own ledger record. The folded ROADMAP lines are gone.
+TIER 1 CONDITIONS READ BACK TRUE (D76, clause 5), counts only, at this base. CS-1134: `tools/tier1_readings.json`
+carries 42 job rows with 42 distinct job-and-run-id pairs, so 0 duplicates, and one commit has ever touched it (the
+2026-09-17 landing), so no refresh since. CS-1138 and CS-1139: `tools/measurements.json` holds 16 readings over 11
+metrics, 3 of them bounds with one reading each, and held 16 at the CS-920 landing, so no reading has been appended
+since. CS-1144: `tests/test_pointer_claims.py` passes in this tree, so the pinned landing and its digest have not
+moved. CS-1136: a derived scan of live files outside the append-only record, the archives and the leaves found 36
+lines pairing an item-notes leaf path with an id, 14 of which name an id with no section of its own in that leaf; each
+of the 14 was read and none routes a reader to a vanished section (11 are leaf-table rows, range selectors or one
+quotation in `docs/item_notes.md`, one a range selector in `docs/GATED.md`, one a range description in `docs/adr/`,
+one a BACKLOG mention of a pointer in a frozen hook comment filed since session 150 with its own trigger); no live
+markdown document routes to a vanished section, so the trigger, a second such document, has not fired. JUDGEMENT FOR
+THE ADVERSARY: that frozen hook comment is the only routing pointer to a vanished section and it is not a markdown
+document, the population CS-1136's own acceptance derives.
+RIGHT-REASON RED. With the batch's pre-state restored and only the CS-972 ROADMAP line removed,
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names` went red with
+`CS-972 in phase4-followups-960.md` under 'these carry detail but no OPEN line in ROADMAP.md'; the batch's own state
+is green and the working-tree bytes were restored and read back equal.
+GROUND TRUTH OVER THE PLAN (CLAUDE.md section 8), a write-list extension.
+`tests/data/test_item_notes_index.py::test_the_adversarys_cut_of_a_real_filed_headline_is_caught` took its live
+control from the ROADMAP line and leaf section of CS-1012; once CS-1012 left the roadmap the arm raised KeyError, so
+it is re-pointed at CS-1196, an open row (on the hold list) with exactly one filed full headline, and its docstring
+says why. The file is not on this unit's write list and the plan's seams did not name it; the arm grades the same
+defect and passes with the repoint.
+READ BACK: `ROADMAP.md` item lines 218 before, 204 after (fourteen removed); ROADMAP bytes freed by the fourteen lines
+4027. Each of the ten cut ids is found by grep in `BACKLOG.md`; the four folded ids only in `docs/history_notes.md`
+and in the survivors' NOTEs.
+
 ### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.3: four rows cut to BACKLOG, CS-865 folded, five D77 rows pending
 Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
 SCOPE. Wave 0 unit U-052.3 of THE PLAN, part 3 of 6 of the open-row disposition sweep filed as CS-1406, batches

@@ -24,6 +24,415 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1012 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Measured 2026-09-14 (session 95), and the item's OWN PREMISE MEASURED FALSE
+
+**THE LINE SAID THE SPREAD ON ONE TREE IS ABOUT 20 SECONDS. IT IS AT LEAST 222.**
+That figure came from a single rerun pair. Two same-tree pairs now exist and they
+DISAGREE with each other, which is the finding:
+
+| pair | attempt 1 | attempt 2 | apart |
+|---|---|---|---|
+| `8165c35`, run 34830236951 | 511s job, 456s unit step | 289s job, 257s unit step | 222s |
+| `aa9cbb6`, run 34777140837 | 500s | 477s | 23s |
+
+Two attempts of one run differ in NOTHING a commit can express - same SHA, same tree,
+same pinned toolchain. So the pool is TWO-CLASS rather than continuously noisy, and a
+sigma-banded wall-clock threshold is grading which class it landed on.
+
+**THE RED THAT STARTED THIS WAS A DOCS-ONLY COMMIT.** `8165c35` differs from its green
+parent by two markdown files - `WAKEUP_NOTES.md` +73/-24 and `docs/history_notes.md`
++25/-0, about 4 KB against a 3,324,152-byte corpus. Both runs collected 6106 passed and
+31 skipped on the fast shard, 1438 and 100 on the save shard. Identical workload.
+
+**THE DOC-WALKING HYPOTHESIS WAS THE REAL ALTERNATIVE AND IT IS REFUTED THREE WAYS.**
+This repo HAS tests that walk markdown, so "docs-only" is not automatically
+"workload-identical" and the claim does not get to skip the step:
+
+1. `docs/history_notes.md` is the one UNGUARDED doc, and
+   `tests/test_docs_citations.py` binds it as `DEEP_ARCHIVE`. The citation walk never reads the growth at all.
+2. The ratio ORDERING runs backwards for growth. Per-row ratios span 1.29 to 1.53; the
+   doc-walkers moved LEAST (`test_archive_rot` at 1.29, the lowest row in the table) and
+   the markdown-blind `test_mypy_gate` moved MOST at 1.53.
+3. Collected counts are identical, above.
+
+**THE CONTROL WITH NO REPO-CONTENT DEPENDENCE AT ALL.** `Install toolchain` is a pinned
+pip install whose input is byte-identical between attempts. It moved 7s to 12s, a ratio
+of 1.714. A cache-miss explanation was raised against it and CHECKED rather than waved
+off: both attempts print `Using cached` for the same twelve packages and `Downloading`
+for exactly one and the same package, `ast_serialize-0.11.2`. Identical cache state.
+
+**AND THAT CONTROL IS WHAT DECIDES THE REPAIR.** Within the same-tree pair the toolchain
+moved 1.714x while the unit step moved 1.774x - **the two ratios agree to 3.4 per cent**.
+Normalizing 456s by 12/7 yields 266s against an actual fast-class 257s. A step that runs
+no repo code predicts the suite's own slowdown to within 3.4 per cent, which is the
+direct measurement that an in-job calibration divisor works on the decisive pair.
+
+**THE FEASIBILITY ARITHMETIC, WHICH IS THE WHOLE ARGUMENT.** The rule published at
+`docs/item_notes/phase4-followups-850.md` needs `[M, cutoff - 2N]` non-empty. With M=511
+and N=222 against a 600s cutoff that window is `[511, 156]` - EMPTY - and `N > (cutoff-M)/2`
+reads 222 > 44.5. **Wall-clock gating is INFEASIBLE at this lane length rather than
+mis-tuned.** Retuning the band cannot repair this item, and shortening the lane until it
+can is a different item: CS-1060.
+
+**ADJUDICATED 2026-09-14.** Ruled by an agent that produced neither the spec nor the
+measurements, against the frozen tree at `8165c35`. The repair is NORMALIZE BY AN IN-JOB
+CALIBRATION WORKLOAD - the gate grades `ELAPSED * REFERENCE_MS / MEASURED_MS`, so the band
+sits in runner-invariant units. The runner-up was demoting the gate to a REPORT and moving
+the growth signal to per-test shares; it lost on the item's first criterion, being blind to
+EVENLY SPREAD growth, which is CS-1012's own headline case. It did NOT lose to CS-896 -
+that item's acceptance is satisfied verbatim by a report, and the spec's claim that CS-896
+forbids the demotion was checked and does not hold.
+
+**THE FENCE THAT MUST SHIP WITH THE REPAIR, OR IT BECOMES THE THING IT REPLACED.** The
+adjudicator rejected the spec's defence that the forbidden move is "arithmetically
+unreachable" - that rests on the 600s cutoff staying policy. The binding clause instead:
+**the reference constant is NEVER re-pinned in response to a red.** It is written into
+`.github/workflows/tier1.yml` beside its derivation and carried by the same two-way
+ratchet in `tools/drift_guard.py` guard (k), or this is CS-988 in a new coat within two
+sessions.
+
+**NOT BUILT IN SESSION 95, DELIBERATELY.** The calibration discriminator needs a
+multi-dispatch measurement campaign that does not exist yet, and the calibration workload
+itself adds 20 to 40 seconds to a job already at 511 against a 600s cutoff - so building
+it before CS-1060 would push the lane toward the runaway cutoff, which CANCELS rather than
+fails and is therefore evidence of nothing.
+
+**THE TAX, MEASURED.** Sixteen recent tier 1 runs carry FOUR reds. THREE of them have the
+Duration step as the only failing step in the job - runs 34791962600 at 493s, 34777140837
+at 500s and 34830236951 at 511s. The fourth, 34776266752, is a real test failure and is
+not this item's.
+
+### Acceptance
+
+the 133 seconds are attributed to a named cause by measurement on the runner rather than locally, with an arm or a probe that reddens when that cause is present and a control that shows it absent, and the gate's ceiling is then set from the MEASURED spread with the evidence recorded - RAISING THE CEILING TO FIT THE CURRENT NUMBER IS FORBIDDEN HERE BY NAME, it is the CS-988 shape applied to a signal rather than a threshold, and a ceiling that is tuned whenever it fires measures nothing
+
+### Full headline
+
+tier 1's unit step cost 133 seconds more after CS-1009 than before it and the duration gate is now marginal rather than comfortable: the step went 316.16s over 5719 tests to 449.16s over 5740, the job total ran 493s against a 480s CEILING and a 420s budget, and a re-run of the IDENTICAL commit came in at 470s - AND THAT 20s FIGURE IS MEASURED FALSE, session 95: two same-tree rerun pairs read 222s and 23s apart, so the runner pool is TWO-CLASS rather than continuously noisy, and the repo's own feasibility arithmetic run on those numbers returns an EMPTY window - wall-clock gating is INFEASIBLE at this lane length rather than mis-tuned, which is a different item and it is CS-1060 - but the growth is NOT attributed and that is the finding rather than a caveat: it is spread evenly across tree-walking sweeps that have nothing to do with the change, `test_locals_rendering` 17.9s to 26.1s, the mypy-gate oracle 16.7s to 25.6s, `test_liveness` 15.8s to 24.6s, `test_toolpath` 8.6s to 11.9s, roughly plus 45 pct each, while the delta added about 85 KB to a multi-megabyte tree and the same suites measured LOCALLY at base and at head differ by under 12s in the noise - the WHOLE suite on this box is FLAT across the same delta - 411.54s at the base commit, 404.19s at the merged tip, both through the pre-push hook - so the 133s exists only on the runner and the first hypothesis to test is the environment rather than the tree, and CS-1009's own arms are 4.2s locally for the whole file and none reaches the CI slowest-15
+
+
+## CS-1122 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Acceptance
+
+a hand-authored IR describing the module map renders through a renderer written in Python in this tree to a committed static SVG/HTML diagram that uses a system font stack and carries no third-party marks, icons or fonts, with no Node anywhere in the build; ZERO BYTES are copied from archify, whose adoption was DECLINED as CS-1098 on the `CLAUDE.md` section 7 Node fence and on its output embedding MIT viewer code without notice plus an OFL font; and a CI drift arm, needing no network and no renderer outside this tree, reddens when the IR's module set stops matching the module map `docs/ARCHITECTURE.md` owns, proven by a planted rename that turns it red
+
+### Full headline
+
+our own Python renderer from a hand-authored architecture IR to a static SVG/HTML module diagram, the re-implementation the CS-1098 decline in `docs/LEDGER.md` filed in place of adopting archify
+
+---
+
+## CS-1134 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Filed 2026-09-17 by the CS-917 cycle, from that item's verifier
+
+**NEITHER VECTOR IS LIVE ON TODAY'S RECORD AND THAT IS WHY THIS IS A ROW RATHER
+THAN A REPAIR.** Both were found by the CS-917 verifier AFTER the candidate was
+frozen, and repairing them then would have produced a change that verifier never
+saw. Filed, not fixed, on the rule that a repair landed during a verdict is one
+the verdict cannot discharge.
+
+**VECTOR ONE - A RE-RUN ATTEMPT IS DROPPED.** `readings` in
+`tools/tier1_growth.py` keeps one reading per run id, because one run copied
+several times into the record must not satisfy the reading floor several times
+over. But a job RE-RUN inside a single workflow run carries the SAME run id, so
+its second attempt's duration is discarded. If the two attempts differ widely,
+the step between them is invisible and the jitter figure UNDERSTATES the lane's
+movement - which is the one direction that figure must never fail in, because an
+understated figure makes the ordering verdict read green for the wrong reason.
+The shipped record carries no duplicate job-and-run-id pair, so nothing shipped
+rests on it today.
+
+**DO NOT FIX IT BY DROPPING THE DEDUPE.** That reintroduces the defect
+`test_one_run_copied_five_times_is_one_reading_not_five` exists to refuse. The
+fix has to tell a RE-RUN ATTEMPT apart from a COPIED ROW, and the jobs API
+reports an attempt number that the record does not currently keep - so this is a
+record field plus a key change, and the record must be refreshed to carry it.
+
+**VECTOR TWO - THE ANTI-TRANSCRIPTION ARM SKIPS WHERE IT SHOULD REDDEN.**
+`test_the_recorded_commit_distances_agree_with_this_repository` in
+`tests/test_tier1_growth.py` skips PER SHA when the checkout cannot place that
+sha, which is correct for a shallow clone and wrong for a fabricated one: a sha
+that exists nowhere, paired with any distance at all, makes the arm SKIP rather
+than fail. `grade` closes part of the gap - it checks the window's two ends - but
+a mid-series sha is graded against the repository by nothing. So the arm's claim
+is narrower than its name: it catches a distance edited against a commit the
+checkout HAS, and nothing else.
+
+**THE SHAPE OF A FIX, STATED BECAUSE THE OBVIOUS ONE IS WRONG.** Reddening on an
+unplaceable sha breaks the shallow-clone case the skip was written for and would
+ship red in CI. What distinguishes the two is whether the checkout carries the
+WINDOW at all: if it carries the window's oldest commit, it is a full clone and an
+unplaceable mid-series sha is then a fabrication rather than a missing ancestry.
+So the skip belongs once, at the top, on the window - which is already where the
+first probe in that arm looks.
+
+### Acceptance
+
+a job re-run inside one workflow run contributes its own reading rather than being dropped, and a recorded commit distance whose sha the checkout cannot place is RED when the checkout carries the window and SKIPPED only when it does not, proven for each by an arm that reddens on a planted record and a control that stays green on the shipped one
+
+### Full headline
+
+the tier 1 jitter figure can UNDERSTATE by two routes the CS-917 verifier found after the candidate was frozen - `readings` in `tools/tier1_growth.py` drops a job's re-run attempt because it dedupes on the run id a re-run shares, and `test_the_recorded_commit_distances_agree_with_this_repository` skips per sha so a fabricated sha and distance pair makes the anti-transcription arm SKIP rather than redden - neither live on the shipped record, both filed rather than repaired because a repair landed after a verdict is one that verdict cannot discharge
+
+---
+
+## CS-1136 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Filed 2026-09-17 by the CS-1132 adversary pass
+
+### Acceptance
+
+a LIVE document that points at an item-notes leaf for an id with no section in that leaf is reported, with the population of pointers DERIVED rather than listed and a pointer distinguished both from a leaf-table RANGE SELECTOR and from a mention of the item that CAUSED a change, proven by an arm that plants such a pointer and goes RED, by an anti-vacuity control over the same bytes that stays green unplanted, and by the check staying SILENT on every one of the eight shapes the 2026-09-17 sweep produced as false positives; `docs/LEDGER.md` is out of scope because its own rule forbids editing a written record, and `docs/history_notes.md` is out of scope because its header declares that nothing in it may be acted on without re-verifying live
+
+### Full headline
+
+no guard grades a live document's pointer into an item-notes leaf, so a live file can route a reader to a section that no longer exists - MEASURED 2026-09-17 twice over: the CS-1132 adversary looked for such a guard across `tools/`, `tests/test_docs_citations.py` and `tests/test_citation_tables.py` and found none, and a derived sweep over every tracked markdown file outside the append-only record then found the live instance, `docs/ARCHITECTURE.md` routing the cost of the second world-body pass to `docs/item_notes/phase4-followups-900.md` under CS-961, dead since that item closed and its section left the family, while `tools/drift_guard.py` exited 0 across 11 guards and 517 citation and liveness arms passed over the same bytes; that pointer is repaired in the CS-1132 merge and the GUARD is what this row owns, because the five further pointers CS-1132's own relocation falsified all sit in files nothing may edit, and the next relocation will falsify more; the sweep that found it also produced eight false positives, every one a leaf-table range selector or a mention of the item that caused a change rather than a pointer at its section, so telling those apart is the part of this row that carries the risk
+
+---
+
+## CS-1138 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**THE VERDICT WORD IS NOT DEGRADED BY ITS OWN BASIS.** `survives_next_reading` in
+`tools/measurement_record.py` reports a verdict AND the comparability the pair
+rests on. A pair where both readings carry an escape value agrees about nothing,
+and the query says so - `basis: unproven` - but the verdict still reads
+`survived` or `falsified`. **A ROW LIFTED FROM THAT OUTPUT WITHOUT ITS BASIS
+REPRODUCES EXACTLY THE FAILURE CS-920 WAS FILED ABOUT**, which is a figure quoted
+out of the conditions it was taken under.
+
+**DO NOT FIX IT BY REFUSING THE PAIR.** Refusing would lose the only signal an
+all-escape history has, and the escape values exist precisely so a reading with
+no recorded worker count is KEPT rather than dropped. The fix is in the verdict
+vocabulary: a verdict reached on an unproven basis needs a name of its own that
+carries the qualification into any quotation of it.
+
+**NOT LIVE ON TODAY'S RECORD, AND FILED RATHER THAN REPAIRED FOR THAT REASON.**
+Every bound metric in `tools/measurements.json` holds one reading, so every
+verdict today is `untested` and no unproven verdict is printed at all. It was
+found after the CS-920 candidate was frozen, and a repair landed during a verdict
+is one that verdict cannot discharge.
+
+### Acceptance
+
+a verdict reached on a pair whose basis is not `comparable` carries the qualification IN THE VERDICT rather than only beside it, so quoting the verdict alone cannot drop it, proven by an arm that reddens when an unproven pair yields the same verdict word a comparable pair does
+
+## CS-1139 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**A FABRICATED READING GRADES CLEAN, MEASURED BY AN ADVERSARY RATHER THAN
+REASONED ABOUT.** The verifier added a reading with an invented value, a
+seven-character hex string that is not a commit in this repository, and a source
+citation whose anchor is the single word `the` - and `grade_tree` returned no
+offence. Two checks are weaker than they look: `commit` is matched against a hex
+pattern and never resolved against git, and a source anchor is any substring of
+the cited file, so a one-word anchor matches almost everything.
+
+**THIS IS A CAVEAT ON CS-920 RATHER THAN A DEFECT IN IT, AND THE DISTINCTION IS
+THE ITEM.** CS-920's clause asks that a receipt be CARRIED, and a carried receipt
+is what a fabricated row has. What is not established is that the receipt is
+TRUE. The record's value rests on rows being written honestly, and a machine
+check for honesty is a different property from a machine check for completeness.
+
+**THE OBVIOUS FIX IS HALF WRONG.** Resolving every `commit` against git reddens
+in a shallow CI checkout, which is the same trap `tools/tier1_growth.py` already
+met and answered by skipping on the window rather than per sha - read CS-1134
+before rebuilding that reasoning. An anchor floor is the cheaper half and has no
+such problem.
+
+### Acceptance
+
+a reading whose commit the checkout can place is graded against it and a reading whose anchor is too weak to identify a sentence is refused, with the commit check SKIPPED only where the checkout does not carry the history, proven by an arm that reddens on a planted fabricated reading and a control that stays green on the shipped record
+
+## CS-1140 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**CS-917's FIGURE CAN NEVER REACH A COMPARABLE BASIS AS THINGS STAND.** Every
+tier 1 reading in `tools/measurements.json` carries `workers: "unresolved"`,
+because the lane runs `pytest -n auto` and nothing records what that RESOLVED to.
+`nproc` does not answer it - xdist counts PHYSICAL cores, and this project has
+already published a worker count of sixteen that was eight for exactly that
+reason. So a future pair of tier 1 readings can only ever be graded `unproven`,
+and the survives-next-reading query will never say `comparable` about the very
+metric CS-917 needs it for.
+
+**THE FIX IS UPSTREAM OF THE RECORD AND THAT IS THE WHOLE POINT.** No amount of
+work inside `tools/measurement_record.py` can resolve a number the lane never
+emitted. The lane has to PRINT its resolved worker count where a refresh can read
+it, which makes this a workflow-and-record change rather than a schema one.
+
+**DO NOT CLOSE IT BY INFERRING THE COUNT FROM THE RUNNER'S CORE COUNT.** That is
+the inference that produced the sixteen-for-eight correction, and it is recorded
+in this project's own notes as one of the three readings CS-920 was filed over.
+
+### Acceptance
+
+a tier 1 reading records the worker count the lane ACTUALLY RESOLVED, emitted by the lane itself rather than inferred from a core count, and a pair of such readings grades `comparable` in `tools/measurement_record.py`, proven by an arm over the refreshed record
+
+---
+
+## CS-1143 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Filed 2026-09-17 by the CS-1121 close, from that item's final adversary
+
+### Acceptance
+
+`heading_chain` either REFUSES a carrier whose file type has no heading syntax or derives a carrier-appropriate anchor for it, proven on a `.py` carrier and a `.json` carrier, and the markdown path blanks code regions through the fence-aware reader `tools/drift_guard.py` already owns rather than a bare `startswith` rule, proven by a fixture whose only column-0 hash sits inside a fenced block and by the live count of such lines in guarded docs falling to zero
+
+### Full headline
+
+the citation site identity derives a markdown heading chain from files that have no headings - MEASURED 2026-09-17 by the CS-1121 final adversary: the carrier population the disposition tables cover is 388 files of which only 74 are markdown, so on 263 of the 314 non-markdown carriers a column-0 hash in a comment is read as a heading and given a level from its run length, while on the other 51 any site raises the unanchored refusal outright; the markdown path is weaker than this tree already is, reading six column-0 hashes inside fenced blocks across three GUARDED docs as headings, two of them at level one so they pop the entire real heading stack, while `tools/drift_guard.py` already owns a CommonMark container reader that handles fences, blockquotes, list content columns and indented blocks and was not reused; today's exposure is zero live corrupted chains and zero live entries on a non-markdown carrier, so this is latent rather than a present fault, and the identity's own docstring discloses the setext and fence gaps while saying nothing about the non-markdown population at all
+
+## CS-1144 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### FILED 2026-09-17 by the queue lane, measured while shipping CS-937
+
+**WHAT THE NEW LEG FOUND ON ITS FIRST LIVE READING.** `docs/LEDGER.md` carries a
+sentence claiming that CI runs mypy bare at a named line of
+`.github/workflows/tier1.yml`. It does not. The workflow grew and that step now sits
+far below the cited line; the cited line holds an unrelated fence check. The pointer
+was RIGHT WHEN WRITTEN and rotted under growth - the opposite of CS-937's measured
+instance, and the reason it is a separate row rather than the rest of that one.
+
+**WHY IT WAS RECORDED RATHER THAN REPAIRED IN THE SAME CYCLE.** `docs/LEDGER.md`
+declares itself append-only in its own header, so the pointer cannot be re-cut in
+place, and the repair this project states for a rotted pointer - cite the module by
+name - is unavailable at a workflow file, which has no symbol form. Both routes the
+CS-928 forgiveness grant records are therefore closed here too. The site is carried in
+`tests/test_pointer_claims.py::UNVERIFIED_POINTER_CLAIMS` with the defect NAMED, and
+that record pins the landing so the site cannot drift further in silence.
+
+**DO NOT CLOSE THIS BY RE-CUTTING THE DIGEST.** The record's digest exists to redden
+when the landing moves again. Re-cutting it is how a pin absorbs the defect it was
+built to count, which is the failure `tests/test_citation_tables.py` names for the
+sibling table.
+
+**DO NOT CLOSE IT BY DELETING THE ROW EITHER.** Removing the record without repairing
+the pointer makes the live claim arm red, not green - the row is pinned in both
+directions by `test_the_recorded_pointer_claims_are_pinned_in_both_directions`.
+
+**WHAT A CLOSE PROBABLY LOOKS LIKE, stated as a starting point rather than a
+specification.** Either an appended correcting record that the guard can READ - which
+needs the guard to prefer a later correction over the original sentence, and that is
+a real design question rather than a tweak - or an adjudicated `Disposition`, which
+spends `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and therefore
+needs the grant the CS-928 entry's fence describes. Measure which before building
+either.
+
+### Acceptance
+
+the `docs/LEDGER.md` pointer into `.github/workflows/tier1.yml` either names a line whose content its own sentence claims, or carries an adjudicated record that a guard verifies rather than a digest nobody re-reads, proven by an arm that reddens when the recorded answer stops resolving - and `UNVERIFIED_POINTER_CLAIMS` loses the row rather than keeping it
+
+
+## CS-972 - item section, relocated from `docs/item_notes/phase4-followups-960.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
+
+### Acceptance
+
+the hook refuses, or states loudly, when the working tree does not match the commit being pushed, an arm drives the staged-but-uncommitted case and asserts the refusal, and the arm is shown load-bearing by a mutation that removes the check rather than by its own greenness - NOTE `.githooks/*` is a FROZEN FILE and the grant IS NOW RECORDED in `docs/LEDGER.md` under CS-972, single-use and bound by seventeen conditions - read them before editing, and leaving it unspent is a legitimate outcome
+
+### Full headline
+
+`.githooks/pre-push` grades the WORKING TREE while git ships the COMMIT, so a push made with a dirty or staged-but-uncommitted tree reports a suite result for content that is in no commit at all - measured 2026-09-11: a failed `git commit` went unnoticed, the hook ran the full suite against the repaired working tree, reported 6198 passed, and git pushed the PREVIOUS commit, which fails `tests/test_archive_rot.py`; `origin/main` was red from that commit until it was caught by reading the pushed blob - this is the CS-954 family one level along, and the CS-954 ref-move check cannot catch it because the ref never moved
+
+## CS-1148 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its fold into CS-1149 (NOT A COMPLETION)
+
+### Filed 2026-09-19 by the CS-828 instrument repair, from its own re-derivation
+
+**WHAT WAS MEASURED.** CS-828's third partial ship re-derived the remainder population
+past the run's lead field with BOTH shipped remainder readings switched on - which is
+the first reading of that population ever taken with the shipped reader, because the
+sweep had been taking it with them off. CS-1119's `Full headline` describes the second
+of the two remaining shapes as "one class whose remainder is a large nested structure
+whose width nothing in the run describes". On the three pairs CS-828 covers the shape
+is carried by TEN classes, and across every measured body layout by eleven. Four of
+them are one family differing by a size suffix; the remaining six are unrelated to it
+and to each other.
+
+**WHY THE UNDERCOUNT IS NOT COSMETIC.** CS-1119's acceptance requires the carrying
+classes be DERIVED off the body rather than transcribed, and a derivation written
+against a one-class picture has no reason to be shaped for a family plus six
+unrelated carriers. The count is also the anti-vacuity figure for that derivation: a
+deriver that finds one class would look correct against the headline and would be
+missing nine.
+
+**THIS ROW DOES NOT WIDEN CS-1119 AND MUST NOT BE READ AS DOING SO.** It corrects a
+characterisation. The reading of either shape stays CS-1119's, and nothing here rules
+on how that reading should be built.
+
+**RE-DERIVE BEFORE YOU EDIT.** The figure above was taken on one machine's library on
+one day, and the operator plays between cycles; the ten is the finding, the exact
+membership is not pinned here and this row does not pin it.
+
+### Acceptance
+
+CS-1119's `Full headline` no longer states a carrier count that the shipped reader's
+own remainder population contradicts, with the corrected characterisation derived off
+the library by a skip-if-absent test reporting COUNTS ONLY rather than transcribed
+into prose, and an arm that reddens when the characterisation and the derived
+population disagree
+
+## CS-998 - item section, relocated from `docs/item_notes/phase4-followups-960.md` 2026-11-19 on its fold into CS-988 (NOT A COMPLETION)
+
+### Acceptance
+
+each key in the registry is graded by a per-key equality between its re-derivation and a source the mark does not read, an entry whose callable ignores its own population reddens, and the prose claim is either machine-checked or deleted
+
+### Full headline
+
+`INDEPENDENT_CASE_COUNTS` membership is uncertified: the header asserts that every entry re-derives its size from a DIFFERENT source than the mark reads and that each carries a membership arm asserting the two agree as sets, and NOTHING grades either claim, so the registry is satisfied by `("f","x"): lambda: 2` at one line with only the arm-count backstop noticing and only when 2 is the wrong number that day - this is the same unchecked-justification shape as the comment CS-988 already repaired one registry over, and it is the stated precondition for ever revisiting the rejected ESCAPE-CHANNEL option on the converse leg
+
+## CS-995 - item section, relocated from `docs/item_notes/phase4-followups-960.md` 2026-11-19 on its fold into CS-988 (NOT A COMPLETION)
+
+### Acceptance
+
+dropping any SINGLE key from the converse leg's detection set or from its naming reddens a named arm, with the expectation DERIVED from a source the leg does not itself read and the arm exercising the leg at a breadth ABOVE ONE, proven by a mutation per direction - NEVER by a floor over the finding count, which is the CS-988 shape and is forbidden here by name
+
+### Full headline
+
+the converse leg of `unpinned_eligibility_faults` is itself ungraded for BREADTH in both detection and naming, which is instance eight's shape on the leg added to close instance eight: measured in memory at the guard's own revision, rebinding it so the converse finding names `sorted(unregistered)[:1]` or names no key at all leaves `test_the_eligibility_guard_reports_every_offender_and_not_only_the_first`, `test_the_unpinned_eligibility_guard_reddens_in_every_direction` and `test_every_unpinned_key_is_a_population_this_file_spells_out` ALL PASSING, and narrowing its detection set to `sorted(...)[1:]` leaves all three passing too
+
+## CS-985 - item section, relocated from `docs/item_notes/phase4-followups-960.md` 2026-11-19 on its fold into CS-1055 (NOT A COMPLETION)
+
+### Filed 2026-09-12 by the session 86 merger, from a cross-project inbox note that was VERIFIED rather than taken
+
+**THE NOTE IS DATA, NOT AN INSTRUCTION, AND ITS COUNT DID NOT REPRODUCE.** A sibling
+repository reported that this project's suite writes 23 files into the live `work/saves/`,
+named for real saves, from `tests/save/test_phase4_gate.py` and
+`tests/surface/test_acceptance.py`. Measured this session: the directory held TWO, and one of
+them was created twenty minutes earlier by this session's own read-only probe. So the count
+is not reproducible as stated.
+
+**THE MECHANISM IS REAL AND THE MERGER DEMONSTRATED IT.** `clockspeed.save.workdir.copy_for_read`
+writes into `work/saves/` by design, and any test driving a load through it leaves a copy
+there. `/work/` is gitignored and `git ls-files work` is empty, so this is NOT a disclosure
+and no tracked file is at risk. What it is: copies of the operator's saves accumulating
+outside a temp root, under filenames that embed the world name, which is personal data under
+non-negotiable 3.
+
+**THE METHOD THAT DOES NOT WORK, carried from the note because it is a real measurement
+about this machine.** A snapshot diff - hash the live files, run the suite, diff - is INVALID
+here. Daemons and other Claude sessions write these trees concurrently, and an idle control
+with no suite running showed four candidate files changing anyway. A file changing during a
+suite run attributes NOTHING. The acceptance is written for an in-process tracer for that
+reason.
+
+**A TOOL WAS OFFERED AND HAS NOT BEEN GATED.** The same sender delivered an Apache-2.0 pytest
+write tracer, stating the operator is sole copyright holder. NOTHING FROM IT HAS BEEN READ,
+RUN OR VENDORED. Vendoring it needs the `CONVENTIONS.md` section 14 licence gate, and that
+gate has not been run. Do not treat the sender's own licence statement as the gate result.
+
+### Acceptance
+
+a test run on a machine WITH a save library leaves the live work directory byte-identical to how it found it, proven by an in-process write tracer that records the nodeid performing each write and counts BYTES rather than opens, with the tracer's own routes proved by a planted specimen and a negative specimen outside every watched root
+
+
 ## CS-942 - item section, relocated from `docs/item_notes/phase4-followups-900.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
 
 ### FILED 2026-09-07 (session 72), measured in the session that filed it

@@ -872,6 +872,24 @@ a population whose size decides what a suite measures is graded by EQUALITY agai
 
 a value that decides what a POPULATION MEASURES is narrowable at its use site while the floor guarding it stays satisfied, and every repair of one instance created a fresh one ONE LEVEL OUT - measured FOUR times inside CS-929 alone: the corpus root, then the anchor introduced to pin the root, then that anchor's use site reachable by string concatenation, then the plant producer's own return statement sliced to `[:3]` against a floor of 3 met exactly - each one silently dropping arms from a green run (476 to 466, and one widening to 478)
 
+### Recorded 2026-11-19 by wave 0 unit U-052.4: CS-995 folded into this row (plan ruling D88), NOT A COMPLETION RECORD
+
+The folded row CS-995 (headline: the converse leg of `unpinned_eligibility_faults` is itself ungraded for BREADTH in
+both detection and naming) was folded into CS-988 by wave 0 unit U-052.4. Its ROADMAP line is gone and its leaf
+section is in `docs/history_notes.md` under its id. Its acceptance, quoted verbatim, and graded separately at this
+row's close with its own ledger record (D88):
+
+> dropping any SINGLE key from the converse leg's detection set or from its naming reddens a named arm, with the expectation DERIVED from a source the leg does not itself read and the arm exercising the leg at a breadth ABOVE ONE, proven by a mutation per direction - NEVER by a floor over the finding count, which is the CS-988 shape and is forbidden here by name
+
+### Recorded 2026-11-19 by wave 0 unit U-052.4: CS-998 folded into this row (plan ruling D88), NOT A COMPLETION RECORD
+
+The folded row CS-998 (headline: `INDEPENDENT_CASE_COUNTS` membership is uncertified: the header asserts that every
+entry re-derives its size from a DIFFERENT source than the mark reads) was folded into CS-988 by wave 0 unit U-052.4.
+Its ROADMAP line is gone and its leaf section is in `docs/history_notes.md` under its id. Its acceptance, quoted
+verbatim, and graded separately at this row's close with its own ledger record (D88):
+
+> each key in the registry is graded by a per-key equality between its re-derivation and a source the mark does not read, an entry whose callable ignores its own population reddens, and the prose claim is either machine-checked or deleted
+
 
 ## CS-1051
 
