@@ -259,7 +259,6 @@ CS-887 - `python -m clockspeed.surface` overloads exit 2 - acceptance: in detail
 CS-909 - the companion has no desktop entry point that `docs/OPERATIONS.md` permits - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-910 - `tools/toolpath.py` covers seven spawn sites; the item asks it of every external tool - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-913 - unlock state is EMPTY for every save and the cause filed with it is REFUTED - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-914 - `clockspeed/save/workdir.py` stages through a shared partial and can truncate - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-915 - two guards report zero findings for a reason that is not the absence of findings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-916 - three separate features are gated on ONE unfiled prerequisite in the published model - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 

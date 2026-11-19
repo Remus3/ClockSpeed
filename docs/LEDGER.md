@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-914 - CLOSED: concurrent work-copy and pin writes no longer share a staging file
+Verification: `tests/save/test_workdir.py::test_two_interleaved_copies_both_succeed_and_publish_the_whole_save`,
+`tests/save/test_workdir.py::test_a_failure_to_open_the_destination_is_not_reported_as_an_unreadable_source`,
+`tests/data/test_version.py::test_two_interleaved_pin_writes_both_succeed`;
+`clockspeed/save/workdir.py` (copy_for_read, _stream_copy, _partial_token), `clockspeed/data/version.py` (write_pin).
+Each copy and each pin write stages under a name of its own. A failure to open the destination is a WorkDirError, not an unreadable source.
+Graded: PASS by a distinct adjudicator at f8be0686 (1331 passed); adversary UPHELD at 38d7e685 (2667 guard tests); both are the main-line cherry-picks of the frozen worktree commits. Seam edits granted by the dispatcher: tests/test_chained_cause.py, tests/pathless_clone_guard.py (CARDINALS to eleven).
+RESIDUAL: a mid-write failure is still reported as a source failure (documented in the Raises section); `clockspeed/data/assets.py::write_index` has the same shared fixed temp name. Both filed as BACKLOG CS-1407.
+
 ### 2026-11-19 - CS-913 - PREP RECORD (CS-913.1). NOT A COMPLETION RECORD. CS-913 STAYS GATED on CS-G06: the DRAIN half is still gated
 Verification: `clockspeed/save/world.py` (dev_world_pin_path, the pin text form and reader, the corpus-distinction comparison); `tests/save/test_world.py`.
 The pin file path (data/dev_world_pin.json, gitignored), its masked content form (the full world_digest) and the four-verdict corpus-distinction comparison with the pinned-world veto exist and are graded synthetically. The DRAIN half (the CS-913 Acceptance, and the operator-local check that a real corpus save meets CS-G06) REMAINS GATED on CS-G06. No save was placed and no pin was recorded. ROADMAP.md CS-913 row and docs/GATED.md unchanged.

@@ -24,6 +24,20 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-914 - item section, relocated from `docs/item_notes/phase6.md` 2026-11-19 on its close (CLOSED)
+
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+`clockspeed/save/workdir.py` stages a copy through a partial whose name is a pure function of the destination and opens the destination truncating, which is the CS-911 shape in Python and reachable on the DEFAULT path: the dashboard is a `ThreadingHTTPServer`, `clockspeed/surface/providers.py` re-reads a world per call with no cache and no request lock, and `work_root()` falls back to a shared `<repo>/work` - MEASURED 31 of 240 concurrent copies failing at realistic save size, and the failure reaches the operator as a fact about their save because `providers.world()` answers None for a missing directory, an empty one and an unparseable save alike; `clockspeed/data/version.py` carries the same shape with a weaker trigger, and neither module has a single concurrency arm
+
+### Acceptance
+
+two concurrent copies neither fail nor publish a truncated file, proven by an arm that interleaves them and reddens on the shipped implementation, the same question answered for `version.py`, and a failure to open the DESTINATION no longer reported as an unreadable SOURCE
+
+
 ## CS-1406 - item section, relocated from `docs/item_notes/phase7.md` 2026-11-19 on its close (CLOSED)
 
 ### Acceptance

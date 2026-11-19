@@ -468,20 +468,6 @@ unlock state is EMPTY for every save and the cause filed with it is REFUTED by t
 `/api/world` reports non-empty unlock state for a save known to carry it, read through the shipped decoder against the six carriers named in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`, graded by a synthetic `PropertyMap` so the suite still runs with no game installed, with `UnlockState.current_game_phase` retyped off `int | None` first because the value is an asset reference, and the CONTROL is SYNTHETIC and DIFFERENTIAL rather than a world - two hand-authored `PropertyMap` payloads over the same carriers at different progression, the lesser a strict subset of the greater, decoding to DIFFERENT and correctly ordered `purchased_schematics` and `recipes` and to different `current_game_phase` assets, plus a decoy payload carrying `mPurchasedSchematics` on a NON-carrier class that must contribute nothing, so that a reader returning a constant, ignoring content, or matching a property name without its owning class each fails an arm; the absent-array arm at `tests/save/test_world.py::test_an_absent_unlock_array_is_an_empty_set_rather_than_an_error` is retained but is explicitly NOT the control, because a reader returning `EMPTY_UNLOCK_STATE` unconditionally - which is this item's own defect - passes every assertion in it; whether a real save agrees is an OPERATOR-LOCAL check the suite does not run and that stays gated on `CS-G06` - blocked on `CS-G06`
 
 
-## CS-914
-
-### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
-
-The headline this item carried before its line was cut to the one-liner the
-`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
-
-`clockspeed/save/workdir.py` stages a copy through a partial whose name is a pure function of the destination and opens the destination truncating, which is the CS-911 shape in Python and reachable on the DEFAULT path: the dashboard is a `ThreadingHTTPServer`, `clockspeed/surface/providers.py` re-reads a world per call with no cache and no request lock, and `work_root()` falls back to a shared `<repo>/work` - MEASURED 31 of 240 concurrent copies failing at realistic save size, and the failure reaches the operator as a fact about their save because `providers.world()` answers None for a missing directory, an empty one and an unparseable save alike; `clockspeed/data/version.py` carries the same shape with a weaker trigger, and neither module has a single concurrency arm
-
-### Acceptance
-
-two concurrent copies neither fail nor publish a truncated file, proven by an arm that interleaves them and reddens on the shipped implementation, the same question answered for `version.py`, and a failure to open the DESTINATION no longer reported as an unreadable SOURCE
-
-
 ## CS-915
 
 ### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
