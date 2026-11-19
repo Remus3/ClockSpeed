@@ -75,6 +75,18 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-913 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-913 STAYS GATED on CS-G06: the CS-913.1 dev-world pin tests moved into a file of their own
+Verification: `tests/save/test_world_dev_pin.py` (the moved tests, bodies unchanged, its git probe bounded by a 30 s timeout); `tests/test_exception_rendering.py` (the moved file's traceback-rendering entry, recorded as moved, not new).
+Holds `tests/save/test_world.py` under the tests-tree size cap; the reach-guard exemptions moved with their helpers; one provenance row added. Test-only, no product change.
+Graded: no distinct adjudicator or adversary recorded for the move; the session 160 /done step 1 targeted run covers `tests/save` and `tests/test_exception_rendering.py`.
+
+### 2026-11-19 - CS-914 - NOT A COMPLETION RECORD. NOTHING REOPENED: the pin write retries a denied replace and read against a 10 s budget
+Verification: `tests/data/test_version.py::test_pin_replace_outlasts_a_denial_longer_than_five_attempts`,
+`tests/data/test_version.py::test_pin_read_outlasts_a_denial_while_another_writer_replaces`;
+`clockspeed/data/version.py` (write_pin, `_RENAME_BUDGET_SECONDS`).
+After the CS-914 close, five instant retries were spent at once when the pause was zero or the box was loaded, so a concurrent replace's PermissionError escaped. Retries now run against a time budget on the replace and on the read of the module. CS-914 stays CLOSED; its residuals stay with BACKLOG CS-1407.
+Graded: no distinct adjudicator or adversary recorded for this fix; the session 160 /done step 1 targeted run covers `tests/data`.
+
 ### 2026-11-19 - CS-914 - CLOSED: concurrent work-copy and pin writes no longer share a staging file
 Verification: `tests/save/test_workdir.py::test_two_interleaved_copies_both_succeed_and_publish_the_whole_save`,
 `tests/save/test_workdir.py::test_a_failure_to_open_the_destination_is_not_reported_as_an_unreadable_source`,
