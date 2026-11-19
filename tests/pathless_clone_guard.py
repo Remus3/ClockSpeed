@@ -534,6 +534,7 @@ CARDINALS: Final = (
     "eight",
     "nine",
     "ten",
+    "eleven",
 )
 
 
