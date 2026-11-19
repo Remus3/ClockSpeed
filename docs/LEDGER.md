@@ -75,6 +75,44 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - WAVE 0 SESSION 1 END - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
+Verification: the 2026-11-19 records below (WAVE 0 W0a ENTRY AND U-158 COPY, the twelve sweep closes, the KEEP OPEN
+record, the CS-815 U-155 decision record and the CS-701, CS-981 citation correction); `CS-NEXT-SESSION.txt` NEXT
+ACTION 2 and 3.
+SCOPE. THE PLAN's Part 0 step 7 record for the end of the first wave-0 session (session 160). Wave 0 is NOT done and
+W0a is NOT done: the track is serial and this session stops it after the close-check sweep, because U-052.1 (120
+planned minutes) does not fit the time left (runbook, the session split, D-P4-3).
+W0a DONE THIS SESSION: U-158's copy half (the five plan tools copied and their sha256 read back; U-158 stays open on
+its docs/item_notes/wave-plan.md citation line, which waits for U-138.1, ruling D-P4-7) and the close-check sweep's
+one ledger slice (12 closed, 7 kept open with their gaps, CS-G09 discharged by U-155).
+RESUME: W0a resumes at the close-check sweep follow-ups, if any (the seven KEEP OPEN rows wait for the next wave's
+entry, not for a W0a slot), then U-052.1, its CS-444 fold and CS-445 cut run as a dry run first; then U-052.2 to
+U-052.6 and U-145, in track order.
+U-001, U-113, U-139 discharged by this plan: Part 6 ch 6.1 and the ToS gate lines carried where units touch game data (13 of 74 waves' Gates); Part 6 ch 6.16; Part 4 and Part 9.
+COMMITS: d99b8efe2e2a302c73d3b68f3d785a4606d35f77 (entry gates and the U-158 copy record),
+7e7ac373777ada4167f16643971c9a439dd78bd9 (the sweep slice) and the commit carrying this record. None is pushed by
+this record's writer.
+QUEUE_STOP removed, read absent: ops/loop/control/lanes/QUEUE_STOP (placed mtime 2026-11-19T09:10:27.535500-06:00,
+re-read equal before the delete) removed by a direct delete; it and ops/loop/control/STOP both read absent after
+(Part 0 step 6, rule e, ruling P4F-20). The lanes directory holds QUEUE_DRAINED only; no lane is launched (wave 0's
+lane list reads none).
+
+### 2026-11-19 - CS-701, CS-981 - CITATION CORRECTION. NOT A COMPLETION RECORD. NOTHING REOPENED: the two close records below gain their merged files and test names
+Verification: `tests/test_flip_checks.py::test_s8_passes_a_history_wholly_on_the_allowlist`,
+`tests/test_flip_checks.py::test_s8_walks_past_the_tip_to_an_off_allowlist_root`,
+`tests/test_trailer_census.py::test_a_replace_ref_cannot_hide_a_trailer_commit_by_content`,
+`tests/surface/test_map_vocabulary.py::test_a_known_item_key_is_still_served_with_its_display_name`; these four
+run targeted this session with the repo .venv, exit 0, 4 passed.
+SCOPE. A distinct adjudicator graded the sweep commit 7e7ac373777ada4167f16643971c9a439dd78bd9 NOT MET on one
+criterion (D87: each close cites the item id, the merged file and the test name), and an adversary found one gap.
+This record corrects them; the close records stay as written (append-only).
+CS-701: the merged files that grade the identity and world-name PII scan are `tools/flip_checks.py`
+(derive_identity_allowlist, raw_object_env) and `tools/trailer_census.py` (raw_object_env); the tests are the three
+S8 and trailer census arms named above, which the 2026-10-04 CS-701 progress and adjudication records cited.
+CS-981: the test is `tests/surface/test_map_vocabulary.py::test_a_known_item_key_is_still_served_with_its_display_name`.
+The live /api/map inventory counts read this session, counts only: the verifier read 40 inventory rows with a total
+count of 986383; the adjudicator read 44 rows. They differ because the save library changes as the operator plays.
+
 ### 2026-11-19 - CS-815 - DECISION RECORD (U-155). NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD: CS-G09 is DISCHARGED by the kit launcher; CS-815 stays on HOLD
 Verification: `.claude/settings.json` (the two kit PreToolUse hook commands, each run through
 `ops/fleet_kit/fleet_hook.sh`); `ops/fleet_kit/fleet_hook.sh`; the 2026-10-31 CS-815 FROZEN-FILE GRANT record below;
