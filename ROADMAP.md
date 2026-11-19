@@ -184,10 +184,7 @@ CS-401 - Assert world-token stability across a save and reload cycle, and tolera
 
 CS-439 - Detect the silent-loss family mechanically instead of hand-fixing a sixth instance - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-440 - Close the downstream half of CS-435 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-441 - Extend the exception-rendering sweep to a helper that takes the exception as a PARAMETER - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-443 - Stop `local_config()` silently discarding every operator declaration - acceptance: an oversize, unreadable, malformed or non-dict `config/local.json` is REPORTED through the skip channel rather than returning `{}` in silence, proven by a test that fails against today's code - tier: 1 - detail: `docs/item_notes.md`
-CS-444 - Stop `workdir._forbidden_roots()` silently dropping a forbidden root it cannot resolve - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-445 - Bring the ADR 0008 tier-1 violations outside the fenced modules under a rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-446 - Make the writer write-surface pin detect a DUPLICATE mutating call, not only a new one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-447 - Close or bound the two report channels CS-428's redaction does not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
@@ -206,27 +203,21 @@ CS-458 - Bring the ungoverned cursor-advancing widths under the width rule - acc
 CS-459 - Make the evidence table's tie to the oracles bidirectional, since only over-claiming is caught - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-827 - the evidence vocabulary is not pinned by literal the way byte-order's is - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-460 - Narrow the `any()` claim in `tests/save/test_decode_oracles.py` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-461 - Give the CS-420 census and its probe an ABSOLUTE floor instead of a relative one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 CS-462 - Auto-detect an account directory whose name is not all digits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-465 - Grade the redact-cycle fence against the PRIVATE hops the cycle actually passes through - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-466 - Give the test-harness redactor an account-directory rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-467 - Grade the world-load traceback surface for a PATH, not only for planted content markers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-468 - Stop the 8.3 redaction control skipping on the every-push CI lane - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-464 - Delete the discrimination claim in `tests/test_facts_probe.py` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-470 - Separate the declared-size census's two surviving orderings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-472 - Close the decline table's deletion direction, which reaches only the derived population - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-473 - Bring `tests/save/test_properties.py`'s prose under a fence - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-474 - Stop `tests/save/test_value_anchoring.py` transcribing the two shipped oracle pivots - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-477 - Close the reach control's seam, where required oracles are derived but bodies listed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 
 CS-479 - Anchor the byte-order separability derivation to the bytes it claims to read - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-490 - Bound the tag-carried exemption against a consistently CLAIMING module - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-499 - A self-exemption keyed on the guard's FULL PATH is undetected - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-492 - Close the reach routes that travel through an OBJECT rather than a name binding - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-501 - `MODULE_SCOPE_REACH` is one sentinel per file and absorbs further reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-488 - Bound the fixed-width table for a type word the module has never NAMED - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-489 - Grade the PROSE inside `objects.UNMEASURED_PAYLOAD_REGIONS` entries - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-483 - `tests/save/test_synthetic.py::test_a_failing_builder_call_renders_its_arguments` is load-sensitive - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-800 - A hand-back resolves a SPELLING only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -347,3 +338,4 @@ CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, s
 CS-1349 - the pre-push suite never matches its own gate history, so a small machine waits on the 8 GiB default - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1406 - rows already ruled to leave the roadmap are still filed as open work, and no open row states its execution class - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

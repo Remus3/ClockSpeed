@@ -414,13 +414,21 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: the same check: the archive declares itself HISTORICAL, the citation was RIGHT
 #: WHEN WRITTEN, and the module moved underneath it. NO COLON-NUMBER SHAPE
 #: APPEARS IN THIS COMMENT, per the note above.
+#: `_ROT_FORM` 15 TO 16, 2026-11-19 BY WAVE 0 UNIT U-052.1 (CS-1406), AND IT IS THE
+#: SAME ONE POINTER CHANGING CARRIER. The CS-445 item-notes section carried a line pointer
+#: into `tests/save/test_objects.py` that the citation table forgave; the section moved
+#: verbatim into the archive, so the pointer now lands here and the pin in
+#: `tests/test_citation_tables.py` came down by one in the same change. NO NEW ROT
+#: ARRIVED. THE RECORDED REASON COVERS THIS SITE on the same check: the archive declares
+#: itself HISTORICAL, the citation was RIGHT WHEN WRITTEN, and the module moved underneath
+#: it. NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 9,
     _ROT_RANGE: 0,
     _ROT_EMPTY: 3,
     _ROT_NAME: 3,
     _ROT_PATH: 6,
-    _ROT_FORM: 15,
+    _ROT_FORM: 16,
 }
 
 

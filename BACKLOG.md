@@ -1389,3 +1389,17 @@ Each is a residual of an item the wave 0 close-check sweep CLOSED; the close rec
 - CS-839 residual - a shell that resolves but does not work is not graded; trigger: a two-shell divergence with sh on PATH.
 - CS-842 residual (closed narrowed per D87) - the criterion check is a substring floor, not a reader; adversary loop stopped by cost; trigger: a reworded criterion passes.
 - CS-941 residual - an item listed, never acknowledged, then pulled has no arm; trigger: a pulled deliverable not reported.
+
+## Wave 0 relocations - filed 2026-11-19 under product before process
+
+Rows the session 159 plan ruled off the build set and wave 0 unit U-052 (CS-1406) applies, one batch per part. None is
+a completion: each leaf section is moved byte-for-byte to `docs/history_notes.md` under the row's id, each batch has
+one DECISION RECORD in `docs/LEDGER.md`, and the trigger on each line is the ruled one.
+
+- CS-441 - Extend the exception-rendering sweep to a helper that takes the exception as a PARAMETER - TRIGGER: a real helper enters the blind spot (a cheap census over exception-typed parameters); the cut holds only while a counts-only re-measure shows the trigger has not fired (D76) - Rev: the trigger firing, or an adjudicator
+- CS-445 - Bring the ADR 0008 tier-1 violations outside the fenced modules under a rule - TRIGGER: another item rewrites the cited docstrings anyway (fold the claim fix into that slice), or the ADR 0008 fence is widened repository-wide - Rev: the trigger firing, or an adjudicator
+- CS-461 - Give the CS-420 census and its probe an ABSOLUTE floor instead of a relative one - TRIGGER: `_string_literals` or the comment walks are edited - Rev: the trigger firing, or an adjudicator
+- CS-473 - Bring `tests/save/test_properties.py`'s prose under a fence - TRIGGER: CLAUDE.md section 7 (product before process) is the whole reopen trigger - the row is promoted when it starts to block a product item or turns a suite red; its emptiness-guard half gets no new id and stays in this one line (D76) - Rev: the trigger firing, or an adjudicator
+- CS-488 - Bound the fixed-width table for a type word the module has never NAMED - TRIGGER: a change to `_FIXED_WIDTH_VALUES` landed from a tree without the save library, or CS-490 being taken (same table); this row reopens together with CS-490 - Rev: the trigger firing, or an adjudicator
+- CS-490 - Bound the tag-carried exemption against a consistently CLAIMING module - TRIGGER: CS-426 lands a synthetic payload fixture - Rev: the trigger firing, or an adjudicator
+- CS-501 - `MODULE_SCOPE_REACH` is one sentinel per file and absorbs further reach - TRIGGER: CS-807's route and CS-808 close; ORDER: this row is LAST in the reach-guard train, after CS-807's route and CS-808 (D89, D90); KEY: the reached callee's dotted spelling, as a set under `MODULE_SCOPE_REACH` (D90) - Rev: the trigger firing, or an adjudicator

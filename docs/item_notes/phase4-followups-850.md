@@ -1206,6 +1206,27 @@ withdrawn.
 
 both classes redact from a forced failure UNDER THE CONFIGURED PIPELINE by a mechanism that does NOT assume its input is a path, with the needle classes DERIVED from what `CLAUDE.md` names as personal data rather than listed, proven by a test that goes RED for each class independently while the pinned counter-examples STAY green - a redaction may never eat the traceback frame around a filename it rewrites, nor rewrite half a spaced name
 
+### Recorded 2026-11-19 by wave 0 unit U-052.1: CS-466 folded into this row (plan ruling D88), NOT A COMPLETION RECORD
+
+The folded row CS-466 (headline: Give the test-harness redactor an account-directory rule) was folded into CS-860 by
+wave 0 unit U-052.1. Its ROADMAP line is gone and its leaf section is in `docs/history_notes.md` under its id. Its
+acceptance, quoted verbatim, and graded separately at this row's close with its own ledger record (D88):
+
+> `tests/conftest.py`'s redactor either redacts a save-tree account directory of any shape, or the discipline that keeps a real save path out of a failure report is asserted by something rather than promised
+
+### Recorded 2026-11-19 by wave 0 unit U-052.1: the pending cut of five D77 rows, and its owner
+
+Plan ruling D77 stops the echo-guard family by cost, but the cut cannot be read back true in wave 0, so five rows stay
+OPEN in `ROADMAP.md` as RELOCATE-PENDING in the class record of CS-1406: CS-850, CS-851, CS-853, CS-857 and CS-858.
+CS-850, CS-851 and CS-853 are cut by ONE STOPPED BY COST record written in the wave after CS-860's second part lands
+(parts CS-860.1 and CS-860.2 of the plan), only after CS-850's one recorded live finding is repaired or measured
+clean-on-content. CS-857 is cut only after one read-only verifier confirms measured-leak 0 outside the frozen files at
+HEAD, and CS-858 is cut with it. OWNER of their move: the doc-sync slice of the wave after CS-860's second part lands,
+or the last process wave if CS-860 is refuted or cut (D77); it applies clauses 3, 7, 11 and 13 of CS-1406's acceptance
+to the five rows under its own ledger record. No unit key exists for that slice in the plan's unit data; the planner
+mints one. The line-pointer pin on `tests/test_redaction_scope.py` held inside the CS-857 section does NOT move with
+this unit; it travels with that later slice.
+
 
 ## CS-861
 

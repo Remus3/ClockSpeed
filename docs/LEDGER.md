@@ -75,6 +75,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.1: seven rows cut to BACKLOG, two folded, the sweep filed
+Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tests/test_citation_tables.py::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
+SCOPE. Wave 0 unit U-052.1 of THE PLAN (planning session 159), part 1 of 6 of the open-row disposition sweep: it FILES
+the sweep as CS-1406 under `Phase 7` in `ROADMAP.md` (section in `docs/item_notes/phase7.md`) and applies plan rulings
+D76, D88, D89 and D90 to the `docs/item_notes/phase4.md` batch. Nothing is closed: a CUT row stays unbuilt and becomes
+one `BACKLOG.md` line under `Wave 0 relocations` carrying its ruled trigger and `Rev: the trigger firing, or an
+adjudicator`; a FOLDED row is absorbed by a surviving row. Each leaf section moved to `docs/history_notes.md`
+byte-for-byte (SHA-256 of the section body read before and after, equal for all nine); no row is deleted.
+RELOCATED TO BACKLOG (7): CS-441 (D76, tier 1, conditional), CS-445 (D76, IC-CS-825), CS-461 (D76), CS-473 (D76,
+D-P4-42), CS-488 (D76), CS-490 (D76) and CS-501 (D89, D90, IC-CS-501). Riders in the lines: CS-473 keeps its
+emptiness-guard half in the one line with no new id; CS-488 says it reopens with CS-490; CS-490's trigger is `CS-426
+lands a synthetic payload fixture`; CS-501 carries its order (last in the reach-guard train, after CS-807's route and
+CS-808) and its key (the reached callee's dotted spelling, as a set under `MODULE_SCOPE_REACH`).
+FOLDED (2, NOT A COMPLETION): CS-444 into CS-449 and CS-466 into CS-860 (D88). Each survivor's leaf section gained a
+dated NOTE quoting the folded acceptance verbatim and saying it is graded separately at the survivor's close with its
+own ledger record. The folded ROADMAP lines are gone.
+CS-441 CONDITION READ BACK TRUE (D76 tier 1, clause 5), counts only, by an AST census of every tracked Python file at
+0f7ab8824d016e4fba92f08ac2cfa269f0026de8: 20133 functions; 24 production functions take an exception as a parameter
+and read it; 8 render it whole (4 in this tree's per-type redactors and their direct caller,
+`tools/drift_guard.py::_exc_text`, `tools/precommit_gate.py::safe_exc_text` and `git_run_error`, and
+`scripts/install_hooks.py::_exc_reason`; 4 in the vendored kit, never edited here); 0 render it unredacted. The
+trigger, a real helper entering the blind spot, has not fired, so the row is cut rather than classed under D92. The
+census script is scratch and is not tracked.
+FIRST, THE DRY RUN. The CS-444 fold (line and section both gone) and the CS-445 cut were applied alone.
+`tools/drift_guard.py` guards (i) and (j) and
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names` stayed green, so
+a folded row with no ROADMAP line is NOT refused and the decided fallback (every FOLD keeps its line and section, NOTE
+and record only) was not taken. Guard (g) read red once, on the first NOTE heading, which used an idiom outside its
+closed vocabulary; the heading was reworded to the provenance idiom `Recorded <date> by ...` and guard (g) went green.
+RIGHT-REASON RED. Removing the CS-441 ROADMAP line alone turned
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names` red with `CS-441
+in phase4.md` under 'these carry detail but no OPEN line in ROADMAP.md'; the line was restored before the batch and
+the test is green with the batch.
+PIN, GROUND TRUTH OVER THE PLAN (CLAUDE.md section 8). The plan placed the CS-445 pin at `phase4.md` line 181 and the
+table at 1101-1135; at this base the pin into `tests/save/test_objects.py` sat inside the CS-445 section and the table
+row is further down. Decision: DROP the pin (alternatives: re-key it to a symbol, rejected because its carrier moved
+out of the guarded corpus into the exempt `docs/history_notes.md`, so there is no pointer left to re-key; leave it,
+rejected because a pin with no carrier is slack the ratchet exists to refuse). The ceiling
+`FORGIVEN_LINE_POINTER_CEILING` in `tests/test_citation_tables.py` came down by one with it, checked in both
+directions by `tests/test_citation_tables.py::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`. The pin
+on `tests/test_redaction_scope.py` inside CS-857 does not move here: it travels with the later D77 slice.
+PENDING, NOT MOVED HERE: the CS-860 section gained a dated NOTE naming the owner of the D77 cut of CS-850, CS-851,
+CS-853, CS-857 and CS-858 and its two preconditions. Ground truth: the plan's `Phase 7` heading reference to
+`ROADMAP.md` line 333 is line 322 at this base; CS-1406 is the next free id (CS-1405 the highest filed in
+`BACKLOG.md`; `git log --all -S` for CS-1406 finds none).
+READ BACK: `ROADMAP.md` item lines 240 before, 232 after (nine removed, CS-1406 added); ROADMAP bytes freed by the
+nine moved lines 1331 (161 for CS-444, 151 for CS-445, 1019 for the other seven), net of the CS-1406 line shown by the
+closing record. Each of the nine ids is found by grep in `BACKLOG.md` (seven) or only in `docs/history_notes.md`
+(CS-444, CS-466, folded).
+
 ### 2026-11-19 - WAVE 0 SESSION 1 END - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
 Verification: the 2026-11-19 records below (WAVE 0 W0a ENTRY AND U-158 COPY, the twelve sweep closes, the KEEP OPEN
 record, the CS-815 U-155 decision record and the CS-701, CS-981 citation correction); `CS-NEXT-SESSION.txt` NEXT

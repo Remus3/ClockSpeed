@@ -115,21 +115,6 @@ NOTE: filed 2026-08-16 as the stated remainder of CS-435, whose ledger entry nam
 a consumer at the world layer can tell WHICH class failed to resolve, and `UnknownClass.reason` distinguishes "the registry does not model this" from "the name could not be decoded"
 
 
-## CS-441
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: **BUILT 2026-08-16 (session 12) AND REFUTED THE SAME DAY.** The narrow mechanism works and 26 of 46 spliced shapes escaped it. Measured against 7165 annotations, 0 real helpers sit in the blind spot today, so this is COVERAGE, not a live leak. FULL ENTRY relocated to this file under **CS-441 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-NOTE: filed 2026-08-16 from the CS-438 adversary and CONFIRMED by the CS-438 repair with three byte-verified mutants. `tests/test_exception_rendering.py`'s `RenderVisitor` is scoped BY DESIGN to `except ... as NAME` handler bodies, and its own docstring states that `safe_exc_text(exc)` takes the exception as a parameter so its `str(exc)` sits outside every handler. Measured against `workdir._listing_problem(code, exc)`: `detail=str(exc)` gives 0 findings GREEN, `detail=exc.filename` gives 0 findings GREEN, and the same `str(exc)` inside a real handler gives 1 finding RED. The runtime behaviour is clean today, so this is a COVERAGE gap rather than a live leak - but the module that relied on it had ZERO direct tests until CS-438's repair added them, and the sweep is the enumerating guard the project trusts precisely because it has no list. Note the shape generalises: any helper reached from a handler and handed the bound exception is invisible, and nobody has counted how many exist. **BUILT 2026-08-16 (session 12) AND REFUTED THE SAME DAY. THE CODE SHIPPED AND THE ITEM DOES NOT CLOSE.** The narrow mechanism works - a suffix-annotated parameter rendered whole IS now flagged, and the sanctioned-helper half SURVIVED every attack including two combined mutants aimed at the non-vacuity proofs, which are genuinely live. **WHAT FAILED: of 46 spliced shapes 26 ESCAPED, and seven whole-object leaks in one file left the suite green.** Three families, all measured: the annotation predicate is a NAME SUFFIX, so it misses 19 builtin exception types, `subprocess.TimeoutExpired` - which this project's own gate names as a leak type - and **five exception classes this repo already defines carrying `noqa: N818`**, so the predicate's foundation is already deliberately breached in-tree; an UNANNOTATED parameter is invisible; and the exemption is reachable by `not isinstance(...)`, by `isinstance(...) or flag`, and by a locally-defined `OSError` SUBCLASS whose `__str__` appends the filename, which refutes the stated reason that a module defining a type can promise its message. **THE ITEM'S OWN "no list to keep up to date" CLAIM IS FALSE:** three dicts in that file are keyed by PATH, so a brand-new leak appended to an already-listed file is absorbed silently - demonstrated in `tools/drift_guard.py` and again in a waived test file, both green. Four false sentences and seven behaviour-changing green mutants against unbacked detection claims are recorded against ADR 0008. Measured against 7165 annotations in the tree: **0 real helpers sit in the blind spot today**, so this is coverage, not a live leak - one keystroke deep.
-
-### Acceptance
-
-rendering the exception object inside a function that receives it as an argument is flagged, proven by a mutant that is green today, with the per-type redaction allowlist still not flagged
-
-
 ## CS-443
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -139,36 +124,6 @@ NOTE: **THE UNFROZEN HALF WAS BUILT 2026-08-16 (session 12) AND REFUTED THE SAME
 ### detail - relocated from `docs/history_notes.md` 2026-08-23
 
 NEEDS ITS OWN FROZEN-FILE GRANT for `tools/precommit_gate.py`; the 2026-08-16 CS-436 grant is SPENT and covers CS-436 alone. NOTE: filed 2026-08-16 by the CS-436 builder, MEASURED and deliberately not fixed because it is outside CS-436's three enumerated parts. With a malformed `config/local.json`, `discover_world_names` recovered 0 declared names and emitted NO skip about the config; the only line printed advises the operator to "add world_names to config/local.json", WHICH THEY HAD ALREADY DONE. That is the CS-436 false-statement class one layer up - not silence, an instruction to do the thing that is already done and is being discarded. `local_config` takes no `report` argument at all, so there is no channel to report on. Fold in the CS-436 residual its repair flagged and did not widen into: when the header reader is unimportable and the root is NOT truncated, "no world token is discoverable" still prints beside "the save-header reader is not importable", which is the same two-lines-that-disagree defect the CS-436 repair fixed for the cap case. **THE UNFROZEN HALF WAS BUILT 2026-08-16 (session 12) AND REFUTED THE SAME DAY. THE CODE SHIPPED AND THE ITEM DOES NOT CLOSE.** Three claims SURVIVED hard attack: all six loss paths report, each code is pinned by its own reddening test, and absence plus a valid file stayed silent across 1500 measured invocations. A SEVENTH loss path that CRASHED rather than discarded was found and fixed - `UnicodeDecodeError` is a `ValueError`, not an `OSError`, and escaped a function whose docstring promises it never raises; confirmed independently against the pre-fix blob. **WHAT FAILED, and the first one is the acceptance itself.** (1) **THE CHANNEL HAS ZERO PRODUCTION CONSUMERS.** No caller in `clockspeed/`, `tools/` or `scripts/` passes the collector, so `scripts/verify_env.py` against a malformed config still exits 0 printing nothing about it. The acceptance says a bad config "is REPORTED rather than returning `{}` in silence"; against every shipped entry point it still returns `{}` in silence. A resolver fix is not a consumer fix, and CS-452 carries the seam. (2) **THE `detail` SENTENCE - the entire operator-facing content - HAS NO CONTROL:** replacing all six with a nonsense sentence left the module suite green, and giving the malformed case the oversize sentence also stayed green. Only truthiness is asserted. That is the CS-430 class exactly. (3) **THE SUBJECT'S REDACTION FAILS OPEN TWICE** - it reads only the environment, and `_RESOLVED_ACCOUNT_NAMES` is lazily seeded so the same input redacts or does not depending on call order, with the config read running FIRST in the resolve chain. Its control is structurally blind because the oracle and the redactor share their only input. (4) Four sentences measured false, one of them the merger's. (5) FOUR further silent paths remain: an empty or whitespace value dropped later by `_override`, a duplicate key, and - the most likely operator error of all - a mis-typed or mis-cased key, returned faithfully and read by nobody.
-
-## CS-444
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: **BUILT 2026-08-16 (session 12) AND REFUTED THE SAME DAY by a security adversary.** The fail-open is closed only INSIDE `_forbidden_roots`; see CS-449 for the seam below it and CS-454 for the personal-data echo path it added. FULL ENTRY relocated to this file under **CS-444 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-NOTE: filed 2026-08-16 by the CS-438 builder, which found it while sweeping its own file and reported rather than widened. **THIS ONE IS SECURITY-RELEVANT AND SITS DIRECTLY ON A NON-NEGOTIABLE.** The guard is `if resolved is not None`, so a save root that fails to resolve NEVER REACHES THE REFUSE LIST, and a copy could then land inside it. Non-negotiable 1 is never write to the game install or the save directory, and `clockspeed/save/workdir.py` is by deliberate design THE ONLY MODULE IN THE PACKAGE WITH A WRITE - `docs/ARCHITECTURE.md` records that this is what makes the invariant statically checkable rather than a rule reviewers must remember. A fail-open in the refuse list is therefore a hole in the one mechanism the architecture relies on. Same silent-loss family as CS-439 and it should be fixed whether or not CS-439 lands, because the failure direction here is a WRITE rather than a missing report. **BUILT 2026-08-16 (session 12) AND REFUTED THE SAME DAY BY A SECURITY ADVERSARY THAT WROTE NONE OF IT. THE CODE SHIPPED AND THE ITEM DOES NOT CLOSE.** `ForbiddenRoot` now carries a nullable resolved path so "present but unresolvable" is representable, and the refusal fires on it. Two claims SURVIVED byte-verified mutation: reverting only the producer reddens 5 tests, reverting only the consumer reddens 4, and the harness control discriminates rather than passing for the pre-existing destination check. **TWO CLAIMS DID NOT.** (1) "The fail-open is closed" is TOO WIDE and must read "closed INSIDE `_forbidden_roots`" - see CS-449, whose reachability the adversary MEASURED rather than left open. (2) **THE REFUSAL MESSAGE IS A NEW PERSONAL-DATA ECHO PATH AND ITS CONTROL IS VACUOUS** - see CS-454. Gutting the redactor out of the new branch left the whole workdir suite green, because the control's own fixture uses an all-digit account name, which is the one shape the backstop catches unconditionally. That is a fixture built parallel to the implementation, and it is this project's own named failure class.
-
-### Acceptance
-
-a forbidden root that fails to resolve is REPORTED and treated as still forbidden rather than omitted from the refuse list, proven by a test that fails against today's code
-
-
-## CS-445
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-16 from the CS-438 repair, which measured them and correctly declined to make a unilateral prose edit inside a repair commit. FULL ENTRY relocated to this file under **CS-445 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-NOTE: filed 2026-08-16 from the CS-438 repair, which measured them and correctly declined to make a unilateral prose edit inside a repair commit. ADR 0008 is now `accepted` and binds LIVING TEXT REPOSITORY-WIDE, while its mechanical fence is scoped to two modules in `tests/save/` - so these are in scope for the RULE and out of scope for the CHECK, which is exactly the breadth question the ADR's SCOPE clause reserves as separate work. **THIS ENTRY IS THE MEASURED POPULATION FOR THAT WORK, so a later slice inherits evidence rather than an argument.** `clockspeed/save/objects.py::ObjectRecord` documents `body_length` with a corpus-scoped universal, "never zero-length in any real save on this machine", RESTATED at `objects.py:2809` and again at `tests/save/test_objects.py:834` with no live guard - one measured fact in three places, which is CLAUDE.md section 4's own failure mode. Two "the only one" superlatives sit at `objects.py:1066` and `objects.py:1609`. Note the tension with CS-412, which wants unmeasured spans recorded AS DATA: the fix for a corpus-scoped universal is probably to derive it, not delete it.
-
-### Acceptance
-
-each universal or superlative detection claim in `clockspeed/save/objects.py` is DERIVED, DELETED, or recorded against a stated exemption, and the corpus-scoped universals state which corpus they are true of in a form the suite checks
-
 
 ## CS-446
 
@@ -216,6 +171,15 @@ NOTE: filed 2026-08-16 by the CS-444 builder, which found it sweeping its own fi
 ### Acceptance
 
 a save root that EXISTS but whose directory test answers False for a reason other than absence is reported and does not silently become "no such root", proven by a test that fails against today's code, with reachability answered on the DECLARED FLOOR and not only on the interpreter this machine runs
+
+### Recorded 2026-11-19 by wave 0 unit U-052.1: CS-444 folded into this row (plan ruling D88), NOT A COMPLETION RECORD
+
+The folded row CS-444 (headline: Stop `workdir._forbidden_roots()` silently dropping a forbidden root it cannot
+resolve) was folded into CS-449 by wave 0 unit U-052.1. Its ROADMAP line is gone and its leaf section is in
+`docs/history_notes.md` under its id. Its acceptance, quoted verbatim, and graded separately at this row's close with
+its own ledger record (D88):
+
+> a forbidden root that fails to resolve is REPORTED and treated as still forbidden rather than omitted from the refuse list, proven by a test that fails against today's code
 
 
 ## CS-450
@@ -386,17 +350,6 @@ NOTE: filed 2026-08-16 (session 14) by the CS-420 clause-5 adversary and CONFIRM
 the sentence is true of the code it describes, or is gone, proven by reading the loop it points at
 
 
-## CS-461
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-16 (session 14) by the CS-420 clause-5 adversary as the stated residual of a pass it otherwise could not break. `string_census` and `string_position_mutants` both derive their population from `_string_literals`, so narrowing it shrinks BOTH sides and the equality still holds - measured green under a helper that drops literals over 200 characters, and under one that drops the whole assert-kind population of 43 of 74. ASYMMETRIC narrowing of either side alone IS caught, which is the defect class the item was refuted on and is genuinely repaired. **NOT A LIVE DEFECT:** the shipped helper walks all 74 and catches both a long and a short planted claim, verified. This is a limit on the guard's self-defence rather than on what shipped, which is why it is filed rather than reopening CS-420.
-
-### Acceptance
-
-narrowing the shared `_string_literals` helper turns a test RED, proven by a mutant that drops a literal class from both sides at once, and the same for the two comment walks
-
-
 ## CS-462
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -423,17 +376,6 @@ NOTE: filed 2026-08-16 (session 15) by the CS-454 vacuity adversary and CONFIRME
 ### Acceptance
 
 a plant that closes the `redact` recursion cycle by entering it at a private helper turns `tests/data/test_phase2_gate.py::test_redact_calls_no_resolver_at_any_depth` RED, with the graded set derived rather than transcribed
-
-
-## CS-466
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-16 (session 15). MEASURED by a breadth adversary and confirmed by the adjudicator: `tests/conftest.py` never imports `clockspeed` at all, and every one of its account references is the logged-in WINDOWS account, not the save-tree account DIRECTORY - two different things. On a save-shaped path it leaves the account directory AND the world name standing where `locate.redact` yields `<account-dir>/<save-file>`. **LATENT RATHER THAN LIVE, and the bound is what makes it tier 2:** the real-library tests report COUNTS ONLY, their discovery sits inside a `try`, and there is no `--showlocals` in `addopts` - so no real save path reaches a failure report today. That bound is guaranteed by discipline and by no check at all.
-
-### Acceptance
-
-`tests/conftest.py`'s redactor either redacts a save-tree account directory of any shape, or the discipline that keeps a real save path out of a failure report is asserted by something rather than promised
 
 
 ## CS-467
@@ -517,23 +459,6 @@ NOTE: filed 2026-08-17 (session 16) by the CS-422 builder against its own work a
 deleting any entry from `objects.DECLINED_VALUE_READINGS` turns a test RED, including an entry for a type word that ships no tag-extra width, with the required population DERIVED rather than listed
 
 
-## CS-473
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-17 (session 16). FULL ENTRY relocated to this file under **CS-473 - detail**, including three separate enlargement measurements; read it before taking this item. **SCOPE SPLIT 2026-08-20 (session 25): CS-495 moved the reach guard's prose out of that module into `tests/save/reach_guard.py`, so this item's subject is now three modules, not one. Nothing was deleted and the prose is unfenced in all three; re-measure the population before quoting any figure from the detail block.**
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-Relocated from `ROADMAP.md` on 2026-08-19 (session 21) under its soft doc budget, whole and unedited. The item itself stays OPEN in `ROADMAP.md`; this is its NOTE.
-
-NOTE: filed 2026-08-17 (session 16). Measured, not inferred: `FENCED_MODULES` is a hand-written 2-tuple that excludes `test_properties.py`, and a claim carrying eight unbounded quantifiers was spliced into that module with both fence modules staying green at 25 passed, then restored from a byte copy. So ADR 0008 compliance in the project's largest test module is an author obligation with no mechanism behind it. The emptiness half is the same shape one file along: the two guards between them now catch a `pass` body, a docstring-only body and an `assert True` on a literal, and three shapes remain - and a body that is only `pytest.skip()` is the dangerous one, because it is camouflaged among the legitimate skips of a library-backed module. **ENLARGED AGAIN 2026-08-18 (session 20):** CS-480 took that same module from 70 unbacked absolute sentences to 113, measured with this repo's own `unbacked_absolutes` over both trees. No sample repair was made: a partial hand repair with no mechanism is the register of pardons that tool's own docstring forbids. **SURFACE ENLARGED 2026-08-18 (session 18), measured rather than estimated:** CS-476 shipped `tests/save/test_byte_order_status.py`, a new module that is NOT in `FENCED_MODULES`, so it ships unfenced by default - which is this item's own claim reproducing itself one module along. Running the fence's contract 1 against it via `unbacked_absolutes` reports **24** unbacked quantified sentences, spread across the docstring, comment and assert-message channels. That figure is a measurement of that module on that date and is NOT a budget - re-run the scan rather than carrying it forward. Bringing the module inside the fence is a prose rewrite, which is why it was recorded here instead of being folded into CS-476. **ENLARGED AGAIN 2026-08-18 (session 21):** CS-482 added 9 unbacked quantified sentences across the three modules it touched, measured with this repo's own `unbacked_absolutes` over both trees - `clockspeed/save/objects.py` 216 to 219, `tests/save/synthetic.py` 113 to 115, `tests/save/test_objects.py` 179 to 183. Two of the three in `objects.py` are statements of what is NOT measured, which is the tool's known coarseness rather than an overclaim, and that is a reason to fix the tool and not a reason to exempt the sentences. One sentence WAS backed by citing a resolving test rather than by rewording it. No sample repair was made, for the reason recorded above.
-
-### Acceptance
-
-an unbounded quantifier inserted into that module's prose without a resolving test turns a test RED, and a test body emptied to a bare `return`, to a lone `pytest.skip()`, or to an always-true non-literal assertion is reported by a guard
-
-
 ## CS-474
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -586,58 +511,6 @@ NOTE: filed 2026-08-18 (session 19) by the CS-421 correctness refutation and re-
 displacing the separability census's own read by any non-zero offset turns a test RED, rather than being caught only by the sibling extent anchor
 
 
-## CS-490
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-19 (session 23) as CS-487's measured residual. **IT IS NOT CS-488, AND THE MEASUREMENTS, THE LINE COUNTS AND THE FENCES ARE IN this file under **CS-490 - detail** and MUST BE READ BEFORE TAKING THIS ITEM** - relocated for budget, never deleted.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-Relocated from `ROADMAP.md` 2026-08-19 (session 23) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
-
-filed 2026-08-19 (session 23) as CS-487's measured residual, by two independent refutation
-passes and re-measured by the merger on the tree carrying CS-487's two arms. **IT IS NOT
-CS-488.** CS-488's acceptance is scoped to a WIDTH-TABLE entry and neither route here touches a
-width table, so satisfying CS-488 need not red either; an earlier draft of CS-487's control
-handed this residual to CS-488 and a refutation pass measured that assignment wrong.
-
-TWO ROUTES, BOTH TAKEN ALL THE WAY TO GREEN RATHER THAN LEFT AT THE FIRST RED, both with
-`tests/save` green on a machine with no game. SEVEN EDITED LINES - five in
-`clockspeed/save/objects.py`, two in `tests/save/test_properties.py` - by taking a word ALREADY
-in `MEASURED_VALUE_TYPES`, severing it from the shape table that reads it, re-declaring it
-measured, widening both tag-carried sites and writing the status entry, then moving its fixture
-tag and expected value. And EIGHT EDITED LINES for a word the module has never named. A line
-count is EDITED lines, added and modified alike - counting only additions understated one route
-by two.
-
-THE PRICE AND THE ROUTES ARE OWNED BY
-`tests/save/test_byte_order_status.py::test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`.
-Read that docstring before taking this item and DO NOT RESTATE ITS COUNTS here or anywhere -
-two counts in the first draft of this work were wrong precisely because they were written
-twice.
-
-NOTE THE HARD PART BEFORE STARTING. Every control on this exemption is keyed on the module
-CONTRADICTING itself - a status against a region the module records as unclaimed, a tag-carried
-word the module also reads out of the payload, a decoded word the measured set declines to
-name. A module edited to claim a type in every table at once contradicts itself nowhere, and no
-library-free check can tell a false width or a false shape from a true one, which is CS-426's
-gap. So the acceptance cannot rest on another contradiction; it needs either a fixture that
-costs more than one `struct.pack` call, or evidence from outside this module's own tables.
-
-### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
-
-The headline this item carried before its line was cut to the one-liner the
-`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
-
-Bound the tag-carried exemption against a module that CLAIMS a type consistently instead of contradicting itself over it
-
-### Acceptance
-
-shipping `objects.BYTE_ORDER_VACUOUS` for a type word that is not one byte wide turns a test RED on a machine with NO GAME INSTALLED even when every shipped table and every fixture is edited to agree about that word
-
-
 ## CS-499
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -673,42 +546,6 @@ CS-492 - Close the reach routes that travel through an OBJECT rather than a name
 ### Acceptance
 
 a module holding a primitive on an instance attribute, or serving one from a module-level `__getattr__`, and calling it from a function that names no primitive, turns a test RED on a machine with NO GAME INSTALLED
-
-
-## CS-501
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: detail relocated 2026-08-23 for budget to this file under **CS-501 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
-`ROADMAP.md`. This block is a LIVE instruction, not history.
-
-filed 2026-08-20 (session 25), reproduced by the merger: a planted module with two module-scope locator calls and one sentinel exemption is SILENT. Named as bound 4 in CS-493's detail block and outside that item's acceptance. Three tracked modules declare the sentinel today, so any fix has to say what a per-site key looks like - a line number is not stable across an edit, which is why this is filed rather than guessed at. **ID NOTE: this sits in the CS-5nn block because the CS-4nn block is FULL** - 98 of 100 used, and the only two unused are gaps, which CLAUDE.md forbids backfilling. It was first filed as CS-500 and collided with the phase 5 gate, which has held that ID far longer; the older item keeps it. **Which block phase-4 follow-ups continue into is an OPERATOR DECISION and is not settled by this line.**
-
-### Acceptance
-
-a module declaring the sentinel and gaining a SECOND, unrelated module-scope reach turns a test RED on a machine with NO GAME INSTALLED
-
-
-## CS-488
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-19 (session 22) by a refutation pass on CS-481 and re-measured by the merger. **THE MEASUREMENTS, THE LINE COUNTS AND THE FENCES ARE IN this file under **CS-488 - detail** and MUST BE READ BEFORE TAKING THIS ITEM** - relocated for budget, never deleted.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-Relocated from `ROADMAP.md` 2026-08-19 (session 22) for budget, not deleted. The item
-itself stays OPEN in `ROADMAP.md`.
-
-filed 2026-08-19 (session 22) by TWO independent refutation passes on CS-481 and re-measured by the merger. CS-481's contradiction arm reads `UNMEASURED_PAYLOAD_REGIONS`, so a word the module never mentions has nothing to intersect with. SIX LINES - three in `objects.py` (width entry, shipping grounds, evidence entry, with the region entry deleted where one exists) and three in `tests/save/test_properties.py` (the measured-set transcription, a `_scalar_tag` fixture line, an expected-value line) - ship `vacuous_one_byte` for an EIGHT-byte type with `tests/save` GREEN with no game. WHAT CS-481 DID CLOSE IS WORD-AGNOSTIC ON THE OTHER LINE and that is measured: a never-named type declared one byte wide and severed from `MEASURED_VALUE_TYPES` reds the walk control and nothing else. NOTE THE HARD PART BEFORE STARTING: no library-free check can tell a false width from a true one - that is CS-426's gap - so the acceptance has to rest on the module's own coherence or on a fixture that costs more than a `struct.pack` call, not on the width being right.
-
-### Acceptance
-
-adding a width-table entry for a type word that appears in no other shipped table turns a test RED on a machine with NO GAME INSTALLED, even when the module is edited to claim the type consistently
 
 
 ## CS-489
