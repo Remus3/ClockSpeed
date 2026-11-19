@@ -22,6 +22,7 @@ the runtime guards exist for values that arrive through an untyped boundary.
 
 from __future__ import annotations
 
+import re
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
 from fractions import Fraction
@@ -29,6 +30,7 @@ from typing import cast
 
 import pytest
 
+from clockspeed.advisor.trace import _inexact_reason
 from clockspeed.solve.exact import (
     ExactArithmeticError,
     InexactValueError,
@@ -47,6 +49,14 @@ from clockspeed.solve.quantity import (
 
 class _LooseFraction(Fraction):
     """A Fraction subclass, which may have overridden the arithmetic the module needs."""
+
+
+class _LooseStr(str):
+    """A str subclass equal to a real unit name, which an isinstance check would admit."""
+
+
+class _SubQuantity(Quantity):
+    """A Quantity subclass, which may have overridden the unit rules this type enforces."""
 
 
 # ===========================================================================
@@ -78,9 +88,17 @@ def test_adding_a_per_cycle_rate_to_a_per_minute_rate_is_refused() -> None:
     per_cycle_rate = Quantity.per_cycle(Fraction(3))
     assert per_minute_rate.value == per_cycle_rate.value
 
-    with pytest.raises(UnitMismatchError, match=UNIT_PER_MINUTE):
+    # The whole ordered phrase is pinned: both unit names appear in either message, so a bare
+    # unit-name match would pass with the operand and the receiver swapped.
+    with pytest.raises(
+        UnitMismatchError,
+        match=re.escape(f"cannot add a {UNIT_PER_CYCLE} quantity and a {UNIT_PER_MINUTE} quantity"),
+    ):
         per_minute_rate + per_cycle_rate
-    with pytest.raises(UnitMismatchError, match=UNIT_PER_CYCLE):
+    with pytest.raises(
+        UnitMismatchError,
+        match=re.escape(f"cannot add a {UNIT_PER_MINUTE} quantity and a {UNIT_PER_CYCLE} quantity"),
+    ):
         per_cycle_rate + per_minute_rate
 
 
@@ -189,6 +207,17 @@ def test_converting_over_a_zero_duration_is_undefined_not_unit_error() -> None:
         Quantity.per_cycle(Fraction(3)).to_per_minute(Fraction(0))
 
 
+@pytest.mark.parametrize("duration", [Fraction(0), Fraction(-2), Fraction(-1, 3)])
+def test_converting_over_a_non_positive_duration_is_refused(duration: Fraction) -> None:
+    """A cycle takes positive time, so a negative duration is refused as zero is.
+
+    ``per_minute`` alone would return a NEGATIVE rate for a negative duration: exact,
+    finite and meaningless. The refusal names the positive-duration rule.
+    """
+    with pytest.raises(UndefinedRateError, match="positive"):
+        Quantity.per_cycle(Fraction(3)).to_per_minute(duration)
+
+
 def test_converting_over_a_float_duration_is_refused_before_it_poisons_the_rate() -> None:
     """``Fraction(60) / 0.5`` is a float; the conversion refuses its operand first."""
     with pytest.raises(InexactValueError):
@@ -222,9 +251,54 @@ def test_a_quantity_refuses_a_unit_outside_the_closed_vocabulary(bad_unit: objec
         Quantity(Fraction(1), cast("str", bad_unit))
 
 
+def test_a_str_subclass_equal_to_a_unit_name_is_refused() -> None:
+    """Exact type, not isinstance, for the unit as for every other check in the module."""
+    loose = _LooseStr(UNIT_PER_MINUTE)
+    assert loose == UNIT_PER_MINUTE
+
+    with pytest.raises(UnitMismatchError, match="_LooseStr"):
+        Quantity(Fraction(1), loose)
+
+
 def test_the_unit_vocabulary_is_exactly_the_two_published_units() -> None:
     """Pins the closed set and its spellings, so adding a unit is a deliberate edit."""
     assert sorted(UNITS) == ["per_cycle", "per_minute"]
+
+
+# ===========================================================================
+# Pins for the claims the module docstring makes
+# ===========================================================================
+
+
+def test_a_quantity_is_slotted_and_admitted_by_the_advice_trace_walker() -> None:
+    """The docstring says a frozen slotted dataclass needs no allowlist entry; prove it.
+
+    The walker admits a dataclass only while frozen, declaring ``__slots__`` itself, and
+    with no instance ``__dict__``. Drop ``slots=True`` and all three fail at once.
+    """
+    quantity = Quantity.per_minute(Fraction(3))
+
+    assert "__slots__" in Quantity.__dict__
+    assert not hasattr(quantity, "__dict__")
+    assert _inexact_reason(quantity) is None
+    assert _inexact_reason((quantity, Quantity.per_cycle(Fraction(1, 3)))) is None
+
+
+def test_a_quantity_subclass_is_refused_by_add_sub_and_expect_per_minute() -> None:
+    """Exact type, not isinstance: a subclass may have overridden the unit rules.
+
+    Refused as the operand and as the receiver is not needed: the receiver is a plain
+    Quantity whose own methods run, so only the operand and the gate argument can be one.
+    """
+    plain = Quantity.per_minute(Fraction(3))
+    sub = _SubQuantity(Fraction(3), UNIT_PER_MINUTE)
+
+    with pytest.raises(UnitMismatchError, match="_SubQuantity"):
+        plain + sub
+    with pytest.raises(UnitMismatchError, match="_SubQuantity"):
+        plain - sub
+    with pytest.raises(UnitMismatchError, match="_SubQuantity"):
+        expect_per_minute(sub)
 
 
 # ===========================================================================

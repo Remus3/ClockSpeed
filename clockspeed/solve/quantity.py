@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final
 
-from clockspeed.solve.exact import ExactArithmeticError, InexactValueError
+from clockspeed.solve.exact import ExactArithmeticError, InexactValueError, UndefinedRateError
 from clockspeed.solve.exact import per_minute as exact_per_minute
 
 __all__ = [
@@ -221,12 +221,19 @@ class Quantity:
                 already per minute is the same defect as never converting, so it is refused
                 and the conversion is not idempotent.
             InexactValueError: ``duration`` is not exactly a Fraction.
-            UndefinedRateError: ``duration`` is zero.
+            UndefinedRateError: ``duration`` is zero or negative. A cycle takes positive time;
+                a negative duration would otherwise yield a negative rate, exact and meaningless.
         """
         if self.unit != UNIT_PER_CYCLE:
             raise UnitMismatchError(
                 f"only a {UNIT_PER_CYCLE} quantity converts to {UNIT_PER_MINUTE}, and this one "
                 f"is {self.unit}; applying the conversion twice is the same defect as skipping it"
+            )
+        _require_fraction(duration, "duration")
+        if duration <= 0:
+            raise UndefinedRateError(
+                "a cycle duration must be positive; a zero or negative duration has no rate "
+                "per minute"
             )
         return Quantity(exact_per_minute(self.value, duration), UNIT_PER_MINUTE)
 
