@@ -152,7 +152,7 @@ an annotated purity is never reported as derived, the annotation round-trips key
 instance name, and its published provenance reads operator rather than measured. Its
 write-list narrows to a NEW `annotations` module under `clockspeed/advisor/` and a NEW
 `tests/advisor/` package. The reasoning for moving the registration with the raster is recorded in
-CS-1061's own section, not repeated here.
+CS-1061's own section (now in `docs/history_notes.md` under CS-1061, the row in `BACKLOG.md`), not repeated here.
 
 **TWO OPERATOR REQUIREMENTS DIED THIS SESSION AND THIS ITEM IS THE HONEST SUBSTITUTE FOR
 BOTH.** Node purity is structurally absent from every save - closed by declaration at

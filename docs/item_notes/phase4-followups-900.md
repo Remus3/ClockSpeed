@@ -79,8 +79,8 @@ needs its own adversarial pass, which is why this is filed rather than done.
 
 **THE INTERACTION THAT MUST BE READ FIRST.** CS-448 is OPEN, tier 1, and its acceptance
 names THIS EXACT TEST as flaking under `-n auto`. Anyone reducing this test's cost is
-standing on CS-448's toes and should read `docs/item_notes/phase4.md` under **CS-448**
-first. Measured 2026-09-05 and recorded there: the CS-448 trigger condition does NOT hold
+standing on CS-448's toes and should read `docs/history_notes.md` under **CS-448** (closed
+2026-11-19, its section moved there) first. Measured 2026-09-05 and recorded there: the CS-448 trigger condition does NOT hold
 on the hosted runner.
 
 **WHAT THIS ITEM IS NOT.** It is not "make the suite faster" in general. The sub-0.2s tail

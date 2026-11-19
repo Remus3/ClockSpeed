@@ -307,4 +307,3 @@ CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` fai
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1406 - rows already ruled to leave the roadmap are still filed as open work, and no open row states its execution class - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
