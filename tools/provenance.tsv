@@ -98,6 +98,7 @@ clockspeed/solve/carry.py	authored	CS-1360	stamped
 clockspeed/solve/exact.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/optimize.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/power.py	authored	CS-300	first-add:CS-300
+clockspeed/solve/quantity.py	authored	CS-1248	stamped
 clockspeed/solve/ratio.py	authored	CS-300	first-add:CS-300
 clockspeed/solve/relax.py	authored	CS-1237	stamped
 clockspeed/solve/strategy.py	authored	CS-1244	stamped
@@ -454,6 +455,7 @@ tests/solve/test_optimize.py	authored	CS-300	first-add:CS-300
 tests/solve/test_phase3_gate.py	authored	CS-300	first-add:CS-300
 tests/solve/test_plan_edges.py	authored	CS-1395	stamped
 tests/solve/test_power.py	authored	CS-300	first-add:CS-300
+tests/solve/test_quantity.py	authored	CS-1248	stamped
 tests/solve/test_ratio.py	authored	CS-300	first-add:CS-300
 tests/solve/test_relax.py	authored	CS-1237	stamped
 tests/solve/test_strategy.py	authored	CS-1244	stamped
