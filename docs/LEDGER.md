@@ -75,6 +75,38 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1401 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1401 STAYS OPEN: session 159 delivered THE PLAN and its one batched ask; U-151 clauses 1 to 10 and 12 read MET, so plan entry checks 2 and 5 hold
+Verification: `CS-NEXT-SESSION.txt` at 97ca1f8f0600ef9673688838cea652df360b98f8, its NAMES, NEXT ACTION, OPEN ITEMS,
+CHANNEL and DECISIONS IN FORCE blocks; `ops/fleet_kit/MANIFEST.json` version; `tools/doc_budget.py`,
+`tools/drift_guard.py`, `tools/sha_citation_gate.py`. This record closes nothing, so no test names one.
+SCOPE. Recorded as a difference from THE PLAN's entry checks 2 and 5 (its Part 0, line 29): no session 159 ledger
+record or WAKEUP entry existed, because that /done's brief limited tracked writes to the hand-off and
+`docs/history_notes.md`. DELIVERING SESSION: session 159 (planning only; nothing built, nothing closed, no id
+allocated). DELIVERED: THE PLAN, CLOCKSPEED-MASTER-PLAN.md on the operator's Desktop, 4159679 bytes, sha256
+e6e9b3401e33e8ad133e554ed5684d799a03e6d624b66f4ac60f4bc2491a88d1 (re-read by the verifier this session), with its
+Part 1 as the one batched operator ask (runbook entry check 2).
+CLAUSE VERDICTS, graded at 97ca1f8f by a distinct read-only verifier in its own clone, never by this record's
+writer: clause 1 MET (kit v32 with CS-1403 in R1 and the STATE line; manifest version 32; v31 grep 0); 2 MET
+(NEW IDS names CS-1403, the highest filed at that commit); 3 MET (orders 1947, 2005, 2145 each ANSWERED with its
+stamp); 4 MET (the six sent stamps under never re-send; the 22:45 wording present); 5 MET (CS-1231 NOT MET at v20.1
+and again at v32; G3 and the drive-root kit wait present; collapsed-whitespace greps 0, 0 and 1); 6 MET (the owed
+ANSWER carries CS-1361 and CS-1390; v31 push wording gone); 7 MET (opted out of FLEET 18, no opt_in key; render and
+E: root greps 0; C13 names the sidecar Scratch folder); 8 MET (24467 bytes; the three tools exit 0; the four named
+test files 326 passed; headroom grep 0); 9 MET (diff below); 10 MET (no docs/handoff-archive; archive --auto prints
+"archive skipped" and writes nothing; S0 RULING 3 out of OPEN ITEMS; the route is one DECISIONS IN FORCE line with
+its Rev; no decision wording in `docs/history_notes.md`); 12 MET (inbox notes 2026-11-16-2109 and 2026-11-17-2119
+classed information and terminal in the session 159 worksheet; 156 D2 checked, HOLDS). Clause 11 is the next /done's
+step 4 and was not graded.
+BYTE ROOM (clause 10): four closed blocks relocated verbatim to the end of `docs/history_notes.md` under the session
+159 route ruling, Route B (3544 bytes): the 158 CLOSED and report blocks, MAIN orders R2 and R3 with the session_157
+timing, and the C14 residuals; other lines tightened in place to line pointers at THE 159 BASE under plan ruling D80
+(529 bytes freed).
+ID DIFF (clause 9), the verifier's `comm` over sorted unique CS-<digits> and CS-G<digits> tokens of
+`git show 69151dfb79c55c26fbd0ffd60c4c785d9843c772:CS-NEXT-SESSION.txt` (55 tokens) against the 97ca1f8f file
+(59 tokens), quoted: "old-minus-new: (empty)"; "new-minus-old: CS-1402, CS-1403, CS-909, CS-913"; a range such as
+CS-1391 to CS-1393 counts its two ends, which both files carry.
+OUTCOME: entry checks 2 and 5 hold on this record's read-back; wave 0 was not started this session.
+
 ### 2026-11-19 - CS-1404 - CLOSED: the secret-sweep blob floor counts distinct tree blobs, not tracked paths, so a depth-1 checkout is green
 Verification: `tests/test_secret_sweep.py::test_the_blob_population_covers_at_least_the_tracked_tree` and
 `tests/secret_sweep_guard.py::tracked_blob_shas`.
