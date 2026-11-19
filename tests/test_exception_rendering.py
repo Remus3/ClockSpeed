@@ -239,6 +239,14 @@ UNGUARDED_TRACEBACK_RESIDUALS = {
         "token reaches any surface. Suppressing it would delete the only check of "
         "that channel."
     ),
+    "tests/save/test_world_dev_pin.py": (
+        "MOVED, not new: CS-913.1 split the dev-world pin tests out of "
+        "tests/save/test_world.py (bdc7d5ee) with their two format_exception "
+        "calls unchanged, which that file's entry above already records. The "
+        "malformed-pin and unreadable-pin tests render the traceback precisely "
+        "to assert neither the pin payload nor the pin path reaches any "
+        "surface, so rendering it IS the assertion."
+    ),
     "tests/test_chained_cause.py": (
         "CS-857's rendering measurement, and the one entry here whose SUBJECT is "
         "this record's own leak class. The module formats the traceback of each "
