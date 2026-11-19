@@ -140,6 +140,9 @@ UNGRADED_EXCEPTION_CHANNEL: tuple[str, ...] = (
     "clockspeed/save/workdir.py::DestinationRefusedError",
     "clockspeed/save/workdir.py::SourceUnreadableError",
     "clockspeed/save/workdir.py::WorkDirError",
+    # CS-913.1: a closed-vocabulary reason only, forced in
+    # tests/test_exception_messages.py; a gap recorded like its siblings.
+    "clockspeed/save/world.py::DevWorldPinError",
     "clockspeed/save/world.py::WorldLoadError",
 )
 
@@ -268,6 +271,9 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/workdir.py::SaveListing",
     "clockspeed/save/world.py::ContainerContents",
     "clockspeed/save/world.py::ContainerEntry",
+    # CS-913.1: graded withheld - a hand-written repr renders a verdict word
+    # from a closed set and three counts or flags, and never a world digest.
+    "clockspeed/save/world.py::CorpusDistinction",
     # CS-1348: graded withheld - a hand-written repr renders the item and slot
     # counts and no item ClassName.
     "clockspeed/save/world.py::ElevatorInput",

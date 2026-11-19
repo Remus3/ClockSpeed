@@ -377,11 +377,18 @@ line and every error message. :class:`WorldModel` therefore hand-writes its
 ``header.masked_token`` - the mask that already exists, rather than a second
 one. This is the widest repr in the layer, because every consumer above holds
 one of these.
+
+THE DEV-WORLD PIN IS THE SAME KIND OF DATA (CS-913.1). The pin that proves a
+corpus save is not the world the operator plays is held as a full
+:func:`world_digest` - the ledger key's own pseudonym, never the token - and
+only in the gitignored data directory: never in a tracked file, a log line,
+an error or a repr. This layer reads it and never writes it.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, fields
 from fractions import Fraction
@@ -389,6 +396,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn, TypeIs
 
+from clockspeed.data import locate
 from clockspeed.save.chunks import ChunkError, DecompressedBody, decompress_body
 from clockspeed.save.header import (
     MAX_HEADER_BYTES,
@@ -432,10 +440,19 @@ __all__ = [
     "BODY_LAYOUTS",
     "BODY_LAYOUT_FLAT",
     "BODY_LAYOUT_LEVELLED",
+    "CONFIG_DEV_WORLD_PIN",
+    "CORPUS_DISTINCT_FROM_LIBRARY",
+    "CORPUS_DISTINCT_FROM_PIN",
+    "CORPUS_NOT_DISTINCT",
+    "CORPUS_UNPROVEN",
+    "CORPUS_VERDICTS",
+    "DEV_WORLD_PIN_FILENAME",
+    "DEV_WORLD_PIN_SCHEMA",
     "ELEVATOR_INPUT_CARRIER",
     "EMPTY_UNLOCK_STATE",
     "EMPTY_WORLD_PARENTS",
     "EMPTY_WORLD_PROPERTIES",
+    "MAX_DEV_WORLD_PIN_BYTES",
     "NODE_CLASS_NAMES",
     "NO_WORLD",
     "PAID_OFF_CARRIER",
@@ -475,6 +492,8 @@ __all__ = [
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ContainerContents",
     "ContainerEntry",
+    "CorpusDistinction",
+    "DevWorldPinError",
     "ElevatorInput",
     "PaidOffReading",
     "PhaseCostLine",
@@ -488,10 +507,15 @@ __all__ = [
     "WorldParents",
     "WorldProperties",
     "WorldWarning",
+    "compare_corpus_save",
+    "compare_corpus_world",
+    "dev_world_pin_path",
+    "dev_world_pin_text",
     "is_world_token",
     "load_newest_world",
     "load_world",
     "load_world_from_bytes",
+    "read_dev_world_pin",
     "read_world_digest",
     "refuse_again",
     "world_digest",
@@ -3831,6 +3855,358 @@ def read_world_digest(path: Path | str) -> str | None:
         return None
     finally:
         discard_copy(copy)
+
+
+#: THE DEV-WORLD PIN (CS-913.1, the PREP half of CS-913; D41). The corpus save
+#: CS-G06 wants placed must belong to a world the operator is not playing, and
+#: the pin is how that is proved when the library no longer holds the pinned
+#: world. It is one file, :data:`DEV_WORLD_PIN_FILENAME`, in the gitignored
+#: ``data/`` directory.
+DEV_WORLD_PIN_FILENAME: Final = "dev_world_pin.json"
+
+#: The ``config/local.json`` key that moves the pin file. Read only.
+CONFIG_DEV_WORLD_PIN: Final = "dev_world_pin"
+
+#: The one pin schema this module reads and writes the text of.
+DEV_WORLD_PIN_SCHEMA: Final = 1
+
+#: The most a pin file may hold. The real file is under one hundred bytes.
+MAX_DEV_WORLD_PIN_BYTES: Final = 4096
+
+#: What the comparison of a corpus save's world against the library and the
+#: pin can conclude. A closed set: only these strings ever leave it.
+CORPUS_DISTINCT_FROM_LIBRARY: Final = "distinct-from-library"
+CORPUS_DISTINCT_FROM_PIN: Final = "distinct-from-pin"
+CORPUS_NOT_DISTINCT: Final = "not-distinct"
+CORPUS_UNPROVEN: Final = "unproven"
+CORPUS_VERDICTS: Final = frozenset(
+    {
+        CORPUS_DISTINCT_FROM_LIBRARY,
+        CORPUS_DISTINCT_FROM_PIN,
+        CORPUS_NOT_DISTINCT,
+        CORPUS_UNPROVEN,
+    }
+)
+
+_PIN_KEY_DIGEST: Final = "dev_world_digest"
+_PIN_KEY_SCHEMA: Final = "schema"
+
+#: Why a pin file was refused. A closed vocabulary, and the ONLY text a
+#: :class:`DevWorldPinError` carries: nothing read from the file, and not its
+#: path (non-negotiable 12).
+_PIN_UNREADABLE: Final = "the pin file could not be read"
+_PIN_TOO_LARGE: Final = "the pin file is larger than a pin can be"
+_PIN_NOT_ASCII: Final = "the pin file is not ASCII"
+_PIN_NOT_JSON: Final = "the pin file is not JSON"
+_PIN_WRONG_KEYS: Final = "the pin file does not hold exactly the pin keys"
+_PIN_WRONG_SCHEMA: Final = "the pin file names a schema this reader does not know"
+_PIN_NOT_A_DIGEST: Final = "the pin file does not hold a world digest"
+_PIN_REASONS: Final = frozenset(
+    {
+        _PIN_UNREADABLE,
+        _PIN_TOO_LARGE,
+        _PIN_NOT_ASCII,
+        _PIN_NOT_JSON,
+        _PIN_WRONG_KEYS,
+        _PIN_WRONG_SCHEMA,
+        _PIN_NOT_A_DIGEST,
+    }
+)
+_MSG_NOT_A_DIGEST: Final = "the value is not a world digest"
+_MSG_REASON_OUTSIDE: Final = "a pin refusal reason outside the closed vocabulary"
+
+_DIGEST_LENGTH: Final = 64
+_HEX_LOWER: Final = frozenset("0123456789abcdef")
+
+
+class DevWorldPinError(Exception):
+    """The dev-world pin file is present and cannot be trusted.
+
+    The message is one reason from a closed vocabulary. It carries nothing the
+    file held and not the file's path, so no rendering of it - ``str``,
+    ``repr``, a formatted traceback - can echo either (non-negotiable 12).
+    """
+
+    def __init__(self, reason: str) -> None:
+        """Hold ``reason``, which must be one of the closed vocabulary."""
+        if reason not in _PIN_REASONS:
+            raise ValueError(_MSG_REASON_OUTSIDE)
+        super().__init__(reason)
+
+
+def _is_digest(value: object) -> TypeIs[str]:
+    """Whether ``value`` has the shape of :func:`world_digest`'s answer.
+
+    A 64-character lowercase hex ``str``. :data:`NO_WORLD` and a raw token are
+    not that shape.
+    """
+    return (
+        isinstance(value, str)
+        and len(value) == _DIGEST_LENGTH
+        and all(char in _HEX_LOWER for char in value)
+    )
+
+
+def _refuse_pin(reason: str) -> NoReturn:
+    """Raise :class:`DevWorldPinError` with no cause and no context.
+
+    ``from None`` alone leaves the exception being handled on ``__context__``,
+    where a formatted traceback can still reach it; it is cleared so the
+    refusal stands by itself.
+    """
+    refusal = DevWorldPinError(reason)
+    try:
+        raise refusal from None
+    finally:
+        refusal.__context__ = None
+
+
+def dev_world_pin_path() -> Path:
+    """Where the dev-world pin file is, or would be: a path that need not exist.
+
+    Order: the ``config/local.json`` key :data:`CONFIG_DEV_WORLD_PIN`, then
+    ``<repo>/data/dev_world_pin.json``, the repository root derived from this
+    file's own location as ``workdir`` and the ledger derive it.
+
+    THE CONFIG OVERRIDE IS LOCAL TO THE OPERATOR, like the file it points at,
+    and nothing here checks where it points: the D41 writer, which is not this
+    module (this layer never writes), must check that the target is gitignored
+    before it writes anything there.
+
+    ASKING DOES NOT CREATE: no directory is made and no file touched, so the
+    question is free on a machine with no pin and no ``data/`` directory. No
+    environment variable moves it.
+
+    Returns:
+        The pin file's path. May not exist.
+    """
+    override = (locate.local_config().get(CONFIG_DEV_WORLD_PIN) or "").strip()
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parents[2] / "data" / DEV_WORLD_PIN_FILENAME
+
+
+def dev_world_pin_text(digest: str) -> str:
+    """The text of a pin file for ``digest``: pure, and the only form it takes.
+
+    The D41 writer records the pin by writing exactly this text, atomically,
+    from a scratch script at the moment the operator asks. This layer never
+    writes, so it only SPELLS the content. The pin is the world's full digest -
+    the pseudonym the advice ledger already keys it by, :func:`world_digest` -
+    never the token, and it lives only in the gitignored data directory.
+
+    Args:
+        digest: A world digest, as :func:`world_digest` answers.
+
+    Returns:
+        ASCII JSON ending in one LF, keys sorted.
+
+    Raises:
+        ValueError: ``digest`` is not a 64-character lowercase hex string. The
+            message names no value.
+    """
+    if not _is_digest(digest):
+        raise ValueError(_MSG_NOT_A_DIGEST)
+    body = {_PIN_KEY_DIGEST: digest, _PIN_KEY_SCHEMA: DEV_WORLD_PIN_SCHEMA}
+    return json.dumps(body, sort_keys=True) + "\n"
+
+
+def _check_pin(data: bytes) -> tuple[str | None, str | None]:
+    """Judge a pin file's bytes: ``(reason, None)`` on refusal, else ``(None, digest)``.
+
+    Everything decoded here dies with this frame, and no exception is bound to
+    a name, so a refusal carries none of it out.
+    """
+    if len(data) > MAX_DEV_WORLD_PIN_BYTES:
+        return _PIN_TOO_LARGE, None
+    try:
+        payload = json.loads(data.decode("ascii"))
+    except UnicodeDecodeError:
+        return _PIN_NOT_ASCII, None
+    except (ValueError, RecursionError):
+        return _PIN_NOT_JSON, None
+    if not isinstance(payload, dict) or set(payload) != {_PIN_KEY_DIGEST, _PIN_KEY_SCHEMA}:
+        return _PIN_WRONG_KEYS, None
+    schema = payload[_PIN_KEY_SCHEMA]
+    digest = payload[_PIN_KEY_DIGEST]
+    if isinstance(schema, bool) or not isinstance(schema, int) or schema != DEV_WORLD_PIN_SCHEMA:
+        reason = _PIN_WRONG_SCHEMA
+    elif not _is_digest(digest):
+        reason = _PIN_NOT_A_DIGEST
+    else:
+        return None, digest
+    return reason, None
+
+
+def read_dev_world_pin(path: Path | str) -> str | None:
+    """The pinned dev world's digest, or None when no pin was recorded.
+
+    ABSENT IS NOT AN ERROR - it is the state of every fresh clone and of every
+    machine before the operator asks for a pin. PRESENT AND WRONG IS: a corrupt
+    pin read as no pin would let a comparison pass for want of the one thing
+    that could have vetoed it, so it raises.
+
+    The file is opened ``rb`` and read to a bound; bytes and text are dropped
+    from this frame before any refusal is raised, and the refusal carries a
+    reason from a closed vocabulary only.
+
+    Args:
+        path: The pin file, as :func:`dev_world_pin_path` answers.
+
+    Returns:
+        The digest, or None when the file does not exist.
+
+    Raises:
+        DevWorldPinError: The file exists and is unreadable, oversize, not
+            ASCII JSON, not exactly the pin object, of another schema, or does
+            not hold a digest. The message names none of its content and not
+            its path.
+    """
+    unreadable = False
+    data = b""
+    try:
+        with Path(path).open("rb") as handle:
+            data = handle.read(MAX_DEV_WORLD_PIN_BYTES + 1)
+    except FileNotFoundError:
+        return None
+    except OSError:
+        unreadable = True
+    if unreadable:
+        _refuse_pin(_PIN_UNREADABLE)
+    reason, digest = _check_pin(data)
+    del data
+    if reason is not None:
+        _refuse_pin(reason)
+    return digest
+
+
+@dataclass(frozen=True, repr=False)
+class CorpusDistinction:
+    """What the corpus-distinction check concluded, and the counts behind it.
+
+    Carries no digest, no token and no path: it is the one object a caller
+    renders, so it holds only what is safe to render (non-negotiable 12).
+
+    Attributes:
+        verdict: One of :data:`CORPUS_VERDICTS`.
+        library_worlds: Library saves whose header named a world.
+        library_unread: Library saves whose header was not read.
+        pin_recorded: Whether a dev-world pin took part.
+    """
+
+    verdict: str
+    library_worlds: int
+    library_unread: int
+    pin_recorded: bool
+
+    def __repr__(self) -> str:
+        """The four fields, and nothing that identifies a world."""
+        return (
+            "CorpusDistinction(verdict="
+            + self.verdict
+            + ", library_worlds="
+            + str(self.library_worlds)
+            + ", library_unread="
+            + str(self.library_unread)
+            + ", pin_recorded="
+            + str(self.pin_recorded)
+            + ")"
+        )
+
+
+def compare_corpus_world(
+    corpus_digest: str | None,
+    library_digests: Iterable[str | None],
+    pin_digest: str | None,
+) -> CorpusDistinction:
+    """Whether a corpus save's world is provably not one the operator is playing.
+
+    CS-G06 needs the corpus save's world to differ from every live-library
+    world (alternative 1) or from the recorded dev-world pin (alternative 2).
+    The rules run in this order and the first that holds decides:
+
+    1. The corpus names no world - None, :data:`NO_WORLD`, or anything that is
+       not a digest: unproven.
+    2. The pin equals the corpus world: NOT distinct. A veto - the corpus IS
+       the dev world, even where the library no longer holds it.
+    3. Every library save was read, at least one names a world, and none is
+       the corpus world: distinct from the library. An EMPTY library, one of
+       unread saves, or one of saves naming no world proves nothing, so none
+       of them reaches this rule.
+    4. A pin is recorded: distinct from the pin.
+    5. The corpus world is a library world: NOT distinct.
+    6. Otherwise unproven.
+
+    A library save naming no world (:data:`NO_WORLD`) is a read that found no
+    world: it is never equal to a digest and does not block rule 3, but it
+    does not prove anything either. An unread save (None) blocks rule 3.
+
+    Args:
+        corpus_digest: The corpus save's :func:`world_digest`, or None.
+        library_digests: Each live-library save's, or None where unread.
+        pin_digest: The recorded dev world's digest, or None for no pin.
+
+    Returns:
+        The distinction. It renders no digest.
+
+    Raises:
+        ValueError: ``pin_digest`` is neither None nor a digest. The message
+            names no value.
+    """
+    if pin_digest is not None and not _is_digest(pin_digest):
+        raise ValueError(_MSG_NOT_A_DIGEST)
+    members = list(library_digests)
+    named = [member for member in members if _is_digest(member)]
+    unread = sum(1 for member in members if member is None)
+    pinned = pin_digest is not None
+
+    if not _is_digest(corpus_digest):
+        verdict = CORPUS_UNPROVEN
+    elif pinned and pin_digest == corpus_digest:
+        verdict = CORPUS_NOT_DISTINCT
+    elif named and unread == 0 and corpus_digest not in named:
+        verdict = CORPUS_DISTINCT_FROM_LIBRARY
+    elif pinned:
+        verdict = CORPUS_DISTINCT_FROM_PIN
+    elif corpus_digest in named:
+        verdict = CORPUS_NOT_DISTINCT
+    else:
+        verdict = CORPUS_UNPROVEN
+    return CorpusDistinction(verdict, len(named), unread, pinned)
+
+
+def compare_corpus_save(
+    corpus: Path | str,
+    library: Iterable[Path | str],
+    pin_file: Path | str | None = None,
+    *,
+    identify: Callable[[Path], str | None] = read_world_digest,
+) -> CorpusDistinction:
+    """Compare a corpus save's world against the library and the recorded pin.
+
+    READS ONLY, and places nothing. Every save is identified through
+    ``identify`` - :func:`read_world_digest`, which copies first and reads the
+    header only - so no frame here holds a world token. The pin is read first
+    and a corrupt one raises before any save is touched: failing closed, never
+    reading as no pin.
+
+    Args:
+        corpus: The corpus save.
+        library: The live-library saves.
+        pin_file: The pin file; :func:`dev_world_pin_path` when None.
+        identify: Answers a save's digest, NO_WORLD, or None when unread.
+            Injectable so the comparison is graded without a save.
+
+    Returns:
+        The distinction, as :func:`compare_corpus_world`.
+
+    Raises:
+        DevWorldPinError: The pin file exists and cannot be trusted.
+    """
+    pin = read_dev_world_pin(dev_world_pin_path() if pin_file is None else pin_file)
+    corpus_digest = identify(Path(corpus))
+    members = [identify(Path(member)) for member in library]
+    return compare_corpus_world(corpus_digest, members, pin)
 
 
 def _of_another_world(

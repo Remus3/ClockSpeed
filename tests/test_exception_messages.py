@@ -53,7 +53,7 @@ from clockspeed.save.header import (
 )
 from clockspeed.save.objects import ObjectError
 from clockspeed.save.usmap import UsmapFormatError
-from clockspeed.save.world import WorldLoadError
+from clockspeed.save.world import DevWorldPinError, WorldLoadError
 from tests.chained_cause_guard import FORM_EXPLICIT, Site, raise_sites, sites_in_tree
 from tests.exception_message_guard import (
     ARGS_ROOTS,
@@ -156,6 +156,9 @@ RECORDED_CHANNEL: Final[tuple[str, ...]] = (
     "clockspeed/save/workdir.py::DestinationRefusedError",
     "clockspeed/save/workdir.py::SourceUnreadableError",
     "clockspeed/save/workdir.py::WorkDirError",
+    # CS-913.1: the dev-world pin refusal. Its one initialiser argument is a
+    # reason narrowed by a closed-vocabulary membership test, forced below.
+    "clockspeed/save/world.py::DevWorldPinError",
     "clockspeed/save/world.py::WorldLoadError",
 )
 
@@ -1788,6 +1791,16 @@ FORCED_AT_SITES: Final[dict[str, tuple[type[Exception], str, dict[str, object]]]
 #: and a single expected message would let one of them pass on the other's
 #: error.
 FORCED_VOCABULARY: Final[dict[str, tuple[type[Exception], str, dict[str, object], str, str]]] = {
+    # CS-913.1: reason must be one of the pin reasons, so a value read from a
+    # pin file can never be handed to the message. The legitimate value is
+    # the pin's own not-JSON reason, which this module's vocabulary holds.
+    "clockspeed/save/world.py::DevWorldPinError::reason": (
+        DevWorldPinError,
+        "reason",
+        {},
+        "outside the closed vocabulary",
+        "the pin file is not JSON",
+    ),
     "clockspeed/save/chunks.py::ChunkError::field": (
         ChunkError,
         "field",
