@@ -75,14 +75,19 @@ ASK: THE PLAN's Part 1 is the one batched operator ask, put once by delivering t
 NEXT ACTION 1's ask stays as it reads until U-152 lands.
 
 === SESSION 160 - WAVE 0 STATE (detail: docs/LEDGER.md, 2026-11-19 records) ===
+STOP POINT: W0a COMPLETE, W0b NOT STARTED; the tip is ec403823 plus this hand-off commit; QUEUE_STOP ABSENT.
 W0a COMPLETE: the U-052 open-row sweep CLOSED as CS-1406 (re-grade FINAL), CS-1136 restored to ROADMAP; the U-145
-  frozen-file docket of 14 pre-screen records landed (NOT A GRANT). CS-914 CLOSED (residuals: BACKLOG CS-1407).
-  CS-1248.1 CLOSED (CS-1248 clauses 1 and 2, part 1 of 7; CS-1248 stays open). CS-913.1 PREP recorded; CS-913
-  stays GATED on CS-G06 (the DRAIN half).
-W0b NOT STARTED: NEXT ACTION 3.
+  frozen-file docket of 14 pre-screen records landed (NOT A GRANT). CS-914 CLOSED (residuals: BACKLOG CS-1407), plus
+  its contention fix ec403823 (write_pin retries PermissionError to a 10 s deadline). CS-1248.1 CLOSED (CS-1248
+  clauses 1 and 2, part 1 of 7; CS-1248 stays open). CS-913.1 PREP recorded; CS-913 stays GATED on CS-G06 (the
+  DRAIN half); its dev-world pin tests split out of test_world.py into test_world_dev_pin.py.
+W0b NOT STARTED. NEXT MERGER UNIT: U-138.1 (plan lines 3812-3828), then U-158's waiting citation line, U-138.2, and
+  the wave 0 exit record (<sidecars>/CS/plan-s159-tools/exit-W0.json; no re-pack, B stays 2, no lane relaunch).
+  After wave 0: "CS-1401: wave 1 group 1 of the plan". Detail: NEXT ACTION 3.
 RESIDUALS FOR BACKLOG TRIAGE: a Quantity subclass is accepted as the left operand of +, and copy/pickle restore a
   Quantity without validation (CS-1248.1); duplicate JSON keys are accepted by the dev-world pin reader (CS-913.1);
-  the CS-846 ref classifier was not distinct from the writer that applied the cut (U-052.6 caveat c).
+  no test covers the too-large pin reason; the CS-846 ref classifier was not distinct from the writer that applied
+  the cut (U-052.6 caveat c); a workdir mid-write failure is reported as a source failure (CS-1407).
 
 === SESSION 159 - NOTHING CLOSED, NO ID ALLOCATED; ITS FINDINGS ===
 - A workflow resume after usage-limit refusals re-ran finished calls; continuation scripts replaced it (tool feedback
