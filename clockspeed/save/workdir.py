@@ -869,10 +869,10 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
             not be read through.
         DestinationRefusedError: The copy would land inside the save root, the
             account directory or the game install.
-        WorkDirError: The work directory could not be created, the copy could
-            not be written there, or the finished copy could not be renamed
-            into place. A failure on the destination's side is never reported
-            as an unreadable source (CS-914).
+        WorkDirError: The work directory could not be created, the copy's own
+            file would not OPEN, or the finished copy could not be renamed
+            into place. A failure of a write already under way is NOT this:
+            it is reported as SourceUnreadableError (CS-914 residual).
     """
     resolved_source = _readable_source(source)
     copies = _copies_dir(_resolve_work_root(work_root))
@@ -923,8 +923,8 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
     try:
         _stream_copy(resolved_source, partial)
     except WorkDirError:
-        # The copy's own file would not open or take a write: the destination's
-        # failure, already named as one, and never to be blamed on the source.
+        # The copy's own file would not OPEN: the destination's failure, already
+        # named as one. A failed mid-write is NOT caught here (CS-914 residual).
         _remove_quietly(partial)
         raise
     except OSError as exc:
