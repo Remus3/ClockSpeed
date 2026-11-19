@@ -302,6 +302,43 @@ def test_a_quantity_subclass_is_refused_by_add_sub_and_expect_per_minute() -> No
 
 
 # ===========================================================================
+# Pins for unit preservation and check order
+# ===========================================================================
+
+
+def test_adding_two_per_cycle_quantities_stays_per_cycle() -> None:
+    """The result keeps the operands' unit; a sum retagged per-minute would pass every refusal."""
+    total = Quantity.per_cycle(Fraction(1, 3)) + Quantity.per_cycle(Fraction(1, 6))
+
+    assert total.unit == UNIT_PER_CYCLE
+    assert total == Quantity.per_cycle(Fraction(1, 2))
+
+
+def test_scaling_a_per_cycle_quantity_stays_per_cycle() -> None:
+    """Scaling is unit-preserving for either unit, not only for per-minute."""
+    scaled = Quantity.per_cycle(Fraction(3)).scaled(Fraction(1, 3))
+
+    assert scaled.unit == UNIT_PER_CYCLE
+    assert scaled == Quantity.per_cycle(Fraction(1))
+
+
+def test_a_negative_float_duration_is_inexact_not_a_non_positive_duration() -> None:
+    """The exactness check runs before the positivity check.
+
+    ``-0.5 <= 0`` is true, so with the order swapped a float duration would be reported as
+    an undefined rate and the inexact-input signal would be lost.
+    """
+    with pytest.raises(InexactValueError):
+        Quantity.per_cycle(Fraction(3)).to_per_minute(cast("Fraction", -0.5))
+
+
+def test_a_per_minute_quantity_with_a_float_duration_is_a_unit_error_first() -> None:
+    """The unit check runs before the duration is looked at: the wrong unit is the first fault."""
+    with pytest.raises(UnitMismatchError):
+        Quantity.per_minute(Fraction(90)).to_per_minute(cast("Fraction", 0.5))
+
+
+# ===========================================================================
 # Scaling, identity and the exactness audit
 # ===========================================================================
 
