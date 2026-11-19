@@ -75,6 +75,41 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - WAVE 0 W0a ENTRY AND U-158 COPY - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
+Verification: `gh run view 44550757085` (tier1) and `gh run view 44550757006` (CodeQL) at
+a5c9b4961e56d21cd03c23be8b46ac4a98e39081; `git ls-remote origin main`; `CS-NEXT-SESSION.txt`; `ops/loop/queue_loop.py`
+QUEUE_STOP_REL; `tools/census_axis.py::derive_sidecar_root`. This record closes nothing, so no test names one.
+SCOPE. Session 160, the first wave-0 session (W0a) of THE PLAN, CLOCKSPEED-MASTER-PLAN.md on the operator's Desktop
+(planning session 159), run by its wave 0 runbook in the main checkout by the merger. HEAD and origin main both read
+a5c9b4961e56d21cd03c23be8b46ac4a98e39081 at entry.
+CI READ (entry check 4, "CI is read"): tier1 run 44550757085 at that full SHA read completed, conclusion success;
+CodeQL run 44550757006 at that full SHA read completed, conclusion success. Both read, not assumed.
+ENTRY CHECKS, in the runbook's order: 1 HOLDS (the hand-off names THE PLAN and "next: W0a, merger-track unit U-158");
+2 HOLDS (the 2026-11-19 CS-1401 NOT A COMPLETION record above states THE PLAN with its Part 1 ask was delivered);
+3 HOLDS (every wave-0 step proceeds on its fenced alternative; no answer is waited on); 4 HOLDS, its ENTRY gates
+below; 5 HOLDS (U-151 clauses 1 to 10 and 12 read MET in that same record).
+ENTRY GATE (fences-15, D75): the remote main ref equals HEAD by full SHA (read again after CI): HOLDS. CI read: HOLDS.
+Stop sentinels ops/loop/control/STOP, lanes/QUEUE_STOP, INBOX_STOP and HOLD_MAIN_SPAWN read absent; the lanes
+directory held QUEUE_DRAINED only: HOLDS. QUEUE_STOP placed at ops/loop/control/lanes/QUEUE_STOP before any tree
+write and before `ROADMAP.md` or `docs/LEDGER.md` was read; its mtime read back 2026-11-19T09:10:27.535500-06:00.
+This session removes it at its end (Part 0 step 6, rule e).
+ENTRY GATE (fences-1, D82, D-SEQ-13, SO-4), the CS-1366 dated read: plan-seq-fix-gates.py entry, run from the plan
+scratch run directory with the repo .venv, exit 1 ("ok": false, not_before_local 2026-11-19 18:48:37, now 09:10:34).
+An outcome-stating gate, not a failed check: CS-1366's closing read is held to the next wave entry whose clock passes
+that time, and it stays the last merger-track unit.
+HAND-OFF ROOM (D80, D129, D-P4-36), read-only: CS-NEXT-SESSION.txt 24467 / 25000. Nothing written to the hand-off.
+U-158 COPY RECORD (handsoff-6, D129, SEAM-19). The five files of planning session 159 were copied, a normal copy with
+no move and no delete, from <sidecars>/CS/Scratch/plan-s159/ to <sidecars>/CS/plan-s159-tools/, a folder that did not
+exist before this copy (<sidecars> resolved by derive_sidecar_root). Each destination sha256 READ BACK equal to the
+plan's full value; no copy differs, so every copy is usable:
+plan-tools.py 1def92fe76ed83f3693be4f91c964c28c8430d4d57163af8c84f86fe4b6a5d5f;
+plan-prio-final.py 0941b84e46a679cc23b9945c9cf8b9e29c55a103b4e3390187b28f02dac40532;
+plan-units.json cec7e4c46d80ec6a9f283aa26e96e1a878184ad57138dd4246d8fd2844a146a0;
+plan-seq-rules.json 663320ac28edeabd69c4810a7830ad298f92021fe02ed29bdeda66e5874155dd;
+prio-final.json 3099766f3ada6df3acc131822fbabc89be91b1ad98fd1d3fccf52544aa6847ac.
+U-158's one tracked write, the P4F-14 citation line in docs/item_notes/wave-plan.md, is NOT written: that file is
+absent and waits for U-138.1 (ruling D-P4-7). U-158 stays open on that line alone.
+
 ### 2026-11-19 - CS-1401 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1401 STAYS OPEN: session 159 delivered THE PLAN and its one batched ask; U-151 clauses 1 to 10 and 12 read MET, so plan entry checks 2 and 5 hold
 Verification: `CS-NEXT-SESSION.txt` at 97ca1f8f0600ef9673688838cea652df360b98f8, its NAMES, NEXT ACTION, OPEN ITEMS,
 CHANNEL and DECISIONS IN FORCE blocks; `ops/fleet_kit/MANIFEST.json` version; `tools/doc_budget.py`,
