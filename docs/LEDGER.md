@@ -75,11 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
-### 2026-11-19 - CS-1248.1 - CLOSED: unit-tagged exact Quantity, CS-1248 Acceptance clauses 1 and 2 (part 1 of 7)
+### 2026-11-19 - CS-913 - PREP RECORD (CS-913.1). NOT A COMPLETION RECORD. CS-913 STAYS GATED on CS-G06: the DRAIN half is still gated
+Verification: `clockspeed/save/world.py` (dev_world_pin_path, the pin text form and reader, the corpus-distinction comparison); `tests/save/test_world.py`.
+The pin file path (data/dev_world_pin.json, gitignored), its masked content form (the full world_digest) and the four-verdict corpus-distinction comparison with the pinned-world veto exist and are graded synthetically. The DRAIN half (the CS-913 Acceptance, and the operator-local check that a real corpus save meets CS-G06) REMAINS GATED on CS-G06. No save was placed and no pin was recorded. ROADMAP.md CS-913 row and docs/GATED.md unchanged.
+Graded: ACCEPT by a distinct adjudicator at 201af633, the main-line cherry-pick of the frozen worktree commit (2333 passed); adversary UPHELD (24 mutants, 3 equivalent survivors; no leak across 13 hostile pin files). Residual: duplicate JSON keys are accepted by the pin reader; no test asserts the too-large reason.
+
+### 2026-11-19 - CS-1248 - NOT A COMPLETION RECORD. CS-1248 STAYS OPEN: CS-1248.1 CLOSED - unit-tagged exact Quantity, CS-1248 Acceptance clauses 1 and 2 (part 1 of 7)
 Verification: `tests/solve/test_quantity.py::test_adding_a_per_cycle_rate_to_a_per_minute_rate_is_refused`,
 `::test_a_per_cycle_value_where_per_minute_is_expected_is_refused` and that file (57 tests);
 `clockspeed/solve/quantity.py` (Quantity, UnitMismatchError, expect_per_minute).
-Part scope P4F-3: clauses 1 and 2 only; clause 3 (raw and display as distinct fields) is graded at the last CS-1248 part. ROADMAP and item notes unchanged. CS-1248 stays open: this record closes part 1 of 7 only.
+Part scope P4F-3: clauses 1 and 2 only; clause 3 (raw and display as distinct fields) is graded at the last CS-1248 part. ROADMAP and item notes unchanged.
 Graded MET by a distinct adjudicator at 2b8bc9b1; adversary UPHELD after two repair rounds (18 of 18 mutants killed); residuals: a Quantity subclass is accepted as the left operand of +, and copy/pickle restore without validation.
 
 ### 2026-11-19 - CS-1406 - RE-GRADE RECORD. The U-052.6 close is FINAL: clauses 1, 2, 8, 12 and 13 MET at 858ac318 by a distinct adjudicator.

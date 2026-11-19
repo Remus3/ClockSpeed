@@ -1508,6 +1508,11 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     # FLEET-COMMON markers. It cannot be reworded locally, and the nearest
     # heading-shaped line is its banner rule.
     ("CLAUDE.md", "ops/loop/control/inbox_status.json", "#" * 80): 1,
+    # CS-913.1 - the dev-world pin module names the per-machine local config
+    # override that moves the pin file, once at module level and once in the
+    # path resolver's docstring. Same standing as the providers.py row.
+    ("clockspeed/save/world.py", "config/local.json", ""): 1,
+    ("clockspeed/save/world.py", "config/local.json", "dev_world_pin_path"): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1750,7 +1755,14 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: section relocated to `docs/history_notes.md`, which this corpus does not carry, so
 #: the row refunds and the ceiling comes down with it, exactly as CS-952's did. As
 #: above, this comment names the rung and never the path.
-DECLARED_UNTRACKED_CEILING: Final = 19
+#:
+#: 19 TO 21 FOR CS-913.1's DEV-WORLD PIN, 2026-11-19 - TWO ROWS. The pin module
+#: names the per-machine local config override that moves the pin file, at
+#: the key constant and in the resolver's docstring, because the override's
+#: key is the whole content of that sentence; it is the same standing the
+#: surface providers row has. Each row REFUNDS, and the ceiling returns to 19,
+#: if the module stops naming the file. This comment names the rung, not the path.
+DECLARED_UNTRACKED_CEILING: Final = 21
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
