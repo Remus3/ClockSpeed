@@ -58,18 +58,35 @@ close.
 
 ### Class record
 
-BUILD-MAIN (109): CS-828 CS-829 CS-900 CS-1152 CS-938 CS-936 CS-944 CS-945 CS-946 CS-965 CS-967 CS-964 CS-969 CS-974 CS-975 CS-993 CS-1002 CS-1006 CS-1007 CS-1069 CS-1070 CS-1130 CS-1131 CS-962 CS-958 CS-864 CS-843 CS-844 CS-847 CS-848 CS-852 CS-855 CS-860 CS-861 CS-854 CS-832 CS-426 CS-432 CS-401 CS-439 CS-440 CS-443 CS-447 CS-449 CS-450 CS-452 CS-454 CS-455 CS-456 CS-458 CS-459 CS-470 CS-479 CS-492 CS-489 CS-805 CS-807 CS-983 CS-984 CS-986 CS-982 CS-1052 CS-1055 CS-1056 CS-1053 CS-1149 CS-1150 CS-1151 CS-1058 CS-1048 CS-1236 CS-1243 CS-1401 CS-1248 CS-1252 CS-600 CS-604 CS-607 CS-609 CS-610 CS-611 CS-612 CS-615 CS-616 CS-619 CS-620 CS-621 CS-622 CS-623 CS-872 CS-909 CS-910 CS-914 CS-915 CS-916 CS-988 CS-1046 CS-1047 CS-1254 CS-1255 CS-1256 CS-1257 CS-1258 CS-1259 CS-1261 CS-1262 CS-1295 CS-1358 CS-1366
-BUILD-LANE (59): CS-943 CS-966 CS-1001 CS-1003 CS-1004 CS-1010 CS-1063 CS-1092 CS-1094 CS-1067 CS-1071 CS-1074 CS-1075 CS-1076 CS-1077 CS-1078 CS-1129 CS-1089 CS-1090 CS-1091 CS-1135 CS-1137 CS-1141 CS-1142 CS-877 CS-876 CS-849 CS-859 CS-412 CS-446 CS-451 CS-457 CS-460 CS-462 CS-465 CS-467 CS-468 CS-464 CS-472 CS-474 CS-477 CS-499 CS-483 CS-808 CS-1064 CS-1241 CS-1398 CS-1249 CS-1250 CS-1251 CS-603 CS-606 CS-608 CS-613 CS-618 CS-887 CS-1051 CS-1065 CS-1260
+BUILD-MAIN (118): CS-828 CS-829 CS-900 CS-1152 CS-938 CS-936 CS-944 CS-945 CS-946 CS-965 CS-967 CS-964 CS-969 CS-974 CS-975 CS-993 CS-1002 CS-1006 CS-1007 CS-1069 CS-1070 CS-1130 CS-1131 CS-1136 CS-962 CS-958 CS-877 CS-864 CS-843 CS-844 CS-847 CS-848 CS-852 CS-855 CS-860 CS-861 CS-854 CS-832 CS-426 CS-432 CS-401 CS-439 CS-440 CS-443 CS-447 CS-449 CS-450 CS-452 CS-454 CS-455 CS-456 CS-458 CS-459 CS-470 CS-479 CS-492 CS-489 CS-805 CS-807 CS-983 CS-984 CS-986 CS-982 CS-1052 CS-1055 CS-1056 CS-1053 CS-1149 CS-1150 CS-1151 CS-1058 CS-1048 CS-1064 CS-1236 CS-1243 CS-1401 CS-1398 CS-1248 CS-1252 CS-600 CS-603 CS-604 CS-606 CS-607 CS-608 CS-609 CS-610 CS-611 CS-612 CS-613 CS-615 CS-616 CS-619 CS-620 CS-621 CS-622 CS-623 CS-872 CS-909 CS-910 CS-914 CS-915 CS-916 CS-988 CS-1046 CS-1047 CS-1051 CS-1254 CS-1255 CS-1256 CS-1257 CS-1258 CS-1259 CS-1261 CS-1262 CS-1295 CS-1358 CS-1366
+BUILD-LANE (51): CS-943 CS-966 CS-1001 CS-1003 CS-1004 CS-1010 CS-1063 CS-1092 CS-1094 CS-1067 CS-1071 CS-1074 CS-1075 CS-1076 CS-1077 CS-1078 CS-1129 CS-1089 CS-1090 CS-1091 CS-1135 CS-1137 CS-1141 CS-1142 CS-876 CS-849 CS-859 CS-412 CS-446 CS-451 CS-457 CS-460 CS-462 CS-465 CS-467 CS-468 CS-464 CS-472 CS-474 CS-477 CS-499 CS-483 CS-808 CS-1241 CS-1249 CS-1250 CS-1251 CS-618 CS-887 CS-1065 CS-1260
 FOLD (10): CS-995 CS-998 CS-865 CS-444 CS-827 CS-466 CS-801 CS-985 CS-1148 CS-1349
-RELOCATE (30): CS-942 CS-947 CS-948 CS-972 CS-1012 CS-1134 CS-1136 CS-1138 CS-1139 CS-1140 CS-1143 CS-1144 CS-951 CS-846 CS-825 CS-826 CS-441 CS-445 CS-461 CS-473 CS-490 CS-501 CS-488 CS-800 CS-802 CS-803 CS-804 CS-1122 CS-1061 CS-1242
+RELOCATE (29): CS-942 CS-947 CS-948 CS-972 CS-1012 CS-1134 CS-1138 CS-1139 CS-1140 CS-1143 CS-1144 CS-951 CS-846 CS-825 CS-826 CS-441 CS-445 CS-461 CS-473 CS-490 CS-501 CS-488 CS-800 CS-802 CS-803 CS-804 CS-1122 CS-1061 CS-1242
 RELOCATE-PENDING (5): CS-850 (D77; unmet: CS-860 has not landed and CS-850's one recorded live finding is not yet repaired or measured clean-on-content); CS-851 (D77; unmet: the same STOPPED BY COST record and preconditions as CS-850); CS-853 (D77; unmet: cut with CS-850 under the same record and preconditions); CS-857 (D77, D127, IC-CS-858; unmet: no read-only verifier has yet confirmed measured-leak 0 outside the frozen files at HEAD); CS-858 (D77, D127, IC-CS-858; unmet: CS-857's precondition (WAITS-DEP on CS-857))
 HOLD (26): CS-896 CS-917 CS-907 CS-1133 CS-815 CS-1032 CS-1194 CS-1196 CS-1197 CS-1215 CS-1217 CS-1218 CS-1211 CS-1212 CS-1213 CS-1202 CS-1204 CS-1205 CS-1206 CS-1207 CS-1208 CS-1231 CS-1291 CS-1304 CS-1318 CS-1334
 GATED (1): CS-913
 
+D92 BOOLEANS (clause 2), per process row, as lane, blocks_product, floor; product rows carry none. Derivation: lane is
+the plan's unit-data lane flag; floor is true only where D92 names class 0 outright (CS-936's ref-guard half);
+blocks_product is true where a product unit of another row lists a unit of this row as a hard dependency; class 0 and
+1 are BUILD-MAIN, class 2 is BUILD-LANE, and a process row that is none of them is class 3 but is NOT cut, because no
+ruling cuts it, so it stays BUILD-MAIN. Where class 1 and the lane flag meet, class 1 wins (D92: scheduled in the
+product row's wave). CS-1398 and CS-1064 are product rows counted BUILD-MAIN with lane false (D65 corrects CS-1398's
+flag; CS-1064's conditional free-text flag counts as false); CS-1398 stays off the lane list.
+D92 class 0, floor (lane=false, blocks_product=false, floor=true) (1): CS-936
+D92 class 1 (lane=true, blocks_product=true, floor=false) (6): CS-877 CS-603 CS-606 CS-608 CS-613 CS-1051
+D92 class 1 (lane=false, blocks_product=true, floor=false) (18): CS-604 CS-607 CS-609 CS-610 CS-611 CS-612 CS-615 CS-616 CS-619 CS-620 CS-621 CS-622 CS-623 CS-910 CS-915 CS-988 CS-1255 CS-1259
+D92 class 2 (lane=true, blocks_product=false, floor=false) (41): CS-943 CS-966 CS-1001 CS-1003 CS-1004 CS-1010 CS-1063 CS-1092 CS-1094 CS-1071 CS-1074 CS-1075 CS-1076 CS-1077 CS-1078 CS-1129 CS-1089 CS-1090 CS-1091 CS-1135 CS-1137 CS-1141 CS-1142 CS-876 CS-849 CS-859 CS-412 CS-446 CS-451 CS-457 CS-460 CS-465 CS-467 CS-468 CS-464 CS-472 CS-474 CS-477 CS-499 CS-483 CS-808
+D92 class 3, not cut, so BUILD-MAIN (lane=false, blocks_product=false, floor=false) (53): CS-900 CS-1152 CS-938 CS-944 CS-945 CS-946 CS-967 CS-964 CS-969 CS-974 CS-975 CS-993 CS-1002 CS-1006 CS-1007 CS-1069 CS-1070 CS-1130 CS-1131 CS-1136 CS-958 CS-864 CS-844 CS-847 CS-848 CS-852 CS-855 CS-860 CS-854 CS-426 CS-432 CS-401 CS-439 CS-447 CS-450 CS-455 CS-456 CS-458 CS-459 CS-470 CS-479 CS-492 CS-489 CS-805 CS-807 CS-983 CS-1055 CS-1056 CS-1149 CS-1151 CS-1295 CS-1358 CS-1366
+Product rows, no booleans, BUILD-MAIN (40): CS-828 CS-829 CS-965 CS-962 CS-843 CS-861 CS-832 CS-440 CS-443 CS-449 CS-452 CS-454 CS-984 CS-986 CS-982 CS-1052 CS-1053 CS-1150 CS-1058 CS-1048 CS-1064 CS-1236 CS-1243 CS-1401 CS-1398 CS-1248 CS-1252 CS-600 CS-872 CS-909 CS-914 CS-916 CS-1046 CS-1047 CS-1254 CS-1256 CS-1257 CS-1258 CS-1261 CS-1262
+Product rows, no booleans, BUILD-LANE (10): CS-1067 CS-462 CS-1241 CS-1249 CS-1250 CS-1251 CS-618 CS-887 CS-1065 CS-1260
+
 Counts sum to 240, the number of item lines `ROADMAP.md` held at this sweep's base
-(0f7ab8824d016e4fba92f08ac2cfa269f0026de8, after the close-check sweep), and every id appears once. BUILD-LANE is the
-lane flag true in the plan's unit data for the row (the same for 'all parts' and for 'any part'); a free-text lane
-flag reads false. RELOCATE is the 30 rows cut in parts 1 to 5. The snapshot's BUILD-MAIN 122 reads 121 here because CS-1204 is unthawed and so sits in HOLD (26).
+(0f7ab8824d016e4fba92f08ac2cfa269f0026de8, after the close-check sweep), and every id appears once. CS-1136 is
+RESTORED to a build row (BUILD-MAIN, D92 class 3, not cut) because its D76 trigger had fired when it was cut; so
+RELOCATE is 29, not 30. The plan's snapshot read BUILD-MAIN 122 and BUILD-LANE 59; the counts here differ by CS-1204
+unthawed and held (-1 build), CS-1136 restored (+1 build), CS-1398 and CS-1064 counted BUILD-MAIN (+2 main, -2 lane)
+and 6 lane rows moved to BUILD-MAIN class 1 under D92's precedence, which gives BUILD-MAIN 118 and BUILD-LANE 51.
 
 ## CS-1061 - item section, relocated from `docs/item_notes/phase5.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
 
@@ -340,20 +357,6 @@ a job re-run inside one workflow run contributes its own reading rather than bei
 ### Full headline
 
 the tier 1 jitter figure can UNDERSTATE by two routes the CS-917 verifier found after the candidate was frozen - `readings` in `tools/tier1_growth.py` drops a job's re-run attempt because it dedupes on the run id a re-run shares, and `test_the_recorded_commit_distances_agree_with_this_repository` skips per sha so a fabricated sha and distance pair makes the anti-transcription arm SKIP rather than redden - neither live on the shipped record, both filed rather than repaired because a repair landed after a verdict is one that verdict cannot discharge
-
----
-
-## CS-1136 - item section, relocated from `docs/item_notes/phase4-followups-1000.md` 2026-11-19 on its cut to BACKLOG (NOT A COMPLETION)
-
-### Filed 2026-09-17 by the CS-1132 adversary pass
-
-### Acceptance
-
-a LIVE document that points at an item-notes leaf for an id with no section in that leaf is reported, with the population of pointers DERIVED rather than listed and a pointer distinguished both from a leaf-table RANGE SELECTOR and from a mention of the item that CAUSED a change, proven by an arm that plants such a pointer and goes RED, by an anti-vacuity control over the same bytes that stays green unplanted, and by the check staying SILENT on every one of the eight shapes the 2026-09-17 sweep produced as false positives; `docs/LEDGER.md` is out of scope because its own rule forbids editing a written record, and `docs/history_notes.md` is out of scope because its header declares that nothing in it may be acted on without re-verifying live
-
-### Full headline
-
-no guard grades a live document's pointer into an item-notes leaf, so a live file can route a reader to a section that no longer exists - MEASURED 2026-09-17 twice over: the CS-1132 adversary looked for such a guard across `tools/`, `tests/test_docs_citations.py` and `tests/test_citation_tables.py` and found none, and a derived sweep over every tracked markdown file outside the append-only record then found the live instance, `docs/ARCHITECTURE.md` routing the cost of the second world-body pass to `docs/item_notes/phase4-followups-900.md` under CS-961, dead since that item closed and its section left the family, while `tools/drift_guard.py` exited 0 across 11 guards and 517 citation and liveness arms passed over the same bytes; that pointer is repaired in the CS-1132 merge and the GUARD is what this row owns, because the five further pointers CS-1132's own relocation falsified all sit in files nothing may edit, and the next relocation will falsify more; the sweep that found it also produced eight false positives, every one a leaf-table range selector or a mention of the item that caused a change rather than a pointer at its section, so telling those apart is the part of this row that carries the risk
 
 ---
 

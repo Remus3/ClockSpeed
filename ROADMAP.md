@@ -131,6 +131,7 @@ CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1133 - the tier 1 fast shard's warn band is narrower than its own run-to-run jitter - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1135 - `_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1136 - no guard grades a live document's pointer into an item-notes leaf - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1137 - two arms in `tests/data/test_item_notes_index.py` bind only their constant's MEMBERSHIP in the probe tuple and are blind to its VALUE - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1141 - the per-entry unanchored refusal never proves that the entries after it are still graded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1142 - the ratchet's head sentence in `tests/test_citation_tables.py` states a composition the tables no longer have - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

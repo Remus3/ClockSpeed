@@ -75,6 +75,23 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-19 - CS-1136 - RESTORED TO ROADMAP. NOT A COMPLETION RECORD. NOTHING CLOSED. The part 4 cut is reversed because its D76 trigger had fired
+Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `CS-1136` section of `docs/item_notes/phase4-followups-1000.md`.
+SCOPE. The U-052.6 adjudicator ruled the sweep not closable at 0ae83d6b. CS-1136 was cut to BACKLOG by part 4 on a
+counts-only read-back that its trigger, a second live document routing to a leaf section that no longer exists, had
+not fired. A re-measure including the leaves found such pointers, and one of them (a pointer in
+`docs/item_notes/phase4-followups-900.md` to the CS-448 section) already existed when the row was cut. Under D76 and
+clause 5 a row whose trigger has fired is not a cut and is classed by the D92 test. The part 4 record above stands as
+written (append-only) and is superseded here.
+RESTORED: the `ROADMAP.md` line, verbatim, between CS-1135 and CS-1137; the leaf section back in
+`docs/item_notes/phase4-followups-1000.md` byte-for-byte (SHA-256 of the body equal to the one read at relocation) and
+its block removed from `docs/history_notes.md`; the `BACKLOG.md` line removed. The trigger is not reworded. CLASS by
+the D92 test: a process row, lane false, floor false, no product unit of another row depends on it, so class 3 and NOT
+cut (no ruling cuts it), BUILD-MAIN; a distinct adjudicator may rule it otherwise.
+CORRECTIONS CARRIED. This restore changes the counts the first closing record gave: RELOCATE is 29, not 30. The
+closing record above was rewritten in place in the same repair commit, and it replaces the wrong sentence that the
+plan's BUILD-MAIN 122 'reads 121' with the real counts.
+
 ### 2026-11-19 - CS-443 - FROZEN-FILE PRE-SCREEN: DENY. NOT A GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-443 STAYS OPEN
 Verification: frozen file `tools/precommit_gate.py` (the gate's own copy of the `local_config` read); the CS-443 ROADMAP acceptance and the CS-443 section of `docs/item_notes/phase4.md`; plan ruling D78 (1). Proposed edit: the frozen copy reports a malformed local config override instead of discarding it. Disposition DENY; alternatives considered: LIKELY GRANT (rejected - the unfrozen half delivers the behaviour without touching the gate, and D78 (1) is followed with no departure). Route: redesigned off `tools/precommit_gate.py` - the unfrozen half (every caller of `locate.local_config` passes a warnings collector) is built as a D92 class 2 row; CS-443 stays OPEN on the frozen clause and NO acceptance is narrowed here. Ruled by the U-145 role (b) adjudicator, distinct from the agent that collected this docket, at 6d93ee5b. Reversed by: the binding ruling on the concrete diff when the CS-443 frozen clause is built.
 THE PLAN unit U-145 (R-exec-model-4 pre-screen; rulings D78, D109, D129, IC-CS-947). NOT A GRANT: a builder that reads this still stops for a grant recorded before any edit (CLAUDE.md section 6).
@@ -131,57 +148,45 @@ THE PLAN unit U-145 (R-exec-model-4 pre-screen). NOT A GRANT: this record grants
 Verification: frozen file `.claude/settings.json` (and `scripts/install_hooks.py`, if the bootstrap alternative is taken there); the CS-938 section of `docs/item_notes/phase4-followups-900.md` (its acceptance NOTE: the fix edits a frozen file); CLAUDE.md section 2.2 (the `tools/inbox_watch.py` row, CS-952). Docketed by the clause 1 re-derivation; absent from the plan's 12-id snapshot. Proposed edit: wire the inbox watcher through the tracked settings file. Disposition DENY; alternatives considered: LIKELY GRANT (rejected - CS-952 makes a fresh clone running no watcher the deliberate state, so the tracked route stays refused, as for CS-942). Route: redesigned off `.claude/settings.json` and `scripts/install_hooks.py` - a non-frozen bootstrap step that says so, or the joint D91 supersession by the loop-tick inbox handling (FLEET item 14a). Ruled by the U-145 role (b) adjudicator, distinct from the agent that collected this docket, at 6d93ee5b. Reversed by: the binding ruling on the concrete diff if CS-938 is built through a frozen file.
 THE PLAN unit U-145 (R-exec-model-4 pre-screen). NOT A GRANT: this record grants nothing.
 
-### 2026-11-19 - CS-1406 - CLOSED: the open-row disposition sweep is applied, 30 rows cut, 10 folded, 5 left pending under D77, every row classed
+### 2026-11-19 - CS-1406 - CLOSED, PROVISIONAL, RE-GRADE OWED: the open-row disposition sweep is applied, 29 rows cut, 10 folded, 5 left pending under D77, every row classed
 Verification: `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tests/ops/test_lane_scope.py::test_the_declared_scopes_all_validate_against_the_live_roadmap`; `tests/surface/test_contract.py::test_every_open_blocker_is_an_open_roadmap_item_line`; `tools/drift_guard.py` exit 0; the `Wave 0 relocations` block of `BACKLOG.md`; the `Class record` in `docs/history_notes.md` under CS-1406.
 SCOPE. Wave 0 unit U-052.6 of THE PLAN closes the open-row disposition sweep after parts 1 to 5 (each its own DECISION
-RECORD above). The close leaves the five RELOCATE-PENDING rows OPEN; their later cut is graded under its own record
-(clause 5). This item's `ROADMAP.md` line is removed and its section, with the `### Class record`, moved to
-`docs/history_notes.md` under CS-1406.
-CLAUSES 1, 2 AND 8, THE CLASS RECORD. Counts, over the 240 item lines `ROADMAP.md` held at the sweep's base:
-BUILD-MAIN 109, BUILD-LANE 59, FOLD 10, RELOCATE 30, RELOCATE-PENDING 5, HOLD 26, GATED 1, sum 240; a scratch script
-parsed the record back out of the section and printed `ids 240, duplicates 0, missing 0`. HOLD is enumerated by id
-(the 26 of clause 8, CS-1204 among them while it is unthawed; the snapshot's BUILD-MAIN 122 reads 121 for that
-reason); GATED is CS-913. BUILD-LANE is the plan's unit-data lane flag true. DEVIATION: clause 2's D92 booleans
-`lane`, `blocks_product` and `floor` are not materialised per process row, because the plan's unit data carries only
-the lane flag; the record carries the class they imply (BUILD-MAIN class 0 or 1, BUILD-LANE class 2, RELOCATE class
-3), and a distinct adjudicator may ask for the booleans.
-CLAUSE 12, MEASURED. ROADMAP.md bytes freed by the 40 rows that actually moved: 8226 (47122 at the sweep's base, 39084
-after part 5, plus the 188-byte CS-1406 line filed on the way in), equal to the plan's figure for 45 rows less the
-five D77 lines that stay. Planned minutes that left the build set: 30 cut rows, 5520 minutes; 10 folded rows, 755
-minutes. Still open and not counted as left: the 5 pending D77 rows, 990 minutes (5520 plus 990 is the plan's 6510 for
-35 cut rows).
+RECORD above). This record was REWRITTEN in the repair commit that follows the first U-052.6 commit, because the U-052.6 adjudicator ruled the sweep NOT closable as first written; the earlier text stays in git history. THE CLOSE IS
+PROVISIONAL: this item's `ROADMAP.md` line stays removed and its section, with the `### Class record`, stays in
+`docs/history_notes.md` under CS-1406, but a distinct grader must still re-grade clauses 1, 2, 8 and 12 on the repair
+commit. The five RELOCATE-PENDING rows stay OPEN; their later cut is graded under its own record (clause 5).
+CLAUSES 1, 2 AND 8, THE CLASS RECORD. Over the 240 item lines `ROADMAP.md` held at the sweep's base: BUILD-MAIN 118,
+BUILD-LANE 51, FOLD 10, RELOCATE 29, RELOCATE-PENDING 5, HOLD 26, GATED 1, sum 240; a scratch script parsed the record
+back out of the section and printed `ids 240, duplicates 0, missing 0`. HOLD is enumerated by id (CS-1204 among the 26
+while unthawed); GATED is CS-913. Clause 2's three D92 booleans, lane, blocks_product and floor, are now written for
+every process row, and BUILD-MAIN is split so floor and blocks_product are recoverable: class 0 1, class 1 24, class 3
+not cut 53, class 2 (BUILD-LANE process rows) 41; CS-1398 and CS-1064 are product rows counted BUILD-MAIN with lane
+false. The earlier sentence that the snapshot's BUILD-MAIN 122 'reads 121' was wrong and is replaced by the counts
+above.
+CLAUSE 12, RE-MEASURED AFTER THE CS-1136 RESTORE. ROADMAP.md bytes freed by the 39 rows that moved (29 cut and 10
+folded): 8085 (47122 at the sweep's base, 39037 now). Planned minutes that left the build set: 29 cut rows, 5370
+minutes; 10 folded rows, 755 minutes. Still open and not counted as left: the 5 pending D77 rows, 990 minutes, and the
+restored CS-1136, 150 minutes.
 CLAUSE 13, THE ADVERSARY PASS. An adversary on the frozen tree 6d93ee5b2aaa52d51ea51674837caefc678f91c1 checked all 40
-moved rows for a missed product dependency: NOT REFUTED on every row, no row put back. A distinct adjudicator on the
-same tree ruled ACCEPT, clauses 3 to 7 and 9 to 11 MET, 1, 2, 8, 12 and 13 deferred to this part, and GRANTED both
-test-file deviations as minimal (the `tests/test_archive_rot.py` `_ROT_FORM` pin 15 to 16 and the
-`tests/data/test_item_notes_index.py` control from CS-1012 to CS-1196); freeze check 0 and 0 and
-`tools/drift_guard.py` exit 0 at that SHA. Four caveats, resolved or recorded here:
-(a) CS-1136 RE-MEASURED WITH THE LEAVES INCLUDED. The adversary found a new live pointer to a vanished section:
-`docs/item_notes/phase5.md` named 'CS-1061's own section', which this sweep moved. It is re-pointed to
-`docs/history_notes.md`. Re-measured over live files including the leaves (57 lines pairing a leaf path with an id, 21
-on an id with no section of its own), one routed a reader to a vanished section: a pointer in
-`docs/item_notes/phase4-followups-900.md` to the CS-448 section, which the close-check sweep had already moved before
-this sweep began. The other 20 are leaf table rows, range selectors and quotations. The phase 5 pointer above is in a
-prose shape that scan does not match, so it was found by the adversary, not the count. Both are re-pointed now and no
-routing pointer remains. HONEST RESIDUAL: under this wider population the CS-1136 trigger, a second live document
-routing to a vanished section, had already read positive when the row was cut, so the read-back in the part 4 record
-was incomplete; the cut stands on the merger's order and an adjudicator may restore the row.
-`docs/item_notes/phase6.md` 'DEPENDS ON ... CS-1061' is an id dependency in the CS-1047 doc slice's text, left to that
-slice per the plan.
+moved rows for a missed product dependency: NOT REFUTED on every row. A distinct adjudicator on the same tree ruled
+ACCEPT, clauses 3 to 7 and 9 to 11 MET, 1, 2, 8, 12 and 13 deferred to this part, and GRANTED both test-file
+deviations as minimal (`tests/test_archive_rot.py` `_ROT_FORM` 15 to 16 and the `tests/data/test_item_notes_index.py`
+control from CS-1012 to CS-1196). The adversary's four caveats:
+(a) CS-1136. Re-measured with the leaves included, a live pointer to a vanished section existed when the row was cut
+(a pointer in `docs/item_notes/phase4-followups-900.md` to the CS-448 section, from the close-check sweep; another in
+`docs/item_notes/phase5.md` to the CS-1061 section, from this sweep). Both were re-pointed. The trigger had therefore
+fired, so under D76 and clause 5 the row was never a cut: it is RESTORED, with its `ROADMAP.md` line verbatim, its
+section back in its leaf byte-for-byte (SHA-256 equal to the one read at relocation) and its BACKLOG line removed. See
+the restore record. `docs/item_notes/phase6.md` 'DEPENDS ON ... CS-1061' is an id dependency in the CS-1047 doc
+slice's text, left to that slice per the plan.
 (b) CS-804's copy in `docs/history_notes.md` is NOT byte-for-byte: it carries the 8 lines of the CS-801 fold NOTE that
-part 2 appended to the section before it moved. Disclosed, not churned; every other moved body is byte-for-byte with
-its SHA-256 read back equal.
+part 2 appended before the section moved. Disclosed, not churned; every other moved body is byte-for-byte.
 (c) The CS-846 ref classifier (D103) was run by the same agent that applied the cut; no evidence shows it was distinct
-from the writer. Recorded as a residual: the counts-only scan stands, every ref is kept, none deleted.
-(d) `config/lane_scopes.json` still named CS-1242's extraction census as a write area of `registry-audit`; the
-parenthetical now ends 'now in BACKLOG'. No test covers the description text, so no red could be shown first;
-`tests/ops/test_lane_scope.py` passes whole.
-STILL OWED. A distinct adjudicator has not yet graded clauses 1, 2, 8 and 12 on the commit carrying this record, so
-the plan's done-condition 'all 13 clauses graded by a distinct adjudicator' is NOT yet met; the close is taken on the
-merger's order (CLAUDE.md section 6.1) and that grading stays owed. Files outside this unit's write list touched by
-the caveat repairs: `docs/item_notes/phase5.md`, `docs/item_notes/phase4-followups-900.md` and
-`config/lane_scopes.json`.
-
+from the writer. Residual: the counts-only scan stands, every ref kept, none deleted.
+(d) `config/lane_scopes.json` still named CS-1242's extraction census as a `registry-audit` write area; the
+parenthetical now ends 'now in BACKLOG'. No test covers that text, so no red could be shown first.
+Files outside this unit's write list touched by the repairs: `docs/item_notes/phase5.md`,
+`docs/item_notes/phase4-followups-900.md`, `docs/item_notes/phase4-followups-1000.md` and `config/lane_scopes.json`.
 ### 2026-11-19 - CS-1406 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-052.5: two rows cut to BACKLOG, CS-1349 folded, the registry-audit scope and the D67 lines
 Verification: `tests/ops/test_lane_scope.py::test_the_declared_scopes_all_validate_against_the_live_roadmap`; `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`; `tools/drift_guard.py` guards (g), (i) and (j), exit 0; the `Wave 0 relocations` block and the `Engine` heading of `BACKLOG.md`; the `CS-1406` section of `docs/item_notes/phase7.md`.
 SCOPE. Wave 0 unit U-052.5 of THE PLAN, part 5 of 6 of the open-row disposition sweep filed as CS-1406, batches
