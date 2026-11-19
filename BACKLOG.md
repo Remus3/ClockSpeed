@@ -71,6 +71,13 @@ the first: a consumer actually needs to follow a component to its parent.**
   `tests/test_cs1172_branch_canaries.py::test_forced_red_output_renders_no_canary` (child exit
   3) and blocks the push - TRIGGER: the pyproject pin admits pytest 9.2, or a hook run without
   `CLOCKSPEED_PYTHON` reaches the global interpreter again.
+- CS-1405 - under the machine python the pre-push suite fails
+  `tests/test_precommit_gate.py::test_the_format_finding_names_the_repo_relative_label_and_leaks_no_path`:
+  the gate finds ruff on PATH first, and the machine interpreter's ruff (0.17.3) is outside
+  `pyproject.toml`'s declared range while the `.venv`'s (0.15.22) is inside. Ruled at the session
+  159 /done: no machine-tooling change, no frozen-file edit, no skip; pushes put `.venv/Scripts`
+  first on PATH and set `CLOCKSPEED_PYTHON` for that one command - TRIGGER: the pyproject range
+  admits the machine ruff, or a push run without the `.venv` first on PATH reaches it again.
 
 ## Mod content support
 
