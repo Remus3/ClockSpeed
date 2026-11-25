@@ -142,7 +142,8 @@ UNRESOLVED, handed on:
 1. BLOCKING U-141: the annex has 1257 bytes of room; U-141 adds a chain column on every row and a hub-files table,
 which the scope adversary estimates at about 20 KB, and U-144 a further column. Routed to a planner for a relocation
 or split before U-141 is dispatched; until then U-141's own budget clause stops it.
-2. U-141 clause 5: 40 builder rows owe hub text and the plan carries no doc-slice row, so no row lands it; U-141 or a
+2. U-141 clause 5: 39 builder rows and 1 lane-gap row owe hub text and the plan carries no doc-slice row, so no row
+lands it; U-141 or a
 planner adds them. U-141's row kinds also read wave 0's builder rows (wave W0a) as merger-track, and its clause 11
 meets the "<key> unfiled" cells clause 6 requires; U-141's adjudicator rules both.
 3. U-159 (the Electron move, W18, phase 6 leaf, READY) has no build spec in the plan, no id and no place in the
@@ -174,6 +175,15 @@ installer token form); the repair commit applied them and the fidelity adversary
 repair, the freeze witness unmoved before and after, read NOT REFUTED.
 READ BACK after this write: `tests/test_ledger_entry_shape.py` passed and `tools/drift_guard.py` exit 0 with guard (i)
 and guard (j) PASS, as the commit body records.
+RECORD ADVERSARY, frozen at the record commit: REFUTED on one sentence, item 2 above, which first read 40 builder rows
+where the table holds 39 builder rows and 1 lane-gap row; corrected here, every other measured statement held.
+UNIT ADJUDICATION, by an adjudicator that did not plan, build, rule or refute: A - DONE for the landable scope, part 6
+OPEN on the clause 11 pre-check, this item OPEN. Clauses 7, 9, 10, 12, 13 and 14 MET; 1 to 5, 8, 16 and 17 stay MET;
+6 MET on budget and NOT MET to the letter on U-071 and U-045 (the ruled deviation above); 11 NOT MET as the clause
+prescribes. Before this item closes: rows for U-071 and U-045 or a re-ruling of clause 6, the clause 11 line once a
+/done frees the bytes, the annex budget settled before U-141, and all 17 clauses graded again by a distinct
+adjudicator. Runner-up B (not done): the Parts say done when all 17 clauses are graded; it loses because no close
+is claimed and the wait is the route clause 11 itself prescribes.
 
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5: closing record of the part, adversary verdicts, the Phase 5 adjudication and three routings
 Verification: this record; the four U-138.5 batch records below (B1 `BACKLOG.md`, B2 `docs/item_notes/phase6.md`, B3
