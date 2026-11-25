@@ -75,6 +75,64 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5: closing record of the part, adversary verdicts, the Phase 5 adjudication and three routings
+Verification: this record; the four U-138.5 batch records below (B1 `BACKLOG.md`, B2 `docs/item_notes/phase6.md`, B3
+`docs/item_notes/phase4-followups-960.md`, B4 `docs/item_notes/phase7.md`), unchanged by it;
+`tests/test_ledger_entry_shape.py` and `tools/drift_guard.py`, run after the write as recorded below. Written by the
+session 162 merger. This record closes nothing, so no test names one.
+SCOPE. U-138.5 of the session 159 plan, part 5 of 6 of the U-138 filing under this id: batches B1 to B4, each with its
+own record below. With this record the part has filed everything its write list can hold; U-138.6 is the next merger
+unit.
+VERIFIER, at the part's tip with the freeze witness read unmoved before and after: `tools/drift_guard.py` exit 0, 11
+of 11 PASS, guard (j) PASS; `tools/doc_budget.py` VERDICT: PASS; `tools/sha_citation_gate.py` exit 0;
+`tools/provenance_stamp.py check` exit 0; pytest over 25 named doc, citation, ledger and lane-scope modules,
+tests/test_citation_guard_shapes.py among them (D8), exit 0, 1967 passed; the changed paths are exactly the five of
+the write list it used; every touched file 7-bit ASCII and LF; the drive-letter grep over the part's diff printed 0;
+the size and TRIGGER counts of the four records read back equal.
+ADVERSARIES (clause 15), four distinct lenses, each read-only and frozen at the batch commits or the part's tip,
+verdicts as each returned them this session. FIDELITY: NOT REFUTED for B1, B2, B3 and B4 - every row checked by its
+own script against the plan's bytes: 33 Part 8 rows, 32 filed, the one omission U-157; the three extensions differ
+from the plan only at the recorded respelling sites (7, 4 and 6); its note: the elided form is filed as a doubled
+backtick around test-<rest>, the shape the filed phase 5 and phase 6 rows already carry, unwritten in the respelling
+text. PRIVACY AND RECORD TRUTH: NOT REFUTED on all six claims (no drive path or descriptor, no personal data, no
+commit hash cited, the record shape, every measured number of the four records, ASCII and LF and no attribution
+trailer); not attacked by it: the staged byte sizes and the queue stop file at the filing head. REPRODUCE: NOT REFUTED
+for B1, B2 and B3 - in frozen worktrees at each batch commit and at the base as control, every gate step exit 0 and
+pytest 1967 passed each time; potency: a second `### Acceptance` planted inside the CS-962 section of an extracted
+copy made guard (j) FAIL. SCOPE AND STAGING: claim 1 (the BACKLOG population) NOT REFUTED; claim 2 (the extension
+duties) REFUTED on the CS-1257 headline (F1) with the CS-1047 doc slice UNRESOLVED (F2), both routed below; claim 3
+(staging) NOT REFUTED, with its residual that the CS-1058 NOTE (1647 bytes) would fit the phase 5 leaf and is held
+back only by the D2 stop at CS-1048; claim 4 (the write list) NOT REFUTED.
+PHASE 5 ADJUDICATION, by an adjudicator that did not plan, rule or file the part: ACCEPT WITH NAMED RESIDUALS, at the
+part's tip; criteria 1 to 3 MET, criterion 4 MET with one cosmetic gap (R5 below). R2: .js, .ps1 and .html line
+pointers stay in path:N form, as the filed precedent does, while the U-138.1 record's respelling text says every line
+pointer. R3: some BACKLOG triggers name plan keys with wave numbers (U-010 40) that resolve only through this file
+until U-138.6's annex lands. R4: the gate re-run and the clause 15 adversaries it named as owed are the verifier and
+adversary results above.
+F1, CORRECTED GROUND (the scope adversary's finding, ruled by a further distinct adjudicator): the CS-1257 D105
+headline change is part of the staged CS-1257 extension row, one plan row with its appended clauses, and it files with
+those clauses in the W28 slice under clause 6, which stages a row whole and never half of one. This corrects the
+ground the B2 record gives (a ROADMAP.md edit outside this part's write list); the routing, W29 filed by W28, stands. U-138.6's
+annex carries that W28 slice with ROADMAP.md among its Landing files beside docs/item_notes/phase6.md.
+Rejected: U-138.6 filing the headline now, which would put a headline on ROADMAP.md that the leaf's acceptance does
+not grade for 28 waves.
+F2, RETURNED AND UNOWNED: the CS-1047 wave-0 doc slice - its leaf DEPENDS ON drops CS-1061 (D48) and its Acceptance
+clause 3 is re-worded (D3) - writes docs/item_notes/phase6.md only, its ROADMAP line unchanged (D108). No unit, wave
+or owner exists for it in the plan, and U-138 excludes rewording any acceptance, so it stays returned to a planner. It
+must be assigned to a unit before W42, the filing wave of the CS-1047 child rows A and B, and before the hub's build
+wave W43; U-138.6's annex names it as returned and unowned.
+R1, STALE POINTERS: clauses 3, 4 and 7 of the CS-1334 extension (B4) carry line pointers into BACKLOG.md,
+docs/LEDGER.md and docs/item_notes/phase7.md measured at the plan's head; at this tip they no longer land on their
+targets (the BACKLOG.md pointers read 11 lines early, the docs/LEDGER.md pointer lands inside another record, its
+target now about 1255 lines later, and the phase 7 pointer's target now sits about 13 lines earlier). They are not
+re-pointed: clauses 5 and 16 forbid any change but the one respelling. Each pointer's quoted text identifies its
+target. Owners: U-138.6's closing record and the CS-1334 filing-wave brief.
+R5, ONE DEVIATION: the B3 commit subject reads "docs(CS-1409): file the phase4-followups-960.md batch, session 159
+plan", not the U-138 Parts form, shortened to fit the 72-character subject cap of the commit-msg hook. No other
+deviation.
+READ BACK after this write: `tests/test_ledger_entry_shape.py` passed and `tools/drift_guard.py` exit 0 with guard (i)
+and guard (j) PASS, as the commit body records.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B4: the phase7.md batch of the session 159 plan, CS-1334 clauses 1 to 11 filed, phase 5 files nothing, the duty table of all 20 ids
 Verification: `docs/item_notes/phase7.md` (CS-1334 clauses 1 to 11 appended after the last body line of the section's
 one `### Acceptance`, 5493 bytes, the plan's numbering kept, no new line and no Filed block); `tools/drift_guard.py`
