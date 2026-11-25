@@ -75,6 +75,34 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1412 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The wave table's Write-list column relocated to a sibling annex under the leaf budget
+Verification: `docs/item_notes/wave-plan-write-lists.md` (new, the Write-list column of the wave table, one row per
+slice keyed by its Slice cell, in the table's row order), `docs/item_notes/wave-plan.md` (the column removed from the
+header row, the separator row and every row, one pointer bullet added; nothing else changed), the leaf-table row for
+the new annex in `docs/item_notes.md`, its `tools/provenance.tsv` row, this record. Checks run after the write:
+`tools/drift_guard.py` exit 0; `tools/doc_budget.py` VERDICT: PASS; `tests/data/test_item_notes_index.py`,
+`tests/test_doc_budget.py`, `tests/test_docs_citations.py`, `tests/test_citation_guard_shapes.py`,
+`tests/test_ledger_entry_shape.py` and `tests/test_provenance_manifest.py`, all passing; the reconstruction read-back
+of both files against the base copy of the table printed `rows 552, reconstructed equal 552, differ 0` and
+`slices joined 552 of 552, orphans 0`. This record closes nothing, so no test names one.
+SCOPE. The section 4 relocate pass that CS-1412 clause 10's precondition triggered: its own commit, ahead of the
+CS-1412 chain commit and outside that unit's diff. Relocate, never delete: every cell moved byte for byte. CS-1412
+STAYS OPEN.
+BUDGET, printed before the move: docs/item_notes/wave-plan.md 129815 + 19925 = 149740 / 131072. After the move:
+docs/item_notes/wave-plan.md 77679, docs/item_notes/wave-plan-write-lists.md 60322, docs/item_notes.md 9999 bytes.
+RULING (a distinct adjudicator; decision, alternatives, why). Decision: move the Write-list column to the sibling
+annex, keyed by the unique Slice cell. Runner-up: splitting the table by rows after W34 into a continuation annex; its
+best argument is a self-contained row and more headroom per file. Rejected because it falsifies two literal
+`git diff --name-only` clauses (CS-1412 clause 9, CS-1415 clause 8) and breaks CS-1417 clause 1, CS-1413 clause 3 and
+CS-1414 clause 1 for the rows past W34. Rejected: moving the Landing files column only, which re-blocks after CS-1415.
+AMENDMENT (recorded here; no clause body is edited): wherever CS-1412's Terms and clauses 1, 3, 4, 5 and 8, CS-1415
+clause 6, and CS-1409 clauses 7 and 9 read a wave-table row's Write-list cell, it is read from
+`docs/item_notes/wave-plan-write-lists.md` by the row's Slice cell; CS-1412 clause 3's negative runs on a scratch copy
+of both files.
+CITATION NOTE: the "docs/item_notes.md lines 82-84" in CS-1409 clause 3, CS-1412 clause 1 and CS-1414 clause 1 names
+the family rule headed "A WRITE-LIST NAMES A FILE IT WILL CREATE BY DIRECTORY AND STEM", wherever it sits (one line
+out since the annex row was added; two after this row); left as is by ruling. Not pushed.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.6: the wave table rows filed, the hand-off line held by its pre-check, part 6 open
 Verification: `docs/item_notes/wave-plan.md` (its wave table, one row per slice, appended under the existing header;
 the header, the pointer lines and the re-pack tools line unchanged), this record; `tools/drift_guard.py`,
