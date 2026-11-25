@@ -75,6 +75,46 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B1: the BACKLOG.md batch of the session 159 plan, 32 id-less lines filed under one new heading
+Verification: `BACKLOG.md` (one new section, the heading `## Session 159 plan - conditional rows, filed 2026-11-25
+under product before process` and 32 id-less lines under it, appended at the end of the file); `grep -c "TRIGGER:"
+BACKLOG.md` read 147 before and 179 after; `tools/drift_guard.py` guard (j) and `tests/test_docs_citations.py`, each
+green after as recorded below. Written by the session 162 merger (part U-138.5, writer B1), the one filing writer,
+with the queue stop file placed. This record closes nothing, so no test names one.
+PRE-FLIGHT (clause 1), read back at the filing HEAD, which read the session 161 hand-off commit with a clean tree: `ls
+ops/loop/control/lanes/QUEUE_STOP` printed ops/loop/control/lanes/QUEUE_STOP, so the queue stop file is present; the
+locks folder ops/loop/control/locks/ read empty, so no lane lock is live; the highest allocated id is CS-1440 (read
+across ROADMAP.md, BACKLOG.md, the item-note leaves and docs/LEDGER.md by the U-138.3 record and by the planner of
+this part). No new id is needed: BACKLOG lines are id-less (clause 4) and the extensions of B2 to B4 use existing ids.
+SCOPE, the session 162 adjudicator's ruling on the U-138.5 spec: FULL scope. Clause 4 reads every new row whose state
+is BACKLOG, not every phase 6 BACKLOG row, and no other part of U-138 writes BACKLOG.md; the narrow wording of the
+U-138.3 and U-138.4 records described only the phase 6 population. Part 8 of the session 159 plan lists 33 BACKLOG
+rows; 32 are filed. The snapshot's 30 BACKLOG lines counts units (U-055 is one READY unit); the print governs, and it
+reads 32. U-055.3, U-055.4 and U-055.5 take one line each, as Part 8 lists three rows. The headline of a line is the
+Part 8 Title cell and its trigger the Reopen trigger cell, both verbatim, the prefixes BACKLOG row and BACKLOG filing
+slice kept; the U-106 line is one line, verbatim; the heading carries no intro paragraph.
+MAP (plan key to target, in filing order, id-less lines under the new heading): U-006, U-008, U-009, U-011, U-013,
+U-014, U-015, U-016, U-017, U-018, U-027, U-028, U-035, U-042, U-048, U-055.3, U-055.4, U-055.5, U-065, U-072, U-094,
+U-106, U-108, U-111, U-112, U-114, U-128, U-129, U-130, U-148, U-150, U-156. Each key is one line of that section, in
+Part 8 table order; no key gets an id and none has a ROADMAP line.
+BUDGETS (clause 6), printed before the batch: ROADMAP.md 44245 + 0 = 44245 / 61440 (no ROADMAP write in this batch);
+BACKLOG.md 122082 + 6653 = 128735 (tools/doc_budget.py holds no budget row for BACKLOG.md). The leaf sums of B2 to B4
+are printed in their own records.
+NOT FILED: U-157 takes no line of its own (D83); its clauses 13 to 21 are filed under CS-1419 by the U-138.1 record.
+The CS-1047 spec's mention of a referenced-only default view as one BACKLOG line carries no plan key and no trigger
+text, so the clause 4 negative applies and it is not filed. STAGED, CARRIED and RETURNED: none in this batch. A line
+whose trigger names MAIN (U-150, U-156) uses the fleet role already named in the tracked doctrine.
+RESPELLING (clause 16): 0 sites in the 32 lines, so the one recorded respelling of the U-138.1 record applies
+unchanged and no new shape is made.
+CHECK (clause 4): an untracked scratch script printed "backlog lines 32, filed 32, mismatches 0", comparing each filed
+line with the Title and Reopen trigger cells of Part 8 of the session 159 plan (U-157 excluded), and "TRIGGER count
+179 lines with TRIGGER: 179". Clause 13: no row returned to a planner.
+Rulings applied: the session 162 adjudicator's ruling on the U-138.5 spec, questions on scope, the three U-055 lines,
+titles and triggers, and the heading. Alternatives it recorded: a narrow scope, one line for the U-055 group, the
+prefixes stripped, an intro paragraph.
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; an adversary is owed at the batch
+commit.
+
 ### 2026-11-25 - CS-1409 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1409 STAYS OPEN: session 161 /done - every closed item's record reads present, U-138.5 is the next merger unit, and the queue stop file is removed
 Verification: `CS-NEXT-SESSION.txt`, its next-action and open-items blocks; the CS-1408, CS-1416 and CS-1401 CLOSED
 records below. This record closes nothing, so no test names one; the heading names the item whose next unit the
