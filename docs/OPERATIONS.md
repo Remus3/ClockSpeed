@@ -1019,6 +1019,31 @@ stated rather than left as an omission.
    `lane/<lane>-<short sha>` fallback branch) from `../cs-worktrees/lane-<i>`, and that
    the main checkout is untouched while a cycle runs.
 
+### 10.9 Shared documents: ADR numbers, the doctrine and the specification
+
+Three kinds of text are written by more than one slice and so have one route each. This
+subsection owns the route; the numbering rule and the Settled routes stay with their
+owners and are pointed at, not copied.
+
+1. **ADR numbers.** `docs/adr/README.md` section 5 owns the rule.
+2. **The governing documents.** No builder writes `docs/hud_doctrine.md` or
+   `BOOTSTRAP.md`. A builder that needs a line in either returns proposed wording in its
+   report, and the amendment lands under item 3.
+3. **Where an amendment lands.** Each amendment is one doc slice per file per group,
+   landed in the first group whose build relies on it and before that build in the group's
+   landing order, or in an earlier group. An amendment several waves rely on lands with
+   the first of them.
+4. **Who rules it.** A distinct adjudicator rules the wording, on a candidate frozen with
+   `tools/freeze_witness.py`. An adversary at that SHA checks that it relaxes no line of
+   the product floor (CLAUDE.md sections 1, 3 and 7) and names in its report each floor
+   line it graded, and each row of the plan's terms-of-service checklist the text touches
+   with the verdict `not relaxed`; a report that names no floor line is returned.
+5. **Settled entries.** An amendment that touches a Settled entry stays out until that
+   entry's Reversed by route (CLAUDE.md section 7) is met.
+6. **CLAUDE.md.** Nothing in this procedure writes it.
+7. **Entry conditions.** A build slice that needs an ADR or a doctrine line carries the
+   reserved number, or that line, in its entry conditions in the wave table.
+
 ## 11. A row that will not come back
 
 **Symptom.** A `ROADMAP.md` row is never offered to either lane. `python -m ops.loop.scope`

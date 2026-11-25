@@ -49,6 +49,7 @@ needs pages, the design goes in its own file and the ADR points at it.
 | Status | Meaning |
 |---|---|
 | `proposed` | Written, not yet accepted. Not binding. Nothing may cite it as settled. |
+| `reserved` | Allocated by the merger for a named item. No file yet. Not a decision, and nothing may cite it. |
 | `accepted` | In force. Binding. Cite it freely. |
 | `superseded by NNNN` | No longer in force. **The file stays exactly where it is.** The superseding ADR's Context explains what changed. |
 | `deprecated` | No longer in force and not replaced - the decision simply no longer applies, typically because its subject was removed. |
@@ -120,14 +121,30 @@ about serialization.
 adjudicator ruling on where an item's acceptance clause lives. No slot is reserved ahead of
 it - take 0023 next.
 
+**The row form of a reserved number.** A reserved number is a row in the index above,
+written as the number, then `RESERVED for <item id> - <working title>`, then the status
+`reserved`, with no link, because there is no file to link to. When the ADR is written the
+landing slice replaces that row with the linked row (section 5, step 3). A reserved number
+whose row is cut keeps its row, with the word `UNUSED` in place of the title, and is never
+reused (section 2). A "take NNNN next" sentence above is a dated record, not an
+instruction: section 5 owns how a number is allocated.
+
 ---
 
 ## 5. Adding an ADR
 
-1. Take the next unused number. Check this index, not the directory listing - a reserved
-   number may have no file yet.
-2. Create `NNNN-short-kebab-slug.md` with the four sections from section 1.
-3. Add the row to the index table in section 4.
+1. The number is allocated by ONE writer, the merger, at the start of the session whose
+   slice writes the ADR, after the lane stop file is placed and read (the stop file is
+   `docs/OPERATIONS.md` section 10.5's). It is the next unused number in the section 4
+   index, never read from the directory listing - a reserved number may have no file yet.
+   The merger records it as a `reserved` row in section 4, and a landing sub-agent commits
+   that row in the main checkout before the builder that writes the ADR is dispatched. No
+   builder, planner or lane row picks a number, and a lane row never creates an ADR.
+2. The builder of the row that owns the number creates `NNNN-short-kebab-slug.md` with the
+   four sections from section 1; the number is given in its brief, and it uses that number
+   only.
+3. The landing slice replaces the `reserved` row in the section 4 index with the linked
+   row for the file.
 4. If the ADR supersedes an existing one, update that ADR's Status line to
    `superseded by NNNN` and change nothing else in it.
 5. Cite the ADR from the ledger entry for the item that produced it.

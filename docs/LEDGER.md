@@ -75,6 +75,42 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-24 - CS-1416 - CLOSED: ADR numbers are allocated by one writer, the merger; the shared-document amendment route is stated in OPERATIONS 10.9
+Verification: `docs/adr/README.md` (section 3 row `reserved`; the row-form paragraph closing section 4; section 5
+steps 1 to 3) and `docs/OPERATIONS.md` (the subsection headed 10.9, last of section 10, directly above section
+11); the clause 1, 2, 4 greps below, each printing 0 at the base and its wanted figure after; `tools/drift_guard.py`,
+`tools/doc_budget.py`, `tests/test_docs_citations.py`, `tests/test_doc_budget.py` and
+`tests/test_ledger_entry_shape.py`, read back at the candidate commit. Plan key U-146, a merger landing at the
+wave 1 entry. No test or guard was added (product before process).
+CLOSED IN THE LANDING COMMIT: the CS-1416 line in ROADMAP.md and its section in docs/item_notes/phase7.md are
+deleted in this commit, not moved, because this record carries what the section said (`docs/item_notes.md`). A
+distinct adjudicator ruled ACCEPT WITH REPAIRS (clauses 1 to 6 met, the builder's decisions upheld); adversary 1,
+the satisfies-not-just-greps lens, returned NOT REFUTED; the clause 7 adversary returned NOT REFUTED, naming in its
+report every touched row of the session 159 terms-of-service checklist with the verdict `not relaxed` and stating
+that no line of the CLAUDE.md sections 1, 3 and 7 product floor is relaxed. All three graded the frozen candidate
+commit, witnessed unmoved by `tools/freeze_witness.py`. Clause 6 at the landing tree: `tools/doc_budget.py`
+VERDICT PASS, over budget 0; `tools/drift_guard.py` exit 0, guard (i) PASS; `tests/test_docs_citations.py`,
+`tests/test_scaffold.py` and `tests/test_doc_budget.py` exit 0, 568 passed. Clause 8:
+`tests/test_ledger_entry_shape.py` exit 0, 11 passed.
+READ BACK, at the base then at the candidate: the clause 1 grep for the one-writer phrase 0 then 1; the grep
+for the old step 1 wording 1 then 0; the clause 2 grep for the `reserved` table row 0 then 1; the heading grep for
+10.9 0 then 1; the grep for a 10.8 Shared heading 0 then 0; the greps for `returns proposed wording` and `first
+group whose build relies on it` 0 then 1 each; added table rows in `docs/adr/README.md` 0 then 1 (the status row
+alone); `git diff --stat` over CLAUDE.md, `docs/hud_doctrine.md` and BOOTSTRAP.md empty. No number is allocated
+and no index row is added for any planned ADR.
+RULING, as drafted by the planner step folded into the builder and handed to a distinct adjudicator and adversary on
+the frozen candidate SHA (their verdicts: CLOSED IN THE LANDING COMMIT above). DECISIONS: (1) the section 5
+numbered steps keep five steps, not six - new step 1 is the one-writer rule, 2 the builder, 3 the landing slice
+replacing the `reserved` row; the old steps 4 and 5 keep their numbers. Alternative: insert a new step and shift
+them; lost because it renumbers two steps for no gain. (2) The 10.9 list is numbered 1 to 7 in the order of
+the spec's (a) to (g), because section 10's own subsections use numbered lists and a lettered one is not in use
+there. (3) Item 1 is a pointer to the README alone, so the numbering rule has one owner. (4) The adversary's
+terms-of-service checklist is named by kind only, never by row or copy, per clause 7. (5) The stale sentence
+"take 0023 next" in section 4 is left in place as a dated record and the new row-form paragraph says it is not
+an instruction; editing it would be a rewrite of an index narrative outside this unit's scope. (6) 10.9 is
+written directly after 10.7 and no 10.8 is written or reserved: U-140 inserts its 10.8 above this heading.
+Alternative for (6): wait for U-140; lost because it would hold every ADR-writing unit behind the wave runbook.
+
 ### 2026-11-24 - WAVE 0 END - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
 Verification: the exit record <sidecars>/CS/plan-s159-tools/exit-W0.json (<sidecars> resolved by
 `tools/census_axis.py::derive_sidecar_root`), 4317 bytes, sha256
