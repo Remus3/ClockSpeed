@@ -312,7 +312,7 @@ As part of CS-1401, repoint the `tests/advisor/test_interleave.py` module docstr
 
 ### Acceptance
 
-`Advice.ranked` and `Advice.ranked_shown` both compose `interleave_domains` over the CS-1246 order; a served listing of the three-card aging fixture reads the large card SECOND, not last; each of the three `tests/surface/test_advice_aging.py` arms named in this section is re-pinned with a name that is true of the order it asserts; and the record resolves, in a new append-only entry, how the CS-1246 closure record's by-name citation of a renamed arm is to be read
+`Advice.ranked` and `Advice.ranked_shown` both compose `interleave_domains` over the CS-1246 order; a served listing of the three-card aging fixture reads the large card SECOND, not last; each of the three `tests/surface/test_advice_aging.py` arms named in this section is re-pinned with a name that is true of the order it asserts; and the record resolves, in a new append-only entry, how the CS-1246 closure record's by-name citation of a renamed arm is to be read; the record names surface page size 4; it states that no surface enforces 4 until R-glanceability-2's Play panel lands, and names that row as the owner; the golden case asserts domain balance at every prefix length the fixture allows
 
 ## CS-1248
 
