@@ -75,6 +75,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B2: the phase6.md batch of the session 159 plan, the CS-1260 NOTE filed, 4 rows staged, 1 returned
+Verification: `docs/item_notes/phase6.md` (one new dated NOTE, `### NOTE - filed 2026-11-25 by the session 159 plan`,
+directly above the one `### Acceptance` of the CS-1260 section, 3073 bytes, the plan's clauses 1 to 3 of the hub);
+`tools/drift_guard.py` guard (j) run before and after the host section, as recorded below;
+`tests/test_docs_citations.py`, green after. Written by the session 162 merger (part U-138.5, writer B2), the one
+filing writer, with the queue stop file placed. This record closes nothing, so no test names one.
+DUTY (clause 5, the session 162 adjudicator's ruling on the U-138.5 spec, amendment A1): CS-1260 is a hub whose row
+says its present Acceptance is NOT edited and that clauses 1 to 3 fix how it is discharged. An append is excluded by
+that text, so the clauses land as a dated NOTE outside `### Acceptance`, which is clause 5's hub form (D108) and edits
+nothing. The CS-1260 section still holds one `### Acceptance`: the check below printed 1. The NOTE is filed; its child
+row (clauses 4 to 11) is carried, unfiled.
+MAP (plan spec key to existing id; no new id is allocated): CS-1260 to CS-1260, the NOTE of plan lines for clauses 1
+to 3 of its spec, wave 7.
+BUDGETS (clause 6), printed by the filing script before the batch: ROADMAP.md 44245 + 0 = 44245 / 61440 (no ROADMAP
+write here); docs/item_notes/phase6.md 127719 + 3073 = 130792 / 131072. Rows were taken in wave order of each row's
+first part; CS-1260 is the first phase 6 extension row that files (W7). The next row in wave order is CS-1258 (W14):
+130792 + 12914 = 143706 / 131072, which does not fit, so it and every later phase 6 extension row are staged and
+nothing smaller is taken past it (D2).
+STAGED (clause 6, the D93 fallback; no id, carried by existing id with the word unfiled, each filed as the last slice
+of the wave before the wave that builds it, once the leaf has room): CS-1258 NOTE, hub, 12914 bytes, first part W14,
+filed by W13, unfiled; CS-1257 appended clauses, 8931 bytes, W29, filed by W28, unfiled; CS-1254 appended clauses,
+6968 bytes, W34, filed by W33, unfiled; CS-872 appended clauses 1 to 14, 8027 bytes, W43, filed by W42, unfiled.
+U-138.6's annex rows carry them. Shapes taken from the adjudicator's ruling: CS-1258 is a hub whose acceptance is NOT
+widened (D108), so a dated NOTE; CS-1254 is left to its filing wave (its row says a dated note plus acceptance text,
+both readings recorded); CS-1257 and CS-872 append under their one existing Acceptance (D93).
+CARRIED, not filed (each needs a ROADMAP.md line, a lane-scope entry or a ROADMAP.md edit that this part's write list
+does not hold; all unfiled): the CS-1260 child row, clauses 4 to 11 of its spec, leaf docs/item_notes/phase6.md,
+ROADMAP heading Phase 6, needs a lane-scope entry, W7, filed by W6; the CS-1047 child row A and child row B, clauses 4
+to 19 of its spec in two rows, leaf docs/item_notes/phase6.md, ROADMAP heading Phase 6, each needs a lane-scope entry,
+W43, filed by W42; the CS-1257 D105 headline change of its ROADMAP.md line, W29, filed by W28. U-138.6's annex names
+each. The CS-1047 referenced-only default view line (D131) has no plan key and no trigger text: not filed.
+RETURNED to a planner: CS-1047. Its hub clauses re-word the acceptance through a Wave-0 doc slice (clause 3 changed by
+D3), which U-138's Not in scope excludes (rewording any acceptance); its clauses 4 to 19 are the two carried child
+rows above.
+NONE (each names its own later writer, so nothing is filed for it here): CS-619 (part 4 writes its build NOTE before
+the section leaves the leaf, W3); CS-1046 (the part 4 doc slice, W23); CS-1262 (part 1 writes its added clauses before
+any code, W55).
+GUARD (j), run before and after the host section: before, `j      item-notes index             PASS`; after, `j
+item-notes index             PASS`; the whole run read `VERDICT: CLEAN - no drift detected` after.
+RESPELLING (clause 16): the NOTE carries 7 sites, 2 full citations and 5 line pointers, the one recorded respelling of
+the U-138.1 record, no new shape. Alternatives recorded by the ruling: none needed.
+CHECK (clause 5): an untracked scratch script printed "rows 1, acceptance mismatches 0, acceptance headings in
+the CS-1260 section 1": the filed text equals the master plan's bytes for clauses 1 to 3 after inverting the 7
+logged sites. Clause 13: no row returned on procedure grounds; CS-1047 is returned for the reason above.
+Rulings applied: the session 162 adjudicator's ruling on the U-138.5 spec, amendments A1 (the CS-1260 NOTE), A2 (four
+batches, four records), A3 (a red CS-1260 NOTE would be reverted and staged, not reshaped; the gate result is in the
+commit body) and A4 (no body line opens with a hash sign or an id and a separator).
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; an adversary is owed at the batch
+commit.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B1: the BACKLOG.md batch of the session 159 plan, 32 id-less lines filed under one new heading
 Verification: `BACKLOG.md` (one new section, the heading `## Session 159 plan - conditional rows, filed 2026-11-25
 under product before process` and 32 id-less lines under it, appended at the end of the file); `grep -c "TRIGGER:"
