@@ -284,13 +284,15 @@ def _three_counts(directory: Path) -> dict[str, int]:
     return {advised.card.rule_id: held.get(advised.card.id, 0) for advised in found.cards}
 
 
-def test_the_three_card_fixture_leads_with_the_small_cards_and_ends_with_the_large_one(
+def test_the_three_card_fixture_leads_with_the_quick_card_and_reads_the_large_one_second(
     tmp_path: Path,
 ) -> None:
-    # The control for the arms below: the large card is LAST until it ages.
+    # The control for the arms below: until it ages the large card reads SECOND - the
+    # domain interleave (CS-1247, composed by CS-1401) puts the plan card between the two
+    # power cards - and never first.
     first = _three_acts(tmp_path, 1)[0]
 
-    assert first == [QUICK, SECOND_SMALL, LARGE]
+    assert first == [QUICK, LARGE, SECOND_SMALL]
 
 
 def test_the_large_card_reads_first_past_two_small_cards_and_the_second_small_card_ages_too(
@@ -309,7 +311,7 @@ def test_the_large_card_reads_first_past_two_small_cards_and_the_second_small_ca
     assert listed == [LARGE, QUICK, SECOND_SMALL]
 
 
-def test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards(
+def test_one_further_act_short_the_large_card_still_reads_second_and_not_first(
     tmp_path: Path,
 ) -> None:
     _three_acts(tmp_path, 1 + ranking.AGING_EVALUATIONS - 1)
@@ -319,7 +321,7 @@ def test_one_further_act_short_the_large_card_still_reads_last_past_two_small_ca
 
     assert counts[SECOND_SMALL] == ranking.AGING_EVALUATIONS - 1
     assert counts[LARGE] == ranking.AGING_EVALUATIONS - 1
-    assert listed == [QUICK, SECOND_SMALL, LARGE]
+    assert listed == [QUICK, LARGE, SECOND_SMALL]
 
 
 def test_the_act_that_reaches_the_threshold_answers_large_first_past_two_small_cards(
@@ -327,5 +329,5 @@ def test_the_act_that_reaches_the_threshold_answers_large_first_past_two_small_c
 ) -> None:
     orders = _three_acts(tmp_path, 1 + ranking.AGING_EVALUATIONS)
 
-    assert orders[ranking.AGING_EVALUATIONS - 1] == [QUICK, SECOND_SMALL, LARGE]
+    assert orders[ranking.AGING_EVALUATIONS - 1] == [QUICK, LARGE, SECOND_SMALL]
     assert orders[ranking.AGING_EVALUATIONS] == [LARGE, QUICK, SECOND_SMALL]

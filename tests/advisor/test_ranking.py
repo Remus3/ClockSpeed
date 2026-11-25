@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Mapping
+from dataclasses import replace
 
 import pytest
 
@@ -188,6 +189,30 @@ def test_ordering_accepts_a_one_shot_iterable() -> None:
     ordered = order_cards(iter((large, *small)), {large.card.id: AGING_EVALUATIONS})
     assert ordered[0] is large
     assert len(ordered) == len(small) + 1
+
+
+# ---------------------------------------------------------------------------
+# CS-1401: the interleave is composed in advise.py, never inside these two
+
+
+def _in_domain(rule_id: str, domain: str, subject: str) -> AdvisedCard:
+    card = Card(replace(_forged(rule_id=rule_id, subject=subject), domain=domain))
+    return AdvisedCard(card=card, state=CardState("new"), muted=False)
+
+
+def test_order_cards_alone_is_not_interleaved() -> None:
+    # Two power cards that sort first by identity, then two plan cards: the base order is
+    # clumped by domain, and order_cards and order_shown must leave it clumped.
+    cards = (
+        _in_domain("synthetic.a1", "power", "p1"),
+        _in_domain("synthetic.a2", "power", "p2"),
+        _in_domain("synthetic.b1", "plan", "q1"),
+        _in_domain("synthetic.b2", "plan", "q2"),
+    )
+    domains = ("power", "power", "plan", "plan")
+    assert tuple(item.card.domain for item in order_cards(cards, {})) == domains
+    assert tuple(item.card.domain for item in order_shown(cards, {})) == domains
+    assert _ids(order_cards(cards, {})) == _ids(cards)
 
 
 # ---------------------------------------------------------------------------

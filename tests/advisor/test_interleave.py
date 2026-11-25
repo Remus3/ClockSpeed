@@ -1,6 +1,6 @@
 """CS-1247: a deterministic domain interleave in the top-N card list.
 
-Graded here (docs/item_notes/phase5.md, CS-1247 acceptance): a fixture with ten
+Graded here (docs/LEDGER.md, the CS-1247 CLOSED record): a fixture with ten
 power cards and two milestone cards shows both milestone cards in the top five,
 and the interleave is a pure function with golden cases.
 

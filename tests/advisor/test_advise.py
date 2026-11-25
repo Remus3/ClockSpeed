@@ -25,8 +25,10 @@ from __future__ import annotations
 
 import ast
 import inspect
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -952,6 +954,143 @@ def test_an_advice_built_without_deferrals_still_orders_rather_than_not_at_all()
     assert empty
     none_ranked = built.ranked == ()
     assert none_ranked
+
+
+# ---------------------------------------------------------------------------
+# CS-1401: the served order is the domain interleave (CS-1247) over the CS-1246
+# aging order, on both properties.
+#
+# Four synthetic rules in two domains. The rule ids are unlisted in the effort
+# table, so the base order is identity order: the two power rules, then the two
+# plan rules - the monopoly shape the interleave exists to break. Neither
+# interleaved order below can equal the base order by accident.
+
+INTER_P1 = "synthetic.a1"
+INTER_P2 = "synthetic.a2"
+INTER_Q1 = "synthetic.b1"
+INTER_Q2 = "synthetic.b2"
+
+
+def _in_domain(rule_id: str, domain: str) -> RuleSpec:
+    """One firing rule in a stated domain."""
+
+    def _evaluate(_ctx: RuleContext) -> Recommendation:
+        return Recommendation(subject_key=f"{rule_id}-s", action="Do the thing", reason="because")
+
+    return RuleSpec(rule_id=rule_id, domain=domain, inputs=(), unlocks=(), evaluate=_evaluate)
+
+
+def _inter_specs() -> tuple[RuleSpec, ...]:
+    return (
+        _in_domain(INTER_P1, "power"),
+        _in_domain(INTER_P2, "power"),
+        _in_domain(INTER_Q1, "plan"),
+        _in_domain(INTER_Q2, "plan"),
+    )
+
+
+def _inter_advise(directory: Path, specs: tuple[RuleSpec, ...]) -> Advice:
+    """One READ-ONLY load over a stated rule set."""
+    return advise(
+        TOKEN_A,
+        WORLD,
+        ledger=Ledger(directory),
+        mutes=MuteStore(directory),
+        now=NOW,
+        rules=specs,
+    )
+
+
+def test_ranked_and_ranked_shown_both_compose_the_interleave_over_the_aging_order(
+    tmp_path: Path,
+) -> None:
+    found = _inter_advise(tmp_path, _inter_specs())
+
+    # No aged card: the interleave spreads the identity-ordered base order.
+    assert _rules_in_order(found, found.ranked) == (INTER_P1, INTER_Q1, INTER_P2, INTER_Q2)
+    assert _rules_in_order(found, found.ranked_shown) == (INTER_P1, INTER_Q1, INTER_P2, INTER_Q2)
+
+    # An aged card leads the interleave's input, so it leads the output: the
+    # aging order is [P2, P1, Q1, Q2] and the interleave of it is below.
+    aged = replace(
+        found,
+        deferrals=MappingProxyType({_card_id(found, INTER_P2): ranking.AGING_EVALUATIONS}),
+    )
+    expected = (INTER_P2, INTER_Q1, INTER_P1, INTER_Q2)
+    assert _rules_in_order(aged, aged.ranked) == expected
+    assert _rules_in_order(aged, aged.ranked_shown) == expected
+    assert _rules_in_order(aged, aged.ranked) != _rules_in_order(
+        aged, ranking.order_cards(aged.cards, aged.deferrals)
+    )
+
+
+def test_the_visible_subsequence_of_ranked_equals_ranked_shown_with_a_hidden_card(
+    tmp_path: Path,
+) -> None:
+    found = _inter_advise(tmp_path, _inter_specs())
+    hidden = _card_id(found, INTER_Q1)
+    Ledger(tmp_path).set_state(TOKEN_A, hidden, CardState.dismissed())
+    after = _inter_advise(tmp_path, _inter_specs())
+
+    shown = _rules_in_order(after, after.ranked_shown)
+    ranked = _rules_in_order(after, after.ranked)
+    visible_of_ranked = tuple(
+        rule for rule, advised in zip(ranked, after.ranked, strict=True) if advised.visible
+    )
+    # The visible cards are interleaved among themselves, and the hidden one follows.
+    assert shown == (INTER_P1, INTER_Q2, INTER_P2)
+    assert ranked == (INTER_P1, INTER_Q2, INTER_P2, INTER_Q1)
+    assert visible_of_ranked == shown
+
+
+def test_every_prefix_of_the_served_order_is_as_balanced_as_the_cards_allow(
+    tmp_path: Path,
+) -> None:
+    # Five power cards, two plan cards and three milestone cards, one of them hidden.
+    specs = (
+        *(_in_domain(f"synthetic.a{n}", "power") for n in range(5)),
+        *(_in_domain(f"synthetic.b{n}", "plan") for n in range(2)),
+        *(_in_domain(f"synthetic.c{n}", "milestone") for n in range(3)),
+    )
+    found = _inter_advise(tmp_path, specs)
+    Ledger(tmp_path).set_state(TOKEN_A, _card_id(found, "synthetic.c1"), CardState.dismissed())
+    after = _inter_advise(tmp_path, specs)
+
+    served = after.ranked_shown
+    domains = tuple(advised.card.domain for advised in served)
+    held = {domain: domains.count(domain) for domain in dict.fromkeys(domains)}
+    assert held == {"power": 5, "plan": 2, "milestone": 2}
+    for length in range(1, len(domains) + 1):
+        prefix = domains[:length]
+        live = [domain for domain in held if prefix.count(domain) < held[domain]]
+        counts = [prefix.count(domain) for domain in live]
+        spread = max(counts) - min(counts) if counts else 0
+        assert spread <= 1, (length, prefix)
+
+
+def test_a_single_domain_listing_is_an_identity_control_for_the_interleave(
+    tmp_path: Path,
+) -> None:
+    """IDENTITY CONTROL: on one domain the interleave must leave the CS-1246 order as it is.
+
+    The rank fixture holds one domain, so the served order is the CS-1246 order exactly,
+    aged card first. This arm is not a red-first arm: it passes before CS-1401 and under one
+    interleave over all the cards, since both are the identity on a single domain. What
+    turns it red is an interleave that groups by rule family (the rule id before its dot)
+    instead of by domain, which splits this one domain into two and reorders it.
+    """
+    card = _card_id(_rank_record(tmp_path), RANK_TRAIL_LARGE)
+    for _ in range(ranking.AGING_EVALUATIONS):
+        _rank_record(tmp_path)
+    found = _rank_advise(tmp_path)
+    aged = found.deferrals[card] >= ranking.AGING_EVALUATIONS
+    assert aged
+
+    expected = (RANK_TRAIL_LARGE, RANK_QUICK_ONE, RANK_QUICK_TWO, RANK_LEAD_LARGE)
+    base = _rules_in_order(found, ranking.order_cards(found.cards, found.deferrals))
+    assert base == expected
+    assert _rules_in_order(found, found.ranked) == expected
+    assert _rules_in_order(found, found.ranked_shown) == expected
 
 
 # ---------------------------------------------------------------------------

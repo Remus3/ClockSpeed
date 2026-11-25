@@ -75,6 +75,86 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1401 - CLOSED: the advice list is served domain-interleaved over the aging order, visible cards first, on the read and the act alike
+Verification: `clockspeed/advisor/advise.py` (`Advice.ranked`, `Advice.ranked_shown`) and
+`clockspeed/advisor/ranking.py` (`interleave_domains`, `order_shown`) plus
+`tests/advisor/test_advise.py::test_ranked_and_ranked_shown_both_compose_the_interleave_over_the_aging_order`,
+`tests/advisor/test_advise.py::test_the_visible_subsequence_of_ranked_equals_ranked_shown_with_a_hidden_card`,
+`tests/advisor/test_advise.py::test_every_prefix_of_the_served_order_is_as_balanced_as_the_cards_allow`,
+`tests/advisor/test_advise.py::test_a_single_domain_listing_is_an_identity_control_for_the_interleave`,
+`tests/advisor/test_ranking.py::test_order_cards_alone_is_not_interleaved`,
+`tests/surface/test_advice.py::test_the_read_and_the_act_list_the_same_interleaved_order`, and the two renamed
+CS-1246 aging arms
+`tests/surface/test_advice_aging.py::test_the_three_card_fixture_leads_with_the_quick_card_and_reads_the_large_one_second`
+and
+`tests/surface/test_advice_aging.py::test_one_further_act_short_the_large_card_still_reads_second_and_not_first`.
+Wave 1 group 1 of the session 159 plan, landed by the session 161 merger.
+THE ORDER. `Advice.ranked_shown` is `interleave_domains` composed over `order_shown`: the CS-1246 aging order with
+the CS-1247 domain interleave over it, which returns its first input card first, so an aged card keeps the top spot.
+`Advice.ranked` is `Advice.ranked_shown` followed by the hidden cards interleaved among themselves - visible first,
+hidden after - so the visible subsequence of `Advice.ranked` equals `Advice.ranked_shown` and an act is credited
+against the order the player was served. One interleave over all the cards is not used, because a hidden card
+between two visible ones of a domain would move a visible card. `order_cards` alone stays un-interleaved; the
+interleave is composed in `clockspeed/advisor/advise.py`, never inside the ranking doors. The three-card aging
+fixture's served pre-threshold listing moves from [QUICK, SECOND_SMALL, LARGE] to [QUICK, LARGE, SECOND_SMALL]: the
+large card reads SECOND, not last, and not first until it ages - the item's whole point, not a regression.
+WHAT THE DELETED SECTION SAID, carried here. CS-1247 shipped `interleave_domains` with its golden cases, but
+`Advice.ranked` still returned `order_cards` alone, so no served listing was interleaved. The queue lane built and
+measured the cutover before filing the row on 2026-11-15: composing the interleave into both doors ran
+`tests/advisor` and `tests/surface` to 4067 passed with exactly three red, all in
+`tests/surface/test_advice_aging.py`. Two of those arms carried a name stating the order CS-1247 supersedes and the
+third only a pre-threshold literal, so a lane could not finish it: choosing between a false arm name and an
+unrepairable citation is a ruling. The session 158 adjudicator's NOTE added two asks, both met here: repoint the
+`tests/advisor/test_interleave.py` module docstring at the CS-1247 CLOSED record in `docs/LEDGER.md` (it no longer
+cites the phase5.md acceptance that left the leaf), and name the surface page size the CS-1247 "top five" maps to,
+because the CS-1247 builder and adversary judged one synthetic fixture and nobody checked "top five" against a
+surface page size.
+THE RENAME RULING, the false-name-versus-citation dilemma. Re-pinning the literals and keeping the names ships,
+knowingly, a test name that is false of the order it asserts; renaming leaves the CS-1246 closure's by-name
+Verification citation of the one-act-short arm dead, and `docs/LEDGER.md` is append-only. Ruled: rename both arms to
+names true of the order they assert - the three-card control whose old name put the small cards first and the large
+one last, and the one-act-short arm whose old name ended _still_reads_last_past_two_small_cards - and resolve the
+dead citation with a RENAMED row in `tests/test_citation_tables.py` (`DISPOSITIONS`), raising
+`FORGIVEN_LINE_POINTER_CEILING` from 74 to 75 on the CS-1344 precedent. How the old citation reads is the CS-1246
+CITATION READING record directly below. The old three-card control name was cited only by the deleted section, so it
+needs no row. The third arm (the act that reaches the threshold) kept its true name; only its pre-threshold literal
+moved.
+PAGE SIZE. The surface page size is 4: one primary card and three supporting. No surface enforces 4 until
+R-glanceability-2's Play panel lands, and that row owns the enforcement. Domain balance is asserted at every prefix
+length the fixture allows, not at one window. The CS-1247 "top five" wording names a fixture window, not a surface,
+and the CS-1247 record is not edited.
+MERGED FILES: `clockspeed/advisor/advise.py`, `clockspeed/advisor/ranking.py`, `clockspeed/surface/api/advice.py`
+(docstrings), `tests/advisor/test_advise.py`, `tests/advisor/test_ranking.py`, `tests/advisor/test_interleave.py`,
+`tests/surface/test_advice_aging.py`, `tests/surface/test_advice.py` and `tests/test_citation_tables.py`; the
+surface files under P4F-4.
+CLOSED IN THE LANDING COMMIT: the CS-1401 line in ROADMAP.md and its section in docs/item_notes/phase5.md are
+deleted in this commit, not moved, because this record carries what the section said (`docs/item_notes.md`); a
+`docs/history_notes.md` copy would be a second owner. VERDICTS, on the frozen candidate: a distinct adjudicator
+ruled ACCEPT WITH REPAIRS - the code correct, mutation M1 re-run red on the hidden-card arm, the ceiling 74 to 75
+properly argued on the CS-1344 precedent, and the two `tests/test_docs_citations.py` reds resolved by deleting the
+section (proven 478 passed before landing). Repair (a) made the single-domain arm an identity control, killed by
+mutation M3 (`interleave_domains` grouping by the rule id prefix instead of the card domain); the merger re-checked
+M3 independently on a scratch detached tree: red, the pristine control green, the restore byte-equal. Repair (b) is
+this record's text. The adversary (the citation and test-validity lens) REFUTED only on the deleted section citing
+both old arm names, resolved by this commit's section deletion; its own two mutations (hidden cards first;
+`Advice.ranked_shown` un-interleaved) went red, the renamed names read true, bytes, ruff and mypy clean, the freeze
+unmoved. Mutations M1, M2, M3 and the adversary's two: all red.
+GATES at the landing tree: `tools/drift_guard.py` exit 0, 11 of 11 PASS, guard (i) PASS; `tools/doc_budget.py`
+VERDICT PASS, over budget 0; `tools/sha_citation_gate.py` PASS; `tools/provenance_stamp.py` check PASS; `ruff check`
+and `ruff format --check` exit 0; `mypy` with no target exit 0; `tests/advisor`, `tests/surface` and the citation,
+ledger-shape, item-notes, doc-budget, bare-path and lane-scope modules, run through the fleet suite gate: exit 0,
+5070 passed.
+
+### 2026-11-25 - CS-1246 - CITATION READING (CS-1401). NOT A COMPLETION RECORD. NOTHING CLOSED OR REOPENED: the closure's by-name citation of a renamed aging arm
+Verification: `tests/test_citation_tables.py` (the RENAMED row in `DISPOSITIONS`) plus
+`tests/surface/test_advice_aging.py::test_one_further_act_short_the_large_card_still_reads_second_and_not_first`.
+The CS-1246 closure's Verification arm ending _still_reads_last_past_two_small_cards is now
+`tests/surface/test_advice_aging.py::test_one_further_act_short_the_large_card_still_reads_second_and_not_first`. It
+proves the same thing (no promotion one act short of the threshold); RENAMED row in `tests/test_citation_tables.py`.
+Only its pre-threshold listing literal moved, from [QUICK, SECOND_SMALL, LARGE] to [QUICK, LARGE, SECOND_SMALL],
+because CS-1401 composed the domain interleave into the served order. The CS-1246 record itself is not edited
+(append-only); the ruling behind the rename is in the CS-1401 CLOSED record directly above.
+
 ### 2026-11-24 - CS-1416 - CLOSED: ADR numbers are allocated by one writer, the merger; the shared-document amendment route is stated in OPERATIONS 10.9
 Verification: `docs/adr/README.md` (section 3 row `reserved`; the row-form paragraph closing section 4; section 5
 steps 1 to 3) and `docs/OPERATIONS.md` (the subsection headed 10.9, last of section 10, directly above section

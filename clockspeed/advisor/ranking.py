@@ -36,14 +36,16 @@ nobody computes. The two compose by a caller calling both, and the first card
 of what the interleave is handed is always the first card out, so the aging
 promotion survives the composition (asserted, not assumed).
 
-THE INTERLEAVE IS NOT YET THE SERVED SHOWING ORDER, and this paragraph is the
-only honest thing to say about that. :attr:`clockspeed.advisor.advise.Advice.ranked`
-still returns :func:`order_cards` alone, so a served listing is not interleaved
-today. Composing it in was measured on the tree - 4067 passed and exactly three
-arms red, all three in `tests/surface/test_advice_aging.py` - and two of those
-arms carry a NAME stating the order CS-1247 changes, one of which an adjudicated
-CS-1246 closure record cites by that name. Resolving that is CS-1401, not a
-lane's call.
+THE INTERLEAVE IS THE SERVED SHOWING ORDER (CS-1401). The two doors compose
+here, in :mod:`clockspeed.advisor.advise` and nowhere in this module:
+:attr:`clockspeed.advisor.advise.Advice.ranked_shown` is
+``interleave_domains(order_shown(...))`` and
+:attr:`clockspeed.advisor.advise.Advice.ranked` is that, then the hidden cards
+interleaved among themselves. :func:`order_cards` and :func:`order_shown` stay
+the un-interleaved CS-1246 order and are never interleaved inside this module.
+The visible subsequence of ``ranked`` is therefore ``ranked_shown`` by
+construction, which is the order a turn is credited against. The surface page
+size is owned by the Play panel and is not a parameter here.
 
 WHY ONE CARD AND NOT A BAND, because a band was built first and measured
 wrong. Lifting every aged card above every unaged one fails twice: in steady

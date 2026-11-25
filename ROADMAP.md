@@ -226,7 +226,6 @@ CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never 
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1427 - D2 onsite versus transport: ship raw or refine at the source, then the method - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1401 - the domain interleave is not the served showing order, and the cutover re-pins three CS-1246 arms - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1398 - effort is declared per rule, not per recommendation magnitude - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1248 - unit-tagged quantities and a single raw-versus-display boundary - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1249 - recipe-graph cycles detected explicitly, with a test that reddens on a new unhandled cycle shape - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

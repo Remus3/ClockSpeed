@@ -104,7 +104,11 @@ what the stores are keyed by and that order must not move under them.
 :attr:`Advice.ranked` is the SHOWING order, computed by
 :mod:`clockspeed.advisor.ranking` over :attr:`Advice.deferrals`: the quick wins
 lead, and the one most starved card - passed over the configured number of
-times while something stood above it - is moved to the top for that run. The
+times while something stood above it - is moved to the top for that run. That
+order is then spread across advice domains by
+:func:`clockspeed.advisor.ranking.interleave_domains` (CS-1401), so no domain
+holds every leading place; the visible cards come first and the hidden ones
+follow. The
 counts come from the per-world ledger's shown-and-deferred record, NEVER from a
 timer, so the order is a pure function of the stored state: :func:`advise` reads
 them, and :func:`advise_and_record` records this run's deferrals and then
@@ -130,7 +134,7 @@ from clockspeed.advisor.build import build_inputs, registry_inputs
 from clockspeed.advisor.cards import Card, cards_for
 from clockspeed.advisor.ledger import CardState, Ledger, MuteStore
 from clockspeed.advisor.plans import plan_offer_with_schematics
-from clockspeed.advisor.ranking import order_cards, order_shown
+from clockspeed.advisor.ranking import interleave_domains, order_cards, order_shown
 from clockspeed.advisor.rules import registered_rules
 from clockspeed.advisor.rules.fuel import fuel_inputs
 from clockspeed.advisor.rules.plan import plan_outcome_of
@@ -263,19 +267,35 @@ class Advice:
 
     @property
     def ranked(self) -> tuple[AdvisedCard, ...]:
-        """Every card in the CS-1246 order: aged first, then quick wins, then identity.
+        """Every card in the served order: the visible cards first, then the hidden ones.
 
-        The same cards as :attr:`cards`, reordered by
-        :func:`clockspeed.advisor.ranking.order_cards` over
-        :attr:`deferrals`. Computed on access from this instance alone, so
-        one advice state gives one order.
+        The same cards as :attr:`cards`. The visible cards come first in exactly
+        the order of :attr:`ranked_shown`, so the visible subsequence of this
+        order IS what the act credits and what a surface renders; the hidden
+        cards follow, in the CS-1246 order of
+        :func:`clockspeed.advisor.ranking.order_cards` and spread across domains
+        by :func:`clockspeed.advisor.ranking.interleave_domains` among
+        themselves. One interleave over all the cards is not used, because a
+        hidden card between two visible ones of a domain would move a visible
+        card relative to :attr:`ranked_shown`. Computed on access from this
+        instance alone, so one advice state gives one order.
         """
-        return order_cards(self.cards, self.deferrals)
+        hidden = tuple(
+            advised for advised in order_cards(self.cards, self.deferrals) if not advised.visible
+        )
+        return (*self.ranked_shown, *interleave_domains(hidden))
 
     @property
     def ranked_shown(self) -> tuple[AdvisedCard, ...]:
-        """The visible cards in the CS-1246 order - what a surface renders."""
-        return order_shown(self.cards, self.deferrals)
+        """The visible cards in the served order - what a surface renders.
+
+        The CS-1246 order of :func:`clockspeed.advisor.ranking.order_shown`,
+        spread across advice domains by
+        :func:`clockspeed.advisor.ranking.interleave_domains` (CS-1247). The
+        interleave returns its first input card first, so the aged card
+        :func:`order_shown` promotes keeps the top spot.
+        """
+        return interleave_domains(order_shown(self.cards, self.deferrals))
 
     def __repr__(self) -> str:
         """Render counts and the new-world flag only."""

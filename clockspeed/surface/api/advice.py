@@ -504,11 +504,14 @@ def _outcome(outcome: PlanOutcome) -> dict[str, object]:
 def _listing(found: Advice) -> dict[str, object]:
     """Transcribe the listing body.
 
-    THE LIST ORDER IS THE ADVISOR'S SHOWING ORDER (CS-1246):
+    THE LIST ORDER IS THE ADVISOR'S SHOWING ORDER (CS-1246, CS-1401):
     :attr:`clockspeed.advisor.advise.Advice.ranked`, quick wins first with an aged
-    card brought to the top, not the identity order of ``cards``. Every card is
+    card brought to the top and the result spread round-robin across advice
+    domains, not the identity order of ``cards``. The visible cards come first, in
+    the order a turn is credited against, and the hidden ones follow. Every card is
     listed either way - a hidden one with ``visible`` false - so the order changes
-    what a reader meets first and never what the body holds.
+    what a reader meets first and never what the body holds. A surface shows a
+    prefix of this order; the page size is owned by the Play panel, not set here.
 
     Args:
         found: The advice.

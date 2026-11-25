@@ -998,6 +998,24 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1319 cited it live; CS-1344 removed the retention and renamed it. Not a record defect.",
         ("d964b6da9d1e:f9e82b15d005:0",),
     ),
+    # --- the record was RIGHT when written; CS-1401 RENAMED the arm. Composing the
+    # domain interleave into the served order moved the three-card fixture's
+    # pre-threshold listing from [QUICK, SECOND_SMALL, LARGE] to [QUICK, LARGE,
+    # SECOND_SMALL], so the large card reads second rather than last and the old
+    # name stated an order that no longer holds. The CS-1246 closure cites the arm
+    # by that name in its Verification line; what the arm proves (no promotion one
+    # act short of the threshold) is unchanged.
+    (
+        LEDGER,
+        "test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards",
+    ): Disposition(
+        RENAMED,
+        "tests/surface/test_advice_aging.py"
+        "::test_one_further_act_short_the_large_card_still_reads_second_and_not_first",
+        "CS-1246 cited it live; CS-1401 composed the interleave into the served order and"
+        " renamed it. Not a record defect.",
+        ("fd45fd4cca18:a1b0233dc612:0",),
+    ),
     # --- the record was RIGHT when written; CS-1384 MOVED the two name helpers and
     # renamed each without its leading underscore, because the plan and fuel
     # families now import them across modules. The CS-1379 closure cites both at
@@ -1421,7 +1439,16 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: `tests/save/test_objects.py` that UNVERIFIED_LINE_POINTERS grandfathered. The pointer left
 #: the guarded corpus rather than being repaired, the same discharge the CS-484 close took, so
 #: the pin left the table and the budget falls by one.
-FORGIVEN_LINE_POINTER_CEILING: Final = 74
+#:
+#: RAISED TO 75 BY CS-1401, FOR A RENAME. Composing the domain interleave into the served
+#: order moved the three-card aging fixture's pre-threshold listing, so the arm the CS-1246
+#: closure cites by name in its Verification line was renamed to say what it now asserts
+#: (`test_one_further_act_short_the_large_card_still_reads_second_and_not_first`). Keeping
+#: the false name was the alternative and was rejected, and `docs/LEDGER.md` is append-only,
+#: so the citation cannot be edited. Right-when-written and dead now, in an append-only
+#: carrier, with a live target - the one row in DISPOSITIONS is RENAMED, pinned by its one
+#: site and checked in all three directions every run. Nothing else is forgiven.
+FORGIVEN_LINE_POINTER_CEILING: Final = 75
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

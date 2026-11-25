@@ -296,24 +296,6 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a synthetic map fixture with three nodes and one gated region excludes the gated node until the unlock flag is set; distances are exact rationals or integers; claims rank by reachability band, then yield
 
-## CS-1401
-
-### Filed 2026-11-15 by the queue lane, on the measurement CS-1247 left behind
-
-CS-1247 shipped `interleave_domains` in `clockspeed/advisor/ranking.py` with its golden cases. It is NOT the served showing order: `Advice.ranked` still returns `order_cards` alone, so a served listing is not interleaved.
-
-THE CUTOVER WAS BUILT AND MEASURED BEFORE BEING FILED, so this row is a measurement rather than a hypothesis. Composing the interleave into both `Advice.ranked` and `Advice.ranked_shown` - both, because the order a turn is credited against must be the order the player was shown - ran `tests/advisor` and `tests/surface` to 4067 passed with exactly three red, every one of them in `tests/surface/test_advice_aging.py`. The three-card fixture's served order moves from `[QUICK, SECOND_SMALL, LARGE]` to `[QUICK, LARGE, SECOND_SMALL]`, which is the item's whole point and not a regression.
-
-WHY A LANE COULD NOT FINISH IT, and the part that needs an adjudicated session. Two of those three arms carry a NAME stating the order CS-1247 supersedes - `test_the_three_card_fixture_leads_with_the_small_cards_and_ends_with_the_large_one` and `test_one_further_act_short_the_large_card_still_reads_last_past_two_small_cards` - so re-pinning the literal and keeping the name leaves a test whose name is false, and renaming it breaks a citation: the 2026-11-15 adjudicated CS-1246 closure record cites the second arm BY THAT NAME in its Verification line, and `docs/LEDGER.md` is append-only. The third arm's name stays true and only its pre-threshold literal moves. Choosing between a false arm name and an unrepairable citation is a ruling, not a lane's call.
-
-### NOTE - filed 2026-11-16 by the session 158 adjudicator
-
-As part of CS-1401, repoint the `tests/advisor/test_interleave.py` module docstring's citation "phase5.md, CS-1247 acceptance" at the CS-1247 CLOSED record in `docs/LEDGER.md`, because that section has left this leaf; and the acceptance below should name the surface page size the "top five" maps to, the CS-1247 adjudicator's common-mode risk being that the builder and the adversary judged one synthetic fixture and nobody checked "top five" against any surface's page size.
-
-### Acceptance
-
-`Advice.ranked` and `Advice.ranked_shown` both compose `interleave_domains` over the CS-1246 order; a served listing of the three-card aging fixture reads the large card SECOND, not last; each of the three `tests/surface/test_advice_aging.py` arms named in this section is re-pinned with a name that is true of the order it asserts; and the record resolves, in a new append-only entry, how the CS-1246 closure record's by-name citation of a renamed arm is to be read; the record names surface page size 4; it states that no surface enforces 4 until R-glanceability-2's Play panel lands, and names that row as the owner; the golden case asserts domain balance at every prefix length the fixture allows
-
 ## CS-1248
 
 ### Filed 2026-10-04 by the inspiration ingest

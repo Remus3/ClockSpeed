@@ -48,10 +48,12 @@ from clockspeed.surface.api import advice as advice_endpoint
 from clockspeed.surface.api import contract
 from tests.advisor import test_advise as advise_fixtures
 from tests.solve import synthetic as solve_synthetic
+from tests.surface import test_advice_act as act_fixtures
+from tests.surface import test_advice_aging as aging_fixtures
 from tests.surface import test_map as map_fixtures
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
     from pathlib import Path
 
     from clockspeed.data.registry import Registry
@@ -925,6 +927,58 @@ def test_the_listing_serves_the_cards_in_the_advisors_showing_order(tmp_path: Pa
     assert served == ranked
     moved = served != identity
     assert moved
+
+
+def test_the_read_and_the_act_list_the_same_interleaved_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1401: GET and POST /api/advice/act serve one order, and the act credits it."""
+    table = aging_fixtures._three_table(tmp_path)  # noqa: SLF001 - the shared three-card fixture
+    stated = act_fixtures._stated()  # noqa: SLF001
+    act_fixtures._data(act_fixtures._act(table, stated))  # noqa: SLF001 - records the world
+    model, registry = aging_fixtures._large_and_two_small()  # noqa: SLF001
+    source = act_fixtures._source(tmp_path)  # noqa: SLF001
+    parameters = source.plan_parameters(rate="10", direction="raw", byproduct_policy="balanced")
+    assert parameters is not None
+    request = source.plan_request(
+        registry, act_fixtures.source_fixtures.SOLVE_RELIC_ITEM, parameters
+    )
+    found = source.advice(model, registry, plan_request=request)
+    assert found is not None
+    ids = {advised.card.rule_id: advised.card.id for advised in found.cards}
+    # Hide the leading quick card: the one hidden card sits between the two doors' orders.
+    Ledger(tmp_path).set_state(model.token, ids[aging_fixtures.QUICK], CardState.dismissed())
+    credited: list[tuple[str, ...]] = []
+    real = Ledger.reconcile
+
+    def _spy(self: Ledger, token: str, *, shown: Iterable[str] = (), **rest: object) -> object:
+        held = tuple(shown)
+        credited.append(held)
+        return real(self, token, shown=held, **rest)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Ledger, "reconcile", _spy)
+
+    read = act_fixtures._listing(table, stated)  # noqa: SLF001
+    acted = act_fixtures._data(act_fixtures._act(table, stated))  # noqa: SLF001
+
+    read_cards = read["cards"]
+    act_cards = acted["cards"]
+    assert isinstance(read_cards, list)
+    assert isinstance(act_cards, list)
+    read_ids = [str(card["id"]) for card in read_cards]
+    act_ids = [str(card["id"]) for card in act_cards]
+    same = read_ids == act_ids
+    assert same
+    # The visible cards interleave among themselves and the hidden one follows them.
+    assert act_fixtures._order(read) == [  # noqa: SLF001
+        aging_fixtures.SECOND_SMALL,
+        aging_fixtures.LARGE,
+        aging_fixtures.QUICK,
+    ]
+    visible = [str(card["id"]) for card in read_cards if card["visible"] is True]
+    assert len(visible) == len(read_ids) - 1
+    # What the act credited is what the read showed, in that order.
+    assert credited == [tuple(visible)]
 
 
 # ---------------------------------------------------------------------------
