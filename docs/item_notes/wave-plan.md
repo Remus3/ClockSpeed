@@ -11,7 +11,7 @@ row per slice, and pointers; every rule it depends on is owned elsewhere and nam
 **Pointers - each fact has one owner:**
 
 - Each row's item line: `ROADMAP.md`.
-- Each row's acceptance, write-list, wave id and hub-chain place: its section in its leaf,
+- Each row's acceptance, wave id and its item's `Write-list:` field: its section in its leaf,
   found through the leaf table in `docs/item_notes.md`.
 - The map from plan key to CS id, and each filing batch's record: `docs/LEDGER.md`.
 - Conditional rows and their triggers: `BACKLOG.md`.
@@ -19,6 +19,8 @@ row per slice, and pointers; every rule it depends on is owned elsewhere and nam
 - Provenance rows for new tracked files: `tools/provenance.tsv`.
 - The hand-off a cold session starts from: `CS-NEXT-SESSION.txt`.
 - Each row's Write-list cell: `docs/item_notes/wave-plan-write-lists.md`, by its Slice cell.
+- Each row's hub-chain place: its `chain` cell, keyed by `### Hub files` below; a leaf's
+  `Hub chains` line is its filing-time per-wave order and is not read for a place.
 
 Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning session 159, sha256 values in their docs/LEDGER.md copy record.
 
