@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-24 - WAVE 0 W0b U-158 CITATION LINE - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
+Verification: `docs/item_notes/wave-plan.md` (the citation line, byte-exact and not backticked, after its pointer
+lines); `tests/test_docs_citations.py` run alone after the write. This record closes nothing, so no test names one.
+U-158 CITATION LINE (ruling D-P4-7, P4F-14, SEAM-19). The line the plan fixes landed in the annex exactly as written,
+after U-138.1 created the file (the CS-1409 record above) and before U-138.2, as runbook text. It carries the
+<sidecars> placeholder, never a resolved path, and its sha256 values are the ones the 2026-11-19 WAVE 0 W0a ENTRY AND
+U-158 COPY record lists. With it U-158's one tracked write has landed and the unit holds nothing further; D-P4-7's
+exemption has lapsed by its own reverser, since the annex now exists at HEAD.
+
 ### 2026-11-24 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.1: the phase7.md batch of the session 159 plan, 11 rows filed as CS-1409 to CS-1419, 4 staged, and the wave annex created
 Verification: `ROADMAP.md` (11 new lines under the Phase 7 heading), `docs/item_notes/phase7.md` (sections CS-1409 to
 CS-1419, each with one `### Acceptance` and a `### Filed 2026-11-24 by the session 161 wave 0 filing` block),

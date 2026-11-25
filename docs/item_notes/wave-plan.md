@@ -19,6 +19,8 @@ row per slice, and pointers; every rule it depends on is owned elsewhere and nam
 - Provenance rows for new tracked files: `tools/provenance.tsv`.
 - The hand-off a cold session starts from: `CS-NEXT-SESSION.txt`.
 
+Re-pack tools: <sidecars>/CS/plan-s159-tools/ - the five plan files of planning session 159, sha256 values in their docs/LEDGER.md copy record.
+
 ## Wave table
 
 | Wave | Group | Slice | Item | Class | Write-list | New files | Landing files | Hub text owed | Lane scope | Milestone | Entry conditions |
