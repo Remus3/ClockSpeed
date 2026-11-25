@@ -77,40 +77,44 @@ machine-checked artifact that produces it.
 
 ### 2026-11-25 - CS-1412 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The hub chain column and its key table added to the wave annex; clauses 5 and 6 open
 Verification: `docs/item_notes/wave-plan.md` (the `chain` column at the right-hand end of the wave table and the
-`### Hub files` key table directly below it, commit "add the hub chain column to the wave annex"; the pointer repoint,
-commit "repoint the annex pointers to the chain column"), this record. The untracked CHECK, annex_check.py chain under
-the session's sidecars scratch folder, reads tracked files only; run at the repoint commit with the relocation commit
-b256b606 as its base it printed: slices joined 552 of 552, orphans 0; hub files equal keyed, unkeyed 0, stray keys 0;
-chains out of order 0; groups 265, shared paths 0; builder rows naming a bookkeeping file 0; feature rows naming a hub
-document 0, doc slices per document per group max 1; landing cells naming a hub document 0; documents owed with no doc
-slice row 3; structure order faults 0; shell/main.js term: position held, entry condition unread; build rows naming two
-items 0; rows whose write-list differs from the leaf 0; diff names: docs/item_notes/wave-plan.md; tracked collision or
-annex_check files 0; docs/item_notes/wave-plan.md 77679 + 19564 = 97243 / 131072 at the chain commit, 97418 after the
-repoint; verdict FAIL, open clauses 5 and 6, both by ruling (below). `tools/drift_guard.py` exit 0,
-`tools/doc_budget.py` VERDICT: PASS, `tests/data/test_item_notes_index.py`, `tests/test_doc_budget.py` and
-`tests/test_docs_citations.py` passing after each commit. This record closes nothing, so no test names one.
+`### Hub files` key table directly below it, commit "add the hub chain column to the wave annex"; the pointer
+repoint, commit "repoint the annex pointers to the chain column"), this record. The untracked CHECK, annex_check.py
+chain under the session's sidecars scratch folder, reads tracked files only; run at the repoint commit with the
+relocation commit b256b606 as its base it printed: slices joined 552 of 552, orphans 0; hub files equal keyed, unkeyed
+0, stray keys 0; chains out of order 0; groups 265, shared paths 0; builder rows naming a bookkeeping file 0; feature
+rows naming a hub document 0, doc slices per document per group max 1; landing cells naming a hub document 0;
+documents owed with no doc slice row 3; structure order faults 0; shell/main.js term: position held, entry condition
+unread; build rows naming two items 0; rows whose write-list differs from the leaf 0; diff names:
+docs/item_notes/wave-plan.md; tracked collision or annex_check files 0; docs/item_notes/wave-plan.md 77679 + 19564 =
+97243 / 131072 at the chain commit, 97418 after the repoint; verdict FAIL, open clauses 5 and 6, both by ruling
+(below). `tools/drift_guard.py` exit 0, `tools/doc_budget.py` VERDICT: PASS, `tests/data/test_item_notes_index.py`,
+`tests/test_doc_budget.py` and `tests/test_docs_citations.py` passing at the chain commit and at the repoint commit
+(783 passed in each run). This record closes nothing, so no test names one.
 SCOPE. The chain part of CS-1412, written by the merger after the relocate pass recorded below. CS-1412 STAYS OPEN on
 clause 5 and on clause 6's shell/main.js term. DEPENDENCY: CS-1409 part 6 is met ONLY for the wave table this item
 consumes (landed at e8fe9d37 / eaa159b1); CS-1409 part 6 is still open (its hand-off line, its close and its grading
-wait, as the 2026-11-25 CS-1409 wave-table decision record states). No id was allocated: the high-water id read
-CS-1440 before and after.
-METHOD. CHECK was written first and run on the annex at the relocation commit: right-reason red, exit 1 with unkeyed
-equal to the hub count and keyed 0 (no chain column), no traceback; the clause 3 negative on scratch copies of both
-annex files (one row given a path its group sibling holds) exited 1 naming wave W1, group 1 and the path. The cells
-and the key table were written by a script from the table's own placement; no row moved, no other cell changed (552 of
-552 rows equal in their first 11 cells). Rank: the table place of the row's (wave, group) block, then table row; lane
-gap rows sit after every group of their wave; no hub has two writers in one block, so the dependency tie-break never
-applied.
+wait, as the 2026-11-25 CS-1409 wave-table decision record states). No id was allocated: the highest id holding a
+ROADMAP.md line or a leaf section read CS-1440 before and after (the CS-1409 record's pre-use grep range names ids to
+CS-1446; none above CS-1440 is held).
+METHOD. CHECK was written first. Its first version, run on the annex at the relocation commit before any write,
+printed keyed 0 and unkeyed equal to the hub count (no chain column) and no traceback, its exit code unrecorded; the
+pinned version and the hardened version below, re-run by the merger on a clone of the relocation commit, each exited 1
+with that line and no traceback. The clause 3 negative on scratch copies of both annex files (one row given a path its
+group sibling holds) named wave W1, group 1 and the path under the first version; the hardened version, re-run by the
+mutation adversary, names wave W1, group 1 for the same kind of plant. The cells and the key table were written by a
+script from the table's own placement; no row moved, no other cell changed (552 of 552 rows equal in their first 11
+cells). Rank: the table place of the row's (wave, group) block, then table row; lane gap rows sit after every group of
+their wave; no block holds two rows writing one hub, so the dependency tie-break never applied.
 RULINGS (a distinct adjudicator; decision, alternatives, why):
 R2 clause 9 is graded from the relocation commit, the section 4 relocate pass its clause 10 precondition triggered;
 `git diff --name-only b256b606 HEAD` at the repoint commit prints exactly `docs/item_notes/wave-plan.md`.
 R3 clause 5 OPEN: no DOC SLICE row exists while rows owe hub-document text, so no row carries a D entry and the key
-table's D1, D2 and D3 rows read writers 0. Rejected: adding doc slice rows (a re-pack, outside the rows the stop rule
-lets this item apply) and a pending D grammar (invented grammar). Closes when a re-pack adds DOC SLICE rows by clause
-5's D1, D2 and D3 placement rules and CHECK prints documents owed 0 with its D entries graded.
+table's D1, D2 and D3 rows carry no doc slice writer. Rejected: adding doc slice rows (a re-pack, outside the rows the
+stop rule lets this item apply) and a pending D grammar (invented grammar). Closes when a re-pack adds DOC SLICE rows
+by clause 5's D1, D2 and D3 placement rules and CHECK prints documents owed 0 with its D entries graded.
 R4 AMENDMENT: clause 8's "every item" reads every item whose leaf section carries a `Write-list:` field; 29 items are
-graded, 0 differ. 130 items carry no such field (their annex cell is their only filed write-list, and a leaf copy would
-be a second owner); the CLOSED CS-914, CS-1401 and CS-1406 have no section; staged rows have no CS id.
+graded, 0 differ. 130 items carry no such field (their annex cell is their only filed write-list, and a leaf copy
+would be a second owner); the CLOSED CS-914, CS-1401 and CS-1406 have no section; staged rows have no CS id.
 R5 AMENDMENT: clause 11 is graded on what this item adds: the plan-key tokens on its added lines equal those on its
 removed lines, carried in Item cells it did not respell; no chain cell, key table row or prose line it adds names one.
 R6 MERGER-TRACK is read literally (Wave W0a or W0b); the numbered-group rows of wave 0 name no bookkeeping file and no
@@ -122,42 +126,48 @@ R8 clause 6 OPEN on its shell/main.js term: CS-619's first row holds pos 1, but 
 condition is read true, and that read is owed at CS-619's first wave entry. The app.js and index.html terms hold.
 R9 and F3: CS-1409 clause 7's column list and holds-only list are met at e8fe9d37 and eaa159b1; from b256b606 the
 Write-list column is read from `docs/item_notes/wave-plan-write-lists.md` by Slice cell, and from the chain commit the
-table also carries the `chain` column and the `### Hub files` table under CS-1412 clause 1; clause 7 is not re-graded
-against those states.
+table also carries the `chain` column and the `### Hub files` table under CS-1412 clause 1; clause 7 is not
+re-graded against those states.
 F1 (scope adversary, FAULT, fixed): the annex pointer sent a reader to the leaf for a row's write-list and hub-chain
 place; the repoint commit names the leaf for the item's `Write-list:` field only and adds a bullet naming the `chain`
 cell and the `### Hub files` table. Rejected: leaving it for CS-1409 part 6's grader. F2 (NOT A FAULT): the sibling
 annex's leaf-table row states the reading rule; this file records the decision, as the family rules require.
 F4 AMENDMENT: CS-1415 clause 9's annex row is the row's line in `docs/item_notes/wave-plan.md` and its line, by Slice
 cell, in `docs/item_notes/wave-plan-write-lists.md`; the doc-sync writer deletes both in one commit. That commit is
-the later ruling's, not CS-1415's unit, so CS-1415 clause 8 is unaffected. Nothing here is left for CS-1411 or CS-1413.
+the later ruling's, not CS-1415's unit, so CS-1415 clause 8 is unaffected. Nothing here is left for CS-1411 or
+CS-1413.
 RESIDUAL, routed to CS-1409: CS-1439 parts 1 and 2 sit at W1 in the table while ruling P4F-1 builds them in part 3's
-W2 slice; re-placing them re-counts the `tests/surface/test_server.py` and `clockspeed/surface/server.py` chains (the
-app.js, index.html and test_web_assets chains do not move); until then CS-1261 and CS-887 do not wait on part 2's
-chain entry. Also routed to CS-1409 part 6's grader: CS-619's leaf names waves W5 and W6 while its rows sit at W3, W16
-and W17, and the other "wave per its leaf" rows are unchecked against their leaves' Wave lines.
+W2 slice; re-placing them in part 3's group (W2 group 1) re-counts the `tests/surface/test_server.py` and
+`clockspeed/surface/server.py` chains (the app.js, index.html and test_web_assets chains do not move under that
+placement); until then CS-1261 and CS-887 do not wait on part 2's chain entry. Also routed to CS-1409 part 6's grader:
+the rows whose entry condition reads "wave per its leaf" are unchecked against their leaves' Wave lines, and CS-619's
+leaf section carries no Wave line while its rows sit at W3, W16 and W17.
 VERDICTS. Verifier, relocation commit: VERIFIED (552 of 552 rows reconstruct equal; 884 passed over six test files).
 Verifier, chain commit: VERIFIED (CHECK re-run from its own copy, same lines; every non-chain cell equal; 816 passed
 through the suite gate). Adjudicator, frozen at the chain commit: accept both commits; clauses 1 to 4 and 7 to 11 PASS
 (8 and 11 under the amendments above), 5 and 6 OPEN BY RULING; runner-up view: the CHECK shares its parser with the
 generator and the builder's recorded red predates the pinned CHECK, answered by an independent parser reproducing
-every key and chain cell and the pinned CHECK re-run red on the base. Adversaries: does-it-reproduce NOT REFUTED (an
-independent derivation: every chain cell and every key table row equal); scope and hygiene REFUTED on F1 (fixed)
-and F2 to F4 (ruled above), every other probe not refuted; oracle power by mutation REFUTED: c3 compared spellings, not
-files, so a directory-and-stem token and the full path of the same file in one group passed, a new clause 5 fault was
-masked behind the ruled-open verdict, and c10 ran no command.
-The CHECK was hardened in place, untracked:
-c3 compares files, not spellings (pair tokens naming a file tracked at base 0, pair tokens matching a full-path token
-elsewhere in the table 0), a fault beyond the two ruled-open lines prints under unexpected faults (none on the tree),
-and c10 runs `tools/drift_guard.py` and `tools/doc_budget.py` and, on its pytest flag, the three test files through
-the suite gate; re-run by the same adversary on a fresh clone of the repoint commit, each of its mutations is flagged
-and a two-extension pair of different files is not: NOT REFUTED.
+every key and chain cell and the pinned CHECK re-run red on the base (re-run again by the merger, METHOD above).
+Adversaries: does-it-reproduce NOT REFUTED (an independent derivation: every chain cell and every key table row
+equal); scope and hygiene REFUTED on F1 (fixed) and F2 to F4 (ruled above), every other probe not refuted; oracle
+power by mutation REFUTED: c3 compared spellings, not files, so a directory-and-stem token and the full path of the
+same file in one group passed, a new clause 5 fault was masked behind the ruled-open verdict, and c10 ran no command.
+The CHECK was hardened in place, untracked: c3 compares files, not spellings (pair tokens naming a file tracked at
+base 0, pair tokens matching a full-path token elsewhere in the table 0), a fault beyond the two ruled-open lines
+prints under unexpected faults (none on the tree), and c10 runs `tools/drift_guard.py` and `tools/doc_budget.py` and,
+on its pytest flag, the three test files through the suite gate; re-run by the same adversary on a fresh clone of the
+repoint commit, each of its mutations is flagged and a two-extension pair of different files is not: NOT REFUTED.
+Final adjudicator on the two commits after the frozen verdict: the repoint PASS; this record FAIL on one misread leaf
+sentence, corrected here. Record adversary (claims versus evidence): REFUTED five sentences of this record's first
+text (the misread leaf, the provenance of the red run, the id reading, the test-run wording, the unconditioned
+re-placement claim), each corrected in place.
 UNRESOLVED: clause 5 (R3); clause 6's shell/main.js term (R8); the 130 items with no leaf `Write-list:` field and the
 three closed items still carried as rows (R4); the two staged rows (R7); the planning snapshot's numbers differ from
 the filed table's, and the filed re-count governs; the extensionless installer tokens are inherited from the CS-1409
 spelling and their branch of CHECK is untested; clause 2's dependency tie-break is untested (no case arose); COMMON
 MODE: CHECK, the generator, both independent re-derivations and the planning snapshot all read the same cells, and the
-write-lists of rows whose item has no leaf field were copied from out-of-tree unit data that nothing in the tree tests.
+write-lists of rows whose item has no leaf field were copied from out-of-tree unit data that nothing in the tree
+tests.
 Carried, not owned by this item: the CS-1047 wave-0 doc slice owner (needed before W42), the CS-1334 stale line
 pointers, the plan-cut ids still on ROADMAP.md (CS-401, CS-447 and others), and the staged unit with no spec or id
 named in the CS-1409 wave-table record. Not pushed.
