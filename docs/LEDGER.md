@@ -75,6 +75,39 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1410 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1410 STAYS OPEN: acceptance clause 5 corrected to the measured README diff, 3 added and 2 removed
+Verification: `docs/item_notes/phase7.md` (the CS-1410 section, clause 5 of its `### Acceptance`), this record. This
+record closes nothing, so no test names one.
+SCOPE. A merger pre-dispatch correction in session 163, landed as its own commit ahead of the CS-1410 build slice
+(plan key U-007); the leaf is merger-owned and the clause's sole owner (CLAUDE.md section 4). Only clause 5's numstat
+phrase changed: no other clause, no other leaf, no README.md byte.
+CLAUSE AS IT WAS: "and `git show --numstat --format= <sha> -- README.md` for this unit's commit prints 4 added and 3
+removed."
+CLAUSE AS CORRECTED: "and `git show --numstat --format= <sha> -- README.md` for this unit's commit prints 3 added and 2
+removed (one net line: the first new line is byte-identical to the line it replaces)." The rest of the clause (the
+README line budget arm, the relative grading, no absolute line count graded) is unchanged.
+MEASUREMENT, this session, re-measured by the landing sub-agent exactly as the clause defines it, on a shared
+no-checkout scratch clone of the session start HEAD outside the repo: the paragraph found by its opening words
+`Clockspeed is an independent project.` (README.md line 210, three lines) was replaced by the four exact lines of
+THE PLAN's Spec U-007, LF only and ASCII, 213 lines after; that README was committed by plumbing on top of the HEAD,
+and `git show --numstat --format= <commit> -- README.md` printed 3 added and 2 removed under the default diff
+algorithm, and the same under histogram, patience and minimal. The spec's first new line is byte for byte README.md
+line 210, so git counts it as kept: three lines added, two removed, one net line, which is the purpose the spec's
+Traps state ("add exactly one net line").
+RULING (a distinct adjudicator, session 163, ruling G13, binding; decision, alternatives, why). Decision: correct the
+leaf clause in place before CS-1410 is dispatched, as its own commit with this record. Alternatives: (a) excuse the
+count in the landing record - REJECTED: a grader reads the leaf as the clause's sole owner and must refute an unmet
+clause, and nothing is called done that its acceptance says is not (CLAUDE.md section 6.1); (c) alter the spec's
+first line so the diff reads 4 and 3 - REJECTED: it contradicts the spec's exact text. Why: it corrects a
+mis-measured count, keeps the clause's purpose and weakens nothing; precedent, the session 161 filed-acceptance
+corrections (161 D3).
+OVERRIDE. THE PLAN is never edited: its Spec U-007 still reads "4 added and 3 removed" in clause 5 and "+4 -3" in its
+Traps. The leaf governs over both, and the CS-1410 builder brief says so.
+GATES on this commit's tree, from the repo root on the .venv interpreter, no whole suite: `python tools/drift_guard.py`
+and `python tools/doc_budget.py`, each exit 0; pytest over the doc and LEDGER parsing modules named in the session 162
+/done record below (its step 1 list) plus tests/test_doc_sweep.py, tests/test_pointer_claims.py,
+tests/test_disposition_sites.py, tests/test_archive_rot.py and tests/data/test_drift_guard_data.py, exit 0. Not pushed.
+
 ### 2026-11-25 - CS-1409 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1409 STAYS OPEN: session 162 /done - the clause 11 hand-off line filed on D80's route, the close held on clause 6, and the queue stop file removed
 Verification: `CS-NEXT-SESSION.txt` (its `=== NAMES` block holds the clause 11 line, its decisions block the merged
 session 156 and 157 line, its report the one line pointing here), `WAKEUP_NOTES.md` (the session 162 entry), this
