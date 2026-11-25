@@ -420,11 +420,11 @@ _PIN_JSON: Final = """
       }
     }
   },
-  "docs_bytes": 10640180,
+  "docs_bytes": 10646550,
   "docs_relative": "CommunityResources/Docs/en-US.json",
-  "docs_sha256": "a81d250e96aa13db3c0bf8c332c199ad930b2f15323e2c1a069afa4c07f971bb",
-  "game_build": "++FactoryGame+rel-main-multiplayer-patch-CL-517554",
-  "integrity": "37a8af0fe7ec1accf6852a7979390739bb2ea4f0b9f5ec1b9845848d5760164d",
+  "docs_sha256": "9c651f6840a11743df0aaa2f47f1005487abe8f3a93fa299c5092882bb4a76e3",
+  "game_build": "++FactoryGame+rel-main-1.2.6-CL-520140",
+  "integrity": "7782188e7a95b4a1749c9e5f4c2cddefb2039139530060adcbc000778f695912",
   "schema": 2
 }
 """

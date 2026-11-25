@@ -582,8 +582,9 @@ def test_the_real_usmap_accounts_for_its_own_length_exactly() -> None:
 #
 # WHY THE LANDING ORACLE IS NOT ENOUGH, CONCRETELY. Writing a type-26
 # descriptor's name index BEFORE its inner descriptor instead of after is
-# wrong - it contradicts the shipped file in 3112 descriptors across 1873
-# schemas - and it lands on the trailing tag at byte 1897717 exactly like the
+# wrong - the shipped file holds 3112 type-26 descriptors across 1873 schemas
+# and name-first reads 2306 of them past the table - and it lands on the
+# trailing tag at byte 1898392 exactly like the
 # correct order, consuming identical bytes, because a u8-then-skip-4 read and a
 # skip-4-then-u8 read cover the same five bytes. It passed the entire suite. No
 # assertion built from synthetic bytes can see it, because with a small
@@ -595,7 +596,7 @@ def test_the_real_usmap_accounts_for_its_own_length_exactly() -> None:
 # the control" rule tests/save/test_synthetic.py uses for its independent
 # reader - and it VALIDATES every index against the name table as it walks. A
 # reader with the type-26 order wrong cannot complete the walk on the real
-# file: it puts a name index outside the 58010-entry table. Measured.
+# file: it puts a name index outside the 58029-entry table. Measured.
 #
 # PRIVACY. Real names, and the whole shipped body, pass through the audit. So
 # the audit CONTAINS ITS OWN EXCEPTIONS and returns integers: pytest renders
