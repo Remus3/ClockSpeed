@@ -354,6 +354,13 @@ the routing information.
   so a node panel shows placement and class only. This is a new endpoint plus a
   panel, not a UI-only slice, and it is unbuilt.
 
+### NOTE - filed 2026-11-25 by the session 159 plan
+
+H1. The Scope panel prints, for every id in `data.panels`, one line `<id> - <sources>` under `PANELS REGISTERED ON THIS PAGE`, sources drawn from the closed set registry-derived, world-derived, health-derived (two joined by ` and `). Arm: `test-every_registered_panel_is_stated_with_its_sources` in `tests/surface/test_panel_scope.py`.
+H2. Negative: a registered id missing from the table renders `<id> - UNCLASSIFIED` and ``test-every_shipped_panel_module_registers_a_classified_id`` goes red (proved by ``test-deleting_one_classification_turns_the_census_red``).
+H3. Negative: a classified id no shipped module registers goes red: ``test-a_classified_id_that_no_module_registers_turns_the_census_red``.
+H4. Close: an adversary on a frozen SHA, then a distinct adjudicator, grade all four hub clauses on Scope as mounted on System (D52 reading); the record also confirms no glance model is built here (D120: any glance view reads `GET /api/glance`).
+
 ### Acceptance
 
 a person can look up a recipe and ask what a target rate costs in machines and raw inputs, every rate rendered from the exact `{num,den}` the wire carries with no division anywhere in the render path, the page states plainly which of its panels are registry-derived and which are world-derived and names what it cannot show, and no panel issues its own fetch - proven by an arm per panel against synthetic payloads plus a seam arm that reddens when a panel is served but not registered

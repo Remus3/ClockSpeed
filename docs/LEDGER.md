@@ -75,6 +75,37 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B3: the phase4-followups-960.md batch of the session 159 plan, the CS-962 NOTE filed
+Verification: `docs/item_notes/phase4-followups-960.md` (one new dated NOTE, `### NOTE - filed 2026-11-25 by the
+session 159 plan`, directly above the one `### Acceptance` of the CS-962 section, 1005 bytes, the hub clauses H1 to
+H4); `tools/drift_guard.py` guard (j) run before and after the host section, as recorded below;
+`tests/test_docs_citations.py`, green after. Written by the session 162 merger (part U-138.5, writer B3), the one
+filing writer, with the queue stop file placed. This record closes nothing, so no test names one.
+DUTY (clause 5): CS-962 is a hub; its plan row says clauses H1 to H4 are how the hub's one open clause is graded and
+are filed as a dated NOTE in the hub section, never in `### Acceptance` (D108). The hub Acceptance is not widened, and
+the section still holds one `### Acceptance`: the check below printed 1. Its child row (clauses 1 to 9) is carried,
+unfiled.
+MAP (plan spec key to existing id; no new id is allocated): CS-962 to CS-962, the NOTE of the plan's clauses H1 to H4
+(plan lines 23418 to 23421 of the session 159 plan), wave 30.
+BUDGETS (clause 6), printed by the filing script before the batch: ROADMAP.md 44245 + 0 = 44245 / 61440 (no ROADMAP
+write here); docs/item_notes/phase4-followups-960.md 39902 + 1005 = 40907 / 131072. Nothing is staged in this leaf.
+CARRIED, not filed (a new row needs a ROADMAP.md line and a lane-scope entry, outside this part's write list;
+unfiled): the CS-962 child row, clauses 1 to 9 of its spec, leaf docs/item_notes/phase4-followups-960.md as a section
+directly after the CS-962 section, ROADMAP heading Phase 4, and a lane-scope entry because the dashboard scope of
+config/lane_scopes.json names CS-962 explicitly; wave 30, filed by W29. U-138.6's annex names it.
+GUARD (j), run before and after the host section: before, `j      item-notes index             PASS`; after, `j
+item-notes index             PASS`; the whole run read `VERDICT: CLEAN - no drift detected` after.
+RESPELLING (clause 16): the NOTE carries 4 sites, 1 full citation and 3 elided test names, the one recorded respelling
+of the U-138.1 record, no new shape (the elided form is the U-138.2 record's (b) on the elided form).
+CHECK (clause 5): an untracked scratch script printed "rows 1, acceptance mismatches 0, plan lines 23418-23421,
+acceptance headings in the CS-962 section 1": the filed text equals the master plan's bytes for H1 to H4 after
+inverting the 4 logged sites. Clause 13: no row returned; H4 sits in a NOTE and is filed, as the ruling reads.
+Rulings applied: the session 162 adjudicator's ruling on the U-138.5 spec, questions on extension duties and the child
+rows (CARRY, do not widen), clause 13 and the NOTE shape (heading, blank line, body, blank line, directly above `###
+Acceptance`).
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; an adversary is owed at the batch
+commit.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B2: the phase6.md batch of the session 159 plan, the CS-1260 NOTE filed, 4 rows staged, 1 returned
 Verification: `docs/item_notes/phase6.md` (one new dated NOTE, `### NOTE - filed 2026-11-25 by the session 159 plan`,
 directly above the one `### Acceptance` of the CS-1260 section, 3073 bytes, the plan's clauses 1 to 3 of the hub);
