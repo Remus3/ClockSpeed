@@ -9566,6 +9566,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 159 - archived 2026-11-25 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 159 - 2026-11-19 - planning only: THE PLAN delivered, no item closed, the /done push blocked by one red test
+
+- Shipped: nothing closed and no id allocated. THE PLAN (the master plan on the operator's Desktop) was delivered with its one batched operator ask. Detail in the session 160 ledger records for CS-1401 and U-151.
+- In flight: the /done push was blocked by one failed test (10746 passed, 2 skipped); session 160 filed it as CS-1404 and pushed. The ledger record and this entry followed in session 160.
+- Decisions: no ADR. Hand-off blocks are relocated only verbatim into a text fence at the end of docs/history_notes.md (Route B); the hand-off's SESSION 159 block carries the fence.
+- Surprises: a workflow resume after usage-limit refusals re-ran finished calls, so continuation scripts replaced it. The first account sat at its weekly limit. No spike contradicted BOOTSTRAP.md.
+- Failed paths: resuming a workflow across usage-limit refusals.
+- Next action: the push, then THE PLAN's Part 0 and wave 0.
+
 ## Session 158 - archived 2026-11-25 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 158 - 2026-11-16 - the lane's two landings graded LAND, six product items closed through planner, adjudicator, builder, adversary and adjudicator, CS-1362 gated

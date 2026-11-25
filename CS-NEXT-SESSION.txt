@@ -1,9 +1,9 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written by the session 161 /done, 2026-11-25: wave 0 exited, wave 1 group 1 begun; CS-1408, CS-1416 and CS-1401
-closed; THE PLAN's rows filed as CS-1409 to CS-1440; CS-1366's read FAIL. Every item not acted on is carried, verbatim
-or tighter (full wording: THE 160 BASE, then THE 159 BASE). The operator starts with "continue".
+Written by the session 162 /done, 2026-11-25: the merger track run through CS-1412; nothing closed. Every item not
+acted on is carried, verbatim or tighter (full wording: THE 161 BASE, then THE 160 BASE). The operator starts with
+"continue".
 
-SESSION: 162
+SESSION: 163
 
 === NAMES (gitignored paths are named in words; no unpublished SHA is spelled) ===
 THE PLAN - CLOCKSPEED-MASTER-PLAN.md on the operator's Desktop (planning session 159), named by name and place, never
@@ -11,10 +11,11 @@ THE PLAN - CLOCKSPEED-MASTER-PLAN.md on the operator's Desktop (planning session
   back there at this /done); planned at HEAD 30157505, clean tree; never edited; opened by line range only.
 THE PLAN SCRATCH - <sidecars>\CS\Scratch\plan-s159, outside the repo: the plan's data and tools; its CONTINUATION.md
   is the session's record. THE PLAN TOOLS - <sidecars>\CS\plan-s159-tools: U-158's durable copy and exit-W0.json.
-THE 160 BASE - `git show d553b572e18ff5c25322658a159522451d62e0d6:CS-NEXT-SESSION.txt`, the hand-off session 161
-  started from. THE 159 BASE - `git show 69151dfb79c55c26fbd0ffd60c4c785d9843c772:CS-NEXT-SESSION.txt`; its NAMES
-  block gives THE 158 BASE (4b1ca1e3) and each older base with its commit (THE 157, 156, 155 and 153 BASE, THE PRIOR
-  HAND-OFF, THE U5 BASE), THE RULINGS, THE OUT FOLDER, THE S148 COPY and THE UI-157 AUDIT (CS-1400).
+THE WAVE PLAN - docs/item_notes/wave-plan.md: the wave table and its pointers.
+THE 161 BASE - `git show 2f5e72914a21a7e28e0b5782a18e42a1b129bfbf:CS-NEXT-SESSION.txt`, the hand-off session 162
+  started from; THE 160 BASE (d553b572) and THE 159 BASE (69151dfb) the same way. THE 159 BASE's NAMES block gives
+  THE 158 BASE (4b1ca1e3) and each older base with its commit (THE 157, 156, 155 and 153 BASE, THE PRIOR HAND-OFF,
+  THE U5 BASE), THE RULINGS, THE OUT FOLDER, THE S148 COPY and THE UI-157 AUDIT (CS-1400).
 THE U5 RELOCATION, THE RELOCATION, THE S159 RELOCATION - docs/history_notes.md hand-off blocks (2026-10-26, MAIN
   ORDER U5; 2026-10-20; 2026-11-19, the session 159 /done).
 THE WALK HARNESS - walk1334-s151-harness in the data directory. THE SWEEP ARCHIVE - session 152's sweep archive
@@ -23,37 +24,38 @@ THE ORDERS - moon_sync_inbox: the MAIN orders THE 159 BASE lists at lines 20-21 
   2026-11-16-1947 (kit v32; ANSWERED 2026-11-17 07:04, which supersedes 05:02), -2005 (README refresh;
   ANSWERED 2026-11-16 20:37), -2145 (drive-root items to the sidecar; ANSWERED 2026-11-16 22:45).
 THE KEPT REFS - the branches THE 159 BASE lists at lines 22-23, the a232 agent branch (CS-1358, unlanded; its name
-  starts worktree-agent-a232) and every branch of a worktree removed in sessions 160 and 161. NEVER `git branch -D`;
+  starts worktree-agent-a232) and every branch of a worktree removed in sessions 160 to 162. NEVER `git branch -D`;
   classify by content.
 
-=== THE SINGLE NEXT ACTION - SESSION 162, IN ORDER ===
-0. Print "Session 162 checklist" (FLEET 13a; the box U+2610, never the glyph). No board: this tree is opted out of
+=== THE SINGLE NEXT ACTION - SESSION 163, IN ORDER ===
+0. Print "Session 163 checklist" (FLEET 13a; the box U+2610, never the glyph). No board: this tree is opted out of
    FLEET 18 (ops/status_board.json has no opt_in key).
 1. FIRST ACT: the remote ref against this HEAD by full SHA (`git ls-remote origin`, `git rev-parse HEAD`), CI tier1
    for HEAD's full SHA (`gh run list --commit <full SHA>`), read, never assumed, and this ritual's timing record
-   (session_161). A remote that is NOT this HEAD: push FIRST (the git lock, .venv first on PATH, CLOCKSPEED_PYTHON
+   (session_162). A remote that is NOT this HEAD: push FIRST (the git lock, .venv first on PATH, CLOCKSPEED_PYTHON
    the .venv python) - that push is the one gated whole suite for the carried commits - then file any
    blocked_by_flake test it names. A red CI is the top item, never rerun green.
    READS: (a) remote refs exactly HEAD, refs/heads/main, tag v0.1.0, else STOP, a distinct adjudicator; porcelain EMPTY
    or attributed. (b) STOP, INBOX_STOP, HOLD_MAIN_SPAWN absent; QUEUE_STOP ABSENT (this /done removed it; the lanes
-   directory holds QUEUE_DRAINED and the pause log): U-138's pre-flight needs it present, so place it before U-138.5
-   and remove it at session end (KNOW FIRST); ops/stop_sentinels.json sha256
+   directory holds QUEUE_DRAINED and the pause log): a unit whose pre-flight needs it places it and removes it at
+   session end (KNOW FIRST); ops/stop_sentinels.json sha256
    9b34ab97b0abe1b4e5b1b6e69dd77f6295013ddb9bb26015d50189539db78e1f; the usage log and budget file. (c) CPU, free
    RAM, no whole suite running. (d) `python tools/inbox_watch.py`; the remote PUBLIC; `git worktree list`; any
    "BUILD PIN DRIFT:" line the responder wrote here (CS-1390): re-pin as its own slice (CS-1383; CS-1408 did the
    last one). ONE BATCHED OPERATOR ASK (FLEET 1, physical only): restart Windows before the session (about 2.7 GB of
    kernel memory back) or otherwise free host RAM to 24 GB, for CS-1334; optional: an operator ADR for a dev-only
    Node tool unblocks CS-1362 (CS-G11).
-2. PLAN: THE PLAN's wave 1 group 1 (its GROUP 1 gate, line 4387), the merger's serial order from here: U-138.5
-   (the BACKLOG rows U-114 and U-128, and the nine phase 6 specs keyed by existing CS ids), U-138.6 (the annex rows,
-   staged rows named unfiled), U-141 CS-1412, U-142 CS-1413, U-140 CS-1411, U-143 CS-1414, U-144 CS-1415, U-147
-   CS-1417, then U-151.2 (CS-1419 part 2), U-157 and U-152 (CS-1418), applied in that order inside a /done, then
-   CS-1366's read. Merger landing: U-046 into the D2 row CS-1427. Builders beside it, B stays 2: CS-1261, U-007
+2. PLAN: THE PLAN's wave 1 group 1 (its GROUP 1 gate, line 4387), the merger's serial order from here (162 B): U-142
+   CS-1413, U-140 CS-1411, U-143 CS-1414, U-144 CS-1415, U-147 CS-1417, then U-151.2 (CS-1419 part 2; part 1 applied
+   by the session 162 /done) with U-157, and U-152 (CS-1418), applied in that order inside a /done, then CS-1366's
+   read. TRIM OWED: this file's 23744 bytes plus U-142's at most 1040 (CS-1413 clauses 3 and 5) read 24784 at CS-1419
+   part 2, over its 24500 end target (U-157's 200 and U-152's 250 follow): the /done applying U-151.2 trims again
+   on D80's route. Merger landing: U-046 into the D2 row CS-1427. Builders beside it, B stays 2: CS-1261, U-007
    (CS-1410), CS-454.1. U-107.1 and U-107.2 stay held (P4F-1, P4F-21) and land with U-107.3.
-3. HOW: every U-138 batch gate runs tests/test_citation_guard_shapes.py (D8); rows are filed in wave order under
-   each leaf's budget (D2); the U-138.4 record lists the 60 staged rows. A filer re-reads the highest id first.
+3. HOW: a filing row runs 161 D8's gate and D2's wave order; the U-138.4 record lists the 60 staged rows; a filer
+   re-reads the highest id first.
 4. CS-1366's closing read, on or after 2026-11-26 15:29 local, if every later gated exit-nonzero run kept a
-   failing-ids log at the time (keep one for each from now, or the read fails).
+   failing-ids log at the time (keep one for each from now, or the read fails; session 162's gated rows read exit 0).
 5. CS-1334 once host RAM reads 24 GB free AND U-152 (CS-1418) has landed (OPEN ITEMS 3).
 6. The rest of OPEN ITEMS as THE PLAN places them (its Part 7; the standing dispositions below bind), by sub-agents; a
    lane cycle by THE LANES. /done when the operator stops the run, or unprompted when no task remains.
@@ -61,52 +63,49 @@ THE KEPT REFS - the branches THE 159 BASE lists at lines 22-23, the a232 agent b
 === PLAN STATE (detail: THE PLAN's parts; THE PLAN SCRATCH's CONTINUATION.md) ===
 SIZE: its Part 1 (695 units, 501 scheduled; 74 waves at 2 slices, k 1; v0.2.0 at wave 28; 103 sessions as the bound).
 VERIFIED: every scripted check passed but U-158's line (ruling D-P4-7; landed in session 161). The cold-start read did
-NOT pass clean: 21 findings carried under rulings P4F-1 to P4F-21, each at its unit and in Parts 9 and 10; no cold
-re-read followed the last round.
+NOT pass clean: 21 findings carried under rulings P4F-1 to P4F-21 (at their units, Parts 9 and 10); no cold re-read
+followed the last round.
 WAVE 0: EXITED in session 161 (exit-W0.json in THE PLAN TOOLS; the LEDGER's WAVE 0 END record; no re-pack, B stays 2,
-no lane relaunch). WAVE 1 GROUP 1 so far: U-146 (CS-1416), C0 and CS-1401 landed; U-138.2 to U-138.4 filed.
+no lane relaunch). WAVE 1 GROUP 1 so far: U-146 (CS-1416), C0 and CS-1401 landed; U-138.2 to U-138.6 filed (CS-1409
+OPEN); U-141 (CS-1412) landed OPEN by ruling.
 KNOW FIRST: U-107.1 and U-107.2 are built and landed with U-107.3, never in wave 1; whoever places QUEUE_STOP removes
 it at session end, before any lane launch and before /done; CS-909 closes in wave 2; CS-1366's read is the last
 merger-track unit.
-SCRATCH: NOBODY cleans, moves or tidies THE PLAN SCRATCH or THE PLAN TOOLS until the plan ends. FALLBACK-STOP stays
-in its root unless a fallback runner is used. Never run the unpatched P4 script or re-apply unit-spec corrections:
-the wave plan comes only from the pipeline CONTINUATION.md's state update 5 names.
+SCRATCH: NOBODY cleans, moves or tidies THE PLAN SCRATCH or THE PLAN TOOLS until the plan ends; FALLBACK-STOP stays
+in its root unless a fallback runner is used; never run the unpatched P4 script or re-apply unit-spec corrections
+(the wave plan comes only from the pipeline CONTINUATION.md's state update 5 names).
 ASK: THE PLAN's Part 1 ask was put once by delivering the plan; NEXT ACTION 1's ask stands until U-152 lands.
 
-=== SESSION 161 - CLOSED, FILED, READ (detail: docs/LEDGER.md, 2026-11-24 and 2026-11-25 records) ===
-CLOSED: CS-1408 (tier 2: the game build re-pinned to CL-520140, resolving the BUILD PIN DRIFT line); CS-1416 (tier 1:
-  ADR numbers by one writer, OPERATIONS 10.9); CS-1401 (tier 2: the advice list served domain-interleaved over the
-  aging order, visible cards first; the CS-1246 citation reading is its record).
-FILED under CS-1409 (THE PLAN's own row): U-138.1 phase 7, CS-1409 to CS-1419, and the wave annex; U-158's line;
-  U-138.2 phase 5, CS-1420 to CS-1422 and CS-1425 to CS-1433 (CS-1423 and CS-1424 are not ids); U-138.3 phase 6,
-  CS-1434 to CS-1440 (U-053, U-058, U-084, U-089, U-096, U-107, U-131), 7 dashboard excluded entries in
-  config/lane_scopes.json; U-138.4 the staged-rows record (60 unfiled). Its clause 15 adversary on U-138.3 and
-  U-138.4: NOT REFUTED as the main thread reported it; no verdict file (UNVERIFIED).
-CS-1366 READ: FAIL - 31 exit-nonzero gated rows start after the 2026-11-12 18:48:37 window opening; 6 are classified
-  and the 25 later rows have no failing-ids log; the window restarts.
-CS-1334: BLOCKED TWICE - free RAM 23.0 to 23.3 of 31.62 GB against the 24 GB gate (about 0.75 GB short, after the
-  operator freed RAM and two orphaned browser trees were closed), AND U-152 (CS-1418) not landed.
-U-151: entry check FAILED (U-157 clauses 1 to 5 NOT MET); filed as CS-1419 with U-157's clauses as 13 to 21.
-WORKTREES: 7 removed after landing (branches kept); lane-0 kept (fleet_lanes reuses it). The empty sidecar scratch
-  folder adv-u138-1-wt is locked (rmdir busy at this /done): retry, never force.
+=== SESSION 162 - NOTHING CLOSED (detail: docs/LEDGER.md, the 2026-11-25 CS-1409, CS-1412 and CS-1419 records) ===
+LANDED: U-138.5 and U-138.6 (CS-1409; part 6's NAMES line filed by this /done); U-141 CS-1412 (the Write-list
+  column moved to docs/item_notes/wave-plan-write-lists.md; the hub chain column and its key table).
+CS-1409 OPEN until: rows for U-071 and U-045 or a clause 6 re-ruling; CS-1439 parts 1 and 2 moved from W1 to part 3's
+  W2 group (routed by CS-1412); all 17 clauses re-graded by a distinct adjudicator.
+CS-1412 OPEN BY RULING: clause 5 (43 rows owe hub text, no doc-slice row: a re-pack adds them); 6 (shell/main.js's
+  entry read, owed at CS-619's first wave entry); 8 (29 items graded). U-138.6 met for the wave table only (162 A).
+U-151.1 (CS-1419 part 1, 162 C) applied: its worksheet (sidecar Scratch folder done-162) read clauses 1 to 10 and 12
+  MET, 11 UNMET until the WAKEUP_NOTES.md session 162 entry.
+SESSION 161: closed CS-1408, CS-1416, CS-1401 (with the CS-1246 citation reading); filed CS-1409 to CS-1419, CS-1420
+  to CS-1422, CS-1425 to CS-1433 and CS-1434 to CS-1440 (CS-1423, CS-1424 not ids): THE 161 BASE. The empty sidecar
+  scratch folder adv-u138-1-wt is still locked (rmdir busy): retry, never force.
 
 === CARRIED FROM SESSIONS 159 AND 160 ===
-RESIDUALS FOR BACKLOG TRIAGE (session 160): a Quantity subclass is accepted as the left operand of +, and copy/pickle
-  restore a Quantity without validation (CS-1248.1); duplicate JSON keys are accepted by the dev-world pin reader
-  (CS-913.1); no test covers the too-large pin reason; the CS-846 ref classifier was not distinct from the writer
-  that applied the cut (U-052.6 caveat c); a workdir mid-write failure is reported as a source failure (CS-1407).
-  CS-1248 stays open (part 1 of 7); CS-913 GATED on CS-G06. Closed in 160: CS-1406, CS-914, CS-1404; CS-1136 back
-  on ROADMAP; CS-1405 and CS-1407 in BACKLOG.
+RESIDUALS FOR BACKLOG TRIAGE (session 160): Quantity accepts a subclass as the left operand of +, and copy/pickle
+  restore it unvalidated (CS-1248.1); the dev-world pin reader accepts duplicate JSON keys (CS-913.1); no test covers
+  the too-large pin reason; the CS-846 ref classifier was not distinct from the cut's writer (U-052.6 caveat c); a
+  workdir mid-write failure reads as a source failure (CS-1407). CS-1248 open (part 1 of 7); CS-913 GATED on
+  CS-G06. Closed in 160: CS-1406, CS-914, CS-1404; CS-1136 back on ROADMAP; CS-1405 and CS-1407 in BACKLOG.
 SESSION 159: a workflow resume after usage-limit refusals re-ran finished calls (tool feedback drafted, NOT sent).
-  STRAYS: s159_have.txt and the Desktop .prev plan draft read ABSENT at this /done. THE PLAN's ruling record has five
-  in-place supersession marks in THE PLAN SCRATCH that a re-render from the rulings file would drop (P4F-13-type).
-  Four chapter lines corrected after the second sweep: checker and diff only.
+  THE PLAN's ruling record has five in-place supersession marks in THE PLAN SCRATCH that a re-render from the
+  rulings file would drop (P4F-13-type). Four chapter lines corrected after the second sweep: checker and diff only.
+  STRAYS (s159_have.txt, the Desktop .prev plan draft): ABSENT.
 
 === THE UNVERIFIED (labelled, never rounded up) ===
 - CS-1361's repair: no verifier or adversary graded it (its LEDGER record). CS-1382's library re-read (CS-1388).
 - The UI audits' state press (H2), flow block and CS-1360 view ran on in-page mocks only (158 D5). Linux beyond CI.
 - Session 160's two ungraded LEDGER fixes (CS-914's retry budget, the CS-913.1 split) have no distinct grader.
-- The U-138.3 and U-138.4 adversary verdict (no file); the suite counts of session 161's pushes (not re-read here).
+- Adversary verdicts: U-138.3 and U-138.4 (no file); U-138.5's record correction NOT REFUTED, leaving unchecked the
+  CS-1257 headline reason, the phase7 pointer offset, and the U-157 and 1967 counts.
 
 === OPEN ITEMS, PRIORITY ORDER (ROADMAP.md owns the lines; acceptance: each item's "### Acceptance" in its leaf) ===
  1 THE PLAN's wave 1 group 1, in NEXT ACTION 2's order.
@@ -123,19 +122,17 @@ SESSION 159: a workflow resume after usage-limit refusals re-ran finished calls 
    committed ALONE first; the lift descends from it; re-graded at that tip.
  6 CS-1358 (phase7.md): read a232's disposition first; rebase a232 (branch kept, THE KEPT REFS); it collides with
    tools/provenance.tsv writers and needs a gated whole suite.
- 7 CS-815 (phase7.md) KEEP OPEN, ON HOLD per IC-CS-815: CS-G09 DISCHARGED by the wave 0 U-155 decision record (kit
-   launcher .claude/settings.json via ops/fleet_kit/fleet_hook.sh fails closed; grant LEDGER 2026-10-31); its own
-   remaining proof under D81 is an arm pointing the kit launcher at an argument-ignoring program; FIX note sent 1
-   of 1, never re-send.
+ 7 CS-815 (phase7.md) KEEP OPEN, ON HOLD per IC-CS-815: CS-G09 DISCHARGED by the wave 0 U-155 decision record (grant
+   LEDGER 2026-10-31); its remaining proof under D81: an arm pointing the kit launcher at an argument-ignoring
+   program; FIX note sent 1 of 1, never re-send.
  8 CS-1318 (phase7.md) ON HOLD: reopen only on a hook-shard red at unchanged code (Linux via WSL); KEEP its refuted
    branch.
  9 CS-1304 (phase7.md): WAIT for a natural child_failure; retry-once DENIED; watch deciding suites for a cs1172 or
    cs1175 canary "did not fail: exit 2" or a withheld exception: record it, an adjudicator; status over 255 never counts.
 10 CS-1291 (phase7.md): R6's frozen-file grant DENIED (session 151); Rev: the operator's words or a measured
    pre-push-caused product block or red. NO GRANT, no edit.
-11 C13 REMAINDER: wording at THE 159 BASE, lines 86-90. This /done's REAP applied: 0 removed, 1 kept (lane-0), 0
-   listed. CS-1402 moved cs1322-adv-tmp into the sidecar Scratch folder, under e-root-2026-11-16. Retire by content,
-   never in bulk.
+11 C13 REMAINDER: wording at THE 159 BASE, lines 86-90. This /done's REAP applied: 3 removed, 1 kept (lane-0), 0
+   listed. CS-1402 moved cs1322-adv-tmp into the sidecar Scratch folder's e-root-2026-11-16. Retire by content.
 12 C14 RESIDUALS: nothing to do; relocated verbatim, THE S159 RELOCATION.
  HOLD: CS-815, CS-1318, CS-1304, CS-1291 (items 7 to 10).
  FILED, unstarted: CS-1398 (advisor-ranking lane row). GATED: CS-1362 (CS-G11, an operator Node ADR). BACKLOG:
@@ -146,11 +143,14 @@ SESSION 159: a workflow resume after usage-limit refusals re-ran finished calls 
    TIER-1: shard or cache, NEVER raise the pin.
 
 === RESIDUALS ===
+- SESSION 162 UNRESOLVED (the CS-1409 U-138.6 and CS-1412 chain records): U-071 and U-045 have no annex row; CS-1439
+  parts 1 and 2 in the wrong wave; "wave per its leaf" rows unchecked, CS-619's leaf has no Wave line; the CS-1047
+  wave-0 doc-slice owner owed before W42; CS-1334's stale line pointers; 24 plan-cut ids on ROADMAP.md (CS-401,
+  CS-447, ...); U-159 has no spec or id; ten staged-unfiled extensions (phase 5 from CS-1048, phase 6 from CS-1258);
+  child rows of CS-962, CS-1058, CS-1047, CS-1260 unfiled. COMMON MODE: write-lists copied from untested plan data.
 - tests/test_tmp_path_privacy.py's parallel-lane worker-interpreter-path test skips here: the interpreter is not
   under a home directory.
 - memory_sync: memory/feedback_model_and_effort_fit_the_task.md's frontmatter name uses hyphens. HELD (156 D8).
-- MAIN holds CS-1361's unlanded 09:05 state; it rides the next batched ANSWER, with CS-1390's close (MAIN 0931 item
-  2).
 - ID RACE: lanes allocate ids too (CS-1396 was renumbered after one collision): re-check before any new id; on a
   collision renumber the later filer.
 
@@ -159,9 +159,9 @@ R1. KIT: v32 adopted (CS-1403; v31 was CS-1399); MAIN reads the remote. v27 step
     fleet_inbox.mark_seen; wiring needs a seen-ledger backfill first). MAIN byte-copied the 0026 and 0450 ANSWERs:
     NEVER RESEND.
 R2, R3 (closed orders) and the session_157 timing: relocated verbatim, THE S159 RELOCATION.
-TIMING: session_160 (timing record): pre-push 19968 passed 15 skipped 1210.51 s, gate wait 1.0 s, hold 1212.6 s, tip
-d553b572, remote equal. CI read green at this /done on d553b572, e16afb08 and session 161's pushed tips 748ee5d5 and
-63067ebb (their suite counts not re-read). session_158 and session_159: THE 160 BASE.
+TIMING: session_161 (timing record): pre-push 19979 passed 15 skipped 1107.77 s, gate wait 0.003 s, hold 1109.5 s,
+tip 2f5e7291, remote equal; CI green at the session 162 start (tier1, tier2, identity guard, push-on-main).
+session_160: THE 161 BASE; session_158 and session_159: THE 160 BASE.
 
 === OPERATOR DIRECTIVE FOR SESSION 150 - THE OPERATOR'S OWN WORDS, VERBATIM (session 149) ===
 "when these are completed and **/done for clear to proceed next session as the headless background
@@ -198,28 +198,30 @@ KIT v32 (CS-1403; OPERATIONS 12.7); never edit a kit file. Commits and pushes th
   SUBAGENT-FIRST is deny. THE REMOTE: PUBLIC since 2026-10-18; protections and CodeQL ON. THE BOARD: opted out
   (FLEET 18); no render or sentinel change during a main-checkout whole suite (S0b D-D1).
 
-=== DECISIONS IN FORCE ("Rev:" what reverses it; full wording: THE 160 BASE, THE 159 BASE and the bases they name) ===
+=== DECISIONS IN FORCE ("Rev:" what reverses it; full wording: THE 161 BASE, THE 160 BASE and the bases they name) ===
+- SESSION 162 (distinct adjudicators; Rev: a distinct adjudicator's recorded ruling): A CS-1412 ran on the wave table
+  alone (its CS-1409 part 6 dependency binds only the table it consumes). B the serial track HALTS after CS-1412 for
+  /done and resumes at CS-1413 (THE PLAN line 4091; lines 4047 and 2810 bar a mid-session hand-off edit; 4091 and 4387
+  bar moving CS-1411 ahead). C U-151.1, dropped from the 161 order, applied by this /done per its leaf and restored.
 - SESSION 161 (each Rev: a distinct adjudicator's recorded ruling unless stated): D1 U-052 and U-145 NOT filed (U-052
   closed as CS-1406; U-145's spec says so). D2 staging under a leaf budget follows wave order (no later, smaller row
   past one that does not fit); staged rows go in the LEDGER batch record. D3 filed acceptance respells "path:N" as
   "path line N", plus the elided ::test_ prefixes and unbuilt test-module stems. D4 tracked text cites no unpublished
   SHA (Rev: none). D5 a closed item's leaf section is DELETED, not relocated, when its LEDGER record carries it. D6
   CS-1401 serves visible cards first, then hidden (one interleave over all cards REJECTED); D51's wording governs over
-  spec clause 6 (Rev: an operator ADR). D7 C0 waited for the U-146 landing commit (spent). D8 every U-138 batch gate
-  includes tests/test_citation_guard_shapes.py; its omission blocked a session 161 push.
+  spec clause 6 (Rev: an operator ADR). D7 spent. D8 every U-138 batch gate includes
+  tests/test_citation_guard_shapes.py; its omission blocked a session 161 push.
 - SESSION 159: D1 a hand-off block is relocated only verbatim, into a text fence at the end of docs/history_notes.md
   (Route B), never by the kit archive (it moves no block of this file's one-line headings) or into a new file; live
   decision wording is tightened in place, never moved. Rev: a kit archive reading one-line "===" headings, a MAIN
   ORDER naming docs/handoff-archive/, or framed headings here, then an adjudicator. D2 to D4: spent.
 - SESSION 158: D1 to D6 in force (CS-1394, CS-1395, CS-1360, CS-1390, the mocked UI audits, CS-1362); wording and
   Rev: THE 159 BASE, lines 168-185.
-- SESSION 157: D1 to D7 in force (D3 is CS-1397's); wording and Rev: THE 158 BASE. Kept: D2 a false LEDGER CLOSED is
-  corrected by a later NOT A COMPLETION record, never an edit (Rev: none). D7 no clause is built until its gaps are
-  adjudicated: planner, adjudicator, builder, adversary, adjudicator.
-- SESSION 156: D1 to D9 in force (D5 is CS-1379's); wording and Rev: THE 158 BASE. Kept: D2 pushes set
-  CLOCKSPEED_PYTHON to the .venv interpreter as a FORWARD-SLASH drive path, per push, never persisted; the global
-  python (pytest 9.2.0, mypy 2.4.1) untouched (Rev: it back on the pins, or CS-1387). D7 CS-484's frozen-file edit
-  DENIED (Rev: that record's three conditions).
+- SESSIONS 156 (D1-D9, D5 CS-1379's) AND 157 (D1-D7, D3 CS-1397's), one line by D80; wording, Rev: THE 158 BASE.
+  Kept: 156 D2 each push sets CLOCKSPEED_PYTHON to the .venv python, forward-slash drive path, never persisted (Rev:
+  it back on the pins, or CS-1387); 156 D7 CS-484's frozen-file edit DENIED (Rev: that record's three conditions);
+  157 D2 a false LEDGER CLOSED is corrected by a later NOT A COMPLETION record, never an edit (Rev: none); 157 D7 no
+  clause is built before its gaps are adjudicated (planner, adjudicator, builder, adversary, adjudicator).
 - SESSIONS 150 TO 155 and OLDER FENCES (S0, S0b, A-S12a, SUITE-GATE, CS-1283 to CS-1329, CS-700 gate design):
   wording at THE 156 BASE and U5 BASE. The most-hit list: THE 159 BASE, lines 201-205 (CS-1321 route A, CS-1302,
   CS-1344, CS-1371, CS-1380 and more).
@@ -234,42 +236,28 @@ KIT v32 (CS-1403; OPERATIONS 12.7); never edit a kit file. Commits and pushes th
 - /done's mark FAILS a hand-off over 30720 bytes; MAIN ORDER U5 wants it under 25000.
 - NEVER STAGE, EDIT OR LAND IN THE MAIN TREE WHILE A PRE-PUSH SUITE RUNS THERE: it grades the working tree. A PRE-PUSH
   TAKES 18-20 MIN at about 20k tests: background it, a 45 min deadline, bounded polls.
-- Never wrap a LEDGER body line to open with a CS id: drift_guard guard (i) fails it (this /done's first run).
-- READ BEFORE THE FIRST BRIEF, LANDING OR TRACKED WRITE: THE 159 BASE, lines 214-241, this block whole (new-file
-  provenance rows, landings, stale builder bases, brief contents, tracked-line bans, the LEDGER heading shape,
-  parents and children, idle builders, lane progress files, CPU and suite limits, gitlock's verbs, `git cherry`
-  signs, reading CI, the game-patch re-pin (CS-1383), fixture Unicode spaces (CS-1394), its ALSO LIVE line).
+- Never wrap a LEDGER body line to open with a CS id: drift_guard guard (i) fails it (the session 161 /done's first run).
+- READ BEFORE THE FIRST BRIEF, LANDING OR TRACKED WRITE: THE 159 BASE, lines 214-241, that block whole (provenance
+  rows, landings, stale builder bases, brief contents, tracked-line bans, the LEDGER heading shape, parents and
+  children, idle builders, lane progress files, CPU and suite limits, gitlock's verbs, `git cherry` signs, reading
+  CI, the game-patch re-pin (CS-1383), fixture Unicode spaces (CS-1394), its ALSO LIVE line).
 
 === THE CHANNEL AND EXTERNAL CONDITIONS ===
-OWED: nothing due; the next batched ANSWER carries CS-1361's landing and CS-1390's close (157 D5, 156 D9). SENT, each
+OWED: nothing due; the next batched ANSWER carries CS-1361's landing and CS-1390's close (157 D5, 156 D9; MAIN 0931
+item 2: MAIN holds CS-1361's unlanded 09:05 state). SENT, each
 1 of 1 in the delivery record, never re-send: 2026-11-14 11:30 (MAIN 0931); 2026-11-15 05:17 (kit v31);
 2026-11-16 20:37 (MAIN 2005); 2026-11-16 22:45 (MAIN 2145: delivery row verified, no outbox copy, do not recreate);
 2026-11-17 05:02 and 2026-11-17 07:04 (kit v32; 07:04 supersedes 05:02); earlier: THE 157 BASE, CHANNEL. Never
-answer an answer. MAIN's 13:16 RULING: no reply. Cap 12 a day. Session 161 authored no outbox note.
+answer an answer. MAIN's 13:16 RULING: no reply. Cap 12 a day. Sessions 161 and 162 authored no outbox note.
 WAITING ON: MAIN's v27 retry path; CS-1231's gate (a kit newer than v32); MAIN's G3 ruling (the identity-guard
 required check, NOT APPLIED); the kit version that fixes the drive-root lane-worktree fallback and child temp
 variables (MAIN 2145 section 5); the 0647, 0420 and CS-815 FIXes in a kit version; MAIN's answers to the 1213 FIX
 and S5; the CS-1207 ruling; CS-1318's evidence; host RAM; U-152's landing; CS-1366's restarted window; the
 operator's Node ADR (CS-G11).
 
-=== THE SESSION 161 /done's REPORT ===
-STEP 0: start 2026-11-25T01:48:56-06:00; window CLOSED (HEAD: one parent, touches only docs/LEDGER.md); porcelain:
-the hand-off's BUILD PIN DRIFT line only (dropped); remote 63067ebb, two local batch commits above it; no outbox note
-authored. Highest tier: 2 (CS-1408, CS-1401). QUEUE_STOP removed, read back ABSENT; INBOX_STOP and STOP absent.
-STEP 1 (.venv, no whole suite): `python -m mypy` exit 0 (492 source files); `python -m ruff check .` exit 0; `python
--m ruff format --check .` exit 0 (475 files); `python -m pytest` over 15 targeted paths (tests/advisor, the changed
-surface, data and save modules, nine doc and citation modules, two tests/ops scope modules) `-q -n 4`: exit 0, 2584
-passed, 0 failed, 0 skipped, 115.21 s. RE-RUN after the ritual's doc edits, 11 doc and ritual modules: exit 1, 964
-passed, 1 failed (the sha gate's live arm read a branch name's hex tail here), renamed; that test alone exit 0.
-STEP 2: one LEDGER record (CS-1409, this /done); the three CLOSED records read present, none duplicated. STEP 3:
-ROADMAP unchanged. STEP 4: WAKEUP_NOTES gained 161; 158 relocated verbatim to docs/history_notes.md.
-STEP 5: drift_guard first run exit 1 (guard (i) on this ritual's new LEDGER line), reflowed, re-run exit 0 (11
-PASS); doc_budget exit 0 (42 measured, 0 over); sha_citation_gate exit 0; memory_sync not run (no memory doc changed).
-STEP 6: REAP --apply "0 removed, 1 kept, 0 listed" (lane-0). Board render after this file is read back: not opted in,
-a no-op. ARCHIVE: run after this file is written (it skips under 27648 B).
+REPORT (one line by D80): the session 162 /done's steps 0 to 6 are its 2026-11-25 CS-1409 record in docs/LEDGER.md.
 PUSH: push of this commit pending at write time; push result and CI UNREAD - the next session's first act reads the
-remote ref against this HEAD and the CI run. Its pre-push suite is this ritual's one gated whole suite.
-UNVERIFIED: CI on this commit and the two batch commits; THE UNVERIFIED block above.
+remote ref against this HEAD and the CI run.
 
 === READ FIRST ===
 CLAUDE.md; memory/MEMORY.md; WAKEUP_NOTES.md; docs/ARCHITECTURE.md; .claude/commands/done.md; docs/OPERATIONS.md

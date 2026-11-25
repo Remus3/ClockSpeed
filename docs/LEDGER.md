@@ -75,6 +75,103 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1409 STAYS OPEN: session 162 /done - the clause 11 hand-off line filed on D80's route, the close held on clause 6, and the queue stop file removed
+Verification: `CS-NEXT-SESSION.txt` (its `=== NAMES` block holds the clause 11 line, its decisions block the merged
+session 156 and 157 line, its report the one line pointing here), `WAKEUP_NOTES.md` (the session 162 entry), this
+record and the CS-1419 record below it. This record closes nothing, so no test names one.
+SCOPE. The session 162 /done, run by one sub-agent with no lane live; the suite gate read 0 of 2 slots held. It
+applies U-138.6 part 6 (this item's clause 11) and U-151.1 (CS-1419 part 1, the record below), and records the
+session's three adjudicator rulings.
+STEP 0: start 2026-11-25T10:34:25 local. WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0 with two
+SHAs (not a merge); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit 0, one path, docs/LEDGER.md, not
+the citation historical file. Porcelain empty. The remote stood at the session 161 /done commit, whose CI runs
+(tier1, tier2, fleet-identity-guard and the push-on-main run) read success for its full SHA at this /done, with
+fifteen local commits above it: U-138.5 (six), U-138.6 (four) and CS-1412 (five), carried by this ritual's one push.
+No note was authored into the outbox this session (the newest is 2026-11-17 07:04). Closed this session: none; no id
+allocated (the highest held reads CS-1440). Highest tier touched: 1 (docs, BACKLOG.md and tools/provenance.tsv; no
+Python file). The queue stop file this session placed for the U-138 filing was removed by a direct unlink of the
+replaceable 76-byte sentinel, no lane live, and read back absent; STOP, INBOX_STOP and HOLD_MAIN_SPAWN absent. Gated
+suite rows since the session 161 push: three, each exit 0, so no failing-ids log was owed for CS-1366. PRE-FLIGHT:
+the last printed checklist task, CS-1412, is done (landed, open by ruling); every other task is carried into the
+hand-off in serial order.
+STEP 1, tier 1, from the repo root on the .venv interpreter, no whole suite: `python -m pytest` over
+tests/test_docs_citations.py, tests/data/test_item_notes_index.py, tests/test_doc_budget.py,
+tests/test_ledger_entry_shape.py, tests/test_citation_guard_shapes.py, tests/test_provenance_manifest.py,
+tests/ops/test_lane_scope.py, tests/test_done_ritual_arms.py, tests/test_dated_headings.py,
+tests/test_tier1_budget.py, tests/test_citation_tables.py, tests/test_bare_path_citations.py,
+tests/test_sha_citation_gate.py and tests/ops/test_scope_binding.py, `-q -n 4 -p no:cacheprovider`, every path read
+present first: exit 0, 1420 passed, 0 failed, 0 skipped, 98.55 s. No ruff or mypy run: no Python file changed.
+RERUN after the ritual's edits (the hand-off, WAKEUP_NOTES.md, docs/history_notes.md and these two records), the
+same 14 paths and flags: exit 0, 1420 passed, 0 failed, 0 skipped, 124.78 s.
+STEP 2: this record and the CS-1419 record below. STEP 3: ROADMAP.md and docs/GATED.md unchanged (nothing closed,
+no new id).
+STEP 4: WAKEUP_NOTES.md gained session 162; session 159 relocated verbatim to docs/history_notes.md.
+STEP 5, run after this record, the hand-off and the wake-up entry were written: `python tools/drift_guard.py` exit
+0, 11 of 11 PASS; `python tools/doc_budget.py` exit 0, 43 measured, 0 over; `python tools/sha_citation_gate.py`
+exit 0; `python tools/memory_sync.py` not run: no memory source doc changed. The board render (`--final --session
+162`) exit 0, a no-op (not opted in); `fleet_done.py archive --auto` printed archive skipped (23744 B under 27648 B).
+STEP 6, CLAUSE 11 BY D80'S ROUTE. The route is the one THE PLAN states at line 31272 (the clause 2 that the leaf files
+under the U-142 row): the session 156 and 157 decision blocks become one line that keeps the gist and Rev of 156 D2,
+156 D7 and 157 D2 (157 D7 states none) and points at THE 158 BASE; then the /done report block becomes one line
+pointing at this record. Measured on the starting hand-off: route b, 683 bytes to one line of 569, 24954 to 24840;
+route a, 1902 bytes to 277, 24840 to 23215. Pre-check printed: `CS-NEXT-SESSION.txt 23215 + 79 = 23294 / 25000`,
+under 25000, so the clause 11 line, exactly `THE WAVE PLAN - docs/item_notes/wave-plan.md: the wave table and its
+pointers.`, was written into the NAMES block. No hand-off block was copied into docs/history_notes.md, no file was
+created and the kit archive was not applied. The whole rewrite for session 163 then reads 23744 bytes; its token diff
+against the starting hand-off drops no CS or CS-G token.
+CLOSE NOT DONE. Clause 11 now holds, but the U-138.6 unit adjudication's clause 6 stays NOT MET to the letter (no
+rows for U-071 and U-045, the ruled deviation); the parts 1 and 2 of the U-107 row (filed as CS-1439) sit in W1
+where ruling P4F-1 builds them in part 3's W2 group, routed here by the CS-1412 record; and no distinct adjudicator
+has re-graded all 17 clauses. So this item's ROADMAP.md line and leaf section stay, and no re-grade was run: a clause
+already standing NOT MET decides the hold.
+REAP --apply: 3 removed (the session's builder worktrees, each clean with every commit on main by patch; branches
+kept), 1 kept (lane-0), 0 listed. The board render and the archive step run after the hand-off is read back.
+RULINGS of the session, each by a distinct adjudicator (decision; alternatives; why):
+A. CS-1412 proceeds once the U-138.6 table rows have landed: its dependency on this item's part 6 (the Depends line of
+its phase7.md section) binds only the wave table it consumes. Alternative: wait for this item's close. Why: that
+item reads the table alone; the hand-off line and the close add nothing it consumes.
+B. The serial track HALTS after CS-1412: this /done runs, and the U-142 row resumes next session. Alternatives: the
+U-142 row now; the U-140 row ahead of it. Why: THE PLAN line 4091 ends a session at its own /done and resumes at the
+next unit in track order; lines 4047 and 2810 make /done the sole hand-off writer and bar a mid-session hand-off
+edit, which the U-142 row needs; lines 4091 and 4387 bar reordering the U-140 row ahead of it.
+C. U-151.1, dropped from the session 161 hand-off's order (`grep -c CS-1403 WAKEUP_NOTES.md` read 0 where its
+clause 11 needs at least 1), is applied in this /done per its leaf ("applied by a /done", "part 2 after part 1")
+and restored to the order. Alternative: leave it dropped until part 2. Why: FLEET item 5 carries every item not
+acted on, and part 2 cannot run before part 1.
+OTHER: the empty sidecar scratch folder adv-u138-1-wt is still busy (rmdir refused again) and is carried; THE PLAN
+re-hashed equal to its named bytes. UNVERIFIED: the adversary on the U-138.5 record correction (the commit
+correcting its R1 pointer sentence) read NOT REFUTED but left unchecked the CS-1257 headline reason, the phase7
+pointer offset, and the U-157 and 1967 counts; the U-138.3 and U-138.4 adversary verdict has no file; CI on this
+ritual's push is unread.
+
+### 2026-11-25 - CS-1419 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-151.1: the clause worksheet at the session 162 HEAD and the wake-up entry, applied by the session 162 /done
+Verification: `WAKEUP_NOTES.md` (the session 162 entry names the README refresh, CS-1402 and CS-1403;
+`grep -c CS-1403 WAKEUP_NOTES.md` prints 1, and printed 0 at the starting HEAD), this record. The worksheet is
+untracked, in the sidecar Scratch folder done-162, as the part's write list says. This record closes nothing, so no
+test names one.
+SCOPE. U-151.1, part 1 of 2 of this row (the U-151 row, with U-157's clauses as 13 to 21): measure, then the wake-up
+entry, in the /done's steps 0 to 4. Its write list is WAKEUP_NOTES.md alone; the /done's step 2 writes this record.
+Part 2 (U-151.2, the rewrite and its record) waits for its place in the serial order, with U-157, then U-152.
+WORKSHEET at the starting HEAD, read from `git show HEAD:CS-NEXT-SESSION.txt` (24954 bytes): clause 1 MET (MANIFEST
+version 32; the R1 and KIT lines each name v32 and CS-1403; the v31 grep 0); 2 MET (the NEW IDS line names
+the highest filed, CS-1440; the stale-id grep 0); 3 MET; 4 MET (the six stamps read against the outbound delivery
+record, 2026-11-14 11:30, 2026-11-15 05:17, 2026-11-16 20:37, 2026-11-16 22:45, 2026-11-17 05:02 and 2026-11-17
+07:04, each to MAIN); 5 MET (collapsed
+"newer than v31" 0, "UNREAD at v31" 0, the CS-1231 item holds "at v32"); 6 MET; 7 MET (the board grep 0, the
+drive-root grep 0); 8 MET (24954 bytes; the headroom grep 0; drift_guard, doc_budget and sha_citation_gate exit 0;
+the four pytest files inside this /done's step 1 run, exit 0); 9 graded on part 2's rewrite (the before list, 88 CS
+ids and CS-G06, CS-G09 and CS-G11, kept in the worksheet); 10 MET (`git ls-files docs/handoff-archive` prints
+nothing; no S0 RULING 3; the route is the SESSION 159 D1 line with its Rev); 11 UNMET (`grep -c CS-1403
+WAKEUP_NOTES.md` 0), MET after the entry (1); 12 MET: the inbox notes stamped after 2026-11-14-0936, other than the
+three orders and the kit v32 payload folder, are 2026-11-16-2109 (MAIN INFORMATION, TERMINAL) and 2026-11-17-2119 (an
+INFORMATION note on the machine-global ruff 0.17.3: this tree's .venv ruff reads 0.15.22, inside its declared bound;
+no hand-off line changes; the hand-off's 157 D3 is the CS-1397 act decision, not a ruff pin, so the note bears on
+no decision line).
+RED-FIRST GREPS at the starting HEAD (the part's list): `grep -c "KIT v32" CS-NEXT-SESSION.txt` 1, `grep -c
+"CS-1403" CS-NEXT-SESSION.txt` 2, `grep -c "2026-11-16-1947" CS-NEXT-SESSION.txt` 1, `grep -c "CS-1403"
+WAKEUP_NOTES.md` 0: the session 159 to 161 rewrites had met the hand-off half; only the wake-up half was owed.
+RULING C (the CS-1409 record above): this part was dropped from the session 161 hand-off's order and is restored.
+
 ### 2026-11-25 - CS-1412 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The hub chain column and its key table added to the wave annex; clauses 5 and 6 open
 Verification: `docs/item_notes/wave-plan.md` (the `chain` column at the right-hand end of the wave table and the
 `### Hub files` key table directly below it, commit "add the hub chain column to the wave annex"; the pointer

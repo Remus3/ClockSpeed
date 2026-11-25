@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 162 - 2026-11-25 - wave 1 group 1 merger track: U-138.5 and U-138.6 filed under CS-1409, CS-1412's chain column landed and left open by ruling, the serial track halted for /done
+
+- Shipped: nothing closed and no id allocated. Landed: U-138.5 (THE PLAN's BACKLOG, phase 6, phase 4 follow-up and phase 7 batches, under CS-1409), U-138.6 (the 552-row wave table in docs/item_notes/wave-plan.md, its hand-off line filed by this /done) and CS-1412 (the Write-list column moved to docs/item_notes/wave-plan-write-lists.md, then the hub chain column and its key table). Still closed and carried for U-151.1 (CS-1419 part 1): the README refresh for v0.1.0 (MAIN 2005, answered 2026-11-16 20:37), CS-1402 (scratch is never authored at a drive root) and CS-1403 (kit v32 adopted). Detail in docs/LEDGER.md.
+- In flight: nothing dirty. The serial track halted after CS-1412 by ruling. CS-1413 (U-142) is next, then CS-1411, CS-1414, CS-1415, CS-1417, CS-1419 part 2 with U-157, CS-1418 and CS-1366's read (on or after 2026-11-26 15:29 local). CS-1409 stays open on clause 6 (no rows for U-071 and U-045), the CS-1439 re-placement and a re-grade of all 17 clauses. CS-1412 stays open on clause 5 (no doc-slice rows), clause 6 (the shell/main.js entry read, owed at CS-619's first wave entry) and clause 8 (graded on 29 items only). CS-1334 still waits on host RAM and CS-1418. The queue stop file was removed at this /done.
+- Decisions: no ADR. Three adjudicator rulings, each fenced in the hand-off's SESSION 162 block: CS-1412 proceeds because it reads only the wave table; the serial track halts after CS-1412 for this /done, and CS-1411 is never moved ahead; U-151.1, dropped from the session 161 hand-off's order, is applied by this /done and put back in the order.
+- Surprises: the U-138.6 hand-off line did not fit (24954 + 79 against 25000), so it waited for this /done's D80 route: the session 156 and 157 decision blocks became one line, and the /done report block became one line pointing at its ledger record. The wave table brought its annex near the leaf budget, so CS-1412 first moved the Write-list column to a sibling annex. No spike contradicted BOOTSTRAP.md.
+- Failed paths: CS-1412's first CHECK compared spellings instead of files and hid a fault (the mutation adversary refuted it, and the CHECK was hardened); a hand-off order that left out U-151.1.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then CS-1413 (U-142).
+
 ## Session 161 - 2026-11-25 - wave 0 run to its exit and wave 1 group 1 begun: CS-1408, CS-1416 and CS-1401 closed, THE PLAN's rows filed as CS-1409 to CS-1440, CS-1366's read FAIL
 
 - Shipped: CS-1408 (the game build re-pinned to CL-520140), CS-1416 (ADR numbers by one writer, OPERATIONS 10.9) and CS-1401 (the advice list served domain-interleaved, visible cards first) closed; THE PLAN's rows filed as CS-1409 to CS-1440 in the phase 7, phase 5 and phase 6 batches, 60 rows staged unfiled; U-158's citation line; the wave 0 exit record. Detail in docs/LEDGER.md.
@@ -50,12 +59,3 @@ the line becomes a pointer.
 - Surprises: the session 159 push was red on test_secret_sweep because a depth-1 CI checkout holds fewer blobs than the tracked paths it counted (CS-1404). write_pin's five instant retries were spent at once under load, so a concurrent replace still escaped after the CS-914 close. The CS-913.1 tests pushed test_world.py over the tests-tree size cap. No spike contradicted BOOTSTRAP.md.
 - Failed paths: counting tracked paths as the secret-sweep blob floor; a fixed retry count with no time budget for the pin replace.
 - Next action: read the remote ref against this HEAD by full SHA, CI tier1 for that SHA and this ritual's timing record; then THE PLAN's wave 0 W0b from U-138.1.
-
-## Session 159 - 2026-11-19 - planning only: THE PLAN delivered, no item closed, the /done push blocked by one red test
-
-- Shipped: nothing closed and no id allocated. THE PLAN (the master plan on the operator's Desktop) was delivered with its one batched operator ask. Detail in the session 160 ledger records for CS-1401 and U-151.
-- In flight: the /done push was blocked by one failed test (10746 passed, 2 skipped); session 160 filed it as CS-1404 and pushed. The ledger record and this entry followed in session 160.
-- Decisions: no ADR. Hand-off blocks are relocated only verbatim into a text fence at the end of docs/history_notes.md (Route B); the hand-off's SESSION 159 block carries the fence.
-- Surprises: a workflow resume after usage-limit refusals re-ran finished calls, so continuation scripts replaced it. The first account sat at its weekly limit. No spike contradicted BOOTSTRAP.md.
-- Failed paths: resuming a workflow across usage-limit refusals.
-- Next action: the push, then THE PLAN's Part 0 and wave 0.
