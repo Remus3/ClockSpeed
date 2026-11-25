@@ -75,6 +75,51 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.4: the rest of the phase6.md batch, none fitting, and the staged list of the session 159 plan, 60 rows unfiled
+Verification: this record; ROADMAP.md, docs/item_notes/phase6.md and config/lane_scopes.json are unchanged by this
+part, read back at the U-138.3 tip; the budget lines below, printed by the filing script. Written by the session
+161 merger (part M3), the one filing writer, with the queue stop file placed. This record closes nothing, so no test
+names one.
+BUDGETS (clause 6), printed before the batch for the next row in wave order, U-077 (W5): ROADMAP.md 44245 + 190 =
+44435 / 61440; docs/item_notes/phase6.md 127719 + 9079 = 136798 / 131072. The leaf sum is over its budget, so nothing
+more is filed; rows are taken in wave order, so no later, smaller row is filed past it, and part 4 files no row.
+STAGED LIST (clause 6, the D93 fallback): every unfiled row by plan key, its leaf, the wave of its first part as the
+plan's wave lists place it, and the wave that files it as that wave's last slice (the one before). Carried by plan key
+with no id; U-138.6's annex rows name each with the word unfiled.
+docs/item_notes/phase6.md, 53 rows: U-077 (W5, by W4); U-073 (W6, by W5); U-060 (W6, by W5); U-116
+(W8, by W7); U-117 (W8, by W7); U-061 (W8, by W7); U-074 (W9, by W8); U-097 (W9, by
+W8); U-098 (W12, by W11); U-059 (W12, by W11); U-119 (W13, by W12); U-101 (W13, by
+W12); U-091 (W14, by W13); U-102 (W16, by W15); U-099 (W17, by W16); U-134 (W20, by
+W19); U-062 (W20, by W19); U-132 (W21, by W20); U-125 (W21, by W20); U-133 (W23, by
+W22); U-126 (W24, by W23); U-004 (W25, by W24); U-104 (W26, by W25); U-118 (W26, by
+W25); U-135 (W27, by W26); U-136 (W27, by W26); U-103 (W28, by W27); U-079 (W31, by
+W30); U-063 (W32, by W31); U-075 (W34, by W33); U-003 (W36, by W35); U-054 (W38, by
+W37); U-056 (W38, by W37); U-012 (W39, by W38); U-064 (W39, by W38); U-010 (W40, by
+W39); U-057 (W41, by W40); U-109 (W42, by W41); U-078 (W46, by W45); U-022 (W48, by
+W47); U-066 (W50, by W49); U-055 (W51, by W50); U-069 (W52, by W51); U-070 (W53, by
+W52); U-124 (W54, by W53); U-154 (W55, by W54); U-092 (W55, by W54); U-121 (W56, by
+W55); U-090 (W56, by W55); U-093 (W56, by W55); U-122 (W57, by W56); U-120 (W57, by W56);
+and U-071, placed in no wave (it waits on the unscheduled part U-003.2), filed by the wave before the one a
+re-pack places it in.
+docs/item_notes/phase7.md, 4 rows (staged by U-138.1): U-115 parts 1 to 3 (W6, by W5); U-115 part 4
+(W12, by W11); U-002 (W14, by W13); U-149 (W20, by W19). The first child row of U-115 is its parts 1 to
+3 and the second its part 4; the wave lists place part 4 in W12, where the U-138.1 record read W13 or later, and
+the wave lists govern. U-149 is a merger landing that WAITS, so its section opens with a clause 0 entry check.
+docs/item_notes/phase5.md, 3 rows (staged by U-138.2): U-047 (W49, by W48); U-067 (W51, by W50);
+and U-045, WAITS in every part and placed in no wave, filed by the wave before the one a re-pack places it in,
+its section opening with a clause 0 entry check naming D45 and its two dependencies.
+ROOM: the phase 6 leaf has 3353 bytes left, the phase 5 leaf 4980 and the phase 7 leaf 8063. In each leaf the first
+staged row in wave order does not fit (U-077 9079 bytes here; U-047 5925 and the first U-115 child row
+14601, as the U-138.2 and U-138.1 records measured them), so no staged row is filed now. Each filing wave
+prints the clause 6 lines first and files only into room its leaf has gained, as rows close and their sections
+relocate under the close rule of docs/item_notes.md; a row that still does not fit carries to the next filing wave,
+and no build slot starts an unfiled row (Part 0 rule (c)). The commit that files a staged Phase 6 row owes that row's
+clause 17 excluded entry, as U-138.4's text says.
+NOT IN THIS LIST, by state: U-114 and U-128, the two BACKLOG rows with a phase 6 leaf, and the nine phase 6
+specs keyed by an existing CS id, which extend existing items; both kinds are part 5's (clauses 4 and 5).
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; no adversary has read this batch
+yet, and one is owed at the batch commit.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.3: the phase6.md batch of the session 159 plan, 7 rows filed as CS-1434 to CS-1440, 53 staged
 Verification: `ROADMAP.md` (7 new lines under the Phase 6 heading), `docs/item_notes/phase6.md` (7 new sections, the
 ids of the MAP below, each with one
