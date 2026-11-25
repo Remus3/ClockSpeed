@@ -307,3 +307,14 @@ CS-1318 - a background-child reaping arm in `tests/test_hook_probe_bound.py` fai
 CS-1334 - walk an anonymous clone of the public repository on a fresh Sandbox, separately graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1358 - MAIN ORDER SPEED-CS item 2: one session-scoped `tree_population` fixture in `tests/conftest.py` replaces every per-module `git ls-files` re-listing and re-read in `tests/` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1366 - MAIN FLEET-9: read back zero live-state or timing failures in gated runs for 7 days, due 2026-11-08 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1409 - the session 159 plan's accepted rows are in no tracked file: file each as a line and a leaf section, and add the wave annex - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1410 - the README disclaimer names the studio only and carries no trademark sentence - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1411 - a session has no stated wave size, push count or exit measurement, so each wave is sized by guess and pays the whole suite several times - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1412 - the wave annex gives no writer order for a file several slices write, so two builders of one group can be handed the same file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1413 - a hand-off behind HEAD costs a session: open the next-action block with a WAVE STATE stanza and reconcile it from the tree at every start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1414 - a new tracked file with no provenance row is found only by the wave's one push: name new files per slice and stamp them at each group landing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1415 - the open save-reader and echo-guard follow-ups have no order and no stated way to take a wave slot, so a wave is cut without them or ahead of ready product work - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1416 - any writer may take the next ADR number, and nothing says who amends the doctrine or the specification, or when - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1417 - the lane has no between-session rule: no scope per gap, no fixed cycle count and no entry rule for a remote the lane advanced - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1418 - the hand-off's operator asks sit in two blocks and state no default and no row each one frees - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1419 - the hand-off names a superseded kit, a stale highest id and no order after 2026-11-14 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

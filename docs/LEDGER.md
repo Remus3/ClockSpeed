@@ -75,6 +75,70 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-24 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.1: the phase7.md batch of the session 159 plan, 11 rows filed as CS-1409 to CS-1419, 4 staged, and the wave annex created
+Verification: `ROADMAP.md` (11 new lines under the Phase 7 heading), `docs/item_notes/phase7.md` (sections CS-1409 to
+CS-1419, each with one `### Acceptance` and a `### Filed 2026-11-24 by the session 161 wave 0 filing` block),
+`docs/item_notes/wave-plan.md` (header, pointer lines and the 12-column table header only), its row in the leaf table of
+`docs/item_notes.md`, and its `tools/provenance.tsv` row; `tools/drift_guard.py` guard (j) and
+`tests/test_provenance_manifest.py::test_every_tracked_path_has_a_manifest_row`, each red then green as recorded below.
+Written by the session 161 merger, the one filing writer, with the queue stop file placed.
+PRE-FLIGHT (clause 1), read back at the filing HEAD: the queue stop file is present (ls prints its path); no lane lock
+file is live; the high-water id is CS-1408, read across ROADMAP.md, BACKLOG.md, docs/GATED.md, docs/LEDGER.md,
+docs/history_notes.md, the item-note leaves, the hand-off, git log --all and origin/main's ROADMAP.md (the tokens
+CS-4000, CS-10000 and CS-99999 found there are examples, not ids); `git grep -c` printed nothing for each id from
+CS-1409 to CS-1424 before use.
+MAP (plan key to CS id, D93): U-138 to CS-1409 (this unit's own row, filed first); U-007 to CS-1410; U-140 to CS-1411;
+U-141 to CS-1412; U-142 to CS-1413; U-143 to CS-1414; U-144 to CS-1415; U-146 to CS-1416 (WAITS, so its acceptance
+opens with a clause 0 entry check, D93); U-147 to CS-1417; U-152 to CS-1418; U-151 to CS-1419 (its entry check failed,
+below; U-157's clauses 1 to 9 are filed under it as clauses 13 to 21, D83). Ids run serially over the rows filed, in
+the adjudicated plan order.
+STAGED (clause 6, the D93 fallback; no id, carried by plan key, unfiled): the first U-115 child row (U-115.1 to
+U-115.3, to sit directly after CS-1204; W6), the second U-115 child row (part 4; W13 or later), U-002 (W14) and U-149
+(WAITS; W20). Each is filed into the phase 7 leaf as the last slice of the wave before the wave that builds it, once
+that leaf has room; U-138.4's staged list and U-138.6's annex rows carry them.
+BUDGETS (clause 6), printed by the filing script before the batch: ROADMAP.md 38885 + 2150 = 41035 / 61440;
+docs/item_notes/phase7.md 50570 + 78348 = 128918 / 131072. Rows were taken in wave order (the W0b merger track, then
+W1); the first that did not fit was the first U-115 child row (14601 bytes), so it and every later row are staged.
+NOT FILED, by ruling: U-052 (CS-1406, CLOSED); U-145 (its spec says NOT FILED, IC-CS-947).
+ENTRY CHECK (U-151), at the filing HEAD on the committed hand-off: clause 1 MET (R1 and the kit line name v32 with
+CS-1403; the manifest reads 32; the v31 grep prints 0); 2 MET in purpose and NOT MET in letter (NEW IDS names CS-1407,
+the highest when the session 160 /done wrote it; this session's merger allocated CS-1408 after it; the "CS-1401 the
+highest" grep prints 0); 3 MET; 4 MET; 5 MET (collapsed-whitespace greps 0 and 0, "at v32" in the CS-1231 item, the G3
+and drive-root kit waits present); 6 MET; 7 MET (render and drive-root greps 0, the C13 item names the sidecar Scratch
+folder); 8 MET (24633 bytes; doc_budget, drift_guard and sha_citation_gate exit 0 this session; the four named test
+files pass; the headroom grep prints 0); 12 MET (2026-11-16-2109 and 2026-11-17-2119 classed in the session 159
+worksheet; no inbox note is newer). U-157: clause 1 NOT MET (no Dependabot DECISION RECORD in this file), 2 NOT MET
+(it rides on 1), 3 NOT MET (`BACKLOG.md` lacks the NOT ADDED sentence), 4 NOT MET (grep -c "Dependabot" on the hand-off
+prints 0), 5 NOT MET (no G3 record). Any failure files the row, so U-151 is filed, whatever clause 2's reading.
+FIRST REDS, each shown before its fix: guard (j) FAIL, "these leaf files are named by no row of the leaf table in
+docs/item_notes.md: docs/item_notes/wave-plan.md", with the annex present and no index row; guard (j) FAIL, "CS-1409
+has no section in docs/item_notes/phase7.md", with the first line filed and no section; and
+`tests/test_provenance_manifest.py` 2 failed, "these tracked files have no row in tools/provenance.tsv", naming the
+annex, before `tools/provenance_stamp.py add` stamped it authored under CS-1409 (check PASS after).
+CLAUSE 16, the one recorded respelling, written once here (a builder restores each name it builds): CS-1409 filed
+alone with its acceptance untouched made `tests/test_docs_citations.py` red, 6 failed - line pointers into tracked
+Python modules, a markdown pointer landing on a blank line, the pinned unforbidden-pointer residual and bare paths to
+the then-untracked annex. With every row filed it also named one unbuilt test citation in CS-1417 and two more
+markdown pointers arriving in the pinned residual. The respelling, applied identically to every filed row and nothing
+else changed: (a) an unbuilt file is written as its existing directory in backticks, a space, then the bare file name
+(no site in this batch); (b) an unbuilt test is written test-<rest> and joined to its file by the word in (1 site);
+(c) MERGER EXTENSION, decided here because clause 16 names only unbuilt names and its negative forbids touching the
+citation tests: every line pointer in a filed acceptance is written as the path, a space, then "line N" or "lines A-B",
+the path keeping its backticks where it had them (19 sites, in CS-1409, CS-1410, CS-1412, CS-1413, CS-1414 and
+CS-1417). Alternatives: respell only the pointers refused today (rejected: it turns on each target line's content, so
+it is not mechanical); stage the six rows (rejected: it stages this unit's own row). Line numbers stay as the plan
+measured them.
+CHECK (clause 2): an untracked scratch script printed "rows 11, lines 11, sections 11, acceptance mismatches 0
+(respelled rows 6)", comparing each filed acceptance with the master plan's bytes after inverting the respelling, the
+clause 0 line excluded. Every Filed block carries the clause 3 fields. Clause 13: no row returned to a planner.
+DEVIATIONS from the session 161 adjudicator's rulings, the merger's call with the operator away: 11 rows filed, not 14
+(the phase 7 leaf cannot hold the rest under its budget, and clause 6 stages in wave order); ids CS-1409 to CS-1419,
+not CS-1410 to CS-1423 plus CS-1424 (a staged row takes no id); respelling extension (c). Applied as ruled: the own
+row under the Phase 7 heading (the spec's line number is stale), U-052 and U-145 not filed, the U-151 entry check, the
+index row directly after the leaf-membership-rule row beginning with the annex prefix, and the authored stamp.
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; no adversary has read this batch
+yet, and one is owed at the batch commit.
+
 ### 2026-11-24 - CS-1408 - CLOSED: the version pin re-pinned to the 1.2.6 game build; the docs bytes moved, the census is unchanged, and the usmap evidence table is re-measured against the patched install
 Verification: merged files `clockspeed/data/version.py` (`_PIN_JSON`: docs_bytes, docs_sha256, game_build and
 integrity only; the census and exponents unchanged), regenerated by `python tools/drift_guard.py --re-extract`
