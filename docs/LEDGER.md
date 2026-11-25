@@ -75,6 +75,67 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B4: the phase7.md batch of the session 159 plan, CS-1334 clauses 1 to 11 filed, phase 5 files nothing, the duty table of all 20 ids
+Verification: `docs/item_notes/phase7.md` (CS-1334 clauses 1 to 11 appended after the last body line of the section's
+one `### Acceptance`, 5493 bytes, the plan's numbering kept, no new line and no Filed block); `tools/drift_guard.py`
+guard (j) run before and after the host section, as recorded below; `tests/test_docs_citations.py`, green after.
+Written by the session 162 merger (part U-138.5, writer B4, the last batch of the part), the one filing writer, with
+the queue stop file placed. This record closes nothing, so no test names one.
+DUTY (clause 5, D93): CS-1334 is not a hub; its plan row says neither text is edited and that clauses 1 to 11 are
+added by the rulings, so they widen its one existing Acceptance and the existing prose stays untouched. The CS-1334
+section still holds one `### Acceptance`: the check below printed 1. The plan numbering is kept, because clauses of
+the added text cite one another (clause 3(d)). The extension of CS-1349 that the CS-1334 spec names is already folded
+into CS-1334 by the U-052.5 record.
+MAP (plan spec key to existing id; no new id is allocated): CS-1334 to CS-1334, clauses 1 to 11 (plan lines 24506 to
+24516 of the session 159 plan), no wave (BLOCKED-OPERATOR).
+BUDGETS (clause 6), printed by the filing script before this batch: ROADMAP.md 44245 + 0 = 44245 / 61440 (no ROADMAP
+write in U-138.5); docs/item_notes/phase7.md 123009 + 5493 = 128502 / 131072, CS-1334 being the one phase 7 row that
+files. The other leaves of this part: docs/item_notes/phase6.md 127719 + 3073 = 130792 / 131072 (B2);
+docs/item_notes/phase4-followups-960.md 39902 + 1005 = 40907 / 131072 (B3).
+PHASE 5 FILES NOTHING. Printed: docs/item_notes/phase5.md 126092 + 5479 = 131571 / 131072. The first phase 5 extension
+row in wave order is CS-1048 (W3); it does not fit, so it and every later phase 5 row are staged and nothing smaller
+is taken past it (D2). STAGED, in wave order, each unfiled and filed as the last slice of the wave before its
+builder's, once the leaf has room: CS-1048 appended clauses 1 to 17, 5479 bytes, W3, by W2; CS-1058 NOTE, hub, 1647
+bytes, W4, by W3; CS-1251 build note, hub, 4126 bytes, W10, by W9; CS-1398 appended clauses, 4339 bytes, W21, by
+W20; CS-1064 NOTE, 3783 bytes, W34, by W33 (not a hub, but its row says the acceptance is not widened and names no
+writer, so the dated NOTE shape, the ruling's reading); CS-1236 appended clauses 2 to 15, 8401 bytes, W35, by W34,
+with the heading for D66, D35 and D-P4-20 (door and storage ruled by planning session 159) still owed, its body not
+being one plan span. U-138.6's annex rows carry them.
+CARRIED, not filed (a new row needs a ROADMAP.md line, and possibly a lane-scope entry, outside this part's write
+list; unfiled): the CS-1058 child row, clauses 6 to 8 of its spec, leaf docs/item_notes/phase5.md as a section
+directly after the CS-1058 section, ROADMAP heading Phase 5, lane-scope need to be read by its filing slice (CS-1058
+is in no scope's item list today), W4, filed by W3. The carried rows of B2 and B3 (the CS-1260 child, the CS-1047
+children A and B, the CS-1257 D105 headline, the CS-962 child) are named in their own records. U-138.6's annex names
+every one.
+NONE (each names its own later writer): CS-1243 (replaced by the D45 text in part 4 before any builder starts,
+W2); CS-1366 (one dated block written by the closing read, which already exists in the phase 7 leaf, W0); CS-1401
+(closed in session 161, its D51 clause already added). With the three phase 6 NONE rows of B2
+(CS-619, CS-1046, CS-1262) that is the whole NONE population.
+DUTY TABLE, all 20 ids of the session 159 plan's existing-id specs, by id, duty and state: CS-619 NONE (hub, part 4
+NOTE); CS-872 APPEND clauses 1 to 14, staged W43; CS-962 NOTE H1 to H4, filed B3; CS-1046 NONE (part 4 doc
+slice); CS-1047 RETURNED to a planner, children carried; CS-1048 APPEND, staged W3; CS-1058 NOTE, staged W4, child
+carried; CS-1064 NOTE, staged W34; CS-1236 APPEND, staged W35; CS-1243 NONE (part 4 replaces); CS-1251 NOTE, staged
+W10; CS-1254 APPEND, staged W34; CS-1257 APPEND, staged W29, headline carried; CS-1258 NOTE, staged W14; CS-1260 NOTE
+clauses 1 to 3 filed B2, child carried; CS-1262 NONE (part 1 writes); CS-1334 APPEND clauses 1 to 11, filed
+B4; CS-1366 NONE (closing read); CS-1398 APPEND, staged W21; CS-1401 NONE (closed). Filed: 3
+(CS-962, CS-1260, CS-1334); staged: 10
+(CS-872, CS-1048, CS-1058, CS-1064, CS-1236, CS-1251, CS-1254, CS-1257, CS-1258, CS-1398); returned: 1; none: 6
+(CS-619, CS-1046, CS-1243, CS-1262, CS-1366, CS-1401). The four counts sum to 20.
+GUARD (j), run before and after the host section: before, `j      item-notes index             PASS`; after, `j
+item-notes index             PASS`; the whole run read `VERDICT: CLEAN - no drift detected` after.
+RESPELLING (clause 16): the clauses carry 6 sites, all 6 line pointers (the in-tree gitignored harness pointers and
+the PowerShell script pointers kept as the precedent keeps them), the one recorded respelling of the U-138.1 record,
+no new shape.
+CHECK (clause 5): an untracked scratch script printed "rows 1, acceptance mismatches 0, plan lines 24506-24516,
+acceptance headings in the CS-1334 section 1": the filed clauses equal the master plan's bytes after inverting the 6
+logged sites. Clause 13: no row returned on procedure grounds; clauses 4, 5, 6, 8, 9 and 11 are filed, as the U-138.1
+to U-138.3 records read it.
+Rulings applied: the session 162 adjudicator's ruling on the U-138.5 spec, questions on scope (full), the extension
+duties, the T3 child rows (carry, do not widen), clause 13, budgets and batching (one batch per file, phase 5 files
+nothing and its list goes in the closing record).
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; an adversary is owed at the batch
+commit.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5 B3: the phase4-followups-960.md batch of the session 159 plan, the CS-962 NOTE filed
 Verification: `docs/item_notes/phase4-followups-960.md` (one new dated NOTE, `### NOTE - filed 2026-11-25 by the
 session 159 plan`, directly above the one `### Acceptance` of the CS-962 section, 1005 bytes, the hub clauses H1 to
