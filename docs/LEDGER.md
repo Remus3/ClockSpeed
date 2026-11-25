@@ -75,6 +75,106 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.6: the wave table rows filed, the hand-off line held by its pre-check, part 6 open
+Verification: `docs/item_notes/wave-plan.md` (its wave table, one row per slice, appended under the existing header;
+the header, the pointer lines and the re-pack tools line unchanged), this record; `tools/drift_guard.py`,
+`tools/doc_budget.py` and `tests/test_ledger_entry_shape.py`, run after the write as the commit body records. Written
+by the session 162 merger, the one filing writer, with the queue stop file placed. This record closes nothing, so no
+test names one.
+SCOPE. U-138.6 of the session 159 plan, part 6 of 6 of the U-138 filing under this id: the wave table rows (clauses 7
+and 9) and this closing record with the whole key-to-id map. The hand-off line (clause 11) waits on its pre-check, so
+the close (this item's ROADMAP.md line removed, its section relocated to `docs/history_notes.md`) is NOT done
+and CS-1409 STAYS OPEN. No id was allocated: the high-water id read CS-1440 before and after.
+CLAUSE 11 PRE-CHECK, printed before any edit: CS-NEXT-SESSION.txt 24954 + 79 = 25033 / 25000. Not under 25000, so the
+THE WAVE PLAN line waits and part 6 stays open; D80's route is the /done's, not this unit's. What reopens it: the
+first /done that frees the bytes; then the line, the close and the grading of all 17 clauses by a distinct adjudicator
+follow, as the U-138 Parts state.
+BUDGET (clause 6), printed before the rows were written: docs/item_notes/wave-plan.md 1454 + 126953 = 128407 / 131072
+(first commit); after the adjudicated repair: docs/item_notes/wave-plan.md 1454 + 128361 = 129815 / 131072. ROADMAP.md
+and every phase leaf are untouched. `tools/doc_budget.py` printed VERDICT: PASS after each commit.
+ROWS (clause 7): 552 = 432 builder rows (every slice of the plan's wave lists, each plan slice id once), 24
+merger-track rows (W0a 8, W0b 16), 73 filing rows (58 placed staged rows, 10 staged extensions, 5 carried child rows),
+23 lane-gap rows. `grep -c -E "^## CS-" docs/item_notes/wave-plan.md` printed 0. Wave ids W0a, W0b, W1 to W73.
+CLAUSE 9, printed by the untracked generator from the table's own cells: `wave <id>: parallel pairs P, shared paths 0`
+for every wave, 74 of 74 (W0a and W0b read as one wave 0), total shared paths 0; recomputed by the scope adversary
+from the cells and, separately, from the plan's unit data: 0 and 0. Filed rows take their write-lists from their
+leaves' Write-list part lines ("leaf part lines 76 differ 0" against the plan's unit data); unfiled rows, having no
+leaf, from the plan's unit data. No Write-list cell names a bookkeeping file or a hub document.
+COLUMN READINGS, the merger's, ruled by a distinct adjudicator before the build and on the repair:
+(a) slice ids of the merger-track, filing and lane-gap rows are COINED here, not plan ids: W0a-M01, W0b-M01, W<n>-F01,
+W<n>-L01, numbered per wave in table order; none matches the plan's group-slice form.
+(b) Item: a filed key reads its id (part keys as "CS-<id> part <n>"); U-052.1 to U-052.6 read "CS-1406 part <n>"
+(CS-1406 CLOSED); "<key> unfiled" is a staged row, filed later by the filing row of its wave; "<key> not filed" is a
+key no filing ever takes: the close-checks U-001, U-113, U-139 and U-155, U-145 (by ruling), U-158 (no leaf; clause 13
+returns it to a planner) and U-159 (below). The two words are distinct classes and never one.
+(c) Milestone is the unit's own milestone field; Class its class; Lane scope reads "lane gap" on lane-gap rows.
+(d) Hub text owed and Landing files also read each unit's returned-doc-text list (D111), not its write list only: 43
+rows owe hub text, 3 of them merger-track rows.
+(e) Spelling (clause 16 and the U-138.1 respelling): a path untracked at the base is its deepest existing directory in
+backticks, a space, then the stem in backticks, a test stem written test-<rest>; where no part of the directory exists
+(the installer family), the root has no spelling, so the token is the whole path without its extension, a form the
+citation guard does not judge; a stem two created files share is repeated once per file.
+(f) Entry conditions are pointers only: "filed by W<f>", "extension filed by W<f>", "child row filed by W<f>", "wave
+per its leaf" (U-107.1 and U-107.2, held by P4F-1) and the CS-1047 child rows' "after the CS-1047 doc slice (returned,
+unowned)"; no rule, dependency list or measured number is copied into a cell.
+MAP, plan key to CS id, the whole map of the U-138 filing (D93). Part 1, phase 7: U-138 to CS-1409; U-007 to CS-1410;
+U-140 to CS-1411; U-141 to CS-1412; U-142 to CS-1413; U-143 to CS-1414; U-144 to CS-1415; U-146 to CS-1416 (CLOSED in
+session 161); U-147 to CS-1417; U-152 to CS-1418; U-151 to CS-1419 (U-157's clauses filed under it). Part 2, phase 5:
+U-020 to CS-1420; U-023 to CS-1421; U-024 to CS-1422; U-030 to CS-1425; U-031 to CS-1426; U-037 to CS-1427 (U-046, its
+stage 0, inside that section); U-038 to CS-1428; U-039 to CS-1429; U-040 to CS-1430; U-041 to CS-1431; U-049
+to CS-1432; U-050 to CS-1433 (CS-1423 and CS-1424 are not ids). Part 3, phase 6: U-053 to CS-1434; U-058 to CS-1435;
+U-084 to CS-1436; U-089 to CS-1437; U-096 to CS-1438; U-107 to CS-1439; U-131 to CS-1440. Part 4: no id (the staged
+list). Part 5: no id; extensions filed under CS-962 (NOTE), CS-1260 (NOTE) and CS-1334 (clauses 1 to 11), and 32
+id-less BACKLOG.md lines. Not filed by ruling: U-052 (CS-1406, CLOSED) and U-145.
+STAGED, carried unfiled by plan key (clause 6): the 58 placed rows of the U-138.4 list, each with a filing row in the
+wave the list names; the 10 staged extensions, each with a filing row: CS-1048 W2, CS-1058 W3, CS-1251 W9, CS-1258
+W13, CS-1398 W20, CS-1257 W28 (its D105 headline with them, ROADMAP.md among that row's Landing files, F1 of the
+U-138.5 record), CS-1064 W33, CS-1254 W33, CS-1236 W34, CS-872 W42; the 5 carried child rows, each with a filing
+row: CS-1058 W3, CS-1260 W6, CS-962 W29, CS-1047 A and B W42.
+DEVIATION, ruled: U-071 and U-045, staged and placed in no wave, have no row. A row needs a wave id of clause 7's form
+and a place in the (wave, group) order the later chain units read, and an entry text for it would restate clause 6.
+They are carried here instead, against clause 6's letter ("carried in the annex"), and their rows arrive with the
+re-pack that places them, filed by the wave before it.
+CORRECTION, ruled: U-055 and U-056 - the plan's unit data names the phase 5 leaf, the plan's own build specs and the
+U-138.4 record name the phase 6 leaf; their filing rows follow the build specs (phase 6 leaf and the lane-scope file
+among their Landing files).
+UNRESOLVED, handed on:
+1. BLOCKING U-141: the annex has 1257 bytes of room; U-141 adds a chain column on every row and a hub-files table,
+which the scope adversary estimates at about 20 KB, and U-144 a further column. Routed to a planner for a relocation
+or split before U-141 is dispatched; until then U-141's own budget clause stops it.
+2. U-141 clause 5: 40 builder rows owe hub text and the plan carries no doc-slice row, so no row lands it; U-141 or a
+planner adds them. U-141's row kinds also read wave 0's builder rows (wave W0a) as merger-track, and its clause 11
+meets the "<key> unfiled" cells clause 6 requires; U-141's adjudicator rules both.
+3. U-159 (the Electron move, W18, phase 6 leaf, READY) has no build spec in the plan, no id and no place in the
+U-138.4 list: its row reads "U-159 not filed"; returned to a planner, owed before W17 files the wave.
+4. F2: the CS-1047 wave-0 doc slice is returned and unowned; it needs a unit before W42 files the CS-1047 child rows.
+5. R1: clauses 3, 4 and 7 of the CS-1334 extension carry line pointers that no longer land; not re-pointed (clauses 5
+and 16); the CS-1334 filing-wave brief owns them.
+6. 24 existing ids that the plan cuts to BACKLOG.md still hold ROADMAP.md lines, no unit owning the move: in the
+400s CS-401, CS-447, CS-450, CS-456, CS-470, CS-479; in the
+800s CS-847, CS-848, CS-850, CS-851, CS-853, CS-857, CS-858, CS-864; in the
+900s CS-967, CS-969, CS-974, CS-975, CS-983; in the 1000s and 1100s CS-1002, CS-1006, CS-1070, CS-1136, CS-1152.
+7. UNVERIFIED: which parts of CS-1058, CS-1260, CS-962 and CS-1047 belong to a child row rather than the parent; the
+pointers mark every host part at or after the child's or extension's first wave. The CS-1058 child's lane-scope need
+is unread. U-141's structure-order term on the shell entry file is not met on the planning schedule and nothing was
+re-packed for it.
+VERIFIER, at the first commit in a fresh clone: drift_guard exit 0, doc_budget VERDICT: PASS, sha_citation_gate exit
+0, provenance check exit 0, pytest over 23 doc, citation, ledger and lane-scope modules (D8 among them) exit 0, 1967
+passed; header byte-identical; 12 cells on every row; no CR, no byte above 127; drive-letter grep over the diff 0.
+POTENCY: a planted row naming an untracked path made `tests/test_docs_citations.py` red naming the annex, and the
+restored bytes made it green.
+ADVERSARIES (clause 15), read-only and frozen at the candidate by the freeze witness: RULES, PRIVACY AND D73 - NOT
+REFUTED (12 columns, no rule, no measured number, the re-pack tools line verbatim, no drive path, descriptor or
+personal data, ASCII and LF, no attribution trailer). FIDELITY - REFUTED at the first commit on one entry cell and
+four smaller faults; SCOPE AND SIBLINGS - REFUTED on the U-071 and U-045 gap and the U-055 and U-056 leaf; clause 9
+and scope NOT REFUTED. A distinct adjudicator ruled six FIXES (the CS-1410 entry cell, the U-055 and U-056 Landing
+files, the index file in the U-138.1 row's Write-list, both U-151 parts in W0b per their leaf, the ledger in every
+filing row's Landing files, one token per created file) and two RESIDUALS (the U-071 and U-045 deviation above, the
+installer token form); the repair commit applied them and the fidelity adversary's re-read of all 552 rows at the
+repair, the freeze witness unmoved before and after, read NOT REFUTED.
+READ BACK after this write: `tests/test_ledger_entry_shape.py` passed and `tools/drift_guard.py` exit 0 with guard (i)
+and guard (j) PASS, as the commit body records.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.5: closing record of the part, adversary verdicts, the Phase 5 adjudication and three routings
 Verification: this record; the four U-138.5 batch records below (B1 `BACKLOG.md`, B2 `docs/item_notes/phase6.md`, B3
 `docs/item_notes/phase4-followups-960.md`, B4 `docs/item_notes/phase7.md`), unchanged by it;
