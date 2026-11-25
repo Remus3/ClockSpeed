@@ -122,9 +122,10 @@ or owner exists for it in the plan, and U-138 excludes rewording any acceptance,
 must be assigned to a unit before W42, the filing wave of the CS-1047 child rows A and B, and before the hub's build
 wave W43; U-138.6's annex names it as returned and unowned.
 R1, STALE POINTERS: clauses 3, 4 and 7 of the CS-1334 extension (B4) carry line pointers into BACKLOG.md,
-docs/LEDGER.md and docs/item_notes/phase7.md measured at the plan's head; at this tip they no longer land on their
-targets (the BACKLOG.md pointers read 11 lines early, the docs/LEDGER.md pointer lands inside another record, its
-target now about 1255 lines later, and the phase 7 pointer's target now sits about 13 lines earlier). They are not
+docs/LEDGER.md and docs/item_notes/phase7.md measured at the plan's head; measured at the B4 batch commit they no
+longer land on their targets (the BACKLOG.md pointers read 11 lines early, the docs/LEDGER.md pointer lands inside
+another record, its target then about 1255 lines later and later again by every line any newer record adds above
+it, this one included, and the phase 7 pointer's target about 13 lines earlier). They are not
 re-pointed: clauses 5 and 16 forbid any change but the one respelling. Each pointer's quoted text identifies its
 target. Owners: U-138.6's closing record and the CS-1334 filing-wave brief.
 R5, ONE DEVIATION: the B3 commit subject reads "docs(CS-1409): file the phase4-followups-960.md batch, session 159
