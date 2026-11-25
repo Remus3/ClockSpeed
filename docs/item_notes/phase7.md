@@ -877,3 +877,14 @@ from the end of its hold.
 The full row classification is kept gitignored in the data directory, CS-1366 classify file, sha256
 895b1b9e1a50b79c3fe31229099b8cafddea181318fd8bc7e6c89127df56c8ea.
 
+### Recorded 2026-11-24 by the session 161 closing read
+
+VERDICT: FAIL. The 7-day clause is NOT MET, CS-1366 STAYS OPEN, and the window restarts. Basis, read from the
+suite gate's durations log by tree, start, hold and exit: 31 Clockspeed rows exit non-zero with a hold starting
+after the 2026-11-12 18:48:37 local window opening; the latest starts 2026-11-19 15:18:38 local, a 642 s hold
+ending about 15:29 local. The CS-1366 classify file the record above names covers 22 rows through 2026-11-14,
+six of them inside the window, and no log of failing ids kept at the time exists for the 25 later rows. Under the
+2026-11-14 ruling each such row restarts the window from the end of its hold, so the window opens again at the end
+of the last one's hold. Earliest next closing read: on or after 2026-11-26 15:29 local, provided no later
+exit-nonzero row lacks failing ids from a log kept at the time.
+
