@@ -225,6 +225,7 @@ CS-1064 - `clockspeed/audit/balance.py` still reports every variable-power and s
 CS-1236 - what-if overlay: virtual edits over the real world, recomputed, never written back - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1241 - build-aware registry variants, and a tracked table of every ambiguous normalisation choice - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1243 - reachability bands and unlock-gated traversal for node siting and claim order - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1427 - D2 onsite versus transport: ship raw or refine at the source, then the method - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1401 - the domain interleave is not the served showing order, and the cutover re-pins three CS-1246 arms - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1398 - effort is declared per rule, not per recommendation magnitude - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1248 - unit-tagged quantities and a single raw-versus-display boundary - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -232,6 +233,17 @@ CS-1249 - recipe-graph cycles detected explicitly, with a test that reddens on a
 CS-1250 - no-double-count invariant: each built object contributes to audit totals exactly once - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1432 - a settled new save updates the page with no press: a stat-only watcher, one event stream, a six-word freshness strip and a guarded in-place update - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1420 - build steps: whole-machine staging on the plan card, underclock forms in tier 3 only where the shipped minimum clock is read - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1421 - the plan card's derivation shows the other rung optima as three fixed compare rows, at no extra solve - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1422 - the plan card states the plan's exact draw and its verdict against the grid, and says so on tier 2 only when it exceeds headroom - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1425 - a production rule family turns the audit's item deficits and idle machines into zero-input cards - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1426 - an act computes what it completed and reopened but serves neither, so a fixed problem disappears without a word - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1428 - the global per-rule mute is served: a mute route, a control on each card and a muted-rules line that restores - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1429 - the advice act fires with no press, once per settled save, in a reconcile form that never ages a card - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1430 - a pure progression diff: two snapshots in, gained schematics and recipes, a phase-changed flag and a verdict out - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1431 - a progress notice card: one event card per progression state reached, from an in-memory window of earlier saves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1433 - a materials card sets a ranked plan's machine build cost against what the save holds - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

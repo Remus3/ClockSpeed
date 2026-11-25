@@ -75,6 +75,64 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-24 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.2: the phase5.md batch of the session 159 plan, 12 rows filed as CS-1420 to CS-1433, 3 staged
+Verification: `ROADMAP.md` (12 new lines under the Phase 5 heading), `docs/item_notes/phase5.md` (12 new sections, the
+ids of the MAP below, each with one
+`### Filed 2026-11-24 by the session 161 wave 0 filing` block and one
+`### Acceptance`); `tools/drift_guard.py` guard (j) and `tests/test_docs_citations.py`, each red then green as
+recorded below. Written by the session 161 merger (part M2), the one filing writer, with the queue stop file placed.
+PRE-FLIGHT (clause 1), read back at the filing HEAD: the queue stop file is present; no lane lock file is live;
+the highest allocated id is CS-1419, read across ROADMAP.md, BACKLOG.md, docs/GATED.md, docs/LEDGER.md,
+docs/history_notes.md, the item-note leaves, the hand-off, git log --all and origin/main's ROADMAP.md. The
+tokens CS-1423 and CS-1424 are not ids, but the U-138.1 record below cites them as id ranges it declined, so
+`git grep -c` is not empty for them and both are skipped; it printed nothing for every id used. No
+unit of the batch was already filed or closed: each plan key and headline was grepped in ROADMAP.md, BACKLOG.md,
+docs/GATED.md, docs/LEDGER.md and the item notes, and the only hits sit inside the U-138 acceptance snapshot.
+MAP (plan key to CS id, D93; ids in the plan's spec order over the rows filed, as U-138.1 took them): U-020
+to CS-1420; U-023 to CS-1421; U-024 to CS-1422; U-030 to CS-1425; U-031 to CS-1426; U-037 to CS-1427 (the
+D2 row; U-046, its stage 0, is filed inside that section, below); U-038 to CS-1428; U-039 to CS-1429; U-040
+to CS-1430; U-041 to CS-1431; U-049 to CS-1432; U-050 to CS-1433.
+STAGED (clause 6, the D93 fallback; no id, carried by plan key, unfiled): U-047 (first part W49; its section is to sit
+directly after CS-1243's), U-067 (W51) and U-045 (WAITS in every part and placed in no wave; its section is to sit
+directly after U-047's and to open with a clause 0 entry check naming D45 and its two dependencies). Each is filed
+into the phase 5 leaf as the last slice of the wave before the wave that builds it, once that leaf has room; U-138.4's
+staged list and U-138.6's annex rows carry them.
+BUDGETS (clause 6), printed by the filing script before the batch: ROADMAP.md 41035 + 2212 = 43247 / 61440;
+docs/item_notes/phase5.md 25966 + 102722 = 128688 / 131072. Rows were taken in the wave order of each row's
+first part: U-037 at W1 (U-046 lands in its section there), then U-049 W12, U-040 W20, U-020 W29, U-031
+W31, U-039 W33, U-024 W35, U-023 W37, U-030 and U-038 W44, U-050 W47, U-041 W49. The first that did not fit
+was U-047 (5925 bytes against 2384 left), so it and every later row are staged.
+NOT FILED IN THIS BATCH: U-055 and U-056 were briefed with it, but their specs name `docs/item_notes/phase6.md` as the
+leaf and the Phase 6 heading for the line, and U-055's line needs a `config/lane_scopes.json` entry in the same commit
+(clause 17), a file outside this part's writes; both go to the phase 6 batches, U-138.3 and U-138.4. U-046 takes no
+line of its own (D47; its spec says to file no second row).
+PLACEMENT, in each spec's own words: U-037's line directly after CS-1243's (beside it); U-049's line directly
+after CS-1252's and its section directly after the CS-1252 section; every other line after U-049's and every
+other section after U-049's, in id order, so U-023's section follows U-020's (the last plan-card chain section)
+and U-024's follows U-023's. Each section opens with its Filed block and then `### Acceptance`, the shape
+the leaf already uses and the U-020, U-037 and U-038 specs name; the heading wording is clause 3's. U-046's
+acceptance sits in the D2 section under its own Stage 0 heading with its Filed fields and a clause 0 entry check
+(WAITS, the W1 landing, P4F-5); the vehicle field spike block that acceptance names is still the merger's to
+write when the spike lands.
+FIRST REDS, each shown before its fix: guard (j) FAIL, "CS-1420 has no section in docs/item_notes/phase5.md", with the
+first line filed and no section; then the clause 16 dry run.
+CLAUSE 16: the U-020 row filed alone with its acceptance untouched made `tests/test_docs_citations.py` red, 3 failed
+and 475 passed: 10 line pointers into tracked Python modules, 2 bare paths to the unbuilt staging module and the
+bare-path teeth arm that follows from them. The respelling the U-138.1 record below wrote down was applied identically
+to every filed row and nothing else changed, deciding "unbuilt" with the citation test's own resolver: (a) 7 sites,
+(b) 71 full citations, (c) 50 line pointers. Two shapes this batch is the first to meet, applied the same way: (b) on
+the elided form, a test name with its path elided after a double colon, written test-<rest> in backticks without the
+double colon (154 sites); and (d) MERGER EXTENSION, decided here: the stem of an unbuilt test module, which the bare
+arm reads as a dead test name whether alone or as the file name an (a) site leaves bare, is written test-<rest> (8
+sites). Alternatives: record the names in tests/test_citation_tables.py (forbidden by clause 16's negative); stage the
+rows (it would stage all 12).
+CHECK (clause 2): an untracked scratch script printed "rows 12, lines 12, sections 12, acceptance mismatches 0
+(respelled rows 12)": each filed acceptance equals the generator's bytes, and undoing the logged sites on the tree's
+text returns the master plan's bytes exactly, U-046's stage 0 block included. Every Filed block carries the clause 3
+fields. Clause 13: no row returned to a planner.
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; no adversary has read this batch
+yet, and one is owed at the batch commit.
+
 ### 2026-11-24 - WAVE 0 W0b U-158 CITATION LINE - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
 Verification: `docs/item_notes/wave-plan.md` (the citation line, byte-exact and not backticked, after its pointer
 lines); `tests/test_docs_citations.py` run alone after the write. This record closes nothing, so no test names one.
