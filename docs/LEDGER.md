@@ -75,6 +75,93 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.3: the phase6.md batch of the session 159 plan, 7 rows filed as CS-1434 to CS-1440, 53 staged
+Verification: `ROADMAP.md` (7 new lines under the Phase 6 heading), `docs/item_notes/phase6.md` (7 new sections, the
+ids of the MAP below, each with one
+`### Filed 2026-11-25 by the session 161 wave 0 filing` block and one
+`### Acceptance`), `config/lane_scopes.json` (7 new entries in the dashboard scope's excluded map);
+`tools/drift_guard.py` guard (j), `tests/ops/test_lane_scope.py::test_the_dashboard_scope_partitions_its_anchor_phase`
+and `tests/test_docs_citations.py`, each red then green as recorded below. Written by the session 161 merger (part
+M3), the one filing writer, with the queue stop file placed.
+PRE-FLIGHT (clause 1), read back at the filing HEAD: the queue stop file is present; no lane lock file is live (the
+locks folder is empty); the highest allocated id is CS-1433, read across ROADMAP.md, BACKLOG.md, docs/GATED.md,
+docs/LEDGER.md, docs/history_notes.md, the item-note leaves and their index, the hand-off, git log --all and
+origin/main's ROADMAP.md (CS-4000, CS-10000 and CS-99999 are the example tokens the U-138.1 record names).
+`git grep -c` printed nothing for each id from CS-1434 to CS-1446 before use; the control, CS-1433, hit 3
+files. No unit of the batch was already filed or closed: every phase 6 plan key was grepped in ROADMAP.md, BACKLOG.md,
+docs/GATED.md, docs/LEDGER.md and the item notes, and every hit is a Depends-on field of a phase 5 or phase 7 section
+or the U-138.2 record; each filed headline was grepped in the same files, with no hit.
+SCOPE, from U-138's parts paragraph: part 3 is the phase 6 batch, first half in wave order, stopping at the first row
+that does not fit either budget; part 4 is the rest that fits, then the staged list. The filing script printed the
+phase 6 population from the plan: 62 new rows name docs/item_notes/phase6.md as their leaf; two are BACKLOG (U-114
+and U-128, clause 4, part 5's), so 60 take a line, each READY in at least one part (U-071 is READY and placed in no
+wave, blocked by the unscheduled part U-003.2). The print governs the snapshot's 59. The nine phase 6 specs keyed by
+an existing CS id extend existing items (clause 5, part 5's) and take no line here.
+MAP (plan key to CS id, D93; ids in the plan's spec order over the rows filed, as U-138.1 and U-138.2 took them): U-053
+to CS-1434 (the frame row); U-058 to CS-1435; U-084 to CS-1436; U-089 to CS-1437; U-096 to CS-1438; U-107 to CS-1439
+(slice 0 of the frame row, filed in the same commit as CS-1434, as its spec requires); U-131 to CS-1440.
+BUDGETS (clause 6), printed by the filing script before the batch: ROADMAP.md 42887 + 1358 = 44245 / 61440;
+docs/item_notes/phase6.md 69717 + 58002 = 127719 / 131072. Rows were taken in the wave order of each row's first
+part: U-107 at W1 (held to W2 by P4F-1, first either way), then U-096, U-089, U-131 and U-084 at W3 in their
+plan-line order, U-053 W4, U-058 W5. The first that did not fit was U-077 (W5; 9079 bytes against 3353 left), so it
+and every later row are staged, U-056 (W38) and U-055 (W51) among them; the staged list is the U-138.4 record's.
+THE U-107 HOLD, read at the plan: the wave 1 blocks of U-107.1 and U-107.2 open "Held by ruling P4F-1", and P4F-21
+says they are not dispatched in wave 1, filed or not; one builder builds the three parts in that order in U-107.3's
+slice and wave. The row is filed whole, since it is READY and its section is what that slice builds from: its Wave
+field records the hold, its two held part lines name the plan's W1 slices as held, and no clause 0 is added, because
+the hold is a dispatch rule and not an entry condition of the row. As the spec's ROADMAP line requires, the section
+also says it is slice 0 of the frame row, filed with CS-1434, and carries the departure paragraph of the spec's Data
+corrections verbatim.
+CLAUSE 17: one excluded entry per new Phase 6 line, each reason naming the row's subject and its lane flag (not
+eligible): U-084's directly after the CS-1258 entry, as its spec says, and the other six after the CS-1262 entry in id
+order; U-096's reason is its spec's example wording plus the flag. The items list and the member set the test module
+pins are untouched. An untracked scratch script printed "new Phase 6 lines 7, new excluded entries 7" (the two id sets
+equal, no exclusion removed).
+PLACEMENT, in each spec's own words: U-084's line directly after CS-1258's and its section directly after
+the CS-1258 section; U-089's line after CS-1261's and before CS-1262's, and its section between those two
+sections (the one rule U-089, U-090, U-091 and U-093 share); U-058's section directly after the CS-909
+section; every other line after the CS-1262 line and every other section after the CS-1262 section (the
+leaf's last), in id order. U-053's spec calls it an own row beside CS-962, which sits under the Phase 4
+heading, so its line goes under Phase 6 as the same spec says. Each section opens with its Filed block and
+then `### Acceptance`, the leaf's shape.
+FIRST REDS, each shown before its fix: guard (j) FAIL, "CS-1439 has no section in docs/item_notes/phase6.md",
+with U-107's line, the first row in wave order, filed alone; then, with its line and section filed and no
+excluded entry, the partition arm failed on the member equality naming CS-1439, and passed (1 passed) once the
+entry was added; then the clause 16 dry run.
+CLAUSE 16: U-107's row filed alone with its acceptance untouched made `tests/test_docs_citations.py` red, 5 failed and
+473 passed: 5 unbuilt test names the bare arm reads, 5 line pointers into tracked Python modules, 1 bare path to the
+unbuilt test module, and the two teeth arms that follow from them. The respelling of the U-138.1 and U-138.2 records
+was applied identically to every filed row and nothing else changed, deciding "unbuilt" with the citation test's own
+resolver: (a) 5 sites, (b) 12 full citations, (b) on the elided form 55, (c) 18 line pointers, and 26 bare names under
+(b) and (d); and rule (c) once more on U-084's lane text, which its Filed block copies from the spec header: its
+pointer into config/lane_scopes.json, left as the plan wrote it, made `tests/test_docs_citations.py` and
+`tests/test_pointer_claims.py` red, 3 failed, until it was written as the path, a space and "line 86" (the number as
+the plan measured it). No new shape. U-107's departure paragraph needed none.
+CHECK (clause 2): an untracked scratch script printed "rows 7, lines 7, sections 7, acceptance mismatches 0 (respelled
+rows 7)": each filed acceptance equals the generator's bytes, and undoing the logged sites on the tree's text returns
+the master plan's bytes exactly; U-107's departure paragraph equals the plan's bytes. Every Filed block carries the
+clause 3 fields. Clause 13: no row returned to a planner.
+GENERATOR, three mechanical changes from U-138.2's, applied to every row: Class is read from each spec (U-107 is
+process, the other six product); an existing ADR a part amends keeps its path in the Write-list (U-058.3 amends
+`docs/adr/0015-the-shell-may-start-the-surface.md`, which the U-138.2 filter would have dropped, leaving an empty
+cell), and only an ADR a row creates is written "ADR: allocated at wave entry"; and the merger-landing parts U-053.3
+(W5) and U-089.4 (W4) take their write lists from their specs' Parts, U-053.3's doctrine wording named as returned to
+its hub slice, not edited.
+NOT EDITED: three phase 5 Filed blocks name U-107.3, and one also U-053.2, as "unfiled, by plan key"; those keys now
+resolve through this MAP to CS-1439 and CS-1434. docs/item_notes/phase5.md is outside this part's writes, so they stay
+as filed.
+DEVIATION from the session brief, which named U-055, U-056 and U-107 as this batch. Decision: file in wave order
+(clause 6, Part 0 rule (c), D-SEQ-19). Alternatives: file U-055 and U-056 as briefed (W51 and W38 rows ahead of the W1
+to W5 rows that wave 1 to wave 5 build slots wait on, against the filing order rule); file them as well (no room: 3353
+bytes left). Why: U-138's own clauses govern the batch, and within each batch rows are filed in order of first build
+wave.
+CLAUSE 10: `git diff` from the base, grepped with the clause's pattern, prints 2: both lines are U-089's verbatim
+acceptance, matched on the https scheme of its example origins, not a drive path. Counted with a letter boundary
+before the drive letter it prints 0. Rewording the acceptance is out of scope and staging a fitting W3 row would break
+wave order, so the count is read this way here, for the adversary to confirm.
+GATE (clause 14) and ADVERSARY (clause 15): the gate results are in the commit body; no adversary has read this batch
+yet, and one is owed at the batch commit.
+
 ### 2026-11-25 - CS-1401 - CLOSED: the advice list is served domain-interleaved over the aging order, visible cards first, on the read and the act alike
 Verification: `clockspeed/advisor/advise.py` (`Advice.ranked`, `Advice.ranked_shown`) and
 `clockspeed/advisor/ranking.py` (`interleave_domains`, `order_shown`) plus

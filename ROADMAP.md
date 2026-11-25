@@ -286,10 +286,17 @@ CS-1255 - numeric inputs keep what is typed, validate on blur or submit, and acc
 CS-1256 - every numeric API field carries the exact rational and the display string side by side - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1257 - shareable view state in the URL fragment, with no personal field ever encoded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1258 - an accessibility baseline for dashboard and companion - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1436 - input and pressed-filter boundaries draw at 1.4:1, and no arm computes the contrast of any declared colour pairing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1259 - the dashboard is one self-contained page with no network fetch at runtime - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1260 - one design-token source consumed by both the dashboard and the companion - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1261 - local API hardening: loopback-only bind, header-only tokens, private refusals, per-install cert subject - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1437 - a page from another origin can reach the read and compute doors of the local API - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1262 - a privacy-filtered local diagnostics bundle with a preview before writing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1434 - the page opens on the answer: four views (Play, Plan, Map, System), Play the default, one visible at a time, view state in the URL fragment, no document scroll at the default size - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1435 - the companion window, taskbar button and Alt-Tab entry show the stock runtime icon, and the tray has one picture for every display scale - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1438 - this checkout's installed Electron runtime is older than the pin, and no runbook says how the pin moves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1439 - the Endpoints and World sections are static markup above the panel host, so page order is not one roster - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1440 - every file the product writes resolves beside the code, so no install can keep the player's data apart from it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 7 - public flip gate
 
