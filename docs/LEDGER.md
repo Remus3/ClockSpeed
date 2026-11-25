@@ -75,6 +75,30 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-24 - WAVE 0 END - NOT A COMPLETION RECORD. NOTHING CLOSED BY THIS RECORD.
+Verification: the exit record <sidecars>/CS/plan-s159-tools/exit-W0.json (<sidecars> resolved by
+`tools/census_axis.py::derive_sidecar_root`), 4317 bytes, sha256
+f1e2012de5e7e944c15fd15806917e07e9a466683b873cdd32c385f208ab8d6d, read back equal after an atomic write; the U-138.1
+and U-138.2 records below. This record closes nothing, so no test names one.
+SCOPE. THE PLAN's wave 0 Exit, item 5 under ruling P4F-7 (Part 0 rule (d)): no re-pack runbook has been delivered and
+ruled, so the exit record is written to the file above and the next wave is not re-packed. Wave 0 is the two sessions
+W0a (session 160, 2026-11-19) and W0b (session 161). The record's tip is the commit that landed U-138.2, the phase5.md
+batch recorded below; it is not pushed by this record's writer, and the push and the remote read of Exit item 1 stay
+the session's.
+FIELDS, as adjudicated: wave_id W0; tip; b_next 2; d126 "not evaluated - B fixed at 2 by P4F-7"; repack "not run
+(P4F-7)"; lane_relaunch none; merger_stop_unit U-138.2 (landed with U-047, U-067 and U-045 staged, its clause 15
+adversary owed; the track resumes beside wave 1 at U-138.3); landings_reopened 0, measured from the wording of the
+wave 0 records here (none reopens a landing; the CS-914 and CS-701, CS-981 records state NOTHING REOPENED), with the
+post-landing repairs listed beside it in the file for an adjudicator (CS-1406, CS-914, CS-913.1, CS-701 and CS-981).
+The two session spans are measured from durable records and labelled as session spans, not as the wave wall figure.
+UNVERIFIED, each null in the file with its reason, never filled from a planned figure: minutes_per_group and
+wave_wall_minutes (no durable record holds a start per group or per build slot; the build-slot commit span is given
+only as a lower bound); and the four D126 inputs: memory-pressure failures (the suite gate's durations log records
+exit codes, not failure kinds, and holds 6 nonzero exits among 17 rows of this tree in the W0a window), a slice
+stopped at 3x (the builder progress rows carry no start or estimate), the entry free-RAM read and the lowest free-RAM
+read with builders live (neither was recorded). The one free-RAM read on record, 19.9 of 31.6 GB at the session 160
+/done, is carried in the file and labelled as neither.
+
 ### 2026-11-24 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.2: the phase5.md batch of the session 159 plan, 12 rows filed as CS-1420 to CS-1433, 3 staged
 Verification: `ROADMAP.md` (12 new lines under the Phase 5 heading), `docs/item_notes/phase5.md` (12 new sections, the
 ids of the MAP below, each with one
