@@ -75,6 +75,54 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-11-25 - CS-1409 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1409 STAYS OPEN: session 161 /done - every closed item's record reads present, U-138.5 is the next merger unit, and the queue stop file is removed
+Verification: `CS-NEXT-SESSION.txt`, its next-action and open-items blocks; the CS-1408, CS-1416 and CS-1401 CLOSED
+records below. This record closes nothing, so no test names one; the heading names the item whose next unit the
+hand-off makes the next merger action.
+SCOPE. The session 161 /done, run by one sub-agent with no lane live: the lanes directory held the queue stop file
+this session placed, and QUEUE_DRAINED; the suite gate read 0 of 2 slots held.
+STEP 0: start 2026-11-25T01:48:56 local. WINDOW SIGNAL CLOSED: `git rev-list --parents -n 1 HEAD` exit 0 with two
+SHAs (not a merge); `git diff-tree --root --no-commit-id --name-only -r HEAD` exit 0, one path, docs/LEDGER.md, not
+the citation historical file. Porcelain: one modified path, the hand-off, holding only the responder's BUILD PIN
+DRIFT line, which CS-1408's re-pin resolved; the rewritten hand-off drops it. The remote stood at the CS-1401
+landing with two local commits above it (the U-138.3 phase 6 batch and the U-138.4 staged-rows record), carried by
+this ritual's one push. No note was authored into the outbox this session (the newest is 2026-11-17 07:04), so none
+was owed a delivery read. Closed this session, each with its own record read present below and none
+duplicated: CS-1408 (tier 2, the game build re-pin), CS-1416 (tier 1, docs: one ADR number writer, OPERATIONS
+10.9) and CS-1401 (tier 2, the advice list served domain-interleaved, visible cards first). Highest tier
+touched: 2. PRE-FLIGHT: the session's last printed checklist task, U-138.3, is done (filed, then recorded with
+U-138.4); no other task remained.
+STEP 1, tier 2, from the repo root, each run once on the .venv interpreter, no whole suite: `python -m mypy` exit 0,
+492 source files; `python -m ruff check .` exit 0; `python -m ruff format --check .` exit 0, 475 files; `python -m
+pytest` over tests/advisor, tests/surface/test_advice.py, tests/surface/test_advice_aging.py,
+tests/data/test_version.py, tests/save/test_usmap.py, tests/test_citation_guard_shapes.py,
+tests/test_citation_tables.py, tests/test_bare_path_citations.py, tests/test_docs_citations.py,
+tests/test_ledger_entry_shape.py, tests/test_provenance_manifest.py, tests/test_doc_budget.py,
+tests/test_sha_citation_gate.py, tests/ops/test_lane_scope.py and tests/ops/test_scope_binding.py, `-q -n 4 -p
+no:cacheprovider`, every path read present first: exit 0, 2584 passed, 0 failed, 0 skipped, 115.21 s.
+STEP 2: this record. The three CLOSED records were read present and nothing duplicates them. The clause 15 adversary
+on the U-138.3 and U-138.4 batch was reported NOT REFUTED by the session's main thread and its progress file reads
+done, but no verdict file was found, so this ritual records that verdict UNVERIFIED; the two batch records above
+say the adversary was still owed at their commits.
+STEP 3: ROADMAP.md unchanged by this ritual: no closed id is on it, and the filed rows are on it as their batch
+records list them. docs/GATED.md unchanged; no new id.
+STEP 4: WAKEUP_NOTES.md gained session 161; session 158 relocated verbatim to docs/history_notes.md.
+STEP 5: `python tools/drift_guard.py` first run exit 1: guard (i) read one line of this record that opened with an
+id as an unreadable head; the paragraph was reflowed and the re-run exit 0, 11 of 11 PASS. `python
+tools/doc_budget.py` exit 0, 42 measured, 0 over. `python tools/sha_citation_gate.py` exit 0. `python
+tools/memory_sync.py` not run: no memory source doc changed this session.
+STEP 6: the hand-off rewritten whole for session 162, under 25000 bytes, every CS token of the one it replaces kept.
+REAP --apply: 0 removed, 1 kept (lane-0, the fleet_lanes worktree), 0 listed. QUEUE_STOP, which this session placed,
+removed and read back absent; INBOX_STOP absent; no lane relaunched. The board render and the archive step run after
+the hand-off is read back. RE-RUN after these edits, `python -m pytest` over 11 doc, citation and ritual modules,
+`-q -n 4`: exit 1, 964 passed, 1 failed,
+`tests/test_sha_citation_gate.py::test_this_tree_cites_only_published_commits`, because the hand-off named the kept
+branch of the CS-1358 candidate by its full name, whose hex tail the gate reads as a commit; the hand-off now names
+it by a short form, and that test alone passed, exit 0.
+OTHER: the empty sidecar scratch folder adv-u138-1-wt is still held by another process (rmdir: busy) and is carried;
+the stray .prev plan draft on the operator's Desktop reads ABSENT at this /done; THE PLAN re-hashed equal to its
+named bytes; CI read green, every run, for the two session 160 tips and the two session 161 pushed tips.
+
 ### 2026-11-25 - CS-1409 - DECISION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. U-138.4: the rest of the phase6.md batch, none fitting, and the staged list of the session 159 plan, 60 rows unfiled
 Verification: this record; ROADMAP.md, docs/item_notes/phase6.md and config/lane_scopes.json are unchanged by this
 part, read back at the U-138.3 tip; the budget lines below, printed by the filing script. Written by the session

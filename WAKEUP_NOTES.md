@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 161 - 2026-11-25 - wave 0 run to its exit and wave 1 group 1 begun: CS-1408, CS-1416 and CS-1401 closed, THE PLAN's rows filed as CS-1409 to CS-1440, CS-1366's read FAIL
+
+- Shipped: CS-1408 (the game build re-pinned to CL-520140), CS-1416 (ADR numbers by one writer, OPERATIONS 10.9) and CS-1401 (the advice list served domain-interleaved, visible cards first) closed; THE PLAN's rows filed as CS-1409 to CS-1440 in the phase 7, phase 5 and phase 6 batches, 60 rows staged unfiled; U-158's citation line; the wave 0 exit record. Detail in docs/LEDGER.md.
+- In flight: nothing dirty. The next merger unit is U-138.5, then U-138.6 and the wave 1 group 1 order the hand-off lists. CS-1366's closing read FAILED (31 gated exit-nonzero rows after the window opened have no failing-id log), so its window restarts; the earliest next read is 2026-11-26 15:29 local. CS-1334 is blocked twice: free RAM 23.0 to 23.3 of 31.62 GB against the 24 GB gate, and U-152 (CS-1418) not landed. The queue stop file was removed at this /done; no lane runs.
+- Decisions: no ADR. Fences in the hand-off's SESSION 161 block: U-052 and U-145 not filed; staging under a leaf budget follows wave order, staged rows recorded in the batch record; filed acceptance respells a line-number citation as "path line N"; tracked text cites no unpublished SHA; a closed item's leaf section is deleted when its LEDGER record carries it; CS-1401 serves visible cards first, then hidden; D51's wording governs over spec clause 6.
+- Surprises: U-151's entry check failed (U-157 clauses 1 to 5 not met), so U-151 was filed as CS-1419 carrying U-157's clauses as 13 to 21. Free RAM stayed under the CS-1334 gate after the operator freed RAM and two orphaned browser trees were closed. No spike contradicted BOOTSTRAP.md.
+- Failed paths: a U-138 batch gate without tests/test_citation_guard_shapes.py, which let a red reach a pre-push and blocked one push; one interleave over all cards for CS-1401 (rejected for visible first, then hidden).
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then THE PLAN's wave 1 group 1 from U-138.5.
+
 ## Session 160 - 2026-11-19 - THE PLAN adopted and wave 0's W0a run to completion; the session 159 push landed and CS-1404 closed
 
 - Shipped: CS-1404 (the secret-sweep blob floor counts distinct tree blobs), CS-1406 (the open-row disposition sweep, re-grade FINAL), CS-914 (per-write staging names, then a 10 s retry budget on the pin replace) and CS-1248.1 (unit-tagged exact Quantity, CS-1248 clauses 1 and 2) closed; the twelve-close wave 0 sweep; CS-913.1 PREP recorded with CS-913 still gated; U-151 graded MET; CS-1405 and CS-1407 filed in BACKLOG; the U-145 frozen-file pre-screen docket (not a grant). Detail in docs/LEDGER.md.
@@ -50,12 +59,3 @@ the line becomes a pointer.
 - Surprises: a workflow resume after usage-limit refusals re-ran finished calls, so continuation scripts replaced it. The first account sat at its weekly limit. No spike contradicted BOOTSTRAP.md.
 - Failed paths: resuming a workflow across usage-limit refusals.
 - Next action: the push, then THE PLAN's Part 0 and wave 0.
-
-## Session 158 - 2026-11-16 - the lane's two landings graded LAND, six product items closed through planner, adjudicator, builder, adversary and adjudicator, CS-1362 gated
-
-- Shipped: CS-1247 and CS-1253 (the lane's two cycle landings, each graded by an adversary that did not refute it and a distinct adjudicator ruling LAND), CS-1400, CS-1394, CS-1395, CS-1360, CS-1390 and CS-484 closed; CS-1362 gated as CS-G11 on an operator ADR for a dev-only Node tool. Detail in docs/LEDGER.md.
-- In flight: nothing dirty. The lane driver exited after its 2 of 2 cycles and no lane runs. CS-1401 (wire interleave_domains into the served list) is the next product action. CS-1366's earliest closing read is 2026-11-19 18:48:37 local. CS-1334 still waits on host RAM. CS-1295, CS-1231 and CS-1358 carried unworked.
-- Decisions: no ADR. Two adjudicator rulings, each with its fence in the hand-off's SESSION 158 block: transport rates read from each class's own shipped description with an exact ratio check and no authored constant, proportional plan edges, CS-1390's line written by the inbox responder's tick; and CS-1360's bottleneck as the edge of greatest utilisation of the fastest known carrier of its unit, computed in solve and recorded in the trace, the surface transcribing only.
-- Surprises: CS-1394's first build published 0 of 4 pipe rates live, because the shipped text separates its numbers with U+202F and U+00A0 while the fixture used ASCII spaces; the repair reads 16 of 16. CS-1360's first wave-2 build computed carriers and saturation inside surface, a seam breach the adjudicator re-routed into solve. A pre-push with the global python still fails on the conftest redactor (CS-1387), and one push was blocked by the provenance census on new test files. Each pre-push that ran to its end took 18 to 20 minutes at 19.5k to 19.7k tests. No spike contradicted BOOTSTRAP.md.
-- Failed paths: a named one-half constant for belt rates (no sanctioned source; the docs state the rate); a highest-rate star as the flow view's mark (it identifies no limit); synthetic docs fixtures written with ASCII spaces; a builder's new files with no provenance row.
-- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then build CS-1401 through planner, adjudicator, builder, adversary and adjudicator.

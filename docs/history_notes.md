@@ -9566,6 +9566,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 158 - archived 2026-11-25 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 158 - 2026-11-16 - the lane's two landings graded LAND, six product items closed through planner, adjudicator, builder, adversary and adjudicator, CS-1362 gated
+
+- Shipped: CS-1247 and CS-1253 (the lane's two cycle landings, each graded by an adversary that did not refute it and a distinct adjudicator ruling LAND), CS-1400, CS-1394, CS-1395, CS-1360, CS-1390 and CS-484 closed; CS-1362 gated as CS-G11 on an operator ADR for a dev-only Node tool. Detail in docs/LEDGER.md.
+- In flight: nothing dirty. The lane driver exited after its 2 of 2 cycles and no lane runs. CS-1401 (wire interleave_domains into the served list) is the next product action. CS-1366's earliest closing read is 2026-11-19 18:48:37 local. CS-1334 still waits on host RAM. CS-1295, CS-1231 and CS-1358 carried unworked.
+- Decisions: no ADR. Two adjudicator rulings, each with its fence in the hand-off's SESSION 158 block: transport rates read from each class's own shipped description with an exact ratio check and no authored constant, proportional plan edges, CS-1390's line written by the inbox responder's tick; and CS-1360's bottleneck as the edge of greatest utilisation of the fastest known carrier of its unit, computed in solve and recorded in the trace, the surface transcribing only.
+- Surprises: CS-1394's first build published 0 of 4 pipe rates live, because the shipped text separates its numbers with U+202F and U+00A0 while the fixture used ASCII spaces; the repair reads 16 of 16. CS-1360's first wave-2 build computed carriers and saturation inside surface, a seam breach the adjudicator re-routed into solve. A pre-push with the global python still fails on the conftest redactor (CS-1387), and one push was blocked by the provenance census on new test files. Each pre-push that ran to its end took 18 to 20 minutes at 19.5k to 19.7k tests. No spike contradicted BOOTSTRAP.md.
+- Failed paths: a named one-half constant for belt rates (no sanctioned source; the docs state the rate); a highest-rate star as the flow view's mark (it identifies no limit); synthetic docs fixtures written with ASCII spaces; a builder's new files with no provenance row.
+- Next action: read the remote ref against this HEAD by full SHA, CI for that SHA and this ritual's timing record; then build CS-1401 through planner, adjudicator, builder, adversary and adjudicator.
+
 ## Session 157 - archived 2026-11-19 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 157 - 2026-11-15 - ten product items closed, each through planner, adjudicator, builder, adversary and adjudicator; kit v31 adopted; a lane's false close reopened and re-closed
