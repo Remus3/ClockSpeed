@@ -774,6 +774,33 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " the function, so the enclosing definition names it unambiguously.",
         ("396296006455:e8bd2e8a24fb:0",),
     ),
+    # CS-454.1 GREW THE REDACTOR, so two sites this append-only file cites slid
+    # down out from under their pins. Each was located by the TEXT its pin's
+    # digest froze, never by the occupant of the old offset, and adjudicated
+    # against what the sentence says rather than what the digest held - for
+    # the second the two disagree, as the CS-910 pair already showed a pin may.
+    # Neither sentence may be repointed where it stands, and both describe
+    # declarations that are still live and nameable, so both take a target.
+    (LEDGER, line_key("clockspeed/data/locate.py", 187)): Disposition(
+        MOVED,
+        "clockspeed/data/locate.py::_PATH_SEGMENT_CLASS",
+        "the CS-860 record reads that line as the path-segment character class"
+        " the report redactor's shape rules borrowed. The pin's digest froze the"
+        " _PATH_SEGMENT_CLASS assignment, which CS-454.1 pushed six lines down"
+        " byte-identical; the name is the stable citation.",
+        ("3f80aad8b7ce:247afd01a276:0",),
+    ),
+    (LEDGER, line_key("clockspeed/data/locate.py", 657)): Disposition(
+        MOVED,
+        "clockspeed/data/locate.py::numeric_account_dirs",
+        "the CS-201 record and its grant read that line as the .isdigit()"
+        " account filter that SELECTS which world to read - true when written,"
+        " where it was the filter inside numeric_account_dirs. The pin's digest"
+        " held a local_config docstring line instead, so it had already rotted"
+        " unexamined. The filter is still the only one in numeric_account_dirs,"
+        " so the enclosing definition names it unambiguously.",
+        ("451d79f6b88b:48d7e1b3576b:0", "8309b6af0abd:1ed63f82bfe2:0"),
+    ),
     # THE ONE THE REPAIR SLICE REFUSED, and the refusal is the strongest
     # evidence in CS-889 for why a wrong-but-resolving pointer is worse than a
     # dead one. The obvious symbol conversion WOULD have resolved: at an earlier
@@ -1110,15 +1137,11 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
 #: :func:`line_key` exists to avoid, arriving by another door.
 UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "clockspeed/data/docs_extract.py", 443): "7d6e8ff5649f",
-    ("docs/LEDGER.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
-    ("docs/LEDGER.md", "clockspeed/data/locate.py", 657): "c0f880c0e553",
     ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46): "82be9ba39f87",
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
     (
         "docs/item_notes/phase4-followups-850.md",
@@ -1448,7 +1471,17 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: so the citation cannot be edited. Right-when-written and dead now, in an append-only
 #: carrier, with a live target - the one row in DISPOSITIONS is RENAMED, pinned by its one
 #: site and checked in all three directions every run. Nothing else is forgiven.
-FORGIVEN_LINE_POINTER_CEILING: Final = 75
+#:
+#: LOWERED TO 73 BY THE CS-454.1 PIN REPAIR - TWO REPAIRS PLUS TWO SWAPS. CS-454.1
+#: grew the redactor in `clockspeed/data/locate.py`, and four pinned sites drifted.
+#: Each frozen line was found again further down, byte-identical, so only the offset
+#: moved. The two in the phase-4 followups leaf took the symbol form outright
+#: (MIN_ACCOUNT_ID_DIGITS and _PATH_SEGMENT_CLASS), so those forgivenesses leave the
+#: books. The two in `docs/LEDGER.md` cannot be repointed where they stand, so they
+#: moved from an unexamined pin to an adjudicated MOVED with a live target - the
+#: CS-910 case, budget-neutral. No digest was re-cut: a pin already shown to follow
+#: the rot is not re-armed to follow it again.
+FORGIVEN_LINE_POINTER_CEILING: Final = 73
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

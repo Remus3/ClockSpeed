@@ -1173,7 +1173,7 @@ A real repo test rendered `assert '<redacted-save>' == '<redacted-save>'` - a di
 sides are byte-identical, and therefore a failure report that cannot be diagnosed at all.
 
 **ROOT CAUSE, AND THIS IS THE DURABLE LESSON.** The segment character class both shape rules
-were built on was borrowed from `clockspeed/data/locate.py:187`, where it is CORRECT, because
+were built on was borrowed from `clockspeed/data/locate.py::_PATH_SEGMENT_CLASS`, where it is CORRECT, because
 that redactor receives PATHS. `redact_personal_data` receives WHOLE FAILURE REPORTS -
 arbitrary prose. A path-segment class is safe on a path and destructive on arbitrary text.
 **TOO NARROW AND TOO GREEDY ARE THE SAME KNOB HERE**: widening the class until it holds a
@@ -1345,7 +1345,7 @@ The save-FILE rule fires. The positional rule is silent. The account id stands i
 between the two. The trailing quote is the closing quote of the `%r` rendering, and the
 leading ellipsis is the elision, not part of the output.
 
-**THE MODULE ALREADY SAYS WHY THIS IS THE FAILURE MODE.** `clockspeed/data/locate.py:141`
+**THE MODULE ALREADY SAYS WHY THIS IS THE FAILURE MODE.** The comment on `clockspeed/data/locate.py::MIN_ACCOUNT_ID_DIGITS`
 records that the position rule exists because only one platform puts digits in that slot -
 Epic writes a hex token, the Microsoft Store a braceless GUID, and a `CLOCKSPEED_ACCOUNT_DIR`
 override whatever the operator typed - and calls keying on digits precisely how a redactor
