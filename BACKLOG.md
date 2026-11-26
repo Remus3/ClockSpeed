@@ -1465,3 +1465,7 @@ one DECISION RECORD in `docs/LEDGER.md`, and the trigger on each line is the rul
 - Below-normal priority for suites, pushes and lane drivers - TRIGGER: a measured suite-caused stall during play (outcome: one runbook sentence, no new item)
 - BACKLOG row: second lane name - TRIGGER: a gap in which the single lane exhausted its scope before the next session, with free RAM above the kit's floor and the run count under the cap; reversed by the operator's own words or a MAIN order
 - Kit runbook text (CS-1231 remaining clause) - TRIGGER: a MAIN kit after v32 lands and CS-1231 unblocks (the runbook text is that row's remaining clause); Rev: the trigger firing, or an adjudicator
+
+## Session 163 residuals - filed 2026-11-25 under product before process
+
+- CS-1441 - CITATION.cff line 36 names only the studio, not the publisher, unlike README.md since CS-1410 - TRIGGER: the next edit to CITATION.cff, or a README-adjacent row that touches the disclaimer wording (an adversary note on the CS-1410 close, outside its acceptance and write list) - Rev: the trigger firing, or an adjudicator
