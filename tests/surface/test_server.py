@@ -76,6 +76,7 @@ from __future__ import annotations
 import ast
 import http.client
 import json
+import secrets
 import socket
 import ssl
 import subprocess
@@ -87,7 +88,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import pytest
 
@@ -677,7 +678,11 @@ def serving_handler(
     context.load_cert_chain(cfg.cert_path, cfg.key_path)
     registered = [probe_route()] if routes_to_serve is None else list(routes_to_serve)
     listener = server.DashboardServer(
-        (config.LOOPBACK, EPHEMERAL), handler_class, server.routing(registered), None
+        (config.LOOPBACK, EPHEMERAL),
+        handler_class,
+        server.routing(registered),
+        None,
+        server.mutating_routes(registered),
     )
     listener.socket = context.wrap_socket(listener.socket, server_side=True)
     thread = threading.Thread(
@@ -3759,3 +3764,186 @@ def test_a_header_borne_credential_does_not_stand_in_for_the_proof(
     reached = len(seen)
     assert refused == pair_count, "a credential header turned a refusal into an answer"
     assert reached == 0, "a credential header reached a mutating handler"
+
+
+#: What the admission decision is documented to read: the proof header and the
+#: fetch-metadata header, DERIVED from the module's own constants so a rename
+#: moves this set with it. Lower-cased, because a header name is case-blind.
+ADMISSION_HEADERS_READ: Final = frozenset(
+    name.lower() for name in (server.MUTATION_PROOF_HEADER, server.FETCH_SITE_HEADER)
+)
+
+#: Extra headers an unproven mutating request carries. None is the proof; each
+#: is spelled the way a client or a proxy might offer something that sounds like
+#: one. A random X- name is added per run, because no list can name them all.
+EXTRA_REQUEST_HEADERS: Final = (
+    ("Proxy-Authorization", "Basic enF4anZhbHVlNjAx"),
+    ("X-Csrf-Token", "zqxjvalue601"),
+    ("X-Clockspeed-Token", "zqxjvalue601"),
+)
+
+
+class RecordingHeaders:
+    """The request headers as the handler sees them, noting every read.
+
+    A lookup by name records that name, lower-cased. Anything that reads names it
+    was not given - iteration, ``keys``, ``items``, a length - records an angle
+    marker, which is in no allowed set, so a scan of every header cannot pass as
+    a read of the proof header alone.
+    """
+
+    def __init__(self, wrapped: Any, reads: list[str]) -> None:
+        """Wrap the real headers; ``reads`` collects the names asked for."""
+        self._wrapped = wrapped
+        self._reads = reads
+
+    def get(self, name: str, default: object = None) -> object:
+        """Record the name, then answer as the real headers do."""
+        self._reads.append(name.lower())
+        return self._wrapped.get(name, default)
+
+    def get_all(self, name: str, default: object = None) -> object:
+        """Record the name, then answer as the real headers do."""
+        self._reads.append(name.lower())
+        return self._wrapped.get_all(name, default)
+
+    def __getitem__(self, name: str) -> object:
+        """Record the name, then answer as the real headers do."""
+        self._reads.append(name.lower())
+        return self._wrapped[name]
+
+    def __contains__(self, name: object) -> bool:
+        """Record the name, then answer as the real headers do."""
+        self._reads.append(str(name).lower())
+        return name in self._wrapped
+
+    def __iter__(self) -> Iterator[str]:
+        """Record a scan of every name, then answer as the real headers do."""
+        self._reads.append("<iter>")
+        return iter(self._wrapped)
+
+    def __len__(self) -> int:
+        """Record a count of every name, then answer as the real headers do."""
+        self._reads.append("<len>")
+        return len(self._wrapped)
+
+    def __getattr__(self, attribute: str) -> object:
+        """Record any other accessor as an angle marker, then delegate."""
+        self._reads.append(f"<{attribute}>")
+        return getattr(self._wrapped, attribute)
+
+
+def recording_handler(
+    decisions: list[tuple[str, ...]], *, also_reads: str | None = None
+) -> type[server.DashboardHandler]:
+    """A handler class that records which header names the admission path reads.
+
+    The window opens when the body has been drained - the framing headers are
+    read before routing and are not part of admission - and closes at the first
+    response, which is where an unproven mutation is refused or admitted.
+
+    Args:
+        decisions: Receives one tuple of lower-cased names per request.
+        also_reads: A header name the planted control reads on top, or None.
+
+    Returns:
+        The handler class.
+    """
+    reads: list[str] = []
+
+    class Recording(server.DashboardHandler):
+        def _drain_body(self) -> bool:
+            drained = super()._drain_body()
+            reads.clear()
+            self.headers = RecordingHeaders(self.headers, reads)  # type: ignore[assignment]
+            return drained
+
+        def _proves_same_origin(self) -> bool:
+            if also_reads is not None:
+                self.headers.get(also_reads)
+            return super()._proves_same_origin()
+
+        def _respond(self, *args: Any, **kwargs: Any) -> None:
+            decisions.append(tuple(reads))
+            super()._respond(*args, **kwargs)
+
+    return Recording
+
+
+def _drive_unproven_mutations(
+    cfg: config.ServerConfig,
+    cert: Path,
+    tmp_path: Path,
+    handler_class: type[server.DashboardHandler],
+) -> tuple[list[int], list[str], int]:
+    """Send each mutating route one unproven request carrying the extra headers.
+
+    Args:
+        cfg: The listener configuration.
+        cert: The certificate to trust.
+        tmp_path: A sandbox for the advice store the route table needs.
+        handler_class: The handler to serve with.
+
+    Returns:
+        The statuses, the templates a handler was reached for, and how many
+        mutating routes were driven.
+    """
+    store = tmp_path / "store"
+    store.mkdir()
+    pairs = sorted(server.mutating_routes(_state_routes(store)))
+    seen: list[str] = []
+    statuses: list[int] = []
+    extra = dict(EXTRA_REQUEST_HEADERS)
+    extra["X-" + secrets.token_hex(8)] = "zqxjvalue601"
+    with serving_handler(cfg, handler_class, _spy_routes(pairs, seen)) as port:
+        for method, template in pairs:
+            status, _headers, _body = request(
+                port, template.replace("<id>", PLAIN_ID), cert, method=method, headers=extra
+            )
+            statuses.append(status)
+    return statuses, seen, len(pairs)
+
+
+def test_admission_reads_only_the_proof_headers_of_an_unproven_mutation(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """CS-1261 clause 2, a structural PIN that no enumeration of headers can be.
+
+    The header pins name the credentials they try, and a header they do not name
+    is not covered. This arm closes that class from the other side: the request
+    headers are wrapped in a recorder, and an unproven mutating request carrying
+    arbitrary extra headers - three named ones and a randomly named one - is
+    asked to be refused having READ NOTHING BUT the names the proof check is
+    documented to read, derived from this module's own constants. Admitting on
+    any other header requires reading it, so it is seen here whatever it is
+    called. Green on the unchanged code; proven live by mutants that admit on a
+    header outside the proof pair, not by a red-first run.
+    """
+    cert, _key = cert_pair
+    decisions: list[tuple[str, ...]] = []
+    statuses, seen, pair_count = _drive_unproven_mutations(
+        cfg, cert, tmp_path, recording_handler(decisions)
+    )
+    names_read = {name for decision in decisions for name in decision}
+    unexpected = len(names_read - ADMISSION_HEADERS_READ)
+    reached = len(seen)
+    refused = sum(1 for status in statuses if status == contract.HTTP_FORBIDDEN)
+    assert pair_count > 0, "the production table registers no mutating route"
+    assert len(decisions) == pair_count, "a request was answered without being recorded"
+    assert unexpected == 0, "admission read a header outside the proof pair"
+    assert server.MUTATION_PROOF_HEADER.lower() in names_read, "the recorder saw no proof read"
+    assert refused == pair_count, "an unproven mutation was not refused"
+    assert reached == 0, "an unproven mutation reached its handler"
+
+
+def test_the_admission_recorder_sees_a_planted_extra_header_read(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """The negative control: a read of an extra header is seen by the recorder."""
+    cert, _key = cert_pair
+    decisions: list[tuple[str, ...]] = []
+    handler = recording_handler(decisions, also_reads="Proxy-Authorization")
+    _drive_unproven_mutations(cfg, cert, tmp_path, handler)
+    names_read = {name for decision in decisions for name in decision}
+    seen_extra = len(names_read - ADMISSION_HEADERS_READ)
+    assert seen_extra > 0, "the recorder cannot see an extra header read, so zero proves nothing"
