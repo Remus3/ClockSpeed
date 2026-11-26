@@ -1097,6 +1097,25 @@ report lists every NEW tracked file by path, no builder writes a bookkeeping fil
 merger-owned file), and the per-wave collision matrix over the filed write-lists is the
 dispatch precondition.
 
+**Landing stamps.** A group's landing slice runs the stamp command of section 2 for every
+new tracked file its builders reported, with the row's own id as the item - the CS id in
+the row's Item cell, less any part number - and commits those manifest rows with the
+landing. Before the group is called landed, the landing slice runs this census set in the
+main checkout, with the .venv interpreter and no whole suite running
+(`ops/fleet_kit/fleet_suite_gate.py status` shows none for this tree):
+`tests/test_provenance_manifest.py`, `tests/test_docs_citations.py`,
+`tests/test_sphinx_roles.py`, `tests/test_repr_rendering.py`,
+`tests/test_locals_rendering.py`, `tests/test_exception_rendering.py`,
+`tests/test_handler_exception_rendering.py`, `tests/test_assertion_rendering.py`,
+`tests/test_liveness.py`, `tests/test_hook_env_echo.py`,
+`tests/save/test_reference_resolution.py`, `tests/save/test_struct_interior.py` and
+`tests/save/test_reach_guard.py`, then bare `python -m mypy`, `ruff check .` and
+`ruff format --check .`; every test passes and the three commands exit 0. The commit
+subject length is graded by the commit-msg hook on each landing commit, not by this set.
+The wave-end ledger record carries two lines directly below its EXIT RECORD block and
+outside it, so the block's key list is unchanged: `pushes blocked by the provenance census: <n>`
+(target 0) and `briefs carrying the standing lines unchanged: B of B` (both counting briefs).
+
 ### 10.9 Shared documents: ADR numbers, the doctrine and the specification
 
 Three kinds of text are written by more than one slice and so have one route each. This
