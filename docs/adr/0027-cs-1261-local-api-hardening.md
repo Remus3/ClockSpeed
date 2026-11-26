@@ -8,9 +8,9 @@ Written under CS-1261, whose acceptance is one sentence of four clauses: binding
 non-loopback address without an explicit local flag fails fast; no query-string token is
 accepted; refusal reasons are logged server-side and the caller gets a generic refusal; two
 generated certs differ in subject. This ADR records the four decisions that closed them and
-the fence around each. It records nothing else: the slice-0 measurements and the token
-protocol are NOT recorded here, because they were never measured and a figure written here
-would be a guess.
+the fence around each. It records nothing else. In particular it holds no token
+protocol and no measurement of one, because none was taken and a figure written here would
+be a guess.
 
 ## Context
 
@@ -71,8 +71,9 @@ place: the `BACKLOG.md` row for a per-start token. This ADR points at that row a
 not restate it.
 
 **3. The certificate subject is minted per generation.** The subject is the fixed prefix
-`/CN=clockspeed-local-` followed by 32 hexadecimal characters from `secrets.token_hex(16)`,
-49 characters in all and under the 64 an X.509 common name may carry. It is drawn from
+`/CN=clockspeed-local-` followed by 32 hexadecimal characters from `secrets.token_hex(16)`.
+The common name that results is well under the 64 characters an X.509 common name may
+carry. It is drawn from
 `secrets` and from nothing else, so it carries no machine, account or user name and
 depends on no environment value. The subject alternative name, which is the load-bearing
 name a client verifies, is unchanged. Varying the subject is safe because the shell pins

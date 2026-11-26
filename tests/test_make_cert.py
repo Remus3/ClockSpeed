@@ -69,6 +69,7 @@ import ssl
 import subprocess
 import sys
 import threading
+import types
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -406,6 +407,53 @@ def test_the_subject_holds_no_account_machine_or_home_name(
     leaked = sum(subject.count(value) for value in planted)
     assert subject != "", "the render carries no subject, so a zero count proves nothing"
     assert leaked == 0, "the subject carries a planted identity value"
+
+
+#: A sentinel no entropy source would return, so a subject built from anything
+#: but the patched ``secrets.token_hex`` cannot carry it by chance.
+TOKEN_SENTINEL = "0123456789abcdef" * 2
+
+
+def test_the_subject_tail_is_secrets_token_hex_used_once_and_verbatim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-1261 clause 4, a structural PIN on the entropy source.
+
+    No value test can tell ``secrets`` from ``random``: both give 32 hex
+    characters that differ between calls. So the lookup is replaced WHERE
+    ``mint_subject`` makes it - the ``secrets`` name in ``make_cert`` - with a
+    recording spy, and the arm asks for exactly one call with 16 bytes and for
+    the return value used verbatim. Green on the unchanged code; proven live by
+    a mutant that draws the tail from ``random`` instead.
+    """
+    calls: list[int] = []
+
+    def spy(nbytes: int) -> str:
+        calls.append(nbytes)
+        return TOKEN_SENTINEL
+
+    monkeypatch.setattr(make_cert, "secrets", types.SimpleNamespace(token_hex=spy))
+    subject = make_cert.mint_subject()
+
+    assert calls == [16]
+    assert subject == make_cert.CERT_SUBJECT_PREFIX + TOKEN_SENTINEL
+
+
+def test_the_rendered_command_takes_its_subject_from_one_mint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The argv carries the minted subject verbatim, drawn once per render."""
+    calls: list[int] = []
+
+    def spy(nbytes: int) -> str:
+        calls.append(nbytes)
+        return TOKEN_SENTINEL
+
+    monkeypatch.setattr(make_cert, "secrets", types.SimpleNamespace(token_hex=spy))
+    argv = make_cert.cert_argv(CERT_STUB, KEY_STUB)
+
+    assert calls == [16]
+    assert _subject_of(argv) == make_cert.CERT_SUBJECT_PREFIX + TOKEN_SENTINEL
 
 
 def _subject_read_back(cert_path: Path) -> str:

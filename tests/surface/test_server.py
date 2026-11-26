@@ -3660,8 +3660,9 @@ def test_a_query_string_token_does_not_stand_in_for_the_proof(
     """CS-1261 clause 2, a PIN: no credential exists, so none can be admitted.
 
     Every mutating route the dashboard registers is asked, unproven, with a
-    token in the query. Each is the 403 and none reaches its handler. Proven
-    live by a mutant, not by a red-first run: see the CS-1261 ledger entry.
+    token in the query. Each is the 403 and none reaches its handler. Green on
+    the unchanged code, so it was proven live by a mutant per key that admits
+    that key alone, not by a red-first run.
     """
     cert, _key = cert_pair
     store = tmp_path / "store"
@@ -3702,3 +3703,59 @@ def test_the_token_pin_control_reaches_the_spy_when_the_proof_is_sent(
             )
     reached = len(seen)
     assert reached == len(pairs), "the spy is not reachable, so the pin above proves nothing"
+
+
+#: Header-borne credentials a caller might offer in place of the proof. Each is
+#: a synthetic placeholder, and each is spelled the way a client really sends
+#: one. None may stand in for ``X-Clockspeed-Request`` (CS-1261 clause 2).
+CREDENTIAL_HEADERS: Final[tuple[tuple[str, str], ...]] = (
+    ("Authorization", "Bearer zqxjvalue601"),
+    ("Authorization", "Basic enF4anZhbHVlNjAx"),
+    ("X-Token", "zqxjvalue601"),
+    ("X-Api-Key", "zqxjvalue601"),
+    ("X-Auth-Token", "zqxjvalue601"),
+    ("Cookie", "session=zqxjvalue601"),
+)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    CREDENTIAL_HEADERS,
+    ids=[f"{name}-{index}" for index, (name, _value) in enumerate(CREDENTIAL_HEADERS)],
+)
+def test_a_header_borne_credential_does_not_stand_in_for_the_proof(
+    cfg: config.ServerConfig,
+    cert_pair: tuple[Path, Path],
+    tmp_path: Path,
+    name: str,
+    value: str,
+) -> None:
+    """CS-1261 clause 2, a PIN: no header credential admits a mutation either.
+
+    Every mutating route, asked with the credential header and WITHOUT the
+    proof, answers the 403 and never reaches its handler. Green on the unchanged
+    code, so it was proven live by a mutant per header that admits a mutation
+    when that header is present, not by a red-first run.
+    """
+    cert, _key = cert_pair
+    store = tmp_path / "store"
+    store.mkdir()
+    pairs = sorted(server.mutating_routes(_state_routes(store)))
+    pair_count = len(pairs)
+    assert pair_count > 0, "the production table registers no mutating route"
+    seen: list[str] = []
+    statuses: list[int] = []
+    with server.serve(cfg, _spy_routes(pairs, seen)) as running:
+        for method, template in pairs:
+            status, _headers, _body = request(
+                running.server_address[1],
+                template.replace("<id>", PLAIN_ID),
+                cert,
+                method=method,
+                headers={name: value},
+            )
+            statuses.append(status)
+    refused = sum(1 for status in statuses if status == contract.HTTP_FORBIDDEN)
+    reached = len(seen)
+    assert refused == pair_count, "a credential header turned a refusal into an answer"
+    assert reached == 0, "a credential header reached a mutating handler"
