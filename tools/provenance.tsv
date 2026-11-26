@@ -169,6 +169,7 @@ docs/adr/0023-whether-a-filename-is-personal-data.md	authored	CS-1158	stamped
 docs/adr/0024-the-credential-scan-population-boundary.md	authored	CS-1168	stamped
 docs/adr/0025-the-tier-3-flip-checks-run-locally.md	authored	CS-1183	stamped
 docs/adr/0026-the-root-moves-to-e.md	authored	CS-1275	stamped
+docs/adr/0027-cs-1261-local-api-hardening.md	authored	CS-1261	stamped
 docs/adr/README.md	authored	CS-1165	first-add:root
 docs/assets/dashboard.png	authored	CS-1292	stamped
 docs/assets/social-preview.png	authored	CS-1292	stamped
